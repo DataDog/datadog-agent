@@ -7,6 +7,6 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/log",
-        "@com_github_gosnmp_gosnmp//:go_default_library",
+        "@com_github_gosnmp_gosnmp//:gosnmp",
     ],
 )

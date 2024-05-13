@@ -28,7 +28,7 @@ go_test(
         "//pkg/collector/corechecks/snmp/internal/checkconfig",
         "//pkg/collector/corechecks/snmp/internal/session",
         "//pkg/config",
-        "@com_github_gosnmp_gosnmp//:go_default_library",
-        "@com_github_stretchr_testify//assert:go_default_library",
+        "@com_github_gosnmp_gosnmp//:gosnmp",
+        "@com_github_stretchr_testify//assert",
     ],
 )

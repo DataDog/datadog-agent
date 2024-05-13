@@ -13,9 +13,9 @@ go_library(
         "//pkg/util",
         "//pkg/util/log",
         "//pkg/util/retry",
-        "@org_cloudfoundry_code_garden//:go_default_library",
-        "@org_cloudfoundry_code_garden//client:go_default_library",
-        "@org_cloudfoundry_code_garden//client/connection:go_default_library",
+        "@org_cloudfoundry_code_garden//:garden",
+        "@org_cloudfoundry_code_garden//client",
+        "@org_cloudfoundry_code_garden//client/connection",
     ],
 )
 
@@ -29,8 +29,8 @@ go_test(
     deps = [
         "//pkg/config",
         "//pkg/util",
-        "@com_github_stretchr_testify//assert:go_default_library",
-        "@org_cloudfoundry_code_garden//:go_default_library",
-        "@org_cloudfoundry_code_garden//gardenfakes:go_default_library",
+        "@com_github_stretchr_testify//assert",
+        "@org_cloudfoundry_code_garden//:garden",
+        "@org_cloudfoundry_code_garden//gardenfakes",
     ],
 )

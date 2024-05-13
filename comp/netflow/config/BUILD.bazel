@@ -15,7 +15,7 @@ go_library(
         "//comp/netflow/common",
         "//pkg/snmp/utils",
         "//pkg/util/fxutil",
-        "@org_uber_go_fx//:go_default_library",
+        "@org_uber_go_fx//:fx",
     ],
 )
 
@@ -29,7 +29,7 @@ go_test(
         "//comp/netflow/common",
         "//pkg/config",
         "//pkg/util/fxutil",
-        "@com_github_stretchr_testify//assert:go_default_library",
-        "@com_github_stretchr_testify//require:go_default_library",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
     ],
 )

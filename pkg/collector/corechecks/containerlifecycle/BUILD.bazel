@@ -24,8 +24,8 @@ go_library(
         "//pkg/util/hostname",
         "//pkg/util/log",
         "//pkg/util/optional",
-        "@com_github_datadog_agent_payload_v5//contlcycle:go_default_library",
-        "@in_gopkg_yaml_v2//:go_default_library",
+        "@com_github_datadog_agent_payload_v5//contlcycle",
+        "@in_gopkg_yaml_v2//:yaml_v2",
         "@org_golang_google_protobuf//proto",
     ],
 )
@@ -41,8 +41,8 @@ go_test(
         "//comp/core/workloadmeta",
         "//pkg/collector/check/id",
         "//pkg/util/hostname",
-        "@com_github_datadog_agent_payload_v5//contlcycle:go_default_library",
-        "@com_github_stretchr_testify//assert:go_default_library",
-        "@com_github_stretchr_testify//mock:go_default_library",
+        "@com_github_datadog_agent_payload_v5//contlcycle",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//mock",
     ],
 )

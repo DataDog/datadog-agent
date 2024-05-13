@@ -16,7 +16,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/util/sort",
-        "@com_github_twmb_murmur3//:go_default_library",
+        "@com_github_twmb_murmur3//:murmur3",
     ],
 )
 
@@ -31,7 +31,7 @@ go_test(
     ],
     embed = [":tagset"],
     deps = [
-        "@com_github_stretchr_testify//assert:go_default_library",
-        "@com_github_twmb_murmur3//:go_default_library",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_twmb_murmur3//:murmur3",
     ],
 )

@@ -62,11 +62,11 @@ go_library(
         "//pkg/util/log",
         "//pkg/util/optional",
         "//pkg/version",
-        "@com_github_cyphar_filepath_securejoin//:go_default_library",
-        "@com_github_gorilla_mux//:go_default_library",
-        "@com_github_urfave_negroni//:go_default_library",
-        "@in_gopkg_yaml_v2//:go_default_library",
-        "@org_uber_go_fx//:go_default_library",
+        "@com_github_cyphar_filepath_securejoin//:filepath-securejoin",
+        "@com_github_gorilla_mux//:mux",
+        "@com_github_urfave_negroni//:negroni",
+        "@in_gopkg_yaml_v2//:yaml_v2",
+        "@org_uber_go_fx//:fx",
     ] + select({
         "@rules_go//go/platform:windows": [
             "//pkg/util/executable",
@@ -86,8 +86,8 @@ go_test(
     deps = [
         "//comp/core/config",
         "//pkg/util/fxutil",
-        "@com_github_gorilla_mux//:go_default_library",
-        "@com_github_stretchr_testify//assert:go_default_library",
-        "@com_github_stretchr_testify//require:go_default_library",
+        "@com_github_gorilla_mux//:mux",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
     ],
 )

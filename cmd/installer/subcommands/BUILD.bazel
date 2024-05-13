@@ -10,6 +10,6 @@ go_library(
         "//cmd/installer/subcommands/daemon",
         "//cmd/installer/subcommands/installer",
         "//cmd/installer/user",
-        "@com_github_spf13_cobra//:go_default_library",
+        "@com_github_spf13_cobra//:cobra",
     ],
 )

@@ -22,5 +22,5 @@ go_test(
     name = "pidfile_test",
     srcs = ["pidfile_test.go"],
     embed = [":pidfile"],
-    deps = ["@com_github_stretchr_testify//assert:go_default_library"],
+    deps = ["@com_github_stretchr_testify//assert"],
 )

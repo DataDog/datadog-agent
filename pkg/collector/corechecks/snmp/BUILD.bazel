@@ -19,7 +19,7 @@ go_library(
         "//pkg/diagnose/diagnosis",
         "//pkg/util/log",
         "//pkg/util/optional",
-        "@org_uber_go_atomic//:go_default_library",
+        "@org_uber_go_atomic//:atomic",
     ],
 )
 
@@ -56,10 +56,10 @@ go_test(
         "//pkg/util/cache",
         "//pkg/util/fxutil",
         "//pkg/version",
-        "@com_github_gosnmp_gosnmp//:go_default_library",
-        "@com_github_stretchr_testify//assert:go_default_library",
-        "@com_github_stretchr_testify//mock:go_default_library",
-        "@org_uber_go_atomic//:go_default_library",
-        "@org_uber_go_fx//:go_default_library",
+        "@com_github_gosnmp_gosnmp//:gosnmp",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//mock",
+        "@org_uber_go_atomic//:atomic",
+        "@org_uber_go_fx//:fx",
     ],
 )

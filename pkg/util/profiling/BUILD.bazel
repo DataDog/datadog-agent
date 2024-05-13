@@ -11,7 +11,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/util/log",
-        "@in_gopkg_datadog_dd_trace_go_v1//profiler:go_default_library",
+        "@in_gopkg_datadog_dd_trace_go_v1//profiler",
     ],
 )
 
@@ -19,5 +19,5 @@ go_test(
     name = "profiling_test",
     srcs = ["profiling_test.go"],
     embed = [":profiling"],
-    deps = ["@com_github_stretchr_testify//assert:go_default_library"],
+    deps = ["@com_github_stretchr_testify//assert"],
 )

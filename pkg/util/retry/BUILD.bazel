@@ -19,7 +19,7 @@ go_test(
     ],
     embed = [":retry"],
     deps = [
-        "@com_github_stretchr_testify//assert:go_default_library",
-        "@com_github_stretchr_testify//mock:go_default_library",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//mock",
     ],
 )

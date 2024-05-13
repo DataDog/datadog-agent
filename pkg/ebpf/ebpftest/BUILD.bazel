@@ -19,21 +19,21 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/util/log",
-        "@com_github_cihub_seelog//:go_default_library",
+        "@com_github_cihub_seelog//:seelog",
     ] + select({
         "@rules_go//go/platform:android": [
             "//pkg/util/funcs",
             "//pkg/util/kernel",
-            "@com_github_cilium_ebpf//rlimit:go_default_library",
-            "@com_github_datadog_ebpf_manager//tracefs:go_default_library",
-            "@com_github_stretchr_testify//require:go_default_library",
+            "@com_github_cilium_ebpf//rlimit",
+            "@com_github_datadog_ebpf_manager//tracefs",
+            "@com_github_stretchr_testify//require",
         ],
         "@rules_go//go/platform:linux": [
             "//pkg/util/funcs",
             "//pkg/util/kernel",
-            "@com_github_cilium_ebpf//rlimit:go_default_library",
-            "@com_github_datadog_ebpf_manager//tracefs:go_default_library",
-            "@com_github_stretchr_testify//require:go_default_library",
+            "@com_github_cilium_ebpf//rlimit",
+            "@com_github_datadog_ebpf_manager//tracefs",
+            "@com_github_stretchr_testify//require",
         ],
         "//conditions:default": [],
     }),

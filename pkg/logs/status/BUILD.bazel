@@ -15,7 +15,7 @@ go_library(
         "//pkg/logs/status/utils",
         "//pkg/logs/tailers",
         "//pkg/util",
-        "@org_uber_go_atomic//:go_default_library",
+        "@org_uber_go_atomic//:atomic",
     ],
 )
 
@@ -29,6 +29,6 @@ go_test(
         "//pkg/logs/metrics",
         "//pkg/logs/sources",
         "//pkg/logs/util/testutils",
-        "@com_github_stretchr_testify//assert:go_default_library",
+        "@com_github_stretchr_testify//assert",
     ],
 )

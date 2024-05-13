@@ -10,9 +10,9 @@ go_library(
         "//pkg/fleet/bootstraper",
         "//pkg/fleet/installer",
         "//pkg/fleet/telemetry",
-        "@com_github_spf13_cobra//:go_default_library",
-        "@in_gopkg_datadog_dd_trace_go_v1//ddtrace:go_default_library",
-        "@in_gopkg_datadog_dd_trace_go_v1//ddtrace/tracer:go_default_library",
+        "@com_github_spf13_cobra//:cobra",
+        "@in_gopkg_datadog_dd_trace_go_v1//ddtrace",
+        "@in_gopkg_datadog_dd_trace_go_v1//ddtrace/tracer",
     ],
 )
 

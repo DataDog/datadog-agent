@@ -16,8 +16,8 @@ go_library(
         "//comp/snmptraps/packet",
         "//pkg/aggregator/sender",
         "//pkg/util/fxutil",
-        "@com_github_gosnmp_gosnmp//:go_default_library",
-        "@org_uber_go_fx//:go_default_library",
+        "@com_github_gosnmp_gosnmp//:gosnmp",
+        "@org_uber_go_fx//:fx",
     ],
 )
 
@@ -37,9 +37,9 @@ go_test(
         "//comp/snmptraps/packet",
         "//pkg/util/fxutil",
         "@com_github_google_go_cmp//cmp",
-        "@com_github_gosnmp_gosnmp//:go_default_library",
-        "@com_github_stretchr_testify//assert:go_default_library",
-        "@com_github_stretchr_testify//require:go_default_library",
-        "@org_uber_go_fx//:go_default_library",
+        "@com_github_gosnmp_gosnmp//:gosnmp",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@org_uber_go_fx//:fx",
     ],
 )

@@ -11,5 +11,5 @@ go_test(
     name = "errors_test",
     srcs = ["errors_test.go"],
     embed = [":errors"],
-    deps = ["@com_github_stretchr_testify//assert:go_default_library"],
+    deps = ["@com_github_stretchr_testify//assert"],
 )

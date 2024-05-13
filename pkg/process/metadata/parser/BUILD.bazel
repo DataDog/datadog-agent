@@ -16,13 +16,13 @@ go_library(
         "//pkg/process/metadata/parser/nodejs",
         "//pkg/process/procutil",
         "//pkg/util/log",
-        "@com_github_cihub_seelog//:go_default_library",
-        "@com_github_datadog_agent_payload_v5//process:go_default_library",
-        "@com_github_masterminds_semver//:go_default_library",
+        "@com_github_cihub_seelog//:seelog",
+        "@com_github_datadog_agent_payload_v5//process",
+        "@com_github_masterminds_semver//:semver",
     ] + select({
         "@rules_go//go/platform:windows": [
             "//pkg/util/winutil",
-            "@com_github_stretchr_testify//mock:go_default_library",
+            "@com_github_stretchr_testify//mock",
         ],
         "//conditions:default": [],
     }),
@@ -38,14 +38,14 @@ go_test(
     embed = [":parser"],
     deps = [
         "//pkg/process/procutil",
-        "@com_github_datadog_agent_payload_v5//process:go_default_library",
-        "@com_github_stretchr_testify//assert:go_default_library",
-        "@com_github_stretchr_testify//require:go_default_library",
+        "@com_github_datadog_agent_payload_v5//process",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
     ] + select({
         "@rules_go//go/platform:windows": [
             "//pkg/config",
             "//pkg/util/winutil",
-            "@com_github_stretchr_testify//mock:go_default_library",
+            "@com_github_stretchr_testify//mock",
         ],
         "//conditions:default": [],
     }),

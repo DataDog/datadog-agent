@@ -9,6 +9,6 @@ go_library(
         "//cmd/agent/command",
         "//cmd/agent/common",
         "//pkg/cli/subcommands/config",
-        "@com_github_spf13_cobra//:go_default_library",
+        "@com_github_spf13_cobra//:cobra",
     ],
 )

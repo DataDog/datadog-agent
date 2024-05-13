@@ -37,13 +37,13 @@ go_test(
     data = glob(["testdata/**"]),
     embed = [":ebpf"],
     deps = [
-        "@com_github_stretchr_testify//assert:go_default_library",
+        "@com_github_stretchr_testify//assert",
     ] + select({
         "@rules_go//go/platform:android": [
-            "@com_github_stretchr_testify//require:go_default_library",
+            "@com_github_stretchr_testify//require",
         ],
         "@rules_go//go/platform:linux": [
-            "@com_github_stretchr_testify//require:go_default_library",
+            "@com_github_stretchr_testify//require",
         ],
         "//conditions:default": [],
     }),

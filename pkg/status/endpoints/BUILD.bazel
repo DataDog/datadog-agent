@@ -20,5 +20,5 @@ go_test(
     name = "endpoints_test",
     srcs = ["status_test.go"],
     embed = [":endpoints"],
-    deps = ["@com_github_stretchr_testify//assert:go_default_library"],
+    deps = ["@com_github_stretchr_testify//assert"],
 )

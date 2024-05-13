@@ -13,7 +13,7 @@ go_library(
         "//pkg/util/clusteragent",
         "//pkg/util/json",
         "//pkg/util/log",
-        "@org_uber_go_fx//:go_default_library",
+        "@org_uber_go_fx//:fx",
     ],
 )
 
@@ -29,9 +29,9 @@ go_test(
         "//pkg/proto/pbgo/process",
         "//pkg/util/fxutil",
         "//pkg/version",
-        "@com_github_stretchr_testify//assert:go_default_library",
-        "@org_cloudfoundry_code_garden//:go_default_library",
-        "@org_cloudfoundry_code_garden//gardenfakes:go_default_library",
-        "@org_uber_go_fx//:go_default_library",
+        "@com_github_stretchr_testify//assert",
+        "@org_cloudfoundry_code_garden//:garden",
+        "@org_cloudfoundry_code_garden//gardenfakes",
+        "@org_uber_go_fx//:fx",
     ],
 )

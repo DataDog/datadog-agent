@@ -20,7 +20,7 @@ go_library(
         "//pkg/config/setup",
         "//pkg/config/utils",
         "//pkg/util/log",
-        "@com_github_datadog_viper//:go_default_library",
+        "@com_github_datadog_viper//:viper",
     ],
 )
 
@@ -43,8 +43,8 @@ go_test(
         "//pkg/config/utils",
         "//pkg/util/fxutil",
         "//pkg/util/pointer",
-        "@com_github_stretchr_testify//assert:go_default_library",
-        "@com_github_stretchr_testify//suite:go_default_library",
-        "@org_uber_go_fx//:go_default_library",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//suite",
+        "@org_uber_go_fx//:fx",
     ],
 )

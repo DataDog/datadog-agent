@@ -13,6 +13,6 @@ go_test(
         "//test/new-e2e/tests/windows/common/agent",
         "//test/new-e2e/tests/windows/install-test",
         "@com_github_datadog_test_infra_definitions//components/activedirectory:go_default_library",
-        "@com_github_stretchr_testify//assert:go_default_library",
+        "@com_github_stretchr_testify//assert",
     ],
 )

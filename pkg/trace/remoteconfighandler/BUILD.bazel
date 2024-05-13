@@ -15,8 +15,8 @@ go_library(
         "//pkg/trace/config",
         "//pkg/trace/log",
         "//pkg/util/log",
-        "@com_github_cihub_seelog//:go_default_library",
-        "@com_github_davecgh_go_spew//spew:go_default_library",
+        "@com_github_cihub_seelog//:seelog",
+        "@com_github_davecgh_go_spew//spew",
         "@com_github_golang_mock//gomock",
     ],
 )
@@ -31,8 +31,8 @@ go_test(
         "//pkg/trace/config",
         "//pkg/util/log",
         "//pkg/util/pointer",
-        "@com_github_cihub_seelog//:go_default_library",
+        "@com_github_cihub_seelog//:seelog",
         "@com_github_golang_mock//gomock",
-        "@com_github_stretchr_testify//assert:go_default_library",
+        "@com_github_stretchr_testify//assert",
     ],
 )

@@ -27,7 +27,6 @@ go_library(
         "//comp/core/log",
         "//comp/core/status",
         "//comp/forwarder/defaultforwarder/endpoints",
-        "//comp/forwarder/defaultforwarder/internal/retry",
         "//comp/forwarder/defaultforwarder/resolver",
         "//comp/forwarder/defaultforwarder/transaction",
         "//pkg/config/setup",
@@ -41,8 +40,8 @@ go_library(
         "//pkg/util/http",
         "//pkg/util/scrubber",
         "//pkg/version",
-        "@org_uber_go_atomic//:go_default_library",
-        "@org_uber_go_fx//:go_default_library",
+        "@org_uber_go_atomic//:atomic",
+        "@org_uber_go_fx//:fx",
     ],
 )
 
@@ -69,9 +68,9 @@ go_test(
         "//pkg/util/backoff",
         "//pkg/util/fxutil",
         "//pkg/version",
-        "@com_github_stretchr_testify//assert:go_default_library",
-        "@com_github_stretchr_testify//require:go_default_library",
-        "@org_uber_go_atomic//:go_default_library",
-        "@org_uber_go_fx//:go_default_library",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@org_uber_go_atomic//:atomic",
+        "@org_uber_go_fx//:fx",
     ],
 )

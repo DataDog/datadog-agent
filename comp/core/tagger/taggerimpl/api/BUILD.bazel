@@ -8,6 +8,6 @@ go_library(
     deps = [
         "//comp/core/tagger/types",
         "//pkg/api/util",
-        "@com_github_fatih_color//:go_default_library",
+        "@com_github_fatih_color//:color",
     ],
 )

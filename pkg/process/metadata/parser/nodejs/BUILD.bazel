@@ -12,5 +12,5 @@ go_test(
     name = "nodejs_test",
     srcs = ["nodejs_test.go"],
     embed = [":nodejs"],
-    deps = ["@com_github_stretchr_testify//assert:go_default_library"],
+    deps = ["@com_github_stretchr_testify//assert"],
 )

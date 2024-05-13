@@ -27,6 +27,6 @@ go_test(
     embed = [":cloudservice"],
     deps = [
         "//cmd/serverless-init/cloudservice/helper",
-        "@com_github_stretchr_testify//assert:go_default_library",
+        "@com_github_stretchr_testify//assert",
     ],
 )

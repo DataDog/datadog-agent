@@ -14,8 +14,8 @@ go_library(
         "//comp/core/log",
         "//pkg/util/common",
         "//pkg/util/fxutil",
-        "@com_github_shirou_gopsutil_v3//process:go_default_library",
-        "@org_uber_go_fx//:go_default_library",
+        "@com_github_shirou_gopsutil_v3//process",
+        "@org_uber_go_fx//:fx",
     ],
 )
 
@@ -27,6 +27,6 @@ go_test(
         "//comp/core/log",
         "//comp/core/log/logimpl",
         "//pkg/util/fxutil",
-        "@com_github_stretchr_testify//require:go_default_library",
+        "@com_github_stretchr_testify//require",
     ],
 )

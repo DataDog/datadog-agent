@@ -12,8 +12,8 @@ go_library(
         "//pkg/config",
         "//pkg/snmp/gosnmplib",
         "//pkg/snmp/snmpintegration",
-        "@com_github_datadog_viper//:go_default_library",
-        "@com_github_gosnmp_gosnmp//:go_default_library",
+        "@com_github_datadog_viper//:viper",
+        "@com_github_gosnmp_gosnmp//:gosnmp",
     ],
 )
 
@@ -24,7 +24,7 @@ go_test(
     deps = [
         "//pkg/config",
         "//pkg/snmp/snmpintegration",
-        "@com_github_gosnmp_gosnmp//:go_default_library",
-        "@com_github_stretchr_testify//assert:go_default_library",
+        "@com_github_gosnmp_gosnmp//:gosnmp",
+        "@com_github_stretchr_testify//assert",
     ],
 )

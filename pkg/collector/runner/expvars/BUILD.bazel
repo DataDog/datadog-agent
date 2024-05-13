@@ -29,7 +29,7 @@ go_test(
         "//pkg/collector/check/id",
         "//pkg/collector/check/stats",
         "//pkg/collector/check/stub",
-        "@com_github_stretchr_testify//assert:go_default_library",
-        "@com_github_stretchr_testify//require:go_default_library",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
     ],
 )

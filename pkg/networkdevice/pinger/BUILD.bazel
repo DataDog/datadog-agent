@@ -14,7 +14,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/util/log",
-        "@com_github_prometheus_community_pro_bing//:go_default_library",
+        "@com_github_prometheus_community_pro_bing//:pro-bing",
     ] + select({
         "@rules_go//go/platform:android": [
             "//pkg/config",

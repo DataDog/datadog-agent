@@ -17,7 +17,7 @@ go_library(
         "//pkg/config/model",
         "//pkg/util/log",
         "//pkg/util/scrubber",
-        "@com_github_cihub_seelog//:go_default_library",
+        "@com_github_cihub_seelog//:seelog",
     ],
 )
 
@@ -32,7 +32,7 @@ go_test(
         "//pkg/config/logs/internal/seelog",
         "//pkg/config/model",
         "//pkg/util/scrubber",
-        "@com_github_cihub_seelog//:go_default_library",
-        "@com_github_stretchr_testify//assert:go_default_library",
+        "@com_github_cihub_seelog//:seelog",
+        "@com_github_stretchr_testify//assert",
     ],
 )

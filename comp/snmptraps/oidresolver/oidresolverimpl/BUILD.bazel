@@ -13,8 +13,8 @@ go_library(
         "//comp/core/log",
         "//comp/snmptraps/oidresolver",
         "//pkg/util/fxutil",
-        "@in_gopkg_yaml_v2//:go_default_library",
-        "@org_uber_go_fx//:go_default_library",
+        "@in_gopkg_yaml_v2//:yaml_v2",
+        "@org_uber_go_fx//:fx",
     ],
 )
 
@@ -27,7 +27,7 @@ go_test(
         "//comp/core/log/logimpl",
         "//comp/snmptraps/oidresolver",
         "//pkg/util/fxutil",
-        "@com_github_stretchr_testify//require:go_default_library",
-        "@in_gopkg_yaml_v2//:go_default_library",
+        "@com_github_stretchr_testify//require",
+        "@in_gopkg_yaml_v2//:yaml_v2",
     ],
 )

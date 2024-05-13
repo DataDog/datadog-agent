@@ -22,9 +22,9 @@ go_test(
         "//pkg/network/protocols/kafka",
         "//pkg/network/protocols/telemetry",
         "//pkg/process/util",
-        "@com_github_datadog_agent_payload_v5//process:go_default_library",
+        "@com_github_datadog_agent_payload_v5//process",
         "@com_github_golang_protobuf//proto:go_default_library",
-        "@com_github_stretchr_testify//assert:go_default_library",
-        "@com_github_stretchr_testify//require:go_default_library",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
     ],
 )

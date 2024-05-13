@@ -26,7 +26,7 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace",
     visibility = ["//visibility:public"],
     deps = [
-        "@com_github_tinylib_msgp//msgp:go_default_library",
+        "@com_github_tinylib_msgp//msgp",
         "@org_golang_google_protobuf//reflect/protoreflect",
         "@org_golang_google_protobuf//runtime/protoimpl",
     ],
@@ -50,9 +50,9 @@ go_test(
     ],
     embed = [":trace"],
     deps = [
-        "@com_github_google_gofuzz//:go_default_library",
-        "@com_github_stretchr_testify//assert:go_default_library",
-        "@com_github_tinylib_msgp//msgp:go_default_library",
-        "@com_github_vmihailenco_msgpack_v4//:go_default_library",
+        "@com_github_google_gofuzz//:gofuzz",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_tinylib_msgp//msgp",
+        "@com_github_vmihailenco_msgpack_v4//:msgpack",
     ],
 )

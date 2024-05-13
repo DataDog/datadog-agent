@@ -12,7 +12,7 @@ go_library(
         "//pkg/collector/corechecks",
         "//pkg/util/log",
         "//pkg/util/optional",
-        "@com_github_prometheus_client_model//go:go_default_library",
+        "@com_github_prometheus_client_model//go",
     ],
 )
 
@@ -23,7 +23,7 @@ go_test(
     deps = [
         "//comp/core/autodiscovery/integration",
         "//pkg/collector/corechecks",
-        "@com_github_prometheus_client_golang//prometheus:go_default_library",
-        "@com_github_stretchr_testify//require:go_default_library",
+        "@com_github_prometheus_client_golang//prometheus",
+        "@com_github_stretchr_testify//require",
     ],
 )

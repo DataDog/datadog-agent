@@ -27,7 +27,7 @@ go_library(
         "//pkg/logs/status/utils",
         "//pkg/telemetry",
         "//pkg/util/log",
-        "@com_github_benbjohnson_clock//:go_default_library",
+        "@com_github_benbjohnson_clock//:clock",
     ],
 )
 
@@ -53,7 +53,7 @@ go_test(
         "//pkg/logs/message",
         "//pkg/logs/sources",
         "//pkg/logs/status/utils",
-        "@com_github_benbjohnson_clock//:go_default_library",
-        "@com_github_stretchr_testify//assert:go_default_library",
+        "@com_github_benbjohnson_clock//:clock",
+        "@com_github_stretchr_testify//assert",
     ],
 )

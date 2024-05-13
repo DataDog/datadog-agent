@@ -12,8 +12,8 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/util/scrubber",
-        "@com_github_cihub_seelog//:go_default_library",
-        "@org_uber_go_atomic//:go_default_library",
+        "@com_github_cihub_seelog//:seelog",
+        "@org_uber_go_atomic//:atomic",
     ],
 )
 
@@ -28,9 +28,9 @@ go_test(
     embed = [":log"],
     deps = [
         "//pkg/util/scrubber",
-        "@com_github_cihub_seelog//:go_default_library",
-        "@com_github_stretchr_testify//assert:go_default_library",
-        "@com_github_stretchr_testify//require:go_default_library",
-        "@org_uber_go_atomic//:go_default_library",
+        "@com_github_cihub_seelog//:seelog",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@org_uber_go_atomic//:atomic",
     ],
 )

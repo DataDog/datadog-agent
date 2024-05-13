@@ -15,5 +15,5 @@ go_test(
     name = "service_test",
     srcs = ["services_test.go"],
     embed = [":service"],
-    deps = ["@com_github_stretchr_testify//assert:go_default_library"],
+    deps = ["@com_github_stretchr_testify//assert"],
 )

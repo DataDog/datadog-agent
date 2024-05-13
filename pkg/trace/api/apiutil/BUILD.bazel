@@ -11,5 +11,5 @@ go_test(
     name = "apiutil_test",
     srcs = ["limited_reader_test.go"],
     embed = [":apiutil"],
-    deps = ["@com_github_stretchr_testify//assert:go_default_library"],
+    deps = ["@com_github_stretchr_testify//assert"],
 )

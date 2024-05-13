@@ -10,8 +10,8 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/util/fxutil",
-        "@com_github_datadog_datadog_go_v5//statsd:go_default_library",
-        "@org_uber_go_fx//:go_default_library",
+        "@com_github_datadog_datadog_go_v5//statsd",
+        "@org_uber_go_fx//:fx",
     ],
 )
 
@@ -21,7 +21,7 @@ go_test(
     embed = [":statsd"],
     deps = [
         "//pkg/util/fxutil",
-        "@com_github_datadog_datadog_go_v5//statsd:go_default_library",
-        "@com_github_stretchr_testify//assert:go_default_library",
+        "@com_github_datadog_datadog_go_v5//statsd",
+        "@com_github_stretchr_testify//assert",
     ],
 )

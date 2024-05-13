@@ -12,9 +12,9 @@ go_library(
         "//pkg/serverless/trigger/events",
         "//pkg/trace/sampler",
         "//pkg/util/log",
-        "@com_github_json_iterator_go//:go_default_library",
-        "@in_gopkg_datadog_dd_trace_go_v1//ddtrace:go_default_library",
-        "@in_gopkg_datadog_dd_trace_go_v1//ddtrace/tracer:go_default_library",
+        "@com_github_json_iterator_go//:go",
+        "@in_gopkg_datadog_dd_trace_go_v1//ddtrace",
+        "@in_gopkg_datadog_dd_trace_go_v1//ddtrace/tracer",
     ],
 )
 
@@ -28,9 +28,9 @@ go_test(
     deps = [
         "//pkg/serverless/trigger/events",
         "//pkg/trace/sampler",
-        "@com_github_aws_aws_sdk_go_v2//aws:go_default_library",
-        "@com_github_stretchr_testify//assert:go_default_library",
-        "@in_gopkg_datadog_dd_trace_go_v1//ddtrace:go_default_library",
-        "@in_gopkg_datadog_dd_trace_go_v1//ddtrace/tracer:go_default_library",
+        "@com_github_aws_aws_sdk_go_v2//aws",
+        "@com_github_stretchr_testify//assert",
+        "@in_gopkg_datadog_dd_trace_go_v1//ddtrace",
+        "@in_gopkg_datadog_dd_trace_go_v1//ddtrace/tracer",
     ],
 )

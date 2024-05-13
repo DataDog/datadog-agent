@@ -12,5 +12,5 @@ go_test(
     name = "portrollup_test",
     srcs = ["portrollup_test.go"],
     embed = [":portrollup"],
-    deps = ["@com_github_stretchr_testify//assert:go_default_library"],
+    deps = ["@com_github_stretchr_testify//assert"],
 )

@@ -35,8 +35,8 @@ go_library(
         "//pkg/util/log",
         "//pkg/util/profiling",
         "//pkg/version",
-        "@com_github_datadog_datadog_go_v5//statsd:go_default_library",
-        "@org_uber_go_fx//:go_default_library",
+        "@com_github_datadog_datadog_go_v5//statsd",
+        "@org_uber_go_fx//:fx",
     ],
 )
 
@@ -50,6 +50,6 @@ go_test(
     deps = [
         "//pkg/config",
         "//pkg/trace/config",
-        "@com_github_stretchr_testify//assert:go_default_library",
+        "@com_github_stretchr_testify//assert",
     ],
 )

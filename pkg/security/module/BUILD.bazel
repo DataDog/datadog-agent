@@ -42,10 +42,10 @@ go_library(
         "//pkg/util/log",
         "//pkg/util/startstop",
         "//pkg/version",
-        "@com_github_datadog_datadog_go_v5//statsd:go_default_library",
-        "@com_github_mailru_easyjson//:go_default_library",
+        "@com_github_datadog_datadog_go_v5//statsd",
+        "@com_github_mailru_easyjson//:easyjson",
         "@org_golang_google_grpc//:go_default_library",
-        "@org_uber_go_atomic//:go_default_library",
+        "@org_uber_go_atomic//:atomic",
     ] + select({
         "@rules_go//go/platform:android": [
             "//pkg/util/kernel",

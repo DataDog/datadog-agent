@@ -25,7 +25,7 @@ go_library(
         "//pkg/diagnose/diagnosis",
         "//pkg/util/log",
         "//pkg/util/optional",
-        "@com_github_fatih_color//:go_default_library",
+        "@com_github_fatih_color//:color",
     ],
 )
 
@@ -35,6 +35,6 @@ go_test(
     embed = [":diagnose"],
     deps = [
         "//pkg/diagnose/diagnosis",
-        "@com_github_stretchr_testify//assert:go_default_library",
+        "@com_github_stretchr_testify//assert",
     ],
 )

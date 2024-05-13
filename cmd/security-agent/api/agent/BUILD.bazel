@@ -15,6 +15,6 @@ go_library(
         "//pkg/status/health",
         "//pkg/util/hostname",
         "//pkg/util/log",
-        "@com_github_gorilla_mux//:go_default_library",
+        "@com_github_gorilla_mux//:mux",
     ],
 )

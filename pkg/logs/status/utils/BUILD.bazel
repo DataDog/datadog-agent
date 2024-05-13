@@ -8,7 +8,7 @@ go_library(
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/logs/status/utils",
     visibility = ["//visibility:public"],
-    deps = ["@org_uber_go_atomic//:go_default_library"],
+    deps = ["@org_uber_go_atomic//:atomic"],
 )
 
 go_test(
@@ -19,7 +19,7 @@ go_test(
     ],
     embed = [":utils"],
     deps = [
-        "@com_github_stretchr_testify//assert:go_default_library",
-        "@com_github_stretchr_testify//suite:go_default_library",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//suite",
     ],
 )

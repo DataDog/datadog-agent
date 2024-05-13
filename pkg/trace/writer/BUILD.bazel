@@ -16,9 +16,9 @@ go_library(
         "//pkg/trace/log",
         "//pkg/trace/telemetry",
         "//pkg/trace/timing",
-        "@com_github_datadog_datadog_go_v5//statsd:go_default_library",
-        "@com_github_tinylib_msgp//msgp:go_default_library",
-        "@org_uber_go_atomic//:go_default_library",
+        "@com_github_datadog_datadog_go_v5//statsd",
+        "@com_github_tinylib_msgp//msgp",
+        "@org_uber_go_atomic//:atomic",
     ],
 )
 
@@ -40,10 +40,10 @@ go_test(
         "//pkg/trace/telemetry",
         "//pkg/trace/testutil",
         "//pkg/trace/timing",
-        "@com_github_datadog_datadog_go_v5//statsd:go_default_library",
-        "@com_github_stretchr_testify//assert:go_default_library",
-        "@com_github_stretchr_testify//require:go_default_library",
-        "@com_github_tinylib_msgp//msgp:go_default_library",
+        "@com_github_datadog_datadog_go_v5//statsd",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@com_github_tinylib_msgp//msgp",
         "@org_golang_google_protobuf//proto",
     ],
 )

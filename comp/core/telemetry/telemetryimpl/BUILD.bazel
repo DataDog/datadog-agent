@@ -16,14 +16,14 @@ go_library(
     deps = [
         "//comp/core/telemetry",
         "//pkg/util/fxutil",
-        "@com_github_prometheus_client_golang//prometheus:go_default_library",
-        "@com_github_prometheus_client_golang//prometheus/collectors:go_default_library",
-        "@com_github_prometheus_client_golang//prometheus/promhttp:go_default_library",
-        "@com_github_prometheus_client_model//go:go_default_library",
-        "@io_opentelemetry_go_otel_exporters_prometheus//:go_default_library",
-        "@io_opentelemetry_go_otel_metric//:go_default_library",
-        "@io_opentelemetry_go_otel_sdk_metric//:go_default_library",
-        "@org_uber_go_fx//:go_default_library",
+        "@com_github_prometheus_client_golang//prometheus",
+        "@com_github_prometheus_client_golang//prometheus/collectors",
+        "@com_github_prometheus_client_golang//prometheus/promhttp",
+        "@com_github_prometheus_client_model//go",
+        "@io_opentelemetry_go_otel_exporters_prometheus//:prometheus",
+        "@io_opentelemetry_go_otel_metric//:metric",
+        "@io_opentelemetry_go_otel_sdk_metric//:metric",
+        "@org_uber_go_fx//:fx",
     ],
 )
 
@@ -37,8 +37,8 @@ go_test(
     deps = [
         "//comp/core/telemetry",
         "//pkg/util/fxutil",
-        "@com_github_prometheus_client_golang//prometheus:go_default_library",
-        "@com_github_prometheus_client_model//go:go_default_library",
-        "@com_github_stretchr_testify//assert:go_default_library",
+        "@com_github_prometheus_client_golang//prometheus",
+        "@com_github_prometheus_client_model//go",
+        "@com_github_stretchr_testify//assert",
     ],
 )

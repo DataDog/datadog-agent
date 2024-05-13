@@ -10,7 +10,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = select({
         "@rules_go//go/platform:windows": [
-            "@com_github_microsoft_go_winio//:go_default_library",
+            "@com_github_microsoft_go_winio//:go-winio",
         ],
         "//conditions:default": [],
     }),

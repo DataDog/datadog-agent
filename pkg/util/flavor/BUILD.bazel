@@ -12,5 +12,5 @@ go_test(
     name = "flavor_test",
     srcs = ["flavor_test.go"],
     embed = [":flavor"],
-    deps = ["@com_github_stretchr_testify//assert:go_default_library"],
+    deps = ["@com_github_stretchr_testify//assert"],
 )

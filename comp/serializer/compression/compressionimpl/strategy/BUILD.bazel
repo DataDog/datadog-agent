@@ -11,6 +11,6 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//comp/serializer/compression",
-        "@com_github_datadog_zstd//:go_default_library",
+        "@com_github_datadog_zstd//:zstd",
     ],
 )

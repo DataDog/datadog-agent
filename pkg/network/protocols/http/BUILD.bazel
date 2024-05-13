@@ -16,7 +16,7 @@ go_library(
         "//pkg/process/util",
         "//pkg/util/intern",
         "//pkg/util/log",
-        "@com_github_datadog_sketches_go//ddsketch:go_default_library",
+        "@com_github_datadog_sketches_go//ddsketch",
     ],
 )
 
@@ -24,5 +24,5 @@ go_test(
     name = "http_test",
     srcs = ["quantization_test.go"],
     embed = [":http"],
-    deps = ["@com_github_stretchr_testify//assert:go_default_library"],
+    deps = ["@com_github_stretchr_testify//assert"],
 )

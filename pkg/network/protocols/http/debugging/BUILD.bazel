@@ -9,6 +9,6 @@ go_library(
         "//pkg/network/dns",
         "//pkg/network/protocols/http",
         "//pkg/process/util",
-        "@com_github_datadog_sketches_go//ddsketch:go_default_library",
+        "@com_github_datadog_sketches_go//ddsketch",
     ],
 )

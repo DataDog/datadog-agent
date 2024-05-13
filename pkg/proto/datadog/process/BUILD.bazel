@@ -1,4 +1,3 @@
-load("@rules_go//go:def.bzl", "go_library")
 load("@rules_go//proto:def.bzl", "go_proto_library")
 load("@rules_proto//proto:defs.bzl", "proto_library")
 
@@ -16,12 +15,5 @@ go_proto_library(
     compilers = ["@io_bazel_rules_go//proto:go_grpc"],
     importpath = "pkg/proto/pbgo/process",
     proto = ":process_proto",
-    visibility = ["//visibility:public"],
-)
-
-go_library(
-    name = "process",
-    embed = [":process_go_proto"],
-    importpath = "pkg/proto/pbgo/process",
     visibility = ["//visibility:public"],
 )

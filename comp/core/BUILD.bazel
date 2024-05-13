@@ -19,7 +19,7 @@ go_library(
         "//comp/core/telemetry/telemetryimpl",
         "//pkg/util/fxutil",
         "//pkg/util/optional",
-        "@org_uber_go_fx//:go_default_library",
+        "@org_uber_go_fx//:fx",
     ],
 )
 
@@ -30,6 +30,6 @@ go_test(
     deps = [
         "//comp/core/pid/pidimpl",
         "//pkg/util/fxutil",
-        "@org_uber_go_fx//:go_default_library",
+        "@org_uber_go_fx//:fx",
     ],
 )

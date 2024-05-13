@@ -13,7 +13,7 @@ go_library(
     deps = [
         "//pkg/serverless/trigger",
         "//pkg/util/log",
-        "@com_github_json_iterator_go//:go_default_library",
+        "@com_github_json_iterator_go//:go",
     ],
 )
 
@@ -25,5 +25,5 @@ go_test(
         "utils_test.go",
     ],
     embed = [":registration"],
-    deps = ["@com_github_stretchr_testify//assert:go_default_library"],
+    deps = ["@com_github_stretchr_testify//assert"],
 )

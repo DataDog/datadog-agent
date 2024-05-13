@@ -18,7 +18,7 @@ go_test(
     deps = [
         "//pkg/networkdevice/profile/profiledefinition",
         "//pkg/util/log",
-        "@com_github_cihub_seelog//:go_default_library",
-        "@com_github_stretchr_testify//assert:go_default_library",
+        "@com_github_cihub_seelog//:seelog",
+        "@com_github_stretchr_testify//assert",
     ],
 )

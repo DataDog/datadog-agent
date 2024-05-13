@@ -23,6 +23,6 @@ go_test(
     deps = [
         "//pkg/config",
         "//pkg/process/util/api/config",
-        "@com_github_stretchr_testify//suite:go_default_library",
+        "@com_github_stretchr_testify//suite",
     ],
 )

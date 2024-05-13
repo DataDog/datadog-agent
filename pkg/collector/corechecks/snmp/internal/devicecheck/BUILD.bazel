@@ -27,8 +27,8 @@ go_library(
         "//pkg/snmp/gosnmplib",
         "//pkg/util/hostname/validate",
         "//pkg/util/log",
-        "@com_github_cihub_seelog//:go_default_library",
-        "@org_uber_go_atomic//:go_default_library",
+        "@com_github_cihub_seelog//:seelog",
+        "@org_uber_go_atomic//:atomic",
     ],
 )
 
@@ -51,8 +51,8 @@ go_test(
         "//pkg/networkdevice/utils",
         "//pkg/snmp/gosnmplib",
         "//pkg/version",
-        "@com_github_gosnmp_gosnmp//:go_default_library",
-        "@com_github_stretchr_testify//assert:go_default_library",
-        "@com_github_stretchr_testify//mock:go_default_library",
+        "@com_github_gosnmp_gosnmp//:gosnmp",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//mock",
     ],
 )

@@ -32,7 +32,7 @@ go_library(
             "//pkg/collector/corechecks",
             "//pkg/util/log",
             "//pkg/util/optional",
-            "@com_github_blabber_go_freebsd_sysctl//sysctl:go_default_library",
+            "@com_github_blabber_go_freebsd_sysctl//sysctl",
         ],
         "@rules_go//go/platform:dragonfly": [
             "//pkg/collector/check",
@@ -47,7 +47,7 @@ go_library(
             "//pkg/collector/corechecks",
             "//pkg/util/log",
             "//pkg/util/optional",
-            "@com_github_blabber_go_freebsd_sysctl//sysctl:go_default_library",
+            "@com_github_blabber_go_freebsd_sysctl//sysctl",
         ],
         "@rules_go//go/platform:illumos": [
             "//pkg/collector/check",
@@ -62,7 +62,7 @@ go_library(
             "//pkg/collector/corechecks",
             "//pkg/util/log",
             "//pkg/util/optional",
-            "@com_github_blabber_go_freebsd_sysctl//sysctl:go_default_library",
+            "@com_github_blabber_go_freebsd_sysctl//sysctl",
         ],
         "@rules_go//go/platform:js": [
             "//pkg/collector/check",

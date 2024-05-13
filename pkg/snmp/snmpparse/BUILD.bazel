@@ -11,8 +11,8 @@ go_library(
         "//pkg/api/util",
         "//pkg/config/setup",
         "//pkg/snmp",
-        "@com_github_datadog_viper//:go_default_library",
-        "@in_gopkg_yaml_v2//:go_default_library",
+        "@com_github_datadog_viper//:viper",
+        "@in_gopkg_yaml_v2//:yaml_v2",
     ],
 )
 
@@ -24,9 +24,9 @@ go_test(
         "//comp/core/autodiscovery/integration",
         "//comp/core/config",
         "//pkg/util/fxutil",
-        "@com_github_stretchr_testify//assert:go_default_library",
-        "@com_github_stretchr_testify//require:go_default_library",
-        "@in_gopkg_yaml_v3//:go_default_library",
-        "@org_uber_go_fx//:go_default_library",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@in_gopkg_yaml_v3//:yaml_v3",
+        "@org_uber_go_fx//:fx",
     ],
 )

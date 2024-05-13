@@ -19,5 +19,5 @@ go_test(
         "value_test.go",
     ],
     embed = [":utils"],
-    deps = ["@com_github_stretchr_testify//require:go_default_library"],
+    deps = ["@com_github_stretchr_testify//require"],
 )

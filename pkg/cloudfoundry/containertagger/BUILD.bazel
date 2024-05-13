@@ -12,6 +12,6 @@ go_library(
         "//pkg/config",
         "//pkg/util/cloudproviders/cloudfoundry",
         "//pkg/util/log",
-        "@org_cloudfoundry_code_garden//:go_default_library",
+        "@org_cloudfoundry_code_garden//:garden",
     ],
 )

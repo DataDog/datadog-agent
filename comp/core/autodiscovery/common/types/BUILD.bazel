@@ -12,5 +12,5 @@ go_test(
     name = "types_test",
     srcs = ["prometheus_test.go"],
     embed = [":types"],
-    deps = ["@com_github_stretchr_testify//assert:go_default_library"],
+    deps = ["@com_github_stretchr_testify//assert"],
 )

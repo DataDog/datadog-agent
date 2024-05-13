@@ -10,7 +10,7 @@ go_library(
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/util/scrubber",
     visibility = ["//visibility:public"],
-    deps = ["@in_gopkg_yaml_v2//:go_default_library"],
+    deps = ["@in_gopkg_yaml_v2//:yaml_v2"],
 )
 
 go_test(
@@ -21,8 +21,8 @@ go_test(
     ],
     embed = [":scrubber"],
     deps = [
-        "@com_github_stretchr_testify//assert:go_default_library",
-        "@com_github_stretchr_testify//require:go_default_library",
-        "@in_gopkg_yaml_v2//:go_default_library",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@in_gopkg_yaml_v2//:yaml_v2",
     ],
 )

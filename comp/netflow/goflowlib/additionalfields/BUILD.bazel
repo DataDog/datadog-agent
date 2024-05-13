@@ -8,8 +8,8 @@ go_library(
     deps = [
         "//comp/netflow/common",
         "//comp/netflow/config",
-        "@com_github_netsampler_goflow2//decoders/netflow:go_default_library",
-        "@com_github_netsampler_goflow2//producer:go_default_library",
+        "@com_github_netsampler_goflow2//decoders/netflow",
+        "@com_github_netsampler_goflow2//producer",
     ],
 )
 
@@ -20,7 +20,7 @@ go_test(
     deps = [
         "//comp/netflow/common",
         "//comp/netflow/config",
-        "@com_github_netsampler_goflow2//decoders/netflow:go_default_library",
-        "@com_github_stretchr_testify//assert:go_default_library",
+        "@com_github_netsampler_goflow2//decoders/netflow",
+        "@com_github_stretchr_testify//assert",
     ],
 )

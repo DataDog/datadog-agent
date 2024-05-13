@@ -17,5 +17,5 @@ go_test(
         "version_test.go",
     ],
     embed = [":version"],
-    deps = ["@com_github_stretchr_testify//assert:go_default_library"],
+    deps = ["@com_github_stretchr_testify//assert"],
 )

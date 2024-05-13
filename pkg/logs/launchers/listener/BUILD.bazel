@@ -40,6 +40,6 @@ go_test(
         "//pkg/logs/message",
         "//pkg/logs/pipeline/mock",
         "//pkg/logs/sources",
-        "@com_github_stretchr_testify//assert:go_default_library",
+        "@com_github_stretchr_testify//assert",
     ],
 )

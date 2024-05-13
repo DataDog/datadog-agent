@@ -25,10 +25,10 @@ go_library(
         "//pkg/telemetry",
         "//pkg/util/json",
         "//pkg/util/log",
-        "@com_github_datadog_agent_payload_v5//gogen:go_default_library",
+        "@com_github_datadog_agent_payload_v5//gogen",
         "@com_github_gogo_protobuf//proto",
-        "@com_github_json_iterator_go//:go_default_library",
-        "@com_github_richardartoul_molecule//:go_default_library",
+        "@com_github_json_iterator_go//:go",
+        "@com_github_richardartoul_molecule//:molecule",
     ],
 )
 

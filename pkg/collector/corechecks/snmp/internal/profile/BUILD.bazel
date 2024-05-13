@@ -22,8 +22,8 @@ go_library(
         "//pkg/networkdevice/utils",
         "//pkg/util/filesystem",
         "//pkg/util/log",
-        "@com_github_mohae_deepcopy//:go_default_library",
-        "@in_gopkg_yaml_v2//:go_default_library",
+        "@com_github_mohae_deepcopy//:deepcopy",
+        "@in_gopkg_yaml_v2//:yaml_v2",
     ],
 )
 
@@ -42,9 +42,9 @@ go_test(
         "//pkg/config",
         "//pkg/networkdevice/profile/profiledefinition",
         "//pkg/util/log",
-        "@com_github_cihub_seelog//:go_default_library",
-        "@com_github_mohae_deepcopy//:go_default_library",
-        "@com_github_stretchr_testify//assert:go_default_library",
-        "@com_github_stretchr_testify//require:go_default_library",
+        "@com_github_cihub_seelog//:seelog",
+        "@com_github_mohae_deepcopy//:deepcopy",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
     ],
 )

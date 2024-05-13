@@ -15,11 +15,11 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/remoteconfig/state",
     visibility = ["//visibility:public"],
     deps = [
-        "@com_github_datadog_go_tuf//client:go_default_library",
-        "@com_github_datadog_go_tuf//data:go_default_library",
-        "@com_github_datadog_go_tuf//util:go_default_library",
-        "@com_github_datadog_go_tuf//verify:go_default_library",
-        "@com_github_pkg_errors//:go_default_library",
+        "@com_github_datadog_go_tuf//client",
+        "@com_github_datadog_go_tuf//data",
+        "@com_github_datadog_go_tuf//util",
+        "@com_github_datadog_go_tuf//verify",
+        "@com_github_pkg_errors//:errors",
     ],
 )
 
@@ -34,12 +34,12 @@ go_test(
     embed = [":state"],
     deps = [
         "//pkg/remoteconfig/state/products/apmsampling",
-        "@com_github_datadog_go_tuf//data:go_default_library",
-        "@com_github_datadog_go_tuf//pkg/keys:go_default_library",
-        "@com_github_datadog_go_tuf//sign:go_default_library",
-        "@com_github_datadog_go_tuf//util:go_default_library",
-        "@com_github_secure_systems_lab_go_securesystemslib//cjson:go_default_library",
-        "@com_github_stretchr_testify//assert:go_default_library",
-        "@com_github_stretchr_testify//require:go_default_library",
+        "@com_github_datadog_go_tuf//data",
+        "@com_github_datadog_go_tuf//pkg/keys",
+        "@com_github_datadog_go_tuf//sign",
+        "@com_github_datadog_go_tuf//util",
+        "@com_github_secure_systems_lab_go_securesystemslib//cjson",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
     ],
 )

@@ -12,5 +12,5 @@ go_test(
     name = "flush_test",
     srcs = ["strategy_test.go"],
     embed = [":flush"],
-    deps = ["@com_github_stretchr_testify//assert:go_default_library"],
+    deps = ["@com_github_stretchr_testify//assert"],
 )

@@ -14,8 +14,8 @@ go_library(
         "//comp/core/secrets",
         "//pkg/api/util",
         "//pkg/util/fxutil",
-        "@com_github_spf13_cobra//:go_default_library",
-        "@org_uber_go_fx//:go_default_library",
+        "@com_github_spf13_cobra//:cobra",
+        "@org_uber_go_fx//:fx",
     ],
 )
 
@@ -27,6 +27,6 @@ go_test(
         "//cmd/security-agent/command",
         "//comp/core",
         "//pkg/util/fxutil",
-        "@com_github_stretchr_testify//require:go_default_library",
+        "@com_github_stretchr_testify//require",
     ],
 )

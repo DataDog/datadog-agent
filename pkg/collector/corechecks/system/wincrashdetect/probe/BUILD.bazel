@@ -36,7 +36,7 @@ go_test(
     embed = [":probe"],
     deps = select({
         "@rules_go//go/platform:windows": [
-            "@com_github_stretchr_testify//assert:go_default_library",
+            "@com_github_stretchr_testify//assert",
         ],
         "//conditions:default": [],
     }),

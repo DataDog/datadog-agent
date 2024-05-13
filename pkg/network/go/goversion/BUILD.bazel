@@ -5,5 +5,5 @@ go_library(
     srcs = ["version.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/network/go/goversion",
     visibility = ["//visibility:public"],
-    deps = ["@com_github_go_delve_delve//pkg/goversion:go_default_library"],
+    deps = ["@com_github_go_delve_delve//pkg/goversion"],
 )

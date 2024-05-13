@@ -18,6 +18,6 @@ go_library(
     deps = [
         "//pkg/security/secl/compiler/eval",
         "//pkg/security/secl/model/usersession",
-        "@com_github_hashicorp_golang_lru_v2//:go_default_library",
+        "@com_github_hashicorp_golang_lru_v2//:golang-lru",
     ],
 )

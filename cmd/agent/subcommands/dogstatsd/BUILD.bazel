@@ -14,9 +14,9 @@ go_library(
         "//pkg/api/util",
         "//pkg/config",
         "//pkg/util/fxutil",
-        "@com_github_datadog_zstd//:go_default_library",
-        "@com_github_spf13_cobra//:go_default_library",
-        "@org_uber_go_fx//:go_default_library",
+        "@com_github_datadog_zstd//:zstd",
+        "@com_github_spf13_cobra//:cobra",
+        "@org_uber_go_fx//:fx",
     ],
 )
 
@@ -27,6 +27,6 @@ go_test(
     deps = [
         "//cmd/agent/command",
         "//pkg/util/fxutil",
-        "@com_github_stretchr_testify//assert:go_default_library",
+        "@com_github_stretchr_testify//assert",
     ],
 )

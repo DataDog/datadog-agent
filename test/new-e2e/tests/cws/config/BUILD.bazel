@@ -5,5 +5,5 @@ go_library(
     srcs = ["config.go"],
     importpath = "github.com/DataDog/datadog-agent/test/new-e2e/tests/cws/config",
     visibility = ["//visibility:public"],
-    deps = ["@in_gopkg_yaml_v2//:go_default_library"],
+    deps = ["@in_gopkg_yaml_v2//:yaml_v2"],
 )

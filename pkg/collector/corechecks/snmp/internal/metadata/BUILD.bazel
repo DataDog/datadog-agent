@@ -20,6 +20,6 @@ go_test(
     embed = [":metadata"],
     deps = [
         "//pkg/collector/corechecks/snmp/internal/valuestore",
-        "@com_github_stretchr_testify//assert:go_default_library",
+        "@com_github_stretchr_testify//assert",
     ],
 )

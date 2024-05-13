@@ -14,7 +14,7 @@ go_library(
         "//pkg/api/security",
         "//pkg/api/util",
         "//pkg/config",
-        "@com_github_cihub_seelog//:go_default_library",
-        "@com_github_gorilla_mux//:go_default_library",
+        "@com_github_cihub_seelog//:seelog",
+        "@com_github_gorilla_mux//:mux",
     ],
 )

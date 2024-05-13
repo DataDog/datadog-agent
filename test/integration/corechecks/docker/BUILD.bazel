@@ -37,8 +37,8 @@ go_test(
         "//pkg/util/hostname",
         "//pkg/util/optional",
         "//test/integration/utils",
-        "@com_github_cihub_seelog//:go_default_library",
-        "@com_github_stretchr_testify//assert:go_default_library",
-        "@org_uber_go_fx//:go_default_library",
+        "@com_github_cihub_seelog//:seelog",
+        "@com_github_stretchr_testify//assert",
+        "@org_uber_go_fx//:fx",
     ],
 )

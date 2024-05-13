@@ -11,5 +11,5 @@ go_test(
     name = "cli_test",
     srcs = ["deprecated_test.go"],
     embed = [":cli"],
-    deps = ["@com_github_stretchr_testify//assert:go_default_library"],
+    deps = ["@com_github_stretchr_testify//assert"],
 )

@@ -10,8 +10,8 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/util/log",
-        "@com_github_cihub_seelog//:go_default_library",
-        "@org_uber_go_zap//zapcore:go_default_library",
+        "@com_github_cihub_seelog//:seelog",
+        "@org_uber_go_zap//zapcore",
     ],
 )
 
@@ -24,10 +24,10 @@ go_test(
     embed = [":zap"],
     deps = [
         "//pkg/util/log",
-        "@com_github_cihub_seelog//:go_default_library",
-        "@com_github_stretchr_testify//assert:go_default_library",
-        "@com_github_stretchr_testify//require:go_default_library",
-        "@org_uber_go_zap//:go_default_library",
-        "@org_uber_go_zap//zapcore:go_default_library",
+        "@com_github_cihub_seelog//:seelog",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@org_uber_go_zap//:zap",
+        "@org_uber_go_zap//zapcore",
     ],
 )

@@ -23,8 +23,8 @@ go_test(
         "@com_github_datadog_test_infra_definitions//scenarios/aws/ec2:go_default_library",
         "@com_github_datadog_test_infra_definitions//scenarios/aws/fakeintake:go_default_library",
         "@com_github_pulumi_pulumi_kubernetes_sdk_v4//go/kubernetes:go_default_library",
-        "@com_github_stretchr_testify//assert:go_default_library",
-        "@com_github_stretchr_testify//require:go_default_library",
-        "@io_k8s_apimachinery//pkg/apis/meta/v1:go_default_library",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
     ],
 )

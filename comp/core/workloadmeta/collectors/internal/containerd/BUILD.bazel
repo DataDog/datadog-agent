@@ -8,5 +8,5 @@ go_library(
     ],
     importpath = "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/containerd",
     visibility = ["//comp/core/workloadmeta/collectors:__subpackages__"],
-    deps = ["@org_uber_go_fx//:go_default_library"],
+    deps = ["@org_uber_go_fx//:fx"],
 )

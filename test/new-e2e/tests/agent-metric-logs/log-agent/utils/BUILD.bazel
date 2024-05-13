@@ -11,7 +11,7 @@ go_library(
         "//test/new-e2e/pkg/components",
         "//test/new-e2e/pkg/environments",
         "@com_github_datadog_test_infra_definitions//components/os:go_default_library",
-        "@com_github_stretchr_testify//assert:go_default_library",
-        "@com_github_stretchr_testify//require:go_default_library",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
     ],
 )

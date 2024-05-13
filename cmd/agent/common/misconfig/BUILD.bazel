@@ -13,13 +13,13 @@ go_library(
     ] + select({
         "@rules_go//go/platform:android": [
             "//pkg/config",
-            "@com_github_pkg_errors//:go_default_library",
-            "@com_github_syndtr_gocapability//capability:go_default_library",
+            "@com_github_pkg_errors//:errors",
+            "@com_github_syndtr_gocapability//capability",
         ],
         "@rules_go//go/platform:linux": [
             "//pkg/config",
-            "@com_github_pkg_errors//:go_default_library",
-            "@com_github_syndtr_gocapability//capability:go_default_library",
+            "@com_github_pkg_errors//:errors",
+            "@com_github_syndtr_gocapability//capability",
         ],
         "//conditions:default": [],
     }),
@@ -31,10 +31,10 @@ go_test(
     embed = [":misconfig"],
     deps = select({
         "@rules_go//go/platform:android": [
-            "@com_github_stretchr_testify//assert:go_default_library",
+            "@com_github_stretchr_testify//assert",
         ],
         "@rules_go//go/platform:linux": [
-            "@com_github_stretchr_testify//assert:go_default_library",
+            "@com_github_stretchr_testify//assert",
         ],
         "//conditions:default": [],
     }),

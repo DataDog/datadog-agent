@@ -16,7 +16,7 @@ go_library(
         "//pkg/config",
         "//pkg/telemetry",
         "//pkg/util/log",
-        "@com_github_shirou_gopsutil_v3//mem:go_default_library",
+        "@com_github_shirou_gopsutil_v3//mem",
     ] + select({
         "@rules_go//go/platform:android": [
             "//pkg/util/cgroups",
@@ -35,5 +35,5 @@ go_test(
         "mem_based_rate_limiter_test.go",
     ],
     embed = [":ratelimit"],
-    deps = ["@com_github_stretchr_testify//require:go_default_library"],
+    deps = ["@com_github_stretchr_testify//require"],
 )

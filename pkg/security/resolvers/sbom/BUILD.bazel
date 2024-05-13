@@ -15,7 +15,7 @@ go_library(
             "//pkg/security/resolvers/cgroup/model",
             "//pkg/security/secl/model",
             "//pkg/util/optional",
-            "@com_github_datadog_datadog_go_v5//statsd:go_default_library",
+            "@com_github_datadog_datadog_go_v5//statsd",
         ],
         "@rules_go//go/platform:linux": [
             "//comp/core/workloadmeta",
@@ -23,7 +23,7 @@ go_library(
             "//pkg/security/resolvers/cgroup/model",
             "//pkg/security/secl/model",
             "//pkg/util/optional",
-            "@com_github_datadog_datadog_go_v5//statsd:go_default_library",
+            "@com_github_datadog_datadog_go_v5//statsd",
         ],
         "//conditions:default": [],
     }),

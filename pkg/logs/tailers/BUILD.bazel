@@ -17,6 +17,6 @@ go_test(
     embed = [":tailers"],
     deps = [
         "//pkg/logs/status/utils",
-        "@com_github_stretchr_testify//require:go_default_library",
+        "@com_github_stretchr_testify//require",
     ],
 )

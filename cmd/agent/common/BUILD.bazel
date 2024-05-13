@@ -34,15 +34,15 @@ go_library(
         "//pkg/util/log",
         "//pkg/util/optional",
         "//pkg/version",
-        "@com_github_fatih_color//:go_default_library",
-        "@in_gopkg_yaml_v2//:go_default_library",
-        "@io_k8s_apimachinery//pkg/util/errors:go_default_library",
-        "@org_uber_go_atomic//:go_default_library",
+        "@com_github_fatih_color//:color",
+        "@in_gopkg_yaml_v2//:yaml_v2",
+        "@io_k8s_apimachinery//pkg/util/errors",
+        "@org_uber_go_atomic//:atomic",
     ] + select({
         "@rules_go//go/platform:windows": [
             "//pkg/util/winutil",
             "//pkg/util/winutil/messagestrings",
-            "@com_github_cihub_seelog//:go_default_library",
+            "@com_github_cihub_seelog//:seelog",
         ],
         "//conditions:default": [],
     }),
@@ -54,8 +54,8 @@ go_test(
     embed = [":common"],
     deps = [
         "//pkg/config/legacy",
-        "@com_github_stretchr_testify//assert:go_default_library",
-        "@com_github_stretchr_testify//require:go_default_library",
-        "@in_gopkg_yaml_v2//:go_default_library",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@in_gopkg_yaml_v2//:yaml_v2",
     ],
 )

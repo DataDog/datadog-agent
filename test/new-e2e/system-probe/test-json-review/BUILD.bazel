@@ -7,10 +7,10 @@ go_library(
     visibility = ["//visibility:private"],
     deps = select({
         "@rules_go//go/platform:android": [
-            "@com_github_fatih_color//:go_default_library",
+            "@com_github_fatih_color//:color",
         ],
         "@rules_go//go/platform:linux": [
-            "@com_github_fatih_color//:go_default_library",
+            "@com_github_fatih_color//:color",
         ],
         "//conditions:default": [],
     }),

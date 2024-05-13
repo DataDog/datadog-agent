@@ -20,6 +20,6 @@ go_test(
         "//pkg/metrics",
         "//pkg/networkpath/metricsender",
         "//pkg/networkpath/payload",
-        "@com_github_stretchr_testify//assert:go_default_library",
+        "@com_github_stretchr_testify//assert",
     ],
 )

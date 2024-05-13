@@ -22,7 +22,7 @@ go_library(
         "//pkg/networkpath/traceroute",
         "//pkg/util/log",
         "//pkg/util/optional",
-        "@in_gopkg_yaml_v2//:go_default_library",
+        "@in_gopkg_yaml_v2//:yaml_v2",
     ],
 )
 
@@ -33,6 +33,6 @@ go_test(
     deps = [
         "//comp/core/autodiscovery/integration",
         "//pkg/config",
-        "@com_github_stretchr_testify//assert:go_default_library",
+        "@com_github_stretchr_testify//assert",
     ],
 )

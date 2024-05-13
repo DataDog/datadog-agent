@@ -15,5 +15,5 @@ go_test(
     name = "externalhost_test",
     srcs = ["externalhost_test.go"],
     embed = [":externalhost"],
-    deps = ["@com_github_stretchr_testify//assert:go_default_library"],
+    deps = ["@com_github_stretchr_testify//assert"],
 )

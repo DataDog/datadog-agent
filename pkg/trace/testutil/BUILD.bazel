@@ -19,9 +19,9 @@ go_library(
         "//pkg/trace/sampler",
         "//pkg/trace/stats",
         "//pkg/trace/traceutil",
-        "@io_opentelemetry_go_collector_pdata//pcommon:go_default_library",
-        "@io_opentelemetry_go_collector_pdata//ptrace:go_default_library",
-        "@io_opentelemetry_go_collector_pdata//ptrace/ptraceotlp:go_default_library",
+        "@io_opentelemetry_go_collector_pdata//pcommon",
+        "@io_opentelemetry_go_collector_pdata//ptrace",
+        "@io_opentelemetry_go_collector_pdata//ptrace/ptraceotlp",
     ],
 )
 
@@ -34,7 +34,7 @@ go_test(
     ],
     embed = [":testutil"],
     deps = [
-        "@com_github_stretchr_testify//assert:go_default_library",
-        "@io_opentelemetry_go_collector_pdata//ptrace:go_default_library",
+        "@com_github_stretchr_testify//assert",
+        "@io_opentelemetry_go_collector_pdata//ptrace",
     ],
 )

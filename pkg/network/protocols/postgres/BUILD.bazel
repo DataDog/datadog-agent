@@ -11,9 +11,9 @@ go_library(
     deps = [
         "//pkg/network/protocols/http/testutil",
         "//pkg/network/protocols/testutil",
-        "@com_github_stretchr_testify//require:go_default_library",
-        "@com_github_uptrace_bun//:go_default_library",
-        "@com_github_uptrace_bun_dialect_pgdialect//:go_default_library",
-        "@com_github_uptrace_bun_driver_pgdriver//:go_default_library",
+        "@com_github_stretchr_testify//require",
+        "@com_github_uptrace_bun//:bun",
+        "@com_github_uptrace_bun_dialect_pgdialect//:pgdialect",
+        "@com_github_uptrace_bun_driver_pgdriver//:pgdriver",
     ],
 )

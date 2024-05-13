@@ -26,8 +26,8 @@ go_library(
         "//pkg/util/fxutil",
         "//pkg/util/optional",
         "//pkg/util/startstop",
-        "@org_uber_go_fx//:go_default_library",
-        "@org_uber_go_zap//:go_default_library",
+        "@org_uber_go_fx//:fx",
+        "@org_uber_go_zap//:zap",
     ],
 )
 
@@ -49,8 +49,8 @@ go_test(
         "//pkg/logs/sources",
         "//pkg/util/fxutil",
         "//pkg/util/testutil",
-        "@com_github_stretchr_testify//assert:go_default_library",
-        "@com_github_stretchr_testify//suite:go_default_library",
-        "@org_uber_go_fx//:go_default_library",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//suite",
+        "@org_uber_go_fx//:fx",
     ],
 )

@@ -18,8 +18,8 @@ go_library(
         "//pkg/serverless/tags",
         "//pkg/serverless/trigger/events",
         "//pkg/util/log",
-        "@com_github_aws_aws_lambda_go//events:go_default_library",
-        "@com_github_json_iterator_go//:go_default_library",
+        "@com_github_aws_aws_lambda_go//events",
+        "@com_github_json_iterator_go//:go",
     ],
 )
 
@@ -35,8 +35,8 @@ go_test(
         "//pkg/config",
         "//pkg/proto/pbgo/trace",
         "//pkg/serverless/trigger/events",
-        "@com_github_aws_aws_lambda_go//events:go_default_library",
-        "@com_github_aws_aws_sdk_go_v2//aws:go_default_library",
-        "@com_github_stretchr_testify//assert:go_default_library",
+        "@com_github_aws_aws_lambda_go//events",
+        "@com_github_aws_aws_sdk_go_v2//aws",
+        "@com_github_stretchr_testify//assert",
     ],
 )

@@ -24,8 +24,8 @@ go_library(
             "//pkg/process/net",
             "//pkg/util/log",
             "//pkg/util/optional",
-            "@com_github_cihub_seelog//:go_default_library",
-            "@in_gopkg_yaml_v2//:go_default_library",
+            "@com_github_cihub_seelog//:seelog",
+            "@in_gopkg_yaml_v2//:yaml_v2",
         ],
         "@rules_go//go/platform:darwin": [
             "//pkg/collector/check",
@@ -62,8 +62,8 @@ go_library(
             "//pkg/process/net",
             "//pkg/util/log",
             "//pkg/util/optional",
-            "@com_github_cihub_seelog//:go_default_library",
-            "@in_gopkg_yaml_v2//:go_default_library",
+            "@com_github_cihub_seelog//:seelog",
+            "@in_gopkg_yaml_v2//:yaml_v2",
         ],
         "@rules_go//go/platform:netbsd": [
             "//pkg/collector/check",

@@ -18,9 +18,9 @@ go_library(
     deps = [
         "//cmd/system-probe/utils",
         "//pkg/telemetry",
-        "@com_github_datadog_datadog_go_v5//statsd:go_default_library",
-        "@io_k8s_apimachinery//pkg/util/sets:go_default_library",
-        "@org_uber_go_atomic//:go_default_library",
+        "@com_github_datadog_datadog_go_v5//statsd",
+        "@io_k8s_apimachinery//pkg/util/sets",
+        "@org_uber_go_atomic//:atomic",
     ],
 )
 
@@ -34,7 +34,7 @@ go_test(
     ],
     embed = [":telemetry"],
     deps = [
-        "@com_github_stretchr_testify//assert:go_default_library",
-        "@io_k8s_apimachinery//pkg/util/sets:go_default_library",
+        "@com_github_stretchr_testify//assert",
+        "@io_k8s_apimachinery//pkg/util/sets",
     ],
 )

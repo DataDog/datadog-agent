@@ -11,11 +11,11 @@ go_library(
     deps = select({
         "@rules_go//go/platform:android": [
             "//pkg/network/go/bininspect",
-            "@com_github_go_delve_delve//pkg/goversion:go_default_library",
+            "@com_github_go_delve_delve//pkg/goversion",
         ],
         "@rules_go//go/platform:linux": [
             "//pkg/network/go/bininspect",
-            "@com_github_go_delve_delve//pkg/goversion:go_default_library",
+            "@com_github_go_delve_delve//pkg/goversion",
         ],
         "//conditions:default": [],
     }),

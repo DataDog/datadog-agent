@@ -23,7 +23,7 @@ go_library(
         "//pkg/version",
         "@org_golang_x_text//cases",
         "@org_golang_x_text//language",
-        "@org_uber_go_fx//:go_default_library",
+        "@org_uber_go_fx//:fx",
     ],
 )
 
@@ -41,7 +41,7 @@ go_test(
         "//pkg/util/flavor",
         "//pkg/util/fxutil",
         "//pkg/version",
-        "@com_github_stretchr_testify//assert:go_default_library",
-        "@org_uber_go_fx//:go_default_library",
+        "@com_github_stretchr_testify//assert",
+        "@org_uber_go_fx//:fx",
     ],
 )

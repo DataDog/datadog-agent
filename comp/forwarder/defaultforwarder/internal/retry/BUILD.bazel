@@ -18,6 +18,7 @@ go_proto_library(
 go_library(
     name = "retry",
     srcs = [
+        "HttpTransactionProto.pb.go",
         "disk_usage_limit.go",
         "docs.go",
         "file_removal_policy.go",
@@ -29,7 +30,6 @@ go_library(
         "time_interval_accumulator.go",
         "transaction_retry_queue.go",
     ],
-    embed = [":retry_go_proto"],
     importpath = "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/internal/retry",
     visibility = ["//comp/forwarder/defaultforwarder:__subpackages__"],
     deps = [
@@ -40,7 +40,7 @@ go_library(
         "//pkg/util/common",
         "//pkg/util/filesystem",
         "@com_github_golang_protobuf//proto:go_default_library",
-        "@com_github_hashicorp_go_multierror//:go_default_library",
+        "@com_github_hashicorp_go_multierror//:go-multierror",
         "@org_golang_x_text//cases",
         "@org_golang_x_text//language",
     ],
@@ -63,7 +63,7 @@ go_test(
         "//comp/forwarder/defaultforwarder/transaction",
         "//pkg/util/filesystem",
         "//pkg/util/fxutil",
-        "@com_github_stretchr_testify//assert:go_default_library",
-        "@com_github_stretchr_testify//require:go_default_library",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
     ],
 )

@@ -10,7 +10,7 @@ go_library(
     ],
     importpath = "github.com/DataDog/datadog-agent/comp/netflow/common",
     visibility = ["//visibility:public"],
-    deps = ["@com_github_netsampler_goflow2//pb:go_default_library"],
+    deps = ["@com_github_netsampler_goflow2//pb"],
 )
 
 go_test(
@@ -21,5 +21,5 @@ go_test(
         "utils_test.go",
     ],
     embed = [":common"],
-    deps = ["@com_github_stretchr_testify//assert:go_default_library"],
+    deps = ["@com_github_stretchr_testify//assert"],
 )

@@ -17,5 +17,5 @@ go_test(
     name = "docker_test",
     srcs = ["rancher_test.go"],
     embed = [":docker"],
-    deps = ["@com_github_stretchr_testify//assert:go_default_library"],
+    deps = ["@com_github_stretchr_testify//assert"],
 )

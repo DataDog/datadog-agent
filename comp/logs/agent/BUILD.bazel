@@ -55,9 +55,9 @@ go_library(
         "//pkg/util/log",
         "//pkg/util/optional",
         "//pkg/util/startstop",
-        "@com_github_hashicorp_go_multierror//:go_default_library",
-        "@org_uber_go_atomic//:go_default_library",
-        "@org_uber_go_fx//:go_default_library",
+        "@com_github_hashicorp_go_multierror//:go-multierror",
+        "@org_uber_go_atomic//:atomic",
+        "@org_uber_go_fx//:fx",
     ],
 )
 
@@ -90,9 +90,9 @@ go_test(
         "//pkg/logs/tailers",
         "//pkg/util/fxutil",
         "//pkg/util/testutil",
-        "@com_github_stretchr_testify//assert:go_default_library",
-        "@com_github_stretchr_testify//suite:go_default_library",
-        "@org_uber_go_atomic//:go_default_library",
-        "@org_uber_go_fx//:go_default_library",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//suite",
+        "@org_uber_go_atomic//:atomic",
+        "@org_uber_go_fx//:fx",
     ],
 )

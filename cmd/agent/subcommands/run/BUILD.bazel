@@ -130,9 +130,9 @@ go_library(
         "//pkg/util/log",
         "//pkg/util/optional",
         "//pkg/version",
-        "@com_github_spf13_cobra//:go_default_library",
-        "@in_gopkg_datadog_dd_trace_go_v1//profiler:go_default_library",
-        "@org_uber_go_fx//:go_default_library",
+        "@com_github_spf13_cobra//:cobra",
+        "@in_gopkg_datadog_dd_trace_go_v1//profiler",
+        "@org_uber_go_fx//:fx",
     ] + select({
         "@rules_go//go/platform:windows": [
             "//comp/checks/agentcrashdetect",
@@ -165,6 +165,6 @@ go_test(
         "//comp/core/pid/pidimpl",
         "//comp/core/secrets",
         "//pkg/util/fxutil",
-        "@com_github_stretchr_testify//require:go_default_library",
+        "@com_github_stretchr_testify//require",
     ],
 )

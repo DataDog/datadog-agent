@@ -23,7 +23,7 @@ go_library(
         "//pkg/diagnose/diagnosis",
         "//pkg/util/log",
         "//pkg/util/scrubber",
-        "@in_gopkg_yaml_v2//:go_default_library",
+        "@in_gopkg_yaml_v2//:yaml_v2",
     ],
 )
 
@@ -40,7 +40,7 @@ go_test(
         "//comp/core/autodiscovery/integration",
         "//pkg/collector/check/id",
         "//pkg/collector/check/stub",
-        "@com_github_stretchr_testify//assert:go_default_library",
-        "@in_gopkg_yaml_v2//:go_default_library",
+        "@com_github_stretchr_testify//assert",
+        "@in_gopkg_yaml_v2//:yaml_v2",
     ],
 )

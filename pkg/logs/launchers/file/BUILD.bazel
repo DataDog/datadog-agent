@@ -37,7 +37,7 @@ go_test(
     deps = [
         "//comp/logs/agent/config",
         "//pkg/logs/auditor/mock",
-        "@com_github_stretchr_testify//assert:go_default_library",
+        "@com_github_stretchr_testify//assert",
     ] + select({
         "@rules_go//go/platform:aix": [
             "//comp/logs/agent/flare",
@@ -52,7 +52,7 @@ go_test(
             "//pkg/logs/status",
             "//pkg/logs/tailers",
             "//pkg/logs/tailers/file",
-            "@com_github_stretchr_testify//suite:go_default_library",
+            "@com_github_stretchr_testify//suite",
         ],
         "@rules_go//go/platform:android": [
             "//comp/logs/agent/flare",
@@ -67,7 +67,7 @@ go_test(
             "//pkg/logs/status",
             "//pkg/logs/tailers",
             "//pkg/logs/tailers/file",
-            "@com_github_stretchr_testify//suite:go_default_library",
+            "@com_github_stretchr_testify//suite",
         ],
         "@rules_go//go/platform:darwin": [
             "//comp/logs/agent/flare",
@@ -82,7 +82,7 @@ go_test(
             "//pkg/logs/status",
             "//pkg/logs/tailers",
             "//pkg/logs/tailers/file",
-            "@com_github_stretchr_testify//suite:go_default_library",
+            "@com_github_stretchr_testify//suite",
         ],
         "@rules_go//go/platform:dragonfly": [
             "//comp/logs/agent/flare",
@@ -97,7 +97,7 @@ go_test(
             "//pkg/logs/status",
             "//pkg/logs/tailers",
             "//pkg/logs/tailers/file",
-            "@com_github_stretchr_testify//suite:go_default_library",
+            "@com_github_stretchr_testify//suite",
         ],
         "@rules_go//go/platform:freebsd": [
             "//comp/logs/agent/flare",
@@ -112,7 +112,7 @@ go_test(
             "//pkg/logs/status",
             "//pkg/logs/tailers",
             "//pkg/logs/tailers/file",
-            "@com_github_stretchr_testify//suite:go_default_library",
+            "@com_github_stretchr_testify//suite",
         ],
         "@rules_go//go/platform:illumos": [
             "//comp/logs/agent/flare",
@@ -127,7 +127,7 @@ go_test(
             "//pkg/logs/status",
             "//pkg/logs/tailers",
             "//pkg/logs/tailers/file",
-            "@com_github_stretchr_testify//suite:go_default_library",
+            "@com_github_stretchr_testify//suite",
         ],
         "@rules_go//go/platform:ios": [
             "//comp/logs/agent/flare",
@@ -142,7 +142,7 @@ go_test(
             "//pkg/logs/status",
             "//pkg/logs/tailers",
             "//pkg/logs/tailers/file",
-            "@com_github_stretchr_testify//suite:go_default_library",
+            "@com_github_stretchr_testify//suite",
         ],
         "@rules_go//go/platform:js": [
             "//comp/logs/agent/flare",
@@ -157,7 +157,7 @@ go_test(
             "//pkg/logs/status",
             "//pkg/logs/tailers",
             "//pkg/logs/tailers/file",
-            "@com_github_stretchr_testify//suite:go_default_library",
+            "@com_github_stretchr_testify//suite",
         ],
         "@rules_go//go/platform:linux": [
             "//comp/logs/agent/flare",
@@ -172,7 +172,7 @@ go_test(
             "//pkg/logs/status",
             "//pkg/logs/tailers",
             "//pkg/logs/tailers/file",
-            "@com_github_stretchr_testify//suite:go_default_library",
+            "@com_github_stretchr_testify//suite",
         ],
         "@rules_go//go/platform:netbsd": [
             "//comp/logs/agent/flare",
@@ -187,7 +187,7 @@ go_test(
             "//pkg/logs/status",
             "//pkg/logs/tailers",
             "//pkg/logs/tailers/file",
-            "@com_github_stretchr_testify//suite:go_default_library",
+            "@com_github_stretchr_testify//suite",
         ],
         "@rules_go//go/platform:openbsd": [
             "//comp/logs/agent/flare",
@@ -202,7 +202,7 @@ go_test(
             "//pkg/logs/status",
             "//pkg/logs/tailers",
             "//pkg/logs/tailers/file",
-            "@com_github_stretchr_testify//suite:go_default_library",
+            "@com_github_stretchr_testify//suite",
         ],
         "@rules_go//go/platform:plan9": [
             "//comp/logs/agent/flare",
@@ -217,7 +217,7 @@ go_test(
             "//pkg/logs/status",
             "//pkg/logs/tailers",
             "//pkg/logs/tailers/file",
-            "@com_github_stretchr_testify//suite:go_default_library",
+            "@com_github_stretchr_testify//suite",
         ],
         "@rules_go//go/platform:solaris": [
             "//comp/logs/agent/flare",
@@ -232,7 +232,7 @@ go_test(
             "//pkg/logs/status",
             "//pkg/logs/tailers",
             "//pkg/logs/tailers/file",
-            "@com_github_stretchr_testify//suite:go_default_library",
+            "@com_github_stretchr_testify//suite",
         ],
         "//conditions:default": [],
     }),

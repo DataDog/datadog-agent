@@ -25,8 +25,8 @@ go_library(
         "//pkg/util",
         "//pkg/util/hostname",
         "//pkg/util/log",
-        "@com_github_cihub_seelog//:go_default_library",
-        "@in_gopkg_yaml_v2//:go_default_library",
+        "@com_github_cihub_seelog//:seelog",
+        "@in_gopkg_yaml_v2//:yaml_v2",
     ],
 )
 
@@ -46,7 +46,7 @@ go_test(
         "//pkg/networkdevice/pinger",
         "//pkg/networkdevice/profile/profiledefinition",
         "//pkg/snmp/snmpintegration",
-        "@com_github_stretchr_testify//assert:go_default_library",
-        "@in_gopkg_yaml_v2//:go_default_library",
+        "@com_github_stretchr_testify//assert",
+        "@in_gopkg_yaml_v2//:yaml_v2",
     ],
 )

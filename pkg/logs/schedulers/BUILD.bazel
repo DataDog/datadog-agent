@@ -22,6 +22,6 @@ go_test(
     deps = [
         "//pkg/logs/service",
         "//pkg/logs/sources",
-        "@com_github_stretchr_testify//require:go_default_library",
+        "@com_github_stretchr_testify//require",
     ],
 )

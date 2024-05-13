@@ -28,7 +28,7 @@ go_library(
             "//pkg/util/containers",
             "//pkg/util/log",
             "//pkg/util/optional",
-            "@in_gopkg_yaml_v2//:go_default_library",
+            "@in_gopkg_yaml_v2//:yaml_v2",
         ],
         "@rules_go//go/platform:darwin": [
             "//pkg/collector/check",
@@ -69,7 +69,7 @@ go_library(
             "//pkg/util/containers",
             "//pkg/util/log",
             "//pkg/util/optional",
-            "@in_gopkg_yaml_v2//:go_default_library",
+            "@in_gopkg_yaml_v2//:yaml_v2",
         ],
         "@rules_go//go/platform:netbsd": [
             "//pkg/collector/check",

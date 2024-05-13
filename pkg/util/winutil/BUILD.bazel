@@ -49,9 +49,9 @@ go_test(
     embed = [":winutil"],
     deps = select({
         "@rules_go//go/platform:windows": [
-            "@com_github_stretchr_testify//assert:go_default_library",
-            "@com_github_stretchr_testify//require:go_default_library",
-            "@com_github_stretchr_testify//suite:go_default_library",
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+            "@com_github_stretchr_testify//suite",
             "@org_golang_x_sys//windows",
             "@org_golang_x_sys//windows/svc",
             "@org_golang_x_sys//windows/svc/mgr",

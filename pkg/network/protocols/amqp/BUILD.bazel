@@ -11,6 +11,6 @@ go_library(
     deps = [
         "//pkg/network/protocols/http/testutil",
         "//pkg/network/protocols/testutil",
-        "@com_github_streadway_amqp//:go_default_library",
+        "@com_github_streadway_amqp//:amqp",
     ],
 )

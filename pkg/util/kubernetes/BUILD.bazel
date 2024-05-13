@@ -19,5 +19,5 @@ go_test(
     name = "kubernetes_test",
     srcs = ["helpers_test.go"],
     embed = [":kubernetes"],
-    deps = ["@com_github_stretchr_testify//assert:go_default_library"],
+    deps = ["@com_github_stretchr_testify//assert"],
 )

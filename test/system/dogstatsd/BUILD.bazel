@@ -11,8 +11,8 @@ go_test(
         "//comp/serializer/compression/compressionimpl",
         "//pkg/config/setup",
         "//pkg/metrics/servicecheck",
-        "@com_github_cihub_seelog//:go_default_library",
-        "@com_github_stretchr_testify//assert:go_default_library",
-        "@com_github_stretchr_testify//require:go_default_library",
+        "@com_github_cihub_seelog//:seelog",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
     ],
 )

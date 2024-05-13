@@ -42,8 +42,8 @@ go_library(
         "//pkg/util/log",
         "//pkg/util/optional",
         "//pkg/util/scrubber",
-        "@com_github_datadog_zstd//:go_default_library",
-        "@com_github_gorilla_mux//:go_default_library",
+        "@com_github_datadog_zstd//:zstd",
+        "@com_github_gorilla_mux//:mux",
     ],
 )
 
@@ -88,9 +88,9 @@ go_test(
         "//pkg/aggregator",
         "//pkg/util/fxutil",
         "//pkg/util/optional",
-        "@com_github_gorilla_mux//:go_default_library",
-        "@com_github_stretchr_testify//assert:go_default_library",
-        "@com_github_stretchr_testify//require:go_default_library",
-        "@org_uber_go_fx//:go_default_library",
+        "@com_github_gorilla_mux//:mux",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@org_uber_go_fx//:fx",
     ],
 )

@@ -21,7 +21,7 @@ go_library(
         "//pkg/config/model",
         "//pkg/config/setup",
         "//pkg/util/optional",
-        "@com_github_cihub_seelog//:go_default_library",
+        "@com_github_cihub_seelog//:seelog",
     ],
 )
 
@@ -29,5 +29,5 @@ go_test(
     name = "config_test",
     srcs = ["config_change_checker_test.go"],
     embed = [":config"],
-    deps = ["@com_github_stretchr_testify//require:go_default_library"],
+    deps = ["@com_github_stretchr_testify//require"],
 )

@@ -18,8 +18,18 @@ go_proto_library(
 
 go_library(
     name = "api",
-    srcs = ["api_vtproto.pb.go"],
+    srcs = [
+        "api.pb.go",
+        "api_grpc.pb.go",
+        "api_vtproto.pb.go",
+    ],
     importpath = "github.com/DataDog/datadog-agent/pkg/eventmonitor/proto/api",
     visibility = ["//visibility:public"],
-    deps = ["@org_golang_google_protobuf//runtime/protoimpl"],
+    deps = [
+        "@org_golang_google_grpc//:go_default_library",
+        "@org_golang_google_grpc//codes",
+        "@org_golang_google_grpc//status",
+        "@org_golang_google_protobuf//reflect/protoreflect",
+        "@org_golang_google_protobuf//runtime/protoimpl",
+    ],
 )

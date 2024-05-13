@@ -25,7 +25,7 @@ go_library(
         "//pkg/util/kernel",
         "//pkg/util/log",
         "//pkg/util/optional",
-        "@com_github_datadog_viper//:go_default_library",
+        "@com_github_datadog_viper//:viper",
     ] + select({
         "@rules_go//go/platform:android": [
             "//pkg/security/ebpf/kernel",
@@ -51,16 +51,16 @@ go_test(
     deps = [
         "//pkg/config",
         "//pkg/config/model",
-        "@com_github_stretchr_testify//assert:go_default_library",
+        "@com_github_stretchr_testify//assert",
     ] + select({
         "@rules_go//go/platform:android": [
-            "@com_github_stretchr_testify//require:go_default_library",
+            "@com_github_stretchr_testify//require",
         ],
         "@rules_go//go/platform:linux": [
-            "@com_github_stretchr_testify//require:go_default_library",
+            "@com_github_stretchr_testify//require",
         ],
         "@rules_go//go/platform:windows": [
-            "@com_github_stretchr_testify//require:go_default_library",
+            "@com_github_stretchr_testify//require",
         ],
         "//conditions:default": [],
     }),

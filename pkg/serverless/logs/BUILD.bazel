@@ -19,7 +19,7 @@ go_library(
         "//pkg/serverless/metrics",
         "//pkg/serverless/tags",
         "//pkg/util/log",
-        "@com_github_json_iterator_go//:go_default_library",
+        "@com_github_json_iterator_go//:go",
     ],
 )
 
@@ -39,7 +39,7 @@ go_test(
         "//pkg/serverless/executioncontext",
         "//pkg/serverless/metrics",
         "//pkg/util/fxutil",
-        "@com_github_stretchr_testify//assert:go_default_library",
-        "@com_github_stretchr_testify//require:go_default_library",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
     ],
 )

@@ -8,6 +8,6 @@ go_library(
     deps = [
         "//cmd/agent/command",
         "//pkg/cli/subcommands/taggerlist",
-        "@com_github_spf13_cobra//:go_default_library",
+        "@com_github_spf13_cobra//:cobra",
     ],
 )

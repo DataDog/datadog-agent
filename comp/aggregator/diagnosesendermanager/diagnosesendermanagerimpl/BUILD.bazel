@@ -18,6 +18,6 @@ go_library(
         "//pkg/aggregator/sender",
         "//pkg/util/fxutil",
         "//pkg/util/optional",
-        "@org_uber_go_fx//:go_default_library",
+        "@org_uber_go_fx//:fx",
     ],
 )

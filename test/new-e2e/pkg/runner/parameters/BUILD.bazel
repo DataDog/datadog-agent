@@ -17,9 +17,9 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//test/new-e2e/pkg/utils/clients",
-        "@com_github_aws_aws_sdk_go_v2_service_ssm//:go_default_library",
-        "@com_github_aws_aws_sdk_go_v2_service_ssm//types:go_default_library",
-        "@in_gopkg_yaml_v2//:go_default_library",
+        "@com_github_aws_aws_sdk_go_v2//service/ssm",
+        "@com_github_aws_aws_sdk_go_v2//service/ssm/types",
+        "@in_gopkg_yaml_v2//:yaml_v2",
     ],
 )
 
@@ -29,7 +29,7 @@ go_test(
     embed = [":parameters"],
     embedsrcs = ["testfixtures/test_config_with_stackparams.yaml"],
     deps = [
-        "@com_github_stretchr_testify//assert:go_default_library",
-        "@com_github_stretchr_testify//require:go_default_library",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
     ],
 )

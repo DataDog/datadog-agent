@@ -16,7 +16,7 @@ go_library(
         "//pkg/snmp/utils",
         "//pkg/util/log",
         "//pkg/util/optional",
-        "@in_gopkg_yaml_v2//:go_default_library",
+        "@in_gopkg_yaml_v2//:yaml_v2",
     ],
 )
 
@@ -35,9 +35,9 @@ go_test(
         "//pkg/collector/corechecks/network-devices/cisco-sdwan/payload",
         "//pkg/collector/corechecks/network-devices/cisco-sdwan/report",
         "//pkg/util/fxutil",
-        "@com_github_stretchr_testify//assert:go_default_library",
-        "@com_github_stretchr_testify//mock:go_default_library",
-        "@com_github_stretchr_testify//require:go_default_library",
-        "@org_uber_go_fx//:go_default_library",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//mock",
+        "@com_github_stretchr_testify//require",
+        "@org_uber_go_fx//:fx",
     ],
 )

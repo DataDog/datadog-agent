@@ -27,7 +27,7 @@ go_library(
         "//pkg/trace/info",
         "//pkg/trace/sampler",
         "//pkg/util/log",
-        "@com_github_json_iterator_go//:go_default_library",
+        "@com_github_json_iterator_go//:go",
     ],
 )
 
@@ -52,6 +52,6 @@ go_test(
         "//pkg/trace/api",
         "//pkg/trace/sampler",
         "//pkg/util/fxutil",
-        "@com_github_stretchr_testify//assert:go_default_library",
+        "@com_github_stretchr_testify//assert",
     ],
 )

@@ -34,7 +34,7 @@ go_test(
         "//pkg/config/model",
         "//pkg/config/setup",
         "//pkg/util/optional",
-        "@com_github_stretchr_testify//assert:go_default_library",
-        "@com_github_stretchr_testify//require:go_default_library",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
     ],
 )

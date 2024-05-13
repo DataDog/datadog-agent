@@ -46,9 +46,9 @@ go_test(
         "//pkg/errors",
         "//pkg/util/log",
         "//pkg/version",
-        "@com_github_stretchr_testify//assert:go_default_library",
-        "@com_github_stretchr_testify//require:go_default_library",
-        "@com_github_stretchr_testify//suite:go_default_library",
-        "@io_k8s_apimachinery//pkg/util/sets:go_default_library",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@com_github_stretchr_testify//suite",
+        "@io_k8s_apimachinery//pkg/util/sets",
     ],
 )

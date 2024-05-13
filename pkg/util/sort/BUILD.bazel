@@ -17,5 +17,5 @@ go_test(
         "sort_uniq_test.go",
     ],
     embed = [":sort"],
-    deps = ["@com_github_stretchr_testify//assert:go_default_library"],
+    deps = ["@com_github_stretchr_testify//assert"],
 )

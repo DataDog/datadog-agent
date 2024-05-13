@@ -6,8 +6,8 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/trace/timing",
     visibility = ["//visibility:public"],
     deps = [
-        "@com_github_datadog_datadog_go_v5//statsd:go_default_library",
-        "@org_uber_go_atomic//:go_default_library",
+        "@com_github_datadog_datadog_go_v5//statsd",
+        "@org_uber_go_atomic//:atomic",
     ],
 )
 
@@ -20,7 +20,7 @@ go_test(
     embed = [":timing"],
     deps = [
         "//pkg/trace/teststatsd",
-        "@com_github_datadog_datadog_go_v5//statsd:go_default_library",
-        "@com_github_stretchr_testify//assert:go_default_library",
+        "@com_github_datadog_datadog_go_v5//statsd",
+        "@com_github_stretchr_testify//assert",
     ],
 )

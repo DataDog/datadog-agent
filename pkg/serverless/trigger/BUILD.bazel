@@ -11,8 +11,8 @@ go_library(
     deps = [
         "//pkg/serverless/trigger/events",
         "//pkg/util/json",
-        "@com_github_aws_aws_sdk_go_v2//aws/arn:go_default_library",
-        "@com_github_json_iterator_go//:go_default_library",
+        "@com_github_aws_aws_sdk_go_v2//aws/arn",
+        "@com_github_json_iterator_go//:go",
     ],
 )
 
@@ -25,6 +25,6 @@ go_test(
     embed = [":trigger"],
     deps = [
         "//pkg/serverless/trigger/events",
-        "@com_github_stretchr_testify//assert:go_default_library",
+        "@com_github_stretchr_testify//assert",
     ],
 )

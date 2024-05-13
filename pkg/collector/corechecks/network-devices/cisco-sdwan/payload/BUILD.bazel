@@ -29,6 +29,6 @@ go_test(
     deps = [
         "//pkg/collector/corechecks/network-devices/cisco-sdwan/client",
         "//pkg/networkdevice/metadata",
-        "@com_github_stretchr_testify//require:go_default_library",
+        "@com_github_stretchr_testify//require",
     ],
 )

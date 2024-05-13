@@ -19,6 +19,6 @@ go_test(
         "//pkg/proto/pbgo/trace",
         "//pkg/trace/config",
         "//pkg/trace/traceutil",
-        "@com_github_stretchr_testify//assert:go_default_library",
+        "@com_github_stretchr_testify//assert",
     ],
 )

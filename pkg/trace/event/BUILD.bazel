@@ -21,7 +21,7 @@ go_library(
         "//pkg/trace/sampler",
         "//pkg/trace/traceutil",
         "//pkg/trace/watchdog",
-        "@com_github_datadog_datadog_go_v5//statsd:go_default_library",
+        "@com_github_datadog_datadog_go_v5//statsd",
     ],
 )
 
@@ -41,7 +41,7 @@ go_test(
         "//pkg/trace/sampler",
         "//pkg/trace/testutil",
         "//pkg/trace/traceutil",
-        "@com_github_datadog_datadog_go_v5//statsd:go_default_library",
-        "@com_github_stretchr_testify//assert:go_default_library",
+        "@com_github_datadog_datadog_go_v5//statsd",
+        "@com_github_stretchr_testify//assert",
     ],
 )

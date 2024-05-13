@@ -19,5 +19,5 @@ go_test(
     name = "jmxfetch_test",
     srcs = ["limiter_test.go"],
     embed = [":jmxfetch"],
-    deps = ["@com_github_stretchr_testify//require:go_default_library"],
+    deps = ["@com_github_stretchr_testify//require"],
 )

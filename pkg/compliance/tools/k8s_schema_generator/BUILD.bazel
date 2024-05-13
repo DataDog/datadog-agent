@@ -7,7 +7,7 @@ go_library(
     visibility = ["//visibility:private"],
     deps = [
         "//pkg/compliance/k8sconfig",
-        "@com_github_invopop_jsonschema//:go_default_library",
+        "@com_github_invopop_jsonschema//:jsonschema",
     ],
 )
 

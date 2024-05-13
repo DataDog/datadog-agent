@@ -33,14 +33,14 @@ go_test(
         "@rules_go//go/platform:android": [
             "//pkg/languagedetection/languagemodels",
             "//pkg/proto/pbgo/languagedetection",
-            "@com_github_stretchr_testify//assert:go_default_library",
-            "@com_github_stretchr_testify//require:go_default_library",
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
         ],
         "@rules_go//go/platform:linux": [
             "//pkg/languagedetection/languagemodels",
             "//pkg/proto/pbgo/languagedetection",
-            "@com_github_stretchr_testify//assert:go_default_library",
-            "@com_github_stretchr_testify//require:go_default_library",
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
         ],
         "//conditions:default": [],
     }),

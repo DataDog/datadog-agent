@@ -12,7 +12,7 @@ go_library(
         "//pkg/api/util",
         "//pkg/util/containers",
         "//pkg/util/log",
-        "@in_gopkg_yaml_v2//:go_default_library",
+        "@in_gopkg_yaml_v2//:yaml_v2",
     ],
 )
 
@@ -26,6 +26,6 @@ go_test(
         "//comp/core/autodiscovery/providers/names",
         "//pkg/collector/corechecks/system",
         "//pkg/util/containers",
-        "@com_github_stretchr_testify//assert:go_default_library",
+        "@com_github_stretchr_testify//assert",
     ],
 )

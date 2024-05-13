@@ -14,7 +14,7 @@ go_library(
         "//pkg/status/health",
         "//pkg/telemetry",
         "//pkg/util/log",
-        "@org_uber_go_atomic//:go_default_library",
+        "@org_uber_go_atomic//:atomic",
     ],
 )
 
@@ -30,7 +30,7 @@ go_test(
         "//pkg/collector/check/id",
         "//pkg/collector/check/stub",
         "//pkg/util/testutil",
-        "@com_github_stretchr_testify//assert:go_default_library",
-        "@com_github_stretchr_testify//require:go_default_library",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
     ],
 )

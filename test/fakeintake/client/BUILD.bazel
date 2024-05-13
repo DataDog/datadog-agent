@@ -9,9 +9,9 @@ go_library(
         "//test/fakeintake/aggregator",
         "//test/fakeintake/api",
         "//test/fakeintake/client/flare",
-        "@com_github_cenkalti_backoff_v4//:go_default_library",
-        "@com_github_datadog_agent_payload_v5//process:go_default_library",
-        "@com_github_samber_lo//:go_default_library",
+        "@com_github_cenkalti_backoff_v4//:backoff",
+        "@com_github_datadog_agent_payload_v5//process",
+        "@com_github_samber_lo//:lo",
     ],
 )
 
@@ -39,8 +39,8 @@ go_test(
         "//test/fakeintake/aggregator",
         "//test/fakeintake/api",
         "//test/fakeintake/fixtures",
-        "@com_github_stretchr_testify//assert:go_default_library",
-        "@com_github_stretchr_testify//require:go_default_library",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
     ] + select({
         "@rules_go//go/platform:aix": [
             "//test/fakeintake/server",

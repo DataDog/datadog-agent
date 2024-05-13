@@ -13,6 +13,6 @@ go_test(
         "//test/new-e2e/tests/agent-platform/common/helper",
         "//test/new-e2e/tests/agent-platform/platforms",
         "@com_github_datadog_test_infra_definitions//scenarios/aws/ec2:go_default_library",
-        "@com_github_stretchr_testify//require:go_default_library",
+        "@com_github_stretchr_testify//require",
     ],
 )

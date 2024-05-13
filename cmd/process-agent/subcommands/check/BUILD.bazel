@@ -24,10 +24,10 @@ go_library(
         "//pkg/process/checks",
         "//pkg/util/fxutil",
         "//pkg/version",
-        "@com_github_datadog_agent_payload_v5//process:go_default_library",
-        "@com_github_fatih_color//:go_default_library",
-        "@com_github_spf13_cobra//:go_default_library",
-        "@org_uber_go_fx//:go_default_library",
+        "@com_github_datadog_agent_payload_v5//process",
+        "@com_github_fatih_color//:color",
+        "@com_github_spf13_cobra//:cobra",
+        "@org_uber_go_fx//:fx",
     ],
 )
 

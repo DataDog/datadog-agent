@@ -12,8 +12,8 @@ go_library(
         "//pkg/orchestrator/model",
         "//pkg/telemetry",
         "//pkg/util/log",
-        "@com_github_patrickmn_go_cache//:go_default_library",
-        "@io_k8s_apimachinery//pkg/types:go_default_library",
+        "@com_github_patrickmn_go_cache//:go-cache",
+        "@io_k8s_apimachinery//pkg/types",
     ],
 )
 
@@ -22,7 +22,7 @@ go_test(
     srcs = ["cache_test.go"],
     embed = [":orchestrator"],
     deps = [
-        "@com_github_stretchr_testify//assert:go_default_library",
-        "@io_k8s_apimachinery//pkg/types:go_default_library",
+        "@com_github_stretchr_testify//assert",
+        "@io_k8s_apimachinery//pkg/types",
     ],
 )

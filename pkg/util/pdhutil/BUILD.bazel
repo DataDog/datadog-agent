@@ -19,7 +19,7 @@ go_library(
             "//pkg/config",
             "//pkg/util/log",
             "@org_golang_x_sys//windows",
-            "@org_uber_go_atomic//:go_default_library",
+            "@org_uber_go_atomic//:atomic",
         ],
         "//conditions:default": [],
     }),

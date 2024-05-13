@@ -5,7 +5,7 @@ go_library(
     srcs = ["reporter.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/util/atomicstats",
     visibility = ["//visibility:public"],
-    deps = ["@org_uber_go_atomic//:go_default_library"],
+    deps = ["@org_uber_go_atomic//:atomic"],
 )
 
 go_test(
@@ -13,7 +13,7 @@ go_test(
     srcs = ["reporter_test.go"],
     embed = [":atomicstats"],
     deps = [
-        "@com_github_stretchr_testify//require:go_default_library",
-        "@org_uber_go_atomic//:go_default_library",
+        "@com_github_stretchr_testify//require",
+        "@org_uber_go_atomic//:atomic",
     ],
 )

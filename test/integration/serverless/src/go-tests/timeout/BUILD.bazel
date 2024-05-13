@@ -6,8 +6,8 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/test/integration/serverless/src/go-tests/timeout",
     visibility = ["//visibility:private"],
     deps = [
-        "@com_github_aws_aws_lambda_go//events:go_default_library",
-        "@com_github_aws_aws_lambda_go//lambda:go_default_library",
+        "@com_github_aws_aws_lambda_go//events",
+        "@com_github_aws_aws_lambda_go//lambda",
         "@com_github_datadog_datadog_lambda_go//:go_default_library",
     ],
 )

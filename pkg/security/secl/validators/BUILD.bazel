@@ -13,7 +13,7 @@ go_library(
         "//pkg/security/secl/compiler/ast",
         "//pkg/security/secl/compiler/eval",
         "//pkg/security/secl/model",
-        "@com_github_masterminds_semver_v3//:go_default_library",
+        "@com_github_masterminds_semver_v3//:semver",
     ],
 )
 

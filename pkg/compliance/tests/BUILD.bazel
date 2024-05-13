@@ -7,10 +7,10 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/compliance",
-        "@com_github_docker_docker//client:go_default_library",
-        "@com_github_stretchr_testify//assert:go_default_library",
-        "@io_k8s_client_go//discovery:go_default_library",
-        "@io_k8s_client_go//dynamic:go_default_library",
+        "@com_github_docker_docker//client",
+        "@com_github_stretchr_testify//assert",
+        "@io_k8s_client_go//discovery",
+        "@io_k8s_client_go//dynamic",
     ],
 )
 
@@ -28,6 +28,6 @@ go_test(
     embed = [":tests"],
     deps = [
         "//pkg/compliance",
-        "@com_github_stretchr_testify//assert:go_default_library",
+        "@com_github_stretchr_testify//assert",
     ],
 )

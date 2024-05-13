@@ -14,7 +14,7 @@ go_library(
         "//comp/core/status",
         "//pkg/api/util",
         "//pkg/util/fxutil",
-        "@org_uber_go_fx//:go_default_library",
+        "@org_uber_go_fx//:fx",
     ],
 )
 
@@ -25,7 +25,7 @@ go_test(
     deps = [
         "//comp/core/config",
         "//pkg/util/fxutil",
-        "@com_github_stretchr_testify//assert:go_default_library",
-        "@org_uber_go_fx//:go_default_library",
+        "@com_github_stretchr_testify//assert",
+        "@org_uber_go_fx//:fx",
     ],
 )

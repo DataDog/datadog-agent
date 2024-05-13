@@ -7,7 +7,7 @@ go_library(
     visibility = ["//visibility:private"],
     deps = [
         "//pkg/trace/pb",
-        "@com_github_datadog_agent_payload_v5//gogen:go_default_library",
+        "@com_github_datadog_agent_payload_v5//gogen",
     ],
 )
 

@@ -17,7 +17,7 @@ go_library(
         "//pkg/serializer",
         "//pkg/serializer/marshaler",
         "//pkg/util/log",
-        "@org_uber_go_atomic//:go_default_library",
+        "@org_uber_go_atomic//:atomic",
     ],
 )
 
@@ -37,8 +37,8 @@ go_test(
         "//pkg/serializer",
         "//pkg/serializer/marshaler",
         "//pkg/util/fxutil",
-        "@com_github_stretchr_testify//assert:go_default_library",
-        "@com_github_stretchr_testify//mock:go_default_library",
-        "@org_uber_go_fx//:go_default_library",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//mock",
+        "@org_uber_go_fx//:fx",
     ],
 )

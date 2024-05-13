@@ -11,7 +11,7 @@ go_library(
     deps = [
         "//comp/core/tagger",
         "//pkg/util/log",
-        "@com_github_benbjohnson_clock//:go_default_library",
+        "@com_github_benbjohnson_clock//:clock",
     ],
 )
 
@@ -23,7 +23,7 @@ go_test(
     ],
     embed = [":util"],
     deps = [
-        "@com_github_benbjohnson_clock//:go_default_library",
-        "@com_github_stretchr_testify//assert:go_default_library",
+        "@com_github_benbjohnson_clock//:clock",
+        "@com_github_stretchr_testify//assert",
     ],
 )

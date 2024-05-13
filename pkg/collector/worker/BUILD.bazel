@@ -20,7 +20,7 @@ go_library(
         "//pkg/telemetry",
         "//pkg/util/hostname",
         "//pkg/util/log",
-        "@com_github_benbjohnson_clock//:go_default_library",
+        "@com_github_benbjohnson_clock//:clock",
     ],
 )
 
@@ -43,9 +43,9 @@ go_test(
         "//pkg/collector/runner/tracker",
         "//pkg/config",
         "//pkg/metrics/servicecheck",
-        "@com_github_benbjohnson_clock//:go_default_library",
-        "@com_github_stretchr_testify//assert:go_default_library",
-        "@com_github_stretchr_testify//require:go_default_library",
-        "@org_uber_go_atomic//:go_default_library",
+        "@com_github_benbjohnson_clock//:clock",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@org_uber_go_atomic//:atomic",
     ],
 )

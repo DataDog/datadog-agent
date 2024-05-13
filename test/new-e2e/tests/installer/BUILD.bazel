@@ -11,8 +11,8 @@ go_library(
     deps = [
         "//test/new-e2e/pkg/components",
         "@com_github_datadog_test_infra_definitions//components/os:go_default_library",
-        "@com_github_stretchr_testify//assert:go_default_library",
-        "@com_github_stretchr_testify//require:go_default_library",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
     ],
 )
 
@@ -28,8 +28,8 @@ go_test(
         "//test/new-e2e/pkg/utils/e2e/client",
         "@com_github_datadog_test_infra_definitions//components/os:go_default_library",
         "@com_github_datadog_test_infra_definitions//scenarios/aws/ec2:go_default_library",
-        "@com_github_stretchr_testify//assert:go_default_library",
-        "@com_github_stretchr_testify//require:go_default_library",
-        "@in_gopkg_yaml_v2//:go_default_library",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@in_gopkg_yaml_v2//:yaml_v2",
     ],
 )

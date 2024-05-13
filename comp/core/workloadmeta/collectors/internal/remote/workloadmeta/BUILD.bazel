@@ -14,7 +14,7 @@ go_library(
         "//pkg/util/proto",
         "@org_golang_google_grpc//:go_default_library",
         "@org_golang_google_grpc//grpclog",
-        "@org_uber_go_fx//:go_default_library",
+        "@org_uber_go_fx//:fx",
     ],
 )
 
@@ -32,12 +32,12 @@ go_test(
         "//pkg/proto/pbgo/core",
         "//pkg/util/fxutil",
         "//pkg/util/proto",
-        "@com_github_stretchr_testify//assert:go_default_library",
-        "@com_github_stretchr_testify//require:go_default_library",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
         "@org_golang_google_grpc//:go_default_library",
         "@org_golang_google_grpc//codes",
         "@org_golang_google_grpc//status",
         "@org_golang_google_protobuf//types/known/emptypb",
-        "@org_uber_go_fx//:go_default_library",
+        "@org_uber_go_fx//:fx",
     ],
 )

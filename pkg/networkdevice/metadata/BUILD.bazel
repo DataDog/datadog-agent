@@ -11,7 +11,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/snmp/gosnmplib",
-        "@com_github_gosnmp_gosnmp//:go_default_library",
+        "@com_github_gosnmp_gosnmp//:gosnmp",
     ],
 )
 
@@ -20,7 +20,7 @@ go_test(
     srcs = ["payload_utils_test.go"],
     embed = [":metadata"],
     deps = [
-        "@com_github_stretchr_testify//assert:go_default_library",
-        "@com_github_stretchr_testify//require:go_default_library",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
     ],
 )

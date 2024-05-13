@@ -5,5 +5,5 @@ go_library(
     srcs = ["statsd_client.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/security/tests/statsdclient",
     visibility = ["//visibility:public"],
-    deps = ["@com_github_datadog_datadog_go_v5//statsd:go_default_library"],
+    deps = ["@com_github_datadog_datadog_go_v5//statsd"],
 )

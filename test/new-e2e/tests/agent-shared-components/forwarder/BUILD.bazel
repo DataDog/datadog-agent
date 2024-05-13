@@ -19,7 +19,7 @@ go_test(
         "@com_github_datadog_test_infra_definitions//scenarios/aws/ec2:go_default_library",
         "@com_github_datadog_test_infra_definitions//scenarios/aws/fakeintake:go_default_library",
         "@com_github_pulumi_pulumi_sdk_v3//go/pulumi:go_default_library",
-        "@com_github_stretchr_testify//assert:go_default_library",
-        "@com_github_stretchr_testify//require:go_default_library",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
     ],
 )

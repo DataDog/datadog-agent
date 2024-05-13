@@ -8,9 +8,9 @@ go_test(
         "//comp/core/autodiscovery/providers",
         "//pkg/config",
         "//test/integration/utils",
-        "@com_github_cihub_seelog//:go_default_library",
-        "@com_github_samuel_go_zookeeper//zk:go_default_library",
-        "@com_github_stretchr_testify//require:go_default_library",
-        "@com_github_stretchr_testify//suite:go_default_library",
+        "@com_github_cihub_seelog//:seelog",
+        "@com_github_samuel_go_zookeeper//zk",
+        "@com_github_stretchr_testify//require",
+        "@com_github_stretchr_testify//suite",
     ],
 )

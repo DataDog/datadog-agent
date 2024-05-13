@@ -14,7 +14,7 @@ go_library(
     deps = [
         "//pkg/proto/pbgo/process",
         "//pkg/util/kubernetes",
-        "@io_k8s_apimachinery//pkg/runtime/schema:go_default_library",
+        "@io_k8s_apimachinery//pkg/runtime/schema",
     ],
 )
 
@@ -29,6 +29,6 @@ go_test(
     embed = [":util"],
     deps = [
         "//pkg/proto/pbgo/process",
-        "@com_github_stretchr_testify//assert:go_default_library",
+        "@com_github_stretchr_testify//assert",
     ],
 )

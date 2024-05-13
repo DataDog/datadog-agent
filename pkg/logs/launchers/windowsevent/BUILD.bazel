@@ -112,7 +112,7 @@ go_test(
     deps = select({
         "@rules_go//go/platform:windows": [
             "//comp/logs/agent/config",
-            "@com_github_stretchr_testify//assert:go_default_library",
+            "@com_github_stretchr_testify//assert",
         ],
         "//conditions:default": [],
     }),

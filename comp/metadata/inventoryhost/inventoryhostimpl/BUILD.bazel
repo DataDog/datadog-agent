@@ -26,7 +26,7 @@ go_library(
         "//pkg/util/hostname",
         "//pkg/util/uuid",
         "//pkg/version",
-        "@org_uber_go_fx//:go_default_library",
+        "@org_uber_go_fx//:fx",
     ],
 )
 
@@ -50,7 +50,7 @@ go_test(
         "//pkg/util/dmi",
         "//pkg/util/fxutil",
         "//pkg/version",
-        "@com_github_stretchr_testify//assert:go_default_library",
-        "@org_uber_go_fx//:go_default_library",
+        "@com_github_stretchr_testify//assert",
+        "@org_uber_go_fx//:fx",
     ],
 )

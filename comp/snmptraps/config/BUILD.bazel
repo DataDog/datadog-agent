@@ -14,7 +14,7 @@ go_library(
         "//comp/snmptraps/snmplog",
         "//pkg/snmp/gosnmplib",
         "//pkg/snmp/utils",
-        "@com_github_gosnmp_gosnmp//:go_default_library",
+        "@com_github_gosnmp_gosnmp//:gosnmp",
     ],
 )
 
@@ -29,10 +29,10 @@ go_test(
         "//comp/core/log",
         "//comp/core/log/logimpl",
         "//pkg/util/fxutil",
-        "@com_github_gosnmp_gosnmp//:go_default_library",
-        "@com_github_mitchellh_mapstructure//:go_default_library",
-        "@com_github_stretchr_testify//assert:go_default_library",
-        "@com_github_stretchr_testify//require:go_default_library",
-        "@org_uber_go_fx//:go_default_library",
+        "@com_github_gosnmp_gosnmp//:gosnmp",
+        "@com_github_mitchellh_mapstructure//:mapstructure",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@org_uber_go_fx//:fx",
     ],
 )

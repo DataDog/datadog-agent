@@ -14,15 +14,15 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry",
     visibility = ["//visibility:public"],
     deps = [
-        "@com_github_prometheus_client_golang//prometheus:go_default_library",
+        "@com_github_prometheus_client_golang//prometheus",
     ] + select({
         "@rules_go//go/platform:android": [
-            "@com_github_cilium_ebpf//:go_default_library",
-            "@com_github_datadog_ebpf_manager//:go_default_library",
+            "@com_github_cilium_ebpf//:ebpf",
+            "@com_github_datadog_ebpf_manager//:ebpf-manager",
         ],
         "@rules_go//go/platform:linux": [
-            "@com_github_cilium_ebpf//:go_default_library",
-            "@com_github_datadog_ebpf_manager//:go_default_library",
+            "@com_github_cilium_ebpf//:ebpf",
+            "@com_github_datadog_ebpf_manager//:ebpf-manager",
         ],
         "//conditions:default": [],
     }),

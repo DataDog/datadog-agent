@@ -10,7 +10,7 @@ go_library(
         "//comp/core/log",
         "//comp/metadata/runner",
         "//pkg/util/fxutil",
-        "@org_uber_go_fx//:go_default_library",
+        "@org_uber_go_fx//:fx",
     ],
 )
 
@@ -23,8 +23,8 @@ go_test(
         "//comp/core/log/logimpl",
         "//comp/metadata/runner",
         "//pkg/util/fxutil",
-        "@com_github_stretchr_testify//assert:go_default_library",
-        "@org_uber_go_fx//:go_default_library",
-        "@org_uber_go_fx//fxtest:go_default_library",
+        "@com_github_stretchr_testify//assert",
+        "@org_uber_go_fx//:fx",
+        "@org_uber_go_fx//fxtest",
     ],
 )

@@ -38,6 +38,6 @@ go_test(
         "//pkg/logs/sources",
         "//pkg/logs/status/statusinterface",
         "//pkg/logs/util/testutils",
-        "@com_github_stretchr_testify//assert:go_default_library",
+        "@com_github_stretchr_testify//assert",
     ],
 )

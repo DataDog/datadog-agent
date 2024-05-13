@@ -31,5 +31,5 @@ go_test(
     name = "cloudproviders_test",
     srcs = ["cloudproviders_test.go"],
     embed = [":cloudproviders"],
-    deps = ["@com_github_stretchr_testify//assert:go_default_library"],
+    deps = ["@com_github_stretchr_testify//assert"],
 )

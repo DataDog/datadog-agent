@@ -12,5 +12,5 @@ go_test(
     name = "cachedfetch_test",
     srcs = ["fetcher_test.go"],
     embed = [":cachedfetch"],
-    deps = ["@com_github_stretchr_testify//require:go_default_library"],
+    deps = ["@com_github_stretchr_testify//require"],
 )

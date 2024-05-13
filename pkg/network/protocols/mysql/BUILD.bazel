@@ -11,6 +11,6 @@ go_library(
     deps = [
         "//pkg/network/protocols/http/testutil",
         "//pkg/network/protocols/testutil",
-        "@com_github_go_sql_driver_mysql//:go_default_library",
+        "@com_github_go_sql_driver_mysql//:mysql",
     ],
 )

@@ -23,5 +23,5 @@ go_test(
         "starter_test.go",
     ],
     embed = [":startstop"],
-    deps = ["@com_github_stretchr_testify//require:go_default_library"],
+    deps = ["@com_github_stretchr_testify//require"],
 )

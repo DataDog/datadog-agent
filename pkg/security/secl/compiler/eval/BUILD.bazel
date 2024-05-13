@@ -32,7 +32,7 @@ go_library(
     deps = [
         "//pkg/security/secl/compiler/ast",
         "//pkg/security/secl/utils",
-        "@com_github_alecthomas_participle//lexer:go_default_library",
+        "@com_github_alecthomas_participle//lexer",
     ],
 )
 
@@ -50,6 +50,6 @@ go_test(
     embed = [":eval"],
     deps = [
         "//pkg/security/secl/compiler/ast",
-        "@com_github_stretchr_testify//assert:go_default_library",
+        "@com_github_stretchr_testify//assert",
     ],
 )

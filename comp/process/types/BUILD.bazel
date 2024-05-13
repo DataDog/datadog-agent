@@ -8,7 +8,7 @@ go_library(
     deps = [
         "//pkg/process/checks",
         "//pkg/process/checks/mocks",
-        "@com_github_datadog_agent_payload_v5//process:go_default_library",
-        "@org_uber_go_fx//:go_default_library",
+        "@com_github_datadog_agent_payload_v5//process",
+        "@org_uber_go_fx//:fx",
     ],
 )

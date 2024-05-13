@@ -111,7 +111,7 @@ go_test(
         "//pkg/process/checks",
         "//pkg/process/checks/mocks",
         "//pkg/util/fxutil",
-        "@com_github_stretchr_testify//assert:go_default_library",
-        "@com_github_stretchr_testify//require:go_default_library",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
     ],
 )

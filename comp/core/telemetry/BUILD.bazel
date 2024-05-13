@@ -17,8 +17,8 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/comp/core/telemetry",
     visibility = ["//visibility:public"],
     deps = [
-        "@com_github_prometheus_client_golang//prometheus:go_default_library",
-        "@com_github_prometheus_client_model//go:go_default_library",
-        "@io_opentelemetry_go_otel_metric//:go_default_library",
+        "@com_github_prometheus_client_golang//prometheus",
+        "@com_github_prometheus_client_model//go",
+        "@io_opentelemetry_go_otel_metric//:metric",
     ],
 )

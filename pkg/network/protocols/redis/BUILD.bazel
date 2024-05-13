@@ -11,5 +11,6 @@ go_library(
     deps = [
         "//pkg/network/protocols/http/testutil",
         "//pkg/network/protocols/testutil",
+        "@com_github_go_redis_redis_v9//:redis",
     ],
 )

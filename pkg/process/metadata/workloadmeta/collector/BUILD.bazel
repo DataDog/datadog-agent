@@ -11,7 +11,7 @@ go_library(
         "//pkg/process/checks",
         "//pkg/process/metadata/workloadmeta",
         "//pkg/util/log",
-        "@com_github_benbjohnson_clock//:go_default_library",
+        "@com_github_benbjohnson_clock//:clock",
     ],
 )
 
@@ -32,12 +32,12 @@ go_test(
         "//pkg/trace/testutil",
         "//pkg/util/flavor",
         "//pkg/util/fxutil",
-        "@com_github_benbjohnson_clock//:go_default_library",
-        "@com_github_stretchr_testify//assert:go_default_library",
-        "@com_github_stretchr_testify//mock:go_default_library",
-        "@com_github_stretchr_testify//require:go_default_library",
+        "@com_github_benbjohnson_clock//:clock",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//mock",
+        "@com_github_stretchr_testify//require",
         "@org_golang_google_grpc//:go_default_library",
         "@org_golang_google_grpc//credentials/insecure",
-        "@org_uber_go_fx//:go_default_library",
+        "@org_uber_go_fx//:fx",
     ],
 )

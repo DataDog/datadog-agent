@@ -20,7 +20,7 @@ go_library(
         "//pkg/logs/metrics",
         "//pkg/logs/sds",
         "//pkg/util/log",
-        "@com_github_datadog_agent_payload_v5//pb:go_default_library",
+        "@com_github_datadog_agent_payload_v5//pb",
     ],
 )
 
@@ -36,7 +36,7 @@ go_test(
         "//comp/logs/agent/config",
         "//pkg/logs/message",
         "//pkg/logs/sources",
-        "@com_github_datadog_agent_payload_v5//pb:go_default_library",
-        "@com_github_stretchr_testify//assert:go_default_library",
+        "@com_github_datadog_agent_payload_v5//pb",
+        "@com_github_stretchr_testify//assert",
     ],
 )

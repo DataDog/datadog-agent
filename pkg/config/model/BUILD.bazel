@@ -13,11 +13,11 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/util/log",
-        "@com_github_datadog_viper//:go_default_library",
-        "@com_github_mohae_deepcopy//:go_default_library",
-        "@com_github_spf13_afero//:go_default_library",
-        "@com_github_spf13_pflag//:go_default_library",
-        "@org_golang_x_exp//slices:go_default_library",
+        "@com_github_datadog_viper//:viper",
+        "@com_github_mohae_deepcopy//:deepcopy",
+        "@com_github_spf13_afero//:afero",
+        "@com_github_spf13_pflag//:pflag",
+        "@org_golang_x_exp//slices",
     ],
 )
 
@@ -25,5 +25,5 @@ go_test(
     name = "model_test",
     srcs = ["viper_test.go"],
     embed = [":model"],
-    deps = ["@com_github_stretchr_testify//assert:go_default_library"],
+    deps = ["@com_github_stretchr_testify//assert"],
 )

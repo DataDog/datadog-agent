@@ -13,7 +13,7 @@ go_library(
         "//pkg/serverless/registration",
         "//pkg/serverless/tags",
         "//pkg/util/log",
-        "@com_github_json_iterator_go//:go_default_library",
+        "@com_github_json_iterator_go//:go",
     ],
 )
 
@@ -26,6 +26,6 @@ go_test(
         "//pkg/serverless/invocationlifecycle",
         "//pkg/serverless/trace",
         "//pkg/trace/testutil",
-        "@com_github_stretchr_testify//assert:go_default_library",
+        "@com_github_stretchr_testify//assert",
     ],
 )

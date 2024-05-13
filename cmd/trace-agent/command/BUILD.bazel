@@ -18,7 +18,7 @@ go_library(
         "//cmd/trace-agent/subcommands/run",
         "//pkg/cli/subcommands/version",
         "//pkg/util/cli",
-        "@com_github_spf13_cobra//:go_default_library",
+        "@com_github_spf13_cobra//:cobra",
     ] + select({
         "@rules_go//go/platform:aix": [
             "//pkg/config/setup",
@@ -67,5 +67,5 @@ go_test(
     name = "command_test",
     srcs = ["deprecated_test.go"],
     embed = [":command"],
-    deps = ["@com_github_stretchr_testify//assert:go_default_library"],
+    deps = ["@com_github_stretchr_testify//assert"],
 )

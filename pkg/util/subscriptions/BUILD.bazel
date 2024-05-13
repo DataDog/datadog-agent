@@ -10,7 +10,7 @@ go_library(
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/util/subscriptions",
     visibility = ["//visibility:public"],
-    deps = ["@org_uber_go_fx//:go_default_library"],
+    deps = ["@org_uber_go_fx//:fx"],
 )
 
 go_test(
@@ -19,7 +19,7 @@ go_test(
     embed = [":subscriptions"],
     deps = [
         "//pkg/util/fxutil",
-        "@com_github_stretchr_testify//require:go_default_library",
-        "@org_uber_go_fx//:go_default_library",
+        "@com_github_stretchr_testify//require",
+        "@org_uber_go_fx//:fx",
     ],
 )

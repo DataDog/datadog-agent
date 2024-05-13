@@ -14,7 +14,7 @@ go_library(
         "//pkg/config/utils",
         "//pkg/telemetry",
         "//pkg/util/log",
-        "@com_github_mitchellh_mapstructure//:go_default_library",
+        "@com_github_mitchellh_mapstructure//:mapstructure",
     ],
 )
 
@@ -29,6 +29,6 @@ go_test(
         "//comp/core/telemetry/telemetryimpl",
         "//pkg/collector/check/id",
         "//pkg/config",
-        "@com_github_stretchr_testify//assert:go_default_library",
+        "@com_github_stretchr_testify//assert",
     ],
 )

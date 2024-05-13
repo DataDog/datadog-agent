@@ -28,8 +28,8 @@ go_library(
         "//pkg/process/util/api/headers",
         "//pkg/util/log",
         "//pkg/version",
-        "@com_github_datadog_agent_payload_v5//process:go_default_library",
-        "@org_uber_go_atomic//:go_default_library",
+        "@com_github_datadog_agent_payload_v5//process",
+        "@org_uber_go_atomic//:atomic",
     ],
 )
 
@@ -60,11 +60,11 @@ go_test(
         "//pkg/process/util/api/headers",
         "//pkg/util/fxutil",
         "//pkg/version",
-        "@com_github_datadog_agent_payload_v5//process:go_default_library",
+        "@com_github_datadog_agent_payload_v5//process",
         "@com_github_gogo_protobuf//proto",
-        "@com_github_stretchr_testify//assert:go_default_library",
-        "@com_github_stretchr_testify//mock:go_default_library",
-        "@com_github_stretchr_testify//require:go_default_library",
-        "@org_uber_go_fx//:go_default_library",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//mock",
+        "@com_github_stretchr_testify//require",
+        "@org_uber_go_fx//:fx",
     ],
 )

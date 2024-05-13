@@ -13,8 +13,8 @@ go_library(
     deps = [
         "//test/fakeintake/aggregator",
         "//test/fakeintake/api",
-        "@com_github_prometheus_client_golang//prometheus:go_default_library",
-        "@org_modernc_sqlite//:go_default_library",
+        "@com_github_prometheus_client_golang//prometheus",
+        "@org_modernc_sqlite//:sqlite",
     ],
 )
 
@@ -28,8 +28,8 @@ go_test(
     embed = [":serverstore"],
     deps = [
         "//test/fakeintake/api",
-        "@com_github_stretchr_testify//assert:go_default_library",
-        "@com_github_stretchr_testify//require:go_default_library",
-        "@com_github_stretchr_testify//suite:go_default_library",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@com_github_stretchr_testify//suite",
     ],
 )

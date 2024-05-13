@@ -15,6 +15,6 @@ go_library(
         "//pkg/serializer/marshaler",
         "//pkg/telemetry",
         "//pkg/util/log",
-        "@com_github_json_iterator_go//:go_default_library",
+        "@com_github_json_iterator_go//:go",
     ],
 )

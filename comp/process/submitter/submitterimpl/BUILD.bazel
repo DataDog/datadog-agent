@@ -15,7 +15,7 @@ go_library(
         "//comp/process/types",
         "//pkg/process/runner",
         "//pkg/util/fxutil",
-        "@org_uber_go_fx//:go_default_library",
+        "@org_uber_go_fx//:fx",
     ],
 )
 
@@ -29,6 +29,6 @@ go_test(
         "//comp/process/hostinfo/hostinfoimpl",
         "//comp/process/submitter",
         "//pkg/util/fxutil",
-        "@org_uber_go_fx//:go_default_library",
+        "@org_uber_go_fx//:fx",
     ],
 )

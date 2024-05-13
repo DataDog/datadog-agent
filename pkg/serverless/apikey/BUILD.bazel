@@ -12,10 +12,10 @@ go_library(
         "//pkg/config",
         "//pkg/util/http",
         "//pkg/util/log",
-        "@com_github_aws_aws_sdk_go_v2//aws/arn:go_default_library",
-        "@com_github_aws_aws_sdk_go_v2_config//:go_default_library",
-        "@com_github_aws_aws_sdk_go_v2_service_kms//:go_default_library",
-        "@com_github_aws_aws_sdk_go_v2_service_secretsmanager//:go_default_library",
+        "@com_github_aws_aws_sdk_go_v2//aws/arn",
+        "@com_github_aws_aws_sdk_go_v2_config//:config",
+        "@com_github_aws_aws_sdk_go_v2_service_kms//:kms",
+        "@com_github_aws_aws_sdk_go_v2_service_secretsmanager//:secretsmanager",
     ],
 )
 
@@ -27,7 +27,7 @@ go_test(
     ],
     embed = [":apikey"],
     deps = [
-        "@com_github_aws_aws_sdk_go_v2_service_kms//:go_default_library",
-        "@com_github_stretchr_testify//assert:go_default_library",
+        "@com_github_aws_aws_sdk_go_v2_service_kms//:kms",
+        "@com_github_stretchr_testify//assert",
     ],
 )

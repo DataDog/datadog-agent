@@ -10,6 +10,6 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/util/log",
-        "@com_github_patrickmn_go_cache//:go_default_library",
+        "@com_github_patrickmn_go_cache//:go-cache",
     ],
 )

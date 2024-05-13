@@ -25,8 +25,8 @@ go_library(
         "//pkg/util/http",
         "//pkg/util/installinfo",
         "//pkg/util/uuid",
-        "@com_github_protonmail_go_crypto//openpgp:go_default_library",
-        "@org_uber_go_fx//:go_default_library",
+        "@com_github_protonmail_go_crypto//openpgp",
+        "@org_uber_go_fx//:fx",
     ],
 )
 
@@ -48,8 +48,8 @@ go_test(
             "//comp/metadata/packagesigning/utils",
             "//pkg/serializer",
             "//pkg/util/fxutil",
-            "@com_github_stretchr_testify//assert:go_default_library",
-            "@org_uber_go_fx//:go_default_library",
+            "@com_github_stretchr_testify//assert",
+            "@org_uber_go_fx//:fx",
         ],
         "@rules_go//go/platform:linux": [
             "//comp/core/config",
@@ -58,8 +58,8 @@ go_test(
             "//comp/metadata/packagesigning/utils",
             "//pkg/serializer",
             "//pkg/util/fxutil",
-            "@com_github_stretchr_testify//assert:go_default_library",
-            "@org_uber_go_fx//:go_default_library",
+            "@com_github_stretchr_testify//assert",
+            "@org_uber_go_fx//:fx",
         ],
         "//conditions:default": [],
     }),

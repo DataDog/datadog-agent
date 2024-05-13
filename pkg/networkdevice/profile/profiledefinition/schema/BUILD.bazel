@@ -12,7 +12,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/networkdevice/profile/profiledefinition",
-        "@com_github_invopop_jsonschema//:go_default_library",
+        "@com_github_invopop_jsonschema//:jsonschema",
     ],
 )
 
@@ -24,8 +24,8 @@ go_test(
     ],
     embed = [":schema"],
     deps = [
-        "@com_github_santhosh_tekuri_jsonschema_v5//:go_default_library",
-        "@com_github_stretchr_testify//assert:go_default_library",
-        "@com_github_stretchr_testify//require:go_default_library",
+        "@com_github_santhosh_tekuri_jsonschema_v5//:jsonschema",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
     ],
 )

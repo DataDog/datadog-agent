@@ -32,7 +32,7 @@ go_library(
         "//pkg/util/log",
         "//pkg/util/optional",
         "//pkg/util/system",
-        "@in_gopkg_yaml_v2//:go_default_library",
+        "@in_gopkg_yaml_v2//:yaml_v2",
     ] + select({
         "@rules_go//go/platform:windows": [
             "//pkg/util/executable",
@@ -57,8 +57,8 @@ go_test(
         "//comp/core/secrets/secretsimpl",
         "//pkg/config/model",
         "//pkg/util/optional",
-        "@com_github_stretchr_testify//assert:go_default_library",
-        "@com_github_stretchr_testify//require:go_default_library",
-        "@in_gopkg_yaml_v2//:go_default_library",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@in_gopkg_yaml_v2//:yaml_v2",
     ],
 )

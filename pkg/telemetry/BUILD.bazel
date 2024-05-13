@@ -21,6 +21,6 @@ go_library(
     deps = [
         "//comp/core/telemetry",
         "//comp/core/telemetry/telemetryimpl",
-        "@org_uber_go_atomic//:go_default_library",
+        "@org_uber_go_atomic//:atomic",
     ],
 )

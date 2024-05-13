@@ -15,7 +15,7 @@ go_library(
         "//pkg/util/kubernetes",
         "//pkg/util/log",
         "//pkg/util/optional",
-        "@com_github_datadog_agent_payload_v5//process:go_default_library",
+        "@com_github_datadog_agent_payload_v5//process",
     ],
 )
 
@@ -32,10 +32,10 @@ go_test(
         "//pkg/util/containers/metrics/provider",
         "//pkg/util/fxutil",
         "//pkg/util/pointer",
-        "@com_github_datadog_agent_payload_v5//process:go_default_library",
+        "@com_github_datadog_agent_payload_v5//process",
         "@com_github_google_go_cmp//cmp",
         "@com_github_google_go_cmp//cmp/cmpopts",
-        "@com_github_stretchr_testify//assert:go_default_library",
-        "@org_uber_go_fx//:go_default_library",
+        "@com_github_stretchr_testify//assert",
+        "@org_uber_go_fx//:fx",
     ],
 )

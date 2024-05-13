@@ -1,4 +1,3 @@
-load("@rules_go//go:def.bzl", "go_library")
 load("@rules_go//proto:def.bzl", "go_proto_library")
 load("@rules_proto//proto:defs.bzl", "proto_library")
 
@@ -12,12 +11,5 @@ go_proto_library(
     name = "languagedetection_go_proto",
     importpath = "pkg/proto/pbgo/languagedetection",
     proto = ":languagedetection_proto",
-    visibility = ["//visibility:public"],
-)
-
-go_library(
-    name = "languagedetection",
-    embed = [":languagedetection_go_proto"],
-    importpath = "pkg/proto/pbgo/languagedetection",
     visibility = ["//visibility:public"],
 )

@@ -14,7 +14,7 @@ go_library(
         "//pkg/logs/sources",
         "//pkg/util/log",
         "//pkg/util/strings",
-        "@com_github_clbanning_mxj//:go_default_library",
+        "@com_github_clbanning_mxj//:mxj",
         "@org_golang_x_text//encoding/unicode",
     ] + select({
         "@rules_go//go/platform:windows": [
@@ -32,6 +32,6 @@ go_test(
         "//comp/logs/agent/config",
         "//pkg/logs/message",
         "//pkg/logs/sources",
-        "@com_github_stretchr_testify//assert:go_default_library",
+        "@com_github_stretchr_testify//assert",
     ],
 )

@@ -16,8 +16,8 @@ go_library(
         "//pkg/trace/sampler",
         "//pkg/trace/watchdog",
         "//pkg/util/scrubber",
-        "@com_github_datadog_datadog_go_v5//statsd:go_default_library",
-        "@org_uber_go_atomic//:go_default_library",
+        "@com_github_datadog_datadog_go_v5//statsd",
+        "@org_uber_go_atomic//:atomic",
     ],
 )
 
@@ -37,8 +37,8 @@ go_test(
         "//pkg/trace/sampler",
         "//pkg/trace/teststatsd",
         "//pkg/trace/watchdog",
-        "@com_github_stretchr_testify//assert:go_default_library",
-        "@com_github_stretchr_testify//require:go_default_library",
-        "@org_uber_go_atomic//:go_default_library",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@org_uber_go_atomic//:atomic",
     ],
 )

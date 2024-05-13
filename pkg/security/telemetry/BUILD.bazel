@@ -8,6 +8,6 @@ go_library(
     deps = [
         "//comp/core/workloadmeta",
         "//pkg/util/log",
-        "@com_github_datadog_datadog_go_v5//statsd:go_default_library",
+        "@com_github_datadog_datadog_go_v5//statsd",
     ],
 )

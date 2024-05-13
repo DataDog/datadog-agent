@@ -8,6 +8,6 @@ go_library(
     deps = [
         "//comp/core/config",
         "//comp/core/workloadmeta",
-        "@com_github_cyclonedx_cyclonedx_go//:go_default_library",
+        "@com_github_cyclonedx_cyclonedx_go//:cyclonedx-go",
     ],
 )

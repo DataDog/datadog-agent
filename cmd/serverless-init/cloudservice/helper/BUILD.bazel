@@ -12,5 +12,5 @@ go_test(
     name = "helper_test",
     srcs = ["gcp_test.go"],
     embed = [":helper"],
-    deps = ["@com_github_stretchr_testify//assert:go_default_library"],
+    deps = ["@com_github_stretchr_testify//assert"],
 )

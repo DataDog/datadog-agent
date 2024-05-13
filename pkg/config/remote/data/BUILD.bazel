@@ -14,5 +14,5 @@ go_test(
     name = "data_test",
     srcs = ["file_test.go"],
     embed = [":data"],
-    deps = ["@com_github_stretchr_testify//assert:go_default_library"],
+    deps = ["@com_github_stretchr_testify//assert"],
 )

@@ -12,15 +12,15 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/util/log",
-        "@org_uber_go_atomic//:go_default_library",
+        "@org_uber_go_atomic//:atomic",
     ] + select({
         "@rules_go//go/platform:android": [
             "//pkg/util/cgroups",
-            "@com_github_alecthomas_units//:go_default_library",
+            "@com_github_alecthomas_units//:units",
         ],
         "@rules_go//go/platform:linux": [
             "//pkg/util/cgroups",
-            "@com_github_alecthomas_units//:go_default_library",
+            "@com_github_alecthomas_units//:units",
         ],
         "//conditions:default": [],
     }),
@@ -30,5 +30,5 @@ go_test(
     name = "utils_test",
     srcs = ["limiter_test.go"],
     embed = [":utils"],
-    deps = ["@com_github_stretchr_testify//assert:go_default_library"],
+    deps = ["@com_github_stretchr_testify//assert"],
 )

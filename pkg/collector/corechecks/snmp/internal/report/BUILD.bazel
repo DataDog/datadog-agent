@@ -52,9 +52,9 @@ go_test(
         "//pkg/networkdevice/profile/profiledefinition",
         "//pkg/snmp/snmpintegration",
         "//pkg/util/log",
-        "@com_github_cihub_seelog//:go_default_library",
-        "@com_github_stretchr_testify//assert:go_default_library",
-        "@com_github_stretchr_testify//mock:go_default_library",
-        "@in_gopkg_yaml_v2//:go_default_library",
+        "@com_github_cihub_seelog//:seelog",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//mock",
+        "@in_gopkg_yaml_v2//:yaml_v2",
     ],
 )

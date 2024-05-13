@@ -19,8 +19,8 @@ go_library(
         "//pkg/util/cloudproviders",
         "//pkg/util/log",
         "//pkg/util/optional",
-        "@com_github_beevik_ntp//:go_default_library",
-        "@in_gopkg_yaml_v2//:go_default_library",
+        "@com_github_beevik_ntp//:ntp",
+        "@in_gopkg_yaml_v2//:yaml_v2",
     ] + select({
         "@rules_go//go/platform:windows": [
             "@org_golang_x_sys//windows/registry",
@@ -43,8 +43,8 @@ go_test(
         "//pkg/config",
         "//pkg/metrics/servicecheck",
         "//pkg/util/cloudproviders",
-        "@com_github_beevik_ntp//:go_default_library",
-        "@com_github_stretchr_testify//assert:go_default_library",
-        "@com_github_stretchr_testify//mock:go_default_library",
+        "@com_github_beevik_ntp//:ntp",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//mock",
     ],
 )

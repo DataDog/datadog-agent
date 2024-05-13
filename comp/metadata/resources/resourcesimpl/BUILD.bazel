@@ -11,7 +11,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/util/fxutil",
-        "@org_uber_go_fx//:go_default_library",
+        "@org_uber_go_fx//:fx",
     ] + select({
         "@rules_go//go/platform:android": [
             "//comp/core/config",
@@ -95,7 +95,7 @@ go_test(
     ],
     embed = [":resourcesimpl"],
     deps = [
-        "@com_github_stretchr_testify//assert:go_default_library",
+        "@com_github_stretchr_testify//assert",
     ] + select({
         "@rules_go//go/platform:android": [
             "//comp/core/config",
@@ -103,9 +103,9 @@ go_test(
             "//pkg/config/utils",
             "//pkg/serializer",
             "//pkg/util/fxutil",
-            "@com_github_stretchr_testify//mock:go_default_library",
-            "@com_github_stretchr_testify//require:go_default_library",
-            "@org_uber_go_fx//:go_default_library",
+            "@com_github_stretchr_testify//mock",
+            "@com_github_stretchr_testify//require",
+            "@org_uber_go_fx//:fx",
         ],
         "@rules_go//go/platform:linux": [
             "//comp/core/config",
@@ -113,9 +113,9 @@ go_test(
             "//pkg/config/utils",
             "//pkg/serializer",
             "//pkg/util/fxutil",
-            "@com_github_stretchr_testify//mock:go_default_library",
-            "@com_github_stretchr_testify//require:go_default_library",
-            "@org_uber_go_fx//:go_default_library",
+            "@com_github_stretchr_testify//mock",
+            "@com_github_stretchr_testify//require",
+            "@org_uber_go_fx//:fx",
         ],
         "//conditions:default": [],
     }),

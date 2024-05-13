@@ -11,7 +11,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/util/log",
-        "@org_uber_go_automaxprocs//maxprocs:go_default_library",
+        "@org_uber_go_automaxprocs//maxprocs",
     ] + select({
         "@rules_go//go/platform:android": [
             "//pkg/util/cgroups",
@@ -27,5 +27,5 @@ go_test(
     name = "runtime_test",
     srcs = ["runtime_test.go"],
     embed = [":runtime"],
-    deps = ["@com_github_stretchr_testify//assert:go_default_library"],
+    deps = ["@com_github_stretchr_testify//assert"],
 )

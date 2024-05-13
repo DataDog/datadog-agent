@@ -20,7 +20,7 @@ go_library(
         "@com_github_datadog_test_infra_definitions//common/utils:go_default_library",
         "@com_github_datadog_test_infra_definitions//components:go_default_library",
         "@com_github_pulumi_pulumi_sdk_v3//go/pulumi:go_default_library",
-        "@com_github_stretchr_testify//suite:go_default_library",
+        "@com_github_stretchr_testify//suite",
     ],
 )
 
@@ -30,7 +30,7 @@ go_test(
     embed = [":e2e"],
     deps = [
         "@com_github_datadog_test_infra_definitions//components:go_default_library",
-        "@com_github_stretchr_testify//mock:go_default_library",
-        "@com_github_stretchr_testify//require:go_default_library",
+        "@com_github_stretchr_testify//mock",
+        "@com_github_stretchr_testify//require",
     ],
 )

@@ -8,9 +8,9 @@ go_test(
         "//comp/core/autodiscovery/providers",
         "//pkg/config",
         "//test/integration/utils",
-        "@com_github_stretchr_testify//assert:go_default_library",
-        "@com_github_stretchr_testify//require:go_default_library",
-        "@com_github_stretchr_testify//suite:go_default_library",
-        "@io_etcd_go_etcd_client_v2//:go_default_library",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@com_github_stretchr_testify//suite",
+        "@io_etcd_go_etcd_client_v2//:client",
     ],
 )

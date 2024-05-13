@@ -11,5 +11,5 @@ go_test(
     name = "flake_test",
     srcs = ["flake_test.go"],
     embed = [":flake"],
-    deps = ["@com_github_stretchr_testify//assert:go_default_library"],
+    deps = ["@com_github_stretchr_testify//assert"],
 )

@@ -18,5 +18,5 @@ go_test(
     name = "util_test",
     srcs = ["image_metadata_util_test.go"],
     embed = [":util"],
-    deps = ["@com_github_stretchr_testify//assert:go_default_library"],
+    deps = ["@com_github_stretchr_testify//assert"],
 )

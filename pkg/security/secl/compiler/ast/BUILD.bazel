@@ -6,9 +6,9 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/security/secl/compiler/ast",
     visibility = ["//visibility:public"],
     deps = [
-        "@com_github_alecthomas_participle//:go_default_library",
-        "@com_github_alecthomas_participle//lexer:go_default_library",
-        "@com_github_alecthomas_participle//lexer/ebnf:go_default_library",
+        "@com_github_alecthomas_participle//:participle",
+        "@com_github_alecthomas_participle//lexer",
+        "@com_github_alecthomas_participle//lexer/ebnf",
     ],
 )
 

@@ -11,5 +11,5 @@ go_test(
     name = "expansion_test",
     srcs = ["expand_test.go"],
     embed = [":expansion"],
-    deps = ["@io_k8s_api//core/v1:go_default_library"],
+    deps = ["@io_k8s_api//core/v1:core"],
 )

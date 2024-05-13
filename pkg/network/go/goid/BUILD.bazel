@@ -10,10 +10,10 @@ go_library(
     visibility = ["//visibility:public"],
     deps = select({
         "@rules_go//go/platform:android": [
-            "@com_github_go_delve_delve//pkg/goversion:go_default_library",
+            "@com_github_go_delve_delve//pkg/goversion",
         ],
         "@rules_go//go/platform:linux": [
-            "@com_github_go_delve_delve//pkg/goversion:go_default_library",
+            "@com_github_go_delve_delve//pkg/goversion",
         ],
         "//conditions:default": [],
     }),

@@ -20,6 +20,6 @@ go_test(
     embed = [":scheduler"],
     deps = [
         "//comp/core/autodiscovery/integration",
-        "@com_github_stretchr_testify//require:go_default_library",
+        "@com_github_stretchr_testify//require",
     ],
 )

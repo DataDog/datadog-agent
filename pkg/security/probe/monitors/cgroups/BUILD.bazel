@@ -9,12 +9,12 @@ go_library(
         "@rules_go//go/platform:android": [
             "//pkg/security/metrics",
             "//pkg/security/resolvers/cgroup",
-            "@com_github_datadog_datadog_go_v5//statsd:go_default_library",
+            "@com_github_datadog_datadog_go_v5//statsd",
         ],
         "@rules_go//go/platform:linux": [
             "//pkg/security/metrics",
             "//pkg/security/resolvers/cgroup",
-            "@com_github_datadog_datadog_go_v5//statsd:go_default_library",
+            "@com_github_datadog_datadog_go_v5//statsd",
         ],
         "//conditions:default": [],
     }),

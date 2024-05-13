@@ -18,7 +18,7 @@ go_library(
         "//comp/core/workloadmeta",
         "//pkg/util/log",
         "//pkg/util/optional",
-        "@com_github_gorilla_mux//:go_default_library",
+        "@com_github_gorilla_mux//:mux",
     ] + select({
         "@rules_go//go/platform:windows": [
             "//pkg/network/driver",

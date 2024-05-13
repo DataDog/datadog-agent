@@ -36,8 +36,8 @@ go_library(
         "//pkg/telemetry",
         "//pkg/util/buf",
         "//pkg/util/log",
-        "@com_github_datadog_opentelemetry_mapping_go_pkg_quantile//:go_default_library",
-        "@org_uber_go_atomic//:go_default_library",
+        "@com_github_datadog_opentelemetry_mapping_go_pkg_quantile//:quantile",
+        "@org_uber_go_atomic//:atomic",
     ],
 )
 
@@ -63,7 +63,7 @@ go_test(
     deps = [
         "//pkg/aggregator/ckey",
         "//pkg/config/model",
-        "@com_github_stretchr_testify//assert:go_default_library",
-        "@com_github_stretchr_testify//require:go_default_library",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
     ],
 )

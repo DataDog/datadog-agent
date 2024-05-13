@@ -13,7 +13,7 @@ go_library(
         "//pkg/networkdevice/profile/profiledefinition",
         "//pkg/snmp/gosnmplib",
         "//pkg/util/log",
-        "@com_github_gosnmp_gosnmp//:go_default_library",
+        "@com_github_gosnmp_gosnmp//:gosnmp",
     ],
 )
 
@@ -27,7 +27,7 @@ go_test(
     embed = [":valuestore"],
     deps = [
         "//pkg/networkdevice/profile/profiledefinition",
-        "@com_github_gosnmp_gosnmp//:go_default_library",
-        "@com_github_stretchr_testify//assert:go_default_library",
+        "@com_github_gosnmp_gosnmp//:gosnmp",
+        "@com_github_stretchr_testify//assert",
     ],
 )

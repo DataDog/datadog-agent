@@ -12,9 +12,9 @@ go_test(
         "//test/new-e2e/tests/agent-metric-logs/log-agent/utils",
         "@com_github_datadog_test_infra_definitions//components/datadog/apps/logger:go_default_library",
         "@com_github_datadog_test_infra_definitions//components/datadog/dockeragentparams:go_default_library",
-        "@com_github_docker_docker//api/types:go_default_library",
+        "@com_github_docker_docker//api/types",
         "@com_github_pulumi_pulumi_sdk_v3//go/pulumi:go_default_library",
-        "@com_github_stretchr_testify//assert:go_default_library",
-        "@com_github_stretchr_testify//require:go_default_library",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
     ],
 )

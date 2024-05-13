@@ -8,6 +8,6 @@ go_library(
     deps = [
         "//pkg/security/secl/model",
         "//pkg/security/secl/rules",
-        "@org_uber_go_atomic//:go_default_library",
+        "@org_uber_go_atomic//:atomic",
     ],
 )

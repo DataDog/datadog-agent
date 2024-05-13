@@ -28,6 +28,6 @@ go_library(
         "//pkg/util/optional",
         "//pkg/util/startstop",
         "@com_github_golang_mock//gomock",
-        "@org_uber_go_fx//:go_default_library",
+        "@org_uber_go_fx//:fx",
     ],
 )

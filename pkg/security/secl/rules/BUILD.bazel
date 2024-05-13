@@ -30,11 +30,11 @@ go_library(
         "//pkg/security/secl/utils",
         "//pkg/security/secl/validators",
         "@com_github_fsnotify_fsnotify//:fsnotify",
-        "@com_github_hashicorp_go_multierror//:go_default_library",
-        "@com_github_masterminds_semver_v3//:go_default_library",
-        "@com_github_skydive_project_go_debouncer//:go_default_library",
-        "@com_github_spf13_cast//:go_default_library",
-        "@in_gopkg_yaml_v2//:go_default_library",
+        "@com_github_hashicorp_go_multierror//:go-multierror",
+        "@com_github_masterminds_semver_v3//:semver",
+        "@com_github_skydive_project_go_debouncer//:go-debouncer",
+        "@com_github_spf13_cast//:cast",
+        "@in_gopkg_yaml_v2//:yaml_v2",
     ],
 )
 
@@ -49,8 +49,8 @@ go_test(
     ],
     embed = [":rules"],
     deps = [
-        "@com_github_hashicorp_go_multierror//:go_default_library",
-        "@com_github_stretchr_testify//assert:go_default_library",
+        "@com_github_hashicorp_go_multierror//:go-multierror",
+        "@com_github_stretchr_testify//assert",
     ] + select({
         "@rules_go//go/platform:android": [
             "//pkg/security/secl/compiler/ast",
@@ -58,8 +58,8 @@ go_test(
             "//pkg/security/secl/model",
             "@com_github_google_go_cmp//cmp",
             "@com_github_google_go_cmp//cmp/cmpopts",
-            "@com_github_masterminds_semver_v3//:go_default_library",
-            "@in_gopkg_yaml_v3//:go_default_library",
+            "@com_github_masterminds_semver_v3//:semver",
+            "@in_gopkg_yaml_v3//:yaml_v3",
         ],
         "@rules_go//go/platform:linux": [
             "//pkg/security/secl/compiler/ast",
@@ -67,8 +67,8 @@ go_test(
             "//pkg/security/secl/model",
             "@com_github_google_go_cmp//cmp",
             "@com_github_google_go_cmp//cmp/cmpopts",
-            "@com_github_masterminds_semver_v3//:go_default_library",
-            "@in_gopkg_yaml_v3//:go_default_library",
+            "@com_github_masterminds_semver_v3//:semver",
+            "@in_gopkg_yaml_v3//:yaml_v3",
         ],
         "//conditions:default": [],
     }),

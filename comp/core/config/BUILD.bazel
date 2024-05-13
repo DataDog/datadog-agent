@@ -20,8 +20,8 @@ go_library(
         "//pkg/config/setup",
         "//pkg/util/fxutil",
         "//pkg/util/optional",
-        "@com_github_datadog_viper//:go_default_library",
-        "@org_uber_go_fx//:go_default_library",
+        "@com_github_datadog_viper//:viper",
+        "@org_uber_go_fx//:fx",
     ] + select({
         "@rules_go//go/platform:windows": [
             "//pkg/util/winutil",
@@ -44,7 +44,7 @@ go_test(
         "//pkg/config/model",
         "//pkg/util/fxutil",
         "//pkg/util/optional",
-        "@com_github_stretchr_testify//require:go_default_library",
-        "@org_uber_go_fx//:go_default_library",
+        "@com_github_stretchr_testify//require",
+        "@org_uber_go_fx//:fx",
     ],
 )

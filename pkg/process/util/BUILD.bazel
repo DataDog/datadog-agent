@@ -15,7 +15,7 @@ go_library(
     deps = [
         "//pkg/util/docker",
         "//pkg/util/filesystem",
-        "@org_go4_netipx//:go_default_library",
+        "@org_go4_netipx//:netipx",
     ] + select({
         "@rules_go//go/platform:aix": [
             "//pkg/util/log",
@@ -70,5 +70,5 @@ go_test(
         "chunking_test.go",
     ],
     embed = [":util"],
-    deps = ["@com_github_stretchr_testify//assert:go_default_library"],
+    deps = ["@com_github_stretchr_testify//assert"],
 )

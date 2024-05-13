@@ -37,5 +37,5 @@ go_test(
         "environment_detection_test.go",
     ],
     embed = [":env"],
-    deps = ["@com_github_stretchr_testify//assert:go_default_library"],
+    deps = ["@com_github_stretchr_testify//assert"],
 )

@@ -28,6 +28,6 @@ go_test(
         "//comp/forwarder/orchestrator/orchestratorimpl",
         "//comp/serializer/compression/compressionimpl",
         "//pkg/util/fxutil",
-        "@org_uber_go_fx//:go_default_library",
+        "@org_uber_go_fx//:fx",
     ],
 )

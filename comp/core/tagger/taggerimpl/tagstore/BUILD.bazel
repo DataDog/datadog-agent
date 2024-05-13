@@ -18,7 +18,7 @@ go_library(
         "//pkg/tagset",
         "//pkg/util/containers",
         "//pkg/util/log",
-        "@com_github_benbjohnson_clock//:go_default_library",
+        "@com_github_benbjohnson_clock//:clock",
     ],
 )
 
@@ -29,9 +29,9 @@ go_test(
     deps = [
         "//comp/core/tagger/taggerimpl/collectors",
         "//comp/core/tagger/types",
-        "@com_github_benbjohnson_clock//:go_default_library",
-        "@com_github_stretchr_testify//assert:go_default_library",
-        "@com_github_stretchr_testify//require:go_default_library",
-        "@com_github_stretchr_testify//suite:go_default_library",
+        "@com_github_benbjohnson_clock//:clock",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@com_github_stretchr_testify//suite",
     ],
 )

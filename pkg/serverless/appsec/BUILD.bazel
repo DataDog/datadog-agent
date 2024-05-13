@@ -11,10 +11,10 @@ go_library(
         "//pkg/serverless/appsec/httpsec",
         "//pkg/serverless/proxy",
         "//pkg/util/log",
-        "@com_github_datadog_appsec_internal_go//limiter:go_default_library",
-        "@com_github_datadog_appsec_internal_go//log:go_default_library",
-        "@com_github_datadog_go_libddwaf_v2//:go_default_library",
-        "@com_github_json_iterator_go//:go_default_library",
+        "@com_github_datadog_appsec_internal_go//limiter",
+        "@com_github_datadog_appsec_internal_go//log",
+        "@com_github_datadog_go_libddwaf_v2//:go-libddwaf",
+        "@com_github_json_iterator_go//:go",
     ],
 )
 
@@ -26,8 +26,8 @@ go_test(
     ],
     embed = [":appsec"],
     deps = [
-        "@com_github_datadog_appsec_internal_go//appsec:go_default_library",
-        "@com_github_datadog_go_libddwaf_v2//:go_default_library",
-        "@com_github_stretchr_testify//require:go_default_library",
+        "@com_github_datadog_appsec_internal_go//appsec",
+        "@com_github_datadog_go_libddwaf_v2//:go-libddwaf",
+        "@com_github_stretchr_testify//require",
     ],
 )

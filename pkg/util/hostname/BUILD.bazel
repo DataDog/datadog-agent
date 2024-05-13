@@ -75,8 +75,8 @@ go_test(
         "//pkg/util/cloudproviders/gce",
         "//pkg/util/ec2",
         "//pkg/util/fargate",
-        "@com_github_stretchr_testify//assert:go_default_library",
-        "@com_github_stretchr_testify//require:go_default_library",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
     ] + select({
         "@rules_go//go/platform:android": [
             "//pkg/util/docker",

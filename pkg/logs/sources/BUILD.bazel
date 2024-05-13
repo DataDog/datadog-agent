@@ -26,7 +26,7 @@ go_test(
     embed = [":sources"],
     deps = [
         "//comp/logs/agent/config",
-        "@com_github_stretchr_testify//assert:go_default_library",
-        "@com_github_stretchr_testify//suite:go_default_library",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//suite",
     ],
 )

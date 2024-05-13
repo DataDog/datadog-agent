@@ -34,8 +34,8 @@ go_library(
         "//pkg/util/hostname",
         "//pkg/util/log",
         "//pkg/util/optional",
-        "@org_uber_go_atomic//:go_default_library",
-        "@org_uber_go_fx//:go_default_library",
+        "@org_uber_go_atomic//:atomic",
+        "@org_uber_go_fx//:fx",
     ],
 )
 
@@ -51,7 +51,7 @@ go_test(
         "//pkg/serializer",
         "//pkg/util/fxutil",
         "//pkg/util/optional",
-        "@com_github_stretchr_testify//assert:go_default_library",
-        "@org_uber_go_fx//:go_default_library",
+        "@com_github_stretchr_testify//assert",
+        "@org_uber_go_fx//:fx",
     ],
 )

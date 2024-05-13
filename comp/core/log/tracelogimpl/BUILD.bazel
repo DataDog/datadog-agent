@@ -17,6 +17,6 @@ go_library(
         "//pkg/trace/telemetry",
         "//pkg/util/fxutil",
         "//pkg/util/log",
-        "@org_uber_go_fx//:go_default_library",
+        "@org_uber_go_fx//:fx",
     ],
 )

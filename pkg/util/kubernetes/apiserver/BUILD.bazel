@@ -11,6 +11,6 @@ go_library(
     deps = [
         "//pkg/clusteragent/api/v1:api",
         "//pkg/util/log",
-        "@io_k8s_client_go//kubernetes:go_default_library",
+        "@io_k8s_client_go//kubernetes",
     ],
 )

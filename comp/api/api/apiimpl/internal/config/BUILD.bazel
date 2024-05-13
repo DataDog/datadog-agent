@@ -8,7 +8,7 @@ go_library(
     deps = [
         "//pkg/config",
         "//pkg/util/log",
-        "@com_github_gorilla_mux//:go_default_library",
+        "@com_github_gorilla_mux//:mux",
     ],
 )
 
@@ -18,7 +18,7 @@ go_test(
     embed = [":config"],
     deps = [
         "//pkg/config",
-        "@com_github_stretchr_testify//assert:go_default_library",
-        "@com_github_stretchr_testify//require:go_default_library",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
     ],
 )

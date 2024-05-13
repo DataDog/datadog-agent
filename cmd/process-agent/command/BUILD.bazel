@@ -61,9 +61,9 @@ go_library(
         "//pkg/util/log",
         "//pkg/util/optional",
         "//pkg/version",
-        "@com_github_fatih_color//:go_default_library",
-        "@com_github_spf13_cobra//:go_default_library",
-        "@org_uber_go_fx//:go_default_library",
+        "@com_github_fatih_color//:color",
+        "@com_github_spf13_cobra//:cobra",
+        "@org_uber_go_fx//:fx",
     ] + select({
         "@rules_go//go/platform:windows": [
             "//pkg/util/winutil",
@@ -79,5 +79,5 @@ go_test(
     name = "command_test",
     srcs = ["deprecated_test.go"],
     embed = [":command"],
-    deps = ["@com_github_stretchr_testify//assert:go_default_library"],
+    deps = ["@com_github_stretchr_testify//assert"],
 )
