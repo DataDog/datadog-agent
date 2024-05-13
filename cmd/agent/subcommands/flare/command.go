@@ -287,15 +287,12 @@ func makeFlare(flareComp flare.Component,
 	}
 
 	// Set default duration to 60 seconds if not provided by the user
-	streamLogDuration := 60 * time.Second // default duration
+	const defaultStreamLogDuration = 60 * time.Second
 	if streamLogParams.Duration <= 0 {
-		streamLogParams.Duration = streamLogDuration
+		streamLogParams.Duration = defaultStreamLogDuration
 	}
-
 	// If Duration is set, automatically enable withStreamLogs.
-	if streamLogParams.Duration > 0 {
-		cliParams.withStreamLogs = true
-	}
+	cliParams.withStreamLogs = streamLogParams.Duration > 0
 
 	fmt.Fprintln(color.Output, color.BlueString("NEW: You can now generate a flare from the comfort of your Datadog UI!"))
 	fmt.Fprintln(color.Output, color.BlueString("See https://docs.datadoghq.com/agent/troubleshooting/send_a_flare/?tab=agentv6v7#send-a-flare-from-the-datadog-site for more info."))
