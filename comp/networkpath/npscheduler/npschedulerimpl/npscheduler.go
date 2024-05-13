@@ -40,8 +40,8 @@ type npSchedulerImpl struct {
 
 	metricSender metricsender.MetricSender
 
-	receivedPathtestConfigCount *atomic.Uint64
-	processedCount              *atomic.Uint64
+	receivedPathtestCount    *atomic.Uint64
+	processedTracerouteCount *atomic.Uint64
 
 	pathtestStore       *pathteststore.PathtestStore
 	pathtestInputChan   chan *common.Pathtest
@@ -89,11 +89,11 @@ func newNpSchedulerImpl(epForwarder eventplatform.Forwarder, logger log.Componen
 		flushInterval:       flushInterval,
 		workers:             workers,
 
-		metricSender: metricsender.NewMetricSenderStatsd(),
+		metricSender: metricsender.NewMetricSenderStatsd(statsd.Client),
 
-		receivedPathtestConfigCount: atomic.NewUint64(0),
-		processedCount:              atomic.NewUint64(0),
-		TimeNowFunction:             time.Now,
+		receivedPathtestCount:    atomic.NewUint64(0),
+		processedTracerouteCount: atomic.NewUint64(0),
+		TimeNowFunction:          time.Now,
 
 		stopChan:      make(chan struct{}),
 		runDone:       make(chan struct{}),
@@ -193,22 +193,21 @@ func (s *npSchedulerImpl) listenPathtests() {
 		case ptest := <-s.pathtestInputChan:
 			// TODO: TESTME
 			s.logger.Debugf("Pathtest received: %+v", ptest)
-			s.receivedPathtestConfigCount.Inc()
+			s.receivedPathtestCount.Inc()
 			s.pathtestStore.Add(ptest)
 		}
 	}
 }
 
 func (s *npSchedulerImpl) runTracerouteForPath(ptest *pathteststore.PathtestContext) {
-	// TODO: TESTME
 	s.logger.Debugf("Run Traceroute for ptest: %+v", ptest)
 
 	startTime := time.Now()
 	cfg := traceroute.Config{
 		DestHostname: ptest.Pathtest.Hostname,
-		DestPort:     uint16(ptest.Pathtest.Port),
-		MaxTTL:       24,
-		TimeoutMs:    1000,
+		DestPort:     ptest.Pathtest.Port,
+		MaxTTL:       24,    // TODO: make it configurable
+		TimeoutMs:    10000, // TODO: make it configurable
 	}
 
 	path, err := s.runTraceroute(cfg)
@@ -296,9 +295,8 @@ func (s *npSchedulerImpl) flush() {
 }
 
 func (s *npSchedulerImpl) sendTelemetry(path payload.NetworkPath, startTime time.Time, ptest *pathteststore.PathtestContext) {
-	// TODO: TESTME
-	checkInterval := ptest.LastFlushInterval()
-	checkDuration := time.Since(startTime)
+	checkInterval := ptest.LastFlushInterval()          // TODO: TESTME
+	checkDuration := s.TimeNowFunction().Sub(startTime) // TODO: TESTME
 	telemetry.SubmitNetworkPathTelemetry(
 		s.metricSender,
 		path,
@@ -324,10 +322,9 @@ func (s *npSchedulerImpl) startWorker(workerID int) {
 			s.logger.Debugf("[worker%d] Stopped worker", workerID)
 			return
 		case pathtestCtx := <-s.pathtestProcessChan:
-			// TODO: TESTME
 			s.logger.Debugf("[worker%d] Handling pathtest hostname=%s, port=%d", workerID, pathtestCtx.Pathtest.Hostname, pathtestCtx.Pathtest.Port)
 			s.runTracerouteForPath(pathtestCtx)
-			s.processedCount.Inc()
+			s.processedTracerouteCount.Inc()
 		}
 	}
 }

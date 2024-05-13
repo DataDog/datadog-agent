@@ -70,7 +70,7 @@ func waitForProcessedPathtests(npScheduler *npSchedulerImpl, timeout time.Durati
 		case <-timeoutChan:
 			return
 		case <-tick:
-			if npScheduler.processedCount.Load() >= processecCount {
+			if npScheduler.processedTracerouteCount.Load() >= processecCount {
 				return
 			}
 		}

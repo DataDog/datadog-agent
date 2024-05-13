@@ -19,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
 	"github.com/DataDog/datadog-agent/comp/networkpath/npscheduler/npschedulerimpl/common"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/DataDog/datadog-agent/pkg/networkpath/metricsender"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute"
 	"github.com/DataDog/datadog-agent/pkg/trace/teststatsd"
@@ -67,6 +68,10 @@ func Test_NpScheduler_runningAndProcessing(t *testing.T) {
 		"network_path.flush_interval": "1s",
 	}
 	app, npScheduler := newTestNpScheduler(t, sysConfigs)
+
+	stats := &teststatsd.Client{}
+	npScheduler.statsdClient = stats
+	npScheduler.metricSender = metricsender.NewMetricSenderStatsd(stats)
 
 	mockEpForwarder := eventplatformimpl.NewMockEventPlatformForwarder(gomock.NewController(t))
 	npScheduler.epForwarder = mockEpForwarder
@@ -196,6 +201,19 @@ func Test_NpScheduler_runningAndProcessing(t *testing.T) {
 	npScheduler.ScheduleConns(conns)
 
 	waitForProcessedPathtests(npScheduler, 5*time.Second, 1)
+
+	// THEN
+	calls := stats.GaugeCalls
+	tags := []string{
+		"collector:network_path_scheduler",
+		"destination_hostname:abc",
+		"destination_port:80",
+		"protocol:udp",
+	}
+	assert.Contains(t, calls, teststatsd.MetricsArgs{Name: "datadog.network_path.path.monitored", Value: 1, Tags: tags, Rate: 1})
+
+	assert.Equal(t, uint64(2), npScheduler.processedTracerouteCount.Load())
+	assert.Equal(t, uint64(2), npScheduler.receivedPathtestCount.Load())
 
 	app.RequireStop()
 }
