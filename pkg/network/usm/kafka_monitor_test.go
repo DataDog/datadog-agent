@@ -173,7 +173,7 @@ func (s *KafkaProtocolParsingSuite) TestKafkaProtocolParsing() {
 				require.NoError(t, err)
 
 				// We expect 2 occurrences for each connection as we are working with a docker, so (1 produce + 1 fetch) * 2 = (4 stats)
-				kafkaStats := getAndValidateKafkaStats(t, monitor, 4)
+				kafkaStats := getAndValidateKafkaStats(t, monitor, 4, nil)
 
 				validateProduceFetchCount(t, kafkaStats, topicName, kafkaParsingValidation{
 					expectedNumberOfProduceRequests: 2,
@@ -215,7 +215,7 @@ func (s *KafkaProtocolParsingSuite) TestKafkaProtocolParsing() {
 				require.NoError(t, client.Client.ProduceSync(ctxTimeout, record).FirstErr(), "record had a produce error while synchronously producing")
 
 				// We expect 2 occurrences for each connection as we are working with a docker, so (1 produce) * 2 = (2 stats)
-				kafkaStats := getAndValidateKafkaStats(t, monitor, 2)
+				kafkaStats := getAndValidateKafkaStats(t, monitor, 2, nil)
 
 				validateProduceFetchCount(t, kafkaStats, topicName, kafkaParsingValidation{
 					expectedNumberOfProduceRequests: 2,
@@ -260,7 +260,7 @@ func (s *KafkaProtocolParsingSuite) TestKafkaProtocolParsing() {
 				}
 
 				// We expect 2 occurrences for each connection as we are working with a docker, so (1 produce) * 2 = (2 stats)
-				kafkaStats := getAndValidateKafkaStats(t, monitor, 2)
+				kafkaStats := getAndValidateKafkaStats(t, monitor, 2, nil)
 				validateProduceFetchCount(t, kafkaStats, topicName, kafkaParsingValidation{
 					expectedNumberOfProduceRequests: numberOfIterations * 2,
 					expectedNumberOfFetchRequests:   0,
@@ -395,7 +395,7 @@ func (s *KafkaProtocolParsingSuite) TestKafkaProtocolParsing() {
 				require.NoError(t, client.Client.ProduceSync(ctxTimeout, record).FirstErr(), "record had a produce error while synchronously producing")
 				cancel()
 
-				getAndValidateKafkaStats(t, monitor, 0)
+				getAndValidateKafkaStats(t, monitor, 0, nil)
 			},
 			teardown: kafkaTeardown,
 			configuration: func() *config.Config {
@@ -447,7 +447,7 @@ func (s *KafkaProtocolParsingSuite) TestKafkaProtocolParsing() {
 				require.NoError(t, err)
 
 				// We expect 2 occurrences for each connection as we are working with a docker, so (1 produce) * 2 = (2 stats)
-				kafkaStats := getAndValidateKafkaStats(t, monitor, 2*2)
+				kafkaStats := getAndValidateKafkaStats(t, monitor, 2*2, nil)
 
 				validateProduceFetchCount(t, kafkaStats, topicName, kafkaParsingValidation{
 					expectedNumberOfProduceRequests: 2 * 2,
@@ -515,15 +515,14 @@ func (s *KafkaProtocolParsingSuite) TestKafkaProtocolParsing() {
 				_, err = req.RequestWith(ctxTimeout, client.Client)
 				require.NoError(t, err)
 
-				// We expect 2 occurrences for each connection as we are working with a docker, so (1 produce) * 2 = (2 stats)
-				kafkaStats := getAndValidateKafkaStats(t, monitor, 2*2)
-
-				validateProduceFetchCount(t, kafkaStats, topicName, kafkaParsingValidation{
+				cb := validateProduceFetchCountCB(topicName, kafkaParsingValidation{
 					expectedNumberOfProduceRequests: (5 + 25*25) * 2,
 					expectedNumberOfFetchRequests:   (5 + 25*25) * 2,
 					expectedAPIVersionProduce:       8,
 					expectedAPIVersionFetch:         11,
 				})
+				// We expect 2 occurrences for each connection as we are working with a docker, so (1 produce) * 2 = (2 stats)
+				getAndValidateKafkaStats(t, monitor, 2*2, cb)
 			},
 			teardown:      kafkaTeardown,
 			configuration: getDefaultTestConfiguration,
@@ -838,7 +837,7 @@ func TestKafkaFetchRaw(t *testing.T) {
 
 			monitor := newKafkaMonitor(t, getDefaultTestConfiguration())
 			runCannedTransaction(t, msgs)
-			kafkaStats := getAndValidateKafkaStats(t, monitor, 1)
+			kafkaStats := getAndValidateKafkaStats(t, monitor, 1, nil)
 
 			validateProduceFetchCount(t, kafkaStats, topic, kafkaParsingValidation{
 				expectedNumberOfFetchRequests: tt.numFetchedRecords,
@@ -887,7 +886,7 @@ func TestKafkaFetchRaw(t *testing.T) {
 
 			monitor := newKafkaMonitor(t, getDefaultTestConfiguration())
 			runCannedTransaction(t, msgs)
-			kafkaStats := getAndValidateKafkaStats(t, monitor, 1)
+			kafkaStats := getAndValidateKafkaStats(t, monitor, 1, nil)
 
 			validateProduceFetchCount(t, kafkaStats, topic, kafkaParsingValidation{
 				expectedNumberOfFetchRequests: tt.numFetchedRecords * splitIdx,
@@ -948,7 +947,7 @@ func (i *PrintableInt) Add(other int) {
 	*i = PrintableInt(other + i.Load())
 }
 
-func getAndValidateKafkaStats(t *testing.T, monitor *Monitor, expectedStatsCount int) map[kafka.Key]*kafka.RequestStat {
+func getAndValidateKafkaStats(t *testing.T, monitor *Monitor, expectedStatsCount int, cb func(map[kafka.Key]*kafka.RequestStat) bool) map[kafka.Key]*kafka.RequestStat {
 	statsCount := PrintableInt(0)
 	kafkaStats := make(map[kafka.Key]*kafka.RequestStat)
 	require.Eventually(t, func() bool {
@@ -967,7 +966,10 @@ func getAndValidateKafkaStats(t *testing.T, monitor *Monitor, expectedStatsCount
 			}
 		}
 		statsCount = PrintableInt(len(kafkaStats))
-		return expectedStatsCount == len(kafkaStats)
+		if cb == nil {
+			return expectedStatsCount == len(kafkaStats)
+		}
+		return expectedStatsCount == len(kafkaStats) && cb(kafkaStats)
 	}, time.Second*5, time.Millisecond*100, "Expected to find a %d stats, instead captured %v", expectedStatsCount, &statsCount)
 	return kafkaStats
 }
@@ -992,6 +994,34 @@ func validateProduceFetchCount(t *testing.T, kafkaStats map[kafka.Key]*kafka.Req
 		"Expected %d produce requests but got %d", validation.expectedNumberOfProduceRequests, numberOfProduceRequests)
 	require.Equal(t, validation.expectedNumberOfFetchRequests, numberOfFetchRequests,
 		"Expected %d fetch requests but got %d", validation.expectedNumberOfFetchRequests, numberOfFetchRequests)
+}
+
+func validateProduceFetchCountCB(topicName string, validation kafkaParsingValidation) func(kafkaStats map[kafka.Key]*kafka.RequestStat) bool {
+	return func(kafkaStats map[kafka.Key]*kafka.RequestStat) bool {
+		numberOfProduceRequests := 0
+		numberOfFetchRequests := 0
+		for kafkaKey, kafkaStat := range kafkaStats {
+			if topicName != kafkaKey.TopicName {
+				return false
+			}
+			switch kafkaKey.RequestAPIKey {
+			case kafka.ProduceAPIKey:
+				if uint16(validation.expectedAPIVersionProduce) != kafkaKey.RequestVersion {
+					return false
+				}
+				numberOfProduceRequests += kafkaStat.Count
+			case kafka.FetchAPIKey:
+				if uint16(validation.expectedAPIVersionFetch) != kafkaKey.RequestVersion {
+					return false
+				}
+				numberOfFetchRequests += kafkaStat.Count
+			default:
+				return false
+			}
+		}
+		return validation.expectedNumberOfProduceRequests == numberOfProduceRequests &&
+			validation.expectedNumberOfFetchRequests == numberOfFetchRequests
+	}
 }
 
 func testProtocolParsingInner(t *testing.T, params kafkaParsingTestAttributes, cfg *config.Config) {
