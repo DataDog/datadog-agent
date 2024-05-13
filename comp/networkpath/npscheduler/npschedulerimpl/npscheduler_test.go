@@ -8,8 +8,10 @@ package npschedulerimpl
 import (
 	"bufio"
 	"bytes"
+	"fmt"
 	"strings"
 	"testing"
+	"time"
 
 	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
@@ -20,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/ndmtmp/forwarder/forwarderimpl"
 	"github.com/DataDog/datadog-agent/comp/networkpath/npscheduler"
 	"github.com/DataDog/datadog-agent/comp/networkpath/npscheduler/npschedulerimpl/common"
+	"github.com/DataDog/datadog-agent/pkg/trace/teststatsd"
 	utillog "github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/cihub/seelog"
 	"github.com/stretchr/testify/assert"
@@ -115,26 +118,98 @@ func Test_newNpSchedulerImpl_overrideConfigs(t *testing.T) {
 }
 
 func Test_npSchedulerImpl_ScheduleConns(t *testing.T) {
-	_, npScheduler := newTestNpScheduler(t, map[string]any{"network_path.enabled": true})
-	conns := []*model.Connection{
+
+}
+
+func Test_npSchedulerImpl_ScheduleConns1(t *testing.T) {
+	tests := []struct {
+		name              string
+		conns             []*model.Connection
+		expectedPathtests []*common.Pathtest
+	}{
 		{
-			// traffic other than outgoing is ignore
-			Laddr:     &model.Addr{Ip: "127.0.0.1", Port: int32(30000)},
-			Raddr:     &model.Addr{Ip: "127.0.0.2", Port: int32(80)},
-			Direction: model.ConnectionDirection_incoming,
+			name:              "zero conn",
+			conns:             []*model.Connection{},
+			expectedPathtests: []*common.Pathtest{},
 		},
 		{
-			Laddr:     &model.Addr{Ip: "127.0.0.3", Port: int32(30000)},
-			Raddr:     &model.Addr{Ip: "127.0.0.4", Port: int32(80)},
-			Direction: model.ConnectionDirection_outgoing,
+			name: "one outgoing conn",
+			conns: []*model.Connection{
+				{
+					Laddr:     &model.Addr{Ip: "127.0.0.3", Port: int32(30000)},
+					Raddr:     &model.Addr{Ip: "127.0.0.4", Port: int32(80)},
+					Direction: model.ConnectionDirection_outgoing,
+				},
+			},
+			expectedPathtests: []*common.Pathtest{
+				{Hostname: "127.0.0.4", Port: uint16(80)},
+			},
+		},
+		{
+			name: "only non-outgoing conns",
+			conns: []*model.Connection{
+				{
+					Laddr:     &model.Addr{Ip: "127.0.0.1", Port: int32(30000)},
+					Raddr:     &model.Addr{Ip: "127.0.0.2", Port: int32(80)},
+					Direction: model.ConnectionDirection_incoming,
+				},
+				{
+					Laddr:     &model.Addr{Ip: "127.0.0.3", Port: int32(30000)},
+					Raddr:     &model.Addr{Ip: "127.0.0.4", Port: int32(80)},
+					Direction: model.ConnectionDirection_incoming,
+				},
+			},
+			expectedPathtests: []*common.Pathtest{},
+		},
+		{
+			name: "ignore non-outgoing conn",
+			conns: []*model.Connection{
+				{
+					Laddr:     &model.Addr{Ip: "127.0.0.1", Port: int32(30000)},
+					Raddr:     &model.Addr{Ip: "127.0.0.2", Port: int32(80)},
+					Direction: model.ConnectionDirection_incoming,
+				},
+				{
+					Laddr:     &model.Addr{Ip: "127.0.0.3", Port: int32(30000)},
+					Raddr:     &model.Addr{Ip: "127.0.0.4", Port: int32(80)},
+					Direction: model.ConnectionDirection_outgoing,
+				},
+			},
+			expectedPathtests: []*common.Pathtest{
+				{Hostname: "127.0.0.4", Port: uint16(80)},
+			},
 		},
 	}
-	npScheduler.ScheduleConns(conns)
-	pathtest := <-npScheduler.pathtestInputChan
-	assert.Equal(t, &common.Pathtest{Hostname: "127.0.0.4", Port: uint16(80)}, pathtest)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, npScheduler := newTestNpScheduler(t, map[string]any{"network_path.enabled": true})
+			stats := &teststatsd.Client{}
+			npScheduler.statsdClient = stats
 
-	// TODO: CONTINUE TESTING MORE THINGS HERE
-	// TODO: CONTINUE TESTING MORE THINGS HERE
-	// TODO: CONTINUE TESTING MORE THINGS HERE
-	// TODO: CONTINUE TESTING MORE THINGS HERE
+			npScheduler.ScheduleConns(tt.conns)
+			actualPathtests := []*common.Pathtest{}
+			for i := 0; i < len(tt.expectedPathtests); i++ {
+				select {
+				case pathtest := <-npScheduler.pathtestInputChan:
+					actualPathtests = append(actualPathtests, pathtest)
+				case <-time.After(200 * time.Millisecond):
+					assert.Fail(t, fmt.Sprintf("Not enough pathtests: expected=%d but actual=%d", len(tt.expectedPathtests), len(actualPathtests)))
+				}
+			}
+
+			assert.Equal(t, tt.expectedPathtests, actualPathtests)
+
+			// Test metrics
+			var scheduleDurationMetric teststatsd.MetricsArgs
+			calls := stats.GaugeCalls
+			for _, call := range calls {
+				if call.Name == "datadog.network_path.scheduler.schedule_duration" {
+					scheduleDurationMetric = call
+				}
+			}
+			assert.Less(t, scheduleDurationMetric.Value, float64(5))
+			scheduleDurationMetric.Value = 0 // We need to reset the metric value to ease testing time duration
+			assert.Equal(t, teststatsd.MetricsArgs{Name: "datadog.network_path.scheduler.schedule_duration", Value: 0, Tags: nil, Rate: 1}, scheduleDurationMetric)
+		})
+	}
 }

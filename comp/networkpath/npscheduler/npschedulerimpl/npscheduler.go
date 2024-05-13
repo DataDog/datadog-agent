@@ -26,6 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/networkpath/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute"
 	"github.com/DataDog/datadog-agent/pkg/process/statsd"
+	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
 	"go.uber.org/atomic"
 )
 
@@ -50,6 +51,8 @@ type npSchedulerImpl struct {
 	TimeNowFunction func() time.Time // Allows to mock time in tests
 
 	running bool
+
+	statsdClient ddgostatsd.ClientInterface
 }
 
 func newNoopNpSchedulerImpl() *npSchedulerImpl {
@@ -87,6 +90,8 @@ func newNpSchedulerImpl(epForwarder eventplatform.Component, logger log.Componen
 		stopChan:      make(chan struct{}),
 		runDone:       make(chan struct{}),
 		flushLoopDone: make(chan struct{}),
+
+		statsdClient: statsd.Client,
 	}
 }
 
@@ -95,11 +100,9 @@ func (s *npSchedulerImpl) ScheduleConns(conns []*model.Connection) {
 		return
 	}
 	startTime := time.Now()
-	// TODO: TESTME
 	for _, conn := range conns {
 		// Only process outgoing traffic
 		if !shouldScheduleNetworkPathForConn(conn) {
-			// TODO: TESTME
 			continue
 		}
 		remoteAddr := conn.Raddr
@@ -111,11 +114,10 @@ func (s *npSchedulerImpl) ScheduleConns(conns []*model.Connection) {
 	}
 
 	scheduleDuration := time.Since(startTime)
-	statsd.Client.Gauge("datadog.network_path.scheduler.schedule_duration", scheduleDuration.Seconds(), nil, 1) //nolint:errcheck
+	s.statsdClient.Gauge("datadog.network_path.scheduler.schedule_duration", scheduleDuration.Seconds(), nil, 1) //nolint:errcheck
 }
 
 func shouldScheduleNetworkPathForConn(conn *model.Connection) bool {
-	// TODO: TESTME
 	if conn.Direction != model.ConnectionDirection_outgoing {
 		return false
 	}
@@ -251,13 +253,13 @@ func (s *npSchedulerImpl) flushLoop() {
 			s.logger.Debugf("Flush loop at %s", now)
 			if !lastFlushTime.IsZero() {
 				flushInterval := now.Sub(lastFlushTime)
-				statsd.Client.Gauge("datadog.network_path.scheduler.flush_interval", flushInterval.Seconds(), []string{}, 1) //nolint:errcheck
+				s.statsdClient.Gauge("datadog.network_path.scheduler.flush_interval", flushInterval.Seconds(), []string{}, 1) //nolint:errcheck
 			}
 			lastFlushTime = now
 
 			flushStartTime := time.Now()
 			s.flush()
-			statsd.Client.Gauge("datadog.network_path.scheduler.flush_duration", time.Since(flushStartTime).Seconds(), []string{}, 1) //nolint:errcheck
+			s.statsdClient.Gauge("datadog.network_path.scheduler.flush_duration", time.Since(flushStartTime).Seconds(), []string{}, 1) //nolint:errcheck
 		}
 	}
 }
@@ -265,13 +267,13 @@ func (s *npSchedulerImpl) flushLoop() {
 func (s *npSchedulerImpl) flush() {
 	// TODO: TESTME
 	// TODO: Remove workers metric?
-	statsd.Client.Gauge("datadog.network_path.scheduler.workers", float64(s.workers), []string{}, 1) //nolint:errcheck
+	s.statsdClient.Gauge("datadog.network_path.scheduler.workers", float64(s.workers), []string{}, 1) //nolint:errcheck
 
 	flowsContexts := s.pathtestStore.GetPathtestContextCount()
-	statsd.Client.Gauge("datadog.network_path.scheduler.pathtest_store_size", float64(flowsContexts), []string{}, 1) //nolint:errcheck
+	s.statsdClient.Gauge("datadog.network_path.scheduler.pathtest_store_size", float64(flowsContexts), []string{}, 1) //nolint:errcheck
 	flushTime := s.TimeNowFunction()
 	flowsToFlush := s.pathtestStore.Flush()
-	statsd.Client.Gauge("datadog.network_path.scheduler.pathtest_flushed_count", float64(len(flowsToFlush)), []string{}, 1) //nolint:errcheck
+	s.statsdClient.Gauge("datadog.network_path.scheduler.pathtest_flushed_count", float64(len(flowsToFlush)), []string{}, 1) //nolint:errcheck
 	s.logger.Debugf("Flushing %d flows to the forwarder (flush_duration=%d, flow_contexts_before_flush=%d)", len(flowsToFlush), time.Since(flushTime).Milliseconds(), flowsContexts)
 
 	for _, ptConf := range flowsToFlush {
