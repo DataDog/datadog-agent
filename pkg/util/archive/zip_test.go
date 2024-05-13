@@ -25,8 +25,10 @@ func TestZip_WrongDestinationFile(t *testing.T) {
 func TestZip_ExistingDestination(t *testing.T) {
 	tmpDir := t.TempDir()
 	tempLocation := filepath.Join(tmpDir, "destination.zip")
-	_, err := os.Create(tempLocation)
+	tempLocationFileDescriptor, err := os.Create(tempLocation)
 	assert.Nil(t, err)
+
+	defer tempLocationFileDescriptor.Close()
 
 	err = Zip([]string{"a"}, tempLocation)
 
