@@ -16,6 +16,7 @@ import (
 	"sync"
 	"time"
 
+	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace"
 	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -268,7 +269,8 @@ func (d *daemonImpl) handleRemoteAPIRequest(request remoteAPIRequest) (err error
 	d.m.Lock()
 	defer d.m.Unlock()
 	defer d.requestsWG.Done()
-	ctx := newRequestContext(request)
+	parentSpan, ctx := newRequestContext(request)
+	defer parentSpan.Finish(tracer.WithError(err))
 	d.refreshState(ctx)
 	defer d.refreshState(ctx)
 
@@ -320,7 +322,7 @@ type requestState struct {
 	Err     *installerErrors.InstallerError
 }
 
-func newRequestContext(request remoteAPIRequest) context.Context {
+func newRequestContext(request remoteAPIRequest) (ddtrace.Span, context.Context) {
 	ctx := context.WithValue(context.Background(), requestStateKey, &requestState{
 		Package: request.Package,
 		ID:      request.ID,
@@ -335,12 +337,10 @@ func newRequestContext(request remoteAPIRequest) context.Context {
 	spanCtx, err := tracer.Extract(ctxCarrier)
 	if err != nil {
 		log.Debugf("failed to extract span context from install script params: %v", err)
-		return ctx
+		return tracer.StartSpan("remote_request"), ctx
 	}
 
-	_, ctx = tracer.StartSpanFromContext(ctx, "remote_request", tracer.ChildOf(spanCtx))
-
-	return ctx
+	return tracer.StartSpanFromContext(ctx, "remote_request", tracer.ChildOf(spanCtx))
 }
 
 func setRequestInvalid(ctx context.Context) {
