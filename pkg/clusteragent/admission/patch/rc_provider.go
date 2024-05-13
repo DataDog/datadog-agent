@@ -87,7 +87,7 @@ func (rcp *remoteConfigProvider) process(update map[string]state.RawConfig, _ fu
 			log.Errorf("Skipping invalid patch request: %s", err)
 			continue
 		}
-		if ch, found := rcp.subscribers[req.K8sTarget.Kind]; found {
+		if ch, found := rcp.subscribers[KindCluster]; found {
 			valid++
 			// Log a telemetry event indicating a remote config patch to the Datadog backend
 			rcp.telemetryCollector.SendRemoteConfigPatchEvent(req.getApmRemoteConfigEvent(nil, telemetry.Success))

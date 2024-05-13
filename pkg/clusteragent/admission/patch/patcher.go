@@ -37,7 +37,7 @@ func newPatcher(k8sClient kubernetes.Interface, isLeaderFunc func() bool, teleme
 	return &patcher{
 		k8sClient:          k8sClient,
 		isLeader:           isLeaderFunc,
-		deploymentsQueue:   pp.subscribe(KindDeployment),
+		deploymentsQueue:   pp.subscribe(KindCluster),
 		telemetryCollector: telemetryCollector,
 		clusterName:        clusterName,
 	}
@@ -65,38 +65,6 @@ func (p *patcher) patchNamespaces(req Request) error {
 		return nil
 	}
 
-	enabledNamespaces := []string{}
-
-	for _, clusterTarget := range req.K8sTargetV2.ClusterTargets {
-
-		if clusterTarget.ClusterName != p.clusterName {
-			log.Debugf("Remote Enablement: ignoring cluster target with cluster name %s. Current cluster name is %s", clusterTarget.ClusterName, p.clusterName)
-			continue
-		}
-
-		if clusterTarget.Enabled != nil && *clusterTarget.Enabled {
-			if clusterTarget.EnabledNamespaces == nil || len(*clusterTarget.EnabledNamespaces) == 0 {
-				// enable APM Instrumentation in the cluster
-				nsList, err := p.k8sClient.CoreV1().Namespaces().List(context.TODO(), metav1.ListOptions{})
-				if err != nil {
-					log.Errorf("Remote Enablement: could not get list of namespaces in the cluster %s", p.clusterName)
-					// TODO: add telemetry and error apply status
-					continue
-				}
-				for _, ns := range nsList.Items {
-					enabledNamespaces = append(enabledNamespaces, ns.GetName())
-				}
-			} else {
-				// enable APM Instrumentation in specific namespaces
-				enabledNamespaces = *clusterTarget.EnabledNamespaces
-			}
-
-		} else {
-			log.Infof("Remote Enablement: to disable APM instrumentation, delete Remote Enablement rule")
-			continue
-		}
-	}
-
 	revision := fmt.Sprint(req.Revision)
 
 	for _, ns := range enabledNamespaces {
@@ -108,10 +76,10 @@ func (p *patcher) patchNamespaces(req Request) error {
 		if err != nil {
 			return fmt.Errorf("failed to encode object: %v", err)
 		}
-		if namespace.Annotations == nil {
-			namespace.Annotations = make(map[string]string)
+		if namespace.Labels == nil {
+			namespace.Labels = make(map[string]string)
 		}
-		if namespace.Annotations[k8sutil.RcIDAnnotKey] == req.ID && namespace.Annotations[k8sutil.RcRevisionAnnotKey] == revision {
+		if namespace.Labels[k8sutil.RcIDAnnotKey] == req.ID && namespace.Annotations[k8sutil.RcRevisionAnnotKey] == revision {
 			log.Infof("Remote Config ID %q with revision %q has already been applied to namespace %s, skipping", req.ID, revision, "")
 			return nil
 		}
@@ -135,7 +103,7 @@ func (p *patcher) patchNamespaces(req Request) error {
 		}
 
 		if _, err = p.k8sClient.CoreV1().Namespaces().Patch(context.TODO(), ns, types.StrategicMergePatchType, patch, metav1.PatchOptions{}); err != nil {
-			//p.telemetryCollector.SendRemoteConfigMutateEvent(req.getApmRemoteConfigEvent(err, telemetry.FailedToMutateConfig))
+			p.telemetryCollector.SendRemoteConfigPatchEvent(req.getApmRemoteConfigEvent(err, telemetry.FailedToMutateConfig))
 			return err
 		}
 
@@ -152,7 +120,39 @@ func (p *patcher) patchNamespaces(req Request) error {
 	return nil
 }
 
+func (p *patcher) getNamespacesToInstrument(targets []K8sClusterTarget) []string {
+
+	enabledNamespaces := []string{}
+
+	for _, clusterTarget := range targets {
+		if clusterTarget.Enabled != nil && *clusterTarget.Enabled {
+			if clusterTarget.EnabledNamespaces == nil || len(*clusterTarget.EnabledNamespaces) == 0 {
+				// enable APM Instrumentation in the cluster
+				nsList, err := p.k8sClient.CoreV1().Namespaces().List(context.TODO(), metav1.ListOptions{})
+				if err != nil {
+					log.Errorf("Remote Enablement: could not get list of namespaces in the cluster %s", p.clusterName)
+					// TODO: add telemetry and error apply status
+					continue
+				}
+				for _, ns := range nsList.Items {
+					enabledNamespaces = append(enabledNamespaces, ns.GetName())
+				}
+				//p.telemetryCollector.SendRemoteConfigPatchEvent(req.getApmRemoteConfigEvent(err, telemetry.FailedToMutateConfig))
+			} else {
+				// enable APM Instrumentation in specific namespaces
+				enabledNamespaces = *clusterTarget.EnabledNamespaces
+			}
+
+		} else {
+			log.Infof("Remote Enablement: to disable APM instrumentation, delete Remote Enablement rule")
+			continue
+		}
+	}
+	return enabledNamespaces
+}
+
 func enableConfig(ns *v1.Namespace, req Request) {
+	ns.Labels[k8sutil.RcIDLabelKey] = req.ID
 	ns.Annotations[k8sutil.RcIDAnnotKey] = req.ID
 	ns.Annotations[k8sutil.RcRevisionAnnotKey] = fmt.Sprint(req.Revision)
 }

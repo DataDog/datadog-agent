@@ -64,11 +64,14 @@ type ApmRemoteConfigEventTags struct {
 	RcRevision int64  `json:"rc_revision"`
 	RcVersion  uint64 `json:"rc_version"`
 	//nolint:revive // TODO(TEL) Fix revive linter
-	KubernetesClusterId string `json:"k8s_cluster_id"`
-	KubernetesCluster   string `json:"k8s_cluster"`
-	KubernetesNamespace string `json:"k8s_namespace"`
-	KubernetesKind      string `json:"k8s_kind"`
-	KubernetesName      string `json:"k8s_name"`
+	ClusterTargets []K8sClusterTarget `json:"cluster_targets"`
+}
+
+// K8sClusterTarget represents k8s target within a cluster
+type K8sClusterTarget struct {
+	ClusterName       string   `json:"cluster_name"`
+	Enabled           bool     `json:"enabled,omitempty"`
+	EnabledNamespaces []string `json:"enabled_namespaces,omitempty"`
 }
 
 // ApmRemoteConfigEventError stores the debugging information about remote config deployment failures
@@ -140,7 +143,7 @@ func (tc *telemetryCollector) SendRemoteConfigMutateEvent(event ApmRemoteConfigE
 // to indicate that a remote config has been successfully patched
 func (tc *telemetryCollector) sendRemoteConfigEvent(eventName string, event ApmRemoteConfigEvent) {
 	event.Payload.Tags.RcClientId = tc.rcClientId
-	event.Payload.Tags.KubernetesClusterId = tc.kubernetesClusterId
+	//event.Payload.Tags.ClusterTargets = tc.
 	event.Payload.EventName = eventName
 	body, err := json.Marshal(event)
 	if err != nil {

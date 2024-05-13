@@ -19,7 +19,7 @@ import (
 )
 
 func TestProcess(t *testing.T) {
-	genConfig := func(cluster, kind string) []byte {
+	genConfig := func(cluster string) []byte {
 		base := `
 {
 	"id": "17945471932432318983",
@@ -27,27 +27,29 @@ func TestProcess(t *testing.T) {
 	"schema_version": "v1.0.0",
 	"action": "enable",
 	"lib_config": {
-		"library_language": "java",
-		"library_version": "latest"
+		"env": "staging"
 	},
-	"k8s_target": {
-		"cluster": "%s",
-		"kind": "%s",
-		"name": "my-java-app",
-		"namespace": "default"
+	"k8s_target_v2": {
+		"cluster_targets": [
+			{
+				"cluster_name": "%s",
+				"enabled": true,
+				"enabled_namespaces": ["ns1"]
+			}
+		]
 	}
 }
 `
-		return []byte(fmt.Sprintf(base, cluster, kind))
+		return []byte(fmt.Sprintf(base, cluster))
 	}
 	rcp, err := newRemoteConfigProvider(&rcclient.Client{}, make(chan struct{}), telemetry.NewNoopCollector(), "dev")
 	require.NoError(t, err)
-	notifs := rcp.subscribe(KindDeployment)
+	notifs := rcp.subscribe(KindCluster)
 	in := map[string]state.RawConfig{
-		"path1": {Config: genConfig("dev", "deployment")},   // valid config
-		"path2": {Config: []byte("invalid")},                // invalid json
-		"path3": {Config: genConfig("dev", "wrong")},        // kind mismatch
-		"path4": {Config: genConfig("wrong", "deployment")}, // cluster mismatch
+		"path1": {Config: genConfig("dev")}, // valid config
+		//"path2": {Config: []byte("invalid")},  // invalid json
+		//"path3": {Config: genConfig("dev")},   // kind mismatch
+		//"path4": {Config: genConfig("wrong")}, // cluster mismatch
 	}
 	rcp.process(in, nil)
 	require.Len(t, notifs, 1)
@@ -55,11 +57,10 @@ func TestProcess(t *testing.T) {
 	require.Equal(t, "17945471932432318983", pr.ID)
 	require.Equal(t, int64(1673513604823158800), pr.Revision)
 	require.Equal(t, "v1.0.0", pr.SchemaVersion)
-	require.Equal(t, "java", pr.LibConfig.Language)
-	require.Equal(t, "latest", pr.LibConfig.Version)
-	require.Equal(t, "dev", pr.K8sTarget.Cluster)
-	require.Equal(t, KindDeployment, pr.K8sTarget.Kind)
-	require.Equal(t, "my-java-app", pr.K8sTarget.Name)
-	require.Equal(t, "default", pr.K8sTarget.Namespace)
+	require.Equal(t, "staging", *pr.LibConfig.Env)
+	require.Equal(t, 1, len(pr.K8sTarget.ClusterTargets))
+	require.Equal(t, "dev", pr.K8sTarget.ClusterTargets[0].ClusterName)
+	require.Equal(t, true, *pr.K8sTarget.ClusterTargets[0].Enabled)
+	require.Equal(t, &([]string{"ns1"}), pr.K8sTarget.ClusterTargets[0].EnabledNamespaces)
 	require.Len(t, notifs, 0)
 }

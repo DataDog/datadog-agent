@@ -5,16 +5,17 @@
         "schema_version": "v1.0.0",
         "action": "enable",
         "lib_config": {
-            "library_language": "java",
-            "library_version": "v1.4.0",
-            "service_name": "my-java-service",
             "env": "dev"
         },
-        "k8s_target": {
-            "cluster": "dev",
-            "kind": "deployment",
-            "name": "my-java-service",
-            "namespace": "default"
+        "k8s_target_v2": {
+            "cluster_targets": [
+                {
+                    "cluster_name": "dev",
+                    "enabled": true,
+                    "enabled_namespaces": ["ns1"]
+                }
+
+            ]
         }
     }
 ]
