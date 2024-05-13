@@ -43,6 +43,10 @@ remote_file "#{tmp_dir}\\wix311-binaries.zip" do
 end
 
 
+execute 'winupdate-stop' do
+  command "powershell -C \"Stop-Service -Name wuauserv -Force\""
+end
+
 execute 'wix-extract' do
   cwd tmp_dir
   command "powershell -C \"Add-Type -A 'System.IO.Compression.FileSystem'; [IO.Compression.ZipFile]::ExtractToDirectory('wix311-binaries.zip', 'wix');\""
