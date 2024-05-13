@@ -98,3 +98,42 @@ func Test_makeStringBatches(t *testing.T) {
 		})
 	}
 }
+
+func Test_areTagsEqual(t *testing.T) {
+	tests := []struct {
+		name          string
+		tagsA         []string
+		tagsB         []string
+		expectedEqual bool
+	}{
+		{
+			"equal tags",
+			[]string{"aa", "bb", "cc"},
+			[]string{"aa", "bb", "cc"},
+			true,
+		},
+		{
+			"equal tags, different order",
+			[]string{"aa", "bb", "cc"},
+			[]string{"cc", "bb", "aa"},
+			false,
+		},
+		{
+			"tags with different length",
+			[]string{"aa", "bb", "cc"},
+			[]string{"aa", "bb"},
+			false,
+		},
+		{
+			"tags with different values",
+			[]string{"aa", "bb", "cc"},
+			[]string{"aa", "bb", "dd"},
+			false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.expectedEqual, AreTagsEqual(tt.tagsA, tt.tagsB))
+		})
+	}
+}
