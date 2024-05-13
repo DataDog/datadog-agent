@@ -3,8 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build test
-
 package setup
 
 import (
@@ -959,6 +957,26 @@ fips:
 	require.Error(t, err)
 }
 
+func TestEnablePeerServiceStatsAggregationYAML(t *testing.T) {
+	datadogYaml := `
+apm_config:
+  peer_service_aggregation: true
+`
+	testConfig := ConfFromYAML(datadogYaml)
+	err := setupFipsEndpoints(testConfig)
+	require.NoError(t, err)
+	require.True(t, testConfig.GetBool("apm_config.peer_service_aggregation"))
+
+	datadogYaml = `
+apm_config:
+  peer_service_aggregation: false
+`
+	testConfig = ConfFromYAML(datadogYaml)
+	err = setupFipsEndpoints(testConfig)
+	require.NoError(t, err)
+	require.False(t, testConfig.GetBool("apm_config.peer_service_aggregation"))
+}
+
 func TestEnablePeerTagsAggregationYAML(t *testing.T) {
 	datadogYaml := `
 apm_config:
@@ -977,6 +995,15 @@ apm_config:
 	err = setupFipsEndpoints(testConfig)
 	require.NoError(t, err)
 	require.False(t, testConfig.GetBool("apm_config.peer_tags_aggregation"))
+}
+
+func TestEnablePeerServiceStatsAggregationEnv(t *testing.T) {
+	t.Setenv("DD_APM_PEER_SERVICE_AGGREGATION", "true")
+	testConfig := ConfFromYAML("")
+	require.True(t, testConfig.GetBool("apm_config.peer_service_aggregation"))
+	t.Setenv("DD_APM_PEER_SERVICE_AGGREGATION", "false")
+	testConfig = ConfFromYAML("")
+	require.False(t, testConfig.GetBool("apm_config.peer_service_aggregation"))
 }
 
 func TestEnablePeerTagsAggregationEnv(t *testing.T) {
@@ -1394,4 +1421,35 @@ use_proxy_for_cloud_metadata: true
 	assert.NoError(t, err)
 	yamlText := string(yamlConf)
 	assert.Equal(t, expectedYaml, yamlText)
+}
+
+func TestServerlessConfigNumComponents(t *testing.T) {
+	// Enforce the number of config "components" reachable by the serverless agent
+	// to avoid accidentally adding entire components if it's not needed
+	require.Len(t, serverlessConfigComponents, 22)
+}
+
+func TestServerlessConfigInit(t *testing.T) {
+	conf := pkgconfigmodel.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
+
+	initCommonWithServerless(conf)
+
+	// ensure some core configs are declared
+	assert.True(t, conf.IsKnown("api_key"))
+	assert.True(t, conf.IsKnown("use_dogstatsd"))
+	assert.True(t, conf.IsKnown("forwarder_timeout"))
+
+	// ensure some non-serverless configs are not declared
+	assert.False(t, conf.IsKnown("sbom.enabled"))
+	assert.False(t, conf.IsKnown("inventories_enabled"))
+}
+
+func TestAgentConfigInit(t *testing.T) {
+	conf := Conf()
+
+	assert.True(t, conf.IsKnown("api_key"))
+	assert.True(t, conf.IsKnown("use_dogstatsd"))
+	assert.True(t, conf.IsKnown("forwarder_timeout"))
+	assert.True(t, conf.IsKnown("sbom.enabled"))
+	assert.True(t, conf.IsKnown("inventories_enabled"))
 }

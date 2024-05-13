@@ -71,6 +71,7 @@ def trigger_macos(
     retry_download=3,
     retry_interval=10,
     fast_tests=None,
+    test_washer=False,
     integrations_core_ref=DEFAULT_INTEGRATIONS_CORE_BRANCH,
 ):
     if workflow_type == "build":
@@ -105,6 +106,7 @@ def trigger_macos(
             python_runtimes=python_runtimes,
             version_cache_file_content=version_cache,
             fast_tests=fast_tests,
+            test_washer=test_washer,
         )
         repack_macos_junit_tar(conclusion, "junit-tests_macos.tgz", "junit-tests_macos-repacked.tgz")
     elif workflow_type == "lint":
@@ -291,8 +293,9 @@ def handle_community_pr(_, repo='', pr_id=-1, labels=''):
     """
     Will set labels and notify teams about a newly opened community PR
     """
-    from tasks.libs.ciproviders.github_api import GithubAPI
     from slack_sdk import WebClient
+
+    from tasks.libs.ciproviders.github_api import GithubAPI
 
     # Get review teams / channels
     gh = GithubAPI()

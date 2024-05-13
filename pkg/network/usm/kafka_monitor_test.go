@@ -580,25 +580,24 @@ func (s *KafkaProtocolParsingSuite) TestKafkaProtocolParsing() {
 						defer cancel()
 						require.NoError(t, client.Client.ProduceSync(ctxTimeout, record).FirstErr(), "record had a produce error while synchronously producing")
 
-						// To prevent races, we introduce a small delay to allow kgo to send fetch requests for the new topic.
-						time.Sleep(100 * time.Millisecond)
-						telemetryMap, err := kafka.GetKernelTelemetryMap(monitor.ebpfProgram.Manager.Manager)
-						require.NoError(t, err)
+						var telemetryMap *kafka.RawKernelTelemetry
+						require.Eventually(t, func() bool {
+							telemetryMap, err = kafka.GetKernelTelemetryMap(monitor.ebpfProgram.Manager.Manager)
+							require.NoError(t, err)
 
-						// Ensure that the other buckets remain unchanged before verifying the expected bucket.
-						for idx := 0; idx < kafka.TopicNameBuckets; idx++ {
-							if idx != tt.expectedBucketIndex {
-								require.Equal(t, currentRawKernelTelemetry.Name_size_buckets[idx],
-									telemetryMap.Name_size_buckets[idx],
-									"Expected bucket (%d) to remain unchanged", idx)
+							// Ensure that the other buckets remain unchanged before verifying the expected bucket.
+							for idx := 0; idx < kafka.TopicNameBuckets; idx++ {
+								if idx != tt.expectedBucketIndex {
+									require.Equal(t, currentRawKernelTelemetry.Name_size_buckets[idx],
+										telemetryMap.Name_size_buckets[idx],
+										"Expected bucket (%d) to remain unchanged", idx)
+								}
 							}
-						}
 
-						// Verify that the expected bucket contains the correct number of occurrences.
-						expectedNumberOfOccurrences := 4 // (1 produce request + 1 fetch request) * 2 connections (docker container and localhost)
-						require.Equal(t,
-							uint64(expectedNumberOfOccurrences)+currentRawKernelTelemetry.Name_size_buckets[tt.expectedBucketIndex],
-							telemetryMap.Name_size_buckets[tt.expectedBucketIndex])
+							// Verify that the expected bucket contains the correct number of occurrences.
+							expectedNumberOfOccurrences := 4 // (1 produce request + 1 fetch request) * 2 connections (docker container and localhost)
+							return uint64(expectedNumberOfOccurrences)+currentRawKernelTelemetry.Name_size_buckets[tt.expectedBucketIndex] == telemetryMap.Name_size_buckets[tt.expectedBucketIndex]
+						}, time.Second*3, time.Millisecond*100)
 
 						// Update the current raw kernel telemetry for the next iteration
 						currentRawKernelTelemetry = telemetryMap

@@ -150,6 +150,8 @@ func (r *reflectorStore) Delete(obj interface{}) error {
 		uid = v.UID
 	case *appsv1.Deployment:
 		uid = v.UID
+	case *corev1.Namespace:
+		uid = v.UID
 	default:
 		return fmt.Errorf("failed to identify Kind of object: %#v", obj)
 	}
