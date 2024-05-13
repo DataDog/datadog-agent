@@ -6,9 +6,20 @@
 package networkpath
 
 import (
+	"fmt"
+	"time"
+
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"gopkg.in/yaml.v2"
 )
+
+const defaultCheckInterval time.Duration = 1 * time.Minute
+
+// InitConfig is used to deserialize integration init config
+type InitConfig struct {
+	MinCollectionInterval int `yaml:"min_collection_interval"`
+}
 
 // InstanceConfig is used to deserialize integration instance config
 type InstanceConfig struct {
@@ -19,24 +30,37 @@ type InstanceConfig struct {
 	MaxTTL uint8 `yaml:"max_ttl"`
 
 	TimeoutMs uint `yaml:"timeout"` // millisecond
+
+	MinCollectionInterval int `yaml:"min_collection_interval"`
+
+	Tags []string `yaml:"tags"`
 }
 
 // CheckConfig defines the configuration of the
 // Network Path integration
 type CheckConfig struct {
-	DestHostname string
-	DestPort     uint16
-	MaxTTL       uint8
-	TimeoutMs    uint
+	DestHostname          string
+	DestPort              uint16
+	MaxTTL                uint8
+	TimeoutMs             uint
+	MinCollectionInterval time.Duration
+	Tags                  []string
+	Namespace             string
 }
 
 // NewCheckConfig builds a new check config
-func NewCheckConfig(rawInstance integration.Data, _ integration.Data) (*CheckConfig, error) {
+func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data) (*CheckConfig, error) {
 	instance := InstanceConfig{}
+	initConfig := InitConfig{}
 
-	err := yaml.Unmarshal(rawInstance, &instance)
+	err := yaml.Unmarshal(rawInitConfig, &initConfig)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("invalid init_config: %s", err)
+	}
+
+	err = yaml.Unmarshal(rawInstance, &instance)
+	if err != nil {
+		return nil, fmt.Errorf("invalid instance config: %s", err)
 	}
 
 	c := &CheckConfig{}
@@ -46,5 +70,26 @@ func NewCheckConfig(rawInstance integration.Data, _ integration.Data) (*CheckCon
 	c.MaxTTL = instance.MaxTTL
 	c.TimeoutMs = instance.TimeoutMs
 
+	c.MinCollectionInterval = firstNonZero(
+		time.Duration(instance.MinCollectionInterval)*time.Second,
+		time.Duration(initConfig.MinCollectionInterval)*time.Second,
+		defaultCheckInterval,
+	)
+	if c.MinCollectionInterval <= 0 {
+		return nil, fmt.Errorf("min collection interval must be > 0")
+	}
+
+	c.Tags = instance.Tags
+	c.Namespace = coreconfig.Datadog.GetString("network_devices.namespace")
+
 	return c, nil
+}
+
+func firstNonZero(values ...time.Duration) time.Duration {
+	for _, value := range values {
+		if value != 0 {
+			return value
+		}
+	}
+	return 0
 }

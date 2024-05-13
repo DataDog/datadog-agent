@@ -87,9 +87,9 @@ Run unit tests using `invoke test`.
 invoke test --targets=./pkg/aggregator
 ```
 
-You can also use `invoke lint-go` to run just the go linters.
+You can also use `invoke linter.go` to run just the go linters.
 ```
-invoke lint-go
+invoke linter.go
 ```
 
 When testing code that depends on [rtloader](/rtloader), build and install it first.

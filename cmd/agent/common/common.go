@@ -18,16 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/settings"
 	settingshttp "github.com/DataDog/datadog-agent/pkg/config/settings/http"
-	"github.com/DataDog/datadog-agent/pkg/metadata"
 	"github.com/DataDog/datadog-agent/pkg/version"
-)
-
-var (
-	// ExpvarServer is the global expvar server
-	ExpvarServer *http.Server
-
-	// MetadataScheduler is responsible to orchestrate metadata collection
-	MetadataScheduler *metadata.Scheduler
 )
 
 // GetPythonPaths returns the paths (in order of precedence) from where the agent

@@ -16,8 +16,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/go-delve/delve/pkg/goversion"
-
+	"github.com/DataDog/datadog-agent/pkg/network/go/goversion"
 	"github.com/DataDog/datadog-agent/pkg/network/go/rungo"
 )
 
@@ -45,7 +44,7 @@ type Runner struct {
 	// the HOME environment variable is replaced with a synthetic value.
 	//
 	// To skip a version-architecture pair, return `nil` for this function.
-	GetCommand func(ctx context.Context, version goversion.GoVersion, arch string) *exec.Cmd
+	GetCommand func(ctx context.Context, version goversion.GoVersion, arch string, goExe string) *exec.Cmd
 }
 
 type architectureVersion struct {
@@ -175,7 +174,7 @@ func (r *Runner) installAllVersions(ctx context.Context) (map[goversion.GoVersio
 				return nil, result.err
 			}
 			exeLocations[result.version] = result.exe
-			log.Printf("[%s--install] installed to %s", versionToString(result.version), result.exe)
+			log.Printf("[%s--install] installed to %s", result.version, result.exe)
 		case <-ctx.Done():
 			return nil, ctx.Err()
 		}
@@ -185,7 +184,6 @@ func (r *Runner) installAllVersions(ctx context.Context) (map[goversion.GoVersio
 }
 
 func (r *Runner) installSingleVersion(ctx context.Context, version goversion.GoVersion) (string, error) {
-	versionStr := versionToString(version)
 	installation := r.makeInstallation(version)
 	goExe, errOutput, err := installation.Install(ctx)
 	if err != nil {
@@ -193,41 +191,35 @@ func (r *Runner) installSingleVersion(ctx context.Context, version goversion.GoV
 			// Dump the output of the subprocess
 			scanner := bufio.NewScanner(bytes.NewReader(errOutput))
 			for scanner.Scan() {
-				log.Printf("[%s--install] [output] %s", versionStr, scanner.Text())
+				log.Printf("[%s--install] [output] %s", version, scanner.Text())
 			}
 		}
 
-		return "", fmt.Errorf("error while installing Go toolchain version %s: %w", versionStr, err)
+		return "", fmt.Errorf("error while installing Go toolchain version %s: %w", version, err)
 	}
 
 	return goExe, nil
 }
 
 func (r *Runner) runSingleCommand(ctx context.Context, goExe string, version goversion.GoVersion, arch string) error {
-	versionStr := versionToString(version)
-	command := r.GetCommand(ctx, version, arch)
+	command := r.GetCommand(ctx, version, arch, goExe)
 	if command == nil {
 		// Allow the GetCommand implementation to skip a version/arch combination
 		return nil
 	}
 
-	command.Env = append(command.Env, fmt.Sprintf("%s=%s", "GOARCH", arch))
-	// The $HOME directory needs to be set to the Go installation directory
-	command.Env = append(command.Env, fmt.Sprintf("%s=%s", "HOME", r.getInstallLocation()))
-	command.Path = goExe
-
 	// Dump the command
-	log.Printf("[%s-%s] %s %s %s", versionStr, arch, strings.Join(command.Env, " "), command.Path, strings.Join(command.Args[1:], " "))
+	log.Printf("[%s-%s] %s %s %s", version, arch, strings.Join(command.Env, " "), command.Path, strings.Join(command.Args[1:], " "))
 
 	output, err := command.CombinedOutput()
 	if err != nil {
 		// Dump the output of the subprocess
 		scanner := bufio.NewScanner(bytes.NewReader(output))
 		for scanner.Scan() {
-			log.Printf("[%s-%s] [output] %s", versionStr, arch, scanner.Text())
+			log.Printf("[%s-%s] [output] %s", version, arch, scanner.Text())
 		}
 
-		return fmt.Errorf("error while running command for (Go version, arch pair) (go%s, %s): %w", versionStr, arch, err)
+		return fmt.Errorf("error while running command for (Go version, arch pair) (go%s, %s): %w", version, arch, err)
 	}
 
 	return nil
@@ -235,7 +227,7 @@ func (r *Runner) runSingleCommand(ctx context.Context, goExe string, version gov
 
 func (r *Runner) makeInstallation(version goversion.GoVersion) rungo.GoInstallation {
 	return rungo.GoInstallation{
-		Version:         versionToString(version),
+		Version:         version.String(),
 		InstallGopath:   filepath.Join(r.InstallDirectory, "install-gopath"),
 		InstallGocache:  filepath.Join(r.InstallDirectory, "install-gocache"),
 		InstallLocation: r.getInstallLocation(),
@@ -257,16 +249,4 @@ func getCombinations(versions []goversion.GoVersion, architectures []string) []a
 	}
 
 	return combinations
-}
-
-func versionToString(v goversion.GoVersion) string {
-	// RC and beta versions always have Rev = 0
-	if v.RC > 0 {
-		return fmt.Sprintf("%d.%drc%d", v.Major, v.Minor, v.RC)
-	} else if v.Beta > 0 {
-		return fmt.Sprintf("%d.%dbeta%d", v.Major, v.Minor, v.Beta)
-	} else if v.Rev > 0 {
-		return fmt.Sprintf("%d.%d.%d", v.Major, v.Minor, v.Rev)
-	}
-	return fmt.Sprintf("%d.%d", v.Major, v.Minor)
 }

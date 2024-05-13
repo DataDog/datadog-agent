@@ -17,7 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
-// team: container-integrations
+// team: container-platform
 
 // Mock implements mock-specific methods.
 type Mock interface {
@@ -57,5 +57,7 @@ func MockModule() fxutil.Module {
 func MockModuleV2() fxutil.Module {
 	return fxutil.Component(
 		fx.Provide(newWorkloadMetaMockV2),
+		fx.Provide(func(mock Mock) Component { return mock }),
+		fx.Provide(func(mock Mock) optional.Option[Component] { return optional.NewOption[Component](mock) }),
 	)
 }

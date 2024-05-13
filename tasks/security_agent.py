@@ -15,6 +15,7 @@ from tasks.agent import build as agent_build
 from tasks.agent import generate_config
 from tasks.build_tags import get_default_build_tags
 from tasks.go import run_golangci_lint
+from tasks.libs.build.ninja import NinjaWriter
 from tasks.libs.common.utils import (
     REPO_PATH,
     bin_name,
@@ -26,7 +27,6 @@ from tasks.libs.common.utils import (
     get_gopath,
     get_version,
 )
-from tasks.libs.ninja_syntax import NinjaWriter
 from tasks.process_agent import TempDir
 from tasks.system_probe import (
     CURRENT_ARCH,
@@ -372,15 +372,17 @@ def build_functional_tests(
     race=False,
     kernel_release=None,
     debug=False,
+    skip_object_files=False,
 ):
     if not is_windows:
-        build_cws_object_files(
-            ctx,
-            major_version=major_version,
-            arch=arch,
-            kernel_release=kernel_release,
-            debug=debug,
-        )
+        if not skip_object_files:
+            build_cws_object_files(
+                ctx,
+                major_version=major_version,
+                arch=arch,
+                kernel_release=kernel_release,
+                debug=debug,
+            )
         build_embed_syscall_tester(ctx)
 
     ldflags, gcflags, env = get_build_flags(ctx, major_version=major_version, static=static)
@@ -723,7 +725,7 @@ def generate_syscall_table(ctx):
             f"go run github.com/DataDog/datadog-agent/pkg/security/secl/model/syscall_table_generator -table-url {table_url} -output {output_file} -output-string {output_string_file} {abis}"
         )
 
-    linux_version = "v6.1"
+    linux_version = "v6.8"
     single_run(
         ctx,
         f"https://raw.githubusercontent.com/torvalds/linux/{linux_version}/arch/x86/entry/syscalls/syscall_64.tbl",
@@ -739,9 +741,11 @@ def generate_syscall_table(ctx):
     )
 
 
+DEFAULT_BTFHUB_CONSTANTS_PATH = "./pkg/security/probe/constantfetch/btfhub/constants.json"
+
+
 @task
-def generate_btfhub_constants(ctx, archive_path, force_refresh=False):
-    output_path = "./pkg/security/probe/constantfetch/btfhub/constants.json"
+def generate_btfhub_constants(ctx, archive_path, force_refresh=False, output_path=DEFAULT_BTFHUB_CONSTANTS_PATH):
     force_refresh_opt = "-force-refresh" if force_refresh else ""
     ctx.run(
         f"go run -tags linux_bpf,btfhubsync ./pkg/security/probe/constantfetch/btfhub/ -archive-root {archive_path} -output {output_path} {force_refresh_opt}",
@@ -749,10 +753,17 @@ def generate_btfhub_constants(ctx, archive_path, force_refresh=False):
 
 
 @task
+def combine_btfhub_constants(ctx, archive_path, output_path=DEFAULT_BTFHUB_CONSTANTS_PATH):
+    ctx.run(
+        f"go run -tags linux_bpf,btfhubsync ./pkg/security/probe/constantfetch/btfhub/ -combine -archive-root {archive_path} -output {output_path}",
+    )
+
+
+@task
 def generate_cws_proto(ctx):
     with tempfile.TemporaryDirectory() as temp_gobin:
         with environ({"GOBIN": temp_gobin}):
-            ctx.run("go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.32.0")
+            ctx.run("go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.33.0")
             ctx.run("go install github.com/planetscale/vtprotobuf/cmd/protoc-gen-go-vtproto@v0.6.0")
             ctx.run("go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.3.0")
 
@@ -775,6 +786,7 @@ def generate_cws_proto(ctx):
             content = f.read()
 
         replaced_content = re.sub(r"\/\/\s*protoc\s*v\d+\.\d+\.\d+", "//  protoc", content)
+        replaced_content = re.sub(r"\/\/\s*-\s+protoc\s*v\d+\.\d+\.\d+", "// - protoc", replaced_content)
         with open(path, "w") as f:
             f.write(replaced_content)
 
@@ -921,3 +933,32 @@ def print_fentry_stats(ctx):
 
     for kind in ["kprobe", "kretprobe", "fentry", "fexit"]:
         ctx.run(f"readelf -W -S {fentry_o_path} 2> /dev/null | grep PROGBITS | grep {kind} | wc -l")
+
+
+@task
+def sync_secl_win_pkg(ctx):
+    files_to_copy = [
+        ("model.go", None),
+        ("events.go", None),
+        ("args_envs.go", None),
+        ("consts_common.go", None),
+        ("consts_other.go", None),
+        ("consts_map_names.go", None),
+        ("model_windows.go", "model_win.go"),
+        ("field_handlers_windows.go", "field_handlers_win.go"),
+        ("accessors_windows.go", "accessors_win.go"),
+    ]
+
+    ctx.run("rm -r pkg/security/seclwin/model")
+    ctx.run("mkdir -p pkg/security/seclwin/model")
+
+    for ffrom, fto in files_to_copy:
+        if not fto:
+            fto = ffrom
+
+        ctx.run(f"cp pkg/security/secl/model/{ffrom} pkg/security/seclwin/model/{fto}")
+        if sys.platform == "darwin":
+            ctx.run(f"sed -i '' '/^\\/\\/go:build/d' pkg/security/seclwin/model/{fto}")
+        else:
+            ctx.run(f"sed -i '/^\\/\\/go:build/d' pkg/security/seclwin/model/{fto}")
+        ctx.run(f"gofmt -s -w pkg/security/seclwin/model/{fto}")

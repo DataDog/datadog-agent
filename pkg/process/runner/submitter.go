@@ -40,8 +40,6 @@ import (
 //nolint:revive // TODO(PROC) Fix revive linter
 type Submitter interface {
 	Submit(start time.Time, name string, messages *types.Payload)
-	Start() error
-	Stop()
 }
 
 var _ Submitter = &CheckSubmitter{}
@@ -185,22 +183,6 @@ func (s *CheckSubmitter) Submit(start time.Time, name string, messages *types.Pa
 func (s *CheckSubmitter) Start() error {
 	printStartMessage(s.log, s.hostname, s.processAPIEndpoints, s.processEventsAPIEndpoints)
 
-	if err := s.processForwarder.Start(); err != nil {
-		return fmt.Errorf("error starting forwarder: %s", err)
-	}
-
-	if err := s.rtProcessForwarder.Start(); err != nil {
-		return fmt.Errorf("error starting RT forwarder: %s", err)
-	}
-
-	if err := s.connectionsForwarder.Start(); err != nil {
-		return fmt.Errorf("error starting connections forwarder: %s", err)
-	}
-
-	if err := s.eventForwarder.Start(); err != nil {
-		return fmt.Errorf("error starting event forwarder: %s", err)
-	}
-
 	s.wg.Add(1)
 	go func() {
 		defer s.wg.Done()
@@ -279,11 +261,6 @@ func (s *CheckSubmitter) Stop() {
 	s.eventResults.Stop()
 
 	s.wg.Wait()
-
-	s.processForwarder.Stop()
-	s.rtProcessForwarder.Stop()
-	s.connectionsForwarder.Stop()
-	s.eventForwarder.Stop()
 
 	close(s.rtNotifierChan)
 }

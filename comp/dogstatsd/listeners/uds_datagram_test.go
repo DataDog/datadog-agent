@@ -17,11 +17,14 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/packets"
+	"github.com/DataDog/datadog-agent/comp/dogstatsd/pidmap"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
-func udsDatagramListenerFactory(packetOut chan packets.Packets, manager *packets.PoolManager, cfg config.Component) (StatsdListener, error) {
-	return NewUDSDatagramListener(packetOut, manager, nil, cfg, nil)
+func udsDatagramListenerFactory(packetOut chan packets.Packets, manager *packets.PoolManager, cfg config.Component, pidMap pidmap.Component) (StatsdListener, error) {
+	return NewUDSDatagramListener(packetOut, manager, nil, cfg, nil, optional.NewNoneOption[workloadmeta.Component](), pidMap)
 }
 
 func TestNewUDSDatagramListener(t *testing.T) {
@@ -44,8 +47,8 @@ func TestUDSDatagramReceive(t *testing.T) {
 
 	packetsChannel := make(chan packets.Packets)
 
-	config := fulfillDepsWithConfig(t, mockConfig)
-	s, err := udsDatagramListenerFactory(packetsChannel, newPacketPoolManagerUDS(config), config)
+	deps := fulfillDepsWithConfig(t, mockConfig)
+	s, err := udsDatagramListenerFactory(packetsChannel, newPacketPoolManagerUDS(deps.Config), deps.Config, deps.PidMap)
 	assert.Nil(t, err)
 	assert.NotNil(t, s)
 

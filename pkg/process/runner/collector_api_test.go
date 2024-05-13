@@ -460,12 +460,13 @@ func runCollectorTestWithAPIKeys(t *testing.T, check checks.Check, epConfig *end
 	err = check.Init(nil, hostInfo, true)
 	assert.NoError(t, err)
 	deps := newSubmitterDepsWithConfig(t, mockConfig)
-	c.Submitter, err = NewSubmitter(mockConfig, deps.Log, deps.Forwarders, hostInfo.HostName)
+	submitter, err := NewSubmitter(mockConfig, deps.Log, deps.Forwarders, hostInfo.HostName)
+	c.Submitter = submitter
 	require.NoError(t, err)
 
-	err = c.Submitter.Start()
+	err = submitter.Start()
 	require.NoError(t, err)
-	defer c.Submitter.Stop()
+	defer submitter.Stop()
 
 	err = c.Run()
 	require.NoError(t, err)
@@ -554,8 +555,8 @@ func newMockEndpoint(t *testing.T, config *endpointConfig) *mockEndpoint {
 	eventsMux := http.NewServeMux()
 	eventsMux.HandleFunc("/api/v2/proclcycle", m.handleEvents)
 
-	m.collectorServer = &http.Server{Addr: ":", Handler: collectorMux}
-	m.eventsServer = &http.Server{Addr: ":", Handler: eventsMux}
+	m.collectorServer = &http.Server{Addr: "127.0.0.1:", Handler: collectorMux}
+	m.eventsServer = &http.Server{Addr: "127.0.0.1:", Handler: eventsMux}
 
 	return m
 }
@@ -568,7 +569,7 @@ func (m *mockEndpoint) start() (*url.URL, *url.URL) {
 	go func() {
 		defer m.stopper.Done()
 
-		listener, err := net.Listen("tcp", ":")
+		listener, err := net.Listen("tcp", "127.0.0.1:")
 		require.NoError(m.t, err)
 
 		addrC <- listener.Addr()
@@ -582,7 +583,7 @@ func (m *mockEndpoint) start() (*url.URL, *url.URL) {
 	go func() {
 		defer m.stopper.Done()
 
-		listener, err := net.Listen("tcp", ":")
+		listener, err := net.Listen("tcp", "127.0.0.1:")
 		require.NoError(m.t, err)
 
 		addrC <- listener.Addr()

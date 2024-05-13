@@ -12,7 +12,22 @@
 
 #define TOPIC_NAME_MAX_STRING_SIZE 80
 
+#define KAFKA_RESPONSE_PARSER_MAX_ITERATIONS 10
+
+// We do not have a way to validate the size of the aborted transactions list
+// and if we misinterpret a packet we could end up waiting for a large number
+// of bytes for the list to end. This limit is used as a heuristic to prevent
+// that. This could be removed/revisited after the TCP stream handling to
+// prevent seeing out-of-order packets has seen more testing.
+#define KAFKA_MAX_ABORTED_TRANSACTIONS 10000
+
 // This controls the number of Kafka transactions read from userspace at a time
-#define KAFKA_BATCH_SIZE 30
+#define KAFKA_BATCH_SIZE 28
+
+// The amount of buckets we have for the kafka topic name length telemetry.
+#define KAFKA_TELEMETRY_TOPIC_NAME_NUM_OF_BUCKETS 10
+
+// The size of each kafka telemetry topic name bucket
+#define KAFKA_TELEMETRY_TOPIC_NAME_BUCKET_SIZE 10
 
 #endif

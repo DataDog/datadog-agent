@@ -1,11 +1,11 @@
 .new-e2e_agent_a6:
-  rules: !reference [.on_kitchen_tests_a6] #TODO: Change when migration is complete to another name without 'kitchen'
+  rules: !reference [.on_kitchen_tests] #TODO: Change when migration is complete to another name without 'kitchen'
   variables:
     AGENT_MAJOR_VERSION: 6
   retry: 1
 
 .new-e2e_agent_a7:
-  rules: !reference [.on_kitchen_tests_a7] #TODO: Change when migration is complete to another name without 'kitchen'
+  rules: !reference [.on_kitchen_tests] #TODO: Change when migration is complete to another name without 'kitchen'
   variables:
     AGENT_MAJOR_VERSION: 7
   retry: 1
@@ -39,7 +39,7 @@
         END_MAJOR_VERSION: [6]
   script:
     - export DATADOG_AGENT_API_KEY=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $INSTALL_SCRIPT_API_KEY_SSM_NAME)
-    - inv -e new-e2e-tests.run --targets $TARGETS --junit-tar "junit-${CI_JOB_NAME}.tgz" ${EXTRA_PARAMS} --src-agent-version $START_MAJOR_VERSION --dest-agent-version $END_MAJOR_VERSION
+    - inv -e new-e2e-tests.run --targets $TARGETS --junit-tar "junit-${CI_JOB_ID}.tgz" ${EXTRA_PARAMS} --src-agent-version $START_MAJOR_VERSION --dest-agent-version $END_MAJOR_VERSION
 
 .new-e2e_script_upgrade7:
   variables:
@@ -52,13 +52,13 @@
         END_MAJOR_VERSION: [7]
   script:
     - export DATADOG_AGENT_API_KEY=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $INSTALL_SCRIPT_API_KEY_SSM_NAME )
-    - inv -e new-e2e-tests.run --targets $TARGETS --junit-tar "junit-${CI_JOB_NAME}.tgz" ${EXTRA_PARAMS} --src-agent-version $START_MAJOR_VERSION --dest-agent-version $END_MAJOR_VERSION
+    - inv -e new-e2e-tests.run --targets $TARGETS --junit-tar "junit-${CI_JOB_ID}.tgz" ${EXTRA_PARAMS} --src-agent-version $START_MAJOR_VERSION --dest-agent-version $END_MAJOR_VERSION
 
 .new-e2e_rpm:
   variables:
     TARGETS: ./tests/agent-platform/rpm
-    TEAM: agent-platform
+    TEAM: agent-build-and-releases
     EXTRA_PARAMS: --osversion $E2E_OSVERS --platform $E2E_PLATFORM --arch $E2E_ARCH
   script:
     - export DATADOG_AGENT_API_KEY=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh ci.agent-linux-install-script.datadog_api_key)
-    - inv -e new-e2e-tests.run --targets $TARGETS --junit-tar "junit-${CI_JOB_NAME}.tgz" ${EXTRA_PARAMS}
+    - inv -e new-e2e-tests.run --targets $TARGETS --junit-tar "junit-${CI_JOB_ID}.tgz" ${EXTRA_PARAMS}

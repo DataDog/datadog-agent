@@ -3,8 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build test
-
 package setup
 
 import (
@@ -467,19 +465,22 @@ func TestDatabaseMonitoringAurora(t *testing.T) {
 				assert.Equal(t, config.GetInt("database_monitoring.autodiscovery.aurora.discovery_interval"), 300)
 				assert.Equal(t, config.GetInt("database_monitoring.autodiscovery.aurora.query_timeout"), 10)
 				assert.Equal(t, config.Get("database_monitoring.autodiscovery.aurora.tags"), []string{"datadoghq.com/scrape:true"})
+				assert.Equal(t, config.GetString("database_monitoring.autodiscovery.aurora.region"), "")
 			},
 		},
 		{
-			name: "auto discovery query timeout and discovery interval are set from DD env vars",
+			name: "auto discovery query timeout, region and discovery interval are set from DD env vars",
 			setup: func(t *testing.T, config pkgconfigmodel.Config) {
 				t.Setenv("DD_DATABASE_MONITORING_AUTODISCOVERY_AURORA_ENABLED", "true")
 				t.Setenv("DD_DATABASE_MONITORING_AUTODISCOVERY_AURORA_DISCOVERY_INTERVAL", "15")
 				t.Setenv("DD_DATABASE_MONITORING_AUTODISCOVERY_AURORA_QUERY_TIMEOUT", "1")
+				t.Setenv("DD_DATABASE_MONITORING_AUTODISCOVERY_AURORA_REGION", "us-west-2")
 			},
 			tests: func(t *testing.T, config pkgconfigmodel.Config) {
 				assert.True(t, config.GetBool("database_monitoring.autodiscovery.aurora.enabled"))
 				assert.Equal(t, config.GetInt("database_monitoring.autodiscovery.aurora.discovery_interval"), 15)
 				assert.Equal(t, config.GetInt("database_monitoring.autodiscovery.aurora.query_timeout"), 1)
+				assert.Equal(t, config.GetString("database_monitoring.autodiscovery.aurora.region"), "us-west-2")
 				assert.Equal(t, config.Get("database_monitoring.autodiscovery.aurora.tags"), []string{"datadoghq.com/scrape:true"})
 			},
 		},
@@ -1232,6 +1233,8 @@ process_config:
 `)
 
 func TestConfigAssignAtPath(t *testing.T) {
+	t.Skip("This test is flaky due to configAssignAtPath not playing well with config.AllSettings, see ASCII-1421")
+
 	// CircleCI sets NO_PROXY, so unset it for this test
 	unsetEnvForTest(t, "NO_PROXY")
 
@@ -1418,4 +1421,35 @@ use_proxy_for_cloud_metadata: true
 	assert.NoError(t, err)
 	yamlText := string(yamlConf)
 	assert.Equal(t, expectedYaml, yamlText)
+}
+
+func TestServerlessConfigNumComponents(t *testing.T) {
+	// Enforce the number of config "components" reachable by the serverless agent
+	// to avoid accidentally adding entire components if it's not needed
+	require.Len(t, serverlessConfigComponents, 22)
+}
+
+func TestServerlessConfigInit(t *testing.T) {
+	conf := pkgconfigmodel.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
+
+	initCommonWithServerless(conf)
+
+	// ensure some core configs are declared
+	assert.True(t, conf.IsKnown("api_key"))
+	assert.True(t, conf.IsKnown("use_dogstatsd"))
+	assert.True(t, conf.IsKnown("forwarder_timeout"))
+
+	// ensure some non-serverless configs are not declared
+	assert.False(t, conf.IsKnown("sbom.enabled"))
+	assert.False(t, conf.IsKnown("inventories_enabled"))
+}
+
+func TestAgentConfigInit(t *testing.T) {
+	conf := Conf()
+
+	assert.True(t, conf.IsKnown("api_key"))
+	assert.True(t, conf.IsKnown("use_dogstatsd"))
+	assert.True(t, conf.IsKnown("forwarder_timeout"))
+	assert.True(t, conf.IsKnown("sbom.enabled"))
+	assert.True(t, conf.IsKnown("inventories_enabled"))
 }

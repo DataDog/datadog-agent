@@ -62,8 +62,9 @@ func CompleteFlare(fb flaretypes.FlareBuilder, diagnoseDeps diagnose.SuitesDeps)
 		fb.AddFileFromFunc("tagger-list.json", getAgentTaggerList)
 		fb.AddFileFromFunc("workload-list.log", getAgentWorkloadList)
 		fb.AddFileFromFunc("process-agent_tagger-list.json", getProcessAgentTaggerList)
-
-		getProcessChecks(fb, config.GetProcessAPIAddressPort)
+		if !config.Datadog.GetBool("process_config.run_in_core_agent.enabled") {
+			getChecksFromProcessAgent(fb, config.GetProcessAPIAddressPort)
+		}
 	}
 
 	fb.RegisterFilePerm(security.GetAuthTokenFilepath(config.Datadog))
@@ -88,7 +89,7 @@ func CompleteFlare(fb flaretypes.FlareBuilder, diagnoseDeps diagnose.SuitesDeps)
 	fb.AddFileFromFunc("envvars.log", getEnvVars)
 	fb.AddFileFromFunc("health.yaml", getHealth)
 	fb.AddFileFromFunc("go-routine-dump.log", func() ([]byte, error) { return getHTTPCallContent(pprofURL) })
-	fb.AddFileFromFunc("docker_inspect.log", getDockerSelfInspect)
+	fb.AddFileFromFunc("docker_inspect.log", func() ([]byte, error) { return getDockerSelfInspect(diagnoseDeps.GetWMeta()) })
 	fb.AddFileFromFunc("docker_ps.log", getDockerPs)
 
 	getRegistryJSON(fb)
@@ -239,7 +240,7 @@ func getConfigFiles(fb flaretypes.FlareBuilder, confSearchPaths map[string]strin
 	}
 }
 
-func getProcessChecks(fb flaretypes.FlareBuilder, getAddressPort func() (url string, err error)) {
+func getChecksFromProcessAgent(fb flaretypes.FlareBuilder, getAddressPort func() (url string, err error)) {
 	addressPort, err := getAddressPort()
 	if err != nil {
 		log.Errorf("Could not zip process agent checks: wrong configuration to connect to process-agent: %s", err.Error())

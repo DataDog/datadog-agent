@@ -61,7 +61,7 @@ new-e2e-agent-platform-install-script-centos-a7-x86_64:
     - .new-e2e_os_centos
     - .new-e2e_centos_a7_x86_64
     - .new-e2e_agent_a7
-  rules: !reference [.on_default_new-e2e_tests_a7]
+  rules: !reference [.on_default_new_e2e_tests]
   variables:
     FLAVOR: datadog-agent
 
@@ -73,7 +73,7 @@ new-e2e-agent-platform-install-script-centos-iot-agent-a7-x86_64:
     - .new-e2e_os_centos
     - .new-e2e_centos_a7_x86_64
     - .new-e2e_agent_a7
-  rules: !reference [.on_default_new-e2e_tests_a7]
+  rules: !reference [.on_default_new_e2e_tests]
   variables:
     FLAVOR: datadog-iot-agent
 
@@ -107,7 +107,7 @@ new-e2e-agent-platform-install-script-centos-fips-a7-x86_64:
     - .new-e2e_os_centos
     - .new-e2e_centos-fips_a7_x86_64
     - .new-e2e_agent_a7
-  rules: !reference [.on_default_new-e2e_tests_a7]
+  rules: !reference [.on_default_new_e2e_tests]
   variables:
     FLAVOR: datadog-agent
 
@@ -119,7 +119,7 @@ new-e2e-agent-platform-install-script-centos-fips-iot-agent-a7-x86_64:
     - .new-e2e_os_centos
     - .new-e2e_centos-fips_a7_x86_64
     - .new-e2e_agent_a7
-  rules: !reference [.on_default_new-e2e_tests_a7]
+  rules: !reference [.on_default_new_e2e_tests]
   variables:
     FLAVOR: datadog-iot-agent
 
@@ -142,7 +142,7 @@ new-e2e-agent-platform-step-by-step-centos-a6-x86_64:
     - .new-e2e_os_centos
     - .new-e2e_centos_a6_x86_64
     - .new-e2e_agent_a6
-  rules: !reference [.on_deploy_a6]
+  rules: !reference [.on_deploy]
   variables:
     FLAVOR: datadog-agent
 
@@ -154,7 +154,7 @@ new-e2e-agent-platform-step-by-step-centos-a7-x86_64:
     - .new-e2e_os_centos
     - .new-e2e_centos_a7_x86_64
     - .new-e2e_agent_a7
-  rules: !reference [.on_deploy_a7]
+  rules: !reference [.on_deploy]
   variables:
     FLAVOR: datadog-agent
 
@@ -248,4 +248,4 @@ new-e2e-agent-platform-rpm-centos6-a7-x86_64:
     - .new-e2e_os_centos
     - .new-e2e_centos6_a7_x86_64
     - .new-e2e_agent_a7
-  rules: !reference [.on_default_new-e2e_tests_a7]
+  rules: !reference [.on_default_new_e2e_tests]

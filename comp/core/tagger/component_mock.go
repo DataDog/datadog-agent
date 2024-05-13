@@ -8,7 +8,7 @@
 
 package tagger
 
-// Mock implements mock-specific methods for the inventorychecks component.
+// Mock implements mock-specific methods for the tagger component.
 type Mock interface {
 	Component
 

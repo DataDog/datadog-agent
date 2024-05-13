@@ -1,11 +1,11 @@
 ---
 include:
-  - /.gitlab/common/container_publish_job_templates.yml
+  - .gitlab/common/container_publish_job_templates.yml
 
 dev_branch-a6:
   extends: .docker_publish_job_definition
   stage: dev_container_deploy
-  rules: !reference [.on_a6_manual]
+  rules: !reference [.manual]
   needs:
     - docker_build_agent6
     - docker_build_agent6_jmx
@@ -24,7 +24,7 @@ dev_branch-a6:
 dev_branch-dogstatsd:
   extends: .docker_publish_job_definition
   stage: dev_container_deploy
-  rules: !reference [.on_a7_manual]
+  rules: !reference [.manual]
   needs:
     - docker_build_dogstatsd_amd64
     - docker_build_dogstatsd_arm64
@@ -36,7 +36,7 @@ dev_branch-dogstatsd:
 dev_branch_multiarch-a6:
   extends: .docker_publish_job_definition
   stage: dev_container_deploy
-  rules: !reference [.on_all_builds_a6_manual]
+  rules: !reference [.on_all_builds_manual]
   needs:
     - docker_build_agent6
     - docker_build_agent6_arm64
@@ -57,7 +57,7 @@ dev_branch_multiarch-a6:
 dev_branch_multiarch-a7:
   extends: .docker_publish_job_definition
   stage: dev_container_deploy
-  rules: !reference [.on_a7_manual]
+  rules: !reference [.manual]
   needs:
     - docker_build_agent7
     - docker_build_agent7_arm64
@@ -75,7 +75,7 @@ dev_branch_multiarch-a7:
 dev_branch_multiarch-dogstatsd:
   extends: .docker_publish_job_definition
   stage: dev_container_deploy
-  rules: !reference [.on_a7_manual]
+  rules: !reference [.manual]
   needs:
     - docker_build_dogstatsd_amd64
     - docker_build_dogstatsd_arm64
@@ -87,7 +87,7 @@ dev_branch_multiarch-dogstatsd:
 dev_master-a6:
   extends: .docker_publish_job_definition
   stage: dev_container_deploy
-  rules: !reference [.on_main_a6]
+  rules: !reference [.on_main]
   needs:
     - docker_build_agent6
     - docker_build_agent6_arm64
@@ -106,7 +106,7 @@ dev_master-a6:
 dev_master-a7:
   extends: .docker_publish_job_definition
   stage: dev_container_deploy
-  rules: !reference [.on_main_a7]
+  rules: !reference [.on_main]
   needs:
     - docker_build_agent7
     - docker_build_agent7_arm64
@@ -124,7 +124,7 @@ dev_master-a7:
 dev_master-dogstatsd:
   extends: .docker_publish_job_definition
   stage: dev_container_deploy
-  rules: !reference [.on_main_a7]
+  rules: !reference [.on_main]
   needs:
     - docker_build_dogstatsd_amd64
     - docker_build_dogstatsd_arm64
@@ -136,7 +136,7 @@ dev_master-dogstatsd:
 dca_dev_branch:
   extends: .docker_publish_job_definition
   stage: dev_container_deploy
-  rules: !reference [.on_a7_manual]
+  rules: !reference [.manual]
   needs:
     - docker_build_cluster_agent_amd64
   variables:
@@ -147,7 +147,7 @@ dca_dev_branch:
 dca_dev_branch_multiarch:
   extends: .docker_publish_job_definition
   stage: dev_container_deploy
-  rules: !reference [.on_all_builds_a7_manual]
+  rules: !reference [.on_all_builds_manual]
   needs:
     - docker_build_cluster_agent_amd64
     - docker_build_cluster_agent_arm64
@@ -159,7 +159,7 @@ dca_dev_branch_multiarch:
 dca_dev_master:
   extends: .docker_publish_job_definition
   stage: dev_container_deploy
-  rules: !reference [.on_main_a7]
+  rules: !reference [.on_main]
   needs:
     - docker_build_cluster_agent_amd64
   variables:
@@ -170,7 +170,7 @@ dca_dev_master:
 cws_instrumentation_dev_branch_multiarch:
   extends: .docker_publish_job_definition
   stage: dev_container_deploy
-  rules: !reference [.on_all_builds_a7_manual]
+  rules: !reference [.on_all_builds_manual]
   needs:
     - docker_build_cws_instrumentation_amd64
     - docker_build_cws_instrumentation_arm64
@@ -183,7 +183,7 @@ cws_instrumentation_dev_branch_multiarch:
 dev_nightly_docker_hub-a6:
   extends: .docker_publish_job_definition
   stage: dev_container_deploy
-  rules: !reference [.on_deploy_nightly_repo_branch_a6]
+  rules: !reference [.on_deploy_nightly_repo_branch]
   needs:
     - docker_build_agent6
     - docker_build_agent6_arm64
@@ -203,7 +203,7 @@ dev_nightly_docker_hub-a6:
 dev_nightly-a7:
   extends: .docker_publish_job_definition
   stage: dev_container_deploy
-  rules: !reference [.on_deploy_nightly_repo_branch_a7]
+  rules: !reference [.on_deploy_nightly_repo_branch]
   needs:
     - docker_build_agent7
     - docker_build_agent7_arm64
@@ -234,7 +234,7 @@ single_machine_performance-nightly-amd64-a7:
 dev_nightly-dogstatsd:
   extends: .docker_publish_job_definition
   stage: dev_container_deploy
-  rules: !reference [.on_deploy_nightly_repo_branch_a7]
+  rules: !reference [.on_deploy_nightly_repo_branch]
   needs:
     - docker_build_dogstatsd_amd64
     - docker_build_dogstatsd_arm64

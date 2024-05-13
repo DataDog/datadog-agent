@@ -8,10 +8,12 @@ package common
 import (
 	"encoding/json"
 	"fmt"
+	"math"
 	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclient"
 	boundport "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common/bound-port"
@@ -174,27 +176,26 @@ func (c *TestClient) GetAgentVersion() (string, error) {
 
 // ExecuteWithRetry execute the command with retry
 func (c *TestClient) ExecuteWithRetry(cmd string) (string, error) {
-	ok := false
-
 	var err error
 	var output string
 
-	for try := 0; try < 5 && !ok; try++ {
+	for try := 0; try < 5; try++ {
 		output, err = c.Host.Execute(cmd)
 		if err == nil {
-			ok = true
+			break
 		}
-		time.Sleep(1 * time.Second)
+		time.Sleep(time.Duration(math.Pow(2, float64(try))) * time.Second)
 	}
 
 	return output, err
 }
 
 // NewWindowsTestClient create a TestClient for Windows VM
-func NewWindowsTestClient(t *testing.T, host *components.RemoteHost) *TestClient {
+func NewWindowsTestClient(context e2e.Context, host *components.RemoteHost) *TestClient {
 	fileManager := filemanager.NewRemoteHost(host)
+	t := context.T()
 
-	agentClient, err := client.NewHostAgentClient(t, host, false)
+	agentClient, err := client.NewHostAgentClient(context, host.HostOutput, false)
 	require.NoError(t, err)
 
 	helper := helpers.NewWindowsHelper()
@@ -237,7 +238,7 @@ func AssertPortBoundByService(t assert.TestingT, client *TestClient, port int, s
 		return nil, false
 	}
 
-	boundPort, err := GetBoundPort(client, port)
+	boundPort, err := GetBoundPort(client.Host, port)
 	if !assert.NoError(t, err) {
 		return nil, false
 	}
@@ -251,8 +252,8 @@ func AssertPortBoundByService(t assert.TestingT, client *TestClient, port int, s
 }
 
 // GetBoundPort returns a port that is bound on the host, or nil if the port is not bound
-func GetBoundPort(client *TestClient, port int) (boundport.BoundPort, error) {
-	ports, err := boundport.BoundPorts(client.Host)
+func GetBoundPort(host *components.RemoteHost, port int) (boundport.BoundPort, error) {
+	ports, err := boundport.BoundPorts(host)
 	if err != nil {
 		return nil, err
 	}

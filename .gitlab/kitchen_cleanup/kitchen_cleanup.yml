@@ -6,18 +6,18 @@
 # For now, the workaround is to include "common" files once in the top-level .gitlab-ci.yml file
 # See: https://gitlab.com/gitlab-org/gitlab/-/issues/28987
 # include:
-#   - /.gitlab/kitchen_common/cleanup.yml
+#   - .gitlab/kitchen_common/cleanup.yml
 
 kitchen_cleanup_azure-a6:
   extends: .kitchen_cleanup_azure_common
   rules:
-    !reference [.on_kitchen_tests_a6_always]
+    !reference [.on_kitchen_tests_always]
   variables:
     DD_PIPELINE_ID: $CI_PIPELINE_ID-a6
 
 kitchen_cleanup_azure-a7:
   extends: .kitchen_cleanup_azure_common
   rules:
-    !reference [.on_default_kitchen_tests_a7_always]
+    !reference [.on_default_kitchen_tests_always]
   variables:
     DD_PIPELINE_ID: $CI_PIPELINE_ID-a7

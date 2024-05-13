@@ -37,6 +37,9 @@ func container1(testTime time.Time) Container {
 			{
 				Port: 42002,
 			},
+			{
+				Port: 42004,
+			},
 		},
 		State: ContainerState{
 			Running:    true,
@@ -73,6 +76,10 @@ func container2(testTime time.Time) Container { //nolint:revive // TODO fix revi
 			},
 			{
 				Port: 42003,
+			},
+			{
+				Port:     42004,
+				HostPort: 42004,
 			},
 		},
 		State: ContainerState{
@@ -125,6 +132,10 @@ func TestMerge(t *testing.T) {
 		},
 		{
 			Port: 42003,
+		},
+		{
+			Port:     42004,
+			HostPort: 42004,
 		},
 	}
 

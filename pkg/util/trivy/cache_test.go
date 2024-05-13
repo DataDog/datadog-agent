@@ -32,7 +32,7 @@ var (
 
 func TestCustomBoltCache_Artifacts(t *testing.T) {
 	deps := createCacheDeps(t)
-	cache, _, err := NewCustomBoltCache(deps.WMeta, t.TempDir(), defaultDiskSize)
+	cache, err := NewCustomBoltCache(deps.WMeta, t.TempDir(), defaultDiskSize)
 	require.NoError(t, err)
 	defer func() {
 		require.NoError(t, cache.Close())
@@ -54,7 +54,7 @@ func TestCustomBoltCache_Artifacts(t *testing.T) {
 
 func TestCustomBoltCache_Blobs(t *testing.T) {
 	deps := createCacheDeps(t)
-	cache, _, err := NewCustomBoltCache(deps.WMeta, t.TempDir(), defaultDiskSize)
+	cache, err := NewCustomBoltCache(deps.WMeta, t.TempDir(), defaultDiskSize)
 	require.NoError(t, err)
 	defer func() {
 		require.NoError(t, cache.Close())
@@ -76,7 +76,7 @@ func TestCustomBoltCache_Blobs(t *testing.T) {
 
 func TestCustomBoltCache_MissingBlobs(t *testing.T) {
 	deps := createCacheDeps(t)
-	cache, _, err := NewCustomBoltCache(deps.WMeta, t.TempDir(), defaultDiskSize)
+	cache, err := NewCustomBoltCache(deps.WMeta, t.TempDir(), defaultDiskSize)
 	require.NoError(t, err)
 	defer func() {
 		require.NoError(t, cache.Close())
@@ -109,7 +109,7 @@ func TestCustomBoltCache_MissingBlobs(t *testing.T) {
 
 func TestCustomBoltCache_Clear(t *testing.T) {
 	deps := createCacheDeps(t)
-	cache, _, err := NewCustomBoltCache(deps.WMeta, t.TempDir(), defaultDiskSize)
+	cache, err := NewCustomBoltCache(deps.WMeta, t.TempDir(), defaultDiskSize)
 	require.NoError(t, err)
 	defer func() {
 		require.NoError(t, cache.Close())
@@ -129,7 +129,7 @@ func TestCustomBoltCache_Clear(t *testing.T) {
 
 func TestCustomBoltCache_CurrentObjectSize(t *testing.T) {
 	deps := createCacheDeps(t)
-	cache, _, err := NewCustomBoltCache(deps.WMeta, t.TempDir(), defaultDiskSize)
+	cache, err := NewCustomBoltCache(deps.WMeta, t.TempDir(), defaultDiskSize)
 	require.NoError(t, err)
 	defer func() {
 		require.NoError(t, cache.Close())
@@ -146,7 +146,7 @@ func TestCustomBoltCache_CurrentObjectSize(t *testing.T) {
 	}
 
 	// Check that the currentCachedObjectTotalSize is equal to the size of the two artifacts
-	persistentCache := cache.(*ScannerCache).Cache.(*PersistentCache)
+	persistentCache := cache.(*ScannerCache).cache
 	require.Equal(t, len(serializedArtifactInfo)*len(artifactIDs), persistentCache.GetCurrentCachedObjectTotalSize())
 
 	// Remove one artifact and check that currentCachedObjectTotalSize is the size of 1 artifact
@@ -162,7 +162,7 @@ func TestCustomBoltCache_CurrentObjectSize(t *testing.T) {
 
 func TestCustomBoltCache_Eviction(t *testing.T) {
 	deps := createCacheDeps(t)
-	cache, _, err := NewCustomBoltCache(deps.WMeta, t.TempDir(), defaultDiskSize)
+	cache, err := NewCustomBoltCache(deps.WMeta, t.TempDir(), defaultDiskSize)
 	require.NoError(t, err)
 	defer func() {
 		require.NoError(t, cache.Close())
@@ -184,7 +184,7 @@ func TestCustomBoltCache_Eviction(t *testing.T) {
 	}
 
 	// Make sure the first artifact is evicted while others are still there
-	persistentCache := cache.(*ScannerCache).Cache.(*PersistentCache)
+	persistentCache := cache.(*ScannerCache).cache
 	require.Equal(t, totalSize-artifactSize["key0"], persistentCache.GetCurrentCachedObjectTotalSize())
 
 	for i := 1; i < cacheSize+1; i++ {
@@ -204,7 +204,8 @@ func TestCustomBoltCache_DiskSizeLimit(t *testing.T) {
 	require.NoError(t, err)
 
 	deps := createCacheDeps(t)
-	cache, _, err := NewCustomBoltCache(deps.WMeta, t.TempDir(), len(serializedArtifactInfo))
+	c, err := NewCustomBoltCache(deps.WMeta, t.TempDir(), len(serializedArtifactInfo))
+	cache := c.(*ScannerCache)
 	require.NoError(t, err)
 	defer func() {
 		require.NoError(t, cache.Close())
@@ -225,7 +226,7 @@ func TestCustomBoltCache_DiskSizeLimit(t *testing.T) {
 	_, err = cache.GetArtifact("key1")
 	require.Error(t, err)
 
-	persistentCache := cache.(*ScannerCache).Cache.(*PersistentCache)
+	persistentCache := cache.cache
 	require.Equal(t, len(serializedArtifactInfo), persistentCache.GetCurrentCachedObjectTotalSize())
 }
 
@@ -238,10 +239,6 @@ func TestCustomBoltCache_GarbageCollector(t *testing.T) {
 		fx.Supply(workloadmeta.NewParams()),
 		workloadmeta.MockModuleV2(),
 	))
-
-	// setup workloadmeta for test
-	workloadmeta.SetGlobalStore(workloadmetaStore)
-	defer workloadmeta.SetGlobalStore(nil)
 
 	image1 := &workloadmeta.ContainerImageMetadata{
 		EntityID: workloadmeta.EntityID{
@@ -267,7 +264,7 @@ func TestCustomBoltCache_GarbageCollector(t *testing.T) {
 
 	workloadmetaStore.Reset([]workloadmeta.Entity{image1, image2, image3}, workloadmeta.SourceAll)
 
-	cache, cacheCleaner, err := NewCustomBoltCache(optional.NewOption[workloadmeta.Component](workloadmetaStore), t.TempDir(), defaultDiskSize)
+	cache, err := NewCustomBoltCache(optional.NewOption[workloadmeta.Component](workloadmetaStore), t.TempDir(), defaultDiskSize)
 	require.NoError(t, err)
 	defer func() {
 		require.NoError(t, cache.Close())
@@ -276,15 +273,15 @@ func TestCustomBoltCache_GarbageCollector(t *testing.T) {
 	time.Sleep(5 * time.Second)
 
 	// link image1 to artifact key1, an owned blob and a shared blob
-	cacheCleaner.setKeysForEntity("image1", []string{"key1", "blob1", "sharedBlob"})
+	cache.setKeysForEntity("image1", []string{"key1", "blob1", "sharedBlob"})
 	// link image2 to artifact key2, an owned blob and a shared blob
-	cacheCleaner.setKeysForEntity("image2", []string{"key2", "blob2", "sharedBlob"})
+	cache.setKeysForEntity("image2", []string{"key2", "blob2", "sharedBlob"})
 
 	// Create a goroutine that calls cacheCleaner.Clean every 500ms
 	go func() {
 		cleanTicker := time.NewTicker(500 * time.Millisecond)
 		for range cleanTicker.C {
-			cacheCleaner.Clean()
+			cache.clean()
 		}
 	}()
 
@@ -360,7 +357,7 @@ func TestCustomBoltCache_GarbageCollector(t *testing.T) {
 	serializedBlobInfo, err := json.Marshal(newTestBlobInfo())
 	require.NoError(t, err)
 
-	persistentCache := cache.(*ScannerCache).Cache.(*PersistentCache)
+	persistentCache := cache.(*ScannerCache).cache
 	require.Equal(t, 2*len(serializedBlobInfo)+len(serializedArtifactInfo), persistentCache.GetCurrentCachedObjectTotalSize())
 }
 

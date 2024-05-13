@@ -1,0 +1,13 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+features:
+  - |
+    OTLP ingest now has a feature flag to identify top-level spans by span kind. This new logic can be enabled by adding `enable_otlp_compute_top_level_by_span_kind` in DD_APM_FEATURES.
+    - With this new logic, root spans and spans with a server or consumer `span.kind` will be marked as top-level. Additionally, spans with a client or producer `span.kind` will have stats computed.
+    - Enabling this feature flag may increase the number of spans that generate trace metrics, and may change which spans appear as top-level in Datadog.

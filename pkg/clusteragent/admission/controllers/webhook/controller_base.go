@@ -68,6 +68,12 @@ type MutatingWebhook interface {
 	MutateFunc() admission.WebhookFunc
 }
 
+// mutatingWebhooks returns the list of mutating webhooks. Notice that the order
+// of the webhooks returned is the order in which they will be executed. For
+// now, the only restriction is that the agent sidecar webhook needs to go after
+// the config one. The reason is that the volume mount for the APM socket added
+// by the config webhook doesn't always work on Fargate (one of the envs where
+// we use an agent sidecar), and the agent sidecar webhook needs to remove it.
 func mutatingWebhooks(wmeta workloadmeta.Component) []MutatingWebhook {
 	webhooks := []MutatingWebhook{
 		config.NewWebhook(wmeta),
@@ -82,7 +88,7 @@ func mutatingWebhooks(wmeta workloadmeta.Component) []MutatingWebhook {
 		log.Errorf("failed to register APM Instrumentation webhook: %v", err)
 	}
 
-	cws, err := cwsinstrumentation.NewCWSInstrumentation()
+	cws, err := cwsinstrumentation.NewCWSInstrumentation(wmeta)
 	if err == nil {
 		webhooks = append(webhooks, cws.WebhookForPods(), cws.WebhookForCommands())
 	} else {

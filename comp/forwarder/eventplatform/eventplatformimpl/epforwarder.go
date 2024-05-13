@@ -7,6 +7,7 @@
 package eventplatformimpl
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"sync"
@@ -471,28 +472,43 @@ type dependencies struct {
 	fx.In
 	Params                Params
 	Config                configcomp.Component
+	Lc                    fx.Lifecycle
 	EventPlatformReceiver eventplatformreceiver.Component
 	Hostname              hostnameinterface.Component
 }
 
 // newEventPlatformForwarder creates a new EventPlatformForwarder
 func newEventPlatformForwarder(deps dependencies) eventplatform.Component {
-	var forwarder eventplatform.Forwarder
+	var forwarder *defaultEventPlatformForwarder
 
 	if deps.Params.UseNoopEventPlatformForwarder {
-		forwarder = NewNoopEventPlatformForwarder(deps.Hostname)
+		forwarder = newNoopEventPlatformForwarder(deps.Hostname)
 	} else if deps.Params.UseEventPlatformForwarder {
 		forwarder = newDefaultEventPlatformForwarder(deps.Config, deps.EventPlatformReceiver)
 	}
 	if forwarder == nil {
 		return optional.NewNoneOptionPtr[eventplatform.Forwarder]()
 	}
+	deps.Lc.Append(fx.Hook{
+		OnStart: func(context.Context) error {
+			forwarder.Start()
+			return nil
+		},
+		OnStop: func(context.Context) error {
+			forwarder.Stop()
+			return nil
+		},
+	})
 	return optional.NewOptionPtr[eventplatform.Forwarder](forwarder)
 }
 
 // NewNoopEventPlatformForwarder returns the standard event platform forwarder with sending disabled, meaning events
 // will build up in each pipeline channel without being forwarded to the intake
 func NewNoopEventPlatformForwarder(hostname hostnameinterface.Component) eventplatform.Forwarder {
+	return newNoopEventPlatformForwarder(hostname)
+}
+
+func newNoopEventPlatformForwarder(hostname hostnameinterface.Component) *defaultEventPlatformForwarder {
 	f := newDefaultEventPlatformForwarder(pkgconfig.Datadog, eventplatformreceiverimpl.NewReceiver(hostname))
 	// remove the senders
 	for _, p := range f.pipelines {

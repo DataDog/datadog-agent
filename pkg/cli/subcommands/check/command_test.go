@@ -6,6 +6,8 @@
 package check
 
 import (
+	"os"
+	"path"
 	"testing"
 
 	"github.com/spf13/cobra"
@@ -19,7 +21,14 @@ import (
 func TestCommand(t *testing.T) {
 	commands := []*cobra.Command{
 		MakeCommand(func() GlobalParams {
-			return GlobalParams{}
+			// the config needs an existing config file when initializing
+			config := path.Join(t.TempDir(), "datadog.yaml")
+			err := os.WriteFile(config, []byte("hostname: test"), 0644)
+			require.NoError(t, err)
+
+			return GlobalParams{
+				ConfFilePath: config,
+			}
 		}),
 	}
 
@@ -28,7 +37,7 @@ func TestCommand(t *testing.T) {
 		// this command has a lot of options, so just test a few
 		[]string{"check", "cleopatra", "--delay", "1", "--flare"},
 		run,
-		func(cliParams *cliParams, coreParams core.BundleParams, secretParams secrets.Params) {
+		func(cliParams *cliParams, _ core.BundleParams, secretParams secrets.Params) {
 			require.Equal(t, []string{"cleopatra"}, cliParams.args)
 			require.Equal(t, 1, cliParams.checkDelay)
 			require.True(t, cliParams.saveFlare)

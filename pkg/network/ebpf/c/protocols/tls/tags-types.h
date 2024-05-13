@@ -10,6 +10,7 @@ enum static_tags {
     JAVA_TLS = (1<<3),
     CONN_TLS = (1<<4),
     ISTIO = (1<<5),
+    NODEJS = (1<<6),
 };
 
 #endif

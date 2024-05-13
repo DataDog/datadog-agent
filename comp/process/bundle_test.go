@@ -15,6 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core"
 	configComp "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	"github.com/DataDog/datadog-agent/comp/core/settings/settingsimpl"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
@@ -40,6 +41,7 @@ func TestBundleDependencies(t *testing.T) {
 		core.MockBundle(),
 		workloadmeta.Module(),
 		coreStatusImpl.Module(),
+		settingsimpl.MockModule(),
 		statusimpl.Module(),
 		fx.Supply(tagger.NewFakeTaggerParams()),
 		fx.Supply(
@@ -82,6 +84,8 @@ func TestBundleOneShot(t *testing.T) {
 			"hostname": "testhost",
 		}}),
 		core.MockBundle(),
+		fx.Supply(workloadmeta.NewParams()),
+		workloadmeta.Module(),
 		Bundle(),
 	)
 	require.NoError(t, err)

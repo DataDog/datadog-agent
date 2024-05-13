@@ -1,0 +1,9 @@
+---
+enhancements:
+  - |
+    CWS: Add selftests report on Windows and platforms with no eBPF support.
+  - |
+    CWS: Add visibility for cross container program executions on platforms with no eBPF support.
+fixes:
+  - |
+    CWS: Fix very rare event corruption.

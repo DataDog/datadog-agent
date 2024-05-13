@@ -5,7 +5,7 @@ Invoke tasks to fix the linter
 from invoke import task
 from invoke.exceptions import Exit
 
-from tasks.libs.pipeline_notifications import GITHUB_SLACK_MAP
+from tasks.libs.pipeline.notifications import GITHUB_SLACK_MAP
 from tasks.show_linters_issues.golangci_lint_parser import (
     count_lints_per_team,
     display_nb_lints_per_team,
@@ -82,7 +82,7 @@ def show_linters_issues(
     golangci_lint_kwargs = (
         f'"--new-from-rev {from_commit_hash} --print-issued-lines=false --issues-exit-code {GOLANGCI_EXIT_CODE}"'
     )
-    command = f"inv lint-go --golangci-lint-kwargs {golangci_lint_kwargs} --headless-mode"
+    command = f"inv linter.go --golangci-lint-kwargs {golangci_lint_kwargs} --headless-mode"
 
     if build_tags:
         command += f" --build-tags \"{build_tags}\""

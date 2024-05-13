@@ -150,7 +150,9 @@ func TestNewAggregation(t *testing.T) {
 		},
 	} {
 		agg, et := NewAggregationFromSpan(tt.in, "", PayloadAggregationKey{}, tt.enablePeerTagsAgg, peerTags)
-		assert.Equal(t, tt.resAgg, agg, tt.name)
+		assert.Equal(t, tt.resAgg.Service, agg.Service, tt.name)
+		assert.Equal(t, tt.resAgg.SpanKind, agg.SpanKind, tt.name)
+		assert.Equal(t, tt.resAgg.PeerTagsHash, agg.PeerTagsHash, tt.name)
 		assert.Equal(t, tt.resPeerTags, et, tt.name)
 	}
 }
@@ -173,5 +175,32 @@ func TestSpanKindIsConsumerOrProducer(t *testing.T) {
 		{"", false},
 	} {
 		assert.Equal(t, tc.res, clientOrProducer(tc.input))
+	}
+}
+
+func TestIsRootSpan(t *testing.T) {
+	for _, tt := range []struct {
+		in          *pb.Span
+		isTraceRoot pb.TraceRootFlag
+	}{
+		{
+			&pb.Span{},
+			pb.TraceRootFlag_TRUE,
+		},
+		{
+			&pb.Span{
+				ParentID: 0,
+			},
+			pb.TraceRootFlag_TRUE,
+		},
+		{
+			&pb.Span{
+				ParentID: 123,
+			},
+			pb.TraceRootFlag_FALSE,
+		},
+	} {
+		agg, _ := NewAggregationFromSpan(tt.in, "", PayloadAggregationKey{}, true, []string{})
+		assert.Equal(t, tt.isTraceRoot, agg.IsTraceRoot)
 	}
 }

@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//nolint:revive // TODO(APM) Fix revive linter
+//nolint:revive // TODO(PLINT) Fix revive linter
 package ntp
 
 import (
@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"math"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/beevik/ntp"
@@ -227,7 +228,7 @@ func (c *NTPCheck) queryOffset() (float64, error) {
 	}
 
 	if len(offsets) == 0 {
-		return .0, fmt.Errorf("Failed to get clock offset from any ntp host")
+		return .0, fmt.Errorf("Failed to get clock offset from any ntp host: %s", strings.Join(c.cfg.instance.Hosts, ", "))
 	}
 
 	var median float64

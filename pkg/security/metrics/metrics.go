@@ -281,6 +281,12 @@ var (
 	// of the Profile directory provider
 	// Tags: -
 	MetricSecurityProfileDirectoryProviderCount = newAgentMetric(".activity_dump.directory_provider.count")
+	// MetricSecurityProfileEvictedVersions is the name of the metric used to track the evicted profile versions
+	// Tags: image_name, image_tag
+	MetricSecurityProfileEvictedVersions = newAgentMetric(".security_profile.evicted_versions")
+	// MetricSecurityProfileVersions is the name of the metric used to track the number of versions a profile can have
+	// Tags: security_profile_image_name
+	MetricSecurityProfileVersions = newAgentMetric(".security_profile.versions")
 
 	// Hash resolver metrics
 

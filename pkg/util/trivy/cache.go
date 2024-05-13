@@ -33,10 +33,6 @@ const cacheSize = 1600
 // telemetryTick is the frequency at which the cache usage metrics are collected.
 var telemetryTick = 1 * time.Minute
 
-// CacheProvider describes a function that provides a type implementing the trivy cache interface
-// and a cache cleaner
-type CacheProvider func() (cache.Cache, CacheCleaner, error)
-
 // defaultCacheDir returns/creates the default cache-dir to be used for trivy operations
 func defaultCacheDir() string {
 	tmpDir, err := os.UserCacheDir()
@@ -46,102 +42,77 @@ func defaultCacheDir() string {
 	return filepath.Join(tmpDir, "trivy")
 }
 
-// NewCustomBoltCache is a CacheProvider. It returns a custom implementation of a BoltDB cache using an LRU algorithm with a
-// maximum number of cache entries, maximum disk size and garbage collection of unused images with its custom cleaner.
-func NewCustomBoltCache(wmeta optional.Option[workloadmeta.Component], cacheDir string, maxDiskSize int) (cache.Cache, CacheCleaner, error) {
+// NewCustomBoltCache returns a BoltDB cache using an LRU algorithm with a
+// maximum disk size and garbage collection of unused images with its custom cleaner.
+func NewCustomBoltCache(wmeta optional.Option[workloadmeta.Component], cacheDir string, maxDiskSize int) (CacheWithCleaner, error) {
 	if cacheDir == "" {
 		cacheDir = defaultCacheDir()
 	}
 	db, err := NewBoltDB(cacheDir)
 	if err != nil {
-		return nil, &StubCacheCleaner{}, err
+		return nil, err
 	}
-	cache, err := NewPersistentCache(
+	c, err := newPersistentCache(
 		maxDiskSize,
 		db,
 	)
 	if err != nil {
-		return nil, &StubCacheCleaner{}, err
+		return nil, err
 	}
-	trivyCache := &ScannerCache{Cache: cache}
-	return trivyCache, NewScannerCacheCleaner(trivyCache, wmeta), nil
+	trivyCache := &ScannerCache{cache: c, wmeta: wmeta, cachedKeysForEntity: make(map[string][]string)}
+	return trivyCache, nil
 }
 
-// NewBoltCache is a CacheProvider. It returns a BoltDB cache provided by Trivy and an empty cleaner.
-func NewBoltCache(cacheDir string) (cache.Cache, CacheCleaner, error) {
-	if cacheDir == "" {
-		cacheDir = defaultCacheDir()
-	}
-	cache, err := cache.NewFSCache(cacheDir)
-	return cache, &StubCacheCleaner{}, err
+// cachedObject describes an object that can be stored with ScannerCache
+type cachedObject interface {
+	types.ArtifactInfo | types.BlobInfo
 }
 
-// CacheCleaner interface
-type CacheCleaner interface {
-	Clean() error
+// trivyCachePut stores the provided cachedObject in the ScannerCache with the provided key.
+func trivyCachePut[T cachedObject](cache *ScannerCache, id string, info T) error {
+	objectBytes, err := json.Marshal(info)
+	if err != nil {
+		return fmt.Errorf("error converting object with ID %q to JSON: %w", id, err)
+	}
+	return cache.cache.Set(id, objectBytes)
+}
+
+// trivyCacheGet retrieves the object stored with the provided key.
+func trivyCacheGet[T cachedObject](cache *ScannerCache, id string) (T, error) {
+	rawValue, err := cache.cache.Get(id)
+	var empty T
+	if err != nil {
+		return empty, fmt.Errorf("error getting object with ID %q from cache: %w", id, err)
+	}
+	var res T
+	if err := json.Unmarshal(rawValue, &res); err != nil {
+		return empty, fmt.Errorf("JSON unmarshal error: %w", err)
+	}
+	return res, nil
+}
+
+// CacheWithCleaner implements trivy's cache interface and adds a Clean method.
+type CacheWithCleaner interface {
+	cache.Cache
+	// clean removes unused cached entries from the cache.
+	clean() error
 	setKeysForEntity(entity string, cachedKeys []string)
 }
 
-// StubCacheCleaner is a stub
-type StubCacheCleaner struct{}
+// Make sure that ScannerCache implements CacheWithCleaner
+var _ CacheWithCleaner = &ScannerCache{}
 
-// Clean does nothing
-func (c *StubCacheCleaner) Clean() error { return nil }
-
-// setKeysForEntity does nothing
-//
-//nolint:revive // TODO(CINT) Fix revive linter
-func (c *StubCacheCleaner) setKeysForEntity(entity string, keys []string) {}
-
-// GetKeysForEntity does nothing
-//
-//nolint:revive // TODO(CINT) Fix revive linter
-func (c *StubCacheCleaner) GetKeysForEntity(entity string) []string { return nil }
-
-// Cache describes an interface for a key-value cache.
-type Cache interface {
-	// Clear removes all entries from the cache and closes it.
-	Clear() error
-	// Close closes the cache.
-	Close() error
-	// Contains returns true if the given key exists in the cache.
-	Contains(key string) bool
-	// Remove deletes the entries associated with the given keys from the cache.
-	Remove(keys []string) error
-	// Set inserts or updates an entry in the cache with the given key-value pair.
-	Set(key string, value []byte) error
-	// Get returns the value associated with the given key. It returns an error if the key was not found.
-	Get(key string) ([]byte, error)
-	// Keys returns the cached keys. Required for the cache cleaning logic.
-	Keys() []string
-	// Len returns the length of the cache. Required for the cache cleaning logic.
-	Len() int
-}
-
-// ScannerCache holds a generic Cache and implements cache.Cache from Trivy.
+// ScannerCache wraps a generic Cache and implements trivy.Cache.
 type ScannerCache struct {
-	Cache Cache
-}
+	// cache is the underlying cache
+	cache *persistentCache
 
-// ScannerCacheCleaner is a cache cleaner for a ScannerCache instance. It holds a map
-// that keeps track of all the entities using a given key.
-type ScannerCacheCleaner struct {
 	cachedKeysForEntity map[string][]string
-	target              *ScannerCache
 	wmeta               optional.Option[workloadmeta.Component]
 }
 
-// NewScannerCacheCleaner creates a new instance of ScannerCacheCleaner and returns a pointer to it.
-func NewScannerCacheCleaner(target *ScannerCache, wmeta optional.Option[workloadmeta.Component]) *ScannerCacheCleaner {
-	return &ScannerCacheCleaner{
-		cachedKeysForEntity: make(map[string][]string),
-		target:              target,
-		wmeta:               wmeta,
-	}
-}
-
-// Clean implements CacheCleaner#Clean. It removes unused cached entries from the cache.
-func (c *ScannerCacheCleaner) Clean() error {
+// clean removes entries of deleted images from the cache.
+func (c *ScannerCache) clean() error {
 	instance, ok := c.wmeta.Get()
 	if !ok {
 		return nil
@@ -155,74 +126,36 @@ func (c *ScannerCacheCleaner) Clean() error {
 		}
 	}
 
-	toRemove := make([]string, 0, c.target.Cache.Len())
-	for _, key := range c.target.Cache.Keys() {
+	toRemove := make([]string, 0, c.cache.Len())
+	for _, key := range c.cache.Keys() {
 		if _, ok := toKeep[key]; !ok {
 			toRemove = append(toRemove, key)
 		}
 	}
 
-	if err := c.target.Cache.Remove(toRemove); err != nil {
+	if err := c.cache.Remove(toRemove); err != nil {
 		return err
 	}
 	return nil
 }
 
-// setKeysForEntity implements CacheCleaner#setKeysForEntity.
-func (c *ScannerCacheCleaner) setKeysForEntity(entity string, cachedKeys []string) {
+// setKeysForEntity sets keys of items stored in the cache for the given entity.
+func (c *ScannerCache) setKeysForEntity(entity string, cachedKeys []string) {
 	c.cachedKeysForEntity[entity] = cachedKeys
-}
-
-// cachedObject describes an object that can be stored with ScannerCache
-type cachedObject interface {
-	types.ArtifactInfo | types.BlobInfo
-}
-
-// NewScannerCache creates a new ScannerCache instance with the provided Cache.
-func NewScannerCache(cache Cache) *ScannerCache {
-	return &ScannerCache{
-		Cache: cache,
-	}
-}
-
-// trivyCachePut stores the provided cachedObject in the ScannerCache with the provided key.
-func trivyCachePut[T cachedObject](cache *ScannerCache, id string, info T) error {
-	objectBytes, err := json.Marshal(info)
-	if err != nil {
-		return fmt.Errorf("error converting object with ID %q to JSON: %w", id, err)
-	}
-	return cache.Cache.Set(id, objectBytes)
-}
-
-// trivyCacheGet retrieves the object stored with the provided key.
-func trivyCacheGet[T cachedObject](cache *ScannerCache, id string) (T, error) {
-	rawValue, err := cache.Cache.Get(id)
-	var empty T
-
-	if err != nil {
-		return empty, fmt.Errorf("error getting object with ID %q from cache: %w", id, err)
-	}
-
-	var res T
-	if err := json.Unmarshal(rawValue, &res); err != nil {
-		return empty, fmt.Errorf("JSON unmarshal error: %w", err)
-	}
-
-	return res, nil
 }
 
 // MissingBlobs implements cache.Cache#MissingBlobs
 func (c *ScannerCache) MissingBlobs(artifactID string, blobIDs []string) (bool, []string, error) {
 	var missingBlobIDs []string
 	for _, blobID := range blobIDs {
-		if ok := c.Cache.Contains(blobID); !ok {
+		if ok := c.cache.Contains(blobID); !ok {
 			missingBlobIDs = append(missingBlobIDs, blobID)
 			telemetry.SBOMCacheMisses.Inc()
 		} else {
 			telemetry.SBOMCacheHits.Inc()
 		}
 	}
-	return !c.Cache.Contains(artifactID), missingBlobIDs, nil
+	return !c.cache.Contains(artifactID), missingBlobIDs, nil
 }
 
 // PutArtifact implements cache.Cache#PutArtifact
@@ -237,18 +170,18 @@ func (c *ScannerCache) PutBlob(blobID string, blobInfo types.BlobInfo) error {
 
 // DeleteBlobs implements cache.Cache#DeleteBlobs does nothing because the cache cleaning logic is
 // managed by CacheCleaner
-func (c *ScannerCache) DeleteBlobs(blobIDs []string) error { //nolint:revive // TODO fix revive unusued-parameter
+func (c *ScannerCache) DeleteBlobs([]string) error {
 	return nil
 }
 
 // Clear implements cache.Cache#Clear
 func (c *ScannerCache) Clear() error {
-	return c.Cache.Clear()
+	return c.cache.Clear()
 }
 
 // Close implements cache.Cache#Close
 func (c *ScannerCache) Close() error {
-	return c.Cache.Close()
+	return c.cache.Close()
 }
 
 // GetArtifact implements cache.Cache#GetArtifact
@@ -261,23 +194,23 @@ func (c *ScannerCache) GetBlob(id string) (types.BlobInfo, error) {
 	return trivyCacheGet[types.BlobInfo](c, id)
 }
 
-// PersistentCache is a cache that uses a persistent database for storage.
-type PersistentCache struct {
+// persistentCache is a cache that uses a persistent database for storage.
+type persistentCache struct {
 	lruCache                     *simplelru.LRU[string, struct{}]
-	db                           PersistentDB
+	db                           BoltDB
 	mutex                        sync.RWMutex
 	currentCachedObjectTotalSize int
 	maximumCachedObjectSize      int
 	lastEvicted                  string
 }
 
-// NewPersistentCache creates a new instance of PersistentCache and returns a pointer to it.
-func NewPersistentCache(
+// newPersistentCache creates a new instance of persistentCache and returns a pointer to it.
+func newPersistentCache(
 	maxCachedObjectSize int,
-	localDB PersistentDB,
-) (*PersistentCache, error) {
+	localDB BoltDB,
+) (*persistentCache, error) {
 
-	persistentCache := &PersistentCache{
+	persistentCache := &persistentCache{
 		db:                           localDB,
 		currentCachedObjectTotalSize: 0,
 		maximumCachedObjectSize:      maxCachedObjectSize,
@@ -313,14 +246,15 @@ func NewPersistentCache(
 			for range ticker.C {
 				persistentCache.collectTelemetry()
 			}
+			// TODO: add database compaction. BoltDB deletes the old pages but does not shrink the file.
 		}
 	}()
 
 	return persistentCache, nil
 }
 
-// Contains implements Cache#Contains. It only performs an in-memory check.
-func (c *PersistentCache) Contains(key string) bool {
+// Contains returns true if the key is found in the cache. It only performs an in-memory check.
+func (c *persistentCache) Contains(key string) bool {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
 	// using lruCache.Get moves the key to the head of the evictList
@@ -330,7 +264,7 @@ func (c *PersistentCache) Contains(key string) bool {
 }
 
 // Keys returns all the keys stored in the lru cache.
-func (c *PersistentCache) Keys() []string {
+func (c *persistentCache) Keys() []string {
 	c.mutex.RLock()
 	defer c.mutex.RUnlock()
 	keys := make([]string, c.lruCache.Len())
@@ -341,14 +275,14 @@ func (c *PersistentCache) Keys() []string {
 }
 
 // Len returns the number of items in the cache.
-func (c *PersistentCache) Len() int {
+func (c *persistentCache) Len() int {
 	c.mutex.RLock()
 	defer c.mutex.RUnlock()
 	return c.lruCache.Len()
 }
 
-// Clear implements Cache#Clear.
-func (c *PersistentCache) Clear() error {
+// Clear deletes all the entries in the cache and closes the db.
+func (c *persistentCache) Clear() error {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
 	if err := c.db.Clear(); err != nil {
@@ -360,7 +294,7 @@ func (c *PersistentCache) Clear() error {
 }
 
 // removeOldest removes the least recently used item from the cache.
-func (c *PersistentCache) removeOldest() error {
+func (c *persistentCache) removeOldest() error {
 	key, ok := c.removeOldestKeyFromMemory()
 	if !ok {
 		return fmt.Errorf("in-memory cache is empty")
@@ -381,14 +315,14 @@ func (c *PersistentCache) removeOldest() error {
 }
 
 // RemoveOldest is a thread-safe version of removeOldest
-func (c *PersistentCache) RemoveOldest() error {
+func (c *persistentCache) RemoveOldest() error {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
 	return c.removeOldest()
 }
 
 // reduceSize reduces the size of the cache to the target size by evicting the oldest items.
-func (c *PersistentCache) reduceSize(target int) error {
+func (c *persistentCache) reduceSize(target int) error {
 	for c.currentCachedObjectTotalSize > target {
 		prev := c.currentCachedObjectTotalSize
 		err := c.removeOldest()
@@ -403,15 +337,15 @@ func (c *PersistentCache) reduceSize(target int) error {
 	return nil
 }
 
-// Close implements Cache#Close
-func (c *PersistentCache) Close() error {
+// Close closes the database.
+func (c *persistentCache) Close() error {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
 	return c.db.Close()
 }
 
 // set stores the key-value pair in the cache.
-func (c *PersistentCache) set(key string, value []byte) error {
+func (c *persistentCache) set(key string, value []byte) error {
 	if len(value) > c.maximumCachedObjectSize {
 		return fmt.Errorf("value of [%s] is too big for the cache : %d", key, c.maximumCachedObjectSize)
 	}
@@ -444,14 +378,14 @@ func (c *PersistentCache) set(key string, value []byte) error {
 }
 
 // Set implements Cache#Set. It is a thread-safe version of set.
-func (c *PersistentCache) Set(key string, value []byte) error {
+func (c *persistentCache) Set(key string, value []byte) error {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
 	return c.set(key, value)
 }
 
 // Get implements Cache#Get.
-func (c *PersistentCache) Get(key string) ([]byte, error) {
+func (c *persistentCache) Get(key string) ([]byte, error) {
 	ok := c.Contains(key)
 	if !ok {
 		return nil, fmt.Errorf("key not found")
@@ -465,8 +399,8 @@ func (c *PersistentCache) Get(key string) ([]byte, error) {
 	return res, nil
 }
 
-// remove removes an entry from the cache.
-func (c *PersistentCache) remove(keys []string) error {
+// remove removes an entry from the cache, returning an error if an I/O error occurs.
+func (c *persistentCache) remove(keys []string) error {
 	removedSize := 0
 	if err := c.db.Delete(keys, func(_ string, value []byte) error {
 		removedSize += len(value)
@@ -483,50 +417,50 @@ func (c *PersistentCache) remove(keys []string) error {
 	return nil
 }
 
-// Remove implements Cache#Remove. It is a thread safe version of remove.
-func (c *PersistentCache) Remove(keys []string) error {
+// Remove removes an entry from the cache.
+func (c *persistentCache) Remove(keys []string) error {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
 	return c.remove(keys)
 }
 
 // addKeyInMemory adds the provided key in the lrucache, returning if an entry was evicted.
-func (c *PersistentCache) addKeyInMemory(key string) bool {
+func (c *persistentCache) addKeyInMemory(key string) bool {
 	return c.lruCache.Add(key, struct{}{})
 }
 
 // removeKeyFromMemory removes the provided key from the lrucache, returning if the
 // key was contained.
-func (c *PersistentCache) removeKeyFromMemory(key string) bool {
+func (c *persistentCache) removeKeyFromMemory(key string) bool {
 	return c.lruCache.Remove(key)
 }
 
 // removeOldestKeyFromMemory removes the oldest key from the lrucache returning the key and
 // if a key was removed.
-func (c *PersistentCache) removeOldestKeyFromMemory() (string, bool) {
+func (c *persistentCache) removeOldestKeyFromMemory() (string, bool) {
 	key, _, ok := c.lruCache.RemoveOldest()
 	return key, ok
 }
 
 // GetCurrentCachedObjectTotalSize returns the current cached object total size.
-func (c *PersistentCache) GetCurrentCachedObjectTotalSize() int {
+func (c *persistentCache) GetCurrentCachedObjectTotalSize() int {
 	c.mutex.RLock()
 	defer c.mutex.RUnlock()
 	return c.currentCachedObjectTotalSize
 }
 
 // addCurrentCachedObjectTotalSize adds val to the current cached object total size.
-func (c *PersistentCache) addCurrentCachedObjectTotalSize(val int) {
+func (c *persistentCache) addCurrentCachedObjectTotalSize(val int) {
 	c.currentCachedObjectTotalSize += val
 }
 
 // subCurrentCachedObjectTotalSize subtract val to the current cached object total size.
-func (c *PersistentCache) subCurrentCachedObjectTotalSize(val int) {
+func (c *persistentCache) subCurrentCachedObjectTotalSize(val int) {
 	c.currentCachedObjectTotalSize -= val
 }
 
 // collectTelemetry collects the database's size
-func (c *PersistentCache) collectTelemetry() {
+func (c *persistentCache) collectTelemetry() {
 	diskSize, err := c.db.Size()
 	if err != nil {
 		log.Errorf("could not collect telemetry: %v", err)
@@ -605,3 +539,5 @@ func (c *memoryCache) Close() (err error) {
 func (c *memoryCache) Clear() (err error) {
 	return c.Close()
 }
+func (c *memoryCache) clean() error                      { return nil }
+func (c *memoryCache) setKeysForEntity(string, []string) {}

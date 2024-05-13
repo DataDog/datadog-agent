@@ -50,7 +50,7 @@ func (j *jsonEncoder) Encode(msg *message.Message, hostname string) error {
 		Hostname:  hostname,
 		Service:   msg.Origin.Service(),
 		Source:    msg.Origin.Source(),
-		Tags:      msg.Origin.TagsToString(),
+		Tags:      msg.TagsToString(),
 	})
 
 	if err != nil {

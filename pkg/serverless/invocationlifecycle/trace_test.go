@@ -649,6 +649,54 @@ func TestEndExecutionSpanWithError(t *testing.T) {
 	assert.Equal(t, executionSpan.Error, int32(1))
 }
 
+func TestEndExecutionSpanWithTimeout(t *testing.T) {
+	t.Setenv(functionNameEnvVar, "TestFunction")
+	currentExecutionInfo := &ExecutionStartInfo{}
+	lp := &LifecycleProcessor{
+		requestHandler: &RequestHandler{
+			executionInfo: currentExecutionInfo,
+			triggerTags:   make(map[string]string),
+		},
+	}
+
+	startTime := time.Now()
+	startDetails := &InvocationStartDetails{
+		StartTime:          startTime,
+		InvokeEventHeaders: http.Header{},
+	}
+	lp.startExecutionSpan(nil, []byte("[]"), startDetails)
+
+	assert.Zero(t, currentExecutionInfo.TraceID)
+	assert.Zero(t, currentExecutionInfo.SpanID)
+
+	duration := 1 * time.Second
+	endTime := startTime.Add(duration)
+
+	endDetails := &InvocationEndDetails{
+		EndTime:            endTime,
+		IsError:            true,
+		IsTimeout:          true,
+		RequestID:          "test-request-id",
+		ResponseRawPayload: nil,
+		ColdStart:          true,
+		ProactiveInit:      false,
+		Runtime:            "dotnet6",
+	}
+	executionSpan := lp.endExecutionSpan(endDetails)
+	assert.Equal(t, "aws.lambda", executionSpan.Name)
+	assert.Equal(t, "aws.lambda", executionSpan.Service)
+	assert.Equal(t, "TestFunction", executionSpan.Resource)
+	assert.Equal(t, "serverless", executionSpan.Type)
+	assert.Equal(t, "dotnet", executionSpan.Meta["language"])
+	assert.Equal(t, lp.requestHandler.executionInfo.TraceID, executionSpan.TraceID)
+	assert.NotZero(t, executionSpan.TraceID)
+	assert.NotZero(t, executionSpan.SpanID)
+	assert.Equal(t, startTime.UnixNano(), executionSpan.Start)
+	assert.Equal(t, duration.Nanoseconds(), executionSpan.Duration)
+	assert.Equal(t, "Impending Timeout", executionSpan.Meta["error.type"])
+	assert.Equal(t, "Datadog detected an Impending Timeout", executionSpan.Meta["error.msg"])
+}
+
 func TestParseLambdaPayload(t *testing.T) {
 	assert.Equal(t, []byte(""), ParseLambdaPayload([]byte("")))
 	assert.Equal(t, []byte("{}"), ParseLambdaPayload([]byte("{}")))

@@ -9,16 +9,18 @@ package kubelet
 
 import (
 	"context"
+	"errors"
 	"hash/fnv"
 	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/errors"
+	pkgerrors "github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics/provider"
 	kutil "github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 
 	"k8s.io/kubelet/pkg/apis/stats/v1alpha1"
@@ -39,8 +41,12 @@ const (
 func init() {
 	provider.RegisterCollector(provider.CollectorFactory{
 		ID: collectorID,
-		Constructor: func(cache *provider.Cache) (provider.CollectorMetadata, error) {
-			return newKubeletCollector(cache)
+		Constructor: func(cache *provider.Cache, wmeta optional.Option[workloadmeta.Component]) (provider.CollectorMetadata, error) {
+			instance, ok := wmeta.Get()
+			if !ok {
+				return provider.CollectorMetadata{}, errors.New("missing workloadmeta component")
+			}
+			return newKubeletCollector(cache, instance)
 		},
 	})
 }
@@ -52,7 +58,7 @@ type kubeletCollector struct {
 	refreshLock   sync.Mutex
 }
 
-func newKubeletCollector(*provider.Cache) (provider.CollectorMetadata, error) {
+func newKubeletCollector(_ *provider.Cache, wmeta workloadmeta.Component) (provider.CollectorMetadata, error) {
 	var collectorMetadata provider.CollectorMetadata
 
 	if !config.IsFeaturePresent(config.Kubernetes) {
@@ -67,13 +73,13 @@ func newKubeletCollector(*provider.Cache) (provider.CollectorMetadata, error) {
 	collector := &kubeletCollector{
 		kubeletClient: client,
 		statsCache:    *provider.NewCache(kubeletCacheGCInterval),
-		// TODO(components): stop using globals, rely on injected workloadmeta component.
-		metadataStore: workloadmeta.GetGlobalStore(),
+		metadataStore: wmeta,
 	}
 
 	collectors := &provider.Collectors{
-		Stats:   provider.MakeRef[provider.ContainerStatsGetter](collector, collectorPriority),
-		Network: provider.MakeRef[provider.ContainerNetworkStatsGetter](collector, collectorPriority),
+		Stats:                           provider.MakeRef[provider.ContainerStatsGetter](collector, collectorPriority),
+		Network:                         provider.MakeRef[provider.ContainerNetworkStatsGetter](collector, collectorPriority),
+		ContainerIDForPodUIDAndContName: provider.MakeRef[provider.ContainerIDForPodUIDAndContNameRetriever](collector, collectorPriority),
 	}
 
 	return provider.CollectorMetadata{
@@ -92,7 +98,7 @@ func newKubeletCollector(*provider.Cache) (provider.CollectorMetadata, error) {
 func (kc *kubeletCollector) ContainerIDForPodUIDAndContName(podUID, contName string, initCont bool, _ time.Duration) (string, error) {
 	pod, err := kc.metadataStore.GetKubernetesPod(podUID)
 	if err != nil {
-		if errors.IsNotFound(err) {
+		if pkgerrors.IsNotFound(err) {
 			return "", nil
 		}
 		return "", err

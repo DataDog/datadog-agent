@@ -8,12 +8,15 @@ package logs
 import (
 	"bufio"
 	"bytes"
+	"strings"
 	"testing"
 
 	"github.com/cihub/seelog"
 	"github.com/stretchr/testify/assert"
 
 	seelogCfg "github.com/DataDog/datadog-agent/pkg/config/logs/internal/seelog"
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
 
 func TestExtractShortPathFromFullPath(t *testing.T) {
@@ -101,4 +104,47 @@ func BenchmarkLogFormatWithoutContextFormatting(b *testing.B) {
 
 func BenchmarkLogFormatWithContextFormatting(b *testing.B) {
 	benchmarkLogFormatWithContext("%Date(%s) | %LEVEL | (%ShortFilePath:%Line in %FuncShort) | %Msg %ExtraJSONContext", b)
+}
+
+func TestMergedKeys(t *testing.T) {
+	// Test that the merged keys are correctly computed
+	s1 := []string{"foo", "bar"}
+	s2 := []string{"bar", "buzz"}
+	assert.Equal(t, []string{"foo", "bar", "buzz"}, mergeAdditionalKeysToScrubber(s1, s2))
+}
+
+func TestENVAdditionalKeysToScrubber(t *testing.T) {
+	// Test that the scrubber is correctly configured with the expected keys
+	cfg := pkgconfigmodel.NewConfig("test", "DD", strings.NewReplacer(".", "_"))
+
+	cfg.SetWithoutSource("scrubber.additional_keys", []string{"yet_another_key"})
+	cfg.SetWithoutSource("flare_stripped_keys", []string{"some_other_key"})
+
+	pathDir := t.TempDir()
+
+	// Add a log file at the end of pathDir string
+	pathDir = pathDir + "/tests.log"
+
+	SetupLogger(
+		"TestENVAdditionalKeysToScrubberLogger",
+		"info",
+		pathDir,
+		"",
+		false,
+		false,
+		false,
+		cfg)
+
+	stringToScrub := `api_key: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
+some_other_key: 'bbbb'
+app_key: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacccc'
+yet_another_key: 'dddd'`
+
+	scrubbed, err := scrubber.ScrubYamlString(stringToScrub)
+	assert.Nil(t, err)
+	expected := `api_key: '***************************aaaaa'
+some_other_key: "********"
+app_key: '***********************************acccc'
+yet_another_key: "********"`
+	assert.YAMLEq(t, expected, scrubbed)
 }

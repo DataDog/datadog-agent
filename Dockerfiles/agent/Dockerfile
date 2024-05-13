@@ -63,7 +63,7 @@ RUN echo "$(cat /output/s6.$TARGETARCH.sha256) /output/s6.tgz" | sha256sum -c - 
 #   - static libraries                   # FIXME: move upstream
 #   - jmxfetch on nojmx build
 
-RUN set -x; find / -maxdepth 1 -type f -name "datadog-agent*_$TARGETARCH.deb" ! -name "$DD_AGENT_ARTIFACT" -exec rm {} \; \
+RUN find / -maxdepth 1 -type f -name "datadog-agent*_$TARGETARCH.deb" ! -name "$DD_AGENT_ARTIFACT" -exec rm {} \; \
  && find / -maxdepth 1 -name "datadog-agent*_$TARGETARCH.deb" -exec dpkg -x {} . \; \
  && rm -rf usr etc/init lib \
     opt/datadog-agent/sources \
@@ -169,12 +169,25 @@ RUN tar xzf s6.tgz -C / --exclude="./bin" \
   # - Remove the /var/run -> /run symlink and create a legit /var/run folder
   # as some docker versions re-create /run from zero at container start
   && adduser --system --no-create-home --disabled-password --ingroup root dd-agent \
+  && addgroup --system secret-manager \
+  && usermod -a -G secret-manager dd-agent \
   && rm /var/run && mkdir -p /var/run/s6 && mkdir -p /var/run/datadog \
   && chown -R dd-agent:root /etc/datadog-agent/ /etc/s6/ /var/run/s6/ /var/log/datadog/ /var/run/datadog/ \
   && chmod g+r,g+w,g+X -R /etc/datadog-agent/ /etc/s6/ /var/run/s6/ /var/log/datadog/ /var/run/datadog/ \
   && chmod 755 /probe.sh /initlog.sh \
-  && chown root:root /readsecret.py /readsecret.sh /readsecret_multiple_providers.sh \
+  && chown root:secret-manager /readsecret.py /readsecret.sh /readsecret_multiple_providers.sh \
   && chmod 550 /readsecret.py /readsecret.sh /readsecret_multiple_providers.sh
+
+# Check that the UID of dd-agent is still 100.
+#
+# The exact numeric value of the UID of the dd-agent user shouldn’t matter.
+# But people that don’t want to let the agent run as root might want to explicitly set a non-root user in their k8s security context.
+# And, in a k8s security context, we can only specify a numeric UID and not a username.
+# So, if the UID of the dd-agent user happen to change again and cannot be forced to 100 (because of a conflict), we need to update
+# * the documentation https://docs.datadoghq.com/data_security/kubernetes/#running-container-as-root-user
+#   (see PR https://github.com/DataDog/documentation/pull/21889)
+# * https://datadoghq.atlassian.net/wiki/spaces/TS/pages/2615709591/Why+the+containerized+Agent+runs+as+root#Agent-user
+RUN [ "$(getent passwd dd-agent | cut -d: -f 3)" -eq 100 ]
 
 # Update links to python binaries
 RUN if [ -n "$PYTHON_VERSION" ]; then \

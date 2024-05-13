@@ -13,8 +13,6 @@
             "meta": {
               "_dd.compute_stats": "1",
               "_dd.origin": "lambda",
-              "_dd.p.dm": "-1",
-              "_dd.tracer_hostname": "<redacted>",
               "account_id": "############",
               "architecture": "XXX",
               "aws_account": "############",
@@ -147,7 +145,9 @@
             "type": ""
           }
         ],
-        "tags": null
+        "tags": {
+          "_dd.p.dm": "null"
+        }
       }
     ],
     "container_id": "",
@@ -173,8 +173,6 @@
             "meta": {
               "_dd.compute_stats": "1",
               "_dd.origin": "lambda",
-              "_dd.p.dm": "-1",
-              "_dd.tracer_hostname": "<redacted>",
               "account_id": "############",
               "architecture": "XXX",
               "aws_account": "############",
@@ -307,7 +305,9 @@
             "type": ""
           }
         ],
-        "tags": null
+        "tags": {
+          "_dd.p.dm": "null"
+        }
       }
     ],
     "container_id": "",

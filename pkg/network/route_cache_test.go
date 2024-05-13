@@ -34,7 +34,7 @@ func TestRouteCacheGet(t *testing.T) {
 	}{
 		{source: "127.0.0.1", dest: "127.0.0.1", route: Route{IfIndex: 0}, ok: true, times: 1},
 		{source: "10.0.2.2", dest: "8.8.8.8", route: Route{Gateway: util.AddressFromString("10.0.2.1"), IfIndex: 1}, ok: true, times: 1},
-		{source: "1.2.3.4", dest: "5.6.7.8", route: Route{}, ok: false, times: 2}, // 2 calls expected here since this is not going to be cached
+		{source: "1.2.3.4", dest: "5.6.7.8", route: Route{}, ok: false, times: 1}, // this will still be (negative) cached
 	}
 
 	cache := NewRouteCache(10, m)
@@ -59,8 +59,8 @@ func TestRouteCacheGet(t *testing.T) {
 		source := util.AddressFromString(te.source)
 		dest := util.AddressFromString(te.dest)
 		r, ok := cache.Get(source, dest, te.netns)
-		require.Equal(t, te.route, r)
-		require.Equal(t, te.ok, ok)
+		require.Equal(t, te.route, r, "%+v", te)
+		require.Equal(t, te.ok, ok, "%+v", te)
 	}
 }
 

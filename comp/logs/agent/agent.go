@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/hashicorp/go-multierror"
 	"go.uber.org/atomic"
 	"go.uber.org/fx"
 
@@ -19,9 +20,11 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/hostname"
 	logComponent "github.com/DataDog/datadog-agent/comp/core/log"
 	statusComponent "github.com/DataDog/datadog-agent/comp/core/status"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	flareController "github.com/DataDog/datadog-agent/comp/logs/agent/flare"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
+	rctypes "github.com/DataDog/datadog-agent/comp/remote-config/rcclient/types"
 	pkgConfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
@@ -30,12 +33,15 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/schedulers"
+	"github.com/DataDog/datadog-agent/pkg/logs/sds"
 	"github.com/DataDog/datadog-agent/pkg/logs/service"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/logs/status"
 	"github.com/DataDog/datadog-agent/pkg/logs/tailers"
+	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
 )
@@ -56,11 +62,13 @@ const (
 type dependencies struct {
 	fx.In
 
-	Lc             fx.Lifecycle
-	Log            logComponent.Component
-	Config         configComponent.Component
-	InventoryAgent inventoryagent.Component
-	Hostname       hostname.Component
+	Lc                 fx.Lifecycle
+	Log                logComponent.Component
+	Config             configComponent.Component
+	InventoryAgent     inventoryagent.Component
+	Hostname           hostname.Component
+	WMeta              optional.Option[workloadmeta.Component]
+	SchedulerProviders []schedulers.Scheduler `group:"log-agent-scheduler"`
 }
 
 type provides struct {
@@ -69,6 +77,7 @@ type provides struct {
 	Comp           optional.Option[Component]
 	FlareProvider  flaretypes.Provider
 	StatusProvider statusComponent.InformationProvider
+	RCListener     rctypes.ListenerProvider
 }
 
 // agent represents the data pipeline that collects, decodes,
@@ -92,6 +101,8 @@ type agent struct {
 	health                    *health.Handle
 	diagnosticMessageReceiver *diagnostic.BufferedMessageReceiver
 	flarecontroller           *flareController.FlareController
+	wmeta                     optional.Option[workloadmeta.Component]
+	schedulerProviders        []schedulers.Scheduler
 
 	// started is true if the logs agent is running
 	started *atomic.Bool
@@ -110,20 +121,31 @@ func newLogsAgent(deps dependencies) provides {
 			hostname:       deps.Hostname,
 			started:        atomic.NewBool(false),
 
-			sources:         sources.NewLogSources(),
-			services:        service.NewServices(),
-			tracker:         tailers.NewTailerTracker(),
-			flarecontroller: flareController.NewFlareController(),
+			sources:            sources.NewLogSources(),
+			services:           service.NewServices(),
+			tracker:            tailers.NewTailerTracker(),
+			flarecontroller:    flareController.NewFlareController(),
+			wmeta:              deps.WMeta,
+			schedulerProviders: deps.SchedulerProviders,
 		}
 		deps.Lc.Append(fx.Hook{
 			OnStart: logsAgent.start,
 			OnStop:  logsAgent.stop,
 		})
 
+		var rcListener rctypes.ListenerProvider
+		if sds.SDSEnabled {
+			rcListener.ListenerProvider = rctypes.RCListener{
+				state.ProductSDSAgentConfig: logsAgent.onUpdateSDSAgentConfig,
+				state.ProductSDSRules:       logsAgent.onUpdateSDSRules,
+			}
+		}
+
 		return provides{
 			Comp:           optional.NewOption[Component](logsAgent),
 			StatusProvider: statusComponent.NewInformationProvider(NewStatusProvider()),
 			FlareProvider:  flaretypes.NewProvider(logsAgent.flarecontroller.FillFlare),
+			RCListener:     rcListener,
 		}
 	}
 
@@ -158,6 +180,10 @@ func (a *agent) start(context.Context) error {
 	a.startPipeline()
 	a.log.Info("logs-agent started")
 
+	for _, scheduler := range a.schedulerProviders {
+		a.AddScheduler(scheduler)
+	}
+
 	return nil
 }
 
@@ -187,7 +213,7 @@ func (a *agent) setupAgent() error {
 		status.AddGlobalWarning(invalidProcessingRules, multiLineWarning)
 	}
 
-	a.SetupPipeline(processingRules)
+	a.SetupPipeline(processingRules, a.wmeta)
 	return nil
 }
 
@@ -277,4 +303,64 @@ func (a *agent) GetMessageReceiver() *diagnostic.BufferedMessageReceiver {
 
 func (a *agent) GetPipelineProvider() pipeline.Provider {
 	return a.pipelineProvider
+}
+
+func (a *agent) onUpdateSDSRules(updates map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)) { //nolint:revive
+	var err error
+	for _, config := range updates {
+		if rerr := a.pipelineProvider.ReconfigureSDSStandardRules(config.Config); rerr != nil {
+			err = multierror.Append(err, rerr)
+		}
+	}
+
+	if err != nil {
+		log.Errorf("Can't update SDS standard rules: %v", err)
+	}
+
+	// Apply the new status to all configs
+	for cfgPath := range updates {
+		if err == nil {
+			applyStateCallback(cfgPath, state.ApplyStatus{State: state.ApplyStateAcknowledged})
+		} else {
+			applyStateCallback(cfgPath, state.ApplyStatus{
+				State: state.ApplyStateError,
+				Error: err.Error(),
+			})
+		}
+	}
+
+}
+
+func (a *agent) onUpdateSDSAgentConfig(updates map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)) { //nolint:revive
+	var err error
+
+	// We received a hit that new updates arrived, but if the list of updates
+	// is empty, it means we don't have any updates applying to this agent anymore
+	// Send a reconfiguration with an empty payload, indicating that
+	// the scanners have to be dropped.
+	if len(updates) == 0 {
+		err = a.pipelineProvider.ReconfigureSDSAgentConfig([]byte("{}"))
+	} else {
+		for _, config := range updates {
+			if rerr := a.pipelineProvider.ReconfigureSDSAgentConfig(config.Config); rerr != nil {
+				err = multierror.Append(err, rerr)
+			}
+		}
+	}
+
+	if err != nil {
+		log.Errorf("Can't update SDS configurations: %v", err)
+	}
+
+	// Apply the new status to all configs
+	for cfgPath := range updates {
+		if err == nil {
+			applyStateCallback(cfgPath, state.ApplyStatus{State: state.ApplyStateAcknowledged})
+		} else {
+			applyStateCallback(cfgPath, state.ApplyStatus{
+				State: state.ApplyStateError,
+				Error: err.Error(),
+			})
+		}
+	}
 }

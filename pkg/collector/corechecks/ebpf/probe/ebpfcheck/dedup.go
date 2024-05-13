@@ -15,37 +15,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/ebpfcheck/model"
 )
 
-// deduplicateProgramNames disambiguates ebpf programs by adding a numeric ID if necessary
-func deduplicateProgramNames(stats *model.EBPFStats) {
-	slices.SortStableFunc(stats.Programs, func(a, b model.EBPFProgramStats) int {
-		x := strings.Compare(a.Name, b.Name)
-		if x == 0 {
-			x = strings.Compare(a.Module, b.Module)
-			if x == 0 {
-				return int(a.ID - b.ID)
-			}
-		}
-		return x
-	})
-	// if program name is a duplicate, we need to disambiguate by adding a numeric ID
-	for i := 0; i < len(stats.Programs)-1; {
-		origName := stats.Programs[i].Name
-		origModule := stats.Programs[i].Module
-		// if we have a series of at least two entries
-		if stats.Programs[i+1].Name == origName && stats.Programs[i+1].Module == origModule {
-			// start with i, so we overwrite the first entry in series
-			j := i
-			for ; j < len(stats.Programs) && stats.Programs[j].Name == origName && stats.Programs[j].Module == origModule; j++ {
-				stats.Programs[j].Name = fmt.Sprintf("%s_%d", stats.Programs[j].Name, j-i+1)
-			}
-			i = j
-			continue
-		}
-
-		i++
-	}
-}
-
 // deduplicateMapNames disambiguates ebpf maps by adding a numeric ID if necessary
 func deduplicateMapNames(stats *model.EBPFStats) {
 	allMaps := make([]*model.EBPFMapStats, 0, len(stats.Maps))

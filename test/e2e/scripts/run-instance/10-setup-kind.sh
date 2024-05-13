@@ -18,7 +18,6 @@ download_and_install_kubectl() {
 }
 
 printf '=%.0s' {0..79} ; echo
-set -x
 
 if [[ $(uname) == "Darwin" ]]
 then

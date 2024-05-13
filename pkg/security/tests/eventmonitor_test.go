@@ -126,8 +126,8 @@ func TestEventMonitor(t *testing.T) {
 			}
 
 			return errors.New("event not received")
-		}, retry.Delay(200*time.Millisecond), retry.Attempts(10))
-		assert.Nil(t, err)
+		}, retry.Delay(200*time.Millisecond), retry.Attempts(10), retry.DelayType(retry.FixedDelay))
+		assert.NoError(t, err)
 	})
 
 	t.Run("exec-exit", func(t *testing.T) {
@@ -144,7 +144,7 @@ func TestEventMonitor(t *testing.T) {
 			}
 
 			return errors.New("event not received")
-		}, retry.Delay(200*time.Millisecond), retry.Attempts(10))
-		assert.Nil(t, err)
+		}, retry.Delay(200*time.Millisecond), retry.Attempts(10), retry.DelayType(retry.FixedDelay))
+		assert.NoError(t, err)
 	})
 }

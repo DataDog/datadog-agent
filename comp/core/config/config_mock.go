@@ -30,8 +30,8 @@ func (m mockDependencies) getParams() *Params {
 	return &p
 }
 
-func (m mockDependencies) getSecretResolver() secrets.Component {
-	return nil
+func (m mockDependencies) getSecretResolver() (secrets.Component, bool) {
+	return nil, false
 }
 
 // newMock exported mock builder to allow modifying mocks that might be

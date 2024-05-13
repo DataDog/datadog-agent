@@ -3,7 +3,6 @@
 set -euo pipefail
 
 printf '=%.0s' {0..79} ; echo
-set -x
 
 is_cluster_running=$(kind get clusters|grep k8s-e2e-tests||echo none)
 if [ "$is_cluster_running" == "k8s-e2e-tests" ]; then

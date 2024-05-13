@@ -35,7 +35,6 @@ import (
 	"go.opentelemetry.io/collector/pdata/ptrace/ptraceotlp"
 	semconv117 "go.opentelemetry.io/collector/semconv/v1.17.0"
 	semconv "go.opentelemetry.io/collector/semconv/v1.6.1"
-	"go.opentelemetry.io/otel/attribute"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
 )
@@ -43,10 +42,6 @@ import (
 // keyStatsComputed specifies the resource attribute key which indicates if stats have been
 // computed for the resource spans.
 const keyStatsComputed = "_dd.stats_computed"
-
-var (
-	signalTypeSet = attribute.NewSet(attribute.String("signal", "traces"))
-)
 
 var _ (ptraceotlp.GRPCServer) = (*OTLPReceiver)(nil)
 
@@ -65,6 +60,11 @@ type OTLPReceiver struct {
 
 // NewOTLPReceiver returns a new OTLPReceiver which sends any incoming traces down the out channel.
 func NewOTLPReceiver(out chan<- *Payload, cfg *config.AgentConfig, statsd statsd.ClientInterface, timing timing.Reporter) *OTLPReceiver {
+	computeTopLevelBySpanKindVal := 0.0
+	if cfg.HasFeature("enable_otlp_compute_top_level_by_span_kind") {
+		computeTopLevelBySpanKindVal = 1.0
+	}
+	_ = statsd.Gauge("datadog.trace_agent.otlp.compute_top_level_by_span_kind", computeTopLevelBySpanKindVal, nil, 1)
 	return &OTLPReceiver{out: out, conf: cfg, cidProvider: NewIDProvider(cfg.ContainerProcRoot), statsd: statsd, timing: timing}
 }
 
@@ -185,7 +185,7 @@ func (o *OTLPReceiver) sample(tid uint64) sampler.SamplingPriority {
 func (o *OTLPReceiver) ReceiveResourceSpans(ctx context.Context, rspans ptrace.ResourceSpans, httpHeader http.Header) source.Source {
 	// each rspans is coming from a different resource and should be considered
 	// a separate payload; typically there is only one item in this slice
-	src, srcok := o.conf.OTLPReceiver.AttributesTranslator.ResourceToSource(ctx, rspans.Resource(), signalTypeSet)
+	src, srcok := o.conf.OTLPReceiver.AttributesTranslator.ResourceToSource(ctx, rspans.Resource(), traceutil.SignalTypeSet)
 	hostFromMap := func(m map[string]string, key string) {
 		// hostFromMap sets the hostname to m[key] if it is set.
 		if v, ok := m[key]; ok {
@@ -264,7 +264,7 @@ func (o *OTLPReceiver) ReceiveResourceSpans(ctx context.Context, rspans ptrace.R
 	p := Payload{
 		Source:                 tagstats,
 		ClientComputedStats:    rattr[keyStatsComputed] != "" || httpHeader.Get(header.ComputedStats) != "",
-		ClientComputedTopLevel: httpHeader.Get(header.ComputedTopLevel) != "",
+		ClientComputedTopLevel: o.conf.HasFeature("enable_otlp_compute_top_level_by_span_kind") || httpHeader.Get(header.ComputedTopLevel) != "",
 	}
 	if env == "" {
 		env = o.conf.DefaultEnv
@@ -520,8 +520,14 @@ func (o *OTLPReceiver) convertSpan(rattr map[string]string, lib pcommon.Instrume
 	for k, v := range rattr {
 		setMetaOTLP(span, k, v)
 	}
+
+	spanKind := in.Kind()
+	if o.conf.HasFeature("enable_otlp_compute_top_level_by_span_kind") {
+		computeTopLevelAndMeasured(span, spanKind)
+	}
+
 	setMetaOTLP(span, "otel.trace_id", hex.EncodeToString(traceID[:]))
-	setMetaOTLP(span, "span.kind", spanKindName(in.Kind()))
+	setMetaOTLP(span, "span.kind", spanKindName(spanKind))
 	if _, ok := span.Meta["version"]; !ok {
 		if ver := rattr[string(semconv.AttributeServiceVersion)]; ver != "" {
 			setMetaOTLP(span, "version", ver)
@@ -533,6 +539,10 @@ func (o *OTLPReceiver) convertSpan(rattr map[string]string, lib pcommon.Instrume
 	if in.Links().Len() > 0 {
 		setMetaOTLP(span, "_dd.span_links", marshalLinks(in.Links()))
 	}
+
+	var gotMethodFromNewConv bool
+	var gotStatusCodeFromNewConv bool
+
 	in.Attributes().Range(func(k string, v pcommon.Value) bool {
 		switch v.Type() {
 		case pcommon.ValueTypeDouble:
@@ -540,8 +550,37 @@ func (o *OTLPReceiver) convertSpan(rattr map[string]string, lib pcommon.Instrume
 		case pcommon.ValueTypeInt:
 			setMetricOTLP(span, k, float64(v.Int()))
 		default:
-			setMetaOTLP(span, k, v.AsString())
+			// Exclude Datadog APM conventions.
+			// These are handled below explicitly.
+			if k != "http.method" && k != "http.status_code" {
+				setMetaOTLP(span, k, v.AsString())
+			}
 		}
+
+		// `http.method` was renamed to `http.request.method` in the HTTP stabilization from v1.23.
+		// See https://opentelemetry.io/docs/specs/semconv/http/migration-guide/#summary-of-changes
+		// `http.method` is also the Datadog APM convention for the HTTP method.
+		// We check both conventions and use the new one if it is present.
+		// See https://datadoghq.atlassian.net/wiki/spaces/APM/pages/2357395856/Span+attributes#[inlineExtension]HTTP
+		if k == "http.request.method" {
+			gotMethodFromNewConv = true
+			setMetaOTLP(span, "http.method", v.AsString())
+		} else if k == "http.method" && !gotMethodFromNewConv {
+			setMetaOTLP(span, "http.method", v.AsString())
+		}
+
+		// `http.status_code` was renamed to `http.response.status_code` in the HTTP stabilization from v1.23.
+		// See https://opentelemetry.io/docs/specs/semconv/http/migration-guide/#summary-of-changes
+		// `http.status_code` is also the Datadog APM convention for the HTTP status code.
+		// We check both conventions and use the new one if it is present.
+		// See https://datadoghq.atlassian.net/wiki/spaces/APM/pages/2357395856/Span+attributes#[inlineExtension]HTTP
+		if k == "http.response.status_code" {
+			gotStatusCodeFromNewConv = true
+			setMetaOTLP(span, "http.status_code", v.AsString())
+		} else if k == "http.status_code" && !gotStatusCodeFromNewConv {
+			setMetaOTLP(span, "http.status_code", v.AsString())
+		}
+
 		return true
 	})
 	if _, ok := span.Meta["env"]; !ok {
@@ -597,7 +636,9 @@ func (o *OTLPReceiver) convertSpan(rattr map[string]string, lib pcommon.Instrume
 // resourceFromTags attempts to deduce a more accurate span resource from the given list of tags meta.
 // If this is not possible, it returns an empty string.
 func resourceFromTags(meta map[string]string) string {
-	if m := meta[string(semconv.AttributeHTTPMethod)]; m != "" {
+	// `http.method` was renamed to `http.request.method` in the HTTP stabilization from v1.23.
+	// See https://opentelemetry.io/docs/specs/semconv/http/migration-guide/#summary-of-changes
+	if _, m := getFirstFromMap(meta, "http.request.method", "http.method"); m != "" {
 		// use the HTTP method + route (if available)
 		if _, route := getFirstFromMap(meta, semconv.AttributeHTTPRoute, "grpc.path"); route != "" {
 			return m + " " + route
@@ -659,8 +700,12 @@ func status2Error(status ptrace.Status, events ptrace.SpanEventSlice, span *pb.S
 		if status.Message() != "" {
 			// use the status message
 			span.Meta["error.msg"] = status.Message()
-		} else if httpcode, ok := span.Meta["http.status_code"]; ok {
-			// we have status code that we can use as details
+		} else if _, httpcode := getFirstFromMap(span.Meta, "http.response.status_code", "http.status_code"); httpcode != "" {
+			// `http.status_code` was renamed to `http.response.status_code` in the HTTP stabilization from v1.23.
+			// See https://opentelemetry.io/docs/specs/semconv/http/migration-guide/#summary-of-changes
+
+			// http.status_text was removed in spec v0.7.0 (https://github.com/open-telemetry/opentelemetry-specification/pull/972)
+			// TODO (OTEL-1791) Remove this and use a map from status code to status text.
 			if httptext, ok := span.Meta["http.status_text"]; ok {
 				span.Meta["error.msg"] = fmt.Sprintf("%s %s", httpcode, httptext)
 			} else {
@@ -718,4 +763,23 @@ func spanKindName(k ptrace.SpanKind) string {
 		return "unknown"
 	}
 	return name
+}
+
+// computeTopLevelAndMeasured updates the span's top-level and measured attributes.
+//
+// An OTLP span is considered top-level if it is a root span or has a span kind of server or consumer.
+// An OTLP span is marked as measured if it has a span kind of client or producer.
+func computeTopLevelAndMeasured(span *pb.Span, spanKind ptrace.SpanKind) {
+	if span.ParentID == 0 {
+		// span is a root span
+		traceutil.SetTopLevel(span, true)
+	}
+	if spanKind == ptrace.SpanKindServer || spanKind == ptrace.SpanKindConsumer {
+		// span is a server-side span
+		traceutil.SetTopLevel(span, true)
+	}
+	if spanKind == ptrace.SpanKindClient || spanKind == ptrace.SpanKindProducer {
+		// span is a client-side span, not top-level but we still want stats
+		traceutil.SetMeasured(span, true)
+	}
 }

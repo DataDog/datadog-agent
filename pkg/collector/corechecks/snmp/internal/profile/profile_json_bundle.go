@@ -8,7 +8,6 @@ package profile
 import (
 	"compress/gzip"
 	"encoding/json"
-	"errors"
 	"io"
 	"os"
 	"path/filepath"
@@ -18,13 +17,14 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition"
 )
 
-func loadBundleJSONProfiles() (ProfileConfigMap, error) {
-	jsonStr, err := getProfilesBundleJSON()
+// loadBundleJSONProfiles finds the gzipped profile bundle and loads profiles from it.
+func loadBundleJSONProfiles(gzipFilePath string) (ProfileConfigMap, error) {
+	jsonStr, err := loadGzipFile(gzipFilePath)
 	if err != nil {
 		return nil, err
 	}
 
-	userProfiles, err := unmarshallProfilesBundleJSON(jsonStr)
+	userProfiles, err := unmarshallProfilesBundleJSON(jsonStr, gzipFilePath)
 	if err != nil {
 		return nil, err
 	}
@@ -40,22 +40,25 @@ func loadBundleJSONProfiles() (ProfileConfigMap, error) {
 	return resolvedProfiles, nil
 }
 
-func unmarshallProfilesBundleJSON(jsonStr []byte) (ProfileConfigMap, error) {
+// unmarshallProfilesBundleJSON parses json data into a profile bundle.
+// Duplicate profiles and profiles without names will be skipped, and warnings will be logged;
+// filenameForLogging is only used for making more readable log messages.
+func unmarshallProfilesBundleJSON(raw []byte, filenameForLogging string) (ProfileConfigMap, error) {
 	bundle := profiledefinition.ProfileBundle{}
-	err := json.Unmarshal(jsonStr, &bundle)
+	err := json.Unmarshal(raw, &bundle)
 	if err != nil {
 		return nil, err
 	}
 
 	profiles := make(ProfileConfigMap)
-	for _, p := range bundle.Profiles {
+	for i, p := range bundle.Profiles {
 		if p.Profile.Name == "" {
-			log.Warnf("Profile with missing name: %s", p.Profile.Name)
+			log.Warnf("ignoring profile #%d from %q - no name provided", i, filenameForLogging)
 			continue
 		}
 
 		if _, exist := profiles[p.Profile.Name]; exist {
-			log.Warnf("duplicate profile found: %s", p.Profile.Name)
+			log.Warnf("ignoring duplicate profile in %q for name %q", filenameForLogging, p.Profile.Name)
 			continue
 		}
 		// TODO: (separate PR) resolve extends with custom + local default profiles (yaml)
@@ -67,9 +70,9 @@ func unmarshallProfilesBundleJSON(jsonStr []byte) (ProfileConfigMap, error) {
 	return profiles, nil
 }
 
-func getProfilesBundleJSON() ([]byte, error) {
-	gzipFilePath := getProfileBundleFilePath()
-	gzipFile, err := os.Open(gzipFilePath)
+// loadGzipFile extracts the contents of a gzip file.
+func loadGzipFile(filePath string) ([]byte, error) {
+	gzipFile, err := os.Open(filePath)
 	if err != nil {
 		return nil, err
 	}
@@ -78,21 +81,20 @@ func getProfilesBundleJSON() ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	jsonStr, err := io.ReadAll(gzipReader)
-	if err != nil {
-		return nil, err
-	}
-	return jsonStr, nil
+	defer gzipReader.Close()
+	return io.ReadAll(gzipReader)
 }
 
+// getProfileBundleFilePath returns the expected location of the gzipped profiles bundle, based on config.Datadog.
 func getProfileBundleFilePath() string {
 	return getProfileConfdRoot(filepath.Join(userProfilesFolder, profilesJSONGzipFile))
 }
 
-func profileBundleFileExist() bool {
+// findProfileBundleFilePath returns the path to the gzipped profiles bundle, or "" if one doesn't exist.
+func findProfileBundleFilePath() string {
 	filePath := getProfileBundleFilePath()
-	if _, err := os.Stat(filePath); !errors.Is(err, os.ErrNotExist) {
-		return true
+	if pathExists(filePath) {
+		return filePath
 	}
-	return false
+	return ""
 }

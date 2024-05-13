@@ -75,12 +75,13 @@ const (
 	orchestratorEndpoint         = "/api/v2/orch"
 	orchestratorManifestEndpoint = "/api/v2/orchmanif"
 	metadataEndpoint             = "/api/v1/metadata"
+	ndmflowEndpoint              = "/api/v2/ndmflow"
 )
 
 // ErrNoFlareAvailable is returned when no flare is available
 var ErrNoFlareAvailable = errors.New("no flare available")
 
-//nolint:revive // TODO(APL) Fix revive linter
+// Client is a fake intake client
 type Client struct {
 	fakeIntakeURL string
 
@@ -99,6 +100,7 @@ type Client struct {
 	orchestratorAggregator         aggregator.OrchestratorAggregator
 	orchestratorManifestAggregator aggregator.OrchestratorManifestAggregator
 	metadataAggregator             aggregator.MetadataAggregator
+	ndmflowAggregator              aggregator.NDMFlowAggregator
 }
 
 // NewClient creates a new fake intake client
@@ -121,6 +123,7 @@ func NewClient(fakeIntakeURL string) *Client {
 		orchestratorAggregator:         aggregator.NewOrchestratorAggregator(),
 		orchestratorManifestAggregator: aggregator.NewOrchestratorManifestAggregator(),
 		metadataAggregator:             aggregator.NewMetadataAggregator(),
+		ndmflowAggregator:              aggregator.NewNDMFlowAggregator(),
 	}
 }
 
@@ -240,6 +243,14 @@ func (c *Client) getAPMStats() error {
 		return err
 	}
 	return c.apmStatsAggregator.UnmarshallPayloads(payloads)
+}
+
+func (c *Client) getNDMFlows() error {
+	payloads, err := c.getFakePayloads(ndmflowEndpoint)
+	if err != nil {
+		return err
+	}
+	return c.ndmflowAggregator.UnmarshallPayloads(payloads)
 }
 
 // GetLatestFlare queries the Fake Intake to fetch flares that were sent by a Datadog Agent and returns the latest flare as a Flare struct
@@ -401,9 +412,7 @@ func WithMetricValueLowerThan(maxValue float64) MatchOpt[*aggregator.MetricSerie
 	}
 }
 
-// WithMetricValueLowerThan filters metrics with values higher than `minValue`
-//
-//nolint:revive // TODO(APL) Fix revive linter
+// WithMetricValueHigherThan filters metrics with values higher than `minValue`
 func WithMetricValueHigherThan(minValue float64) MatchOpt[*aggregator.MetricSeries] {
 	return func(metric *aggregator.MetricSeries) (bool, error) {
 		for _, point := range metric.Points {
@@ -424,10 +433,8 @@ func (c *Client) getLog(service string) ([]*aggregator.Log, error) {
 	return c.logAggregator.GetPayloadsByName(service), nil
 }
 
-// GetLogNames fetches fakeintake on `/api/v2/logs` endpoint and returns
+// GetLogServiceNames fetches fakeintake on `/api/v2/logs` endpoint and returns
 // all received log service names
-//
-//nolint:revive // TODO(APL) Fix revive linter
 func (c *Client) GetLogServiceNames() ([]string, error) {
 	err := c.getLogs()
 	if err != nil {
@@ -500,10 +507,8 @@ func (c *Client) GetCheckRunNames() ([]string, error) {
 	return c.checkRunAggregator.GetNames(), nil
 }
 
-// FilterLogs fetches fakeintake on `/api/v1/check_run` endpoint, unpackage payloads and returns
+// GetCheckRun fetches fakeintake on `/api/v1/check_run` endpoint, unpackage payloads and returns
 // checks matching `name`
-//
-//nolint:revive // TODO(APL) Fix revive linter
 func (c *Client) GetCheckRun(name string) ([]*aggregator.CheckRun, error) {
 	err := c.getCheckRuns()
 	if err != nil {
@@ -839,4 +844,17 @@ func (c *Client) GetAPMStats() ([]*aggregator.APMStatsPayload, error) {
 		stats = append(stats, c.apmStatsAggregator.GetPayloadsByName(name)...)
 	}
 	return stats, nil
+}
+
+// GetNDMFlows fetches fakeintake on `/api/v2/ndmflows` endpoint and returns all received ndmflow payloads
+func (c *Client) GetNDMFlows() ([]*aggregator.NDMFlow, error) {
+	err := c.getNDMFlows()
+	if err != nil {
+		return nil, err
+	}
+	var ndmflows []*aggregator.NDMFlow
+	for _, name := range c.ndmflowAggregator.GetNames() {
+		ndmflows = append(ndmflows, c.ndmflowAggregator.GetPayloadsByName(name)...)
+	}
+	return ndmflows, nil
 }

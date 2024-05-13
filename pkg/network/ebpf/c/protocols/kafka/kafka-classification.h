@@ -16,10 +16,11 @@
 
 #define STRINGIFY(a) #a
 
-// A template for verifying a given buffer is composed of the characters [a-z], [A-Z], [0-9], ".", "_", or "-".
+// A template for verifying a given buffer is composed of the characters [a-z], [A-Z], [0-9], ".", "_", or "-",
+// or, optionally, allowing any printable characters.
 // The iterations reads up to MIN(max_buffer_size, real_size).
 // Has to be a template and not a function, as we have pragma unroll.
-#define CHECK_STRING_COMPOSED_OF_ASCII(max_buffer_size, real_size, buffer)                                                              \
+#define CHECK_STRING_COMPOSED_OF_ASCII(max_buffer_size, real_size, buffer, printable_ok)                                                \
     char ch = 0;                                                                                                                        \
 _Pragma( STRINGIFY(unroll(max_buffer_size)) )                                                                                           \
     for (int j = 0; j < max_buffer_size; j++) {                                                                                         \
@@ -32,9 +33,23 @@ _Pragma( STRINGIFY(unroll(max_buffer_size)) )                                   
         if (('a' <= ch && ch <= 'z') || ('A' <= ch && ch <= 'Z') || ('0' <= ch && ch <= '9') || ch == '.' || ch == '_' || ch == '-') {  \
             continue;                                                                                                                   \
         }                                                                                                                               \
+        /* The above check is actually redundant for the printable_ok case, but removing it leads */                                    \
+        /* to some compiler optimizations which the verifier doesn't agree with. */                                                     \
+        if (printable_ok && (ch >= ' ' && ch <= '~')) {                                                                                 \
+            continue;                                                                                                                   \
+        }                                                                                                                               \
         return false;                                                                                                                   \
     }                                                                                                                                   \
     return true;
+
+#define CHECK_STRING_VALID_TOPIC_NAME(max_buffer_size, real_size, buffer)   \
+    CHECK_STRING_COMPOSED_OF_ASCII(max_buffer_size, real_size, buffer, false)
+
+// The client ID actually allows any UTF-8 chars but we restrict it to printable ASCII characters
+// for now to avoid false positives.
+#define CHECK_STRING_VALID_CLIENT_ID(max_buffer_size, real_size, buffer)   \
+    CHECK_STRING_COMPOSED_OF_ASCII(max_buffer_size, real_size, buffer, true)
+
 
 // Reads the client id (up to CLIENT_ID_SIZE_TO_VALIDATE bytes from the given offset), and verifies if it is valid,
 // namely, composed only from characters from [a-zA-Z0-9._-].
@@ -50,7 +65,7 @@ static __always_inline bool is_valid_client_id(struct __sk_buff *skb, u32 offset
     bpf_skb_load_bytes_with_telemetry(skb, offset, (char *)client_id, CLIENT_ID_SIZE_TO_VALIDATE);
 
     // Returns true if client_id is composed out of the characters [a-z], [A-Z], [0-9], ".", "_", or "-".
-    CHECK_STRING_COMPOSED_OF_ASCII(CLIENT_ID_SIZE_TO_VALIDATE, real_client_id_size, client_id);
+    CHECK_STRING_VALID_CLIENT_ID(CLIENT_ID_SIZE_TO_VALIDATE, real_client_id_size, client_id);
 }
 
 // Checks the given kafka header represents a valid one.
@@ -122,7 +137,7 @@ static __always_inline bool validate_first_topic_name(struct __sk_buff *skb, u32
     read_into_buffer_topic_name((char *)topic_name, skb, offset);
     offset += topic_name_size;
 
-    CHECK_STRING_COMPOSED_OF_ASCII(TOPIC_NAME_MAX_STRING_SIZE_TO_VALIDATE, topic_name_size, topic_name);
+    CHECK_STRING_VALID_TOPIC_NAME(TOPIC_NAME_MAX_STRING_SIZE_TO_VALIDATE, topic_name_size, topic_name);
 }
 
 // Getting the offset (out parameter) of the first topic name in the produce request.

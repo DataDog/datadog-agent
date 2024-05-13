@@ -48,7 +48,7 @@ While you can register multiple callbacks from the same component, keep all the 
 
 ### Register your callback
 
-Now you need to register you callback to be called each time a flare is created. To do so your component constructor need to provide a new `comp/core/flare/helpers:Provider`. Use `comp/core/flare/helpers:NewProvider` for this.
+Now you need to register your callback to be called each time a flare is created. To do so your component constructor need to provide a new `comp/core/flare/helpers:Provider`. Use `comp/core/flare/helpers:NewProvider` for this.
 
 Example:
 ```golang

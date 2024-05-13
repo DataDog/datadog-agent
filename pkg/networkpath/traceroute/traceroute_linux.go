@@ -8,9 +8,11 @@
 package traceroute
 
 import (
+	"context"
 	"encoding/json"
 
 	dd_config "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
 	"github.com/DataDog/datadog-agent/pkg/process/net"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -28,28 +30,29 @@ type LinuxTraceroute struct {
 
 // New creates a new instance of LinuxTraceroute
 // based on an input configuration
-func New(cfg Config) *LinuxTraceroute {
+func New(cfg Config) (*LinuxTraceroute, error) {
 	return &LinuxTraceroute{
 		cfg: cfg,
-	}
+	}, nil
 }
 
 // Run executes a traceroute
-func (l *LinuxTraceroute) Run() (NetworkPath, error) {
+func (l *LinuxTraceroute) Run(_ context.Context) (payload.NetworkPath, error) {
 	tu, err := net.GetRemoteSystemProbeUtil(
 		dd_config.SystemProbe.GetString("system_probe_config.sysprobe_socket"))
 	if err != nil {
 		log.Warnf("could not initialize system-probe connection: %s", err.Error())
-		return NetworkPath{}, err
-	}
-	resp, err := tu.GetTraceroute(clientID, l.cfg.DestHostname, l.cfg.DestPort, l.cfg.MaxTTL, l.cfg.TimeoutMs)
-	if err != nil {
-		return NetworkPath{}, err
+		return payload.NetworkPath{}, err
 	}
 
-	var path NetworkPath
+	resp, err := tu.GetTraceroute(clientID, l.cfg.DestHostname, l.cfg.DestPort, l.cfg.MaxTTL, l.cfg.TimeoutMs)
+	if err != nil {
+		return payload.NetworkPath{}, err
+	}
+
+	var path payload.NetworkPath
 	if err := json.Unmarshal(resp, &path); err != nil {
-		return NetworkPath{}, err
+		return payload.NetworkPath{}, err
 	}
 
 	return path, nil

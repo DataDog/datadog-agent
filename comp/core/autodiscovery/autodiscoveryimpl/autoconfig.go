@@ -8,12 +8,17 @@ package autodiscoveryimpl
 
 import (
 	"context"
+	"encoding/json"
+	"net/http"
+	"sort"
 	"sync"
 	"time"
 
 	"go.uber.org/atomic"
 	"go.uber.org/fx"
 
+	"github.com/DataDog/datadog-agent/comp/api/api"
+	"github.com/DataDog/datadog-agent/comp/api/api/utils"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/listeners"
@@ -26,6 +31,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -46,6 +52,7 @@ type dependencies struct {
 	Log        logComp.Component
 	TaggerComp tagger.Component
 	Secrets    secrets.Component
+	WMeta      optional.Option[workloadmeta.Component]
 }
 
 // AutoConfig implements the agent's autodiscovery mechanism.  It is
@@ -67,6 +74,7 @@ type AutoConfig struct {
 	serviceListenerFactories map[string]listeners.ServiceListenerFactory
 	providerCatalog          map[string]providers.ConfigProviderFactory
 	started                  bool
+	wmeta                    optional.Option[workloadmeta.Component]
 
 	// m covers the `configPollers`, `listenerCandidates`, `listeners`, and `listenerRetryStop`, but
 	// not the values they point to.
@@ -81,6 +89,7 @@ type provides struct {
 
 	Comp           autodiscovery.Component
 	StatusProvider status.InformationProvider
+	Endpoint       api.AgentEndpointProvider
 }
 
 // Module defines the fx options for this component.
@@ -96,6 +105,8 @@ func newProvides(deps dependencies) provides {
 	return provides{
 		Comp:           c,
 		StatusProvider: status.NewInformationProvider(autodiscoveryStatus.GetProvider(c)),
+
+		Endpoint: api.NewAgentEndpointProvider(c.(*AutoConfig).writeConfigCheck, "/config-check", "GET"),
 	}
 }
 
@@ -112,7 +123,7 @@ func (l *listenerCandidate) try() (listeners.ServiceListener, error) {
 
 // newAutoConfig creates an AutoConfig instance and starts it.
 func newAutoConfig(deps dependencies) autodiscovery.Component {
-	ac := createNewAutoConfig(scheduler.NewMetaScheduler(), deps.Secrets)
+	ac := createNewAutoConfig(scheduler.NewMetaScheduler(), deps.Secrets, deps.WMeta)
 	deps.Lc.Append(fx.Hook{
 		OnStart: func(c context.Context) error {
 			ac.Start()
@@ -127,7 +138,7 @@ func newAutoConfig(deps dependencies) autodiscovery.Component {
 }
 
 // createNewAutoConfig creates an AutoConfig instance (without starting).
-func createNewAutoConfig(scheduler *scheduler.MetaScheduler, secretResolver secrets.Component) *AutoConfig {
+func createNewAutoConfig(scheduler *scheduler.MetaScheduler, secretResolver secrets.Component, wmeta optional.Option[workloadmeta.Component]) *AutoConfig {
 	cfgMgr := newReconcilingConfigManager(secretResolver)
 	ac := &AutoConfig{
 		configPollers:            make([]*configPoller, 0, 9),
@@ -144,6 +155,7 @@ func createNewAutoConfig(scheduler *scheduler.MetaScheduler, secretResolver secr
 		serviceListenerFactories: make(map[string]listeners.ServiceListenerFactory),
 		providerCatalog:          make(map[string]providers.ConfigProviderFactory),
 		started:                  false,
+		wmeta:                    wmeta,
 	}
 	return ac
 }
@@ -199,11 +211,33 @@ func (ac *AutoConfig) checkTagFreshness(ctx context.Context) {
 	}
 }
 
+func (ac *AutoConfig) writeConfigCheck(w http.ResponseWriter, _ *http.Request) {
+	var response integration.ConfigCheckResponse
+
+	configSlice := ac.LoadedConfigs()
+	sort.Slice(configSlice, func(i, j int) bool {
+		return configSlice[i].Name < configSlice[j].Name
+	})
+	response.Configs = configSlice
+	response.ResolveWarnings = GetResolveWarnings()
+	response.ConfigErrors = GetConfigErrors()
+	response.Unresolved = ac.GetUnresolvedTemplates()
+
+	jsonConfig, err := json.Marshal(response)
+	if err != nil {
+		utils.SetJSONError(w, log.Errorf("Unable to marshal config check response: %s", err), 500)
+		return
+	}
+
+	w.Write(jsonConfig)
+
+}
+
 // Start will listen to the service channels before anything is sent to them
 // Usually, Start and Stop methods should not be in the component interface as it should be handled using Lifecycle hooks.
 // We make exceptions here because we need to disable it at runtime.
 func (ac *AutoConfig) Start() {
-	listeners.RegisterListeners(ac.serviceListenerFactories)
+	listeners.RegisterListeners(ac.serviceListenerFactories, ac.wmeta)
 	providers.RegisterProviders(ac.providerCatalog)
 	setupAcErrors()
 	ac.started = true
@@ -600,6 +634,7 @@ type optionalModuleDeps struct {
 	Log        logComp.Component
 	TaggerComp optional.Option[tagger.Component]
 	Secrets    secrets.Component
+	WMeta      optional.Option[workloadmeta.Component]
 }
 
 // OptionalModule defines the fx options when ac should be used as an optional and not started
@@ -617,5 +652,5 @@ func newOptionalAutoConfig(deps optionalModuleDeps) optional.Option[autodiscover
 		return optional.NewNoneOption[autodiscovery.Component]()
 	}
 	return optional.NewOption[autodiscovery.Component](
-		createNewAutoConfig(scheduler.NewMetaScheduler(), deps.Secrets))
+		createNewAutoConfig(scheduler.NewMetaScheduler(), deps.Secrets, deps.WMeta))
 }

@@ -16,7 +16,6 @@ import (
 	"golang.org/x/sys/windows"
 
 	"github.com/cenkalti/backoff"
-	"github.com/clbanning/mxj"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/decoder"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/framer"
@@ -25,25 +24,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/processor"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	status "github.com/DataDog/datadog-agent/pkg/logs/status/utils"
+	"github.com/DataDog/datadog-agent/pkg/logs/util/windowsevent"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/strings"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/api"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/api/windows"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/bookmark"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/subscription"
-)
-
-const (
-	binaryPath  = "Event.EventData.Binary"
-	dataPath    = "Event.EventData.Data"
-	taskPath    = "Event.System.Task"
-	opcode      = "Event.System.Opcode"
-	eventIDPath = "Event.System.EventID"
-	// Custom path, not a Microsoft path
-	eventIDQualifierPath = "Event.System.EventIDQualifier"
-	maxMessageBytes      = 128 * 1024 // 128 kB
-	truncatedFlag        = "...TRUNCATED..."
 )
 
 // Config is a event log tailer configuration
@@ -52,53 +39,6 @@ type Config struct {
 	Query       string
 	// See LogsConfig.ShouldProcessRawMessage() comment.
 	ProcessRawMessage bool
-}
-
-// eventContext links go and c
-type eventContext struct {
-	id int
-}
-
-// WindowsEventMessage is used by the tailer to store the structured log information.
-// The message from the log is in the "message" key.
-type WindowsEventMessage struct { //nolint:revive
-	data mxj.Map
-}
-
-// Render renders the structured log information into JSON, for further encoding before
-// being sent to the intake.
-func (m *WindowsEventMessage) Render() ([]byte, error) {
-	data, err := m.data.Json(false)
-	if err != nil {
-		return nil, err
-	}
-	log.Trace("Rendered JSON in structured message:", string(data))
-	return replaceTextKeyToValue(data), nil
-}
-
-// GetContent returns the content part of the structured log.
-func (m *WindowsEventMessage) GetContent() []byte {
-	if message, exists := m.data["message"]; exists {
-		return []byte(message.(string))
-	}
-	log.Error("WindowsEventMessage not containing any message")
-	return []byte{}
-}
-
-// SetContent sets the content part of the structured log.
-func (m *WindowsEventMessage) SetContent(content []byte) {
-	// we want to store it typed as a string for the json
-	// marshaling to properly marshal it as a string.
-	_ = m.data.SetValueForPath(string(content), "message")
-}
-
-// richEvent carries rendered information to create a richer log
-type richEvent struct {
-	xmlEvent string
-	message  string
-	task     string
-	opcode   string
-	level    string
 }
 
 // Tailer collects logs from Windows Event Log using a pull subscription
@@ -146,8 +86,8 @@ func (t *Tailer) Identifier() string {
 	return Identifier(t.config.ChannelPath, t.config.Query)
 }
 
-func (t *Tailer) toMessage(re *richEvent) (*message.Message, error) {
-	return eventToMessage(re, t.source, t.config.ProcessRawMessage)
+func (t *Tailer) toMessage(m *windowsevent.Map) (*message.Message, error) {
+	return windowsevent.MapToMessage(m, t.source, t.config.ProcessRawMessage)
 }
 
 // Start starts tailing the event log.
@@ -301,19 +241,33 @@ func (t *Tailer) eventLoop(ctx context.Context) {
 
 func (t *Tailer) handleEvent(eventRecordHandle evtapi.EventRecordHandle) {
 
-	richEvt := t.enrichEvent(eventRecordHandle)
-	if richEvt == nil {
+	xmlData, err := t.evtapi.EvtRenderEventXml(eventRecordHandle)
+	if err != nil {
+		log.Warnf("Error rendering xml: %v", err)
+		return
+	}
+	xml := windows.UTF16ToString(xmlData)
+
+	m, err := windowsevent.NewMapXML([]byte(xml))
+	if err != nil {
+		log.Warnf("Error creating map from xml: %v", err)
 		return
 	}
 
-	err := t.bookmark.Update(eventRecordHandle)
+	err = t.enrichEvent(m, eventRecordHandle)
 	if err != nil {
-		log.Warnf("Failed to update bookmark: %v, to event %s", err, richEvt.xmlEvent)
+		log.Warnf("%v", err)
+		return
 	}
 
-	msg, err := t.toMessage(richEvt)
+	err = t.bookmark.Update(eventRecordHandle)
 	if err != nil {
-		log.Warnf("Failed to convert xml to json: %v for event %s", err, richEvt.xmlEvent)
+		log.Warnf("Failed to update bookmark: %v, to event %s", err, xml)
+	}
+
+	msg, err := t.toMessage(m)
+	if err != nil {
+		log.Warnf("Failed to convert xml to json: %v for event %s", err, xml)
 		return
 	}
 
@@ -324,61 +278,34 @@ func (t *Tailer) handleEvent(eventRecordHandle evtapi.EventRecordHandle) {
 		msg.Origin.Offset = offset
 		t.sub.SetBookmark(t.bookmark)
 	} else {
-		log.Warnf("Failed to render bookmark: %v for event %s", err, richEvt.xmlEvent)
+		log.Warnf("Failed to render bookmark: %v for event %s", err, xml)
 	}
 
 	t.source.RecordBytes(int64(len(msg.GetContent())))
 	t.decoder.InputChan <- msg
 }
 
-// enrichEvent renders event record fields using (EvtRender, EvtFormatMessage)
-func (t *Tailer) enrichEvent(event evtapi.EventRecordHandle) *richEvent {
-	xmlData, err := t.evtapi.EvtRenderEventXml(event)
-	if err != nil {
-		log.Warnf("Error rendering xml: %v", err)
-		return nil
-	}
-	xml := windows.UTF16ToString(xmlData)
+// enrichEvent renders event record fields using EvtFormatMessage and adds them to the map.
+func (t *Tailer) enrichEvent(m *windowsevent.Map, event evtapi.EventRecordHandle) error {
 
 	vals, err := t.evtapi.EvtRenderEventValues(t.systemRenderContext, event)
 	if err != nil {
-		log.Warnf("Error rendering event values: %v", err)
-		return nil
+		return fmt.Errorf("Error rendering event values: %v", err)
 	}
 	defer vals.Close()
 
 	providerName, err := vals.String(evtapi.EvtSystemProviderName)
 	if err != nil {
-		log.Warnf("Failed to get provider name: %v", err)
-		return nil
+		return fmt.Errorf("Failed to get provider name: %v", err)
 	}
 
 	pm, err := t.evtapi.EvtOpenPublisherMetadata(providerName, "")
 	if err != nil {
-		log.Warnf("Failed to get publisher metadata for provider '%s': %v", providerName, err)
-		return nil
+		return fmt.Errorf("Failed to get publisher metadata for provider '%s': %v", providerName, err)
 	}
 	defer evtapi.EvtClosePublisherMetadata(t.evtapi, pm)
 
-	var message, task, opcode, level string
+	windowsevent.AddRenderedInfoToMap(m, t.evtapi, pm, event)
 
-	message, _ = t.evtapi.EvtFormatMessage(pm, event, 0, nil, evtapi.EvtFormatMessageEvent)
-	task, _ = t.evtapi.EvtFormatMessage(pm, event, 0, nil, evtapi.EvtFormatMessageTask)
-	opcode, _ = t.evtapi.EvtFormatMessage(pm, event, 0, nil, evtapi.EvtFormatMessageOpcode)
-	level, _ = t.evtapi.EvtFormatMessage(pm, event, 0, nil, evtapi.EvtFormatMessageLevel)
-
-	// Truncates the message. Messages with more than 128kB are likely to be bigger
-	// than 256kB when serialized and then dropped
-	if len(message) > maxMessageBytes {
-		message = strings.TruncateUTF8(message, maxMessageBytes)
-		message = message + truncatedFlag
-	}
-
-	return &richEvent{
-		xmlEvent: xml,
-		message:  message,
-		task:     task,
-		opcode:   opcode,
-		level:    level,
-	}
+	return nil
 }

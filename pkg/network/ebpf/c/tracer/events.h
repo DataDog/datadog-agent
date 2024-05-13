@@ -73,15 +73,15 @@ static __always_inline void cleanup_conn(void *ctx, conn_tuple_t *tup, struct so
     }
 
     cst = bpf_map_lookup_elem(&conn_stats, &(conn.tup));
-    if (is_udp && !cst) {
-        increment_telemetry_count(udp_dropped_conns);
-        return; // nothing to report
-    }
 
     if (cst) {
         conn.conn_stats = *cst;
         bpf_map_delete_elem(&conn_stats, &(conn.tup));
     } else {
+        if (is_udp) {
+            increment_telemetry_count(udp_dropped_conns);
+            return; // nothing to report
+        }
         // we don't have any stats for the connection,
         // so cookie is not set, set it here
         conn.conn_stats.cookie = get_sk_cookie(sk);
@@ -89,7 +89,12 @@ static __always_inline void cleanup_conn(void *ctx, conn_tuple_t *tup, struct so
         determine_connection_direction(&conn.tup, &conn.conn_stats);
     }
 
-    conn.conn_stats.timestamp = bpf_ktime_get_ns();
+    // update the `duration` field to reflect the duration of the
+    // connection; `duration` had the creation timestamp for
+    // the conn_stats_ts_t object up to now. we re-use this field
+    // for the duration since we would overrun stack size limits
+    // if we added another field
+    conn.conn_stats.duration = bpf_ktime_get_ns() - conn.conn_stats.duration;
 
     // Batch TCP closed connections before generating a perf event
     batch_t *batch_ptr = bpf_map_lookup_elem(&conn_close_batch, &cpu);

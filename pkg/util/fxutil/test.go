@@ -37,6 +37,7 @@ func Test[T any](t testing.TB, opts ...fx.Option) T {
 
 	app := fxtest.New(
 		t,
+		fx.Provide(newFxLifecycleAdapter),
 		fx.Supply(fx.Annotate(t, fx.As(new(testing.TB)))),
 		delayed.option(),
 		fx.Options(opts...),
@@ -66,6 +67,7 @@ func TestApp[T any](opts ...fx.Option) (*fx.App, T, error) {
 
 	app := fx.New(
 		delayed.option(),
+		fx.Provide(newFxLifecycleAdapter),
 		fx.Options(opts...),
 	)
 	var err error
@@ -98,6 +100,7 @@ func TestStart(t testing.TB, opts fx.Option, appAssert appAssertFn, fn interface
 	delayed := newDelayedFxInvocation(fn)
 	app := fx.New(
 		fx.Supply(fx.Annotate(t, fx.As(new(testing.TB)))),
+		fx.Provide(newFxLifecycleAdapter),
 		delayed.option(),
 		opts,
 	)
@@ -144,8 +147,8 @@ func TestOneShotSubcommand(
 	subcommands []*cobra.Command,
 	commandline []string,
 	expectedOneShotFunc interface{},
-	verifyFn interface{}) {
-
+	verifyFn interface{},
+) {
 	var oneShotRan bool
 	fxAppTestOverride = func(oneShotFunc interface{}, opts []fx.Option) error {
 		oneShotRan = true
@@ -161,11 +164,13 @@ func TestOneShotSubcommand(
 		require.NoError(t,
 			fx.ValidateApp(
 				append(opts,
+					fx.Provide(newFxLifecycleAdapter),
 					fx.Invoke(oneShotFunc))...))
 
 		// build an app without the oneShotFunc, and with verifyFn
 		app := fxtest.New(t,
 			append(opts,
+				fx.Provide(newFxLifecycleAdapter),
 				fx.Supply(fx.Annotate(t, fx.As(new(testing.TB)))),
 				fx.Invoke(verifyFn))...)
 		defer app.RequireStart().RequireStop()
@@ -197,6 +202,7 @@ func TestOneShot(t *testing.T, fct func()) {
 		require.NoError(t,
 			fx.ValidateApp(
 				append(opts,
+					fx.Provide(newFxLifecycleAdapter),
 					fx.Invoke(oneShotFunc))...))
 		return nil
 	}
@@ -229,6 +235,7 @@ func TestBundle(t *testing.T, bundle BundleOptions, extraOptions ...fx.Option) {
 		invoke,
 		bundle,
 		fx.Options(extraOptions...),
+		fx.Provide(newFxLifecycleAdapter),
 		fx.Supply(fx.Annotate(t, fx.As(new(testing.TB)))),
 	))
 }
@@ -281,8 +288,6 @@ func getComponents(t *testing.T, mainType reflect.Type) []reflect.Type {
 	}
 	return nil
 }
-
-var fxOutType = reflect.TypeOf((*fx.Out)(nil)).Elem()
 
 func isFxOutType(t reflect.Type) bool {
 	if t.Kind() == reflect.Struct {

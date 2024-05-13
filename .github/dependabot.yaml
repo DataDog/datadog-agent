@@ -143,7 +143,7 @@ updates:
     milestone: 22
     ignore:
       # Ignore test-infra-definitions because bumping the GO package inside `go.mod`
-      # requires to also bump `TEST_INFRA_DEFINITIONS_BUILDIMAGES` inside `.gitlab-ci.yml`
+      # requires to also bump `TEST_INFRA_DEFINITIONS_BUILDIMAGES` inside `.gitlab/common/test_infra_version.yml`
       # and dependabot isn’t able to keep those two synchronized.
       - dependency-name: github.com/DataDog/test-infra-definitions
     schedule:
@@ -192,7 +192,7 @@ updates:
     labels:
       - dependencies
       - dependencies-github-actions
-      - team/agent-platform
+      - team/agent-ci-experience
       - changelog/no-changelog
       - qa/no-code-change
       - dev/tooling
