@@ -226,6 +226,13 @@ new-e2e-npm:
   variables:
     TARGETS: ./tests/npm
     TEAM: network-performance-monitoring
+  parallel:
+    matrix:
+      - EXTRA_PARAMS: --run TestEC2VMSuite
+      - EXTRA_PARAMS: --run TestEC2VMContainerizedSuite
+      - EXTRA_PARAMS: --run TestEC2VMSELinuxSuite
+      - EXTRA_PARAMS: --run TestEC2VMWKitSuite
+      - EXTRA_PARAMS: --run TestECSVMSuite
 
 new-e2e-aml:
   extends: .new_e2e_template_needs_deb_windows_x64
