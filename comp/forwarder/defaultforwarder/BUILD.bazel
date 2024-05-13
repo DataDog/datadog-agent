@@ -27,6 +27,7 @@ go_library(
         "//comp/core/log",
         "//comp/core/status",
         "//comp/forwarder/defaultforwarder/endpoints",
+        "//comp/forwarder/defaultforwarder/internal/retry",  # keep: For some reason gazelle can't figure this one out
         "//comp/forwarder/defaultforwarder/resolver",
         "//comp/forwarder/defaultforwarder/transaction",
         "//pkg/config/setup",
