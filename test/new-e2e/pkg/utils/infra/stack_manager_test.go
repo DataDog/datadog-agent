@@ -45,7 +45,7 @@ func TestStackManager(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("should-succeed-on-successful-run-function", func(t *testing.T) {
-		// t.Parallel()
+		t.Parallel()
 		t.Log("Should succeed on successful run function")
 		mockWriter := &mockWriter{
 			logs: []string{},
@@ -54,17 +54,12 @@ func TestStackManager(t *testing.T) {
 			events: []datadogV1.EventCreateRequest{},
 		}
 		stackName := "test-successful"
-		t.Log("Creating stack")
 		stack, result, err := stackManager.GetStackNoDeleteOnFailure(ctx, stackName, nil, func(ctx *pulumi.Context) error {
-			t.Log("Running stack up")
 			return nil
 		}, false, mockWriter, mockDatadogEventSender)
-		t.Log("Created stack")
-		t.Log("ERR: ", err)
 		require.NoError(t, err)
 		require.NotNil(t, stack)
 		defer func() {
-			t.Log("Deleting stack")
 			err := stackManager.DeleteStack(ctx, stackName, mockWriter)
 			require.NoError(t, err)
 		}()
