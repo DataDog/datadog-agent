@@ -18,10 +18,10 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common/path"
 	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
-	"github.com/DataDog/datadog-agent/comp/api/api/apiimpl/response"
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/autodiscoveryimpl"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/settings"
 	"github.com/DataDog/datadog-agent/comp/core/status"
@@ -179,7 +179,7 @@ func makeFlare(w http.ResponseWriter, r *http.Request, senderManager sender.Diag
 
 //nolint:revive // TODO(CINT) Fix revive linter
 func getConfigCheck(w http.ResponseWriter, r *http.Request, ac autodiscovery.Component) {
-	var response response.ConfigCheckResponse
+	var response integration.ConfigCheckResponse
 
 	configSlice := ac.LoadedConfigs()
 	sort.Slice(configSlice, func(i, j int) bool {

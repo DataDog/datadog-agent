@@ -59,6 +59,10 @@ def running_in_circleci():
     return os.environ.get("CIRCLECI") == "true"
 
 
+def running_in_ci():
+    return running_in_circleci() or running_in_github_actions() or running_in_gitlab_ci()
+
+
 def bin_name(name):
     """
     Generate platform dependent names for binaries
@@ -700,3 +704,18 @@ def is_pr_context(branch, pr_id, test_name):
         print(f"PR not found, skipping check for {test_name}.")
         return False
     return True
+
+
+@contextmanager
+def collapsed_section(section_name):
+    section_id = section_name.replace(" ", "_")
+    in_ci = running_in_gitlab_ci()
+    try:
+        if in_ci:
+            print(
+                f"\033[0Ksection_start:{int(time.time())}:{section_id}[collapsed=true]\r\033[0K{section_name + '...'}"
+            )
+        yield
+    finally:
+        if in_ci:
+            print(f"\033[0Ksection_end:{int(time.time())}:{section_id}\r\033[0K")

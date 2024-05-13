@@ -368,6 +368,8 @@ func (r *secretResolver) processSecretResponse(secretResponse map[string]string,
 			continue
 		}
 
+		log.Debugf("Secret %s has changed", handle)
+
 		places := make([]handlePlace, 0, len(r.origin[handle]))
 		for _, secretCtx := range r.origin[handle] {
 			for _, sub := range r.subscriptions {

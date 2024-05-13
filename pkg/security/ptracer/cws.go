@@ -16,6 +16,7 @@ import (
 	"net"
 	"os"
 	"os/exec"
+	"os/signal"
 	"path/filepath"
 	"sync"
 	"syscall"
@@ -216,6 +217,16 @@ func StartCWSPtracer(args []string, envs []string, probeAddr string, opts Opts) 
 	if err != nil {
 		return err
 	}
+
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan,
+		syscall.SIGINT,
+		syscall.SIGTERM,
+		syscall.SIGQUIT)
+	go func() {
+		<-sigChan
+		_ = syscall.Kill(tracer.PID, syscall.SIGTERM)
+	}()
 
 	var (
 		msgDataChan    = make(chan []byte, 100000)

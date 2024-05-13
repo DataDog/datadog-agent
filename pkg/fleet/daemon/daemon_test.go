@@ -27,6 +27,11 @@ type testPackageManager struct {
 	mock.Mock
 }
 
+func (m *testPackageManager) IsInstalled(ctx context.Context, pkg string) (bool, error) {
+	args := m.Called(ctx, pkg)
+	return args.Bool(0), args.Error(1)
+}
+
 func (m *testPackageManager) State(pkg string) (repository.State, error) {
 	args := m.Called(pkg)
 	return args.Get(0).(repository.State), args.Error(1)
@@ -45,6 +50,10 @@ func (m *testPackageManager) Install(ctx context.Context, url string) error {
 func (m *testPackageManager) Remove(ctx context.Context, pkg string) error {
 	args := m.Called(ctx, pkg)
 	return args.Error(0)
+}
+
+func (m *testPackageManager) Purge(_ context.Context) {
+	panic("not implemented")
 }
 
 func (m *testPackageManager) InstallExperiment(ctx context.Context, url string) error {
