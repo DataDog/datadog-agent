@@ -62,6 +62,7 @@ message ClientStatsBucket {
 	int64 agentTimeShift = 4;
 }
 
+// Trilean is an expanded boolean type that is meant to differentiate between being unset and false.
 enum Trilean {
 	NOT_SET = 0;
 	TRUE = 1;

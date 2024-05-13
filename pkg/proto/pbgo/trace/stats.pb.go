@@ -20,6 +20,7 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
+// Trilean is an expanded boolean type that is meant to differentiate between being unset and false.
 type Trilean int32
 
 const (
