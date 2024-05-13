@@ -15,6 +15,11 @@ from time import perf_counter
 from invoke import Context
 
 DD_INVOKE_LOGS_PATH = "/tmp/dd_invoke.log"
+if sys.platform == 'win32':
+    try:
+        DD_INVOKE_LOGS_PATH = f"{os.environ['TEMP']}\\dd_invoke.log"
+    except Exception as e:
+        print(f"Warning: couldn't set the DD_INVOKE_LOGS_PATH (error: {e})", file=sys.stderr)
 
 
 def log_invoke_task(name: str, module: str, task_datetime: str, duration: float, task_result: str) -> None:
