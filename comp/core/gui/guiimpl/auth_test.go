@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/dev/test/github.com/stretchr/testify/require"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestAuthenticator(t *testing.T) {
@@ -76,9 +76,9 @@ func TestAuthenticator(t *testing.T) {
 			err := auth.ValidateToken(tt.token)
 
 			if tt.errMsg == "" {
-				require.NoError(t, err)
+				assert.NoError(t, err)
 			} else {
-				require.ErrorContains(t, err, tt.errMsg)
+				assert.ErrorContains(t, err, tt.errMsg)
 			}
 		})
 	}
