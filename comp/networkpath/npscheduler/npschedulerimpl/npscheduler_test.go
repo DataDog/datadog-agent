@@ -61,6 +61,7 @@ func Test_NpScheduler_StartAndStop(t *testing.T) {
 }
 
 func Test_NpScheduler_runningAndProcessing(t *testing.T) {
+	// GIVEN
 	sysConfigs := map[string]any{
 		"network_path.enabled":        true,
 		"network_path.flush_interval": "1s",
@@ -74,20 +75,33 @@ func Test_NpScheduler_runningAndProcessing(t *testing.T) {
 	assert.True(t, npScheduler.running)
 
 	npScheduler.runTraceroute = func(cfg traceroute.Config) (payload.NetworkPath, error) {
-		return payload.NetworkPath{
-			Source:      payload.NetworkPathSource{Hostname: "abc"},
-			Destination: payload.NetworkPathDestination{Hostname: "abc", IPAddress: "1.2.3.4"},
-			Hops: []payload.NetworkPathHop{
-				{Hostname: "hop_1", IPAddress: "1.1.1.1"},
-				{Hostname: "hop_2", IPAddress: "1.1.1.2"},
-			},
-		}, nil
+		var p payload.NetworkPath
+		if cfg.DestHostname == "127.0.0.2" {
+			p = payload.NetworkPath{
+				Source:      payload.NetworkPathSource{Hostname: "abc"},
+				Destination: payload.NetworkPathDestination{Hostname: "abc", IPAddress: "127.0.0.2"},
+				Hops: []payload.NetworkPathHop{
+					{Hostname: "hop_1", IPAddress: "1.1.1.1"},
+					{Hostname: "hop_2", IPAddress: "1.1.1.2"},
+				},
+			}
+		}
+		if cfg.DestHostname == "127.0.0.4" {
+			p = payload.NetworkPath{
+				Source:      payload.NetworkPathSource{Hostname: "abc"},
+				Destination: payload.NetworkPathDestination{Hostname: "abc", IPAddress: "127.0.0.4"},
+				Hops: []payload.NetworkPathHop{
+					{Hostname: "hop_1", IPAddress: "1.1.1.3"},
+					{Hostname: "hop_2", IPAddress: "1.1.1.4"},
+				},
+			}
+		}
+		return p, nil
 	}
 
 	// EXPECT
-
 	// language=json
-	metadataEvent := []byte(`
+	event1 := []byte(`
 {
     "timestamp": 0,
     "namespace": "",
@@ -99,7 +113,7 @@ func Test_NpScheduler_runningAndProcessing(t *testing.T) {
     },
     "destination": {
         "hostname": "abc",
-        "ip_address": "1.2.3.4",
+        "ip_address": "127.0.0.2",
         "port": 0
     },
     "hops": [
@@ -121,11 +135,50 @@ func Test_NpScheduler_runningAndProcessing(t *testing.T) {
     "tags": null
 }
 `)
-	compactMetadataEvent := new(bytes.Buffer)
-	err := json.Compact(compactMetadataEvent, metadataEvent)
-	assert.NoError(t, err)
+	// language=json
+	event2 := []byte(`
+{
+    "timestamp": 0,
+    "namespace": "",
+    "path_id": "",
+    "source": {
+        "hostname": "abc",
+        "via": null,
+        "network_id": ""
+    },
+    "destination": {
+        "hostname": "abc",
+        "ip_address": "127.0.0.4",
+        "port": 0
+    },
+    "hops": [
+        {
+            "ttl": 0,
+            "ip_address": "1.1.1.3",
+            "hostname": "hop_1",
+            "rtt": 0,
+            "success": false
+        },
+        {
+            "ttl": 0,
+            "ip_address": "1.1.1.4",
+            "hostname": "hop_2",
+            "rtt": 0,
+            "success": false
+        }
+    ],
+    "tags": null
+}
+`)
+	mockEpForwarder.EXPECT().SendEventPlatformEventBlocking(
+		message.NewMessage(compactJson(event1), nil, "", 0),
+		eventplatform.EventTypeNetworkPath,
+	).Return(nil).Times(1)
 
-	mockEpForwarder.EXPECT().SendEventPlatformEventBlocking(message.NewMessage(compactMetadataEvent.Bytes(), nil, "", 0), eventplatform.EventTypeNetworkPath).Return(nil).Times(1)
+	mockEpForwarder.EXPECT().SendEventPlatformEventBlocking(
+		message.NewMessage(compactJson(event2), nil, "", 0),
+		eventplatform.EventTypeNetworkPath,
+	).Return(nil).Times(1)
 
 	// WHEN
 	conns := []*model.Connection{
@@ -134,17 +187,23 @@ func Test_NpScheduler_runningAndProcessing(t *testing.T) {
 			Raddr:     &model.Addr{Ip: "127.0.0.2", Port: int32(80)},
 			Direction: model.ConnectionDirection_outgoing,
 		},
-		//{
-		//	Laddr:     &model.Addr{Ip: "127.0.0.3", Port: int32(30000)},
-		//	Raddr:     &model.Addr{Ip: "127.0.0.4", Port: int32(80)},
-		//	Direction: model.ConnectionDirection_outgoing,
-		//},
+		{
+			Laddr:     &model.Addr{Ip: "127.0.0.3", Port: int32(30000)},
+			Raddr:     &model.Addr{Ip: "127.0.0.4", Port: int32(80)},
+			Direction: model.ConnectionDirection_outgoing,
+		},
 	}
 	npScheduler.ScheduleConns(conns)
 
 	waitForProcessedPathtests(npScheduler, 5*time.Second, 1)
 
 	app.RequireStop()
+}
+
+func compactJson(metadataEvent []byte) []byte {
+	compactMetadataEvent := new(bytes.Buffer)
+	json.Compact(compactMetadataEvent, metadataEvent)
+	return compactMetadataEvent.Bytes()
 }
 
 func Test_newNpSchedulerImpl_defaultConfigs(t *testing.T) {
