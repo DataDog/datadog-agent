@@ -131,8 +131,7 @@ class TestWasher:
         For example with the test ["TestEKSSuite/TestCPU/TestCPUUtilization", "TestKindSuite/TestCPU"]
         this method should return the set{"TestEKSSuite/TestCPU/TestCPUUtilization", "TestEKSSuite/TestCPU", "TestEKSSuite", "TestKindSuite/TestCPU", "TestKindSuite"}
         """
-        test_family = set()
-        test_family.update(test_name_list)
+        test_family = set(test_name_list)
         for test_name in test_name_list:
             while test_name.count('/') > 0:
                 test_name = test_name.rsplit('/', 1)[0]
