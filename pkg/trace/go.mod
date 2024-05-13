@@ -6,10 +6,8 @@ go 1.21.0
 // See https://github.com/DataDog/datadog-agent/blob/main/docs/dev/gomodreplace.md
 // for more details.
 
-// Internal deps fix version
-replace github.com/docker/distribution => github.com/docker/distribution v2.8.1+incompatible
-
 require (
+	github.com/docker/distribution v2.8.1+incompatible
 	github.com/DataDog/datadog-agent/pkg/obfuscate v0.54.0-rc.2
 	github.com/DataDog/datadog-agent/pkg/proto v0.54.0-rc.2
 	github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.54.0-rc.2
