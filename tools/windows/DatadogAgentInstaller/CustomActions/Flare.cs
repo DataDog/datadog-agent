@@ -69,7 +69,7 @@ namespace Datadog.CustomActions
                 { "log", log },
                 { "email", email },
                 { "apikey", apikey },
-                { "variant", "ng_windows_installer" }
+                { "variant", "windows_installer" }
             };
 
             _client.Post(uri, payload, new Dictionary<string, string>());
