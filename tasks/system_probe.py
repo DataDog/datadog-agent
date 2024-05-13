@@ -1281,7 +1281,7 @@ def run_ninja(
     target="",
     explain=False,
     major_version='7',
-    arch: str = CURRENT_ARCH,
+    arch: str | Arch = CURRENT_ARCH,
     kernel_release=None,
     debug=False,
     strip_object_files=False,
@@ -1420,6 +1420,7 @@ def build_object_files(
 def build_cws_object_files(
     ctx,
     major_version='7',
+    arch: str | Arch = CURRENT_ARCH,
     kernel_release=None,
     debug=False,
     strip_object_files=False,

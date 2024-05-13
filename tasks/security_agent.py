@@ -27,6 +27,7 @@ from tasks.libs.common.utils import (
     get_gopath,
     get_version,
 )
+from tasks.libs.types.arch import ARCH_AMD64, ARCH_I386, Arch, get_arch
 from tasks.process_agent import TempDir
 from tasks.system_probe import (
     CURRENT_ARCH,
@@ -328,7 +329,8 @@ def create_dir_if_needed(dir):
 
 
 @task
-def build_embed_syscall_tester(ctx, arch=CURRENT_ARCH, static=True):
+def build_embed_syscall_tester(ctx, arch: str | Arch = CURRENT_ARCH, static=True):
+    arch = get_arch(arch)
     check_for_ninja(ctx)
     build_dir = os.path.join("pkg", "security", "tests", "syscall_tester", "bin")
     go_dir = os.path.join("pkg", "security", "tests", "syscall_tester", "go")
@@ -337,11 +339,11 @@ def build_embed_syscall_tester(ctx, arch=CURRENT_ARCH, static=True):
     nf_path = os.path.join(ctx.cwd, 'syscall-tester.ninja')
     with open(nf_path, 'w') as ninja_file:
         nw = NinjaWriter(ninja_file, width=120)
-        ninja_define_ebpf_compiler(nw)
+        ninja_define_ebpf_compiler(nw, arch=arch)
         ninja_define_exe_compiler(nw)
 
         ninja_syscall_tester(nw, build_dir, static=static)
-        if arch == "x64":
+        if arch == ARCH_AMD64:
             ninja_syscall_x86_tester(nw, build_dir, static=static)
         ninja_ebpf_probe_syscall_tester(nw, go_dir)
 
@@ -354,6 +356,7 @@ def build_functional_tests(
     ctx,
     output='pkg/security/tests/testsuite',
     srcpath='pkg/security/tests',
+    arch: str | Arch = CURRENT_ARCH,
     major_version='7',
     build_tags='functionaltests',
     build_flags='',
@@ -368,14 +371,12 @@ def build_functional_tests(
     if not is_windows:
         if not skip_object_files:
             build_cws_object_files(
-                ctx,
-                major_version=major_version,
-                kernel_release=kernel_release,
-                debug=debug,
+                ctx, major_version=major_version, kernel_release=kernel_release, debug=debug, arch=arch
             )
         build_embed_syscall_tester(ctx)
 
-    ldflags, gcflags, env = get_build_flags(ctx, major_version=major_version, static=static)
+    arch = get_arch(arch)
+    ldflags, gcflags, env = get_build_flags(ctx, major_version=major_version, static=static, arch=arch)
 
     env["CGO_ENABLED"] = "1"
 
@@ -417,6 +418,7 @@ def build_functional_tests(
         "src_path": srcpath,
     }
 
+    print(env, arch)
     ctx.run(cmd.format(**args), env=env)
 
 
