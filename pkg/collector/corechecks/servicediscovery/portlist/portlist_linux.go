@@ -306,7 +306,7 @@ func (li *linuxImpl) findProcessNames(need map[string]*portMeta) error {
 			return nil
 		}
 
-		dirWalkShallow(mem.B(fdPath), func(fd mem.RO, de fs.DirEntry) error {
+		_ = dirWalkShallow(mem.B(fdPath), func(fd mem.RO, de fs.DirEntry) error {
 			targetBuf := make([]byte, 64) // plenty big for "socket:[165614651]"
 
 			linkPath := li.readlinkPathBuf[:0]

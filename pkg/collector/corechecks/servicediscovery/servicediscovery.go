@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package servicediscovery contains the Service Discovery corecheck.
 package servicediscovery
 
 import (
@@ -39,7 +40,6 @@ const (
 	heartbeatTime   = 15 * time.Minute
 )
 
-// Config holds the check configuration.
 type config struct {
 	IgnoreProcesses []string `yaml:"ignore_processes"`
 }
@@ -71,6 +71,7 @@ func (c *config) Parse(data []byte) error {
 	return nil
 }
 
+// Check reports discovered services.
 type Check struct {
 	corechecks.CheckBase
 	cfg *config

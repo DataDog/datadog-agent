@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package portlist provides functionality to fetch open ports in the current machine.
 package portlist
 
 import (
@@ -74,14 +75,17 @@ func (p *Poller) OpenPorts() (List, error) {
 	return p.os.ListeningPorts()
 }
 
+// Option is used to configure the Poller.
 type Option func(cfg *config)
 
+// WithIncludeLocalhost allows to include/exclude localhost ports (false by default).
 func WithIncludeLocalhost(includeLocalhost bool) Option {
 	return func(cfg *config) {
 		cfg.includeLocalhost = includeLocalhost
 	}
 }
 
+// WithProcMountPoint allows to change the proc filesystem mount point (this is used mainly in tests).
 func WithProcMountPoint(mountPoint string) Option {
 	return func(cfg *config) {
 		cfg.procMountPoint = filepath.Clean(mountPoint)
