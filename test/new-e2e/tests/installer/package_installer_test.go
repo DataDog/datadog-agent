@@ -17,7 +17,7 @@ type packageInstallerSuite struct {
 
 func testInstaller(os e2eos.Descriptor, arch e2eos.Architecture) packageSuite {
 	return &packageInstallerSuite{
-		packageBaseSuite: newPackageSuite("installer", os, arch, awshost.WithoutFakeIntake(), awshost.WithDocker()),
+		packageBaseSuite: newPackageSuite("installer", os, arch, awshost.WithoutFakeIntake()),
 	}
 }
 
