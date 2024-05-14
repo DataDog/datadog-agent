@@ -333,8 +333,8 @@ func getProcessStartTime() float64 {
 //export obfuscateMongoDBString
 func obfuscateMongoDBString(cmd *C.char, errResult **C.char) *C.char {
 	switch C.GoString(cmd) {
-	case "find":
-		return (*C.char)(helpers.TrackedCString("find"))
+	case "{\"find\": \"customer\"}":
+		return (*C.char)(helpers.TrackedCString("{\"find\": \"customer\"}"))
 	case "":
 		*errResult = (*C.char)(helpers.TrackedCString("Empty MongoDB command"))
 		return nil

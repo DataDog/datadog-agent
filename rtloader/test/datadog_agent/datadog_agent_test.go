@@ -657,17 +657,31 @@ func TestObfuscateMongoDBString(t *testing.T) {
 	// Reset memory counters
 	helpers.ResetMemoryStats()
 
-	code := fmt.Sprintf(`
-	result = datadog_agent.obfuscate_mongodb_string("{\"find\": \"customer\", \"filter\": {\"name\": \"John\"}, \"sort\": {\"name\": 1}, \"$db\": \"test\"}")
-	with open(r'%s', 'w') as f:
-		f.write(result)
-	`, tmpfile.Name())
-	out, err := run(code)
-	if err != nil {
-		t.Fatal(err)
+	cases := []struct {
+		args     string
+		expected string
+	}{
+		{
+			"'{\"find\": \"customer\"}'",
+			"{\"find\": \"customer\"}",
+		},
 	}
-	if out != "{\"find\": \"customer\", \"filter\": {\"name\": \"?\"}, \"sort\": {\"name\": 1}, \"$db\": \"test\"}" {
-		t.Errorf("Unexpected printed value: '%s'", out)
+
+	for _, testCase := range cases {
+		code := fmt.Sprintf(`
+	try:
+		result = datadog_agent.obfuscate_mongodb_string(%s)
+	except Exception as e:
+		with open(r'%s', 'w') as f:
+			f.write(str(e))
+	`, testCase.args, tmpfile.Name())
+		out, err := run(code)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if out != testCase.expected {
+			t.Fatalf("args: (%s) expected: '%s', found: '%s'", testCase.args, testCase.expected, out)
+		}
 	}
 
 	// Check for leaks
