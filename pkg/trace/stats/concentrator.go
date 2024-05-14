@@ -6,6 +6,7 @@
 package stats
 
 import (
+	_ "embed"
 	"sort"
 	"strings"
 	"sync"
@@ -55,37 +56,17 @@ type Concentrator struct {
 	statsd                 statsd.ClientInterface
 }
 
-var defaultPeerTags = []string{
-	"_dd.base_service",
-	"amqp.destination",
-	"amqp.exchange",
-	"amqp.queue",
-	"aws.queue.name",
-	"bucketname",
-	"cassandra.cluster",
-	"db.cassandra.contact.points",
-	"db.couchbase.seed.nodes",
-	"db.hostname",
-	"db.instance",
-	"db.name",
-	"db.system",
-	"hazelcast.instance",
-	"messaging.kafka.bootstrap.servers",
-	"mongodb.db",
-	"msmq.queue.path",
-	"net.peer.name",
-	"network.destination.name",
-	"peer.hostname",
-	"peer.service",
-	"queuename",
-	"rpc.service",
-	"rulename",
-	"server.address",
-	"statemachinename",
-	"streamname",
-	"tablename",
-	"topicname",
-}
+//go:embed peer_tags.csv
+var peer_tag_file string
+
+var defaultPeerTags = func() []string {
+	lines := strings.Split(strings.TrimSpace(peer_tag_file), "\n")
+	tags := make([]string, len(lines))
+	for i, line := range lines {
+		tags[i] = strings.TrimSpace(line)
+	}
+	return tags
+}()
 
 func preparePeerTags(tags ...string) []string {
 	if len(tags) == 0 {
