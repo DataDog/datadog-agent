@@ -77,6 +77,7 @@ func (pw *podWatcher) Start(ctx context.Context) {
 		workloadmeta.NormalPriority,
 		workloadmeta.NewFilter(&filterParams),
 	)
+	defer pw.wlm.Unsubscribe(ch)
 
 	for {
 		select {
