@@ -115,8 +115,8 @@ class TestWasher:
         - if TestEKSSuite/TestCPU is known to be flaky, TestEKSSuite/TestCPU/TestCPUUtilization should be considered flaky
         - if TestEKSSuite/TestCPU is known to be flaky, TestEKSSuite should be considered flaky
         - if TestEKSSuite/TestCPU is known to be flaky, TestEKSSuite/TestMemory should not be considered flaky
-
         """
+
         failing_test_parents = self.get_tests_parents([failing_test])
         for parent in failing_test_parents:
             if parent in known_flaky_tests:
