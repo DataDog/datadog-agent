@@ -82,6 +82,7 @@ func Test_pathtestStore_flush(t *testing.T) {
 	ptCtx = store.pathtestContexts[pt.GetHash()]
 	assert.Equal(t, MockTimeNow().Add(store.pathtestInterval), ptCtx.nextRunTime)
 	assert.Equal(t, MockTimeNow().Add(runDurationFromDisc), ptCtx.runUntilTime)
+	assert.Equal(t, time.Duration(0), ptCtx.lastFlushInterval)
 
 	// skip flush if nextRunTime is not reached yet
 	flushTime2 := MockTimeNow().Add(20 * time.Second)
@@ -90,6 +91,7 @@ func Test_pathtestStore_flush(t *testing.T) {
 	ptCtx = store.pathtestContexts[pt.GetHash()]
 	assert.Equal(t, MockTimeNow().Add(store.pathtestInterval), ptCtx.nextRunTime)
 	assert.Equal(t, MockTimeNow().Add(runDurationFromDisc), ptCtx.runUntilTime)
+	assert.Equal(t, time.Duration(0), ptCtx.lastFlushInterval)
 
 	// test flush, it should increment nextRunTime
 	flushTime3 := MockTimeNow().Add(70 * time.Second)
@@ -98,6 +100,7 @@ func Test_pathtestStore_flush(t *testing.T) {
 	ptCtx = store.pathtestContexts[pt.GetHash()]
 	assert.Equal(t, MockTimeNow().Add(store.pathtestInterval*2), ptCtx.nextRunTime)
 	assert.Equal(t, MockTimeNow().Add(runDurationFromDisc), ptCtx.runUntilTime)
+	assert.Equal(t, 1*time.Minute, ptCtx.lastFlushInterval)
 
 	// test add new Pathtest after nextRunTime is reached
 	// it should reset runUntilTime
@@ -107,6 +110,7 @@ func Test_pathtestStore_flush(t *testing.T) {
 	ptCtx = store.pathtestContexts[pt.GetHash()]
 	assert.Equal(t, MockTimeNow().Add(store.pathtestInterval*2), ptCtx.nextRunTime)
 	assert.Equal(t, MockTimeNow().Add(runDurationFromDisc+80*time.Second), ptCtx.runUntilTime)
+	assert.Equal(t, 1*time.Minute, ptCtx.lastFlushInterval)
 
 	// test flush, it should increment nextRunTime
 	flushTime5 := MockTimeNow().Add(120 * time.Second)
@@ -115,6 +119,7 @@ func Test_pathtestStore_flush(t *testing.T) {
 	ptCtx = store.pathtestContexts[pt.GetHash()]
 	assert.Equal(t, MockTimeNow().Add(store.pathtestInterval*3), ptCtx.nextRunTime)
 	assert.Equal(t, MockTimeNow().Add(runDurationFromDisc+80*time.Second), ptCtx.runUntilTime)
+	assert.Equal(t, 50*time.Second, ptCtx.lastFlushInterval)
 
 	// test flush before runUntilTime, it should NOT delete Pathtest entry
 	flushTime6 := MockTimeNow().Add((600 + 70) * time.Second)

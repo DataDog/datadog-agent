@@ -107,14 +107,11 @@ func (f *PathtestStore) Flush() []*PathtestContext {
 		if ptConfigCtx.nextRunTime.After(now) {
 			continue
 		}
-		// TODO: test lastFlushTime and lastFlushInterval
 		if !ptConfigCtx.lastFlushTime.IsZero() {
 			ptConfigCtx.lastFlushInterval = now.Sub(ptConfigCtx.lastFlushTime)
 		}
 		ptConfigCtx.lastFlushTime = now
 		pathtestsToFlush = append(pathtestsToFlush, ptConfigCtx)
-		// TODO: increment nextRunTime to a time after current time
-		//       in case flush() is not fast enough, it won't accumulate excessively
 		ptConfigCtx.nextRunTime = ptConfigCtx.nextRunTime.Add(f.pathtestInterval)
 		f.pathtestContexts[key] = ptConfigCtx
 	}
