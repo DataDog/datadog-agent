@@ -7,10 +7,6 @@
 
 package ebpf
 
-import (
-	"github.com/prometheus/client_golang/prometheus"
-)
-
 type LockContentionCollector struct{}
 
 // NewLockContentionCollector returns nil
