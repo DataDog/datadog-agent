@@ -87,12 +87,6 @@ func (f *PathtestStore) Flush() []*PathtestContext {
 	defer f.pathtestConfigsMutex.Unlock()
 
 	f.logger.Tracef("f.pathtestContexts: %+v", f.pathtestContexts)
-	// DEBUG STATEMENTS
-	for _, ptConf := range f.pathtestContexts {
-		if ptConf.Pathtest != nil {
-			f.logger.Tracef("in-mem ptConf %s:%d", ptConf.Pathtest.Hostname, ptConf.Pathtest.Port)
-		}
-	}
 
 	var pathtestsToFlush []*PathtestContext
 	for key, ptConfigCtx := range f.pathtestContexts {
