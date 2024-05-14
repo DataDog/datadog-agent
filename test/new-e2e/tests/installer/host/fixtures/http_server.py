@@ -1,6 +1,7 @@
 # Import the necessary libraries
-from http.server import BaseHTTPRequestHandler, HTTPServer
 import signal
+from http.server import BaseHTTPRequestHandler, HTTPServer
+
 from ddtrace import tracer
 from ddtrace.propagation.http import HTTPPropagator
 
