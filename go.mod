@@ -716,6 +716,7 @@ require (
 	go.opentelemetry.io/collector/service v0.99.0
 	go.uber.org/goleak v1.3.0
 	go4.org/intern v0.0.0-20230525184215-6c62f75575cb
+	go4.org/mem v0.0.0-20220726221520-4f986261bf13
 	gotest.tools v2.2.0+incompatible
 	k8s.io/cli-runtime v0.29.0
 	k8s.io/kubectl v0.29.0
