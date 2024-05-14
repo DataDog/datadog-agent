@@ -57,7 +57,9 @@ type npSchedulerImpl struct {
 	flushInterval time.Duration
 
 	// structures needed to ease mocking/testing
-	TimeNowFn     func() time.Time
+	TimeNowFn func() time.Time
+	// TODO: instead of mocking traceroute via function replacement like this
+	//       we should ideally create a fake/mock traceroute instance that can be passed/injected in NpScheduler
 	runTraceroute func(cfg traceroute.Config) (payload.NetworkPath, error)
 }
 
