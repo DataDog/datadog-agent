@@ -33,6 +33,7 @@ Please check for typos in the JOBOWNERS file and/or add them to the Github <-> S
 """
 PROJECT_NAME = "DataDog/datadog-agent"
 AWS_S3_CP_CMD = "aws s3 cp --only-show-errors --region us-east-1 --sse AES256"
+# TODO : Create bucket
 S3_CI_BUCKET_URL = "s3://dd-ci-artefacts-build-stable/datadog-agent/job_executions"
 CONSECUTIVE_THRESHOLD = 3
 CUMULATIVE_THRESHOLD = 5
@@ -145,6 +146,9 @@ class ConsecutiveJobAlert:
             # Cannot find PR, display the commit sha
             initial_pr = initial_pr_sha[:8]
 
+        return self.format_message(initial_pr)
+
+    def format_message(self, initial_pr: str) -> str:
         job_list = ', '.join(self.failures)
         details = '\n'.join(
             [
@@ -425,7 +429,6 @@ def create_initial_job_executions(job_failures_file):
     return job_executions
 
 
-
 def update_statistics(job_executions: Executions):
     consecutive_alerts = {}
     cumulative_alerts = {}
@@ -434,10 +437,10 @@ def update_statistics(job_executions: Executions):
     failed_jobs = get_failed_jobs(PROJECT_NAME, os.getenv("CI_PIPELINE_ID"))
     failed_dict = {job.name: ExecutionsJobInfo(job.id, True) for job in failed_jobs.all_failures()}
 
-    # Insert data for newly failing jobs
-    new_failed_jobs = {name: job for name, job in failed_dict.items() if name not in job_executions.jobs}
-    for job_name, job in new_failed_jobs.items():
-        job_executions.add_execution(job_name, ExecutionsJobSummary(1, [job]))
+    # Insert newly failing jobs
+    new_failed_jobs = {name for name in failed_dict if name not in job_executions.jobs}
+    for job_name in new_failed_jobs:
+        job_executions.add_execution(job_name, ExecutionsJobSummary(0, []))
 
     # Reset information for no-more failing jobs
     solved_jobs = {name for name in job_executions.jobs if name not in failed_dict}
@@ -471,6 +474,7 @@ def update_statistics(job_executions: Executions):
 
 def send_notification(ctx: Context, alert_jobs):
     message = alert_jobs["consecutive"].message(ctx) + alert_jobs["cumulative"].message()
+    message = message.strip()
 
     if message:
         send_slack_message("#agent-platform-ops", message)
