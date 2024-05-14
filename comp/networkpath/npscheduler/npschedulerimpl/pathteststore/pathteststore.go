@@ -118,7 +118,7 @@ func (f *PathtestStore) Flush() []*PathtestContext {
 	return pathtestsToFlush
 }
 
-// Add TODO
+// Add new pathtest
 func (f *PathtestStore) Add(pathtestToAdd *common.Pathtest) {
 	f.logger.Tracef("Add new Pathtest: %+v", pathtestToAdd)
 
@@ -135,7 +135,7 @@ func (f *PathtestStore) Add(pathtestToAdd *common.Pathtest) {
 	f.pathtestContexts[hash] = pathtestCtx
 }
 
-// GetPathtestContextCount TODO
+// GetPathtestContextCount returns pathtest contexts count
 func (f *PathtestStore) GetPathtestContextCount() int {
 	f.pathtestConfigsMutex.Lock()
 	defer f.pathtestConfigsMutex.Unlock()
