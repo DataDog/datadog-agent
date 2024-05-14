@@ -23,6 +23,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/proto"
+
 	"github.com/DataDog/datadog-agent/pkg/obfuscate"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/api"
@@ -39,19 +42,39 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/writer"
 
-	"google.golang.org/protobuf/proto"
-
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
 func NewTestAgent(ctx context.Context, conf *config.AgentConfig, telemetryCollector telemetry.TelemetryCollector) *Agent {
 	a := NewAgent(ctx, conf, telemetryCollector, &statsd.NoOpClient{})
-	a.TraceWriter.In = make(chan *writer.SampledChunks, 1000)
 	a.Concentrator.In = make(chan stats.Input, 1000)
+	a.TraceWriter = &mockTraceWriter{}
 	return a
+}
+
+type mockTraceWriter struct {
+	payloads []*writer.SampledChunks
+}
+
+func (m *mockTraceWriter) Run() {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (m *mockTraceWriter) Stop() {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (m *mockTraceWriter) AddSpans(pkg *writer.SampledChunks) {
+	m.payloads = append(m.payloads, pkg)
+}
+
+func (m *mockTraceWriter) FlushSync() error {
+	//TODO implement me
+	panic("implement me")
 }
 
 // Test to make sure that the joined effort of the quantizer and truncator, in that order, produce the
@@ -292,13 +315,9 @@ func TestProcess(t *testing.T) {
 		})
 		assert.EqualValues(1, want.TracesFiltered.Load())
 		assert.EqualValues(2, want.SpansFiltered.Load())
-		var span *pb.Span
-		select {
-		case ss := <-agnt.TraceWriter.In:
-			span = ss.TracerPayload.Chunks[0].Spans[0]
-		case <-time.After(2 * time.Second):
-			t.Fatal("timeout: Expected one valid trace, but none were received.")
-		}
+		payloads := agnt.TraceWriter.(*mockTraceWriter).payloads
+		assert.NotEmpty(payloads, "no payloads were written")
+		span := payloads[0].TracerPayload.Chunks[0].Spans[0]
 		assert.Equal("unnamed_operation", span.Name)
 	})
 
@@ -369,18 +388,13 @@ func TestProcess(t *testing.T) {
 			Start:    time.Now().Add(-time.Second).UnixNano(),
 			Duration: (500 * time.Millisecond).Nanoseconds(),
 		}, 2))
-		go agnt.Process(&api.Payload{
+		agnt.Process(&api.Payload{
 			TracerPayload: tp,
 			Source:        agnt.Receiver.Stats.GetTagStats(info.Tags{}),
 		})
-		timeout := time.After(2 * time.Second)
-		var span *pb.Span
-		select {
-		case ss := <-agnt.TraceWriter.In:
-			span = ss.TracerPayload.Chunks[0].Spans[0]
-		case <-timeout:
-			t.Fatal("timed out")
-		}
+		payloads := agnt.TraceWriter.(*mockTraceWriter).payloads
+		assert.NotEmpty(t, payloads, "no payloads were written")
+		span := payloads[0].TracerPayload.Chunks[0].Spans[0]
 		assert.Equal(t, "unnamed_operation", span.Name)
 		assert.Equal(t, "something_that_should_be_a_metric", span.Service)
 	})
@@ -395,17 +409,13 @@ func TestProcess(t *testing.T) {
 		tp := testutil.TracerPayloadWithChunk(testutil.RandomTraceChunk(1, 1))
 		tp.Chunks[0].Priority = int32(sampler.PriorityUserKeep)
 		tp.Chunks[0].Spans[0].Meta["_dd.hostname"] = "tracer-hostname"
-		go agnt.Process(&api.Payload{
+		agnt.Process(&api.Payload{
 			TracerPayload: tp,
 			Source:        agnt.Receiver.Stats.GetTagStats(info.Tags{}),
 		})
-		timeout := time.After(2 * time.Second)
-		select {
-		case ss := <-agnt.TraceWriter.In:
-			tp = ss.TracerPayload
-		case <-timeout:
-			t.Fatal("timed out")
-		}
+		payloads := agnt.TraceWriter.(*mockTraceWriter).payloads
+		assert.NotEmpty(t, payloads, "no payloads were written")
+		tp = payloads[0].TracerPayload
 		assert.Equal(t, "tracer-hostname", tp.Hostname)
 	})
 
@@ -416,21 +426,18 @@ func TestProcess(t *testing.T) {
 		cfg.Endpoints[0].APIKey = "test"
 		ctx, cancel := context.WithCancel(context.Background())
 		agnt := NewAgent(ctx, cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{})
+		agnt.TraceWriter = &mockTraceWriter{}
 		defer cancel()
 
 		tp := testutil.TracerPayloadWithChunk(testutil.RandomTraceChunk(1, 1))
 		tp.Chunks[0].Priority = int32(sampler.PriorityUserKeep)
-		go agnt.Process(&api.Payload{
+		agnt.Process(&api.Payload{
 			TracerPayload: tp,
 			Source:        agnt.Receiver.Stats.GetTagStats(info.Tags{}),
 		})
-		timeout := time.After(2 * time.Second)
-		select {
-		case ss := <-agnt.TraceWriter.In:
-			tp = ss.TracerPayload
-		case <-timeout:
-			t.Fatal("timed out")
-		}
+		payloads := agnt.TraceWriter.(*mockTraceWriter).payloads
+		assert.NotEmpty(t, payloads, "no payloads were written")
+		tp = payloads[0].TracerPayload
 
 		for _, chunk := range tp.Chunks {
 			for _, span := range chunk.Spans {
@@ -468,20 +475,16 @@ func TestProcess(t *testing.T) {
 		c.Priority = 1
 		tp := testutil.TracerPayloadWithChunk(c)
 
-		go agnt.Process(&api.Payload{
+		agnt.Process(&api.Payload{
 			TracerPayload: tp,
 			Source:        agnt.Receiver.Stats.GetTagStats(info.Tags{}),
 		})
-
-		timeout := time.After(2 * time.Second)
-		select {
-		case ss := <-agnt.TraceWriter.In:
-			assert.Equal(t, 2, int(ss.SpanCount))
-			assert.NotContains(t, ss.TracerPayload.Chunks[0].Spans[0].Meta, "irrelevant")
-			assert.NotContains(t, ss.TracerPayload.Chunks[0].Spans[1].Meta, "irrelevant")
-		case <-timeout:
-			t.Fatal("timed out")
-		}
+		payloads := agnt.TraceWriter.(*mockTraceWriter).payloads
+		assert.NotEmpty(t, payloads, "no payloads were written")
+		payload := payloads[0]
+		assert.Equal(t, 2, int(payload.SpanCount))
+		assert.NotContains(t, payload.TracerPayload.Chunks[0].Spans[0].Meta, "irrelevant")
+		assert.NotContains(t, payload.TracerPayload.Chunks[0].Spans[1].Meta, "irrelevant")
 	})
 
 	t.Run("chunking", func(t *testing.T) {
@@ -507,26 +510,14 @@ func TestProcess(t *testing.T) {
 		defer func(oldSize int) { writer.MaxPayloadSize = oldSize }(writer.MaxPayloadSize)
 		//minChunkSize := int(math.Min(math.Min(float64(tp.Chunks[0].Msgsize()), float64(tp.Chunks[1].Msgsize())), float64(tp.Chunks[2].Msgsize())))
 		writer.MaxPayloadSize = 1
-		// and expecting it to result in 3 payloads
-		expectedPayloads := 3
-		go agnt.Process(&api.Payload{
+		agnt.Process(&api.Payload{
 			TracerPayload: tp,
 			Source:        agnt.Receiver.Stats.GetTagStats(info.Tags{}),
 		})
 
-		var gotCount int
-		timeout := time.After(3 * time.Second)
-		// expect multiple payloads
-		for i := 0; i < expectedPayloads; i++ {
-			select {
-			case ss := <-agnt.TraceWriter.In:
-				gotCount += int(ss.SpanCount)
-			case <-timeout:
-				t.Fatal("timed out")
-			}
-		}
-		// without missing a trace
-		assert.Equal(t, gotCount, 3)
+		payloads := agnt.TraceWriter.(*mockTraceWriter).payloads
+		// and expecting it to result in 3 payloads
+		assert.Len(t, payloads, 3)
 	})
 }
 
@@ -741,9 +732,9 @@ func TestConcentratorInput(t *testing.T) {
 			assert.Equal(t, tc.expected, <-agent.Concentrator.In)
 
 			if tc.expectedSampled != nil && len(tc.expectedSampled.Chunks) > 0 {
-				require.Len(t, agent.TraceWriter.In, 1)
-				ss := <-agent.TraceWriter.In
-				assert.Equal(t, tc.expectedSampled, ss.TracerPayload)
+				payloads := agent.TraceWriter.(*mockTraceWriter).payloads
+				assert.NotEmpty(t, payloads, "no payloads were written")
+				assert.Equal(t, tc.expectedSampled, payloads[0].TracerPayload)
 			}
 		})
 	}
@@ -753,50 +744,43 @@ func TestClientComputedTopLevel(t *testing.T) {
 	cfg := config.New()
 	cfg.Endpoints[0].APIKey = "test"
 	ctx, cancel := context.WithCancel(context.Background())
-	agnt := NewTestAgent(ctx, cfg, telemetry.NewNoopCollector())
 	defer cancel()
 
 	t.Run("onNotTop", func(t *testing.T) {
+		agnt := NewTestAgent(ctx, cfg, telemetry.NewNoopCollector())
 		chunk := testutil.TraceChunkWithSpan(testutil.RandomSpan())
 		chunk.Priority = 2
 		tp := testutil.TracerPayloadWithChunk(chunk)
-		go agnt.Process(&api.Payload{
+		agnt.Process(&api.Payload{
 			TracerPayload:          tp,
 			Source:                 agnt.Receiver.Stats.GetTagStats(info.Tags{}),
 			ClientComputedTopLevel: true,
 		})
-		timeout := time.After(time.Second)
-		select {
-		case ss := <-agnt.TraceWriter.In:
-			_, ok := ss.TracerPayload.Chunks[0].Spans[0].Metrics["_top_level"]
-			assert.False(t, ok)
-			return
-		case <-timeout:
-			t.Fatal("timed out waiting for input")
-		}
+		payloads := agnt.TraceWriter.(*mockTraceWriter).payloads
+		assert.NotEmpty(t, payloads, "no payloads were written")
+		_, ok := payloads[0].TracerPayload.Chunks[0].Spans[0].Metrics["_top_level"]
+		assert.False(t, ok)
+		return
 	})
 
 	t.Run("off", func(t *testing.T) {
+		agnt := NewTestAgent(ctx, cfg, telemetry.NewNoopCollector())
 		chunk := testutil.TraceChunkWithSpan(testutil.RandomSpan())
 		chunk.Priority = 2
 		tp := testutil.TracerPayloadWithChunk(chunk)
-		go agnt.Process(&api.Payload{
+		agnt.Process(&api.Payload{
 			TracerPayload:          tp,
 			Source:                 agnt.Receiver.Stats.GetTagStats(info.Tags{}),
 			ClientComputedTopLevel: false,
 		})
-		timeout := time.After(time.Second)
-		select {
-		case ss := <-agnt.TraceWriter.In:
-			_, ok := ss.TracerPayload.Chunks[0].Spans[0].Metrics["_top_level"]
-			assert.True(t, ok)
-			return
-		case <-timeout:
-			t.Fatal("timed out waiting for input")
-		}
+		payloads := agnt.TraceWriter.(*mockTraceWriter).payloads
+		assert.NotEmpty(t, payloads, "no payloads were written")
+		_, ok := payloads[0].TracerPayload.Chunks[0].Spans[0].Metrics["_top_level"]
+		assert.True(t, ok)
 	})
 
 	t.Run("onTop", func(t *testing.T) {
+		agnt := NewTestAgent(ctx, cfg, telemetry.NewNoopCollector())
 		span := testutil.RandomSpan()
 		span.Metrics = map[string]float64{
 			"_dd.top_level": 1,
@@ -804,22 +788,17 @@ func TestClientComputedTopLevel(t *testing.T) {
 		chunk := testutil.TraceChunkWithSpan(span)
 		chunk.Priority = 2
 		tp := testutil.TracerPayloadWithChunk(chunk)
-		go agnt.Process(&api.Payload{
+		agnt.Process(&api.Payload{
 			TracerPayload:          tp,
 			Source:                 agnt.Receiver.Stats.GetTagStats(info.Tags{}),
 			ClientComputedTopLevel: true,
 		})
-		timeout := time.After(time.Second)
-		select {
-		case ss := <-agnt.TraceWriter.In:
-			_, ok := ss.TracerPayload.Chunks[0].Spans[0].Metrics["_top_level"]
-			assert.True(t, ok)
-			_, ok = ss.TracerPayload.Chunks[0].Spans[0].Metrics["_dd.top_level"]
-			assert.True(t, ok)
-			return
-		case <-timeout:
-			t.Fatal("timed out waiting for input")
-		}
+		payloads := agnt.TraceWriter.(*mockTraceWriter).payloads
+		assert.NotEmpty(t, payloads, "no payloads were written")
+		_, ok := payloads[0].TracerPayload.Chunks[0].Spans[0].Metrics["_top_level"]
+		assert.True(t, ok)
+		_, ok = payloads[0].TracerPayload.Chunks[0].Spans[0].Metrics["_dd.top_level"]
+		assert.True(t, ok)
 	})
 }
 
@@ -1385,7 +1364,6 @@ func TestSampleManualUserDropNoAnalyticsEvents(t *testing.T) {
 func TestPartialSamplingFree(t *testing.T) {
 	cfg := &config.AgentConfig{RareSamplerEnabled: false, BucketInterval: 10 * time.Second}
 	statsChan := make(chan *pb.StatsPayload, 100)
-	writerChan := make(chan *writer.SampledChunks, 100)
 	dynConf := sampler.NewDynamicConfig()
 	in := make(chan *api.Payload, 1000)
 	statsd := &statsd.NoOpClient{}
@@ -1398,7 +1376,7 @@ func TestPartialSamplingFree(t *testing.T) {
 		PrioritySampler:   sampler.NewPrioritySampler(cfg, &sampler.DynamicConfig{}, statsd),
 		EventProcessor:    newEventProcessor(cfg, statsd),
 		RareSampler:       sampler.NewRareSampler(config.New(), statsd),
-		TraceWriter:       &writer.TraceWriter{In: writerChan},
+		TraceWriter:       &mockTraceWriter{},
 		conf:              cfg,
 		Timing:            &timing.NoopReporter{},
 	}
@@ -1458,8 +1436,7 @@ func TestPartialSamplingFree(t *testing.T) {
 	runtime.ReadMemStats(&m)
 	assert.Less(t, m.HeapInuse, uint64(50*1e6))
 
-	p := <-agnt.TraceWriter.In
-	assert.Len(t, p.TracerPayload.Chunks, 1)
+	assert.Len(t, agnt.TraceWriter.(*mockTraceWriter).payloads, 1)
 }
 
 func TestEventProcessorFromConf(t *testing.T) {
@@ -1573,6 +1550,7 @@ func testEventProcessorFromConf(t *testing.T, conf *config.AgentConfig, testCase
 // second). These spans will all have the provided service and operation names and be set as extractable/sampled
 // based on the associated rate/%. This traffic generation will run for the specified `duration`.
 func generateTraffic(processor *event.Processor, serviceName string, operationName string, extractionRate float64,
+
 	duration time.Duration, intakeSPS float64, priority sampler.SamplingPriority) float64 {
 	tickerInterval := 100 * time.Millisecond
 	totalSampled := 0
@@ -1583,6 +1561,7 @@ func generateTraffic(processor *event.Processor, serviceName string, operationNa
 	spansPerTick := int(math.Round(intakeSPS / numTicksInSecond))
 
 Loop:
+
 	for {
 		spans := make([]*pb.Span, spansPerTick)
 		for i := range spans {
@@ -1634,6 +1613,7 @@ func BenchmarkAgentTraceProcessingWithFiltering(b *testing.B) {
 
 // worst case scenario: spans are tested against multiple rules without any match.
 // this means we won't compesate the overhead of TestFilteredByTagsing by dropping traces
+
 func BenchmarkAgentTraceProcessingWithWorstCaseFiltering(b *testing.B) {
 	c := config.New()
 	c.Endpoints[0].APIKey = "test"
@@ -1695,6 +1675,20 @@ func BenchmarkThroughput(b *testing.B) {
 	})
 }
 
+type noopTraceWriter struct {
+	count int
+}
+
+func (n *noopTraceWriter) Run() {}
+
+func (n *noopTraceWriter) Stop() {}
+
+func (n *noopTraceWriter) AddSpans(_ *writer.SampledChunks) {
+	n.count++
+}
+
+func (n *noopTraceWriter) FlushSync() error { return nil }
+
 func benchThroughput(file string) func(*testing.B) {
 	return func(b *testing.B) {
 		data, count, err := tracesFromFile(file)
@@ -1712,7 +1706,8 @@ func benchThroughput(file string) func(*testing.B) {
 		// start the agent without the trace and stats writers; we will be draining
 		// these channels ourselves in the benchmarks, plus we don't want the writers
 		// resource usage to show up in the results.
-		agnt.TraceWriter.In = make(chan *writer.SampledChunks)
+		noopWriter := &noopTraceWriter{}
+		agnt.TraceWriter = noopWriter
 		go agnt.Run()
 
 		// wait for receiver to start:
@@ -1766,16 +1761,14 @@ func benchThroughput(file string) func(*testing.B) {
 		loop:
 			for {
 				select {
-				case <-agnt.TraceWriter.In:
-					got++
-					if got == count {
+				default:
+					if noopWriter.count == count {
 						// processed everything!
 						break loop
 					}
 				case <-timeout:
 					// taking too long...
 					b.Fatalf("time out at %d/%d", got, count)
-					break loop
 				}
 			}
 		}
@@ -2308,8 +2301,8 @@ func TestSpanSampling(t *testing.T) {
 				// a nil Source would trigger a panic
 				Source: traceAgent.Receiver.Stats.GetTagStats(info.Tags{}),
 			})
-			assert.Len(t, traceAgent.TraceWriter.In, 1)
-			sampledChunks := <-traceAgent.TraceWriter.In
+			assert.Len(t, traceAgent.TraceWriter.(*mockTraceWriter).payloads, 1)
+			sampledChunks := traceAgent.TraceWriter.(*mockTraceWriter).payloads[0]
 			tc.checks(t, tc.payload, sampledChunks.TracerPayload.Chunks)
 			stats := <-traceAgent.Concentrator.In
 			assert.Equal(t, len(tc.payload.Chunks[0].Spans), len(stats.Traces[0].TraceChunk.Spans))

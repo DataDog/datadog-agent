@@ -50,11 +50,8 @@ type SampledChunks struct {
 	EventCount int64
 }
 
-// TraceWriter buffers traces and APM events, flushing them to the Datadog API.
+// TraceWriter buffers traces and APM events, flushing them to the Datadog API implements TraceWriter
 type TraceWriter struct {
-	// In receives sampled spans to be processed by the trace writer.
-	// Channel should only be received from when testing.
-	In        chan *SampledChunks
 	Serialize chan *pb.AgentPayload
 	// used to keep track of payloads currently being flushed
 	// only useful for tests
@@ -98,7 +95,6 @@ func NewTraceWriter(
 	statsd statsd.ClientInterface,
 	timing timing.Reporter) *TraceWriter {
 	tw := &TraceWriter{
-		In:                 make(chan *SampledChunks, 1),
 		Serialize:          make(chan *pb.AgentPayload, 1),
 		prioritySampler:    prioritySampler,
 		errorsSampler:      errorsSampler,
@@ -164,8 +160,6 @@ func (w *TraceWriter) runAsync() {
 	defer close(w.stop)
 	for {
 		select {
-		case pkg := <-w.In:
-			w.addSpans(pkg)
 		case <-w.stop:
 			w.drainAndFlush()
 			return
@@ -182,8 +176,6 @@ func (w *TraceWriter) runSync() {
 	defer close(w.flushChan)
 	for {
 		select {
-		case pkg := <-w.In:
-			w.addSpans(pkg)
 		case notify := <-w.flushChan:
 			w.drainAndFlush()
 			notify <- struct{}{}
@@ -207,7 +199,7 @@ func (w *TraceWriter) FlushSync() error {
 	return nil
 }
 
-func (w *TraceWriter) addSpans(pkg *SampledChunks) {
+func (w *TraceWriter) AddSpans(pkg *SampledChunks) {
 	w.stats.Spans.Add(pkg.SpanCount)
 	w.stats.Traces.Add(int64(len(pkg.TracerPayload.Chunks)))
 	w.stats.Events.Add(pkg.EventCount)
@@ -225,15 +217,6 @@ func (w *TraceWriter) addSpans(pkg *SampledChunks) {
 }
 
 func (w *TraceWriter) drainAndFlush() {
-outer:
-	for {
-		select {
-		case pkg := <-w.In:
-			w.addSpans(pkg)
-		default:
-			break outer
-		}
-	}
 	w.flush()
 	w.swg.Wait()
 }

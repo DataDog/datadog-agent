@@ -54,6 +54,20 @@ const (
 	tagDecisionMaker = "_dd.p.dm"
 )
 
+type TraceWriter interface {
+	// Run starts any required background tasks for writing
+	Run()
+
+	// Stop stops the TraceWriter and attempts to flush whatever is left in the senders buffers.
+	Stop()
+
+	// AddSpans to be written
+	AddSpans(pkg *writer.SampledChunks)
+
+	// FlushSync blocks and sends pending payloads when syncMode is true
+	FlushSync() error
+}
+
 // Agent struct holds all the sub-routines structs and make the data flow between them
 type Agent struct {
 	Receiver              *api.HTTPReceiver
@@ -68,7 +82,7 @@ type Agent struct {
 	NoPrioritySampler     *sampler.NoPrioritySampler
 	ProbabilisticSampler  *sampler.ProbabilisticSampler
 	EventProcessor        *event.Processor
-	TraceWriter           *writer.TraceWriter
+	TraceWriter           TraceWriter
 	StatsWriter           *writer.StatsWriter
 	RemoteConfigHandler   *remoteconfighandler.RemoteConfigHandler
 	TelemetryCollector    telemetry.TelemetryCollector
@@ -177,7 +191,7 @@ func (a *Agent) Run() {
 	a.loop()
 }
 
-// FlushSync flushes traces sychronously. This method only works when the agent is configured in synchronous flushing
+// FlushSync flushes traces synchronously. This method only works when the agent is configured in synchronous flushing
 // mode via the apm_config.sync_flush option.
 func (a *Agent) FlushSync() {
 	if !a.conf.SynchronousFlushing {
@@ -372,14 +386,14 @@ func (a *Agent) Process(p *api.Payload) {
 			sampledChunks.TracerPayload = p.TracerPayload.Cut(i)
 			i = 0
 			sampledChunks.TracerPayload.Chunks = newChunksArray(sampledChunks.TracerPayload.Chunks)
-			a.TraceWriter.In <- sampledChunks
+			a.TraceWriter.AddSpans(sampledChunks)
 			sampledChunks = new(writer.SampledChunks)
 		}
 	}
 	sampledChunks.TracerPayload = p.TracerPayload
 	sampledChunks.TracerPayload.Chunks = newChunksArray(p.TracerPayload.Chunks)
 	if sampledChunks.Size > 0 {
-		a.TraceWriter.In <- sampledChunks
+		a.TraceWriter.AddSpans(sampledChunks)
 	}
 	if len(statsInput.Traces) > 0 {
 		a.Concentrator.In <- statsInput
