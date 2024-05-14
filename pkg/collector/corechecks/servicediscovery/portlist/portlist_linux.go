@@ -117,7 +117,7 @@ const (
 
 var eofReader = bytes.NewReader(nil)
 
-func (li *linuxImpl) ListeningPorts() ([]Port, error) {
+func (li *linuxImpl) OpenPorts() ([]Port, error) {
 	br := li.br
 	defer br.Reset(eofReader)
 
@@ -187,8 +187,6 @@ func (li *linuxImpl) parseProcNetFile(r *bufio.Reader, fileBase string) error {
 
 	// Add an upper bound on how many rows we'll attempt to read just
 	// to make sure this doesn't consume too much of their CPU.
-	// TODO(bradfitz,crawshaw): adaptively adjust polling interval as function
-	// of open sockets.
 	const maxRows = 1e6
 	rows := 0
 

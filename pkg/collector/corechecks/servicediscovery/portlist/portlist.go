@@ -59,9 +59,9 @@ type osImpl interface {
 	Init()
 	Close() error
 
-	// ListeningPorts returns the list of listening ports. The Port struct should be
+	// OpenPorts returns the list of open ports. The Port struct should be
 	// populated as completely as possible.
-	ListeningPorts() ([]Port, error)
+	OpenPorts() ([]Port, error)
 }
 
 // OpenPorts returns the list of currently listening ports.
@@ -72,7 +72,7 @@ func (p *Poller) OpenPorts() (List, error) {
 			log.Warnf("failed to close port poller: %v", err)
 		}
 	}()
-	return p.os.ListeningPorts()
+	return p.os.OpenPorts()
 }
 
 // Option is used to configure the Poller.
