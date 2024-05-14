@@ -26,7 +26,7 @@ const (
 )
 
 type eventPayload struct {
-	ApiVersion          string    `json:"api_version"`
+	APIVersion          string    `json:"api_version"`
 	NamingSchemaVersion string    `json:"naming_schema_version"`
 	RequestType         eventType `json:"request_type"`
 	ServiceName         string    `json:"service_name"`
@@ -36,12 +36,13 @@ type eventPayload struct {
 	ServiceType         string    `json:"service_type"`
 	StartTime           int64     `json:"start_time"`
 	LastSeen            int64     `json:"last_seen"`
-	APMInstrumentation  bool      `json:"apm_instrumentation"`
+	// TODO: this field should change to string with possible values none,packaged,injected
+	APMInstrumentation bool `json:"apm_instrumentation"`
 }
 
 type event struct {
 	RequestType eventType     `json:"request_type"`
-	ApiVersion  string        `json:"api_version"`
+	APIVersion  string        `json:"api_version"`
 	Payload     *eventPayload `json:"payload"`
 }
 
@@ -51,15 +52,15 @@ type telemetrySender struct {
 	hostname hostname.Component
 }
 
-func (ts *telemetrySender) newEvent(t eventType, svc *serviceInfo) *event {
+func (ts *telemetrySender) newEvent(t eventType, svc serviceInfo) *event {
 	host := ts.hostname.GetSafe(context.Background())
 	env := pkgconfig.Datadog.GetString("env")
 
 	return &event{
 		RequestType: t,
-		ApiVersion:  "v2",
+		APIVersion:  "v2",
 		Payload: &eventPayload{
-			ApiVersion:          "v1",
+			APIVersion:          "v1",
 			NamingSchemaVersion: "1",
 			RequestType:         t,
 			ServiceName:         svc.meta.Name,
@@ -82,7 +83,7 @@ func newTelemetrySender(sender sender.Sender) *telemetrySender {
 	}
 }
 
-func (ts *telemetrySender) sendStartServiceEvent(svc *serviceInfo) {
+func (ts *telemetrySender) sendStartServiceEvent(svc serviceInfo) {
 	log.Debugf("[pid: %d | name: %s | ports: %v] start-service",
 		svc.process.PID,
 		svc.meta.Name,
@@ -99,7 +100,7 @@ func (ts *telemetrySender) sendStartServiceEvent(svc *serviceInfo) {
 	ts.sender.EventPlatformEvent(b, eventplatform.EventTypeServiceDiscovery)
 }
 
-func (ts *telemetrySender) sendHeartbeatServiceEvent(svc *serviceInfo) {
+func (ts *telemetrySender) sendHeartbeatServiceEvent(svc serviceInfo) {
 	log.Debugf("[pid: %d | name: %s] heartbeat-service",
 		svc.process.PID,
 		svc.meta.Name,
@@ -115,8 +116,8 @@ func (ts *telemetrySender) sendHeartbeatServiceEvent(svc *serviceInfo) {
 	ts.sender.EventPlatformEvent(b, eventplatform.EventTypeServiceDiscovery)
 }
 
-func (ts *telemetrySender) sendEndServiceEvent(svc *serviceInfo) {
-	log.Debugf("[pid: %d | name: %s] stop-service",
+func (ts *telemetrySender) sendEndServiceEvent(svc serviceInfo) {
+	log.Debugf("[pid: %d | name: %s] end-service",
 		svc.process.PID,
 		svc.meta.Name,
 	)

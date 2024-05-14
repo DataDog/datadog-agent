@@ -230,9 +230,9 @@ func TestServiceDiscoveryCheckLinux(t *testing.T) {
 			wantEvents: []*event{
 				{
 					RequestType: "start-service",
-					ApiVersion:  "v2",
+					APIVersion:  "v2",
 					Payload: &eventPayload{
-						ApiVersion:          "v1",
+						APIVersion:          "v1",
 						NamingSchemaVersion: "1",
 						RequestType:         "start-service",
 						ServiceName:         "some-service",
@@ -247,9 +247,9 @@ func TestServiceDiscoveryCheckLinux(t *testing.T) {
 				},
 				{
 					RequestType: "heartbeat-service",
-					ApiVersion:  "v2",
+					APIVersion:  "v2",
 					Payload: &eventPayload{
-						ApiVersion:          "v1",
+						APIVersion:          "v1",
 						NamingSchemaVersion: "1",
 						RequestType:         "heartbeat-service",
 						ServiceName:         "some-service",
@@ -264,9 +264,9 @@ func TestServiceDiscoveryCheckLinux(t *testing.T) {
 				},
 				{
 					RequestType: "end-service",
-					ApiVersion:  "v2",
+					APIVersion:  "v2",
 					Payload: &eventPayload{
-						ApiVersion:          "v1",
+						APIVersion:          "v1",
 						NamingSchemaVersion: "1",
 						RequestType:         "end-service",
 						ServiceName:         "some-service",
