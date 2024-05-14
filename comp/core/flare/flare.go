@@ -100,6 +100,8 @@ func (f *flare) onAgentTaskEvent(taskType rcclienttypes.TaskType, task rcclientt
 
 	var pdata types.ProfileData
 	if enableProfiling, found := task.Config.TaskArgs["enable_profiling"]; found {
+		helpers.RunInternalProfiler(f.config, f.log)
+
 		defaultProfilingSeconds := 60
 		if enableProfiling == "true" {
 			c, err := common.NewSettingsClient()

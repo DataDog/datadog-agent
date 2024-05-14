@@ -3,10 +3,15 @@ package helpers
 import (
 	"errors"
 	"fmt"
+	"time"
 
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/flare/types"
+	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
+	commonsettings "github.com/DataDog/datadog-agent/pkg/config/settings"
 	"github.com/DataDog/datadog-agent/pkg/process/net"
 	"github.com/fatih/color"
 	"github.com/hashicorp/go-multierror"
@@ -119,4 +124,23 @@ func ReadProfileData(seconds int) (types.ProfileData, error) {
 	}
 
 	return pdata, errs
+}
+
+// Start internal profiling, sleeps for a few minutes and then stops it, meaning that the caller will be blocked
+func RunInternalProfiler(c config.Component, l log.Component) {
+	// Start internal profiling by setting the runtime settings
+	runtimeSettings := commonsettings.NewProfilingRuntimeSetting("internal_profiling", "datadog-agent")
+	err := runtimeSettings.Set(c, "true", model.SourceAgentRuntime)
+	if err == nil {
+		// Wait for 5 min (for now)
+		time.Sleep(5 * time.Minute)
+
+		// Stop internal profiling
+		err = runtimeSettings.Set(c, "false", model.SourceAgentRuntime)
+		if err != nil {
+			l.Errorf("Failed to stop internal profiling. Error %s", err.Error())
+		}
+	} else {
+		l.Errorf("Failed to start internal profiling. Error %s", err.Error())
+	}
 }
