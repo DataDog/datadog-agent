@@ -12,8 +12,8 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"strings"
 
+	securejoin "github.com/cyphar/filepath-securejoin"
 	"github.com/xi2/xz"
 )
 
@@ -88,12 +88,12 @@ func TarXZExtractAll(tarxzArchive string, destinationDir string) error {
 }
 
 func untarFile(tr *tar.Reader, hdr *tar.Header, destinationDir string) error {
-	if err := checkPath(destinationDir, hdr.Name); err != nil {
+	fpath, err := securejoin.SecureJoin(destinationDir, hdr.Name)
+	if err != nil {
 		return err
 	}
 
-	fpath := filepath.Join(destinationDir, hdr.Name)
-	err := os.MkdirAll(filepath.Dir(fpath), 0755)
+	err = os.MkdirAll(filepath.Dir(fpath), 0755)
 	if err != nil {
 		return fmt.Errorf("mkdir %s: %w", fpath, err)
 	}
@@ -107,15 +107,6 @@ func untarFile(tr *tar.Reader, hdr *tar.Header, destinationDir string) error {
 	_, err = io.Copy(out, tr)
 	if err != nil {
 		return fmt.Errorf("copy file %s: %w", fpath, err)
-	}
-	return nil
-}
-
-func checkPath(dir string, path string) error {
-	dir, _ = filepath.Abs(dir)
-	dest := filepath.Join(dir, path)
-	if !strings.HasPrefix(dest, dir) {
-		return fmt.Errorf("%q creates an illegal path", path)
 	}
 	return nil
 }
