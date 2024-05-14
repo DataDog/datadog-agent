@@ -137,6 +137,12 @@ func (pn *ProcessNode) debug(w io.Writer, prefix string) {
 			fmt.Fprintf(w, "%s    - %s\n", prefix, dnsName)
 		}
 	}
+	if len(pn.IMDSEvents) > 0 {
+		fmt.Fprintf(w, "%s  imds:\n", prefix)
+		for evt := range pn.IMDSEvents {
+			fmt.Fprintf(w, "%s    - %s | %s\n", prefix, evt.CloudProvider, evt.Type)
+		}
+	}
 	if len(pn.Children) > 0 {
 		fmt.Fprintf(w, "%s  children:\n", prefix)
 		for _, child := range pn.Children {
