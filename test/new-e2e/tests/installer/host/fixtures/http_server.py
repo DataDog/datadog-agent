@@ -28,7 +28,7 @@ class RequestHandler(BaseHTTPRequestHandler):
             tracer.context_provider.activate(context)
 
         # Now proceed with the trace
-        with tracer.trace("get", service="my-http-service") as root_span:
+        with tracer.trace("get", service="my-http-service"):
             self.send_response(200)
             self.send_header('Content-type', 'text/html')
             self.end_headers()
