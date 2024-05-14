@@ -336,7 +336,7 @@ type MMapEventSerializer struct {
 	// file offset
 	Offset uint64 `json:"offset"`
 	// memory segment length
-	Len uint32 `json:"length"`
+	Len uint64 `json:"length"`
 	// memory segment protection
 	Protection string `json:"protection"`
 	// memory segment flags

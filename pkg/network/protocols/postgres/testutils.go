@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build test
+
 package postgres
 
 import (
@@ -63,7 +65,8 @@ func ConnectAndGetDB(t *testing.T, serverAddr string, extras map[string]interfac
 // The following are helpers around bun to quickly execute SQL query for use in
 // protocol classification tests.
 
-func getCtx(extras map[string]interface{}) (*bun.DB, context.Context) {
+// GetCtx returns a pointer to the DC, and the task context from the extras map.
+func GetCtx(extras map[string]interface{}) (*bun.DB, context.Context) {
 	db := extras["db"].(*bun.DB)
 	taskCtx := extras["ctx"].(context.Context)
 
@@ -73,7 +76,7 @@ func getCtx(extras map[string]interface{}) (*bun.DB, context.Context) {
 // RunAlterQuery runs ALTER query on the test DB.
 func RunAlterQuery(t *testing.T, extras map[string]interface{}) {
 	t.Helper()
-	db, ctx := getCtx(extras)
+	db, ctx := GetCtx(extras)
 
 	_, err := db.NewAddColumn().Model((*DummyTable)(nil)).ColumnExpr("new_column BOOL").Exec(ctx)
 	require.NoError(t, err)
@@ -82,7 +85,7 @@ func RunAlterQuery(t *testing.T, extras map[string]interface{}) {
 // RunCreateQuery creates a new table.
 func RunCreateQuery(t *testing.T, extras map[string]interface{}) {
 	t.Helper()
-	db, ctx := getCtx(extras)
+	db, ctx := GetCtx(extras)
 
 	_, err := db.NewCreateTable().Model((*DummyTable)(nil)).Exec(ctx)
 	require.NoError(t, err)
@@ -91,7 +94,7 @@ func RunCreateQuery(t *testing.T, extras map[string]interface{}) {
 // RunDeleteQuery run a deletion query on the test DB.
 func RunDeleteQuery(t *testing.T, extras map[string]interface{}) {
 	t.Helper()
-	db, ctx := getCtx(extras)
+	db, ctx := GetCtx(extras)
 
 	_, err := db.NewDelete().Model(dummyModel).WherePK().Exec(ctx)
 	require.NoError(t, err)
@@ -100,7 +103,7 @@ func RunDeleteQuery(t *testing.T, extras map[string]interface{}) {
 // RunDropQuery drops a table.
 func RunDropQuery(t *testing.T, extras map[string]interface{}) {
 	t.Helper()
-	db, ctx := getCtx(extras)
+	db, ctx := GetCtx(extras)
 
 	_, err := db.NewDropTable().Model((*DummyTable)(nil)).IfExists().Exec(ctx)
 	require.NoError(t, err)
@@ -109,7 +112,7 @@ func RunDropQuery(t *testing.T, extras map[string]interface{}) {
 // RunInsertQuery inserts a new row in the table.
 func RunInsertQuery(t *testing.T, id int64, extras map[string]interface{}) {
 	t.Helper()
-	db, ctx := getCtx(extras)
+	db, ctx := GetCtx(extras)
 
 	model := *dummyModel
 	model.ID = id
@@ -118,19 +121,42 @@ func RunInsertQuery(t *testing.T, id int64, extras map[string]interface{}) {
 	require.NoError(t, err)
 }
 
+// RunMultiInsertQuery inserts multiple values into the table.
+func RunMultiInsertQuery(t *testing.T, extras map[string]interface{}, values ...string) {
+	t.Helper()
+	db, ctx := GetCtx(extras)
+
+	entries := make([]DummyTable, 0, len(values))
+	for _, value := range values {
+		entries = append(entries, DummyTable{Foo: value})
+	}
+	_, err := db.NewInsert().Model(&entries).Exec(ctx)
+	require.NoError(t, err)
+}
+
 // RunSelectQuery runs a SELECT query on the test DB.
 func RunSelectQuery(t *testing.T, extras map[string]interface{}) {
 	t.Helper()
-	db, ctx := getCtx(extras)
+	RunSelectQueryWithLimit(t, extras, 0)
+}
 
-	_, err := db.NewSelect().Model(dummyModel).Exec(ctx)
+// RunSelectQueryWithLimit runs a SELECT query on the test DB with a limit on the number of rows to return.
+func RunSelectQueryWithLimit(t *testing.T, extras map[string]interface{}, limit int) {
+	t.Helper()
+	db, ctx := GetCtx(extras)
+
+	statement := db.NewSelect()
+	if limit > 0 {
+		statement = statement.Limit(limit)
+	}
+	_, err := statement.Model(dummyModel).Exec(ctx)
 	require.NoError(t, err)
 }
 
 // RunUpdateQuery runs an UPDATE query on the test DB.
 func RunUpdateQuery(t *testing.T, extras map[string]interface{}) {
 	t.Helper()
-	db, ctx := getCtx(extras)
+	db, ctx := GetCtx(extras)
 
 	newModel := *dummyModel
 	newModel.Foo = "baz"

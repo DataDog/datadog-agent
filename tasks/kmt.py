@@ -358,14 +358,9 @@ def update_resources(
 
 
 @task
-def build_compiler(ctx: Context):
-    for cc in all_compilers(ctx):
-        cc.build()
-
-
-@task
 def start_compiler(ctx: Context):
     for cc in all_compilers(ctx):
+        info(f"[+] Starting compiler {cc.name}")
         cc.start()
 
 

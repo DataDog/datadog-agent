@@ -17,6 +17,7 @@ import (
 
 	v1 "k8s.io/api/core/v1"
 
+	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 )
 
@@ -55,13 +56,13 @@ func (b *kubernetesEventBundle) addEvent(event *v1.Event) error {
 	return nil
 }
 
-func (b *kubernetesEventBundle) formatEvents() (event.Event, error) {
+func (b *kubernetesEventBundle) formatEvents(taggerInstance tagger.Component) (event.Event, error) {
 	if len(b.countByAction) == 0 {
 		return event.Event{}, errors.New("no event to export")
 	}
 
 	readableKey := buildReadableKey(b.involvedObject)
-	tags := getInvolvedObjectTags(b.involvedObject)
+	tags := getInvolvedObjectTags(b.involvedObject, taggerInstance)
 	tags = append(tags, fmt.Sprintf("source_component:%s", b.component))
 
 	if b.hostInfo.providerID != "" {

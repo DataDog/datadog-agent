@@ -11,6 +11,8 @@ import (
 	"sort"
 	"testing"
 
+	"go.uber.org/fx"
+
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
@@ -18,7 +20,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
-	"go.uber.org/fx"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
@@ -599,6 +600,94 @@ func TestHandleKubePodNoContainerName(t *testing.T) {
 			actual := collector.handleKubePod(workloadmeta.Event{
 				Type:   workloadmeta.EventTypeSet,
 				Entity: &tt.pod,
+			})
+
+			assertTagInfoListEqual(t, tt.expected, actual)
+		})
+	}
+}
+
+func TestHandleKubeNamespace(t *testing.T) {
+	const namespace = "foobar"
+
+	namespaceEntityID := workloadmeta.EntityID{
+		Kind: workloadmeta.KindKubernetesNamespace,
+		ID:   namespace,
+	}
+
+	namespaceTaggerEntityID := fmt.Sprintf("namespace://%s", namespaceEntityID.ID)
+
+	store := fxutil.Test[workloadmeta.Mock](t, fx.Options(
+		logimpl.MockModule(),
+		config.MockModule(),
+		fx.Supply(workloadmeta.NewParams()),
+		fx.Supply(context.Background()),
+		workloadmeta.MockModule(),
+	))
+
+	store.Set(&workloadmeta.Container{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindKubernetesNamespace,
+			ID:   namespace,
+		},
+		EntityMeta: workloadmeta.EntityMeta{
+			Name: namespace,
+		},
+	})
+
+	tests := []struct {
+		name              string
+		labelsAsTags      map[string]string
+		annotationsAsTags map[string]string
+		nsLabelsAsTags    map[string]string
+		namespace         workloadmeta.KubernetesNamespace
+		expected          []*types.TagInfo
+	}{
+		{
+			name: "fully formed namespace",
+			nsLabelsAsTags: map[string]string{
+				"ns_env":       "ns_env",
+				"ns-ownerteam": "ns-team",
+			},
+			namespace: workloadmeta.KubernetesNamespace{
+				EntityID: namespaceEntityID,
+				EntityMeta: workloadmeta.EntityMeta{
+					Name: namespace,
+					Labels: map[string]string{
+						"ns_env":       "dev",
+						"ns-ownerteam": "containers",
+						"foo":          "bar",
+					},
+				},
+			},
+			expected: []*types.TagInfo{
+				{
+					Source:               nodeSource,
+					Entity:               namespaceTaggerEntityID,
+					HighCardTags:         []string{},
+					OrchestratorCardTags: []string{},
+					LowCardTags: []string{
+						"ns_env:dev",
+						"ns-team:containers",
+					},
+					StandardTags: []string{},
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			collector := &WorkloadMetaCollector{
+				store:    store,
+				children: make(map[string]map[string]struct{}),
+			}
+
+			collector.initPodMetaAsTags(tt.labelsAsTags, tt.annotationsAsTags, tt.nsLabelsAsTags)
+
+			actual := collector.handleKubeNamespace(workloadmeta.Event{
+				Type:   workloadmeta.EventTypeSet,
+				Entity: &tt.namespace,
 			})
 
 			assertTagInfoListEqual(t, tt.expected, actual)

@@ -142,7 +142,7 @@ def update_dependencies(ctx) -> Iterable[SetupResult]:
 def enable_pre_commit(ctx) -> SetupResult:
     print(color_message("Enabling pre-commit...", "blue"))
 
-    if not ctx.run("which pre-commit", hide=True, warn=True).ok:
+    if not ctx.run("pre-commit --version", hide=True, warn=True).ok:
         return SetupResult(
             "Enable pre-commit", Status.FAIL, "Please install pre-commit first: https://pre-commit.com/#installation."
         )

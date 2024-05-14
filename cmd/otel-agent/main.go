@@ -3,10 +3,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// otel-agent is a binary meant for testing the comp/otelcol package to ensure that it is reusable
-// both as a binary and as a part of the core agent.
-//
-// This binary is not part of the Datadog Agent package at this point, nor is it meant to be used as such.
+//go:build otlp
+
+// otel-agent is a standalone binary that runs the OpenTelemetry Collector.
 package main
 
 import (
