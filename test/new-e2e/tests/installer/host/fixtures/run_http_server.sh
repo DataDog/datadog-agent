@@ -4,7 +4,7 @@ export DD_APM_INSTRUMENTATION_DEBUG=true
 export DD_TRACE_DEBUG=true
 
 # Start Python HTTP server in the background within a subshell
-python3 /run/fixtures/http_server.py >/tmp/server.log 2>&1 &
+python3 /opt/fixtures/http_server.py >/tmp/server.log 2>&1 &
 PID=$!
 disown $PID
 

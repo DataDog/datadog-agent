@@ -25,6 +25,7 @@ func testApmInjectAgent(os e2eos.Descriptor, arch e2eos.Architecture) packageSui
 }
 
 func (s *packageApmInjectSuite) TestInstall() {
+	s.host.InstallDocker()
 	s.RunInstallScript()
 	defer s.Purge()
 	s.InstallAgentPackage()
@@ -32,14 +33,19 @@ func (s *packageApmInjectSuite) TestInstall() {
 	s.InstallPackageLatest("datadog-apm-library-python")
 	s.host.StartExamplePythonApp()
 	defer s.host.StopExamplePythonApp()
+	s.host.StartExamplePythonAppInDocker()
+	defer s.host.StopExamplePythonAppInDocker()
+
+	state := s.host.State()
+	state.AssertFileExists("/etc/ld.so.preload", 0644, "root", "root")
 
 	traceID := rand.Uint64()
 	s.host.CallExamplePythonApp(fmt.Sprint(traceID))
-	state := s.host.State()
-
-	state.AssertFileExists("/etc/ld.so.preload", 0644, "root", "root")
+	traceIDDocker := rand.Uint64()
+	s.host.CallExamplePythonAppInDocker(fmt.Sprint(traceIDDocker))
 
 	s.assertTraceReceived(traceID)
+	s.assertTraceReceived(traceIDDocker)
 }
 
 func (s *packageApmInjectSuite) assertTraceReceived(traceID uint64) {

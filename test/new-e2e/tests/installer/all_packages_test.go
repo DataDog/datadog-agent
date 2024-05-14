@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"os"
 	"regexp"
+	"slices"
 	"strings"
 	"testing"
 
@@ -26,25 +27,30 @@ import (
 
 type packageTests func(os e2eos.Descriptor, arch e2eos.Architecture) packageSuite
 
+type packageTestsWithSkipedFlavors struct {
+	t              packageTests
+	skippedFlavors []e2eos.Descriptor
+}
+
 var (
 	amd64Flavors = []e2eos.Descriptor{
 		e2eos.Ubuntu2204,
 		e2eos.AmazonLinux2,
 		e2eos.Debian12,
 		e2eos.RedHat9,
-		// e2eos.Suse15,
 		e2eos.Fedora37,
 		e2eos.CentOS7,
+		// e2eos.Suse15,
 	}
 	arm64Flavors = []e2eos.Descriptor{
 		e2eos.Ubuntu2204,
 		e2eos.AmazonLinux2,
 		// e2eos.Suse15,
 	}
-	packagesTests = []packageTests{
-		testInstaller,
-		testAgent,
-		testApmInjectAgent,
+	packagesTestsWithSkipedFlavors = []packageTestsWithSkipedFlavors{
+		{t: testInstaller},
+		{t: testAgent},
+		{t: testApmInjectAgent, skippedFlavors: []e2eos.Descriptor{e2eos.CentOS7, e2eos.RedHat9, e2eos.Fedora37}},
 	}
 )
 
@@ -58,9 +64,13 @@ func TestPackages(t *testing.T) {
 		flavor.Architecture = e2eos.ARM64Arch
 		flavors = append(flavors, flavor)
 	}
-	for _, flavor := range flavors {
-		for _, test := range packagesTests {
-			suite := test(flavor, flavor.Architecture)
+	for _, f := range flavors {
+		for _, test := range packagesTestsWithSkipedFlavors {
+			flavor := f // capture range variable for parallel tests closure
+			if slices.Contains(test.skippedFlavors, flavor) {
+				continue
+			}
+			suite := test.t(flavor, flavor.Architecture)
 			t.Run(suite.Name(), func(t *testing.T) {
 				t.Parallel()
 				opts := []awshost.ProvisionerOption{

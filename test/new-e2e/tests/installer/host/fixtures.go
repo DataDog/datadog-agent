@@ -30,9 +30,9 @@ func (h *Host) uploadFixtures() {
 		err = os.WriteFile(fixturePath, fixtureData, 0644)
 		require.NoError(h.t, err)
 	}
-	h.remote.MustExecute("sudo mkdir -p /run/fixtures")
-	h.remote.MustExecute("sudo chmod 777 /run/fixtures")
-	err = h.remote.CopyFolder(tmpDir, "/run/fixtures")
+	h.remote.MustExecute("sudo mkdir -p /opt/fixtures")
+	h.remote.MustExecute("sudo chmod 777 /opt/fixtures")
+	err = h.remote.CopyFolder(tmpDir, "/opt/fixtures")
 	require.NoError(h.t, err)
 }
 
@@ -43,17 +43,36 @@ func (h *Host) StartExamplePythonApp() {
 		"DD_ENV":     "e2e-installer",
 		"DD_VERSION": "1.0",
 	}
-	h.remote.MustExecute(`chmod +x /run/fixtures/run_http_server.sh && /run/fixtures/run_http_server.sh`, client.WithEnvVariables(env))
+	h.remote.MustExecute(`sudo chmod +x /opt/fixtures/run_http_server.sh && sudo -E /opt/fixtures/run_http_server.sh`, client.WithEnvVariables(env))
 }
 
 // StopExamplePythonApp stops the example Python app
 func (h *Host) StopExamplePythonApp() {
-	h.remote.MustExecute("pkill -f http_server.py")
+	h.remote.MustExecute("sudo pkill -f http_server.py")
 }
 
 // CallExamplePythonApp calls the example Python app
 func (h *Host) CallExamplePythonApp(traceID string) {
 	h.remote.MustExecute(fmt.Sprintf(`curl -X GET "http://localhost:8080/" \
+		-H "X-Datadog-Trace-Id: %s" \
+		-H "X-Datadog-Parent-Id: %s" \
+		-H "X-Datadog-Sampling-Priority: 2"`,
+		traceID, traceID))
+}
+
+// StartExamplePythonAppInDocker starts the example Python app in Docker
+func (h *Host) StartExamplePythonAppInDocker() {
+	h.remote.MustExecute(`sudo docker run --name python-app -d -p 8081:8080 -v /opt/fixtures/http_server.py:/usr/src/app/http_server.py public.ecr.aws/docker/library/python:3.8-slim python /usr/src/app/http_server.py`)
+}
+
+// StopExamplePythonAppInDocker stops the example Python app in Docker
+func (h *Host) StopExamplePythonAppInDocker() {
+	h.remote.MustExecute("sudo docker rm -f python-app")
+}
+
+// CallExamplePythonAppInDocker calls the example Python app in Docker
+func (h *Host) CallExamplePythonAppInDocker(traceID string) {
+	h.remote.MustExecute(fmt.Sprintf(`curl -X GET "http://localhost:8081/" \
 		-H "X-Datadog-Trace-Id: %s" \
 		-H "X-Datadog-Parent-Id: %s" \
 		-H "X-Datadog-Sampling-Priority: 2"`,

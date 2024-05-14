@@ -48,6 +48,16 @@ func New(t *testing.T, remote *components.RemoteHost, os e2eos.Descriptor, arch 
 	return host
 }
 
+// InstallDocker installs Docker on the host.
+func (h *Host) InstallDocker() {
+	switch h.os.Flavor {
+	case e2eos.AmazonLinux:
+		h.remote.MustExecute(`sudo sh -c "yum -y install docker && systemctl start docker"`)
+	default:
+		h.remote.MustExecute("curl -fsSL https://get.docker.com | sudo sh")
+	}
+}
+
 // State returns the state of the host.
 func (h *Host) State() State {
 	return State{
