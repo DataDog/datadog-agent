@@ -2,12 +2,15 @@ package local
 
 import (
 	"fmt"
-
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclientparams"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/optional"
+	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
 	"github.com/DataDog/test-infra-definitions/resources/local/docker"
+	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
+	"github.com/DataDog/test-infra-definitions/scenarios/aws/fakeintake"
 	dclocal "github.com/DataDog/test-infra-definitions/scenarios/local/docker"
 
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
@@ -20,14 +23,26 @@ const (
 
 // ProvisionerParams is a set of parameters for the Provisioner.
 type ProvisionerParams struct {
-	name              string
-	extraConfigParams runner.ConfigMap
+	name string
+
+	instanceOptions    []ec2.VMOption
+	agentOptions       []agentparams.Option
+	agentClientOptions []agentclientparams.Option
+	fakeintakeOptions  []fakeintake.Option
+	extraConfigParams  runner.ConfigMap
+	installDocker      bool
+	installUpdater     bool
 }
 
 func newProvisionerParams() *ProvisionerParams {
 	// We use nil arrays to decide if we should create or not
 	return &ProvisionerParams{
-		name: defaultVMName,
+		name:               defaultVMName,
+		instanceOptions:    []ec2.VMOption{},
+		agentOptions:       []agentparams.Option{},
+		agentClientOptions: []agentclientparams.Option{},
+		fakeintakeOptions:  []fakeintake.Option{},
+		extraConfigParams:  runner.ConfigMap{},
 	}
 }
 
@@ -69,7 +84,7 @@ func Run(ctx *pulumi.Context, env *environments.DockerLocal, params *Provisioner
 			return err
 		}
 	}
-	host, err := dclocal.NewVM(localEnv, "test")
+	host, err := dclocal.NewVM(localEnv, params.name)
 	if err != nil {
 		return err
 	}
@@ -78,5 +93,41 @@ func Run(ctx *pulumi.Context, env *environments.DockerLocal, params *Provisioner
 		return err
 	}
 	_ = ctx.Log.Info(fmt.Sprintf("Running test on container '%v'", host.Name()), nil)
+
+	// TODO: Create FakeIntake if required
+
+	if !params.installUpdater {
+		// Suite inits all fields by default, so we need to explicitly set it to nil
+		env.Updater = nil
+	}
+	// Create Agent if required
+	//if params.installUpdater && params.agentOptions != nil {
+	//	hupdater, err := updater.NewHostUpdater(&localEnv, host, params.agentOptions...)
+	//	if err != nil {
+	//		return err
+	//	}
+	//
+	//	err = hupdater.Export(ctx, &env.Updater.HostUpdaterOutput)
+	//	if err != nil {
+	//		return err
+	//	}
+	//	// todo: add agent once updater installs agent on bootstrap
+	//	env.Agent = nil
+	//} else if params.agentOptions != nil {
+	//	hagent, err := agent.NewHostAgent(&localEnv, host, params.agentOptions...)
+	//	if err != nil {
+	//		return err
+	//	}
+	//
+	//	err = hagent.Export(ctx, &env.Agent.HostAgentOutput)
+	//	if err != nil {
+	//		return err
+	//	}
+	//
+	//	env.Agent.ClientOptions = params.agentClientOptions
+	//} else {
+	//	env.Agent = nil
+	//}
+
 	return nil
 }

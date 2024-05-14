@@ -24,3 +24,17 @@ func (d *tmpSuite) TestExecute() {
 	d.Require().NoError(err)
 	d.Require().NotEmpty(out)
 }
+
+//
+//func (d *tmpSuite) TestAgentCommand() {
+//	agentVersion := d.Env().Agent.Client.Version()
+//	regexpVersion := regexp.MustCompile(`.*Agent .* - Commit: .* - Serialization version: .* - Go version: .*`)
+//
+//	d.Require().Truef(regexpVersion.MatchString(agentVersion), fmt.Sprintf("%v doesn't match %v", agentVersion, regexpVersion))
+//	// args is used to test client.WithArgs. The values of the arguments are not relevant.
+//	args := agentclient.WithArgs([]string{"-n", "-c", "."})
+//	version := d.Env().Agent.Client.Version(args)
+//
+//	d.Require().Truef(regexpVersion.MatchString(version), fmt.Sprintf("%v doesn't match %v", version, regexpVersion))
+//
+//}
