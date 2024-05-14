@@ -1472,6 +1472,9 @@ def kitchen_prepare_btfs(ctx, files_dir, arch=CURRENT_ARCH):
         ctx.run(f"cp {btf_dir}/kitchen-btfs-{arch}.tar.xz {files_dir}/minimized-btfs.tar.xz")
 
 
+# list of programs we do not want to minimize against
+no_minimize = ["lock_contention.o"]
+
 @task(iterable=['bpf_programs'])
 def generate_minimized_btfs(ctx, source_dir, output_dir, bpf_programs):
     """
@@ -1490,6 +1493,17 @@ def generate_minimized_btfs(ctx, source_dir, output_dir, bpf_programs):
         programs_dir = os.path.abspath(bpf_programs[0])
         print(f"using all object files from directory {programs_dir}")
         bpf_programs = glob.glob(f"{programs_dir}/*.o")
+
+    newlist = list()
+    print(bpf_programs)
+    for prog_path in bpf_programs:
+        print(prog_path)
+        prog = os.path.basename(prog_path)
+        if prog not in no_minimize:
+            newlist.append(prog_path)
+
+    bpf_programs = newlist
+    print(bpf_programs)
 
     ctx.run(f"mkdir -p {output_dir}")
 
