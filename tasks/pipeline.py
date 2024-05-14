@@ -500,8 +500,6 @@ EMAIL_SLACK_ID_MAP = {
 
 @task
 def changelog(ctx, new_commit_sha):
-    print("changelog")
-    return
     # Environment variable to deal with both local and CI environments
     if "CI_PROJECT_DIR" in os.environ:
         parent_dir = os.environ["CI_PROJECT_DIR"]
