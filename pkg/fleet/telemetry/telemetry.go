@@ -89,7 +89,7 @@ func (t *Telemetry) Start(_ context.Context) error {
 		env = "staging"
 	}
 	tracer.Start(
-		tracer.WithServiceName(t.service),
+		tracer.WithService(t.service),
 		tracer.WithServiceVersion(version.AgentVersion),
 		tracer.WithEnv(env),
 		tracer.WithGlobalTag("site", t.site),
