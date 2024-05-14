@@ -9,9 +9,7 @@ bin/
 /site/
 __pycache__
 .pytest_cache
-venv/
-venv27/
-venv3[78]/
+venv*/
 
 **/*.tmp
 **/debug.test
