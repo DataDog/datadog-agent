@@ -8,6 +8,8 @@ typedef enum {
     PERCPU_LRU_FREELIST_LOCK,
     LRU_GLOBAL_FREELIST_LOCK,
     LRU_PCPU_FREELIST_LOCK,
+    RINGBUF_SPINLOCK,
+    RINGBUF_WAITQ_SPINLOCK,
 } lock_type_t;
 
 struct lock_range {

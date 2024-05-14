@@ -114,6 +114,8 @@ var lockTypes = map[uint32]string{
 	4: "percpu-lru-freelist-locks",
 	5: "lru-global-freelist-locks",
 	6: "lru-pcpu-freelist-locks",
+	7: "ringbuf-spinlock",
+	8: "ringbuf-waitq-spinlock",
 }
 
 // NewLockContentionCollector creates a prometheus.Collector for eBPF lock contention metrics
@@ -422,6 +424,11 @@ func pcpuLruMapLockRanges(cpu uint32) uint32 {
 	return cpu
 }
 
+func ringbufMapLockRanges(cpu uint32) uint32 {
+	// waitq lock + rb lock
+	return 2
+}
+
 func estimateNumOfLockRanges(tm map[uint32]*targetMap, cpu uint32) uint32 {
 	var num uint32
 
@@ -436,6 +443,9 @@ func estimateNumOfLockRanges(tm map[uint32]*targetMap, cpu uint32) uint32 {
 		}
 		if t == ebpf.LRUCPUHash {
 			num += pcpuLruMapLockRanges(cpu)
+		}
+		if t == ebpf.RingBuf {
+			num += ringbufMapLockRanges(cpu)
 		}
 	}
 
