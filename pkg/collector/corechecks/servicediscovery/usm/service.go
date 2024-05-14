@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package usm provides functionality to detect the most appropriate service name for a process.
 package usm
 
 import (
@@ -25,12 +26,14 @@ const (
 	maxParseFileSize = 1024 * 1024
 )
 
+// ServiceMetadata holds information about a service.
 type ServiceMetadata struct {
 	Name            string
 	AdditionalNames []string
 	// for future usage: we can detect also the type, vendor, frameworks, etc
 }
 
+// NewServiceMetadata initializes ServiceMetadata.
 func NewServiceMetadata(name string, additional ...string) ServiceMetadata {
 	if len(additional) > 1 {
 		// names are discovered in unpredictable order. We need to keep them sorted if we're going to join them
@@ -39,6 +42,7 @@ func NewServiceMetadata(name string, additional ...string) ServiceMetadata {
 	return ServiceMetadata{Name: name, AdditionalNames: additional}
 }
 
+// GetServiceKey returns the key for the service.
 func (s ServiceMetadata) GetServiceKey() string {
 	if len(s.AdditionalNames) > 0 {
 		return strings.Join(s.AdditionalNames, "_")
@@ -64,6 +68,7 @@ func newSimpleDetector(ctx DetectionContext) detector {
 	return &simpleDetector{ctx: ctx}
 }
 
+// DetectionContext allows to detect ServiceMetadata.
 type DetectionContext struct {
 	logger *zap.Logger
 	args   []string
@@ -71,6 +76,7 @@ type DetectionContext struct {
 	fs     fs.SubFS
 }
 
+// NewDetectionContext initializes DetectionContext.
 func NewDetectionContext(logger *zap.Logger, args []string, envs []string, fs fs.SubFS) DetectionContext {
 	return DetectionContext{
 		logger: logger,
@@ -122,6 +128,7 @@ var binsWithContext = map[string]detectorCreatorFn{
 	"node":      newNodeDetector,
 }
 
+// ExtractServiceMetadata attempts to detect ServiceMetadata from the given process.
 func ExtractServiceMetadata(ctx DetectionContext) (ServiceMetadata, bool) {
 	cmd := ctx.args
 	if len(cmd) == 0 || len(cmd[0]) == 0 {
@@ -239,11 +246,15 @@ func (pythonDetector) detect(args []string) (ServiceMetadata, bool) {
 	return ServiceMetadata{}, false
 }
 
+// RealFs implements real fs operations.
 type RealFs struct{}
 
+// Open calls os.Open.
 func (RealFs) Open(name string) (fs.File, error) {
 	return os.Open(name)
 }
+
+// Sub calls os.DirFS.
 func (RealFs) Sub(dir string) (fs.FS, error) {
 	return os.DirFS(dir), nil
 }

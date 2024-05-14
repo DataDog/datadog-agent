@@ -6,9 +6,7 @@
 package usm
 
 import (
-	"fmt"
 	"io/fs"
-	"strings"
 	"testing"
 	"testing/fstest"
 
@@ -401,11 +399,4 @@ func TestJbossFindDeployedApps(t *testing.T) {
 			require.Equal(t, len(value) > 0, ok)
 		})
 	}
-}
-
-func TestMyTest(t *testing.T) {
-	s := "/Users/andrea.marziali/.sdkman/candidates/java/17.0.4.1-tem/bin/java -D[Standalone] -Djdk.serialFilter=maxbytes=10485760;maxdepth=128;maxarray=100000;maxrefs=300000 -Xms1303m -Xmx1303m -XX:MetaspaceSize=96M -XX:MaxMetaspaceSize=256m -Djava.net.preferIPv4Stack=true -Djboss.modules.system.pkgs=org.jboss.byteman -Djava.awt.headless=true -Ddd.trace.sampling.rate=1 -Ddd.trace.remove.integration-service-names.enabled=true -Ddd.trace.peer.service.defaults.enabled=true --add-exports=java.desktop/sun.awt=ALL-UNNAMED --add-exports=java.naming/com.sun.jndi.ldap=ALL-UNNAMED --add-exports=java.naming/com.sun.jndi.url.ldap=ALL-UNNAMED --add-exports=java.naming/com.sun.jndi.url.ldaps=ALL-UNNAMED --add-exports=jdk.naming.dns/com.sun.jndi.dns=ALL-UNNAMED --add-opens=java.base/java.lang=ALL-UNNAMED --add-opens=java.base/java.lang.invoke=ALL-UNNAMED --add-opens=java.base/java.lang.reflect=ALL-UNNAMED --add-opens=java.base/java.io=ALL-UNNAMED --add-opens=java.base/java.net=ALL-UNNAMED --add-opens=java.base/java.security=ALL-UNNAMED --add-opens=java.base/java.util=ALL-UNNAMED --add-opens=java.base/java.util.concurrent=ALL-UNNAMED --add-opens=java.management/javax.management=ALL-UNNAMED --add-opens=java.naming/javax.naming=ALL-UNNAMED -Djava.security.manager=allow -Dorg.jboss.boot.log.file=/Users/andrea.marziali/Downloads/jboss-eap-8.0/standalone/log/server.log -Dlogging.configuration=file:/Users/andrea.marziali/Downloads/jboss-eap-8.0/standalone/configuration/logging.properties -jar /Users/andrea.marziali/Downloads/jboss-eap-8.0/jboss-modules.jar -mp /Users/andrea.marziali/Downloads/jboss-eap-8.0/modules org.jboss.as.standalone -Djboss.home.dir=/Users/andrea.marziali/Downloads/jboss-eap-8.0 -Djboss.server.base.dir=/Users/andrea.marziali/Downloads/jboss-eap-8.0/standalone"
-	args := strings.Split(s, " ")
-	a, _ := newJbossExtractor(NewDetectionContext(zap.NewNop(), args, nil, RealFs{})).findDeployedApps("/Users/andrea.marziali/Downloads/jboss-eap-8.0/standalone")
-	fmt.Println(a)
 }

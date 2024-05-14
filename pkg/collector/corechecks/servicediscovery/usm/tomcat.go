@@ -9,7 +9,6 @@ import (
 	"encoding/xml"
 	"io/fs"
 	"path"
-	"regexp"
 	"strings"
 
 	"go.uber.org/zap"
@@ -17,18 +16,17 @@ import (
 
 // tomcat vendor specific constants
 const (
-	serverXmlPath = "conf/server.xml"
+	serverXMLPath = "conf/server.xml"
 	rootWebApp    = "ROOT"
 )
 
 type (
 	tomcatExtractor struct {
-		ctx         DetectionContext
-		fileMatcher regexp.Regexp
+		ctx DetectionContext
 	}
 
-	tomcatServerXml struct {
-		XmlName  xml.Name        `xml:"Server"`
+	tomcatServerXML struct {
+		XMLName  xml.Name        `xml:"Server"`
 		Services []tomcatService `xml:"Service"`
 	}
 
@@ -53,13 +51,13 @@ func newTomcatExtractor(ctx DetectionContext) vendorExtractor {
 
 // findDeployedApps looks for deployed application in the provided domainHome.
 func (te tomcatExtractor) findDeployedApps(domainHome string) ([]jeeDeployment, bool) {
-	serverXml := te.parseServerXml(domainHome)
-	if serverXml == nil {
+	serverXML := te.parseServerXML(domainHome)
+	if serverXML == nil {
 		return nil, false
 	}
 	var deployments []jeeDeployment
 	uniques := make(map[string]struct{})
-	for _, service := range serverXml.Services {
+	for _, service := range serverXML.Services {
 		for _, host := range service.Hosts {
 			appBase := abs(host.AppBase, domainHome)
 			for _, context := range host.Contexts {
@@ -127,18 +125,18 @@ func (tomcatExtractor) defaultContextRootFromFile(fileName string) (string, bool
 	return strings.ReplaceAll(keep, "#", "/"), true
 }
 
-func (te tomcatExtractor) parseServerXml(domainHome string) *tomcatServerXml {
-	xmlFilePath := path.Join(domainHome, serverXmlPath)
+func (te tomcatExtractor) parseServerXML(domainHome string) *tomcatServerXML {
+	xmlFilePath := path.Join(domainHome, serverXMLPath)
 	file, err := te.ctx.fs.Open(xmlFilePath)
 	if err != nil {
 		te.ctx.logger.Debug("Unable to locate tomcat server.xml", zap.String("filepath", xmlFilePath), zap.Error(err))
 		return nil
 	}
-	var serverXml tomcatServerXml
-	err = xml.NewDecoder(file).Decode(&serverXml)
+	var serverXML tomcatServerXML
+	err = xml.NewDecoder(file).Decode(&serverXML)
 	if err != nil {
 		te.ctx.logger.Debug("Unable to parse tomcat server.xml", zap.String("filepath", xmlFilePath), zap.Error(err))
 		return nil
 	}
-	return &serverXml
+	return &serverXML
 }
