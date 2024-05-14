@@ -50,6 +50,7 @@ from tasks.system_probe import (
     get_test_timeout,
     go_package_dirs,
     ninja_generate,
+    setup_runtime_clang,
 )
 
 if TYPE_CHECKING:
@@ -80,11 +81,8 @@ ARM_AMI_ID_SANDBOX = "ami-02cb18e91afb3777c"
 DEFAULT_VCPU = "4"
 DEFAULT_MEMORY = "8192"
 
-CLANG_PATH_CI = "/tmp/clang-bpf"
-LLC_PATH_CI = "/tmp/llc-bpf"
-
-CLANG_PATH_LOCAL = "/opt/datadog-agent/embedded/bin/clang-bpf"
-LLC_PATH_LOCAL = "/opt/datadog-agent/embedded/bin/llc-bpf"
+CLANG_PATH_CI = Path("/tmp/clang-bpf")
+LLC_PATH_CI = Path("/tmp/llc-bpf")
 
 
 @task
@@ -614,35 +612,24 @@ def prepare(
     else:
         raise Exit(f"Component can only be 'system-probe' or 'security-agent'. {component} not supported.")
 
-    go_root = os.getenv("GOPATH")
-    if go_root is None:
-        raise Exit("GOPATH is not set, cannot continue.")
-
-    if not ci:
-        download_gotestsum(ctx, arch_obj, f"{go_root}/bin/gotestsum")
-
-    info(f"[+] Compiling helper test binaries for {arch_obj}")
+    info(f"[+] Preparing helper binaries for {arch_obj}")
 
     paths = KMTPaths(stack, arch_obj)
 
-    llc_path = LLC_PATH_LOCAL
-    clang_path = CLANG_PATH_LOCAL
-    gotestsum_path = f"{go_root}/bin/gotestsum"
     if ci:
+        # In CI, these binaries are always present
         llc_path = LLC_PATH_CI
         clang_path = CLANG_PATH_CI
-        gotestsum_path = f"{os.getenv('GOPATH')}/bin/gotestsum"
+        gotestsum_path = Path(f"{os.getenv('GOPATH')}/bin/gotestsum")
+    else:
+        gotestsum_path = paths.dependencies / "go/bin/gotestsum"
+        download_gotestsum(ctx, arch_obj, gotestsum_path)
 
-    copy_executables = {
-        gotestsum_path: f"{paths.dependencies}/go/bin/gotestsum",
-        clang_path: f"{paths.arch_dir}/opt/datadog-agent/embedded/bin/clang-bpf",
-        llc_path: f"{paths.arch_dir}/opt/datadog-agent/embedded/bin/llc-bpf",
-    }
-
-    for sf, df in copy_executables.items():
-        if os.path.exists(sf) and not os.path.exists(df):
-            ctx.run(f"mkdir -p {os.path.dirname(df)}")
-            ctx.run(f"install {sf} {df}")
+        # We cannot use the pre-built local clang and llc-bpf binaries, as they
+        # might not be built for the target architecture.
+        llc_path = paths.tools / "llc-bpf"
+        clang_path = paths.tools / "clang-bpf"
+        setup_runtime_clang(ctx, arch_obj, paths.tools)
 
     if ci or compile_only:
         return
@@ -661,9 +648,18 @@ def prepare(
         target_instances.append(d.instance)
 
     for d in domains:
+        # Copy all test-specific dependencies to the target VM
         d.copy(ctx, paths.dependencies, "/opt/", verbose=verbose)
-        d.copy(ctx, f"{paths.arch_dir}/opt/*", "/opt/", exclude="*.ninja", verbose=verbose)
-        info(f"[+] Tests packages setup in target VM {d}")
+
+        # Copy embedded tools, make them
+        embedded_remote_path = Path("/opt/datadog-agent/embedded/bin")
+        d.copy(ctx, llc_path, embedded_remote_path / llc_path.name, verbose=verbose)
+        d.copy(ctx, clang_path, embedded_remote_path / clang_path.name, verbose=verbose)
+
+        # Copy all test files
+        d.copy(ctx, paths.arch_dir / "opt/*", "/opt/", exclude="*.ninja", verbose=verbose)
+
+        info(f"[+] Tests packages and dependencies setup in target VM {d}")
 
 
 def build_run_config(run: str | None, packages: list[str]):

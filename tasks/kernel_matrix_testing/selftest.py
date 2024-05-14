@@ -116,7 +116,7 @@ def selftest_multiarch_test(ctx: Context, allow_infra_changes: bool) -> Selftest
 
     # We just test the printk patcher as it's simple, owned by eBPF platform,
     # loads eBPF files and does not depend on other components
-    res = ctx.run(f"inv -e kmt.test --stack={stack} --packages=pkg/ebpf --run='*TestPatchPrintkNewline*'", warn=True)
+    res = ctx.run(f"inv -e kmt.test --stack={stack} --packages=pkg/ebpf --run='.*TestPatchPrintkNewline.*'", warn=True)
     if res is None or not res.ok:
         return False, "Cannot run inv -e kmt.test"
 

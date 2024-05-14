@@ -1299,31 +1299,52 @@ def run_ninja(
         ctx.run(f"ninja {explain_opt} -f {nf_path} {target}")
 
 
-def setup_runtime_clang(ctx):
-    # check if correct version is already present
-    sudo = "sudo" if not is_root() else ""
-    clang_res = ctx.run(f"{sudo} /opt/datadog-agent/embedded/bin/clang-bpf --version", warn=True)
-    llc_res = ctx.run(f"{sudo} /opt/datadog-agent/embedded/bin/llc-bpf --version", warn=True)
-    clang_version_str = clang_res.stdout.split("\n")[0].split(" ")[2].strip() if clang_res.ok else ""
-    llc_version_str = llc_res.stdout.split("\n")[1].strip().split(" ")[2].strip() if llc_res.ok else ""
+def setup_runtime_clang(
+    ctx: Context, arch: Arch | None = None, target_dir: Path | str = "/opt/datadog-agent/embedded/bin"
+) -> None:
+    target_dir = Path(target_dir)
+    needs_sudo = not os.access(target_dir, os.W_OK)
+    sudo = "sudo" if not is_root() and needs_sudo else ""
 
-    if not os.path.exists("/opt/datadog-agent/embedded/bin"):
-        ctx.run(f"{sudo} mkdir -p /opt/datadog-agent/embedded/bin")
+    if arch is None:
+        arch = get_arch("local")
 
-    arch = arch_mapping.get(platform.machine())
-    if arch == "x64":
-        arch = "amd64"
+    clang_bpf_path = target_dir / "clang-bpf"
+    llc_bpf_path = target_dir / "llc-bpf"
+    needs_clang_download, needs_llc_download = True, True
 
-    if clang_version_str != CLANG_VERSION_RUNTIME:
+    if not arch.is_cross_compiling():
+        # We can check the version of clang and llc on the system, we have the same arch and can
+        # execute the binaries. This way we can omit the download if the binaries exist and the version
+        # matches the desired one
+        clang_res = ctx.run(f"{sudo} {clang_bpf_path} --version", warn=True)
+        if clang_res is not None and clang_res.ok:
+            clang_version_str = clang_res.stdout.split("\n")[0].split(" ")[2].strip()
+            needs_clang_download = clang_version_str != CLANG_VERSION_RUNTIME
+
+        llc_res = ctx.run(f"{sudo} {llc_bpf_path} --version", warn=True)
+        if llc_res is not None and llc_res.ok:
+            llc_version_str = llc_res.stdout.split("\n")[1].strip().split(" ")[2].strip()
+            needs_llc_download = llc_version_str != CLANG_VERSION_RUNTIME
+    else:
+        # If we're cross-compiling we cannot check the version of clang and llc on the system,
+        # so we download them only if they don't exist
+        needs_clang_download = not clang_bpf_path.exists()
+        needs_llc_download = not llc_bpf_path.exists()
+
+    if not target_dir.exists():
+        ctx.run(f"{sudo} mkdir -p {target_dir}")
+
+    if needs_clang_download:
         # download correct version from dd-agent-omnibus S3 bucket
-        clang_url = f"https://dd-agent-omnibus.s3.amazonaws.com/llvm/clang-{CLANG_VERSION_RUNTIME}.{arch}"
-        ctx.run(f"{sudo} wget -q {clang_url} -O /opt/datadog-agent/embedded/bin/clang-bpf")
-        ctx.run(f"{sudo} chmod 0755 /opt/datadog-agent/embedded/bin/clang-bpf")
+        clang_url = f"https://dd-agent-omnibus.s3.amazonaws.com/llvm/clang-{CLANG_VERSION_RUNTIME}.{arch.name}"
+        ctx.run(f"{sudo} wget -q {clang_url} -O {clang_bpf_path}")
+        ctx.run(f"{sudo} chmod 0755 {clang_bpf_path}")
 
-    if llc_version_str != CLANG_VERSION_RUNTIME:
-        llc_url = f"https://dd-agent-omnibus.s3.amazonaws.com/llvm/llc-{CLANG_VERSION_RUNTIME}.{arch}"
-        ctx.run(f"{sudo} wget -q {llc_url} -O /opt/datadog-agent/embedded/bin/llc-bpf")
-        ctx.run(f"{sudo} chmod 0755 /opt/datadog-agent/embedded/bin/llc-bpf")
+    if needs_llc_download:
+        llc_url = f"https://dd-agent-omnibus.s3.amazonaws.com/llvm/llc-{CLANG_VERSION_RUNTIME}.{arch.name}"
+        ctx.run(f"{sudo} wget -q {llc_url} -O {llc_bpf_path}")
+        ctx.run(f"{sudo} chmod 0755 {llc_bpf_path}")
 
 
 def verify_system_clang_version(ctx):

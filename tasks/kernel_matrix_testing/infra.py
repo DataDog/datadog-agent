@@ -122,7 +122,12 @@ class LibvirtDomain:
         exclude_arg = ""
         if exclude is not None:
             exclude_arg = f"--exclude '{exclude}'"
-        run = f"rsync -e \"ssh {ssh_options_command({'IdentitiesOnly': 'yes'})} {{proxy_cmd}} -i {self.ssh_key}\" -p -rt --exclude='.git*' {exclude_arg} --filter=':- .gitignore' {source} root@{self.ip}:{target}"
+        verbose_arg = "-v" if verbose else ""
+
+        # Always ensure that the parent directory exists, rsync creates the rest
+        self.run_cmd(ctx, f"mkdir -p {os.path.dirname(target)}", verbose=verbose)
+
+        run = f"rsync {verbose_arg} -e \"ssh {ssh_options_command({'IdentitiesOnly': 'yes'})} {{proxy_cmd}} -i {self.ssh_key}\" -p -rt --exclude='.git*' {exclude_arg} --filter=':- .gitignore' {source} root@{self.ip}:{target}"
         return self.instance.runner.run_cmd(ctx, self.instance, run, False, verbose)
 
     def __repr__(self):
