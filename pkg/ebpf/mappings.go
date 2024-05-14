@@ -23,7 +23,7 @@ var mapModuleMapping = make(map[uint32]string)
 var progNameMapping = make(map[uint32]string)
 var progModuleMapping = make(map[uint32]string)
 
-var ErrNoMapping = errors.New("no mapping found")
+var errNoMapping = errors.New("no mapping found")
 
 // AddProgramNameMapping manually adds a program name mapping
 func AddProgramNameMapping(progid uint32, name string, module string) {
@@ -80,24 +80,28 @@ func getMappingFromID(id uint32, m map[uint32]string) (string, error) {
 
 	name, ok := m[id]
 	if !ok {
-		return "", ErrNoMapping
+		return "", errNoMapping
 	}
 
 	return name, nil
 }
 
+// GetMapNameFromMapID returns the map name for the given id
 func GetMapNameFromMapID(id uint32) (string, error) {
 	return getMappingFromID(id, mapNameMapping)
 }
 
+// GetModuleFromMapID returns the module name for the map with the given id
 func GetModuleFromMapID(id uint32) (string, error) {
 	return getMappingFromID(id, mapModuleMapping)
 }
 
+// GetProgNameFromProgID returns the program name for the given id
 func GetProgNameFromProgID(id uint32) (string, error) {
 	return getMappingFromID(id, progNameMapping)
 }
 
+// GetModuleFromProgID returns the module name for the program with the given id
 func GetModuleFromProgID(id uint32) (string, error) {
 	return getMappingFromID(id, progModuleMapping)
 }
