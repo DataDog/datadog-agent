@@ -33,10 +33,129 @@ Please check for typos in the JOBOWNERS file and/or add them to the Github <-> S
 """
 PROJECT_NAME = "DataDog/datadog-agent"
 AWS_S3_CP_CMD = "aws s3 cp --only-show-errors --region us-east-1 --sse AES256"
-S3_CI_BUCKET_URL = "s3://dd-ci-artefacts-build-stable/datadog-agent/failed_jobs"
+S3_CI_BUCKET_URL = "s3://dd-ci-artefacts-build-stable/datadog-agent/job_executions"
 CONSECUTIVE_THRESHOLD = 3
 CUMULATIVE_THRESHOLD = 5
 CUMULATIVE_LENGTH = 10
+
+
+class ExecutionsJobInfo:
+    def __init__(self, job_id: int, failing: bool = True):
+        self.job_id = job_id
+        self.failing = failing
+
+    def url(self):
+        return f'https://gitlab.dd.build.io/DataDog/datadog-agent/-/jobs/{self.job_id}'
+
+    def to_json(self):
+        return {"id": self.job_id, "failing": self.failing}
+
+    @staticmethod
+    def ci_visibility_url(name):
+        return f'https://app.datadoghq.com/ci/pipeline-executions?query=ci_level%3Ajob%20%40ci.pipeline.name%3ADataDog%2Fdatadog-agent%20%40git.branch%3Amain%20%40ci.job.name%3A{name}&agg_m=count'
+
+    @staticmethod
+    def from_json(json):
+        return ExecutionsJobInfo(json["id"], json["failing"])
+
+
+class ExecutionsJobSummary:
+    def __init__(self, consecutive_failures: int, jobs_info: list[ExecutionsJobInfo]):
+        self.consecutive_failures = consecutive_failures
+        self.jobs_info = jobs_info
+
+    def to_json(self):
+        return {
+            "consecutive_failures": self.consecutive_failures,
+            "jobs_info": [info.to_json() for info in self.jobs_info],
+        }
+
+    @staticmethod
+    def from_json(json):
+        return ExecutionsJobSummary(
+            json["consecutive_failures"],
+            [ExecutionsJobInfo.from_json(failure) for failure in json["jobs_info"]],
+        )
+
+
+class Executions:
+    def __init__(self):
+        self.jobs: dict[str, ExecutionsJobSummary] = {}
+        self.pipeline_id = 0
+
+    def add_execution(self, name: str, execution: ExecutionsJobSummary):
+        self.jobs[name] = execution
+
+    def to_json(self):
+        return {name: job.to_json() for name, job in self.jobs.items()}
+
+    @staticmethod
+    def from_json(json):
+        job_executions = Executions()
+        job_executions.jobs = {name: ExecutionsJobSummary.from_json(job) for name, job in json["jobs"].items()}
+        job_executions.pipeline_id = json.get("pipeline_id", 0)
+
+        return job_executions
+
+    def __repr__(self) -> str:
+        return f"Executions({self.to_json()})"
+
+
+class CumulativeJobAlert:
+    """
+    Test that both fails and passes multiple times in few executions
+    """
+
+    def __init__(self, failures: dict[str, list[ExecutionsJobInfo]]):
+        super().__init__()
+
+        self.failures = failures
+
+    def message(self) -> str:
+        if len(self.failures) == 0:
+            return ''
+
+        job_list = ', '.join(f'<{ExecutionsJobInfo.ci_visibility_url(name)}|{name}>' for name in self.failures)
+        message = f'Job(s) {job_list} failed {CUMULATIVE_THRESHOLD} times in last {CUMULATIVE_LENGTH} executions.\n'
+
+        return message
+
+
+class ConsecutiveJobAlert:
+    """
+    Test that fails multiple times in a row
+    """
+
+    def __init__(self, failures: dict[str, list[ExecutionsJobInfo]]):
+        super().__init__()
+
+        self.failures = failures
+
+    def message(self, ctx: Context) -> str:
+        if len(self.failures) == 0:
+            return ''
+
+        # Find initial PR
+        initial_pr_sha = ctx.run(f'git rev-parse HEAD~{CONSECUTIVE_THRESHOLD - 1}', hide=True).stdout.strip()
+        initial_pr_info = get_pr_from_commit(initial_pr_sha, PROJECT_NAME)
+        if initial_pr_info:
+            pr_id, pr_url = initial_pr_info
+            initial_pr = f'<{pr_url}|{pr_id}>'
+        else:
+            # Cannot find PR, display the commit sha
+            initial_pr = initial_pr_sha[:8]
+
+        job_list = ', '.join(self.failures)
+        details = '\n'.join(
+            [
+                f'- <{ExecutionsJobInfo.ci_visibility_url(name)}|{name}>: '
+                + ', '.join(f"<{fail.url()}|{fail.job_id}>" for fail in failures)
+                for name, failures in self.failures.items()
+            ]
+        )
+        message = f'Job(s) {job_list} failed {CONSECUTIVE_THRESHOLD} times in a row.\nFirst occurence after merge of {initial_pr}\n{details}\n'
+
+        return message
 
 
 @task
@@ -255,33 +374,31 @@ def check_consistent_failures(ctx, job_failures_file="job_executions.json"):
     # {
     #     "pipeline_id": 123,
     #     "jobs": {
-    #         "job1": {"consecutive_failures": 2, "cumulative_failures": [0, 0, 0, 1, 0, 1, 1, 0, 1, 1]},
-    #         "job2": {"consecutive_failures": 0, "cumulative_failures": [1, 0, 0, 0, 0, 0, 0, 0, 0, 0]},
-    #         "job3": {"consecutive_failures": 1, "cumulative_failures": [1]},
+    #         "job1": {"consecutive_failures": 2, "jobs_info": [{"id": null, "failing": false}, {"id": 314618, "failing": true}, {"id": 618314, "failing": true}]},
+    #         "job2": {"consecutive_failures": 0, "cumulative_failures": [{"id": 314618, "failing": true}, {"id": null, "failing": false}]},
+    #         "job3": {"consecutive_failures": 1, "cumulative_failures": [{"id": 314618, "failing": true}]},
     #     }
     # }
+    # NOTE: this format is described by the Executions class
     # The pipeline_id is used to by-pass the check if the pipeline chronological order is not respected
     # The jobs dictionary contains the consecutive and cumulative failures for each job
     # The consecutive failures are reset to 0 when the job is not failing, and are raising an alert when reaching the CONSECUTIVE_THRESHOLD (3)
     # The cumulative failures list contains 1 for failures, 0 for succes. They contain only then CUMULATIVE_LENGTH(10) last executions and raise alert when 50% failure rate is reached
-    # TODO
-    # job_executions = retrieve_job_executions(ctx, job_failures_file)
-    job_executions = {"jobs": {}}
+    job_executions = retrieve_job_executions(ctx, job_failures_file)
 
     # By-pass if the pipeline chronological order is not respected
-    if job_executions.get("pipeline_id", 0) > int(os.getenv("CI_PIPELINE_ID")):
+    if job_executions.pipeline_id > int(os.getenv("CI_PIPELINE_ID")):
         return
-    job_executions["pipeline_id"] = int(os.getenv("CI_PIPELINE_ID"))
+    job_executions.pipeline_id = int(os.getenv("CI_PIPELINE_ID"))
 
     alert_jobs, job_executions = update_statistics(job_executions)
 
     send_notification(alert_jobs)
 
-    # TODO
-    # # Upload document
-    # with open(job_failures_file, "w") as f:
-    #     json.dump(job_executions, f)
-    # ctx.run(f"{AWS_S3_CP_CMD} {job_failures_file} {S3_CI_BUCKET_URL}/{job_failures_file} ", hide="stdout")
+    # Upload document
+    with open(job_failures_file, "w") as f:
+        json.dump(job_executions.to_json(), f)
+    ctx.run(f"{AWS_S3_CP_CMD} {job_failures_file} {S3_CI_BUCKET_URL}/{job_failures_file}", hide="stdout")
 
 
 def retrieve_job_executions(ctx, job_failures_file):
@@ -292,6 +409,7 @@ def retrieve_job_executions(ctx, job_failures_file):
         ctx.run(f"{AWS_S3_CP_CMD} {S3_CI_BUCKET_URL}/{job_failures_file} {job_failures_file}", hide=True)
         with open(job_failures_file) as f:
             job_executions = json.load(f)
+        job_executions = Executions.from_json(job_executions)
     except UnexpectedExit as e:
         if "404" in e.result.stderr:
             job_executions = create_initial_job_executions(job_failures_file)
@@ -301,217 +419,38 @@ def retrieve_job_executions(ctx, job_failures_file):
 
 
 def create_initial_job_executions(job_failures_file):
-    job_executions = {"pipeline_id": 0, "jobs": {}}
+    job_executions = Executions()
     with open(job_failures_file, "w") as f:
-        json.dump(job_executions, f)
+        json.dump(job_executions.to_json(), f)
     return job_executions
 
 
-# # TODO
-# def update_statistics(job_executions):
-#     # Update statistics and collect consecutive failed jobs
-#     alert_jobs = {"consecutive": [], "cumulative": []}
-#     failed_jobs = get_failed_jobs(PROJECT_NAME, os.getenv("CI_PIPELINE_ID"))
 
-#     # TODO : Custom set / use a dict ?
-#     failed_set = {job.name for job in failed_jobs.all_failures()}
-
-#     print()
-#     print('failed_jobs', failed_jobs.all_failures())
-
-#     current_set = set(job_executions["jobs"].keys())
-
-#     # Insert data for newly failing jobs
-#     new_failed_jobs = failed_set - current_set
-#     for job in new_failed_jobs:
-#         job_executions["jobs"][job] = {"consecutive_failures": 1, "cumulative_failures": [1]}
-
-#     # Reset information for no-more failing jobs
-#     solved_jobs = current_set - failed_set
-#     for job in solved_jobs:
-#         job_executions["jobs"][job]["consecutive_failures"] = 0
-#         job_executions["jobs"][job]["cumulative_failures"].append(0)
-#         # Truncate the cumulative failures list
-#         if len(job_executions["jobs"][job]["cumulative_failures"]) > CUMULATIVE_LENGTH:
-#             job_executions["jobs"][job]["cumulative_failures"].pop(0)
-
-#     # Update information for still failing jobs and save them if they hit the threshold
-#     consecutive_failed_jobs = failed_set & current_set
-#     for job in consecutive_failed_jobs:
-#         job_executions["jobs"][job]["consecutive_failures"] += 1
-#         job_executions["jobs"][job]["cumulative_failures"].append(1)
-#         # Truncate the cumulative failures list
-#         if len(job_executions["jobs"][job]["cumulative_failures"]) > CUMULATIVE_LENGTH:
-#             job_executions["jobs"][job]["cumulative_failures"].pop(0)
-#         # Save the failed job if it hits the threshold
-#         if job_executions["jobs"][job]["consecutive_failures"] == CONSECUTIVE_THRESHOLD:
-#             alert_jobs["consecutive"].append(job)
-#         if sum(job_executions["jobs"][job]["cumulative_failures"]) == CUMULATIVE_THRESHOLD:
-#             alert_jobs["cumulative"].append(job)
-
-#     print()
-#     print('alert_jobs', alert_jobs)
-#     print()
-#     print('job_executions', job_executions)
-#     print()
-
-#     return alert_jobs, job_executions
-
-
-class ExecutionsJobInfo:
-    def __init__(self, job_id: int, failing: bool = True):
-        self.job_id = job_id
-        self.failing = failing
-
-    def url(self):
-        return f'https://gitlab.dd.build.io/DataDog/datadog-agent/-/jobs/{self.job_id}'
-
-    def to_json(self):
-        return {"id": self.job_id, "failing": self.failing}
-
-    @staticmethod
-    def ci_visibility_url(name):
-        return f'https://app.datadoghq.com/ci/pipeline-executions?query=ci_level%3Ajob%20%40ci.pipeline.name%3ADataDog%2Fdatadog-agent%20%40git.branch%3Amain%20%40ci.job.name%3A{name}&agg_m=count'
-
-    @staticmethod
-    def from_json(json):
-        return ExecutionsJobInfo(json["id"], json["failing"])
-
-
-class ExecutionsJobSummary:
-    def __init__(self, consecutive_failures: int, jobs_info: list[ExecutionsJobInfo]):
-        self.consecutive_failures = consecutive_failures
-        self.jobs_info = jobs_info
-
-    def to_json(self):
-        return {
-            "consecutive_failures": self.consecutive_failures,
-            "jobs_info": [info.to_json() for info in self.jobs_info],
-        }
-
-    @staticmethod
-    def from_json(json):
-        return ExecutionsJobSummary(
-            json["consecutive_failures"],
-            [ExecutionsJobInfo.from_json(failure) for failure in json["jobs_info"]],
-        )
-
-
-class Executions:
-    def __init__(self):
-        self.jobs: dict[str, ExecutionsJobSummary] = {}
-
-    def add_execution(self, name: str, execution: ExecutionsJobSummary):
-        self.jobs[name] = execution
-
-    def to_json(self):
-        return {name: job.to_json() for name, job in self.jobs.items()}
-
-    @staticmethod
-    def from_json(json):
-        job_executions = Executions()
-        job_executions.jobs = {name: ExecutionsJobSummary.from_json(job) for name, job in json["jobs"].items()}
-
-        return job_executions
-
-    def __repr__(self) -> str:
-        return f"Executions({self.to_json()})"
-
-
-class CumulativeJobAlert:
-    """
-    Test that both fails and passes multiple times in few executions
-    """
-
-    def __init__(self, failures: dict[str, list[ExecutionsJobInfo]]):
-        super().__init__()
-
-        self.failures = failures
-
-    def message(self) -> str:
-        if len(self.failures) == 0:
-            return ''
-
-        job_list = ', '.join(f'<{ExecutionsJobInfo.ci_visibility_url(name)}|{name}>' for name in self.failures)
-        message = f'Job(s) {job_list} failed {CUMULATIVE_THRESHOLD} times in last {CUMULATIVE_LENGTH} executions.\n'
-
-        return message
-
-
-class ConsecutiveJobAlert:
-    """
-    Test that fails multiple times in a row
-    """
-
-    def __init__(self, failures: dict[str, list[ExecutionsJobInfo]]):
-        super().__init__()
-
-        self.failures = failures
-
-    def message(self, ctx: Context) -> str:
-        if len(self.failures) == 0:
-            return ''
-
-        # Find initial PR
-        initial_pr_sha = ctx.run(f'git rev-parse HEAD~{CONSECUTIVE_THRESHOLD - 1}', hide=True).stdout.strip()
-        initial_pr_info = get_pr_from_commit(initial_pr_sha, PROJECT_NAME)
-        if initial_pr_info:
-            pr_id, pr_url = initial_pr_info
-            initial_pr = f'<{pr_url}|{pr_id}>'
-        else:
-            # Cannot find PR, display the commit sha
-            initial_pr = initial_pr_sha[:8]
-
-        job_list = ', '.join(self.failures)
-        details = '\n'.join(
-            [
-                f'- <{ExecutionsJobInfo.ci_visibility_url(name)}|{name}>: '
-                + ', '.join(f"<{fail.url()}|{fail.job_id}>" for fail in failures)
-                for name, failures in self.failures.items()
-            ]
-        )
-        message = f'Job(s) {job_list} failed {CONSECUTIVE_THRESHOLD} times in a row.\nFirst occurence after merge of {initial_pr}\n{details}\n'
-
-        return message
-
-
-def update_statistics(job_executions):
-    # TODO : Not here
-    job_executions = Executions.from_json(job_executions)
-    # print(job_executions)
-    # print()
+def update_statistics(job_executions: Executions):
     consecutive_alerts = {}
     cumulative_alerts = {}
 
     # Update statistics and collect consecutive failed jobs
-    # alert_jobs = {"consecutive": [], "cumulative": []}
     failed_jobs = get_failed_jobs(PROJECT_NAME, os.getenv("CI_PIPELINE_ID"))
-    # TODO : Clean code
     failed_dict = {job.name: ExecutionsJobInfo(job.id, True) for job in failed_jobs.all_failures()}
 
-    # print()
-    # print('failed_jobs', failed_jobs.all_failures())
-
-    # TODO : Useless
-    # current_dict = dict(job_executions["jobs"].items())
-    current_dict = dict(job_executions.jobs.items())
-
     # Insert data for newly failing jobs
-    new_failed_jobs = {name: job for name, job in failed_dict.items() if name not in current_dict}
+    new_failed_jobs = {name: job for name, job in failed_dict.items() if name not in job_executions.jobs}
     for job_name, job in new_failed_jobs.items():
         job_executions.add_execution(job_name, ExecutionsJobSummary(1, [job]))
 
     # Reset information for no-more failing jobs
-    solved_jobs = {name: job for name, job in current_dict.items() if name not in failed_dict}
+    solved_jobs = {name for name in job_executions.jobs if name not in failed_dict}
     for job in solved_jobs:
         job_executions.jobs[job].consecutive_failures = 0
+        # Append the job without its id
         job_executions.jobs[job].jobs_info.append(ExecutionsJobInfo(None, False))
         # Truncate the cumulative failures list
         if len(job_executions.jobs[job].jobs_info) > CUMULATIVE_LENGTH:
             job_executions.jobs[job].jobs_info.pop(0)
 
     # Update information for still failing jobs and save them if they hit the threshold
-    consecutive_failed_jobs = {name: job for name, job in failed_dict.items() if name in current_dict}
+    consecutive_failed_jobs = {name: job for name, job in failed_dict.items() if name in job_executions.jobs}
     for job_name, job in consecutive_failed_jobs.items():
         job_executions.jobs[job_name].consecutive_failures += 1
         job_executions.jobs[job_name].jobs_info.append(job)
@@ -524,30 +463,6 @@ def update_statistics(job_executions):
         if sum(1 for job in job_executions.jobs[job_name].jobs_info if job.failing) == CUMULATIVE_THRESHOLD:
             cumulative_alerts[job_name] = [job for job in job_executions.jobs[job_name].jobs_info if job.failing]
 
-    # print(job_executions)
-
-    # print()
-    # print('consecutive_alerts', consecutive_alerts)
-    # print()
-    # print('cumulative_alerts', cumulative_alerts)
-    # print()
-    # print(ConsecutiveJobAlert(consecutive_alerts).message(Context()))
-    # print(CumulativeJobAlert(cumulative_alerts).message())
-    # print()
-
-    # return
-
-    # print()
-    # print('alert_jobs', alert_jobs)
-    # print()
-    # print('job_executions', job_executions)
-    # print()
-
-    # # TODO : Remove test
-    # # alert_jobs["consecutive"].append({"name": list(failed_dict.values())[0].name, "id": list(failed_dict.values())[0].id})
-
-    # # TODO : URL
-
     return {
         'consecutive': ConsecutiveJobAlert(consecutive_alerts),
         'cumulative': CumulativeJobAlert(cumulative_alerts),
@@ -555,23 +470,10 @@ def update_statistics(job_executions):
 
 
 def send_notification(ctx: Context, alert_jobs):
-    # message = ""
-    # if len(alert_jobs["consecutive"]) > 0:
-    #     jobs = ", ".join(f"`{j}`" for j in alert_jobs["consecutive"])
-    #     # TODO : <https://path/to/job|jobname>
-    #     message += f"Job(s) {jobs} failed {CONSECUTIVE_THRESHOLD} times in a row.\n"
-    # if len(alert_jobs["cumulative"]) > 0:
-    #     jobs = ", ".join(f"`{j}`" for j in alert_jobs["cumulative"])
-    #     message += f"Job(s) {jobs} failed {CUMULATIVE_THRESHOLD} times in last {CUMULATIVE_LENGTH} executions.\n"
-
     message = alert_jobs["consecutive"].message(ctx) + alert_jobs["cumulative"].message()
-    if len(message):
-        print('\nsend_notification message:\n')
-        print(message)
 
-    # TODO
-    # if message:
-    #     send_slack_message("#agent-platform-ops", message)
+    if message:
+        send_slack_message("#agent-platform-ops", message)
 
 
 @task

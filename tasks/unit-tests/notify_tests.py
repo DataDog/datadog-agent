@@ -282,58 +282,6 @@ from tasks.libs.types.types import FailedJobReason, FailedJobs, FailedJobType
 
 class TestUpdateStatistics(unittest.TestCase):
     @patch('tasks.notify.get_failed_jobs')
-    def test_celian(self, mock_get_failed):
-        failed_jobs = mock_get_failed.return_value
-        failed_jobs.all_failures.return_value = [
-            ProjectJob(MagicMock(), attrs=a)
-            for a in [{"name": "nifnif", "id": 504685380}, {"name": "nafnaf", "id": 504685380}]
-        ]
-        ok = {"id": None, "failing": False}
-        j = {
-            "jobs": {
-                "nafnaf": {
-                    "consecutive_failures": 2,
-                    "jobs_info": [
-                        ok,
-                        ok,
-                        ok,
-                        ok,
-                        ok,
-                        ok,
-                        ok,
-                        ok,
-                        {"id": 42, "failing": True},
-                        {"id": 618, "failing": True},
-                    ],
-                },
-                "noufnouf": {
-                    "consecutive_failures": 2,
-                    "jobs_info": [
-                        {"id": 314, "failing": True},
-                        ok,
-                        {"id": 1618, "failing": True},
-                        {"id": 21, "failing": True},
-                    ],
-                },
-            }
-        }
-        a, j = notify.update_statistics(j)
-        self.assertEqual(j.jobs["nifnif"].consecutive_failures, 1)
-        self.assertEqual(len(j.jobs["nifnif"].jobs_info), 1)
-        self.assertTrue(j.jobs["nifnif"].jobs_info[0].failing)
-        self.assertEqual(j.jobs["nafnaf"].consecutive_failures, 3)
-        self.assertEqual(
-            [job.failing for job in j.jobs["nafnaf"].jobs_info],
-            [False, False, False, False, False, False, False, True, True, True],
-        )
-        self.assertEqual(j.jobs["noufnouf"].consecutive_failures, 0)
-        self.assertEqual([job.failing for job in j.jobs["noufnouf"].jobs_info], [True, False, True, True, False])
-        self.assertEqual(len(a["consecutive"].failures), 1)
-        self.assertEqual(len(a["cumulative"].failures), 0)
-        self.assertIn("nafnaf", a["consecutive"].failures)
-        mock_get_failed.assert_called()
-
-    @patch('tasks.notify.get_failed_jobs')
     def test_nominal(self, mock_get_failed):
         failed_jobs = mock_get_failed.return_value
         failed_jobs.all_failures.return_value = [
@@ -341,7 +289,7 @@ class TestUpdateStatistics(unittest.TestCase):
             for a in [{"name": "nifnif", "id": 504685380}, {"name": "nafnaf", "id": 504685380}]
         ]
         ok = {"id": None, "failing": False}
-        j = {
+        j = notify.Executions.from_json({
             "jobs": {
                 "nafnaf": {
                     "consecutive_failures": 2,
@@ -368,7 +316,7 @@ class TestUpdateStatistics(unittest.TestCase):
                     ],
                 },
             }
-        }
+        })
         a, j = notify.update_statistics(j)
         self.assertEqual(j.jobs["nifnif"].consecutive_failures, 1)
         self.assertEqual(len(j.jobs["nifnif"].jobs_info), 1)
@@ -394,7 +342,7 @@ class TestUpdateStatistics(unittest.TestCase):
             ProjectJob(MagicMock(), attrs=a | {"id": 42})
             for a in [{"name": "poulidor"}, {"name": "virenque"}, {"name": "bardet"}]
         ]
-        j = {
+        j = notify.Executions.from_json({
             "jobs": {
                 "poulidor": {
                     "consecutive_failures": 8,
@@ -403,7 +351,7 @@ class TestUpdateStatistics(unittest.TestCase):
                 "virenque": {"consecutive_failures": 2, "jobs_info": [ok, ok, ok, ok, fail, ok, fail, ok, fail, fail]},
                 "bardet": {"consecutive_failures": 2, "jobs_info": [fail, fail]},
             }
-        }
+        })
         a, j = notify.update_statistics(j)
         self.assertEqual(j.jobs["poulidor"].consecutive_failures, 9)
         self.assertEqual(j.jobs["virenque"].consecutive_failures, 3)
