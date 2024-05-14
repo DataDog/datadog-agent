@@ -124,13 +124,34 @@ func addEnvsIfNotSet(envs map[string]string, envFile []byte) ([]byte, error) {
 
 // verifySocketEnvs verifies that socket environment variables can be sourced
 func verifySocketEnvs(path string) error {
-	cmd := exec.Command("bash", "-c", fmt.Sprintf("source %s && echo $DD_APM_RECEIVER_SOCKET $DD_DOGSTATSD_SOCKET $DD_USE_DOGSTATSD", path))
+	// Verify DD_USE_DOGSTATSD
+	cmd := exec.Command("/bin/sh", "-c", fmt.Sprintf("source %s && echo $DD_USE_DOGSTATSD", path))
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("error verifying socket environment variables: %w", err)
 	}
-	if string(output) != fmt.Sprintf("%s %s true\n", apmInstallerSocket, statsdInstallerSocket) {
-		return fmt.Errorf("socket environment variables not set correctly: %s", output)
+	if string(output) != "true" {
+		return fmt.Errorf("socket environment variables not set correctly")
+	}
+
+	// Verify DD_APM_RECEIVER_SOCKET
+	cmd = exec.Command("/bin/sh", "-c", fmt.Sprintf("source %s && echo $DD_APM_RECEIVER_SOCKET", path))
+	output, err = cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("error verifying socket environment variables: %w", err)
+	}
+	if string(output) == "" {
+		return fmt.Errorf("socket environment variables not set correctly")
+	}
+
+	// Verify DD_DOGSTATSD_SOCKET
+	cmd = exec.Command("/bin/sh", "-c", fmt.Sprintf("source %s && echo $DD_DOGSTATSD_SOCKET", path))
+	output, err = cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("error verifying socket environment variables: %w", err)
+	}
+	if string(output) == "" {
+		return fmt.Errorf("socket environment variables not set correctly")
 	}
 	return nil
 }
