@@ -223,7 +223,7 @@ func (s *npSchedulerImpl) runTracerouteForPath(ptest *pathteststore.PathtestCont
 		m := message.NewMessage(payloadBytes, nil, "", 0)
 		err = s.epForwarder.SendEventPlatformEventBlocking(m, eventplatform.EventTypeNetworkPath)
 		if err != nil {
-			s.logger.Errorf("SendEventPlatformEvent error: %s", err)
+			s.logger.Errorf("failed to send event to epForwarder: %s", err)
 		}
 	}
 }
