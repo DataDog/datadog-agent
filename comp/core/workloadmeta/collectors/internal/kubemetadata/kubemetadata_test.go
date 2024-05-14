@@ -296,14 +296,10 @@ func TestKubeMetadataCollector_getNamespaceLabels(t *testing.T) {
 		dcaClient           clusteragent.DCAClientInterface
 		clusterAgentEnabled bool
 	}
-	type args struct {
-		getNamespaceLabelsFromAPIServerFunc func(string) (map[string]string, error)
-	}
 
 	tests := []struct {
 		name                  string
 		fields                fields
-		args                  args
 		namespaceLabelsAsTags map[string]string
 		want                  map[string]string
 		wantErr               bool
@@ -315,30 +311,6 @@ func TestKubeMetadataCollector_getNamespaceLabels(t *testing.T) {
 		},
 		{
 			name: "cluster agent not enabled",
-			args: args{
-				getNamespaceLabelsFromAPIServerFunc: func(string) (map[string]string, error) {
-					return map[string]string{
-						"label": "value",
-					}, nil
-				},
-			},
-			fields: fields{
-				clusterAgentEnabled: false,
-				dcaClient:           &FakeDCAClient{},
-			},
-			namespaceLabelsAsTags: map[string]string{
-				"label": "tag",
-			},
-			want:    map[string]string{"label": "tag"},
-			wantErr: false,
-		},
-		{
-			name: "cluster agent not enabled and failed to get namespace labels",
-			args: args{
-				getNamespaceLabelsFromAPIServerFunc: func(string) (map[string]string, error) {
-					return nil, errors.New("failed to get namespace labels")
-				},
-			},
 			fields: fields{
 				clusterAgentEnabled: false,
 				dcaClient:           &FakeDCAClient{},
@@ -347,11 +319,10 @@ func TestKubeMetadataCollector_getNamespaceLabels(t *testing.T) {
 				"label": "tag",
 			},
 			want:    nil,
-			wantErr: true,
+			wantErr: false,
 		},
 		{
 			name: "cluster agent enabled",
-			args: args{},
 			fields: fields{
 				clusterAgentEnabled: true,
 				dcaClient: &FakeDCAClient{
@@ -369,7 +340,6 @@ func TestKubeMetadataCollector_getNamespaceLabels(t *testing.T) {
 		},
 		{
 			name: "cluster agent enabled and failed to get namespace labels",
-			args: args{},
 			fields: fields{
 				clusterAgentEnabled: true,
 				dcaClient: &FakeDCAClient{
@@ -392,7 +362,7 @@ func TestKubeMetadataCollector_getNamespaceLabels(t *testing.T) {
 				collectNamespaceLabels: len(tt.namespaceLabelsAsTags) > 0,
 			}
 
-			labels, err := c.getNamespaceLabels(tt.args.getNamespaceLabelsFromAPIServerFunc, "foo")
+			labels, err := c.getNamespaceLabels("foo")
 			assert.True(t, (err != nil) == tt.wantErr)
 			assert.EqualValues(&testing.T{}, tt.want, labels)
 		})
