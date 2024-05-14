@@ -34,16 +34,6 @@ const (
 
 var installerUnits = []string{installerUnit, installerUnitExp}
 
-// PreSetupInstaller creates the necessary directories for the installer to be installed.
-// FIXME: This is a preinst and I feel bad about it
-func PreSetupInstaller() error {
-	err := os.MkdirAll("/opt/datadog-packages", 0755)
-	if err != nil {
-		return fmt.Errorf("error creating /opt/datadog-packages: %w", err)
-	}
-	return nil
-}
-
 func addDDAgentUser(ctx context.Context) error {
 	if _, err := user.Lookup("dd-agent"); err == nil {
 		return nil

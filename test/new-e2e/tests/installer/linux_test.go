@@ -25,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -107,9 +108,10 @@ func TestSuseARM(t *testing.T) {
 }
 
 func (v *installerSuite) bootstrap(remoteUpdatesEnabled bool) {
+	v.Env().RemoteHost.MustExecute("sudo rm /opt/datadog-installer/run/installer-hash || true")
 	v.Env().RemoteHost.MustExecute(
 		"sudo -E datadog-bootstrap bootstrap",
-		components.WithEnvVariables(components.EnvVar{
+		client.WithEnvVariables(client.EnvVar{
 			"DD_INSTALLER_REGISTRY":          "669783387624.dkr.ecr.us-east-1.amazonaws.com",
 			"DD_INSTALLER_REGISTRY_AUTH":     "ecr",
 			"DD_INSTALLER_BOOTSTRAP_VERSION": fmt.Sprintf("pipeline-%v", stdos.Getenv("E2E_PIPELINE_ID")),
@@ -226,6 +228,7 @@ func (v *installerSuite) TestExperimentCrash() {
 
 func (v *installerSuite) TestUninstall() {
 	host := v.Env().RemoteHost
+	v.bootstrap(false)
 
 	installAssertions := []string{
 		"test -d /opt/datadog-packages",

@@ -143,6 +143,7 @@ typedef enum {
     PROG_KAFKA,
     PROG_KAFKA_RESPONSE_PARSER,
     PROG_GRPC,
+    PROG_POSTGRES,
     // Add before this value.
     PROG_MAX,
 } protocol_prog_t;

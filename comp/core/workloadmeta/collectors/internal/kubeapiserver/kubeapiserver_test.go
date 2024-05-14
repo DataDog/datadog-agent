@@ -69,6 +69,13 @@ func TestStoreGenerators(t *testing.T) {
 			expectedStoresGenerator: []storeGenerator{newNodeStore},
 		},
 		{
+			name: "Kube namespace collection enabled",
+			cfg: map[string]bool{
+				"kubernetes_namespace_collection_enabled": true,
+			},
+			expectedStoresGenerator: []storeGenerator{newNodeStore, newNamespaceStore},
+		},
+		{
 			name: "All configurations enabled",
 			cfg: map[string]bool{
 				"cluster_agent.collect_kubernetes_tags": true,
