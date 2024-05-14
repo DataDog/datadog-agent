@@ -107,7 +107,6 @@ func (f *PathtestStore) Flush() []*PathtestContext {
 		ptConfigCtx.lastFlushTime = now
 		pathtestsToFlush = append(pathtestsToFlush, ptConfigCtx)
 		ptConfigCtx.nextRunTime = ptConfigCtx.nextRunTime.Add(f.pathtestInterval)
-		f.pathtestContexts[key] = ptConfigCtx
 	}
 	return pathtestsToFlush
 }
