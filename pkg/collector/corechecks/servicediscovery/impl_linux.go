@@ -132,7 +132,7 @@ func (li *linuxImpl) DiscoverServices() error {
 			continue
 		}
 		if _, ok := li.aliveServices[pid]; !ok {
-			log.Debugf("[pid: %d] found new process with open ports: %+v", pid, li.aliveServices)
+			log.Debugf("[pid: %d] found new process with open ports", pid)
 
 			p, ok := procs[pid]
 			if !ok {
