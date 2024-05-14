@@ -131,7 +131,6 @@ func (cf *containerFilter) start() {
 			EventType: workloadmeta.EventTypeAll,
 		},
 	))
-	defer cf.wlm.Unsubscribe(evBundle)
 	for evs := range evBundle {
 		evs.Acknowledge()
 		cf.mutex.Lock()
