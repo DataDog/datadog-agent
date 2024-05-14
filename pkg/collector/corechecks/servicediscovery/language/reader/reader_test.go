@@ -19,7 +19,7 @@ var errRead = errors.New("expected error")
 
 type readerError struct{}
 
-func (r readerError) Read(p []byte) (n int, err error) {
+func (r readerError) Read(_ []byte) (n int, err error) {
 	return 0, errRead
 }
 

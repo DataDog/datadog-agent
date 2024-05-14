@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package language provides functionality to detect the programming language for a given process.
 package language
 
 import (
@@ -15,18 +16,28 @@ import (
 	"go.uber.org/zap"
 )
 
+// Language represents programming languages.
 type Language string
 
 const (
-	Unknown   Language = "UNKNOWN"
-	Java               = "jvm"
-	Node               = "nodejs"
-	Python             = "python"
-	Ruby               = "ruby"
-	DotNet             = "dotnet"
-	Go                 = "go"
-	CPlusPlus          = "cpp"
-	PHP                = "php"
+	// Unknown is used when the language could not be detected.
+	Unknown Language = "UNKNOWN"
+	// Java represents JVM languages.
+	Java Language = "jvm"
+	// Node represents Node.js.
+	Node Language = "nodejs"
+	// Python represents Python.
+	Python Language = "python"
+	// Ruby represents Ruby.
+	Ruby Language = "ruby"
+	// DotNet represents .Net.
+	DotNet Language = "dotnet"
+	// Go represents Go.
+	Go Language = "go"
+	// CPlusPlus represents C++.
+	CPlusPlus Language = "cpp"
+	// PHP represents PHP.
+	PHP Language = "php"
 )
 
 var (
@@ -42,6 +53,7 @@ var (
 	}
 )
 
+// Detect attempts to detect the Language from the provided process information.
 func (lf Finder) Detect(args []string, envs []string) (Language, bool) {
 	lang := lf.findLang(ProcessInfo{
 		Args: args,
@@ -61,11 +73,13 @@ func findFile(fileName string) (io.ReadCloser, bool) {
 	return f, true
 }
 
+// ProcessInfo holds information about a process.
 type ProcessInfo struct {
 	Args []string
 	Envs []string
 }
 
+// FileReader attempts to read the most representative file associated to a process.
 func (pi ProcessInfo) FileReader() (io.ReadCloser, bool) {
 	fileName := pi.Args[0]
 	// if it's an absolute path, use it
@@ -86,11 +100,13 @@ func (pi ProcessInfo) FileReader() (io.ReadCloser, bool) {
 	return findFile(fileName)
 }
 
+// Matcher allows to check if a process matches to a concrete language.
 type Matcher interface {
 	Language() Language
 	Match(pi ProcessInfo) bool
 }
 
+// New returns a new language Finder.
 func New(l *zap.Logger) Finder {
 	return Finder{
 		Logger: l,
@@ -102,6 +118,7 @@ func New(l *zap.Logger) Finder {
 	}
 }
 
+// Finder allows to detect the language for a given process.
 type Finder struct {
 	Logger   *zap.Logger
 	Matchers []Matcher

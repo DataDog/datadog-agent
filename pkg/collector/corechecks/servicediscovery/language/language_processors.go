@@ -31,8 +31,10 @@ func hasScript(r io.Reader, name string) bool {
 	return bytes.Contains(buf, []byte(name))
 }
 
+// PythonScript is a Matcher for Python.
 type PythonScript struct{}
 
+// Match returns true if the language of the process is Python.
 func (PythonScript) Match(pi ProcessInfo) bool {
 	f, found := pi.FileReader()
 	if !found {
@@ -47,8 +49,10 @@ func (PythonScript) Language() Language {
 	return Python
 }
 
+// RubyScript is a Matcher for Ruby.
 type RubyScript struct{}
 
+// Match returns true if the language of the process is Ruby.
 func (RubyScript) Match(pi ProcessInfo) bool {
 	f, found := pi.FileReader()
 	if !found {
@@ -63,8 +67,10 @@ func (RubyScript) Language() Language {
 	return Ruby
 }
 
+// DotNetBinary is a Matcher for DotNet.
 type DotNetBinary struct{}
 
+// Match returns true if the language of the process is DotNet.
 func (DotNetBinary) Match(pi ProcessInfo) bool {
 	f, found := pi.FileReader()
 	if !found {
