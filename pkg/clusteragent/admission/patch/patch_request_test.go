@@ -44,55 +44,6 @@ func TestPatchRequestValidate(t *testing.T) {
 			clusterName: "cluster",
 			valid:       true,
 		},
-		// {
-		// 	name:        "empty version",
-		// 	LibConfig:   common.LibConfig{Language: "lang"},
-		// 	K8sTarget:   K8sTarget{Cluster: "cluster", Kind: "deployment", Name: "name", Namespace: "ns"},
-		// 	clusterName: "cluster",
-		// 	valid:       false,
-		// },
-		// {
-		// 	name:        "empty language",
-		// 	LibConfig:   common.LibConfig{Version: "latest"},
-		// 	K8sTarget:   K8sTarget{Cluster: "cluster", Kind: "deployment", Name: "name", Namespace: "ns"},
-		// 	clusterName: "cluster",
-		// 	valid:       false,
-		// },
-		// {
-		// 	name:        "empty cluster",
-		// 	LibConfig:   common.LibConfig{Language: "lang", Version: "latest"},
-		// 	K8sTarget:   K8sTarget{Kind: "deployment", Name: "name", Namespace: "ns"},
-		// 	clusterName: "cluster",
-		// 	valid:       false,
-		// },
-		// {
-		// 	name:        "wrong cluster",
-		// 	LibConfig:   common.LibConfig{Language: "lang", Version: "latest"},
-		// 	K8sTarget:   K8sTarget{Cluster: "wrong-cluster", Kind: "deployment", Name: "name", Namespace: "ns"},
-		// 	clusterName: "cluster",
-		// 	valid:       false,
-		// },
-		// {
-		// 	name:        "empty kind",
-		// 	LibConfig:   common.LibConfig{Language: "lang", Version: "latest"},
-		// 	K8sTarget:   K8sTarget{Cluster: "cluster", Name: "name", Namespace: "ns"},
-		// 	clusterName: "cluster",
-		// 	valid:       false,
-		// },
-		// {
-		// 	name:        "empty name",
-		// 	LibConfig:   common.LibConfig{Language: "lang", Version: "latest"},
-		// 	K8sTarget:   K8sTarget{Cluster: "cluster", Kind: "deployment", Namespace: "ns"},
-		// 	clusterName: "cluster",
-		// 	valid:       false,
-		// },
-		// {
-		// 	name:        "empty namespace",
-		// 	LibConfig:   common.LibConfig{Language: "lang", Version: "latest"},
-		// 	K8sTarget:   K8sTarget{Cluster: "cluster", Kind: "deployment", Name: "name"},
-		// 	clusterName: "cluster",
-		// 	valid:       false,
-		// },
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
