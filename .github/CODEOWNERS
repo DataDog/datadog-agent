@@ -364,6 +364,7 @@
 /pkg/containerlifecycle/                @Datadog/container-integrations
 /pkg/diagnose/                          @Datadog/container-platform
 /pkg/diagnose/connectivity/             @DataDog/agent-shared-components
+/pkg/diagnose/ports/                    @DataDog/agent-shared-components
 /pkg/eventmonitor/                      @DataDog/ebpf-platform @DataDog/agent-security
 /pkg/dynamicinstrumentation/            @DataDog/debugger
 /pkg/epforwarder/                       @DataDog/agent-processing-and-routing

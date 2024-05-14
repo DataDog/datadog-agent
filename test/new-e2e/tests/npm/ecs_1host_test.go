@@ -81,6 +81,7 @@ func ecsHttpbinEnvProvisioner() e2e.PulumiEnvRunFunc[ecsHttpbinEnv] {
 
 // TestECSVMSuite will validate running the agent on a single EC2 VM
 func TestECSVMSuite(t *testing.T) {
+	t.Parallel()
 	s := &ecsVMSuite{}
 	e2eParams := []e2e.SuiteOption{e2e.WithProvisioner(e2e.NewTypedPulumiProvisioner("ecsHttpbin", ecsHttpbinEnvProvisioner(), nil))}
 

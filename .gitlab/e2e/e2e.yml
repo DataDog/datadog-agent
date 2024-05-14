@@ -241,6 +241,7 @@ new-e2e-cws:
     - deploy_deb_testing-a7_x64
     - qa_cws_instrumentation
     - qa_agent
+    - qa_dca
   variables:
     TARGETS: ./tests/cws
     TEAM: csm-threats-agent
@@ -249,6 +250,7 @@ new-e2e-cws:
     matrix:
       - EXTRA_PARAMS: --run TestAgentSuite
       - EXTRA_PARAMS: --run TestECSFargate
+      - EXTRA_PARAMS: --run TestKindSuite
   # Temporary, remove once we made sure the recent changes have no impact on the stability of these tests
   allow_failure: true
 
