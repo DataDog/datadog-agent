@@ -3,18 +3,27 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package servicetype provides functionality to detect the service type for a given process.
 package servicetype
 
+// ServiceType represents a service type.
 type ServiceType string
 
 const (
-	Unknown    ServiceType = "unknown"
-	WebService             = "web_service"
-	DB                     = "db"
-	Queue                  = "queue"
-	Storage                = "storage"
-	FrontEnd               = "front_end"
-	ThirdParty             = "third_party"
+	// Unknown is used when the service type could not be detected.
+	Unknown ServiceType = "unknown"
+	// WebService represents web services.
+	WebService ServiceType = "web_service"
+	// DB represents database services.
+	DB ServiceType = "db"
+	// Queue represents queue services.
+	Queue ServiceType = "queue"
+	// Storage represents storage services.
+	Storage ServiceType = "storage"
+	// FrontEnd represents frontend services.
+	FrontEnd ServiceType = "front_end"
+	// ThirdParty is used for third party services.
+	ThirdParty ServiceType = "third_party"
 )
 
 var (
@@ -82,6 +91,7 @@ var (
 	nameMap = map[string]ServiceType{}
 )
 
+// Detect returns the ServiceType from the provided process information.
 func Detect(name string, ports []int) ServiceType {
 	// start with ports
 	for _, v := range ports {
