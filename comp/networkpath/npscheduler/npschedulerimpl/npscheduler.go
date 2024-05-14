@@ -201,7 +201,7 @@ func (s *npSchedulerImpl) listenPathtests() {
 func (s *npSchedulerImpl) runTracerouteForPath(ptest *pathteststore.PathtestContext) {
 	s.logger.Debugf("Run Traceroute for ptest: %+v", ptest)
 
-	startTime := time.Now()
+	startTime := s.TimeNowFn()
 	cfg := traceroute.Config{
 		DestHostname: ptest.Pathtest.Hostname,
 		DestPort:     ptest.Pathtest.Port,
