@@ -10,7 +10,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/fleet/installer"
+	"path/filepath"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -22,7 +22,7 @@ import (
 )
 
 var (
-	defaultSocketPath = filepath.Join(installer.PackagesPath, "daemon.sock")
+	defaultSocketPath = filepath.Join(installer.PackagesPath, "installer.sock")
 )
 
 // StatusResponse is the response to the status endpoint.
@@ -56,8 +56,8 @@ type localAPIImpl struct {
 }
 
 // NewLocalAPI returns a new LocalAPI.
-func NewLocalAPI(daemon Daemon) (LocalAPI, error) {
-	socketPath := defaultSocketPath
+func NewLocalAPI(daemon Daemon, runPath string) (LocalAPI, error) {
+	socketPath := filepath.Join(runPath, socketName)
 	err := os.RemoveAll(socketPath)
 	if err != nil {
 		return nil, fmt.Errorf("could not remove socket: %w", err)
@@ -237,13 +237,13 @@ type localAPIClientImpl struct {
 }
 
 // NewLocalAPIClient returns a new LocalAPIClient.
-func NewLocalAPIClient() LocalAPIClient {
+func NewLocalAPIClient(runPath string) LocalAPIClient {
 	return &localAPIClientImpl{
 		addr: "daemon", // this has no meaning when using a unix socket
 		client: &http.Client{
 			Transport: &http.Transport{
 				Dial: func(_, _ string) (net.Conn, error) {
-					return net.Dial("unix", defaultSocketPath)
+					return net.Dial("unix", filepath.Join(runPath, socketName))
 				},
 			},
 		},

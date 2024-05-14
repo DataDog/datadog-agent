@@ -55,6 +55,7 @@ func TestDownload(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, fixtures.FixtureSimpleV1.Package, downloadedPackage.Name)
 	assert.Equal(t, fixtures.FixtureSimpleV1.Version, downloadedPackage.Version)
+	assert.NotZero(t, downloadedPackage.Size)
 	tmpDir := t.TempDir()
 	err = downloadedPackage.ExtractLayers(DatadogPackageLayerMediaType, tmpDir)
 	assert.NoError(t, err)
@@ -70,6 +71,7 @@ func TestDownloadLayout(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, fixtures.FixtureSimpleV1.Package, downloadedPackage.Name)
 	assert.Equal(t, fixtures.FixtureSimpleV1.Version, downloadedPackage.Version)
+	assert.NotZero(t, downloadedPackage.Size)
 	tmpDir := t.TempDir()
 	err = downloadedPackage.ExtractLayers(DatadogPackageLayerMediaType, tmpDir)
 	assert.NoError(t, err)
@@ -131,7 +133,7 @@ func TestPackageURL(t *testing.T) {
 
 	tests := []test{
 		{site: "datad0g.com", pkg: "datadog-agent", version: "latest", expected: "oci://docker.io/datadog/agent-package-dev:latest"},
-		{site: "datadoghq.com", pkg: "datadog-agent", version: "1.2.3", expected: "oci://public.ecr.aws/datadog/agent-package:1.2.3"},
+		{site: "datadoghq.com", pkg: "datadog-agent", version: "1.2.3", expected: "oci://gcr.io/datadoghq/agent-package:1.2.3"},
 	}
 
 	for _, tt := range tests {

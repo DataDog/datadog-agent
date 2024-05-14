@@ -91,6 +91,13 @@ func newFileSerializer(fe *model.FileEvent, e *model.Event, _ ...uint64) *FileSe
 	}
 }
 
+func newFimFileSerializer(fe *model.FimFileEvent, e *model.Event, _ ...uint64) *FileSerializer {
+	return &FileSerializer{
+		Path: e.FieldHandlers.ResolveFimFilePath(e, fe),
+		Name: e.FieldHandlers.ResolveFimFileBasename(e, fe),
+	}
+}
+
 func newUserContextSerializer(e *model.Event) *UserContextSerializer {
 	if e.ProcessContext == nil || e.ProcessContext.Pid == 0 || e == nil {
 		return nil
@@ -195,16 +202,20 @@ func NewEventSerializer(event *model.Event, opts *eval.Opts) *EventSerializer {
 	switch eventType {
 	case model.CreateNewFileEventType:
 		s.FileEventSerializer = &FileEventSerializer{
-			FileSerializer: *newFileSerializer(&event.CreateNewFile.File, event),
+			FileSerializer: *newFimFileSerializer(&event.CreateNewFile.File, event),
 		}
 	case model.FileRenameEventType:
 		s.FileEventSerializer = &FileEventSerializer{
-			FileSerializer: *newFileSerializer(&event.RenameFile.Old, event),
-			Destination:    newFileSerializer(&event.RenameFile.New, event),
+			FileSerializer: *newFimFileSerializer(&event.RenameFile.Old, event),
+			Destination:    newFimFileSerializer(&event.RenameFile.New, event),
 		}
 	case model.DeleteFileEventType:
 		s.FileEventSerializer = &FileEventSerializer{
-			FileSerializer: *newFileSerializer(&event.DeleteFile.File, event),
+			FileSerializer: *newFimFileSerializer(&event.DeleteFile.File, event),
+		}
+	case model.WriteFileEventType:
+		s.FileEventSerializer = &FileEventSerializer{
+			FileSerializer: *newFimFileSerializer(&event.WriteFile.File, event),
 		}
 	case model.CreateRegistryKeyEventType:
 		s.RegistryEventSerializer = &RegistryEventSerializer{

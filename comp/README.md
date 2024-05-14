@@ -344,11 +344,15 @@ into the agent components.
 
 ### [comp/otelcol/collector](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/otelcol/collector)
 
-Package collector implements the OpenTelemetry Collector component.
+Package collector defines the OpenTelemetry Collector component.
 
 ### [comp/otelcol/collector-contrib](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib)
 
 Package collectorcontrib defines the OTel collector-contrib component
+
+### [comp/otelcol/logsagentpipeline](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline)
+
+Package logsagentpipeline contains logs agent pipeline component
 
 ## [comp/process](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/process) (Component Bundle)
 

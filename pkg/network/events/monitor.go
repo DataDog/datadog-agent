@@ -24,29 +24,29 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-var theMonitor atomic.Value
-var once sync.Once
-var initErr error
+var (
+	theMonitor atomic.Value
+	once       sync.Once
+	initErr    error
+	envFilter  = map[string]bool{
+		"DD_SERVICE": true,
+		"DD_VERSION": true,
+		"DD_ENV":     true,
+	}
+	envTagNames = map[string]string{
+		"DD_SERVICE": "service",
+		"DD_VERSION": "version",
+		"DD_ENV":     "env",
+	}
+)
 
 // Process is a process
 type Process struct {
 	Pid         uint32
-	Envs        []string
+	Tags        []*intern.Value
 	ContainerID *intern.Value
 	StartTime   int64
 	Expiry      int64
-}
-
-// Env returns the value of a environment variable
-func (p *Process) Env(key string) string {
-	for _, e := range p.Envs {
-		k, v, _ := strings.Cut(e, "=")
-		if k == key {
-			return v
-		}
-	}
-
-	return ""
 }
 
 // Init initializes the events package
@@ -106,9 +106,8 @@ func (h *eventHandlerWrapper) HandleEvent(ev any) {
 
 // Copy copies the necessary fields from the event received from the event monitor
 func (h *eventHandlerWrapper) Copy(ev *model.Event) any {
-	if theMonitor.Load() == nil {
-		// monitor is not initialized, so need to copy the event
-		// since it will get dropped by the handler anyway
+	m := theMonitor.Load()
+	if m == nil {
 		return nil
 	}
 
@@ -121,18 +120,29 @@ func (h *eventHandlerWrapper) Copy(ev *model.Event) any {
 		processStartTime = ev.GetProcessForkTime()
 	}
 
-	envs := ev.GetProcessEnvp()
-
-	return &Process{
-		Pid:         ev.GetProcessPid(),
-		ContainerID: intern.GetByString(ev.GetContainerId()),
-		StartTime:   processStartTime.UnixNano(),
-		Envs: model.FilterEnvs(envs, map[string]bool{
-			"DD_SERVICE": true,
-			"DD_VERSION": true,
-			"DD_ENV":     true,
-		}),
+	p := &Process{
+		Pid:       ev.GetProcessPid(),
+		StartTime: processStartTime.UnixNano(),
 	}
+
+	envs := model.FilterEnvs(ev.GetProcessEnvp(), envFilter)
+	if len(envs) > 0 {
+		p.Tags = make([]*intern.Value, 0, len(envs))
+		for _, env := range envs {
+			k, v, _ := strings.Cut(env, "=")
+			if len(v) > 0 {
+				if t := envTagNames[k]; t != "" {
+					p.Tags = append(p.Tags, intern.GetByString(t+":"+v))
+				}
+			}
+		}
+	}
+
+	if cid := ev.GetContainerId(); cid != "" {
+		p.ContainerID = intern.GetByString(cid)
+	}
+
+	return p
 }
 
 func (h *eventHandlerWrapper) HandleCustomEvent(rule *rules.Rule, event *events.CustomEvent) {

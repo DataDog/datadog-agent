@@ -2,6 +2,44 @@
 Release Notes
 =============
 
+.. _Release Notes_7.53.0:
+
+7.53.0 / 6.53.0
+================
+
+.. _Release Notes_7.53.0_Prelude:
+
+Prelude
+-------
+
+Released on: 2024-04-30
+Pinned to datadog-agent v7.53.0: `CHANGELOG <https://github.com/DataDog/datadog-agent/blob/main/CHANGELOG.rst#7530>`_.
+
+
+.. _Release Notes_7.53.0_New Features:
+
+New Features
+------------
+
+- APM library injection now works on EKS Fargate when the admission controller
+  is configured to add an Agent sidecar in EKS Fargate.
+
+- Cluster Agent now supports activating Application Security Management, Code Vulnerabilities, and
+  Software Composition Analysis via Helm charts.
+
+
+.. _Release Notes_7.53.0_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- Add the `mutation_webhook` tag to `admission_webhooks.webhooks_received` and `admission_webhooks.response_duration` Cluster Agent telemetry.
+
+- When using the admission controller to inject an Agent sidecar on EKS
+  Fargate, `shareProcessNamespace` is now set to `true` automatically. This is
+  to ensure that the process collection feature works.
+
+
 .. _Release Notes_7.52.0:
 
 7.52.0 / 6.52.0

@@ -52,13 +52,3 @@ def build(
     cmd += f"-o {updater_bin} -gcflags=\"{gcflags}\" -ldflags=\"{ldflags} {strip_flags}\" {REPO_PATH}/cmd/installer"
 
     ctx.run(cmd, env=env)
-
-    if sys.platform != 'win32':
-        helper_bin = os.path.join(BIN_PATH, bin_name("helper"))
-        helper_ldflags = f"-X main.installPath={install_path} -w -s"
-        helper_path = os.path.join("pkg", "fleet", "installer", "service", "helper")
-        env["CGO_ENABLED"] = "0"
-        cmd = f"go build {build_type} -tags \"{go_build_tags}\" "
-        cmd += f"-o {helper_bin} -gcflags=\"{gcflags}\" -ldflags=\"{helper_ldflags}\" {helper_path}/main.go"
-
-        ctx.run(cmd, env=env)

@@ -14,9 +14,9 @@ from invoke.exceptions import Exit
 
 from tasks.build_tags import get_build_tags, get_default_build_tags
 from tasks.cluster_agent_helpers import build_common, clean_common, refresh_assets_common, version_common
+from tasks.cws_instrumentation import BIN_PATH as CWS_INSTRUMENTATION_BIN_PATH
 from tasks.go import deps
 from tasks.libs.common.utils import load_release_versions
-from cws_instrumentation import BIN_PATH as CWS_INSTRUMENTATION_BIN_PATH
 
 # constants
 BIN_PATH = os.path.join(".", "bin", "datadog-cluster-agent")
@@ -185,7 +185,6 @@ def hacky_dev_image_build(
     ctx,
     base_image=None,
     target_image="cluster-agent",
-    target_tag="latest",
     push=False,
     signed_pull=False,
 ):
@@ -241,14 +240,13 @@ ENV DD_SSLKEYLOGFILE=/tmp/sslkeylog.txt
 '''
         )
         dockerfile.flush()
-        target_image_name = f'{target_image}:{target_tag}'
         pull_env = {}
         if signed_pull:
             pull_env['DOCKER_CONTENT_TRUST'] = '1'
-        ctx.run(f'docker build -t {target_image_name} -f {dockerfile.name} .', env=pull_env)
+        ctx.run(f'docker build -t {target_image} -f {dockerfile.name} .', env=pull_env)
 
         if push:
-            ctx.run(f'docker push {target_image_name}')
+            ctx.run(f'docker push {target_image}')
 
 
 @task

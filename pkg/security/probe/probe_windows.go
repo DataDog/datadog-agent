@@ -159,7 +159,8 @@ func (p *WindowsProbe) initEtwFIM() error {
 	if err != nil {
 		return err
 	}
-	p.fimSession, err = etwcomp.NewSession(etwSessionName)
+	p.fimSession, err = etwcomp.NewSession(etwSessionName, nil)
+
 	if err != nil {
 		return err
 	}
@@ -552,7 +553,7 @@ func (p *WindowsProbe) handleETWNotification(ev *model.Event, notif etwNotificat
 	case *createNewFileArgs:
 		ev.Type = uint32(model.CreateNewFileEventType)
 		ev.CreateNewFile = model.CreateNewFileEvent{
-			File: model.FileEvent{
+			File: model.FimFileEvent{
 				FileObject:  uint64(arg.fileObject),
 				PathnameStr: arg.fileName,
 				BasenameStr: filepath.Base(arg.fileName),
@@ -571,12 +572,12 @@ func (p *WindowsProbe) handleETWNotification(ev *model.Event, notif etwNotificat
 	case *renamePath:
 		ev.Type = uint32(model.FileRenameEventType)
 		ev.RenameFile = model.RenameFileEvent{
-			Old: model.FileEvent{
+			Old: model.FimFileEvent{
 				FileObject:  p.renamePreArgs.fileObject,
 				PathnameStr: p.renamePreArgs.path,
 				BasenameStr: filepath.Base(p.renamePreArgs.path),
 			},
-			New: model.FileEvent{
+			New: model.FimFileEvent{
 				FileObject:  uint64(arg.fileObject),
 				PathnameStr: arg.filePath,
 				BasenameStr: filepath.Base(arg.filePath),
@@ -585,7 +586,16 @@ func (p *WindowsProbe) handleETWNotification(ev *model.Event, notif etwNotificat
 	case *setDeleteArgs:
 		ev.Type = uint32(model.DeleteFileEventType)
 		ev.DeleteFile = model.DeleteFileEvent{
-			File: model.FileEvent{
+			File: model.FimFileEvent{
+				FileObject:  uint64(arg.fileObject),
+				PathnameStr: arg.fileName,
+				BasenameStr: filepath.Base(arg.fileName),
+			},
+		}
+	case *writeArgs:
+		ev.Type = uint32(model.WriteFileEventType)
+		ev.WriteFile = model.WriteFileEvent{
+			File: model.FimFileEvent{
 				FileObject:  uint64(arg.fileObject),
 				PathnameStr: arg.fileName,
 				BasenameStr: filepath.Base(arg.fileName),
@@ -829,7 +839,7 @@ func (p *WindowsProbe) OnNewDiscarder(_ *rules.RuleSet, ev *model.Event, field e
 		return
 	}
 
-	if field == "create.file.path" {
+	if field == "create.file.device_path" {
 		path := ev.CreateNewFile.File.PathnameStr
 		seclog.Debugf("new discarder for `%s` -> `%v`", field, path)
 		p.discardedPaths.Add(path, struct{}{})

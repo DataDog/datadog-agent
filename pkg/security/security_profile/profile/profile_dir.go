@@ -343,7 +343,7 @@ func (dp *DirectoryProvider) onHandleFilesFromWatcher() {
 			if errors.Is(err, cgroupModel.ErrNoImageProvided) {
 				seclog.Debugf("couldn't load new profile %s: %v", file, err)
 			} else {
-				seclog.Errorf("couldn't load new profile %s: %v", file, err)
+				seclog.Warnf("couldn't load new profile %s: %v", file, err)
 			}
 
 			continue

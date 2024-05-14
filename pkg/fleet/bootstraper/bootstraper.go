@@ -20,6 +20,9 @@ import (
 const (
 	installerPackage = "datadog-installer"
 	installerBinPath = "bin/installer/installer"
+
+	hashFilePath = "/opt/datadog-installer/run/installer-hash"
+	rootTmpDir   = "/opt/datadog-installer/run"
 )
 
 // Option are the options for the bootstraper.
@@ -85,6 +88,7 @@ func WithSite(site string) Option {
 // 2. Export the installer image as an OCI layout on the disk.
 // 3. Extract the installer image layers on the disk.
 // 4. Run the installer from the extract layer with `install file://<layout-path>`.
+// 5. Write a file on the disk with the hash of the installed version.
 func Bootstrap(ctx context.Context, opts ...Option) error {
 	o := newOptions()
 	for _, opt := range opts {
@@ -101,9 +105,20 @@ func Bootstrap(ctx context.Context, opts ...Option) error {
 	if downloadedPackage.Name != installerPackage {
 		return fmt.Errorf("unexpected package name: %s, expected %s", downloadedPackage.Name, installerPackage)
 	}
+	hash, err := downloadedPackage.Image.Digest()
+	if err != nil {
+		return fmt.Errorf("failed to get image digest: %w", err)
+	}
+	existingHash, err := os.ReadFile(hashFilePath)
+	if err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("failed to read hash file: %w", err)
+	}
+	if string(existingHash) == hash.String() {
+		return nil
+	}
 
 	// 2. Export the installer image as an OCI layout on the disk.
-	layoutTmpDir, err := os.MkdirTemp("", "")
+	layoutTmpDir, err := os.MkdirTemp(rootTmpDir, "")
 	if err != nil {
 		return fmt.Errorf("failed to create temporary directory: %w", err)
 	}
@@ -114,7 +129,7 @@ func Bootstrap(ctx context.Context, opts ...Option) error {
 	}
 
 	// 3. Extract the installer image layers on the disk.
-	binTmpDir, err := os.MkdirTemp("", "")
+	binTmpDir, err := os.MkdirTemp(rootTmpDir, "")
 	if err != nil {
 		return fmt.Errorf("failed to create temporary directory: %w", err)
 	}
@@ -130,6 +145,12 @@ func Bootstrap(ctx context.Context, opts ...Option) error {
 	err = cmd.Install(ctx, fmt.Sprintf("file://%s", layoutTmpDir), nil)
 	if err != nil {
 		return fmt.Errorf("failed to run installer: %w", err)
+	}
+
+	// 5. Write a file on the disk with the hash of the installed version.
+	err = os.WriteFile(hashFilePath, []byte(hash.String()), 0644)
+	if err != nil {
+		return fmt.Errorf("failed to write hash file: %w", err)
 	}
 	return nil
 }
