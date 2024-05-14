@@ -255,7 +255,7 @@ func Test_NpScheduler_ScheduleConns_ScheduleDurationMetric(t *testing.T) {
 	timeNowCounter := 0
 	npScheduler.TimeNowFn = func() time.Time {
 		now := MockTimeNow().Add(time.Duration(timeNowCounter) * time.Minute)
-		timeNowCounter += 1
+		timeNowCounter++
 		return now
 	}
 
