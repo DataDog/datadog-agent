@@ -31,6 +31,8 @@ const (
 	EnableConfig Action = "enable"
 	// DisableConfig instructs the patcher to apply the patch request
 	DisableConfig Action = "disable"
+	// DeleteConfig instruct the patcher to delete configuration
+	DeleteConfig Action = "delete"
 )
 
 // K8sClusterTarget represents k8s target within a cluster

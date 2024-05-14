@@ -65,7 +65,7 @@ func (p *patcher) patchNamespaces(req Request) error {
 		return nil
 	}
 
-	revision := fmt.Sprint(req.Revision)
+	enabledNamespaces := p.getNamespacesToInstrument(req.K8sTarget.ClusterTargets)
 
 	for _, ns := range enabledNamespaces {
 		namespace, err := p.k8sClient.CoreV1().Namespaces().Get(context.TODO(), ns, metav1.GetOptions{})
@@ -76,24 +76,22 @@ func (p *patcher) patchNamespaces(req Request) error {
 		if err != nil {
 			return fmt.Errorf("failed to encode object: %v", err)
 		}
-		if namespace.Labels == nil {
-			namespace.Labels = make(map[string]string)
-		}
-		if namespace.Labels[k8sutil.RcIDAnnotKey] == req.ID && namespace.Annotations[k8sutil.RcRevisionAnnotKey] == revision {
-			log.Infof("Remote Config ID %q with revision %q has already been applied to namespace %s, skipping", req.ID, revision, "")
-			return nil
+		if namespace.ObjectMeta.Labels == nil {
+			namespace.ObjectMeta.Labels = make(map[string]string)
 		}
 
 		switch req.Action {
 		case EnableConfig:
 			enableConfig(namespace, req)
 		case DisableConfig:
-			disableConfig(namespace, req)
+			disableConfig(namespace)
+		case DeleteConfig:
+			deleteConfig(namespace)
 		default:
 			return fmt.Errorf("unknown action %q", req.Action)
 		}
 
-		newObj, err := json.Marshal(ns)
+		newObj, err := json.Marshal(namespace)
 		if err != nil {
 			return fmt.Errorf("failed to encode object: %v", err)
 		}
@@ -109,14 +107,6 @@ func (p *patcher) patchNamespaces(req Request) error {
 
 	}
 
-	// ns.Annotations[k8sutil.RcIDAnnotKey] = req.ID
-	// ns.Annotations[k8sutil.RcRevisionAnnotKey] = revision
-
-	//log.Infof("Patching %s with patch %s", req.K8sTarget, string(patch))
-
-	//p.telemetryCollector.SendRemoteConfigMutateEvent(req.getApmRemoteConfigEvent(nil, telemetry.Success))
-	//metrics.PatchCompleted.Inc()
-
 	return nil
 }
 
@@ -131,13 +121,11 @@ func (p *patcher) getNamespacesToInstrument(targets []K8sClusterTarget) []string
 				nsList, err := p.k8sClient.CoreV1().Namespaces().List(context.TODO(), metav1.ListOptions{})
 				if err != nil {
 					log.Errorf("Remote Enablement: could not get list of namespaces in the cluster %s", p.clusterName)
-					// TODO: add telemetry and error apply status
 					continue
 				}
 				for _, ns := range nsList.Items {
 					enabledNamespaces = append(enabledNamespaces, ns.GetName())
 				}
-				//p.telemetryCollector.SendRemoteConfigPatchEvent(req.getApmRemoteConfigEvent(err, telemetry.FailedToMutateConfig))
 			} else {
 				// enable APM Instrumentation in specific namespaces
 				enabledNamespaces = *clusterTarget.EnabledNamespaces
@@ -152,12 +140,43 @@ func (p *patcher) getNamespacesToInstrument(targets []K8sClusterTarget) []string
 }
 
 func enableConfig(ns *v1.Namespace, req Request) {
-	ns.Labels[k8sutil.RcIDLabelKey] = req.ID
-	ns.Annotations[k8sutil.RcIDAnnotKey] = req.ID
-	ns.Annotations[k8sutil.RcRevisionAnnotKey] = fmt.Sprint(req.Revision)
+	if ns.ObjectMeta.Labels == nil {
+		ns.ObjectMeta.Labels = make(map[string]string)
+	}
+	ns.ObjectMeta.Labels[k8sutil.RcIDLabelKey] = "true"
+
+	if ns.ObjectMeta.Annotations == nil {
+		ns.ObjectMeta.Annotations = make(map[string]string)
+	}
+	ns.ObjectMeta.Annotations[k8sutil.RcIDAnnotKey] = req.ID
+	ns.ObjectMeta.Annotations[k8sutil.RcRevisionAnnotKey] = fmt.Sprint(req.Revision)
 }
 
-func disableConfig(ns *v1.Namespace, req Request) {
-	delete(ns.Annotations, k8sutil.RcIDAnnotKey)
-	delete(ns.Annotations, k8sutil.RcRevisionAnnotKey)
+func disableConfig(ns *v1.Namespace) {
+	rcIDLabelVal, ok := ns.ObjectMeta.Labels[k8sutil.RcIDLabelKey]
+	if !ok {
+		log.Errorf("")
+	}
+	if rcIDLabelVal == "true" {
+		ns.ObjectMeta.Labels[k8sutil.RcIDLabelKey] = "false"
+	}
+}
+
+func deleteConfig(ns *v1.Namespace) {
+	if _, ok := ns.ObjectMeta.Labels[k8sutil.RcIDLabelKey]; ok {
+		delete(ns.ObjectMeta.Labels, k8sutil.RcIDLabelKey)
+	}
+	if len(ns.ObjectMeta.Labels) == 0 {
+		ns.Labels = nil
+	}
+
+	if _, ok := ns.ObjectMeta.Annotations[k8sutil.RcIDAnnotKey]; ok {
+		delete(ns.ObjectMeta.Annotations, k8sutil.RcIDAnnotKey)
+	}
+	if _, ok := ns.ObjectMeta.Annotations[k8sutil.RcRevisionAnnotKey]; ok {
+		delete(ns.ObjectMeta.Annotations, k8sutil.RcRevisionAnnotKey)
+	}
+	if len(ns.ObjectMeta.Annotations) == 0 {
+		ns.ObjectMeta.Annotations = nil
+	}
 }
