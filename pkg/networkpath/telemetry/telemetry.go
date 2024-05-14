@@ -21,6 +21,8 @@ type NetworkPathCollectorType string
 
 // CollectorTypeNetworkPathIntegration correspond to the Network Path Integration source type
 const CollectorTypeNetworkPathIntegration NetworkPathCollectorType = "network_path_integration"
+
+// CollectorTypeNetworkPathScheduler correspond to the Network Path Scheduler source type
 const CollectorTypeNetworkPathScheduler NetworkPathCollectorType = "network_path_scheduler"
 
 // SubmitNetworkPathTelemetry submits Network Path related telemetry

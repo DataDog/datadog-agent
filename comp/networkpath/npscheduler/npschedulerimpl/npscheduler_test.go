@@ -177,12 +177,12 @@ func Test_NpScheduler_runningAndProcessing(t *testing.T) {
 }
 `)
 	mockEpForwarder.EXPECT().SendEventPlatformEventBlocking(
-		message.NewMessage(compactJson(event1), nil, "", 0),
+		message.NewMessage(compactJSON(event1), nil, "", 0),
 		eventplatform.EventTypeNetworkPath,
 	).Return(nil).Times(1)
 
 	mockEpForwarder.EXPECT().SendEventPlatformEventBlocking(
-		message.NewMessage(compactJson(event2), nil, "", 0),
+		message.NewMessage(compactJSON(event2), nil, "", 0),
 		eventplatform.EventTypeNetworkPath,
 	).Return(nil).Times(1)
 
@@ -219,7 +219,7 @@ func Test_NpScheduler_runningAndProcessing(t *testing.T) {
 	app.RequireStop()
 }
 
-func compactJson(metadataEvent []byte) []byte {
+func compactJSON(metadataEvent []byte) []byte {
 	compactMetadataEvent := new(bytes.Buffer)
 	json.Compact(compactMetadataEvent, metadataEvent)
 	return compactMetadataEvent.Bytes()
