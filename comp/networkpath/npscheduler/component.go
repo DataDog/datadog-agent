@@ -8,7 +8,7 @@ package npscheduler
 
 import model "github.com/DataDog/agent-payload/v5/process"
 
-// team: network-device-monitoring
+// team: Networks
 
 // Component is the component type.
 type Component interface {

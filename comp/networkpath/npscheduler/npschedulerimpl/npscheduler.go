@@ -31,32 +31,33 @@ import (
 )
 
 type npSchedulerImpl struct {
-	epForwarder eventplatform.Forwarder
-	logger      log.Component
-
 	enabled bool
 
-	workers int
-
+	// Deps
+	epForwarder  eventplatform.Forwarder
+	logger       log.Component
 	metricSender metricsender.MetricSender
+	statsdClient ddgostatsd.ClientInterface
 
+	// Counters
 	receivedPathtestCount    *atomic.Uint64
 	processedTracerouteCount *atomic.Uint64
 
+	// Pathtest store
 	pathtestStore       *pathteststore.PathtestStore
 	pathtestInputChan   chan *common.Pathtest
 	pathtestProcessChan chan *pathteststore.PathtestContext
-	stopChan            chan struct{}
-	flushLoopDone       chan struct{}
-	runDone             chan struct{}
-	flushInterval       time.Duration
 
-	TimeNowFn func() time.Time // Allows to mock time in tests
+	// Scheduling related
+	running       bool
+	workers       int
+	stopChan      chan struct{}
+	flushLoopDone chan struct{}
+	runDone       chan struct{}
+	flushInterval time.Duration
 
-	running bool
-
-	statsdClient ddgostatsd.ClientInterface
-
+	// structures needed to ease mocking/testing
+	TimeNowFn     func() time.Time
 	runTraceroute func(cfg traceroute.Config) (payload.NetworkPath, error)
 }
 
