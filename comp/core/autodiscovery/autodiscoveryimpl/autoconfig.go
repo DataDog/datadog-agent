@@ -30,6 +30,7 @@ import (
 	autodiscoveryStatus "github.com/DataDog/datadog-agent/comp/core/autodiscovery/status"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/telemetry"
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
+	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	logComp "github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/status"
@@ -94,6 +95,7 @@ type provides struct {
 	Comp           autodiscovery.Component
 	StatusProvider status.InformationProvider
 	Endpoint       api.AgentEndpointProvider
+	FlareProvider  flaretypes.Provider
 }
 
 // Module defines the fx options for this component.
@@ -110,7 +112,8 @@ func newProvides(deps dependencies) provides {
 		Comp:           c,
 		StatusProvider: status.NewInformationProvider(autodiscoveryStatus.GetProvider(c)),
 
-		Endpoint: api.NewAgentEndpointProvider(c.(*AutoConfig).writeConfigCheck, "/config-check", "GET"),
+		Endpoint:      api.NewAgentEndpointProvider(c.(*AutoConfig).writeConfigCheck, "/config-check", "GET"),
+		FlareProvider: flaretypes.NewProvider(c.(*AutoConfig).fillFlare),
 	}
 }
 
@@ -291,46 +294,40 @@ func printContainerExclusionRulesInfo(w io.Writer, c *integration.Config) {
 	}
 }
 
-func (ac *AutoConfig) writeConfigCheck(w http.ResponseWriter, r *http.Request) {
-	var response integration.ConfigCheckResponse
-
-	verbose := r.URL.Query().Get("verbose") == "true"
-
+func (ac *AutoConfig) getConfigChecks(writer io.Writer, verbose bool) {
 	configSlice := ac.LoadedConfigs()
 	sort.Slice(configSlice, func(i, j int) bool {
 		return configSlice[i].Name < configSlice[j].Name
 	})
-	response.Configs = configSlice
-	response.ResolveWarnings = GetResolveWarnings()
-	response.ConfigErrors = GetConfigErrors()
-	response.Unresolved = ac.GetUnresolvedTemplates()
 
-	writer := new(bytes.Buffer)
+	resolveWarnings := GetResolveWarnings()
+	configErrors := GetConfigErrors()
+	unresolved := ac.GetUnresolvedTemplates()
 
-	if len(response.ConfigErrors) > 0 {
-		fmt.Fprintf(w, "=== Configuration %s ===\n", color.RedString("errors"))
-		for check, error := range response.ConfigErrors {
-			fmt.Fprintf(w, "\n%s: %s\n", color.RedString(check), error)
+	if len(configErrors) > 0 {
+		fmt.Fprintf(writer, "=== Configuration %s ===\n", color.RedString("errors"))
+		for check, error := range configErrors {
+			fmt.Fprintf(writer, "\n%s: %s\n", color.RedString(check), error)
 		}
 	}
 
-	for _, c := range response.Configs {
+	for _, c := range configSlice {
 		printConfig(writer, c, "")
 	}
 
 	if verbose {
-		if len(response.ResolveWarnings) > 0 {
+		if len(resolveWarnings) > 0 {
 			fmt.Fprintf(writer, "\n=== Resolve %s ===\n", color.YellowString("warnings"))
-			for check, warnings := range response.ResolveWarnings {
+			for check, warnings := range resolveWarnings {
 				fmt.Fprintf(writer, "\n%s\n", color.YellowString(check))
 				for _, warning := range warnings {
 					fmt.Fprintf(writer, "* %s\n", warning)
 				}
 			}
 		}
-		if len(response.Unresolved) > 0 {
+		if len(unresolved) > 0 {
 			fmt.Fprintf(writer, "\n=== %s Configs ===\n", color.YellowString("Unresolved"))
-			for ids, configs := range response.Unresolved {
+			for ids, configs := range unresolved {
 				fmt.Fprintf(writer, "\n%s: %s\n", color.BlueString("Auto-discovery IDs"), color.YellowString(ids))
 				fmt.Fprintf(writer, "%s:\n", color.BlueString("Templates"))
 				for _, config := range configs {
@@ -339,8 +336,24 @@ func (ac *AutoConfig) writeConfigCheck(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}
+}
+
+func (ac *AutoConfig) writeConfigCheck(w http.ResponseWriter, r *http.Request) {
+	verbose := r.URL.Query().Get("verbose") == "true"
+	writer := new(bytes.Buffer)
+	ac.getConfigChecks(writer, verbose)
 
 	w.Write(writer.Bytes())
+}
+
+// fillFlare add the config-checks log to flares.
+func (ac *AutoConfig) fillFlare(fb flaretypes.FlareBuilder) error {
+	fb.AddFileFromFunc("config-check.log", func() ([]byte, error) {
+		writer := new(bytes.Buffer)
+		ac.getConfigChecks(writer, true)
+		return writer.Bytes(), nil
+	})
+	return nil
 }
 
 // Start will listen to the service channels before anything is sent to them
