@@ -10,7 +10,6 @@ package selftests
 
 import (
 	"fmt"
-	"os"
 	"path/filepath"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
@@ -33,7 +32,7 @@ func (o *WindowsOpenRegistryKeyTest) GetRuleDefinition() *rules.RuleDefinition {
 
 	return &rules.RuleDefinition{
 		ID:         o.ruleID,
-		Expression: fmt.Sprintf(`open.registry.key_name == "%s" && process.pid == %d`, filepath.Base(o.keyPath), os.Getpid()),
+		Expression: fmt.Sprintf(`open.registry.key_name == "%s"`, filepath.Base(o.keyPath)),
 	}
 }
 

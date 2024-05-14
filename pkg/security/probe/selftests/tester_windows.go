@@ -8,7 +8,6 @@ package selftests
 
 import (
 	"fmt"
-	"path/filepath"
 	"time"
 
 	"go.uber.org/atomic"
@@ -40,12 +39,12 @@ func NewSelfTester(cfg *config.RuntimeSecurityConfig, probe *probe.Probe) (*Self
 		return nil, err
 	}
 	selfTests = []SelfTest{
-		&WindowsCreateFileSelfTest{filename: filepath.Join(dir, fileToCreate)},
+		&WindowsCreateFileSelfTest{filename: fmt.Sprintf("%s/%s", dir, fileToCreate)},
 		&WindowsOpenRegistryKeyTest{keyPath: keyPath},
 	}
 
 	s := &SelfTester{
-		waitingForEvent: atomic.NewBool(false),
+		waitingForEvent: atomic.NewBool(cfg.EBPFLessEnabled),
 		eventChan:       make(chan selfTestEvent, 10),
 		selfTestRunning: make(chan time.Duration, 10),
 		probe:           probe,
