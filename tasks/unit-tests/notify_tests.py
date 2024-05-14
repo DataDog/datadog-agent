@@ -248,36 +248,37 @@ from tasks.libs.types.types import FailedJobReason, FailedJobs, FailedJobType
 #         list_mock.assert_called()
 
 
-# class TestRetrieveJobExecutionsCreated(unittest.TestCase):
-#     job_executions = None
-#     job_file = "job_executions.json"
+class TestRetrieveJobExecutionsCreated(unittest.TestCase):
+    job_executions = None
+    job_file = "job_executions.json"
 
-#     def setUp(self) -> None:
-#         self.job_executions = notify.create_initial_job_executions(self.job_file)
+    def setUp(self) -> None:
+        self.job_executions = notify.create_initial_job_executions(self.job_file)
 
-#     def tearDown(self) -> None:
-#         pathlib.Path(self.job_file).unlink(missing_ok=True)
+    def tearDown(self) -> None:
+        pathlib.Path(self.job_file).unlink(missing_ok=True)
 
-#     def test_retrieved(self):
-#         ctx = MockContext(run=Result("test"))
-#         j = notify.retrieve_job_executions(ctx, "job_executions.json")
-#         self.assertEqual(j, self.job_executions)
+    def test_retrieved(self):
+        ctx = MockContext(run=Result("test"))
+        j = notify.retrieve_job_executions(ctx, "job_executions.json")
+        self.assertDictEqual(j.to_json(), self.job_executions.to_json())
 
 
-# class TestRetrieveJobExecutions(unittest.TestCase):
-#     test_json = "tasks/unit-tests/testdata/job_executions.json"
+class TestRetrieveJobExecutions(unittest.TestCase):
+    test_json = "tasks/unit-tests/testdata/job_executions.json"
 
-#     def test_not_found(self):
-#         ctx = MagicMock()
-#         ctx.run.side_effect = UnexpectedExit(Result(stderr="This is a 404 not found"))
-#         j = notify.retrieve_job_executions(ctx, self.test_json)
-#         self.assertEqual(j, {"pipeline_id": 0, "jobs": {}})
+    def test_not_found(self):
+        ctx = MagicMock()
+        ctx.run.side_effect = UnexpectedExit(Result(stderr="This is a 404 not found"))
+        j = notify.retrieve_job_executions(ctx, self.test_json)
+        self.assertEqual(j.pipeline_id, 0)
+        self.assertEqual(j.jobs, {})
 
-#     def test_other_error(self):
-#         ctx = MagicMock()
-#         ctx.run.side_effect = UnexpectedExit(Result(stderr="This is another error"))
-#         with self.assertRaises(UnexpectedExit):
-#             notify.retrieve_job_executions(ctx, self.test_json)
+    def test_other_error(self):
+        ctx = MagicMock()
+        ctx.run.side_effect = UnexpectedExit(Result(stderr="This is another error"))
+        with self.assertRaises(UnexpectedExit):
+            notify.retrieve_job_executions(ctx, self.test_json)
 
 
 class TestUpdateStatistics(unittest.TestCase):

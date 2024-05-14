@@ -88,7 +88,7 @@ class Executions:
         self.jobs[name] = execution
 
     def to_json(self):
-        return {name: job.to_json() for name, job in self.jobs.items()}
+        return {"jobs": {name: job.to_json() for name, job in self.jobs.items()}}
 
     @staticmethod
     def from_json(json):
