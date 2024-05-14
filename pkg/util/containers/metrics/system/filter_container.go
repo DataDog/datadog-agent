@@ -16,6 +16,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/trie"
 )
 
+// containerFilter is a filter that will first try to retrieve a container-id from the cgroup path
+// using regex matching. If it fails, it will perform suffix-matching on the cgroup path to find a container-id.
+// Containerd currently exposes either the full cgroup path or only a suffix, this is why we use a `trie` to store
+// the metadata retrieved from workloadmeta.
 type containerFilter struct {
 	wlm workloadmeta.Component
 
@@ -61,7 +65,9 @@ func (cf *containerFilter) handleEvent(ev workloadmeta.Event) {
 	}
 	switch ev.Type {
 	case workloadmeta.EventTypeSet:
-		if cont.CgroupPath != "" {
+		// As a memory optimization, we only store the container id in the trie
+		// if the cgroup path is not already matched by the cgroup filter.
+		if res, _ := cgroups.ContainerFilter("", cont.CgroupPath); res == "" {
 			cid := cont.ID
 			cf.trie.Insert(cont.CgroupPath, &cid)
 		}
@@ -73,12 +79,12 @@ func (cf *containerFilter) handleEvent(ev workloadmeta.Event) {
 }
 
 // ContainerFilter returns a filter that will match cgroup folders containing a container id
-func (cf *containerFilter) ContainerFilter(path, name string) (string, error) {
-	if res, _ := cgroups.ContainerFilter(path, name); res != "" {
+func (cf *containerFilter) ContainerFilter(fullPath, name string) (string, error) {
+	if res, _ := cgroups.ContainerFilter(fullPath, name); res != "" {
 		return res, nil
 	}
 	cf.mutex.RLock()
-	res, ok := cf.trie.Get(path)
+	res, ok := cf.trie.Get(fullPath)
 	cf.mutex.RUnlock()
 	if !ok || res == nil {
 		return "", nil
