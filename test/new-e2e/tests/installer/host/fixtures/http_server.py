@@ -4,9 +4,11 @@ import signal
 from ddtrace import tracer
 from ddtrace.propagation.http import HTTPPropagator
 
+
 def signal_handler(signal_received, frame):
     # Handle any cleanup here
     print('SIGHUP received, but continuing to run.')
+
 
 # Define a handler for the HTTP requests.
 class RequestHandler(BaseHTTPRequestHandler):
@@ -30,6 +32,7 @@ class RequestHandler(BaseHTTPRequestHandler):
             self.send_header('Content-type', 'text/html')
             self.end_headers()
             self.wfile.write(b"Hello, World!")
+
 
 # Specify the port you want the server to run on
 port = 8080

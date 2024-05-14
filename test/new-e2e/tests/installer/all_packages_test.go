@@ -29,16 +29,16 @@ type packageTests func(os e2eos.Descriptor, arch e2eos.Architecture) packageSuit
 var (
 	amd64Flavors = []e2eos.Descriptor{
 		e2eos.Ubuntu2204,
-		// e2eos.AmazonLinux2,
-		// e2eos.Debian12,
-		// e2eos.RedHat9,
+		e2eos.AmazonLinux2,
+		e2eos.Debian12,
+		e2eos.RedHat9,
 		// e2eos.Suse15,
-		// e2eos.Fedora37,
-		// e2eos.CentOS7,
+		e2eos.Fedora37,
+		e2eos.CentOS7,
 	}
 	arm64Flavors = []e2eos.Descriptor{
-		// e2eos.Ubuntu2204,
-		// e2eos.AmazonLinux2,
+		e2eos.Ubuntu2204,
+		e2eos.AmazonLinux2,
 		// e2eos.Suse15,
 	}
 	packagesTests = []packageTests{
