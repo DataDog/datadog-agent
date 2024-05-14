@@ -19,16 +19,26 @@ import (
 )
 
 const (
-	IMDSSecurityCredentialsURL                 = "/latest/meta-data/iam/security-credentials/test"
+	// IMDSSecurityCredentialsURL is the URL used by the IMDS tests
+	IMDSSecurityCredentialsURL = "/latest/meta-data/iam/security-credentials/test"
+	// AWSSecurityCredentialsAccessKeyIDTestValue is the AccessKeyID used by the IMDS tests
 	AWSSecurityCredentialsAccessKeyIDTestValue = "ASIAIOSFODNN7EXAMPLE"
-	AWSSecurityCredentialsTypeTestValue        = "AWS-HMAC"
-	AWSSecurityCredentialsCodeTestValue        = "Success"
+	// AWSSecurityCredentialsTypeTestValue is the AWS Credentials Type used by the IMDS tests
+	AWSSecurityCredentialsTypeTestValue = "AWS-HMAC"
+	// AWSSecurityCredentialsCodeTestValue is the AWS Credentials Code used by the IMDS tests
+	AWSSecurityCredentialsCodeTestValue = "Success"
+	// AWSSecurityCredentialsLastUpdatedTestValue is the AWS Credentials LastUpdated value used by the IMDS tests
 	AWSSecurityCredentialsLastUpdatedTestValue = "2012-04-26T16:39:16Z"
-	AWSSecurityCredentialsExpirationTestValue  = "2324-05-01T12:00:00Z"
-	AWSIMDSServerTestValue                     = "EC2ws"
-	CSMDummyInterface                          = "dummy_csm"
-	IMDSTestServerIP                           = "169.254.169.254"
-	IMDSTestServerPort                         = 8080
+	// AWSSecurityCredentialsExpirationTestValue is the AWS Credentials Expiration value used by the IMDS tests
+	AWSSecurityCredentialsExpirationTestValue = "2324-05-01T12:00:00Z"
+	// AWSIMDSServerTestValue is the IMDS Server used by the IMDS tests
+	AWSIMDSServerTestValue = "EC2ws"
+	// CSMDummyInterface is the Dummy interface name used by the IMDS tests
+	CSMDummyInterface = "dummy_csm"
+	// IMDSTestServerIP is the IMDS server IP used by the IMDS tests
+	IMDSTestServerIP = "169.254.169.254"
+	// IMDSTestServerPort is the IMDS server port used by the IMDS tests
+	IMDSTestServerPort = 8080
 )
 
 // CreateDummyInterface creates a dummy interface and attaches it to the provided IP

@@ -41,7 +41,7 @@ Triggers are events that correspond to types of activity seen by the system. The
 | `dns` | Network | A DNS request was sent | 7.36 |
 | `exec` | Process | A process was executed or forked | 7.27 |
 | `exit` | Process | A process was terminated | 7.38 |
-| `imds` | Network | A IMDS event was captured | 7.55 |
+| `imds` | Network | An IMDS event was captured | 7.55 |
 | `link` | File | Create a new name/alias for a file | 7.27 |
 | `load_module` | Kernel | A new kernel module was loaded | 7.35 |
 | `mkdir` | File | A directory was created | 7.27 |
@@ -723,7 +723,7 @@ A process was terminated
 
 ### Event `imds`
 
-A IMDS event was captured
+An IMDS event was captured
 
 | Property | Definition |
 | -------- | ------------- |

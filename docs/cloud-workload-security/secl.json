@@ -2517,7 +2517,7 @@
     },
     {
       "name": "imds",
-      "definition": "A IMDS event was captured",
+      "definition": "An IMDS event was captured",
       "type": "Network",
       "from_agent_version": "7.55",
       "experimental": false,
