@@ -397,7 +397,7 @@ def check_consistent_failures(ctx, job_failures_file="job_executions.json"):
 
     alert_jobs, job_executions = update_statistics(job_executions)
 
-    send_notification(alert_jobs)
+    send_notification(ctx, alert_jobs)
 
     # Upload document
     with open(job_failures_file, "w") as f:
