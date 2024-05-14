@@ -112,7 +112,7 @@ func (s *npSchedulerImpl) ScheduleConns(conns []*model.Connection) {
 	if !s.enabled {
 		return
 	}
-	startTime := time.Now()
+	startTime := s.TimeNowFn()
 	for _, conn := range conns {
 		// Only process outgoing traffic
 		if !shouldScheduleNetworkPathForConn(conn) {
@@ -126,7 +126,7 @@ func (s *npSchedulerImpl) ScheduleConns(conns []*model.Connection) {
 		}
 	}
 
-	scheduleDuration := time.Since(startTime)
+	scheduleDuration := s.TimeNowFn().Sub(startTime)
 	s.statsdClient.Gauge("datadog.network_path.scheduler.schedule_duration", scheduleDuration.Seconds(), nil, 1) //nolint:errcheck
 }
 

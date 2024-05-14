@@ -229,6 +229,44 @@ func Test_NpScheduler_runningAndProcessing(t *testing.T) {
 	app.RequireStop()
 }
 
+func Test_NpScheduler_ScheduleConns_ScheduleDurationMetric(t *testing.T) {
+	// GIVEN
+	sysConfigs := map[string]any{
+		"network_path.enabled": true,
+	}
+	_, npScheduler := newTestNpScheduler(t, sysConfigs)
+
+	stats := &teststatsd.Client{}
+	npScheduler.statsdClient = stats
+	npScheduler.metricSender = metricsender.NewMetricSenderStatsd(stats)
+
+	conns := []*model.Connection{
+		{
+			Laddr:     &model.Addr{Ip: "127.0.0.1", Port: int32(30000)},
+			Raddr:     &model.Addr{Ip: "127.0.0.2", Port: int32(80)},
+			Direction: model.ConnectionDirection_outgoing,
+		},
+		{
+			Laddr:     &model.Addr{Ip: "127.0.0.3", Port: int32(30000)},
+			Raddr:     &model.Addr{Ip: "127.0.0.4", Port: int32(80)},
+			Direction: model.ConnectionDirection_outgoing,
+		},
+	}
+	timeNowCounter := 0
+	npScheduler.TimeNowFn = func() time.Time {
+		now := MockTimeNow().Add(time.Duration(timeNowCounter) * time.Minute)
+		timeNowCounter += 1
+		return now
+	}
+
+	// WHEN
+	npScheduler.ScheduleConns(conns)
+
+	// THEN
+	calls := stats.GaugeCalls
+	assert.Contains(t, calls, teststatsd.MetricsArgs{Name: "datadog.network_path.scheduler.schedule_duration", Value: 60.0, Tags: nil, Rate: 1})
+}
+
 func compactJSON(metadataEvent []byte) []byte {
 	compactMetadataEvent := new(bytes.Buffer)
 	json.Compact(compactMetadataEvent, metadataEvent)
