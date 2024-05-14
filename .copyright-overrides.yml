@@ -187,6 +187,7 @@ github.com/dgraph-io/badger:
 github.com/mostynb/go-grpc-compression: "Copyright 2023 Mostyn Bramley-Moore."
 github.com/stormcat24/protodep: "Copyright Akinori Yamada"
 go4.org/mem: "Copyright 2020 The Go4 AUTHORS"
+go4.org/mem: "Copyright 2020 The Go4 AUTHORS"
 
 # These have large AUTHORS/CONTRIBUTORS files but attribute copyright as a group
 github.com/aptly-dev/aptly: Copyright 2013-2015 aptly authors. All rights reserved.
@@ -333,7 +334,6 @@ github.com/aquasecurity/trivy-policies/pkg/spec: Copyright (c) 2024 Aqua Securit
 github.com/aquasecurity/trivy-policies/rules/specs: Copyright (c) 2024 Aqua Security
 github.com/pjbgf/sha1cd: Copyright 2023 pjbgf
 github.com/go-errors/errors: Copyright (c) 2015 Conrad Irwin <conrad@bugsnag.com>
-github.com/apache/arrow/*: Copyright (C) 1995-1998 Eric Young (eay@cryptsoft.com)
 github.com/tailscale/tailscale: Copyright (c) 2020 Tailscale Inc & AUTHORS.
 
 # Copyright information is in the source headers
