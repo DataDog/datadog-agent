@@ -60,7 +60,7 @@ type Concentrator struct {
 var peerTagFile string
 
 var defaultPeerTags = func() []string {
-	lines := strings.Split(strings.TrimSpace(peer_tag_file), "\n")
+	lines := strings.Split(strings.TrimSpace(peerTagFile), "\n")
 	tags := make([]string, len(lines))
 	for i, line := range lines {
 		tags[i] = strings.TrimSpace(line)
