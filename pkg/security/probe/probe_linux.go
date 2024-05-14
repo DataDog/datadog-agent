@@ -7,8 +7,6 @@
 package probe
 
 import (
-	"time"
-
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
@@ -19,8 +17,6 @@ const (
 	EBPFOrigin = "ebpf"
 	// EBPFLessOrigin eBPF less origin
 	EBPFLessOrigin = "ebpfless"
-
-	defaultKillActionFlushDelay = 2 * time.Second
 )
 
 // NewProbe instantiates a new runtime security agent probe
