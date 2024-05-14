@@ -669,11 +669,9 @@ func TestObfuscateMongoDBString(t *testing.T) {
 
 	for _, testCase := range cases {
 		code := fmt.Sprintf(`
-	try:
-		result = datadog_agent.obfuscate_mongodb_string(%s)
-	except Exception as e:
-		with open(r'%s', 'w') as f:
-			f.write(str(e))
+	result = datadog_agent.obfuscate_mongodb_string(%s)
+	with open(r'%s', 'w') as f:
+		f.write(str(result))
 	`, testCase.args, tmpfile.Name())
 		out, err := run(code)
 		if err != nil {
