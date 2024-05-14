@@ -28,18 +28,3 @@ func CreateStringBatches(elements []string, size int) ([][]string, error) {
 
 	return batches, nil
 }
-
-// AreTagsEqual compares two list of tags supposing that tags are in the same order
-func AreTagsEqual(tagsA, tagsB []string) bool {
-	if len(tagsA) != len(tagsB) {
-		return false
-	}
-
-	for i, tag := range tagsA {
-		if tag != tagsB[i] {
-			return false
-		}
-	}
-
-	return true
-}
