@@ -281,6 +281,7 @@ func (s *npSchedulerImpl) flush() {
 
 	flowsContexts := s.pathtestStore.GetPathtestContextCount()
 	s.statsdClient.Gauge("datadog.network_path.scheduler.pathtest_store_size", float64(flowsContexts), []string{}, 1) //nolint:errcheck
+
 	flushTime := s.TimeNowFn()
 	flowsToFlush := s.pathtestStore.Flush()
 	s.statsdClient.Gauge("datadog.network_path.scheduler.pathtest_flushed_count", float64(len(flowsToFlush)), []string{}, 1) //nolint:errcheck
