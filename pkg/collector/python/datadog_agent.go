@@ -227,6 +227,9 @@ func lazyInitObfuscator() *obfuscate.Obfuscator {
 		if !cfg.SQLExecPlanNormalize.Enabled {
 			cfg.SQLExecPlanNormalize = defaultSQLPlanNormalizeSettings
 		}
+		if !cfg.Mongo.Enabled {
+			cfg.Mongo = defaultMongoObfuscateSettings
+		}
 		obfuscator = obfuscate.NewObfuscator(cfg)
 	})
 	return obfuscator
@@ -526,6 +529,28 @@ var defaultSQLPlanObfuscateSettings = obfuscate.JSONConfig{
 	ObfuscateSQLValues: defaultSQLPlanNormalizeSettings.ObfuscateSQLValues,
 }
 
+// defaultMongoObfuscateSettings are the default JSON obfuscator settings for obfuscating mongodb commands
+var defaultMongoObfuscateSettings = obfuscate.JSONConfig{
+	Enabled: true,
+	KeepValues: []string{
+		"find",
+		"sort",
+		"projection",
+		"skip",
+		"batchSize",
+		"$db",
+		"getMore",
+		"collection",
+		"delete",
+		"findAndModify",
+		"insert",
+		"ordered",
+		"update",
+		"aggregate",
+		"comment",
+	},
+}
+
 //export getProcessStartTime
 func getProcessStartTime() float64 {
 	return float64(config.StartTime.Unix())
@@ -535,9 +560,19 @@ func getProcessStartTime() float64 {
 //
 //export ObfuscateMongoDBString
 func ObfuscateMongoDBString(cmd *C.char, errResult **C.char) *C.char {
+	if C.GoString(cmd) == "" {
+		// memory will be freed by caller
+		*errResult = TrackedCString("Empty MongoDB command")
+		return nil
+	}
 	obfuscatedMongoDBString := lazyInitObfuscator().ObfuscateMongoDBString(
 		C.GoString(cmd),
 	)
+	if obfuscatedMongoDBString == "" {
+		// memory will be freed by caller
+		*errResult = TrackedCString("Failed to obfuscate MongoDB command")
+		return nil
+	}
 	// memory will be freed by caller
 	return TrackedCString(obfuscatedMongoDBString)
 }

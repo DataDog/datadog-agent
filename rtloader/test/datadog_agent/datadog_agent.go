@@ -336,7 +336,7 @@ func obfuscateMongoDBString(cmd *C.char, errResult **C.char) *C.char {
 	case "find":
 		return (*C.char)(helpers.TrackedCString("find"))
 	case "":
-		*errResult = (*C.char)(helpers.TrackedCString("empty"))
+		*errResult = (*C.char)(helpers.TrackedCString("Empty MongoDB command"))
 		return nil
 	default:
 		*errResult = (*C.char)(helpers.TrackedCString("unknown test case"))

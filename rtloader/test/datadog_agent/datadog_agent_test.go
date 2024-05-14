@@ -652,3 +652,24 @@ func TestProcessStartTime(t *testing.T) {
 	// Check for leaks
 	helpers.AssertMemoryUsage(t)
 }
+
+func TestObfuscateMongoDBString(t *testing.T) {
+	// Reset memory counters
+	helpers.ResetMemoryStats()
+
+	code := fmt.Sprintf(`
+	result = datadog_agent.obfuscate_mongodb_string("{\"find\": \"customer\", \"filter\": {\"name\": \"John\"}, \"sort\": {\"name\": 1}, \"$db\": \"test\"}")
+	with open(r'%s', 'w') as f:
+		f.write(result)
+	`, tmpfile.Name())
+	out, err := run(code)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if out != "{\"find\": \"customer\", \"filter\": {\"name\": \"?\"}, \"sort\": {\"name\": 1}, \"$db\": \"test\"}" {
+		t.Errorf("Unexpected printed value: '%s'", out)
+	}
+
+	// Check for leaks
+	helpers.AssertMemoryUsage(t)
+}
