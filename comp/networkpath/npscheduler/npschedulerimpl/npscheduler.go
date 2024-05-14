@@ -128,10 +128,7 @@ func (s *npSchedulerImpl) ScheduleConns(conns []*model.Connection) {
 }
 
 func shouldScheduleNetworkPathForConn(conn *model.Connection) bool {
-	if conn.Direction != model.ConnectionDirection_outgoing {
-		return false
-	}
-	return true
+	return conn.Direction == model.ConnectionDirection_outgoing
 }
 
 // scheduleOne schedules pathtests.

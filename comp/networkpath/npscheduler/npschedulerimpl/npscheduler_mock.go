@@ -23,8 +23,7 @@ func MockModule() fxutil.Module {
 
 type npSchedulerMock struct{}
 
-func (s *npSchedulerMock) ScheduleConns(conns []*model.Connection) {
-	//TODO implement me
+func (s *npSchedulerMock) ScheduleConns(_ []*model.Connection) {
 	panic("implement me")
 }
 

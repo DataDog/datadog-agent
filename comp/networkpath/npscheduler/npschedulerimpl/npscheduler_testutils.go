@@ -72,12 +72,13 @@ func createConns(numberOfConns int) []*model.Connection {
 
 func waitForProcessedPathtests(npScheduler *npSchedulerImpl, timeout time.Duration, processecCount uint64) {
 	timeoutChan := time.After(timeout)
-	tick := time.Tick(100 * time.Millisecond)
+	tick := time.NewTicker(100 * time.Millisecond)
+	defer tick.Stop()
 	for {
 		select {
 		case <-timeoutChan:
 			return
-		case <-tick:
+		case <-tick.C:
 			if npScheduler.processedTracerouteCount.Load() >= processecCount {
 				return
 			}

@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
+// Package pathteststore handle pathtest storage
 package pathteststore
 
 import (
@@ -25,10 +26,12 @@ type PathtestContext struct {
 	lastFlushInterval time.Duration
 }
 
+// LastFlushInterval returns last flush interval
 func (p *PathtestContext) LastFlushInterval() time.Duration {
 	return p.lastFlushInterval
 }
 
+// SetLastFlushInterval sets last flush interval
 func (p *PathtestContext) SetLastFlushInterval(lastFlushInterval time.Duration) {
 	p.lastFlushInterval = lastFlushInterval
 }
@@ -59,6 +62,7 @@ func newPathtestContext(pt *common.Pathtest, runUntilDuration time.Duration) *Pa
 	}
 }
 
+// NewPathtestStore creates a new PathtestStore
 func NewPathtestStore(pathtestTTL time.Duration, pathtestInterval time.Duration, logger log.Component) *PathtestStore {
 	return &PathtestStore{
 		pathtestContexts: make(map[uint64]*PathtestContext),

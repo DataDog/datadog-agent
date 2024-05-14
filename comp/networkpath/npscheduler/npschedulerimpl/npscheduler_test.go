@@ -255,10 +255,6 @@ func Test_newNpSchedulerImpl_overrideConfigs(t *testing.T) {
 }
 
 func Test_npSchedulerImpl_ScheduleConns(t *testing.T) {
-
-}
-
-func Test_npSchedulerImpl_ScheduleConns1(t *testing.T) {
 	type logCount struct {
 		log   string
 		count int
