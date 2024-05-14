@@ -26,6 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
+	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 )
 
 func TestMount(t *testing.T) {
@@ -151,6 +152,7 @@ func TestMount(t *testing.T) {
 }
 
 func TestMountPropagated(t *testing.T) {
+	flake.Mark(t)
 	SkipIfNotAvailable(t)
 
 	// - testroot
