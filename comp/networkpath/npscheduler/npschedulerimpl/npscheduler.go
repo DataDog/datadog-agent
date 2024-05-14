@@ -231,11 +231,11 @@ func (s *npSchedulerImpl) runTracerouteForPath(ptest *pathteststore.PathtestCont
 func runTraceroute(cfg traceroute.Config) (payload.NetworkPath, error) {
 	tr, err := traceroute.New(cfg)
 	if err != nil {
-		return payload.NetworkPath{}, fmt.Errorf("new traceroute error: %+v", err)
+		return payload.NetworkPath{}, fmt.Errorf("new traceroute error: %s", err)
 	}
 	path, err := tr.Run(context.TODO())
 	if err != nil {
-		return payload.NetworkPath{}, fmt.Errorf("run traceroute error: %+v", err)
+		return payload.NetworkPath{}, fmt.Errorf("run traceroute error: %s", err)
 	}
 	return path, nil
 }
