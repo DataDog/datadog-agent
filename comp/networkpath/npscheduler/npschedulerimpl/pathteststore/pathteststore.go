@@ -99,7 +99,7 @@ func (f *PathtestStore) Flush() []*PathtestContext {
 		now := timeNow()
 
 		if ptConfigCtx.runUntilTime.Before(now) {
-			f.logger.Tracef("Delete Pathtest context (key=%d, runUntilTime=%s, nextRunTime=%s)", key, ptConfigCtx.runUntilTime, ptConfigCtx.nextRunTime.String())
+			f.logger.Tracef("Delete Pathtest context (key=%d, runUntilTime=%s, nextRunTime=%s)", key, ptConfigCtx.runUntilTime, ptConfigCtx.nextRunTime)
 			// delete ptConfigCtx wrapper if it reaches runUntilTime
 			delete(f.pathtestContexts, key)
 			continue
