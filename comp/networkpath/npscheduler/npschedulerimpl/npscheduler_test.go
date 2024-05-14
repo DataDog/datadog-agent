@@ -31,6 +31,7 @@ import (
 )
 
 func Test_NpScheduler_StartAndStop(t *testing.T) {
+	// GIVEN
 	sysConfigs := map[string]any{
 		"network_path.enabled": true,
 	}
@@ -43,11 +44,20 @@ func Test_NpScheduler_StartAndStop(t *testing.T) {
 	utillog.SetupLogger(l, "debug")
 
 	assert.False(t, npScheduler.running)
+
+	// TEST START
 	app.RequireStart()
 	assert.True(t, npScheduler.running)
+
+	// TEST START CALLED TWICE
+	err = npScheduler.start()
+	assert.EqualError(t, err, "server already started")
+
+	// TEST STOP
 	app.RequireStop()
 	assert.False(t, npScheduler.running)
 
+	// TEST START/STOP using logs
 	w.Flush()
 	logs := b.String()
 
