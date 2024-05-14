@@ -346,6 +346,7 @@
 /pkg/collector/corechecks/systemd/      @DataDog/agent-integrations
 /pkg/collector/corechecks/nvidia/       @DataDog/agent-ci-experience
 /pkg/collector/corechecks/windows_event_log/ @DataDog/windows-agent
+/pkg/collector/corechecks/servicediscovery/ @DataDog/apm-onboarding
 /pkg/config/                            @DataDog/agent-shared-components
 /pkg/config/config_template.yaml        @DataDog/agent-shared-components @DataDog/documentation
 /pkg/config/setup/apm.go                @DataDog/agent-apm
