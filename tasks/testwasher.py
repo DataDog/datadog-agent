@@ -1,6 +1,7 @@
+from __future__ import annotations
+
 import json
 from collections import defaultdict
-from typing import List
 
 import yaml
 
@@ -67,7 +68,7 @@ class TestWasher:
             for package, tests in flakes.items():
                 self.known_flaky_tests[f"github.com/DataDog/datadog-agent/{package}"].update(set(tests))
 
-    def process_module_results(self, module_results: List[ModuleTestResult]):
+    def process_module_results(self, module_results: list[ModuleTestResult]):
         """
         Process the module test results and decide whether we should succeed or not.
         If only known flaky tests are failing, we should succeed.
