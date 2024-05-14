@@ -90,6 +90,8 @@ var kernelAddresses = []string{
 	"__per_cpu_offset",
 }
 
+// LockContentionCollector implements the prometheus Collector interface
+// for exposing metrics
 type LockContentionCollector struct {
 	mtx             sync.Mutex
 	maxContention   *prometheus.GaugeVec
@@ -215,8 +217,8 @@ func (l *LockContentionCollector) Collect(metrics chan<- prometheus.Metric) {
 	l.avgContention.Collect(metrics)
 }
 
-// Initialize will collect all the memory ranges we wish to monitor in ours lock stats eBPF programs
-// These memory ranges correspond to locks taken by eBPF programs and are collected by walking
+// Initialize will collect all the memory ranges we wish to monitor in our lock stats eBPF programs
+// These memory ranges correspond to locks taken by eBPF programs and are collected by walking the
 // fds representing the resource of interest, for example an eBPF map.
 func (l *LockContentionCollector) Initialize(trackAllResources bool) error {
 	var name string

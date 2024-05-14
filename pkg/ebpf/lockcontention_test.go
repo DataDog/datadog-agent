@@ -24,35 +24,35 @@ type checkMap struct {
 }
 
 var specs map[ebpf.MapType]ebpf.MapSpec = map[ebpf.MapType]ebpf.MapSpec{
-	ebpf.Hash: ebpf.MapSpec{
+	ebpf.Hash: {
 		Name:       "test_hash",
 		Type:       ebpf.Hash,
 		KeySize:    4,
 		ValueSize:  4,
 		MaxEntries: 1,
 	},
-	ebpf.PerCPUHash: ebpf.MapSpec{
+	ebpf.PerCPUHash: {
 		Name:       "test_percpu_hash",
 		Type:       ebpf.PerCPUHash,
 		KeySize:    4,
 		ValueSize:  4,
 		MaxEntries: 1,
 	},
-	ebpf.LRUHash: ebpf.MapSpec{
+	ebpf.LRUHash: {
 		Name:       "test_lru",
 		Type:       ebpf.LRUHash,
 		KeySize:    4,
 		ValueSize:  4,
 		MaxEntries: 1,
 	},
-	ebpf.LRUCPUHash: ebpf.MapSpec{
+	ebpf.LRUCPUHash: {
 		Name:       "test_pcpu_lru",
 		Type:       ebpf.LRUCPUHash,
 		KeySize:    4,
 		ValueSize:  4,
 		MaxEntries: 1,
 	},
-	ebpf.RingBuf: ebpf.MapSpec{
+	ebpf.RingBuf: {
 		Name:       "test_ringbuf",
 		Type:       ebpf.RingBuf,
 		MaxEntries: 4096,
