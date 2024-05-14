@@ -57,6 +57,7 @@ type DCAClientInterface interface {
 	GetNodeLabels(nodeName string) (map[string]string, error)
 	GetNodeAnnotations(nodeName string) (map[string]string, error)
 	GetNamespaceLabels(nsName string) (map[string]string, error)
+	GetNamespaceAnnotations(nsName string) (map[string]string, error)
 	GetPodsMetadataForNode(nodeName string) (apiv1.NamespacesPodsStringsSet, error)
 	GetKubernetesMetadataNames(nodeName, ns, podName string) ([]string, error)
 	GetCFAppsMetadataForNode(nodename string) (map[string][]string, error)
@@ -392,6 +393,13 @@ func (c *DCAClient) GetNodeLabels(nodeName string) (map[string]string, error) {
 func (c *DCAClient) GetNamespaceLabels(nsName string) (map[string]string, error) {
 	var result map[string]string
 	err := c.doJSONQuery(context.TODO(), "api/v1/tags/namespace/"+nsName, "GET", nil, &result, false)
+	return result, err
+}
+
+// GetNamespaceAnnotations returns the namespace annotations from the Cluster Agent.
+func (c *DCAClient) GetNamespaceAnnotations(nsName string) (map[string]string, error) {
+	var result map[string]string
+	err := c.doJSONQuery(context.TODO(), "api/v1/annotations/namespace/"+nsName, "GET", nil, &result, false)
 	return result, err
 }
 

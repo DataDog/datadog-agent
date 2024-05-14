@@ -35,17 +35,18 @@ const (
 )
 
 type collector struct {
-	id                     string
-	store                  workloadmeta.Component
-	catalog                workloadmeta.AgentType
-	seen                   map[workloadmeta.EntityID]struct{}
-	kubeUtil               kubelet.KubeUtilInterface
-	apiClient              *apiserver.APIClient
-	dcaClient              clusteragent.DCAClientInterface
-	dcaEnabled             bool
-	updateFreq             time.Duration
-	lastUpdate             time.Time
-	collectNamespaceLabels bool
+	id                          string
+	store                       workloadmeta.Component
+	catalog                     workloadmeta.AgentType
+	seen                        map[workloadmeta.EntityID]struct{}
+	kubeUtil                    kubelet.KubeUtilInterface
+	apiClient                   *apiserver.APIClient
+	dcaClient                   clusteragent.DCAClientInterface
+	dcaEnabled                  bool
+	updateFreq                  time.Duration
+	lastUpdate                  time.Time
+	collectNamespaceLabels      bool
+	collectNamespaceAnnotations bool
 }
 
 // NewCollector returns a CollectorProvider to build a kubemetadata collector, and an error if any.
@@ -114,6 +115,7 @@ func (c *collector) Start(_ context.Context, store workloadmeta.Component) error
 
 	c.updateFreq = time.Duration(config.Datadog.GetInt("kubernetes_metadata_tag_update_freq")) * time.Second
 	c.collectNamespaceLabels = len(config.Datadog.GetStringMapString("kubernetes_namespace_labels_as_tags")) > 0
+	c.collectNamespaceAnnotations = len(config.Datadog.GetStringMapString("kubernetes_namespace_annotations_as_tags")) > 0
 
 	return err
 }
@@ -235,6 +237,12 @@ func (c *collector) parsePods(
 			log.Debugf("Could not fetch namespace labels for pod %s/%s: %v", pod.Metadata.Namespace, pod.Metadata.Name, err)
 		}
 
+		var nsAnnotations map[string]string
+		nsAnnotations, err = c.getNamespaceAnnotations(pod.Metadata.Namespace)
+		if err != nil {
+			log.Debugf("Could not fetch namespace annotations for pod %s/%s: %v", pod.Metadata.Namespace, pod.Metadata.Name, err)
+		}
+
 		entityID := workloadmeta.EntityID{
 			Kind: workloadmeta.KindKubernetesPod,
 			ID:   pod.Metadata.UID,
@@ -250,8 +258,9 @@ func (c *collector) parsePods(
 				Annotations: pod.Metadata.Annotations,
 				Labels:      pod.Metadata.Labels,
 			},
-			KubeServices:    services,
-			NamespaceLabels: nsLabels,
+			KubeServices:         services,
+			NamespaceLabels:      nsLabels,
+			NamespaceAnnotations: nsAnnotations,
 		}
 
 		events = append(events, workloadmeta.CollectorEvent{
@@ -296,6 +305,15 @@ func (c *collector) getNamespaceLabels(ns string) (map[string]string, error) {
 	}
 
 	return c.dcaClient.GetNamespaceLabels(ns)
+}
+
+// getNamespaceAnnotations returns the namespace annotations, fast return if namespace annotations as tags is disabled.
+func (c *collector) getNamespaceAnnotations(ns string) (map[string]string, error) {
+	if !c.collectNamespaceAnnotations || !c.isDCAEnabled() {
+		return nil, nil
+	}
+
+	return c.dcaClient.GetNamespaceAnnotations(ns)
 }
 
 func (c *collector) isDCAEnabled() bool {

@@ -37,13 +37,14 @@ func installKubernetesMetadataEndpoints(r *mux.Router, wmeta workloadmeta.Compon
 		func(w http.ResponseWriter, r *http.Request) { getNodeLabels(w, r, wmeta) },
 	)).Methods("GET")
 	r.HandleFunc("/tags/namespace/{ns}", api.WithTelemetryWrapper("getNamespaceLabels", func(w http.ResponseWriter, r *http.Request) { getNamespaceLabels(w, r, wmeta) })).Methods("GET")
+	r.HandleFunc("/annotations/namespace/{ns}", api.WithTelemetryWrapper("getNamespaceAnnotations", func(w http.ResponseWriter, r *http.Request) { getNamespaceAnnotations(w, r, wmeta) })).Methods("GET")
 	r.HandleFunc("/cluster/id", api.WithTelemetryWrapper("getClusterID", getClusterID)).Methods("GET")
 }
 
 //nolint:revive // TODO(CINT) Fix revive linter
 func installCloudFoundryMetadataEndpoints(r *mux.Router) {}
 
-// getNodeMetadata is only used when the node agent hits the DCA for the list of labels
+// getNodeMetadata is only used when the node agent hits the DCA for the list of labels or annotations
 func getNodeMetadata(w http.ResponseWriter, r *http.Request, wmeta workloadmeta.Component, f func(*workloadmeta.KubernetesNode) map[string]string, what string, filterList []string) {
 	/*
 		Input
@@ -51,7 +52,7 @@ func getNodeMetadata(w http.ResponseWriter, r *http.Request, wmeta workloadmeta.
 		Outputs
 			Status: 200
 			Returns: []string
-			Example: ["label1:value1", "label2:value2"]
+			Example: ["key1:value1", "key2:value2"]
 
 			Status: 404
 			Returns: string
@@ -109,6 +110,34 @@ func getNodeAnnotations(w http.ResponseWriter, r *http.Request, wmeta workloadme
 	getNodeMetadata(w, r, wmeta, func(e *workloadmeta.KubernetesNode) map[string]string { return e.Annotations }, "annotations", config.Datadog.GetStringSlice("kubernetes_node_annotations_as_host_aliases"))
 }
 
+// getNamespaceMetadata is only used when the node agent hits the DCA for the list of labels or annotations of a specific namespace
+func getNamespaceMetadata(w http.ResponseWriter, r *http.Request, wmeta workloadmeta.Component, f func(*workloadmeta.KubernetesNamespace) map[string]string, what string) {
+	vars := mux.Vars(r)
+	var metadataBytes []byte
+	nsName := vars["ns"]
+	namespace, err := wmeta.GetKubernetesNamespace(nsName)
+	if err != nil {
+		log.Errorf("Could not retrieve the %s of namespace %s: %v", nsName, what, err.Error()) //nolint:errcheck
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	metadata := f(namespace)
+	metadataBytes, err = json.Marshal(metadata)
+	if err != nil {
+		log.Errorf("Could not process the %s of the namespace %s from the workload metadata store: %v", what, nsName, err.Error()) //nolint:errcheck
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if len(metadataBytes) > 0 {
+		w.WriteHeader(http.StatusOK)
+		w.Write(metadataBytes)
+		return
+	}
+	w.WriteHeader(http.StatusNotFound)
+	fmt.Fprintf(w, "Could not find %s of the namespace: %s", what, nsName)
+}
+
 // getNamespaceLabels is only used when the node agent hits the DCA for the list of labels
 func getNamespaceLabels(w http.ResponseWriter, r *http.Request, wmeta workloadmeta.Component) {
 	/*
@@ -125,32 +154,30 @@ func getNamespaceLabels(w http.ResponseWriter, r *http.Request, wmeta workloadme
 
 			Status: 500
 			Returns: string
-			Example: "no cached metadata found for the namespace default"
+			Example: "no cached labels found for the namespace default"
 	*/
+	getNamespaceMetadata(w, r, wmeta, func(namespace *workloadmeta.KubernetesNamespace) map[string]string { return namespace.Labels }, "labels")
+}
 
-	vars := mux.Vars(r)
-	var labelBytes []byte
-	nsName := vars["ns"]
-	namespace, err := wmeta.GetKubernetesNamespace(nsName)
-	if err != nil {
-		log.Errorf("Could not retrieve the namespace %s: %v", nsName, err.Error()) //nolint:errcheck
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	nsLabels := namespace.Labels
-	labelBytes, err = json.Marshal(nsLabels)
-	if err != nil {
-		log.Errorf("Could not process the labels of the namespace %s from the informer's cache: %v", nsName, err.Error()) //nolint:errcheck
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	if len(labelBytes) > 0 {
-		w.WriteHeader(http.StatusOK)
-		w.Write(labelBytes)
-		return
-	}
-	w.WriteHeader(http.StatusNotFound)
-	fmt.Fprintf(w, "Could not find labels on the namespace: %s", nsName)
+// getNamespaceAnnotations is only used when the node agent hits the DCA for the list of annotaions
+func getNamespaceAnnotations(w http.ResponseWriter, r *http.Request, wmeta workloadmeta.Component) {
+	/*
+		Input
+			localhost:5001/api/v1/annotations/namespace/default
+		Outputs
+			Status: 200
+			Returns: []string
+			Example: ["annotationKey1:value1", "annotationKey2:value2"]
+
+			Status: 404
+			Returns: string
+			Example: 404 page not found
+
+			Status: 500
+			Returns: string
+			Example: "no cached annotations found for the namespace default"
+	*/
+	getNamespaceMetadata(w, r, wmeta, func(namespace *workloadmeta.KubernetesNamespace) map[string]string { return namespace.Annotations }, "annotations")
 }
 
 // getPodMetadata is only used when the node agent hits the DCA for the tags list.

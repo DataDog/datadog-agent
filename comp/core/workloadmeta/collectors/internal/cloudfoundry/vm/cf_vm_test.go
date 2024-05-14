@@ -171,6 +171,10 @@ func (f *FakeDCAClient) GetNamespaceLabels(_ string) (map[string]string, error) 
 	panic("implement me")
 }
 
+func (f *FakeDCAClient) GetNamespaceAnnotations(_ string) (map[string]string, error) {
+	panic("implement me")
+}
+
 func (f *FakeDCAClient) GetPodsMetadataForNode(_ string) (apiv1.NamespacesPodsStringsSet, error) {
 	panic("implement me")
 }

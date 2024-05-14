@@ -45,6 +45,9 @@ type FakeDCAClient struct {
 	NamespaceLabels    map[string]string
 	NamespaceLabelsErr error
 
+	NamespaceAnnotations    map[string]string
+	NamespaceAnnotationsErr error
+
 	PodMetadataForNode    apiv1.NamespacesPodsStringsSet
 	PodMetadataForNodeErr error
 
@@ -86,6 +89,10 @@ func (f *FakeDCAClient) GetNodeAnnotations(_ string) (map[string]string, error) 
 
 func (f *FakeDCAClient) GetNamespaceLabels(_ string) (map[string]string, error) {
 	return f.NamespaceLabels, f.NamespaceLabelsErr
+}
+
+func (f *FakeDCAClient) GetNamespaceAnnotations(_ string) (map[string]string, error) {
+	return f.NamespaceAnnotations, f.NamespaceAnnotationsErr
 }
 
 func (f *FakeDCAClient) GetPodsMetadataForNode(_ string) (apiv1.NamespacesPodsStringsSet, error) {
@@ -365,6 +372,85 @@ func TestKubeMetadataCollector_getNamespaceLabels(t *testing.T) {
 			labels, err := c.getNamespaceLabels("foo")
 			assert.True(t, (err != nil) == tt.wantErr)
 			assert.EqualValues(&testing.T{}, tt.want, labels)
+		})
+	}
+}
+
+func TestKubeMetadataCollector_getNamespaceAnnotations(t *testing.T) {
+	type fields struct {
+		dcaClient           clusteragent.DCAClientInterface
+		clusterAgentEnabled bool
+	}
+
+	tests := []struct {
+		name                       string
+		fields                     fields
+		namespaceAnnotationsAsTags map[string]string
+		want                       map[string]string
+		wantErr                    bool
+	}{
+		{
+			name:    "no namespace annotations as tags",
+			want:    nil,
+			wantErr: false,
+		},
+		{
+			name: "cluster agent not enabled",
+			fields: fields{
+				clusterAgentEnabled: false,
+				dcaClient:           &FakeDCAClient{},
+			},
+			namespaceAnnotationsAsTags: map[string]string{
+				"key": "tag",
+			},
+			want:    nil,
+			wantErr: false,
+		},
+		{
+			name: "cluster agent enabled",
+			fields: fields{
+				clusterAgentEnabled: true,
+				dcaClient: &FakeDCAClient{
+					LocalVersion: version.Version{Major: 1, Minor: 12},
+					NamespaceAnnotations: map[string]string{
+						"key": "value",
+					},
+				},
+			},
+			namespaceAnnotationsAsTags: map[string]string{
+				"key": "tag",
+			},
+			want:    map[string]string{"key": "tag"},
+			wantErr: false,
+		},
+		{
+			name: "cluster agent enabled and failed to get namespace annotations",
+			fields: fields{
+				clusterAgentEnabled: true,
+				dcaClient: &FakeDCAClient{
+					LocalVersion:            version.Version{Major: 1, Minor: 12},
+					NamespaceAnnotationsErr: errors.New("failed to get namespace annotations"),
+				},
+			},
+			namespaceAnnotationsAsTags: map[string]string{
+				"key": "tag",
+			},
+			want:    nil,
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c := &collector{
+				dcaClient:                   tt.fields.dcaClient,
+				dcaEnabled:                  tt.fields.clusterAgentEnabled,
+				collectNamespaceAnnotations: len(tt.namespaceAnnotationsAsTags) > 0,
+			}
+
+			annotations, err := c.getNamespaceAnnotations("foo")
+			assert.True(t, (err != nil) == tt.wantErr)
+			assert.EqualValues(&testing.T{}, tt.want, annotations)
 		})
 	}
 }
