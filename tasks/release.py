@@ -1786,15 +1786,17 @@ def generate_release_metrics(ctx, milestone, freeze_date, release_date):
 
     # Step 2: Agent stability data
     prs = get_prs_metrics(milestone, freeze_date)
+    print("\n")
     print("Agent stability data")
     print("--------------------")
     print(f"{prs['total']}, {prs['before_freeze']}, {prs['on_freeze']}, {prs['after_freeze']}")
 
-    # Step 2: Code changes
+    # Step 3: Code changes
     code_stats = ctx.run(
         f"git log --shortstat {milestone}-devel..{milestone} | grep \"files changed\" | awk '{{files+=$1; inserted+=$4; deleted+=$6}} END {{print files,\",\", inserted,\",\", deleted}}'",
         hide=True,
     ).stdout.strip()
+    print("\n")
     print("Code changes")
     print("------------")
     print(code_stats)

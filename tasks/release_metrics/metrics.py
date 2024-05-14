@@ -9,12 +9,6 @@ from tasks.libs.common.utils import (
     GITHUB_REPO_NAME,
 )
 
-QUERY_URLS = {
-    "before_freeze": "https://api.github.com/search/issues?q=repo:datadog/datadog-agent+type:pr+milestone:{}+merged:<{}",
-    "on_freeze": "https://api.github.com/search/issues?q=repo:datadog/datadog-agent+type:pr+milestone:{}+merged:{}",
-    "after_freeze": "https://api.github.com/search/issues?q=repo:datadog/datadog-agent+type:pr+milestone:{}+merged:>{}",
-}
-
 
 def get_release_lead_time(freeze_date, release_date):
     release_date = datetime.strptime(release_date, "%Y-%m-%d")
@@ -25,12 +19,29 @@ def get_release_lead_time(freeze_date, release_date):
 
 def get_prs_metrics(milestone, freeze_date):
     github = GithubAPI(repository=GITHUB_REPO_NAME)
-
-    pr_counts = {"total": 0}
-
-    for key, url in QUERY_URLS.items():
-        _, prs = github.raw_request(url.format(milestone, freeze_date))
-        pr_counts[key] = prs["total_count"]
-        pr_counts["total"] += pr_counts[key]
-
+    freeze_date = datetime.strptime(freeze_date, "%Y-%m-%d").date()
+    repo = github.repo()
+    pr_counts = {"total": 0, "before_freeze": 0, "on_freeze": 0, "after_freeze": 0}
+    m = get_milestone(repo, milestone)
+    issues = repo.get_issues(m, state='closed')
+    for issue in issues:
+        if issue.pull_request is None or issue.pull_request.raw_data['merged_at'] is None:
+            continue
+        # until 3.11 we need to strip the date string
+        merged = datetime.fromisoformat(issue.pull_request.raw_data['merged_at'][:-1]).date()
+        if merged < freeze_date:
+            pr_counts["before_freeze"] += 1
+        elif merged == freeze_date:
+            pr_counts["on_freeze"] += 1
+        else:
+            pr_counts["after_freeze"] += 1
+    pr_counts["total"] = pr_counts["before_freeze"] + pr_counts["on_freeze"] + pr_counts["after_freeze"]
     return pr_counts
+
+
+def get_milestone(repo, milestone):
+    milestones = repo.get_milestones(state="all")
+    for mile in milestones:
+        if mile.title == milestone:
+            return mile
+    return None

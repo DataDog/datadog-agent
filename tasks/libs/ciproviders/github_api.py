@@ -34,13 +34,6 @@ class GithubAPI:
 
         return self._repository
 
-    def raw_request(self, url):
-        """
-        Perform a raw request to the Github API.
-        """
-
-        return self._github._Github__requester.requestJsonAndCheck("GET", url)
-
     def get_branch(self, branch_name):
         """
         Gets info on a given branch in the given Github repository.
