@@ -73,6 +73,10 @@ func Run(ctx *pulumi.Context, env *environments.DockerLocal, params *Provisioner
 	if err != nil {
 		return err
 	}
-	fmt.Println("Running test on", host)
+	err = host.Export(ctx, &env.RemoteHost.HostOutput)
+	if err != nil {
+		return err
+	}
+	_ = ctx.Log.Info(fmt.Sprintf("Running test on container '%v'", host.Name()), nil)
 	return nil
 }

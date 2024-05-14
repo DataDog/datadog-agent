@@ -16,6 +16,11 @@ func TestSimpleLocalAgentRun(t *testing.T) {
 	e2e.Run(t, &tmpSuite{}, e2e.WithProvisioner(dclocal.Provisioner()))
 }
 
-func (d *tmpSuite) TestSimpleLocalAgentRun() {
+func (d *tmpSuite) TestExecute() {
 	d.T().Log("Running test")
+	vm := d.Env().RemoteHost
+
+	out, err := vm.Execute("whoami")
+	d.Require().NoError(err)
+	d.Require().NotEmpty(out)
 }

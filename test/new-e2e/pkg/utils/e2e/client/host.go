@@ -46,6 +46,7 @@ type Host struct {
 
 	context              e2e.Context
 	username             string
+	password             string
 	host                 string
 	privateKey           []byte
 	privateKeyPassphrase []byte
@@ -77,7 +78,8 @@ func NewHost(context e2e.Context, hostOutput remote.HostOutput) (*Host, error) {
 	host := &Host{
 		context:              context,
 		username:             hostOutput.Username,
-		host:                 fmt.Sprintf("%s:%d", hostOutput.Address, 22),
+		password:             "root123",
+		host:                 fmt.Sprintf("%s:%d", hostOutput.Address, hostOutput.Port),
 		privateKey:           privateSSHKey,
 		privateKeyPassphrase: []byte(privateKeyPassword),
 		buildCommand:         buildCommandFactory(hostOutput.OSFamily),
@@ -93,7 +95,7 @@ func (h *Host) Reconnect() error {
 		_ = h.client.Close()
 	}
 	return backoff.Retry(func() error {
-		client, err := getSSHClient(h.username, h.host, h.privateKey, h.privateKeyPassphrase)
+		client, err := getSSHClient(h.username, h.password, h.host, h.privateKey, h.privateKeyPassphrase)
 		if err != nil {
 			return err
 		}
