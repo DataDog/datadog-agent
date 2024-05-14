@@ -1,11 +1,17 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package servicediscovery
 
 import (
+	"go.uber.org/zap"
+	
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/language"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/servicetype"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/usm"
 	agentzap "github.com/DataDog/datadog-agent/pkg/util/log/zap"
-	"go.uber.org/zap"
 )
 
 type serviceDetector struct {
