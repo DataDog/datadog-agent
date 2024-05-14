@@ -7,7 +7,9 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclientparams"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/optional"
+	"github.com/DataDog/test-infra-definitions/components/datadog/agent"
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
+	"github.com/DataDog/test-infra-definitions/components/datadog/updater"
 	"github.com/DataDog/test-infra-definitions/resources/local/docker"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/fakeintake"
@@ -101,33 +103,33 @@ func Run(ctx *pulumi.Context, env *environments.DockerLocal, params *Provisioner
 		env.Updater = nil
 	}
 	// Create Agent if required
-	//if params.installUpdater && params.agentOptions != nil {
-	//	hupdater, err := updater.NewHostUpdater(&localEnv, host, params.agentOptions...)
-	//	if err != nil {
-	//		return err
-	//	}
-	//
-	//	err = hupdater.Export(ctx, &env.Updater.HostUpdaterOutput)
-	//	if err != nil {
-	//		return err
-	//	}
-	//	// todo: add agent once updater installs agent on bootstrap
-	//	env.Agent = nil
-	//} else if params.agentOptions != nil {
-	//	hagent, err := agent.NewHostAgent(&localEnv, host, params.agentOptions...)
-	//	if err != nil {
-	//		return err
-	//	}
-	//
-	//	err = hagent.Export(ctx, &env.Agent.HostAgentOutput)
-	//	if err != nil {
-	//		return err
-	//	}
-	//
-	//	env.Agent.ClientOptions = params.agentClientOptions
-	//} else {
-	//	env.Agent = nil
-	//}
+	if params.installUpdater && params.agentOptions != nil {
+		hupdater, err := updater.NewHostUpdater(&localEnv, host, params.agentOptions...)
+		if err != nil {
+			return err
+		}
+
+		err = hupdater.Export(ctx, &env.Updater.HostUpdaterOutput)
+		if err != nil {
+			return err
+		}
+		// todo: add agent once updater installs agent on bootstrap
+		env.Agent = nil
+	} else if params.agentOptions != nil {
+		hagent, err := agent.NewHostAgent(&localEnv, host, params.agentOptions...)
+		if err != nil {
+			return err
+		}
+
+		err = hagent.Export(ctx, &env.Agent.HostAgentOutput)
+		if err != nil {
+			return err
+		}
+
+		env.Agent.ClientOptions = params.agentClientOptions
+	} else {
+		env.Agent = nil
+	}
 
 	return nil
 }

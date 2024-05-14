@@ -11,7 +11,7 @@ type DockerLocal struct {
 	// Components
 	RemoteHost *components.RemoteHost
 	//FakeIntake *components.FakeIntake
-	//Agent   *components.RemoteHostAgent
+	Agent   *components.RemoteHostAgent
 	Updater *components.RemoteHostUpdater
 }
 
