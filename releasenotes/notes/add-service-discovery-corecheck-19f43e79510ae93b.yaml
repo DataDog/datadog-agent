@@ -8,4 +8,4 @@
 ---
 features:
   - |
-    Adds the new service_discovery check, which is currently only supported on linux.
+    Adds the new service_discovery check, which is currently only supported on Linux.
