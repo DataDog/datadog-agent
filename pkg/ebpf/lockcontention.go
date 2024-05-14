@@ -99,11 +99,19 @@ type LockContentionCollector struct {
 	objects              *bpfObjects
 	cpus                 uint32
 	ranges               uint32
+
+	initialized bool
 }
 
 var (
 	ContentionCollector *LockContentionCollector
 )
+
+var lockTypes = map[uint32]string{
+	1: "hash-bucket-locks",
+	2: "hash-pcpu-freelist-locks",
+	3: "hash-global-freelist-locks",
+}
 
 // NewLockContentionCollector creates a prometheus.Collector for eBPF lock contention metrics
 func NewLockContentionCollector() *LockContentionCollector {
@@ -126,7 +134,7 @@ func NewLockContentionCollector() *LockContentionCollector {
 				Name:      "_max",
 				Help:      "gauge tracking maximum time a tracked lock was contended for",
 			},
-			[]string{"name"},
+			[]string{"name", "lock_type"},
 		),
 		avgContention: prometheus.NewGaugeVec(
 			prometheus.GaugeOpts{
@@ -134,7 +142,7 @@ func NewLockContentionCollector() *LockContentionCollector {
 				Name:      "_avg",
 				Help:      "gauge tracking average time a tracked lock was contended for",
 			},
-			[]string{"name"},
+			[]string{"name", "lock_type"},
 		),
 		totalContention: prometheus.NewCounterVec(
 			prometheus.CounterOpts{
@@ -142,7 +150,7 @@ func NewLockContentionCollector() *LockContentionCollector {
 				Name:      "_total",
 				Help:      "counter tracking total time a tracked lock was contended for",
 			},
-			[]string{"name"},
+			[]string{"name", "lock_type"},
 		),
 	}
 
@@ -160,6 +168,10 @@ func (l *LockContentionCollector) Describe(descs chan<- *prometheus.Desc) {
 func (l *LockContentionCollector) Collect(metrics chan<- prometheus.Metric) {
 	l.mtx.Lock()
 	defer l.mtx.Unlock()
+
+	if !l.initialized {
+		return
+	}
 
 	var cursor ebpf.MapBatchCursor
 	lockRanges := make([]LockRange, l.ranges)
@@ -182,11 +194,13 @@ func (l *LockContentionCollector) Collect(metrics chan<- prometheus.Metric) {
 
 		if (data.Total_time > 0) && (mp.totalTime != data.Total_time) {
 			avgTime := data.Total_time / uint64(data.Count)
-			l.maxContention.WithLabelValues(mp.name).Set(float64(data.Max_time))
-			l.avgContention.WithLabelValues(mp.name).Set(float64(avgTime))
+
+			lockType := lockTypes[lr.Type]
+			l.maxContention.WithLabelValues(mp.name, lockType).Set(float64(data.Max_time))
+			l.avgContention.WithLabelValues(mp.name, lockType).Set(float64(avgTime))
 
 			// TODO: should we consider overflows. u64 overflow seems very unlikely?
-			l.totalContention.WithLabelValues(mp.name).Add(float64(data.Total_time - mp.totalTime))
+			l.totalContention.WithLabelValues(mp.name, lockType).Add(float64(data.Total_time - mp.totalTime))
 			mp.totalTime = data.Total_time
 		}
 	}
@@ -205,9 +219,12 @@ func (l *LockContentionCollector) Initialize(trackAllResources bool) error {
 	l.mtx.Lock()
 	defer l.mtx.Unlock()
 
-	if l.trackedLockMemRanges != nil {
+	if l.initialized {
 		return nil
 	}
+	defer func() {
+		l.initialized = true
+	}()
 
 	l.trackedLockMemRanges = make(map[LockRange]*mapStats)
 	maps := make(map[uint32]*targetMap)

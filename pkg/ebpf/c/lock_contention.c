@@ -93,7 +93,11 @@ static __always_inline int record_pcpu_freelist_locks(u32 fd, struct bpf_map* bm
         if (!region)
             return -EINVAL;
 
-        struct lock_range lr = { .addr_start =  region, .range = sizeof(struct pcpu_freelist_head) };
+        struct lock_range lr = {
+            .addr_start =  region,
+            .range = sizeof(struct pcpu_freelist_head),
+            .type = HASH_PCPU_FREELIST_LOCK,
+        };
 
         err = bpf_map_update_elem(&map_addr_fd, &lr, &mapid, BPF_NOEXIST);
         if (err < 0)
@@ -101,7 +105,11 @@ static __always_inline int record_pcpu_freelist_locks(u32 fd, struct bpf_map* bm
     }
 
     // this regions contains the lock htab->freelist.extralist.lock
-    struct lock_range lr = { .addr_start = (u64)(&htab->freelist), .range = sizeof(struct pcpu_freelist) };
+    struct lock_range lr = {
+        .addr_start = (u64)(&htab->freelist),
+        .range = sizeof(struct pcpu_freelist),
+        .type = HASH_GLOBAL_FREELIST_LOCK,
+    };
 
     err = bpf_map_update_elem(&map_addr_fd, &lr, &mapid, BPF_NOEXIST);
     if (err < 0)
@@ -126,7 +134,11 @@ static __always_inline int record_bucket_locks(u32 fd, struct bpf_map* bm, u32 m
         return err;
 
     u64 memsz = n_buckets * sizeof(struct bucket);
-    struct lock_range lr = { .addr_start = buckets, .range = memsz};
+    struct lock_range lr = {
+        .addr_start = buckets,
+        .range = memsz,
+        .type = HASH_BUCKET_LOCK,
+    };
 
     err = bpf_map_update_elem(&map_addr_fd, &lr, &mapid, BPF_NOEXIST);
     if (err < 0)

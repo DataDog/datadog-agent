@@ -14,3 +14,4 @@ import "C"
 
 type LockRange C.lock_range_t
 type ContentionData C.contention_data_t
+type LockType C.lock_type_t

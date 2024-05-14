@@ -1,9 +1,16 @@
 #ifndef LOCK_CONTENTION_H
 #define LOCK_CONTENTION_H
 
+typedef enum {
+    HASH_BUCKET_LOCK = 1,
+    HASH_PCPU_FREELIST_LOCK,
+    HASH_GLOBAL_FREELIST_LOCK,
+} lock_type_t;
+
 struct lock_range {
     unsigned long long addr_start;
     unsigned long long range;
+    lock_type_t type;
 };
 
 struct contention_data {
@@ -13,7 +20,6 @@ struct contention_data {
     unsigned int count;
     unsigned int flags;
 };
-
 
 typedef struct lock_range lock_range_t;
 typedef struct contention_data contention_data_t;
