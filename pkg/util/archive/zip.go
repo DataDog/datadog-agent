@@ -115,7 +115,7 @@ func extractAndWriteFile(f *zip.File, targetRootFolder string) error {
 		return fmt.Errorf("illegal file path: %s", targetFilepath)
 	}
 
-	if f.Mode() == os.ModeSymlink {
+	if f.Mode()&os.ModeSymlink != 0 {
 		// We skip symlink for security reasons
 		return nil
 	}
@@ -167,6 +167,11 @@ func writeWalk(zipWriter *zip.Writer, source, destination string) error {
 	}
 
 	return filepath.Walk(source, func(fpath string, info os.FileInfo, err error) error {
+		if info.Mode()&os.ModeSymlink != 0 {
+			// We skip symlink for security reasons
+			return nil
+		}
+
 		if err != nil {
 			return fmt.Errorf("error traversing  %s: %w", fpath, err)
 		}
@@ -190,35 +195,38 @@ func writeWalk(zipWriter *zip.Writer, source, destination string) error {
 			return err
 		}
 
+		finfo := fileInfo{
+			FileInfo:   info,
+			customName: nameInArchive,
+		}
+		header, err := zip.FileInfoHeader(finfo)
+		if err != nil {
+			return fmt.Errorf("error getting header %s: %w", finfo.Name(), err)
+		}
+
+		if finfo.IsDir() {
+			header.Name += "/"
+			header.Method = zip.Store
+		} else {
+			header.Method = zip.Deflate
+		}
+
+		writer, err := zipWriter.CreateHeader(header)
+		if err != nil {
+			return fmt.Errorf("error making header %s: %w", finfo.Name(), err)
+		}
+
+		if finfo.IsDir() {
+			// Nothing to write for directories
+			return nil
+		}
+
 		if info.Mode().IsRegular() {
 			file, err := os.Open(fpath)
 			if err != nil {
 				return fmt.Errorf("error opening %s: %w", fpath, err)
 			}
 			defer file.Close()
-
-			finfo := fileInfo{
-				FileInfo:   info,
-				customName: nameInArchive,
-			}
-			header, err := zip.FileInfoHeader(finfo)
-			if err != nil {
-				return fmt.Errorf("error getting header %s: %w", finfo.Name(), err)
-			}
-
-			if finfo.IsDir() {
-				header.Name += "/"
-			}
-			header.Method = zip.Store
-
-			writer, err := zipWriter.CreateHeader(header)
-			if err != nil {
-				return fmt.Errorf("error making header %s: %w", finfo.Name(), err)
-			}
-
-			if finfo.IsDir() {
-				return nil
-			}
 
 			_, err = io.Copy(writer, file)
 			if err != nil {
