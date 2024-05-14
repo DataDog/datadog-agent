@@ -348,7 +348,7 @@ func (l *LockContentionCollector) Initialize(trackAllResources bool) error {
 
 	for _, tm := range maps {
 		mapidPtr := unsafe.Pointer(&tm.id)
-		_ = syscall.Syscall(syscall.SYS_IOCTL, uintptr(tm.fd), ioctlCollectLocksCmd, uintptr(mapidPtr))
+		_, _, _ = syscall.Syscall(syscall.SYS_IOCTL, uintptr(tm.fd), ioctlCollectLocksCmd, uintptr(mapidPtr))
 
 		// close all dupped maps so we do not waste fds
 		tm.mp.Close()

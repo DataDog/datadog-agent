@@ -8,7 +8,6 @@
 package ebpf
 
 import (
-	"syscall"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
