@@ -38,7 +38,6 @@ class TestUtils(unittest.TestCase):
         )
         module_path = "tasks/unit-tests/testdata"
         non_flaky_failing_tests = test_washer.get_non_flaky_failing_tests(module_path)
-        print(non_flaky_failing_tests)
         self.assertEqual(
             non_flaky_failing_tests,
             {"github.com/DataDog/datadog-agent/test/new-e2e/tests/containers": {"TestEKSSuite/TestMemory"}},
