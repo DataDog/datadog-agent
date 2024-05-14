@@ -45,7 +45,7 @@ func NewSelfTester(cfg *config.RuntimeSecurityConfig, probe *probe.Probe) (*Self
 	}
 
 	s := &SelfTester{
-		waitingForEvent: atomic.NewBool(cfg.EBPFLessEnabled),
+		waitingForEvent: atomic.NewBool(false),
 		eventChan:       make(chan selfTestEvent, 10),
 		selfTestRunning: make(chan time.Duration, 10),
 		probe:           probe,

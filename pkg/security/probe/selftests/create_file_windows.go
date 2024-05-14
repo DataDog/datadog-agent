@@ -50,8 +50,7 @@ func (o *WindowsCreateFileSelfTest) GenerateEvent() error {
 		log.Debugf("error creating file: %v", err)
 		return err
 	}
-	defer file.Close()
-	return nil
+	return file.Close()
 }
 
 // HandleEvent handles self test events
