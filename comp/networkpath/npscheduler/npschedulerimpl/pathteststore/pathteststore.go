@@ -125,7 +125,6 @@ func (f *PathtestStore) Add(pathtestToAdd *common.Pathtest) {
 		return
 	}
 	pathtestCtx.runUntilTime = timeNow().Add(f.pathtestTTL)
-	f.pathtestContexts[hash] = pathtestCtx
 }
 
 // GetPathtestContextCount returns pathtest contexts count
