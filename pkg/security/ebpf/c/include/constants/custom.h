@@ -80,7 +80,6 @@ enum TC_TAIL_CALL_KEYS {
 #define ACT_OK TC_ACT_UNSPEC
 #define ACT_SHOT TC_ACT_SHOT
 #define PACKET_KEY 0
-#define IMDS_IP 0xFEA9FEA9 // 169.254.169.254
 #define IMDS_EVENT_KEY 0
 #define IMDS_MAX_LENGTH 2048
 
@@ -180,6 +179,12 @@ static __attribute__((always_inline)) u64 is_anomaly_syscalls_enabled() {
     u64 anomaly;
     LOAD_CONSTANT("anomaly_syscalls", anomaly);
     return anomaly;
+};
+
+static __attribute__((always_inline)) u64 get_imds_ip() {
+    u64 imds_ip;
+    LOAD_CONSTANT("imds_ip", imds_ip);
+    return imds_ip;
 };
 
 #endif

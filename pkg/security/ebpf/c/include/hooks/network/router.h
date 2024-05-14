@@ -49,7 +49,7 @@ __attribute__((always_inline)) int route_pkt(struct __sk_buff *skb, struct packe
     }
 
     // route IMDS requests
-    if (pkt->l4_protocol == IPPROTO_TCP && ((pkt->ns_flow.flow.saddr[0] & 0xFFFFFFFF) == IMDS_IP || (pkt->ns_flow.flow.daddr[0] & 0xFFFFFFFF) == IMDS_IP )) {
+    if (pkt->l4_protocol == IPPROTO_TCP && ((pkt->ns_flow.flow.saddr[0] & 0xFFFFFFFF) == get_imds_ip() || (pkt->ns_flow.flow.daddr[0] & 0xFFFFFFFF) == get_imds_ip() )) {
         tail_call_to_classifier(skb, IMDS_REQUEST);
     }
 
