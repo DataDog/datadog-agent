@@ -85,23 +85,6 @@ func (a *apmInjectorInstaller) Setup(ctx context.Context) (err error) {
 		return err
 	}
 
-	// Configure agent socekts
-	if err = configureSocketsEnv(); err != nil {
-		return
-	}
-	if err = addSystemDEnvOverrides(traceAgentUnit); err != nil {
-		return
-	}
-	if err = addSystemDEnvOverrides(traceAgentExp); err != nil {
-		return
-	}
-	if err = systemdReload(ctx); err != nil {
-		return
-	}
-	if err = restartTraceAgent(ctx); err != nil {
-		return
-	}
-
 	// TODO only instrument docker if DD_APM_INSTRUMENTATION_ENABLED=docker is set
 	rollbackDockerConfig, err = a.setupDocker(ctx)
 	return err
@@ -169,12 +152,4 @@ func (a *apmInjectorInstaller) deleteLDPreloadConfigContent(ldSoPreload []byte) 
 	}
 
 	return nil, fmt.Errorf("failed to remove %s from %s", launcherPreloadPath, ldSoPreloadPath)
-}
-
-// restartTraceAgent restarts the stable trace agent
-func restartTraceAgent(ctx context.Context) error {
-	if err := restartUnit(ctx, "datadog-agent-trace.service"); err != nil {
-		return err
-	}
-	return nil
 }

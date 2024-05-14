@@ -83,16 +83,6 @@ func SetupAgent(ctx context.Context) (err error) {
 		return
 	}
 
-	if err = configureSocketsEnv(); err != nil {
-		return
-	}
-	if err = addSystemDEnvOverrides(traceAgentUnit); err != nil {
-		return
-	}
-	if err = addSystemDEnvOverrides(traceAgentExp); err != nil {
-		return
-	}
-
 	if err = systemdReload(ctx); err != nil {
 		return
 	}

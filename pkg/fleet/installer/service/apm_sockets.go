@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -153,7 +154,11 @@ func addSystemDEnvOverrides(unit string) error {
 	// We don't really need to remove the file either as it'll just be ignored once the
 	// unit is removed.
 	path := fmt.Sprintf("/etc/systemd/system/%s.d/environment_override.conf", unit)
-	err := os.WriteFile(path, content, 0644)
+	err := os.MkdirAll(filepath.Dir(path), 0755)
+	if err != nil {
+		return fmt.Errorf("error creating systemd environment override directory: %w", err)
+	}
+	err = os.WriteFile(path, content, 0644)
 	if err != nil {
 		return fmt.Errorf("error writing systemd environment override: %w", err)
 	}
