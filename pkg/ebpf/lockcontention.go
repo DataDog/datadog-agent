@@ -28,6 +28,8 @@ import (
 )
 
 const (
+	// TrackAllEBPFResources decides if all system ebpf resources should be collected
+	// or just system-probe resources
 	TrackAllEBPFResources = true
 
 	bpfObjectFile = "bytecode/build/co-re/lock_contention.o"
@@ -103,9 +105,8 @@ type LockContentionCollector struct {
 	initialized bool
 }
 
-var (
-	ContentionCollector *LockContentionCollector
-)
+// ContentionCollector is the global stats collector
+var ContentionCollector *LockContentionCollector
 
 var lockTypes = map[uint32]string{
 	1: "hash-bucket-locks",
@@ -347,7 +348,7 @@ func (l *LockContentionCollector) Initialize(trackAllResources bool) error {
 
 	for _, tm := range maps {
 		mapidPtr := unsafe.Pointer(&tm.id)
-		syscall.Syscall(syscall.SYS_IOCTL, uintptr(tm.fd), ioctlCollectLocksCmd, uintptr(mapidPtr))
+		_ = syscall.Syscall(syscall.SYS_IOCTL, uintptr(tm.fd), ioctlCollectLocksCmd, uintptr(mapidPtr))
 
 		// close all dupped maps so we do not waste fds
 		tm.mp.Close()
@@ -364,7 +365,7 @@ func (l *LockContentionCollector) Initialize(trackAllResources bool) error {
 	}
 
 	if uint32(count) < ranges {
-		return fmt.Errorf("discovered fewer ranges than expected: %d < %d\n", count, ranges)
+		return fmt.Errorf("discovered fewer ranges than expected: %d < %d", count, ranges)
 	}
 
 	for i, id := range mapids {
@@ -424,7 +425,7 @@ func pcpuLruMapLockRanges(cpu uint32) uint32 {
 	return cpu
 }
 
-func ringbufMapLockRanges(cpu uint32) uint32 {
+func ringbufMapLockRanges(_ uint32) uint32 {
 	// waitq lock + rb lock
 	return 2
 }

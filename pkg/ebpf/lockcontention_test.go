@@ -39,10 +39,25 @@ var specs map[ebpf.MapType]ebpf.MapSpec = map[ebpf.MapType]ebpf.MapSpec{
 		ValueSize:  4,
 		MaxEntries: 1,
 	},
-}
-
-func record(fd int) {
-	syscall.Syscall(syscall.SYS_IOCTL, uintptr(fd), ioctlCollectLocksCmd, uintptr(0))
+	ebpf.LRUHash: ebpf.MapSpec{
+		Name:       "test_lru",
+		Type:       ebpf.LRUHash,
+		KeySize:    4,
+		ValueSize:  4,
+		MaxEntries: 1,
+	},
+	ebpf.LRUCPUHash: ebpf.MapSpec{
+		Name:       "test_pcpu_lru",
+		Type:       ebpf.LRUCPUHash,
+		KeySize:    4,
+		ValueSize:  4,
+		MaxEntries: 1,
+	},
+	ebpf.RingBuf: ebpf.MapSpec{
+		Name:       "test_ringbuf",
+		Type:       ebpf.RingBuf,
+		MaxEntries: 4096,
+	},
 }
 
 func entries(mp *ebpf.Map) uint32 {
@@ -57,6 +72,14 @@ func entries(mp *ebpf.Map) uint32 {
 	}
 
 	return count
+}
+
+func lruLockCount(cpu uint32) uint32 {
+	return hashMapLockRanges(cpu) + lruMapLockRanges(cpu)
+}
+
+func pcpuLruLockCount(cpu uint32) uint32 {
+	return hashMapLockRanges(cpu) + pcpuLruMapLockRanges(cpu)
 }
 
 func TestLockRanges(t *testing.T) {
@@ -78,6 +101,36 @@ func TestLockRanges(t *testing.T) {
 			name:      "Percpu-Hashmap",
 			mtype:     ebpf.PerCPUHash,
 			lockCount: hashMapLockRanges(uint32(cpu)),
+			alloc: func(spec *ebpf.MapSpec) *ebpf.Map {
+				m, err := ebpf.NewMap(spec)
+				require.NoError(t, err)
+				return m
+			},
+		},
+		{
+			name:      "LRUHash",
+			mtype:     ebpf.LRUHash,
+			lockCount: lruLockCount(uint32(cpu)),
+			alloc: func(spec *ebpf.MapSpec) *ebpf.Map {
+				m, err := ebpf.NewMap(spec)
+				require.NoError(t, err)
+				return m
+			},
+		},
+		{
+			name:      "LRUPcpuHash",
+			mtype:     ebpf.LRUCPUHash,
+			lockCount: pcpuLruLockCount(uint32(cpu)),
+			alloc: func(spec *ebpf.MapSpec) *ebpf.Map {
+				m, err := ebpf.NewMap(spec)
+				require.NoError(t, err)
+				return m
+			},
+		},
+		{
+			name:      "RingBuf",
+			mtype:     ebpf.RingBuf,
+			lockCount: ringbufMapLockRanges(uint32(cpu)),
 			alloc: func(spec *ebpf.MapSpec) *ebpf.Map {
 				m, err := ebpf.NewMap(spec)
 				require.NoError(t, err)
