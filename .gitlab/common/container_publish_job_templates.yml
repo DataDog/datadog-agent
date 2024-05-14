@@ -23,6 +23,8 @@
       fi
     - IMG_VARIABLES="$(sed -E "s#(${SRC_AGENT}|${SRC_DSD}|${SRC_DCA}|${SRC_CWS_INSTRUMENTATION})#\1${ECR_RELEASE_SUFFIX}#g" <<<"$IMG_VARIABLES")"
     - IMG_SOURCES="$(sed -E "s#(${SRC_AGENT}|${SRC_DSD}|${SRC_DCA}|${SRC_CWS_INSTRUMENTATION})#\1${ECR_RELEASE_SUFFIX}#g" <<<"$IMG_SOURCES")"
+    - RETRY_DELAY=120
+    - RETRY_COUNT=3
     - "inv pipeline.trigger-child-pipeline --project-name DataDog/public-images --git-ref main
       --variable IMG_VARIABLES
       --variable IMG_REGISTRIES
@@ -35,3 +37,5 @@
       --variable DDR_WORKFLOW_ID
       --variable TARGET_ENV
       --variable DYNAMIC_BUILD_RENDER_TARGET_FORWARD_PARAMETERS"
+      --variable RETRY_DELAY
+      --variable RETRY_COUNT
