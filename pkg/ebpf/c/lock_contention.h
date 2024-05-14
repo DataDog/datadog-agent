@@ -5,6 +5,9 @@ typedef enum {
     HASH_BUCKET_LOCK = 1,
     HASH_PCPU_FREELIST_LOCK,
     HASH_GLOBAL_FREELIST_LOCK,
+    PERCPU_LRU_FREELIST_LOCK,
+    LRU_GLOBAL_FREELIST_LOCK,
+    LRU_PCPU_FREELIST_LOCK,
 } lock_type_t;
 
 struct lock_range {

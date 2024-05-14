@@ -147,17 +147,93 @@ static __always_inline int record_bucket_locks(u32 fd, struct bpf_map* bm, u32 m
     return 0;
 }
 
+static __always_inline int pcpu_lru_locks(u32 fd, struct bpf_htab *htab, u32 mapid) {
+    u64 region;
+    int err;
+    struct bpf_lru_list *percpu_lru;
+
+    err = bpf_core_read(&percpu_lru, sizeof(struct bpf_lru_list *), &htab->lru.percpu_lru);
+    if (err < 0)
+        return err;
+
+    for (int i = 0; i < num_cpus; i++) {
+        region = per_cpu_ptr((u64)(percpu_lru), i);
+        if (!region)
+            return -EINVAL;
+
+        struct lock_range lr = {
+            .addr_start = region,
+            .range = sizeof(struct bpf_lru_list),
+            .type = PERCPU_LRU_FREELIST_LOCK,
+        };
+
+        err = bpf_map_update_elem(&map_addr_fd, &lr, &mapid, BPF_NOEXIST);
+        if (err < 0)
+            return err;
+    }
+
+    return 0;
+}
+
+static __always_inline int lru_locks(u32 fd, struct bpf_htab *htab, u32 mapid) {
+    int err;
+    u64 region;
+    u64 lock_addr = (u64)&htab->lru.common_lru.lru_list.lock;
+
+    struct lock_range lr = {
+        .addr_start = lock_addr,
+        .range = sizeof(raw_spinlock_t),
+        .type = LRU_GLOBAL_FREELIST_LOCK,
+    };
+
+    err = bpf_map_update_elem(&map_addr_fd, &lr, &mapid, BPF_NOEXIST);
+    if (err < 0)
+        return err;
+
+    for (int i = 0; i < num_cpus; i++) {
+        region = per_cpu_ptr((u64)(&htab->lru.common_lru.local_list), i);
+        if (!region)
+            return -EINVAL;
+
+        struct lock_range lr = {
+            .addr_start = region,
+            .range = sizeof(struct bpf_lru_locallist),
+            .type = LRU_PCPU_FREELIST_LOCK,
+        };
+
+        err = bpf_map_update_elem(&map_addr_fd, &lr, &mapid, BPF_NOEXIST);
+        if (err < 0)
+            return err;
+    }
+
+    return 0;
+}
+
+static __always_inline int record_lru_locks(u32 fd, struct bpf_map* bm, u32 mapid, enum bpf_map_type mtype) {
+    struct bpf_htab *htab = container_of(bm, struct bpf_htab, map);
+
+    if (mtype == BPF_MAP_TYPE_LRU_PERCPU_HASH)
+        return pcpu_lru_locks(fd, htab, mapid);
+
+    if (mtype == BPF_MAP_TYPE_LRU_HASH)
+        return lru_locks(fd, htab, mapid);
+
+    return -EINVAL;
+}
+
 #define HAS_HASH_MAP_LOCKS(mtype) \
-    ((mtype == BPF_MAP_TYPE_HASH) \
-     || (mtype == BPF_MAP_TYPE_LRU_HASH) \
-     || (mtype == BPF_MAP_TYPE_LRU_PERCPU_HASH) \
+    (HAS_LRU_LOCKS(mtype) \
+     || (mtype == BPF_MAP_TYPE_HASH) \
      || (mtype == BPF_MAP_TYPE_PERCPU_HASH) \
      || (mtype == BPF_MAP_TYPE_HASH_OF_MAPS))
 
+#define HAS_LRU_LOCKS(mtype) \
+    ((mtype == BPF_MAP_TYPE_LRU_HASH) \
+     || (mtype == BPF_MAP_TYPE_LRU_PERCPU_HASH))
 
 #define log_and_ret_err(err) \
 { \
-    log_debug("[%d] err: %d", __LINE__, err); \
+    log_info("[%d] err: %d", __LINE__, err); \
     return 0; \
 }
 
@@ -207,6 +283,12 @@ int kprobe__do_vfs_ioctl(struct pt_regs *ctx) {
             log_and_ret_err(err);
 
         err = record_pcpu_freelist_locks(fd, bm, mapid);
+        if (err < 0)
+            log_and_ret_err(err);
+    }
+
+    if (HAS_LRU_LOCKS(mtype)) {
+        err = record_lru_locks(fd, bm, mapid, mtype);
         if (err < 0)
             log_and_ret_err(err);
     }

@@ -111,6 +111,9 @@ var lockTypes = map[uint32]string{
 	1: "hash-bucket-locks",
 	2: "hash-pcpu-freelist-locks",
 	3: "hash-global-freelist-locks",
+	4: "percpu-lru-freelist-locks",
+	5: "lru-global-freelist-locks",
+	6: "lru-pcpu-freelist-locks",
 }
 
 // NewLockContentionCollector creates a prometheus.Collector for eBPF lock contention metrics
@@ -306,6 +309,10 @@ func (l *LockContentionCollector) Initialize(trackAllResources bool) error {
 		}
 
 		if err := collectionSpec.LoadAndAssign(l.objects, &opts); err != nil {
+			var ve *ebpf.VerifierError
+			if errors.As(err, &ve) {
+				return fmt.Errorf("verfier error loading collection: %s\n%+v", err, ve)
+			}
 			return fmt.Errorf("failed to load objects: %w", err)
 		}
 
@@ -405,6 +412,16 @@ func hashMapLockRanges(cpu uint32) uint32 {
 	return uint32(cpu + 2)
 }
 
+func lruMapLockRanges(cpu uint32) uint32 {
+	// global freelist lock + (cpu * pcpu_free_lock)
+	return uint32(cpu + 1)
+}
+
+func pcpuLruMapLockRanges(cpu uint32) uint32 {
+	// cpu * freelist_lock
+	return cpu
+}
+
 func estimateNumOfLockRanges(tm map[uint32]*targetMap, cpu uint32) uint32 {
 	var num uint32
 
@@ -413,6 +430,12 @@ func estimateNumOfLockRanges(tm map[uint32]*targetMap, cpu uint32) uint32 {
 
 		if t == ebpf.Hash || t == ebpf.PerCPUHash || t == ebpf.LRUHash || t == ebpf.LRUCPUHash || t == ebpf.HashOfMaps {
 			num += hashMapLockRanges(cpu)
+		}
+		if t == ebpf.LRUHash {
+			num += lruMapLockRanges(cpu)
+		}
+		if t == ebpf.LRUCPUHash {
+			num += pcpuLruMapLockRanges(cpu)
 		}
 	}
 
