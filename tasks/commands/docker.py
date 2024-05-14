@@ -7,7 +7,7 @@ from tasks.commands.interface import CLI
 AGENT_REPOSITORY_PATH = '/workspaces/datadog-agent'
 
 if TYPE_CHECKING:
-    from typing import Iterable
+    from collections.abc import Iterable
 
 
 class DockerCLI(CLI):
