@@ -136,13 +136,7 @@ func buildWorkloadMetaContainer(namespace string, container containerd.Container
 		workloadContainer.EnvVars = envs
 		workloadContainer.Hostname = spec.Hostname
 		if spec.Linux != nil {
-			// Containerd applies some transformations to the cgroup path, we need to revert them
-			// https://github.com/containerd/containerd/blob/b168147ca8fccf05003117324f493d40f97b6077/internal/cri/server/podsandbox/helpers_linux.go#L64-L65
-			// See https://github.com/opencontainers/runc/blob/main/docs/systemd.md
-			workloadContainer.CgroupPath = spec.Linux.CgroupsPath
-			if l := strings.Split(workloadContainer.CgroupPath, ":"); len(l) == 3 {
-				workloadContainer.CgroupPath = l[0] + "/" + l[1] + "-" + l[2] + ".scope"
-			}
+			workloadContainer.CgroupPath = extractCgroupPath(spec.Linux.CgroupsPath)
 		}
 	} else if errors.Is(err, cutil.ErrSpecTooLarge) {
 		log.Warnf("Skipping parsing of container spec for container id: %s, spec is bigger than: %d", info.ID, cutil.DefaultAllowedSpecMaxSize)
@@ -151,6 +145,17 @@ func buildWorkloadMetaContainer(namespace string, container containerd.Container
 	}
 
 	return workloadContainer, nil
+}
+
+// Containerd applies some transformations to the cgroup path, we need to revert them
+// https://github.com/containerd/containerd/blob/b168147ca8fccf05003117324f493d40f97b6077/internal/cri/server/podsandbox/helpers_linux.go#L64-L65
+// See https://github.com/opencontainers/runc/blob/main/docs/systemd.md
+func extractCgroupPath(path string) string {
+	res := path
+	if l := strings.Split(path, ":"); len(l) == 3 {
+		res = l[0] + "/" + l[1] + "-" + l[2] + ".scope"
+	}
+	return res
 }
 
 func extractStatus(status containerd.ProcessStatus) workloadmeta.ContainerStatus {
