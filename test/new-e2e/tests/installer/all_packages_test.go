@@ -63,10 +63,13 @@ func TestPackages(t *testing.T) {
 			suite := test(flavor, flavor.Architecture)
 			t.Run(suite.Name(), func(t *testing.T) {
 				t.Parallel()
+				opts := []awshost.ProvisionerOption{
+					awshost.WithEC2InstanceOptions(ec2.WithOSArch(flavor, flavor.Architecture)),
+					awshost.WithoutAgent(),
+				}
+				opts = append(opts, suite.ProvisionerOptions()...)
 				e2e.Run(t, suite,
-					e2e.WithProvisioner(
-						awshost.ProvisionerNoFakeIntake(awshost.WithEC2InstanceOptions(ec2.WithOSArch(flavor, flavor.Architecture)), awshost.WithoutAgent()),
-					),
+					e2e.WithProvisioner(awshost.Provisioner(opts...)),
 					e2e.WithStackName(suite.Name()),
 				)
 			})
@@ -78,19 +81,20 @@ type packageSuite interface {
 	e2e.Suite[environments.Host]
 
 	Name() string
+	ProvisionerOptions() []awshost.ProvisionerOption
 }
 
 type packageBaseSuite struct {
 	e2e.BaseSuite[environments.Host]
 	host *host.Host
 
-	opts []host.Option
+	opts []awshost.ProvisionerOption
 	pkg  string
 	arch e2eos.Architecture
 	os   e2eos.Descriptor
 }
 
-func newPackageSuite(pkg string, os e2eos.Descriptor, arch e2eos.Architecture, opts ...host.Option) packageBaseSuite {
+func newPackageSuite(pkg string, os e2eos.Descriptor, arch e2eos.Architecture, opts ...awshost.ProvisionerOption) packageBaseSuite {
 	return packageBaseSuite{
 		os:   os,
 		arch: arch,
@@ -103,9 +107,13 @@ func (s *packageBaseSuite) Name() string {
 	return regexp.MustCompile("[^a-zA-Z0-9]+").ReplaceAllString(fmt.Sprintf("%s/%s", s.pkg, s.os), "_")
 }
 
+func (s *packageBaseSuite) ProvisionerOptions() []awshost.ProvisionerOption {
+	return s.opts
+}
+
 func (s *packageBaseSuite) SetupSuite() {
 	s.BaseSuite.SetupSuite()
-	s.host = host.New(s.T(), s.Env().RemoteHost, s.os, s.arch, s.opts...)
+	s.host = host.New(s.T(), s.Env().RemoteHost, s.os, s.arch)
 }
 
 func apiKey() string {
@@ -133,9 +141,15 @@ func (s *packageBaseSuite) RunInstallScript() {
 	}
 	// fixme: use the official install & remove manual creation of /etc/datadog-agent/datadog.yaml
 	s.Env().RemoteHost.MustExecute(`bash -c "$(curl -L https://storage.googleapis.com/updater-dev/install_script_agent7.sh)"`, components.WithEnvVariables(env))
-	datadogConfig := map[string]string{
+	datadogConfig := map[string]interface{}{
 		"api_key": apiKey(),
-		"site":    "datadoghq.com",
+	}
+	if s.Env().FakeIntake != nil {
+		datadogConfig["dd_url"] = s.Env().FakeIntake.URL
+		datadogConfig["skip_ssl_validation"] = true
+		datadogConfig["apm_config"] = map[string]interface{}{
+			"apm_dd_url": s.Env().FakeIntake.URL,
+		}
 	}
 	rawDatadogConfig, err := yaml.Marshal(datadogConfig)
 	require.NoError(s.T(), err)
@@ -153,6 +167,24 @@ func (s *packageBaseSuite) InstallAgentPackage() {
 	}
 	s.Env().RemoteHost.MustExecute(`sudo -E datadog-installer install oci://669783387624.dkr.ecr.us-east-1.amazonaws.com/agent-package:`+fmt.Sprintf("pipeline-%v", os.Getenv("CI_PIPELINE_ID")), components.WithEnvVariables(env))
 	s.Env().RemoteHost.MustExecute(`timeout=30; unit=datadog-agent.service; while ! systemctl is-active --quiet $unit && [ $timeout -gt 0 ]; do sleep 1; ((timeout--)); done; [ $timeout -ne 0 ]`)
+}
+
+// TODO: This is a hack to install a working version of apm-inject
+func (s *packageBaseSuite) InstallInjectorPackageTemp() {
+	env := map[string]string{
+		"DD_API_KEY":                 apiKey(),
+		"DD_SITE":                    "datadoghq.com",
+		"DD_INSTALLER_REGISTRY":      "669783387624.dkr.ecr.us-east-1.amazonaws.com",
+		"DD_INSTALLER_REGISTRY_AUTH": "ecr",
+	}
+	s.Env().RemoteHost.MustExecute(`echo "DD_APM_RECEIVER_SOCKET=/var/tmp/apm.socket" | sudo tee -a /etc/environment`)
+	if s.Env().FakeIntake != nil {
+		s.Env().RemoteHost.MustExecute(fmt.Sprintf(`echo "DD_APM_DD_URL=%s" | sudo tee -a /etc/environment`, s.Env().FakeIntake.URL))
+	}
+	s.Env().RemoteHost.MustExecute("sudo mkdir -p /etc/systemd/system/datadog-agent-trace.service.d")
+	s.Env().RemoteHost.MustExecute(`printf "[Service]\nEnvironmentFile=-/etc/environment\n" | sudo tee /etc/systemd/system/datadog-agent-trace.service.d/inject.conf`)
+	s.Env().RemoteHost.MustExecute("sudo systemctl daemon-reload")
+	s.Env().RemoteHost.MustExecute("sudo -E datadog-installer install oci://669783387624.dkr.ecr.us-east-1.amazonaws.com/apm-inject-package:pipeline-34163111", components.WithEnvVariables(env))
 }
 
 func (s *packageBaseSuite) InstallPackageLatest(pkg string) {

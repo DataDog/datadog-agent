@@ -6,6 +6,7 @@
 package installer
 
 import (
+	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host"
 	e2eos "github.com/DataDog/test-infra-definitions/components/os"
 	"github.com/stretchr/testify/assert"
 )
@@ -16,7 +17,7 @@ type packageInstallerSuite struct {
 
 func testInstaller(os e2eos.Descriptor, arch e2eos.Architecture) packageSuite {
 	return &packageInstallerSuite{
-		packageBaseSuite: newPackageSuite("installer", os, arch),
+		packageBaseSuite: newPackageSuite("installer", os, arch, awshost.WithoutFakeIntake(), awshost.WithDocker()),
 	}
 }
 

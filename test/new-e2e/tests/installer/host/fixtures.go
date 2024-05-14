@@ -42,12 +42,12 @@ func (h *Host) StartExamplePythonApp() {
 		"DD_ENV":     "e2e-installer",
 		"DD_VERSION": "1.0",
 	}
-	h.remote.MustExecute("nohup python3 /run/fixtures/http_server.py & echo $! > /tmp/example_python_app.pid", components.WithEnvVariables(env))
+	h.remote.MustExecute(`chmod +x /run/fixtures/run_http_server.sh && /run/fixtures/run_http_server.sh`, components.WithEnvVariables(env))
 }
 
 // StopExamplePythonApp stops the example Python app
 func (h *Host) StopExamplePythonApp() {
-	h.remote.MustExecute("kill $(cat /tmp/example_python_app.pid)")
+	h.remote.MustExecute("pkill -f http_server.py")
 }
 
 // CallExamplePythonApp calls the example Python app

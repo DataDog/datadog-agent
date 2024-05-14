@@ -8,8 +8,10 @@ package installer
 import (
 	"fmt"
 	"math/rand"
+	"time"
 
 	e2eos "github.com/DataDog/test-infra-definitions/components/os"
+	"github.com/stretchr/testify/assert"
 )
 
 type packageApmInjectSuite struct {
@@ -26,14 +28,35 @@ func (s *packageApmInjectSuite) TestInstall() {
 	s.RunInstallScript()
 	defer s.Purge()
 	s.InstallAgentPackage()
-	s.InstallPackageLatest("datadog-apm-inject")
+	s.InstallInjectorPackageTemp()
 	s.InstallPackageLatest("datadog-apm-library-python")
 	s.host.StartExamplePythonApp()
 	defer s.host.StopExamplePythonApp()
 
-	traceID := rand.Int63()
+	traceID := rand.Uint64()
 	s.host.CallExamplePythonApp(fmt.Sprint(traceID))
 	state := s.host.State()
 
 	state.AssertFileExists("/etc/ld.so.preload", 0644, "root", "root")
+
+	s.assertTraceReceived(traceID)
+}
+
+func (s *packageApmInjectSuite) assertTraceReceived(traceID uint64) {
+	assert.Eventually(s.T(), func() bool {
+		tracePayloads, err := s.Env().FakeIntake.Client().GetTraces()
+		assert.NoError(s.T(), err)
+		for _, tracePayload := range tracePayloads {
+			for _, tracerPayload := range tracePayload.TracerPayloads {
+				for _, chunk := range tracerPayload.Chunks {
+					for _, span := range chunk.Spans {
+						if span.TraceID == traceID {
+							return true
+						}
+					}
+				}
+			}
+		}
+		return false
+	}, time.Second*30, time.Second*1)
 }
