@@ -205,8 +205,8 @@ func (s *npSchedulerImpl) runTracerouteForPath(ptest *pathteststore.PathtestCont
 	cfg := traceroute.Config{
 		DestHostname: ptest.Pathtest.Hostname,
 		DestPort:     ptest.Pathtest.Port,
-		MaxTTL:       24,    // TODO: make it configurable
-		TimeoutMs:    10000, // TODO: make it configurable
+		MaxTTL:       0, // TODO: make it configurable, setting 0 to use default value for now
+		TimeoutMs:    0, // TODO: make it configurable, setting 0 to use default value for now
 	}
 
 	path, err := s.runTraceroute(cfg)
@@ -294,8 +294,8 @@ func (s *npSchedulerImpl) flush() {
 }
 
 func (s *npSchedulerImpl) sendTelemetry(path payload.NetworkPath, startTime time.Time, ptest *pathteststore.PathtestContext) {
-	checkInterval := ptest.LastFlushInterval()    // TODO: TESTME
-	checkDuration := s.TimeNowFn().Sub(startTime) // TODO: TESTME
+	checkInterval := ptest.LastFlushInterval()
+	checkDuration := s.TimeNowFn().Sub(startTime)
 	telemetry.SubmitNetworkPathTelemetry(
 		s.metricSender,
 		path,

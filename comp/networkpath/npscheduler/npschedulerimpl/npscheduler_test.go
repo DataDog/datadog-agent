@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
 	"github.com/DataDog/datadog-agent/comp/networkpath/npscheduler/npschedulerimpl/common"
+	"github.com/DataDog/datadog-agent/comp/networkpath/npscheduler/npschedulerimpl/pathteststore"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/metricsender"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
@@ -555,4 +556,45 @@ func Test_npSchedulerImpl_flush(t *testing.T) {
 	assert.Contains(t, calls, teststatsd.MetricsArgs{Name: "datadog.network_path.scheduler.pathtest_flushed_count", Value: 2, Tags: []string{}, Rate: 1})
 
 	assert.Equal(t, 2, len(npScheduler.pathtestProcessChan))
+}
+
+func Test_npSchedulerImpl_sendTelemetry(t *testing.T) {
+	// GIVEN
+	sysConfigs := map[string]any{
+		"network_path.enabled": true,
+		"network_path.workers": 6,
+	}
+	_, npScheduler := newTestNpScheduler(t, sysConfigs)
+
+	stats := &teststatsd.Client{}
+	npScheduler.statsdClient = stats
+	npScheduler.metricSender = metricsender.NewMetricSenderStatsd(stats)
+	path := payload.NetworkPath{
+		Source:      payload.NetworkPathSource{Hostname: "abc"},
+		Destination: payload.NetworkPathDestination{Hostname: "abc", IPAddress: "127.0.0.2", Port: 80},
+		Hops: []payload.NetworkPathHop{
+			{Hostname: "hop_1", IPAddress: "1.1.1.1"},
+			{Hostname: "hop_2", IPAddress: "1.1.1.2"},
+		},
+	}
+	ptestCtx := &pathteststore.PathtestContext{
+		Pathtest: &common.Pathtest{Hostname: "127.0.0.2", Port: 80},
+	}
+	ptestCtx.SetLastFlushInterval(2 * time.Minute)
+	npScheduler.TimeNowFn = MockTimeNow
+	checkStartTime := MockTimeNow().Add(-3 * time.Second)
+
+	// WHEN
+	npScheduler.sendTelemetry(path, checkStartTime, ptestCtx)
+
+	// THEN
+	calls := stats.GaugeCalls
+	tags := []string{
+		"collector:network_path_scheduler",
+		"destination_hostname:abc",
+		"destination_port:80",
+		"protocol:udp",
+	}
+	assert.Contains(t, calls, teststatsd.MetricsArgs{Name: "datadog.network_path.check_duration", Value: 3, Tags: tags, Rate: 1})
+	assert.Contains(t, calls, teststatsd.MetricsArgs{Name: "datadog.network_path.check_interval", Value: (2 * time.Minute).Seconds(), Tags: tags, Rate: 1})
 }
