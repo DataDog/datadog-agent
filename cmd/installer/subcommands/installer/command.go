@@ -27,6 +27,24 @@ const (
 	envRegistryAuth              = "DD_INSTALLER_REGISTRY_AUTH"
 	envAPIKey                    = "DD_API_KEY"
 	envSite                      = "DD_SITE"
+
+	envUpgrade                          = "DD_UPGRADE"
+	envAPMInstrumentationNoConfigChange = "DD_APM_INSTRUMENTATION_NO_CONFIG_CHANGE"
+	envSystemProbeEnsureConfig          = "DD_SYSTEM_PROBE_ENSURE_CONFIG"
+	envRuntimeSecurityConfigEnabled     = "DD_RUNTIME_SECURITY_CONFIG_ENABLED"
+	envComplianceConfigEnabled          = "DD_COMPLIANCE_CONFIG_ENABLED"
+	envInstallOnly                      = "DD_INSTALL_ONLY"
+	envNoAgentInstall                   = "DD_NO_AGENT_INSTALL"
+	envAPMInstrumentationLibraries      = "DD_APM_INSTRUMENTATION_LIBRARIES"
+	envAppSecEnabled                    = "DD_APPSEC_ENABLED"
+	envIASTEnabled                      = "DD_IAST_ENABLED"
+	envAPMInstrumentationEnabled        = "DD_APM_INSTRUMENTATION_ENABLED"
+	envRepoURL                          = "DD_REPO_URL"
+	envRepoURLDeprecated                = "REPO_URL"
+	envRPMRepoGPGCheck                  = "DD_RPM_REPO_GPGCHECK"
+	envAgentMajorVersion                = "DD_AGENT_MAJOR_VERSION"
+	envAgentMinorVersion                = "DD_AGENT_MINOR_VERSION"
+	envAgentDistChannel                 = "DD_AGENT_DIST_CHANNEL"
 )
 
 // Commands returns the installer subcommands.
@@ -119,6 +137,22 @@ func newBootstraperCmd(operation string) *bootstraperCmd {
 	if os.Getenv(envBootstrapInstallerVersion) != "" {
 		opts = append(opts, bootstraper.WithInstallerVersion(os.Getenv(envBootstrapInstallerVersion)))
 	}
+	cmd.span.SetTag("env.DD_UPGRADE", os.Getenv(envUpgrade))
+	cmd.span.SetTag("env.DD_APM_INSTRUMENTATION_NO_CONFIG_CHANGE", os.Getenv(envAPMInstrumentationNoConfigChange))
+	cmd.span.SetTag("env.DD_SYSTEM_PROBE_ENSURE_CONFIG", os.Getenv(envSystemProbeEnsureConfig))
+	cmd.span.SetTag("env.DD_RUNTIME_SECURITY_CONFIG_ENABLED", os.Getenv(envRuntimeSecurityConfigEnabled))
+	cmd.span.SetTag("env.DD_COMPLIANCE_CONFIG_ENABLED", os.Getenv(envComplianceConfigEnabled))
+	cmd.span.SetTag("env.DD_INSTALL_ONLY", os.Getenv(envInstallOnly))
+	cmd.span.SetTag("env.DD_NO_AGENT_INSTALL", os.Getenv(envNoAgentInstall))
+	cmd.span.SetTag("env.DD_APM_INSTRUMENTATION_LIBRARIES", os.Getenv(envAPMInstrumentationLibraries))
+	cmd.span.SetTag("env.DD_APPSEC_ENABLED", os.Getenv(envAppSecEnabled))
+	cmd.span.SetTag("env.DD_IAST_ENABLED", os.Getenv(envIASTEnabled))
+	cmd.span.SetTag("env.DD_APM_INSTRUMENTATION_ENABLED", os.Getenv(envAPMInstrumentationEnabled))
+	cmd.span.SetTag("env.DD_REPO_URL", os.Getenv(envRepoURL))
+	cmd.span.SetTag("env.REPO_URL", os.Getenv(envRepoURLDeprecated))
+	cmd.span.SetTag("env.DD_RPM_REPO_GPGCHECK", os.Getenv(envRPMRepoGPGCheck))
+	cmd.span.SetTag("env.DD_AGENT_MAJOR_VERSION", os.Getenv(envAgentMajorVersion))
+	cmd.span.SetTag("env.DD_AGENT_MINOR_VERSION", os.Getenv(envAgentMinorVersion))
 	return &bootstraperCmd{
 		opts: opts,
 		cmd:  cmd,
