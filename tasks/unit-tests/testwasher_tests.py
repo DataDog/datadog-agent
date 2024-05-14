@@ -111,7 +111,7 @@ class TestMergeKnownFlakes(unittest.TestCase):
 class TestGetTestParents(unittest.TestCase):
     def test_get_tests_parents(self):
         test_washer = TestWasher()
-        parents = test_washer.get_tests_parents(["TestEKSSuite/TestCPU/TestCPUUtilization", "TestKindSuite/TestKind"])
+        parents = test_washer.get_tests_family(["TestEKSSuite/TestCPU/TestCPUUtilization", "TestKindSuite/TestKind"])
         self.assertEqual(
             parents,
             {
@@ -125,7 +125,7 @@ class TestGetTestParents(unittest.TestCase):
 
     def test_get_test_parents_empty(self):
         test_washer = TestWasher()
-        parents = test_washer.get_tests_parents([])
+        parents = test_washer.get_tests_family([])
         self.assertEqual(
             parents,
             set(),

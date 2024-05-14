@@ -34,7 +34,7 @@ class TestWasher:
 
         for package, tests in failing_tests.items():
             non_flaky_failing_tests_in_package = set()
-            known_flaky_tests_parents = self.get_tests_parents(all_known_flakes[package])
+            known_flaky_tests_parents = self.get_tests_family(all_known_flakes[package])
             for failing_test in tests:
                 if not self.is_known_flaky_test(failing_test, all_known_flakes[package], known_flaky_tests_parents):
                     non_flaky_failing_tests_in_package.add(failing_test)
@@ -116,14 +116,14 @@ class TestWasher:
         - if TestEKSSuite/TestCPU is known to be flaky, TestEKSSuite/TestMemory should not be considered flaky
         """
 
-        failing_test_parents = self.get_tests_parents([failing_test])
+        failing_test_parents = self.get_tests_family([failing_test])
 
         if any(parent in known_flaky_tests for parent in failing_test_parents):
             return True
 
         return failing_test in known_flaky_tests_parents
 
-    def get_tests_parents(self, test_name_list):
+    def get_tests_family(self, test_name_list):
         """
         Get the parent tests of a list of tests
         For example with the test ["TestEKSSuite/TestCPU/TestCPUUtilization", "TestKindSuite/TestCPU"]
