@@ -159,6 +159,8 @@ const (
 type remoteAPIRequest struct {
 	ID            string          `json:"id"`
 	Package       string          `json:"package_name"`
+	TraceID       string          `json:"trace_id"`
+	ParentSpanID  string          `json:"parent_span_id"`
 	ExpectedState expectedState   `json:"expected_state"`
 	Method        string          `json:"method"`
 	Params        json.RawMessage `json:"params"`

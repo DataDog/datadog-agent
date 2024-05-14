@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"net/url"
 	"runtime"
+	"strconv"
 	"strings"
 
 	"github.com/awslabs/amazon-ecr-credential-helper/ecr-login"
@@ -43,6 +44,8 @@ const (
 	AnnotationPackage = "com.datadoghq.package.name"
 	// AnnotationVersion is the annotiation used to identify the package version.
 	AnnotationVersion = "com.datadoghq.package.version"
+	// AnnotationSize is the annotiation used to identify the package size.
+	AnnotationSize = "com.datadoghq.package.size"
 
 	// DatadogPackageLayerMediaType is the media type for the main Datadog Package layer.
 	DatadogPackageLayerMediaType types.MediaType = "application/vnd.datadog.package.layer.v1.tar+zstd"
@@ -59,6 +62,7 @@ type DownloadedPackage struct {
 	Image   oci.Image
 	Name    string
 	Version string
+	Size    uint64
 }
 
 // Downloader is the Downloader used by the installer to download packages.
@@ -119,11 +123,20 @@ func (d *Downloader) Download(ctx context.Context, packageURL string) (*Download
 	if !ok {
 		return nil, fmt.Errorf("package manifest is missing version annotation")
 	}
+	size := uint64(0)
+	rawSize, ok := manifest.Annotations[AnnotationSize]
+	if ok {
+		size, err = strconv.ParseUint(rawSize, 10, 64)
+		if err != nil {
+			return nil, fmt.Errorf("could not parse package size: %w", err)
+		}
+	}
 	log.Debugf("Successfully downloaded package from %s", packageURL)
 	return &DownloadedPackage{
 		Image:   image,
 		Name:    name,
 		Version: version,
+		Size:    size,
 	}, nil
 }
 

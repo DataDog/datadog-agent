@@ -450,9 +450,9 @@ type MMapEvent struct {
 	File       FileEvent `field:"file"`
 	Addr       uint64    `field:"-"`
 	Offset     uint64    `field:"-"`
-	Len        uint32    `field:"-"`
-	Protection int       `field:"protection"` // SECLDoc[protection] Definition:`memory segment protection` Constants:`Protection constants`
-	Flags      int       `field:"flags"`      // SECLDoc[flags] Definition:`memory segment flags` Constants:`MMap flags`
+	Len        uint64    `field:"-"`
+	Protection uint64    `field:"protection"` // SECLDoc[protection] Definition:`memory segment protection` Constants:`Protection constants`
+	Flags      uint64    `field:"flags"`      // SECLDoc[flags] Definition:`memory segment flags` Constants:`MMap flags`
 }
 
 // MProtectEvent represents a mprotect event

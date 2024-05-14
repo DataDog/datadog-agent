@@ -143,10 +143,9 @@ struct mmap_event_t {
     struct file_t file;
     u64 addr;
     u64 offset;
-    u32 len;
-    int protection;
-    int flags;
-    u32 padding;
+    u64 len;
+    u64 protection;
+    u64 flags;
 };
 
 struct dns_event_t {
