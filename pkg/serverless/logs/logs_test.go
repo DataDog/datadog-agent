@@ -1310,7 +1310,7 @@ func TestRuntimeMetricsOnTimeout(t *testing.T) {
 	demux := createDemultiplexer(t)
 
 	// Always use a unique temp file to test saving the execution context
-	tempfile, err := os.CreateTemp("/tmp", "dd-lambda-extension-cache-*.json")
+	tempfile, err := os.CreateTemp(t.TempDir(), "dd-lambda-extension-cache-*.json")
 	defer os.Remove(tempfile.Name())
 	assert.Nil(t, err)
 

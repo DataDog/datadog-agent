@@ -147,7 +147,7 @@ func TestUpdateRuntime(t *testing.T) {
 }
 
 func TestIsStateSaved(t *testing.T) {
-	tempfile, err := os.CreateTemp("/tmp", "dd-lambda-extension-cache-*.json")
+	tempfile, err := os.CreateTemp(t.TempDir(), "dd-lambda-extension-cache-*.json")
 	assert.Nil(t, err)
 	defer os.Remove(tempfile.Name())
 
