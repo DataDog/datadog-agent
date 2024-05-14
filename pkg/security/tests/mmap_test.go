@@ -82,7 +82,7 @@ func TestMMapApproverZero(t *testing.T) {
 	defer test.Close()
 
 	test.WaitSignal(t, func() error {
-		data, err := unix.Mmap(0, 0, os.Getpagesize(), unix.PROT_READ, unix.MAP_SHARED|unix.MAP_ANON)
+		data, err := unix.Mmap(0, 0, os.Getpagesize(), unix.PROT_NONE, unix.MAP_SHARED|unix.MAP_ANON)
 		if err != nil {
 			return fmt.Errorf("couldn't memory segment: %w", err)
 		}
@@ -93,7 +93,7 @@ func TestMMapApproverZero(t *testing.T) {
 		return nil
 	}, func(event *model.Event, r *rules.Rule) {
 		assert.Equal(t, "mmap", event.GetType(), "wrong event type")
-		assert.Equal(t, uint64(unix.PROT_READ), event.MMap.Protection&(unix.PROT_READ), fmt.Sprintf("wrong protection: %s", model.Protection(event.MMap.Protection)))
+		assert.Equal(t, uint64(unix.PROT_NONE), event.MMap.Protection&(unix.PROT_NONE), fmt.Sprintf("wrong protection: %s", model.Protection(event.MMap.Protection)))
 
 		value, _ := event.GetFieldValue("event.async")
 		assert.Equal(t, value.(bool), false)
