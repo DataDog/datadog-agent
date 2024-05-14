@@ -32,7 +32,8 @@ func (h *Host) uploadFixtures() {
 	}
 	h.remote.MustExecute("sudo mkdir -p /run/fixtures")
 	h.remote.MustExecute("sudo chmod 777 /run/fixtures")
-	h.remote.CopyFolder(tmpDir, "/run/fixtures")
+	err = h.remote.CopyFolder(tmpDir, "/run/fixtures")
+	require.NoError(h.t, err)
 }
 
 // StartExamplePythonApp starts an example Python app
