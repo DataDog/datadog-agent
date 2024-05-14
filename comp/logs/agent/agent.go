@@ -11,7 +11,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/hashicorp/go-multierror"
 	"go.uber.org/atomic"
 	"go.uber.org/fx"
 
@@ -33,15 +32,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/schedulers"
-	"github.com/DataDog/datadog-agent/pkg/logs/sds"
 	"github.com/DataDog/datadog-agent/pkg/logs/service"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/logs/status"
 	"github.com/DataDog/datadog-agent/pkg/logs/tailers"
-	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
 )
@@ -134,12 +130,6 @@ func newLogsAgent(deps dependencies) provides {
 		})
 
 		var rcListener rctypes.ListenerProvider
-		if sds.SDSEnabled {
-			rcListener.ListenerProvider = rctypes.RCListener{
-				state.ProductSDSAgentConfig: logsAgent.onUpdateSDSAgentConfig,
-				state.ProductSDSRules:       logsAgent.onUpdateSDSRules,
-			}
-		}
 
 		return provides{
 			Comp:           optional.NewOption[Component](logsAgent),
@@ -303,64 +293,4 @@ func (a *agent) GetMessageReceiver() *diagnostic.BufferedMessageReceiver {
 
 func (a *agent) GetPipelineProvider() pipeline.Provider {
 	return a.pipelineProvider
-}
-
-func (a *agent) onUpdateSDSRules(updates map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)) { //nolint:revive
-	var err error
-	for _, config := range updates {
-		if rerr := a.pipelineProvider.ReconfigureSDSStandardRules(config.Config); rerr != nil {
-			err = multierror.Append(err, rerr)
-		}
-	}
-
-	if err != nil {
-		log.Errorf("Can't update SDS standard rules: %v", err)
-	}
-
-	// Apply the new status to all configs
-	for cfgPath := range updates {
-		if err == nil {
-			applyStateCallback(cfgPath, state.ApplyStatus{State: state.ApplyStateAcknowledged})
-		} else {
-			applyStateCallback(cfgPath, state.ApplyStatus{
-				State: state.ApplyStateError,
-				Error: err.Error(),
-			})
-		}
-	}
-
-}
-
-func (a *agent) onUpdateSDSAgentConfig(updates map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)) { //nolint:revive
-	var err error
-
-	// We received a hit that new updates arrived, but if the list of updates
-	// is empty, it means we don't have any updates applying to this agent anymore
-	// Send a reconfiguration with an empty payload, indicating that
-	// the scanners have to be dropped.
-	if len(updates) == 0 {
-		err = a.pipelineProvider.ReconfigureSDSAgentConfig([]byte("{}"))
-	} else {
-		for _, config := range updates {
-			if rerr := a.pipelineProvider.ReconfigureSDSAgentConfig(config.Config); rerr != nil {
-				err = multierror.Append(err, rerr)
-			}
-		}
-	}
-
-	if err != nil {
-		log.Errorf("Can't update SDS configurations: %v", err)
-	}
-
-	// Apply the new status to all configs
-	for cfgPath := range updates {
-		if err == nil {
-			applyStateCallback(cfgPath, state.ApplyStatus{State: state.ApplyStateAcknowledged})
-		} else {
-			applyStateCallback(cfgPath, state.ApplyStatus{
-				State: state.ApplyStateError,
-				Error: err.Error(),
-			})
-		}
-	}
 }

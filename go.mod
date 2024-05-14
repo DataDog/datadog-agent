@@ -646,7 +646,6 @@ require (
 	github.com/DataDog/datadog-agent/pkg/logs/metrics v0.54.0-rc.2
 	github.com/DataDog/datadog-agent/pkg/logs/pipeline v0.54.0-rc.2
 	github.com/DataDog/datadog-agent/pkg/logs/processor v0.54.0-rc.2
-	github.com/DataDog/datadog-agent/pkg/logs/sds v0.54.0-rc.2
 	github.com/DataDog/datadog-agent/pkg/logs/sender v0.54.0-rc.2
 	github.com/DataDog/datadog-agent/pkg/logs/sources v0.54.0-rc.2
 	github.com/DataDog/datadog-agent/pkg/logs/status/utils v0.54.0-rc.2
@@ -757,6 +756,7 @@ require (
 	github.com/Azure/go-autorest/tracing v0.6.0 // indirect
 	github.com/AzureAD/microsoft-authentication-library-for-go v1.2.2 // indirect
 	github.com/Code-Hex/go-generics-cache v1.3.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/logs/sds v0.54.0-rc.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/logs/status/statusinterface v0.54.0-rc.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/buf v0.54.0-rc.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/statstracker v0.54.0-rc.2 // indirect
