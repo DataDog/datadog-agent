@@ -15,11 +15,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
-// configCheckURL contains the Agent API endpoint URL exposing the loaded checks
-var configCheckURL string
-
-// GetConfigCheck dump all loaded configurations to the writer
-func GetConfigCheck(w io.Writer, withDebug bool) error {
+// GetClusterAgentConfigCheck gets config check from the server
+func GetClusterAgentConfigCheck(w io.Writer, withDebug bool) error {
 	if w != color.Output {
 		color.NoColor = true
 	}
@@ -31,14 +28,9 @@ func GetConfigCheck(w io.Writer, withDebug bool) error {
 	if err != nil {
 		return err
 	}
-	ipcAddress, err := config.GetIPCAddress()
-	if err != nil {
-		return err
-	}
-	if configCheckURL == "" {
-		configCheckURL = fmt.Sprintf("https://%v:%v/agent/config-check", ipcAddress, config.Datadog.GetInt("cmd_port"))
-	}
+	configCheckURL := fmt.Sprintf("https://localhost:%v/config-check", config.Datadog.GetInt("cluster_agent.cmd_port"))
 	r, err := util.DoGet(c, configCheckURL, util.LeaveConnectionOpen)
+
 	if err != nil {
 		if r != nil && string(r) != "" {
 			return fmt.Errorf("the agent ran into an error while checking config: %s", string(r))
@@ -47,10 +39,4 @@ func GetConfigCheck(w io.Writer, withDebug bool) error {
 	}
 
 	return nil
-}
-
-// GetClusterAgentConfigCheck proxies GetConfigCheck overidding the URL
-func GetClusterAgentConfigCheck(w io.Writer, withDebug bool) error {
-	configCheckURL = fmt.Sprintf("https://localhost:%v/config-check", config.Datadog.GetInt("cluster_agent.cmd_port"))
-	return GetConfigCheck(w, withDebug)
 }

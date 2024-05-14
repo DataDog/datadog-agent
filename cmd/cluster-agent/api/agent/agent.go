@@ -12,7 +12,6 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
-	"sort"
 
 	"github.com/gorilla/mux"
 
@@ -20,8 +19,6 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
-	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/autodiscoveryimpl"
-	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/settings"
 	"github.com/DataDog/datadog-agent/comp/core/status"
@@ -179,25 +176,10 @@ func makeFlare(w http.ResponseWriter, r *http.Request, senderManager sender.Diag
 
 //nolint:revive // TODO(CINT) Fix revive linter
 func getConfigCheck(w http.ResponseWriter, r *http.Request, ac autodiscovery.Component) {
-	var response integration.ConfigCheckResponse
+	verbose := r.URL.Query().Get("verbose") == "true"
+	bytes := ac.GetConfigCheck(verbose)
 
-	configSlice := ac.LoadedConfigs()
-	sort.Slice(configSlice, func(i, j int) bool {
-		return configSlice[i].Name < configSlice[j].Name
-	})
-	response.Configs = configSlice
-	response.ResolveWarnings = autodiscoveryimpl.GetResolveWarnings()
-	response.ConfigErrors = autodiscoveryimpl.GetConfigErrors()
-	response.Unresolved = ac.GetUnresolvedTemplates()
-
-	jsonConfig, err := json.Marshal(response)
-	if err != nil {
-		log.Errorf("Unable to marshal config check response: %s", err)
-		setJSONError(w, err, 500)
-		return
-	}
-
-	w.Write(jsonConfig)
+	w.Write(bytes)
 }
 
 //nolint:revive // TODO(CINT) Fix revive linter

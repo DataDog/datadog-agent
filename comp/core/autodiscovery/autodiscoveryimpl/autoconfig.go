@@ -340,20 +340,66 @@ func (ac *AutoConfig) getConfigChecks(writer io.Writer, verbose bool) {
 
 func (ac *AutoConfig) writeConfigCheck(w http.ResponseWriter, r *http.Request) {
 	verbose := r.URL.Query().Get("verbose") == "true"
-	writer := new(bytes.Buffer)
-	ac.getConfigChecks(writer, verbose)
+	bytes := ac.GetConfigCheck(verbose)
 
-	w.Write(writer.Bytes())
+	w.Write(bytes)
 }
 
 // fillFlare add the config-checks log to flares.
 func (ac *AutoConfig) fillFlare(fb flaretypes.FlareBuilder) error {
 	fb.AddFileFromFunc("config-check.log", func() ([]byte, error) {
-		writer := new(bytes.Buffer)
-		ac.getConfigChecks(writer, true)
-		return writer.Bytes(), nil
+		bytes := ac.GetConfigCheck(true)
+		return bytes, nil
 	})
 	return nil
+}
+
+func (ac *AutoConfig) GetConfigCheck(verbose bool) []byte {
+	writer := new(bytes.Buffer)
+
+	configSlice := ac.LoadedConfigs()
+	sort.Slice(configSlice, func(i, j int) bool {
+		return configSlice[i].Name < configSlice[j].Name
+	})
+
+	resolveWarnings := GetResolveWarnings()
+	configErrors := GetConfigErrors()
+	unresolved := ac.GetUnresolvedTemplates()
+
+	if len(configErrors) > 0 {
+		fmt.Fprintf(writer, "=== Configuration %s ===\n", color.RedString("errors"))
+		for check, error := range configErrors {
+			fmt.Fprintf(writer, "\n%s: %s\n", color.RedString(check), error)
+		}
+	}
+
+	for _, c := range configSlice {
+		printConfig(writer, c, "")
+	}
+
+	if verbose {
+		if len(resolveWarnings) > 0 {
+			fmt.Fprintf(writer, "\n=== Resolve %s ===\n", color.YellowString("warnings"))
+			for check, warnings := range resolveWarnings {
+				fmt.Fprintf(writer, "\n%s\n", color.YellowString(check))
+				for _, warning := range warnings {
+					fmt.Fprintf(writer, "* %s\n", warning)
+				}
+			}
+		}
+		if len(unresolved) > 0 {
+			fmt.Fprintf(writer, "\n=== %s Configs ===\n", color.YellowString("Unresolved"))
+			for ids, configs := range unresolved {
+				fmt.Fprintf(writer, "\n%s: %s\n", color.BlueString("Auto-discovery IDs"), color.YellowString(ids))
+				fmt.Fprintf(writer, "%s:\n", color.BlueString("Templates"))
+				for _, config := range configs {
+					printYaml(writer, []byte(config.String()))
+				}
+			}
+		}
+	}
+
+	return writer.Bytes()
 }
 
 // Start will listen to the service channels before anything is sent to them
