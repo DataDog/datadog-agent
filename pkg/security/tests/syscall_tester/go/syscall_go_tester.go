@@ -13,14 +13,16 @@ import (
 	_ "embed"
 	"flag"
 	"fmt"
+	"net/http"
+	"time"
 
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/syndtr/gocapability/capability"
 	authenticationv1 "k8s.io/api/authentication/v1"
 
 	"github.com/DataDog/datadog-agent/cmd/cws-instrumentation/subcommands/injectcmd"
-
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/usersessions"
+	imdsutils "github.com/DataDog/datadog-agent/pkg/security/tests/imds_utils"
 )
 
 var (
@@ -28,6 +30,7 @@ var (
 	bpfClone              bool
 	capsetProcessCreds    bool
 	k8sUserSession        bool
+	runIMDSTest           bool
 	userSessionExecutable string
 	userSessionOpenPath   string
 )
@@ -134,6 +137,40 @@ func K8SUserSessionTest(executable string, openPath string) error {
 	return nil
 }
 
+func RunIMDSTest() error {
+	// create dummy interface
+	dummy, err := imdsutils.CreateDummyInterface(imdsutils.IMDSTestServerIP, imdsutils.CSMDummyInterface)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if err = imdsutils.RemoveDummyInterface(dummy); err != nil {
+			panic(err)
+		}
+	}()
+
+	// create fake IMDS server
+	imdsServerAddr := fmt.Sprintf("%s:%v", imdsutils.IMDSTestServerIP, imdsutils.IMDSTestServerPort)
+	imdsServer := imdsutils.CreateIMDSServer(imdsServerAddr)
+	defer func() {
+		if err = imdsutils.StopIMDSserver(imdsServer); err != nil {
+			panic(err)
+		}
+	}()
+
+	// give some time for the server to start
+	time.Sleep(10 * time.Second)
+
+	// make IMDS request
+	response, err := http.Get(fmt.Sprintf("http://%s%s", imdsServerAddr, imdsutils.IMDSSecurityCredentialsURL))
+	if err != nil {
+		return fmt.Errorf("failed to query IMDS server: %v", err)
+	}
+	defer response.Body.Close()
+
+	return nil
+}
+
 func main() {
 	flag.BoolVar(&bpfLoad, "load-bpf", false, "load the eBPF progams")
 	flag.BoolVar(&bpfClone, "clone-bpf", false, "clone maps")
@@ -141,6 +178,7 @@ func main() {
 	flag.BoolVar(&k8sUserSession, "k8s-user-session", false, "user session test")
 	flag.StringVar(&userSessionExecutable, "user-session-executable", "", "executable used for the user session test")
 	flag.StringVar(&userSessionOpenPath, "user-session-open-path", "", "file used for the user session test")
+	flag.BoolVar(&runIMDSTest, "run-imds-test", false, "when set, runs the IMDS test by creating a dummy interface, binding a fake IMDS server to it and sending an IMDS request")
 
 	flag.Parse()
 
@@ -158,6 +196,12 @@ func main() {
 
 	if k8sUserSession {
 		if err := K8SUserSessionTest(userSessionExecutable, userSessionOpenPath); err != nil {
+			panic(err)
+		}
+	}
+
+	if runIMDSTest {
+		if err := RunIMDSTest(); err != nil {
 			panic(err)
 		}
 	}
