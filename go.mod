@@ -911,7 +911,6 @@ require (
 	github.com/oklog/ulid/v2 v2.1.0 // indirect
 	github.com/open-telemetry/opamp-go v0.14.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/connector/countconnector v0.98.0 // indirect
-	github.com/open-telemetry/opentelemetry-collector-contrib/connector/datadogconnector v0.100.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/connector/exceptionsconnector v0.98.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/connector/grafanacloudconnector v0.98.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/connector/routingconnector v0.98.0 // indirect
@@ -950,7 +949,6 @@ require (
 	github.com/open-telemetry/opentelemetry-collector-contrib/internal/collectd v0.98.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/internal/common v0.100.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/internal/coreinternal v0.100.0 // indirect
-	github.com/open-telemetry/opentelemetry-collector-contrib/internal/datadog v0.100.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/internal/docker v0.98.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/internal/filter v0.100.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/internal/k8sconfig v0.100.0 // indirect
