@@ -10,7 +10,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"path/filepath"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -21,8 +20,8 @@ import (
 	"path/filepath"
 )
 
-var (
-	defaultSocketPath = filepath.Join(installer.PackagesPath, "installer.sock")
+const (
+	socketName = "installer.sock"
 )
 
 // StatusResponse is the response to the status endpoint.

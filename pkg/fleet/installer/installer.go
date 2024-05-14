@@ -26,7 +26,6 @@ import (
 )
 
 const (
-
 	packageDatadogAgent     = "datadog-agent"
 	packageAPMInjector      = "datadog-apm-inject"
 	packageDatadogInstaller = "datadog-installer"
