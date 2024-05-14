@@ -38,6 +38,8 @@ func (s *packageApmInjectSuite) TestInstall() {
 
 	state := s.host.State()
 	state.AssertFileExists("/etc/ld.so.preload", 0644, "root", "root")
+	s.assertLDPreloadInstrumented()
+	s.assertDockerdInstrumented()
 
 	traceID := rand.Uint64()
 	s.host.CallExamplePythonApp(fmt.Sprint(traceID))
@@ -46,6 +48,18 @@ func (s *packageApmInjectSuite) TestInstall() {
 
 	s.assertTraceReceived(traceID)
 	s.assertTraceReceived(traceIDDocker)
+}
+
+func (s *packageApmInjectSuite) TestUninstall() {
+	s.host.InstallDocker()
+	s.RunInstallScript()
+	s.InstallAgentPackage()
+	s.InstallInjectorPackageTemp()
+	s.InstallPackageLatest("datadog-apm-library-python")
+	s.Purge()
+
+	s.assertLDPreloadNotInstrumented()
+	s.assertDockerdConfigNotInstrumented()
 }
 
 func (s *packageApmInjectSuite) assertTraceReceived(traceID uint64) {
@@ -71,4 +85,44 @@ func (s *packageApmInjectSuite) assertTraceReceived(traceID uint64) {
 		s.T().Logf("Server logs: %v", s.Env().RemoteHost.MustExecute("cat /tmp/server.log"))
 		s.T().Logf("Trace Agent logs: %v", s.Env().RemoteHost.MustExecute("cat /var/log/datadog/trace-agent.log"))
 	}
+}
+
+func (s *packageApmInjectSuite) assertLDPreloadInstrumented() {
+	content, err := s.host.ReadFile("/etc/ld.so.preload")
+	assert.NoError(s.T(), err)
+	assert.Contains(s.T(), string(content), "/opt/datadog-packages/datadog-apm-inject")
+	output := s.host.Run("sh -c 'DD_APM_INSTRUMENTATION_DEBUG=true python3 --version 2>&1'")
+	assert.Contains(s.T(), output, "DD_INJECTION_ENABLED=tracer") // this is an env var set by the injector, it should always be in the debug logs
+}
+
+func (s *packageApmInjectSuite) assertLDPreloadNotInstrumented() {
+	exists, err := s.host.FileExists("/etc/ld.so.preload")
+	assert.NoError(s.T(), err)
+	if exists {
+		content, err := s.host.ReadFile("/etc/ld.so.preload")
+		assert.NoError(s.T(), err)
+		assert.NotContains(s.T(), string(content), "/opt/datadog-packages/datadog-apm-inject")
+	}
+	output := s.host.Run("sh -c 'DD_APM_INSTRUMENTATION_DEBUG=true python3 --version 2>&1'")
+	assert.NotContains(s.T(), output, "DD_INJECTION_ENABLED=tracer")
+}
+
+func (s *packageApmInjectSuite) assertDockerdInstrumented() {
+	content, err := s.host.ReadFile("/etc/docker/daemon.json")
+	assert.NoError(s.T(), err)
+	assert.Contains(s.T(), string(content), "/opt/datadog-packages/datadog-apm-inject")
+	runtimeConfig := s.host.Run("sudo docker system info --format '{{json .}}'")
+	assert.Contains(s.T(), runtimeConfig, "/opt/datadog-packages/datadog-apm-inject")
+}
+
+func (s *packageApmInjectSuite) assertDockerdConfigNotInstrumented() {
+	exists, err := s.host.FileExists("/etc/docker/daemon.json")
+	assert.NoError(s.T(), err)
+	if exists {
+		content, err := s.host.ReadFile("/etc/docker/daemon.json")
+		assert.NoError(s.T(), err)
+		assert.NotContains(s.T(), string(content), "/opt/datadog-packages/datadog-apm-inject")
+	}
+	runtimeConfig := s.host.Run("sudo docker system info --format '{{json .}}'")
+	assert.NotContains(s.T(), runtimeConfig, "/opt/datadog-packages/datadog-apm-inject")
 }

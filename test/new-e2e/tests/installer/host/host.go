@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
 	e2eos "github.com/DataDog/test-infra-definitions/components/os"
 	"github.com/stretchr/testify/assert"
 )
@@ -56,6 +57,26 @@ func (h *Host) InstallDocker() {
 	default:
 		h.remote.MustExecute("curl -fsSL https://get.docker.com | sudo sh")
 	}
+}
+
+// Run executes a command on the host.
+func (h *Host) Run(command string, env ...string) string {
+	envVars := make(map[string]string)
+	for _, e := range env {
+		parts := strings.Split(e, "=")
+		envVars[parts[0]] = parts[1]
+	}
+	return h.remote.MustExecute(command, client.WithEnvVariables(envVars))
+}
+
+// FileExists checks if a file exists on the host.
+func (h *Host) FileExists(path string) (bool, error) {
+	return h.remote.FileExists(path)
+}
+
+// ReadFile reads a file from the host.
+func (h *Host) ReadFile(path string) ([]byte, error) {
+	return h.remote.ReadFile(path)
 }
 
 // State returns the state of the host.
