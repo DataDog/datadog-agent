@@ -3,13 +3,13 @@ from __future__ import annotations
 import itertools
 import json
 import os
-import platform
 import re
 import tempfile
 from collections import defaultdict
+from collections.abc import Iterable
 from glob import glob
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Iterable, cast
+from typing import TYPE_CHECKING, Any, cast
 
 from invoke.context import Context
 from invoke.tasks import task
@@ -18,7 +18,7 @@ from tasks.kernel_matrix_testing import stacks, vmconfig
 from tasks.kernel_matrix_testing.ci import KMTTestRunJob, get_all_jobs_for_pipeline
 from tasks.kernel_matrix_testing.compiler import CONTAINER_AGENT_PATH, all_compilers, get_compiler
 from tasks.kernel_matrix_testing.config import ConfigManager
-from tasks.kernel_matrix_testing.download import arch_mapping, update_rootfs
+from tasks.kernel_matrix_testing.download import arch_mapping, full_arch, update_rootfs
 from tasks.kernel_matrix_testing.infra import (
     SSH_OPTIONS,
     HostInstance,
@@ -243,9 +243,14 @@ def ls(_, distro=True, custom=False):
     print(tabulate(vmconfig.get_image_list(distro, custom), headers='firstrow', tablefmt='fancy_grid'))
 
 
-@task
-def init(ctx: Context, lite=False):
-    init_kernel_matrix_testing_system(ctx, lite)
+@task(
+    help={
+        "lite": "If set, then do not download any VM images locally",
+        "images": "Comma separated list of images to update, instead of everything. The format of each image is '<os_id>-<os_version>'. Refer to platforms.json for the appropriate values for <os_id> and <os_version>.",
+    }
+)
+def init(ctx: Context, lite=False, images: str | None = None):
+    init_kernel_matrix_testing_system(ctx, lite, images)
     config_ssh_key(ctx)
 
 
@@ -330,8 +335,16 @@ def config_ssh_key(ctx: Context):
     )
 
 
-@task
-def update_resources(ctx: Context, vmconfig_template="system-probe", all_archs=False):
+@task(
+    help={
+        "vmconfig-template": "template to use for the target component",
+        "all_archs": "Download images for all supported architectures. By default only images for the host architecture are downloaded",
+        "images": "Comma separated list of images to update, instead of everything. The format of each image is '<os_id>-<os_version>'. Refer to platforms.json for the appropriate values for <os_id> and <os_version>.",
+    }
+)
+def update_resources(
+    ctx: Context, vmconfig_template="system-probe", all_archs: bool = False, images: str | None = None
+):
     kmt_os = get_kmt_os()
 
     warn("Updating resource dependencies will delete all running stacks.")
@@ -341,18 +354,13 @@ def update_resources(ctx: Context, vmconfig_template="system-probe", all_archs=F
     for stack in glob(f"{kmt_os.stacks_dir}/*"):
         destroy_stack(ctx, stack=os.path.basename(stack))
 
-    update_rootfs(ctx, kmt_os.rootfs_dir, vmconfig_template, all_archs=all_archs)
-
-
-@task
-def build_compiler(ctx: Context):
-    for cc in all_compilers(ctx):
-        cc.build()
+    update_rootfs(ctx, kmt_os.rootfs_dir, vmconfig_template, all_archs=all_archs, images=images)
 
 
 @task
 def start_compiler(ctx: Context):
     for cc in all_compilers(ctx):
+        info(f"[+] Starting compiler {cc.name}")
         cc.start()
 
 
@@ -398,12 +406,6 @@ def download_gotestsum(ctx: Context, arch: Arch, fgotestsum: PathOrStr):
     )
 
     ctx.run(f"cp {paths.tools}/gotestsum {fgotestsum}")
-
-
-def full_arch(arch: ArchOrLocal) -> Arch:
-    if arch == "local":
-        return arch_mapping[platform.machine()]
-    return arch
 
 
 class KMTPaths:
@@ -824,6 +826,50 @@ def kmt_sysprobe_prepare(
     ctx.run(f"ninja -d explain -v -f {nf_path}")
 
 
+def images_matching_ci(ctx, domains):
+    platforms = get_platforms()
+    arch = full_arch("local")
+    kmt_os = get_kmt_os()
+
+    not_matches = list()
+    for tag in platforms[arch]:
+        platinfo = platforms[arch][tag]
+        vmid = f"{platinfo['os_id']}_{platinfo['os_version']}"
+
+        check_tag = False
+        for d in domains:
+            if vmid in d.name:
+                check_tag = True
+                break
+
+        if not check_tag:
+            continue
+
+        manifest_file = '.'.join(platinfo["image"].split('.')[:-2]) + ".manifest"
+
+        if not (kmt_os.rootfs_dir / manifest_file).exists():
+            not_matches.append(platinfo["image"])
+            continue
+
+        with open(kmt_os.rootfs_dir / manifest_file) as f:
+            for line in f:
+                key, value = line.strip().split('=', 1)
+                if key != "IMAGE_VERSION":
+                    continue
+
+                value = value.replace('"', '')
+                if value != platinfo["image_version"]:
+                    not_matches.append(platinfo["image"])
+
+    for name in not_matches:
+        warn(f"[-] {name} does not match version in CI")
+
+    if len(not_matches) > 0:
+        return False
+
+    return True
+
+
 @task(
     help={
         "vms": "Comma seperated list of vms to target when running tests. If None, run against all vms",
@@ -862,10 +908,15 @@ def test(
     if vms is None:
         vms = ",".join(stacks.get_all_vms_in_stack(stack))
         info(f"[+] Running tests on all VMs in stack {stack}: vms={vms}")
+
     ssh_key_obj = try_get_ssh_key(ctx, ssh_key)
     infra = build_infrastructure(stack, ssh_key_obj)
     domains = filter_target_domains(vms, infra)
     used_archs = get_archs_in_domains(domains)
+
+    if not images_matching_ci(ctx, domains):
+        if ask("Some VMs do not match version in CI. Continue anyway [y/N]") != "y":
+            return
 
     assert len(domains) > 0, f"no vms found from list {vms}. Run `inv -e kmt.status` to see all VMs in current stack"
 
@@ -941,12 +992,13 @@ def build_layout(ctx, domains, layout: str, verbose: bool):
 )
 def build(
     ctx: Context,
-    vms: str,
+    vms: str | None = None,
     stack: str | None = None,
     ssh_key: str | None = None,
     verbose=True,
-    arch: ArchOrLocal | None = None,
-    layout: str | None = "tasks/kernel_matrix_testing/build-layout.json",
+    arch: str | None = None,
+    component: Component = "system-probe",
+    layout: str = "tasks/kernel_matrix_testing/build-layout.json",
 ):
     stack = check_and_get_stack(stack)
     assert stacks.stack_exists(
@@ -955,6 +1007,9 @@ def build(
 
     if arch is None:
         arch = "local"
+
+    if vms is None:
+        vms = ",".join(stacks.get_all_vms_in_stack(stack))
 
     assert os.path.exists(layout), f"File {layout} does not exist"
 
@@ -967,19 +1022,27 @@ def build(
     domains = filter_target_domains(vms, infra, arch)
     cc = get_compiler(ctx, arch)
 
+    if not images_matching_ci(ctx, domains):
+        if ask("Some VMs do not match version in CI. Continue anyway [y/N]") != "y":
+            return
+
     assert len(domains) > 0, f"no vms found from list {vms}. Run `inv -e kmt.status` to see all VMs in current stack"
 
+    cc.exec(f"cd {CONTAINER_AGENT_PATH} && inv -e system-probe.object-files")
+
+    build_task = "build-sysprobe-binary" if component == "system-probe" else "build"
     cc.exec(
-        f"cd {CONTAINER_AGENT_PATH} && git config --global --add safe.directory {CONTAINER_AGENT_PATH} && inv -e system-probe.build --no-bundle",
+        f"cd {CONTAINER_AGENT_PATH} && git config --global --add safe.directory {CONTAINER_AGENT_PATH} && inv -e {component}.{build_task} --no-bundle",
     )
+
     cc.exec(f"tar cf {CONTAINER_AGENT_PATH}/kmt-deps/{stack}/build-embedded-dir.tar {EMBEDDED_SHARE_DIR}")
 
     build_layout(ctx, domains, layout, verbose)
     for d in domains:
-        d.copy(ctx, "./bin/system-probe", "/root/")
+        d.copy(ctx, f"./bin/{component}", "/root/")
         d.copy(ctx, f"kmt-deps/{stack}/build-embedded-dir.tar", "/")
         d.run_cmd(ctx, "tar xf /build-embedded-dir.tar -C /", verbose=verbose)
-        info(f"[+] system-probe built for {d.name} @ /root")
+        info(f"[+] {component} built for {d.name} @ /root")
 
 
 @task
@@ -1351,7 +1414,7 @@ def explain_ci_failure(_, pipeline: str):
             failreason = testfail  # By default, we assume it's a test failure
 
             # Now check the artifacts, we'll guess why the job failed based on the size
-            for artifact in job.job_data.get("artifacts", []):
+            for artifact in job.job.artifacts:
                 if artifact.get("filename") == "artifacts.zip":
                     fsize = artifact.get("size", 0)
                     if fsize < 1500:

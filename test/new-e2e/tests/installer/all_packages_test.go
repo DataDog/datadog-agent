@@ -13,10 +13,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/host"
 	e2eos "github.com/DataDog/test-infra-definitions/components/os"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
@@ -140,7 +140,7 @@ func (s *packageBaseSuite) RunInstallScript() {
 		"DD_INSTALLER_BOOTSTRAP_VERSION": fmt.Sprintf("pipeline-%v", os.Getenv("CI_PIPELINE_ID")),
 	}
 	// fixme: use the official install & remove manual creation of /etc/datadog-agent/datadog.yaml
-	s.Env().RemoteHost.MustExecute(`bash -c "$(curl -L https://storage.googleapis.com/updater-dev/install_script_agent7.sh)"`, components.WithEnvVariables(env))
+	s.Env().RemoteHost.MustExecute(`bash -c "$(curl -L https://storage.googleapis.com/updater-dev/install_script_agent7.sh)"`, client.WithEnvVariables(env))
 	datadogConfig := map[string]interface{}{
 		"api_key": apiKey(),
 	}
@@ -165,7 +165,7 @@ func (s *packageBaseSuite) InstallAgentPackage() {
 		"DD_INSTALLER_REGISTRY":      "669783387624.dkr.ecr.us-east-1.amazonaws.com",
 		"DD_INSTALLER_REGISTRY_AUTH": "ecr",
 	}
-	s.Env().RemoteHost.MustExecute(`sudo -E datadog-installer install oci://669783387624.dkr.ecr.us-east-1.amazonaws.com/agent-package:`+fmt.Sprintf("pipeline-%v", os.Getenv("CI_PIPELINE_ID")), components.WithEnvVariables(env))
+	s.Env().RemoteHost.MustExecute(`sudo -E datadog-installer install oci://669783387624.dkr.ecr.us-east-1.amazonaws.com/agent-package:`+fmt.Sprintf("pipeline-%v", os.Getenv("CI_PIPELINE_ID")), client.WithEnvVariables(env))
 	s.Env().RemoteHost.MustExecute(`timeout=30; unit=datadog-agent.service; while ! systemctl is-active --quiet $unit && [ $timeout -gt 0 ]; do sleep 1; ((timeout--)); done; [ $timeout -ne 0 ]`)
 }
 
@@ -184,7 +184,7 @@ func (s *packageBaseSuite) InstallInjectorPackageTemp() {
 	s.Env().RemoteHost.MustExecute("sudo mkdir -p /etc/systemd/system/datadog-agent-trace.service.d")
 	s.Env().RemoteHost.MustExecute(`printf "[Service]\nEnvironmentFile=-/etc/environment\n" | sudo tee /etc/systemd/system/datadog-agent-trace.service.d/inject.conf`)
 	s.Env().RemoteHost.MustExecute("sudo systemctl daemon-reload")
-	s.Env().RemoteHost.MustExecute("sudo -E datadog-installer install oci://669783387624.dkr.ecr.us-east-1.amazonaws.com/apm-inject-package:pipeline-34163111", components.WithEnvVariables(env))
+	s.Env().RemoteHost.MustExecute("sudo -E datadog-installer install oci://669783387624.dkr.ecr.us-east-1.amazonaws.com/apm-inject-package:pipeline-34163111", client.WithEnvVariables(env))
 }
 
 func (s *packageBaseSuite) InstallPackageLatest(pkg string) {
@@ -192,7 +192,7 @@ func (s *packageBaseSuite) InstallPackageLatest(pkg string) {
 		"DD_API_KEY": apiKey(),
 		"DD_SITE":    "datadoghq.com",
 	}
-	s.Env().RemoteHost.MustExecute(fmt.Sprintf(`sudo -E datadog-installer install oci://gcr.io/datadoghq/%s-package:latest`, strings.TrimPrefix(pkg, "datadog-")), components.WithEnvVariables(env))
+	s.Env().RemoteHost.MustExecute(fmt.Sprintf(`sudo -E datadog-installer install oci://gcr.io/datadoghq/%s-package:latest`, strings.TrimPrefix(pkg, "datadog-")), client.WithEnvVariables(env))
 }
 
 func (s *packageBaseSuite) Purge() {

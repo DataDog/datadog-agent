@@ -11,7 +11,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
 	"github.com/stretchr/testify/require"
 )
 
@@ -42,7 +42,7 @@ func (h *Host) StartExamplePythonApp() {
 		"DD_ENV":     "e2e-installer",
 		"DD_VERSION": "1.0",
 	}
-	h.remote.MustExecute(`chmod +x /run/fixtures/run_http_server.sh && /run/fixtures/run_http_server.sh`, components.WithEnvVariables(env))
+	h.remote.MustExecute(`chmod +x /run/fixtures/run_http_server.sh && /run/fixtures/run_http_server.sh`, client.WithEnvVariables(env))
 }
 
 // StopExamplePythonApp stops the example Python app

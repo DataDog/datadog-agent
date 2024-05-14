@@ -173,8 +173,6 @@ func (s *DockerFakeintakeSuite) TestBasicTrace() {
 }
 
 func (s *DockerFakeintakeSuite) TestProbabilitySampler() {
-	//TODO: Remove the skip once ADXT-226 is fixed
-	s.T().Skip("Flaky because of a weird error on docker-compose up")
 	s.UpdateEnv(awsdocker.Provisioner(awsdocker.WithAgentOptions(
 		append(dockerAgentOptions(s.transport),
 			dockeragentparams.WithAgentServiceEnvVariable(

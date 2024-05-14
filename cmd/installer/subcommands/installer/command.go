@@ -32,7 +32,7 @@ const (
 
 // Commands returns the installer subcommands.
 func Commands(_ *command.GlobalParams) []*cobra.Command {
-	return []*cobra.Command{versionCommand(), bootstrapCommand(), installCommand(), removeCommand(), installExperimentCommand(), removeExperimentCommand(), promoteExperimentCommand(), garbageCollectCommand()}
+	return []*cobra.Command{versionCommand(), bootstrapCommand(), installCommand(), removeCommand(), installExperimentCommand(), removeExperimentCommand(), promoteExperimentCommand(), garbageCollectCommand(), purgeCommand(), isInstalledCommand()}
 }
 
 type cmd struct {
@@ -78,7 +78,7 @@ type installerCmd struct {
 	installer.Installer
 }
 
-func newInstallerCmd(operation string) *installerCmd {
+func newInstallerCmd(operation string) (*installerCmd, error) {
 	cmd := newCmd(operation)
 	var opts []installer.Option
 	if cmd.registry != "" {
@@ -87,11 +87,14 @@ func newInstallerCmd(operation string) *installerCmd {
 	if cmd.registryAuth != "" {
 		opts = append(opts, installer.WithRegistryAuth(cmd.registryAuth))
 	}
-	i := installer.NewInstaller(opts...)
+	i, err := installer.NewInstaller(opts...)
+	if err != nil {
+		return nil, err
+	}
 	return &installerCmd{
 		Installer: i,
 		cmd:       cmd,
-	}
+	}, nil
 }
 
 type bootstraperCmd struct {
@@ -126,8 +129,11 @@ func newBootstraperCmd(operation string) *bootstraperCmd {
 func newTelemetry() *telemetry.Telemetry {
 	apiKey := os.Getenv(envAPIKey)
 	site := os.Getenv(envSite)
-	if apiKey == "" || site == "" {
-		fmt.Printf("telemetry disabled: missing DD_API_KEY or DD_SITE\n")
+	if site == "" {
+		site = "datadoghq.com"
+	}
+	if apiKey == "" {
+		fmt.Printf("telemetry disabled: missing DD_API_KEY\n")
 		return nil
 	}
 	t, err := telemetry.NewTelemetry(apiKey, site, "datadog-installer")
@@ -188,8 +194,11 @@ func installCommand() *cobra.Command {
 		GroupID: "installer",
 		Args:    cobra.ExactArgs(1),
 		RunE: func(_ *cobra.Command, args []string) (err error) {
-			i := newInstallerCmd("install")
+			i, err := newInstallerCmd("install")
 			defer func() { i.Stop(err) }()
+			if err != nil {
+				return err
+			}
 			i.span.SetTag("params.url", args[0])
 			return i.Install(i.ctx, args[0])
 		},
@@ -204,10 +213,32 @@ func removeCommand() *cobra.Command {
 		GroupID: "installer",
 		Args:    cobra.ExactArgs(1),
 		RunE: func(_ *cobra.Command, args []string) (err error) {
-			i := newInstallerCmd("remove")
+			i, err := newInstallerCmd("remove")
 			defer func() { i.Stop(err) }()
+			if err != nil {
+				return err
+			}
 			i.span.SetTag("params.package", args[0])
 			return i.Remove(i.ctx, args[0])
+		},
+	}
+	return cmd
+}
+
+func purgeCommand() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:     "purge",
+		Short:   "Purge all packages installed with the installer",
+		GroupID: "installer",
+		Args:    cobra.NoArgs,
+		RunE: func(_ *cobra.Command, _ []string) (err error) {
+			i, err := newInstallerCmd("purge")
+			defer func() { i.Stop(err) }()
+			if err != nil {
+				return err
+			}
+			i.Purge(i.ctx)
+			return nil
 		},
 	}
 	return cmd
@@ -220,8 +251,11 @@ func installExperimentCommand() *cobra.Command {
 		GroupID: "installer",
 		Args:    cobra.ExactArgs(1),
 		RunE: func(_ *cobra.Command, args []string) (err error) {
-			i := newInstallerCmd("install_experiment")
+			i, err := newInstallerCmd("install_experiment")
 			defer func() { i.Stop(err) }()
+			if err != nil {
+				return err
+			}
 			i.span.SetTag("params.url", args[0])
 			return i.InstallExperiment(i.ctx, args[0])
 		},
@@ -236,8 +270,11 @@ func removeExperimentCommand() *cobra.Command {
 		GroupID: "installer",
 		Args:    cobra.ExactArgs(1),
 		RunE: func(_ *cobra.Command, args []string) (err error) {
-			i := newInstallerCmd("remove_experiment")
+			i, err := newInstallerCmd("remove_experiment")
 			defer func() { i.Stop(err) }()
+			if err != nil {
+				return err
+			}
 			i.span.SetTag("params.package", args[0])
 			return i.RemoveExperiment(i.ctx, args[0])
 		},
@@ -252,8 +289,11 @@ func promoteExperimentCommand() *cobra.Command {
 		GroupID: "installer",
 		Args:    cobra.ExactArgs(1),
 		RunE: func(_ *cobra.Command, args []string) (err error) {
-			i := newInstallerCmd("promote_experiment")
+			i, err := newInstallerCmd("promote_experiment")
 			defer func() { i.Stop(err) }()
+			if err != nil {
+				return err
+			}
 			i.span.SetTag("params.package", args[0])
 			return i.PromoteExperiment(i.ctx, args[0])
 		},
@@ -268,9 +308,44 @@ func garbageCollectCommand() *cobra.Command {
 		GroupID: "installer",
 		Args:    cobra.NoArgs,
 		RunE: func(_ *cobra.Command, _ []string) (err error) {
-			i := newInstallerCmd("garbage_collect")
+			i, err := newInstallerCmd("garbage_collect")
 			defer func() { i.Stop(err) }()
+			if err != nil {
+				return err
+			}
 			return i.GarbageCollect(i.ctx)
+		},
+	}
+	return cmd
+}
+
+const (
+	// ReturnCodeIsInstalledFalse is the return code when a package is not installed
+	ReturnCodeIsInstalledFalse = 10
+)
+
+func isInstalledCommand() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:     "is-installed <package>",
+		Short:   "Check if a package is installed",
+		GroupID: "installer",
+		Args:    cobra.ExactArgs(1),
+		RunE: func(_ *cobra.Command, args []string) (err error) {
+			i, err := newInstallerCmd("is_installed")
+			defer func() { i.Stop(err) }()
+			if err != nil {
+				return err
+			}
+			installed, err := i.IsInstalled(i.ctx, args[0])
+			if err != nil {
+				return err
+			}
+			if !installed {
+				// Return a specific code to differentiate from other errors
+				// `return err` will lead to a return code of -1
+				os.Exit(ReturnCodeIsInstalledFalse)
+			}
+			return nil
 		},
 	}
 	return cmd

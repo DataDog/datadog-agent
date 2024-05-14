@@ -14,7 +14,7 @@ if with_python_runtime? "3"
   dependency 'setuptools3'
 end
 
-if with_python_runtime? "3"
+if with_python_runtime? "2"
   dependency 'pip2'
 end
 

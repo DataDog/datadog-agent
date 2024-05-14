@@ -8,7 +8,7 @@
 #include "helpers/syscalls.h"
 
 SEC("tracepoint/syscalls/sys_enter_mmap")
-int tracepoint_syscalls_sys_enter_mmap(struct tracepoint_syscalls_sys_enter_mmap_t *args) {
+int tracepoint_syscalls_sys_enter_mmap(void *args) {
     struct policy_t policy = fetch_policy(EVENT_MMAP);
     if (is_discarded_by_process(policy.mode, EVENT_MMAP)) {
         return 0;
@@ -17,13 +17,21 @@ int tracepoint_syscalls_sys_enter_mmap(struct tracepoint_syscalls_sys_enter_mmap
     struct syscall_cache_t syscall = {
         .type = EVENT_MMAP,
         .policy = policy,
-        .mmap = {
-            .offset = args->offset,
-            .len = (u32)args->len,
-            .protection = (int)args->protection,
-            .flags = (int)args->flags,
-        }
     };
+
+    u64 sys_enter_mmap_off_offset;
+    LOAD_CONSTANT("sys_enter_mmap_off_offset", sys_enter_mmap_off_offset);
+    u64 sys_enter_mmap_len_offset;
+    LOAD_CONSTANT("sys_enter_mmap_len_offset", sys_enter_mmap_len_offset);
+    u64 sys_enter_mmap_prot_offset;
+    LOAD_CONSTANT("sys_enter_mmap_prot_offset", sys_enter_mmap_prot_offset);
+    u64 sys_enter_mmap_flags_offset;
+    LOAD_CONSTANT("sys_enter_mmap_flags_offset", sys_enter_mmap_flags_offset);
+
+    bpf_probe_read(&syscall.mmap.offset, sizeof(u64), args + sys_enter_mmap_off_offset);
+    bpf_probe_read(&syscall.mmap.len, sizeof(u64), args + sys_enter_mmap_len_offset);
+    bpf_probe_read(&syscall.mmap.protection, sizeof(u64), args + sys_enter_mmap_prot_offset);
+    bpf_probe_read(&syscall.mmap.flags, sizeof(u64), args + sys_enter_mmap_flags_offset);
 
     cache_syscall(&syscall);
     return 0;
@@ -69,18 +77,19 @@ int __attribute__((always_inline)) sys_mmap_ret(void *ctx, int retval, u64 addr)
     return 0;
 }
 
-HOOK_SYSCALL_EXIT(mmap) {
-    return sys_mmap_ret(ctx, (int)SYSCALL_PARMRET(ctx), (u64)SYSCALL_PARMRET(ctx));
+SEC("tracepoint/syscalls/sys_exit_mmap")
+int tracepoint_syscalls_sys_exit_mmap(struct tracepoint_syscalls_sys_exit_mmap_t *args) {
+    return sys_mmap_ret(args, (int)args->ret, (u64)args->ret);
 }
 
-HOOK_EXIT("fget")
-int rethook_fget(ctx_t *ctx) {
-    struct syscall_cache_t *syscall = peek_syscall(EVENT_MMAP);
+HOOK_ENTRY("security_mmap_file")
+int hook_security_mmap_file(ctx_t *ctx) {
+	struct syscall_cache_t *syscall = peek_syscall(EVENT_MMAP);
     if (!syscall) {
         return 0;
     }
 
-    struct file *f = (struct file*) CTX_PARMRET(ctx, 1);
+    struct file *f = (struct file*) CTX_PARM1(ctx);
     syscall->mmap.dentry = get_file_dentry(f);
     syscall->mmap.file.path_key.mount_id = get_file_mount_id(f);
     set_file_inode(syscall->mmap.dentry, &syscall->mmap.file, 0);

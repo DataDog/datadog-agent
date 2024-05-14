@@ -15,7 +15,6 @@ import (
 
 	yaml "gopkg.in/yaml.v2"
 
-	"github.com/DataDog/datadog-agent/comp/api/api/apiimpl/response"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
@@ -163,7 +162,7 @@ func GetConfigCheckSnmp(conf config.Component) ([]SNMPConfig, error) {
 	if err != nil {
 		return nil, err
 	}
-	cr := response.ConfigCheckResponse{}
+	cr := integration.ConfigCheckResponse{}
 	err = json.Unmarshal(r, &cr)
 	if err != nil {
 		return nil, err
