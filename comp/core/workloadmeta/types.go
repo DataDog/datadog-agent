@@ -522,8 +522,9 @@ type Container struct {
 	Owner           *EntityID
 	SecurityContext *ContainerSecurityContext
 	Resources       ContainerResources
-	// CgroupPath is the path to the cgroup of the container
-	// only on linux
+	// CgroupPath is a path to the cgroup of the container.
+	// It can be relative to the cgroup parent.
+	// Linux only.
 	CgroupPath string
 }
 
