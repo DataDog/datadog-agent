@@ -385,7 +385,7 @@ func (b *orderedBTFLoader) searchEmbeddedCollection(filename string) []string {
 	collectionTarball := filepath.Join(b.embeddedDir, btfArchiveName)
 	// ignore error because we only care if there are matching paths
 	_ = archive.WalkTarXZArchive(collectionTarball, func(_ *tar.Reader, hdr *tar.Header) error {
-		if hdr.Typeflag&tar.TypeReg != 0 {
+		if hdr.Typeflag == tar.TypeReg {
 			if filepath.Base(hdr.Name) == filename {
 				pform := strings.Split(hdr.Name, string(os.PathSeparator))[0]
 				// must be a recognized platform
