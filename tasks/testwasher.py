@@ -68,16 +68,14 @@ class TestWasher:
         with open(f"{module_path}/{self.test_output_json_file}", encoding='utf-8') as f:
             for line in f:
                 test_result = json.loads(line)
-                if test_result["Action"] == "fail" and "Test" in test_result:
+                if "Test" not in test_result:
+                    continue
+                if test_result["Action"] == "fail":
                     failing_tests[test_result["Package"]].add(test_result["Test"])
-                if test_result["Action"] == "success" and "Test" in test_result:
+                if test_result["Action"] == "success":
                     if test_result["Test"] in failing_tests[test_result["Package"]]:
                         failing_tests[test_result["Package"]].remove(test_result["Test"])
-                if (
-                    "Output" in test_result
-                    and "Test" in test_result
-                    and self.flaky_test_indicator in test_result["Output"]
-                ):
+                if "Output" in test_result and self.flaky_test_indicator in test_result["Output"]:
                     flaky_marked_tests[test_result["Package"]].add(test_result["Test"])
         return failing_tests, flaky_marked_tests
 
@@ -118,12 +116,11 @@ class TestWasher:
         """
 
         failing_test_parents = self.get_tests_parents([failing_test])
-        for parent in failing_test_parents:
-            if parent in known_flaky_tests:
-                return True
-        if failing_test in known_flaky_tests_parents:
+
+        if any(parent in known_flaky_tests for parent in failing_test_parents):
             return True
-        return False
+
+        return failing_test in known_flaky_tests_parents
 
     def get_tests_parents(self, test_name_list):
         """
