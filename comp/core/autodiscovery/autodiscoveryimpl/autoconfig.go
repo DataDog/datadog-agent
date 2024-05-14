@@ -7,8 +7,10 @@
 package autodiscoveryimpl
 
 import (
+	"bytes"
 	"context"
-	"encoding/json"
+	"fmt"
+	"io"
 	"net/http"
 	"sort"
 	"sync"
@@ -17,8 +19,9 @@ import (
 	"go.uber.org/atomic"
 	"go.uber.org/fx"
 
+	"github.com/fatih/color"
+
 	"github.com/DataDog/datadog-agent/comp/api/api"
-	"github.com/DataDog/datadog-agent/comp/api/api/utils"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/listeners"
@@ -40,6 +43,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
+	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
 
 var listenerCandidateIntl = 30 * time.Second
@@ -211,8 +215,86 @@ func (ac *AutoConfig) checkTagFreshness(ctx context.Context) {
 	}
 }
 
-func (ac *AutoConfig) writeConfigCheck(w http.ResponseWriter, _ *http.Request) {
+func printYaml(w io.Writer, data []byte) {
+	scrubbed, err := scrubber.ScrubYaml(data)
+	if err == nil {
+		fmt.Fprintln(w, string(scrubbed))
+	} else {
+		fmt.Fprintf(w, "error scrubbing secrets from config: %s\n", err)
+	}
+}
+
+// PrintConfig prints a human-readable representation of a configuration
+func printConfig(w io.Writer, c integration.Config, checkName string) {
+	if checkName != "" && c.Name != checkName {
+		return
+	}
+	configDigest := c.FastDigest()
+	if !c.ClusterCheck {
+		fmt.Fprintf(w, "\n=== %s check ===\n", color.GreenString(c.Name))
+	} else {
+		fmt.Fprintf(w, "\n=== %s cluster check ===\n", color.GreenString(c.Name))
+	}
+
+	if c.Provider != "" {
+		fmt.Fprintf(w, "%s: %s\n", color.BlueString("Configuration provider"), color.CyanString(c.Provider))
+	} else {
+		fmt.Fprintf(w, "%s: %s\n", color.BlueString("Configuration provider"), color.RedString("Unknown provider"))
+	}
+	if c.Source != "" {
+		fmt.Fprintf(w, "%s: %s\n", color.BlueString("Configuration source"), color.CyanString(c.Source))
+	} else {
+		fmt.Fprintf(w, "%s: %s\n", color.BlueString("Configuration source"), color.RedString("Unknown configuration source"))
+	}
+	for _, inst := range c.Instances {
+		ID := string(checkid.BuildID(c.Name, configDigest, inst, c.InitConfig))
+		fmt.Fprintf(w, "%s: %s\n", color.BlueString("Config for instance ID"), color.CyanString(ID))
+		printYaml(w, inst)
+		fmt.Fprintln(w, "~")
+	}
+	if len(c.InitConfig) > 0 {
+		fmt.Fprintf(w, "%s:\n", color.BlueString("Init Config"))
+		printYaml(w, c.InitConfig)
+	}
+	if len(c.MetricConfig) > 0 {
+		fmt.Fprintf(w, "%s:\n", color.BlueString("Metric Config"))
+		printYaml(w, c.MetricConfig)
+	}
+	if len(c.LogsConfig) > 0 {
+		fmt.Fprintf(w, "%s:\n", color.BlueString("Log Config"))
+		printYaml(w, c.LogsConfig)
+	}
+	if c.IsTemplate() {
+		fmt.Fprintf(w, "%s:\n", color.BlueString("Auto-discovery IDs"))
+		for _, id := range c.ADIdentifiers {
+			fmt.Fprintf(w, "* %s\n", color.CyanString(id))
+		}
+		printContainerExclusionRulesInfo(w, &c)
+	}
+	if c.NodeName != "" {
+		state := fmt.Sprintf("dispatched to %s", c.NodeName)
+		fmt.Fprintf(w, "%s: %s\n", color.BlueString("State"), color.CyanString(state))
+	}
+	fmt.Fprintln(w, "===")
+}
+
+func printContainerExclusionRulesInfo(w io.Writer, c *integration.Config) {
+	var msg string
+	if c.IsCheckConfig() && c.MetricsExcluded {
+		msg = "This configuration matched a metrics container-exclusion rule, so it will not be run by the Agent"
+	} else if c.IsLogConfig() && c.LogsExcluded {
+		msg = "This configuration matched a logs container-exclusion rule, so it will not be run by the Agent"
+	}
+
+	if msg != "" {
+		fmt.Fprintln(w, color.BlueString(msg))
+	}
+}
+
+func (ac *AutoConfig) writeConfigCheck(w http.ResponseWriter, r *http.Request) {
 	var response integration.ConfigCheckResponse
+
+	verbose := r.URL.Query().Get("verbose") == "true"
 
 	configSlice := ac.LoadedConfigs()
 	sort.Slice(configSlice, func(i, j int) bool {
@@ -223,14 +305,42 @@ func (ac *AutoConfig) writeConfigCheck(w http.ResponseWriter, _ *http.Request) {
 	response.ConfigErrors = GetConfigErrors()
 	response.Unresolved = ac.GetUnresolvedTemplates()
 
-	jsonConfig, err := json.Marshal(response)
-	if err != nil {
-		utils.SetJSONError(w, log.Errorf("Unable to marshal config check response: %s", err), 500)
-		return
+	writer := new(bytes.Buffer)
+
+	if len(response.ConfigErrors) > 0 {
+		fmt.Fprintf(w, "=== Configuration %s ===\n", color.RedString("errors"))
+		for check, error := range response.ConfigErrors {
+			fmt.Fprintf(w, "\n%s: %s\n", color.RedString(check), error)
+		}
 	}
 
-	w.Write(jsonConfig)
+	for _, c := range response.Configs {
+		printConfig(writer, c, "")
+	}
 
+	if verbose {
+		if len(response.ResolveWarnings) > 0 {
+			fmt.Fprintf(writer, "\n=== Resolve %s ===\n", color.YellowString("warnings"))
+			for check, warnings := range response.ResolveWarnings {
+				fmt.Fprintf(writer, "\n%s\n", color.YellowString(check))
+				for _, warning := range warnings {
+					fmt.Fprintf(writer, "* %s\n", warning)
+				}
+			}
+		}
+		if len(response.Unresolved) > 0 {
+			fmt.Fprintf(writer, "\n=== %s Configs ===\n", color.YellowString("Unresolved"))
+			for ids, configs := range response.Unresolved {
+				fmt.Fprintf(writer, "\n%s: %s\n", color.BlueString("Auto-discovery IDs"), color.YellowString(ids))
+				fmt.Fprintf(writer, "%s:\n", color.BlueString("Templates"))
+				for _, config := range configs {
+					printYaml(writer, []byte(config.String()))
+				}
+			}
+		}
+	}
+
+	w.Write(writer.Bytes())
 }
 
 // Start will listen to the service channels before anything is sent to them
