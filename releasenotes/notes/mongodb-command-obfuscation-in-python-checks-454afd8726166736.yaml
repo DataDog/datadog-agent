@@ -8,4 +8,4 @@
 ---
 features:
   - |
-    Expose agent's mongodb command string obfuscation to python checks via new `datadog_agent.obfuscate_mongodb_string` method
+    Expose the Agent's MongoDB command string obfuscation to Python checks using the new `datadog_agent.obfuscate_mongodb_string` method.
