@@ -1998,7 +1998,7 @@ func easyjsonDdc0fdbeDecodeGithubComDataDogDatadogAgentPkgSecuritySerializers17(
 		case "offset":
 			out.Offset = uint64(in.Uint64())
 		case "length":
-			out.Len = uint32(in.Uint32())
+			out.Len = uint64(in.Uint64())
 		case "protection":
 			out.Protection = string(in.String())
 		case "flags":
@@ -2030,7 +2030,7 @@ func easyjsonDdc0fdbeEncodeGithubComDataDogDatadogAgentPkgSecuritySerializers17(
 	{
 		const prefix string = ",\"length\":"
 		out.RawString(prefix)
-		out.Uint32(uint32(in.Len))
+		out.Uint64(uint64(in.Len))
 	}
 	{
 		const prefix string = ",\"protection\":"
