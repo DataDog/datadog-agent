@@ -83,6 +83,9 @@ type WindowsProbe struct {
 	// discarders
 	discardedPaths     *lru.Cache[string, struct{}]
 	discardedBasenames *lru.Cache[string, struct{}]
+
+	// actions
+	processKiller *ProcessKiller
 }
 
 type renameState struct {
@@ -475,6 +478,9 @@ func (p *WindowsProbe) Start() error {
 			}
 
 			p.DispatchEvent(ev)
+
+			// flush pending kill actions
+			p.processKiller.FlushPendingReports()
 		}
 	}()
 	return p.pm.Start()
@@ -536,10 +542,14 @@ func (p *WindowsProbe) handleProcessStop(ev *model.Event, stop *procmon.ProcessS
 		log.Errorf("unable to resolve pid %d", pid)
 		return false
 	}
+	pce.ExitTime = time.Now()
 	ev.Exit.Process = &pce.Process
 	// use ProcessCacheEntry process context as process context
 	ev.ProcessCacheEntry = pce
 	ev.ProcessContext = &pce.ProcessContext
+
+	// update kill action reports
+	p.processKiller.HandleProcessExited(ev)
 
 	p.Resolvers.ProcessResolver.DequeueExited()
 	return true
@@ -650,7 +660,7 @@ func (p *WindowsProbe) setProcessContext(pid uint32, event *model.Event) error {
 	err := backoff.Retry(func() error {
 		pce := p.Resolvers.ProcessResolver.GetEntry(pid)
 		if pce == nil {
-			return fmt.Errorf("Could not resolve process for Process: %v", pid)
+			return fmt.Errorf("could not resolve process for Process: %v", pid)
 		}
 		event.ProcessCacheEntry = pce
 		event.ProcessContext = &pce.ProcessContext
@@ -662,7 +672,6 @@ func (p *WindowsProbe) setProcessContext(pid uint32, event *model.Event) error {
 
 // DispatchEvent sends an event to the probe event handler
 func (p *WindowsProbe) DispatchEvent(event *model.Event) {
-
 	traceEvent("Dispatching event %s", func() ([]byte, model.EventType, error) {
 		eventJSON, err := serializers.MarshalEvent(event, nil)
 		return eventJSON, event.GetEventType(), err
@@ -673,7 +682,6 @@ func (p *WindowsProbe) DispatchEvent(event *model.Event) {
 
 	// send event to specific event handlers, like the event monitor consumers, subsequently
 	p.probe.sendEventToSpecificEventTypeHandlers(event)
-
 }
 
 // Snapshot runs the different snapshot functions of the resolvers that
@@ -804,6 +812,8 @@ func NewWindowsProbe(probe *Probe, config *config.Config, opts Opts) (*WindowsPr
 
 		discardedPaths:     discardedPaths,
 		discardedBasenames: discardedBasenames,
+
+		processKiller: NewProcessKiller(),
 	}
 
 	p.Resolvers, err = resolvers.NewResolvers(config, p.statsdClient, probe.scrubber)
@@ -881,7 +891,22 @@ func (p *WindowsProbe) NewEvent() *model.Event {
 }
 
 // HandleActions executes the actions of a triggered rule
-func (p *WindowsProbe) HandleActions(_ *eval.Context, _ *rules.Rule) {}
+func (p *WindowsProbe) HandleActions(ctx *eval.Context, rule *rules.Rule) {
+	ev := ctx.Event.(*model.Event)
+
+	for _, action := range rule.Definition.Actions {
+		if !action.IsAccepted(ctx) {
+			continue
+		}
+
+		switch {
+		case action.Kill != nil:
+			p.processKiller.KillAndReport(action.Kill.Scope, action.Kill.Signal, ev, func(pid uint32, sig uint32) error {
+				return p.processKiller.KillFromUserspace(pid, sig, ev)
+			})
+		}
+	}
+}
 
 // AddDiscarderPushedCallback add a callback to the list of func that have to be called when a discarder is pushed to kernel
 func (p *WindowsProbe) AddDiscarderPushedCallback(_ DiscarderPushedCallback) {}
