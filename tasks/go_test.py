@@ -1,9 +1,8 @@
 """
 High level testing tasks
 """
-# TODO: check if we really need the typing import.
-# Recent versions of Python should be able to use dict and list directly in type hints,
-# so we only need to check that we don't run this code with old Python versions.
+
+from __future__ import annotations
 
 import fnmatch
 import glob
@@ -16,7 +15,6 @@ import sys
 from collections import defaultdict
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List
 
 from invoke import task
 from invoke.exceptions import Exit
@@ -78,10 +76,10 @@ def ensure_bytes(s):
 
 def build_standard_lib(
     ctx,
-    build_tags: List[str],
+    build_tags: list[str],
     cmd: str,
-    env: Dict[str, str],
-    args: Dict[str, str],
+    env: dict[str, str],
+    args: dict[str, str],
     test_profiler: TestProfiler,
 ):
     """
@@ -179,11 +177,11 @@ powershell.exe -executionpolicy Bypass -file {GO_COV_TEST_PATH}.ps1 %*"""
 def test_flavor(
     ctx,
     flavor: AgentFlavor,
-    build_tags: List[str],
-    modules: List[GoModule],
+    build_tags: list[str],
+    modules: list[GoModule],
     cmd: str,
-    env: Dict[str, str],
-    args: Dict[str, str],
+    env: dict[str, str],
+    args: dict[str, str],
     junit_tar: str,
     save_result_json: str,
     test_profiler: TestProfiler,
@@ -246,7 +244,7 @@ def test_flavor(
 def coverage_flavor(
     ctx,
     flavor: AgentFlavor,
-    modules: List[GoModule],
+    modules: list[GoModule],
 ):
     """
     Prints the code coverage of all modules for the given flavor.
@@ -264,7 +262,7 @@ def coverage_flavor(
 def codecov_flavor(
     ctx,
     flavor: AgentFlavor,
-    modules: List[GoModule],
+    modules: list[GoModule],
 ):
     """
     Uploads coverage data of all modules for the given flavor.
@@ -555,7 +553,7 @@ def e2e_tests(ctx, target="gitlab", agent_image="", dca_image="", argo_workflow=
 
 
 @task
-def get_modified_packages(ctx, build_tags=None) -> List[GoModule]:
+def get_modified_packages(ctx, build_tags=None) -> list[GoModule]:
     modified_files = get_modified_files(ctx)
     modified_go_files = [
         f"./{file}" for file in modified_files if file.endswith(".go") or file.endswith(".mod") or file.endswith(".sum")

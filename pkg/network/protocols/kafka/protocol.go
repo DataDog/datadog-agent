@@ -45,6 +45,12 @@ const (
 	kafkaHeapMap                             = "kafka_heap"
 	inFlightMap                              = "kafka_in_flight"
 	responseMap                              = "kafka_response"
+
+	tlsFilterTailCall                           = "uprobe__kafka_tls_filter"
+	tlsResponseParserTailCall                   = "uprobe__kafka_tls_response_parser"
+	tlsTerminationTailCall                      = "uprobe__kafka_tls_termination"
+	tlsDispatcherTailCall                       = "uprobe__tls_protocol_dispatcher_kafka"
+	tlsProtocolDispatcherClassificationPrograms = "tls_dispatcher_classification_progs"
 	// eBPFTelemetryMap is the name of the eBPF map used to retrieve metrics from the kernel
 	eBPFTelemetryMap = "kafka_telemetry"
 )
@@ -55,6 +61,9 @@ var Spec = &protocols.ProtocolSpec{
 	Maps: []*manager.Map{
 		{
 			Name: protocolDispatcherClassificationPrograms,
+		},
+		{
+			Name: tlsProtocolDispatcherClassificationPrograms,
 		},
 		{
 			Name: kafkaHeapMap,
@@ -86,6 +95,34 @@ var Spec = &protocols.ProtocolSpec{
 			Key:           uint32(protocols.DispatcherKafkaProg),
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				EBPFFuncName: dispatcherTailCall,
+			},
+		},
+		{
+			ProgArrayName: protocols.TLSDispatcherProgramsMap,
+			Key:           uint32(protocols.ProgramTLSKakfa),
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: tlsFilterTailCall,
+			},
+		},
+		{
+			ProgArrayName: protocols.TLSDispatcherProgramsMap,
+			Key:           uint32(protocols.ProgramTLSKakfaResponseParser),
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: tlsResponseParserTailCall,
+			},
+		},
+		{
+			ProgArrayName: protocols.TLSDispatcherProgramsMap,
+			Key:           uint32(protocols.ProgramTLSKafkaTermination),
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: tlsTerminationTailCall,
+			},
+		},
+		{
+			ProgArrayName: tlsProtocolDispatcherClassificationPrograms,
+			Key:           uint32(protocols.TLSDispatcherKafkaProg),
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: tlsDispatcherTailCall,
 			},
 		},
 	},
