@@ -49,16 +49,17 @@ internal_kubernetes_deploy_experimental:
 notify-slack:
   stage: internal_kubernetes_deploy
   extends: .slack-notifier-base
-  rules:
-    - if: $FORCE_K8S_DEPLOYMENT == "true"
-      when: always
-    - if: $CI_COMMIT_BRANCH != "main"
-      when: never
-    - if: $DDR != "true"
-      when: never
-    - !reference [.on_deploy]
+  needs: []
+  # rules:
+  #   - if: $FORCE_K8S_DEPLOYMENT == "true"
+  #     when: always
+  #   - if: $CI_COMMIT_BRANCH != "main"
+  #     when: never
+  #   - if: $DDR != "true"
+  #     when: never
+  #   - !reference [.on_deploy]
   tags: ["arch:amd64"]
-  needs: ["internal_kubernetes_deploy_experimental"]
+  # needs: ["internal_kubernetes_deploy_experimental"]
   script:
     # - export SDM_JWT=$(vault read -field=token identity/oidc/token/sdm)
     - python3 -m pip install -r tasks/libs/requirements-notifications.txt
