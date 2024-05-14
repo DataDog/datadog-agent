@@ -43,7 +43,7 @@ func (s *packageApmInjectSuite) TestInstall() {
 }
 
 func (s *packageApmInjectSuite) assertTraceReceived(traceID uint64) {
-	assert.Eventually(s.T(), func() bool {
+	found := assert.Eventually(s.T(), func() bool {
 		tracePayloads, err := s.Env().FakeIntake.Client().GetTraces()
 		assert.NoError(s.T(), err)
 		for _, tracePayload := range tracePayloads {
@@ -59,4 +59,10 @@ func (s *packageApmInjectSuite) assertTraceReceived(traceID uint64) {
 		}
 		return false
 	}, time.Second*30, time.Second*1)
+	if !found {
+		tracePayloads, _ := s.Env().FakeIntake.Client().GetTraces()
+		s.T().Logf("Traces received: %v", tracePayloads)
+		s.T().Logf("Server logs: %v", s.Env().RemoteHost.MustExecute("cat /tmp/server.log"))
+		s.T().Logf("Trace Agent logs: %v", s.Env().RemoteHost.MustExecute("cat /var/log/datadog/trace-agent.log"))
+	}
 }

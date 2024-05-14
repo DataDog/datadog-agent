@@ -185,6 +185,7 @@ func (s *packageBaseSuite) InstallInjectorPackageTemp() {
 	s.Env().RemoteHost.MustExecute(`printf "[Service]\nEnvironmentFile=-/etc/environment\n" | sudo tee /etc/systemd/system/datadog-agent-trace.service.d/inject.conf`)
 	s.Env().RemoteHost.MustExecute("sudo systemctl daemon-reload")
 	s.Env().RemoteHost.MustExecute("sudo -E datadog-installer install oci://669783387624.dkr.ecr.us-east-1.amazonaws.com/apm-inject-package:pipeline-34163111", client.WithEnvVariables(env))
+	s.Env().RemoteHost.MustExecute(`sudo systemctl restart datadog-agent-trace`)
 }
 
 func (s *packageBaseSuite) InstallPackageLatest(pkg string) {
