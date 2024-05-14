@@ -108,7 +108,7 @@ class TestWasher:
         The method should be called with the following arguments:
         - failing_test: the test that is failing
         - known_flaky_tests: the set of tests that are known to be flaky
-        - known_flaky_tests_parents: the set of tests that are known to be flaky with their parents
+        - known_flaky_tests_parents: the set of tests that are ancestors of a known flaky test, thus would fail when the flaky leaf test fails
         If a test is a parent of a test that is known to be flaky, the test should be considered flaky
         For example:
         - if TestEKSSuite/TestCPU is known to be flaky, TestEKSSuite/TestCPU/TestCPUUtilization should be considered flaky
