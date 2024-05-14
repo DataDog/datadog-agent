@@ -57,7 +57,7 @@ type Concentrator struct {
 }
 
 //go:embed peer_tags.csv
-var peer_tag_file string
+var peerTagFile string
 
 var defaultPeerTags = func() []string {
 	lines := strings.Split(strings.TrimSpace(peer_tag_file), "\n")
