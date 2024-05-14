@@ -181,7 +181,7 @@ func newSystemCollector(cache *provider.Cache, wlm optional.Option[workloadmeta.
 	return metadata, nil
 }
 
-func (c *systemCollector) GetContainerStats(_, containerID string, cacheValidity time.Duration) (*provider.ContainerStats, error) { //nolint:revive // TODO fix revive unused-parameter
+func (c *systemCollector) GetContainerStats(_, containerID string, cacheValidity time.Duration) (*provider.ContainerStats, error) {
 	cg, err := c.getCgroup(containerID, cacheValidity)
 	if err != nil {
 		return nil, err
@@ -293,8 +293,7 @@ func (c *systemCollector) getPIDs(containerID string, cacheValidity time.Duratio
 	return c.pidMapper.GetPIDs(containerID, cacheValidity), nil
 }
 
-//nolint:revive // TODO(CINT) Fix revive linter
-func (c *systemCollector) buildContainerMetrics(cg cgroups.Cgroup, cacheValidity time.Duration) (*provider.ContainerStats, error) {
+func (c *systemCollector) buildContainerMetrics(cg cgroups.Cgroup, _ time.Duration) (*provider.ContainerStats, error) {
 	stats := &cgroups.Stats{}
 	allFailed, errs := cgroups.GetStats(cg, stats)
 	if allFailed {
