@@ -30,6 +30,7 @@ func getDestinationHostname(destinationHost string) string {
 func getHostname(ipAddr string) string {
 	// TODO: this reverse lookup appears to have some standard timeout that is relatively
 	// high. Consider switching to something where there is greater control.
+	// Possible solution is to use https://pkg.go.dev/net#Resolver.LookupAddr to specify a context with a timeout.
 	currHost := ""
 	currHostList, _ := lookupAddrFn(ipAddr)
 	log.Debugf("Reverse DNS List: %+v", currHostList)
