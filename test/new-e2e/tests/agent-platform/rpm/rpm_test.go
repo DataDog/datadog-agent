@@ -97,7 +97,7 @@ func TestRpmScript(t *testing.T) {
 func (is *rpmTestSuite) TestRpm() {
 	filemanager := filemanager.NewUnix(is.Env().RemoteHost)
 	unixHelper := helpers.NewUnix()
-	agentClient, err := client.NewHostAgentClient(is.T(), is.Env().RemoteHost, false)
+	agentClient, err := client.NewHostAgentClient(is, is.Env().RemoteHost.HostOutput, false)
 	require.NoError(is.T(), err)
 	VMclient := common.NewTestClient(is.Env().RemoteHost, agentClient, filemanager, unixHelper)
 

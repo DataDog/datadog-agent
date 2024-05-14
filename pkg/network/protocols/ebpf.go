@@ -55,6 +55,8 @@ const (
 	ProgramKafka ProgramType = C.PROG_KAFKA
 	// ProgramKafkaResponseParser is the Golang representation of the C.PROG_KAFKA_RESPONSE_PARSER enum
 	ProgramKafkaResponseParser ProgramType = C.PROG_KAFKA_RESPONSE_PARSER
+	// ProgramPostgres is the Golang representation of the C.PROG_POSTGRES enum
+	ProgramPostgres ProgramType = C.PROG_POSTGRES
 )
 
 // Application layer of the protocol stack.

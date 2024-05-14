@@ -18,6 +18,7 @@
 #include "protocols/http2/decoding.h"
 #include "protocols/http2/decoding-tls.h"
 #include "protocols/kafka/kafka-parsing.h"
+#include "protocols/postgres/decoding.h"
 #include "protocols/sockfd-probes.h"
 #include "protocols/tls/java/erpc_dispatcher.h"
 #include "protocols/tls/java/erpc_handlers.h"
@@ -70,6 +71,7 @@ int tracepoint__net__netif_receive_skb(struct pt_regs* ctx) {
     http2_batch_flush(ctx);
     terminated_http2_batch_flush(ctx);
     kafka_batch_flush(ctx);
+    postgres_batch_flush(ctx);
     return 0;
 }
 

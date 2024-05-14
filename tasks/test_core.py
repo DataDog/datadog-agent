@@ -144,6 +144,7 @@ def test_core(
             continue
 
         command(modules_results, module, module_result)
+
     return modules_results
 
 

@@ -21,6 +21,7 @@ type ec2VMWKitSuite struct {
 
 // TestEC2VMWKitSuite will validate running the agent on a single EC2 VM
 func TestEC2VMWKitSuite(t *testing.T) {
+	t.Skipf("Skipping WKit test due to flakiness of chocolatey (temporary)")
 	s := &ec2VMWKitSuite{}
 
 	e2eParams := []e2e.SuiteOption{e2e.WithProvisioner(e2e.NewTypedPulumiProvisioner("hostHttpbin", hostDockerHttpbinEnvProvisioner(awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsDefault))), nil))}

@@ -1,0 +1,10 @@
+{{- if .snmpProfiles -}}
+<div class="stat">
+  <span class="stat_title">SNMP Profiles</span>
+  <span class="stat_data">
+    {{- range $key, $value := .snmpProfiles}}
+      {{$key}}: {{$value}}
+    {{- end }}
+  </span>
+</div>
+{{- end -}}
