@@ -122,7 +122,11 @@ def check_python_version(_ctx) -> SetupResult:
     status = Status.OK
     if tuple(sys.version_info)[:3] != tuple(int(d) for d in expected_version.split(".")):
         status = Status.FAIL
-        message = f"Python version is {sys.version_info[0]}.{sys.version_info[1]}.{sys.version_info[2]}. Please install Python {expected_version}."
+        message = (
+            f"Python version is {sys.version_info[0]}.{sys.version_info[1]}.{sys.version_info[2]}. "
+            f"Please install Python {expected_version}.\n"
+            f"We recommend using pyenv to manage your Python versions: https://github.com/pyenv/pyenv#installation"
+        )
 
     return SetupResult("Check Python version", status, message)
 
