@@ -1,4 +1,4 @@
-$omnibusOutput = "C:\mnt\omnibus\pkg"
+$omnibusOutput = "c:\buildroot\datadog-agent\omnibus\pkg\"
 
 if (-not (Test-Path C:\tools\datadog-package.exe)) {
     Write-Host "Downloading datadog-package.exe"
@@ -13,12 +13,9 @@ if (Test-Path $omnibusOutput\$packageName) {
     Remove-Item $omnibusOutput\$packageName
 }
 
-# datadog-package takes a folder as input and will package everything in that
-# So we make a dummy folder with a symlink to the installer
+# datadog-package takes a folder as input and will package everything in that, so copy the msi to its own folder
 Remove-Item -Recurse -Force C:\oci-pkg -ErrorAction SilentlyContinue
 New-Item -ItemType Directory C:\oci-pkg
-
-# Copy the installer to its own folder since the packager can only package whole folders
 Copy-Item (Get-ChildItem $omnibusOutput\datadog-agent-${rawAgentVersion}-x86_64.msi).FullName -Destination C:\oci-pkg\datadog-agent-${rawAgentVersion}-x86_64.msi
 
 # The argument --archive-path ".\omnibus\pkg\datadog-agent-${version}.tar.gz" is currently broken and has no effects
