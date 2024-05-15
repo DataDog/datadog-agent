@@ -182,6 +182,7 @@ func (c *Config) String() string {
 	return string(buffer)
 }
 
+// ScrubbedString returns the YAML representation of the config with secrets scrubbed
 func (c *Config) ScrubbedString() string {
 	scrubbed, err := scrubber.ScrubYaml([]byte(c.String()))
 	if err != nil {
@@ -489,7 +490,7 @@ func (c *Config) Dump(multiline bool) string {
 	return b.String()
 }
 
-// PrintConfig prints a human-readable representation of a configuration
+// PrintConfig prints a human-readable representation of a configuration with any secrets scrubbed.
 func (c *Config) PrintConfig(w io.Writer, checkName string) {
 	if checkName != "" && c.Name != checkName {
 		return
@@ -514,20 +515,20 @@ func (c *Config) PrintConfig(w io.Writer, checkName string) {
 	for _, inst := range c.Instances {
 		ID := string(checkid.BuildID(c.Name, configDigest, inst.GetNameForInstance(), inst, c.InitConfig))
 		fmt.Fprintf(w, "%s: %s\n", color.BlueString("Config for instance ID"), color.CyanString(ID))
-		c.PrintScrubbed(w, inst)
+		printScrubbed(w, inst)
 		fmt.Fprintln(w, "~")
 	}
 	if len(c.InitConfig) > 0 {
 		fmt.Fprintf(w, "%s:\n", color.BlueString("Init Config"))
-		c.PrintScrubbed(w, c.InitConfig)
+		printScrubbed(w, c.InitConfig)
 	}
 	if len(c.MetricConfig) > 0 {
 		fmt.Fprintf(w, "%s:\n", color.BlueString("Metric Config"))
-		c.PrintScrubbed(w, c.MetricConfig)
+		printScrubbed(w, c.MetricConfig)
 	}
 	if len(c.LogsConfig) > 0 {
 		fmt.Fprintf(w, "%s:\n", color.BlueString("Log Config"))
-		c.PrintScrubbed(w, c.LogsConfig)
+		printScrubbed(w, c.LogsConfig)
 	}
 	if c.IsTemplate() {
 		fmt.Fprintf(w, "%s:\n", color.BlueString("Auto-discovery IDs"))
@@ -543,7 +544,7 @@ func (c *Config) PrintConfig(w io.Writer, checkName string) {
 	fmt.Fprintln(w, "===")
 }
 
-func (c *Config) PrintScrubbed(w io.Writer, data []byte) {
+func printScrubbed(w io.Writer, data []byte) {
 	scrubbed, err := scrubber.ScrubYaml(data)
 	if err == nil {
 		fmt.Fprintln(w, string(scrubbed))

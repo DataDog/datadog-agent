@@ -272,7 +272,7 @@ func (ac *AutoConfig) GetConfigCheck(verbose bool) []byte {
 				fmt.Fprintf(writer, "\n%s: %s\n", color.BlueString("Auto-discovery IDs"), color.YellowString(ids))
 				fmt.Fprintf(writer, "%s:\n", color.BlueString("Templates"))
 				for _, config := range configs {
-					fmt.Fprintf(writer, config.ScrubbedString())
+					fmt.Fprintln(writer, config.ScrubbedString())
 				}
 			}
 		}
