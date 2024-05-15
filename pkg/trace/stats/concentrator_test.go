@@ -267,7 +267,7 @@ func TestConcentratorOldestTs(t *testing.T) {
 				Hits:         6,
 				TopLevelHits: 6,
 				Errors:       0,
-				IsTraceRoot:  pb.TraceRootFlag_TRUE,
+				IsTraceRoot:  pb.Trilean_TRUE,
 			},
 		}
 		assertCountsEqual(t, expected, stats.Stats[0].Stats[0].Stats)
@@ -305,7 +305,7 @@ func TestConcentratorOldestTs(t *testing.T) {
 				Hits:         5,
 				TopLevelHits: 5,
 				Errors:       0,
-				IsTraceRoot:  pb.TraceRootFlag_TRUE,
+				IsTraceRoot:  pb.Trilean_TRUE,
 			},
 		}
 		assertCountsEqual(t, expected, stats.Stats[0].Stats[0].Stats)
@@ -326,7 +326,7 @@ func TestConcentratorOldestTs(t *testing.T) {
 				Hits:         1,
 				TopLevelHits: 1,
 				Errors:       0,
-				IsTraceRoot:  pb.TraceRootFlag_TRUE,
+				IsTraceRoot:  pb.Trilean_TRUE,
 			},
 		}
 		assertCountsEqual(t, expected, stats.Stats[0].Stats[0].Stats)
@@ -436,7 +436,7 @@ func TestConcentratorStatsCounts(t *testing.T) {
 			Hits:         4,
 			TopLevelHits: 4,
 			Errors:       1,
-			IsTraceRoot:  pb.TraceRootFlag_TRUE,
+			IsTraceRoot:  pb.Trilean_TRUE,
 		},
 		{
 			Service:      "A2",
@@ -447,7 +447,7 @@ func TestConcentratorStatsCounts(t *testing.T) {
 			Hits:         2,
 			TopLevelHits: 2,
 			Errors:       2,
-			IsTraceRoot:  pb.TraceRootFlag_TRUE,
+			IsTraceRoot:  pb.Trilean_TRUE,
 		},
 		{
 			Service:      "A2",
@@ -458,7 +458,7 @@ func TestConcentratorStatsCounts(t *testing.T) {
 			Hits:         1,
 			TopLevelHits: 1,
 			Errors:       0,
-			IsTraceRoot:  pb.TraceRootFlag_TRUE,
+			IsTraceRoot:  pb.Trilean_TRUE,
 		},
 		{
 			Service:      "A1",
@@ -470,7 +470,7 @@ func TestConcentratorStatsCounts(t *testing.T) {
 			Hits:         1,
 			TopLevelHits: 1,
 			Errors:       0,
-			IsTraceRoot:  pb.TraceRootFlag_TRUE,
+			IsTraceRoot:  pb.Trilean_TRUE,
 		},
 		{
 			Service:      "A1",
@@ -482,7 +482,7 @@ func TestConcentratorStatsCounts(t *testing.T) {
 			Hits:         1,
 			TopLevelHits: 1,
 			Errors:       0,
-			IsTraceRoot:  pb.TraceRootFlag_TRUE,
+			IsTraceRoot:  pb.Trilean_TRUE,
 		},
 	}
 	// 1-bucket old flush
@@ -496,7 +496,7 @@ func TestConcentratorStatsCounts(t *testing.T) {
 			Hits:         1,
 			TopLevelHits: 1,
 			Errors:       1,
-			IsTraceRoot:  pb.TraceRootFlag_TRUE,
+			IsTraceRoot:  pb.Trilean_TRUE,
 		},
 		{
 			Service:      "A1",
@@ -507,7 +507,7 @@ func TestConcentratorStatsCounts(t *testing.T) {
 			Hits:         1,
 			TopLevelHits: 1,
 			Errors:       0,
-			IsTraceRoot:  pb.TraceRootFlag_TRUE,
+			IsTraceRoot:  pb.Trilean_TRUE,
 		},
 		{
 			Service:      "A2",
@@ -518,7 +518,7 @@ func TestConcentratorStatsCounts(t *testing.T) {
 			Hits:         1,
 			TopLevelHits: 1,
 			Errors:       1,
-			IsTraceRoot:  pb.TraceRootFlag_TRUE,
+			IsTraceRoot:  pb.Trilean_TRUE,
 		},
 		{
 			Service:      "A2",
@@ -529,7 +529,7 @@ func TestConcentratorStatsCounts(t *testing.T) {
 			Hits:         1,
 			TopLevelHits: 1,
 			Errors:       1,
-			IsTraceRoot:  pb.TraceRootFlag_TRUE,
+			IsTraceRoot:  pb.Trilean_TRUE,
 		},
 		{
 			Service:      "A2",
@@ -540,7 +540,7 @@ func TestConcentratorStatsCounts(t *testing.T) {
 			Hits:         1,
 			TopLevelHits: 1,
 			Errors:       0,
-			IsTraceRoot:  pb.TraceRootFlag_TRUE,
+			IsTraceRoot:  pb.Trilean_TRUE,
 		},
 	}
 	// last bucket to be flushed
@@ -554,7 +554,7 @@ func TestConcentratorStatsCounts(t *testing.T) {
 			Hits:         1,
 			TopLevelHits: 1,
 			Errors:       0,
-			IsTraceRoot:  pb.TraceRootFlag_TRUE,
+			IsTraceRoot:  pb.Trilean_TRUE,
 		},
 	}
 	expectedCountValByKeyByTime[alignedNow+testBucketInterval] = []*pb.ClientGroupedStats{}
@@ -623,7 +623,7 @@ func TestRootTag(t *testing.T) {
 			Hits:         1,
 			TopLevelHits: 1,
 			Errors:       0,
-			IsTraceRoot:  pb.TraceRootFlag_TRUE,
+			IsTraceRoot:  pb.Trilean_TRUE,
 		},
 		{
 			Service:      "A1",
@@ -634,7 +634,7 @@ func TestRootTag(t *testing.T) {
 			Hits:         1,
 			TopLevelHits: 1,
 			Errors:       0,
-			IsTraceRoot:  pb.TraceRootFlag_FALSE,
+			IsTraceRoot:  pb.Trilean_FALSE,
 		},
 		{
 			Service:      "A1",
@@ -645,7 +645,7 @@ func TestRootTag(t *testing.T) {
 			Hits:         1,
 			TopLevelHits: 0,
 			Errors:       0,
-			IsTraceRoot:  pb.TraceRootFlag_FALSE,
+			IsTraceRoot:  pb.Trilean_FALSE,
 			SpanKind:     "client",
 		},
 	}
