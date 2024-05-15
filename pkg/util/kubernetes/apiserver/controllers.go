@@ -18,6 +18,7 @@ import (
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/record"
 
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/autoscalers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -60,6 +61,7 @@ type ControllerContext struct {
 	Client                 kubernetes.Interface
 	IsLeaderFunc           func() bool
 	EventRecorder          record.EventRecorder
+	WorkloadMeta           workloadmeta.Component
 	StopCh                 chan struct{}
 }
 
@@ -118,8 +120,8 @@ func StartControllers(ctx ControllerContext) errors.Aggregate {
 //nolint:revive // TODO(CAPP) Fix revive linter
 func startMetadataController(ctx ControllerContext, c chan error) {
 	metaController := NewMetadataController(
-		ctx.InformerFactory.Core().V1().Nodes(),
 		ctx.InformerFactory.Core().V1().Endpoints(),
+		ctx.WorkloadMeta,
 	)
 	go metaController.Run(ctx.StopCh)
 }

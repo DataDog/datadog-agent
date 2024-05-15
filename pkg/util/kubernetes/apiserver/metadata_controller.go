@@ -11,18 +11,18 @@ import (
 	"fmt"
 	"time"
 
-	agentcache "github.com/DataDog/datadog-agent/pkg/util/cache"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apimachinery/pkg/util/wait"
 	coreinformers "k8s.io/client-go/informers/core/v1"
 	corelisters "k8s.io/client-go/listers/core/v1"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
+
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	agentcache "github.com/DataDog/datadog-agent/pkg/util/cache"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // MetadataController is responsible for synchronizing objects from the Kubernetes
@@ -33,8 +33,7 @@ import (
 //
 // This controller is used by the Datadog Cluster Agent and supports Kubernetes 1.4+.
 type MetadataController struct {
-	nodeLister       corelisters.NodeLister
-	nodeListerSynced cache.InformerSynced
+	wmeta workloadmeta.Component
 
 	endpointsLister       corelisters.EndpointsLister
 	endpointsListerSynced cache.InformerSynced
@@ -46,18 +45,43 @@ type MetadataController struct {
 }
 
 // NewMetadataController returns a new metadata controller
-func NewMetadataController(nodeInformer coreinformers.NodeInformer, endpointsInformer coreinformers.EndpointsInformer) *MetadataController {
+func NewMetadataController(endpointsInformer coreinformers.EndpointsInformer, wmeta workloadmeta.Component) *MetadataController {
 	m := &MetadataController{
+		wmeta: wmeta,
 		queue: workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "endpoints"),
 	}
-	if _, err := nodeInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
-		AddFunc:    m.addNode,
-		DeleteFunc: m.deleteNode,
-	}); err != nil {
-		log.Errorf("error adding event handler to node informer: %f", err)
+
+	wmetaFilterParams := workloadmeta.FilterParams{
+		Kinds:     []workloadmeta.Kind{workloadmeta.KindKubernetesNode},
+		Source:    workloadmeta.SourceAll,
+		EventType: workloadmeta.EventTypeAll,
 	}
-	m.nodeLister = nodeInformer.Lister()
-	m.nodeListerSynced = nodeInformer.Informer().HasSynced
+
+	wmetaEventsCh := wmeta.Subscribe(
+		"metadata-controller",
+		workloadmeta.NormalPriority,
+		workloadmeta.NewFilter(&wmetaFilterParams),
+	)
+
+	go func() {
+		defer wmeta.Unsubscribe(wmetaEventsCh)
+		for eventBundle := range wmetaEventsCh {
+			eventBundle.Acknowledge()
+
+			for _, event := range eventBundle.Events {
+				node := event.Entity.(*workloadmeta.KubernetesNode)
+
+				switch event.Type {
+				case workloadmeta.EventTypeSet:
+					m.addNode(node.Name)
+				case workloadmeta.EventTypeUnset:
+					m.deleteNode(node.Name)
+				default:
+					log.Warnf("Unknown event type %v", event.Type)
+				}
+			}
+		}
+	}()
 
 	if _, err := endpointsInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc:    m.addEndpoints,
@@ -81,7 +105,7 @@ func (m *MetadataController) Run(stopCh <-chan struct{}) {
 	log.Infof("Starting metadata controller")
 	defer log.Infof("Stopping metadata controller")
 
-	if !cache.WaitForCacheSync(stopCh, m.nodeListerSynced, m.endpointsListerSynced) {
+	if !cache.WaitForCacheSync(stopCh, m.endpointsListerSynced) {
 		return
 	}
 
@@ -109,36 +133,15 @@ func (m *MetadataController) processNextWorkItem() bool {
 	return true
 }
 
-func (m *MetadataController) addNode(obj interface{}) {
-	node, ok := obj.(*corev1.Node)
-	if !ok {
-		return
-	}
-
-	bundle := m.store.getCopyOrNew(node.Name)
-	m.store.set(node.Name, bundle)
-
-	log.Debugf("Detected node %s", node.Name)
+func (m *MetadataController) addNode(name string) {
+	bundle := m.store.getCopyOrNew(name)
+	m.store.set(name, bundle)
+	log.Debugf("Detected node %s", name)
 }
 
-func (m *MetadataController) deleteNode(obj interface{}) {
-	node, ok := obj.(*corev1.Node)
-	if !ok {
-		tombstone, ok := obj.(cache.DeletedFinalStateUnknown)
-		if !ok {
-			log.Debugf("Couldn't get object from tombstone %#v", obj)
-			return
-		}
-		node, ok = tombstone.Obj.(*corev1.Node)
-		if !ok {
-			log.Debugf("Tombstone contained object that is not a node %#v", obj)
-			return
-		}
-	}
-
-	m.store.delete(node.Name)
-
-	log.Debugf("Forgot node %s", node.Name)
+func (m *MetadataController) deleteNode(name string) {
+	m.store.delete(name)
+	log.Debugf("Forgot node %s", name)
 }
 
 func (m *MetadataController) addEndpoints(obj interface{}) {
@@ -150,8 +153,7 @@ func (m *MetadataController) addEndpoints(obj interface{}) {
 	m.enqueue(obj)
 }
 
-//nolint:revive // TODO(CAPP) Fix revive linter
-func (m *MetadataController) updateEndpoints(old, cur interface{}) {
+func (m *MetadataController) updateEndpoints(_, cur interface{}) {
 	newEndpoints, ok := cur.(*corev1.Endpoints)
 	if !ok {
 		return
@@ -266,10 +268,7 @@ func (m *MetadataController) mapEndpoints(endpoints *corev1.Endpoints) error {
 }
 
 func (m *MetadataController) deleteMappedEndpoints(namespace, svc string) error {
-	nodes, err := m.nodeLister.List(labels.Everything()) // list all nodes
-	if err != nil {
-		return err
-	}
+	nodes := m.wmeta.ListKubernetesNodes()
 
 	// Delete the service from the metadata bundle for each node.
 	for _, node := range nodes {

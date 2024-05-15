@@ -5,7 +5,7 @@
 
 //go:build !kubeapiserver
 
-//nolint:revive // TODO(CINT) Fix revive linter
+// Package apiserver provides an API client for the Kubernetes API server.
 package apiserver
 
 import (
