@@ -3,19 +3,30 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2023-present Datadog, Inc.
 
-package agent
+//go:build test
+
+package agentimpl
 
 import (
 	"context"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/logs/agent"
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/schedulers"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"go.uber.org/fx"
 )
+
+// MockModule defines the fx options for the mock component.
+func MockModule() fxutil.Module {
+	return fxutil.Component(
+		fx.Provide(newMock),
+		fx.Provide(func(m agent.Mock) agent.Component { return m }))
+}
 
 type mockLogsAgent struct {
 	isRunning       bool
@@ -25,7 +36,7 @@ type mockLogsAgent struct {
 	logSources      *sources.LogSources
 }
 
-func newMock(deps dependencies) optional.Option[Mock] {
+func newMock(deps dependencies) optional.Option[agent.Mock] {
 	logsAgent := &mockLogsAgent{
 		hasFlushed:      false,
 		addedSchedulers: make([]schedulers.Scheduler, 0),
@@ -36,7 +47,7 @@ func newMock(deps dependencies) optional.Option[Mock] {
 		OnStart: logsAgent.start,
 		OnStop:  logsAgent.stop,
 	})
-	return optional.NewOption[Mock](logsAgent)
+	return optional.NewOption[agent.Mock](logsAgent)
 }
 
 func (a *mockLogsAgent) start(context.Context) error {
