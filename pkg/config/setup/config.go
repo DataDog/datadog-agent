@@ -100,16 +100,20 @@ const (
 	DefaultMaxMessageSizeBytes = 256 * 1000
 )
 
-// Datadog is the global configuration object
+// datadog is the global configuration object
 var (
 	datadog     pkgconfigmodel.Config
 	SystemProbe pkgconfigmodel.Config
 )
 
+// Datadog returns the current agent configuration
 func Datadog() pkgconfigmodel.Config {
 	return datadog
 }
 
+// SetDatadog sets the the reference to the agent configuration.
+// This is currently used by the legacy converter and config mocks and should not be user anywhere else. Once the
+// legacy converter and mock have been migrated we will remove this function.
 func SetDatadog(cfg pkgconfigmodel.Config) {
 	datadog = cfg
 }
