@@ -16,7 +16,7 @@ func TestGetLinuxAppServiceTags(t *testing.T) {
 
 	t.Setenv("WEBSITE_SITE_NAME", "test_site_name")
 	t.Setenv("REGION_NAME", "eastus")
-	t.Setenv("LINUX_FX_VERSION", "false")
+	t.Setenv("WEBSITE_STACK", "false")
 
 	tags := service.GetTags()
 	tags["aas.environment.os"] = "linux"

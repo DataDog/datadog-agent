@@ -23,6 +23,6 @@ func TestGetCloudServiceType(t *testing.T) {
 
 	os.Unsetenv(ContainerAppNameEnvVar)
 	os.Unsetenv(ServiceNameEnvVar)
-	t.Setenv(FxVersion, "false")
+	t.Setenv(WebsiteStack, "false")
 	assert.Equal(t, "appservice", GetCloudServiceType().GetOrigin())
 }
