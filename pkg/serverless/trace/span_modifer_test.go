@@ -10,6 +10,7 @@ package trace
 import (
 	"context"
 	"os"
+	"sync"
 	"testing"
 	"time"
 
@@ -29,6 +30,7 @@ import (
 )
 
 type mockTraceWriter struct {
+	mu       sync.Mutex
 	payloads []*writer.SampledChunks
 }
 
