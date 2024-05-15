@@ -11,7 +11,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"net"
 	"time"
 
 	model "github.com/DataDog/agent-payload/v5/process"
@@ -114,7 +113,6 @@ func (s *npSchedulerImpl) ScheduleConns(conns []*model.Connection) {
 	}
 	startTime := s.TimeNowFn()
 	for _, conn := range conns {
-		// Only process outgoing traffic
 		if !shouldScheduleNetworkPathForConn(conn) {
 			continue
 		}
@@ -130,10 +128,6 @@ func (s *npSchedulerImpl) ScheduleConns(conns []*model.Connection) {
 	s.statsdClient.Gauge("datadog.network_path.scheduler.schedule_duration", scheduleDuration.Seconds(), nil, 1) //nolint:errcheck
 }
 
-func shouldScheduleNetworkPathForConn(conn *model.Connection) bool {
-	return conn.Direction == model.ConnectionDirection_outgoing
-}
-
 // scheduleOne schedules pathtests.
 // It shouldn't block, if the input channel is full, an error is returned.
 func (s *npSchedulerImpl) scheduleOne(hostname string, port uint16) error {
@@ -141,12 +135,6 @@ func (s *npSchedulerImpl) scheduleOne(hostname string, port uint16) error {
 		return errors.New("no input channel, please check that network path is enabled")
 	}
 	s.logger.Debugf("Schedule traceroute for: hostname=%s port=%d", hostname, port)
-
-	if net.ParseIP(hostname).To4() == nil {
-		// TODO: IPv6 not supported yet
-		s.logger.Debugf("Only IPv4 is currently supported. Address not supported: %s", hostname)
-		return nil
-	}
 
 	ptest := &common.Pathtest{
 		Hostname: hostname,
