@@ -121,17 +121,25 @@ var lockTypes = map[uint32]string{
 	8: "ringbuf-waitq-spinlock",
 }
 
-// NewLockContentionCollector creates a prometheus.Collector for eBPF lock contention metrics
-func NewLockContentionCollector() *LockContentionCollector {
+func lockContentionCollectorSupported() bool {
 	kversion, err := kernel.HostVersion()
 	if err != nil {
-		return nil
+		return false
 	}
 
 	// the tracepoints for collecting lock contention information
 	// are only available after v5.19.0
 	// https://github.com/torvalds/linux/commit/16edd9b511a13e7760ed4b92ba4e39bacda5c86f
 	if kversion < kernel.VersionCode(5, 19, 0) {
+		return false
+	}
+
+	return true
+}
+
+// NewLockContentionCollector creates a prometheus.Collector for eBPF lock contention metrics
+func NewLockContentionCollector() *LockContentionCollector {
+	if !lockContentionCollectorSupported() {
 		return nil
 	}
 
