@@ -135,7 +135,7 @@ def get_embedded_path(ctx):
         if os.path.exists(test_embedded_path):
             return test_embedded_path
 
-    return ""
+    return None
 
 
 def get_xcode_version(ctx):
