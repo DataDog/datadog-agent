@@ -16,34 +16,27 @@ from invoke import Context
 
 from tasks.libs.common.color import color_message
 
+DD_INVOKE_LOGS_FILE = "dd_invoke.log"
+WIN_TEMP_FOLDER = "C:\\Windows\\Temp"
+UNIX_TEMP_FOLDER = "/tmp"
+
 
 def get_dd_invoke_logs_path() -> str:
     """
-    Get the path to the dd_invoke.log file.
-    On Windows the default path is $Env:Temp\\dd_invoke.log
+    Get the path to the invoke tasks log file.
+    On Windows the default path is C:\\Windows\\Temp\\dd_invoke.log
     On Linux & MacOS the default path is /tmp/dd_invoke.log
     """
-    if sys.platform == 'win32':
-        temp_folder = os.environ.get('TEMP')
-        if not temp_folder:
-            print(
-                color_message(
-                    message="Warning: couldn't set the dd_inv_log_path because $Env:Temp is not defined", color="orange"
-                ),
-                file=sys.stderr,
-            )
-            return ""
-        else:
-            return f"{temp_folder}\\dd_invoke.log"
-    return "/tmp/dd_invoke.log"
+    temp_folder = WIN_TEMP_FOLDER if sys.platform == 'win32' else UNIX_TEMP_FOLDER
+    return os.path.join(temp_folder, DD_INVOKE_LOGS_FILE)
 
 
 def log_invoke_task(
-    filename: str, name: str, module: str, task_datetime: str, duration: float, task_result: str
+    log_path: str, name: str, module: str, task_datetime: str, duration: float, task_result: str
 ) -> None:
     """
-    Logs the task information to the DD_INVOKE_LOGS_PATH file.
-    This should be uploaded to Datadog's backend with a correct Log Agent configuration:
+    Logs the task information to the dd_invoke_logs_path file.
+    This should be uploaded to Datadog's backend with a correct Log Agent configuration. E.g on MacOS:
     ```
     logs:
     - type: file
@@ -52,7 +45,7 @@ def log_invoke_task(
         source: "invoke"
     ```
     """
-    logging.basicConfig(filename=filename, level=logging.INFO, format='%(message)s')
+    logging.basicConfig(filename=log_path, level=logging.INFO, format='%(message)s')
     user = getuser()
     running_mode = "pre_commit" if os.environ.get("PRE_COMMIT", 0) == "1" else "manual"
     task_info = {
@@ -97,7 +90,7 @@ class InvokeLogger:
                 None if exc_type is None else "".join(traceback.format_exception(exc_type, exc_value, exc_traceback))
             )
             log_invoke_task(
-                filename=self.log_path,
+                log_path=self.log_path,
                 name=name,
                 module=module,
                 task_datetime=self.datetime,
