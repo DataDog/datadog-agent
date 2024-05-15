@@ -6,6 +6,7 @@
 package components
 
 import (
+	"fmt"
 	"github.com/DataDog/datadog-agent/test/fakeintake/client"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 
@@ -23,7 +24,14 @@ var _ e2e.Initializable = &FakeIntake{}
 
 // Init is called by e2e test Suite after the component is provisioned.
 func (fi *FakeIntake) Init(e2e.Context) error {
-	fi.client = client.NewClient(fi.URL)
+	var clientUrl string
+	if len(fi.ClientURL) > 0 {
+		clientUrl = fi.ClientURL
+	} else {
+		clientUrl = fi.URL
+	}
+	fmt.Println("Using clientUrl: ", clientUrl)
+	fi.client = client.NewClient(clientUrl)
 	return nil
 }
 
