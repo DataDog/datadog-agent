@@ -2,8 +2,6 @@ import json
 import os
 import platform
 import subprocess
-import time
-import traceback
 from collections import UserList
 
 import gitlab
@@ -11,7 +9,7 @@ import yaml
 from gitlab.v4.objects import Project, ProjectPipeline
 from invoke.exceptions import Exit
 
-from tasks.libs.common.utils import color_message
+from tasks.libs.common.utils import retry_function
 
 BASE_URL = "https://gitlab.ddbuild.io"
 
@@ -76,34 +74,12 @@ def get_gitlab_repo(repo='DataDog/datadog-agent', token=None) -> Project:
     return repo
 
 
-def refresh_pipeline(pipeline: ProjectPipeline, max_retries=2, retry_delay=1):
+@retry_function('refresh pipeline #{0.id}')
+def refresh_pipeline(pipeline: ProjectPipeline):
     """
     Refresh a pipeline, retries if there is an error
     """
-    for i in range(max_retries + 1):
-        try:
-            pipeline.refresh()
-            if i != 0:
-                print(color_message(f'Note: Pipeline #{pipeline.id} refreshed after {i} retries', 'green'))
-
-            # Refresh ok
-            break
-        except Exception as e:
-            if i == max_retries:
-                print(
-                    color_message(f'Error: Cannot refresh pipeline #{pipeline.id} after {max_retries} retries', 'red')
-                )
-                raise e
-            else:
-                print(
-                    color_message(
-                        f'Warning: Error refreshing pipeline #{pipeline.id} (retry {i + 1}/{max_retries}), retrying in {retry_delay}s',
-                        'orange',
-                    )
-                )
-                traceback.print_exc()
-                time.sleep(retry_delay)
-                print(color_message(f'Retrying to refresh pipeline #{pipeline.id}', 'blue'))
+    pipeline.refresh()
 
 
 class ReferenceTag(yaml.YAMLObject):
