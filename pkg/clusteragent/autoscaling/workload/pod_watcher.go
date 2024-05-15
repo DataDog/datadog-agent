@@ -139,6 +139,10 @@ func (pw *podWatcher) handleUnsetEvent(event workloadmeta.Event) {
 		return
 	}
 	podOwner := getNamespacedPodOwner(pod.Namespace, &pod.Owners[0])
+	if podOwner.Name == "" {
+		log.Debugf("Ignoring pod %s without owner name", pod.Name)
+		return
+	}
 	log.Debugf("Removing pod %s from owner %s", pod.ID, podOwner)
 	if _, ok := pw.podsPerPodOwner[podOwner]; !ok {
 		return
