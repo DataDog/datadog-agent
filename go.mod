@@ -138,7 +138,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.55.0-rc.3
 	github.com/DataDog/datadog-go/v5 v5.5.0
 	github.com/DataDog/datadog-operator v0.7.1-0.20240522081847-e83dd785258a
-	github.com/DataDog/ebpf-manager v0.6.0
+	github.com/DataDog/ebpf-manager v0.6.1
 	github.com/DataDog/gopsutil v1.2.2
 	github.com/DataDog/nikos v1.12.4
 	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.16.1

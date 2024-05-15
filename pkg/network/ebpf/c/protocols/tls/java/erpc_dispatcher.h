@@ -47,7 +47,7 @@ static void __always_inline handle_erpc_request(struct pt_regs *ctx) {
 }
 
 SEC("kprobe/do_vfs_ioctl")
-int kprobe__do_vfs_ioctl(struct pt_regs *ctx) {
+int BPF_BYPASSABLE_KPROBE(kprobe__do_vfs_ioctl) {
     if (is_usm_erpc_request(ctx)) {
         handle_erpc_request(ctx);
     }
