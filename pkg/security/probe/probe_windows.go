@@ -473,9 +473,7 @@ func (p *WindowsProbe) Start() error {
 					continue
 				}
 			case notif := <-p.onETWNotification:
-				if !p.handleETWNotification(ev, notif) {
-					continue
-				}
+				p.handleETWNotification(ev, notif)
 			}
 
 			p.DispatchEvent(ev)
@@ -556,7 +554,7 @@ func (p *WindowsProbe) handleProcessStop(ev *model.Event, stop *procmon.ProcessS
 	return true
 }
 
-func (p *WindowsProbe) handleETWNotification(ev *model.Event, notif etwNotification) bool {
+func (p *WindowsProbe) handleETWNotification(ev *model.Event, notif etwNotification) {
 	// handle incoming events here
 	// each event will come in as a different type
 	// parse it with
@@ -654,7 +652,6 @@ func (p *WindowsProbe) handleETWNotification(ev *model.Event, notif etwNotificat
 			log.Debugf("%v", errRes)
 		}
 	}
-	return true
 }
 
 func (p *WindowsProbe) setProcessContext(pid uint32, event *model.Event) error {
