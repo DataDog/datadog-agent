@@ -26,7 +26,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"time"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 // Note: Building the logs-agent for serverless separately removes the
