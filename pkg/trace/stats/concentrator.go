@@ -12,6 +12,8 @@ import (
 	"sync"
 	"time"
 
+	"gopkg.in/ini.v1"
+
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
@@ -56,15 +58,27 @@ type Concentrator struct {
 	statsd                 statsd.ClientInterface
 }
 
-//go:embed peer_tags.csv
-var peerTagFile string
+//go:embed peer_tags.ini
+var peerTagFile []byte
 
 var defaultPeerTags = func() []string {
-	lines := strings.Split(strings.TrimSpace(peerTagFile), "\n")
-	tags := make([]string, len(lines))
-	for i, line := range lines {
-		tags[i] = strings.TrimSpace(line)
+	cfg, _ := ini.Load(peerTagFile)
+	keys := cfg.Section("dd.apm.peer.tags").Keys()
+
+	var tags []string = []string{"_dd.base_service", "cassandra.cluster", "hazelcast.instance", "statemachinename"}
+	if len(keys) > 0 {
+		for _, key := range keys {
+			value := strings.Split(key.Value(), ",")
+			for _, tag := range value {
+				if tag != "grpc.host" && tag != "http.host" {
+					tags = append(tags, tag)
+				}
+			}
+		}
 	}
+
+	sort.Strings(tags)
+
 	return tags
 }()
 
