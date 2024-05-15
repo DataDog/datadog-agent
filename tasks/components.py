@@ -239,6 +239,7 @@ def build_codeowner_entry(path, team):
     teams = [f'@DataDog/{team}' for team in team.split(' ')]
     return f'/{path} ' + ' '.join(teams)
 
+
 def make_codeowners(codeowners_lines, bundles, components_without_bundle):
     codeowners_lines = codeowners_lines.__iter__()
 
