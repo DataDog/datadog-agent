@@ -225,7 +225,7 @@ new-e2e-npm-packages:
   variables:
     TARGETS: ./tests/npm
     TEAM: network-performance-monitoring
-    EXTRA_PARAMS: --run TestEC2(VM|VMSELinux|VMWKit)Suite
+    EXTRA_PARAMS: --run "TestEC2(VM|VMSELinux|VMWKit)Suite"
 
 new-e2e-npm-docker:
   extends: .new_e2e_template
@@ -235,7 +235,7 @@ new-e2e-npm-docker:
   variables:
     TARGETS: ./tests/npm
     TEAM: network-performance-monitoring
-    EXTRA_PARAMS: --run Test(ECSVM|EC2VMContainerized)Suite
+    EXTRA_PARAMS: --run "Test(ECSVM|EC2VMContainerized)Suite"
 
 new-e2e-aml:
   extends: .new_e2e_template_needs_deb_windows_x64
