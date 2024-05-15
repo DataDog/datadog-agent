@@ -32,14 +32,15 @@ import (
 )
 
 const (
-	confDir          = "/etc/datadog-agent"
-	logDir           = "/var/log/datadog"
-	locksDir         = "/var/run/datadog/installer/locks"
-	packagesDir      = "/opt/datadog-packages"
-	bootInstallerDir = "/opt/datadog-installer"
-	rpm              = "rpm"
-	dpkg             = "dpkg"
-	zypper           = "zypper"
+	confDir               = "/etc/datadog-agent"
+	logDir                = "/var/log/datadog"
+	stableInstallerRunDir = "/opt/datadog-packages/datadog-installer/stable/run"
+	locksDir              = "/var/run/datadog-packages"
+	packagesDir           = "/opt/datadog-packages"
+	bootInstallerDir      = "/opt/datadog-installer"
+	rpm                   = "rpm"
+	dpkg                  = "dpkg"
+	zypper                = "zypper"
 )
 
 type installerSuite struct {
@@ -158,6 +159,11 @@ func (v *installerSuite) TestInstallerDirs() {
 		require.Equal(v.T(), "root\n", host.MustExecute(`stat -c "%U" `+dir))
 		require.Equal(v.T(), "root\n", host.MustExecute(`stat -c "%G" `+dir))
 	}
+	for _, dir := range []string{stableInstallerRunDir} {
+		require.Equal(v.T(), "dd-agent\n", host.MustExecute(`stat -c "%U" `+dir))
+		require.Equal(v.T(), "dd-agent\n", host.MustExecute(`stat -c "%G" `+dir))
+
+	}
 	require.Equal(v.T(), "drwxrwxrwx\n", host.MustExecute(`stat -c "%A" `+locksDir))
 	require.Equal(v.T(), "drwxr-xr-x\n", host.MustExecute(`stat -c "%A" `+packagesDir))
 }
@@ -227,7 +233,7 @@ func (v *installerSuite) TestUninstall() {
 	installAssertions := []string{
 		"test -d /opt/datadog-packages",
 		"test -d /opt/datadog-installer",
-		"test -d /var/run/datadog/installer/locks",
+		"test -d /var/run/datadog-packages",
 		"test -L /usr/bin/datadog-installer",
 		"test -L /usr/bin/datadog-bootstrap",
 	}
@@ -255,7 +261,7 @@ func (v *installerSuite) TestUninstall() {
 	case zypper:
 		host.MustExecute("sudo zypper --non-interactive install datadog-installer")
 	}
-	v.bootstrap(false)
+	host.MustExecute("sudo /usr/bin/datadog-bootstrap bootstrap")
 	for _, assertion := range installAssertions {
 		_ = host.MustExecute(assertion)
 	}
