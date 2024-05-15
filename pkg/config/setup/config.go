@@ -401,6 +401,13 @@ func InitConfig(config pkgconfigmodel.Config) {
 	bindEnvAndSetLogsConfigKeys(config, "network_devices.netflow.forwarder.")
 
 	// Network Path
+	config.BindEnvAndSetDefault("network_path.enabled", false)
+	config.BindEnvAndSetDefault("network_path.workers", 4)
+	config.BindEnvAndSetDefault("network_path.input_chan_size", 1000)
+	config.BindEnvAndSetDefault("network_path.process_chan_size", 1000)
+	config.BindEnvAndSetDefault("network_path.pathtest_ttl", "15m")
+	config.BindEnvAndSetDefault("network_path.pathtest_interval", "5m")
+	config.BindEnvAndSetDefault("network_path.flush_interval", "10s")
 	bindEnvAndSetLogsConfigKeys(config, "network_path.forwarder.")
 
 	// Kube ApiServer

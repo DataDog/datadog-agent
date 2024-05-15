@@ -66,13 +66,13 @@ func newNoopNpSchedulerImpl() *npSchedulerImpl {
 	return &npSchedulerImpl{enabled: false}
 }
 
-func newNpSchedulerImpl(epForwarder eventplatform.Forwarder, logger log.Component, sysprobeYamlConfig config.Reader) *npSchedulerImpl {
-	workers := sysprobeYamlConfig.GetInt("network_path.workers")
-	pathtestInputChanSize := sysprobeYamlConfig.GetInt("network_path.input_chan_size")
-	pathtestProcessChanSize := sysprobeYamlConfig.GetInt("network_path.process_chan_size")
-	pathtestTTL := sysprobeYamlConfig.GetDuration("network_path.pathtest_ttl")
-	pathtestInterval := sysprobeYamlConfig.GetDuration("network_path.pathtest_interval")
-	flushInterval := sysprobeYamlConfig.GetDuration("network_path.flush_interval")
+func newNpSchedulerImpl(epForwarder eventplatform.Forwarder, logger log.Component, agentConfig config.Reader) *npSchedulerImpl {
+	workers := agentConfig.GetInt("network_path.workers")
+	pathtestInputChanSize := agentConfig.GetInt("network_path.input_chan_size")
+	pathtestProcessChanSize := agentConfig.GetInt("network_path.process_chan_size")
+	pathtestTTL := agentConfig.GetDuration("network_path.pathtest_ttl")
+	pathtestInterval := agentConfig.GetDuration("network_path.pathtest_interval")
+	flushInterval := agentConfig.GetDuration("network_path.flush_interval")
 
 	logger.Infof("New NpScheduler (workers=%d input_chan_size=%d pathtest_ttl=%s pathtest_interval=%s)",
 		workers,

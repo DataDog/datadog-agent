@@ -8,8 +8,8 @@ package npschedulerimpl
 import (
 	"context"
 
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
-	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	"github.com/DataDog/datadog-agent/comp/networkpath/npscheduler"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -21,7 +21,7 @@ type dependencies struct {
 	Lc          fx.Lifecycle
 	EpForwarder eventplatform.Component
 	Logger      log.Component
-	Sysconfig   sysprobeconfig.Component
+	AgentConfig config.Component
 }
 
 type provides struct {
@@ -40,7 +40,7 @@ func Module() fxutil.Module {
 func newNpScheduler(deps dependencies) provides {
 	var scheduler *npSchedulerImpl
 
-	networkPathEnabled := deps.Sysconfig.GetBool("network_path.enabled")
+	networkPathEnabled := deps.AgentConfig.GetBool("network_path.enabled")
 	if networkPathEnabled {
 		deps.Logger.Debugf("Network Path Scheduler enabled")
 		epForwarder, ok := deps.EpForwarder.Get()
@@ -48,7 +48,7 @@ func newNpScheduler(deps dependencies) provides {
 			deps.Logger.Errorf("Error getting EpForwarder")
 			scheduler = newNoopNpSchedulerImpl()
 		} else {
-			scheduler = newNpSchedulerImpl(epForwarder, deps.Logger, deps.Sysconfig)
+			scheduler = newNpSchedulerImpl(epForwarder, deps.Logger, deps.AgentConfig)
 			deps.Lc.Append(fx.Hook{
 				// No need for OnStart hook since NpScheduler.Init() will be called by clients when needed.
 				OnStart: func(context.Context) error {

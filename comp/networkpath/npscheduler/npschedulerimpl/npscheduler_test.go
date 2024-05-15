@@ -32,10 +32,10 @@ import (
 
 func Test_NpScheduler_StartAndStop(t *testing.T) {
 	// GIVEN
-	sysConfigs := map[string]any{
+	agentConfigs := map[string]any{
 		"network_path.enabled": true,
 	}
-	app, npScheduler := newTestNpScheduler(t, sysConfigs)
+	app, npScheduler := newTestNpScheduler(t, agentConfigs)
 
 	var b bytes.Buffer
 	w := bufio.NewWriter(&b)
@@ -74,11 +74,11 @@ func Test_NpScheduler_StartAndStop(t *testing.T) {
 
 func Test_NpScheduler_runningAndProcessing(t *testing.T) {
 	// GIVEN
-	sysConfigs := map[string]any{
+	agentConfigs := map[string]any{
 		"network_path.enabled":        true,
 		"network_path.flush_interval": "1s",
 	}
-	app, npScheduler := newTestNpScheduler(t, sysConfigs)
+	app, npScheduler := newTestNpScheduler(t, agentConfigs)
 
 	stats := &teststatsd.Client{}
 	npScheduler.statsdClient = stats
@@ -231,10 +231,10 @@ func Test_NpScheduler_runningAndProcessing(t *testing.T) {
 
 func Test_NpScheduler_ScheduleConns_ScheduleDurationMetric(t *testing.T) {
 	// GIVEN
-	sysConfigs := map[string]any{
+	agentConfigs := map[string]any{
 		"network_path.enabled": true,
 	}
-	_, npScheduler := newTestNpScheduler(t, sysConfigs)
+	_, npScheduler := newTestNpScheduler(t, agentConfigs)
 
 	stats := &teststatsd.Client{}
 	npScheduler.statsdClient = stats
@@ -274,11 +274,11 @@ func compactJSON(metadataEvent []byte) []byte {
 }
 
 func Test_newNpSchedulerImpl_defaultConfigs(t *testing.T) {
-	sysConfigs := map[string]any{
+	agentConfigs := map[string]any{
 		"network_path.enabled": true,
 	}
 
-	_, npScheduler := newTestNpScheduler(t, sysConfigs)
+	_, npScheduler := newTestNpScheduler(t, agentConfigs)
 
 	assert.Equal(t, true, npScheduler.enabled)
 	assert.Equal(t, 4, npScheduler.workers)
@@ -287,14 +287,14 @@ func Test_newNpSchedulerImpl_defaultConfigs(t *testing.T) {
 }
 
 func Test_newNpSchedulerImpl_overrideConfigs(t *testing.T) {
-	sysConfigs := map[string]any{
+	agentConfigs := map[string]any{
 		"network_path.enabled":           true,
 		"network_path.workers":           2,
 		"network_path.input_chan_size":   300,
 		"network_path.process_chan_size": 400,
 	}
 
-	_, npScheduler := newTestNpScheduler(t, sysConfigs)
+	_, npScheduler := newTestNpScheduler(t, agentConfigs)
 
 	assert.Equal(t, true, npScheduler.enabled)
 	assert.Equal(t, 2, npScheduler.workers)
@@ -307,26 +307,26 @@ func Test_npSchedulerImpl_ScheduleConns(t *testing.T) {
 		log   string
 		count int
 	}
-	defaultSysConfigs := map[string]any{
+	defaultagentConfigs := map[string]any{
 		"network_path.enabled": true,
 	}
 	tests := []struct {
 		name              string
 		conns             []*model.Connection
 		noInputChan       bool
-		sysConfigs        map[string]any
+		agentConfigs      map[string]any
 		expectedPathtests []*common.Pathtest
 		expectedLogs      []logCount
 	}{
 		{
 			name:              "zero conn",
-			sysConfigs:        defaultSysConfigs,
+			agentConfigs:      defaultagentConfigs,
 			conns:             []*model.Connection{},
 			expectedPathtests: []*common.Pathtest{},
 		},
 		{
-			name:       "one outgoing conn",
-			sysConfigs: defaultSysConfigs,
+			name:         "one outgoing conn",
+			agentConfigs: defaultagentConfigs,
 			conns: []*model.Connection{
 				{
 					Laddr:     &model.Addr{Ip: "127.0.0.3", Port: int32(30000)},
@@ -339,8 +339,8 @@ func Test_npSchedulerImpl_ScheduleConns(t *testing.T) {
 			},
 		},
 		{
-			name:       "only non-outgoing conns",
-			sysConfigs: defaultSysConfigs,
+			name:         "only non-outgoing conns",
+			agentConfigs: defaultagentConfigs,
 			conns: []*model.Connection{
 				{
 					Laddr:     &model.Addr{Ip: "127.0.0.1", Port: int32(30000)},
@@ -356,8 +356,8 @@ func Test_npSchedulerImpl_ScheduleConns(t *testing.T) {
 			expectedPathtests: []*common.Pathtest{},
 		},
 		{
-			name:       "ignore non-outgoing conn",
-			sysConfigs: defaultSysConfigs,
+			name:         "ignore non-outgoing conn",
+			agentConfigs: defaultagentConfigs,
 			conns: []*model.Connection{
 				{
 					Laddr:     &model.Addr{Ip: "127.0.0.1", Port: int32(30000)},
@@ -375,9 +375,9 @@ func Test_npSchedulerImpl_ScheduleConns(t *testing.T) {
 			},
 		},
 		{
-			name:        "no input chan",
-			sysConfigs:  defaultSysConfigs,
-			noInputChan: true,
+			name:         "no input chan",
+			agentConfigs: defaultagentConfigs,
+			noInputChan:  true,
 			conns: []*model.Connection{
 				{
 					Laddr:     &model.Addr{Ip: "127.0.0.3", Port: int32(30000)},
@@ -392,7 +392,7 @@ func Test_npSchedulerImpl_ScheduleConns(t *testing.T) {
 		},
 		{
 			name: "input chan is full",
-			sysConfigs: map[string]any{
+			agentConfigs: map[string]any{
 				"network_path.enabled":         true,
 				"network_path.input_chan_size": 1,
 			},
@@ -403,8 +403,8 @@ func Test_npSchedulerImpl_ScheduleConns(t *testing.T) {
 			},
 		},
 		{
-			name:       "only ipv4 supported",
-			sysConfigs: defaultSysConfigs,
+			name:         "only ipv4 supported",
+			agentConfigs: defaultagentConfigs,
 			conns: []*model.Connection{
 				{
 					Laddr:     &model.Addr{Ip: "::1", Port: int32(30000)},
@@ -432,7 +432,7 @@ func Test_npSchedulerImpl_ScheduleConns(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			_, npScheduler := newTestNpScheduler(t, tt.sysConfigs)
+			_, npScheduler := newTestNpScheduler(t, tt.agentConfigs)
 			if tt.noInputChan {
 				npScheduler.pathtestInputChan = nil
 			}
@@ -485,11 +485,11 @@ func Test_npSchedulerImpl_ScheduleConns(t *testing.T) {
 }
 
 func Test_npSchedulerImpl_stopWorker(t *testing.T) {
-	sysConfigs := map[string]any{
+	agentConfigs := map[string]any{
 		"network_path.enabled": true,
 	}
 
-	_, npScheduler := newTestNpScheduler(t, sysConfigs)
+	_, npScheduler := newTestNpScheduler(t, agentConfigs)
 
 	var b bytes.Buffer
 	w := bufio.NewWriter(&b)
@@ -547,10 +547,10 @@ func Test_npSchedulerImpl_flushWrapper(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// GIVEN
-			sysConfigs := map[string]any{
+			agentConfigs := map[string]any{
 				"network_path.enabled": true,
 			}
-			_, npScheduler := newTestNpScheduler(t, sysConfigs)
+			_, npScheduler := newTestNpScheduler(t, agentConfigs)
 
 			stats := &teststatsd.Client{}
 			npScheduler.statsdClient = stats
@@ -579,11 +579,11 @@ func Test_npSchedulerImpl_flushWrapper(t *testing.T) {
 
 func Test_npSchedulerImpl_flush(t *testing.T) {
 	// GIVEN
-	sysConfigs := map[string]any{
+	agentConfigs := map[string]any{
 		"network_path.enabled": true,
 		"network_path.workers": 6,
 	}
-	_, npScheduler := newTestNpScheduler(t, sysConfigs)
+	_, npScheduler := newTestNpScheduler(t, agentConfigs)
 
 	stats := &teststatsd.Client{}
 	npScheduler.statsdClient = stats
@@ -604,11 +604,11 @@ func Test_npSchedulerImpl_flush(t *testing.T) {
 
 func Test_npSchedulerImpl_sendTelemetry(t *testing.T) {
 	// GIVEN
-	sysConfigs := map[string]any{
+	agentConfigs := map[string]any{
 		"network_path.enabled": true,
 		"network_path.workers": 6,
 	}
-	_, npScheduler := newTestNpScheduler(t, sysConfigs)
+	_, npScheduler := newTestNpScheduler(t, agentConfigs)
 
 	stats := &teststatsd.Client{}
 	npScheduler.statsdClient = stats

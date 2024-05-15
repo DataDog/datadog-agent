@@ -15,7 +15,7 @@ import (
 	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
 	"github.com/DataDog/datadog-agent/comp/core"
-	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
 	"github.com/DataDog/datadog-agent/comp/ndmtmp/forwarder/forwarderimpl"
@@ -43,12 +43,12 @@ var testOptions = fx.Options(
 	eventplatformimpl.MockModule(),
 )
 
-func newTestNpScheduler(t *testing.T, sysConfigs map[string]any) (*fxtest.App, *npSchedulerImpl) {
+func newTestNpScheduler(t *testing.T, agentConfigs map[string]any) (*fxtest.App, *npSchedulerImpl) {
 	var component npscheduler.Component
 	app := fxtest.New(t, fx.Options(
 		testOptions,
 		fx.Supply(fx.Annotate(t, fx.As(new(testing.TB)))),
-		fx.Replace(sysprobeconfigimpl.MockParams{Overrides: sysConfigs}),
+		fx.Replace(config.MockParams{Overrides: agentConfigs}),
 		fx.Populate(&component),
 	))
 	npScheduler := component.(*npSchedulerImpl)
