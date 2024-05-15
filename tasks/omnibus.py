@@ -215,10 +215,10 @@ def build(
 
     if not target_project:
         target_project = "agent"
-        if flavor.is_iot():
-            target_project = "iot-agent"
-        elif agent_binaries:
-            target_project = "agent-binaries"
+    if flavor.is_iot():
+        target_project = "iot-agent"
+    elif agent_binaries:
+        target_project = "agent-binaries"
 
     # Get the python_mirror from the PIP_INDEX_URL environment variable if it is not passed in the args
     python_mirror = python_mirror or os.environ.get("PIP_INDEX_URL")
