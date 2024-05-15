@@ -1,9 +1,10 @@
+from __future__ import annotations
+
 import argparse
 import json
 import os
 import re
 import traceback
-from typing import Union
 
 
 def normalize_metrics(stage, aws_account_id):
@@ -320,7 +321,7 @@ if __name__ == '__main__':
 
         print(normalize(args.logs, args.type, args.stage, args.accountid))
     except Exception as e:
-        err: dict[str, Union[str, list[str]]] = {
+        err: dict[str, str | list[str]] = {
             "error": "normalization raised exception",
         }
         # Unless explicitly specified, perform as it did historically

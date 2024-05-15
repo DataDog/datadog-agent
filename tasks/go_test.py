@@ -1,9 +1,8 @@
 """
 High level testing tasks
 """
-# TODO: check if we really need the typing import.
-# Recent versions of Python should be able to use dict and list directly in type hints,
-# so we only need to check that we don't run this code with old Python versions.
+
+from __future__ import annotations
 
 import fnmatch
 import glob
@@ -16,7 +15,6 @@ import sys
 from collections import defaultdict
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List
 
 from invoke import task
 from invoke.exceptions import Exit
@@ -24,13 +22,13 @@ from invoke.exceptions import Exit
 from tasks.agent import integration_tests as agent_integration_tests
 from tasks.build_tags import compute_build_tags_for_flavor
 from tasks.cluster_agent import integration_tests as dca_integration_tests
+from tasks.devcontainer import run_on_devcontainer
 from tasks.dogstatsd import integration_tests as dsd_integration_tests
 from tasks.flavor import AgentFlavor
 from tasks.libs.common.color import color_message
 from tasks.libs.common.datadog_api import create_count, send_metrics
 from tasks.libs.common.junit_upload_core import enrich_junitxml, produce_junit_tar
 from tasks.libs.common.utils import clean_nested_paths, collapsed_section, get_build_flags
-from tasks.linter import _lint_go
 from tasks.modules import DEFAULT_MODULES, GoModule
 from tasks.test_core import ModuleTestResult, process_input_args, process_module_results, test_core
 from tasks.testwasher import TestWasher
@@ -78,10 +76,10 @@ def ensure_bytes(s):
 
 def build_standard_lib(
     ctx,
-    build_tags: List[str],
+    build_tags: list[str],
     cmd: str,
-    env: Dict[str, str],
-    args: Dict[str, str],
+    env: dict[str, str],
+    args: dict[str, str],
     test_profiler: TestProfiler,
 ):
     """
@@ -179,11 +177,11 @@ powershell.exe -executionpolicy Bypass -file {GO_COV_TEST_PATH}.ps1 %*"""
 def test_flavor(
     ctx,
     flavor: AgentFlavor,
-    build_tags: List[str],
-    modules: List[GoModule],
+    build_tags: list[str],
+    modules: list[GoModule],
     cmd: str,
-    env: Dict[str, str],
-    args: Dict[str, str],
+    env: dict[str, str],
+    args: dict[str, str],
     junit_tar: str,
     save_result_json: str,
     test_profiler: TestProfiler,
@@ -246,7 +244,7 @@ def test_flavor(
 def coverage_flavor(
     ctx,
     flavor: AgentFlavor,
-    modules: List[GoModule],
+    modules: list[GoModule],
 ):
     """
     Prints the code coverage of all modules for the given flavor.
@@ -264,7 +262,7 @@ def coverage_flavor(
 def codecov_flavor(
     ctx,
     flavor: AgentFlavor,
-    modules: List[GoModule],
+    modules: list[GoModule],
 ):
     """
     Uploads coverage data of all modules for the given flavor.
@@ -327,6 +325,7 @@ def process_test_result(test_results: ModuleTestResult, junit_tar: str, flavor: 
 
 
 @task
+@run_on_devcontainer
 def test(
     ctx,
     module=None,
@@ -359,6 +358,7 @@ def test(
     skip_flakes=False,
     build_stdlib=False,
     test_washer=False,
+    run_on=None,  # noqa: U100, F841. Used by the run_on_devcontainer decorator
 ):
     """
     Run go tests on the given module and targets.
@@ -553,7 +553,7 @@ def e2e_tests(ctx, target="gitlab", agent_image="", dca_image="", argo_workflow=
 
 
 @task
-def get_modified_packages(ctx, build_tags=None) -> List[GoModule]:
+def get_modified_packages(ctx, build_tags=None) -> list[GoModule]:
     modified_files = get_modified_files(ctx)
     modified_go_files = [
         f"./{file}" for file in modified_files if file.endswith(".go") or file.endswith(".mod") or file.endswith(".sum")
@@ -954,7 +954,7 @@ def should_run_all_tests(files, trigger_files):
     return False
 
 
-@task(iterable=['flavors'])
+@task
 def lint_go(
     ctx,
     module=None,
@@ -971,21 +971,6 @@ def lint_go(
     golangci_lint_kwargs="",
     headless_mode=False,
     include_sds=False,
+    only_modified_packages=False,
 ):
-    _lint_go(
-        ctx,
-        module,
-        targets,
-        flavor,
-        build,
-        build_tags,
-        build_include,
-        build_exclude,
-        rtloader_root,
-        arch,
-        cpus,
-        timeout,
-        golangci_lint_kwargs,
-        headless_mode,
-        include_sds,
-    )
+    raise Exit("This task is deprecated, please use `inv linter.go`", 1)

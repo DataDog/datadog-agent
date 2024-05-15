@@ -433,6 +433,9 @@ def ninja_cgo_type_files(nw):
                 "pkg/network/ebpf/c/tracer/tracer.h",
                 "pkg/network/ebpf/c/protocols/kafka/types.h",
             ],
+            "pkg/network/protocols/postgres/types.go": [
+                "pkg/network/ebpf/c/protocols/postgres/types.h",
+            ],
             "pkg/ebpf/telemetry/types.go": [
                 "pkg/ebpf/c/telemetry_types.h",
             ],

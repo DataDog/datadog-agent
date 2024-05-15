@@ -9,9 +9,9 @@ package autoexitimpl
 import (
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/cmd/manager"
 	"github.com/DataDog/datadog-agent/comp/agent/autoexit"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/log"
 	pkgcommon "github.com/DataDog/datadog-agent/pkg/util/common"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -27,13 +27,13 @@ type dependencies struct {
 	fx.In
 
 	Config config.Component
+	Log    log.Component
 }
 
-// ConfigureAutoExit starts automatic shutdown mechanism if necessary
 func newAutoExit(deps dependencies) (autoexit.Component, error) {
 
 	ctx, _ := pkgcommon.GetMainCtxCancel()
-	err := manager.ConfigureAutoExit(ctx, deps.Config)
+	err := configureAutoExit(ctx, deps.Config, deps.Log)
 
 	return struct{}{}, err
 }

@@ -52,7 +52,6 @@ components_to_migrate = [
     "comp/dogstatsd/replay/component.go",
     "comp/dogstatsd/server/component.go",
     "comp/forwarder/defaultforwarder/component.go",
-    "comp/logs/agent/component.go",
     "comp/metadata/inventoryagent/component.go",
     "comp/netflow/config/component.go",
     "comp/netflow/server/component.go",

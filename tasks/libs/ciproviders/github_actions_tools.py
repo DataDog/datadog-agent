@@ -65,7 +65,7 @@ def trigger_macos_workflow(
         inputs["integrations_core_ref"] = integrations_core_ref
 
     if test_washer:
-        inputs["test_washer"] = test_washer
+        inputs["test_washer"] = "true"
 
     # Test-only input, only to be passed to the test workflow
     if "GO_TEST_SKIP_FLAKE" in os.environ and workflow_name == "test.yaml":

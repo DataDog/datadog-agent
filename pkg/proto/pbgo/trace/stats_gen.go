@@ -135,7 +135,7 @@ func (z *ClientGroupedStats) DecodeMsg(dc *msgp.Reader) (err error) {
 					err = msgp.WrapError(err, "IsTraceRoot")
 					return
 				}
-				z.IsTraceRoot = TraceRootFlag(zb0003)
+				z.IsTraceRoot = Trilean(zb0003)
 			}
 		default:
 			err = dc.Skip()
@@ -508,7 +508,7 @@ func (z *ClientGroupedStats) UnmarshalMsg(bts []byte) (o []byte, err error) {
 					err = msgp.WrapError(err, "IsTraceRoot")
 					return
 				}
-				z.IsTraceRoot = TraceRootFlag(zb0003)
+				z.IsTraceRoot = Trilean(zb0003)
 			}
 		default:
 			bts, err = msgp.Skip(bts)
@@ -1787,6 +1787,58 @@ func (z *TraceRootFlag) UnmarshalMsg(bts []byte) (o []byte, err error) {
 
 // Msgsize returns an upper bound estimate of the number of bytes occupied by the serialized message
 func (z TraceRootFlag) Msgsize() (s int) {
+	s = msgp.Int32Size
+	return
+}
+
+// DecodeMsg implements msgp.Decodable
+func (z *Trilean) DecodeMsg(dc *msgp.Reader) (err error) {
+	{
+		var zb0001 int32
+		zb0001, err = dc.ReadInt32()
+		if err != nil {
+			err = msgp.WrapError(err)
+			return
+		}
+		(*z) = Trilean(zb0001)
+	}
+	return
+}
+
+// EncodeMsg implements msgp.Encodable
+func (z Trilean) EncodeMsg(en *msgp.Writer) (err error) {
+	err = en.WriteInt32(int32(z))
+	if err != nil {
+		err = msgp.WrapError(err)
+		return
+	}
+	return
+}
+
+// MarshalMsg implements msgp.Marshaler
+func (z Trilean) MarshalMsg(b []byte) (o []byte, err error) {
+	o = msgp.Require(b, z.Msgsize())
+	o = msgp.AppendInt32(o, int32(z))
+	return
+}
+
+// UnmarshalMsg implements msgp.Unmarshaler
+func (z *Trilean) UnmarshalMsg(bts []byte) (o []byte, err error) {
+	{
+		var zb0001 int32
+		zb0001, bts, err = msgp.ReadInt32Bytes(bts)
+		if err != nil {
+			err = msgp.WrapError(err)
+			return
+		}
+		(*z) = Trilean(zb0001)
+	}
+	o = bts
+	return
+}
+
+// Msgsize returns an upper bound estimate of the number of bytes occupied by the serialized message
+func (z Trilean) Msgsize() (s int) {
 	s = msgp.Int32Size
 	return
 }
