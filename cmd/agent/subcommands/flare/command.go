@@ -152,7 +152,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	flareCmd.Flags().IntVarP(&cliParams.profileMutexFraction, "profile-mutex-fraction", "", 100, "Set the fraction of mutex contention events that are reported in the mutex profile")
 	flareCmd.Flags().BoolVarP(&cliParams.profileBlocking, "profile-blocking", "B", false, "Add gorouting blocking profile to the performance data in the flare")
 	flareCmd.Flags().IntVarP(&cliParams.profileBlockingRate, "profile-blocking-rate", "", 10000, "Set the fraction of goroutine blocking events that are reported in the blocking profile")
-	flareCmd.Flags().DurationVarP(&cliParams.withStreamLogs, "with-stream-logs", "L", -1*time.Second, "Add stream-logs data to the flare. It will collect logs for the amount of seconds passed to the flag")
+	flareCmd.Flags().DurationVarP(&cliParams.withStreamLogs, "with-stream-logs", "L", 0*time.Second, "Add stream-logs data to the flare. It will collect logs for the amount of seconds passed to the flag")
 	flareCmd.SetArgs([]string{"caseID"})
 
 	return []*cobra.Command{flareCmd}
@@ -284,11 +284,8 @@ func makeFlare(flareComp flare.Component,
 		Quiet:    true,
 	}
 
-	// Set default duration to 60 seconds if not provided by the user
-	const defaultStreamLogDuration = 60 * time.Second
-	if streamLogParams.Duration <= 0 {
-		fmt.Fprintln(color.Output, color.YellowString("Invalid duration provided for streaming logs, defaulting to 60 seconds."))
-		streamLogParams.Duration = defaultStreamLogDuration
+	if streamLogParams.Duration < 0 {
+		fmt.Fprintln(color.Output, color.YellowString("Invalid duration provided for streaming logs, please provide a positive value"))
 	}
 
 	fmt.Fprintln(color.Output, color.BlueString("NEW: You can now generate a flare from the comfort of your Datadog UI!"))
