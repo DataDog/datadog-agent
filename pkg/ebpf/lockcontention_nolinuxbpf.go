@@ -20,11 +20,7 @@ func NewLockContentionCollector() *LockContentionCollector {
 }
 
 // Collect does nothing
-func (l *LockContentionCollector) Collect(_ chan<- prometheus.Metric) {
-	return
-}
+func (l *LockContentionCollector) Collect(_ chan<- prometheus.Metric) {}
 
 // Describe does nothing
-func (l *LockContentionCollector) Describe(_ chan<- *prometheus.Desc) {
-	return
-}
+func (l *LockContentionCollector) Describe(_ chan<- *prometheus.Desc) {}
