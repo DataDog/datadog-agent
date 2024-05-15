@@ -3664,17 +3664,17 @@ func (ev *Event) GetMmapFileUser() string {
 }
 
 // GetMmapFlags returns the value of the field, resolving if necessary
-func (ev *Event) GetMmapFlags() int {
+func (ev *Event) GetMmapFlags() uint64 {
 	if ev.GetEventType().String() != "mmap" {
-		return 0
+		return uint64(0)
 	}
 	return ev.MMap.Flags
 }
 
 // GetMmapProtection returns the value of the field, resolving if necessary
-func (ev *Event) GetMmapProtection() int {
+func (ev *Event) GetMmapProtection() uint64 {
 	if ev.GetEventType().String() != "mmap" {
-		return 0
+		return uint64(0)
 	}
 	return ev.MMap.Protection
 }

@@ -30,6 +30,7 @@ from tasks.libs.common.utils import (
 from tasks.libs.types.version import Version
 from tasks.modules import DEFAULT_MODULES
 from tasks.pipeline import edit_schedule, run
+from tasks.release_metrics.metrics import get_prs_metrics, get_release_lead_time
 
 # Generic version regex. Aims to match:
 # - X.Y.Z
@@ -1762,3 +1763,40 @@ def get_active_release_branch(_ctx):
         print(f"{release_branch.name}")
     else:
         print("main")
+
+
+@task
+def generate_release_metrics(ctx, milestone, freeze_date, release_date):
+    """
+    Task to run after the release is done to generate release metrics.
+
+    milestone - github milestone number for the release. Expected format like '7.54.0'
+    freeze_date - date when the code freeze was started. Expected format YYYY-MM-DD, like '2022-02-01'
+    release_date - date when the release was done. Expected format YYYY-MM-DD, like '2022-09-15'
+
+    Results are formatted in a way that can be easily copied to https://docs.google.com/spreadsheets/d/1r39CtyuvoznIDx1JhhLHQeAzmJB182n7ln8nToiWQ8s/edit#gid=1490566519
+    Copy paste numbers to the respective sheets and select 'Split text to columns'.
+    """
+
+    # Step 1: Lead Time for Changes data
+    lead_time = get_release_lead_time(freeze_date, release_date)
+    print("Lead Time for Changes data")
+    print("--------------------------")
+    print(lead_time)
+
+    # Step 2: Agent stability data
+    prs = get_prs_metrics(milestone, freeze_date)
+    print("\n")
+    print("Agent stability data")
+    print("--------------------")
+    print(f"{prs['total']}, {prs['before_freeze']}, {prs['on_freeze']}, {prs['after_freeze']}")
+
+    # Step 3: Code changes
+    code_stats = ctx.run(
+        f"git log --shortstat {milestone}-devel..{milestone} | grep \"files changed\" | awk '{{files+=$1; inserted+=$4; deleted+=$6}} END {{print files,\",\", inserted,\",\", deleted}}'",
+        hide=True,
+    ).stdout.strip()
+    print("\n")
+    print("Code changes")
+    print("------------")
+    print(code_stats)

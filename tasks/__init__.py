@@ -42,6 +42,7 @@ from tasks import (
     sds,
     security_agent,
     selinux,
+    setup,
     system_probe,
     systray,
     trace_agent,
@@ -97,7 +98,6 @@ ns.add_task(deps_vendored)
 ns.add_task(lint_licenses)
 ns.add_task(generate_licenses)
 ns.add_task(lint_components)
-ns.add_task(lint_go)
 ns.add_task(lint_fxutil_oneshot_test)
 ns.add_task(generate_protobuf)
 ns.add_task(reset)
@@ -122,9 +122,10 @@ ns.add_task(fuzz)
 ns.add_task(go_fix)
 ns.add_task(build_messagetable)
 ns.add_task(get_impacted_packages)
-
 ns.add_task(get_modified_packages)
 ns.add_task(send_unit_tests_stats)
+# To deprecate
+ns.add_task(lint_go)
 
 # add namespaced tasks to the root
 ns.add_collection(agent)
@@ -150,6 +151,7 @@ ns.add_collection(notify)
 ns.add_collection(otel_agent)
 ns.add_collection(sds)
 ns.add_collection(selinux)
+ns.add_collection(setup)
 ns.add_collection(systray)
 ns.add_collection(release)
 ns.add_collection(rtloader)

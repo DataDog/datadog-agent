@@ -81,7 +81,11 @@ func netflowDockerProvisioner() e2e.Provisioner {
 			return err
 		}
 
-		dockerManager, _, err := docker.NewManager(&awsEnv, host, utils.PulumiDependsOn(installEcrCredsHelperCmd))
+		dockerManager, err := docker.NewManager(&awsEnv, host, utils.PulumiDependsOn(installEcrCredsHelperCmd))
+		if err != nil {
+			return err
+		}
+		err = dockerManager.Export(ctx, &env.Docker.ManagerOutput)
 		if err != nil {
 			return err
 		}
