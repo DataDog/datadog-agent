@@ -104,11 +104,6 @@ func (h *eventConsumerWrapper) HandleEvent(ev any) {
 
 	m := theMonitor.Load()
 	if m != nil {
-		if !evProcess.ExecTime.IsZero() {
-			evProcess.StartTime = evProcess.ExecTime.UnixNano()
-		} else if !evProcess.ForkTime.IsZero() {
-			evProcess.StartTime = evProcess.ForkTime.UnixNano()
-		}
 		m.(*eventMonitor).HandleEvent(evProcess)
 	}
 }
@@ -151,12 +146,6 @@ func (h *eventConsumerWrapper) Copy(ev *model.Event) any {
 	}
 
 	return p
-}
-
-// monitor is not initialized, no need to copy the event
-// since it will get dropped by the handler anyway
-func (h *eventConsumerWrapper) IsReady() bool {
-	return theMonitor.Load() != nil
 }
 
 // EventTypes returns the event types handled by this consumer

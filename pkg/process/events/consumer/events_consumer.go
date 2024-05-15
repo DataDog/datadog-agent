@@ -86,11 +86,6 @@ func (p *ProcessConsumer) SendStats() {
 	}
 }
 
-// IsReady implements the event consumer interface
-func (p *ProcessConsumer) IsReady() bool {
-	return true
-}
-
 // ChanSize returns the chan size used by this consumer
 func (p *ProcessConsumer) ChanSize() int {
 	return chanSize

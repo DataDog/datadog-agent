@@ -68,7 +68,6 @@ type EventConsumerInterface interface {
 	HandleEvent(_ any)
 	Copy(_ *model.Event) any
 	EventTypes() []model.EventType
-	IsReady() bool
 }
 
 // EventConsumer defines a probe event consumer
@@ -296,10 +295,6 @@ func (p *Probe) sendEventToHandlers(event *model.Event) {
 
 func (p *Probe) sendEventToConsumers(event *model.Event) {
 	for _, pc := range p.eventConsumers[event.GetEventType()] {
-		if !pc.consumer.IsReady() {
-			continue
-		}
-
 		if copied := pc.consumer.Copy(event); copied != nil {
 			select {
 			case pc.eventCh <- copied:
