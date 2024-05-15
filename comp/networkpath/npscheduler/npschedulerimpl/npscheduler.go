@@ -264,16 +264,16 @@ func (s *npSchedulerImpl) flushLoop() {
 	}
 }
 
-func (s *npSchedulerImpl) flushWrapper(now time.Time, lastFlushTime time.Time) {
-	s.logger.Debugf("Flush loop at %s", now)
+func (s *npSchedulerImpl) flushWrapper(startFlushTime time.Time, lastFlushTime time.Time) {
+	s.logger.Debugf("Flush loop at %s", startFlushTime)
 	if !lastFlushTime.IsZero() {
-		flushInterval := now.Sub(lastFlushTime)
+		flushInterval := startFlushTime.Sub(lastFlushTime)
 		s.statsdClient.Gauge("datadog.network_path.scheduler.flush_interval", flushInterval.Seconds(), []string{}, 1) //nolint:errcheck
 	}
-	lastFlushTime = now
+	lastFlushTime = startFlushTime
 
 	s.flush()
-	s.statsdClient.Gauge("datadog.network_path.scheduler.flush_duration", s.TimeNowFn().Sub(now).Seconds(), []string{}, 1) //nolint:errcheck
+	s.statsdClient.Gauge("datadog.network_path.scheduler.flush_duration", s.TimeNowFn().Sub(startFlushTime).Seconds(), []string{}, 1) //nolint:errcheck
 }
 
 func (s *npSchedulerImpl) flush() {
