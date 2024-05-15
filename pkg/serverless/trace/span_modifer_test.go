@@ -38,6 +38,8 @@ func (m *mockTraceWriter) Stop() {
 }
 
 func (m *mockTraceWriter) WriteChunks(pkg *writer.SampledChunks) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	m.payloads = append(m.payloads, pkg)
 }
 

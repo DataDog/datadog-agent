@@ -55,14 +55,15 @@ func NewTestAgent(ctx context.Context, conf *config.AgentConfig, telemetryCollec
 }
 
 type mockTraceWriter struct {
+	mu       sync.Mutex
 	payloads []*writer.SampledChunks
 }
 
-func (m *mockTraceWriter) Stop() {
-	panic("not implemented")
-}
+func (m *mockTraceWriter) Stop() {}
 
 func (m *mockTraceWriter) WriteChunks(pkg *writer.SampledChunks) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	m.payloads = append(m.payloads, pkg)
 }
 
