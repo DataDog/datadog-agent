@@ -5,29 +5,27 @@
 
 //go:build kubeapiserver
 
-package apiserver
+package controllers
 
 import (
 	"context"
 	"math"
 	"time"
 
-	dynamic_client "k8s.io/client-go/dynamic"
-	dynamic_informer "k8s.io/client-go/dynamic/dynamicinformer"
-
 	apis_v1alpha1 "github.com/DataDog/watermarkpodautoscaler/api/v1alpha1"
-
 	"github.com/cenkalti/backoff"
-
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
+	dynamic_client "k8s.io/client-go/dynamic"
+	dynamic_informer "k8s.io/client-go/dynamic/dynamicinformer"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/custommetrics"
 	"github.com/DataDog/datadog-agent/pkg/errors"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/autoscalers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -196,7 +194,7 @@ func (h *AutoscalersController) syncWPA(key interface{}) error {
 		return err
 	}
 	wpaCached := &apis_v1alpha1.WatermarkPodAutoscaler{}
-	err = UnstructuredIntoWPA(wpaCachedObj, wpaCached)
+	err = apiserver.UnstructuredIntoWPA(wpaCachedObj, wpaCached)
 	if err != nil {
 		log.Errorf("Could not cast wpa %s retrieved from cache to wpa structure: %v", key, err)
 		return err
@@ -231,7 +229,7 @@ func (h *AutoscalersController) syncWPA(key interface{}) error {
 
 func (h *AutoscalersController) addWPAutoscaler(obj interface{}) {
 	newAutoscaler := &apis_v1alpha1.WatermarkPodAutoscaler{}
-	if err := UnstructuredIntoWPA(obj, newAutoscaler); err != nil {
+	if err := apiserver.UnstructuredIntoWPA(obj, newAutoscaler); err != nil {
 		log.Errorf("Unable to cast obj %s to a WPA: %v", obj, err)
 		return
 	}
@@ -243,12 +241,12 @@ func (h *AutoscalersController) addWPAutoscaler(obj interface{}) {
 //nolint:revive // TODO(CAPP) Fix revive linter
 func (h *AutoscalersController) updateWPAutoscaler(old, obj interface{}) {
 	newAutoscaler := &apis_v1alpha1.WatermarkPodAutoscaler{}
-	if err := UnstructuredIntoWPA(obj, newAutoscaler); err != nil {
+	if err := apiserver.UnstructuredIntoWPA(obj, newAutoscaler); err != nil {
 		log.Errorf("Unable to cast obj %s to a WPA: %v", obj, err)
 		return
 	}
 	oldAutoscaler := &apis_v1alpha1.WatermarkPodAutoscaler{}
-	if err := UnstructuredIntoWPA(obj, oldAutoscaler); err != nil {
+	if err := apiserver.UnstructuredIntoWPA(obj, oldAutoscaler); err != nil {
 		log.Errorf("Unable to cast obj %s to a WPA: %v", obj, err)
 		h.enqueueWPA(newAutoscaler) // We still want to enqueue the newAutoscaler to get the new change
 		return
@@ -274,7 +272,7 @@ func (h *AutoscalersController) deleteWPAutoscaler(obj interface{}) {
 	defer h.mu.Unlock()
 	toDelete := &custommetrics.MetricsBundle{}
 	deletedWPA := &apis_v1alpha1.WatermarkPodAutoscaler{}
-	if err := UnstructuredIntoWPA(obj, deletedWPA); err == nil {
+	if err := apiserver.UnstructuredIntoWPA(obj, deletedWPA); err == nil {
 		toDelete.External = autoscalers.InspectWPA(deletedWPA)
 		h.deleteFromLocalStore(toDelete.External)
 		log.Debugf("Deleting %s/%s from the local cache", deletedWPA.Namespace, deletedWPA.Name)
@@ -293,7 +291,7 @@ func (h *AutoscalersController) deleteWPAutoscaler(obj interface{}) {
 		log.Errorf("Could not get object from tombstone %#v", obj)
 		return
 	}
-	if err := UnstructuredIntoWPA(tombstone, deletedWPA); err != nil {
+	if err := apiserver.UnstructuredIntoWPA(tombstone, deletedWPA); err != nil {
 		log.Errorf("Tombstone contained object that is not an Autoscaler: %#v", obj)
 		return
 	}

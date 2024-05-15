@@ -129,7 +129,7 @@ func (m serviceMapper) MapOnRef(_ string, pods []*kubelet.Pod, endpointList v1.E
 
 // mapServices maps each pod (endpoint) to the metadata associated with it.
 // It is on a per node basis to avoid mixing up the services pods are actually connected to if all pods of different nodes share a similar subnet, therefore sharing a similar IP.
-func (metaBundle *metadataMapperBundle) mapServices(nodeName string, pods []*kubelet.Pod, endpointList v1.EndpointsList) error {
+func (metaBundle *MetadataMapperBundle) mapServices(nodeName string, pods []*kubelet.Pod, endpointList v1.EndpointsList) error {
 	var err error
 	serviceMapper := ConvertToServiceMapper(metaBundle.Services)
 	if metaBundle.mapOnIP {

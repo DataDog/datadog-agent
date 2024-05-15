@@ -5,7 +5,7 @@
 
 //go:build kubeapiserver
 
-package apiserver
+package controllers
 
 import (
 	"fmt"
@@ -22,6 +22,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	agentcache "github.com/DataDog/datadog-agent/pkg/util/cache"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -277,7 +278,7 @@ func (m *MetadataController) deleteMappedEndpoints(namespace, svc string) error 
 			// Nothing to delete.
 			continue
 		}
-		newMetaBundle := newMetadataMapperBundle()
+		newMetaBundle := apiserver.NewMetadataMapperBundle()
 		newMetaBundle.DeepCopy(oldBundle)
 		newMetaBundle.Services.Delete(namespace, svc)
 
@@ -288,14 +289,14 @@ func (m *MetadataController) deleteMappedEndpoints(namespace, svc string) error 
 
 // GetPodMetadataNames is used when the API endpoint of the DCA to get the metadata of a pod is hit.
 func GetPodMetadataNames(nodeName, ns, podName string) ([]string, error) {
-	cacheKey := agentcache.BuildAgentKey(metadataMapperCachePrefix, nodeName)
+	cacheKey := agentcache.BuildAgentKey(apiserver.MetadataMapperCachePrefix, nodeName)
 	metaBundleInterface, found := agentcache.Cache.Get(cacheKey)
 	if !found {
 		log.Tracef("no metadata was found for the pod %s on node %s", podName, nodeName)
 		return nil, nil
 	}
 
-	metaBundle, ok := metaBundleInterface.(*metadataMapperBundle)
+	metaBundle, ok := metaBundleInterface.(*apiserver.MetadataMapperBundle)
 	if !ok {
 		return nil, fmt.Errorf("invalid cache format for the cacheKey: %s", cacheKey)
 	}

@@ -5,7 +5,7 @@
 
 //go:build kubeapiserver
 
-package apiserver
+package controllers
 
 import (
 	"context"
@@ -30,6 +30,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	apiv1 "github.com/DataDog/datadog-agent/pkg/clusteragent/api/v1"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/testutil"
 )
 
@@ -461,14 +462,14 @@ func TestMetadataController(t *testing.T) {
 		return true
 	})
 
-	cl := &APIClient{Cl: client, defaultClientTimeout: 5}
+	cl := &apiserver.APIClient{Cl: client}
 
 	testutil.AssertTrueBeforeTimeout(t, 100*time.Millisecond, 2*time.Second, func() bool {
-		fullmapper, errList := GetMetadataMapBundleOnAllNodes(cl)
+		fullmapper, errList := apiserver.GetMetadataMapBundleOnAllNodes(cl)
 		require.Nil(t, errList)
 		list := fullmapper.Nodes
 		assert.Contains(t, list, "ip-172-31-119-125")
-		bundle := metadataMapperBundle{Services: list["ip-172-31-119-125"].Services}
+		bundle := apiserver.MetadataMapperBundle{Services: list["ip-172-31-119-125"].Services}
 		services, found := bundle.ServicesForPod(metav1.NamespaceDefault, "nginx")
 		if !found {
 			return false

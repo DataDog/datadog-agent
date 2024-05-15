@@ -5,7 +5,7 @@
 
 //go:build !race && kubeapiserver
 
-package apiserver
+package controllers
 
 import (
 	"context"

@@ -17,12 +17,12 @@ const kubeServiceIDPrefix = "kube_service://"
 
 // ServicesForPod returns the services mapped to a given pod and namespace.
 // If nothing is found, the boolean is false. This call is thread-safe.
-func (metaBundle *metadataMapperBundle) ServicesForPod(ns, podName string) ([]string, bool) {
+func (metaBundle *MetadataMapperBundle) ServicesForPod(ns, podName string) ([]string, bool) {
 	return metaBundle.Services.Get(ns, podName)
 }
 
-// DeepCopy used to copy data between two metadataMapperBundle
-func (metaBundle *metadataMapperBundle) DeepCopy(old *metadataMapperBundle) *metadataMapperBundle {
+// DeepCopy used to copy data between two MetadataMapperBundle
+func (metaBundle *MetadataMapperBundle) DeepCopy(old *MetadataMapperBundle) *MetadataMapperBundle {
 	if metaBundle == nil || old == nil {
 		return metaBundle
 	}

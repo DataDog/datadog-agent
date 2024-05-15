@@ -5,7 +5,7 @@
 
 //go:build kubeapiserver
 
-package apiserver
+package controllers
 
 import (
 	"sync"

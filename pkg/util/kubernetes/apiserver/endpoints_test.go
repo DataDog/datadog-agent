@@ -15,6 +15,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	v1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 )
 
 func TestSearchTargetPerName(t *testing.T) {
@@ -88,5 +90,30 @@ func TestSearchTargetPerName(t *testing.T) {
 				assert.Equal(t, tc.expectedIP, target.IP)
 			}
 		})
+	}
+}
+
+func newFakePod(namespace, name, uid, ip string) v1.Pod {
+	return v1.Pod{
+		TypeMeta: metav1.TypeMeta{Kind: "Pod"},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: namespace,
+			UID:       types.UID(uid),
+		},
+		Status: v1.PodStatus{PodIP: ip},
+	}
+}
+
+func newFakeEndpointAddress(nodeName string, pod v1.Pod) v1.EndpointAddress {
+	return v1.EndpointAddress{
+		IP:       pod.Status.PodIP,
+		NodeName: &nodeName,
+		TargetRef: &v1.ObjectReference{
+			Kind:      pod.Kind,
+			Namespace: pod.Namespace,
+			Name:      pod.Name,
+			UID:       pod.UID,
+		},
 	}
 }

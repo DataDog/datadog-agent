@@ -11,9 +11,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/autoscalers"
 )
 
-var dogCl autoscalers.DatadogClient
+// DogCl is the Datadog client
+var DogCl autoscalers.DatadogClient
 
 // GetStatus returns the status of the autoscalers
 func GetStatus() map[string]interface{} {
-	return autoscalers.GetStatus(dogCl)
+	return autoscalers.GetStatus(DogCl)
 }

@@ -5,13 +5,14 @@
 
 //go:build kubeapiserver
 
-package apiserver
+package controllers
 
 import (
 	"fmt"
 	"reflect"
 	"time"
 
+	"github.com/DataDog/watermarkpodautoscaler/api/v1alpha1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/client-go/kubernetes"
@@ -19,10 +20,9 @@ import (
 	"k8s.io/client-go/tools/record"
 	"k8s.io/client-go/util/workqueue"
 
-	"github.com/DataDog/watermarkpodautoscaler/api/v1alpha1"
-
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/custommetrics"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/autoscalers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -106,7 +106,7 @@ func (h *AutoscalersController) gc() {
 		log.Debugf("Garbage collection over %d WPAs", len(wpaListObj))
 		for _, obj := range wpaListObj {
 			tmp := &v1alpha1.WatermarkPodAutoscaler{}
-			if err := UnstructuredIntoWPA(obj, tmp); err != nil {
+			if err := apiserver.UnstructuredIntoWPA(obj, tmp); err != nil {
 				log.Errorf("Unable to cast object from local cache into a WPA: %v", err)
 				continue
 			}

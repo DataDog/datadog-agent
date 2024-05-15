@@ -44,14 +44,6 @@ func WaitForAPIClient(ctx context.Context) (*APIClient, error) {
 	return &APIClient{}, nil
 }
 
-// GetPodMetadataNames is used when the API endpoint of the DCA to get the services of a pod is hit.
-//
-//nolint:revive // TODO(CINT) Fix revive linter
-func GetPodMetadataNames(nodeName, ns, podName string) ([]string, error) {
-	log.Errorf("GetPodMetadataNames not implemented %s", ErrNotCompiled.Error())
-	return nil, nil
-}
-
 // GetMetadataMapBundleOnNode is used for the CLI svcmap command to output given a nodeName
 //
 //nolint:revive // TODO(CINT) Fix revive linter
