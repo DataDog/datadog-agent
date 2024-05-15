@@ -653,7 +653,7 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 		}
 		return testMod, nil
 
-	} else if testMod != nil && opts.staticOpts.Equal(testMod.opts.staticOpts) {
+	} else if !opts.forceReload && testMod != nil && opts.staticOpts.Equal(testMod.opts.staticOpts) {
 		testMod.st = st
 		testMod.cmdWrapper = cmdWrapper
 		testMod.t = t

@@ -67,6 +67,7 @@ type dynamicTestOpts struct {
 type tmOpts struct {
 	staticOpts  testOpts
 	dynamicOpts dynamicTestOpts
+	forceReload bool
 }
 
 type optFunc = func(opts *tmOpts)
@@ -82,6 +83,13 @@ func withDynamicOpts(opts dynamicTestOpts) optFunc {
 		tmo.dynamicOpts = opts
 	}
 }
+
+func withForceReload() optFunc {
+	return func(tmo *tmOpts) {
+		tmo.forceReload = true
+	}
+}
+
 func (to testOpts) Equal(opts testOpts) bool {
 	return to.disableApprovers == opts.disableApprovers &&
 		to.enableActivityDump == opts.enableActivityDump &&
