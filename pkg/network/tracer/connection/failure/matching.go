@@ -16,6 +16,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
 
+var allowListErrs = map[uint32]struct{}{
+	104: {}, // Connection reset by peer
+	110: {}, // Connection timed out
+	111: {}, // Connection refused
+}
+
 // FailedConnStats is a wrapper to help document the purpose of the underlying map
 type FailedConnStats struct {
 	CountByErrCode map[uint32]uint32
@@ -52,7 +58,9 @@ func MatchFailedConn(conn *network.ConnectionStats, failedConnMap *FailedConns) 
 	if failedConn, ok := failedConnMap.FailedConnMap[connTuple]; ok {
 		conn.TCPFailures = make(map[uint32]uint32)
 		for errCode, count := range failedConn.CountByErrCode {
-			conn.TCPFailures[errCode] += count
+			if _, exists := allowListErrs[errCode]; exists {
+				conn.TCPFailures[errCode] += count
+			}
 		}
 	}
 }

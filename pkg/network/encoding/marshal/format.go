@@ -112,8 +112,8 @@ func FormatConnection(builder *model.ConnectionBuilder, conn network.ConnectionS
 	if len(conn.TCPFailures) > 0 {
 		builder.AddTcpFailuresByErrCode(func(w *model.Connection_TcpFailuresByErrCodeEntryBuilder) {
 			for k, v := range conn.TCPFailures {
-				w.SetKey(int32(k))
-				w.SetValue(int32(v))
+				w.SetKey(k)
+				w.SetValue(v)
 			}
 		})
 	}

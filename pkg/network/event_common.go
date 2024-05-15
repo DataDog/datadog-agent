@@ -284,9 +284,9 @@ type ConnectionStats struct {
 
 	ProtocolStack protocols.Stack
 
+	DNSStats map[dns.Hostname]map[dns.QueryType]dns.Stats
 	// TCPFailures stores the number of failures for a POSIX error code
 	TCPFailures map[uint32]uint32
-	DNSStats    map[dns.Hostname]map[dns.QueryType]dns.Stats
 }
 
 // Via has info about the routing decision for a flow

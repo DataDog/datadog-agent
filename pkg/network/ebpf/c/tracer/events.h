@@ -12,7 +12,6 @@
 #include "cookie.h"
 #include "ip.h"
 #include "port_range.h"
-#include <asm-generic/errno.h>
 
 #ifdef COMPILE_CORE
 #define MSG_PEEK 2
@@ -138,10 +137,8 @@ static __always_inline void cleanup_conn(void *ctx, conn_tuple_t *tup, struct so
     }
 }
 
-// This function is used to flush the conn_close_batch to the perf or ring buffer.
+// This function is used to flush the conn_failed_t to the perf or ring buffer.
 static __always_inline void flush_tcp_failure(void *ctx, conn_tuple_t *tup, int failure_reason) {
-    // Will hold the full connection data to send through the ring buffer
-    log_debug("flushing TCP failure for connection: %d", tup->pid);
     conn_failed_t failure = {};
     failure.tup = *tup;
     failure.failure_reason = failure_reason;

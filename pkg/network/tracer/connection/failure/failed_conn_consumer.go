@@ -22,11 +22,11 @@ const failedConnConsumerModuleName = "network_tracer__ebpf"
 
 // Telemetry
 var failedConnConsumerTelemetry = struct {
-	perfReceived telemetry.Counter
-	perfLost     telemetry.Counter
+	eventsReceived telemetry.Counter
+	eventsLost     telemetry.Counter
 }{
 	telemetry.NewCounter(failedConnConsumerModuleName, "failed_conn_polling_received", []string{}, "Counter measuring the number of failed connections received"),
-	telemetry.NewCounter(failedConnConsumerModuleName, "failed_conn_polling_lost", []string{}, "Counter measuring the number of failed connection batches lost (were transmitted from ebpf but never received)"),
+	telemetry.NewCounter(failedConnConsumerModuleName, "failed_conn_polling_lost", []string{}, "Counter measuring the number of failed connections lost (were transmitted from ebpf but never received)"),
 }
 
 // TCPFailedConnConsumer consumes failed connection events from the kernel
@@ -62,7 +62,7 @@ func (c *TCPFailedConnConsumer) extractConn(data []byte) {
 	defer c.FailedConns.Unlock()
 	ct := (*netebpf.FailedConn)(unsafe.Pointer(&data[0]))
 
-	failedConnConsumerTelemetry.perfReceived.Inc()
+	failedConnConsumerTelemetry.eventsReceived.Inc()
 
 	stats, ok := c.FailedConns.FailedConnMap[ct.Tup]
 	if !ok {
@@ -79,10 +79,6 @@ func (c *TCPFailedConnConsumer) Start() {
 	if c == nil {
 		return
 	}
-
-	var (
-		lostSamplesCount uint64
-	)
 
 	go func() {
 		dataChannel := c.eventHandler.DataChannel()
@@ -105,15 +101,14 @@ func (c *TCPFailedConnConsumer) Start() {
 					log.Errorf("unknown type received from buffer, skipping. data size=%d, expecting %d", len(dataEvent.Data), netebpf.SizeofFailedConn)
 					continue
 				}
-				failedConnConsumerTelemetry.perfLost.Inc()
+				failedConnConsumerTelemetry.eventsLost.Inc()
 				dataEvent.Done()
 			// lost events only occur when using perf buffers
 			case lc, ok := <-lostChannel:
 				if !ok {
 					return
 				}
-				failedConnConsumerTelemetry.perfLost.Add(float64(lc))
-				lostSamplesCount += lc
+				failedConnConsumerTelemetry.eventsLost.Add(float64(lc))
 			}
 		}
 	}()
