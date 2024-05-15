@@ -127,3 +127,57 @@ func TestPodWatcherStartStop(t *testing.T) {
 	assert.Equal(t, pod, newPods[0])
 	cancel()
 }
+
+func TestGetNamespacedPodOwner(t *testing.T) {
+	for _, tt := range []struct {
+		name     string
+		ns       string
+		owner    *workloadmeta.KubernetesPodOwner
+		expected NamespacedPodOwner
+	}{
+		{
+			name: "pod owned by deployment",
+			ns:   "default",
+			owner: &workloadmeta.KubernetesPodOwner{
+				Kind: kubernetes.ReplicaSetKind,
+				Name: "datadog-agent-linux-cluster-agent-f64dd88",
+			},
+			expected: NamespacedPodOwner{
+				Namespace: "default",
+				Kind:      kubernetes.DeploymentKind,
+				Name:      "datadog-agent-linux-cluster-agent",
+			},
+		},
+		{
+			name: "pod owned by daemonset",
+			ns:   "default",
+			owner: &workloadmeta.KubernetesPodOwner{
+				Kind: kubernetes.DaemonSetKind,
+				Name: "datadog-agent-f64dd88",
+			},
+			expected: NamespacedPodOwner{
+				Namespace: "default",
+				Kind:      kubernetes.DaemonSetKind,
+				Name:      "datadog-agent-f64dd88",
+			},
+		},
+		{
+			name: "pod owned by replica set",
+			ns:   "default",
+			owner: &workloadmeta.KubernetesPodOwner{
+				Kind: kubernetes.ReplicaSetKind,
+				Name: "datadog-agent-linux-cluster-agent",
+			},
+			expected: NamespacedPodOwner{
+				Namespace: "default",
+				Kind:      kubernetes.ReplicaSetKind,
+				Name:      "datadog-agent-linux-cluster-agent",
+			},
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			res := getNamespacedPodOwner(tt.ns, tt.owner)
+			assert.Equal(t, tt.expected, res)
+		})
+	}
+}

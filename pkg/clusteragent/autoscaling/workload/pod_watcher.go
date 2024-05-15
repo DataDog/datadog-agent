@@ -151,8 +151,11 @@ func getNamespacedPodOwner(ns string, owner *workloadmeta.KubernetesPodOwner) Na
 		Namespace: ns,
 	}
 	if res.Kind == kubernetes.ReplicaSetKind {
-		res.Kind = kubernetes.DeploymentKind
-		res.Name = kubernetes.ParseDeploymentForReplicaSet(res.Name)
+		deploymentName := kubernetes.ParseDeploymentForReplicaSet(res.Name)
+		if deploymentName != "" {
+			res.Kind = kubernetes.DeploymentKind
+			res.Name = deploymentName
+		}
 	}
 	return res
 }
