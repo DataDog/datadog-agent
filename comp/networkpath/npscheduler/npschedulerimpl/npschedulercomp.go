@@ -6,8 +6,8 @@
 package npschedulerimpl
 
 import (
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
-	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	"github.com/DataDog/datadog-agent/comp/networkpath/npscheduler"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -19,7 +19,7 @@ type dependencies struct {
 	Lc          fx.Lifecycle
 	EpForwarder eventplatform.Component
 	Logger      log.Component
-	Sysconfig   sysprobeconfig.Component
+	AgentConfig config.Component
 }
 
 type provides struct {
@@ -38,7 +38,7 @@ func Module() fxutil.Module {
 func newNpScheduler(deps dependencies) provides {
 	var scheduler *npSchedulerImpl
 
-	networkPathEnabled := deps.Sysconfig.GetBool("network_path.enabled")
+	networkPathEnabled := deps.AgentConfig.GetBool("network_path.enabled")
 	if networkPathEnabled {
 		deps.Logger.Debugf("Network Path Scheduler enabled")
 		scheduler = newNpSchedulerImpl(deps.EpForwarder)

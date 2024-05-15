@@ -22,7 +22,6 @@ type transformerFunction func(string) interface{}
 const (
 	spNS                         = "system_probe_config"
 	netNS                        = "network_config"
-	npNS                         = "network_path"
 	smNS                         = "service_monitoring_config"
 	evNS                         = "event_monitoring_config"
 	smjtNS                       = smNS + ".tls.java"
@@ -286,9 +285,6 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Config) {
 	cfg.BindEnvAndSetDefault(join(netNS, "enable_dns_by_querytype"), false)
 	// connection aggregation with port rollups
 	cfg.BindEnvAndSetDefault(join(netNS, "enable_connection_rollup"), false)
-
-	// network_config network path config
-	cfg.BindEnvAndSetDefault(join(npNS, "enabled"), false)
 
 	// windows config
 	cfg.BindEnvAndSetDefault(join(spNS, "windows.enable_monotonic_count"), false)

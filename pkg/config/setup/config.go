@@ -401,6 +401,7 @@ func InitConfig(config pkgconfigmodel.Config) {
 	bindEnvAndSetLogsConfigKeys(config, "network_devices.netflow.forwarder.")
 
 	// Network Path
+	config.BindEnvAndSetDefault("network_path.enabled", false)
 	bindEnvAndSetLogsConfigKeys(config, "network_path.forwarder.")
 
 	// Kube ApiServer
