@@ -236,8 +236,7 @@ def make_components_md(bundles, components_without_bundle):
 
 
 def build_codeowner_entry(path, team):
-    teams = team.split(' ')
-    teams = [f'@DataDog/{team}' for team in teams]
+    teams = [f'@DataDog/{team}' for team in team.split(' ')]
     return f'/{path} ' + ' '.join(teams)
 
 def make_codeowners(codeowners_lines, bundles, components_without_bundle):
