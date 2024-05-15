@@ -366,7 +366,7 @@ func (p *Probe) GetService(ev *model.Event) string {
 func (p *Probe) NewEvaluationSet(eventTypeEnabled map[eval.EventType]bool, ruleSetTagValues []string) (*rules.EvaluationSet, error) {
 	var ruleSetsToInclude []*rules.RuleSet
 	for _, ruleSetTagValue := range ruleSetTagValues {
-		ruleOpts, evalOpts := rules.NewEvalOpts(eventTypeEnabled)
+		ruleOpts, evalOpts := rules.NewBothOpts(eventTypeEnabled)
 
 		ruleOpts.WithLogger(seclog.DefaultLogger)
 		ruleOpts.WithReservedRuleIDs(events.AllCustomRuleIDs())
