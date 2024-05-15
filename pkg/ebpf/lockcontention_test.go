@@ -83,7 +83,7 @@ func pcpuLruLockCount(cpu uint32) uint32 {
 
 func TestLockRanges(t *testing.T) {
 	if !lockContentionCollectorSupported() {
-		t.Skip("EBPF lock contention collector only supported for kernel version > 5.19.0")
+		t.Skip("EBPF lock contention collector not supported")
 	}
 
 	cpu, err := kernel.PossibleCPUs()

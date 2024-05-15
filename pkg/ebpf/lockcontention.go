@@ -122,15 +122,11 @@ var lockTypes = map[uint32]string{
 }
 
 func lockContentionCollectorSupported() bool {
-	kversion, err := kernel.HostVersion()
-	if err != nil {
+	if _, err := os.Stat("/sys/kernel/tracing/events/lock/contention_begin/id"); errors.Is(err, os.ErrNotExist) {
 		return false
 	}
 
-	// the tracepoints for collecting lock contention information
-	// are only available after v5.19.0
-	// https://github.com/torvalds/linux/commit/16edd9b511a13e7760ed4b92ba4e39bacda5c86f
-	if kversion < kernel.VersionCode(5, 19, 0) {
+	if _, err := os.Stat("/sys/kernel/tracing/events/lock/contention_end/id"); errors.Is(err, os.ErrNotExist) {
 		return false
 	}
 
