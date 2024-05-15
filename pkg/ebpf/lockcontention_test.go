@@ -150,7 +150,7 @@ func TestLockRanges(t *testing.T) {
 			id, _ := mInfo.ID()
 			mapNameMapping[uint32(id)] = spec.Name
 
-			l.Initialize(!TrackAllEBPFResources)
+			l.Initialize(false)
 
 			require.Equal(t, entries(l.objects.MapAddrFd), c.lockCount)
 
