@@ -12,6 +12,7 @@ import (
 
 	e2eos "github.com/DataDog/test-infra-definitions/components/os"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 type packageApmInjectSuite struct {
@@ -60,6 +61,44 @@ func (s *packageApmInjectSuite) TestUninstall() {
 
 	s.assertLDPreloadNotInstrumented()
 	s.assertDockerdConfigNotInstrumented()
+}
+
+func (s *packageApmInjectSuite) TestVerifications() {
+	s.host.InstallDocker()
+	s.RunInstallScript()
+	defer s.Purge()
+	s.InstallAgentPackage()
+	s.InstallPackageLatest("datadog-apm-library-python")
+
+	// Broken /etc/ld.so.preload
+	s.host.SetPreloadBrokenLib()
+	err := s.InstallInjectorPackageTempWithError()
+	require.Error(s.T(), err)
+	s.assertLDPreloadNotInstrumented()
+	s.assertDockerdConfigNotInstrumented()
+	s.host.RemovePreloadBrokenLib()
+
+	// Broken /etc/docker/daemon.json
+	s.host.SetBrokenDockerConfig()
+	err = s.InstallInjectorPackageTempWithError()
+	require.Error(s.T(), err)
+	s.assertLDPreloadNotInstrumented()
+	s.assertDockerdConfigNotInstrumented()
+
+	// Additional fields in /etc/docker/daemon.json
+	// not supported starting docker 23
+	s.host.SetBrokenDockerConfigAdditionalFields()
+	err = s.InstallInjectorPackageTempWithError()
+	if s.host.GetDockerMajorVersion() >= 23 {
+		require.Error(s.T(), err)
+		s.assertLDPreloadNotInstrumented()
+		s.assertDockerdConfigNotInstrumented()
+	} else {
+		require.NoError(s.T(), err)
+		s.assertLDPreloadInstrumented()
+		s.assertDockerdInstrumented()
+	}
+	s.host.RemoveBrokenDockerConfig()
 }
 
 func (s *packageApmInjectSuite) assertTraceReceived(traceID uint64) {

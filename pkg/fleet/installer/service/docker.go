@@ -121,10 +121,9 @@ func (a *apmInjectorInstaller) deleteDockerConfigContent(previousContent []byte)
 }
 
 // verifyDockerConfig validates the docker daemon configuration for latest
-// docker versions (>23.0.0)
+// docker versions (>=23.0.0)
 func (a *apmInjectorInstaller) verifyDockerConfig(path string) error {
-	// Get docker version
-	cmd := exec.Command("docker", "version", "-f", "'{{.Client.Version}}'")
+	cmd := exec.Command("docker", "version", "-f", "{{.Client.Version}}")
 	versionBuffer := new(bytes.Buffer)
 	cmd.Stdout = versionBuffer
 	err := cmd.Run()
