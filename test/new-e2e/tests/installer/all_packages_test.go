@@ -165,6 +165,9 @@ func (s *packageBaseSuite) RunInstallScript() {
 	require.NoError(s.T(), err)
 	s.Env().RemoteHost.MustExecute("sudo mkdir -p /etc/datadog-agent")
 	s.Env().RemoteHost.MustExecute(fmt.Sprintf("echo '%s' | sudo tee /etc/datadog-agent/datadog.yaml", string(rawDatadogConfig)))
+	_, err = s.Env().RemoteHost.Execute("sudo datadog-installer version")
+	// Right now the install script can fail installing the installer silently, so we need to do this check or it will fail later in a way that is hard to debug
+	require.NoErrorf(s.T(), err, "installer not properly installed. logs: \n%s\n%s", s.Env().RemoteHost.MustExecute("/tmp/datadog-installer-stdout.log"), s.Env().RemoteHost.MustExecute("/tmp/datadog-installer-stderr.log"))
 	s.Env().RemoteHost.MustExecute("sudo chown -R dd-agent:dd-agent /etc/datadog-agent")
 }
 
