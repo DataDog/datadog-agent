@@ -15,6 +15,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/probe"
+	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
 
 // NewSelfTester returns a new SelfTester, enabled or not
@@ -36,11 +37,14 @@ func NewSelfTester(cfg *config.RuntimeSecurityConfig, probe *probe.Probe) (*Self
 	fileToCreate := "file.txt"
 
 	keyPath := "Software\\Datadog\\Datadog Agent"
+
+	dirLongPath, err := utils.GetLongPathName(dir)
 	if err != nil {
 		return nil, err
 	}
+
 	selfTests = []SelfTest{
-		&WindowsCreateFileSelfTest{filename: filepath.Join(dir, fileToCreate)},
+		&WindowsCreateFileSelfTest{filename: filepath.Join(dirLongPath, fileToCreate)},
 		&WindowsOpenRegistryKeyTest{keyPath: keyPath},
 	}
 
