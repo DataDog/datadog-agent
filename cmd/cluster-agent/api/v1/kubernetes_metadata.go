@@ -37,7 +37,7 @@ func installKubernetesMetadataEndpoints(r *mux.Router, wmeta workloadmeta.Compon
 		func(w http.ResponseWriter, r *http.Request) { getNodeLabels(w, r, wmeta) },
 	)).Methods("GET")
 	r.HandleFunc("/tags/namespace/{ns}", api.WithTelemetryWrapper("getNamespaceLabels", func(w http.ResponseWriter, r *http.Request) { getNamespaceLabels(w, r, wmeta) })).Methods("GET")
-	r.HandleFunc("/annotations/namespace/{ns}", api.WithTelemetryWrapper("getNamespaceAnnotations", func(w http.ResponseWriter, r *http.Request) { getNamespaceAnnotations(w, r, wmeta) })).Methods("GET")
+	r.HandleFunc("/metadata/namespace/{ns}", api.WithTelemetryWrapper("getNamespaceMetadata", func(w http.ResponseWriter, r *http.Request) { getNamespaceMetadata(w, r, wmeta) })).Methods("GET")
 	r.HandleFunc("/cluster/id", api.WithTelemetryWrapper("getClusterID", getClusterID)).Methods("GET")
 }
 
@@ -110,8 +110,9 @@ func getNodeAnnotations(w http.ResponseWriter, r *http.Request, wmeta workloadme
 	getNodeMetadata(w, r, wmeta, func(e *workloadmeta.KubernetesNode) map[string]string { return e.Annotations }, "annotations", config.Datadog.GetStringSlice("kubernetes_node_annotations_as_host_aliases"))
 }
 
-// getNamespaceMetadata is only used when the node agent hits the DCA for the list of labels or annotations of a specific namespace
-func getNamespaceMetadata(w http.ResponseWriter, r *http.Request, wmeta workloadmeta.Component, f func(*workloadmeta.KubernetesNamespace) map[string]string, what string) {
+// getNamespaceMetadataWithTransformerFunc is used when the node agent hits the DCA for some (or all) metadata of a specific namespace
+// ATTENTION: T should be marshable to json
+func getNamespaceMetadataWithTransformerFunc[T any](w http.ResponseWriter, r *http.Request, wmeta workloadmeta.Component, f func(*workloadmeta.KubernetesNamespace) T, what string) {
 	vars := mux.Vars(r)
 	var metadataBytes []byte
 	nsName := vars["ns"]
@@ -156,18 +157,18 @@ func getNamespaceLabels(w http.ResponseWriter, r *http.Request, wmeta workloadme
 			Returns: string
 			Example: "no cached labels found for the namespace default"
 	*/
-	getNamespaceMetadata(w, r, wmeta, func(namespace *workloadmeta.KubernetesNamespace) map[string]string { return namespace.Labels }, "labels")
+	getNamespaceMetadataWithTransformerFunc(w, r, wmeta, func(namespace *workloadmeta.KubernetesNamespace) map[string]string { return namespace.Labels }, "labels")
 }
 
-// getNamespaceAnnotations is only used when the node agent hits the DCA for the list of annotaions
-func getNamespaceAnnotations(w http.ResponseWriter, r *http.Request, wmeta workloadmeta.Component) {
+// getNamespaceMetadata is used when the node agent hits the DCA metadata (annotations and labels) of a specific namespace
+func getNamespaceMetadata(w http.ResponseWriter, r *http.Request, wmeta workloadmeta.Component) {
 	/*
 		Input
-			localhost:5001/api/v1/annotations/namespace/default
+			localhost:5001/api/v1/metadata/namespace/default
 		Outputs
 			Status: 200
 			Returns: []string
-			Example: ["annotationKey1:value1", "annotationKey2:value2"]
+			Example: { labels { "key": "value" }, annotations { "key": "value" }, name "default", namespace ""}
 
 			Status: 404
 			Returns: string
@@ -175,9 +176,11 @@ func getNamespaceAnnotations(w http.ResponseWriter, r *http.Request, wmeta workl
 
 			Status: 500
 			Returns: string
-			Example: "no cached annotations found for the namespace default"
+			Example: "no cached metadata found for the namespace default"
 	*/
-	getNamespaceMetadata(w, r, wmeta, func(namespace *workloadmeta.KubernetesNamespace) map[string]string { return namespace.Annotations }, "annotations")
+	getNamespaceMetadataWithTransformerFunc(w, r, wmeta, func(namespace *workloadmeta.KubernetesNamespace) workloadmeta.EntityMeta {
+		return namespace.EntityMeta
+	}, "metadata")
 }
 
 // getPodMetadata is only used when the node agent hits the DCA for the tags list.

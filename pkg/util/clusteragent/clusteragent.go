@@ -48,6 +48,14 @@ var globalClusterAgentClient *DCAClient
 
 type metadataNames []string
 
+// Metadata represents the metadata of a kubernetes resource including its name, namespace, annotations and labels
+type Metadata struct {
+	Name        string
+	Namespace   string
+	Annotations map[string]string
+	Labels      map[string]string
+}
+
 // DCAClientInterface  is required to query the API of Datadog cluster agent
 type DCAClientInterface interface {
 	Version() version.Version
@@ -57,7 +65,7 @@ type DCAClientInterface interface {
 	GetNodeLabels(nodeName string) (map[string]string, error)
 	GetNodeAnnotations(nodeName string) (map[string]string, error)
 	GetNamespaceLabels(nsName string) (map[string]string, error)
-	GetNamespaceAnnotations(nsName string) (map[string]string, error)
+	GetNamespaceMetadata(nsName string) (*Metadata, error)
 	GetPodsMetadataForNode(nodeName string) (apiv1.NamespacesPodsStringsSet, error)
 	GetKubernetesMetadataNames(nodeName, ns, podName string) ([]string, error)
 	GetCFAppsMetadataForNode(nodename string) (map[string][]string, error)
@@ -396,11 +404,11 @@ func (c *DCAClient) GetNamespaceLabels(nsName string) (map[string]string, error)
 	return result, err
 }
 
-// GetNamespaceAnnotations returns the namespace annotations from the Cluster Agent.
-func (c *DCAClient) GetNamespaceAnnotations(nsName string) (map[string]string, error) {
-	var result map[string]string
-	err := c.doJSONQuery(context.TODO(), "api/v1/annotations/namespace/"+nsName, "GET", nil, &result, false)
-	return result, err
+// GetNamespaceMetadata returns the namespace metadata from the Cluster Agent.
+func (c *DCAClient) GetNamespaceMetadata(nsName string) (*Metadata, error) {
+	var result Metadata
+	err := c.doJSONQuery(context.TODO(), "api/v1/metadata/namespace/"+nsName, "GET", nil, &result, false)
+	return &result, err
 }
 
 // GetNodeAnnotations returns the node annotations from the Cluster Agent.

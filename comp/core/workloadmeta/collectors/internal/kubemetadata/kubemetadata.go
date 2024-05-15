@@ -231,16 +231,35 @@ func (c *collector) parsePods(
 			}
 		}
 
-		var nsLabels map[string]string
-		nsLabels, err = c.getNamespaceLabels(pod.Metadata.Namespace)
-		if err != nil {
-			log.Debugf("Could not fetch namespace labels for pod %s/%s: %v", pod.Metadata.Namespace, pod.Metadata.Name, err)
-		}
+		var nsLabels, nsAnnotations map[string]string
 
-		var nsAnnotations map[string]string
-		nsAnnotations, err = c.getNamespaceAnnotations(pod.Metadata.Namespace)
-		if err != nil {
-			log.Debugf("Could not fetch namespace annotations for pod %s/%s: %v", pod.Metadata.Namespace, pod.Metadata.Name, err)
+		if c.dcaClient.Version().Major >= 7 && c.dcaClient.Version().Minor >= 55 {
+			// Cluster agent with version 7.55+
+			var nsMetadata *clusteragent.Metadata
+			nsMetadata, err = c.getNamespaceMetadata(pod.Metadata.Namespace)
+			if err != nil {
+				log.Errorf("Could not fetch namespace metadata for pod %s/%s: %v", pod.Metadata.Namespace, pod.Metadata.Name, err)
+			}
+
+			if nsMetadata != nil {
+				if c.collectNamespaceAnnotations {
+					nsAnnotations = nsMetadata.Annotations
+				}
+
+				if c.collectNamespaceLabels {
+					nsLabels = nsMetadata.Labels
+				}
+			}
+		} else {
+			// Cluster agent with version older than 7.55
+			nsLabels, err = c.getNamespaceLabels(pod.Metadata.Namespace)
+			if err != nil {
+				log.Errorf("Could not fetch namespace labels for pod %s/%s: %v", pod.Metadata.Namespace, pod.Metadata.Name, err)
+			}
+
+			if c.collectNamespaceAnnotations {
+				log.Errorf("Could not fetch namespace annotations for pod %s/%s: kubernetes_namespace_annotations_as_tags requires version 7.55 or later of the cluster agent", pod.Metadata.Namespace, pod.Metadata.Name)
+			}
 		}
 
 		entityID := workloadmeta.EntityID{
@@ -307,13 +326,18 @@ func (c *collector) getNamespaceLabels(ns string) (map[string]string, error) {
 	return c.dcaClient.GetNamespaceLabels(ns)
 }
 
-// getNamespaceAnnotations returns the namespace annotations, fast return if namespace annotations as tags is disabled.
-func (c *collector) getNamespaceAnnotations(ns string) (map[string]string, error) {
-	if !c.collectNamespaceAnnotations || !c.isDCAEnabled() {
+// getNamespaceMetadata returns the namespace metadata
+// fast return if both namespace annotations and labels as tags are disabled, or if cluster agent is disabled
+// This endpoint is supported for cluster agents with version 7.55+
+func (c *collector) getNamespaceMetadata(ns string) (*clusteragent.Metadata, error) {
+	if !c.collectNamespaceAnnotations && !c.collectNamespaceLabels {
 		return nil, nil
 	}
 
-	return c.dcaClient.GetNamespaceAnnotations(ns)
+	if !c.isDCAEnabled() {
+		return nil, fmt.Errorf("cluster agent should be enabled in order to allow fetching namespace metadata")
+	}
+	return c.dcaClient.GetNamespaceMetadata(ns)
 }
 
 func (c *collector) isDCAEnabled() bool {

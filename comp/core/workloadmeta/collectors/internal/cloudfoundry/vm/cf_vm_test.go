@@ -20,6 +20,7 @@ import (
 	apiv1 "github.com/DataDog/datadog-agent/pkg/clusteragent/api/v1"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/process"
+	"github.com/DataDog/datadog-agent/pkg/util/clusteragent"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
@@ -171,7 +172,7 @@ func (f *FakeDCAClient) GetNamespaceLabels(_ string) (map[string]string, error) 
 	panic("implement me")
 }
 
-func (f *FakeDCAClient) GetNamespaceAnnotations(_ string) (map[string]string, error) {
+func (f *FakeDCAClient) GetNamespaceMetadata(_ string) (*clusteragent.Metadata, error) {
 	panic("implement me")
 }
 
