@@ -238,7 +238,9 @@ go_mod_tidy_check:
   script:
     - inv -e check-mod-tidy
     - inv -e check-go-mod-replaces
-
+  variables:
+    KUBERNETES_MEMORY_REQUEST: "8Gi"
+    KUBERNETES_MEMORY_LIMIT: "8Gi"
 
 new-e2e-unit-tests:
   extends: .linux_tests_with_upload
