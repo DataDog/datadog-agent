@@ -60,6 +60,7 @@
     - >
       docker run --rm
       -m 16384M
+      --storage-opt "size=50GB"
       -v "$(Get-Location):c:\mnt"
       -e AWS_NETWORKING=true
       -e CI_PIPELINE_ID=${CI_PIPELINE_ID}
