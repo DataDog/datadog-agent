@@ -258,22 +258,22 @@ func (s *npSchedulerImpl) flushLoop() {
 			flushTicker.Stop()
 			return
 		// automatic flush sequence
-		case now := <-flushTicker.C:
-			s.flushWrapper(now, lastFlushTime)
+		case flushTime := <-flushTicker.C:
+			s.flushWrapper(flushTime, lastFlushTime)
 		}
 	}
 }
 
-func (s *npSchedulerImpl) flushWrapper(startFlushTime time.Time, lastFlushTime time.Time) {
-	s.logger.Debugf("Flush loop at %s", startFlushTime)
+func (s *npSchedulerImpl) flushWrapper(flushTime time.Time, lastFlushTime time.Time) {
+	s.logger.Debugf("Flush loop at %s", flushTime)
 	if !lastFlushTime.IsZero() {
-		flushInterval := startFlushTime.Sub(lastFlushTime)
+		flushInterval := flushTime.Sub(lastFlushTime)
 		s.statsdClient.Gauge("datadog.network_path.scheduler.flush_interval", flushInterval.Seconds(), []string{}, 1) //nolint:errcheck
 	}
-	lastFlushTime = startFlushTime
+	lastFlushTime = flushTime
 
 	s.flush()
-	s.statsdClient.Gauge("datadog.network_path.scheduler.flush_duration", s.TimeNowFn().Sub(startFlushTime).Seconds(), []string{}, 1) //nolint:errcheck
+	s.statsdClient.Gauge("datadog.network_path.scheduler.flush_duration", s.TimeNowFn().Sub(flushTime).Seconds(), []string{}, 1) //nolint:errcheck
 }
 
 func (s *npSchedulerImpl) flush() {
