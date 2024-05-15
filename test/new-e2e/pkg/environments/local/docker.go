@@ -143,25 +143,25 @@ func Run(ctx *pulumi.Context, env *environments.DockerLocal, params *Provisioner
 	_ = ctx.Log.Info(fmt.Sprintf("Running test on container '%v'", host.Name()), nil)
 
 	// Create FakeIntake if required
-	//if params.fakeintakeOptions != nil {
-	//	fi, err := fakeintake.NewLocalInstance(localEnv, params.name, params.fakeintakeOptions...)
-	//	if err != nil {
-	//		return err
-	//	}
-	//	err = fi.Export(ctx, &env.FakeIntake.FakeintakeOutput)
-	//	if err != nil {
-	//		return err
-	//	}
-	//
-	//	// Normally if FakeIntake is enabled, Agent is enabled, but just in case
-	//	if params.agentOptions != nil {
-	//		// Prepend in case it's overridden by the user
-	//		newOpts := []agentparams.Option{agentparams.WithFakeintake(fi)}
-	//		params.agentOptions = append(newOpts, params.agentOptions...)
-	//	}
-	//} else {
-	//	env.FakeIntake = nil
-	//}
+	if params.fakeintakeOptions != nil {
+		fi, err := fakeintake.NewLocalInstance(localEnv, params.name, params.fakeintakeOptions...)
+		if err != nil {
+			return err
+		}
+		err = fi.Export(ctx, &env.FakeIntake.FakeintakeOutput)
+		if err != nil {
+			return err
+		}
+
+		// Normally if FakeIntake is enabled, Agent is enabled, but just in case
+		if params.agentOptions != nil {
+			// Prepend in case it's overridden by the user
+			newOpts := []agentparams.Option{agentparams.WithFakeintake(fi)}
+			params.agentOptions = append(newOpts, params.agentOptions...)
+		}
+	} else {
+		env.FakeIntake = nil
+	}
 
 	if !params.installUpdater {
 		// Suite inits all fields by default, so we need to explicitly set it to nil

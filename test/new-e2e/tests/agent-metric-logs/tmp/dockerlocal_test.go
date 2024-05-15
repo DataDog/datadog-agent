@@ -29,6 +29,7 @@ func TestSimpleLocalAgentRun(t *testing.T) {
 	options := []e2e.SuiteOption{
 		e2e.WithProvisioner(
 			dclocal.Provisioner(
+				dclocal.WithoutFakeIntake(),
 				dclocal.WithAgentOptions(
 					agentparams.WithLatest(),
 					// Setting hostname to test name due to fact Agent can't

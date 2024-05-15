@@ -16,9 +16,9 @@ type DockerLocal struct {
 	Local *docker.Environment
 	// Components
 	RemoteHost *components.RemoteHost
-	//FakeIntake *components.FakeIntake
-	Agent   *components.RemoteHostAgent
-	Updater *components.RemoteHostUpdater
+	FakeIntake *components.FakeIntake
+	Agent      *components.RemoteHostAgent
+	Updater    *components.RemoteHostUpdater
 }
 
 var _ e2e.Initializable = &DockerLocal{}
