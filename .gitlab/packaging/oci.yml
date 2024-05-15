@@ -27,7 +27,8 @@
     - OUTPUT_DIR="/tmp/oci_output"
     - mkdir -p ${OUTPUT_DIR}
     - ls $OMNIBUS_PACKAGE_DIR
-    - cp $OMNIBUS_PACKAGE_DIR/*.oci.tar ${OUTPUT_DIR}
+    # Copy existing OCI (like the Windows one) to the output dir directly to be merged.
+    - cp $OMNIBUS_PACKAGE_DIR/*.oci.tar ${OUTPUT_DIR} 2>/dev/null
     - |
       for ARCH in "amd64" "arm64"; do
         INPUT_FILE="$OMNIBUS_PACKAGE_DIR/${OCI_PRODUCT}-*${ARCH}.tar.xz"
