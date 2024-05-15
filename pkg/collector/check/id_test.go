@@ -23,13 +23,13 @@ func TestBuildID(t *testing.T) {
 	initConfig1 := integration.Data("key:value")
 	instance2 := instance1
 	initConfig2 := initConfig1
-	assert.Equal(t, checkid.BuildID(testCheck.String(), 1, instance1, initConfig1), checkid.BuildID(testCheck.String(), 1, instance2, initConfig2))
+	assert.Equal(t, checkid.BuildID(testCheck.String(), 1, instance1.GetNameForInstance(), instance1, initConfig1), checkid.BuildID(testCheck.String(), 1, instance2.GetNameForInstance(), instance2, initConfig2))
 	// Different integration config digest
-	assert.NotEqual(t, checkid.BuildID(testCheck.String(), 1, instance1, initConfig1), checkid.BuildID(testCheck.String(), 2, instance2, initConfig2))
+	assert.NotEqual(t, checkid.BuildID(testCheck.String(), 1, instance1.GetNameForInstance(), instance1, initConfig1), checkid.BuildID(testCheck.String(), 2, instance2.GetNameForInstance(), instance2, initConfig2))
 
 	instance3 := integration.Data("key1:value1\nkey2:value3")
 	initConfig3 := integration.Data("key:value")
-	assert.NotEqual(t, checkid.BuildID(testCheck.String(), 1, instance1, initConfig1), checkid.BuildID(testCheck.String(), 1, instance3, initConfig3))
+	assert.NotEqual(t, checkid.BuildID(testCheck.String(), 1, instance1.GetNameForInstance(), instance1, initConfig1), checkid.BuildID(testCheck.String(), 1, instance2.GetNameForInstance(), instance3, initConfig3))
 }
 
 func TestIDToCheckName(t *testing.T) {

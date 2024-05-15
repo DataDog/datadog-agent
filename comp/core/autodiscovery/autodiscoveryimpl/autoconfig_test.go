@@ -510,8 +510,8 @@ func TestProcessClusterCheckConfigWithSecrets(t *testing.T) {
 	assert.Equal(t, resolved, changes.Schedule[0])
 
 	// Check that the mapping with the changeIDs is stored
-	originalCheckID := checkid.BuildID(tpl.Name, tpl.FastDigest(), tpl.Instances[0], tpl.InitConfig)
-	newCheckID := checkid.BuildID(resolved.Name, resolved.FastDigest(), resolved.Instances[0], resolved.InitConfig)
+	originalCheckID := checkid.BuildID(tpl.Name, tpl.FastDigest(), tpl.Instances[0].GetNameForInstance(), tpl.Instances[0], tpl.InitConfig)
+	newCheckID := checkid.BuildID(resolved.Name, resolved.FastDigest(), resolved.Instances[0].GetNameForInstance(), resolved.Instances[0], resolved.InitConfig)
 	assert.Equal(t, originalCheckID, ac.GetIDOfCheckWithEncryptedSecrets(newCheckID))
 }
 

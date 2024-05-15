@@ -639,7 +639,7 @@ func (ac *AutoConfig) deleteMappingsOfCheckIDsWithSecrets(configs []integration.
 	var checkIDsToDelete []checkid.ID
 	for _, configToDelete := range configs {
 		for _, instance := range configToDelete.Instances {
-			checkID := checkid.BuildID(configToDelete.Name, configToDelete.FastDigest(), instance, configToDelete.InitConfig)
+			checkID := checkid.BuildID(configToDelete.Name, configToDelete.FastDigest(), instance.GetNameForInstance(), instance, configToDelete.InitConfig)
 			checkIDsToDelete = append(checkIDsToDelete, checkID)
 		}
 	}

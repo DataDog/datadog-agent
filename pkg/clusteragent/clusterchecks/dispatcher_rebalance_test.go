@@ -1436,7 +1436,7 @@ func TestMoveCheck(t *testing.T) {
 			dispatcher := newDispatcher()
 
 			// setup check id
-			id := checkid.BuildID(tc.check.config.Name, tc.check.config.FastDigest(), tc.check.config.Instances[0], tc.check.config.InitConfig)
+			id := checkid.BuildID(tc.check.config.Name, tc.check.config.FastDigest(), tc.check.config.Instances[0].GetNameForInstance(), tc.check.config.Instances[0], tc.check.config.InitConfig)
 
 			// prepare store
 			dispatcher.store.active = true

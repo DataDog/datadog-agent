@@ -72,7 +72,7 @@ collect_bfd_session_status: true
 `)
 
 	// Use ID to ensure the mock sender gets registered
-	id := checkid.BuildID(CheckName, integration.FakeConfigHash, rawInstanceConfig, []byte(``))
+	id := checkid.BuildID(CheckName, integration.FakeConfigHash, "", rawInstanceConfig, []byte(``))
 	sender := mocksender.NewMockSenderWithSenderManager(id, senderManager)
 	sender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	sender.On("MonotonicCount", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
@@ -267,7 +267,7 @@ namespace: test
 `)
 
 	// Use ID to ensure the mock sender gets registered
-	id := checkid.BuildID(CheckName, integration.FakeConfigHash, rawInstanceConfig, []byte(``))
+	id := checkid.BuildID(CheckName, integration.FakeConfigHash, "", rawInstanceConfig, []byte(``))
 	sender := mocksender.NewMockSenderWithSenderManager(id, senderManager)
 	sender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	sender.On("MonotonicCount", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
