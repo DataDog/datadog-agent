@@ -53,7 +53,13 @@ const (
 
 	disableKptrRestrict = "1"
 	enableKptrRestrict  = "2"
+
+	// maximum lock ranges to track
+	maxTrackedRanges = 16384
 )
+
+// always use maxTrackedRanges
+var staticRanges = false
 
 type bpfPrograms struct {
 	KprobeVfsIoctl    *ebpf.Program `ebpf:"kprobe__do_vfs_ioctl"`
@@ -296,11 +302,15 @@ func (l *LockContentionCollector) Initialize(trackAllResources bool) error {
 		cpus = uint32(c)
 		l.cpus = cpus
 
-		ranges = estimateNumOfLockRanges(maps, cpus)
+		ranges = constrainMaxRanges(estimateNumOfLockRanges(maps, cpus))
 		l.ranges = ranges
 		collectionSpec.Maps[mapAddrFdBpfMap].MaxEntries = ranges
 		collectionSpec.Maps[lockStatBpfMap].MaxEntries = ranges
 		collectionSpec.Maps[rangesBpfMap].MaxEntries = ranges
+
+		// Ideally we would want this to be the max number of proccesses allowed
+		// by the kernel, however verifier constraints force us to choose a smaller
+		// value. This value has been experimentally verifier to pass the verifier.
 		collectionSpec.Maps[timeStampBpfMap].MaxEntries = 16384
 
 		addrs, err := getKernelSymbolsAddressesWithKptrRestrict(kernelAddresses...)
@@ -380,11 +390,16 @@ func (l *LockContentionCollector) Initialize(trackAllResources bool) error {
 		return fmt.Errorf("unable to lookup up lock ranges: %w", err)
 	}
 
-	if uint32(count) < ranges {
+	if uint32(count) < ranges && !staticRanges {
 		return fmt.Errorf("discovered fewer ranges than expected: %d < %d", count, ranges)
 	}
 
 	for i, id := range mapids {
+		// id can be zero when staticRanges is set and tracked lock ranges are
+		// less than maxTrackedRanges
+		if id == 0 {
+			continue
+		}
 		tm, ok := maps[id]
 		if !ok {
 			return fmt.Errorf("map with id %d not tracked", id)
@@ -393,6 +408,8 @@ func (l *LockContentionCollector) Initialize(trackAllResources bool) error {
 	}
 
 	// sort lock ranges and write to per cpu array map
+	// we sort so the bpf code can perform a quick binary search
+	// over all the ranges to find if a lock address is tracked.
 	slices.SortFunc(lockRanges, func(a, b LockRange) int {
 		return int(int64(a.Start) - int64(b.Start))
 	})
@@ -444,6 +461,14 @@ func pcpuLruMapLockRanges(cpu uint32) uint32 {
 func ringbufMapLockRanges(_ uint32) uint32 {
 	// waitq lock + rb lock
 	return 2
+}
+
+func constrainMaxRanges(ranges uint32) uint32 {
+	if ranges > maxTrackedRanges || staticRanges {
+		return maxTrackedRanges
+	}
+
+	return ranges
 }
 
 func estimateNumOfLockRanges(tm map[uint32]*targetMap, cpu uint32) uint32 {

@@ -145,6 +145,8 @@ func TestLockRanges(t *testing.T) {
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			l := NewLockContentionCollector()
+			require.NotNil(t, l)
+
 			spec := specs[c.mtype]
 			m := c.alloc(&spec)
 
@@ -154,7 +156,8 @@ func TestLockRanges(t *testing.T) {
 			id, _ := mInfo.ID()
 			mapNameMapping[uint32(id)] = spec.Name
 
-			l.Initialize(false)
+			err = l.Initialize(false)
+			require.NoError(t, err)
 
 			require.Equal(t, entries(l.objects.MapAddrFd), c.lockCount)
 
@@ -162,4 +165,19 @@ func TestLockRanges(t *testing.T) {
 			l.Close()
 		})
 	}
+}
+
+func TestLoadWithMaxTrackedRanges(t *testing.T) {
+	if !lockContentionCollectorSupported() {
+		t.Skip("EBPF lock contention collector not supported")
+	}
+
+	l := NewLockContentionCollector()
+	require.NotNil(t, l)
+
+	staticRanges = true
+	err := l.Initialize(true)
+	require.NoError(t, err)
+
+	l.Close()
 }
