@@ -227,7 +227,7 @@ func (ac *AutoConfig) writeConfigCheck(w http.ResponseWriter, r *http.Request) {
 	w.Write(bytes)
 }
 
-func (ac *AutoConfig) writeConfigCheckRaw(w http.ResponseWriter, r *http.Request) {
+func (ac *AutoConfig) writeConfigCheckRaw(w http.ResponseWriter, _ *http.Request) {
 	var response integration.ConfigCheckResponse
 
 	configSlice := ac.LoadedConfigs()
