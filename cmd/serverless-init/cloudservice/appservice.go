@@ -21,7 +21,7 @@ const (
 	//nolint:revive // TODO(SERV) Fix revive linter
 	RegionName = "REGION_NAME"
 	//nolint:revive // TODO(SERV) Fix revive linter
-	FxVersion = "LINUX_FX_VERSION"
+	WebsiteStack = "WEBSITE_STACK"
 	//nolint:revive // TODO(SERV) Fix revive linter
 	AppLogsTrace = "WEBSITE_APPSERVICEAPPLOGS_TRACE_ENABLED"
 )
@@ -63,6 +63,6 @@ func (a *AppService) Init() error {
 }
 
 func isAppService() bool {
-	_, exists := os.LookupEnv(FxVersion)
+	_, exists := os.LookupEnv(WebsiteStack)
 	return exists
 }

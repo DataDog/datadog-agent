@@ -13,14 +13,14 @@ import (
 )
 
 const (
-	FxVersion    = "LINUX_FX_VERSION"
+	WebsiteStack = "WEBSITE_STACK"
 	AppLogsTrace = "WEBSITE_APPSERVICEAPPLOGS_TRACE_ENABLED"
 )
 
 func TestInAzureAppServices(t *testing.T) {
-	os.Setenv(FxVersion, " ")
+	os.Setenv(WebsiteStack, " ")
 	isLinuxAzure := inAzureAppServices()
-	os.Unsetenv(FxVersion)
+	os.Unsetenv(WebsiteStack)
 
 	os.Setenv(AppLogsTrace, " ")
 	isWindowsAzure := inAzureAppServices()
