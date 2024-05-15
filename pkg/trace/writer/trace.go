@@ -237,10 +237,10 @@ func (w *TraceWriter) flush() {
 	}
 	log.Debugf("Reported agent rates: target_tps=%v errors_tps=%v rare_sampling=%v", p.TargetTPS, p.ErrorTPS, p.RareSamplerEnabled)
 
-	w.Serialize(&p)
+	w.serialize(&p)
 }
 
-func (w *TraceWriter) Serialize(pl *pb.AgentPayload) {
+func (w *TraceWriter) serialize(pl *pb.AgentPayload) {
 	b, err := pl.MarshalVT()
 	if err != nil {
 		log.Errorf("Failed to serialize payload, data dropped: %v", err)
