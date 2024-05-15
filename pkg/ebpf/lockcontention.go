@@ -167,6 +167,11 @@ func NewLockContentionCollector() *LockContentionCollector {
 
 // Describe implements prometheus.Collector.Describe
 func (l *LockContentionCollector) Describe(descs chan<- *prometheus.Desc) {
+	// ContentionCollector not initialized without kernel version support
+	if l == nil {
+		return
+	}
+
 	l.maxContention.Describe(descs)
 	l.avgContention.Describe(descs)
 	l.totalContention.Describe(descs)
@@ -174,6 +179,11 @@ func (l *LockContentionCollector) Describe(descs chan<- *prometheus.Desc) {
 
 // Collect implements prometheus.Collector.Collect
 func (l *LockContentionCollector) Collect(metrics chan<- prometheus.Metric) {
+	// ContentionCollector not initialized without kernel version support
+	if l == nil {
+		return
+	}
+
 	l.mtx.Lock()
 	defer l.mtx.Unlock()
 
