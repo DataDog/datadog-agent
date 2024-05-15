@@ -178,6 +178,17 @@ func (w *workloadMetaMock) GetKubernetesPodByName(podName, podNamespace string) 
 	return nil, errors.NewNotFound(podName)
 }
 
+func (w *workloadMetaMock) ListKubernetesNodes() []*KubernetesNode {
+	entities := w.listEntitiesByKind(KindKubernetesNode)
+
+	nodes := make([]*KubernetesNode, 0, len(entities))
+	for i := range entities {
+		nodes = append(nodes, entities[i].(*KubernetesNode))
+	}
+
+	return nodes
+}
+
 // GetKubernetesNode returns metadata about a Kubernetes node.
 func (w *workloadMetaMock) GetKubernetesNode(id string) (*KubernetesNode, error) {
 	entity, err := w.getEntityByKind(KindKubernetesPod, id)
