@@ -39,8 +39,8 @@ const (
 
 var gvrWPA = apis_v1alpha1.GroupVersion.WithResource("watermarkpodautoscalers")
 
-// RunWPA starts the controller to process events about Watermark Pod Autoscalers
-func (h *AutoscalersController) RunWPA(stopCh <-chan struct{}, wpaClient dynamic_client.Interface, wpaInformerFactory dynamic_informer.DynamicSharedInformerFactory) {
+// runWPA starts the controller to process events about Watermark Pod Autoscalers
+func (h *autoscalersController) runWPA(stopCh <-chan struct{}, wpaClient dynamic_client.Interface, wpaInformerFactory dynamic_informer.DynamicSharedInformerFactory) {
 	waitForWPACRD(wpaClient)
 
 	// mutate the Autoscaler controller to embed an informer against the WPAs
@@ -49,7 +49,7 @@ func (h *AutoscalersController) RunWPA(stopCh <-chan struct{}, wpaClient dynamic
 		return
 	}
 
-	defer h.WPAqueue.ShutDown()
+	defer h.wpaQueue.ShutDown()
 
 	log.Infof("Starting WPA Controller ... ")
 	defer log.Infof("Stopping WPA Controller")
@@ -124,13 +124,13 @@ func waitForWPACRD(wpaClient dynamic_client.Interface) {
 	_ = backoff.RetryNotify(checkWPACRD(wpaClient), exp, notifyCheckWPACRD())
 }
 
-// enableWPA adds the handlers to the AutoscalersController to support WPAs
-func (h *AutoscalersController) enableWPA(wpaInformerFactory dynamic_informer.DynamicSharedInformerFactory) error {
+// enableWPA adds the handlers to the autoscalersController to support WPAs
+func (h *autoscalersController) enableWPA(wpaInformerFactory dynamic_informer.DynamicSharedInformerFactory) error {
 	log.Info("Enabling WPA controller")
 
 	genericInformer := wpaInformerFactory.ForResource(gvrWPA)
 
-	h.WPAqueue = workqueue.NewNamedRateLimitingQueue(workqueue.DefaultItemBasedRateLimiter(), "wpa-autoscalers")
+	h.wpaQueue = workqueue.NewNamedRateLimitingQueue(workqueue.DefaultItemBasedRateLimiter(), "wpa-autoscalers")
 	h.wpaLister = genericInformer.Lister()
 	h.wpaListerSynced = genericInformer.Informer().HasSynced
 	if _, err := genericInformer.Informer().AddEventHandler(
@@ -148,25 +148,25 @@ func (h *AutoscalersController) enableWPA(wpaInformerFactory dynamic_informer.Dy
 	return nil
 }
 
-func (h *AutoscalersController) isWPAEnabled() bool {
+func (h *autoscalersController) isWPAEnabled() bool {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	return h.wpaEnabled
 }
 
-func (h *AutoscalersController) workerWPA() {
+func (h *autoscalersController) workerWPA() {
 	for h.processNextWPA() {
 	}
 }
 
-func (h *AutoscalersController) processNextWPA() bool {
-	key, quit := h.WPAqueue.Get()
+func (h *autoscalersController) processNextWPA() bool {
+	key, quit := h.wpaQueue.Get()
 	if quit {
-		log.Error("WPA controller HPAqueue is shutting down, stopping processing")
+		log.Error("WPA controller hpaQueue is shutting down, stopping processing")
 		return false
 	}
 	log.Tracef("Processing %s", key)
-	defer h.WPAqueue.Done(key)
+	defer h.wpaQueue.Done(key)
 
 	err := h.syncWPA(key)
 	h.handleErr(err, key)
@@ -178,7 +178,7 @@ func (h *AutoscalersController) processNextWPA() bool {
 	return true
 }
 
-func (h *AutoscalersController) syncWPA(key interface{}) error {
+func (h *autoscalersController) syncWPA(key interface{}) error {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 
@@ -207,7 +207,7 @@ func (h *AutoscalersController) syncWPA(key interface{}) error {
 	default:
 		if wpaCached == nil {
 			log.Errorf("Could not parse empty wpa %s/%s from local store", ns, name)
-			return ErrIsEmpty
+			return errIsEmpty
 		}
 		emList := autoscalers.InspectWPA(wpaCached)
 		if len(emList) == 0 {
@@ -227,19 +227,19 @@ func (h *AutoscalersController) syncWPA(key interface{}) error {
 	return err
 }
 
-func (h *AutoscalersController) addWPAutoscaler(obj interface{}) {
+func (h *autoscalersController) addWPAutoscaler(obj interface{}) {
 	newAutoscaler := &apis_v1alpha1.WatermarkPodAutoscaler{}
 	if err := apiserver.UnstructuredIntoWPA(obj, newAutoscaler); err != nil {
 		log.Errorf("Unable to cast obj %s to a WPA: %v", obj, err)
 		return
 	}
 	log.Debugf("Adding WPA %s/%s", newAutoscaler.Namespace, newAutoscaler.Name)
-	h.EventRecorder.Event(newAutoscaler.DeepCopyObject(), corev1.EventTypeNormal, autoscalerNowHandleMsgEvent, "")
+	h.eventRecorder.Event(newAutoscaler.DeepCopyObject(), corev1.EventTypeNormal, autoscalerNowHandleMsgEvent, "")
 	h.enqueueWPA(newAutoscaler)
 }
 
 //nolint:revive // TODO(CAPP) Fix revive linter
-func (h *AutoscalersController) updateWPAutoscaler(old, obj interface{}) {
+func (h *autoscalersController) updateWPAutoscaler(old, obj interface{}) {
 	newAutoscaler := &apis_v1alpha1.WatermarkPodAutoscaler{}
 	if err := apiserver.UnstructuredIntoWPA(obj, newAutoscaler); err != nil {
 		log.Errorf("Unable to cast obj %s to a WPA: %v", obj, err)
@@ -265,9 +265,9 @@ func (h *AutoscalersController) updateWPAutoscaler(old, obj interface{}) {
 
 // Processing the Delete Events in the Eventhandler as obj is deleted from the local store thereafter.
 // Only here can we retrieve the content of the WPA to properly process and delete it.
-// FIXME we could have an update in the WPAqueue while processing the deletion, we should make
+// FIXME we could have an update in the wpaQueue while processing the deletion, we should make
 // sure we process them in order instead. For now, the gc logic allows us to recover.
-func (h *AutoscalersController) deleteWPAutoscaler(obj interface{}) {
+func (h *autoscalersController) deleteWPAutoscaler(obj interface{}) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	toDelete := &custommetrics.MetricsBundle{}

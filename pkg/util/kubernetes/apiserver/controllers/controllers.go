@@ -30,7 +30,7 @@ import (
 
 const autoscalerNowHandleMsgEvent = "Autoscaler is now handled by the Cluster-Agent"
 
-var ErrIsEmpty = errors.New("entity is empty") //nolint:revive
+var errIsEmpty = errors.New("entity is empty") //nolint:revive
 
 type startFunc func(ControllerContext, chan error)
 
@@ -40,21 +40,21 @@ type controllerFuncs struct {
 }
 
 var controllerCatalog = map[controllerName]controllerFuncs{
-	metadataController: {
+	metadataControllerName: {
 		func() bool { return config.Datadog.GetBool("kubernetes_collect_metadata_tags") },
 		startMetadataController,
 	},
-	autoscalersController: {
+	autoscalersControllerName: {
 		func() bool {
 			return config.Datadog.GetBool("external_metrics_provider.enabled") && !config.Datadog.GetBool("external_metrics_provider.use_datadogmetric_crd")
 		},
 		startAutoscalersController,
 	},
-	servicesController: {
+	servicesControllerName: {
 		func() bool { return config.Datadog.GetBool("cluster_checks.enabled") },
 		registerServicesInformer,
 	},
-	endpointsController: {
+	endpointsControllerName: {
 		func() bool { return config.Datadog.GetBool("cluster_checks.enabled") },
 		registerEndpointsInformer,
 	},
@@ -127,11 +127,11 @@ func StartControllers(ctx ControllerContext) k8serrors.Aggregate {
 //
 //nolint:revive // TODO(CAPP) Fix revive linter
 func startMetadataController(ctx ControllerContext, c chan error) {
-	metaController := NewMetadataController(
+	metaController := newMetadataController(
 		ctx.InformerFactory.Core().V1().Endpoints(),
 		ctx.WorkloadMeta,
 	)
-	go metaController.Run(ctx.StopCh)
+	go metaController.run(ctx.StopCh)
 }
 
 // startAutoscalersController starts the informers needed for autoscaling.
@@ -143,7 +143,7 @@ func startAutoscalersController(ctx ControllerContext, c chan error) {
 		c <- err
 		return
 	}
-	autoscalersController, err := NewAutoscalersController(
+	autoscalersController, err := newAutoscalersController(
 		ctx.Client,
 		ctx.EventRecorder,
 		ctx.IsLeaderFunc,
@@ -155,20 +155,20 @@ func startAutoscalersController(ctx ControllerContext, c chan error) {
 	}
 
 	if config.Datadog.GetBool("external_metrics_provider.wpa_controller") {
-		go autoscalersController.RunWPA(ctx.StopCh, ctx.DynamicClient, ctx.DynamicInformerFactory)
+		go autoscalersController.runWPA(ctx.StopCh, ctx.DynamicClient, ctx.DynamicInformerFactory)
 	}
 
 	autoscalersController.enableHPA(ctx.Client, ctx.InformerFactory)
-	go autoscalersController.RunHPA(ctx.StopCh)
+	go autoscalersController.runHPA(ctx.StopCh)
 
-	autoscalersController.RunControllerLoop(ctx.StopCh)
+	autoscalersController.runControllerLoop(ctx.StopCh)
 }
 
 // registerServicesInformer registers the services informer.
 //
 //nolint:revive // TODO(CAPP) Fix revive linter
 func registerServicesInformer(ctx ControllerContext, c chan error) {
-	ctx.informers[ServicesInformer] = ctx.InformerFactory.Core().V1().Services().Informer()
+	ctx.informers[servicesInformer] = ctx.InformerFactory.Core().V1().Services().Informer()
 }
 
 // registerEndpointsInformer registers the endpoints informer.

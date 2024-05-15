@@ -26,14 +26,14 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// MetadataController is responsible for synchronizing objects from the Kubernetes
+// metadataController is responsible for synchronizing objects from the Kubernetes
 // apiserver to build and cache cluster metadata (like service tags) for each node.
 //
 // The controller takes care to garbage collect any data while processing updates/deletes
 // so that the cache does not contain data for deleted pods/services.
 //
 // This controller is used by the Datadog Cluster Agent and supports Kubernetes 1.4+.
-type MetadataController struct {
+type metadataController struct {
 	wmeta workloadmeta.Component
 
 	endpointsLister       corelisters.EndpointsLister
@@ -45,9 +45,9 @@ type MetadataController struct {
 	queue workqueue.RateLimitingInterface
 }
 
-// NewMetadataController returns a new metadata controller
-func NewMetadataController(endpointsInformer coreinformers.EndpointsInformer, wmeta workloadmeta.Component) *MetadataController {
-	m := &MetadataController{
+// newMetadataController returns a new metadata controller
+func newMetadataController(endpointsInformer coreinformers.EndpointsInformer, wmeta workloadmeta.Component) *metadataController {
+	m := &metadataController{
 		wmeta: wmeta,
 		queue: workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "endpoints"),
 	}
@@ -99,8 +99,8 @@ func NewMetadataController(endpointsInformer coreinformers.EndpointsInformer, wm
 	return m
 }
 
-// Run starts the metadata controller reconciler loop
-func (m *MetadataController) Run(stopCh <-chan struct{}) {
+// run starts the metadata controller reconciler loop
+func (m *metadataController) run(stopCh <-chan struct{}) {
 	defer m.queue.ShutDown()
 
 	log.Infof("Starting metadata controller")
@@ -114,12 +114,12 @@ func (m *MetadataController) Run(stopCh <-chan struct{}) {
 	<-stopCh
 }
 
-func (m *MetadataController) worker() {
+func (m *metadataController) worker() {
 	for m.processNextWorkItem() {
 	}
 }
 
-func (m *MetadataController) processNextWorkItem() bool {
+func (m *metadataController) processNextWorkItem() bool {
 	key, quit := m.queue.Get()
 	if quit {
 		return false
@@ -134,18 +134,18 @@ func (m *MetadataController) processNextWorkItem() bool {
 	return true
 }
 
-func (m *MetadataController) addNode(name string) {
+func (m *metadataController) addNode(name string) {
 	bundle := m.store.getCopyOrNew(name)
 	m.store.set(name, bundle)
 	log.Debugf("Detected node %s", name)
 }
 
-func (m *MetadataController) deleteNode(name string) {
+func (m *metadataController) deleteNode(name string) {
 	m.store.delete(name)
 	log.Debugf("Forgot node %s", name)
 }
 
-func (m *MetadataController) addEndpoints(obj interface{}) {
+func (m *metadataController) addEndpoints(obj interface{}) {
 	endpoints, ok := obj.(*corev1.Endpoints)
 	if !ok {
 		return
@@ -154,7 +154,7 @@ func (m *MetadataController) addEndpoints(obj interface{}) {
 	m.enqueue(obj)
 }
 
-func (m *MetadataController) updateEndpoints(_, cur interface{}) {
+func (m *metadataController) updateEndpoints(_, cur interface{}) {
 	newEndpoints, ok := cur.(*corev1.Endpoints)
 	if !ok {
 		return
@@ -163,7 +163,7 @@ func (m *MetadataController) updateEndpoints(_, cur interface{}) {
 	m.enqueue(cur)
 }
 
-func (m *MetadataController) deleteEndpoints(obj interface{}) {
+func (m *metadataController) deleteEndpoints(obj interface{}) {
 	endpoints, ok := obj.(*corev1.Endpoints)
 	if !ok {
 		tombstone, ok := obj.(cache.DeletedFinalStateUnknown)
@@ -181,7 +181,7 @@ func (m *MetadataController) deleteEndpoints(obj interface{}) {
 	m.enqueue(obj)
 }
 
-func (m *MetadataController) enqueue(obj interface{}) {
+func (m *metadataController) enqueue(obj interface{}) {
 	key, err := cache.MetaNamespaceKeyFunc(obj)
 	if err != nil {
 		log.Debugf("Couldn't get key for object %v: %v", obj, err)
@@ -190,7 +190,7 @@ func (m *MetadataController) enqueue(obj interface{}) {
 	m.queue.Add(key)
 }
 
-func (m *MetadataController) syncEndpoints(key string) error {
+func (m *metadataController) syncEndpoints(key string) error {
 	namespace, name, err := cache.SplitMetaNamespaceKey(key)
 	if err != nil {
 		return err
@@ -211,7 +211,7 @@ func (m *MetadataController) syncEndpoints(key string) error {
 }
 
 // mapEndpoints matches pods to services via endpoint TargetRef objects. It supports Kubernetes 1.4+.
-func (m *MetadataController) mapEndpoints(endpoints *corev1.Endpoints) error {
+func (m *metadataController) mapEndpoints(endpoints *corev1.Endpoints) error {
 	nodeToPods := make(map[string]map[string]sets.Set[string])
 
 	// Loop over the subsets to create a mapping of nodes to pods running on the node.
@@ -268,7 +268,7 @@ func (m *MetadataController) mapEndpoints(endpoints *corev1.Endpoints) error {
 	return nil
 }
 
-func (m *MetadataController) deleteMappedEndpoints(namespace, svc string) error {
+func (m *metadataController) deleteMappedEndpoints(namespace, svc string) error {
 	nodes := m.wmeta.ListKubernetesNodes()
 
 	// Delete the service from the metadata bundle for each node.

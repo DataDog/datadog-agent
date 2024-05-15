@@ -28,7 +28,7 @@ var globalMetaBundleStore = &metaBundleStore{
 type metaBundleStore struct {
 	mu sync.RWMutex
 
-	// we don't expire items in the cache and instead rely on the `MetadataController`
+	// we don't expire items in the cache and instead rely on the `metadataController`
 	// to delete items for nodes that were deleted in the apiserver to prevent data
 	// from going missing until the next resync period.
 	cache *cache.Cache

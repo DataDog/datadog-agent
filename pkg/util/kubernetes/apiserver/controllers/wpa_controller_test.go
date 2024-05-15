@@ -168,14 +168,14 @@ func TestUpdateWPA(t *testing.T) {
 	}
 }
 
-// newFakeWPAController creates an AutoscalersController. Use enableWPA(wpa_informers.SharedInformerFactory) to add the event handlers to it. Use Run() to add the event handlers and start processing the events.
-func newFakeWPAController(t *testing.T, kubeClient kubernetes.Interface, client dynamic.Interface, isLeaderFunc func() bool, dcl autoscalers.DatadogClient) (*AutoscalersController, wpa_informers.DynamicSharedInformerFactory) {
+// newFakeWPAController creates an autoscalersController. Use enableWPA(wpa_informers.SharedInformerFactory) to add the event handlers to it. Use Run() to add the event handlers and start processing the events.
+func newFakeWPAController(t *testing.T, kubeClient kubernetes.Interface, client dynamic.Interface, isLeaderFunc func() bool, dcl autoscalers.DatadogClient) (*autoscalersController, wpa_informers.DynamicSharedInformerFactory) {
 	eventBroadcaster := record.NewBroadcaster()
 	eventBroadcaster.StartLogging(t.Logf)
 
 	// need to fake wpa_client.
 	inf := wpa_informers.NewDynamicSharedInformerFactory(client, 0)
-	autoscalerController, _ := NewAutoscalersController(
+	autoscalerController, _ := newAutoscalersController(
 		kubeClient,
 		eventBroadcaster.NewRecorder(scheme, corev1.EventSource{Component: "FakeWPAController"}),
 		isLeaderFunc,
@@ -281,9 +281,9 @@ func TestWPAController(t *testing.T) {
 	inf.WaitForCacheSync(stop)
 	inf.Start(stop)
 
-	go hctrl.RunWPA(stop, wpaClient, inf)
+	go hctrl.runWPA(stop, wpaClient, inf)
 
-	hctrl.RunControllerLoop(stop)
+	hctrl.runControllerLoop(stop)
 
 	res, err := wpaClient.Resource(gvrWPA).Namespace(namespace).Get(context.TODO(), wpaName, metav1.GetOptions{})
 	require.NoError(t, err)

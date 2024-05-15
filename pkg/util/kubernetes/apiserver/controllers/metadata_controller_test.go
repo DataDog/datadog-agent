@@ -443,7 +443,7 @@ func TestMetadataController(t *testing.T) {
 	stop := make(chan struct{})
 	defer close(stop)
 	informerFactory.Start(stop)
-	go metaController.Run(stop)
+	go metaController.run(stop)
 
 	testutil.AssertTrueBeforeTimeout(t, 100*time.Millisecond, 2*time.Second, func() bool {
 		return metaController.endpointsListerSynced()
@@ -491,10 +491,10 @@ func newMockWorkloadMeta(t *testing.T) workloadmeta.Component {
 	)
 }
 
-func newFakeMetadataController(client kubernetes.Interface, wmeta workloadmeta.Component) (*MetadataController, informers.SharedInformerFactory) {
+func newFakeMetadataController(client kubernetes.Interface, wmeta workloadmeta.Component) (*metadataController, informers.SharedInformerFactory) {
 	informerFactory := informers.NewSharedInformerFactory(client, 1*time.Second)
 
-	metaController := NewMetadataController(
+	metaController := newMetadataController(
 		informerFactory.Core().V1().Endpoints(),
 		wmeta,
 	)
