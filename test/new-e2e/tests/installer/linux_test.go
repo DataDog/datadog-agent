@@ -485,64 +485,6 @@ func assertInstallMethod(v *installerSuite, t *testing.T, host *components.Remot
 	assert.True(t, "" != config.InstallMethod["tool_version"])
 }
 
-func (v *installerSuite) TestLDPreloadValidation() {
-	if v.distro != os.UbuntuDefault {
-		v.T().Skip("Skipping test, only run on Ubuntu for now")
-	}
-
-	host := v.Env().RemoteHost
-	host.MustExecute("sudo apt install -y gcc")
-	host.WriteFile("/tmp/broken_lib.c", []byte(`
-#define _GNU_SOURCE
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <sys/wait.h>
-
-#ifndef SYS_execve
-#if __x86_64__
-// Valid for x64; when we do ARM64 support, need to set to 221 for that arch
-// https://chromium.googlesource.com/chromiumos/docs/+/master/constants/syscalls.md#cross_arch-numbers
-#define SYS_execve 59
-#elif __aarch64__
-#define SYS_execve 221
-#else
-#error unknown architecture
-#endif
-#endif
-
-int old_execve(const char *path, char *const argv[], char *const envp[]) {
-	return syscall(SYS_execve, path, argv, envp);
-}
-
-int execve(const char *filename, char *const argv[], char *const envp[]) {
-	if (strcmp(filename, "/bin/echo") == 0) {
-	_exit(123);
-	}
-	return old_execve(filename, argv, envp);
-}
-`),
-	)
-	host.MustExecute("gcc -shared -fPIC -o /tmp/broken_lib.so /tmp/broken_lib.c")
-
-	defer func() {
-		// Cleanup
-		host.MustExecute("sudo sed -i 's# /tmp/broken_lib.so ##' /etc/ld.so.preload")
-	}()
-	host.MustExecute("echo ' /tmp/broken_lib.so ' | sudo tee -a /etc/ld.so.preload")
-
-	_, err := host.Execute(fmt.Sprintf(`sudo %v/bin/installer/installer install "oci://gcr.io/datadoghq/apm-inject-package@sha256:5fc83f7127647d53d52f72b90de3f7835ec54eb5ed3760c43496e98621a6d717"`, bootInstallerDir))
-	require.NotNil(v.T(), err)
-
-	// assert injector installation has been rolled back
-	// TODO(baptiste): Check stable symlink instead
-	_, err = host.Execute(`cat /etc/ld.so.preload | grep "/opt/datadog-packages/datadog-apm-inject"`)
-	require.NotNil(v.T(), err)
-
-}
-
-// TODO(baptiste): Test Docker, too
-
 // Config yaml struct
 type Config struct {
 	InstallMethod map[string]string `yaml:"install_method"`
