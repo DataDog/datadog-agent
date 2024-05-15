@@ -8,6 +8,7 @@ package flare
 import (
 	"fmt"
 	"io"
+	"net/url"
 
 	"github.com/fatih/color"
 
@@ -28,8 +29,20 @@ func GetClusterAgentConfigCheck(w io.Writer, withDebug bool) error {
 	if err != nil {
 		return err
 	}
-	configCheckURL := fmt.Sprintf("https://localhost:%v/config-check", config.Datadog.GetInt("cluster_agent.cmd_port"))
-	r, err := util.DoGet(c, configCheckURL, util.LeaveConnectionOpen)
+
+	v := url.Values{}
+	if withDebug {
+		v.Set("verbose", "true")
+	}
+
+	targetURL := url.URL{
+		Scheme:   "https",
+		Host:     fmt.Sprintf("localhost:%v", config.Datadog.GetInt("cluster_agent.cmd_port")),
+		Path:     "config-check",
+		RawQuery: v.Encode(),
+	}
+
+	r, err := util.DoGet(c, targetURL.String(), util.LeaveConnectionOpen)
 
 	if err != nil {
 		if r != nil && string(r) != "" {
