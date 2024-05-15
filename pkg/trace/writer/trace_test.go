@@ -63,10 +63,9 @@ func TestTraceWriter(t *testing.T) {
 		// but overflow on the third.
 		defer useFlushThreshold(testSpans[0].Size + testSpans[1].Size + 10)()
 		tw := NewTraceWriter(cfg, mockSampler, mockSampler, mockSampler, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{})
-		tw.In = make(chan *SampledChunks)
 		go tw.Run()
 		for _, ss := range testSpans {
-			tw.In <- ss
+			tw.AddSpans(ss)
 		}
 		tw.Stop()
 		// One payload flushes due to overflowing the threshold, and the second one
@@ -104,7 +103,6 @@ func TestTraceWriterMultipleEndpointsConcurrent(t *testing.T) {
 		randomSampledSpans(40, 5),
 	}
 	tw := NewTraceWriter(cfg, mockSampler, mockSampler, mockSampler, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{})
-	tw.In = make(chan *SampledChunks, 100)
 	go tw.Run()
 
 	var wg sync.WaitGroup
@@ -114,7 +112,7 @@ func TestTraceWriterMultipleEndpointsConcurrent(t *testing.T) {
 			defer wg.Done()
 			for j := 0; j < numOpsPerWorker; j++ {
 				for _, ss := range testSpans {
-					tw.In <- ss
+					tw.AddSpans(ss)
 				}
 			}
 		}()
@@ -199,7 +197,7 @@ func TestTraceWriterFlushSync(t *testing.T) {
 		tw := NewTraceWriter(cfg, mockSampler, mockSampler, mockSampler, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{})
 		go tw.Run()
 		for _, ss := range testSpans {
-			tw.In <- ss
+			tw.AddSpans(ss)
 		}
 
 		// No payloads should be sent before flushing
@@ -268,7 +266,7 @@ func TestTraceWriterSyncStop(t *testing.T) {
 		tw := NewTraceWriter(cfg, mockSampler, mockSampler, mockSampler, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{})
 		go tw.Run()
 		for _, ss := range testSpans {
-			tw.In <- ss
+			tw.AddSpans(ss)
 		}
 
 		// No payloads should be sent before flushing
@@ -315,7 +313,7 @@ func TestTraceWriterAgentPayload(t *testing.T) {
 
 	// helper function to send a chunk to the writer and force a synchronous flush
 	sendRandomSpanAndFlush := func(t *testing.T, tw *TraceWriter) {
-		tw.In <- randomSampledSpans(20, 8)
+		tw.AddSpans(randomSampledSpans(20, 8))
 		err := tw.FlushSync()
 		assert.Nil(t, err)
 	}
