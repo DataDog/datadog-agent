@@ -29,18 +29,8 @@ include:
   variables:
     MAJOR_VERSION: 7
 
-.deploy_packages_oci_windows:
-  extends: ".deploy_packages_oci"
-  needs: [ "windows_msi_and_bosh_zip_x64-a7" ]
-
 deploy_agent_oci:
   extends: ".deploy_packages_oci"
-  needs: [ "agent_oci" ]
-  variables:
-    OCI_PRODUCT: "datadog-agent"
-
-deploy_agent_oci_wndows:
-  extends: ".deploy_packages_oci_windows"
   needs: [ "agent_oci" ]
   variables:
     OCI_PRODUCT: "datadog-agent"

@@ -26,6 +26,8 @@
     - go build .
     - OUTPUT_DIR="/tmp/oci_output"
     - mkdir -p ${OUTPUT_DIR}
+    - ls $OMNIBUS_PACKAGE_DIR
+    - cp $OMNIBUS_PACKAGE_DIR/*.oci.tar ${OUTPUT_DIR}
     - |
       for ARCH in "amd64" "arm64"; do
         INPUT_FILE="$OMNIBUS_PACKAGE_DIR/${OCI_PRODUCT}-*${ARCH}.tar.xz"
@@ -64,7 +66,7 @@
 
 agent_oci:
   extends: .package_oci
-  needs: ["datadog-agent-oci-x64-a7", "datadog-agent-oci-arm64-a7"]
+  needs: ["datadog-agent-oci-x64-a7", "datadog-agent-oci-arm64-a7", "windows_msi_and_bosh_zip_x64-a7"]
   variables:
     OCI_PRODUCT: "datadog-agent"
 
