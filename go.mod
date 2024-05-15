@@ -604,7 +604,7 @@ require github.com/lorenzosaino/go-sysctl v0.3.1
 
 require (
 	github.com/DATA-DOG/go-sqlmock v1.5.2
-	github.com/DataDog/agent-payload/v5 v5.0.114
+	github.com/DataDog/agent-payload/v5 v5.0.115
 	github.com/DataDog/datadog-agent/cmd/agent/common/path v0.54.0-rc.2
 	github.com/DataDog/datadog-agent/comp/core/config v0.54.0-rc.2
 	github.com/DataDog/datadog-agent/comp/core/flare/types v0.54.0-rc.2
@@ -716,6 +716,7 @@ require (
 	go.opentelemetry.io/collector/service v0.99.0
 	go.uber.org/goleak v1.3.0
 	go4.org/intern v0.0.0-20230525184215-6c62f75575cb
+	go4.org/mem v0.0.0-20220726221520-4f986261bf13
 	gotest.tools v2.2.0+incompatible
 	k8s.io/cli-runtime v0.29.0
 	k8s.io/kubectl v0.29.0

@@ -12,9 +12,11 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"
+
+	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl/local"
+	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 )
 
 func TestGetDDAlertType(t *testing.T) {
@@ -43,6 +45,57 @@ func TestGetDDAlertType(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			got := getDDAlertType(tt.k8sType)
 			assert.Equal(t, got, tt.want)
+		})
+	}
+}
+
+func Test_getInvolvedObjectTags(t *testing.T) {
+	taggerInstance := local.NewFakeTagger()
+	taggerInstance.SetTags("namespace://default", "workloadmeta-kubernetes_node", []string{"team:container-int"}, nil, nil, nil)
+	tests := []struct {
+		name           string
+		involvedObject v1.ObjectReference
+		tags           []string
+	}{
+		{
+			name: "get pod basic tags",
+			involvedObject: v1.ObjectReference{
+				Kind:      "Pod",
+				Name:      "my-pod",
+				Namespace: "my-namespace",
+			},
+			tags: []string{
+				"kube_kind:Pod",
+				"kube_name:my-pod",
+				"kubernetes_kind:Pod",
+				"name:my-pod",
+				"kube_namespace:my-namespace",
+				"namespace:my-namespace",
+				"pod_name:my-pod",
+			},
+		},
+		{
+			name: "get pod namespace tags",
+			involvedObject: v1.ObjectReference{
+				Kind:      "Pod",
+				Name:      "my-pod",
+				Namespace: "default",
+			},
+			tags: []string{
+				"kube_kind:Pod",
+				"kube_name:my-pod",
+				"kubernetes_kind:Pod",
+				"name:my-pod",
+				"kube_namespace:default",
+				"namespace:default",
+				"team:container-int", // this tag is coming from the namespace
+				"pod_name:my-pod",
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.ElementsMatch(t, getInvolvedObjectTags(tt.involvedObject, taggerInstance), tt.tags)
 		})
 	}
 }

@@ -399,3 +399,35 @@ func getProcessStartTimeAsNs(pid uint64) (uint64, error) {
 	}
 	return uint64(creation.Nanoseconds()), nil
 }
+
+// KillProcess kills the process with the given PID, supplying the given return code
+func KillProcess(pid int, returnCode uint32) error {
+	/*
+	 * Open the process with PROCESS_TERMINATE rights.  This will fail
+	 * if the process is not owned by the current user, or the user does not
+	 * have admin rights
+	 */
+	h, err := windows.OpenProcess(windows.PROCESS_TERMINATE, false, uint32(pid))
+	if err != nil {
+		return fmt.Errorf("Error opening process %v", err)
+	}
+	/*
+	 * if the handle is successfully opened, must be closed to avoid handle leaks
+	 */
+	defer windows.Close(h)
+	/*
+	 * terminate the process; the process will exit with the given return code
+	 *
+	 * See https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-terminateprocess for
+	 * more information.
+	 *
+	 * A couple of notes:
+	 * - This function will return immediately.  The process itself will not be closed until all I/O is completed or cancelled
+	 * - We could block and wait for the process to terminate, but this is not done here.
+	 */
+	err = windows.TerminateProcess(h, returnCode)
+	if err != nil {
+		return fmt.Errorf("Error terminating process %v", err)
+	}
+	return nil
+}

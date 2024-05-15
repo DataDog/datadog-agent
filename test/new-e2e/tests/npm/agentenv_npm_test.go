@@ -23,6 +23,7 @@ type vmSuiteEx6 struct {
 }
 
 func TestVMSuiteEx6(t *testing.T) {
+	t.Parallel()
 	e2e.Run(t, &vmSuiteEx6{}, e2e.WithProvisioner(awshost.Provisioner(awshost.WithAgentOptions(agentparams.WithSystemProbeConfig(systemProbeConfigNPM)))))
 }
 
