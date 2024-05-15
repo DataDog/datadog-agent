@@ -18,12 +18,20 @@ var MockTimeNow = func() time.Time {
 }
 
 type MockCacher struct {
+	cache map[string]string
 }
 
-func (p *MockCacher) Read(key string) (string, error) {
-	return "", nil
+func NewMockCacher() *MockCacher {
+	return &MockCacher{
+		cache: make(map[string]string),
+	}
 }
 
-func (p *MockCacher) Write(key string, value string) error {
+func (c *MockCacher) Read(key string) (string, error) {
+	return c.cache[key], nil
+}
+
+func (c *MockCacher) Write(key string, value string) error {
+	c.cache[key] = value
 	return nil
 }

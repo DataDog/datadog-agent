@@ -62,7 +62,7 @@ profiles:
 	config, err := checkconfig.NewCheckConfig(rawInstanceConfig, rawInitConfig)
 	assert.Nil(t, err)
 
-	deviceCk, err := NewDeviceCheck(config, "1.2.3.4", sessionFactory, &common.MockCacher{})
+	deviceCk, err := NewDeviceCheck(config, "1.2.3.4", sessionFactory, common.NewMockCacher())
 	assert.Nil(t, err)
 
 	sender := mocksender.NewMockSender("123") // required to initiate aggregator
@@ -102,7 +102,7 @@ profiles:
 		// Fake metric specific to another_profile
 		SetInt("1.3.6.1.2.1.1.999.0", 100))
 
-	err = deviceCk.Run(time.Now(), &common.MockCacher{})
+	err = deviceCk.Run(time.Now())
 	assert.Nil(t, err)
 
 	snmpTags := []string{
@@ -144,7 +144,7 @@ profiles:
 
 	// Switch device sysobjid
 	sess.SetObj("1.3.6.1.2.1.1.2.0", "1.3.6.1.4.1.32473.1.1")
-	err = deviceCk.Run(time.Now(), &common.MockCacher{})
+	err = deviceCk.Run(time.Now())
 	assert.Nil(t, err)
 
 	snmpTags = []string{
@@ -202,7 +202,7 @@ global_metrics:
 	config, err := checkconfig.NewCheckConfig(rawInstanceConfig, rawInitConfig)
 	assert.Nil(t, err)
 
-	deviceCk, err := NewDeviceCheck(config, "1.2.3.4", sessionFactory, &common.MockCacher{})
+	deviceCk, err := NewDeviceCheck(config, "1.2.3.4", sessionFactory, common.NewMockCacher())
 	assert.Nil(t, err)
 
 	sender := mocksender.NewMockSender("123") // required to initiate aggregator
@@ -218,7 +218,7 @@ global_metrics:
 		// Fake metric specific to another_profile
 		SetInt("1.3.6.1.2.1.1.999.0", 100)
 
-	err = deviceCk.Run(time.Now(), &common.MockCacher{})
+	err = deviceCk.Run(time.Now())
 	assert.Nil(t, err)
 
 	sender.AssertMetric(t, "Gauge", "snmp.fake.global.metric", float64(12345), "", []string{"snmp_profile:f5-big-ip"})
@@ -228,7 +228,7 @@ global_metrics:
 	// Switch device sysobjid
 	sender.ResetCalls()
 	sess.SetObj("1.3.6.1.2.1.1.2.0", "1.3.6.1.4.1.32473.1.1")
-	err = deviceCk.Run(time.Now(), &common.MockCacher{})
+	err = deviceCk.Run(time.Now())
 	assert.Nil(t, err)
 
 	sender.AssertMetric(t, "Gauge", "snmp.fake.global.metric", float64(12345), "", []string{"snmp_profile:another_profile"})
@@ -263,7 +263,7 @@ collect_topology: false
 	config, err := checkconfig.NewCheckConfig(rawInstanceConfig, rawInitConfig)
 	assert.Nil(t, err)
 
-	deviceCk, err := NewDeviceCheck(config, "1.2.3.4", sessionFactory, &common.MockCacher{})
+	deviceCk, err := NewDeviceCheck(config, "1.2.3.4", sessionFactory, common.NewMockCacher())
 	assert.Nil(t, err)
 
 	sender := mocksender.NewMockSender("123") // required to initiate aggregator
@@ -303,7 +303,7 @@ collect_topology: false
 		SetIP("1.3.6.1.2.1.4.20.1.3.10.0.0.2", "255.255.255.0")
 
 	savedAutodetectMetricsTime := deviceCk.nextAutodetectMetrics
-	err = deviceCk.Run(timeNow(), &common.MockCacher{})
+	err = deviceCk.Run(timeNow())
 	assert.Nil(t, err)
 
 	snmpTags := []string{"snmp_device:1.2.3.4", "device_ip:1.2.3.4", "device_id:default:1.2.3.4"}
@@ -377,7 +377,7 @@ collect_topology: false
 		return common.MockTimeNow().Add(time.Second * 100)
 	}
 
-	err = deviceCk.Run(timeNow(), &common.MockCacher{})
+	err = deviceCk.Run(timeNow())
 	assert.Nil(t, err)
 
 	sender.AssertMetric(t, "Gauge", "snmp.sysStatMemoryTotal", float64(60), "", snmpTags)
@@ -418,7 +418,7 @@ profiles:
 	config, err := checkconfig.NewCheckConfig(rawInstanceConfig, rawInitConfig)
 	assert.Nil(t, err)
 
-	deviceCk, err := NewDeviceCheck(config, "1.2.3.4", sessionFactory, &common.MockCacher{})
+	deviceCk, err := NewDeviceCheck(config, "1.2.3.4", sessionFactory, common.NewMockCacher())
 	assert.Nil(t, err)
 
 	sender := mocksender.NewMockSender("123") // required to initiate aggregator
@@ -467,7 +467,7 @@ community_string: public
 	config, err := checkconfig.NewCheckConfig(rawInstanceConfig, rawInitConfig)
 	assert.Nil(t, err)
 
-	deviceCk, err := NewDeviceCheck(config, "1.2.3.4", session.NewMockSession, &common.MockCacher{})
+	deviceCk, err := NewDeviceCheck(config, "1.2.3.4", session.NewMockSession, common.NewMockCacher())
 	assert.Nil(t, err)
 
 	sender := mocksender.NewMockSender("123") // required to initiate aggregator
@@ -498,7 +498,7 @@ community_string: public
 	config, err := checkconfig.NewCheckConfig(rawInstanceConfig, rawInitConfig)
 	assert.Nil(t, err)
 
-	deviceCk, err := NewDeviceCheck(config, "1.2.3.4", session.NewMockSession, &common.MockCacher{})
+	deviceCk, err := NewDeviceCheck(config, "1.2.3.4", session.NewMockSession, common.NewMockCacher())
 	assert.Nil(t, err)
 
 	hostname, err := deviceCk.GetDeviceHostname()
@@ -564,7 +564,7 @@ profiles:
 	config, err := checkconfig.NewCheckConfig(rawInstanceConfig, rawInitConfig)
 	assert.Nil(t, err)
 
-	deviceCk, err := NewDeviceCheck(config, "1.2.3.4", sessionFactory, &common.MockCacher{})
+	deviceCk, err := NewDeviceCheck(config, "1.2.3.4", sessionFactory, common.NewMockCacher())
 	assert.Nil(t, err)
 
 	snmpTags := []string{"snmp_device:1.2.3.4", "device_ip:1.2.3.4", "device_id:default:1.2.3.4", "snmp_profile:f5-big-ip", "device_vendor:f5", "snmp_host:foo_sys_name",
@@ -824,7 +824,7 @@ profiles:
 	sess.On("GetBulk", []string{"1.3.6.1.2.1.2.2.1.13", "1.3.6.1.2.1.2.2.1.14", "1.3.6.1.2.1.2.2.1.6", "1.3.6.1.2.1.2.2.1.7", "1.3.6.1.2.1.2.2.1.8"}, checkconfig.DefaultBulkMaxRepetitions).Return(&bulkPackets[0], nil)
 	sess.On("GetBulk", []string{"1.3.6.1.2.1.31.1.1.1.1", "1.3.6.1.2.1.31.1.1.1.18", "1.3.6.1.2.1.4.20.1.2", "1.3.6.1.2.1.4.20.1.3"}, checkconfig.DefaultBulkMaxRepetitions).Return(&bulkPackets[1], nil)
 
-	err = deviceCk.Run(time.Now(), &common.MockCacher{})
+	err = deviceCk.Run(time.Now())
 	assert.Nil(t, err)
 
 	sender.AssertServiceCheck(t, "snmp.can_check", servicecheck.ServiceCheckOK, "", snmpTags, "")
@@ -833,7 +833,7 @@ profiles:
 
 	sender.ResetCalls()
 	sess.ConnectErr = fmt.Errorf("some error")
-	err = deviceCk.Run(time.Now(), &common.MockCacher{})
+	err = deviceCk.Run(time.Now())
 
 	assert.Error(t, err, "some error")
 	sender.Mock.AssertCalled(t, "ServiceCheck", "snmp.can_check", servicecheck.ServiceCheckCritical, "", mocksender.MatchTagsContains(snmpTags), "snmp connection error: some error")
@@ -869,7 +869,7 @@ profiles:
 	config, err := checkconfig.NewCheckConfig(rawInstanceConfig, rawInitConfig)
 	assert.Nil(t, err)
 
-	deviceCk, err := NewDeviceCheck(config, "1.2.3.4", sessionFactory, &common.MockCacher{})
+	deviceCk, err := NewDeviceCheck(config, "1.2.3.4", sessionFactory, common.NewMockCacher())
 	assert.Nil(t, err)
 
 	sender := mocksender.NewMockSender("123") // required to initiate aggregator
@@ -883,7 +883,7 @@ profiles:
 	sess.On("GetNext", []string{"1.0"}).Return(&gosnmplib.MockValidReachableGetNextPacket, nil)
 	sess.On("Get", []string{"1.2.3", "1.3.6.1.2.1.1.3.0"}).Return(&packet, nil)
 
-	err = deviceCk.Run(time.Now(), &common.MockCacher{})
+	err = deviceCk.Run(time.Now())
 	assert.Nil(t, err)
 
 	assert.Equal(t, uint64(1), deviceCk.sessionCloseErrorCount.Load())
@@ -909,7 +909,7 @@ community_string: public
 	config, err := checkconfig.NewCheckConfig(rawInstanceConfig, rawInitConfig)
 	assert.Nil(t, err)
 
-	deviceCk, err := NewDeviceCheck(config, "1.2.3.4", sessionFactory, &common.MockCacher{})
+	deviceCk, err := NewDeviceCheck(config, "1.2.3.4", sessionFactory, common.NewMockCacher())
 	assert.Nil(t, err)
 
 	sender := mocksender.NewMockSender("123") // required to initiate aggregator
@@ -1000,7 +1000,7 @@ profiles:
 	config, err := checkconfig.NewCheckConfig(rawInstanceConfig, rawInitConfig)
 	assert.Nil(t, err)
 
-	deviceCk, err := NewDeviceCheck(config, "1.2.3.4", sessionFactory, &common.MockCacher{})
+	deviceCk, err := NewDeviceCheck(config, "1.2.3.4", sessionFactory, common.NewMockCacher())
 	assert.Nil(t, err)
 
 	// override pinger with mock pinger
@@ -1048,7 +1048,7 @@ profiles:
 		// Fake metric specific to another_profile
 		SetInt("1.3.6.1.2.1.1.999.0", 100))
 
-	err = deviceCk.Run(time.Now(), &common.MockCacher{})
+	err = deviceCk.Run(time.Now())
 	assert.Nil(t, err)
 
 	snmpTags := []string{
@@ -1090,7 +1090,7 @@ profiles:
 
 	// Switch device sysobjid
 	sess.SetObj("1.3.6.1.2.1.1.2.0", "1.3.6.1.4.1.32473.1.1")
-	err = deviceCk.Run(time.Now(), &common.MockCacher{})
+	err = deviceCk.Run(time.Now())
 	assert.Nil(t, err)
 
 	snmpTags = []string{
@@ -1151,7 +1151,7 @@ profiles:
 	config, err := checkconfig.NewCheckConfig(rawInstanceConfig, rawInitConfig)
 	assert.Nil(t, err)
 
-	deviceCk, err := NewDeviceCheck(config, "1.2.3.4", sessionFactory, &common.MockCacher{})
+	deviceCk, err := NewDeviceCheck(config, "1.2.3.4", sessionFactory, common.NewMockCacher())
 	assert.Nil(t, err)
 
 	// override pinger with mock pinger
@@ -1195,7 +1195,7 @@ profiles:
 		// Fake metric specific to another_profile
 		SetInt("1.3.6.1.2.1.1.999.0", 100))
 
-	err = deviceCk.Run(time.Now(), &common.MockCacher{})
+	err = deviceCk.Run(time.Now())
 	assert.Nil(t, err)
 
 	snmpTags := []string{
@@ -1237,7 +1237,7 @@ profiles:
 
 	// Switch device sysobjid
 	sess.SetObj("1.3.6.1.2.1.1.2.0", "1.3.6.1.4.1.32473.1.1")
-	err = deviceCk.Run(time.Now(), &common.MockCacher{})
+	err = deviceCk.Run(time.Now())
 	assert.Nil(t, err)
 
 	snmpTags = []string{

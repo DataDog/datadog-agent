@@ -72,6 +72,7 @@ type DeviceCheck struct {
 	nextAutodetectMetrics   time.Time
 	diagnoses               *diagnoses.Diagnoses
 	interfaceBandwidthState report.InterfaceBandwidthState
+	cacher                  cache.Cacher
 	cacheKey                string
 }
 
@@ -106,9 +107,10 @@ func NewDeviceCheck(config *checkconfig.CheckConfig, ipAddress string, sessionFa
 		diagnoses:               diagnoses.NewDeviceDiagnoses(newConfig.DeviceID),
 		interfaceBandwidthState: report.MakeInterfaceBandwidthState(),
 		cacheKey:                cacheKey,
+		cacher:                  cacher,
 	}
 
-	d.readTagsFromCache(cacher)
+	d.readTagsFromCache()
 
 	return &d, nil
 }
@@ -157,7 +159,7 @@ func (d *DeviceCheck) GetDeviceHostname() (string, error) {
 }
 
 // Run executes the check
-func (d *DeviceCheck) Run(collectionTime time.Time, cacher cache.Cacher) error {
+func (d *DeviceCheck) Run(collectionTime time.Time) error {
 	startTime := time.Now()
 	staticTags := append(d.config.GetStaticTags(), d.config.GetNetworkTags()...)
 
@@ -175,7 +177,7 @@ func (d *DeviceCheck) Run(collectionTime time.Time, cacher cache.Cacher) error {
 	} else {
 		if !reflect.DeepEqual(d.savedDynamicTags, dynamicTags) {
 			d.savedDynamicTags = dynamicTags
-			d.writeTagsInCache(cacher)
+			d.writeTagsInCache()
 		}
 
 		tags = append(tags, dynamicTags...)
@@ -450,8 +452,8 @@ func (d *DeviceCheck) submitPingMetrics(pingResult *pinger.Result, tags []string
 	d.sender.Gauge(pingPacketLoss, pingResult.PacketLoss, tags)
 }
 
-func (d *DeviceCheck) readTagsFromCache(cacher cache.Cacher) {
-	cacheValue, err := cacher.Read(d.cacheKey)
+func (d *DeviceCheck) readTagsFromCache() {
+	cacheValue, err := d.cacher.Read(d.cacheKey)
 	if err != nil {
 		log.Errorf("couldn't read cache for %s: %s", d.cacheKey, err)
 	}
@@ -465,14 +467,14 @@ func (d *DeviceCheck) readTagsFromCache(cacher cache.Cacher) {
 	d.savedDynamicTags = tags
 }
 
-func (d *DeviceCheck) writeTagsInCache(cacher cache.Cacher) {
+func (d *DeviceCheck) writeTagsInCache() {
 	cacheValue, err := json.Marshal(d.savedDynamicTags)
 	if err != nil {
 		log.Errorf("SNMP tags %s: Couldn't marshal cache: %s", d.config.Network, err)
 		return
 	}
 
-	if err = cacher.Write(d.cacheKey, string(cacheValue)); err != nil {
+	if err = d.cacher.Write(d.cacheKey, string(cacheValue)); err != nil {
 		log.Errorf("SNMP tags %s: Couldn't write cache: %s", d.config.Network, err)
 	}
 }

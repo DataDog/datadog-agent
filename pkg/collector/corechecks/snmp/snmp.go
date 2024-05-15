@@ -113,7 +113,7 @@ func (c *Check) runCheckDeviceWorker(workerID int, wg *sync.WaitGroup, jobs <-ch
 func (c *Check) runCheckDevice(deviceCk *devicecheck.DeviceCheck) error {
 	collectionTime := timeNow()
 
-	err := deviceCk.Run(collectionTime, &cache.PersistentCacher{})
+	err := deviceCk.Run(collectionTime)
 	if err != nil {
 		return err
 	}
