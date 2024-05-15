@@ -225,9 +225,7 @@ new-e2e-npm-packages:
   variables:
     TARGETS: ./tests/npm
     TEAM: network-performance-monitoring
-  parallel:
-    matrix:
-      - EXTRA_PARAMS: --run TestEC2(VM|VMSELinux|VMWKit)Suite
+    EXTRA_PARAMS: --run TestEC2(VM|VMSELinux|VMWKit)Suite
 
 new-e2e-npm-docker:
   extends: .new_e2e_template
