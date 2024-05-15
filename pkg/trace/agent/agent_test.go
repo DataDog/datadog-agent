@@ -58,23 +58,16 @@ type mockTraceWriter struct {
 	payloads []*writer.SampledChunks
 }
 
-func (m *mockTraceWriter) Run() {
-	//TODO implement me
-	panic("implement me")
-}
-
 func (m *mockTraceWriter) Stop() {
-	//TODO implement me
-	panic("implement me")
+	panic("not implemented")
 }
 
-func (m *mockTraceWriter) AddSpans(pkg *writer.SampledChunks) {
+func (m *mockTraceWriter) WriteChunks(pkg *writer.SampledChunks) {
 	m.payloads = append(m.payloads, pkg)
 }
 
 func (m *mockTraceWriter) FlushSync() error {
-	//TODO implement me
-	panic("implement me")
+	panic("not implemented")
 }
 
 // Test to make sure that the joined effort of the quantizer and truncator, in that order, produce the
@@ -1682,7 +1675,7 @@ func (n *noopTraceWriter) Run() {}
 
 func (n *noopTraceWriter) Stop() {}
 
-func (n *noopTraceWriter) AddSpans(_ *writer.SampledChunks) {
+func (n *noopTraceWriter) WriteChunks(_ *writer.SampledChunks) {
 	n.count++
 }
 

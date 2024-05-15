@@ -55,14 +55,11 @@ const (
 )
 
 type traceWriter interface {
-	// Run starts any required background tasks for writing
-	Run()
-
 	// Stop stops the traceWriter and attempts to flush whatever is left in the senders buffers.
 	Stop()
 
-	// AddSpans to be written
-	AddSpans(pkg *writer.SampledChunks)
+	// WriteChunks to be written
+	WriteChunks(pkg *writer.SampledChunks)
 
 	// FlushSync blocks and sends pending payloads when syncMode is true
 	FlushSync() error
@@ -172,7 +169,6 @@ func (a *Agent) Run() {
 		starter.Start()
 	}
 
-	go a.TraceWriter.Run()
 	go a.StatsWriter.Run()
 
 	// Having GOMAXPROCS/2 processor threads is
@@ -386,14 +382,14 @@ func (a *Agent) Process(p *api.Payload) {
 			sampledChunks.TracerPayload = p.TracerPayload.Cut(i)
 			i = 0
 			sampledChunks.TracerPayload.Chunks = newChunksArray(sampledChunks.TracerPayload.Chunks)
-			a.TraceWriter.AddSpans(sampledChunks)
+			a.TraceWriter.WriteChunks(sampledChunks)
 			sampledChunks = new(writer.SampledChunks)
 		}
 	}
 	sampledChunks.TracerPayload = p.TracerPayload
 	sampledChunks.TracerPayload.Chunks = newChunksArray(p.TracerPayload.Chunks)
 	if sampledChunks.Size > 0 {
-		a.TraceWriter.AddSpans(sampledChunks)
+		a.TraceWriter.WriteChunks(sampledChunks)
 	}
 	if len(statsInput.Traces) > 0 {
 		a.Concentrator.In <- statsInput

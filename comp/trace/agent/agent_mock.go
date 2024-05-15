@@ -25,7 +25,7 @@ func (n *noopTraceWriter) Run() {}
 
 func (n *noopTraceWriter) Stop() {}
 
-func (n *noopTraceWriter) AddSpans(_ *writer.SampledChunks) {}
+func (n *noopTraceWriter) WriteChunks(_ *writer.SampledChunks) {}
 
 func (n *noopTraceWriter) FlushSync() error { return nil }
 

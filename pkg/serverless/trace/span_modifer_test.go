@@ -32,23 +32,18 @@ type mockTraceWriter struct {
 	payloads []*writer.SampledChunks
 }
 
-func (m *mockTraceWriter) Run() {
-	//TODO implement me
-	panic("implement me")
-}
-
 func (m *mockTraceWriter) Stop() {
 	//TODO implement me
-	panic("implement me")
+	panic("not implemented")
 }
 
-func (m *mockTraceWriter) AddSpans(pkg *writer.SampledChunks) {
+func (m *mockTraceWriter) WriteChunks(pkg *writer.SampledChunks) {
 	m.payloads = append(m.payloads, pkg)
 }
 
 func (m *mockTraceWriter) FlushSync() error {
 	//TODO implement me
-	panic("implement me")
+	panic("not implemented")
 }
 
 func TestServerlessServiceRewrite(t *testing.T) {
