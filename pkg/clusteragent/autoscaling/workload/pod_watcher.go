@@ -99,18 +99,7 @@ func (pw *podWatcher) Start(ctx context.Context) {
 
 func (pw *podWatcher) handleEvent(event workloadmeta.Event) {
 	pw.mutex.Lock()
-	switch event.Type {
-	case workloadmeta.EventTypeSet:
-		pw.handleSetEvent(event)
-	case workloadmeta.EventTypeUnset:
-		pw.handleUnsetEvent(event)
-	default:
-		log.Errorf("Ignoring event type %d", event.Type)
-	}
-	pw.mutex.Unlock()
-}
-
-func (pw *podWatcher) handleSetEvent(event workloadmeta.Event) {
+	defer pw.mutex.Unlock()
 	pod, ok := event.Entity.(*workloadmeta.KubernetesPod)
 	if !ok {
 		log.Debugf("Ignoring event with entity type %T", event.Entity)
@@ -120,6 +109,17 @@ func (pw *podWatcher) handleSetEvent(event workloadmeta.Event) {
 		log.Debugf("Ignoring pod %s without owner", pod.Name)
 		return
 	}
+	switch event.Type {
+	case workloadmeta.EventTypeSet:
+		pw.handleSetEvent(pod)
+	case workloadmeta.EventTypeUnset:
+		pw.handleUnsetEvent(pod)
+	default:
+		log.Errorf("Ignoring event type %d", event.Type)
+	}
+}
+
+func (pw *podWatcher) handleSetEvent(pod *workloadmeta.KubernetesPod) {
 	podOwner := getNamespacedPodOwner(pod.Namespace, &pod.Owners[0])
 	log.Debugf("Adding pod %s to owner %s", pod.ID, podOwner)
 	if _, ok := pw.podsPerPodOwner[podOwner]; !ok {
@@ -128,16 +128,7 @@ func (pw *podWatcher) handleSetEvent(event workloadmeta.Event) {
 	pw.podsPerPodOwner[podOwner][pod.ID] = pod
 }
 
-func (pw *podWatcher) handleUnsetEvent(event workloadmeta.Event) {
-	pod, ok := event.Entity.(*workloadmeta.KubernetesPod)
-	if !ok {
-		log.Debugf("Ignoring event with entity type %T", event.Entity)
-		return
-	}
-	if len(pod.Owners) == 0 {
-		log.Debugf("Ignoring pod %s without owner", pod.Name)
-		return
-	}
+func (pw *podWatcher) handleUnsetEvent(pod *workloadmeta.KubernetesPod) {
 	podOwner := getNamespacedPodOwner(pod.Namespace, &pod.Owners[0])
 	if podOwner.Name == "" {
 		log.Debugf("Ignoring pod %s without owner name", pod.Name)
