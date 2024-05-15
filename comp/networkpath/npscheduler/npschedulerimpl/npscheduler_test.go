@@ -407,14 +407,16 @@ func Test_npSchedulerImpl_ScheduleConns(t *testing.T) {
 			sysConfigs: defaultSysConfigs,
 			conns: []*model.Connection{
 				{
-					Laddr:     &model.Addr{Ip: "127.0.0.1", Port: int32(30000)},
+					Laddr:     &model.Addr{Ip: "::1", Port: int32(30000)},
 					Raddr:     &model.Addr{Ip: "::1", Port: int32(80)},
 					Direction: model.ConnectionDirection_outgoing,
+					Family:    model.ConnectionFamily_v6,
 				},
 				{
-					Laddr:     &model.Addr{Ip: "127.0.0.1", Port: int32(30000)},
+					Laddr:     &model.Addr{Ip: "::1", Port: int32(30000)},
 					Raddr:     &model.Addr{Ip: "::1", Port: int32(80)},
 					Direction: model.ConnectionDirection_outgoing,
+					Family:    model.ConnectionFamily_v6,
 				},
 				{
 					Laddr:     &model.Addr{Ip: "127.0.0.3", Port: int32(30000)},
@@ -425,9 +427,7 @@ func Test_npSchedulerImpl_ScheduleConns(t *testing.T) {
 			expectedPathtests: []*common.Pathtest{
 				{Hostname: "127.0.0.4", Port: uint16(80)},
 			},
-			expectedLogs: []logCount{
-				{"Only IPv4 is currently supported. Address not supported: ::1", 2},
-			},
+			expectedLogs: []logCount{},
 		},
 	}
 	for _, tt := range tests {
