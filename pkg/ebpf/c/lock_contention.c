@@ -466,6 +466,15 @@ int tracepoint__contention_end(u64 *ctx)
     bool need_delete = false;
 
     /*
+     * Spinlocks and rwlocks do not sleep. They are acquired by
+     * disabling preemption to prevent them from being schedueled
+     * out while inside a critical section.
+     * On the other hand sleeping locks can only be acquired in
+     * preemptible task context so there is no guarantee that
+     * this tracepoint will shoot on the same cpu as 'contention_begin'.
+     * So we cannot use a percpu map for these lock types.
+     * https://docs.kernel.org/locking/locktypes.html
+     *
      * For spinlock and rwlock, it needs to get the timestamp for the
      * per-cpu map.  However, contention_end does not have the flags
      * so it cannot know whether it reads percpu or hash map.
