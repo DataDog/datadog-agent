@@ -45,10 +45,10 @@ func Test_pathtestStore_add(t *testing.T) {
 	store.Add(pt3)
 
 	// THEN
-	assert.Equal(t, 3, len(store.pathtestContexts))
+	assert.Equal(t, 3, len(store.contexts))
 
-	pt1Ctx := store.pathtestContexts[pt1.GetHash()]
-	pt2Ctx := store.pathtestContexts[pt2.GetHash()]
+	pt1Ctx := store.contexts[pt1.GetHash()]
+	pt2Ctx := store.contexts[pt2.GetHash()]
 	assert.Equal(t, *pt1, *pt1Ctx.Pathtest)
 	assert.Equal(t, *pt2, *pt2Ctx.Pathtest)
 }
@@ -67,71 +67,71 @@ func Test_pathtestStore_flush(t *testing.T) {
 	store.Add(pt)
 
 	// THEN
-	assert.Equal(t, 1, len(store.pathtestContexts))
+	assert.Equal(t, 1, len(store.contexts))
 
-	ptCtx := store.pathtestContexts[pt.GetHash()]
+	ptCtx := store.contexts[pt.GetHash()]
 
-	assert.Equal(t, MockTimeNow(), ptCtx.nextRunTime)
-	assert.Equal(t, MockTimeNow().Add(runDurationFromDisc), ptCtx.runUntilTime)
+	assert.Equal(t, MockTimeNow(), ptCtx.nextRun)
+	assert.Equal(t, MockTimeNow().Add(runDurationFromDisc), ptCtx.runUntil)
 
-	// test first flush, it should increment nextRunTime
+	// test first flush, it should increment nextRun
 	flushTime1 := MockTimeNow().Add(10 * time.Second)
 	setMockTimeNow(flushTime1)
 	// TODO: check flush results
 	store.Flush()
-	ptCtx = store.pathtestContexts[pt.GetHash()]
-	assert.Equal(t, MockTimeNow().Add(store.pathtestInterval), ptCtx.nextRunTime)
-	assert.Equal(t, MockTimeNow().Add(runDurationFromDisc), ptCtx.runUntilTime)
+	ptCtx = store.contexts[pt.GetHash()]
+	assert.Equal(t, MockTimeNow().Add(store.interval), ptCtx.nextRun)
+	assert.Equal(t, MockTimeNow().Add(runDurationFromDisc), ptCtx.runUntil)
 	assert.Equal(t, time.Duration(0), ptCtx.lastFlushInterval)
 
-	// skip flush if nextRunTime is not reached yet
+	// skip flush if nextRun is not reached yet
 	flushTime2 := MockTimeNow().Add(20 * time.Second)
 	setMockTimeNow(flushTime2)
 	store.Flush()
-	ptCtx = store.pathtestContexts[pt.GetHash()]
-	assert.Equal(t, MockTimeNow().Add(store.pathtestInterval), ptCtx.nextRunTime)
-	assert.Equal(t, MockTimeNow().Add(runDurationFromDisc), ptCtx.runUntilTime)
+	ptCtx = store.contexts[pt.GetHash()]
+	assert.Equal(t, MockTimeNow().Add(store.interval), ptCtx.nextRun)
+	assert.Equal(t, MockTimeNow().Add(runDurationFromDisc), ptCtx.runUntil)
 	assert.Equal(t, time.Duration(0), ptCtx.lastFlushInterval)
 
-	// test flush, it should increment nextRunTime
+	// test flush, it should increment nextRun
 	flushTime3 := MockTimeNow().Add(70 * time.Second)
 	setMockTimeNow(flushTime3)
 	store.Flush()
-	ptCtx = store.pathtestContexts[pt.GetHash()]
-	assert.Equal(t, MockTimeNow().Add(store.pathtestInterval*2), ptCtx.nextRunTime)
-	assert.Equal(t, MockTimeNow().Add(runDurationFromDisc), ptCtx.runUntilTime)
+	ptCtx = store.contexts[pt.GetHash()]
+	assert.Equal(t, MockTimeNow().Add(store.interval*2), ptCtx.nextRun)
+	assert.Equal(t, MockTimeNow().Add(runDurationFromDisc), ptCtx.runUntil)
 	assert.Equal(t, 1*time.Minute, ptCtx.lastFlushInterval)
 
-	// test add new Pathtest after nextRunTime is reached
-	// it should reset runUntilTime
+	// test add new Pathtest after nextRun is reached
+	// it should reset runUntil
 	flushTime4 := MockTimeNow().Add(80 * time.Second)
 	setMockTimeNow(flushTime4)
 	store.Add(pt)
-	ptCtx = store.pathtestContexts[pt.GetHash()]
-	assert.Equal(t, MockTimeNow().Add(store.pathtestInterval*2), ptCtx.nextRunTime)
-	assert.Equal(t, MockTimeNow().Add(runDurationFromDisc+80*time.Second), ptCtx.runUntilTime)
+	ptCtx = store.contexts[pt.GetHash()]
+	assert.Equal(t, MockTimeNow().Add(store.interval*2), ptCtx.nextRun)
+	assert.Equal(t, MockTimeNow().Add(runDurationFromDisc+80*time.Second), ptCtx.runUntil)
 	assert.Equal(t, 1*time.Minute, ptCtx.lastFlushInterval)
 
-	// test flush, it should increment nextRunTime
+	// test flush, it should increment nextRun
 	flushTime5 := MockTimeNow().Add(120 * time.Second)
 	setMockTimeNow(flushTime5)
 	store.Flush()
-	ptCtx = store.pathtestContexts[pt.GetHash()]
-	assert.Equal(t, MockTimeNow().Add(store.pathtestInterval*3), ptCtx.nextRunTime)
-	assert.Equal(t, MockTimeNow().Add(runDurationFromDisc+80*time.Second), ptCtx.runUntilTime)
+	ptCtx = store.contexts[pt.GetHash()]
+	assert.Equal(t, MockTimeNow().Add(store.interval*3), ptCtx.nextRun)
+	assert.Equal(t, MockTimeNow().Add(runDurationFromDisc+80*time.Second), ptCtx.runUntil)
 	assert.Equal(t, 50*time.Second, ptCtx.lastFlushInterval)
 
-	// test flush before runUntilTime, it should NOT delete Pathtest entry
+	// test flush before runUntil, it should NOT delete Pathtest entry
 	flushTime6 := MockTimeNow().Add((600 + 70) * time.Second)
 	setMockTimeNow(flushTime6)
 	store.Flush()
-	ptCtx = store.pathtestContexts[pt.GetHash()]
-	assert.Equal(t, MockTimeNow().Add(store.pathtestInterval*4), ptCtx.nextRunTime)
-	assert.Equal(t, MockTimeNow().Add(runDurationFromDisc+80*time.Second), ptCtx.runUntilTime)
+	ptCtx = store.contexts[pt.GetHash()]
+	assert.Equal(t, MockTimeNow().Add(store.interval*4), ptCtx.nextRun)
+	assert.Equal(t, MockTimeNow().Add(runDurationFromDisc+80*time.Second), ptCtx.runUntil)
 
-	// test flush after runUntilTime, it should delete Pathtest entry
+	// test flush after runUntil, it should delete Pathtest entry
 	flushTime7 := MockTimeNow().Add((600 + 90) * time.Second)
 	setMockTimeNow(flushTime7)
 	store.Flush()
-	assert.Equal(t, 0, len(store.pathtestContexts))
+	assert.Equal(t, 0, len(store.contexts))
 }

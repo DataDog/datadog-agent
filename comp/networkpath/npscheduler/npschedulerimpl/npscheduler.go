@@ -44,7 +44,7 @@ type npSchedulerImpl struct {
 	processedTracerouteCount *atomic.Uint64
 
 	// Pathtest store
-	pathtestStore       *pathteststore.PathtestStore
+	pathtestStore       *pathteststore.Store
 	pathtestInputChan   chan *common.Pathtest
 	pathtestProcessChan chan *pathteststore.PathtestContext
 
@@ -279,7 +279,7 @@ func (s *npSchedulerImpl) flushWrapper(now time.Time, lastFlushTime time.Time) {
 func (s *npSchedulerImpl) flush() {
 	s.statsdClient.Gauge("datadog.network_path.scheduler.workers", float64(s.workers), []string{}, 1) //nolint:errcheck
 
-	flowsContexts := s.pathtestStore.GetPathtestContextCount()
+	flowsContexts := s.pathtestStore.GetContextsCount()
 	s.statsdClient.Gauge("datadog.network_path.scheduler.pathtest_store_size", float64(flowsContexts), []string{}, 1) //nolint:errcheck
 
 	flushTime := s.TimeNowFn()
