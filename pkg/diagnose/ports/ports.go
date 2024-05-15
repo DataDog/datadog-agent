@@ -39,14 +39,14 @@ func DiagnosePortSuite() []diagnosis.Diagnosis {
 	}
 
 	var diagnoses []diagnosis.Diagnosis
-	for _, key := range config.Datadog.AllKeysLowercased() {
+	for _, key := range config.Datadog().AllKeysLowercased() {
 		splitKey := strings.Split(key, ".")
 		keyName := splitKey[len(splitKey)-1]
 		if keyName != "port" && !strings.HasPrefix(keyName, "port_") && !strings.HasSuffix(keyName, "_port") {
 			continue
 		}
 
-		value := config.Datadog.GetInt(key)
+		value := config.Datadog().GetInt(key)
 		if value <= 0 {
 			continue
 		}
