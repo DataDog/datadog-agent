@@ -148,7 +148,7 @@ func (h *Host) fs() map[string]FileInfo {
 		cmd += fmt.Sprintf("-path '%s' -prune -o ", dir)
 	}
 	cmd += `-printf '%p\\|//%s\\|//%TY-%Tm-%Td %TH:%TM:%TS\\|//%f\\|//%m\\|//%u\\|//%g\\|//%y\\|//%l\n' 2>/dev/null`
-	output := h.remote.MustExecute(cmd)
+	output := h.remote.MustExecute(cmd + " || true")
 	lines := strings.Split(output, "\n")
 
 	fileInfos := make(map[string]FileInfo)
