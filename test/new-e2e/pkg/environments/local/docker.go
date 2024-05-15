@@ -7,6 +7,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclientparams"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/optional"
+
 	"github.com/DataDog/test-infra-definitions/components/datadog/agent"
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
 	"github.com/DataDog/test-infra-definitions/components/datadog/updater"
@@ -45,6 +46,46 @@ func newProvisionerParams() *ProvisionerParams {
 		agentClientOptions: []agentclientparams.Option{},
 		fakeintakeOptions:  []fakeintake.Option{},
 		extraConfigParams:  runner.ConfigMap{},
+	}
+}
+
+// WithAgentOptions adds options to the Agent.
+func WithAgentOptions(opts ...agentparams.Option) ProvisionerOption {
+	return func(params *ProvisionerParams) error {
+		params.agentOptions = append(params.agentOptions, opts...)
+		return nil
+	}
+}
+
+// WithoutFakeIntake disables the creation of the FakeIntake.
+func WithoutFakeIntake() ProvisionerOption {
+	return func(params *ProvisionerParams) error {
+		params.fakeintakeOptions = nil
+		return nil
+	}
+}
+
+// WithoutAgent disables the creation of the Agent.
+func WithoutAgent() ProvisionerOption {
+	return func(params *ProvisionerParams) error {
+		params.agentOptions = nil
+		return nil
+	}
+}
+
+// WithUpdater installs the agent through the updater.
+func WithUpdater() ProvisionerOption {
+	return func(params *ProvisionerParams) error {
+		params.installUpdater = true
+		return nil
+	}
+}
+
+// WithDocker installs docker on the VM
+func WithDocker() ProvisionerOption {
+	return func(params *ProvisionerParams) error {
+		params.installDocker = true
+		return nil
 	}
 }
 

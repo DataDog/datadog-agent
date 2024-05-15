@@ -1,11 +1,18 @@
 package tmp
 
 import (
+	"fmt"
+	"os"
+	"regexp"
+	"strconv"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	dclocal "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/local"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclient"
+
+	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
 )
 
 type tmpSuite struct {
@@ -13,7 +20,21 @@ type tmpSuite struct {
 }
 
 func TestSimpleLocalAgentRun(t *testing.T) {
-	e2e.Run(t, &tmpSuite{}, e2e.WithProvisioner(dclocal.Provisioner()))
+	devModeEnv, _ := os.LookupEnv("E2E_DEVMODE")
+	options := []e2e.SuiteOption{
+		e2e.WithProvisioner(
+			dclocal.Provisioner(
+				dclocal.WithAgentOptions(
+					agentparams.WithLatest(),
+					// Setting hostname to test name due to fact Agent can't
+					// work out it's hostname in a container correctly
+					agentparams.WithHostname(t.Name())))),
+	}
+
+	if devMode, err := strconv.ParseBool(devModeEnv); err == nil && devMode {
+		options = append(options, e2e.WithDevMode())
+	}
+	e2e.Run(t, &tmpSuite{}, options...)
 }
 
 func (d *tmpSuite) TestExecute() {
@@ -25,16 +46,14 @@ func (d *tmpSuite) TestExecute() {
 	d.Require().NotEmpty(out)
 }
 
-//
-//func (d *tmpSuite) TestAgentCommand() {
-//	agentVersion := d.Env().Agent.Client.Version()
-//	regexpVersion := regexp.MustCompile(`.*Agent .* - Commit: .* - Serialization version: .* - Go version: .*`)
-//
-//	d.Require().Truef(regexpVersion.MatchString(agentVersion), fmt.Sprintf("%v doesn't match %v", agentVersion, regexpVersion))
-//	// args is used to test client.WithArgs. The values of the arguments are not relevant.
-//	args := agentclient.WithArgs([]string{"-n", "-c", "."})
-//	version := d.Env().Agent.Client.Version(args)
-//
-//	d.Require().Truef(regexpVersion.MatchString(version), fmt.Sprintf("%v doesn't match %v", version, regexpVersion))
-//
-//}
+func (d *tmpSuite) TestAgentCommand() {
+	agentVersion := d.Env().Agent.Client.Version()
+	regexpVersion := regexp.MustCompile(`.*Agent .* - Commit: .* - Serialization version: .* - Go version: .*`)
+
+	d.Require().Truef(regexpVersion.MatchString(agentVersion), fmt.Sprintf("%v doesn't match %v", agentVersion, regexpVersion))
+	// args is used to test client.WithArgs. The values of the arguments are not relevant.
+	args := agentclient.WithArgs([]string{"-n", "-c", "."})
+	version := d.Env().Agent.Client.Version(args)
+
+	d.Require().Truef(regexpVersion.MatchString(version), fmt.Sprintf("%v doesn't match %v", version, regexpVersion))
+}
