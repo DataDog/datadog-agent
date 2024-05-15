@@ -199,6 +199,7 @@ func (w *TraceWriter) FlushSync() error {
 	return nil
 }
 
+// AddSpans appends the provided spans to the buffer, flushing if the size limit has been reached
 func (w *TraceWriter) AddSpans(pkg *SampledChunks) {
 	w.stats.Spans.Add(pkg.SpanCount)
 	w.stats.Traces.Add(int64(len(pkg.TracerPayload.Chunks)))

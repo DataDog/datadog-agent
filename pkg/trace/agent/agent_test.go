@@ -760,7 +760,6 @@ func TestClientComputedTopLevel(t *testing.T) {
 		assert.NotEmpty(t, payloads, "no payloads were written")
 		_, ok := payloads[0].TracerPayload.Chunks[0].Spans[0].Metrics["_top_level"]
 		assert.False(t, ok)
-		return
 	})
 
 	t.Run("off", func(t *testing.T) {

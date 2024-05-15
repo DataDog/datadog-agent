@@ -54,11 +54,11 @@ const (
 	tagDecisionMaker = "_dd.p.dm"
 )
 
-type TraceWriter interface {
+type traceWriter interface {
 	// Run starts any required background tasks for writing
 	Run()
 
-	// Stop stops the TraceWriter and attempts to flush whatever is left in the senders buffers.
+	// Stop stops the traceWriter and attempts to flush whatever is left in the senders buffers.
 	Stop()
 
 	// AddSpans to be written
@@ -82,7 +82,7 @@ type Agent struct {
 	NoPrioritySampler     *sampler.NoPrioritySampler
 	ProbabilisticSampler  *sampler.ProbabilisticSampler
 	EventProcessor        *event.Processor
-	TraceWriter           TraceWriter
+	TraceWriter           traceWriter
 	StatsWriter           *writer.StatsWriter
 	RemoteConfigHandler   *remoteconfighandler.RemoteConfigHandler
 	TelemetryCollector    telemetry.TelemetryCollector
