@@ -33,6 +33,7 @@ func TestColdStartSpanCreatorCreateValid(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	agnt := agent.NewAgent(ctx, cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{})
+	agnt.TraceWriter = &mockTraceWriter{}
 	traceAgent := &ServerlessTraceAgent{
 		ta: agnt,
 	}
@@ -78,12 +79,20 @@ func TestColdStartSpanCreatorCreateValid(t *testing.T) {
 
 	timeout := time.After(2 * time.Second)
 	var span *pb.Span
-	select {
-	case ss := <-traceAgent.ta.TraceWriter.In:
-		span = ss.TracerPayload.Chunks[0].Spans[0]
-	case <-timeout:
-		t.Fatal("timed out")
+waitLoop:
+	for {
+		select {
+		default:
+			payloads := agnt.TraceWriter.(*mockTraceWriter).payloads
+			if len(payloads) > 0 {
+				span = payloads[0].TracerPayload.Chunks[0].Spans[0]
+				break waitLoop
+			}
+		case <-timeout:
+			t.Fatal("timed out")
+		}
 	}
+
 	assert.Equal(t, "aws.lambda", span.Service)
 	assert.Equal(t, "aws.lambda.cold_start", span.Name)
 	assert.Equal(t, initReportStartTime.UnixNano(), span.Start)
@@ -99,6 +108,7 @@ func TestColdStartSpanCreatorCreateValidNoOverlap(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	agnt := agent.NewAgent(ctx, cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{})
+	agnt.TraceWriter = &mockTraceWriter{}
 	traceAgent := &ServerlessTraceAgent{
 		ta: agnt,
 	}
@@ -143,11 +153,18 @@ func TestColdStartSpanCreatorCreateValidNoOverlap(t *testing.T) {
 	lambdaInitMetricChan <- lambdaInitMetricStartTime
 	timeout := time.After(2 * time.Second)
 	var span *pb.Span
-	select {
-	case ss := <-traceAgent.ta.TraceWriter.In:
-		span = ss.TracerPayload.Chunks[0].Spans[0]
-	case <-timeout:
-		t.Fatal("timed out")
+waitLoop:
+	for {
+		select {
+		default:
+			payloads := agnt.TraceWriter.(*mockTraceWriter).payloads
+			if len(payloads) > 0 {
+				span = payloads[0].TracerPayload.Chunks[0].Spans[0]
+				break waitLoop
+			}
+		case <-timeout:
+			t.Fatal("timed out")
+		}
 	}
 	assert.Equal(t, "aws.lambda", span.Service)
 	assert.Equal(t, "aws.lambda.cold_start", span.Name)
@@ -164,6 +181,7 @@ func TestColdStartSpanCreatorCreateDuplicate(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	agnt := agent.NewAgent(ctx, cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{})
+	agnt.TraceWriter = &mockTraceWriter{}
 	traceAgent := &ServerlessTraceAgent{
 		ta: agnt,
 	}
@@ -203,15 +221,9 @@ func TestColdStartSpanCreatorCreateDuplicate(t *testing.T) {
 	lambdaSpanChan <- lambdaSpan
 	lambdaInitMetricChan <- lambdaInitMetricDuration
 	lambdaInitMetricChan <- lambdaInitMetricStartTime
-	timeout := time.After(time.Millisecond)
-	timedOut := false
-	select {
-	case ss := <-traceAgent.ta.TraceWriter.In:
-		t.Fatalf("created a coldstart span when we should have passed, %v", ss)
-	case <-timeout:
-		timedOut = true
-	}
-	assert.Equal(t, true, timedOut)
+	<-time.After(time.Millisecond)
+	payloads := agnt.TraceWriter.(*mockTraceWriter).payloads
+	assert.Empty(t, payloads, "created a coldstart span when we should have passed")
 }
 
 func TestColdStartSpanCreatorNotColdStart(t *testing.T) {
@@ -223,6 +235,7 @@ func TestColdStartSpanCreatorNotColdStart(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	agnt := agent.NewAgent(ctx, cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{})
+	agnt.TraceWriter = &mockTraceWriter{}
 	traceAgent := &ServerlessTraceAgent{
 		ta: agnt,
 	}
@@ -253,16 +266,9 @@ func TestColdStartSpanCreatorNotColdStart(t *testing.T) {
 	}
 	lambdaSpanChan <- lambdaSpan
 	// Don't write to lambdaInitMetricChan, as this is not a cold start
-
-	timeout := time.After(time.Millisecond)
-	timedOut := false
-	select {
-	case ss := <-traceAgent.ta.TraceWriter.In:
-		t.Fatalf("created a coldstart span when we should have passed, %v", ss)
-	case <-timeout:
-		timedOut = true
-	}
-	assert.Equal(t, true, timedOut)
+	<-time.After(time.Millisecond)
+	payloads := agnt.TraceWriter.(*mockTraceWriter).payloads
+	assert.Empty(t, payloads, "created a coldstart span when we should have passed")
 }
 
 func TestColdStartSpanCreatorColdStartExists(t *testing.T) {
@@ -274,6 +280,8 @@ func TestColdStartSpanCreatorColdStartExists(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	agnt := agent.NewAgent(ctx, cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{})
+	agnt.TraceWriter = &mockTraceWriter{}
+
 	traceAgent := &ServerlessTraceAgent{
 		ta: agnt,
 	}
@@ -313,15 +321,9 @@ func TestColdStartSpanCreatorColdStartExists(t *testing.T) {
 	lambdaSpanChan <- lambdaSpan
 	lambdaInitMetricChan <- lambdaInitMetricDuration
 	lambdaInitMetricChan <- lambdaInitMetricStartTime
-	timeout := time.After(time.Millisecond)
-	timedOut := false
-	select {
-	case ss := <-traceAgent.ta.TraceWriter.In:
-		t.Fatalf("created a coldstart span when we should have passed, %v", ss)
-	case <-timeout:
-		timedOut = true
-	}
-	assert.Equal(t, true, timedOut)
+	<-time.After(time.Millisecond)
+	payloads := agnt.TraceWriter.(*mockTraceWriter).payloads
+	assert.Empty(t, payloads, "created a coldstart span when we should have passed")
 }
 
 func TestColdStartSpanCreatorCreateValidProvisionedConcurrency(t *testing.T) {
@@ -333,6 +335,8 @@ func TestColdStartSpanCreatorCreateValidProvisionedConcurrency(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	agnt := agent.NewAgent(ctx, cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{})
+	agnt.TraceWriter = &mockTraceWriter{}
+
 	traceAgent := &ServerlessTraceAgent{
 		ta: agnt,
 	}
@@ -378,11 +382,18 @@ func TestColdStartSpanCreatorCreateValidProvisionedConcurrency(t *testing.T) {
 
 	timeout := time.After(2 * time.Second)
 	var span *pb.Span
-	select {
-	case ss := <-traceAgent.ta.TraceWriter.In:
-		span = ss.TracerPayload.Chunks[0].Spans[0]
-	case <-timeout:
-		t.Fatal("timed out")
+waitLoop:
+	for {
+		select {
+		default:
+			payloads := agnt.TraceWriter.(*mockTraceWriter).payloads
+			if len(payloads) > 0 {
+				span = payloads[0].TracerPayload.Chunks[0].Spans[0]
+				break waitLoop
+			}
+		case <-timeout:
+			t.Fatal("timed out")
+		}
 	}
 	assert.Equal(t, "aws.lambda", span.Service)
 	assert.Equal(t, "aws.lambda.cold_start", span.Name)
