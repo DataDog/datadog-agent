@@ -69,7 +69,7 @@ func SetupInstaller(ctx context.Context) (err error) {
 	}
 	err = os.MkdirAll("/var/run/datadog/installer", 0755)
 	if err != nil {
-		return fmt.Errorf("error creating /var/log/datadog: %w", err)
+		return fmt.Errorf("error creating /var/run/datadog/installer: %w", err)
 	}
 	err = os.MkdirAll("/var/run/datadog/installer/locks", 0777)
 	if err != nil {
@@ -90,7 +90,7 @@ func SetupInstaller(ctx context.Context) (err error) {
 	}
 	err = os.Chown("/var/run/datadog/installer", ddAgentUID, ddAgentGID)
 	if err != nil {
-		return fmt.Errorf("error changing owner of /var/run/datadog: %w", err)
+		return fmt.Errorf("error changing owner of /var/run/datadog/installer: %w", err)
 	}
 
 	// Create installer path symlink
