@@ -90,7 +90,7 @@ func SetupInstaller(ctx context.Context) (err error) {
 	}
 	err = os.Chown("/var/run/datadog/installer", ddAgentUID, ddAgentGID)
 	if err != nil {
-		return fmt.Errorf("error changing owner of /var/run/datadog: %w", err)
+		return fmt.Errorf("error changing owner of /var/run/datadog/installer: %w", err)
 	}
 
 	// Create installer path symlink
