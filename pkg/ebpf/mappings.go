@@ -23,7 +23,9 @@ var mapModuleMapping = make(map[uint32]string)
 var progNameMapping = make(map[uint32]string)
 var progModuleMapping = make(map[uint32]string)
 
-var errNoMapping = errors.New("no mapping found")
+// errNoMapping is returned when a give map or program id is
+// not tracked as part of system-probe/security-agent
+var errNoMapping = errors.New("no mapping found for given id")
 
 // AddProgramNameMapping manually adds a program name mapping
 func AddProgramNameMapping(progid uint32, name string, module string) {
@@ -94,6 +96,7 @@ func GetMapNameFromMapID(id uint32) (string, error) {
 // GetModuleFromMapID returns the module name for the map with the given id
 func GetModuleFromMapID(id uint32) (string, error) {
 	return getMappingFromID(id, mapModuleMapping)
+
 }
 
 // GetProgNameFromProgID returns the program name for the given id
