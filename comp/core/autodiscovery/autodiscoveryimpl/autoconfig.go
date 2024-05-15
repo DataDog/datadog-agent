@@ -9,6 +9,7 @@ package autodiscoveryimpl
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"sort"
@@ -21,6 +22,7 @@ import (
 	"github.com/fatih/color"
 
 	"github.com/DataDog/datadog-agent/comp/api/api"
+	"github.com/DataDog/datadog-agent/comp/api/api/utils"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/listeners"
@@ -93,6 +95,7 @@ type provides struct {
 	Comp           autodiscovery.Component
 	StatusProvider status.InformationProvider
 	Endpoint       api.AgentEndpointProvider
+	EndpointRaw    api.AgentEndpointProvider
 	FlareProvider  flaretypes.Provider
 }
 
@@ -111,6 +114,7 @@ func newProvides(deps dependencies) provides {
 		StatusProvider: status.NewInformationProvider(autodiscoveryStatus.GetProvider(c)),
 
 		Endpoint:      api.NewAgentEndpointProvider(c.(*AutoConfig).writeConfigCheck, "/config-check", "GET"),
+		EndpointRaw:   api.NewAgentEndpointProvider(c.(*AutoConfig).writeConfigCheckRaw, "/config-check/raw", "GET"),
 		FlareProvider: flaretypes.NewProvider(c.(*AutoConfig).fillFlare),
 	}
 }
@@ -221,6 +225,27 @@ func (ac *AutoConfig) writeConfigCheck(w http.ResponseWriter, r *http.Request) {
 	bytes := ac.GetConfigCheck(verbose)
 
 	w.Write(bytes)
+}
+
+func (ac *AutoConfig) writeConfigCheckRaw(w http.ResponseWriter, r *http.Request) {
+	var response integration.ConfigCheckResponse
+
+	configSlice := ac.LoadedConfigs()
+	sort.Slice(configSlice, func(i, j int) bool {
+		return configSlice[i].Name < configSlice[j].Name
+	})
+	response.Configs = configSlice
+	response.ResolveWarnings = GetResolveWarnings()
+	response.ConfigErrors = GetConfigErrors()
+	response.Unresolved = ac.GetUnresolvedTemplates()
+
+	jsonConfig, err := json.Marshal(response)
+	if err != nil {
+		utils.SetJSONError(w, err, 500)
+		return
+	}
+
+	w.Write(jsonConfig)
 }
 
 // fillFlare add the config-checks log to flares.
