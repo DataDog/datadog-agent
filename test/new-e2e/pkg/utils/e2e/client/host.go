@@ -108,7 +108,7 @@ func (h *Host) Execute(command string, options ...ExecuteOption) (string, error)
 	if err != nil {
 		return "", err
 	}
-	h.buildCommand(h, command, params.EnvVariables)
+	command = h.buildCommand(h, command, params.EnvVariables)
 	return h.executeAndReconnectOnError(command)
 }
 

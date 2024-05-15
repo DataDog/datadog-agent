@@ -6,16 +6,14 @@ from __future__ import annotations
 
 import re
 import sys
+from collections.abc import Iterable
 from dataclasses import dataclass
-from typing import Iterable
 
 from invoke import task
 from invoke.exceptions import Exit
 
 from tasks.libs.common.color import color_message
 from tasks.libs.common.status import Status
-
-PYTHON_VERSION = "3.9"
 
 
 @dataclass
@@ -117,12 +115,18 @@ def check_go_version(ctx) -> SetupResult:
 def check_python_version(_ctx) -> SetupResult:
     print(color_message("Checking Python version...", "blue"))
 
+    with open(".python-version") as f:
+        expected_version = f.read().strip()
+
     message = ""
     status = Status.OK
-
-    if sys.version_info < tuple(int(d) for d in PYTHON_VERSION.split(".")):
+    if tuple(sys.version_info)[:3] != tuple(int(d) for d in expected_version.split(".")):
         status = Status.FAIL
-        message = f"Python version is {sys.version_info[0]}.{sys.version_info[1]}.{sys.version_info[2]}. Please install at least Python {PYTHON_VERSION}."
+        message = (
+            f"Python version is {sys.version_info[0]}.{sys.version_info[1]}.{sys.version_info[2]}. "
+            f"Please install Python {expected_version}.\n"
+            f"We recommend using pyenv to manage your Python versions: https://github.com/pyenv/pyenv#installation"
+        )
 
     return SetupResult("Check Python version", status, message)
 
@@ -142,7 +146,7 @@ def update_dependencies(ctx) -> Iterable[SetupResult]:
 def enable_pre_commit(ctx) -> SetupResult:
     print(color_message("Enabling pre-commit...", "blue"))
 
-    if not ctx.run("which pre-commit", hide=True, warn=True).ok:
+    if not ctx.run("pre-commit --version", hide=True, warn=True).ok:
         return SetupResult(
             "Enable pre-commit", Status.FAIL, "Please install pre-commit first: https://pre-commit.com/#installation."
         )

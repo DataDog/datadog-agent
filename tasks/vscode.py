@@ -4,9 +4,11 @@ vscode namespaced tags
 Helpers for getting vscode set up nicely
 """
 
+from __future__ import annotations
+
 import json
 import os
-from typing import OrderedDict
+from collections import OrderedDict
 
 from invoke import task
 
