@@ -5,7 +5,9 @@
 
 package common
 
-import "time"
+import (
+	"time"
+)
 
 // MockTimeNow mocks time.Now
 var MockTimeNow = func() time.Time {
@@ -13,4 +15,15 @@ var MockTimeNow = func() time.Time {
 	str := "2000-01-01 00:00:00"
 	t, _ := time.Parse(layout, str)
 	return t
+}
+
+type MockCacher struct {
+}
+
+func (p *MockCacher) Read(key string) (string, error) {
+	return "", nil
+}
+
+func (p *MockCacher) Write(key string, value string) error {
+	return nil
 }

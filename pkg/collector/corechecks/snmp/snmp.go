@@ -20,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/cache"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/checkconfig"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/common"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/devicecheck"
@@ -112,7 +113,7 @@ func (c *Check) runCheckDeviceWorker(workerID int, wg *sync.WaitGroup, jobs <-ch
 func (c *Check) runCheckDevice(deviceCk *devicecheck.DeviceCheck) error {
 	collectionTime := timeNow()
 
-	err := deviceCk.Run(collectionTime)
+	err := deviceCk.Run(collectionTime, &cache.PersistentCacher{})
 	if err != nil {
 		return err
 	}
@@ -158,7 +159,7 @@ func (c *Check) Configure(senderManager sender.SenderManager, integrationConfigD
 		c.discovery = discovery.NewDiscovery(c.config, c.sessionFactory)
 		c.discovery.Start()
 	} else {
-		c.singleDeviceCk, err = devicecheck.NewDeviceCheck(c.config, c.config.IPAddress, c.sessionFactory)
+		c.singleDeviceCk, err = devicecheck.NewDeviceCheck(c.config, c.config.IPAddress, c.sessionFactory, &cache.PersistentCacher{})
 		if err != nil {
 			return fmt.Errorf("failed to create device check: %s", err)
 		}

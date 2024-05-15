@@ -31,6 +31,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/utils"
 	coresnmp "github.com/DataDog/datadog-agent/pkg/snmp"
 
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/cache"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/checkconfig"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/common"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/fetch"
@@ -38,9 +39,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/report"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/session"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/valuestore"
+
 	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/diagnoses"
-	"github.com/DataDog/datadog-agent/pkg/persistentcache"
 	"github.com/DataDog/datadog-agent/pkg/snmp/gosnmplib"
 )
 
@@ -77,7 +78,7 @@ type DeviceCheck struct {
 const cacheKeyPrefix = "snmp-tags"
 
 // NewDeviceCheck returns a new DeviceCheck
-func NewDeviceCheck(config *checkconfig.CheckConfig, ipAddress string, sessionFactory session.Factory) (*DeviceCheck, error) {
+func NewDeviceCheck(config *checkconfig.CheckConfig, ipAddress string, sessionFactory session.Factory, cacher cache.Cacher) (*DeviceCheck, error) {
 	newConfig := config.CopyWithNewIP(ipAddress)
 
 	sess, err := sessionFactory(newConfig)
@@ -107,7 +108,7 @@ func NewDeviceCheck(config *checkconfig.CheckConfig, ipAddress string, sessionFa
 		cacheKey:                cacheKey,
 	}
 
-	d.readTagsFromCache()
+	d.readTagsFromCache(cacher)
 
 	return &d, nil
 }
@@ -156,7 +157,7 @@ func (d *DeviceCheck) GetDeviceHostname() (string, error) {
 }
 
 // Run executes the check
-func (d *DeviceCheck) Run(collectionTime time.Time) error {
+func (d *DeviceCheck) Run(collectionTime time.Time, cacher cache.Cacher) error {
 	startTime := time.Now()
 	staticTags := append(d.config.GetStaticTags(), d.config.GetNetworkTags()...)
 
@@ -174,7 +175,7 @@ func (d *DeviceCheck) Run(collectionTime time.Time) error {
 	} else {
 		if !reflect.DeepEqual(d.savedDynamicTags, dynamicTags) {
 			d.savedDynamicTags = dynamicTags
-			d.writeTagsInCache()
+			d.writeTagsInCache(cacher)
 		}
 
 		tags = append(tags, dynamicTags...)
@@ -449,8 +450,8 @@ func (d *DeviceCheck) submitPingMetrics(pingResult *pinger.Result, tags []string
 	d.sender.Gauge(pingPacketLoss, pingResult.PacketLoss, tags)
 }
 
-func (d *DeviceCheck) readTagsFromCache() {
-	cacheValue, err := persistentcache.Read(d.cacheKey)
+func (d *DeviceCheck) readTagsFromCache(cacher cache.Cacher) {
+	cacheValue, err := cacher.Read(d.cacheKey)
 	if err != nil {
 		log.Errorf("couldn't read cache for %s: %s", d.cacheKey, err)
 	}
@@ -464,14 +465,14 @@ func (d *DeviceCheck) readTagsFromCache() {
 	d.savedDynamicTags = tags
 }
 
-func (d *DeviceCheck) writeTagsInCache() {
+func (d *DeviceCheck) writeTagsInCache(cacher cache.Cacher) {
 	cacheValue, err := json.Marshal(d.savedDynamicTags)
 	if err != nil {
 		log.Errorf("SNMP tags %s: Couldn't marshal cache: %s", d.config.Network, err)
 		return
 	}
 
-	if err = persistentcache.Write(d.cacheKey, string(cacheValue)); err != nil {
+	if err = cacher.Write(d.cacheKey, string(cacheValue)); err != nil {
 		log.Errorf("SNMP tags %s: Couldn't write cache: %s", d.config.Network, err)
 	}
 }

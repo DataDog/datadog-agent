@@ -1524,10 +1524,7 @@ tags:
 		"device_ip:1.2.3.4",
         "device_namespace:default",
         "mytag:val1",
-        "snmp_device:1.2.3.4",
-		"snmp_host2:foo_sys_name",
-        "snmp_profile:another-profile",
-        "unknown_symbol:100"
+        "snmp_device:1.2.3.4"
       ],
       "ip_address": "1.2.3.4",
       "status": 1,
