@@ -168,6 +168,7 @@ if ((Get-MpComputerStatus).IsTamperProtected) {
 	// it still works for me on Platform Version 4.18.23110.3 after a reboot, so set it anywawy.
 	ps.cmds = append(ps.cmds, `mkdir -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows Defender"`)
 	ps.cmds = append(ps.cmds, `Set-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows Defender" -Name DisableAntiSpyware -Value 1`)
+
 	return ps
 }
 
