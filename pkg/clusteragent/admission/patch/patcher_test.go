@@ -59,9 +59,9 @@ func TestPatchNamespace(t *testing.T) {
 	// Check the patch
 	got, err := client.CoreV1().Namespaces().Get(context.TODO(), name, metav1.GetOptions{})
 	require.NoError(t, err)
-	require.Equal(t, got.ObjectMeta.Labels, k8sutil.RcIDLabelKey, "true")
-	require.Equal(t, got.ObjectMeta.Annotations, k8sutil.RcIDAnnotKey, "12345")
-	require.Equal(t, got.ObjectMeta.Annotations, k8sutil.RcRevisionAnnotKey, "12")
+	require.Equal(t, got.ObjectMeta.Labels[k8sutil.RcIDLabelKey], "true")
+	require.Equal(t, got.ObjectMeta.Annotations[k8sutil.RcIDAnnotKey], "12345")
+	require.Equal(t, got.ObjectMeta.Annotations[k8sutil.RcRevisionAnnotKey], "12")
 	require.Equal(t, got.Labels[k8sutil.RcIDLabelKey], "true")
 	require.Equal(t, got.Annotations[k8sutil.RcIDAnnotKey], "12345")
 	require.Equal(t, got.Annotations[k8sutil.RcRevisionAnnotKey], "12")
@@ -74,14 +74,14 @@ func TestPatchNamespace(t *testing.T) {
 	// Check the patch
 	got, err = client.CoreV1().Namespaces().Get(context.TODO(), name, metav1.GetOptions{})
 	require.NoError(t, err)
-	require.Equal(t, got.ObjectMeta.Labels, k8sutil.RcIDLabelKey, "false")
-	require.Equal(t, got.ObjectMeta.Annotations, k8sutil.RcIDAnnotKey, "12345")
-	require.Equal(t, got.ObjectMeta.Annotations, k8sutil.RcRevisionAnnotKey, "12")
+	require.Equal(t, got.ObjectMeta.Labels[k8sutil.RcIDLabelKey], "false")
+	require.Equal(t, got.ObjectMeta.Annotations[k8sutil.RcIDAnnotKey], "12345")
+	require.Equal(t, got.ObjectMeta.Annotations[k8sutil.RcRevisionAnnotKey], "12")
 	require.Equal(t, got.Labels[k8sutil.RcIDLabelKey], "false")
 	require.Equal(t, got.Annotations[k8sutil.RcIDAnnotKey], "12345")
 	require.Equal(t, got.Annotations[k8sutil.RcRevisionAnnotKey], "12")
 
-	// Delete congihuration
+	// Delete configuration
 	req.Action = DeleteConfig
 	req.Revision = 15
 	require.NoError(t, p.patchNamespaces(req))

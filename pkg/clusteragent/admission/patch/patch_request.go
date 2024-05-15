@@ -77,13 +77,15 @@ func (pr Request) getApmRemoteConfigEvent(err error, errorCode int) telemetry.Ap
 		errorMessage = err.Error()
 	}
 	var clusterTargets []telemetry.K8sClusterTarget
-	for _, t := range pr.K8sTarget.ClusterTargets {
-		target := telemetry.K8sClusterTarget{
-			ClusterName:       t.ClusterName,
-			Enabled:           *t.Enabled,
-			EnabledNamespaces: *t.EnabledNamespaces,
+	if pr.K8sTarget != nil {
+		for _, t := range pr.K8sTarget.ClusterTargets {
+			target := telemetry.K8sClusterTarget{
+				ClusterName:       t.ClusterName,
+				Enabled:           *t.Enabled,
+				EnabledNamespaces: *t.EnabledNamespaces,
+			}
+			clusterTargets = append(clusterTargets, target)
 		}
-		clusterTargets = append(clusterTargets, target)
 	}
 	return telemetry.ApmRemoteConfigEvent{
 		RequestType: "apm-remote-config-event",

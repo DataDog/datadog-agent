@@ -72,7 +72,7 @@ func (p *patcher) patchNamespaces(req Request) error {
 		if err != nil {
 			return err
 		}
-		oldObj, err := json.Marshal(ns)
+		oldObj, err := json.Marshal(namespace)
 		if err != nil {
 			return fmt.Errorf("failed to encode object: %v", err)
 		}

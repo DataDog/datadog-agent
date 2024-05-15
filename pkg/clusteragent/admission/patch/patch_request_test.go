@@ -24,6 +24,10 @@ func falsePtr() *bool {
 	return &f
 }
 
+func stringPtr(s string) *string {
+	return &s
+}
+
 func TestPatchRequestValidate(t *testing.T) {
 	tests := []struct {
 		name        string
@@ -34,15 +38,32 @@ func TestPatchRequestValidate(t *testing.T) {
 	}{
 		{
 			name:      "valid",
-			LibConfig: common.LibConfig{Language: "lang", Version: "latest"},
-			//K8sTarget:   K8sTarget{Cluster: "cluster", Kind: "deployment", Name: "name", Namespace: "ns"},
+			LibConfig: common.LibConfig{Env: stringPtr("dev")},
 			K8sTarget: K8sTarget{
 				ClusterTargets: []K8sClusterTarget{
-					K8sClusterTarget{ClusterName: "cluster", Enabled: truePtr(), EnabledNamespaces: &([]string{"ns"})},
+					{ClusterName: "cluster", Enabled: truePtr(), EnabledNamespaces: &([]string{"ns"})},
 				},
 			},
 			clusterName: "cluster",
 			valid:       true,
+		},
+		{
+			name:      "empty env",
+			LibConfig: common.LibConfig{},
+			K8sTarget: K8sTarget{
+				ClusterTargets: []K8sClusterTarget{
+					{ClusterName: "cluster", Enabled: truePtr(), EnabledNamespaces: &([]string{"ns"})},
+				},
+			},
+			clusterName: "cluster",
+			valid:       true,
+		},
+		{
+			name:        "no cluster targets",
+			LibConfig:   common.LibConfig{Env: stringPtr("dev")},
+			K8sTarget:   K8sTarget{ClusterTargets: []K8sClusterTarget{}},
+			clusterName: "cluster",
+			valid:       false,
 		},
 	}
 	for _, tt := range tests {

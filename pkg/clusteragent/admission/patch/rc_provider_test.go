@@ -46,10 +46,9 @@ func TestProcess(t *testing.T) {
 	require.NoError(t, err)
 	notifs := rcp.subscribe(KindCluster)
 	in := map[string]state.RawConfig{
-		"path1": {Config: genConfig("dev")}, // valid config
-		//"path2": {Config: []byte("invalid")},  // invalid json
-		//"path3": {Config: genConfig("dev")},   // kind mismatch
-		//"path4": {Config: genConfig("wrong")}, // cluster mismatch
+		"path1": {Config: genConfig("dev")},   // valid config
+		"path2": {Config: []byte("invalid")},  // invalid json
+		"path3": {Config: genConfig("wrong")}, // cluster mismatch
 	}
 	rcp.process(in, nil)
 	require.Len(t, notifs, 1)
