@@ -108,11 +108,11 @@ func TestUnzip_OutsideRoot(t *testing.T) {
 
 	err := Unzip(destinationZip, tmpDir)
 
-	assert.Error(t, err, "illegal file path: ../badfile.txt")
+	assert.Nil(t, err)
 
-	// '../../badfile.txt' is not a symlink and should be extracted without errors inside the destination path
-	_, err = os.Stat(filepath.Join(tmpDir, "../../badfile.txt"))
-	assert.Error(t, err, "../../badfile.txt should not be extracted outside the destination folder")
+	// '../../../../../badfile.txt' should be extracted inside the destination folder
+	_, err = os.Stat(filepath.Join(tmpDir, "badfile.txt"))
+	assert.Nil(t, err, "badfile.txt should be extracted inside the destination folder")
 }
 
 type file struct {
@@ -157,7 +157,7 @@ func createUnsafeZip(t *testing.T, createFileOutsideRoot bool) string {
 	}
 
 	if createFileOutsideRoot {
-		files = append(files, file{"../../badfile.txt", "outside of root"})
+		files = append(files, file{"../../../../../badfile.txt", "outside of root"})
 	}
 
 	for _, file := range files {

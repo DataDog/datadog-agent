@@ -17,6 +17,8 @@ import (
 	"path"
 	"path/filepath"
 	"strings"
+
+	securejoin "github.com/cyphar/filepath-securejoin"
 )
 
 // fileInfo is an adapted implementation of FileInfo from
@@ -102,22 +104,21 @@ func Unzip(source, destination string) error {
 }
 
 func extractAndWriteFile(f *zip.File, targetRootFolder string) error {
+	if f.Mode()&os.ModeSymlink != 0 {
+		// We skip symlink for security reasons
+		return nil
+	}
+
 	archiveFile, err := f.Open()
 	if err != nil {
 		return fmt.Errorf("failed to open file: %v", err)
 	}
 	defer archiveFile.Close()
 
-	targetFilepath := filepath.Join(targetRootFolder, f.Name)
+	targetFilepath, err := securejoin.SecureJoin(targetRootFolder, f.Name)
 
-	// Check for ZipSlip (Directory traversal)
-	if !strings.HasPrefix(targetFilepath, filepath.Clean(targetRootFolder)+string(os.PathSeparator)) {
+	if err != nil {
 		return fmt.Errorf("illegal file path: %s", targetFilepath)
-	}
-
-	if f.Mode()&os.ModeSymlink != 0 {
-		// We skip symlink for security reasons
-		return nil
 	}
 
 	if f.FileInfo().IsDir() {
@@ -167,16 +168,16 @@ func writeWalk(zipWriter *zip.Writer, source, destination string) error {
 	}
 
 	return filepath.Walk(source, func(fpath string, info os.FileInfo, err error) error {
-		if info.Mode()&os.ModeSymlink != 0 {
-			// We skip symlink for security reasons
-			return nil
-		}
-
 		if err != nil {
 			return fmt.Errorf("error traversing  %s: %w", fpath, err)
 		}
 		if info == nil {
 			return fmt.Errorf("%s: no file info", fpath)
+		}
+
+		if info.Mode()&os.ModeSymlink != 0 {
+			// We skip symlink for security reasons
+			return nil
 		}
 
 		// make sure we do not copy the output file into the output
@@ -185,6 +186,7 @@ func writeWalk(zipWriter *zip.Writer, source, destination string) error {
 		if err != nil {
 			return fmt.Errorf("error getting absolute path %s: %w", fpath, err)
 		}
+
 		if within(fpathAbs, destAbs) {
 			return nil
 		}
