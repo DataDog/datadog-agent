@@ -449,7 +449,7 @@ func getSuites(diagCfg diagnosis.Config, deps SuitesDeps) []diagnosis.Suite {
 	catalog.Register("connectivity-datadog-autodiscovery", connectivity.DiagnoseMetadataAutodiscoveryConnectivity)
 	catalog.Register("connectivity-datadog-event-platform", eventplatformimpl.Diagnose)
 	// port-conflict suite available in darwin only for now
-	if runtime.GOOS == "darwin" {
+	if runtime.GOOS == "darwin" || runtime.GOOS == "linux" {
 		catalog.Register("port-conflict", func() []diagnosis.Diagnosis { return ports.DiagnosePortSuite() })
 	}
 
