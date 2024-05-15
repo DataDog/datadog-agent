@@ -429,7 +429,7 @@ func checkPoliciesLocal(args *checkPoliciesCliParams, writer io.Writer) error {
 	// enabled all the rules
 	enabled := map[eval.EventType]bool{"*": true}
 
-	ruleOpts, evalOpts := rules.NewEvalOpts(enabled)
+	ruleOpts, evalOpts := rules.NewBothOpts(enabled)
 
 	ruleOpts.WithLogger(seclog.DefaultLogger)
 
@@ -548,7 +548,7 @@ func evalRule(_ log.Component, _ config.Component, _ secrets.Component, evalArgs
 	// enabled all the rules
 	enabled := map[eval.EventType]bool{"*": true}
 
-	ruleOpts, evalOpts := rules.NewEvalOpts(enabled)
+	ruleOpts, evalOpts := rules.NewBothOpts(enabled)
 	ruleOpts.WithLogger(seclog.DefaultLogger)
 
 	agentVersionFilter, err := newAgentVersionFilter()
