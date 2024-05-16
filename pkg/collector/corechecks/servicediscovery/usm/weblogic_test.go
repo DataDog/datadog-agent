@@ -36,12 +36,12 @@ func TestWeblogicFindDeployedApps(t *testing.T) {
 		{
 			name:       "multiple deployments for multiple server - extract for AdminServer",
 			serverName: "AdminServer",
-			domainHome: abs("testdata/b", cwd),
+			domainHome: abs(weblogicTestAppRoot, cwd),
 			fs:         RealFs{},
 			expected: []jeeDeployment{
 				{
 					name: "test.war",
-					path: "testdata/b/test.war",
+					path: weblogicTestAppRoot + "/test.war",
 				},
 				{
 					name: "sample4.war",
@@ -49,7 +49,7 @@ func TestWeblogicFindDeployedApps(t *testing.T) {
 				},
 				{
 					name: "test.ear",
-					path: "testdata/b/test.ear",
+					path: weblogicTestAppRoot + "/test.ear",
 				},
 			},
 		},
@@ -60,15 +60,15 @@ func TestWeblogicFindDeployedApps(t *testing.T) {
 		{
 			name:       "missing config.xml",
 			serverName: "AdminServer",
-			domainHome: "testdata/b",
+			domainHome: weblogicTestAppRoot,
 			fs:         fstest.MapFS{},
 			expected:   nil,
 		},
 		{
 			name:       "malformed config.xml",
 			serverName: "AdminServer",
-			domainHome: "testdata/b",
-			fs:         fstest.MapFS{"testdata/b/config/config.xml": &fstest.MapFile{Data: []byte("evil")}},
+			domainHome: weblogicTestAppRoot,
+			fs:         fstest.MapFS{weblogicTestAppRoot + "/config/config.xml": &fstest.MapFile{Data: []byte("evil")}},
 			expected:   nil,
 		},
 	}

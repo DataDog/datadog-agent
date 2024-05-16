@@ -21,6 +21,11 @@ import (
 
 const (
 	springBootApp = "app/app.jar"
+
+	// we need to use these non-descriptive shorter folder names because of the filename_linting
+	// CI check that limits the number of characters in a path to 255.
+	jbossTestAppRoot    = "testdata/a"
+	weblogicTestAppRoot = "testdata/b"
 )
 
 func mockfs(t *testing.T) fs.SubFS {
@@ -214,15 +219,15 @@ func TestExtractServiceMetadata(t *testing.T) {
 				"--add-exports=java.base/sun.nio.ch=ALL-UNNAMED",
 				"--add-exports=jdk.unsupported/sun.misc=ALL-UNNAMED",
 				"--add-exports=jdk.unsupported/sun.reflect=ALL-UNNAMED",
-				"-Dorg.jboss.boot.log.file=testdata/a/standalone/log/server.log",
-				"-Dlogging.configuration=file:testdata/a/standalone/configuration/logging.properties",
+				"-Dorg.jboss.boot.log.file=" + jbossTestAppRoot + "/standalone/log/server.log",
+				"-Dlogging.configuration=file:" + jbossTestAppRoot + "/standalone/configuration/logging.properties",
 				"-jar",
-				"testdata/a/jboss-modules.jar",
+				"" + jbossTestAppRoot + "/jboss-modules.jar",
 				"-mp",
-				"testdata/a/modules",
+				"" + jbossTestAppRoot + "/modules",
 				"org.jboss.as.standalone",
-				"-Djboss.home.dir=testdata/a",
-				"-Djboss.server.base.dir=testdata/a/standalone"},
+				"-Djboss.home.dir=" + jbossTestAppRoot,
+				"-Djboss.server.base.dir=" + jbossTestAppRoot + "/standalone"},
 			fs:                         RealFs{},
 			expectedServiceTag:         "jboss-modules",
 			expectedAdditionalServices: []string{"my-jboss-webapp", "some_context_root", "web3"},
@@ -242,17 +247,17 @@ func TestExtractServiceMetadata(t *testing.T) {
 				"-XX:MaxMetaspaceSize=256m",
 				"-Djava.awt.headless=true",
 				"-Djava.net.preferIPv4Stack=true",
-				"-Djboss.home.dir=testdata/a",
+				"-Djboss.home.dir=" + jbossTestAppRoot,
 				"-Djboss.modules.system.pkgs=org.jboss.byteman",
-				"-Djboss.server.log.dir=testdata/a/domain/servers/server-one/log",
-				"-Djboss.server.temp.dir=testdata/a/domain/servers/server-one/tmp",
-				"-Djboss.server.data.dir=testdata/a/domain/servers/server-one/data",
-				"-Dorg.jboss.boot.log.file=testdata/a/domain/servers/server-one/log/server.log",
-				"-Dlogging.configuration=file:testdata/a/domain/configuration/default-server-logging.properties",
+				"-Djboss.server.log.dir=" + jbossTestAppRoot + "/domain/servers/server-one/log",
+				"-Djboss.server.temp.dir=" + jbossTestAppRoot + "/domain/servers/server-one/tmp",
+				"-Djboss.server.data.dir=" + jbossTestAppRoot + "/domain/servers/server-one/data",
+				"-Dorg.jboss.boot.log.file=" + jbossTestAppRoot + "/domain/servers/server-one/log/server.log",
+				"-Dlogging.configuration=file:" + jbossTestAppRoot + "/domain/configuration/default-server-logging.properties",
 				"-jar",
-				"testdata/a/jboss-modules.jar",
+				"" + jbossTestAppRoot + "/jboss-modules.jar",
 				"-mp",
-				"testdata/a/modules",
+				"" + jbossTestAppRoot + "/modules",
 				"org.jboss.as.server"},
 			expectedServiceTag:         "jboss-modules",
 			expectedAdditionalServices: []string{"web3", "web4"},
@@ -272,7 +277,7 @@ func TestExtractServiceMetadata(t *testing.T) {
 				"-Dwls.home=/u01/oracle/wlserver/server",
 				"-Dweblogic.home=/u01/oracle/wlserver/server",
 				"weblogic.Server"},
-			envs:                       []string{"PWD=testdata/b"},
+			envs:                       []string{"PWD=" + weblogicTestAppRoot},
 			expectedServiceTag:         "Server",
 			expectedAdditionalServices: []string{"my_context", "sample4", "some_context_root"},
 		},
