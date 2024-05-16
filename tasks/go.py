@@ -73,27 +73,6 @@ def run_golangci_lint(
 
 
 @task
-def golangci_lint(
-    ctx,
-    targets,
-    rtloader_root=None,
-    build_tags=None,
-    build="test",
-    concurrency=None,  # noqa: U100
-):
-    """
-    Run golangci-lint on targets using .golangci.yml configuration.
-
-    Example invocation:
-        inv golangci-lint --targets=./pkg/collector/check,./pkg/aggregator
-    DEPRECATED
-    Please use inv linter.go instead
-    """
-    print("WARNING: golangci-lint task is deprecated, please migrate to linter.go task")
-    raise Exit(code=1)
-
-
-@task
 def internal_deps_checker(ctx, formatFile=False):
     """
     Check that every required internal dependencies are correctly replaced
@@ -425,7 +404,7 @@ def tidy_all(ctx):
 @task
 def check_go_version(ctx):
     go_version_output = ctx.run('go version')
-    # result is like "go version go1.21.9 linux/amd64"
+    # result is like "go version go1.21.10 linux/amd64"
     running_go_version = go_version_output.stdout.split(' ')[2]
 
     with open(".go-version") as f:

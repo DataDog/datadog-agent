@@ -75,6 +75,10 @@ type Component interface {
 	// the entity with kind KindKubernetesDeployment and the given ID.
 	GetKubernetesDeployment(id string) (*KubernetesDeployment, error)
 
+	// GetKubernetesNamespace returns metadata about a Kubernetes namespace. It fetches
+	// the entity with kind KindKubernetesNamespace and the given ID.
+	GetKubernetesNamespace(id string) (*KubernetesNamespace, error)
+
 	// ListECSTasks returns metadata about all ECS tasks, equivalent to all
 	// entities with kind KindECSTask.
 	ListECSTasks() []*ECSTask

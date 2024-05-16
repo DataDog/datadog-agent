@@ -9,7 +9,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"net"
 	"net/http"
 	"path/filepath"
 	"reflect"
@@ -20,6 +19,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/aggregator/diagnosesendermanager"
 	"github.com/DataDog/datadog-agent/comp/api/api"
+	apiutils "github.com/DataDog/datadog-agent/comp/api/api/utils"
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -33,7 +33,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/diagnose"
 	pkgFlare "github.com/DataDog/datadog-agent/pkg/flare"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/grpc"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
@@ -128,7 +127,7 @@ func (f *flare) createAndReturnFlarePath(w http.ResponseWriter, r *http.Request)
 	}
 
 	// Reset the `server_timeout` deadline for this connection as creating a flare can take some time
-	conn := getConnection(r)
+	conn := apiutils.GetConnection(r)
 	_ = conn.SetDeadline(time.Time{})
 
 	var filePath string
@@ -145,11 +144,6 @@ func (f *flare) createAndReturnFlarePath(w http.ResponseWriter, r *http.Request)
 		http.Error(w, err.Error(), 500)
 	}
 	w.Write([]byte(filePath))
-}
-
-// getConnection returns the connection for the request
-func getConnection(r *http.Request) net.Conn {
-	return r.Context().Value(grpc.ConnContextKey).(net.Conn)
 }
 
 // Send sends a flare archive to Datadog

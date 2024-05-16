@@ -12,6 +12,13 @@ __attribute__((always_inline)) u32 get_ifindex_from_net_device(struct net_device
     return ifindex;
 }
 
+__attribute__((always_inline)) char* get_net_device_name(struct net_device *device) {
+    u64 net_device_name_offset;
+    LOAD_CONSTANT("net_device_name_offset", net_device_name_offset);
+
+    return (char *)((void *)device + net_device_name_offset);
+}
+
 #define NET_STRUCT_HAS_PROC_INUM 0
 #define NET_STRUCT_HAS_NS        1
 

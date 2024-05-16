@@ -1,9 +1,10 @@
+from __future__ import annotations
+
 import argparse
 import json
 import os
 import re
 import traceback
-from typing import Union
 
 
 def normalize_metrics(stage, aws_account_id):
@@ -111,6 +112,8 @@ def normalize_traces(stage, aws_account_id):
         replace(r'("architecture":)"(x86_64|arm64)"', r'\1"XXX"'),
         replace(r'("process_id":)[0-9]+', r'\1null'),
         replace(r'("otel.trace_id":")[a-zA-Z0-9]+"', r'\1null"'),
+        replace(r'("_dd.p.dm":")\-[0-9]+"', r'\1null"'),
+        replace(r'("_dd.otlp_sr":")[0-9\.]+"', r'\1null"'),
         replace(r'("faas.execution":")[a-zA-Z0-9-]+"', r'\1null"'),
         replace(r'("faas.instance":")[a-zA-Z0-9-/]+\[\$LATEST\][a-zA-Z0-9]+"', r'\1null"'),
         replace(stage, 'XXXXXX'),
@@ -318,7 +321,7 @@ if __name__ == '__main__':
 
         print(normalize(args.logs, args.type, args.stage, args.accountid))
     except Exception as e:
-        err: dict[str, Union[str, list[str]]] = {
+        err: dict[str, str | list[str]] = {
             "error": "normalization raised exception",
         }
         # Unless explicitly specified, perform as it did historically

@@ -1,24 +1,25 @@
+from __future__ import annotations
+
 import os
 import re
 import sys
 from collections import defaultdict
-from typing import List
 
 from invoke import Exit, task
 
 from tasks.build_tags import compute_build_tags_for_flavor
+from tasks.devcontainer import run_on_devcontainer
 from tasks.flavor import AgentFlavor
 from tasks.go import run_golangci_lint
 from tasks.libs.ciproviders.github_api import GithubAPI
-from tasks.libs.ciproviders.gitlab import (
-    Gitlab,
+from tasks.libs.ciproviders.gitlab_api import (
     generate_gitlab_full_configuration,
-    get_gitlab_token,
+    get_gitlab_repo,
     get_preset_contexts,
     load_context,
 )
 from tasks.libs.common.check_tools_version import check_tools_version
-from tasks.libs.common.utils import DEFAULT_BRANCH, GITHUB_REPO_NAME, color_message, is_pr_context
+from tasks.libs.common.utils import DEFAULT_BRANCH, GITHUB_REPO_NAME, color_message, is_pr_context, running_in_ci
 from tasks.libs.types.copyright import CopyrightLinter
 from tasks.modules import GoModule
 from tasks.test_core import ModuleLintResult, process_input_args, process_module_results, test_core
@@ -38,7 +39,15 @@ def python(ctx):
     https://github.com/DataDog/datadog-agent/blob/{DEFAULT_BRANCH}/docs/dev/agent_dev_env.md#pre-commit-hooks"""
     )
 
-    ctx.run("ruff check --fix .")
+    if running_in_ci():
+        # We want to the CI to fail if there are any issues
+        ctx.run("ruff format --check .")
+        ctx.run("ruff check .")
+    else:
+        # Otherwise we just need to format the files
+        ctx.run("ruff format .")
+        ctx.run("ruff check --fix .")
+
     ctx.run("vulture --ignore-decorators @task --ignore-names 'test_*,Test*' tasks")
 
 
@@ -66,9 +75,9 @@ def filenames(ctx):
     else:
         print("Checking filenames for illegal characters")
         forbidden_chars = '<>:"\\|?*'
-        for file in files:
-            if any(char in file for char in forbidden_chars):
-                print(f"Error: Found illegal character in path {file}")
+        for filename in files:
+            if any(char in filename for char in forbidden_chars):
+                print(f"Error: Found illegal character in path {filename}")
                 failure = True
 
     print("Checking filename length")
@@ -76,14 +85,16 @@ def filenames(ctx):
     prefix_length = 160
     # Maximum length supported by the win32 API
     max_length = 255
-    for file in files:
+    for filename in files:
         if (
-            not file.startswith(
+            not filename.startswith(
                 ('test/kitchen/', 'tools/windows/DatadogAgentInstaller', 'test/workload-checks', 'test/regression')
             )
-            and prefix_length + len(file) > max_length
+            and prefix_length + len(filename) > max_length
         ):
-            print(f"Error: path {file} is too long ({prefix_length + len(file) - max_length} characters too many)")
+            print(
+                f"Error: path {filename} is too long ({prefix_length + len(filename) - max_length} characters too many)"
+            )
             failure = True
 
     if failure:
@@ -91,6 +102,7 @@ def filenames(ctx):
 
 
 @task(iterable=['flavors'])
+@run_on_devcontainer
 def go(
     ctx,
     module=None,
@@ -106,6 +118,8 @@ def go(
     golangci_lint_kwargs="",
     headless_mode=False,
     include_sds=False,
+    only_modified_packages=False,
+    run_on=None,  # noqa: U100, F841. Used by the run_on_devcontainer decorator
 ):
     """
     Run go linters on the given module and targets.
@@ -124,45 +138,18 @@ def go(
         inv linter.go --targets=./pkg/collector/check,./pkg/aggregator
         inv linter.go --module=.
     """
-    _lint_go(
-        ctx=ctx,
-        module=module,
-        targets=targets,
-        flavor=flavor,
-        build=build,
-        build_tags=build_tags,
-        build_include=build_include,
-        build_exclude=build_exclude,
-        rtloader_root=rtloader_root,
-        cpus=cpus,
-        timeout=timeout,
-        golangci_lint_kwargs=golangci_lint_kwargs,
-        headless_mode=headless_mode,
-        include_sds=include_sds,
-    )
-
-
-# Temporary method to duplicate go linter task not to impact macos jobs.
-def _lint_go(
-    ctx,
-    module,
-    targets,
-    flavor,
-    build,
-    build_tags,
-    build_include,
-    build_exclude,
-    rtloader_root,
-    cpus,
-    timeout,
-    golangci_lint_kwargs,
-    headless_mode,
-    include_sds,
-):
     if not check_tools_version(ctx, ['go', 'golangci-lint']):
         print("Warning: If you have linter errors it might be due to version mismatches.", file=sys.stderr)
 
-    modules, flavor = process_input_args(module, targets, flavor, headless_mode)
+    modules, flavor = process_input_args(
+        ctx,
+        module,
+        targets,
+        flavor,
+        headless_mode,
+        build_tags=build_tags,
+        only_modified_packages=only_modified_packages,
+    )
 
     lint_results = run_lint_go(
         ctx=ctx,
@@ -230,9 +217,9 @@ def run_lint_go(
 
 def lint_flavor(
     ctx,
-    modules: List[GoModule],
+    modules: list[GoModule],
     flavor: AgentFlavor,
-    build_tags: List[str],
+    build_tags: list[str],
     rtloader_root: bool,
     concurrency: int,
     timeout=None,
@@ -292,15 +279,15 @@ def ssm_parameters(ctx):
     lint_folders = [".circleci", ".github", ".gitlab", "tasks", "test"]
     repo_files = ctx.run("git ls-files", hide="both")
     error_files = []
-    for file in repo_files.stdout.split("\n"):
-        if any(file.startswith(f) for f in lint_folders):
-            matched = is_get_parameter_call(file)
+    for filename in repo_files.stdout.split("\n"):
+        if any(filename.startswith(f) for f in lint_folders):
+            matched = is_get_parameter_call(filename)
             if matched:
                 error_files.append(matched)
     if error_files:
         print("The following files contain unexpected syntax for aws ssm get-parameter:")
-        for file in error_files:
-            print(f"  - {file}")
+        for filename in error_files:
+            print(f"  - {filename}")
         raise Exit(code=1)
 
 
@@ -355,17 +342,17 @@ def gitlab_ci(_, test="all", custom_context=None):
     else:
         all_contexts = get_preset_contexts(test)
     print(f"We will tests {len(all_contexts)} contexts.")
+    agent = get_gitlab_repo()
     for context in all_contexts:
         print("Test gitlab configuration with context: ", context)
         config = generate_gitlab_full_configuration(".gitlab-ci.yml", dict(context))
-        gitlab = Gitlab(api_token=get_gitlab_token())
-        res = gitlab.lint(config)
-        status = color_message("valid", "green") if res["valid"] else color_message("invalid", "red")
+        res = agent.ci_lint.create({"content": config})
+        status = color_message("valid", "green") if res.valid else color_message("invalid", "red")
         print(f"Config is {status}")
-        if len(res["warnings"]) > 0:
-            print(color_message(f"Warnings: {res['warnings']}", "orange"), file=sys.stderr)
-        if not res["valid"]:
-            print(color_message(f"Errors: {res['errors']}", "red"), file=sys.stderr)
+        if len(res.warnings) > 0:
+            print(color_message(f"Warnings: {res.warnings}", "orange"), file=sys.stderr)
+        if not res.valid:
+            print(color_message(f"Errors: {res.errors}", "red"), file=sys.stderr)
             raise Exit(code=1)
 
 

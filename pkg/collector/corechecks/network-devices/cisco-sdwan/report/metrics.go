@@ -189,7 +189,7 @@ func (ms *SDWanSender) SendOMPPeerMetrics(ompPeers []client.OMPPeer) {
 		remoteTags := ms.getRemoteDeviceTags(entry.Peer)
 
 		tags := append(deviceTags, remoteTags...)
-		tags = append(tags, "legit:"+entry.Legit, "refresh:"+entry.Refresh, "type:"+entry.Type, "state:"+entry.State)
+		tags = append(tags, "legit:"+entry.Legit, "refresh:"+entry.Refresh, "state:"+entry.State)
 
 		status := 0
 		if entry.State == "up" {
