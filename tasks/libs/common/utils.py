@@ -6,7 +6,6 @@ from __future__ import annotations
 
 import json
 import os
-import platform
 import re
 import sys
 import time
@@ -304,7 +303,6 @@ def get_build_flags(
             )
 
     if arch and arch.is_cross_compiling():
-        print(f"Cross-compilation detected: {arch}, {platform.machine()}")
         # For cross-compilation we need to be explicit about certain Go settings
         env["GOARCH"] = arch.go_arch
         env["CGO_ENABLED"] = "1"  # If we're cross-compiling, CGO is disabled by default. Ensure it's always enabled
