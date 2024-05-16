@@ -31,22 +31,25 @@ func newUnbundledTransformer(clusterName string, taggerInstance tagger.Component
 	}
 
 	return &unbundledTransformer{
-		clusterName:    clusterName,
-		collectedTypes: collectedTypes,
-		taggerInstance: taggerInstance,
+		clusterName:        clusterName,
+		collectedTypes:     collectedTypes,
+		taggerInstance:     taggerInstance,
+		bundledTransformer: newBundledTransformer(clusterName, taggerInstance),
 	}
 }
 
 type unbundledTransformer struct {
-	clusterName    string
-	collectedTypes []collectedEventType
-	taggerInstance tagger.Component
+	clusterName        string
+	collectedTypes     []collectedEventType
+	taggerInstance     tagger.Component
+	bundledTransformer eventTransformer
 }
 
 func (c *unbundledTransformer) Transform(events []*v1.Event) ([]event.Event, []error) {
 	var (
-		datadogEvs []event.Event
-		errors     []error
+		eventsToBundle []*v1.Event
+		datadogEvs     []event.Event
+		errors         []error
 	)
 
 	for _, ev := range events {
@@ -58,6 +61,7 @@ func (c *unbundledTransformer) Transform(events []*v1.Event) ([]event.Event, []e
 		)
 
 		if !c.shouldCollect(ev) {
+			eventsToBundle = append(eventsToBundle, ev)
 			continue
 		}
 
@@ -93,7 +97,9 @@ func (c *unbundledTransformer) Transform(events []*v1.Event) ([]event.Event, []e
 		})
 	}
 
-	return datadogEvs, errors
+	bundledEvents, errs := c.bundledTransformer.Transform(eventsToBundle)
+
+	return append(datadogEvs, bundledEvents...), append(errors, errs...)
 }
 
 // getTagsFromTagger add to the TagsAccumulator associated object tags from the tagger.
