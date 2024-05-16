@@ -8,6 +8,7 @@ package fileprovider
 
 import (
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -376,9 +377,9 @@ func shouldIgnore(validatePodContainerID bool, file *tailer.File) bool {
 	}
 
 	infos := make(map[string]string)
-	err := filepath.Walk(ContainersLogsDir, func(containerLogFilename string, info os.FileInfo, err error) error {
+	err := filepath.WalkDir(ContainersLogsDir, func(containerLogFilename string, info fs.DirEntry, err error) error {
 		// we only wants to follow symlinks
-		if info == nil || info.Mode()&os.ModeSymlink != os.ModeSymlink || info.IsDir() {
+		if info == nil || info.Type()&fs.ModeSymlink != fs.ModeSymlink || info.IsDir() {
 			// not a symlink, we are not interested in this file
 			return nil
 		}
