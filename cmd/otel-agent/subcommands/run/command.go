@@ -30,6 +30,7 @@ import (
 	collectorfx "github.com/DataDog/datadog-agent/comp/otelcol/collector/fx"
 	"github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline"
 	"github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline/logsagentpipelineimpl"
+	otelflarefx "github.com/DataDog/datadog-agent/comp/otelcol/otelflare/fx"
 	configprovider "github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/pipeline/provider"
 	"github.com/DataDog/datadog-agent/comp/serializer/compression"
 	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl/strategy"
@@ -77,6 +78,7 @@ func runOTelAgentCommand(_ context.Context, params *subcommands.GlobalParams, op
 	err := fxutil.Run(
 		forwarder.Bundle(),
 		corelogimpl.Module(),
+		otelflarefx.Module(),
 		inventoryagentimpl.Module(),
 		workloadmeta.Module(),
 		hostnameimpl.Module(),
