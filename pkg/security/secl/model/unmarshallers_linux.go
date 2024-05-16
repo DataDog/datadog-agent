@@ -75,15 +75,15 @@ func (e *ChownEvent) UnmarshalBinary(data []byte) (int, error) {
 
 // UnmarshalBinary unmarshalls a binary representation of itself
 func (e *Event) UnmarshalBinary(data []byte) (int, error) {
-	if len(data) < 24 {
+	if len(data) < 16 {
 		return 0, ErrNotEnoughData
 	}
 
-	e.TimestampRaw = binary.NativeEndian.Uint64(data[8:16])
-	e.Type = binary.NativeEndian.Uint32(data[16:20])
-	e.Flags = binary.NativeEndian.Uint32(data[20:24])
+	e.TimestampRaw = binary.NativeEndian.Uint64(data[0:8])
+	e.Type = uint32(binary.NativeEndian.Uint16(data[12:14]))
+	e.Flags = uint32(binary.NativeEndian.Uint16(data[14:16]))
 
-	return 24, nil
+	return 16, nil
 }
 
 // UnmarshalBinary unmarshalls a binary representation of itself

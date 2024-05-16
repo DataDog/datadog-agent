@@ -5,10 +5,10 @@
 #include "dentry_resolver.h"
 
 struct kevent_t {
-    u64 cpu;
     u64 timestamp;
-    u32 type;
-    u32 flags;
+    u32 cpu;
+    u16 type;
+    u16 flags;
 };
 
 struct syscall_t {

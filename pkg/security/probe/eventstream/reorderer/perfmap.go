@@ -96,8 +96,8 @@ func ExtractEventInfo(record *perf.Record) (QuickInfo, error) {
 	}
 
 	return QuickInfo{
-		CPU:       binary.NativeEndian.Uint64(record.RawSample[0:8]),
-		Timestamp: binary.NativeEndian.Uint64(record.RawSample[8:16]),
+		CPU:       uint64(binary.NativeEndian.Uint32(record.RawSample[8:12])),
+		Timestamp: binary.NativeEndian.Uint64(record.RawSample[0:8]),
 	}, nil
 }
 
