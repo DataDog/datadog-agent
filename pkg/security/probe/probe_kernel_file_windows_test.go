@@ -46,14 +46,22 @@ func createTestProbe() (*WindowsProbe, error) {
 	if err != nil {
 		return nil, err
 	}
+	fc, err := lru.New[fileObjectPointer, fileCache](1024)
+	if err != nil {
+		return nil, err
+	}
+	rc, err := lru.New[regObjectPointer, string](1024)
+	if err != nil {
+		return nil, err
+	}
 
 	// probe and config are provided as null.  During the tests, it is assumed
 	// that we will not access those values.
 	wp := &WindowsProbe{
 		opts:               opts,
 		config:             cfg,
-		filePathResolver:   make(map[fileObjectPointer]string, 0),
-		regPathResolver:    make(map[regObjectPointer]string, 0),
+		filePathResolver:   fc,
+		regPathResolver:    rc,
 		discardedPaths:     discardedPaths,
 		discardedBasenames: discardedBasenames,
 	}
