@@ -21,7 +21,7 @@ In the following example, a component add a `server.Endpoint` type to the `serve
     }
     ```
 
-In the following example, a component requests all the instances added to the `server` group. This takes the form of a slice received at
+In the following example, a component requests all the types added to the `server` group. This takes the form of a slice received at
 instantiation.
 
 === ":octicons-file-code-16: comp/server/server.go"

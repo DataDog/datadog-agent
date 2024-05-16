@@ -12,7 +12,7 @@ The goal of a component is to encapsulate a particular piece of logic/feature an
 A component must:
 
   + Hide the complexity of the implementation from its users.
-  + Be reusable no matter the context or the binary in which it is included.
+  + Be reusable no matter the context or the binary in which they're included.
   + Be tested.
   + Expose a mock implementation to help testing.
   + Be owned by a single team which supports and maintains it.
