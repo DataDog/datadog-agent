@@ -122,12 +122,16 @@ func (cp *configProvider) addEnhancedConf(conf *otelcol.Config) error {
 
 // GetProvidedConf returns a string representing the collector configuration passed
 // by the user. Should not be called concurrently with Get.
+// Note: the current implementation does not redact sensitive data (e.g. API Key). 
+// Once we are unblocked and are able to remove the hack, this will provide the config 
+// with any sensitive data redacted.
 func (cp *configProvider) GetProvidedConf() string {
 	return cp.confDump.provided
 }
 
 // GetEnhancedConf returns a string representing the ehnhanced collector configuration.
 // Should not be called concurrently with Get.
+// Note: this is currently not supported. 
 func (cp *configProvider) GetEnhancedConf() string {
 	return cp.confDump.enhanced
 }
