@@ -36,6 +36,7 @@ from tasks.system_probe import (
     build_cws_object_files,
     check_for_ninja,
     copy_ebpf_and_related_files,
+    get_ebpf_build_dir,
     ninja_define_ebpf_compiler,
     ninja_define_exe_compiler,
 )
@@ -386,6 +387,15 @@ def build_functional_tests(
         if bundle_ebpf:
             build_tags.append("ebpf_bindata")
 
+            # We need to copy the ebpf files to the right location, as we cannot use the go:embed directive
+            # with variables that depend on the build architecture
+            ebpf_build_dir = get_ebpf_build_dir(arch)
+
+            # Parse the files to copy from the go:embed directive, to avoid having duplicate places
+            # where the files are listed
+            ctx.run(
+                f"grep -E '^//go:embed' pkg/ebpf/bytecode/asset_reader_bindata.go | sed -E 's#//go:embed build/##' | xargs -I@ cp -v {ebpf_build_dir}/@ pkg/ebpf/bytecode/build/"
+            )
     if static:
         build_tags.extend(["osusergo", "netgo"])
 

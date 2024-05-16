@@ -14,6 +14,10 @@ import (
 	"path"
 )
 
+// Note that these files are placed in the build directory by the security-agent.build-functional-tests
+// task, which copies them from the architecture-specific build directory as we cannot use variables in
+// these directives
+
 //go:embed build/runtime-security.o
 //go:embed build/runtime-security-syscall-wrapper.o
 //go:embed build/runtime-security-fentry.o
