@@ -16,6 +16,7 @@ func NormalizePath(path string) string {
 	return strings.TrimPrefix(path, "\\??\\")
 }
 
+// GetLongPathName converts the specified path to its long form
 func GetLongPathName(path string) (string, error) {
 	shortPath, err := windows.UTF16FromString(path)
 	if err != nil {
