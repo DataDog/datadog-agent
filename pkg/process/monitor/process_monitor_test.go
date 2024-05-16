@@ -15,12 +15,16 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
+	"github.com/stretchr/testify/suite"
 	"github.com/vishvananda/netns"
 	"go.uber.org/atomic"
 
+	"github.com/DataDog/datadog-agent/pkg/eventmonitor"
+	eventmonitortestutil "github.com/DataDog/datadog-agent/pkg/eventmonitor/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 func getProcessMonitor(t *testing.T) *ProcessMonitor {
@@ -32,8 +36,17 @@ func getProcessMonitor(t *testing.T) *ProcessMonitor {
 	return pm
 }
 
-func initializePM(t *testing.T, pm *ProcessMonitor) {
-	require.NoError(t, pm.Initialize())
+func initializePM(t *testing.T, pm *ProcessMonitor, useEventStream bool) {
+	require.NoError(t, pm.Initialize(useEventStream))
+	if useEventStream {
+		eventmonitortestutil.StartEventMonitor(t, func(t *testing.T, evm *eventmonitor.EventMonitor) {
+			// Can't use the implementation in procmontestutil due to import cycles
+			procmonconsumer, err := NewProcessMonitorEventConsumer(evm)
+			require.NoError(t, err)
+			evm.RegisterEventConsumer(procmonconsumer)
+			log.Info("process monitoring test consumer initialized")
+		})
+	}
 	time.Sleep(time.Millisecond * 500)
 }
 
@@ -66,14 +79,20 @@ func TestProcessMonitorSingleton(t *testing.T) {
 	require.Equal(t, pm, pm2)
 }
 
-func TestProcessMonitorSanity(t *testing.T) {
+type processMonitorSuite struct {
+	suite.Suite
+	useEventStream bool
+}
+
+func (s *processMonitorSuite) TestProcessMonitorSanity() {
+	t := s.T()
 	pm := getProcessMonitor(t)
 	numberOfExecs := atomic.Int32{}
 	testBinaryPath := getTestBinaryPath(t)
 	callback := func(pid uint32) { numberOfExecs.Inc() }
 	registerCallback(t, pm, true, (*ProcessCallback)(&callback))
 
-	initializePM(t, pm)
+	initializePM(t, pm, s.useEventStream)
 	require.NoError(t, exec.Command(testBinaryPath, "test").Run())
 	require.Eventuallyf(t, func() bool {
 		return numberOfExecs.Load() > 1
@@ -89,7 +108,17 @@ func TestProcessMonitorSanity(t *testing.T) {
 	require.GreaterOrEqual(t, pm.tel.callbackExecuted.Get(), int64(1), "callback_executed")
 }
 
-func TestProcessRegisterMultipleExecCallbacks(t *testing.T) {
+func TestProcessMonitor(t *testing.T) {
+	t.Run("netlink", func(t *testing.T) {
+		suite.Run(t, &processMonitorSuite{useEventStream: false})
+	})
+	t.Run("event stream", func(t *testing.T) {
+		suite.Run(t, &processMonitorSuite{useEventStream: true})
+	})
+}
+
+func (s *processMonitorSuite) TestProcessRegisterMultipleExecCallbacks() {
+	t := s.T()
 	pm := getProcessMonitor(t)
 
 	const iterations = 10
@@ -101,7 +130,7 @@ func TestProcessRegisterMultipleExecCallbacks(t *testing.T) {
 		registerCallback(t, pm, true, (*ProcessCallback)(&callback))
 	}
 
-	initializePM(t, pm)
+	initializePM(t, pm, s.useEventStream)
 	require.NoError(t, exec.Command("/bin/echo").Run())
 	require.Eventuallyf(t, func() bool {
 		for i := 0; i < iterations; i++ {
@@ -114,7 +143,8 @@ func TestProcessRegisterMultipleExecCallbacks(t *testing.T) {
 	}, time.Second, time.Millisecond*200, "at least of the callbacks didn't capture events")
 }
 
-func TestProcessRegisterMultipleExitCallbacks(t *testing.T) {
+func (s *processMonitorSuite) TestProcessRegisterMultipleExitCallbacks() {
+	t := s.T()
 	pm := getProcessMonitor(t)
 
 	const iterations = 10
@@ -127,7 +157,7 @@ func TestProcessRegisterMultipleExitCallbacks(t *testing.T) {
 		registerCallback(t, pm, true, (*ProcessCallback)(&callback))
 	}
 
-	initializePM(t, pm)
+	initializePM(t, pm, s.useEventStream)
 	require.NoError(t, exec.Command("/bin/echo").Run())
 	require.Eventuallyf(t, func() bool {
 		for i := 0; i < iterations; i++ {
@@ -163,7 +193,8 @@ func TestProcessMonitorRefcount(t *testing.T) {
 	}
 }
 
-func TestProcessMonitorInNamespace(t *testing.T) {
+func (s *processMonitorSuite) TestProcessMonitorInNamespace() {
+	t := s.T()
 	execSet := sync.Map{}
 
 	pm := getProcessMonitor(t)
@@ -175,7 +206,10 @@ func TestProcessMonitorInNamespace(t *testing.T) {
 	require.NoError(t, err, "could not create network namespace for process monitor")
 	t.Cleanup(func() { monNs.Close() })
 
-	require.NoError(t, kernel.WithNS(monNs, pm.Initialize), "could not start process monitor in netNS")
+	require.NoError(t, kernel.WithNS(monNs, func() error {
+		initializePM(t, pm, s.useEventStream)
+		return nil
+	}), "could not start process monitor in netNS")
 	t.Cleanup(pm.Stop)
 
 	time.Sleep(500 * time.Millisecond)

@@ -29,6 +29,7 @@ import (
 	"github.com/stretchr/testify/suite"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
+	eventmonitortestutil "github.com/DataDog/datadog-agent/pkg/eventmonitor/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
@@ -41,6 +42,7 @@ import (
 	nettestutil "github.com/DataDog/datadog-agent/pkg/network/testutil"
 	usmtestutil "github.com/DataDog/datadog-agent/pkg/network/usm/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
+	procmontestutil "github.com/DataDog/datadog-agent/pkg/process/monitor/testutil"
 )
 
 type tlsSuite struct {
@@ -526,23 +528,38 @@ func TestHTTPGoTLSAttachProbes(t *testing.T) {
 	})
 }
 
-func TestHTTP2GoTLSAttachProbes(t *testing.T) {
+func testHTTP2GoTLSAttachProbes(t *testing.T, cfg *config.Config) {
 	modes := []ebpftest.BuildMode{ebpftest.RuntimeCompiled, ebpftest.CORE}
 	ebpftest.TestBuildModes(t, modes, "", func(t *testing.T) {
 		if !http2.Supported() {
 			t.Skip("HTTP2 not supported for this setup")
 		}
-		if !gotlstestutil.GoTLSSupported(t, config.New()) {
+		if !gotlstestutil.GoTLSSupported(t, cfg) {
 			t.Skip("GoTLS not supported for this setup")
 		}
 
 		t.Run("new process", func(t *testing.T) {
-			testHTTPGoTLSCaptureNewProcess(t, config.New(), true)
+			testHTTPGoTLSCaptureNewProcess(t, cfg, true)
 		})
 		t.Run("already running process", func(t *testing.T) {
-			testHTTPGoTLSCaptureAlreadyRunning(t, config.New(), true)
+			testHTTPGoTLSCaptureAlreadyRunning(t, cfg, true)
 		})
 	})
+}
+
+func TestHTTP2GoTLSAttachProbes(t *testing.T) {
+	t.Run("netlink",
+		func(t *testing.T) {
+			cfg := config.New()
+			cfg.EnableUSMEventStream = false
+			testHTTP2GoTLSAttachProbes(t, cfg)
+		})
+	t.Run("event stream",
+		func(t *testing.T) {
+			cfg := config.New()
+			cfg.EnableUSMEventStream = true
+			testHTTP2GoTLSAttachProbes(t, cfg)
+		})
 }
 
 func TestHTTPSGoTLSAttachProbesOnContainer(t *testing.T) {
@@ -895,6 +912,9 @@ func setupUSMTLSMonitor(t *testing.T, cfg *config.Config) *Monitor {
 	usmMonitor, err := NewMonitor(cfg, nil)
 	require.NoError(t, err)
 	require.NoError(t, usmMonitor.Start())
+	if cfg.EnableUSMEventStream {
+		eventmonitortestutil.StartEventMonitor(t, procmontestutil.RegisterProcessMonitorEventConsumer)
+	}
 	t.Cleanup(usmMonitor.Stop)
 	t.Cleanup(utils.ResetDebugger)
 	return usmMonitor

@@ -18,8 +18,10 @@ import (
 	"github.com/vishvananda/netlink"
 	"go.uber.org/atomic"
 
+	"github.com/DataDog/datadog-agent/pkg/eventmonitor"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/runtime"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -347,46 +349,56 @@ func (pm *ProcessMonitor) mainEventLoop() {
 //  2. Initializes the netlink process monitor.
 //  2. Run the main event loop in a goroutine.
 //  4. Scans already running processes and call the Exec callbacks on them.
-func (pm *ProcessMonitor) Initialize() error {
+func (pm *ProcessMonitor) Initialize(useEventStream bool) error {
 	var initErr error
 	pm.initOnce.Do(
 		func() {
-			log.Info("initializing process monitor")
+			var method string
+			if useEventStream {
+				method = "event stream"
+			} else {
+				method = "netlink"
+			}
+			log.Infof("initializing process monitor (%s)", method)
 			pm.tel = newProcessMonitorTelemetry()
-			pm.done = make(chan struct{})
+
 			pm.initCallbackRunner()
 
 			pm.processMonitorWG.Add(1)
-			// Setting up the main loop
-			pm.netlinkDoneChannel = make(chan struct{})
-			pm.netlinkErrorsChannel = make(chan error, 10)
-			pm.netlinkEventsChannel = make(chan netlink.ProcEvent, processMonitorEventQueueSize)
 
-			go pm.mainEventLoop()
+			if !useEventStream {
+				pm.done = make(chan struct{})
+				// Setting up the main loop
+				pm.netlinkDoneChannel = make(chan struct{})
+				pm.netlinkErrorsChannel = make(chan error, 10)
+				pm.netlinkEventsChannel = make(chan netlink.ProcEvent, processMonitorEventQueueSize)
 
-			if err := kernel.WithRootNS(kernel.ProcFSRoot(), func() error {
-				return netlink.ProcEventMonitor(pm.netlinkEventsChannel, pm.netlinkDoneChannel, pm.netlinkErrorsChannel, netlink.PROC_EVENT_EXEC|netlink.PROC_EVENT_EXIT)
-			}); err != nil {
-				initErr = fmt.Errorf("couldn't initialize process monitor: %w", err)
-			}
+				go pm.mainEventLoop()
 
-			pm.processExecCallbacksMutex.RLock()
-			execCallbacksLength := len(pm.processExecCallbacks)
-			pm.processExecCallbacksMutex.RUnlock()
-
-			// Initialize should be called only once after we registered all callbacks. Thus, if we have no registered
-			// callback, no need to scan already running processes.
-			if execCallbacksLength > 0 {
-				handleProcessExecWrapper := func(pid int) error {
-					pm.handleProcessExec(uint32(pid))
-					return nil
+				if err := kernel.WithRootNS(kernel.ProcFSRoot(), func() error {
+					return netlink.ProcEventMonitor(pm.netlinkEventsChannel, pm.netlinkDoneChannel, pm.netlinkErrorsChannel, netlink.PROC_EVENT_EXEC|netlink.PROC_EVENT_EXIT)
+				}); err != nil {
+					initErr = fmt.Errorf("couldn't initialize process monitor: %w", err)
 				}
-				// Scanning already running processes
-				log.Info("process monitor init, scanning all processes")
-				if err := kernel.WithAllProcs(kernel.ProcFSRoot(), handleProcessExecWrapper); err != nil {
-					initErr = fmt.Errorf("process monitor init, scanning all process failed %s", err)
-					pm.tel.processScanFailed.Add(1)
-					return
+
+				pm.processExecCallbacksMutex.RLock()
+				execCallbacksLength := len(pm.processExecCallbacks)
+				pm.processExecCallbacksMutex.RUnlock()
+
+				// Initialize should be called only once after we registered all callbacks. Thus, if we have no registered
+				// callback, no need to scan already running processes.
+				if execCallbacksLength > 0 {
+					handleProcessExecWrapper := func(pid int) error {
+						pm.handleProcessExec(uint32(pid))
+						return nil
+					}
+					// Scanning already running processes
+					log.Info("process monitor init, scanning all processes")
+					if err := kernel.WithAllProcs(kernel.ProcFSRoot(), handleProcessExecWrapper); err != nil {
+						initErr = fmt.Errorf("process monitor init, scanning all process failed %s", err)
+						pm.tel.processScanFailed.Add(1)
+						return
+					}
 				}
 			}
 		},
@@ -484,4 +496,84 @@ func FindDeletedProcesses[V any](pids map[uint32]V) map[uint32]struct{} {
 	}
 
 	return res
+}
+
+// Event defines the event used by the process monitor
+type Event struct {
+	Type model.EventType
+	Pid  uint32
+}
+
+// EventConsumer defines an event consumer to handle event monitor events in the
+// process monitor
+type EventConsumer struct {
+	sync.RWMutex
+}
+
+// NewProcessMonitorEventConsumer returns a new process monitor event consumer
+func NewProcessMonitorEventConsumer(em *eventmonitor.EventMonitor) (*EventConsumer, error) {
+	fc := &EventConsumer{}
+	err := em.AddEventConsumer(fc)
+	return fc, err
+}
+
+// ChanSize returns the channel size used by this consumer
+func (fc *EventConsumer) ChanSize() int {
+	return 100
+}
+
+// ID returns the ID of this consumer
+func (fc *EventConsumer) ID() string {
+	return "PROCESS_MONITOR"
+}
+
+// Start the consumer
+func (fc *EventConsumer) Start() error {
+	return nil
+}
+
+// Stop the consumer
+func (fc *EventConsumer) Stop() {
+}
+
+// EventTypes returns the event types handled by this consumer
+func (fc *EventConsumer) EventTypes() []model.EventType {
+	return []model.EventType{
+		model.ExecEventType,
+		model.ExitEventType,
+	}
+}
+
+// HandleEvent handles events received from the event monitor
+func (fc *EventConsumer) HandleEvent(event any) {
+	sevent, ok := event.(*Event)
+	if !ok {
+		return
+	}
+
+	fc.Lock()
+	defer fc.Unlock()
+
+	pm := processMonitor
+	pm.tel.events.Add(1)
+	switch sevent.Type {
+	case model.ExecEventType:
+		pm.tel.exec.Add(1)
+		if pm.hasExecCallbacks.Load() {
+			pm.handleProcessExec(sevent.Pid)
+		}
+	case model.ExitEventType:
+		pm.tel.exit.Add(1)
+		if pm.hasExitCallbacks.Load() {
+			pm.handleProcessExit(sevent.Pid)
+		}
+	}
+}
+
+// Copy should copy the given event or return nil to discard it
+func (fc *EventConsumer) Copy(event *model.Event) any {
+	return &Event{
+		Type: event.GetEventType(),
+		Pid:  event.GetProcessPid(),
+	}
 }
