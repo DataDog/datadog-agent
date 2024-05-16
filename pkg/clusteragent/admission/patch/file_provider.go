@@ -77,7 +77,7 @@ func (fpp *filePatchProvider) process(forcePoll bool) {
 			continue
 		}
 		if ch, found := fpp.subscribers[KindCluster]; found {
-			log.Infof("Publishing patch request for target %s", req.K8sTarget)
+			log.Infof("Publishing patch request for target %v", req.K8sTarget)
 			ch <- req
 		}
 	}

@@ -91,7 +91,7 @@ func (rcp *remoteConfigProvider) process(update map[string]state.RawConfig, _ fu
 			valid++
 			// Log a telemetry event indicating a remote config patch to the Datadog backend
 			rcp.telemetryCollector.SendRemoteConfigPatchEvent(req.getApmRemoteConfigEvent(nil, telemetry.Success))
-			log.Debugf("Publishing patch request for target %s", req.K8sTarget)
+			log.Debugf("Publishing patch request for target %v", req.K8sTarget)
 			ch <- req
 		}
 	}

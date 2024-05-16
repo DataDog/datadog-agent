@@ -163,19 +163,13 @@ func disableConfig(ns *v1.Namespace) {
 }
 
 func deleteConfig(ns *v1.Namespace) {
-	if _, ok := ns.ObjectMeta.Labels[k8sutil.RcIDLabelKey]; ok {
-		delete(ns.ObjectMeta.Labels, k8sutil.RcIDLabelKey)
-	}
+	delete(ns.ObjectMeta.Labels, k8sutil.RcIDLabelKey)
 	if len(ns.ObjectMeta.Labels) == 0 {
 		ns.Labels = nil
 	}
 
-	if _, ok := ns.ObjectMeta.Annotations[k8sutil.RcIDAnnotKey]; ok {
-		delete(ns.ObjectMeta.Annotations, k8sutil.RcIDAnnotKey)
-	}
-	if _, ok := ns.ObjectMeta.Annotations[k8sutil.RcRevisionAnnotKey]; ok {
-		delete(ns.ObjectMeta.Annotations, k8sutil.RcRevisionAnnotKey)
-	}
+	delete(ns.ObjectMeta.Annotations, k8sutil.RcIDAnnotKey)
+	delete(ns.ObjectMeta.Annotations, k8sutil.RcRevisionAnnotKey)
 	if len(ns.ObjectMeta.Annotations) == 0 {
 		ns.ObjectMeta.Annotations = nil
 	}

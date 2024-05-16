@@ -19,11 +19,6 @@ func truePtr() *bool {
 	return &t
 }
 
-func falsePtr() *bool {
-	f := false
-	return &f
-}
-
 func stringPtr(s string) *string {
 	return &s
 }
