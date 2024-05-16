@@ -32,7 +32,7 @@ func testArch(t *testing.T, arch string) {
 	curDir, err := testutil.CurDir()
 	require.NoError(t, err)
 
-	libmmap := filepath.Join(curDir, "testutil", "libmmap")
+	libmmap := filepath.Join(curDir, "testdata", "libmmap")
 	lib := filepath.Join(libmmap, fmt.Sprintf("libssl.so.%s", arch))
 
 	monitor := setupUSMTLSMonitor(t, cfg)
