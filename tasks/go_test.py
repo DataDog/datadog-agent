@@ -477,7 +477,8 @@ def codecov(
     """
     distro_tag = get_distro()
     codecov_binary = "codecov" if platform.system() != "Windows" else "codecov.exe"
-    ctx.run(f"{codecov_binary} -f {PROFILE_COV} -F {distro_tag}", warn=True)
+    with collapsed_section("Upload coverage reports to Codecov"):
+        ctx.run(f"{codecov_binary} -f {PROFILE_COV} -F {distro_tag}", warn=True)
 
 
 @task
