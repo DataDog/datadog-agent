@@ -105,6 +105,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/otelcol"
 	otelcollector "github.com/DataDog/datadog-agent/comp/otelcol/collector"
 	"github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline"
+	otelflarefx "github.com/DataDog/datadog-agent/comp/otelcol/otelflare/fx"
 	processAgent "github.com/DataDog/datadog-agent/comp/process/agent"
 	processagentStatusImpl "github.com/DataDog/datadog-agent/comp/process/status/statusimpl"
 	remoteconfig "github.com/DataDog/datadog-agent/comp/remote-config"
@@ -319,6 +320,7 @@ func getSharedFxOption() fx.Option {
 			path.DefaultStreamlogsLogFile,
 		)),
 		flare.Module(),
+		otelflarefx.Module(),
 		core.Bundle(),
 		fx.Supply(dogstatsdServer.Params{
 			Serverless: false,
