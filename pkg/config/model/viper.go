@@ -747,15 +747,6 @@ func (c *safeConfig) CopyConfig(cfg Config) {
 	panic("Replacement config must be an instance of safeConfig")
 }
 
-// GetString wraps Viper for concurrent access
-func (c *safeConfig) lockedGetString(key string) string {
-	val, err := c.Viper.GetStringE(key)
-	if err != nil {
-		log.Warnf("failed to get configuration value for key %q: %s", key, err)
-	}
-	return val
-}
-
 // GetProxies returns the proxy settings from the configuration
 func (c *safeConfig) GetProxies() *Proxy {
 	c.Lock()
