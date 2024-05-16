@@ -14,6 +14,7 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/network/config"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
 	fileopener "github.com/DataDog/datadog-agent/pkg/network/usm/sharedlibraries/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
@@ -23,6 +24,10 @@ import (
 func testArch(t *testing.T, arch string) {
 	cfg := config.New()
 	cfg.EnableNativeTLSMonitoring = true
+
+	if !http.TLSSupported(cfg) {
+		t.Skip("shared library tracing not supported for this platform")
+	}
 
 	curDir, err := testutil.CurDir()
 	require.NoError(t, err)
