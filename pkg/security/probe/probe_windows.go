@@ -137,6 +137,9 @@ type stats struct {
 	fileCreateSkippedDiscardedPaths     uint64
 	fileCreateSkippedDiscardedBasenames uint64
 
+	fileNameCacheEvictions uint64
+	registryCacheEvictions uint64
+
 	// currently not used, reserved for future use
 	etwChannelBlocked uint64
 
@@ -771,6 +774,12 @@ func (p *WindowsProbe) SendStats() error {
 		return err
 	}
 	if err := p.statsdClient.Gauge(metrics.MetricWindowsFileCreateSkippedDiscardedBasenames, float64(p.stats.fileCreateSkippedDiscardedBasenames), nil, 1); err != nil {
+		return err
+	}
+	if err := p.statsdClient.Gauge(metrics.MetricWindowsFilePathEvictions, float64(p.stats.fileNameCacheEvictions), nil, 1); err != nil {
+		return err
+	}
+	if err := p.statsdClient.Gauge(metrics.MetricWindowsRegPathEvictions, float64(p.stats.registryCacheEvictions), nil, 1); err != nil {
 		return err
 	}
 

@@ -161,7 +161,9 @@ func (wp *WindowsProbe) computeFullPath(cka *createKeyArgs) {
 	if strings.HasPrefix(cka.relativeName, regprefix) {
 		cka.translateBasePaths()
 		cka.computedFullPath = cka.relativeName
-		wp.regPathResolver.Add(cka.keyObject, cka.relativeName)
+		if wp.regPathResolver.Add(cka.keyObject, cka.relativeName) {
+			wp.stats.registryCacheEvictions++
+		}
 		return
 	}
 	if s, ok := wp.regPathResolver.Get(cka.keyObject); ok {
@@ -181,7 +183,9 @@ func (wp *WindowsProbe) computeFullPath(cka *createKeyArgs) {
 			outstr = cka.relativeName
 		}
 	}
-	wp.regPathResolver.Add(cka.keyObject, outstr)
+	if wp.regPathResolver.Add(cka.keyObject, outstr) {
+		wp.stats.registryCacheEvictions++
+	}
 	cka.computedFullPath = outstr
 
 }

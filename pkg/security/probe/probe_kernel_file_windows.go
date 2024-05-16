@@ -171,7 +171,9 @@ func (wp *WindowsProbe) parseCreateHandleArgs(e *etw.DDEventRecord) (*createHand
 	}
 
 	// lru is thread safe, has its own locking
-	wp.filePathResolver.Add(ca.fileObject, fileCache{fileName: ca.fileName})
+	if wp.filePathResolver.Add(ca.fileObject, fileCache{fileName: ca.fileName}) {
+		wp.stats.fileNameCacheEvictions++
+	}
 
 	return ca, nil
 }
