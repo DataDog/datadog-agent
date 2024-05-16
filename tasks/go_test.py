@@ -281,7 +281,8 @@ def codecov_flavor(
         # codecov gets confused and merges the roots of all modules, resulting in a
         # nonsensical directory tree in the codecov app
         path = os.path.normpath(os.path.join(module.path, PROFILE_COV))
-        ctx.run(f"codecov -f {path} -F {tag}", warn=True)
+        codecov_binary = "codecov" if platform.system() != "Windows" else "codecov.exe"
+        ctx.run(f"{codecov_binary} -f {path} -F {tag}", warn=True)
 
     return test_core(modules, flavor, None, "codecov upload", command, skip_module_class=True)
 
