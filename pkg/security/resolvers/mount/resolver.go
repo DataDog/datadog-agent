@@ -43,6 +43,22 @@ type redemptionEntry struct {
 
 // newMountFromMountInfo - Creates a new Mount from parsed MountInfo data
 func newMountFromMountInfo(mnt *mountinfo.Info) *model.Mount {
+	root := mnt.Root
+
+	if mnt.FSType == "btrfs" {
+		var subvol string
+		for _, opt := range strings.Split(mnt.VFSOptions, ",") {
+			name, val, ok := strings.Cut(opt, "=")
+			if ok && name == "subvol" {
+				subvol = val
+			}
+		}
+
+		if subvol != "" {
+			root = strings.TrimPrefix(root, subvol)
+		}
+	}
+
 	// create a Mount out of the parsed MountInfo
 	return &model.Mount{
 		MountID: uint32(mnt.ID),
@@ -53,7 +69,7 @@ func newMountFromMountInfo(mnt *mountinfo.Info) *model.Mount {
 		FSType:        mnt.FSType,
 		MountPointStr: mnt.Mountpoint,
 		Path:          mnt.Mountpoint,
-		RootStr:       mnt.Root,
+		RootStr:       root,
 	}
 }
 

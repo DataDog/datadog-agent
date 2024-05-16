@@ -122,7 +122,7 @@ func NewTraceWriter(
 	tw.flushTicker = time.NewTicker(tw.tick)
 
 	qsize := 1
-	log.Warnf("Trace writer initialized (climit=%d qsize=%d)", climit, qsize)
+	log.Infof("Trace writer initialized (climit=%d qsize=%d)", climit, qsize)
 	tw.senders = newSenders(cfg, tw, pathTraces, climit, qsize, telemetryCollector, statsd)
 	//for i := 0; i < runtime.GOMAXPROCS(0); i++ {
 	//	tw.wg.Add(1)

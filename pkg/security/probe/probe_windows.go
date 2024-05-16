@@ -14,6 +14,10 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DataDog/datadog-go/v5/statsd"
+	"github.com/cenkalti/backoff/v4"
+	lru "github.com/hashicorp/golang-lru/v2"
+
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/etw"
 	etwimpl "github.com/DataDog/datadog-agent/comp/etw/impl"
@@ -30,9 +34,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"github.com/DataDog/datadog-agent/pkg/windowsdriver/procmon"
-	"github.com/DataDog/datadog-go/v5/statsd"
-	"github.com/cenkalti/backoff/v4"
-	lru "github.com/hashicorp/golang-lru/v2"
 
 	"golang.org/x/sys/windows"
 )
@@ -104,11 +105,13 @@ type stats struct {
 	procStop  uint64
 
 	// etw file notifications
-	fileCreate    uint64
-	fileCreateNew uint64
-	fileCleanup   uint64
-	fileClose     uint64
-	fileFlush     uint64
+	fileCreate         uint64
+	fileCreateNew      uint64
+	fileCleanup        uint64
+	fileClose          uint64
+	fileFlush          uint64
+	fileWrite          uint64
+	fileWriteProcessed uint64
 
 	fileSetInformation     uint64
 	fileSetDelete          uint64
@@ -128,6 +131,11 @@ type stats struct {
 	//filePathResolver status
 	fileCreateSkippedDiscardedPaths     uint64
 	fileCreateSkippedDiscardedBasenames uint64
+
+	// currently not used, reserved for future use
+	etwChannelBlocked uint64
+
+	totalEtwNotifications uint64
 }
 
 /*
@@ -268,6 +276,7 @@ func (p *WindowsProbe) setupEtw(ecb etwCallback) error {
 
 	log.Info("Starting tracing...")
 	err := p.fimSession.StartTracing(func(e *etw.DDEventRecord) {
+		p.stats.totalEtwNotifications++
 		switch e.EventHeader.ProviderID {
 		case etw.DDGUID(p.fileguid):
 			switch e.EventHeader.EventDescriptor.ID {
@@ -323,7 +332,9 @@ func (p *WindowsProbe) setupEtw(ecb etwCallback) error {
 					//fmt.Printf("Received Write event %d %s\n", e.EventHeader.EventDescriptor.ID, wa)
 					log.Tracef("Received Write event %d %s\n", e.EventHeader.EventDescriptor.ID, wa)
 					ecb(wa, e.EventHeader.ProcessID)
+					p.stats.fileWriteProcessed++
 				}
+				p.stats.fileWrite++
 
 			case idSetInformation:
 				if si, err := p.parseInformationArgs(e); err == nil {
@@ -472,9 +483,7 @@ func (p *WindowsProbe) Start() error {
 					continue
 				}
 			case notif := <-p.onETWNotification:
-				if !p.handleETWNotification(ev, notif) {
-					continue
-				}
+				p.handleETWNotification(ev, notif)
 			}
 
 			p.DispatchEvent(ev)
@@ -555,7 +564,7 @@ func (p *WindowsProbe) handleProcessStop(ev *model.Event, stop *procmon.ProcessS
 	return true
 }
 
-func (p *WindowsProbe) handleETWNotification(ev *model.Event, notif etwNotification) bool {
+func (p *WindowsProbe) handleETWNotification(ev *model.Event, notif etwNotification) {
 	// handle incoming events here
 	// each event will come in as a different type
 	// parse it with
@@ -653,20 +662,29 @@ func (p *WindowsProbe) handleETWNotification(ev *model.Event, notif etwNotificat
 			log.Debugf("%v", errRes)
 		}
 	}
-	return true
 }
 
 func (p *WindowsProbe) setProcessContext(pid uint32, event *model.Event) error {
+	event.PIDContext.Pid = pid
 	err := backoff.Retry(func() error {
-		pce := p.Resolvers.ProcessResolver.GetEntry(pid)
-		if pce == nil {
+		entry, isResolved := p.fieldHandlers.ResolveProcessCacheEntry(event)
+		event.ProcessCacheEntry = entry
+		// use ProcessCacheEntry process context as process context
+		event.ProcessContext = &event.ProcessCacheEntry.ProcessContext
+		if !isResolved {
 			return fmt.Errorf("could not resolve process for Process: %v", pid)
 		}
-		event.ProcessCacheEntry = pce
-		event.ProcessContext = &pce.ProcessContext
 		return nil
-
 	}, backoff.WithMaxRetries(backoff.NewConstantBackOff(50*time.Millisecond), 5))
+
+	if event.ProcessCacheEntry == nil {
+		panic("should always return a process cache entry")
+	}
+
+	if event.ProcessContext == nil {
+		panic("should always return a process context")
+	}
+
 	return err
 }
 
@@ -678,10 +696,10 @@ func (p *WindowsProbe) DispatchEvent(event *model.Event) {
 	})
 
 	// send event to wildcard handlers, like the CWS rule engine, first
-	p.probe.sendEventToWildcardHandlers(event)
+	p.probe.sendEventToHandlers(event)
 
 	// send event to specific event handlers, like the event monitor consumers, subsequently
-	p.probe.sendEventToSpecificEventTypeHandlers(event)
+	p.probe.sendEventToConsumers(event)
 }
 
 // Snapshot runs the different snapshot functions of the resolvers that
@@ -777,6 +795,33 @@ func (p *WindowsProbe) SendStats() error {
 	}
 	if err := p.statsdClient.Gauge(metrics.MetricWindowsSizeOfRegistryPathResolver, float64(len(p.regPathResolver)), nil, 1); err != nil {
 		return err
+	}
+	if err := p.statsdClient.Gauge(metrics.MetricWindowsETWChannelBlockedCount, float64(p.stats.etwChannelBlocked), nil, 1); err != nil {
+		return err
+	}
+	if err := p.statsdClient.Gauge(metrics.MetricWindowsETWTotalNotifications, float64(p.stats.totalEtwNotifications), nil, 1); err != nil {
+		return err
+	}
+	if etwstats, err := p.fimSession.GetSessionStatistics(); err == nil {
+		if err := p.statsdClient.Gauge(metrics.MetricWindowsETWNumberOfBuffers, float64(etwstats.NumberOfBuffers), nil, 1); err != nil {
+			return err
+		}
+		if err := p.statsdClient.Gauge(metrics.MetricWindowsETWFreeBuffers, float64(etwstats.FreeBuffers), nil, 1); err != nil {
+			return err
+		}
+		if err := p.statsdClient.Gauge(metrics.MetricWindowsETWEventsLost, float64(etwstats.EventsLost), nil, 1); err != nil {
+			return err
+		}
+		if err := p.statsdClient.Gauge(metrics.MetricWindowsETWBuffersWritten, float64(etwstats.BuffersWritten), nil, 1); err != nil {
+			return err
+		}
+		if err := p.statsdClient.Gauge(metrics.MetricWindowsETWLogBuffersLost, float64(etwstats.LogBuffersLost), nil, 1); err != nil {
+			return err
+		}
+		if err := p.statsdClient.Gauge(metrics.MetricWindowsETWRealTimeBuffersLost, float64(etwstats.RealTimeBuffersLost), nil, 1); err != nil {
+			return err
+		}
+
 	}
 	return nil
 }
@@ -931,12 +976,7 @@ func (p *Probe) Origin() string {
 func NewProbe(config *config.Config, opts Opts, _ optional.Option[workloadmeta.Component]) (*Probe, error) {
 	opts.normalize()
 
-	p := &Probe{
-		Opts:         opts,
-		Config:       config,
-		StatsdClient: opts.StatsdClient,
-		scrubber:     newProcScrubber(config.Probe.CustomSensitiveWords),
-	}
+	p := newProbe(config, opts)
 
 	pp, err := NewWindowsProbe(p, config, opts)
 	if err != nil {
