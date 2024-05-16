@@ -135,6 +135,7 @@ func (w *StatsWriter) Stop() {
 	stopSenders(w.senders)
 }
 
+// Add appends this StatsPayload to the writer's buffer (flushing immediately if syncMode is enabled)
 func (w *StatsWriter) Add(sp *pb.StatsPayload) {
 	w.addStats(sp)
 	if !w.syncMode {

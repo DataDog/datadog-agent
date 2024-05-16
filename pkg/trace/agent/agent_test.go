@@ -1738,18 +1738,6 @@ func benchThroughput(file string) func(*testing.B) {
 			}
 		}
 
-		// drain every other channel to avoid blockage.
-		exit := make(chan bool)
-		go func() {
-			defer close(exit)
-			for {
-				select {
-				case <-exit:
-					return
-				}
-			}
-		}()
-
 		b.ResetTimer()
 		b.SetBytes(int64(len(data)))
 
@@ -1786,9 +1774,6 @@ func benchThroughput(file string) func(*testing.B) {
 				}
 			}
 		}
-
-		exit <- true
-		<-exit
 	}
 }
 
