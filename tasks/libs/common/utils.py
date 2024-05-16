@@ -754,7 +754,8 @@ def retry_function(action_name_fmt, max_retries=2, retry_delay=1):
                             color_message(
                                 f'Warning: {action_name} failed (retry {i + 1}/{max_retries}), retrying in {retry_delay}s',
                                 'orange',
-                            )
+                            ),
+                            file=sys.stderr
                         )
                         with collapsed_section(f"Retry {i + 1}/{max_retries} {action_name}"):
                             traceback.print_exc()
