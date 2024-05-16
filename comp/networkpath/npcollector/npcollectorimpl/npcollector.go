@@ -140,7 +140,7 @@ func (s *npCollectorImpl) scheduleOne(hostname string, port uint16) error {
 	case s.pathtestInputChan <- ptest:
 		return nil
 	default:
-		return fmt.Errorf("scheduler input channel is full (channel capacity is %d)", cap(s.pathtestInputChan))
+		return fmt.Errorf("collector input channel is full (channel capacity is %d)", cap(s.pathtestInputChan))
 	}
 }
 func (s *npCollectorImpl) start() error {

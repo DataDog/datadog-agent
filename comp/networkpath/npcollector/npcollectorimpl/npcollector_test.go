@@ -399,7 +399,7 @@ func Test_npCollectorImpl_ScheduleConns(t *testing.T) {
 			conns:             createConns(10),
 			expectedPathtests: []*common.Pathtest{},
 			expectedLogs: []logCount{
-				{"Error scheduling pathtests: scheduler input channel is full", 9},
+				{"Error scheduling pathtests: collector input channel is full", 9},
 			},
 		},
 		{
