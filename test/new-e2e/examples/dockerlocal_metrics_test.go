@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
-package tmp
+package examples
 
 import (
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"

@@ -6,7 +6,6 @@
 package components
 
 import (
-	"fmt"
 	"github.com/DataDog/datadog-agent/test/fakeintake/client"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 
@@ -30,7 +29,7 @@ func (fi *FakeIntake) Init(e2e.Context) error {
 	} else {
 		clientUrl = fi.URL
 	}
-	fmt.Println("Using clientUrl: ", clientUrl)
+
 	fi.client = client.NewClient(clientUrl)
 	return nil
 }
