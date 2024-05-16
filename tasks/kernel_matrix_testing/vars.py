@@ -10,6 +10,7 @@ arch_mapping: dict[str, Arch] = {
     "amd64": "x86_64",
     "x86": "x86_64",
     "x86_64": "x86_64",
+    "x86-64": "x86_64",
     "arm64": "arm64",
     "arm": "arm64",
     "aarch64": "arm64",

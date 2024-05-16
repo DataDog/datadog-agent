@@ -12,18 +12,13 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/cmd/otel-agent/subcommands"
-	compdef "github.com/DataDog/datadog-agent/comp/def"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"go.uber.org/fx"
 )
 
 func TestFxRun(t *testing.T) {
 	fxutil.TestRun(t, func() error {
 		ctx := context.Background()
 		cliParams := &subcommands.GlobalParams{}
-		return runOTelAgentCommand(ctx, cliParams, fx.Provide(compdef.NewTestLifecycle), fx.Provide(func(lc *compdef.TestLifecycle) compdef.Lifecycle {
-			return lc
-		}),
-		)
+		return runOTelAgentCommand(ctx, cliParams)
 	})
 }
