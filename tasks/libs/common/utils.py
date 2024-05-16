@@ -80,12 +80,11 @@ def get_distro():
     """
     system = platform.system()
     arch = platform.machine()
-    if system == 'Linux':
-        if os.path.isfile('/etc/os-release'):
-            with open('/etc/os-release', encoding="utf-8") as f:
-                for line in f:
-                    if line.startswith('ID='):
-                        system = line.strip()[3:]
+    if system == 'Linux' and os.path.isfile('/etc/os-release'):
+        with open('/etc/os-release', encoding="utf-8") as f:
+            for line in f:
+                if line.startswith('ID='):
+                    system = line.strip()[3:]
     return f"{system}_{arch}".lower()
 
 
