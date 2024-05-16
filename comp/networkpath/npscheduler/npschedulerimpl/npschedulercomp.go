@@ -40,15 +40,15 @@ func Module() fxutil.Module {
 func newNpScheduler(deps dependencies) provides {
 	var scheduler *npSchedulerImpl
 
-	networkPathEnabled := deps.AgentConfig.GetBool("network_path.enabled")
-	if networkPathEnabled {
+	configs := newConfig(deps.AgentConfig)
+	if configs.networkPathCollectorEnabled() {
 		deps.Logger.Debugf("Network Path Scheduler enabled")
 		epForwarder, ok := deps.EpForwarder.Get()
 		if !ok {
 			deps.Logger.Errorf("Error getting EpForwarder")
 			scheduler = newNoopNpSchedulerImpl()
 		} else {
-			scheduler = newNpSchedulerImpl(epForwarder, deps.Logger, deps.AgentConfig)
+			scheduler = newNpSchedulerImpl(epForwarder, configs, deps.Logger, deps.AgentConfig)
 			deps.Lc.Append(fx.Hook{
 				// No need for OnStart hook since NpScheduler.Init() will be called by clients when needed.
 				OnStart: func(context.Context) error {

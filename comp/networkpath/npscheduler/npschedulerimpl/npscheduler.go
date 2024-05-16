@@ -30,7 +30,7 @@ import (
 )
 
 type npSchedulerImpl struct {
-	enabled bool
+	collectorConfigs *collectorConfigs
 
 	// Deps
 	epForwarder  eventplatform.Forwarder
@@ -63,10 +63,12 @@ type npSchedulerImpl struct {
 }
 
 func newNoopNpSchedulerImpl() *npSchedulerImpl {
-	return &npSchedulerImpl{enabled: false}
+	return &npSchedulerImpl{
+		collectorConfigs: &collectorConfigs{},
+	}
 }
 
-func newNpSchedulerImpl(epForwarder eventplatform.Forwarder, logger log.Component, agentConfig config.Reader) *npSchedulerImpl {
+func newNpSchedulerImpl(epForwarder eventplatform.Forwarder, collectorConfigs *collectorConfigs, logger log.Component, agentConfig config.Reader) *npSchedulerImpl {
 	workers := agentConfig.GetInt("network_path.workers")
 	pathtestInputChanSize := agentConfig.GetInt("network_path.input_chan_size")
 	pathtestProcessChanSize := agentConfig.GetInt("network_path.process_chan_size")
@@ -81,9 +83,9 @@ func newNpSchedulerImpl(epForwarder eventplatform.Forwarder, logger log.Componen
 		pathtestInterval.String())
 
 	return &npSchedulerImpl{
-		enabled:     true,
-		epForwarder: epForwarder,
-		logger:      logger,
+		epForwarder:      epForwarder,
+		collectorConfigs: collectorConfigs,
+		logger:           logger,
 
 		pathtestStore:       pathteststore.NewPathtestStore(pathtestTTL, pathtestInterval, logger),
 		pathtestInputChan:   make(chan *common.Pathtest, pathtestInputChanSize),
@@ -108,7 +110,7 @@ func newNpSchedulerImpl(epForwarder eventplatform.Forwarder, logger log.Componen
 }
 
 func (s *npSchedulerImpl) ScheduleConns(conns []*model.Connection) {
-	if !s.enabled {
+	if !s.collectorConfigs.connectionsMonitoringEnabled {
 		return
 	}
 	startTime := s.TimeNowFn()

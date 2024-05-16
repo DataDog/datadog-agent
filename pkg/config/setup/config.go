@@ -401,7 +401,7 @@ func InitConfig(config pkgconfigmodel.Config) {
 	bindEnvAndSetLogsConfigKeys(config, "network_devices.netflow.forwarder.")
 
 	// Network Path
-	config.BindEnvAndSetDefault("network_path.enabled", false)
+	config.BindEnvAndSetDefault("network_path.connections_monitoring.enabled", false)
 	config.BindEnvAndSetDefault("network_path.workers", 4)
 	config.BindEnvAndSetDefault("network_path.input_chan_size", 1000)
 	config.BindEnvAndSetDefault("network_path.process_chan_size", 1000)
