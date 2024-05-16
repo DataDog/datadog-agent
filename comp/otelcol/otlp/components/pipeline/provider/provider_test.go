@@ -7,11 +7,13 @@ package provider
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
 	"time"
 
+	"github.com/open-telemetry/opentelemetry-collector-contrib/exporter/datadogexporter"
 	"github.com/stretchr/testify/assert"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/config/configtelemetry"
@@ -89,28 +91,17 @@ func nopConfig() *otelcol.Config {
 	}
 }
 
-func uriFromFile(filename string) (string, error) {
-	yamlBytes, err := os.ReadFile(filepath.Join("testdata", filename))
-	if err != nil {
-		return "", err
-	}
-
-	return "yaml:" + string(yamlBytes), nil
+func uriFromFile(filename string) string {
+	return filepath.Join("testdata", filename)
 }
 
 func TestNewConfigProvider(t *testing.T) {
-	uriLocation, err := uriFromFile("config.yaml")
-	assert.NoError(t, err)
-
-	_, err = NewConfigProvider([]string{uriLocation})
+	_, err := NewConfigProvider([]string{uriFromFile("config.yaml")})
 	assert.NoError(t, err)
 }
 
 func TestConfigProviderGet(t *testing.T) {
-	uriLocation, err := uriFromFile("config.yaml")
-	assert.NoError(t, err)
-
-	provider, err := NewConfigProvider([]string{uriLocation})
+	provider, err := NewConfigProvider([]string{uriFromFile("config.yaml")})
 	assert.NoError(t, err)
 
 	factories, err := nopFactories()
@@ -126,7 +117,7 @@ func TestConfigProviderGet(t *testing.T) {
 }
 
 func TestConfigProviderWatch(t *testing.T) {
-	provider, err := NewConfigProvider([]string{"test"})
+	provider, err := NewConfigProvider([]string{uriFromFile("config.yaml")})
 	assert.NoError(t, err)
 
 	var expected <-chan error
@@ -134,7 +125,7 @@ func TestConfigProviderWatch(t *testing.T) {
 }
 
 func TestConfigProviderShutdown(t *testing.T) {
-	provider, err := NewConfigProvider([]string{"test"})
+	provider, err := NewConfigProvider([]string{uriFromFile("config.yaml")})
 	assert.NoError(t, err)
 
 	err = provider.Shutdown(context.Background())
@@ -142,52 +133,82 @@ func TestConfigProviderShutdown(t *testing.T) {
 }
 
 func TestGetConfDump(t *testing.T) {
-	uriLocation, err := uriFromFile("config.yaml")
-	assert.NoError(t, err)
-
-	provider, err := NewConfigProvider([]string{uriLocation})
-	assert.NoError(t, err)
-
-	factories, err := nopFactories()
-	assert.NoError(t, err)
-
-	conf, err := provider.Get(context.Background(), factories)
-	assert.NoError(t, err)
-
-	err = conf.Validate()
-	assert.NoError(t, err)
-
-	// we cannot compare the raw configs, as the config contains maps which are marshalled in
-	// random order. Instead we unmarshal to a string map to compare.
-	t.Run("provided", func(t *testing.T) {
-		yamlStringConf := provider.GetProvidedConf()
-		var stringMap = map[string]interface{}{}
-		err = yaml.Unmarshal([]byte(yamlStringConf), stringMap)
+	t.Run("nop", func(t *testing.T) {
+		provider, err := NewConfigProvider([]string{uriFromFile("config.yaml")})
 		assert.NoError(t, err)
 
-		resultYamlBytesConf, err := os.ReadFile(filepath.Join("testdata", "config-result.yaml"))
-		assert.NoError(t, err)
-		var resultStringMap = map[string]interface{}{}
-		err = yaml.Unmarshal(resultYamlBytesConf, resultStringMap)
+		factories, err := nopFactories()
 		assert.NoError(t, err)
 
-		assert.Equal(t, resultStringMap, stringMap)
+		conf, err := provider.Get(context.Background(), factories)
+		assert.NoError(t, err)
+
+		err = conf.Validate()
+		assert.NoError(t, err)
+
+		// we cannot compare the raw configs, as the config contains maps which are marshalled in
+		// random order. Instead we unmarshal to a string map to compare.
+		t.Run("provided", func(t *testing.T) {
+			yamlStringConf := provider.GetProvidedConf()
+			var stringMap = map[string]interface{}{}
+			err = yaml.Unmarshal([]byte(yamlStringConf), stringMap)
+			assert.NoError(t, err)
+
+			resultYamlBytesConf, err := os.ReadFile(filepath.Join("testdata", "config-result.yaml"))
+			assert.NoError(t, err)
+			var resultStringMap = map[string]interface{}{}
+			err = yaml.Unmarshal(resultYamlBytesConf, resultStringMap)
+			assert.NoError(t, err)
+
+			fmt.Println()
+
+			assert.Equal(t, resultStringMap, stringMap)
+		})
+
+		t.Run("enhanced", func(t *testing.T) {
+			yamlStringConf := provider.GetEnhancedConf()
+			assert.Equal(t, "not supported", yamlStringConf)
+		})
 	})
 
-	t.Run("enhanced", func(t *testing.T) {
-		yamlStringConf := provider.GetEnhancedConf()
-		var stringMap = map[string]interface{}{}
-		err = yaml.Unmarshal([]byte(yamlStringConf), stringMap)
+	t.Run("dd", func(t *testing.T) {
+		provider, err := NewConfigProvider([]string{uriFromFile("config-dd.yaml")})
 		assert.NoError(t, err)
 
-		resultYamlBytesConf, err := os.ReadFile(filepath.Join("testdata", "config-result.yaml"))
-		assert.NoError(t, err)
-		var resultStringMap = map[string]interface{}{}
-		err = yaml.Unmarshal(resultYamlBytesConf, resultStringMap)
+		factories, err := nopFactories()
 		assert.NoError(t, err)
 
-		assert.Equal(t, resultStringMap, stringMap)
+		conf, err := provider.Get(context.Background(), factories)
+		assert.NoError(t, err)
+
+		err = conf.Validate()
+		assert.NoError(t, err)
+
+		// we cannot compare the raw configs, as the config contains maps which are marshalled in
+		// random order. Instead we unmarshal to a string map to compare.
+		t.Run("provided", func(t *testing.T) {
+			yamlStringConf := provider.GetProvidedConf()
+			var stringMap = map[string]interface{}{}
+			err = yaml.Unmarshal([]byte(yamlStringConf), stringMap)
+			assert.NoError(t, err)
+
+			resultYamlBytesConf, err := os.ReadFile(filepath.Join("testdata", "config-dd-result.yaml"))
+			assert.NoError(t, err)
+			var resultStringMap = map[string]interface{}{}
+			err = yaml.Unmarshal(resultYamlBytesConf, resultStringMap)
+			assert.NoError(t, err)
+
+			fmt.Println()
+
+			assert.Equal(t, resultStringMap, stringMap)
+		})
+
+		t.Run("enhanced", func(t *testing.T) {
+			yamlStringConf := provider.GetEnhancedConf()
+			assert.Equal(t, "not supported", yamlStringConf)
+		})
 	})
+
 }
 
 func nopFactories() (otelcol.Factories, error) {
@@ -206,7 +227,7 @@ func nopFactories() (otelcol.Factories, error) {
 		return otelcol.Factories{}, err
 	}
 
-	if factories.Exporters, err = exporter.MakeFactoryMap(exportertest.NewNopFactory()); err != nil {
+	if factories.Exporters, err = exporter.MakeFactoryMap(exportertest.NewNopFactory(), datadogexporter.NewFactory()); err != nil {
 		return otelcol.Factories{}, err
 	}
 
