@@ -13,9 +13,14 @@ import (
 
 // Kubernetes is an environment that contains a Kubernetes cluster, the Agent and a FakeIntake.
 type Kubernetes struct {
-	AwsEnvironment *aws.Environment
 	// Components
 	KubernetesCluster *components.KubernetesCluster
 	FakeIntake        *components.FakeIntake
 	Agent             *components.KubernetesAgent
+}
+
+// AwsKubernetes is an environment that contains a AWS Kubernetes cluster (EKS), the Agent and a FakeIntake.
+type AwsKubernetes struct {
+	Kubernetes
+	AwsEnvironment *aws.Environment
 }

@@ -27,7 +27,7 @@ import (
 )
 
 type eksHttpbinEnv struct {
-	environments.Kubernetes
+	environments.AwsKubernetes
 
 	// Extra Components
 	HTTPBinHost *components.RemoteHost
@@ -43,7 +43,7 @@ func eksHttpbinEnvProvisioner() e2e.PulumiEnvRunFunc[eksHttpbinEnv] {
 		if err != nil {
 			return err
 		}
-		env.Kubernetes.AwsEnvironment = &awsEnv
+		env.AwsKubernetes.AwsEnvironment = &awsEnv
 
 		vmName := "httpbinvm"
 		httpbinHost, err := ec2.NewVM(awsEnv, vmName)
@@ -78,7 +78,7 @@ func eksHttpbinEnvProvisioner() e2e.PulumiEnvRunFunc[eksHttpbinEnv] {
 			envkube.WithAgentOptions(kubernetesagentparams.WithHelmValues(systemProbeConfigNPMHelmValues)),
 			envkube.WithWorkloadApp(npmToolsWorkload),
 		)
-		envkube.EKSRunFunc(ctx, &env.Kubernetes, params)
+		envkube.EKSRunFunc(ctx, &env.AwsKubernetes, params)
 
 		return nil
 	}
