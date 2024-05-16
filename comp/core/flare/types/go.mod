@@ -2,9 +2,15 @@ module github.com/DataDog/datadog-agent/comp/core/flare/types
 
 go 1.21.0
 
-require go.uber.org/fx v1.18.2
+replace github.com/DataDog/datadog-agent/comp/core/flare/def => ../def
 
 require (
+	github.com/DataDog/datadog-agent/comp/core/flare/def v0.0.0-00010101000000-000000000000
+	go.uber.org/fx v1.18.2
+)
+
+require (
+	github.com/DataDog/datadog-agent/comp/def v0.55.0-devel // indirect
 	go.uber.org/atomic v1.7.0 // indirect
 	go.uber.org/dig v1.17.0 // indirect
 	go.uber.org/multierr v1.6.0 // indirect
