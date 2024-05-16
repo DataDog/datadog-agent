@@ -372,6 +372,7 @@ core,github.com/alecthomas/participle/v2/lexer,MIT,Copyright (C) 2017 Alec Thoma
 core,github.com/alecthomas/units,MIT,Copyright (C) 2014 Alec Thomas
 core,github.com/anchore/go-struct-converter,Apache-2.0,"Copyright (c) 2022-2023 Anchore, Inc."
 core,github.com/andybalholm/brotli,MIT,"Copyright (c) 2009, 2010, 2013-2016 by the Brotli Authors"
+core,github.com/andybalholm/brotli/matchfinder,MIT,"Copyright (c) 2009, 2010, 2013-2016 by the Brotli Authors"
 core,github.com/antlr/antlr4/runtime/Go/antlr/v4,BSD-3-Clause,Copyright 2021 The ANTLR Project
 core,github.com/apache/arrow/go/v15/arrow,Apache-2.0,Copyright (C) 1995-1998 Eric Young (eay@cryptsoft.com)
 core,github.com/apache/arrow/go/v15/arrow/array,Apache-2.0,Copyright (C) 1995-1998 Eric Young (eay@cryptsoft.com)
