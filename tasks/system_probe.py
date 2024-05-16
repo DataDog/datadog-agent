@@ -1433,7 +1433,7 @@ def build_object_files(
                     dest = os.path.join(EMBEDDED_SHARE_DIR, out_dir)
                     return " ".join(
                         [
-                            f"-execdir cp -p {{}} {dest}/ \\;",
+                            f"-execdir cp -vp {{}} {dest}/ \\;",
                             f"-execdir chown root:root {dest}/{{}} \\;",
                             f"-execdir chmod 0644 {dest}/{{}} \\;",
                         ]
@@ -1445,7 +1445,7 @@ def build_object_files(
 
             with ctx.cd(runtime_dir):
                 ctx.run(f"{sudo} mkdir -p {EMBEDDED_SHARE_DIR}/runtime")
-                ctx.run(f"{sudo} find ./runtime -maxdepth 1 -type f -name '*.c' {cp_cmd('runtime')}")
+                ctx.run(f"{sudo} find ./ -maxdepth 1 -type f -name '*.c' {cp_cmd('runtime')}")
 
 
 def build_cws_object_files(
