@@ -36,8 +36,7 @@ type eventPayload struct {
 	ServiceType         string    `json:"service_type"`
 	StartTime           int64     `json:"start_time"`
 	LastSeen            int64     `json:"last_seen"`
-	// TODO: this field should change to string with possible values none,packaged,injected
-	APMInstrumentation bool `json:"apm_instrumentation"`
+	APMInstrumentation  string    `json:"apm_instrumentation"`
 }
 
 type event struct {
@@ -70,7 +69,7 @@ func (ts *telemetrySender) newEvent(t eventType, svc serviceInfo) *event {
 			ServiceType:         svc.meta.Type,
 			StartTime:           int64(svc.process.Stat.StartTime),
 			LastSeen:            ts.time.Now().Unix(),
-			APMInstrumentation:  false,
+			APMInstrumentation:  svc.meta.APMInstrumentation,
 		},
 	}
 }

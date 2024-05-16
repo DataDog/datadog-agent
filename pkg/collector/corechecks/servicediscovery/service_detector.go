@@ -6,6 +6,7 @@
 package servicediscovery
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/apm"
 	"go.uber.org/zap"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/language"
@@ -28,19 +29,22 @@ func newServiceDetector() *serviceDetector {
 }
 
 type serviceMetadata struct {
-	Name     string
-	Language string
-	Type     string
+	Name               string
+	Language           string
+	Type               string
+	APMInstrumentation string
 }
 
 func (sd *serviceDetector) Detect(p processInfo) serviceMetadata {
 	meta, _ := usm.ExtractServiceMetadata(usm.NewDetectionContext(sd.logger, p.CmdLine, p.Env, usm.RealFs{}))
 	lang, _ := sd.langFinder.Detect(p.CmdLine, p.Env)
 	svcType := servicetype.Detect(meta.Name, p.Ports)
+	apmInstr := apm.Detect(sd.logger, p.CmdLine, p.Env, lang)
 
 	return serviceMetadata{
-		Name:     meta.Name,
-		Language: string(lang),
-		Type:     string(svcType),
+		Name:               meta.Name,
+		Language:           string(lang),
+		Type:               string(svcType),
+		APMInstrumentation: string(apmInstr),
 	}
 }

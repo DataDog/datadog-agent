@@ -8,14 +8,12 @@
 package servicediscovery
 
 import (
-	"encoding/json"
 	"testing"
 	"time"
 
 	"github.com/golang/mock/gomock"
 	"github.com/google/go-cmp/cmp"
 	"github.com/prometheus/procfs"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
@@ -242,7 +240,7 @@ func TestServiceDiscoveryCheckLinux(t *testing.T) {
 						ServiceType:         "web_service",
 						StartTime:           procLaunched.Unix(),
 						LastSeen:            startTime.Add(1 * time.Minute).Unix(),
-						APMInstrumentation:  false,
+						APMInstrumentation:  "none",
 					},
 				},
 				{
@@ -259,7 +257,7 @@ func TestServiceDiscoveryCheckLinux(t *testing.T) {
 						ServiceType:         "web_service",
 						StartTime:           procLaunched.Unix(),
 						LastSeen:            startTime.Add(20 * time.Minute).Unix(),
-						APMInstrumentation:  false,
+						APMInstrumentation:  "none",
 					},
 				},
 				{
@@ -276,7 +274,7 @@ func TestServiceDiscoveryCheckLinux(t *testing.T) {
 						ServiceType:         "web_service",
 						StartTime:           procLaunched.Unix(),
 						LastSeen:            startTime.Add(21 * time.Minute).Unix(),
-						APMInstrumentation:  false,
+						APMInstrumentation:  "none",
 					},
 				},
 			},
@@ -291,11 +289,11 @@ func TestServiceDiscoveryCheckLinux(t *testing.T) {
 			// check and mocks setup
 			check := newCheck().(*Check)
 
-			sender := mocksender.NewMockSender(check.ID())
-			sender.SetupAcceptAll()
+			mSender := mocksender.NewMockSender(check.ID())
+			mSender.SetupAcceptAll()
 
 			err := check.Configure(
-				sender.GetSenderManager(),
+				mSender.GetSenderManager(),
 				integration.FakeConfigHash,
 				integration.Data(cfgYaml),
 				nil,
@@ -310,42 +308,30 @@ func TestServiceDiscoveryCheckLinux(t *testing.T) {
 					procs = append(procs, mockProc(ctrl, p))
 				}
 
-				_, hostnameMock := hostnameinterface.NewMock(hostnameinterface.MockHostname(host))
+				_, mHostname := hostnameinterface.NewMock(hostnameinterface.MockHostname(host))
 
-				portPollerMock := NewMockportPoller(ctrl)
-				portPollerMock.EXPECT().OpenPorts().Return(cr.openPorts, nil).Times(1)
+				mPortPoller := NewMockportPoller(ctrl)
+				mPortPoller.EXPECT().OpenPorts().Return(cr.openPorts, nil).Times(1)
 
-				procfsMock := NewMockprocFS(ctrl)
-				procfsMock.EXPECT().AllProcs().Return(procs, nil).Times(1)
+				mProcFS := NewMockprocFS(ctrl)
+				mProcFS.EXPECT().AllProcs().Return(procs, nil).Times(1)
 
-				timerMock := NewMocktimer(ctrl)
-				timerMock.EXPECT().Now().Return(cr.time).AnyTimes()
+				mTimer := NewMocktimer(ctrl)
+				mTimer.EXPECT().Now().Return(cr.time).AnyTimes()
 
 				// set mocks
-				check.os.(*linuxImpl).procfs = procfsMock
-				check.os.(*linuxImpl).portPoller = portPollerMock
-				check.os.(*linuxImpl).time = timerMock
-				check.os.(*linuxImpl).sender.time = timerMock
-				check.os.(*linuxImpl).sender.hostname = hostnameMock
+				check.os.(*linuxImpl).procfs = mProcFS
+				check.os.(*linuxImpl).portPoller = mPortPoller
+				check.os.(*linuxImpl).time = mTimer
+				check.os.(*linuxImpl).sender.time = mTimer
+				check.os.(*linuxImpl).sender.hostname = mHostname
 
 				err = check.Run()
 				require.NoError(t, err)
 			}
 
-			sender.AssertNumberOfCalls(t, "EventPlatformEvent", len(tc.wantEvents))
-
-			var gotEvents []*event
-			for _, call := range sender.Calls {
-				evType := call.Arguments.Get(1).(string)
-				assert.Equal(t, "service-discovery", evType)
-
-				raw := call.Arguments.Get(0).([]byte)
-				var ev *event
-				err = json.Unmarshal(raw, &ev)
-				require.NoError(t, err)
-				gotEvents = append(gotEvents, ev)
-			}
-
+			mSender.AssertNumberOfCalls(t, "EventPlatformEvent", len(tc.wantEvents))
+			gotEvents := mockSenderEvents(t, mSender)
 			if diff := cmp.Diff(tc.wantEvents, gotEvents); diff != "" {
 				t.Errorf("event platform events mismatch (-want +got):\n%s", diff)
 			}
