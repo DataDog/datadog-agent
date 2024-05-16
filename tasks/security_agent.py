@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import datetime
 import errno
 import glob
@@ -418,7 +420,6 @@ def build_functional_tests(
         "src_path": srcpath,
     }
 
-    print(env, arch)
     ctx.run(cmd.format(**args), env=env)
 
 
