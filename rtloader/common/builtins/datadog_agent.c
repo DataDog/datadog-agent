@@ -822,8 +822,7 @@ static PyObject *obfuscate_mongodb_string(PyObject *self, PyObject *args, PyObje
     PyGILState_STATE gstate = PyGILState_Ensure();
 
     char *cmd = NULL;
-    static char *kwlist[] = {"cmd", NULL};
-    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "s|s", kwlist, &cmd)) {
+    if (!PyArg_ParseTuple(args, "s", &cmd)) {
         PyGILState_Release(gstate);
         return NULL;
     }
