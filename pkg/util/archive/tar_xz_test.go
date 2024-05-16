@@ -10,6 +10,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -29,7 +30,12 @@ func TestTarXZExtractFile(t *testing.T) {
 		if assert.FileExists(t, testpath) {
 			fi, err := os.Stat(testpath)
 			if assert.NoError(t, err) {
-				assert.Equal(t, fi.Mode(), fs.FileMode(0400))
+				if runtime.GOOS == "windows" {
+					// windows doesn't really have separate owner/group/world perms
+					assert.Equal(t, fs.FileMode(0444), fi.Mode())
+				} else {
+					assert.Equal(t, fs.FileMode(0400), fi.Mode())
+				}
 			}
 		}
 	}
