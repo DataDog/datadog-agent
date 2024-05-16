@@ -43,9 +43,9 @@ type npSchedulerImpl struct {
 	processedTracerouteCount *atomic.Uint64
 
 	// Pathtest store
-	pathtestStore       *pathteststore.Store
-	pathtestInputChan   chan *common.Pathtest
-	pathtestProcessChan chan *pathteststore.PathtestContext
+	pathtestStore          *pathteststore.Store
+	pathtestInputChan      chan *common.Pathtest
+	pathtestProcessingChan chan *pathteststore.PathtestContext
 
 	// Scheduling related
 	running       bool
@@ -71,7 +71,7 @@ func newNoopNpSchedulerImpl() *npSchedulerImpl {
 func newNpSchedulerImpl(epForwarder eventplatform.Forwarder, collectorConfigs *collectorConfigs, logger log.Component, agentConfig config.Reader) *npSchedulerImpl {
 	workers := agentConfig.GetInt("network_path.collector.workers")
 	pathtestInputChanSize := agentConfig.GetInt("network_path.collector.input_chan_size")
-	pathtestProcessChanSize := agentConfig.GetInt("network_path.collector.process_chan_size")
+	pathtestProcessingChanSize := agentConfig.GetInt("network_path.collector.processing_chan_size")
 	pathtestTTL := agentConfig.GetDuration("network_path.collector.pathtest_ttl")
 	pathtestInterval := agentConfig.GetDuration("network_path.collector.pathtest_interval")
 	flushInterval := agentConfig.GetDuration("network_path.collector.flush_interval")
@@ -87,11 +87,11 @@ func newNpSchedulerImpl(epForwarder eventplatform.Forwarder, collectorConfigs *c
 		collectorConfigs: collectorConfigs,
 		logger:           logger,
 
-		pathtestStore:       pathteststore.NewPathtestStore(pathtestTTL, pathtestInterval, logger),
-		pathtestInputChan:   make(chan *common.Pathtest, pathtestInputChanSize),
-		pathtestProcessChan: make(chan *pathteststore.PathtestContext, pathtestProcessChanSize),
-		flushInterval:       flushInterval,
-		workers:             workers,
+		pathtestStore:          pathteststore.NewPathtestStore(pathtestTTL, pathtestInterval, logger),
+		pathtestInputChan:      make(chan *common.Pathtest, pathtestInputChanSize),
+		pathtestProcessingChan: make(chan *pathteststore.PathtestContext, pathtestProcessingChanSize),
+		flushInterval:          flushInterval,
+		workers:                workers,
 
 		metricSender: metricsender.NewMetricSenderStatsd(statsd.Client),
 
@@ -280,7 +280,7 @@ func (s *npSchedulerImpl) flush() {
 
 	for _, ptConf := range flowsToFlush {
 		s.logger.Tracef("flushed ptConf %s:%d", ptConf.Pathtest.Hostname, ptConf.Pathtest.Port)
-		s.pathtestProcessChan <- ptConf
+		s.pathtestProcessingChan <- ptConf
 	}
 }
 
@@ -311,7 +311,7 @@ func (s *npSchedulerImpl) startWorker(workerID int) {
 		case <-s.stopChan:
 			s.logger.Debugf("[worker%d] Stopped worker", workerID)
 			return
-		case pathtestCtx := <-s.pathtestProcessChan:
+		case pathtestCtx := <-s.pathtestProcessingChan:
 			s.logger.Debugf("[worker%d] Handling pathtest hostname=%s, port=%d", workerID, pathtestCtx.Pathtest.Hostname, pathtestCtx.Pathtest.Port)
 			s.runTracerouteForPath(pathtestCtx)
 			s.processedTracerouteCount.Inc()

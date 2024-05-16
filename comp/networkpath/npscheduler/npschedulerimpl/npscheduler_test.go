@@ -283,7 +283,7 @@ func Test_newNpSchedulerImpl_defaultConfigs(t *testing.T) {
 	assert.Equal(t, true, npScheduler.collectorConfigs.networkPathCollectorEnabled())
 	assert.Equal(t, 4, npScheduler.workers)
 	assert.Equal(t, 1000, cap(npScheduler.pathtestInputChan))
-	assert.Equal(t, 1000, cap(npScheduler.pathtestProcessChan))
+	assert.Equal(t, 1000, cap(npScheduler.pathtestProcessingChan))
 }
 
 func Test_newNpSchedulerImpl_overrideConfigs(t *testing.T) {
@@ -291,7 +291,7 @@ func Test_newNpSchedulerImpl_overrideConfigs(t *testing.T) {
 		"network_path.connections_monitoring.enabled": true,
 		"network_path.collector.workers":              2,
 		"network_path.collector.input_chan_size":      300,
-		"network_path.collector.process_chan_size":    400,
+		"network_path.collector.processing_chan_size": 400,
 	}
 
 	_, npScheduler := newTestNpScheduler(t, agentConfigs)
@@ -299,7 +299,7 @@ func Test_newNpSchedulerImpl_overrideConfigs(t *testing.T) {
 	assert.Equal(t, true, npScheduler.collectorConfigs.networkPathCollectorEnabled())
 	assert.Equal(t, 2, npScheduler.workers)
 	assert.Equal(t, 300, cap(npScheduler.pathtestInputChan))
-	assert.Equal(t, 400, cap(npScheduler.pathtestProcessChan))
+	assert.Equal(t, 400, cap(npScheduler.pathtestProcessingChan))
 }
 
 func Test_npSchedulerImpl_ScheduleConns(t *testing.T) {
@@ -599,7 +599,7 @@ func Test_npSchedulerImpl_flush(t *testing.T) {
 	assert.Contains(t, calls, teststatsd.MetricsArgs{Name: "datadog.network_path.scheduler.pathtest_store_size", Value: 2, Tags: []string{}, Rate: 1})
 	assert.Contains(t, calls, teststatsd.MetricsArgs{Name: "datadog.network_path.scheduler.pathtest_flushed_count", Value: 2, Tags: []string{}, Rate: 1})
 
-	assert.Equal(t, 2, len(npScheduler.pathtestProcessChan))
+	assert.Equal(t, 2, len(npScheduler.pathtestProcessingChan))
 }
 
 func Test_npSchedulerImpl_sendTelemetry(t *testing.T) {
