@@ -7,7 +7,9 @@
 package exec
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
@@ -133,6 +135,25 @@ func (i *InstallerExec) IsInstalled(ctx context.Context, pkg string) (_ bool, er
 		return false, err
 	}
 	return true, nil
+}
+
+// DefaultPackages returns the default packages to install.
+func (i *InstallerExec) DefaultPackages(ctx context.Context) (map[string]string, error) {
+	cmd := i.newInstallerCmd(ctx, "default-packages")
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+	err := cmd.Run()
+	if err != nil {
+		return nil, fmt.Errorf("error running default-packages: %w\n%s", err, stderr.String())
+	}
+	var defaultPackages map[string]string
+	err = json.Unmarshal(stdout.Bytes(), &defaultPackages)
+	if err != nil {
+		return nil, fmt.Errorf("error unmarshalling default-packages: %w\n%s", err, stdout.String())
+	}
+	return defaultPackages, nil
 }
 
 // State returns the state of a package.
