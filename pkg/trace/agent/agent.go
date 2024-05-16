@@ -65,11 +65,17 @@ type traceWriter interface {
 	FlushSync() error
 }
 
+type concentrator interface {
+	Start()
+	Stop()
+	Add(t stats.Input)
+}
+
 // Agent struct holds all the sub-routines structs and make the data flow between them
 type Agent struct {
 	Receiver              *api.HTTPReceiver
 	OTLPReceiver          *api.OTLPReceiver
-	Concentrator          *stats.Concentrator
+	Concentrator          concentrator
 	ClientStatsAggregator *stats.ClientStatsAggregator
 	Blacklister           *filters.Blacklister
 	Replacer              *filters.Replacer
@@ -116,15 +122,15 @@ func NewAgent(ctx context.Context, conf *config.AgentConfig, telemetryCollector 
 	dynConf := sampler.NewDynamicConfig()
 	log.Infof("Starting Agent with processor trace buffer of size %d", conf.TraceBuffer)
 	in := make(chan *api.Payload, conf.TraceBuffer)
-	statsChan := make(chan *pb.StatsPayload, 1)
 	oconf := conf.Obfuscation.Export(conf)
 	if oconf.Statsd == nil {
 		oconf.Statsd = statsd
 	}
 	timing := timing.New(statsd)
+	statsWriter := writer.NewStatsWriter(conf, telemetryCollector, statsd, timing)
 	agnt := &Agent{
-		Concentrator:          stats.NewConcentrator(conf, statsChan, time.Now(), statsd),
-		ClientStatsAggregator: stats.NewClientStatsAggregator(conf, statsChan, statsd),
+		Concentrator:          stats.NewConcentrator(conf, statsWriter, time.Now(), statsd),
+		ClientStatsAggregator: stats.NewClientStatsAggregator(conf, statsWriter, statsd),
 		Blacklister:           filters.NewBlacklister(conf.Ignore["resource"]),
 		Replacer:              filters.NewReplacer(conf.ReplaceTags),
 		PrioritySampler:       sampler.NewPrioritySampler(conf, dynConf, statsd),
@@ -133,7 +139,7 @@ func NewAgent(ctx context.Context, conf *config.AgentConfig, telemetryCollector 
 		NoPrioritySampler:     sampler.NewNoPrioritySampler(conf, statsd),
 		ProbabilisticSampler:  sampler.NewProbabilisticSampler(conf, statsd),
 		EventProcessor:        newEventProcessor(conf, statsd),
-		StatsWriter:           writer.NewStatsWriter(conf, statsChan, telemetryCollector, statsd, timing),
+		StatsWriter:           statsWriter,
 		obfuscator:            obfuscate.NewObfuscator(oconf),
 		In:                    in,
 		conf:                  conf,
@@ -346,7 +352,7 @@ func (a *Agent) Process(p *api.Payload) {
 		a.setRootSpanTags(root)
 		if !p.ClientComputedTopLevel {
 			// Figure out the top-level spans now as it involves modifying the Metrics map
-			// which is not thread-safe while samplers and Concentrator might modify it too.
+			// which is not thread-safe while samplers and concentrator might modify it too.
 			traceutil.ComputeTopLevel(chunk.Spans)
 		}
 
@@ -392,7 +398,7 @@ func (a *Agent) Process(p *api.Payload) {
 		a.TraceWriter.WriteChunks(sampledChunks)
 	}
 	if len(statsInput.Traces) > 0 {
-		a.Concentrator.In <- statsInput
+		a.Concentrator.Add(statsInput)
 	}
 }
 

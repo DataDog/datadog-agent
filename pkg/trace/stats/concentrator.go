@@ -24,13 +24,16 @@ import (
 // units used by the concentrator.
 const defaultBufferLen = 2
 
+type statsAdder interface {
+	Add(*pb.StatsPayload)
+}
+
 // Concentrator produces time bucketed statistics from a stream of raw traces.
 // https://en.wikipedia.org/wiki/Knelson_concentrator
 // Gets an imperial shitton of traces, and outputs pre-computed data structures
 // allowing to find the gold (stats) amongst the traces.
 type Concentrator struct {
-	In  chan Input
-	Out chan *pb.StatsPayload
+	Out statsAdder
 
 	// bucket duration in nanoseconds
 	bsize int64
@@ -104,7 +107,7 @@ func preparePeerTags(tags ...string) []string {
 }
 
 // NewConcentrator initializes a new concentrator ready to be started
-func NewConcentrator(conf *config.AgentConfig, out chan *pb.StatsPayload, now time.Time, statsd statsd.ClientInterface) *Concentrator {
+func NewConcentrator(conf *config.AgentConfig, out statsAdder, now time.Time, statsd statsd.ClientInterface) *Concentrator {
 	bsize := conf.BucketInterval.Nanoseconds()
 	c := Concentrator{
 		bsize:   bsize,
@@ -114,7 +117,6 @@ func NewConcentrator(conf *config.AgentConfig, out chan *pb.StatsPayload, now ti
 		oldestTs: alignTs(now.UnixNano(), bsize),
 		// TODO: Move to configuration.
 		bufferLen:              defaultBufferLen,
-		In:                     make(chan Input, 1),
 		Out:                    out,
 		exit:                   make(chan struct{}),
 		agentEnv:               conf.DefaultEnv,
@@ -150,18 +152,13 @@ func (c *Concentrator) Run() {
 
 	log.Debug("Starting concentrator")
 
-	go func() {
-		for inputs := range c.In {
-			c.Add(inputs)
-		}
-	}()
 	for {
 		select {
 		case <-flushTicker.C:
-			c.Out <- c.Flush(false)
+			c.Out.Add(c.Flush(false))
 		case <-c.exit:
 			log.Info("Exiting concentrator, computing remaining stats")
-			c.Out <- c.Flush(true)
+			c.Out.Add(c.Flush(true))
 			return
 		}
 	}
@@ -210,10 +207,10 @@ func NewStatsInput(numChunks int, containerID string, clientComputedStats bool, 
 // Add applies the given input to the concentrator.
 func (c *Concentrator) Add(t Input) {
 	c.mu.Lock()
+	defer c.mu.Unlock()
 	for _, trace := range t.Traces {
 		c.addNow(&trace, t.ContainerID)
 	}
-	c.mu.Unlock()
 }
 
 // addNow adds the given input into the concentrator.

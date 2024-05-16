@@ -49,7 +49,7 @@ import (
 
 func NewTestAgent(ctx context.Context, conf *config.AgentConfig, telemetryCollector telemetry.TelemetryCollector) *Agent {
 	a := NewAgent(ctx, conf, telemetryCollector, &statsd.NoOpClient{})
-	a.Concentrator.In = make(chan stats.Input, 1000)
+	a.Concentrator = &mockConcentrator{}
 	a.TraceWriter = &mockTraceWriter{}
 	return a
 }
@@ -69,6 +69,26 @@ func (m *mockTraceWriter) WriteChunks(pkg *writer.SampledChunks) {
 
 func (m *mockTraceWriter) FlushSync() error {
 	panic("not implemented")
+}
+
+type mockConcentrator struct {
+	stats []stats.Input
+	mu    sync.Mutex
+}
+
+func (c *mockConcentrator) Start() {}
+func (c *mockConcentrator) Stop()  {}
+func (c *mockConcentrator) Add(t stats.Input) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.stats = append(c.stats, t)
+}
+func (c *mockConcentrator) Reset() []stats.Input {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	ret := c.stats
+	c.stats = nil
+	return ret
 }
 
 // Test to make sure that the joined effort of the quantizer and truncator, in that order, produce the
@@ -717,13 +737,14 @@ func TestConcentratorInput(t *testing.T) {
 			agent := NewTestAgent(context.TODO(), cfg, telemetry.NewNoopCollector())
 			tc.in.Source = agent.Receiver.Stats.GetTagStats(info.Tags{})
 			agent.Process(tc.in)
+			mco := agent.Concentrator.(*mockConcentrator)
 
 			if len(tc.expected.Traces) == 0 {
-				assert.Len(t, agent.Concentrator.In, 0)
+				assert.Len(t, mco.stats, 0)
 				return
 			}
-			require.Len(t, agent.Concentrator.In, 1)
-			assert.Equal(t, tc.expected, <-agent.Concentrator.In)
+			require.Len(t, mco.stats, 1)
+			assert.Equal(t, tc.expected, mco.stats[0])
 
 			if tc.expectedSampled != nil && len(tc.expectedSampled.Chunks) > 0 {
 				payloads := agent.TraceWriter.(*mockTraceWriter).payloads
@@ -1005,7 +1026,8 @@ func TestClientComputedStats(t *testing.T) {
 			Source:              agnt.Receiver.Stats.GetTagStats(info.Tags{}),
 			ClientComputedStats: true,
 		})
-		assert.Len(t, agnt.Concentrator.In, 0)
+		mco := agnt.Concentrator.(*mockConcentrator)
+		assert.Len(t, mco.stats, 0)
 	})
 
 	t.Run("off", func(t *testing.T) {
@@ -1014,7 +1036,8 @@ func TestClientComputedStats(t *testing.T) {
 			Source:              agnt.Receiver.Stats.GetTagStats(info.Tags{}),
 			ClientComputedStats: false,
 		})
-		assert.Len(t, agnt.Concentrator.In, 1)
+		mco := agnt.Concentrator.(*mockConcentrator)
+		assert.Len(t, mco.stats, 1)
 	})
 }
 
@@ -1356,12 +1379,11 @@ func TestSampleManualUserDropNoAnalyticsEvents(t *testing.T) {
 
 func TestPartialSamplingFree(t *testing.T) {
 	cfg := &config.AgentConfig{RareSamplerEnabled: false, BucketInterval: 10 * time.Second}
-	statsChan := make(chan *pb.StatsPayload, 100)
 	dynConf := sampler.NewDynamicConfig()
 	in := make(chan *api.Payload, 1000)
 	statsd := &statsd.NoOpClient{}
 	agnt := &Agent{
-		Concentrator:      stats.NewConcentrator(cfg, statsChan, time.Now(), statsd),
+		Concentrator:      &mockConcentrator{},
 		Blacklister:       filters.NewBlacklister(cfg.Ignore["resource"]),
 		Replacer:          filters.NewReplacer(cfg.ReplaceTags),
 		NoPrioritySampler: sampler.NewNoPrioritySampler(cfg, statsd),
@@ -1423,7 +1445,7 @@ func TestPartialSamplingFree(t *testing.T) {
 	runtime.ReadMemStats(&m)
 	assert.Greater(t, m.HeapInuse, uint64(50*1e6))
 
-	<-agnt.Concentrator.In
+	agnt.Concentrator.(*mockConcentrator).Reset()
 	// big chunk should be cleaned as unsampled and passed through stats
 	runtime.GC()
 	runtime.ReadMemStats(&m)
@@ -1722,7 +1744,6 @@ func benchThroughput(file string) func(*testing.B) {
 			defer close(exit)
 			for {
 				select {
-				case <-agnt.Concentrator.Out:
 				case <-exit:
 					return
 				}
@@ -2297,7 +2318,9 @@ func TestSpanSampling(t *testing.T) {
 			assert.Len(t, traceAgent.TraceWriter.(*mockTraceWriter).payloads, 1)
 			sampledChunks := traceAgent.TraceWriter.(*mockTraceWriter).payloads[0]
 			tc.checks(t, tc.payload, sampledChunks.TracerPayload.Chunks)
-			stats := <-traceAgent.Concentrator.In
+			mco := traceAgent.Concentrator.(*mockConcentrator)
+			require.Len(t, mco.stats, 1)
+			stats := mco.stats[0]
 			assert.Equal(t, len(tc.payload.Chunks[0].Spans), len(stats.Traces[0].TraceChunk.Spans))
 		})
 	}
