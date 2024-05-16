@@ -18,7 +18,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
 	"github.com/DataDog/datadog-agent/comp/core"
-	"github.com/DataDog/datadog-agent/comp/core/flare"
+	"github.com/DataDog/datadog-agent/comp/core/flare/helpers"
+	"github.com/DataDog/datadog-agent/comp/core/flare/types"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -86,10 +87,10 @@ func TestReadProfileData(t *testing.T) {
 		mockSysProbeConfig.SetWithoutSource("system_probe_config.sysprobe_socket", sysprobeSockPath)
 	}
 
-	data, err := readProfileData(10)
+	data, err := helpers.ReadProfileData(10)
 	require.NoError(t, err)
 
-	expected := flare.ProfileData{
+	expected := types.ProfileData{
 		"core-1st-heap.pprof":           []byte("heap_profile"),
 		"core-2nd-heap.pprof":           []byte("heap_profile"),
 		"core-block.pprof":              []byte("block"),
@@ -112,7 +113,7 @@ func TestReadProfileData(t *testing.T) {
 		"trace-mutex.pprof":             []byte("mutex"),
 	}
 	if runtime.GOOS != "darwin" {
-		maps.Copy(expected, flare.ProfileData{
+		maps.Copy(expected, types.ProfileData{
 			"system-probe-1st-heap.pprof": []byte("heap_profile"),
 			"system-probe-2nd-heap.pprof": []byte("heap_profile"),
 			"system-probe-block.pprof":    []byte("block"),
@@ -154,11 +155,11 @@ func TestReadProfileDataNoTraceAgent(t *testing.T) {
 		mockSysProbeConfig.SetWithoutSource("system_probe_config.sysprobe_socket", sysprobeSockPath)
 	}
 
-	data, err := readProfileData(10)
+	data, err := helpers.ReadProfileData(10)
 	require.Error(t, err)
 	require.Regexp(t, "^* error collecting trace agent profile: ", err.Error())
 
-	expected := flare.ProfileData{
+	expected := types.ProfileData{
 		"core-1st-heap.pprof":           []byte("heap_profile"),
 		"core-2nd-heap.pprof":           []byte("heap_profile"),
 		"core-block.pprof":              []byte("block"),
@@ -176,7 +177,7 @@ func TestReadProfileDataNoTraceAgent(t *testing.T) {
 		"security-agent-mutex.pprof":    []byte("mutex"),
 	}
 	if runtime.GOOS != "darwin" {
-		maps.Copy(expected, flare.ProfileData{
+		maps.Copy(expected, types.ProfileData{
 			"system-probe-1st-heap.pprof": []byte("heap_profile"),
 			"system-probe-2nd-heap.pprof": []byte("heap_profile"),
 			"system-probe-block.pprof":    []byte("block"),
@@ -196,7 +197,7 @@ func TestReadProfileDataErrors(t *testing.T) {
 	mockConfig.SetWithoutSource("apm_config.enabled", true)
 	mockConfig.SetWithoutSource("apm_config.debug.port", 0)
 
-	data, err := readProfileData(10)
+	data, err := helpers.ReadProfileData(10)
 	require.Error(t, err)
 	require.Regexp(t, "^4 errors occurred:\n", err.Error())
 	require.Len(t, data, 0)
