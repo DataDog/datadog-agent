@@ -45,7 +45,7 @@ Write-Host -ForegroundColor Yellow -BackgroundColor DarkGreen '- Installing Gola
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
 
-$go_version = "1.21.9"
+$go_version = "1.21.10"
 Write-Host -ForegroundColor Green "Installing go $go_version"
 
 $gozip = "https://dl.google.com/go/go$go_version.windows-amd64.zip"

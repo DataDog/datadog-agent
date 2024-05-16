@@ -6,9 +6,10 @@ import os
 import re
 import tempfile
 from collections import defaultdict
+from collections.abc import Iterable
 from glob import glob
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Iterable, cast
+from typing import TYPE_CHECKING, Any, cast
 
 from invoke.context import Context
 from invoke.tasks import task
@@ -357,14 +358,9 @@ def update_resources(
 
 
 @task
-def build_compiler(ctx: Context):
-    for cc in all_compilers(ctx):
-        cc.build()
-
-
-@task
 def start_compiler(ctx: Context):
     for cc in all_compilers(ctx):
+        info(f"[+] Starting compiler {cc.name}")
         cc.start()
 
 
