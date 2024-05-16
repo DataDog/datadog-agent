@@ -131,7 +131,7 @@ all of this.
 
 As your migration to components is not finished, you might need to manually instruct Fx on how to create certain types.
 
-You will need to use `fx.Provide` for this. More details can be found [here](fx.md).
+You will need to use `fx.Supply` for this. More details can be found [here](fx.md).
 
 But here is a quick example:
 
@@ -149,10 +149,9 @@ type custom struct {}
         myTestCallback,
         logfx.Module(),
 
-        // fx.Provide registers a function providing a type into Fx. Any time this is needed, Fx will use it.
-        fx.Provide(func() custom {
-            return custom{}
-        }),
+        // fx.Supply provides instantiated values into Fx. 
+        // Any time this is needed, Fx will use it.
+        fx.Supply(custom{})
     )
 // [...]
 
@@ -164,7 +163,8 @@ func myTestCallback(logger log.Component, c custom) {
 
 !!! Info
     This means that components can depend on non-component types too (as long as the main instruct Fx how to create them).
+    
+<!-- TODO: Provide an exmaple using fx.Provide -->
 
-## Using components parameters
-
-TODO
+<!-- TODO: 
+## Using components parameters -->

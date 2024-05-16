@@ -97,14 +97,14 @@ Sometimes a component uses [Fx lifecycle](fx.md#lifecycle) to add hooks. It is a
 
 For this example, imagine a component wants to add some hooks into the app lifecycle. Some code is omitted for simplicity:
 
-=== ":octicons-file-code-16: comp/someomponent/impl/component.go"
+=== ":octicons-file-code-16: comp/somecomponent/impl/component.go"
     ```go
     package impl
 
     import (
       "context"
       
-      someomponent "github.com/DataDog/datadog-agent/comp/someomponent/def"
+      somecomponent "github.com/DataDog/datadog-agent/comp/somecomponent/def"
       compdef "github.com/DataDog/datadog-agent/comp/def"
     )
 
@@ -113,7 +113,7 @@ For this example, imagine a component wants to add some hooks into the app lifec
     }
 
     type Provides struct {
-      Comp someomponent.Component
+      Comp somecomponent.Component
     }
 
     type component struct {
@@ -167,7 +167,7 @@ To create a lifecycle instance, use the helper function `compdef.NewTestLifecycl
     <!-- TODO add link to NewTestLifecycle function once this PR https://github.com/DataDog/datadog-agent/pull/25184 is merged-->
     You can see the `NewTestLifecycle` function [here]()
 
-=== ":octicons-file-code-16: comp/someomponent/impl/component.go"
+=== ":octicons-file-code-16: comp/somecomponent/impl/component.go"
     ```go
     package impl
 

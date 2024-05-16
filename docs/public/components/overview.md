@@ -35,7 +35,7 @@ comes at the cost of manually doing the work of Fx.
 ## Important note on Fx
 
 The component framework project's core goal is to improve the Agent codebase by decoupling parts of the code, removing global state and init
-methods, and increasing reusability by separating logical units into components. **Fx itself is not intrinsic to the
+functions, and increasing reusability by separating logical units into components. **Fx itself is not intrinsic to the
 benefits of componentization**.
 
 <!-- TODO: Let's have a disclaimer about components not being 1 to 1 to Fx -->
