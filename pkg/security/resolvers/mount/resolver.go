@@ -43,6 +43,22 @@ type redemptionEntry struct {
 
 // newMountFromMountInfo - Creates a new Mount from parsed MountInfo data
 func newMountFromMountInfo(mnt *mountinfo.Info) *model.Mount {
+	root := mnt.Root
+
+	if mnt.FSType == "btrfs" {
+		var subvol string
+		for _, opt := range strings.Split(mnt.VFSOptions, ",") {
+			name, val, ok := strings.Cut(opt, "=")
+			if ok && name == "subvol" {
+				subvol = val
+			}
+		}
+
+		if subvol != "" {
+			root = strings.TrimPrefix(root, subvol)
+		}
+	}
+
 	// create a Mount out of the parsed MountInfo
 	return &model.Mount{
 		MountID: uint32(mnt.ID),
@@ -53,7 +69,7 @@ func newMountFromMountInfo(mnt *mountinfo.Info) *model.Mount {
 		FSType:        mnt.FSType,
 		MountPointStr: mnt.Mountpoint,
 		Path:          mnt.Mountpoint,
-		RootStr:       mnt.Root,
+		RootStr:       root,
 	}
 }
 
@@ -484,20 +500,6 @@ func (mr *Resolver) resolveMount(mountID uint32, device uint32, pid uint32, cont
 	mr.procMissStats.Inc()
 
 	return nil, &ErrMountNotFound{MountID: mountID}
-}
-
-// GetMountIDOffset returns the mount id offset
-func GetMountIDOffset(kernelVersion *skernel.Version) uint64 {
-	offset := uint64(284)
-
-	switch {
-	case kernelVersion.IsSuseKernel() || kernelVersion.Code >= skernel.Kernel5_12:
-		offset = 292
-	case kernelVersion.Code != 0 && kernelVersion.Code < skernel.Kernel4_13:
-		offset = 268
-	}
-
-	return offset
 }
 
 // GetVFSLinkDentryPosition gets VFS link dentry position

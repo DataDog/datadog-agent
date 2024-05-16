@@ -38,6 +38,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	vnetns "github.com/vishvananda/netns"
+	"go4.org/intern"
 	"golang.org/x/sys/unix"
 
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
@@ -48,6 +49,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/config/sysctl"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
+	"github.com/DataDog/datadog-agent/pkg/network/events"
 	netlinktestutil "github.com/DataDog/datadog-agent/pkg/network/netlink/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection"
@@ -1714,8 +1716,8 @@ func (s *TracerSuite) TestShortWrite() {
 	toSend := sndBufSize / 2
 	for i := 0; i < 100; i++ {
 		written, err = unix.Write(sk, genPayload(toSend))
-		require.Greater(t, written, 0)
 		require.NoError(t, err)
+		require.Greater(t, written, 0)
 		sent += uint64(written)
 		t.Logf("sent: %v", sent)
 		if written < toSend {
@@ -2268,6 +2270,36 @@ func (s *TracerSuite) TestOffsetGuessIPv6DisabledCentOS() {
 	}
 	// fail if tracer cannot start
 	_ = setupTracer(t, cfg)
+}
+
+func BenchmarkAddProcessInfo(b *testing.B) {
+	cfg := testConfig()
+	cfg.EnableProcessEventMonitoring = true
+
+	tr := setupTracer(b, cfg)
+	var c network.ConnectionStats
+	c.Pid = 1
+	ts, err := ddebpf.NowNanoseconds()
+	require.NoError(b, err)
+	c.LastUpdateEpoch = uint64(ts)
+	tr.processCache.add(&events.Process{
+		Pid: 1,
+		Tags: []*intern.Value{
+			intern.GetByString("env:env"),
+			intern.GetByString("version:version"),
+			intern.GetByString("service:service"),
+		},
+		ContainerID: intern.GetByString("container"),
+		StartTime:   time.Now().Unix(),
+		Expiry:      time.Now().Add(5 * time.Minute).Unix(),
+	})
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		c.Tags = nil
+		tr.addProcessInfo(&c)
+	}
 }
 
 func (s *TracerSuite) TestConnectionDuration() {

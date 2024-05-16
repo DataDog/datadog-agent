@@ -6,9 +6,10 @@ import os
 import re
 import tempfile
 from collections import defaultdict
+from collections.abc import Iterable
 from glob import glob
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Iterable, cast
+from typing import TYPE_CHECKING, Any, cast
 
 from invoke.context import Context
 from invoke.tasks import task
@@ -357,14 +358,9 @@ def update_resources(
 
 
 @task
-def build_compiler(ctx: Context):
-    for cc in all_compilers(ctx):
-        cc.build()
-
-
-@task
 def start_compiler(ctx: Context):
     for cc in all_compilers(ctx):
+        info(f"[+] Starting compiler {cc.name}")
         cc.start()
 
 
@@ -784,6 +780,10 @@ def kmt_sysprobe_prepare(
                 variables["extra_arguments"] = extra_arguments
 
             go_files = [os.path.abspath(i) for i in glob(f"{pkg}/*.go")]
+
+            # We delete the output file to force ninja to rebuild the testsuite everytime
+            # because it cannot track go dependencies correctly.
+            ctx.run(f"rm -f {output_path}")
             nw.build(
                 inputs=[pkg],
                 outputs=[output_path],
@@ -793,16 +793,22 @@ def kmt_sysprobe_prepare(
                 variables=variables,
             )
 
-            testdata = os.path.join(pkg, "testdata")
-            if os.path.exists(testdata):
-                nw.build(inputs=[testdata], outputs=[os.path.join(target_path, "testdata")], rule="copyextra")
-
             if pkg.endswith("java"):
                 nw.build(
                     inputs=[os.path.join(pkg, "agent-usm.jar")],
                     outputs=[os.path.join(target_path, "agent-usm.jar")],
                     rule="copyfiles",
                 )
+
+        # handle testutils and testdata seperately since they are
+        # shared across packages
+        target_pkgs = build_target_packages([])
+        for pkg in target_pkgs:
+            target_path = os.path.join(kmt_paths.sysprobe_tests, os.path.relpath(pkg, os.getcwd()))
+
+            testdata = os.path.join(pkg, "testdata")
+            if os.path.exists(testdata):
+                nw.build(inputs=[testdata], outputs=[os.path.join(target_path, "testdata")], rule="copyextra")
 
             for gobin in [
                 "gotls_client",
