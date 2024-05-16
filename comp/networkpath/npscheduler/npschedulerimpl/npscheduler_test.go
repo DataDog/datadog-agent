@@ -280,7 +280,7 @@ func Test_newNpSchedulerImpl_defaultConfigs(t *testing.T) {
 
 	_, npScheduler := newTestNpScheduler(t, agentConfigs)
 
-	assert.Equal(t, true, npScheduler.enabled)
+	assert.Equal(t, true, npScheduler.collectorConfigs.networkPathCollectorEnabled())
 	assert.Equal(t, 4, npScheduler.workers)
 	assert.Equal(t, 1000, cap(npScheduler.pathtestInputChan))
 	assert.Equal(t, 1000, cap(npScheduler.pathtestProcessChan))
@@ -296,7 +296,7 @@ func Test_newNpSchedulerImpl_overrideConfigs(t *testing.T) {
 
 	_, npScheduler := newTestNpScheduler(t, agentConfigs)
 
-	assert.Equal(t, true, npScheduler.enabled)
+	assert.Equal(t, true, npScheduler.collectorConfigs.networkPathCollectorEnabled())
 	assert.Equal(t, 2, npScheduler.workers)
 	assert.Equal(t, 300, cap(npScheduler.pathtestInputChan))
 	assert.Equal(t, 400, cap(npScheduler.pathtestProcessChan))
