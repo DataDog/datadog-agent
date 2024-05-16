@@ -8,7 +8,9 @@ import platform
 import re
 import sys
 import time
+import traceback
 from contextlib import contextmanager
+from functools import wraps
 from subprocess import CalledProcessError, check_output
 from types import SimpleNamespace
 
@@ -740,3 +742,52 @@ def collapsed_section(section_name):
     finally:
         if in_ci:
             print(f"\033[0Ksection_end:{int(time.time())}:{section_id}\r\033[0K")
+
+
+def retry_function(action_name_fmt, max_retries=2, retry_delay=1):
+    """
+    Decorator to retry a function in case of failure and print its traceback.
+    - action_name_fmt: String that will be formatted with the function arguments to describe the action (for example: "Running {0}" will display "Running arg1" if the function is called with arg1 and "Refresh {0.id}" will display "Refresh 123" if the function is called with an object with an id of 123)
+    """
+
+    def decorator(f):
+        @wraps(f)
+        def wrapper(*args, **kwargs):
+            action_name = action_name_fmt.format(*args)
+
+            for i in range(max_retries + 1):
+                try:
+                    res = f(*args, **kwargs)
+                    if i != 0:
+                        print(color_message(f'Note: {action_name} successful after {i} retries', 'green'))
+
+                    # Action ok
+                    return res
+                except KeyboardInterrupt:
+                    # Let the user interrupt without retries
+                    raise
+                except Exception:
+                    if i == max_retries:
+                        print(
+                            color_message(f'Error: {action_name} failed after {max_retries} retries', 'red'),
+                            file=sys.stderr,
+                        )
+                        # The stack trace is not printed here but the error is raised if we
+                        # want to catch it above
+                        raise
+                    else:
+                        print(
+                            color_message(
+                                f'Warning: {action_name} failed (retry {i + 1}/{max_retries}), retrying in {retry_delay}s',
+                                'orange',
+                            ),
+                            file=sys.stderr,
+                        )
+                        with collapsed_section(f"Retry {i + 1}/{max_retries} {action_name}"):
+                            traceback.print_exc()
+                        time.sleep(retry_delay)
+                        print(color_message(f'Retrying {action_name}', 'blue'))
+
+        return wrapper
+
+    return decorator
