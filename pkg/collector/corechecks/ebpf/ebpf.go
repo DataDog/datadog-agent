@@ -62,7 +62,7 @@ func (c *EBPFCheckConfig) Parse(data []byte) error {
 
 // Configure parses the check configuration and init the check
 func (m *EBPFCheck) Configure(senderManager sender.SenderManager, integrationConfigDigest uint64, config, initConfig integration.Data, source string) error {
-	if err := m.CommonConfigure(senderManager, integrationConfigDigest, initConfig, config, source); err != nil {
+	if err := m.CommonConfigure(senderManager, initConfig, config, source); err != nil {
 		return err
 	}
 	if err := m.config.Parse(config); err != nil {

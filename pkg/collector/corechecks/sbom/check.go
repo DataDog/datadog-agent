@@ -133,7 +133,7 @@ func (c *Check) Configure(senderManager sender.SenderManager, integrationConfigD
 		return errors.New("collection of SBOM is disabled")
 	}
 
-	if err := c.CommonConfigure(senderManager, integrationConfigDigest, initConfig, config, source); err != nil {
+	if err := c.CommonConfigure(senderManager, initConfig, config, source); err != nil {
 		return err
 	}
 

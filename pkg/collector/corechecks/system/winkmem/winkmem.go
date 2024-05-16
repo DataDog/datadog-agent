@@ -93,7 +93,7 @@ func (w *KMemCheck) Configure(senderManager sender.SenderManager, integrationCon
 		return err
 	}
 
-	if err := w.CommonConfigure(senderManager, integrationConfigDigest, initConfig, data, source); err != nil {
+	if err := w.CommonConfigure(senderManager, initConfig, data, source); err != nil {
 		return err
 	}
 	cf := Config{
