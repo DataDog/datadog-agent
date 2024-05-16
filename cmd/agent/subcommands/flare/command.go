@@ -202,6 +202,11 @@ func readProfileData(seconds int) (flare.ProfileData, error) {
 					name: service + "-block.pprof",
 					path: "/block",
 				},
+				{
+					// Trace
+					name: service + ".trace",
+					path: fmt.Sprintf("/trace?seconds=%d", seconds),
+				},
 			} {
 				b, err := get(prof.path)
 				if err != nil {
