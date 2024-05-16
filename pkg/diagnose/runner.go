@@ -529,6 +529,7 @@ func buildSuites(diagCfg diagnosis.Config, checkDatadog func() []diagnosis.Diagn
 		RegisterConnectivityDatadogCoreEndpoints(diagCfg),
 		RegisterConnectivityAutodiscovery,
 		RegisterConnectivityDatadogEventPlatform,
+		RegisterPortConflict,
 	)
 }
 
@@ -562,6 +563,10 @@ func RegisterConnectivityAutodiscovery(catalog *diagnosis.Catalog) {
 // RegisterConnectivityDatadogEventPlatform registers the connectivity-datadog-event-platform diagnose suite.
 func RegisterConnectivityDatadogEventPlatform(catalog *diagnosis.Catalog) {
 	catalog.Register("connectivity-datadog-event-platform", eventplatformimpl.Diagnose)
+}
+
+// RegisterPortConflict registers the port-conflict diagnose suite.
+func RegisterPortConflict(catalog *diagnosis.Catalog) {
 	// port-conflict suite available in darwin only for now
 	if runtime.GOOS == "darwin" {
 		catalog.Register("port-conflict", func() []diagnosis.Diagnosis { return ports.DiagnosePortSuite() })
