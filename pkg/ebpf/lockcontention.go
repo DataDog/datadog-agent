@@ -516,11 +516,11 @@ func setKptrRestrict(val string) error {
 	return nil
 }
 
-func use_dummy_read(addrs map[string]uint64) bool {
-	_, ok_fops := addrs["bpf_map_fops"]
-	_, ok_read := addrs["bpf_dummy_read"]
+func useDummyRead(addrs map[string]uint64) bool {
+	_, okFops := addrs["bpf_map_fops"]
+	_, okRead := addrs["bpf_dummy_read"]
 
-	return !ok_fops && ok_read
+	return !okFops && okRead
 }
 
 func getKernelSymbolsAddressesWithKptrRestrict(kernelAddresses ...string) (map[string]uint64, error) {
@@ -532,7 +532,7 @@ func getKernelSymbolsAddressesWithKptrRestrict(kernelAddresses ...string) (map[s
 	if err != nil {
 		// on debian 12 bpf_map_fops is not exported, so we use
 		// bpf_dummy_read instead
-		if dummy_read := use_dummy_read(addrs); !dummy_read {
+		if dummyRead := useDummyRead(addrs); !dummyRead {
 			return nil, err
 		}
 	}
