@@ -36,12 +36,12 @@ func TestWeblogicFindDeployedApps(t *testing.T) {
 		{
 			name:       "multiple deployments for multiple server - extract for AdminServer",
 			serverName: "AdminServer",
-			domainHome: abs("testdata/weblogic", cwd),
+			domainHome: abs("testdata/b", cwd),
 			fs:         RealFs{},
 			expected: []jeeDeployment{
 				{
 					name: "test.war",
-					path: "testdata/weblogic/test.war",
+					path: "testdata/b/test.war",
 				},
 				{
 					name: "sample4.war",
@@ -49,7 +49,7 @@ func TestWeblogicFindDeployedApps(t *testing.T) {
 				},
 				{
 					name: "test.ear",
-					path: "testdata/weblogic/test.ear",
+					path: "testdata/b/test.ear",
 				},
 			},
 		},
@@ -60,15 +60,15 @@ func TestWeblogicFindDeployedApps(t *testing.T) {
 		{
 			name:       "missing config.xml",
 			serverName: "AdminServer",
-			domainHome: "testdata/weblogic",
+			domainHome: "testdata/b",
 			fs:         fstest.MapFS{},
 			expected:   nil,
 		},
 		{
 			name:       "malformed config.xml",
 			serverName: "AdminServer",
-			domainHome: "testdata/weblogic",
-			fs:         fstest.MapFS{"testdata/weblogic/config/config.xml": &fstest.MapFile{Data: []byte("evil")}},
+			domainHome: "testdata/b",
+			fs:         fstest.MapFS{"testdata/b/config/config.xml": &fstest.MapFile{Data: []byte("evil")}},
 			expected:   nil,
 		},
 	}
@@ -148,7 +148,7 @@ http://xmlns.oracle.com/weblogic/weblogic-web-app/1.4/weblogic-web-app.xsd">inva
 func TestWeblogicExtractExplodedWarContextRoot(t *testing.T) {
 	cwd, err := os.Getwd()
 	require.NoError(t, err)
-	fs := os.DirFS(path.Join(cwd, "testdata", "weblogic", "test.war"))
+	fs := os.DirFS(path.Join(cwd, "testdata", "b", "test.war"))
 	value, ok := newWeblogicExtractor(NewDetectionContext(zap.NewNop(), nil, nil, nil)).customExtractWarContextRoot(fs)
 	require.True(t, ok)
 	require.Equal(t, "my_context", value)

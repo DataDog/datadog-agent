@@ -1,3 +1,3 @@
 #!/usr/bin/env sh
 
-echo "testdata/has_ddtrace/site-packages"
+echo "testdata/a/site-packages"

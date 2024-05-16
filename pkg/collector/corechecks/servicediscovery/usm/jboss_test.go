@@ -227,21 +227,21 @@ func TestJbossFindDeployedApps(t *testing.T) {
 		{
 			name: "standalone",
 			args: []string{
-				"-Djboss.home.dir=testdata/jboss",
+				"-Djboss.home.dir=testdata/a",
 			},
-			domainHome: "testdata/jboss/standalone",
+			domainHome: "testdata/a/standalone",
 			expected: []jeeDeployment{
 				{
 					name: "app.ear",
-					path: "testdata/jboss/standalone/data/content/38/e/content",
+					path: "testdata/a/standalone/data/content/38/e/content",
 				},
 				{
 					name: "web3.war",
-					path: "testdata/jboss/standalone/data/content/8b/e62d23ec32e3956fecf9b5c35e8405510a825f/content",
+					path: "testdata/a/standalone/data/content/8b/e62d23ec32e3956fecf9b5c35e8405510a825f/content",
 				},
 				{
 					name: "web4.war",
-					path: "testdata/jboss/standalone/data/content/f0/c/content",
+					path: "testdata/a/standalone/data/content/f0/c/content",
 				},
 			},
 			fs: RealFs{},
@@ -272,22 +272,22 @@ func TestJbossFindDeployedApps(t *testing.T) {
 		{
 			name: "domain - main server group",
 			args: []string{
-				"-Djboss.home.dir=testdata/jboss",
+				"-Djboss.home.dir=testdata/a",
 				"-D[Server:server-one]",
 			},
-			domainHome: "testdata/jboss/domain/servers/server-one",
+			domainHome: "testdata/a/domain/servers/server-one",
 			expected: []jeeDeployment{
 				{
 					name: "app.ear",
-					path: "testdata/jboss/domain/servers/server-one/data/content/38/e/content",
+					path: "testdata/a/domain/servers/server-one/data/content/38/e/content",
 				},
 				{
 					name: "web3.war",
-					path: "testdata/jboss/domain/servers/server-one/data/content/8b/e62d23ec32e3956fecf9b5c35e8405510a825f/content",
+					path: "testdata/a/domain/servers/server-one/data/content/8b/e62d23ec32e3956fecf9b5c35e8405510a825f/content",
 				},
 				{
 					name: "web4.war",
-					path: "testdata/jboss/domain/servers/server-one/data/content/f0/c/content",
+					path: "testdata/a/domain/servers/server-one/data/content/f0/c/content",
 				},
 			},
 			fs: RealFs{},
@@ -295,14 +295,14 @@ func TestJbossFindDeployedApps(t *testing.T) {
 		{
 			name: "domain- other server group",
 			args: []string{
-				"-Djboss.home.dir=testdata/jboss",
+				"-Djboss.home.dir=testdata/a",
 				"-D[Server:server-three]",
 			},
-			domainHome: "testdata/jboss/domain/servers/server-three",
+			domainHome: "testdata/a/domain/servers/server-three",
 			expected: []jeeDeployment{
 				{
 					name: "web4.war",
-					path: "testdata/jboss/domain/servers/server-three/data/content/f0/c/content",
+					path: "testdata/a/domain/servers/server-three/data/content/f0/c/content",
 				},
 			},
 			fs: RealFs{},
@@ -310,20 +310,20 @@ func TestJbossFindDeployedApps(t *testing.T) {
 		{
 			name: "domain- server not found",
 			args: []string{
-				"-Djboss.home.dir=testdata/jboss",
+				"-Djboss.home.dir=testdata/a",
 				"-D[Server:server-four]",
 			},
-			domainHome: "testdata/jboss/domain/servers/server-four",
+			domainHome: "testdata/a/domain/servers/server-four",
 			expected:   nil,
 			fs:         RealFs{},
 		},
 		{
 			name: "domain- malformed server",
 			args: []string{
-				"-Djboss.home.dir=testdata/jboss",
+				"-Djboss.home.dir=testdata/a",
 				"-D[Server:]",
 			},
-			domainHome: "testdata/jboss/domain/servers/server-four",
+			domainHome: "testdata/a/domain/servers/server-four",
 			expected:   nil,
 			fs:         RealFs{},
 		},
@@ -341,39 +341,39 @@ func TestJbossFindDeployedApps(t *testing.T) {
 		{
 			name: "domain- missing domain.xml",
 			args: []string{
-				"-Djboss.home.dir=testdata/jboss",
+				"-Djboss.home.dir=testdata/a",
 				"-D[Server:server-one]",
 			},
 			expected: nil,
 			fs: shadowFS{
 				filesystem: RealFs{},
-				globs:      []string{"testdata/jboss/domain/configuration/domain.xml"},
+				globs:      []string{"testdata/a/domain/configuration/domain.xml"},
 			},
 		},
 		{
 			name: "domain- missing files",
 			args: []string{
-				"-Djboss.home.dir=testdata/jboss",
+				"-Djboss.home.dir=testdata/a",
 				"-D[Server:server-one]",
 			},
 			expected: nil,
 			fs: shadowFS{
 				filesystem: RealFs{},
-				globs:      []string{"testdata/jboss/domain/configuration/host.xml"},
+				globs:      []string{"testdata/a/domain/configuration/host.xml"},
 			},
 		},
 		{
 			name: "domain- broken domain.xml",
 			args: []string{
-				"-Djboss.home.dir=testdata/jboss",
+				"-Djboss.home.dir=testdata/a",
 				"-D[Server:server-one]",
 			},
-			domainHome: "testdata/jboss",
+			domainHome: "testdata/a",
 			expected:   nil,
 			fs: chainedFS{
 				chain: []fs.FS{
 					fstest.MapFS{
-						"testdata/jboss/domain/configuration/domain.xml": &fstest.MapFile{Data: []byte("evil")},
+						"testdata/a/domain/configuration/domain.xml": &fstest.MapFile{Data: []byte("evil")},
 					},
 					RealFs{},
 				},
