@@ -66,7 +66,7 @@ lint_macos_gitlab_amd64:
     - inv -e rtloader.install
     - inv -e install-tools
     - inv -e deps
-    - inv -e linter.go --cpus 3 --timeout 60
+    - inv -e linter.go --cpus 12 --timeout 60
 
 tests_macos_gitlab_amd64:
   stage: source_test
@@ -82,5 +82,5 @@ tests_macos_gitlab_amd64:
     - inv -e rtloader.install
     - FAST_TESTS_FLAG=""
     - if [[ "$FAST_TESTS" == "true" ]]; then FAST_TESTS_FLAG="--only-impacted-packages"; fi
-    - inv -e test --rerun-fails=2 --python-runtimes $PYTHON_RUNTIMES --race --profile --cpus 3 --save-result-json "test_output.json" --junit-tar "junit-tests_macos.tgz" $FAST_TESTS_FLAG
+    - inv -e test --rerun-fails=2 --python-runtimes $PYTHON_RUNTIMES --race --profile --cpus 12 --save-result-json "test_output.json" --junit-tar "junit-tests_macos.tgz" $FAST_TESTS_FLAG
     - inv -e invoke-unit-tests
