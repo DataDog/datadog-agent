@@ -9,7 +9,6 @@ package usm
 
 import (
 	"fmt"
-	"os/exec"
 	"path/filepath"
 	"runtime"
 	"testing"
@@ -21,7 +20,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func startTest(t *testing.T, arch string) (*exec.Cmd, string) {
+func testArch(t *testing.T, arch string) {
 	cfg := config.New()
 	cfg.EnableNativeTLSMonitoring = true
 
@@ -37,16 +36,10 @@ func startTest(t *testing.T, arch string) (*exec.Cmd, string) {
 	cmd, err := fileopener.OpenFromAnotherProcess(t, lib)
 	require.NoError(t, err)
 
-	return cmd, lib
-}
-
-func testArch(t *testing.T, arch string) {
-	cmd, libPath := startTest(t, arch)
-
 	if arch == runtime.GOARCH {
 		utils.WaitForProgramsToBeTraced(t, "shared_libraries", cmd.Process.Pid)
 	} else {
-		utils.WaitForPathToBeBlocked(t, "shared_libraries", libPath)
+		utils.WaitForPathToBeBlocked(t, "shared_libraries", lib)
 	}
 }
 
