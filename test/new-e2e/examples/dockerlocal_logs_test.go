@@ -2,8 +2,6 @@ package examples
 
 import (
 	_ "embed"
-	"os"
-	"strconv"
 	"testing"
 	"time"
 
@@ -22,8 +20,7 @@ type localLogsTestSuite struct {
 }
 
 func TestE2ELocalFakeintakeSuite(t *testing.T) {
-	devModeEnv, _ := os.LookupEnv("E2E_DEVMODE")
-	options := []e2e.SuiteOption{
+	suiteParams := []e2e.SuiteOption{
 		e2e.WithProvisioner(
 			local.Provisioner(
 				local.WithAgentOptions(
@@ -34,10 +31,12 @@ func TestE2ELocalFakeintakeSuite(t *testing.T) {
 					// work out it's hostname in a container correctly
 					agentparams.WithHostname(t.Name())))),
 	}
-	if devMode, err := strconv.ParseBool(devModeEnv); err == nil && devMode {
-		options = append(options, e2e.WithDevMode())
+
+	if isDevModeEnabled {
+		suiteParams = append(suiteParams, e2e.WithDevMode())
 	}
-	e2e.Run(t, &localFakeintakeSuiteMetrics{}, options...)
+
+	e2e.Run(t, &localFakeintakeSuiteMetrics{}, suiteParams...)
 }
 
 func (s *localLogsTestSuite) TestLogs() {

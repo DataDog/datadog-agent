@@ -12,10 +12,12 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclientparams"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/optional"
+	"github.com/DataDog/test-infra-definitions/common/utils"
 
 	"github.com/DataDog/test-infra-definitions/components/datadog/agent"
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
 	"github.com/DataDog/test-infra-definitions/components/datadog/updater"
+	dm "github.com/DataDog/test-infra-definitions/components/docker"
 	"github.com/DataDog/test-infra-definitions/resources/local/docker"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/fakeintake"
@@ -51,6 +53,14 @@ func newProvisionerParams() *ProvisionerParams {
 		agentClientOptions: []agentclientparams.Option{},
 		fakeintakeOptions:  []fakeintake.Option{},
 		extraConfigParams:  runner.ConfigMap{},
+	}
+}
+
+// WithInstanceOptions adds options to the Instance.
+func WithInstanceOptions(opts ...ec2.VMOption) ProvisionerOption {
+	return func(params *ProvisionerParams) error {
+		params.instanceOptions = append(params.instanceOptions, opts...)
+		return nil
 	}
 }
 
@@ -94,6 +104,24 @@ func WithDocker() ProvisionerOption {
 	}
 }
 
+// ProvisionerNoAgentNoFakeIntake wraps Provisioner with hardcoded WithoutAgent and WithoutFakeIntake options.
+func ProvisionerNoAgentNoFakeIntake(opts ...ProvisionerOption) e2e.TypedProvisioner[environments.DockerLocal] {
+	mergedOpts := make([]ProvisionerOption, 0, len(opts)+2)
+	mergedOpts = append(mergedOpts, opts...)
+	mergedOpts = append(mergedOpts, WithoutAgent(), WithoutFakeIntake())
+
+	return Provisioner(mergedOpts...)
+}
+
+// ProvisionerNoFakeIntake wraps Provisioner with hardcoded WithoutFakeIntake option.
+func ProvisionerNoFakeIntake(opts ...ProvisionerOption) e2e.TypedProvisioner[environments.DockerLocal] {
+	mergedOpts := make([]ProvisionerOption, 0, len(opts)+1)
+	mergedOpts = append(mergedOpts, opts...)
+	mergedOpts = append(mergedOpts, WithoutFakeIntake())
+
+	return Provisioner(mergedOpts...)
+}
+
 // GetProvisionerParams return ProvisionerParams from options opts setup
 func GetProvisionerParams(opts ...ProvisionerOption) *ProvisionerParams {
 	params := newProvisionerParams()
@@ -132,7 +160,7 @@ func Run(ctx *pulumi.Context, env *environments.DockerLocal, params *Provisioner
 			return err
 		}
 	}
-	host, err := dclocal.NewVM(localEnv, params.name)
+	host, err := dclocal.NewVM(localEnv, params.name, params.instanceOptions...)
 	if err != nil {
 		return err
 	}
@@ -141,6 +169,23 @@ func Run(ctx *pulumi.Context, env *environments.DockerLocal, params *Provisioner
 		return err
 	}
 	_ = ctx.Log.Info(fmt.Sprintf("Running test on container '%v'", host.Name()), nil)
+
+	// Install docker if required
+	if params.installDocker {
+		dockerManager, err := dm.NewManager(&localEnv, host)
+		if err != nil {
+			return err
+		}
+		if params.agentOptions != nil {
+			// Agent install needs to be serial with the docker
+			// install because they both use the apt lock, and
+			// can cause each others' installs to fail if run
+			// at the same time.
+			params.agentOptions = append(params.agentOptions,
+				agentparams.WithPulumiResourceOptions(
+					utils.PulumiDependsOn(dockerManager)))
+		}
+	}
 
 	// Create FakeIntake if required
 	if params.fakeintakeOptions != nil {

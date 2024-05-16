@@ -34,7 +34,7 @@ func TestLocalSuite(t *testing.T) {
 					agentparams.WithHostname(t.Name())))),
 	}
 
-	if *devMode {
+	if isDevModeEnabled {
 		suiteParams = append(suiteParams, e2e.WithDevMode())
 	}
 
