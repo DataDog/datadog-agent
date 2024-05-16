@@ -11,8 +11,6 @@ import (
 	"fmt"
 	"math"
 
-	"golang.org/x/net/bpf"
-
 	"github.com/vishvananda/netns"
 
 	manager "github.com/DataDog/ebpf-manager"
@@ -32,21 +30,40 @@ type dnsMonitor struct {
 
 // NewReverseDNS starts snooping on DNS traffic to allow IP -> domain reverse resolution
 func NewReverseDNS(cfg *config.Config) (ReverseDNS, error) {
+	// Create the RAW_SOCKET inside the root network namespace
+	var (
+		packetSrc *filterpkg.AFPacketSource
+		srcErr    error
+		ns        netns.NsHandle
+	)
+	ns, err := cfg.GetRootNetNs()
+	if err != nil {
+		return nil, err
+	}
+	defer ns.Close()
+
+	err = kernel.WithNS(ns, func() error {
+		packetSrc, srcErr = filterpkg.NewPacketSource(4)
+		return srcErr
+	})
+	if err != nil {
+		return nil, err
+	}
+
 	currKernelVersion, err := kernel.HostVersion()
 	if err != nil {
 		// if the platform couldn't be determined, treat it as new kernel case
 		log.Warn("could not detect the platform, will use kprobes from kernel version >= 4.1.0")
 		currKernelVersion = math.MaxUint32
 	}
-	pre410Kernel := currKernelVersion < kernel.VersionCode(4, 1, 0)
 
 	var p *ebpfProgram
-	var filter *manager.Probe
-	var bpfFilter []bpf.RawInstruction
+	pre410Kernel := currKernelVersion < kernel.VersionCode(4, 1, 0)
 	if pre410Kernel {
-		bpfFilter, err = generateBPFFilter(cfg)
-		if err != nil {
+		if bpfFilter, err := generateBPFFilter(cfg); err != nil {
 			return nil, fmt.Errorf("error creating bpf classic filter: %w", err)
+		} else if err = packetSrc.SetBPF(bpfFilter); err != nil {
+			return nil, fmt.Errorf("could not set BPF filter on packet source: %w", err)
 		}
 	} else {
 		p, err = newEBPFProgram(cfg)
@@ -58,35 +75,19 @@ func NewReverseDNS(cfg *config.Config) (ReverseDNS, error) {
 			return nil, fmt.Errorf("error initializing ebpf programs: %w", err)
 		}
 
-		filter, _ = p.GetProbe(manager.ProbeIdentificationPair{EBPFFuncName: probes.SocketDNSFilter, UID: probeUID})
+		filter, _ := p.GetProbe(manager.ProbeIdentificationPair{EBPFFuncName: probes.SocketDNSFilter, UID: probeUID})
 		if filter == nil {
 			return nil, fmt.Errorf("error retrieving socket filter")
 		}
-	}
 
-	// Create the RAW_SOCKET inside the root network namespace
-	var (
-		packetSrc *filterpkg.AFPacketSource
-		srcErr    error
-		ns        netns.NsHandle
-	)
-	if ns, err = cfg.GetRootNetNs(); err != nil {
-		return nil, err
-	}
-	defer ns.Close()
-
-	err = kernel.WithNS(ns, func() error {
-		packetSrc, srcErr = filterpkg.NewPacketSource(filter, bpfFilter)
-		return srcErr
-	})
-	if err != nil {
-		return nil, err
+		packetSrc.SetEbpf(filter)
 	}
 
 	snoop, err := newSocketFilterSnooper(cfg, packetSrc)
 	if err != nil {
 		return nil, err
 	}
+
 	return &dnsMonitor{
 		snoop,
 		p,

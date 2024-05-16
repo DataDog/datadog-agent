@@ -281,6 +281,8 @@ type Config struct {
 	// Defaults to true. Setting this to false on a Kernel that supports ring
 	// buffers (>=5.8) will result in forcing the use of Perf Maps instead.
 	EnableUSMRingBuffers bool
+
+	EnableEbpflessTracer bool
 }
 
 func join(pieces ...string) string {
@@ -371,6 +373,8 @@ func New() *Config {
 		HTTPIdleConnectionTTL:  time.Duration(cfg.GetInt(join(smNS, "http_idle_connection_ttl_in_s"))) * time.Second,
 
 		EnableNPMConnectionRollup: cfg.GetBool(join(netNS, "enable_connection_rollup")),
+
+		EnableEbpflessTracer: cfg.GetBool(join(netNS, "enable_ebpf_less")),
 
 		// Service Monitoring
 		EnableJavaTLSSupport:        cfg.GetBool(join(smjtNS, "enabled")),

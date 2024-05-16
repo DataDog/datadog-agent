@@ -10,6 +10,7 @@ package filter
 
 import (
 	"fmt"
+	"os"
 	"reflect"
 	"syscall"
 	"time"
@@ -19,12 +20,13 @@ import (
 	"github.com/google/gopacket/afpacket"
 	"github.com/google/gopacket/layers"
 	"golang.org/x/net/bpf"
+	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-const telemetryModuleName = "network_tracer__dns"
+const telemetryModuleName = "network_tracer__filter"
 
 // Telemetry
 var packetSourceTelemetry = struct {
@@ -47,44 +49,63 @@ type AFPacketSource struct {
 	exit chan struct{}
 }
 
+type OptSnapLen int
+
 // NewPacketSource creates an AFPacketSource using the provided BPF filter
-func NewPacketSource(filter *manager.Probe, bpfFilter []bpf.RawInstruction) (*AFPacketSource, error) {
+func NewPacketSource(mbSize int, opts ...interface{}) (*AFPacketSource, error) {
+	snapLen := 4096
+	for _, opt := range opts {
+		switch o := opt.(type) {
+		case OptSnapLen:
+			snapLen = int(o)
+			if snapLen <= 0 || snapLen > 65536 {
+				return nil, fmt.Errorf("snap len should be between 0 and 65536")
+			}
+		default:
+			return nil, fmt.Errorf("unknown option %+v", opt)
+		}
+	}
+
+	frameSize, blockSize, numBlocks, err := afpacketComputeSize(mbSize, snapLen, os.Getpagesize())
+	if err != nil {
+		return nil, fmt.Errorf("error computing mmap'ed buffer parameters: %w", err)
+	}
+
+	log.Debugf("creating tpacket source with frame_size=%d block_size=%d num_blocks=%d", frameSize, blockSize, numBlocks)
 	rawSocket, err := afpacket.NewTPacket(
-		afpacket.OptPollTimeout(1*time.Second),
-		// This setup will require ~4Mb that is mmap'd into the process virtual space
-		// More information here: https://www.kernel.org/doc/Documentation/networking/packet_mmap.txt
-		afpacket.OptFrameSize(4096),
-		afpacket.OptBlockSize(4096*128),
-		afpacket.OptNumBlocks(8),
+		afpacket.OptPollTimeout(time.Second),
+		afpacket.OptFrameSize(frameSize),
+		afpacket.OptBlockSize(blockSize),
+		afpacket.OptNumBlocks(numBlocks),
+		afpacket.OptAddPktType(true),
 	)
+
 	if err != nil {
 		return nil, fmt.Errorf("error creating raw socket: %s", err)
 	}
 
-	if filter != nil {
-		// The underlying socket file descriptor is private, hence the use of reflection
-		// Point socket filter program to the RAW_SOCKET file descriptor
-		// Note the filter attachment itself is triggered by the ebpf.Manager
-		filter.SocketFD = int(reflect.ValueOf(rawSocket).Elem().FieldByName("fd").Int())
-	} else {
-		err = rawSocket.SetBPF(bpfFilter)
-		if err != nil {
-			return nil, fmt.Errorf("error setting classic bpf filter: %w", err)
-		}
-	}
-
 	ps := &AFPacketSource{
-		TPacket:      rawSocket,
-		socketFilter: filter,
-		exit:         make(chan struct{}),
+		TPacket: rawSocket,
+		exit:    make(chan struct{}),
 	}
 	go ps.pollStats()
 
 	return ps, nil
 }
 
+func (p *AFPacketSource) SetEbpf(filter *manager.Probe) {
+	// The underlying socket file descriptor is private, hence the use of reflection
+	// Point socket filter program to the RAW_SOCKET file descriptor
+	// Note the filter attachment itself is triggered by the ebpf.Manager
+	filter.SocketFD = int(reflect.ValueOf(p.TPacket).Elem().FieldByName("fd").Int())
+}
+
+func (p *AFPacketSource) SetBPF(filter []bpf.RawInstruction) error {
+	return p.TPacket.SetBPF(filter)
+}
+
 // VisitPackets starts reading packets from the source
-func (p *AFPacketSource) VisitPackets(exit <-chan struct{}, visit func([]byte, time.Time) error) error {
+func (p *AFPacketSource) VisitPackets(exit <-chan struct{}, visit func([]byte, uint8, time.Time) error) error {
 	for {
 		// allow the read loop to be prematurely interrupted
 		select {
@@ -108,7 +129,8 @@ func (p *AFPacketSource) VisitPackets(exit <-chan struct{}, visit func([]byte, t
 			return err
 		}
 
-		if err := visit(data, stats.Timestamp); err != nil {
+		log.Tracef("packet on interface %d, pkt type %d", stats.InterfaceIndex, stats.AncillaryData[0].(afpacket.AncillaryPktType).Type)
+		if err := visit(data, stats.AncillaryData[0].(afpacket.AncillaryPktType).Type, stats.Timestamp); err != nil {
 			return err
 		}
 	}
@@ -159,4 +181,56 @@ func (p *AFPacketSource) pollStats() {
 			return
 		}
 	}
+}
+
+// afpacketComputeSize computes the block_size and the num_blocks in such a way that the
+// allocated mmap buffer is close to but smaller than target_size_mb.
+// The restriction is that the block_size must be divisible by both the
+// frame size and page size.
+//
+// See https://www.kernel.org/doc/Documentation/networking/packet_mmap.txt
+func afpacketComputeSize(targetSizeMb, snaplen, pageSize int) (frameSize, blockSize, numBlocks int, err error) {
+	frameSize = tpacketAlign(unix.TPACKET_HDRLEN) + tpacketAlign(snaplen)
+	if frameSize <= pageSize {
+		frameSize = int(nextPowerOf2(int64(frameSize)))
+		if frameSize <= pageSize {
+			blockSize = pageSize
+		}
+	} else {
+		// align frameSize to pageSize
+		frameSize = (frameSize + pageSize - 1) & ^(pageSize - 1)
+		blockSize = frameSize
+	}
+
+	// convert to bytes from MB
+	targetSize := targetSizeMb << 20
+	numBlocks = targetSize / blockSize
+	if numBlocks == 0 {
+		return 0, 0, 0, fmt.Errorf("buffer size is too small")
+	}
+
+	blockSizeInc := blockSize
+	for numBlocks > afpacket.DefaultNumBlocks {
+		blockSize += blockSizeInc
+		numBlocks = targetSize / blockSize
+	}
+
+	return frameSize, blockSize, numBlocks, nil
+}
+
+func tpacketAlign(x int) int {
+	return (x + unix.TPACKET_ALIGNMENT - 1) & ^(unix.TPACKET_ALIGNMENT - 1)
+}
+
+func nextPowerOf2(v int64) int64 {
+	v--
+	v |= v >> 1
+	v |= v >> 2
+	v |= v >> 4
+	v |= v >> 8
+	v |= v >> 16
+	v |= v >> 32
+	v++
+
+	return v
 }

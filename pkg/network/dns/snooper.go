@@ -69,7 +69,7 @@ type packetSource interface {
 	// The format of the packet is dependent on the implementation of packetSource -- i.e. it may be an ethernet frame, or a IP frame.
 	// The data buffer is reused between invocations of VisitPacket and thus should not be pointed to.
 	// If the cancel channel is closed, VisitPackets will stop reading.
-	VisitPackets(cancel <-chan struct{}, visitor func(data []byte, timestamp time.Time) error) error
+	VisitPackets(cancel <-chan struct{}, visitor func(data []byte, _ uint8, timestamp time.Time) error) error
 
 	// PacketType returns the type of packet this source reads
 	PacketType() gopacket.LayerType
@@ -154,7 +154,7 @@ func (s *socketFilterSnooper) Close() {
 // The *translation is recycled and re-used in subsequent calls and it should not be accessed concurrently.
 // The second parameter `ts` is the time when the packet was captured off the wire. This is used for latency calculation
 // and much more reliable than calling time.Now() at the user layer.
-func (s *socketFilterSnooper) processPacket(data []byte, ts time.Time) error {
+func (s *socketFilterSnooper) processPacket(data []byte, _ uint8, ts time.Time) error {
 	t := s.getCachedTranslation()
 	pktInfo := dnsPacketInfo{}
 
