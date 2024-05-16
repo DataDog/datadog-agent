@@ -2,7 +2,7 @@ import os
 import sys
 
 from invoke import task
-from invoke.exceptions import UnexpectedExit
+from invoke.exceptions import Exit, UnexpectedExit
 
 from tasks.flavor import AgentFlavor
 from tasks.go import deps
@@ -214,6 +214,9 @@ def build(
 
     if not target_project:
         target_project = "agent"
+    if target_project != "agent" and flavor != AgentFlavor.base.name:
+        print("flavors only make sense when building the agent")
+        raise Exit(code=1)
     if flavor.is_iot():
         target_project = "iot-agent"
 
