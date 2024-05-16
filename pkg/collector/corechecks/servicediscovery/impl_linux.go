@@ -184,16 +184,24 @@ func (li *linuxImpl) DiscoverServices() error {
 		events.addStopped(p)
 	}
 
+	potentialNames := map[string]bool{}
+	for _, p := range li.potentialServices {
+		potentialNames[p.meta.Name] = true
+	}
+
 	for name, ev := range events {
 		if len(ev.started) > 0 && len(ev.stopped) > 0 {
-			// TODO: do something smarter here
-			log.Warnf("found multiple started/stopped processes with the same name, ignoring stop events (name: %q)", name)
+			log.Warnf("found multiple started/stopped processes with the same name, ignoring end-service events (name: %q)", name)
 			clear(ev.stopped)
 		}
 		for _, svc := range ev.started {
 			li.sender.sendStartServiceEvent(svc)
 		}
 		for _, svc := range ev.stopped {
+			if potentialNames[name] {
+				log.Debugf("there is a potential service with the same name as a stopped one, skipping end-service event (name: %q)", name)
+				break
+			}
 			li.sender.sendEndServiceEvent(svc)
 		}
 	}
