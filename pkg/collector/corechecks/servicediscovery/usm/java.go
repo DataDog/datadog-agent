@@ -42,7 +42,7 @@ func (jd javaDetector) detect(args []string) (ServiceMetadata, bool) {
 				if strings.HasSuffix(arg, javaJarExtension) {
 					// try to see if the application is a spring boot archive and extract its application name
 					if len(additionalNames) == 0 {
-						if springAppName, ok := NewSpringBootParser(jd.ctx).GetSpringBootAppName(a); ok {
+						if springAppName, ok := newSpringBootParser(jd.ctx).GetSpringBootAppName(a); ok {
 							return NewServiceMetadata(springAppName), true
 						}
 					}

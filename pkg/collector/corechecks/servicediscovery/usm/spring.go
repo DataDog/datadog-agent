@@ -103,7 +103,7 @@ type springBootParser struct {
 	ctx DetectionContext
 }
 
-func NewSpringBootParser(ctx DetectionContext) *springBootParser {
+func newSpringBootParser(ctx DetectionContext) *springBootParser {
 	return &springBootParser{ctx: ctx}
 }
 
