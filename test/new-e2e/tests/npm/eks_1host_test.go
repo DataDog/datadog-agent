@@ -86,6 +86,8 @@ func eksHttpbinEnvProvisioner() e2e.PulumiEnvRunFunc[eksHttpbinEnv] {
 
 // TestEKSVMSuite will validate running the agent
 func TestEKSVMSuite(t *testing.T) {
+	t.Parallel()
+
 	s := &eksVMSuite{}
 	e2eParams := []e2e.SuiteOption{e2e.WithProvisioner(e2e.NewTypedPulumiProvisioner("eksHttpbin", eksHttpbinEnvProvisioner(), nil))}
 
