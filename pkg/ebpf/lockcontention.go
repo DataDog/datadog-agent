@@ -94,6 +94,7 @@ type targetMap struct {
 var kernelAddresses = []string{
 	"bpf_map_fops",
 	"__per_cpu_offset",
+	"bpf_dummy_read",
 }
 
 // LockContentionCollector implements the prometheus Collector interface
@@ -515,6 +516,13 @@ func setKptrRestrict(val string) error {
 	return nil
 }
 
+func use_dummy_read(addrs map[string]uint64) bool {
+	_, ok_fops := addrs["bpf_map_fops"]
+	_, ok_read := addrs["bpf_dummy_read"]
+
+	return !ok_fops && ok_read
+}
+
 func getKernelSymbolsAddressesWithKptrRestrict(kernelAddresses ...string) (map[string]uint64, error) {
 	if err := setKptrRestrict(disableKptrRestrict); err != nil {
 		return nil, fmt.Errorf("unable to disable kptr_restrict: %w", err)
@@ -522,7 +530,11 @@ func getKernelSymbolsAddressesWithKptrRestrict(kernelAddresses ...string) (map[s
 
 	addrs, err := GetKernelSymbolsAddresses(kernelAddresses...)
 	if err != nil {
-		return nil, err
+		// on debian 12 bpf_map_fops is not exported, so we use
+		// bpf_dummy_read instead
+		if dummy_read := use_dummy_read(addrs); !dummy_read {
+			return nil, err
+		}
 	}
 
 	if err := setKptrRestrict(enableKptrRestrict); err != nil {

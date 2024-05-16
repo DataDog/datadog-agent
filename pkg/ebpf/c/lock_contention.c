@@ -15,6 +15,7 @@ BPF_HASH_MAP(map_addr_fd, struct lock_range, u32, 0);
 /* .rodata */
 /** Ksyms **/
 static volatile const u64 bpf_map_fops = 0;
+static volatile const u64 bpf_dummy_read = 0;
 static volatile const u64 __per_cpu_offset = 0;
 /** control data **/
 static volatile const u64 num_of_ranges = 0;
@@ -23,6 +24,7 @@ static volatile const u64 num_cpus = 0;
 
 static __always_inline bool is_bpf_map(u32 fd, struct file** bpf_map_file) {
     struct file **fdarray;
+    u64 fn_read;
     int err;
     u64 fops;
 
@@ -49,8 +51,19 @@ static __always_inline bool is_bpf_map(u32 fd, struct file** bpf_map_file) {
     if (!fops)
         return false;
 
-    if (fops != bpf_map_fops)
+    if (bpf_map_fops) {
+        if (fops != bpf_map_fops)
+            return false;
+    } else if (bpf_dummy_read) {
+        err = bpf_core_read(&fn_read, sizeof(u64), &((struct file_operations *)fops)->read);
+        if (err < 0)
+            return false;
+
+        if (fn_read != bpf_dummy_read)
+            return false;
+    } else {
         return false;
+    }
 
     return true;
 }

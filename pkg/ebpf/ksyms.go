@@ -8,6 +8,7 @@ package ebpf
 import (
 	"bufio"
 	"bytes"
+	"errors"
 	"fmt"
 	"os"
 	"sort"
@@ -47,15 +48,16 @@ func GetKernelSymbolsAddresses(ksyms ...string) (map[string]uint64, error) {
 	}
 
 	addresses := make(map[string]uint64, len(ksyms))
+	var errs []error
 	for _, sym := range ksyms {
 		if _, ok := missing[sym]; ok {
-			return nil, fmt.Errorf("failed to get address of symbol %s", sym)
+			errs = append(errs, fmt.Errorf("failed to get address of symbol %s", sym))
+		} else {
+			addresses[sym], _ = funcCache.lookupKernelSymbolAddress(sym)
 		}
-
-		addresses[sym], _ = funcCache.lookupKernelSymbolAddress(sym)
 	}
 
-	return addresses, nil
+	return addresses, errors.Join(errs...)
 }
 
 func (ec *existCache) lookupKernelSymbolAddress(symbol string) (uint64, bool) {
