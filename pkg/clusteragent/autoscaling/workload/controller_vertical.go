@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
 
 	datadoghq "github.com/DataDog/datadog-operator/apis/datadoghq/v1alpha1"
 
@@ -32,6 +33,8 @@ import (
 const (
 	subsystem  = "vertical_controller"
 	annotation = "autoscaling.datadoghq.com/scaling-hash"
+
+	requeueAfterSuccessTime = time.Minute
 )
 
 var supportedKinds = map[string]struct{}{
@@ -173,7 +176,9 @@ func (u *verticalController) sync(ctx context.Context, autoscalerInternal *model
 		Type: datadoghq.DatadogPodAutoscalerRolloutTriggeredVerticalActionType,
 	}
 	Patches.Inc(target.Kind, target.Name, target.Namespace, "success")
-	return withStatusUpdate(true, autoscaling.Requeue), nil
+
+	// Need to requeue the object to make sure the rollout completed
+	return withStatusUpdate(true, autoscaling.ProcessResult{RequeueAfter: requeueAfterSuccessTime}), nil
 }
 
 func equalResources(resourceList corev1.ResourceList, resourceMap map[string]string) bool {

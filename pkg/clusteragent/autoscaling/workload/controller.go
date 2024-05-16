@@ -83,6 +83,8 @@ func newController(
 	c.Controller = baseController
 	c.store = store
 	c.podWatcher = newPodWatcher(wlm)
+
+	// TODO: Ensure that controllers do not take action before the podwatcher is synced
 	c.horizontalController = newHorizontalReconciler(c.clock, eventRecorder, restMapper, scaleClient)
 	c.verticalController = newVerticalController(dynamicClient, c.podWatcher)
 

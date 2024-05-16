@@ -371,8 +371,10 @@ func TestProcessSuccessfulPatch(t *testing.T) {
 	result, err := controller.sync(ctx, podAutoscalerInternal)
 	assert.NoError(t, err)
 	assert.Equal(t, result, processResult{
-		ProcessResult: autoscaling.Requeue,
-		updateStatus:  true,
+		ProcessResult: autoscaling.ProcessResult{
+			RequeueAfter: requeueAfterSuccessTime,
+		},
+		updateStatus: true,
 	})
 	unstruct, err := cl.Resource(gvr).Namespace("test").Get(context.TODO(), "test-deployment", metav1.GetOptions{})
 	assert.NoError(t, err)
