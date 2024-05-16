@@ -37,10 +37,10 @@ func Module() fxutil.Module {
 
 func newNpScheduler(deps dependencies) provides {
 	var scheduler *npSchedulerImpl
-	collectorConfigs := newConfig(deps.AgentConfig)
-	if collectorConfigs.networkPathCollectorEnabled() {
+	configs := newConfig(deps.AgentConfig)
+	if configs.networkPathCollectorEnabled() {
 		deps.Logger.Debugf("Network Path Scheduler enabled")
-		scheduler = newNpSchedulerImpl(deps.EpForwarder, collectorConfigs)
+		scheduler = newNpSchedulerImpl(deps.EpForwarder, configs)
 	} else {
 		deps.Logger.Debugf("Network Path Scheduler disabled")
 		scheduler = newNoopNpSchedulerImpl()
