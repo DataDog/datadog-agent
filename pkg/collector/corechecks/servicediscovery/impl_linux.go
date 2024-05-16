@@ -127,7 +127,7 @@ func (li *linuxImpl) DiscoverServices() error {
 	clear(li.potentialServices)
 
 	// check open ports - these will be potential new services if they are still alive in the next iteration.
-	for pid, _ := range ports {
+	for pid := range ports {
 		if li.ignoreProcs[pid] {
 			continue
 		}
@@ -169,7 +169,7 @@ func (li *linuxImpl) DiscoverServices() error {
 	}
 
 	// check if services previously marked as ignore are still alive.
-	for pid, _ := range li.ignoreProcs {
+	for pid := range li.ignoreProcs {
 		if _, ok := procs[pid]; !ok {
 			delete(li.ignoreProcs, pid)
 		}
