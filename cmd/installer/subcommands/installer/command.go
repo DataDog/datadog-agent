@@ -96,8 +96,13 @@ type installerCmd struct {
 	installer.Installer
 }
 
-func newInstallerCmd(operation string) (*installerCmd, error) {
+func newInstallerCmd(operation string) (_ *installerCmd, err error) {
 	cmd := newCmd(operation)
+	defer func() {
+		if err != nil {
+			cmd.Stop(err)
+		}
+	}()
 	var opts []installer.Option
 	if cmd.registry != "" {
 		opts = append(opts, installer.WithRegistry(cmd.registry))
