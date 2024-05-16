@@ -79,13 +79,14 @@ def get_distro():
     Linux is the only one that needs to be determined using the /etc/os-release file.
     """
     system = platform.system()
+    arch = platform.machine()
     if system == 'Linux':
         if os.path.isfile('/etc/os-release'):
             with open('/etc/os-release', encoding="utf-8") as f:
                 for line in f:
                     if line.startswith('ID='):
-                        return line.strip()[3:]
-    return system.lower()
+                        system = line.strip()[3:]
+    return f"{system}_{arch}".lower()
 
 
 def get_goenv(ctx, var):
