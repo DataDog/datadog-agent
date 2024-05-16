@@ -5,7 +5,7 @@
 
 //go:build test
 
-package npschedulerimpl
+package npcollectorimpl
 
 import (
 	"go.uber.org/fx"

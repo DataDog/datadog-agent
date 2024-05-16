@@ -34,8 +34,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/eventplatformreceiverimpl"
 	hostMetadataUtils "github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl/utils"
-	"github.com/DataDog/datadog-agent/comp/networkpath/npscheduler"
-	"github.com/DataDog/datadog-agent/comp/networkpath/npscheduler/npschedulerimpl"
+	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector"
+	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/npcollectorimpl"
 	processComponent "github.com/DataDog/datadog-agent/comp/process"
 	"github.com/DataDog/datadog-agent/comp/process/hostinfo"
 	"github.com/DataDog/datadog-agent/comp/process/types"
@@ -67,7 +67,7 @@ type Dependencies struct {
 	// lifecycle.
 	Tagger       tagger.Component
 	WorkloadMeta workloadmeta.Component
-	NpScheduler  npscheduler.Component
+	NpCollector  npcollector.Component
 	Checks       []types.CheckComponent `group:"check"`
 }
 
@@ -118,7 +118,7 @@ func MakeCommand(globalParams *command.GlobalParams, name string, allowlist []st
 				eventplatformreceiverimpl.Module(),
 				eventplatformimpl.Module(),
 				fx.Supply(eventplatformimpl.NewDefaultParams()),
-				npschedulerimpl.Module(),
+				npcollectorimpl.Module(),
 				// Provide the corresponding workloadmeta Params to configure the catalog
 				collectors.GetCatalog(),
 				fx.Provide(func(config config.Component) workloadmeta.Params {

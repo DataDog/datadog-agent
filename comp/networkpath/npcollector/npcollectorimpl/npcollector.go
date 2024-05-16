@@ -3,34 +3,34 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
-// Package npschedulerimpl implements the scheduler for network path
-package npschedulerimpl
+// Package npcollectorimpl implements the scheduler for network path
+package npcollectorimpl
 
 import (
 	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 )
 
-type npSchedulerImpl struct {
+type npCollectorImpl struct {
 	epForwarder      eventplatform.Component
 	collectorConfigs *collectorConfigs
 }
 
-func (s *npSchedulerImpl) ScheduleConns(_ []*model.Connection) {
+func (s *npCollectorImpl) ScheduleConns(_ []*model.Connection) {
 	if !s.collectorConfigs.connectionsMonitoringEnabled {
 		return
 	}
 	// TODO: IMPLEMENTATION IN SEPARATE PR (to make PRs easier to review)
 }
 
-func newNoopNpSchedulerImpl() *npSchedulerImpl {
-	return &npSchedulerImpl{
+func newNoopNpCollectorImpl() *npCollectorImpl {
+	return &npCollectorImpl{
 		collectorConfigs: &collectorConfigs{},
 	}
 }
 
-func newNpSchedulerImpl(epForwarder eventplatform.Component, collectorConfigs *collectorConfigs) *npSchedulerImpl {
-	return &npSchedulerImpl{
+func newNpCollectorImpl(epForwarder eventplatform.Component, collectorConfigs *collectorConfigs) *npCollectorImpl {
+	return &npCollectorImpl{
 		epForwarder:      epForwarder,
 		collectorConfigs: collectorConfigs,
 	}

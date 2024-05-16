@@ -341,9 +341,9 @@ It does not expose any public methods.
 
 Package networkpath implements the "networkpath" bundle,
 
-### [comp/networkpath/npscheduler](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/networkpath/npscheduler)
+### [comp/networkpath/npcollector](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/networkpath/npcollector)
 
-Package npscheduler used to manage network paths
+Package npcollector used to manage network paths
 
 ## [comp/otelcol](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/otelcol) (Component Bundle)
 

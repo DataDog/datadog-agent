@@ -143,7 +143,7 @@ func runApp(ctx context.Context, globalParams *GlobalParams) error {
 		eventplatformreceiverimpl.Module(),
 		eventplatformimpl.Module(),
 
-		// Provide network path scheduler bundle
+		// Provide network path bundle
 		networkpath.Bundle(),
 
 		// Provide remote config client bundle
