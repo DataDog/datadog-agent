@@ -98,7 +98,7 @@ func untarFile(tr *tar.Reader, hdr *tar.Header, destinationDir string) error {
 		return fmt.Errorf("mkdir %s: %w", fpath, err)
 	}
 
-	out, err := os.OpenFile(fpath, os.O_RDWR|os.O_CREATE|os.O_TRUNC, hdr.FileInfo().Mode())
+	out, err := os.OpenFile(fpath, os.O_RDWR|os.O_CREATE|os.O_TRUNC, hdr.FileInfo().Mode().Perm())
 	if err != nil {
 		return fmt.Errorf("open file %s: %w", fpath, err)
 	}
