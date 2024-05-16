@@ -337,7 +337,7 @@ In the following example, your mock has no dependencies and returns the same str
     type mock struct {}
 
     // New returns a mock compressor
-    func New(t *testing.T) Provides {
+    func New(*testing.T) Provides {
         return Provides{
             comp: &mock{},
         }
@@ -399,7 +399,7 @@ comp/core/compression/
 └── mock
     └── mock.go
 
-6 directories, 7 files
+6 directories, 6 files
 ```
 
 This can seem like a lot for a single compression component, but this design answers the exponentially increasing complexity

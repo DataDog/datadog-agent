@@ -9,8 +9,7 @@ For use cases like that of DogStatsD, create a bundle.
 
 ## Creating a bundle
 
-A bundle eases the aggregation of multiple components and lives in `comp/<bundlesName>/`. A bundle must only import
-components nested withing `comp/<bundleName>`.
+A bundle eases the aggregation of multiple components and lives in `comp/<bundlesName>/`.
 
 === ":octicons-file-code-16: comp/&lt;bundleName&gt;/bundle.go"
     ```go
