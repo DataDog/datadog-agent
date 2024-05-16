@@ -86,6 +86,10 @@ def get_ebpf_build_dir(arch: Arch) -> Path:
     return Path("pkg/ebpf/bytecode/build") / arch.name
 
 
+def get_ebpf_runtime_dir() -> Path:
+    return Path("pkg/ebpf/bytecode/build/runtime")
+
+
 def ninja_define_windows_resources(ctx, nw: NinjaWriter, major_version):
     maj_ver, min_ver, patch_ver = get_version_numeric_only(ctx, major_version=major_version).split(".")
     nw.variable("maj_ver", maj_ver)
@@ -1376,6 +1380,7 @@ def build_object_files(
 ) -> None:
     arch_obj = get_arch(arch)
     build_dir = get_ebpf_build_dir(arch_obj)
+    runtime_dir = get_ebpf_runtime_dir()
 
     if not is_windows:
         verify_system_clang_version(ctx)
@@ -1387,7 +1392,7 @@ def build_object_files(
             ctx.run("which llvm-strip")
 
         check_for_inline(ctx)
-        ctx.run(f"mkdir -p -m 0755 {build_dir}/runtime")
+        ctx.run(f"mkdir -p -m 0755 {runtime_dir}")
         ctx.run(f"mkdir -p -m 0755 {build_dir}/co-re")
 
     global extra_cflags
@@ -1418,6 +1423,9 @@ def build_object_files(
             ctx.run(
                 f"{sudo} rsync --chmod=F644 --chown=root:root -rvt {rsync_filter} {build_dir}/ {EMBEDDED_SHARE_DIR}"
             )
+            ctx.run(
+                f"{sudo} rsync --chmod=F644 --chown=root:root -rvt {rsync_filter} {build_dir}/ {EMBEDDED_SHARE_DIR}/runtime"
+            )
         else:
             with ctx.cd(build_dir):
 
@@ -1434,6 +1442,8 @@ def build_object_files(
                 ctx.run(f"{sudo} find . -maxdepth 1 -type f -name '*.o' {cp_cmd('.')}")
                 ctx.run(f"{sudo} mkdir -p {EMBEDDED_SHARE_DIR}/co-re")
                 ctx.run(f"{sudo} find ./co-re -maxdepth 1 -type f -name '*.o' {cp_cmd('co-re')}")
+
+            with ctx.cd(runtime_dir):
                 ctx.run(f"{sudo} mkdir -p {EMBEDDED_SHARE_DIR}/runtime")
                 ctx.run(f"{sudo} find ./runtime -maxdepth 1 -type f -name '*.c' {cp_cmd('runtime')}")
 
@@ -1924,3 +1934,21 @@ def save_build_outputs(ctx, destfile):
     outfiles.sort()
     for outfile in outfiles:
         ctx.run(f"sha256sum {outfile} >> {absdest}.sum")
+
+
+def copy_ebpf_and_related_files(ctx: Context, target: Path | str, arch: Arch | None = None, copy_usm_jar: bool = True):
+    if arch is None:
+        arch = get_arch("local")
+
+    build_dir = get_ebpf_build_dir(arch)
+    runtime_dir = get_ebpf_runtime_dir()
+    ctx.run(f"cp {build_dir}/*.o {target}")
+    ctx.run(f"mkdir {target}/co-re")
+    ctx.run(f"cp {build_dir}/co-re/*.o {target}/co-re/")
+    ctx.run(f"cp {runtime_dir}/*.c {target}")
+    ctx.run(f"chmod 0444 {target}/*.o {target}/*.c {target}/co-re/*.o")
+    ctx.run(f"cp /opt/datadog-agent/embedded/bin/clang-bpf {target}")
+    ctx.run(f"cp /opt/datadog-agent/embedded/bin/llc-bpf {target}")
+
+    if copy_usm_jar:
+        ctx.run(f"cp pkg/network/protocols/tls/java/agent-usm.jar {target}")

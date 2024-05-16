@@ -35,6 +35,7 @@ from tasks.system_probe import (
     CURRENT_ARCH,
     build_cws_object_files,
     check_for_ninja,
+    copy_ebpf_and_related_files,
     ninja_define_ebpf_compiler,
     ninja_define_exe_compiler,
 )
@@ -157,13 +158,7 @@ def build_dev_image(ctx, image=None, push=False, base_image="datadog/agent:lates
             ctx.run(f"touch {docker_context}/agent")
             core_agent_dest = "/dev/null"
 
-        ctx.run(f"cp pkg/ebpf/bytecode/build/*.o {docker_context}")
-        ctx.run(f"mkdir {docker_context}/co-re")
-        ctx.run(f"cp pkg/ebpf/bytecode/build/co-re/*.o {docker_context}/co-re/")
-        ctx.run(f"cp pkg/ebpf/bytecode/build/runtime/*.c {docker_context}")
-        ctx.run(f"chmod 0444 {docker_context}/*.o {docker_context}/*.c {docker_context}/co-re/*.o")
-        ctx.run(f"cp /opt/datadog-agent/embedded/bin/clang-bpf {docker_context}")
-        ctx.run(f"cp /opt/datadog-agent/embedded/bin/llc-bpf {docker_context}")
+        copy_ebpf_and_related_files(ctx, docker_context, copy_usm_jar=False)
 
         with ctx.cd(docker_context):
             # --pull in the build will force docker to grab the latest base image

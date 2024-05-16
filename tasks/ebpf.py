@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from tasks.libs.types.arch import get_arch
+
 try:
     from termcolor import colored
 except ImportError:
@@ -27,7 +29,7 @@ try:
 except ImportError:
     tabulate = None
 
-from .system_probe import build_cws_object_files, build_object_files, is_root
+from .system_probe import build_cws_object_files, build_object_files, get_ebpf_build_dir, is_root
 
 VERIFIER_DATA_DIR = Path("ebpf-calculator")
 LOGS_DIR = VERIFIER_DATA_DIR / "logs"
@@ -134,7 +136,8 @@ def collect_verification_stats(
 
     ctx.run("go build -tags linux_bpf pkg/ebpf/verifier/calculator/main.go")
 
-    env = {"DD_SYSTEM_PROBE_BPF_DIR": "./pkg/ebpf/bytecode/build"}
+    arch = get_arch("local")
+    env = {"DD_SYSTEM_PROBE_BPF_DIR": f"./{get_ebpf_build_dir(arch)}"}
 
     # ensure all files are object files
     for f in filter_file or []:

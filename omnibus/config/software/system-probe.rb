@@ -21,10 +21,12 @@ build do
   mkdir "#{install_dir}/embedded/share/system-probe/ebpf/co-re/btf"
   mkdir "#{install_dir}/embedded/share/system-probe/java"
 
+  arch = `uname -m`
+
   if ENV.has_key?('SYSTEM_PROBE_BIN') and not ENV['SYSTEM_PROBE_BIN'].empty?
-    copy "pkg/ebpf/bytecode/build/*.o", "#{install_dir}/embedded/share/system-probe/ebpf/"
+    copy "pkg/ebpf/bytecode/build/#{arch}/*.o", "#{install_dir}/embedded/share/system-probe/ebpf/"
     delete "#{install_dir}/embedded/share/system-probe/ebpf/usm_events_test*.o"
-    copy "pkg/ebpf/bytecode/build/co-re/*.o", "#{install_dir}/embedded/share/system-probe/ebpf/co-re/"
+    copy "pkg/ebpf/bytecode/build/#{arch}/co-re/*.o", "#{install_dir}/embedded/share/system-probe/ebpf/co-re/"
     copy "pkg/ebpf/bytecode/build/runtime/*.c", "#{install_dir}/embedded/share/system-probe/ebpf/runtime/"
     copy "#{ENV['SYSTEM_PROBE_BIN']}/clang-bpf", "#{install_dir}/embedded/bin/clang-bpf"
     copy "#{ENV['SYSTEM_PROBE_BIN']}/llc-bpf", "#{install_dir}/embedded/bin/llc-bpf"

@@ -6,7 +6,7 @@ import os
 import re
 import tempfile
 from collections import defaultdict
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 from glob import glob
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
@@ -46,6 +46,7 @@ from tasks.system_probe import (
     NPM_TAG,
     TEST_PACKAGES_LIST,
     check_for_ninja,
+    get_ebpf_build_dir,
     get_sysprobe_buildtags,
     get_test_timeout,
     go_package_dirs,
@@ -491,19 +492,24 @@ def ninja_build_dependencies(ctx: Context, nw: NinjaWriter, kmt_paths: KMTPaths,
     )
 
 
-def ninja_copy_ebpf_files(nw, component, kmt_paths, filter_fn=lambda _: True):
+def ninja_copy_ebpf_files(
+    nw: NinjaWriter,
+    component: Component,
+    kmt_paths: KMTPaths,
+    arch: Arch,
+    filter_fn: Callable[[Path], bool] = lambda _: True,
+):
     # copy ebpf files
+    build_dir = get_ebpf_build_dir(arch)
     ebpf_files = [
-        os.path.abspath(i)
-        for i in glob("pkg/ebpf/bytecode/build/**/*", recursive=True)
-        if os.path.isfile(i) and Path(i).suffix in ['.c', '.o'] and filter_fn(i)
+        p.absolute() for p in build_dir.glob("**/*") if p.is_file() and p.suffix in ['.c', '.o'] and filter_fn(p)
     ]
 
     output = kmt_paths.secagent_tests if component == "security-agent" else kmt_paths.sysprobe_tests
 
     for file in ebpf_files:
-        out = f"{output}/{os.path.relpath(file)}"
-        nw.build(inputs=[file], outputs=[out], rule="copyfiles", variables={"mode": "-m744"})
+        out = output / os.path.relpath(file)
+        nw.build(inputs=[os.fspath(file)], outputs=[os.fspath(out)], rule="copyfiles", variables={"mode": "-m744"})
 
 
 @task
@@ -549,7 +555,11 @@ def kmt_secagent_prepare(
         ninja_define_rules(nw)
         ninja_build_dependencies(ctx, nw, kmt_paths, go_path, arch)
         ninja_copy_ebpf_files(
-            nw, "security-agent", kmt_paths, filter_fn=lambda x: os.path.basename(x).startswith("runtime-security")
+            nw,
+            "security-agent",
+            kmt_paths,
+            arch,
+            filter_fn=lambda x: os.path.basename(x).startswith("runtime-security"),
         )
 
     ctx.run(f"ninja -d explain -v -f {nf_path}")
@@ -744,7 +754,7 @@ def kmt_sysprobe_prepare(
 
         ninja_define_rules(nw)
         ninja_build_dependencies(ctx, nw, kmt_paths, go_path, arch)
-        ninja_copy_ebpf_files(nw, "system-probe", kmt_paths)
+        ninja_copy_ebpf_files(nw, "system-probe", kmt_paths, arch)
 
         for pkg in target_packages:
             target_path = os.path.join(kmt_paths.sysprobe_tests, os.path.relpath(pkg, os.getcwd()))

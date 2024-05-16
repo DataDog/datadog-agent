@@ -211,6 +211,7 @@ def build(
         flavor=flavor,
         pip_config_file=pip_config_file,
     )
+    print(env)
 
     if not target_project:
         target_project = "agent"
