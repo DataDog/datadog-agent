@@ -36,17 +36,17 @@ func Module() fxutil.Module {
 }
 
 func newNpCollector(deps dependencies) provides {
-	var scheduler *npCollectorImpl
+	var collector *npCollectorImpl
 	configs := newConfig(deps.AgentConfig)
 	if configs.networkPathCollectorEnabled() {
 		deps.Logger.Debugf("Network Path Collector enabled")
-		scheduler = newNpCollectorImpl(deps.EpForwarder, configs)
+		collector = newNpCollectorImpl(deps.EpForwarder, configs)
 	} else {
 		deps.Logger.Debugf("Network Path Collector disabled")
-		scheduler = newNoopNpCollectorImpl()
+		collector = newNoopNpCollectorImpl()
 	}
 
 	return provides{
-		Comp: scheduler,
+		Comp: collector,
 	}
 }

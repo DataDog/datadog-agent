@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
-// Package npcollectorimpl implements the scheduler for network path
+// Package npcollectorimpl implements network path collector
 package npcollectorimpl
 
 import (
@@ -16,7 +16,7 @@ type npCollectorImpl struct {
 	collectorConfigs *collectorConfigs
 }
 
-func (s *npCollectorImpl) ScheduleConns(_ []*model.Connection) {
+func (s *npCollectorImpl) CollectForConns(_ []*model.Connection) {
 	if !s.collectorConfigs.connectionsMonitoringEnabled {
 		return
 	}
