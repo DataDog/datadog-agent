@@ -63,7 +63,6 @@ lint_macos_gitlab_amd64:
     - echo $PATH
     - which python3
   script:
-    - source /root/.bashrc
     - inv -e rtloader.make --install-prefix=$CI_PROJECT_DIR/dev --python-runtimes "3"
     - inv -e rtloader.install
     - inv -e install-tools
