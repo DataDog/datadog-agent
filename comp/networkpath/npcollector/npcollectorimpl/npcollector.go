@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
-// Package npcollectorimpl implements the scheduler for network path
+// Package npcollectorimpl implements network path collector
 package npcollectorimpl
 
 import (
@@ -127,7 +127,7 @@ func (s *npCollectorImpl) CollectForConns(conns []*model.Connection) {
 	}
 
 	scheduleDuration := s.TimeNowFn().Sub(startTime)
-	s.statsdClient.Gauge("datadog.network_path.scheduler.schedule_duration", scheduleDuration.Seconds(), nil, 1) //nolint:errcheck
+	s.statsdClient.Gauge("datadog.network_path.collector.schedule_duration", scheduleDuration.Seconds(), nil, 1) //nolint:errcheck
 }
 
 // scheduleOne schedules pathtests.
@@ -258,23 +258,23 @@ func (s *npCollectorImpl) flushWrapper(flushTime time.Time, lastFlushTime time.T
 	s.logger.Debugf("Flush loop at %s", flushTime)
 	if !lastFlushTime.IsZero() {
 		flushInterval := flushTime.Sub(lastFlushTime)
-		s.statsdClient.Gauge("datadog.network_path.scheduler.flush_interval", flushInterval.Seconds(), []string{}, 1) //nolint:errcheck
+		s.statsdClient.Gauge("datadog.network_path.collector.flush_interval", flushInterval.Seconds(), []string{}, 1) //nolint:errcheck
 	}
 	lastFlushTime = flushTime
 
 	s.flush()
-	s.statsdClient.Gauge("datadog.network_path.scheduler.flush_duration", s.TimeNowFn().Sub(flushTime).Seconds(), []string{}, 1) //nolint:errcheck
+	s.statsdClient.Gauge("datadog.network_path.collector.flush_duration", s.TimeNowFn().Sub(flushTime).Seconds(), []string{}, 1) //nolint:errcheck
 }
 
 func (s *npCollectorImpl) flush() {
-	s.statsdClient.Gauge("datadog.network_path.scheduler.workers", float64(s.workers), []string{}, 1) //nolint:errcheck
+	s.statsdClient.Gauge("datadog.network_path.collector.workers", float64(s.workers), []string{}, 1) //nolint:errcheck
 
 	flowsContexts := s.pathtestStore.GetContextsCount()
-	s.statsdClient.Gauge("datadog.network_path.scheduler.pathtest_store_size", float64(flowsContexts), []string{}, 1) //nolint:errcheck
+	s.statsdClient.Gauge("datadog.network_path.collector.pathtest_store_size", float64(flowsContexts), []string{}, 1) //nolint:errcheck
 
 	flushTime := s.TimeNowFn()
 	flowsToFlush := s.pathtestStore.Flush()
-	s.statsdClient.Gauge("datadog.network_path.scheduler.pathtest_flushed_count", float64(len(flowsToFlush)), []string{}, 1) //nolint:errcheck
+	s.statsdClient.Gauge("datadog.network_path.collector.pathtest_flushed_count", float64(len(flowsToFlush)), []string{}, 1) //nolint:errcheck
 
 	s.logger.Debugf("Flushing %d flows to the forwarder (flush_duration=%d, flow_contexts_before_flush=%d)", len(flowsToFlush), time.Since(flushTime).Milliseconds(), flowsContexts)
 
@@ -290,7 +290,7 @@ func (s *npCollectorImpl) sendTelemetry(path payload.NetworkPath, startTime time
 	telemetry.SubmitNetworkPathTelemetry(
 		s.metricSender,
 		path,
-		telemetry.CollectorTypeNetworkPathScheduler,
+		telemetry.CollectorTypeNetworkPathCollector,
 		checkDuration,
 		checkInterval,
 		[]string{},

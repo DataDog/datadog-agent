@@ -264,7 +264,7 @@ func Test_NpCollector_ScheduleConns_ScheduleDurationMetric(t *testing.T) {
 
 	// THEN
 	calls := stats.GaugeCalls
-	assert.Contains(t, calls, teststatsd.MetricsArgs{Name: "datadog.network_path.scheduler.schedule_duration", Value: 60.0, Tags: nil, Rate: 1})
+	assert.Contains(t, calls, teststatsd.MetricsArgs{Name: "datadog.network_path.collector.schedule_duration", Value: 60.0, Tags: nil, Rate: 1})
 }
 
 func compactJSON(metadataEvent []byte) []byte {
@@ -468,13 +468,13 @@ func Test_npCollectorImpl_ScheduleConns(t *testing.T) {
 			var scheduleDurationMetric teststatsd.MetricsArgs
 			calls := stats.GaugeCalls
 			for _, call := range calls {
-				if call.Name == "datadog.network_path.scheduler.schedule_duration" {
+				if call.Name == "datadog.network_path.collector.schedule_duration" {
 					scheduleDurationMetric = call
 				}
 			}
 			assert.Less(t, scheduleDurationMetric.Value, float64(5)) // we can't easily assert precise value, hence we are only asserting that it's a low value e.g. 5 seconds
 			scheduleDurationMetric.Value = 0                         // We need to reset the metric value to ease testing time duration
-			assert.Equal(t, teststatsd.MetricsArgs{Name: "datadog.network_path.scheduler.schedule_duration", Value: 0, Tags: nil, Rate: 1}, scheduleDurationMetric)
+			assert.Equal(t, teststatsd.MetricsArgs{Name: "datadog.network_path.collector.schedule_duration", Value: 0, Tags: nil, Rate: 1}, scheduleDurationMetric)
 
 			// Test using logs
 			for _, expectedLog := range tt.expectedLogs {
@@ -526,10 +526,10 @@ func Test_npCollectorImpl_flushWrapper(t *testing.T) {
 			flushStartTime: MockTimeNow(),
 			flushEndTime:   MockTimeNow().Add(500 * time.Millisecond),
 			notExpectedMetrics: []string{
-				"datadog.network_path.scheduler.flush_interval",
+				"datadog.network_path.collector.flush_interval",
 			},
 			expectedMetrics: []teststatsd.MetricsArgs{
-				{Name: "datadog.network_path.scheduler.flush_duration", Value: 0.5, Tags: []string{}, Rate: 1},
+				{Name: "datadog.network_path.collector.flush_duration", Value: 0.5, Tags: []string{}, Rate: 1},
 			},
 		},
 		{
@@ -539,8 +539,8 @@ func Test_npCollectorImpl_flushWrapper(t *testing.T) {
 			lastFlushTime:      MockTimeNow().Add(-2 * time.Minute),
 			notExpectedMetrics: []string{},
 			expectedMetrics: []teststatsd.MetricsArgs{
-				{Name: "datadog.network_path.scheduler.flush_duration", Value: 0.5, Tags: []string{}, Rate: 1},
-				{Name: "datadog.network_path.scheduler.flush_interval", Value: (2 * time.Minute).Seconds(), Tags: []string{}, Rate: 1},
+				{Name: "datadog.network_path.collector.flush_duration", Value: 0.5, Tags: []string{}, Rate: 1},
+				{Name: "datadog.network_path.collector.flush_interval", Value: (2 * time.Minute).Seconds(), Tags: []string{}, Rate: 1},
 			},
 		},
 	}
@@ -595,9 +595,9 @@ func Test_npCollectorImpl_flush(t *testing.T) {
 
 	// THEN
 	calls := stats.GaugeCalls
-	assert.Contains(t, calls, teststatsd.MetricsArgs{Name: "datadog.network_path.scheduler.workers", Value: 6, Tags: []string{}, Rate: 1})
-	assert.Contains(t, calls, teststatsd.MetricsArgs{Name: "datadog.network_path.scheduler.pathtest_store_size", Value: 2, Tags: []string{}, Rate: 1})
-	assert.Contains(t, calls, teststatsd.MetricsArgs{Name: "datadog.network_path.scheduler.pathtest_flushed_count", Value: 2, Tags: []string{}, Rate: 1})
+	assert.Contains(t, calls, teststatsd.MetricsArgs{Name: "datadog.network_path.collector.workers", Value: 6, Tags: []string{}, Rate: 1})
+	assert.Contains(t, calls, teststatsd.MetricsArgs{Name: "datadog.network_path.collector.pathtest_store_size", Value: 2, Tags: []string{}, Rate: 1})
+	assert.Contains(t, calls, teststatsd.MetricsArgs{Name: "datadog.network_path.collector.pathtest_flushed_count", Value: 2, Tags: []string{}, Rate: 1})
 
 	assert.Equal(t, 2, len(npCollector.pathtestProcessingChan))
 }

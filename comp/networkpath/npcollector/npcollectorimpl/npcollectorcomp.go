@@ -38,7 +38,7 @@ func Module() fxutil.Module {
 }
 
 func newNpCollector(deps dependencies) provides {
-	var scheduler *npCollectorImpl
+	var collector *npCollectorImpl
 
 	configs := newConfig(deps.AgentConfig)
 	if configs.networkPathCollectorEnabled() {
@@ -46,26 +46,26 @@ func newNpCollector(deps dependencies) provides {
 		epForwarder, ok := deps.EpForwarder.Get()
 		if !ok {
 			deps.Logger.Errorf("Error getting EpForwarder")
-			scheduler = newNoopNpCollectorImpl()
+			collector = newNoopNpCollectorImpl()
 		} else {
-			scheduler = newNpCollectorImpl(epForwarder, configs, deps.Logger, deps.AgentConfig)
+			collector = newNpCollectorImpl(epForwarder, configs, deps.Logger, deps.AgentConfig)
 			deps.Lc.Append(fx.Hook{
 				// No need for OnStart hook since NpCollector.Init() will be called by clients when needed.
 				OnStart: func(context.Context) error {
-					return scheduler.start()
+					return collector.start()
 				},
 				OnStop: func(context.Context) error {
-					scheduler.stop()
+					collector.stop()
 					return nil
 				},
 			})
 		}
 	} else {
 		deps.Logger.Debugf("Network Path Collector disabled")
-		scheduler = newNoopNpCollectorImpl()
+		collector = newNoopNpCollectorImpl()
 	}
 
 	return provides{
-		Comp: scheduler,
+		Comp: collector,
 	}
 }
