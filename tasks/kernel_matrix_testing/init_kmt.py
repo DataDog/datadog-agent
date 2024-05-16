@@ -66,6 +66,6 @@ def init_kernel_matrix_testing_system(ctx: Context, lite: bool, images):
 
     if kmt_os.name == "macos":
         for cc in all_compilers(ctx):
-            cc.build()
+            cc.start()
     else:
-        get_compiler(ctx, "local").build()
+        get_compiler(ctx, "local").start()
