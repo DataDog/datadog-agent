@@ -109,7 +109,7 @@ func newNpCollectorImpl(epForwarder eventplatform.Forwarder, collectorConfigs *c
 	}
 }
 
-func (s *npCollectorImpl) CollectForConns(conns []*model.Connection) {
+func (s *npCollectorImpl) ScheduleConns(conns []*model.Connection) {
 	if !s.collectorConfigs.connectionsMonitoringEnabled {
 		return
 	}

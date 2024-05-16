@@ -209,7 +209,7 @@ func Test_NpCollector_runningAndProcessing(t *testing.T) {
 			Direction: model.ConnectionDirection_outgoing,
 		},
 	}
-	npCollector.CollectForConns(conns)
+	npCollector.ScheduleConns(conns)
 
 	waitForProcessedPathtests(npCollector, 5*time.Second, 1)
 
@@ -260,7 +260,7 @@ func Test_NpCollector_ScheduleConns_ScheduleDurationMetric(t *testing.T) {
 	}
 
 	// WHEN
-	npCollector.CollectForConns(conns)
+	npCollector.ScheduleConns(conns)
 
 	// THEN
 	calls := stats.GaugeCalls
@@ -387,7 +387,7 @@ func Test_npCollectorImpl_ScheduleConns(t *testing.T) {
 			},
 			expectedPathtests: []*common.Pathtest{},
 			expectedLogs: []logCount{
-				{"[ERROR] CollectForConns: Error scheduling pathtests: no input channel, please check that network path is enabled", 1},
+				{"[ERROR] ScheduleConns: Error scheduling pathtests: no input channel, please check that network path is enabled", 1},
 			},
 		},
 		{
@@ -446,7 +446,7 @@ func Test_npCollectorImpl_ScheduleConns(t *testing.T) {
 			stats := &teststatsd.Client{}
 			npCollector.statsdClient = stats
 
-			npCollector.CollectForConns(tt.conns)
+			npCollector.ScheduleConns(tt.conns)
 
 			actualPathtests := []*common.Pathtest{}
 			for i := 0; i < len(tt.expectedPathtests); i++ {

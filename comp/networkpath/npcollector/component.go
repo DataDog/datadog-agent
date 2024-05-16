@@ -12,5 +12,5 @@ import model "github.com/DataDog/agent-payload/v5/process"
 
 // Component is the component type.
 type Component interface {
-	CollectForConns(conns []*model.Connection)
+	ScheduleConns(conns []*model.Connection)
 }
