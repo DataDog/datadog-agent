@@ -68,6 +68,11 @@ func (s *Scheduler) Schedule(configs []integration.Config) {
 			log.Debugf("Config %s is filtered out for logs collection, ignoring it", s.configName(config))
 			continue
 		}
+		if s.isIntegrationConfig(config) {
+			fmt.Println("Integration config")
+			// Send to file_manager here
+			continue
+		}
 		switch {
 		case s.newSources(config):
 			log.Infof("Received a new logs config: %v", s.configName(config))
@@ -120,6 +125,18 @@ func (s *Scheduler) Unschedule(configs []integration.Config) {
 			continue
 		}
 	}
+}
+
+// isIntegrationConfig returns true if the config is an integration config (as
+// opposed to a file config)
+func (s *Scheduler) isIntegrationConfig(config integration.Config) bool {
+	logsConfig, err := logsConfig.ParseYAML(config.LogsConfig)
+
+	if err != nil {
+		fmt.Errorf("Couldn't parse logs format %v", err)
+	}
+
+	return logsConfig[0].Type == "integration"
 }
 
 // newSources returns true if the config can be mapped to sources.
