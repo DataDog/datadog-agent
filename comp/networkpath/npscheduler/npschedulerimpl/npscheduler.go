@@ -12,12 +12,12 @@ import (
 )
 
 type npSchedulerImpl struct {
-	epForwarder eventplatform.Component
-	enabled     bool
+	epForwarder      eventplatform.Component
+	collectorConfigs *collectorConfigs
 }
 
 func (s *npSchedulerImpl) ScheduleConns(_ []*model.Connection) {
-	if !s.enabled {
+	if !s.collectorConfigs.connectionsMonitoringEnabled {
 		return
 	}
 	// TODO: IMPLEMENTATION IN SEPARATE PR (to make PRs easier to review)
@@ -25,13 +25,13 @@ func (s *npSchedulerImpl) ScheduleConns(_ []*model.Connection) {
 
 func newNoopNpSchedulerImpl() *npSchedulerImpl {
 	return &npSchedulerImpl{
-		enabled: false,
+		collectorConfigs: &collectorConfigs{},
 	}
 }
 
-func newNpSchedulerImpl(epForwarder eventplatform.Component) *npSchedulerImpl {
+func newNpSchedulerImpl(epForwarder eventplatform.Component, collectorConfigs *collectorConfigs) *npSchedulerImpl {
 	return &npSchedulerImpl{
-		enabled:     true,
-		epForwarder: epForwarder,
+		epForwarder:      epForwarder,
+		collectorConfigs: collectorConfigs,
 	}
 }
