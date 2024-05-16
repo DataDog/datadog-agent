@@ -12,7 +12,6 @@ import (
 	"io"
 	"regexp"
 	"runtime"
-	"runtime"
 	"sort"
 	"strings"
 
@@ -371,11 +370,43 @@ func run(diagCfg diagnosis.Config, getSuites func() []diagnosis.Suite) ([]diagno
 	return diagnoses, nil
 }
 
-// Enumerate registered Diagnose suites and get their diagnoses
+// RunInAgentProcess runs diagnoses in the Agent process.
+func RunInAgentProcess(diagCfg diagnosis.Config, deps SuitesDepsInAgentProcess) ([]diagnosis.Diagnoses, error) {
+	// Collect local diagnoses
+	suites := buildSuites(diagCfg, func() []diagnosis.Diagnosis {
+		return diagnoseChecksInAgentProcess(deps.collector)
+	})
+
+	return getDiagnosesFromCurrentProcess(diagCfg, suites)
+}
+
+// RunStdOutInAgentProcess enumerates registered Diagnose suites and get their diagnoses
 // for human consumption
-//
-//nolint:revive // TODO(CINT) Fix revive linter
-func RunStdOut(w io.Writer, diagCfg diagnosis.Config, deps SuitesDeps) error {
+func RunStdOutInAgentProcess(w io.Writer, diagCfg diagnosis.Config, deps SuitesDepsInAgentProcess) error {
+	return runStdOut(w, diagCfg, func(diagCfg diagnosis.Config) ([]diagnosis.Diagnoses, error) {
+		return RunInAgentProcess(diagCfg, deps)
+	})
+}
+
+// RunStdOutInCLIProcess enumerates registered Diagnose suites and get their diagnoses
+// for human consumption
+func RunStdOutInCLIProcess(w io.Writer, diagCfg diagnosis.Config, deps SuitesDepsInCLIProcess) error {
+	return runStdOut(w, diagCfg, func(diagCfg diagnosis.Config) ([]diagnosis.Diagnoses, error) {
+		return RunInCLIProcess(diagCfg, deps)
+	})
+}
+
+// RunStdOutLocalCheck runs locally the checks created by the registries.
+func RunStdOutLocalCheck(w io.Writer, verbose bool, registries ...func(*diagnosis.Catalog)) error {
+	diagCfg := diagnosis.Config{Verbose: verbose, RunLocal: true}
+	return runStdOut(w, diagCfg, func(diagCfg diagnosis.Config) ([]diagnosis.Diagnoses, error) {
+		suites := buildCustomSuites(registries...)
+
+		return getDiagnosesFromCurrentProcess(diagCfg, suites)
+	})
+}
+
+func runStdOut(w io.Writer, diagCfg diagnosis.Config, run func(diagnosis.Config) ([]diagnosis.Diagnoses, error)) error {
 	if w != color.Output {
 		color.NoColor = true
 	}
@@ -384,7 +415,7 @@ func RunStdOut(w io.Writer, diagCfg diagnosis.Config, deps SuitesDeps) error {
 		fmt.Fprintf(w, "=== Starting diagnose ===\n")
 	}
 
-	diagnoses, err := Run(diagCfg, deps)
+	diagnoses, err := run(diagCfg)
 	if err != nil && !diagCfg.RunLocal {
 		fmt.Fprintln(w, color.YellowString(fmt.Sprintf("Error running diagnose in Agent process: %s", err)))
 		fmt.Fprintln(w, "Running diagnose command locally (may take extra time to run checks locally) ...")
@@ -605,10 +636,12 @@ func RegisterConnectivityAutodiscovery(catalog *diagnosis.Catalog) {
 // RegisterConnectivityDatadogEventPlatform registers the connectivity-datadog-event-platform diagnose suite.
 func RegisterConnectivityDatadogEventPlatform(catalog *diagnosis.Catalog) {
 	catalog.Register("connectivity-datadog-event-platform", eventplatformimpl.Diagnose)
+}
+
+// RegisterPortConflict registers the port-conflict diagnose suite.
+func RegisterPortConflict(catalog *diagnosis.Catalog) {
 	// port-conflict suite available in darwin only for now
 	if runtime.GOOS == "darwin" {
 		catalog.Register("port-conflict", func() []diagnosis.Diagnosis { return ports.DiagnosePortSuite() })
 	}
-
-	return catalog.GetSuites()
 }

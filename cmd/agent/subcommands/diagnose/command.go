@@ -257,14 +257,13 @@ func cmdDiagnose(cliParams *cliParams,
 	// Is it List command
 	if cliParams.listSuites {
 		diagnose.ListStdOut(color.Output, diagCfg)
+		diagnose.ListStdOut(color.Output, diagCfg)
 		return nil
 	}
 
-	if cliParams.json {
-		return diagnose.RunJSON(color.Output, diagCfg, diagnoseDeps)
-	}
 	diagnoseDeps := diagnose.NewSuitesDepsInCLIProcess(senderManager, secretResolver, wmeta, ac)
 	// Run command
+	return diagnose.RunStdOutInCLIProcess(color.Output, diagCfg, diagnoseDeps)
 	return diagnose.RunStdOutInCLIProcess(color.Output, diagCfg, diagnoseDeps)
 }
 
