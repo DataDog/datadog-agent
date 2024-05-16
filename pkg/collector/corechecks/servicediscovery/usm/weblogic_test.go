@@ -148,7 +148,7 @@ http://xmlns.oracle.com/weblogic/weblogic-web-app/1.4/weblogic-web-app.xsd">inva
 func TestWeblogicExtractExplodedWarContextRoot(t *testing.T) {
 	cwd, err := os.Getwd()
 	require.NoError(t, err)
-	fs := os.DirFS(path.Join(cwd, "testdata", "b", "test.war"))
+	fs := os.DirFS(path.Join(cwd, weblogicTestAppRoot, "test.war"))
 	value, ok := newWeblogicExtractor(NewDetectionContext(zap.NewNop(), nil, nil, nil)).customExtractWarContextRoot(fs)
 	require.True(t, ok)
 	require.Equal(t, "my_context", value)

@@ -24,8 +24,8 @@ const (
 
 	// we need to use these non-descriptive shorter folder names because of the filename_linting
 	// CI check that limits the number of characters in a path to 255.
-	jbossTestAppRoot    = "testdata/a"
-	weblogicTestAppRoot = "testdata/b"
+	jbossTestAppRoot    = "../testdata/a"
+	weblogicTestAppRoot = "../testdata/b"
 )
 
 func mockfs(t *testing.T) fs.SubFS {
