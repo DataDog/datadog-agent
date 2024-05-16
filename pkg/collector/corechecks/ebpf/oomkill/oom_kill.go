@@ -71,7 +71,7 @@ func (c *OOMKillConfig) Parse(data []byte) error {
 }
 
 // Configure parses the check configuration and init the check
-func (m *OOMKillCheck) Configure(senderManager sender.SenderManager, integrationConfigDigest uint64, config, initConfig integration.Data, source string) error {
+func (m *OOMKillCheck) Configure(senderManager sender.SenderManager, _ uint64, config, initConfig integration.Data, source string) error {
 	err := m.CommonConfigure(senderManager, initConfig, config, source)
 	if err != nil {
 		return err

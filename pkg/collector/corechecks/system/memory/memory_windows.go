@@ -34,7 +34,7 @@ type Check struct {
 const mbSize float64 = 1024 * 1024
 
 // Configure handles initial configuration/initialization of the check
-func (c *Check) Configure(senderManager sender.SenderManager, integrationConfigDigest uint64, data integration.Data, initConfig integration.Data, source string) (err error) {
+func (c *Check) Configure(senderManager sender.SenderManager, _ uint64, data integration.Data, initConfig integration.Data, source string) (err error) {
 	if err := c.CommonConfigure(senderManager, initConfig, data, source); err != nil {
 		return err
 	}

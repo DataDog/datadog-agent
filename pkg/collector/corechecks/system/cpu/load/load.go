@@ -62,7 +62,7 @@ func (c *LoadCheck) Run() error {
 }
 
 // Configure the CPU check
-func (c *LoadCheck) Configure(senderManager sender.SenderManager, integrationConfigDigest uint64, data integration.Data, initConfig integration.Data, source string) error {
+func (c *LoadCheck) Configure(senderManager sender.SenderManager, _ uint64, data integration.Data, initConfig integration.Data, source string) error {
 	err := c.CommonConfigure(senderManager, initConfig, data, source)
 	if err != nil {
 		return err

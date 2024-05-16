@@ -106,7 +106,7 @@ func Factory(store workloadmeta.Component) optional.Option[func() check.Check] {
 }
 
 // Configure configures the check
-func (k *KubeletCheck) Configure(senderManager sender.SenderManager, integrationConfigDigest uint64, config, initConfig integration.Data, source string) error {
+func (k *KubeletCheck) Configure(senderManager sender.SenderManager, _ uint64, config, initConfig integration.Data, source string) error {
 	err := k.CommonConfigure(senderManager, initConfig, config, source)
 	if err != nil {
 		return err

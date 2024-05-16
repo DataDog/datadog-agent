@@ -51,7 +51,7 @@ type Check struct {
 }
 
 // Configure parses the check configuration and initializes the container_lifecycle check
-func (c *Check) Configure(senderManager sender.SenderManager, integrationConfigDigest uint64, config, initConfig integration.Data, source string) error {
+func (c *Check) Configure(senderManager sender.SenderManager, _ uint64, config, initConfig integration.Data, source string) error {
 	if !ddConfig.Datadog.GetBool("container_lifecycle.enabled") {
 		return errors.New("collection of container lifecycle events is disabled")
 	}
