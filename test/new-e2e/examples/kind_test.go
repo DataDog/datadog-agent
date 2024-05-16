@@ -12,7 +12,13 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	localkubernetes "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/local/kubernetes"
+	awskubernetes "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/kubernetes"
+
+	"github.com/DataDog/test-infra-definitions/common/config"
+	"github.com/DataDog/test-infra-definitions/components/datadog/apps/dogstatsd"
+	"github.com/DataDog/test-infra-definitions/components/datadog/apps/nginx"
+	compkube "github.com/DataDog/test-infra-definitions/components/kubernetes"
+	"github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes"
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )

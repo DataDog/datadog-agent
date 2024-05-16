@@ -14,9 +14,9 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/optional"
 
-	"github.com/DataDog/test-infra-definitions/common/config"
-
 	"github.com/DataDog/test-infra-definitions/components/datadog/agent"
+	"github.com/DataDog/test-infra-definitions/resources/local"
+
 	fakeintakeComp "github.com/DataDog/test-infra-definitions/components/datadog/fakeintake"
 	"github.com/DataDog/test-infra-definitions/components/datadog/kubernetesagentparams"
 	kubeComp "github.com/DataDog/test-infra-definitions/components/kubernetes"
@@ -113,13 +113,12 @@ func Provisioner(opts ...ProvisionerOption) e2e.TypedProvisioner[environments.Ku
 // KindRunFunc is the Pulumi run function that runs the provisioner
 func KindRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, params *ProvisionerParams) error {
 
-	// Fake Intake is not supported when running a local kind cluster
-
-	localEnv, err := config.NewCommonEnvironment(ctx, nil)
+	localEnv, err := local.NewEnvironment(ctx)
 	if err != nil {
 		return err
 	}
-	kindCluster, err := kubeComp.NewLocalKindCluster(localEnv, localEnv.CommonNamer.ResourceName("kind"), params.name, localEnv.KubernetesVersion())
+
+	kindCluster, err := kubeComp.NewLocalKindCluster(&localEnv, localEnv.CommonNamer().ResourceName("kind"), params.name, localEnv.KubernetesVersion())
 	if err != nil {
 		return err
 	}
@@ -129,7 +128,7 @@ func KindRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, params *Prov
 		return err
 	}
 
-	kubeProvider, err := kubernetes.NewProvider(ctx, localEnv.CommonNamer.ResourceName("k8s-provider"), &kubernetes.ProviderArgs{
+	kubeProvider, err := kubernetes.NewProvider(ctx, localEnv.CommonNamer().ResourceName("k8s-provider"), &kubernetes.ProviderArgs{
 		EnableServerSideApply: pulumi.Bool(true),
 		Kubeconfig:            kindCluster.KubeConfig,
 	})
@@ -140,7 +139,7 @@ func KindRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, params *Prov
 	if params.fakeintakeOptions != nil {
 		fakeintakeOpts := []fakeintake.Option{fakeintake.WithLoadBalancer()}
 		params.fakeintakeOptions = append(fakeintakeOpts, params.fakeintakeOptions...)
-		fakeIntake, err := fakeintakeComp.NewLocalDockerFakeintake(localEnv, "fakeintake")
+		fakeIntake, err := fakeintakeComp.NewLocalDockerFakeintake(&localEnv, "fakeintake")
 		if err != nil {
 			return err
 		}
@@ -170,7 +169,7 @@ agents:
 
 		newOpts := []kubernetesagentparams.Option{kubernetesagentparams.WithHelmValues(helmValues)}
 		params.agentOptions = append(newOpts, params.agentOptions...)
-		agent, err := agent.NewKubernetesAgent(localEnv, kindClusterName, kubeProvider, params.agentOptions...)
+		agent, err := agent.NewKubernetesAgent(&localEnv, kindClusterName, kubeProvider, params.agentOptions...)
 		if err != nil {
 			return err
 		}
