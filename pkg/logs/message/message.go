@@ -155,6 +155,13 @@ func (m *MessageContent) GetContent() []byte {
 	}
 }
 
+// GetContentLengthHint returns a hint regarding the len of the content
+// it should target to be a good estimator of len(m.GetContent())
+func (m *MessageContent) GetContentLengthHint() int {
+	// TODO: for m.State == StateStructured, this will return 0. To improve later
+	return len(m.content)
+}
+
 // SetContent stores the given content as the content message.
 // SetContent uses the current message state to know where
 // to store the content.
