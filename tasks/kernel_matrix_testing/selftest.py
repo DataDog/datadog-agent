@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import functools
 import re
-from pathlib import Path
 from typing import Optional, Tuple
 
 from invoke.context import Context
@@ -10,7 +9,7 @@ from invoke.context import Context
 from tasks.kernel_matrix_testing.platforms import get_platforms
 from tasks.kernel_matrix_testing.tool import error, full_arch, get_binary_target_arch, info, warn
 from tasks.kernel_matrix_testing.types import Component
-from tasks.kernel_matrix_testing.vars import arch_ls
+from tasks.kernel_matrix_testing.vars import KMTPaths, arch_ls
 
 SelftestResult = Tuple[Optional[bool], str]
 
@@ -73,7 +72,8 @@ def selftest_prepare(ctx: Context, allow_infra_changes: bool, component: Compone
     if res is None or not res.ok:
         return False, "Cannot run inv -e kmt.prepare"
 
-    testpath = Path(f"kmt-deps/{stack}-ddvm/{arch}/opt/{component}-tests")
+    paths = KMTPaths(stack, arch)
+    testpath = paths.secagent_tests if component == "security-agent" else paths.sysprobe_tests
     if not testpath.is_dir():
         return False, f"Tests directory {testpath} not found"
 

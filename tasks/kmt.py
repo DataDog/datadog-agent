@@ -34,7 +34,7 @@ from tasks.kernel_matrix_testing.kmt_os import get_kmt_os
 from tasks.kernel_matrix_testing.platforms import get_platforms, platforms_file
 from tasks.kernel_matrix_testing.stacks import check_and_get_stack, ec2_instance_ids
 from tasks.kernel_matrix_testing.tool import Exit, ask, error, get_binary_target_arch, info, warn
-from tasks.kernel_matrix_testing.vars import arch_ls
+from tasks.kernel_matrix_testing.vars import KMTPaths, arch_ls
 from tasks.libs.build.ninja import NinjaWriter
 from tasks.libs.common.utils import get_build_flags
 from tasks.security_agent import build_functional_tests, build_stress_tests
@@ -412,48 +412,6 @@ def download_gotestsum(ctx: Context, arch: Arch, fgotestsum: PathOrStr):
     ctx.run(f"cp {paths.tools}/gotestsum {fgotestsum}")
 
 
-class KMTPaths:
-    def __init__(self, stack: str | None, arch: Arch):
-        self.stack = stack
-        self.arch = arch
-
-    @property
-    def repo_root(self):
-        # this file is tasks/kmt.py, so two parents is the agent folder
-        return Path(__file__).parent.parent
-
-    @property
-    def root(self):
-        return self.repo_root / "kmt-deps"
-
-    @property
-    def arch_dir(self):
-        return self.stack_dir / self.arch
-
-    @property
-    def stack_dir(self):
-        if self.stack is None:
-            raise Exit("no stack name provided, cannot use stack-specific paths")
-
-        return self.root / self.stack
-
-    @property
-    def dependencies(self):
-        return self.arch_dir / "opt/testing-tools"
-
-    @property
-    def sysprobe_tests(self):
-        return self.arch_dir / "opt/system-probe-tests"
-
-    @property
-    def secagent_tests(self):
-        return self.arch_dir / "opt/security-agent-tests"
-
-    @property
-    def tools(self):
-        return self.root / self.arch / "tools"
-
-
 def is_root():
     return os.getuid() == 0
 
@@ -554,7 +512,7 @@ def kmt_secagent_prepare(
     packages: str | None = None,
     verbose: bool = True,
     ci: bool = True,
-    compile_only: bool = True,
+    compile_only: bool = False,
 ):
     kmt_paths = KMTPaths(stack, arch)
     kmt_paths.secagent_tests.mkdir(exist_ok=True, parents=True)
@@ -600,7 +558,7 @@ def prepare(
     packages=None,
     verbose=True,
     ci=False,
-    compile_only=True,
+    compile_only=False,
 ):
     if not ci:
         stack = check_and_get_stack(stack)
