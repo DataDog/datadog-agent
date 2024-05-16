@@ -747,7 +747,12 @@ def retry_function(action_name_fmt, max_retries=2, retry_delay=1):
                     raise
                 except Exception:
                     if i == max_retries:
-                        print(color_message(f'Error: {action_name} failed after {max_retries} retries', 'red'), file=sys.stderr)
+                        print(
+                            color_message(f'Error: {action_name} failed after {max_retries} retries', 'red'),
+                            file=sys.stderr,
+                        )
+                        # The stack trace is not printed here but the error is raised if we
+                        # want to catch it above
                         raise
                     else:
                         print(
@@ -755,7 +760,7 @@ def retry_function(action_name_fmt, max_retries=2, retry_delay=1):
                                 f'Warning: {action_name} failed (retry {i + 1}/{max_retries}), retrying in {retry_delay}s',
                                 'orange',
                             ),
-                            file=sys.stderr
+                            file=sys.stderr,
                         )
                         with collapsed_section(f"Retry {i + 1}/{max_retries} {action_name}"):
                             traceback.print_exc()
