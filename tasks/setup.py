@@ -180,7 +180,7 @@ def install_go_tools(ctx) -> SetupResult:
         from tasks import install_tools
 
         install_tools(ctx)
-    except Exception:
+    except:
         status = Status.FAIL
 
     return SetupResult("Install Go tools", status)
@@ -194,7 +194,7 @@ def download_go_tools(ctx) -> SetupResult:
         from tasks import download_tools
 
         download_tools(ctx)
-    except Exception:
+    except:
         status = Status.FAIL
 
     return SetupResult("Download Go tools", status)
