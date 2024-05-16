@@ -126,6 +126,7 @@ var binsWithContext = map[string]detectorCreatorFn{
 	"java":      newJavaDetector,
 	"sudo":      newSimpleDetector,
 	"node":      newNodeDetector,
+	"php":       newPhpDetector,
 }
 
 // ExtractServiceMetadata attempts to detect ServiceMetadata from the given process.

@@ -308,6 +308,24 @@ func TestExtractServiceMetadata(t *testing.T) {
 			expectedServiceTag:         "catalina",
 			expectedAdditionalServices: []string{"app2", "custom"},
 		},
+		{
+			name: "PHP Laravel",
+			cmdline: []string{
+				"php",
+				"artisan",
+				"serve",
+			},
+			expectedServiceTag: "laravel",
+		},
+		{
+			name: "Plain PHP with INI",
+			cmdline: []string{
+				"php",
+				"-ddatadog.service=foo",
+				"swoole-server.php",
+			},
+			expectedServiceTag: "foo",
+		},
 	}
 
 	for _, tt := range tests {
