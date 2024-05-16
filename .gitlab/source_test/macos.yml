@@ -75,6 +75,7 @@ tests_macos_gitlab_amd64:
   variables:
     PYTHON_RUNTIMES: "3"
   script:
+    - export PATH="/Users/ec2-user/.pyenv/versions/3.9.6/bin:$PATH"
     - python3 -m pip install -r requirements.txt -r tasks/libs/requirements-github.txt
     - inv -e install-tools
     - inv -e deps
