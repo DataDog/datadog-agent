@@ -469,7 +469,7 @@ def ninja_define_rules(nw: NinjaWriter):
         name="gobin",
         command="$chdir && $env $go build -o $out $tags $ldflags $in $tool",
     )
-    nw.rule(name="copyfiles", command="install -D $in $out $mode")
+    nw.rule(name="copyfiles", command="mkdir -p $$(dirname $out) && install $in $out $mode")
 
 
 def ninja_build_dependencies(nw: NinjaWriter, kmt_paths: KMTPaths, go_path: str):
@@ -659,7 +659,8 @@ def prepare(
 
     for sf, df in copy_executables.items():
         if os.path.exists(sf) and not os.path.exists(df):
-            ctx.run(f"install -D {sf} {df}")
+            ctx.run(f"mkdir -p {os.path.dirname(df)}")
+            ctx.run(f"install {sf} {df}")
 
     if ci:
         return
