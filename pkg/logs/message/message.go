@@ -121,6 +121,17 @@ func (m *MessageContent) GetContent() []byte {
 	}
 }
 
+// GetContentLengthHint returns a hint regarding the len of the content
+// it should target to be a good estimator of len(m.GetContent())
+func (m *MessageContent) GetContentLengthHint() int {
+	switch m.State {
+	case StateStructured:
+		return m.structuredContent.GetContentLengthHint()
+	default:
+		return len(m.content)
+	}
+}
+
 // SetContent stores the given content as the content message.
 // SetContent uses the current message state to know where
 // to store the content.
@@ -238,6 +249,7 @@ func (m *Message) Render() ([]byte, error) {
 type StructuredContent interface {
 	Render() ([]byte, error)
 	GetContent() []byte
+	GetContentLengthHint() int
 	SetContent([]byte)
 }
 
@@ -245,7 +257,8 @@ type StructuredContent interface {
 // but with basic needs for transport.
 // The message from the log is stored in the "message" key.
 type BasicStructuredContent struct {
-	Data map[string]interface{}
+	Data           map[string]interface{}
+	contentLenHint int
 }
 
 // Render renders in json the underlying data, it is then ready to be
@@ -264,12 +277,19 @@ func (m *BasicStructuredContent) GetContent() []byte {
 	return []byte{}
 }
 
+// GetContentLengthHint returns a hint regarding the len of the content
+// it should target to be a good estimator of len(m.GetContent())
+func (m *BasicStructuredContent) GetContentLengthHint() int {
+	return m.contentLenHint
+}
+
 // SetContent stores the message part of the structured log,
 // in the "message" key of the underlying map.
 func (m *BasicStructuredContent) SetContent(content []byte) {
 	// we want to store it typed as a string for the json
 	// marshaling to properly marshal it as a string.
 	m.Data["message"] = string(content)
+	m.contentLenHint = len(content)
 }
 
 // NewMessageFromLambda construts a message with content, status, origin and with
