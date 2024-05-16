@@ -68,8 +68,8 @@ func (t *TCPQueueLengthConfig) Parse(data []byte) error {
 }
 
 // Configure parses the check configuration and init the check
-func (t *TCPQueueLengthCheck) Configure(senderManager sender.SenderManager, integrationConfigDigest uint64, config, initConfig integration.Data, source string) error {
-	err := t.CommonConfigure(senderManager, integrationConfigDigest, initConfig, config, source)
+func (t *TCPQueueLengthCheck) Configure(senderManager sender.SenderManager, _ uint64, config, initConfig integration.Data, source string) error {
+	err := t.CommonConfigure(senderManager, initConfig, config, source)
 	if err != nil {
 		return err
 	}

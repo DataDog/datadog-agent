@@ -204,7 +204,7 @@ func (k *KSMCheck) Configure(senderManager sender.SenderManager, integrationConf
 	k.BuildID(integrationConfigDigest, config, initConfig)
 	k.agentConfig = ddconfig.Datadog
 
-	err := k.CommonConfigure(senderManager, integrationConfigDigest, initConfig, config, source)
+	err := k.CommonConfigure(senderManager, initConfig, config, source)
 	if err != nil {
 		return err
 	}
