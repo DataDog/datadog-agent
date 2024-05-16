@@ -1,0 +1,18 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+upgrade:
+  - |
+    Add a configuration option ``admission_controller.inject_config.inject_container_name`` to
+    retrieve the container tags for dogstatsd metrics and apm traces in setups where origin detection is
+    not supported (windows, nested virtualization with cgroupv2...).
+    This option will inject the container name along with the pod uid in ``DD_ENTITY_ID`` if it was not set manually.
+    Note that this option is disabled by default and is incompatible with prior versions of the agent . Thus, we
+    recommend enabling it only if you are using the latest version of the agent.
+    In case a rollback to an incompatible version is needed, it will be necessary to delete the pods in which
+    ``DD_ENTITY_ID`` was injected by the latest agent to preserve pod tags in dogstatsd metrics and traces.

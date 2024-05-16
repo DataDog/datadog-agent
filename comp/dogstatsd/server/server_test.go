@@ -32,6 +32,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/replay"
 	serverdebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug/serverdebugimpl"
+	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -65,6 +66,7 @@ func fulfillDepsWithConfigOverrideAndFeatures(t testing.TB, overrides map[string
 		}),
 		fx.Supply(Params{Serverless: false}),
 		replay.MockModule(),
+		compressionimpl.MockModule(),
 		pidmapimpl.Module(),
 		demultiplexerimpl.FakeSamplerMockModule(),
 		workloadmeta.MockModule(),
@@ -86,6 +88,7 @@ func fulfillDepsWithConfigYaml(t testing.TB, yaml string) serverDeps {
 		}),
 		fx.Supply(Params{Serverless: false}),
 		replay.MockModule(),
+		compressionimpl.MockModule(),
 		pidmapimpl.Module(),
 		demultiplexerimpl.FakeSamplerMockModule(),
 		workloadmeta.MockModule(),
@@ -654,9 +657,9 @@ func TestStaticTags(t *testing.T) {
 }
 
 func TestNoMappingsConfig(t *testing.T) {
-	datadogYaml := ``
-
-	deps := fulfillDepsWithConfigYaml(t, datadogYaml)
+	cfg := make(map[string]interface{})
+	cfg["dogstatsd_port"] = listeners.RandomPortName
+	deps := fulfillDepsWithConfigOverride(t, cfg)
 	s := deps.Server.(*server)
 	cw := deps.Config.(config.Writer)
 	cw.SetWithoutSource("dogstatsd_port", listeners.RandomPortName)
@@ -691,6 +694,7 @@ func TestMappingCases(t *testing.T) {
 		{
 			name: "Simple OK case",
 			config: `
+dogstatsd_port: __random__
 dogstatsd_mapper_profiles:
   - name: test
     prefix: 'test.'
@@ -721,6 +725,7 @@ dogstatsd_mapper_profiles:
 		{
 			name: "Tag already present",
 			config: `
+dogstatsd_port: __random__
 dogstatsd_mapper_profiles:
   - name: test
     prefix: 'test.'
@@ -746,6 +751,7 @@ dogstatsd_mapper_profiles:
 		{
 			name: "Cache size",
 			config: `
+dogstatsd_port: __random__
 dogstatsd_mapper_cache_size: 999
 dogstatsd_mapper_profiles:
   - name: test
@@ -769,9 +775,6 @@ dogstatsd_mapper_profiles:
 			deps := fulfillDepsWithConfigYaml(t, scenario.config)
 
 			s := deps.Server.(*server)
-			cw := deps.Config.(config.ReaderWriter)
-
-			cw.SetWithoutSource("dogstatsd_port", listeners.RandomPortName)
 
 			requireStart(t, s)
 
@@ -826,17 +829,15 @@ func TestNewServerExtraTags(t *testing.T) {
 }
 
 func TestProcessedMetricsOrigin(t *testing.T) {
-	cfg := make(map[string]interface{})
 
 	for _, enabled := range []bool{true, false} {
+		cfg := make(map[string]interface{})
 		cfg["dogstatsd_origin_optout_enabled"] = enabled
+		cfg["dogstatsd_port"] = listeners.RandomPortName
 
 		deps := fulfillDepsWithConfigOverride(t, cfg)
 		s := deps.Server.(*server)
 		assert := assert.New(t)
-
-		s.start(context.TODO())
-		requireStart(t, s)
 
 		s.Stop()
 
@@ -912,7 +913,8 @@ func TestProcessedMetricsOrigin(t *testing.T) {
 
 //nolint:revive // TODO(AML) Fix revive linter
 func testContainerIDParsing(t *testing.T, cfg map[string]interface{}) {
-	deps := fulfillDeps(t)
+	cfg["dogstatsd_port"] = listeners.RandomPortName
+	deps := fulfillDepsWithConfigOverride(t, cfg)
 	s := deps.Server.(*server)
 	assert := assert.New(t)
 	requireStart(t, s)
@@ -953,6 +955,7 @@ func TestContainerIDParsing(t *testing.T) {
 
 func TestOrigin(t *testing.T) {
 	cfg := make(map[string]interface{})
+	cfg["dogstatsd_port"] = listeners.RandomPortName
 	t.Run("TestOrigin", func(t *testing.T) {
 		deps := fulfillDepsWithConfigOverride(t, cfg)
 		s := deps.Server.(*server)

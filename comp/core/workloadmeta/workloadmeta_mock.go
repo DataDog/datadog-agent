@@ -8,7 +8,7 @@
 
 package workloadmeta
 
-// team: container-integrations
+// team: container-platform
 
 import (
 	"context"
@@ -196,6 +196,16 @@ func (w *workloadMetaMock) GetKubernetesDeployment(id string) (*KubernetesDeploy
 	}
 
 	return entity.(*KubernetesDeployment), nil
+}
+
+// GetKubernetesNamespace implements Component#GetKubernetesNamespace
+func (w *workloadMetaMock) GetKubernetesNamespace(id string) (*KubernetesNamespace, error) {
+	entity, err := w.getEntityByKind(KindKubernetesNamespace, id)
+	if err != nil {
+		return nil, err
+	}
+
+	return entity.(*KubernetesNamespace), nil
 }
 
 // GetECSTask returns metadata about an ECS task.

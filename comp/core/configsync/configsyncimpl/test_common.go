@@ -27,7 +27,7 @@ import (
 func makeDeps(t *testing.T) dependencies {
 	return fxutil.Test[dependencies](t, fx.Options(
 		core.MockBundle(),
-		fetchonlyimpl.Module(),
+		fetchonlyimpl.MockModule(), // use the mock to avoid trying to read the file
 	))
 }
 

@@ -44,7 +44,7 @@ def genconfig(
         provider = "azure"
 
     if platformfile:
-        with open(platformfile, "r") as f:
+        with open(platformfile) as f:
             platforms = json.load(f)
     else:
         try:
@@ -60,7 +60,7 @@ def genconfig(
         except Exception:
             traceback.print_exc()
             print("Warning: Could not fetch the latest kitchen platforms.json from Github, using local version.")
-            with open("platforms.json", "r") as f:
+            with open("platforms.json") as f:
                 platforms = json.load(f)
 
     # create the TEST_PLATFORMS environment variable
@@ -132,18 +132,18 @@ def genconfig(
         # first read the correct driver
         print(f"Adding driver file drivers/{provider}-driver.yml\n")
 
-        with open(f"drivers/{provider}-driver.yml", 'r') as driverfile:
+        with open(f"drivers/{provider}-driver.yml") as driverfile:
             kitchenyml.write(driverfile.read())
 
         # read the generic contents
-        with open("test-definitions/platforms-common.yml", 'r') as commonfile:
+        with open("test-definitions/platforms-common.yml") as commonfile:
             kitchenyml.write(commonfile.read())
 
         # now open the requested test files
         for f in glob.glob(f"test-definitions/{testfiles}.yml"):
             if f.lower().endswith("platforms-common.yml"):
                 print("Skipping common file\n")
-            with open(f, 'r') as infile:
+            with open(f) as infile:
                 print(f"Adding file {f}\n")
                 kitchenyml.write(infile.read())
 
@@ -152,7 +152,7 @@ def genconfig(
         env = load_user_env(ctx, provider, uservars)
 
     # set KITCHEN_ARCH if it's not set in the user env
-    if 'KITCHEN_ARCH' not in env and not ('KITCHEN_ARCH' in os.environ.keys()):
+    if 'KITCHEN_ARCH' not in env and 'KITCHEN_ARCH' not in os.environ.keys():
         env['KITCHEN_ARCH'] = arch
 
     env['TEST_PLATFORMS'] = testplatforms
@@ -175,7 +175,7 @@ def should_rerun_failed(_, runlog):
     test_result_re_gotest = re.compile(r'--- FAIL: (?P<failures>[A-Z].*) \(.*\)')
     test_result_re_rspec = re.compile(r'\d+\s+examples?,\s+(?P<failures>\d+)\s+failures?')
 
-    with open(runlog, 'r', encoding='utf-8') as f:
+    with open(runlog, encoding='utf-8') as f:
         text = f.read()
         result_rspec = set(test_result_re_rspec.findall(text))
         result_gotest = set(test_result_re_gotest.findall(text))
@@ -240,7 +240,7 @@ def load_user_env(_, provider, varsfile):
     env = {}
     commentpattern = re.compile("^comment")
     if os.path.exists(varsfile):
-        with open(varsfile, "r") as f:
+        with open(varsfile) as f:
             vars = json.load(f)
             for key, val in vars.get("global", {}).items():
                 if commentpattern.match(key):

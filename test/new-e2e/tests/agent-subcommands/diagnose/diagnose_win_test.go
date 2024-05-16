@@ -14,7 +14,6 @@ import (
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
 	"github.com/DataDog/test-infra-definitions/components/os"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
-	"github.com/stretchr/testify/assert"
 )
 
 type windowsDiagnoseSuite struct {
@@ -30,5 +29,5 @@ func (v *windowsDiagnoseSuite) TestDiagnoseOtherCmdPort() {
 	v.UpdateEnv(awshost.Provisioner(awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsDefault)), awshost.WithAgentOptions(params)))
 
 	diagnose := getDiagnoseOutput(&v.baseDiagnoseSuite)
-	assert.NotContains(v.T(), diagnose, "FAIL")
+	v.AssertOutputNotError(diagnose)
 }

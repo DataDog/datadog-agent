@@ -21,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
+	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -106,6 +107,7 @@ func (fh *forwarderHealth) init() {
 			oldAPIKey, ok1 := oldValue.(string)
 			newAPIKey, ok2 := newValue.(string)
 			if ok1 && ok2 {
+				fh.log.Debugf("Updating API key in forwarder, replacing `%s` with `%s`", scrubber.HideKeyExceptLastFiveChars(oldAPIKey), scrubber.HideKeyExceptLastFiveChars(newAPIKey))
 				fh.updateAPIKey(oldAPIKey, newAPIKey)
 			}
 		})
@@ -118,6 +120,7 @@ func (fh *forwarderHealth) Start() {
 	}
 
 	fh.health = health.RegisterReadiness("forwarder")
+	fh.log.Debug("Starting forwarder health check")
 	fh.init()
 	go fh.healthCheckLoop()
 }
@@ -140,10 +143,9 @@ func (fh *forwarderHealth) healthCheckLoop() {
 	defer close(fh.stopped)
 
 	valid := fh.checkValidAPIKey()
-	// If no key is valid, no need to keep checking, they won't magically become valid
+	// If no key is valid, keep checking in case the failures are due to an issue on the API side
 	if !valid {
 		fh.log.Errorf("No valid api key found, reporting the forwarder as unhealthy.")
-		return
 	}
 
 	for {
@@ -154,7 +156,6 @@ func (fh *forwarderHealth) healthCheckLoop() {
 			valid := fh.checkValidAPIKey()
 			if !valid {
 				fh.log.Errorf("No valid api key found, reporting the forwarder as unhealthy.")
-				return
 			}
 		case <-fh.health.C:
 		}

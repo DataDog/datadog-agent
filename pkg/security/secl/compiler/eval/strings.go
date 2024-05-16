@@ -16,10 +16,7 @@ import (
 
 // StringCmpOpts defines options to apply during string comparison
 type StringCmpOpts struct {
-	ScalarCaseInsensitive  bool
-	PatternCaseInsensitive bool
-	GlobCaseInsensitive    bool
-	RegexpCaseInsensitive  bool
+	CaseInsensitive        bool
 	PathSeparatorNormalize bool
 }
 
@@ -205,7 +202,7 @@ func (g *GlobStringMatcher) Contains(value string) bool {
 
 // PatternStringMatcher defines a pattern matcher
 type PatternStringMatcher struct {
-	pattern         string
+	pattern         patternElement
 	caseInsensitive bool
 }
 
@@ -216,14 +213,14 @@ func (p *PatternStringMatcher) Compile(pattern string, caseInsensitive bool) err
 		return fmt.Errorf("`**` is not allowed in patterns")
 	}
 
-	p.pattern = pattern
+	p.pattern = newPatternElement(pattern)
 	p.caseInsensitive = caseInsensitive
 	return nil
 }
 
 // Matches returns whether the value matches
 func (p *PatternStringMatcher) Matches(value string) bool {
-	return PatternMatches(p.pattern, value, p.caseInsensitive)
+	return PatternMatchesWithSegments(p.pattern, value, p.caseInsensitive)
 }
 
 // ScalarStringMatcher defines a scalar matcher
@@ -252,25 +249,25 @@ func NewStringMatcher(kind FieldValueType, pattern string, opts StringCmpOpts) (
 	switch kind {
 	case PatternValueType:
 		var matcher PatternStringMatcher
-		if err := matcher.Compile(pattern, opts.PatternCaseInsensitive); err != nil {
+		if err := matcher.Compile(pattern, opts.CaseInsensitive); err != nil {
 			return nil, fmt.Errorf("invalid pattern `%s`: %s", pattern, err)
 		}
 		return &matcher, nil
 	case GlobValueType:
 		var matcher GlobStringMatcher
-		if err := matcher.Compile(pattern, opts.GlobCaseInsensitive, opts.PathSeparatorNormalize); err != nil {
+		if err := matcher.Compile(pattern, opts.CaseInsensitive, opts.PathSeparatorNormalize); err != nil {
 			return nil, fmt.Errorf("invalid glob `%s`: %s", pattern, err)
 		}
 		return &matcher, nil
 	case RegexpValueType:
 		var matcher RegexpStringMatcher
-		if err := matcher.Compile(pattern, opts.RegexpCaseInsensitive); err != nil {
+		if err := matcher.Compile(pattern, opts.CaseInsensitive); err != nil {
 			return nil, fmt.Errorf("invalid regexp `%s`: %s", pattern, err)
 		}
 		return &matcher, nil
 	case ScalarValueType:
 		var matcher ScalarStringMatcher
-		if err := matcher.Compile(pattern, opts.ScalarCaseInsensitive); err != nil {
+		if err := matcher.Compile(pattern, opts.CaseInsensitive); err != nil {
 			return nil, fmt.Errorf("invalid regexp `%s`: %s", pattern, err)
 		}
 		return &matcher, nil

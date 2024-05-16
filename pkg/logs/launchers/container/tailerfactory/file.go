@@ -61,6 +61,8 @@ func (tf *factory) makeFileSource(source *sources.LogSource) (*sources.LogSource
 		switch source.Config.Type {
 		case "docker":
 			return tf.makeDockerFileSource(source)
+		case "podman":
+			return tf.makeDockerFileSource(source)
 		default:
 			return nil, fmt.Errorf("file tailing is not supported for source type %s", source.Config.Type)
 		}

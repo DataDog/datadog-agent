@@ -11,6 +11,7 @@
   variables:
     KUBERNETES_MEMORY_REQUEST: "8Gi"
     KUBERNETES_MEMORY_LIMIT: "8Gi"
+    KUBERNETES_CPU_REQUEST: 6
 
 cluster_agent-build_amd64:
   extends: .cluster_agent-build_common

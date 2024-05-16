@@ -20,9 +20,9 @@ func TestCEdgeInterface(t *testing.T) {
 		namespace                string
 		itf                      client.CEdgeInterfaceState
 		expectedID               string
-		expectedIndex            int
+		expectedIndex            int32
 		expectedIndexError       string
-		expectedSpeed            int
+		expectedSpeed            float64
 		expectedOperStatus       devicemetadata.IfOperStatus
 		expectedAdminStatus      devicemetadata.IfAdminStatus
 		expectedMetadata         devicemetadata.InterfaceMetadata
@@ -91,16 +91,16 @@ func TestCEdgeInterface(t *testing.T) {
 			},
 			expectedID:               "10.0.0.1:test-interface",
 			expectedIndex:            0,
-			expectedIndexError:       "strconv.Atoi: parsing \"iamnotanindex\": invalid syntax",
+			expectedIndexError:       "strconv.ParseInt: parsing \"iamnotanindex\": invalid syntax",
 			expectedSpeed:            1000,
 			expectedOperStatus:       devicemetadata.OperStatusUp,
 			expectedAdminStatus:      devicemetadata.AdminStatusDown,
 			expectedMetadata:         devicemetadata.InterfaceMetadata{},
-			expectedInterfaceError:   "strconv.Atoi: parsing \"iamnotanindex\": invalid syntax",
+			expectedInterfaceError:   "strconv.ParseInt: parsing \"iamnotanindex\": invalid syntax",
 			expectedIPV4Address:      nil,
-			expectedIPV4AddressError: "strconv.Atoi: parsing \"iamnotanindex\": invalid syntax",
+			expectedIPV4AddressError: "strconv.ParseInt: parsing \"iamnotanindex\": invalid syntax",
 			expectedIPV6Address:      nil,
-			expectedIPV6AddressError: "strconv.Atoi: parsing \"iamnotanindex\": invalid syntax",
+			expectedIPV6AddressError: "strconv.ParseInt: parsing \"iamnotanindex\": invalid syntax",
 		},
 		{
 			name:      "invalid ip address",
@@ -145,7 +145,7 @@ func TestCEdgeInterface(t *testing.T) {
 				VmanageSystemIP: "10.0.0.1",
 				Ifname:          "test-interface",
 				Ifindex:         "10",
-				SpeedMbps:       "1000",
+				SpeedMbps:       "0.1",
 				IfOperStatus:    "if-oper-state-ready",
 				IfAdminStatus:   "if-state-down",
 				Description:     "Description",
@@ -155,7 +155,7 @@ func TestCEdgeInterface(t *testing.T) {
 			},
 			expectedID:          "10.0.0.1:test-interface",
 			expectedIndex:       10,
-			expectedSpeed:       1000,
+			expectedSpeed:       0.1,
 			expectedOperStatus:  devicemetadata.OperStatusUp,
 			expectedAdminStatus: devicemetadata.AdminStatusDown,
 			expectedMetadata: devicemetadata.InterfaceMetadata{

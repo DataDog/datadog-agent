@@ -1,12 +1,14 @@
+from __future__ import annotations
+
 import unittest
+from collections import OrderedDict
 from types import SimpleNamespace
-from typing import OrderedDict
 from unittest import mock
 
 from invoke.exceptions import Exit
 
 from tasks import release
-from tasks.libs.version import Version
+from tasks.libs.types.version import Version
 
 
 def fake_tag(value):
@@ -140,7 +142,7 @@ class TestGetHighestRepoVersion(unittest.TestCase):
         )
 
 
-MOCK_JMXFETCH_CONTENT = "jmxfetch content".encode('utf-8')
+MOCK_JMXFETCH_CONTENT = b"jmxfetch content"
 
 
 def mocked_jmxfetch_requests_get(*_args, **_kwargs):

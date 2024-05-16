@@ -10,44 +10,32 @@ var (
 	CaseInsensitiveCmp = &OpOverrides{
 		StringEquals: func(a *StringEvaluator, b *StringEvaluator, state *State) (*BoolEvaluator, error) {
 			if a.Field != "" {
-				a.StringCmpOpts.ScalarCaseInsensitive = true
-				a.StringCmpOpts.PatternCaseInsensitive = true
-				a.StringCmpOpts.GlobCaseInsensitive = true
+				a.StringCmpOpts.CaseInsensitive = true
 			} else if b.Field != "" {
-				b.StringCmpOpts.ScalarCaseInsensitive = true
-				b.StringCmpOpts.PatternCaseInsensitive = true
-				b.StringCmpOpts.GlobCaseInsensitive = true
+				b.StringCmpOpts.CaseInsensitive = true
 			}
 
 			return StringEquals(a, b, state)
 		},
 		StringValuesContains: func(a *StringEvaluator, b *StringValuesEvaluator, state *State) (*BoolEvaluator, error) {
 			if a.Field != "" {
-				a.StringCmpOpts.ScalarCaseInsensitive = true
-				a.StringCmpOpts.PatternCaseInsensitive = true
-				a.StringCmpOpts.GlobCaseInsensitive = true
+				a.StringCmpOpts.CaseInsensitive = true
 			}
 
 			return StringValuesContains(a, b, state)
 		},
 		StringArrayContains: func(a *StringEvaluator, b *StringArrayEvaluator, state *State) (*BoolEvaluator, error) {
 			if a.Field != "" {
-				a.StringCmpOpts.ScalarCaseInsensitive = true
-				a.StringCmpOpts.PatternCaseInsensitive = true
-				a.StringCmpOpts.GlobCaseInsensitive = true
+				a.StringCmpOpts.CaseInsensitive = true
 			} else if b.Field != "" {
-				b.StringCmpOpts.ScalarCaseInsensitive = true
-				b.StringCmpOpts.PatternCaseInsensitive = true
-				b.StringCmpOpts.GlobCaseInsensitive = true
+				b.StringCmpOpts.CaseInsensitive = true
 			}
 
 			return StringArrayContains(a, b, state)
 		},
 		StringArrayMatches: func(a *StringArrayEvaluator, b *StringValuesEvaluator, state *State) (*BoolEvaluator, error) {
 			if a.Field != "" {
-				a.StringCmpOpts.ScalarCaseInsensitive = true
-				a.StringCmpOpts.PatternCaseInsensitive = true
-				a.StringCmpOpts.GlobCaseInsensitive = true
+				a.StringCmpOpts.CaseInsensitive = true
 			}
 
 			return StringArrayMatches(a, b, state)
@@ -58,14 +46,10 @@ var (
 	WindowsPathCmp = &OpOverrides{
 		StringEquals: func(a *StringEvaluator, b *StringEvaluator, state *State) (*BoolEvaluator, error) {
 			if a.Field != "" {
-				a.StringCmpOpts.ScalarCaseInsensitive = true
-				a.StringCmpOpts.PatternCaseInsensitive = true
-				a.StringCmpOpts.GlobCaseInsensitive = true
+				a.StringCmpOpts.CaseInsensitive = true
 				a.StringCmpOpts.PathSeparatorNormalize = true
 			} else if b.Field != "" {
-				b.StringCmpOpts.ScalarCaseInsensitive = true
-				b.StringCmpOpts.PatternCaseInsensitive = true
-				b.StringCmpOpts.GlobCaseInsensitive = true
+				b.StringCmpOpts.CaseInsensitive = true
 				b.StringCmpOpts.PathSeparatorNormalize = true
 			}
 
@@ -73,9 +57,7 @@ var (
 		},
 		StringValuesContains: func(a *StringEvaluator, b *StringValuesEvaluator, state *State) (*BoolEvaluator, error) {
 			if a.Field != "" {
-				a.StringCmpOpts.ScalarCaseInsensitive = true
-				a.StringCmpOpts.PatternCaseInsensitive = true
-				a.StringCmpOpts.GlobCaseInsensitive = true
+				a.StringCmpOpts.CaseInsensitive = true
 				a.StringCmpOpts.PathSeparatorNormalize = true
 			}
 
@@ -83,14 +65,10 @@ var (
 		},
 		StringArrayContains: func(a *StringEvaluator, b *StringArrayEvaluator, state *State) (*BoolEvaluator, error) {
 			if a.Field != "" {
-				a.StringCmpOpts.ScalarCaseInsensitive = true
-				a.StringCmpOpts.PatternCaseInsensitive = true
-				a.StringCmpOpts.GlobCaseInsensitive = true
+				a.StringCmpOpts.CaseInsensitive = true
 				a.StringCmpOpts.PathSeparatorNormalize = true
 			} else if b.Field != "" {
-				b.StringCmpOpts.ScalarCaseInsensitive = true
-				b.StringCmpOpts.PatternCaseInsensitive = true
-				b.StringCmpOpts.GlobCaseInsensitive = true
+				b.StringCmpOpts.CaseInsensitive = true
 				b.StringCmpOpts.PathSeparatorNormalize = true
 			}
 
@@ -98,9 +76,7 @@ var (
 		},
 		StringArrayMatches: func(a *StringArrayEvaluator, b *StringValuesEvaluator, state *State) (*BoolEvaluator, error) {
 			if a.Field != "" {
-				a.StringCmpOpts.ScalarCaseInsensitive = true
-				a.StringCmpOpts.PatternCaseInsensitive = true
-				a.StringCmpOpts.GlobCaseInsensitive = true
+				a.StringCmpOpts.CaseInsensitive = true
 				a.StringCmpOpts.PathSeparatorNormalize = true
 			}
 

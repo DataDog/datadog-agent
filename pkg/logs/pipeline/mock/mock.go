@@ -31,6 +31,14 @@ func (p *mockProvider) Start() {}
 // Stop does nothing
 func (p *mockProvider) Stop() {}
 
+func (p *mockProvider) ReconfigureSDSStandardRules(_ []byte) error {
+	return nil
+}
+
+func (p *mockProvider) ReconfigureSDSAgentConfig(_ []byte) error {
+	return nil
+}
+
 // Flush does nothing
 //
 //nolint:revive // TODO(AML) Fix revive linter

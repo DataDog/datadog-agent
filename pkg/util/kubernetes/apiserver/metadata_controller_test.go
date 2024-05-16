@@ -472,7 +472,6 @@ func newFakeMetadataController(client kubernetes.Interface) (*MetadataController
 
 	metaController := NewMetadataController(
 		informerFactory.Core().V1().Nodes(),
-		informerFactory.Core().V1().Namespaces(),
 		informerFactory.Core().V1().Endpoints(),
 	)
 

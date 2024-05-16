@@ -83,6 +83,9 @@ type Config struct {
 	// EnableKafkaMonitoring specifies whether the tracer should monitor Kafka traffic
 	EnableKafkaMonitoring bool
 
+	// EnablePostgresMonitoring specifies whether the tracer should monitor Postgres traffic.
+	EnablePostgresMonitoring bool
+
 	// EnableNativeTLSMonitoring specifies whether the USM should monitor HTTPS traffic via native libraries.
 	// Supported libraries: OpenSSL, GnuTLS, LibCrypto.
 	EnableNativeTLSMonitoring bool
@@ -178,6 +181,10 @@ type Config struct {
 	// MaxKafkaStatsBuffered represents the maximum number of Kafka stats we'll buffer in memory. These stats
 	// get flushed on every client request (default 30s check interval)
 	MaxKafkaStatsBuffered int
+
+	// MaxPostgresStatsBuffered represents the maximum number of Postgres stats we'll buffer in memory. These stats
+	// get flushed on every client request (default 30s check interval)
+	MaxPostgresStatsBuffered int
 
 	// MaxConnectionsStateBuffered represents the maximum number of state objects that we'll store in memory. These state objects store
 	// the stats for a connection so we can accurately determine traffic change between client requests.
@@ -334,12 +341,14 @@ func New() *Config {
 		EnableHTTPMonitoring:      cfg.GetBool(join(smNS, "enable_http_monitoring")),
 		EnableHTTP2Monitoring:     cfg.GetBool(join(smNS, "enable_http2_monitoring")),
 		EnableKafkaMonitoring:     cfg.GetBool(join(smNS, "enable_kafka_monitoring")),
+		EnablePostgresMonitoring:  cfg.GetBool(join(smNS, "enable_postgres_monitoring")),
 		EnableNativeTLSMonitoring: cfg.GetBool(join(smNS, "tls", "native", "enabled")),
 		EnableIstioMonitoring:     cfg.GetBool(join(smNS, "tls", "istio", "enabled")),
 		EnableNodeJSMonitoring:    cfg.GetBool(join(smNS, "tls", "nodejs", "enabled")),
 		MaxUSMConcurrentRequests:  uint32(cfg.GetInt(join(smNS, "max_concurrent_requests"))),
 		MaxHTTPStatsBuffered:      cfg.GetInt(join(smNS, "max_http_stats_buffered")),
 		MaxKafkaStatsBuffered:     cfg.GetInt(join(smNS, "max_kafka_stats_buffered")),
+		MaxPostgresStatsBuffered:  cfg.GetInt(join(smNS, "max_postgres_stats_buffered")),
 
 		MaxTrackedHTTPConnections: cfg.GetInt64(join(smNS, "max_tracked_http_connections")),
 		HTTPNotificationThreshold: cfg.GetInt64(join(smNS, "http_notification_threshold")),

@@ -135,7 +135,6 @@ spec:
         command: [sh]
         source: |
           set -euo pipefail
-          set -x
 
           until timeout 2 curl  --max-time 1 --fail http://fake-datadog.{{inputs.parameters.namespace}}.svc.cluster.local/_/reset -XPOST; do
             sleep 3

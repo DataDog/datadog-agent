@@ -43,14 +43,16 @@ func NewFactory(s serializer.MetricSerializer, enricher tagenricher, hostGetter 
 		enricher:   enricher,
 		hostGetter: hostGetter,
 	}
+	cfgType, _ := component.NewType(TypeStr)
 
 	return exp.NewFactory(
-		TypeStr,
+		cfgType,
 		newDefaultConfig,
 		exp.WithMetrics(f.createMetricExporter, stability),
 	)
 }
 
+// createMetricsExporter creates a new metrics exporter.
 func (f *factory) createMetricExporter(ctx context.Context, params exp.CreateSettings, c component.Config) (exp.Metrics, error) {
 	cfg := c.(*ExporterConfig)
 

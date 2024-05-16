@@ -7,9 +7,11 @@ package networkpath
 
 import (
 	"fmt"
-	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
-	"gopkg.in/yaml.v2"
 	"time"
+
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
+	"gopkg.in/yaml.v2"
 )
 
 const defaultCheckInterval time.Duration = 1 * time.Minute
@@ -30,6 +32,8 @@ type InstanceConfig struct {
 	TimeoutMs uint `yaml:"timeout"` // millisecond
 
 	MinCollectionInterval int `yaml:"min_collection_interval"`
+
+	Tags []string `yaml:"tags"`
 }
 
 // CheckConfig defines the configuration of the
@@ -40,6 +44,8 @@ type CheckConfig struct {
 	MaxTTL                uint8
 	TimeoutMs             uint
 	MinCollectionInterval time.Duration
+	Tags                  []string
+	Namespace             string
 }
 
 // NewCheckConfig builds a new check config
@@ -72,6 +78,9 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 	if c.MinCollectionInterval <= 0 {
 		return nil, fmt.Errorf("min collection interval must be > 0")
 	}
+
+	c.Tags = instance.Tags
+	c.Namespace = coreconfig.Datadog.GetString("network_devices.namespace")
 
 	return c, nil
 }

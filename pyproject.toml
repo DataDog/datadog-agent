@@ -3,29 +3,76 @@
 # verbose regular expressions by Black. Use [ ] to denote a significant space
 # character.
 
-[tool.black]
-include = '\.pyi?$'
+[tool.ruff]
+target-version = "py311"
+exclude = [
+    ".git",
+    ".github",
+    ".circleci",
+    "chocolatey",
+    "Dockerfiles",
+    "docs",
+    "google-marketplace",
+    "omnibus",
+    "pkg-config",
+    "releasenotes",
+    "vendor",
+    "venv",
+    "dev",
+]
 line-length = 120
-py36 = false
-skip-string-normalization = true
-exclude = '''
-(
-  /(
-    | \.git
-    | docs
-    | releasenotes
-    | releasenotes-installscript
-    | vendor
-    | dev
-  )/
-)
-'''
 
-[tool.isort]
-default_section = 'THIRDPARTY'
-force_grid_wrap = 0
-include_trailing_comma = true
-known_first_party = 'datadog_checks'
-line_length = 120
-multi_line_output = 3
-use_parentheses = true
+[tool.ruff.lint]
+# Rules were ported over from the legacy flake8 settings for parity
+# All the rules can be found here: https://beta.ruff.rs/docs/rules/
+select = [
+    "B",
+    "C",
+    "E",
+    "F",
+    "G",
+    "I",
+    "U",
+    "W",
+    "B003",
+    "B006",
+    "B007",
+]
+ignore = [
+    # From legacy flake8 settings
+    # Ignore:
+    # - black-incompatible options: E203
+    # - bugbear overlap: E722
+    # - style options: W2,W3,W50,E111,E114,E117,E2,E3,E5,E74
+    # - Unnecessary dict call: C408
+    # - complex-structure : C901
+    # - raise-without-from-inside-except: B904
+    "E203",
+    "W2",
+    "W3",
+    "W50",
+    "E111",
+    "E114",
+    "E117",
+    "E2",
+    "E3",
+    "E5",
+    "E74",
+    "E722",
+    "C408",
+    "C901",
+    "B904",
+    "UP033", # Ignore the lru_cache for now
+    "UP017", # Ignore datetime.UTC for now
+]
+unfixable = [
+    "UP033", # Don't fix the lru_cache yet
+    "UP017", # Don't fix datetime.UTC yet
+]
+
+[tool.ruff.lint.flake8-tidy-imports]
+ban-relative-imports = "all"
+
+[tool.ruff.format]
+# Enable preview style formatting.
+quote-style = "preserve"

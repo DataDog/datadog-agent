@@ -1105,7 +1105,7 @@ func TestWithDirectorRootOverride(t *testing.T) {
 	baseRawURL := "https://localhost"
 	mockTelemetryReporter := newMockRcTelemetryReporter()
 	options := []Option{
-		WithDirectorRootOverride("{\"a\": \"b\"}"),
+		WithDirectorRootOverride("datadoghq.com", "{\"a\": \"b\"}"),
 		WithAPIKey("abc"),
 	}
 	_, err := NewService(cfg, "Remote Config", baseRawURL, "localhost", []string{"dogo_state:hungry"}, mockTelemetryReporter, agentVersion, options...)

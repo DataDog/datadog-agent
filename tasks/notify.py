@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import io
 import json
 import os
@@ -5,24 +7,25 @@ import re
 import tempfile
 import traceback
 from collections import defaultdict
-from datetime import datetime
-from typing import Dict
+from datetime import datetime, timezone
 
 from invoke import task
 from invoke.exceptions import Exit, UnexpectedExit
 
-from tasks.libs.datadog_api import create_count, send_metrics
-from tasks.libs.pipeline_data import get_failed_jobs
-from tasks.libs.pipeline_notifications import (
+from tasks.libs.common.datadog_api import create_count, send_metrics
+from tasks.libs.pipeline.data import get_failed_jobs
+from tasks.libs.pipeline.notifications import (
     GITHUB_SLACK_MAP,
     base_message,
     check_for_missing_owners_slack_and_jira,
+    email_to_slackid,
     find_job_owners,
     get_failed_tests,
+    get_git_author,
     send_slack_message,
 )
-from tasks.libs.pipeline_stats import get_failed_jobs_stats
-from tasks.libs.types import FailedJobs, SlackMessage, TeamMessage
+from tasks.libs.pipeline.stats import compute_failed_jobs_series, compute_required_jobs_max_duration
+from tasks.libs.types.types import FailedJobs, SlackMessage, TeamMessage
 
 UNKNOWN_OWNER_TEMPLATE = """The owner `{owner}` is not mapped to any slack channel.
 Please check for typos in the JOBOWNERS file and/or add them to the Github <-> Slack map.
@@ -40,8 +43,8 @@ def check_teams(_):
     if check_for_missing_owners_slack_and_jira():
         print(
             "Error: Some teams in CODEOWNERS don't have their slack notification channel or jira specified!\n"
-            "Please specify one in the GITHUB_SLACK_MAP or GITHUB_JIRA_MAP maps in tasks/libs/github_slack_map.yaml"
-            " or tasks/libs/github_jira_map.yaml"
+            "Please specify one in the GITHUB_SLACK_MAP or GITHUB_JIRA_MAP maps in tasks/libs/pipeline/github_slack_map.yaml"
+            " or tasks/libs/pipeline/github_jira_map.yaml"
         )
         raise Exit(code=1)
     else:
@@ -49,12 +52,15 @@ def check_teams(_):
 
 
 @task
-def send_message(_, notification_type="merge", print_to_stdout=False):
+def send_message(ctx, notification_type="merge", print_to_stdout=False):
     """
     Send notifications for the current pipeline. CI-only task.
     Use the --print-to-stdout option to test this locally, without sending
     real slack messages.
     """
+    default_branch = os.getenv("CI_DEFAULT_BRANCH")
+    git_ref = os.getenv("CI_COMMIT_REF_NAME")
+
     try:
         failed_jobs = get_failed_jobs(PROJECT_NAME, os.getenv("CI_PIPELINE_ID"))
         messages_to_send = generate_failure_messages(PROJECT_NAME, failed_jobs)
@@ -92,6 +98,8 @@ def send_message(_, notification_type="merge", print_to_stdout=False):
     base = base_message(header, state)
 
     # Send messages
+    metrics = []
+    timestamp = int(datetime.now(timezone.utc).timestamp())
     for owner, message in messages_to_send.items():
         channel = GITHUB_SLACK_MAP.get(owner.lower(), None)
         message.base_message = base
@@ -102,7 +110,44 @@ def send_message(_, notification_type="merge", print_to_stdout=False):
         if print_to_stdout:
             print(f"Would send to {channel}:\n{str(message)}")
         else:
-            send_slack_message(channel, str(message))  # TODO: use channel variable
+            all_teams = channel == "#datadog-agent-pipelines"
+            post_channel = _should_send_message_to_channel(git_ref, default_branch) or all_teams
+            send_dm = not _should_send_message_to_channel(git_ref, default_branch) and all_teams
+
+            if post_channel:
+                recipient = channel
+                send_slack_message(recipient, str(message))
+                metrics.append(
+                    create_count(
+                        metric_name="datadog.ci.failed_job_notifications",
+                        timestamp=timestamp,
+                        tags=[
+                            f"team:{owner}",
+                            "repository:datadog-agent",
+                            f"git_ref:{git_ref}",
+                        ],
+                        unit="notification",
+                        value=1,
+                    )
+                )
+
+            # DM author
+            if send_dm:
+                author_email = get_git_author(email=True)
+                recipient = email_to_slackid(ctx, author_email)
+                send_slack_message(recipient, str(message))
+
+    if metrics:
+        send_metrics(metrics)
+
+
+def _should_send_message_to_channel(git_ref: str, default_branch: str) -> bool:
+    # Must match X.Y.Z, X.Y.x, W.X.Y-rc.Z
+    # Must not match W.X.Y-rc.Z-some-feature
+    release_ref_regex = re.compile(r"^[0-9]+\.[0-9]+\.(x|[0-9]+)$")
+    release_ref_regex_rc = re.compile(r"^[0-9]+\.[0-9]+\.[0-9]-rc.[0-9]+$")
+
+    return git_ref == default_branch or release_ref_regex.match(git_ref) or release_ref_regex_rc.match(git_ref)
 
 
 @task
@@ -112,64 +157,15 @@ def send_stats(_, print_to_stdout=False):
     Use the --print-to-stdout option to test this locally, without sending
     data points to Datadog.
     """
-    try:
-        global_failure_reason, job_failure_stats = get_failed_jobs_stats(PROJECT_NAME, os.getenv("CI_PIPELINE_ID"))
-    except Exception as e:
-        print("Found exception when generating statistics:")
-        print(e)
-        traceback.print_exc(limit=-1)
-        raise Exit(code=1)
-
     if not (print_to_stdout or os.environ.get("DD_API_KEY")):
         print("DD_API_KEY environment variable not set, cannot send pipeline metrics to the backend")
         raise Exit(code=1)
 
-    timestamp = int(datetime.now().timestamp())
-    series = []
-
-    for failure_tags, count in job_failure_stats.items():
-        # This allows getting stats on the number of jobs that fail due to infrastructure
-        # issues vs. other failures, and have a per-pipeline ratio of infrastructure failures.
-        series.append(
-            create_count(
-                metric_name="datadog.ci.job_failures",
-                timestamp=timestamp,
-                value=count,
-                tags=list(failure_tags)
-                + [
-                    "repository:datadog-agent",
-                    f"git_ref:{os.getenv('CI_COMMIT_REF_NAME')}",
-                ],
-            )
-        )
-
-    if job_failure_stats:  # At least one job failed
-        pipeline_state = "failed"
-    else:
-        pipeline_state = "succeeded"
-
-    pipeline_tags = [
-        "repository:datadog-agent",
-        f"git_ref:{os.getenv('CI_COMMIT_REF_NAME')}",
-        f"status:{pipeline_state}",
-    ]
-    if global_failure_reason:  # Only set the reason if the pipeline fails
-        pipeline_tags.append(f"reason:{global_failure_reason}")
-
-    series.append(
-        create_count(
-            metric_name="datadog.ci.pipelines",
-            timestamp=timestamp,
-            value=1,
-            tags=pipeline_tags,
-        )
-    )
+    series = compute_failed_jobs_series(PROJECT_NAME)
+    series.extend(compute_required_jobs_max_duration(PROJECT_NAME))
 
     if not print_to_stdout:
-        response = send_metrics(series)
-        if response["errors"]:
-            print(f"Error(s) while sending pipeline metrics to the Datadog backend: {response['errors']}")
-            raise Exit(code=1)
+        send_metrics(series)
         print(f"Sent pipeline metrics: {series}")
     else:
         print(f"Would send: {series}")
@@ -178,7 +174,7 @@ def send_stats(_, print_to_stdout=False):
 # Tasks to trigger pipeline notifications
 
 
-def generate_failure_messages(project_name: str, failed_jobs: FailedJobs) -> Dict[str, SlackMessage]:
+def generate_failure_messages(project_name: str, failed_jobs: FailedJobs) -> dict[str, SlackMessage]:
     all_teams = "@DataDog/agent-all"
 
     # Generate messages for each team
@@ -235,7 +231,10 @@ def check_consistent_failures(ctx, job_failures_file="job_executions.json"):
     # Upload document
     with open(job_failures_file, "w") as f:
         json.dump(job_executions, f)
-    ctx.run(f"{AWS_S3_CP_CMD} {job_failures_file} {S3_CI_BUCKET_URL}/{job_failures_file} ", hide="stdout")
+    ctx.run(
+        f"{AWS_S3_CP_CMD} {job_failures_file} {S3_CI_BUCKET_URL}/{job_failures_file} ",
+        hide="stdout",
+    )
 
 
 def retrieve_job_executions(ctx, job_failures_file):
@@ -243,7 +242,10 @@ def retrieve_job_executions(ctx, job_failures_file):
     Retrieve the stored document in aws s3, or create it
     """
     try:
-        ctx.run(f"{AWS_S3_CP_CMD}  {S3_CI_BUCKET_URL}/{job_failures_file} {job_failures_file}", hide=True)
+        ctx.run(
+            f"{AWS_S3_CP_CMD}  {S3_CI_BUCKET_URL}/{job_failures_file} {job_failures_file}",
+            hide=True,
+        )
         with open(job_failures_file) as f:
             job_executions = json.load(f)
     except UnexpectedExit as e:
@@ -265,12 +267,15 @@ def update_statistics(job_executions):
     # Update statistics and collect consecutive failed jobs
     alert_jobs = {"consecutive": [], "cumulative": []}
     failed_jobs = get_failed_jobs(PROJECT_NAME, os.getenv("CI_PIPELINE_ID"))
-    failed_set = {job["name"] for job in failed_jobs.all_failures()}
+    failed_set = {job.name for job in failed_jobs.all_failures()}
     current_set = set(job_executions["jobs"].keys())
     # Insert data for newly failing jobs
     new_failed_jobs = failed_set - current_set
     for job in new_failed_jobs:
-        job_executions["jobs"][job] = {"consecutive_failures": 1, "cumulative_failures": [1]}
+        job_executions["jobs"][job] = {
+            "consecutive_failures": 1,
+            "cumulative_failures": [1],
+        }
     # Reset information for no-more failing jobs
     solved_jobs = current_set - failed_set
     for job in solved_jobs:
@@ -309,7 +314,7 @@ def send_notification(alert_jobs):
 
 @task
 def unit_tests(ctx, pipeline_id, pipeline_url, branch_name):
-    from tasks.libs.common.github_api import GithubAPI
+    from tasks.libs.ciproviders.github_api import GithubAPI
 
     pipeline_id_regex = re.compile(r"pipeline ([0-9]*)")
 
@@ -345,7 +350,7 @@ def unit_tests(ctx, pipeline_id, pipeline_url, branch_name):
 
 
 def create_msg(pipeline_id, pipeline_url, job_list):
-    msg = f'''
+    msg = f"""
 [Fast Unit Tests Report]
 
 On pipeline [{pipeline_id}]({pipeline_url}) ([CI Visibility](https://app.datadoghq.com/ci/pipeline-executions?query=ci_level%3Apipeline%20%40ci.pipeline.name%3ADataDog%2Fdatadog-agent%20%40ci.pipeline.id%3A{pipeline_id}&fromUser=false&index=cipipeline)). The following jobs did not run any unit tests:
@@ -353,7 +358,7 @@ On pipeline [{pipeline_id}]({pipeline_url}) ([CI Visibility](https://app.datadog
 <details>
 <summary>Jobs:</summary>
 
-'''
+"""
     for job in job_list:
         msg += f"  - {job}\n"
     msg += "</details>\n"

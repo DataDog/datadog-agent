@@ -27,6 +27,8 @@ const (
 	ContainerAppDNSSuffix = "CONTAINER_APP_ENV_DNS_SUFFIX"
 	//nolint:revive // TODO(SERV) Fix revive linter
 	ContainerAppRevision = "CONTAINER_APP_REVISION"
+	//nolint:revive // TODO(SERV) Fix revive linter
+	ContainerAppReplicaName = "CONTAINER_APP_REPLICA_NAME"
 
 	//nolint:revive // TODO(SERV) Fix revive linter
 	AzureSubscriptionIdEnvVar = "DD_AZURE_SUBSCRIPTION_ID"
@@ -43,13 +45,15 @@ func (c *ContainerApp) GetTags() map[string]string {
 	region := appDNSSuffixTokens[len(appDNSSuffixTokens)-3]
 
 	revision := os.Getenv(ContainerAppRevision)
+	replica := os.Getenv(ContainerAppReplicaName)
 
 	tags := map[string]string{
-		"app_name":   appName,
-		"region":     region,
-		"revision":   revision,
-		"origin":     c.GetOrigin(),
-		"_dd.origin": c.GetOrigin(),
+		"app_name":     appName,
+		"region":       region,
+		"revision":     revision,
+		"replica_name": replica,
+		"origin":       c.GetOrigin(),
+		"_dd.origin":   c.GetOrigin(),
 	}
 
 	if c.SubscriptionId != "" {

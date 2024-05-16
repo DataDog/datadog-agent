@@ -30,6 +30,8 @@ import (
 	internalAPI "github.com/DataDog/datadog-agent/comp/api/api"
 	authtokenimpl "github.com/DataDog/datadog-agent/comp/api/authtoken/createandfetchimpl"
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
+	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
+	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl"
 
 	"github.com/DataDog/datadog-agent/comp/api/api/apiimpl"
 	"github.com/DataDog/datadog-agent/comp/core"
@@ -38,10 +40,14 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/flare"
+	"github.com/DataDog/datadog-agent/comp/core/gui"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
+	"github.com/DataDog/datadog-agent/comp/core/settings"
+	"github.com/DataDog/datadog-agent/comp/core/settings/settingsimpl"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/pidmap"
@@ -55,7 +61,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryhost"
 	"github.com/DataDog/datadog-agent/comp/metadata/packagesigning"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcservice"
-	"github.com/DataDog/datadog-agent/comp/remote-config/rcserviceha"
+	"github.com/DataDog/datadog-agent/comp/remote-config/rcservicemrf"
 	"github.com/DataDog/datadog-agent/pkg/cli/standalone"
 	pkgcollector "github.com/DataDog/datadog-agent/pkg/collector"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
@@ -128,6 +134,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			fx.Supply(cliParams),
 			fx.Supply(params),
 			core.Bundle(),
+			compressionimpl.Module(),
 			diagnosesendermanagerimpl.Module(),
 			// workloadmeta setup
 			collectors.GetCatalog(),
@@ -137,6 +144,10 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			workloadmeta.Module(),
 			apiimpl.Module(),
 			authtokenimpl.Module(),
+			// The jmx command do not have settings that change are runtime
+			// still, we need to pass it to ensure the API server is proprely initialized
+			settingsimpl.Module(),
+			fx.Supply(settings.Params{}),
 			// TODO(components): this is a temporary hack as the StartServer() method of the API package was previously called with nil arguments
 			// This highlights the fact that the API Server created by JMX (through ExecJmx... function) should be different from the ones created
 			// in others commands such as run.
@@ -151,14 +162,16 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			fx.Provide(func() demultiplexer.Component { return nil }),
 			fx.Provide(func() inventorychecks.Component { return nil }),
 			fx.Provide(func() packagesigning.Component { return nil }),
-			fx.Provide(func() optional.Option[rcservice.Component] { return optional.NewNoneOption[rcservice.Component]() }),
-			fx.Provide(func() optional.Option[rcserviceha.Component] { return optional.NewNoneOption[rcserviceha.Component]() }),
+			fx.Supply(optional.NewNoneOption[rcservice.Component]()),
+			fx.Supply(optional.NewNoneOption[rcservicemrf.Component]()),
 			fx.Provide(func() status.Component { return nil }),
 			fx.Provide(func() eventplatformreceiver.Component { return nil }),
-			fx.Provide(func() optional.Option[collector.Component] { return optional.NewNoneOption[collector.Component]() }),
+			fx.Supply(optional.NewNoneOption[collector.Component]()),
+			fx.Supply(optional.NewNoneOption[logsAgent.Component]()),
 			fx.Provide(tagger.NewTaggerParamsForCoreAgent),
-			tagger.Module(),
+			taggerimpl.Module(),
 			autodiscoveryimpl.Module(),
+			fx.Supply(optional.NewNoneOption[gui.Component]()),
 			agent.Bundle(),
 			fx.Supply(jmxloggerimpl.NewCliParams(cliParams.logFile)),
 		)
@@ -292,7 +305,6 @@ func disableCmdPort() {
 func runJmxCommandConsole(config config.Component,
 	cliParams *cliParams,
 	wmeta workloadmeta.Component,
-	taggerComp tagger.Component,
 	ac autodiscovery.Component,
 	diagnoseSendermanager diagnosesendermanager.Component,
 	secretResolver secrets.Component,
@@ -332,7 +344,7 @@ func runJmxCommandConsole(config config.Component,
 		return err
 	}
 
-	err = standalone.ExecJMXCommandConsole(cliParams.command, cliParams.cliSelectedChecks, cliParams.jmxLogLevel, allConfigs, wmeta, taggerComp, ac, diagnoseSendermanager, agentAPI, collector, jmxLogger)
+	err = standalone.ExecJMXCommandConsole(cliParams.command, cliParams.cliSelectedChecks, cliParams.jmxLogLevel, allConfigs, diagnoseSendermanager, agentAPI, jmxLogger)
 
 	if runtime.GOOS == "windows" {
 		standalone.PrintWindowsUserWarning("jmx")

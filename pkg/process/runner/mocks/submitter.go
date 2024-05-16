@@ -15,29 +15,6 @@ type Submitter struct {
 	mock.Mock
 }
 
-// Start provides a mock function with given fields:
-func (_m *Submitter) Start() error {
-	ret := _m.Called()
-
-	if len(ret) == 0 {
-		panic("no return value specified for Start")
-	}
-
-	var r0 error
-	if rf, ok := ret.Get(0).(func() error); ok {
-		r0 = rf()
-	} else {
-		r0 = ret.Error(0)
-	}
-
-	return r0
-}
-
-// Stop provides a mock function with given fields:
-func (_m *Submitter) Stop() {
-	_m.Called()
-}
-
 // Submit provides a mock function with given fields: start, name, messages
 func (_m *Submitter) Submit(start time.Time, name string, messages *types.Payload) {
 	_m.Called(start, name, messages)

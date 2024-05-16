@@ -290,6 +290,10 @@ func (p *EBPFResolver) UpdateArgsEnvs(event *model.ArgsEnvsEvent) {
 
 // AddForkEntry adds an entry to the local cache and returns the newly created entry
 func (p *EBPFResolver) AddForkEntry(entry *model.ProcessCacheEntry, inode uint64) {
+	if entry.Pid == 0 {
+		return
+	}
+
 	p.Lock()
 	defer p.Unlock()
 
@@ -298,6 +302,10 @@ func (p *EBPFResolver) AddForkEntry(entry *model.ProcessCacheEntry, inode uint64
 
 // AddExecEntry adds an entry to the local cache and returns the newly created entry
 func (p *EBPFResolver) AddExecEntry(entry *model.ProcessCacheEntry, inode uint64) {
+	if entry.Pid == 0 {
+		return
+	}
+
 	p.Lock()
 	defer p.Unlock()
 
@@ -487,6 +495,10 @@ func (p *EBPFResolver) insertEntry(entry, prev *model.ProcessCacheEntry, source 
 }
 
 func (p *EBPFResolver) insertForkEntry(entry *model.ProcessCacheEntry, inode uint64, source uint64) {
+	if entry.Pid == 0 {
+		return
+	}
+
 	prev := p.entryCache[entry.Pid]
 	if prev != nil {
 		// this shouldn't happen but it is better to exit the prev and let the new one replace it
@@ -515,6 +527,10 @@ func (p *EBPFResolver) insertForkEntry(entry *model.ProcessCacheEntry, inode uin
 }
 
 func (p *EBPFResolver) insertExecEntry(entry *model.ProcessCacheEntry, inode uint64, source uint64) {
+	if entry.Pid == 0 {
+		return
+	}
+
 	prev := p.entryCache[entry.Pid]
 	if prev != nil {
 		if inode != 0 && prev.FileEvent.Inode != inode {
@@ -562,6 +578,10 @@ func (p *EBPFResolver) DeleteEntry(pid uint32, exitTime time.Time) {
 
 // Resolve returns the cache entry for the given pid
 func (p *EBPFResolver) Resolve(pid, tid uint32, inode uint64, useProcFS bool) *model.ProcessCacheEntry {
+	if pid == 0 {
+		return nil
+	}
+
 	p.Lock()
 	defer p.Unlock()
 
@@ -599,15 +619,6 @@ func (p *EBPFResolver) resolve(pid, tid uint32, inode uint64, useProcFS bool) *m
 
 	p.missStats.Inc()
 	return nil
-}
-
-func setPathname(fileEvent *model.FileEvent, pathnameStr string) {
-	if fileEvent.FileFields.IsFileless() {
-		fileEvent.SetPathnameStr("")
-	} else {
-		fileEvent.SetPathnameStr(pathnameStr)
-	}
-	fileEvent.SetBasenameStr(path.Base(pathnameStr))
 }
 
 func (p *EBPFResolver) resolveFileFieldsPath(e *model.FileFields, pce *model.ProcessCacheEntry, ctrCtx *model.ContainerContext) (string, error) {
@@ -656,11 +667,6 @@ func (p *EBPFResolver) SetProcessPath(fileEvent *model.FileEvent, pce *model.Pro
 	setPathname(fileEvent, pathnameStr)
 
 	return fileEvent.PathnameStr, nil
-}
-
-// IsBusybox returns true if the pathname matches busybox
-func IsBusybox(pathname string) bool {
-	return pathname == "/bin/busybox" || pathname == "/usr/bin/busybox"
 }
 
 // SetProcessSymlink resolves process file symlink path
@@ -759,6 +765,10 @@ func (p *EBPFResolver) ResolveFromKernelMaps(pid, tid uint32, inode uint64) *mod
 }
 
 func (p *EBPFResolver) resolveFromKernelMaps(pid, tid uint32, inode uint64) *model.ProcessCacheEntry {
+	if pid == 0 {
+		return nil
+	}
+
 	pidb := make([]byte, 4)
 	binary.NativeEndian.PutUint32(pidb, pid)
 
@@ -826,11 +836,6 @@ func (p *EBPFResolver) resolveFromKernelMaps(pid, tid uint32, inode uint64) *mod
 	}
 
 	return entry
-}
-
-// IsKThread returns whether given pids are from kthreads
-func IsKThread(ppid, pid uint32) bool {
-	return ppid == 2 || pid == 2
 }
 
 // ResolveFromProcfs resolves the entry from procfs
@@ -906,35 +911,6 @@ func (p *EBPFResolver) SetProcessArgs(pce *model.ProcessCacheEntry) {
 		// no need to keep it in LRU now as attached to a process
 		p.argsEnvsCache.Remove(pce.ArgsID)
 	}
-}
-
-// GetProcessArgv returns the unscrubbed args of the event as an array. Use with caution.
-func GetProcessArgv(pr *model.Process) ([]string, bool) {
-	if pr.ArgsEntry == nil {
-		return pr.Argv, pr.ArgsTruncated
-	}
-
-	argv := pr.ArgsEntry.Values
-	if len(argv) > 0 {
-		argv = argv[1:]
-	}
-	pr.Argv = argv
-	pr.ArgsTruncated = pr.ArgsTruncated || pr.ArgsEntry.Truncated
-	return pr.Argv, pr.ArgsTruncated
-}
-
-// GetProcessArgv0 returns the first arg of the event and whether the process arguments are truncated
-func GetProcessArgv0(pr *model.Process) (string, bool) {
-	if pr.ArgsEntry == nil {
-		return pr.Argv0, pr.ArgsTruncated
-	}
-
-	argv := pr.ArgsEntry.Values
-	if len(argv) > 0 {
-		pr.Argv0 = argv[0]
-	}
-	pr.ArgsTruncated = pr.ArgsTruncated || pr.ArgsEntry.Truncated
-	return pr.Argv0, pr.ArgsTruncated
 }
 
 // GetProcessArgvScrubbed returns the scrubbed args of the event as an array

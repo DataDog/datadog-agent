@@ -1,9 +1,10 @@
+from __future__ import annotations
+
 import argparse
 import json
 import os
 import re
 import traceback
-from typing import Union
 
 
 def normalize_metrics(stage, aws_account_id):
@@ -38,10 +39,8 @@ def normalize_metrics(stage, aws_account_id):
 
 def normalize_logs(stage, aws_account_id):
     rmvs = (
-        "DATADOG TRACER CONFIGURATION",
         # TODO: these messages may be an indication of a real problem and
         # should be investigated
-        "TIMESTAMP UTC | DD_EXTENSION | ERROR | could not forward the request context canceled",
         "TIMESTAMP http: proxy error: context canceled",
     )
 
@@ -99,6 +98,8 @@ def normalize_traces(stage, aws_account_id):
         exclude(r'"_dd.install.id":"[a-zA-Z0-9\-]+",'),
         exclude(r'"_dd.install.time":"[0-9]+",'),
         exclude(r'"_dd.install.type":"[a-zA-Z0-9_\-]+",'),
+        exclude(r'"_dd.p.tid":"[0-9a-fA-F]+",'),
+        exclude(r'"_dd.tracer_hostname":"\d{1,3}(?:.\d{1,3}){3}"+,'),
         replace(r'(ts":)[0-9]{10}', r'\1XXX'),
         replace(r'((startTime|endTime|traceID|trace_id|span_id|parent_id|start|system.pid)":)[0-9]+', r'\1null'),
         replace(r'((tracer_version|language_version)":)["a-zA-Z0-9~\-\.\_]+', r'\1null'),
@@ -111,9 +112,10 @@ def normalize_traces(stage, aws_account_id):
         replace(r'("architecture":)"(x86_64|arm64)"', r'\1"XXX"'),
         replace(r'("process_id":)[0-9]+', r'\1null'),
         replace(r'("otel.trace_id":")[a-zA-Z0-9]+"', r'\1null"'),
+        replace(r'("_dd.p.dm":")\-[0-9]+"', r'\1null"'),
+        replace(r'("_dd.otlp_sr":")[0-9\.]+"', r'\1null"'),
         replace(r'("faas.execution":")[a-zA-Z0-9-]+"', r'\1null"'),
         replace(r'("faas.instance":")[a-zA-Z0-9-/]+\[\$LATEST\][a-zA-Z0-9]+"', r'\1null"'),
-        replace(r'("_dd.tracer_hostname":)"\d{1,3}(?:.\d{1,3}){3}"+', r'\1"<redacted>"'),
         replace(stage, 'XXXXXX'),
         replace(aws_account_id, '############'),
         exclude(r'[ ]$'),
@@ -314,12 +316,12 @@ if __name__ == '__main__':
         args = parse_args()
 
         if args.logs.startswith('file:'):
-            with open(args.logs[5:], 'r') as f:
+            with open(args.logs[5:]) as f:
                 args.logs = f.read()
 
         print(normalize(args.logs, args.type, args.stage, args.accountid))
     except Exception as e:
-        err: dict[str, Union[str, list[str]]] = {
+        err: dict[str, str | list[str]] = {
             "error": "normalization raised exception",
         }
         # Unless explicitly specified, perform as it did historically
