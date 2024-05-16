@@ -9,7 +9,6 @@ import (
 	"io"
 
 	"github.com/DataDog/datadog-agent/pkg/diagnose"
-	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
 )
 
 // GetClusterAgentDiagnose dumps the connectivity checks diagnose to the writer
@@ -21,10 +20,6 @@ func GetClusterAgentDiagnose(w io.Writer) error {
 	//                  diagnose suite as it was done in this agent for
 	//                  a while. Most likely need to relax or add more
 	//                  diagnose suites in the future
-	diagCfg := diagnosis.Config{
-		Verbose:  true,
-		RunLocal: true,
-		Include:  []string{"connectivity-datadog-autodiscovery"},
-	}
-	return diagnose.RunStdOutAutodiscovery(w, diagCfg)
+	return diagnose.RunStdOutLocalCheck(w, true, diagnose.RegisterConnectivityAutodiscovery)
+
 }

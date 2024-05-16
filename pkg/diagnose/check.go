@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//nolint:revive // TODO(CINT) Fix revive linter
+// Package diagnose provides the diagnose functionality for the Agent.
 package diagnose
 
 import (
@@ -72,7 +72,7 @@ func diagnoseChecksInAgentProcess(collector collector.Component) []diagnosis.Dia
 	return diagnoses
 }
 
-func diagnoseChecksInCLIProcess(diagCfg diagnosis.Config, senderManager diagnosesendermanager.Component, secretResolver secrets.Component, wmeta optional.Option[workloadmeta.Component], ac autodiscovery.Component) []diagnosis.Diagnosis { //nolint:revive // TODO fix revive unused-parameter
+func diagnoseChecksInCLIProcess(_ diagnosis.Config, senderManager diagnosesendermanager.Component, secretResolver secrets.Component, wmeta optional.Option[workloadmeta.Component], ac autodiscovery.Component) []diagnosis.Diagnosis { //nolint:revive // TODO fix revive unused-parameter
 	// other choices
 	// 	run() github.com\DataDog\datadog-agent\pkg\cli\subcommands\check\command.go
 	//  runCheck() github.com\DataDog\datadog-agent\cmd\agent\gui\checks.go

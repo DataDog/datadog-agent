@@ -249,7 +249,7 @@ func getSuiteDiagnoses(ds diagnosis.Suite) []diagnosis.Diagnosis {
 	return diagnoses
 }
 
-// Enumerate registered Diagnose suites and get their diagnoses
+// ListStdOut enumerates registered Diagnose suites and get their diagnoses
 // for human consumption
 //
 //nolint:revive // TODO(CINT) Fix revive linter
@@ -311,7 +311,7 @@ func requestDiagnosesFromAgentProcess(diagCfg diagnosis.Config) ([]diagnosis.Dia
 
 	// Form call end-point
 	//nolint:revive // TODO(CINT) Fix revive linter
-	diagnoseUrl := fmt.Sprintf("https://%v:%v/agent/diagnose", ipcAddress, pkgconfig.Datadog.GetInt("cmd_port"))
+	diagnoseURL := fmt.Sprintf("https://%v:%v/agent/diagnose", ipcAddress, pkgconfig.Datadog.GetInt("cmd_port"))
 
 	// Serialized diag config to pass it to Agent execution context
 	var cfgSer []byte
@@ -321,7 +321,7 @@ func requestDiagnosesFromAgentProcess(diagCfg diagnosis.Config) ([]diagnosis.Dia
 
 	// Run diagnose code inside Agent process
 	var response []byte
-	response, err = util.DoPost(c, diagnoseUrl, "application/json", bytes.NewBuffer(cfgSer))
+	response, err = util.DoPost(c, diagnoseURL, "application/json", bytes.NewBuffer(cfgSer))
 	if err != nil {
 		if response != nil && string(response) != "" {
 			return nil, fmt.Errorf("error getting diagnoses from running agent: %s", strings.TrimSpace(string(response)))
@@ -390,12 +390,13 @@ func RunStdOutInCLIProcess(w io.Writer, diagCfg diagnosis.Config, deps SuitesDep
 	})
 }
 
-// RunStdOutAutodiscovery run the check "connectivity-datadog-autodiscovery"
-func RunStdOutAutodiscovery(w io.Writer, diagCfg diagnosis.Config) error {
+// RunStdOutLocalCheck runs locally the checks created by the registries.
+func RunStdOutLocalCheck(w io.Writer, verbose bool, registries ...func(*diagnosis.Catalog)) error {
+	diagCfg := diagnosis.Config{Verbose: verbose, RunLocal: true}
 	return runStdOut(w, diagCfg, func(diagCfg diagnosis.Config) ([]diagnosis.Diagnoses, error) {
-		return run(diagCfg, func() []diagnosis.Suite {
-			return getSuitesAutodiscovery()
-		})
+		suites := buildCustomSuites(registries...)
+
+		return getDiagnosesFromCurrentProcess(diagCfg, suites)
 	})
 }
 
@@ -510,12 +511,6 @@ func NewSuitesDeps(
 	}
 }
 
-func getSuitesAutodiscovery() []diagnosis.Suite {
-	catalog := diagnosis.NewCatalog()
-	registerConnectivityAutodiscovery(catalog)
-	return catalog.GetSuites()
-}
-
 func getCheckNames(diagCfg diagnosis.Config) []string {
 	suites := buildSuites(diagCfg, func() []diagnosis.Diagnosis { return nil })
 	names := make([]string, len(suites))
@@ -526,16 +521,42 @@ func getCheckNames(diagCfg diagnosis.Config) []string {
 }
 
 func buildSuites(diagCfg diagnosis.Config, checkDatadog func() []diagnosis.Diagnosis) []diagnosis.Suite {
+	return buildCustomSuites(
+		RegisterCheckDatadog(checkDatadog),
+		RegisterConnectivityDatadogCoreEndpoints(diagCfg),
+		RegisterConnectivityAutodiscovery,
+		RegisterConnectivityDatadogEventPlatform,
+	)
+}
+
+func buildCustomSuites(registries ...func(*diagnosis.Catalog)) []diagnosis.Suite {
 	catalog := diagnosis.NewCatalog()
-
-	catalog.Register("check-datadog", checkDatadog)
-	catalog.Register("connectivity-datadog-core-endpoints", func() []diagnosis.Diagnosis { return connectivity.Diagnose(diagCfg) })
-	registerConnectivityAutodiscovery(catalog)
-	catalog.Register("connectivity-datadog-event-platform", eventplatformimpl.Diagnose)
-
+	for _, registry := range registries {
+		registry(catalog)
+	}
 	return catalog.GetSuites()
 }
 
-func registerConnectivityAutodiscovery(catalog *diagnosis.Catalog) {
+// RegisterCheckDatadog registers the check-datadog diagnose suite.
+func RegisterCheckDatadog(checkDatadog func() []diagnosis.Diagnosis) func(catalog *diagnosis.Catalog) {
+	return func(catalog *diagnosis.Catalog) {
+		catalog.Register("check-datadog", checkDatadog)
+	}
+}
+
+// RegisterConnectivityDatadogCoreEndpoints registers the connectivity-datadog-core-endpoints diagnose suite.
+func RegisterConnectivityDatadogCoreEndpoints(diagCfg diagnosis.Config) func(catalog *diagnosis.Catalog) {
+	return func(catalog *diagnosis.Catalog) {
+		catalog.Register("connectivity-datadog-core-endpoints", func() []diagnosis.Diagnosis { return connectivity.Diagnose(diagCfg) })
+	}
+}
+
+// RegisterConnectivityAutodiscovery registers the connectivity-datadog-autodiscovery diagnose suite.
+func RegisterConnectivityAutodiscovery(catalog *diagnosis.Catalog) {
 	catalog.Register("connectivity-datadog-autodiscovery", connectivity.DiagnoseMetadataAutodiscoveryConnectivity)
+}
+
+// RegisterConnectivityDatadogEventPlatform registers the connectivity-datadog-event-platform diagnose suite.
+func RegisterConnectivityDatadogEventPlatform(catalog *diagnosis.Catalog) {
+	catalog.Register("connectivity-datadog-event-platform", eventplatformimpl.Diagnose)
 }

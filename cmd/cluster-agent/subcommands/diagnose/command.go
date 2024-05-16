@@ -20,7 +20,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl"
 	"github.com/DataDog/datadog-agent/pkg/diagnose"
-	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -54,10 +53,5 @@ func run(_ config.Component) error {
 	//                  diagnose suite as it was done in this agent for
 	//                  a while. Most likely need to relax or add more
 	//                  diagnose suites in the future
-	diagCfg := diagnosis.Config{
-		Verbose:  true, // show details
-		RunLocal: true, // do not attept to run in actual runnin agent (may need to implement it in future)
-	}
-
-	return diagnose.RunStdOutAutodiscovery(color.Output, diagCfg)
+	return diagnose.RunStdOutLocalCheck(color.Output, true, diagnose.RegisterConnectivityAutodiscovery)
 }
