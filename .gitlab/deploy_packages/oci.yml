@@ -8,8 +8,8 @@ include:
   tags: ["arch:amd64"]
   stage: deploy_packages
   rules:
-    - !reference [.on_installer_or_e2e_changes_or_manual]
     - !reference [.on_deploy]
+    - !reference [.on_installer_or_e2e_changes_or_manual]
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR
   script:

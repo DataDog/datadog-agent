@@ -1,9 +1,10 @@
+from __future__ import annotations
+
 import os
 import re
 import time
 from collections import Counter
 from functools import lru_cache
-from typing import List
 
 from invoke import Exit, task
 
@@ -71,6 +72,7 @@ def trigger_macos(
     retry_download=3,
     retry_interval=10,
     fast_tests=None,
+    test_washer=False,
     integrations_core_ref=DEFAULT_INTEGRATIONS_CORE_BRANCH,
 ):
     if workflow_type == "build":
@@ -105,6 +107,7 @@ def trigger_macos(
             python_runtimes=python_runtimes,
             version_cache_file_content=version_cache,
             fast_tests=fast_tests,
+            test_washer=test_washer,
         )
         repack_macos_junit_tar(conclusion, "junit-tests_macos.tgz", "junit-tests_macos-repacked.tgz")
     elif workflow_type == "lint":
@@ -204,7 +207,7 @@ def get_token_from_app(_, app_id_env='GITHUB_APP_ID', pkey_env='GITHUB_KEY_B64')
     GithubAPI.get_token_from_app(app_id_env, pkey_env)
 
 
-def _get_teams(changed_files, owners_file='.github/CODEOWNERS') -> List[str]:
+def _get_teams(changed_files, owners_file='.github/CODEOWNERS') -> list[str]:
     codeowners = read_owners(owners_file)
 
     team_counter = Counter()
@@ -291,8 +294,9 @@ def handle_community_pr(_, repo='', pr_id=-1, labels=''):
     """
     Will set labels and notify teams about a newly opened community PR
     """
-    from tasks.libs.ciproviders.github_api import GithubAPI
     from slack_sdk import WebClient
+
+    from tasks.libs.ciproviders.github_api import GithubAPI
 
     # Get review teams / channels
     gh = GithubAPI()

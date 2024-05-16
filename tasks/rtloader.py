@@ -9,6 +9,7 @@ import sys
 
 from invoke import task
 from invoke.exceptions import Exit
+
 from tasks.libs.common.utils import collapsed_section
 
 

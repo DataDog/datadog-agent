@@ -414,6 +414,9 @@ def ninja_cgo_type_files(nw):
                 "pkg/network/ebpf/c/tracer/tracer.h",
                 "pkg/network/ebpf/c/protocols/kafka/types.h",
             ],
+            "pkg/network/protocols/postgres/types.go": [
+                "pkg/network/ebpf/c/protocols/postgres/types.h",
+            ],
             "pkg/ebpf/telemetry/types.go": [
                 "pkg/ebpf/c/telemetry_types.h",
             ],
@@ -1780,6 +1783,7 @@ def save_build_outputs(ctx, destfile):
 
     absdest = os.path.abspath(destfile)
     count = 0
+    outfiles = []
     with tempfile.TemporaryDirectory() as stagedir:
         with open("compile_commands.json") as compiledb:
             for outputitem in json.load(compiledb):
@@ -1794,8 +1798,13 @@ def save_build_outputs(ctx, destfile):
                 outdir = os.path.join(stagedir, filedir)
                 ctx.run(f"mkdir -p {outdir}")
                 ctx.run(f"cp {outputitem['output']} {outdir}/")
+                outfiles.append(outputitem['output'])
                 count += 1
 
         if count == 0:
             raise Exit(message="no build outputs captured")
         ctx.run(f"tar -C {stagedir} -cJf {absdest} .")
+
+    outfiles.sort()
+    for outfile in outfiles:
+        ctx.run(f"sha256sum {outfile} >> {absdest}.sum")

@@ -8,7 +8,6 @@ package model
 
 import (
 	"encoding/binary"
-	"errors"
 	"fmt"
 	"math/bits"
 	"strings"
@@ -517,10 +516,6 @@ func (p *PIDContext) UnmarshalBinary(data []byte) (int, error) {
 	p.IsKworker = binary.NativeEndian.Uint32(data[12:16]) > 0
 	p.ExecInode = binary.NativeEndian.Uint64(data[16:24])
 
-	if p.Pid == 0 {
-		return 0, errors.New("invalid pid context")
-	}
-
 	return 24, nil
 }
 
@@ -782,16 +777,16 @@ func (e *MMapEvent) UnmarshalBinary(data []byte) (int, error) {
 		return 0, err
 	}
 
-	if len(data)-read < 28 {
+	if len(data)-read < 40 {
 		return 0, ErrNotEnoughData
 	}
 
 	e.Addr = binary.NativeEndian.Uint64(data[read : read+8])
 	e.Offset = binary.NativeEndian.Uint64(data[read+8 : read+16])
-	e.Len = binary.NativeEndian.Uint32(data[read+16 : read+20])
-	e.Protection = int(binary.NativeEndian.Uint32(data[read+20 : read+24]))
-	e.Flags = int(binary.NativeEndian.Uint32(data[read+24 : read+28]))
-	return read + 28, nil
+	e.Len = binary.NativeEndian.Uint64(data[read+16 : read+24])
+	e.Protection = binary.NativeEndian.Uint64(data[read+24 : read+32])
+	e.Flags = binary.NativeEndian.Uint64(data[read+32 : read+40])
+	return read + 40, nil
 }
 
 // UnmarshalBinary unmarshals a binary representation of itself

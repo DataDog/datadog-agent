@@ -11,12 +11,9 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
-	"time"
 
 	"github.com/open-telemetry/opentelemetry-collector-contrib/exporter/datadogexporter"
 	"github.com/stretchr/testify/assert"
-	"go.opentelemetry.io/collector/component"
-	"go.opentelemetry.io/collector/config/configtelemetry"
 	"go.opentelemetry.io/collector/connector"
 	"go.opentelemetry.io/collector/connector/connectortest"
 	"go.opentelemetry.io/collector/exporter"
@@ -28,68 +25,8 @@ import (
 	"go.opentelemetry.io/collector/processor/processortest"
 	"go.opentelemetry.io/collector/receiver"
 	"go.opentelemetry.io/collector/receiver/receivertest"
-	"go.opentelemetry.io/collector/service"
-	"go.opentelemetry.io/collector/service/pipelines"
-	"go.opentelemetry.io/collector/service/telemetry"
-	"go.uber.org/zap/zapcore"
 	"gopkg.in/yaml.v3"
 )
-
-func nopConfig() *otelcol.Config {
-	nopType, _ := component.NewType("nop")
-	tracesType, _ := component.NewType("traces")
-	metricsType, _ := component.NewType("metrics")
-	logsType, _ := component.NewType("logs")
-	return &otelcol.Config{
-		Receivers:  map[component.ID]component.Config{component.NewID(nopType): receivertest.NewNopFactory().CreateDefaultConfig()},
-		Processors: map[component.ID]component.Config{component.NewID(nopType): processortest.NewNopFactory().CreateDefaultConfig()},
-		Exporters:  map[component.ID]component.Config{component.NewID(nopType): exportertest.NewNopFactory().CreateDefaultConfig()},
-		Extensions: map[component.ID]component.Config{component.NewID(nopType): extensiontest.NewNopFactory().CreateDefaultConfig()},
-		Connectors: map[component.ID]component.Config{component.NewIDWithName(nopType, "connector"): connectortest.NewNopFactory().CreateDefaultConfig()},
-		Service: service.Config{
-			Extensions: []component.ID{component.NewID(nopType)},
-			Pipelines: pipelines.Config{
-				component.NewID(tracesType): {
-					Receivers:  []component.ID{component.NewID(nopType)},
-					Processors: []component.ID{component.NewID(nopType)},
-					Exporters:  []component.ID{component.NewID(nopType)},
-				},
-				component.NewID(metricsType): {
-					Receivers:  []component.ID{component.NewID(nopType)},
-					Processors: []component.ID{component.NewID(nopType)},
-					Exporters:  []component.ID{component.NewID(nopType)},
-				},
-				component.NewID(logsType): {
-					Receivers:  []component.ID{component.NewID(nopType)},
-					Processors: []component.ID{component.NewID(nopType)},
-					Exporters:  []component.ID{component.NewID(nopType)},
-				},
-			},
-			Telemetry: telemetry.Config{
-				Logs: telemetry.LogsConfig{
-					Level:       zapcore.InfoLevel,
-					Development: false,
-					Encoding:    "console",
-					Sampling: &telemetry.LogsSamplingConfig{
-						Enabled:    true,
-						Tick:       10 * time.Second,
-						Initial:    10,
-						Thereafter: 100,
-					},
-					OutputPaths:       []string{"stderr"},
-					ErrorOutputPaths:  []string{"stderr"},
-					DisableCaller:     false,
-					DisableStacktrace: false,
-					InitialFields:     map[string]any(nil),
-				},
-				Metrics: telemetry.MetricsConfig{
-					Level:   configtelemetry.LevelNormal,
-					Address: ":8888",
-				},
-			},
-		},
-	}
-}
 
 func uriFromFile(filename string) string {
 	return filepath.Join("testdata", filename)
@@ -113,7 +50,19 @@ func TestConfigProviderGet(t *testing.T) {
 	err = conf.Validate()
 	assert.NoError(t, err)
 
-	assert.Equal(t, nopConfig(), conf)
+	upstreamProvider, err := upstreamConfigProvider("config.yaml")
+	assert.NoError(t, err)
+
+	expectedConf, err := upstreamProvider.Get(context.Background(), factories)
+	assert.NoError(t, err)
+
+	assert.Equal(t, expectedConf, conf)
+}
+
+func upstreamConfigProvider(file string) (otelcol.ConfigProvider, error) {
+	configProviderSettings := newDefaultConfigProviderSettings([]string{uriFromFile(file)})
+
+	return otelcol.NewConfigProvider(configProviderSettings)
 }
 
 func TestConfigProviderWatch(t *testing.T) {
