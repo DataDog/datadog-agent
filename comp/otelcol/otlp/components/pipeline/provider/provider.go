@@ -21,6 +21,8 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+// ExtendedConfigProvider implements the otelcol.ConfigProvider interface and
+// provides extra functions to expose the provided and enhanced configs.
 type ExtendedConfigProvider interface {
 	otelcol.ConfigProvider
 	GetProvidedConf() string

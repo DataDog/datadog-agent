@@ -29,16 +29,17 @@ import (
 )
 
 func uriFromFile(filename string) string {
+	fmt.Println(filepath.Join("testdata", filename))
 	return filepath.Join("testdata", filename)
 }
 
 func TestNewConfigProvider(t *testing.T) {
-	_, err := NewConfigProvider([]string{uriFromFile("config.yaml")})
+	_, err := NewConfigProvider([]string{uriFromFile("nop/config.yaml")})
 	assert.NoError(t, err)
 }
 
 func TestConfigProviderGet(t *testing.T) {
-	provider, err := NewConfigProvider([]string{uriFromFile("config.yaml")})
+	provider, err := NewConfigProvider([]string{uriFromFile("nop/config.yaml")})
 	assert.NoError(t, err)
 
 	factories, err := nopFactories()
@@ -50,7 +51,7 @@ func TestConfigProviderGet(t *testing.T) {
 	err = conf.Validate()
 	assert.NoError(t, err)
 
-	upstreamProvider, err := upstreamConfigProvider("config.yaml")
+	upstreamProvider, err := upstreamConfigProvider("nop/config.yaml")
 	assert.NoError(t, err)
 
 	expectedConf, err := upstreamProvider.Get(context.Background(), factories)
@@ -66,7 +67,7 @@ func upstreamConfigProvider(file string) (otelcol.ConfigProvider, error) {
 }
 
 func TestConfigProviderWatch(t *testing.T) {
-	provider, err := NewConfigProvider([]string{uriFromFile("config.yaml")})
+	provider, err := NewConfigProvider([]string{uriFromFile("nop/config.yaml")})
 	assert.NoError(t, err)
 
 	var expected <-chan error
@@ -74,7 +75,7 @@ func TestConfigProviderWatch(t *testing.T) {
 }
 
 func TestConfigProviderShutdown(t *testing.T) {
-	provider, err := NewConfigProvider([]string{uriFromFile("config.yaml")})
+	provider, err := NewConfigProvider([]string{uriFromFile("nop/config.yaml")})
 	assert.NoError(t, err)
 
 	err = provider.Shutdown(context.Background())
@@ -83,7 +84,7 @@ func TestConfigProviderShutdown(t *testing.T) {
 
 func TestGetConfDump(t *testing.T) {
 	t.Run("nop", func(t *testing.T) {
-		provider, err := NewConfigProvider([]string{uriFromFile("config.yaml")})
+		provider, err := NewConfigProvider([]string{uriFromFile("nop/config.yaml")})
 		assert.NoError(t, err)
 
 		factories, err := nopFactories()
@@ -103,7 +104,7 @@ func TestGetConfDump(t *testing.T) {
 			err = yaml.Unmarshal([]byte(yamlStringConf), stringMap)
 			assert.NoError(t, err)
 
-			resultYamlBytesConf, err := os.ReadFile(filepath.Join("testdata", "config-result.yaml"))
+			resultYamlBytesConf, err := os.ReadFile(filepath.Join("testdata", "nop", "config-result.yaml"))
 			assert.NoError(t, err)
 			var resultStringMap = map[string]interface{}{}
 			err = yaml.Unmarshal(resultYamlBytesConf, resultStringMap)
@@ -121,7 +122,7 @@ func TestGetConfDump(t *testing.T) {
 	})
 
 	t.Run("dd", func(t *testing.T) {
-		provider, err := NewConfigProvider([]string{uriFromFile("config-dd.yaml")})
+		provider, err := NewConfigProvider([]string{uriFromFile("dd/config-dd.yaml")})
 		assert.NoError(t, err)
 
 		factories, err := nopFactories()
@@ -141,7 +142,7 @@ func TestGetConfDump(t *testing.T) {
 			err = yaml.Unmarshal([]byte(yamlStringConf), stringMap)
 			assert.NoError(t, err)
 
-			resultYamlBytesConf, err := os.ReadFile(filepath.Join("testdata", "config-dd-result.yaml"))
+			resultYamlBytesConf, err := os.ReadFile(filepath.Join("testdata", "dd/config-dd-result.yaml"))
 			assert.NoError(t, err)
 			var resultStringMap = map[string]interface{}{}
 			err = yaml.Unmarshal(resultYamlBytesConf, resultStringMap)
