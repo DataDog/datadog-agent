@@ -14,7 +14,6 @@ import (
 	"time"
 
 	model "github.com/DataDog/agent-payload/v5/process"
-	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/npcollectorimpl/common"
@@ -68,30 +67,25 @@ func newNoopNpCollectorImpl() *npCollectorImpl {
 	}
 }
 
-func newNpCollectorImpl(epForwarder eventplatform.Forwarder, collectorConfigs *collectorConfigs, logger log.Component, agentConfig config.Reader) *npCollectorImpl {
-	workers := agentConfig.GetInt("network_path.collector.workers")
-	pathtestInputChanSize := agentConfig.GetInt("network_path.collector.input_chan_size")
-	pathtestProcessingChanSize := agentConfig.GetInt("network_path.collector.processing_chan_size")
-	pathtestTTL := agentConfig.GetDuration("network_path.collector.pathtest_ttl")
-	pathtestInterval := agentConfig.GetDuration("network_path.collector.pathtest_interval")
-	flushInterval := agentConfig.GetDuration("network_path.collector.flush_interval")
-
-	logger.Infof("New NpCollector (workers=%d input_chan_size=%d pathtest_ttl=%s pathtest_interval=%s)",
-		workers,
-		pathtestInputChanSize,
-		pathtestTTL.String(),
-		pathtestInterval.String())
+func newNpCollectorImpl(epForwarder eventplatform.Forwarder, collectorConfigs *collectorConfigs, logger log.Component) *npCollectorImpl {
+	logger.Infof("New NpCollector (workers=%d input_chan_size=%d processing_chan_size=%d pathtest_ttl=%s pathtest_interval=%s flush_interval=%s)",
+		collectorConfigs.workers,
+		collectorConfigs.pathtestInputChanSize,
+		collectorConfigs.pathtestProcessingChanSize,
+		collectorConfigs.pathtestTTL,
+		collectorConfigs.pathtestInterval,
+		collectorConfigs.flushInterval)
 
 	return &npCollectorImpl{
 		epForwarder:      epForwarder,
 		collectorConfigs: collectorConfigs,
 		logger:           logger,
 
-		pathtestStore:          pathteststore.NewPathtestStore(pathtestTTL, pathtestInterval, logger),
-		pathtestInputChan:      make(chan *common.Pathtest, pathtestInputChanSize),
-		pathtestProcessingChan: make(chan *pathteststore.PathtestContext, pathtestProcessingChanSize),
-		flushInterval:          flushInterval,
-		workers:                workers,
+		pathtestStore:          pathteststore.NewPathtestStore(collectorConfigs.pathtestTTL, collectorConfigs.pathtestInterval, logger),
+		pathtestInputChan:      make(chan *common.Pathtest, collectorConfigs.pathtestInputChanSize),
+		pathtestProcessingChan: make(chan *pathteststore.PathtestContext, collectorConfigs.pathtestProcessingChanSize),
+		flushInterval:          collectorConfigs.flushInterval,
+		workers:                collectorConfigs.workers,
 
 		metricSender: metricsender.NewMetricSenderStatsd(statsd.Client),
 

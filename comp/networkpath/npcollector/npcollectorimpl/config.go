@@ -5,15 +5,31 @@
 
 package npcollectorimpl
 
-import "github.com/DataDog/datadog-agent/comp/core/config"
+import (
+	"time"
+
+	"github.com/DataDog/datadog-agent/comp/core/config"
+)
 
 type collectorConfigs struct {
 	connectionsMonitoringEnabled bool
+	workers                      int
+	pathtestInputChanSize        int
+	pathtestProcessingChanSize   int
+	pathtestTTL                  time.Duration
+	pathtestInterval             time.Duration
+	flushInterval                time.Duration
 }
 
 func newConfig(agentConfig config.Component) *collectorConfigs {
 	return &collectorConfigs{
 		connectionsMonitoringEnabled: agentConfig.GetBool("network_path.connections_monitoring.enabled"),
+		workers:                      agentConfig.GetInt("network_path.collector.workers"),
+		pathtestInputChanSize:        agentConfig.GetInt("network_path.collector.input_chan_size"),
+		pathtestProcessingChanSize:   agentConfig.GetInt("network_path.collector.processing_chan_size"),
+		pathtestTTL:                  agentConfig.GetDuration("network_path.collector.pathtest_ttl"),
+		pathtestInterval:             agentConfig.GetDuration("network_path.collector.pathtest_interval"),
+		flushInterval:                agentConfig.GetDuration("network_path.collector.flush_interval"),
 	}
 }
 

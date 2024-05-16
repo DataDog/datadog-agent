@@ -216,7 +216,7 @@ func Test_NpCollector_runningAndProcessing(t *testing.T) {
 	// THEN
 	calls := stats.GaugeCalls
 	tags := []string{
-		"collector:network_path_scheduler",
+		"collector:network_path_collector",
 		"destination_hostname:abc",
 		"destination_port:80",
 		"protocol:udp",
@@ -634,7 +634,7 @@ func Test_npCollectorImpl_sendTelemetry(t *testing.T) {
 	// THEN
 	calls := stats.GaugeCalls
 	tags := []string{
-		"collector:network_path_scheduler",
+		"collector:network_path_collector",
 		"destination_hostname:abc",
 		"destination_port:80",
 		"protocol:udp",
