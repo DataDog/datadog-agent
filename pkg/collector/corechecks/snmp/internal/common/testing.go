@@ -17,10 +17,12 @@ var MockTimeNow = func() time.Time {
 	return t
 }
 
+// MockCacher is a fake cacher used for testing purposes to avoid using the persistent cache and have conflicts between tests
 type MockCacher struct {
 	cache map[string]string
 }
 
+// NewMockCacher returns a new MockCacher
 func NewMockCacher() *MockCacher {
 	return &MockCacher{
 		cache: make(map[string]string),
