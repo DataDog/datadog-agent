@@ -10,8 +10,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strconv"
-	"strings"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
 	"github.com/stretchr/testify/require"
@@ -103,17 +101,6 @@ func (h *Host) SetBrokenDockerConfig() {
 // these fields are not supported
 func (h *Host) SetBrokenDockerConfigAdditionalFields() {
 	h.remote.MustExecute("echo '{\"tomato\": \"potato\"}' | sudo tee /etc/docker/daemon.json")
-}
-
-// GetDockerMajorVersion returns the major version of the Docker daemon
-func (h *Host) GetDockerMajorVersion() int {
-	dockerVersion := h.remote.MustExecute("sudo docker version -f {{.Client.Version}}")
-	majorDockerVersion := strings.Split(dockerVersion, ".")[0]
-	majorDockerVersionInt, err := strconv.Atoi(majorDockerVersion)
-	if err != nil {
-		h.t.Fatalf("failed to parse docker version %s: %s", majorDockerVersion, err)
-	}
-	return majorDockerVersionInt
 }
 
 // RemoveBrokenDockerConfig removes the broken configuration from the Docker daemon

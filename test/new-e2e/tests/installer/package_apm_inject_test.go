@@ -84,20 +84,15 @@ func (s *packageApmInjectSuite) TestVerifications() {
 	require.Error(s.T(), err)
 	s.assertLDPreloadNotInstrumented()
 	s.assertDockerdConfigNotInstrumented()
+	s.host.RemoveBrokenDockerConfig()
 
 	// Additional fields in /etc/docker/daemon.json
 	// not supported starting docker 23
 	s.host.SetBrokenDockerConfigAdditionalFields()
 	err = s.InstallInjectorPackageTempWithError()
-	if s.host.GetDockerMajorVersion() >= 23 {
-		require.Error(s.T(), err)
-		s.assertLDPreloadNotInstrumented()
-		s.assertDockerdConfigNotInstrumented()
-	} else {
-		require.NoError(s.T(), err)
-		s.assertLDPreloadInstrumented()
-		s.assertDockerdInstrumented()
-	}
+	require.Error(s.T(), err)
+	s.assertLDPreloadNotInstrumented()
+	s.assertDockerdConfigNotInstrumented()
 	s.host.RemoveBrokenDockerConfig()
 }
 

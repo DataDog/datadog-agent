@@ -18,6 +18,7 @@ import (
 	"path"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
@@ -49,7 +50,13 @@ func (a *apmInjectorInstaller) setupDocker(ctx context.Context) (rollback func()
 		}
 		return reloadDockerConfig(ctx)
 	}
-	return rollback, reloadDockerConfig(ctx)
+
+	err = reloadDockerConfig(ctx)
+	if err != nil {
+		return rollback, err
+	}
+
+	return rollback, a.verifyDockerRuntime()
 }
 
 func (a *apmInjectorInstaller) uninstallDocker(ctx context.Context) error {
@@ -122,6 +129,8 @@ func (a *apmInjectorInstaller) deleteDockerConfigContent(previousContent []byte)
 
 // verifyDockerConfig validates the docker daemon configuration for latest
 // docker versions (>=23.0.0)
+// For docker versions <23.0.0, the validation is skipped but we rely on the post-reload
+// verification to check if the configuration has been applied properly
 func (a *apmInjectorInstaller) verifyDockerConfig(path string) error {
 	cmd := exec.Command("docker", "version", "-f", "{{.Client.Version}}")
 	versionBuffer := new(bytes.Buffer)
@@ -150,6 +159,30 @@ func (a *apmInjectorInstaller) verifyDockerConfig(path string) error {
 		return fmt.Errorf("failed to validate docker config (%v): %s", err, buf.String())
 	}
 	return nil
+}
+
+// verifyDockerRuntime validates that docker runtime configuration contains
+// a path to the injector runtime. This must be done because we can't always
+// verify the configuration befor a reload depending on the docker version
+// As the reload is eventually consistent we have to retry a few times
+func (a *apmInjectorInstaller) verifyDockerRuntime() (err error) {
+	for i := 0; i < 3; i++ {
+		if i > 0 {
+			time.Sleep(time.Second)
+		}
+		cmd := exec.Command("docker", "system", "info", "--format", "{{ .DefaultRuntime }}")
+		var outb bytes.Buffer
+		cmd.Stdout = &outb
+		err = cmd.Run()
+		if strings.TrimSpace(outb.String()) == "dd-shim" {
+			return nil
+		}
+	}
+	if err != nil {
+		// Only return the latest error
+		log.Warn("failed to verify docker runtime: ", err)
+	}
+	return fmt.Errorf("docker default runtime has not been set to injector docker runtime")
 }
 
 func reloadDockerConfig(ctx context.Context) (err error) {
