@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package types contains all the types needed by Flare providers without the underlying implementation and dependencies.
+// Package flaredef contains all the types needed by Flare providers without the underlying implementation and dependencies.
 // This allows components to offer flare capabilities without linking to the flare dependencies when the flare feature
 // is not built in the binary.
 package flaredef

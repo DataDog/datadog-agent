@@ -40,7 +40,7 @@ func (i *otelflareImpl) SetEnabled() {
 func (i *otelflareImpl) fillFlare(fb flaredef.FlareBuilder) error {
 	if i.Enabled {
 		// TODO: placeholder for now, until OTel extension exists to provide data
-		fb.AddFile("otel-agent.log", []byte("otel-agent flare"))
+		fb.AddFile("otel-agent.log", []byte("otel-agent flare")) //nolint:errcheck
 	}
 	return nil
 }

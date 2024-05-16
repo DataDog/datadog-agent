@@ -354,6 +354,10 @@ Package collectorcontrib defines the OTel collector-contrib component
 
 Package logsagentpipeline contains logs agent pipeline component
 
+### [comp/otelcol/otelflare](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/otelcol/otelflare)
+
+Package otelflare defines the OTel flare
+
 ## [comp/process](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/process) (Component Bundle)
 
 *Datadog Team*: processes

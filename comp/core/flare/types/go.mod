@@ -2,7 +2,10 @@ module github.com/DataDog/datadog-agent/comp/core/flare/types
 
 go 1.21.0
 
-replace github.com/DataDog/datadog-agent/comp/core/flare/def => ../def
+replace (
+	github.com/DataDog/datadog-agent/comp/def => ../../../def
+	github.com/DataDog/datadog-agent/comp/core/flare/def => ../def
+)
 
 require (
 	github.com/DataDog/datadog-agent/comp/core/flare/def v0.0.0-00010101000000-000000000000
