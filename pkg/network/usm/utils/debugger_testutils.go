@@ -47,3 +47,19 @@ func WaitForProgramsToBeTraced(t *testing.T, programType string, pid int) {
 		return false
 	}, time.Second*5, time.Millisecond*100, "process %v is not traced by %v", pid, programType)
 }
+
+// WaitForPathToBeBlocked waits for the path to be blocked from tracing in the
+// registry (due to failing activation).
+func WaitForPathToBeBlocked(t *testing.T, programType string, path string) {
+	pathID, err := NewPathIdentifier(path)
+	require.NoError(t, err)
+	require.Eventuallyf(t, func() bool {
+		blocked := debugger.GetBlockedPathIDs(programType)
+		for _, id := range blocked {
+			if id == pathID {
+				return true
+			}
+		}
+		return false
+	}, time.Second*5, time.Millisecond*100, "path %v is not blocked in %v", path, programType)
+}

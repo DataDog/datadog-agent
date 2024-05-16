@@ -92,6 +92,26 @@ func (d *fileRegistryDebugger) GetTracedPrograms() []TracedProgram {
 	return all
 }
 
+// GetBlockedPathIDs returns a list of PathIdentifiers blocked in the
+// registry for the specified program type.
+func (d *fileRegistryDebugger) GetBlockedPathIDs(programType string) []PathIdentifier {
+	d.mux.Lock()
+	defer d.mux.Unlock()
+
+	for _, registry := range d.instances {
+		if registry.telemetry.programName != programType {
+			continue
+		}
+
+		registry.m.Lock()
+		defer registry.m.Unlock()
+
+		return registry.blocklistByID.Keys()
+	}
+
+	return nil
+}
+
 func init() {
 	debugger = new(fileRegistryDebugger)
 }
