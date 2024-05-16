@@ -2,16 +2,19 @@ from __future__ import annotations
 
 import functools
 import re
+from typing import TYPE_CHECKING
 
 from invoke.context import Context
 
 from tasks.kernel_matrix_testing.platforms import get_platforms
 from tasks.kernel_matrix_testing.tool import error, get_binary_target_arch, info, warn
-from tasks.kernel_matrix_testing.types import Component
 from tasks.kernel_matrix_testing.vars import KMT_SUPPORTED_ARCHS, KMTPaths
 from tasks.libs.types.arch import ARCH_AMD64, ARCH_ARM64, get_arch
 
-SelftestResult = tuple[bool | None, str]
+if TYPE_CHECKING:
+    from tasks.kernel_matrix_testing.types import Component
+
+    SelftestResult = tuple[bool | None, str]
 
 
 def selftest_pulumi(ctx: Context, _: bool) -> SelftestResult:

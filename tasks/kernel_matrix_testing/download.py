@@ -2,15 +2,18 @@ from __future__ import annotations
 
 import os
 import tempfile
+from typing import TYPE_CHECKING
 
 from invoke.context import Context
 
 from tasks.kernel_matrix_testing.platforms import get_platforms
 from tasks.kernel_matrix_testing.tool import Exit, debug, info, warn
-from tasks.kernel_matrix_testing.types import KMTArchName, PathOrStr
 from tasks.kernel_matrix_testing.vars import KMT_SUPPORTED_ARCHS
 from tasks.kernel_matrix_testing.vmconfig import get_vmconfig_template
 from tasks.libs.types.arch import get_arch
+
+if TYPE_CHECKING:
+    from tasks.kernel_matrix_testing.types import KMTArchName, PathOrStr
 
 try:
     import requests

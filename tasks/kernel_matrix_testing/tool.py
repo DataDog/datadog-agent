@@ -1,12 +1,15 @@
 from __future__ import annotations
 
 import os
+from typing import TYPE_CHECKING
 
 import invoke.exceptions as ie
 from invoke.context import Context
 
-from tasks.kernel_matrix_testing.types import KMTArchName, KMTArchNameOrLocal, PathOrStr
 from tasks.libs.types.arch import Arch, get_arch
+
+if TYPE_CHECKING:
+    from tasks.kernel_matrix_testing.types import KMTArchName, KMTArchNameOrLocal, PathOrStr
 
 try:
     from termcolor import colored
