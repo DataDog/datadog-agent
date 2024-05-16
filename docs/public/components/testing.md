@@ -167,7 +167,7 @@ To create a lifecycle instance, use the helper function `compdef.NewTestLifecycl
     <!-- TODO add link to NewTestLifecycle function once this PR https://github.com/DataDog/datadog-agent/pull/25184 is merged-->
     You can see the `NewTestLifecycle` function [here]()
 
-=== ":octicons-file-code-16: comp/somecomponent/impl/component.go"
+=== ":octicons-file-code-16: comp/somecomponent/impl/component_test.go"
     ```go
     package impl
 
