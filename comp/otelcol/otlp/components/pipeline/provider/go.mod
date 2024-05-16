@@ -5,8 +5,6 @@ go 1.21.0
 require (
 	github.com/open-telemetry/opentelemetry-collector-contrib/exporter/datadogexporter v0.100.0
 	github.com/stretchr/testify v1.9.0
-	go.opentelemetry.io/collector/component v0.100.0
-	go.opentelemetry.io/collector/config/configtelemetry v0.100.0
 	go.opentelemetry.io/collector/confmap v0.100.0
 	go.opentelemetry.io/collector/confmap/converter/expandconverter v0.100.0
 	go.opentelemetry.io/collector/confmap/provider/envprovider v0.100.0
@@ -20,8 +18,6 @@ require (
 	go.opentelemetry.io/collector/otelcol v0.100.0
 	go.opentelemetry.io/collector/processor v0.100.0
 	go.opentelemetry.io/collector/receiver v0.100.0
-	go.opentelemetry.io/collector/service v0.100.0
-	go.uber.org/zap v1.27.0
 	gopkg.in/yaml.v3 v3.0.1
 )
 
@@ -193,12 +189,14 @@ require (
 	github.com/yusufpapurcu/wmi v1.2.4 // indirect
 	go.opencensus.io v0.24.0 // indirect
 	go.opentelemetry.io/collector v0.100.0 // indirect
+	go.opentelemetry.io/collector/component v0.100.0 // indirect
 	go.opentelemetry.io/collector/config/configauth v0.100.0 // indirect
 	go.opentelemetry.io/collector/config/configcompression v1.7.0 // indirect
 	go.opentelemetry.io/collector/config/confighttp v0.100.0 // indirect
 	go.opentelemetry.io/collector/config/confignet v0.100.0 // indirect
 	go.opentelemetry.io/collector/config/configopaque v1.7.0 // indirect
 	go.opentelemetry.io/collector/config/configretry v0.100.0 // indirect
+	go.opentelemetry.io/collector/config/configtelemetry v0.100.0 // indirect
 	go.opentelemetry.io/collector/config/configtls v0.100.0 // indirect
 	go.opentelemetry.io/collector/config/internal v0.100.0 // indirect
 	go.opentelemetry.io/collector/consumer v0.100.0 // indirect
@@ -207,6 +205,7 @@ require (
 	go.opentelemetry.io/collector/pdata v1.7.0 // indirect
 	go.opentelemetry.io/collector/pdata/testdata v0.100.0 // indirect
 	go.opentelemetry.io/collector/semconv v0.100.0 // indirect
+	go.opentelemetry.io/collector/service v0.100.0 // indirect
 	go.opentelemetry.io/contrib/config v0.6.0 // indirect
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.51.0 // indirect
 	go.opentelemetry.io/contrib/propagators/b3 v1.26.0 // indirect
@@ -229,6 +228,7 @@ require (
 	go.uber.org/dig v1.17.0 // indirect
 	go.uber.org/fx v1.18.2 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
+	go.uber.org/zap v1.27.0 // indirect
 	golang.org/x/exp v0.0.0-20240222234643-814bf88cf225 // indirect
 	golang.org/x/mod v0.17.0 // indirect
 	golang.org/x/net v0.24.0 // indirect
