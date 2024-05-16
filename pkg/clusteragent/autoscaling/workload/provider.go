@@ -16,6 +16,7 @@ import (
 	v1core "k8s.io/client-go/kubernetes/typed/core/v1"
 	"k8s.io/client-go/tools/record"
 
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/model"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
@@ -23,7 +24,7 @@ import (
 )
 
 // StartWorkloadAutoscaling starts the workload autoscaling controller
-func StartWorkloadAutoscaling(ctx context.Context, apiCl *apiserver.APIClient, rcClient rcClient) (PODPatcher, error) {
+func StartWorkloadAutoscaling(ctx context.Context, apiCl *apiserver.APIClient, rcClient rcClient, wlm workloadmeta.Component) (PODPatcher, error) {
 	if apiCl == nil {
 		return nil, fmt.Errorf("Impossible to start workload autoscaling without valid APIClient")
 	}
@@ -44,7 +45,7 @@ func StartWorkloadAutoscaling(ctx context.Context, apiCl *apiserver.APIClient, r
 		return nil, fmt.Errorf("Unable to start workload autoscaling config retriever: %w", err)
 	}
 
-	controller, err := newController(eventRecorder, apiCl.RESTMapper, apiCl.ScaleCl, apiCl.DynamicInformerCl, apiCl.DynamicInformerFactory, le.IsLeader, store)
+	controller, err := newController(eventRecorder, apiCl.RESTMapper, apiCl.ScaleCl, apiCl.DynamicInformerCl, apiCl.DynamicInformerFactory, le.IsLeader, store, wlm)
 	if err != nil {
 		return nil, fmt.Errorf("Unable to start workload autoscaling controller: %w", err)
 	}

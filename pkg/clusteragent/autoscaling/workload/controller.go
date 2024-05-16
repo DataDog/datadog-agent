@@ -22,6 +22,7 @@ import (
 
 	datadoghq "github.com/DataDog/datadog-operator/apis/datadoghq/v1alpha1"
 
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/model"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -53,7 +54,9 @@ type Controller struct {
 	clock clock.Clock
 	store *store
 
+	podWatcher           PodWatcher
 	horizontalController *horizontalController
+	verticalController   *verticalController
 }
 
 // newController returns a new workload autoscaling controller
@@ -65,6 +68,7 @@ func newController(
 	dynamicInformer dynamicinformer.DynamicSharedInformerFactory,
 	isLeader func() bool,
 	store *store,
+	wlm workloadmeta.Component,
 ) (*Controller, error) {
 	c := &Controller{
 		eventRecorder: eventRecorder,
@@ -78,7 +82,9 @@ func newController(
 
 	c.Controller = baseController
 	c.store = store
+	c.podWatcher = newPodWatcher(wlm)
 	c.horizontalController = newHorizontalReconciler(c.clock, eventRecorder, restMapper, scaleClient)
+	c.verticalController = newVerticalController(dynamicClient, c.podWatcher)
 
 	return c, nil
 }
@@ -258,8 +264,16 @@ func (c *Controller) syncPodAutoscaler(ctx context.Context, key, ns, name string
 }
 
 func (c *Controller) handleScaling(ctx context.Context, podAutoscaler *datadoghq.DatadogPodAutoscaler, podAutoscalerInternal *model.PodAutoscalerInternal) (autoscaling.ProcessResult, error) {
-	// Handle horizontal scaling
-	return c.horizontalController.sync(ctx, podAutoscaler, podAutoscalerInternal)
+	// TODO: While horizontal scaling is in progress we should not start vertical scaling
+	// While vertical scaling is in progress we should only allow horizontal upscale
+	horizontalRes, err := c.horizontalController.sync(ctx, podAutoscaler, podAutoscalerInternal)
+	podAutoscalerInternal.HorizontalLastActionError = err
+	if err != nil {
+		return horizontalRes, err
+	}
+
+	verticalRes, err := c.verticalController.sync(ctx, podAutoscalerInternal)
+	return verticalRes, err
 }
 
 func (c *Controller) createPodAutoscaler(ctx context.Context, podAutoscalerInternal model.PodAutoscalerInternal) error {

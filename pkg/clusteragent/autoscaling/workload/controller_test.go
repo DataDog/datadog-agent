@@ -8,6 +8,7 @@
 package workload
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -44,7 +45,13 @@ func newFixture(t *testing.T, testTime time.Time) *fixture {
 		ControllerFixture: autoscaling.NewFixture(
 			t, podAutoscalerGVR,
 			func(fakeClient *fake.FakeDynamicClient, informer dynamicinformer.DynamicSharedInformerFactory, isLeader func() bool) (*autoscaling.Controller, error) {
+<<<<<<< HEAD
 				c, err := newController(recorder, nil, nil, fakeClient, informer, isLeader, store)
+||||||| parent of 87da7d3b4a (initialize the struct)
+				c, err := newController(nil, nil, fakeClient, informer, isLeader, store)
+=======
+				c, err := newController(context.Background(), nil, nil, fakeClient, informer, isLeader, store, nil)
+>>>>>>> 87da7d3b4a (initialize the struct)
 				if err != nil {
 					return nil, err
 				}

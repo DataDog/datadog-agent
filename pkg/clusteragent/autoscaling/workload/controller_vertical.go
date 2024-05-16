@@ -14,6 +14,8 @@ import (
 	"strconv"
 	"strings"
 
+	datadoghq "github.com/DataDog/datadog-operator/apis/datadoghq/v1alpha1"
+
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/model"
@@ -165,6 +167,10 @@ func (u *verticalController) sync(ctx context.Context, autoscalerInternal *model
 		Patches.Inc(target.Kind, target.Name, target.Namespace, "error")
 		return withStatusUpdate(true, autoscaling.Requeue), err
 
+	}
+	autoscalerInternal.VerticalLastAction = &datadoghq.DatadogPodAutoscalerVerticalAction{
+		Time: metav1.Now(),
+		Type: datadoghq.DatadogPodAutoscalerRolloutTriggeredVerticalActionType,
 	}
 	Patches.Inc(target.Kind, target.Name, target.Namespace, "success")
 	return withStatusUpdate(true, autoscaling.Requeue), nil

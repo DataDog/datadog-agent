@@ -411,7 +411,7 @@ func start(log log.Component,
 			log.Error("Admission controller is disabled, vertical autoscaling requires the admission controller to be enabled. Vertical scaling will be disabled.")
 		}
 
-		if adapter, err := workload.StartWorkloadAutoscaling(mainCtx, apiCl, rcClient); err != nil {
+		if adapter, err := workload.StartWorkloadAutoscaling(mainCtx, apiCl, rcClient, wmeta); err != nil {
 			pkglog.Errorf("Error while starting workload autoscaling: %v", err)
 		} else {
 			pa = adapter
