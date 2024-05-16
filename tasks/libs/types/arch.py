@@ -29,7 +29,7 @@ class Arch:
         self.kernel_arch = kernel_arch
 
     def is_cross_compiling(self) -> bool:
-        return platform.machine() not in self.spellings
+        return platform.machine().lower() not in self.spellings
 
     def gcc_compiler(self, platform: str = sys.platform) -> str:
         if platform == "darwin":
@@ -95,7 +95,7 @@ def get_arch(arch: str | Literal["local"] | Arch) -> Arch:
         return arch
 
     if arch == "local":
-        arch = platform.machine()
+        arch = platform.machine().lower()
 
     # Not the most efficient way to do this, but the list is small
     # enough and this way we avoid having to maintain a dictionary
