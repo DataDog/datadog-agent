@@ -43,10 +43,6 @@ func Test_javaDetector(t *testing.T) {
 	}
 }
 
-func TestExec(t *testing.T) {
-
-}
-
 func Test_pythonDetector(t *testing.T) {
 	tmpDir := t.TempDir()
 	err := os.MkdirAll(tmpDir+"/lib/python3.11/site-packages/ddtrace", 0700)

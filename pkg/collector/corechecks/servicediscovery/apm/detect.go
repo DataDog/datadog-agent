@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package apm provides functionality to detect the type of APM instrumentation a service is using.
 package apm
 
 import (
@@ -21,11 +22,15 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/language/reader"
 )
 
+// Instrumentation represents the state of APM instrumentation for a service.
 type Instrumentation string
 
 const (
-	None     Instrumentation = "none"
+	// None means the service is not instrumented with APM.
+	None Instrumentation = "none"
+	// Provided means the service has been manually instrumented.
 	Provided Instrumentation = "provided"
+	// Injected means the service is using automatic APM injection.
 	Injected Instrumentation = "injected"
 )
 
@@ -41,6 +46,7 @@ var (
 	}
 )
 
+// Detect attempts to detect the type of APM instrumentation for the given service.
 func Detect(logger *zap.Logger, args []string, envs []string, lang language.Language) Instrumentation {
 	// first check to see if the DD_INJECTION_ENABLED is set to tracer
 	if isInjected(envs) {
@@ -71,7 +77,7 @@ func isInjected(envs []string) bool {
 	return false
 }
 
-func rubyDetector(logger *zap.Logger, args []string, envs []string) Instrumentation {
+func rubyDetector(_ *zap.Logger, _ []string, _ []string) Instrumentation {
 	return None
 }
 
@@ -133,7 +139,7 @@ func pythonDetector(logger *zap.Logger, args []string, envs []string) Instrument
 	return None
 }
 
-func nodeDetector(logger *zap.Logger, args []string, envs []string) Instrumentation {
+func nodeDetector(logger *zap.Logger, _ []string, envs []string) Instrumentation {
 	// check package.json, see if it has dd-trace in it.
 	// first find it
 	wd := ""
@@ -153,20 +159,20 @@ func nodeDetector(logger *zap.Logger, args []string, envs []string) Instrumentat
 	// whatever is the first package.json that we find, we use
 	// we keep checking up to the root of the file system
 	for curWD := filepath.Clean(wd); len(curWD) > 1; curWD = filepath.Dir(curWD) {
-		curPkgJson := curWD + string(filepath.Separator) + "package.json"
-		f, err := os.Open(curPkgJson)
+		curPkgJSON := curWD + string(filepath.Separator) + "package.json"
+		f, err := os.Open(curPkgJSON)
 		// this error means the file isn't there, so check parent directory
 		if err != nil {
 			if errors.Is(err, os.ErrNotExist) {
-				logger.Debug("package.json not found", zap.String("path", curPkgJson))
+				logger.Debug("package.json not found", zap.String("path", curPkgJSON))
 			} else {
-				logger.Debug("error opening package.json", zap.String("path", curPkgJson), zap.Error(err))
+				logger.Debug("error opening package.json", zap.String("path", curPkgJSON), zap.Error(err))
 			}
 			continue
 		}
 		offset, err := reader.Index(f, `"dd-trace"`)
 		if err != nil {
-			logger.Debug("error reading package.json", zap.String("path", curPkgJson), zap.Error(err))
+			logger.Debug("error reading package.json", zap.String("path", curPkgJSON), zap.Error(err))
 			_ = f.Close()
 			continue
 		}
@@ -181,7 +187,7 @@ func nodeDetector(logger *zap.Logger, args []string, envs []string) Instrumentat
 	return None
 }
 
-func javaDetector(logger *zap.Logger, args []string, envs []string) Instrumentation {
+func javaDetector(_ *zap.Logger, args []string, envs []string) Instrumentation {
 	ignoreArgs := map[string]bool{
 		"-version":     true,
 		"-Xshare:dump": true,
@@ -231,7 +237,7 @@ func findFile(fileName string) (io.ReadCloser, bool) {
 
 const datadogDotNetInstrumented = "Datadog.Trace.ClrProfiler.Native"
 
-func dotNetDetector(logger *zap.Logger, args []string, envs []string) Instrumentation {
+func dotNetDetector(_ *zap.Logger, args []string, envs []string) Instrumentation {
 	// if it's just the word `dotnet` by itself, don't instrument
 	if len(args) == 1 && args[0] == "dotnet" {
 		return None
