@@ -7,9 +7,7 @@ package examples
 
 import (
 	"fmt"
-	"os"
 	"regexp"
-	"strconv"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
@@ -24,9 +22,8 @@ type tmpSuite struct {
 	e2e.BaseSuite[environments.DockerLocal]
 }
 
-func TestSimpleLocalAgentRun(t *testing.T) {
-	devModeEnv, _ := os.LookupEnv("E2E_DEVMODE")
-	options := []e2e.SuiteOption{
+func TestLocalSuite(t *testing.T) {
+	suiteParams := []e2e.SuiteOption{
 		e2e.WithProvisioner(
 			dclocal.Provisioner(
 				dclocal.WithoutFakeIntake(),
@@ -37,14 +34,14 @@ func TestSimpleLocalAgentRun(t *testing.T) {
 					agentparams.WithHostname(t.Name())))),
 	}
 
-	if devMode, err := strconv.ParseBool(devModeEnv); err == nil && devMode {
-		options = append(options, e2e.WithDevMode())
+	if *devMode {
+		suiteParams = append(suiteParams, e2e.WithDevMode())
 	}
-	e2e.Run(t, &tmpSuite{}, options...)
+
+	e2e.Run(t, &tmpSuite{}, suiteParams...)
 }
 
 func (d *tmpSuite) TestExecute() {
-	d.T().Log("Running test")
 	vm := d.Env().RemoteHost
 
 	out, err := vm.Execute("whoami")
