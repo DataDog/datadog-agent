@@ -12,9 +12,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
-	"slices"
 	"testing"
-	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
@@ -23,7 +21,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func startTest(t *testing.T, arch string) *exec.Cmd {
+func startTest(t *testing.T, arch string) (*exec.Cmd, string) {
 	cfg := config.New()
 	cfg.EnableNativeTLSMonitoring = true
 
@@ -45,32 +43,16 @@ func startTest(t *testing.T, arch string) *exec.Cmd {
 	monitor := setupUSMTLSMonitor(t, cfg)
 	require.NotNil(t, monitor)
 
-	return cmd
-}
-
-func waitForProgramToBeTraced(t *testing.T, cmd *exec.Cmd) {
-	utils.WaitForProgramsToBeTraced(t, "shared_libraries", cmd.Process.Pid)
-}
-
-func waitForProgramNotToBeTraced(t *testing.T, cmd *exec.Cmd) {
-	programType := "shared_libraries"
-	pid := cmd.Process.Pid
-
-	time.Sleep(3000 * time.Millisecond)
-
-	traced := utils.GetTracedPrograms(programType)
-	for _, prog := range traced {
-		require.False(t, slices.Contains[[]uint32](prog.PIDs, uint32(pid)))
-	}
+	return cmd, lib
 }
 
 func testArch(t *testing.T, arch string) {
-	cmd := startTest(t, arch)
+	cmd, libPath := startTest(t, arch)
 
 	if arch == runtime.GOARCH {
-		waitForProgramToBeTraced(t, cmd)
+		utils.WaitForProgramsToBeTraced(t, "shared_libraries", cmd.Process.Pid)
 	} else {
-		waitForProgramNotToBeTraced(t, cmd)
+		utils.WaitForPathToBeBlocked(t, "shared_libraries", libPath)
 	}
 }
 
