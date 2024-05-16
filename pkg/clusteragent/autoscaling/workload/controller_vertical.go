@@ -11,7 +11,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"strconv"
 	"strings"
 	"time"
 
@@ -81,8 +80,8 @@ func (u *verticalController) sync(ctx context.Context, autoscalerInternal *model
 		return withStatusUpdate(false, autoscaling.NoRequeue), nil
 	}
 
-	if autoscalerInternal.Generation == 0 {
-		err := fmt.Errorf("no scaling generation for workload")
+	if autoscalerInternal.ScalingValuesHash == "" {
+		err := fmt.Errorf("no scaling hash for workload")
 		log.Errorf("%s/%s: %s", autoscalerInternal.Namespace, autoscalerInternal.Name, err)
 		return withStatusUpdate(true, autoscaling.NoRequeue), err
 	}
@@ -150,7 +149,7 @@ func (u *verticalController) sync(ctx context.Context, autoscalerInternal *model
 			"template": map[string]interface{}{
 				"metadata": map[string]interface{}{
 					"annotations": map[string]string{
-						annotation: strconv.FormatInt(autoscalerInternal.Generation, 16),
+						annotation: autoscalerInternal.ScalingValuesHash,
 					},
 				},
 			},

@@ -68,9 +68,9 @@ func TestMalformedPodAutoscaler(t *testing.T) {
 		{
 			name: "missing spec",
 			workload: &model.PodAutoscalerInternal{
-				Namespace:     "test",
-				ScalingValues: resources,
-				Generation:    0xEA,
+				Namespace:         "test",
+				ScalingValues:     resources,
+				ScalingValuesHash: "hash",
 			},
 			expected: processResult{
 				ProcessResult: autoscaling.NoRequeue,
@@ -88,8 +88,8 @@ func TestMalformedPodAutoscaler(t *testing.T) {
 						APIVersion: "apps/v1",
 					},
 				},
-				ScalingValues: resources,
-				Generation:    0xEA,
+				ScalingValues:     resources,
+				ScalingValuesHash: "hash",
 			},
 			expected: processResult{
 				ProcessResult: autoscaling.NoRequeue,
@@ -107,8 +107,8 @@ func TestMalformedPodAutoscaler(t *testing.T) {
 						APIVersion: "apps/v1",
 					},
 				},
-				ScalingValues: resources,
-				Generation:    0xEA,
+				ScalingValues:     resources,
+				ScalingValuesHash: "hash",
 			},
 			expected: processResult{
 				ProcessResult: autoscaling.NoRequeue,
@@ -117,7 +117,7 @@ func TestMalformedPodAutoscaler(t *testing.T) {
 			expectedError: true,
 		},
 		{
-			name: "missing scaling generation",
+			name: "missing scaling hash",
 			workload: &model.PodAutoscalerInternal{
 				Namespace: "test",
 				Spec: &v1alpha1.DatadogPodAutoscalerSpec{
@@ -145,8 +145,8 @@ func TestMalformedPodAutoscaler(t *testing.T) {
 						Kind: k8sutil.DeploymentKind,
 					},
 				},
-				ScalingValues: resources,
-				Generation:    0xEA,
+				ScalingValues:     resources,
+				ScalingValuesHash: "hash",
 			},
 			expected: processResult{
 				ProcessResult: autoscaling.NoRequeue,
@@ -165,8 +165,8 @@ func TestMalformedPodAutoscaler(t *testing.T) {
 						APIVersion: "abc/bcd/efg",
 					},
 				},
-				ScalingValues: resources,
-				Generation:    0xEA,
+				ScalingValues:     resources,
+				ScalingValuesHash: "hash",
 			},
 			expected: processResult{
 				ProcessResult: autoscaling.NoRequeue,
@@ -185,8 +185,8 @@ func TestMalformedPodAutoscaler(t *testing.T) {
 						APIVersion: "abc",
 					},
 				},
-				ScalingValues: resources,
-				Generation:    0xEA,
+				ScalingValues:     resources,
+				ScalingValuesHash: "hash",
 			},
 			expected: processResult{
 				ProcessResult: autoscaling.NoRequeue,
@@ -205,8 +205,8 @@ func TestMalformedPodAutoscaler(t *testing.T) {
 						APIVersion: "apps/v1",
 					},
 				},
-				ScalingValues: resources,
-				Generation:    0xEA,
+				ScalingValues:     resources,
+				ScalingValuesHash: "hash",
 			},
 			pods: []*workloadmeta.KubernetesPod{
 				{
@@ -235,8 +235,8 @@ func TestMalformedPodAutoscaler(t *testing.T) {
 						APIVersion: "apps/v1",
 					},
 				},
-				ScalingValues: resources,
-				Generation:    0xEA,
+				ScalingValues:     resources,
+				ScalingValuesHash: "hash",
 			},
 			pods: []*workloadmeta.KubernetesPod{
 				{
@@ -329,7 +329,7 @@ func TestProcessSuccessfulPatch(t *testing.T) {
 				},
 			},
 		},
-		Generation: 2,
+		ScalingValuesHash: "hash",
 	}
 	pw := &mockPodWatcher{}
 	pw.On("GetPodsForOwner", mock.Anything).Return(pods)
@@ -382,5 +382,5 @@ func TestProcessSuccessfulPatch(t *testing.T) {
 	err = runtime.DefaultUnstructuredConverter.FromUnstructured(unstruct.UnstructuredContent(), newDep)
 	assert.NoError(t, err)
 	assert.Equal(t, "value", newDep.Spec.Template.GetAnnotations()["key"])
-	assert.Equal(t, "2", newDep.Spec.Template.GetAnnotations()[annotation])
+	assert.Equal(t, "hash", newDep.Spec.Template.GetAnnotations()[annotation])
 }
