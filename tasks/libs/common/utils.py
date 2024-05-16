@@ -85,6 +85,7 @@ def get_distro():
             for line in f:
                 if line.startswith('ID='):
                     system = line.strip()[3:]
+                    break
     return f"{system}_{arch}".lower()
 
 
