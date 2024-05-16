@@ -16,7 +16,7 @@ type npCollectorImpl struct {
 	collectorConfigs *collectorConfigs
 }
 
-func (s *npCollectorImpl) CollectForConns(_ []*model.Connection) {
+func (s *npCollectorImpl) ScheduleConns(_ []*model.Connection) {
 	if !s.collectorConfigs.connectionsMonitoringEnabled {
 		return
 	}
