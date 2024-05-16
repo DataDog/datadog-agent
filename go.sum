@@ -1971,8 +1971,8 @@ github.com/jmoiron/sqlx v1.3.5/go.mod h1:nRVWtLre0KfCLJvgxzCsLVMogSvQ1zNJtpYr2Cc
 github.com/joho/godotenv v1.3.0 h1:Zjp+RcGpHhGlrMbJzXTrZZPrWj+1vfm90La1wgB6Bhc=
 github.com/joho/godotenv v1.3.0/go.mod h1:7hK45KPybAkOC6peb+G5yklZfMxEjkZhHbwpqxOKXbg=
 github.com/jonboulle/clockwork v0.1.0/go.mod h1:Ii8DK3G1RaLaWxj9trq07+26W01tbo22gdxWY5EU2bo=
-github.com/jonboulle/clockwork v0.3.0 h1:9BSCMi8C+0qdApAp4auwX0RkLGUjs956h0EkuQymUhg=
-github.com/jonboulle/clockwork v0.3.0/go.mod h1:Pkfl5aHPm1nk2H9h0bjmnJD/BcgbGXUBGnn1kMkgxc8=
+github.com/jonboulle/clockwork v0.2.2 h1:UOGuzwb1PwsrDAObMuhUnj0p5ULPj8V/xJ7Kx9qUBdQ=
+github.com/jonboulle/clockwork v0.2.2/go.mod h1:Pkfl5aHPm1nk2H9h0bjmnJD/BcgbGXUBGnn1kMkgxc8=
 github.com/josharian/intern v1.0.0 h1:vlS4z54oSdjm0bgjRigI+G1HpF+tI+9rE5LLzOg8HmY=
 github.com/josharian/intern v1.0.0/go.mod h1:5DoeVV0s6jJacbCEi61lwdGj/aVlrQvzHFFd8Hwg//Y=
 github.com/josharian/native v1.1.0 h1:uuaP0hAbW7Y4l0ZRQ6C9zfb7Mg1mbFKry/xzDAfmtLA=
@@ -3222,8 +3222,8 @@ go.opentelemetry.io/collector/exporter v0.100.0 h1:eyPb93tQwdft5Eboo8O5LDdaM1eXA
 go.opentelemetry.io/collector/exporter v0.100.0/go.mod h1:5UrDewyFp5yIQHyV7HUFAPdhHKJGbz1/uaTunm7X54I=
 go.opentelemetry.io/collector/exporter/debugexporter v0.100.0 h1:9y+6FxuwbjQA7osZ1ywNJ7baV+PXOBges2RPmv2Xs20=
 go.opentelemetry.io/collector/exporter/debugexporter v0.100.0/go.mod h1:/BG6XIU3qHHZKQXJygJXtSPpF03IKnU0j+PudmTea8I=
-go.opentelemetry.io/collector/exporter/loggingexporter v0.97.0 h1:avSUMkwU3b7OlrKR5qFjbBYmRgwdIoDltR11h9MmxjQ=
-go.opentelemetry.io/collector/exporter/loggingexporter v0.97.0/go.mod h1:wT/uTcbmw01Uxgsb370KVffXIGypXikZxk7KQDynLnk=
+go.opentelemetry.io/collector/exporter/loggingexporter v0.100.0 h1:7yfOHgXyduf8sTynpCFUxoQNF9ZCh/PccpFULcCtN0I=
+go.opentelemetry.io/collector/exporter/loggingexporter v0.100.0/go.mod h1:yb71wqRRrLo2WFAdeihOcIIlsvrOVt4SvlEf3xRCeUs=
 go.opentelemetry.io/collector/exporter/otlpexporter v0.100.0 h1:mafUk/1VLhPyGgCeGHDNNbpSOqE14ijy4S3oYL8vDMA=
 go.opentelemetry.io/collector/exporter/otlpexporter v0.100.0/go.mod h1:j9b9/HTwRR4VEPEnhoV9hiXf4tyUekz8d0KOlY2XqzE=
 go.opentelemetry.io/collector/exporter/otlphttpexporter v0.100.0 h1:QowvKoakvgoTL5zrjvWTK/fJv20Cvy7N4otno3QfYNw=
