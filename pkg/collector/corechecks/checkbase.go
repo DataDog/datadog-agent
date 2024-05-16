@@ -96,8 +96,6 @@ func (c *CheckBase) Configure(senderManager sender.SenderManager, _ uint64, data
 
 // CommonConfigure is called when checks implement their own Configure method,
 // in order to setup common options (run interval, empty hostname)
-//
-//nolint:revive // TODO(AML) Fix revive linter
 func (c *CheckBase) CommonConfigure(senderManager sender.SenderManager, initConfig, instanceConfig integration.Data, source string) error {
 	c.senderManager = senderManager
 	handleConf := func(conf integration.Data, c *CheckBase) error {
