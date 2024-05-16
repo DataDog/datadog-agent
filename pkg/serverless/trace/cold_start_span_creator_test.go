@@ -77,21 +77,7 @@ func TestColdStartSpanCreatorCreateValid(t *testing.T) {
 	lambdaInitMetricChan <- lambdaInitMetricDuration
 	lambdaInitMetricChan <- lambdaInitMetricStartTime
 
-	timeout := time.After(2 * time.Second)
-	var span *pb.Span
-waitLoop:
-	for {
-		select {
-		default:
-			payloads := agnt.TraceWriter.(*mockTraceWriter).payloads
-			if len(payloads) > 0 {
-				span = payloads[0].TracerPayload.Chunks[0].Spans[0]
-				break waitLoop
-			}
-		case <-timeout:
-			t.Fatal("timed out")
-		}
-	}
+	span := firstWrittenSpan(t, agnt.TraceWriter.(*mockTraceWriter))
 
 	assert.Equal(t, "aws.lambda", span.Service)
 	assert.Equal(t, "aws.lambda.cold_start", span.Name)
@@ -151,21 +137,7 @@ func TestColdStartSpanCreatorCreateValidNoOverlap(t *testing.T) {
 	lambdaSpanChan <- lambdaSpan
 	lambdaInitMetricChan <- lambdaInitMetricDuration
 	lambdaInitMetricChan <- lambdaInitMetricStartTime
-	timeout := time.After(2 * time.Second)
-	var span *pb.Span
-waitLoop:
-	for {
-		select {
-		default:
-			payloads := agnt.TraceWriter.(*mockTraceWriter).payloads
-			if len(payloads) > 0 {
-				span = payloads[0].TracerPayload.Chunks[0].Spans[0]
-				break waitLoop
-			}
-		case <-timeout:
-			t.Fatal("timed out")
-		}
-	}
+	span := firstWrittenSpan(t, agnt.TraceWriter.(*mockTraceWriter))
 	assert.Equal(t, "aws.lambda", span.Service)
 	assert.Equal(t, "aws.lambda.cold_start", span.Name)
 	assert.Equal(t, now-int64(coldStartDuration*1000000), span.Start)
@@ -380,23 +352,27 @@ func TestColdStartSpanCreatorCreateValidProvisionedConcurrency(t *testing.T) {
 	lambdaInitMetricChan <- lambdaInitMetricStartTime
 	lambdaInitMetricChan <- lambdaInitMetricDuration
 
-	timeout := time.After(2 * time.Second)
-	var span *pb.Span
-waitLoop:
-	for {
-		select {
-		default:
-			payloads := agnt.TraceWriter.(*mockTraceWriter).payloads
-			if len(payloads) > 0 {
-				span = payloads[0].TracerPayload.Chunks[0].Spans[0]
-				break waitLoop
-			}
-		case <-timeout:
-			t.Fatal("timed out")
-		}
-	}
+	span := firstWrittenSpan(t, agnt.TraceWriter.(*mockTraceWriter))
+
 	assert.Equal(t, "aws.lambda", span.Service)
 	assert.Equal(t, "aws.lambda.cold_start", span.Name)
 	assert.Equal(t, initReportStartTime.UnixNano(), span.Start)
 	assert.Equal(t, int64(coldStartDuration*1000000), span.Duration)
+}
+
+func firstWrittenSpan(t *testing.T, tw *mockTraceWriter) *pb.Span {
+	timeout := time.After(2 * time.Second)
+	for {
+		select {
+		default:
+			tw.mu.Lock()
+			payloads := tw.payloads
+			if len(payloads) > 0 {
+				return payloads[0].TracerPayload.Chunks[0].Spans[0]
+			}
+			tw.mu.Unlock()
+		case <-timeout:
+			t.Fatal("timed out")
+		}
+	}
 }
