@@ -800,7 +800,6 @@ def kmt_sysprobe_prepare(
                     rule="copyfiles",
                 )
 
-
         # handle testutils and testdata seperately since they are
         # shared across packages
         target_pkgs = build_target_packages([])
