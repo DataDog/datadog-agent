@@ -72,7 +72,6 @@ def get_binary_target_arch(ctx: Context, file: str) -> Arch | None:
     # Get a standard value if possible
     words = [x.strip(",.") for x in res.stdout.split(" ")]
     for word in words:
-        print(word)
         if word in arch_mapping:
             return arch_mapping[word]
 
