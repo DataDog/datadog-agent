@@ -121,4 +121,11 @@ var (
 	//MetricWindowsETWTotalNotifications is the metric for counting the total number of ETW notifications
 	//Tags: -
 	MetricWindowsETWTotalNotifications = newRuntimeMetric(".windows.etw_total_notifications")
+	//MetricWindowsModuleLoad is the metric for counting module load notifications
+	//Tags: -
+	MetricWindowsModuleLoad = newRuntimeMetric(".windows.module.load")
+	//MetricWindowsProcessUntracked is the metric for counting untracked process notifications
+	//Tags: -
+	MetricWindowsProcessUntracked = newRuntimeMetric(".windows.process.untracked")
+
 )
