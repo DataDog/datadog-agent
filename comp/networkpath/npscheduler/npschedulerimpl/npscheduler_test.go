@@ -76,7 +76,7 @@ func Test_NpScheduler_runningAndProcessing(t *testing.T) {
 	// GIVEN
 	agentConfigs := map[string]any{
 		"network_path.connections_monitoring.enabled": true,
-		"network_path.flush_interval":                 "1s",
+		"network_path.collector.flush_interval":       "1s",
 	}
 	app, npScheduler := newTestNpScheduler(t, agentConfigs)
 
@@ -289,9 +289,9 @@ func Test_newNpSchedulerImpl_defaultConfigs(t *testing.T) {
 func Test_newNpSchedulerImpl_overrideConfigs(t *testing.T) {
 	agentConfigs := map[string]any{
 		"network_path.connections_monitoring.enabled": true,
-		"network_path.workers":                        2,
-		"network_path.input_chan_size":                300,
-		"network_path.process_chan_size":              400,
+		"network_path.collector.workers":              2,
+		"network_path.collector.input_chan_size":      300,
+		"network_path.collector.process_chan_size":    400,
 	}
 
 	_, npScheduler := newTestNpScheduler(t, agentConfigs)
@@ -394,7 +394,7 @@ func Test_npSchedulerImpl_ScheduleConns(t *testing.T) {
 			name: "input chan is full",
 			agentConfigs: map[string]any{
 				"network_path.connections_monitoring.enabled": true,
-				"network_path.input_chan_size":                1,
+				"network_path.collector.input_chan_size":      1,
 			},
 			conns:             createConns(10),
 			expectedPathtests: []*common.Pathtest{},
@@ -581,7 +581,7 @@ func Test_npSchedulerImpl_flush(t *testing.T) {
 	// GIVEN
 	agentConfigs := map[string]any{
 		"network_path.connections_monitoring.enabled": true,
-		"network_path.workers":                        6,
+		"network_path.collector.workers":              6,
 	}
 	_, npScheduler := newTestNpScheduler(t, agentConfigs)
 
@@ -606,7 +606,7 @@ func Test_npSchedulerImpl_sendTelemetry(t *testing.T) {
 	// GIVEN
 	agentConfigs := map[string]any{
 		"network_path.connections_monitoring.enabled": true,
-		"network_path.workers":                        6,
+		"network_path.collector.workers":              6,
 	}
 	_, npScheduler := newTestNpScheduler(t, agentConfigs)
 
