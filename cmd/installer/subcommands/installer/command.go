@@ -229,10 +229,10 @@ func installCommand() *cobra.Command {
 		Args:    cobra.ExactArgs(1),
 		RunE: func(_ *cobra.Command, args []string) (err error) {
 			i, err := newInstallerCmd("install")
-			defer func() { i.Stop(err) }()
 			if err != nil {
 				return err
 			}
+			defer func() { i.Stop(err) }()
 			i.span.SetTag("params.url", args[0])
 			return i.Install(i.ctx, args[0])
 		},
@@ -248,10 +248,10 @@ func removeCommand() *cobra.Command {
 		Args:    cobra.ExactArgs(1),
 		RunE: func(_ *cobra.Command, args []string) (err error) {
 			i, err := newInstallerCmd("remove")
-			defer func() { i.Stop(err) }()
 			if err != nil {
 				return err
 			}
+			defer func() { i.Stop(err) }()
 			i.span.SetTag("params.package", args[0])
 			return i.Remove(i.ctx, args[0])
 		},
@@ -267,10 +267,10 @@ func purgeCommand() *cobra.Command {
 		Args:    cobra.NoArgs,
 		RunE: func(_ *cobra.Command, _ []string) (err error) {
 			i, err := newInstallerCmd("purge")
-			defer func() { i.Stop(err) }()
 			if err != nil {
 				return err
 			}
+			defer func() { i.Stop(err) }()
 			i.Purge(i.ctx)
 			return nil
 		},
@@ -286,10 +286,10 @@ func installExperimentCommand() *cobra.Command {
 		Args:    cobra.ExactArgs(1),
 		RunE: func(_ *cobra.Command, args []string) (err error) {
 			i, err := newInstallerCmd("install_experiment")
-			defer func() { i.Stop(err) }()
 			if err != nil {
 				return err
 			}
+			defer func() { i.Stop(err) }()
 			i.span.SetTag("params.url", args[0])
 			return i.InstallExperiment(i.ctx, args[0])
 		},
@@ -305,10 +305,10 @@ func removeExperimentCommand() *cobra.Command {
 		Args:    cobra.ExactArgs(1),
 		RunE: func(_ *cobra.Command, args []string) (err error) {
 			i, err := newInstallerCmd("remove_experiment")
-			defer func() { i.Stop(err) }()
 			if err != nil {
 				return err
 			}
+			defer func() { i.Stop(err) }()
 			i.span.SetTag("params.package", args[0])
 			return i.RemoveExperiment(i.ctx, args[0])
 		},
@@ -324,10 +324,10 @@ func promoteExperimentCommand() *cobra.Command {
 		Args:    cobra.ExactArgs(1),
 		RunE: func(_ *cobra.Command, args []string) (err error) {
 			i, err := newInstallerCmd("promote_experiment")
-			defer func() { i.Stop(err) }()
 			if err != nil {
 				return err
 			}
+			defer func() { i.Stop(err) }()
 			i.span.SetTag("params.package", args[0])
 			return i.PromoteExperiment(i.ctx, args[0])
 		},
@@ -343,10 +343,10 @@ func garbageCollectCommand() *cobra.Command {
 		Args:    cobra.NoArgs,
 		RunE: func(_ *cobra.Command, _ []string) (err error) {
 			i, err := newInstallerCmd("garbage_collect")
-			defer func() { i.Stop(err) }()
 			if err != nil {
 				return err
 			}
+			defer func() { i.Stop(err) }()
 			return i.GarbageCollect(i.ctx)
 		},
 	}
@@ -366,10 +366,10 @@ func isInstalledCommand() *cobra.Command {
 		Args:    cobra.ExactArgs(1),
 		RunE: func(_ *cobra.Command, args []string) (err error) {
 			i, err := newInstallerCmd("is_installed")
-			defer func() { i.Stop(err) }()
 			if err != nil {
 				return err
 			}
+			defer func() { i.Stop(err) }()
 			installed, err := i.IsInstalled(i.ctx, args[0])
 			if err != nil {
 				return err
