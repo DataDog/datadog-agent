@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import io
 import json
 import os
@@ -6,7 +8,6 @@ import tempfile
 import traceback
 from collections import defaultdict
 from datetime import datetime, timezone
-from typing import Dict
 
 from invoke import task
 from invoke.exceptions import Exit, UnexpectedExit
@@ -173,7 +174,7 @@ def send_stats(_, print_to_stdout=False):
 # Tasks to trigger pipeline notifications
 
 
-def generate_failure_messages(project_name: str, failed_jobs: FailedJobs) -> Dict[str, SlackMessage]:
+def generate_failure_messages(project_name: str, failed_jobs: FailedJobs) -> dict[str, SlackMessage]:
     all_teams = "@DataDog/agent-all"
 
     # Generate messages for each team

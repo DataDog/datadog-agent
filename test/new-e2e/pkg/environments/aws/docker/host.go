@@ -142,6 +142,8 @@ func Run(ctx *pulumi.Context, env *environments.DockerHost, params *ProvisionerP
 		return err
 	}
 
+	// install the ECR credentials helper
+	// required to get pipeline agent images
 	installEcrCredsHelperCmd, err := ec2.InstallECRCredentialsHelper(awsEnv, host)
 	if err != nil {
 		return err
