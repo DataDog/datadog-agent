@@ -1424,7 +1424,7 @@ def build_object_files(
                 f"{sudo} rsync --chmod=F644 --chown=root:root -rvt {rsync_filter} {build_dir}/ {EMBEDDED_SHARE_DIR}"
             )
             ctx.run(
-                f"{sudo} rsync --chmod=F644 --chown=root:root -rvt {rsync_filter} {build_dir}/ {EMBEDDED_SHARE_DIR}/runtime"
+                f"{sudo} rsync --chmod=F644 --chown=root:root -rvt {rsync_filter} {runtime_dir}/ {EMBEDDED_SHARE_DIR}/runtime"
             )
         else:
             with ctx.cd(build_dir):
@@ -1469,7 +1469,7 @@ def build_cws_object_files(
 
 
 @task
-def object_files(ctx, kernel_release=None, with_unit_test=False, arch: str | None = None):
+def object_files(ctx, kernel_release=None, with_unit_test=False, arch: str = CURRENT_ARCH):
     build_object_files(
         ctx, kernel_release=kernel_release, with_unit_test=with_unit_test, instrument_trampoline=False, arch=arch
     )
