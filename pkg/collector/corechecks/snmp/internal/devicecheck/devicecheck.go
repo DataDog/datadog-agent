@@ -459,10 +459,12 @@ func (d *DeviceCheck) readTagsFromCache() {
 	}
 	if cacheValue == "" {
 		d.savedDynamicTags = []string{}
+		return
 	}
 	var tags []string
 	if err = json.Unmarshal([]byte(cacheValue), &tags); err != nil {
 		log.Errorf("couldn't unmarshal cache for %s: %s", d.cacheKey, err)
+		return
 	}
 	d.savedDynamicTags = tags
 }
