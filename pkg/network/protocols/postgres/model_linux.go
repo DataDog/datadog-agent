@@ -10,11 +10,12 @@ package postgres
 import (
 	"bytes"
 	"fmt"
-	"regexp"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/types"
+	"github.com/DataDog/datadog-agent/pkg/obfuscate"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // EventWrapper wraps an ebpf event and provides additional methods to extract information from it.
@@ -60,29 +61,27 @@ func (e *EventWrapper) Operation() Operation {
 	return e.operation
 }
 
-var (
-	regexMapper = map[Operation]*regexp.Regexp{
-		CreateTableOP: regexp.MustCompile(`CREATE TABLE (\S+)`),
-		InsertOP:      regexp.MustCompile(`INSERT INTO (\S+)`),
-		DropTableOP:   regexp.MustCompile(`DROP TABLE(\s*IF\s+EXISTS\s+)?(\S+)`),
-		UpdateOP:      regexp.MustCompile(`UPDATE (\S+)`),
-		SelectOP:      regexp.MustCompile(`SELECT .* FROM (\S+)`),
-	}
-)
-
 // extractTableName extracts the table name from the query.
 func (e *EventWrapper) extractTableName() string {
-	regex, ok := regexMapper[e.Operation()]
-	if ok {
-		if matches := regex.FindSubmatch(e.Tx.getFragment()); len(matches) > 1 {
-			return string(
-				bytes.Trim( // Remove leading and trailing quotes from the table name
-					bytes.ReplaceAll(matches[len(matches)-1], []byte{0}, []byte{}), // Remove null bytes
-					"\""),
-			)
-		}
+	fragment := string(e.Tx.getFragment())
+	// Check if the string contains "IF EXISTS",
+	// temp solution for the fact that ObfuscateSQLString does not support "IF EXISTS".
+	if strings.Contains(fragment, "IF EXISTS") {
+		fragment = strings.ReplaceAll(fragment, "IF EXISTS", "")
 	}
-	return "UNKNOWN"
+
+	oq, err := obfuscate.NewObfuscator(obfuscate.Config{SQL: obfuscate.SQLConfig{
+		DBMS:            obfuscate.DBMSPostgres,
+		ObfuscationMode: obfuscate.ObfuscateAndNormalize,
+		TableNames:      true,
+	}}).ObfuscateSQLString(fragment)
+	if err != nil {
+		log.Warnf("unable to create new obfuscator due to: %s", err)
+	}
+	if oq.Metadata.TablesCSV == "" {
+		return "UNKNOWN"
+	}
+	return oq.Metadata.TablesCSV
 }
 
 // TableName returns the name of the table the query is operating on.
