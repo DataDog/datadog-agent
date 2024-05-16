@@ -44,6 +44,6 @@ components nested withing `comp/<bundleName>`.
 A bundle doesn't need to import all sub components. The idea is to offer a default, easy to use grouping of components.
 But nothing prevents users from cherry-picking the components they want to use.
 
-## Bundle level params
+<!-- ## Bundle level params
 
-TODO: write how to create level bundle params.
+TODO: write how to create level bundle params. -->

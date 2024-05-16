@@ -1,6 +1,6 @@
 # FAQ
 
-TODO: Should we migrate the FAQ from confluence here ?
+<!-- TODO: Should we migrate the FAQ from confluence here ? -->
 
 ## Optional dependency
 

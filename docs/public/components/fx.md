@@ -1,12 +1,12 @@
 
-!!! warning "TODO: rework this entire page to include:"
+<!-- !!! warning "TODO: rework this entire page to include:"
 
     * Basic info about fx and dependency injection
     * Provide, Supply and Invoke function
     * fx App
     * value groups
     * Lifecycle (TODO decide how we want to offer lifecycle within depending on FX)
-    * ...
+    * ... -->
 
 # Overview of Fx
 

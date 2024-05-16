@@ -54,20 +54,20 @@ nav:
   - Components:
     - Creating components: components/creating-components.md
     - Testing components: components/testing.md
-    - Creating bundles: components/creating-bundles.md
+    # - Creating bundles: components/creating-bundles.md
     - Using components: components/using-components.md
-    - Common patterns: components/common-patterns.md
+    # - Common patterns: components/common-patterns.md
   - Shared features from components:
-    - Integrating with other components: components/migration.md
+    # - Integrating with other components: components/migration.md
     - Features:
       - Flare: components/shared_features/flares.md
-      - TODO Status: components/shared_features/status.md
-      - TODO Remote Config: components/shared_features/remote_config.md
-      - TODO Metadata: components/shared_features/metadata.md
-      - TODO workloadmeta: components/shared_features/workloadmeta.md
-      - TODO more ?: TMP
-  - Fx overview: components/fx.md
-  - FAQ: components/faq.md
+  #     - TODO Status: components/shared_features/status.md
+  #     - TODO Remote Config: components/shared_features/remote_config.md
+  #     - TODO Metadata: components/shared_features/metadata.md
+  #     - TODO workloadmeta: components/shared_features/workloadmeta.md
+  #     - TODO more ?: TMP
+  # - Fx overview: components/fx.md
+  # - FAQ: components/faq.md
 - Architecture:
   - DogStatsD:
     - Internals: architecture/dogstatsd/internals.md
