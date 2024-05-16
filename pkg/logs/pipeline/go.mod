@@ -63,8 +63,8 @@ require (
 	github.com/DataDog/datadog-agent/pkg/logs/status/statusinterface v0.54.0-rc.4
 	github.com/DataDog/datadog-agent/pkg/status/health v0.54.0-rc.4
 	github.com/DataDog/datadog-agent/pkg/util/log v0.54.0-rc.4
-  github.com/DataDog/datadog-agent/pkg/util/startstop v0.54.0-rc.4
-  github.com/hashicorp/go-multierror v1.1.1
+	github.com/DataDog/datadog-agent/pkg/util/startstop v0.54.0-rc.4
+	github.com/hashicorp/go-multierror v1.1.1
 	github.com/stretchr/testify v1.9.0
 	go.uber.org/atomic v1.11.0
 )
