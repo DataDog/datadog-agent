@@ -807,7 +807,7 @@ def go_package_dirs(packages, build_tags):
         )
         # Some packages may not be available on all architectures, ignore them
         # instead of reporting empty path names
-        target_packages += [dir for dir in dirs if dir]
+        target_packages += [dir for dir in dirs if len(dir) > 0]
 
     return target_packages
 
