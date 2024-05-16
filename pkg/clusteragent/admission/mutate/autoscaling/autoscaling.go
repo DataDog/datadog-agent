@@ -110,7 +110,7 @@ func (w *Webhook) updateResources(pod *corev1.Pod, ns string, _ dynamic.Interfac
 		return false, fmt.Errorf("no owner found for pod %s", pod.Name)
 	}
 
-	recommendations, err := w.recommender.GetRecommendations(pod.Namespace, ownerRef)
+	_, recommendations, err := w.recommender.GetRecommendations(pod.Namespace, ownerRef)
 	if err != nil {
 		return false, err
 	}
