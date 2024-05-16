@@ -631,6 +631,17 @@ def prepare(
         llc_path = LLC_PATH_CI
         clang_path = CLANG_PATH_CI
         gotestsum_path = Path(f"{os.getenv('GOPATH')}/bin/gotestsum")
+
+        # Copy the binaries to the target directory, CI will take them from those
+        # paths as artifacts
+        copy_executables = {
+            gotestsum_path: paths.dependencies / "go/bin/gotestsum",
+            clang_path: paths.arch_dir / "opt/datadog-agent/embedded/bin/clang-bpf",
+            llc_path: paths.arch_dir / "opt/datadog-agent/embedded/bin/llc-bpf",
+        }
+
+        for src, dst in copy_executables.items():
+            ctx.run(f"cp {src} {dst}")
     else:
         gotestsum_path = paths.dependencies / "go/bin/gotestsum"
         download_gotestsum(ctx, arch_obj, gotestsum_path)
@@ -640,6 +651,8 @@ def prepare(
         llc_path = paths.tools / "llc-bpf"
         clang_path = paths.tools / "clang-bpf"
         setup_runtime_clang(ctx, arch_obj, paths.tools)
+
+        # Later on, we will copy these binaries to the target VMs
 
     if ci or compile_only:
         return
