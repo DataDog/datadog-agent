@@ -747,7 +747,7 @@ def retry_function(action_name_fmt, max_retries=2, retry_delay=1):
                     raise
                 except Exception:
                     if i == max_retries:
-                        print(color_message(f'Error: {action_name} failed after {max_retries} retries', 'red'))
+                        print(color_message(f'Error: {action_name} failed after {max_retries} retries', 'red'), file=sys.stderr)
                         raise
                     else:
                         print(
