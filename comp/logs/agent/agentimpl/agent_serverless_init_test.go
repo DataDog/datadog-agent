@@ -3,9 +3,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build !serverless
+//go:build serverless
 
-package agent
+package agentimpl
 
 import (
 	"testing"
@@ -16,12 +16,13 @@ import (
 	"go.uber.org/fx"
 )
 
-func TestBuildEndpoints(t *testing.T) {
+func TestBuildServerlessEndpoints(t *testing.T) {
 	config := fxutil.Test[config.Component](t, fx.Options(
 		config.MockModule(),
 	))
 
-	endpoints, err := buildEndpoints(config)
+	endpoints, err := buildEndpoints()
 	assert.Nil(t, err)
-	assert.Equal(t, "agent-intake.logs.datadoghq.com", endpoints.Main.Host)
+	assert.Equal(t, "http-intake.logs.datadoghq.com", endpoints.Main.Host)
+	assert.Equal(t, "lambda-extension", string(endpoints.Main.Origin))
 }

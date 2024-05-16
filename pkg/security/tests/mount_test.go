@@ -165,7 +165,7 @@ func TestMountPropagated(t *testing.T) {
 		Expression: `chmod.file.path == "{{.Root}}/dir1-bind-mounted/test-drive/test-file"`,
 	}}
 
-	test, err := newTestModule(t, nil, ruleDefs)
+	test, err := newTestModule(t, nil, ruleDefs, withForceReload())
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -653,7 +653,7 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 		}
 		return testMod, nil
 
-	} else if testMod != nil && opts.staticOpts.Equal(testMod.opts.staticOpts) {
+	} else if !opts.forceReload && testMod != nil && opts.staticOpts.Equal(testMod.opts.staticOpts) {
 		testMod.st = st
 		testMod.cmdWrapper = cmdWrapper
 		testMod.t = t
@@ -749,7 +749,7 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 	}
 
 	// listen to probe event
-	if err := testMod.probe.AddFullAccessEventHandler(testMod); err != nil {
+	if err := testMod.probe.AddEventHandler(testMod); err != nil {
 		return nil, err
 	}
 

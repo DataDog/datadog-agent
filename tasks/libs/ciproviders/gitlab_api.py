@@ -6,8 +6,10 @@ from collections import UserList
 
 import gitlab
 import yaml
-from gitlab.v4.objects import Project
+from gitlab.v4.objects import Project, ProjectPipeline
 from invoke.exceptions import Exit
+
+from tasks.libs.common.utils import retry_function
 
 BASE_URL = "https://gitlab.ddbuild.io"
 
@@ -70,6 +72,14 @@ def get_gitlab_repo(repo='DataDog/datadog-agent', token=None) -> Project:
     repo = api.projects.get(repo)
 
     return repo
+
+
+@retry_function('refresh pipeline #{0.id}')
+def refresh_pipeline(pipeline: ProjectPipeline):
+    """
+    Refresh a pipeline, retries if there is an error
+    """
+    pipeline.refresh()
 
 
 class ReferenceTag(yaml.YAMLObject):

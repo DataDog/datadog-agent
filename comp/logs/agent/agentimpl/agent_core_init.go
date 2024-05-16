@@ -5,7 +5,7 @@
 
 //go:build !serverless
 
-package agent
+package agentimpl
 
 import (
 	"time"
@@ -30,7 +30,7 @@ import (
 )
 
 // NewAgent returns a new Logs Agent
-func (a *agent) SetupPipeline(processingRules []*config.ProcessingRule, wmeta optional.Option[workloadmeta.Component]) {
+func (a *logAgent) SetupPipeline(processingRules []*config.ProcessingRule, wmeta optional.Option[workloadmeta.Component]) {
 	health := health.RegisterLiveness("logs-agent")
 
 	// setup the auditor
