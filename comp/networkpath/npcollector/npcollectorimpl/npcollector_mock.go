@@ -5,7 +5,7 @@
 
 //go:build test
 
-package npschedulerimpl
+package npcollectorimpl
 
 import (
 	model "github.com/DataDog/agent-payload/v5/process"
@@ -21,15 +21,15 @@ func MockModule() fxutil.Module {
 	)
 }
 
-type npSchedulerMock struct{}
+type npCollectorMock struct{}
 
-func (s *npSchedulerMock) ScheduleConns(_ []*model.Connection) {
+func (s *npCollectorMock) CollectForConns(_ []*model.Connection) {
 	panic("implement me")
 }
 
 func newMock() provides {
 	// Mock initialization
 	return provides{
-		Comp: &npSchedulerMock{},
+		Comp: &npCollectorMock{},
 	}
 }

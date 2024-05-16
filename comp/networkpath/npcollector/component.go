@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
-// Package npscheduler used to manage network paths
-package npscheduler
+// Package npcollector used to manage network paths
+package npcollector
 
 import model "github.com/DataDog/agent-payload/v5/process"
 
@@ -12,5 +12,5 @@ import model "github.com/DataDog/agent-payload/v5/process"
 
 // Component is the component type.
 type Component interface {
-	ScheduleConns(conns []*model.Connection)
+	CollectForConns(conns []*model.Connection)
 }

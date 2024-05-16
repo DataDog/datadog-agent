@@ -22,8 +22,8 @@ type NetworkPathCollectorType string
 // CollectorTypeNetworkPathIntegration correspond to the Network Path Integration source type
 const CollectorTypeNetworkPathIntegration NetworkPathCollectorType = "network_path_integration"
 
-// CollectorTypeNetworkPathScheduler correspond to the Network Path Scheduler source type
-const CollectorTypeNetworkPathScheduler NetworkPathCollectorType = "network_path_scheduler"
+// CollectorTypeNetworkPathScheduler correspond to the Network Path Collector source type
+const CollectorTypeNetworkPathScheduler NetworkPathCollectorType = "network_path_collector"
 
 // SubmitNetworkPathTelemetry submits Network Path related telemetry
 func SubmitNetworkPathTelemetry(sender metricsender.MetricSender, path payload.NetworkPath, pathSource NetworkPathCollectorType, checkDuration time.Duration, checkInterval time.Duration, tags []string) {

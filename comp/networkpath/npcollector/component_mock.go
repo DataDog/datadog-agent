@@ -5,7 +5,7 @@
 
 //go:build test
 
-package npscheduler
+package npcollector
 
 // Mock implements mock-specific methods.
 type Mock interface {

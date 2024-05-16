@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
-// Package npschedulerimpl implements the scheduler for network path
-package npschedulerimpl
+// Package npcollectorimpl implements the scheduler for network path
+package npcollectorimpl
 
 import (
 	"context"
@@ -17,8 +17,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
-	"github.com/DataDog/datadog-agent/comp/networkpath/npscheduler/npschedulerimpl/common"
-	"github.com/DataDog/datadog-agent/comp/networkpath/npscheduler/npschedulerimpl/pathteststore"
+	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/npcollectorimpl/common"
+	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/npcollectorimpl/pathteststore"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/metricsender"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
@@ -29,7 +29,7 @@ import (
 	"go.uber.org/atomic"
 )
 
-type npSchedulerImpl struct {
+type npCollectorImpl struct {
 	collectorConfigs *collectorConfigs
 
 	// Deps
@@ -58,17 +58,17 @@ type npSchedulerImpl struct {
 	// structures needed to ease mocking/testing
 	TimeNowFn func() time.Time
 	// TODO: instead of mocking traceroute via function replacement like this
-	//       we should ideally create a fake/mock traceroute instance that can be passed/injected in NpScheduler
+	//       we should ideally create a fake/mock traceroute instance that can be passed/injected in NpCollector
 	runTraceroute func(cfg traceroute.Config) (payload.NetworkPath, error)
 }
 
-func newNoopNpSchedulerImpl() *npSchedulerImpl {
-	return &npSchedulerImpl{
+func newNoopNpCollectorImpl() *npCollectorImpl {
+	return &npCollectorImpl{
 		collectorConfigs: &collectorConfigs{},
 	}
 }
 
-func newNpSchedulerImpl(epForwarder eventplatform.Forwarder, collectorConfigs *collectorConfigs, logger log.Component, agentConfig config.Reader) *npSchedulerImpl {
+func newNpCollectorImpl(epForwarder eventplatform.Forwarder, collectorConfigs *collectorConfigs, logger log.Component, agentConfig config.Reader) *npCollectorImpl {
 	workers := agentConfig.GetInt("network_path.collector.workers")
 	pathtestInputChanSize := agentConfig.GetInt("network_path.collector.input_chan_size")
 	pathtestProcessingChanSize := agentConfig.GetInt("network_path.collector.processing_chan_size")
@@ -76,13 +76,13 @@ func newNpSchedulerImpl(epForwarder eventplatform.Forwarder, collectorConfigs *c
 	pathtestInterval := agentConfig.GetDuration("network_path.collector.pathtest_interval")
 	flushInterval := agentConfig.GetDuration("network_path.collector.flush_interval")
 
-	logger.Infof("New NpScheduler (workers=%d input_chan_size=%d pathtest_ttl=%s pathtest_interval=%s)",
+	logger.Infof("New NpCollector (workers=%d input_chan_size=%d pathtest_ttl=%s pathtest_interval=%s)",
 		workers,
 		pathtestInputChanSize,
 		pathtestTTL.String(),
 		pathtestInterval.String())
 
-	return &npSchedulerImpl{
+	return &npCollectorImpl{
 		epForwarder:      epForwarder,
 		collectorConfigs: collectorConfigs,
 		logger:           logger,
@@ -109,7 +109,7 @@ func newNpSchedulerImpl(epForwarder eventplatform.Forwarder, collectorConfigs *c
 	}
 }
 
-func (s *npSchedulerImpl) ScheduleConns(conns []*model.Connection) {
+func (s *npCollectorImpl) CollectForConns(conns []*model.Connection) {
 	if !s.collectorConfigs.connectionsMonitoringEnabled {
 		return
 	}
@@ -132,7 +132,7 @@ func (s *npSchedulerImpl) ScheduleConns(conns []*model.Connection) {
 
 // scheduleOne schedules pathtests.
 // It shouldn't block, if the input channel is full, an error is returned.
-func (s *npSchedulerImpl) scheduleOne(hostname string, port uint16) error {
+func (s *npCollectorImpl) scheduleOne(hostname string, port uint16) error {
 	if s.pathtestInputChan == nil {
 		return errors.New("no input channel, please check that network path is enabled")
 	}
@@ -149,20 +149,20 @@ func (s *npSchedulerImpl) scheduleOne(hostname string, port uint16) error {
 		return fmt.Errorf("scheduler input channel is full (channel capacity is %d)", cap(s.pathtestInputChan))
 	}
 }
-func (s *npSchedulerImpl) start() error {
+func (s *npCollectorImpl) start() error {
 	if s.running {
 		return errors.New("server already started")
 	}
 	s.running = true
-	s.logger.Info("Start NpScheduler")
+	s.logger.Info("Start NpCollector")
 	go s.listenPathtests()
 	go s.flushLoop()
 	s.startWorkers()
 	return nil
 }
 
-func (s *npSchedulerImpl) stop() {
-	s.logger.Info("Stop NpScheduler")
+func (s *npCollectorImpl) stop() {
+	s.logger.Info("Stop NpCollector")
 	if !s.running {
 		return
 	}
@@ -172,7 +172,7 @@ func (s *npSchedulerImpl) stop() {
 	s.running = false
 }
 
-func (s *npSchedulerImpl) listenPathtests() {
+func (s *npCollectorImpl) listenPathtests() {
 	s.logger.Debug("Starting listening for pathtests")
 	for {
 		select {
@@ -188,7 +188,7 @@ func (s *npSchedulerImpl) listenPathtests() {
 	}
 }
 
-func (s *npSchedulerImpl) runTracerouteForPath(ptest *pathteststore.PathtestContext) {
+func (s *npCollectorImpl) runTracerouteForPath(ptest *pathteststore.PathtestContext) {
 	s.logger.Debugf("Run Traceroute for ptest: %+v", ptest)
 
 	startTime := s.TimeNowFn()
@@ -232,7 +232,7 @@ func runTraceroute(cfg traceroute.Config) (payload.NetworkPath, error) {
 	return path, nil
 }
 
-func (s *npSchedulerImpl) flushLoop() {
+func (s *npCollectorImpl) flushLoop() {
 	s.logger.Debugf("Starting flush loop")
 	defer s.logger.Debugf("Stopped flush loop")
 
@@ -254,7 +254,7 @@ func (s *npSchedulerImpl) flushLoop() {
 	}
 }
 
-func (s *npSchedulerImpl) flushWrapper(flushTime time.Time, lastFlushTime time.Time) {
+func (s *npCollectorImpl) flushWrapper(flushTime time.Time, lastFlushTime time.Time) {
 	s.logger.Debugf("Flush loop at %s", flushTime)
 	if !lastFlushTime.IsZero() {
 		flushInterval := flushTime.Sub(lastFlushTime)
@@ -266,7 +266,7 @@ func (s *npSchedulerImpl) flushWrapper(flushTime time.Time, lastFlushTime time.T
 	s.statsdClient.Gauge("datadog.network_path.scheduler.flush_duration", s.TimeNowFn().Sub(flushTime).Seconds(), []string{}, 1) //nolint:errcheck
 }
 
-func (s *npSchedulerImpl) flush() {
+func (s *npCollectorImpl) flush() {
 	s.statsdClient.Gauge("datadog.network_path.scheduler.workers", float64(s.workers), []string{}, 1) //nolint:errcheck
 
 	flowsContexts := s.pathtestStore.GetContextsCount()
@@ -284,7 +284,7 @@ func (s *npSchedulerImpl) flush() {
 	}
 }
 
-func (s *npSchedulerImpl) sendTelemetry(path payload.NetworkPath, startTime time.Time, ptest *pathteststore.PathtestContext) {
+func (s *npCollectorImpl) sendTelemetry(path payload.NetworkPath, startTime time.Time, ptest *pathteststore.PathtestContext) {
 	checkInterval := ptest.LastFlushInterval()
 	checkDuration := s.TimeNowFn().Sub(startTime)
 	telemetry.SubmitNetworkPathTelemetry(
@@ -297,7 +297,7 @@ func (s *npSchedulerImpl) sendTelemetry(path payload.NetworkPath, startTime time
 	)
 }
 
-func (s *npSchedulerImpl) startWorkers() {
+func (s *npCollectorImpl) startWorkers() {
 	s.logger.Debugf("Starting workers (%d)", s.workers)
 	for w := 0; w < s.workers; w++ {
 		s.logger.Debugf("Starting worker #%d", w)
@@ -305,7 +305,7 @@ func (s *npSchedulerImpl) startWorkers() {
 	}
 }
 
-func (s *npSchedulerImpl) startWorker(workerID int) {
+func (s *npCollectorImpl) startWorker(workerID int) {
 	for {
 		select {
 		case <-s.stopChan:

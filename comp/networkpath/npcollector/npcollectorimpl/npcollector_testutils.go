@@ -5,7 +5,7 @@
 
 //go:build test
 
-package npschedulerimpl
+package npcollectorimpl
 
 import (
 	"fmt"
@@ -19,7 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
 	"github.com/DataDog/datadog-agent/comp/ndmtmp/forwarder/forwarderimpl"
-	"github.com/DataDog/datadog-agent/comp/networkpath/npscheduler"
+	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
 	"go.uber.org/fx/fxtest"
@@ -43,19 +43,19 @@ var testOptions = fx.Options(
 	eventplatformimpl.MockModule(),
 )
 
-func newTestNpScheduler(t *testing.T, agentConfigs map[string]any) (*fxtest.App, *npSchedulerImpl) {
-	var component npscheduler.Component
+func newTestNpCollector(t *testing.T, agentConfigs map[string]any) (*fxtest.App, *npCollectorImpl) {
+	var component npcollector.Component
 	app := fxtest.New(t, fx.Options(
 		testOptions,
 		fx.Supply(fx.Annotate(t, fx.As(new(testing.TB)))),
 		fx.Replace(config.MockParams{Overrides: agentConfigs}),
 		fx.Populate(&component),
 	))
-	npScheduler := component.(*npSchedulerImpl)
+	npCollector := component.(*npCollectorImpl)
 
-	require.NotNil(t, npScheduler)
+	require.NotNil(t, npCollector)
 	require.NotNil(t, app)
-	return app, npScheduler
+	return app, npCollector
 }
 
 func createConns(numberOfConns int) []*model.Connection {
@@ -70,7 +70,7 @@ func createConns(numberOfConns int) []*model.Connection {
 	return conns
 }
 
-func waitForProcessedPathtests(npScheduler *npSchedulerImpl, timeout time.Duration, processecCount uint64) {
+func waitForProcessedPathtests(npCollector *npCollectorImpl, timeout time.Duration, processecCount uint64) {
 	timeoutChan := time.After(timeout)
 	tick := time.NewTicker(100 * time.Millisecond)
 	defer tick.Stop()
@@ -79,7 +79,7 @@ func waitForProcessedPathtests(npScheduler *npSchedulerImpl, timeout time.Durati
 		case <-timeoutChan:
 			return
 		case <-tick.C:
-			if npScheduler.processedTracerouteCount.Load() >= processecCount {
+			if npCollector.processedTracerouteCount.Load() >= processecCount {
 				return
 			}
 		}

@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
-package npschedulerimpl
+package npcollectorimpl
 
 import (
 	"context"
@@ -11,7 +11,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
-	"github.com/DataDog/datadog-agent/comp/networkpath/npscheduler"
+	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"go.uber.org/fx"
 )
@@ -27,30 +27,30 @@ type dependencies struct {
 type provides struct {
 	fx.Out
 
-	Comp npscheduler.Component
+	Comp npcollector.Component
 }
 
 // Module defines the fx options for this component.
 func Module() fxutil.Module {
 	return fxutil.Component(
-		fx.Provide(newNpScheduler),
+		fx.Provide(newNpCollector),
 	)
 }
 
-func newNpScheduler(deps dependencies) provides {
-	var scheduler *npSchedulerImpl
+func newNpCollector(deps dependencies) provides {
+	var scheduler *npCollectorImpl
 
 	configs := newConfig(deps.AgentConfig)
 	if configs.networkPathCollectorEnabled() {
-		deps.Logger.Debugf("Network Path Scheduler enabled")
+		deps.Logger.Debugf("Network Path Collector enabled")
 		epForwarder, ok := deps.EpForwarder.Get()
 		if !ok {
 			deps.Logger.Errorf("Error getting EpForwarder")
-			scheduler = newNoopNpSchedulerImpl()
+			scheduler = newNoopNpCollectorImpl()
 		} else {
-			scheduler = newNpSchedulerImpl(epForwarder, configs, deps.Logger, deps.AgentConfig)
+			scheduler = newNpCollectorImpl(epForwarder, configs, deps.Logger, deps.AgentConfig)
 			deps.Lc.Append(fx.Hook{
-				// No need for OnStart hook since NpScheduler.Init() will be called by clients when needed.
+				// No need for OnStart hook since NpCollector.Init() will be called by clients when needed.
 				OnStart: func(context.Context) error {
 					return scheduler.start()
 				},
@@ -61,8 +61,8 @@ func newNpScheduler(deps dependencies) provides {
 			})
 		}
 	} else {
-		deps.Logger.Debugf("Network Path Scheduler disabled")
-		scheduler = newNoopNpSchedulerImpl()
+		deps.Logger.Debugf("Network Path Collector disabled")
+		scheduler = newNoopNpCollectorImpl()
 	}
 
 	return provides{

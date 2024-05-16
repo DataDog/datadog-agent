@@ -9,7 +9,7 @@ package networkpath
 import (
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 
-	"github.com/DataDog/datadog-agent/comp/networkpath/npscheduler/npschedulerimpl"
+	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/npcollectorimpl"
 )
 
 // team: Networks
@@ -17,6 +17,6 @@ import (
 // Bundle defines the fx options for this bundle.
 func Bundle() fxutil.BundleOptions {
 	return fxutil.Bundle(
-		npschedulerimpl.Module(),
+		npcollectorimpl.Module(),
 	)
 }

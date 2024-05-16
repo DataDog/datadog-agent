@@ -11,7 +11,7 @@ import (
 	time "time"
 
 	"github.com/DataDog/datadog-agent/comp/core/log"
-	"github.com/DataDog/datadog-agent/comp/networkpath/npscheduler/npschedulerimpl/common"
+	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/npcollectorimpl/common"
 )
 
 var timeNow = time.Now

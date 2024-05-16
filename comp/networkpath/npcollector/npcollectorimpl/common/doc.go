@@ -3,5 +3,5 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
-// Package common contains common structures and constants used for NpScheduler
+// Package common contains common structures and constants used for NpCollector
 package common

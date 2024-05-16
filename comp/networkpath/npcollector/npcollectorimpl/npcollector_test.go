@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
-package npschedulerimpl
+package npcollectorimpl
 
 import (
 	"bufio"
@@ -17,8 +17,8 @@ import (
 	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
-	"github.com/DataDog/datadog-agent/comp/networkpath/npscheduler/npschedulerimpl/common"
-	"github.com/DataDog/datadog-agent/comp/networkpath/npscheduler/npschedulerimpl/pathteststore"
+	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/npcollectorimpl/common"
+	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/npcollectorimpl/pathteststore"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/metricsender"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
@@ -30,12 +30,12 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func Test_NpScheduler_StartAndStop(t *testing.T) {
+func Test_NpCollector_StartAndStop(t *testing.T) {
 	// GIVEN
 	agentConfigs := map[string]any{
 		"network_path.connections_monitoring.enabled": true,
 	}
-	app, npScheduler := newTestNpScheduler(t, agentConfigs)
+	app, npCollector := newTestNpCollector(t, agentConfigs)
 
 	var b bytes.Buffer
 	w := bufio.NewWriter(&b)
@@ -43,25 +43,25 @@ func Test_NpScheduler_StartAndStop(t *testing.T) {
 	assert.Nil(t, err)
 	utillog.SetupLogger(l, "debug")
 
-	assert.False(t, npScheduler.running)
+	assert.False(t, npCollector.running)
 
 	// TEST START
 	app.RequireStart()
-	assert.True(t, npScheduler.running)
+	assert.True(t, npCollector.running)
 
 	// TEST START CALLED TWICE
-	err = npScheduler.start()
+	err = npCollector.start()
 	assert.EqualError(t, err, "server already started")
 
 	// TEST STOP
 	app.RequireStop()
-	assert.False(t, npScheduler.running)
+	assert.False(t, npCollector.running)
 
 	// TEST START/STOP using logs
 	w.Flush()
 	logs := b.String()
 
-	assert.Equal(t, 1, strings.Count(logs, "Start NpScheduler"), logs)
+	assert.Equal(t, 1, strings.Count(logs, "Start NpCollector"), logs)
 	assert.Equal(t, 1, strings.Count(logs, "Starting listening for pathtests"), logs)
 	assert.Equal(t, 1, strings.Count(logs, "Starting flush loop"), logs)
 	assert.Equal(t, 1, strings.Count(logs, "Starting workers"), logs)
@@ -69,28 +69,28 @@ func Test_NpScheduler_StartAndStop(t *testing.T) {
 
 	assert.Equal(t, 1, strings.Count(logs, "Stopped listening for pathtests"), logs)
 	assert.Equal(t, 1, strings.Count(logs, "Stopped flush loop"), logs)
-	assert.Equal(t, 1, strings.Count(logs, "Stop NpScheduler"), logs)
+	assert.Equal(t, 1, strings.Count(logs, "Stop NpCollector"), logs)
 }
 
-func Test_NpScheduler_runningAndProcessing(t *testing.T) {
+func Test_NpCollector_runningAndProcessing(t *testing.T) {
 	// GIVEN
 	agentConfigs := map[string]any{
 		"network_path.connections_monitoring.enabled": true,
 		"network_path.collector.flush_interval":       "1s",
 	}
-	app, npScheduler := newTestNpScheduler(t, agentConfigs)
+	app, npCollector := newTestNpCollector(t, agentConfigs)
 
 	stats := &teststatsd.Client{}
-	npScheduler.statsdClient = stats
-	npScheduler.metricSender = metricsender.NewMetricSenderStatsd(stats)
+	npCollector.statsdClient = stats
+	npCollector.metricSender = metricsender.NewMetricSenderStatsd(stats)
 
 	mockEpForwarder := eventplatformimpl.NewMockEventPlatformForwarder(gomock.NewController(t))
-	npScheduler.epForwarder = mockEpForwarder
+	npCollector.epForwarder = mockEpForwarder
 
 	app.RequireStart()
-	assert.True(t, npScheduler.running)
+	assert.True(t, npCollector.running)
 
-	npScheduler.runTraceroute = func(cfg traceroute.Config) (payload.NetworkPath, error) {
+	npCollector.runTraceroute = func(cfg traceroute.Config) (payload.NetworkPath, error) {
 		var p payload.NetworkPath
 		if cfg.DestHostname == "127.0.0.2" {
 			p = payload.NetworkPath{
@@ -209,9 +209,9 @@ func Test_NpScheduler_runningAndProcessing(t *testing.T) {
 			Direction: model.ConnectionDirection_outgoing,
 		},
 	}
-	npScheduler.ScheduleConns(conns)
+	npCollector.CollectForConns(conns)
 
-	waitForProcessedPathtests(npScheduler, 5*time.Second, 1)
+	waitForProcessedPathtests(npCollector, 5*time.Second, 1)
 
 	// THEN
 	calls := stats.GaugeCalls
@@ -223,22 +223,22 @@ func Test_NpScheduler_runningAndProcessing(t *testing.T) {
 	}
 	assert.Contains(t, calls, teststatsd.MetricsArgs{Name: "datadog.network_path.path.monitored", Value: 1, Tags: tags, Rate: 1})
 
-	assert.Equal(t, uint64(2), npScheduler.processedTracerouteCount.Load())
-	assert.Equal(t, uint64(2), npScheduler.receivedPathtestCount.Load())
+	assert.Equal(t, uint64(2), npCollector.processedTracerouteCount.Load())
+	assert.Equal(t, uint64(2), npCollector.receivedPathtestCount.Load())
 
 	app.RequireStop()
 }
 
-func Test_NpScheduler_ScheduleConns_ScheduleDurationMetric(t *testing.T) {
+func Test_NpCollector_ScheduleConns_ScheduleDurationMetric(t *testing.T) {
 	// GIVEN
 	agentConfigs := map[string]any{
 		"network_path.connections_monitoring.enabled": true,
 	}
-	_, npScheduler := newTestNpScheduler(t, agentConfigs)
+	_, npCollector := newTestNpCollector(t, agentConfigs)
 
 	stats := &teststatsd.Client{}
-	npScheduler.statsdClient = stats
-	npScheduler.metricSender = metricsender.NewMetricSenderStatsd(stats)
+	npCollector.statsdClient = stats
+	npCollector.metricSender = metricsender.NewMetricSenderStatsd(stats)
 
 	conns := []*model.Connection{
 		{
@@ -253,14 +253,14 @@ func Test_NpScheduler_ScheduleConns_ScheduleDurationMetric(t *testing.T) {
 		},
 	}
 	timeNowCounter := 0
-	npScheduler.TimeNowFn = func() time.Time {
+	npCollector.TimeNowFn = func() time.Time {
 		now := MockTimeNow().Add(time.Duration(timeNowCounter) * time.Minute)
 		timeNowCounter++
 		return now
 	}
 
 	// WHEN
-	npScheduler.ScheduleConns(conns)
+	npCollector.CollectForConns(conns)
 
 	// THEN
 	calls := stats.GaugeCalls
@@ -273,20 +273,20 @@ func compactJSON(metadataEvent []byte) []byte {
 	return compactMetadataEvent.Bytes()
 }
 
-func Test_newNpSchedulerImpl_defaultConfigs(t *testing.T) {
+func Test_newNpCollectorImpl_defaultConfigs(t *testing.T) {
 	agentConfigs := map[string]any{
 		"network_path.connections_monitoring.enabled": true,
 	}
 
-	_, npScheduler := newTestNpScheduler(t, agentConfigs)
+	_, npCollector := newTestNpCollector(t, agentConfigs)
 
-	assert.Equal(t, true, npScheduler.collectorConfigs.networkPathCollectorEnabled())
-	assert.Equal(t, 4, npScheduler.workers)
-	assert.Equal(t, 1000, cap(npScheduler.pathtestInputChan))
-	assert.Equal(t, 1000, cap(npScheduler.pathtestProcessingChan))
+	assert.Equal(t, true, npCollector.collectorConfigs.networkPathCollectorEnabled())
+	assert.Equal(t, 4, npCollector.workers)
+	assert.Equal(t, 1000, cap(npCollector.pathtestInputChan))
+	assert.Equal(t, 1000, cap(npCollector.pathtestProcessingChan))
 }
 
-func Test_newNpSchedulerImpl_overrideConfigs(t *testing.T) {
+func Test_newNpCollectorImpl_overrideConfigs(t *testing.T) {
 	agentConfigs := map[string]any{
 		"network_path.connections_monitoring.enabled": true,
 		"network_path.collector.workers":              2,
@@ -294,15 +294,15 @@ func Test_newNpSchedulerImpl_overrideConfigs(t *testing.T) {
 		"network_path.collector.processing_chan_size": 400,
 	}
 
-	_, npScheduler := newTestNpScheduler(t, agentConfigs)
+	_, npCollector := newTestNpCollector(t, agentConfigs)
 
-	assert.Equal(t, true, npScheduler.collectorConfigs.networkPathCollectorEnabled())
-	assert.Equal(t, 2, npScheduler.workers)
-	assert.Equal(t, 300, cap(npScheduler.pathtestInputChan))
-	assert.Equal(t, 400, cap(npScheduler.pathtestProcessingChan))
+	assert.Equal(t, true, npCollector.collectorConfigs.networkPathCollectorEnabled())
+	assert.Equal(t, 2, npCollector.workers)
+	assert.Equal(t, 300, cap(npCollector.pathtestInputChan))
+	assert.Equal(t, 400, cap(npCollector.pathtestProcessingChan))
 }
 
-func Test_npSchedulerImpl_ScheduleConns(t *testing.T) {
+func Test_npCollectorImpl_ScheduleConns(t *testing.T) {
 	type logCount struct {
 		log   string
 		count int
@@ -387,7 +387,7 @@ func Test_npSchedulerImpl_ScheduleConns(t *testing.T) {
 			},
 			expectedPathtests: []*common.Pathtest{},
 			expectedLogs: []logCount{
-				{"[ERROR] ScheduleConns: Error scheduling pathtests: no input channel, please check that network path is enabled", 1},
+				{"[ERROR] CollectForConns: Error scheduling pathtests: no input channel, please check that network path is enabled", 1},
 			},
 		},
 		{
@@ -432,9 +432,9 @@ func Test_npSchedulerImpl_ScheduleConns(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			_, npScheduler := newTestNpScheduler(t, tt.agentConfigs)
+			_, npCollector := newTestNpCollector(t, tt.agentConfigs)
 			if tt.noInputChan {
-				npScheduler.pathtestInputChan = nil
+				npCollector.pathtestInputChan = nil
 			}
 
 			var b bytes.Buffer
@@ -444,14 +444,14 @@ func Test_npSchedulerImpl_ScheduleConns(t *testing.T) {
 			utillog.SetupLogger(l, "debug")
 
 			stats := &teststatsd.Client{}
-			npScheduler.statsdClient = stats
+			npCollector.statsdClient = stats
 
-			npScheduler.ScheduleConns(tt.conns)
+			npCollector.CollectForConns(tt.conns)
 
 			actualPathtests := []*common.Pathtest{}
 			for i := 0; i < len(tt.expectedPathtests); i++ {
 				select {
-				case pathtest := <-npScheduler.pathtestInputChan:
+				case pathtest := <-npCollector.pathtestInputChan:
 					actualPathtests = append(actualPathtests, pathtest)
 				case <-time.After(200 * time.Millisecond):
 					assert.Fail(t, fmt.Sprintf("Not enough pathtests: expected=%d but actual=%d", len(tt.expectedPathtests), len(actualPathtests)))
@@ -484,12 +484,12 @@ func Test_npSchedulerImpl_ScheduleConns(t *testing.T) {
 	}
 }
 
-func Test_npSchedulerImpl_stopWorker(t *testing.T) {
+func Test_npCollectorImpl_stopWorker(t *testing.T) {
 	agentConfigs := map[string]any{
 		"network_path.connections_monitoring.enabled": true,
 	}
 
-	_, npScheduler := newTestNpScheduler(t, agentConfigs)
+	_, npCollector := newTestNpCollector(t, agentConfigs)
 
 	var b bytes.Buffer
 	w := bufio.NewWriter(&b)
@@ -499,10 +499,10 @@ func Test_npSchedulerImpl_stopWorker(t *testing.T) {
 
 	stopped := make(chan bool, 1)
 	go func() {
-		npScheduler.startWorker(42)
+		npCollector.startWorker(42)
 		stopped <- true
 	}()
-	close(npScheduler.stopChan)
+	close(npCollector.stopChan)
 	<-stopped
 
 	// Flush logs
@@ -512,7 +512,7 @@ func Test_npSchedulerImpl_stopWorker(t *testing.T) {
 	assert.Equal(t, 1, strings.Count(logs, "[worker42] Stopped worker"), logs)
 }
 
-func Test_npSchedulerImpl_flushWrapper(t *testing.T) {
+func Test_npCollectorImpl_flushWrapper(t *testing.T) {
 	tests := []struct {
 		name               string
 		flushStartTime     time.Time
@@ -550,16 +550,16 @@ func Test_npSchedulerImpl_flushWrapper(t *testing.T) {
 			agentConfigs := map[string]any{
 				"network_path.connections_monitoring.enabled": true,
 			}
-			_, npScheduler := newTestNpScheduler(t, agentConfigs)
+			_, npCollector := newTestNpCollector(t, agentConfigs)
 
 			stats := &teststatsd.Client{}
-			npScheduler.statsdClient = stats
-			npScheduler.TimeNowFn = func() time.Time {
+			npCollector.statsdClient = stats
+			npCollector.TimeNowFn = func() time.Time {
 				return tt.flushEndTime
 			}
 
 			// WHEN
-			npScheduler.flushWrapper(tt.flushStartTime, tt.lastFlushTime)
+			npCollector.flushWrapper(tt.flushStartTime, tt.lastFlushTime)
 
 			// THEN
 			calls := stats.GaugeCalls
@@ -577,21 +577,21 @@ func Test_npSchedulerImpl_flushWrapper(t *testing.T) {
 	}
 }
 
-func Test_npSchedulerImpl_flush(t *testing.T) {
+func Test_npCollectorImpl_flush(t *testing.T) {
 	// GIVEN
 	agentConfigs := map[string]any{
 		"network_path.connections_monitoring.enabled": true,
 		"network_path.collector.workers":              6,
 	}
-	_, npScheduler := newTestNpScheduler(t, agentConfigs)
+	_, npCollector := newTestNpCollector(t, agentConfigs)
 
 	stats := &teststatsd.Client{}
-	npScheduler.statsdClient = stats
-	npScheduler.pathtestStore.Add(&common.Pathtest{Hostname: "host1", Port: 53})
-	npScheduler.pathtestStore.Add(&common.Pathtest{Hostname: "host2", Port: 53})
+	npCollector.statsdClient = stats
+	npCollector.pathtestStore.Add(&common.Pathtest{Hostname: "host1", Port: 53})
+	npCollector.pathtestStore.Add(&common.Pathtest{Hostname: "host2", Port: 53})
 
 	// WHEN
-	npScheduler.flush()
+	npCollector.flush()
 
 	// THEN
 	calls := stats.GaugeCalls
@@ -599,20 +599,20 @@ func Test_npSchedulerImpl_flush(t *testing.T) {
 	assert.Contains(t, calls, teststatsd.MetricsArgs{Name: "datadog.network_path.scheduler.pathtest_store_size", Value: 2, Tags: []string{}, Rate: 1})
 	assert.Contains(t, calls, teststatsd.MetricsArgs{Name: "datadog.network_path.scheduler.pathtest_flushed_count", Value: 2, Tags: []string{}, Rate: 1})
 
-	assert.Equal(t, 2, len(npScheduler.pathtestProcessingChan))
+	assert.Equal(t, 2, len(npCollector.pathtestProcessingChan))
 }
 
-func Test_npSchedulerImpl_sendTelemetry(t *testing.T) {
+func Test_npCollectorImpl_sendTelemetry(t *testing.T) {
 	// GIVEN
 	agentConfigs := map[string]any{
 		"network_path.connections_monitoring.enabled": true,
 		"network_path.collector.workers":              6,
 	}
-	_, npScheduler := newTestNpScheduler(t, agentConfigs)
+	_, npCollector := newTestNpCollector(t, agentConfigs)
 
 	stats := &teststatsd.Client{}
-	npScheduler.statsdClient = stats
-	npScheduler.metricSender = metricsender.NewMetricSenderStatsd(stats)
+	npCollector.statsdClient = stats
+	npCollector.metricSender = metricsender.NewMetricSenderStatsd(stats)
 	path := payload.NetworkPath{
 		Source:      payload.NetworkPathSource{Hostname: "abc"},
 		Destination: payload.NetworkPathDestination{Hostname: "abc", IPAddress: "127.0.0.2", Port: 80},
@@ -625,11 +625,11 @@ func Test_npSchedulerImpl_sendTelemetry(t *testing.T) {
 		Pathtest: &common.Pathtest{Hostname: "127.0.0.2", Port: 80},
 	}
 	ptestCtx.SetLastFlushInterval(2 * time.Minute)
-	npScheduler.TimeNowFn = MockTimeNow
+	npCollector.TimeNowFn = MockTimeNow
 	checkStartTime := MockTimeNow().Add(-3 * time.Second)
 
 	// WHEN
-	npScheduler.sendTelemetry(path, checkStartTime, ptestCtx)
+	npCollector.sendTelemetry(path, checkStartTime, ptestCtx)
 
 	// THEN
 	calls := stats.GaugeCalls

@@ -21,7 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/eventplatformreceiverimpl"
-	"github.com/DataDog/datadog-agent/comp/networkpath/npscheduler/npschedulerimpl"
+	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/npcollectorimpl"
 	"github.com/DataDog/datadog-agent/comp/process/runner"
 
 	coreStatusImpl "github.com/DataDog/datadog-agent/comp/core/status/statusimpl"
@@ -53,7 +53,7 @@ func TestBundleDependencies(t *testing.T) {
 			},
 		),
 		fx.Provide(func() context.Context { return context.TODO() }),
-		npschedulerimpl.MockModule(),
+		npcollectorimpl.MockModule(),
 	)
 }
 
@@ -93,7 +93,7 @@ func TestBundleOneShot(t *testing.T) {
 		eventplatformreceiverimpl.Module(),
 		eventplatformimpl.Module(),
 		fx.Supply(eventplatformimpl.NewDefaultParams()),
-		npschedulerimpl.Module(),
+		npcollectorimpl.Module(),
 		Bundle(),
 	)
 	require.NoError(t, err)
