@@ -3,8 +3,8 @@ module github.com/DataDog/datadog-agent/comp/core/flare/types
 go 1.21.0
 
 replace (
-	github.com/DataDog/datadog-agent/comp/def => ../../../def
 	github.com/DataDog/datadog-agent/comp/core/flare/def => ../def
+	github.com/DataDog/datadog-agent/comp/def => ../../../def
 )
 
 require (
