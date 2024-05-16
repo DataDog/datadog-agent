@@ -569,7 +569,7 @@ func RegisterConnectivityDatadogEventPlatform(catalog *diagnosis.Catalog) {
 // RegisterPortConflict registers the port-conflict diagnose suite.
 func RegisterPortConflict(catalog *diagnosis.Catalog) {
 	// port-conflict suite available in darwin only for now
-	if runtime.GOOS == "darwin" {
+	if runtime.GOOS == "darwin" || runtime.GOOS == "linux" {
 		catalog.Register("port-conflict", func() []diagnosis.Diagnosis { return ports.DiagnosePortSuite() })
 	}
 }

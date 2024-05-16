@@ -3,11 +3,13 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build !darwin
+//go:build !darwin && !linux
 
 package portlist
 
-import "errors"
+import (
+	"errors"
+)
 
 // ErrNotImplemented is the "not implemented" error given by `gopsutil` when an
 // OS doesn't support and API. Unfortunately it's in an internal package so
