@@ -16,7 +16,7 @@ struct lock_range {
     unsigned long long addr_start;
     unsigned long long range;
     lock_type_t type;
-};
+} __attribute__((packed));
 
 struct contention_data {
     unsigned long long total_time;
