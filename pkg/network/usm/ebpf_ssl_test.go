@@ -16,7 +16,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
-	usmtestutil "github.com/DataDog/datadog-agent/pkg/network/usm/testutil"
+	fileopener "github.com/DataDog/datadog-agent/pkg/network/usm/sharedlibraries/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 	"github.com/stretchr/testify/require"
 )
@@ -29,19 +29,13 @@ func startTest(t *testing.T, arch string) (*exec.Cmd, string) {
 	require.NoError(t, err)
 
 	libmmap := filepath.Join(curDir, "testutil", "libmmap")
-	bin, err := usmtestutil.BuildUnixTransparentProxyServer(filepath.Join(curDir, "testutil"), "libmmap")
-	require.NoError(t, err)
 	lib := filepath.Join(libmmap, fmt.Sprintf("libssl.so.%s", arch))
-
-	cmd := exec.Command(bin, lib)
-	require.NoError(t, cmd.Start())
-	t.Cleanup(func() {
-		_ = cmd.Process.Kill()
-		_, _ = cmd.Process.Wait()
-	})
 
 	monitor := setupUSMTLSMonitor(t, cfg)
 	require.NotNil(t, monitor)
+
+	cmd, err := fileopener.OpenFromAnotherProcess(t, lib)
+	require.NoError(t, err)
 
 	return cmd, lib
 }
