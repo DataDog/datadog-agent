@@ -39,10 +39,10 @@ func newNpCollector(deps dependencies) provides {
 	var scheduler *npCollectorImpl
 	configs := newConfig(deps.AgentConfig)
 	if configs.networkPathCollectorEnabled() {
-		deps.Logger.Debugf("Network Path Scheduler enabled")
+		deps.Logger.Debugf("Network Path Collector enabled")
 		scheduler = newNpCollectorImpl(deps.EpForwarder, configs)
 	} else {
-		deps.Logger.Debugf("Network Path Scheduler disabled")
+		deps.Logger.Debugf("Network Path Collector disabled")
 		scheduler = newNoopNpCollectorImpl()
 	}
 
