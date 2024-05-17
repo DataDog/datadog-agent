@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
-package tagenrichmentprocessor
+package infraattributesprocessor
 
 import (
 	"context"
@@ -13,12 +13,12 @@ import (
 	"go.uber.org/zap"
 )
 
-type tagEnrichmentLogProcessor struct {
+type infraAttributesLogProcessor struct {
 	logger *zap.Logger
 }
 
-func newTagEnrichmentLogsProcessor(set processor.CreateSettings, _ *Config) (*tagEnrichmentLogProcessor, error) {
-	telp := &tagEnrichmentLogProcessor{
+func newInfraAttributesLogsProcessor(set processor.CreateSettings, _ *Config) (*infraAttributesLogProcessor, error) {
+	telp := &infraAttributesLogProcessor{
 		logger: set.Logger,
 	}
 
@@ -26,6 +26,6 @@ func newTagEnrichmentLogsProcessor(set processor.CreateSettings, _ *Config) (*ta
 	return telp, nil
 }
 
-func (telp *tagEnrichmentLogProcessor) processLogs(_ context.Context, ld plog.Logs) (plog.Logs, error) {
+func (telp *infraAttributesLogProcessor) processLogs(_ context.Context, ld plog.Logs) (plog.Logs, error) {
 	return ld, nil
 }
