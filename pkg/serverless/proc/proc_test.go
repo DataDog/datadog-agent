@@ -8,6 +8,7 @@
 package proc
 
 import (
+	"os"
 	"sort"
 	"testing"
 
@@ -50,4 +51,29 @@ func TestSearchProcsForEnvVariableFound(t *testing.T) {
 func TestSearchProcsForEnvVariableNotFound(t *testing.T) {
 	result := SearchProcsForEnvVariable("./testData", "xxx")
 	assert.Equal(t, 0, len(result))
+}
+
+func TestParseCPUTotals(t *testing.T) {
+	path := "./testData/valid_stat"
+	file, _ := os.Open(path)
+	defer file.Close()
+	userCPUTimeMs, systemCPUTimeMs, _ := parseCPUTotals(file)
+	assert.Equal(t, float64(23370), userCPUTimeMs)
+	assert.Equal(t, float64(1880), systemCPUTimeMs)
+
+	path = "./testData/invalid_stat_non_numerical_value"
+	file, _ = os.Open(path)
+	defer file.Close()
+	userCPUTimeMs, systemCPUTimeMs, err := parseCPUTotals(file)
+	assert.Equal(t, float64(0), userCPUTimeMs)
+	assert.Equal(t, float64(0), systemCPUTimeMs)
+	assert.NotNil(t, err)
+
+	path = "./testData/invalid_stat_wrong_number_columns"
+	file, _ = os.Open(path)
+	defer file.Close()
+	userCPUTimeMs, systemCPUTimeMs, err = parseCPUTotals(file)
+	assert.Equal(t, float64(0), userCPUTimeMs)
+	assert.Equal(t, float64(0), systemCPUTimeMs)
+	assert.NotNil(t, err)
 }

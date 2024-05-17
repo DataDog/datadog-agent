@@ -7,13 +7,16 @@
 package proc
 
 import (
+	"bufio"
 	"bytes"
+	"errors"
 	"fmt"
 	"os"
 	"strconv"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/tklauser/go-sysconf"
 )
 
 func getPidList(procPath string) []int {
@@ -68,4 +71,59 @@ func SearchProcsForEnvVariable(procPath string, envName string) []string {
 		}
 	}
 	return result
+}
+
+// GetCPUData collects CPU usage data, returning total user CPU time, total system CPU time, error
+func GetCPUData() (float64, float64, error) {
+	path := "/proc/stat"
+	file, err := os.Open(path)
+	if err != nil {
+		return 0, 0, err
+	}
+	defer file.Close()
+
+	userCPUTimeMs, systemCPUTimeMs, err := parseCPUTotals(file)
+	if err != nil {
+		log.Debugf("Failed to parse CPU totals: %v", err)
+		return 0, 0, err
+	}
+
+	return userCPUTimeMs, systemCPUTimeMs, nil
+}
+
+// parseCPUTotals parses CPU usage data from proc files
+func parseCPUTotals(file *os.File) (float64, float64, error) {
+	reader := bufio.NewReader(file)
+	readLine, _, err := reader.ReadLine()
+	if err != nil {
+		return 0, 0, err
+	}
+
+	// The first line contains CPU totals aggregated across all CPUs
+	lineString := string(readLine)
+	cpuTotals := strings.Split(lineString, " ")
+	if len(cpuTotals) != 12 {
+		return 0, 0, errors.New("incorrect number of columns in file")
+	}
+
+	// SC_CLK_TCK is the system clock frequency in ticks per second
+	// We'll use this to convert CPU times from user HZ to milliseconds
+	clcktck, err := sysconf.Sysconf(sysconf.SC_CLK_TCK)
+	if err != nil {
+		return 0, 0, err
+	}
+
+	userCPUTime, err := strconv.ParseFloat(cpuTotals[2], 64)
+	if err != nil {
+		return 0, 0, err
+	}
+	userCPUTimeMs := (1000 * userCPUTime) / float64(clcktck)
+
+	systemCPUTime, err := strconv.ParseFloat(cpuTotals[4], 64)
+	if err != nil {
+		return 0, 0, err
+	}
+	systemCPUTimeMs := (1000 * systemCPUTime) / float64(clcktck)
+
+	return userCPUTimeMs, systemCPUTimeMs, nil
 }
