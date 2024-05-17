@@ -14,9 +14,9 @@ import (
 	"path"
 )
 
-// Note that these files are placed in the build directory by the security-agent.build-functional-tests
-// task, which copies them from the architecture-specific build directory as we cannot use variables in
-// these directives
+// Note that these files are placed in the build directory by the tasks/security_agent.py:copy_bundled_ebpf_files
+// function, called by the tasks that build the object files. This function copies those files from the
+// architecture-specific build directory as we cannot use variables in these directives
 
 //go:embed build/runtime-security.o
 //go:embed build/runtime-security-syscall-wrapper.o

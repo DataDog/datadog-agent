@@ -10,8 +10,8 @@ import sys
 import tempfile
 from subprocess import check_output
 
-from invoke import task
 from invoke.exceptions import Exit
+from invoke.tasks import task
 
 from tasks.agent import build as agent_build
 from tasks.agent import generate_config
@@ -36,7 +36,6 @@ from tasks.system_probe import (
     build_cws_object_files,
     check_for_ninja,
     copy_ebpf_and_related_files,
-    get_ebpf_build_dir,
     ninja_define_ebpf_compiler,
     ninja_define_exe_compiler,
 )
@@ -369,7 +368,12 @@ def build_functional_tests(
     if not is_windows:
         if not skip_object_files:
             build_cws_object_files(
-                ctx, major_version=major_version, kernel_release=kernel_release, debug=debug, arch=arch
+                ctx,
+                major_version=major_version,
+                arch=arch,
+                kernel_release=kernel_release,
+                debug=debug,
+                bundle_ebpf=bundle_ebpf,
             )
         build_embed_syscall_tester(ctx)
 
@@ -387,15 +391,6 @@ def build_functional_tests(
         if bundle_ebpf:
             build_tags.append("ebpf_bindata")
 
-            # We need to copy the ebpf files to the right location, as we cannot use the go:embed directive
-            # with variables that depend on the build architecture
-            ebpf_build_dir = get_ebpf_build_dir(arch)
-
-            # Parse the files to copy from the go:embed directive, to avoid having duplicate places
-            # where the files are listed
-            ctx.run(
-                f"grep -E '^//go:embed' pkg/ebpf/bytecode/asset_reader_bindata.go | sed -E 's#//go:embed build/##' | xargs -I@ cp -v {ebpf_build_dir}/@ pkg/ebpf/bytecode/build/"
-            )
     if static:
         build_tags.extend(["osusergo", "netgo"])
 
@@ -869,10 +864,7 @@ def kitchen_prepare(ctx, skip_linters=False):
 @task
 def run_ebpf_unit_tests(ctx, verbose=False, trace=False):
     build_cws_object_files(
-        ctx,
-        major_version='7',
-        kernel_release=None,
-        with_unit_test=True,
+        ctx, major_version='7', kernel_release=None, with_unit_test=True, bundle_ebpf=True, arch=CURRENT_ARCH
     )
 
     flags = '-tags ebpf_bindata'

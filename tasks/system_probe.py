@@ -1456,6 +1456,7 @@ def build_cws_object_files(
     debug=False,
     strip_object_files=False,
     with_unit_test=False,
+    bundle_ebpf=False,
 ):
     run_ninja(
         ctx,
@@ -1466,6 +1467,18 @@ def build_cws_object_files(
         kernel_release=kernel_release,
         with_unit_test=with_unit_test,
     )
+
+    if bundle_ebpf:
+        # If we're bundling eBPF files, we need to copy the ebpf files to the right location,
+        # as we cannot use the go:embed directive with variables that depend on the build architecture
+        arch = get_arch(arch)
+        ebpf_build_dir = get_ebpf_build_dir(arch)
+
+        # Parse the files to copy from the go:embed directive, to avoid having duplicate places
+        # where the files are listed
+        ctx.run(
+            f"grep -E '^//go:embed' pkg/ebpf/bytecode/asset_reader_bindata.go | sed -E 's#//go:embed build/##' | xargs -I@ cp -v {ebpf_build_dir}/@ pkg/ebpf/bytecode/build/"
+        )
 
 
 @task
