@@ -141,7 +141,7 @@ func (m *OOMKillCheck) Run() error {
 
 		// submit event with a few more details
 		event := event.Event{
-			Priority:       event.EventPriorityNormal,
+			Priority:       event.PriorityNormal,
 			SourceTypeName: CheckName,
 			EventType:      CheckName,
 			AggregationKey: containerID,

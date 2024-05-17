@@ -29,7 +29,7 @@ type ddEventSubmitter struct {
 	bookmarkSaver *bookmarkSaver
 
 	// config
-	eventPriority agentEvent.EventPriority
+	eventPriority agentEvent.Priority
 	remoteSession bool
 	channelPath   string
 	tagEventID    bool
@@ -160,7 +160,7 @@ func (s *ddEventSubmitter) renderEventValues(vals evtapi.EvtVariantValues, rende
 	return nil
 }
 
-func alertTypeFromLevel(level uint64) (agentEvent.EventAlertType, error) {
+func alertTypeFromLevel(level uint64) (agentEvent.AlertType, error) {
 	// https://docs.microsoft.com/en-us/windows/win32/wes/eventmanifestschema-leveltype-complextype#remarks
 	// https://learn.microsoft.com/en-us/windows/win32/wes/eventmanifestschema-eventdefinitiontype-complextype#attributes
 	// > If you do not specify a level, the event descriptor will contain a zero for level.
@@ -179,7 +179,7 @@ func alertTypeFromLevel(level uint64) (agentEvent.EventAlertType, error) {
 	case 5:
 		alertType = "info"
 	default:
-		return agentEvent.EventAlertTypeInfo, fmt.Errorf("invalid event level: '%d'", level)
+		return agentEvent.AlertTypeInfo, fmt.Errorf("invalid event level: '%d'", level)
 	}
 
 	return agentEvent.GetAlertTypeFromString(alertType)
