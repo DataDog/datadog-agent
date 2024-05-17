@@ -14,6 +14,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
+	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	gohaicpu "github.com/DataDog/datadog-agent/pkg/gohai/cpu"
 	gohaiutils "github.com/DataDog/datadog-agent/pkg/gohai/utils"
 	pdhtest "github.com/DataDog/datadog-agent/pkg/util/pdhutil"
@@ -25,6 +26,12 @@ func CPUInfo() *gohaicpu.Info {
 	}
 }
 
+func createCheck() check.Check {
+	cpuCheckOpt := Factory()
+	cpuCheckFunc, _ := cpuCheckOpt.Get()
+	cpuCheck := cpuCheckFunc()
+	return cpuCheck
+}
 func TestCPUCheckWindows(t *testing.T) {
 	cpuInfo = CPUInfo
 	pdhtest.SetupTesting("..\\testfiles\\counter_indexes_en-us.txt", "..\\testfiles\\allcounters_en-us.txt")
@@ -37,7 +44,7 @@ func TestCPUCheckWindows(t *testing.T) {
 		pdhtest.SetQueryReturnValue("\\\\.\\Processor Information(_Total)\\% Privileged Time", 8.5)
 	}
 
-	cpuCheck := new(Check)
+	cpuCheck := createCheck()
 	m := mocksender.NewMockSender(cpuCheck.ID())
 	cpuCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test")
 
