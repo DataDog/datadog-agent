@@ -128,6 +128,9 @@ func (c *ntpConfig) parse(data []byte, initData []byte, getLocalServers func() (
 	if c.instance.Hosts == nil {
 		c.instance.Hosts = defaultHosts
 	}
+
+	log.Infof("Using NTP servers: [ %s ]", strings.Join(c.instance.Hosts, ", "))
+
 	if c.instance.Port == 0 {
 		c.instance.Port = defaultPort
 	}
