@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -183,6 +184,13 @@ func TestCreateHTTPTransport(t *testing.T) {
 	transport = CreateHTTPTransport(c)
 	assert.True(t, transport.TLSClientConfig.InsecureSkipVerify)
 	assert.Equal(t, transport.TLSClientConfig.MinVersion, uint16(tls.VersionTLS12))
+
+	transport = CreateHTTPTransport(c)
+	assert.NotZero(t, transport.TLSHandshakeTimeout)
+
+	c.SetWithoutSource("tls_handshake_timeout", time.Second)
+	transport = CreateHTTPTransport(c)
+	assert.Equal(t, transport.TLSHandshakeTimeout, time.Second)
 }
 
 func TestNoProxyWarningMap(t *testing.T) {

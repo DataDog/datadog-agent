@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent/pkg/config/logs
 
-go 1.21.9
+go 1.21.0
 
 replace (
 	github.com/DataDog/datadog-agent/pkg/config/model => ../model/
@@ -9,9 +9,9 @@ replace (
 )
 
 require (
-	github.com/DataDog/datadog-agent/pkg/config/model v0.53.0-rc.2
-	github.com/DataDog/datadog-agent/pkg/util/log v0.53.0-rc.2
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.53.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/config/model v0.54.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/util/log v0.54.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.54.0-rc.2
 	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575
 	github.com/stretchr/testify v1.9.0
 )
@@ -24,6 +24,7 @@ require (
 	github.com/hashicorp/hcl v1.0.0 // indirect
 	github.com/magiconair/properties v1.8.1 // indirect
 	github.com/mitchellh/mapstructure v1.1.2 // indirect
+	github.com/mohae/deepcopy v0.0.0-20170929034955-c48cc78d4826 // indirect
 	github.com/pelletier/go-toml v1.2.0 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/spf13/afero v1.1.2 // indirect

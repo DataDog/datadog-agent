@@ -3,9 +3,12 @@ vscode namespaced tags
 
 Helpers for getting vscode set up nicely
 """
+
+from __future__ import annotations
+
 import json
 import os
-from typing import OrderedDict
+from collections import OrderedDict
 
 from invoke import task
 
@@ -50,7 +53,7 @@ def set_buildtags(
     settings = {}
     fullpath = os.path.join(VSCODE_DIR, VSCODE_FILE)
     if os.path.exists(fullpath):
-        with open(fullpath, "r") as sf:
+        with open(fullpath) as sf:
             settings = json.load(sf, object_pairs_hook=OrderedDict)
 
     settings["go.buildTags"] = ",".join(use_tags)

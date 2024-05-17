@@ -49,6 +49,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/status/statusimpl"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/defaults"
@@ -69,7 +70,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryhost"
 	"github.com/DataDog/datadog-agent/comp/metadata/packagesigning"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcservice"
-	"github.com/DataDog/datadog-agent/comp/remote-config/rcserviceha"
+	"github.com/DataDog/datadog-agent/comp/remote-config/rcservicemrf"
 	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/cli/standalone"
@@ -171,7 +172,7 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 				authtokenimpl.Module(),
 				fx.Supply(context.Background()),
 				fx.Provide(tagger.NewTaggerParamsForCoreAgent),
-				tagger.Module(),
+				taggerimpl.Module(),
 				autodiscoveryimpl.Module(),
 				forwarder.Bundle(),
 				inventorychecksimpl.Module(),
@@ -225,8 +226,8 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 				fx.Provide(func() inventoryagent.Component { return nil }),
 				fx.Provide(func() inventoryhost.Component { return nil }),
 				fx.Provide(func() packagesigning.Component { return nil }),
-				fx.Provide(func() optional.Option[rcservice.Component] { return optional.NewNoneOption[rcservice.Component]() }),
-				fx.Provide(func() optional.Option[rcserviceha.Component] { return optional.NewNoneOption[rcserviceha.Component]() }),
+				fx.Supply(optional.NewNoneOption[rcservice.Component]()),
+				fx.Supply(optional.NewNoneOption[rcservicemrf.Component]()),
 				fx.Provide(func() optional.Option[gui.Component] { return optional.NewNoneOption[gui.Component]() }),
 				getPlatformModules(),
 				jmxloggerimpl.Module(),
@@ -276,7 +277,7 @@ func run(
 	cliParams *cliParams,
 	demultiplexer demultiplexer.Component,
 	wmeta workloadmeta.Component,
-	taggerComp tagger.Component,
+	_ tagger.Component,
 	ac autodiscovery.Component,
 	secretResolver secrets.Component,
 	agentAPI internalAPI.Component,
@@ -309,7 +310,7 @@ func run(
 	// TODO: (components) - Until the checks are components we set there context so they can depends on components.
 	check.InitializeInventoryChecksContext(invChecks)
 	pkgcollector.InitPython(common.GetPythonPaths()...)
-	commonchecks.RegisterChecks(wmeta)
+	commonchecks.RegisterChecks(wmeta, config)
 
 	common.LoadComponents(secretResolver, wmeta, ac, pkgconfig.Datadog.GetString("confd_path"))
 	ac.LoadAndRun(context.Background())
@@ -340,11 +341,11 @@ func run(
 			fmt.Println("Please consider using the 'jmx' command instead of 'check jmx'")
 			selectedChecks := []string{cliParams.checkName}
 			if cliParams.checkRate {
-				if err := standalone.ExecJmxListWithRateMetricsJSON(selectedChecks, config.GetString("log_level"), allConfigs, wmeta, taggerComp, ac, demultiplexer, agentAPI, collector, jmxLogger); err != nil {
+				if err := standalone.ExecJmxListWithRateMetricsJSON(selectedChecks, config.GetString("log_level"), allConfigs, demultiplexer, agentAPI, jmxLogger); err != nil {
 					return fmt.Errorf("while running the jmx check: %v", err)
 				}
 			} else {
-				if err := standalone.ExecJmxListWithMetricsJSON(selectedChecks, config.GetString("log_level"), allConfigs, wmeta, taggerComp, ac, demultiplexer, agentAPI, collector, jmxLogger); err != nil {
+				if err := standalone.ExecJmxListWithMetricsJSON(selectedChecks, config.GetString("log_level"), allConfigs, demultiplexer, agentAPI, jmxLogger); err != nil {
 					return fmt.Errorf("while running the jmx check: %v", err)
 				}
 			}
@@ -480,7 +481,7 @@ func run(
 	var checkFileOutput bytes.Buffer
 	var instancesData []interface{}
 	printer := aggregator.AgentDemultiplexerPrinter{DemultiplexerWithAggregator: demultiplexer}
-	data, err := statusComponent.GetStatusBySection(status.CollectorSection, "json", false)
+	data, err := statusComponent.GetStatusBySections([]string{status.CollectorSection}, "json", false)
 
 	if err != nil {
 		return err

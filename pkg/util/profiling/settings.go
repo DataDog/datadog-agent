@@ -36,6 +36,10 @@ type Settings struct {
 	BlockProfileRate int
 	// WithGoroutineProfile additionally reports stack traces of all current goroutines
 	WithGoroutineProfile bool
+	// WithBlockProfile additionally enables block profiling
+	WithBlockProfile bool
+	// WithMutexProfile additionally enables mutex profiling
+	WithMutexProfile bool
 	// WithDeltaProfiles specifies if delta profiles are enabled
 	WithDeltaProfiles bool
 	// Tags are the additional tags to attach to profiles.
@@ -45,7 +49,7 @@ type Settings struct {
 }
 
 func (settings *Settings) String() string {
-	return fmt.Sprintf("[Socket:%q][Target:%q][Env:%q][Period:%s][CPU:%s][Mutex:%d][Block:%d][Routines:%v][DeltaProfiles:%v]",
+	return fmt.Sprintf("[Socket:%q][Target:%q][Env:%q][Period:%s][CPU:%s][Mutex:%d][Block:%d][Routines:%v][Block:%v][Mutex:%v][DeltaProfiles:%v]",
 		settings.Socket,
 		settings.ProfilingURL,
 		settings.Env,
@@ -54,6 +58,8 @@ func (settings *Settings) String() string {
 		settings.MutexProfileFraction,
 		settings.BlockProfileRate,
 		settings.WithGoroutineProfile,
+		settings.WithBlockProfile,
+		settings.WithMutexProfile,
 		settings.WithDeltaProfiles,
 	)
 }

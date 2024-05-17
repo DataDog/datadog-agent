@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorinterface
 
-go 1.21.9
+go 1.21.0
 
 replace (
 	github.com/DataDog/datadog-agent/cmd/agent/common/path => ../../../../cmd/agent/common/path
@@ -10,6 +10,7 @@ replace (
 	github.com/DataDog/datadog-agent/comp/core/secrets => ../../../core/secrets
 	github.com/DataDog/datadog-agent/comp/core/status => ../../../core/status
 	github.com/DataDog/datadog-agent/comp/core/telemetry => ../../../core/telemetry
+	github.com/DataDog/datadog-agent/comp/def => ../../../def
 	github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder => ../../defaultforwarder/
 	github.com/DataDog/datadog-agent/pkg/aggregator/ckey => ../../../../pkg/aggregator/ckey
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults => ../../../../pkg/collector/check/defaults
@@ -46,7 +47,7 @@ replace (
 
 )
 
-require github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder v0.53.0-rc.2
+require github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder v0.54.0-rc.2
 
 // Internal deps fix version
 replace (
@@ -57,34 +58,35 @@ replace (
 )
 
 require (
-	github.com/DataDog/datadog-agent/comp/core/config v0.53.0-rc.2 // indirect
-	github.com/DataDog/datadog-agent/comp/core/log v0.53.0-rc.2 // indirect
-	github.com/DataDog/datadog-agent/comp/core/secrets v0.53.0-rc.2 // indirect
-	github.com/DataDog/datadog-agent/comp/core/status v0.53.0-rc.2 // indirect
-	github.com/DataDog/datadog-agent/comp/core/telemetry v0.53.0-rc.2 // indirect
-	github.com/DataDog/datadog-agent/pkg/collector/check/defaults v0.53.0-rc.2 // indirect
-	github.com/DataDog/datadog-agent/pkg/config/env v0.53.0-rc.2 // indirect
-	github.com/DataDog/datadog-agent/pkg/config/model v0.53.0-rc.2 // indirect
-	github.com/DataDog/datadog-agent/pkg/config/setup v0.53.0-rc.2 // indirect
-	github.com/DataDog/datadog-agent/pkg/config/utils v0.53.0-rc.2 // indirect
-	github.com/DataDog/datadog-agent/pkg/orchestrator/model v0.53.0-rc.2 // indirect
-	github.com/DataDog/datadog-agent/pkg/status/health v0.53.0-rc.2 // indirect
-	github.com/DataDog/datadog-agent/pkg/telemetry v0.53.0-rc.2 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/backoff v0.53.0-rc.2 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/common v0.53.0-rc.2 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/executable v0.53.0-rc.2 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.53.0-rc.2 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.53.0-rc.2 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/hostname/validate v0.53.0-rc.2 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/http v0.53.0-rc.2 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/log v0.53.0-rc.2 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/optional v0.53.0-rc.2 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/pointer v0.53.0-rc.2 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.53.0-rc.2 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/system v0.53.0-rc.2 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/system/socket v0.53.0-rc.2 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/winutil v0.53.0-rc.2 // indirect
-	github.com/DataDog/datadog-agent/pkg/version v0.53.0-rc.2 // indirect
+	github.com/DataDog/datadog-agent/comp/core/config v0.54.0-rc.2 // indirect
+	github.com/DataDog/datadog-agent/comp/core/log v0.54.0-rc.2 // indirect
+	github.com/DataDog/datadog-agent/comp/core/secrets v0.54.0-rc.2 // indirect
+	github.com/DataDog/datadog-agent/comp/core/status v0.54.0-rc.2 // indirect
+	github.com/DataDog/datadog-agent/comp/core/telemetry v0.54.0-rc.2 // indirect
+	github.com/DataDog/datadog-agent/comp/def v0.54.0-rc.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/collector/check/defaults v0.54.0-rc.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/config/env v0.54.0-rc.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/config/model v0.54.0-rc.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/config/setup v0.54.0-rc.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/config/utils v0.54.0-rc.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/orchestrator/model v0.54.0-rc.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/status/health v0.54.0-rc.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/telemetry v0.54.0-rc.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/backoff v0.54.0-rc.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/common v0.54.0-rc.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/executable v0.54.0-rc.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.54.0-rc.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.54.0-rc.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/hostname/validate v0.54.0-rc.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/http v0.54.0-rc.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/log v0.54.0-rc.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/optional v0.54.0-rc.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/pointer v0.54.0-rc.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.54.0-rc.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/system v0.54.0-rc.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/system/socket v0.54.0-rc.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/winutil v0.54.0-rc.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/version v0.54.0-rc.2 // indirect
 	github.com/DataDog/viper v1.13.0 // indirect
 	github.com/Microsoft/go-winio v0.6.1 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
@@ -109,6 +111,7 @@ require (
 	github.com/mattn/go-colorable v0.1.13 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/mitchellh/mapstructure v1.5.1-0.20231216201459-8508981c8b6c // indirect
+	github.com/mohae/deepcopy v0.0.0-20170929034955-c48cc78d4826 // indirect
 	github.com/patrickmn/go-cache v2.1.0+incompatible // indirect
 	github.com/pelletier/go-toml v1.9.5 // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect

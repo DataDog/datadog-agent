@@ -16,6 +16,7 @@ import (
 	"net"
 	"os"
 	"os/exec"
+	"os/signal"
 	"path/filepath"
 	"sync"
 	"syscall"
@@ -48,12 +49,13 @@ var (
 
 // Opts defines ptracer options
 type Opts struct {
-	Creds           Creds
-	Verbose         bool
-	Async           bool
-	DisableStats    bool
-	DisableProcScan bool
-	ScanProcEvery   time.Duration
+	Creds            Creds
+	Verbose          bool
+	Async            bool
+	StatsDisabled    bool
+	ProcScanDisabled bool
+	ScanProcEvery    time.Duration
+	SeccompDisabled  bool
 }
 
 type syscallHandlerFunc func(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg, regs syscall.PtraceRegs, disableStats bool) error
@@ -202,17 +204,29 @@ func StartCWSPtracer(args []string, envs []string, probeAddr string, opts Opts) 
 	syscallHandlers := make(map[int]syscallHandler)
 	PtracedSyscalls := registerFIMHandlers(syscallHandlers)
 	PtracedSyscalls = append(PtracedSyscalls, registerProcessHandlers(syscallHandlers)...)
+	PtracedSyscalls = append(PtracedSyscalls, registerSpanHandlers(syscallHandlers)...)
 
 	tracerOpts := TracerOpts{
-		Syscalls: PtracedSyscalls,
-		Creds:    opts.Creds,
-		Logger:   logger,
+		Syscalls:        PtracedSyscalls,
+		Creds:           opts.Creds,
+		Logger:          logger,
+		SeccompDisabled: opts.SeccompDisabled,
 	}
 
 	tracer, err := NewTracer(entry, args, envs, tracerOpts)
 	if err != nil {
 		return err
 	}
+
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan,
+		syscall.SIGINT,
+		syscall.SIGTERM,
+		syscall.SIGQUIT)
+	go func() {
+		<-sigChan
+		_ = syscall.Kill(tracer.PID, syscall.SIGTERM)
+	}()
 
 	var (
 		msgDataChan    = make(chan []byte, 100000)
@@ -292,7 +306,7 @@ func StartCWSPtracer(args []string, envs []string, probeAddr string, opts Opts) 
 		},
 	})
 
-	if !opts.DisableProcScan {
+	if !opts.ProcScanDisabled {
 		every := opts.ScanProcEvery
 		if every == 0 {
 			every = 500 * time.Millisecond
@@ -301,6 +315,9 @@ func StartCWSPtracer(args []string, envs []string, probeAddr string, opts Opts) 
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
+
+			// introduce a delay before starting to scan procfs to let the tracer event first
+			time.Sleep(2 * time.Second)
 
 			scanProcfs(ctx, tracer.PID, send, every, logger)
 		}()
@@ -339,11 +356,14 @@ func StartCWSPtracer(args []string, envs []string, probeAddr string, opts Opts) 
 
 			handler, found := syscallHandlers[nr]
 			if found && handler.Func != nil {
-				err := handler.Func(tracer, process, syscallMsg, regs, opts.DisableStats)
+				err := handler.Func(tracer, process, syscallMsg, regs, opts.StatsDisabled)
 				if err != nil {
 					return
 				}
 			}
+
+			// if available, gather span
+			syscallMsg.SpanContext = fillSpanContext(tracer, process.Tgid, pid, pc.GetSpan(process.Tgid))
 
 			/* internal special cases */
 			switch nr {
@@ -370,7 +390,7 @@ func StartCWSPtracer(args []string, envs []string, probeAddr string, opts Opts) 
 						GID:  gid,
 						EGID: gid,
 					}
-					if !opts.DisableStats {
+					if !opts.StatsDisabled {
 						syscallMsg.Exec.Credentials.User = getUserFromUID(tracer, int32(syscallMsg.Exec.Credentials.UID))
 						syscallMsg.Exec.Credentials.EUser = getUserFromUID(tracer, int32(syscallMsg.Exec.Credentials.EUID))
 						syscallMsg.Exec.Credentials.Group = getGroupFromGID(tracer, int32(syscallMsg.Exec.Credentials.GID))
@@ -387,6 +407,8 @@ func StartCWSPtracer(args []string, envs []string, probeAddr string, opts Opts) 
 				if process.Pid != process.Tgid {
 					pc.Add(process.Tgid, process)
 				}
+			case IoctlNr:
+				pc.SetSpan(process.Tgid, handleIoctl(tracer, process, regs))
 
 			}
 		case CallbackPostType:
@@ -394,7 +416,7 @@ func StartCWSPtracer(args []string, envs []string, probeAddr string, opts Opts) 
 			handler, handlerFound := syscallHandlers[nr]
 			if handlerFound && msgExists && (handler.ShouldSend != nil || handler.RetFunc != nil) {
 				if handler.RetFunc != nil {
-					err := handler.RetFunc(tracer, process, syscallMsg, regs, opts.DisableStats)
+					err := handler.RetFunc(tracer, process, syscallMsg, regs, opts.StatsDisabled)
 					if err != nil {
 						return
 					}
@@ -412,6 +434,8 @@ func StartCWSPtracer(args []string, envs []string, probeAddr string, opts Opts) 
 			case ExecveNr, ExecveatNr:
 				// now the pid is the tgid
 				process.Pid = process.Tgid
+				// remove previously registered TLS
+				pc.UnsetSpan(process.Tgid)
 			case CloneNr:
 				if flags := tracer.ReadArgUint64(regs, 0); flags&uint64(unix.SIGCHLD) == 0 {
 					pc.SetAsThreadOf(process, ppid)
@@ -462,7 +486,10 @@ func StartCWSPtracer(args []string, envs []string, probeAddr string, opts Opts) 
 				} else if waitStatus.Signaled() {
 					exitCtx.Cause = model.ExitSignaled
 					exitCtx.Code = uint32(waitStatus.Signal())
+				} else {
+					exitCtx.Code = uint32(waitStatus.Signal())
 				}
+
 				sendSyscallMsg(&ebpfless.SyscallMsg{
 					Type: ebpfless.SyscallTypeExit,
 					Exit: exitCtx,

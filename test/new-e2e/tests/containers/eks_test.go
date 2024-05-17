@@ -25,7 +25,6 @@ type eksSuite struct {
 }
 
 func TestEKSSuite(t *testing.T) {
-	t.Skip("incident-26767: skip as test is failing on dockerhub rate limit")
 	suite.Run(t, &eksSuite{})
 }
 
@@ -39,7 +38,7 @@ func (suite *eksSuite) SetupSuite() {
 		"dddogstatsd:deploy":    auto.ConfigValue{Value: "true"},
 	}
 
-	_, stackOutput, err := infra.GetStackManager().GetStackNoDeleteOnFailure(ctx, "eks-cluster", stackConfig, eks.Run, false, nil)
+	_, stackOutput, err := infra.GetStackManager().GetStackNoDeleteOnFailure(ctx, "eks-cluster", stackConfig, eks.Run, false, nil, nil)
 	if !suite.Assert().NoError(err) {
 		stackName, err := infra.GetStackManager().GetPulumiStackName("eks-cluster")
 		suite.Require().NoError(err)

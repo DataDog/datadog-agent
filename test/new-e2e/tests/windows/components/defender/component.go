@@ -33,7 +33,7 @@ func NewDefender(e *config.CommonEnvironment, host *remote.Host, options ...Opti
 	}
 
 	manager := &Manager{
-		namer: e.CommonNamer.WithPrefix("windows-defender"),
+		namer: e.CommonNamer().WithPrefix("windows-defender"),
 		host:  host,
 	}
 

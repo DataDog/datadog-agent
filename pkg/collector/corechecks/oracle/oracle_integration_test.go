@@ -321,8 +321,9 @@ func TestLegacyMode(t *testing.T) {
 		err := c.Run()
 		assert.NoError(t, err)
 		expectedServerTag := fmt.Sprintf("server:%s", c.config.InstanceConfig.Server)
-		s.AssertServiceCheck(t, canConnectServiceCheckName, servicecheck.ServiceCheckOK, "", []string{expectedServerTag}, "")
-		s.AssertServiceCheck(t, serviceCheckName, servicecheck.ServiceCheckOK, "", []string{expectedServerTag}, "")
+		host := c.dbHostname
+		s.AssertServiceCheck(t, canConnectServiceCheckName, servicecheck.ServiceCheckOK, host, []string{expectedServerTag}, "")
+		s.AssertServiceCheck(t, serviceCheckName, servicecheck.ServiceCheckOK, host, []string{expectedServerTag}, "")
 	}
 }
 
@@ -352,4 +353,23 @@ func buildConnectionString(connectionConfig config.ConnectionConfig) string {
 			connectionConfig.Server, connectionConfig.Port, connectionConfig.ServiceName, connectionConfig.Username, connectionConfig.Password, connectionOptions)
 	}
 	return connStr
+}
+
+func TestLargeUint64Binding(t *testing.T) {
+	largeUint64 := uint64(18446744073709551615)
+	var result uint64
+
+	var err error
+	driver := common.GoOra
+	db, err := connectToDB(driver)
+	require.NoErrorf(t, err, "connecting to db with %s driver", driver)
+
+	err = db.Get(&result, "SELECT n FROM sys.T WHERE n = :1", largeUint64)
+	assert.NoError(t, err, "running test statement with %s driver", driver)
+	assert.Equal(t, result, largeUint64, "simple uint64 binding with %s driver", driver)
+
+	err = db.Get(&result, "SELECT 18446744073709551615 FROM dual")
+	assert.NoError(t, err, "running test statement with %s driver", driver)
+	assert.Equal(t, result, largeUint64, "result set truncated with %s driver", driver)
+	db.Close()
 }

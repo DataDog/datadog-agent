@@ -2,13 +2,15 @@
 Miscellaneous functions, no tasks here
 """
 
-
 import json
 import os
+import platform
 import re
 import sys
 import time
+import traceback
 from contextlib import contextmanager
+from functools import wraps
 from subprocess import CalledProcessError, check_output
 from types import SimpleNamespace
 
@@ -60,6 +62,10 @@ def running_in_circleci():
     return os.environ.get("CIRCLECI") == "true"
 
 
+def running_in_ci():
+    return running_in_circleci() or running_in_github_actions() or running_in_gitlab_ci()
+
+
 def bin_name(name):
     """
     Generate platform dependent names for binaries
@@ -67,6 +73,22 @@ def bin_name(name):
     if sys.platform == 'win32':
         return f"{name}.exe"
     return name
+
+
+def get_distro():
+    """
+    Get the distro name. Windows and Darwin stays the same.
+    Linux is the only one that needs to be determined using the /etc/os-release file.
+    """
+    system = platform.system()
+    arch = platform.machine()
+    if system == 'Linux' and os.path.isfile('/etc/os-release'):
+        with open('/etc/os-release', encoding="utf-8") as f:
+            for line in f:
+                if line.startswith('ID='):
+                    system = line.strip()[3:]
+                    break
+    return f"{system}_{arch}".lower()
 
 
 def get_goenv(ctx, var):
@@ -122,18 +144,17 @@ def get_win_py_runtime_var(python_runtimes):
 
 
 def get_embedded_path(ctx):
-    embedded_path = ""
     base = os.path.dirname(os.path.abspath(__file__))
-    task_repo_root = os.path.abspath(os.path.join(base, ".."))
+    task_repo_root = os.path.abspath(os.path.join(base, "..", ".."))
     git_repo_root = get_root()
     gopath_root = f"{get_gopath(ctx)}/src/github.com/DataDog/datadog-agent"
 
     for root_candidate in [task_repo_root, git_repo_root, gopath_root]:
         test_embedded_path = os.path.join(root_candidate, "dev")
         if os.path.exists(test_embedded_path):
-            embedded_path = test_embedded_path
+            return test_embedded_path
 
-    return embedded_path
+    return None
 
 
 def get_xcode_version(ctx):
@@ -161,6 +182,7 @@ def get_build_flags(
     static=False,
     prefix=None,
     install_path=None,
+    run_path=None,
     embedded_path=None,
     rtloader_root=None,
     python_home_2=None,
@@ -197,6 +219,10 @@ def get_build_flags(
     # setting the install path, allowing the agent to be installed in a custom location
     if sys.platform.startswith('linux') and install_path:
         ldflags += f"-X {REPO_PATH}/pkg/config/setup.InstallPath={install_path} "
+
+    # setting the run path
+    if sys.platform.startswith('linux') and run_path:
+        ldflags += f"-X {REPO_PATH}/pkg/config/setup.defaultRunPath={run_path} "
 
     # setting python homes in the code
     if python_home_2:
@@ -395,14 +421,14 @@ def query_version(ctx, git_sha_length=7, prefix=None, major_version_hint=None):
     # The string that's passed in will look something like this: 6.0.0-beta.0-1-g4f19118
     # if the tag is 6.0.0-beta.0, it has been one commit since the tag and that commit hash is g4f19118
     cmd = "git describe --tags --candidates=50"
-    if prefix and type(prefix) == str:
+    if prefix and isinstance(prefix, str):
         cmd += f" --match \"{prefix}-*\""
     else:
         if major_version_hint:
-            cmd += r' --match "{}\.*"'.format(major_version_hint)  # noqa: FS002
+            cmd += rf' --match "{major_version_hint}\.*"'  # noqa: FS002
         else:
             cmd += " --match \"[0-9]*\""
-    if git_sha_length and type(git_sha_length) == int:
+    if git_sha_length and isinstance(git_sha_length, int):
         cmd += f" --abbrev={git_sha_length}"
     described_version = ctx.run(cmd, hide=True).stdout.strip()
 
@@ -413,8 +439,8 @@ def query_version(ctx, git_sha_length=7, prefix=None, major_version_hint=None):
         commit_number = int(commit_number_match.group('commit_number'))
 
     version_re = r"v?(?P<version>\d+\.\d+\.\d+)(?:(?:-|\.)(?P<pre>[0-9A-Za-z.-]+))?"
-    if prefix and type(prefix) == str:
-        version_re = r"^(?:{}-)?".format(prefix) + version_re  # noqa: FS002
+    if prefix and isinstance(prefix, str):
+        version_re = rf"^(?:{prefix}-)?" + version_re  # noqa: FS002
     else:
         version_re = r"^" + version_re
     if commit_number == 0:
@@ -491,7 +517,7 @@ def get_version(
                 agent_version_cache_file_exist = True
 
         if agent_version_cache_file_exist:
-            with open(AGENT_VERSION_CACHE_NAME, "r") as file:
+            with open(AGENT_VERSION_CACHE_NAME) as file:
                 cache_data = json.load(file)
 
             version, pre, commits_since_version, git_sha, pipeline_id = cache_data[major_version]
@@ -500,7 +526,7 @@ def get_version(
 
             if pre and include_pre:
                 version = f"{version}-{pre}"
-    except (IOError, json.JSONDecodeError, IndexError) as e:
+    except (OSError, json.JSONDecodeError, IndexError) as e:
         # If a cache file is found but corrupted we ignore it.
         print(f"Error while recovering the version from {AGENT_VERSION_CACHE_NAME}: {e}", file=sys.stderr)
         version = ""
@@ -551,11 +577,11 @@ def get_version_numeric_only(ctx, major_version='7'):
                     hide="stdout",
                 )
 
-            with open(AGENT_VERSION_CACHE_NAME, "r") as file:
+            with open(AGENT_VERSION_CACHE_NAME) as file:
                 cache_data = json.load(file)
 
             version, *_ = cache_data[major_version]
-        except (IOError, json.JSONDecodeError, IndexError) as e:
+        except (OSError, json.JSONDecodeError, IndexError) as e:
             # If a cache file is found but corrupted we ignore it.
             print(f"Error while recovering the version from {AGENT_VERSION_CACHE_NAME}: {e}")
             version = ""
@@ -565,7 +591,7 @@ def get_version_numeric_only(ctx, major_version='7'):
 
 
 def load_release_versions(_, target_version):
-    with open("release.json", "r") as f:
+    with open("release.json") as f:
         versions = json.load(f)
         if target_version in versions:
             # windows runners don't accepts anything else than strings in the
@@ -701,3 +727,67 @@ def is_pr_context(branch, pr_id, test_name):
         print(f"PR not found, skipping check for {test_name}.")
         return False
     return True
+
+
+@contextmanager
+def collapsed_section(section_name):
+    section_id = section_name.replace(" ", "_")
+    in_ci = running_in_gitlab_ci()
+    try:
+        if in_ci:
+            print(
+                f"\033[0Ksection_start:{int(time.time())}:{section_id}[collapsed=true]\r\033[0K{section_name + '...'}"
+            )
+        yield
+    finally:
+        if in_ci:
+            print(f"\033[0Ksection_end:{int(time.time())}:{section_id}\r\033[0K")
+
+
+def retry_function(action_name_fmt, max_retries=2, retry_delay=1):
+    """
+    Decorator to retry a function in case of failure and print its traceback.
+    - action_name_fmt: String that will be formatted with the function arguments to describe the action (for example: "Running {0}" will display "Running arg1" if the function is called with arg1 and "Refresh {0.id}" will display "Refresh 123" if the function is called with an object with an id of 123)
+    """
+
+    def decorator(f):
+        @wraps(f)
+        def wrapper(*args, **kwargs):
+            action_name = action_name_fmt.format(*args)
+
+            for i in range(max_retries + 1):
+                try:
+                    res = f(*args, **kwargs)
+                    if i != 0:
+                        print(color_message(f'Note: {action_name} successful after {i} retries', 'green'))
+
+                    # Action ok
+                    return res
+                except KeyboardInterrupt:
+                    # Let the user interrupt without retries
+                    raise
+                except Exception:
+                    if i == max_retries:
+                        print(
+                            color_message(f'Error: {action_name} failed after {max_retries} retries', 'red'),
+                            file=sys.stderr,
+                        )
+                        # The stack trace is not printed here but the error is raised if we
+                        # want to catch it above
+                        raise
+                    else:
+                        print(
+                            color_message(
+                                f'Warning: {action_name} failed (retry {i + 1}/{max_retries}), retrying in {retry_delay}s',
+                                'orange',
+                            ),
+                            file=sys.stderr,
+                        )
+                        with collapsed_section(f"Retry {i + 1}/{max_retries} {action_name}"):
+                            traceback.print_exc()
+                        time.sleep(retry_delay)
+                        print(color_message(f'Retrying {action_name}', 'blue'))
+
+        return wrapper
+
+    return decorator

@@ -14,7 +14,7 @@ set OMNIBUS_ARGS=--python-runtimes "%PY_RUNTIMES%"
 
 if "%OMNIBUS_TARGET%" == "iot" set OMNIBUS_ARGS=--flavor iot
 if "%OMNIBUS_TARGET%" == "dogstatsd" set OMNIBUS_ARGS=--target-project dogstatsd
-if "%OMNIBUS_TARGET%" == "agent_binaries" set OMNIBUS_ARGS=%OMNIBUS_ARGS% --agent-binaries
+if "%OMNIBUS_TARGET%" == "agent_binaries" set OMNIBUS_ARGS=%OMNIBUS_ARGS% --target-project agent-binaries
 if DEFINED GOMODCACHE set OMNIBUS_ARGS=%OMNIBUS_ARGS% --go-mod-cache %GOMODCACHE%
 if DEFINED USE_S3_CACHING set OMNIBUS_ARGS=%OMNIBUS_ARGS% %USE_S3_CACHING%
 
@@ -59,4 +59,10 @@ if "%OMNIBUS_TARGET%" == "main" (
     @echo "inv -e msi.build --major-version %MAJOR_VERSION% --python-runtimes "%PY_RUNTIMES%" --release-version %RELEASE_VERSION%
     inv -e msi.build --major-version %MAJOR_VERSION% --python-runtimes "%PY_RUNTIMES%" --release-version %RELEASE_VERSION% || exit /b 106
 )
+
+REM Build the OCI package for the Agent 7 only.
+if %MAJOR_VERSION% == 7 (
+    Powershell -C "./tasks/winbuildscripts/Generate-OCIPackage.ps1"
+)
+
 popd

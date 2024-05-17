@@ -158,8 +158,8 @@ func TestSendInterfaceMetrics(t *testing.T) {
 
 	mockSender.AssertMetricWithTimestamp(t, "CountWithTimestamp", ciscoSDWANMetricPrefix+"interface.rx_bits", 20*8, "", expectedTags, 10)
 	mockSender.AssertMetricWithTimestamp(t, "CountWithTimestamp", ciscoSDWANMetricPrefix+"interface.tx_bits", 10*8, "", expectedTags, 10)
-	mockSender.AssertMetricWithTimestamp(t, "GaugeWithTimestamp", ciscoSDWANMetricPrefix+"interface.rx_kbps", 13, "", expectedTags, 10)
-	mockSender.AssertMetricWithTimestamp(t, "GaugeWithTimestamp", ciscoSDWANMetricPrefix+"interface.tx_kbps", 250, "", expectedTags, 10)
+	mockSender.AssertMetricWithTimestamp(t, "GaugeWithTimestamp", ciscoSDWANMetricPrefix+"interface.rx_bps", 13*1000, "", expectedTags, 10)
+	mockSender.AssertMetricWithTimestamp(t, "GaugeWithTimestamp", ciscoSDWANMetricPrefix+"interface.tx_bps", 250*1000, "", expectedTags, 10)
 	mockSender.AssertMetricWithTimestamp(t, "GaugeWithTimestamp", ciscoSDWANMetricPrefix+"interface.rx_bandwidth_usage", 12, "", expectedTags, 10)
 	mockSender.AssertMetricWithTimestamp(t, "GaugeWithTimestamp", ciscoSDWANMetricPrefix+"interface.tx_bandwidth_usage", 1, "", expectedTags, 10)
 	mockSender.AssertMetricWithTimestamp(t, "CountWithTimestamp", ciscoSDWANMetricPrefix+"interface.rx_errors", 0, "", expectedTags, 10)
@@ -589,6 +589,7 @@ func TestSendOMPPeerMetrics(t *testing.T) {
 					"device_vendor:cisco",
 					"hostname:test-vsmart",
 					"system_ip:10.0.0.2",
+					"type:vsmart",
 					"site_id:102",
 				},
 				"10.0.0.3": {
@@ -597,6 +598,7 @@ func TestSendOMPPeerMetrics(t *testing.T) {
 					"device_vendor:cisco",
 					"hostname:test-device2",
 					"system_ip:10.0.0.3",
+					"type:vedge",
 					"site_id:110",
 				},
 			},
@@ -618,7 +620,7 @@ func TestSendOMPPeerMetrics(t *testing.T) {
 						"remote_site_id:102",
 						"legit:yes",
 						"refresh:supported",
-						"type:vsmart",
+						"remote_type:vsmart",
 						"state:up",
 					},
 				},
@@ -639,7 +641,7 @@ func TestSendOMPPeerMetrics(t *testing.T) {
 						"remote_site_id:110",
 						"legit:yes",
 						"refresh:unsupported",
-						"type:vedge",
+						"remote_type:vedge",
 						"state:down",
 					},
 				},
@@ -664,6 +666,7 @@ func TestSendOMPPeerMetrics(t *testing.T) {
 					"device_vendor:cisco",
 					"hostname:test-device",
 					"system_ip:10.0.0.1",
+					"type:vsmart",
 					"site_id:100",
 				},
 			},

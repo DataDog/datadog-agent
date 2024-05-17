@@ -8,7 +8,7 @@
     - TAG_SUFFIX=${TAG_SUFFIX:-}
     - BUILD_ARG=${BUILD_ARG:-}
     - |
-      if [[ "$BUCKET_BRANCH" == "nightly" && ( "$IMAGE" =~ "ci/datadog-agent/agent" || "$IMAGE" =~ "ci/datadog-agent/cluster-agent" ) ]]; then
+      if [[ "$BUCKET_BRANCH" == "nightly" && ( "$IMAGE" =~ "ci/datadog-agent/agent" || "$IMAGE" =~ "ci/datadog-agent/cluster-agent" || "$IMAGE" =~ "ci/datadog-agent/cws-instrumentation" ) ]]; then
         export ECR_RELEASE_SUFFIX="-nightly"
       else
         export ECR_RELEASE_SUFFIX=${CI_COMMIT_TAG+-release}
@@ -189,6 +189,10 @@ docker_build_cluster_agent_amd64:
   needs:
     - job: cluster_agent-build_amd64
       artifacts: false
+    - job: cws_instrumentation-build_amd64
+      artifacts: false
+    - job: cws_instrumentation-build_arm64
+      artifacts: false
   variables:
     IMAGE: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/cluster-agent
     BUILD_CONTEXT: Dockerfiles/cluster-agent
@@ -200,6 +204,10 @@ docker_build_cluster_agent_arm64:
   rules: !reference [.on_tag_or_a7]
   needs:
     - job: cluster_agent-build_arm64
+      artifacts: false
+    - job: cws_instrumentation-build_amd64
+      artifacts: false
+    - job: cws_instrumentation-build_arm64
       artifacts: false
   variables:
     IMAGE: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/cluster-agent

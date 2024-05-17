@@ -2,11 +2,18 @@ import os
 import sys
 
 from invoke import task
+from invoke.exceptions import Exit, UnexpectedExit
 
 from tasks.flavor import AgentFlavor
 from tasks.go import deps
-from tasks.libs.common.omnibus import send_build_metrics, should_retry_bundle_install
-from tasks.libs.common.utils import get_version, load_release_versions, timed
+from tasks.libs.common.omnibus import (
+    install_dir_for_project,
+    omnibus_compute_cache_key,
+    send_build_metrics,
+    send_cache_miss_event,
+    should_retry_bundle_install,
+)
+from tasks.libs.common.utils import collapsed_section, get_version, load_release_versions, timed
 from tasks.ssm import get_pfx_pass, get_signing_cert
 
 
@@ -43,7 +50,8 @@ def omnibus_run_task(
             "populate_s3_cache": populate_s3_cache,
         }
 
-        ctx.run(cmd.format(**args), env=env)
+        with collapsed_section(f"Running omnibus task {task}"):
+            ctx.run(cmd.format(**args), env=env, err_stream=sys.stdout)
 
 
 def bundle_install_omnibus(ctx, gem_path=None, env=None, max_try=2):
@@ -58,13 +66,14 @@ def bundle_install_omnibus(ctx, gem_path=None, env=None, max_try=2):
         if gem_path:
             cmd += f" --path {gem_path}"
 
-        for trial in range(max_try):
-            res = ctx.run(cmd, env=env, warn=True)
-            if res.ok:
-                return
-            if not should_retry_bundle_install(res):
-                return
-            print(f"Retrying bundle install, attempt {trial + 1}/{max_try}")
+        with collapsed_section("Bundle install omnibus"):
+            for trial in range(max_try):
+                res = ctx.run(cmd, env=env, warn=True, err_stream=sys.stdout)
+                if res.ok:
+                    return
+                if not should_retry_bundle_install(res):
+                    return
+                print(f"Retrying bundle install, attempt {trial + 1}/{max_try}")
 
 
 def get_omnibus_env(
@@ -91,7 +100,7 @@ def get_omnibus_env(
     if int(major_version) > 6:
         env['OMNIBUS_OPENSSL_SOFTWARE'] = 'openssl3'
 
-    env_override = ['INTEGRATIONS_CORE_VERSION', 'OMNIBUS_SOFTWARE_VERSION']
+    env_override = ['INTEGRATIONS_CORE_VERSION', 'OMNIBUS_RUBY_VERSION', 'OMNIBUS_SOFTWARE_VERSION']
     for key in env_override:
         value = os.environ.get(key)
         # Only overrides the env var if the value is a non-empty string.
@@ -137,6 +146,9 @@ def get_omnibus_env(
         env['DEPLOY_AGENT'] = os.environ.get('DEPLOY_AGENT')
     if 'PACKAGE_ARCH' in os.environ:
         env['PACKAGE_ARCH'] = os.environ.get('PACKAGE_ARCH')
+    if 'INSTALL_DIR' in os.environ:
+        print('Forwarding INSTALL_DIR')
+        env['INSTALL_DIR'] = os.environ.get('INSTALL_DIR')
 
     return env
 
@@ -151,7 +163,6 @@ def get_omnibus_env(
 def build(
     ctx,
     flavor=AgentFlavor.base.name,
-    agent_binaries=False,
     log_level="info",
     base_dir=None,
     gem_path=None,
@@ -167,6 +178,7 @@ def build(
     python_mirror=None,
     pip_config_file="pip.conf",
     host_distribution=None,
+    install_directory=None,
     target_project=None,
 ):
     """
@@ -174,8 +186,9 @@ def build(
     """
 
     flavor = AgentFlavor[flavor]
+    durations = {}
     if not skip_deps:
-        with timed(quiet=True) as deps_elapsed:
+        with timed(quiet=True) as durations['Deps']:
             deps(ctx)
 
     # base dir (can be overridden through env vars, command line takes precedence)
@@ -201,10 +214,11 @@ def build(
 
     if not target_project:
         target_project = "agent"
-        if flavor.is_iot():
-            target_project = "iot-agent"
-        elif agent_binaries:
-            target_project = "agent-binaries"
+    if target_project != "agent" and flavor != AgentFlavor.base:
+        print("flavors only make sense when building the agent")
+        raise Exit(code=1)
+    if flavor.is_iot():
+        target_project = "iot-agent"
 
     # Get the python_mirror from the PIP_INDEX_URL environment variable if it is not passed in the args
     python_mirror = python_mirror or os.environ.get("PIP_INDEX_URL")
@@ -216,10 +230,56 @@ def build(
     with open(pip_config_file, 'w') as f:
         f.write(pip_index_url)
 
-    with timed(quiet=True) as bundle_elapsed:
+    with timed(quiet=True) as durations['Bundle']:
         bundle_install_omnibus(ctx, gem_path, env)
 
-    with timed(quiet=True) as omnibus_elapsed:
+    omnibus_cache_dir = os.environ.get('OMNIBUS_GIT_CACHE_DIR')
+    use_omnibus_git_cache = omnibus_cache_dir is not None and target_project == "agent" and host_distribution != "ociru"
+    aws_cmd = "aws.cmd" if sys.platform == 'win32' else "aws"
+    if use_omnibus_git_cache:
+        # The cache will be written in the provided cache dir (see omnibus.rb) but
+        # the git repository itself will be located in a subfolder that replicates
+        # the install_dir hierarchy
+        # For instance if git_cache_dir is set to "/git/cache/dir" and install_dir is
+        # set to /a/b/c, the cache git repository will be located in
+        # /git/cache/dir/a/b/c/.git
+        if install_directory is None:
+            install_directory = install_dir_for_project(target_project)
+        # Is the path starts with a /, it's considered the new root for the joined path
+        # which effectively drops whatever was in omnibus_cache_dir
+        install_directory = install_directory.lstrip('/')
+        omnibus_cache_dir = os.path.join(omnibus_cache_dir, install_directory)
+        remote_cache_name = os.environ.get('CI_JOB_NAME_SLUG')
+        # We don't want to update the cache when not running on a CI
+        # Individual developers are still able to leverage the cache by providing
+        # the OMNIBUS_GIT_CACHE_DIR env variable, but they won't pull from the CI
+        # generated one.
+        with collapsed_section("Manage omnibus cache"):
+            use_remote_cache = remote_cache_name is not None
+            if use_remote_cache:
+                cache_state = None
+                cache_key = omnibus_compute_cache_key(ctx)
+                git_cache_url = f"s3://{os.environ['S3_OMNIBUS_CACHE_BUCKET']}/builds/{cache_key}/{remote_cache_name}"
+                bundle_path = (
+                    "/tmp/omnibus-git-cache-bundle" if sys.platform != 'win32' else "C:\\TEMP\\omnibus-git-cache-bundle"
+                )
+                with timed(quiet=True) as durations['Restoring omnibus cache']:
+                    # Allow failure in case the cache was evicted
+                    if ctx.run(f"{aws_cmd} s3 cp --only-show-errors {git_cache_url} {bundle_path}", warn=True):
+                        print(f'Successfully retrieved cache {cache_key}')
+                        try:
+                            ctx.run(f"git clone --mirror {bundle_path} {omnibus_cache_dir}")
+                        except UnexpectedExit as exc:
+                            print(f"An error occurring while cloning the cache repo: {exc}")
+                        else:
+                            cache_state = ctx.run(f"git -C {omnibus_cache_dir} tag -l").stdout
+                    else:
+                        print(f'Failed to restore cache from key {cache_key}')
+                        send_cache_miss_event(
+                            ctx, os.environ.get('CI_PIPELINE_ID'), remote_cache_name, os.environ.get('CI_JOB_ID')
+                        )
+
+    with timed(quiet=True) as durations['Omnibus']:
         omnibus_run_task(
             ctx=ctx,
             task="build",
@@ -234,12 +294,27 @@ def build(
     # Delete the temporary pip.conf file once the build is done
     os.remove(pip_config_file)
 
+    if use_omnibus_git_cache:
+        stale_tags = ctx.run(f'git -C {omnibus_cache_dir} tag --no-merged', warn=True).stdout
+        # Purge the cache manually as omnibus will stick to not restoring a tag when
+        # a mismatch is detected, but will keep the old cached tags.
+        # Do this before checking for tag differences, in order to remove staled tags
+        # in case they were included in the bundle in a previous build
+        for _, tag in enumerate(stale_tags.split(os.linesep)):
+            ctx.run(f'git -C {omnibus_cache_dir} tag -d {tag}')
+        with timed(quiet=True) as durations['Updating omnibus cache']:
+            if use_remote_cache and ctx.run(f"git -C {omnibus_cache_dir} tag -l").stdout != cache_state:
+                ctx.run(f"git -C {omnibus_cache_dir} bundle create {bundle_path} --tags")
+                ctx.run(f"{aws_cmd} s3 cp --only-show-errors {bundle_path} {git_cache_url}")
+
+    # Output duration information for different steps
     print("Build component timing:")
-    if not skip_deps:
-        print(f"Deps:    {deps_elapsed.duration}")
-    print(f"Bundle:  {bundle_elapsed.duration}")
-    print(f"Omnibus: {omnibus_elapsed.duration}")
-    send_build_metrics(ctx, omnibus_elapsed.duration)
+    durations_to_print = ["Deps", "Bundle", "Omnibus", "Restoring omnibus cache", "Updating omnibus cache"]
+    for name in durations_to_print:
+        if name in durations:
+            print(f"{name}: {durations[name].duration}")
+
+    send_build_metrics(ctx, durations['Omnibus'].duration)
 
 
 @task

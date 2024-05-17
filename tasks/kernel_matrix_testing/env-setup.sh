@@ -37,7 +37,9 @@ else
         socat \
         curl \
         libvirt \
-        gnu-sed
+        gnu-sed \
+        qemu \
+        libvirt
 fi
 
 is_python_unsupported="$(python3 -c 'import sys; print(sys.version_info.major > 3 or sys.version_info.minor > 11)')"
