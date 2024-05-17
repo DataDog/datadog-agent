@@ -641,7 +641,7 @@ def prepare(
         }
 
         for src, dst in copy_executables.items():
-            ctx.run(f"cp {src} {dst}")
+            ctx.run(f"install -D {src} {dst}")
     else:
         gotestsum_path = paths.dependencies / "go/bin/gotestsum"
         download_gotestsum(ctx, arch_obj, gotestsum_path)
