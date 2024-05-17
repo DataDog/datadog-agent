@@ -49,7 +49,7 @@ class TestWasher:
         known_flakes = self.known_flaky_tests.copy()
         for package, tests in marked_flakes.items():
             if package in known_flakes:
-                known_flakes[package] |= tests
+                known_flakes[package] = known_flakes[package].union(tests)
             else:
                 known_flakes[package] = tests
         return known_flakes
