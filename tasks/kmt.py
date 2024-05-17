@@ -515,7 +515,6 @@ def ninja_copy_ebpf_files(
     to_copy += [(p, output / "runtime" / p.relative_to(runtime_dir)) for p in runtime_dir.glob("**/*.c") if filter(p)]
 
     for source, target in to_copy:
-        print(f"WILL COPY {source} to {target}")
         nw.build(inputs=[os.fspath(source)], outputs=[os.fspath(target)], rule="copyfiles", variables={"mode": "-m744"})
 
 
