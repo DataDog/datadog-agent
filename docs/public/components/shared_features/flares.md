@@ -24,18 +24,18 @@ Example:
 import (
 	yaml "gopkg.in/yaml.v2"
 
-	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
+	flare "github.com/DataDog/datadog-agent/comp/core/flare/def"
 )
 
-func (c *myComponent) fillFlare(fb flaretypes.FlareBuilder) error {
+func (c *myComponent) fillFlare(fb flare.FlareBuilder) error {
 	// Creating a new file
-	fb.AddFile(
+	fb.AddFile( 
 		"runtime_config_dump.yaml",
 		[]byte("content of my file"),
-	)
+	) //nolint:errcheck	
 
 	// Copying a file from the disk into the flare
-	fb.CopyFile("/etc/datadog-agent/datadog.yaml")
+	fb.CopyFile("/etc/datadog-agent/datadog.yaml") //nolint:errcheck
 	return nil
 }
 ```
@@ -59,14 +59,14 @@ Use [NewProvider](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/
 Example:
 ```golang
 import (
-	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
+	flare "github.com/DataDog/datadog-agent/comp/core/flare/def"
 )
 
 type Provides struct {
 	// [...]
 
 	// Declare that your component will return a flare provider
-	FlareProvider flaretypes.Provider
+	FlareProvider flare.Provider
 }
 
 func newComponent(deps Requires) Provides {
@@ -76,7 +76,7 @@ func newComponent(deps Requires) Provides {
 		// [...]
 
 		// NewProvider will wrap your callback in order to be use as a 'Provider'
-		FlareProvider: flaretypes.NewProvider(myComponent.fillFlare),
+		FlareProvider: flare.NewProvider(myComponent.fillFlare),
 	}, nil
 }
 ```

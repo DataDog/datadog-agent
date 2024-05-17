@@ -127,9 +127,9 @@ are created.
 In our example, the `config.Component` might have dozens of dependencies instantiated from the core bundle. Fx handles
 all of this.
 
-## Using non-component types with Fx
+## Using plain data types with Fx
 
-As your migration to components is not finished, you might need to manually instruct Fx on how to create certain types.
+As your migration to components is not finished, you might need to manually instruct Fx on how to use plain types.
 
 You will need to use `fx.Supply` for this. More details can be found [here](fx.md).
 
@@ -141,7 +141,7 @@ import (
     log "github.com/DataDog/datadog-agent/comp/core/log/def"
 )
 
-// a non-component type
+// plain custom type
 type custom struct {}
 
 // [...]
@@ -149,7 +149,7 @@ type custom struct {}
         myTestCallback,
         logfx.Module(),
 
-        // fx.Supply provides instantiated values into Fx. 
+        // fx.Supply populates values into Fx. 
         // Any time this is needed, Fx will use it.
         fx.Supply(custom{})
     )
@@ -162,7 +162,7 @@ func myTestCallback(logger log.Component, c custom) {
 ```
 
 !!! Info
-    This means that components can depend on non-component types too (as long as the main instruct Fx how to create them).
+    This means that components can depend on plain types too (as long as the main entry point populates Fx options with them).
     
 <!-- TODO: Provide an exmaple using fx.Provide -->
 
