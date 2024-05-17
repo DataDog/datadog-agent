@@ -1037,3 +1037,44 @@ func TestPreparePeerTags(t *testing.T) {
 		assert.Equal(t, tc.output, preparePeerTags(tc.input...))
 	}
 }
+
+func TestDefaultPeerTags(t *testing.T) {
+	expectedListOfPeerTags := []string{
+		"_dd.base_service",
+		"amqp.destination",
+		"amqp.exchange",
+		"amqp.queue",
+		"aws.queue.name",
+		"bucketname",
+		"cassandra.cluster",
+		"db.cassandra.contact.points",
+		"db.couchbase.seed.nodes",
+		"db.hostname",
+		"db.instance",
+		"db.name",
+		"db.system",
+		"hazelcast.instance",
+		"messaging.kafka.bootstrap.servers",
+		"mongodb.db",
+		"msmq.queue.path",
+		"net.peer.name",
+		"network.destination.name",
+		"peer.hostname",
+		"peer.service",
+		"queuename",
+		"rpc.service",
+		"rulename",
+		"server.address",
+		"statemachinename",
+		"streamname",
+		"tablename",
+		"topicname",
+	}
+	actualListOfPeerTags := defaultPeerTags
+
+	// Sort both arrays for comparison
+	sort.Strings(actualListOfPeerTags)
+	sort.Strings(expectedListOfPeerTags)
+
+	assert.Equal(t, expectedListOfPeerTags, actualListOfPeerTags)
+}
