@@ -87,6 +87,11 @@ type WindowsProbe struct {
 
 	// actions
 	processKiller *ProcessKiller
+
+	// enabled probes
+	isRenameEnabled bool
+	isWriteEnabled  bool
+	isDeleteEnabled bool
 }
 
 // filecache currently only has a filename.  But this is going to expand really soon.  so go ahead
@@ -333,11 +338,13 @@ func (p *WindowsProbe) setupEtw(ecb etwCallback) error {
 				p.stats.fileFlush++
 
 			case idWrite:
-				if wa, err := p.parseWriteArgs(e); err == nil {
-					//fmt.Printf("Received Write event %d %s\n", e.EventHeader.EventDescriptor.ID, wa)
-					log.Tracef("Received Write event %d %s\n", e.EventHeader.EventDescriptor.ID, wa)
-					ecb(wa, e.EventHeader.ProcessID)
-					p.stats.fileWriteProcessed++
+				if p.isWriteEnabled {
+					if wa, err := p.parseWriteArgs(e); err == nil {
+						//fmt.Printf("Received Write event %d %s\n", e.EventHeader.EventDescriptor.ID, wa)
+						log.Tracef("Received Write event %d %s\n", e.EventHeader.EventDescriptor.ID, wa)
+						ecb(wa, e.EventHeader.ProcessID)
+						p.stats.fileWriteProcessed++
+					}
 				}
 				p.stats.fileWrite++
 
@@ -349,29 +356,35 @@ func (p *WindowsProbe) setupEtw(ecb etwCallback) error {
 				p.stats.fileSetInformation++
 
 			case idSetDelete:
-				if sd, err := p.parseSetDeleteArgs(e); err == nil {
-					log.Tracef("Received SetDelete event %d %s\n", e.EventHeader.EventDescriptor.ID, sd)
-					ecb(sd, e.EventHeader.ProcessID)
+				if p.isDeleteEnabled {
+					if sd, err := p.parseSetDeleteArgs(e); err == nil {
+						log.Tracef("Received SetDelete event %d %s\n", e.EventHeader.EventDescriptor.ID, sd)
+						ecb(sd, e.EventHeader.ProcessID)
+					}
+					p.stats.fileSetDelete++
 				}
-				p.stats.fileSetDelete++
-
 			case idDeletePath:
-				if dp, err := p.parseDeletePathArgs(e); err == nil {
-					log.Tracef("Received DeletePath event %d %s\n", e.EventHeader.EventDescriptor.ID, dp)
-					ecb(dp, e.EventHeader.ProcessID)
+				if p.isDeleteEnabled {
+					if dp, err := p.parseDeletePathArgs(e); err == nil {
+						log.Tracef("Received DeletePath event %d %s\n", e.EventHeader.EventDescriptor.ID, dp)
+						ecb(dp, e.EventHeader.ProcessID)
+					}
 				}
 
 			case idRename:
-				if rn, err := p.parseRenameArgs(e); err == nil {
-					log.Tracef("Received Rename event %d %s\n", e.EventHeader.EventDescriptor.ID, rn)
-					ecb(rn, e.EventHeader.ProcessID)
+				if p.isRenameEnabled {
+					if rn, err := p.parseRenameArgs(e); err == nil {
+						log.Tracef("Received Rename event %d %s\n", e.EventHeader.EventDescriptor.ID, rn)
+						ecb(rn, e.EventHeader.ProcessID)
+					}
+					p.stats.fileidRename++
 				}
-				p.stats.fileidRename++
-
 			case idRenamePath:
-				if rn, err := p.parseRenamePathArgs(e); err == nil {
-					log.Tracef("Received RenamePath event %d %s\n", e.EventHeader.EventDescriptor.ID, rn)
-					ecb(rn, e.EventHeader.ProcessID)
+				if p.isRenameEnabled {
+					if rn, err := p.parseRenamePathArgs(e); err == nil {
+						log.Tracef("Received RenamePath event %d %s\n", e.EventHeader.EventDescriptor.ID, rn)
+						ecb(rn, e.EventHeader.ProcessID)
+					}
 				}
 			case idQueryInformation:
 				p.stats.fileidQueryInformation++
@@ -383,11 +396,13 @@ func (p *WindowsProbe) setupEtw(ecb etwCallback) error {
 				p.stats.fileidFSCTL++
 
 			case idRename29:
-				if rn, err := p.parseRename29Args(e); err == nil {
-					log.Tracef("Received Rename29 event %d %s\n", e.EventHeader.EventDescriptor.ID, rn)
-					ecb(rn, e.EventHeader.ProcessID)
+				if p.isRenameEnabled {
+					if rn, err := p.parseRename29Args(e); err == nil {
+						log.Tracef("Received Rename29 event %d %s\n", e.EventHeader.EventDescriptor.ID, rn)
+						ecb(rn, e.EventHeader.ProcessID)
+					}
+					p.stats.fileidRename29++
 				}
-				p.stats.fileidRename29++
 			}
 
 		case etw.DDGUID(p.regguid):
@@ -898,6 +913,21 @@ func NewWindowsProbe(probe *Probe, config *config.Config, opts Opts) (*WindowsPr
 
 // ApplyRuleSet setup the probes for the provided set of rules and returns the policy report.
 func (p *WindowsProbe) ApplyRuleSet(rs *rules.RuleSet) (*kfilters.ApplyRuleSetReport, error) {
+	p.isWriteEnabled = false
+	p.isRenameEnabled = false
+	p.isDeleteEnabled = false
+
+	for _, eventType := range rs.GetEventTypes() {
+		switch eventType {
+		case model.FileRenameEventType.String():
+			p.isRenameEnabled = true
+		case model.WriteFileEventType.String():
+			p.isWriteEnabled = true
+		case model.DeleteFileEventType.String():
+			p.isDeleteEnabled = true
+		}
+	}
+
 	return kfilters.NewApplyRuleSetReport(p.config.Probe, rs)
 }
 
