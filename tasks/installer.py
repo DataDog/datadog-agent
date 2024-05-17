@@ -19,6 +19,7 @@ def build(
     rebuild=False,
     race=False,
     install_path=None,
+    run_path=None,
     build_include=None,
     build_exclude=None,
     arch="x64",
@@ -28,7 +29,9 @@ def build(
     Build the updater.
     """
 
-    ldflags, gcflags, env = get_build_flags(ctx, major_version=MAJOR_VERSION, install_path=install_path)
+    ldflags, gcflags, env = get_build_flags(
+        ctx, major_version=MAJOR_VERSION, install_path=install_path, run_path=run_path
+    )
 
     build_include = (
         get_default_build_tags(
@@ -47,13 +50,5 @@ def build(
     updater_bin = os.path.join(BIN_PATH, bin_name("installer"))
     cmd = f"go build -mod={go_mod} {race_opt} {build_type} -tags \"{go_build_tags}\" "
     cmd += f"-o {updater_bin} -gcflags=\"{gcflags}\" -ldflags=\"{ldflags} -w -s\" {REPO_PATH}/cmd/installer"
-
-    ctx.run(cmd, env=env)
-
-    helper_bin = os.path.join(BIN_PATH, bin_name("helper"))
-    helper_ldflags = f"-X main.installPath={install_path} -w -s"
-    helper_path = os.path.join("pkg", "fleet", "installer", "service", "helper")
-    cmd = f"CGO_ENABLED=0 go build {build_type} -tags \"{go_build_tags}\" "
-    cmd += f"-o {helper_bin} -gcflags=\"{gcflags}\" -ldflags=\"{helper_ldflags}\" {helper_path}/main.go"
 
     ctx.run(cmd, env=env)

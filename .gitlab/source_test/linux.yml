@@ -19,7 +19,7 @@
     - !reference [.except_disable_unit_tests]
     - !reference [.fast_on_dev_branch_only]
   variables:
-    FLAVORS: '--flavors base'
+    FLAVORS: '--flavor base'
     KUBERNETES_CPU_REQUEST: 16
     KUBERNETES_MEMORY_REQUEST: 16Gi
     KUBERNETES_MEMORY_LIMIT: 16Gi
@@ -30,7 +30,10 @@
     - FAST_TESTS_FLAG=""
     - if [[ "$FAST_TESTS" == "true" ]]; then FAST_TESTS_FLAG="--only-impacted-packages"; fi
     - inv -e sds.build-library
-    - inv -e test $FLAVORS --include-sds --race --profile --rerun-fails=2 --python-runtimes "$PYTHON_RUNTIMES" --coverage --cpus $KUBERNETES_CPU_REQUEST $EXTRA_OPTS --save-result-json $TEST_OUTPUT_FILE --junit-tar "junit-${CI_JOB_NAME}.tgz" --build-stdlib $FAST_TESTS_FLAG
+    - inv -e test $FLAVORS --include-sds --race --profile --rerun-fails=2 --python-runtimes "$PYTHON_RUNTIMES" --coverage --cpus $KUBERNETES_CPU_REQUEST $EXTRA_OPTS --save-result-json $TEST_OUTPUT_FILE --junit-tar "junit-${CI_JOB_NAME}.tgz" --build-stdlib $FAST_TESTS_FLAG --test-washer
+    # Upload coverage files to Codecov. Never fail on coverage upload.
+    - export CODECOV_TOKEN=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $CODECOV_TOKEN_SSM_NAME)
+    - inv -e codecov || true
   artifacts:
     expire_in: 2 weeks
     when: always
@@ -52,7 +55,7 @@
   stage: source_test
   needs: ["go_deps", "go_tools_deps"]
   variables:
-    FLAVORS: '--flavors base'
+    FLAVORS: '--flavor base'
     KUBERNETES_CPU_REQUEST: 16
     KUBERNETES_MEMORY_REQUEST: 16Gi
     KUBERNETES_MEMORY_LIMIT: 16Gi
@@ -102,14 +105,14 @@ tests_flavor_iot_deb-x64:
   variables:
     PYTHON_RUNTIMES: '3'
     CONDA_ENV: ddpy3
-    FLAVORS: '--flavors iot'
+    FLAVORS: '--flavor iot'
 
 lint_flavor_iot_linux-x64:
   extends:
     - .linux_lint
     - .linux_x64
   variables:
-    FLAVORS: '--flavors iot'
+    FLAVORS: '--flavor iot'
 
 tests_flavor_dogstatsd_deb-x64:
   extends:
@@ -119,14 +122,14 @@ tests_flavor_dogstatsd_deb-x64:
   variables:
     PYTHON_RUNTIMES: '3'
     CONDA_ENV: ddpy3
-    FLAVORS: '--flavors dogstatsd'
+    FLAVORS: '--flavor dogstatsd'
 
 lint_flavor_dogstatsd_linux-x64:
   extends:
     - .linux_lint
     - .linux_x64
   variables:
-    FLAVORS: '--flavors dogstatsd'
+    FLAVORS: '--flavor dogstatsd'
 
 tests_flavor_heroku_deb-x64:
   extends:
@@ -136,14 +139,14 @@ tests_flavor_heroku_deb-x64:
   variables:
     PYTHON_RUNTIMES: '3'
     CONDA_ENV: ddpy3
-    FLAVORS: '--flavors heroku'
+    FLAVORS: '--flavor heroku'
 
 lint_flavor_heroku_linux-x64:
   extends:
     - .linux_lint
     - .linux_x64
   variables:
-    FLAVORS: '--flavors heroku'
+    FLAVORS: '--flavor heroku'
 
 # Exclude systemd because it cannot succeed on Centos 6: the image doesn't have the shared object required by
 # https://github.com/coreos/go-systemd/blob/c8cc474ba8655dfbdb0ac7fcc09b7faf5b643caf/sdjournal/functions.go#L46
@@ -227,9 +230,34 @@ go_mod_tidy_check:
   stage: source_test
   extends: .linux_x64
   needs: ["go_deps"]
+  variables:
+    KUBERNETES_CPU_REQUEST: 4
   before_script:
     - source /root/.bashrc
     - !reference [.retrieve_linux_go_deps]
   script:
     - inv -e check-mod-tidy
     - inv -e check-go-mod-replaces
+  variables:
+    KUBERNETES_MEMORY_REQUEST: "8Gi"
+    KUBERNETES_MEMORY_LIMIT: "8Gi"
+
+new-e2e-unit-tests:
+  extends: .linux_tests_with_upload
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/test-infra-definitions/runner$TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX:$TEST_INFRA_DEFINITIONS_BUILDIMAGES
+  tags: ["arch:amd64"]
+  before_script:
+    # Setup AWS Credentials
+    - mkdir -p ~/.aws
+    - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $AGENT_QA_PROFILE_SSM_NAME >> ~/.aws/config
+    - export AWS_PROFILE=agent-qa-ci
+    # Use S3 backend
+    - pulumi login "s3://dd-pulumi-state?region=us-east-1&awssdk=v2&profile=$AWS_PROFILE"
+  script:
+    - inv -e new-e2e-tests.run --targets ./pkg/utils --junit-tar junit-${CI_JOB_ID}.tgz ${EXTRA_PARAMS}
+  after_script:
+    - $CI_PROJECT_DIR/tools/ci/junit_upload.sh
+  variables:
+    KUBERNETES_MEMORY_REQUEST: 12Gi
+    KUBERNETES_MEMORY_LIMIT: 16Gi
+    KUBERNETES_CPU_REQUEST: 6

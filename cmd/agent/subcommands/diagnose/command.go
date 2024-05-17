@@ -25,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors"
 	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl"
@@ -105,7 +106,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				}),
 				fx.Supply(optional.NewNoneOption[collector.Component]()),
 				workloadmeta.Module(),
-				tagger.Module(),
+				taggerimpl.Module(),
 				fx.Provide(func(config config.Component) tagger.Params { return tagger.NewTaggerParamsForCoreAgent(config) }),
 				autodiscoveryimpl.Module(),
 				compressionimpl.Module(),
@@ -244,7 +245,6 @@ func cmdDiagnose(cliParams *cliParams,
 	senderManager diagnosesendermanager.Component,
 	wmeta optional.Option[workloadmeta.Component],
 	ac autodiscovery.Component,
-	collector optional.Option[collector.Component],
 	secretResolver secrets.Component) error {
 	diagCfg := diagnosis.Config{
 		JSON:     cliParams.json,
@@ -254,18 +254,18 @@ func cmdDiagnose(cliParams *cliParams,
 		Exclude:  cliParams.exclude,
 	}
 
-	diagnoseDeps := diagnose.NewSuitesDeps(senderManager, collector, secretResolver, wmeta, optional.NewOption(ac))
 	// Is it List command
 	if cliParams.listSuites {
-		diagnose.ListStdOut(color.Output, diagCfg, diagnoseDeps)
+		diagnose.ListStdOut(color.Output, diagCfg)
 		return nil
 	}
 
 	if cliParams.json {
 		return diagnose.RunJSON(color.Output, diagCfg, diagnoseDeps)
 	}
+	diagnoseDeps := diagnose.NewSuitesDepsInCLIProcess(senderManager, secretResolver, wmeta, ac)
 	// Run command
-	return diagnose.RunStdOut(color.Output, diagCfg, diagnoseDeps)
+	return diagnose.RunStdOutInCLIProcess(color.Output, diagCfg, diagnoseDeps)
 }
 
 // NOTE: This and related will be moved to separate "agent telemetry" command in future

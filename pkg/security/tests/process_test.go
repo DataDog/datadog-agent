@@ -115,7 +115,7 @@ func TestProcessEBPFLess(t *testing.T) {
 			}
 			return nil
 		}, retry.Delay(200*time.Millisecond), retry.Attempts(10))
-		assert.Nil(t, err)
+		assert.NoError(t, err)
 	})
 }
 
@@ -1842,6 +1842,8 @@ func TestProcessExit(t *testing.T) {
 	})
 
 	t.Run("exit-signaled", func(t *testing.T) {
+		SkipIfNotAvailable(t)
+
 		test.WaitSignal(t, func() error {
 			args := []string{"--preserve-status", "--signal=SIGKILL", "2", sleepExec, "9"}
 			envp := []string{envpExitSleep}

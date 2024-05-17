@@ -133,7 +133,7 @@ func TestMount(t *testing.T) {
 				return false
 			}
 
-			return assert.Equal(t, mntID, event.Umount.MountID, "wrong mount id")
+			return ebpfLessEnabled || assert.Equal(t, mntID, event.Umount.MountID, "wrong mount id")
 		}, 3*time.Second, model.FileUmountEventType)
 		if err != nil {
 			t.Error(err)
@@ -165,7 +165,7 @@ func TestMountPropagated(t *testing.T) {
 		Expression: `chmod.file.path == "{{.Root}}/dir1-bind-mounted/test-drive/test-file"`,
 	}}
 
-	test, err := newTestModule(t, nil, ruleDefs)
+	test, err := newTestModule(t, nil, ruleDefs, withForceReload())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -499,6 +499,7 @@ func TestMountEvent(t *testing.T) {
 	}
 
 	t.Run("mount-in-container-root", func(t *testing.T) {
+		SkipIfNotAvailable(t)
 		test.WaitSignal(t, func() error {
 			if _, err := wrapperTruePositive.start(); err != nil {
 				return err

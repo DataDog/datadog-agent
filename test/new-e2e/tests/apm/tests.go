@@ -93,6 +93,27 @@ func testAutoVersionTraces(t *testing.T, c *assert.CollectT, intake *components.
 	}
 }
 
+func tracesSampledByProbabilitySampler(t *testing.T, c *assert.CollectT, intake *components.FakeIntake) {
+	t.Helper()
+	traces, err := intake.Client().GetTraces()
+	assert.NoError(c, err)
+	assert.NotEmpty(c, traces)
+	t.Log("Got traces", traces)
+	for _, p := range traces {
+		for _, tp := range p.AgentPayload.TracerPayloads {
+			for _, chunk := range tp.Chunks {
+				dm, ok := chunk.Tags["_dd.p.dm"]
+				if !ok {
+					t.Errorf("Expected trace chunk tags to contain _dd.p.dm, but it does not.")
+				}
+				if dm != "-9" {
+					t.Errorf("Expected dm == -9, but got %v", dm)
+				}
+			}
+		}
+	}
+}
+
 func testAutoVersionStats(t *testing.T, c *assert.CollectT, intake *components.FakeIntake) {
 	t.Helper()
 	stats, err := intake.Client().GetAPMStats()
@@ -122,7 +143,7 @@ func testIsTraceRootTag(t *testing.T, c *assert.CollectT, intake *components.Fak
 			for _, b := range s.Stats {
 				for _, cs := range b.Stats {
 					t.Logf("Got IsTraceRoot: %v", cs.GetIsTraceRoot())
-					assert.Equal(t, trace.TraceRootFlag_TRUE, cs.GetIsTraceRoot())
+					assert.Equal(t, trace.Trilean_TRUE, cs.GetIsTraceRoot())
 				}
 			}
 		}

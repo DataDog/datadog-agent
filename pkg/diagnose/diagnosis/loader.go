@@ -50,6 +50,10 @@ type Config struct {
 	RunningInAgentProcess bool
 	Include               []string
 	Exclude               []string
+	Verbose  bool
+	RunLocal bool
+	Include  []string
+	Exclude  []string
 }
 
 // Result contains the result of the diagnosis

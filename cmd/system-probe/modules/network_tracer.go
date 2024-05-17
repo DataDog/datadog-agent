@@ -30,6 +30,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/encoding/marshal"
 	httpdebugging "github.com/DataDog/datadog-agent/pkg/network/protocols/http/debugging"
 	kafkadebugging "github.com/DataDog/datadog-agent/pkg/network/protocols/kafka/debugging"
+	postgresdebugging "github.com/DataDog/datadog-agent/pkg/network/protocols/postgres/debugging"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer"
 	usm "github.com/DataDog/datadog-agent/pkg/network/usm/utils"
@@ -176,6 +177,22 @@ func (nt *networkTracer) Register(httpMux *module.Router) error {
 		utils.WriteAsJSON(w, kafkadebugging.Kafka(cs.Kafka))
 	})
 
+	httpMux.HandleFunc("/debug/postgres_monitoring", func(w http.ResponseWriter, req *http.Request) {
+		if !coreconfig.SystemProbe.GetBool("service_monitoring_config.enable_postgres_monitoring") {
+			writeDisabledProtocolMessage("postgres", w)
+			return
+		}
+		id := getClientID(req)
+		cs, err := nt.tracer.GetActiveConnections(id)
+		if err != nil {
+			log.Errorf("unable to retrieve connections: %s", err)
+			w.WriteHeader(500)
+			return
+		}
+
+		utils.WriteAsJSON(w, postgresdebugging.Postgres(cs.Postgres))
+	})
+
 	httpMux.HandleFunc("/debug/http2_monitoring", func(w http.ResponseWriter, req *http.Request) {
 		if !coreconfig.SystemProbe.GetBool("service_monitoring_config.enable_http2_monitoring") {
 			writeDisabledProtocolMessage("http2", w)
@@ -248,7 +265,9 @@ func (nt *networkTracer) Register(httpMux *module.Router) error {
 	})
 
 	httpMux.HandleFunc("/debug/usm_telemetry", telemetry.Handler)
-	httpMux.HandleFunc("/debug/usm_traced_programs", usm.TracedProgramsEndpoint)
+	httpMux.HandleFunc("/debug/usm/traced_programs", usm.TracedProgramsEndpoint)
+	httpMux.HandleFunc("/debug/usm/attach-pid", usm.AttachPIDEndpoint)
+	httpMux.HandleFunc("/debug/usm/detach-pid", usm.DetachPIDEndpoint)
 
 	// Convenience logging if nothing has made any requests to the system-probe in some time, let's log something.
 	// This should be helpful for customers + support to debug the underlying issue.

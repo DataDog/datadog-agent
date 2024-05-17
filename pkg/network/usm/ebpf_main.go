@@ -33,6 +33,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http2"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/kafka"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/postgres"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/offsetguess"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/buildmode"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
@@ -47,6 +48,7 @@ var (
 		http.Spec,
 		http2.Spec,
 		kafka.Spec,
+		postgres.Spec,
 		javaTLSSpec,
 		// opensslSpec is unique, as we're modifying its factory during runtime to allow getting more parameters in the
 		// factory.
@@ -209,6 +211,8 @@ func (e *ebpfProgram) Init() error {
 
 // Start starts the ebpf program and the enabled protocols.
 func (e *ebpfProgram) Start() error {
+	initializeTupleMaps(e.Manager)
+
 	// Mainly for tests, but possible for other cases as well, we might have a nil (not shared) connection protocol map
 	// between NPM and USM. In such a case we just create our own instance, but we don't modify the
 	// `e.connectionProtocolMap` field.

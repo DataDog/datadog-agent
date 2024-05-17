@@ -9,11 +9,22 @@
 package utils
 
 import (
+	"encoding/json"
+	"fmt"
 	"net/http"
 	"sync"
 
 	otherutils "github.com/DataDog/datadog-agent/cmd/system-probe/utils"
 )
+
+// Attacher is the interface that represents a PID attacher/detacher.
+// It is used to attach/detach a PID to/from an eBPF program.
+type Attacher interface {
+	// AttachPID attaches the provided PID to the eBPF program.
+	AttachPID(pid uint32) error
+	// DetachPID detaches the provided PID from the eBPF program.
+	DetachPID(pid uint32) error
+}
 
 // TracedProgram represents an active uprobe-based program and its used
 // for the purposes of generating JSON content in our debugging endpoint
@@ -30,21 +41,22 @@ func TracedProgramsEndpoint(w http.ResponseWriter, _ *http.Request) {
 	otherutils.WriteAsJSON(w, debugger.GetTracedPrograms())
 }
 
-var debugger *fileRegistryDebugger
+var debugger *tlsDebugger
 
-type fileRegistryDebugger struct {
-	mux       sync.Mutex
-	instances []*FileRegistry
+type tlsDebugger struct {
+	mux        sync.Mutex
+	registries []*FileRegistry
+	attachers  map[string]Attacher
 }
 
-func (d *fileRegistryDebugger) Add(r *FileRegistry) {
+func (d *tlsDebugger) AddRegistry(r *FileRegistry) {
 	d.mux.Lock()
 	defer d.mux.Unlock()
 
-	d.instances = append(d.instances, r)
+	d.registries = append(d.registries, r)
 }
 
-func (d *fileRegistryDebugger) GetTracedPrograms() []TracedProgram {
+func (d *tlsDebugger) GetTracedPrograms() []TracedProgram {
 	d.mux.Lock()
 	defer d.mux.Unlock()
 
@@ -52,7 +64,7 @@ func (d *fileRegistryDebugger) GetTracedPrograms() []TracedProgram {
 
 	// Iterate over each `FileRegistry` instance:
 	// Examples of this would be: "shared_libraries", "istio", "goTLS" etc
-	for _, registry := range d.instances {
+	for _, registry := range d.registries {
 		programType := registry.telemetry.programName
 		tracedProgramsByID := make(map[PathIdentifier]*TracedProgram)
 
@@ -92,6 +104,115 @@ func (d *fileRegistryDebugger) GetTracedPrograms() []TracedProgram {
 	return all
 }
 
+// GetBlockedPathIDs returns a list of PathIdentifiers blocked in the
+// registry for the specified program type.
+func (d *tlsDebugger) GetBlockedPathIDs(programType string) []PathIdentifier {
+	d.mux.Lock()
+	defer d.mux.Unlock()
+
+	for _, registry := range d.registries {
+		if registry.telemetry.programName != programType {
+			continue
+		}
+
+		registry.m.Lock()
+		defer registry.m.Unlock()
+
+		return registry.blocklistByID.Keys()
+	}
+
+	return nil
+}
+
+// AddAttacher adds an attacher to the debugger.
+func (d *tlsDebugger) AddAttacher(name string, a Attacher) {
+	d.mux.Lock()
+	defer d.mux.Unlock()
+
+	d.attachers[name] = a
+}
+
+// AddAttacher adds an attacher to the debugger.
+// Used to wrap the internal debugger instance.
+func AddAttacher(name string, a Attacher) {
+	debugger.AddAttacher(name, a)
+}
+
+// attachRequestBody represents the request body for the attach/detach PID endpoint.
+type attachRequestBody struct {
+	PID  uint32 `json:"pid"`
+	Type string `json:"type"`
+}
+
+// callbackType represents the type of callback to run.
+type callbackType uint8
+
+const (
+	attach callbackType = iota
+	detach
+)
+
+// String returns a string representation of the callback type.
+func (m callbackType) String() string {
+	switch m {
+	case attach:
+		return "attach"
+	case detach:
+		return "detach"
+	default:
+		return "unknown"
+	}
+}
+
+// runAttacherCallback runs the attacher callback for the given request.
+func (d *tlsDebugger) runAttacherCallback(w http.ResponseWriter, r *http.Request, mode callbackType) {
+	if r.Method != http.MethodPost {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		fmt.Fprintf(w, "Only POST requests are allowed")
+		return
+	}
+
+	var reqBody attachRequestBody
+	err := json.NewDecoder(r.Body).Decode(&reqBody)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		fmt.Fprintf(w, "Error decoding request body: %v", err)
+		return
+	}
+
+	d.mux.Lock()
+	attacher, ok := d.attachers[reqBody.Type]
+	d.mux.Unlock()
+	if !ok {
+		w.WriteHeader(http.StatusBadRequest)
+		fmt.Fprintf(w, "Module %q is not enabled", reqBody.Type)
+		return
+	}
+	cb := attacher.AttachPID
+	if mode == detach {
+		cb = attacher.DetachPID
+	}
+	if err := cb(reqBody.PID); err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		fmt.Fprintf(w, "Error %sing PID: %v", mode.String(), err)
+		return
+	}
+	w.WriteHeader(http.StatusOK)
+	fmt.Fprintf(w, "%s successfully %sed PID %d", reqBody.Type, mode.String(), reqBody.PID)
+}
+
+// AttachPIDEndpoint attaches a PID to an eBPF program.
+func AttachPIDEndpoint(w http.ResponseWriter, r *http.Request) {
+	debugger.runAttacherCallback(w, r, attach)
+}
+
+// DetachPIDEndpoint detaches a PID from an eBPF program.
+func DetachPIDEndpoint(w http.ResponseWriter, r *http.Request) {
+	debugger.runAttacherCallback(w, r, detach)
+}
+
 func init() {
-	debugger = new(fileRegistryDebugger)
+	debugger = &tlsDebugger{
+		attachers: make(map[string]Attacher),
+	}
 }

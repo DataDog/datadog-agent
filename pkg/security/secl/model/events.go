@@ -110,7 +110,7 @@ const (
 	LastApproverEventType = SpliceEventType
 
 	// CustomLostReadEventType is the custom event used to report lost events detected in user space
-	CustomLostReadEventType = iota
+	CustomLostReadEventType EventType = iota
 	// CustomLostWriteEventType is the custom event used to report lost events detected in kernel space
 	CustomLostWriteEventType
 	// CustomRulesetLoadedEventType is the custom event used to report that a new ruleset was loaded
@@ -123,8 +123,13 @@ const (
 	CustomTruncatedParentsEventType
 	// CustomSelfTestEventType is the custom event used to report the results of a self test run
 	CustomSelfTestEventType
+
 	// CreateNewFileEventType event
 	CreateNewFileEventType
+	// DeleteFileEventType event
+	DeleteFileEventType
+	// WriteFileEventType event
+	WriteFileEventType
 	// CreateRegistryKeyEventType event
 	CreateRegistryKeyEventType
 	// OpenRegistryKeyEventType event
@@ -133,6 +138,7 @@ const (
 	SetRegistryKeyValueEventType
 	// DeleteRegistryKeyEventType event
 	DeleteRegistryKeyEventType
+
 	// MaxAllEventType is used internally to get the maximum number of events.
 	MaxAllEventType
 )
@@ -234,6 +240,10 @@ func (t EventType) String() string {
 		return "self_test"
 	case CreateNewFileEventType:
 		return "create"
+	case DeleteFileEventType:
+		return "delete"
+	case WriteFileEventType:
+		return "write"
 	case CreateRegistryKeyEventType:
 		return "create_key"
 	case OpenRegistryKeyEventType:

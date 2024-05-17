@@ -9,6 +9,7 @@ package kafka
 
 import (
 	"io"
+	"time"
 	"unsafe"
 
 	manager "github.com/DataDog/ebpf-manager"
@@ -21,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/events"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/buildmode"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 type protocol struct {
@@ -29,6 +31,9 @@ type protocol struct {
 	statkeeper         *StatKeeper
 	inFlightMapCleaner *ddebpf.MapCleaner[KafkaTransactionKey, KafkaTransaction]
 	eventsConsumer     *events.Consumer[EbpfTx]
+
+	kernelTelemetry            *kernelTelemetry
+	kernelTelemetryStopChannel chan struct{}
 }
 
 const (
@@ -40,6 +45,14 @@ const (
 	kafkaHeapMap                             = "kafka_heap"
 	inFlightMap                              = "kafka_in_flight"
 	responseMap                              = "kafka_response"
+
+	tlsFilterTailCall                           = "uprobe__kafka_tls_filter"
+	tlsResponseParserTailCall                   = "uprobe__kafka_tls_response_parser"
+	tlsTerminationTailCall                      = "uprobe__kafka_tls_termination"
+	tlsDispatcherTailCall                       = "uprobe__tls_protocol_dispatcher_kafka"
+	tlsProtocolDispatcherClassificationPrograms = "tls_dispatcher_classification_progs"
+	// eBPFTelemetryMap is the name of the eBPF map used to retrieve metrics from the kernel
+	eBPFTelemetryMap = "kafka_telemetry"
 )
 
 // Spec is the protocol spec for the kafka protocol.
@@ -48,6 +61,9 @@ var Spec = &protocols.ProtocolSpec{
 	Maps: []*manager.Map{
 		{
 			Name: protocolDispatcherClassificationPrograms,
+		},
+		{
+			Name: tlsProtocolDispatcherClassificationPrograms,
 		},
 		{
 			Name: kafkaHeapMap,
@@ -81,6 +97,34 @@ var Spec = &protocols.ProtocolSpec{
 				EBPFFuncName: dispatcherTailCall,
 			},
 		},
+		{
+			ProgArrayName: protocols.TLSDispatcherProgramsMap,
+			Key:           uint32(protocols.ProgramTLSKakfa),
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: tlsFilterTailCall,
+			},
+		},
+		{
+			ProgArrayName: protocols.TLSDispatcherProgramsMap,
+			Key:           uint32(protocols.ProgramTLSKakfaResponseParser),
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: tlsResponseParserTailCall,
+			},
+		},
+		{
+			ProgArrayName: protocols.TLSDispatcherProgramsMap,
+			Key:           uint32(protocols.ProgramTLSKafkaTermination),
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: tlsTerminationTailCall,
+			},
+		},
+		{
+			ProgArrayName: tlsProtocolDispatcherClassificationPrograms,
+			Key:           uint32(protocols.TLSDispatcherKafkaProg),
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: tlsDispatcherTailCall,
+			},
+		},
 	},
 }
 
@@ -90,8 +134,10 @@ func newKafkaProtocol(cfg *config.Config) (protocols.Protocol, error) {
 	}
 
 	return &protocol{
-		cfg:       cfg,
-		telemetry: NewTelemetry(),
+		cfg:                        cfg,
+		telemetry:                  NewTelemetry(),
+		kernelTelemetry:            newKernelTelemetry(),
+		kernelTelemetryStopChannel: make(chan struct{}),
 	}, nil
 }
 
@@ -136,6 +182,7 @@ func (p *protocol) PreStart(mgr *manager.Manager) error {
 
 // PostStart starts the map cleaner.
 func (p *protocol) PostStart(mgr *manager.Manager) error {
+	p.setUpKernelTelemetryCollection(mgr)
 	return p.setupInFlightMapCleaner(mgr)
 }
 
@@ -145,6 +192,9 @@ func (p *protocol) Stop(*manager.Manager) {
 	p.inFlightMapCleaner.Stop()
 	if p.eventsConsumer != nil {
 		p.eventsConsumer.Stop()
+	}
+	if p.kernelTelemetryStopChannel != nil {
+		close(p.kernelTelemetryStopChannel)
 	}
 }
 
@@ -212,4 +262,48 @@ func (p *protocol) GetStats() *protocols.ProtocolStats {
 // IsBuildModeSupported returns always true, as kafka module is supported by all modes.
 func (*protocol) IsBuildModeSupported(buildmode.Type) bool {
 	return true
+}
+
+func (p *protocol) setUpKernelTelemetryCollection(mgr *manager.Manager) {
+	mp, err := protocols.GetMap(mgr, eBPFTelemetryMap)
+	if err != nil {
+		log.Warn(err)
+		return
+	}
+
+	zero := 0
+	rawTelemetry := &RawKernelTelemetry{}
+	ticker := time.NewTicker(30 * time.Second)
+
+	go func() {
+		defer ticker.Stop()
+
+		for {
+			select {
+			case <-ticker.C:
+				if err := mp.Lookup(unsafe.Pointer(&zero), unsafe.Pointer(rawTelemetry)); err != nil {
+					log.Errorf("unable to lookup %q map: %s", eBPFTelemetryMap, err)
+					return
+				}
+				p.kernelTelemetry.update(rawTelemetry)
+			case <-p.kernelTelemetryStopChannel:
+				return
+			}
+		}
+	}()
+}
+
+// GetKernelTelemetryMap retrieves Kafka kernel telemetry map from the provided manager
+func GetKernelTelemetryMap(mgr *manager.Manager) (*RawKernelTelemetry, error) {
+	mp, err := protocols.GetMap(mgr, eBPFTelemetryMap)
+	if err != nil {
+		return nil, err
+	}
+
+	zero := 0
+	rawTelemetry := &RawKernelTelemetry{}
+	if err := mp.Lookup(unsafe.Pointer(&zero), unsafe.Pointer(rawTelemetry)); err != nil {
+		return nil, err
+	}
+	return rawTelemetry, nil
 }

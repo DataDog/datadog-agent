@@ -34,6 +34,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/serializers"
+	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/native"
 )
 
@@ -266,6 +267,28 @@ func (p *EBPFLessProbe) handleSyscallMsg(cl *client, syscallMsg *ebpfless.Syscal
 		if !syscallMsg.LoadModule.LoadedFromMemory {
 			copyFileAttributes(&syscallMsg.LoadModule.File, &event.LoadModule.File)
 		}
+
+	case ebpfless.SyscallTypeChdir:
+		event.Type = uint32(model.FileChdirEventType)
+		event.Chdir.Retval = syscallMsg.Retval
+		copyFileAttributes(&syscallMsg.Chdir.Dir, &event.Chdir.File)
+
+	case ebpfless.SyscallTypeMount:
+		event.Type = uint32(model.FileMountEventType)
+		event.Mount.Retval = syscallMsg.Retval
+
+		event.Mount.MountSourcePath = syscallMsg.Mount.Source
+		event.Mount.MountPointPath = syscallMsg.Mount.Target
+		event.Mount.MountPointStr = "/" + filepath.Base(syscallMsg.Mount.Target) // ??
+		if syscallMsg.Mount.FSType == "bind" {
+			event.Mount.FSType = utils.GetFSTypeFromFilePath(syscallMsg.Mount.Source)
+		} else {
+			event.Mount.FSType = syscallMsg.Mount.FSType
+		}
+
+	case ebpfless.SyscallTypeUmount:
+		event.Type = uint32(model.FileUmountEventType)
+		event.Umount.Retval = syscallMsg.Retval
 	}
 
 	// container context
@@ -317,10 +340,10 @@ func (p *EBPFLessProbe) DispatchEvent(event *model.Event) {
 	})
 
 	// send event to wildcard handlers, like the CWS rule engine, first
-	p.probe.sendEventToWildcardHandlers(event)
+	p.probe.sendEventToHandlers(event)
 
 	// send event to specific event handlers, like the event monitor consumers, subsequently
-	p.probe.sendEventToSpecificEventTypeHandlers(event)
+	p.probe.sendEventToConsumers(event)
 }
 
 // Init the probe

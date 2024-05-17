@@ -62,8 +62,9 @@ func CompleteFlare(fb flaretypes.FlareBuilder, diagnoseDeps diagnose.SuitesDeps)
 		fb.AddFileFromFunc("tagger-list.json", getAgentTaggerList)
 		fb.AddFileFromFunc("workload-list.log", getAgentWorkloadList)
 		fb.AddFileFromFunc("process-agent_tagger-list.json", getProcessAgentTaggerList)
-
-		getProcessChecks(fb, config.GetProcessAPIAddressPort)
+		if !config.Datadog.GetBool("process_config.run_in_core_agent.enabled") {
+			getChecksFromProcessAgent(fb, config.GetProcessAPIAddressPort)
+		}
 	}
 
 	fb.RegisterFilePerm(security.GetAuthTokenFilepath(config.Datadog))
@@ -239,7 +240,7 @@ func getConfigFiles(fb flaretypes.FlareBuilder, confSearchPaths map[string]strin
 	}
 }
 
-func getProcessChecks(fb flaretypes.FlareBuilder, getAddressPort func() (url string, err error)) {
+func getChecksFromProcessAgent(fb flaretypes.FlareBuilder, getAddressPort func() (url string, err error)) {
 	addressPort, err := getAddressPort()
 	if err != nil {
 		log.Errorf("Could not zip process agent checks: wrong configuration to connect to process-agent: %s", err.Error())
@@ -280,11 +281,14 @@ func getDiagnoses(isFlareLocal bool, deps diagnose.SuitesDeps) func() ([]byte, e
 
 		// ... but when running within Agent some diagnose suites need to know
 		// that to run more optimally/differently by using existing in-memory objects
-		if !isFlareLocal {
-			diagCfg.RunningInAgentProcess = true
+		collector, ok := deps.Collector.Get()
+		if !isFlareLocal && ok {
+			return diagnose.RunStdOutInAgentProcess(w, diagCfg, diagnose.NewSuitesDepsInAgentProcess(collector))
 		}
-
-		return diagnose.RunStdOut(w, diagCfg, deps)
+		if ac, ok := deps.AC.Get(); ok {
+			return diagnose.RunStdOutInCLIProcess(w, diagCfg, diagnose.NewSuitesDepsInCLIProcess(deps.SenderManager, deps.SecretResolver, deps.WMeta, ac))
+		}
+		return fmt.Errorf("collector or autoDiscovery not found")
 	}
 
 	return func() ([]byte, error) { return functionOutputToBytes(fct), nil }

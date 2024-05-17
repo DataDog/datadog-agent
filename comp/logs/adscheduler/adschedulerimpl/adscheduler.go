@@ -10,9 +10,8 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
+	"github.com/DataDog/datadog-agent/comp/logs/agent/agentimpl"
 	logsadscheduler "github.com/DataDog/datadog-agent/pkg/logs/schedulers/ad"
-
-	"github.com/DataDog/datadog-agent/comp/logs/agent"
 
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -29,7 +28,7 @@ type dependencies struct {
 	Autodiscovery autodiscovery.Component
 }
 
-func newADScheduler(deps dependencies) agent.SchedulerProvider {
+func newADScheduler(deps dependencies) agentimpl.SchedulerProvider {
 	scheduler := logsadscheduler.New(deps.Autodiscovery)
-	return agent.NewSchedulerProvider(scheduler)
+	return agentimpl.NewSchedulerProvider(scheduler)
 }

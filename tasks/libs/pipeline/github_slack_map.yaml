@@ -6,6 +6,7 @@
 '@datadog/agent-platform': DEFAULT_SLACK_CHANNEL
 '@datadog/documentation': DEFAULT_SLACK_CHANNEL
 '@datadog/container-integrations': '#container-integrations'
+'@datadog/container-platform': '#container-platform'
 '@datadog/container-ecosystems': '#container-ecosystems'
 '@datadog/platform-integrations': '#platform-integrations-ops'
 '@datadog/agent-security': '#security-and-compliance-agent-ops'
@@ -39,3 +40,4 @@
 '@datadog/agent-build-and-releases': '#agent-build-and-releases'
 '@datadog/agent-ci-experience': '#agent-developer-experience'
 '@datadog/agent-developer-tools': '#agent-developer-experience'
+'@datadog/apm-onboarding': '#apm-onboarding'
