@@ -39,20 +39,6 @@
         "rule_id"
       ]
     },
-    "AnomalyDetectionSyscallEvent": {
-      "properties": {
-        "syscall": {
-          "type": "string",
-          "description": "Name of the syscall that triggered the anomaly detection event"
-        }
-      },
-      "additionalProperties": false,
-      "type": "object",
-      "required": [
-        "syscall"
-      ],
-      "description": "AnomalyDetectionSyscallEventSerializer serializes an anomaly detection for a syscall event"
-    },
     "BPFEvent": {
       "properties": {
         "cmd": {
@@ -1456,9 +1442,6 @@
     },
     "mount": {
       "$ref": "#/$defs/MountEvent"
-    },
-    "anomaly_detection_syscall": {
-      "$ref": "#/$defs/AnomalyDetectionSyscallEvent"
     },
     "syscalls": {
       "$ref": "#/$defs/SyscallsEvent"

@@ -55,20 +55,6 @@ CSM Threats logs have the following JSON schema:
                 "rule_id"
             ]
         },
-        "AnomalyDetectionSyscallEvent": {
-            "properties": {
-                "syscall": {
-                    "type": "string",
-                    "description": "Name of the syscall that triggered the anomaly detection event"
-                }
-            },
-            "additionalProperties": false,
-            "type": "object",
-            "required": [
-                "syscall"
-            ],
-            "description": "AnomalyDetectionSyscallEventSerializer serializes an anomaly detection for a syscall event"
-        },
         "BPFEvent": {
             "properties": {
                 "cmd": {
@@ -1473,9 +1459,6 @@ CSM Threats logs have the following JSON schema:
         "mount": {
             "$ref": "#/$defs/MountEvent"
         },
-        "anomaly_detection_syscall": {
-            "$ref": "#/$defs/AnomalyDetectionSyscallEvent"
-        },
         "syscalls": {
             "$ref": "#/$defs/SyscallsEvent"
         },
@@ -1517,7 +1500,6 @@ CSM Threats logs have the following JSON schema:
 | `dns` | $ref | Please see [DNSEvent](#dnsevent) |
 | `bind` | $ref | Please see [BindEvent](#bindevent) |
 | `mount` | $ref | Please see [MountEvent](#mountevent) |
-| `anomaly_detection_syscall` | $ref | Please see [AnomalyDetectionSyscallEvent](#anomalydetectionsyscallevent) |
 | `syscalls` | $ref | Please see [SyscallsEvent](#syscallsevent) |
 | `usr` | $ref | Please see [UserContext](#usercontext) |
 
@@ -1565,32 +1547,6 @@ CSM Threats logs have the following JSON schema:
 
 {{< /code-block >}}
 
-
-
-## `AnomalyDetectionSyscallEvent`
-
-
-{{< code-block lang="json" collapsible="true" >}}
-{
-    "properties": {
-        "syscall": {
-            "type": "string",
-            "description": "Name of the syscall that triggered the anomaly detection event"
-        }
-    },
-    "additionalProperties": false,
-    "type": "object",
-    "required": [
-        "syscall"
-    ],
-    "description": "AnomalyDetectionSyscallEventSerializer serializes an anomaly detection for a syscall event"
-}
-
-{{< /code-block >}}
-
-| Field | Description |
-| ----- | ----------- |
-| `syscall` | Name of the syscall that triggered the anomaly detection event |
 
 
 ## `BPFEvent`

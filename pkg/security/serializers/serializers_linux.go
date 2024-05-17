@@ -457,12 +457,6 @@ type SecurityProfileContextSerializer struct {
 	EventInProfile bool `json:"event_in_profile"`
 }
 
-// AnomalyDetectionSyscallEventSerializer serializes an anomaly detection for a syscall event
-type AnomalyDetectionSyscallEventSerializer struct {
-	// Name of the syscall that triggered the anomaly detection event
-	Syscall string `json:"syscall"`
-}
-
 // SyscallSerializer serializes a syscall
 type SyscallSerializer struct {
 	// Name of the syscall
@@ -483,26 +477,19 @@ type EventSerializer struct {
 	*DDContextSerializer              `json:"dd,omitempty"`
 	*SecurityProfileContextSerializer `json:"security_profile,omitempty"`
 
-	*SELinuxEventSerializer                 `json:"selinux,omitempty"`
-	*BPFEventSerializer                     `json:"bpf,omitempty"`
-	*MMapEventSerializer                    `json:"mmap,omitempty"`
-	*MProtectEventSerializer                `json:"mprotect,omitempty"`
-	*PTraceEventSerializer                  `json:"ptrace,omitempty"`
-	*ModuleEventSerializer                  `json:"module,omitempty"`
-	*SignalEventSerializer                  `json:"signal,omitempty"`
-	*SpliceEventSerializer                  `json:"splice,omitempty"`
-	*DNSEventSerializer                     `json:"dns,omitempty"`
-	*BindEventSerializer                    `json:"bind,omitempty"`
-	*MountEventSerializer                   `json:"mount,omitempty"`
-	*AnomalyDetectionSyscallEventSerializer `json:"anomaly_detection_syscall,omitempty"`
-	*SyscallsEventSerializer                `json:"syscalls,omitempty"`
-	*UserContextSerializer                  `json:"usr,omitempty"`
-}
-
-func newAnomalyDetectionSyscallEventSerializer(e *model.AnomalyDetectionSyscallEvent) *AnomalyDetectionSyscallEventSerializer {
-	return &AnomalyDetectionSyscallEventSerializer{
-		Syscall: e.SyscallID.String(),
-	}
+	*SELinuxEventSerializer  `json:"selinux,omitempty"`
+	*BPFEventSerializer      `json:"bpf,omitempty"`
+	*MMapEventSerializer     `json:"mmap,omitempty"`
+	*MProtectEventSerializer `json:"mprotect,omitempty"`
+	*PTraceEventSerializer   `json:"ptrace,omitempty"`
+	*ModuleEventSerializer   `json:"module,omitempty"`
+	*SignalEventSerializer   `json:"signal,omitempty"`
+	*SpliceEventSerializer   `json:"splice,omitempty"`
+	*DNSEventSerializer      `json:"dns,omitempty"`
+	*BindEventSerializer     `json:"bind,omitempty"`
+	*MountEventSerializer    `json:"mount,omitempty"`
+	*SyscallsEventSerializer `json:"syscalls,omitempty"`
+	*UserContextSerializer   `json:"usr,omitempty"`
 }
 
 func newSyscallsEventSerializer(e *model.SyscallsEvent) *SyscallsEventSerializer {
@@ -1186,8 +1173,6 @@ func NewEventSerializer(event *model.Event, opts *eval.Opts) *EventSerializer {
 	case model.BindEventType:
 		s.EventContextSerializer.Outcome = serializeOutcome(event.Bind.Retval)
 		s.BindEventSerializer = newBindEventSerializer(event)
-	case model.AnomalyDetectionSyscallEventType:
-		s.AnomalyDetectionSyscallEventSerializer = newAnomalyDetectionSyscallEventSerializer(&event.AnomalyDetectionSyscallEvent)
 	case model.SyscallsEventType:
 		s.SyscallsEventSerializer = newSyscallsEventSerializer(&event.Syscalls)
 	case model.DNSEventType:
