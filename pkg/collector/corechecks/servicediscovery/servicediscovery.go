@@ -91,22 +91,20 @@ func newCheck() check.Check {
 }
 
 // Configure parses the check configuration and initializes the check
-func (c *Check) Configure(senderManager sender.SenderManager, integrationConfigDigest uint64, data integration.Data, initConfig integration.Data, source string) error {
+func (c *Check) Configure(senderManager sender.SenderManager, _ uint64, instanceConfig, initConfig integration.Data, source string) error {
 	if !pkgconfig.Datadog.GetBool("service_discovery.enabled") {
 		return errors.New("service discovery is disabled")
 	}
-
 	if newOSImpl == nil {
 		return errors.New("service_discovery check not implemented on " + runtime.GOOS)
 	}
-
-	if err := c.CommonConfigure(senderManager, integrationConfigDigest, initConfig, data, source); err != nil {
+	if err := c.CommonConfigure(senderManager, initConfig, instanceConfig, source); err != nil {
 		return err
 	}
-
-	if err := c.cfg.Parse(data); err != nil {
+	if err := c.cfg.Parse(instanceConfig); err != nil {
 		return fmt.Errorf("failed to parse config: %w", err)
 	}
+
 	ignoreCfg := map[string]bool{}
 	for _, pName := range c.cfg.IgnoreProcesses {
 		ignoreCfg[pName] = true
