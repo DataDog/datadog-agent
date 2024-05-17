@@ -8,12 +8,18 @@ import re
 import sys
 from collections.abc import Iterable
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
 from invoke import task
 from invoke.exceptions import Exit
 
 from tasks.libs.common.color import color_message
 from tasks.libs.common.status import Status
+
+if TYPE_CHECKING:
+    from collections.abc import Generator
+
+PYTHON_REQUIREMENTS = ["requirements.txt", "tasks/requirements.txt"]
 
 
 @dataclass
@@ -32,7 +38,9 @@ def setup(ctx):
         check_python_version,
         check_go_version,
         check_git_repo,
-        update_dependencies,
+        update_python_dependencies,
+        download_go_tools,
+        install_go_tools,
         enable_pre_commit,
     ]
 
@@ -131,16 +139,14 @@ def check_python_version(_ctx) -> SetupResult:
     return SetupResult("Check Python version", status, message)
 
 
-def update_dependencies(ctx) -> Iterable[SetupResult]:
-    print(color_message("Updating dependencies...", "blue"))
+def update_python_dependencies(ctx) -> Generator[SetupResult]:
+    print(color_message("Updating Python dependencies...", "blue"))
 
-    requirement_files = ["requirements.txt", "tasks/requirements.txt"]
-
-    for requirement_file in requirement_files:
-        print(color_message(f"Updating {requirement_file}...", "blue"))
+    for requirement_file in PYTHON_REQUIREMENTS:
+        print(color_message(f"Updating Python dependencies from {requirement_file}...", "blue"))
 
         ctx.run(f"pip install -r {requirement_file}", hide=True)
-        yield SetupResult(f"Update dependencies from {requirement_file}", Status.OK)
+        yield SetupResult(f"Update Python dependencies from {requirement_file}", Status.OK)
 
 
 def enable_pre_commit(ctx) -> SetupResult:
@@ -164,3 +170,31 @@ def enable_pre_commit(ctx) -> SetupResult:
         ctx.run(f"git config --global core.hooksPath {hooks_path}", hide=True)
 
     return SetupResult("Enable pre-commit", Status.OK)
+
+
+def install_go_tools(ctx) -> SetupResult:
+    print(color_message("Installing go tools...", "blue"))
+    status = Status.OK
+
+    try:
+        from tasks import install_tools
+
+        install_tools(ctx)
+    except:
+        status = Status.FAIL
+
+    return SetupResult("Install Go tools", status)
+
+
+def download_go_tools(ctx) -> SetupResult:
+    print(color_message("Downloading go tools...", "blue"))
+    status = Status.OK
+
+    try:
+        from tasks import download_tools
+
+        download_tools(ctx)
+    except:
+        status = Status.FAIL
+
+    return SetupResult("Download Go tools", status)
