@@ -101,12 +101,12 @@ func (wcd *WinCrashDetect) Run() error {
 		return err
 	}
 	ev := event.Event{
-		Priority:       event.EventPriorityNormal,
+		Priority:       event.PriorityNormal,
 		SourceTypeName: CheckName,
 		EventType:      CheckName,
 		Title:          formatTitle(crash),
 		Text:           formatText(crash),
-		AlertType:      event.EventAlertTypeError,
+		AlertType:      event.AlertTypeError,
 	}
 	log.Infof("Sending event %v", ev)
 	sender.Event(ev)
