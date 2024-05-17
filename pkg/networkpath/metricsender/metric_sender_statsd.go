@@ -10,13 +10,13 @@ import (
 )
 
 type statsdMetricSender struct {
-	statsdClient ddgostatsd.ClientInterface
+	getStatsdClient func() ddgostatsd.ClientInterface
 }
 
 // NewMetricSenderStatsd constructor
-func NewMetricSenderStatsd(statsdClient ddgostatsd.ClientInterface) MetricSender {
+func NewMetricSenderStatsd(getStatsdClient func() ddgostatsd.ClientInterface) MetricSender {
 	return &statsdMetricSender{
-		statsdClient: statsdClient,
+		getStatsdClient: getStatsdClient,
 	}
 }
 
@@ -25,5 +25,5 @@ var _ MetricSender = (*statsdMetricSender)(nil)
 
 // Gauge metric sender
 func (s *statsdMetricSender) Gauge(metricName string, value float64, tags []string) {
-	s.statsdClient.Gauge(metricName, value, tags, 1) //nolint:errcheck
+	s.getStatsdClient().Gauge(metricName, value, tags, 1) //nolint:errcheck
 }

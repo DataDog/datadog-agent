@@ -25,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute"
 	"github.com/DataDog/datadog-agent/pkg/trace/teststatsd"
 	utillog "github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/cihub/seelog"
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
@@ -81,8 +82,9 @@ func Test_NpCollector_runningAndProcessing(t *testing.T) {
 	app, npCollector := newTestNpCollector(t, agentConfigs)
 
 	stats := &teststatsd.Client{}
-	npCollector.statsdClient = stats
-	npCollector.metricSender = metricsender.NewMetricSenderStatsd(stats)
+	getStatsdClient := func() statsd.ClientInterface { return stats }
+	npCollector.getStatsdClient = getStatsdClient
+	npCollector.metricSender = metricsender.NewMetricSenderStatsd(getStatsdClient)
 
 	mockEpForwarder := eventplatformimpl.NewMockEventPlatformForwarder(gomock.NewController(t))
 	npCollector.epForwarder = mockEpForwarder
@@ -237,8 +239,9 @@ func Test_NpCollector_ScheduleConns_ScheduleDurationMetric(t *testing.T) {
 	_, npCollector := newTestNpCollector(t, agentConfigs)
 
 	stats := &teststatsd.Client{}
-	npCollector.statsdClient = stats
-	npCollector.metricSender = metricsender.NewMetricSenderStatsd(stats)
+	getStatsdClient := func() statsd.ClientInterface { return stats }
+	npCollector.getStatsdClient = getStatsdClient
+	npCollector.metricSender = metricsender.NewMetricSenderStatsd(getStatsdClient)
 
 	conns := []*model.Connection{
 		{
@@ -444,7 +447,8 @@ func Test_npCollectorImpl_ScheduleConns(t *testing.T) {
 			utillog.SetupLogger(l, "debug")
 
 			stats := &teststatsd.Client{}
-			npCollector.statsdClient = stats
+			getStatsdClient := func() statsd.ClientInterface { return stats }
+			npCollector.getStatsdClient = getStatsdClient
 
 			npCollector.ScheduleConns(tt.conns)
 
@@ -553,7 +557,8 @@ func Test_npCollectorImpl_flushWrapper(t *testing.T) {
 			_, npCollector := newTestNpCollector(t, agentConfigs)
 
 			stats := &teststatsd.Client{}
-			npCollector.statsdClient = stats
+			getStatsdClient := func() statsd.ClientInterface { return stats }
+			npCollector.getStatsdClient = getStatsdClient
 			npCollector.TimeNowFn = func() time.Time {
 				return tt.flushEndTime
 			}
@@ -586,7 +591,8 @@ func Test_npCollectorImpl_flush(t *testing.T) {
 	_, npCollector := newTestNpCollector(t, agentConfigs)
 
 	stats := &teststatsd.Client{}
-	npCollector.statsdClient = stats
+	getStatsdClient := func() statsd.ClientInterface { return stats }
+	npCollector.getStatsdClient = getStatsdClient
 	npCollector.pathtestStore.Add(&common.Pathtest{Hostname: "host1", Port: 53})
 	npCollector.pathtestStore.Add(&common.Pathtest{Hostname: "host2", Port: 53})
 
@@ -611,8 +617,9 @@ func Test_npCollectorImpl_sendTelemetry(t *testing.T) {
 	_, npCollector := newTestNpCollector(t, agentConfigs)
 
 	stats := &teststatsd.Client{}
-	npCollector.statsdClient = stats
-	npCollector.metricSender = metricsender.NewMetricSenderStatsd(stats)
+	getStatsdClient := func() statsd.ClientInterface { return stats }
+	npCollector.getStatsdClient = getStatsdClient
+	npCollector.metricSender = metricsender.NewMetricSenderStatsd(getStatsdClient)
 	path := payload.NetworkPath{
 		Source:      payload.NetworkPathSource{Hostname: "abc"},
 		Destination: payload.NetworkPathDestination{Hostname: "abc", IPAddress: "127.0.0.2", Port: 80},

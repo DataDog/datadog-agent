@@ -32,10 +32,10 @@ type npCollectorImpl struct {
 	collectorConfigs *collectorConfigs
 
 	// Deps
-	epForwarder  eventplatform.Forwarder
-	logger       log.Component
-	metricSender metricsender.MetricSender
-	statsdClient ddgostatsd.ClientInterface
+	epForwarder     eventplatform.Forwarder
+	logger          log.Component
+	metricSender    metricsender.MetricSender
+	getStatsdClient func() ddgostatsd.ClientInterface
 
 	// Counters
 	receivedPathtestCount    *atomic.Uint64
@@ -76,6 +76,9 @@ func newNpCollectorImpl(epForwarder eventplatform.Forwarder, collectorConfigs *c
 		collectorConfigs.pathtestInterval,
 		collectorConfigs.flushInterval)
 
+	getStatsdClient := func() ddgostatsd.ClientInterface {
+		return statsd.Client
+	}
 	return &npCollectorImpl{
 		epForwarder:      epForwarder,
 		collectorConfigs: collectorConfigs,
@@ -87,7 +90,7 @@ func newNpCollectorImpl(epForwarder eventplatform.Forwarder, collectorConfigs *c
 		flushInterval:          collectorConfigs.flushInterval,
 		workers:                collectorConfigs.workers,
 
-		metricSender: metricsender.NewMetricSenderStatsd(statsd.Client),
+		metricSender: metricsender.NewMetricSenderStatsd(getStatsdClient),
 
 		receivedPathtestCount:    atomic.NewUint64(0),
 		processedTracerouteCount: atomic.NewUint64(0),
@@ -97,7 +100,7 @@ func newNpCollectorImpl(epForwarder eventplatform.Forwarder, collectorConfigs *c
 		runDone:       make(chan struct{}),
 		flushLoopDone: make(chan struct{}),
 
-		statsdClient: statsd.Client,
+		getStatsdClient: getStatsdClient,
 
 		runTraceroute: runTraceroute,
 	}
@@ -121,7 +124,7 @@ func (s *npCollectorImpl) ScheduleConns(conns []*model.Connection) {
 	}
 
 	scheduleDuration := s.TimeNowFn().Sub(startTime)
-	s.statsdClient.Gauge("datadog.network_path.collector.schedule_duration", scheduleDuration.Seconds(), nil, 1) //nolint:errcheck
+	s.getStatsdClient().Gauge("datadog.network_path.collector.schedule_duration", scheduleDuration.Seconds(), nil, 1) //nolint:errcheck
 }
 
 // scheduleOne schedules pathtests.
@@ -252,23 +255,23 @@ func (s *npCollectorImpl) flushWrapper(flushTime time.Time, lastFlushTime time.T
 	s.logger.Debugf("Flush loop at %s", flushTime)
 	if !lastFlushTime.IsZero() {
 		flushInterval := flushTime.Sub(lastFlushTime)
-		s.statsdClient.Gauge("datadog.network_path.collector.flush_interval", flushInterval.Seconds(), []string{}, 1) //nolint:errcheck
+		s.getStatsdClient().Gauge("datadog.network_path.collector.flush_interval", flushInterval.Seconds(), []string{}, 1) //nolint:errcheck
 	}
 	lastFlushTime = flushTime
 
 	s.flush()
-	s.statsdClient.Gauge("datadog.network_path.collector.flush_duration", s.TimeNowFn().Sub(flushTime).Seconds(), []string{}, 1) //nolint:errcheck
+	s.getStatsdClient().Gauge("datadog.network_path.collector.flush_duration", s.TimeNowFn().Sub(flushTime).Seconds(), []string{}, 1) //nolint:errcheck
 }
 
 func (s *npCollectorImpl) flush() {
-	s.statsdClient.Gauge("datadog.network_path.collector.workers", float64(s.workers), []string{}, 1) //nolint:errcheck
+	s.getStatsdClient().Gauge("datadog.network_path.collector.workers", float64(s.workers), []string{}, 1) //nolint:errcheck
 
 	flowsContexts := s.pathtestStore.GetContextsCount()
-	s.statsdClient.Gauge("datadog.network_path.collector.pathtest_store_size", float64(flowsContexts), []string{}, 1) //nolint:errcheck
+	s.getStatsdClient().Gauge("datadog.network_path.collector.pathtest_store_size", float64(flowsContexts), []string{}, 1) //nolint:errcheck
 
 	flushTime := s.TimeNowFn()
 	flowsToFlush := s.pathtestStore.Flush()
-	s.statsdClient.Gauge("datadog.network_path.collector.pathtest_flushed_count", float64(len(flowsToFlush)), []string{}, 1) //nolint:errcheck
+	s.getStatsdClient().Gauge("datadog.network_path.collector.pathtest_flushed_count", float64(len(flowsToFlush)), []string{}, 1) //nolint:errcheck
 
 	s.logger.Debugf("Flushing %d flows to the forwarder (flush_duration=%d, flow_contexts_before_flush=%d)", len(flowsToFlush), time.Since(flushTime).Milliseconds(), flowsContexts)
 
