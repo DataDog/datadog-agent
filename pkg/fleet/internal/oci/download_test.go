@@ -35,6 +35,10 @@ func (s *testDownloadServer) Downloader() *Downloader {
 	return NewDownloader(&env.Env{}, s.Client())
 }
 
+func (s *testDownloadServer) DownloaderWithEnv(env *env.Env) *Downloader {
+	return NewDownloader(env, s.Client())
+}
+
 func (s *testDownloadServer) Image(f fixtures.Fixture) oci.Image {
 	downloadedPackage, err := s.Downloader().Download(context.Background(), s.PackageURL(f))
 	if err != nil {
@@ -94,4 +98,90 @@ func TestDownloadPlatformNotAvailable(t *testing.T) {
 	pkg := s.PackageURL(fixtures.FixtureSimpleV1Linux2Amd128)
 	_, err := d.Download(context.Background(), pkg)
 	assert.Error(t, err)
+}
+
+func TestDownloadRegistryWithOverride(t *testing.T) {
+	s := newTestDownloadServer(t)
+	defer s.Close()
+	d := s.DownloaderWithEnv(&env.Env{
+		RegistryOverride: "fake.io",
+	})
+
+	_, err := d.Download(context.Background(), s.PackageURL(fixtures.FixtureSimpleV1))
+	assert.Error(t, err) // Host not found
+}
+
+func TestApplyRegistryOverride(t *testing.T) {
+	type test struct {
+		registryOverride   string
+		regOverrideByImage map[string]string
+		url                string
+		expected           string
+	}
+
+	tests := []test{
+		{url: "docker.io/datadog/agent-package-dev:latest", expected: "docker.io/datadog/agent-package-dev:latest"},
+		{url: "gcr.io/datadoghq/agent-package@sha256:1234", expected: "gcr.io/datadoghq/agent-package@sha256:1234"},
+		{url: "docker.io/datadog/agent-package-dev:latest", registryOverride: "fake.io", expected: "fake.io/agent-package-dev:latest"},
+		{url: "gcr.io/datadoghq/agent-package@sha256:1234", registryOverride: "fake.io", expected: "fake.io/agent-package@sha256:1234"},
+		{
+			url:                "docker.io/datadog/agent-package-dev:latest",
+			regOverrideByImage: map[string]string{"agent-package-dev": "fake.io"},
+			expected:           "fake.io/agent-package-dev:latest",
+		},
+		{
+			url:                "gcr.io/datadoghq/agent-package@sha256:1234",
+			regOverrideByImage: map[string]string{"agent-package": "fake.io"},
+			expected:           "fake.io/agent-package@sha256:1234",
+		},
+		{
+			url:                "gcr.io/datadoghq/agent-package@sha256:1234",
+			regOverrideByImage: map[string]string{"agent-package": "fake.io"},
+			expected:           "fake.io/agent-package@sha256:1234",
+		},
+		{
+			url:                "gcr.io/datadoghq/agent-package@sha256:1234",
+			registryOverride:   "fake-other.io",
+			regOverrideByImage: map[string]string{"agent-package": "fake.io"},
+			expected:           "fake.io/agent-package@sha256:1234",
+		},
+		{
+			url:                "gcr.io/datadoghq/agent-package-dev@sha256:1234",
+			registryOverride:   "fake-other.io",
+			regOverrideByImage: map[string]string{"agent-package": "fake.io"},
+			expected:           "fake-other.io/agent-package-dev@sha256:1234",
+		},
+	}
+
+	for _, tt := range tests {
+		env := &env.Env{
+			RegistryOverride:        tt.registryOverride,
+			RegistryOverrideByImage: tt.regOverrideByImage,
+		}
+		actual := applyRegistryOverride(env, tt.url)
+		assert.Equal(t, tt.expected, actual)
+	}
+}
+
+func TestPackageURL(t *testing.T) {
+	type test struct {
+		site     string
+		pkg      string
+		version  string
+		expected string
+	}
+
+	tests := []test{
+		{site: "datad0g.com", pkg: "datadog-agent", version: "latest", expected: "oci://docker.io/datadog/agent-package-dev:latest"},
+		{site: "datadoghq.com", pkg: "datadog-agent", version: "1.2.3", expected: "oci://gcr.io/datadoghq/agent-package:1.2.3"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.site, func(t *testing.T) {
+			actual := PackageURL(&env.Env{Site: tt.site}, tt.pkg, tt.version)
+			if actual != tt.expected {
+				t.Errorf("expected %s, got %s", tt.expected, actual)
+			}
+		})
+	}
 }

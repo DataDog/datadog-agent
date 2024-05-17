@@ -13,6 +13,7 @@ import (
 	"net/url"
 	"runtime"
 	"strconv"
+	"strings"
 
 	"github.com/awslabs/amazon-ecr-credential-helper/ecr-login"
 	"github.com/google/go-containerregistry/pkg/authn"
@@ -107,7 +108,7 @@ func (d *Downloader) Download(ctx context.Context, packageURL string) (*Download
 	var image oci.Image
 	switch url.Scheme {
 	case "oci":
-		image, err = d.downloadRegistry(ctx, packageURL)
+		image, err = d.downloadRegistry(ctx, strings.TrimPrefix(packageURL, "oci://"))
 	case "file":
 		image, err = d.downloadFile(url.Path)
 	default:
@@ -145,11 +146,29 @@ func (d *Downloader) Download(ctx context.Context, packageURL string) (*Download
 	}, nil
 }
 
+func applyRegistryOverride(env *env.Env, url string) string {
+	imageWithIdentifier := url[strings.LastIndex(url, "/")+1:]
+	registryOverride := env.RegistryOverride
+	for image, override := range env.RegistryOverrideByImage {
+		if strings.HasPrefix(imageWithIdentifier, image+":") || strings.HasPrefix(imageWithIdentifier, image+"@") {
+			registryOverride = override
+			break
+		}
+	}
+	if registryOverride == "" {
+		return url
+	}
+	if !strings.HasSuffix(registryOverride, "/") {
+		registryOverride += "/"
+	}
+	return registryOverride + imageWithIdentifier
+}
+
 func (d *Downloader) downloadRegistry(ctx context.Context, url string) (oci.Image, error) {
-	// the image URL is parsed as a digest to ensure we use the <repository>/<image>@<digest> format
-	ref, err := name.ParseReference(url, name.StrictValidation)
+	url = applyRegistryOverride(d.env, url)
+	ref, err := name.ParseReference(url)
 	if err != nil {
-		return nil, fmt.Errorf("could not parse ref: %w", err)
+		return nil, fmt.Errorf("could not parse reference: %w", err)
 	}
 	index, err := remote.Index(ref, remote.WithContext(ctx), remote.WithAuthFromKeychain(d.keychain), remote.WithTransport(httptrace.WrapRoundTripper(d.client.Transport)))
 	if err != nil {
@@ -228,4 +247,14 @@ func (d *DownloadedPackage) WriteOCILayout(dir string) error {
 		return fmt.Errorf("could not append image to layout: %w", err)
 	}
 	return nil
+}
+
+// PackageURL returns the package URL for the given site, package and version.
+func PackageURL(env *env.Env, pkg string, version string) string {
+	switch env.Site {
+	case "datad0g.com":
+		return fmt.Sprintf("oci://docker.io/datadog/%s-package-dev:%s", strings.TrimPrefix(pkg, "datadog-"), version)
+	default:
+		return fmt.Sprintf("oci://gcr.io/datadoghq/%s-package:%s", strings.TrimPrefix(pkg, "datadog-"), version)
+	}
 }

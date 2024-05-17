@@ -28,7 +28,7 @@ var defaultEnv = Env{
 
 	RegistryOverride:                "",
 	RegistryAuthOverride:            []string{},
-	RegistryOverrideByPackage:       map[string]string{},
+	RegistryOverrideByImage:         map[string]string{},
 	DefaultVersionOverrideByPackage: map[string]string{},
 }
 
@@ -39,7 +39,7 @@ type Env struct {
 
 	RegistryOverride                string
 	RegistryAuthOverride            []string
-	RegistryOverrideByPackage       map[string]string
+	RegistryOverrideByImage         map[string]string
 	DefaultVersionOverrideByPackage map[string]string
 }
 
@@ -51,8 +51,8 @@ func FromEnv() *Env {
 
 		RegistryOverride:                getEnvOrDefault(envRegistry, defaultEnv.RegistryOverride),
 		RegistryAuthOverride:            authOverridesFromString(os.Getenv(envRegistryAuth)),
-		RegistryOverrideByPackage:       overridesByPackageFromEnv(envRegistry),
-		DefaultVersionOverrideByPackage: overridesByPackageFromEnv(envDefaultVersion),
+		RegistryOverrideByImage:         overridesByNameFromEnv(envRegistry),
+		DefaultVersionOverrideByPackage: overridesByNameFromEnv(envDefaultVersion),
 	}
 }
 
@@ -74,12 +74,12 @@ func (e *Env) ToEnv() []string {
 		envRegistry + "=" + e.RegistryOverride,
 		envRegistryAuth + "=" + authOverridesToEnv(e.RegistryAuthOverride),
 	}
-	env = append(env, overridesByPackageToEnv(envRegistry, e.RegistryOverrideByPackage)...)
+	env = append(env, overridesByPackageToEnv(envRegistry, e.RegistryOverrideByImage)...)
 	env = append(env, overridesByPackageToEnv(envDefaultVersion, e.DefaultVersionOverrideByPackage)...)
 	return env
 }
 
-func overridesByPackageFromEnv(envPrefix string) map[string]string {
+func overridesByNameFromEnv(envPrefix string) map[string]string {
 	env := os.Environ()
 	overridesByPackage := map[string]string{}
 	for _, e := range env {
