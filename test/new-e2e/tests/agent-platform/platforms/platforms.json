@@ -37,7 +37,7 @@
             "amazonlinux2-4-14": "ami-038b3df3312ddf25d",
             "amazonlinux2-5-10": "ami-06a0cd9728546d178",
             "amazonlinux2022-5-15": "ami-0f0f00c2d082c52ae",
-            "amazonlinux2023": "ami-09a843efa5c250b9c"
+            "amazonlinux2023": "ami-0f01e3f9e6afe7661"
         },
         "arm64": {
             "amazonlinux2-4-14": "ami-090230ed0c6b13c74",
