@@ -164,7 +164,8 @@ int rethook_register_netdevice(ctx_t *ctx) {
         .netns = entry->ifindex.netns,
     };
     // populate interface name directly from the net_device structure
-    bpf_probe_read(&device.name[0], sizeof(device.name), entry->device);
+    char *name = get_net_device_name(entry->device);
+    bpf_probe_read(&device.name, sizeof(device.name), name);
 
     // check where we're at in the veth state machine
     struct veth_state_t *state = bpf_map_lookup_elem(&veth_state_machine, &id);
