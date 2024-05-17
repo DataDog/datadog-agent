@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
-package tagenrichmentprocessor
+package infraattributesprocessor
 
 import (
 	"path/filepath"
@@ -15,9 +15,9 @@ import (
 	"go.opentelemetry.io/collector/confmap/confmaptest"
 )
 
-// TestLoadingConfigStrictLogs tests loading testdata/config_logs_strict.yaml
+// TestLoadingConfigStrictLogs tests loading testdata/logs_strict.yaml
 func TestLoadingConfigStrictLogs(t *testing.T) {
-	cm, err := confmaptest.LoadConf(filepath.Join("testdata", "config_logs_strict.yaml"))
+	cm, err := confmaptest.LoadConf(filepath.Join("testdata", "logs_strict.yaml"))
 	require.NoError(t, err)
 
 	tests := []struct {
@@ -27,7 +27,7 @@ func TestLoadingConfigStrictLogs(t *testing.T) {
 		{
 			id: component.MustNewIDWithName("filter", "empty"),
 			expected: &Config{
-				Logs: LogTagEnrichment{},
+				Logs: LogInfraAttributes{},
 			},
 		},
 	}

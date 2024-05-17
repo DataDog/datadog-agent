@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package tagenrichmentprocessor
+package infraattributesprocessor
 
 import (
 	"context"
@@ -41,7 +41,7 @@ func TestCreateProcessors(t *testing.T) {
 		succeed    bool
 	}{
 		{
-			configName: "config_logs_strict.yaml",
+			configName: "logs_strict.yaml",
 			succeed:    true,
 		},
 	}

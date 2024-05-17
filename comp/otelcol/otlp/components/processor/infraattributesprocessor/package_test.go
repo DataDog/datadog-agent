@@ -3,6 +3,14 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
-// Package tagenrichmentprocessor implements a processor for augmenting
-// tags.
-package tagenrichmentprocessor
+package infraattributesprocessor
+
+import (
+	"testing"
+
+	"go.uber.org/goleak"
+)
+
+func TestMain(m *testing.M) {
+	goleak.VerifyTestMain(m)
+}
