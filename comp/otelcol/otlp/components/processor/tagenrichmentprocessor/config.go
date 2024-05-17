@@ -6,6 +6,8 @@
 package tagenrichmentprocessor
 
 import (
+	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
+
 	"go.opentelemetry.io/collector/component"
 )
 
@@ -14,6 +16,8 @@ type Config struct {
 	Metrics MetricTagEnrichment `mapstructure:"metrics"`
 	Logs    LogTagEnrichment    `mapstructure:"logs"`
 	Traces  TraceTagEnrichment  `mapstructure:"traces"`
+
+	Cardinality types.TagCardinality
 }
 
 // MetricTagEnrichment - configuration for metrics.

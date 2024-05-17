@@ -7,24 +7,68 @@ package tagenrichmentprocessor
 
 import (
 	"context"
+	"strings"
 
+	"github.com/DataDog/datadog-agent/comp/core/tagger"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
+
+	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes"
 	"go.opentelemetry.io/collector/pdata/pmetric"
 	"go.opentelemetry.io/collector/processor"
 	"go.uber.org/zap"
 )
 
 type tagEnrichmentMetricProcessor struct {
-	logger *zap.Logger
+	logger      *zap.Logger
+	cardinality types.TagCardinality
 }
 
-func newTagEnrichmentMetricProcessor(set processor.CreateSettings, _ *Config) (*tagEnrichmentMetricProcessor, error) {
+func newTagEnrichmentMetricProcessor(set processor.CreateSettings, cfg *Config) (*tagEnrichmentMetricProcessor, error) {
 	tesp := &tagEnrichmentMetricProcessor{
-		logger: set.Logger,
+		logger:      set.Logger,
+		cardinality: cfg.Cardinality,
 	}
 	set.Logger.Info("Metric Tag Enrichment configured")
 	return tesp, nil
 }
 
+func splitTag(tag string) (key string, value string) {
+	split := strings.SplitN(tag, ":", 2)
+	if len(split) < 2 || split[0] == "" || split[1] == "" {
+		return "", ""
+	}
+	return split[0], split[1]
+}
+
 func (temp *tagEnrichmentMetricProcessor) processMetrics(_ context.Context, md pmetric.Metrics) (pmetric.Metrics, error) {
+	rms := md.ResourceMetrics()
+	for i := 0; i < rms.Len(); i++ {
+		rm := rms.At(i)
+		rattrs := rm.Resource().Attributes()
+		originId := attributes.OriginIDFromAttributes(rattrs)
+
+		entityTags, err := tagger.Tag(originId, temp.cardinality)
+		if err != nil {
+			temp.logger.Error("Cannot get tags for entity", zap.String("originId", originId), zap.Error(err))
+			continue
+		}
+
+		globalTags, err := tagger.GlobalTags(temp.cardinality)
+		if err != nil {
+			temp.logger.Error("Cannot get global tags", zap.Error(err))
+			continue
+		}
+
+		enrichedTags := make([]string, 0, len(entityTags)+len(globalTags))
+		enrichedTags = append(enrichedTags, entityTags...)
+		enrichedTags = append(enrichedTags, globalTags...)
+		for _, tag := range enrichedTags {
+			k, v := splitTag(tag)
+			if k != "" && v != "" {
+				rattrs.PutStr(k, v)
+			}
+		}
+	}
+
 	return md, nil
 }

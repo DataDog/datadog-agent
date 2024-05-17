@@ -8,6 +8,8 @@ package tagenrichmentprocessor
 import (
 	"context"
 
+	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
+
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/consumer"
 	"go.opentelemetry.io/collector/processor"
@@ -28,7 +30,9 @@ func NewFactory() processor.Factory {
 }
 
 func createDefaultConfig() component.Config {
-	return &Config{}
+	return &Config{
+		Cardinality: types.LowCardinality,
+	}
 }
 
 func createMetricsProcessor(
