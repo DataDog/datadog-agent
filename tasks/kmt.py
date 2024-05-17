@@ -38,7 +38,7 @@ from tasks.kernel_matrix_testing.tool import Exit, ask, error, get_binary_target
 from tasks.kernel_matrix_testing.vars import KMT_SUPPORTED_ARCHS, KMTPaths
 from tasks.libs.build.ninja import NinjaWriter
 from tasks.libs.common.utils import get_build_flags
-from tasks.libs.types.arch import ARCH_AMD64, ARCH_ARM64, Arch, KMTArchName, get_arch
+from tasks.libs.types.arch import ARCH_AMD64, ARCH_ARM64, Arch, KMTArchName
 from tasks.security_agent import build_functional_tests, build_stress_tests
 from tasks.system_probe import (
     BPF_TAG,
@@ -169,7 +169,7 @@ def gen_config_from_ci_pipeline(
     Generate a vmconfig.json file with the VMs that failed jobs in the given pipeline.
     """
     vms = set()
-    local_arch = get_arch("local").kmt_arch
+    local_arch = Arch.local().kmt_arch
 
     if pipeline is None:
         raise Exit("Pipeline ID must be provided")
@@ -373,7 +373,7 @@ def filter_target_domains(vms: str, infra: dict[KMTArchNameOrLocal, HostInstance
     vmsets = vmconfig.build_vmsets(vmconfig.build_normalized_vm_def_set(vms), [])
     domains: list[LibvirtDomain] = list()
     for vmset in vmsets:
-        if arch is not None and get_arch(vmset.arch) != arch:
+        if arch is not None and Arch.from_str(vmset.arch) != arch:
             warn(f"Ignoring VM {vmset} as it is not of the expected architecture {arch}")
             continue
         for vm in vmset.vms:
@@ -387,7 +387,7 @@ def filter_target_domains(vms: str, infra: dict[KMTArchNameOrLocal, HostInstance
 def get_archs_in_domains(domains: Iterable[LibvirtDomain]) -> set[Arch]:
     archs: set[Arch] = set()
     for d in domains:
-        archs.add(get_arch(d.instance.arch))
+        archs.add(Arch.from_str(d.instance.arch))
     return archs
 
 
@@ -532,7 +532,7 @@ def kmt_secagent_prepare(
 ):
     if arch is None:
         arch = "local"
-    arch = get_arch(arch)
+    arch = Arch.from_str(arch)
     kmt_paths = KMTPaths(stack, arch)
     kmt_paths.secagent_tests.mkdir(exist_ok=True, parents=True)
 
@@ -594,7 +594,7 @@ def prepare(
 
     if arch is None:
         arch = "local"
-    arch_obj = get_arch(arch)
+    arch_obj = Arch.from_str(arch)
     if arch_obj not in {ARCH_AMD64, ARCH_ARM64}:
         raise Exit(
             f"Architecture {arch} (inferred {arch_obj}) is not supported. Supported architectures are amd64 and arm64"
@@ -740,7 +740,7 @@ def kmt_sysprobe_prepare(
 
     assert arch is not None and arch != "local", "No architecture provided"
 
-    arch = get_arch(arch)
+    arch = Arch.from_str(arch)
     check_for_ninja(ctx)
 
     filter_pkgs = []
@@ -849,7 +849,7 @@ def kmt_sysprobe_prepare(
 
 def images_matching_ci(ctx, domains):
     platforms = get_platforms()
-    arch = get_arch("local").kmt_arch
+    arch = Arch.local().kmt_arch
     kmt_os = get_kmt_os()
 
     not_matches = list()
@@ -1035,7 +1035,7 @@ def build(
 
     assert os.path.exists(layout), f"File {layout} does not exist"
 
-    arch_obj = get_arch(arch)
+    arch_obj = Arch.from_str(arch)
     paths = KMTPaths(stack, arch_obj)
     paths.arch_dir.mkdir(parents=True, exist_ok=True)
 
@@ -1306,7 +1306,7 @@ def update_platform_info(
                 keyvals = {line.split("=")[0]: line.split("=")[1].strip().strip('"') for line in options}
 
             try:
-                arch = get_arch(keyvals['ARCH'])
+                arch = Arch.from_str(keyvals['ARCH'])
                 image_name = keyvals['IMAGE_NAME']
                 image_filename = keyvals['IMAGE_FILENAME']
             except KeyError:

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from tasks.libs.types.arch import get_arch
+from tasks.libs.types.arch import Arch
 
 try:
     from termcolor import colored
@@ -136,7 +136,7 @@ def collect_verification_stats(
 
     ctx.run("go build -tags linux_bpf pkg/ebpf/verifier/calculator/main.go")
 
-    arch = get_arch("local")
+    arch = Arch.local()
     env = {"DD_SYSTEM_PROBE_BPF_DIR": f"./{get_ebpf_build_dir(arch)}"}
 
     # ensure all files are object files

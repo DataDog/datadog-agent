@@ -16,7 +16,7 @@ from tasks.kernel_matrix_testing.platforms import filter_by_ci_component, get_pl
 from tasks.kernel_matrix_testing.stacks import check_and_get_stack, create_stack, stack_exists
 from tasks.kernel_matrix_testing.tool import Exit, ask, convert_kmt_arch_or_local, info, warn
 from tasks.kernel_matrix_testing.vars import KMT_SUPPORTED_ARCHS, VMCONFIG
-from tasks.libs.types.arch import ARCH_AMD64, ARCH_ARM64, get_arch
+from tasks.libs.types.arch import ARCH_AMD64, ARCH_ARM64, Arch
 
 if TYPE_CHECKING:
     from tasks.kernel_matrix_testing.types import (  # noqa: F401
@@ -274,7 +274,7 @@ def normalize_vm_def(possible: list[str], vm: str) -> VMDef:
     recipe, version, arch = vm_def.split('-')
 
     if arch != local_arch:
-        arch = get_arch(arch).kmt_arch
+        arch = Arch.from_str(arch).kmt_arch
 
     if recipe == "distro":
         version = get_distribution_mappings()[version]
@@ -323,7 +323,7 @@ def get_kernel_config(
         return get_custom_kernel_config(version, arch)
 
     if arch == "local":
-        arch = get_arch("local").kmt_arch
+        arch = Arch.local().kmt_arch
 
     url_base = platforms["url_base"]
     platinfo = platforms[arch][version]
@@ -724,7 +724,7 @@ def gen_config(
 
     arch_ls: list[KMTArchName] = KMT_SUPPORTED_ARCHS
     if arch != "":
-        arch_ls = [get_arch(arch).kmt_arch]
+        arch_ls = [Arch.from_str(arch).kmt_arch]
 
     vms_to_generate = list_all_distro_normalized_vms(arch_ls, template)
     vm_config = generate_vmconfig(

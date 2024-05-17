@@ -9,7 +9,7 @@ from invoke.context import Context
 from tasks.kernel_matrix_testing.platforms import get_platforms
 from tasks.kernel_matrix_testing.tool import error, get_binary_target_arch, info, warn
 from tasks.kernel_matrix_testing.vars import KMT_SUPPORTED_ARCHS, KMTPaths
-from tasks.libs.types.arch import ARCH_AMD64, ARCH_ARM64, get_arch
+from tasks.libs.types.arch import ARCH_AMD64, ARCH_ARM64, Arch
 from tasks.system_probe import get_ebpf_build_dir
 
 if TYPE_CHECKING:
@@ -55,7 +55,7 @@ def selftest_platforms_json(ctx: Context, _: bool) -> SelftestResult:
 def selftest_prepare(ctx: Context, _: bool, component: Component, cross_compile: bool) -> SelftestResult:
     """Ensures that we can run kmt.prepare for a given component."""
     stack = f"selftest-prepare-{component}-xbuild{cross_compile}"
-    arch = get_arch("local")
+    arch = Arch.local()
     target = arch
     if cross_compile:
         if target == ARCH_AMD64:

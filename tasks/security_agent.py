@@ -29,7 +29,7 @@ from tasks.libs.common.utils import (
     get_gopath,
     get_version,
 )
-from tasks.libs.types.arch import ARCH_AMD64, ARCH_I386, Arch, get_arch
+from tasks.libs.types.arch import ARCH_AMD64, ARCH_I386, Arch
 from tasks.process_agent import TempDir
 from tasks.system_probe import (
     CURRENT_ARCH,
@@ -327,7 +327,7 @@ def create_dir_if_needed(dir):
 
 @task
 def build_embed_syscall_tester(ctx, arch: str | Arch = CURRENT_ARCH, static=True):
-    arch = get_arch(arch)
+    arch = Arch.from_str(arch)
     check_for_ninja(ctx)
     build_dir = os.path.join("pkg", "security", "tests", "syscall_tester", "bin")
     go_dir = os.path.join("pkg", "security", "tests", "syscall_tester", "go")
@@ -377,7 +377,7 @@ def build_functional_tests(
             )
         build_embed_syscall_tester(ctx)
 
-    arch = get_arch(arch)
+    arch = Arch.from_str(arch)
     ldflags, gcflags, env = get_build_flags(ctx, major_version=major_version, static=static, arch=arch)
 
     env["CGO_ENABLED"] = "1"

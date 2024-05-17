@@ -10,7 +10,7 @@ from tasks.kernel_matrix_testing.platforms import get_platforms
 from tasks.kernel_matrix_testing.tool import Exit, debug, info, warn
 from tasks.kernel_matrix_testing.vars import KMT_SUPPORTED_ARCHS
 from tasks.kernel_matrix_testing.vmconfig import get_vmconfig_template
-from tasks.libs.types.arch import get_arch
+from tasks.libs.types.arch import Arch
 
 if TYPE_CHECKING:
     from tasks.kernel_matrix_testing.types import KMTArchName, PathOrStr
@@ -54,7 +54,7 @@ def download_rootfs(
     url_base = platforms["url_base"]
 
     if arch is None:
-        arch = get_arch("local").kmt_arch
+        arch = Arch.local().kmt_arch
     to_download: list[str] = list()
     file_ls: list[str] = list()
     branch_mapping: dict[str, str] = dict()
@@ -176,6 +176,6 @@ def update_rootfs(
             info(f"[+] Updating root filesystem for {arch}")
             download_rootfs(ctx, rootfs_dir, vmconfig_template, arch, images)
     else:
-        download_rootfs(ctx, rootfs_dir, vmconfig_template, get_arch("local").kmt_arch, images)
+        download_rootfs(ctx, rootfs_dir, vmconfig_template, Arch.local().kmt_arch, images)
 
     info("[+] Root filesystem and bootables images updated")

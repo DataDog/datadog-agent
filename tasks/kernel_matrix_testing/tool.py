@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING
 import invoke.exceptions as ie
 from invoke.context import Context
 
-from tasks.libs.types.arch import Arch, get_arch
+from tasks.libs.types.arch import Arch
 
 if TYPE_CHECKING:
     from tasks.kernel_matrix_testing.types import KMTArchName, KMTArchNameOrLocal, PathOrStr
@@ -67,7 +67,7 @@ def get_binary_target_arch(ctx: Context, file: PathOrStr) -> Arch | None:
     words = [x.strip(",.") for x in res.stdout.split(" ")]
     for word in words:
         try:
-            return get_arch(word)
+            return Arch.from_str(word)
         except KeyError:
             pass
 
@@ -76,5 +76,5 @@ def get_binary_target_arch(ctx: Context, file: PathOrStr) -> Arch | None:
 
 def convert_kmt_arch_or_local(arch: KMTArchNameOrLocal) -> KMTArchName:
     if arch == "local":
-        return get_arch("local").kmt_arch
+        return Arch.local().kmt_arch
     return arch

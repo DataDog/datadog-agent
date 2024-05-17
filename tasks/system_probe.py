@@ -35,7 +35,7 @@ from tasks.libs.common.utils import (
     get_version_numeric_only,
     parse_kernel_version,
 )
-from tasks.libs.types.arch import ALL_ARCHS, Arch, get_arch
+from tasks.libs.types.arch import ALL_ARCHS, Arch
 from tasks.windows_resources import MESSAGESTRINGS_MC_PATH
 
 BIN_DIR = os.path.join(".", "bin", "system-probe")
@@ -502,7 +502,7 @@ def ninja_generate(
     kernel_release: str | None = None,
     with_unit_test=False,
 ):
-    arch = get_arch(arch)
+    arch = Arch.from_str(arch)
     build_dir = get_ebpf_build_dir(arch)
     co_re_build_dir = os.path.join(build_dir, "co-re")
 
@@ -624,7 +624,7 @@ def build_sysprobe_binary(
             bundle=BUNDLED_AGENTS[AgentFlavor.base] + ["system-probe"],
         )
 
-    arch_obj = get_arch(arch)
+    arch_obj = Arch.from_str(arch)
 
     ldflags, gcflags, env = get_build_flags(
         ctx, install_path=install_path, major_version=major_version, python_runtimes=python_runtimes, arch=arch_obj
@@ -1080,7 +1080,7 @@ def get_kernel_arch() -> Arch:
         .strip()
     )
 
-    return get_arch(kernel_arch)
+    return Arch.from_str(kernel_arch)
 
 
 def get_linux_header_dirs(
@@ -1094,7 +1094,7 @@ def get_linux_header_dirs(
     kernel_release_vers = parse_kernel_version(kernel_release)
 
     if arch is None:
-        arch = get_arch("local")
+        arch = Arch.local()
 
     kernels_path = Path("/usr/src/kernels")
     usr_src_path = Path("/usr/src")
@@ -1182,7 +1182,7 @@ def print_linux_include_paths(_: Context, arch: str | None = None):
     """
     Print the result of the linux header directories discovery. Useful for debugging the build process.
     """
-    paths = get_linux_header_dirs(arch=get_arch(arch or "local"))
+    paths = get_linux_header_dirs(arch=Arch.from_str(arch or "local"))
     print("\n".join(str(p) for p in paths))
 
 
@@ -1311,7 +1311,7 @@ def setup_runtime_clang(
     sudo = "sudo" if not is_root() and needs_sudo else ""
 
     if arch is None:
-        arch = get_arch("local")
+        arch = Arch.local()
 
     clang_bpf_path = target_dir / "clang-bpf"
     llc_bpf_path = target_dir / "llc-bpf"
@@ -1378,7 +1378,7 @@ def build_object_files(
     with_unit_test=False,
     instrument_trampoline=False,
 ) -> None:
-    arch_obj = get_arch(arch)
+    arch_obj = Arch.from_str(arch)
     build_dir = get_ebpf_build_dir(arch_obj)
     runtime_dir = get_ebpf_runtime_dir()
 
@@ -1471,7 +1471,7 @@ def build_cws_object_files(
     if bundle_ebpf:
         # If we're bundling eBPF files, we need to copy the ebpf files to the right location,
         # as we cannot use the go:embed directive with variables that depend on the build architecture
-        arch = get_arch(arch)
+        arch = Arch.from_str(arch)
         ebpf_build_dir = get_ebpf_build_dir(arch)
 
         # Parse the files to copy from the go:embed directive, to avoid having duplicate places
@@ -1951,7 +1951,7 @@ def save_build_outputs(ctx, destfile):
 
 def copy_ebpf_and_related_files(ctx: Context, target: Path | str, arch: Arch | None = None, copy_usm_jar: bool = True):
     if arch is None:
-        arch = get_arch("local")
+        arch = Arch.local()
 
     build_dir = get_ebpf_build_dir(arch)
     runtime_dir = get_ebpf_runtime_dir()

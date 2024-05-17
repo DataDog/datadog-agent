@@ -9,7 +9,7 @@ from invoke.context import Context
 from invoke.runners import Result
 
 from tasks.kernel_matrix_testing.tool import info, warn
-from tasks.libs.types.arch import ARCH_AMD64, ARCH_ARM64, Arch, get_arch
+from tasks.libs.types.arch import ARCH_AMD64, ARCH_ARM64, Arch
 from tasks.pipeline import GitlabYamlLoader
 
 if TYPE_CHECKING:
@@ -152,4 +152,4 @@ class CompilerImage:
 
 
 def get_compiler(ctx: Context, arch: str | Arch):
-    return CompilerImage(ctx, get_arch(arch))
+    return CompilerImage(ctx, Arch.from_str(arch))
