@@ -136,7 +136,7 @@ func TestCPUCheckLinuxTwoRunsOk(t *testing.T) {
 	m.AssertExpectations(t)
 }
 
-func TestCPUCheckErrorInInstanceConfig(t *testing.T) {
+func TestCPUCheckLinuxErrorInInstanceConfig(t *testing.T) {
 	cpuCheck := createCheck()
 	m := mocksender.NewMockSender(cpuCheck.ID())
 
@@ -145,7 +145,7 @@ func TestCPUCheckErrorInInstanceConfig(t *testing.T) {
 	assert.NotNil(t, err)
 }
 
-func TestCPUCheckErrorInCpuInfo(t *testing.T) {
+func TestCPUCheckLinuxErrorInCpuInfo(t *testing.T) {
 	cpuInfoError := errors.New("cpu.Check: could not query CPU info")
 	cpuInfoFunc = func() ([]cpu.InfoStat, error) {
 		return nil, cpuInfoError
@@ -158,7 +158,7 @@ func TestCPUCheckErrorInCpuInfo(t *testing.T) {
 	assert.Equal(t, cpuInfoError, err)
 }
 
-func TestCPUCheckErrorStoppedSender(t *testing.T) {
+func TestCPUCheckLinuxErrorStoppedSender(t *testing.T) {
 	stoppedSenderError := errors.New("demultiplexer is stopped")
 	cpuInfoFunc = func() ([]cpu.InfoStat, error) {
 		return cpuInfo, nil
@@ -173,7 +173,7 @@ func TestCPUCheckErrorStoppedSender(t *testing.T) {
 	assert.Equal(t, stoppedSenderError, err)
 }
 
-func TestCPUCheckErrorProcFsPathNoExists(t *testing.T) {
+func TestCPUCheckLinuxErrorProcFsPathNoExists(t *testing.T) {
 	config.Datadog.SetDefault("procfs_path", "/tmp")
 	cpuInfoFunc = func() ([]cpu.InfoStat, error) {
 		return cpuInfo, nil
@@ -194,7 +194,7 @@ func TestCPUCheckErrorProcFsPathNoExists(t *testing.T) {
 	m.AssertNumberOfCalls(t, metrics.MonotonicCountType.String(), 0)
 }
 
-func TestCPUCheckErrorProcFsPathEmptyFile(t *testing.T) {
+func TestCPUCheckLinuxErrorProcFsPathEmptyFile(t *testing.T) {
 	tempFilePath := filepath.Join(os.TempDir(), "stat")
 	tempFile, err := os.Create(tempFilePath)
 	if err != nil {
@@ -221,7 +221,7 @@ func TestCPUCheckErrorProcFsPathEmptyFile(t *testing.T) {
 	m.AssertNumberOfCalls(t, metrics.MonotonicCountType.String(), 0)
 }
 
-func TestCPUCheckErrorProcFsPathWrongFormat(t *testing.T) {
+func TestCPUCheckLinuxErrorProcFsPathWrongFormat(t *testing.T) {
 	tempFilePath := filepath.Join(os.TempDir(), "stat")
 	tempFile, err := os.Create(tempFilePath)
 	if err != nil {
@@ -252,7 +252,7 @@ func TestCPUCheckErrorProcFsPathWrongFormat(t *testing.T) {
 	m.AssertNumberOfCalls(t, metrics.MonotonicCountType.String(), 0)
 }
 
-func TestCPUCheckErrorInCpuTimes(t *testing.T) {
+func TestCPUCheckLinuxErrorInCpuTimes(t *testing.T) {
 	cpuTimesError := errors.New("cpu Times error")
 	cpuInfoFunc = func() ([]cpu.InfoStat, error) {
 		return cpuInfo, nil
@@ -269,7 +269,7 @@ func TestCPUCheckErrorInCpuTimes(t *testing.T) {
 	assert.Equal(t, cpuTimesError, err)
 }
 
-func TestCPUCheckEmptyCpuTimes(t *testing.T) {
+func TestCPUCheckLinuxEmptyCpuTimes(t *testing.T) {
 	expectedError := errors.New("no cpu stats retrieve (empty results)")
 	cpuInfoFunc = func() ([]cpu.InfoStat, error) {
 		return cpuInfo, nil
