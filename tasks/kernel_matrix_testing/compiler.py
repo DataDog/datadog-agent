@@ -76,9 +76,8 @@ class CompilerImage:
         if self.is_running:
             self.stop()
 
-        # docker images command does not fail if the image is not found, so we need to grep the output
-        # to get an error exit code
-        res = self.ctx.run(f"docker images {self.image} | grep {self.image}", hide=True, warn=True)
+        # Check if the image exists
+        res = self.ctx.run(f"docker image inspect {self.image}", hide=True, warn=True)
         if res is None or not res.ok:
             info(f"[!] Image {self.image} not found, logging in and pulling...")
             self.ctx.run(
