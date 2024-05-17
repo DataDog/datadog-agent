@@ -8,6 +8,7 @@
 package npcollectorimpl
 
 import (
+	model "github.com/DataDog/agent-payload/v5/process"
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -20,7 +21,15 @@ func MockModule() fxutil.Module {
 	)
 }
 
+type npCollectorMock struct{}
+
+func (s *npCollectorMock) ScheduleConns(_ []*model.Connection) {
+	panic("implement me")
+}
+
 func newMock() provides {
 	// Mock initialization
-	return provides{}
+	return provides{
+		Comp: &npCollectorMock{},
+	}
 }

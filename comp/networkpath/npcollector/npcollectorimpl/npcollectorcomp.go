@@ -6,6 +6,8 @@
 package npcollectorimpl
 
 import (
+	"context"
+
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
@@ -37,10 +39,27 @@ func Module() fxutil.Module {
 
 func newNpCollector(deps dependencies) provides {
 	var collector *npCollectorImpl
+
 	configs := newConfig(deps.AgentConfig)
 	if configs.networkPathCollectorEnabled() {
 		deps.Logger.Debugf("Network Path Collector enabled")
-		collector = newNpCollectorImpl(deps.EpForwarder, configs)
+		epForwarder, ok := deps.EpForwarder.Get()
+		if !ok {
+			deps.Logger.Errorf("Error getting EpForwarder")
+			collector = newNoopNpCollectorImpl()
+		} else {
+			collector = newNpCollectorImpl(epForwarder, configs, deps.Logger)
+			deps.Lc.Append(fx.Hook{
+				// No need for OnStart hook since NpCollector.Init() will be called by clients when needed.
+				OnStart: func(context.Context) error {
+					return collector.start()
+				},
+				OnStop: func(context.Context) error {
+					collector.stop()
+					return nil
+				},
+			})
+		}
 	} else {
 		deps.Logger.Debugf("Network Path Collector disabled")
 		collector = newNoopNpCollectorImpl()
