@@ -13,10 +13,10 @@ import (
 )
 
 const (
-	envSite                      = "DD_SITE"
-	envDDInstaller               = "DD_INSTALLER"
-	envInstallerPackages         = "DD_INSTALLER_PACKAGES"
-	envApmInstrumentationEnabled = "DD_APM_INSTRUMENTATION_ENABLED"
+	envSite                            = "DD_SITE"
+	envInstallerDefaultPackages        = "DD_INSTALLER_DEFAULT_PACKAGES"
+	envInstallerDefaultPackagesEnabled = "DD_INSTALLER_DEFAULT_PACKAGES_ENABLED"
+	envApmInstrumentationEnabled       = "DD_APM_INSTRUMENTATION_ENABLED"
 )
 
 // DefaultPackages resolves the default packages URLs to install based on the environment.
@@ -39,7 +39,7 @@ func DefaultPackages() []string {
 }
 
 func featureEnabled() bool {
-	return os.Getenv(envDDInstaller) == "true"
+	return os.Getenv(envInstallerDefaultPackagesEnabled) == "true"
 }
 
 func resolvePackageURLs(packages map[string]string) []string {
@@ -56,7 +56,7 @@ func resolvePackageURLs(packages map[string]string) []string {
 
 func parseForcedPackages() map[string]string {
 	var packages = make(map[string]string)
-	rawForcedPackages := os.Getenv(envInstallerPackages)
+	rawForcedPackages := os.Getenv(envInstallerDefaultPackages)
 	if rawForcedPackages == "" {
 		return packages
 	}
