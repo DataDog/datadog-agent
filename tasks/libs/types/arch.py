@@ -19,6 +19,7 @@ class Arch:
         gcc_arch: str,
         kernel_arch: str,
         kmt_arch: KMTArchName | None,
+        windows_arch: str,
         spellings: set[str],
     ):
         self.name = name
@@ -26,6 +27,7 @@ class Arch:
         self.spellings = spellings
         self.gcc_arch = gcc_arch
         self._kmt_arch: KMTArchName | None = kmt_arch
+        self.windows_arch = windows_arch
         self.kernel_arch = kernel_arch
 
     def is_cross_compiling(self) -> bool:
@@ -73,6 +75,7 @@ ARCH_ARM64 = Arch(
     gcc_arch="aarch64",
     kernel_arch="arm64",
     kmt_arch="arm64",
+    windows_arch="arm64",
     spellings={"arm64", "aarch64"},
 )
 ARCH_AMD64 = Arch(
@@ -81,10 +84,17 @@ ARCH_AMD64 = Arch(
     gcc_arch="x86_64",
     kernel_arch="x86",
     kmt_arch="x86_64",
+    windows_arch="x64",
     spellings={"amd64", "x86_64", "x64", "x86-64"},
 )
 ARCH_I386 = Arch(
-    name="i386", go_arch="386", gcc_arch="i386", kernel_arch="x86", kmt_arch=None, spellings={"386", "i386", "x86"}
+    name="i386",
+    go_arch="386",
+    gcc_arch="i386",
+    kernel_arch="x86",
+    kmt_arch=None,
+    windows_arch="x86",
+    spellings={"386", "i386", "x86"},
 )
 
 ALL_ARCHS = [ARCH_AMD64, ARCH_ARM64, ARCH_I386]
