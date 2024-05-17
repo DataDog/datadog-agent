@@ -653,6 +653,7 @@ def prepare(
         setup_runtime_clang(ctx, arch_obj, paths.tools)
 
         # Later on, we will copy these binaries to the target VMs
+        # We do not copy them to the same locations we do in CI, as here we want arch-specific paths
 
     if ci or compile_only:
         return
