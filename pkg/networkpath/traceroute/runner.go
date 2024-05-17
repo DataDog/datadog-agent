@@ -189,7 +189,7 @@ func (r *Runner) processResults(res *results.Results, hname string, destinationH
 			NetworkID: r.networkID,
 		},
 		Destination: payload.NetworkPathDestination{
-			Hostname:  destinationHost,
+			Hostname:  getDestinationHostname(destinationHost),
 			Port:      destinationPort,
 			IPAddress: destinationIP.String(),
 		},
@@ -302,22 +302,6 @@ func (r *Runner) processResults(res *results.Results, hname string, destinationH
 
 	log.Debugf("Traceroute path metadata payload: %+v", traceroutePath)
 	return traceroutePath, nil
-}
-
-func getHostname(ipAddr string) string {
-	// TODO: this reverse lookup appears to have some standard timeout that is relatively
-	// high. Consider switching to something where there is greater control.
-	currHost := ""
-	currHostList, _ := net.LookupAddr(ipAddr)
-	log.Debugf("Reverse DNS List: %+v", currHostList)
-
-	if len(currHostList) > 0 {
-		// TODO: Reverse DNS: Do we need to handle cases with multiple DNS being returned?
-		currHost = currHostList[0]
-	} else {
-		currHost = ipAddr
-	}
-	return currHost
 }
 
 func createGatewayLookup() (network.GatewayLookup, uint32, error) {

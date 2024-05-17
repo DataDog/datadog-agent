@@ -14,6 +14,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host"
@@ -73,6 +74,10 @@ func TestPackages(t *testing.T) {
 			suite := test.t(flavor, flavor.Architecture)
 			t.Run(suite.Name(), func(t *testing.T) {
 				t.Parallel()
+				// FIXME: Fedora currently has DNS issues
+				if flavor.Flavor == e2eos.Fedora {
+					flake.Mark(t)
+				}
 				opts := []awshost.ProvisionerOption{
 					awshost.WithEC2InstanceOptions(ec2.WithOSArch(flavor, flavor.Architecture)),
 					awshost.WithoutAgent(),
@@ -165,6 +170,9 @@ func (s *packageBaseSuite) RunInstallScript() {
 	require.NoError(s.T(), err)
 	s.Env().RemoteHost.MustExecute("sudo mkdir -p /etc/datadog-agent")
 	s.Env().RemoteHost.MustExecute(fmt.Sprintf("echo '%s' | sudo tee /etc/datadog-agent/datadog.yaml", string(rawDatadogConfig)))
+	_, err = s.Env().RemoteHost.Execute("sudo datadog-installer version")
+	// Right now the install script can fail installing the installer silently, so we need to do this check or it will fail later in a way that is hard to debug
+	require.NoErrorf(s.T(), err, "installer not properly installed. logs: \n%s\n%s", s.Env().RemoteHost.MustExecute("cat /tmp/datadog-installer-stdout.log"), s.Env().RemoteHost.MustExecute("cat /tmp/datadog-installer-stderr.log"))
 	s.Env().RemoteHost.MustExecute("sudo chown -R dd-agent:dd-agent /etc/datadog-agent")
 }
 
