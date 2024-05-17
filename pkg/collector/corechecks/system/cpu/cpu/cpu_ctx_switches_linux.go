@@ -41,7 +41,7 @@ func readCtxSwitches(procStatPath string) (ctxSwitches int64, err error) {
 	return 0, fmt.Errorf("could not find the context switches in stat file")
 }
 
-func (c *Check) collectCtxSwitches(sender sender.Sender) error {
+func collectCtxSwitches(sender sender.Sender) error {
 	procfsPath := "/proc"
 	if config.Datadog.IsSet("procfs_path") {
 		procfsPath = config.Datadog.GetString("procfs_path")
