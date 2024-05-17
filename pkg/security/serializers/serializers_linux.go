@@ -240,6 +240,8 @@ type ProcessSerializer struct {
 	IsExecExec bool `json:"is_exec_child,omitempty"`
 	// Process source
 	Source string `json:"source,omitempty"`
+	// List of syscalls captured to generate the event
+	Syscalls *SyscallsEventSerializer `json:"syscalls,omitempty"`
 }
 
 // FileEventSerializer serializes a file event to JSON
@@ -461,6 +463,17 @@ type AnomalyDetectionSyscallEventSerializer struct {
 	Syscall string `json:"syscall"`
 }
 
+// SyscallSerializer serializes a syscall
+type SyscallSerializer struct {
+	// Name of the syscall
+	Name string `json:"name"`
+	// ID of the syscall in the host architecture
+	ID int `json:"id"`
+}
+
+// SyscallsEventSerializer serializes the syscalls from a syscalls event
+type SyscallsEventSerializer []SyscallSerializer
+
 // EventSerializer serializes an event to JSON
 // easyjson:json
 type EventSerializer struct {
@@ -482,6 +495,7 @@ type EventSerializer struct {
 	*BindEventSerializer                    `json:"bind,omitempty"`
 	*MountEventSerializer                   `json:"mount,omitempty"`
 	*AnomalyDetectionSyscallEventSerializer `json:"anomaly_detection_syscall,omitempty"`
+	*SyscallsEventSerializer                `json:"syscalls,omitempty"`
 	*UserContextSerializer                  `json:"usr,omitempty"`
 }
 
@@ -489,6 +503,17 @@ func newAnomalyDetectionSyscallEventSerializer(e *model.AnomalyDetectionSyscallE
 	return &AnomalyDetectionSyscallEventSerializer{
 		Syscall: e.SyscallID.String(),
 	}
+}
+
+func newSyscallsEventSerializer(e *model.SyscallsEvent) *SyscallsEventSerializer {
+	ses := SyscallsEventSerializer{}
+	for _, s := range e.Syscalls {
+		ses = append(ses, SyscallSerializer{
+			ID:   int(s),
+			Name: s.String(),
+		})
+	}
+	return &ses
 }
 
 func getInUpperLayer(f *model.FileFields) *bool {
@@ -840,6 +865,11 @@ func newProcessContextSerializer(pc *model.ProcessContext, e *model.Event) *Proc
 		ProcessSerializer: newProcessSerializer(&pc.Process, e),
 	}
 
+	// add the syscalls from the event only for the top level parent
+	if e.GetEventType() == model.SyscallsEventType {
+		ps.Syscalls = newSyscallsEventSerializer(&e.Syscalls)
+	}
+
 	ctx := eval.NewContext(e)
 
 	it := &model.ProcessAncestorsIterator{}
@@ -1158,6 +1188,8 @@ func NewEventSerializer(event *model.Event, opts *eval.Opts) *EventSerializer {
 		s.BindEventSerializer = newBindEventSerializer(event)
 	case model.AnomalyDetectionSyscallEventType:
 		s.AnomalyDetectionSyscallEventSerializer = newAnomalyDetectionSyscallEventSerializer(&event.AnomalyDetectionSyscallEvent)
+	case model.SyscallsEventType:
+		s.SyscallsEventSerializer = newSyscallsEventSerializer(&event.Syscalls)
 	case model.DNSEventType:
 		s.EventContextSerializer.Outcome = serializeOutcome(0)
 		s.DNSEventSerializer = newDNSEventSerializer(&event.DNS)

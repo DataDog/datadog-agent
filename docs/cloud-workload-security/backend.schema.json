@@ -930,6 +930,10 @@
         "source": {
           "type": "string",
           "description": "Process source"
+        },
+        "syscalls": {
+          "$ref": "#/$defs/SyscallsEvent",
+          "description": "List of syscalls captured to generate the event"
         }
       },
       "additionalProperties": false,
@@ -1058,6 +1062,10 @@
         "source": {
           "type": "string",
           "description": "Process source"
+        },
+        "syscalls": {
+          "$ref": "#/$defs/SyscallsEvent",
+          "description": "List of syscalls captured to generate the event"
         },
         "parent": {
           "$ref": "#/$defs/Process",
@@ -1295,6 +1303,32 @@
       ],
       "description": "SpliceEventSerializer serializes a splice event to JSON"
     },
+    "Syscall": {
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Name of the syscall"
+        },
+        "id": {
+          "type": "integer",
+          "description": "ID of the syscall in the host architecture"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "name",
+        "id"
+      ],
+      "description": "SyscallSerializer serializes a syscall"
+    },
+    "SyscallsEvent": {
+      "items": {
+        "$ref": "#/$defs/Syscall"
+      },
+      "type": "array",
+      "description": "SyscallsEventSerializer serializes the syscalls from a syscalls event"
+    },
     "UserContext": {
       "properties": {
         "id": {
@@ -1425,6 +1459,9 @@
     },
     "anomaly_detection_syscall": {
       "$ref": "#/$defs/AnomalyDetectionSyscallEvent"
+    },
+    "syscalls": {
+      "$ref": "#/$defs/SyscallsEvent"
     },
     "usr": {
       "$ref": "#/$defs/UserContext"
