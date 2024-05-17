@@ -77,7 +77,7 @@ type WindowsProbe struct {
 	regPathResolver      *lru.Cache[regObjectPointer, string]
 
 	// state tracking
-	renamePreArgs *lru.Cache[fileObject, string]
+	renamePreArgs *lru.Cache[uint64, string]
 
 	// stats
 	stats stats
@@ -599,7 +599,8 @@ func (p *WindowsProbe) handleETWNotification(ev *model.Event, notif etwNotificat
 	case *rename29Args:
 		p.renamePreArgs.Add(uint64(arg.fileObject), arg.fileName)
 	case *renamePath:
-		if path, ok := p.renameArgs.Get(uint64(arg.fileObject)); !ok {
+		path, found := p.renamePreArgs.Get(uint64(arg.fileObject))
+		if !found {
 			log.Debugf("unable to find renamePreArgs for %d", uint64(arg.fileObject))
 			return
 		}
@@ -616,7 +617,7 @@ func (p *WindowsProbe) handleETWNotification(ev *model.Event, notif etwNotificat
 				BasenameStr: filepath.Base(arg.filePath),
 			},
 		}
-		p.renameArgs.Remove(uint64(arg.fileObject))
+		p.renamePreArgs.Remove(uint64(arg.fileObject))
 	case *setDeleteArgs:
 		ev.Type = uint32(model.DeleteFileEventType)
 		ev.DeleteFile = model.DeleteFileEvent{
@@ -868,7 +869,7 @@ func NewWindowsProbe(probe *Probe, config *config.Config, opts Opts) (*WindowsPr
 		return nil, err
 	}
 
-	rnc, err := lru.New[fileObject, string](5)
+	rnc, err := lru.New[uint64, string](5)
 	if err != nil {
 		return nil, err
 	}
