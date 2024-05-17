@@ -1088,6 +1088,18 @@ def get_linux_header_dirs(
     minimal_kernel_release: tuple[int, int, int] | None = None,
     arch: Arch | None = None,
 ) -> list[Path]:
+    """Return a list of paths to the linux header directories for the given parameters.
+
+    Raises ValueError if no kernel paths can be found
+
+    :param kernel_release: The kernel release to use. If not provided, the current kernel release is used.
+        If no headers are found for the given kernel release, the function will try to find the headers for
+        some common kernel releases.
+    :param minimal_kernel_release: The minimal kernel release to use. If provided, the function will discard
+        any headers that are older than the minimal kernel release.
+    :param arch: The architecture to use. If not provided, the current architecture is used. If no headers are
+        found for the given architecture, the function will try to find the headers for any architecture.
+    """
     if not kernel_release:
         os_info = os.uname()
         kernel_release = os_info.release
@@ -1096,20 +1108,31 @@ def get_linux_header_dirs(
     if arch is None:
         arch = Arch.local()
 
+    # Possible paths where the kernel headers can be found
     kernels_path = Path("/usr/src/kernels")
     usr_src_path = Path("/usr/src")
     lib_modules_path = Path("/lib/modules")
-    candidates: set[Path] = set()
 
-    if kernels_path.is_dir():  # Doesn't always exist. For the others we do want exceptions as they should exist
+    # Get all possible candidates, we will filter them later based on the criteria given
+    # by the arguments.
+    candidates: set[Path] = set()
+    if kernels_path.is_dir():
+        # /usr/src/kernels doesn't always exist, so we check first. The other paths
+        # are expected to exist, so we do want to raise an exception if they don't, as
+        # it's an unexpected situation.
         candidates.update(kernels_path.iterdir())
     candidates.update(d for d in usr_src_path.iterdir() if d.name.startswith("linux-"))
     candidates.update(lib_modules_path.glob("*/build"))
     candidates.update(lib_modules_path.glob("*/source"))
+
+    # Many of the candidates might be symlinks, resolve and de-duplicate
     candidates = {c.resolve() for c in candidates if c.is_dir()}
 
+    # Inspect the paths and compute a priority for each of them based on how well
+    # they match the restrictions given by our arguments.
+    # Also, maintain a sort order to ensure that headers are included in the right position.
     paths_with_priority_and_sort_order: list[tuple[int, int, Path]] = []
-    discarded_paths: list[tuple[str, Path]] = []
+    discarded_paths: list[tuple[str, Path]] = []  # Keep track of the discarded paths so we can debug failures
     for path in candidates:
         # Get the kernel name, discard when we cannot get a kernel version out of them
         candidate_kernel = path.name.removeprefix("linux-headers-").removeprefix("linux-kbuild-")
@@ -1121,6 +1144,8 @@ def get_linux_header_dirs(
 
         priority = 0
         sort_order = 100
+
+        # If the kernel version matches increase priority, this is the best match.
         if candidate_kernel_vers == kernel_release_vers:
             priority += 1
 
@@ -1139,7 +1164,7 @@ def get_linux_header_dirs(
         elif len(matching_kernel_archs) == 0:
             # If we find no match, assume it's a common path (e.g., -common folders in Debian)
             # which matches everything
-            sort_order = 1
+            sort_order = 1  # Common folders should be after arch-specific ones
             priority += 1
 
         # Don't add duplicates
