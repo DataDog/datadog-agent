@@ -29,6 +29,7 @@ var allSuites = []string{
 	"connectivity-datadog-autodiscovery",
 	"connectivity-datadog-core-endpoints",
 	"connectivity-datadog-event-platform",
+	"port-conflict",
 }
 
 // type summary represents the number of success, fail, warnings and errors of a diagnose command
