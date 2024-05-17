@@ -16,6 +16,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/DataDog/datadog-agent/pkg/fleet/env"
 	"github.com/DataDog/datadog-agent/pkg/fleet/internal/fixtures"
 	oci "github.com/google/go-containerregistry/pkg/v1"
 )
@@ -31,11 +32,7 @@ func newTestDownloadServer(t *testing.T) *testDownloadServer {
 }
 
 func (s *testDownloadServer) Downloader() *Downloader {
-	return NewDownloader(s.Client(), "", RegistryAuthDefault)
-}
-
-func (s *testDownloadServer) DownloaderRegistryOverride() *Downloader {
-	return NewDownloader(s.Client(), "my.super/registry", RegistryAuthDefault)
+	return NewDownloader(&env.Env{}, s.Client())
 }
 
 func (s *testDownloadServer) Image(f fixtures.Fixture) oci.Image {
@@ -97,51 +94,4 @@ func TestDownloadPlatformNotAvailable(t *testing.T) {
 	pkg := s.PackageURL(fixtures.FixtureSimpleV1Linux2Amd128)
 	_, err := d.Download(context.Background(), pkg)
 	assert.Error(t, err)
-}
-
-func TestDownloadRegistryWithOverride(t *testing.T) {
-	s := newTestDownloadServer(t)
-	defer s.Close()
-	d := s.DownloaderRegistryOverride()
-
-	_, err := d.Download(context.Background(), s.PackageURL(fixtures.FixtureSimpleV1))
-	assert.Error(t, err) // Host not found
-}
-
-func TestGetRegistryURL(t *testing.T) {
-	s := newTestDownloadServer(t)
-	defer s.Close()
-
-	testURL := s.URL() + "/simple@sha256:2aaf415ad1bd66fd9ba5214603c7fb27ef2eb595baf21222cde22846e02aab4d"
-
-	d := s.Downloader()
-	url := d.getRegistryURL(testURL)
-	assert.Equal(t, s.URL()+"/simple@sha256:2aaf415ad1bd66fd9ba5214603c7fb27ef2eb595baf21222cde22846e02aab4d", url)
-
-	d = s.DownloaderRegistryOverride()
-	url = d.getRegistryURL(testURL)
-	assert.Equal(t, "my.super/registry/simple@sha256:2aaf415ad1bd66fd9ba5214603c7fb27ef2eb595baf21222cde22846e02aab4d", url)
-}
-
-func TestPackageURL(t *testing.T) {
-	type test struct {
-		site     string
-		pkg      string
-		version  string
-		expected string
-	}
-
-	tests := []test{
-		{site: "datad0g.com", pkg: "datadog-agent", version: "latest", expected: "oci://docker.io/datadog/agent-package-dev:latest"},
-		{site: "datadoghq.com", pkg: "datadog-agent", version: "1.2.3", expected: "oci://gcr.io/datadoghq/agent-package:1.2.3"},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.site, func(t *testing.T) {
-			actual := PackageURL(tt.site, tt.pkg, tt.version)
-			if actual != tt.expected {
-				t.Errorf("expected %s, got %s", tt.expected, actual)
-			}
-		})
-	}
 }
