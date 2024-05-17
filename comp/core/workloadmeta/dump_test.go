@@ -9,11 +9,12 @@ import (
 	"context"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"go.uber.org/fx"
+
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/stretchr/testify/assert"
-	"go.uber.org/fx"
 )
 
 func TestDump(t *testing.T) {
@@ -59,7 +60,8 @@ func TestDump(t *testing.T) {
 		Image: ContainerImage{
 			Tag: "latest",
 		},
-		PID: 1,
+		PID:         1,
+		Snapshotter: "overlayfs",
 	}
 
 	s.handleEvents([]CollectorEvent{
@@ -134,6 +136,7 @@ Allowed env variables: DD_SERVICE:my-svc DD_ENV:prod DD_VERSION:v1
 Hostname: 
 Network IPs: 
 PID: 0
+Snapshotter:
 `,
 					"source:source2 id: ctr-id": `----------- Entity ID -----------
 Kind: container ID: ctr-id
@@ -163,6 +166,7 @@ Allowed env variables:
 Hostname: 
 Network IPs: 
 PID: 1
+Snapshotter: overlayfs
 `,
 					"sources(merged):[source1 source2] id: ctr-id": `----------- Entity ID -----------
 Kind: container ID: ctr-id
@@ -192,6 +196,7 @@ Allowed env variables: DD_SERVICE:my-svc DD_ENV:prod DD_VERSION:v1
 Hostname: 
 Network IPs: 
 PID: 1
+Snapshotter: overlayfs
 `,
 				},
 			},

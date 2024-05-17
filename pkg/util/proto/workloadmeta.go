@@ -107,6 +107,7 @@ func protoContainerFromWorkloadmetaContainer(container *workloadmeta.Container) 
 		Runtime:       protoRuntime,
 		State:         protoContainerState,
 		CollectorTags: container.CollectorTags,
+		Snapshotter:   container.Snapshotter,
 	}, nil
 }
 
@@ -557,6 +558,7 @@ func toWorkloadmetaContainer(protoContainer *pb.Container) (*workloadmeta.Contai
 		Runtime:       runtime,
 		State:         state,
 		CollectorTags: protoContainer.CollectorTags,
+		Snapshotter:   protoContainer.Snapshotter,
 	}, nil
 }
 

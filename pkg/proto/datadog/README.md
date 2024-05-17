@@ -1,10 +1,10 @@
-## gRPC: Protobuf and Gateway code generation 
+## gRPC: Protobuf and Gateway code generation
 
 To generate the code for the API you have defined in your `.proto`
-files we will need three different grpc-related packages: 
+files we will need three different grpc-related packages:
 
 - protobuf - protoc-gen-go: generates the golang protobuf definitions.
-- grpc-gateway - protoc-gen-grpc-gateway: generates the gRPC-REST gateway  
+- grpc-gateway - protoc-gen-grpc-gateway: generates the gRPC-REST gateway
 - grpc-gateway - protoc-gen-swagger (optional)
 
 ### Install
@@ -30,7 +30,7 @@ protoc -I. --grpc-gateway_out=logtostderr=true,paths=source_relative:. api.proto
 ```
 
 Those two will generate the protobuf golang definitions _and_ the
-gRPC gateway code that will allow us to serve the API also as a 
+gRPC gateway code that will allow us to serve the API also as a
 REST application.
 
 
@@ -38,8 +38,8 @@ REST application.
 
 At the time of this writing we had been using the dev branch for
 all the grpc projects we pull binaries for when we [install](#install)
-as we had been experiencing some issues with prior versions (ie. 1.12.2). 
+as we had been experiencing some issues with prior versions (ie. 1.12.2).
 
 This should probably be formally addressed such that the versions
-of the packages tracked by gomod is the same we pull for the 
+of the packages tracked by gomod is the same we pull for the
 binaries. This should be part of the bootstrapping steps.

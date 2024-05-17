@@ -315,9 +315,10 @@ func (c *collector) buildCollectorEvent(ctx context.Context, ev *docker.Containe
 				FinishedAt: finishedAt,
 				CreatedAt:  createdAt,
 			},
-			NetworkIPs: extractNetworkIPs(container.NetworkSettings.Networks),
-			Hostname:   container.Config.Hostname,
-			PID:        container.State.Pid,
+			NetworkIPs:  extractNetworkIPs(container.NetworkSettings.Networks),
+			Hostname:    container.Config.Hostname,
+			PID:         container.State.Pid,
+			Snapshotter: container.GraphDriver.Name,
 		}
 
 	case events.ActionDie, docker.ActionDied:

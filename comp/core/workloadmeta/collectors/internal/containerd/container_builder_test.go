@@ -106,6 +106,7 @@ func TestBuildWorkloadMetaContainer(t *testing.T) {
 				Runtime: containers.RuntimeInfo{
 					Name: "io.containerd.kata-qemu.v2",
 				},
+				Snapshotter: "overlayfs",
 			}, nil
 		},
 		MockSpec: func(namespace string, ctn containers.Container) (*oci.Spec, error) {
@@ -172,9 +173,10 @@ func TestBuildWorkloadMetaContainer(t *testing.T) {
 			CreatedAt:  createdAt,
 			FinishedAt: time.Time{}, // Not available
 		},
-		NetworkIPs: make(map[string]string), // Not available
-		Hostname:   hostName,
-		PID:        0, // Not available
+		NetworkIPs:  make(map[string]string), // Not available
+		Hostname:    hostName,
+		PID:         0, // Not available
+		Snapshotter: "overlayfs",
 	}
 	assert.Equal(t, expected, result)
 }

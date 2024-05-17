@@ -522,6 +522,7 @@ type Container struct {
 	Owner           *EntityID
 	SecurityContext *ContainerSecurityContext
 	Resources       ContainerResources
+	Snapshotter     string
 }
 
 // GetID implements Entity#GetID.
@@ -575,6 +576,7 @@ func (c Container) String(verbose bool) string {
 		_, _ = fmt.Fprintln(&sb, "Hostname:", c.Hostname)
 		_, _ = fmt.Fprintln(&sb, "Network IPs:", mapToString(c.NetworkIPs))
 		_, _ = fmt.Fprintln(&sb, "PID:", c.PID)
+		_, _ = fmt.Fprintln(&sb, "Snapshotter:", c.Snapshotter)
 	}
 
 	if len(c.Ports) > 0 && verbose {

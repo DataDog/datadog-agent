@@ -117,8 +117,9 @@ func buildWorkloadMetaContainer(namespace string, container containerd.Container
 			StartedAt:  info.CreatedAt, // StartedAt not available in containerd, mapped to CreatedAt
 			FinishedAt: time.Time{},    // Not available
 		},
-		NetworkIPs: networkIPs,
-		PID:        0, // Not available
+		NetworkIPs:  networkIPs,
+		PID:         0, // Not available
+		Snapshotter: info.Snapshotter,
 	}
 
 	// Spec retrieval is slow if large due to JSON parsing
