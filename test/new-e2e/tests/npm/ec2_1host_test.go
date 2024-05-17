@@ -36,10 +36,9 @@ func hostDockerHttpbinEnvProvisioner(opt ...awshost.ProvisionerOption) e2e.Pulum
 		if err != nil {
 			return err
 		}
-		env.Host.AwsEnvironment = &awsEnv
-
 		opts := []awshost.ProvisionerOption{
 			awshost.WithAgentOptions(agentparams.WithSystemProbeConfig(systemProbeConfigNPM)),
+			awshost.WithAwsEnvironment(&awsEnv),
 		}
 		if len(opt) > 0 {
 			opts = append(opts, opt...)
