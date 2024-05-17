@@ -600,7 +600,7 @@ func (p *WindowsProbe) handleETWNotification(ev *model.Event, notif etwNotificat
 		p.renamePreArgs.Add(uint64(arg.fileObject), arg.fileName)
 	case *renamePath:
 		path, found := p.renamePreArgs.Get(uint64(arg.fileObject))
-		if !found {
+		if !found {
 			log.Debugf("unable to find renamePreArgs for %d", uint64(arg.fileObject))
 			return
 		}
