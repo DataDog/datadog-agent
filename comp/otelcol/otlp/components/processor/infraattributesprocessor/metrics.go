@@ -19,13 +19,13 @@ import (
 )
 
 type infraAttributesMetricProcessor struct {
-	logger *zap.Logger
+	logger      *zap.Logger
 	cardinality types.TagCardinality
 }
 
-func newInfraAttributesMetricProcessor(set processor.CreateSettings, _ *Config) (*infraAttributesMetricProcessor, error) {
+func newInfraAttributesMetricProcessor(set processor.CreateSettings, cfg *Config) (*infraAttributesMetricProcessor, error) {
 	tesp := &infraAttributesMetricProcessor{
-		logger: set.Logger,
+		logger:      set.Logger,
 		cardinality: cfg.Cardinality,
 	}
 	set.Logger.Info("Metric Tag Enrichment configured")
