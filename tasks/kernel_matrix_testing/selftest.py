@@ -10,6 +10,7 @@ from tasks.kernel_matrix_testing.platforms import get_platforms
 from tasks.kernel_matrix_testing.tool import error, get_binary_target_arch, info, warn
 from tasks.kernel_matrix_testing.vars import KMT_SUPPORTED_ARCHS, KMTPaths
 from tasks.libs.types.arch import ARCH_AMD64, ARCH_ARM64, get_arch
+from tasks.system_probe import get_ebpf_build_dir
 
 if TYPE_CHECKING:
     from tasks.kernel_matrix_testing.types import Component
@@ -76,15 +77,24 @@ def selftest_prepare(ctx: Context, _: bool, component: Component, cross_compile:
     if res is None or not res.ok:
         return False, "Cannot run inv -e kmt.prepare"
 
-    paths = KMTPaths(stack, arch)
+    paths = KMTPaths(f"{stack}-ddvm", target)
     testpath = paths.secagent_tests if component == "security-agent" else paths.sysprobe_tests
     if not testpath.is_dir():
         return False, f"Tests directory {testpath} not found"
 
-    bytecode_dir = testpath / "pkg" / "ebpf" / "bytecode" / "build"
+    bytecode_dir = testpath / get_ebpf_build_dir(target)
     object_files = list(bytecode_dir.glob("*.o"))
     if len(object_files) == 0:
         return False, f"No object files found in {bytecode_dir}"
+
+    runtime_dir = bytecode_dir / "runtime"
+    runtime_files = list(runtime_dir.glob("*.c"))
+    if len(runtime_files) == 0:
+        return False, f"No runtime files found in {runtime_dir}"
+
+    for f in runtime_files:
+        if f.parent.name != "runtime":
+            return False, f"Runtime file {f} is not in runtime directory"
 
     if component == "security-agent":
         test_binary = testpath / "pkg" / "security" / "testsuite"
@@ -137,8 +147,14 @@ def selftest(ctx: Context, allow_infra_changes: bool = False, filter: str | None
         ("platforms.json", selftest_platforms_json),
         ("sysprobe-prepare", functools.partial(selftest_prepare, component="system-probe", cross_compile=False)),
         ("secagent-prepare", functools.partial(selftest_prepare, component="security-agent", cross_compile=False)),
-        ("sysprobe x-compile", functools.partial(selftest_prepare, component="system-probe", cross_compile=True)),
-        ("secagent x-compile", functools.partial(selftest_prepare, component="security-agent", cross_compile=True)),
+        (
+            "sysprobe-prepare x-compile",
+            functools.partial(selftest_prepare, component="system-probe", cross_compile=True),
+        ),
+        (
+            "secagent-prepare x-compile",
+            functools.partial(selftest_prepare, component="security-agent", cross_compile=True),
+        ),
         ("multiarch test", selftest_multiarch_test),
     ]
     results: list[tuple[str, SelftestResult]] = []

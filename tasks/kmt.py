@@ -500,24 +500,23 @@ def ninja_copy_ebpf_files(
     arch: Arch,
     filter_fn: Callable[[Path], bool] = lambda _: True,
 ):
-    # copy ebpf files
-    build_dir = get_ebpf_build_dir(arch)
-    runtime_dir = get_ebpf_runtime_dir()
+    # copy ebpf files from build and runtime dirs
+    build_dir = get_ebpf_build_dir(arch).absolute()
+    runtime_dir = get_ebpf_runtime_dir().absolute()
 
-    candidates = list(build_dir.glob("**/*.o")) + list(runtime_dir.glob("**/*.c"))
-    ebpf_files = [p.absolute() for p in candidates if p.is_file() and filter_fn(p)]
-
+    # Copy to the target directory, retaining the directory structure
     root = kmt_paths.secagent_tests if component == "security-agent" else kmt_paths.sysprobe_tests
-    output = root / build_dir
+    output = root / build_dir.relative_to(Path.cwd().absolute())
 
-    for file in ebpf_files:
-        # Ensure that runtime files are copied to the runtime directory of the arch-specific
-        # build folder, so that the tests can find them in the expected directory structure.
-        if file.parent.name == "runtime":
-            out = output / "runtime" / file.name
-        else:
-            out = output / file.name
-        nw.build(inputs=[os.fspath(file)], outputs=[os.fspath(out)], rule="copyfiles", variables={"mode": "-m744"})
+    def filter(x: Path):
+        return filter_fn(x) and x.is_file()
+
+    to_copy = [(p, output / p.relative_to(build_dir)) for p in build_dir.glob("**/*.o") if filter(p)]
+    to_copy += [(p, output / "runtime" / p.relative_to(runtime_dir)) for p in runtime_dir.glob("**/*.c") if filter(p)]
+
+    for source, target in to_copy:
+        print(f"WILL COPY {source} to {target}")
+        nw.build(inputs=[os.fspath(source)], outputs=[os.fspath(target)], rule="copyfiles", variables={"mode": "-m744"})
 
 
 @task
