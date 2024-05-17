@@ -83,7 +83,7 @@ extra_cflags = []
 
 
 def get_ebpf_build_dir(arch: Arch) -> Path:
-    return Path("pkg/ebpf/bytecode/build") / arch.name
+    return Path("pkg/ebpf/bytecode/build") / arch.gcc_arch
 
 
 def get_ebpf_runtime_dir() -> Path:
