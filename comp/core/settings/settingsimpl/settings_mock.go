@@ -13,7 +13,6 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/settings"
-	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -32,8 +31,8 @@ func newMock() settings.Component {
 }
 
 // RuntimeSettings returns all runtime configurable settings
-func (m mock) RuntimeSettings() settings.Settings {
-	return settings.Settings{}
+func (m mock) RuntimeSettings() map[string]settings.RuntimeSetting {
+	return map[string]settings.RuntimeSetting{}
 }
 
 // GetRuntimeSetting returns the value of a runtime configurable setting
@@ -47,7 +46,7 @@ func (m mock) SetRuntimeSetting(string, interface{}, model.Source) error {
 }
 
 // GetFullConfig returns the full config
-func (m mock) GetFullConfig(config.Config, ...string) http.HandlerFunc {
+func (m mock) GetFullConfig(...string) http.HandlerFunc {
 	return func(http.ResponseWriter, *http.Request) {}
 }
 

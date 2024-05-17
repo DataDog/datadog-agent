@@ -1,5 +1,4 @@
 import os
-import re
 import subprocess
 import sys
 from contextlib import contextmanager
@@ -8,7 +7,6 @@ from invoke import Context, task
 
 from tasks.libs.common.color import color_message
 
-FORBIDDEN_CODECOV_FLAG_CHARS = re.compile(r'[^\w\.\-]')
 AGENT_MODULE_PATH_PREFIX = "github.com/DataDog/datadog-agent/"
 
 
@@ -92,16 +90,6 @@ class GoModule:
 
         return [f"{self.path}/{self.__version(agent_version)}"]
 
-    def codecov_path(self):
-        """Return the path of the Go module, normalized to satisfy Codecov
-        restrictions on flags.
-        https://docs.codecov.com/docs/flags
-        """
-        if self.path == ".":
-            return "main"
-
-        return re.sub(FORBIDDEN_CODECOV_FLAG_CHARS, '_', self.path)
-
     def full_path(self):
         """Return the absolute path of the Go module."""
         return os.path.abspath(self.path)
@@ -177,11 +165,16 @@ DEFAULT_MODULES = {
     "comp/core/secrets": GoModule("comp/core/secrets", independent=True),
     "comp/core/status": GoModule("comp/core/status", independent=True),
     "comp/core/status/statusimpl": GoModule("comp/core/status/statusimpl", independent=True),
+    "comp/def": GoModule("comp/def", independent=True),
     "comp/serializer/compression": GoModule("comp/serializer/compression", independent=True),
     "comp/core/telemetry": GoModule("comp/core/telemetry", independent=True),
     "comp/forwarder/defaultforwarder": GoModule("comp/forwarder/defaultforwarder", independent=True),
     "comp/forwarder/orchestrator/orchestratorinterface": GoModule(
         "comp/forwarder/orchestrator/orchestratorinterface", independent=True
+    ),
+    "comp/otelcol/logsagentpipeline": GoModule("comp/otelcol/logsagentpipeline", independent=True),
+    "comp/otelcol/logsagentpipeline/logsagentpipelineimpl": GoModule(
+        "comp/otelcol/logsagentpipeline/logsagentpipelineimpl", independent=True
     ),
     "comp/otelcol/otlp/components/exporter/serializerexporter": GoModule(
         "comp/otelcol/otlp/components/exporter/serializerexporter", independent=True
@@ -189,7 +182,16 @@ DEFAULT_MODULES = {
     "comp/otelcol/otlp/components/exporter/logsagentexporter": GoModule(
         "comp/otelcol/otlp/components/exporter/logsagentexporter", independent=True
     ),
+    "comp/otelcol/otlp/components/exporter/datadogexporter": GoModule(
+        "comp/otelcol/otlp/components/exporter/datadogexporter", independent=True
+    ),
     "comp/otelcol/otlp/testutil": GoModule("comp/otelcol/otlp/testutil", independent=True),
+    "comp/otelcol/collector-contrib/def": GoModule(
+        "comp/otelcol/collector-contrib/def", independent=True, used_by_otel=True
+    ),
+    "comp/otelcol/collector-contrib/impl": GoModule(
+        "comp/otelcol/collector-contrib/impl", independent=True, used_by_otel=True
+    ),
     "comp/logs/agent/config": GoModule("comp/logs/agent/config", independent=True),
     "comp/netflow/payload": GoModule("comp/netflow/payload", independent=True),
     "cmd/agent/common/path": GoModule("cmd/agent/common/path", independent=True),

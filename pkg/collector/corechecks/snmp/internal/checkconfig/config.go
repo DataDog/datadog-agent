@@ -54,7 +54,9 @@ const defaultDetectMetricsRefreshInterval = 3600
 // subnetTagKey is the prefix used for subnet tag
 const subnetTagKey = "autodiscovery_subnet"
 const deviceNamespaceTagKey = "device_namespace"
-const deviceIPTagKey = "snmp_device"
+const snmpDeviceIPTagKey = "snmp_device"
+const deviceIPTagKey = "device_ip"
+const deviceIDTagKey = "device_id"
 
 // DefaultBulkMaxRepetitions is the default max rep
 // Using too high max repetitions might lead to tooBig SNMP error messages.
@@ -281,7 +283,12 @@ func (c *CheckConfig) GetStaticTags() []string {
 	tags := netutils.CopyStrings(c.ExtraTags)
 	tags = append(tags, deviceNamespaceTagKey+":"+c.Namespace)
 	if c.IPAddress != "" {
+		tags = append(tags, snmpDeviceIPTagKey+":"+c.IPAddress)
 		tags = append(tags, deviceIPTagKey+":"+c.IPAddress)
+	}
+
+	if c.DeviceID != "" {
+		tags = append(tags, deviceIDTagKey+":"+c.DeviceID)
 	}
 
 	if c.UseDeviceIDAsHostname {
@@ -309,7 +316,7 @@ func (c *CheckConfig) GetNetworkTags() []string {
 // getDeviceIDTags return sorted tags used for generating device id
 // warning: changing getDeviceIDTags logic might lead to different deviceID
 func (c *CheckConfig) getDeviceIDTags() []string {
-	tags := []string{deviceNamespaceTagKey + ":" + c.Namespace, deviceIPTagKey + ":" + c.IPAddress}
+	tags := []string{deviceNamespaceTagKey + ":" + c.Namespace, snmpDeviceIPTagKey + ":" + c.IPAddress}
 	sort.Strings(tags)
 	return tags
 }

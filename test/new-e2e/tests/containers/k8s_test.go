@@ -7,6 +7,7 @@ package containers
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"regexp"
 	"strings"
@@ -34,13 +35,14 @@ import (
 )
 
 const (
-	kubeNamespaceDogstatsWorkload           = "workload-dogstatsd"
-	kubeNamespaceDogstatsStandaloneWorkload = "workload-dogstatsd-standalone"
-	kubeNamespaceTracegenWorkload           = "workload-tracegen"
-	kubeDeploymentDogstatsdUDPOrigin        = "dogstatsd-udp-origin-detection"
-	kubeDeploymentDogstatsdUDS              = "dogstatsd-uds"
-	kubeDeploymentTracegenTCPWorkload       = "tracegen-tcp"
-	kubeDeploymentTracegenUDSWorkload       = "tracegen-uds"
+	kubeNamespaceDogstatsWorkload                    = "workload-dogstatsd"
+	kubeNamespaceDogstatsStandaloneWorkload          = "workload-dogstatsd-standalone"
+	kubeNamespaceTracegenWorkload                    = "workload-tracegen"
+	kubeDeploymentDogstatsdUDPOrigin                 = "dogstatsd-udp-origin-detection"
+	kubeDeploymentDogstatsdUDS                       = "dogstatsd-uds"
+	kubeDeploymentDogstatsdUDPOriginContNameInjected = "dogstatsd-udp-contname-injected"
+	kubeDeploymentTracegenTCPWorkload                = "tracegen-tcp"
+	kubeDeploymentTracegenUDSWorkload                = "tracegen-uds"
 )
 
 var GitCommit string
@@ -446,6 +448,7 @@ func (suite *k8sSuite) TestRedis() {
 }
 
 func (suite *k8sSuite) TestCPU() {
+	// TODO: https://datadoghq.atlassian.net/browse/CONTINT-4143
 	// Test CPU metrics
 	suite.testMetric(&testMetricArgs{
 		Filter: testMetricFilterArgs{
@@ -599,6 +602,8 @@ func (suite *k8sSuite) TestDogstatsdInAgent() {
 	suite.testDogstatsdContainerID(kubeNamespaceDogstatsWorkload, kubeDeploymentDogstatsdUDS)
 	// Test with UDP + Origin detection
 	suite.testDogstatsdContainerID(kubeNamespaceDogstatsWorkload, kubeDeploymentDogstatsdUDPOrigin)
+	// Test with UDP + DD_ENTITY_ID with container name injected
+	suite.testDogstatsdContainerID(kubeNamespaceDogstatsWorkload, kubeDeploymentDogstatsdUDPOriginContNameInjected)
 	// Test with UDP + DD_ENTITY_ID
 	suite.testDogstatsdPodUID(kubeNamespaceDogstatsWorkload)
 }
@@ -609,6 +614,8 @@ func (suite *k8sSuite) TestDogstatsdStandalone() {
 	// Dogstatsd standalone does not support origin detection
 	// Test with UDP + DD_ENTITY_ID
 	suite.testDogstatsdPodUID(kubeNamespaceDogstatsWorkload)
+	// Test with UDP + DD_ENTITY_ID with container name injected
+	suite.testDogstatsdContainerID(kubeNamespaceDogstatsWorkload, kubeDeploymentDogstatsdUDPOriginContNameInjected)
 }
 
 func (suite *k8sSuite) testDogstatsdPodUID(kubeNamespace string) {
@@ -638,10 +645,6 @@ func (suite *k8sSuite) testDogstatsdPodUID(kubeNamespace string) {
 }
 
 func (suite *k8sSuite) testDogstatsdContainerID(kubeNamespace, kubeDeployment string) {
-	if kubeDeployment == kubeDeploymentDogstatsdUDPOrigin {
-		// CONTINT-3934: This test is flaky, skip it for now
-		suite.T().Skipf("Skipping test for %s/%s as it is currently flaky", kubeNamespace, kubeDeployment)
-	}
 	suite.testMetric(&testMetricArgs{
 		Filter: testMetricFilterArgs{
 			Name: "custom.metric",
@@ -713,20 +716,55 @@ func (suite *k8sSuite) TestPrometheus() {
 	})
 }
 
-func (suite *k8sSuite) TestAdmissionController() {
+func (suite *k8sSuite) TestAdmissionControllerWithoutAPMInjection() {
+	suite.testAdmissionControllerPod("workload-mutated", "mutated", "", false)
+}
+
+func (suite *k8sSuite) TestAdmissionControllerWithLibraryAnnotation() {
+	suite.testAdmissionControllerPod("workload-mutated-lib-injection", "mutated-with-lib-annotation", "python", false)
+}
+
+func (suite *k8sSuite) TestAdmissionControllerWithAutoDetectedLanguage() {
+	suite.testAdmissionControllerPod("workload-mutated-lib-injection", "mutated-with-auto-detected-language", "python", true)
+}
+
+func (suite *k8sSuite) testAdmissionControllerPod(namespace string, name string, language string, languageShouldBeAutoDetected bool) {
 	ctx := context.Background()
 
+	// When the language should be auto-detected, we need to wait for the
+	// deployment to be created and the annotation with the languages to be set
+	// by the Cluster Agent so that we can be sure that in the next restart the
+	// libraries for the detected language are injected
+	if languageShouldBeAutoDetected {
+		suite.Require().EventuallyWithTf(func(c *assert.CollectT) {
+			deployment, err := suite.K8sClient.AppsV1().Deployments(namespace).Get(ctx, name, metav1.GetOptions{})
+			if !assert.NoError(c, err) {
+				return
+			}
+
+			detectedLangsLabelIsSet := false
+			detectedLangsAnnotationRegex := regexp.MustCompile(`^internal\.dd\.datadoghq\.com/.*\.detected_langs$`)
+			for annotation := range deployment.Annotations {
+				if detectedLangsAnnotationRegex.Match([]byte(annotation)) {
+					detectedLangsLabelIsSet = true
+					break
+				}
+			}
+			assert.True(c, detectedLangsLabelIsSet)
+		}, 5*time.Minute, 10*time.Second, "The deployment with name %s in namespace %s does not exist or does not have the auto detected languages annotation", name, namespace)
+	}
+
 	// Delete the pod to ensure it is recreated after the admission controller is deployed
-	err := suite.K8sClient.CoreV1().Pods("workload-mutated").DeleteCollection(ctx, metav1.DeleteOptions{}, metav1.ListOptions{
-		LabelSelector: fields.OneTermEqualSelector("app", "mutated").String(),
+	err := suite.K8sClient.CoreV1().Pods(namespace).DeleteCollection(ctx, metav1.DeleteOptions{}, metav1.ListOptions{
+		LabelSelector: fields.OneTermEqualSelector("app", name).String(),
 	})
 	suite.Require().NoError(err)
 
 	// Wait for the fresh pod to be created
 	var pod corev1.Pod
 	suite.Require().EventuallyWithTf(func(c *assert.CollectT) {
-		pods, err := suite.K8sClient.CoreV1().Pods("workload-mutated").List(ctx, metav1.ListOptions{
-			LabelSelector: fields.OneTermEqualSelector("app", "mutated").String(),
+		pods, err := suite.K8sClient.CoreV1().Pods(namespace).List(ctx, metav1.ListOptions{
+			LabelSelector: fields.OneTermEqualSelector("app", name).String(),
 		})
 		if !assert.NoError(c, err) {
 			return
@@ -735,7 +773,7 @@ func (suite *k8sSuite) TestAdmissionController() {
 			return
 		}
 		pod = pods.Items[0]
-	}, 2*time.Minute, 10*time.Second, "Failed to witness the creation of a pod in workload-mutated")
+	}, 2*time.Minute, 10*time.Second, "Failed to witness the creation of pod with name %s in namespace %s", name, namespace)
 
 	suite.Require().Len(pod.Spec.Containers, 1)
 
@@ -756,7 +794,7 @@ func (suite *k8sSuite) TestAdmissionController() {
 		suite.Equal("e2e", env["DD_ENV"])
 	}
 	if suite.Contains(env, "DD_SERVICE") {
-		suite.Equal("mutated", env["DD_SERVICE"])
+		suite.Equal(name, env["DD_SERVICE"])
 	}
 	if suite.Contains(env, "DD_VERSION") {
 		suite.Equal("v0.0.1", env["DD_VERSION"])
@@ -782,10 +820,73 @@ func (suite *k8sSuite) TestAdmissionController() {
 	if suite.Contains(volumeMounts, "datadog") {
 		suite.Equal("/var/run/datadog", volumeMounts["datadog"])
 	}
+
+	switch language {
+	// APM supports several languages, but for now all the test apps are Python
+	case "python":
+		emptyDirVolumes := make(map[string]*corev1.EmptyDirVolumeSource)
+		for _, volume := range pod.Spec.Volumes {
+			if volume.EmptyDir != nil {
+				emptyDirVolumes[volume.Name] = volume.EmptyDir
+			}
+		}
+
+		if suite.Contains(env, "PYTHONPATH") {
+			suite.Equal("/datadog-lib/", env["PYTHONPATH"])
+		}
+		suite.Contains(emptyDirVolumes, "datadog-auto-instrumentation")
+		if suite.Contains(volumeMounts, "datadog-auto-instrumentation") {
+			suite.Equal("/datadog-lib", volumeMounts["datadog-auto-instrumentation"])
+		}
+	}
+
 }
 
 func (suite *k8sSuite) TestContainerImage() {
-	suite.EventuallyWithTf(func(c *assert.CollectT) {
+	sendEvent := func(alertType, text string) {
+		if _, err := suite.datadogClient.PostEvent(&datadog.Event{
+			Title: pointer.Ptr(suite.T().Name()),
+			Text: pointer.Ptr(fmt.Sprintf(`%%%%%%
+`+"```"+`
+%s
+`+"```"+`
+ %%%%%%`, text)),
+			AlertType: &alertType,
+			Tags: []string{
+				"app:agent-new-e2e-tests-containers",
+				"cluster_name:" + suite.clusterName,
+				"contimage:ghcr.io/datadog/apps-nginx-server",
+				"test:" + suite.T().Name(),
+			},
+		}); err != nil {
+			suite.T().Logf("Failed to post event: %s", err)
+		}
+	}
+
+	defer func() {
+		if suite.T().Failed() {
+			sendEvent("error", "Failed finding the `ghcr.io/datadog/apps-nginx-server` container image payload with proper tags")
+		} else {
+			sendEvent("success", "All good!")
+		}
+	}()
+
+	suite.EventuallyWithTf(func(collect *assert.CollectT) {
+		c := &myCollectT{
+			CollectT: collect,
+			errors:   []error{},
+		}
+		// To enforce the use of myCollectT instead
+		collect = nil //nolint:ineffassign
+
+		defer func() {
+			if len(c.errors) == 0 {
+				sendEvent("success", "All good!")
+			} else {
+				sendEvent("warning", errors.Join(c.errors...).Error())
+			}
+		}()
+
 		images, err := suite.Fakeintake.FilterContainerImages("ghcr.io/datadog/apps-nginx-server")
 		// Can be replaced by require.NoErrorf(…) once https://github.com/stretchr/testify/pull/1481 is merged
 		if !assert.NoErrorf(c, err, "Failed to query fake intake") {
@@ -812,7 +913,50 @@ func (suite *k8sSuite) TestContainerImage() {
 }
 
 func (suite *k8sSuite) TestSBOM() {
-	suite.EventuallyWithTf(func(c *assert.CollectT) {
+	sendEvent := func(alertType, text string) {
+		if _, err := suite.datadogClient.PostEvent(&datadog.Event{
+			Title: pointer.Ptr(suite.T().Name()),
+			Text: pointer.Ptr(fmt.Sprintf(`%%%%%%
+`+"```"+`
+%s
+`+"```"+`
+ %%%%%%`, text)),
+			AlertType: &alertType,
+			Tags: []string{
+				"app:agent-new-e2e-tests-containers",
+				"cluster_name:" + suite.clusterName,
+				"sbom:ghcr.io/datadog/apps-nginx-server",
+				"test:" + suite.T().Name(),
+			},
+		}); err != nil {
+			suite.T().Logf("Failed to post event: %s", err)
+		}
+	}
+
+	defer func() {
+		if suite.T().Failed() {
+			sendEvent("error", "Failed finding the `ghcr.io/datadog/apps-nginx-server` SBOM payload with proper tags")
+		} else {
+			sendEvent("success", "All good!")
+		}
+	}()
+
+	suite.EventuallyWithTf(func(collect *assert.CollectT) {
+		c := &myCollectT{
+			CollectT: collect,
+			errors:   []error{},
+		}
+		// To enforce the use of myCollectT instead
+		collect = nil //nolint:ineffassign
+
+		defer func() {
+			if len(c.errors) == 0 {
+				sendEvent("success", "All good!")
+			} else {
+				sendEvent("warning", errors.Join(c.errors...).Error())
+			}
+		}()
+
 		sbomIDs, err := suite.Fakeintake.GetSBOMIDs()
 		// Can be replaced by require.NoErrorf(…) once https://github.com/stretchr/testify/pull/1481 is merged
 		if !assert.NoErrorf(c, err, "Failed to query fake intake") {
@@ -894,6 +1038,34 @@ func (suite *k8sSuite) TestSBOM() {
 }
 
 func (suite *k8sSuite) TestContainerLifecycleEvents() {
+	sendEvent := func(alertType, text string) {
+		if _, err := suite.datadogClient.PostEvent(&datadog.Event{
+			Title: pointer.Ptr(suite.T().Name()),
+			Text: pointer.Ptr(fmt.Sprintf(`%%%%%%
+`+"```"+`
+%s
+`+"```"+`
+ %%%%%%`, text)),
+			AlertType: &alertType,
+			Tags: []string{
+				"app:agent-new-e2e-tests-containers",
+				"cluster_name:" + suite.clusterName,
+				"contlcycle:ghcr.io/datadog/apps-nginx-server",
+				"test:" + suite.T().Name(),
+			},
+		}); err != nil {
+			suite.T().Logf("Failed to post event: %s", err)
+		}
+	}
+
+	defer func() {
+		if suite.T().Failed() {
+			sendEvent("error", "Failed finding the `ghcr.io/datadog/apps-nginx-server` container lifecycle event")
+		} else {
+			sendEvent("success", "All good!")
+		}
+	}()
+
 	var nginxPod corev1.Pod
 
 	suite.Require().EventuallyWithTf(func(c *assert.CollectT) {
@@ -914,7 +1086,22 @@ func (suite *k8sSuite) TestContainerLifecycleEvents() {
 	err := suite.K8sClient.CoreV1().Pods("workload-nginx").Delete(context.Background(), nginxPod.Name, metav1.DeleteOptions{})
 	suite.Require().NoError(err)
 
-	suite.EventuallyWithTf(func(c *assert.CollectT) {
+	suite.EventuallyWithTf(func(collect *assert.CollectT) {
+		c := &myCollectT{
+			CollectT: collect,
+			errors:   []error{},
+		}
+		// To enforce the use of myCollectT instead
+		collect = nil //nolint:ineffassign
+
+		defer func() {
+			if len(c.errors) == 0 {
+				sendEvent("success", "All good!")
+			} else {
+				sendEvent("warning", errors.Join(c.errors...).Error())
+			}
+		}()
+
 		events, err := suite.Fakeintake.GetContainerLifecycleEvents()
 		// Can be replaced by require.NoErrorf(…) once https://github.com/stretchr/testify/pull/1481 is merged
 		if !assert.NoErrorf(c, err, "Failed to query fake intake") {
@@ -932,8 +1119,8 @@ func (suite *k8sSuite) TestContainerLifecycleEvents() {
 			}
 		}
 
-		assert.Truef(c, foundPodEvent, "Failed to find the pod lifecycle event")
-	}, 2*time.Minute, 10*time.Second, "Failed to find the container lifecycle events")
+		assert.Truef(c, foundPodEvent, "Failed to find the pod lifecycle event for pod %s/%s", nginxPod.Namespace, nginxPod.Name)
+	}, 2*time.Minute, 10*time.Second, "Failed to find the pod lifecycle event for pod %s/%s", nginxPod.Namespace, nginxPod.Name)
 }
 
 func (suite *k8sSuite) testHPA(namespace, deployment string) {

@@ -20,6 +20,7 @@ import (
 	"github.com/hashicorp/go-multierror"
 	"go.uber.org/atomic"
 
+	"github.com/DataDog/datadog-agent/comp/dogstatsd/constants"
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/events"
@@ -97,7 +98,7 @@ func NewRuleEngine(evm *eventmonitor.EventMonitor, config *config.RuntimeSecurit
 	})
 
 	// register as event handler
-	if err := probe.AddFullAccessEventHandler(engine); err != nil {
+	if err := probe.AddEventHandler(engine); err != nil {
 		return nil, err
 	}
 
@@ -189,6 +190,7 @@ func (e *RuleEngine) Start(ctx context.Context, reloadChan <-chan struct{}, wg *
 				tags := []string{
 					fmt.Sprintf("version:%s", version.AgentVersion),
 					fmt.Sprintf("os:%s", runtime.GOOS),
+					constants.CardinalityTagPrefix + "none",
 				}
 
 				if os.Getenv("ECS_FARGATE") == "true" || os.Getenv("DD_ECS_FARGATE") == "true" {

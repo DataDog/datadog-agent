@@ -251,7 +251,10 @@ def find_copyright_for(package, overrides, ctx):
     for filename in COPYRIGHT_LOCATIONS:
         filename = os.path.join(pkgdir, filename)
         if os.path.isfile(filename):
-            for line in open(filename, encoding="utf-8"):
+            with open(filename, encoding="utf-8", errors="replace") as f:
+                lines = f.readlines()
+
+            for line in lines:
                 mo = COPYRIGHT_RE.search(line)
                 if not mo:
                     continue
@@ -267,6 +270,9 @@ def find_copyright_for(package, overrides, ctx):
 
                 cpy = cpy.strip().rstrip('.')
                 if cpy:
+                    # If copyright contains double quote ("), escape it
+                    if '"' in cpy:
+                        cpy = '"' + cpy.replace('"', '""') + '"'
                     copyright.append(cpy)
 
     # skip through the first blank line of a file

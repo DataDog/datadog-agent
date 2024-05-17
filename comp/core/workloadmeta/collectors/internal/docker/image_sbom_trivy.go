@@ -147,9 +147,7 @@ func (c *collector) startSBOMCollection(ctx context.Context) error {
 }
 
 func (c *collector) extractSBOMWithTrivy(_ context.Context, imageID string) error {
-	scanRequest := docker.ScanRequest{
-		ImageID: imageID,
-	}
+	scanRequest := docker.NewScanRequest(imageID)
 
 	if err := c.sbomScanner.Scan(scanRequest); err != nil {
 		log.Errorf("Failed to trigger SBOM generation for docker: %s", err)

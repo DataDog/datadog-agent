@@ -27,14 +27,15 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/common/misconfig"
 	"github.com/DataDog/datadog-agent/cmd/agent/common/path"
 	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
-	"github.com/DataDog/datadog-agent/cmd/agent/gui"
 	"github.com/DataDog/datadog-agent/cmd/agent/subcommands/run/internal/clcrunnerapi"
-	"github.com/DataDog/datadog-agent/cmd/manager"
+	internalsettings "github.com/DataDog/datadog-agent/cmd/agent/subcommands/run/internal/settings"
+	"github.com/DataDog/datadog-agent/comp/core/agenttelemetry"
+	"github.com/DataDog/datadog-agent/comp/core/agenttelemetry/agenttelemetryimpl"
 
 	// checks implemented as components
 
 	// core components
-
+	"github.com/DataDog/datadog-agent/comp/agent/autoexit"
 	"github.com/DataDog/datadog-agent/comp/agent/expvarserver"
 	"github.com/DataDog/datadog-agent/comp/agent/jmxlogger"
 	"github.com/DataDog/datadog-agent/comp/agent/jmxlogger/jmxloggerimpl"
@@ -51,6 +52,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/flare"
+	"github.com/DataDog/datadog-agent/comp/core/gui/guiimpl"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/core/pid"
@@ -59,15 +61,18 @@ import (
 	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl"
 
 	"github.com/DataDog/datadog-agent/comp/agent"
-	"github.com/DataDog/datadog-agent/comp/agent/metadatascheduler"
-	"github.com/DataDog/datadog-agent/comp/core/healthprobe"
-	"github.com/DataDog/datadog-agent/comp/core/healthprobe/healthprobeimpl"
+	"github.com/DataDog/datadog-agent/comp/agent/cloudfoundrycontainer"
+	healthprobe "github.com/DataDog/datadog-agent/comp/core/healthprobe/def"
+	healthprobefx "github.com/DataDog/datadog-agent/comp/core/healthprobe/fx"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
+	"github.com/DataDog/datadog-agent/comp/core/settings"
+	"github.com/DataDog/datadog-agent/comp/core/settings/settingsimpl"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/status/statusimpl"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors"
@@ -85,6 +90,7 @@ import (
 	langDetectionCl "github.com/DataDog/datadog-agent/comp/languagedetection/client"
 	langDetectionClimpl "github.com/DataDog/datadog-agent/comp/languagedetection/client/clientimpl"
 	"github.com/DataDog/datadog-agent/comp/logs"
+	"github.com/DataDog/datadog-agent/comp/logs/adscheduler/adschedulerimpl"
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
 	"github.com/DataDog/datadog-agent/comp/metadata"
 	"github.com/DataDog/datadog-agent/comp/metadata/host"
@@ -96,28 +102,30 @@ import (
 	"github.com/DataDog/datadog-agent/comp/ndmtmp"
 	"github.com/DataDog/datadog-agent/comp/netflow"
 	netflowServer "github.com/DataDog/datadog-agent/comp/netflow/server"
+	"github.com/DataDog/datadog-agent/comp/networkpath"
 	"github.com/DataDog/datadog-agent/comp/otelcol"
 	otelcollector "github.com/DataDog/datadog-agent/comp/otelcol/collector"
+	"github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline"
 	processAgent "github.com/DataDog/datadog-agent/comp/process/agent"
 	processagentStatusImpl "github.com/DataDog/datadog-agent/comp/process/status/statusimpl"
 	remoteconfig "github.com/DataDog/datadog-agent/comp/remote-config"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcservice/rcserviceimpl"
-	"github.com/DataDog/datadog-agent/comp/remote-config/rcserviceha/rcservicehaimpl"
+	"github.com/DataDog/datadog-agent/comp/remote-config/rcservicemrf/rcservicemrfimpl"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rctelemetryreporter/rctelemetryreporterimpl"
 	"github.com/DataDog/datadog-agent/comp/snmptraps"
 	snmptrapsServer "github.com/DataDog/datadog-agent/comp/snmptraps/server"
 	traceagentStatusImpl "github.com/DataDog/datadog-agent/comp/trace/status/statusimpl"
-	"github.com/DataDog/datadog-agent/pkg/cloudfoundry/containertagger"
 	pkgcollector "github.com/DataDog/datadog-agent/pkg/collector"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/embed/jmx"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/net"
+	profileStatus "github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/status"
 	"github.com/DataDog/datadog-agent/pkg/collector/python"
 	"github.com/DataDog/datadog-agent/pkg/commonchecks"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
-	adScheduler "github.com/DataDog/datadog-agent/pkg/logs/schedulers/ad"
+	commonsettings "github.com/DataDog/datadog-agent/pkg/config/settings"
+	"github.com/DataDog/datadog-agent/pkg/jmxfetch"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	clusteragentStatus "github.com/DataDog/datadog-agent/pkg/status/clusteragent"
 	endpointsStatus "github.com/DataDog/datadog-agent/pkg/status/endpoints"
@@ -139,9 +147,6 @@ import (
 
 	// runtime init routines
 	ddruntime "github.com/DataDog/datadog-agent/pkg/runtime"
-
-	// register metadata providers
-	_ "github.com/DataDog/datadog-agent/pkg/collector/metadata"
 )
 
 type cliParams struct {
@@ -160,6 +165,9 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		// TODO: once the agent is represented as a component, and not a function (run),
 		// this will use `fxutil.Run` instead of `fxutil.OneShot`.
 		return fxutil.OneShot(run,
+			fx.Invoke(func(_ log.Component) {
+				ddruntime.SetMaxProcs()
+			}),
 			fx.Supply(core.BundleParams{
 				ConfigParams:         config.NewAgentParams(globalParams.ConfFilePath),
 				SecretParams:         secrets.NewEnabledParams(),
@@ -194,13 +202,12 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 //
 // This is exported because it also used from the deprecated `agent start` command.
 func run(log log.Component,
-	_ config.Component,
+	cfg config.Component,
 	flare flare.Component,
 	telemetry telemetry.Component,
 	sysprobeconfig sysprobeconfig.Component,
 	server dogstatsdServer.Component,
 	_ replay.Component,
-	serverDebug dogstatsddebug.Component,
 	forwarder defaultforwarder.Component,
 	wmeta workloadmeta.Component,
 	taggerComp tagger.Component,
@@ -224,18 +231,18 @@ func run(log log.Component,
 	_ packagesigning.Component,
 	statusComponent status.Component,
 	collector collector.Component,
+	cloudfoundrycontainer cloudfoundrycontainer.Component,
 	_ expvarserver.Component,
 	_ pid.Component,
-	metadatascheduler metadatascheduler.Component,
 	jmxlogger jmxlogger.Component,
 	_ healthprobe.Component,
+	_ autoexit.Component,
+	settings settings.Component,
+	_ agenttelemetry.Component,
 ) error {
 	defer func() {
 		stopAgent(agentAPI)
 	}()
-
-	// prepare go runtime
-	ddruntime.SetMaxProcs()
 
 	// Setup a channel to catch OS signals
 	signalCh := make(chan os.Signal, 1)
@@ -277,7 +284,6 @@ func run(log log.Component,
 		telemetry,
 		sysprobeconfig,
 		server,
-		serverDebug,
 		wmeta,
 		taggerComp,
 		ac,
@@ -292,8 +298,10 @@ func run(log log.Component,
 		invChecks,
 		statusComponent,
 		collector,
-		metadatascheduler,
+		cfg,
+		cloudfoundrycontainer,
 		jmxlogger,
+		settings,
 	); err != nil {
 		return err
 	}
@@ -309,6 +317,7 @@ func getSharedFxOption() fx.Option {
 			path.DefaultLogFile,
 			path.DefaultJmxLogFile,
 			path.DefaultDogstatsDLogFile,
+			path.DefaultStreamlogsLogFile,
 		)),
 		flare.Module(),
 		core.Bundle(),
@@ -334,6 +343,7 @@ func getSharedFxOption() fx.Option {
 			status.NewHeaderInformationProvider(net.Provider{}),
 			status.NewInformationProvider(jmxStatus.Provider{}),
 			status.NewInformationProvider(endpointsStatus.Provider{}),
+			status.NewInformationProvider(profileStatus.Provider{}),
 		),
 		fx.Provide(func(config config.Component) status.InformationProvider {
 			return status.NewInformationProvider(clusteragentStatus.GetProvider(config))
@@ -359,13 +369,19 @@ func getSharedFxOption() fx.Option {
 		compressionimpl.Module(),
 		demultiplexerimpl.Module(),
 		dogstatsd.Bundle(),
+		fx.Provide(func(logsagent optional.Option[logsAgent.Component]) optional.Option[logsagentpipeline.Component] {
+			if la, ok := logsagent.Get(); ok {
+				return optional.NewOption[logsagentpipeline.Component](la)
+			}
+			return optional.NewNoneOption[logsagentpipeline.Component]()
+		}),
 		otelcol.Bundle(),
 		rctelemetryreporterimpl.Module(),
 		rcserviceimpl.Module(),
-		rcservicehaimpl.Module(),
+		rcservicemrfimpl.Module(),
 		remoteconfig.Bundle(),
 		fx.Provide(tagger.NewTaggerParamsForCoreAgent),
-		tagger.Module(),
+		taggerimpl.Module(),
 		autodiscoveryimpl.Module(),
 		fx.Provide(func(ac autodiscovery.Component) optional.Option[autodiscovery.Component] {
 			return optional.NewOption[autodiscovery.Component](ac)
@@ -380,7 +396,7 @@ func getSharedFxOption() fx.Option {
 		// error prone.
 		fx.Invoke(func(lc fx.Lifecycle, wmeta workloadmeta.Component, _ tagger.Component, ac autodiscovery.Component, secretResolver secrets.Component) {
 			lc.Append(fx.Hook{
-				OnStart: func(ctx context.Context) error {
+				OnStart: func(_ context.Context) error {
 					//  setup the AutoConfig instance
 					common.LoadComponents(secretResolver, wmeta, ac, pkgconfig.Datadog.GetString("confd_path"))
 					return nil
@@ -408,11 +424,15 @@ func getSharedFxOption() fx.Option {
 		fx.Provide(func(demuxInstance demultiplexer.Component) serializer.MetricSerializer {
 			return demuxInstance.Serializer()
 		}),
+		fx.Provide(func(ms serializer.MetricSerializer) optional.Option[serializer.MetricSerializer] {
+			return optional.NewOption[serializer.MetricSerializer](ms)
+		}),
 		ndmtmp.Bundle(),
 		netflow.Bundle(),
 		snmptraps.Bundle(),
 		collectorimpl.Module(),
 		process.Bundle(),
+		guiimpl.Module(),
 		agent.Bundle(),
 		fx.Supply(jmxloggerimpl.NewDefaultParams()),
 		fx.Provide(func(config config.Component) healthprobe.Options {
@@ -421,36 +441,58 @@ func getSharedFxOption() fx.Option {
 				LogsGoroutines: config.GetBool("log_all_goroutines_when_unhealthy"),
 			}
 		}),
-		healthprobeimpl.Module(),
+		healthprobefx.Module(),
+		adschedulerimpl.Module(),
+		fx.Provide(func(serverDebug dogstatsddebug.Component, config config.Component) settings.Params {
+			return settings.Params{
+				Settings: map[string]settings.RuntimeSetting{
+					"log_level":                              commonsettings.NewLogLevelRuntimeSetting(),
+					"runtime_mutex_profile_fraction":         commonsettings.NewRuntimeMutexProfileFraction(),
+					"runtime_block_profile_rate":             commonsettings.NewRuntimeBlockProfileRate(),
+					"dogstatsd_stats":                        internalsettings.NewDsdStatsRuntimeSetting(serverDebug),
+					"dogstatsd_capture_duration":             internalsettings.NewDsdCaptureDurationRuntimeSetting("dogstatsd_capture_duration"),
+					"log_payloads":                           commonsettings.NewLogPayloadsRuntimeSetting(),
+					"internal_profiling_goroutines":          commonsettings.NewProfilingGoroutines(),
+					"multi_region_failover.enabled":          internalsettings.NewMultiRegionFailoverRuntimeSetting("multi_region_failover.enabled", "Enable/disable Multi-Region Failover support."),
+					"multi_region_failover.failover_metrics": internalsettings.NewMultiRegionFailoverRuntimeSetting("multi_region_failover.failover_metrics", "Enable/disable redirection of metrics to failover region."),
+					"multi_region_failover.failover_logs":    internalsettings.NewMultiRegionFailoverRuntimeSetting("multi_region_failover.failover_logs", "Enable/disable redirection of logs to failover region."),
+					"internal_profiling":                     commonsettings.NewProfilingRuntimeSetting("internal_profiling", "datadog-agent"),
+				},
+				Config: config,
+			}
+		}),
+		settingsimpl.Module(),
+		agenttelemetryimpl.Module(),
+		networkpath.Bundle(),
 	)
 }
 
 // startAgent Initializes the agent process
 func startAgent(
 	log log.Component,
-	flare flare.Component,
+	_ flare.Component,
 	telemetry telemetry.Component,
 	_ sysprobeconfig.Component,
 	server dogstatsdServer.Component,
-	serverDebug dogstatsddebug.Component,
 	wmeta workloadmeta.Component,
-	taggerComp tagger.Component,
+	_ tagger.Component,
 	ac autodiscovery.Component,
 	rcclient rcclient.Component,
-	logsAgent optional.Option[logsAgent.Component],
+	_ optional.Option[logsAgent.Component],
 	_ processAgent.Component,
 	_ defaultforwarder.Component,
 	_ serializer.MetricSerializer,
-	otelcollector otelcollector.Component,
+	_ otelcollector.Component,
 	demultiplexer demultiplexer.Component,
 	agentAPI internalAPI.Component,
 	invChecks inventorychecks.Component,
-	statusComponent status.Component,
+	_ status.Component,
 	collector collector.Component,
-	_ metadatascheduler.Component,
+	cfg config.Component,
+	_ cloudfoundrycontainer.Component,
 	jmxLogger jmxlogger.Component,
+	settings settings.Component,
 ) error {
-
 	var err error
 
 	if flavor.GetFlavor() == flavor.IotAgent {
@@ -468,13 +510,8 @@ func startAgent(
 		log.Infof("MemProfileRate set to 1, capturing every single memory allocation!")
 	}
 
-	// init settings that can be changed at runtime
-	if err := initRuntimeSettings(serverDebug); err != nil {
-		log.Warnf("Can't initiliaze the runtime settings: %v", err)
-	}
-
 	// Setup Internal Profiling
-	common.SetupInternalProfiling(pkgconfig.Datadog, "")
+	common.SetupInternalProfiling(settings, pkgconfig.Datadog, "")
 
 	// Setup expvar server
 	telemetryHandler := telemetry.Handler()
@@ -482,11 +519,6 @@ func startAgent(
 	http.Handle("/telemetry", telemetryHandler)
 
 	ctx, _ := pkgcommon.GetMainCtxCancel()
-
-	err = manager.ConfigureAutoExit(ctx, pkgconfig.Datadog)
-	if err != nil {
-		return log.Errorf("Unable to configure auto-exit, err: %v", err)
-	}
 
 	hostnameDetected, err := hostname.Get(context.TODO())
 	if err != nil {
@@ -511,29 +543,9 @@ func startAgent(
 		}
 	}
 
-	if logsAgent, ok := logsAgent.Get(); ok {
-		// TODO: (components) - once adScheduler is a component, inject it into the logs agent.
-		logsAgent.AddScheduler(adScheduler.New(ac))
-	}
-
-	// start the cloudfoundry container tagger
-	if pkgconfig.IsFeaturePresent(pkgconfig.CloudFoundry) && !pkgconfig.Datadog.GetBool("cloud_foundry_buildpack") {
-		containerTagger, err := containertagger.NewContainerTagger(wmeta)
-		if err != nil {
-			log.Errorf("Failed to create Cloud Foundry container tagger: %v", err)
-		} else {
-			containerTagger.Start(ctx)
-		}
-	}
-
 	// start the cmd HTTP server
 	if err = agentAPI.StartServer(
-		wmeta,
-		taggerComp,
-		ac,
-		logsAgent,
 		demultiplexer,
-		optional.NewOption(collector),
 	); err != nil {
 		return log.Errorf("Error while starting api server, exiting: %v", err)
 	}
@@ -553,14 +565,6 @@ func startAgent(
 		leaderelection.CreateGlobalLeaderEngine(ctx)
 	}
 
-	// start the GUI server
-	guiPort := pkgconfig.Datadog.GetString("GUI_port")
-	if guiPort == "-1" {
-		log.Infof("GUI server port -1 specified: not starting the GUI.")
-	} else if err = gui.StartGUIServer(guiPort, flare, statusComponent, collector, ac); err != nil {
-		log.Errorf("Error while starting GUI: %v", err)
-	}
-
 	// Setup stats telemetry handler
 	if sender, err := demultiplexer.GetDefaultSender(); err == nil {
 		// TODO: to be removed when default telemetry is enabled.
@@ -574,10 +578,11 @@ func startAgent(
 	check.InitializeInventoryChecksContext(invChecks)
 
 	// Init JMX runner and inject dogstatsd component
-	jmx.InitRunner(server, jmxLogger)
+	jmxfetch.InitRunner(server, jmxLogger)
+	jmxfetch.RegisterWith(ac)
 
 	// Set up check collector
-	commonchecks.RegisterChecks(wmeta)
+	commonchecks.RegisterChecks(wmeta, cfg)
 	ac.AddScheduler("check", pkgcollector.InitCheckScheduler(optional.NewOption(collector), demultiplexer), true)
 
 	demultiplexer.AddAgentStartupTelemetry(version.AgentVersion)
@@ -591,7 +596,7 @@ func startAgent(
 	// start dependent services
 	go startDependentServices()
 
-	return otelcollector.Start()
+	return nil
 }
 
 // StopAgentWithDefaults is a temporary way for other packages to use stopAgent.
@@ -612,9 +617,8 @@ func stopAgent(agentAPI internalAPI.Component) {
 
 	agentAPI.StopServer()
 	clcrunnerapi.StopCLCRunnerServer()
-	jmx.StopJmxfetch()
+	jmxfetch.StopJmxfetch()
 
-	gui.StopGUIServer()
 	profiler.Stop()
 
 	// gracefully shut down any component

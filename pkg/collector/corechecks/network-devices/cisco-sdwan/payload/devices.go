@@ -47,16 +47,29 @@ func GetDevicesUptime(devices []client.Device) map[string]float64 {
 	return uptimes
 }
 
+// GetDevicesStatus process devices API payloads to get status
+func GetDevicesStatus(devices []client.Device) map[string]float64 {
+	states := make(map[string]float64)
+	for _, device := range devices {
+		status := 0.0
+		if device.Reachability == "reachable" {
+			status = 1.0
+		}
+		states[device.SystemIP] = status
+	}
+	return states
+}
+
 func buildDeviceMetadata(namespace string, device client.Device) devicemetadata.DeviceMetadata {
-	id := fmt.Sprintf("%s:%s", namespace, device.SystemIP)
+	id := buildDeviceID(namespace, device)
 
 	return devicemetadata.DeviceMetadata{
 		ID:           id,
 		IPAddress:    device.SystemIP,
 		Vendor:       "cisco",
 		Name:         device.HostName,
-		Tags:         []string{"source:cisco-sdwan", "device_namespace:" + namespace, "site_id:" + device.SiteID},
-		IDTags:       []string{"system_ip:" + device.SystemIP},
+		Tags:         append(buildDeviceTags(namespace, device), "source:cisco-sdwan"),
+		IDTags:       []string{"device_namespace:" + namespace, "system_ip:" + device.SystemIP},
 		Status:       mapNDMStatus(device.Reachability),
 		Model:        device.DeviceModel,
 		OsName:       device.DeviceOs,
@@ -94,10 +107,17 @@ func buildDeviceTags(namespace string, device client.Device) []string {
 		"system_ip:" + device.SystemIP,
 		"site_id:" + device.SiteID,
 		"type:" + device.DeviceType,
+		"device_ip:" + device.SystemIP,
+		"device_hostname:" + device.HostName,
+		"device_id:" + buildDeviceID(namespace, device),
 	}
 }
 
 func computeUptime(device client.Device) float64 {
 	now := TimeNow().UnixMilli()
 	return math.Round((float64(now) - device.UptimeDate) / 10) // In hundredths of a second, to match SNMP
+}
+
+func buildDeviceID(namespace string, device client.Device) string {
+	return fmt.Sprintf("%s:%s", namespace, device.SystemIP)
 }

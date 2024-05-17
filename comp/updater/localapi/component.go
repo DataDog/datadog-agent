@@ -7,12 +7,12 @@
 package localapi
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/updater"
+	"github.com/DataDog/datadog-agent/pkg/fleet/daemon"
 )
 
 // team: fleet
 
 // Component is the interface for the updater local api component.
 type Component interface {
-	updater.LocalAPI
+	daemon.LocalAPI
 }

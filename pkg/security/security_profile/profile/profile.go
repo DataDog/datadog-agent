@@ -196,7 +196,7 @@ func LoadProtoFromFile(filepath string) (*proto.SecurityProfile, error) {
 
 	raw, err := io.ReadAll(f)
 	if err != nil {
-		return nil, fmt.Errorf("couldn't open profile: %w", err)
+		return nil, fmt.Errorf("couldn't read profile: %w", err)
 	}
 
 	pp := &proto.SecurityProfile{}

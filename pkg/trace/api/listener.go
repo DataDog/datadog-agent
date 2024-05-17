@@ -109,10 +109,11 @@ func (ln *measuredListener) Accept() (net.Conn, error) {
 		} else {
 			ln.errored.Inc()
 		}
-	} else {
-		ln.accepted.Inc()
-		log.Tracef("Accepted connection named %q.", ln.name)
+		<-ln.sem
+		return nil, err
 	}
+	ln.accepted.Inc()
+	log.Tracef("Accepted connection named %q.", ln.name)
 	conn = OnCloseConn(conn, func() {
 		<-ln.sem
 	})

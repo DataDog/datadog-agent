@@ -68,7 +68,7 @@ static __always_inline __u64 *get_dynamic_counter(conn_tuple_t *tup) {
 }
 
 // parse_field_indexed parses fully-indexed headers.
-static __always_inline void parse_field_indexed(dynamic_table_index_t *dynamic_index, http2_header_t *headers_to_process, __u8 index, __u64 global_dynamic_counter, __u8 *interesting_headers_counter) {
+static __always_inline void parse_field_indexed(dynamic_table_index_t *dynamic_index, http2_header_t *restrict headers_to_process, __u8 index, __u64 global_dynamic_counter, __u8 *interesting_headers_counter) {
     if (headers_to_process == NULL) {
         return;
     }
@@ -164,25 +164,6 @@ static __always_inline bool format_http2_frame_header(http2_frame_t *out) {
 
 static __always_inline void reset_frame(http2_frame_t *out) {
     *out = (http2_frame_t){ 0 };
-}
-
-// check_frame_split checks if the frame is split into multiple tcp payloads, if so, it increments the split counter.
-static __always_inline void check_frame_split(http2_telemetry_t *http2_tel, __u32 data_off, __u32 data_end, http2_frame_t current_frame){
-    bool is_headers = current_frame.type == kHeadersFrame;
-    bool is_rst_frame = current_frame.type == kRSTStreamFrame;
-    bool is_data_end_of_stream = ((current_frame.flags & HTTP2_END_OF_STREAM) == HTTP2_END_OF_STREAM) && (current_frame.type == kDataFrame);
-    bool is_headers_end_of_stream = ((current_frame.flags & HTTP2_END_OF_STREAM) == HTTP2_END_OF_STREAM) && (is_headers);
-    if (data_off + current_frame.length > data_end) {
-        if (is_headers_end_of_stream) {
-            __sync_fetch_and_add(&http2_tel->fragmented_frame_count_headers_eos, 1);
-        } else if (is_data_end_of_stream) {
-            __sync_fetch_and_add(&http2_tel->fragmented_frame_count_data_eos, 1);
-        } else if (is_rst_frame) {
-            __sync_fetch_and_add(&http2_tel->fragmented_frame_count_rst, 1);
-        } else if (is_headers) {
-           __sync_fetch_and_add(&http2_tel->fragmented_frame_count_headers, 1);
-        }
-    }
 }
 
 #endif

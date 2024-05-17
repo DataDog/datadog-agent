@@ -3,11 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package tagger implements the Tagger component. The Tagger is the central
-// source of truth for client-side entity tagging. It runs Collectors that
-// detect entities and collect their tags. Tags are then stored in memory (by
-// the TagStore) and can be queried by the tagger.Tag() method.
-
 // Package autodiscovery provides the autodiscovery component for the Datadog Agent
 package autodiscovery
 
@@ -23,7 +18,7 @@ import (
 )
 
 // Component is the component type.
-// team: container-integrations
+// team: container-platform
 type Component interface {
 	AddConfigProvider(provider providers.ConfigProvider, shouldPoll bool, pollInterval time.Duration)
 	LoadAndRun(ctx context.Context)

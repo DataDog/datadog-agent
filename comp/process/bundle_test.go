@@ -15,9 +15,13 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core"
 	configComp "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	"github.com/DataDog/datadog-agent/comp/core/settings/settingsimpl"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
+	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/eventplatformreceiverimpl"
+	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/npcollectorimpl"
 	"github.com/DataDog/datadog-agent/comp/process/runner"
 
 	coreStatusImpl "github.com/DataDog/datadog-agent/comp/core/status/statusimpl"
@@ -40,6 +44,7 @@ func TestBundleDependencies(t *testing.T) {
 		core.MockBundle(),
 		workloadmeta.Module(),
 		coreStatusImpl.Module(),
+		settingsimpl.MockModule(),
 		statusimpl.Module(),
 		fx.Supply(tagger.NewFakeTaggerParams()),
 		fx.Supply(
@@ -48,6 +53,7 @@ func TestBundleDependencies(t *testing.T) {
 			},
 		),
 		fx.Provide(func() context.Context { return context.TODO() }),
+		npcollectorimpl.MockModule(),
 	)
 }
 
@@ -84,6 +90,10 @@ func TestBundleOneShot(t *testing.T) {
 		core.MockBundle(),
 		fx.Supply(workloadmeta.NewParams()),
 		workloadmeta.Module(),
+		eventplatformreceiverimpl.Module(),
+		eventplatformimpl.Module(),
+		fx.Supply(eventplatformimpl.NewDefaultParams()),
+		npcollectorimpl.Module(),
 		Bundle(),
 	)
 	require.NoError(t, err)

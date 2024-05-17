@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 
 import datetime
 import re
@@ -66,6 +65,7 @@ HEADER_EXCLUSION_REGEX = [
     '^// Copyright 2021 The Vitess Authors.',
     '^// This file is licensed under the MIT License.',
     '^// Copyright \\(C\\) 2017 ScyllaDB',
+    '^// Copyright \\(c\\) Tailscale Inc & AUTHORS',
 ]
 
 
@@ -131,7 +131,7 @@ class CopyrightLinter:
     @staticmethod
     def _get_header(filepath):
         header = []
-        with open(filepath, "r", encoding="utf-8") as file_obj:
+        with open(filepath, encoding="utf-8") as file_obj:
             # We expect a specific header format which should be 4 lines
             for _ in range(4):
                 header.append(file_obj.readline().strip())

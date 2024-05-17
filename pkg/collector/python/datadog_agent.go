@@ -16,8 +16,8 @@ import (
 	yaml "gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	"github.com/DataDog/datadog-agent/pkg/collector/externalhost"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/metadata/externalhost"
 	"github.com/DataDog/datadog-agent/pkg/obfuscate"
 	"github.com/DataDog/datadog-agent/pkg/persistentcache"
 	"github.com/DataDog/datadog-agent/pkg/util"
@@ -226,6 +226,9 @@ func lazyInitObfuscator() *obfuscate.Obfuscator {
 		}
 		if !cfg.SQLExecPlanNormalize.Enabled {
 			cfg.SQLExecPlanNormalize = defaultSQLPlanNormalizeSettings
+		}
+		if !cfg.Mongo.Enabled {
+			cfg.Mongo = defaultMongoObfuscateSettings
 		}
 		obfuscator = obfuscate.NewObfuscator(cfg)
 	})
@@ -526,7 +529,50 @@ var defaultSQLPlanObfuscateSettings = obfuscate.JSONConfig{
 	ObfuscateSQLValues: defaultSQLPlanNormalizeSettings.ObfuscateSQLValues,
 }
 
+// defaultMongoObfuscateSettings are the default JSON obfuscator settings for obfuscating mongodb commands
+var defaultMongoObfuscateSettings = obfuscate.JSONConfig{
+	Enabled: true,
+	KeepValues: []string{
+		"find",
+		"sort",
+		"projection",
+		"skip",
+		"batchSize",
+		"$db",
+		"getMore",
+		"collection",
+		"delete",
+		"findAndModify",
+		"insert",
+		"ordered",
+		"update",
+		"aggregate",
+		"comment",
+	},
+}
+
 //export getProcessStartTime
 func getProcessStartTime() float64 {
 	return float64(config.StartTime.Unix())
+}
+
+// ObfuscateMongoDBString obfuscates the MongoDB query
+//
+//export ObfuscateMongoDBString
+func ObfuscateMongoDBString(cmd *C.char, errResult **C.char) *C.char {
+	if C.GoString(cmd) == "" {
+		// memory will be freed by caller
+		*errResult = TrackedCString("Empty MongoDB command")
+		return nil
+	}
+	obfuscatedMongoDBString := lazyInitObfuscator().ObfuscateMongoDBString(
+		C.GoString(cmd),
+	)
+	if obfuscatedMongoDBString == "" {
+		// memory will be freed by caller
+		*errResult = TrackedCString("Failed to obfuscate MongoDB command")
+		return nil
+	}
+	// memory will be freed by caller
+	return TrackedCString(obfuscatedMongoDBString)
 }

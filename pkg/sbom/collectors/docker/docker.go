@@ -12,8 +12,8 @@ import (
 	"fmt"
 	"reflect"
 
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
-	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/sbom"
 	"github.com/DataDog/datadog-agent/pkg/sbom/collectors"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
@@ -27,25 +27,30 @@ import (
 // 1000 is already a very large default value
 const resultChanSize = 1000
 
-// ScanRequest defines a scan request. This struct should be
+// scanRequest defines a scan request. This struct should be
 // hashable to be pushed in the work queue for processing.
-type ScanRequest struct {
-	ImageID string
+type scanRequest struct {
+	imageID string
+}
+
+// NewScanRequest creates a new scan request
+func NewScanRequest(imageID string) sbom.ScanRequest {
+	return scanRequest{imageID: imageID}
 }
 
 // Collector returns the collector name
-func (r ScanRequest) Collector() string {
+func (r scanRequest) Collector() string {
 	return collectors.DockerCollector
 }
 
 // Type returns the scan request type
-func (r ScanRequest) Type() string {
+func (r scanRequest) Type(sbom.ScanOptions) string {
 	return sbom.ScanDaemonType
 }
 
 // ID returns the scan request ID
-func (r ScanRequest) ID() string {
-	return r.ImageID
+func (r scanRequest) ID() string {
+	return r.imageID
 }
 
 // Collector defines a collector
@@ -65,20 +70,20 @@ func (c *Collector) CleanCache() error {
 }
 
 // Init initializes the collector
-func (c *Collector) Init(cfg config.Config, wmeta optional.Option[workloadmeta.Component]) error {
+func (c *Collector) Init(cfg config.Component, wmeta optional.Option[workloadmeta.Component]) error {
 	trivyCollector, err := trivy.GetGlobalCollector(cfg, wmeta)
 	if err != nil {
 		return err
 	}
 	c.wmeta = wmeta
 	c.trivyCollector = trivyCollector
-	c.opts = sbom.ScanOptionsFromConfig(config.Datadog, true)
+	c.opts = sbom.ScanOptionsFromConfig(cfg, true)
 	return nil
 }
 
 // Scan performs a scan
 func (c *Collector) Scan(ctx context.Context, request sbom.ScanRequest) sbom.ScanResult {
-	dockerScanRequest, ok := request.(ScanRequest)
+	dockerScanRequest, ok := request.(scanRequest)
 	if !ok {
 		return sbom.ScanResult{Error: fmt.Errorf("invalid request type '%s' for collector '%s'", reflect.TypeOf(request), collectors.DockerCollector)}
 	}

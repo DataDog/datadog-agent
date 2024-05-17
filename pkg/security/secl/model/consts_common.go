@@ -706,7 +706,7 @@ var (
 	bpfAttachTypeStrings      = map[uint32]string{}
 	ptraceFlagsStrings        = map[uint32]string{}
 	vmStrings                 = map[uint64]string{}
-	protStrings               = map[int]string{}
+	protStrings               = map[uint64]string{}
 	mmapFlagStrings           = map[uint64]string{}
 	signalStrings             = map[int]string{}
 	pipeBufFlagStrings        = map[int]string{}
@@ -831,7 +831,7 @@ func initVMConstants() {
 
 func initProtConstansts() {
 	for k, v := range protConstants {
-		seclConstants[k] = &eval.IntEvaluator{Value: v}
+		seclConstants[k] = &eval.IntEvaluator{Value: int(v)}
 	}
 
 	for k, v := range protConstants {
@@ -1796,10 +1796,10 @@ func (vmf VMFlag) String() string {
 }
 
 // Protection represents a virtual memory protection bitmask value
-type Protection int
+type Protection uint64
 
 func (p Protection) String() string {
-	return bitmaskToString(int(p), protStrings)
+	return bitmaskU64ToString(uint64(p), protStrings)
 }
 
 // MMapFlag represents a mmap flag value
