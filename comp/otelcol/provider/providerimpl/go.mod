@@ -1,6 +1,6 @@
-module provider
+module providerimpl
 
-go 1.21.0
+go 1.21.6
 
 require (
 	github.com/open-telemetry/opentelemetry-collector-contrib/exporter/datadogexporter v0.100.0

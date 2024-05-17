@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent
 
-go 1.21.0
+go 1.21.6
 
 // v0.8.0 was tagged long ago, and appared on pkg.go.dev.  We do not want any tagged version
 // to appear there.  The trick to accomplish this is to make a new version (in this case v0.9.0)
@@ -45,8 +45,9 @@ replace (
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/datadogexporter => ./comp/otelcol/otlp/components/exporter/datadogexporter
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/logsagentexporter => ./comp/otelcol/otlp/components/exporter/logsagentexporter
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/serializerexporter => ./comp/otelcol/otlp/components/exporter/serializerexporter
-	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/pipeline/provider => ./comp/otelcol/otlp/components/pipeline/provider
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/testutil => ./comp/otelcol/otlp/testutil
+	github.com/DataDog/datadog-agent/comp/otelcol/provider => ./comp/otelcol/provider
+	github.com/DataDog/datadog-agent/comp/otelcol/provider/providerimpl => ./comp/otelcol/provider/providerimpl
 	github.com/DataDog/datadog-agent/comp/serializer/compression => ./comp/serializer/compression
 	github.com/DataDog/datadog-agent/pkg/aggregator/ckey => ./pkg/aggregator/ckey/
 	github.com/DataDog/datadog-agent/pkg/api => ./pkg/api
@@ -621,8 +622,8 @@ require (
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/datadogexporter v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/logsagentexporter v0.54.0-rc.2
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/serializerexporter v0.54.0-rc.2
-	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/pipeline/provider v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/testutil v0.54.0-rc.2
+	github.com/DataDog/datadog-agent/comp/otelcol/provider/providerimpl v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/comp/serializer/compression v0.54.0-rc.2
 	github.com/DataDog/datadog-agent/pkg/aggregator/ckey v0.54.0-rc.2
 	github.com/DataDog/datadog-agent/pkg/api v0.54.0-rc.2
