@@ -18,8 +18,10 @@ coverage:
         target: auto
         # threshold = Allow the coverage to drop by <number>%, and posting a success status.
         threshold: 0%
-        # Will set the status to success even if the CI fails
+        # Will set the status to success even if the CI fails.
         if_ci_failed: success
+        # Expose Codecov information to other developers without gating PRs based on that information.
+        informational: true
 
 # See https://docs.codecov.com/docs/ignoring-paths
 ignore:
