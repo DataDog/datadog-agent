@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package tagenrichmentprocessor
+package infraattributesprocessor
 
 import (
 	"context"
@@ -38,12 +38,12 @@ var (
 	}
 )
 
-func TestTagEnrichmentMetricProcessor(t *testing.T) {
+func TestInfraAttributesMetricProcessor(t *testing.T) {
 	for _, test := range standardTests {
 		t.Run(test.name, func(t *testing.T) {
 			next := new(consumertest.MetricsSink)
 			cfg := &Config{
-				Metrics: MetricTagEnrichment{},
+				Metrics: MetricInfraAttributes{},
 			}
 			factory := NewFactory()
 			fmp, err := factory.CreateMetricsProcessor(

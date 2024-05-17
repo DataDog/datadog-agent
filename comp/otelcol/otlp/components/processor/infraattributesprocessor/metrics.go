@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
-package tagenrichmentprocessor
+package infraattributesprocessor
 
 import (
 	"context"
@@ -18,14 +18,14 @@ import (
 	"go.uber.org/zap"
 )
 
-type tagEnrichmentMetricProcessor struct {
-	logger      *zap.Logger
+type infraAttributesMetricProcessor struct {
+	logger *zap.Logger
 	cardinality types.TagCardinality
 }
 
-func newTagEnrichmentMetricProcessor(set processor.CreateSettings, cfg *Config) (*tagEnrichmentMetricProcessor, error) {
-	tesp := &tagEnrichmentMetricProcessor{
-		logger:      set.Logger,
+func newInfraAttributesMetricProcessor(set processor.CreateSettings, _ *Config) (*infraAttributesMetricProcessor, error) {
+	tesp := &infraAttributesMetricProcessor{
+		logger: set.Logger,
 		cardinality: cfg.Cardinality,
 	}
 	set.Logger.Info("Metric Tag Enrichment configured")
@@ -40,7 +40,7 @@ func splitTag(tag string) (key string, value string) {
 	return split[0], split[1]
 }
 
-func (temp *tagEnrichmentMetricProcessor) processMetrics(_ context.Context, md pmetric.Metrics) (pmetric.Metrics, error) {
+func (temp *infraAttributesMetricProcessor) processMetrics(_ context.Context, md pmetric.Metrics) (pmetric.Metrics, error) {
 	rms := md.ResourceMetrics()
 	for i := 0; i < rms.Len(); i++ {
 		rm := rms.At(i)

@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
-package tagenrichmentprocessor
+package infraattributesprocessor
 
 import (
 	"path/filepath"
@@ -27,7 +27,7 @@ func TestLoadingConfigStrictLogs(t *testing.T) {
 		{
 			id: component.MustNewIDWithName("filter", "empty"),
 			expected: &Config{
-				Logs: LogTagEnrichment{},
+				Logs: LogInfraAttributes{},
 			},
 		},
 	}
