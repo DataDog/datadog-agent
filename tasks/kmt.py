@@ -507,10 +507,16 @@ def ninja_copy_ebpf_files(
     candidates = list(build_dir.glob("**/*.o")) + list(runtime_dir.glob("**/*.c"))
     ebpf_files = [p.absolute() for p in candidates if p.is_file() and filter_fn(p)]
 
-    output = kmt_paths.secagent_tests if component == "security-agent" else kmt_paths.sysprobe_tests
+    root = kmt_paths.secagent_tests if component == "security-agent" else kmt_paths.sysprobe_tests
+    output = root / build_dir
 
     for file in ebpf_files:
-        out = output / os.path.relpath(file)
+        # Ensure that runtime files are copied to the runtime directory of the arch-specific
+        # build folder, so that the tests can find them in the expected directory structure.
+        if file.parent.name == "runtime":
+            out = output / "runtime" / file.name
+        else:
+            out = output / file.name
         nw.build(inputs=[os.fspath(file)], outputs=[os.fspath(out)], rule="copyfiles", variables={"mode": "-m744"})
 
 
@@ -550,7 +556,7 @@ def kmt_secagent_prepare(
     if go_root:
         go_path = os.path.join(go_root, "bin", "go")
 
-    nf_path = f"{kmt_paths.arch_dir}/kmt-secagent.ninja"
+    nf_path = kmt_paths.arch_dir / "kmt-secagent.ninja"
     with open(nf_path, 'w') as ninja_file:
         nw = NinjaWriter(ninja_file)
 
