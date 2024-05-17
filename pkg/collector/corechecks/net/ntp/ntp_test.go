@@ -150,7 +150,7 @@ func TestNTPError(t *testing.T) {
 	mockSender.AssertNumberOfCalls(t, "ServiceCheck", 1)
 	mockSender.AssertNumberOfCalls(t, "Commit", 1)
 	assert.Error(t, err)
-	assert.EqualError(t, err, "Failed to get clock offset from any ntp host: 0.datadog.pool.ntp.org, 1.datadog.pool.ntp.org, 2.datadog.pool.ntp.org, 3.datadog.pool.ntp.org")
+	assert.EqualError(t, err, "failed to get clock offset from any ntp host: [ 0.datadog.pool.ntp.org, 1.datadog.pool.ntp.org, 2.datadog.pool.ntp.org, 3.datadog.pool.ntp.org ]")
 }
 
 func TestNTPInvalid(t *testing.T) {
