@@ -23,6 +23,7 @@ func TestDefaultPackages(t *testing.T) {
 		{
 			name: "Empty packages",
 			envVariables: map[string]string{
+				"DD_INSTALLER":                   "true",
 				"DD_INSTALLER_PACKAGES":          "",
 				"DD_APM_INSTRUMENTATION_ENABLED": "",
 			},
@@ -31,6 +32,7 @@ func TestDefaultPackages(t *testing.T) {
 		{
 			name: "Forced packages",
 			envVariables: map[string]string{
+				"DD_INSTALLER":          "true",
 				"DD_INSTALLER_PACKAGES": "package1:1.0.0,package2:2.0.0,package3",
 			},
 			expectedResult: map[string]string{
@@ -42,6 +44,7 @@ func TestDefaultPackages(t *testing.T) {
 		{
 			name: "APM instrumentation enabled",
 			envVariables: map[string]string{
+				"DD_INSTALLER":                   "true",
 				"DD_APM_INSTRUMENTATION_ENABLED": "all",
 			},
 			expectedResult: map[string]string{
@@ -49,8 +52,16 @@ func TestDefaultPackages(t *testing.T) {
 			},
 		},
 		{
+			name: "APM instrumentation enabled but gradual rollout not matching",
+			envVariables: map[string]string{
+				"DD_APM_INSTRUMENTATION_ENABLED": "all",
+			},
+			expectedResult: map[string]string{},
+		},
+		{
 			name: "Forced packages override APM instrumentation",
 			envVariables: map[string]string{
+				"DD_INSTALLER":                   "true",
 				"DD_INSTALLER_PACKAGES":          "datadog-apm-inject:1.0.0",
 				"DD_APM_INSTRUMENTATION_ENABLED": "all",
 			},
@@ -72,7 +83,7 @@ func TestDefaultPackages(t *testing.T) {
 			for p, v := range tt.expectedResult {
 				expectedResult = append(expectedResult, oci.PackageURL("datadoghq.com", p, v))
 			}
-			assert.Equal(t, expectedResult, result)
+			assert.ElementsMatch(t, expectedResult, result)
 		})
 	}
 }

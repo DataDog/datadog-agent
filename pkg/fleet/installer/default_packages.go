@@ -21,6 +21,10 @@ const (
 
 // DefaultPackages resolves the default packages URLs to install based on the environment.
 func DefaultPackages() []string {
+	if !featureEnabled() {
+		return nil
+	}
+
 	var packages = make(map[string]string)
 
 	switch os.Getenv(envApmInstrumentationEnabled) {
@@ -32,6 +36,10 @@ func DefaultPackages() []string {
 		packages[p] = v
 	}
 	return resolvePackageURLs(packages)
+}
+
+func featureEnabled() bool {
+	return os.Getenv(envDDInstaller) == "true"
 }
 
 func resolvePackageURLs(packages map[string]string) []string {
