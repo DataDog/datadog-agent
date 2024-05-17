@@ -40,7 +40,7 @@ func PrintConfig(w io.Writer, config integration.Config, checkName string) {
 		fmt.Fprintf(w, "%s: %s\n", color.BlueString("Configuration source"), color.RedString("Unknown configuration source"))
 	}
 	for _, inst := range config.Instances {
-		ID := string(checkid.BuildID(config.Name, configDigest, inst.GetNameForInstance(), inst, config.InitConfig))
+		ID := string(checkid.BuildID(config.Name, configDigest, inst, config.InitConfig))
 		fmt.Fprintf(w, "%s: %s\n", color.BlueString("Config for instance ID"), color.CyanString(ID))
 		printScrubbed(w, inst)
 		fmt.Fprintln(w, "~")

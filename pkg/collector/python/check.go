@@ -238,7 +238,7 @@ func (c *PythonCheck) getPythonWarnings(gstate *stickyLock) []error {
 //nolint:revive // TODO(AML) Fix revive linter
 func (c *PythonCheck) Configure(senderManager sender.SenderManager, integrationConfigDigest uint64, data integration.Data, initConfig integration.Data, source string) error {
 	// Generate check ID
-	c.id = checkid.BuildID(c.String(), integrationConfigDigest, data.GetNameForInstance(), data, initConfig)
+	c.id = checkid.BuildID(c.String(), integrationConfigDigest, data, initConfig)
 
 	commonGlobalOptions := integration.CommonGlobalConfig{}
 	if err := yaml.Unmarshal(initConfig, &commonGlobalOptions); err != nil {

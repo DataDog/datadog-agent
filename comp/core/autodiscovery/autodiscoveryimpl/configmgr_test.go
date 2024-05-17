@@ -202,14 +202,12 @@ func (suite *ConfigManagerSuite) TestNewClusterCheckWithSecretsScheduled() {
 	originalCheckID := checkid.BuildID(
 		clusterCheckConfigWithSecrets.Name,
 		clusterCheckConfigWithSecrets.FastDigest(),
-		clusterCheckConfigWithSecrets.Instances[0].GetNameForInstance(),
 		clusterCheckConfigWithSecrets.Instances[0],
 		clusterCheckConfigWithSecrets.InitConfig,
 	)
 	newCheckID := checkid.BuildID(
 		changes.Schedule[0].Name,
 		changes.Schedule[0].FastDigest(),
-		changes.Schedule[0].Instances[0].GetNameForInstance(),
 		changes.Schedule[0].Instances[0],
 		changes.Schedule[0].InitConfig,
 	)

@@ -71,7 +71,7 @@ func NewCheckBaseWithInterval(name string, defaultInterval time.Duration) CheckB
 // BuildID is to be called by the check's Config() method to generate
 // the unique check ID.
 func (c *CheckBase) BuildID(integrationConfigDigest uint64, instance, initConfig integration.Data) {
-	c.checkID = checkid.BuildID(c.checkName, integrationConfigDigest, instance.GetNameForInstance(), instance, initConfig)
+	c.checkID = checkid.BuildID(c.checkName, integrationConfigDigest, instance, initConfig)
 }
 
 // Configure is provided for checks that require no config. If overridden,
