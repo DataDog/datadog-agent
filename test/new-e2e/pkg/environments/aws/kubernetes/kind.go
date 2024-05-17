@@ -32,13 +32,13 @@ const (
 )
 
 // KindProvisioner creates a new provisioner
-func KindProvisioner(opts ...ProvisionerOption) e2e.TypedProvisioner[environments.AwsKubernetes] {
+func KindProvisioner(opts ...ProvisionerOption) e2e.TypedProvisioner[environments.Kubernetes] {
 	// We ALWAYS need to make a deep copy of `params`, as the provisioner can be called multiple times.
 	// and it's easy to forget about it, leading to hard to debug issues.
 	params := newProvisionerParams()
 	_ = optional.ApplyOptions(params, opts)
 
-	provisioner := e2e.NewTypedPulumiProvisioner(provisionerBaseID+params.name, func(ctx *pulumi.Context, env *environments.AwsKubernetes) error {
+	provisioner := e2e.NewTypedPulumiProvisioner(provisionerBaseID+params.name, func(ctx *pulumi.Context, env *environments.Kubernetes) error {
 		// We ALWAYS need to make a deep copy of `params`, as the provisioner can be called multiple times.
 		// and it's easy to forget about it, leading to hard to debug issues.
 		params := newProvisionerParams()
@@ -51,16 +51,10 @@ func KindProvisioner(opts ...ProvisionerOption) e2e.TypedProvisioner[environment
 }
 
 // KindRunFunc is the Pulumi run function that runs the provisioner
-func KindRunFunc(ctx *pulumi.Context, env *environments.AwsKubernetes, params *ProvisionerParams) error {
-	var awsEnv aws.Environment
-	var err error
-	if env.AwsEnvironment != nil {
-		awsEnv = *env.AwsEnvironment
-	} else {
-		awsEnv, err = aws.NewEnvironment(ctx)
-		if err != nil {
-			return err
-		}
+func KindRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, params *ProvisionerParams) error {
+	awsEnv, err := aws.NewEnvironment(ctx)
+	if err != nil {
+		return err
 	}
 
 	host, err := ec2.NewVM(awsEnv, params.name, params.vmOptions...)
