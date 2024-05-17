@@ -140,14 +140,17 @@ func (a *apmInjectorInstaller) verifyDockerConfig(path string) error {
 		log.Warnf("failed to get docker version: %s, skipping verification", err)
 		return nil
 	}
-	majorDockerVersion := strings.Split(versionBuffer.String(), ".")[0]
-	majorDockerVersionInt, err := strconv.Atoi(majorDockerVersion)
+	dockerVersionSplit := strings.Split(versionBuffer.String(), ".")
+	if len(dockerVersionSplit) < 3 {
+		log.Warnf("failed to parse docker version %s, skipping verification", versionBuffer.String())
+	}
+	majorDockerVersionInt, err := strconv.Atoi(dockerVersionSplit[0])
 	if err != nil {
-		log.Warnf("failed to parse docker version %s: %s, skipping verification", majorDockerVersion, err)
+		log.Warnf("failed to parse docker version %s: %s, skipping verification", dockerVersionSplit[0], err)
 		return nil
 	}
 	if majorDockerVersionInt < 23 {
-		log.Warnf("docker version %s is not supported for verification, skipping", majorDockerVersion)
+		log.Warnf("docker version %d is not supported for verification, skipping", majorDockerVersionInt)
 		return nil
 	}
 
