@@ -112,7 +112,7 @@ class Arch:
     @staticmethod
     def local() -> Arch:
         """Shorthand to return the Arch object for the current machine's architecture."""
-        return Arch.local()
+        return Arch.from_str("local")
 
 
 ARCH_ARM64 = Arch(
