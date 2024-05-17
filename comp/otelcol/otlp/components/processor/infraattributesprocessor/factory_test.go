@@ -41,7 +41,7 @@ func TestCreateProcessors(t *testing.T) {
 		succeed    bool
 	}{
 		{
-			configName: "config_logs_strict.yaml",
+			configName: "logs_strict.yaml",
 			succeed:    true,
 		},
 	}

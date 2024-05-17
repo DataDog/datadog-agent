@@ -15,9 +15,9 @@ import (
 	"go.opentelemetry.io/collector/confmap/confmaptest"
 )
 
-// TestLoadingConfigStrictLogs tests loading testdata/config_logs_strict.yaml
+// TestLoadingConfigStrictLogs tests loading testdata/logs_strict.yaml
 func TestLoadingConfigStrictLogs(t *testing.T) {
-	cm, err := confmaptest.LoadConf(filepath.Join("testdata", "config_logs_strict.yaml"))
+	cm, err := confmaptest.LoadConf(filepath.Join("testdata", "logs_strict.yaml"))
 	require.NoError(t, err)
 
 	tests := []struct {
