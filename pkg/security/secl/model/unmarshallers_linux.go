@@ -304,7 +304,7 @@ func (e *InvalidateDentryEvent) UnmarshalBinary(data []byte) (int, error) {
 
 // UnmarshalBinary unmarshalls a binary representation of itself
 func (e *ArgsEnvsEvent) UnmarshalBinary(data []byte) (int, error) {
-	if len(data) < MaxArgEnvSize+8 {
+	if len(data) < 8 {
 		return 0, ErrNotEnoughData
 	}
 
@@ -313,9 +313,20 @@ func (e *ArgsEnvsEvent) UnmarshalBinary(data []byte) (int, error) {
 	if e.Size > MaxArgEnvSize {
 		e.Size = MaxArgEnvSize
 	}
-	SliceToArray(data[8:MaxArgEnvSize+8], e.ValuesRaw[:])
 
-	return MaxArgEnvSize + 8, nil
+	argsEnvSize := int(e.Size)
+	data = data[8:]
+	if len(data) < argsEnvSize {
+		return 8, ErrNotEnoughData
+	}
+
+	for i := range e.ValuesRaw {
+		e.ValuesRaw[i] = 0
+	}
+
+	SliceToArray(data[:argsEnvSize], e.ValuesRaw[:argsEnvSize])
+
+	return 8 + argsEnvSize, nil
 }
 
 // UnmarshalBinary unmarshals the given content
