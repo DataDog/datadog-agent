@@ -20,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/launchers"
 	"github.com/DataDog/datadog-agent/pkg/logs/launchers/container"
 	filelauncher "github.com/DataDog/datadog-agent/pkg/logs/launchers/file"
+	integrationLauncher "github.com/DataDog/datadog-agent/pkg/logs/launchers/integration"
 	"github.com/DataDog/datadog-agent/pkg/logs/launchers/journald"
 	"github.com/DataDog/datadog-agent/pkg/logs/launchers/listener"
 	"github.com/DataDog/datadog-agent/pkg/logs/launchers/windowsevent"
@@ -56,6 +57,7 @@ func (a *agent) SetupPipeline(processingRules []*config.ProcessingRule, wmeta op
 	lnchrs.AddLauncher(journald.NewLauncher(a.flarecontroller))
 	lnchrs.AddLauncher(windowsevent.NewLauncher())
 	lnchrs.AddLauncher(container.NewLauncher(a.sources, wmeta))
+	lnchrs.AddLauncher(integrationLauncher.NewLauncher(a.config.GetString("logs_config.run_path")))
 
 	a.schedulers = schedulers.NewSchedulers(a.sources, a.services)
 	a.auditor = auditor
