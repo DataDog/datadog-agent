@@ -25,7 +25,7 @@ func msiexec(target, operation string, args []string) (err error) {
 		return nil
 	}
 	updaterPath := filepath.Join(programData, "datadog-agent", target)
-	msis, err := filepath.Glob(filepath.Join(updaterPath, "datadog-agent-*-1.x86_64.msi"))
+	msis, err := filepath.Glob(filepath.Join(updaterPath, "datadog-agent-*-1-x86_64.msi"))
 	if err != nil {
 		return nil
 	}

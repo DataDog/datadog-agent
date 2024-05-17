@@ -16,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/fleet/bootstraper"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer"
 	"github.com/DataDog/datadog-agent/pkg/fleet/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/version"
 	"github.com/spf13/cobra"
 	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace"
 	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
@@ -27,11 +28,29 @@ const (
 	envRegistryAuth              = "DD_INSTALLER_REGISTRY_AUTH"
 	envAPIKey                    = "DD_API_KEY"
 	envSite                      = "DD_SITE"
+
+	envUpgrade                          = "DD_UPGRADE"
+	envAPMInstrumentationNoConfigChange = "DD_APM_INSTRUMENTATION_NO_CONFIG_CHANGE"
+	envSystemProbeEnsureConfig          = "DD_SYSTEM_PROBE_ENSURE_CONFIG"
+	envRuntimeSecurityConfigEnabled     = "DD_RUNTIME_SECURITY_CONFIG_ENABLED"
+	envComplianceConfigEnabled          = "DD_COMPLIANCE_CONFIG_ENABLED"
+	envInstallOnly                      = "DD_INSTALL_ONLY"
+	envNoAgentInstall                   = "DD_NO_AGENT_INSTALL"
+	envAPMInstrumentationLibraries      = "DD_APM_INSTRUMENTATION_LIBRARIES"
+	envAppSecEnabled                    = "DD_APPSEC_ENABLED"
+	envIASTEnabled                      = "DD_IAST_ENABLED"
+	envAPMInstrumentationEnabled        = "DD_APM_INSTRUMENTATION_ENABLED"
+	envRepoURL                          = "DD_REPO_URL"
+	envRepoURLDeprecated                = "REPO_URL"
+	envRPMRepoGPGCheck                  = "DD_RPM_REPO_GPGCHECK"
+	envAgentMajorVersion                = "DD_AGENT_MAJOR_VERSION"
+	envAgentMinorVersion                = "DD_AGENT_MINOR_VERSION"
+	envAgentDistChannel                 = "DD_AGENT_DIST_CHANNEL"
 )
 
 // Commands returns the installer subcommands.
 func Commands(_ *command.GlobalParams) []*cobra.Command {
-	return []*cobra.Command{bootstrapCommand(), installCommand(), removeCommand(), installExperimentCommand(), removeExperimentCommand(), promoteExperimentCommand(), garbageCollectCommand(), purgeCommand(), isInstalledCommand()}
+	return []*cobra.Command{versionCommand(), bootstrapCommand(), installCommand(), removeCommand(), installExperimentCommand(), removeExperimentCommand(), promoteExperimentCommand(), garbageCollectCommand(), purgeCommand(), isInstalledCommand()}
 }
 
 type cmd struct {
@@ -77,8 +96,13 @@ type installerCmd struct {
 	installer.Installer
 }
 
-func newInstallerCmd(operation string) (*installerCmd, error) {
+func newInstallerCmd(operation string) (_ *installerCmd, err error) {
 	cmd := newCmd(operation)
+	defer func() {
+		if err != nil {
+			cmd.Stop(err)
+		}
+	}()
 	var opts []installer.Option
 	if cmd.registry != "" {
 		opts = append(opts, installer.WithRegistry(cmd.registry))
@@ -119,6 +143,22 @@ func newBootstraperCmd(operation string) *bootstraperCmd {
 	if os.Getenv(envBootstrapInstallerVersion) != "" {
 		opts = append(opts, bootstraper.WithInstallerVersion(os.Getenv(envBootstrapInstallerVersion)))
 	}
+	cmd.span.SetTag("env.DD_UPGRADE", os.Getenv(envUpgrade))
+	cmd.span.SetTag("env.DD_APM_INSTRUMENTATION_NO_CONFIG_CHANGE", os.Getenv(envAPMInstrumentationNoConfigChange))
+	cmd.span.SetTag("env.DD_SYSTEM_PROBE_ENSURE_CONFIG", os.Getenv(envSystemProbeEnsureConfig))
+	cmd.span.SetTag("env.DD_RUNTIME_SECURITY_CONFIG_ENABLED", os.Getenv(envRuntimeSecurityConfigEnabled))
+	cmd.span.SetTag("env.DD_COMPLIANCE_CONFIG_ENABLED", os.Getenv(envComplianceConfigEnabled))
+	cmd.span.SetTag("env.DD_INSTALL_ONLY", os.Getenv(envInstallOnly))
+	cmd.span.SetTag("env.DD_NO_AGENT_INSTALL", os.Getenv(envNoAgentInstall))
+	cmd.span.SetTag("env.DD_APM_INSTRUMENTATION_LIBRARIES", os.Getenv(envAPMInstrumentationLibraries))
+	cmd.span.SetTag("env.DD_APPSEC_ENABLED", os.Getenv(envAppSecEnabled))
+	cmd.span.SetTag("env.DD_IAST_ENABLED", os.Getenv(envIASTEnabled))
+	cmd.span.SetTag("env.DD_APM_INSTRUMENTATION_ENABLED", os.Getenv(envAPMInstrumentationEnabled))
+	cmd.span.SetTag("env.DD_REPO_URL", os.Getenv(envRepoURL))
+	cmd.span.SetTag("env.REPO_URL", os.Getenv(envRepoURLDeprecated))
+	cmd.span.SetTag("env.DD_RPM_REPO_GPGCHECK", os.Getenv(envRPMRepoGPGCheck))
+	cmd.span.SetTag("env.DD_AGENT_MAJOR_VERSION", os.Getenv(envAgentMajorVersion))
+	cmd.span.SetTag("env.DD_AGENT_MINOR_VERSION", os.Getenv(envAgentMinorVersion))
 	return &bootstraperCmd{
 		opts: opts,
 		cmd:  cmd,
@@ -157,6 +197,17 @@ func newSpan(operationName string) (ddtrace.Span, context.Context) {
 	return tracer.StartSpanFromContext(context.Background(), operationName, spanOptions...)
 }
 
+func versionCommand() *cobra.Command {
+	return &cobra.Command{
+		Use:     "version",
+		Short:   "Print the version of the installer",
+		GroupID: "installer",
+		Run: func(_ *cobra.Command, _ []string) {
+			fmt.Println(version.AgentVersion)
+		},
+	}
+}
+
 func bootstrapCommand() *cobra.Command {
 	var timeout time.Duration
 	cmd := &cobra.Command{
@@ -184,10 +235,10 @@ func installCommand() *cobra.Command {
 		Args:    cobra.ExactArgs(1),
 		RunE: func(_ *cobra.Command, args []string) (err error) {
 			i, err := newInstallerCmd("install")
-			defer func() { i.Stop(err) }()
 			if err != nil {
 				return err
 			}
+			defer func() { i.Stop(err) }()
 			i.span.SetTag("params.url", args[0])
 			return i.Install(i.ctx, args[0], installArgs)
 		},
@@ -204,10 +255,10 @@ func removeCommand() *cobra.Command {
 		Args:    cobra.ExactArgs(1),
 		RunE: func(_ *cobra.Command, args []string) (err error) {
 			i, err := newInstallerCmd("remove")
-			defer func() { i.Stop(err) }()
 			if err != nil {
 				return err
 			}
+			defer func() { i.Stop(err) }()
 			i.span.SetTag("params.package", args[0])
 			return i.Remove(i.ctx, args[0])
 		},
@@ -223,10 +274,10 @@ func purgeCommand() *cobra.Command {
 		Args:    cobra.NoArgs,
 		RunE: func(_ *cobra.Command, _ []string) (err error) {
 			i, err := newInstallerCmd("purge")
-			defer func() { i.Stop(err) }()
 			if err != nil {
 				return err
 			}
+			defer func() { i.Stop(err) }()
 			i.Purge(i.ctx)
 			return nil
 		},
@@ -242,10 +293,10 @@ func installExperimentCommand() *cobra.Command {
 		Args:    cobra.ExactArgs(1),
 		RunE: func(_ *cobra.Command, args []string) (err error) {
 			i, err := newInstallerCmd("install_experiment")
-			defer func() { i.Stop(err) }()
 			if err != nil {
 				return err
 			}
+			defer func() { i.Stop(err) }()
 			i.span.SetTag("params.url", args[0])
 			return i.InstallExperiment(i.ctx, args[0])
 		},
@@ -261,10 +312,10 @@ func removeExperimentCommand() *cobra.Command {
 		Args:    cobra.ExactArgs(1),
 		RunE: func(_ *cobra.Command, args []string) (err error) {
 			i, err := newInstallerCmd("remove_experiment")
-			defer func() { i.Stop(err) }()
 			if err != nil {
 				return err
 			}
+			defer func() { i.Stop(err) }()
 			i.span.SetTag("params.package", args[0])
 			return i.RemoveExperiment(i.ctx, args[0])
 		},
@@ -280,10 +331,10 @@ func promoteExperimentCommand() *cobra.Command {
 		Args:    cobra.ExactArgs(1),
 		RunE: func(_ *cobra.Command, args []string) (err error) {
 			i, err := newInstallerCmd("promote_experiment")
-			defer func() { i.Stop(err) }()
 			if err != nil {
 				return err
 			}
+			defer func() { i.Stop(err) }()
 			i.span.SetTag("params.package", args[0])
 			return i.PromoteExperiment(i.ctx, args[0])
 		},
@@ -299,10 +350,10 @@ func garbageCollectCommand() *cobra.Command {
 		Args:    cobra.NoArgs,
 		RunE: func(_ *cobra.Command, _ []string) (err error) {
 			i, err := newInstallerCmd("garbage_collect")
-			defer func() { i.Stop(err) }()
 			if err != nil {
 				return err
 			}
+			defer func() { i.Stop(err) }()
 			return i.GarbageCollect(i.ctx)
 		},
 	}
@@ -322,10 +373,10 @@ func isInstalledCommand() *cobra.Command {
 		Args:    cobra.ExactArgs(1),
 		RunE: func(_ *cobra.Command, args []string) (err error) {
 			i, err := newInstallerCmd("is_installed")
-			defer func() { i.Stop(err) }()
 			if err != nil {
 				return err
 			}
+			defer func() { i.Stop(err) }()
 			installed, err := i.IsInstalled(i.ctx, args[0])
 			if err != nil {
 				return err

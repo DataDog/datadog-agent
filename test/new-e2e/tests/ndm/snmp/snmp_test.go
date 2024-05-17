@@ -40,7 +40,7 @@ const (
 // snmpDockerProvisioner defines a stack with a docker agent on an AmazonLinuxECS VM
 // with snmpsim installed and configured with snmp recordings
 func snmpDockerProvisioner() e2e.Provisioner {
-	return e2e.NewTypedPulumiProvisioner[environments.DockerHost]("", func(ctx *pulumi.Context, env *environments.DockerHost) error {
+	return e2e.NewTypedPulumiProvisioner("", func(ctx *pulumi.Context, env *environments.DockerHost) error {
 		name := "snmpvm"
 		awsEnv, err := aws.NewEnvironment(ctx)
 		if err != nil {
@@ -102,6 +102,7 @@ func snmpDockerProvisioner() e2e.Provisioner {
 		if err != nil {
 			return err
 		}
+		dockerManager.Export(ctx, &env.Docker.ManagerOutput)
 
 		envVars := pulumi.StringMap{"DATA_DIR": pulumi.String(dataPath), "CONFIG_DIR": pulumi.String(configPath)}
 		composeDependencies := []pulumi.Resource{createDataDirCommand, configCommand}

@@ -36,12 +36,6 @@ repos:
       entry: 'python3 tasks/git-hooks/protected-branches.py'
       language: system
       pass_filenames: false
-    - id: revive
-      name: revive
-      description: revive
-      entry: 'python3 tasks/git-hooks/revive.py'
-      language: system
-      files: \.go$
     - id: govet
       name: govet
       description: go vet

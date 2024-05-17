@@ -77,8 +77,8 @@ func Factory(store workloadmeta.Component) optional.Option[func() check.Check] {
 }
 
 // Configure parses the check configuration and init the check
-func (d *DockerCheck) Configure(senderManager sender.SenderManager, integrationConfigDigest uint64, config, initConfig integration.Data, source string) error {
-	err := d.CommonConfigure(senderManager, integrationConfigDigest, initConfig, config, source)
+func (d *DockerCheck) Configure(senderManager sender.SenderManager, _ uint64, config, initConfig integration.Data, source string) error {
+	err := d.CommonConfigure(senderManager, initConfig, config, source)
 	if err != nil {
 		return err
 	}
