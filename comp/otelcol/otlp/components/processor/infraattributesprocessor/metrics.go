@@ -7,6 +7,7 @@ package infraattributesprocessor
 
 import (
 	"context"
+	"fmt"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
@@ -20,16 +21,18 @@ import (
 
 type infraAttributesMetricProcessor struct {
 	logger      *zap.Logger
+	tagger      tagger.Component
 	cardinality types.TagCardinality
 }
 
-func newInfraAttributesMetricProcessor(set processor.CreateSettings, cfg *Config) (*infraAttributesMetricProcessor, error) {
-	tesp := &infraAttributesMetricProcessor{
+func newInfraAttributesMetricProcessor(set processor.CreateSettings, cfg *Config, tagger tagger.Component) (*infraAttributesMetricProcessor, error) {
+	iamp := &infraAttributesMetricProcessor{
 		logger:      set.Logger,
+		tagger:      tagger,
 		cardinality: cfg.Cardinality,
 	}
 	set.Logger.Info("Metric Tag Enrichment configured")
-	return tesp, nil
+	return iamp, nil
 }
 
 func splitTag(tag string) (key string, value string) {
@@ -40,22 +43,23 @@ func splitTag(tag string) (key string, value string) {
 	return split[0], split[1]
 }
 
-func (temp *infraAttributesMetricProcessor) processMetrics(_ context.Context, md pmetric.Metrics) (pmetric.Metrics, error) {
+func (iamp *infraAttributesMetricProcessor) processMetrics(_ context.Context, md pmetric.Metrics) (pmetric.Metrics, error) {
+	fmt.Println("PROCESSING METRICS")
 	rms := md.ResourceMetrics()
 	for i := 0; i < rms.Len(); i++ {
 		rm := rms.At(i)
 		rattrs := rm.Resource().Attributes()
 		originId := attributes.OriginIDFromAttributes(rattrs)
 
-		entityTags, err := tagger.Tag(originId, temp.cardinality)
+		entityTags, err := iamp.tagger.Tag(originId, iamp.cardinality)
 		if err != nil {
-			temp.logger.Error("Cannot get tags for entity", zap.String("originId", originId), zap.Error(err))
+			iamp.logger.Error("Cannot get tags for entity", zap.String("originId", originId), zap.Error(err))
 			continue
 		}
 
-		globalTags, err := tagger.GlobalTags(temp.cardinality)
+		globalTags, err := iamp.tagger.GlobalTags(iamp.cardinality)
 		if err != nil {
-			temp.logger.Error("Cannot get global tags", zap.Error(err))
+			iamp.logger.Error("Cannot get global tags", zap.Error(err))
 			continue
 		}
 
@@ -68,6 +72,7 @@ func (temp *infraAttributesMetricProcessor) processMetrics(_ context.Context, md
 				rattrs.PutStr(k, v)
 			}
 		}
+		fmt.Printf("enrichedTags: %v\n", enrichedTags)
 	}
 
 	return md, nil

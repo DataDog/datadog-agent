@@ -16,6 +16,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/hostname"
 	corelog "github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	collectorcontrib "github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/def"
 	collectordef "github.com/DataDog/datadog-agent/comp/otelcol/collector/def"
@@ -39,6 +40,7 @@ type dependencies struct {
 	Serializer       serializer.MetricSerializer
 	LogsAgent        optional.Option[logsagentpipeline.Component]
 	HostName         hostname.Component
+	Tagger           tagger.Component
 }
 
 type collector struct {
@@ -65,7 +67,7 @@ func New(deps dependencies) (collectordef.Component, error) {
 			} else {
 				factories.Exporters[datadogexporter.Type] = datadogexporter.NewFactory(deps.Serializer, nil, deps.HostName)
 			}
-			factories.Processors[infraattributesprocessor.Type] = infraattributesprocessor.NewFactory()
+			factories.Processors[infraattributesprocessor.Type] = infraattributesprocessor.NewFactory(deps.Tagger)
 			return factories, nil
 		},
 		ConfigProvider: deps.Provider,
