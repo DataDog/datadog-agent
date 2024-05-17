@@ -225,7 +225,7 @@ func (l *UDSListener) handleConnection(conn *net.UnixConn, closeFunc CloseFuncti
 
 		var capBuff *replay.CaptureBuffer
 		if l.trafficCapture != nil && l.trafficCapture.IsOngoing() {
-			capBuff = replay.CapPool.Get().(*replay.CaptureBuffer)
+			capBuff = new(replay.CaptureBuffer)
 			capBuff.Pb.Ancillary = nil
 			capBuff.Pb.Payload = nil
 			capBuff.Pb.Pid = 0

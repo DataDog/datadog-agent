@@ -9,7 +9,6 @@
 package def
 
 import (
-	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/packets"
@@ -72,10 +71,3 @@ const (
 	// need this number to identify replayed Unix socket ancillary credentials.
 	GUID = 999888777
 )
-
-// CapPool is a pool of CaptureBuffer
-var CapPool = sync.Pool{
-	New: func() interface{} {
-		return new(CaptureBuffer)
-	},
-}

@@ -66,7 +66,7 @@ func writerTest(t *testing.T, z bool) {
 			time.Sleep(duration)
 
 			for i := 0; i < iterations; i++ {
-				buff := replaydef.CapPool.Get().(*replaydef.CaptureBuffer)
+				buff := new(replaydef.CaptureBuffer)
 				pkt := manager.Get().(*packets.Packet)
 				pkt.Buffer = []byte("foo.bar|5|#some:tag")
 				pkt.Source = packets.UDS
