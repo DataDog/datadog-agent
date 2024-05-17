@@ -8,6 +8,7 @@
 package cpu
 
 import (
+	"errors"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/metrics"
@@ -18,6 +19,8 @@ import (
 	gohaicpu "github.com/DataDog/datadog-agent/pkg/gohai/cpu"
 	gohaiutils "github.com/DataDog/datadog-agent/pkg/gohai/utils"
 	pdhtest "github.com/DataDog/datadog-agent/pkg/util/pdhutil"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func CPUInfo() *gohaicpu.Info {
@@ -32,8 +35,8 @@ func createCheck() check.Check {
 	cpuCheck := cpuCheckFunc()
 	return cpuCheck
 }
-func TestCPUCheckWindows(t *testing.T) {
-	cpuInfo = CPUInfo
+func TestCPUCheckWindowsRunOk(t *testing.T) {
+	cpuInfoFunc = CPUInfo
 	pdhtest.SetupTesting("..\\testfiles\\counter_indexes_en-us.txt", "..\\testfiles\\allcounters_en-us.txt")
 	// The counters will have GetValue called twice because of the "Processor Information" issue workaround
 	// see AddToQuery() in cpu_windows.go
@@ -63,4 +66,26 @@ func TestCPUCheckWindows(t *testing.T) {
 	m.AssertExpectations(t)
 	m.AssertNumberOfCalls(t, metrics.GaugeType.String(), 8)
 	m.AssertNumberOfCalls(t, "Commit", 1)
+}
+
+func TestCPUCheckWindowsErrorInInstanceConfig(t *testing.T) {
+	cpuCheck := createCheck()
+	m := mocksender.NewMockSender(cpuCheck.ID())
+
+	err := cpuCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, []byte(`min_collection_interval: "string_value"`), nil, "test")
+
+	assert.NotNil(t, err)
+}
+
+func TestCPUCheckWindowsErrorStoppedSender(t *testing.T) {
+	stoppedSenderError := errors.New("demultiplexer is stopped")
+	cpuInfoFunc = CPUInfo
+	cpuCheck := createCheck()
+	m := mocksender.NewMockSender(cpuCheck.ID())
+
+	cpuCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test")
+	m.GetSenderManager().(*aggregator.AgentDemultiplexer).Stop(false)
+	err := cpuCheck.Run()
+
+	assert.Equal(t, stoppedSenderError, err)
 }

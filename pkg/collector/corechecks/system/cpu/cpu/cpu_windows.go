@@ -29,7 +29,7 @@ import (
 const CheckName = "cpu"
 
 // For testing purposes
-var cpuInfo = cpu.CollectInfo
+var cpuInfoFunc = cpu.CollectInfo
 
 // Check doesn't need additional fields
 type Check struct {
@@ -151,7 +151,7 @@ func (c *Check) Configure(senderManager sender.SenderManager, _ uint64, data int
 	}
 
 	// do nothing
-	info := cpuInfo()
+	info := cpuInfoFunc()
 	cpucount, err := info.CPULogicalProcessors.Value()
 	if err != nil {
 		return fmt.Errorf("cpu.Check: could not get number of CPU: %w", err)
