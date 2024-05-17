@@ -8,15 +8,19 @@ package installer
 import (
 	"os"
 	"strings"
+
+	"github.com/DataDog/datadog-agent/pkg/fleet/internal/oci"
 )
 
 const (
+	envSite                      = "DD_SITE"
+	envDDInstaller               = "DD_INSTALLER"
 	envInstallerPackages         = "DD_INSTALLER_PACKAGES"
 	envApmInstrumentationEnabled = "DD_APM_INSTRUMENTATION_ENABLED"
 )
 
-// DefaultPackages resolves the default packages to install based on the environment.
-func DefaultPackages() map[string]string {
+// DefaultPackages resolves the default packages URLs to install based on the environment.
+func DefaultPackages() []string {
 	var packages = make(map[string]string)
 
 	switch os.Getenv(envApmInstrumentationEnabled) {
@@ -27,7 +31,19 @@ func DefaultPackages() map[string]string {
 	for p, v := range parseForcedPackages() {
 		packages[p] = v
 	}
-	return packages
+	return resolvePackageURLs(packages)
+}
+
+func resolvePackageURLs(packages map[string]string) []string {
+	site := "datadoghq.com"
+	if os.Getenv(envSite) != "" {
+		site = os.Getenv(envSite)
+	}
+	var packageURLs []string
+	for p, v := range packages {
+		packageURLs = append(packageURLs, oci.PackageURL(site, p, v))
+	}
+	return packageURLs
 }
 
 func parseForcedPackages() map[string]string {

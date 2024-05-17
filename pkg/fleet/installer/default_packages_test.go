@@ -9,6 +9,7 @@ import (
 	"os"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/fleet/internal/oci"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -61,12 +62,17 @@ func TestDefaultPackages(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			os.Setenv("DD_SITE", "datadoghq.com")
 			for key, value := range tt.envVariables {
 				os.Setenv(key, value)
 				defer os.Unsetenv(key)
 			}
 			result := DefaultPackages()
-			assert.Equal(t, tt.expectedResult, result)
+			var expectedResult []string
+			for p, v := range tt.expectedResult {
+				expectedResult = append(expectedResult, oci.PackageURL("datadoghq.com", p, v))
+			}
+			assert.Equal(t, expectedResult, result)
 		})
 	}
 }

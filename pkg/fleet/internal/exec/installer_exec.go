@@ -9,10 +9,10 @@ package exec
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
+	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
@@ -138,7 +138,7 @@ func (i *InstallerExec) IsInstalled(ctx context.Context, pkg string) (_ bool, er
 }
 
 // DefaultPackages returns the default packages to install.
-func (i *InstallerExec) DefaultPackages(ctx context.Context) (map[string]string, error) {
+func (i *InstallerExec) DefaultPackages(ctx context.Context) ([]string, error) {
 	cmd := i.newInstallerCmd(ctx, "default-packages")
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
@@ -148,10 +148,12 @@ func (i *InstallerExec) DefaultPackages(ctx context.Context) (map[string]string,
 	if err != nil {
 		return nil, fmt.Errorf("error running default-packages: %w\n%s", err, stderr.String())
 	}
-	var defaultPackages map[string]string
-	err = json.Unmarshal(stdout.Bytes(), &defaultPackages)
-	if err != nil {
-		return nil, fmt.Errorf("error unmarshalling default-packages: %w\n%s", err, stdout.String())
+	var defaultPackages []string
+	for _, line := range strings.Split(stdout.String(), "\n") {
+		if line == "" {
+			continue
+		}
+		defaultPackages = append(defaultPackages, line)
 	}
 	return defaultPackages, nil
 }

@@ -8,9 +8,9 @@ package installer
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/cmd/installer/command"
@@ -221,11 +221,7 @@ func defaultPackagesCommand() *cobra.Command {
 		GroupID: "installer",
 		RunE: func(_ *cobra.Command, _ []string) error {
 			defaultPackages := installer.DefaultPackages()
-			defaultPackagesJSON, err := json.Marshal(&defaultPackages)
-			if err != nil {
-				return err
-			}
-			fmt.Fprintf(os.Stdout, "%s\n", defaultPackagesJSON)
+			fmt.Fprintf(os.Stdout, "%s\n", strings.Join(defaultPackages, "\n"))
 			return nil
 		},
 	}

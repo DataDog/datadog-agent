@@ -159,11 +159,10 @@ func Bootstrap(ctx context.Context, opts ...Option) error {
 	if err != nil {
 		return fmt.Errorf("failed to get default packages: %w", err)
 	}
-	for name, version := range defaultPackages {
-		url := oci.PackageURL(o.site, name, version)
+	for _, url := range defaultPackages {
 		err = cmd.Install(ctx, url)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "failed to install package %s: %v\n", name, err)
+			fmt.Fprintf(os.Stderr, "failed to install package %s: %v\n", url, err)
 		}
 	}
 	return nil
