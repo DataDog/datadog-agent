@@ -11,17 +11,77 @@
          <changefreq>daily</changefreq>
     </url>
     <url>
-         <loc>https://datadoghq.dev/datadog-agent/architecture/components/fx/</loc>
-         <lastmod>2020-02-02</lastmod>
-         <changefreq>daily</changefreq>
-    </url>
-    <url>
-         <loc>https://datadoghq.dev/datadog-agent/architecture/components/overview/</loc>
-         <lastmod>2020-02-02</lastmod>
-         <changefreq>daily</changefreq>
-    </url>
-    <url>
          <loc>https://datadoghq.dev/datadog-agent/architecture/dogstatsd/internals/</loc>
+         <lastmod>2020-02-02</lastmod>
+         <changefreq>daily</changefreq>
+    </url>
+    <url>
+         <loc>https://datadoghq.dev/datadog-agent/components/common-patterns/</loc>
+         <lastmod>2020-02-02</lastmod>
+         <changefreq>daily</changefreq>
+    </url>
+    <url>
+         <loc>https://datadoghq.dev/datadog-agent/components/creating-bundles/</loc>
+         <lastmod>2020-02-02</lastmod>
+         <changefreq>daily</changefreq>
+    </url>
+    <url>
+         <loc>https://datadoghq.dev/datadog-agent/components/creating-components/</loc>
+         <lastmod>2020-02-02</lastmod>
+         <changefreq>daily</changefreq>
+    </url>
+    <url>
+         <loc>https://datadoghq.dev/datadog-agent/components/faq/</loc>
+         <lastmod>2020-02-02</lastmod>
+         <changefreq>daily</changefreq>
+    </url>
+    <url>
+         <loc>https://datadoghq.dev/datadog-agent/components/fx/</loc>
+         <lastmod>2020-02-02</lastmod>
+         <changefreq>daily</changefreq>
+    </url>
+    <url>
+         <loc>https://datadoghq.dev/datadog-agent/components/migration/</loc>
+         <lastmod>2020-02-02</lastmod>
+         <changefreq>daily</changefreq>
+    </url>
+    <url>
+         <loc>https://datadoghq.dev/datadog-agent/components/overview/</loc>
+         <lastmod>2020-02-02</lastmod>
+         <changefreq>daily</changefreq>
+    </url>
+    <url>
+         <loc>https://datadoghq.dev/datadog-agent/components/testing/</loc>
+         <lastmod>2020-02-02</lastmod>
+         <changefreq>daily</changefreq>
+    </url>
+    <url>
+         <loc>https://datadoghq.dev/datadog-agent/components/using-components/</loc>
+         <lastmod>2020-02-02</lastmod>
+         <changefreq>daily</changefreq>
+    </url>
+    <url>
+         <loc>https://datadoghq.dev/datadog-agent/components/shared_features/flares/</loc>
+         <lastmod>2020-02-02</lastmod>
+         <changefreq>daily</changefreq>
+    </url>
+    <url>
+         <loc>https://datadoghq.dev/datadog-agent/components/shared_features/metadata/</loc>
+         <lastmod>2020-02-02</lastmod>
+         <changefreq>daily</changefreq>
+    </url>
+    <url>
+         <loc>https://datadoghq.dev/datadog-agent/components/shared_features/remote_config/</loc>
+         <lastmod>2020-02-02</lastmod>
+         <changefreq>daily</changefreq>
+    </url>
+    <url>
+         <loc>https://datadoghq.dev/datadog-agent/components/shared_features/status/</loc>
+         <lastmod>2020-02-02</lastmod>
+         <changefreq>daily</changefreq>
+    </url>
+    <url>
+         <loc>https://datadoghq.dev/datadog-agent/components/shared_features/workloadmeta/</loc>
          <lastmod>2020-02-02</lastmod>
          <changefreq>daily</changefreq>
     </url>
@@ -36,42 +96,32 @@
          <changefreq>daily</changefreq>
     </url>
     <url>
-         <loc>https://datadoghq.dev/datadog-agent/guidelines/components/defining-apps/</loc>
+         <loc>https://datadoghq.dev/datadog-agent/guidelines/deprecated-components-documentation/defining-apps/</loc>
          <lastmod>2020-02-02</lastmod>
          <changefreq>daily</changefreq>
     </url>
     <url>
-         <loc>https://datadoghq.dev/datadog-agent/guidelines/components/defining-bundles/</loc>
+         <loc>https://datadoghq.dev/datadog-agent/guidelines/deprecated-components-documentation/defining-bundles/</loc>
          <lastmod>2020-02-02</lastmod>
          <changefreq>daily</changefreq>
     </url>
     <url>
-         <loc>https://datadoghq.dev/datadog-agent/guidelines/components/defining-components/</loc>
+         <loc>https://datadoghq.dev/datadog-agent/guidelines/deprecated-components-documentation/purpose/</loc>
          <lastmod>2020-02-02</lastmod>
          <changefreq>daily</changefreq>
     </url>
     <url>
-         <loc>https://datadoghq.dev/datadog-agent/guidelines/components/purpose/</loc>
+         <loc>https://datadoghq.dev/datadog-agent/guidelines/deprecated-components-documentation/registrations/</loc>
          <lastmod>2020-02-02</lastmod>
          <changefreq>daily</changefreq>
     </url>
     <url>
-         <loc>https://datadoghq.dev/datadog-agent/guidelines/components/registrations/</loc>
+         <loc>https://datadoghq.dev/datadog-agent/guidelines/deprecated-components-documentation/subscriptions/</loc>
          <lastmod>2020-02-02</lastmod>
          <changefreq>daily</changefreq>
     </url>
     <url>
-         <loc>https://datadoghq.dev/datadog-agent/guidelines/components/subscriptions/</loc>
-         <lastmod>2020-02-02</lastmod>
-         <changefreq>daily</changefreq>
-    </url>
-    <url>
-         <loc>https://datadoghq.dev/datadog-agent/guidelines/components/using-components/</loc>
-         <lastmod>2020-02-02</lastmod>
-         <changefreq>daily</changefreq>
-    </url>
-    <url>
-         <loc>https://datadoghq.dev/datadog-agent/how-to/components/migration/</loc>
+         <loc>https://datadoghq.dev/datadog-agent/guidelines/deprecated-components-documentation/using-components/</loc>
          <lastmod>2020-02-02</lastmod>
          <changefreq>daily</changefreq>
     </url>
