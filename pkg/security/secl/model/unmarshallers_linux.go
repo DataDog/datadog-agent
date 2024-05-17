@@ -80,8 +80,8 @@ func (e *Event) UnmarshalBinary(data []byte) (int, error) {
 	}
 
 	e.TimestampRaw = binary.NativeEndian.Uint64(data[0:8])
-	e.Type = uint32(binary.NativeEndian.Uint16(data[12:14]))
-	e.Flags = uint32(binary.NativeEndian.Uint16(data[14:16]))
+	e.Type = uint32(binary.NativeEndian.Uint16(data[8:10]))
+	e.Flags = uint32(binary.NativeEndian.Uint16(data[10:12]))
 
 	return 16, nil
 }

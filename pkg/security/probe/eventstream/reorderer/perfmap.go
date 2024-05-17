@@ -91,12 +91,12 @@ func (m *OrderedPerfMap) Resume() error {
 
 // ExtractEventInfo extracts cpu and timestamp from the raw data event
 func ExtractEventInfo(record *perf.Record) (QuickInfo, error) {
-	if len(record.RawSample) < 16 {
+	if len(record.RawSample) < 8 {
 		return QuickInfo{}, model.ErrNotEnoughData
 	}
 
 	return QuickInfo{
-		CPU:       uint64(binary.NativeEndian.Uint32(record.RawSample[8:12])),
+		CPU:       uint64(record.CPU),
 		Timestamp: binary.NativeEndian.Uint64(record.RawSample[0:8]),
 	}, nil
 }

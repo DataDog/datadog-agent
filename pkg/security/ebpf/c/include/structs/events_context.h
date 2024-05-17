@@ -6,7 +6,6 @@
 
 struct kevent_t {
     u64 timestamp;
-    u32 cpu;
     u16 type;
     u16 flags;
 };
