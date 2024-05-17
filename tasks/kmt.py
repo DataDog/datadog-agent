@@ -47,6 +47,7 @@ from tasks.system_probe import (
     TEST_PACKAGES_LIST,
     check_for_ninja,
     get_ebpf_build_dir,
+    get_ebpf_runtime_dir,
     get_sysprobe_buildtags,
     get_test_timeout,
     go_package_dirs,
@@ -501,9 +502,10 @@ def ninja_copy_ebpf_files(
 ):
     # copy ebpf files
     build_dir = get_ebpf_build_dir(arch)
-    ebpf_files = [
-        p.absolute() for p in build_dir.glob("**/*") if p.is_file() and p.suffix in ['.c', '.o'] and filter_fn(p)
-    ]
+    runtime_dir = get_ebpf_runtime_dir()
+
+    candidates = list(build_dir.glob("**/*.o")) + list(runtime_dir.glob("**/*.c"))
+    ebpf_files = [p.absolute() for p in candidates if p.is_file() and filter_fn(p)]
 
     output = kmt_paths.secagent_tests if component == "security-agent" else kmt_paths.sysprobe_tests
 
