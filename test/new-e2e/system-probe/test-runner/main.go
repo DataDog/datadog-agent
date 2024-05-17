@@ -81,6 +81,9 @@ func getEBPFBuildDir() (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("cannot get arch: %w", err)
 	}
+	if arch == "aarch64" {
+		arch = "arm64"
+	}
 
 	return fmt.Sprintf("pkg/ebpf/bytecode/build/%s", arch), nil
 }
