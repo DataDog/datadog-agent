@@ -212,9 +212,8 @@ func (c *collector) parsePods(
 		}
 
 		// Skip `kube_service` label for pods that are not ready (since their endpoint will be disabled from the service)
-		// Skip pods with hostNetwork because we cannot use their IP to match endpoints.
 		services := []string{}
-		if !pod.Spec.HostNetwork && kubelet.IsPodReady(pod) {
+		if kubelet.IsPodReady(pod) {
 			for _, data := range metadata {
 				d := strings.Split(data, ":")
 				switch len(d) {

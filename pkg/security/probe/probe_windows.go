@@ -77,7 +77,7 @@ type WindowsProbe struct {
 	regPathResolver      *lru.Cache[regObjectPointer, string]
 
 	// state tracking
-	renamePreArgs renameState
+	renamePreArgs *lru.Cache[uint64, string]
 
 	// stats
 	stats stats
@@ -98,10 +98,6 @@ type WindowsProbe struct {
 // and have the wrapper struct even though right now it doesn't add anything.
 type fileCache struct {
 	fileName string
-}
-type renameState struct {
-	fileObject uint64
-	path       string
 }
 
 type etwNotification struct {
@@ -599,22 +595,21 @@ func (p *WindowsProbe) handleETWNotification(ev *model.Event, notif etwNotificat
 			},
 		}
 	case *renameArgs:
-		p.renamePreArgs = renameState{
-			fileObject: uint64(arg.fileObject),
-			path:       arg.fileName,
-		}
+		p.renamePreArgs.Add(uint64(arg.fileObject), arg.fileName)
 	case *rename29Args:
-		p.renamePreArgs = renameState{
-			fileObject: uint64(arg.fileObject),
-			path:       arg.fileName,
-		}
+		p.renamePreArgs.Add(uint64(arg.fileObject), arg.fileName)
 	case *renamePath:
+		path, found := p.renamePreArgs.Get(uint64(arg.fileObject))
+		if !found {
+			log.Debugf("unable to find renamePreArgs for %d", uint64(arg.fileObject))
+			return
+		}
 		ev.Type = uint32(model.FileRenameEventType)
 		ev.RenameFile = model.RenameFileEvent{
 			Old: model.FimFileEvent{
-				FileObject:  p.renamePreArgs.fileObject,
-				PathnameStr: p.renamePreArgs.path,
-				BasenameStr: filepath.Base(p.renamePreArgs.path),
+				FileObject:  uint64(arg.fileObject),
+				PathnameStr: path,
+				BasenameStr: filepath.Base(path),
 			},
 			New: model.FimFileEvent{
 				FileObject:  uint64(arg.fileObject),
@@ -622,6 +617,7 @@ func (p *WindowsProbe) handleETWNotification(ev *model.Event, notif etwNotificat
 				BasenameStr: filepath.Base(arg.filePath),
 			},
 		}
+		p.renamePreArgs.Remove(uint64(arg.fileObject))
 	case *setDeleteArgs:
 		ev.Type = uint32(model.DeleteFileEventType)
 		ev.DeleteFile = model.DeleteFileEvent{
@@ -873,6 +869,11 @@ func NewWindowsProbe(probe *Probe, config *config.Config, opts Opts) (*WindowsPr
 		return nil, err
 	}
 
+	rnc, err := lru.New[uint64, string](5)
+	if err != nil {
+		return nil, err
+	}
+
 	ctx, cancelFnc := context.WithCancel(context.Background())
 
 	p := &WindowsProbe{
@@ -889,6 +890,8 @@ func NewWindowsProbe(probe *Probe, config *config.Config, opts Opts) (*WindowsPr
 
 		filePathResolver: fc,
 		regPathResolver:  rc,
+
+		renamePreArgs: rnc,
 
 		discardedPaths:     discardedPaths,
 		discardedBasenames: discardedBasenames,
