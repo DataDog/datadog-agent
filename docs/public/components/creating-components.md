@@ -283,14 +283,14 @@ the logic. Most `fx/fx.go` file should look the same as this:
     Creating a conversion function to `optional.Option` is done automatically by `ProvideComponentConstructor`.
     This means that you can depend on any `comp` as an `optional.Option[comp]` if needed.
 
-    More on this in the [FAQ](faq.md#optional-dependency).
+    More on this in the [FAQ](faq.md#optional-component).
 
 For the ZIP implementation, create the same file in `fx-zip` folder. In most cases, your component has a
 single implementation. If so, you have only one `impl` and `fx` folder.
 
 #### `fx-none`
 
-Some parts of the codebase might have optional dependencies on your components (see [FAQ](faq.md#optional-dependency)).
+Some parts of the codebase might have optional dependencies on your components (see [FAQ](faq.md#optional-component)).
 
 If it's the case, you need to provide a fx wrapper called `fx-none` to avoid duplicating the use of `optional.NewNoneOption[def.Component]()` in all our binaries
 

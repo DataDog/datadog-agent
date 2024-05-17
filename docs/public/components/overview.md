@@ -14,7 +14,7 @@ A component must:
   + Hide the complexity of the implementation from its users.
   + Be reusable no matter the context or the binary in which they're included.
   + Be tested.
-  + Expose a mock implementation to help testing.
+  + Expose a mock implementation to help testing if it makes sense.
   + Be owned by a single team which supports and maintains it.
   
 Any change within a component that don't change its interface should not require QA of another component using it.

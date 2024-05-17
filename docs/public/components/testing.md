@@ -4,7 +4,7 @@ Testing is an essential part of the software development life cycle. This page c
 
 One of the core benefits of using components is that each component isolates its internal logic behind its interface. Focus on asserting that each implementation behaves correctly.
 
-To recap from the previous page, a component was created that compresses the payload before sending it to the Datadog backend. The component had two separate implementations.
+To recap from the [previous page](creating-components.md), a component was created that compresses the payload before sending it to the Datadog backend. The component has two separate implementations.
 
 This is the component's interface:
 

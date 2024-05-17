@@ -2,7 +2,7 @@
 
 <!-- TODO: Should we migrate the FAQ from confluence here ? -->
 
-## Optional dependency
+## Optional Component
 
 You might need to express the fact that some of your dependencies are optional. This often happens for
 components that interact with many other components **if available** (that is, if they were included at compile time). This allows
