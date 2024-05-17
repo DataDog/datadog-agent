@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import functools
 import re
-from typing import Optional, Tuple
 
 from invoke.context import Context
 
@@ -11,7 +10,7 @@ from tasks.kernel_matrix_testing.tool import error, full_arch, get_binary_target
 from tasks.kernel_matrix_testing.types import Component
 from tasks.kernel_matrix_testing.vars import KMTPaths, arch_ls
 
-SelftestResult = Tuple[Optional[bool], str]
+SelftestResult = tuple[bool | None, str]
 
 
 def selftest_pulumi(ctx: Context, _: bool) -> SelftestResult:
