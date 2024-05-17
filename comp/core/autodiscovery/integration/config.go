@@ -8,16 +8,13 @@ package integration
 
 import (
 	"fmt"
-	"io"
 	"sort"
 	"strconv"
 	"strings"
 
-	"github.com/fatih/color"
 	"github.com/twmb/murmur3"
 	yaml "gopkg.in/yaml.v2"
 
-	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
@@ -488,82 +485,6 @@ func (c *Config) Dump(multiline bool) string {
 	fmt.Fprintf(&b, ws("MetricsExcluded: %t,"), c.MetricsExcluded)
 	fmt.Fprintf(&b, ws("LogsExcluded: %t} (digest %s)"), c.LogsExcluded, c.Digest())
 	return b.String()
-}
-
-// PrintConfig prints a human-readable representation of a configuration with any secrets scrubbed.
-func (c *Config) PrintConfig(w io.Writer, checkName string) {
-	if checkName != "" && c.Name != checkName {
-		return
-	}
-	configDigest := c.FastDigest()
-	if !c.ClusterCheck {
-		fmt.Fprintf(w, "\n=== %s check ===\n", color.GreenString(c.Name))
-	} else {
-		fmt.Fprintf(w, "\n=== %s cluster check ===\n", color.GreenString(c.Name))
-	}
-
-	if c.Provider != "" {
-		fmt.Fprintf(w, "%s: %s\n", color.BlueString("Configuration provider"), color.CyanString(c.Provider))
-	} else {
-		fmt.Fprintf(w, "%s: %s\n", color.BlueString("Configuration provider"), color.RedString("Unknown provider"))
-	}
-	if c.Source != "" {
-		fmt.Fprintf(w, "%s: %s\n", color.BlueString("Configuration source"), color.CyanString(c.Source))
-	} else {
-		fmt.Fprintf(w, "%s: %s\n", color.BlueString("Configuration source"), color.RedString("Unknown configuration source"))
-	}
-	for _, inst := range c.Instances {
-		ID := string(checkid.BuildID(c.Name, configDigest, inst.GetNameForInstance(), inst, c.InitConfig))
-		fmt.Fprintf(w, "%s: %s\n", color.BlueString("Config for instance ID"), color.CyanString(ID))
-		printScrubbed(w, inst)
-		fmt.Fprintln(w, "~")
-	}
-	if len(c.InitConfig) > 0 {
-		fmt.Fprintf(w, "%s:\n", color.BlueString("Init Config"))
-		printScrubbed(w, c.InitConfig)
-	}
-	if len(c.MetricConfig) > 0 {
-		fmt.Fprintf(w, "%s:\n", color.BlueString("Metric Config"))
-		printScrubbed(w, c.MetricConfig)
-	}
-	if len(c.LogsConfig) > 0 {
-		fmt.Fprintf(w, "%s:\n", color.BlueString("Log Config"))
-		printScrubbed(w, c.LogsConfig)
-	}
-	if c.IsTemplate() {
-		fmt.Fprintf(w, "%s:\n", color.BlueString("Auto-discovery IDs"))
-		for _, id := range c.ADIdentifiers {
-			fmt.Fprintf(w, "* %s\n", color.CyanString(id))
-		}
-		c.printContainerExclusionRulesInfo(w)
-	}
-	if c.NodeName != "" {
-		state := fmt.Sprintf("dispatched to %s", c.NodeName)
-		fmt.Fprintf(w, "%s: %s\n", color.BlueString("State"), color.CyanString(state))
-	}
-	fmt.Fprintln(w, "===")
-}
-
-func printScrubbed(w io.Writer, data []byte) {
-	scrubbed, err := scrubber.ScrubYaml(data)
-	if err == nil {
-		fmt.Fprintln(w, string(scrubbed))
-	} else {
-		fmt.Fprintf(w, "error scrubbing secrets from config: %s\n", err)
-	}
-}
-
-func (c *Config) printContainerExclusionRulesInfo(w io.Writer) {
-	var msg string
-	if c.IsCheckConfig() && c.MetricsExcluded {
-		msg = "This configuration matched a metrics container-exclusion rule, so it will not be run by the Agent"
-	} else if c.IsLogConfig() && c.LogsExcluded {
-		msg = "This configuration matched a logs container-exclusion rule, so it will not be run by the Agent"
-	}
-
-	if msg != "" {
-		fmt.Fprintln(w, color.BlueString(msg))
-	}
 }
 
 // ConfigChanges contains the changes that occurred due to an event in

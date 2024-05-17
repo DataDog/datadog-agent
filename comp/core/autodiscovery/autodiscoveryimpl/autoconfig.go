@@ -30,6 +30,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/scheduler"
 	autodiscoveryStatus "github.com/DataDog/datadog-agent/comp/core/autodiscovery/status"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/telemetry"
+	autodiscoveryUtils "github.com/DataDog/datadog-agent/comp/core/autodiscovery/utils"
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	logComp "github.com/DataDog/datadog-agent/comp/core/log"
@@ -278,7 +279,7 @@ func (ac *AutoConfig) GetConfigCheck(verbose bool) []byte {
 	}
 
 	for _, c := range configSlice {
-		c.PrintConfig(writer, "")
+		autodiscoveryUtils.PrintConfig(writer, c, "")
 	}
 
 	if verbose {
