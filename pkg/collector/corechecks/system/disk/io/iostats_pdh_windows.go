@@ -77,8 +77,8 @@ func isDrive(instance string) bool {
 }
 
 // Configure the IOstats check
-func (c *IOCheck) Configure(senderManager sender.SenderManager, integrationConfigDigest uint64, data integration.Data, initConfig integration.Data, source string) error {
-	err := c.commonConfigure(senderManager, integrationConfigDigest, data, initConfig, source)
+func (c *IOCheck) Configure(senderManager sender.SenderManager, _ uint64, data integration.Data, initConfig integration.Data, source string) error {
+	err := c.commonConfigure(senderManager, data, initConfig, source)
 	if err != nil {
 		return err
 	}

@@ -8,11 +8,15 @@ require 'pathname'
 
 name 'datadog-agent'
 
+# creates required build directories
+dependency 'datadog-agent-prepare'
+
 dependency "python2" if with_python_runtime? "2"
 dependency "python3" if with_python_runtime? "3"
 
 dependency "openscap" if linux_target? and !arm7l_target? and !heroku_target? # Security-agent dependency, not needed for Heroku
 
+dependency 'agent-dependencies'
 dependency 'datadog-agent-dependencies'
 
 source path: '..'

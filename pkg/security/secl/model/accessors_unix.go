@@ -3583,7 +3583,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 				ev := ctx.Event.(*Event)
-				return ev.MMap.Flags
+				return int(ev.MMap.Flags)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -3592,7 +3592,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 				ev := ctx.Event.(*Event)
-				return ev.MMap.Protection
+				return int(ev.MMap.Protection)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -18569,9 +18569,9 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 	case "mmap.file.user":
 		return ev.FieldHandlers.ResolveFileFieldsUser(ev, &ev.MMap.File.FileFields), nil
 	case "mmap.flags":
-		return ev.MMap.Flags, nil
+		return int(ev.MMap.Flags), nil
 	case "mmap.protection":
-		return ev.MMap.Protection, nil
+		return int(ev.MMap.Protection), nil
 	case "mmap.retval":
 		return int(ev.MMap.SyscallEvent.Retval), nil
 	case "mount.fs_type":
@@ -32003,14 +32003,14 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "MMap.Flags"}
 		}
-		ev.MMap.Flags = int(rv)
+		ev.MMap.Flags = uint64(rv)
 		return nil
 	case "mmap.protection":
 		rv, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "MMap.Protection"}
 		}
-		ev.MMap.Protection = int(rv)
+		ev.MMap.Protection = uint64(rv)
 		return nil
 	case "mmap.retval":
 		rv, ok := value.(int)
