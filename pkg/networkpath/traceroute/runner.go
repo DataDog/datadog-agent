@@ -17,6 +17,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
+	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/tcp"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders"
@@ -171,6 +172,47 @@ func getPorts(configDestPort uint16) (uint16, uint16, bool) {
 	}
 	srcPort = DefaultSourcePort + uint16(rand.Intn(10000))
 	return destPort, srcPort, useSourcePort
+}
+
+func (r *Runner) processTCPResults(res *tcp.Results, hname string, destinationHost string, destinationPort uint16, destinationIP net.IP) (payload.NetworkPath, error) {
+	pathID := uuid.New().String()
+	traceroutePath := payload.NetworkPath{
+		PathID:    pathID,
+		Timestamp: time.Now().UnixMilli(),
+		Source: payload.NetworkPathSource{
+			Hostname:  hname,
+			NetworkID: r.networkID,
+		},
+		Destination: payload.NetworkPathDestination{
+			Hostname:  getDestinationHostname(destinationHost),
+			Port:      destinationPort,
+			IPAddress: destinationIP.String(),
+		},
+	}
+
+	// get hardware interface info
+	//
+	// TODO: using a gateway lookup may be a more performant
+	// solution for getting the local addr to use
+	// when sending traceroute packets in the TCP implementation
+	if r.gatewayLookup != nil {
+		src := util.AddressFromNetIP(res.Source)
+		dst := util.AddressFromNetIP(res.Target)
+
+		traceroutePath.Source.Via = r.gatewayLookup.LookupWithIPs(src, dst, r.nsIno)
+	}
+
+	for i, hop := range res.Hops {
+		hopname := fmt.Sprintf("unknown_hop_%d)", i)
+		hostname := ""
+
+		// if it's a blank hop, we should
+		if !hop.IP.Equal(net.IP{}) {
+			hopname = hop.IP.String()
+		}
+	}
+
+	return traceroutePath, nil
 }
 
 func (r *Runner) processResults(res *results.Results, hname string, destinationHost string, destinationPort uint16, destinationIP net.IP) (payload.NetworkPath, error) {
