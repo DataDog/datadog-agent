@@ -155,11 +155,14 @@
                 "change_time": {
                     "$ref": "/schemas/datetime.json"
                 },
-                "envs": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
+                "mount_path": {
+                    "type": "string"
+                },
+                "mount_source": {
+                    "type": "string"
+                },
+                "mount_origin": {
+                    "type": "string"
                 }
             },
             "required": [

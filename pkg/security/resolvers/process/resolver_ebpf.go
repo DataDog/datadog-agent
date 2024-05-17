@@ -621,17 +621,19 @@ func (p *EBPFResolver) resolve(pid, tid uint32, inode uint64, useProcFS bool) *m
 	return nil
 }
 
-func (p *EBPFResolver) resolveFileFieldsPath(e *model.FileFields, pce *model.ProcessCacheEntry, ctrCtx *model.ContainerContext) (string, error) {
+func (p *EBPFResolver) resolveFileFieldsPath(e *model.FileFields, pce *model.ProcessCacheEntry, ctrCtx *model.ContainerContext) (string, string, model.MountSource, model.MountOrigin, error) {
 	var (
-		pathnameStr   string
-		err           error
-		maxDepthRetry = 3
+		pathnameStr, mountPath string
+		source                 model.MountSource
+		origin                 model.MountOrigin
+		err                    error
+		maxDepthRetry          = 3
 	)
 
 	for maxDepthRetry > 0 {
-		pathnameStr, err = p.pathResolver.ResolveFileFieldsPath(e, &pce.PIDContext, ctrCtx)
+		pathnameStr, mountPath, source, origin, err = p.pathResolver.ResolveFileFieldsPath(e, &pce.PIDContext, ctrCtx)
 		if err == nil {
-			return pathnameStr, nil
+			return pathnameStr, mountPath, source, origin, nil
 		}
 		parent, exists := p.entryCache[pce.PPid]
 		if !exists {
@@ -642,7 +644,7 @@ func (p *EBPFResolver) resolveFileFieldsPath(e *model.FileFields, pce *model.Pro
 		maxDepthRetry--
 	}
 
-	return pathnameStr, err
+	return pathnameStr, mountPath, source, origin, err
 }
 
 // SetProcessPath resolves process file path
@@ -660,11 +662,14 @@ func (p *EBPFResolver) SetProcessPath(fileEvent *model.FileEvent, pce *model.Pro
 		return onError("", &model.ErrInvalidKeyPath{Inode: fileEvent.Inode, MountID: fileEvent.MountID})
 	}
 
-	pathnameStr, err := p.resolveFileFieldsPath(&fileEvent.FileFields, pce, ctrCtx)
+	pathnameStr, mountPath, source, origin, err := p.resolveFileFieldsPath(&fileEvent.FileFields, pce, ctrCtx)
 	if err != nil {
 		return onError(pathnameStr, err)
 	}
 	setPathname(fileEvent, pathnameStr)
+	fileEvent.MountPath = mountPath
+	fileEvent.MountSource = source
+	fileEvent.MountOrigin = origin
 
 	return fileEvent.PathnameStr, nil
 }

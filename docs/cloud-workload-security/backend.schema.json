@@ -359,6 +359,18 @@
         "hash_state": {
           "type": "string",
           "description": "State of the hashes or reason why they weren't computed"
+        },
+        "mount_path": {
+          "type": "string",
+          "description": "MountPath path of the mount"
+        },
+        "mount_source": {
+          "type": "string",
+          "description": "MountSource source of the mount"
+        },
+        "mount_origin": {
+          "type": "string",
+          "description": "MountOrigin origin of the mount"
         }
       },
       "additionalProperties": false,
@@ -467,6 +479,18 @@
         "hash_state": {
           "type": "string",
           "description": "State of the hashes or reason why they weren't computed"
+        },
+        "mount_path": {
+          "type": "string",
+          "description": "MountPath path of the mount"
+        },
+        "mount_source": {
+          "type": "string",
+          "description": "MountSource source of the mount"
+        },
+        "mount_origin": {
+          "type": "string",
+          "description": "MountOrigin origin of the mount"
         },
         "destination": {
           "$ref": "#/$defs/File",

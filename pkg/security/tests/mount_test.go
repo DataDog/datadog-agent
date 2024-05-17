@@ -357,7 +357,7 @@ func TestMountSnapshot(t *testing.T) {
 	checkSnapshotAndModelMatch := func(mntInfo *mountinfo.Info) {
 		dev := utils.Mkdev(uint32(mntInfo.Major), uint32(mntInfo.Minor))
 
-		mount, err := mountResolver.ResolveMount(uint32(mntInfo.ID), dev, pid, "")
+		mount, _, _, err := mountResolver.ResolveMount(uint32(mntInfo.ID), dev, pid, "")
 		if err != nil {
 			t.Errorf(err.Error())
 			return
@@ -367,7 +367,7 @@ func TestMountSnapshot(t *testing.T) {
 		assert.Equal(t, dev, mount.Device, "snapshot and model device mismatch")
 		assert.Equal(t, mntInfo.FSType, mount.FSType, "snapshot and model fstype mismatch")
 		assert.Equal(t, mntInfo.Root, mount.RootStr, "snapshot and model root mismatch")
-		mountPointPath, err := mountResolver.ResolveMountPath(mount.MountID, dev, pid, "")
+		mountPointPath, _, _, err := mountResolver.ResolveMountPath(mount.MountID, dev, pid, "")
 		if err != nil {
 			t.Errorf("failed to resolve mountpoint path of mountpoint with id %d", mount.MountID)
 		}
