@@ -1,0 +1,5 @@
+flags:
+  datadog-agent:
+    paths: #note, accepts globs, not regexes
+      - *
+    carryforward: true
