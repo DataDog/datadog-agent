@@ -147,6 +147,8 @@ func (s *npCollectorImpl) start() error {
 
 	s.logger.Info("Start NpCollector")
 
+	// Assigning statsd.Client in start() stage since we can't do it in newNpCollectorImpl
+	// due to statsd.Client not being configured yet.
 	s.metricSender = metricsender.NewMetricSenderStatsd(statsd.Client)
 	s.statsdClient = statsd.Client
 
