@@ -9,12 +9,10 @@
 package mock
 
 import (
-	"context"
 	"sync"
+	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
-	compdef "github.com/DataDog/datadog-agent/comp/def"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/packets"
 	replaydef "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/def"
 )
@@ -26,26 +24,18 @@ type Mock interface {
 
 //nolint:revive // TODO(AML) Fix revive linter
 type Requires struct {
-	Lc     compdef.Lifecycle
-	Config config.Component
+	T testing.TB
 }
 
 //nolint:revive // TODO(AML) Fix revive linter
-func NewMockTrafficCapture(deps Requires) replaydef.Component {
+func NewTrafficCapture(deps Requires) replaydef.Component {
 	tc := &mockTrafficCapture{}
-	deps.Lc.Append(compdef.Hook{
-		OnStart: tc.configure,
-	})
 	return tc
 }
 
 type mockTrafficCapture struct {
 	isRunning bool
 	sync.RWMutex
-}
-
-func (tc *mockTrafficCapture) configure(_ context.Context) error {
-	return nil
 }
 
 func (tc *mockTrafficCapture) IsOngoing() bool {

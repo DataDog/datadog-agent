@@ -19,7 +19,7 @@ import (
 func MockModule() fxutil.Module {
 	return fxutil.Component(
 		fxutil.ProvideComponentConstructor(
-			replaymock.NewMockTrafficCapture,
+			replaymock.NewTrafficCapture,
 		),
 	)
 }
