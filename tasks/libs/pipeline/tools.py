@@ -9,6 +9,7 @@ from time import sleep, time
 from gitlab import GitlabError
 from gitlab.v4.objects import Project, ProjectJob, ProjectPipeline
 
+from tasks.libs.ciproviders.gitlab_api import refresh_pipeline
 from tasks.libs.common.color import color_message
 from tasks.libs.common.user_interactions import yes_no_question
 from tasks.libs.common.utils import DEFAULT_BRANCH
@@ -207,7 +208,7 @@ def pipeline_status(pipeline: ProjectPipeline, job_status):
     """
     Checks the pipeline status and updates job statuses.
     """
-    pipeline.refresh()
+    refresh_pipeline(pipeline)
     jobs = pipeline.jobs.list(per_page=100, all=True)
 
     job_status = update_job_status(jobs, job_status)
