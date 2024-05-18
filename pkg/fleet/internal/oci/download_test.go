@@ -10,6 +10,7 @@ package oci
 
 import (
 	"context"
+	"net/http"
 	"os"
 	"strings"
 	"testing"
@@ -18,7 +19,9 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/env"
 	"github.com/DataDog/datadog-agent/pkg/fleet/internal/fixtures"
+	"github.com/google/go-containerregistry/pkg/authn"
 	oci "github.com/google/go-containerregistry/pkg/v1"
+	"github.com/google/go-containerregistry/pkg/v1/google"
 )
 
 type testDownloadServer struct {
@@ -111,55 +114,85 @@ func TestDownloadRegistryWithOverride(t *testing.T) {
 	assert.Error(t, err) // Host not found
 }
 
-func TestApplyRegistryOverride(t *testing.T) {
+func TestGetRefAndKeychain(t *testing.T) {
 	type test struct {
-		registryOverride   string
-		regOverrideByImage map[string]string
-		url                string
-		expected           string
+		registryOverride       string
+		regOverrideByImage     map[string]string
+		registryAuthOverride   string
+		regAuthOverrideByImage map[string]string
+		url                    string
+		expectedRef            string
+		expectedKeychain       authn.Keychain
 	}
 
 	tests := []test{
-		{url: "docker.io/datadog/agent-package-dev:latest", expected: "docker.io/datadog/agent-package-dev:latest"},
-		{url: "gcr.io/datadoghq/agent-package@sha256:1234", expected: "gcr.io/datadoghq/agent-package@sha256:1234"},
-		{url: "docker.io/datadog/agent-package-dev:latest", registryOverride: "fake.io", expected: "fake.io/agent-package-dev:latest"},
-		{url: "gcr.io/datadoghq/agent-package@sha256:1234", registryOverride: "fake.io", expected: "fake.io/agent-package@sha256:1234"},
+		{url: "docker.io/datadog/agent-package-dev:latest", expectedRef: "docker.io/datadog/agent-package-dev:latest", expectedKeychain: authn.DefaultKeychain},
+		{url: "gcr.io/datadoghq/agent-package@sha256:1234", expectedRef: "gcr.io/datadoghq/agent-package@sha256:1234", expectedKeychain: authn.DefaultKeychain},
+		{url: "docker.io/datadog/agent-package-dev:latest", registryOverride: "fake.io", expectedRef: "fake.io/agent-package-dev:latest", expectedKeychain: authn.DefaultKeychain},
+		{url: "gcr.io/datadoghq/agent-package@sha256:1234", registryOverride: "fake.io", expectedRef: "fake.io/agent-package@sha256:1234", expectedKeychain: authn.DefaultKeychain},
 		{
 			url:                "docker.io/datadog/agent-package-dev:latest",
 			regOverrideByImage: map[string]string{"agent-package-dev": "fake.io"},
-			expected:           "fake.io/agent-package-dev:latest",
+			expectedRef:        "fake.io/agent-package-dev:latest",
+			expectedKeychain:   authn.DefaultKeychain,
 		},
 		{
 			url:                "gcr.io/datadoghq/agent-package@sha256:1234",
 			regOverrideByImage: map[string]string{"agent-package": "fake.io"},
-			expected:           "fake.io/agent-package@sha256:1234",
+			expectedRef:        "fake.io/agent-package@sha256:1234",
+			expectedKeychain:   authn.DefaultKeychain,
 		},
 		{
 			url:                "gcr.io/datadoghq/agent-package@sha256:1234",
 			regOverrideByImage: map[string]string{"agent-package": "fake.io"},
-			expected:           "fake.io/agent-package@sha256:1234",
+			expectedRef:        "fake.io/agent-package@sha256:1234",
+			expectedKeychain:   authn.DefaultKeychain,
 		},
 		{
 			url:                "gcr.io/datadoghq/agent-package@sha256:1234",
 			registryOverride:   "fake-other.io",
 			regOverrideByImage: map[string]string{"agent-package": "fake.io"},
-			expected:           "fake.io/agent-package@sha256:1234",
+			expectedRef:        "fake.io/agent-package@sha256:1234",
+			expectedKeychain:   authn.DefaultKeychain,
 		},
 		{
 			url:                "gcr.io/datadoghq/agent-package-dev@sha256:1234",
 			registryOverride:   "fake-other.io",
 			regOverrideByImage: map[string]string{"agent-package": "fake.io"},
-			expected:           "fake-other.io/agent-package-dev@sha256:1234",
+			expectedRef:        "fake-other.io/agent-package-dev@sha256:1234",
+			expectedKeychain:   authn.DefaultKeychain,
+		},
+		{
+			url:                  "gcr.io/datadoghq/agent-package-dev@sha256:1234",
+			registryAuthOverride: "gcr",
+			expectedRef:          "gcr.io/datadoghq/agent-package-dev@sha256:1234",
+			expectedKeychain:     google.Keychain,
+		},
+		{
+			url:                    "gcr.io/datadoghq/agent-package-dev@sha256:1234",
+			regAuthOverrideByImage: map[string]string{"agent-package": "gcr"},
+			expectedRef:            "gcr.io/datadoghq/agent-package-dev@sha256:1234",
+			expectedKeychain:       authn.DefaultKeychain,
+		},
+		{
+			url:                    "gcr.io/datadoghq/agent-package-dev@sha256:1234",
+			regAuthOverrideByImage: map[string]string{"agent-package-dev": "gcr"},
+			expectedRef:            "gcr.io/datadoghq/agent-package-dev@sha256:1234",
+			expectedKeychain:       google.Keychain,
 		},
 	}
 
 	for _, tt := range tests {
 		env := &env.Env{
-			RegistryOverride:        tt.registryOverride,
-			RegistryOverrideByImage: tt.regOverrideByImage,
+			RegistryOverride:            tt.registryOverride,
+			RegistryOverrideByImage:     tt.regOverrideByImage,
+			RegistryAuthOverride:        tt.registryAuthOverride,
+			RegistryAuthOverrideByImage: tt.regAuthOverrideByImage,
 		}
-		actual := applyRegistryOverride(env, tt.url)
-		assert.Equal(t, tt.expected, actual)
+		d := NewDownloader(env, http.DefaultClient)
+		actual := d.getRefAndKeychain(tt.url)
+		assert.Equal(t, tt.expectedRef, actual.ref)
+		assert.Equal(t, tt.expectedKeychain, actual.keychain)
 	}
 }
 

@@ -75,24 +75,8 @@ type Downloader struct {
 
 // NewDownloader returns a new Downloader.
 func NewDownloader(env *env.Env, client *http.Client) *Downloader {
-	var keychains []authn.Keychain
-	for _, auth := range env.RegistryAuthOverride {
-		switch auth {
-		case RegistryAuthGCR:
-			keychains = append(keychains, google.Keychain)
-		case RegistryAuthECR:
-			keychains = append(keychains, authn.NewKeychainFromHelper(ecr.NewECRHelper()))
-		case RegistryAuthDefault:
-			keychains = append(keychains, authn.DefaultKeychain)
-		default:
-			log.Warnf("unsupported registry authentication method: %s", auth)
-		}
-	}
-	if len(keychains) == 0 {
-		keychains = append(keychains, authn.DefaultKeychain)
-	}
 	return &Downloader{
-		keychain: authn.NewMultiKeychain(keychains...),
+		keychain: getKeychain(env.RegistryAuthOverride),
 		env:      env,
 		client:   client,
 	}
@@ -146,31 +130,62 @@ func (d *Downloader) Download(ctx context.Context, packageURL string) (*Download
 	}, nil
 }
 
-func applyRegistryOverride(env *env.Env, url string) string {
+func getKeychain(auth string) authn.Keychain {
+	switch auth {
+	case RegistryAuthGCR:
+		return google.Keychain
+	case RegistryAuthECR:
+		return authn.NewKeychainFromHelper(ecr.NewECRHelper())
+	case RegistryAuthDefault, "":
+		return authn.DefaultKeychain
+	default:
+		log.Warnf("unsupported registry authentication method: %s, defaulting to docker", auth)
+		return authn.DefaultKeychain
+	}
+}
+
+type urlWithKeychain struct {
+	ref      string
+	keychain authn.Keychain
+}
+
+func (d *Downloader) getRefAndKeychain(url string) urlWithKeychain {
 	imageWithIdentifier := url[strings.LastIndex(url, "/")+1:]
-	registryOverride := env.RegistryOverride
-	for image, override := range env.RegistryOverrideByImage {
+	registryOverride := d.env.RegistryOverride
+	for image, override := range d.env.RegistryOverrideByImage {
 		if strings.HasPrefix(imageWithIdentifier, image+":") || strings.HasPrefix(imageWithIdentifier, image+"@") {
 			registryOverride = override
 			break
 		}
 	}
-	if registryOverride == "" {
-		return url
+	ref := url
+	if registryOverride != "" {
+		if !strings.HasSuffix(registryOverride, "/") {
+			registryOverride += "/"
+		}
+		ref = registryOverride + imageWithIdentifier
 	}
-	if !strings.HasSuffix(registryOverride, "/") {
-		registryOverride += "/"
+
+	keychain := d.keychain
+	for image, override := range d.env.RegistryAuthOverrideByImage {
+		if strings.HasPrefix(imageWithIdentifier, image+":") || strings.HasPrefix(imageWithIdentifier, image+"@") {
+			keychain = getKeychain(override)
+			break
+		}
 	}
-	return registryOverride + imageWithIdentifier
+	return urlWithKeychain{
+		ref:      ref,
+		keychain: keychain,
+	}
 }
 
 func (d *Downloader) downloadRegistry(ctx context.Context, url string) (oci.Image, error) {
-	url = applyRegistryOverride(d.env, url)
-	ref, err := name.ParseReference(url)
+	refAndKeychain := d.getRefAndKeychain(url)
+	ref, err := name.ParseReference(refAndKeychain.ref)
 	if err != nil {
 		return nil, fmt.Errorf("could not parse reference: %w", err)
 	}
-	index, err := remote.Index(ref, remote.WithContext(ctx), remote.WithAuthFromKeychain(d.keychain), remote.WithTransport(httptrace.WrapRoundTripper(d.client.Transport)))
+	index, err := remote.Index(ref, remote.WithContext(ctx), remote.WithAuthFromKeychain(refAndKeychain.keychain), remote.WithTransport(httptrace.WrapRoundTripper(d.client.Transport)))
 	if err != nil {
 		return nil, fmt.Errorf("could not download image: %w", err)
 	}

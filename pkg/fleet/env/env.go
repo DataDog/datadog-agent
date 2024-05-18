@@ -27,7 +27,7 @@ var defaultEnv = Env{
 	Site:   "datadoghq.com",
 
 	RegistryOverride:                "",
-	RegistryAuthOverride:            []string{},
+	RegistryAuthOverride:            "",
 	RegistryOverrideByImage:         map[string]string{},
 	DefaultVersionOverrideByPackage: map[string]string{},
 }
@@ -38,8 +38,9 @@ type Env struct {
 	Site   string
 
 	RegistryOverride                string
-	RegistryAuthOverride            []string
+	RegistryAuthOverride            string
 	RegistryOverrideByImage         map[string]string
+	RegistryAuthOverrideByImage     map[string]string
 	DefaultVersionOverrideByPackage map[string]string
 }
 
@@ -50,9 +51,10 @@ func FromEnv() *Env {
 		Site:   getEnvOrDefault(envSite, defaultEnv.Site),
 
 		RegistryOverride:                getEnvOrDefault(envRegistry, defaultEnv.RegistryOverride),
-		RegistryAuthOverride:            authOverridesFromString(os.Getenv(envRegistryAuth)),
-		RegistryOverrideByImage:         overridesByNameFromEnv(envRegistry),
-		DefaultVersionOverrideByPackage: overridesByNameFromEnv(envDefaultVersion),
+		RegistryAuthOverride:            getEnvOrDefault(envRegistryAuth, defaultEnv.RegistryAuthOverride),
+		RegistryOverrideByImage:         overridesByNameFromEnv(envRegistry, []string{envRegistryAuth}),
+		RegistryAuthOverrideByImage:     overridesByNameFromEnv(envRegistryAuth, []string{}),
+		DefaultVersionOverrideByPackage: overridesByNameFromEnv(envDefaultVersion, []string{}),
 	}
 }
 
@@ -62,7 +64,7 @@ func FromConfig(config config.Reader) *Env {
 		APIKey:               utils.SanitizeAPIKey(config.GetString("api_key")),
 		Site:                 config.GetString("site"),
 		RegistryOverride:     config.GetString("updater.registry"),
-		RegistryAuthOverride: authOverridesFromString(config.GetString("updater.registry_auth")),
+		RegistryAuthOverride: config.GetString("updater.registry_auth"),
 	}
 }
 
@@ -72,32 +74,45 @@ func (e *Env) ToEnv() []string {
 		envAPIKey + "=" + e.APIKey,
 		envSite + "=" + e.Site,
 		envRegistry + "=" + e.RegistryOverride,
-		envRegistryAuth + "=" + authOverridesToEnv(e.RegistryAuthOverride),
+		envRegistryAuth + "=" + e.RegistryAuthOverride,
 	}
-	env = append(env, overridesByPackageToEnv(envRegistry, e.RegistryOverrideByImage)...)
-	env = append(env, overridesByPackageToEnv(envDefaultVersion, e.DefaultVersionOverrideByPackage)...)
+	env = append(env, overridesByNameToEnv(envRegistry, e.RegistryOverrideByImage)...)
+	env = append(env, overridesByNameToEnv(envRegistryAuth, e.RegistryAuthOverrideByImage)...)
+	env = append(env, overridesByNameToEnv(envDefaultVersion, e.DefaultVersionOverrideByPackage)...)
 	return env
 }
 
-func overridesByNameFromEnv(envPrefix string) map[string]string {
+func overridesByNameFromEnv(envPrefix string, ignoreEnvs []string) map[string]string {
 	env := os.Environ()
 	overridesByPackage := map[string]string{}
 	for _, e := range env {
-		if strings.HasPrefix(e, envPrefix) {
-			parts := strings.SplitN(e, "=", 2)
-			if len(parts) != 2 {
-				continue
+		parts := strings.SplitN(e, "=", 2)
+		if len(parts) != 2 {
+			continue
+		}
+		key := parts[0]
+		val := parts[1]
+		ignore := false
+		for _, ignoreEnv := range ignoreEnvs {
+			if strings.HasPrefix(key, ignoreEnv) {
+				ignore = true
+				break
 			}
-			pkg := strings.TrimPrefix(parts[0], envPrefix+"_")
+		}
+		if ignore {
+			continue
+		}
+		if strings.HasPrefix(key, envPrefix+"_") {
+			pkg := strings.TrimPrefix(key, envPrefix+"_")
 			pkg = strings.ToLower(pkg)
 			pkg = strings.ReplaceAll(pkg, "_", "-")
-			overridesByPackage[pkg] = parts[1]
+			overridesByPackage[pkg] = val
 		}
 	}
 	return overridesByPackage
 }
 
-func overridesByPackageToEnv(envPrefix string, overridesByPackage map[string]string) []string {
+func overridesByNameToEnv(envPrefix string, overridesByPackage map[string]string) []string {
 	env := []string{}
 	for pkg, override := range overridesByPackage {
 		pkg = strings.ReplaceAll(pkg, "-", "_")
@@ -105,17 +120,6 @@ func overridesByPackageToEnv(envPrefix string, overridesByPackage map[string]str
 		env = append(env, envPrefix+"_"+pkg+"="+override)
 	}
 	return env
-}
-
-func authOverridesFromString(rawAuthOverrides string) []string {
-	if rawAuthOverrides == "" {
-		return defaultEnv.RegistryAuthOverride
-	}
-	return strings.Split(rawAuthOverrides, ",")
-}
-
-func authOverridesToEnv(authOverrides []string) string {
-	return strings.Join(authOverrides, ",")
 }
 
 func getEnvOrDefault(env string, defaultValue string) string {
