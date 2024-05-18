@@ -82,12 +82,13 @@ func TestExtractServiceMetadata(t *testing.T) {
 			cmdline: []string{
 				"/opt/python/2.7.11/bin/python2.7", "flask", "run", "--host=0.0.0.0",
 			},
+			envs:               []string{"PWD=testdata/python"},
 			expectedServiceTag: "flask",
 		},
 		{
 			name: "python - flask argument in path",
 			cmdline: []string{
-				"/opt/python/2.7.11/bin/python2.7", "/opt/dogweb/bin/flask", "run", "--host=0.0.0.0", "--without-threads",
+				"/opt/python/2.7.11/bin/python2.7", "testdata/python/flask", "run", "--host=0.0.0.0", "--without-threads",
 			},
 			expectedServiceTag: "flask",
 		},
@@ -96,6 +97,7 @@ func TestExtractServiceMetadata(t *testing.T) {
 			cmdline: []string{
 				"/opt/python/2.7.11/bin/python2.7 flask run --host=0.0.0.0",
 			},
+			envs:               []string{"PWD=testdata/python"},
 			expectedServiceTag: "flask",
 		},
 		{

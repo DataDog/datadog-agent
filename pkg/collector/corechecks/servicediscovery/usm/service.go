@@ -54,16 +54,10 @@ type detector interface {
 	detect(remainingArgs []string) (ServiceMetadata, bool)
 }
 
-type pythonDetector struct {
-	ctx DetectionContext
-}
 type simpleDetector struct {
 	ctx DetectionContext
 }
 
-func newPythonDetector(ctx DetectionContext) detector {
-	return &pythonDetector{ctx: ctx}
-}
 func newSimpleDetector(ctx DetectionContext) detector {
 	return &simpleDetector{ctx: ctx}
 }
@@ -212,33 +206,6 @@ func (simpleDetector) detect(args []string) (ServiceMetadata, bool) {
 			if c := trimColonRight(removeFilePath(a)); isRuneLetterAt(c, 0) {
 				return NewServiceMetadata(c), true
 			}
-		}
-
-		prevArgIsFlag = hasFlagPrefix
-	}
-
-	return ServiceMetadata{}, false
-}
-
-func (pythonDetector) detect(args []string) (ServiceMetadata, bool) {
-	var (
-		prevArgIsFlag bool
-		moduleFlag    bool
-	)
-
-	for _, a := range args {
-		hasFlagPrefix, isEnvVariable := strings.HasPrefix(a, "-"), strings.ContainsRune(a, '=')
-
-		shouldSkipArg := prevArgIsFlag || hasFlagPrefix || isEnvVariable
-
-		if !shouldSkipArg || moduleFlag {
-			if c := trimColonRight(removeFilePath(a)); isRuneLetterAt(c, 0) {
-				return NewServiceMetadata(c), true
-			}
-		}
-
-		if hasFlagPrefix && a == "-m" {
-			moduleFlag = true
 		}
 
 		prevArgIsFlag = hasFlagPrefix
