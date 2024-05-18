@@ -26,7 +26,7 @@ const (
 	envFilePath           = "/etc/datadog-agent/environment"
 )
 
-// Overriden in tests
+// Overridden in tests
 var (
 	agentConfigPath = "/etc/datadog-agent/datadog.yaml"
 )
