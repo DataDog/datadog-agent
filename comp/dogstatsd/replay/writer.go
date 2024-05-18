@@ -33,10 +33,21 @@ const (
 	fileTemplate = "datadog-capture-%d"
 )
 
+// UnixDogstatsdMsg mirrors the exported fields of pkg/proto/pbgo/core/model.pb.go 'UnixDogstatsdMsg
+// to avoid forcing the import of pbgo on every user of dogstatsd.
+type UnixDogstatsdMsg struct {
+	Timestamp     int64
+	PayloadSize   int32
+	Payload       []byte
+	Pid           int32
+	AncillarySize int32
+	Ancillary     []byte
+}
+
 // CaptureBuffer holds pointers to captured packet's buffers (and oob buffer if required) and the protobuf
 // message used for serialization.
 type CaptureBuffer struct {
-	Pb          pb.UnixDogstatsdMsg
+	Pb          UnixDogstatsdMsg
 	Oob         *[]byte
 	Pid         int32
 	ContainerID string
@@ -382,7 +393,16 @@ func (tc *TrafficCaptureWriter) writeState() (int, error) {
 // writeNext writes the next CaptureBuffer after serializing it to a protobuf format.
 // Continuing writes after an error calling this function would result in a corrupted file
 func (tc *TrafficCaptureWriter) writeNext(msg *CaptureBuffer) error {
-	buff, err := proto.Marshal(&msg.Pb)
+	pb := pb.UnixDogstatsdMsg{
+		Timestamp:     msg.Pb.Timestamp,
+		PayloadSize:   msg.Pb.PayloadSize,
+		Payload:       msg.Pb.Payload,
+		Pid:           msg.Pb.Pid,
+		AncillarySize: msg.Pb.AncillarySize,
+		Ancillary:     msg.Pb.Ancillary,
+	}
+
+	buff, err := proto.Marshal(&pb)
 	if err != nil {
 		return err
 	}

@@ -142,12 +142,18 @@ func Run(ctx *pulumi.Context, env *environments.DockerHost, params *ProvisionerP
 		return err
 	}
 
+	// install the ECR credentials helper
+	// required to get pipeline agent images
 	installEcrCredsHelperCmd, err := ec2.InstallECRCredentialsHelper(awsEnv, host)
 	if err != nil {
 		return err
 	}
 
-	manager, _, err := docker.NewManager(*awsEnv.CommonEnvironment, host, utils.PulumiDependsOn(installEcrCredsHelperCmd))
+	manager, err := docker.NewManager(&awsEnv, host, utils.PulumiDependsOn(installEcrCredsHelperCmd))
+	if err != nil {
+		return err
+	}
+	err = manager.Export(ctx, &env.Docker.ManagerOutput)
 	if err != nil {
 		return err
 	}
@@ -176,7 +182,7 @@ func Run(ctx *pulumi.Context, env *environments.DockerHost, params *ProvisionerP
 
 	// Create Agent if required
 	if params.agentOptions != nil {
-		agent, err := agent.NewDockerAgent(*awsEnv.CommonEnvironment, host, manager, params.agentOptions...)
+		agent, err := agent.NewDockerAgent(&awsEnv, host, manager, params.agentOptions...)
 		if err != nil {
 			return err
 		}

@@ -366,17 +366,18 @@ func GetSelectorsPerEventType(fentry bool) map[eval.EventType][]manager.ProbesSe
 		// List of probes required to capture ptrace events
 		"ptrace": {
 			&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "ptrace", fentry, EntryAndExit)},
-			&manager.AllOf{Selectors: []manager.ProbesSelector{
+			&manager.OneOf{Selectors: []manager.ProbesSelector{
 				kprobeOrFentry("ptrace_check_attach"),
+				kprobeOrFentry("arch_ptrace"),
 			}},
 		},
 
 		// List of probes required to capture mmap events
 		"mmap": {
-			&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "mmap", fentry, Exit)},
 			&manager.AllOf{Selectors: []manager.ProbesSelector{
 				&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "tracepoint_syscalls_sys_enter_mmap"}},
-				kretprobeOrFexit("fget"),
+				&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "tracepoint_syscalls_sys_exit_mmap"}},
+				kprobeOrFentry("security_mmap_file"),
 			}}},
 
 		// List of probes required to capture mprotect events
@@ -447,7 +448,9 @@ func GetSelectorsPerEventType(fentry bool) map[eval.EventType][]manager.ProbesSe
 			&manager.AllOf{Selectors: []manager.ProbesSelector{
 				kprobeOrFentry("set_fs_pwd"),
 			}},
-			&manager.OneOf{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "chdir", fentry, EntryAndExit)}},
+			&manager.OneOf{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "chdir", fentry, EntryAndExit)},
+			&manager.OneOf{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "fchdir", fentry, EntryAndExit)},
+		},
 	}
 
 	// add probes depending on loaded modules

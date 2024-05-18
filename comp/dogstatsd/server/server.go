@@ -432,12 +432,7 @@ func (s *server) start(context.Context) error {
 		}
 	}
 
-	// start the workers processing the packets read on the socket
-	// ----------------------
-
 	s.health = health.RegisterLiveness("dogstatsd-main")
-	s.handleMessages()
-	s.Started = true
 
 	// start the debug loop
 	// ----------------------
@@ -463,6 +458,12 @@ func (s *server) start(context.Context) error {
 			s.mapper = mapperInstance
 		}
 	}
+
+	// start the workers processing the packets read on the socket
+	// ----------------------
+
+	s.handleMessages()
+	s.Started = true
 	return nil
 }
 

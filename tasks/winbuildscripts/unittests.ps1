@@ -50,9 +50,12 @@ if($err -ne 0){
     Write-Host -ForegroundColor Red "rtloader test failed $err"
     [Environment]::Exit($err)
 }
-
+$TEST_WASHER_FLAG=""
+if($Env:TEST_WASHER){
+    $TEST_WASHER_FLAG="--test-washer"
+}
 & inv -e install-tools
-& inv -e test --junit-tar="$Env:JUNIT_TAR" --race --profile --rerun-fails=2 --coverage --cpus 8 --arch $archflag --python-runtimes="$Env:PY_RUNTIMES" --python-home-2=$Env:Python2_ROOT_DIR --python-home-3=$Env:Python3_ROOT_DIR --save-result-json C:\mnt\$test_output_file $Env:EXTRA_OPTS --build-stdlib
+& inv -e test --junit-tar="$Env:JUNIT_TAR" --race --profile --rerun-fails=2 --coverage --cpus 8 --arch $archflag --python-runtimes="$Env:PY_RUNTIMES" --python-home-2=$Env:Python2_ROOT_DIR --python-home-3=$Env:Python3_ROOT_DIR --save-result-json C:\mnt\$test_output_file $Env:EXTRA_OPTS --build-stdlib $TEST_WASHER_FLAG
 
 $err = $LASTEXITCODE
 Write-Host Test result is $err
@@ -60,3 +63,15 @@ if($err -ne 0){
     Write-Host -ForegroundColor Red "test failed $err"
     [Environment]::Exit($err)
 }
+
+# Upload coverage reports to Codecov
+$Env:CODECOV_TOKEN=$(& "$UT_BUILD_ROOT\tools\ci\aws_ssm_get_wrapper.ps1" $Env:CODECOV_TOKEN_SSM_NAME)
+& inv -e codecov
+
+$ErrorActionPreference = "Continue" # Ignore upload errors now, until we change the logic to ignore empty files in the upload script
+$Env:DATADOG_API_KEY=$(& "$UT_BUILD_ROOT\tools\ci\aws_ssm_get_wrapper.ps1" $Env:API_KEY_ORG2_SSM_NAME)
+Get-ChildItem -Path "$UT_BUILD_ROOT" -Filter "junit-*.tgz" -Recurse | ForEach-Object {
+    $outputFilePath = "upload_output.txt"
+    inv -e junit-upload --tgz-path $_.FullName > $outputFilePath
+}
+

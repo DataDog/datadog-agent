@@ -3,3 +3,5 @@
 -r show_linters_issues/requirements.txt
 -r requirements_release_tasks.txt
 -r requirements_docs.txt
+
+python-gitlab==4.4.0

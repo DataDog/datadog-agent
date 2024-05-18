@@ -550,6 +550,7 @@ func TestNewMap(t *testing.T) {
 					"logsagent": interface{}(nil),
 				},
 				"processors": map[string]interface{}{
+					"infraattributes": interface{}(nil),
 					"batch": map[string]interface{}{
 						"timeout": "10s",
 					},
@@ -563,7 +564,7 @@ func TestNewMap(t *testing.T) {
 						},
 						"logs": map[string]interface{}{
 							"receivers":  []interface{}{"otlp"},
-							"processors": []interface{}{"batch"},
+							"processors": []interface{}{"infraattributes", "batch"},
 							"exporters":  []interface{}{"logsagent"},
 						},
 					},
@@ -603,6 +604,7 @@ func TestNewMap(t *testing.T) {
 					},
 				},
 				"processors": map[string]interface{}{
+					"infraattributes": interface{}(nil),
 					"batch": map[string]interface{}{
 						"timeout": "10s",
 					},
@@ -646,7 +648,7 @@ func TestNewMap(t *testing.T) {
 						},
 						"logs": map[string]interface{}{
 							"receivers":  []interface{}{"otlp"},
-							"processors": []interface{}{"batch"},
+							"processors": []interface{}{"infraattributes", "batch"},
 							"exporters":  []interface{}{"logsagent"},
 						},
 					},
@@ -686,6 +688,7 @@ func TestNewMap(t *testing.T) {
 					},
 				},
 				"processors": map[string]interface{}{
+					"infraattributes": interface{}(nil),
 					"batch": map[string]interface{}{
 						"timeout": "10s",
 					},
@@ -729,7 +732,7 @@ func TestNewMap(t *testing.T) {
 						},
 						"logs": map[string]interface{}{
 							"receivers":  []interface{}{"otlp"},
-							"processors": []interface{}{"batch"},
+							"processors": []interface{}{"infraattributes", "batch"},
 							"exporters":  []interface{}{"logsagent"},
 						},
 					},
@@ -761,6 +764,7 @@ func TestNewMap(t *testing.T) {
 					},
 				},
 				"processors": map[string]interface{}{
+					"infraattributes": interface{}(nil),
 					"batch": map[string]interface{}{
 						"timeout": "10s",
 					},
@@ -787,7 +791,7 @@ func TestNewMap(t *testing.T) {
 						},
 						"logs": map[string]interface{}{
 							"receivers":  []interface{}{"otlp"},
-							"processors": []interface{}{"batch"},
+							"processors": []interface{}{"infraattributes", "batch"},
 							"exporters":  []interface{}{"logsagent"},
 						},
 					},
@@ -826,6 +830,7 @@ func TestNewMap(t *testing.T) {
 					},
 				},
 				"processors": map[string]interface{}{
+					"infraattributes": interface{}(nil),
 					"batch": map[string]interface{}{
 						"timeout": "10s",
 					},
@@ -855,7 +860,7 @@ func TestNewMap(t *testing.T) {
 						},
 						"logs": map[string]interface{}{
 							"receivers":  []interface{}{"otlp"},
-							"processors": []interface{}{"batch"},
+							"processors": []interface{}{"infraattributes", "batch"},
 							"exporters":  []interface{}{"logsagent"},
 						},
 					},
@@ -884,6 +889,7 @@ func TestNewMap(t *testing.T) {
 					},
 				},
 				"processors": map[string]interface{}{
+					"infraattributes": interface{}(nil),
 					"batch": map[string]interface{}{
 						"timeout": "10s",
 					},
@@ -913,7 +919,7 @@ func TestNewMap(t *testing.T) {
 						},
 						"logs": map[string]interface{}{
 							"receivers":  []interface{}{"otlp"},
-							"processors": []interface{}{"batch"},
+							"processors": []interface{}{"infraattributes", "batch"},
 							"exporters":  []interface{}{"logsagent", "logging"},
 						},
 					},
@@ -951,6 +957,7 @@ func TestNewMap(t *testing.T) {
 					},
 				},
 				"processors": map[string]interface{}{
+					"infraattributes": interface{}(nil),
 					"batch": map[string]interface{}{
 						"timeout": "10s",
 					},
@@ -982,7 +989,7 @@ func TestNewMap(t *testing.T) {
 						},
 						"logs": map[string]interface{}{
 							"receivers":  []interface{}{"otlp"},
-							"processors": []interface{}{"batch"},
+							"processors": []interface{}{"infraattributes", "batch"},
 							"exporters":  []interface{}{"logsagent", "logging"},
 						},
 					},
@@ -1021,6 +1028,7 @@ func TestNewMap(t *testing.T) {
 					},
 				},
 				"processors": map[string]interface{}{
+					"infraattributes": interface{}(nil),
 					"batch": map[string]interface{}{
 						"timeout": "10s",
 					},
@@ -1066,7 +1074,7 @@ func TestNewMap(t *testing.T) {
 						},
 						"logs": map[string]interface{}{
 							"receivers":  []interface{}{"otlp"},
-							"processors": []interface{}{"batch"},
+							"processors": []interface{}{"infraattributes", "batch"},
 							"exporters":  []interface{}{"logsagent", "logging"},
 						},
 					},

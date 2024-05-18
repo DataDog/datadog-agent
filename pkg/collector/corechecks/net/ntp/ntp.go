@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"math"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/beevik/ntp"
@@ -154,7 +155,7 @@ func (c *NTPCheck) Configure(senderManager sender.SenderManager, integrationConf
 	c.BuildID(integrationConfigDigest, data, initConfig)
 	c.cfg = cfg
 
-	err = c.CommonConfigure(senderManager, integrationConfigDigest, initConfig, data, source)
+	err = c.CommonConfigure(senderManager, initConfig, data, source)
 	if err != nil {
 		return err
 	}
@@ -227,7 +228,7 @@ func (c *NTPCheck) queryOffset() (float64, error) {
 	}
 
 	if len(offsets) == 0 {
-		return .0, fmt.Errorf("Failed to get clock offset from any ntp host")
+		return .0, fmt.Errorf("Failed to get clock offset from any ntp host: %s", strings.Join(c.cfg.instance.Hosts, ", "))
 	}
 
 	var median float64
