@@ -22,11 +22,13 @@ import (
 const (
 	apmInstallerSocket    = "/var/run/datadog/installer/apm.socket"
 	statsdInstallerSocket = "/var/run/datadog/installer/dsd.socket"
-	agentConfigPath       = "/etc/datadog-agent/datadog.yaml"
 	apmInjectOldPath      = "/opt/datadog/apm/inject"
-	apmOldSocket          = "/opt/datadog/apm/inject/run/apm.socket"
-	statsdOldSocket       = "/opt/datadog/apm/inject/run/dsd.socket"
 	envFilePath           = "/etc/datadog-agent/environment"
+)
+
+// Overriden in tests
+var (
+	agentConfigPath = "/etc/datadog-agent/datadog.yaml"
 )
 
 // socketConfig is a subset of the agent configuration
@@ -42,40 +44,31 @@ type ApmSocketConfig struct {
 }
 
 // getSocketsPath returns the sockets path for the agent and the injector
-// If the agent is installed with the old apm-inject, it will return the old sockets
+// If the agent has already configured sockets, it will return them
 // to avoid dropping spans from already configured services
-// If not, it will return the default sockets
-//
-// Note that we don't handle the case where sockets are configured in the agent configuration
-// but the old apm-inject is not setup. In this configuration, span drops are expected.
-func getSocketsPath(agentConfigPath, apmOldPath string) (string, string) {
+func getSocketsPath() (string, string, error) {
 	apmSocket := apmInstallerSocket
 	statsdSocket := statsdInstallerSocket
 
-	// apmOldPath only exists if the agent is installed with the old apm-inject (deb/rpm)
-	// so we can return early if it doesn't
-	if _, err := os.Stat(apmOldPath); err == os.ErrNotExist {
-		return apmSocket, statsdSocket
-	}
-
 	rawCfg, err := os.ReadFile(agentConfigPath)
-	if err != nil {
-		log.Warn("Failed to read agent configuration file, using default installer sockets")
-		return apmSocket, statsdSocket
+	if err != nil && os.IsNotExist(err) {
+		return apmSocket, statsdSocket, nil
+	} else if err != nil {
+		return "", "", fmt.Errorf("error reading agent configuration file: %w", err)
 	}
 
 	var cfg socketConfig
 	if err := yaml.Unmarshal(rawCfg, &cfg); err != nil {
 		log.Warn("Failed to unmarshal agent configuration, using default installer sockets")
-		return apmSocket, statsdSocket
+		return apmSocket, statsdSocket, nil
 	}
-	if cfg.ApmSocketConfig.ReceiverSocket == apmOldSocket {
-		apmSocket = apmOldSocket
+	if cfg.ApmSocketConfig.ReceiverSocket != "" {
+		apmSocket = cfg.ApmSocketConfig.ReceiverSocket
 	}
-	if cfg.DogstatsdSocket == statsdOldSocket {
-		statsdSocket = statsdOldSocket
+	if cfg.DogstatsdSocket != "" {
+		statsdSocket = cfg.DogstatsdSocket
 	}
-	return apmSocket, statsdSocket
+	return apmSocket, statsdSocket, nil
 }
 
 // configureSocketsEnv configures the sockets for the agent & injector
@@ -95,7 +88,10 @@ func configureSocketsEnv() error {
 
 // setSocketEnvs sets the socket environment variables
 func setSocketEnvs(envFile []byte) ([]byte, error) {
-	apmSocket, statsdSocket := getSocketsPath(agentConfigPath, apmInjectOldPath)
+	apmSocket, statsdSocket, err := getSocketsPath()
+	if err != nil {
+		return nil, fmt.Errorf("error getting sockets path: %w", err)
+	}
 	envs := map[string]string{
 		"DD_APM_RECEIVER_SOCKET": apmSocket,
 		"DD_DOGSTATSD_SOCKET":    statsdSocket,

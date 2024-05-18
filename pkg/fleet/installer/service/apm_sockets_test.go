@@ -9,7 +9,6 @@
 package service
 
 import (
-	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -68,17 +67,14 @@ func TestSetSocketEnvs(t *testing.T) {
 func TestOldAgentPaths(t *testing.T) {
 	tempDir := t.TempDir()
 
-	agentConfigPath := filepath.Join(tempDir, "datadog.yaml")
-	oldInjectPath := filepath.Join(tempDir, "old_inject")
+	agentConfigPath = filepath.Join(tempDir, "datadog.yaml")
 
 	cleanupTestEnvironment := func() {
 		os.Remove(agentConfigPath)
-		os.Remove(oldInjectPath)
 	}
 
 	testCases := []struct {
 		name                   string
-		hasOldPath             bool
 		agentConfig            string
 		expectedAPMSockPath    string
 		expectedStatsdSockPath string
@@ -90,47 +86,31 @@ func TestOldAgentPaths(t *testing.T) {
 			expectedStatsdSockPath: statsdInstallerSocket,
 		},
 		{
-			name:       "Set up to other sockets",
-			hasOldPath: true,
+			name: "Set up to other sockets",
 			agentConfig: `
 dogstatsd_socket: /banana/dsd.socket
 apm_config:
   receiver_socket: /banana/apm.socket
 `,
-			expectedAPMSockPath:    apmInstallerSocket,
-			expectedStatsdSockPath: statsdInstallerSocket,
+			expectedAPMSockPath:    "/banana/apm.socket",
+			expectedStatsdSockPath: "/banana/dsd.socket",
 		},
 		{
-			name:       "Overwrite APM socket",
-			hasOldPath: true,
-			agentConfig: fmt.Sprintf(`
+			name: "override one socket",
+			agentConfig: `
 dogstatsd_socket: /banana/dsd.socket
-apm_config:
-  receiver_socket: %s
-`, apmOldSocket),
-			expectedAPMSockPath:    apmOldSocket,
-			expectedStatsdSockPath: statsdInstallerSocket,
-		},
-		{
-			name: "Overwrite both sockets",
-			agentConfig: fmt.Sprintf(`
-dogstatsd_socket: %s
-apm_config:
-  receiver_socket: %s
-`, statsdOldSocket, apmOldSocket),
-			expectedAPMSockPath:    apmOldSocket,
-			expectedStatsdSockPath: statsdOldSocket,
+`,
+			expectedAPMSockPath:    apmInstallerSocket,
+			expectedStatsdSockPath: "/banana/dsd.socket",
 		},
 		{
 			name:                   "Fail to parse agent config",
-			hasOldPath:             true,
 			agentConfig:            "{}",
 			expectedAPMSockPath:    apmInstallerSocket,
 			expectedStatsdSockPath: statsdInstallerSocket,
 		},
 		{
 			name:                   "Agent config does not exist",
-			hasOldPath:             true,
 			expectedAPMSockPath:    apmInstallerSocket,
 			expectedStatsdSockPath: statsdInstallerSocket,
 		},
@@ -139,14 +119,12 @@ apm_config:
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			cleanupTestEnvironment()
-			if tc.hasOldPath {
-				assert.Nil(t, os.Mkdir(oldInjectPath, 0755))
-			}
 			if tc.agentConfig != "" {
 				os.WriteFile(agentConfigPath, []byte(tc.agentConfig), 0644)
 			}
 
-			apmSockPath, statsdSockPath := getSocketsPath(agentConfigPath, oldInjectPath)
+			apmSockPath, statsdSockPath, err := getSocketsPath()
+			assert.Nil(t, err)
 			assert.Equal(t, tc.expectedAPMSockPath, apmSockPath)
 			assert.Equal(t, tc.expectedStatsdSockPath, statsdSockPath)
 		})
