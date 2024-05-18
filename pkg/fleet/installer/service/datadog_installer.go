@@ -63,6 +63,10 @@ func SetupInstaller(ctx context.Context) (err error) {
 	if err != nil {
 		return fmt.Errorf("error getting dd-agent user and group IDs: %w", err)
 	}
+	err = os.MkdirAll("/etc/datadog-agent", 0755)
+	if err != nil {
+		return fmt.Errorf("error creating /etc/datadog-agent: %w", err)
+	}
 	err = os.MkdirAll("/var/log/datadog", 0755)
 	if err != nil {
 		return fmt.Errorf("error creating /var/log/datadog: %w", err)
@@ -79,6 +83,10 @@ func SetupInstaller(ctx context.Context) (err error) {
 	err = os.Chmod("/var/run/datadog/installer/locks", 0777)
 	if err != nil {
 		return fmt.Errorf("error changing permissions of /var/run/datadog/installer/locks: %w", err)
+	}
+	err = os.Chown("/etc/datadog-agent", ddAgentUID, ddAgentGID)
+	if err != nil {
+		return fmt.Errorf("error changing owner of /etc/datadog-agent: %w", err)
 	}
 	err = os.Chown("/var/log/datadog", ddAgentUID, ddAgentGID)
 	if err != nil {
