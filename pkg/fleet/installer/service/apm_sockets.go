@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"gopkg.in/yaml.v2"
@@ -101,16 +102,23 @@ func setSocketEnvs(envFile []byte) ([]byte, error) {
 
 // addEnvsIfNotSet adds environment variables to the environment file if they are not already set
 func addEnvsIfNotSet(envs map[string]string, envFile []byte) ([]byte, error) {
+	// Build a map of the existing env vars
+	existingEnvs := map[string]bool{}
+	for _, line := range strings.Split(string(envFile), "\n") {
+		parts := strings.SplitN(line, "=", 2)
+		if len(parts) < 2 {
+			continue
+		}
+		existingEnvs[strings.TrimSpace(parts[0])] = true
+	}
+
 	var buffer bytes.Buffer
 	buffer.Write(envFile)
-
 	if len(envFile) > 0 && envFile[len(envFile)-1] != '\n' {
 		buffer.WriteByte('\n')
 	}
 	for key, value := range envs {
-		// There's a slight gap where there exists an env var in the form of {prefix}{key} but not {key},
-		// but as our env vars all start with DD_ prefixing them won't cause any issue.
-		if !bytes.Contains(envFile, []byte(key+"=")) {
+		if !existingEnvs[key] {
 			buffer.WriteString(fmt.Sprintf("%s=%s\n", key, value))
 		}
 	}

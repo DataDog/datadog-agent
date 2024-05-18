@@ -9,6 +9,7 @@
 package service
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -17,49 +18,68 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-const (
-	insertedEnvs = `DD_APM_RECEIVER_SOCKET=/var/run/datadog/installer/apm.socket
-DD_DOGSTATSD_SOCKET=/var/run/datadog/installer/dsd.socket
-DD_USE_DOGSTATSD=true
-`
-)
-
 func TestSetSocketEnvs(t *testing.T) {
 	tests := []struct {
 		name     string
 		input    string
-		expected string
+		expected map[string]string
 	}{
 		{
-			name:     "file doesn't exist",
-			input:    "",
-			expected: insertedEnvs,
+			name:  "file doesn't exist",
+			input: "",
+			expected: map[string]string{
+				"DD_APM_RECEIVER_SOCKET": "/var/run/datadog/installer/apm.socket",
+				"DD_DOGSTATSD_SOCKET":    "/var/run/datadog/installer/dsd.socket",
+				"DD_USE_DOGSTATSD":       "true",
+			},
 		},
 		{
-			name:     "keep other envs - missing newline",
-			input:    "banana=true",
-			expected: "banana=true\n" + insertedEnvs,
+			name:  "keep other envs - missing newline",
+			input: "banana=true",
+			expected: map[string]string{
+				"DD_APM_RECEIVER_SOCKET": "/var/run/datadog/installer/apm.socket",
+				"DD_DOGSTATSD_SOCKET":    "/var/run/datadog/installer/dsd.socket",
+				"DD_USE_DOGSTATSD":       "true",
+				"banana":                 "true",
+			},
 		},
 		{
-			name:     "keep envs - with newline",
-			input:    "apple=false\nat=home\n",
-			expected: "apple=false\nat=home\n" + insertedEnvs,
+			name:  "keep envs - with newline",
+			input: "apple=false\nat=home\n",
+			expected: map[string]string{
+				"DD_APM_RECEIVER_SOCKET": "/var/run/datadog/installer/apm.socket",
+				"DD_DOGSTATSD_SOCKET":    "/var/run/datadog/installer/dsd.socket",
+				"DD_USE_DOGSTATSD":       "true",
+				"apple":                  "false",
+				"at":                     "home",
+			},
 		},
 		{
-			name:     "already present",
-			input:    "DD_APM_RECEIVER_SOCKET=/tmp/apm.socket",
-			expected: "DD_APM_RECEIVER_SOCKET=/tmp/apm.socket\nDD_DOGSTATSD_SOCKET=/var/run/datadog/installer/dsd.socket\nDD_USE_DOGSTATSD=true\n",
+			name:  "already present",
+			input: "DD_APM_RECEIVER_SOCKET=/tmp/apm.socket",
+			expected: map[string]string{
+				"DD_APM_RECEIVER_SOCKET": "/tmp/apm.socket",
+				"DD_DOGSTATSD_SOCKET":    "/var/run/datadog/installer/dsd.socket",
+				"DD_USE_DOGSTATSD":       "true",
+			},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			res, err := setSocketEnvs([]byte(tt.input))
 			assert.NoError(t, err)
-			assert.ElementsMatch(
-				t,
-				strings.Split(tt.expected, "\n"),
-				strings.Split(string(res), "\n"),
-			)
+			envVarsCount := 0
+			for _, line := range strings.Split(string(res), "\n") {
+				if line == "" {
+					continue
+				}
+				envVarsCount++
+				parts := strings.SplitN(line, "=", 2)
+				key := strings.TrimSpace(parts[0])
+				assert.Equal(t, tt.expected[key], parts[1])
+			}
+			assert.Equal(t, len(tt.expected), envVarsCount)
+			fmt.Println(strings.Split(string(res), "\n"), tt.expected)
 		})
 	}
 }
