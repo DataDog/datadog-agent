@@ -14,7 +14,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"gopkg.in/yaml.v2"
@@ -27,6 +26,7 @@ const (
 	apmInjectOldPath      = "/opt/datadog/apm/inject"
 	apmOldSocket          = "/opt/datadog/apm/inject/run/apm.socket"
 	statsdOldSocket       = "/opt/datadog/apm/inject/run/dsd.socket"
+	envFilePath           = "/etc/datadog-agent/environment"
 )
 
 // socketConfig is a subset of the agent configuration
@@ -80,7 +80,7 @@ func getSocketsPath(agentConfigPath, apmOldPath string) (string, string) {
 
 // configureSocketsEnv configures the sockets for the agent & injector
 func configureSocketsEnv() error {
-	envFile := newFileMutator("/etc/environment", setSocketEnvs, verifySocketEnvs, verifySocketEnvs)
+	envFile := newFileMutator(envFilePath, setSocketEnvs, verifySocketEnvs, verifySocketEnvs)
 	defer envFile.cleanup()
 	rollback, err := envFile.mutate()
 	if err != nil {
@@ -159,26 +159,19 @@ func verifySocketEnvs(path string) error {
 	return nil
 }
 
-// addSystemDEnvOverrides adds /etc/environment variables to the defined systemd units
+// addSystemDEnvOverrides adds /etc/datadog-agent/environment variables to the defined systemd units
 // The unit should contain the .service suffix (e.g. datadog-agent-exp.service)
 //
 // Reloading systemd & restarting the unit has to be done separately by the caller
 func addSystemDEnvOverrides(unit string) error {
-	// Verify that the unit is a DD one
-	if !strings.HasPrefix(unit, "datadog-") {
-		return fmt.Errorf("unit %s is not a Datadog unit", unit)
-	}
-	if !strings.HasSuffix(unit, ".service") {
-		return fmt.Errorf("unit %s is not a service unit", unit)
-	}
-
-	content := []byte("[Service]\nEnvironmentFile=/etc/environment\n")
+	// The - is important as it lets the unit start even if the file is missing.
+	content := []byte(fmt.Sprintf("[Service]\nEnvironmentFile=-%s\n", envFilePath))
 
 	// We don't need a file mutator here as we're fully hard coding the content.
 	// We don't really need to remove the file either as it'll just be ignored once the
 	// unit is removed.
-	path := fmt.Sprintf("/etc/systemd/system/%s.d/environment_override.conf", unit)
-	err := os.MkdirAll(filepath.Dir(path), 0755)
+	path := fmt.Sprintf("%s/%s.d/datadog_environment.conf", systemdPath, unit)
+	err := os.Mkdir(filepath.Dir(path), 0755)
 	if err != nil {
 		return fmt.Errorf("error creating systemd environment override directory: %w", err)
 	}
