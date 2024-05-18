@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build !linux
+//go:build !linux && !windows
 
 package model
 
@@ -17,7 +17,7 @@ var (
 	unlinkFlagsConstants      = map[string]int{}
 	ptraceConstants           = map[string]uint32{}
 	ptraceArchConstants       = map[string]uint32{}
-	protConstants             = map[string]int{}
+	protConstants             = map[string]uint64{}
 	mmapFlagConstants         = map[string]uint64{}
 	mmapFlagArchConstants     = map[string]uint64{}
 	// SignalConstants list of signals

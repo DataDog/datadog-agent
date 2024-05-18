@@ -39,6 +39,7 @@ extern char* readPersistentCache(char*);
 extern char* obfuscateSQL(char*, char*, char**);
 extern char* obfuscateSQLExecPlan(char*, bool, char**);
 extern double getProcessStartTime();
+extern char* obfuscateMongoDBString(char*, char**);
 
 
 static void initDatadogAgentTests(rtloader_t *rtloader) {
@@ -57,6 +58,7 @@ static void initDatadogAgentTests(rtloader_t *rtloader) {
    set_obfuscate_sql_cb(rtloader, obfuscateSQL);
    set_obfuscate_sql_exec_plan_cb(rtloader, obfuscateSQLExecPlan);
    set_get_process_start_time_cb(rtloader, getProcessStartTime);
+   set_obfuscate_mongodb_string_cb(rtloader, obfuscateMongoDBString);
 }
 */
 import "C"
@@ -326,4 +328,18 @@ var processStartTime = float64(time.Now().Unix())
 //export getProcessStartTime
 func getProcessStartTime() float64 {
 	return processStartTime
+}
+
+//export obfuscateMongoDBString
+func obfuscateMongoDBString(cmd *C.char, errResult **C.char) *C.char {
+	switch C.GoString(cmd) {
+	case "{\"find\": \"customer\"}":
+		return (*C.char)(helpers.TrackedCString("{\"find\": \"customer\"}"))
+	case "":
+		*errResult = (*C.char)(helpers.TrackedCString("Empty MongoDB command"))
+		return nil
+	default:
+		*errResult = (*C.char)(helpers.TrackedCString("unknown test case"))
+		return nil
+	}
 }

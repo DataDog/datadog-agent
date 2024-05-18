@@ -176,6 +176,7 @@ collect_bfd_session_status: true
     {
       "id": "test:10.10.1.1",
       "id_tags": [
+        "device_namespace:test",
         "system_ip:10.10.1.1"
       ],
       "tags": [

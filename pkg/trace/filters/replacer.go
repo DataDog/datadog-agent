@@ -8,6 +8,7 @@ package filters
 import (
 	"regexp"
 	"strconv"
+	"strings"
 
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
@@ -24,6 +25,8 @@ func NewReplacer(rules []*config.ReplaceRule) *Replacer {
 	return &Replacer{rules: rules}
 }
 
+const hiddenTagPrefix = "_"
+
 // Replace replaces all tags matching the Replacer's rules.
 func (f Replacer) Replace(trace pb.Trace) {
 	for _, rule := range f.rules {
@@ -32,10 +35,14 @@ func (f Replacer) Replace(trace pb.Trace) {
 			switch key {
 			case "*":
 				for k := range s.Meta {
-					s.Meta[k] = re.ReplaceAllString(s.Meta[k], str)
+					if !strings.HasPrefix(k, hiddenTagPrefix) {
+						s.Meta[k] = re.ReplaceAllString(s.Meta[k], str)
+					}
 				}
 				for k := range s.Metrics {
-					f.replaceNumericTag(re, s, k, str)
+					if !strings.HasPrefix(k, hiddenTagPrefix) {
+						f.replaceNumericTag(re, s, k, str)
+					}
 				}
 				s.Resource = re.ReplaceAllString(s.Resource, str)
 			case "resource.name":

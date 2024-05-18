@@ -81,14 +81,18 @@ func netflowDockerProvisioner() e2e.Provisioner {
 			return err
 		}
 
-		dockerManager, _, err := docker.NewManager(*awsEnv.CommonEnvironment, host, utils.PulumiDependsOn(installEcrCredsHelperCmd))
+		dockerManager, err := docker.NewManager(&awsEnv, host, utils.PulumiDependsOn(installEcrCredsHelperCmd))
+		if err != nil {
+			return err
+		}
+		err = dockerManager.Export(ctx, &env.Docker.ManagerOutput)
 		if err != nil {
 			return err
 		}
 
 		envVars := pulumi.StringMap{"CONFIG_DIR": pulumi.String(configPath)}
 		composeDependencies := []pulumi.Resource{configCommand}
-		dockerAgent, err := agent.NewDockerAgent(*awsEnv.CommonEnvironment, host, dockerManager,
+		dockerAgent, err := agent.NewDockerAgent(&awsEnv, host, dockerManager,
 			dockeragentparams.WithFakeintake(fakeIntake),
 			dockeragentparams.WithExtraComposeManifest("netflow-generator", pulumi.String(netflowCompose)),
 			dockeragentparams.WithEnvironmentVariables(envVars),

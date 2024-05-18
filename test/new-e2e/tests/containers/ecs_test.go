@@ -62,7 +62,7 @@ func (suite *ecsSuite) SetupSuite() {
 		"ddtestworkload:deploy":                      auto.ConfigValue{Value: "true"},
 	}
 
-	_, stackOutput, err := infra.GetStackManager().GetStackNoDeleteOnFailure(ctx, "ecs-cluster", stackConfig, ecs.Run, false, nil)
+	_, stackOutput, err := infra.GetStackManager().GetStackNoDeleteOnFailure(ctx, "ecs-cluster", stackConfig, ecs.Run, false, nil, nil)
 	suite.Require().NoError(err)
 
 	fakeintake := &components.FakeIntake{}
@@ -181,7 +181,7 @@ func (suite *ecsSuite) Test00UpAndRunning() {
 					}
 				}
 			}
-		}, 5*time.Minute, 10*time.Second, "Not all tasks became ready in time.")
+		}, 10*time.Minute, 10*time.Second, "Not all tasks became ready in time.")
 	})
 }
 

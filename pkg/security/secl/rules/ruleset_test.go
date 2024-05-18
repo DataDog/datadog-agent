@@ -99,7 +99,7 @@ func newFakeEvent() eval.Event {
 }
 
 func newRuleSet() *RuleSet {
-	ruleOpts, evalOpts := NewEvalOpts(map[eval.EventType]bool{"*": true})
+	ruleOpts, evalOpts := NewBothOpts(map[eval.EventType]bool{"*": true})
 	return NewRuleSet(&model.Model{}, newFakeEvent, ruleOpts, evalOpts)
 }
 
