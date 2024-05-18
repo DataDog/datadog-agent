@@ -190,7 +190,7 @@ func (s *packageBaseSuite) InstallInjectorPackageTemp() {
 		"DD_INSTALLER_REGISTRY":      "669783387624.dkr.ecr.us-east-1.amazonaws.com",
 		"DD_INSTALLER_REGISTRY_AUTH": "ecr",
 	}
-	s.Env().RemoteHost.MustExecute("sudo -E datadog-installer install oci://669783387624.dkr.ecr.us-east-1.amazonaws.com/apm-inject-package:pipeline-34163111", client.WithEnvVariables(env))
+	s.Env().RemoteHost.MustExecute("sudo -E datadog-installer install oci://669783387624.dkr.ecr.us-east-1.amazonaws.com/apm-inject-package:pipeline-34614662", client.WithEnvVariables(env))
 }
 
 func (s *packageBaseSuite) InstallPackageLatest(pkg string) {
