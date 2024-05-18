@@ -110,7 +110,7 @@ const (
 	LastApproverEventType = SpliceEventType
 
 	// CustomLostReadEventType is the custom event used to report lost events detected in user space
-	CustomLostReadEventType = iota
+	CustomLostReadEventType EventType = iota
 	// CustomLostWriteEventType is the custom event used to report lost events detected in kernel space
 	CustomLostWriteEventType
 	// CustomRulesetLoadedEventType is the custom event used to report that a new ruleset was loaded
