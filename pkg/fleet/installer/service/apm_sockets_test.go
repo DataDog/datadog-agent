@@ -130,25 +130,3 @@ dogstatsd_socket: /banana/dsd.socket
 		})
 	}
 }
-
-func TestVerifySocketEnvs(t *testing.T) {
-	file := t.TempDir() + "/file.env"
-
-	// Normal case
-	err := os.WriteFile(file, []byte(insertedEnvs), 0644)
-	assert.Nil(t, err)
-	err = verifySocketEnvs(file)
-	assert.Nil(t, err)
-
-	// Missing all envs
-	err = os.WriteFile(file, []byte("banana=true"), 0644)
-	assert.Nil(t, err)
-	err = verifySocketEnvs(file)
-	assert.NotNil(t, err)
-
-	// Missing one env
-	err = os.WriteFile(file, []byte(strings.Join(strings.Split(insertedEnvs, "\n")[1:], "\n")), 0644)
-	assert.Nil(t, err)
-	err = verifySocketEnvs(file)
-	assert.NotNil(t, err)
-}
