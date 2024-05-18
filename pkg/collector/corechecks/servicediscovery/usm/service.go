@@ -130,6 +130,9 @@ func ExtractServiceMetadata(ctx DetectionContext) (ServiceMetadata, bool) {
 		return ServiceMetadata{}, false
 	}
 
+	if value, ok := chooseServiceNameFromEnvs(ctx.envs); ok {
+		return NewServiceMetadata(value), true
+	}
 	exe := cmd[0]
 	// check if all args are packed into the first argument
 	if len(cmd) == 1 {
@@ -192,6 +195,25 @@ func parseExeStartWithSymbol(exe string) string {
 		result = result[:len(result)-1]
 	}
 	return result
+}
+
+// chooseServiceNameFromEnvs extracts the service name from usual tracer env variables (DD_SERVICE, DD_TAGS).
+// returns the service name, true if found, otherwise "", false
+func chooseServiceNameFromEnvs(envs []string) (string, bool) {
+	for _, env := range envs {
+		if strings.HasPrefix(env, "DD_SERVICE=") {
+			return strings.TrimPrefix(env, "DD_SERVICE="), true
+		}
+		if strings.HasPrefix(env, "DD_TAGS=") && strings.Contains(env, "service:") {
+			parts := strings.Split(strings.TrimPrefix(env, "DD_TAGS="), ",")
+			for _, p := range parts {
+				if strings.HasPrefix(p, "service:") {
+					return strings.TrimPrefix(p, "service:"), true
+				}
+			}
+		}
+	}
+	return "", false
 }
 
 func (simpleDetector) detect(args []string) (ServiceMetadata, bool) {

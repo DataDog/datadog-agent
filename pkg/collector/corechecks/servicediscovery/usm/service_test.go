@@ -64,6 +64,22 @@ func TestExtractServiceMetadata(t *testing.T) {
 			expectedServiceTag: "my-server",
 		},
 		{
+			name: "single arg executable with DD_SERVICE",
+			cmdline: []string{
+				"./my-server.sh",
+			},
+			envs:               []string{"DD_SERVICE=my-service"},
+			expectedServiceTag: "my-service",
+		},
+		{
+			name: "single arg executable with DD_TAGS",
+			cmdline: []string{
+				"./my-server.sh",
+			},
+			envs:               []string{"DD_TAGS=service:my-service"},
+			expectedServiceTag: "my-service",
+		},
+		{
 			name: "single arg executable with special chars",
 			cmdline: []string{
 				"./-my-server.sh-",
