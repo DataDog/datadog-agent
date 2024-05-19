@@ -87,11 +87,18 @@ func FromConfig(config config.Reader) *Env {
 
 // ToEnv returns a slice of environment variables from the Env struct.
 func (e *Env) ToEnv() []string {
-	env := []string{
-		envAPIKey + "=" + e.APIKey,
-		envSite + "=" + e.Site,
-		envRegistryURL + "=" + e.RegistryOverride,
-		envRegistryAuth + "=" + e.RegistryAuthOverride,
+	var env []string
+	if e.APIKey != "" {
+		env = append(env, envAPIKey+"="+e.APIKey)
+	}
+	if e.Site != "" {
+		env = append(env, envSite+"="+e.Site)
+	}
+	if e.RegistryOverride != "" {
+		env = append(env, envRegistryURL+"="+e.RegistryOverride)
+	}
+	if e.RegistryAuthOverride != "" {
+		env = append(env, envRegistryAuth+"="+e.RegistryAuthOverride)
 	}
 	env = append(env, overridesByNameToEnv(envRegistryURL, e.RegistryOverrideByImage)...)
 	env = append(env, overridesByNameToEnv(envRegistryAuth, e.RegistryAuthOverrideByImage)...)
