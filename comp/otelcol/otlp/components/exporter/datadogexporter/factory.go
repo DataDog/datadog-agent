@@ -11,7 +11,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	"github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/logsagentexporter"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/serializerexporter"
@@ -38,7 +37,7 @@ type factory struct {
 	registry  *featuregate.Registry
 	s         serializer.MetricSerializer
 	logsAgent logsagentpipeline.Component
-	h         hostnameinterface.Component
+	h         serializerexporter.SourceProviderFunc
 }
 
 func (f *factory) AttributesTranslator(set component.TelemetrySettings) (*attributes.Translator, error) {
@@ -48,7 +47,7 @@ func (f *factory) AttributesTranslator(set component.TelemetrySettings) (*attrib
 	return f.attributesTranslator, f.attributesErr
 }
 
-func newFactoryWithRegistry(registry *featuregate.Registry, s serializer.MetricSerializer, logsagent logsagentpipeline.Component, h hostnameinterface.Component) exporter.Factory {
+func newFactoryWithRegistry(registry *featuregate.Registry, s serializer.MetricSerializer, logsagent logsagentpipeline.Component, h serializerexporter.SourceProviderFunc) exporter.Factory {
 	f := &factory{
 		registry:  registry,
 		s:         s,
@@ -80,7 +79,7 @@ func (t *tagEnricher) Enrich(_ context.Context, extraTags []string, dimensions *
 }
 
 // NewFactory creates a Datadog exporter factory
-func NewFactory(s serializer.MetricSerializer, logsAgent logsagentpipeline.Component, h hostnameinterface.Component) exporter.Factory {
+func NewFactory(s serializer.MetricSerializer, logsAgent logsagentpipeline.Component, h serializerexporter.SourceProviderFunc) exporter.Factory {
 	return newFactoryWithRegistry(featuregate.GlobalRegistry(), s, logsAgent, h)
 }
 
@@ -169,7 +168,7 @@ func (f *factory) createMetricsExporter(
 	c component.Config,
 ) (exporter.Metrics, error) {
 	cfg := checkAndCastConfig(c, set.Logger)
-	sf := serializerexporter.NewFactory(f.s, &tagEnricher{}, f.h.Get)
+	sf := serializerexporter.NewFactory(f.s, &tagEnricher{}, f.h)
 	ex := &serializerexporter.ExporterConfig{
 		Metrics: cfg.Metrics,
 		TimeoutSettings: exporterhelper.TimeoutSettings{
