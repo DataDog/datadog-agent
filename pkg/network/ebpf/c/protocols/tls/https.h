@@ -24,6 +24,7 @@
 #include "protocols/http/types.h"
 #include "protocols/http/maps.h"
 #include "protocols/http/http.h"
+#include "protocols/postgres/helpers.h"
 #include "protocols/tls/go-tls-maps.h"
 #include "protocols/tls/go-tls-types.h"
 #include "protocols/tls/native-tls-maps.h"
@@ -47,10 +48,15 @@ static __always_inline void classify_decrypted_payload(protocol_stack_t *stack, 
 
     protocol_t proto = PROTOCOL_UNKNOWN;
     classify_protocol_for_dispatcher(&proto, t, buffer, len);
-    if (proto == PROTOCOL_UNKNOWN) {
-        return;
+    if (proto != PROTOCOL_UNKNOWN) {
+        goto update_stack;
     }
 
+    if (is_postgres(buffer, len)) {
+        proto = PROTOCOL_POSTGRES;
+    }
+
+update_stack:
     set_protocol(stack, proto);
 }
 
