@@ -35,7 +35,7 @@ func (s *packageInstallerSuite) TestInstall() {
 	state.AssertUserHasGroup("dd-agent", "dd-agent")
 
 	state.AssertDirExists("/etc/datadog-agent", 0755, "dd-agent", "dd-agent")
-	state.AssertFileExists("/etc/datadog-agent/environment", 0644, "dd-agent", "dd-agent")
+	state.AssertFileExists("/etc/datadog-agent/environment", 0644, "root", "root")
 	state.AssertDirExists("/var/log/datadog", 0755, "dd-agent", "dd-agent")
 	state.AssertDirExists("/var/run/datadog", 0755, "dd-agent", "dd-agent")
 	state.AssertDirExists("/var/run/datadog/installer", 0755, "dd-agent", "dd-agent")
