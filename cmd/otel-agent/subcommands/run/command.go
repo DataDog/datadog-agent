@@ -36,6 +36,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"github.com/spf13/cobra"
 	"go.opentelemetry.io/collector/otelcol"
@@ -121,9 +122,14 @@ func runOTelAgentCommand(_ context.Context, params *subcommands.GlobalParams, op
 		fx.Provide(func(s *serializer.Serializer) serializer.MetricSerializer {
 			return s
 		}),
-		fx.Provide(func(h hostname.Component) string {
-			hn, _ := h.Get(context.Background())
-			return hn
+		fx.Provide(func(h hostname.Component) (string, error) {
+			hn, err := h.Get(context.Background())
+			if err != nil {
+				return "", err
+			}
+			log.Info("Using ", "hostname", hn)
+
+			return hn, nil
 		}),
 
 		fx.Provide(newForwarderParams),

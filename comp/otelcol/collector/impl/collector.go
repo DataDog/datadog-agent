@@ -24,7 +24,10 @@ import (
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/datadogexporter"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/processor/infraattributesprocessor"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
+	zapAgent "github.com/DataDog/datadog-agent/pkg/util/log/zap"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 )
 
 type dependencies struct {
@@ -49,12 +52,19 @@ type collector struct {
 
 // New returns a new instance of the collector component.
 func New(deps dependencies) (collectordef.Component, error) {
+	// Replace default core to use Agent logger
+	options := []zap.Option{
+		zap.WrapCore(func(zapcore.Core) zapcore.Core {
+			return zapAgent.NewZapCore()
+		}),
+	}
 	set := otelcol.CollectorSettings{
 		BuildInfo: component.BuildInfo{
 			Version:     "0.0.1",
 			Command:     "otel-agent",
 			Description: "Datadog Agent OpenTelemetry Collector Distribution",
 		},
+		LoggingOptions: options,
 		Factories: func() (otelcol.Factories, error) {
 			factories, err := deps.CollectorContrib.OTelComponentFactories()
 			if err != nil {

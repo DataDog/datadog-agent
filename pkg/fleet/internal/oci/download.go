@@ -26,6 +26,7 @@ import (
 	"github.com/google/go-containerregistry/pkg/v1/types"
 	httptrace "gopkg.in/DataDog/dd-trace-go.v1/contrib/net/http"
 
+	"github.com/DataDog/datadog-agent/pkg/fleet/env"
 	"github.com/DataDog/datadog-agent/pkg/fleet/internal/tar"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -67,28 +68,17 @@ type DownloadedPackage struct {
 
 // Downloader is the Downloader used by the installer to download packages.
 type Downloader struct {
+	env      *env.Env
 	keychain authn.Keychain
 	client   *http.Client
-	registry string
 }
 
 // NewDownloader returns a new Downloader.
-func NewDownloader(client *http.Client, registry string, registryAuth string) *Downloader {
-	var keychain authn.Keychain
-	switch registryAuth {
-	case RegistryAuthGCR:
-		keychain = google.Keychain
-	case RegistryAuthECR:
-		keychain = authn.NewKeychainFromHelper(ecr.NewECRHelper())
-	case RegistryAuthDefault:
-	default:
-		log.Warnf("unsupported registry authentication method: %s, defaulting to docker", registryAuth)
-		keychain = authn.DefaultKeychain
-	}
+func NewDownloader(env *env.Env, client *http.Client) *Downloader {
 	return &Downloader{
-		keychain: keychain,
+		keychain: getKeychain(env.RegistryAuthOverride),
+		env:      env,
 		client:   client,
-		registry: registry,
 	}
 }
 
@@ -102,7 +92,7 @@ func (d *Downloader) Download(ctx context.Context, packageURL string) (*Download
 	var image oci.Image
 	switch url.Scheme {
 	case "oci":
-		image, err = d.downloadRegistry(ctx, d.getRegistryURL(packageURL))
+		image, err = d.downloadRegistry(ctx, strings.TrimPrefix(packageURL, "oci://"))
 	case "file":
 		image, err = d.downloadFile(url.Path)
 	default:
@@ -140,26 +130,62 @@ func (d *Downloader) Download(ctx context.Context, packageURL string) (*Download
 	}, nil
 }
 
-func (d *Downloader) getRegistryURL(url string) string {
-	downloadURL := strings.TrimPrefix(url, "oci://")
-	if d.registry == "" {
-		return downloadURL
+func getKeychain(auth string) authn.Keychain {
+	switch auth {
+	case RegistryAuthGCR:
+		return google.Keychain
+	case RegistryAuthECR:
+		return authn.NewKeychainFromHelper(ecr.NewECRHelper())
+	case RegistryAuthDefault, "":
+		return authn.DefaultKeychain
+	default:
+		log.Warnf("unsupported registry authentication method: %s, defaulting to docker", auth)
+		return authn.DefaultKeychain
 	}
-	registry := d.registry
-	if !strings.HasSuffix(d.registry, "/") {
-		registry += "/"
+}
+
+type urlWithKeychain struct {
+	ref      string
+	keychain authn.Keychain
+}
+
+func (d *Downloader) getRefAndKeychain(url string) urlWithKeychain {
+	imageWithIdentifier := url[strings.LastIndex(url, "/")+1:]
+	registryOverride := d.env.RegistryOverride
+	for image, override := range d.env.RegistryOverrideByImage {
+		if strings.HasPrefix(imageWithIdentifier, image+":") || strings.HasPrefix(imageWithIdentifier, image+"@") {
+			registryOverride = override
+			break
+		}
 	}
-	split := strings.Split(url, "/")
-	return registry + split[len(split)-1]
+	ref := url
+	if registryOverride != "" {
+		if !strings.HasSuffix(registryOverride, "/") {
+			registryOverride += "/"
+		}
+		ref = registryOverride + imageWithIdentifier
+	}
+
+	keychain := d.keychain
+	for image, override := range d.env.RegistryAuthOverrideByImage {
+		if strings.HasPrefix(imageWithIdentifier, image+":") || strings.HasPrefix(imageWithIdentifier, image+"@") {
+			keychain = getKeychain(override)
+			break
+		}
+	}
+	return urlWithKeychain{
+		ref:      ref,
+		keychain: keychain,
+	}
 }
 
 func (d *Downloader) downloadRegistry(ctx context.Context, url string) (oci.Image, error) {
-	// the image URL is parsed as a digest to ensure we use the <repository>/<image>@<digest> format
-	ref, err := name.ParseReference(url, name.StrictValidation)
+	refAndKeychain := d.getRefAndKeychain(url)
+	ref, err := name.ParseReference(refAndKeychain.ref)
 	if err != nil {
-		return nil, fmt.Errorf("could not parse ref: %w", err)
+		return nil, fmt.Errorf("could not parse reference: %w", err)
 	}
-	index, err := remote.Index(ref, remote.WithContext(ctx), remote.WithAuthFromKeychain(d.keychain), remote.WithTransport(httptrace.WrapRoundTripper(d.client.Transport)))
+	index, err := remote.Index(ref, remote.WithContext(ctx), remote.WithAuthFromKeychain(refAndKeychain.keychain), remote.WithTransport(httptrace.WrapRoundTripper(d.client.Transport)))
 	if err != nil {
 		return nil, fmt.Errorf("could not download image: %w", err)
 	}
@@ -239,8 +265,8 @@ func (d *DownloadedPackage) WriteOCILayout(dir string) error {
 }
 
 // PackageURL returns the package URL for the given site, package and version.
-func PackageURL(site string, pkg string, version string) string {
-	switch site {
+func PackageURL(env *env.Env, pkg string, version string) string {
+	switch env.Site {
 	case "datad0g.com":
 		return fmt.Sprintf("oci://docker.io/datadog/%s-package-dev:%s", strings.TrimPrefix(pkg, "datadog-"), version)
 	default:
