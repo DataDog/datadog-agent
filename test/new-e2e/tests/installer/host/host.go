@@ -79,6 +79,21 @@ func (h *Host) ReadFile(path string) ([]byte, error) {
 	return h.remote.ReadFile(path)
 }
 
+// WaitForUnit waits for a systemd unit to be active
+func (h *Host) WaitForUnit(unit string) {
+	h.remote.MustExecute(fmt.Sprintf("timeout=30; unit=%s; while ! systemctl is-active --quiet $unit && [ $timeout -gt 0 ]; do sleep 1; ((timeout--)); done; [ $timeout -ne 0 ]", unit))
+}
+
+// BootstraperVersion returns the version of the bootstraper on the host.
+func (h *Host) BootstraperVersion() string {
+	return strings.TrimSpace(h.remote.MustExecute("sudo datadog-bootstrap version"))
+}
+
+// InstallerVersion returns the version of the installer on the host.
+func (h *Host) InstallerVersion() string {
+	return strings.TrimSpace(h.remote.MustExecute("sudo datadog-installer version"))
+}
+
 // State returns the state of the host.
 func (h *Host) State() State {
 	return State{

@@ -24,13 +24,15 @@ func testApmInjectAgent(os e2eos.Descriptor, arch e2eos.Architecture) packageSui
 	}
 }
 
-func (s *packageApmInjectSuite) TestInstall() {
+func (s *packageAgentSuite) SetupSuite() {
+	s.packageBaseSuite.SetupSuite()
 	s.host.InstallDocker()
-	s.RunInstallScript()
+}
+
+func (s *packageApmInjectSuite) TestInstall() {
+	s.RunInstallScript("DD_APM_INSTRUMENTATION_ENABLED=all", envForceInstall("datadog-agent"), envForceInstall("datadog-apm-inject"), envForceInstall("datadog-apm-library-python"))
 	defer s.Purge()
-	s.InstallAgentPackage()
-	s.InstallInjectorPackageTemp()
-	s.InstallPackageLatest("datadog-apm-library-python")
+
 	s.host.StartExamplePythonApp()
 	defer s.host.StopExamplePythonApp()
 	s.host.StartExamplePythonAppInDocker()
@@ -51,11 +53,7 @@ func (s *packageApmInjectSuite) TestInstall() {
 }
 
 func (s *packageApmInjectSuite) TestUninstall() {
-	s.host.InstallDocker()
-	s.RunInstallScript()
-	s.InstallAgentPackage()
-	s.InstallInjectorPackageTemp()
-	s.InstallPackageLatest("datadog-apm-library-python")
+	s.RunInstallScript("DD_APM_INSTRUMENTATION_ENABLED=all", envForceInstall("datadog-agent"), envForceInstall("datadog-apm-inject"), envForceInstall("datadog-apm-library-python"))
 	s.Purge()
 
 	s.assertLDPreloadNotInstrumented()
