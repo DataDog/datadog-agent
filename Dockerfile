@@ -3,5 +3,5 @@ WORKDIR /app
 COPY . .
 RUN go build -tags=otlp -o otel-agent ./cmd/otel-agent
 
-FROM --platform=amd64  datadog/agent:7.54.0-rc.3
+FROM --platform=amd64  datadog/agent:7.54.0-rc.4
 COPY --from=builder /app/otel-agent /otel-agent
