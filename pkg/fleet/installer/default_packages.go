@@ -6,67 +6,56 @@
 package installer
 
 import (
-	"os"
-	"strings"
+	"slices"
 
+	"github.com/DataDog/datadog-agent/pkg/fleet/env"
 	"github.com/DataDog/datadog-agent/pkg/fleet/internal/oci"
 )
 
-const (
-	envSite                            = "DD_SITE"
-	envInstallerDefaultPackages        = "DD_INSTALLER_DEFAULT_PACKAGES"
-	envInstallerDefaultPackagesEnabled = "DD_INSTALLER_DEFAULT_PACKAGES_ENABLED"
-	envApmInstrumentationEnabled       = "DD_APM_INSTRUMENTATION_ENABLED"
-)
+type defaultPackage struct {
+	name           string
+	released       bool
+	releasedBySite []string
+	condition      func(*env.Env) bool
+}
+
+var defaultPackagesList = []defaultPackage{
+	{name: "datadog-apm-inject", released: false, condition: apmInjectEnabled},
+	{name: "datadog-apm-library-java", released: false, condition: apmInjectEnabled},
+	{name: "datadog-apm-library-ruby", released: false, condition: apmInjectEnabled},
+	{name: "datadog-apm-library-js", released: false, condition: apmInjectEnabled},
+	{name: "datadog-apm-library-dotnet", released: false, condition: apmInjectEnabled},
+	{name: "datadog-apm-library-python", released: false, condition: apmInjectEnabled},
+	{name: "datadog-agent", released: false},
+}
 
 // DefaultPackages resolves the default packages URLs to install based on the environment.
-func DefaultPackages() []string {
-	if !featureEnabled() {
-		return nil
-	}
-
-	var packages = make(map[string]string)
-
-	switch os.Getenv(envApmInstrumentationEnabled) {
-	case "all", "docker", "host":
-		packages["datadog-apm-inject"] = "latest"
-	}
-
-	for p, v := range parseForcedPackages() {
-		packages[p] = v
-	}
-	return resolvePackageURLs(packages)
+func DefaultPackages(env *env.Env) []string {
+	return defaultPackages(env, defaultPackagesList)
 }
 
-func featureEnabled() bool {
-	return os.Getenv(envInstallerDefaultPackagesEnabled) == "true"
-}
-
-func resolvePackageURLs(packages map[string]string) []string {
-	site := "datadoghq.com"
-	if os.Getenv(envSite) != "" {
-		site = os.Getenv(envSite)
-	}
-	var packageURLs []string
-	for p, v := range packages {
-		packageURLs = append(packageURLs, oci.PackageURL(site, p, v))
-	}
-	return packageURLs
-}
-
-func parseForcedPackages() map[string]string {
-	var packages = make(map[string]string)
-	rawForcedPackages := os.Getenv(envInstallerDefaultPackages)
-	if rawForcedPackages == "" {
-		return packages
-	}
-	for _, rawPackage := range strings.Split(rawForcedPackages, ",") {
-		if strings.Contains(rawPackage, ":") {
-			parts := strings.Split(rawPackage, ":")
-			packages[parts[0]] = parts[1]
-		} else {
-			packages[rawPackage] = "latest"
+func defaultPackages(env *env.Env, defaultPackages []defaultPackage) []string {
+	var packages []string
+	for _, p := range defaultPackages {
+		released := p.released || slices.Contains(p.releasedBySite, env.Site)
+		forcedInstall := env.DefaultPackagesInstallOverride[p.name]
+		condition := p.condition == nil || p.condition(env)
+		if (released && condition) || forcedInstall {
+			version := "latest"
+			if v, ok := env.DefaultPackagesVersionOverride[p.name]; ok {
+				version = v
+			}
+			url := oci.PackageURL(env, p.name, version)
+			packages = append(packages, url)
 		}
 	}
 	return packages
+}
+
+func apmInjectEnabled(e *env.Env) bool {
+	switch e.InstallScript.APMInstrumentationEnabled {
+	case env.APMInstrumentationEnabledAll, env.APMInstrumentationEnabledDocker, env.APMInstrumentationEnabledHost:
+		return true
+	}
+	return false
 }

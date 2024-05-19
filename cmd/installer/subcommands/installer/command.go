@@ -176,7 +176,7 @@ func defaultPackagesCommand() *cobra.Command {
 		Short:   "Print the version of the installer",
 		GroupID: "installer",
 		RunE: func(_ *cobra.Command, _ []string) error {
-			defaultPackages := installer.DefaultPackages()
+			defaultPackages := installer.DefaultPackages(env.FromEnv())
 			fmt.Fprintf(os.Stdout, "%s\n", strings.Join(defaultPackages, "\n"))
 			return nil
 		},

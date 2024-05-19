@@ -6,84 +6,104 @@
 package installer
 
 import (
-	"os"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/fleet/env"
 	"github.com/DataDog/datadog-agent/pkg/fleet/internal/oci"
 	"github.com/stretchr/testify/assert"
 )
 
+func TestDefaultPackagesDefaultInstall(t *testing.T) {
+	env := &env.Env{}
+	packages := DefaultPackages(env)
+
+	// No packages released by default today
+	assert.Empty(t, packages)
+}
+
+func TestDefaultPackagesAPMInjectEnabled(t *testing.T) {
+	env := &env.Env{
+		InstallScript: env.InstallScriptEnv{
+			APMInstrumentationEnabled: env.APMInstrumentationEnabledAll,
+		},
+	}
+	packages := DefaultPackages(env)
+
+	// APM inject packages are not released by default today
+	assert.Empty(t, packages)
+}
+
 func TestDefaultPackages(t *testing.T) {
-	// Test cases
-	tests := []struct {
-		name           string
-		envVariables   map[string]string
-		expectedResult map[string]string
-	}{
+	type pkg struct {
+		n string
+		v string
+	}
+	type testCase struct {
+		name     string
+		packages []defaultPackage
+		env      *env.Env
+		expected []pkg
+	}
+
+	tests := []testCase{
 		{
-			name: "Empty packages",
-			envVariables: map[string]string{
-				"DD_INSTALLER":                   "true",
-				"DD_INSTALLER_PACKAGES":          "",
-				"DD_APM_INSTRUMENTATION_ENABLED": "",
-			},
-			expectedResult: map[string]string{},
+			name:     "No packages",
+			packages: []defaultPackage{},
+			env:      &env.Env{},
+			expected: nil,
 		},
 		{
-			name: "Forced packages",
-			envVariables: map[string]string{
-				"DD_INSTALLER":          "true",
-				"DD_INSTALLER_PACKAGES": "package1:1.0.0,package2:2.0.0,package3",
-			},
-			expectedResult: map[string]string{
-				"package1": "1.0.0",
-				"package2": "2.0.0",
-				"package3": "latest",
-			},
+			name:     "Package not released",
+			packages: []defaultPackage{{name: "datadog-agent", released: false}},
+			env:      &env.Env{},
+			expected: nil,
 		},
 		{
-			name: "APM instrumentation enabled",
-			envVariables: map[string]string{
-				"DD_INSTALLER":                   "true",
-				"DD_APM_INSTRUMENTATION_ENABLED": "all",
-			},
-			expectedResult: map[string]string{
-				"datadog-apm-inject": "latest",
-			},
+			name:     "Package released",
+			packages: []defaultPackage{{name: "datadog-agent", released: true}},
+			env:      &env.Env{},
+			expected: []pkg{{n: "datadog-agent", v: "latest"}},
 		},
 		{
-			name: "APM instrumentation enabled but gradual rollout not matching",
-			envVariables: map[string]string{
-				"DD_APM_INSTRUMENTATION_ENABLED": "all",
-			},
-			expectedResult: map[string]string{},
+			name:     "Package released to another site",
+			packages: []defaultPackage{{name: "datadog-agent", releasedBySite: []string{"datadoghq.eu"}}},
+			env:      &env.Env{Site: "datadoghq.com"},
+			expected: nil,
 		},
 		{
-			name: "Forced packages override APM instrumentation",
-			envVariables: map[string]string{
-				"DD_INSTALLER":                   "true",
-				"DD_INSTALLER_PACKAGES":          "datadog-apm-inject:1.0.0",
-				"DD_APM_INSTRUMENTATION_ENABLED": "all",
-			},
-			expectedResult: map[string]string{
-				"datadog-apm-inject": "1.0.0",
-			},
+			name:     "Package released to the right site",
+			packages: []defaultPackage{{name: "datadog-agent", releasedBySite: []string{"datadoghq.eu"}}, {name: "datadog-package-2", releasedBySite: []string{"datadoghq.com"}}},
+			env:      &env.Env{Site: "datadoghq.eu"},
+			expected: []pkg{{n: "datadog-agent", v: "latest"}},
+		},
+		{
+			name:     "Package not released but forced install",
+			packages: []defaultPackage{{name: "datadog-agent", released: false}},
+			env:      &env.Env{DefaultPackagesInstallOverride: map[string]bool{"datadog-agent": true}},
+			expected: []pkg{{n: "datadog-agent", v: "latest"}},
+		},
+		{
+			name:     "Package released but condition not met",
+			packages: []defaultPackage{{name: "datadog-agent", released: true, condition: func(e *env.Env) bool { return false }}},
+			env:      &env.Env{},
+			expected: nil,
+		},
+		{
+			name:     "Package forced to install and version override",
+			packages: []defaultPackage{{name: "datadog-agent", released: false}},
+			env:      &env.Env{DefaultPackagesInstallOverride: map[string]bool{"datadog-agent": true}, DefaultPackagesVersionOverride: map[string]string{"datadog-agent": "1.2.3"}},
+			expected: []pkg{{n: "datadog-agent", v: "1.2.3"}},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			os.Setenv("DD_SITE", "datadoghq.com")
-			for key, value := range tt.envVariables {
-				os.Setenv(key, value)
-				defer os.Unsetenv(key)
+			packages := defaultPackages(tt.env, tt.packages)
+			var expected []string
+			for _, p := range tt.expected {
+				expected = append(expected, oci.PackageURL(tt.env, p.n, p.v))
 			}
-			result := DefaultPackages()
-			var expectedResult []string
-			for p, v := range tt.expectedResult {
-				expectedResult = append(expectedResult, oci.PackageURL("datadoghq.com", p, v))
-			}
-			assert.ElementsMatch(t, expectedResult, result)
+			assert.Equal(t, expected, packages)
 		})
 	}
 }

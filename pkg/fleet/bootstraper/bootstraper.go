@@ -39,8 +39,8 @@ func Bootstrap(ctx context.Context, env *env.Env) error {
 	// 1. Download the installer package from the registry.
 	downloader := oci.NewDownloader(env, http.DefaultClient)
 	version := "latest"
-	if env.DefaultVersionOverrideByPackage[installerPackage] != "" {
-		version = env.DefaultVersionOverrideByPackage[installerPackage]
+	if env.DefaultPackagesVersionOverride[installerPackage] != "" {
+		version = env.DefaultPackagesVersionOverride[installerPackage]
 	}
 	installerURL := oci.PackageURL(env, installerPackage, version)
 	downloadedPackage, err := downloader.Download(ctx, installerURL)

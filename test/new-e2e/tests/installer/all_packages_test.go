@@ -226,7 +226,7 @@ func env(arch e2eos.Architecture) map[string]string {
 	for _, pkg := range packagesConfig {
 		name := strings.ToUpper(strings.ReplaceAll(pkg.name, "-", "_"))
 		image := strings.TrimPrefix(name, "DATADOG_") + "_PACKAGE"
-		env[fmt.Sprintf("DD_INSTALLER_REGISTRY_%s", image)] = pkg.registry
+		env[fmt.Sprintf("DD_INSTALLER_REGISTRY_URL_%s", image)] = pkg.registry
 		env[fmt.Sprintf("DD_INSTALLER_REGISTRY_AUTH_%s", image)] = pkg.auth
 		env[fmt.Sprintf("DD_INSTALLER_DEFAULT_VERSION_%s", name)] = pkg.defaultVersion
 	}
