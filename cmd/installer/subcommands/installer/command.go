@@ -172,8 +172,8 @@ func versionCommand() *cobra.Command {
 
 func defaultPackagesCommand() *cobra.Command {
 	return &cobra.Command{
-		Use:     "version",
-		Short:   "Print the version of the installer",
+		Use:     "default-packages",
+		Short:   "Print the list of default packages to install",
 		GroupID: "installer",
 		RunE: func(_ *cobra.Command, _ []string) error {
 			defaultPackages := installer.DefaultPackages(env.FromEnv())
