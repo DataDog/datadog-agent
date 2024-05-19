@@ -27,6 +27,7 @@ type EventWrapper struct {
 	operation    Operation
 	tableNameSet bool
 	tableName    string
+	oq           *obfuscate.Obfuscator
 }
 
 // ConnTuple returns the connection tuple for the transaction
@@ -70,11 +71,7 @@ func (e *EventWrapper) extractTableName() string {
 		fragment = strings.ReplaceAll(fragment, "IF EXISTS", "")
 	}
 
-	oq, err := obfuscate.NewObfuscator(obfuscate.Config{SQL: obfuscate.SQLConfig{
-		DBMS:            obfuscate.DBMSPostgres,
-		ObfuscationMode: obfuscate.ObfuscateAndNormalize,
-		TableNames:      true,
-	}}).ObfuscateSQLString(fragment)
+	oq, err := e.oq.ObfuscateSQLString(fragment)
 	if err != nil {
 		log.Warnf("unable to create new obfuscator due to: %s", err)
 	}

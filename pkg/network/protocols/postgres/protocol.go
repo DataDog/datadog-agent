@@ -23,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/events"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/buildmode"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
+	"github.com/DataDog/datadog-agent/pkg/obfuscate"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -154,7 +155,15 @@ func (*protocol) IsBuildModeSupported(buildmode.Type) bool {
 func (p *protocol) processPostgres(events []EbpfEvent) {
 	for i := range events {
 		tx := &events[i]
-		p.statskeeper.Process(&EventWrapper{EbpfEvent: tx})
+		p.statskeeper.Process(&EventWrapper{
+			EbpfEvent: tx,
+			oq: obfuscate.NewObfuscator(obfuscate.Config{
+				SQL: obfuscate.SQLConfig{
+					DBMS:            obfuscate.DBMSPostgres,
+					ObfuscationMode: obfuscate.NormalizeOnly,
+					TableNames:      true,
+				}}),
+		})
 	}
 }
 
