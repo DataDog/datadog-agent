@@ -8,12 +8,14 @@
 package postgres
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/network/config"
-	"github.com/stretchr/testify/require"
 	"testing"
+
+	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/pkg/network/config"
 )
 
-func TestStatKeeperProcessValidateSketches(t *testing.T) {
+func TestStatKeeperProcess(t *testing.T) {
 	cfg := config.New()
 	cfg.MaxPostgresStatsBuffered = 100
 	s := NewStatkeeper(cfg)
