@@ -152,4 +152,36 @@ int socket__postgres_process(struct __sk_buff* skb) {
     return 0;
 }
 
+SEC("uprobe/postgres_tls_process")
+int uprobe__postgres_tls_process(struct pt_regs *ctx) {
+    const __u32 zero = 0;
+
+    tls_dispatcher_arguments_t *args = bpf_map_lookup_elem(&tls_dispatcher_arguments, &zero);
+    if (args == NULL) {
+        return 0;
+    }
+
+    // On stack for 4.14
+    conn_tuple_t tup = args->tup;
+
+    pktbuf_t pkt = pktbuf_from_tls(args);
+    postgres_entrypoint(pkt, &tup);
+    return 0;
+}
+
+SEC("uprobe/postgres_tls_termination")
+int uprobe__postgres_tls_termination(struct pt_regs *ctx) {
+    const __u32 zero = 0;
+
+    tls_dispatcher_arguments_t *args = bpf_map_lookup_elem(&tls_dispatcher_arguments, &zero);
+    if (args == NULL) {
+        return 0;
+    }
+
+    // On stack for 4.14
+    conn_tuple_t tup = args->tup;
+    postgres_tcp_termination(&tup);
+    return 0;
+}
+
 #endif
