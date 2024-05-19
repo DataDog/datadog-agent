@@ -14,8 +14,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/types"
-	"github.com/DataDog/datadog-agent/pkg/obfuscate"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/go-sqllexer"
 )
 
 // EventWrapper wraps an ebpf event and provides additional methods to extract information from it.
@@ -27,7 +27,6 @@ type EventWrapper struct {
 	operation    Operation
 	tableNameSet bool
 	tableName    string
-	oq           *obfuscate.Obfuscator
 }
 
 // ConnTuple returns the connection tuple for the transaction
@@ -71,14 +70,21 @@ func (e *EventWrapper) extractTableName() string {
 		fragment = strings.ReplaceAll(fragment, "IF EXISTS", "")
 	}
 
-	oq, err := e.oq.ObfuscateSQLString(fragment)
+	normalizer := sqllexer.NewNormalizer(
+		sqllexer.WithCollectTables(true),
+	)
+
+	// Normalize the query without obfuscating it.
+	_, statementMetadata, err := normalizer.Normalize(fragment, sqllexer.WithDBMS("postgresql"))
 	if err != nil {
-		log.Warnf("unable to create new obfuscator due to: %s", err)
-	}
-	if oq.Metadata.TablesCSV == "" {
+		log.Warnf("unable to normalize due to: %s", err)
 		return "UNKNOWN"
 	}
-	return oq.Metadata.TablesCSV
+	if statementMetadata.Size == 0 {
+		return "UNKNOWN"
+	}
+	return strings.Join(statementMetadata.Tables, ",")
+
 }
 
 // TableName returns the name of the table the query is operating on.

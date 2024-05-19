@@ -2,8 +2,6 @@ package postgres
 
 import (
 	"testing"
-
-	"github.com/DataDog/datadog-agent/pkg/obfuscate"
 )
 
 func BenchmarkExtractTableName(b *testing.B) {
@@ -15,12 +13,6 @@ func BenchmarkExtractTableName(b *testing.B) {
 				Original_query_size: uint32(len(query)),
 			},
 		},
-		oq: obfuscate.NewObfuscator(obfuscate.Config{
-			SQL: obfuscate.SQLConfig{
-				DBMS:            obfuscate.DBMSPostgres,
-				ObfuscationMode: obfuscate.NormalizeOnly,
-				TableNames:      true,
-			}}),
 	}
 
 	b.ResetTimer()
