@@ -14,7 +14,6 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/otel-agent/subcommands"
 	"github.com/DataDog/datadog-agent/comp/api/authtoken/fetchonlyimpl"
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/hostname"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	corelog "github.com/DataDog/datadog-agent/comp/core/log"
 	corelogimpl "github.com/DataDog/datadog-agent/comp/core/log/logimpl"
@@ -30,10 +29,12 @@ import (
 	collectorfx "github.com/DataDog/datadog-agent/comp/otelcol/collector/fx"
 	"github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline"
 	"github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline/logsagentpipelineimpl"
+	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/serializerexporter"
 	configprovider "github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/pipeline/provider"
 	"github.com/DataDog/datadog-agent/comp/serializer/compression"
 	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl/strategy"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
+	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -75,6 +76,22 @@ func (o *orchestratorinterfaceimpl) Reset() {
 	o.f = nil
 }
 
+type remotehostimpl struct {
+	hostname string
+}
+
+func (r *remotehostimpl) Get(ctx context.Context) (string, error) {
+	if r.hostname != "" {
+		return r.hostname, nil
+	}
+	hostname, err := utils.GetHostnameWithContextAndFallback(ctx)
+	if err != nil {
+		return "", err
+	}
+	r.hostname = hostname
+	return hostname, nil
+}
+
 func runOTelAgentCommand(_ context.Context, params *subcommands.GlobalParams, opts ...fx.Option) error {
 	err := fxutil.Run(
 		forwarder.Bundle(),
@@ -106,6 +123,10 @@ func runOTelAgentCommand(_ context.Context, params *subcommands.GlobalParams, op
 		fx.Provide(func() []string {
 			return append(params.ConfPaths, params.Sets...)
 		}),
+		fx.Provide(func() (serializerexporter.SourceProviderFunc, error) {
+			rh := &remotehostimpl{}
+			return rh.Get, nil
+		}),
 
 		fx.Supply(optional.NewNoneOption[secrets.Component]()),
 		fx.Provide(func(c config.Component) corelogimpl.Params {
@@ -122,8 +143,8 @@ func runOTelAgentCommand(_ context.Context, params *subcommands.GlobalParams, op
 		fx.Provide(func(s *serializer.Serializer) serializer.MetricSerializer {
 			return s
 		}),
-		fx.Provide(func(h hostname.Component) (string, error) {
-			hn, err := h.Get(context.Background())
+		fx.Provide(func(h serializerexporter.SourceProviderFunc) (string, error) {
+			hn, err := h(context.Background())
 			if err != nil {
 				return "", err
 			}

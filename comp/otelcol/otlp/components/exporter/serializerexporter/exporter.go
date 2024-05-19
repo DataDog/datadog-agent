@@ -55,13 +55,13 @@ func newDefaultConfig() component.Config {
 	}
 }
 
-var _ source.Provider = (*sourceProviderFunc)(nil)
+var _ source.Provider = (*SourceProviderFunc)(nil)
 
-// sourceProviderFunc is an adapter to allow the use of a function as a metrics.HostnameProvider.
-type sourceProviderFunc func(context.Context) (string, error)
+// SourceProviderFunc is an adapter to allow the use of a function as a metrics.HostnameProvider.
+type SourceProviderFunc func(context.Context) (string, error)
 
 // Source calls f and wraps in a source struct.
-func (f sourceProviderFunc) Source(ctx context.Context) (source.Source, error) {
+func (f SourceProviderFunc) Source(ctx context.Context) (source.Source, error) {
 	hostnameIdentifier, err := f(ctx)
 	if err != nil {
 		return source.Source{}, err
@@ -75,13 +75,13 @@ func (f sourceProviderFunc) Source(ctx context.Context) (source.Source, error) {
 type Exporter struct {
 	tr              *metrics.Translator
 	s               serializer.MetricSerializer
-	hostGetter      sourceProviderFunc
+	hostGetter      SourceProviderFunc
 	extraTags       []string
 	enricher        tagenricher
 	apmReceiverAddr string
 }
 
-func translatorFromConfig(set component.TelemetrySettings, attributesTranslator *attributes.Translator, cfg *ExporterConfig, hostGetter sourceProviderFunc) (*metrics.Translator, error) {
+func translatorFromConfig(set component.TelemetrySettings, attributesTranslator *attributes.Translator, cfg *ExporterConfig, hostGetter SourceProviderFunc) (*metrics.Translator, error) {
 	histogramMode := metrics.HistogramMode(cfg.Metrics.HistConfig.Mode)
 	switch histogramMode {
 	case metrics.HistogramModeCounters, metrics.HistogramModeNoBuckets, metrics.HistogramModeDistributions:
@@ -132,7 +132,7 @@ func translatorFromConfig(set component.TelemetrySettings, attributesTranslator 
 }
 
 // NewExporter creates a new exporter that translates OTLP metrics into the Datadog format and sends
-func NewExporter(set component.TelemetrySettings, attributesTranslator *attributes.Translator, s serializer.MetricSerializer, cfg *ExporterConfig, enricher tagenricher, hostGetter sourceProviderFunc) (*Exporter, error) {
+func NewExporter(set component.TelemetrySettings, attributesTranslator *attributes.Translator, s serializer.MetricSerializer, cfg *ExporterConfig, enricher tagenricher, hostGetter SourceProviderFunc) (*Exporter, error) {
 	// Log any warnings from unmarshaling.
 	for _, warning := range cfg.warnings {
 		set.Logger.Warn(warning)
