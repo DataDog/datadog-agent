@@ -696,7 +696,6 @@ require (
 	github.com/jmoiron/sqlx v1.3.5
 	github.com/kr/pretty v0.3.1
 	github.com/moby/term v0.5.0
-	github.com/mrtkmynsndev/grpc-tls-go v0.0.0-20220216110245-c1c225d57270
 	github.com/planetscale/vtprotobuf v0.6.0
 	github.com/prometheus-community/pro-bing v0.3.0
 	github.com/rickar/props v1.0.0
