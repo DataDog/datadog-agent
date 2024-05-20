@@ -80,6 +80,11 @@ type Check struct {
 
 // Factory creates a new check factory
 func Factory() optional.Option[func() check.Check] {
+	// Since service_discovery is enabled by default, we want to prevent returning an error in Configure() for platforms
+	// where the check is not implemented. Instead of that, we return an empty check.
+	if newOSImpl == nil {
+		return optional.NewNoneOption[func() check.Check]()
+	}
 	return optional.NewOption(newCheck)
 }
 

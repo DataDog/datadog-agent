@@ -229,9 +229,7 @@ func Test_linuxImpl(t *testing.T) {
 					RequestType: "start-service",
 					APIVersion:  "v2",
 					Payload: &eventPayload{
-						APIVersion:          "v1",
 						NamingSchemaVersion: "1",
-						RequestType:         "start-service",
 						ServiceName:         "test-service-1",
 						HostName:            host,
 						Env:                 "",
@@ -246,9 +244,7 @@ func Test_linuxImpl(t *testing.T) {
 					RequestType: "heartbeat-service",
 					APIVersion:  "v2",
 					Payload: &eventPayload{
-						APIVersion:          "v1",
 						NamingSchemaVersion: "1",
-						RequestType:         "heartbeat-service",
 						ServiceName:         "test-service-1",
 						HostName:            host,
 						Env:                 "",
@@ -263,9 +259,7 @@ func Test_linuxImpl(t *testing.T) {
 					RequestType: "end-service",
 					APIVersion:  "v2",
 					Payload: &eventPayload{
-						APIVersion:          "v1",
 						NamingSchemaVersion: "1",
-						RequestType:         "end-service",
 						ServiceName:         "test-service-1",
 						HostName:            host,
 						Env:                 "",
@@ -345,9 +339,7 @@ func Test_linuxImpl(t *testing.T) {
 					RequestType: "start-service",
 					APIVersion:  "v2",
 					Payload: &eventPayload{
-						APIVersion:          "v1",
 						NamingSchemaVersion: "1",
-						RequestType:         "start-service",
 						ServiceName:         "test-service-1",
 						HostName:            host,
 						Env:                 "",
@@ -362,9 +354,7 @@ func Test_linuxImpl(t *testing.T) {
 					RequestType: "start-service",
 					APIVersion:  "v2",
 					Payload: &eventPayload{
-						APIVersion:          "v1",
 						NamingSchemaVersion: "1",
-						RequestType:         "start-service",
 						ServiceName:         "test-service-1",
 						HostName:            host,
 						Env:                 "",
@@ -379,9 +369,7 @@ func Test_linuxImpl(t *testing.T) {
 					RequestType: "heartbeat-service",
 					APIVersion:  "v2",
 					Payload: &eventPayload{
-						APIVersion:          "v1",
 						NamingSchemaVersion: "1",
-						RequestType:         "heartbeat-service",
 						ServiceName:         "test-service-1",
 						HostName:            host,
 						Env:                 "",
@@ -396,9 +384,7 @@ func Test_linuxImpl(t *testing.T) {
 					RequestType: "heartbeat-service",
 					APIVersion:  "v2",
 					Payload: &eventPayload{
-						APIVersion:          "v1",
 						NamingSchemaVersion: "1",
-						RequestType:         "heartbeat-service",
 						ServiceName:         "test-service-1",
 						HostName:            host,
 						Env:                 "",
@@ -413,9 +399,7 @@ func Test_linuxImpl(t *testing.T) {
 					RequestType: "end-service",
 					APIVersion:  "v2",
 					Payload: &eventPayload{
-						APIVersion:          "v1",
 						NamingSchemaVersion: "1",
-						RequestType:         "end-service",
 						ServiceName:         "test-service-1",
 						HostName:            host,
 						Env:                 "",
@@ -487,9 +471,7 @@ func Test_linuxImpl(t *testing.T) {
 					RequestType: "start-service",
 					APIVersion:  "v2",
 					Payload: &eventPayload{
-						APIVersion:          "v1",
 						NamingSchemaVersion: "1",
-						RequestType:         "start-service",
 						ServiceName:         "test-service-1",
 						HostName:            host,
 						Env:                 "",
@@ -504,9 +486,7 @@ func Test_linuxImpl(t *testing.T) {
 					RequestType: "start-service",
 					APIVersion:  "v2",
 					Payload: &eventPayload{
-						APIVersion:          "v1",
 						NamingSchemaVersion: "1",
-						RequestType:         "start-service",
 						ServiceName:         "test-service-1",
 						HostName:            host,
 						Env:                 "",
