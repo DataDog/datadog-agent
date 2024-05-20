@@ -8,6 +8,7 @@ package diagnose
 import (
 	"fmt"
 	"regexp"
+	"runtime"
 	"strconv"
 	"strings"
 	"time"
@@ -66,6 +67,9 @@ func (v *baseDiagnoseSuite) TestDiagnoseList() {
 }
 
 func (v *baseDiagnoseSuite) TestDiagnoseInclude() {
+	if runtime.GOOS == "darwin" || runtime.GOOS == "linux" {
+		allSuites = append(allSuites, "port-conflict")
+	}
 	diagnose := getDiagnoseOutput(v)
 	diagnoseSummary := getDiagnoseSummary(diagnose)
 	for _, suite := range allSuites {
@@ -87,6 +91,9 @@ func (v *baseDiagnoseSuite) TestDiagnoseInclude() {
 }
 
 func (v *baseDiagnoseSuite) TestDiagnoseExclude() {
+	if runtime.GOOS == "darwin" || runtime.GOOS == "linux" {
+		allSuites = append(allSuites, "port-conflict")
+	}
 	for _, suite := range allSuites {
 		diagnoseExclude := getDiagnoseOutput(v, agentclient.WithArgs([]string{"--exclude", suite}))
 		resultExclude := getDiagnoseSummary(diagnoseExclude)
