@@ -12,6 +12,7 @@ import (
 	"os"
 	"os/exec"
 
+	"github.com/DataDog/datadog-agent/pkg/fleet/env"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
 	"github.com/DataDog/datadog-agent/pkg/fleet/telemetry"
@@ -20,23 +21,15 @@ import (
 
 // InstallerExec is an implementation of the Installer interface that uses the installer binary.
 type InstallerExec struct {
+	env              *env.Env
 	installerBinPath string
-
-	registry     string
-	registryAuth string
-	// telemetry options
-	apiKey string
-	site   string
 }
 
 // NewInstallerExec returns a new InstallerExec.
-func NewInstallerExec(installerBinPath string, registry string, registryAuth string, apiKey string, site string) *InstallerExec {
+func NewInstallerExec(env *env.Env, installerBinPath string) *InstallerExec {
 	return &InstallerExec{
+		env:              env,
 		installerBinPath: installerBinPath,
-		registry:         registry,
-		registryAuth:     registryAuth,
-		apiKey:           apiKey,
-		site:             site,
 	}
 }
 
@@ -47,19 +40,12 @@ type installerCmd struct {
 }
 
 func (i *InstallerExec) newInstallerCmd(ctx context.Context, command string, args ...string) *installerCmd {
+	env := i.env.ToEnv()
 	span, ctx := tracer.StartSpanFromContext(ctx, fmt.Sprintf("installer.%s", command))
 	span.SetTag("args", args)
-	span.SetTag("config.registry", i.registry)
-	span.SetTag("config.registryAuth", i.registryAuth)
-	span.SetTag("config.site", i.site)
+	span.SetTag("env", env)
 	cmd := exec.CommandContext(ctx, i.installerBinPath, append([]string{command}, args...)...)
-	env := os.Environ()
-	env = append(env, []string{
-		fmt.Sprintf("DD_INSTALLER_REGISTRY=%s", i.registry),
-		fmt.Sprintf("DD_INSTALLER_REGISTRY_AUTH=%s", i.registryAuth),
-		fmt.Sprintf("DD_API_KEY=%s", i.apiKey),
-		fmt.Sprintf("DD_SITE=%s", i.site),
-	}...)
+	env = append(os.Environ(), env...)
 	cmd.Cancel = func() error {
 		return cmd.Process.Signal(os.Interrupt)
 	}

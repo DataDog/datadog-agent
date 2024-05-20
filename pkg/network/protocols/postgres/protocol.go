@@ -52,6 +52,15 @@ var Spec = &protocols.ProtocolSpec{
 		{
 			Name: scratchBufferMap,
 		},
+		{
+			Name: "postgres_batch_events",
+		},
+		{
+			Name: "postgres_batch_state",
+		},
+		{
+			Name: "postgres_batches",
+		},
 	},
 	TailCalls: []manager.TailCallRoute{
 		{
