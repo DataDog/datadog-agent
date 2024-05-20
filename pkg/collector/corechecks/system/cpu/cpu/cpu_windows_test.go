@@ -78,6 +78,19 @@ func TestCPUCheckWindowsErrorInInstanceConfig(t *testing.T) {
 	assert.NotNil(t, err)
 }
 
+func TestCPUCheckWindowsErrorCreatePdhQuery(t *testing.T) {
+	createPdhQueryError := errors.New("createPdhQuery error")
+	createPdhQuery = func() (*pdhtest.PdhQuery, error) {
+		return nil, createPdhQueryError
+	}
+	cpuCheck := createCheck()
+	m := mocksender.NewMockSender(cpuCheck.ID())
+
+	err := cpuCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test")
+
+	assert.Equal(t, createPdhQueryError, err)
+}
+
 func TestCPUCheckWindowsErrorStoppedSender(t *testing.T) {
 	stoppedSenderError := errors.New("demultiplexer is stopped")
 	cpuInfoFunc = CPUInfo

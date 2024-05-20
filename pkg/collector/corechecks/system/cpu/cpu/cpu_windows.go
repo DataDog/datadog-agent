@@ -30,6 +30,7 @@ const CheckName = "cpu"
 
 // For testing purposes
 var cpuInfoFunc = cpu.CollectInfo
+var createPdhQuery = pdhutil.CreatePdhQuery
 
 // Check doesn't need additional fields
 type Check struct {
@@ -159,7 +160,7 @@ func (c *Check) Configure(senderManager sender.SenderManager, _ uint64, data int
 	c.nbCPU = float64(cpucount)
 
 	// Create PDH query
-	c.pdhQuery, err = pdhutil.CreatePdhQuery()
+	c.pdhQuery, err = createPdhQuery()
 	if err != nil {
 		return err
 	}
