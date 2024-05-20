@@ -53,6 +53,7 @@ func (c *Check) Run() error {
 		DestPort:     c.config.DestPort,
 		MaxTTL:       c.config.MaxTTL,
 		TimeoutMs:    c.config.TimeoutMs,
+		Protocol:     c.config.Protocol,
 	}
 
 	tr, err := traceroute.New(cfg)

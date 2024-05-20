@@ -13,6 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"gopkg.in/yaml.v2"
 )
 
@@ -77,7 +78,9 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 
 	c.Protocol, err = parseProtocol(instance.Protocol)
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse protocol: %w", err)
+		// don't return an error here, this is instance level bad config so if we
+		// return here we'll
+		log.Errorf("failed to parse protocol for check: %+v, error: %s", c, err)
 	}
 
 	c.MinCollectionInterval = firstNonZero(
@@ -97,14 +100,11 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 
 func parseProtocol(protocol string) (string, error) {
 	upperProtocol := strings.ToUpper(protocol)
-	switch upperProtocol {
-	case traceroute.TCP:
-		return upperProtocol, nil
-	case traceroute.UDP:
-		return upperProtocol, nil
-	default:
-		return "", fmt.Errorf("invalid protocol: %s", protocol)
+	if upperProtocol != traceroute.TCP && upperProtocol != traceroute.UDP {
+		return protocol, fmt.Errorf("invalid protocol: %s", protocol)
 	}
+
+	return upperProtocol, nil
 }
 
 func firstNonZero(values ...time.Duration) time.Duration {

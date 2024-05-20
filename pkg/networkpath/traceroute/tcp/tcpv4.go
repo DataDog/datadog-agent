@@ -101,6 +101,7 @@ func (t *TCPv4) TracerouteSequential() (*Results, error) {
 			return nil, fmt.Errorf("failed to run traceroute: %w", err)
 		}
 		hops = append(hops, hop)
+		log.Debugf("Discovered hop: %+v", hop)
 	}
 
 	return &Results{

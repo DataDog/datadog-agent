@@ -189,8 +189,9 @@ func (s *npCollectorImpl) runTracerouteForPath(ptest *pathteststore.PathtestCont
 	cfg := traceroute.Config{
 		DestHostname: ptest.Pathtest.Hostname,
 		DestPort:     ptest.Pathtest.Port,
-		MaxTTL:       0, // TODO: make it configurable, setting 0 to use default value for now
-		TimeoutMs:    0, // TODO: make it configurable, setting 0 to use default value for now
+		MaxTTL:       0,              // TODO: make it configurable, setting 0 to use default value for now
+		TimeoutMs:    0,              // TODO: make it configurable, setting 0 to use default value for now
+		Protocol:     traceroute.TCP, // TODO: would we ever want UDP here?
 	}
 
 	path, err := s.runTraceroute(cfg)

@@ -302,7 +302,7 @@ func newSystemProbe(path string) *RemoteSysProbeUtil {
 			},
 		},
 		extendedTimeoutClient: http.Client{
-			Timeout: 25 * time.Second,
+			Timeout: 60 * time.Second,
 			Transport: &http.Transport{
 				MaxIdleConns:    2,
 				IdleConnTimeout: 30 * time.Second,
@@ -310,7 +310,7 @@ func newSystemProbe(path string) *RemoteSysProbeUtil {
 					return net.Dial(netType, path)
 				},
 				TLSHandshakeTimeout:   1 * time.Second,
-				ResponseHeaderTimeout: 20 * time.Second,
+				ResponseHeaderTimeout: 50 * time.Second,
 				ExpectContinueTimeout: 50 * time.Millisecond,
 			},
 		},

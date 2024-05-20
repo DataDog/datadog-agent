@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/layers"
 	"go.uber.org/multierr"
@@ -135,7 +136,6 @@ func ParseTCPPacket(pkt gopacket.Packet) (net.IP, uint16, net.IP, uint16, error)
 		if !ok {
 			return net.IP{}, 0, net.IP{}, 0, fmt.Errorf("failed to assert IPv4 layer type")
 		}
-		//fmt.Printf("IPv4 layer: %+v\n", ip)
 
 		src = ip.SrcIP
 		dst = ip.DstIP
@@ -147,7 +147,6 @@ func ParseTCPPacket(pkt gopacket.Packet) (net.IP, uint16, net.IP, uint16, error)
 		if !ok {
 			return net.IP{}, 0, net.IP{}, 0, fmt.Errorf("failed to assert TCP layer type")
 		}
-		//fmt.Printf("TCP layer: %+v\n", tcp)
 		srcPort = uint16(tcp.SrcPort)
 		dstPort = uint16(tcp.DstPort)
 	}
@@ -237,10 +236,11 @@ func tcpChecksum(ipHdr *ipv4.Header, tcpHeader []byte) uint16 {
 }
 
 func listenAnyPacket(icmpConn *ipv4.RawConn, tcpConn *ipv4.RawConn, timeout time.Duration, localIP net.IP, localPort uint16, remoteIP net.IP, remotePort uint16) (net.IP, uint16, layers.ICMPv4TypeCode, error) {
-	var err1 error
-	var err2 error
+	var tcpErr error
+	var icmpErr error
 	var wg sync.WaitGroup
-	var ip net.IP
+	var icmpIP net.IP
+	var tcpIP net.IP
 	var icmpCode layers.ICMPv4TypeCode
 	var port uint16
 	wg.Add(2)
@@ -249,30 +249,43 @@ func listenAnyPacket(icmpConn *ipv4.RawConn, tcpConn *ipv4.RawConn, timeout time
 	go func() {
 		defer wg.Done()
 		defer cancel()
-		ip, port, _, err1 = handlePackets(ctx, tcpConn, "tcp", localIP, localPort, remoteIP, remotePort)
+		tcpIP, port, _, tcpErr = handlePackets(ctx, tcpConn, "tcp", localIP, localPort, remoteIP, remotePort)
 	}()
 	go func() {
 		defer wg.Done()
 		defer cancel()
-		ip, _, icmpCode, err2 = handlePackets(ctx, icmpConn, "icmp", localIP, localPort, remoteIP, remotePort)
+		icmpIP, _, icmpCode, icmpErr = handlePackets(ctx, icmpConn, "icmp", localIP, localPort, remoteIP, remotePort)
 	}()
 	wg.Wait()
 
-	if err1 != nil && err2 != nil {
-		_, ok1 := err1.(CanceledError)
-		_, ok2 := err2.(CanceledError)
-		if ok1 && ok2 {
+	if tcpErr != nil && icmpErr != nil {
+		_, tcpCanceled := tcpErr.(CanceledError)
+		_, icmpCanceled := icmpErr.(CanceledError)
+		if icmpCanceled && tcpCanceled {
 			// TODO: better handling of listener timeout case
 			// this signifies an unknown hop
 			//
+			// TODO: better handling of the mismatch case which
+			// right now becomes an unknown hop
+			//
 			// For now, return nil error with empty hop data
+			log.Debug("timed out waiting for responses")
 			return net.IP{}, 0, 0, nil
 		} else {
-			return net.IP{}, 0, 0, multierr.Append(err1, err2)
+			log.Errorf("TCP Error: %s", tcpErr.Error())
+			log.Errorf("ICMP Error: %s", icmpErr.Error())
+			return net.IP{}, 0, 0, multierr.Append(fmt.Errorf("tcp error: %w", tcpErr), fmt.Errorf("icmp error: %w", icmpErr))
 		}
 	}
 
-	return ip, port, icmpCode, nil
+	// if there was an error for TCP, but not
+	// ICMP, return the ICMP response
+	if tcpErr != nil {
+		return icmpIP, port, icmpCode, nil
+	}
+
+	// return the TCP response
+	return tcpIP, port, 0, nil
 }
 
 // handlePackets in its current implementation should listen for the first matching
@@ -307,11 +320,16 @@ func handlePackets(ctx context.Context, conn *ipv4.RawConn, listener string, loc
 			if err != nil {
 				return net.IP{}, 0, 0, fmt.Errorf("failed to parse ICMP packet: %w", err)
 			}
+			log.Debugf("returning IP: %s", ip.String())
 			return ip, 0, icmpCode, nil
 		}
 		if listener == "tcp" {
 			ip, port, err = parseTCP(header, packet, localIP, localPort, remoteIP, remotePort)
 			if err != nil {
+				_, ok := err.(MismatchError)
+				if ok {
+					continue
+				}
 				return net.IP{}, 0, 0, fmt.Errorf("failed to parse TCP packet: %w", err)
 			}
 			return ip, port, 0, nil
@@ -327,15 +345,15 @@ func parseICMP(header *ipv4.Header, payload []byte) (net.IP, layers.ICMPv4TypeCo
 
 	packet := ReadRawPacket(packetBytes)
 
-	src, _, icmpType, err := ParseICMPPacket(packet)
+	src, dst, icmpType, err := ParseICMPPacket(packet)
 	if err != nil {
 		return net.IP{}, 0, fmt.Errorf("failed to parse ICMP packet: %w", err)
 	}
 
 	if icmpType == layers.ICMPv4TypeDestinationUnreachable || icmpType == layers.ICMPv4TypeTimeExceeded {
-		fmt.Printf("Received ICMP reply: %s from %s\n", icmpType.String(), src.String())
+		log.Debugf("Received ICMP reply: %s from %s to %s", icmpType.String(), src.String(), dst.String())
 	} else {
-		fmt.Printf("Received other ICMP reply: %s from %s\n", icmpType.String(), src.String())
+		log.Debugf("Received other ICMP reply: %s from %s to %s", icmpType.String(), src.String(), dst.String())
 	}
 
 	return src, icmpType, nil
@@ -353,11 +371,18 @@ func parseTCP(header *ipv4.Header, payload []byte, localIP net.IP, localPort uin
 		return net.IP{}, 0, fmt.Errorf("failed to parse TCP packet: %w", err)
 	}
 
+	// TODO: check flags, payload, sequence number here as well
 	if source.Equal(remoteIP) && sourcePort == remotePort && dest.Equal(localIP) && destPort == localPort {
-		fmt.Printf("Received TCP Reply from: %s:%d\n", source.String(), sourcePort)
+		log.Debugf("Received MATCHING TCP Reply from: %s:%d with dest %s:%d\n", source.String(), sourcePort, dest, destPort)
+		return source, sourcePort, nil
 	}
 
-	return net.IP{}, 0, fmt.Errorf("")
+	// if we get here, this means we received a TCP packet
+	// but it's not from who we were expecting
+	// TODO: this could still be a valid packet, but the
+	// host could be behind a NAT/LB?
+	// for now return a mismatch error which we can ignore
+	return net.IP{}, 0, MismatchError(fmt.Sprintf("received non-matching TCP reply from %s:%d", source.String(), sourcePort))
 }
 
 func (c CanceledError) Error() string {
