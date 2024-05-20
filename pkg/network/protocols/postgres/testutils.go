@@ -9,6 +9,7 @@ package postgres
 
 import (
 	"context"
+	"crypto/tls"
 	"database/sql"
 	"testing"
 
@@ -28,32 +29,46 @@ type DummyTable struct {
 
 var dummyModel = &DummyTable{ID: 1, Foo: "bar"}
 
+const (
+	// TLSDisabled represents the case when TLS is disabled.
+	TLSDisabled = false
+	// TLSEnabled represents the case when TLS is enabled.
+	TLSEnabled = true
+)
+
 // GetPGHandle returns a handle on the test Postgres DB. This does not initiate
 // a connection
-func GetPGHandle(t *testing.T, serverAddr string) *sql.DB {
+func GetPGHandle(t *testing.T, serverAddr string, enableTLS bool) *sql.DB {
 	t.Helper()
 
-	pg := sql.OpenDB(pgdriver.NewConnector(
+	options := []pgdriver.Option{
 		pgdriver.WithNetwork("tcp"),
 		pgdriver.WithAddr(serverAddr),
-		pgdriver.WithInsecure(true),
 		pgdriver.WithUser("admin"),
 		pgdriver.WithPassword("password"),
 		pgdriver.WithDatabase("testdb"),
-	))
+	}
 
-	return pg
+	if enableTLS {
+		options = append(options, pgdriver.WithTLSConfig(&tls.Config{
+			InsecureSkipVerify: true,
+		}))
+	} else {
+		options = append(options, pgdriver.WithInsecure(true))
+	}
+
+	return sql.OpenDB(pgdriver.NewConnector(options...))
 }
 
 // ConnectAndGetDB initiates a connection to the database, get a handle on the
 // test db, and register cleanup handlers for the test. Finally, it saves the db
 // handle and task context in the provided extras map.
-func ConnectAndGetDB(t *testing.T, serverAddr string, extras map[string]interface{}) {
+func ConnectAndGetDB(t *testing.T, serverAddr string, extras map[string]interface{}, enableTLS bool) {
 	t.Helper()
 
 	ctx := context.Background()
 
-	pg := GetPGHandle(t, serverAddr)
+	pg := GetPGHandle(t, serverAddr, enableTLS)
 	db := bun.NewDB(pg, pgdialect.New())
 
 	if extras != nil {

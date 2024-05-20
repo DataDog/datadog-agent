@@ -82,7 +82,7 @@ func (s *postgresProtocolParsingSuite) TestDecoding() {
 		{
 			name: "create table",
 			preMonitorSetup: func(t *testing.T, ctx testContext) {
-				postgres.ConnectAndGetDB(t, ctx.serverAddress, ctx.extras)
+				postgres.ConnectAndGetDB(t, ctx.serverAddress, ctx.extras, postgres.TLSDisabled)
 			},
 			postMonitorSetup: func(t *testing.T, ctx testContext) {
 				postgres.RunCreateQuery(t, ctx.extras)
@@ -98,7 +98,7 @@ func (s *postgresProtocolParsingSuite) TestDecoding() {
 		{
 			name: "insert rows in table",
 			preMonitorSetup: func(t *testing.T, ctx testContext) {
-				postgres.ConnectAndGetDB(t, ctx.serverAddress, ctx.extras)
+				postgres.ConnectAndGetDB(t, ctx.serverAddress, ctx.extras, postgres.TLSDisabled)
 				postgres.RunCreateQuery(t, ctx.extras)
 			},
 			postMonitorSetup: func(t *testing.T, ctx testContext) {
@@ -119,7 +119,7 @@ func (s *postgresProtocolParsingSuite) TestDecoding() {
 		{
 			name: "update a row in a table",
 			preMonitorSetup: func(t *testing.T, ctx testContext) {
-				postgres.ConnectAndGetDB(t, ctx.serverAddress, ctx.extras)
+				postgres.ConnectAndGetDB(t, ctx.serverAddress, ctx.extras, postgres.TLSDisabled)
 				postgres.RunCreateQuery(t, ctx.extras)
 				postgres.RunMultiInsertQuery(t, ctx.extras, "value-1")
 			},
@@ -137,7 +137,7 @@ func (s *postgresProtocolParsingSuite) TestDecoding() {
 		{
 			name: "select",
 			preMonitorSetup: func(t *testing.T, ctx testContext) {
-				postgres.ConnectAndGetDB(t, ctx.serverAddress, ctx.extras)
+				postgres.ConnectAndGetDB(t, ctx.serverAddress, ctx.extras, postgres.TLSDisabled)
 				postgres.RunCreateQuery(t, ctx.extras)
 				postgres.RunMultiInsertQuery(t, ctx.extras, "value-1")
 			},
@@ -155,7 +155,7 @@ func (s *postgresProtocolParsingSuite) TestDecoding() {
 		{
 			name: "drop table",
 			preMonitorSetup: func(t *testing.T, ctx testContext) {
-				postgres.ConnectAndGetDB(t, ctx.serverAddress, ctx.extras)
+				postgres.ConnectAndGetDB(t, ctx.serverAddress, ctx.extras, postgres.TLSDisabled)
 			},
 			postMonitorSetup: func(t *testing.T, ctx testContext) {
 				postgres.RunDropQuery(t, ctx.extras)
@@ -171,7 +171,7 @@ func (s *postgresProtocolParsingSuite) TestDecoding() {
 		{
 			name: "combo - multiple operations should be captured",
 			preMonitorSetup: func(t *testing.T, ctx testContext) {
-				postgres.ConnectAndGetDB(t, ctx.serverAddress, ctx.extras)
+				postgres.ConnectAndGetDB(t, ctx.serverAddress, ctx.extras, postgres.TLSDisabled)
 			},
 			postMonitorSetup: func(t *testing.T, ctx testContext) {
 				prepareTestDB(t, ctx)
@@ -192,7 +192,7 @@ func (s *postgresProtocolParsingSuite) TestDecoding() {
 		{
 			name: "query is truncated",
 			preMonitorSetup: func(t *testing.T, ctx testContext) {
-				postgres.ConnectAndGetDB(t, ctx.serverAddress, ctx.extras)
+				postgres.ConnectAndGetDB(t, ctx.serverAddress, ctx.extras, postgres.TLSDisabled)
 			},
 			postMonitorSetup: func(t *testing.T, ctx testContext) {
 				db, _ := postgres.GetCtx(ctx.extras)
@@ -216,7 +216,7 @@ func (s *postgresProtocolParsingSuite) TestDecoding() {
 		{
 			name: "too many messages in a single packet",
 			preMonitorSetup: func(t *testing.T, ctx testContext) {
-				postgres.ConnectAndGetDB(t, ctx.serverAddress, ctx.extras)
+				postgres.ConnectAndGetDB(t, ctx.serverAddress, ctx.extras, postgres.TLSDisabled)
 				postgres.RunCreateQuery(t, ctx.extras)
 				values := make([]string, 100)
 				for i := 0; i < len(values); i++ {
@@ -339,7 +339,7 @@ func getPostgresDefaultTestConfiguration() *config.Config {
 }
 
 func prepareTestDB(t *testing.T, ctx testContext) {
-	postgres.ConnectAndGetDB(t, ctx.serverAddress, ctx.extras)
+	postgres.ConnectAndGetDB(t, ctx.serverAddress, ctx.extras, postgres.TLSDisabled)
 	postgres.RunCreateQuery(t, ctx.extras)
 	values := make([]string, 5)
 	for i := 0; i < 20; i++ {

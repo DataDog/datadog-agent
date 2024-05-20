@@ -1153,7 +1153,7 @@ func testPostgresProtocolClassification(t *testing.T, tr *Tracer, clientHost, ta
 				extras:        make(map[string]interface{}),
 			},
 			postTracerSetup: func(t *testing.T, ctx testContext) {
-				pg := pgutils.GetPGHandle(t, ctx.serverAddress)
+				pg := pgutils.GetPGHandle(t, ctx.serverAddress, pgutils.TLSDisabled)
 				conn, err := pg.Conn(context.Background())
 				require.NoError(t, err)
 				defer conn.Close()
@@ -1170,7 +1170,7 @@ func testPostgresProtocolClassification(t *testing.T, tr *Tracer, clientHost, ta
 				extras:        make(map[string]interface{}),
 			},
 			preTracerSetup: func(t *testing.T, ctx testContext) {
-				pgutils.ConnectAndGetDB(t, ctx.serverAddress, ctx.extras)
+				pgutils.ConnectAndGetDB(t, ctx.serverAddress, ctx.extras, pgutils.TLSDisabled)
 				pgutils.RunCreateQuery(t, ctx.extras)
 			},
 			postTracerSetup: func(t *testing.T, ctx testContext) {
@@ -1188,7 +1188,7 @@ func testPostgresProtocolClassification(t *testing.T, tr *Tracer, clientHost, ta
 				extras:        make(map[string]interface{}),
 			},
 			preTracerSetup: func(t *testing.T, ctx testContext) {
-				pgutils.ConnectAndGetDB(t, ctx.serverAddress, ctx.extras)
+				pgutils.ConnectAndGetDB(t, ctx.serverAddress, ctx.extras, pgutils.TLSDisabled)
 				pgutils.RunCreateQuery(t, ctx.extras)
 				pgutils.RunInsertQuery(t, 1, ctx.extras)
 			},
@@ -1207,7 +1207,7 @@ func testPostgresProtocolClassification(t *testing.T, tr *Tracer, clientHost, ta
 				extras:        make(map[string]interface{}),
 			},
 			preTracerSetup: func(t *testing.T, ctx testContext) {
-				pgutils.ConnectAndGetDB(t, ctx.serverAddress, ctx.extras)
+				pgutils.ConnectAndGetDB(t, ctx.serverAddress, ctx.extras, pgutils.TLSDisabled)
 				pgutils.RunCreateQuery(t, ctx.extras)
 			},
 			postTracerSetup: func(t *testing.T, ctx testContext) {
@@ -1225,7 +1225,7 @@ func testPostgresProtocolClassification(t *testing.T, tr *Tracer, clientHost, ta
 				extras:        make(map[string]interface{}),
 			},
 			preTracerSetup: func(t *testing.T, ctx testContext) {
-				pgutils.ConnectAndGetDB(t, ctx.serverAddress, ctx.extras)
+				pgutils.ConnectAndGetDB(t, ctx.serverAddress, ctx.extras, pgutils.TLSDisabled)
 				pgutils.RunCreateQuery(t, ctx.extras)
 				pgutils.RunInsertQuery(t, 1, ctx.extras)
 			},
@@ -1244,7 +1244,7 @@ func testPostgresProtocolClassification(t *testing.T, tr *Tracer, clientHost, ta
 				extras:        make(map[string]interface{}),
 			},
 			preTracerSetup: func(t *testing.T, ctx testContext) {
-				pgutils.ConnectAndGetDB(t, ctx.serverAddress, ctx.extras)
+				pgutils.ConnectAndGetDB(t, ctx.serverAddress, ctx.extras, pgutils.TLSDisabled)
 				pgutils.RunCreateQuery(t, ctx.extras)
 				pgutils.RunInsertQuery(t, 1, ctx.extras)
 			},
@@ -1263,7 +1263,7 @@ func testPostgresProtocolClassification(t *testing.T, tr *Tracer, clientHost, ta
 				extras:        make(map[string]interface{}),
 			},
 			preTracerSetup: func(t *testing.T, ctx testContext) {
-				pgutils.ConnectAndGetDB(t, ctx.serverAddress, ctx.extras)
+				pgutils.ConnectAndGetDB(t, ctx.serverAddress, ctx.extras, pgutils.TLSDisabled)
 				pgutils.RunCreateQuery(t, ctx.extras)
 			},
 			postTracerSetup: func(t *testing.T, ctx testContext) {
@@ -1283,7 +1283,7 @@ func testPostgresProtocolClassification(t *testing.T, tr *Tracer, clientHost, ta
 				extras:        make(map[string]interface{}),
 			},
 			preTracerSetup: func(t *testing.T, ctx testContext) {
-				pgutils.ConnectAndGetDB(t, ctx.serverAddress, ctx.extras)
+				pgutils.ConnectAndGetDB(t, ctx.serverAddress, ctx.extras, pgutils.TLSDisabled)
 				pgutils.RunCreateQuery(t, ctx.extras)
 			},
 			postTracerSetup: func(t *testing.T, ctx testContext) {
@@ -1307,7 +1307,7 @@ func testPostgresProtocolClassification(t *testing.T, tr *Tracer, clientHost, ta
 				extras:        make(map[string]interface{}),
 			},
 			preTracerSetup: func(t *testing.T, ctx testContext) {
-				pgutils.ConnectAndGetDB(t, ctx.serverAddress, ctx.extras)
+				pgutils.ConnectAndGetDB(t, ctx.serverAddress, ctx.extras, pgutils.TLSDisabled)
 				pgutils.RunCreateQuery(t, ctx.extras)
 				for i := int64(1); i < 200; i++ {
 					pgutils.RunInsertQuery(t, i, ctx.extras)
