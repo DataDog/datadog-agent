@@ -15,10 +15,11 @@ import (
 
 	componentos "github.com/DataDog/test-infra-definitions/components/os"
 
-	agentclient "github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclient"
-	boundport "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common/bound-port"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	agentclient "github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclient"
+	boundport "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common/bound-port"
 )
 
 // CheckAgentBehaviour runs test to check the agent is behaving as expected
@@ -330,5 +331,40 @@ func CheckCWSBehaviour(t *testing.T, client *TestClient) {
 			time.Sleep(2 * time.Second)
 		}
 		require.True(tt, result, "system-probe and security-agent should communicate")
+	})
+}
+
+func CheckSystemProbeBehavior(t *testing.T, client *TestClient) {
+	t.Run("enable system-probe and restarts", func(tt *testing.T) {
+		err := client.SetConfig(client.Helper.GetConfigFolder()+"system-probe.yaml", "system_probe_config.enabled", "true")
+		require.NoError(tt, err)
+
+		err = client.SetConfig(client.Helper.GetConfigFolder()+"system-probe.yaml", "system_probe_config.enabled", "true")
+		require.NoError(tt, err)
+
+		_, err = client.SvcManager.Restart(client.Helper.GetServiceName())
+		require.NoError(tt, err, "datadog-agent should restart after CWS is enabled")
+	})
+
+	t.Run("system-probe is running", func(tt *testing.T) {
+		var err error
+		require.Eventually(tt, func() bool {
+			return AgentProcessIsRunning(client, "system-probe")
+		}, 1*time.Minute, 500*time.Millisecond, "system-probe should be running ", err)
+	})
+
+	t.Run("ebpf programs are unpacked and valid", func(tt *testing.T) {
+		ebpfPath := "/opt/datadog-agent/embedded/share/system-probe/ebpf"
+		output, err := client.Host.Execute(fmt.Sprintf("find %s -name '*.o'", ebpfPath))
+		require.NoError(tt, err)
+		files := strings.Split(output, "\n")
+		require.Greater(tt, len(files), 0, "ebpf object files should be present")
+		for _, file := range files {
+			fileOutput, err := client.Host.Execute(fmt.Sprintf("file %s", file))
+			require.NoError(tt, err)
+
+			fileType := strings.Split(fileOutput, ":")[1]
+			require.Contains(tt, fileType, "eBPF", "ebpf object files should be valid and recognized as such")
+		}
 	})
 }
