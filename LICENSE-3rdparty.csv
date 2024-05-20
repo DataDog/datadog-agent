@@ -389,7 +389,6 @@ core,github.com/alecthomas/participle/v2,MIT,Copyright (C) 2017 Alec Thomas | Co
 core,github.com/alecthomas/participle/v2/lexer,MIT,Copyright (C) 2017 Alec Thomas | Copyright (C) 2017-2022 Alec Thomas
 core,github.com/alecthomas/units,MIT,Copyright (C) 2014 Alec Thomas
 core,github.com/anchore/go-struct-converter,Apache-2.0,"Copyright (c) 2022-2023 Anchore, Inc."
-core,github.com/andybalholm/brotli,MIT,"Copyright (c) 2009, 2010, 2013-2016 by the Brotli Authors"
 core,github.com/antlr/antlr4/runtime/Go/antlr/v4,BSD-3-Clause,Copyright 2021 The ANTLR Project
 core,github.com/apache/arrow/go/v15/arrow,Apache-2.0,Copyright (C) 1995-1998 Eric Young (eay@cryptsoft.com)
 core,github.com/apache/arrow/go/v15/arrow/array,Apache-2.0,Copyright (C) 1995-1998 Eric Young (eay@cryptsoft.com)
@@ -1059,12 +1058,6 @@ core,github.com/docker/go-connections/sockets,Apache-2.0,"Copyright 2012-2017 Do
 core,github.com/docker/go-connections/tlsconfig,Apache-2.0,"Copyright 2012-2017 Docker, Inc."
 core,github.com/docker/go-events,Apache-2.0,"Copyright 2012-2017 Docker, Inc."
 core,github.com/docker/go-units,Apache-2.0,"Copyright 2012-2017 Docker, Inc."
-core,github.com/dsnet/compress,BSD-3-Clause,"Copyright © 2015, Joe Tsai and The Go Authors. All rights reserved"
-core,github.com/dsnet/compress/bzip2,BSD-3-Clause,"Copyright © 2015, Joe Tsai and The Go Authors. All rights reserved"
-core,github.com/dsnet/compress/bzip2/internal/sais,BSD-3-Clause,"Copyright © 2015, Joe Tsai and The Go Authors. All rights reserved"
-core,github.com/dsnet/compress/internal,BSD-3-Clause,"Copyright © 2015, Joe Tsai and The Go Authors. All rights reserved"
-core,github.com/dsnet/compress/internal/errors,BSD-3-Clause,"Copyright © 2015, Joe Tsai and The Go Authors. All rights reserved"
-core,github.com/dsnet/compress/internal/prefix,BSD-3-Clause,"Copyright © 2015, Joe Tsai and The Go Authors. All rights reserved"
 core,github.com/dustin/go-humanize,MIT,Copyright (c) 2005-2008  Dustin Sallings <dustin@spy.net>
 core,github.com/dvsekhvalnov/jose2go,MIT,Copyright (c) 2014
 core,github.com/dvsekhvalnov/jose2go/aes,MIT,Copyright (c) 2014
@@ -1684,7 +1677,6 @@ core,github.com/klauspost/compress/internal/cpuinfo,BSD-3-Clause,Copyright (c) 2
 core,github.com/klauspost/compress/internal/race,BSD-3-Clause,Copyright (c) 2011 The Snappy-Go Authors. All rights reserved | Copyright (c) 2012 The Go Authors. All rights reserved | Copyright (c) 2015 Klaus Post | Copyright (c) 2019 Klaus Post. All rights reserved | Copyright 2016 The filepathx Authors | Copyright 2016-2017 The New York Times Company
 core,github.com/klauspost/compress/internal/snapref,BSD-3-Clause,Copyright (c) 2011 The Snappy-Go Authors. All rights reserved | Copyright (c) 2012 The Go Authors. All rights reserved | Copyright (c) 2015 Klaus Post | Copyright (c) 2019 Klaus Post. All rights reserved | Copyright 2016 The filepathx Authors | Copyright 2016-2017 The New York Times Company
 core,github.com/klauspost/compress/s2,BSD-3-Clause,Copyright (c) 2011 The Snappy-Go Authors. All rights reserved. | Copyright (c) 2019 Klaus Post. All rights reserved.
-core,github.com/klauspost/compress/zip,BSD-3-Clause,Copyright (c) 2011 The Snappy-Go Authors. All rights reserved | Copyright (c) 2012 The Go Authors. All rights reserved | Copyright (c) 2015 Klaus Post | Copyright (c) 2019 Klaus Post. All rights reserved | Copyright 2016 The filepathx Authors | Copyright 2016-2017 The New York Times Company
 core,github.com/klauspost/compress/zstd,BSD-3-Clause,Copyright (c) 2011 The Snappy-Go Authors. All rights reserved | Copyright (c) 2012 The Go Authors. All rights reserved | Copyright (c) 2015 Klaus Post | Copyright (c) 2016 Caleb Spare | Copyright (c) 2019 Klaus Post. All rights reserved | Copyright 2016 The filepathx Authors | Copyright 2016-2017 The New York Times Company
 core,github.com/klauspost/compress/zstd/internal/xxhash,MIT,Copyright (c) 2011 The Snappy-Go Authors. All rights reserved | Copyright (c) 2012 The Go Authors. All rights reserved | Copyright (c) 2015 Klaus Post | Copyright (c) 2016 Caleb Spare | Copyright (c) 2019 Klaus Post. All rights reserved | Copyright 2016 The filepathx Authors | Copyright 2016-2017 The New York Times Company
 core,github.com/klauspost/cpuid/v2,MIT,Copyright (c) 2015 Klaus Post
@@ -1758,7 +1750,6 @@ core,github.com/mattn/go-sqlite3,MIT,Copyright (c) 2014 Yasuhiro Matsumoto
 core,github.com/mdlayher/netlink,MIT,Copyright (C) 2016-2022 Matt Layher
 core,github.com/mdlayher/netlink/nlenc,MIT,Copyright (C) 2016-2022 Matt Layher
 core,github.com/mdlayher/socket,MIT,Copyright (C) 2021 Matt Layher
-core,github.com/mholt/archiver/v3,MIT,Copyright (c) 2016 Matthew Holt
 core,github.com/microsoft/go-mssqldb,BSD-3-Clause,Copyright (c) 2012 The Go Authors. All rights reserved | Copyright (c) Microsoft Corporation
 core,github.com/microsoft/go-mssqldb/aecmk,BSD-3-Clause,Copyright (c) 2012 The Go Authors. All rights reserved | Copyright (c) Microsoft Corporation
 core,github.com/microsoft/go-mssqldb/integratedauth,BSD-3-Clause,Copyright (c) 2012 The Go Authors. All rights reserved | Copyright (c) Microsoft Corporation
@@ -1826,7 +1817,6 @@ core,github.com/netsampler/goflow2/producer,BSD-3-Clause,"Copyright (c) 2021, Ne
 core,github.com/netsampler/goflow2/transport,BSD-3-Clause,"Copyright (c) 2021, NetSampler"
 core,github.com/netsampler/goflow2/utils,BSD-3-Clause,"Copyright (c) 2021, NetSampler"
 core,github.com/nginxinc/nginx-prometheus-exporter/client,Apache-2.0,"Copyright 2018 Nginx, Inc"
-core,github.com/nwaples/rardecode,BSD-2-Clause,"Copyright (c) 2015, Nicholas Waples"
 core,github.com/oklog/ulid,Apache-2.0,- Peter Bourgon (@peterbourgon) | - Tomás Senart (@tsenart)
 core,github.com/oklog/ulid/v2,Apache-2.0,- Peter Bourgon (@peterbourgon) | - Tomás Senart (@tsenart)
 core,github.com/olekukonko/tablewriter,MIT,Copyright (C) 2014 by Oleku Konko
