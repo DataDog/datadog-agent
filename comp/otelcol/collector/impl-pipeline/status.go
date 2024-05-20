@@ -28,7 +28,7 @@ func (c *collectorImpl) getStatusInfo() map[string]interface{} {
 
 func (c *collectorImpl) populateStatus(stats map[string]interface{}) {
 	otlpStatus := make(map[string]interface{})
-	otlpIsEnabled := otlp.IsEnabled(c.deps.Config)
+	otlpIsEnabled := otlp.IsEnabled(c.config)
 
 	var otlpCollectorStatus otlp.CollectorStatus
 

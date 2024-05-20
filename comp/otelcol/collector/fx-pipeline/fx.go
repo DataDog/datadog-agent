@@ -16,7 +16,7 @@ import (
 // team: opentelemetry
 
 // Module for OTel Agent
-func PipelineModule() fxutil.Module {
+func Module() fxutil.Module {
 	return fxutil.Component(
-		fxutil.ProvideComponentConstructor(collectorimpl.NewPipeline))
+		fxutil.ProvideComponentConstructor(collectorimpl.NewComponent))
 }

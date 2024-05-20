@@ -58,8 +58,8 @@ type Provides struct {
 	FlareProvider flarebuilder.Provider
 }
 
-// New returns a new instance of the collector component.
-func New(reqs Requires) (Provides, error) {
+// NewComponent returns a new instance of the collector component.
+func NewComponent(reqs Requires) (Provides, error) {
 	set := otelcol.CollectorSettings{
 		BuildInfo: component.BuildInfo{
 			Version:     "0.0.1",

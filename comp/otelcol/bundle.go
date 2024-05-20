@@ -17,5 +17,5 @@ import (
 // Bundle specifies the bundle for the OTLP ingest pipeline.
 func Bundle() fxutil.BundleOptions {
 	return fxutil.Bundle(
-		collectorfx.PipelineModule())
+		collectorfx.Module())
 }
