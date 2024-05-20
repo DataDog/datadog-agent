@@ -6,6 +6,7 @@
 package verifier
 
 import (
+	"math"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -136,6 +137,162 @@ func TestLogParsingWithRegisterState(t *testing.T) {
 			_, err := vlp.parseVerifierLog(tt.input)
 			require.NoError(t, err)
 			require.Equal(t, tt.expected, vlp.complexity.InsnMap)
+		})
+	}
+}
+
+func TestLogParsingWith(t *testing.T) {
+	tests := []struct {
+		name          string
+		input         string
+		progSourceMap map[int]*SourceLine
+		expected      ComplexityInfo
+	}{
+		{
+			name:  "SingleInstructionForLine",
+			input: "5: R1_w=0 fp-16_w=00000000\n5: (63) *(u32 *)(r10 -16) = r2\n",
+			progSourceMap: map[int]*SourceLine{
+				5: {
+					LineInfo: "file.c:5",
+					Line:     "int a = 2",
+				},
+			},
+			expected: ComplexityInfo{
+				InsnMap: map[int]*InstructionInfo{
+					5: {
+						Index:          5,
+						TimesProcessed: 1,
+						Source: &SourceLine{
+							LineInfo: "file.c:5",
+							Line:     "int a = 2",
+						},
+						Code: "*(u32 *)(r10 -16) = r2",
+						RegisterState: map[int]*RegisterState{
+							1: {
+								Register: 1,
+								Live:     "written",
+								Type:     "scalar",
+								Value:    "0",
+								Precise:  false,
+							},
+						},
+						RegisterStateRaw: "R1_w=0 fp-16_w=00000000",
+					},
+				},
+				SourceMap: map[string]*SourceLineStats{
+					"file.c:5": {
+						NumInstructions:            1,
+						MaxPasses:                  1,
+						MinPasses:                  1,
+						TotalInstructionsProcessed: 1,
+						AssemblyInsns:              []int{5},
+					},
+				},
+			},
+		},
+		{
+			name:  "MultipleInstructionsForLine",
+			input: "4: (63) *(u32 *)(r10 -16) = r3\n5: (63) *(u32 *)(r10 -16) = r2\n",
+			progSourceMap: map[int]*SourceLine{
+				5: {
+					LineInfo: "file.c:5",
+					Line:     "int a = 2",
+				},
+				4: {
+					LineInfo: "file.c:5",
+					Line:     "int a = 2",
+				},
+			},
+			expected: ComplexityInfo{
+				InsnMap: map[int]*InstructionInfo{
+					4: {
+						Index:          4,
+						TimesProcessed: 1,
+						Source: &SourceLine{
+							LineInfo: "file.c:5",
+							Line:     "int a = 2",
+						},
+						Code:             "*(u32 *)(r10 -16) = r3",
+						RegisterState:    nil,
+						RegisterStateRaw: "",
+					},
+					5: {
+						Index:          5,
+						TimesProcessed: 1,
+						Source: &SourceLine{
+							LineInfo: "file.c:5",
+							Line:     "int a = 2",
+						},
+						Code:             "*(u32 *)(r10 -16) = r2",
+						RegisterState:    nil,
+						RegisterStateRaw: "",
+					},
+				},
+				SourceMap: map[string]*SourceLineStats{
+					"file.c:5": {
+						NumInstructions:            2,
+						MaxPasses:                  1,
+						MinPasses:                  1,
+						TotalInstructionsProcessed: 2,
+						AssemblyInsns:              []int{4, 5},
+					},
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			vlp := newVerifierLogParser(tt.progSourceMap)
+			_, err := vlp.parseVerifierLog(tt.input)
+			require.NoError(t, err)
+			require.Equal(t, tt.expected, vlp.complexity)
+		})
+	}
+}
+
+func TestTryPowerOfTwoRepresentation(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    int64
+		expected string
+	}{
+		{
+			name:     "MaxInt64",
+			input:    math.MaxInt64,
+			expected: "2^63 - 1",
+		},
+		{
+			name:     "MinInt64",
+			input:    math.MinInt64,
+			expected: "-2^63",
+		},
+		{
+			name:     "ExactPowerOfTwo",
+			input:    1024,
+			expected: "2^10",
+		},
+		{
+			name:     "NegativeExactPowerOfTwo",
+			input:    -1024,
+			expected: "-2^10",
+		},
+		{
+			name:     "PowerOfTwoMinusOne",
+			input:    1023,
+			expected: "2^10 - 1",
+		},
+		{
+			name:     "NotPowerOfTwo",
+			input:    0x5,
+			expected: "5 (0x5)",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := tryPowerOfTwoRepresentation(tt.input)
+			require.Equal(t, tt.expected, result)
 		})
 	}
 }
