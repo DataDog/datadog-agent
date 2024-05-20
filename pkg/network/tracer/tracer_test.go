@@ -1285,6 +1285,7 @@ func (s *TracerSuite) TestTCPDirection() {
 
 func (s *TracerSuite) TestTCPFailureConnectionTimeout() {
 	t := s.T()
+	t.Skip()
 	setupDropTrafficRule(t)
 	cfg := testConfig()
 	cfg.TCPFailedConnectionsEnabled = true

@@ -12,7 +12,6 @@
 #include "cookie.h"
 #include "ip.h"
 #include "port_range.h"
-#include <asm-generic/errno.h>
 
 #ifdef COMPILE_CORE
 #define MSG_PEEK 2
