@@ -58,6 +58,7 @@ import (
 )
 
 const (
+	// Most of the classifications are only supported on Linux, hence, they are defined in a Linux specific file.
 	mysqlPort      = "3306"
 	postgresPort   = "5432"
 	mongoPort      = "27017"
