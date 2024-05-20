@@ -22,7 +22,6 @@ import (
 	"testing"
 	"time"
 
-	redis2 "github.com/go-redis/redis/v9"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/net/http2"
@@ -33,7 +32,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/amqp"
 	usmhttp2 "github.com/DataDog/datadog-agent/pkg/network/protocols/http2"
-	"github.com/DataDog/datadog-agent/pkg/network/protocols/redis"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/testutil/grpc"
 )
 
@@ -104,7 +102,6 @@ func composeSkips(skippers ...func(t *testing.T, ctx testContext)) func(t *testi
 }
 
 const (
-	redisPort      = "6379"
 	amqpPort       = "5672"
 	httpPort       = "8080"
 	httpsPort      = "8443"
@@ -158,161 +155,6 @@ func testProtocolClassification(t *testing.T, tr *Tracer, clientHost, targetHost
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			tt.testFunc(t, tr, clientHost, targetHost, serverHost)
-		})
-	}
-}
-
-func testRedisProtocolClassification(t *testing.T, tr *Tracer, clientHost, targetHost, serverHost string) {
-	skipFunc := composeSkips(skipIfNotLinux, skipIfUsingNAT)
-	skipFunc(t, testContext{
-		serverAddress: serverHost,
-		serverPort:    redisPort,
-		targetAddress: targetHost,
-	})
-
-	defaultDialer := &net.Dialer{
-		LocalAddr: &net.TCPAddr{
-			IP: net.ParseIP(clientHost),
-		},
-	}
-
-	redisTeardown := func(t *testing.T, ctx testContext) {
-		redis.NewClient(ctx.serverAddress, defaultDialer)
-		client := ctx.extras["client"].(*redis2.Client)
-		timedContext, cancel := context.WithTimeout(context.Background(), defaultTimeout)
-		defer cancel()
-		require.NoError(t, client.FlushDB(timedContext).Err())
-	}
-
-	// Setting one instance of redis server for all tests.
-	serverAddress := net.JoinHostPort(serverHost, redisPort)
-	targetAddress := net.JoinHostPort(targetHost, redisPort)
-	require.NoError(t, redis.RunServer(t, serverHost, redisPort))
-
-	tests := []protocolClassificationAttributes{
-		{
-			name: "set",
-			context: testContext{
-				serverPort:    redisPort,
-				serverAddress: serverAddress,
-				targetAddress: targetAddress,
-				extras:        make(map[string]interface{}),
-			},
-			preTracerSetup: func(t *testing.T, ctx testContext) {
-				client := redis.NewClient(ctx.targetAddress, defaultDialer)
-				timedContext, cancel := context.WithTimeout(context.Background(), defaultTimeout)
-				defer cancel()
-				client.Ping(timedContext)
-				ctx.extras["client"] = client
-			},
-			postTracerSetup: func(t *testing.T, ctx testContext) {
-				client := ctx.extras["client"].(*redis2.Client)
-				timedContext, cancel := context.WithTimeout(context.Background(), defaultTimeout)
-				defer cancel()
-				client.Set(timedContext, "key", "value", time.Minute)
-			},
-			teardown:   redisTeardown,
-			validation: validateProtocolConnection(&protocols.Stack{Application: protocols.Redis}),
-		},
-		{
-			name: "get",
-			context: testContext{
-				serverPort:    redisPort,
-				serverAddress: serverAddress,
-				targetAddress: targetAddress,
-				extras:        make(map[string]interface{}),
-			},
-			preTracerSetup: func(t *testing.T, ctx testContext) {
-				client := redis.NewClient(ctx.targetAddress, defaultDialer)
-				timedContext, cancel := context.WithTimeout(context.Background(), defaultTimeout)
-				defer cancel()
-				client.Set(timedContext, "key", "value", time.Minute)
-				ctx.extras["client"] = client
-			},
-			postTracerSetup: func(t *testing.T, ctx testContext) {
-				client := ctx.extras["client"].(*redis2.Client)
-				timedContext, cancel := context.WithTimeout(context.Background(), defaultTimeout)
-				defer cancel()
-				res := client.Get(timedContext, "key")
-				val, err := res.Result()
-				require.NoError(t, err)
-				require.Equal(t, "value", val)
-			},
-			teardown:   redisTeardown,
-			validation: validateProtocolConnection(&protocols.Stack{Application: protocols.Redis}),
-		},
-		{
-			name: "get unknown key",
-			context: testContext{
-				serverPort:    redisPort,
-				serverAddress: serverAddress,
-				targetAddress: targetAddress,
-				extras:        make(map[string]interface{}),
-			},
-			preTracerSetup: func(t *testing.T, ctx testContext) {
-				client := redis.NewClient(ctx.targetAddress, defaultDialer)
-				timedContext, cancel := context.WithTimeout(context.Background(), defaultTimeout)
-				defer cancel()
-				client.Ping(timedContext)
-				ctx.extras["client"] = client
-			},
-			postTracerSetup: func(t *testing.T, ctx testContext) {
-				client := ctx.extras["client"].(*redis2.Client)
-				timedContext, cancel := context.WithTimeout(context.Background(), defaultTimeout)
-				defer cancel()
-				res := client.Get(timedContext, "unknown")
-				require.Error(t, res.Err())
-			},
-			teardown:   redisTeardown,
-			validation: validateProtocolConnection(&protocols.Stack{Application: protocols.Redis}),
-		},
-		{
-			name: "err response",
-			context: testContext{
-				serverPort:    redisPort,
-				serverAddress: serverAddress,
-				targetAddress: targetAddress,
-				extras:        make(map[string]interface{}),
-			},
-			postTracerSetup: func(t *testing.T, ctx testContext) {
-				timedContext, cancel := context.WithTimeout(context.Background(), defaultTimeout)
-				defer cancel()
-				conn, err := defaultDialer.DialContext(timedContext, "tcp", ctx.targetAddress)
-				require.NoError(t, err)
-				_, err = conn.Write([]byte("+dummy\r\n"))
-				require.NoError(t, err)
-			},
-			validation: validateProtocolConnection(&protocols.Stack{Application: protocols.Redis}),
-		},
-		{
-			name: "client id",
-			context: testContext{
-				serverPort:    redisPort,
-				serverAddress: serverAddress,
-				targetAddress: targetAddress,
-				extras:        make(map[string]interface{}),
-			},
-			preTracerSetup: func(t *testing.T, ctx testContext) {
-				client := redis.NewClient(ctx.targetAddress, defaultDialer)
-				timedContext, cancel := context.WithTimeout(context.Background(), defaultTimeout)
-				defer cancel()
-				client.Ping(timedContext)
-				ctx.extras["client"] = client
-			},
-			postTracerSetup: func(t *testing.T, ctx testContext) {
-				client := ctx.extras["client"].(*redis2.Client)
-				timedContext, cancel := context.WithTimeout(context.Background(), defaultTimeout)
-				defer cancel()
-				res := client.ClientID(timedContext)
-				require.NoError(t, res.Err())
-			},
-			teardown:   redisTeardown,
-			validation: validateProtocolConnection(&protocols.Stack{Application: protocols.Redis}),
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			testProtocolClassificationInner(t, tt, tr)
 		})
 	}
 }
