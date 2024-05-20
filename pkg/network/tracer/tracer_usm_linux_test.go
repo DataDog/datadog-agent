@@ -36,6 +36,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/kafka"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/mysql"
 	prototls "github.com/DataDog/datadog-agent/pkg/network/protocols/tls/openssl"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/kprobe"
@@ -45,6 +46,7 @@ import (
 )
 
 const (
+	mysqlPort = "3306"
 	kafkaPort = "9092"
 
 	produceAPIKey = 0
@@ -753,6 +755,319 @@ func testKafkaProtocolClassification(t *testing.T, tr *Tracer, clientHost, targe
 		})
 	}
 
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			testProtocolClassificationInner(t, tt, tr)
+		})
+	}
+}
+
+func testMySQLProtocolClassification(t *testing.T, tr *Tracer, clientHost, targetHost, serverHost string) {
+	skipFunc := composeSkips(skipIfNotLinux, skipIfUsingNAT)
+	skipFunc(t, testContext{
+		serverAddress: serverHost,
+		serverPort:    mysqlPort,
+		targetAddress: targetHost,
+	})
+
+	defaultDialer := &net.Dialer{
+		LocalAddr: &net.TCPAddr{
+			IP: net.ParseIP(clientHost),
+		},
+	}
+
+	mysqlTeardown := func(t *testing.T, ctx testContext) {
+		if client, ok := ctx.extras["conn"].(*mysql.Client); ok {
+			defer client.DB.Close()
+			client.DropDB()
+		}
+	}
+
+	serverAddress := net.JoinHostPort(serverHost, mysqlPort)
+	targetAddress := net.JoinHostPort(targetHost, mysqlPort)
+	require.NoError(t, mysql.RunServer(t, serverHost, mysqlPort))
+
+	tests := []protocolClassificationAttributes{
+		{
+			name: "connect",
+			context: testContext{
+				serverPort:    mysqlPort,
+				targetAddress: targetAddress,
+				serverAddress: serverAddress,
+				extras:        make(map[string]interface{}),
+			},
+			postTracerSetup: func(t *testing.T, ctx testContext) {
+				c, err := mysql.NewClient(mysql.Options{
+					ServerAddress: ctx.targetAddress,
+					Dialer:        defaultDialer,
+				})
+				require.NoError(t, err)
+				ctx.extras["conn"] = c
+			},
+			validation: validateProtocolConnection(&protocols.Stack{Application: protocols.MySQL}),
+			teardown:   mysqlTeardown,
+		},
+		{
+			name: "create db",
+			context: testContext{
+				serverPort:    mysqlPort,
+				targetAddress: targetAddress,
+				serverAddress: serverAddress,
+				extras:        make(map[string]interface{}),
+			},
+			preTracerSetup: func(t *testing.T, ctx testContext) {
+				c, err := mysql.NewClient(mysql.Options{
+					ServerAddress: ctx.targetAddress,
+					Dialer:        defaultDialer,
+				})
+				require.NoError(t, err)
+				ctx.extras["conn"] = c
+			},
+			postTracerSetup: func(t *testing.T, ctx testContext) {
+				c := ctx.extras["conn"].(*mysql.Client)
+				require.NoError(t, c.CreateDB())
+			},
+			validation: validateProtocolConnection(&protocols.Stack{Application: protocols.MySQL}),
+			teardown:   mysqlTeardown,
+		},
+		{
+			name: "create table",
+			context: testContext{
+				serverPort:    mysqlPort,
+				targetAddress: targetAddress,
+				serverAddress: serverAddress,
+				extras:        make(map[string]interface{}),
+			},
+			preTracerSetup: func(t *testing.T, ctx testContext) {
+				c, err := mysql.NewClient(mysql.Options{
+					ServerAddress: ctx.targetAddress,
+					Dialer:        defaultDialer,
+				})
+				require.NoError(t, err)
+				ctx.extras["conn"] = c
+				require.NoError(t, c.CreateDB())
+			},
+			postTracerSetup: func(t *testing.T, ctx testContext) {
+				c := ctx.extras["conn"].(*mysql.Client)
+				require.NoError(t, c.CreateTable())
+			},
+			validation: validateProtocolConnection(&protocols.Stack{Application: protocols.MySQL}),
+			teardown:   mysqlTeardown,
+		},
+		{
+			name: "insert",
+			context: testContext{
+				serverPort:    mysqlPort,
+				targetAddress: targetAddress,
+				serverAddress: serverAddress,
+				extras:        make(map[string]interface{}),
+			},
+			preTracerSetup: func(t *testing.T, ctx testContext) {
+				c, err := mysql.NewClient(mysql.Options{
+					ServerAddress: ctx.targetAddress,
+					Dialer:        defaultDialer,
+				})
+				require.NoError(t, err)
+				ctx.extras["conn"] = c
+				require.NoError(t, c.CreateDB())
+				require.NoError(t, c.CreateTable())
+			},
+			postTracerSetup: func(t *testing.T, ctx testContext) {
+				c := ctx.extras["conn"].(*mysql.Client)
+				require.NoError(t, c.InsertIntoTable("Bratislava", 432000))
+			},
+			validation: validateProtocolConnection(&protocols.Stack{Application: protocols.MySQL}),
+			teardown:   mysqlTeardown,
+		},
+		{
+			name: "delete",
+			context: testContext{
+				serverPort:    mysqlPort,
+				targetAddress: targetAddress,
+				serverAddress: serverAddress,
+				extras:        make(map[string]interface{}),
+			},
+			preTracerSetup: func(t *testing.T, ctx testContext) {
+				c, err := mysql.NewClient(mysql.Options{
+					ServerAddress: ctx.targetAddress,
+					Dialer:        defaultDialer,
+				})
+				require.NoError(t, err)
+				ctx.extras["conn"] = c
+				require.NoError(t, c.CreateDB())
+				require.NoError(t, c.CreateTable())
+				require.NoError(t, c.InsertIntoTable("Bratislava", 432000))
+			},
+			postTracerSetup: func(t *testing.T, ctx testContext) {
+				c := ctx.extras["conn"].(*mysql.Client)
+				require.NoError(t, c.DeleteFromTable("Bratislava"))
+			},
+			validation: validateProtocolConnection(&protocols.Stack{Application: protocols.MySQL}),
+			teardown:   mysqlTeardown,
+		},
+		{
+			name: "select",
+			context: testContext{
+				serverPort:    mysqlPort,
+				targetAddress: targetAddress,
+				serverAddress: serverAddress,
+				extras:        make(map[string]interface{}),
+			},
+			preTracerSetup: func(t *testing.T, ctx testContext) {
+				c, err := mysql.NewClient(mysql.Options{
+					ServerAddress: ctx.targetAddress,
+					Dialer:        defaultDialer,
+				})
+				require.NoError(t, err)
+				ctx.extras["conn"] = c
+				require.NoError(t, c.CreateDB())
+				require.NoError(t, c.CreateTable())
+				require.NoError(t, c.InsertIntoTable("Bratislava", 432000))
+			},
+			postTracerSetup: func(t *testing.T, ctx testContext) {
+				c := ctx.extras["conn"].(*mysql.Client)
+				population, err := c.SelectFromTable("Bratislava")
+				require.NoError(t, err)
+				require.Equal(t, 432000, population)
+			},
+			validation: validateProtocolConnection(&protocols.Stack{Application: protocols.MySQL}),
+			teardown:   mysqlTeardown,
+		},
+		{
+			name: "update",
+			context: testContext{
+				serverPort:    mysqlPort,
+				targetAddress: targetAddress,
+				serverAddress: serverAddress,
+				extras:        make(map[string]interface{}),
+			},
+			preTracerSetup: func(t *testing.T, ctx testContext) {
+				c, err := mysql.NewClient(mysql.Options{
+					ServerAddress: ctx.targetAddress,
+					Dialer:        defaultDialer,
+				})
+				require.NoError(t, err)
+				ctx.extras["conn"] = c
+				require.NoError(t, c.CreateDB())
+				require.NoError(t, c.CreateTable())
+				require.NoError(t, c.InsertIntoTable("Bratislava", 432000))
+			},
+			postTracerSetup: func(t *testing.T, ctx testContext) {
+				c := ctx.extras["conn"].(*mysql.Client)
+				require.NoError(t, c.UpdateTable("Bratislava", "Bratislava2", 10))
+			},
+			validation: validateProtocolConnection(&protocols.Stack{Application: protocols.MySQL}),
+			teardown:   mysqlTeardown,
+		},
+		{
+			name: "drop table",
+			context: testContext{
+				serverPort:    mysqlPort,
+				targetAddress: targetAddress,
+				serverAddress: serverAddress,
+				extras:        make(map[string]interface{}),
+			},
+			preTracerSetup: func(t *testing.T, ctx testContext) {
+				c, err := mysql.NewClient(mysql.Options{
+					ServerAddress: ctx.targetAddress,
+					Dialer:        defaultDialer,
+				})
+				require.NoError(t, err)
+				ctx.extras["conn"] = c
+				require.NoError(t, c.CreateDB())
+				require.NoError(t, c.CreateTable())
+			},
+			postTracerSetup: func(t *testing.T, ctx testContext) {
+				c := ctx.extras["conn"].(*mysql.Client)
+				require.NoError(t, c.DropTable())
+			},
+			validation: validateProtocolConnection(&protocols.Stack{Application: protocols.MySQL}),
+			teardown:   mysqlTeardown,
+		},
+		{
+			name: "alter",
+			context: testContext{
+				serverPort:    mysqlPort,
+				targetAddress: targetAddress,
+				serverAddress: serverAddress,
+				extras:        make(map[string]interface{}),
+			},
+			preTracerSetup: func(t *testing.T, ctx testContext) {
+				c, err := mysql.NewClient(mysql.Options{
+					ServerAddress: ctx.targetAddress,
+					Dialer:        defaultDialer,
+				})
+				require.NoError(t, err)
+				ctx.extras["conn"] = c
+				require.NoError(t, c.CreateDB())
+				require.NoError(t, c.CreateTable())
+			},
+			postTracerSetup: func(t *testing.T, ctx testContext) {
+				c := ctx.extras["conn"].(*mysql.Client)
+				require.NoError(t, c.AlterTable())
+			},
+			validation: validateProtocolConnection(&protocols.Stack{Application: protocols.MySQL}),
+			teardown:   mysqlTeardown,
+		},
+		{
+			// Test that we classify long queries that would be
+			// splitted between multiple packets correctly
+			name: "long query",
+			context: testContext{
+				serverPort:    mysqlPort,
+				targetAddress: targetAddress,
+				serverAddress: serverAddress,
+				extras:        make(map[string]interface{}),
+			},
+			preTracerSetup: func(t *testing.T, ctx testContext) {
+				c, err := mysql.NewClient(mysql.Options{
+					ServerAddress: ctx.targetAddress,
+					Dialer:        defaultDialer,
+				})
+				require.NoError(t, err)
+				ctx.extras["conn"] = c
+				require.NoError(t, c.CreateDB())
+				require.NoError(t, c.CreateTable())
+			},
+			postTracerSetup: func(t *testing.T, ctx testContext) {
+				c := ctx.extras["conn"].(*mysql.Client)
+				require.NoError(t, c.InsertIntoTable(strings.Repeat("#", 16384), 10))
+			},
+			validation: validateProtocolConnection(&protocols.Stack{Application: protocols.MySQL}),
+			teardown:   mysqlTeardown,
+		},
+		{
+			// Test that we classify long queries that would be
+			// splitted between multiple packets correctly
+			name: "long response",
+			context: testContext{
+				serverPort:    mysqlPort,
+				targetAddress: targetAddress,
+				serverAddress: serverAddress,
+				extras:        make(map[string]interface{}),
+			},
+			preTracerSetup: func(t *testing.T, ctx testContext) {
+				c, err := mysql.NewClient(mysql.Options{
+					ServerAddress: ctx.targetAddress,
+					Dialer:        defaultDialer,
+				})
+				require.NoError(t, err)
+				ctx.extras["conn"] = c
+				require.NoError(t, c.CreateDB())
+				require.NoError(t, c.CreateTable())
+				name := strings.Repeat("#", 1024)
+				for i := int64(1); i <= 40; i++ {
+					require.NoError(t, c.InsertIntoTable(name+"i", 10))
+				}
+			},
+			postTracerSetup: func(t *testing.T, ctx testContext) {
+				c := ctx.extras["conn"].(*mysql.Client)
+				require.NoError(t, c.SelectAllFromTable())
+			},
+			validation: validateProtocolConnection(&protocols.Stack{Application: protocols.MySQL}),
+			teardown:   mysqlTeardown,
+		},
+	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			testProtocolClassificationInner(t, tt, tr)
