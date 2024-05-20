@@ -1115,7 +1115,13 @@ func testMySQLProtocolClassification(t *testing.T, tr *Tracer, clientHost, targe
 	}
 }
 
-func testPostgresProtocolClassification(t *testing.T, tr *Tracer, clientHost, targetHost, serverHost string) {
+func testPostgresProtocolClassificationWrapper(enableTLS bool) func(t *testing.T, tr *Tracer, clientHost, targetHost, serverHost string) {
+	return func(t *testing.T, tr *Tracer, clientHost, targetHost, serverHost string) {
+		testPostgresProtocolClassification(t, tr, clientHost, targetHost, serverHost, enableTLS)
+	}
+}
+
+func testPostgresProtocolClassification(t *testing.T, tr *Tracer, clientHost, targetHost, serverHost string, enableTLS bool) {
 	skipFunc := composeSkips(skipIfUsingNAT)
 	skipFunc(t, testContext{
 		serverAddress: serverHost,
@@ -1141,7 +1147,7 @@ func testPostgresProtocolClassification(t *testing.T, tr *Tracer, clientHost, ta
 	// Setting one instance of postgres server for all tests.
 	serverAddress := net.JoinHostPort(serverHost, postgresPort)
 	targetAddress := net.JoinHostPort(targetHost, postgresPort)
-	require.NoError(t, pgutils.RunServer(t, serverHost, postgresPort, pgutils.TLSDisabled))
+	require.NoError(t, pgutils.RunServer(t, serverHost, postgresPort, enableTLS))
 
 	tests := []protocolClassificationAttributes{
 		{
@@ -1153,7 +1159,7 @@ func testPostgresProtocolClassification(t *testing.T, tr *Tracer, clientHost, ta
 				extras:        make(map[string]interface{}),
 			},
 			postTracerSetup: func(t *testing.T, ctx testContext) {
-				pg := pgutils.GetPGHandle(t, ctx.serverAddress, pgutils.TLSDisabled)
+				pg := pgutils.GetPGHandle(t, ctx.serverAddress, enableTLS)
 				conn, err := pg.Conn(context.Background())
 				require.NoError(t, err)
 				defer conn.Close()
@@ -1170,7 +1176,7 @@ func testPostgresProtocolClassification(t *testing.T, tr *Tracer, clientHost, ta
 				extras:        make(map[string]interface{}),
 			},
 			preTracerSetup: func(t *testing.T, ctx testContext) {
-				pgutils.ConnectAndGetDB(t, ctx.serverAddress, ctx.extras, pgutils.TLSDisabled)
+				pgutils.ConnectAndGetDB(t, ctx.serverAddress, ctx.extras, enableTLS)
 				pgutils.RunCreateQuery(t, ctx.extras)
 			},
 			postTracerSetup: func(t *testing.T, ctx testContext) {
@@ -1188,7 +1194,7 @@ func testPostgresProtocolClassification(t *testing.T, tr *Tracer, clientHost, ta
 				extras:        make(map[string]interface{}),
 			},
 			preTracerSetup: func(t *testing.T, ctx testContext) {
-				pgutils.ConnectAndGetDB(t, ctx.serverAddress, ctx.extras, pgutils.TLSDisabled)
+				pgutils.ConnectAndGetDB(t, ctx.serverAddress, ctx.extras, enableTLS)
 				pgutils.RunCreateQuery(t, ctx.extras)
 				pgutils.RunInsertQuery(t, 1, ctx.extras)
 			},
@@ -1207,7 +1213,7 @@ func testPostgresProtocolClassification(t *testing.T, tr *Tracer, clientHost, ta
 				extras:        make(map[string]interface{}),
 			},
 			preTracerSetup: func(t *testing.T, ctx testContext) {
-				pgutils.ConnectAndGetDB(t, ctx.serverAddress, ctx.extras, pgutils.TLSDisabled)
+				pgutils.ConnectAndGetDB(t, ctx.serverAddress, ctx.extras, enableTLS)
 				pgutils.RunCreateQuery(t, ctx.extras)
 			},
 			postTracerSetup: func(t *testing.T, ctx testContext) {
@@ -1225,7 +1231,7 @@ func testPostgresProtocolClassification(t *testing.T, tr *Tracer, clientHost, ta
 				extras:        make(map[string]interface{}),
 			},
 			preTracerSetup: func(t *testing.T, ctx testContext) {
-				pgutils.ConnectAndGetDB(t, ctx.serverAddress, ctx.extras, pgutils.TLSDisabled)
+				pgutils.ConnectAndGetDB(t, ctx.serverAddress, ctx.extras, enableTLS)
 				pgutils.RunCreateQuery(t, ctx.extras)
 				pgutils.RunInsertQuery(t, 1, ctx.extras)
 			},
@@ -1244,7 +1250,7 @@ func testPostgresProtocolClassification(t *testing.T, tr *Tracer, clientHost, ta
 				extras:        make(map[string]interface{}),
 			},
 			preTracerSetup: func(t *testing.T, ctx testContext) {
-				pgutils.ConnectAndGetDB(t, ctx.serverAddress, ctx.extras, pgutils.TLSDisabled)
+				pgutils.ConnectAndGetDB(t, ctx.serverAddress, ctx.extras, enableTLS)
 				pgutils.RunCreateQuery(t, ctx.extras)
 				pgutils.RunInsertQuery(t, 1, ctx.extras)
 			},
@@ -1263,7 +1269,7 @@ func testPostgresProtocolClassification(t *testing.T, tr *Tracer, clientHost, ta
 				extras:        make(map[string]interface{}),
 			},
 			preTracerSetup: func(t *testing.T, ctx testContext) {
-				pgutils.ConnectAndGetDB(t, ctx.serverAddress, ctx.extras, pgutils.TLSDisabled)
+				pgutils.ConnectAndGetDB(t, ctx.serverAddress, ctx.extras, enableTLS)
 				pgutils.RunCreateQuery(t, ctx.extras)
 			},
 			postTracerSetup: func(t *testing.T, ctx testContext) {
@@ -1283,7 +1289,7 @@ func testPostgresProtocolClassification(t *testing.T, tr *Tracer, clientHost, ta
 				extras:        make(map[string]interface{}),
 			},
 			preTracerSetup: func(t *testing.T, ctx testContext) {
-				pgutils.ConnectAndGetDB(t, ctx.serverAddress, ctx.extras, pgutils.TLSDisabled)
+				pgutils.ConnectAndGetDB(t, ctx.serverAddress, ctx.extras, enableTLS)
 				pgutils.RunCreateQuery(t, ctx.extras)
 			},
 			postTracerSetup: func(t *testing.T, ctx testContext) {
@@ -1307,7 +1313,7 @@ func testPostgresProtocolClassification(t *testing.T, tr *Tracer, clientHost, ta
 				extras:        make(map[string]interface{}),
 			},
 			preTracerSetup: func(t *testing.T, ctx testContext) {
-				pgutils.ConnectAndGetDB(t, ctx.serverAddress, ctx.extras, pgutils.TLSDisabled)
+				pgutils.ConnectAndGetDB(t, ctx.serverAddress, ctx.extras, enableTLS)
 				pgutils.RunCreateQuery(t, ctx.extras)
 				for i := int64(1); i < 200; i++ {
 					pgutils.RunInsertQuery(t, i, ctx.extras)
@@ -2053,7 +2059,7 @@ func testProtocolClassificationLinux(t *testing.T, tr *Tracer, clientHost, targe
 		},
 		{
 			name:     "postgres",
-			testFunc: testPostgresProtocolClassification,
+			testFunc: testPostgresProtocolClassificationWrapper(pgutils.TLSDisabled),
 		},
 		{
 			name:     "mongo",
