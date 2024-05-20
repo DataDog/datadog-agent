@@ -31,6 +31,9 @@ import (
 	"github.com/uptrace/bun"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
+	"golang.org/x/net/http2"
+	"golang.org/x/net/http2/h2c"
+	"golang.org/x/net/http2/hpack"
 	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
@@ -40,6 +43,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/amqp"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
+	usmhttp2 "github.com/DataDog/datadog-agent/pkg/network/protocols/http2"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/kafka"
 	protocolsmongo "github.com/DataDog/datadog-agent/pkg/network/protocols/mongo"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/mysql"
@@ -60,6 +64,8 @@ const (
 	redisPort    = "6379"
 	amqpPort     = "5672"
 	kafkaPort    = "9092"
+	http2Port    = "9090"
+	grpcPort     = "9091"
 
 	produceAPIKey = 0
 	fetchAPIKey   = 1
@@ -1725,6 +1731,288 @@ func testAMQPProtocolClassification(t *testing.T, tr *Tracer, clientHost, target
 			},
 			teardown:   amqpTeardown,
 			validation: validateProtocolConnection(&protocols.Stack{Application: protocols.AMQP}),
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			testProtocolClassificationInner(t, tt, tr)
+		})
+	}
+}
+
+func testHTTP2ProtocolClassification(t *testing.T, tr *Tracer, clientHost, targetHost, serverHost string) {
+	skipIfNotLinux(t, testContext{})
+
+	defaultDialer := &net.Dialer{
+		LocalAddr: &net.TCPAddr{
+			IP:   net.ParseIP(clientHost),
+			Port: 0,
+		},
+	}
+
+	// http2 server init
+	http2ServerAddress := net.JoinHostPort(serverHost, http2Port)
+	http2TargetAddress := net.JoinHostPort(targetHost, http2Port)
+	http2Server := &nethttp.Server{
+		Addr: ":" + http2Port,
+		Handler: h2c.NewHandler(nethttp.HandlerFunc(func(w nethttp.ResponseWriter, r *nethttp.Request) {
+			w.WriteHeader(200)
+			w.Write([]byte("test"))
+		}), &http2.Server{}),
+	}
+
+	go func() {
+		if err := http2Server.ListenAndServe(); err != nethttp.ErrServerClosed {
+			require.NoError(t, err, "could not serve")
+		}
+	}()
+	t.Cleanup(func() {
+		http2Server.Close()
+	})
+
+	// gRPC server init
+	grpcServerAddress := net.JoinHostPort(serverHost, grpcPort)
+	grpcTargetAddress := net.JoinHostPort(targetHost, grpcPort)
+
+	grpcServer, err := grpc.NewServer(grpcServerAddress, false)
+	require.NoError(t, err)
+	grpcServer.Run()
+	t.Cleanup(grpcServer.Stop)
+
+	grpcContext := testContext{
+		serverPort:    grpcPort,
+		serverAddress: grpcServerAddress,
+		targetAddress: grpcTargetAddress,
+	}
+
+	tests := []protocolClassificationAttributes{
+		{
+			name: "http2 traffic without grpc",
+			context: testContext{
+				serverPort:    http2Port,
+				serverAddress: http2ServerAddress,
+				targetAddress: http2TargetAddress,
+			},
+			postTracerSetup: func(t *testing.T, ctx testContext) {
+				client := &nethttp.Client{
+					Transport: &http2.Transport{
+						AllowHTTP: true,
+						DialTLSContext: func(_ context.Context, network, addr string, _ *tls.Config) (net.Conn, error) {
+							return net.Dial(network, addr)
+						},
+					},
+				}
+
+				resp, err := client.Post("http://"+ctx.targetAddress, "application/json", bytes.NewReader([]byte("test")))
+				require.NoError(t, err)
+
+				resp.Body.Close()
+			},
+			validation: validateProtocolConnection(&protocols.Stack{Application: protocols.HTTP2}),
+		},
+		{
+			name:    "http2 traffic using gRPC - unary call",
+			context: grpcContext,
+			postTracerSetup: func(t *testing.T, ctx testContext) {
+				c, err := grpc.NewClient(ctx.targetAddress, grpc.Options{
+					CustomDialer: defaultDialer,
+				}, false)
+				require.NoError(t, err)
+				defer c.Close()
+				timedContext, cancel := context.WithTimeout(context.Background(), defaultTimeout)
+				defer cancel()
+				require.NoError(t, c.HandleUnary(timedContext, "test"))
+			},
+			validation: validateProtocolConnection(&protocols.Stack{Application: protocols.HTTP2, API: protocols.GRPC}),
+		},
+		{
+			name:    "http2 traffic using gRPC - stream call",
+			context: grpcContext,
+			postTracerSetup: func(t *testing.T, ctx testContext) {
+				c, err := grpc.NewClient(ctx.targetAddress, grpc.Options{
+					CustomDialer: defaultDialer,
+				}, false)
+				require.NoError(t, err)
+				defer c.Close()
+				timedContext, cancel := context.WithTimeout(context.Background(), defaultTimeout)
+				defer cancel()
+				require.NoError(t, c.HandleStream(timedContext, 5))
+			},
+			validation: validateProtocolConnection(&protocols.Stack{Application: protocols.HTTP2, API: protocols.GRPC}),
+		},
+		{
+			// This test checks if the classifier can properly skip literal
+			// headers that are not useful to determine if gRPC is used.
+			name: "http2 traffic using gRPC - irrelevant literal headers",
+			context: testContext{
+				serverPort:    http2Port,
+				serverAddress: http2ServerAddress,
+				targetAddress: http2TargetAddress,
+			},
+			postTracerSetup: func(t *testing.T, ctx testContext) {
+				client := &nethttp.Client{
+					Transport: &http2.Transport{
+						AllowHTTP: true,
+						DialTLSContext: func(_ context.Context, network, addr string, _ *tls.Config) (net.Conn, error) {
+							return net.Dial(network, addr)
+						},
+					},
+				}
+
+				req, err := nethttp.NewRequest("POST", "http://"+ctx.targetAddress, bytes.NewReader([]byte("test")))
+				require.NoError(t, err)
+
+				// Add some literal headers that needs to be skipped by the
+				// classifier. Also adding a grpc content-type to emulate grpc
+				// traffic
+				req.Header.Add("someheader", "somevalue")
+				req.Header.Add("Content-type", "application/grpc")
+				req.Header.Add("someotherheader", "someothervalue")
+
+				resp, err := client.Do(req)
+				require.NoError(t, err)
+
+				resp.Body.Close()
+			},
+			validation: validateProtocolConnection(&protocols.Stack{Application: protocols.HTTP2, API: protocols.GRPC}),
+		},
+		{
+			// This test checks that we are not classifying a connection as
+			// gRPC traffic without a prior classification as HTTP2.
+			name: "GRPC without prior HTTP2 classification",
+			context: testContext{
+				serverPort:    http2Port,
+				serverAddress: net.JoinHostPort(serverHost, rawTrafficPort),
+				targetAddress: net.JoinHostPort(serverHost, rawTrafficPort),
+				extras:        map[string]interface{}{},
+			},
+			preTracerSetup: func(t *testing.T, ctx testContext) {
+				skipIfNotLinux(t, ctx)
+
+				server := NewTCPServerOnAddress(ctx.serverAddress, func(c net.Conn) {
+					io.Copy(c, c)
+					c.Close()
+				})
+				ctx.extras["server"] = server
+				require.NoError(t, server.Run())
+			},
+			postTracerSetup: func(t *testing.T, ctx testContext) {
+				// The gRPC classification is based on having only POST requests,
+				// and having "application/grpc" as a content-type.
+				var testHeaderFields = []hpack.HeaderField{
+					{Name: ":authority", Value: "127.0.0.0.1:" + rawTrafficPort},
+					{Name: ":method", Value: "POST"},
+					{Name: ":path", Value: "/aaa"},
+					{Name: ":scheme", Value: "http"},
+					{Name: "content-type", Value: "application/grpc"},
+					{Name: "content-length", Value: "0"},
+					{Name: "accept-encoding", Value: "gzip"},
+					{Name: "user-agent", Value: "Go-http-client/2.0"},
+				}
+
+				buf := new(bytes.Buffer)
+				framer := http2.NewFramer(buf, nil)
+				rawHdrs, err := usmhttp2.NewHeadersFrameMessage(usmhttp2.HeadersFrameOptions{Headers: testHeaderFields})
+				require.NoError(t, err)
+
+				// Writing the header frames to the buffer using the Framer.
+				require.NoError(t, framer.WriteHeaders(http2.HeadersFrameParam{
+					StreamID:      uint32(1),
+					BlockFragment: rawHdrs,
+					EndStream:     true,
+					EndHeaders:    true,
+				}))
+
+				c, err := net.Dial("tcp", ctx.targetAddress)
+				require.NoError(t, err)
+				defer c.Close()
+				_, err = c.Write(buf.Bytes())
+				require.NoError(t, err)
+			},
+			teardown: func(t *testing.T, ctx testContext) {
+				ctx.extras["server"].(*TCPServer).Shutdown()
+			},
+			validation: validateProtocolConnection(&protocols.Stack{}),
+		},
+		{
+			name: "GRPC with prior HTTP2 classification",
+			context: testContext{
+				serverPort:    http2Port,
+				serverAddress: net.JoinHostPort(serverHost, rawTrafficPort),
+				targetAddress: net.JoinHostPort(targetHost, rawTrafficPort),
+				extras:        map[string]interface{}{},
+			},
+			preTracerSetup: func(t *testing.T, ctx testContext) {
+				skipIfNotLinux(t, ctx)
+
+				server := NewTCPServerOnAddress(ctx.serverAddress, func(c net.Conn) {
+					io.Copy(c, c)
+					c.Close()
+				})
+				ctx.extras["server"] = server
+				require.NoError(t, server.Run())
+			},
+			postTracerSetup: func(t *testing.T, ctx testContext) {
+				// The gRPC classification is based on having only POST requests,
+				// and having "application/grpc" as a content-type.
+				var testHeaderFields = []hpack.HeaderField{
+					{Name: ":authority", Value: "127.0.0.0.1:" + rawTrafficPort},
+					{Name: ":method", Value: "POST"},
+					{Name: ":path", Value: "/aaa"},
+					{Name: ":scheme", Value: "http"},
+					{Name: "content-type", Value: "application/grpc"},
+					{Name: "content-length", Value: "0"},
+					{Name: "accept-encoding", Value: "gzip"},
+					{Name: "user-agent", Value: "Go-http-client/2.0"},
+				}
+
+				buf := new(bytes.Buffer)
+				framer := http2.NewFramer(buf, nil)
+
+				// Initiate a connection to the TCP server.
+				c, err := net.Dial("tcp", ctx.targetAddress)
+				require.NoError(t, err)
+				defer c.Close()
+
+				// Writing a magic and the settings in the same packet to socket.
+				_, err = c.Write(usmhttp2.ComposeMessage([]byte(http2.ClientPreface), buf.Bytes()))
+				require.NoError(t, err)
+				buf.Reset()
+				c.SetReadDeadline(time.Now().Add(http2DefaultTimeout))
+				frameReader := http2.NewFramer(nil, c)
+				for {
+					_, err := frameReader.ReadFrame()
+					if err != nil {
+						break
+					}
+				}
+
+				rawHdrs, err := usmhttp2.NewHeadersFrameMessage(usmhttp2.HeadersFrameOptions{Headers: testHeaderFields})
+				require.NoError(t, err)
+
+				// Writing the header frames to the buffer using the Framer.
+				require.NoError(t, framer.WriteHeaders(http2.HeadersFrameParam{
+					StreamID:      uint32(1),
+					BlockFragment: rawHdrs,
+					EndStream:     true,
+					EndHeaders:    true,
+				}))
+
+				_, err = c.Write(buf.Bytes())
+				require.NoError(t, err)
+				c.SetReadDeadline(time.Now().Add(http2DefaultTimeout))
+				frameReader = http2.NewFramer(nil, c)
+				for {
+					_, err := frameReader.ReadFrame()
+					if err != nil {
+						break
+					}
+				}
+			},
+			teardown: func(t *testing.T, ctx testContext) {
+				ctx.extras["server"].(*TCPServer).Shutdown()
+			},
+			validation: validateProtocolConnection(&protocols.Stack{Application: protocols.HTTP2, API: protocols.GRPC}),
 		},
 	}
 	for _, tt := range tests {
