@@ -11,17 +11,13 @@ package collector
 import (
 	"go.uber.org/fx"
 
-	collectordef "github.com/DataDog/datadog-agent/comp/otelcol/collector/def"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 // team: opentelemetry
 
-// Component specifies the interface implemented by the collector module.
-type Component = collectordef.Component
-
 // Module specifies the Collector module bundle.
-func Module() fxutil.Module {
+func PipelineModule() fxutil.Module {
 	return fxutil.Component(
 		fx.Provide(newPipeline))
 }

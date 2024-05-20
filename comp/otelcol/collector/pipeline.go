@@ -16,6 +16,9 @@ import (
 	corelog "github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
+
+	// TODO: rename import alias to collector, instead of collectordef
+	collectordef "github.com/DataDog/datadog-agent/comp/otelcol/collector/def"
 	"github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
@@ -56,7 +59,7 @@ type dependencies struct {
 type provides struct {
 	fx.Out
 
-	Comp           Component
+	Comp           collectordef.Component
 	StatusProvider status.InformationProvider
 }
 
