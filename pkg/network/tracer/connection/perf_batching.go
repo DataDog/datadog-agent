@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const defaultExpiredStateInterval = 60 * time.Second
@@ -156,6 +157,7 @@ func (p *perfBatchManager) extractBatchInto(buffer *network.ConnectionBuffer, b 
 		}
 
 		conn := buffer.Next()
+		log.Errorf("received tcp close with tuple: %+v", ct.Tup)
 		populateConnStats(conn, &ct.Tup, &ct.Conn_stats, p.ch)
 		updateTCPStats(conn, &ct.Tcp_stats, ct.Tcp_retransmits)
 	}

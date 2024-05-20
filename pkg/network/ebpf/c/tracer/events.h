@@ -153,7 +153,7 @@ static __always_inline void flush_tcp_failure(void *ctx, conn_tuple_t *tup, int 
         bpf_ringbuf_output(&failed_conn_event, &failure, sizeof(conn_failed_t), 0);
     } else {
         u32 cpu = bpf_get_smp_processor_id();
-        bpf_perf_event_output(ctx, &conn_close_event, cpu, &failure, sizeof(conn_failed_t));
+        bpf_perf_event_output(ctx, &failed_conn_event, cpu, &failure, sizeof(conn_failed_t));
     }
 }
 

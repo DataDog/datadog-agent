@@ -50,10 +50,13 @@ func MatchFailedConn(conn *network.ConnectionStats, failedConnMap *FailedConns) 
 	connTuple := connStatsToTuple(conn)
 	failedConnMap.RLock()
 	defer failedConnMap.RUnlock()
-	log.Errorf("failedConnMap.FailedConnMap: %+v", failedConnMap.FailedConnMap)
+	log.Errorf("connTuple: %+v", conn)
+	log.Errorf("failedConnMap: %+v", failedConnMap.FailedConnMap)
+	log.Errorf("")
 	if failedConn, ok := failedConnMap.FailedConnMap[connTuple]; ok {
 		conn.TCPFailures = make(map[uint32]uint32)
 		for errCode, count := range failedConn.CountByErrCode {
+			// TODO: delete entry from map if we find a match so we don't match the same failure to different conns
 			conn.TCPFailures[errCode] += count
 		}
 	}

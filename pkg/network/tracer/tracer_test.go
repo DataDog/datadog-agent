@@ -37,6 +37,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
+	nettestutil "github.com/DataDog/datadog-agent/pkg/network/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/testutil/testdns"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -1255,15 +1256,42 @@ func (s *TracerSuite) TestTCPDirection() {
 	assert.Equal(t, conn.Direction, network.INCOMING, "connection direction must be incoming: %s", conn)
 }
 
+//func (s *TracerSuite) TestTCPFailureConnectionTimeout() {
+//	t := s.T()
+//	//t.Skip()
+//	cfg := testConfig()
+//	cfg.TCPFailedConnectionsEnabled = true
+//	tr := setupTracer(t, cfg)
+//
+//	// Simulating a timeout by attempting to connect to a non-routable address
+//	srvAddr := "192.0.2.1:9997" // "192.0.2.1" is part of the TEST-NET-1 block, typically not routed
+//	conn, err := net.DialTimeout("tcp", srvAddr, 500*time.Millisecond)
+//
+//	if err == nil {
+//		conn.Close()
+//	} else {
+//		t.Log("adamk error", err)
+//	}
+//	require.Error(t, err, "expected timeout error but got none")
+//
+//	// Check if the connection was recorded as failed due to timeout
+//	require.Eventually(t, func() bool {
+//		conns := getConnections(t, tr)
+//		// 110 is the errno for ETIMEDOUT
+//		found := findFailedConnectionByRemoteAddr(srvAddr, conns, 110)
+//		return found
+//	}, 10*time.Second, 100*time.Millisecond, "Failed connection not recorded properly")
+//}
+
 func (s *TracerSuite) TestTCPFailureConnectionTimeout() {
 	t := s.T()
-	t.Skip()
+	setupDropTrafficRule(t)
 	cfg := testConfig()
+	cfg.TCPFailedConnectionsEnabled = true
 	tr := setupTracer(t, cfg)
 
-	// Simulating a timeout by attempting to connect to a non-routable address
-	srvAddr := "192.0.2.1:9999" // "192.0.2.1" is part of the TEST-NET-1 block, typically not routed
-	conn, err := net.DialTimeout("tcp", srvAddr, 500*time.Millisecond)
+	srvAddr := "127.0.0.1:10000"
+	conn, err := net.DialTimeout("tcp", srvAddr, 10000*time.Millisecond)
 
 	if err == nil {
 		conn.Close()
@@ -1278,13 +1306,13 @@ func (s *TracerSuite) TestTCPFailureConnectionTimeout() {
 		// 110 is the errno for ETIMEDOUT
 		found := findFailedConnectionByRemoteAddr(srvAddr, conns, 110)
 		return found
-	}, 10*time.Second, 100*time.Millisecond, "Failed connection not recorded properly")
+	}, 30*time.Second, 500*time.Millisecond, "Failed connection not recorded properly")
 }
 
 func (s *TracerSuite) TestTCPFailureConnectionRefused() {
 	t := s.T()
-	t.Skip()
 	cfg := testConfig()
+	cfg.TCPFailedConnectionsEnabled = true
 	tr := setupTracer(t, cfg)
 
 	// Simulating a connection to a port where no server is accepting connections
@@ -1308,6 +1336,7 @@ func (s *TracerSuite) TestTCPFailureConnectionReset() {
 	t := s.T()
 	t.Skip()
 	cfg := testConfig()
+	cfg.TCPFailedConnectionsEnabled = true
 	tr := setupTracer(t, cfg)
 
 	srv := NewTCPServer(func(c net.Conn) {
@@ -1387,4 +1416,16 @@ func findFailedConnectionByRemoteAddr(remoteAddr string, conns *network.Connecti
 		return netip.MustParseAddrPort(remoteAddr) == netip.AddrPortFrom(cs.Dest.Addr, cs.DPort) && cs.TCPFailures[errorCode] > 0
 	}
 	return network.FirstConnection(conns, failureFilter) != nil
+}
+
+func setupDropTrafficRule(tb testing.TB) (ns string) {
+	state := nettestutil.IptablesSave(tb)
+	tb.Cleanup(func() {
+		nettestutil.IptablesRestore(tb, state)
+	})
+	cmds := []string{
+		fmt.Sprintf("iptables -A OUTPUT -p tcp -d 127.0.0.1 --dport 10000 -j DROP"),
+	}
+	nettestutil.RunCommands(tb, cmds, false)
+	return
 }

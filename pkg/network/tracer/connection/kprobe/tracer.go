@@ -112,7 +112,7 @@ func ClassificationSupported(config *config.Config) bool {
 
 // FailedConnectionsSupported returns true if thethe config & TCP v4 + v6 is enabled
 func FailedConnectionsSupported(c *config.Config) bool {
-	if !c.FailedConnectionsEnabled {
+	if !c.TCPFailedConnectionsEnabled {
 		return false
 	}
 	if !c.CollectTCPv4Conns && !c.CollectTCPv6Conns {
