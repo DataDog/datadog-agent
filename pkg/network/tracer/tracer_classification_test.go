@@ -69,9 +69,7 @@ func validateProtocolConnection(expectedStack *protocols.Stack) func(t *testing.
 }
 
 const (
-	httpPort       = "8080"
-	httpsPort      = "8443"
-	rawTrafficPort = "9093"
+	httpPort = "8080"
 )
 
 func testProtocolClassificationCrossOS(t *testing.T, tr *Tracer, clientHost, targetHost, serverHost string) {

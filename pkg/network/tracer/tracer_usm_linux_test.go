@@ -58,14 +58,16 @@ import (
 )
 
 const (
-	mysqlPort    = "3306"
-	postgresPort = "5432"
-	mongoPort    = "27017"
-	redisPort    = "6379"
-	amqpPort     = "5672"
-	kafkaPort    = "9092"
-	http2Port    = "9090"
-	grpcPort     = "9091"
+	mysqlPort      = "3306"
+	postgresPort   = "5432"
+	mongoPort      = "27017"
+	redisPort      = "6379"
+	amqpPort       = "5672"
+	kafkaPort      = "9092"
+	http2Port      = "9090"
+	grpcPort       = "9091"
+	httpsPort      = "8443"
+	rawTrafficPort = "9093"
 
 	produceAPIKey = 0
 	fetchAPIKey   = 1
