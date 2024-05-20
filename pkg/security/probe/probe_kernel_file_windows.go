@@ -170,9 +170,10 @@ func (wp *WindowsProbe) parseCreateHandleArgs(e *etw.DDEventRecord) (*createHand
 		return nil, errDiscardedPath
 	}
 
-	wp.filePathResolverLock.Lock()
-	defer wp.filePathResolverLock.Unlock()
-	wp.filePathResolver[ca.fileObject] = ca.fileName
+	// lru is thread safe, has its own locking
+	if wp.filePathResolver.Add(ca.fileObject, fileCache{fileName: ca.fileName}) {
+		wp.stats.fileNameCacheEvictions++
+	}
 
 	return ca, nil
 }
@@ -267,10 +268,9 @@ func (wp *WindowsProbe) parseInformationArgs(e *etw.DDEventRecord) (*setInformat
 		return nil, fmt.Errorf("unknown version number %v", e.EventHeader.EventDescriptor.Version)
 	}
 
-	wp.filePathResolverLock.Lock()
-	defer wp.filePathResolverLock.Unlock()
-	if s, ok := wp.filePathResolver[fileObjectPointer(sia.fileObject)]; ok {
-		sia.fileName = s
+	// lru is thread safe, has its own locking
+	if s, ok := wp.filePathResolver.Get(fileObjectPointer(sia.fileObject)); ok {
+		sia.fileName = s.fileName
 	}
 
 	return sia, nil
@@ -402,10 +402,9 @@ func (wp *WindowsProbe) parseCleanupArgs(e *etw.DDEventRecord) (*cleanupArgs, er
 		return nil, fmt.Errorf("unknown version number %v", e.EventHeader.EventDescriptor.Version)
 	}
 
-	wp.filePathResolverLock.Lock()
-	defer wp.filePathResolverLock.Unlock()
-	if s, ok := wp.filePathResolver[ca.fileObject]; ok {
-		ca.fileName = s
+	// lru is thread safe, has its own locking
+	if s, ok := wp.filePathResolver.Get(fileObjectPointer(ca.fileObject)); ok {
+		ca.fileName = s.fileName
 	}
 
 	return ca, nil
@@ -495,10 +494,9 @@ func (wp *WindowsProbe) parseReadArgs(e *etw.DDEventRecord) (*readArgs, error) {
 	} else {
 		return nil, fmt.Errorf("unknown version number %v", e.EventHeader.EventDescriptor.Version)
 	}
-	wp.filePathResolverLock.Lock()
-	defer wp.filePathResolverLock.Unlock()
-	if s, ok := wp.filePathResolver[fileObjectPointer(ra.fileObject)]; ok {
-		ra.fileName = s
+	// lru is thread safe, has its own locking
+	if s, ok := wp.filePathResolver.Get(fileObjectPointer(ra.fileObject)); ok {
+		ra.fileName = s.fileName
 	}
 	return ra, nil
 }
@@ -594,10 +592,9 @@ func (wp *WindowsProbe) parseDeletePathArgs(e *etw.DDEventRecord) (*deletePathAr
 		dpa.filePath, _, _, _ = data.ParseUnicodeString(40)
 	}
 
-	wp.filePathResolverLock.Lock()
-	defer wp.filePathResolverLock.Unlock()
-	if s, ok := wp.filePathResolver[fileObjectPointer(dpa.fileObject)]; ok {
-		dpa.oldPath = s
+	// lru is thread safe, has its own locking
+	if s, ok := wp.filePathResolver.Get(fileObjectPointer(dpa.fileObject)); ok {
+		dpa.oldPath = s.fileName
 		// question, should we reset the filePathResolver here?
 	}
 	return dpa, nil

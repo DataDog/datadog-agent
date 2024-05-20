@@ -9,6 +9,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
 	"github.com/DataDog/test-infra-definitions/components/docker"
+	dclient "github.com/docker/docker/client"
 )
 
 // RemoteHostDocker represents an Agent running directly on a Host
@@ -24,4 +25,9 @@ var _ e2e.Initializable = (*RemoteHostDocker)(nil)
 func (d *RemoteHostDocker) Init(ctx e2e.Context) (err error) {
 	d.Client, err = client.NewDocker(ctx.T(), d.ManagerOutput)
 	return err
+}
+
+// GetClient returns the Docker client for the host
+func (d *RemoteHostDocker) GetClient() *dclient.Client {
+	return d.Client.GetClient()
 }

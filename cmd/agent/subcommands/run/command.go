@@ -102,6 +102,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/ndmtmp"
 	"github.com/DataDog/datadog-agent/comp/netflow"
 	netflowServer "github.com/DataDog/datadog-agent/comp/netflow/server"
+	"github.com/DataDog/datadog-agent/comp/networkpath"
 	"github.com/DataDog/datadog-agent/comp/otelcol"
 	otelcollector "github.com/DataDog/datadog-agent/comp/otelcol/collector"
 	"github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline"
@@ -316,6 +317,7 @@ func getSharedFxOption() fx.Option {
 			path.DefaultLogFile,
 			path.DefaultJmxLogFile,
 			path.DefaultDogstatsDLogFile,
+			path.DefaultStreamlogsLogFile,
 		)),
 		flare.Module(),
 		core.Bundle(),
@@ -461,6 +463,7 @@ func getSharedFxOption() fx.Option {
 		}),
 		settingsimpl.Module(),
 		agenttelemetryimpl.Module(),
+		networkpath.Bundle(),
 	)
 }
 
@@ -479,7 +482,7 @@ func startAgent(
 	_ processAgent.Component,
 	_ defaultforwarder.Component,
 	_ serializer.MetricSerializer,
-	otelcollector otelcollector.Component,
+	_ otelcollector.Component,
 	demultiplexer demultiplexer.Component,
 	agentAPI internalAPI.Component,
 	invChecks inventorychecks.Component,
@@ -593,7 +596,7 @@ func startAgent(
 	// start dependent services
 	go startDependentServices()
 
-	return otelcollector.Start()
+	return nil
 }
 
 // StopAgentWithDefaults is a temporary way for other packages to use stopAgent.

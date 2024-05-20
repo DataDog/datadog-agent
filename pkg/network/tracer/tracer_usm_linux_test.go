@@ -97,7 +97,7 @@ func (s *USMSuite) TestProtocolClassification() {
 		// SetupDNAT sets up a NAT translation from 2.2.2.2 to 1.1.1.1
 		netlink.SetupDNAT(t)
 		testProtocolClassification(t, tr, "localhost", "2.2.2.2", "1.1.1.1")
-		testHTTPSClassification(t, tr, "localhost", "2.2.2.2", "1.1.1.1")
+		testTLSClassification(t, tr, "localhost", "2.2.2.2", "1.1.1.1")
 		testProtocolConnectionProtocolMapCleanup(t, tr, "localhost", "2.2.2.2", "1.1.1.1:0")
 	})
 
@@ -105,13 +105,13 @@ func (s *USMSuite) TestProtocolClassification() {
 		// SetupDNAT sets up a NAT translation from 6.6.6.6 to 7.7.7.7
 		netlink.SetupSNAT(t)
 		testProtocolClassification(t, tr, "6.6.6.6", "127.0.0.1", "127.0.0.1")
-		testHTTPSClassification(t, tr, "6.6.6.6", "127.0.0.1", "127.0.0.1")
+		testTLSClassification(t, tr, "6.6.6.6", "127.0.0.1", "127.0.0.1")
 		testProtocolConnectionProtocolMapCleanup(t, tr, "6.6.6.6", "127.0.0.1", "127.0.0.1:0")
 	})
 
 	t.Run("without nat", func(t *testing.T) {
 		testProtocolClassification(t, tr, "localhost", "127.0.0.1", "127.0.0.1")
-		testHTTPSClassification(t, tr, "localhost", "127.0.0.1", "127.0.0.1")
+		testTLSClassification(t, tr, "localhost", "127.0.0.1", "127.0.0.1")
 		testProtocolConnectionProtocolMapCleanup(t, tr, "localhost", "127.0.0.1", "127.0.0.1:0")
 	})
 }
@@ -344,6 +344,23 @@ func skipIfHTTPSNotSupported(t *testing.T, _ testContext) {
 	if !httpsSupported() {
 		t.Skip("https is not supported")
 	}
+}
+
+func testTLSClassification(t *testing.T, tr *Tracer, clientHost, targetHost, serverHost string) {
+	t.Run("TLS", func(t *testing.T) {
+		tests := []struct {
+			name string
+			fn   func(t *testing.T, tr *Tracer, clientHost, targetHost, serverHost string)
+		}{
+			{"HTTP", testHTTPSClassification},
+		}
+
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				tt.fn(t, tr, clientHost, targetHost, serverHost)
+			})
+		}
+	})
 }
 
 func testHTTPSClassification(t *testing.T, tr *Tracer, clientHost, targetHost, serverHost string) {

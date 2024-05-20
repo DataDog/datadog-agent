@@ -71,8 +71,8 @@ func (c *OOMKillConfig) Parse(data []byte) error {
 }
 
 // Configure parses the check configuration and init the check
-func (m *OOMKillCheck) Configure(senderManager sender.SenderManager, integrationConfigDigest uint64, config, initConfig integration.Data, source string) error {
-	err := m.CommonConfigure(senderManager, integrationConfigDigest, initConfig, config, source)
+func (m *OOMKillCheck) Configure(senderManager sender.SenderManager, _ uint64, config, initConfig integration.Data, source string) error {
+	err := m.CommonConfigure(senderManager, initConfig, config, source)
 	if err != nil {
 		return err
 	}
@@ -141,7 +141,7 @@ func (m *OOMKillCheck) Run() error {
 
 		// submit event with a few more details
 		event := event.Event{
-			Priority:       event.EventPriorityNormal,
+			Priority:       event.PriorityNormal,
 			SourceTypeName: CheckName,
 			EventType:      CheckName,
 			AggregationKey: containerID,
