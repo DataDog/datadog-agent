@@ -479,10 +479,22 @@ func eventWithNoProcessContext(eventType model.EventType) bool {
 }
 
 func (p *EBPFProbe) unmarshalProcessCacheEntry(ev *model.Event, data []byte) (int, error) {
+	var sc model.SyscallContext
+
+	n, err := sc.UnmarshalBinary(data)
+	if err != nil {
+		return n, err
+	}
+
+	// don't provide a syscall context for Fork event for now
+	if ev.BaseEvent.Type == uint32(model.ExecEventType) {
+		ev.Exec.CtxID = sc.CtxID
+	}
+
 	entry := p.Resolvers.ProcessResolver.NewProcessCacheEntry(ev.PIDContext)
 	ev.ProcessCacheEntry = entry
 
-	n, err := entry.Process.UnmarshalBinary(data)
+	n, err = entry.Process.UnmarshalBinary(data[n:])
 	if err != nil {
 		return n, err
 	}

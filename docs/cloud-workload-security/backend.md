@@ -1457,6 +1457,39 @@ CSM Threats logs have the following JSON schema:
             ],
             "description": "SyscallSerializer serializes a syscall"
         },
+        "SyscallArgs": {
+            "properties": {
+                "str_arg1": {
+                    "type": "string",
+                    "description": "StrArg1 first string argument"
+                },
+                "str_arg2": {
+                    "type": "string",
+                    "description": "StrArg2 second string argument"
+                },
+                "int_arg1": {
+                    "type": "integer",
+                    "description": "IntArg1 first integer argument"
+                },
+                "int_arg2": {
+                    "type": "integer",
+                    "description": "IntArg2 second integer argument"
+                }
+            },
+            "additionalProperties": false,
+            "type": "object",
+            "description": "SyscallArgsSerializer args serializer"
+        },
+        "SyscallContext": {
+            "properties": {
+                "args": {
+                    "$ref": "#/$defs/SyscallArgs"
+                }
+            },
+            "additionalProperties": false,
+            "type": "object",
+            "description": "SyscallContextSerializer serializes syscall context"
+        },
         "SyscallsEvent": {
             "items": {
                 "$ref": "#/$defs/Syscall"
@@ -1600,6 +1633,9 @@ CSM Threats logs have the following JSON schema:
         },
         "usr": {
             "$ref": "#/$defs/UserContext"
+        },
+        "syscall": {
+            "$ref": "#/$defs/SyscallContext"
         }
     },
     "additionalProperties": false,
@@ -1639,6 +1675,7 @@ CSM Threats logs have the following JSON schema:
 | `mount` | $ref | Please see [MountEvent](#mountevent) |
 | `syscalls` | $ref | Please see [SyscallsEvent](#syscallsevent) |
 | `usr` | $ref | Please see [UserContext](#usercontext) |
+| `syscall` | $ref | Please see [SyscallContext](#syscallcontext) |
 
 ## `AWSIMDSEvent`
 
@@ -3784,6 +3821,66 @@ CSM Threats logs have the following JSON schema:
 | `name` | Name of the syscall |
 | `id` | ID of the syscall in the host architecture |
 
+
+## `SyscallArgs`
+
+
+{{< code-block lang="json" collapsible="true" >}}
+{
+    "properties": {
+        "str_arg1": {
+            "type": "string",
+            "description": "StrArg1 first string argument"
+        },
+        "str_arg2": {
+            "type": "string",
+            "description": "StrArg2 second string argument"
+        },
+        "int_arg1": {
+            "type": "integer",
+            "description": "IntArg1 first integer argument"
+        },
+        "int_arg2": {
+            "type": "integer",
+            "description": "IntArg2 second integer argument"
+        }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "description": "SyscallArgsSerializer args serializer"
+}
+
+{{< /code-block >}}
+
+| Field | Description |
+| ----- | ----------- |
+| `str_arg1` | StrArg1 first string argument |
+| `str_arg2` | StrArg2 second string argument |
+| `int_arg1` | IntArg1 first integer argument |
+| `int_arg2` | IntArg2 second integer argument |
+
+
+## `SyscallContext`
+
+
+{{< code-block lang="json" collapsible="true" >}}
+{
+    "properties": {
+        "args": {
+            "$ref": "#/$defs/SyscallArgs"
+        }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "description": "SyscallContextSerializer serializes syscall context"
+}
+
+{{< /code-block >}}
+
+
+| References |
+| ---------- |
+| [SyscallArgs](#syscallargs) |
 
 ## `SyscallsEvent`
 

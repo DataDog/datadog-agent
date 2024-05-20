@@ -302,6 +302,38 @@ func (ev *Event) GetChdirRetval() int64 {
 	return ev.Chdir.SyscallEvent.Retval
 }
 
+// GetChdirSyscallIntArg1 returns the value of the field, resolving if necessary
+func (ev *Event) GetChdirSyscallIntArg1() int {
+	if ev.GetEventType().String() != "chdir" {
+		return 0
+	}
+	return ev.FieldHandlers.ResolveSyscallCtxIntArg1(ev, &ev.Chdir.SyscallContext)
+}
+
+// GetChdirSyscallIntArg2 returns the value of the field, resolving if necessary
+func (ev *Event) GetChdirSyscallIntArg2() int {
+	if ev.GetEventType().String() != "chdir" {
+		return 0
+	}
+	return ev.FieldHandlers.ResolveSyscallCtxIntArg2(ev, &ev.Chdir.SyscallContext)
+}
+
+// GetChdirSyscallStrArg1 returns the value of the field, resolving if necessary
+func (ev *Event) GetChdirSyscallStrArg1() string {
+	if ev.GetEventType().String() != "chdir" {
+		return ""
+	}
+	return ev.FieldHandlers.ResolveSyscallCtxStrArg1(ev, &ev.Chdir.SyscallContext)
+}
+
+// GetChdirSyscallStrArg2 returns the value of the field, resolving if necessary
+func (ev *Event) GetChdirSyscallStrArg2() string {
+	if ev.GetEventType().String() != "chdir" {
+		return ""
+	}
+	return ev.FieldHandlers.ResolveSyscallCtxStrArg2(ev, &ev.Chdir.SyscallContext)
+}
+
 // GetChmodFileChangeTime returns the value of the field, resolving if necessary
 func (ev *Event) GetChmodFileChangeTime() uint64 {
 	if ev.GetEventType().String() != "chmod" {
@@ -1711,6 +1743,38 @@ func (ev *Event) GetExecPpid() uint32 {
 		return uint32(0)
 	}
 	return ev.Exec.Process.PPid
+}
+
+// GetExecSyscallIntArg1 returns the value of the field, resolving if necessary
+func (ev *Event) GetExecSyscallIntArg1() int {
+	if ev.GetEventType().String() != "exec" {
+		return 0
+	}
+	return ev.FieldHandlers.ResolveSyscallCtxIntArg1(ev, &ev.Exec.SyscallContext)
+}
+
+// GetExecSyscallIntArg2 returns the value of the field, resolving if necessary
+func (ev *Event) GetExecSyscallIntArg2() int {
+	if ev.GetEventType().String() != "exec" {
+		return 0
+	}
+	return ev.FieldHandlers.ResolveSyscallCtxIntArg2(ev, &ev.Exec.SyscallContext)
+}
+
+// GetExecSyscallStrArg1 returns the value of the field, resolving if necessary
+func (ev *Event) GetExecSyscallStrArg1() string {
+	if ev.GetEventType().String() != "exec" {
+		return ""
+	}
+	return ev.FieldHandlers.ResolveSyscallCtxStrArg1(ev, &ev.Exec.SyscallContext)
+}
+
+// GetExecSyscallStrArg2 returns the value of the field, resolving if necessary
+func (ev *Event) GetExecSyscallStrArg2() string {
+	if ev.GetEventType().String() != "exec" {
+		return ""
+	}
+	return ev.FieldHandlers.ResolveSyscallCtxStrArg2(ev, &ev.Exec.SyscallContext)
 }
 
 // GetExecTid returns the value of the field, resolving if necessary

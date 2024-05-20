@@ -1441,6 +1441,39 @@
       ],
       "description": "SyscallSerializer serializes a syscall"
     },
+    "SyscallArgs": {
+      "properties": {
+        "str_arg1": {
+          "type": "string",
+          "description": "StrArg1 first string argument"
+        },
+        "str_arg2": {
+          "type": "string",
+          "description": "StrArg2 second string argument"
+        },
+        "int_arg1": {
+          "type": "integer",
+          "description": "IntArg1 first integer argument"
+        },
+        "int_arg2": {
+          "type": "integer",
+          "description": "IntArg2 second integer argument"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "description": "SyscallArgsSerializer args serializer"
+    },
+    "SyscallContext": {
+      "properties": {
+        "args": {
+          "$ref": "#/$defs/SyscallArgs"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "description": "SyscallContextSerializer serializes syscall context"
+    },
     "SyscallsEvent": {
       "items": {
         "$ref": "#/$defs/Syscall"
@@ -1584,6 +1617,9 @@
     },
     "usr": {
       "$ref": "#/$defs/UserContext"
+    },
+    "syscall": {
+      "$ref": "#/$defs/SyscallContext"
     }
   },
   "additionalProperties": false,

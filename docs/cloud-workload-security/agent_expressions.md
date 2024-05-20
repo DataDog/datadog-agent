@@ -469,6 +469,10 @@ A process changed the current directory
 | [`chdir.file.uid`](#common-filefields-uid-doc) | UID of the file's owner |
 | [`chdir.file.user`](#common-filefields-user-doc) | User of the file's owner |
 | [`chdir.retval`](#common-syscallevent-retval-doc) | Return value of the syscall |
+| [`chdir.syscall.int_arg1`](#common-syscallcontext-syscall-int_arg1-doc) | first integer syscall argument |
+| [`chdir.syscall.int_arg2`](#common-syscallcontext-syscall-int_arg2-doc) | Second integer syscall argument |
+| [`chdir.syscall.str_arg1`](#common-syscallcontext-syscall-str_arg1-doc) | first string syscall argument |
+| [`chdir.syscall.str_arg2`](#common-syscallcontext-syscall-str_arg2-doc) | second string syscall argument |
 
 ### Event `chmod`
 
@@ -629,6 +633,10 @@ A process was executed or forked
 | [`exec.is_thread`](#common-process-is_thread-doc) | Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program) |
 | [`exec.pid`](#common-pidcontext-pid-doc) | Process ID of the process (also called thread group ID) |
 | [`exec.ppid`](#common-process-ppid-doc) | Parent process ID |
+| [`exec.syscall.int_arg1`](#common-syscallcontext-syscall-int_arg1-doc) | first integer syscall argument |
+| [`exec.syscall.int_arg2`](#common-syscallcontext-syscall-int_arg2-doc) | Second integer syscall argument |
+| [`exec.syscall.str_arg1`](#common-syscallcontext-syscall-str_arg1-doc) | first string syscall argument |
+| [`exec.syscall.str_arg2`](#common-syscallcontext-syscall-str_arg2-doc) | second string syscall argument |
 | [`exec.tid`](#common-pidcontext-tid-doc) | Thread ID of the thread |
 | [`exec.tty_name`](#common-process-tty_name-doc) | Name of the TTY associated with the process |
 | [`exec.uid`](#common-credentials-uid-doc) | UID of the process |
@@ -2233,6 +2241,42 @@ Definition: Rights of the file
 
 Constants: [File mode constants](#file-mode-constants)
 
+
+
+### `*.syscall.int_arg1` {#common-syscallcontext-syscall-int_arg1-doc}
+Type: int
+
+Definition: first integer syscall argument
+
+`*.syscall.int_arg1` has 2 possible prefixes:
+`chdir` `exec`
+
+
+### `*.syscall.int_arg2` {#common-syscallcontext-syscall-int_arg2-doc}
+Type: int
+
+Definition: Second integer syscall argument
+
+`*.syscall.int_arg2` has 2 possible prefixes:
+`chdir` `exec`
+
+
+### `*.syscall.str_arg1` {#common-syscallcontext-syscall-str_arg1-doc}
+Type: string
+
+Definition: first string syscall argument
+
+`*.syscall.str_arg1` has 2 possible prefixes:
+`chdir` `exec`
+
+
+### `*.syscall.str_arg2` {#common-syscallcontext-syscall-str_arg2-doc}
+Type: string
+
+Definition: second string syscall argument
+
+`*.syscall.str_arg2` has 2 possible prefixes:
+`chdir` `exec`
 
 
 ### `*.tid` {#common-pidcontext-tid-doc}

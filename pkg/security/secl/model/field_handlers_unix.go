@@ -209,6 +209,10 @@ func (ev *Event) resolveFields(forADs bool) {
 	case "bpf":
 	case "capset":
 	case "chdir":
+		_ = ev.FieldHandlers.ResolveSyscallCtxStrArg1(ev, &ev.Chdir.SyscallContext)
+		_ = ev.FieldHandlers.ResolveSyscallCtxStrArg2(ev, &ev.Chdir.SyscallContext)
+		_ = ev.FieldHandlers.ResolveSyscallCtxIntArg1(ev, &ev.Chdir.SyscallContext)
+		_ = ev.FieldHandlers.ResolveSyscallCtxIntArg2(ev, &ev.Chdir.SyscallContext)
 		_ = ev.FieldHandlers.ResolveFileFieldsUser(ev, &ev.Chdir.File.FileFields)
 		_ = ev.FieldHandlers.ResolveFileFieldsGroup(ev, &ev.Chdir.File.FileFields)
 		_ = ev.FieldHandlers.ResolveFileFieldsInUpperLayer(ev, &ev.Chdir.File.FileFields)
@@ -252,6 +256,10 @@ func (ev *Event) resolveFields(forADs bool) {
 	case "dns":
 		_ = ev.FieldHandlers.ResolveNetworkDeviceIfName(ev, &ev.NetworkContext.Device)
 	case "exec":
+		_ = ev.FieldHandlers.ResolveSyscallCtxStrArg1(ev, &ev.Exec.SyscallContext)
+		_ = ev.FieldHandlers.ResolveSyscallCtxStrArg2(ev, &ev.Exec.SyscallContext)
+		_ = ev.FieldHandlers.ResolveSyscallCtxIntArg1(ev, &ev.Exec.SyscallContext)
+		_ = ev.FieldHandlers.ResolveSyscallCtxIntArg2(ev, &ev.Exec.SyscallContext)
 		if ev.Exec.Process.IsNotKworker() {
 			_ = ev.FieldHandlers.ResolveFileFieldsUser(ev, &ev.Exec.Process.FileEvent.FileFields)
 		}
@@ -1005,6 +1013,10 @@ type FieldHandlers interface {
 	ResolveSetuidEUser(ev *Event, e *SetuidEvent) string
 	ResolveSetuidFSUser(ev *Event, e *SetuidEvent) string
 	ResolveSetuidUser(ev *Event, e *SetuidEvent) string
+	ResolveSyscallCtxIntArg1(ev *Event, e *SyscallContext) int
+	ResolveSyscallCtxIntArg2(ev *Event, e *SyscallContext) int
+	ResolveSyscallCtxStrArg1(ev *Event, e *SyscallContext) string
+	ResolveSyscallCtxStrArg2(ev *Event, e *SyscallContext) string
 	ResolveXAttrName(ev *Event, e *SetXAttrEvent) string
 	ResolveXAttrNamespace(ev *Event, e *SetXAttrEvent) string
 	// custom handlers not tied to any fields
@@ -1109,7 +1121,19 @@ func (dfh *FakeFieldHandlers) ResolveSetgidGroup(ev *Event, e *SetgidEvent) stri
 func (dfh *FakeFieldHandlers) ResolveSetuidEUser(ev *Event, e *SetuidEvent) string  { return e.EUser }
 func (dfh *FakeFieldHandlers) ResolveSetuidFSUser(ev *Event, e *SetuidEvent) string { return e.FSUser }
 func (dfh *FakeFieldHandlers) ResolveSetuidUser(ev *Event, e *SetuidEvent) string   { return e.User }
-func (dfh *FakeFieldHandlers) ResolveXAttrName(ev *Event, e *SetXAttrEvent) string  { return e.Name }
+func (dfh *FakeFieldHandlers) ResolveSyscallCtxIntArg1(ev *Event, e *SyscallContext) int {
+	return int(e.CtxIntArg1)
+}
+func (dfh *FakeFieldHandlers) ResolveSyscallCtxIntArg2(ev *Event, e *SyscallContext) int {
+	return int(e.CtxIntArg2)
+}
+func (dfh *FakeFieldHandlers) ResolveSyscallCtxStrArg1(ev *Event, e *SyscallContext) string {
+	return e.CtxStrArg1
+}
+func (dfh *FakeFieldHandlers) ResolveSyscallCtxStrArg2(ev *Event, e *SyscallContext) string {
+	return e.CtxStrArg2
+}
+func (dfh *FakeFieldHandlers) ResolveXAttrName(ev *Event, e *SetXAttrEvent) string { return e.Name }
 func (dfh *FakeFieldHandlers) ResolveXAttrNamespace(ev *Event, e *SetXAttrEvent) string {
 	return e.Namespace
 }

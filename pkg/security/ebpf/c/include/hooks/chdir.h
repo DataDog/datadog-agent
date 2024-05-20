@@ -7,7 +7,7 @@
 #include "helpers/filesystem.h"
 #include "helpers/syscalls.h"
 
-long __attribute__((always_inline)) trace__sys_chdir() {
+long __attribute__((always_inline)) trace__sys_chdir(const char *path) {
     struct policy_t policy = fetch_policy(EVENT_CHDIR);
     if (is_discarded_by_process(policy.mode, EVENT_CHDIR)) {
         return 0;
@@ -18,7 +18,7 @@ long __attribute__((always_inline)) trace__sys_chdir() {
         .policy = policy,
         .chdir = {}
     };
-
+    collect_syscall_ctx(&syscall, path, NULL, 0, 0);
     cache_syscall(&syscall);
 
     return 0;
@@ -26,12 +26,12 @@ long __attribute__((always_inline)) trace__sys_chdir() {
 
 HOOK_SYSCALL_ENTRY1(chdir, const char*, path)
 {
-    return trace__sys_chdir();
+    return trace__sys_chdir(path);
 }
 
 HOOK_SYSCALL_ENTRY1(fchdir, unsigned int, fd)
 {
-    return trace__sys_chdir();
+    return trace__sys_chdir(NULL);
 }
 
 HOOK_ENTRY("set_fs_pwd")
@@ -126,6 +126,7 @@ int __attribute__((always_inline)) dr_chdir_callback(void *ctx) {
 
     struct chdir_event_t event = {
         .syscall.retval = retval,
+        .syscall_ctx.id = syscall->ctx_id,
         .file = syscall->chdir.file,
     };
 

@@ -511,7 +511,7 @@ func (fh *EBPFFieldHandlers) ResolveProcessCreatedAt(_ *model.Event, e *model.Pr
 // ResolveUserSessionContext resolves and updates the provided user session context
 func (fh *EBPFFieldHandlers) ResolveUserSessionContext(evtCtx *model.UserSessionContext) {
 	if !evtCtx.Resolved {
-		ctx := fh.resolvers.UserSessions.ResolveUserSession(evtCtx.ID)
+		ctx := fh.resolvers.UserSessionsResolver.ResolveUserSession(evtCtx.ID)
 		if ctx != nil {
 			*evtCtx = *ctx
 		}
@@ -545,4 +545,36 @@ func (fh *EBPFFieldHandlers) ResolveProcessCmdArgv(ev *model.Event, process *mod
 // ResolveAWSSecurityCredentials resolves and updates the AWS security credentials of the input process entry
 func (fh *EBPFFieldHandlers) ResolveAWSSecurityCredentials(e *model.Event) []model.AWSSecurityCredentials {
 	return fh.resolvers.ProcessResolver.FetchAWSSecurityCredentials(e)
+}
+
+// ResolveSyscallCtxStrArg1 resolve syscall ctx
+func (fh *EBPFFieldHandlers) resolveSyscallCtx(ev *model.Event, e *model.SyscallContext) {
+	if !e.CtxResolved {
+		e.CtxStrArg1, e.CtxStrArg2, e.CtxIntArg1, e.CtxIntArg2, _ = fh.resolvers.SyscallCtxResolver.Resolve(e.CtxID)
+		e.CtxResolved = true
+	}
+}
+
+// ResolveSyscallCtxStrArg1 resolve syscall ctx
+func (fh *EBPFFieldHandlers) ResolveSyscallCtxStrArg1(ev *model.Event, e *model.SyscallContext) string {
+	fh.resolveSyscallCtx(ev, e)
+	return e.CtxStrArg1
+}
+
+// ResolveSyscallCtxStrArg1 resolve syscall ctx
+func (fh *EBPFFieldHandlers) ResolveSyscallCtxStrArg2(ev *model.Event, e *model.SyscallContext) string {
+	fh.resolveSyscallCtx(ev, e)
+	return e.CtxStrArg2
+}
+
+// ResolveSyscallCtxIntArg1 resolve syscall ctx
+func (fh *EBPFFieldHandlers) ResolveSyscallCtxIntArg1(ev *model.Event, e *model.SyscallContext) int {
+	fh.resolveSyscallCtx(ev, e)
+	return int(e.CtxIntArg1)
+}
+
+// ResolveSyscallCtxIntArg2 resolve syscall ctx
+func (fh *EBPFFieldHandlers) ResolveSyscallCtxIntArg2(ev *model.Event, e *model.SyscallContext) int {
+	fh.resolveSyscallCtx(ev, e)
+	return int(e.CtxIntArg2)
 }

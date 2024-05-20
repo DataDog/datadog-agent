@@ -68,6 +68,9 @@ BPF_LRU_MAP(user_sessions, struct user_session_key_t, struct user_session_t, 102
 BPF_LRU_MAP_FLAGS(tasks_in_coredump, u64, u8, 64, BPF_F_NO_COMMON_LRU)
 BPF_LRU_MAP_FLAGS(syscalls, u64, struct syscall_cache_t, 1, BPF_F_NO_COMMON_LRU) // max entries will be overridden at runtime
 
+BPF_LRU_MAP_FLAGS(syscall_ctx, u32, char[MAX_SYSCALL_CTX_SIZE], 1024, BPF_F_NO_COMMON_LRU)
+
+BPF_PERCPU_ARRAY_MAP(syscall_ctx_gen, char[MAX_SYSCALL_CTX_SIZE], 1)
 BPF_PERCPU_ARRAY_MAP(dr_erpc_state, struct dr_erpc_state_t, 1)
 BPF_PERCPU_ARRAY_MAP(cgroup_tracing_event_gen, struct cgroup_tracing_event_t, EVENT_GEN_SIZE)
 BPF_PERCPU_ARRAY_MAP(fb_discarder_stats, struct discarder_stats_t, EVENT_LAST_DISCARDER+1)

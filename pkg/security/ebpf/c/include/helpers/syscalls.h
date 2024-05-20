@@ -8,6 +8,34 @@
 #include "activity_dump.h"
 #include "span.h"
 
+void __attribute__((always_inline)) collect_syscall_ctx(struct syscall_cache_t *syscall, const char *str1, const char *str2, s64 n1, s64 n2) {
+    u32 key = 0;
+    char *data = bpf_map_lookup_elem(&syscall_ctx_gen, &key);
+    if (!data) {
+        return;
+    }
+
+    if (str1) {
+        bpf_probe_read_str(data, MAX_SYSCALL_STR_CTX, str1);
+    } else {
+        data[0] = 0;
+    }
+
+    if (str2) {
+        bpf_probe_read_str(&data[MAX_SYSCALL_STR_CTX], MAX_SYSCALL_STR_CTX, str2);
+    } else {
+        data[MAX_SYSCALL_STR_CTX] = 0;
+    }
+
+    data[MAX_SYSCALL_CTX_SIZE-sizeof(s64)*2] = n1;
+    data[MAX_SYSCALL_CTX_SIZE-sizeof(s64)] = n2;
+
+    u32 id = rand32();
+    syscall->ctx_id = id;
+
+    bpf_map_update_elem(&syscall_ctx, &id, data, BPF_ANY);
+}
+
 void __attribute__((always_inline)) monitor_syscalls(u64 event_type, int delta) {
     u64 enabled;
     LOAD_CONSTANT("monitor_syscalls_map_enabled", enabled);
