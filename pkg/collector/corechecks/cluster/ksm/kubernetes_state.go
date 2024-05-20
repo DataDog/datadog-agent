@@ -204,7 +204,7 @@ func (k *KSMCheck) Configure(senderManager sender.SenderManager, integrationConf
 	k.BuildID(integrationConfigDigest, config, initConfig)
 	k.agentConfig = ddconfig.Datadog
 
-	err := k.CommonConfigure(senderManager, integrationConfigDigest, initConfig, config, source)
+	err := k.CommonConfigure(senderManager, initConfig, config, source)
 	if err != nil {
 		return err
 	}
@@ -956,7 +956,6 @@ func ownerTags(kind, name string) []string {
 
 	tagKey, found := kubernetes.KindToTagName[kind]
 	if !found {
-		log.Debugf("Unknown owner kind %q", kind)
 		return nil
 	}
 

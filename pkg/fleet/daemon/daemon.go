@@ -16,11 +16,12 @@ import (
 	"sync"
 	"time"
 
+	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace"
 	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/client"
-	"github.com/DataDog/datadog-agent/pkg/config/utils"
+	"github.com/DataDog/datadog-agent/pkg/fleet/env"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer"
 	installerErrors "github.com/DataDog/datadog-agent/pkg/fleet/installer/errors"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
@@ -61,11 +62,7 @@ type daemonImpl struct {
 }
 
 func newInstaller(config config.Reader, installerBin string) installer.Installer {
-	registry := config.GetString("updater.registry")
-	registryAuth := config.GetString("updater.registry_auth")
-	apiKey := utils.SanitizeAPIKey(config.GetString("api_key"))
-	site := config.GetString("site")
-	return exec.NewInstallerExec(installerBin, registry, registryAuth, apiKey, site)
+	return exec.NewInstallerExec(env.FromConfig(config), installerBin)
 }
 
 // NewDaemon returns a new daemon.
@@ -268,7 +265,8 @@ func (d *daemonImpl) handleRemoteAPIRequest(request remoteAPIRequest) (err error
 	d.m.Lock()
 	defer d.m.Unlock()
 	defer d.requestsWG.Done()
-	ctx := newRequestContext(request)
+	parentSpan, ctx := newRequestContext(request)
+	defer parentSpan.Finish(tracer.WithError(err))
 	d.refreshState(ctx)
 	defer d.refreshState(ctx)
 
@@ -320,12 +318,25 @@ type requestState struct {
 	Err     *installerErrors.InstallerError
 }
 
-func newRequestContext(request remoteAPIRequest) context.Context {
-	return context.WithValue(context.Background(), requestStateKey, &requestState{
+func newRequestContext(request remoteAPIRequest) (ddtrace.Span, context.Context) {
+	ctx := context.WithValue(context.Background(), requestStateKey, &requestState{
 		Package: request.Package,
 		ID:      request.ID,
 		State:   pbgo.TaskState_RUNNING,
 	})
+
+	ctxCarrier := tracer.TextMapCarrier{
+		tracer.DefaultTraceIDHeader:  request.TraceID,
+		tracer.DefaultParentIDHeader: request.ParentSpanID,
+		tracer.DefaultPriorityHeader: "2",
+	}
+	spanCtx, err := tracer.Extract(ctxCarrier)
+	if err != nil {
+		log.Debugf("failed to extract span context from install script params: %v", err)
+		return tracer.StartSpan("remote_request"), ctx
+	}
+
+	return tracer.StartSpanFromContext(ctx, "remote_request", tracer.ChildOf(spanCtx))
 }
 
 func setRequestInvalid(ctx context.Context) {

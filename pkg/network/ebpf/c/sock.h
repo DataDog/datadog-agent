@@ -87,7 +87,12 @@ static __always_inline u16 read_sport(struct sock* skp) {
     // try skc_num, then inet_sport
     u16 sport = 0;
 #ifdef COMPILE_PREBUILT
-    bpf_probe_read_kernel_with_telemetry(&sport, sizeof(sport), ((char*)skp) + offset_sport());
+    // try skc_num, then inet_sport
+    bpf_probe_read_kernel_with_telemetry(&sport, sizeof(sport), ((char*)skp) + offset_dport() + sizeof(sport));
+    if (sport == 0) {
+        bpf_probe_read_kernel_with_telemetry(&sport, sizeof(sport), ((char*)skp) + offset_sport());
+        sport = bpf_ntohs(sport);
+    }
 #elif defined(COMPILE_CORE) || defined(COMPILE_RUNTIME)
     BPF_CORE_READ_INTO(&sport, skp, sk_num);
     if (sport == 0) {
