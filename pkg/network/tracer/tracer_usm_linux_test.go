@@ -16,6 +16,7 @@ import (
 	"net"
 	nethttp "net/http"
 	"os/exec"
+	"slices"
 	"strconv"
 	"syscall"
 	"testing"
@@ -59,12 +60,31 @@ func classificationSupported(config *config.Config) bool {
 	return kprobe.ClassificationSupported(config)
 }
 
+func usmSupportedBuildModes(t *testing.T) []ebpftest.BuildMode {
+	buildModes := []ebpftest.BuildMode{ebpftest.Prebuilt, ebpftest.RuntimeCompiled, ebpftest.CORE}
+	if prebuiltSupported := isPrecompiledTracerSupported(t); !prebuiltSupported {
+		t.Log("removing pre-compiled build mode as it is not supported on this platform")
+		buildModes = slices.DeleteFunc(buildModes, func(mode ebpftest.BuildMode) bool {
+			return mode == ebpftest.Prebuilt
+		})
+	}
+
+	if coreSupported := isCORETracerSupported(t); !coreSupported {
+		t.Log("removing CO-RE build mode as it is not supported on this platform")
+		buildModes = slices.DeleteFunc(buildModes, func(mode ebpftest.BuildMode) bool {
+			return mode == ebpftest.CORE
+		})
+	}
+
+	return buildModes
+}
+
 type USMSuite struct {
 	suite.Suite
 }
 
 func TestUSMSuite(t *testing.T) {
-	ebpftest.TestBuildModes(t, []ebpftest.BuildMode{ebpftest.Prebuilt, ebpftest.RuntimeCompiled, ebpftest.CORE}, "", func(t *testing.T) {
+	ebpftest.TestBuildModes(t, usmSupportedBuildModes(t), "", func(t *testing.T) {
 		suite.Run(t, new(USMSuite))
 	})
 }

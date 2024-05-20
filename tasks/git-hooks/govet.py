@@ -13,7 +13,7 @@ EXCLUDED_PACKAGES = {
     },
 }
 
-GO_TAGS = ["test"]
+GO_TAGS = ["linux_bpf", "test"]
 
 
 def go_module_for_package(package_path):
