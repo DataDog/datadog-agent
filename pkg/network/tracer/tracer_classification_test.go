@@ -16,7 +16,6 @@ import (
 	"net"
 	nethttp "net/http"
 	"reflect"
-	"runtime"
 	"testing"
 	"time"
 
@@ -66,13 +65,6 @@ type protocolClassificationAttributes struct {
 func validateProtocolConnection(expectedStack *protocols.Stack) func(t *testing.T, ctx testContext, tr *Tracer) {
 	return func(t *testing.T, ctx testContext, tr *Tracer) {
 		waitForConnectionsWithProtocol(t, tr, ctx.targetAddress, ctx.serverAddress, expectedStack)
-	}
-}
-
-// skipIfNotLinux skips the test if we are not on a linux machine
-func skipIfNotLinux(t *testing.T, _ testContext) {
-	if runtime.GOOS != "linux" {
-		t.Skip("test is supported on linux machine only")
 	}
 }
 

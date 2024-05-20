@@ -508,7 +508,7 @@ func testKafkaProtocolClassification(t *testing.T, tr *Tracer, clientHost, targe
 		return fmt.Sprintf("%s-%d", topicName, testIndex)
 	}
 
-	skipFunc := composeSkips(skipIfNotLinux, skipIfUsingNAT)
+	skipFunc := composeSkips(skipIfUsingNAT)
 	skipFunc(t, testContext{
 		serverAddress: serverHost,
 		serverPort:    kafkaPort,
@@ -781,7 +781,7 @@ func testKafkaProtocolClassification(t *testing.T, tr *Tracer, clientHost, targe
 }
 
 func testMySQLProtocolClassification(t *testing.T, tr *Tracer, clientHost, targetHost, serverHost string) {
-	skipFunc := composeSkips(skipIfNotLinux, skipIfUsingNAT)
+	skipFunc := composeSkips(skipIfUsingNAT)
 	skipFunc(t, testContext{
 		serverAddress: serverHost,
 		serverPort:    mysqlPort,
@@ -1094,7 +1094,7 @@ func testMySQLProtocolClassification(t *testing.T, tr *Tracer, clientHost, targe
 }
 
 func testPostgresProtocolClassification(t *testing.T, tr *Tracer, clientHost, targetHost, serverHost string) {
-	skipFunc := composeSkips(skipIfNotLinux, skipIfUsingNAT)
+	skipFunc := composeSkips(skipIfUsingNAT)
 	skipFunc(t, testContext{
 		serverAddress: serverHost,
 		serverPort:    postgresPort,
@@ -1306,7 +1306,7 @@ func testPostgresProtocolClassification(t *testing.T, tr *Tracer, clientHost, ta
 }
 
 func testMongoProtocolClassification(t *testing.T, tr *Tracer, clientHost, targetHost, serverHost string) {
-	skipFunc := composeSkips(skipIfNotLinux, skipIfUsingNAT)
+	skipFunc := composeSkips(skipIfUsingNAT)
 	skipFunc(t, testContext{
 		serverAddress: serverHost,
 		serverPort:    mongoPort,
@@ -1457,7 +1457,7 @@ func testMongoProtocolClassification(t *testing.T, tr *Tracer, clientHost, targe
 }
 
 func testRedisProtocolClassification(t *testing.T, tr *Tracer, clientHost, targetHost, serverHost string) {
-	skipFunc := composeSkips(skipIfNotLinux, skipIfUsingNAT)
+	skipFunc := composeSkips(skipIfUsingNAT)
 	skipFunc(t, testContext{
 		serverAddress: serverHost,
 		serverPort:    redisPort,
@@ -1612,7 +1612,7 @@ func testRedisProtocolClassification(t *testing.T, tr *Tracer, clientHost, targe
 }
 
 func testAMQPProtocolClassification(t *testing.T, tr *Tracer, clientHost, targetHost, serverHost string) {
-	skipFunc := composeSkips(skipIfNotLinux, skipIfUsingNAT)
+	skipFunc := composeSkips(skipIfUsingNAT)
 	skipFunc(t, testContext{
 		serverAddress: serverHost,
 		serverPort:    amqpPort,
@@ -1741,8 +1741,6 @@ func testAMQPProtocolClassification(t *testing.T, tr *Tracer, clientHost, target
 }
 
 func testHTTP2ProtocolClassification(t *testing.T, tr *Tracer, clientHost, targetHost, serverHost string) {
-	skipIfNotLinux(t, testContext{})
-
 	defaultDialer := &net.Dialer{
 		LocalAddr: &net.TCPAddr{
 			IP:   net.ParseIP(clientHost),
@@ -1887,8 +1885,6 @@ func testHTTP2ProtocolClassification(t *testing.T, tr *Tracer, clientHost, targe
 				extras:        map[string]interface{}{},
 			},
 			preTracerSetup: func(t *testing.T, ctx testContext) {
-				skipIfNotLinux(t, ctx)
-
 				server := NewTCPServerOnAddress(ctx.serverAddress, func(c net.Conn) {
 					io.Copy(c, c)
 					c.Close()
@@ -1943,8 +1939,6 @@ func testHTTP2ProtocolClassification(t *testing.T, tr *Tracer, clientHost, targe
 				extras:        map[string]interface{}{},
 			},
 			preTracerSetup: func(t *testing.T, ctx testContext) {
-				skipIfNotLinux(t, ctx)
-
 				server := NewTCPServerOnAddress(ctx.serverAddress, func(c net.Conn) {
 					io.Copy(c, c)
 					c.Close()
