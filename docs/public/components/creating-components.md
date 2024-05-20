@@ -130,7 +130,7 @@ To require input arguments to the `NewComponent` instantiation function, use a s
 The instantiation function returns a special stuct named `Provides`. This internal nomenclature is used
 to handle the different component dependencies using Fx groups.
 
-In this example, the compression component must access the configuration component and the log component. To express this, define a `Requires` struct with two fields. The name of these field is irrelevant, but the type must be the concrete type of the interface you require.
+In this example, the compression component must access the configuration component and the log component. To express this, define a `Requires` struct with two fields. The name of the fields is irrelevant, but the type must be the concrete type of interface that you require.
 
 === ":octicons-file-code-16: comp/compression/impl-zstd/compressor.go"
     ```go
