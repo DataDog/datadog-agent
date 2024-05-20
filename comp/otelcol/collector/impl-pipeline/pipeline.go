@@ -63,12 +63,12 @@ type provides struct {
 	StatusProvider status.InformationProvider
 }
 
-type collector struct {
+type collectorImpl struct {
 	deps dependencies
 	col  *otlp.Pipeline
 }
 
-func (c *collector) start(context.Context) error {
+func (c *collectorImpl) start(context.Context) error {
 	deps := c.deps
 	on := otlp.IsEnabled(deps.Config)
 	deps.InventoryAgent.Set(otlpEnabled, on)
@@ -100,7 +100,7 @@ func (c *collector) start(context.Context) error {
 	return nil
 }
 
-func (c *collector) stop(context.Context) error {
+func (c *collectorImpl) stop(context.Context) error {
 	if c.col != nil {
 		c.col.Stop()
 	}
@@ -108,13 +108,13 @@ func (c *collector) stop(context.Context) error {
 }
 
 // Status returns the status of the collector.
-func (c *collector) Status() otlp.CollectorStatus {
+func (c *collectorImpl) Status() otlp.CollectorStatus {
 	return c.col.GetCollectorStatus()
 }
 
-// newPipeline creates a new Component for this module and returns any errors on failure.
-func newPipeline(deps dependencies) (provides, error) {
-	collector := &collector{
+// NewPipeline creates a new Component for this module and returns any errors on failure.
+func NewPipeline(deps dependencies) (provides, error) {
+	collector := &collectorImpl{
 		deps: deps,
 	}
 
