@@ -1547,7 +1547,7 @@ def process_btfhub_archive(ctx, branch="main"):
     with tempfile.TemporaryDirectory() as temp_dir:
         with ctx.cd(temp_dir):
             clone_cmd = (
-                f"git clone --depth=1 --single-branch --branch={branch} https://github.com/DataDog/btfhub-archive.git",
+                f"git clone --depth=1 --single-branch --branch={branch} https://github.com/DataDog/btfhub-archive.git"
             )
             retries = 2
             downloaded = False
