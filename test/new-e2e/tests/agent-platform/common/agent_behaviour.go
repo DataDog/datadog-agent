@@ -334,6 +334,7 @@ func CheckCWSBehaviour(t *testing.T, client *TestClient) {
 	})
 }
 
+// CheckSystemProbeBehavior runs tests to check the agent behave correctly when system-probe is enabled
 func CheckSystemProbeBehavior(t *testing.T, client *TestClient) {
 	t.Run("enable system-probe and restarts", func(tt *testing.T) {
 		err := client.SetConfig(client.Helper.GetConfigFolder()+"system-probe.yaml", "system_probe_config.enabled", "true")
