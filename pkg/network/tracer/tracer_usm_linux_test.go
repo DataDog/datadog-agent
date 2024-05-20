@@ -27,6 +27,7 @@ import (
 	"github.com/stretchr/testify/suite"
 	"github.com/twmb/franz-go/pkg/kgo"
 	"github.com/twmb/franz-go/pkg/kversion"
+	"github.com/uptrace/bun"
 	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
@@ -37,6 +38,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/kafka"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/mysql"
+	pgutils "github.com/DataDog/datadog-agent/pkg/network/protocols/postgres"
 	prototls "github.com/DataDog/datadog-agent/pkg/network/protocols/tls/openssl"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/kprobe"
@@ -46,8 +48,9 @@ import (
 )
 
 const (
-	mysqlPort = "3306"
-	kafkaPort = "9092"
+	mysqlPort    = "3306"
+	postgresPort = "5432"
+	kafkaPort    = "9092"
 
 	produceAPIKey = 0
 	fetchAPIKey   = 1
@@ -1066,6 +1069,218 @@ func testMySQLProtocolClassification(t *testing.T, tr *Tracer, clientHost, targe
 			},
 			validation: validateProtocolConnection(&protocols.Stack{Application: protocols.MySQL}),
 			teardown:   mysqlTeardown,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			testProtocolClassificationInner(t, tt, tr)
+		})
+	}
+}
+
+func testPostgresProtocolClassification(t *testing.T, tr *Tracer, clientHost, targetHost, serverHost string) {
+	skipFunc := composeSkips(skipIfNotLinux, skipIfUsingNAT)
+	skipFunc(t, testContext{
+		serverAddress: serverHost,
+		serverPort:    postgresPort,
+		targetAddress: targetHost,
+	})
+
+	if clientHost != "127.0.0.1" && clientHost != "localhost" {
+		t.Skip("postgres tests are not supported DNat")
+	}
+
+	postgresTeardown := func(t *testing.T, ctx testContext) {
+		dbEntry, ok := ctx.extras["db"]
+		if !ok {
+			return
+		}
+		db := dbEntry.(*bun.DB)
+		defer db.Close()
+		taskCtx := ctx.extras["ctx"].(context.Context)
+		_, _ = db.NewDropTable().Model((*pgutils.DummyTable)(nil)).Exec(taskCtx)
+	}
+
+	// Setting one instance of postgres server for all tests.
+	serverAddress := net.JoinHostPort(serverHost, postgresPort)
+	targetAddress := net.JoinHostPort(targetHost, postgresPort)
+	require.NoError(t, pgutils.RunServer(t, serverHost, postgresPort))
+
+	tests := []protocolClassificationAttributes{
+		{
+			name: "postgres - connect",
+			context: testContext{
+				serverPort:    postgresPort,
+				targetAddress: targetAddress,
+				serverAddress: serverAddress,
+				extras:        make(map[string]interface{}),
+			},
+			postTracerSetup: func(t *testing.T, ctx testContext) {
+				pg := pgutils.GetPGHandle(t, ctx.serverAddress)
+				conn, err := pg.Conn(context.Background())
+				require.NoError(t, err)
+				defer conn.Close()
+			},
+			validation: validateProtocolConnection(&protocols.Stack{Application: protocols.Postgres}),
+			teardown:   postgresTeardown,
+		},
+		{
+			name: "postgres - insert",
+			context: testContext{
+				serverPort:    postgresPort,
+				targetAddress: targetAddress,
+				serverAddress: serverAddress,
+				extras:        make(map[string]interface{}),
+			},
+			preTracerSetup: func(t *testing.T, ctx testContext) {
+				pgutils.ConnectAndGetDB(t, ctx.serverAddress, ctx.extras)
+				pgutils.RunCreateQuery(t, ctx.extras)
+			},
+			postTracerSetup: func(t *testing.T, ctx testContext) {
+				pgutils.RunInsertQuery(t, 1, ctx.extras)
+			},
+			validation: validateProtocolConnection(&protocols.Stack{Application: protocols.Postgres}),
+			teardown:   postgresTeardown,
+		},
+		{
+			name: "postgres - delete",
+			context: testContext{
+				serverPort:    postgresPort,
+				targetAddress: targetAddress,
+				serverAddress: serverAddress,
+				extras:        make(map[string]interface{}),
+			},
+			preTracerSetup: func(t *testing.T, ctx testContext) {
+				pgutils.ConnectAndGetDB(t, ctx.serverAddress, ctx.extras)
+				pgutils.RunCreateQuery(t, ctx.extras)
+				pgutils.RunInsertQuery(t, 1, ctx.extras)
+			},
+			postTracerSetup: func(t *testing.T, ctx testContext) {
+				pgutils.RunDeleteQuery(t, ctx.extras)
+			},
+			validation: validateProtocolConnection(&protocols.Stack{Application: protocols.Postgres}),
+			teardown:   postgresTeardown,
+		},
+		{
+			name: "postgres - select",
+			context: testContext{
+				serverPort:    postgresPort,
+				targetAddress: targetAddress,
+				serverAddress: serverAddress,
+				extras:        make(map[string]interface{}),
+			},
+			preTracerSetup: func(t *testing.T, ctx testContext) {
+				pgutils.ConnectAndGetDB(t, ctx.serverAddress, ctx.extras)
+				pgutils.RunCreateQuery(t, ctx.extras)
+			},
+			postTracerSetup: func(t *testing.T, ctx testContext) {
+				pgutils.RunSelectQuery(t, ctx.extras)
+			},
+			validation: validateProtocolConnection(&protocols.Stack{Application: protocols.Postgres}),
+			teardown:   postgresTeardown,
+		},
+		{
+			name: "postgres - update",
+			context: testContext{
+				serverPort:    postgresPort,
+				targetAddress: targetAddress,
+				serverAddress: serverAddress,
+				extras:        make(map[string]interface{}),
+			},
+			preTracerSetup: func(t *testing.T, ctx testContext) {
+				pgutils.ConnectAndGetDB(t, ctx.serverAddress, ctx.extras)
+				pgutils.RunCreateQuery(t, ctx.extras)
+				pgutils.RunInsertQuery(t, 1, ctx.extras)
+			},
+			postTracerSetup: func(t *testing.T, ctx testContext) {
+				pgutils.RunUpdateQuery(t, ctx.extras)
+			},
+			validation: validateProtocolConnection(&protocols.Stack{Application: protocols.Postgres}),
+			teardown:   postgresTeardown,
+		},
+		{
+			name: "postgres - drop",
+			context: testContext{
+				serverPort:    postgresPort,
+				targetAddress: targetAddress,
+				serverAddress: serverAddress,
+				extras:        make(map[string]interface{}),
+			},
+			preTracerSetup: func(t *testing.T, ctx testContext) {
+				pgutils.ConnectAndGetDB(t, ctx.serverAddress, ctx.extras)
+				pgutils.RunCreateQuery(t, ctx.extras)
+				pgutils.RunInsertQuery(t, 1, ctx.extras)
+			},
+			postTracerSetup: func(t *testing.T, ctx testContext) {
+				pgutils.RunDropQuery(t, ctx.extras)
+			},
+			validation: validateProtocolConnection(&protocols.Stack{Application: protocols.Postgres}),
+			teardown:   postgresTeardown,
+		},
+		{
+			name: "postgres - alter",
+			context: testContext{
+				serverPort:    postgresPort,
+				targetAddress: targetAddress,
+				serverAddress: serverAddress,
+				extras:        make(map[string]interface{}),
+			},
+			preTracerSetup: func(t *testing.T, ctx testContext) {
+				pgutils.ConnectAndGetDB(t, ctx.serverAddress, ctx.extras)
+				pgutils.RunCreateQuery(t, ctx.extras)
+			},
+			postTracerSetup: func(t *testing.T, ctx testContext) {
+				pgutils.RunAlterQuery(t, ctx.extras)
+			},
+			validation: validateProtocolConnection(&protocols.Stack{Application: protocols.Postgres}),
+			teardown:   postgresTeardown,
+		},
+		{
+			// Test that we classify long queries that would be
+			// splitted between multiple packets correctly
+			name: "postgres - long query",
+			context: testContext{
+				serverPort:    postgresPort,
+				targetAddress: targetAddress,
+				serverAddress: serverAddress,
+				extras:        make(map[string]interface{}),
+			},
+			preTracerSetup: func(t *testing.T, ctx testContext) {
+				pgutils.ConnectAndGetDB(t, ctx.serverAddress, ctx.extras)
+				pgutils.RunCreateQuery(t, ctx.extras)
+			},
+			postTracerSetup: func(t *testing.T, ctx testContext) {
+				db := ctx.extras["db"].(*bun.DB)
+				taskCtx := ctx.extras["ctx"].(context.Context)
+
+				// This will fail but it should make a query and be classified
+				_, _ = db.NewInsert().Model(&pgutils.DummyTable{Foo: strings.Repeat("#", 16384)}).Exec(taskCtx)
+			},
+			validation: validateProtocolConnection(&protocols.Stack{Application: protocols.Postgres}),
+			teardown:   postgresTeardown,
+		},
+		{
+			// Test that we classify long queries that would be
+			// splitted between multiple packets correctly
+			name: "postgres - long response",
+			context: testContext{
+				serverPort:    postgresPort,
+				targetAddress: targetAddress,
+				serverAddress: serverAddress,
+				extras:        make(map[string]interface{}),
+			},
+			preTracerSetup: func(t *testing.T, ctx testContext) {
+				pgutils.ConnectAndGetDB(t, ctx.serverAddress, ctx.extras)
+				pgutils.RunCreateQuery(t, ctx.extras)
+				for i := int64(1); i < 200; i++ {
+					pgutils.RunInsertQuery(t, i, ctx.extras)
+				}
+			},
+			postTracerSetup: func(t *testing.T, ctx testContext) {
+				pgutils.RunSelectQuery(t, ctx.extras)
+			},
+			validation: validateProtocolConnection(&protocols.Stack{Application: protocols.Postgres}),
+			teardown:   postgresTeardown,
 		},
 	}
 	for _, tt := range tests {
