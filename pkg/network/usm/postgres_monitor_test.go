@@ -310,6 +310,7 @@ func (s *postgresProtocolParsingSuite) TestCleanupEBPFEntriesOnTermination() {
 	// Encoding a dummy query.
 	output := make([]byte, 0)
 	query := pgproto3.Query{String: "SELECT * FROM dummy"}
+	var err error
 	output, err = query.Encode(output)
 	require.NoError(t, err)
 
