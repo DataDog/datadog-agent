@@ -39,6 +39,17 @@ func TestParseRegisterState(t *testing.T) {
 				Precise:  false,
 			},
 		},
+		{
+			name:  "ScalarWithoutValue",
+			input: "R2_w=scalar()",
+			expected: &RegisterState{
+				Register: 2,
+				Live:     "written",
+				Type:     "scalar",
+				Value:    "?",
+				Precise:  false,
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -51,33 +62,70 @@ func TestParseRegisterState(t *testing.T) {
 	}
 }
 
-// 5: R1_w=0 R10=fp0 fp-16_w=00000000
-// 5: (63) *(u32 *)(r10 -16) = r2        ; R2_w=scalar() R10=fp0 fp-16_w=0000mmmm
-
 func TestLogParsingWithRegisterState(t *testing.T) {
 	tests := []struct {
 		name     string
 		input    string
-		expected InstructionInfo
+		expected map[int]*InstructionInfo
 	}{
 		{
 			name:  "RegisterStateBeforeInsn",
 			input: "5: R1_w=0 fp-16_w=00000000\n5: (63) *(u32 *)(r10 -16) = r2\n",
-			expected: InstructionInfo{
-				Index:          5,
-				TimesProcessed: 1,
-				Source:         nil,
-				Code:           "*(u32 *)(r10 -16) = r2",
-				RegisterState: map[int]*RegisterState{
-					1: {
-						Register: 1,
-						Live:     "written",
-						Type:     "scalar",
-						Value:    "0",
-						Precise:  false,
+			expected: map[int]*InstructionInfo{
+				5: {
+					Index:          5,
+					TimesProcessed: 1,
+					Source:         nil,
+					Code:           "*(u32 *)(r10 -16) = r2",
+					RegisterState: map[int]*RegisterState{
+						1: {
+							Register: 1,
+							Live:     "written",
+							Type:     "scalar",
+							Value:    "0",
+							Precise:  false,
+						},
 					},
+					RegisterStateRaw: "R1_w=0 fp-16_w=00000000",
 				},
-				RegisterStateRaw: "5: R1_w=0 fp-16_w=00000000",
+			},
+		},
+		{
+			name:  "RegisterStateAfterInsn",
+			input: "5: R1_w=0 fp-16_w=00000000\n5: (63) *(u32 *)(r10 -16) = r2     ; R2_w=scalar() fp-16_w=0000mmmm\n6: (63) *(u32 *)(r10 -16) = r2\n",
+			expected: map[int]*InstructionInfo{
+				5: {
+					Index:          5,
+					TimesProcessed: 1,
+					Source:         nil,
+					Code:           "*(u32 *)(r10 -16) = r2",
+					RegisterState: map[int]*RegisterState{
+						1: {
+							Register: 1,
+							Live:     "written",
+							Type:     "scalar",
+							Value:    "0",
+							Precise:  false,
+						},
+					},
+					RegisterStateRaw: "R1_w=0 fp-16_w=00000000",
+				},
+				6: {
+					Index:          6,
+					TimesProcessed: 1,
+					Source:         nil,
+					Code:           "*(u32 *)(r10 -16) = r2",
+					RegisterState: map[int]*RegisterState{
+						2: {
+							Register: 2,
+							Live:     "written",
+							Type:     "scalar",
+							Value:    "?",
+							Precise:  false,
+						},
+					},
+					RegisterStateRaw: "R2_w=scalar() fp-16_w=0000mmmm",
+				},
 			},
 		},
 	}
@@ -87,8 +135,7 @@ func TestLogParsingWithRegisterState(t *testing.T) {
 			vlp := newVerifierLogParser(nil)
 			_, err := vlp.parseVerifierLog(tt.input)
 			require.NoError(t, err)
-			insInfo := vlp.complexity.InsnMap[5]
-			require.Equal(t, &tt.expected, insInfo)
+			require.Equal(t, tt.expected, vlp.complexity.InsnMap)
 		})
 	}
 }

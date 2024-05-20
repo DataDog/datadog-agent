@@ -15,17 +15,24 @@ import (
 )
 
 var (
-	insnRegex           = regexp.MustCompile(`^([0-9]+): \([0-9a-f]+\) (.*)`)
+	insnRegex           = regexp.MustCompile(`^([0-9]+): \([0-9a-f]+\) ([^;]*)\s*(; R[0-9]+.*)?`)
 	regStateRegex       = regexp.MustCompile(`^([0-9]+): (R[0-9]+.*)`)
 	singleRegStateRegex = regexp.MustCompile(`R([0-9]+)(_[^=]+)?=([^ ]+)`)
 	regInfoRegex        = regexp.MustCompile(`^([a-z_]+)?(P)?(-?[0-9]+|\((.*)\))`)
 )
 
+// regStateData holds information from the last matched register state line, so it can
+// be used by subsequent instructions during parsing
+type regStateData struct {
+	InsnIdx int    // Instruction index for the register state
+	RegData string // Register state data
+}
+
 // verifierLogParser is a struct that maintains the state necessary to parse the verifier log
 // and extract the complexity information.
 type verifierLogParser struct {
 	complexity        ComplexityInfo      // Resulting complexity information
-	lastRegStateMatch []string            // Matched groups from the last register state line
+	lastRegStateMatch *regStateData       // Matched data from the last register state line
 	progSourceMap     map[int]*SourceLine // Mapping of assembly instruction to source line
 }
 
@@ -80,7 +87,16 @@ func (vlp *verifierLogParser) parseVerifierLog(log string) (*ComplexityInfo, err
 func (vlp *verifierLogParser) parseLine(line string) error {
 	match := regStateRegex.FindStringSubmatch(line)
 	if len(match) > 0 {
-		vlp.lastRegStateMatch = match // Save the last match with register state, we will use it when we get to an instruction
+		regInsnIdx, err := strconv.Atoi(match[1])
+		if err != nil {
+			return fmt.Errorf("failed to parse instruction index (line is '%s'): %w", line, err)
+		}
+
+		// Save the last match with register state, we will use it when we get to an instruction
+		vlp.lastRegStateMatch = &regStateData{
+			InsnIdx: regInsnIdx,
+			RegData: match[2],
+		}
 		return nil
 	}
 
@@ -97,16 +113,14 @@ func (vlp *verifierLogParser) parseLine(line string) error {
 	}
 	insinfo := vlp.complexity.InsnMap[insIdx]
 	insinfo.TimesProcessed++
-	insinfo.Code = match[2]
+	insinfo.Code = strings.TrimSpace(match[2])
 	if vlp.progSourceMap != nil {
 		insinfo.Source = vlp.progSourceMap[insIdx]
 	}
 
-	regStateMatch := vlp.lastRegStateMatch
-
 	// Now parse the register state if we have it and the instruction number matches
-	if len(regStateMatch) >= 3 && regStateMatch[1] == match[1] {
-		regData := regStateMatch[2]
+	if vlp.lastRegStateMatch != nil && vlp.lastRegStateMatch.InsnIdx == insIdx {
+		regData := vlp.lastRegStateMatch.RegData
 
 		// For ease of parsing, replace certain patterns that introduce spaces and make parsing harder
 		regData = strings.ReplaceAll(regData, "; ", ";")
@@ -122,9 +136,17 @@ func (vlp *verifierLogParser) parseLine(line string) error {
 		}
 
 		insinfo.RegisterState = regState
-		insinfo.RegisterStateRaw = regStateMatch[0]
+		insinfo.RegisterStateRaw = vlp.lastRegStateMatch.RegData
 	} else {
 		log.Printf("WARN: No register state found for instruction %d\n", insIdx)
+	}
+
+	// In some kernel versions (6.5 at least), the register state for the next instruction might be printed after this instruction
+	if len(match) >= 4 && match[3] != "" {
+		vlp.lastRegStateMatch = &regStateData{
+			InsnIdx: insIdx + 1,
+			RegData: match[3][2:], // Remove the leading "; "
+		}
 	}
 
 	return nil
@@ -215,10 +237,13 @@ func parseRegisterState(regMatch []string) (*RegisterState, error) {
 // human-readable value.
 func parseRegisterScalarValue(regInfoGroups []string) string {
 	// Scalar values are either a raw numeric value, or a list of key-value pairs within parenthesis
-	regAttributes := regInfoGroups[4]
 	regRawValue := regInfoGroups[3]
+	regAttributes := regInfoGroups[4]
 
 	if regAttributes == "" {
+		if regRawValue == "()" {
+			return "?" // Handle the case where the register is just "scalar()"
+		}
 		return regRawValue
 	}
 
