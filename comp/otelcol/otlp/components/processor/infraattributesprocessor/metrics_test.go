@@ -13,11 +13,15 @@ import (
 	"go.opentelemetry.io/collector/consumer/consumertest"
 	"go.opentelemetry.io/collector/pdata/pmetric"
 	"go.opentelemetry.io/collector/processor/processortest"
+
+	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 )
 
 type metricNameTest struct {
-	name      string
-	inMetrics pmetric.Metrics
+	name       string
+	inMetrics  pmetric.Metrics
+	outMetrics pmetric.Metrics
 }
 
 type metricWithResource struct {
@@ -32,8 +36,20 @@ var (
 
 	standardTests = []metricNameTest{
 		{
-			name:      "includeFilter",
-			inMetrics: testResourceMetrics([]metricWithResource{{metricNames: inMetricNames}}),
+			name: "add attribute",
+			inMetrics: testResourceMetrics([]metricWithResource{{
+				metricNames: inMetricNames,
+				resourceAttributes: map[string]any{
+					"container.id": "test",
+				},
+			}}),
+			outMetrics: testResourceMetrics([]metricWithResource{{
+				metricNames: inMetricNames,
+				resourceAttributes: map[string]any{
+					"container.id": "test",
+					"app":          "foo",
+				},
+			}}),
 		},
 	}
 )
@@ -43,9 +59,13 @@ func TestInfraAttributesMetricProcessor(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			next := new(consumertest.MetricsSink)
 			cfg := &Config{
-				Metrics: MetricInfraAttributes{},
+				Metrics:     MetricInfraAttributes{},
+				Cardinality: types.LowCardinality,
 			}
-			factory := NewFactory()
+			fakeTagger := taggerimpl.SetupFakeTagger(t)
+			defer fakeTagger.ResetTagger()
+			fakeTagger.SetTags("container_id://test", "foo", []string{"app:foo"}, nil, nil, nil)
+			factory := NewFactory(fakeTagger)
 			fmp, err := factory.CreateMetricsProcessor(
 				context.Background(),
 				processortest.NewNopCreateSettings(),
@@ -63,6 +83,9 @@ func TestInfraAttributesMetricProcessor(t *testing.T) {
 			cErr := fmp.ConsumeMetrics(context.Background(), test.inMetrics)
 			assert.Nil(t, cErr)
 			assert.NoError(t, fmp.Shutdown(ctx))
+
+			assert.Len(t, next.AllMetrics(), 1)
+			assert.Equal(t, test.outMetrics, next.AllMetrics()[0])
 		})
 	}
 }

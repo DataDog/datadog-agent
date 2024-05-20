@@ -114,10 +114,11 @@ func getComponents(s serializer.MetricSerializer, logsAgentChannel chan *message
 		errs = append(errs, err)
 	}
 
-	processors, err := processor.MakeFactoryMap(
-		batchprocessor.NewFactory(),
-		infraattributesprocessor.NewFactory(tagger),
-	)
+	processorFactories := []processor.Factory{batchprocessor.NewFactory()}
+	if tagger != nil {
+		processorFactories = append(processorFactories, infraattributesprocessor.NewFactory(tagger))
+	}
+	processors, err := processor.MakeFactoryMap(processorFactories...)
 	if err != nil {
 		errs = append(errs, err)
 	}

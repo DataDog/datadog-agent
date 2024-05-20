@@ -7,7 +7,6 @@ package infraattributesprocessor
 
 import (
 	"context"
-	"fmt"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
@@ -44,16 +43,15 @@ func splitTag(tag string) (key string, value string) {
 }
 
 func (iamp *infraAttributesMetricProcessor) processMetrics(_ context.Context, md pmetric.Metrics) (pmetric.Metrics, error) {
-	fmt.Println("PROCESSING METRICS")
 	rms := md.ResourceMetrics()
 	for i := 0; i < rms.Len(); i++ {
 		rm := rms.At(i)
 		rattrs := rm.Resource().Attributes()
-		originId := attributes.OriginIDFromAttributes(rattrs)
+		originID := attributes.OriginIDFromAttributes(rattrs)
 
-		entityTags, err := iamp.tagger.Tag(originId, iamp.cardinality)
+		entityTags, err := iamp.tagger.Tag(originID, iamp.cardinality)
 		if err != nil {
-			iamp.logger.Error("Cannot get tags for entity", zap.String("originId", originId), zap.Error(err))
+			iamp.logger.Error("Cannot get tags for entity", zap.String("originID", originID), zap.Error(err))
 			continue
 		}
 
@@ -72,7 +70,6 @@ func (iamp *infraAttributesMetricProcessor) processMetrics(_ context.Context, md
 				rattrs.PutStr(k, v)
 			}
 		}
-		fmt.Printf("enrichedTags: %v\n", enrichedTags)
 	}
 
 	return md, nil

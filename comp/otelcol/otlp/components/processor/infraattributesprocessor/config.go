@@ -17,7 +17,7 @@ type Config struct {
 	Logs    LogInfraAttributes    `mapstructure:"logs"`
 	Traces  TraceInfraAttributes  `mapstructure:"traces"`
 
-	Cardinality types.TagCardinality
+	Cardinality types.TagCardinality `mapstructure:"cardinality"`
 }
 
 // MetricInfraAttributes - configuration for metrics.
