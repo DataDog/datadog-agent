@@ -26,7 +26,7 @@ const (
 	// KubeAppManagedByLabelKey is the label key of the tool being used to manage the operation of an application
 	KubeAppManagedByLabelKey = "app.kubernetes.io/managed-by"
 
-	// RcIDLabelKey is the key for APM Instrumentation label
+	// RcLabelKey is the key for APM Instrumentation label
 	RcLabelKey = "datadoghq.com/auto_instrumentation.enabled"
 	// RcIDAnnotKey is the key of the RC ID annotation
 	RcIDAnnotKey = "admission.datadoghq.com/rc.id"
