@@ -6,6 +6,7 @@
 package profile
 
 import (
+	"expvar"
 	"fmt"
 	"strings"
 
@@ -16,6 +17,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/utils"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/configvalidation"
+)
+
+var (
+	profileExpVar = expvar.NewMap("snmpProfileErrors")
 )
 
 func resolveProfiles(userProfiles, defaultProfiles ProfileConfigMap) (ProfileConfigMap, error) {
@@ -48,6 +53,9 @@ func loadResolveProfiles(pConfig ProfileConfigMap, defaultProfiles ProfileConfig
 		errors = append(errors, configvalidation.ValidateEnrichMetricTags(newProfileConfig.Definition.MetricTags)...)
 		if len(errors) > 0 {
 			log.Warnf("validation errors in profile %q: %s", name, strings.Join(errors, "\n"))
+			profileExpVar.Set(name, expvar.Func(func() interface{} {
+				return strings.Join(errors, "\n")
+			}))
 			continue
 		}
 		profiles[name] = newProfileConfig

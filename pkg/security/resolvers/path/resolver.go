@@ -65,8 +65,8 @@ func (r *Resolver) ResolveFileFieldsPath(e *model.FileFields, pidCtx *model.PIDC
 	}
 
 	// This aims to handle bind mounts
-	if strings.HasPrefix(pathStr, rootPath) && rootPath != "/" {
-		pathStr = strings.Replace(pathStr, rootPath, "", 1)
+	if rootPath != "/" {
+		pathStr = strings.TrimPrefix(pathStr, rootPath)
 	}
 
 	if mountPath != "/" {

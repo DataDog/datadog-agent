@@ -39,7 +39,7 @@ type BucketsAggregationKey struct {
 	StatusCode   uint32
 	Synthetics   bool
 	PeerTagsHash uint64
-	IsTraceRoot  pb.TraceRootFlag
+	IsTraceRoot  pb.Trilean
 }
 
 // PayloadAggregationKey specifies the key by which a payload is aggregated.
@@ -78,11 +78,11 @@ func clientOrProducer(spanKind string) bool {
 // NewAggregationFromSpan creates a new aggregation from the provided span and env
 func NewAggregationFromSpan(s *pb.Span, origin string, aggKey PayloadAggregationKey, enablePeerTagsAgg bool, peerTagKeys []string) (Aggregation, []string) {
 	synthetics := strings.HasPrefix(origin, tagSynthetics)
-	var isTraceRoot pb.TraceRootFlag
+	var isTraceRoot pb.Trilean
 	if s.ParentID == 0 {
-		isTraceRoot = pb.TraceRootFlag_TRUE
+		isTraceRoot = pb.Trilean_TRUE
 	} else {
-		isTraceRoot = pb.TraceRootFlag_FALSE
+		isTraceRoot = pb.Trilean_FALSE
 	}
 	agg := Aggregation{
 		PayloadAggregationKey: aggKey,

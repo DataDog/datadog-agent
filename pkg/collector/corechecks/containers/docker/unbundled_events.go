@@ -46,9 +46,9 @@ func (t *unbundledTransformer) Transform(events []*docker.ContainerEvent) ([]eve
 			continue
 		}
 
-		alertType := event.EventAlertTypeInfo
+		alertType := event.AlertTypeInfo
 		if isAlertTypeError(ev.Action) {
-			alertType = event.EventAlertTypeError
+			alertType = event.AlertTypeError
 		}
 
 		emittedEvents.Inc(string(alertType))
@@ -67,7 +67,7 @@ func (t *unbundledTransformer) Transform(events []*docker.ContainerEvent) ([]eve
 			Title:          fmt.Sprintf("Container %s: %s", ev.ContainerID, ev.Action),
 			Text:           fmt.Sprintf("Container %s (running image %q): %s", ev.ContainerID, ev.ImageName, ev.Action),
 			Tags:           tags,
-			Priority:       event.EventPriorityNormal,
+			Priority:       event.PriorityNormal,
 			Host:           t.hostname,
 			SourceTypeName: CheckName,
 			EventType:      CheckName,

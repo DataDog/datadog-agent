@@ -788,12 +788,16 @@ func testPostgresProtocolClassification(t *testing.T, tr *Tracer, clientHost, ta
 		targetAddress: targetHost,
 	})
 
-	if clientHost != "127.0.0.1" {
+	if clientHost != "127.0.0.1" && clientHost != "localhost" {
 		t.Skip("postgres tests are not supported DNat")
 	}
 
 	postgresTeardown := func(t *testing.T, ctx testContext) {
-		db := ctx.extras["db"].(*bun.DB)
+		dbEntry, ok := ctx.extras["db"]
+		if !ok {
+			return
+		}
+		db := dbEntry.(*bun.DB)
 		defer db.Close()
 		taskCtx := ctx.extras["ctx"].(context.Context)
 		_, _ = db.NewDropTable().Model((*pgutils.DummyTable)(nil)).Exec(taskCtx)

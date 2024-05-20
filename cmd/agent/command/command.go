@@ -37,6 +37,9 @@ type GlobalParams struct {
 	// SysProbeConfFilePath holds the path to the folder containing the system-probe
 	// configuration file, to allow overrides from the command line
 	SysProbeConfFilePath string
+
+	// LogStreamFilePath holds the path to the logstream log path
+	LogStreamFilePath string
 }
 
 // SubcommandFactory is a callable that will return a slice of subcommands.

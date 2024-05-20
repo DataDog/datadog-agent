@@ -15,7 +15,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
-	"github.com/DataDog/datadog-agent/pkg/util/grpc"
+	grpccontext "github.com/DataDog/datadog-agent/pkg/util/grpc/context"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -28,7 +28,7 @@ func SetJSONError(w http.ResponseWriter, err error, errorCode int) {
 
 // GetConnection returns the connection for the request
 func GetConnection(r *http.Request) net.Conn {
-	return r.Context().Value(grpc.ConnContextKey).(net.Conn)
+	return r.Context().Value(grpccontext.ConnContextKey).(net.Conn)
 }
 
 // MessageReceiver is an exported interface for a valid receiver of streamed output

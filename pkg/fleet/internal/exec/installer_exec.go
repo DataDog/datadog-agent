@@ -12,6 +12,7 @@ import (
 	"os"
 	"os/exec"
 
+	"github.com/DataDog/datadog-agent/pkg/fleet/env"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
 	"github.com/DataDog/datadog-agent/pkg/fleet/telemetry"
@@ -20,27 +21,15 @@ import (
 
 // InstallerExec is an implementation of the Installer interface that uses the installer binary.
 type InstallerExec struct {
+	env              *env.Env
 	installerBinPath string
-
-	registry     string
-	registryAuth string
-	// telemetry options
-	apiKey string
-	site   string
-
-	// FIXME: decide where we want to host the status logic
-	pm installer.Installer
 }
 
 // NewInstallerExec returns a new InstallerExec.
-func NewInstallerExec(installerBinPath string, registry string, registryAuth string, apiKey string, site string) *InstallerExec {
+func NewInstallerExec(env *env.Env, installerBinPath string) *InstallerExec {
 	return &InstallerExec{
+		env:              env,
 		installerBinPath: installerBinPath,
-		registry:         registry,
-		registryAuth:     registryAuth,
-		apiKey:           apiKey,
-		site:             site,
-		pm:               installer.NewInstaller(),
 	}
 }
 
@@ -51,19 +40,12 @@ type installerCmd struct {
 }
 
 func (i *InstallerExec) newInstallerCmd(ctx context.Context, command string, args ...string) *installerCmd {
+	env := i.env.ToEnv()
 	span, ctx := tracer.StartSpanFromContext(ctx, fmt.Sprintf("installer.%s", command))
 	span.SetTag("args", args)
-	span.SetTag("config.registry", i.registry)
-	span.SetTag("config.registryAuth", i.registryAuth)
-	span.SetTag("config.site", i.site)
+	span.SetTag("env", env)
 	cmd := exec.CommandContext(ctx, i.installerBinPath, append([]string{command}, args...)...)
-	env := os.Environ()
-	env = append(env, []string{
-		fmt.Sprintf("DD_INSTALLER_REGISTRY=%s", i.registry),
-		fmt.Sprintf("DD_INSTALLER_REGISTRY_AUTH=%s", i.registryAuth),
-		fmt.Sprintf("DD_API_KEY=%s", i.apiKey),
-		fmt.Sprintf("DD_SITE=%s", i.site),
-	}...)
+	env = append(os.Environ(), env...)
 	cmd.Cancel = func() error {
 		return cmd.Process.Signal(os.Interrupt)
 	}
@@ -90,6 +72,11 @@ func (i *InstallerExec) Remove(ctx context.Context, pkg string) (err error) {
 	cmd := i.newInstallerCmd(ctx, "remove", pkg)
 	defer func() { cmd.span.Finish(tracer.WithError(err)) }()
 	return cmd.Run()
+}
+
+// Purge - noop, must be called by the package manager on uninstall.
+func (i *InstallerExec) Purge(_ context.Context) {
+	panic("don't call Purge directly")
 }
 
 // InstallExperiment installs an experiment.
@@ -120,12 +107,28 @@ func (i *InstallerExec) GarbageCollect(ctx context.Context) (err error) {
 	return cmd.Run()
 }
 
+// IsInstalled checks if a package is installed.
+func (i *InstallerExec) IsInstalled(ctx context.Context, pkg string) (_ bool, err error) {
+	cmd := i.newInstallerCmd(ctx, "is-installed", pkg)
+	defer func() { cmd.span.Finish(tracer.WithError(err)) }()
+	err = cmd.Run()
+	if err != nil && cmd.ProcessState.ExitCode() == 10 {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
 // State returns the state of a package.
 func (i *InstallerExec) State(pkg string) (repository.State, error) {
-	return i.pm.State(pkg)
+	repositories := repository.NewRepositories(installer.PackagesPath, installer.LocksPack)
+	return repositories.Get(pkg).GetState()
 }
 
 // States returns the states of all packages.
 func (i *InstallerExec) States() (map[string]repository.State, error) {
-	return i.pm.States()
+	repositories := repository.NewRepositories(installer.PackagesPath, installer.LocksPack)
+	return repositories.GetState()
 }

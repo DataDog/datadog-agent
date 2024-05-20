@@ -9,32 +9,33 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclientparams"
-	windowsAgent "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/agent"
 	"github.com/DataDog/test-infra-definitions/components/os"
+
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclientparams"
+	wincommand "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/command"
 )
 
 type agentHostExecutor struct {
 	baseCommand string
-	host        *components.RemoteHost
+	host        *Host
 }
 
-func newAgentHostExecutor(host *components.RemoteHost, params *agentclientparams.Params) agentCommandExecutor {
+func newAgentHostExecutor(osFamily os.Family, host *Host, params *agentclientparams.Params) agentCommandExecutor {
 	var baseCommand string
-	switch host.OSFamily {
+	switch osFamily {
 	case os.WindowsFamily:
 		installPath := params.AgentInstallPath
 		if len(installPath) == 0 {
 			installPath = defaultWindowsAgentInstallPath(host)
 		}
+		fmt.Printf("Using default install path: %s\n", installPath)
 		baseCommand = fmt.Sprintf(`& "%s\bin\agent.exe"`, installPath)
 	case os.LinuxFamily:
 		baseCommand = "sudo datadog-agent"
 	case os.MacOSFamily:
 		baseCommand = "datadog-agent"
 	default:
-		panic(fmt.Sprintf("unsupported OS family: %v", host.OSFamily))
+		panic(fmt.Sprintf("unsupported OS family: %v", osFamily))
 	}
 
 	return &agentHostExecutor{
@@ -56,10 +57,10 @@ func (ae agentHostExecutor) execute(arguments []string) (string, error) {
 //
 // If the Agent is installed, the installPath is read from the registry.
 // If the registry key is not found, returns the default install path.
-func defaultWindowsAgentInstallPath(host *components.RemoteHost) string {
-	path, err := windowsAgent.GetInstallPathFromRegistry(host)
+func defaultWindowsAgentInstallPath(host *Host) string {
+	path, err := host.Execute(wincommand.GetInstallPathFromRegistry())
 	if err != nil {
-		path = windowsAgent.DefaultInstallPath
+		path = wincommand.DefaultInstallPath
 	}
-	return path
+	return strings.TrimSpace(path)
 }
