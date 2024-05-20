@@ -11,6 +11,7 @@ import (
 	"io"
 	"math"
 	"strings"
+	"sync"
 	"time"
 
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
@@ -20,8 +21,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/trace/timing"
 
-	"github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/tinylib/msgp/msgp"
+
+	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
 // pathStats is the target host API path for delivering stats.
@@ -40,7 +42,6 @@ const (
 
 // StatsWriter ingests stats buckets and flushes them to the API.
 type StatsWriter struct {
-	in      <-chan *pb.StatsPayload
 	senders []*sender
 	stop    chan struct{}
 	stats   *info.StatsWriterInfo
@@ -54,18 +55,17 @@ type StatsWriter struct {
 	easylog *log.ThrottledLogger
 	statsd  statsd.ClientInterface
 	timing  timing.Reporter
+	mu      sync.Mutex
 }
 
 // NewStatsWriter returns a new StatsWriter. It must be started using Run.
 func NewStatsWriter(
 	cfg *config.AgentConfig,
-	in <-chan *pb.StatsPayload,
 	telemetryCollector telemetry.TelemetryCollector,
 	statsd statsd.ClientInterface,
 	timing timing.Reporter,
 ) *StatsWriter {
 	sw := &StatsWriter{
-		in:        in,
 		stats:     &info.StatsWriterInfo{},
 		stop:      make(chan struct{}),
 		flushChan: make(chan chan struct{}),
@@ -104,11 +104,6 @@ func (w *StatsWriter) Run() {
 	defer close(w.stop)
 	for {
 		select {
-		case stats := <-w.in:
-			w.addStats(stats)
-			if !w.syncMode {
-				w.sendPayloads()
-			}
 		case notify := <-w.flushChan:
 			w.sendPayloads()
 			notify <- struct{}{}
@@ -140,9 +135,19 @@ func (w *StatsWriter) Stop() {
 	stopSenders(w.senders)
 }
 
+// Add appends this StatsPayload to the writer's buffer (flushing immediately if syncMode is enabled)
+func (w *StatsWriter) Add(sp *pb.StatsPayload) {
+	w.addStats(sp)
+	if !w.syncMode {
+		w.sendPayloads()
+	}
+}
+
 func (w *StatsWriter) addStats(sp *pb.StatsPayload) {
 	defer w.timing.Since("datadog.trace_agent.stats_writer.encode_ms", time.Now())
 	payloads := w.buildPayloads(sp, maxEntriesPerPayload)
+	w.mu.Lock()
+	defer w.mu.Unlock()
 	w.payloads = append(w.payloads, payloads...)
 }
 
