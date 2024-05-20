@@ -20,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/aggregator/diagnosesendermanager"
 	"github.com/DataDog/datadog-agent/comp/api/api"
 	"github.com/DataDog/datadog-agent/comp/api/api/utils"
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
@@ -28,7 +29,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/serializer/compression"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
-	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/zstd"
@@ -48,6 +48,7 @@ type dependencies struct {
 	OrchestratorForwarder  orchestratorforwarder.Component
 	EventPlatformForwarder eventplatform.Component
 	Compressor             compression.Component
+	Config                 config.Component
 
 	Params Params
 }
@@ -57,8 +58,9 @@ type demultiplexer struct {
 }
 
 type demultiplexerEndpoint struct {
-	Comp demultiplexerComp.Component
-	Log  log.Component
+	Comp   demultiplexerComp.Component
+	Config config.Component
+	Log    log.Component
 }
 
 type provides struct {
@@ -107,8 +109,9 @@ func newDemultiplexer(deps dependencies) (provides, error) {
 	}})
 
 	endpoint := demultiplexerEndpoint{
-		Comp: demultiplexer,
-		Log:  deps.Log,
+		Comp:   demultiplexer,
+		Config: deps.Config,
+		Log:    deps.Log,
 	}
 
 	return provides{
@@ -129,7 +132,7 @@ func (demux demultiplexer) LazyGetSenderManager() (sender.SenderManager, error) 
 }
 
 func (demux demultiplexerEndpoint) dumpDogstatsdContexts(w http.ResponseWriter, _ *http.Request) {
-	path, err := dumpDogstatsdContextsImpl(demux.Comp)
+	path, err := dumpDogstatsdContextsImpl(demux.Comp, demux.Config)
 	if err != nil {
 		utils.SetJSONError(w, demux.Log.Errorf("Failed to create dogstatsd contexts dump: %v", err), 500)
 		return
@@ -145,8 +148,8 @@ func (demux demultiplexerEndpoint) dumpDogstatsdContexts(w http.ResponseWriter, 
 	w.Write(resp)
 }
 
-func dumpDogstatsdContextsImpl(demux demultiplexerComp.Component) (string, error) {
-	path := path.Join(config.Datadog.GetString("run_path"), "dogstatsd_contexts.json.zstd")
+func dumpDogstatsdContextsImpl(demux demultiplexerComp.Component, config config.Component) (string, error) {
+	path := path.Join(config.GetString("run_path"), "dogstatsd_contexts.json.zstd")
 
 	f, err := os.Create(path)
 	if err != nil {

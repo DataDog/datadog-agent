@@ -212,7 +212,7 @@ func initTelemetry(cfg config.Reader, logger logComponent.Component) {
 func newServer(deps dependencies) provides {
 	s := newServerCompat(deps.Config, deps.Log, deps.Replay, deps.Debug, deps.Params.Serverless, deps.Demultiplexer, deps.WMeta, deps.PidMap)
 
-	if config.Datadog.GetBool("use_dogstatsd") {
+	if deps.Config.GetBool("use_dogstatsd") {
 		deps.Lc.Append(fx.Hook{
 			OnStart: s.startHook,
 			OnStop:  s.stop,
@@ -541,7 +541,7 @@ func (s *server) handleMessages() {
 func (s *server) writeStats(w http.ResponseWriter, _ *http.Request) {
 	s.log.Info("Got a request for the Dogstatsd stats.")
 
-	if !config.Datadog.GetBool("use_dogstatsd") {
+	if !s.config.GetBool("use_dogstatsd") {
 		w.Header().Set("Content-Type", "application/json")
 		body, _ := json.Marshal(map[string]string{
 			"error":      "Dogstatsd not enabled in the Agent configuration",
@@ -552,7 +552,7 @@ func (s *server) writeStats(w http.ResponseWriter, _ *http.Request) {
 		return
 	}
 
-	if !config.Datadog.GetBool("dogstatsd_metrics_stats_enable") {
+	if !s.config.GetBool("dogstatsd_metrics_stats_enable") {
 		w.Header().Set("Content-Type", "application/json")
 		body, _ := json.Marshal(map[string]string{
 			"error":      "Dogstatsd metrics stats not enabled in the Agent configuration",
