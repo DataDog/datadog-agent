@@ -24,6 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/usm/buildmode"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/go-sqllexer"
 )
 
 const (
@@ -156,6 +157,9 @@ func (p *protocol) processPostgres(events []EbpfEvent) {
 		tx := &events[i]
 		p.statskeeper.Process(&EventWrapper{
 			EbpfEvent: tx,
+			normalizer: sqllexer.NewNormalizer(
+				sqllexer.WithCollectTables(true),
+			),
 		})
 	}
 }

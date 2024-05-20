@@ -27,6 +27,7 @@ type EventWrapper struct {
 	operation    Operation
 	tableNameSet bool
 	tableName    string
+	normalizer   *sqllexer.Normalizer
 }
 
 // ConnTuple returns the connection tuple for the transaction
@@ -70,14 +71,10 @@ func (e *EventWrapper) extractTableName() string {
 		fragment = strings.ReplaceAll(fragment, "IF EXISTS", "")
 	}
 
-	normalizer := sqllexer.NewNormalizer(
-		sqllexer.WithCollectTables(true),
-	)
-
 	// Normalize the query without obfuscating it.
-	_, statementMetadata, err := normalizer.Normalize(fragment, sqllexer.WithDBMS("postgresql"))
+	_, statementMetadata, err := e.normalizer.Normalize(fragment, sqllexer.WithDBMS(sqllexer.DBMSPostgres))
 	if err != nil {
-		log.Warnf("unable to normalize due to: %s", err)
+		log.Debugf("unable to normalize due to: %s", err)
 		return "UNKNOWN"
 	}
 	if statementMetadata.Size == 0 {
