@@ -273,6 +273,9 @@ func (wp *WindowsProbe) parseInformationArgs(e *etw.DDEventRecord) (*setInformat
 		return nil, fmt.Errorf("unknown version number %v", e.EventHeader.EventDescriptor.Version)
 	}
 
+	if _, ok := wp.discardedFileHandles.Get(fileObjectPointer(sia.fileObject)); ok {
+		return nil, errDiscardedPath
+	}
 	// lru is thread safe, has its own locking
 	if s, ok := wp.filePathResolver.Get(fileObjectPointer(sia.fileObject)); ok {
 		sia.fileName = s.fileName
@@ -407,6 +410,9 @@ func (wp *WindowsProbe) parseCleanupArgs(e *etw.DDEventRecord) (*cleanupArgs, er
 		return nil, fmt.Errorf("unknown version number %v", e.EventHeader.EventDescriptor.Version)
 	}
 
+	if _, ok := wp.discardedFileHandles.Get(fileObjectPointer(ca.fileObject)); ok {
+		return nil, errDiscardedPath
+	}
 	// lru is thread safe, has its own locking
 	if s, ok := wp.filePathResolver.Get(fileObjectPointer(ca.fileObject)); ok {
 		ca.fileName = s.fileName
@@ -500,6 +506,9 @@ func (wp *WindowsProbe) parseReadArgs(e *etw.DDEventRecord) (*readArgs, error) {
 		ra.extraFlags = data.GetUint32(44)
 	} else {
 		return nil, fmt.Errorf("unknown version number %v", e.EventHeader.EventDescriptor.Version)
+	}
+	if _, ok := wp.discardedFileHandles.Get(fileObjectPointer(ra.fileObject)); ok {
+		return nil, errDiscardedPath
 	}
 	// lru is thread safe, has its own locking
 	if s, ok := wp.filePathResolver.Get(fileObjectPointer(ra.fileObject)); ok {
@@ -608,6 +617,9 @@ func (wp *WindowsProbe) parseDeletePathArgs(e *etw.DDEventRecord) (*deletePathAr
 		dpa.threadID = uint64(data.GetUint32(32))
 		dpa.infoClass = data.GetUint32(36)
 		dpa.filePath, _, _, _ = data.ParseUnicodeString(40)
+	}
+	if _, ok := wp.discardedFileHandles.Get(fileObjectPointer(dpa.fileObject)); ok {
+		return nil, errDiscardedPath
 	}
 
 	// lru is thread safe, has its own locking

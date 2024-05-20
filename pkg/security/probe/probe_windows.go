@@ -93,6 +93,8 @@ type WindowsProbe struct {
 	// map of device path to volume name (i.e. c:)
 	volumeMap map[string]string
 
+	discardedFileHandles *lru.Cache[fileObjectPointer, struct{}]
+
 	// actions
 	processKiller *ProcessKiller
 
@@ -343,6 +345,7 @@ func (p *WindowsProbe) setupEtw(ecb etwCallback) error {
 					ecb(ca, e.EventHeader.ProcessID)
 					// lru is thread safe, has its own locking
 					p.filePathResolver.Remove(ca.fileObject)
+					p.discardedFileHandles.Remove(ca.fileObject)
 				}
 				p.stats.fileClose++
 			case idFlush:
@@ -363,7 +366,6 @@ func (p *WindowsProbe) setupEtw(ecb etwCallback) error {
 					}
 				}
 				p.stats.fileWrite++
-
 				/*
 					case idSetInformation:
 						if si, err := p.parseInformationArgs(e); err == nil {
@@ -371,7 +373,7 @@ func (p *WindowsProbe) setupEtw(ecb etwCallback) error {
 							ecb(si, e.EventHeader.ProcessID)
 						}
 				*/
-				p.stats.fileWrite++
+				
 
 			case idSetDelete:
 				if p.isDeleteEnabled {
@@ -904,6 +906,11 @@ func NewWindowsProbe(probe *Probe, config *config.Config, opts Opts) (*WindowsPr
 		return nil, err
 	}
 
+	discardedHandles, err := lru.New[fileObjectPointer, struct{}](config.RuntimeSecurity.WindowsFilenameCacheSize)
+	if err != nil {
+		return nil, err
+	}
+
 	fc, err := lru.New[fileObjectPointer, fileCache](config.RuntimeSecurity.WindowsFilenameCacheSize)
 	if err != nil {
 		return nil, err
@@ -944,6 +951,7 @@ func NewWindowsProbe(probe *Probe, config *config.Config, opts Opts) (*WindowsPr
 
 		discardedPaths:     discardedPaths,
 		discardedBasenames: discardedBasenames,
+		discardedFileHandles: discardedHandles,
 
 		volumeMap: make(map[string]string),
 
@@ -1010,7 +1018,10 @@ func (p *WindowsProbe) OnNewDiscarder(_ *rules.RuleSet, ev *model.Event, field e
 	}
 
 	fileObject := fileObjectPointer(ev.CreateNewFile.File.FileObject)
+
 	p.filePathResolver.Remove(fileObject)
+
+	p.discardedFileHandles.Add(fileObject, struct{}{})
 }
 
 // NewModel returns a new Model
