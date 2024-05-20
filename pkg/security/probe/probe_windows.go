@@ -72,8 +72,8 @@ type WindowsProbe struct {
 	fimwg      sync.WaitGroup
 
 	// path caches
-	filePathResolver     *lru.Cache[fileObjectPointer, fileCache]
-	regPathResolver      *lru.Cache[regObjectPointer, string]
+	filePathResolver *lru.Cache[fileObjectPointer, fileCache]
+	regPathResolver  *lru.Cache[regObjectPointer, string]
 
 	// state tracking
 	renamePreArgs *lru.Cache[uint64, string]
