@@ -358,11 +358,12 @@ func CheckSystemProbeBehavior(t *testing.T, client *TestClient) {
 		ebpfPath := "/opt/datadog-agent/embedded/share/system-probe/ebpf"
 		output, err := client.Host.Execute(fmt.Sprintf("find %s -name '*.o'", ebpfPath))
 		require.NoError(tt, err)
-		files := strings.Split(output, "\n")
+		files := strings.Split(strings.TrimSpace(output), "\n")
 		require.Greater(tt, len(files), 0, "ebpf object files should be present")
 		for _, file := range files {
+			file = strings.TrimSpace(file)
 			fileOutput, err := client.Host.Execute(fmt.Sprintf("file %s", file))
-			require.NoError(tt, err)
+			require.NoError(tt, err, "cannot run file command on ebpf object file %s", file)
 
 			fileType := strings.Split(fileOutput, ":")[1]
 			require.Contains(tt, fileType, "eBPF", "ebpf object files should be valid and recognized as such")
