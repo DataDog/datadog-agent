@@ -68,22 +68,6 @@ func validateProtocolConnection(expectedStack *protocols.Stack) func(t *testing.
 	}
 }
 
-// skipIfUsingNAT skips the test if we have a NAT rules applied.
-func skipIfUsingNAT(t *testing.T, ctx testContext) {
-	if ctx.targetAddress != ctx.serverAddress {
-		t.Skip("test is not supported when NAT is applied")
-	}
-}
-
-// composeSkips skips if one of the given filters is matched.
-func composeSkips(skippers ...func(t *testing.T, ctx testContext)) func(t *testing.T, ctx testContext) {
-	return func(t *testing.T, ctx testContext) {
-		for _, skipFunction := range skippers {
-			skipFunction(t, ctx)
-		}
-	}
-}
-
 const (
 	httpPort       = "8080"
 	httpsPort      = "8443"
