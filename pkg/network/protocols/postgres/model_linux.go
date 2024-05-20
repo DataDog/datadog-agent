@@ -12,10 +12,11 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/pkg/network/protocols"
-	"github.com/DataDog/datadog-agent/pkg/network/types"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/go-sqllexer"
+
+	"github.com/DataDog/datadog-agent/pkg/network/protocols"
+	"github.com/DataDog/datadog-agent/pkg/network/types"
 )
 
 // EventWrapper wraps an ebpf event and provides additional methods to extract information from it.
@@ -28,6 +29,14 @@ type EventWrapper struct {
 	tableNameSet bool
 	tableName    string
 	normalizer   *sqllexer.Normalizer
+}
+
+// NewEventWrapper creates a new EventWrapper from an ebpf event.
+func NewEventWrapper(e *EbpfEvent) *EventWrapper {
+	return &EventWrapper{
+		EbpfEvent:  e,
+		normalizer: sqllexer.NewNormalizer(sqllexer.WithCollectTables(true)),
+	}
 }
 
 // ConnTuple returns the connection tuple for the transaction
@@ -80,7 +89,9 @@ func (e *EventWrapper) extractTableName() string {
 	if statementMetadata.Size == 0 {
 		return "UNKNOWN"
 	}
-	return strings.Join(statementMetadata.Tables, ",")
+
+	// Currently, we do not support complex queries with multiple tables. Therefore, we will return only a single table.
+	return statementMetadata.Tables[0]
 
 }
 

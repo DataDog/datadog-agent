@@ -24,7 +24,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/usm/buildmode"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/go-sqllexer"
 )
 
 const (
@@ -164,12 +163,7 @@ func (*protocol) IsBuildModeSupported(buildmode.Type) bool {
 func (p *protocol) processPostgres(events []EbpfEvent) {
 	for i := range events {
 		tx := &events[i]
-		p.statskeeper.Process(&EventWrapper{
-			EbpfEvent: tx,
-			normalizer: sqllexer.NewNormalizer(
-				sqllexer.WithCollectTables(true),
-			),
-		})
+		p.statskeeper.Process(NewEventWrapper(tx))
 	}
 }
 
