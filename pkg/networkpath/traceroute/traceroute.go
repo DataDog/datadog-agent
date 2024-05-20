@@ -13,15 +13,11 @@ import (
 )
 
 const (
-	UDP TracerouteType = iota
-	TCP
+	UDP = "UDP"
+	TCP = "TCP"
 )
 
 type (
-	// TraceRouteType identifies what type of traceroute
-	// should be run
-	TracerouteType int
-
 	// Config specifies the configuration of an instance
 	// of Traceroute
 	Config struct {
@@ -34,9 +30,9 @@ type (
 		MaxTTL uint8
 		// TODO: do we want to expose this?
 		TimeoutMs uint
-		// Type is the type of traceroute to
-		// run, default is UDP
-		Type TracerouteType
+		// Protocol is the protocol to use
+		// for traceroute, default is UDP
+		Protocol string
 	}
 
 	// Traceroute defines an interface for running

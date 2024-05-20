@@ -13,6 +13,7 @@ import (
 	"net"
 	"os"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/network"
@@ -125,19 +126,27 @@ func (r *Runner) RunTraceroute(ctx context.Context, cfg Config) (payload.Network
 		return payload.NetworkPath{}, err
 	}
 
+	protocol := strings.ToUpper(cfg.Protocol)
 	var pathResult payload.NetworkPath
-	if cfg.Type == TCP {
+	switch protocol {
+	case TCP:
+		log.Debugf("Running TCP traceroute for: %+v", cfg)
 		pathResult, err = r.runTCP(cfg, hname, dest, maxTTL, timeout)
 		if err != nil {
 			tracerouteRunnerTelemetry.failedRuns.Inc()
 			return payload.NetworkPath{}, err
 		}
-	} else {
+	case UDP:
+		log.Debugf("Running UDP traceroute for: %+v", cfg)
 		pathResult, err = r.runUDP(cfg, hname, dest, maxTTL, timeout)
 		if err != nil {
 			tracerouteRunnerTelemetry.failedRuns.Inc()
 			return payload.NetworkPath{}, err
 		}
+	default:
+		log.Errorf("Invalid protocol for: %+v", cfg)
+		tracerouteRunnerTelemetry.failedRuns.Inc()
+		return payload.NetworkPath{}, fmt.Errorf("failed to run traceroute, invalid protocol: %s", cfg.Protocol)
 	}
 
 	return pathResult, nil

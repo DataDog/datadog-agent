@@ -123,12 +123,14 @@ func parseParams(req *http.Request) (tracerouteutil.Config, error) {
 	if err != nil {
 		return tracerouteutil.Config{}, fmt.Errorf("invalid timeout: %s", err)
 	}
+	protocol := req.URL.Query().Get("protocol")
 
 	return tracerouteutil.Config{
 		DestHostname: host,
 		DestPort:     uint16(port),
 		MaxTTL:       uint8(maxTTL),
 		TimeoutMs:    uint(timeout),
+		Protocol:     protocol,
 	}, nil
 }
 
