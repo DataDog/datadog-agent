@@ -316,7 +316,7 @@ func start(log log.Component,
 	// Initialize and start remote configuration client
 	var rcClient *rcclient.Client
 	rcserv, isSet := rcService.Get()
-	if pkgconfig.IsRemoteConfigEnabled(config) && isSet {
+	if pkgconfig.IsRemoteConfigEnabled(config) && isSet && clusterID != "" && clusterName != "" {
 		// TODO: Is APM Tracing always required? I am not sure
 		products := []string{state.ProductAPMTracing}
 
@@ -538,12 +538,8 @@ func setupClusterCheck(ctx context.Context, ac autodiscovery.Component) (*cluste
 }
 
 func initializeRemoteConfigClient(rcService rccomp.Component, config config.Component, clusterName, clusterID string, products ...string) (*rcclient.Client, error) {
-	if clusterName == "" {
-		pkglog.Warn("cluster-name won't be set for remote-config client")
-	}
-
-	if clusterID == "" {
-		pkglog.Warn("Error retrieving cluster ID: cluster-id won't be set for remote-config client")
+	if clusterID == "" || clusterName == "" {
+		return nil, fmt.Errorf("Error initializing RC client - cluster ID and cluster name should be set")
 	}
 
 	pkglog.Debugf("Initializing remote-config client with cluster-name: '%s', cluster-id: '%s', products: %v", clusterName, clusterID, products)

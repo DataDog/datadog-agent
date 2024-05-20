@@ -184,7 +184,7 @@ func enableConfig(ns *v1.Namespace, req Request) {
 func disableConfig(ns *v1.Namespace) {
 	rcIDLabelVal, ok := ns.ObjectMeta.Labels[k8sutil.RcLabelKey]
 	if !ok {
-		log.Errorf("APM Instrumentation cannot be disabled in namespace %s because the namespace is missing RC label")
+		log.Errorf("APM Instrumentation cannot be disabled in namespace %s because the namespace is missing RC label", ns.Name)
 	}
 	if rcIDLabelVal == "true" {
 		ns.ObjectMeta.Labels[k8sutil.RcLabelKey] = "false"
