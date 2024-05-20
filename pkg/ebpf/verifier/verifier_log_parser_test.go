@@ -50,3 +50,45 @@ func TestParseRegisterState(t *testing.T) {
 		})
 	}
 }
+
+// 5: R1_w=0 R10=fp0 fp-16_w=00000000
+// 5: (63) *(u32 *)(r10 -16) = r2        ; R2_w=scalar() R10=fp0 fp-16_w=0000mmmm
+
+func TestLogParsingWithRegisterState(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected InstructionInfo
+	}{
+		{
+			name:  "RegisterStateBeforeInsn",
+			input: "5: R1_w=0 fp-16_w=00000000\n5: (63) *(u32 *)(r10 -16) = r2\n",
+			expected: InstructionInfo{
+				Index:          5,
+				TimesProcessed: 1,
+				Source:         nil,
+				Code:           "*(u32 *)(r10 -16) = r2",
+				RegisterState: map[int]*RegisterState{
+					1: {
+						Register: 1,
+						Live:     "written",
+						Type:     "scalar",
+						Value:    "0",
+						Precise:  false,
+					},
+				},
+				RegisterStateRaw: "5: R1_w=0 fp-16_w=00000000",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			vlp := newVerifierLogParser(nil)
+			_, err := vlp.parseVerifierLog(tt.input)
+			require.NoError(t, err)
+			insInfo := vlp.complexity.InsnMap[5]
+			require.Equal(t, &tt.expected, insInfo)
+		})
+	}
+}

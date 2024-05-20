@@ -18,7 +18,7 @@ var (
 	insnRegex           = regexp.MustCompile(`^([0-9]+): \([0-9a-f]+\) (.*)`)
 	regStateRegex       = regexp.MustCompile(`^([0-9]+): (R[0-9]+.*)`)
 	singleRegStateRegex = regexp.MustCompile(`R([0-9]+)(_[^=]+)?=([^ ]+)`)
-	regInfoRegex        = regexp.MustCompile(`^([a-z_]+)(P)?(-?[0-9]+|\((.*)\))`)
+	regInfoRegex        = regexp.MustCompile(`^([a-z_]+)?(P)?(-?[0-9]+|\((.*)\))`)
 )
 
 // verifierLogParser is a struct that maintains the state necessary to parse the verifier log
@@ -188,8 +188,10 @@ func parseRegisterState(regMatch []string) (*RegisterState, error) {
 	}
 
 	regType := regInfoGroups[1]
-	if regType == "inv" {
-		regType = "scalar" // for some reason the verifier logs scalars as "inv", which is confusing
+	if regType == "inv" || regType == "" {
+		// Depending on the kernel version, we might see scalars represented either
+		// as "scalar" type, as "inv" type or as a raw number with no type
+		regType = "scalar"
 	}
 
 	if regType == "scalar" {
