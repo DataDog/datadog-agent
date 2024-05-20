@@ -211,7 +211,7 @@ func Test_NpCollector_runningAndProcessing(t *testing.T) {
 	}
 	npCollector.ScheduleConns(conns)
 
-	waitForProcessedPathtests(npCollector, 5*time.Second, 1)
+	waitForProcessedPathtests(npCollector, 5*time.Second, 2)
 
 	// THEN
 	calls := stats.GaugeCalls
