@@ -283,7 +283,7 @@ func getPostgresInFlightEntries(t *testing.T, monitor *Monitor) map[postgres.Con
 
 // TestCleanupEBPFEntriesOnTermination tests that the cleanup of the eBPF entries is done when the connection
 // is closed. This is important to avoid leaking resources. The test creates a TCP server, which just reads the requests
-// without sending any response. The test will send a kafka request (and obviously will fail), we will verify the
+// without sending any response. The test will send a postgres request (and obviously will fail), we will verify the
 // request appear in the in_flight map and then we will close the connection and verify that the entry is removed.
 func (s *postgresProtocolParsingSuite) TestCleanupEBPFEntriesOnTermination() {
 	t := s.T()
