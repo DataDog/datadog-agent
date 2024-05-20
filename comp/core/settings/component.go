@@ -38,6 +38,8 @@ type Params struct {
 	Settings map[string]RuntimeSetting
 	// The config object in which the settings would apply operations
 	Config config.Component
+	// Optional namespace restriction that GetFullConfig would return settings for
+	Namespaces []string
 }
 
 // Component is the component type.

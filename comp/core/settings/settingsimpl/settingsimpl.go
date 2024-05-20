@@ -223,7 +223,7 @@ func newSettings(deps dependencies) provides {
 	}
 	return provides{
 		Comp:         s,
-		FullEndpoint: api.NewAgentEndpointProvider(s.GetFullConfig(""), "/config", "GET"),
+		FullEndpoint: api.NewAgentEndpointProvider(s.GetFullConfig(deps.Params.Namespaces...), "/config", "GET"),
 		ListEndpoint: api.NewAgentEndpointProvider(s.ListConfigurable, "/config/list-runtime", "GET"),
 		GetEndpoint:  api.NewAgentEndpointProvider(s.GetValue, "/config/{setting}", "GET"),
 		SetEndpoint:  api.NewAgentEndpointProvider(s.SetValue, "/config/{setting}", "POST"),
