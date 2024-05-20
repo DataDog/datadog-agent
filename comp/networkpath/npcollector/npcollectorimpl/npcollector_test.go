@@ -81,13 +81,15 @@ func Test_NpCollector_runningAndProcessing(t *testing.T) {
 	app, npCollector := newTestNpCollector(t, agentConfigs)
 
 	stats := &teststatsd.Client{}
-	npCollector.statsdClient = stats
-	npCollector.metricSender = metricsender.NewMetricSenderStatsd(stats)
 
 	mockEpForwarder := eventplatformimpl.NewMockEventPlatformForwarder(gomock.NewController(t))
 	npCollector.epForwarder = mockEpForwarder
 
 	app.RequireStart()
+
+	npCollector.statsdClient = stats
+	npCollector.metricSender = metricsender.NewMetricSenderStatsd(stats)
+
 	assert.True(t, npCollector.running)
 
 	npCollector.runTraceroute = func(cfg traceroute.Config) (payload.NetworkPath, error) {
