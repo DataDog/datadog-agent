@@ -90,42 +90,14 @@ const (
 	rawTrafficPort = "9093"
 )
 
-func testProtocolClassification(t *testing.T, tr *Tracer, clientHost, targetHost, serverHost string) {
+func testProtocolClassificationCrossOS(t *testing.T, tr *Tracer, clientHost, targetHost, serverHost string) {
 	tests := []struct {
 		name     string
 		testFunc func(t *testing.T, tr *Tracer, clientHost, targetHost, serverHost string)
 	}{
 		{
-			name:     "kafka",
-			testFunc: testKafkaProtocolClassification,
-		},
-		{
-			name:     "mysql",
-			testFunc: testMySQLProtocolClassification,
-		},
-		{
-			name:     "postgres",
-			testFunc: testPostgresProtocolClassification,
-		},
-		{
-			name:     "mongo",
-			testFunc: testMongoProtocolClassification,
-		},
-		{
-			name:     "redis",
-			testFunc: testRedisProtocolClassification,
-		},
-		{
-			name:     "amqp",
-			testFunc: testAMQPProtocolClassification,
-		},
-		{
 			name:     "http",
 			testFunc: testHTTPProtocolClassification,
-		},
-		{
-			name:     "http2",
-			testFunc: testHTTP2ProtocolClassification,
 		},
 		{
 			name:     "edge cases",
