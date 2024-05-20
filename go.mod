@@ -140,7 +140,7 @@ require (
 	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/metrics v0.16.0
 	github.com/DataDog/opentelemetry-mapping-go/pkg/quantile v0.16.0
 	github.com/DataDog/sketches-go v1.4.4
-	github.com/DataDog/viper v1.13.2
+	github.com/DataDog/viper v1.13.3
 	github.com/DataDog/watermarkpodautoscaler v0.6.1
 	github.com/DataDog/zstd v1.5.5
 	github.com/DataDog/zstd_0 v0.0.0-20210310093942-586c1286621f // indirect
@@ -677,6 +677,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.54.0-rc.2
 	github.com/DataDog/datadog-agent/pkg/version v0.54.0-rc.2
 	github.com/DataDog/go-libddwaf/v2 v2.3.1
+	github.com/DataDog/go-sqllexer v0.0.9
 	github.com/Datadog/dublin-traceroute v0.0.1
 	github.com/aquasecurity/trivy v0.49.2-0.20240227072422-e1ea02c7b80d
 	github.com/aws/aws-sdk-go-v2/service/kms v1.27.7
@@ -763,7 +764,6 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/system/socket v0.54.0-rc.2 // indirect
 	github.com/DataDog/datadog-api-client-go/v2 v2.25.0 // indirect
 	github.com/DataDog/dd-sensitive-data-scanner/sds-go/go v0.0.0-20240419161837-f1b2f553edfe // indirect
-	github.com/DataDog/go-sqllexer v0.0.9 // indirect
 	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/logs v0.16.0 // indirect
 	github.com/GehirnInc/crypt v0.0.0-20200316065508-bb7000b8a962 // indirect
 	github.com/GoogleCloudPlatform/grpc-gcp-go/grpcgcp v1.5.0 // indirect
