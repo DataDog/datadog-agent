@@ -23,7 +23,7 @@ func newFakeEvent() eval.Event {
 func TestApproverAncestors1(t *testing.T) {
 	enabled := map[eval.EventType]bool{"*": true}
 
-	ruleOpts, evalOpts := rules.NewEvalOpts(enabled)
+	ruleOpts, evalOpts := rules.NewBothOpts(enabled)
 
 	rs := rules.NewRuleSet(&model.Model{}, newFakeEvent, ruleOpts, evalOpts)
 	AddRuleExpr(t, rs, `open.file.path == "/etc/passwd" && process.ancestors.file.name == "vipw"`, `open.file.path == "/etc/shadow" && process.ancestors.file.name == "vipw"`)
@@ -46,7 +46,7 @@ func TestApproverAncestors1(t *testing.T) {
 func TestApproverAncestors2(t *testing.T) {
 	enabled := map[eval.EventType]bool{"*": true}
 
-	ruleOpts, evalOpts := rules.NewEvalOpts(enabled)
+	ruleOpts, evalOpts := rules.NewBothOpts(enabled)
 
 	rs := rules.NewRuleSet(&model.Model{}, newFakeEvent, ruleOpts, evalOpts)
 	AddRuleExpr(t, rs, `(open.file.path == "/etc/shadow" || open.file.path == "/etc/gshadow") && process.ancestors.file.path not in ["/usr/bin/dpkg"]`)
@@ -66,7 +66,7 @@ func TestApproverAncestors2(t *testing.T) {
 func TestApproverAncestors3(t *testing.T) {
 	enabled := map[eval.EventType]bool{"*": true}
 
-	ruleOpts, evalOpts := rules.NewEvalOpts(enabled)
+	ruleOpts, evalOpts := rules.NewBothOpts(enabled)
 
 	rs := rules.NewRuleSet(&model.Model{}, newFakeEvent, ruleOpts, evalOpts)
 	AddRuleExpr(t, rs, `open.file.path =~ "/var/run/secrets/eks.amazonaws.com/serviceaccount/*/token" && process.file.path not in ["/bin/kubectl"]`)
