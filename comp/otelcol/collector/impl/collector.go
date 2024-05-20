@@ -28,7 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
-type dependencies struct {
+type requires struct {
 	// Lc specifies the compdef lifecycle settings, used for appending startup
 	// and shutdown hooks.
 	Lc compdef.Lifecycle
@@ -49,7 +49,7 @@ type collectorImpl struct {
 	flareEnabled bool
 }
 
-type Provides struct {
+type provides struct {
 	compdef.Out
 
 	Comp          collector.Component
@@ -57,7 +57,7 @@ type Provides struct {
 }
 
 // New returns a new instance of the collector component.
-func New(deps dependencies) (Provides, error) {
+func New(reqs requires) (provides, error) {
 	set := otelcol.CollectorSettings{
 		BuildInfo: component.BuildInfo{
 			Version:     "0.0.1",
@@ -65,35 +65,35 @@ func New(deps dependencies) (Provides, error) {
 			Description: "Datadog Agent OpenTelemetry Collector Distribution",
 		},
 		Factories: func() (otelcol.Factories, error) {
-			factories, err := deps.CollectorContrib.OTelComponentFactories()
+			factories, err := reqs.CollectorContrib.OTelComponentFactories()
 			if err != nil {
 				return otelcol.Factories{}, err
 			}
-			if v, ok := deps.LogsAgent.Get(); ok {
-				factories.Exporters[datadogexporter.Type] = datadogexporter.NewFactory(deps.Serializer, v, deps.HostName)
+			if v, ok := reqs.LogsAgent.Get(); ok {
+				factories.Exporters[datadogexporter.Type] = datadogexporter.NewFactory(reqs.Serializer, v, reqs.HostName)
 			} else {
-				factories.Exporters[datadogexporter.Type] = datadogexporter.NewFactory(deps.Serializer, nil, deps.HostName)
+				factories.Exporters[datadogexporter.Type] = datadogexporter.NewFactory(reqs.Serializer, nil, reqs.HostName)
 			}
 			factories.Processors[tagenrichmentprocessor.Type] = tagenrichmentprocessor.NewFactory()
 			return factories, nil
 		},
-		ConfigProvider: deps.Provider,
+		ConfigProvider: reqs.Provider,
 	}
 	col, err := otelcol.NewCollector(set)
 	if err != nil {
-		return Provides{}, err
+		return provides{}, err
 	}
 	c := &collectorImpl{
-		log: deps.Log,
+		log: reqs.Log,
 		set: set,
 		col: col,
 	}
 
-	deps.Lc.Append(compdef.Hook{
+	reqs.Lc.Append(compdef.Hook{
 		OnStart: c.start,
 		OnStop:  c.stop,
 	})
-	return Provides{
+	return provides{
 		Comp:          c,
 		FlareProvider: flaredef.NewProvider(c.fillFlare),
 	}, nil
