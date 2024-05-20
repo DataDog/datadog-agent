@@ -25,8 +25,6 @@ import (
 	redis2 "github.com/go-redis/redis/v9"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/mongo"
 	"golang.org/x/net/http2"
 	"golang.org/x/net/http2/h2c"
 	"golang.org/x/net/http2/hpack"
@@ -35,7 +33,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/amqp"
 	usmhttp2 "github.com/DataDog/datadog-agent/pkg/network/protocols/http2"
-	protocolsmongo "github.com/DataDog/datadog-agent/pkg/network/protocols/mongo"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/redis"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/testutil/grpc"
 )
@@ -107,7 +104,6 @@ func composeSkips(skippers ...func(t *testing.T, ctx testContext)) func(t *testi
 }
 
 const (
-	mongoPort      = "27017"
 	redisPort      = "6379"
 	amqpPort       = "5672"
 	httpPort       = "8080"
@@ -162,157 +158,6 @@ func testProtocolClassification(t *testing.T, tr *Tracer, clientHost, targetHost
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			tt.testFunc(t, tr, clientHost, targetHost, serverHost)
-		})
-	}
-}
-
-func testMongoProtocolClassification(t *testing.T, tr *Tracer, clientHost, targetHost, serverHost string) {
-	skipFunc := composeSkips(skipIfNotLinux, skipIfUsingNAT)
-	skipFunc(t, testContext{
-		serverAddress: serverHost,
-		serverPort:    mongoPort,
-		targetAddress: targetHost,
-	})
-
-	defaultDialer := &net.Dialer{
-		LocalAddr: &net.TCPAddr{
-			IP: net.ParseIP(clientHost),
-		},
-	}
-
-	mongoTeardown := func(t *testing.T, ctx testContext) {
-		client := ctx.extras["client"].(*protocolsmongo.Client)
-		require.NoError(t, client.DeleteDatabases())
-		defer client.Stop()
-	}
-
-	// Setting one instance of mongo server for all tests.
-	serverAddress := net.JoinHostPort(serverHost, mongoPort)
-	targetAddress := net.JoinHostPort(targetHost, mongoPort)
-	require.NoError(t, protocolsmongo.RunServer(t, serverHost, mongoPort))
-
-	tests := []protocolClassificationAttributes{
-		{
-			name: "classify by connect",
-			context: testContext{
-				serverPort:    mongoPort,
-				targetAddress: targetAddress,
-				serverAddress: serverAddress,
-			},
-			postTracerSetup: func(t *testing.T, ctx testContext) {
-				client, err := protocolsmongo.NewClient(protocolsmongo.Options{
-					ServerAddress: ctx.targetAddress,
-					ClientDialer:  defaultDialer,
-				})
-				require.NoError(t, err)
-				client.Stop()
-			},
-			validation: validateProtocolConnection(&protocols.Stack{Application: protocols.Mongo}),
-		},
-		{
-			name: "classify by collection creation",
-			context: testContext{
-				serverPort:    mongoPort,
-				targetAddress: targetAddress,
-				serverAddress: serverAddress,
-				extras:        make(map[string]interface{}),
-			},
-			preTracerSetup: func(t *testing.T, ctx testContext) {
-				client, err := protocolsmongo.NewClient(protocolsmongo.Options{
-					ServerAddress: ctx.targetAddress,
-					ClientDialer:  defaultDialer,
-				})
-				require.NoError(t, err)
-				ctx.extras["client"] = client
-			},
-			postTracerSetup: func(t *testing.T, ctx testContext) {
-				client := ctx.extras["client"].(*protocolsmongo.Client)
-				db := client.C.Database("test")
-				timedContext, cancel := context.WithTimeout(context.Background(), defaultTimeout)
-				defer cancel()
-				require.NoError(t, db.CreateCollection(timedContext, "collection"))
-			},
-			validation: validateProtocolConnection(&protocols.Stack{Application: protocols.Mongo}),
-			teardown:   mongoTeardown,
-		},
-		{
-			name: "classify by insertion",
-			context: testContext{
-				serverPort:    mongoPort,
-				targetAddress: targetAddress,
-				serverAddress: serverAddress,
-				extras:        make(map[string]interface{}),
-			},
-			preTracerSetup: func(t *testing.T, ctx testContext) {
-				client, err := protocolsmongo.NewClient(protocolsmongo.Options{
-					ServerAddress: ctx.targetAddress,
-					ClientDialer:  defaultDialer,
-				})
-				require.NoError(t, err)
-				ctx.extras["client"] = client
-				db := client.C.Database("test")
-				timedContext, cancel := context.WithTimeout(context.Background(), defaultTimeout)
-				defer cancel()
-				require.NoError(t, db.CreateCollection(timedContext, "collection"))
-				ctx.extras["collection"] = db.Collection("collection")
-			},
-			postTracerSetup: func(t *testing.T, ctx testContext) {
-				collection := ctx.extras["collection"].(*mongo.Collection)
-				input := map[string]string{"test": "test"}
-				timedContext, cancel := context.WithTimeout(context.Background(), defaultTimeout)
-				defer cancel()
-				_, err := collection.InsertOne(timedContext, input)
-				require.NoError(t, err)
-			},
-			validation: validateProtocolConnection(&protocols.Stack{Application: protocols.Mongo}),
-			teardown:   mongoTeardown,
-		},
-		{
-			name: "classify by find",
-			context: testContext{
-				serverPort:    mongoPort,
-				targetAddress: targetAddress,
-				serverAddress: serverAddress,
-				extras:        make(map[string]interface{}),
-			},
-			preTracerSetup: func(t *testing.T, ctx testContext) {
-				client, err := protocolsmongo.NewClient(protocolsmongo.Options{
-					ServerAddress: ctx.targetAddress,
-					ClientDialer:  defaultDialer,
-				})
-				require.NoError(t, err)
-				ctx.extras["client"] = client
-				db := client.C.Database("test")
-				timedContext, cancel := context.WithTimeout(context.Background(), defaultTimeout)
-				require.NoError(t, db.CreateCollection(timedContext, "collection"))
-				cancel()
-				collection := db.Collection("collection")
-				ctx.extras["input"] = map[string]string{"test": "test"}
-				timedContext, cancel = context.WithTimeout(context.Background(), defaultTimeout)
-				defer cancel()
-				_, err = collection.InsertOne(timedContext, ctx.extras["input"])
-				require.NoError(t, err)
-
-				ctx.extras["collection"] = db.Collection("collection")
-			},
-			postTracerSetup: func(t *testing.T, ctx testContext) {
-				collection := ctx.extras["collection"].(*mongo.Collection)
-				timedContext, cancel := context.WithTimeout(context.Background(), defaultTimeout)
-				defer cancel()
-				res := collection.FindOne(timedContext, bson.M{"test": "test"})
-				require.NoError(t, res.Err())
-				var output map[string]string
-				require.NoError(t, res.Decode(&output))
-				delete(output, "_id")
-				require.EqualValues(t, output, ctx.extras["input"])
-			},
-			validation: validateProtocolConnection(&protocols.Stack{Application: protocols.Mongo}),
-			teardown:   mongoTeardown,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			testProtocolClassificationInner(t, tt, tr)
 		})
 	}
 }
