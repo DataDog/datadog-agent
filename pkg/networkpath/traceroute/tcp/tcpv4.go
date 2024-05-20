@@ -14,9 +14,9 @@ import (
 type (
 	TCPv4 struct {
 		Target   net.IP
-		srcIP    net.IP
-		srcPort  uint16
-		DstPort  uint16
+		srcIP    net.IP // calculated internally
+		srcPort  uint16 // calculated internally
+		DestPort uint16
 		NumPaths uint16
 		MinTTL   uint8
 		MaxTTL   uint8
@@ -45,7 +45,7 @@ func (t *TCPv4) TracerouteSequential() (*Results, error) {
 	//
 	// TODO: do this once for the probe and hang on to the
 	// listener until we decide to close the probe
-	tcpAddr, err := LocalAddrForTCP4Host(t.Target, t.DstPort)
+	tcpAddr, err := LocalAddrForTCP4Host(t.Target, t.DestPort)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get local addres for target: %w", err)
 	}
@@ -88,8 +88,14 @@ func (t *TCPv4) TracerouteSequential() (*Results, error) {
 
 	hops = append(hops, &Hop{})
 
+	// TODO: better logic around timeout for sequential is needed
+	// right now we're just hacking around the existing
+	// need to convert uint8 to int for proper converstion to
+	// time.Duration
+	timeout := t.Timeout / time.Duration(int(t.MaxTTL-t.MinTTL))
+
 	for i := int(t.MinTTL); i <= int(t.MaxTTL); i++ {
-		hop, err := t.sendAndReceive(rawIcmpConn, rawTcpConn, i)
+		hop, err := t.sendAndReceive(rawIcmpConn, rawTcpConn, i, timeout)
 		// TODO: create an unknown hop here instead
 		if err != nil {
 			return nil, fmt.Errorf("failed to run traceroute: %w", err)
@@ -101,15 +107,15 @@ func (t *TCPv4) TracerouteSequential() (*Results, error) {
 		Source:     t.srcIP,
 		SourcePort: t.srcPort,
 		Target:     t.Target,
-		DstPort:    t.DstPort,
+		DstPort:    t.DestPort,
 		Hops:       hops,
 	}, nil
 }
 
-func (t *TCPv4) sendAndReceive(rawIcmpConn *ipv4.RawConn, rawTcpConn *ipv4.RawConn, ttl int) (*Hop, error) {
+func (t *TCPv4) sendAndReceive(rawIcmpConn *ipv4.RawConn, rawTcpConn *ipv4.RawConn, ttl int, timeout time.Duration) (*Hop, error) {
 	flags := byte(0)
 	flags |= SYN
-	tcpHeader, tcpPacket, err := CreateRawTCPPacket(t.srcIP, t.srcPort, t.Target, t.DstPort, ttl, flags)
+	tcpHeader, tcpPacket, err := CreateRawTCPPacket(t.srcIP, t.srcPort, t.Target, t.DestPort, ttl, flags)
 	if err != nil {
 		log.Errorf("failed to create TCP packet with TTL: %d, error: %s", ttl, err.Error())
 		return nil, err
@@ -124,7 +130,7 @@ func (t *TCPv4) sendAndReceive(rawIcmpConn *ipv4.RawConn, rawTcpConn *ipv4.RawCo
 	}
 
 	// TODO: pass in timeout duration
-	hopIP, hopPort, icmpType, err := listenAnyPacket(rawIcmpConn, rawTcpConn, 2*time.Second, t.srcIP, t.srcPort, t.Target, t.DstPort)
+	hopIP, hopPort, icmpType, err := listenAnyPacket(rawIcmpConn, rawTcpConn, timeout, t.srcIP, t.srcPort, t.Target, t.DestPort)
 	if err != nil {
 		log.Errorf("failed to listen for packets: %s", err.Error())
 		return nil, err

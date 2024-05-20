@@ -12,7 +12,16 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
 )
 
+const (
+	UDP TracerouteType = iota
+	TCP
+)
+
 type (
+	// TraceRouteType identifies what type of traceroute
+	// should be run
+	TracerouteType int
+
 	// Config specifies the configuration of an instance
 	// of Traceroute
 	Config struct {
@@ -25,6 +34,9 @@ type (
 		MaxTTL uint8
 		// TODO: do we want to expose this?
 		TimeoutMs uint
+		// Type is the type of traceroute to
+		// run, default is UDP
+		Type TracerouteType
 	}
 
 	// Traceroute defines an interface for running
