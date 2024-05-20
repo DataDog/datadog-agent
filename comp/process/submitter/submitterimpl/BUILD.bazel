@@ -1,0 +1,39 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "submitterimpl",
+    srcs = [
+        "submitter.go",
+        "submitter_mock.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/process/submitter/submitterimpl",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/config",
+        "//comp/core/log",
+        "//comp/process/agent",
+        "//comp/process/forwarders",
+        "//comp/process/hostinfo",
+        "//comp/process/submitter",
+        "//comp/process/types",
+        "//pkg/process/runner",
+        "//pkg/process/runner/mocks",
+        "//pkg/util/fxutil",
+        "@com_github_stretchr_testify//mock",
+        "@org_uber_go_fx//:fx",
+    ],
+)
+
+go_test(
+    name = "submitterimpl_test",
+    srcs = ["submitter_test.go"],
+    embed = [":submitterimpl"],
+    deps = [
+        "//comp/core",
+        "//comp/process/forwarders/forwardersimpl",
+        "//comp/process/hostinfo/hostinfoimpl",
+        "//comp/process/submitter",
+        "//pkg/util/fxutil",
+        "@org_uber_go_fx//:fx",
+    ],
+)

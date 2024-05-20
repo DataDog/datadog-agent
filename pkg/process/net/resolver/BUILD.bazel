@@ -1,0 +1,30 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "resolver",
+    srcs = ["resolver.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/process/net/resolver",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/process/util",
+        "//pkg/process/util/containers",
+        "//pkg/telemetry",
+        "//pkg/util/log",
+        "@com_github_benbjohnson_clock//:clock",
+        "@com_github_datadog_agent_payload_v5//process",
+        "@org_go4_intern//:intern",
+    ],
+)
+
+go_test(
+    name = "resolver_test",
+    srcs = ["resolver_test.go"],
+    embed = [":resolver"],
+    deps = [
+        "//pkg/process/util/containers/mocks",
+        "@com_github_benbjohnson_clock//:clock",
+        "@com_github_datadog_agent_payload_v5//process",
+        "@com_github_golang_mock//gomock",
+        "@com_github_stretchr_testify//assert",
+    ],
+)

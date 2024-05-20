@@ -1,0 +1,15 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "cluster",
+    srcs = [
+        "common.go",
+        "doc.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/util/kubernetes/apiserver",
+        "//pkg/util/kubernetes/apiserver/leaderelection",
+    ],
+)

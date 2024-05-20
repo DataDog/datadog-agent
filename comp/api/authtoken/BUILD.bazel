@@ -1,0 +1,16 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "authtoken",
+    srcs = [
+        "component.go",
+        "component_mock.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/api/authtoken",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/util/fxutil",
+        "//pkg/util/optional",
+        "@org_uber_go_fx//:fx",
+    ],
+)

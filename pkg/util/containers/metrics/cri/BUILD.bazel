@@ -1,0 +1,32 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "cri",
+    srcs = [
+        "collector.go",
+        "doc.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/util/containers/metrics/cri",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/workloadmeta",
+        "//pkg/config",
+        "//pkg/util/containers/cri",
+        "//pkg/util/containers/metrics/provider",
+        "//pkg/util/optional",
+        "//pkg/util/pointer",
+        "@io_k8s_cri_api//pkg/apis/runtime/v1:runtime",
+    ],
+)
+
+go_test(
+    name = "cri_test",
+    srcs = ["collector_test.go"],
+    embed = [":cri"],
+    deps = [
+        "//pkg/util/containers/cri/crimock",
+        "//pkg/util/pointer",
+        "@com_github_stretchr_testify//assert",
+        "@io_k8s_cri_api//pkg/apis/runtime/v1:runtime",
+    ],
+)

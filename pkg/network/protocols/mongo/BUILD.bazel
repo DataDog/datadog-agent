@@ -1,0 +1,19 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "mongo",
+    srcs = [
+        "client.go",
+        "server.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/network/protocols/mongo",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/network/protocols/http/testutil",
+        "//pkg/network/protocols/testutil",
+        "//pkg/util/common",
+        "@org_mongodb_go_mongo_driver//bson",
+        "@org_mongodb_go_mongo_driver//mongo",
+        "@org_mongodb_go_mongo_driver//mongo/options",
+    ],
+)

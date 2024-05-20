@@ -1,0 +1,26 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "channel",
+    srcs = ["scheduler.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/logs/schedulers/channel",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/logs/agent/config",
+        "//pkg/logs/schedulers",
+        "//pkg/logs/sources",
+        "//pkg/util/log",
+    ],
+)
+
+go_test(
+    name = "channel_test",
+    srcs = ["scheduler_test.go"],
+    embed = [":channel"],
+    deps = [
+        "//comp/logs/agent/config",
+        "//pkg/logs/schedulers",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

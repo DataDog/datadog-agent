@@ -125,6 +125,9 @@ omnibus/.tarball-version
 omnibus/files/sources
 omnibus/resources/agent/msi/cal/packages/
 
+# bazel files
+/bazel-*
+
 # serverless artifact
 cmd/serverless/serverless
 

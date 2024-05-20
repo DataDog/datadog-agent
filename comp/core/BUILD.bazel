@@ -1,0 +1,36 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "core",
+    srcs = [
+        "bundle.go",
+        "bundle_mock.go",
+        "bundle_params.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/core",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/config",
+        "//comp/core/hostname/hostnameimpl",
+        "//comp/core/log/logimpl",
+        "//comp/core/pid/pidimpl",
+        "//comp/core/secrets",
+        "//comp/core/secrets/secretsimpl",
+        "//comp/core/sysprobeconfig/sysprobeconfigimpl",
+        "//comp/core/telemetry/telemetryimpl",
+        "//pkg/util/fxutil",
+        "//pkg/util/optional",
+        "@org_uber_go_fx//:fx",
+    ],
+)
+
+go_test(
+    name = "core_test",
+    srcs = ["bundle_test.go"],
+    embed = [":core"],
+    deps = [
+        "//comp/core/pid/pidimpl",
+        "//pkg/util/fxutil",
+        "@org_uber_go_fx//:fx",
+    ],
+)

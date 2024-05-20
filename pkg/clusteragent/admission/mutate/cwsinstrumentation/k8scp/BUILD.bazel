@@ -1,0 +1,25 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "k8scp",
+    srcs = [
+        "cp.go",
+        "filespec.go",
+        "streamOptions.go",
+        "utils.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/cwsinstrumentation/k8scp",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/util/kubernetes/apiserver",
+        "//pkg/util/log",
+        "@com_github_moby_term//:term",
+        "@io_k8s_api//core/v1:core",
+        "@io_k8s_apimachinery//pkg/runtime/schema",
+        "@io_k8s_apimachinery//pkg/runtime/serializer",
+        "@io_k8s_cli_runtime//pkg/genericiooptions",
+        "@io_k8s_client_go//tools/remotecommand",
+        "@io_k8s_kubectl//pkg/scheme",
+        "@io_k8s_kubectl//pkg/util/term",
+    ],
+)

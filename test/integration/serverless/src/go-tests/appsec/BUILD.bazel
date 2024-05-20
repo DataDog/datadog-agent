@@ -1,0 +1,20 @@
+load("@rules_go//go:def.bzl", "go_binary", "go_library")
+
+go_library(
+    name = "appsec_lib",
+    srcs = ["main.go"],
+    importpath = "github.com/DataDog/datadog-agent/test/integration/serverless/src/go-tests/appsec",
+    visibility = ["//visibility:private"],
+    deps = [
+        "@com_github_aws_aws_lambda_go//events",
+        "@com_github_aws_aws_lambda_go//lambda",
+        "@com_github_datadog_datadog_lambda_go//:go_default_library",
+        "@in_gopkg_datadog_dd_trace_go_v1//ddtrace/tracer",
+    ],
+)
+
+go_binary(
+    name = "appsec",
+    embed = [":appsec_lib"],
+    visibility = ["//visibility:public"],
+)

@@ -1,0 +1,32 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "remote-config",
+    srcs = ["remoteconfig.go"],
+    importpath = "github.com/DataDog/datadog-agent/test/new-e2e/tests/remote-config",
+    visibility = ["//visibility:public"],
+)
+
+go_test(
+    name = "remote-config_test",
+    srcs = [
+        "rc_ssl_config_test.go",
+        "tracer_test.go",
+        "utils_test.go",
+    ],
+    embed = [":remote-config"],
+    embedsrcs = [
+        "fixtures/rc-enabled.yaml",
+        "fixtures/ssl_mismatch.yaml",
+        "fixtures/tracer-payload.json",
+    ],
+    deps = [
+        "//test/new-e2e/pkg/components",
+        "//test/new-e2e/pkg/e2e",
+        "//test/new-e2e/pkg/environments",
+        "//test/new-e2e/pkg/environments/aws/host",
+        "@com_github_datadog_test_infra_definitions//components/datadog/agentparams:go_default_library",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

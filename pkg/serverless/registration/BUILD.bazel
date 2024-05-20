@@ -1,0 +1,29 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "registration",
+    srcs = [
+        "extension_api.go",
+        "telemetry_api.go",
+        "telemetry_api_payload.go",
+        "utils.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/serverless/registration",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/serverless/trigger",
+        "//pkg/util/log",
+        "@com_github_json_iterator_go//:go",
+    ],
+)
+
+go_test(
+    name = "registration_test",
+    srcs = [
+        "extension_api_test.go",
+        "telemetry_api_test.go",
+        "utils_test.go",
+    ],
+    embed = [":registration"],
+    deps = ["@com_github_stretchr_testify//assert"],
+)

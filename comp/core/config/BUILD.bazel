@@ -1,0 +1,54 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "config",
+    srcs = [
+        "component.go",
+        "component_mock.go",
+        "config.go",
+        "config_mock.go",
+        "params.go",
+        "params_darwin.go",
+        "params_freebsd.go",
+        "params_mock.go",
+        "params_nix.go",
+        "params_windows.go",
+        "setup.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/core/config",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/secrets",
+        "//pkg/config/env",
+        "//pkg/config/model",
+        "//pkg/config/setup",
+        "//pkg/util/fxutil",
+        "//pkg/util/optional",
+        "@com_github_datadog_viper//:viper",
+        "@org_uber_go_fx//:fx",
+    ] + select({
+        "@rules_go//go/platform:windows": [
+            "//pkg/util/winutil",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+go_test(
+    name = "config_test",
+    srcs = [
+        "config_test.go",
+        "params_test.go",
+    ],
+    embed = [":config"],
+    deps = [
+        "//cmd/agent/common/path",
+        "//comp/core/secrets",
+        "//comp/core/secrets/secretsimpl",
+        "//pkg/config/model",
+        "//pkg/util/fxutil",
+        "//pkg/util/optional",
+        "@com_github_stretchr_testify//require",
+        "@org_uber_go_fx//:fx",
+    ],
+)

@@ -1,0 +1,15 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "fake",
+    srcs = ["containerd_util.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/util/containerd/fake",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/util/retry",
+        "@com_github_containerd_containerd//:containerd",
+        "@com_github_containerd_containerd//api/types",
+        "@com_github_containerd_containerd//containers",
+        "@com_github_containerd_containerd//oci",
+    ],
+)

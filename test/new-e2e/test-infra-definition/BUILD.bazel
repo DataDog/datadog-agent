@@ -1,0 +1,30 @@
+load("@rules_go//go:def.bzl", "go_test")
+
+go_test(
+    name = "test-infra-definition_test",
+    srcs = [
+        "agent_test.go",
+        "docker_test.go",
+        "kind_test.go",
+        "vm_test.go",
+    ],
+    deps = [
+        "//test/new-e2e/pkg/e2e",
+        "//test/new-e2e/pkg/environments",
+        "//test/new-e2e/pkg/environments/aws/docker",
+        "//test/new-e2e/pkg/environments/aws/host",
+        "//test/new-e2e/pkg/environments/aws/kubernetes",
+        "//test/new-e2e/pkg/utils/e2e/client",
+        "//test/new-e2e/pkg/utils/e2e/client/agentclient",
+        "@com_github_datadog_test_infra_definitions//common/config:go_default_library",
+        "@com_github_datadog_test_infra_definitions//components/datadog/apps/nginx:go_default_library",
+        "@com_github_datadog_test_infra_definitions//components/kubernetes:go_default_library",
+        "@com_github_datadog_test_infra_definitions//components/os:go_default_library",
+        "@com_github_datadog_test_infra_definitions//scenarios/aws/ec2:go_default_library",
+        "@com_github_datadog_test_infra_definitions//scenarios/aws/fakeintake:go_default_library",
+        "@com_github_pulumi_pulumi_kubernetes_sdk_v4//go/kubernetes:go_default_library",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
+    ],
+)

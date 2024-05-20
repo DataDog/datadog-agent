@@ -1,0 +1,22 @@
+load("@rules_go//go:def.bzl", "go_test")
+
+go_test(
+    name = "leaderelection_test",
+    srcs = ["leaderelection_test.go"],
+    data = glob(["testdata/**"]),
+    deps = [
+        "//comp/core/telemetry/telemetryimpl",
+        "//pkg/config",
+        "//pkg/util/kubernetes/apiserver",
+        "//pkg/util/kubernetes/apiserver/leaderelection",
+        "//test/integration/utils",
+        "@com_github_cihub_seelog//:seelog",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@com_github_stretchr_testify//suite",
+        "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
+        "@io_k8s_client_go//kubernetes/typed/core/v1:core",
+        "@io_k8s_client_go//tools/clientcmd",
+        "@io_k8s_client_go//tools/leaderelection/resourcelock",
+    ],
+)

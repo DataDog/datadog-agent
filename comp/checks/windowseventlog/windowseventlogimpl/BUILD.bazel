@@ -1,0 +1,18 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "windowseventlogimpl",
+    srcs = ["windows_event_log.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/checks/windowseventlog/windowseventlogimpl",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/checks/windowseventlog",
+        "//comp/checks/windowseventlog/windowseventlogimpl/check",
+        "//comp/core/config",
+        "//comp/logs/agent",
+        "//pkg/collector/corechecks",
+        "//pkg/util/fxutil",
+        "//pkg/util/optional",
+        "@org_uber_go_fx//:fx",
+    ],
+)

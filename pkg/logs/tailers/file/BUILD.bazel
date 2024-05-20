@@ -1,0 +1,87 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "file",
+    srcs = [
+        "file.go",
+        "rotate_nix.go",
+        "rotate_windows.go",
+        "tailer.go",
+        "tailer_nix.go",
+        "tailer_windows.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/logs/tailers/file",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/config",
+        "//pkg/logs/internal/decoder",
+        "//pkg/logs/internal/tag",
+        "//pkg/logs/internal/util",
+        "//pkg/logs/message",
+        "//pkg/logs/sources",
+        "//pkg/logs/status/utils",
+        "//pkg/util/containers",
+        "//pkg/util/log",
+        "@com_github_benbjohnson_clock//:clock",
+        "@org_uber_go_atomic//:atomic",
+    ] + select({
+        "@rules_go//go/platform:aix": [
+            "//pkg/util/filesystem",
+        ],
+        "@rules_go//go/platform:android": [
+            "//pkg/util/filesystem",
+        ],
+        "@rules_go//go/platform:darwin": [
+            "//pkg/util/filesystem",
+        ],
+        "@rules_go//go/platform:dragonfly": [
+            "//pkg/util/filesystem",
+        ],
+        "@rules_go//go/platform:freebsd": [
+            "//pkg/util/filesystem",
+        ],
+        "@rules_go//go/platform:illumos": [
+            "//pkg/util/filesystem",
+        ],
+        "@rules_go//go/platform:ios": [
+            "//pkg/util/filesystem",
+        ],
+        "@rules_go//go/platform:js": [
+            "//pkg/util/filesystem",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/util/filesystem",
+        ],
+        "@rules_go//go/platform:netbsd": [
+            "//pkg/util/filesystem",
+        ],
+        "@rules_go//go/platform:openbsd": [
+            "//pkg/util/filesystem",
+        ],
+        "@rules_go//go/platform:plan9": [
+            "//pkg/util/filesystem",
+        ],
+        "@rules_go//go/platform:solaris": [
+            "//pkg/util/filesystem",
+        ],
+        "@rules_go//go/platform:windows": [
+            "//pkg/util/filesystem",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+go_test(
+    name = "file_test",
+    srcs = ["tailer_test.go"],
+    embed = [":file"],
+    deps = [
+        "//comp/logs/agent/config",
+        "//pkg/config",
+        "//pkg/logs/internal/decoder",
+        "//pkg/logs/message",
+        "//pkg/logs/sources",
+        "//pkg/logs/status/utils",
+        "@com_github_stretchr_testify//suite",
+    ],
+)

@@ -1,0 +1,14 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "openapi",
+    srcs = ["zz_generated.openapi.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/custommetrics/api/generated/openapi",
+    visibility = ["//visibility:public"],
+    deps = [
+        "@io_k8s_apimachinery//pkg/api/resource",
+        "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
+        "@io_k8s_kube_openapi//pkg/common",
+        "@io_k8s_kube_openapi//pkg/validation/spec",
+    ],
+)

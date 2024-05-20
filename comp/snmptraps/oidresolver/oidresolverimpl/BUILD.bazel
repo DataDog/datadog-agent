@@ -1,0 +1,33 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "oidresolverimpl",
+    srcs = [
+        "mock.go",
+        "oid_resolver.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/snmptraps/oidresolver/oidresolverimpl",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/config",
+        "//comp/core/log",
+        "//comp/snmptraps/oidresolver",
+        "//pkg/util/fxutil",
+        "@in_gopkg_yaml_v2//:yaml_v2",
+        "@org_uber_go_fx//:fx",
+    ],
+)
+
+go_test(
+    name = "oidresolverimpl_test",
+    srcs = ["oid_resolver_test.go"],
+    embed = [":oidresolverimpl"],
+    deps = [
+        "//comp/core/log",
+        "//comp/core/log/logimpl",
+        "//comp/snmptraps/oidresolver",
+        "//pkg/util/fxutil",
+        "@com_github_stretchr_testify//require",
+        "@in_gopkg_yaml_v2//:yaml_v2",
+    ],
+)

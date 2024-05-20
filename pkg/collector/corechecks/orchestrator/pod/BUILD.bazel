@@ -1,0 +1,46 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "pod",
+    srcs = ["pod.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/collector/corechecks/orchestrator/pod",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/autodiscovery/integration",
+        "//pkg/aggregator/sender",
+        "//pkg/collector/check",
+        "//pkg/collector/corechecks",
+        "//pkg/collector/corechecks/cluster/orchestrator/processors",
+        "//pkg/collector/corechecks/cluster/orchestrator/processors/k8s",
+        "//pkg/orchestrator",
+        "//pkg/orchestrator/config",
+        "//pkg/util/hostname",
+        "//pkg/util/kubernetes/clustername",
+        "//pkg/util/kubernetes/kubelet",
+        "//pkg/util/log",
+        "//pkg/util/optional",
+        "@org_uber_go_atomic//:atomic",
+    ],
+)
+
+go_test(
+    name = "pod_test",
+    srcs = ["pod_test.go"],
+    embed = [":pod"],
+    deps = [
+        "//comp/core/tagger/taggerimpl",
+        "//pkg/aggregator/mocksender",
+        "//pkg/collector/corechecks/cluster/orchestrator/processors",
+        "//pkg/collector/corechecks/cluster/orchestrator/processors/k8s",
+        "//pkg/config",
+        "//pkg/orchestrator/config",
+        "//pkg/serializer/types",
+        "//pkg/util/cache",
+        "//pkg/util/kubernetes/kubelet",
+        "//pkg/util/log",
+        "@com_github_datadog_agent_payload_v5//process",
+        "@com_github_json_iterator_go//:go",
+        "@com_github_stretchr_testify//require",
+        "@com_github_stretchr_testify//suite",
+    ],
+)

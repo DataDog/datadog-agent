@@ -1,0 +1,46 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "tagsfromlabels",
+    srcs = ["tags.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/tagsfromlabels",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//cmd/cluster-agent/admission",
+        "//comp/core/workloadmeta",
+        "//pkg/clusteragent/admission/metrics",
+        "//pkg/clusteragent/admission/mutate/autoinstrumentation",
+        "//pkg/clusteragent/admission/mutate/common",
+        "//pkg/config",
+        "//pkg/util/cache",
+        "//pkg/util/kubernetes",
+        "//pkg/util/log",
+        "@io_k8s_api//admissionregistration/v1:admissionregistration",
+        "@io_k8s_api//core/v1:core",
+        "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
+        "@io_k8s_apimachinery//pkg/runtime/schema",
+        "@io_k8s_client_go//dynamic",
+    ],
+)
+
+go_test(
+    name = "tagsfromlabels_test",
+    srcs = ["tags_test.go"],
+    embed = [":tagsfromlabels"],
+    deps = [
+        "//comp/core",
+        "//comp/core/workloadmeta",
+        "//pkg/clusteragent/admission/mutate/common",
+        "//pkg/util/cache",
+        "//pkg/util/fxutil",
+        "//pkg/util/pointer",
+        "@com_github_stretchr_testify//assert",
+        "@io_k8s_api//core/v1:core",
+        "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
+        "@io_k8s_apimachinery//pkg/apis/meta/v1/unstructured",
+        "@io_k8s_apimachinery//pkg/runtime/schema",
+        "@io_k8s_client_go//dynamic/fake",
+        "@io_k8s_client_go//kubernetes/scheme",
+        "@org_uber_go_fx//:fx",
+    ],
+)

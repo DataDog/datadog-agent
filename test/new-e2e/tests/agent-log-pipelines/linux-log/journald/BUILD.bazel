@@ -1,0 +1,22 @@
+load("@rules_go//go:def.bzl", "go_test")
+
+go_test(
+    name = "journald_test",
+    srcs = ["journald_tailing_test.go"],
+    embedsrcs = [
+        "log-config/exclude.yaml",
+        "log-config/include.yaml",
+        "log-config/journald.yaml",
+        "log-config/logger-service.sh",
+        "log-config/python-script.sh",
+    ],
+    deps = [
+        "//test/new-e2e/pkg/e2e",
+        "//test/new-e2e/pkg/environments",
+        "//test/new-e2e/pkg/environments/aws/host",
+        "//test/new-e2e/tests/agent-metric-logs/log-agent/utils",
+        "@com_github_datadog_test_infra_definitions//components/datadog/agentparams:go_default_library",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

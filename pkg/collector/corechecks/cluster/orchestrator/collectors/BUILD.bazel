@@ -1,0 +1,26 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "collectors",
+    srcs = [
+        "collector.go",
+        "errors.go",
+        "k8scollector.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/workloadmeta",
+        "//pkg/collector/corechecks/cluster/orchestrator/processors",
+        "//pkg/orchestrator/config",
+        "//pkg/orchestrator/model",
+        "//pkg/util/kubernetes/apiserver",
+        "@com_github_pkg_errors//:errors",
+        "@io_k8s_apiextensions_apiserver//pkg/client/informers/externalversions",
+        "@io_k8s_autoscaler_vertical_pod_autoscaler//pkg/client/informers/externalversions",
+        "@io_k8s_client_go//dynamic/dynamicinformer",
+        "@io_k8s_client_go//informers",
+        "@io_k8s_client_go//tools/cache",
+        "@org_uber_go_atomic//:atomic",
+    ],
+)

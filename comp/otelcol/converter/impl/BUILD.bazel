@@ -1,0 +1,42 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "provider",
+    srcs = ["provider.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/pipeline/provider",
+    visibility = ["//visibility:public"],
+    deps = [
+        "@in_gopkg_yaml_v3//:yaml_v3",
+        "@io_opentelemetry_go_collector_confmap//:confmap",
+        "@io_opentelemetry_go_collector_confmap_converter_expandconverter//:expandconverter",
+        "@io_opentelemetry_go_collector_confmap_provider_envprovider//:envprovider",
+        "@io_opentelemetry_go_collector_confmap_provider_fileprovider//:fileprovider",
+        "@io_opentelemetry_go_collector_confmap_provider_httpprovider//:httpprovider",
+        "@io_opentelemetry_go_collector_confmap_provider_httpsprovider//:httpsprovider",
+        "@io_opentelemetry_go_collector_confmap_provider_yamlprovider//:yamlprovider",
+        "@io_opentelemetry_go_collector_otelcol//:otelcol",
+    ],
+)
+
+go_test(
+    name = "provider_test",
+    srcs = ["provider_test.go"],
+    data = glob(["testdata/**"]),
+    embed = [":provider"],
+    deps = [
+        "@com_github_open_telemetry_opentelemetry_collector_contrib_exporter_datadogexporter//:datadogexporter",
+        "@com_github_stretchr_testify//assert",
+        "@in_gopkg_yaml_v3//:yaml_v3",
+        "@io_opentelemetry_go_collector_connector//:connector",
+        "@io_opentelemetry_go_collector_connector//connectortest",
+        "@io_opentelemetry_go_collector_exporter//:exporter",
+        "@io_opentelemetry_go_collector_exporter//exportertest",
+        "@io_opentelemetry_go_collector_extension//:extension",
+        "@io_opentelemetry_go_collector_extension//extensiontest",
+        "@io_opentelemetry_go_collector_otelcol//:otelcol",
+        "@io_opentelemetry_go_collector_processor//:processor",
+        "@io_opentelemetry_go_collector_processor//processortest",
+        "@io_opentelemetry_go_collector_receiver//:receiver",
+        "@io_opentelemetry_go_collector_receiver//receivertest",
+    ],
+)

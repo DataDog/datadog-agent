@@ -1,0 +1,31 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "serverless",
+    srcs = ["serverless.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/serverless",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/serverless/daemon",
+        "//pkg/serverless/flush",
+        "//pkg/serverless/invocationlifecycle",
+        "//pkg/serverless/metrics",
+        "//pkg/serverless/registration",
+        "//pkg/serverless/tags",
+        "//pkg/util/log",
+        "@com_github_json_iterator_go//:go",
+    ],
+)
+
+go_test(
+    name = "serverless_test",
+    srcs = ["serverless_test.go"],
+    embed = [":serverless"],
+    deps = [
+        "//pkg/serverless/daemon",
+        "//pkg/serverless/invocationlifecycle",
+        "//pkg/serverless/trace",
+        "//pkg/trace/testutil",
+        "@com_github_stretchr_testify//assert",
+    ],
+)

@@ -1,0 +1,23 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "orchestrator",
+    srcs = ["status.go"],
+    embedsrcs = ["status_templates/orchestrator.tmpl"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/clusteragent/orchestrator",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/status",
+        "//pkg/clusteragent/clusterchecks",
+        "//pkg/config",
+        "//pkg/orchestrator",
+        "//pkg/orchestrator/config",
+        "//pkg/orchestrator/model",
+        "//pkg/util/hostname",
+        "//pkg/util/kubernetes/apiserver",
+        "//pkg/util/kubernetes/apiserver/common",
+        "//pkg/util/kubernetes/apiserver/leaderelection",
+        "//pkg/util/kubernetes/clustername",
+        "@io_k8s_client_go//kubernetes",
+    ],
+)

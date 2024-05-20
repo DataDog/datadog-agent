@@ -1,0 +1,12 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "fixtures",
+    srcs = ["process.go"],
+    importpath = "github.com/DataDog/datadog-agent/test/fakeintake/fixtures",
+    visibility = ["//visibility:public"],
+    deps = [
+        "@com_github_datadog_agent_payload_v5//process",
+        "@com_github_stretchr_testify//require",
+    ],
+)

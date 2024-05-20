@@ -1,0 +1,30 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "snmp",
+    srcs = [
+        "constants.go",
+        "snmp.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/snmp",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/config",
+        "//pkg/snmp/gosnmplib",
+        "//pkg/snmp/snmpintegration",
+        "@com_github_datadog_viper//:viper",
+        "@com_github_gosnmp_gosnmp//:gosnmp",
+    ],
+)
+
+go_test(
+    name = "snmp_test",
+    srcs = ["snmp_test.go"],
+    embed = [":snmp"],
+    deps = [
+        "//pkg/config",
+        "//pkg/snmp/snmpintegration",
+        "@com_github_gosnmp_gosnmp//:gosnmp",
+        "@com_github_stretchr_testify//assert",
+    ],
+)

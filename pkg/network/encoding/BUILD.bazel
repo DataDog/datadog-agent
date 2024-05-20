@@ -1,0 +1,30 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "encoding",
+    srcs = ["encoding.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/network/encoding",
+    visibility = ["//visibility:public"],
+)
+
+go_test(
+    name = "encoding_test",
+    srcs = ["encoding_test.go"],
+    embed = [":encoding"],
+    deps = [
+        "//pkg/config",
+        "//pkg/network",
+        "//pkg/network/dns",
+        "//pkg/network/encoding/marshal",
+        "//pkg/network/encoding/unmarshal",
+        "//pkg/network/protocols",
+        "//pkg/network/protocols/http",
+        "//pkg/network/protocols/kafka",
+        "//pkg/network/protocols/telemetry",
+        "//pkg/process/util",
+        "@com_github_datadog_agent_payload_v5//process",
+        "@com_github_golang_protobuf//proto:go_default_library",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

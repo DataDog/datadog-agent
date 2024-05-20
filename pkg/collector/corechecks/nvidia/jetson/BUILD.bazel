@@ -1,0 +1,40 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "jetson",
+    srcs = [
+        "cpuMetricsSender.go",
+        "doc.go",
+        "gpuMetricsSender.go",
+        "iramMetricsSender.go",
+        "jetson.go",
+        "metricsSender.go",
+        "powerMetricsSender.go",
+        "ramMetricsSender.go",
+        "swapMetricsSender.go",
+        "temperatureMetricsSender.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/collector/corechecks/nvidia/jetson",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/autodiscovery/integration",
+        "//pkg/aggregator/sender",
+        "//pkg/collector/check",
+        "//pkg/collector/corechecks",
+        "//pkg/metrics",
+        "//pkg/util/log",
+        "//pkg/util/optional",
+        "@in_gopkg_yaml_v2//:yaml_v2",
+    ],
+)
+
+go_test(
+    name = "jetson_test",
+    srcs = ["jetson_test.go"],
+    embed = [":jetson"],
+    deps = [
+        "//comp/core/autodiscovery/integration",
+        "//pkg/aggregator/mocksender",
+        "@com_github_stretchr_testify//assert",
+    ],
+)

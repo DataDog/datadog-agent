@@ -1,0 +1,20 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "tagger",
+    srcs = [
+        "component.go",
+        "component_mock.go",
+        "global.go",
+        "params.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/core/tagger",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/config",
+        "//comp/core/tagger/types",
+        "//pkg/config",
+        "//pkg/tagger/types",
+        "//pkg/tagset",
+    ],
+)

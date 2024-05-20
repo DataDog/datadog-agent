@@ -1,0 +1,11 @@
+--- BUILD.bazel	2024-05-14 20:05:33
++++ BUILD.bazel	2024-05-14 20:06:13
+@@ -21,7 +21,7 @@
+         "//internal/instrumentationlibrary",
+         "//internal/instrumentationscope",
+         "//internal/utils",
+-        "@com_github_datadog_datadog_agent_pkg_proto//pbgo/trace",
++        "@@//pkg/proto/pbgo/trace",
+         "@com_github_datadog_opentelemetry_mapping_go_pkg_otlp_attributes//:attributes",
+         "@com_github_datadog_opentelemetry_mapping_go_pkg_otlp_attributes//source",
+         "@com_github_datadog_opentelemetry_mapping_go_pkg_quantile//:quantile",

@@ -1,0 +1,39 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "languagedetection",
+    srcs = [
+        "doc.go",
+        "handler.go",
+        "language_detection.go",
+        "telemetry.go",
+        "util.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/cmd/cluster-agent/api/v1/languagedetection",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/config",
+        "//comp/core/workloadmeta",
+        "//pkg/clusteragent/api",
+        "//pkg/languagedetection/util",
+        "//pkg/proto/pbgo/process",
+        "//pkg/telemetry",
+        "@com_github_gorilla_mux//:mux",
+        "@org_golang_google_protobuf//proto",
+    ],
+)
+
+go_test(
+    name = "languagedetection_test",
+    srcs = ["util_test.go"],
+    embed = [":languagedetection"],
+    deps = [
+        "//comp/core",
+        "//comp/core/workloadmeta",
+        "//pkg/languagedetection/util",
+        "//pkg/proto/pbgo/process",
+        "//pkg/util/fxutil",
+        "@com_github_stretchr_testify//assert",
+        "@org_uber_go_fx//:fx",
+    ],
+)

@@ -1,0 +1,36 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "runner",
+    srcs = [
+        "ci_profile.go",
+        "configmap.go",
+        "local_profile.go",
+        "mock_profile.go",
+        "profile.go",
+        "runner.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//test/new-e2e/pkg/runner/parameters",
+        "@com_github_datadog_test_infra_definitions//common/config:go_default_library",
+        "@com_github_datadog_test_infra_definitions//resources/aws:go_default_library",
+        "@com_github_pulumi_pulumi_sdk_v3//go/auto:go_default_library",
+    ],
+)
+
+go_test(
+    name = "runner_test",
+    srcs = [
+        "configmap_test.go",
+        "profile_test.go",
+    ],
+    embed = [":runner"],
+    deps = [
+        "//test/new-e2e/pkg/runner/parameters",
+        "@com_github_pulumi_pulumi_sdk_v3//go/auto:go_default_library",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

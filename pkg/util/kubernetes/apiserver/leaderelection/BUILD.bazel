@@ -1,0 +1,62 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "leaderelection",
+    srcs = [
+        "leaderelection.go",
+        "leaderelection_engine.go",
+        "status.go",
+    ],
+    embedsrcs = ["status_templates/leaderelection.tmpl"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/status",
+        "//comp/core/telemetry/telemetryimpl",
+        "//internal/third_party/client-go/tools/leaderelection/resourcelock",
+        "//pkg/config",
+        "//pkg/telemetry",
+        "//pkg/util/cache",
+        "//pkg/util/kubernetes/apiserver",
+        "//pkg/util/kubernetes/apiserver/common",
+        "//pkg/util/kubernetes/apiserver/leaderelection/metrics",
+        "//pkg/util/log",
+        "//pkg/util/retry",
+        "@io_k8s_api//coordination/v1:coordination",
+        "@io_k8s_api//core/v1:core",
+        "@io_k8s_apimachinery//pkg/api/errors",
+        "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
+        "@io_k8s_apimachinery//pkg/runtime",
+        "@io_k8s_client_go//discovery",
+        "@io_k8s_client_go//kubernetes/typed/coordination/v1:coordination",
+        "@io_k8s_client_go//kubernetes/typed/core/v1:core",
+        "@io_k8s_client_go//tools/leaderelection",
+        "@io_k8s_client_go//tools/leaderelection/resourcelock",
+        "@io_k8s_client_go//tools/record",
+        "@org_golang_x_mod//semver",
+    ],
+)
+
+go_test(
+    name = "leaderelection_test",
+    srcs = [
+        "leaderelection_test.go",
+        "status_test.go",
+    ],
+    embed = [":leaderelection"],
+    deps = [
+        "//comp/core/telemetry",
+        "//internal/third_party/client-go/tools/leaderelection/resourcelock",
+        "//pkg/errors",
+        "//pkg/util/cache",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@com_github_stretchr_testify//suite",
+        "@io_k8s_api//coordination/v1:coordination",
+        "@io_k8s_api//core/v1:core",
+        "@io_k8s_apimachinery//pkg/api/errors",
+        "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
+        "@io_k8s_client_go//kubernetes/fake",
+        "@io_k8s_client_go//tools/leaderelection/resourcelock",
+    ],
+)

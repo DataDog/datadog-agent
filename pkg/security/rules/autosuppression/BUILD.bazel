@@ -1,0 +1,13 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "autosuppression",
+    srcs = ["autosuppression.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/security/rules/autosuppression",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/security/secl/model",
+        "//pkg/security/secl/rules",
+        "@org_uber_go_atomic//:atomic",
+    ],
+)

@@ -1,0 +1,33 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "discovery",
+    srcs = [
+        "collector_discovery.go",
+        "collector_discovery_crd.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/discovery",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/collector/corechecks/cluster/orchestrator/collectors",
+        "//pkg/collector/corechecks/cluster/orchestrator/collectors/inventory",
+        "//pkg/collector/corechecks/cluster/orchestrator/collectors/k8s",
+        "//pkg/orchestrator",
+        "//pkg/util/kubernetes/apiserver",
+        "//pkg/util/log",
+        "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
+        "@io_k8s_client_go//discovery",
+    ],
+)
+
+go_test(
+    name = "discovery_test",
+    srcs = ["collector_discovery_test.go"],
+    embed = [":discovery"],
+    deps = [
+        "//pkg/collector/corechecks/cluster/orchestrator/collectors/inventory",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
+    ],
+)

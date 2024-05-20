@@ -1,0 +1,39 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "kubelet",
+    srcs = [
+        "collector.go",
+        "doc.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/util/containers/metrics/kubelet",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/workloadmeta",
+        "//pkg/config",
+        "//pkg/errors",
+        "//pkg/util/containers/metrics/provider",
+        "//pkg/util/kubernetes/kubelet",
+        "//pkg/util/log",
+        "//pkg/util/optional",
+        "//pkg/util/pointer",
+        "@io_k8s_kubelet//pkg/apis/stats/v1alpha1",
+    ],
+)
+
+go_test(
+    name = "kubelet_test",
+    srcs = ["collector_test.go"],
+    data = glob(["testdata/**"]),
+    embed = [":kubelet"],
+    deps = [
+        "//comp/core",
+        "//comp/core/workloadmeta",
+        "//pkg/util/containers/metrics/provider",
+        "//pkg/util/fxutil",
+        "//pkg/util/kubernetes/kubelet/mock",
+        "//pkg/util/pointer",
+        "@com_github_stretchr_testify//assert",
+        "@org_uber_go_fx//:fx",
+    ],
+)

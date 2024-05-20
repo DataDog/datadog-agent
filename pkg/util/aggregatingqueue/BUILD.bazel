@@ -1,0 +1,19 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "aggregatingqueue",
+    srcs = ["queue.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/util/aggregatingqueue",
+    visibility = ["//visibility:public"],
+    deps = ["@com_github_benbjohnson_clock//:clock"],
+)
+
+go_test(
+    name = "aggregatingqueue_test",
+    srcs = ["queue_test.go"],
+    embed = [":aggregatingqueue"],
+    deps = [
+        "@com_github_benbjohnson_clock//:clock",
+        "@com_github_stretchr_testify//assert",
+    ],
+)

@@ -1,0 +1,14 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "fake",
+    srcs = ["system_api_client.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/util/docker/fake",
+    visibility = ["//visibility:public"],
+    deps = [
+        "@com_github_docker_docker//api/types",
+        "@com_github_docker_docker//api/types/events",
+        "@com_github_docker_docker//api/types/registry",
+        "@com_github_docker_docker//api/types/system",
+    ],
+)

@@ -1,0 +1,23 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "kubelet",
+    srcs = [
+        "kubelet.go",
+        "stub.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/kubelet",
+    visibility = ["//comp/core/workloadmeta/collectors:__subpackages__"],
+    deps = [
+        "//comp/core/workloadmeta",
+        "//internal/third_party/golang/expansion",
+        "//pkg/config",
+        "//pkg/errors",
+        "//pkg/util/containers",
+        "//pkg/util/kubernetes",
+        "//pkg/util/kubernetes/kubelet",
+        "//pkg/util/log",
+        "//pkg/util/pointer",
+        "@org_uber_go_fx//:fx",
+    ],
+)

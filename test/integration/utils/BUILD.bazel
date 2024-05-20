@@ -1,0 +1,29 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "utils",
+    srcs = [
+        "certificates.go",
+        "compose.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/test/integration/utils",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/workloadmeta",
+        "//pkg/util/containers/metrics",
+        "//pkg/util/docker",
+        "//pkg/util/optional",
+        "@com_github_cihub_seelog//:seelog",
+        "@io_k8s_apimachinery//pkg/util/errors",
+    ],
+)
+
+go_test(
+    name = "utils_test",
+    srcs = ["certificates_test.go"],
+    embed = [":utils"],
+    deps = [
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

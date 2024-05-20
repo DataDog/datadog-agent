@@ -1,0 +1,114 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "config",
+    srcs = [
+        "component.go",
+        "component_mock.go",
+        "config.go",
+        "config_darwin.go",
+        "config_mock.go",
+        "config_nix.go",
+        "config_windows.go",
+        "hostname.go",
+        "install_signature.go",
+        "params.go",
+        "remote.go",
+        "setup.go",
+        "setup_mock.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/trace/config",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/config",
+        "//comp/core/tagger",
+        "//comp/core/tagger/types",
+        "//comp/otelcol/otlp",
+        "//pkg/api/security",
+        "//pkg/api/util",
+        "//pkg/config",
+        "//pkg/config/env",
+        "//pkg/config/model",
+        "//pkg/config/remote/client",
+        "//pkg/config/utils",
+        "//pkg/proto/pbgo/core",
+        "//pkg/remoteconfig/state",
+        "//pkg/trace/config",
+        "//pkg/trace/traceutil",
+        "//pkg/util/fargate",
+        "//pkg/util/fxutil",
+        "//pkg/util/grpc",
+        "//pkg/util/http",
+        "//pkg/util/log",
+        "//pkg/util/scrubber",
+        "//pkg/version",
+        "@com_github_datadog_opentelemetry_mapping_go_pkg_otlp_attributes//:attributes",
+        "@com_github_google_uuid//:uuid",
+        "@in_gopkg_yaml_v2//:yaml_v2",
+        "@io_opentelemetry_go_collector_component//componenttest",
+        "@org_uber_go_fx//:fx",
+    ] + select({
+        "@rules_go//go/platform:aix": [
+            "//pkg/config/setup",
+        ],
+        "@rules_go//go/platform:android": [
+            "//pkg/config/setup",
+        ],
+        "@rules_go//go/platform:dragonfly": [
+            "//pkg/config/setup",
+        ],
+        "@rules_go//go/platform:freebsd": [
+            "//pkg/config/setup",
+        ],
+        "@rules_go//go/platform:illumos": [
+            "//pkg/config/setup",
+        ],
+        "@rules_go//go/platform:js": [
+            "//pkg/config/setup",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/config/setup",
+        ],
+        "@rules_go//go/platform:netbsd": [
+            "//pkg/config/setup",
+        ],
+        "@rules_go//go/platform:openbsd": [
+            "//pkg/config/setup",
+        ],
+        "@rules_go//go/platform:plan9": [
+            "//pkg/config/setup",
+        ],
+        "@rules_go//go/platform:solaris": [
+            "//pkg/config/setup",
+        ],
+        "@rules_go//go/platform:windows": [
+            "//pkg/util/executable",
+            "//pkg/util/winutil",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+go_test(
+    name = "config_test",
+    srcs = [
+        "config_otlp_test.go",
+        "config_test.go",
+        "install_signature_test.go",
+    ],
+    data = glob(["testdata/**"]),
+    embed = [":config"],
+    deps = [
+        "//comp/core/config",
+        "//pkg/api/util",
+        "//pkg/config",
+        "//pkg/trace/config",
+        "//pkg/util/fxutil",
+        "//pkg/util/log",
+        "@com_github_cihub_seelog//:seelog",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@in_gopkg_yaml_v2//:yaml_v2",
+        "@org_uber_go_fx//:fx",
+    ],
+)

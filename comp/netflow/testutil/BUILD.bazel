@@ -1,0 +1,27 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "testutil",
+    srcs = [
+        "doc.go",
+        "testutil.go",
+    ],
+    embedsrcs = [
+        "pcap_recordings/netflow5.pcapng",
+        "pcap_recordings/netflow9.pcapng",
+        "pcap_recordings/sflow.pcapng",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/netflow/testutil",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/forwarder/eventplatform",
+        "//comp/ndmtmp/forwarder",
+        "//comp/netflow/payload",
+        "//pkg/logs/message",
+        "@com_github_golang_mock//gomock",
+        "@com_github_google_gopacket//:gopacket",
+        "@com_github_google_gopacket//layers",
+        "@com_github_google_gopacket//pcapgo",
+        "@com_github_stretchr_testify//assert",
+    ],
+)

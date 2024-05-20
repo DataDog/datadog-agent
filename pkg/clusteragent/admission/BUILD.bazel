@@ -1,0 +1,42 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "admission",
+    srcs = [
+        "api_discovery.go",
+        "start.go",
+        "status.go",
+        "util.go",
+    ],
+    embedsrcs = ["status_templates/admissionwebhook.tmpl"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/clusteragent/admission",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/status",
+        "//comp/core/workloadmeta",
+        "//pkg/clusteragent/admission/controllers/secret",
+        "//pkg/clusteragent/admission/controllers/webhook",
+        "//pkg/config",
+        "//pkg/errors",
+        "//pkg/util/kubernetes/apiserver",
+        "//pkg/util/kubernetes/apiserver/common",
+        "//pkg/util/kubernetes/certificate",
+        "//pkg/util/log",
+        "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
+        "@io_k8s_apimachinery//pkg/version",
+        "@io_k8s_client_go//discovery",
+        "@io_k8s_client_go//informers",
+        "@io_k8s_client_go//kubernetes",
+        "@io_k8s_client_go//tools/cache",
+    ],
+)
+
+go_test(
+    name = "admission_test",
+    srcs = ["util_test.go"],
+    embed = [":admission"],
+    deps = [
+        "@com_github_stretchr_testify//assert",
+        "@io_k8s_apimachinery//pkg/version",
+    ],
+)

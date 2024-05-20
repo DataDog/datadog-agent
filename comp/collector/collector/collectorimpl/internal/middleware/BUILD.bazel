@@ -1,0 +1,19 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "middleware",
+    srcs = [
+        "check_wrapper.go",
+        "test_utils.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/collector/collector/collectorimpl/internal/middleware",
+    visibility = ["//comp/collector/collector/collectorimpl:__subpackages__"],
+    deps = [
+        "//comp/core/autodiscovery/integration",
+        "//pkg/aggregator/sender",
+        "//pkg/collector/check",
+        "//pkg/collector/check/id",
+        "//pkg/collector/check/stats",
+        "//pkg/diagnose/diagnosis",
+    ],
+)

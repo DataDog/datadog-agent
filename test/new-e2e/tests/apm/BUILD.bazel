@@ -1,0 +1,42 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "apm",
+    srcs = [
+        "apm.go",
+        "tests.go",
+        "tracegen.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/test/new-e2e/tests/apm",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/proto/pbgo/trace",
+        "//test/fakeintake/aggregator",
+        "//test/fakeintake/client",
+        "//test/new-e2e/pkg/components",
+        "//test/new-e2e/pkg/utils/e2e/client/agentclient",
+        "@com_github_davecgh_go_spew//spew",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//suite",
+    ],
+)
+
+go_test(
+    name = "apm_test",
+    srcs = [
+        "docker_test.go",
+        "vm_test.go",
+    ],
+    embed = [":apm"],
+    deps = [
+        "//test/new-e2e/pkg/e2e",
+        "//test/new-e2e/pkg/environments",
+        "//test/new-e2e/pkg/environments/aws/docker",
+        "//test/new-e2e/pkg/environments/aws/host",
+        "@com_github_datadog_test_infra_definitions//components/datadog/agentparams:go_default_library",
+        "@com_github_datadog_test_infra_definitions//components/datadog/dockeragentparams:go_default_library",
+        "@com_github_datadog_test_infra_definitions//scenarios/aws/ec2:go_default_library",
+        "@com_github_pulumi_pulumi_sdk_v3//go/pulumi:go_default_library",
+        "@com_github_stretchr_testify//assert",
+    ],
+)

@@ -1,0 +1,15 @@
+load("@rules_go//go:def.bzl", "go_test")
+
+go_test(
+    name = "api_test",
+    srcs = ["api_test.go"],
+    deps = [
+        "//test/new-e2e/pkg/e2e",
+        "//test/new-e2e/pkg/environments",
+        "//test/new-e2e/pkg/environments/aws/host",
+        "//test/new-e2e/tests/agent-shared-components/secretsutils",
+        "@com_github_datadog_test_infra_definitions//components/datadog/agentparams:go_default_library",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

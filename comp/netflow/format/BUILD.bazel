@@ -1,0 +1,34 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "format",
+    srcs = [
+        "cidr.go",
+        "direction.go",
+        "doc.go",
+        "ether_type.go",
+        "ip_addr.go",
+        "ip_protocol.go",
+        "mac.go",
+        "port.go",
+        "tcp_flags.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/netflow/format",
+    visibility = ["//visibility:public"],
+)
+
+go_test(
+    name = "format_test",
+    srcs = [
+        "cidr_test.go",
+        "direction_test.go",
+        "ether_type_test.go",
+        "ip_addr_test.go",
+        "ip_protocol_test.go",
+        "mac_test.go",
+        "port_test.go",
+        "tcp_flags_test.go",
+    ],
+    embed = [":format"],
+    deps = ["@com_github_stretchr_testify//assert"],
+)

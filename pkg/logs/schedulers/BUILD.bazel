@@ -1,0 +1,27 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "schedulers",
+    srcs = [
+        "schedulers.go",
+        "source_manager.go",
+        "types.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/logs/schedulers",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/logs/service",
+        "//pkg/logs/sources",
+    ],
+)
+
+go_test(
+    name = "schedulers_test",
+    srcs = ["base_test.go"],
+    embed = [":schedulers"],
+    deps = [
+        "//pkg/logs/service",
+        "//pkg/logs/sources",
+        "@com_github_stretchr_testify//require",
+    ],
+)

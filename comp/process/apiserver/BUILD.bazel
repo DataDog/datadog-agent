@@ -1,0 +1,35 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "apiserver",
+    srcs = [
+        "apiserver.go",
+        "component.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/process/apiserver",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//cmd/process-agent/api",
+        "//comp/core/log",
+        "//pkg/config",
+        "//pkg/util/fxutil",
+        "@com_github_gorilla_mux//:mux",
+        "@org_uber_go_fx//:fx",
+    ],
+)
+
+go_test(
+    name = "apiserver_test",
+    srcs = ["apiserver_test.go"],
+    embed = [":apiserver"],
+    deps = [
+        "//comp/core",
+        "//comp/core/settings/settingsimpl",
+        "//comp/core/status",
+        "//comp/core/status/statusimpl",
+        "//comp/core/workloadmeta",
+        "//pkg/util/fxutil",
+        "@com_github_stretchr_testify//assert",
+        "@org_uber_go_fx//:fx",
+    ],
+)

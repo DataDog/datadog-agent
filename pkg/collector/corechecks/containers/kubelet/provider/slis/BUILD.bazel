@@ -1,0 +1,37 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "slis",
+    srcs = ["provider.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/kubelet/provider/slis",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/workloadmeta",
+        "//pkg/aggregator/sender",
+        "//pkg/collector/corechecks/containers/kubelet/common",
+        "//pkg/collector/corechecks/containers/kubelet/provider/prometheus",
+        "//pkg/util/containers",
+        "//pkg/util/prometheus",
+        "@com_github_samber_lo//:lo",
+    ],
+)
+
+go_test(
+    name = "slis_test",
+    srcs = ["provider_test.go"],
+    embed = [":slis"],
+    deps = [
+        "//comp/core",
+        "//comp/core/workloadmeta",
+        "//comp/core/workloadmeta/collectors",
+        "//pkg/aggregator/mocksender",
+        "//pkg/collector/check/id",
+        "//pkg/collector/corechecks/containers/kubelet/common",
+        "//pkg/collector/corechecks/containers/kubelet/common/testing",
+        "//pkg/util/containers",
+        "//pkg/util/fxutil",
+        "//pkg/util/kubernetes/kubelet/mock",
+        "@com_github_stretchr_testify//assert",
+        "@org_uber_go_fx//:fx",
+    ],
+)

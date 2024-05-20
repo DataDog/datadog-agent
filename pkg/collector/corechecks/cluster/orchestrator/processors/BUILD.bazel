@@ -1,0 +1,36 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "processors",
+    srcs = [
+        "chunking.go",
+        "errors.go",
+        "processor.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/orchestrator",
+        "//pkg/orchestrator/config",
+        "//pkg/orchestrator/model",
+        "//pkg/process/util",
+        "//pkg/util/kubernetes/apiserver",
+        "//pkg/util/log",
+        "@com_github_datadog_agent_payload_v5//process",
+        "@com_github_json_iterator_go//:go",
+        "@com_github_pkg_errors//:errors",
+        "@io_k8s_apimachinery//pkg/types",
+    ],
+)
+
+go_test(
+    name = "processors_test",
+    srcs = ["processor_test.go"],
+    embed = [":processors"],
+    deps = [
+        "@com_github_datadog_agent_payload_v5//process",
+        "@com_github_stretchr_testify//assert",
+        "@io_k8s_api//core/v1:core",
+        "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
+    ],
+)

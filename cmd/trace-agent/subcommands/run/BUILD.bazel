@@ -1,0 +1,56 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "run",
+    srcs = [
+        "command.go",
+        "command_nix.go",
+        "command_windows.go",
+        "service_windows.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/cmd/trace-agent/subcommands/run",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//cmd/agent/common",
+        "//cmd/trace-agent/subcommands",
+        "//comp/agent/autoexit",
+        "//comp/agent/autoexit/autoexitimpl",
+        "//comp/api/authtoken/fetchonlyimpl",
+        "//comp/core/config",
+        "//comp/core/configsync",
+        "//comp/core/configsync/configsyncimpl",
+        "//comp/core/log/logimpl",
+        "//comp/core/log/tracelogimpl",
+        "//comp/core/secrets",
+        "//comp/core/secrets/secretsimpl",
+        "//comp/core/tagger",
+        "//comp/core/tagger/taggerimpl",
+        "//comp/core/workloadmeta",
+        "//comp/core/workloadmeta/collectors",
+        "//comp/dogstatsd/statsd",
+        "//comp/trace",
+        "//comp/trace/agent",
+        "//comp/trace/config",
+        "//pkg/trace/telemetry",
+        "//pkg/util/fxutil",
+        "//pkg/util/optional",
+        "@com_github_spf13_cobra//:cobra",
+        "@org_uber_go_fx//:fx",
+    ] + select({
+        "@rules_go//go/platform:windows": [
+            "//pkg/trace/config",
+            "//pkg/util/winutil/servicemain",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+go_test(
+    name = "run_test",
+    srcs = ["command_test.go"],
+    embed = [":run"],
+    deps = [
+        "//cmd/trace-agent/subcommands",
+        "//pkg/util/fxutil",
+    ],
+)

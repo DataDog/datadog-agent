@@ -1,0 +1,16 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "portrollup",
+    srcs = ["portrollup.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/netflow/portrollup",
+    visibility = ["//visibility:public"],
+    deps = ["//comp/netflow/common"],
+)
+
+go_test(
+    name = "portrollup_test",
+    srcs = ["portrollup_test.go"],
+    embed = [":portrollup"],
+    deps = ["@com_github_stretchr_testify//assert"],
+)

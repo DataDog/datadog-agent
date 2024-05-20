@@ -1,0 +1,16 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "api",
+    srcs = ["types.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/clusteragent/api/v1",
+    visibility = ["//visibility:public"],
+    deps = ["@io_k8s_apimachinery//pkg/util/sets"],
+)
+
+go_test(
+    name = "api_test",
+    srcs = ["types_test.go"],
+    embed = [":api"],
+    deps = ["@io_k8s_apimachinery//pkg/util/sets"],
+)

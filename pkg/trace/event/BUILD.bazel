@@ -1,0 +1,47 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "event",
+    srcs = [
+        "doc.go",
+        "extractor.go",
+        "extractor_fixed_rate.go",
+        "extractor_legacy.go",
+        "extractor_metric.go",
+        "extractor_noop.go",
+        "memory_backend.go",
+        "processor.go",
+        "sampler_max_eps.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/trace/event",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/proto/pbgo/trace",
+        "//pkg/trace/log",
+        "//pkg/trace/sampler",
+        "//pkg/trace/traceutil",
+        "//pkg/trace/watchdog",
+        "@com_github_datadog_datadog_go_v5//statsd",
+    ],
+)
+
+go_test(
+    name = "event_test",
+    srcs = [
+        "extractor_fixed_rate_test.go",
+        "extractor_legacy_test.go",
+        "extractor_metric_test.go",
+        "extractor_test.go",
+        "processor_test.go",
+        "sampler_max_eps_test.go",
+    ],
+    embed = [":event"],
+    deps = [
+        "//pkg/proto/pbgo/trace",
+        "//pkg/trace/sampler",
+        "//pkg/trace/testutil",
+        "//pkg/trace/traceutil",
+        "@com_github_datadog_datadog_go_v5//statsd",
+        "@com_github_stretchr_testify//assert",
+    ],
+)

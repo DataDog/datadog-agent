@@ -1,0 +1,19 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "certificate",
+    srcs = ["certificate.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/util/kubernetes/certificate",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/util/cache",
+        "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
+        "@io_k8s_client_go//kubernetes",
+    ],
+)
+
+go_test(
+    name = "certificate_test",
+    srcs = ["certificate_test.go"],
+    embed = [":certificate"],
+)

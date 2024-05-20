@@ -1,0 +1,52 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "patch",
+    srcs = [
+        "file_provider.go",
+        "patch_request.go",
+        "patcher.go",
+        "provider.go",
+        "rc_provider.go",
+        "start.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/patch",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/clusteragent/admission/common",
+        "//pkg/clusteragent/admission/metrics",
+        "//pkg/clusteragent/telemetry",
+        "//pkg/config",
+        "//pkg/config/remote/client",
+        "//pkg/remoteconfig/state",
+        "//pkg/util/kubernetes",
+        "//pkg/util/log",
+        "@com_github_evanphx_json_patch//:json-patch",
+        "@io_k8s_api//apps/v1:apps",
+        "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
+        "@io_k8s_apimachinery//pkg/types",
+        "@io_k8s_client_go//kubernetes",
+    ],
+)
+
+go_test(
+    name = "patch_test",
+    srcs = [
+        "file_provider_test.go",
+        "patch_request_test.go",
+        "patcher_test.go",
+        "rc_provider_test.go",
+    ],
+    data = glob(["testdata/**"]),
+    embed = [":patch"],
+    deps = [
+        "//pkg/clusteragent/admission/common",
+        "//pkg/clusteragent/telemetry",
+        "//pkg/config/remote/client",
+        "//pkg/remoteconfig/state",
+        "@com_github_stretchr_testify//require",
+        "@io_k8s_api//apps/v1:apps",
+        "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
+        "@io_k8s_client_go//kubernetes/fake",
+    ],
+)

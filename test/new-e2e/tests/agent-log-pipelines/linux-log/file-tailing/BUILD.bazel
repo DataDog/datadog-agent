@@ -1,0 +1,26 @@
+load("@rules_go//go:def.bzl", "go_test")
+
+go_test(
+    name = "file-tailing_test",
+    srcs = [
+        "file_tailing_test.go",
+        "multi_line_test.go",
+        "utf_test.go",
+    ],
+    embedsrcs = [
+        "log-config/automulti.yaml",
+        "log-config/config.yaml",
+        "log-config/pattern.yaml",
+        "log-config/utf-16-be.yaml",
+        "log-config/utf-16-le.yaml",
+    ],
+    deps = [
+        "//test/fakeintake/client",
+        "//test/new-e2e/pkg/e2e",
+        "//test/new-e2e/pkg/environments",
+        "//test/new-e2e/pkg/environments/aws/host",
+        "//test/new-e2e/tests/agent-metric-logs/log-agent/utils",
+        "@com_github_datadog_test_infra_definitions//components/datadog/agentparams:go_default_library",
+        "@com_github_stretchr_testify//assert",
+    ],
+)

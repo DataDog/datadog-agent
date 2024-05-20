@@ -1,0 +1,19 @@
+load("@rules_go//go:def.bzl", "go_binary", "go_library")
+
+go_library(
+    name = "trace-agent_lib",
+    srcs = ["main.go"],
+    importpath = "github.com/DataDog/datadog-agent/cmd/trace-agent",
+    visibility = ["//visibility:private"],
+    deps = [
+        "//cmd/internal/runcmd",
+        "//cmd/trace-agent/command",
+        "//pkg/util/flavor",
+    ],
+)
+
+go_binary(
+    name = "trace-agent",
+    embed = [":trace-agent_lib"],
+    visibility = ["//visibility:public"],
+)

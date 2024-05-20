@@ -1,0 +1,22 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "tracelogimpl",
+    srcs = [
+        "module.go",
+        "trace_logger.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/core/log/tracelogimpl",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/config",
+        "//comp/core/log",
+        "//comp/core/log/logimpl",
+        "//pkg/config/logs",
+        "//pkg/trace/log",
+        "//pkg/trace/telemetry",
+        "//pkg/util/fxutil",
+        "//pkg/util/log",
+        "@org_uber_go_fx//:fx",
+    ],
+)

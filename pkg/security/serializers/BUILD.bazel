@@ -1,0 +1,106 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "serializers",
+    srcs = [
+        "deserializers.go",
+        "helpers.go",
+        "serializers_base.go",
+        "serializers_base_linux_easyjson.go",
+        "serializers_linux.go",
+        "serializers_linux_easyjson.go",
+        "serializers_others.go",
+        "serializers_windows.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/security/serializers",
+    visibility = ["//visibility:public"],
+    deps = select({
+        "@rules_go//go/platform:aix": [
+            "//pkg/security/events",
+            "//pkg/security/secl/compiler/eval",
+            "//pkg/security/secl/model",
+        ],
+        "@rules_go//go/platform:android": [
+            "//pkg/security/events",
+            "//pkg/security/resolvers/process",
+            "//pkg/security/secl/compiler/eval",
+            "//pkg/security/secl/model",
+            "//pkg/security/utils",
+            "//pkg/util/scrubber",
+            "@com_github_mailru_easyjson//:easyjson",
+            "@com_github_mailru_easyjson//jlexer",
+            "@com_github_mailru_easyjson//jwriter",
+            "@org_golang_x_sys//unix",
+        ],
+        "@rules_go//go/platform:darwin": [
+            "//pkg/security/events",
+            "//pkg/security/secl/compiler/eval",
+            "//pkg/security/secl/model",
+        ],
+        "@rules_go//go/platform:dragonfly": [
+            "//pkg/security/events",
+            "//pkg/security/secl/compiler/eval",
+            "//pkg/security/secl/model",
+        ],
+        "@rules_go//go/platform:freebsd": [
+            "//pkg/security/events",
+            "//pkg/security/secl/compiler/eval",
+            "//pkg/security/secl/model",
+        ],
+        "@rules_go//go/platform:illumos": [
+            "//pkg/security/events",
+            "//pkg/security/secl/compiler/eval",
+            "//pkg/security/secl/model",
+        ],
+        "@rules_go//go/platform:ios": [
+            "//pkg/security/events",
+            "//pkg/security/secl/compiler/eval",
+            "//pkg/security/secl/model",
+        ],
+        "@rules_go//go/platform:js": [
+            "//pkg/security/events",
+            "//pkg/security/secl/compiler/eval",
+            "//pkg/security/secl/model",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/security/events",
+            "//pkg/security/resolvers/process",
+            "//pkg/security/secl/compiler/eval",
+            "//pkg/security/secl/model",
+            "//pkg/security/utils",
+            "//pkg/util/scrubber",
+            "@com_github_mailru_easyjson//:easyjson",
+            "@com_github_mailru_easyjson//jlexer",
+            "@com_github_mailru_easyjson//jwriter",
+            "@org_golang_x_sys//unix",
+        ],
+        "@rules_go//go/platform:netbsd": [
+            "//pkg/security/events",
+            "//pkg/security/secl/compiler/eval",
+            "//pkg/security/secl/model",
+        ],
+        "@rules_go//go/platform:openbsd": [
+            "//pkg/security/events",
+            "//pkg/security/secl/compiler/eval",
+            "//pkg/security/secl/model",
+        ],
+        "@rules_go//go/platform:plan9": [
+            "//pkg/security/events",
+            "//pkg/security/secl/compiler/eval",
+            "//pkg/security/secl/model",
+        ],
+        "@rules_go//go/platform:solaris": [
+            "//pkg/security/events",
+            "//pkg/security/secl/compiler/eval",
+            "//pkg/security/secl/model",
+        ],
+        "@rules_go//go/platform:windows": [
+            "//pkg/security/events",
+            "//pkg/security/secl/compiler/eval",
+            "//pkg/security/secl/model",
+            "//pkg/security/utils",
+            "//pkg/util/scrubber",
+        ],
+        "//conditions:default": [],
+    }),
+)

@@ -1,0 +1,33 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "consumer",
+    srcs = [
+        "event_copy_linux.go",
+        "event_copy_windows.go",
+        "events_consumer.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/process/events/consumer",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/eventmonitor",
+        "//pkg/eventmonitor/proto/api",
+        "//pkg/process/events/model",
+        "//pkg/security/metrics",
+        "//pkg/security/secl/model",
+        "//pkg/util/log",
+        "@com_github_datadog_datadog_go_v5//statsd",
+        "@org_uber_go_atomic//:atomic",
+    ] + select({
+        "@rules_go//go/platform:android": [
+            "@org_go4_intern//:intern",
+        ],
+        "@rules_go//go/platform:linux": [
+            "@org_go4_intern//:intern",
+        ],
+        "@rules_go//go/platform:windows": [
+            "@org_go4_intern//:intern",
+        ],
+        "//conditions:default": [],
+    }),
+)

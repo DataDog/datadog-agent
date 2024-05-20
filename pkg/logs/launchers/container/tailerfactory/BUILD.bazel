@@ -1,0 +1,63 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "tailerfactory",
+    srcs = [
+        "defaults.go",
+        "dockerutil.go",
+        "factory.go",
+        "file.go",
+        "socket.go",
+        "testing.go",
+        "types.go",
+        "usefile.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/logs/launchers/container/tailerfactory",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/workloadmeta",
+        "//comp/logs/agent/config",
+        "//pkg/config",
+        "//pkg/logs/auditor",
+        "//pkg/logs/internal/util",
+        "//pkg/logs/internal/util/containersorpods",
+        "//pkg/logs/launchers/container/tailerfactory/tailers",
+        "//pkg/logs/pipeline",
+        "//pkg/logs/sources",
+        "//pkg/logs/status/utils",
+        "//pkg/util/containers",
+        "//pkg/util/docker",
+        "//pkg/util/filesystem",
+        "//pkg/util/log",
+        "//pkg/util/optional",
+    ],
+)
+
+go_test(
+    name = "tailerfactory_test",
+    srcs = [
+        "defaults_test.go",
+        "factory_test.go",
+        "file_test.go",
+        "socket_test.go",
+        "usefile_test.go",
+    ],
+    embed = [":tailerfactory"],
+    deps = [
+        "//comp/core/config",
+        "//comp/core/log/logimpl",
+        "//comp/core/workloadmeta",
+        "//comp/logs/agent/config",
+        "//pkg/config",
+        "//pkg/logs/internal/util/containersorpods",
+        "//pkg/logs/launchers/container/tailerfactory/tailers",
+        "//pkg/logs/pipeline",
+        "//pkg/logs/sources",
+        "//pkg/util/docker",
+        "//pkg/util/fxutil",
+        "//pkg/util/optional",
+        "//pkg/util/pointer",
+        "@com_github_stretchr_testify//require",
+        "@org_uber_go_fx//:fx",
+    ],
+)

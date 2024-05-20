@@ -1,0 +1,21 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "defender",
+    srcs = [
+        "component.go",
+        "params.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/components/defender",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//test/new-e2e/tests/windows/common/powershell",
+        "@com_github_datadog_test_infra_definitions//common:go_default_library",
+        "@com_github_datadog_test_infra_definitions//common/config:go_default_library",
+        "@com_github_datadog_test_infra_definitions//common/namer:go_default_library",
+        "@com_github_datadog_test_infra_definitions//common/utils:go_default_library",
+        "@com_github_datadog_test_infra_definitions//components/command:go_default_library",
+        "@com_github_datadog_test_infra_definitions//components/remote:go_default_library",
+        "@com_github_pulumi_pulumi_sdk_v3//go/pulumi:go_default_library",
+    ],
+)

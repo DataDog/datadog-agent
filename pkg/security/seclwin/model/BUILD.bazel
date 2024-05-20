@@ -1,0 +1,24 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "model",
+    srcs = [
+        "accessors_win.go",
+        "args_envs.go",
+        "consts_common.go",
+        "consts_map_names.go",
+        "consts_other.go",
+        "events.go",
+        "field_handlers_win.go",
+        "legacy_secl.go",
+        "model.go",
+        "model_win.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/security/seclwin/model",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/security/secl/compiler/eval",
+        "//pkg/security/secl/model/usersession",
+        "@com_github_hashicorp_golang_lru_v2//:golang-lru",
+    ],
+)

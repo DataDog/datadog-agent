@@ -1,0 +1,26 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "additionalfields",
+    srcs = ["netflow.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/netflow/goflowlib/additionalfields",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/netflow/common",
+        "//comp/netflow/config",
+        "@com_github_netsampler_goflow2//decoders/netflow",
+        "@com_github_netsampler_goflow2//producer",
+    ],
+)
+
+go_test(
+    name = "additionalfields_test",
+    srcs = ["netflow_test.go"],
+    embed = [":additionalfields"],
+    deps = [
+        "//comp/netflow/common",
+        "//comp/netflow/config",
+        "@com_github_netsampler_goflow2//decoders/netflow",
+        "@com_github_stretchr_testify//assert",
+    ],
+)

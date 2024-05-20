@@ -1,0 +1,27 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "kubelet",
+    srcs = ["common.go"],
+    importpath = "github.com/DataDog/datadog-agent/test/integration/util/kubelet",
+    visibility = ["//visibility:public"],
+    deps = ["//test/integration/utils"],
+)
+
+go_test(
+    name = "kubelet_test",
+    srcs = [
+        "insecurekubelet_test.go",
+        "securekubelet_test.go",
+    ],
+    data = glob(["testdata/**"]),
+    embed = [":kubelet"],
+    deps = [
+        "//pkg/config",
+        "//pkg/util/kubernetes/kubelet",
+        "//test/integration/utils",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@com_github_stretchr_testify//suite",
+    ],
+)

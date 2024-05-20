@@ -1,0 +1,16 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "metricsstatus",
+    srcs = ["status.go"],
+    embedsrcs = ["status_templates/custommetrics.tmpl"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/clusteragent/metricsstatus",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/status",
+        "//pkg/clusteragent/autoscaling/custommetrics",
+        "//pkg/clusteragent/autoscaling/externalmetrics",
+        "//pkg/config",
+        "//pkg/util/kubernetes/apiserver",
+    ],
+)

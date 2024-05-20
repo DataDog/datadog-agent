@@ -1,0 +1,19 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "telemetry",
+    srcs = ["telemetry.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/fleet/telemetry",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/fleet/env",
+        "//pkg/internaltelemetry",
+        "//pkg/proto/pbgo/trace",
+        "//pkg/trace/config",
+        "//pkg/util/log",
+        "//pkg/version",
+        "@com_github_gorilla_mux//:mux",
+        "@in_gopkg_datadog_dd_trace_go_v1//ddtrace",
+        "@in_gopkg_datadog_dd_trace_go_v1//ddtrace/tracer",
+    ],
+)

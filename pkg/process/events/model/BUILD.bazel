@@ -1,0 +1,19 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "model",
+    srcs = [
+        "model_common.go",
+        "model_common_gen.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/process/events/model",
+    visibility = ["//visibility:public"],
+    deps = ["@com_github_tinylib_msgp//msgp"],
+)
+
+go_test(
+    name = "model_test",
+    srcs = ["serialization_test.go"],
+    embed = [":model"],
+    deps = ["@com_github_stretchr_testify//require"],
+)

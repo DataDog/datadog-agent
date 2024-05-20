@@ -1,0 +1,65 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "setup",
+    srcs = [
+        "apm.go",
+        "config.go",
+        "config_darwin.go",
+        "config_init.go",
+        "config_nix.go",
+        "config_windows.go",
+        "ipc_address.go",
+        "multi_region_failover.go",
+        "otlp.go",
+        "process.go",
+        "standard_names.go",
+        "system_probe.go",
+        "system_probe_cws.go",
+        "system_probe_cws_notwin.go",
+        "system_probe_cws_windows.go",
+        "test_helpers.go",
+        "unexpectedunicodefinder.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/config/setup",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/secrets",
+        "//pkg/collector/check/defaults",
+        "//pkg/config/env",
+        "//pkg/config/model",
+        "//pkg/config/setup/constants",
+        "//pkg/util/hostname/validate",
+        "//pkg/util/log",
+        "//pkg/util/optional",
+        "//pkg/util/system",
+        "@in_gopkg_yaml_v2//:yaml_v2",
+    ] + select({
+        "@rules_go//go/platform:windows": [
+            "//pkg/util/executable",
+            "//pkg/util/winutil",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+go_test(
+    name = "setup_test",
+    srcs = [
+        "config_secret_test.go",
+        "config_test.go",
+        "ipc_address_test.go",
+        "process_test.go",
+        "unexpectedunicodefinder_test.go",
+    ],
+    embed = [":setup"],
+    deps = [
+        "//comp/core/secrets",
+        "//comp/core/secrets/secretsimpl",
+        "//pkg/config/model",
+        "//pkg/util/optional",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@in_gopkg_yaml_v2//:yaml_v2",
+    ],
+)

@@ -1,0 +1,45 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "api",
+    srcs = [
+        "grpc.go",
+        "listener.go",
+        "server.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/cmd/cluster-agent/api",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//cmd/cluster-agent/api/agent",
+        "//cmd/cluster-agent/api/v1:api",
+        "//cmd/cluster-agent/api/v1/languagedetection",
+        "//comp/core/autodiscovery",
+        "//comp/core/config",
+        "//comp/core/settings",
+        "//comp/core/status",
+        "//comp/core/tagger",
+        "//comp/core/tagger/taggerimpl/server",
+        "//comp/core/workloadmeta",
+        "//pkg/api/security",
+        "//pkg/api/util",
+        "//pkg/config",
+        "//pkg/proto/pbgo/core",
+        "//pkg/util/grpc",
+        "@com_github_cihub_seelog//:seelog",
+        "@com_github_gorilla_mux//:mux",
+        "@com_github_grpc_ecosystem_go_grpc_middleware//auth",
+        "@org_golang_google_grpc//:go_default_library",
+    ],
+)
+
+go_test(
+    name = "api_test",
+    srcs = ["server_test.go"],
+    embed = [":api"],
+    deps = [
+        "//pkg/api/util",
+        "//pkg/config",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

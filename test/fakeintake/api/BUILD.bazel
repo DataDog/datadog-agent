@@ -1,0 +1,8 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "api",
+    srcs = ["api.go"],
+    importpath = "github.com/DataDog/datadog-agent/test/fakeintake/api",
+    visibility = ["//visibility:public"],
+)

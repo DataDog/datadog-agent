@@ -1,0 +1,23 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "collector",
+    srcs = ["status.go"],
+    embedsrcs = [
+        "status_templates/collector.tmpl",
+        "status_templates/collectorHTML.tmpl",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/status/collector",
+    visibility = ["//visibility:public"],
+    deps = ["//comp/core/status"],
+)
+
+go_test(
+    name = "collector_test",
+    srcs = ["status_test.go"],
+    embed = [":collector"],
+    deps = [
+        "//comp/core/status",
+        "@com_github_stretchr_testify//require",
+    ],
+)

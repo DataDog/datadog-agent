@@ -1,0 +1,13 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "bootstraper",
+    srcs = ["bootstraper.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/fleet/bootstraper",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/fleet/env",
+        "//pkg/fleet/internal/exec",
+        "//pkg/fleet/internal/oci",
+    ],
+)

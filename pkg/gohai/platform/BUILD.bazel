@@ -1,0 +1,101 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "platform",
+    srcs = [
+        "platform.go",
+        "platform_android.go",
+        "platform_darwin.go",
+        "platform_linux.go",
+        "platform_windows.go",
+        "platform_windows_386.go",
+        "platform_windows_amd64.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/gohai/platform",
+    visibility = ["//visibility:public"],
+    deps = select({
+        "@rules_go//go/platform:aix": [
+            "//pkg/gohai/utils",
+        ],
+        "@rules_go//go/platform:android": [
+            "//pkg/gohai/utils",
+            "@org_golang_x_sys//unix",
+        ],
+        "@rules_go//go/platform:darwin": [
+            "//pkg/gohai/utils",
+            "@com_github_cihub_seelog//:seelog",
+            "@org_golang_x_sys//unix",
+        ],
+        "@rules_go//go/platform:dragonfly": [
+            "//pkg/gohai/utils",
+        ],
+        "@rules_go//go/platform:freebsd": [
+            "//pkg/gohai/utils",
+        ],
+        "@rules_go//go/platform:illumos": [
+            "//pkg/gohai/utils",
+        ],
+        "@rules_go//go/platform:ios": [
+            "//pkg/gohai/utils",
+            "@com_github_cihub_seelog//:seelog",
+            "@org_golang_x_sys//unix",
+        ],
+        "@rules_go//go/platform:js": [
+            "//pkg/gohai/utils",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/gohai/utils",
+            "@org_golang_x_sys//unix",
+        ],
+        "@rules_go//go/platform:netbsd": [
+            "//pkg/gohai/utils",
+        ],
+        "@rules_go//go/platform:openbsd": [
+            "//pkg/gohai/utils",
+        ],
+        "@rules_go//go/platform:plan9": [
+            "//pkg/gohai/utils",
+        ],
+        "@rules_go//go/platform:solaris": [
+            "//pkg/gohai/utils",
+        ],
+        "@rules_go//go/platform:windows": [
+            "//pkg/gohai/utils",
+            "@org_golang_x_sys//windows",
+            "@org_golang_x_sys//windows/registry",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+go_test(
+    name = "platform_test",
+    srcs = [
+        "platform_darwin_test.go",
+        "platform_linux_test.go",
+        "platform_test.go",
+    ],
+    embed = [":platform"],
+    deps = [
+        "//pkg/gohai/utils",
+        "@com_github_stretchr_testify//assert",
+    ] + select({
+        "@rules_go//go/platform:android": [
+            "@com_github_stretchr_testify//require",
+            "@org_golang_x_sys//unix",
+        ],
+        "@rules_go//go/platform:darwin": [
+            "@com_github_stretchr_testify//require",
+            "@org_golang_x_sys//unix",
+        ],
+        "@rules_go//go/platform:ios": [
+            "@com_github_stretchr_testify//require",
+            "@org_golang_x_sys//unix",
+        ],
+        "@rules_go//go/platform:linux": [
+            "@com_github_stretchr_testify//require",
+            "@org_golang_x_sys//unix",
+        ],
+        "//conditions:default": [],
+    }),
+)

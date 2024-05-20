@@ -1,0 +1,8 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "testutil",
+    srcs = ["dummy_ecs.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata/testutil",
+    visibility = ["//visibility:public"],
+)

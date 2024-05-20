@@ -1,0 +1,16 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "tcpqueuelength",
+    srcs = [
+        "tcp_queue_length_kern_types_linux.go",
+        "tcp_queue_length_stub.go",
+    ],
+    cgo = True,
+    importpath = "github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/tcpqueuelength",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/collector/corechecks/ebpf/probe/tcpqueuelength/model",
+        "//pkg/ebpf",
+    ],
+)

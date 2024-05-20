@@ -1,0 +1,33 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "client",
+    srcs = [
+        "auth.go",
+        "client.go",
+        "request.go",
+        "test_utils.go",
+        "types.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/collector/corechecks/network-devices/cisco-sdwan/client",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/collector/corechecks/network-devices/cisco-sdwan/client/fixtures",
+        "//pkg/util/log",
+        "@org_uber_go_atomic//:atomic",
+    ],
+)
+
+go_test(
+    name = "client_test",
+    srcs = [
+        "auth_test.go",
+        "client_test.go",
+        "request_test.go",
+    ],
+    embed = [":client"],
+    deps = [
+        "//pkg/collector/corechecks/network-devices/cisco-sdwan/client/fixtures",
+        "@com_github_stretchr_testify//require",
+    ],
+)

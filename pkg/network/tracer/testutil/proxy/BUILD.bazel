@@ -1,0 +1,19 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "proxy",
+    srcs = [
+        "unix_transparent_proxy.go",
+        "unix_transparent_proxy_builder.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/network/tracer/testutil/proxy",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/network/protocols/http/testutil",
+        "//pkg/network/testutil",
+        "//pkg/network/usm/testutil",
+        "//pkg/util/log",
+        "@com_github_stretchr_testify//require",
+        "@org_uber_go_atomic//:atomic",
+    ],
+)

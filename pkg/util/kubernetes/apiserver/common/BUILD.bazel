@@ -1,0 +1,52 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "common",
+    srcs = [
+        "common.go",
+        "common_linux.go",
+        "common_nolinux.go",
+        "version.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/config",
+        "//pkg/util/cache",
+        "//pkg/util/log",
+        "//pkg/util/retry",
+        "@io_k8s_api//core/v1:core",
+        "@io_k8s_apimachinery//pkg/api/errors",
+        "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
+        "@io_k8s_apimachinery//pkg/version",
+        "@io_k8s_client_go//discovery",
+        "@io_k8s_client_go//kubernetes/typed/core/v1:core",
+    ] + select({
+        "@rules_go//go/platform:android": [
+            "//pkg/util/system",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/util/system",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+go_test(
+    name = "common_test",
+    srcs = [
+        "common_test.go",
+        "version_test.go",
+    ],
+    embed = [":common"],
+    deps = [
+        "//pkg/util/cache",
+        "@com_github_stretchr_testify//assert",
+        "@io_k8s_api//core/v1:core",
+        "@io_k8s_apimachinery//pkg/api/errors",
+        "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
+        "@io_k8s_apimachinery//pkg/version",
+        "@io_k8s_client_go//discovery/fake",
+        "@io_k8s_client_go//kubernetes/fake",
+    ],
+)

@@ -1,0 +1,27 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "loaders",
+    srcs = ["loaders.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/collector/loaders",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/aggregator/sender",
+        "//pkg/collector/check",
+        "//pkg/util/log",
+    ],
+)
+
+go_test(
+    name = "loaders_test",
+    srcs = ["loaders_test.go"],
+    embed = [":loaders"],
+    deps = [
+        "//comp/core/autodiscovery/integration",
+        "//pkg/aggregator/mocksender",
+        "//pkg/aggregator/sender",
+        "//pkg/collector/check",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

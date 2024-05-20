@@ -1,0 +1,15 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "config",
+    srcs = ["config.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/security/probe/config",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//cmd/system-probe/config",
+        "//pkg/config",
+        "//pkg/ebpf",
+        "//pkg/util/filesystem",
+        "//pkg/util/log",
+    ],
+)

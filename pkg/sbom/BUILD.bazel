@@ -1,0 +1,13 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "sbom",
+    srcs = ["sbom.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/sbom",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/config",
+        "//comp/core/workloadmeta",
+        "@com_github_cyclonedx_cyclonedx_go//:cyclonedx-go",
+    ],
+)

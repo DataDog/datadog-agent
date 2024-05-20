@@ -1,0 +1,50 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "collectors",
+    srcs = [
+        "doc.go",
+        "ecs_common.go",
+        "workloadmeta_extract.go",
+        "workloadmeta_main.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl/collectors",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/tagger/types",
+        "//comp/core/tagger/utils",
+        "//comp/core/workloadmeta",
+        "//pkg/config",
+        "//pkg/status/health",
+        "//pkg/util",
+        "//pkg/util/containers",
+        "//pkg/util/flavor",
+        "//pkg/util/kubernetes",
+        "//pkg/util/kubernetes/clustername",
+        "//pkg/util/kubernetes/kubelet",
+        "//pkg/util/log",
+        "@com_github_gobwas_glob//:glob",
+    ],
+)
+
+go_test(
+    name = "collectors_test",
+    srcs = [
+        "ecs_common_test.go",
+        "workloadmeta_test.go",
+    ],
+    embed = [":collectors"],
+    deps = [
+        "//comp/core/config",
+        "//comp/core/log/logimpl",
+        "//comp/core/tagger/types",
+        "//comp/core/tagger/utils",
+        "//comp/core/workloadmeta",
+        "//pkg/config",
+        "//pkg/util/fxutil",
+        "//pkg/util/kubernetes",
+        "@com_github_google_go_cmp//cmp",
+        "@com_github_stretchr_testify//assert",
+        "@org_uber_go_fx//:fx",
+    ],
+)

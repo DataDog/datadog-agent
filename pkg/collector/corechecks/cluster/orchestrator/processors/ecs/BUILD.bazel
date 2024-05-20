@@ -1,0 +1,15 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "ecs",
+    srcs = ["task.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/ecs",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/collector/corechecks/cluster/orchestrator/processors",
+        "//pkg/collector/corechecks/cluster/orchestrator/processors/common",
+        "//pkg/collector/corechecks/cluster/orchestrator/transformers/ecs",
+        "@com_github_datadog_agent_payload_v5//process",
+        "@io_k8s_apimachinery//pkg/types",
+    ],
+)

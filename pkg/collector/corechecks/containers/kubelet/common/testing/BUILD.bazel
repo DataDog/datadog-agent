@@ -1,0 +1,18 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "testing",
+    srcs = ["utils.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/kubelet/common/testing",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/workloadmeta",
+        "//pkg/aggregator/mocksender",
+        "//pkg/collector/corechecks/containers/kubelet/common",
+        "//pkg/util/containers",
+        "//pkg/util/kubernetes",
+        "//pkg/util/kubernetes/kubelet",
+        "//pkg/util/kubernetes/kubelet/mock",
+        "@com_github_stretchr_testify//mock",
+    ],
+)

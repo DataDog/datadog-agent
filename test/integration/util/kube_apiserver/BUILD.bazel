@@ -1,0 +1,31 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "kube_apiserver",
+    srcs = ["common.go"],
+    importpath = "github.com/DataDog/datadog-agent/test/integration/util/kube_apiserver",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//test/integration/utils",
+        "@io_k8s_api//core/v1:core",
+        "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
+    ],
+)
+
+go_test(
+    name = "kube_apiserver_test",
+    srcs = ["apiserver_test.go"],
+    data = glob(["testdata/**"]),
+    embed = [":kube_apiserver"],
+    deps = [
+        "//pkg/config",
+        "//pkg/util/kubernetes",
+        "//pkg/util/kubernetes/apiserver",
+        "//pkg/util/kubernetes/clustername",
+        "@com_github_cihub_seelog//:seelog",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@com_github_stretchr_testify//suite",
+        "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
+    ],
+)

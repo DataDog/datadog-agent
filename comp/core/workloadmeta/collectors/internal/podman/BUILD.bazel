@@ -1,0 +1,34 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "podman",
+    srcs = [
+        "podman.go",
+        "stub.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/podman",
+    visibility = ["//comp/core/workloadmeta/collectors:__subpackages__"],
+    deps = [
+        "//comp/core/workloadmeta",
+        "//pkg/config",
+        "//pkg/errors",
+        "//pkg/util/containers",
+        "//pkg/util/log",
+        "//pkg/util/podman",
+        "@org_uber_go_fx//:fx",
+    ],
+)
+
+go_test(
+    name = "podman_test",
+    srcs = ["podman_test.go"],
+    embed = [":podman"],
+    deps = [
+        "//comp/core/workloadmeta",
+        "//pkg/util/podman",
+        "@com_github_containernetworking_cni//pkg/types/100",
+        "@com_github_cri_o_ocicni//pkg/ocicni",
+        "@com_github_opencontainers_runtime_spec//specs-go",
+        "@com_github_stretchr_testify//assert",
+    ],
+)

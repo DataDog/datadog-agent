@@ -1,0 +1,14 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "hostname",
+    srcs = ["status.go"],
+    embedsrcs = ["status_templates/hostname.tmpl"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/status/clusteragent/hostname",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/config",
+        "//comp/core/status",
+        "//comp/metadata/host/hostimpl/utils",
+    ],
+)

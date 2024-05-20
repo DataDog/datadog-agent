@@ -1,0 +1,40 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "common",
+    srcs = [
+        "common.go",
+        "label_selectors.go",
+        "test_utils.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/config",
+        "//comp/core/log/logimpl",
+        "//comp/core/workloadmeta",
+        "//pkg/clusteragent/admission/common",
+        "//pkg/clusteragent/admission/metrics",
+        "//pkg/config",
+        "//pkg/languagedetection/util",
+        "//pkg/util/fxutil",
+        "//pkg/util/log",
+        "@com_github_wi2l_jsondiff//:jsondiff",
+        "@io_k8s_api//apps/v1:apps",
+        "@io_k8s_api//batch/v1:batch",
+        "@io_k8s_api//core/v1:core",
+        "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
+        "@io_k8s_client_go//dynamic",
+        "@org_uber_go_fx//:fx",
+    ],
+)
+
+go_test(
+    name = "common_test",
+    srcs = ["common_test.go"],
+    embed = [":common"],
+    deps = [
+        "@com_github_stretchr_testify//assert",
+        "@io_k8s_api//core/v1:core",
+    ],
+)

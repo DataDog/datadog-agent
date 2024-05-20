@@ -1,0 +1,28 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "aggregator",
+    srcs = ["bundle.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/aggregator",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/aggregator/demultiplexer/demultiplexerimpl",
+        "//pkg/util/fxutil",
+    ],
+)
+
+go_test(
+    name = "aggregator_test",
+    srcs = ["bundle_test.go"],
+    embed = [":aggregator"],
+    deps = [
+        "//comp/aggregator/demultiplexer/demultiplexerimpl",
+        "//comp/core",
+        "//comp/forwarder/defaultforwarder",
+        "//comp/forwarder/eventplatform/eventplatformimpl",
+        "//comp/forwarder/orchestrator/orchestratorimpl",
+        "//comp/serializer/compression/compressionimpl",
+        "//pkg/util/fxutil",
+        "@org_uber_go_fx//:fx",
+    ],
+)

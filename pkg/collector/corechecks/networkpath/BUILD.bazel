@@ -1,0 +1,38 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "networkpath",
+    srcs = [
+        "config.go",
+        "networkpath.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/collector/corechecks/networkpath",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/autodiscovery/integration",
+        "//comp/forwarder/eventplatform",
+        "//pkg/aggregator/sender",
+        "//pkg/collector/check",
+        "//pkg/collector/corechecks",
+        "//pkg/config",
+        "//pkg/networkdevice/utils",
+        "//pkg/networkpath/metricsender",
+        "//pkg/networkpath/payload",
+        "//pkg/networkpath/telemetry",
+        "//pkg/networkpath/traceroute",
+        "//pkg/util/log",
+        "//pkg/util/optional",
+        "@in_gopkg_yaml_v2//:yaml_v2",
+    ],
+)
+
+go_test(
+    name = "networkpath_test",
+    srcs = ["config_test.go"],
+    embed = [":networkpath"],
+    deps = [
+        "//comp/core/autodiscovery/integration",
+        "//pkg/config",
+        "@com_github_stretchr_testify//assert",
+    ],
+)

@@ -1,0 +1,33 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "ecsfargate",
+    srcs = [
+        "collector.go",
+        "doc.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/util/containers/metrics/ecsfargate",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/workloadmeta",
+        "//pkg/config",
+        "//pkg/util/containers/metrics/provider",
+        "//pkg/util/ecs/metadata",
+        "//pkg/util/ecs/metadata/v2:metadata",
+        "//pkg/util/log",
+        "//pkg/util/optional",
+        "//pkg/util/pointer",
+    ],
+)
+
+go_test(
+    name = "ecsfargate_test",
+    srcs = ["collector_test.go"],
+    embed = [":ecsfargate"],
+    deps = [
+        "//pkg/util/containers/metrics/provider",
+        "//pkg/util/ecs/metadata/v2:metadata",
+        "//pkg/util/pointer",
+        "@com_github_stretchr_testify//assert",
+    ],
+)

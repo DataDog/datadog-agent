@@ -1,0 +1,46 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "command",
+    srcs = ["command.go"],
+    importpath = "github.com/DataDog/datadog-agent/cmd/systray/command",
+    visibility = ["//visibility:public"],
+    deps = select({
+        "@rules_go//go/platform:windows": [
+            "//cmd/agent/common/path",
+            "//comp/aggregator/diagnosesendermanager/diagnosesendermanagerimpl",
+            "//comp/api/authtoken/fetchonlyimpl",
+            "//comp/collector/collector",
+            "//comp/core",
+            "//comp/core/autodiscovery",
+            "//comp/core/config",
+            "//comp/core/flare",
+            "//comp/core/log/logimpl",
+            "//comp/core/workloadmeta",
+            "//comp/metadata/inventoryagent/inventoryagentimpl",
+            "//comp/serializer/compression/compressionimpl",
+            "//comp/systray/systray",
+            "//comp/systray/systray/systrayimpl",
+            "//pkg/serializer",
+            "//pkg/util/fxutil",
+            "//pkg/util/optional",
+            "//pkg/util/winutil",
+            "@com_github_spf13_cobra//:cobra",
+            "@org_golang_x_sys//windows",
+            "@org_uber_go_fx//:fx",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+go_test(
+    name = "command_test",
+    srcs = ["command_test.go"],
+    embed = [":command"],
+    deps = select({
+        "@rules_go//go/platform:windows": [
+            "//pkg/util/fxutil",
+        ],
+        "//conditions:default": [],
+    }),
+)

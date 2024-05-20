@@ -1,0 +1,15 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "otlp",
+    srcs = ["otlp.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/serverless/otlp",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/otelcol/otlp",
+        "//pkg/config",
+        "//pkg/serializer",
+        "//pkg/util/log",
+        "@io_opentelemetry_go_collector_otelcol//:otelcol",
+    ],
+)

@@ -1,0 +1,26 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "builder",
+    srcs = [
+        "builder.go",
+        "doc.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/kubestatemetrics/builder",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/kubestatemetrics/store",
+        "@com_github_prometheus_client_golang//prometheus",
+        "@io_k8s_api//core/v1:core",
+        "@io_k8s_autoscaler_vertical_pod_autoscaler//pkg/client/clientset/versioned",
+        "@io_k8s_client_go//kubernetes",
+        "@io_k8s_client_go//tools/cache",
+        "@io_k8s_kube_state_metrics_v2//pkg/builder",
+        "@io_k8s_kube_state_metrics_v2//pkg/builder/types",
+        "@io_k8s_kube_state_metrics_v2//pkg/customresource",
+        "@io_k8s_kube_state_metrics_v2//pkg/metric_generator",
+        "@io_k8s_kube_state_metrics_v2//pkg/metrics_store",
+        "@io_k8s_kube_state_metrics_v2//pkg/options",
+        "@io_k8s_kube_state_metrics_v2//pkg/watch",
+    ],
+)

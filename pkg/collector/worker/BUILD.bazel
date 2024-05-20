@@ -1,0 +1,52 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "worker",
+    srcs = [
+        "check_logger.go",
+        "utilization_tracker.go",
+        "worker.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/collector/worker",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/aggregator/sender",
+        "//pkg/collector/check",
+        "//pkg/collector/check/id",
+        "//pkg/collector/runner/expvars",
+        "//pkg/collector/runner/tracker",
+        "//pkg/config",
+        "//pkg/metrics/servicecheck",
+        "//pkg/telemetry",
+        "//pkg/util/hostname",
+        "//pkg/util/log",
+        "@com_github_benbjohnson_clock//:clock",
+    ],
+)
+
+go_test(
+    name = "worker_test",
+    srcs = [
+        "check_logger_test.go",
+        "utilization_tracker_test.go",
+        "worker_test.go",
+    ],
+    embed = [":worker"],
+    deps = [
+        "//pkg/aggregator",
+        "//pkg/aggregator/mocksender",
+        "//pkg/aggregator/sender",
+        "//pkg/collector/check",
+        "//pkg/collector/check/id",
+        "//pkg/collector/check/stats",
+        "//pkg/collector/check/stub",
+        "//pkg/collector/runner/expvars",
+        "//pkg/collector/runner/tracker",
+        "//pkg/config",
+        "//pkg/metrics/servicecheck",
+        "@com_github_benbjohnson_clock//:clock",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@org_uber_go_atomic//:atomic",
+    ],
+)

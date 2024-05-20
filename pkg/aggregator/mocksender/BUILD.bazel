@@ -1,0 +1,43 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "mocksender",
+    srcs = [
+        "asserts.go",
+        "mocked_methods.go",
+        "mocksender.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/aggregator/mocksender",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/hostname/hostnameimpl",
+        "//comp/core/log/logimpl",
+        "//comp/forwarder/defaultforwarder",
+        "//comp/forwarder/eventplatform",
+        "//comp/forwarder/eventplatform/eventplatformimpl",
+        "//comp/serializer/compression/compressionimpl",
+        "//pkg/aggregator",
+        "//pkg/aggregator/sender",
+        "//pkg/collector/check/id",
+        "//pkg/collector/check/stats",
+        "//pkg/config",
+        "//pkg/metrics/event",
+        "//pkg/metrics/servicecheck",
+        "//pkg/serializer/types",
+        "//pkg/util/optional",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//mock",
+    ],
+)
+
+go_test(
+    name = "mocksender_test",
+    srcs = ["asserts_test.go"],
+    embed = [":mocksender"],
+    deps = [
+        "//pkg/metrics/event",
+        "//pkg/metrics/servicecheck",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//mock",
+    ],
+)

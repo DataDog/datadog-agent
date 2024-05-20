@@ -1,0 +1,42 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "logsagentexporter",
+    srcs = [
+        "factory.go",
+        "logs_exporter.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/logsagentexporter",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/logs/agent/config",
+        "//pkg/logs/message",
+        "//pkg/logs/sources",
+        "//pkg/util/scrubber",
+        "@com_github_datadog_opentelemetry_mapping_go_pkg_otlp_attributes//:attributes",
+        "@com_github_datadog_opentelemetry_mapping_go_pkg_otlp_logs//:logs",
+        "@com_github_stormcat24_protodep//pkg/logger",
+        "@io_opentelemetry_go_collector_component//:component",
+        "@io_opentelemetry_go_collector_exporter//:exporter",
+        "@io_opentelemetry_go_collector_exporter//exporterhelper",
+        "@io_opentelemetry_go_collector_pdata//plog",
+    ],
+)
+
+go_test(
+    name = "logsagentexporter_test",
+    srcs = [
+        "factory_test.go",
+        "logs_exporter_test.go",
+    ],
+    embed = [":logsagentexporter"],
+    deps = [
+        "//comp/otelcol/otlp/testutil",
+        "//pkg/logs/message",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@io_opentelemetry_go_collector_exporter//exportertest",
+        "@io_opentelemetry_go_collector_pdata//pcommon",
+        "@io_opentelemetry_go_collector_pdata//plog",
+    ],
+)

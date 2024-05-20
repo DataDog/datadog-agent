@@ -1,0 +1,57 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "invocationlifecycle",
+    srcs = [
+        "constants.go",
+        "init.go",
+        "invocation_details.go",
+        "invocation_processor.go",
+        "lifecycle.go",
+        "trace.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/serverless/invocationlifecycle",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/aggregator",
+        "//pkg/config",
+        "//pkg/proto/pbgo/trace",
+        "//pkg/serverless/logs",
+        "//pkg/serverless/metrics",
+        "//pkg/serverless/random",
+        "//pkg/serverless/trace/inferredspan",
+        "//pkg/serverless/trace/propagation",
+        "//pkg/serverless/trigger",
+        "//pkg/serverless/trigger/events",
+        "//pkg/trace/api",
+        "//pkg/trace/info",
+        "//pkg/trace/sampler",
+        "//pkg/util/log",
+        "@com_github_json_iterator_go//:go",
+    ],
+)
+
+go_test(
+    name = "invocationlifecycle_test",
+    srcs = [
+        "lifecycle_test.go",
+        "trace_test.go",
+    ],
+    embed = [":invocationlifecycle"],
+    deps = [
+        "//comp/aggregator/demultiplexer",
+        "//comp/aggregator/demultiplexer/demultiplexerimpl",
+        "//comp/core/hostname/hostnameimpl",
+        "//comp/core/log/logimpl",
+        "//comp/serializer/compression/compressionimpl",
+        "//pkg/metrics",
+        "//pkg/proto/pbgo/trace",
+        "//pkg/serverless/logs",
+        "//pkg/serverless/trace/inferredspan",
+        "//pkg/serverless/trigger/events",
+        "//pkg/trace/api",
+        "//pkg/trace/sampler",
+        "//pkg/util/fxutil",
+        "@com_github_stretchr_testify//assert",
+    ],
+)

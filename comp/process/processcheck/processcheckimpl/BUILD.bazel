@@ -1,0 +1,23 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "processcheckimpl",
+    srcs = [
+        "check.go",
+        "mock.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/process/processcheck/processcheckimpl",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/config",
+        "//comp/core/sysprobeconfig",
+        "//comp/core/workloadmeta",
+        "//comp/process/processcheck",
+        "//comp/process/types",
+        "//pkg/process/checks",
+        "//pkg/process/checks/mocks",
+        "//pkg/util/fxutil",
+        "@com_github_stretchr_testify//mock",
+        "@org_uber_go_fx//:fx",
+    ],
+)

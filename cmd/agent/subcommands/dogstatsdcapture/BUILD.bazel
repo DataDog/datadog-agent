@@ -1,0 +1,37 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "dogstatsdcapture",
+    srcs = ["command.go"],
+    importpath = "github.com/DataDog/datadog-agent/cmd/agent/subcommands/dogstatsdcapture",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//cmd/agent/command",
+        "//comp/core",
+        "//comp/core/config",
+        "//comp/core/log",
+        "//pkg/api/security",
+        "//pkg/config",
+        "//pkg/proto/pbgo/core",
+        "//pkg/util/fxutil",
+        "@com_github_spf13_cobra//:cobra",
+        "@org_golang_google_grpc//:go_default_library",
+        "@org_golang_google_grpc//credentials",
+        "@org_golang_google_grpc//grpclog",
+        "@org_golang_google_grpc//metadata",
+        "@org_uber_go_fx//:fx",
+    ],
+)
+
+go_test(
+    name = "dogstatsdcapture_test",
+    srcs = ["command_test.go"],
+    embed = [":dogstatsdcapture"],
+    deps = [
+        "//cmd/agent/command",
+        "//comp/core",
+        "//comp/core/secrets",
+        "//pkg/util/fxutil",
+        "@com_github_stretchr_testify//require",
+    ],
+)

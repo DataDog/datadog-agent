@@ -1,0 +1,28 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "module",
+    srcs = [
+        "common.go",
+        "factory_linux.go",
+        "factory_others.go",
+        "loader.go",
+        "loader_unsupported.go",
+        "loader_windows.go",
+        "router.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/cmd/system-probe/api/module",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//cmd/system-probe/config/types",
+        "//comp/core/workloadmeta",
+        "//pkg/util/log",
+        "//pkg/util/optional",
+        "@com_github_gorilla_mux//:mux",
+    ] + select({
+        "@rules_go//go/platform:windows": [
+            "//pkg/network/driver",
+        ],
+        "//conditions:default": [],
+    }),
+)

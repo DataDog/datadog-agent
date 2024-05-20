@@ -1,0 +1,50 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "clientimpl",
+    srcs = [
+        "client.go",
+        "telemetry.go",
+        "util.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/languagedetection/client/clientimpl",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/config",
+        "//comp/core/log",
+        "//comp/core/telemetry",
+        "//comp/core/workloadmeta",
+        "//comp/languagedetection/client",
+        "//pkg/languagedetection/util",
+        "//pkg/proto/pbgo/process",
+        "//pkg/status/health",
+        "//pkg/util/clusteragent",
+        "//pkg/util/fxutil",
+        "//pkg/util/log",
+        "//pkg/util/optional",
+        "@org_uber_go_fx//:fx",
+    ],
+)
+
+go_test(
+    name = "clientimpl_test",
+    srcs = ["client_test.go"],
+    embed = [":clientimpl"],
+    deps = [
+        "//comp/core/config",
+        "//comp/core/log/logimpl",
+        "//comp/core/secrets",
+        "//comp/core/secrets/secretsimpl",
+        "//comp/core/telemetry/telemetryimpl",
+        "//comp/core/workloadmeta",
+        "//comp/languagedetection/client",
+        "//pkg/languagedetection/languagemodels",
+        "//pkg/languagedetection/util",
+        "//pkg/proto/pbgo/process",
+        "//pkg/util/fxutil",
+        "//pkg/util/optional",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@org_uber_go_fx//:fx",
+    ],
+)

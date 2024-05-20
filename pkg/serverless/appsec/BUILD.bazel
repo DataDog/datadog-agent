@@ -1,0 +1,33 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "appsec",
+    srcs = ["appsec.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/serverless/appsec",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/aggregator",
+        "//pkg/serverless/appsec/config",
+        "//pkg/serverless/appsec/httpsec",
+        "//pkg/serverless/proxy",
+        "//pkg/util/log",
+        "@com_github_datadog_appsec_internal_go//limiter",
+        "@com_github_datadog_appsec_internal_go//log",
+        "@com_github_datadog_go_libddwaf_v2//:go-libddwaf",
+        "@com_github_json_iterator_go//:go",
+    ],
+)
+
+go_test(
+    name = "appsec_test",
+    srcs = [
+        "appsec_test.go",
+        "rules_test.go",
+    ],
+    embed = [":appsec"],
+    deps = [
+        "@com_github_datadog_appsec_internal_go//appsec",
+        "@com_github_datadog_go_libddwaf_v2//:go-libddwaf",
+        "@com_github_stretchr_testify//require",
+    ],
+)

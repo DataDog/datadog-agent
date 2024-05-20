@@ -1,0 +1,21 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "api",
+    srcs = [
+        "listener.go",
+        "server.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/cmd/security-agent/api",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//cmd/security-agent/api/agent",
+        "//comp/core/settings",
+        "//comp/core/status",
+        "//pkg/api/security",
+        "//pkg/api/util",
+        "//pkg/config",
+        "@com_github_cihub_seelog//:seelog",
+        "@com_github_gorilla_mux//:mux",
+    ],
+)

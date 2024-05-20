@@ -1,0 +1,34 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "stats",
+    srcs = [
+        "stats.go",
+        "util.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/collector/check/stats",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/collector/check/id",
+        "//pkg/config",
+        "//pkg/config/utils",
+        "//pkg/telemetry",
+        "//pkg/util/log",
+        "@com_github_mitchellh_mapstructure//:mapstructure",
+    ],
+)
+
+go_test(
+    name = "stats_test",
+    srcs = [
+        "stats_test.go",
+        "util_test.go",
+    ],
+    embed = [":stats"],
+    deps = [
+        "//comp/core/telemetry/telemetryimpl",
+        "//pkg/collector/check/id",
+        "//pkg/config",
+        "@com_github_stretchr_testify//assert",
+    ],
+)

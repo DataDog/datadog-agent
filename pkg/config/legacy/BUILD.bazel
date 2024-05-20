@@ -1,0 +1,38 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "legacy",
+    srcs = [
+        "converter.go",
+        "docker.go",
+        "importer.go",
+        "kubernetes.go",
+        "trace-agent.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/config/legacy",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/autodiscovery/providers",
+        "//pkg/collector/corechecks/containers/docker",
+        "//pkg/config",
+        "//pkg/config/utils",
+        "@com_github_go_ini_ini//:ini",
+        "@in_gopkg_yaml_v2//:yaml_v2",
+    ],
+)
+
+go_test(
+    name = "legacy_test",
+    srcs = [
+        "converter_test.go",
+        "docker_test.go",
+        "importer_test.go",
+        "kubernetes_test.go",
+    ],
+    embed = [":legacy"],
+    deps = [
+        "//pkg/config",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

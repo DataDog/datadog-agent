@@ -1,0 +1,16 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "metrics",
+    srcs = ["metrics.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/logs/metrics",
+    visibility = ["//visibility:public"],
+    deps = ["//pkg/telemetry"],
+)
+
+go_test(
+    name = "metrics_test",
+    srcs = ["metrics_test.go"],
+    embed = [":metrics"],
+    deps = ["@com_github_stretchr_testify//assert"],
+)

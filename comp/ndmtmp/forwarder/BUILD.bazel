@@ -1,0 +1,15 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "forwarder",
+    srcs = [
+        "component.go",
+        "component_mock.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/ndmtmp/forwarder",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/forwarder/eventplatform",
+        "//comp/forwarder/eventplatform/eventplatformimpl",
+    ],
+)

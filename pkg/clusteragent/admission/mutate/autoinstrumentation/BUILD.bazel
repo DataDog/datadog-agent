@@ -1,0 +1,56 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "autoinstrumentation",
+    srcs = [
+        "auto_instrumentation.go",
+        "auto_instrumentation_util.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoinstrumentation",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//cmd/cluster-agent/admission",
+        "//comp/core/workloadmeta",
+        "//pkg/clusteragent/admission/common",
+        "//pkg/clusteragent/admission/metrics",
+        "//pkg/clusteragent/admission/mutate/common",
+        "//pkg/config",
+        "//pkg/util/containers",
+        "//pkg/util/kubernetes",
+        "//pkg/util/kubernetes/apiserver/common",
+        "//pkg/util/log",
+        "//pkg/util/pointer",
+        "@io_k8s_api//admissionregistration/v1:admissionregistration",
+        "@io_k8s_api//core/v1:core",
+        "@io_k8s_apimachinery//pkg/api/resource",
+        "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
+        "@io_k8s_client_go//dynamic",
+    ],
+)
+
+go_test(
+    name = "autoinstrumentation_test",
+    srcs = [
+        "auto_instrumentation_test.go",
+        "auto_instrumentation_util_test.go",
+    ],
+    embed = [":autoinstrumentation"],
+    deps = [
+        "//comp/core",
+        "//comp/core/config",
+        "//comp/core/log/logimpl",
+        "//comp/core/workloadmeta",
+        "//pkg/clusteragent/admission/mutate/common",
+        "//pkg/config",
+        "//pkg/languagedetection/util",
+        "//pkg/util/fxutil",
+        "@com_github_google_uuid//:uuid",
+        "@com_github_stretchr_testify//require",
+        "@io_k8s_api//core/v1:core",
+        "@io_k8s_apimachinery//pkg/api/resource",
+        "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
+        "@io_k8s_client_go//dynamic/fake",
+        "@io_k8s_client_go//kubernetes/scheme",
+        "@org_uber_go_fx//:fx",
+    ],
+)

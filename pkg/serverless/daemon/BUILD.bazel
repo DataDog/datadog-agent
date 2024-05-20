@@ -1,0 +1,50 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "daemon",
+    srcs = [
+        "daemon.go",
+        "interval.go",
+        "routes.go",
+        "utils.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/serverless/daemon",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/logs/agent",
+        "//comp/logs/agent/config",
+        "//pkg/serverless/executioncontext",
+        "//pkg/serverless/flush",
+        "//pkg/serverless/invocationlifecycle",
+        "//pkg/serverless/logs",
+        "//pkg/serverless/metrics",
+        "//pkg/serverless/otlp",
+        "//pkg/serverless/tags",
+        "//pkg/serverless/trace",
+        "//pkg/util/log",
+    ],
+)
+
+go_test(
+    name = "daemon_test",
+    srcs = [
+        "daemon_test.go",
+        "interval_test.go",
+        "routes_test.go",
+        "utils_test.go",
+    ],
+    embed = [":daemon"],
+    deps = [
+        "//pkg/proto/pbgo/trace",
+        "//pkg/serverless/flush",
+        "//pkg/serverless/invocationlifecycle",
+        "//pkg/serverless/metrics",
+        "//pkg/serverless/random",
+        "//pkg/serverless/trace",
+        "//pkg/trace/api",
+        "//pkg/trace/testutil",
+        "//pkg/util/log",
+        "@com_github_cihub_seelog//:seelog",
+        "@com_github_stretchr_testify//assert",
+    ],
+)

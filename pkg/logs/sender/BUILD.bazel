@@ -1,0 +1,52 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "sender",
+    srcs = [
+        "batch_strategy.go",
+        "content_encoding.go",
+        "destination_sender.go",
+        "message_buffer.go",
+        "sender.go",
+        "serializer.go",
+        "strategy.go",
+        "stream_strategy.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/logs/sender",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/config/model",
+        "//pkg/logs/client",
+        "//pkg/logs/message",
+        "//pkg/telemetry",
+        "//pkg/util/log",
+        "@com_github_benbjohnson_clock//:clock",
+    ],
+)
+
+go_test(
+    name = "sender_test",
+    srcs = [
+        "batch_strategy_test.go",
+        "content_encoding_test.go",
+        "destination_sender_test.go",
+        "message_buffer_test.go",
+        "sender_test.go",
+        "serializer_test.go",
+        "stream_strategy_test.go",
+    ],
+    embed = [":sender"],
+    deps = [
+        "//comp/logs/agent/config",
+        "//pkg/config/model",
+        "//pkg/logs/client",
+        "//pkg/logs/client/http",
+        "//pkg/logs/client/mock",
+        "//pkg/logs/client/tcp",
+        "//pkg/logs/message",
+        "//pkg/logs/sources",
+        "//pkg/logs/status/statusinterface",
+        "@com_github_benbjohnson_clock//:clock",
+        "@com_github_stretchr_testify//assert",
+    ],
+)

@@ -1,0 +1,42 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "docker",
+    srcs = [
+        "reader.go",
+        "tailer.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/logs/tailers/docker",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/logs/agent/config",
+        "//pkg/logs/internal/decoder",
+        "//pkg/logs/internal/framer",
+        "//pkg/logs/internal/parsers/dockerstream",
+        "//pkg/logs/internal/tag",
+        "//pkg/logs/message",
+        "//pkg/logs/sources",
+        "//pkg/logs/status/utils",
+        "//pkg/util/containers",
+        "//pkg/util/docker",
+        "//pkg/util/log",
+        "@com_github_docker_docker//api/types/container",
+    ],
+)
+
+go_test(
+    name = "docker_test",
+    srcs = [
+        "reader_test.go",
+        "tailer_test.go",
+    ],
+    embed = [":docker"],
+    deps = [
+        "//pkg/logs/internal/decoder",
+        "//pkg/logs/internal/tag",
+        "//pkg/logs/message",
+        "//pkg/logs/sources",
+        "@com_github_docker_docker//api/types/container",
+        "@com_github_stretchr_testify//assert",
+    ],
+)

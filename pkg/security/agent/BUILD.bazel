@@ -1,0 +1,62 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "agent",
+    srcs = [
+        "agent.go",
+        "agent_nix.go",
+        "agent_windows.go",
+        "client.go",
+        "status_provider.go",
+        "telemetry_linux.go",
+        "telemetry_others.go",
+    ],
+    embedsrcs = ["status_templates/runtimesecurity.tmpl"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/security/agent",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/status",
+        "//comp/logs/agent/config",
+        "//pkg/config",
+        "//pkg/security/common",
+        "//pkg/security/config",
+        "//pkg/security/proto/api",
+        "//pkg/security/security_profile/dump",
+        "//pkg/util/log",
+        "@com_github_cenkalti_backoff_v4//:backoff",
+        "@org_golang_google_grpc//:go_default_library",
+        "@org_golang_google_grpc//backoff",
+        "@org_golang_google_grpc//codes",
+        "@org_golang_google_grpc//credentials/insecure",
+        "@org_golang_google_grpc//status",
+        "@org_uber_go_atomic//:atomic",
+    ] + select({
+        "@rules_go//go/platform:android": [
+            "//comp/core/workloadmeta",
+            "//pkg/security/metrics",
+            "//pkg/security/telemetry",
+            "@com_github_datadog_datadog_go_v5//statsd",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//comp/core/workloadmeta",
+            "//pkg/security/metrics",
+            "//pkg/security/telemetry",
+            "@com_github_datadog_datadog_go_v5//statsd",
+        ],
+        "@rules_go//go/platform:windows": [
+            "//comp/core/workloadmeta",
+            "@com_github_datadog_datadog_go_v5//statsd",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+go_test(
+    name = "agent_test",
+    srcs = ["status_provider_test.go"],
+    embed = [":agent"],
+    deps = [
+        "@com_github_stretchr_testify//assert",
+        "@org_uber_go_atomic//:atomic",
+    ],
+)

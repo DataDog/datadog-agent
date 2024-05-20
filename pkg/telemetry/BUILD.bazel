@@ -1,0 +1,26 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "telemetry",
+    srcs = [
+        "counter.go",
+        "docs.go",
+        "gauge.go",
+        "histogram.go",
+        "options.go",
+        "simple_counter.go",
+        "simple_gauge.go",
+        "simple_histogram.go",
+        "stat_counter_wrapper.go",
+        "stat_gauge_wrapper.go",
+        "stats_telemetry.go",
+        "telemetry.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/telemetry",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/telemetry",
+        "//comp/core/telemetry/telemetryimpl",
+        "@org_uber_go_atomic//:atomic",
+    ],
+)

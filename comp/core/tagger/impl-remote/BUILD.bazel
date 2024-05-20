@@ -1,0 +1,42 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "remote",
+    srcs = [
+        "tagger.go",
+        "tagstore.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl/remote",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/config",
+        "//comp/core/tagger/taggerimpl/empty",
+        "//comp/core/tagger/taggerimpl/subscriber",
+        "//comp/core/tagger/taggerimpl/telemetry",
+        "//comp/core/tagger/types",
+        "//pkg/api/security",
+        "//pkg/config",
+        "//pkg/proto/pbgo/core",
+        "//pkg/tagset",
+        "//pkg/util/clusteragent",
+        "//pkg/util/containers",
+        "//pkg/util/grpc",
+        "//pkg/util/log",
+        "@com_github_cenkalti_backoff//:backoff",
+        "@com_github_pkg_errors//:errors",
+        "@org_golang_google_grpc//:go_default_library",
+        "@org_golang_google_grpc//credentials",
+        "@org_golang_google_grpc//grpclog",
+        "@org_golang_google_grpc//metadata",
+    ],
+)
+
+go_test(
+    name = "remote_test",
+    srcs = ["tagstore_test.go"],
+    embed = [":remote"],
+    deps = [
+        "//comp/core/tagger/types",
+        "@com_github_stretchr_testify//assert",
+    ],
+)

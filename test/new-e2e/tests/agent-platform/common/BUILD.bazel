@@ -1,0 +1,30 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "common",
+    srcs = [
+        "agent_behaviour.go",
+        "agent_install.go",
+        "agent_integration.go",
+        "test_client.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/version",
+        "//test/new-e2e/pkg/components",
+        "//test/new-e2e/pkg/e2e",
+        "//test/new-e2e/pkg/utils/e2e/client",
+        "//test/new-e2e/pkg/utils/e2e/client/agentclient",
+        "//test/new-e2e/tests/agent-platform/common/bound-port",
+        "//test/new-e2e/tests/agent-platform/common/file-manager",
+        "//test/new-e2e/tests/agent-platform/common/helper",
+        "//test/new-e2e/tests/agent-platform/common/pkg-manager",
+        "//test/new-e2e/tests/agent-platform/common/process",
+        "//test/new-e2e/tests/agent-platform/common/svc-manager",
+        "@com_github_datadog_test_infra_definitions//components/os:go_default_library",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@in_gopkg_yaml_v2//:yaml_v2",
+    ],
+)

@@ -1,0 +1,57 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "helm",
+    srcs = [
+        "events.go",
+        "helm.go",
+        "map_utils.go",
+        "release.go",
+        "releases_store.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/helm",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/autodiscovery/integration",
+        "//pkg/aggregator/sender",
+        "//pkg/collector/check",
+        "//pkg/collector/corechecks",
+        "//pkg/collector/corechecks/cluster",
+        "//pkg/config",
+        "//pkg/metrics/event",
+        "//pkg/metrics/servicecheck",
+        "//pkg/util/kubernetes/apiserver",
+        "//pkg/util/log",
+        "//pkg/util/optional",
+        "//pkg/util/pointer",
+        "@in_gopkg_yaml_v2//:yaml_v2",
+        "@io_k8s_api//core/v1:core",
+        "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
+        "@io_k8s_client_go//informers",
+        "@io_k8s_client_go//tools/cache",
+    ],
+)
+
+go_test(
+    name = "helm_test",
+    srcs = [
+        "events_test.go",
+        "helm_test.go",
+        "map_utils_test.go",
+        "release_test.go",
+        "releases_store_test.go",
+    ],
+    embed = [":helm"],
+    deps = [
+        "//pkg/aggregator/mocksender",
+        "//pkg/metrics/event",
+        "//pkg/metrics/servicecheck",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@io_k8s_api//core/v1:core",
+        "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
+        "@io_k8s_apimachinery//pkg/runtime",
+        "@io_k8s_client_go//informers",
+        "@io_k8s_client_go//kubernetes/fake",
+    ],
+)

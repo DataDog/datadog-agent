@@ -1,0 +1,43 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "kubemetadata",
+    srcs = [
+        "kubemetadata.go",
+        "stub.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/kubemetadata",
+    visibility = ["//comp/core/workloadmeta/collectors:__subpackages__"],
+    deps = [
+        "//comp/core/workloadmeta",
+        "//pkg/clusteragent/api/v1:api",
+        "//pkg/config",
+        "//pkg/errors",
+        "//pkg/util/clusteragent",
+        "//pkg/util/kubernetes/apiserver",
+        "//pkg/util/kubernetes/kubelet",
+        "//pkg/util/log",
+        "//pkg/util/retry",
+        "@io_k8s_apimachinery//pkg/util/sets",
+        "@org_uber_go_fx//:fx",
+    ],
+)
+
+go_test(
+    name = "kubemetadata_test",
+    srcs = ["kubemetadata_test.go"],
+    embed = [":kubemetadata"],
+    deps = [
+        "//comp/core/workloadmeta",
+        "//pkg/clusteragent/api/v1:api",
+        "//pkg/clusteragent/clusterchecks/types",
+        "//pkg/proto/pbgo/process",
+        "//pkg/util/cache",
+        "//pkg/util/clusteragent",
+        "//pkg/util/kubernetes/apiserver",
+        "//pkg/util/kubernetes/kubelet",
+        "//pkg/version",
+        "@com_github_stretchr_testify//assert",
+        "@io_k8s_apimachinery//pkg/util/sets",
+    ],
+)

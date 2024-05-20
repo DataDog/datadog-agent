@@ -1,0 +1,40 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "pod",
+    srcs = ["provider.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/kubelet/provider/pod",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/tagger",
+        "//comp/core/tagger/types",
+        "//comp/core/tagger/utils",
+        "//pkg/aggregator/sender",
+        "//pkg/collector/corechecks/containers/kubelet/common",
+        "//pkg/util/containers",
+        "//pkg/util/kubernetes/kubelet",
+        "//pkg/util/log",
+    ],
+)
+
+go_test(
+    name = "pod_test",
+    srcs = ["provider_test.go"],
+    embed = [":pod"],
+    deps = [
+        "//comp/core/autodiscovery/common/types",
+        "//comp/core/tagger/taggerimpl",
+        "//pkg/aggregator/mocksender",
+        "//pkg/collector/check/id",
+        "//pkg/collector/corechecks/containers/kubelet/common",
+        "//pkg/collector/corechecks/containers/kubelet/common/testing",
+        "//pkg/config",
+        "//pkg/util/containers",
+        "//pkg/util/kubernetes/kubelet",
+        "//pkg/util/log",
+        "@com_github_json_iterator_go//:go",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@com_github_stretchr_testify//suite",
+    ],
+)

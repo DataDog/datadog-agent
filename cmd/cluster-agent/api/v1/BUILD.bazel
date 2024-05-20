@@ -1,0 +1,24 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "api",
+    srcs = [
+        "clusterchecks_nocompile.go",
+        "endpointschecks_nocompile.go",
+        "install.go",
+        "kubernetes_metadata.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/cmd/cluster-agent/api/v1",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/workloadmeta",
+        "//pkg/clusteragent",
+        "//pkg/clusteragent/api",
+        "//pkg/config",
+        "//pkg/util/kubernetes/apiserver",
+        "//pkg/util/kubernetes/apiserver/common",
+        "//pkg/util/log",
+        "@com_github_gorilla_mux//:mux",
+        "@io_k8s_client_go//kubernetes/typed/core/v1:core",
+    ],
+)

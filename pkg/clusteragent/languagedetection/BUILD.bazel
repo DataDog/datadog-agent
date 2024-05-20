@@ -1,0 +1,52 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "languagedetection",
+    srcs = [
+        "doc.go",
+        "patcher.go",
+        "telemetry.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/clusteragent/languagedetection",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/log",
+        "//comp/core/workloadmeta",
+        "//pkg/config",
+        "//pkg/languagedetection/util",
+        "//pkg/status/health",
+        "//pkg/telemetry",
+        "//pkg/util/kubernetes/apiserver",
+        "//pkg/util/workqueue/telemetry",
+        "@io_k8s_apimachinery//pkg/api/validation",
+        "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
+        "@io_k8s_apimachinery//pkg/types",
+        "@io_k8s_apimachinery//pkg/util/validation/field",
+        "@io_k8s_client_go//dynamic",
+        "@io_k8s_client_go//util/retry",
+        "@io_k8s_client_go//util/workqueue",
+    ],
+)
+
+go_test(
+    name = "languagedetection_test",
+    srcs = ["patcher_test.go"],
+    embed = [":languagedetection"],
+    deps = [
+        "//comp/core",
+        "//comp/core/log",
+        "//comp/core/log/logimpl",
+        "//comp/core/workloadmeta",
+        "//pkg/languagedetection/util",
+        "//pkg/util/fxutil",
+        "@com_github_stretchr_testify//assert",
+        "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
+        "@io_k8s_apimachinery//pkg/apis/meta/v1/unstructured",
+        "@io_k8s_apimachinery//pkg/runtime",
+        "@io_k8s_apimachinery//pkg/runtime/schema",
+        "@io_k8s_client_go//dynamic",
+        "@io_k8s_client_go//dynamic/fake",
+        "@io_k8s_client_go//util/workqueue",
+        "@org_uber_go_fx//:fx",
+    ],
+)

@@ -1,0 +1,16 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "processdiscoverycheckimpl",
+    srcs = ["check.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/process/processdiscoverycheck/processdiscoverycheckimpl",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/config",
+        "//comp/process/processdiscoverycheck",
+        "//comp/process/types",
+        "//pkg/process/checks",
+        "//pkg/util/fxutil",
+        "@org_uber_go_fx//:fx",
+    ],
+)

@@ -1,0 +1,28 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "ecs",
+    srcs = ["task.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/transformers/ecs",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/tagger",
+        "//comp/core/tagger/types",
+        "//comp/core/workloadmeta",
+        "//pkg/orchestrator",
+        "//pkg/util/log",
+        "@com_github_datadog_agent_payload_v5//process",
+        "@com_github_json_iterator_go//:go",
+    ],
+)
+
+go_test(
+    name = "ecs_test",
+    srcs = ["task_test.go"],
+    embed = [":ecs"],
+    deps = [
+        "//comp/core/workloadmeta",
+        "@com_github_datadog_agent_payload_v5//process",
+        "@com_github_stretchr_testify//require",
+    ],
+)

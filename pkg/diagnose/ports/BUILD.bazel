@@ -1,0 +1,13 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "ports",
+    srcs = ["ports.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/diagnose/ports",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/config",
+        "//pkg/diagnose/diagnosis",
+        "//pkg/util/port",
+    ],
+)

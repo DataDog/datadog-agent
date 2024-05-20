@@ -1,0 +1,43 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "processcollector",
+    srcs = ["process_collector.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/remote/processcollector",
+    visibility = ["//comp/core/workloadmeta/collectors:__subpackages__"],
+    deps = [
+        "//comp/core/workloadmeta",
+        "//comp/core/workloadmeta/collectors/internal/remote",
+        "//pkg/config",
+        "//pkg/languagedetection/languagemodels",
+        "//pkg/proto/pbgo/process",
+        "//pkg/util/flavor",
+        "//pkg/util/grpc",
+        "//pkg/util/log",
+        "@org_golang_google_grpc//:go_default_library",
+        "@org_golang_google_grpc//grpclog",
+        "@org_uber_go_fx//:fx",
+    ],
+)
+
+go_test(
+    name = "processcollector_test",
+    srcs = ["process_collector_test.go"],
+    embed = [":processcollector"],
+    deps = [
+        "//comp/core",
+        "//comp/core/config",
+        "//comp/core/workloadmeta",
+        "//comp/core/workloadmeta/collectors/internal/remote",
+        "//pkg/api/security",
+        "//pkg/config",
+        "//pkg/languagedetection/languagemodels",
+        "//pkg/proto/pbgo/process",
+        "//pkg/util/fxutil",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@org_golang_google_grpc//:go_default_library",
+        "@org_golang_x_xerrors//:xerrors",
+        "@org_uber_go_fx//:fx",
+    ],
+)

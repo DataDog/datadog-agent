@@ -1,0 +1,18 @@
+load("@rules_go//go:def.bzl", "go_test")
+
+go_test(
+    name = "dogstatsd_test",
+    srcs = [
+        "dogstatsd_test.go",
+        "receive_and_forward_test.go",
+    ],
+    deps = [
+        "//comp/metadata/host/hostimpl",
+        "//comp/serializer/compression/compressionimpl",
+        "//pkg/config/setup",
+        "//pkg/metrics/servicecheck",
+        "@com_github_cihub_seelog//:seelog",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

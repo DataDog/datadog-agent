@@ -1,0 +1,29 @@
+load("@rules_go//go:def.bzl", "go_binary", "go_library")
+
+go_library(
+    name = "metric_lib",
+    srcs = [
+        "doc.go",
+        "main.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/otelcol/otlp/example/metric",
+    visibility = ["//visibility:private"],
+    deps = [
+        "@io_opentelemetry_go_otel//attribute",
+        "@io_opentelemetry_go_otel//semconv/v1.4.0:v1_4_0",
+        "@io_opentelemetry_go_otel_exporters_otlp_otlpmetric_otlpmetricgrpc//:otlpmetricgrpc",
+        "@io_opentelemetry_go_otel_exporters_otlp_otlpmetric_otlpmetrichttp//:otlpmetrichttp",
+        "@io_opentelemetry_go_otel_metric//global",
+        "@io_opentelemetry_go_otel_metric//unit",
+        "@io_opentelemetry_go_otel_sdk//instrumentation",
+        "@io_opentelemetry_go_otel_sdk//resource",
+        "@io_opentelemetry_go_otel_sdk_metric//:metric",
+        "@io_opentelemetry_go_otel_sdk_metric//metricdata",
+    ],
+)
+
+go_binary(
+    name = "metric",
+    embed = [":metric_lib"],
+    visibility = ["//visibility:public"],
+)

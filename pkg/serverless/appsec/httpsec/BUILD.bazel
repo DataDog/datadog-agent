@@ -1,0 +1,44 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "httpsec",
+    srcs = [
+        "http.go",
+        "proxy.go",
+        "tags.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/serverless/appsec/httpsec",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/aggregator",
+        "//pkg/proto/pbgo/trace",
+        "//pkg/serverless/appsec/config",
+        "//pkg/serverless/invocationlifecycle",
+        "//pkg/serverless/metrics",
+        "//pkg/serverless/trigger",
+        "//pkg/trace/sampler",
+        "//pkg/util/log",
+        "@com_github_aws_aws_lambda_go//events",
+        "@com_github_datadog_appsec_internal_go//httpsec",
+        "@com_github_datadog_go_libddwaf_v2//:go-libddwaf",
+        "@com_github_json_iterator_go//:go",
+    ],
+)
+
+go_test(
+    name = "httpsec_test",
+    srcs = [
+        "http_test.go",
+        "proxy_test.go",
+        "tags_test.go",
+    ],
+    embed = [":httpsec"],
+    deps = [
+        "//pkg/proto/pbgo/trace",
+        "//pkg/serverless/appsec",
+        "//pkg/serverless/executioncontext",
+        "//pkg/serverless/invocationlifecycle",
+        "//pkg/trace/sampler",
+        "@com_github_stretchr_testify//require",
+    ],
+)

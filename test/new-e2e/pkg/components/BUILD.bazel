@@ -1,0 +1,38 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "components",
+    srcs = [
+        "active_directory.go",
+        "doc.go",
+        "docker_agent.go",
+        "fakeintake.go",
+        "kubernetes_agent.go",
+        "kubernetes_cluster.go",
+        "remotehost.go",
+        "remotehost_agent.go",
+        "remotehost_docker.go",
+        "remotehost_params.go",
+        "remotehost_updater.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/test/new-e2e/pkg/components",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//test/fakeintake/client",
+        "//test/new-e2e/pkg/e2e",
+        "//test/new-e2e/pkg/utils/e2e/client",
+        "//test/new-e2e/pkg/utils/e2e/client/agentclient",
+        "//test/new-e2e/pkg/utils/e2e/client/agentclientparams",
+        "@com_github_datadog_test_infra_definitions//components/activedirectory:go_default_library",
+        "@com_github_datadog_test_infra_definitions//components/datadog/agent:go_default_library",
+        "@com_github_datadog_test_infra_definitions//components/datadog/fakeintake:go_default_library",
+        "@com_github_datadog_test_infra_definitions//components/datadog/updater:go_default_library",
+        "@com_github_datadog_test_infra_definitions//components/docker:go_default_library",
+        "@com_github_datadog_test_infra_definitions//components/kubernetes:go_default_library",
+        "@com_github_datadog_test_infra_definitions//components/os:go_default_library",
+        "@com_github_datadog_test_infra_definitions//components/remote:go_default_library",
+        "@com_github_docker_docker//client",
+        "@io_k8s_client_go//kubernetes",
+        "@io_k8s_client_go//tools/clientcmd",
+    ],
+)

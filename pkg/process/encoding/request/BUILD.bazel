@@ -1,0 +1,29 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "request",
+    srcs = [
+        "encoding.go",
+        "json.go",
+        "protobuf.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/process/encoding/request",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/proto/pbgo/process",
+        "@org_golang_google_protobuf//encoding/protojson",
+        "@org_golang_google_protobuf//proto",
+    ],
+)
+
+go_test(
+    name = "request_test",
+    srcs = ["encoding_test.go"],
+    embed = [":request"],
+    deps = [
+        "//pkg/proto/pbgo/process",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@org_golang_google_protobuf//proto",
+    ],
+)

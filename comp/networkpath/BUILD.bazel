@@ -1,0 +1,23 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "networkpath",
+    srcs = ["bundle.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/networkpath",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/networkpath/npcollector/npcollectorimpl",
+        "//pkg/util/fxutil",
+    ],
+)
+
+go_test(
+    name = "networkpath_test",
+    srcs = ["bundle_test.go"],
+    embed = [":networkpath"],
+    deps = [
+        "//comp/core",
+        "//comp/forwarder/eventplatform/eventplatformimpl",
+        "//pkg/util/fxutil",
+    ],
+)

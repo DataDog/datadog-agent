@@ -1,0 +1,38 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "auditor",
+    srcs = [
+        "api_v0.go",
+        "api_v1.go",
+        "api_v2.go",
+        "auditor.go",
+        "null_auditor.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/logs/auditor",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/logs/agent/config",
+        "//pkg/logs/message",
+        "//pkg/status/health",
+        "//pkg/util/log",
+    ],
+)
+
+go_test(
+    name = "auditor_test",
+    srcs = [
+        "api_v0_test.go",
+        "api_v1_test.go",
+        "api_v2_test.go",
+        "auditor_test.go",
+    ],
+    embed = [":auditor"],
+    deps = [
+        "//comp/logs/agent/config",
+        "//pkg/logs/sources",
+        "//pkg/status/health",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//suite",
+    ],
+)

@@ -1,0 +1,23 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "diagnosesendermanagerimpl",
+    srcs = ["sendermanager.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/aggregator/diagnosesendermanager/diagnosesendermanagerimpl",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/aggregator/diagnosesendermanager",
+        "//comp/core/config",
+        "//comp/core/hostname",
+        "//comp/core/log",
+        "//comp/forwarder/defaultforwarder",
+        "//comp/forwarder/eventplatform",
+        "//comp/forwarder/eventplatform/eventplatformimpl",
+        "//comp/serializer/compression",
+        "//pkg/aggregator",
+        "//pkg/aggregator/sender",
+        "//pkg/util/fxutil",
+        "//pkg/util/optional",
+        "@org_uber_go_fx//:fx",
+    ],
+)

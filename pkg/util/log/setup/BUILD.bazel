@@ -1,0 +1,38 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "logs",
+    srcs = [
+        "defatults_darwin.go",
+        "defaults_nix.go",
+        "log.go",
+        "log_format.go",
+        "log_nix.go",
+        "log_windows.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/config/logs",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/config/logs/internal/seelog",
+        "//pkg/config/model",
+        "//pkg/util/log",
+        "//pkg/util/scrubber",
+        "@com_github_cihub_seelog//:seelog",
+    ],
+)
+
+go_test(
+    name = "logs_test",
+    srcs = [
+        "log_nix_test.go",
+        "log_test.go",
+    ],
+    embed = [":logs"],
+    deps = [
+        "//pkg/config/logs/internal/seelog",
+        "//pkg/config/model",
+        "//pkg/util/scrubber",
+        "@com_github_cihub_seelog//:seelog",
+        "@com_github_stretchr_testify//assert",
+    ],
+)

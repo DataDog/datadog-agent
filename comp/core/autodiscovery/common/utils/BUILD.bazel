@@ -1,0 +1,46 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "utils",
+    srcs = [
+        "annotations.go",
+        "container_collect_all.go",
+        "container_labels.go",
+        "doc.go",
+        "kubelet.go",
+        "pod_annotations.go",
+        "prometheus.go",
+        "prometheus_kubelet.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/core/autodiscovery/common/utils",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/autodiscovery/common/types",
+        "//comp/core/autodiscovery/integration",
+        "//comp/core/autodiscovery/providers/names",
+        "//pkg/config",
+        "//pkg/util/kubernetes/kubelet",
+        "//pkg/util/log",
+    ],
+)
+
+go_test(
+    name = "utils_test",
+    srcs = [
+        "annotations_test.go",
+        "container_labels_test.go",
+        "kubelet_test.go",
+        "pod_annotations_test.go",
+        "prometheus_kubelet_test.go",
+    ],
+    embed = [":utils"],
+    deps = [
+        "//comp/core/autodiscovery/common/types",
+        "//comp/core/autodiscovery/integration",
+        "//comp/core/autodiscovery/providers/names",
+        "//pkg/config",
+        "//pkg/util/kubernetes/kubelet",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

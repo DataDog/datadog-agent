@@ -1,0 +1,39 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "infra",
+    srcs = [
+        "datadog_event_sender.go",
+        "retriable_errors.go",
+        "stack_manager.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/infra",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//test/new-e2e/pkg/runner",
+        "//test/new-e2e/pkg/runner/parameters",
+        "@com_github_datadog_datadog_api_client_go_v2//api/datadog",
+        "@com_github_datadog_datadog_api_client_go_v2//api/datadogV1",
+        "@com_github_pulumi_pulumi_sdk_v3//go/auto:go_default_library",
+        "@com_github_pulumi_pulumi_sdk_v3//go/auto/debug:go_default_library",
+        "@com_github_pulumi_pulumi_sdk_v3//go/auto/optdestroy:go_default_library",
+        "@com_github_pulumi_pulumi_sdk_v3//go/auto/optremove:go_default_library",
+        "@com_github_pulumi_pulumi_sdk_v3//go/auto/optup:go_default_library",
+        "@com_github_pulumi_pulumi_sdk_v3//go/common/tokens:go_default_library",
+        "@com_github_pulumi_pulumi_sdk_v3//go/common/workspace:go_default_library",
+        "@com_github_pulumi_pulumi_sdk_v3//go/pulumi:go_default_library",
+    ],
+)
+
+go_test(
+    name = "infra_test",
+    srcs = ["stack_manager_test.go"],
+    embed = [":infra"],
+    deps = [
+        "@com_github_datadog_datadog_api_client_go_v2//api/datadogV1",
+        "@com_github_pulumi_pulumi_sdk_v3//go/auto:go_default_library",
+        "@com_github_pulumi_pulumi_sdk_v3//go/pulumi:go_default_library",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

@@ -1,0 +1,36 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "propagation",
+    srcs = [
+        "carriers.go",
+        "extractor.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/serverless/trace/propagation",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/serverless/trigger/events",
+        "//pkg/trace/sampler",
+        "//pkg/util/log",
+        "@com_github_json_iterator_go//:go",
+        "@in_gopkg_datadog_dd_trace_go_v1//ddtrace",
+        "@in_gopkg_datadog_dd_trace_go_v1//ddtrace/tracer",
+    ],
+)
+
+go_test(
+    name = "propagation_test",
+    srcs = [
+        "carriers_test.go",
+        "extractor_test.go",
+    ],
+    embed = [":propagation"],
+    deps = [
+        "//pkg/serverless/trigger/events",
+        "//pkg/trace/sampler",
+        "@com_github_aws_aws_sdk_go_v2//aws",
+        "@com_github_stretchr_testify//assert",
+        "@in_gopkg_datadog_dd_trace_go_v1//ddtrace",
+        "@in_gopkg_datadog_dd_trace_go_v1//ddtrace/tracer",
+    ],
+)

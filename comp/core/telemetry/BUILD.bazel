@@ -1,0 +1,26 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "telemetry",
+    srcs = [
+        "collector.go",
+        "component.go",
+        "component_mock.go",
+        "counter.go",
+        "gauge.go",
+        "histogram.go",
+        "metric.go",
+        "options.go",
+        "simple_counter.go",
+        "simple_gauge.go",
+        "simple_histogram.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/core/telemetry",
+    visibility = ["//visibility:public"],
+    deps = [
+        "@com_github_prometheus_client_golang//prometheus",
+        "@com_github_prometheus_client_model//go",
+        "@io_opentelemetry_go_otel_metric//:metric",
+        "@io_opentelemetry_go_otel_sdk_metric//:metric",
+    ],
+)

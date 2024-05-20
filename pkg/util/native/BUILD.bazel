@@ -1,0 +1,17 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "native",
+    srcs = [
+        "endian_be.go",
+        "endian_le.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/util/native",
+    visibility = ["//visibility:public"],
+)
+
+go_test(
+    name = "native_test",
+    srcs = ["endian_test.go"],
+    embed = [":native"],
+)

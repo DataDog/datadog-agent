@@ -1,0 +1,40 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "utils",
+    srcs = [
+        "api_key.go",
+        "endpoints.go",
+        "metadata_providers.go",
+        "miscellaneous.go",
+        "tags.go",
+        "telemetry.go",
+        "trace.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/config/utils",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/config/model",
+        "//pkg/config/setup",
+        "//pkg/util/log",
+        "//pkg/version",
+    ],
+)
+
+go_test(
+    name = "utils_test",
+    srcs = [
+        "endpoints_test.go",
+        "tags_test.go",
+        "telemetry_test.go",
+    ],
+    embed = [":utils"],
+    deps = [
+        "//comp/core/secrets",
+        "//pkg/config/model",
+        "//pkg/config/setup",
+        "//pkg/util/optional",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

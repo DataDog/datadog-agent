@@ -1,0 +1,30 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "trigger",
+    srcs = [
+        "events.go",
+        "extractor.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/serverless/trigger",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/serverless/trigger/events",
+        "//pkg/util/json",
+        "@com_github_aws_aws_sdk_go_v2//aws/arn",
+        "@com_github_json_iterator_go//:go",
+    ],
+)
+
+go_test(
+    name = "trigger_test",
+    srcs = [
+        "events_test.go",
+        "extractor_test.go",
+    ],
+    embed = [":trigger"],
+    deps = [
+        "//pkg/serverless/trigger/events",
+        "@com_github_stretchr_testify//assert",
+    ],
+)

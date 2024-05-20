@@ -1,0 +1,16 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "mocks",
+    srcs = [
+        "security_module_client.go",
+        "security_module_server.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/security/proto/api/mocks",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/security/proto/api",
+        "@com_github_stretchr_testify//mock",
+        "@org_golang_google_grpc//:go_default_library",
+    ],
+)

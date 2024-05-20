@@ -1,0 +1,45 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "cri",
+    srcs = [
+        "adapter.go",
+        "check.go",
+        "check_metrics_extension.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/cri",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/autodiscovery/integration",
+        "//comp/core/workloadmeta",
+        "//pkg/aggregator/sender",
+        "//pkg/collector/check",
+        "//pkg/collector/corechecks",
+        "//pkg/collector/corechecks/containers/generic",
+        "//pkg/util/containers",
+        "//pkg/util/containers/cri",
+        "//pkg/util/containers/metrics",
+        "//pkg/util/kubernetes",
+        "//pkg/util/log",
+        "//pkg/util/optional",
+        "//pkg/util/pointer",
+        "@in_gopkg_yaml_v2//:yaml_v2",
+        "@io_k8s_cri_api//pkg/apis/runtime/v1:runtime",
+    ],
+)
+
+go_test(
+    name = "cri_test",
+    srcs = ["check_test.go"],
+    embed = [":cri"],
+    deps = [
+        "//comp/core/tagger/taggerimpl",
+        "//comp/core/workloadmeta",
+        "//pkg/collector/corechecks/containers/generic",
+        "//pkg/util/containers/cri",
+        "//pkg/util/containers/cri/crimock",
+        "//pkg/util/containers/metrics/mock",
+        "@com_github_stretchr_testify//assert",
+        "@io_k8s_cri_api//pkg/apis/runtime/v1:runtime",
+    ],
+)

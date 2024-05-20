@@ -1,0 +1,13 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "types",
+    srcs = ["types.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/remote-config/rcclient/types",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/config/remote/data",
+        "//pkg/remoteconfig/state",
+        "@org_uber_go_fx//:fx",
+    ],
+)

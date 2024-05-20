@@ -1,0 +1,27 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "api",
+    srcs = [
+        "handler_telemetry.go",
+        "leader_forwarder.go",
+        "leader_handler.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/clusteragent/api",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/config",
+        "//pkg/telemetry",
+        "//pkg/util/kubernetes/apiserver/leaderelection",
+        "//pkg/util/log",
+        "@com_github_cihub_seelog//:seelog",
+        "@com_github_prometheus_client_golang//prometheus",
+    ],
+)
+
+go_test(
+    name = "api_test",
+    srcs = ["leader_handler_test.go"],
+    embed = [":api"],
+    deps = ["@com_github_stretchr_testify//assert"],
+)

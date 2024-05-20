@@ -1,0 +1,18 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "testutil",
+    srcs = [
+        "pythonserver.go",
+        "tcp_server.go",
+        "testutil.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/util/log",
+        "@com_github_lorenzosaino_go_sysctl//:go-sysctl",
+        "@com_github_stretchr_testify//require",
+        "@org_golang_x_net//netutil",
+    ],
+)

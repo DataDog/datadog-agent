@@ -1,0 +1,49 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "orchestrator",
+    srcs = [
+        "apply.go",
+        "orchestrator.go",
+    ],
+    embedsrcs = ["agent_values.yaml"],
+    importpath = "github.com/DataDog/datadog-agent/test/new-e2e/tests/orchestrator",
+    visibility = ["//visibility:public"],
+    deps = [
+        "@com_github_datadog_test_infra_definitions//common/utils:go_default_library",
+        "@com_github_datadog_test_infra_definitions//components/datadog/agent:go_default_library",
+        "@com_github_datadog_test_infra_definitions//components/datadog/apps/redis:go_default_library",
+        "@com_github_datadog_test_infra_definitions//components/datadog/dogstatsd-standalone:go_default_library",
+        "@com_github_datadog_test_infra_definitions//components/datadog/fakeintake:go_default_library",
+        "@com_github_datadog_test_infra_definitions//components/kubernetes:go_default_library",
+        "@com_github_datadog_test_infra_definitions//resources/aws:go_default_library",
+        "@com_github_datadog_test_infra_definitions//scenarios/aws/ec2:go_default_library",
+        "@com_github_datadog_test_infra_definitions//scenarios/aws/fakeintake:go_default_library",
+        "@com_github_pulumi_pulumi_kubernetes_sdk_v4//go/kubernetes:go_default_library",
+        "@com_github_pulumi_pulumi_sdk_v3//go/pulumi:go_default_library",
+    ],
+)
+
+go_test(
+    name = "orchestrator_test",
+    srcs = [
+        "k8s_test.go",
+        "suite_test.go",
+        "util_test.go",
+    ],
+    embed = [":orchestrator"],
+    deps = [
+        "//test/fakeintake/aggregator",
+        "//test/fakeintake/client",
+        "//test/new-e2e/pkg/components",
+        "//test/new-e2e/pkg/runner",
+        "//test/new-e2e/pkg/utils/infra",
+        "@com_github_datadog_agent_payload_v5//process",
+        "@com_github_pulumi_pulumi_sdk_v3//go/auto:go_default_library",
+        "@com_github_stretchr_testify//suite",
+        "@in_gopkg_yaml_v3//:yaml_v3",
+        "@io_k8s_client_go//kubernetes",
+        "@io_k8s_client_go//rest",
+        "@io_k8s_client_go//tools/clientcmd",
+    ],
+)

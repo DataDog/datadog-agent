@@ -1,0 +1,19 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "connectionscheckimpl",
+    srcs = ["check.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/process/connectionscheck/connectionscheckimpl",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/config",
+        "//comp/core/sysprobeconfig",
+        "//comp/core/workloadmeta",
+        "//comp/networkpath/npcollector",
+        "//comp/process/connectionscheck",
+        "//comp/process/types",
+        "//pkg/process/checks",
+        "//pkg/util/fxutil",
+        "@org_uber_go_fx//:fx",
+    ],
+)

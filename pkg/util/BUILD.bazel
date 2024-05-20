@@ -1,0 +1,90 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "util",
+    srcs = [
+        "aliases.go",
+        "common.go",
+        "core.go",
+        "core_windows.go",
+        "host.go",
+        "process_file_stats.go",
+        "process_file_stats_linux.go",
+        "process_file_stats_others.go",
+        "size.go",
+        "stat.go",
+        "static_tags.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/util",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/autodiscovery/integration",
+        "//pkg/config",
+        "//pkg/config/utils",
+        "//pkg/util/fargate",
+        "//pkg/util/kubernetes/clustername",
+        "//pkg/util/log",
+        "//pkg/util/sort",
+        "//pkg/version",
+    ] + select({
+        "@rules_go//go/platform:aix": [
+            "@org_golang_x_sys//unix",
+        ],
+        "@rules_go//go/platform:android": [
+            "@com_github_shirou_gopsutil_v3//process",
+            "@org_golang_x_sys//unix",
+        ],
+        "@rules_go//go/platform:darwin": [
+            "@org_golang_x_sys//unix",
+        ],
+        "@rules_go//go/platform:dragonfly": [
+            "@org_golang_x_sys//unix",
+        ],
+        "@rules_go//go/platform:freebsd": [
+            "@org_golang_x_sys//unix",
+        ],
+        "@rules_go//go/platform:illumos": [
+            "@org_golang_x_sys//unix",
+        ],
+        "@rules_go//go/platform:ios": [
+            "@org_golang_x_sys//unix",
+        ],
+        "@rules_go//go/platform:js": [
+            "@org_golang_x_sys//unix",
+        ],
+        "@rules_go//go/platform:linux": [
+            "@com_github_shirou_gopsutil_v3//process",
+            "@org_golang_x_sys//unix",
+        ],
+        "@rules_go//go/platform:netbsd": [
+            "@org_golang_x_sys//unix",
+        ],
+        "@rules_go//go/platform:openbsd": [
+            "@org_golang_x_sys//unix",
+        ],
+        "@rules_go//go/platform:plan9": [
+            "@org_golang_x_sys//unix",
+        ],
+        "@rules_go//go/platform:solaris": [
+            "@org_golang_x_sys//unix",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+go_test(
+    name = "util_test",
+    srcs = [
+        "common_test.go",
+        "stat_test.go",
+        "static_tags_test.go",
+    ],
+    embed = [":util"],
+    deps = [
+        "//comp/core/autodiscovery/integration",
+        "//pkg/config",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@in_gopkg_yaml_v2//:yaml_v2",
+    ],
+)

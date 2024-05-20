@@ -1,0 +1,36 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "status",
+    srcs = [
+        "builder.go",
+        "status.go",
+        "test_utils.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/logs/status",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/logs/agent/config",
+        "//pkg/config",
+        "//pkg/logs/metrics",
+        "//pkg/logs/sources",
+        "//pkg/logs/status/utils",
+        "//pkg/logs/tailers",
+        "//pkg/util",
+        "@org_uber_go_atomic//:atomic",
+    ],
+)
+
+go_test(
+    name = "status_test",
+    srcs = ["status_test.go"],
+    embed = [":status"],
+    deps = [
+        "//comp/logs/agent/config",
+        "//pkg/config",
+        "//pkg/logs/metrics",
+        "//pkg/logs/sources",
+        "//pkg/logs/util/testutils",
+        "@com_github_stretchr_testify//assert",
+    ],
+)

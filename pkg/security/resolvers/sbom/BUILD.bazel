@@ -1,0 +1,30 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "sbom",
+    srcs = [
+        "package.go",
+        "resolver_unsupported.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/security/resolvers/sbom",
+    visibility = ["//visibility:public"],
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "//comp/core/workloadmeta",
+            "//pkg/security/config",
+            "//pkg/security/resolvers/cgroup/model",
+            "//pkg/security/secl/model",
+            "//pkg/util/optional",
+            "@com_github_datadog_datadog_go_v5//statsd",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//comp/core/workloadmeta",
+            "//pkg/security/config",
+            "//pkg/security/resolvers/cgroup/model",
+            "//pkg/security/secl/model",
+            "//pkg/util/optional",
+            "@com_github_datadog_datadog_go_v5//statsd",
+        ],
+        "//conditions:default": [],
+    }),
+)

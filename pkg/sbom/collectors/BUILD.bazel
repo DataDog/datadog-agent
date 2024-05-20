@@ -1,0 +1,18 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "collectors",
+    srcs = [
+        "collectors.go",
+        "mock.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/sbom/collectors",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/config",
+        "//comp/core/workloadmeta",
+        "//pkg/sbom",
+        "//pkg/util/optional",
+        "@com_github_stretchr_testify//mock",
+    ],
+)

@@ -1,0 +1,46 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "logs",
+    srcs = [
+        "http.go",
+        "logs_collector.go",
+        "parse.go",
+        "scheduler.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/serverless/logs",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/logs/agent",
+        "//comp/logs/agent/agentimpl",
+        "//comp/logs/agent/config",
+        "//pkg/aggregator",
+        "//pkg/logs/schedulers/channel",
+        "//pkg/serverless/executioncontext",
+        "//pkg/serverless/metrics",
+        "//pkg/serverless/tags",
+        "//pkg/util/log",
+        "@com_github_json_iterator_go//:go",
+    ],
+)
+
+go_test(
+    name = "logs_test",
+    srcs = ["logs_test.go"],
+    data = glob(["testdata/**"]),
+    embed = [":logs"],
+    deps = [
+        "//comp/aggregator/demultiplexer",
+        "//comp/aggregator/demultiplexer/demultiplexerimpl",
+        "//comp/core/hostname/hostnameimpl",
+        "//comp/core/log/logimpl",
+        "//comp/logs/agent/config",
+        "//comp/serializer/compression/compressionimpl",
+        "//pkg/metrics",
+        "//pkg/serverless/executioncontext",
+        "//pkg/serverless/metrics",
+        "//pkg/util/fxutil",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

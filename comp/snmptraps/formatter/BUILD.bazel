@@ -1,0 +1,9 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "formatter",
+    srcs = ["component.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/snmptraps/formatter",
+    visibility = ["//visibility:public"],
+    deps = ["//comp/snmptraps/packet"],
+)

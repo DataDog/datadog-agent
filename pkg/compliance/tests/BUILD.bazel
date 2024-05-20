@@ -1,0 +1,43 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "tests",
+    srcs = ["helpers.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/compliance/tests",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/compliance",
+        "@com_github_docker_docker//client",
+        "@com_github_stretchr_testify//assert",
+        "@io_k8s_client_go//discovery",
+        "@io_k8s_client_go//dynamic",
+    ],
+)
+
+go_test(
+    name = "tests_test",
+    srcs = [
+        "audit_test.go",
+        "base_test.go",
+        "data_test.go",
+        "docker_test.go",
+        "file_test.go",
+        "kubernetes_test.go",
+        "package_test.go",
+        "process_test.go",
+    ],
+    embed = [":tests"],
+    deps = [
+        "//pkg/compliance",
+        "//pkg/util/docker",
+        "@com_github_stretchr_testify//assert",
+        "@io_k8s_api//core/v1:core",
+        "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
+        "@io_k8s_apimachinery//pkg/runtime",
+        "@io_k8s_apimachinery//pkg/runtime/schema",
+        "@io_k8s_apimachinery//pkg/types",
+        "@io_k8s_client_go//dynamic",
+        "@io_k8s_client_go//dynamic/fake",
+        "@io_k8s_client_go//kubernetes/scheme",
+    ],
+)

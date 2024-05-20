@@ -1,0 +1,47 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "metrics",
+    srcs = [
+        "enhanced_metrics.go",
+        "metric.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/serverless/metrics",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/dogstatsd/server",
+        "//pkg/aggregator",
+        "//pkg/config",
+        "//pkg/config/model",
+        "//pkg/config/utils",
+        "//pkg/metrics",
+        "//pkg/serverless/tags",
+        "//pkg/util/log",
+    ],
+)
+
+go_test(
+    name = "metrics_test",
+    srcs = [
+        "enhanced_metrics_test.go",
+        "metric_test.go",
+    ],
+    embed = [":metrics"],
+    deps = [
+        "//comp/aggregator/demultiplexer",
+        "//comp/aggregator/demultiplexer/demultiplexerimpl",
+        "//comp/core/hostname/hostnameimpl",
+        "//comp/core/log/logimpl",
+        "//comp/dogstatsd/server",
+        "//comp/serializer/compression/compressionimpl",
+        "//pkg/aggregator",
+        "//pkg/config",
+        "//pkg/metrics",
+        "//pkg/serverless/tags",
+        "//pkg/util/cache",
+        "//pkg/util/fxutil",
+        "//pkg/util/hostname",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

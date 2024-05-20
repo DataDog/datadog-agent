@@ -1,0 +1,65 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "common",
+    srcs = [
+        "autodiscovery.go",
+        "common.go",
+        "common_windows.go",
+        "helpers.go",
+        "import.go",
+        "loader.go",
+        "test_helpers.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/cmd/agent/common",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//cmd/agent/common/path",
+        "//comp/core/autodiscovery",
+        "//comp/core/autodiscovery/integration",
+        "//comp/core/autodiscovery/providers",
+        "//comp/core/autodiscovery/providers/names",
+        "//comp/core/config",
+        "//comp/core/secrets",
+        "//comp/core/settings",
+        "//comp/core/workloadmeta",
+        "//pkg/api/util",
+        "//pkg/config",
+        "//pkg/config/autodiscovery",
+        "//pkg/config/legacy",
+        "//pkg/config/model",
+        "//pkg/config/settings",
+        "//pkg/config/settings/http",
+        "//pkg/sbom/scanner",
+        "//pkg/util/jsonquery",
+        "//pkg/util/log",
+        "//pkg/util/optional",
+        "//pkg/version",
+        "@com_github_fatih_color//:color",
+        "@in_gopkg_yaml_v2//:yaml_v2",
+        "@io_k8s_apimachinery//pkg/util/errors",
+        "@org_uber_go_atomic//:atomic",
+    ] + select({
+        "@rules_go//go/platform:windows": [
+            "//pkg/util/winutil",
+            "//pkg/util/winutil/messagestrings",
+            "@com_github_cihub_seelog//:seelog",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+go_test(
+    name = "common_test",
+    srcs = [
+        "import_docker_test.go",
+        "import_test.go",
+    ],
+    embed = [":common"],
+    deps = [
+        "//pkg/config/legacy",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@in_gopkg_yaml_v2//:yaml_v2",
+    ],
+)

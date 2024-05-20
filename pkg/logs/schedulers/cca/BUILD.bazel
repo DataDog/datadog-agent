@@ -1,0 +1,35 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "cca",
+    srcs = ["scheduler.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/logs/schedulers/cca",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/autodiscovery",
+        "//comp/logs/agent/config",
+        "//pkg/config",
+        "//pkg/logs/schedulers",
+        "//pkg/logs/sources",
+        "//pkg/util/log",
+    ],
+)
+
+go_test(
+    name = "cca_test",
+    srcs = ["scheduler_test.go"],
+    embed = [":cca"],
+    deps = [
+        "//comp/core",
+        "//comp/core/autodiscovery",
+        "//comp/core/autodiscovery/autodiscoveryimpl",
+        "//comp/core/workloadmeta",
+        "//comp/logs/agent/config",
+        "//pkg/config",
+        "//pkg/logs/schedulers",
+        "//pkg/util/fxutil",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@org_uber_go_fx//:fx",
+    ],
+)

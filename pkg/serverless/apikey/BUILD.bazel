@@ -1,0 +1,33 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "apikey",
+    srcs = [
+        "api_key.go",
+        "env.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/serverless/apikey",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/config",
+        "//pkg/util/http",
+        "//pkg/util/log",
+        "@com_github_aws_aws_sdk_go_v2//aws/arn",
+        "@com_github_aws_aws_sdk_go_v2_config//:config",
+        "@com_github_aws_aws_sdk_go_v2_service_kms//:kms",
+        "@com_github_aws_aws_sdk_go_v2_service_secretsmanager//:secretsmanager",
+    ],
+)
+
+go_test(
+    name = "apikey_test",
+    srcs = [
+        "api_key_test.go",
+        "env_test.go",
+    ],
+    embed = [":apikey"],
+    deps = [
+        "@com_github_aws_aws_sdk_go_v2_service_kms//:kms",
+        "@com_github_stretchr_testify//assert",
+    ],
+)

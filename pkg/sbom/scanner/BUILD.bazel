@@ -1,0 +1,40 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "scanner",
+    srcs = ["scanner.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/sbom/scanner",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/config",
+        "//comp/core/workloadmeta",
+        "//pkg/sbom",
+        "//pkg/sbom/collectors",
+        "//pkg/sbom/telemetry",
+        "//pkg/util/filesystem",
+        "//pkg/util/log",
+        "//pkg/util/optional",
+        "@io_k8s_client_go//util/workqueue",
+    ],
+)
+
+go_test(
+    name = "scanner_test",
+    srcs = ["scanner_test.go"],
+    embed = [":scanner"],
+    deps = [
+        "//comp/core/config",
+        "//comp/core/log/logimpl",
+        "//comp/core/workloadmeta",
+        "//pkg/config",
+        "//pkg/config/model",
+        "//pkg/sbom",
+        "//pkg/sbom/collectors",
+        "//pkg/util/fxutil",
+        "//pkg/util/optional",
+        "@com_github_cyclonedx_cyclonedx_go//:cyclonedx-go",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//mock",
+        "@org_uber_go_fx//:fx",
+    ],
+)

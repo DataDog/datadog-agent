@@ -1,0 +1,23 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "status",
+    srcs = ["status.go"],
+    embedsrcs = [
+        "status_templates/profiles.tmpl",
+        "status_templates/profilesHTML.tmpl",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/status",
+    visibility = ["//visibility:public"],
+    deps = ["//comp/core/status"],
+)
+
+go_test(
+    name = "status_test",
+    srcs = ["status_test.go"],
+    embed = [":status"],
+    deps = [
+        "//pkg/config",
+        "@com_github_stretchr_testify//assert",
+    ],
+)

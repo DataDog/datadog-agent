@@ -1,0 +1,41 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "process",
+    srcs = ["testing.go"],
+    embedsrcs = [
+        "config/npm.yaml",
+        "config/process_check.yaml",
+        "config/process_check_in_core_agent.yaml",
+        "config/process_discovery_check.yaml",
+        "config/system_probe.yaml",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/test/new-e2e/tests/process",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//test/fakeintake/aggregator",
+        "//test/new-e2e/pkg/components",
+        "@com_github_datadog_agent_payload_v5//process",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)
+
+go_test(
+    name = "process_test",
+    srcs = [
+        "linux_test.go",
+        "windows_test.go",
+    ],
+    embed = [":process"],
+    deps = [
+        "//test/fakeintake/aggregator",
+        "//test/new-e2e/pkg/e2e",
+        "//test/new-e2e/pkg/environments",
+        "//test/new-e2e/pkg/environments/aws/host",
+        "@com_github_datadog_test_infra_definitions//components/datadog/agentparams:go_default_library",
+        "@com_github_datadog_test_infra_definitions//components/os:go_default_library",
+        "@com_github_datadog_test_infra_definitions//scenarios/aws/ec2:go_default_library",
+        "@com_github_stretchr_testify//assert",
+    ],
+)

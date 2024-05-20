@@ -1,0 +1,19 @@
+load("@rules_go//go:def.bzl", "go_binary", "go_library")
+
+go_library(
+    name = "otel-agent_lib",
+    srcs = ["main.go"],
+    importpath = "github.com/DataDog/datadog-agent/cmd/otel-agent",
+    visibility = ["//visibility:private"],
+    deps = [
+        "//cmd/internal/runcmd",
+        "//cmd/otel-agent/command",
+        "//pkg/util/flavor",
+    ],
+)
+
+go_binary(
+    name = "otel-agent",
+    embed = [":otel-agent_lib"],
+    visibility = ["//visibility:public"],
+)

@@ -1,0 +1,52 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "dogstatsd",
+    srcs = [
+        "origin_detection.go",
+        "origin_detection_skip.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/test/integration/dogstatsd",
+    visibility = ["//visibility:public"],
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "//comp/core/config",
+            "//comp/core/workloadmeta",
+            "//comp/dogstatsd/listeners",
+            "//comp/dogstatsd/packets",
+            "//comp/dogstatsd/pidmap",
+            "//comp/dogstatsd/pidmap/pidmapimpl",
+            "//pkg/config",
+            "//pkg/util/fxutil",
+            "//pkg/util/optional",
+            "//test/integration/utils",
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+            "@org_uber_go_fx//:fx",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//comp/core/config",
+            "//comp/core/workloadmeta",
+            "//comp/dogstatsd/listeners",
+            "//comp/dogstatsd/packets",
+            "//comp/dogstatsd/pidmap",
+            "//comp/dogstatsd/pidmap/pidmapimpl",
+            "//pkg/config",
+            "//pkg/util/fxutil",
+            "//pkg/util/optional",
+            "//test/integration/utils",
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+            "@org_uber_go_fx//:fx",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+go_test(
+    name = "dogstatsd_test",
+    srcs = ["origin_detection_test.go"],
+    data = glob(["testdata/**"]),
+    embed = [":dogstatsd"],
+    deps = ["//pkg/config"],
+)

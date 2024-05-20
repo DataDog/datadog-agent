@@ -1,0 +1,34 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "config",
+    srcs = [
+        "aliases.go",
+        "aliases_darwin.go",
+        "aliases_nix.go",
+        "aliases_windows.go",
+        "config_change_checker.go",
+        "consts.go",
+        "legacy_converter.go",
+        "mock.go",
+        "test_helpers.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/config",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/secrets",
+        "//pkg/config/env",
+        "//pkg/config/logs",
+        "//pkg/config/model",
+        "//pkg/config/setup",
+        "//pkg/util/optional",
+        "@com_github_cihub_seelog//:seelog",
+    ],
+)
+
+go_test(
+    name = "config_test",
+    srcs = ["config_change_checker_test.go"],
+    embed = [":config"],
+    deps = ["@com_github_stretchr_testify//require"],
+)

@@ -1,0 +1,21 @@
+load("@rules_go//go:def.bzl", "go_binary", "go_library")
+
+go_library(
+    name = "trace_lib",
+    srcs = ["main.go"],
+    importpath = "github.com/DataDog/datadog-agent/test/integration/serverless/src/go-tests/trace",
+    visibility = ["//visibility:private"],
+    deps = [
+        "@com_github_aws_aws_lambda_go//events",
+        "@com_github_aws_aws_lambda_go//lambda",
+        "@com_github_datadog_datadog_lambda_go//:go_default_library",
+        "@in_gopkg_datadog_dd_trace_go_v1//contrib/net/http",
+        "@in_gopkg_datadog_dd_trace_go_v1//ddtrace/tracer",
+    ],
+)
+
+go_binary(
+    name = "trace",
+    embed = [":trace_lib"],
+    visibility = ["//visibility:public"],
+)

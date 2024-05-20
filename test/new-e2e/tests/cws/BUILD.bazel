@@ -1,0 +1,48 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "cws",
+    srcs = ["common.go"],
+    importpath = "github.com/DataDog/datadog-agent/test/new-e2e/tests/cws",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//test/new-e2e/tests/cws/api",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_xeipuuv_gojsonschema//:gojsonschema",
+    ],
+)
+
+go_test(
+    name = "cws_test",
+    srcs = [
+        "ec2_test.go",
+        "fargate_test.go",
+        "kind_test.go",
+    ],
+    embed = [":cws"],
+    deps = [
+        "//test/new-e2e/pkg/e2e",
+        "//test/new-e2e/pkg/environments",
+        "//test/new-e2e/pkg/environments/aws/host",
+        "//test/new-e2e/pkg/environments/aws/kubernetes",
+        "//test/new-e2e/pkg/runner",
+        "//test/new-e2e/pkg/runner/parameters",
+        "//test/new-e2e/tests/agent-platform/platforms",
+        "//test/new-e2e/tests/cws/api",
+        "//test/new-e2e/tests/cws/config",
+        "@com_github_datadog_test_infra_definitions//common/config:go_default_library",
+        "@com_github_datadog_test_infra_definitions//components/datadog/agentparams:go_default_library",
+        "@com_github_datadog_test_infra_definitions//components/datadog/kubernetesagentparams:go_default_library",
+        "@com_github_datadog_test_infra_definitions//resources/aws:go_default_library",
+        "@com_github_datadog_test_infra_definitions//resources/aws/ecs:go_default_library",
+        "@com_github_datadog_test_infra_definitions//scenarios/aws/ec2:go_default_library",
+        "@com_github_google_uuid//:uuid",
+        "@com_github_pulumi_pulumi_aws_sdk_v6//go/aws/ecs:go_default_library",
+        "@com_github_pulumi_pulumi_aws_sdk_v6//go/aws/ssm:go_default_library",
+        "@com_github_pulumi_pulumi_awsx_sdk_v2//go/awsx/awsx:go_default_library",
+        "@com_github_pulumi_pulumi_awsx_sdk_v2//go/awsx/ecs:go_default_library",
+        "@com_github_pulumi_pulumi_sdk_v3//go/pulumi:go_default_library",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

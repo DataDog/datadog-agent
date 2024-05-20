@@ -1,0 +1,42 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "portlist",
+    srcs = [
+        "netstat.go",
+        "poller.go",
+        "poller_macos.go",
+        "poller_not_macos.go",
+        "portlist.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/util/port/portlist",
+    visibility = ["//visibility:public"],
+    deps = [
+        "@org_golang_x_exp//slices",
+    ] + select({
+        "@rules_go//go/platform:darwin": [
+            "@org_go4_mem//:mem",
+            "@org_uber_go_atomic//:atomic",
+        ],
+        "@rules_go//go/platform:ios": [
+            "@org_go4_mem//:mem",
+            "@org_uber_go_atomic//:atomic",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+go_test(
+    name = "portlist_test",
+    srcs = [
+        "netstat_test.go",
+        "poller_macos_test.go",
+    ],
+    embed = [":portlist"],
+    deps = select({
+        "@rules_go//go/platform:darwin": [
+            "@org_go4_mem//:mem",
+        ],
+        "//conditions:default": [],
+    }),
+)

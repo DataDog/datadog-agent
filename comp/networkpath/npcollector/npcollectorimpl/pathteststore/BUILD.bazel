@@ -1,0 +1,25 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "pathteststore",
+    srcs = ["pathteststore.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/networkpath/npcollector/npcollectorimpl/pathteststore",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/log",
+        "//comp/networkpath/npcollector/npcollectorimpl/common",
+    ],
+)
+
+go_test(
+    name = "pathteststore_test",
+    srcs = ["pathteststore_test.go"],
+    embed = [":pathteststore"],
+    deps = [
+        "//comp/core/log",
+        "//comp/core/log/logimpl",
+        "//comp/networkpath/npcollector/npcollectorimpl/common",
+        "//pkg/util/fxutil",
+        "@com_github_stretchr_testify//assert",
+    ],
+)

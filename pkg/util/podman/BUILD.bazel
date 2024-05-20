@@ -1,0 +1,21 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "podman",
+    srcs = [
+        "container.go",
+        "db_client.go",
+        "doc.go",
+        "sqlite_db_client.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/util/podman",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/util/log",
+        "@com_github_containernetworking_cni//pkg/types/100",
+        "@com_github_cri_o_ocicni//pkg/ocicni",
+        "@com_github_opencontainers_runtime_spec//specs-go",
+        "@io_etcd_go_bbolt//:bbolt",
+        "@org_modernc_sqlite//:sqlite",
+    ],
+)

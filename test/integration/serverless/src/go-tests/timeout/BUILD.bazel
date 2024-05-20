@@ -1,0 +1,19 @@
+load("@rules_go//go:def.bzl", "go_binary", "go_library")
+
+go_library(
+    name = "timeout_lib",
+    srcs = ["main.go"],
+    importpath = "github.com/DataDog/datadog-agent/test/integration/serverless/src/go-tests/timeout",
+    visibility = ["//visibility:private"],
+    deps = [
+        "@com_github_aws_aws_lambda_go//events",
+        "@com_github_aws_aws_lambda_go//lambda",
+        "@com_github_datadog_datadog_lambda_go//:go_default_library",
+    ],
+)
+
+go_binary(
+    name = "timeout",
+    embed = [":timeout_lib"],
+    visibility = ["//visibility:public"],
+)

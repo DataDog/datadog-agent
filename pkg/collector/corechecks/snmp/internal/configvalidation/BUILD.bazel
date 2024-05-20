@@ -1,0 +1,24 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "configvalidation",
+    srcs = ["config_validate_enrich.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/configvalidation",
+    visibility = ["//pkg/collector/corechecks/snmp:__subpackages__"],
+    deps = [
+        "//pkg/networkdevice/profile/profiledefinition",
+        "//pkg/util/log",
+    ],
+)
+
+go_test(
+    name = "configvalidation_test",
+    srcs = ["config_validate_enrich_test.go"],
+    embed = [":configvalidation"],
+    deps = [
+        "//pkg/networkdevice/profile/profiledefinition",
+        "//pkg/util/log",
+        "@com_github_cihub_seelog//:seelog",
+        "@com_github_stretchr_testify//assert",
+    ],
+)

@@ -1,0 +1,52 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "agent_sidecar",
+    srcs = [
+        "agent_sidecar.go",
+        "constants.go",
+        "overrides.go",
+        "profiles.go",
+        "providers.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/agent_sidecar",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//cmd/cluster-agent/admission",
+        "//pkg/clusteragent/admission/metrics",
+        "//pkg/clusteragent/admission/mutate/common",
+        "//pkg/clusteragent/admission/mutate/config",
+        "//pkg/config",
+        "//pkg/util/kubernetes/apiserver/common",
+        "//pkg/util/kubernetes/clustername",
+        "//pkg/util/log",
+        "//pkg/util/pointer",
+        "@io_k8s_api//admissionregistration/v1:admissionregistration",
+        "@io_k8s_api//core/v1:core",
+        "@io_k8s_apimachinery//pkg/api/resource",
+        "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
+        "@io_k8s_client_go//dynamic",
+    ],
+)
+
+go_test(
+    name = "agent_sidecar_test",
+    srcs = [
+        "agent_sidecar_test.go",
+        "overrides_test.go",
+        "profiles_test.go",
+        "providers_test.go",
+    ],
+    embed = [":agent_sidecar"],
+    deps = [
+        "//pkg/config",
+        "//pkg/util/kubernetes/apiserver/common",
+        "//pkg/util/pointer",
+        "@com_github_google_go_cmp//cmp",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@io_k8s_api//core/v1:core",
+        "@io_k8s_apimachinery//pkg/api/resource",
+        "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
+    ],
+)

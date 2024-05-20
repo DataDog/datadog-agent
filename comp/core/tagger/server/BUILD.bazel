@@ -1,0 +1,18 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "server",
+    srcs = ["server.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl/server",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/tagger",
+        "//comp/core/tagger/taggerimpl/telemetry",
+        "//pkg/proto/pbgo/core",
+        "//pkg/util/grpc",
+        "//pkg/util/log",
+        "//pkg/util/proto",
+        "@org_golang_google_grpc//codes",
+        "@org_golang_google_grpc//status",
+    ],
+)

@@ -1,0 +1,16 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "flush",
+    srcs = ["strategy.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/serverless/flush",
+    visibility = ["//visibility:public"],
+    deps = ["//pkg/util/log"],
+)
+
+go_test(
+    name = "flush_test",
+    srcs = ["strategy_test.go"],
+    embed = [":flush"],
+    deps = ["@com_github_stretchr_testify//assert"],
+)

@@ -1,0 +1,12 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "runner",
+    srcs = ["component.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/process/runner",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/process/types",
+        "//pkg/process/checks",
+    ],
+)

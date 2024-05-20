@@ -1,0 +1,46 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "check",
+    srcs = ["check.go"],
+    importpath = "github.com/DataDog/datadog-agent/cmd/process-agent/subcommands/check",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//cmd/process-agent/command",
+        "//cmd/system-probe/config",
+        "//comp/core",
+        "//comp/core/config",
+        "//comp/core/log",
+        "//comp/core/log/logimpl",
+        "//comp/core/sysprobeconfig",
+        "//comp/core/tagger",
+        "//comp/core/tagger/taggerimpl",
+        "//comp/core/workloadmeta",
+        "//comp/core/workloadmeta/collectors",
+        "//comp/forwarder/eventplatform/eventplatformimpl",
+        "//comp/forwarder/eventplatformreceiver/eventplatformreceiverimpl",
+        "//comp/metadata/host/hostimpl/utils",
+        "//comp/networkpath/npcollector",
+        "//comp/networkpath/npcollector/npcollectorimpl",
+        "//comp/process",
+        "//comp/process/hostinfo",
+        "//comp/process/types",
+        "//pkg/process/checks",
+        "//pkg/util/fxutil",
+        "//pkg/version",
+        "@com_github_datadog_agent_payload_v5//process",
+        "@com_github_fatih_color//:color",
+        "@com_github_spf13_cobra//:cobra",
+        "@org_uber_go_fx//:fx",
+    ],
+)
+
+go_test(
+    name = "check_test",
+    srcs = ["check_test.go"],
+    embed = [":check"],
+    deps = [
+        "//cmd/process-agent/command",
+        "//pkg/util/fxutil",
+    ],
+)

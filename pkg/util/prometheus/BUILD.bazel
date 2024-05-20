@@ -1,0 +1,21 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "prometheus",
+    srcs = [
+        "parse.go",
+        "reader.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/util/prometheus",
+    visibility = ["//visibility:public"],
+    deps = [
+        "@com_github_prometheus_common//expfmt",
+        "@com_github_prometheus_common//model",
+    ],
+)
+
+go_test(
+    name = "prometheus_test",
+    srcs = ["parse_test.go"],
+    embed = [":prometheus"],
+)

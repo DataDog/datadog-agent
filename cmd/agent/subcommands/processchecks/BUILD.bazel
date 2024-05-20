@@ -1,0 +1,26 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "processchecks",
+    srcs = ["command.go"],
+    importpath = "github.com/DataDog/datadog-agent/cmd/agent/subcommands/processchecks",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//cmd/agent/command",
+        "//cmd/process-agent/command",
+        "//cmd/process-agent/subcommands/check",
+        "//comp/core/log/logimpl",
+        "@com_github_spf13_cobra//:cobra",
+    ],
+)
+
+go_test(
+    name = "processchecks_test",
+    srcs = ["command_test.go"],
+    embed = [":processchecks"],
+    deps = [
+        "//cmd/agent/command",
+        "//cmd/process-agent/subcommands/check",
+        "//pkg/util/fxutil",
+    ],
+)

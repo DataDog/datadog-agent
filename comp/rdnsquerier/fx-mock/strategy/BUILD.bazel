@@ -1,0 +1,16 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "strategy",
+    srcs = [
+        "no_strategy.go",
+        "zlib_strategy.go",
+        "zstd_strategy.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl/strategy",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/serializer/compression",
+        "@com_github_datadog_zstd//:zstd",
+    ],
+)

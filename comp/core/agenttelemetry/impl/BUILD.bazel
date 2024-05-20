@@ -1,0 +1,54 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "agenttelemetryimpl",
+    srcs = [
+        "agenttelemetry.go",
+        "config.go",
+        "runner.go",
+        "sender.go",
+        "utils.go",
+    ],
+    embedsrcs = ["status_templates/agent-telemetry-basic.tmpl"],
+    importpath = "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/agenttelemetryimpl",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/agenttelemetry",
+        "//comp/core/config",
+        "//comp/core/log",
+        "//comp/core/status",
+        "//comp/core/telemetry",
+        "//comp/metadata/host/hostimpl/utils",
+        "//pkg/config/utils",
+        "//pkg/util/fxutil",
+        "//pkg/util/http",
+        "//pkg/version",
+        "@com_github_itchyny_gojq//:gojq",
+        "@com_github_prometheus_client_model//go",
+        "@com_github_robfig_cron_v3//:cron",
+        "@in_gopkg_yaml_v2//:yaml_v2",
+        "@org_golang_x_exp//maps",
+        "@org_uber_go_fx//:fx",
+    ],
+)
+
+go_test(
+    name = "agenttelemetryimpl_test",
+    srcs = ["agenttelemetry_test.go"],
+    embed = [":agenttelemetryimpl"],
+    deps = [
+        "//comp/core/config",
+        "//comp/core/log",
+        "//comp/core/log/logimpl",
+        "//comp/core/status",
+        "//comp/core/telemetry",
+        "//comp/core/telemetry/telemetryimpl",
+        "//pkg/telemetry",
+        "//pkg/util/fxutil",
+        "@com_github_prometheus_client_model//go",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//mock",
+        "@in_gopkg_yaml_v2//:yaml_v2",
+        "@org_uber_go_fx//:fx",
+    ],
+)

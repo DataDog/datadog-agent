@@ -1,0 +1,66 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "server",
+    srcs = [
+        "component.go",
+        "listener.go",
+        "server.go",
+        "status.go",
+    ],
+    embedsrcs = [
+        "status_templates/netflow.tmpl",
+        "status_templates/netflowHTML.tmpl",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/netflow/server",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/aggregator/demultiplexer",
+        "//comp/core/hostname",
+        "//comp/core/log",
+        "//comp/core/status",
+        "//comp/ndmtmp/forwarder",
+        "//comp/netflow/config",
+        "//comp/netflow/flowaggregator",
+        "//comp/netflow/goflowlib",
+        "//pkg/util/fxutil",
+        "@com_github_prometheus_client_golang//prometheus/promhttp",
+        "@org_uber_go_atomic//:atomic",
+        "@org_uber_go_fx//:fx",
+    ],
+)
+
+go_test(
+    name = "server_test",
+    srcs = [
+        "integration_test.go",
+        "server_test.go",
+        "status_test.go",
+    ],
+    embed = [":server"],
+    deps = [
+        "//comp/aggregator/demultiplexer/demultiplexerimpl",
+        "//comp/core",
+        "//comp/forwarder/defaultforwarder",
+        "//comp/forwarder/eventplatform",
+        "//comp/ndmtmp/forwarder",
+        "//comp/ndmtmp/forwarder/forwarderimpl",
+        "//comp/netflow/common",
+        "//comp/netflow/config",
+        "//comp/netflow/flowaggregator",
+        "//comp/netflow/goflowlib",
+        "//comp/netflow/goflowlib/netflowstate",
+        "//comp/netflow/testutil",
+        "//pkg/networkdevice/testutils",
+        "//pkg/util/fxutil",
+        "@com_github_golang_mock//gomock",
+        "@com_github_netsampler_goflow2//decoders/netflow/templates",
+        "@com_github_netsampler_goflow2//utils",
+        "@com_github_sirupsen_logrus//:logrus",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@org_uber_go_atomic//:atomic",
+        "@org_uber_go_fx//:fx",
+        "@org_uber_go_fx//fxtest",
+    ],
+)

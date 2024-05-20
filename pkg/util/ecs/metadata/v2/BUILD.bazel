@@ -1,0 +1,27 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "metadata",
+    srcs = [
+        "client.go",
+        "types.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata/v2",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/util/ecs/common",
+        "//pkg/util/ecs/telemetry",
+    ],
+)
+
+go_test(
+    name = "metadata_test",
+    srcs = ["client_test.go"],
+    data = glob(["testdata/**"]),
+    embed = [":metadata"],
+    deps = [
+        "//pkg/util/ecs/metadata/testutil",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

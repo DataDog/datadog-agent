@@ -1,0 +1,25 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "proxy",
+    srcs = [
+        "proxy.go",
+        "transport.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/serverless/proxy",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/serverless/invocationlifecycle",
+        "//pkg/util/log",
+    ],
+)
+
+go_test(
+    name = "proxy_test",
+    srcs = ["proxy_test.go"],
+    embed = [":proxy"],
+    deps = [
+        "//pkg/serverless/invocationlifecycle",
+        "@com_github_stretchr_testify//assert",
+    ],
+)

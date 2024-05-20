@@ -1,0 +1,27 @@
+load("@rules_go//go:def.bzl", "go_test")
+
+go_test(
+    name = "docker_test",
+    srcs = ["docker_listener_test.go"],
+    data = glob(["testdata/**"]),
+    deps = [
+        "//comp/core",
+        "//comp/core/autodiscovery/listeners",
+        "//comp/core/config",
+        "//comp/core/tagger",
+        "//comp/core/tagger/taggerimpl",
+        "//comp/core/workloadmeta",
+        "//comp/core/workloadmeta/collectors",
+        "//pkg/config",
+        "//pkg/util/containers",
+        "//pkg/util/docker",
+        "//pkg/util/fxutil",
+        "//pkg/util/optional",
+        "//test/integration/utils",
+        "@com_github_cihub_seelog//:seelog",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@com_github_stretchr_testify//suite",
+        "@org_uber_go_fx//:fx",
+    ],
+)

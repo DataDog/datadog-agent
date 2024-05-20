@@ -1,0 +1,54 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "traceutil",
+    srcs = [
+        "azure.go",
+        "doc.go",
+        "normalize.go",
+        "otel_util.go",
+        "processed_trace.go",
+        "span.go",
+        "trace.go",
+        "truncate.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/trace/traceutil",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/proto/pbgo/trace",
+        "//pkg/trace/log",
+        "@com_github_datadog_opentelemetry_mapping_go_pkg_otlp_attributes//:attributes",
+        "@com_github_datadog_opentelemetry_mapping_go_pkg_otlp_attributes//source",
+        "@com_github_tinylib_msgp//msgp",
+        "@io_opentelemetry_go_collector_pdata//pcommon",
+        "@io_opentelemetry_go_collector_pdata//ptrace",
+        "@io_opentelemetry_go_collector_semconv//v1.17.0:v1_17_0",
+        "@io_opentelemetry_go_collector_semconv//v1.6.1:v1_6_1",
+        "@io_opentelemetry_go_otel//attribute",
+    ],
+)
+
+go_test(
+    name = "traceutil_test",
+    srcs = [
+        "azure_test.go",
+        "fuzz_test.go",
+        "normalize_test.go",
+        "otel_util_test.go",
+        "processed_trace_test.go",
+        "span_test.go",
+        "trace_test.go",
+        "truncate_test.go",
+    ],
+    embed = [":traceutil"],
+    deps = [
+        "//pkg/proto/pbgo/trace",
+        "@com_github_datadog_opentelemetry_mapping_go_pkg_otlp_attributes//:attributes",
+        "@com_github_stretchr_testify//assert",
+        "@io_opentelemetry_go_collector_component//componenttest",
+        "@io_opentelemetry_go_collector_pdata//pcommon",
+        "@io_opentelemetry_go_collector_pdata//ptrace",
+        "@io_opentelemetry_go_collector_semconv//v1.6.1:v1_6_1",
+        "@io_opentelemetry_go_otel_metric//noop",
+    ],
+)

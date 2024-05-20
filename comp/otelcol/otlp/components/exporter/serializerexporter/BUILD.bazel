@@ -1,0 +1,63 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "serializerexporter",
+    srcs = [
+        "config.go",
+        "consumer.go",
+        "exporter.go",
+        "factory.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/serializerexporter",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/metrics",
+        "//pkg/proto/pbgo/trace",
+        "//pkg/serializer",
+        "//pkg/tagset",
+        "//pkg/util/log",
+        "@com_github_datadog_opentelemetry_mapping_go_pkg_otlp_attributes//:attributes",
+        "@com_github_datadog_opentelemetry_mapping_go_pkg_otlp_attributes//source",
+        "@com_github_datadog_opentelemetry_mapping_go_pkg_otlp_metrics//:metrics",
+        "@com_github_datadog_opentelemetry_mapping_go_pkg_quantile//:quantile",
+        "@com_github_open_telemetry_opentelemetry_collector_contrib_pkg_resourcetotelemetry//:resourcetotelemetry",
+        "@com_github_tinylib_msgp//msgp",
+        "@io_opentelemetry_go_collector_component//:component",
+        "@io_opentelemetry_go_collector_confmap//:confmap",
+        "@io_opentelemetry_go_collector_consumer//:consumer",
+        "@io_opentelemetry_go_collector_exporter//:exporter",
+        "@io_opentelemetry_go_collector_exporter//exporterhelper",
+        "@io_opentelemetry_go_collector_pdata//pmetric",
+        "@org_uber_go_multierr//:multierr",
+    ],
+)
+
+go_test(
+    name = "serializerexporter_test",
+    srcs = [
+        "config_test.go",
+        "consumer_test.go",
+        "exporter_test.go",
+        "factory_test.go",
+    ],
+    embed = [":serializerexporter"],
+    deps = [
+        "//pkg/metrics",
+        "//pkg/metrics/event",
+        "//pkg/metrics/servicecheck",
+        "//pkg/proto/pbgo/trace",
+        "//pkg/serializer",
+        "//pkg/serializer/marshaler",
+        "//pkg/serializer/types",
+        "//pkg/tagset",
+        "@com_github_datadog_opentelemetry_mapping_go_pkg_otlp_metrics//:metrics",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@com_github_tinylib_msgp//msgp",
+        "@io_opentelemetry_go_collector_component//componenttest",
+        "@io_opentelemetry_go_collector_confmap//:confmap",
+        "@io_opentelemetry_go_collector_exporter//:exporter",
+        "@io_opentelemetry_go_collector_exporter//exportertest",
+        "@io_opentelemetry_go_collector_pdata//pmetric",
+    ],
+)

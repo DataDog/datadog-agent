@@ -1,0 +1,16 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "mysql",
+    srcs = [
+        "client.go",
+        "server.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/network/protocols/mysql",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/network/protocols/http/testutil",
+        "//pkg/network/protocols/testutil",
+        "@com_github_go_sql_driver_mysql//:mysql",
+    ],
+)

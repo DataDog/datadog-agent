@@ -1,0 +1,18 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "autodiscovery",
+    srcs = [
+        "component.go",
+        "component_mock.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/core/autodiscovery",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/autodiscovery/integration",
+        "//comp/core/autodiscovery/providers",
+        "//comp/core/autodiscovery/scheduler",
+        "//pkg/collector/check/id",
+        "//pkg/config",
+    ],
+)

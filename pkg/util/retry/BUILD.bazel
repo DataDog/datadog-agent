@@ -1,0 +1,25 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "retry",
+    srcs = [
+        "error.go",
+        "retrier.go",
+        "types.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/util/retry",
+    visibility = ["//visibility:public"],
+)
+
+go_test(
+    name = "retry_test",
+    srcs = [
+        "error_test.go",
+        "retrier_test.go",
+    ],
+    embed = [":retry"],
+    deps = [
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//mock",
+    ],
+)

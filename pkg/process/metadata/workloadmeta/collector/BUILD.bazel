@@ -1,0 +1,43 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "collector",
+    srcs = ["process.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/process/metadata/workloadmeta/collector",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/workloadmeta",
+        "//pkg/config",
+        "//pkg/process/checks",
+        "//pkg/process/metadata/workloadmeta",
+        "//pkg/util/log",
+        "@com_github_benbjohnson_clock//:clock",
+    ],
+)
+
+go_test(
+    name = "collector_test",
+    srcs = ["process_test.go"],
+    embed = [":collector"],
+    deps = [
+        "//comp/core",
+        "//comp/core/config",
+        "//comp/core/workloadmeta",
+        "//pkg/config",
+        "//pkg/process/checks",
+        "//pkg/process/metadata/workloadmeta",
+        "//pkg/process/procutil",
+        "//pkg/process/procutil/mocks",
+        "//pkg/proto/pbgo/process",
+        "//pkg/trace/testutil",
+        "//pkg/util/flavor",
+        "//pkg/util/fxutil",
+        "@com_github_benbjohnson_clock//:clock",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//mock",
+        "@com_github_stretchr_testify//require",
+        "@org_golang_google_grpc//:go_default_library",
+        "@org_golang_google_grpc//credentials/insecure",
+        "@org_uber_go_fx//:fx",
+    ],
+)

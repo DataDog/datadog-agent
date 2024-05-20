@@ -1,0 +1,35 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "metadata",
+    srcs = ["bundle.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/metadata",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/metadata/host/hostimpl",
+        "//comp/metadata/inventoryagent/inventoryagentimpl",
+        "//comp/metadata/inventorychecks/inventorychecksimpl",
+        "//comp/metadata/inventoryhost/inventoryhostimpl",
+        "//comp/metadata/packagesigning/packagesigningimpl",
+        "//comp/metadata/resources/resourcesimpl",
+        "//comp/metadata/runner/runnerimpl",
+        "//pkg/util/fxutil",
+    ],
+)
+
+go_test(
+    name = "metadata_test",
+    srcs = ["bundle_test.go"],
+    embed = [":metadata"],
+    deps = [
+        "//comp/api/authtoken/fetchonlyimpl",
+        "//comp/collector/collector/collectorimpl",
+        "//comp/core",
+        "//comp/logs/agent",
+        "//comp/metadata/runner/runnerimpl",
+        "//pkg/serializer",
+        "//pkg/util/fxutil",
+        "//pkg/util/optional",
+        "@org_uber_go_fx//:fx",
+    ],
+)

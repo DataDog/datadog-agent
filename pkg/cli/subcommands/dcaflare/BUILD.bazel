@@ -1,0 +1,88 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "dcaflare",
+    srcs = ["command.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/cli/subcommands/dcaflare",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//cmd/agent/common/path",
+        "//comp/core",
+        "//comp/core/config",
+        "//comp/core/flare/helpers",
+        "//comp/core/log/logimpl",
+        "//comp/core/secrets",
+        "//comp/serializer/compression/compressionimpl",
+        "//pkg/api/util",
+        "//pkg/config",
+        "//pkg/config/settings",
+        "//pkg/config/settings/http",
+        "//pkg/flare",
+        "//pkg/util/fxutil",
+        "//pkg/util/input",
+        "@com_github_fatih_color//:color",
+        "@com_github_spf13_cobra//:cobra",
+        "@org_uber_go_fx//:fx",
+    ],
+)
+
+go_test(
+    name = "dcaflare_test",
+    srcs = ["command_test.go"],
+    embed = [":dcaflare"],
+    deps = select({
+        "@rules_go//go/platform:aix": [
+            "//pkg/util/fxutil",
+            "@com_github_spf13_cobra//:cobra",
+        ],
+        "@rules_go//go/platform:android": [
+            "//pkg/util/fxutil",
+            "@com_github_spf13_cobra//:cobra",
+        ],
+        "@rules_go//go/platform:darwin": [
+            "//pkg/util/fxutil",
+            "@com_github_spf13_cobra//:cobra",
+        ],
+        "@rules_go//go/platform:dragonfly": [
+            "//pkg/util/fxutil",
+            "@com_github_spf13_cobra//:cobra",
+        ],
+        "@rules_go//go/platform:freebsd": [
+            "//pkg/util/fxutil",
+            "@com_github_spf13_cobra//:cobra",
+        ],
+        "@rules_go//go/platform:illumos": [
+            "//pkg/util/fxutil",
+            "@com_github_spf13_cobra//:cobra",
+        ],
+        "@rules_go//go/platform:ios": [
+            "//pkg/util/fxutil",
+            "@com_github_spf13_cobra//:cobra",
+        ],
+        "@rules_go//go/platform:js": [
+            "//pkg/util/fxutil",
+            "@com_github_spf13_cobra//:cobra",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/util/fxutil",
+            "@com_github_spf13_cobra//:cobra",
+        ],
+        "@rules_go//go/platform:netbsd": [
+            "//pkg/util/fxutil",
+            "@com_github_spf13_cobra//:cobra",
+        ],
+        "@rules_go//go/platform:openbsd": [
+            "//pkg/util/fxutil",
+            "@com_github_spf13_cobra//:cobra",
+        ],
+        "@rules_go//go/platform:plan9": [
+            "//pkg/util/fxutil",
+            "@com_github_spf13_cobra//:cobra",
+        ],
+        "@rules_go//go/platform:solaris": [
+            "//pkg/util/fxutil",
+            "@com_github_spf13_cobra//:cobra",
+        ],
+        "//conditions:default": [],
+    }),
+)

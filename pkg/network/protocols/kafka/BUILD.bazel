@@ -1,0 +1,22 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "kafka",
+    srcs = [
+        "client.go",
+        "server.go",
+        "stats.go",
+        "types_linux.go",
+    ],
+    cgo = True,
+    importpath = "github.com/DataDog/datadog-agent/pkg/network/protocols/kafka",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/network/protocols/http/testutil",
+        "//pkg/network/protocols/testutil",
+        "//pkg/network/types",
+        "//pkg/process/util",
+        "@com_github_twmb_franz_go//pkg/kgo",
+        "@com_github_twmb_franz_go_pkg_kadm//:kadm",
+    ],
+)

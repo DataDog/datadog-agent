@@ -1,0 +1,17 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "flags",
+    srcs = [
+        "flags_windows.go",
+        "flags_z.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/cmd/trace-agent/internal/flags",
+    visibility = ["//cmd/trace-agent:__subpackages__"],
+    deps = select({
+        "@rules_go//go/platform:windows": [
+            "//pkg/util/winutil",
+        ],
+        "//conditions:default": [],
+    }),
+)

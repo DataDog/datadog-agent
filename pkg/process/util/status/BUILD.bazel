@@ -1,0 +1,27 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "status",
+    srcs = ["status.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/process/util/status",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/metadata/host/hostimpl/utils",
+        "//pkg/api/util",
+        "//pkg/config",
+        "//pkg/version",
+    ],
+)
+
+go_test(
+    name = "status_test",
+    srcs = ["status_test.go"],
+    embed = [":status"],
+    deps = [
+        "//comp/metadata/host/hostimpl/utils",
+        "//pkg/config",
+        "//pkg/version",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

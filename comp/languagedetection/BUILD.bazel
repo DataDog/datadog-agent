@@ -1,0 +1,30 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "languagedetection",
+    srcs = ["bundle.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/languagedetection",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/languagedetection/client/clientimpl",
+        "//pkg/util/fxutil",
+    ],
+)
+
+go_test(
+    name = "languagedetection_test",
+    srcs = ["bundle_test.go"],
+    embed = [":languagedetection"],
+    deps = [
+        "//comp/core/config",
+        "//comp/core/log/logimpl",
+        "//comp/core/secrets",
+        "//comp/core/secrets/secretsimpl",
+        "//comp/core/telemetry/telemetryimpl",
+        "//comp/core/workloadmeta",
+        "//comp/languagedetection/client",
+        "//pkg/util/optional",
+        "@com_github_stretchr_testify//require",
+        "@org_uber_go_fx//:fx",
+    ],
+)

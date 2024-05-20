@@ -1,0 +1,15 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "filereceiver",
+    srcs = ["factory.go"],
+    importpath = "github.com/DataDog/datadog-agent/test/e2e/containers/otlp_sender/internal/filereceiver",
+    visibility = ["//test/e2e/containers/otlp_sender:__subpackages__"],
+    deps = [
+        "@io_opentelemetry_go_collector_component//:component",
+        "@io_opentelemetry_go_collector_consumer//:consumer",
+        "@io_opentelemetry_go_collector_pdata//pmetric",
+        "@io_opentelemetry_go_collector_receiver//:receiver",
+        "@org_uber_go_zap//:zap",
+    ],
+)

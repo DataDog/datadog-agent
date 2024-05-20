@@ -1,0 +1,51 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "diagnose",
+    srcs = ["command.go"],
+    importpath = "github.com/DataDog/datadog-agent/cmd/agent/subcommands/diagnose",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//cmd/agent/command",
+        "//cmd/agent/common",
+        "//comp/aggregator/diagnosesendermanager",
+        "//comp/aggregator/diagnosesendermanager/diagnosesendermanagerimpl",
+        "//comp/collector/collector",
+        "//comp/core",
+        "//comp/core/autodiscovery",
+        "//comp/core/autodiscovery/autodiscoveryimpl",
+        "//comp/core/config",
+        "//comp/core/log",
+        "//comp/core/log/logimpl",
+        "//comp/core/secrets",
+        "//comp/core/tagger",
+        "//comp/core/tagger/taggerimpl",
+        "//comp/core/workloadmeta",
+        "//comp/core/workloadmeta/collectors",
+        "//comp/serializer/compression/compressionimpl",
+        "//pkg/api/util",
+        "//pkg/config",
+        "//pkg/diagnose",
+        "//pkg/diagnose/diagnosis",
+        "//pkg/util/fxutil",
+        "//pkg/util/log",
+        "//pkg/util/optional",
+        "@com_github_cihub_seelog//:seelog",
+        "@com_github_fatih_color//:color",
+        "@com_github_spf13_cobra//:cobra",
+        "@org_uber_go_fx//:fx",
+    ],
+)
+
+go_test(
+    name = "diagnose_test",
+    srcs = ["command_test.go"],
+    embed = [":diagnose"],
+    deps = [
+        "//cmd/agent/command",
+        "//comp/core",
+        "//comp/core/secrets",
+        "//pkg/util/fxutil",
+        "@com_github_stretchr_testify//require",
+    ],
+)

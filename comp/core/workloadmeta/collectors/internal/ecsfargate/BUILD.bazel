@@ -1,0 +1,43 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "ecsfargate",
+    srcs = [
+        "ecsfargate.go",
+        "stub.go",
+        "v2parser.go",
+        "v4parser.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/ecsfargate",
+    visibility = ["//comp/core/workloadmeta/collectors:__subpackages__"],
+    deps = [
+        "//comp/core/config",
+        "//comp/core/workloadmeta",
+        "//comp/core/workloadmeta/collectors/util",
+        "//pkg/config",
+        "//pkg/errors",
+        "//pkg/util/ecs/metadata",
+        "//pkg/util/ecs/metadata/v2:metadata",
+        "//pkg/util/ecs/metadata/v3or4",
+        "//pkg/util/log",
+        "@org_uber_go_fx//:fx",
+    ],
+)
+
+go_test(
+    name = "ecsfargate_test",
+    srcs = [
+        "ecsfargate_test.go",
+        "v2parser_test.go",
+        "v4parser_test.go",
+    ],
+    data = glob(["testdata/**"]),
+    embed = [":ecsfargate"],
+    deps = [
+        "//comp/core/workloadmeta",
+        "//pkg/util/ecs/metadata/testutil",
+        "//pkg/util/ecs/metadata/v2:metadata",
+        "//pkg/util/ecs/metadata/v3or4",
+        "@com_github_stretchr_testify//require",
+    ],
+)

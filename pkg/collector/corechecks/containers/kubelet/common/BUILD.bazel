@@ -1,0 +1,22 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "common",
+    srcs = [
+        "config.go",
+        "pod.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/kubelet/common",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/autodiscovery/common/types",
+        "//comp/core/tagger",
+        "//comp/core/tagger/types",
+        "//comp/core/workloadmeta",
+        "//pkg/util/containers",
+        "//pkg/util/kubernetes/kubelet",
+        "//pkg/util/log",
+        "@com_github_prometheus_common//model",
+        "@in_gopkg_yaml_v2//:yaml_v2",
+    ],
+)

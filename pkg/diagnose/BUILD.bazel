@@ -1,0 +1,41 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "diagnose",
+    srcs = [
+        "check.go",
+        "runner.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/diagnose",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//cmd/agent/common",
+        "//comp/aggregator/diagnosesendermanager",
+        "//comp/collector/collector",
+        "//comp/core/autodiscovery",
+        "//comp/core/secrets",
+        "//comp/core/workloadmeta",
+        "//comp/forwarder/eventplatform/eventplatformimpl",
+        "//pkg/aggregator/sender",
+        "//pkg/api/util",
+        "//pkg/collector",
+        "//pkg/collector/check",
+        "//pkg/config",
+        "//pkg/diagnose/connectivity",
+        "//pkg/diagnose/diagnosis",
+        "//pkg/diagnose/ports",
+        "//pkg/util/log",
+        "//pkg/util/optional",
+        "@com_github_fatih_color//:color",
+    ],
+)
+
+go_test(
+    name = "diagnose_test",
+    srcs = ["runner_test.go"],
+    embed = [":diagnose"],
+    deps = [
+        "//pkg/diagnose/diagnosis",
+        "@com_github_stretchr_testify//assert",
+    ],
+)

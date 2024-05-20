@@ -1,0 +1,42 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "inferredspan",
+    srcs = [
+        "constants.go",
+        "inferred_span.go",
+        "propagation.go",
+        "span_enrichment.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/serverless/trace/inferredspan",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/config",
+        "//pkg/config/utils",
+        "//pkg/proto/pbgo/trace",
+        "//pkg/serverless/random",
+        "//pkg/serverless/tags",
+        "//pkg/serverless/trigger/events",
+        "//pkg/util/log",
+        "@com_github_aws_aws_lambda_go//events",
+        "@com_github_json_iterator_go//:go",
+    ],
+)
+
+go_test(
+    name = "inferredspan_test",
+    srcs = [
+        "inferred_span_test.go",
+        "propagation_test.go",
+        "span_enrichment_test.go",
+    ],
+    embed = [":inferredspan"],
+    deps = [
+        "//pkg/config",
+        "//pkg/proto/pbgo/trace",
+        "//pkg/serverless/trigger/events",
+        "@com_github_aws_aws_lambda_go//events",
+        "@com_github_aws_aws_sdk_go_v2//aws",
+        "@com_github_stretchr_testify//assert",
+    ],
+)

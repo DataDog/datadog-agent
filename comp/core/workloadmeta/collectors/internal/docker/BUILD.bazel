@@ -1,0 +1,32 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "docker",
+    srcs = [
+        "docker.go",
+        "image_sbom_stub.go",
+        "stub.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/docker",
+    visibility = ["//comp/core/workloadmeta/collectors:__subpackages__"],
+    deps = [
+        "//comp/core/workloadmeta",
+        "//comp/core/workloadmeta/collectors/util",
+        "//pkg/config",
+        "//pkg/errors",
+        "//pkg/sbom/scanner",
+        "//pkg/status/health",
+        "//pkg/util/containers",
+        "//pkg/util/docker",
+        "//pkg/util/log",
+        "//pkg/util/pointer",
+        "@com_github_docker_docker//api/types",
+        "@com_github_docker_docker//api/types/container",
+        "@com_github_docker_docker//api/types/events",
+        "@com_github_docker_docker//api/types/image",
+        "@com_github_docker_docker//api/types/network",
+        "@com_github_docker_go_connections//nat",
+        "@com_github_opencontainers_image_spec//specs-go/v1:specs-go",
+        "@org_uber_go_fx//:fx",
+    ],
+)

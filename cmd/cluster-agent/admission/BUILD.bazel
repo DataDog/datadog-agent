@@ -1,0 +1,24 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "admission",
+    srcs = ["server.go"],
+    importpath = "github.com/DataDog/datadog-agent/cmd/cluster-agent/admission",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/clusteragent/admission/metrics",
+        "//pkg/config",
+        "//pkg/util/kubernetes/apiserver/common",
+        "//pkg/util/kubernetes/certificate",
+        "//pkg/util/log",
+        "@com_github_cihub_seelog//:seelog",
+        "@io_k8s_api//admission/v1:admission",
+        "@io_k8s_api//admission/v1beta1",
+        "@io_k8s_api//authentication/v1:authentication",
+        "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
+        "@io_k8s_apimachinery//pkg/runtime",
+        "@io_k8s_apimachinery//pkg/runtime/serializer",
+        "@io_k8s_client_go//dynamic",
+        "@io_k8s_client_go//kubernetes",
+    ],
+)

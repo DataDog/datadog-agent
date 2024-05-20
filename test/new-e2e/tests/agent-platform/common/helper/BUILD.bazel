@@ -1,0 +1,13 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "helper",
+    srcs = [
+        "types.go",
+        "unix.go",
+        "windows.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common/helper",
+    visibility = ["//visibility:public"],
+    deps = ["//test/new-e2e/tests/windows/common/agent"],
+)

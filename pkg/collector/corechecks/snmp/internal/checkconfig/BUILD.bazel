@@ -1,0 +1,52 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "checkconfig",
+    srcs = [
+        "config.go",
+        "config_metadata.go",
+        "config_metric.go",
+        "config_oid.go",
+        "yaml_utils.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/checkconfig",
+    visibility = ["//pkg/collector/corechecks/snmp:__subpackages__"],
+    deps = [
+        "//comp/core/autodiscovery/integration",
+        "//pkg/collector/check/defaults",
+        "//pkg/collector/corechecks/snmp/internal/configvalidation",
+        "//pkg/collector/corechecks/snmp/internal/profile",
+        "//pkg/config",
+        "//pkg/networkdevice/pinger",
+        "//pkg/networkdevice/profile/profiledefinition",
+        "//pkg/networkdevice/utils",
+        "//pkg/snmp/snmpintegration",
+        "//pkg/snmp/utils",
+        "//pkg/util",
+        "//pkg/util/hostname",
+        "//pkg/util/log",
+        "@com_github_cihub_seelog//:seelog",
+        "@in_gopkg_yaml_v2//:yaml_v2",
+    ],
+)
+
+go_test(
+    name = "checkconfig_test",
+    srcs = [
+        "config_metric_test.go",
+        "config_oid_test.go",
+        "config_test.go",
+        "yaml_utils_test.go",
+    ],
+    embed = [":checkconfig"],
+    deps = [
+        "//pkg/aggregator",
+        "//pkg/collector/corechecks/snmp/internal/profile",
+        "//pkg/config",
+        "//pkg/networkdevice/pinger",
+        "//pkg/networkdevice/profile/profiledefinition",
+        "//pkg/snmp/snmpintegration",
+        "@com_github_stretchr_testify//assert",
+        "@in_gopkg_yaml_v2//:yaml_v2",
+    ],
+)

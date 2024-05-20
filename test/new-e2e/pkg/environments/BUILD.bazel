@@ -1,0 +1,24 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "environments",
+    srcs = [
+        "doc.go",
+        "dockerhost.go",
+        "ecs.go",
+        "host.go",
+        "host_win.go",
+        "kubernetes.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//test/new-e2e/pkg/components",
+        "//test/new-e2e/pkg/e2e",
+        "//test/new-e2e/pkg/runner",
+        "//test/new-e2e/pkg/runner/parameters",
+        "@com_github_datadog_test_infra_definitions//resources/aws:go_default_library",
+        "@com_github_pulumi_pulumi_sdk_v3//go/pulumi:go_default_library",
+        "@com_github_zorkian_go_datadog_api//:go_default_library",
+    ],
+)

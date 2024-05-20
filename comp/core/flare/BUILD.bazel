@@ -1,0 +1,55 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "flare",
+    srcs = [
+        "component.go",
+        "component_mock.go",
+        "flare.go",
+        "params.go",
+        "providers.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/core/flare",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/aggregator/diagnosesendermanager",
+        "//comp/api/api",
+        "//comp/api/api/utils",
+        "//comp/collector/collector",
+        "//comp/core/autodiscovery",
+        "//comp/core/config",
+        "//comp/core/flare/helpers",
+        "//comp/core/flare/types",
+        "//comp/core/log",
+        "//comp/core/secrets",
+        "//comp/core/workloadmeta",
+        "//comp/remote-config/rcclient/types",
+        "//pkg/config/utils",
+        "//pkg/diagnose",
+        "//pkg/flare",
+        "//pkg/util/fxutil",
+        "//pkg/util/optional",
+        "@org_uber_go_fx//:fx",
+    ],
+)
+
+go_test(
+    name = "flare_test",
+    srcs = ["flare_test.go"],
+    embed = [":flare"],
+    deps = [
+        "//comp/aggregator/diagnosesendermanager",
+        "//comp/collector/collector",
+        "//comp/core/autodiscovery",
+        "//comp/core/config",
+        "//comp/core/flare/types",
+        "//comp/core/log/logimpl",
+        "//comp/core/secrets",
+        "//comp/core/secrets/secretsimpl",
+        "//comp/core/workloadmeta",
+        "//pkg/util/fxutil",
+        "//pkg/util/optional",
+        "@com_github_stretchr_testify//assert",
+        "@org_uber_go_fx//:fx",
+    ],
+)

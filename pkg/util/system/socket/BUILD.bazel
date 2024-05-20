@@ -1,0 +1,17 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "socket",
+    srcs = [
+        "socket.go",
+        "socket_windows.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/util/system/socket",
+    visibility = ["//visibility:public"],
+    deps = select({
+        "@rules_go//go/platform:windows": [
+            "@com_github_microsoft_go_winio//:go-winio",
+        ],
+        "//conditions:default": [],
+    }),
+)

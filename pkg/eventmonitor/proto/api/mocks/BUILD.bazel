@@ -1,0 +1,18 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "mocks",
+    srcs = [
+        "event_monitoring_module_client.go",
+        "event_monitoring_module_get_process_events_client.go",
+        "event_monitoring_module_server.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/eventmonitor/proto/api/mocks",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/eventmonitor/proto/api",
+        "@com_github_stretchr_testify//mock",
+        "@org_golang_google_grpc//:go_default_library",
+        "@org_golang_google_grpc//metadata",
+    ],
+)

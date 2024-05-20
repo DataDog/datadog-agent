@@ -1,0 +1,8 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "erpc",
+    srcs = ["erpc.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/security/probe/erpc",
+    visibility = ["//visibility:public"],
+)

@@ -1,0 +1,61 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "autoscalers",
+    srcs = [
+        "autoscalers.go",
+        "datadogclient.go",
+        "datadogexternal.go",
+        "datadogexternal_util.go",
+        "discover.go",
+        "processor.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/util/kubernetes/autoscalers",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/clusteragent/autoscaling/custommetrics",
+        "//pkg/config",
+        "//pkg/config/utils",
+        "//pkg/telemetry",
+        "//pkg/util/http",
+        "//pkg/util/kubernetes/apiserver/leaderelection/metrics",
+        "//pkg/util/log",
+        "@com_github_datadog_watermarkpodautoscaler//api/v1alpha1",
+        "@in_gopkg_zorkian_go_datadog_api_v2//:go-datadog-api_v2",
+        "@io_k8s_api//autoscaling/v2:autoscaling",
+        "@io_k8s_api//autoscaling/v2beta1",
+        "@io_k8s_api//autoscaling/v2beta2",
+        "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
+        "@io_k8s_apimachinery//pkg/runtime/schema",
+        "@io_k8s_apimachinery//pkg/util/errors",
+        "@io_k8s_client_go//discovery",
+        "@io_k8s_client_go//kubernetes",
+    ],
+)
+
+go_test(
+    name = "autoscalers_test",
+    srcs = [
+        "autoscalers_test.go",
+        "datadogexternal_test.go",
+        "datadogexternal_util_test.go",
+        "processor_test.go",
+    ],
+    embed = [":autoscalers"],
+    deps = [
+        "//comp/core/telemetry",
+        "//pkg/clusteragent/autoscaling/custommetrics",
+        "//pkg/config",
+        "//pkg/util/kubernetes/apiserver/leaderelection/metrics",
+        "//pkg/util/pointer",
+        "@com_github_datadog_watermarkpodautoscaler//api/v1alpha1",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@in_gopkg_zorkian_go_datadog_api_v2//:go-datadog-api_v2",
+        "@io_k8s_api//autoscaling/v2beta1",
+        "@io_k8s_apimachinery//pkg/api/resource",
+        "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
+        "@io_k8s_apimachinery//pkg/types",
+        "@io_k8s_apimachinery//pkg/util/rand",
+    ],
+)

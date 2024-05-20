@@ -1,0 +1,19 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "debug",
+    srcs = ["debug.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/serverless/debug",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/serverless/tags",
+        "//pkg/util/log",
+    ],
+)
+
+go_test(
+    name = "debug_test",
+    srcs = ["debug_test.go"],
+    embed = [":debug"],
+    deps = ["@com_github_stretchr_testify//assert"],
+)

@@ -1,0 +1,28 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "config",
+    srcs = [
+        "client.go",
+        "config.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/trace/config",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/obfuscate",
+        "//pkg/remoteconfig/state",
+        "//pkg/trace/log",
+        "//pkg/trace/traceutil",
+        "@com_github_datadog_opentelemetry_mapping_go_pkg_otlp_attributes//:attributes",
+    ],
+)
+
+go_test(
+    name = "config_test",
+    srcs = [
+        "client_test.go",
+        "config_test.go",
+    ],
+    embed = [":config"],
+    deps = ["@com_github_stretchr_testify//assert"],
+)

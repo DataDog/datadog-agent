@@ -1,0 +1,47 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "fxutil",
+    srcs = [
+        "args.go",
+        "createcomponent.go",
+        "doc.go",
+        "errorunwrapper.go",
+        "group.go",
+        "logging.go",
+        "oneshot.go",
+        "provide_comp.go",
+        "run.go",
+        "test.go",
+        "timeout.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/util/fxutil",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/def",
+        "@com_github_spf13_cobra//:cobra",
+        "@com_github_stretchr_testify//require",
+        "@org_uber_go_fx//:fx",
+        "@org_uber_go_fx//fxevent",
+        "@org_uber_go_fx//fxtest",
+    ],
+)
+
+go_test(
+    name = "fxutil_test",
+    srcs = [
+        "args_test.go",
+        "errorunwrapper_test.go",
+        "group_test.go",
+        "provide_comp_test.go",
+        "test_test.go",
+    ],
+    embed = [":fxutil"],
+    deps = [
+        "//comp/def",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@org_uber_go_fx//:fx",
+        "@org_uber_go_fx//fxtest",
+    ],
+)

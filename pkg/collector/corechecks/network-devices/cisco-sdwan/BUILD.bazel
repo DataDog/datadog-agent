@@ -1,0 +1,44 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "cisco-sdwan",
+    srcs = ["sdwan.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/collector/corechecks/network-devices/cisco-sdwan",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/autodiscovery/integration",
+        "//pkg/aggregator/sender",
+        "//pkg/collector/check",
+        "//pkg/collector/corechecks",
+        "//pkg/collector/corechecks/network-devices/cisco-sdwan/client",
+        "//pkg/collector/corechecks/network-devices/cisco-sdwan/payload",
+        "//pkg/collector/corechecks/network-devices/cisco-sdwan/report",
+        "//pkg/snmp/utils",
+        "//pkg/util/log",
+        "//pkg/util/optional",
+        "@in_gopkg_yaml_v2//:yaml_v2",
+    ],
+)
+
+go_test(
+    name = "cisco-sdwan_test",
+    srcs = ["sdwan_test.go"],
+    embed = [":cisco-sdwan"],
+    deps = [
+        "//comp/aggregator/demultiplexer",
+        "//comp/aggregator/demultiplexer/demultiplexerimpl",
+        "//comp/core",
+        "//comp/core/autodiscovery/integration",
+        "//comp/forwarder/defaultforwarder",
+        "//pkg/aggregator/mocksender",
+        "//pkg/collector/check/id",
+        "//pkg/collector/corechecks/network-devices/cisco-sdwan/client",
+        "//pkg/collector/corechecks/network-devices/cisco-sdwan/payload",
+        "//pkg/collector/corechecks/network-devices/cisco-sdwan/report",
+        "//pkg/util/fxutil",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//mock",
+        "@com_github_stretchr_testify//require",
+        "@org_uber_go_fx//:fx",
+    ],
+)

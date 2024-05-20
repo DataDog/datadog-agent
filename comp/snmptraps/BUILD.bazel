@@ -1,0 +1,26 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "snmptraps",
+    srcs = ["bundle.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/snmptraps",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/snmptraps/server/serverimpl",
+        "//pkg/util/fxutil",
+    ],
+)
+
+go_test(
+    name = "snmptraps_test",
+    srcs = ["bundle_test.go"],
+    embed = [":snmptraps"],
+    deps = [
+        "//comp/aggregator/demultiplexer/demultiplexerimpl",
+        "//comp/core/config",
+        "//comp/core/hostname/hostnameimpl",
+        "//comp/core/log/logimpl",
+        "//comp/forwarder/defaultforwarder",
+        "//pkg/util/fxutil",
+    ],
+)

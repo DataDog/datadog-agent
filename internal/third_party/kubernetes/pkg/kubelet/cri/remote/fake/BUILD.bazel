@@ -1,0 +1,61 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "fake",
+    srcs = [
+        "endpoint.go",
+        "endpoint_windows.go",
+        "fake_image_service.go",
+        "fake_runtime.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/internal/third_party/kubernetes/pkg/kubelet/cri/remote/fake",
+    visibility = ["//:__subpackages__"],
+    deps = [
+        "//internal/third_party/kubernetes/pkg/kubelet/cri/remote/util",
+        "@io_k8s_cri_api//pkg/apis/runtime/v1:runtime",
+        "@io_k8s_cri_api//pkg/apis/testing",
+        "@io_k8s_utils//exec",
+        "@org_golang_google_grpc//:go_default_library",
+    ] + select({
+        "@rules_go//go/platform:aix": [
+            "@io_k8s_apimachinery//pkg/util/rand",
+        ],
+        "@rules_go//go/platform:android": [
+            "@io_k8s_apimachinery//pkg/util/rand",
+        ],
+        "@rules_go//go/platform:darwin": [
+            "@io_k8s_apimachinery//pkg/util/rand",
+        ],
+        "@rules_go//go/platform:dragonfly": [
+            "@io_k8s_apimachinery//pkg/util/rand",
+        ],
+        "@rules_go//go/platform:freebsd": [
+            "@io_k8s_apimachinery//pkg/util/rand",
+        ],
+        "@rules_go//go/platform:illumos": [
+            "@io_k8s_apimachinery//pkg/util/rand",
+        ],
+        "@rules_go//go/platform:ios": [
+            "@io_k8s_apimachinery//pkg/util/rand",
+        ],
+        "@rules_go//go/platform:js": [
+            "@io_k8s_apimachinery//pkg/util/rand",
+        ],
+        "@rules_go//go/platform:linux": [
+            "@io_k8s_apimachinery//pkg/util/rand",
+        ],
+        "@rules_go//go/platform:netbsd": [
+            "@io_k8s_apimachinery//pkg/util/rand",
+        ],
+        "@rules_go//go/platform:openbsd": [
+            "@io_k8s_apimachinery//pkg/util/rand",
+        ],
+        "@rules_go//go/platform:plan9": [
+            "@io_k8s_apimachinery//pkg/util/rand",
+        ],
+        "@rules_go//go/platform:solaris": [
+            "@io_k8s_apimachinery//pkg/util/rand",
+        ],
+        "//conditions:default": [],
+    }),
+)

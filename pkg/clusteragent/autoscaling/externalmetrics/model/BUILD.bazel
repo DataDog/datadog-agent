@@ -1,0 +1,36 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "model",
+    srcs = [
+        "datadogmetricinternal.go",
+        "utils.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/externalmetrics/model",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/util/hostname",
+        "//pkg/util/kubernetes/clustername",
+        "//pkg/util/log",
+        "//pkg/util/tmplvar",
+        "@com_github_datadog_datadog_operator//apis/datadoghq/v1alpha1",
+        "@io_k8s_api//core/v1:core",
+        "@io_k8s_apimachinery//pkg/api/resource",
+        "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
+        "@io_k8s_metrics//pkg/apis/external_metrics",
+    ],
+)
+
+go_test(
+    name = "model_test",
+    srcs = [
+        "datadogmetricinternal_test.go",
+        "utils_test.go",
+    ],
+    embed = [":model"],
+    deps = [
+        "@com_github_datadog_datadog_operator//apis/datadoghq/v1alpha1",
+        "@com_github_stretchr_testify//assert",
+        "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
+    ],
+)

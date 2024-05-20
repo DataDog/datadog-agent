@@ -1,0 +1,38 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "systrayimpl",
+    srcs = [
+        "doconfigure.go",
+        "doflare.go",
+        "doservicecontrol.go",
+        "systray.go",
+        "uac.c",
+        "uac.h",
+    ],
+    cgo = True,
+    importpath = "github.com/DataDog/datadog-agent/comp/systray/systray/systrayimpl",
+    visibility = ["//visibility:public"],
+    deps = select({
+        "@rules_go//go/platform:windows": [
+            "//cmd/agent/windows/controlsvc",
+            "//comp/core/config",
+            "//comp/core/flare",
+            "//comp/core/flare/helpers",
+            "//comp/core/log",
+            "//comp/systray/systray",
+            "//pkg/api/security",
+            "//pkg/api/util",
+            "//pkg/config",
+            "//pkg/util/fxutil",
+            "//pkg/util/log",
+            "//pkg/util/winutil",
+            "//pkg/version",
+            "@com_github_lxn_walk//:walk",
+            "@com_github_lxn_win//:win",
+            "@org_golang_x_sys//windows",
+            "@org_uber_go_fx//:fx",
+        ],
+        "//conditions:default": [],
+    }),
+)

@@ -1,0 +1,20 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "tagger",
+    srcs = ["tagger.go"],
+    cgo = True,
+    importpath = "github.com/DataDog/datadog-agent/rtloader/test/tagger",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//rtloader/test/common",
+        "//rtloader/test/helpers",
+    ],
+)
+
+go_test(
+    name = "tagger_test",
+    srcs = ["tagger_test.go"],
+    embed = [":tagger"],
+    deps = ["//rtloader/test/helpers"],
+)

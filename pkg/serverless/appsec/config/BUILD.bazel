@@ -1,0 +1,19 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "config",
+    srcs = ["config.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/serverless/appsec/config",
+    visibility = ["//visibility:public"],
+    deps = ["@com_github_datadog_appsec_internal_go//appsec"],
+)
+
+go_test(
+    name = "config_test",
+    srcs = ["config_test.go"],
+    embed = [":config"],
+    deps = [
+        "@com_github_datadog_appsec_internal_go//appsec",
+        "@com_github_stretchr_testify//require",
+    ],
+)

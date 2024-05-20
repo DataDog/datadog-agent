@@ -1,0 +1,53 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "custommetrics",
+    srcs = [
+        "doc.go",
+        "provider.go",
+        "status.go",
+        "store.go",
+        "store_configmap.go",
+        "types.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/custommetrics",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/config",
+        "//pkg/telemetry",
+        "//pkg/util/kubernetes/apiserver/common",
+        "//pkg/util/kubernetes/apiserver/leaderelection/metrics",
+        "//pkg/util/log",
+        "@io_k8s_api//core/v1:core",
+        "@io_k8s_apimachinery//pkg/api/errors",
+        "@io_k8s_apimachinery//pkg/api/meta",
+        "@io_k8s_apimachinery//pkg/api/resource",
+        "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
+        "@io_k8s_apimachinery//pkg/labels",
+        "@io_k8s_client_go//dynamic",
+        "@io_k8s_client_go//kubernetes",
+        "@io_k8s_client_go//kubernetes/typed/core/v1:core",
+        "@io_k8s_metrics//pkg/apis/external_metrics",
+        "@io_k8s_sigs_custom_metrics_apiserver//pkg/provider",
+        "@io_k8s_sigs_custom_metrics_apiserver//pkg/provider/defaults",
+    ],
+)
+
+go_test(
+    name = "custommetrics_test",
+    srcs = [
+        "provider_test.go",
+        "store_configmap_test.go",
+    ],
+    embed = [":custommetrics"],
+    deps = [
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@io_k8s_api//core/v1:core",
+        "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
+        "@io_k8s_apimachinery//pkg/labels",
+        "@io_k8s_client_go//kubernetes/fake",
+        "@io_k8s_metrics//pkg/apis/external_metrics",
+        "@io_k8s_sigs_custom_metrics_apiserver//pkg/provider",
+    ],
+)

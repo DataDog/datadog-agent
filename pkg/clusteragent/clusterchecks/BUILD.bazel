@@ -1,0 +1,18 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "clusterchecks",
+    srcs = [
+        "handler_api_nocompile.go",
+        "status.go",
+    ],
+    embedsrcs = ["status_templates/clusterchecks.tmpl"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/autodiscovery",
+        "//comp/core/status",
+        "//pkg/clusteragent/clusterchecks/types",
+        "//pkg/config",
+    ],
+)

@@ -1,0 +1,53 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "containerd",
+    srcs = [
+        "containerd_util.go",
+        "diagnosis.go",
+        "namespaces.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/util/containerd",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/config",
+        "//pkg/diagnose/diagnosis",
+        "//pkg/errors",
+        "//pkg/util/log",
+        "//pkg/util/retry",
+        "@com_github_containerd_containerd//:containerd",
+        "@com_github_containerd_containerd//api/types",
+        "@com_github_containerd_containerd//containers",
+        "@com_github_containerd_containerd//errdefs",
+        "@com_github_containerd_containerd//leases",
+        "@com_github_containerd_containerd//mount",
+        "@com_github_containerd_containerd//namespaces",
+        "@com_github_containerd_containerd//oci",
+        "@com_github_opencontainers_image_spec//identity",
+    ],
+)
+
+go_test(
+    name = "containerd_test",
+    srcs = [
+        "containerd_util_test.go",
+        "namespaces_test.go",
+    ],
+    embed = [":containerd"],
+    deps = [
+        "//pkg/config",
+        "//pkg/util/containerd/fake",
+        "@com_github_containerd_cgroups_v3//cgroup1/stats",
+        "@com_github_containerd_containerd//:containerd",
+        "@com_github_containerd_containerd//api/types",
+        "@com_github_containerd_containerd//cio",
+        "@com_github_containerd_containerd//containers",
+        "@com_github_containerd_containerd//oci",
+        "@com_github_containerd_typeurl_v2//:typeurl",
+        "@com_github_gogo_protobuf//types",
+        "@com_github_opencontainers_runtime_spec//specs-go",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@org_golang_google_protobuf//types/known/anypb",
+    ],
+)

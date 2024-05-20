@@ -1,0 +1,51 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "ecs",
+    srcs = [
+        "ecs.go",
+        "stub.go",
+        "v1parser.go",
+        "v4parser.go",
+        "worker.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/ecs",
+    visibility = ["//comp/core/workloadmeta/collectors:__subpackages__"],
+    deps = [
+        "//comp/core/config",
+        "//comp/core/workloadmeta",
+        "//comp/core/workloadmeta/collectors/util",
+        "//pkg/config",
+        "//pkg/errors",
+        "//pkg/util/ecs",
+        "//pkg/util/ecs/metadata",
+        "//pkg/util/ecs/metadata/v1:metadata",
+        "//pkg/util/ecs/metadata/v3or4",
+        "//pkg/util/log",
+        "@com_github_patrickmn_go_cache//:go-cache",
+        "@io_k8s_client_go//util/workqueue",
+        "@org_golang_x_time//rate",
+        "@org_uber_go_fx//:fx",
+    ],
+)
+
+go_test(
+    name = "ecs_test",
+    srcs = [
+        "ecs_test.go",
+        "v1parser_test.go",
+        "v4parser_test.go",
+        "worker_test.go",
+    ],
+    data = glob(["testdata/**"]),
+    embed = [":ecs"],
+    deps = [
+        "//comp/core/workloadmeta",
+        "//pkg/util/ecs/metadata/testutil",
+        "//pkg/util/ecs/metadata/v1:metadata",
+        "//pkg/util/ecs/metadata/v3or4",
+        "@com_github_patrickmn_go_cache//:go-cache",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

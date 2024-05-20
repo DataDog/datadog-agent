@@ -1,0 +1,16 @@
+load("@rules_go//go:def.bzl", "go_test")
+
+go_test(
+    name = "zookeeper_test",
+    srcs = ["zookeeper_provider_test.go"],
+    data = glob(["testdata/**"]),
+    deps = [
+        "//comp/core/autodiscovery/providers",
+        "//pkg/config",
+        "//test/integration/utils",
+        "@com_github_cihub_seelog//:seelog",
+        "@com_github_samuel_go_zookeeper//zk",
+        "@com_github_stretchr_testify//require",
+        "@com_github_stretchr_testify//suite",
+    ],
+)

@@ -1,0 +1,30 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "java",
+    srcs = [
+        "spring.go",
+        "util.go",
+        "yaml.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/process/metadata/parser/java",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/util/log",
+        "@com_github_rickar_props//:props",
+        "@com_github_vibrantbyte_go_antpath//antpath",
+        "@in_gopkg_yaml_v3//:yaml_v3",
+    ],
+)
+
+go_test(
+    name = "java_test",
+    srcs = [
+        "spring_test.go",
+        "util_test.go",
+        "yaml_test.go",
+    ],
+    data = glob(["testdata/**"]),
+    embed = [":java"],
+    deps = ["@com_github_stretchr_testify//require"],
+)

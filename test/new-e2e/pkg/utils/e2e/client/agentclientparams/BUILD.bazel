@@ -1,0 +1,9 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "agentclientparams",
+    srcs = ["agent_client_params.go"],
+    importpath = "github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclientparams",
+    visibility = ["//visibility:public"],
+    deps = ["@com_github_datadog_test_infra_definitions//components/os:go_default_library"],
+)

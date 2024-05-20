@@ -1,0 +1,51 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "process",
+    srcs = ["bundle.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/process",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/process/agent/agentimpl",
+        "//comp/process/apiserver",
+        "//comp/process/connectionscheck/connectionscheckimpl",
+        "//comp/process/containercheck/containercheckimpl",
+        "//comp/process/expvars/expvarsimpl",
+        "//comp/process/forwarders/forwardersimpl",
+        "//comp/process/hostinfo/hostinfoimpl",
+        "//comp/process/processcheck/processcheckimpl",
+        "//comp/process/processdiscoverycheck/processdiscoverycheckimpl",
+        "//comp/process/processeventscheck/processeventscheckimpl",
+        "//comp/process/profiler/profilerimpl",
+        "//comp/process/rtcontainercheck/rtcontainercheckimpl",
+        "//comp/process/runner/runnerimpl",
+        "//comp/process/submitter/submitterimpl",
+        "//pkg/util/fxutil",
+    ],
+)
+
+go_test(
+    name = "process_test",
+    srcs = ["bundle_test.go"],
+    embed = [":process"],
+    deps = [
+        "//comp/core",
+        "//comp/core/config",
+        "//comp/core/log/logimpl",
+        "//comp/core/settings/settingsimpl",
+        "//comp/core/status",
+        "//comp/core/status/statusimpl",
+        "//comp/core/tagger",
+        "//comp/core/workloadmeta",
+        "//comp/forwarder/eventplatform/eventplatformimpl",
+        "//comp/forwarder/eventplatformreceiver/eventplatformreceiverimpl",
+        "//comp/networkpath/npcollector/npcollectorimpl",
+        "//comp/process/runner",
+        "//comp/process/status/statusimpl",
+        "//comp/process/types",
+        "//pkg/collector/python",
+        "//pkg/util/fxutil",
+        "@com_github_stretchr_testify//require",
+        "@org_uber_go_fx//:fx",
+    ],
+)

@@ -1,0 +1,32 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "cloudservice",
+    srcs = [
+        "appservice.go",
+        "cloudrun.go",
+        "containerapp.go",
+        "service.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/cmd/serverless-init/cloudservice",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//cmd/serverless-init/cloudservice/helper",
+        "//pkg/trace/traceutil",
+    ],
+)
+
+go_test(
+    name = "cloudservice_test",
+    srcs = [
+        "appservice_test.go",
+        "cloudrun_test.go",
+        "containerapp_test.go",
+        "service_test.go",
+    ],
+    embed = [":cloudservice"],
+    deps = [
+        "//cmd/serverless-init/cloudservice/helper",
+        "@com_github_stretchr_testify//assert",
+    ],
+)

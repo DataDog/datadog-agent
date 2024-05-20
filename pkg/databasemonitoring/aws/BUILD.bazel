@@ -1,0 +1,33 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "aws",
+    srcs = [
+        "aurora.go",
+        "client.go",
+        "rdsclient_mockgen.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/databasemonitoring/aws",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/util/ec2",
+        "@com_github_aws_aws_sdk_go_v2//aws",
+        "@com_github_aws_aws_sdk_go_v2_config//:config",
+        "@com_github_aws_aws_sdk_go_v2_service_rds//:rds",
+        "@com_github_aws_aws_sdk_go_v2_service_rds//types",
+        "@com_github_golang_mock//gomock",
+    ],
+)
+
+go_test(
+    name = "aws_test",
+    srcs = ["aurora_test.go"],
+    embed = [":aws"],
+    deps = [
+        "@com_github_aws_aws_sdk_go_v2//aws",
+        "@com_github_aws_aws_sdk_go_v2_service_rds//:rds",
+        "@com_github_aws_aws_sdk_go_v2_service_rds//types",
+        "@com_github_golang_mock//gomock",
+        "@com_github_stretchr_testify//assert",
+    ],
+)

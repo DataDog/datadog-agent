@@ -1,0 +1,45 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "docker",
+    srcs = ["catalog.go"],
+    importpath = "github.com/DataDog/datadog-agent/test/integration/corechecks/docker",
+    visibility = ["//visibility:public"],
+)
+
+go_test(
+    name = "docker_test",
+    srcs = [
+        "basemetrics_test.go",
+        "events_test.go",
+        "exitcode_test.go",
+        "globalmetrics_test.go",
+        "main_test.go",
+        "serviceup_test.go",
+    ],
+    data = glob(["testdata/**"]),
+    embed = [":docker"],
+    deps = [
+        "//comp/core/autodiscovery/integration",
+        "//comp/core/config",
+        "//comp/core/log/logimpl",
+        "//comp/core/secrets",
+        "//comp/core/tagger",
+        "//comp/core/tagger/taggerimpl",
+        "//comp/core/workloadmeta",
+        "//comp/core/workloadmeta/collectors",
+        "//pkg/aggregator/mocksender",
+        "//pkg/collector/check",
+        "//pkg/collector/corechecks/containers/docker",
+        "//pkg/config",
+        "//pkg/metrics/event",
+        "//pkg/metrics/servicecheck",
+        "//pkg/util/fxutil",
+        "//pkg/util/hostname",
+        "//pkg/util/optional",
+        "//test/integration/utils",
+        "@com_github_cihub_seelog//:seelog",
+        "@com_github_stretchr_testify//assert",
+        "@org_uber_go_fx//:fx",
+    ],
+)

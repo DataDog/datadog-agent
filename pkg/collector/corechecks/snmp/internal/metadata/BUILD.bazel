@@ -1,0 +1,25 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "metadata",
+    srcs = [
+        "resource.go",
+        "store.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/metadata",
+    visibility = ["//pkg/collector/corechecks/snmp:__subpackages__"],
+    deps = [
+        "//pkg/collector/corechecks/snmp/internal/valuestore",
+        "//pkg/util/log",
+    ],
+)
+
+go_test(
+    name = "metadata_test",
+    srcs = ["store_test.go"],
+    embed = [":metadata"],
+    deps = [
+        "//pkg/collector/corechecks/snmp/internal/valuestore",
+        "@com_github_stretchr_testify//assert",
+    ],
+)

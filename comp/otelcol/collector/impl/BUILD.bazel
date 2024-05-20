@@ -1,0 +1,23 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "impl",
+    srcs = ["collector.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/otelcol/collector/impl",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/hostname",
+        "//comp/core/log",
+        "//comp/def",
+        "//comp/otelcol/collector-contrib/def",
+        "//comp/otelcol/collector/def",
+        "//comp/otelcol/logsagentpipeline",
+        "//comp/otelcol/otlp",
+        "//comp/otelcol/otlp/components/exporter/datadogexporter",
+        "//comp/otelcol/otlp/components/processor/infraattributesprocessor",
+        "//pkg/serializer",
+        "//pkg/util/optional",
+        "@io_opentelemetry_go_collector_component//:component",
+        "@io_opentelemetry_go_collector_otelcol//:otelcol",
+    ],
+)

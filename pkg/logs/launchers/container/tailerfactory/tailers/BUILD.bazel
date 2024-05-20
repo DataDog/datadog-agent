@@ -1,0 +1,31 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "tailers",
+    srcs = [
+        "socket.go",
+        "source.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/logs/launchers/container/tailerfactory/tailers",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/logs/agent/config",
+        "//pkg/logs/auditor",
+        "//pkg/logs/message",
+        "//pkg/logs/sources",
+        "//pkg/logs/tailers/docker",
+        "//pkg/util/docker",
+        "//pkg/util/log",
+    ],
+)
+
+go_test(
+    name = "tailers_test",
+    srcs = ["socket_test.go"],
+    embed = [":tailers"],
+    deps = [
+        "//pkg/logs/tailers/docker",
+        "@com_github_stretchr_testify//require",
+        "@org_uber_go_atomic//:atomic",
+    ],
+)

@@ -1,0 +1,38 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "container",
+    srcs = ["launcher.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/logs/launchers/container",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/workloadmeta",
+        "//pkg/logs/auditor",
+        "//pkg/logs/launchers",
+        "//pkg/logs/launchers/container/tailerfactory",
+        "//pkg/logs/pipeline",
+        "//pkg/logs/sources",
+        "//pkg/logs/tailers",
+        "//pkg/util/log",
+        "//pkg/util/optional",
+        "//pkg/util/startstop",
+    ],
+)
+
+go_test(
+    name = "container_test",
+    srcs = ["launcher_test.go"],
+    embed = [":container"],
+    deps = [
+        "//comp/core/workloadmeta",
+        "//comp/logs/agent/config",
+        "//pkg/logs/auditor",
+        "//pkg/logs/launchers",
+        "//pkg/logs/launchers/container/tailerfactory",
+        "//pkg/logs/pipeline",
+        "//pkg/logs/sources",
+        "//pkg/logs/tailers",
+        "//pkg/util/optional",
+        "@com_github_stretchr_testify//require",
+    ],
+)

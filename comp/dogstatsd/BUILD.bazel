@@ -1,0 +1,19 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "dogstatsd",
+    srcs = [
+        "bundle.go",
+        "bundle_mock.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/dogstatsd",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/dogstatsd/pidmap/pidmapimpl",
+        "//comp/dogstatsd/replay",
+        "//comp/dogstatsd/server",
+        "//comp/dogstatsd/serverDebug/serverdebugimpl",
+        "//comp/dogstatsd/statsd",
+        "//pkg/util/fxutil",
+    ],
+)

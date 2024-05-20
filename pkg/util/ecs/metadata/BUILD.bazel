@@ -1,0 +1,40 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "metadata",
+    srcs = [
+        "clients.go",
+        "detection.go",
+        "doc.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/util/ecs/metadata",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/config",
+        "//pkg/util/docker",
+        "//pkg/util/ecs/common",
+        "//pkg/util/ecs/metadata/v1:metadata",
+        "//pkg/util/ecs/metadata/v2:metadata",
+        "//pkg/util/ecs/metadata/v3or4",
+        "//pkg/util/log",
+        "//pkg/util/retry",
+        "//pkg/util/system",
+    ],
+)
+
+go_test(
+    name = "metadata_test",
+    srcs = ["detection_test.go"],
+    embed = [":metadata"],
+    deps = [
+        "//pkg/config",
+        "//pkg/util/cache",
+        "//pkg/util/docker",
+        "//pkg/util/ecs/metadata/testutil",
+        "@com_github_docker_docker//api/types",
+        "@com_github_docker_docker//api/types/container",
+        "@com_github_docker_docker//api/types/network",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

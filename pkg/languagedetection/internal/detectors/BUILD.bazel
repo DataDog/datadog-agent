@@ -1,0 +1,47 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "detectors",
+    srcs = [
+        "go_detector.go",
+        "jruby_detector.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/languagedetection/internal/detectors",
+    visibility = ["//pkg/languagedetection:__subpackages__"],
+    deps = [
+        "//pkg/languagedetection/languagemodels",
+    ] + select({
+        "@rules_go//go/platform:android": [
+            "//pkg/errors",
+            "//pkg/network/go/binversion",
+            "//pkg/util/kernel",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/errors",
+            "//pkg/network/go/binversion",
+            "//pkg/util/kernel",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+go_test(
+    name = "detectors_test",
+    srcs = ["go_detector_test.go"],
+    embed = [":detectors"],
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "//pkg/languagedetection/languagemodels",
+            "//pkg/proto/pbgo/languagedetection",
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/languagedetection/languagemodels",
+            "//pkg/proto/pbgo/languagedetection",
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+        ],
+        "//conditions:default": [],
+    }),
+)

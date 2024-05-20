@@ -1,0 +1,23 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "ecs",
+    srcs = ["ecs.go"],
+    importpath = "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/ecs",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//test/new-e2e/pkg/e2e",
+        "//test/new-e2e/pkg/environments",
+        "//test/new-e2e/pkg/runner",
+        "//test/new-e2e/pkg/utils/optional",
+        "@com_github_datadog_test_infra_definitions//common/config:go_default_library",
+        "@com_github_datadog_test_infra_definitions//components/datadog/agent:go_default_library",
+        "@com_github_datadog_test_infra_definitions//components/datadog/ecsagentparams:go_default_library",
+        "@com_github_datadog_test_infra_definitions//components/datadog/fakeintake:go_default_library",
+        "@com_github_datadog_test_infra_definitions//resources/aws:go_default_library",
+        "@com_github_datadog_test_infra_definitions//resources/aws/ecs:go_default_library",
+        "@com_github_datadog_test_infra_definitions//scenarios/aws/fakeintake:go_default_library",
+        "@com_github_pulumi_pulumi_aws_sdk_v6//go/aws/ssm:go_default_library",
+        "@com_github_pulumi_pulumi_sdk_v3//go/pulumi:go_default_library",
+    ],
+)

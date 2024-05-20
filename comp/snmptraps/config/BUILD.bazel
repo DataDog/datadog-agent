@@ -1,0 +1,38 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "config",
+    srcs = [
+        "component.go",
+        "config.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/snmptraps/config",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/config",
+        "//comp/core/log",
+        "//comp/snmptraps/snmplog",
+        "//pkg/snmp/gosnmplib",
+        "//pkg/snmp/utils",
+        "@com_github_gosnmp_gosnmp//:gosnmp",
+    ],
+)
+
+go_test(
+    name = "config_test",
+    srcs = ["config_test.go"],
+    embed = [":config"],
+    deps = [
+        "//comp/core/config",
+        "//comp/core/hostname",
+        "//comp/core/hostname/hostnameimpl",
+        "//comp/core/log",
+        "//comp/core/log/logimpl",
+        "//pkg/util/fxutil",
+        "@com_github_gosnmp_gosnmp//:gosnmp",
+        "@com_github_mitchellh_mapstructure//:mapstructure",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@org_uber_go_fx//:fx",
+    ],
+)

@@ -1,0 +1,36 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "settingsimpl",
+    srcs = [
+        "settings_mock.go",
+        "settingsimpl.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/core/settings/settingsimpl",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/config",
+        "//comp/core/log",
+        "//comp/core/settings",
+        "//pkg/config/model",
+        "//pkg/util/fxutil",
+        "//pkg/util/scrubber",
+        "@in_gopkg_yaml_v2//:yaml_v2",
+        "@org_uber_go_fx//:fx",
+    ],
+)
+
+go_test(
+    name = "settingsimpl_test",
+    srcs = ["settingsimpl_test.go"],
+    embed = [":settingsimpl"],
+    deps = [
+        "//comp/core/config",
+        "//comp/core/log/logimpl",
+        "//comp/core/settings",
+        "//pkg/config/model",
+        "//pkg/util/fxutil",
+        "@com_github_stretchr_testify//assert",
+        "@org_uber_go_fx//:fx",
+    ],
+)

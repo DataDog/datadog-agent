@@ -1,0 +1,52 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "snmp",
+    srcs = [
+        "command.go",
+        "optionsflag.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/cmd/agent/subcommands/snmp",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//cmd/agent/command",
+        "//comp/aggregator",
+        "//comp/aggregator/demultiplexer",
+        "//comp/aggregator/demultiplexer/demultiplexerimpl",
+        "//comp/core",
+        "//comp/core/config",
+        "//comp/core/log",
+        "//comp/core/log/logimpl",
+        "//comp/core/secrets",
+        "//comp/forwarder",
+        "//comp/forwarder/defaultforwarder",
+        "//comp/forwarder/eventplatform",
+        "//comp/forwarder/eventplatform/eventplatformimpl",
+        "//comp/forwarder/eventplatformreceiver/eventplatformreceiverimpl",
+        "//comp/forwarder/orchestrator/orchestratorimpl",
+        "//comp/snmptraps/snmplog",
+        "//pkg/logs/message",
+        "//pkg/networkdevice/metadata",
+        "//pkg/snmp/gosnmplib",
+        "//pkg/snmp/snmpparse",
+        "//pkg/util/fxutil",
+        "@com_github_gosnmp_gosnmp//:gosnmp",
+        "@com_github_spf13_cobra//:cobra",
+        "@org_uber_go_fx//:fx",
+    ],
+)
+
+go_test(
+    name = "snmp_test",
+    srcs = [
+        "command_test.go",
+        "optionsflag_test.go",
+    ],
+    embed = [":snmp"],
+    deps = [
+        "//cmd/agent/command",
+        "//pkg/util/fxutil",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

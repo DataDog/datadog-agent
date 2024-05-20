@@ -1,0 +1,39 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "usersessions",
+    srcs = [
+        "k8s_user_session_context.go",
+        "resolver_linux.go",
+        "resolver_windows.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/security/resolvers/usersessions",
+    visibility = ["//visibility:public"],
+    deps = [
+        "@io_k8s_api//authentication/v1:authentication",
+    ] + select({
+        "@rules_go//go/platform:android": [
+            "//pkg/security/probe/managerhelper",
+            "//pkg/security/secl/model",
+            "//pkg/security/secl/model/usersession",
+            "//pkg/security/seclog",
+            "@com_github_cilium_ebpf//:ebpf",
+            "@com_github_datadog_ebpf_manager//:ebpf-manager",
+            "@com_github_hashicorp_golang_lru_v2//simplelru",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/security/probe/managerhelper",
+            "//pkg/security/secl/model",
+            "//pkg/security/secl/model/usersession",
+            "//pkg/security/seclog",
+            "@com_github_cilium_ebpf//:ebpf",
+            "@com_github_datadog_ebpf_manager//:ebpf-manager",
+            "@com_github_hashicorp_golang_lru_v2//simplelru",
+        ],
+        "@rules_go//go/platform:windows": [
+            "//pkg/security/config",
+            "//pkg/security/secl/model",
+        ],
+        "//conditions:default": [],
+    }),
+)

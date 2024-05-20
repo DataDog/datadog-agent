@@ -1,0 +1,61 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "mount",
+    srcs = [
+        "errors.go",
+        "interface.go",
+        "no_op_resolver.go",
+        "resolver.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/security/resolvers/mount",
+    visibility = ["//visibility:public"],
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "//pkg/security/ebpf/kernel",
+            "//pkg/security/metrics",
+            "//pkg/security/resolvers/cgroup",
+            "//pkg/security/resolvers/cgroup/model",
+            "//pkg/security/secl/model",
+            "//pkg/security/utils",
+            "//pkg/util/kernel",
+            "@com_github_datadog_datadog_go_v5//statsd",
+            "@com_github_hashicorp_golang_lru_v2//simplelru",
+            "@com_github_moby_sys_mountinfo//:mountinfo",
+            "@org_uber_go_atomic//:atomic",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/security/ebpf/kernel",
+            "//pkg/security/metrics",
+            "//pkg/security/resolvers/cgroup",
+            "//pkg/security/resolvers/cgroup/model",
+            "//pkg/security/secl/model",
+            "//pkg/security/utils",
+            "//pkg/util/kernel",
+            "@com_github_datadog_datadog_go_v5//statsd",
+            "@com_github_hashicorp_golang_lru_v2//simplelru",
+            "@com_github_moby_sys_mountinfo//:mountinfo",
+            "@org_uber_go_atomic//:atomic",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+go_test(
+    name = "mount_test",
+    srcs = ["resolver_test.go"],
+    embed = [":mount"],
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "//pkg/security/resolvers/cgroup",
+            "//pkg/security/secl/model",
+            "@com_github_stretchr_testify//assert",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/security/resolvers/cgroup",
+            "//pkg/security/secl/model",
+            "@com_github_stretchr_testify//assert",
+        ],
+        "//conditions:default": [],
+    }),
+)

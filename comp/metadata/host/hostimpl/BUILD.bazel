@@ -1,0 +1,94 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "hostimpl",
+    srcs = [
+        "host.go",
+        "mock.go",
+        "payload.go",
+        "payload_no_gohai.go",
+        "status.go",
+    ],
+    embedsrcs = [
+        "status_templates/host.tmpl",
+        "status_templates/hostHTML.tmpl",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/config",
+        "//comp/core/flare/types",
+        "//comp/core/log",
+        "//comp/core/status",
+        "//comp/metadata/host",
+        "//comp/metadata/host/hostimpl/utils",
+        "//comp/metadata/resources",
+        "//comp/metadata/runner/runnerimpl",
+        "//pkg/config/utils",
+        "//pkg/serializer",
+        "//pkg/util/fxutil",
+        "//pkg/util/hostname",
+        "@org_uber_go_fx//:fx",
+    ] + select({
+        "@rules_go//go/platform:android": [
+            "//pkg/config",
+            "//pkg/gohai",
+            "//pkg/serializer/marshaler",
+        ],
+        "@rules_go//go/platform:darwin": [
+            "//pkg/config",
+            "//pkg/gohai",
+            "//pkg/serializer/marshaler",
+        ],
+        "@rules_go//go/platform:dragonfly": [
+            "//pkg/serializer/marshaler",
+        ],
+        "@rules_go//go/platform:freebsd": [
+            "//pkg/serializer/marshaler",
+        ],
+        "@rules_go//go/platform:ios": [
+            "//pkg/config",
+            "//pkg/gohai",
+            "//pkg/serializer/marshaler",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/config",
+            "//pkg/gohai",
+            "//pkg/serializer/marshaler",
+        ],
+        "@rules_go//go/platform:netbsd": [
+            "//pkg/serializer/marshaler",
+        ],
+        "@rules_go//go/platform:openbsd": [
+            "//pkg/serializer/marshaler",
+        ],
+        "@rules_go//go/platform:solaris": [
+            "//pkg/serializer/marshaler",
+        ],
+        "@rules_go//go/platform:windows": [
+            "//pkg/config",
+            "//pkg/gohai",
+            "//pkg/serializer/marshaler",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+go_test(
+    name = "hostimpl_test",
+    srcs = ["host_test.go"],
+    embed = [":hostimpl"],
+    deps = [
+        "//comp/core/config",
+        "//comp/core/flare/helpers",
+        "//comp/core/log/logimpl",
+        "//comp/metadata/resources",
+        "//comp/metadata/resources/resourcesimpl",
+        "//pkg/config/utils",
+        "//pkg/serializer",
+        "//pkg/util/fxutil",
+        "@com_github_stretchr_testify//assert",
+        "@org_golang_x_exp//maps",
+        "@org_uber_go_fx//:fx",
+    ],
+)

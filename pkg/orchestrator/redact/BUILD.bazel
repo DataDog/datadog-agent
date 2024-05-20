@@ -1,0 +1,30 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "redact",
+    srcs = [
+        "data_scrubber.go",
+        "pod.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/orchestrator/redact",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/util/log",
+        "@io_k8s_api//core/v1:core",
+    ],
+)
+
+go_test(
+    name = "redact_test",
+    srcs = [
+        "data_scrubber_test.go",
+        "pod_test.go",
+    ],
+    embed = [":redact"],
+    deps = [
+        "//pkg/util/scrubber",
+        "@com_github_stretchr_testify//assert",
+        "@io_k8s_api//core/v1:core",
+        "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
+    ],
+)

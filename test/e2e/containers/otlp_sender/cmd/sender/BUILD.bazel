@@ -1,0 +1,26 @@
+load("@rules_go//go:def.bzl", "go_binary", "go_library")
+
+go_library(
+    name = "sender_lib",
+    srcs = ["main.go"],
+    importpath = "github.com/DataDog/datadog-agent/test/e2e/containers/otlp_sender/cmd/sender",
+    visibility = ["//visibility:private"],
+    deps = [
+        "@io_opentelemetry_go_collector_component//:component",
+        "@io_opentelemetry_go_collector_exporter//:exporter",
+        "@io_opentelemetry_go_collector_exporter_loggingexporter//:loggingexporter",
+        "@io_opentelemetry_go_collector_exporter_otlpexporter//:otlpexporter",
+        "@io_opentelemetry_go_collector_exporter_otlphttpexporter//:otlphttpexporter",
+        "@io_opentelemetry_go_collector_extension//:extension",
+        "@io_opentelemetry_go_collector_otelcol//:otelcol",
+        "@io_opentelemetry_go_collector_processor//:processor",
+        "@io_opentelemetry_go_collector_receiver//:receiver",
+        "@org_uber_go_multierr//:multierr",
+    ],
+)
+
+go_binary(
+    name = "sender",
+    embed = [":sender_lib"],
+    visibility = ["//visibility:public"],
+)

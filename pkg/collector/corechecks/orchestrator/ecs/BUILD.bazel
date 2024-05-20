@@ -1,0 +1,40 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "ecs",
+    srcs = ["ecs.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/collector/corechecks/orchestrator/ecs",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/autodiscovery/integration",
+        "//comp/core/workloadmeta",
+        "//pkg/aggregator/sender",
+        "//pkg/collector/check",
+        "//pkg/collector/corechecks",
+        "//pkg/collector/corechecks/cluster/orchestrator/collectors",
+        "//pkg/collector/corechecks/cluster/orchestrator/collectors/ecs",
+        "//pkg/orchestrator",
+        "//pkg/orchestrator/config",
+        "//pkg/util/log",
+        "//pkg/util/optional",
+        "@com_github_google_uuid//:uuid",
+        "@org_uber_go_atomic//:atomic",
+    ],
+)
+
+go_test(
+    name = "ecs_test",
+    srcs = ["ecs_test.go"],
+    embed = [":ecs"],
+    deps = [
+        "//comp/core/workloadmeta",
+        "//pkg/aggregator/mocksender",
+        "//pkg/collector/corechecks/cluster/orchestrator/transformers/ecs",
+        "//pkg/orchestrator",
+        "//pkg/orchestrator/config",
+        "//pkg/serializer/types",
+        "@com_github_datadog_agent_payload_v5//process",
+        "@com_github_stretchr_testify//require",
+        "@org_uber_go_atomic//:atomic",
+    ],
+)

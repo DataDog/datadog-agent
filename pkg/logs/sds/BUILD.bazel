@@ -1,0 +1,20 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "sds",
+    srcs = [
+        "reconfigure.go",
+        "rules.go",
+        "scanner_nosds.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/logs/sds",
+    visibility = ["//visibility:public"],
+    deps = ["//pkg/logs/message"],
+)
+
+go_test(
+    name = "sds_test",
+    srcs = ["rules_test.go"],
+    embed = [":sds"],
+    deps = ["@com_github_stretchr_testify//require"],
+)

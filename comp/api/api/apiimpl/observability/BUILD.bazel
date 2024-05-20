@@ -1,0 +1,23 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "utils",
+    srcs = ["observability.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/api/api/apiimpl/utils",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/util/log",
+        "@com_github_gorilla_mux//:mux",
+        "@com_github_urfave_negroni//:negroni",
+    ],
+)
+
+go_test(
+    name = "utils_test",
+    srcs = ["observability_test.go"],
+    embed = [":utils"],
+    deps = [
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

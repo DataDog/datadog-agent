@@ -1,0 +1,59 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "decoder",
+    srcs = [
+        "auto_multiline_handler.go",
+        "decoder.go",
+        "file_decoder.go",
+        "line_handler.go",
+        "line_parser.go",
+        "multiline_handler.go",
+        "single_line_handler.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/logs/internal/decoder",
+    visibility = ["//pkg/logs:__subpackages__"],
+    deps = [
+        "//comp/logs/agent/config",
+        "//pkg/config",
+        "//pkg/logs/internal/framer",
+        "//pkg/logs/internal/parsers",
+        "//pkg/logs/internal/parsers/dockerfile",
+        "//pkg/logs/internal/parsers/encodedtext",
+        "//pkg/logs/internal/parsers/kubernetes",
+        "//pkg/logs/internal/parsers/noop",
+        "//pkg/logs/message",
+        "//pkg/logs/sources",
+        "//pkg/logs/status/utils",
+        "//pkg/telemetry",
+        "//pkg/util/log",
+        "@com_github_benbjohnson_clock//:clock",
+    ],
+)
+
+go_test(
+    name = "decoder_test",
+    srcs = [
+        "decoder_test.go",
+        "line_handler_benchmark_test.go",
+        "line_handler_test.go",
+        "line_parser_test.go",
+    ],
+    embed = [":decoder"],
+    deps = [
+        "//comp/logs/agent/config",
+        "//pkg/config",
+        "//pkg/logs/internal/framer",
+        "//pkg/logs/internal/parsers",
+        "//pkg/logs/internal/parsers/dockerfile",
+        "//pkg/logs/internal/parsers/dockerstream",
+        "//pkg/logs/internal/parsers/encodedtext",
+        "//pkg/logs/internal/parsers/kubernetes",
+        "//pkg/logs/internal/parsers/noop",
+        "//pkg/logs/message",
+        "//pkg/logs/sources",
+        "//pkg/logs/status/utils",
+        "@com_github_benbjohnson_clock//:clock",
+        "@com_github_stretchr_testify//assert",
+    ],
+)

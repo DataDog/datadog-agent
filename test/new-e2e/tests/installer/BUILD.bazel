@@ -1,0 +1,24 @@
+load("@rules_go//go:def.bzl", "go_test")
+
+go_test(
+    name = "installer_test",
+    srcs = [
+        "all_packages_test.go",
+        "package_agent_test.go",
+        "package_apm_inject_test.go",
+        "package_installer_test.go",
+    ],
+    deps = [
+        "//pkg/util/testutil/flake",
+        "//test/new-e2e/pkg/e2e",
+        "//test/new-e2e/pkg/environments",
+        "//test/new-e2e/pkg/environments/aws/host",
+        "//test/new-e2e/pkg/utils/e2e/client",
+        "//test/new-e2e/tests/installer/host",
+        "@com_github_datadog_test_infra_definitions//components/os:go_default_library",
+        "@com_github_datadog_test_infra_definitions//scenarios/aws/ec2:go_default_library",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@in_gopkg_yaml_v2//:yaml_v2",
+    ],
+)

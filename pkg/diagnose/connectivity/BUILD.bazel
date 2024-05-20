@@ -1,0 +1,38 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "connectivity",
+    srcs = [
+        "core_endpoint.go",
+        "endpoint_info.go",
+        "hooks.go",
+        "metadata.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/diagnose/connectivity",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/flare/helpers",
+        "//comp/forwarder/defaultforwarder",
+        "//comp/forwarder/defaultforwarder/endpoints",
+        "//comp/forwarder/defaultforwarder/resolver",
+        "//comp/forwarder/defaultforwarder/transaction",
+        "//comp/logs/agent/config",
+        "//pkg/config",
+        "//pkg/config/utils",
+        "//pkg/diagnose/diagnosis",
+        "//pkg/logs/client/http",
+        "//pkg/util/scrubber",
+    ],
+)
+
+go_test(
+    name = "connectivity_test",
+    srcs = ["core_endpoint_test.go"],
+    embed = [":connectivity"],
+    deps = [
+        "//comp/forwarder/defaultforwarder",
+        "//comp/forwarder/defaultforwarder/endpoints",
+        "//pkg/config",
+        "@com_github_stretchr_testify//assert",
+    ],
+)

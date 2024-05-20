@@ -1,0 +1,17 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "senderhelper",
+    srcs = ["senderhelper.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/snmptraps/senderhelper",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/aggregator/demultiplexer",
+        "//comp/aggregator/demultiplexer/demultiplexerimpl",
+        "//comp/core",
+        "//comp/forwarder/defaultforwarder",
+        "//pkg/aggregator/mocksender",
+        "//pkg/aggregator/sender",
+        "@org_uber_go_fx//:fx",
+    ],
+)

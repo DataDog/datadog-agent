@@ -1,0 +1,174 @@
+load("@rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "memory",
+    srcs = [
+        "memory.go",
+        "memory_nix.go",
+        "memory_windows.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/memory",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/collector/check",
+        "//pkg/collector/corechecks",
+        "//pkg/util/optional",
+    ] + select({
+        "@rules_go//go/platform:aix": [
+            "//pkg/util/log",
+            "@com_github_shirou_gopsutil_v3//mem",
+        ],
+        "@rules_go//go/platform:android": [
+            "//pkg/util/log",
+            "@com_github_shirou_gopsutil_v3//mem",
+        ],
+        "@rules_go//go/platform:darwin": [
+            "//pkg/util/log",
+            "@com_github_shirou_gopsutil_v3//mem",
+        ],
+        "@rules_go//go/platform:dragonfly": [
+            "//pkg/util/log",
+            "@com_github_shirou_gopsutil_v3//mem",
+        ],
+        "@rules_go//go/platform:freebsd": [
+            "//pkg/util/log",
+            "@com_github_shirou_gopsutil_v3//mem",
+        ],
+        "@rules_go//go/platform:illumos": [
+            "//pkg/util/log",
+            "@com_github_shirou_gopsutil_v3//mem",
+        ],
+        "@rules_go//go/platform:ios": [
+            "//pkg/util/log",
+            "@com_github_shirou_gopsutil_v3//mem",
+        ],
+        "@rules_go//go/platform:js": [
+            "//pkg/util/log",
+            "@com_github_shirou_gopsutil_v3//mem",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/util/log",
+            "@com_github_shirou_gopsutil_v3//mem",
+        ],
+        "@rules_go//go/platform:netbsd": [
+            "//pkg/util/log",
+            "@com_github_shirou_gopsutil_v3//mem",
+        ],
+        "@rules_go//go/platform:openbsd": [
+            "//pkg/util/log",
+            "@com_github_shirou_gopsutil_v3//mem",
+        ],
+        "@rules_go//go/platform:plan9": [
+            "//pkg/util/log",
+            "@com_github_shirou_gopsutil_v3//mem",
+        ],
+        "@rules_go//go/platform:solaris": [
+            "//pkg/util/log",
+            "@com_github_shirou_gopsutil_v3//mem",
+        ],
+        "@rules_go//go/platform:windows": [
+            "//comp/core/autodiscovery/integration",
+            "//pkg/aggregator/sender",
+            "//pkg/util/pdhutil",
+            "//pkg/util/winutil",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+go_test(
+    name = "memory_test",
+    srcs = [
+        "memory_nix_test.go",
+        "memory_windows_test.go",
+    ],
+    embed = [":memory"],
+    deps = select({
+        "@rules_go//go/platform:aix": [
+            "//pkg/aggregator/mocksender",
+            "@com_github_shirou_gopsutil_v3//mem",
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+        ],
+        "@rules_go//go/platform:android": [
+            "//pkg/aggregator/mocksender",
+            "@com_github_shirou_gopsutil_v3//mem",
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+        ],
+        "@rules_go//go/platform:darwin": [
+            "//pkg/aggregator/mocksender",
+            "@com_github_shirou_gopsutil_v3//mem",
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+        ],
+        "@rules_go//go/platform:dragonfly": [
+            "//pkg/aggregator/mocksender",
+            "@com_github_shirou_gopsutil_v3//mem",
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+        ],
+        "@rules_go//go/platform:freebsd": [
+            "//pkg/aggregator/mocksender",
+            "@com_github_shirou_gopsutil_v3//mem",
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+        ],
+        "@rules_go//go/platform:illumos": [
+            "//pkg/aggregator/mocksender",
+            "@com_github_shirou_gopsutil_v3//mem",
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+        ],
+        "@rules_go//go/platform:ios": [
+            "//pkg/aggregator/mocksender",
+            "@com_github_shirou_gopsutil_v3//mem",
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+        ],
+        "@rules_go//go/platform:js": [
+            "//pkg/aggregator/mocksender",
+            "@com_github_shirou_gopsutil_v3//mem",
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/aggregator/mocksender",
+            "@com_github_shirou_gopsutil_v3//mem",
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+        ],
+        "@rules_go//go/platform:netbsd": [
+            "//pkg/aggregator/mocksender",
+            "@com_github_shirou_gopsutil_v3//mem",
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+        ],
+        "@rules_go//go/platform:openbsd": [
+            "//pkg/aggregator/mocksender",
+            "@com_github_shirou_gopsutil_v3//mem",
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+        ],
+        "@rules_go//go/platform:plan9": [
+            "//pkg/aggregator/mocksender",
+            "@com_github_shirou_gopsutil_v3//mem",
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+        ],
+        "@rules_go//go/platform:solaris": [
+            "//pkg/aggregator/mocksender",
+            "@com_github_shirou_gopsutil_v3//mem",
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+        ],
+        "@rules_go//go/platform:windows": [
+            "//comp/core/autodiscovery/integration",
+            "//pkg/aggregator/mocksender",
+            "//pkg/util/pdhutil",
+            "//pkg/util/winutil",
+            "@com_github_stretchr_testify//require",
+        ],
+        "//conditions:default": [],
+    }),
+)

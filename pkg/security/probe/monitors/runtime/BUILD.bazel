@@ -1,0 +1,23 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "runtime",
+    srcs = ["runtime_monitor.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/security/probe/monitors/runtime",
+    visibility = ["//visibility:public"],
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "//pkg/security/metrics",
+            "//pkg/security/utils",
+            "@com_github_datadog_datadog_go_v5//statsd",
+            "@com_github_shirou_gopsutil_v3//process",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/security/metrics",
+            "//pkg/security/utils",
+            "@com_github_datadog_datadog_go_v5//statsd",
+            "@com_github_shirou_gopsutil_v3//process",
+        ],
+        "//conditions:default": [],
+    }),
+)
