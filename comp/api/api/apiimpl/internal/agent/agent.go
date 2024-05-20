@@ -23,6 +23,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/api/api"
 	"github.com/DataDog/datadog-agent/comp/api/api/utils"
+	streamutils "github.com/DataDog/datadog-agent/comp/api/api/utils/stream"
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/gui"
@@ -212,7 +213,7 @@ func getStatus(w http.ResponseWriter, r *http.Request, statusComponent status.Co
 
 // TODO: logsAgent is a module so have to make the api component a module too
 func streamLogs(logsAgent logsAgent.Component) func(w http.ResponseWriter, r *http.Request) {
-	return utils.GetStreamFunc(func() utils.MessageReceiver { return logsAgent.GetMessageReceiver() }, "logs", "logs agent")
+	return streamutils.GetStreamFunc(func() streamutils.MessageReceiver { return logsAgent.GetMessageReceiver() }, "logs", "logs agent")
 }
 
 func getHealth(w http.ResponseWriter, _ *http.Request) {
