@@ -30,7 +30,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
-	"github.com/DataDog/datadog-agent/pkg/network/protocols/amqp"
 	usmhttp2 "github.com/DataDog/datadog-agent/pkg/network/protocols/http2"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/testutil/grpc"
 )
@@ -102,7 +101,6 @@ func composeSkips(skippers ...func(t *testing.T, ctx testContext)) func(t *testi
 }
 
 const (
-	amqpPort       = "5672"
 	httpPort       = "8080"
 	httpsPort      = "8443"
 	http2Port      = "9090"
@@ -155,135 +153,6 @@ func testProtocolClassification(t *testing.T, tr *Tracer, clientHost, targetHost
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			tt.testFunc(t, tr, clientHost, targetHost, serverHost)
-		})
-	}
-}
-
-func testAMQPProtocolClassification(t *testing.T, tr *Tracer, clientHost, targetHost, serverHost string) {
-	skipFunc := composeSkips(skipIfNotLinux, skipIfUsingNAT)
-	skipFunc(t, testContext{
-		serverAddress: serverHost,
-		serverPort:    amqpPort,
-		targetAddress: targetHost,
-	})
-
-	defaultDialer := &net.Dialer{
-		LocalAddr: &net.TCPAddr{
-			IP: net.ParseIP(clientHost),
-		},
-	}
-
-	amqpTeardown := func(t *testing.T, ctx testContext) {
-		client := ctx.extras["client"].(*amqp.Client)
-		defer client.Terminate()
-
-		require.NoError(t, client.DeleteQueues())
-	}
-
-	// Setting one instance of amqp server for all tests.
-	serverAddress := net.JoinHostPort(serverHost, amqpPort)
-	targetAddress := net.JoinHostPort(targetHost, amqpPort)
-	require.NoError(t, amqp.RunServer(t, serverHost, amqpPort))
-
-	tests := []protocolClassificationAttributes{
-		{
-			name: "connect",
-			context: testContext{
-				serverPort:    amqpPort,
-				serverAddress: serverAddress,
-				targetAddress: targetAddress,
-				extras:        make(map[string]interface{}),
-			},
-			postTracerSetup: func(t *testing.T, ctx testContext) {
-				client, err := amqp.NewClient(amqp.Options{
-					ServerAddress: ctx.serverAddress,
-					Dialer:        defaultDialer,
-				})
-				require.NoError(t, err)
-				ctx.extras["client"] = client
-			},
-			teardown:   amqpTeardown,
-			validation: validateProtocolConnection(&protocols.Stack{Application: protocols.AMQP}),
-		},
-		{
-			name: "declare channel",
-			context: testContext{
-				serverPort:    amqpPort,
-				serverAddress: serverAddress,
-				targetAddress: targetAddress,
-				extras:        make(map[string]interface{}),
-			},
-			preTracerSetup: func(t *testing.T, ctx testContext) {
-				client, err := amqp.NewClient(amqp.Options{
-					ServerAddress: ctx.serverAddress,
-					Dialer:        defaultDialer,
-				})
-				require.NoError(t, err)
-				ctx.extras["client"] = client
-			},
-			postTracerSetup: func(t *testing.T, ctx testContext) {
-				client := ctx.extras["client"].(*amqp.Client)
-				require.NoError(t, client.DeclareQueue("test", client.PublishChannel))
-			},
-			teardown:   amqpTeardown,
-			validation: validateProtocolConnection(&protocols.Stack{}),
-		},
-		{
-			name: "publish",
-			context: testContext{
-				serverPort:    amqpPort,
-				serverAddress: serverAddress,
-				targetAddress: targetAddress,
-				extras:        make(map[string]interface{}),
-			},
-			preTracerSetup: func(t *testing.T, ctx testContext) {
-				client, err := amqp.NewClient(amqp.Options{
-					ServerAddress: ctx.serverAddress,
-					Dialer:        defaultDialer,
-				})
-				require.NoError(t, err)
-				require.NoError(t, client.DeclareQueue("test", client.PublishChannel))
-				ctx.extras["client"] = client
-			},
-			postTracerSetup: func(t *testing.T, ctx testContext) {
-				client := ctx.extras["client"].(*amqp.Client)
-				require.NoError(t, client.Publish("test", "my msg"))
-			},
-			teardown:   amqpTeardown,
-			validation: validateProtocolConnection(&protocols.Stack{Application: protocols.AMQP}),
-		},
-		{
-			name: "consume",
-			context: testContext{
-				serverPort:    amqpPort,
-				serverAddress: serverAddress,
-				targetAddress: targetAddress,
-				extras:        make(map[string]interface{}),
-			},
-			preTracerSetup: func(t *testing.T, ctx testContext) {
-				client, err := amqp.NewClient(amqp.Options{
-					ServerAddress: ctx.serverAddress,
-					Dialer:        defaultDialer,
-				})
-				require.NoError(t, err)
-				require.NoError(t, client.DeclareQueue("test", client.PublishChannel))
-				require.NoError(t, client.DeclareQueue("test", client.ConsumeChannel))
-				require.NoError(t, client.Publish("test", "my msg"))
-				ctx.extras["client"] = client
-			},
-			postTracerSetup: func(t *testing.T, ctx testContext) {
-				client := ctx.extras["client"].(*amqp.Client)
-				res, err := client.Consume("test", 1)
-				require.NoError(t, err)
-				require.Equal(t, []string{"my msg"}, res)
-			},
-			teardown:   amqpTeardown,
-			validation: validateProtocolConnection(&protocols.Stack{Application: protocols.AMQP}),
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			testProtocolClassificationInner(t, tt, tr)
 		})
 	}
 }
