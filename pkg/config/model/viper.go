@@ -70,7 +70,7 @@ type safeConfig struct {
 	notificationReceivers []NotificationReceiver
 
 	// Proxy settings
-	proxies     *Proxy
+	proxies *Proxy
 
 	// configEnvVars is the set of env vars that are consulted for
 	// configuration values.
