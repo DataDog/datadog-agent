@@ -137,7 +137,6 @@ static __always_inline void cleanup_conn(void *ctx, conn_tuple_t *tup, struct so
     }
 }
 
-
 // This function is used to flush the conn_close_batch to the perf or ring buffer.
 static __always_inline void flush_tcp_failure(void *ctx, conn_tuple_t *tup, int failure_reason) {
     // Will hold the full connection data to send through the ring buffer
