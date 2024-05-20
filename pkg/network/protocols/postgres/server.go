@@ -9,23 +9,68 @@
 package postgres
 
 import (
+	"io"
+	"os"
 	"regexp"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
 	protocolsUtils "github.com/DataDog/datadog-agent/pkg/network/protocols/testutil"
 )
 
 // RunServer runs a postgres server in a docker container
-func RunServer(t testing.TB, serverAddr, serverPort string) error {
+func RunServer(t testing.TB, serverAddr, serverPort string, enableTLS bool) error {
 	t.Helper()
 
+	encryptionMode := "off"
+	if enableTLS {
+		encryptionMode = "on"
+	}
+
+	cert, key, err := testutil.GetCertsPaths()
+	require.NoError(t, err)
+
+	dir, _ := testutil.CurDir()
+	if err := linkFile(t, key, dir+"/server.key"); err != nil {
+		return err
+	}
+	if err := linkFile(t, cert, dir+"/server.crt"); err != nil {
+		return err
+	}
 	env := []string{
 		"POSTGRES_ADDR=" + serverAddr,
 		"POSTGRES_PORT=" + serverPort,
+		"ENCRYPTION_MODE=" + encryptionMode,
 	}
 
-	dir, _ := testutil.CurDir()
-
 	return protocolsUtils.RunDockerServer(t, "postgres", dir+"/testdata/docker-compose.yml", env, regexp.MustCompile(`.*\[1].*database system is ready to accept connections`), protocolsUtils.DefaultTimeout, 3)
+}
+
+func copyFile(src, dst string) error {
+	source, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer source.Close()
+
+	destination, err := os.Create(dst)
+	if err != nil {
+		return err
+	}
+	defer destination.Close()
+
+	_, err = io.Copy(destination, source)
+	return err
+}
+
+func linkFile(t testing.TB, src, dst string) error {
+	t.Helper()
+	_ = os.Remove(dst)
+	if err := copyFile(src, dst); err != nil {
+		return err
+	}
+	t.Cleanup(func() { os.Remove(dst) })
+	return nil
 }
