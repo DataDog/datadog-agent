@@ -63,33 +63,32 @@ func (s *packageApmInjectSuite) TestUninstall() {
 	s.assertDockerdConfigNotInstrumented()
 }
 
-func (s *packageApmInjectSuite) TestVerifications() {
+func (s *packageApmInjectSuite) TestDockerAdditionalFields() {
 	s.host.InstallDocker()
 	s.RunInstallScript()
 	defer s.Purge()
 	s.InstallAgentPackage()
 	s.InstallPackageLatest("datadog-apm-library-python")
 
-	// Broken /etc/ld.so.preload
-	s.host.SetPreloadBrokenLib()
+	// Broken /etc/docker/daemon.json syntax
+	s.host.SetBrokenDockerConfig()
 	err := s.InstallInjectorPackageTempWithError()
 	require.Error(s.T(), err)
 	s.assertLDPreloadNotInstrumented()
 	s.assertDockerdConfigNotInstrumented()
-	s.host.RemovePreloadBrokenLib()
-
-	// Broken /etc/docker/daemon.json
-	s.host.SetBrokenDockerConfig()
-	err = s.InstallInjectorPackageTempWithError()
-	require.Error(s.T(), err)
-	s.assertLDPreloadNotInstrumented()
-	s.assertDockerdConfigNotInstrumented()
 	s.host.RemoveBrokenDockerConfig()
+}
+
+func (s *packageApmInjectSuite) TestDockerBrokenJSON() {
+	s.host.InstallDocker()
+	s.RunInstallScript()
+	defer s.Purge()
+	s.InstallAgentPackage()
+	s.InstallPackageLatest("datadog-apm-library-python")
 
 	// Additional fields in /etc/docker/daemon.json
-	// not supported starting docker 23
 	s.host.SetBrokenDockerConfigAdditionalFields()
-	err = s.InstallInjectorPackageTempWithError()
+	err := s.InstallInjectorPackageTempWithError()
 	require.Error(s.T(), err)
 	s.assertLDPreloadNotInstrumented()
 	s.assertDockerdConfigNotInstrumented()

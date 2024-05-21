@@ -16,7 +16,6 @@ import (
 	"os"
 	"os/exec"
 	"path"
-	"strconv"
 	"strings"
 	"time"
 
@@ -51,12 +50,7 @@ func (a *apmInjectorInstaller) setupDocker(ctx context.Context) (rollback func()
 		return reloadDockerConfig(ctx)
 	}
 
-	err = reloadDockerConfig(ctx)
-	if err != nil {
-		return rollback, err
-	}
-
-	return rollback, a.verifyDockerRuntime()
+	return rollback, reloadDockerConfig(ctx)
 }
 
 func (a *apmInjectorInstaller) uninstallDocker(ctx context.Context) error {
@@ -127,47 +121,11 @@ func (a *apmInjectorInstaller) deleteDockerConfigContent(previousContent []byte)
 	return dockerConfigJSON, nil
 }
 
-// verifyDockerConfig validates the docker daemon configuration for latest
-// docker versions (>=23.0.0)
-// For docker versions <23.0.0, the validation is skipped but we rely on the post-reload
-// verification to check if the configuration has been applied properly
-func (a *apmInjectorInstaller) verifyDockerConfig(path string) error {
-	cmd := exec.Command("docker", "version", "-f", "{{.Client.Version}}")
-	versionBuffer := new(bytes.Buffer)
-	cmd.Stdout = versionBuffer
-	err := cmd.Run()
-	if err != nil {
-		log.Warnf("failed to get docker version: %s, skipping verification", err)
-		return nil
-	}
-	dockerVersionSplit := strings.Split(versionBuffer.String(), ".")
-	if len(dockerVersionSplit) < 3 {
-		log.Warnf("failed to parse docker version %s, skipping verification", versionBuffer.String())
-	}
-	majorDockerVersionInt, err := strconv.Atoi(dockerVersionSplit[0])
-	if err != nil {
-		log.Warnf("failed to parse docker version %s: %s, skipping verification", dockerVersionSplit[0], err)
-		return nil
-	}
-	if majorDockerVersionInt < 23 {
-		log.Warnf("docker version %d is not supported for verification, skipping", majorDockerVersionInt)
-		return nil
-	}
-
-	cmd = exec.Command("dockerd", "--validate", "--config-file", path)
-	buf := new(bytes.Buffer)
-	cmd.Stderr = buf
-	err = cmd.Run()
-	if err != nil {
-		return fmt.Errorf("failed to validate docker config (%v): %s", err, buf.String())
-	}
-	return nil
-}
-
 // verifyDockerRuntime validates that docker runtime configuration contains
-// a path to the injector runtime. This must be done because we can't always
-// verify the configuration befor a reload depending on the docker version
+// a path to the injector runtime.
 // As the reload is eventually consistent we have to retry a few times
+//
+// This method is valid since at least Docker 17.03 (last update 2018-08-30)
 func (a *apmInjectorInstaller) verifyDockerRuntime() (err error) {
 	for i := 0; i < 3; i++ {
 		if i > 0 {
@@ -177,13 +135,16 @@ func (a *apmInjectorInstaller) verifyDockerRuntime() (err error) {
 		var outb bytes.Buffer
 		cmd.Stdout = &outb
 		err = cmd.Run()
+		if err != nil {
+			if i < 2 {
+				log.Debug("failed to verify docker runtime, retrying: ", err)
+			} else {
+				log.Warn("failed to verify docker runtime: ", err)
+			}
+		}
 		if strings.TrimSpace(outb.String()) == "dd-shim" {
 			return nil
 		}
-	}
-	if err != nil {
-		// Only return the latest error
-		log.Warn("failed to verify docker runtime: ", err)
 	}
 	return fmt.Errorf("docker default runtime has not been set to injector docker runtime")
 }

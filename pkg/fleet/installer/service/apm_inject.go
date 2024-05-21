@@ -60,10 +60,10 @@ func newAPMInjectorInstaller(path string) *apmInjectorInstaller {
 	a := &apmInjectorInstaller{
 		installPath: path,
 	}
-	a.ldPreloadFileInstrument = newFileMutator(ldSoPreloadPath, a.setLDPreloadConfigContent, a.verifyLDPreloadFile, nil)
+	a.ldPreloadFileInstrument = newFileMutator(ldSoPreloadPath, a.setLDPreloadConfigContent, nil, nil)
 	a.ldPreloadFileUninstrument = newFileMutator(ldSoPreloadPath, a.deleteLDPreloadConfigContent, nil, nil)
 	a.agentConfigSockets = newFileMutator(datadogConfigPath, a.setAgentConfigContent, nil, nil)
-	a.dockerConfigInstrument = newFileMutator(dockerDaemonPath, a.setDockerConfigContent, a.verifyDockerConfig, nil)
+	a.dockerConfigInstrument = newFileMutator(dockerDaemonPath, a.setDockerConfigContent, nil, nil)
 	a.dockerConfigUninstrument = newFileMutator(dockerDaemonPath, a.deleteDockerConfigContent, nil, nil)
 	return a
 }
@@ -79,42 +79,53 @@ type apmInjectorInstaller struct {
 
 // Setup sets up the APM injector
 func (a *apmInjectorInstaller) Setup(ctx context.Context) (err error) {
-	var rollbackAgentConfig, rollbackLDPreload, rollbackDockerConfig func() error
+	rollbackAgentConfig, err := a.setupSockets(ctx)
+	if err != nil {
+		return err
+	}
 	defer func() {
 		if err != nil {
-			// todo propagate rollbacks until success of package installation
-			if rollbackLDPreload != nil {
-				if err := rollbackLDPreload(); err != nil {
-					log.Warnf("Failed to rollback ld preload: %v", err)
-				}
-			}
-			if rollbackAgentConfig != nil {
-				if err := rollbackAgentConfig(); err != nil {
-					log.Warnf("Failed to rollback agent config: %v", err)
-				}
-			}
-			if rollbackDockerConfig != nil {
-				if err := rollbackDockerConfig(); err != nil {
-					log.Warnf("Failed to rollback docker config: %v", err)
-				}
+			if err := rollbackAgentConfig(); err != nil {
+				log.Warnf("Failed to rollback agent config: %v", err)
 			}
 		}
 	}()
 
-	rollbackAgentConfig, err = a.setupSockets(ctx)
-	if err != nil {
+	// Check if the shared library is working before adding it to the preload
+	if err := a.verifySharedLib(path.Join(a.installPath, "inject", "launcher.preload.so")); err != nil {
 		return err
 	}
 
-	rollbackLDPreload, err = a.ldPreloadFileInstrument.mutate()
+	rollbackLDPreload, err := a.ldPreloadFileInstrument.mutate()
 	if err != nil {
 		return err
 	}
+	defer func() {
+		if err != nil {
+			if err := rollbackLDPreload(); err != nil {
+				log.Warnf("Failed to rollback agent config: %v", err)
+			}
+		}
+	}()
 
 	// TODO only instrument docker if DD_APM_INSTRUMENTATION_ENABLED=docker
-	// is set
-	rollbackDockerConfig, err = a.setupDocker(ctx)
-	return err
+	rollbackDockerConfig, err := a.setupDocker(ctx)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if err != nil {
+			if err := rollbackDockerConfig(); err != nil {
+				log.Warnf("Failed to rollback agent config: %v", err)
+			}
+		}
+	}()
+
+	// Verify that the docker runtime is as expected
+	if err := a.verifyDockerRuntime(); err != nil {
+		return err
+	}
+	return nil
 }
 
 func (a *apmInjectorInstaller) Remove(ctx context.Context) {
@@ -217,23 +228,13 @@ func (a *apmInjectorInstaller) deleteLDPreloadConfigContent(ldSoPreload []byte) 
 	return nil, fmt.Errorf("failed to remove %s from %s", launcherPreloadPath, ldSoPreloadPath)
 }
 
-// verifyLDPreloadFile verifies the LD preload file by:
-// 1. Parsing it
-// 2. Using the LD_PRELOAD env var, checking every single lib in the file to open a simple shell
-func (a *apmInjectorInstaller) verifyLDPreloadFile(path string) error {
-	file, err := os.ReadFile(path)
-	if err != nil {
-		return err
-	}
-	libs := strings.Fields(string(file))
-	for _, lib := range libs {
-		cmd := exec.Command("sh", "-c", "/bin/echo 1")
-		cmd.Env = append(os.Environ(), "LD_PRELOAD="+lib)
-		buf := new(bytes.Buffer)
-		cmd.Stderr = buf
-		if err := cmd.Run(); err != nil {
-			return fmt.Errorf("failed to verify injected lib %s (%w): %s", lib, err, buf.String())
-		}
+func (a *apmInjectorInstaller) verifySharedLib(lib_path string) error {
+	cmd := exec.Command("/bin/echo", "1")
+	cmd.Env = append(os.Environ(), "LD_PRELOAD="+lib_path)
+	var buf bytes.Buffer
+	cmd.Stderr = &buf
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("failed to verify injected lib %s (%w): %s", lib_path, err, buf.String())
 	}
 	return nil
 }
