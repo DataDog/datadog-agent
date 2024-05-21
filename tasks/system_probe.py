@@ -42,7 +42,12 @@ NPM_TAG = "npm"
 
 KITCHEN_DIR = os.getenv('DD_AGENT_TESTING_DIR') or os.path.normpath(os.path.join(os.getcwd(), "test", "kitchen"))
 KITCHEN_ARTIFACT_DIR = os.path.join(KITCHEN_DIR, "site-cookbooks", "dd-system-probe-check", "files", "default", "tests")
-TEST_PACKAGES_LIST = ["./pkg/ebpf/...", "./pkg/network/...", "./pkg/collector/corechecks/ebpf/..."]
+TEST_PACKAGES_LIST = [
+    "./pkg/ebpf/...",
+    "./pkg/network/...",
+    "./pkg/collector/corechecks/ebpf/...",
+    "./pkg/process/monitor/...",
+]
 TEST_PACKAGES = " ".join(TEST_PACKAGES_LIST)
 TEST_TIMEOUTS = {
     "pkg/network/tracer$": "0",
@@ -413,6 +418,9 @@ def ninja_cgo_type_files(nw):
             "pkg/network/protocols/kafka/types.go": [
                 "pkg/network/ebpf/c/tracer/tracer.h",
                 "pkg/network/ebpf/c/protocols/kafka/types.h",
+            ],
+            "pkg/network/protocols/postgres/types.go": [
+                "pkg/network/ebpf/c/protocols/postgres/types.h",
             ],
             "pkg/ebpf/telemetry/types.go": [
                 "pkg/ebpf/c/telemetry_types.h",
@@ -791,7 +799,7 @@ def go_package_dirs(packages, build_tags):
 
     target_packages = []
     for pkg in packages:
-        target_packages += (
+        dirs = (
             check_output(
                 f"go list -find -f \"{{{{ .Dir }}}}\" -mod=mod -tags \"{','.join(build_tags)}\" {pkg}",
                 shell=True,
@@ -800,6 +808,9 @@ def go_package_dirs(packages, build_tags):
             .strip()
             .split("\n")
         )
+        # Some packages may not be available on all architectures, ignore them
+        # instead of reporting empty path names
+        target_packages += [dir for dir in dirs if len(dir) > 0]
 
     return target_packages
 
@@ -1535,9 +1546,23 @@ def process_btfhub_archive(ctx, branch="main"):
     output_dir = os.getcwd()
     with tempfile.TemporaryDirectory() as temp_dir:
         with ctx.cd(temp_dir):
-            ctx.run(
+            clone_cmd = (
                 f"git clone --depth=1 --single-branch --branch={branch} https://github.com/DataDog/btfhub-archive.git"
             )
+            retries = 2
+            downloaded = False
+
+            while not downloaded and retries > 0:
+                res = ctx.run(clone_cmd, warn=True)
+                downloaded = res is not None and res.ok
+
+                if not downloaded:
+                    retries -= 1
+                    print(f"Failed to clone btfhub-archive. Remaining retries: {retries}")
+
+            if not downloaded:
+                raise Exit("Failed to clone btfhub-archive")
+
             with ctx.cd("btfhub-archive"):
                 # iterate over all top-level directories, which are platforms (amzn, ubuntu, etc.)
                 with os.scandir(ctx.cwd) as pit:
@@ -1780,6 +1805,7 @@ def save_build_outputs(ctx, destfile):
 
     absdest = os.path.abspath(destfile)
     count = 0
+    outfiles = []
     with tempfile.TemporaryDirectory() as stagedir:
         with open("compile_commands.json") as compiledb:
             for outputitem in json.load(compiledb):
@@ -1794,8 +1820,13 @@ def save_build_outputs(ctx, destfile):
                 outdir = os.path.join(stagedir, filedir)
                 ctx.run(f"mkdir -p {outdir}")
                 ctx.run(f"cp {outputitem['output']} {outdir}/")
+                outfiles.append(outputitem['output'])
                 count += 1
 
         if count == 0:
             raise Exit(message="no build outputs captured")
         ctx.run(f"tar -C {stagedir} -cJf {absdest} .")
+
+    outfiles.sort()
+    for outfile in outfiles:
+        ctx.run(f"sha256sum {outfile} >> {absdest}.sum")

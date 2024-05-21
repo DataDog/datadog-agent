@@ -304,7 +304,7 @@ func (e *InvalidateDentryEvent) UnmarshalBinary(data []byte) (int, error) {
 
 // UnmarshalBinary unmarshalls a binary representation of itself
 func (e *ArgsEnvsEvent) UnmarshalBinary(data []byte) (int, error) {
-	if len(data) < MaxArgEnvSize+8 {
+	if len(data) < 8 {
 		return 0, ErrNotEnoughData
 	}
 
@@ -313,9 +313,20 @@ func (e *ArgsEnvsEvent) UnmarshalBinary(data []byte) (int, error) {
 	if e.Size > MaxArgEnvSize {
 		e.Size = MaxArgEnvSize
 	}
-	SliceToArray(data[8:MaxArgEnvSize+8], e.ValuesRaw[:])
 
-	return MaxArgEnvSize + 8, nil
+	argsEnvSize := int(e.Size)
+	data = data[8:]
+	if len(data) < argsEnvSize {
+		return 8, ErrNotEnoughData
+	}
+
+	for i := range e.ValuesRaw {
+		e.ValuesRaw[i] = 0
+	}
+
+	SliceToArray(data[:argsEnvSize], e.ValuesRaw[:argsEnvSize])
+
+	return 8 + argsEnvSize, nil
 }
 
 // UnmarshalBinary unmarshals the given content
@@ -777,16 +788,16 @@ func (e *MMapEvent) UnmarshalBinary(data []byte) (int, error) {
 		return 0, err
 	}
 
-	if len(data)-read < 28 {
+	if len(data)-read < 40 {
 		return 0, ErrNotEnoughData
 	}
 
 	e.Addr = binary.NativeEndian.Uint64(data[read : read+8])
 	e.Offset = binary.NativeEndian.Uint64(data[read+8 : read+16])
-	e.Len = binary.NativeEndian.Uint32(data[read+16 : read+20])
-	e.Protection = int(binary.NativeEndian.Uint32(data[read+20 : read+24]))
-	e.Flags = int(binary.NativeEndian.Uint32(data[read+24 : read+28]))
-	return read + 28, nil
+	e.Len = binary.NativeEndian.Uint64(data[read+16 : read+24])
+	e.Protection = binary.NativeEndian.Uint64(data[read+24 : read+32])
+	e.Flags = binary.NativeEndian.Uint64(data[read+32 : read+40])
+	return read + 40, nil
 }
 
 // UnmarshalBinary unmarshals a binary representation of itself

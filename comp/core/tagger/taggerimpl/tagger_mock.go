@@ -9,9 +9,13 @@
 package taggerimpl
 
 import (
+	"net/http"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/comp/core"
+	"github.com/DataDog/datadog-agent/comp/api/api"
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl/local"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
@@ -24,11 +28,30 @@ type MockTaggerClient struct {
 	*TaggerClient
 }
 
+// mockHandleRequest is a simple mocked http.Handler function to test the route is registered correctly on the api component
+func (m *MockTaggerClient) mockHandleRequest(w http.ResponseWriter, _ *http.Request) {
+	w.Write([]byte("OK"))
+}
+
+// MockProvides is a mock of the tagger.Component provides struct to test endpoints register properly
+type MockProvides struct {
+	fx.Out
+
+	Comp     tagger.Mock
+	Endpoint api.AgentEndpointProvider
+}
+
+var _ tagger.Component = (*MockTaggerClient)(nil)
+
 // NewMock returns a MockTagger
-func NewMock(deps dependencies) tagger.Mock {
-	taggerClient := newTaggerClient(deps)
-	return &MockTaggerClient{
+func NewMock(deps dependencies) MockProvides {
+	taggerClient := newTaggerClient(deps).Comp
+	c := &MockTaggerClient{
 		TaggerClient: taggerClient.(*TaggerClient),
+	}
+	return MockProvides{
+		Comp:     c,
+		Endpoint: api.NewAgentEndpointProvider(c.mockHandleRequest, "/tagger-list", "GET"),
 	}
 }
 
@@ -36,7 +59,11 @@ func NewMock(deps dependencies) tagger.Mock {
 func MockModule() fxutil.Module {
 	return fxutil.Component(
 		fx.Provide(NewMock),
-		core.MockBundle(),
+		fx.Supply(config.Params{}),
+		fx.Supply(logimpl.Params{}),
+		logimpl.MockModule(),
+		config.MockModule(),
+		sysprobeconfigimpl.MockModule(),
 		fx.Supply(tagger.NewFakeTaggerParams()),
 		fx.Supply(workloadmeta.NewParams()),
 		workloadmeta.Module(),

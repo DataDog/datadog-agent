@@ -25,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclient"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclientparams"
 	secrets "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-shared-components/secretsutils"
 )
 
@@ -88,6 +89,12 @@ func (v *configRefreshSuite) TestConfigRefresh() {
 			agentparams.WithSecurityAgentConfig(securityAgentConfig),
 			agentparams.WithSkipAPIKeyInConfig(), // api_key is already provided in the config
 		),
+		awshost.WithAgentClientOptions(
+			agentclientparams.WithAuthTokenPath(authTokenFilePath),
+			agentclientparams.WithTraceAgentOnPort(apmCmdPort),
+			agentclientparams.WithProcessAgentOnPort(processCmdPort),
+			agentclientparams.WithSecurityAgentOnPort(securityCmdPort),
+		),
 	))
 
 	// get auth token
@@ -97,11 +104,7 @@ func (v *configRefreshSuite) TestConfigRefresh() {
 
 	// check that the agents are using the first key
 	// initially they all resolve it using the secret resolver
-	//
-	// we have to use an Eventually here because the test can start before the non-core agents are ready
-	require.EventuallyWithT(v.T(), func(t *assert.CollectT) {
-		assertAgentsUseKey(t, v.Env().RemoteHost, authtoken, apiKey1)
-	}, 2*time.Minute, 10*time.Second)
+	assertAgentsUseKey(v.T(), v.Env().RemoteHost, authtoken, apiKey1)
 
 	// update api_key
 	v.T().Log("Updating the api key")

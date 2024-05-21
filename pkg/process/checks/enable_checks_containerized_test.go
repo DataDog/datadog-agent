@@ -15,6 +15,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector"
+	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/npcollectorimpl"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -36,7 +38,7 @@ func TestContainerCheck(t *testing.T) {
 		cfg.SetWithoutSource("process_config.disable_realtime_checks", false)
 		config.SetFeatures(t, config.Docker)
 
-		enabledChecks := getEnabledChecks(t, cfg, config.MockSystemProbe(t), deps.WMeta)
+		enabledChecks := getEnabledChecks(t, cfg, config.MockSystemProbe(t), deps.WMeta, deps.NpCollector)
 		assertContainsCheck(t, enabledChecks, ContainerCheckName)
 		assertContainsCheck(t, enabledChecks, RTContainerCheckName)
 		assertNotContainsCheck(t, enabledChecks, ProcessCheckName)
@@ -50,7 +52,7 @@ func TestContainerCheck(t *testing.T) {
 		cfg.SetWithoutSource("process_config.disable_realtime_checks", true)
 		config.SetFeatures(t, config.Docker)
 
-		enabledChecks := getEnabledChecks(t, cfg, config.MockSystemProbe(t), deps.WMeta)
+		enabledChecks := getEnabledChecks(t, cfg, config.MockSystemProbe(t), deps.WMeta, deps.NpCollector)
 		assertContainsCheck(t, enabledChecks, ContainerCheckName)
 		assertNotContainsCheck(t, enabledChecks, RTContainerCheckName)
 	})
@@ -61,7 +63,7 @@ func TestContainerCheck(t *testing.T) {
 		cfg.SetWithoutSource("process_config.process_collection.enabled", false)
 		cfg.SetWithoutSource("process_config.container_collection.enabled", true)
 
-		enabledChecks := getEnabledChecks(t, cfg, config.MockSystemProbe(t), deps.WMeta)
+		enabledChecks := getEnabledChecks(t, cfg, config.MockSystemProbe(t), deps.WMeta, deps.NpCollector)
 
 		assertNotContainsCheck(t, enabledChecks, ContainerCheckName)
 		assertNotContainsCheck(t, enabledChecks, RTContainerCheckName)
@@ -74,7 +76,7 @@ func TestContainerCheck(t *testing.T) {
 		cfg.SetWithoutSource("process_config.container_collection.enabled", true)
 		config.SetFeatures(t, config.Docker)
 
-		enabledChecks := getEnabledChecks(t, cfg, config.MockSystemProbe(t), deps.WMeta)
+		enabledChecks := getEnabledChecks(t, cfg, config.MockSystemProbe(t), deps.WMeta, deps.NpCollector)
 		assertContainsCheck(t, enabledChecks, ProcessCheckName)
 		assertNotContainsCheck(t, enabledChecks, ContainerCheckName)
 		assertNotContainsCheck(t, enabledChecks, RTContainerCheckName)
@@ -91,12 +93,12 @@ func TestContainerCheck(t *testing.T) {
 		config.SetFeatures(t, config.Docker)
 
 		flavor.SetFlavor("process_agent")
-		enabledChecks := getEnabledChecks(t, cfg, scfg, deps.WMeta)
+		enabledChecks := getEnabledChecks(t, cfg, scfg, deps.WMeta, deps.NpCollector)
 		assertNotContainsCheck(t, enabledChecks, ContainerCheckName)
 		assertNotContainsCheck(t, enabledChecks, RTContainerCheckName)
 
 		flavor.SetFlavor("agent")
-		enabledChecks = getEnabledChecks(t, cfg, scfg, deps.WMeta)
+		enabledChecks = getEnabledChecks(t, cfg, scfg, deps.WMeta, deps.NpCollector)
 		assertContainsCheck(t, enabledChecks, ContainerCheckName)
 		assertContainsCheck(t, enabledChecks, RTContainerCheckName)
 	})
@@ -129,7 +131,7 @@ func TestDisableRealTime(t *testing.T) {
 			mockConfig.SetWithoutSource("process_config.process_discovery.enabled", false) // Not an RT check so we don't care
 			config.SetFeatures(t, config.Docker)
 
-			enabledChecks := getEnabledChecks(t, mockConfig, config.MockSystemProbe(t), deps.WMeta)
+			enabledChecks := getEnabledChecks(t, mockConfig, config.MockSystemProbe(t), deps.WMeta, deps.NpCollector)
 			assert.EqualValues(tc.expectedChecks, enabledChecks)
 		})
 	}
@@ -137,9 +139,15 @@ func TestDisableRealTime(t *testing.T) {
 
 type deps struct {
 	fx.In
-	WMeta workloadmeta.Component
+	WMeta       workloadmeta.Component
+	NpCollector npcollector.Component
 }
 
 func createDeps(t *testing.T) deps {
-	return fxutil.Test[deps](t, core.MockBundle(), workloadmeta.MockModule(), fx.Supply(workloadmeta.NewParams()))
+	return fxutil.Test[deps](t,
+		core.MockBundle(),
+		workloadmeta.MockModule(),
+		fx.Supply(workloadmeta.NewParams()),
+		npcollectorimpl.MockModule(),
+	)
 }
