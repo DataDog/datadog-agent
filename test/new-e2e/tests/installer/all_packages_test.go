@@ -149,7 +149,7 @@ func (s *packageBaseSuite) SetupSuite() {
 }
 
 func (s *packageBaseSuite) RunInstallScript() {
-	// fixme: use the official install & remove manual creation of /etc/datadog-agent/datadog.yaml
+	// fixme: use the official install
 	s.Env().RemoteHost.MustExecute(`bash -c "$(curl -L https://storage.googleapis.com/updater-dev/install_script_agent7.sh)"`, client.WithEnvVariables(s.env))
 	datadogConfig := map[string]interface{}{
 		"api_key": "deadbeefdeadbeefdeadbeefdeadbeef",
@@ -163,12 +163,10 @@ func (s *packageBaseSuite) RunInstallScript() {
 	}
 	rawDatadogConfig, err := yaml.Marshal(datadogConfig)
 	require.NoError(s.T(), err)
-	s.Env().RemoteHost.MustExecute("sudo mkdir -p /etc/datadog-agent")
 	s.Env().RemoteHost.MustExecute(fmt.Sprintf("echo '%s' | sudo tee /etc/datadog-agent/datadog.yaml", string(rawDatadogConfig)))
 	_, err = s.Env().RemoteHost.Execute("sudo datadog-installer version")
 	// Right now the install script can fail installing the installer silently, so we need to do this check or it will fail later in a way that is hard to debug
 	require.NoErrorf(s.T(), err, "installer not properly installed. logs: \n%s\n%s", s.Env().RemoteHost.MustExecute("cat /tmp/datadog-installer-stdout.log"), s.Env().RemoteHost.MustExecute("cat /tmp/datadog-installer-stderr.log"))
-	s.Env().RemoteHost.MustExecute("sudo chown -R dd-agent:dd-agent /etc/datadog-agent")
 }
 
 func (s *packageBaseSuite) InstallAgentPackage() {
@@ -178,15 +176,7 @@ func (s *packageBaseSuite) InstallAgentPackage() {
 
 // TODO: This is a hack to install a working version of apm-inject
 func (s *packageBaseSuite) InstallInjectorPackageTemp() {
-	s.Env().RemoteHost.MustExecute(`echo "DD_APM_RECEIVER_SOCKET=/var/tmp/apm.socket" | sudo tee -a /etc/environment`)
-	if s.Env().FakeIntake != nil {
-		s.Env().RemoteHost.MustExecute(fmt.Sprintf(`echo "DD_APM_DD_URL=%s" | sudo tee -a /etc/environment`, s.Env().FakeIntake.URL))
-	}
-	s.Env().RemoteHost.MustExecute("sudo mkdir -p /etc/systemd/system/datadog-agent-trace.service.d")
-	s.Env().RemoteHost.MustExecute(`printf "[Service]\nEnvironmentFile=-/etc/environment\n" | sudo tee /etc/systemd/system/datadog-agent-trace.service.d/inject.conf`)
-	s.Env().RemoteHost.MustExecute("sudo systemctl daemon-reload")
-	s.Env().RemoteHost.MustExecute("sudo -E datadog-installer install oci://669783387624.dkr.ecr.us-east-1.amazonaws.com/apm-inject-package:pipeline-34163111", client.WithEnvVariables(s.env))
-	s.Env().RemoteHost.MustExecute(`sudo systemctl restart datadog-agent-trace`)
+	s.Env().RemoteHost.MustExecute("sudo -E datadog-installer install oci://669783387624.dkr.ecr.us-east-1.amazonaws.com/apm-inject-package:pipeline-34717565", client.WithEnvVariables(s.env))
 }
 
 // TODO: This is a hack to install a working version of apm-inject
