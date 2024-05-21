@@ -9,6 +9,7 @@ import (
 	"encoding/xml"
 	"io/fs"
 	"path"
+	"regexp"
 	"strings"
 
 	"go.uber.org/zap"
@@ -22,7 +23,8 @@ const (
 
 type (
 	tomcatExtractor struct {
-		ctx DetectionContext
+		ctx         DetectionContext
+		fileMatcher regexp.Regexp
 	}
 
 	tomcatServerXML struct {
