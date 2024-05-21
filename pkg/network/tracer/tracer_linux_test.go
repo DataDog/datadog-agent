@@ -2347,7 +2347,7 @@ func (s *TracerSuite) TestTCPFailureConnectionTimeout() {
 	tr := setupTracer(t, cfg)
 
 	srvAddr := "127.0.0.1:10000"
-	conn, err := net.DialTimeout("tcp", srvAddr, 10000*time.Millisecond)
+	conn, err := net.DialTimeout("tcp", srvAddr, 1000*time.Millisecond)
 
 	if err == nil {
 		conn.Close()
@@ -2362,7 +2362,7 @@ func (s *TracerSuite) TestTCPFailureConnectionTimeout() {
 		// 110 is the errno for ETIMEDOUT
 		found := findFailedConnectionByRemoteAddr(srvAddr, conns, 110)
 		return found
-	}, 30*time.Second, 500*time.Millisecond, "Failed connection not recorded properly")
+	}, 3*time.Second, 500*time.Millisecond, "Failed connection not recorded properly")
 }
 
 func (s *TracerSuite) TestTCPFailureConnectionRefused() {
@@ -2397,6 +2397,9 @@ func (s *TracerSuite) TestTCPFailureConnectionReset() {
 	srv := NewTCPServer(func(c net.Conn) {
 		if tcpConn, ok := c.(*net.TCPConn); ok {
 			tcpConn.SetLinger(0)
+			buf := make([]byte, 10) // Slightly larger buffer
+			_, _ = c.Read(buf)      // Attempt to read
+			time.Sleep(10 * time.Millisecond)
 		}
 		c.Close()
 	})
