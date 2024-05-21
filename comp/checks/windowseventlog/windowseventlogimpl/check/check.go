@@ -55,7 +55,7 @@ type Check struct {
 	excludedMessages []*regexp.Regexp
 
 	// event metrics
-	eventPriority agentEvent.EventPriority
+	eventPriority agentEvent.Priority
 
 	// security profile
 	ddSecurityEventsFilter eventdatafilter.Filter
