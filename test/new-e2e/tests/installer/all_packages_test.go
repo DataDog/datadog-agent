@@ -176,7 +176,7 @@ func (s *packageBaseSuite) InstallAgentPackage() {
 
 // TODO: This is a hack to install a working version of apm-inject
 func (s *packageBaseSuite) InstallInjectorPackageTemp() {
-	s.Env().RemoteHost.MustExecute("sudo -E datadog-installer install oci://669783387624.dkr.ecr.us-east-1.amazonaws.com/apm-inject-package:pipeline-34712784", client.WithEnvVariables(s.env))
+	s.Env().RemoteHost.MustExecute("sudo -E datadog-installer install oci://669783387624.dkr.ecr.us-east-1.amazonaws.com/apm-inject-package:pipeline-34717565", client.WithEnvVariables(s.env))
 }
 
 func (s *packageBaseSuite) InstallPackageLatest(pkg string) {

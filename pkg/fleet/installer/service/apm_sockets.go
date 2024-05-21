@@ -23,7 +23,7 @@ const (
 	apmInstallerSocket    = "/var/run/datadog/installer/apm.socket"
 	statsdInstallerSocket = "/var/run/datadog/installer/dsd.socket"
 	apmInjectOldPath      = "/opt/datadog/apm/inject"
-	envFilePath           = "/var/run/datadog/installer/sockets.env"
+	envFilePath           = "/var/run/datadog/installer/environment"
 )
 
 // Overridden in tests
