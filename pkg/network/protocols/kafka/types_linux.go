@@ -24,6 +24,10 @@ type EbpfTx struct {
 	Transaction KafkaTransaction
 }
 
+type KafkaFetchResponseRecordBatchesArray struct {
+	Bytes  uint32
+	Offset uint32
+}
 type KafkaTransactionKey struct {
 	Tuple     ConnTuple
 	Id        int32
@@ -40,15 +44,20 @@ type KafkaTransaction struct {
 }
 
 type KafkaResponseContext struct {
-	State                    uint8
-	Remainder                uint8
-	Remainder_buf            [4]int8
-	Record_batches_num_bytes int32
-	Record_batch_length      int32
-	Expected_tcp_seq         uint32
-	Carry_over_offset        int32
-	Partitions_count         uint32
-	Transaction              KafkaTransaction
+	Transaction                 KafkaTransaction
+	State                       uint8
+	Remainder                   uint8
+	Varint_position             uint8
+	Restart_at_partition_end    uint8
+	Remainder_buf               [4]int8
+	Record_batches_num_bytes    int32
+	Record_batch_length         int32
+	Expected_tcp_seq            uint32
+	Carry_over_offset           int32
+	Partitions_count            uint32
+	Varint_value                uint32
+	Record_batches_arrays_idx   uint32
+	Record_batches_arrays_count uint32
 }
 
 type RawKernelTelemetry struct {

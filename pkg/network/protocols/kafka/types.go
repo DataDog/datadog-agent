@@ -21,6 +21,7 @@ type ConnTuple C.conn_tuple_t
 
 type EbpfTx C.kafka_event_t
 
+type KafkaFetchResponseRecordBatchesArray C.kafka_fetch_response_record_batches_array_t
 type KafkaTransactionKey C.kafka_transaction_key_t
 type KafkaTransaction C.kafka_transaction_t
 

@@ -2,7 +2,7 @@
 #define __KAFKA_DEFS_H
 
 // Reference: https://kafka.apache.org/protocol.html#protocol_messages
-#define KAFKA_MAX_SUPPORTED_FETCH_REQUEST_API_VERSION 11
+#define KAFKA_MAX_SUPPORTED_FETCH_REQUEST_API_VERSION 12
 #define KAFKA_MAX_SUPPORTED_PRODUCE_REQUEST_API_VERSION 8
 
 #define KAFKA_MIN_LENGTH (sizeof(kafka_header_t))

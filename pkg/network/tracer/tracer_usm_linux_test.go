@@ -76,7 +76,7 @@ const (
 	produceMaxSupportedVersion = 8
 	produceMinSupportedVersion = 1
 
-	fetchMaxSupportedVersion = 11
+	fetchMaxSupportedVersion = 12
 	fetchMinSupportedVersion = 0
 )
 

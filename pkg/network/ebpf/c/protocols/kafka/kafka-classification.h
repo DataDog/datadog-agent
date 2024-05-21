@@ -81,7 +81,7 @@ static __always_inline bool is_valid_kafka_request_header(const kafka_header_t *
     switch (kafka_header->api_key) {
     case KAFKA_FETCH:
         if (kafka_header->api_version > KAFKA_MAX_SUPPORTED_FETCH_REQUEST_API_VERSION) {
-            // Fetch request version 12 and above is not supported.
+            // Fetch request version 13 and above is not supported.
             return false;
         }
         break;
@@ -109,13 +109,79 @@ static __always_inline bool is_valid_kafka_request_header(const kafka_header_t *
 
 PKTBUF_READ_INTO_BUFFER(topic_name, TOPIC_NAME_MAX_STRING_SIZE_TO_VALIDATE, BLK_SIZE)
 
+static __always_inline bool isMSBSet(uint8_t byte) {
+    return (byte & 0x80) != 0;
+}
+
+// Parses a varint of maximum size two bytes. The maximum size is (0x7f << 7) |
+// 0x7f == 16383 bytes.
+static __always_inline int parse_varint_u16(u16 *out, u16 in, u32 *bytes)
+{
+    *bytes = 1;
+
+    u8 first = in & 0xff;
+    u8 second = in >> 8;
+    u16 tmp = 0;
+
+    tmp |= first & 0x7f;
+    if (isMSBSet(first)) {
+        *bytes += 1;
+        tmp |= ((u16)(second & 0x7f)) << 7;
+    }
+
+    if (isMSBSet(second)) {
+        // varint larger than two bytes.
+        return false;
+    }
+
+    *out = tmp;
+    return true;
+}
+
+static __always_inline s16 read_first_topic_name_size(pktbuf_t pkt, bool flexible, u32 *offset) {
+    u16 topic_name_size_tmp = 0;
+    // We assume we can always read two bytes. Even if the varint for the topic
+    // name size is just one byte, the topic name itself will at least occupy
+    // one more byte so reading two bytes is safe (we advance the offset based
+    // on the number of actual bytes in the varint).
+    if (*offset + sizeof(topic_name_size_tmp) > pktbuf_data_end(pkt)) {
+        return 0;
+    }
+
+    pktbuf_load_bytes(pkt, *offset, &topic_name_size_tmp, sizeof(topic_name_size_tmp));
+
+    s16 topic_name_size = 0;
+    if (flexible) {
+        u16 topic_name_size_tmp2 = 0;
+        u32 varint_bytes = 0;
+
+        if (!parse_varint_u16(&topic_name_size_tmp2, topic_name_size_tmp, &varint_bytes)) {
+            return 0;
+        }
+
+        topic_name_size = topic_name_size_tmp2 - 1;
+        *offset += varint_bytes;
+    } else {
+        topic_name_size = bpf_ntohs(topic_name_size_tmp);
+        *offset += sizeof(topic_name_size_tmp);
+    }
+
+    return topic_name_size;
+}
+
 // Reads the first topic name (can be multiple), up to TOPIC_NAME_MAX_STRING_SIZE_TO_VALIDATE bytes from the given offset, and
 // verifies if it is valid, namely, composed only from characters from [a-zA-Z0-9._-].
-static __always_inline bool validate_first_topic_name(pktbuf_t pkt, u32 offset) {
+static __always_inline bool validate_first_topic_name(pktbuf_t pkt, bool flexible, u32 offset) {
     // Skipping number of entries for now
-    offset += sizeof(s32);
+    if (flexible) {
+        // This could be more than one byte if the number of topics is >127,
+        // this is not handled at the moment.
+        offset += sizeof(s8);
+    } else {
+        offset += sizeof(s32);
+    }
 
-    PKTBUF_READ_BIG_ENDIAN_WRAPPER(s16, topic_name_size, pkt, offset);
+    s16 topic_name_size = read_first_topic_name_size(pkt, flexible, &offset);
     if (topic_name_size <= 0 || topic_name_size > TOPIC_NAME_MAX_ALLOWED_SIZE) {
         return false;
     }
@@ -163,10 +229,17 @@ static __always_inline bool get_topic_offset_from_produce_request(const kafka_he
 
 // Getting the offset the topic name in the fetch request.
 static __always_inline u32 get_topic_offset_from_fetch_request(const kafka_header_t *kafka_header) {
+    u32 offset = 0;
+
+    if (kafka_header->api_version >= 12) {
+        // Skip tagged fields (assumed empty)
+        offset += 1;
+    }
+
     // replica_id => INT32
     // max_wait_ms => INT32
     // min_bytes => INT32
-    u32 offset = 3 * sizeof(s32);
+    offset += 3 * sizeof(s32);
 
     if (kafka_header->api_version >= 3) {
         // max_bytes => INT32
@@ -190,6 +263,7 @@ static __always_inline bool is_kafka_request(const kafka_header_t *kafka_header,
     // Due to old-verifiers limitations, if the request is fetch or produce, we are calculating the offset of the topic
     // name in the request, and then validate the topic. We have to have shared call for validate_first_topic_name
     // as the function is huge, rather than call validate_first_topic_name for each api_key.
+    bool flexible = false;
     switch (kafka_header->api_key) {
     case KAFKA_PRODUCE:
         if (!get_topic_offset_from_produce_request(kafka_header, pkt, &offset)) {
@@ -198,11 +272,12 @@ static __always_inline bool is_kafka_request(const kafka_header_t *kafka_header,
         break;
     case KAFKA_FETCH:
         offset += get_topic_offset_from_fetch_request(kafka_header);
+        flexible = kafka_header->api_version >= 12;
         break;
     default:
         return false;
     }
-    return validate_first_topic_name(pkt, offset);
+    return validate_first_topic_name(pkt, flexible, offset);
 }
 
 // Checks if the packet represents a kafka request.

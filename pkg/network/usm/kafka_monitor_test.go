@@ -119,6 +119,11 @@ func (s *KafkaProtocolParsingSuite) TestKafkaProtocolParsing() {
 	var versions []*kversion.Versions
 	versions = append(versions, kversion.V2_5_0())
 
+	fetch12 := kversion.V3_4_0()
+	fetch12.SetMaxKeyVersion(kafka.ProduceAPIKey, 8)
+	fetch12.SetMaxKeyVersion(kafka.FetchAPIKey, 12)
+	versions = append(versions, fetch12)
+
 	versionName := func(version *kversion.Versions) string {
 		produce, _ := version.LookupMaxKeyVersion(kafka.ProduceAPIKey)
 		fetch, _ := version.LookupMaxKeyVersion(kafka.FetchAPIKey)
@@ -1249,7 +1254,7 @@ func testKafkaFetchRaw(t *testing.T, tls bool, apiVersion int) {
 }
 
 func TestKafkaFetchRaw(t *testing.T) {
-	versions := []int{4, 5, 7, 11}
+	versions := []int{4, 5, 7, 11, 12}
 
 	t.Run("without TLS", func(t *testing.T) {
 		for _, version := range versions {
