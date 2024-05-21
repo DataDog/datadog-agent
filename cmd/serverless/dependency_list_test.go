@@ -8,8 +8,10 @@
 package main
 
 import (
+	"fmt"
 	"os"
 	"os/exec"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -17,7 +19,9 @@ import (
 )
 
 const erroMsg = `
-The dependencies.txt file is out of date. Please run: CGO_ENABLED=1 GOOS=linux go list -f '{{join .Deps "\n"}}' -tags serverless github.com/DataDog/datadog-agent/cmd/serverless > cmd/serverless/dependencies.txt to update it
+The %s_dependencies_%s.txt file is out of date. 
+Update the file locally with this content: 
+%s
 `
 
 func buildDependencyList() (string, error) {
@@ -41,11 +45,13 @@ func buildDependencyList() (string, error) {
 func TestImportPackage(t *testing.T) {
 	dependencyList, err := buildDependencyList()
 	assert.NoError(t, err)
-	data, err := os.ReadFile("dependencies.txt")
+	file := fmt.Sprintf("%s_dependencies_%s.txt", runtime.GOOS, runtime.GOARCH)
+
+	data, err := os.ReadFile(file)
 	assert.NoError(t, err)
 
 	cleanDependencyList := strings.TrimLeft(dependencyList, "\"")
 	cleanDependencyList = strings.TrimRight(cleanDependencyList, "\"\n")
 	cleanDependencyList += "\n"
-	assert.Equal(t, string(data), cleanDependencyList, erroMsg)
+	assert.Equal(t, string(data), cleanDependencyList, fmt.Sprintf(erroMsg, runtime.GOOS, runtime.GOARCH, cleanDependencyList))
 }
