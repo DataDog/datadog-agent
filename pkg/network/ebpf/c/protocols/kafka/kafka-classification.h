@@ -16,7 +16,7 @@
 #define CHECK_STRING_COMPOSED_OF_ASCII(max_buffer_size, real_size, buffer, printable_ok)                                                \
     char ch = 0;                                                                                                                        \
 _Pragma( STRINGIFY(unroll(max_buffer_size)) )                                                                                           \
-    for (int j = 0; j < max_buffer_size; j++) {                                                                                         \
+    for (unsigned int j = 0; j < max_buffer_size; j++) {                                                                                         \
         /* Verifies we are not exceeding the real client_id_size, and if we do, we finish the iteration as we reached */                \
         /* to the end of the buffer and all checks have been successful. */                                                             \
         if (j + 1 > real_size) {                                                                                                        \
