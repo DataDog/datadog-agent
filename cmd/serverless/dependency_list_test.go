@@ -24,7 +24,7 @@ func buildDependencyList() (string, error) {
 	run := "go"
 	arg0 := "list"
 	arg1 := "-f"
-	arg2 := "\"{{ join .Deps \"\\n\"}}\""
+	arg2 := `"{{ join .Deps "\n"}}"`
 	arg3 := "-tags"
 	arg4 := "serverless"
 	arg5 := "github.com/DataDog/datadog-agent/cmd/serverless"
