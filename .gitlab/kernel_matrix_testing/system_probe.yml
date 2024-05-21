@@ -216,6 +216,7 @@ kmt_run_sysprobe_tests_x64:
           - "amazon_2023"
           - "fedora_37"
           - "fedora_38"
+          - "debian_9"
           - "debian_10"
           - "debian_11"
           - "debian_12"
