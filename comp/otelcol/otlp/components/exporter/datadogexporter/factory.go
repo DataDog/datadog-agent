@@ -17,12 +17,14 @@ import (
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/serializerexporter"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
+	"github.com/DataDog/datadog-agent/pkg/trace/agent"
 	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes"
 	otlpmetrics "github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/metrics"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/config/confighttp"
 	"go.opentelemetry.io/collector/config/confignet"
 	"go.opentelemetry.io/collector/config/configretry"
+	"go.opentelemetry.io/collector/consumer"
 	"go.opentelemetry.io/collector/exporter"
 	"go.opentelemetry.io/collector/exporter/exporterhelper"
 	"go.opentelemetry.io/collector/featuregate"
@@ -35,10 +37,11 @@ type factory struct {
 	attributesTranslator     *attributes.Translator
 	attributesErr            error
 
-	registry  *featuregate.Registry
-	s         serializer.MetricSerializer
-	logsAgent logsagentpipeline.Component
-	h         hostnameinterface.Component
+	registry   *featuregate.Registry
+	s          serializer.MetricSerializer
+	logsAgent  logsagentpipeline.Component
+	traceagent *agent.Agent
+	h          hostnameinterface.Component
 }
 
 func (f *factory) AttributesTranslator(set component.TelemetrySettings) (*attributes.Translator, error) {
@@ -48,12 +51,19 @@ func (f *factory) AttributesTranslator(set component.TelemetrySettings) (*attrib
 	return f.attributesTranslator, f.attributesErr
 }
 
-func newFactoryWithRegistry(registry *featuregate.Registry, s serializer.MetricSerializer, logsagent logsagentpipeline.Component, h hostnameinterface.Component) exporter.Factory {
+func newFactoryWithRegistry(
+	registry *featuregate.Registry,
+	traceagent *agent.Agent,
+	s serializer.MetricSerializer,
+	logsagent logsagentpipeline.Component,
+	h hostnameinterface.Component,
+) exporter.Factory {
 	f := &factory{
-		registry:  registry,
-		s:         s,
-		logsAgent: logsagent,
-		h:         h,
+		registry:   registry,
+		s:          s,
+		logsAgent:  logsagent,
+		traceagent: traceagent,
+		h:          h,
 	}
 
 	return exporter.NewFactory(
@@ -80,8 +90,13 @@ func (t *tagEnricher) Enrich(_ context.Context, extraTags []string, dimensions *
 }
 
 // NewFactory creates a Datadog exporter factory
-func NewFactory(s serializer.MetricSerializer, logsAgent logsagentpipeline.Component, h hostnameinterface.Component) exporter.Factory {
-	return newFactoryWithRegistry(featuregate.GlobalRegistry(), s, logsAgent, h)
+func NewFactory(
+	traceagent *agent.Agent,
+	s serializer.MetricSerializer,
+	logsAgent logsagentpipeline.Component,
+	h hostnameinterface.Component,
+) exporter.Factory {
+	return newFactoryWithRegistry(featuregate.GlobalRegistry(), traceagent, s, logsAgent, h)
 }
 
 func defaultClientConfig() confighttp.ClientConfig {
@@ -154,12 +169,43 @@ func checkAndCastConfig(c component.Config, logger *zap.Logger) *Config {
 
 // createTracesExporter creates a trace exporter based on this config.
 func (f *factory) createTracesExporter(
-	_ context.Context,
-	_ exporter.CreateSettings,
-	_ component.Config,
+	ctx context.Context,
+	set exporter.CreateSettings,
+	c component.Config,
 ) (exporter.Traces, error) {
-	// TODO implement
-	return nil, nil
+	cfg := checkAndCastConfig(c, set.TelemetrySettings.Logger)
+
+	var (
+		pusher consumer.ConsumeTracesFunc
+		stop   component.ShutdownFunc
+	)
+
+	ctx, cancel := context.WithCancel(ctx)
+	// cancel() runs on shutdown
+
+	if cfg.OnlyMetadata {
+		set.Logger.Error("datadog::only_metadata should not be set in OTel Agent")
+	}
+
+	tracex := newTracesExporter(ctx, set, cfg, f.traceagent)
+	pusher = tracex.consumeTraces
+	stop = func(context.Context) error {
+		cancel() // first cancel context
+		return nil
+	}
+
+	return exporterhelper.NewTracesExporter(
+		ctx,
+		set,
+		cfg,
+		pusher,
+		// explicitly disable since we rely on http.Client timeout logic.
+		exporterhelper.WithTimeout(exporterhelper.TimeoutSettings{Timeout: 0 * time.Second}),
+		// We don't do retries on traces because of deduping concerns on APM Events.
+		exporterhelper.WithRetry(configretry.BackOffConfig{Enabled: false}),
+		exporterhelper.WithQueue(cfg.QueueSettings),
+		exporterhelper.WithShutdown(stop),
+	)
 }
 
 // createTracesExporter creates a trace exporter based on this config.

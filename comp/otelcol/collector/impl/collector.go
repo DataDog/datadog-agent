@@ -24,6 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/datadogexporter"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/processor/infraattributesprocessor"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
+	"github.com/DataDog/datadog-agent/pkg/trace/agent"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
@@ -37,6 +38,7 @@ type dependencies struct {
 	Provider         otelcol.ConfigProvider
 	CollectorContrib collectorcontrib.Component
 	Serializer       serializer.MetricSerializer
+	TraceAgent       *agent.Agent
 	LogsAgent        optional.Option[logsagentpipeline.Component]
 	HostName         hostname.Component
 }
@@ -61,9 +63,9 @@ func New(deps dependencies) (collectordef.Component, error) {
 				return otelcol.Factories{}, err
 			}
 			if v, ok := deps.LogsAgent.Get(); ok {
-				factories.Exporters[datadogexporter.Type] = datadogexporter.NewFactory(deps.Serializer, v, deps.HostName)
+				factories.Exporters[datadogexporter.Type] = datadogexporter.NewFactory(deps.TraceAgent, deps.Serializer, v, deps.HostName)
 			} else {
-				factories.Exporters[datadogexporter.Type] = datadogexporter.NewFactory(deps.Serializer, nil, deps.HostName)
+				factories.Exporters[datadogexporter.Type] = datadogexporter.NewFactory(deps.TraceAgent, deps.Serializer, nil, deps.HostName)
 			}
 			factories.Processors[infraattributesprocessor.Type] = infraattributesprocessor.NewFactory()
 			return factories, nil

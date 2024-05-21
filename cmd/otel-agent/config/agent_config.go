@@ -70,6 +70,30 @@ func NewConfigComponent(ctx context.Context, uris []string) (config.Component, e
 	pkgconfig.Set("log_level", sc.Telemetry.Logs.Level, pkgconfigmodel.SourceLocalConfigProcess)
 	pkgconfig.Set("apm_config.enabled", true, pkgconfigmodel.SourceLocalConfigProcess)
 	pkgconfig.Set("apm_config.apm_non_local_traffic", true, pkgconfigmodel.SourceLocalConfigProcess)
+
+	// OTLPReceiver.AttributesTranslator = attrsTranslator
+	// OTLPReceiver.SpanNameRemappings = ddc.Traces.SpanNameRemappings
+	// OTLPReceiver.SpanNameAsResourceName = ddc.Traces.SpanNameAsResourceName
+	// Endpoints[0].APIKey = string(ddc.API.Key)
+	// Ignore["resource"] = ddc.Traces.IgnoreResources
+	// ReceiverPort = 0 // disable HTTP receiver
+	// SkipSSLValidation = ddc.ClientConfig.TLSSetting.InsecureSkipVerify
+	// if addr := ddc.Traces.Endpoint; addr != "" {
+	// 	Endpoints[0].Host = addr
+	// }
+
+	if ddc.Traces.ComputeTopLevelBySpanKind {
+		pkgconfig.Set("apm_config.features", []string{"enable_otlp_compute_top_level_by_span_kind"}, pkgconfigmodel.SourceLocalConfigProcess)
+	}
+
+	pkgconfig.Set("apm_config.trace_buffer", ddc.Traces.TraceBuffer, pkgconfigmodel.SourceLocalConfigProcess)
+
+	// Peer service related configs
+	pkgconfig.Set("apm_config.peer_service_aggregation", ddc.Traces.PeerServiceAggregation, pkgconfigmodel.SourceLocalConfigProcess)
+	pkgconfig.Set("apm_config.peer_tags_aggregation", ddc.Traces.PeerTagsAggregation, pkgconfigmodel.SourceLocalConfigProcess)
+	pkgconfig.Set("apm_config.peer_tags", ddc.Traces.PeerTags, pkgconfigmodel.SourceLocalConfigProcess)
+	pkgconfig.Set("apm_config.compute_stats_by_span_kind", ddc.Traces.ComputeStatsBySpanKind, pkgconfigmodel.SourceLocalConfigProcess)
+
 	return pkgconfig, nil
 }
 
