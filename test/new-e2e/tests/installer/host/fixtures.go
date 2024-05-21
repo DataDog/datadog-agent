@@ -79,19 +79,6 @@ func (h *Host) CallExamplePythonAppInDocker(traceID string) {
 		traceID, traceID))
 }
 
-// SetPreloadBrokenLib builds a broken shared library
-func (h *Host) SetPreloadBrokenLib() {
-	// Install gcc
-	h.remote.MustExecute("sudo apt install -y gcc || sudo yum install -y gcc || sudo zypper install -y gcc")
-	h.remote.MustExecute("gcc -shared -fPIC -o /opt/fixtures/broken_preload_lib.so /opt/fixtures/broken_preload_lib.c")
-	h.remote.MustExecute("echo /opt/fixtures/broken_preload_lib.so | sudo tee -a /etc/ld.so.preload")
-}
-
-// RemovePreloadBrokenLib removes the broken shared library
-func (h *Host) RemovePreloadBrokenLib() {
-	h.remote.MustExecute("sudo sed -i '\\#/opt/fixtures/broken_preload_lib.so#d' /etc/ld.so.preload")
-}
-
 // SetBrokenDockerConfig injects a broken JSON in the Docker daemon configuration
 func (h *Host) SetBrokenDockerConfig() {
 	h.remote.MustExecute("echo 'broken' | sudo tee /etc/docker/daemon.json")
