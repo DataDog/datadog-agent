@@ -23,7 +23,7 @@ const (
 	apmInstallerSocket    = "/var/run/datadog/installer/apm.socket"
 	statsdInstallerSocket = "/var/run/datadog/installer/dsd.socket"
 	apmInjectOldPath      = "/opt/datadog/apm/inject"
-	envFilePath           = "/etc/datadog-agent/environment"
+	envFilePath           = "/var/run/datadog/installer/sockets.env"
 )
 
 // Overridden in tests
@@ -82,6 +82,10 @@ func configureSocketsEnv() error {
 			log.Warnf("Failed to rollback environment file: %v", rollbackErr)
 		}
 		return fmt.Errorf("error configuring sockets: %w", err)
+	}
+	// Make sure the file is word readable
+	if err := os.Chmod(envFilePath, 0644); err != nil {
+		return fmt.Errorf("error changing permissions of %s: %w", envFilePath, err)
 	}
 	return nil
 }

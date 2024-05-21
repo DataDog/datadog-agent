@@ -113,10 +113,16 @@ func SetupInstaller(ctx context.Context) (err error) {
 	if err = configureSocketsEnv(); err != nil {
 		return
 	}
+	if err = addSystemDEnvOverrides(agentUnit); err != nil {
+		return
+	}
+	if err = addSystemDEnvOverrides(agentExp); err != nil {
+		return
+	}
 	if err = addSystemDEnvOverrides(traceAgentUnit); err != nil {
-		// Only add the override for the trace agent. Installer-based units
-		// already have it and so does the deb-based core agent. Only the
-		// deb-based trace agent needs it.
+		return
+	}
+	if err = addSystemDEnvOverrides(traceAgentExp); err != nil {
 		return
 	}
 
