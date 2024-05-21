@@ -20,9 +20,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// Consider multibyte charactersets where a single special character can take several bytes
-const maxFullTextWithSafetyMargin = 3500
-
 // ActivitySnapshot is a payload containing database activity samples. It is parsed from the intake payload.
 // easyjson:json
 type ActivitySnapshot struct {
@@ -171,7 +168,7 @@ func (c *Check) SampleSession() error {
 	var sessionRows []OracleActivityRow
 	sessionSamples := []OracleActivityRowDB{}
 	var activityQuery string
-	maxSQLTextLength := maxFullTextWithSafetyMargin
+	maxSQLTextLength := maxFullTextSampleSize
 	if c.hostingType == selfManaged {
 		if isDbVersionGreaterOrEqualThan(c, minMultitenantVersion) {
 			activityQuery = activityQueryOnView12
@@ -181,6 +178,7 @@ func (c *Check) SampleSession() error {
 	} else {
 		activityQuery = activityQueryDirect
 	}
+	activityQuery = strings.ReplaceAll(activityQuery, "{sql_substr_length}", maxSQLTextLength)
 
 	if c.config.QuerySamples.IncludeAllSessions {
 		activityQuery = fmt.Sprintf("%s %s", activityQuery, " OR 1=1")
@@ -189,6 +187,13 @@ func (c *Check) SampleSession() error {
 	err := selectWrapper(c, &sessionSamples, activityQuery)
 
 	if err != nil {
+		if strings.Contains(err, "character string buffer too small") {
+			if c.sqlSubstringLength > 1000 {
+				c.sqlSubstringLength = max(c.sqlSubstringLength-500, 1000)
+				sendMetricWithDefaultTags(c, count, "dd.oracle.activity.decrease_sql_substring_length", float64(sqlSubstringLength))
+				return nil
+			}
+		}
 		return fmt.Errorf("failed to collect session sampling activity: %w \n%s", err, activityQuery)
 	}
 
@@ -400,7 +405,7 @@ func (c *Check) SampleSession() error {
 		return err
 	}
 	sender.EventPlatformEvent(payloadBytes, "dbm-activity")
-	sendMetricWithDefaultTags(c, count, "dd.oracle.activity.samples_count", float64(len(sessionRows)))
+	sendMetric(c, count, "dd.oracle.activity.samples_count", float64(len(sessionRows)), append(c.tags, []string{fmt.Sprintf("sql_substring_length:%d", sqlSubstringLength)}))
 	sendMetricWithDefaultTags(c, gauge, "dd.oracle.activity.time_ms", float64(time.Since(start).Milliseconds()))
 	sender.Commit()
 

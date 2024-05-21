@@ -99,6 +99,7 @@ type Check struct {
 	dbInstanceLastRun                       time.Time
 	filePath                                string
 	sqlTraceRunsCount                       int
+	sqlSubstringLength                      int
 	connectedToPdb                          bool
 	fqtEmitted                              *cache.Cache
 	planEmitted                             *cache.Cache
@@ -379,6 +380,7 @@ func (c *Check) Configure(senderManager sender.SenderManager, integrationConfigD
 	c.agentVersion = agentVersion.GetNumberAndPre()
 
 	c.checkInterval = float64(c.config.InitConfig.MinCollectionInterval)
+	c.sqlSubstringLength = MaxSQLFullTextVSQL
 
 	tags := make([]string, len(c.config.Tags))
 	copy(tags, c.config.Tags)
