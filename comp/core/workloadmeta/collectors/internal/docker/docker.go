@@ -321,13 +321,13 @@ func (c *collector) buildCollectorEvent(ctx context.Context, ev *docker.Containe
 		}
 
 	case events.ActionDie, docker.ActionDied:
-		var exitCode *uint32
+		var exitCode *int32
 		if exitCodeString, found := ev.Attributes["exitCode"]; found {
 			exitCodeInt, err := strconv.ParseInt(exitCodeString, 10, 32)
 			if err != nil {
 				log.Debugf("Cannot convert exit code %q: %v", exitCodeString, err)
 			} else {
-				exitCode = pointer.Ptr(uint32(exitCodeInt))
+				exitCode = pointer.Ptr(int32(exitCodeInt))
 			}
 		}
 
