@@ -48,16 +48,16 @@ type Container struct {
 	ContainerARN  string            `json:"ContainerARN,omitempty"` // present only in v4
 	Health        *HealthStatus     `json:"Health,omitempty"`
 	Volumes       []Volume          `json:"Volumes,omitempty"`
-	ExitCode      *uint32           `json:"ExitCode,omitempty"`
+	ExitCode      *int32            `json:"ExitCode,omitempty"`
 	Snapshotter   string            `json:"Snapshotter,omitempty"`
 }
 
 // HealthStatus represents the health status of a container
 type HealthStatus struct {
-	Status   string  `json:"status,omitempty"`
-	Since    string  `json:"statusSince,omitempty"`
-	ExitCode *uint32 `json:"exitCode,omitempty"`
-	Output   string  `json:"output,omitempty"`
+	Status   string `json:"status,omitempty"`
+	Since    string `json:"statusSince,omitempty"`
+	ExitCode *int32 `json:"exitCode,omitempty"`
+	Output   string `json:"output,omitempty"`
 }
 
 // Network represents the network of a container
