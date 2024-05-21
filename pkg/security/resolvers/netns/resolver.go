@@ -547,6 +547,15 @@ func (nr *Resolver) SendStats() error {
 	return nil
 }
 
+// Close closes this resolver and frees all the resources
+func (nr *Resolver) Close() {
+	if nr.networkNamespaces != nil {
+		nr.Lock()
+		nr.networkNamespaces.Purge()
+		nr.Unlock()
+	}
+}
+
 func newTmpFile(prefix string) (*os.File, error) {
 	f, err := os.CreateTemp("/tmp", prefix)
 	if err != nil {
