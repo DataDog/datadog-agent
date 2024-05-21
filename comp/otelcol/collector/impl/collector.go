@@ -28,7 +28,15 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
-type requires struct {
+type collectorImpl struct {
+	log          corelog.Component
+	set          otelcol.CollectorSettings
+	col          *otelcol.Collector
+	flareEnabled bool
+}
+
+// Requires declares the input types to the constructor
+type Requires struct {
 	// Lc specifies the compdef lifecycle settings, used for appending startup
 	// and shutdown hooks.
 	Lc compdef.Lifecycle
@@ -42,14 +50,8 @@ type requires struct {
 	HostName         hostname.Component
 }
 
-type collectorImpl struct {
-	log          corelog.Component
-	set          otelcol.CollectorSettings
-	col          *otelcol.Collector
-	flareEnabled bool
-}
-
-type provides struct {
+// Provides declares the output types from the constructor
+type Provides struct {
 	compdef.Out
 
 	Comp          collector.Component
@@ -57,7 +59,7 @@ type provides struct {
 }
 
 // New returns a new instance of the collector component.
-func New(reqs requires) (provides, error) {
+func New(reqs Requires) (Provides, error) {
 	set := otelcol.CollectorSettings{
 		BuildInfo: component.BuildInfo{
 			Version:     "0.0.1",
@@ -81,7 +83,7 @@ func New(reqs requires) (provides, error) {
 	}
 	col, err := otelcol.NewCollector(set)
 	if err != nil {
-		return provides{}, err
+		return Provides{}, err
 	}
 	c := &collectorImpl{
 		log: reqs.Log,
@@ -93,7 +95,7 @@ func New(reqs requires) (provides, error) {
 		OnStart: c.start,
 		OnStop:  c.stop,
 	})
-	return provides{
+	return Provides{
 		Comp:          c,
 		FlareProvider: flaredef.NewProvider(c.fillFlare),
 	}, nil
