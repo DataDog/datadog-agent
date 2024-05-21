@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
-package tagenrichmentprocessor
+package infraattributesprocessor
 
 import (
 	"context"
@@ -45,7 +45,7 @@ var (
 	}
 )
 
-func TestTagEnrichmentTraceProcessor(t *testing.T) {
+func TestInfraAttributesTraceProcessor(t *testing.T) {
 	for _, test := range standardTraceTests {
 		t.Run(test.name, func(t *testing.T) {
 			ctx := context.Background()

@@ -21,7 +21,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/client"
-	"github.com/DataDog/datadog-agent/pkg/config/utils"
+	"github.com/DataDog/datadog-agent/pkg/fleet/env"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer"
 	installerErrors "github.com/DataDog/datadog-agent/pkg/fleet/installer/errors"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
@@ -62,11 +62,7 @@ type daemonImpl struct {
 }
 
 func newInstaller(config config.Reader, installerBin string) installer.Installer {
-	registry := config.GetString("updater.registry")
-	registryAuth := config.GetString("updater.registry_auth")
-	apiKey := utils.SanitizeAPIKey(config.GetString("api_key"))
-	site := config.GetString("site")
-	return exec.NewInstallerExec(installerBin, registry, registryAuth, apiKey, site)
+	return exec.NewInstallerExec(env.FromConfig(config), installerBin)
 }
 
 // NewDaemon returns a new daemon.

@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
-package tagenrichmentprocessor
+package infraattributesprocessor
 
 import (
 	"context"
@@ -13,18 +13,18 @@ import (
 	"go.uber.org/zap"
 )
 
-type tagEnrichmentMetricProcessor struct {
+type infraAttributesMetricProcessor struct {
 	logger *zap.Logger
 }
 
-func newTagEnrichmentMetricProcessor(set processor.CreateSettings, _ *Config) (*tagEnrichmentMetricProcessor, error) {
-	tesp := &tagEnrichmentMetricProcessor{
+func newInfraAttributesMetricProcessor(set processor.CreateSettings, _ *Config) (*infraAttributesMetricProcessor, error) {
+	tesp := &infraAttributesMetricProcessor{
 		logger: set.Logger,
 	}
 	set.Logger.Info("Metric Tag Enrichment configured")
 	return tesp, nil
 }
 
-func (temp *tagEnrichmentMetricProcessor) processMetrics(_ context.Context, md pmetric.Metrics) (pmetric.Metrics, error) {
+func (temp *infraAttributesMetricProcessor) processMetrics(_ context.Context, md pmetric.Metrics) (pmetric.Metrics, error) {
 	return md, nil
 }

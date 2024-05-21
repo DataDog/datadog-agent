@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
-package tagenrichmentprocessor
+package infraattributesprocessor
 
 import (
 	"context"
@@ -32,13 +32,13 @@ var (
 	}
 )
 
-func TestTagEnrichmentLogProcessor(t *testing.T) {
+func TestInfraAttributesLogProcessor(t *testing.T) {
 	for _, test := range standardLogTests {
 		t.Run(test.name, func(t *testing.T) {
 			// next stores the results of the filter log processor
 			next := new(consumertest.LogsSink)
 			cfg := &Config{
-				Logs: LogTagEnrichment{},
+				Logs: LogInfraAttributes{},
 			}
 			factory := NewFactory()
 			flp, err := factory.CreateLogsProcessor(
