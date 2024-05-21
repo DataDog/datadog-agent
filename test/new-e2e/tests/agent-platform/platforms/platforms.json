@@ -43,7 +43,7 @@
             "amazonlinux2-4-14": "ami-090230ed0c6b13c74",
             "amazonlinux2-5-10": "ami-09e51988f56677f44",
             "amazonlinux2022-5-15": "ami-0acc51c3357f26240",
-            "amazonlinux2023": "ami-08fc6fb8ad2e794bb"
+            "amazonlinux2023": "ami-0a515c154e76934f7"
         }
     },
     "centos": {
