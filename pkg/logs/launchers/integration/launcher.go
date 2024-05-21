@@ -55,8 +55,7 @@ func (s *Launcher) Stop() {
 func (s *Launcher) run() {
 	scanTicker := time.NewTicker(time.Second * 1)
 	// Add some functionality in here to detect when the agent is sent a log??
-	// Maybe call addSource whenever log is sent?
-
+	// Maybe call createFile() whenever log is sent?
 	for {
 		select {
 		case source := <-s.addedSources:
@@ -71,9 +70,16 @@ func (s *Launcher) run() {
 
 // createFile creates a file for the logsource
 func (s *Launcher) createFile(source *sources.LogSource) {
-	name := []string{s.runPath, source.Config.Service, source.Config.Name, source.Config.Source}
+	fileName := source.Config.Source + ".log"
+	pathSlice := []string{s.runPath, "integrations", source.Config.Service}
+	path := strings.Join(pathSlice, "/")
 
-	file, err := os.Create(strings.Join(name, "/"))
+	err := os.MkdirAll(path, 0755)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	file, err := os.Create(strings.Join([]string{path, fileName}, "/"))
 	defer file.Close()
 	if err != nil {
 		log.Fatal(err)
