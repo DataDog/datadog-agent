@@ -100,7 +100,7 @@ func (h *Host) SetBrokenDockerConfig() {
 // SetBrokenDockerConfigAdditionalFields injects additional fields in the Docker daemon configuration
 // these fields are not supported
 func (h *Host) SetBrokenDockerConfigAdditionalFields() {
-	h.remote.MustExecute("echo '{\"tomato\": \"potato\"}' | sudo tee /etc/docker/daemon.json")
+	h.remote.MustExecute(`echo '{"tomato": "potato"}' | sudo tee /etc/docker/daemon.json`)
 }
 
 // RemoveBrokenDockerConfig removes the broken configuration from the Docker daemon
