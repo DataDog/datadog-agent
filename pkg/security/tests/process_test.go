@@ -771,13 +771,17 @@ func TestProcessContext(t *testing.T) {
 				time.Sleep(2 * time.Second)
 				cmd := exec.Command("script", "/dev/null", "-c", executable+" -f "+testFile)
 				if err := cmd.Start(); err != nil {
-					errChan <- err
+					errChan <- fmt.Errorf("failed to start the process: %w", err)
 					return
 				}
 				time.Sleep(2 * time.Second)
 
-				cmd.Process.Kill()
-				cmd.Wait()
+				if err := cmd.Process.Signal(syscall.SIGTERM); err != nil {
+					errChan <- fmt.Errorf("failed to SIGTERM the process: %w", err)
+				}
+				if err := cmd.Wait(); err != nil {
+					errChan <- fmt.Errorf("failed to wait the process: %w", err)
+				}
 			}()
 
 			wg.Wait()
