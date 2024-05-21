@@ -135,6 +135,9 @@ func GetProvisionerParams(opts ...ProvisionerOption) *ProvisionerParams {
 // ProvisionerOption is a provisioner option.
 type ProvisionerOption func(*ProvisionerParams) error
 
+// Provisioner creates a local environment with a Docker container, an FakeIntake and a Host Agent on the container
+// configured to talk to each other.
+// FakeIntake and Agent creation can be deactivated by using [WithoutFakeIntake] and [WithoutAgent] options.
 func Provisioner(opts ...ProvisionerOption) e2e.TypedProvisioner[environments.DockerLocal] {
 	// We need to build params here to be able to use params.name in the provisioner name
 	params := GetProvisionerParams(opts...)
@@ -149,7 +152,7 @@ func Provisioner(opts ...ProvisionerOption) e2e.TypedProvisioner[environments.Do
 	return provisioner
 }
 
-// Run deploys a environment given a pulumi.Context
+// Run deploys an environment given a pulumi.Context
 func Run(ctx *pulumi.Context, env *environments.DockerLocal, params *ProvisionerParams) (err error) {
 	var localEnv docker.Environment
 	if env.Local != nil {
