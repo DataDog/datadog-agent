@@ -534,7 +534,7 @@ func (c *SystemdCheck) Configure(senderManager sender.SenderManager, integration
 	// Must be called before CommonConfigure that uses checkID
 	c.BuildID(integrationConfigDigest, rawInstance, rawInitConfig)
 
-	err := c.CommonConfigure(senderManager, integrationConfigDigest, rawInitConfig, rawInstance, source)
+	err := c.CommonConfigure(senderManager, rawInitConfig, rawInstance, source)
 	if err != nil {
 		return err
 	}

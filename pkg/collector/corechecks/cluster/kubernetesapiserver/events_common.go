@@ -35,15 +35,15 @@ type eventHostInfo struct {
 }
 
 // getDDAlertType converts kubernetes event types into datadog alert types
-func getDDAlertType(k8sType string) event.EventAlertType {
+func getDDAlertType(k8sType string) event.AlertType {
 	switch k8sType {
 	case v1.EventTypeNormal:
-		return event.EventAlertTypeInfo
+		return event.AlertTypeInfo
 	case v1.EventTypeWarning:
-		return event.EventAlertTypeWarning
+		return event.AlertTypeWarning
 	default:
 		log.Debugf("Unknown event type '%s'", k8sType)
-		return event.EventAlertTypeInfo
+		return event.AlertTypeInfo
 	}
 }
 

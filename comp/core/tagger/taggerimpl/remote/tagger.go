@@ -151,7 +151,7 @@ func (t *Tagger) Start(ctx context.Context) error {
 	err = t.startTaggerStream(timeout)
 	if err != nil {
 		// tagger stopped before being connected
-		if err == errTaggerStreamNotStarted {
+		if errors.Is(err, errTaggerStreamNotStarted) {
 			return nil
 		}
 		return err

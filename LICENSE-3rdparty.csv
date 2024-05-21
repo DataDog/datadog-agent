@@ -1,5 +1,20 @@
 Component,Origin,License,Copyright
 core,bitbucket.org/atlassian/go-asap/v2,Apache-2.0,Copyright 2015 Atlassian Pty Ltd
+core,cloud.google.com/go/auth,Apache-2.0,Copyright 2019 Google LLC
+core,cloud.google.com/go/auth/credentials,Apache-2.0,Copyright 2019 Google LLC
+core,cloud.google.com/go/auth/credentials/internal/externalaccount,Apache-2.0,Copyright 2019 Google LLC
+core,cloud.google.com/go/auth/credentials/internal/externalaccountuser,Apache-2.0,Copyright 2019 Google LLC
+core,cloud.google.com/go/auth/credentials/internal/gdch,Apache-2.0,Copyright 2019 Google LLC
+core,cloud.google.com/go/auth/credentials/internal/impersonate,Apache-2.0,Copyright 2019 Google LLC
+core,cloud.google.com/go/auth/credentials/internal/stsexchange,Apache-2.0,Copyright 2019 Google LLC
+core,cloud.google.com/go/auth/grpctransport,Apache-2.0,Copyright 2019 Google LLC
+core,cloud.google.com/go/auth/httptransport,Apache-2.0,Copyright 2019 Google LLC
+core,cloud.google.com/go/auth/internal,Apache-2.0,Copyright 2019 Google LLC
+core,cloud.google.com/go/auth/internal/credsfile,Apache-2.0,Copyright 2019 Google LLC
+core,cloud.google.com/go/auth/internal/jwt,Apache-2.0,Copyright 2019 Google LLC
+core,cloud.google.com/go/auth/internal/transport,Apache-2.0,Copyright 2019 Google LLC
+core,cloud.google.com/go/auth/internal/transport/cert,Apache-2.0,Copyright 2019 Google LLC
+core,cloud.google.com/go/auth/oauth2adapt,Apache-2.0,Copyright 2019 Google LLC
 core,cloud.google.com/go/civil,Apache-2.0,Copyright 2019 Google LLC
 core,cloud.google.com/go/compute/metadata,Apache-2.0,Copyright 2019 Google LLC
 core,cloud.google.com/go/iam,Apache-2.0,Copyright 2019 Google LLC
@@ -265,6 +280,9 @@ core,github.com/GehirnInc/crypt/common,BSD-2-Clause,"- [Jonas mg](https://github
 core,github.com/GehirnInc/crypt/internal,BSD-2-Clause,"- [Jonas mg](https://github.com/kless) | - [Kohei YOSHIDA](https://github.com/yosida95) | Copyright (c) 2012, Jeramey Crawford <jeramey@antihe.ro> | [Jeramey Crawford](https://github.com/jeramey)"
 core,github.com/GehirnInc/crypt/sha256_crypt,BSD-2-Clause,"- [Jonas mg](https://github.com/kless) | - [Kohei YOSHIDA](https://github.com/yosida95) | Copyright (c) 2012, Jeramey Crawford <jeramey@antihe.ro> | [Jeramey Crawford](https://github.com/jeramey)"
 core,github.com/GehirnInc/crypt/sha512_crypt,BSD-2-Clause,"- [Jonas mg](https://github.com/kless) | - [Kohei YOSHIDA](https://github.com/yosida95) | Copyright (c) 2012, Jeramey Crawford <jeramey@antihe.ro> | [Jeramey Crawford](https://github.com/jeramey)"
+core,github.com/GoogleCloudPlatform/grpc-gcp-go/grpcgcp,Apache-2.0,Copyright 2024 gRPC authors.
+core,github.com/GoogleCloudPlatform/grpc-gcp-go/grpcgcp/grpc_gcp,Apache-2.0,Copyright 2024 gRPC authors.
+core,github.com/GoogleCloudPlatform/grpc-gcp-go/grpcgcp/multiendpoint,Apache-2.0,Copyright 2024 gRPC authors.
 core,github.com/GoogleCloudPlatform/opentelemetry-operations-go/detectors/gcp,Apache-2.0,Copyright 2020 Google LLC
 core,github.com/IBM/sarama,MIT,Copyright (c) 2013 Shopify | Copyright (c) 2023 IBM Corporation
 core,github.com/Intevation/gval,BSD-3-Clause,"Copyright (c) 2017, Paessler AG <support@paessler.com>"
@@ -371,7 +389,6 @@ core,github.com/alecthomas/participle/v2,MIT,Copyright (C) 2017 Alec Thomas | Co
 core,github.com/alecthomas/participle/v2/lexer,MIT,Copyright (C) 2017 Alec Thomas | Copyright (C) 2017-2022 Alec Thomas
 core,github.com/alecthomas/units,MIT,Copyright (C) 2014 Alec Thomas
 core,github.com/anchore/go-struct-converter,Apache-2.0,"Copyright (c) 2022-2023 Anchore, Inc."
-core,github.com/andybalholm/brotli,MIT,"Copyright (c) 2009, 2010, 2013-2016 by the Brotli Authors"
 core,github.com/antlr/antlr4/runtime/Go/antlr/v4,BSD-3-Clause,Copyright 2021 The ANTLR Project
 core,github.com/apache/arrow/go/v15/arrow,Apache-2.0,Copyright (C) 1995-1998 Eric Young (eay@cryptsoft.com)
 core,github.com/apache/arrow/go/v15/arrow/array,Apache-2.0,Copyright (C) 1995-1998 Eric Young (eay@cryptsoft.com)
@@ -1041,12 +1058,6 @@ core,github.com/docker/go-connections/sockets,Apache-2.0,"Copyright 2012-2017 Do
 core,github.com/docker/go-connections/tlsconfig,Apache-2.0,"Copyright 2012-2017 Docker, Inc."
 core,github.com/docker/go-events,Apache-2.0,"Copyright 2012-2017 Docker, Inc."
 core,github.com/docker/go-units,Apache-2.0,"Copyright 2012-2017 Docker, Inc."
-core,github.com/dsnet/compress,BSD-3-Clause,"Copyright © 2015, Joe Tsai and The Go Authors. All rights reserved"
-core,github.com/dsnet/compress/bzip2,BSD-3-Clause,"Copyright © 2015, Joe Tsai and The Go Authors. All rights reserved"
-core,github.com/dsnet/compress/bzip2/internal/sais,BSD-3-Clause,"Copyright © 2015, Joe Tsai and The Go Authors. All rights reserved"
-core,github.com/dsnet/compress/internal,BSD-3-Clause,"Copyright © 2015, Joe Tsai and The Go Authors. All rights reserved"
-core,github.com/dsnet/compress/internal/errors,BSD-3-Clause,"Copyright © 2015, Joe Tsai and The Go Authors. All rights reserved"
-core,github.com/dsnet/compress/internal/prefix,BSD-3-Clause,"Copyright © 2015, Joe Tsai and The Go Authors. All rights reserved"
 core,github.com/dustin/go-humanize,MIT,Copyright (c) 2005-2008  Dustin Sallings <dustin@spy.net>
 core,github.com/dvsekhvalnov/jose2go,MIT,Copyright (c) 2014
 core,github.com/dvsekhvalnov/jose2go/aes,MIT,Copyright (c) 2014
@@ -1551,18 +1562,23 @@ core,github.com/invopop/jsonschema,MIT,Copyright (C) 2014 Alec Thomas
 core,github.com/ionos-cloud/sdk-go/v6,Apache-2.0,Copyright 2021 IONOS
 core,github.com/itchyny/gojq,MIT,Copyright (c) 2019-2024 itchyny
 core,github.com/itchyny/timefmt-go,MIT,Copyright (c) 2020-2022 itchyny
-core,github.com/jackc/chunkreader/v2,MIT,Copyright (c) 2019 Jack Christensen
-core,github.com/jackc/pgconn,MIT,Copyright (c) 2019-2021 Jack Christensen
-core,github.com/jackc/pgconn/internal/ctxwatch,MIT,Copyright (c) 2019-2021 Jack Christensen
-core,github.com/jackc/pgconn/stmtcache,MIT,Copyright (c) 2019-2021 Jack Christensen
-core,github.com/jackc/pgio,MIT,Copyright (c) 2019 Jack Christensen
 core,github.com/jackc/pgpassfile,MIT,Copyright (c) 2019 Jack Christensen
-core,github.com/jackc/pgproto3/v2,MIT,Copyright (c) 2019 Jack Christensen
 core,github.com/jackc/pgservicefile,MIT,Copyright (c) 2020 Jack Christensen
-core,github.com/jackc/pgtype,MIT,Copyright (c) 2013-2021 Jack Christensen
-core,github.com/jackc/pgx/v4,MIT,Copyright (c) 2013-2021 Jack Christensen
-core,github.com/jackc/pgx/v4/internal/sanitize,MIT,Copyright (c) 2013-2021 Jack Christensen
-core,github.com/jackc/pgx/v4/stdlib,MIT,Copyright (c) 2013-2021 Jack Christensen
+core,github.com/jackc/pgx/v5,MIT,Copyright (c) 2013-2021 Jack Christensen
+core,github.com/jackc/pgx/v5/internal/anynil,MIT,Copyright (c) 2013-2021 Jack Christensen
+core,github.com/jackc/pgx/v5/internal/iobufpool,MIT,Copyright (c) 2013-2021 Jack Christensen
+core,github.com/jackc/pgx/v5/internal/pgio,MIT,Copyright (c) 2013-2021 Jack Christensen
+core,github.com/jackc/pgx/v5/internal/sanitize,MIT,Copyright (c) 2013-2021 Jack Christensen
+core,github.com/jackc/pgx/v5/internal/stmtcache,MIT,Copyright (c) 2013-2021 Jack Christensen
+core,github.com/jackc/pgx/v5/pgconn,MIT,Copyright (c) 2013-2021 Jack Christensen
+core,github.com/jackc/pgx/v5/pgconn/internal/bgreader,MIT,Copyright (c) 2013-2021 Jack Christensen
+core,github.com/jackc/pgx/v5/pgconn/internal/ctxwatch,MIT,Copyright (c) 2013-2021 Jack Christensen
+core,github.com/jackc/pgx/v5/pgproto3,MIT,Copyright (c) 2013-2021 Jack Christensen
+core,github.com/jackc/pgx/v5/pgtype,MIT,Copyright (c) 2013-2021 Jack Christensen
+core,github.com/jackc/pgx/v5/pgxpool,MIT,Copyright (c) 2013-2021 Jack Christensen
+core,github.com/jackc/pgx/v5/stdlib,MIT,Copyright (c) 2013-2021 Jack Christensen
+core,github.com/jackc/puddle/v2,MIT,Copyright (c) 2018 Jack Christensen
+core,github.com/jackc/puddle/v2/internal/genstack,MIT,Copyright (c) 2018 Jack Christensen
 core,github.com/jaegertracing/jaeger/cmd/agent/app/configmanager,Apache-2.0,Copyright 2015-2019 The Jaeger Project Authors
 core,github.com/jaegertracing/jaeger/cmd/agent/app/configmanager/grpc,Apache-2.0,Copyright 2015-2019 The Jaeger Project Authors
 core,github.com/jaegertracing/jaeger/cmd/agent/app/customtransport,Apache-2.0,Copyright 2015-2019 The Jaeger Project Authors
@@ -1661,7 +1677,6 @@ core,github.com/klauspost/compress/internal/cpuinfo,BSD-3-Clause,Copyright (c) 2
 core,github.com/klauspost/compress/internal/race,BSD-3-Clause,Copyright (c) 2011 The Snappy-Go Authors. All rights reserved | Copyright (c) 2012 The Go Authors. All rights reserved | Copyright (c) 2015 Klaus Post | Copyright (c) 2019 Klaus Post. All rights reserved | Copyright 2016 The filepathx Authors | Copyright 2016-2017 The New York Times Company
 core,github.com/klauspost/compress/internal/snapref,BSD-3-Clause,Copyright (c) 2011 The Snappy-Go Authors. All rights reserved | Copyright (c) 2012 The Go Authors. All rights reserved | Copyright (c) 2015 Klaus Post | Copyright (c) 2019 Klaus Post. All rights reserved | Copyright 2016 The filepathx Authors | Copyright 2016-2017 The New York Times Company
 core,github.com/klauspost/compress/s2,BSD-3-Clause,Copyright (c) 2011 The Snappy-Go Authors. All rights reserved. | Copyright (c) 2019 Klaus Post. All rights reserved.
-core,github.com/klauspost/compress/zip,BSD-3-Clause,Copyright (c) 2011 The Snappy-Go Authors. All rights reserved | Copyright (c) 2012 The Go Authors. All rights reserved | Copyright (c) 2015 Klaus Post | Copyright (c) 2019 Klaus Post. All rights reserved | Copyright 2016 The filepathx Authors | Copyright 2016-2017 The New York Times Company
 core,github.com/klauspost/compress/zstd,BSD-3-Clause,Copyright (c) 2011 The Snappy-Go Authors. All rights reserved | Copyright (c) 2012 The Go Authors. All rights reserved | Copyright (c) 2015 Klaus Post | Copyright (c) 2016 Caleb Spare | Copyright (c) 2019 Klaus Post. All rights reserved | Copyright 2016 The filepathx Authors | Copyright 2016-2017 The New York Times Company
 core,github.com/klauspost/compress/zstd/internal/xxhash,MIT,Copyright (c) 2011 The Snappy-Go Authors. All rights reserved | Copyright (c) 2012 The Go Authors. All rights reserved | Copyright (c) 2015 Klaus Post | Copyright (c) 2016 Caleb Spare | Copyright (c) 2019 Klaus Post. All rights reserved | Copyright 2016 The filepathx Authors | Copyright 2016-2017 The New York Times Company
 core,github.com/klauspost/cpuid/v2,MIT,Copyright (c) 2015 Klaus Post
@@ -1735,7 +1750,6 @@ core,github.com/mattn/go-sqlite3,MIT,Copyright (c) 2014 Yasuhiro Matsumoto
 core,github.com/mdlayher/netlink,MIT,Copyright (C) 2016-2022 Matt Layher
 core,github.com/mdlayher/netlink/nlenc,MIT,Copyright (C) 2016-2022 Matt Layher
 core,github.com/mdlayher/socket,MIT,Copyright (C) 2021 Matt Layher
-core,github.com/mholt/archiver/v3,MIT,Copyright (c) 2016 Matthew Holt
 core,github.com/microsoft/go-mssqldb,BSD-3-Clause,Copyright (c) 2012 The Go Authors. All rights reserved | Copyright (c) Microsoft Corporation
 core,github.com/microsoft/go-mssqldb/aecmk,BSD-3-Clause,Copyright (c) 2012 The Go Authors. All rights reserved | Copyright (c) Microsoft Corporation
 core,github.com/microsoft/go-mssqldb/integratedauth,BSD-3-Clause,Copyright (c) 2012 The Go Authors. All rights reserved | Copyright (c) Microsoft Corporation
@@ -1803,7 +1817,6 @@ core,github.com/netsampler/goflow2/producer,BSD-3-Clause,"Copyright (c) 2021, Ne
 core,github.com/netsampler/goflow2/transport,BSD-3-Clause,"Copyright (c) 2021, NetSampler"
 core,github.com/netsampler/goflow2/utils,BSD-3-Clause,"Copyright (c) 2021, NetSampler"
 core,github.com/nginxinc/nginx-prometheus-exporter/client,Apache-2.0,"Copyright 2018 Nginx, Inc"
-core,github.com/nwaples/rardecode,BSD-2-Clause,"Copyright (c) 2015, Nicholas Waples"
 core,github.com/oklog/ulid,Apache-2.0,- Peter Bourgon (@peterbourgon) | - Tomás Senart (@tsenart)
 core,github.com/oklog/ulid/v2,Apache-2.0,- Peter Bourgon (@peterbourgon) | - Tomás Senart (@tsenart)
 core,github.com/olekukonko/tablewriter,MIT,Copyright (C) 2014 by Oleku Konko
@@ -2598,6 +2611,7 @@ core,github.com/rivo/uniseg,MIT,Copyright (c) 2019 Oliver Kuederle
 core,github.com/robfig/cron/v3,MIT,Copyright (C) 2012 Rob Figueiredo
 core,github.com/rogpeppe/go-internal/fmtsort,BSD-3-Clause,Copyright (c) 2018 The Go Authors. All rights reserved
 core,github.com/rs/cors,MIT,Copyright (c) 2014 Olivier Poitrey <rs@dailymotion.com>
+core,github.com/rs/cors/internal,MIT,Copyright (c) 2014 Olivier Poitrey <rs@dailymotion.com>
 core,github.com/rs/zerolog,MIT,Copyright (c) 2017 Olivier Poitrey
 core,github.com/rs/zerolog/internal/cbor,MIT,Copyright (c) 2017 Olivier Poitrey
 core,github.com/rs/zerolog/internal/json,MIT,Copyright (c) 2017 Olivier Poitrey
