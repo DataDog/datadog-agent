@@ -250,10 +250,10 @@ func (e EntityMeta) String(verbose bool) string {
 	return sb.String()
 }
 
-// ContainerImage is the an image used by a container.
-// For historical reason, The imageId from containerd runtime and kubernetes refer to different fields.
+// ContainerImage is the image used by a container.
+// For historical reasons, the imageId from containerd runtime and kubernetes refer to different fields.
 // For containerd, it is the digest of the image config.
-// For kubernetes, it referres to repo digest of the image (at least before CRI-O v1.28)
+// For kubernetes, it refers to the repo digest of the image (at least before CRI-O v1.28)
 // See https://github.com/kubernetes/kubernetes/issues/46255
 // To avoid confusion, an extra field of repo digest is added to the struct, if it is available, it
 // will also be added to the container tags in tagger.

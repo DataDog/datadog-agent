@@ -32,7 +32,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 )
 
-// ContainerdCollector defines the conttainerd collector name
+// ContainerdCollector defines the containerd collector name
 const ContainerdCollector = "containerd"
 
 // Code ported from https://github.com/aquasecurity/trivy/blob/2206e008ea6e5f4e5c1aa7bc8fc77dae7041de6a/pkg/fanal/image/daemon/containerd.go
