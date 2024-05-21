@@ -13,6 +13,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/confmap/confmaptest"
+
+	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
 )
 
 // TestLoadingConfigStrictLogs tests loading testdata/logs_strict.yaml
@@ -34,8 +36,10 @@ func TestLoadingConfigStrictLogs(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.id.String(), func(t *testing.T) {
-			factory := NewFactory()
-			cfg := factory.CreateDefaultConfig()
+			fakeTagger := taggerimpl.SetupFakeTagger(t)
+			defer fakeTagger.ResetTagger()
+			f := NewFactory(fakeTagger)
+			cfg := f.CreateDefaultConfig()
 
 			sub, err := cm.Sub(tt.id.String())
 			require.NoError(t, err)

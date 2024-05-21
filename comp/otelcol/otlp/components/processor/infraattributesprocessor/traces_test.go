@@ -13,6 +13,8 @@ import (
 	"go.opentelemetry.io/collector/consumer/consumertest"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	"go.opentelemetry.io/collector/processor/processortest"
+
+	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
 )
 
 // All the data we need to test the Span
@@ -51,7 +53,9 @@ func TestInfraAttributesTraceProcessor(t *testing.T) {
 			ctx := context.Background()
 			next := new(consumertest.TracesSink)
 			cfg := &Config{}
-			factory := NewFactory()
+			fakeTagger := taggerimpl.SetupFakeTagger(t)
+			defer fakeTagger.ResetTagger()
+			factory := NewFactory(fakeTagger)
 			fmp, err := factory.CreateTracesProcessor(
 				ctx,
 				processortest.NewNopCreateSettings(),

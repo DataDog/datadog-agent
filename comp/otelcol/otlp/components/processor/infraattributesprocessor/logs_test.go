@@ -14,6 +14,8 @@ import (
 	"go.opentelemetry.io/collector/consumer/consumertest"
 	"go.opentelemetry.io/collector/pdata/plog"
 	"go.opentelemetry.io/collector/processor/processortest"
+
+	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
 )
 
 type logNameTest struct {
@@ -40,7 +42,9 @@ func TestInfraAttributesLogProcessor(t *testing.T) {
 			cfg := &Config{
 				Logs: LogInfraAttributes{},
 			}
-			factory := NewFactory()
+			fakeTagger := taggerimpl.SetupFakeTagger(t)
+			defer fakeTagger.ResetTagger()
+			factory := NewFactory(fakeTagger)
 			flp, err := factory.CreateLogsProcessor(
 				context.Background(),
 				processortest.NewNopCreateSettings(),

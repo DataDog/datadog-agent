@@ -15,6 +15,7 @@ import (
 	"go.opentelemetry.io/collector/otelcol"
 
 	corelog "github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	collectorcontrib "github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/def"
 	collectordef "github.com/DataDog/datadog-agent/comp/otelcol/collector/def"
@@ -44,6 +45,7 @@ type dependencies struct {
 	TraceAgent       *agent.Agent
 	LogsAgent        optional.Option[logsagentpipeline.Component]
 	SourceProvider   serializerexporter.SourceProviderFunc
+	Tagger           tagger.Component
 }
 
 type collector struct {
@@ -77,7 +79,7 @@ func New(deps dependencies) (collectordef.Component, error) {
 			} else {
 				factories.Exporters[datadogexporter.Type] = datadogexporter.NewFactory(deps.TraceAgent, deps.Serializer, nil, deps.SourceProvider)
 			}
-			factories.Processors[infraattributesprocessor.Type] = infraattributesprocessor.NewFactory()
+			factories.Processors[infraattributesprocessor.Type] = infraattributesprocessor.NewFactory(deps.Tagger)
 			return factories, nil
 		},
 		ConfigProvider: deps.Provider,
