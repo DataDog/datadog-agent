@@ -19,6 +19,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	model "github.com/DataDog/agent-payload/v5/process"
+
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/dns"
@@ -341,6 +342,9 @@ func testSerialization(t *testing.T, aggregateByStatusCode bool) {
 		sort.Strings(result.Tags)
 		// fixup: json marshaler encode nil slice as empty
 		result.Conns[0].Tags = nil
+		// fixup: json marshaler with encode nil map as empty
+		result.Conns[0].TcpFailuresByErrCode = nil
+		result.Conns[1].TcpFailuresByErrCode = nil
 		if runtime.GOOS != "linux" {
 			result.Conns[1].Tags = nil
 			result.Tags = nil
@@ -365,6 +369,9 @@ func testSerialization(t *testing.T, aggregateByStatusCode bool) {
 		sort.Strings(result.Tags)
 		// fixup: json marshaler encode nil slice as empty
 		result.Conns[0].Tags = nil
+		// fixup: json marshaler with encode nil map as empty
+		result.Conns[0].TcpFailuresByErrCode = nil
+		result.Conns[1].TcpFailuresByErrCode = nil
 		if runtime.GOOS != "linux" {
 			result.Conns[1].Tags = nil
 			result.Tags = nil
@@ -396,6 +403,9 @@ func testSerialization(t *testing.T, aggregateByStatusCode bool) {
 		sort.Strings(result.Tags)
 		// fixup: json marshaler encode nil slice as empty
 		result.Conns[0].Tags = nil
+		// fixup: json marshaler with encode nil map as empty
+		result.Conns[0].TcpFailuresByErrCode = nil
+		result.Conns[1].TcpFailuresByErrCode = nil
 		if runtime.GOOS != "linux" {
 			result.Conns[1].Tags = nil
 			result.Tags = nil
@@ -428,6 +438,9 @@ func testSerialization(t *testing.T, aggregateByStatusCode bool) {
 		sort.Strings(result.Tags)
 		// fixup: json marshaler encode nil slice as empty
 		result.Conns[0].Tags = nil
+		// fixup: json marshaler with encode nil map as empty
+		result.Conns[0].TcpFailuresByErrCode = nil
+		result.Conns[1].TcpFailuresByErrCode = nil
 		if runtime.GOOS != "linux" {
 			result.Conns[1].Tags = nil
 			result.Tags = nil
