@@ -342,9 +342,6 @@ func testSerialization(t *testing.T, aggregateByStatusCode bool) {
 		sort.Strings(result.Tags)
 		// fixup: json marshaler encode nil slice as empty
 		result.Conns[0].Tags = nil
-		// fixup: json marshaler with encode nil map as empty
-		result.Conns[0].TcpFailuresByErrCode = nil
-		result.Conns[1].TcpFailuresByErrCode = nil
 		if runtime.GOOS != "linux" {
 			result.Conns[1].Tags = nil
 			result.Tags = nil
@@ -369,9 +366,6 @@ func testSerialization(t *testing.T, aggregateByStatusCode bool) {
 		sort.Strings(result.Tags)
 		// fixup: json marshaler encode nil slice as empty
 		result.Conns[0].Tags = nil
-		// fixup: json marshaler with encode nil map as empty
-		result.Conns[0].TcpFailuresByErrCode = nil
-		result.Conns[1].TcpFailuresByErrCode = nil
 		if runtime.GOOS != "linux" {
 			result.Conns[1].Tags = nil
 			result.Tags = nil
@@ -403,9 +397,6 @@ func testSerialization(t *testing.T, aggregateByStatusCode bool) {
 		sort.Strings(result.Tags)
 		// fixup: json marshaler encode nil slice as empty
 		result.Conns[0].Tags = nil
-		// fixup: json marshaler with encode nil map as empty
-		result.Conns[0].TcpFailuresByErrCode = nil
-		result.Conns[1].TcpFailuresByErrCode = nil
 		if runtime.GOOS != "linux" {
 			result.Conns[1].Tags = nil
 			result.Tags = nil
@@ -438,9 +429,6 @@ func testSerialization(t *testing.T, aggregateByStatusCode bool) {
 		sort.Strings(result.Tags)
 		// fixup: json marshaler encode nil slice as empty
 		result.Conns[0].Tags = nil
-		// fixup: json marshaler with encode nil map as empty
-		result.Conns[0].TcpFailuresByErrCode = nil
-		result.Conns[1].TcpFailuresByErrCode = nil
 		if runtime.GOOS != "linux" {
 			result.Conns[1].Tags = nil
 			result.Tags = nil
