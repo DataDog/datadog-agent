@@ -1116,6 +1116,8 @@ type ContainerImageMetadata struct {
 	Variant      string
 	Layers       []ContainerImageLayer
 	SBOM         *SBOM
+	Entrypoint   []string
+	Cmd          []string
 }
 
 // ContainerImageLayer represents a layer of a container image
@@ -1169,6 +1171,8 @@ func (i ContainerImageMetadata) String(verbose bool) string {
 
 	_, _ = fmt.Fprintln(&sb, "Repo tags:", i.RepoTags)
 	_, _ = fmt.Fprintln(&sb, "Repo digests:", i.RepoDigests)
+	_, _ = fmt.Fprintln(&sb, "Entrypoint:", i.Entrypoint)
+	_, _ = fmt.Fprintln(&sb, "Cmd:", i.Cmd)
 
 	if verbose {
 		_, _ = fmt.Fprintln(&sb, "Media Type:", i.MediaType)

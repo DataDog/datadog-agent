@@ -413,6 +413,8 @@ func extractFromConfigBlob(ctx context.Context, img containerd.Image, manifest o
 
 	outImage.Layers = getLayersWithHistory(ocispecImage, manifest)
 	outImage.Labels = getImageLabels(img, ocispecImage)
+	outImage.Entrypoint = ocispecImage.Config.Entrypoint
+	outImage.Cmd = ocispecImage.Config.Cmd
 	return nil
 }
 
