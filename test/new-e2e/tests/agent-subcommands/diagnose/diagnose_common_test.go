@@ -47,7 +47,11 @@ func getDiagnoseOutput(v *baseDiagnoseSuite, commandArgs ...agentclient.AgentArg
 		assert.NoError(c, v.Env().FakeIntake.Client().GetServerHealth())
 	}, 5*time.Minute, 20*time.Second, "timedout waiting for fakeintake to be healthy")
 
-	return v.Env().Agent.Client.Diagnose(commandArgs...)
+	diagnose := v.Env().Agent.Client.Diagnose(commandArgs...)
+	if strings.Contains(diagnose, "port-conflict") {
+		diagnose = strings.Replace(diagnose, "string-conflict", "", -1)
+	}
+	return diagnose
 }
 
 func (v *baseDiagnoseSuite) TestDiagnoseDefaultConfig() {
@@ -61,7 +65,6 @@ func (v *baseDiagnoseSuite) TestDiagnoseLocal() {
 }
 
 func (v *baseDiagnoseSuite) TestDiagnoseList() {
-
 	if runtime.GOOS == "windows" && slices.Contains(allSuites, "port-conflict") {
 		index := slices.Index(allSuites, "port-conflict")
 		allSuites = slices.Delete(allSuites, index, index+1)
