@@ -172,9 +172,9 @@ func tryPowerOfTwoRepresentation(value int64) string {
 		return fmt.Sprintf("%s2^%d", sign, int(math.Log2(float64(value))))
 	} else if ((value + 1) & value) == 0 { // Value is a power of two minus one
 		return fmt.Sprintf("%s2^%d - 1", sign, int(math.Log2(float64(value+1))))
-	} else {
-		return fmt.Sprintf("%s%d (%s0x%X)", sign, value, sign, value)
 	}
+
+	return fmt.Sprintf("%s%d (%s0x%X)", sign, value, sign, value)
 }
 
 // parseRegisterState parses the state of a single register and returns a RegisterState struct. Receives
