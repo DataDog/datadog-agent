@@ -329,7 +329,7 @@ func (r *Runner) processUDPResults(res *results.Results, hname string, destinati
 		// then add all the other hops
 		for _, hop := range hops {
 			hop := hop
-			nodename := fmt.Sprintf("unknown_hop_%d)", hop.Sent.IP.TTL)
+			nodename := fmt.Sprintf("unknown_hop_%d", hop.Sent.IP.TTL)
 			label := "*"
 			hostname := ""
 			if hop.Received != nil {

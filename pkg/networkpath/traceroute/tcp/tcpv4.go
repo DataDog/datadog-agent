@@ -2,6 +2,7 @@ package tcp
 
 import (
 	"fmt"
+	"math/rand"
 	"net"
 	"time"
 
@@ -36,6 +37,7 @@ type (
 		IP       net.IP
 		Port     uint16
 		ICMPType layers.ICMPv4TypeCode
+		IsDest   bool
 	}
 )
 
@@ -93,15 +95,23 @@ func (t *TCPv4) TracerouteSequential() (*Results, error) {
 	// need to convert uint8 to int for proper converstion to
 	// time.Duration
 	timeout := t.Timeout / time.Duration(int(t.MaxTTL-t.MinTTL))
+	// random sequence number for this traceroute theoretically
+	// prevents
+	seqNumber := uint32(123 + rand.Intn(34959))
 
 	for i := int(t.MinTTL); i <= int(t.MaxTTL); i++ {
-		hop, err := t.sendAndReceive(rawIcmpConn, rawTcpConn, i, timeout)
+		hop, err := t.sendAndReceive(rawIcmpConn, rawTcpConn, i, seqNumber, timeout)
 		// TODO: create an unknown hop here instead
 		if err != nil {
 			return nil, fmt.Errorf("failed to run traceroute: %w", err)
 		}
 		hops = append(hops, hop)
 		log.Debugf("Discovered hop: %+v", hop)
+		// if we've reached our destination,
+		// we're done
+		if hop.IsDest {
+			break
+		}
 	}
 
 	return &Results{
@@ -113,10 +123,10 @@ func (t *TCPv4) TracerouteSequential() (*Results, error) {
 	}, nil
 }
 
-func (t *TCPv4) sendAndReceive(rawIcmpConn *ipv4.RawConn, rawTcpConn *ipv4.RawConn, ttl int, timeout time.Duration) (*Hop, error) {
+func (t *TCPv4) sendAndReceive(rawIcmpConn *ipv4.RawConn, rawTcpConn *ipv4.RawConn, ttl int, seqNum uint32, timeout time.Duration) (*Hop, error) {
 	flags := byte(0)
 	flags |= SYN
-	tcpHeader, tcpPacket, err := CreateRawTCPPacket(t.srcIP, t.srcPort, t.Target, t.DestPort, ttl, flags)
+	tcpHeader, tcpPacket, err := CreateRawTCPPacket(t.srcIP, t.srcPort, t.Target, t.DestPort, seqNum, ttl, flags)
 	if err != nil {
 		log.Errorf("failed to create TCP packet with TTL: %d, error: %s", ttl, err.Error())
 		return nil, err
@@ -130,8 +140,7 @@ func (t *TCPv4) sendAndReceive(rawIcmpConn *ipv4.RawConn, rawTcpConn *ipv4.RawCo
 		return nil, err
 	}
 
-	// TODO: pass in timeout duration
-	hopIP, hopPort, icmpType, err := listenAnyPacket(rawIcmpConn, rawTcpConn, timeout, t.srcIP, t.srcPort, t.Target, t.DestPort)
+	hopIP, hopPort, icmpType, err := listenAnyPacket(rawIcmpConn, rawTcpConn, timeout, t.srcIP, t.srcPort, t.Target, t.DestPort, seqNum)
 	if err != nil {
 		log.Errorf("failed to listen for packets: %s", err.Error())
 		return nil, err
@@ -142,6 +151,7 @@ func (t *TCPv4) sendAndReceive(rawIcmpConn *ipv4.RawConn, rawTcpConn *ipv4.RawCo
 		IP:       hopIP,
 		Port:     hopPort,
 		ICMPType: icmpType,
+		IsDest:   hopIP.Equal(t.Target),
 	}, nil
 }
 

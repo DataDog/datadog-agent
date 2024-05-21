@@ -124,17 +124,15 @@ func ParseICMPPacket(pkt gopacket.Packet) (net.IP, net.IP, layers.ICMPv4TypeCode
 	return src, dst, typeCode, nil
 }
 
-func ParseTCPPacket(pkt gopacket.Packet) (net.IP, uint16, net.IP, uint16, error) {
+func ParseTCPPacket(pkt gopacket.Packet) (net.IP, net.IP, *layers.TCP, error) {
 	var src net.IP
-	var srcPort uint16
 	var dst net.IP
-	var dstPort uint16
 
 	if ipLayer := pkt.Layer(layers.LayerTypeIPv4); ipLayer != nil {
 		//fmt.Println("This is an IPv4 packet!")
 		ip, ok := ipLayer.(*layers.IPv4)
 		if !ok {
-			return net.IP{}, 0, net.IP{}, 0, fmt.Errorf("failed to assert IPv4 layer type")
+			return net.IP{}, net.IP{}, nil, fmt.Errorf("failed to assert IPv4 layer type")
 		}
 
 		src = ip.SrcIP
@@ -145,17 +143,17 @@ func ParseTCPPacket(pkt gopacket.Packet) (net.IP, uint16, net.IP, uint16, error)
 		//fmt.Println("This is a TCP packet!")
 		tcp, ok := tcpLayer.(*layers.TCP)
 		if !ok {
-			return net.IP{}, 0, net.IP{}, 0, fmt.Errorf("failed to assert TCP layer type")
+			return net.IP{}, net.IP{}, nil, fmt.Errorf("failed to assert TCP layer type")
 		}
-		srcPort = uint16(tcp.SrcPort)
-		dstPort = uint16(tcp.DstPort)
+
+		return src, dst, tcp, nil
 	}
 
-	return src, srcPort, dst, dstPort, nil
+	return src, dst, nil, fmt.Errorf("no tcp layer in packet")
 }
 
 // CreateRawTCPPacket creates a TCP packet with the specified parameters
-func CreateRawTCPPacket(sourceIP net.IP, sourcePort uint16, destIP net.IP, destPort uint16, ttl int, flags byte) (*ipv4.Header, []byte, error) {
+func CreateRawTCPPacket(sourceIP net.IP, sourcePort uint16, destIP net.IP, destPort uint16, seqNum uint32, ttl int, flags byte) (*ipv4.Header, []byte, error) {
 	ipHdr := ipv4.Header{
 		Version:  4,
 		Len:      20,
@@ -172,7 +170,7 @@ func CreateRawTCPPacket(sourceIP net.IP, sourcePort uint16, destIP net.IP, destP
 	tcpPacket := make([]byte, 20)
 	binary.BigEndian.PutUint16(tcpPacket[0:2], sourcePort) // source port
 	binary.BigEndian.PutUint16(tcpPacket[2:4], destPort)   // destination port
-	binary.BigEndian.PutUint32(tcpPacket[4:8], 0)          // sequence number
+	binary.BigEndian.PutUint32(tcpPacket[4:8], seqNum)     // sequence number
 	binary.BigEndian.PutUint32(tcpPacket[8:12], 0)         // ack number
 	tcpPacket[12] = 5 << 4                                 // header length
 	tcpPacket[13] = flags
@@ -235,7 +233,7 @@ func tcpChecksum(ipHdr *ipv4.Header, tcpHeader []byte) uint16 {
 	return checksum(append(pseudoHeader, tcpHeader...))
 }
 
-func listenAnyPacket(icmpConn *ipv4.RawConn, tcpConn *ipv4.RawConn, timeout time.Duration, localIP net.IP, localPort uint16, remoteIP net.IP, remotePort uint16) (net.IP, uint16, layers.ICMPv4TypeCode, error) {
+func listenAnyPacket(icmpConn *ipv4.RawConn, tcpConn *ipv4.RawConn, timeout time.Duration, localIP net.IP, localPort uint16, remoteIP net.IP, remotePort uint16, seqNum uint32) (net.IP, uint16, layers.ICMPv4TypeCode, error) {
 	var tcpErr error
 	var icmpErr error
 	var wg sync.WaitGroup
@@ -249,12 +247,12 @@ func listenAnyPacket(icmpConn *ipv4.RawConn, tcpConn *ipv4.RawConn, timeout time
 	go func() {
 		defer wg.Done()
 		defer cancel()
-		tcpIP, port, _, tcpErr = handlePackets(ctx, tcpConn, "tcp", localIP, localPort, remoteIP, remotePort)
+		tcpIP, port, _, tcpErr = handlePackets(ctx, tcpConn, "tcp", localIP, localPort, remoteIP, remotePort, seqNum)
 	}()
 	go func() {
 		defer wg.Done()
 		defer cancel()
-		icmpIP, _, icmpCode, icmpErr = handlePackets(ctx, icmpConn, "icmp", localIP, localPort, remoteIP, remotePort)
+		icmpIP, _, icmpCode, icmpErr = handlePackets(ctx, icmpConn, "icmp", localIP, localPort, remoteIP, remotePort, seqNum)
 	}()
 	wg.Wait()
 
@@ -291,7 +289,7 @@ func listenAnyPacket(icmpConn *ipv4.RawConn, tcpConn *ipv4.RawConn, timeout time
 // handlePackets in its current implementation should listen for the first matching
 // packet on the connection and then return. If no packet is received within the
 // timeout, it should return a timeout exceeded error
-func handlePackets(ctx context.Context, conn *ipv4.RawConn, listener string, localIP net.IP, localPort uint16, remoteIP net.IP, remotePort uint16) (net.IP, uint16, layers.ICMPv4TypeCode, error) {
+func handlePackets(ctx context.Context, conn *ipv4.RawConn, listener string, localIP net.IP, localPort uint16, remoteIP net.IP, remotePort uint16, seqNum uint32) (net.IP, uint16, layers.ICMPv4TypeCode, error) {
 	buf := make([]byte, 1024)
 	for {
 		select {
@@ -324,7 +322,7 @@ func handlePackets(ctx context.Context, conn *ipv4.RawConn, listener string, loc
 			return ip, 0, icmpCode, nil
 		}
 		if listener == "tcp" {
-			ip, port, err = parseTCP(header, packet, localIP, localPort, remoteIP, remotePort)
+			ip, port, err = parseTCP(header, packet, localIP, localPort, remoteIP, remotePort, seqNum)
 			if err != nil {
 				_, ok := err.(MismatchError)
 				if ok {
@@ -359,20 +357,28 @@ func parseICMP(header *ipv4.Header, payload []byte) (net.IP, layers.ICMPv4TypeCo
 	return src, icmpType, nil
 }
 
-func parseTCP(header *ipv4.Header, payload []byte, localIP net.IP, localPort uint16, remoteIP net.IP, remotePort uint16) (net.IP, uint16, error) {
+func parseTCP(header *ipv4.Header, payload []byte, localIP net.IP, localPort uint16, remoteIP net.IP, remotePort uint16, seqNum uint32) (net.IP, uint16, error) {
 	packetBytes, err := MarshalPacket(header, payload)
 	if err != nil {
 		return net.IP{}, 0, fmt.Errorf("failed to marshal packet: %w", err)
 	}
 
 	packet := ReadRawPacket(packetBytes)
-	source, sourcePort, dest, destPort, err := ParseTCPPacket(packet)
+	source, dest, tcpLayer, err := ParseTCPPacket(packet)
 	if err != nil {
 		return net.IP{}, 0, fmt.Errorf("failed to parse TCP packet: %w", err)
 	}
 
+	flagsCheck := tcpLayer.SYN && tcpLayer.ACK
+	sourcePort := uint16(tcpLayer.SrcPort)
+	destPort := uint16(tcpLayer.DstPort)
+
 	// TODO: check flags, payload, sequence number here as well
-	if source.Equal(remoteIP) && sourcePort == remotePort && dest.Equal(localIP) && destPort == localPort {
+	//
+	// TODO: re-add sequence number check
+	if source.Equal(remoteIP) && sourcePort == remotePort &&
+		dest.Equal(localIP) && destPort == localPort &&
+		flagsCheck {
 		log.Debugf("Received MATCHING TCP Reply from: %s:%d with dest %s:%d\n", source.String(), sourcePort, dest, destPort)
 		return source, sourcePort, nil
 	}
