@@ -180,7 +180,7 @@ func (s *KafkaProtocolParsingSuite) TestKafkaProtocolParsing() {
 					expectedNumberOfFetchRequests:   2,
 					expectedAPIVersionProduce:       8,
 					expectedAPIVersionFetch:         11,
-				})
+				}, 0)
 			},
 			teardown:      kafkaTeardown,
 			configuration: getDefaultTestConfiguration,
@@ -222,7 +222,7 @@ func (s *KafkaProtocolParsingSuite) TestKafkaProtocolParsing() {
 					expectedNumberOfFetchRequests:   0,
 					expectedAPIVersionProduce:       5,
 					expectedAPIVersionFetch:         0,
-				})
+				}, 0)
 			},
 			teardown:      kafkaTeardown,
 			configuration: getDefaultTestConfiguration,
@@ -266,7 +266,7 @@ func (s *KafkaProtocolParsingSuite) TestKafkaProtocolParsing() {
 					expectedNumberOfFetchRequests:   0,
 					expectedAPIVersionProduce:       8,
 					expectedAPIVersionFetch:         0,
-				})
+				}, 0)
 			},
 			teardown:      kafkaTeardown,
 			configuration: getDefaultTestConfiguration,
@@ -355,7 +355,7 @@ func (s *KafkaProtocolParsingSuite) TestKafkaProtocolParsing() {
 						expectedNumberOfFetchRequests:   0,
 						expectedAPIVersionProduce:       8,
 						expectedAPIVersionFetch:         0,
-					})
+					}, 0)
 			},
 			teardown: kafkaTeardown,
 			configuration: func() *config.Config {
@@ -454,7 +454,7 @@ func (s *KafkaProtocolParsingSuite) TestKafkaProtocolParsing() {
 					expectedNumberOfFetchRequests:   2 * 2,
 					expectedAPIVersionProduce:       8,
 					expectedAPIVersionFetch:         11,
-				})
+				}, 0)
 			},
 			teardown:      kafkaTeardown,
 			configuration: getDefaultTestConfiguration,
@@ -523,7 +523,7 @@ func (s *KafkaProtocolParsingSuite) TestKafkaProtocolParsing() {
 					expectedNumberOfFetchRequests:   (5 + 25*25) * 2,
 					expectedAPIVersionProduce:       8,
 					expectedAPIVersionFetch:         11,
-				})
+				}, 0)
 			},
 			teardown:      kafkaTeardown,
 			configuration: getDefaultTestConfiguration,
@@ -771,6 +771,7 @@ func TestKafkaFetchRaw(t *testing.T) {
 		name              string
 		buildResponse     func() kmsg.FetchResponse
 		numFetchedRecords int
+		errorCode         int8
 	}{
 		{
 			name: "basic",
@@ -845,13 +846,14 @@ func TestKafkaFetchRaw(t *testing.T) {
 
 				partition := makeFetchResponseTopicPartition(3, batches...)
 				var partitions []kmsg.FetchResponseTopicPartition
-				for i := 0; i < 1; i++ {
+				for i := 0; i < 3; i++ {
 					partitions = append(partitions, partition)
 				}
 
 				return makeFetchResponse(makeFetchResponseTopic(topic, partitions...))
 			},
 			numFetchedRecords: 5 * 4 * 3,
+			errorCode:         3,
 		},
 	}
 
@@ -870,7 +872,7 @@ func TestKafkaFetchRaw(t *testing.T) {
 			validateProduceFetchCount(t, kafkaStats, topic, kafkaParsingValidation{
 				expectedNumberOfFetchRequests: tt.numFetchedRecords,
 				expectedAPIVersionFetch:       11,
-			})
+			}, tt.errorCode)
 		})
 
 		name := fmt.Sprintf("split/%s", tt.name)
@@ -919,7 +921,7 @@ func TestKafkaFetchRaw(t *testing.T) {
 			validateProduceFetchCount(t, kafkaStats, topic, kafkaParsingValidation{
 				expectedNumberOfFetchRequests: tt.numFetchedRecords * splitIdx,
 				expectedAPIVersionFetch:       11,
-			})
+			}, tt.errorCode)
 		})
 	}
 }
@@ -999,19 +1001,18 @@ func getAndValidateKafkaStats(t *testing.T, monitor *Monitor, expectedStatsCount
 	return kafkaStats
 }
 
-func validateProduceFetchCount(t *testing.T, kafkaStats map[kafka.Key]*kafka.RequestStats, topicName string, validation kafkaParsingValidation) {
+func validateProduceFetchCount(t *testing.T, kafkaStats map[kafka.Key]*kafka.RequestStats, topicName string, validation kafkaParsingValidation, errorCode int8) {
 	numberOfProduceRequests := 0
 	numberOfFetchRequests := 0
 	for kafkaKey, kafkaStat := range kafkaStats {
 		require.Equal(t, topicName, kafkaKey.TopicName)
 		switch kafkaKey.RequestAPIKey {
-		// TODO: Change indexing for error 0 with proper error code
 		case kafka.ProduceAPIKey:
 			require.Equal(t, uint16(validation.expectedAPIVersionProduce), kafkaKey.RequestVersion)
-			numberOfProduceRequests += kafkaStat.ErrorCodeToStat[0].Count
+			numberOfProduceRequests += kafkaStat.ErrorCodeToStat[errorCode].Count
 		case kafka.FetchAPIKey:
 			require.Equal(t, uint16(validation.expectedAPIVersionFetch), kafkaKey.RequestVersion)
-			numberOfFetchRequests += kafkaStat.ErrorCodeToStat[0].Count
+			numberOfFetchRequests += kafkaStat.ErrorCodeToStat[errorCode].Count
 		default:
 			require.FailNow(t, "Expecting only produce or fetch kafka requests")
 		}
