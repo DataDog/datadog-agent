@@ -233,6 +233,7 @@ static __always_inline enum parse_result kafka_continue_parse_response_loop(kafk
             // TODO: read_with_remainder only support s32, we need another version for s16
             s16 error_code = 0;
             bpf_skb_load_bytes(skb, offset, &error_code, sizeof(error_code));
+            error_code = bpf_ntohs(error_code);
             if (error_code < -1 || error_code > 119) {
                 log_debug("kafka: invalid error code: %d", error_code);
                 return RET_ERR;
