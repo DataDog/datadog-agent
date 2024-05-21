@@ -92,6 +92,7 @@ func runOTelAgentCommand(ctx context.Context, params *subcommands.GlobalParams, 
 		inventoryagentimpl.Module(),
 		workloadmeta.Module(),
 		hostnameimpl.Module(),
+		statsd.Module(),
 		sysprobeconfig.NoneModule(),
 		fetchonlyimpl.Module(),
 		collectorfx.Module(),
@@ -110,9 +111,12 @@ func runOTelAgentCommand(ctx context.Context, params *subcommands.GlobalParams, 
 			return c, tcfg, nil
 		}),
 
+		fx.Provide(func(c statsd.Component) (ddgostatsd.ClientInterface, error) {
+			return c.Get()
+		}),
 		// TODO: remove this
-		fx.Provide(func(tcfg *pkgtraceconfig.AgentConfig) (*pkgagent.Agent, error) {
-			return pkgagent.NewAgent(ctx, tcfg, telemetry.NewCollector(tcfg), &ddgostatsd.NoOpClient{}), nil
+		fx.Provide(func(tcfg *pkgtraceconfig.AgentConfig, statsdClient ddgostatsd.ClientInterface) (*pkgagent.Agent, error) {
+			return pkgagent.NewAgent(ctx, tcfg, telemetry.NewCollector(tcfg), statsdClient), nil
 		}),
 
 		fx.Provide(func() workloadmeta.Params {
@@ -163,7 +167,6 @@ func runOTelAgentCommand(ctx context.Context, params *subcommands.GlobalParams, 
 		// fx.Provide(func(c traceagentcomp.Component) *pkgagent.Agent {
 		// 	return c.GetAgent()
 		// }),
-		statsd.Module(),
 		fx.Provide(func(coreConfig coreconfig.Component) tagger.Params {
 			if coreConfig.GetBool("apm_config.remote_tagger") {
 				return tagger.NewNodeRemoteTaggerParamsWithFallback()
