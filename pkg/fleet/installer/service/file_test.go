@@ -28,7 +28,7 @@ var (
 	transformFunc = func(existing []byte) ([]byte, error) {
 		return []byte(transformedContent), nil
 	}
-	failFunc = func(_ string) error { return errors.New("fail") }
+	failFunc = func() error { return errors.New("fail") }
 )
 
 func TestFileTransformWithRollback(t *testing.T) {

@@ -26,12 +26,12 @@ type fileMutator struct {
 	pathTmp          string
 	pathBackup       string
 	transformContent func(existing []byte) ([]byte, error)
-	validateTemp     func(path string) error
-	validateFinal    func(path string) error
+	validateTemp     func() error
+	validateFinal    func() error
 }
 
 // newFileMutator creates a new fileMutator
-func newFileMutator(path string, transform func(existing []byte) ([]byte, error), validateTemp, validateFinal func(path string) error) *fileMutator {
+func newFileMutator(path string, transform func(existing []byte) ([]byte, error), validateTemp, validateFinal func() error) *fileMutator {
 	return &fileMutator{
 		path:             path,
 		pathTmp:          path + ".datadog.prep",
@@ -84,7 +84,7 @@ func (ft *fileMutator) mutate() (rollback func() error, err error) {
 
 	// validate temporary file if validation function provided
 	if ft.validateTemp != nil {
-		if err := ft.validateTemp(ft.pathTmp); err != nil {
+		if err := ft.validateTemp(); err != nil {
 			return nil, fmt.Errorf("could not validate temporary file %s: %s", ft.pathTmp, err)
 		}
 	}
@@ -103,7 +103,7 @@ func (ft *fileMutator) mutate() (rollback func() error, err error) {
 
 	// validate final file if validation function provided
 	if ft.validateFinal != nil {
-		if err = ft.validateFinal(ft.path); err != nil {
+		if err = ft.validateFinal(); err != nil {
 			if err := rollback(); err != nil {
 				log.Errorf("could not rollback file %s: %s", ft.path, err)
 			}
