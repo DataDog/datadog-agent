@@ -460,7 +460,11 @@ void __attribute__((always_inline)) parse_args_envs(void *ctx, struct args_envs_
                     offset += bytes_read + 1; // count trailing 0
                 }
 
-                send_event(ctx, EVENT_ARGS_ENVS, event);
+                u64 size = offsetof(struct args_envs_event_t, value) + event.size;
+                if (size > sizeof(struct args_envs_event_t)) {
+                    size = sizeof(struct args_envs_event_t);
+                }
+                send_event_with_size_ptr(ctx, EVENT_ARGS_ENVS, &event, size);
                 event.size = 0;
             } else {
                 event.size += data_length;
