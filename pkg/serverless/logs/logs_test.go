@@ -1311,7 +1311,7 @@ func TestRuntimeMetricsOnTimeout(t *testing.T) {
 
 	// Always use a unique temp file to test saving the execution context
 	tempfile, err := os.CreateTemp(t.TempDir(), "dd-lambda-extension-cache-*.json")
-	defer os.Remove(tempfile.Name())
+	defer os.RemoveAll(tempfile.Name())
 	assert.Nil(t, err)
 
 	runtimeDurationMs := 10.0
