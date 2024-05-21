@@ -173,12 +173,13 @@ func (r *Runner) runUDP(cfg Config, hname string, dest net.IP, maxTTL uint8, tim
 	if err != nil {
 		return payload.NetworkPath{}, fmt.Errorf("traceroute run failed: %s", err.Error())
 	}
+	log.Debugf("UDP Results: %+v", results)
 
 	pathResult, err := r.processUDPResults(results, hname, cfg.DestHostname, destPort, dest)
 	if err != nil {
 		return payload.NetworkPath{}, err
 	}
-	log.Debugf("Processed Results: %+v", results)
+	log.Debugf("Processed UDP Results: %+v", pathResult)
 
 	return pathResult, nil
 }
@@ -261,7 +262,7 @@ func (r *Runner) processTCPResults(res *tcp.Results, hname string, destinationHo
 			TTL:       i,
 			IPAddress: hopname,
 			Hostname:  hostname,
-			RTT:       0,
+			RTT:       float64(hop.RTT.Microseconds()) / float64(1000),
 			Success:   isSuccess,
 		}
 		traceroutePath.Hops = append(traceroutePath.Hops, npHop)

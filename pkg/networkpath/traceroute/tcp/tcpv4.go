@@ -37,6 +37,7 @@ type (
 		IP       net.IP
 		Port     uint16
 		ICMPType layers.ICMPv4TypeCode
+		RTT      time.Duration
 		IsDest   bool
 	}
 )
@@ -85,10 +86,8 @@ func (t *TCPv4) TracerouteSequential() (*Results, error) {
 		return nil, fmt.Errorf("failed to get raw TCP listener: %w", err)
 	}
 
-	// hops should be of length # of hops + a hop for the source
-	hops := make([]*Hop, 0, t.MaxTTL-t.MinTTL+1)
-
-	hops = append(hops, &Hop{})
+	// hops should be of length # of hops
+	hops := make([]*Hop, 0, t.MaxTTL-t.MinTTL)
 
 	// TODO: better logic around timeout for sequential is needed
 	// right now we're just hacking around the existing
@@ -140,17 +139,24 @@ func (t *TCPv4) sendAndReceive(rawIcmpConn *ipv4.RawConn, rawTcpConn *ipv4.RawCo
 		return nil, err
 	}
 
-	hopIP, hopPort, icmpType, err := listenAnyPacket(rawIcmpConn, rawTcpConn, timeout, t.srcIP, t.srcPort, t.Target, t.DestPort, seqNum)
+	start := time.Now() // TODO: is this the best place to start?
+	hopIP, hopPort, icmpType, end, err := listenAnyPacket(rawIcmpConn, rawTcpConn, timeout, t.srcIP, t.srcPort, t.Target, t.DestPort, seqNum)
 	if err != nil {
 		log.Errorf("failed to listen for packets: %s", err.Error())
 		return nil, err
 	}
 	log.Debugf("Finished loop for TTL %d", ttl)
 
+	rtt := time.Duration(0)
+	if !hopIP.Equal(net.IP{}) {
+		rtt = end.Sub(start)
+	}
+
 	return &Hop{
 		IP:       hopIP,
 		Port:     hopPort,
 		ICMPType: icmpType,
+		RTT:      rtt,
 		IsDest:   hopIP.Equal(t.Target),
 	}, nil
 }

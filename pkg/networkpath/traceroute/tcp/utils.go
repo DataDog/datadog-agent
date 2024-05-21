@@ -233,7 +233,7 @@ func tcpChecksum(ipHdr *ipv4.Header, tcpHeader []byte) uint16 {
 	return checksum(append(pseudoHeader, tcpHeader...))
 }
 
-func listenAnyPacket(icmpConn *ipv4.RawConn, tcpConn *ipv4.RawConn, timeout time.Duration, localIP net.IP, localPort uint16, remoteIP net.IP, remotePort uint16, seqNum uint32) (net.IP, uint16, layers.ICMPv4TypeCode, error) {
+func listenAnyPacket(icmpConn *ipv4.RawConn, tcpConn *ipv4.RawConn, timeout time.Duration, localIP net.IP, localPort uint16, remoteIP net.IP, remotePort uint16, seqNum uint32) (net.IP, uint16, layers.ICMPv4TypeCode, time.Time, error) {
 	var tcpErr error
 	var icmpErr error
 	var wg sync.WaitGroup
@@ -255,6 +255,9 @@ func listenAnyPacket(icmpConn *ipv4.RawConn, tcpConn *ipv4.RawConn, timeout time
 		icmpIP, _, icmpCode, icmpErr = handlePackets(ctx, icmpConn, "icmp", localIP, localPort, remoteIP, remotePort, seqNum)
 	}()
 	wg.Wait()
+	// TODO: while this is okay, we
+	// should do this more cleanly
+	finished := time.Now()
 
 	if tcpErr != nil && icmpErr != nil {
 		_, tcpCanceled := tcpErr.(CanceledError)
@@ -268,22 +271,22 @@ func listenAnyPacket(icmpConn *ipv4.RawConn, tcpConn *ipv4.RawConn, timeout time
 			//
 			// For now, return nil error with empty hop data
 			log.Debug("timed out waiting for responses")
-			return net.IP{}, 0, 0, nil
+			return net.IP{}, 0, 0, finished, nil
 		} else {
 			log.Errorf("TCP Error: %s", tcpErr.Error())
 			log.Errorf("ICMP Error: %s", icmpErr.Error())
-			return net.IP{}, 0, 0, multierr.Append(fmt.Errorf("tcp error: %w", tcpErr), fmt.Errorf("icmp error: %w", icmpErr))
+			return net.IP{}, 0, 0, finished, multierr.Append(fmt.Errorf("tcp error: %w", tcpErr), fmt.Errorf("icmp error: %w", icmpErr))
 		}
 	}
 
 	// if there was an error for TCP, but not
 	// ICMP, return the ICMP response
 	if tcpErr != nil {
-		return icmpIP, port, icmpCode, nil
+		return icmpIP, port, icmpCode, finished, nil
 	}
 
 	// return the TCP response
-	return tcpIP, port, 0, nil
+	return tcpIP, port, 0, finished, nil
 }
 
 // handlePackets in its current implementation should listen for the first matching
