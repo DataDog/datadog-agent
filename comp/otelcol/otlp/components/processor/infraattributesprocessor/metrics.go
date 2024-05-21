@@ -32,7 +32,7 @@ func newInfraAttributesMetricProcessor(set processor.CreateSettings, cfg *Config
 		tagger:      tagger,
 		cardinality: cfg.Cardinality,
 	}
-	set.Logger.Info("Metric Tag Enrichment configured")
+	set.Logger.Info("Metric Infra Attributes Processor configured")
 	return iamp, nil
 }
 
