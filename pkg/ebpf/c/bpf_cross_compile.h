@@ -14,6 +14,7 @@
 #define __E_BPF_FUNC_map_update_elem false
 #define __E_BPF_FUNC_map_delete_elem false
 #define __E_BPF_FUNC_probe_read false
+#define __E_BPF_FUNC_probe_read_str false
 #define __E_BPF_FUNC_ktime_get_ns false
 #define __E_BPF_FUNC_trace_printk false
 #define __E_BPF_FUNC_get_prandom_u32 false
@@ -161,7 +162,12 @@
 #define __E_BPF_FUNC_set_hash_invalid true
 #endif
 
-#endif /* LINUX_VERSION_CODE < KERNEL_VERSION(4, 10, 0) */
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 11, 0)
+#undef __E_BPF_FUNC_probe_read_str
+#define __E_BPF_FUNC_probe_read_str true
+#endif
+
+#endif /* LINUX_VERSION_CODE < KERNEL_VERSION(4, 12, 0) */
 
 #define bpf_helper_exists(x) __E_ ## x
 #endif /* defined(COMPILE_RUNTIME) */
