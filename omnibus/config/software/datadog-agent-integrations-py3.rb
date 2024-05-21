@@ -171,6 +171,9 @@ build do
       end
     end
 
+    # XXX: Install only very few integrations for local testing purposes
+    checks_to_install = checks_to_install[0, 5]
+
     checks_to_install.each do |check|
       check_dir = File.join(project_dir, check)
       check_conf_dir = "#{conf_dir}/#{check}.d"

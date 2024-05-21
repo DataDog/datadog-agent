@@ -169,20 +169,20 @@ build do
       command "!(objdump -p ./bin/system-probe/system-probe | egrep 'GLIBC_2\.(1[8-9]|[2-9][0-9])')"
     end
 
-    if windows_target?
-      copy 'bin/system-probe/system-probe.exe', "#{install_dir}/bin/agent"
-    elsif linux_target?
-      copy "bin/system-probe/system-probe", "#{install_dir}/embedded/bin"
-    end
+  #   if windows_target?
+  #     copy 'bin/system-probe/system-probe.exe', "#{install_dir}/bin/agent"
+  #   elsif linux_target?
+  #     copy "bin/system-probe/system-probe", "#{install_dir}/embedded/bin"
+  #   end
 
-    # Add SELinux policy for system-probe
-    if debian_target? || redhat_target?
-      mkdir "#{conf_dir}/selinux"
-      command "inv -e selinux.compile-system-probe-policy-file --output-directory #{conf_dir}/selinux", env: env
-    end
+  #   # Add SELinux policy for system-probe
+  #   if debian_target? || redhat_target?
+  #     mkdir "#{conf_dir}/selinux"
+  #     command "inv -e selinux.compile-system-probe-policy-file --output-directory #{conf_dir}/selinux", env: env
+  #   end
 
-    move 'bin/agent/dist/system-probe.yaml', "#{conf_dir}/system-probe.yaml.example"
-  end
+  #   move 'bin/agent/dist/system-probe.yaml', "#{conf_dir}/system-probe.yaml.example"
+  # end
 
   # Security agent
   secagent_support = (not heroku_target?) and (not windows_target? or (ENV['WINDOWS_DDPROCMON_DRIVER'] and not ENV['WINDOWS_DDPROCMON_DRIVER'].empty?))
