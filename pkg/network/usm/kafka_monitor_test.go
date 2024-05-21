@@ -719,6 +719,8 @@ func makeFetchResponseTopic(topic string, partitions ...kmsg.FetchResponseTopicP
 func makeFetchResponse(topics ...kmsg.FetchResponseTopic) kmsg.FetchResponse {
 	resp := kmsg.NewFetchResponse()
 	resp.SetVersion(11)
+	resp.ThrottleMillis = 999999999
+	resp.SessionID = 0x11223344
 	resp.Topics = append(resp.Topics, topics...)
 	return resp
 }
