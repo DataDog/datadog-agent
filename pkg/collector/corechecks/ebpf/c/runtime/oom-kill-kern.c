@@ -49,12 +49,9 @@ int BPF_KPROBE(kprobe__oom_kill_process, struct oom_control *oc) {
     if (bpf_helper_exists(BPF_FUNC_get_current_comm)) {
         bpf_get_current_comm(&s->fcomm, sizeof(s->fcomm));
     }
-    if (bpf_helper_exists(BPF_FUNC_probe_read_str)) {
-        BPF_CORE_READ_STR_INTO(&s->tcomm, p, comm);
-    } else {
-        BPF_CORE_READ_INTO(&s->tcomm, p, comm);
-        s->tcomm[TASK_COMM_LEN - 1] = 0;
-    }
+
+    BPF_CORE_READ_INTO(&s->tcomm, p, comm);
+    s->tcomm[TASK_COMM_LEN - 1] = 0;
 
     struct mem_cgroup *memcg = NULL;
 #ifdef COMPILE_CORE
