@@ -2276,6 +2276,8 @@ github.com/open-telemetry/opamp-go v0.14.0 h1:KoziIK+wsFojhUXNTkCSTnCPf0eCMqFAac
 github.com/open-telemetry/opamp-go v0.14.0/go.mod h1:XOGCigljsLSTZ8FfLwvat0M1QDj3conIIgRa77BWrKs=
 github.com/open-telemetry/opentelemetry-collector-contrib/connector/countconnector v0.100.0 h1:TEtAasqgaz7THMLaS/E0siGStSad9O/8OlKj/P9IcoM=
 github.com/open-telemetry/opentelemetry-collector-contrib/connector/countconnector v0.100.0/go.mod h1:Qx4COF+eJS+vRNGIsClR8qK9JEd8PReC1oK0bW5khuk=
+github.com/open-telemetry/opentelemetry-collector-contrib/connector/datadogconnector v0.100.0 h1:YPOMwHbXLLDzGAi5iKgSbvExaQ88h2egLlhaSwVaBA8=
+github.com/open-telemetry/opentelemetry-collector-contrib/connector/datadogconnector v0.100.0/go.mod h1:sOHrAEYjRMFjWODxe2wYht9ldVLoNaYAUxrcU6Cgh0U=
 github.com/open-telemetry/opentelemetry-collector-contrib/connector/exceptionsconnector v0.100.0 h1:3k4gBhpHnX/7Mej5SPCqZK0Es1PTtQxw+GWTv/w5B3M=
 github.com/open-telemetry/opentelemetry-collector-contrib/connector/exceptionsconnector v0.100.0/go.mod h1:l3UETPUZIEPPQZ98zqCrnBXMlId8/Rw6cgh3FgOlXcg=
 github.com/open-telemetry/opentelemetry-collector-contrib/connector/grafanacloudconnector v0.100.0 h1:gR4BuuMTpfT2LP2PEiL++HDIBK96TwmpjaKjbV3DcUU=
