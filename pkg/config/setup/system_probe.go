@@ -24,7 +24,7 @@ const (
 	netNS                        = "network_config"
 	smNS                         = "service_monitoring_config"
 	evNS                         = "event_monitoring_config"
-	ccmNS                        = "ccm_config"
+	ccmNS                        = "ccm_network_config"
 	smjtNS                       = smNS + ".tls.java"
 	diNS                         = "dynamic_instrumentation"
 	wcdNS                        = "windows_crash_detection"
