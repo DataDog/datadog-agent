@@ -20,6 +20,8 @@ import (
 	"os/exec"
 	"sync"
 	"syscall"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // GetSubprocessOutput runs the subprocess and returns the output
@@ -52,7 +54,11 @@ func GetSubprocessOutput(argv **C.char, env **C.char, cStdout **C.char, cStderr 
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		output, _ = io.ReadAll(stdout)
+		output, err = io.ReadAll(stdout)
+		if err != nil {
+			log.Fatal(err)
+		}
+		log.Errorf("STDOUT from subprocess: %s", output)
 	}()
 
 	stderr, err := cmd.StderrPipe()
@@ -65,7 +71,11 @@ func GetSubprocessOutput(argv **C.char, env **C.char, cStdout **C.char, cStderr 
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		outputErr, _ = io.ReadAll(stderr)
+		outputErr, err = io.ReadAll(stderr)
+		if err != nil {
+			log.Fatal(err)
+		}
+		log.Errorf("STDERR from subprocess: %s", outputErr)
 	}()
 
 	cmd.Start() //nolint:errcheck
@@ -80,6 +90,7 @@ func GetSubprocessOutput(argv **C.char, env **C.char, cStdout **C.char, cStderr 
 			retCode = status.ExitStatus()
 		}
 	}
+	log.Errorf("Error from waiting on subprocess: %s", err)
 
 	*cStdout = TrackedCString(string(output))
 	*cStderr = TrackedCString(string(outputErr))
