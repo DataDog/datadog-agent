@@ -42,6 +42,8 @@ type factory struct {
 	logsAgent  logsagentpipeline.Component
 	traceagent *agent.Agent
 	h          hostnameinterface.Component
+
+	wg sync.WaitGroup // waits for agent to exit
 }
 
 func (f *factory) AttributesTranslator(set component.TelemetrySettings) (*attributes.Translator, error) {
@@ -186,6 +188,14 @@ func (f *factory) createTracesExporter(
 	if cfg.OnlyMetadata {
 		set.Logger.Error("datadog::only_metadata should not be set in OTel Agent")
 	}
+
+	// TODO: remove this
+	f.wg.Add(1)
+	go func() {
+		defer f.wg.Done()
+		set.Logger.Info("Starting the trace agent...")
+		f.traceagent.Run()
+	}()
 
 	tracex := newTracesExporter(ctx, set, cfg, f.traceagent)
 	pusher = tracex.consumeTraces

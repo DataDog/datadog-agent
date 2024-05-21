@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	corelog "github.com/DataDog/datadog-agent/comp/core/log"
 	corelogimpl "github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	"github.com/DataDog/datadog-agent/comp/core/log/tracelogimpl"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
@@ -42,9 +43,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	pkgagent "github.com/DataDog/datadog-agent/pkg/trace/agent"
+	pkgtraceconfig "github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/spf13/cobra"
 	"go.opentelemetry.io/collector/otelcol"
 
@@ -85,7 +88,7 @@ func (o *orchestratorinterfaceimpl) Reset() {
 func runOTelAgentCommand(ctx context.Context, params *subcommands.GlobalParams, opts ...fx.Option) error {
 	err := fxutil.Run(
 		forwarder.Bundle(),
-		corelogimpl.Module(),
+		tracelogimpl.Module(), // cannot use corelogimpl and tracelogimpl at the same time
 		inventoryagentimpl.Module(),
 		workloadmeta.Module(),
 		hostnameimpl.Module(),
@@ -98,13 +101,18 @@ func runOTelAgentCommand(ctx context.Context, params *subcommands.GlobalParams, 
 		fx.Provide(func(cp configprovider.ExtendedConfigProvider) otelcol.ConfigProvider {
 			return cp
 		}),
-		fx.Provide(func() (coreconfig.Component, error) {
-			c, err := agentConfig.NewConfigComponent(context.Background(), params.ConfPaths)
+		fx.Provide(func() (coreconfig.Component, *pkgtraceconfig.AgentConfig, error) {
+			c, tcfg, err := agentConfig.NewConfigComponent(context.Background(), params.ConfPaths)
 			if err != nil {
-				return nil, err
+				return nil, nil, err
 			}
 			env.DetectFeatures(c)
-			return c, nil
+			return c, tcfg, nil
+		}),
+
+		// TODO: remove this
+		fx.Provide(func(tcfg *pkgtraceconfig.AgentConfig) (*pkgagent.Agent, error) {
+			return pkgagent.NewAgent(ctx, tcfg, telemetry.NewCollector(tcfg), &ddgostatsd.NoOpClient{}), nil
 		}),
 
 		fx.Provide(func() workloadmeta.Params {
@@ -152,9 +160,9 @@ func runOTelAgentCommand(ctx context.Context, params *subcommands.GlobalParams, 
 			PIDFilePath: "",
 		}),
 		tracecomp.Bundle(),
-		fx.Provide(func(c traceagentcomp.Component) *pkgagent.Agent {
-			return c.GetAgent()
-		}),
+		// fx.Provide(func(c traceagentcomp.Component) *pkgagent.Agent {
+		// 	return c.GetAgent()
+		// }),
 		statsd.Module(),
 		fx.Provide(func(coreConfig coreconfig.Component) tagger.Params {
 			if coreConfig.GetBool("apm_config.remote_tagger") {

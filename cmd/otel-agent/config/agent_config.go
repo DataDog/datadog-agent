@@ -29,7 +29,7 @@ import (
 )
 
 // NewConfigComponent creates a new config component from the given URIs
-func NewConfigComponent(ctx context.Context, uris []string) (config.Component, error) {
+func NewConfigComponent(ctx context.Context, uris []string) (config.Component, *traceconfig.AgentConfig, error) {
 	// Load the configuration from the fileName
 	rs := confmap.ResolverSettings{
 		URIs: uris,
@@ -45,21 +45,24 @@ func NewConfigComponent(ctx context.Context, uris []string) (config.Component, e
 
 	resolver, err := confmap.NewResolver(rs)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	cfg, err := resolver.Resolve(ctx)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	ddc, err := getDDExporterConfig(cfg)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	sc, err := getServiceConfig(cfg)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	_, _ = newTraceAgentConfig(ddc)
+	tcfg, err := newTraceAgentConfig(ddc)
+	if err != nil {
+		return nil, nil, err
+	}
 	site := ddc.API.Site
 	apiKey := string(ddc.API.Key)
 	// Create a new config
@@ -87,7 +90,7 @@ func NewConfigComponent(ctx context.Context, uris []string) (config.Component, e
 	pkgconfig.Set("apm_config.peer_tags", ddc.Traces.PeerTags, pkgconfigmodel.SourceLocalConfigProcess)
 	pkgconfig.Set("apm_config.compute_stats_by_span_kind", ddc.Traces.ComputeStatsBySpanKind, pkgconfigmodel.SourceLocalConfigProcess)
 
-	return pkgconfig, nil
+	return pkgconfig, tcfg, nil
 }
 
 func getServiceConfig(cfg *confmap.Conf) (*service.Config, error) {
@@ -169,6 +172,8 @@ func newTraceAgentConfig(cfg *datadogexporter.Config) (*traceconfig.AgentConfig,
 	}
 	if addr := cfg.Traces.Endpoint; addr != "" {
 		acfg.Endpoints[0].Host = addr
+	} else {
+		acfg.Endpoints[0].Host = "https://trace.agent.datadoghq.com"
 	}
 	if cfg.Traces.ComputeTopLevelBySpanKind {
 		acfg.Features["enable_otlp_compute_top_level_by_span_kind"] = struct{}{}
