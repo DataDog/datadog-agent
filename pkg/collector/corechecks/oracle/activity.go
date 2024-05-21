@@ -168,7 +168,7 @@ func (c *Check) SampleSession() error {
 	var sessionRows []OracleActivityRow
 	sessionSamples := []OracleActivityRowDB{}
 	var activityQuery string
-	maxSQLTextLength := maxFullTextSampleSize
+	maxSQLTextLength := c.sqlSubstringLength
 	if c.hostingType == selfManaged {
 		if isDbVersionGreaterOrEqualThan(c, minMultitenantVersion) {
 			activityQuery = activityQueryOnView12
@@ -187,10 +187,10 @@ func (c *Check) SampleSession() error {
 	err := selectWrapper(c, &sessionSamples, activityQuery)
 
 	if err != nil {
-		if strings.Contains(err, "character string buffer too small") {
+		if strings.Contains(string(err), "character string buffer too small") {
 			if c.sqlSubstringLength > 1000 {
 				c.sqlSubstringLength = max(c.sqlSubstringLength-500, 1000)
-				sendMetricWithDefaultTags(c, count, "dd.oracle.activity.decrease_sql_substring_length", float64(sqlSubstringLength))
+				sendMetricWithDefaultTags(c, count, "dd.oracle.activity.decrease_sql_substring_length", float64(c.sqlSubstringLength))
 				return nil
 			}
 		}
@@ -405,7 +405,7 @@ func (c *Check) SampleSession() error {
 		return err
 	}
 	sender.EventPlatformEvent(payloadBytes, "dbm-activity")
-	sendMetric(c, count, "dd.oracle.activity.samples_count", float64(len(sessionRows)), append(c.tags, []string{fmt.Sprintf("sql_substring_length:%d", sqlSubstringLength)}))
+	sendMetric(c, count, "dd.oracle.activity.samples_count", float64(len(sessionRows)), append(c.tags, fmt.Sprintf("sql_substring_length:%d", c.sqlSubstringLength)))
 	sendMetricWithDefaultTags(c, gauge, "dd.oracle.activity.time_ms", float64(time.Since(start).Milliseconds()))
 	sender.Commit()
 
