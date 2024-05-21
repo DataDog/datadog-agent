@@ -51,7 +51,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/events"
 	netlinktestutil "github.com/DataDog/datadog-agent/pkg/network/netlink/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/testutil"
-	nettestutil "github.com/DataDog/datadog-agent/pkg/network/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/offsetguess"
 	tracertest "github.com/DataDog/datadog-agent/pkg/network/tracer/testutil"
@@ -2474,13 +2473,13 @@ func findFailedConnectionByRemoteAddr(remoteAddr string, conns *network.Connecti
 }
 
 func setupDropTrafficRule(tb testing.TB) (ns string) {
-	state := nettestutil.IptablesSave(tb)
+	state := testutil.IptablesSave(tb)
 	tb.Cleanup(func() {
-		nettestutil.IptablesRestore(tb, state)
+		testutil.IptablesRestore(tb, state)
 	})
 	cmds := []string{
 		"iptables -A OUTPUT -p tcp -d 127.0.0.1 --dport 10000 -j DROP",
 	}
-	nettestutil.RunCommands(tb, cmds, false)
+	testutil.RunCommands(tb, cmds, false)
 	return
 }
