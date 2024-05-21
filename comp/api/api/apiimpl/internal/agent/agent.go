@@ -140,6 +140,11 @@ func SetupHandlers(
 		r.HandleFunc("/stream-logs", streamLogs(logsAgent)).Methods("POST")
 	}
 
+	r.HandleFunc("/internal-profile/{cmd}", func(w http.ResponseWriter, r *http.Request) {
+		vars := mux.Vars(r)
+		internalProfilinigCmd(w, r, vars["cmd"], settings)
+	}).Methods("GET")
+
 	return r
 }
 
@@ -545,4 +550,20 @@ func dumpDogstatsdContextsImpl(demux demultiplexer.Component) (string, error) {
 	}
 
 	return path, nil
+}
+
+func internalProfilinigCmd(w http.ResponseWriter, r *http.Request, cmd string, settings settings.Component) {
+	var err error
+	if cmd == "start" {
+		err = common.StartInternalProfiling(settings, config.Datadog, "")
+	} else if cmd == "stop" {
+		err = common.StopInternalProfiling(settings)
+	} else {
+		err = fmt.Errorf("Invalid command %s", cmd)
+	}
+
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		
+	}
 }

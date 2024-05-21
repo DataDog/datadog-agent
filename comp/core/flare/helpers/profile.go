@@ -5,19 +5,16 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/flare/types"
-	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/config/model"
-	commonsettings "github.com/DataDog/datadog-agent/pkg/config/settings"
 	"github.com/DataDog/datadog-agent/pkg/process/net"
 	"github.com/fatih/color"
 	"github.com/hashicorp/go-multierror"
 )
 
 // ReadProfileData collects profiles from the agent and returns them in a ProfileData object.
+// Currently sequential execution, althought some of it could be parallelized.
 func ReadProfileData(seconds int) (types.ProfileData, error) {
 	type agentProfileCollector func(service string) error
 
@@ -126,21 +123,89 @@ func ReadProfileData(seconds int) (types.ProfileData, error) {
 	return pdata, errs
 }
 
-// Start internal profiling, sleeps for a few minutes and then stops it, meaning that the caller will be blocked
-func RunInternalProfiler(c config.Component, l log.Component) {
-	// Start internal profiling by setting the runtime settings
-	runtimeSettings := commonsettings.NewProfilingRuntimeSetting("internal_profiling", "datadog-agent")
-	err := runtimeSettings.Set(c, "true", model.SourceAgentRuntime)
-	if err == nil {
-		// Wait for 5 min (for now)
-		time.Sleep(5 * time.Minute)
+// RequestInternalProfiling requests to start, sleep for N seconds
+// and stop internal Datadog profiling for the Agent processes
+// Execution is parallelized.
+func RequestInternalProfiling(seconds int) error {
 
-		// Stop internal profiling
-		err = runtimeSettings.Set(c, "false", model.SourceAgentRuntime)
-		if err != nil {
-			l.Errorf("Failed to stop internal profiling. Error %s", err.Error())
-		}
-	} else {
-		l.Errorf("Failed to start internal profiling. Error %s", err.Error())
+	ipcAddress, err := pkgconfig.GetIPCAddress()
+	if err != nil {
+		fmt.Fprintln(color.Output, color.RedString(fmt.Sprintf("Error getting IPC address for the agent: %s", err)))
+		return err
 	}
+
+	c := util.GetClient(false)
+
+	var errs error
+	var sysProbeErr error
+	var sysProbe *net.RemoteSysProbeUtil
+	cmdPort := pkgconfig.Datadog.GetInt("cmd_port")
+
+	// Request start of internal profiling for core
+	url := fmt.Sprintf("https://%v:%v/agent/internal-profile/start", ipcAddress, cmdPort)
+	_, coreErr := util.DoGet(c, url, util.LeaveConnectionOpen)
+	if coreErr != nil {
+		errs = multierror.Append(errs, fmt.Errorf("failed to start collecting core agent internal profiling: %v", coreErr))
+	}
+
+	// Request to start of internal profiling for system probe
+	if pkgconfig.SystemProbe.GetBool("system_probe_config.enabled") {
+		sysProbe, sysProbeErr = net.GetRemoteSystemProbeUtil(pkgconfig.SystemProbe.GetString("system_probe_config.sysprobe_socket"))
+		if sysProbeErr == nil {
+			sysProbeErr := sysProbe.RequestInternalProfiling(true)
+			if sysProbeErr != nil {
+				errs = multierror.Append(errs, fmt.Errorf("failed to start collecting system probe internal profiling: %v", sysProbeErr))
+			}
+		} else {
+			errs = multierror.Append(errs, fmt.Errorf("failed to start collecting system probe internal profiling: %v", sysProbeErr))
+		}
+	}
+
+	// Wait for configured seconds
+	time.Sleep(time.Duration(seconds) * time.Second)
+
+	// Stop internal profiling for core
+	if coreErr == nil {
+		url := fmt.Sprintf("https://%v:%v/agent/internal-profile/stop", ipcAddress, cmdPort)
+		_, coreErr := util.DoGet(c, url, util.LeaveConnectionOpen)
+		if coreErr != nil {
+			errs = multierror.Append(errs, fmt.Errorf("failed to stop collecting core agent internal profiling: %v", coreErr))
+		}
+	}
+
+	// Stop internal profiling for system probe
+	if sysProbeErr == nil {
+		sysProbeErr := sysProbe.RequestInternalProfiling(true)
+		if sysProbeErr != nil {
+			errs = multierror.Append(errs, fmt.Errorf("failed to stop collecting system probe internal profiling: %v", sysProbeErr))
+		}
+	}
+
+	//	return errs
+	return nil
 }
+
+// // RunInternalProfiler start internal profiling, sleeps for a few minutes and then stops it, meaning that the caller will be blocked
+// func RunInternalProfiler(c config.Component, l log.Component) {
+// 	internalProfilerIsAlreadyRunning := c.GetBool("internal_profiling.enabled")
+// 	if internalProfilerIsAlreadyRunning {
+// 		l.Info("Internal profiling is already running, skipping")
+// 		return
+// 	}
+
+// 	// Start internal profiling by setting the runtime settings
+// 	runtimeSettings := commonsettings.NewProfilingRuntimeSetting("internal_profiling", "datadog-agent")
+// 	err := runtimeSettings.Set(c, "true", model.SourceAgentRuntime)
+// 	if err == nil {
+// 		// Wait for 5 min (for now)
+// 		time.Sleep(1 * time.Minute)
+
+// 		// Stop internal profiling
+// 		err = runtimeSettings.Set(c, "false", model.SourceAgentRuntime)
+// 		if err != nil {
+// 			l.Errorf("Failed to stop internal profiling. Error %s", err.Error())
+// 		}
+// 	} else {
+// 		l.Errorf("Failed to start internal profiling. Error %s", err.Error())
+// 	}
+// }

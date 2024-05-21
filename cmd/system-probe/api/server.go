@@ -18,16 +18,27 @@ import (
 	sysconfigtypes "github.com/DataDog/datadog-agent/cmd/system-probe/config/types"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/modules"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/utils"
+	logcomp "github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/settings"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/process/net"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
+// team: ebpf-platform
+
 // StartServer starts the HTTP and gRPC servers for the system-probe, which registers endpoints from all enabled modules.
-func StartServer(cfg *sysconfigtypes.Config, telemetry telemetry.Component, wmeta optional.Option[workloadmeta.Component], settings settings.Component) error {
+func StartServer(
+	cfg *sysconfigtypes.Config,
+	telemetry telemetry.Component,
+	wmeta optional.Option[workloadmeta.Component],
+	settings settings.Component,
+	sysprobeconfig config.Reader,
+	configPrefix string,
+	log logcomp.Component,
+) error {
 	conn, err := net.NewListener(cfg.SocketAddress)
 	if err != nil {
 		return fmt.Errorf("error creating IPC socket: %s", err)
@@ -46,11 +57,11 @@ func StartServer(cfg *sysconfigtypes.Config, telemetry telemetry.Component, wmet
 	}))
 
 	setupConfigHandlers(mux, settings)
+	setupProfilingHandlers(mux, settings, sysprobeconfig, configPrefix, log)
 
 	// Module-restart handler
 	mux.HandleFunc("/module-restart/{module-name}", func(w http.ResponseWriter, r *http.Request) { restartModuleHandler(w, r, wmeta) }).Methods("POST")
 
-	mux.PathPrefix("/debug/pprof").Handler(http.DefaultServeMux)
 	mux.Handle("/debug/vars", http.DefaultServeMux)
 	mux.Handle("/telemetry", telemetry.Handler())
 

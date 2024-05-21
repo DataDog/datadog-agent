@@ -378,6 +378,30 @@ func (r *RemoteSysProbeUtil) GetPprof(path string) ([]byte, error) {
 	return io.ReadAll(res.Body)
 }
 
+// RemoteSysProbeUtil start and stop internal profiling f endpoint for system-probe
+func (r *RemoteSysProbeUtil) RequestInternalProfiling(startProfiling bool) error {
+	var cmd string
+	if startProfiling {
+		cmd = "start"
+	} else {
+		cmd = "stop"
+	}
+	url := fmt.Sprintf("%s/%s", internalProfileURL, cmd)
+	req, err := http.NewRequest(http.MethodGet, url, nil)
+	if err != nil {
+		return err
+	}
+
+	res, errRes := r.httpClient.Do(req)
+	if errRes != nil {
+		return errRes
+	}
+
+	defer res.Body.Close()
+
+	return nil
+}
+
 func (r *RemoteSysProbeUtil) init() error {
 	resp, err := r.httpClient.Get(statsURL)
 	if err != nil {

@@ -19,6 +19,7 @@ const (
 	languageDetectionURL = "http://localhost:3333/" + string(sysconfig.LanguageDetectionModule) + "/detect"
 	statsURL             = "http://localhost:3333/debug/stats"
 	pprofURL             = "http://localhost:3333/debug/pprof"
+	internalProfileURL   = "http://localhost:3333/internal-profile"
 	tracerouteURL        = "http://localhost:3333/" + string(sysconfig.TracerouteModule) + "/traceroute/"
 	netType              = "tcp"
 

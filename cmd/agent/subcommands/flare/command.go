@@ -73,6 +73,7 @@ type cliParams struct {
 	profileBlocking      bool
 	profileBlockingRate  int
 	withStreamLog        bool
+	internalProfiling    int
 }
 
 // Commands returns a slice of subcommands for the 'agent' command.
@@ -151,6 +152,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	flareCmd.Flags().BoolVarP(&cliParams.profileBlocking, "profile-blocking", "B", false, "Add gorouting blocking profile to the performance data in the flare")
 	flareCmd.Flags().IntVarP(&cliParams.profileBlockingRate, "profile-blocking-rate", "", 10000, "Set the fraction of goroutine blocking events that are reported in the blocking profile")
 	flareCmd.Flags().BoolVarP(&cliParams.withStreamLog, "with-stream-logs", "L", false, "Log 60s of the stream-logs command to the agent log file")
+	flareCmd.Flags().IntVarP(&cliParams.internalProfiling, "internal-profile", "P", -1, "Start internal profiler (Datadog Continious Profiler at no charge) with a minimum of 30s")
 	flareCmd.SetArgs([]string{"caseID"})
 
 	return []*cobra.Command{flareCmd}
@@ -189,6 +191,9 @@ func makeFlare(flareComp flare.Component,
 		}
 	}
 
+	// Inline (blocking) run of the Go pprof built-in/runtime Profiler via SEQUENTIAL HTTP requests
+	// to the running Agent processes (core, system-probe, etc). Resulting data will be
+	// stored directly into the flare archive.
 	if cliParams.profiling >= 30 {
 		c, err := common.NewSettingsClient()
 		if err != nil {
@@ -212,6 +217,24 @@ func makeFlare(flareComp flare.Component,
 		}
 	} else if cliParams.profiling != -1 {
 		fmt.Fprintln(color.Output, color.RedString(fmt.Sprintf("Invalid value for profiling: %d. Please enter an integer of at least 30.", cliParams.profiling)))
+		return err
+	}
+
+	// Inline (blocking) run of the Datadog Go and Python Continioue Profilers via CONCURRENT HTTP requests
+	// to the runningAgent processes (core, system-probe, etc). Resulting data will be forwarded
+	// to the Datadog backend and can be accessed in the Datadog Org's Profiler UI charge free.
+	if cliParams.internalProfiling >= 30 {
+		// No need yet to use more sophisticated settings package (like settings.ExecWithRuntimeProfilingSettings)
+		if err := util.SetAuthToken(pkgconfig.Datadog); err != nil {
+			return fmt.Errorf("unable to set up authentication token: %v", err)
+		}
+
+		if err = helpers.RequestInternalProfiling(cliParams.internalProfiling); err != nil {
+			fmt.Fprintln(color.Output, color.YellowString(fmt.Sprintf("Could not collect internal profile: %s", err)))
+			return err
+		}
+	} else if cliParams.internalProfiling != -1 {
+		fmt.Fprintln(color.Output, color.RedString(fmt.Sprintf("Invalid value for profiling: %d. Please enter an integer of at least 30.", cliParams.internalProfiling)))
 		return err
 	}
 

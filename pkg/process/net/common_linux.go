@@ -22,6 +22,7 @@ const (
 	registerURL          = "http://unix/" + string(sysconfig.NetworkTracerModule) + "/register"
 	statsURL             = "http://unix/debug/stats"
 	pprofURL             = "http://unix/debug/pprof"
+	internalProfileURL   = "http://localhost:3333/internal-profile"
 	languageDetectionURL = "http://unix/" + string(sysconfig.LanguageDetectionModule) + "/detect"
 	netType              = "unix"
 )

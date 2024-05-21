@@ -55,8 +55,8 @@ type dependencies struct {
 type provides struct {
 	fx.Out
 
-	Comp     Component
-	Endpoint api.AgentEndpointProvider
+	Comp          Component
+	FlareEndpoint api.AgentEndpointProvider
 }
 
 type flare struct {
@@ -78,8 +78,8 @@ func newFlare(deps dependencies) (provides, rcclienttypes.TaskListenerProvider) 
 	}
 
 	p := provides{
-		Comp:     f,
-		Endpoint: api.NewAgentEndpointProvider(f.createAndReturnFlarePath, "/flare", "POST"),
+		Comp:          f,
+		FlareEndpoint: api.NewAgentEndpointProvider(f.createAndReturnFlarePath, "/flare", "POST"),
 	}
 
 	return p, rcclienttypes.NewTaskListener(f.onAgentTaskEvent)
@@ -99,11 +99,16 @@ func (f *flare) onAgentTaskEvent(taskType rcclienttypes.TaskType, task rcclientt
 	}
 
 	var pdata types.ProfileData
-	if enableProfiling, found := task.Config.TaskArgs["enable_profiling"]; found {
-		helpers.RunInternalProfiler(f.config, f.log)
-
+	// if enableProfiling, found := task.Config.TaskArgs["enable_profiling"]; found {
+	// }
+	enableProfiling := "true"
+	found = true
+	if found {
 		defaultProfilingSeconds := 60
 		if enableProfiling == "true" {
+
+			helpers.RequestInternalProfiling(defaultProfilingSeconds)
+
 			c, err := common.NewSettingsClient()
 			if err != nil {
 				return false, fmt.Errorf("failed to initialize settings client: %w", err)

@@ -49,7 +49,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient/rcclientimpl"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/config/model"
 	commonsettings "github.com/DataDog/datadog-agent/pkg/config/settings"
 	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	processstatsd "github.com/DataDog/datadog-agent/pkg/process/statsd"
@@ -324,7 +323,7 @@ func startSystemProbe(log log.Component, statsd compstatsd.Component, telemetry 
 		}
 	}
 
-	setupInternalProfiling(settings, sysprobeconfig, configPrefix, log)
+	api.SetupInternalProfiling(settings, sysprobeconfig, configPrefix, log)
 
 	if err := processstatsd.Configure(cfg.StatsdHost, cfg.StatsdPort, statsd.CreateForHostPort); err != nil {
 		return log.Criticalf("error configuring statsd: %s", err)
@@ -349,7 +348,7 @@ func startSystemProbe(log log.Component, statsd compstatsd.Component, telemetry 
 		}()
 	}
 
-	if err = api.StartServer(cfg, telemetry, wmeta, settings); err != nil {
+	if err = api.StartServer(cfg, telemetry, wmeta, settings, sysprobeconfig, configPrefix, log); err != nil {
 		return log.Criticalf("error while starting api server, exiting: %v", err)
 	}
 	return nil
@@ -369,28 +368,6 @@ func stopSystemProbe() {
 	}
 
 	pkglog.Flush()
-}
-
-// setupInternalProfiling is a common helper to configure runtime settings for internal profiling.
-func setupInternalProfiling(settings settings.Component, cfg ddconfig.Reader, configPrefix string, log log.Component) {
-	if v := cfg.GetInt(configPrefix + "internal_profiling.block_profile_rate"); v > 0 {
-		if err := settings.SetRuntimeSetting("runtime_block_profile_rate", v, model.SourceAgentRuntime); err != nil {
-			log.Errorf("Error setting block profile rate: %v", err)
-		}
-	}
-
-	if v := cfg.GetInt(configPrefix + "internal_profiling.mutex_profile_fraction"); v > 0 {
-		if err := settings.SetRuntimeSetting("runtime_mutex_profile_fraction", v, model.SourceAgentRuntime); err != nil {
-			log.Errorf("Error mutex profile fraction: %v", err)
-		}
-	}
-
-	if cfg.GetBool(configPrefix + "internal_profiling.enabled") {
-		err := settings.SetRuntimeSetting("internal_profiling", true, model.SourceAgentRuntime)
-		if err != nil {
-			log.Errorf("Error starting profiler: %v", err)
-		}
-	}
 }
 
 func isValidPort(port int) bool {
