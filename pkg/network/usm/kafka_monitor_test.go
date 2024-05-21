@@ -1094,7 +1094,6 @@ func testKafkaFetchRaw(t *testing.T, tls bool, apiVersion int) {
 				// the topic name test-topic and API version 11.
 				minSegSize := 38
 				require.Equal(t, topic, "test-topic")
-				require.Equal(t, int(req.GetVersion()), 11)
 
 				segSize := min(minSegSize+splitIdx, len(respData))
 				if segSize >= len(respData) {
@@ -1132,8 +1131,14 @@ func testKafkaFetchRaw(t *testing.T, tls bool, apiVersion int) {
 }
 
 func TestKafkaFetchRaw(t *testing.T) {
+	versions := []int{4, 5, 7, 11}
+
 	t.Run("without TLS", func(t *testing.T) {
-		testKafkaFetchRaw(t, false, 11)
+		for _, version := range versions {
+			t.Run(fmt.Sprintf("api%d", version), func(t *testing.T) {
+				testKafkaFetchRaw(t, false, version)
+			})
+		}
 	})
 
 	t.Run("with TLS", func(t *testing.T) {
@@ -1141,7 +1146,11 @@ func TestKafkaFetchRaw(t *testing.T) {
 			t.Skip("GoTLS not supported for this setup")
 		}
 
-		testKafkaFetchRaw(t, true, 11)
+		for _, version := range versions {
+			t.Run(fmt.Sprintf("api%d", version), func(t *testing.T) {
+				testKafkaFetchRaw(t, true, version)
+			})
+		}
 	})
 }
 
