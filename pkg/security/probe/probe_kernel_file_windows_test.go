@@ -64,6 +64,10 @@ func createTestProbe() (*WindowsProbe, error) {
 		regPathResolver:    rc,
 		discardedPaths:     discardedPaths,
 		discardedBasenames: discardedBasenames,
+
+		isRenameEnabled: true,
+		isWriteEnabled:  true,
+		isDeleteEnabled: true,
 	}
 	err = wp.Init()
 

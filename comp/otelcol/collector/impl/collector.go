@@ -22,7 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/datadogexporter"
-	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/processor/tagenrichmentprocessor"
+	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/processor/infraattributesprocessor"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
@@ -65,7 +65,7 @@ func New(deps dependencies) (collectordef.Component, error) {
 			} else {
 				factories.Exporters[datadogexporter.Type] = datadogexporter.NewFactory(deps.Serializer, nil, deps.HostName)
 			}
-			factories.Processors[tagenrichmentprocessor.Type] = tagenrichmentprocessor.NewFactory()
+			factories.Processors[infraattributesprocessor.Type] = infraattributesprocessor.NewFactory()
 			return factories, nil
 		},
 		ConfigProvider: deps.Provider,
