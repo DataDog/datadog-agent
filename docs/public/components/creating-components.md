@@ -65,8 +65,8 @@ In the example of a compression component, the def folder looks like this:
 
 === ":octicons-file-code-16: comp/compression/def/component.go"
     ```go
-    // Package compressiondef contains all public type and interfaces for the compression component
-    package def
+    // Package compression contains all public type and interfaces for the compression component
+    package compression
 
     // team: <your team>
 
@@ -121,14 +121,16 @@ The only requirement is that there is a public instantiation function called `Ne
     package implzstd
 
     // NewComponent returns a new ZSTD implementation for the compression component
-    func NewComponent(){
+    func NewComponent(reqs Requires) Provides {
         ....
     }
     ```
 
-To access an argument in the  `NewComponent` function, use a special struct named `Requires`. This struct returns a special stuct named `Provides`. This internal nomenclature is used to handle the different component dependencies using Fx groups.
+To require input arguments to the `NewComponent` instantiation function, use a special struct named `Requires`.
+The instantiation function returns a special stuct named `Provides`. This internal nomenclature is used
+to handle the different component dependencies using Fx groups.
 
-In this example, the compression component must access the configuration component and the log component. To express this, define a `Requires` struct with two fields. The name is irrelevant, but the type must be a concrete type.
+In this example, the compression component must access the configuration component and the log component. To express this, define a `Requires` struct with two fields. The name of the fields is irrelevant, but the type must be the concrete type of interface that you require.
 
 === ":octicons-file-code-16: comp/compression/impl-zstd/compressor.go"
     ```go

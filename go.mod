@@ -701,6 +701,7 @@ require (
 	github.com/rickar/props v1.0.0
 	github.com/sijms/go-ora/v2 v2.8.14
 	github.com/swaggest/jsonschema-go v0.3.64
+	github.com/valyala/fastjson v1.6.4
 	github.com/vibrantbyte/go-antpath v1.1.1
 	go.opentelemetry.io/collector/confmap/converter/expandconverter v0.100.0
 	go.opentelemetry.io/collector/confmap/provider/envprovider v0.100.0
@@ -1110,7 +1111,6 @@ require (
 	github.com/tetratelabs/wazero v1.7.0 // indirect
 	github.com/tg123/go-htpasswd v1.2.2 // indirect
 	github.com/tilinna/clock v1.1.0 // indirect
-	github.com/valyala/fastjson v1.6.4 // indirect
 	github.com/vincent-petithory/dataurl v1.0.0 // indirect
 	github.com/vmware/go-vmware-nsxt v0.0.0-20230223012718-d31b8a1ca05e // indirect
 	github.com/vmware/govmomi v0.36.3 // indirect
