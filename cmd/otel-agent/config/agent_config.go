@@ -15,6 +15,9 @@ import (
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/datadogexporter"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	traceconfig "github.com/DataDog/datadog-agent/pkg/trace/config"
+	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes"
+	"go.opentelemetry.io/collector/component/componenttest"
 	"go.opentelemetry.io/collector/confmap"
 	"go.opentelemetry.io/collector/confmap/converter/expandconverter"
 	"go.opentelemetry.io/collector/confmap/provider/envprovider"
@@ -56,6 +59,7 @@ func NewConfigComponent(ctx context.Context, uris []string) (config.Component, e
 	if err != nil {
 		return nil, err
 	}
+	_, _ = newTraceAgentConfig(ddc)
 	site := ddc.API.Site
 	apiKey := string(ddc.API.Key)
 	// Create a new config
@@ -70,17 +74,6 @@ func NewConfigComponent(ctx context.Context, uris []string) (config.Component, e
 	pkgconfig.Set("log_level", sc.Telemetry.Logs.Level, pkgconfigmodel.SourceLocalConfigProcess)
 	pkgconfig.Set("apm_config.enabled", true, pkgconfigmodel.SourceLocalConfigProcess)
 	pkgconfig.Set("apm_config.apm_non_local_traffic", true, pkgconfigmodel.SourceLocalConfigProcess)
-
-	// OTLPReceiver.AttributesTranslator = attrsTranslator
-	// OTLPReceiver.SpanNameRemappings = ddc.Traces.SpanNameRemappings
-	// OTLPReceiver.SpanNameAsResourceName = ddc.Traces.SpanNameAsResourceName
-	// Endpoints[0].APIKey = string(ddc.API.Key)
-	// Ignore["resource"] = ddc.Traces.IgnoreResources
-	// ReceiverPort = 0 // disable HTTP receiver
-	// SkipSSLValidation = ddc.ClientConfig.TLSSetting.InsecureSkipVerify
-	// if addr := ddc.Traces.Endpoint; addr != "" {
-	// 	Endpoints[0].Host = addr
-	// }
 
 	if ddc.Traces.ComputeTopLevelBySpanKind {
 		pkgconfig.Set("apm_config.features", []string{"enable_otlp_compute_top_level_by_span_kind"}, pkgconfigmodel.SourceLocalConfigProcess)
@@ -152,4 +145,33 @@ func getDDExporterConfig(cfg *confmap.Conf) (*datadogexporter.Config, error) {
 
 	datadogConfig := configs[0]
 	return datadogConfig, nil
+}
+
+// TODO: remove this
+func newTraceAgentConfig(cfg *datadogexporter.Config) (*traceconfig.AgentConfig, error) {
+	acfg := traceconfig.New()
+	attrsTranslator, err := attributes.NewTranslator(componenttest.NewNopTelemetrySettings())
+	if err != nil {
+		return acfg, err
+	}
+	acfg.OTLPReceiver.AttributesTranslator = attrsTranslator
+	acfg.OTLPReceiver.SpanNameRemappings = cfg.Traces.SpanNameRemappings
+	acfg.OTLPReceiver.SpanNameAsResourceName = cfg.Traces.SpanNameAsResourceName
+	acfg.Endpoints[0].APIKey = string(cfg.API.Key)
+	acfg.Ignore["resource"] = cfg.Traces.IgnoreResources
+	acfg.ReceiverPort = 0 // disable HTTP receiver
+	acfg.SkipSSLValidation = cfg.ClientConfig.TLSSetting.InsecureSkipVerify
+	acfg.ComputeStatsBySpanKind = cfg.Traces.ComputeStatsBySpanKind
+	acfg.PeerTagsAggregation = cfg.Traces.PeerTagsAggregation
+	acfg.PeerTags = cfg.Traces.PeerTags
+	if v := cfg.Traces.TraceBuffer; v > 0 {
+		acfg.TraceBuffer = v
+	}
+	if addr := cfg.Traces.Endpoint; addr != "" {
+		acfg.Endpoints[0].Host = addr
+	}
+	if cfg.Traces.ComputeTopLevelBySpanKind {
+		acfg.Features["enable_otlp_compute_top_level_by_span_kind"] = struct{}{}
+	}
+	return acfg, nil
 }

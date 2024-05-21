@@ -54,6 +54,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/trace => ../../../../../../pkg/trace
 	github.com/DataDog/datadog-agent/pkg/util/backoff => ../../../../../../pkg/util/backoff/
 	github.com/DataDog/datadog-agent/pkg/util/buf => ../../../../../../pkg/util/buf/
+	github.com/DataDog/datadog-agent/pkg/util/cgroups => ../../../../../../pkg/util/cgroups/
 	github.com/DataDog/datadog-agent/pkg/util/common => ../../../../../../pkg/util/common/
 	github.com/DataDog/datadog-agent/pkg/util/executable => ../../../../../../pkg/util/executable/
 	github.com/DataDog/datadog-agent/pkg/util/filesystem => ../../../../../../pkg/util/filesystem/
