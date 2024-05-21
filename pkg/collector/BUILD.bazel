@@ -3,7 +3,7 @@ load("@rules_go//go:def.bzl", "go_library", "go_test")
 go_library(
     name = "collector",
     srcs = [
-        "embed_nopy.go",
+        "embed_python.go",
         "scheduler.go",
         "stats.go",
     ],
@@ -16,6 +16,8 @@ go_library(
         "//pkg/collector/check",
         "//pkg/collector/check/id",
         "//pkg/collector/loaders",
+        "//pkg/collector/python",
+        "//pkg/config",
         "//pkg/util/containers",
         "//pkg/util/log",
         "//pkg/util/optional",

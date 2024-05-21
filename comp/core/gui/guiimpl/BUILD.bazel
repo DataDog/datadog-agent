@@ -5,7 +5,7 @@ go_library(
     srcs = [
         "agent.go",
         "checks.go",
-        "checks_nopy.go",
+        "checks_python.go",
         "gui.go",
         "platform_darwin.go",
         "platform_nix.go",
@@ -55,6 +55,7 @@ go_library(
         "//pkg/collector",
         "//pkg/collector/check/stats",
         "//pkg/collector/corechecks",
+        "//pkg/collector/python",
         "//pkg/config",
         "//pkg/config/model",
         "//pkg/util/fxutil",

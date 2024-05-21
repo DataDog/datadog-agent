@@ -10,6 +10,8 @@ from invoke import Collection, Task
 from tasks import (
     agent,
     ami,
+    agentless_scanner,
+    bazel,
     bench,
     buildimages,
     cluster_agent,
@@ -160,7 +162,14 @@ ns.add_task(lint_go)
 
 # add namespaced tasks to the root
 ns.add_collection(agent)
+<<<<<<< HEAD
 ns.add_collection(ami)
+||||||| parent of 6305ca7b03 (Add a way to inject separately built rtloader into the Bazel build)
+ns.add_collection(agentless_scanner)
+=======
+ns.add_collection(agentless_scanner)
+ns.add_collection(bazel)
+>>>>>>> 6305ca7b03 (Add a way to inject separately built rtloader into the Bazel build)
 ns.add_collection(buildimages)
 ns.add_collection(cluster_agent)
 ns.add_collection(cluster_agent_cloudfoundry)

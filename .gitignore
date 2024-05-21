@@ -126,6 +126,9 @@ omnibus/resources/agent/msi/cal/packages/
 
 # bazel files
 /bazel-*
+# folder dedicated for externally prebuilt inputs to Bazel, we only check in the BUILD file
+/bazel/prebuilt_inputs/**/*
+!/bazel/prebuilt_inputs/BUILD.bazel
 
 # serverless artifact
 cmd/serverless/serverless

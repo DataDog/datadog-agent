@@ -5,6 +5,7 @@ go_library(
     srcs = [
         "agent.go",
         "agent_jmx.go",
+        "python_status.go",
         "python_status_nopython.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/comp/api/api/apiimpl/internal/agent",
@@ -49,7 +50,48 @@ go_library(
         "@com_github_datadog_zstd//:zstd",
         "@com_github_gorilla_mux//:mux",
         "@in_gopkg_yaml_v2//:yaml_v2",
-    ],
+    ] + select({
+        "@rules_go//go/platform:aix": [
+            "//pkg/collector/python",
+        ],
+        "@rules_go//go/platform:android": [
+            "//pkg/collector/python",
+        ],
+        "@rules_go//go/platform:darwin": [
+            "//pkg/collector/python",
+        ],
+        "@rules_go//go/platform:dragonfly": [
+            "//pkg/collector/python",
+        ],
+        "@rules_go//go/platform:freebsd": [
+            "//pkg/collector/python",
+        ],
+        "@rules_go//go/platform:illumos": [
+            "//pkg/collector/python",
+        ],
+        "@rules_go//go/platform:ios": [
+            "//pkg/collector/python",
+        ],
+        "@rules_go//go/platform:js": [
+            "//pkg/collector/python",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/collector/python",
+        ],
+        "@rules_go//go/platform:netbsd": [
+            "//pkg/collector/python",
+        ],
+        "@rules_go//go/platform:openbsd": [
+            "//pkg/collector/python",
+        ],
+        "@rules_go//go/platform:plan9": [
+            "//pkg/collector/python",
+        ],
+        "@rules_go//go/platform:solaris": [
+            "//pkg/collector/python",
+        ],
+        "//conditions:default": [],
+    }),
 )
 
 go_test(
