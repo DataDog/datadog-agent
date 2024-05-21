@@ -910,7 +910,7 @@ func testKafkaFetchRaw(t *testing.T, tls bool) {
 	tests := []struct {
 		name              string
 		buildResponse     func() kmsg.FetchResponse
-		buildMessages     func(kmsg.FetchResponse) []Message
+		buildMessages     func(kmsg.FetchRequest, kmsg.FetchResponse) []Message
 		onlyTLS           bool
 		numFetchedRecords int
 	}{
@@ -948,7 +948,7 @@ func testKafkaFetchRaw(t *testing.T, tls bool) {
 				partition := makeFetchResponseTopicPartition(makeRecordBatch(record))
 				return makeFetchResponse(makeFetchResponseTopic(topic, partition))
 			},
-			buildMessages: func(resp kmsg.FetchResponse) []Message {
+			buildMessages: func(req kmsg.FetchRequest, resp kmsg.FetchResponse) []Message {
 				formatter := kmsg.NewRequestFormatter(kmsg.FormatterClientID("kgo"))
 				var msgs []Message
 				reqData := formatter.AppendRequest(make([]byte, 0), &req, int32(55))
@@ -970,7 +970,7 @@ func testKafkaFetchRaw(t *testing.T, tls bool) {
 				partition := makeFetchResponseTopicPartition(makeRecordBatch(record))
 				return makeFetchResponse(makeFetchResponseTopic(topic, partition))
 			},
-			buildMessages: func(resp kmsg.FetchResponse) []Message {
+			buildMessages: func(req kmsg.FetchRequest, resp kmsg.FetchResponse) []Message {
 				formatter := kmsg.NewRequestFormatter(kmsg.FormatterClientID("kgo"))
 				var msgs []Message
 				reqData := formatter.AppendRequest(make([]byte, 0), &req, int32(55))
@@ -992,7 +992,7 @@ func testKafkaFetchRaw(t *testing.T, tls bool) {
 				partition := makeFetchResponseTopicPartition(makeRecordBatch(record))
 				return makeFetchResponse(makeFetchResponseTopic(topic, partition))
 			},
-			buildMessages: func(resp kmsg.FetchResponse) []Message {
+			buildMessages: func(req kmsg.FetchRequest, resp kmsg.FetchResponse) []Message {
 				formatter := kmsg.NewRequestFormatter(kmsg.FormatterClientID("kgo"))
 				var msgs []Message
 				reqData := formatter.AppendRequest(make([]byte, 0), &req, int32(55))
@@ -1055,7 +1055,7 @@ func testKafkaFetchRaw(t *testing.T, tls bool) {
 			if tt.buildMessages == nil {
 				msgs = appendMessages(msgs, 99, req, resp)
 			} else {
-				msgs = tt.buildMessages(resp)
+				msgs = tt.buildMessages(req, resp)
 			}
 
 			monitor := newKafkaMonitor(t, getDefaultTestConfiguration(tls))
