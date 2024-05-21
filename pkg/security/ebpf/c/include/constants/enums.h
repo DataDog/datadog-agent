@@ -191,4 +191,13 @@ enum selinux_event_kind_t {
     SELINUX_BOOL_COMMIT_EVENT_KIND,
 };
 
+// flags for syscall_cache_t.exec.flags and process_event_t.flags fields
+enum exec_flags {
+    EXEC_FLAGS_IS_PARSED = 1 << 0,
+    EXEC_FLAGS_HAS_ARGS = 1 << 1,
+    EXEC_FLAGS_HAS_ENVS = 1 << 2,
+    EXEC_FLAGS_ARGS_TRUNCATED = 1 << 3,
+    EXEC_FLAGS_ENVS_TRUNCATED = 1 << 4,
+};
+
 #endif

@@ -129,7 +129,7 @@ struct syscall_cache_t {
             struct args_envs_parsing_context_t args_envs_ctx;
             struct span_context_t span_context;
             struct linux_binprm_t linux_binprm;
-            u8 is_parsed;
+            u32 flags;
         } exec;
 
         struct {

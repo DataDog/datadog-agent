@@ -3,6 +3,7 @@
 
 #include "constants/syscall_macro.h"
 #include "constants/offsets/filesystem.h"
+#include "helpers/exec.h"
 #include "helpers/filesystem.h"
 #include "helpers/syscalls.h"
 #include "constants/fentry_macro.h"
@@ -19,7 +20,17 @@ int __attribute__((always_inline)) trace__sys_execveat(ctx_t *ctx, const char *p
             }
         }
     };
+
     collect_syscall_ctx(&syscall, SYSCALL_CTX_ARG_STR(0), (void *)path, NULL, NULL);
+
+    if (!is_empty_string_array(argv)) {
+        syscall.exec.flags |= EXEC_FLAGS_HAS_ARGS;
+    }
+
+    if (!is_empty_string_array(env)) {
+        syscall.exec.flags |= EXEC_FLAGS_HAS_ENVS;
+    }
+
     cache_syscall(&syscall);
 
     u64 pid_tgid = bpf_get_current_pid_tgid();
@@ -735,7 +746,7 @@ int __attribute__((always_inline)) send_exec_event(ctx_t *ctx) {
     on_stack_process->inode = parent_inode;
 
     copy_span_context(&syscall->exec.span_context, &event->span);
-    fill_args_envs(event, syscall);
+    fill_args_envs_flags(event, syscall);
 
     // [activity_dump] check if this process should be traced
     should_trace_new_process(ctx, now, tgid, event->container.container_id, event->proc_entry.comm);

@@ -177,6 +177,27 @@ type LinuxBinprm struct {
 	FileEvent FileEvent `field:"file"`
 }
 
+// ExecEventFlags represents the possible exec event flags
+type ExecEventFlags uint32
+
+const (
+	// ExecEventFlagsIsParsed indicates that the kernel-side dentry resolution has been performed
+	ExecEventFlagsIsParsed ExecEventFlags = 1 << iota
+	// ExecEventFlagsHasArgs indicates that the execve syscall was called with arguments
+	ExecEventFlagsHasArgs
+	// ExecEventFlagsHasEnv indicates that the execve syscall was called with environment variables
+	ExecEventFlagsHasEnv
+	// ExecEventFlagsArgsTruncated indicates that the arguments were truncated
+	ExecEventFlagsArgsTruncated
+	// ExecEventFlagsEnvsTruncated indicates that the environment variables were truncated
+	ExecEventFlagsEnvsTruncated
+)
+
+// Has returns true if the flags contain the given flags
+func (f ExecEventFlags) Has(test ExecEventFlags) bool {
+	return f&test == test
+}
+
 // Process represents a process
 type Process struct {
 	PIDContext
@@ -210,8 +231,9 @@ type Process struct {
 
 	AWSSecurityCredentials []AWSSecurityCredentials `field:"-"`
 
-	ArgsID uint32 `field:"-"`
-	EnvsID uint32 `field:"-"`
+	ArgsID    uint32         `field:"-"`
+	EnvsID    uint32         `field:"-"`
+	ExecFlags ExecEventFlags `field:"-"`
 
 	ArgsEntry *ArgsEntry `field:"-"`
 	EnvsEntry *EnvsEntry `field:"-"`

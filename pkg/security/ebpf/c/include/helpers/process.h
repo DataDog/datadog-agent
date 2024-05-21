@@ -110,11 +110,16 @@ static struct proc_cache_t * __attribute__((always_inline)) fill_process_context
     return fill_process_context_with_pid_tgid(data, pid_tgid);
 }
 
-void __attribute__((always_inline)) fill_args_envs(struct process_event_t *event, struct syscall_cache_t *syscall) {
+void __attribute__((always_inline)) fill_args_envs_flags(struct process_event_t *event, struct syscall_cache_t *syscall) {
     event->args_id = syscall->exec.args.id;
-    event->args_truncated = syscall->exec.args.truncated;
     event->envs_id = syscall->exec.envs.id;
-    event->envs_truncated = syscall->exec.envs.truncated;
+    event->exec_flags = syscall->exec.flags;
+    if (syscall->exec.args.truncated) {
+        event->exec_flags |= EXEC_FLAGS_ARGS_TRUNCATED;
+    }
+    if (syscall->exec.envs.truncated) {
+        event->exec_flags |= EXEC_FLAGS_ENVS_TRUNCATED;
+    }
 }
 
 u32 __attribute__((always_inline)) get_root_nr_from_pid_struct(struct pid *pid) {
