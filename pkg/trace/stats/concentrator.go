@@ -14,10 +14,8 @@ import (
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
+	"github.com/DataDog/datadog-agent/pkg/trace/ticker"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
-	"github.com/DataDog/datadog-agent/pkg/trace/watchdog"
-
-	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
 // defaultBufferLen represents the default buffer length; the number of bucket size
@@ -44,9 +42,9 @@ type Concentrator struct {
 	// It means that we can compute stats only for the last `bufferLen * bsize` and that we
 	// wait such time before flushing the stats.
 	// This only applies to past buckets. Stats buckets in the future are allowed with no restriction.
-	bufferLen              int
-	exit                   chan struct{}
-	exitWG                 sync.WaitGroup
+	bufferLen int
+	// 	exit                   chan struct{}
+	// 	exitWG                 sync.WaitGroup
 	buckets                map[int64]*RawBucket // buckets used to aggregate stats per timestamp
 	mu                     sync.Mutex
 	agentEnv               string
@@ -55,7 +53,6 @@ type Concentrator struct {
 	peerTagsAggregation    bool     // flag to enable aggregation of peer tags
 	computeStatsBySpanKind bool     // flag to enable computation of stats through checking the span.kind field
 	peerTagKeys            []string // keys for supplementary tags that describe peer.service entities
-	statsd                 statsd.ClientInterface
 }
 
 var defaultPeerTags = []string{
@@ -107,7 +104,7 @@ func preparePeerTags(tags ...string) []string {
 }
 
 // NewConcentrator initializes a new concentrator ready to be started
-func NewConcentrator(conf *config.AgentConfig, out statsAdder, now time.Time, statsd statsd.ClientInterface) *Concentrator {
+func NewConcentrator(conf *config.AgentConfig, out statsAdder, now time.Time) *Concentrator {
 	bsize := conf.BucketInterval.Nanoseconds()
 	c := Concentrator{
 		bsize:   bsize,
@@ -118,13 +115,11 @@ func NewConcentrator(conf *config.AgentConfig, out statsAdder, now time.Time, st
 		// TODO: Move to configuration.
 		bufferLen:              defaultBufferLen,
 		Out:                    out,
-		exit:                   make(chan struct{}),
 		agentEnv:               conf.DefaultEnv,
 		agentHostname:          conf.Hostname,
 		agentVersion:           conf.AgentVersion,
 		peerTagsAggregation:    conf.PeerServiceAggregation || conf.PeerTagsAggregation,
 		computeStatsBySpanKind: conf.ComputeStatsBySpanKind,
-		statsd:                 statsd,
 	}
 	// NOTE: maintain backwards-compatibility with old peer service flag that will eventually be deprecated.
 	if conf.PeerServiceAggregation || conf.PeerTagsAggregation {
@@ -133,41 +128,19 @@ func NewConcentrator(conf *config.AgentConfig, out statsAdder, now time.Time, st
 	return &c
 }
 
-// Start starts the concentrator.
-func (c *Concentrator) Start() {
-	c.exitWG.Add(1)
-	go func() {
-		defer watchdog.LogOnPanic(c.statsd)
-		defer c.exitWG.Done()
-		c.Run()
-	}()
-}
-
-// Run runs the main loop of the concentrator goroutine. Traces are received
-// through `Add`, this loop only deals with flushing.
-func (c *Concentrator) Run() {
-	// flush with the same period as stats buckets
-	flushTicker := time.NewTicker(time.Duration(c.bsize) * time.Nanosecond)
-	defer flushTicker.Stop()
-
-	log.Debug("Starting concentrator")
-
-	for {
-		select {
-		case <-flushTicker.C:
-			c.Out.Add(c.Flush(false))
-		case <-c.exit:
-			log.Info("Exiting concentrator, computing remaining stats")
-			c.Out.Add(c.Flush(true))
-			return
-		}
+func (c *Concentrator) Tasks() []ticker.TickTask {
+	return []ticker.TickTask{
+		{
+			Interval: time.Duration(c.bsize) * time.Nanosecond,
+			Task:     func() { c.Out.Add(c.Flush(false)) },
+		},
 	}
 }
 
-// Stop stops the main Run loop.
+// Stop triggers cleanup of the Concentrator.
 func (c *Concentrator) Stop() {
-	close(c.exit)
-	c.exitWG.Wait()
+	log.Info("Exiting concentrator, computing remaining stats")
+	c.Out.Add(c.Flush(true))
 }
 
 // computeStatsForSpanKind returns true if the span.kind value makes the span eligible for stats computation.

@@ -25,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 	"github.com/DataDog/datadog-agent/pkg/trace/stats"
 	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/trace/ticker"
 	"github.com/DataDog/datadog-agent/pkg/trace/timing"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/version"
@@ -66,7 +67,7 @@ type traceWriter interface {
 }
 
 type concentrator interface {
-	Start()
+	ticker.Ticker
 	Stop()
 	Add(t stats.Input)
 }
@@ -129,7 +130,7 @@ func NewAgent(ctx context.Context, conf *config.AgentConfig, telemetryCollector 
 	timing := timing.New(statsd)
 	statsWriter := writer.NewStatsWriter(conf, telemetryCollector, statsd, timing)
 	agnt := &Agent{
-		Concentrator:          stats.NewConcentrator(conf, statsWriter, time.Now(), statsd),
+		Concentrator:          stats.NewConcentrator(conf, statsWriter, time.Now()),
 		ClientStatsAggregator: stats.NewClientStatsAggregator(conf, statsWriter, statsd),
 		Blacklister:           filters.NewBlacklister(conf.Ignore["resource"]),
 		Replacer:              filters.NewReplacer(conf.ReplaceTags),
@@ -161,7 +162,7 @@ func (a *Agent) Run() {
 	defer a.Timing.Stop()
 	for _, starter := range []interface{ Start() }{
 		a.Receiver,
-		a.Concentrator,
+		//a.Concentrator,
 		a.ClientStatsAggregator,
 		a.PrioritySampler,
 		a.ErrorsSampler,
@@ -175,6 +176,7 @@ func (a *Agent) Run() {
 		starter.Start()
 	}
 
+	go ticker.RunTickers(a.ctx, a.Statsd, []ticker.Ticker{a.Concentrator})
 	go a.StatsWriter.Run()
 
 	// Having GOMAXPROCS/2 processor threads is
