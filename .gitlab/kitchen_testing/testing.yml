@@ -29,7 +29,7 @@
     when: always
     paths:
       - $CI_PROJECT_DIR/kitchen_logs
-      - "**/junit-${CI_JOB_NAME}.gz"
+      - "**/junit-${CI_JOB_NAME}.tgz"
 
 # Kitchen: providers
 # ---------------

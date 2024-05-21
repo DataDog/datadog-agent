@@ -486,5 +486,6 @@ func getModuleNameFromFile(filename string) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	defer file.Close()
 	return getModuleName(file)
 }
