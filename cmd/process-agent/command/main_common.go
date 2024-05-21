@@ -56,6 +56,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/metadata/workloadmeta/collector"
 	"github.com/DataDog/datadog-agent/pkg/process/statsd"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
+	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	ddutil "github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -75,6 +76,10 @@ Exiting.`
 
 // errAgentDisabled indicates that the process-agent wasn't enabled through environment variable or config.
 var errAgentDisabled = errors.New("process-agent not enabled")
+
+func killProcess(configs map[string]state.RawConfig, _ func(string, state.ApplyStatus)) {
+	log.Infof("Killing process using configs %v\n", configs)
+}
 
 func runAgent(ctx context.Context, globalParams *GlobalParams) error {
 	// Now that the logger is configured log host info
@@ -221,6 +226,7 @@ func runApp(ctx context.Context, globalParams *GlobalParams) error {
 			if !processAgent.Enabled() {
 				return errAgentDisabled
 			}
+
 			return nil
 		}),
 		fx.Provide(func(c config.Component) settings.Params {
@@ -308,6 +314,7 @@ type miscDeps struct {
 	HostInfo     hostinfo.Component
 	WorkloadMeta workloadmeta.Component
 	Logger       logComponent.Component
+	RemoteConfig rcclient.Component
 }
 
 // initMisc initializes modules that cannot, or have not yet been componetized.
@@ -317,6 +324,11 @@ func initMisc(deps miscDeps) error {
 	if err := statsd.Configure(ddconfig.GetBindHost(), deps.Config.GetInt("dogstatsd_port"), deps.Statsd.CreateForHostPort); err != nil {
 		deps.Logger.Criticalf("Error configuring statsd: %s", err)
 		return err
+	}
+
+	if ddconfig.IsRemoteConfigEnabled(ddconfig.Datadog) {
+		log.Info("Remote config is enabled, subscribing to DEBUG product")
+		deps.RemoteConfig.Subscribe("DEBUG", killProcess)
 	}
 
 	if err := ddutil.SetupCoreDump(deps.Config); err != nil {
