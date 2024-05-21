@@ -661,9 +661,9 @@ func (s *KafkaProtocolParsingSuite) testKafkaProtocolParsing(t *testing.T, tls b
 	}
 }
 
-func generateFetchRequest(topic string) kmsg.FetchRequest {
+func generateFetchRequest(apiVersion int, topic string) kmsg.FetchRequest {
 	req := kmsg.NewFetchRequest()
-	req.SetVersion(11)
+	req.SetVersion(int16(apiVersion))
 	reqTopic := kmsg.NewFetchRequestTopic()
 	reqTopic.Topic = topic
 	partition := kmsg.NewFetchRequestTopicPartition()
@@ -716,9 +716,9 @@ func makeFetchResponseTopic(topic string, partitions ...kmsg.FetchResponseTopicP
 	return respTopic
 }
 
-func makeFetchResponse(topics ...kmsg.FetchResponseTopic) kmsg.FetchResponse {
+func makeFetchResponse(apiVersion int, topics ...kmsg.FetchResponseTopic) kmsg.FetchResponse {
 	resp := kmsg.NewFetchResponse()
-	resp.SetVersion(11)
+	resp.SetVersion(int16(apiVersion))
 	resp.ThrottleMillis = 999999999
 	resp.SessionID = 0x11223344
 	resp.Topics = append(resp.Topics, topics...)
@@ -902,11 +902,11 @@ func (can *CannedClientServer) runClient(msgs []Message) {
 	}
 }
 
-func testKafkaFetchRaw(t *testing.T, tls bool) {
+func testKafkaFetchRaw(t *testing.T, tls bool, apiVersion int) {
 	skipTestIfKernelNotSupported(t)
 	topic := "test-topic"
 
-	req := generateFetchRequest(topic)
+	req := generateFetchRequest(apiVersion, topic)
 	tests := []struct {
 		name              string
 		buildResponse     func() kmsg.FetchResponse
@@ -935,7 +935,7 @@ func testKafkaFetchRaw(t *testing.T, tls bool) {
 					partitions = append(partitions, partition)
 				}
 
-				return makeFetchResponse(makeFetchResponseTopic(topic, partitions...))
+				return makeFetchResponse(apiVersion, makeFetchResponseTopic(topic, partitions...))
 			},
 			numFetchedRecords: 5 * 4 * 3,
 		},
@@ -946,7 +946,7 @@ func testKafkaFetchRaw(t *testing.T, tls bool) {
 			buildResponse: func() kmsg.FetchResponse {
 				record := makeRecord()
 				partition := makeFetchResponseTopicPartition(makeRecordBatch(record))
-				return makeFetchResponse(makeFetchResponseTopic(topic, partition))
+				return makeFetchResponse(apiVersion, makeFetchResponseTopic(topic, partition))
 			},
 			buildMessages: func(req kmsg.FetchRequest, resp kmsg.FetchResponse) []Message {
 				formatter := kmsg.NewRequestFormatter(kmsg.FormatterClientID("kgo"))
@@ -968,7 +968,7 @@ func testKafkaFetchRaw(t *testing.T, tls bool) {
 			buildResponse: func() kmsg.FetchResponse {
 				record := makeRecord()
 				partition := makeFetchResponseTopicPartition(makeRecordBatch(record))
-				return makeFetchResponse(makeFetchResponseTopic(topic, partition))
+				return makeFetchResponse(apiVersion, makeFetchResponseTopic(topic, partition))
 			},
 			buildMessages: func(req kmsg.FetchRequest, resp kmsg.FetchResponse) []Message {
 				formatter := kmsg.NewRequestFormatter(kmsg.FormatterClientID("kgo"))
@@ -990,7 +990,7 @@ func testKafkaFetchRaw(t *testing.T, tls bool) {
 			buildResponse: func() kmsg.FetchResponse {
 				record := makeRecord()
 				partition := makeFetchResponseTopicPartition(makeRecordBatch(record))
-				return makeFetchResponse(makeFetchResponseTopic(topic, partition))
+				return makeFetchResponse(apiVersion, makeFetchResponseTopic(topic, partition))
 			},
 			buildMessages: func(req kmsg.FetchRequest, resp kmsg.FetchResponse) []Message {
 				formatter := kmsg.NewRequestFormatter(kmsg.FormatterClientID("kgo"))
@@ -1017,7 +1017,7 @@ func testKafkaFetchRaw(t *testing.T, tls bool) {
 					partition.AbortedTransactions = append(partition.AbortedTransactions, aborted)
 				}
 
-				return makeFetchResponse(makeFetchResponseTopic(topic, partition))
+				return makeFetchResponse(apiVersion, makeFetchResponseTopic(topic, partition))
 			},
 			numFetchedRecords: 2,
 		},
@@ -1033,7 +1033,7 @@ func testKafkaFetchRaw(t *testing.T, tls bool) {
 				tmp := recordBatch.AppendTo(make([]byte, 0))
 				partition.RecordBatches = append(partition.RecordBatches, tmp[:len(tmp)-1]...)
 
-				return makeFetchResponse(makeFetchResponseTopic(topic, partition))
+				return makeFetchResponse(apiVersion, makeFetchResponseTopic(topic, partition))
 			},
 			numFetchedRecords: 3,
 		},
@@ -1068,7 +1068,7 @@ func testKafkaFetchRaw(t *testing.T, tls bool) {
 			kafkaStats := getAndValidateKafkaStats(t, monitor, 1)
 			validateProduceFetchCount(t, kafkaStats, topic, kafkaParsingValidation{
 				expectedNumberOfFetchRequests: tt.numFetchedRecords,
-				expectedAPIVersionFetch:       11,
+				expectedAPIVersionFetch:       int(apiVersion),
 			})
 		})
 
@@ -1125,7 +1125,7 @@ func testKafkaFetchRaw(t *testing.T, tls bool) {
 
 			validateProduceFetchCount(t, kafkaStats, topic, kafkaParsingValidation{
 				expectedNumberOfFetchRequests: tt.numFetchedRecords * splitIdx,
-				expectedAPIVersionFetch:       11,
+				expectedAPIVersionFetch:       apiVersion,
 			})
 		})
 	}
@@ -1133,7 +1133,7 @@ func testKafkaFetchRaw(t *testing.T, tls bool) {
 
 func TestKafkaFetchRaw(t *testing.T) {
 	t.Run("without TLS", func(t *testing.T) {
-		testKafkaFetchRaw(t, false)
+		testKafkaFetchRaw(t, false, 11)
 	})
 
 	t.Run("with TLS", func(t *testing.T) {
@@ -1141,7 +1141,7 @@ func TestKafkaFetchRaw(t *testing.T) {
 			t.Skip("GoTLS not supported for this setup")
 		}
 
-		testKafkaFetchRaw(t, true)
+		testKafkaFetchRaw(t, true, 11)
 	})
 }
 
