@@ -140,7 +140,7 @@ func addSystemDEnvOverrides(unit string) error {
 	// We don't need a file mutator here as we're fully hard coding the content.
 	// We don't really need to remove the file either as it'll just be ignored once the
 	// unit is removed.
-	path := fmt.Sprintf("%s/%s.d/datadog_environment.conf", systemdPath, unit)
+	path := filepath.Join(systemdPath, unit+".d", "datadog_environment.conf")
 	err := os.Mkdir(filepath.Dir(path), 0755)
 	if err != nil && !os.IsExist(err) {
 		return fmt.Errorf("error creating systemd environment override directory: %w", err)
