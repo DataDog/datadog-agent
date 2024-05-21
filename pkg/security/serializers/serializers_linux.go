@@ -494,7 +494,7 @@ type EventSerializer struct {
 	*SignalEventSerializer   `json:"signal,omitempty"`
 	*SpliceEventSerializer   `json:"splice,omitempty"`
 	*DNSEventSerializer      `json:"dns,omitempty"`
-	*IMDSEventSerializer                    `json:"imds,omitempty"`
+	*IMDSEventSerializer     `json:"imds,omitempty"`
 	*BindEventSerializer     `json:"bind,omitempty"`
 	*MountEventSerializer    `json:"mount,omitempty"`
 	*SyscallsEventSerializer `json:"syscalls,omitempty"`
