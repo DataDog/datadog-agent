@@ -345,6 +345,10 @@ func (p *EBPFResolver) enrichEventFromProc(entry *model.ProcessCacheEntry, proc 
 	entry.FileEvent.FileFields = *info
 	setPathname(&entry.FileEvent, pathnameStr)
 
+	// force mount from procfs/snapshot
+	entry.FileEvent.MountOrigin = model.MountOriginProcfs
+	entry.FileEvent.MountSource = model.MountSourceSnapshot
+
 	entry.Process.ContainerID = string(containerID)
 
 	if entry.FileEvent.IsFileless() {
