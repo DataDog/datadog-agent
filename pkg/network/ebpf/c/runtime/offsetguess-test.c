@@ -64,7 +64,7 @@ int kprobe__tcp_getsockopt(struct pt_regs* ctx) {
     bpf_map_update_elem(&offsets, &o, &offset, BPF_ANY);
 
     o = OFFSET_SPORT;
-    offset = offsetof(struct sock, sk_num);
+    offset = offsetof(struct inet_sock, inet_sport);
     bpf_map_update_elem(&offsets, &o, &offset, BPF_ANY);
 
     o = OFFSET_DPORT;

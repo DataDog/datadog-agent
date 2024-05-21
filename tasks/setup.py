@@ -128,7 +128,7 @@ def check_python_version(_ctx) -> SetupResult:
 
     message = ""
     status = Status.OK
-    if tuple(sys.version_info)[:3] != tuple(int(d) for d in expected_version.split(".")):
+    if tuple(sys.version_info)[:2] != tuple(int(d) for d in expected_version.split(".")):
         status = Status.FAIL
         message = (
             f"Python version is {sys.version_info[0]}.{sys.version_info[1]}.{sys.version_info[2]}. "
