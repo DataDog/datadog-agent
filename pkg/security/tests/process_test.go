@@ -23,7 +23,6 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
-	"sync"
 	"syscall"
 	"testing"
 	"time"
@@ -757,47 +756,18 @@ func TestProcessContext(t *testing.T) {
 		}
 		defer os.Remove(testFile)
 
-		executable := which(t, "tail")
-
 		test.WaitSignal(t, func() error {
-			var wg sync.WaitGroup
-
-			errChan := make(chan error, 1)
-
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
-
-				time.Sleep(2 * time.Second)
-				cmd := exec.Command("script", "/dev/null", "-c", executable+" -f "+testFile)
-				if err := cmd.Start(); err != nil {
-					errChan <- err
-					return
-				}
-				time.Sleep(2 * time.Second)
-
-				cmd.Process.Kill()
-				cmd.Wait()
-			}()
-
-			wg.Wait()
-
-			select {
-			case err = <-errChan:
-				return err
-			default:
-			}
-			return nil
-
+			cmd := exec.Command("script", "/dev/null", "-c", fmt.Sprintf("%s slow-cat 4 %s", syscallTester, testFile))
+			return cmd.Run()
 		}, func(event *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_rule_tty")
-			assertFieldEqual(t, event, "process.file.path", executable)
+			assertFieldEqual(t, event, "process.file.path", syscallTester)
 
 			if name, _ := event.GetFieldValue("process.tty_name"); !strings.HasPrefix(name.(string), "pts") {
 				t.Errorf("not able to get a tty name: %s\n", name)
 			}
 
-			assertInode(t, event.ProcessContext.FileEvent.Inode, getInode(t, executable))
+			assertInode(t, event.ProcessContext.FileEvent.Inode, getInode(t, syscallTester))
 
 			str, err := test.marshalEvent(event)
 			if err != nil {
