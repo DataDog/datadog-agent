@@ -228,17 +228,17 @@ func (a *apmInjectorInstaller) deleteLDPreloadConfigContent(ldSoPreload []byte) 
 	return nil, fmt.Errorf("failed to remove %s from %s", launcherPreloadPath, ldSoPreloadPath)
 }
 
-func (a *apmInjectorInstaller) verifySharedLib(lib_path string) error {
+func (a *apmInjectorInstaller) verifySharedLib(libPath string) error {
 	echoPath, err := exec.LookPath("echo")
 	if err != nil {
 		return fmt.Errorf("failed to find echo: %w", err)
 	}
 	cmd := exec.Command(echoPath, "1")
-	cmd.Env = append(os.Environ(), "LD_PRELOAD="+lib_path)
+	cmd.Env = append(os.Environ(), "LD_PRELOAD="+libPath)
 	var buf bytes.Buffer
 	cmd.Stderr = &buf
 	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("failed to verify injected lib %s (%w): %s", lib_path, err, buf.String())
+		return fmt.Errorf("failed to verify injected lib %s (%w): %s", libPath, err, buf.String())
 	}
 	return nil
 }
