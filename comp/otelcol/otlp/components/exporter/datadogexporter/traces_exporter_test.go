@@ -60,7 +60,6 @@ func TestTraceExporter(t *testing.T) {
 	tcfg.OTLPReceiver.AttributesTranslator = tr
 	ctx := context.Background()
 	traceagent := agent.NewAgent(ctx, tcfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{})
-	go traceagent.Run()
 	f := NewFactory(traceagent, nil, nil, nil)
 	exporter, err := f.CreateTracesExporter(ctx, params, &cfg)
 	assert.NoError(t, err)

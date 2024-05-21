@@ -177,6 +177,7 @@ func (c *collectorcontribImpl) OTelComponentFactories() (otelcol.Factories, erro
 	var errs error
 
 	connectorsList := []connector.Factory{
+		datadogconnector.NewFactory(),
 		forwardconnector.NewFactory(),
 		countconnector.NewFactory(),
 		exceptionsconnector.NewFactory(),
