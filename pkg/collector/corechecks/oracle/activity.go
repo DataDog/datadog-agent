@@ -178,7 +178,7 @@ func (c *Check) SampleSession() error {
 	} else {
 		activityQuery = activityQueryDirect
 	}
-	activityQuery = strings.ReplaceAll(activityQuery, "{sql_substr_length}", string(maxSQLTextLength))
+	activityQuery = strings.ReplaceAll(activityQuery, "{sql_substr_length}", fmt.Sprintf("%d", maxSQLTextLength))
 
 	if c.config.QuerySamples.IncludeAllSessions {
 		activityQuery = fmt.Sprintf("%s %s", activityQuery, " OR 1=1")
