@@ -1425,7 +1425,7 @@ func setupDropTrafficRule(tb testing.TB) (ns string) {
 		nettestutil.IptablesRestore(tb, state)
 	})
 	cmds := []string{
-		fmt.Sprint("iptables -A OUTPUT -p tcp -d 127.0.0.1 --dport 10000 -j DROP"),
+		"iptables -A OUTPUT -p tcp -d 127.0.0.1 --dport 10000 -j DROP",
 	}
 	nettestutil.RunCommands(tb, cmds, false)
 	return
