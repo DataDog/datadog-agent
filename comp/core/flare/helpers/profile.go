@@ -184,28 +184,3 @@ func RequestInternalProfiling(seconds int) error {
 	//	return errs
 	return nil
 }
-
-// // RunInternalProfiler start internal profiling, sleeps for a few minutes and then stops it, meaning that the caller will be blocked
-// func RunInternalProfiler(c config.Component, l log.Component) {
-// 	internalProfilerIsAlreadyRunning := c.GetBool("internal_profiling.enabled")
-// 	if internalProfilerIsAlreadyRunning {
-// 		l.Info("Internal profiling is already running, skipping")
-// 		return
-// 	}
-
-// 	// Start internal profiling by setting the runtime settings
-// 	runtimeSettings := commonsettings.NewProfilingRuntimeSetting("internal_profiling", "datadog-agent")
-// 	err := runtimeSettings.Set(c, "true", model.SourceAgentRuntime)
-// 	if err == nil {
-// 		// Wait for 5 min (for now)
-// 		time.Sleep(1 * time.Minute)
-
-// 		// Stop internal profiling
-// 		err = runtimeSettings.Set(c, "false", model.SourceAgentRuntime)
-// 		if err != nil {
-// 			l.Errorf("Failed to stop internal profiling. Error %s", err.Error())
-// 		}
-// 	} else {
-// 		l.Errorf("Failed to start internal profiling. Error %s", err.Error())
-// 	}
-// }
