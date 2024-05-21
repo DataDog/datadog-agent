@@ -30,7 +30,7 @@ func buildDependencyList() (string, error) {
 	arg1 := "-f"
 	arg2 := `"{{ join .Deps "\n"}}"`
 	arg3 := "-tags"
-	arg4 := "serverless"
+	arg4 := "serverless,otlp"
 	arg5 := "github.com/DataDog/datadog-agent/cmd/serverless"
 	cmd := exec.Command(run, arg0, arg1, arg2, arg3, arg4, arg5)
 
