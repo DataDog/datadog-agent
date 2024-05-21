@@ -58,7 +58,15 @@ type dependencies struct {
 	Tagger             tagger.Component
 }
 
-type component struct{}
+type component struct {
+	agent *pkgagent.Agent
+}
+
+func (c component) GetAgent() *pkgagent.Agent {
+	return c.agent
+}
+
+var _ Component = (*component)(nil)
 
 type agent struct {
 	*pkgagent.Agent
@@ -76,7 +84,7 @@ type agent struct {
 }
 
 func newAgent(deps dependencies) Component {
-	c := component{}
+	c := component{nil}
 	tracecfg := deps.Config.Object()
 	if !tracecfg.Enabled {
 		log.Info(messageAgentDisabled)
@@ -98,7 +106,7 @@ func newAgent(deps dependencies) Component {
 		tagger:             deps.Tagger,
 		wg:                 sync.WaitGroup{},
 	}
-
+	c.agent = ag.Agent
 	deps.Lc.Append(fx.Hook{
 		// Provided contexts have a timeout, so it can't be used for gracefully stopping long-running components.
 		// These contexts are cancelled on a deadline, so they would have side effects on the agent.

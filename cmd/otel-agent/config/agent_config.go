@@ -15,6 +15,9 @@ import (
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/datadogexporter"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	traceconfig "github.com/DataDog/datadog-agent/pkg/trace/config"
+	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes"
+	"go.opentelemetry.io/collector/component/componenttest"
 	"go.opentelemetry.io/collector/confmap"
 	"go.opentelemetry.io/collector/confmap/converter/expandconverter"
 	"go.opentelemetry.io/collector/confmap/provider/envprovider"
@@ -26,7 +29,7 @@ import (
 )
 
 // NewConfigComponent creates a new config component from the given URIs
-func NewConfigComponent(ctx context.Context, uris []string) (config.Component, error) {
+func NewConfigComponent(ctx context.Context, uris []string) (config.Component, *traceconfig.AgentConfig, error) {
 	// Load the configuration from the fileName
 	rs := confmap.ResolverSettings{
 		URIs: uris,
@@ -42,19 +45,23 @@ func NewConfigComponent(ctx context.Context, uris []string) (config.Component, e
 
 	resolver, err := confmap.NewResolver(rs)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	cfg, err := resolver.Resolve(ctx)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	ddc, err := getDDExporterConfig(cfg)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	sc, err := getServiceConfig(cfg)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
+	}
+	tcfg, err := newTraceAgentConfig(ddc)
+	if err != nil {
+		return nil, nil, err
 	}
 	site := ddc.API.Site
 	apiKey := string(ddc.API.Key)
@@ -70,7 +77,20 @@ func NewConfigComponent(ctx context.Context, uris []string) (config.Component, e
 	pkgconfig.Set("log_level", sc.Telemetry.Logs.Level, pkgconfigmodel.SourceLocalConfigProcess)
 	pkgconfig.Set("apm_config.enabled", true, pkgconfigmodel.SourceLocalConfigProcess)
 	pkgconfig.Set("apm_config.apm_non_local_traffic", true, pkgconfigmodel.SourceLocalConfigProcess)
-	return pkgconfig, nil
+
+	if ddc.Traces.ComputeTopLevelBySpanKind {
+		pkgconfig.Set("apm_config.features", []string{"enable_otlp_compute_top_level_by_span_kind"}, pkgconfigmodel.SourceLocalConfigProcess)
+	}
+
+	pkgconfig.Set("apm_config.trace_buffer", ddc.Traces.TraceBuffer, pkgconfigmodel.SourceLocalConfigProcess)
+
+	// Peer service related configs
+	pkgconfig.Set("apm_config.peer_service_aggregation", ddc.Traces.PeerServiceAggregation, pkgconfigmodel.SourceLocalConfigProcess)
+	pkgconfig.Set("apm_config.peer_tags_aggregation", ddc.Traces.PeerTagsAggregation, pkgconfigmodel.SourceLocalConfigProcess)
+	pkgconfig.Set("apm_config.peer_tags", ddc.Traces.PeerTags, pkgconfigmodel.SourceLocalConfigProcess)
+	pkgconfig.Set("apm_config.compute_stats_by_span_kind", ddc.Traces.ComputeStatsBySpanKind, pkgconfigmodel.SourceLocalConfigProcess)
+
+	return pkgconfig, tcfg, nil
 }
 
 func getServiceConfig(cfg *confmap.Conf) (*service.Config, error) {
@@ -128,4 +148,35 @@ func getDDExporterConfig(cfg *confmap.Conf) (*datadogexporter.Config, error) {
 
 	datadogConfig := configs[0]
 	return datadogConfig, nil
+}
+
+// TODO: remove this
+func newTraceAgentConfig(cfg *datadogexporter.Config) (*traceconfig.AgentConfig, error) {
+	acfg := traceconfig.New()
+	attrsTranslator, err := attributes.NewTranslator(componenttest.NewNopTelemetrySettings())
+	if err != nil {
+		return acfg, err
+	}
+	acfg.OTLPReceiver.AttributesTranslator = attrsTranslator
+	acfg.OTLPReceiver.SpanNameRemappings = cfg.Traces.SpanNameRemappings
+	acfg.OTLPReceiver.SpanNameAsResourceName = cfg.Traces.SpanNameAsResourceName
+	acfg.Endpoints[0].APIKey = string(cfg.API.Key)
+	acfg.Ignore["resource"] = cfg.Traces.IgnoreResources
+	acfg.ReceiverPort = 0 // disable HTTP receiver
+	acfg.SkipSSLValidation = cfg.ClientConfig.TLSSetting.InsecureSkipVerify
+	acfg.ComputeStatsBySpanKind = cfg.Traces.ComputeStatsBySpanKind
+	acfg.PeerTagsAggregation = cfg.Traces.PeerTagsAggregation
+	acfg.PeerTags = cfg.Traces.PeerTags
+	if v := cfg.Traces.TraceBuffer; v > 0 {
+		acfg.TraceBuffer = v
+	}
+	if addr := cfg.Traces.Endpoint; addr != "" {
+		acfg.Endpoints[0].Host = addr
+	} else {
+		acfg.Endpoints[0].Host = "https://trace.agent.datadoghq.com"
+	}
+	if cfg.Traces.ComputeTopLevelBySpanKind {
+		acfg.Features["enable_otlp_compute_top_level_by_span_kind"] = struct{}{}
+	}
+	return acfg, nil
 }

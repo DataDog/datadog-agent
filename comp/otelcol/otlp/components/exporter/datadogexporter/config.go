@@ -80,6 +80,13 @@ type TracesConfig struct {
 	// NOTE: For stats computed from OTel traces, only top-level spans are considered when this option is off.
 	ComputeStatsBySpanKind bool `mapstructure:"compute_stats_by_span_kind"`
 
+	// If set to true, root spans and spans with a server or consumer `span.kind` will be marked as top-level.
+	// Additionally, spans with a client or producer `span.kind` will have stats computed.
+	// Enabling this config option may increase the number of spans that generate trace metrics, and may change which spans appear as top-level in Datadog.
+	// ComputeTopLevelBySpanKind needs to be enabled in both the Datadog connector and Datadog exporter configs if both components are being used.
+	// The default value is `false`.
+	ComputeTopLevelBySpanKind bool `mapstructure:"compute_top_level_by_span_kind"`
+
 	// If set to true, enables `peer.service` aggregation in the exporter. If disabled, aggregated trace stats will not include `peer.service` as a dimension.
 	// For the best experience with `peer.service`, it is recommended to also enable `compute_stats_by_span_kind`.
 	// If enabling both causes the datadog exporter to consume too many resources, try disabling `compute_stats_by_span_kind` first.
