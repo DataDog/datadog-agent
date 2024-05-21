@@ -28,6 +28,23 @@
                 "outcome"
             ]
         },
+        "syscall": {
+            "type": "object",
+            "properties": {
+                "str_arg1": {
+                    "type": "string"
+                },
+                "str_arg2": {
+                    "type": "string"
+                },
+                "int_arg1": {
+                    "type": "number"
+                },
+                "int_arg2": {
+                    "type": "number"
+                }
+            }
+        },
         "date": {
             "$ref": "/schemas/datetime.json"
         }
