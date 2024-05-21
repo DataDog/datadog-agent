@@ -72,9 +72,8 @@ type WindowsProbe struct {
 	fimwg      sync.WaitGroup
 
 	// path caches
-	filePathResolverLock sync.Mutex
-	filePathResolver     *lru.Cache[fileObjectPointer, fileCache]
-	regPathResolver      *lru.Cache[regObjectPointer, string]
+	filePathResolver *lru.Cache[fileObjectPointer, fileCache]
+	regPathResolver  *lru.Cache[regObjectPointer, string]
 
 	// state tracking
 	renamePreArgs *lru.Cache[uint64, string]
@@ -737,9 +736,7 @@ func (p *WindowsProbe) Close() error {
 
 // SendStats sends statistics about the probe to Datadog
 func (p *WindowsProbe) SendStats() error {
-	p.filePathResolverLock.Lock()
 	fprLen := p.filePathResolver.Len()
-	p.filePathResolverLock.Unlock()
 
 	// may need to lock here
 	if err := p.statsdClient.Gauge(metrics.MetricWindowsProcessStart, float64(p.stats.procStart), nil, 1); err != nil {
@@ -958,9 +955,6 @@ func (p *WindowsProbe) OnNewDiscarder(_ *rules.RuleSet, ev *model.Event, field e
 	}
 
 	fileObject := fileObjectPointer(ev.CreateNewFile.File.FileObject)
-	p.filePathResolverLock.Lock()
-	defer p.filePathResolverLock.Unlock()
-	//delete(p.filePathResolver, fileObject)
 	p.filePathResolver.Remove(fileObject)
 }
 
