@@ -42,9 +42,10 @@ const (
 )
 
 var (
-	// The kernel has to be newer than 4.7.0 since we are using bpf_skb_load_bytes (4.5.0+) method to read from the
-	// socket filter, and a tracepoint (4.7.0+).
-	classificationMinimumKernel = kernel.VersionCode(4, 7, 0)
+	// The kernel has to be newer than 4.11.0 since we are using bpf_skb_load_bytes (4.5.0+), which
+	// was added to socket filters in 4.11.0:
+	// - 2492d3b867043f6880708d095a7a5d65debcfc32
+	classificationMinimumKernel = kernel.VersionCode(4, 11, 0)
 
 	protocolClassificationTailCalls = []manager.TailCallRoute{
 		{
