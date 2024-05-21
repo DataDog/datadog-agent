@@ -19,9 +19,9 @@ import (
 )
 
 type metricNameTest struct {
-	name       string
-	inMetrics  pmetric.Metrics
-	outMetrics pmetric.Metrics
+	name                  string
+	inMetrics             pmetric.Metrics
+	outResourceAttributes map[string]any
 }
 
 type metricWithResource struct {
@@ -36,20 +36,35 @@ var (
 
 	standardTests = []metricNameTest{
 		{
-			name: "add attribute",
+			name: "one tag",
 			inMetrics: testResourceMetrics([]metricWithResource{{
 				metricNames: inMetricNames,
 				resourceAttributes: map[string]any{
 					"container.id": "test",
 				},
 			}}),
-			outMetrics: testResourceMetrics([]metricWithResource{{
+			outResourceAttributes: map[string]any{
+				"container.id": "test",
+				"container":    "id",
+			},
+		},
+		{
+			name: "two tags",
+			inMetrics: testResourceMetrics([]metricWithResource{{
 				metricNames: inMetricNames,
 				resourceAttributes: map[string]any{
-					"container.id": "test",
-					"app":          "foo",
+					"container.id":        "test",
+					"k8s.namespace.name":  "namespace",
+					"k8s.deployment.name": "deployment",
 				},
 			}}),
+			outResourceAttributes: map[string]any{
+				"container.id":        "test",
+				"k8s.namespace.name":  "namespace",
+				"k8s.deployment.name": "deployment",
+				"container":           "id",
+				"deployment":          "name",
+			},
 		},
 	}
 )
@@ -64,7 +79,8 @@ func TestInfraAttributesMetricProcessor(t *testing.T) {
 			}
 			fakeTagger := taggerimpl.SetupFakeTagger(t)
 			defer fakeTagger.ResetTagger()
-			fakeTagger.SetTags("container_id://test", "foo", []string{"app:foo"}, nil, nil, nil)
+			fakeTagger.SetTags("container_id://test", "foo", []string{"container:id"}, nil, nil, nil)
+			fakeTagger.SetTags("deployment://namespace/deployment", "foo", []string{"deployment:name"}, nil, nil, nil)
 			factory := NewFactory(fakeTagger)
 			fmp, err := factory.CreateMetricsProcessor(
 				context.Background(),
@@ -85,7 +101,7 @@ func TestInfraAttributesMetricProcessor(t *testing.T) {
 			assert.NoError(t, fmp.Shutdown(ctx))
 
 			assert.Len(t, next.AllMetrics(), 1)
-			assert.Equal(t, test.outMetrics, next.AllMetrics()[0])
+			assert.EqualValues(t, test.outResourceAttributes, next.AllMetrics()[0].ResourceMetrics().At(0).Resource().Attributes().AsRaw())
 		})
 	}
 }
