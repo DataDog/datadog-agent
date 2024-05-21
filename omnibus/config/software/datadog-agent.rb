@@ -181,7 +181,7 @@ build do
       command "dda inv -e selinux.compile-system-probe-policy-file --output-directory #{conf_dir}/selinux", env: env
     end
 
-    move 'bin/agent/dist/system-probe.yaml', "#{conf_dir}/system-probe.yaml.example"
+  #   move 'bin/agent/dist/system-probe.yaml', "#{conf_dir}/system-probe.yaml.example"
   end
 
   # System-probe eBPF files

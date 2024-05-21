@@ -176,6 +176,9 @@ build do
       end
     end
 
+    # XXX: Install only very few integrations for local testing purposes
+    checks_to_install = checks_to_install[0, 5]
+
     checks_to_install.each do |check|
       # pip < 21.2 replace underscores by dashes in package names per https://pip.pypa.io/en/stable/news/#v21-2
       # whether or not this might switch back in the future is not guaranteed, so we check for both name

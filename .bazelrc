@@ -1,0 +1,1 @@
+build --verbose_failures --define gotags=bundle_agent,apm,consul,containerd,cri,datadog.no_waf,docker,ec2,etcd,gce,jetson,jmx,kubeapiserver,kubelet,netcgo,oracle,orchestrator,otlp,podman,python,process,zk,zlib,zstd
