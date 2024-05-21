@@ -189,8 +189,29 @@ func (s *packageBaseSuite) InstallInjectorPackageTemp() {
 	s.Env().RemoteHost.MustExecute(`sudo systemctl restart datadog-agent-trace`)
 }
 
+// TODO: This is a hack to install a working version of apm-inject
+func (s *packageBaseSuite) InstallInjectorPackageTempWithError() error {
+	s.Env().RemoteHost.MustExecute(`echo "DD_APM_RECEIVER_SOCKET=/var/tmp/apm.socket" | sudo tee -a /etc/environment`)
+	if s.Env().FakeIntake != nil {
+		s.Env().RemoteHost.MustExecute(fmt.Sprintf(`echo "DD_APM_DD_URL=%s" | sudo tee -a /etc/environment`, s.Env().FakeIntake.URL))
+	}
+	s.Env().RemoteHost.MustExecute("sudo mkdir -p /etc/systemd/system/datadog-agent-trace.service.d")
+	s.Env().RemoteHost.MustExecute(`printf "[Service]\nEnvironmentFile=-/etc/environment\n" | sudo tee /etc/systemd/system/datadog-agent-trace.service.d/inject.conf`)
+	s.Env().RemoteHost.MustExecute("sudo systemctl daemon-reload")
+	_, err := s.Env().RemoteHost.Execute("sudo -E datadog-installer install oci://669783387624.dkr.ecr.us-east-1.amazonaws.com/apm-inject-package:pipeline-34163111", client.WithEnvVariables(s.env))
+	if err != nil {
+		return err
+	}
+	s.Env().RemoteHost.MustExecute(`sudo systemctl restart datadog-agent-trace`)
+	return nil
+}
 func (s *packageBaseSuite) InstallPackageLatest(pkg string) {
-	s.Env().RemoteHost.MustExecute(fmt.Sprintf(`sudo -E datadog-installer install oci://gcr.io/datadoghq/%s-package:latest`, strings.TrimPrefix(pkg, "datadog-")), client.WithEnvVariables(s.env))
+	require.NoError(s.T(), s.InstallPackageLatestWithError(pkg))
+}
+
+func (s *packageBaseSuite) InstallPackageLatestWithError(pkg string) error {
+	_, err := s.Env().RemoteHost.Execute(fmt.Sprintf(`sudo -E datadog-installer install oci://gcr.io/datadoghq/%s-package:latest`, strings.TrimPrefix(pkg, "datadog-")), client.WithEnvVariables(s.env))
+	return err
 }
 
 func (s *packageBaseSuite) Purge() {
