@@ -19,12 +19,18 @@ import (
 func TestChdir(t *testing.T) {
 	SkipIfNotAvailable(t)
 
-	rule := &rules.RuleDefinition{
-		ID:         "test_chdir_rule",
-		Expression: `chdir.file.path == "{{.Root}}/test-chdir"`,
+	ruleDefs := []*rules.RuleDefinition{
+		{
+			ID:         "test_chdir_rule",
+			Expression: `chdir.file.path == "{{.Root}}/test-chdir"`,
+		},
+		{
+			ID:         "test_chdir_ctx",
+			Expression: `chdir.file.path == "{{.Root}}/test-chdir-ctx" && chdir.syscall.str_arg1 == "../../../..{{.Root}}/test-chdir-ctx"`,
+		},
 	}
 
-	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule})
+	test, err := newTestModule(t, nil, ruleDefs)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -59,6 +65,24 @@ func TestChdir(t *testing.T) {
 			return f.Chdir()
 		}, func(event *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_chdir_rule")
+		})
+	})
+
+	t.Run("syscall-context", func(t *testing.T) {
+		testFolder, _, err := test.Path("test-chdir-ctx")
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if err := os.MkdirAll(testFolder, 0777); err != nil {
+			t.Fatalf("failed to create directory: %s", err)
+		}
+		defer os.RemoveAll(testFolder)
+
+		test.WaitSignal(t, func() error {
+			return os.Chdir("../../../.." + testFolder)
+		}, func(event *model.Event, rule *rules.Rule) {
+			assertTriggeredRule(t, rule, "test_chdir_ctx")
 		})
 	})
 }

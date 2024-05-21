@@ -1075,6 +1075,7 @@ func NewEventSerializer(event *model.Event, opts *eval.Opts) *EventSerializer {
 			},
 		}
 		s.EventContextSerializer.Outcome = serializeOutcome(event.Chmod.Retval)
+		s.SyscallContextSerializer = newSyscallContextSerializer(&event.Chmod.SyscallContext, event)
 	case model.FileChownEventType:
 		s.FileEventSerializer = &FileEventSerializer{
 			FileSerializer: *newFileSerializer(&event.Chown.File, event),

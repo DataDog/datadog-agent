@@ -226,6 +226,10 @@ func (ev *Event) resolveFields(forADs bool) {
 			_ = ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Chdir.File)
 		}
 	case "chmod":
+		_ = ev.FieldHandlers.ResolveSyscallCtxStrArg1(ev, &ev.Chmod.SyscallContext)
+		_ = ev.FieldHandlers.ResolveSyscallCtxStrArg2(ev, &ev.Chmod.SyscallContext)
+		_ = ev.FieldHandlers.ResolveSyscallCtxIntArg1(ev, &ev.Chmod.SyscallContext)
+		_ = ev.FieldHandlers.ResolveSyscallCtxIntArg2(ev, &ev.Chmod.SyscallContext)
 		_ = ev.FieldHandlers.ResolveFileFieldsUser(ev, &ev.Chmod.File.FileFields)
 		_ = ev.FieldHandlers.ResolveFileFieldsGroup(ev, &ev.Chmod.File.FileFields)
 		_ = ev.FieldHandlers.ResolveFileFieldsInUpperLayer(ev, &ev.Chmod.File.FileFields)

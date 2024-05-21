@@ -139,6 +139,7 @@ func TestChmod(t *testing.T) {
 			assert.Equal(t, value.(bool), false)
 
 			test.validateChmodSchema(t, event)
+			validateSyscallContextStr1(t, event)
 		})
 	}))
 }

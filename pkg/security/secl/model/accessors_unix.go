@@ -640,6 +640,42 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
+	case "chmod.syscall.int_arg1":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ev := ctx.Event.(*Event)
+				return int(ev.FieldHandlers.ResolveSyscallCtxIntArg1(ev, &ev.Chmod.SyscallContext))
+			},
+			Field:  field,
+			Weight: 900 * eval.HandlerWeight,
+		}, nil
+	case "chmod.syscall.int_arg2":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ev := ctx.Event.(*Event)
+				return int(ev.FieldHandlers.ResolveSyscallCtxIntArg2(ev, &ev.Chmod.SyscallContext))
+			},
+			Field:  field,
+			Weight: 900 * eval.HandlerWeight,
+		}, nil
+	case "chmod.syscall.str_arg1":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveSyscallCtxStrArg1(ev, &ev.Chmod.SyscallContext)
+			},
+			Field:  field,
+			Weight: 900 * eval.HandlerWeight,
+		}, nil
+	case "chmod.syscall.str_arg2":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveSyscallCtxStrArg2(ev, &ev.Chmod.SyscallContext)
+			},
+			Field:  field,
+			Weight: 900 * eval.HandlerWeight,
+		}, nil
 	case "chown.file.change_time":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -16554,6 +16590,10 @@ func (ev *Event) GetFields() []eval.Field {
 		"chmod.file.uid",
 		"chmod.file.user",
 		"chmod.retval",
+		"chmod.syscall.int_arg1",
+		"chmod.syscall.int_arg2",
+		"chmod.syscall.str_arg1",
+		"chmod.syscall.str_arg2",
 		"chown.file.change_time",
 		"chown.file.destination.gid",
 		"chown.file.destination.group",
@@ -17917,6 +17957,14 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return ev.FieldHandlers.ResolveFileFieldsUser(ev, &ev.Chmod.File.FileFields), nil
 	case "chmod.retval":
 		return int(ev.Chmod.SyscallEvent.Retval), nil
+	case "chmod.syscall.int_arg1":
+		return int(ev.FieldHandlers.ResolveSyscallCtxIntArg1(ev, &ev.Chmod.SyscallContext)), nil
+	case "chmod.syscall.int_arg2":
+		return int(ev.FieldHandlers.ResolveSyscallCtxIntArg2(ev, &ev.Chmod.SyscallContext)), nil
+	case "chmod.syscall.str_arg1":
+		return ev.FieldHandlers.ResolveSyscallCtxStrArg1(ev, &ev.Chmod.SyscallContext), nil
+	case "chmod.syscall.str_arg2":
+		return ev.FieldHandlers.ResolveSyscallCtxStrArg2(ev, &ev.Chmod.SyscallContext), nil
 	case "chown.file.change_time":
 		return int(ev.Chown.File.FileFields.CTime), nil
 	case "chown.file.destination.gid":
@@ -24259,6 +24307,14 @@ func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "chmod", nil
 	case "chmod.retval":
 		return "chmod", nil
+	case "chmod.syscall.int_arg1":
+		return "chmod", nil
+	case "chmod.syscall.int_arg2":
+		return "chmod", nil
+	case "chmod.syscall.str_arg1":
+		return "chmod", nil
+	case "chmod.syscall.str_arg2":
+		return "chmod", nil
 	case "chown.file.change_time":
 		return "chown", nil
 	case "chown.file.destination.gid":
@@ -26848,6 +26904,14 @@ func (ev *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.String, nil
 	case "chmod.retval":
 		return reflect.Int, nil
+	case "chmod.syscall.int_arg1":
+		return reflect.Int, nil
+	case "chmod.syscall.int_arg2":
+		return reflect.Int, nil
+	case "chmod.syscall.str_arg1":
+		return reflect.String, nil
+	case "chmod.syscall.str_arg2":
+		return reflect.String, nil
 	case "chown.file.change_time":
 		return reflect.Int, nil
 	case "chown.file.destination.gid":
@@ -29742,6 +29806,34 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueTypeMismatch{Field: "Chmod.SyscallEvent.Retval"}
 		}
 		ev.Chmod.SyscallEvent.Retval = int64(rv)
+		return nil
+	case "chmod.syscall.int_arg1":
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Chmod.SyscallContext.CtxIntArg1"}
+		}
+		ev.Chmod.SyscallContext.CtxIntArg1 = int64(rv)
+		return nil
+	case "chmod.syscall.int_arg2":
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Chmod.SyscallContext.CtxIntArg2"}
+		}
+		ev.Chmod.SyscallContext.CtxIntArg2 = int64(rv)
+		return nil
+	case "chmod.syscall.str_arg1":
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Chmod.SyscallContext.CtxStrArg1"}
+		}
+		ev.Chmod.SyscallContext.CtxStrArg1 = rv
+		return nil
+	case "chmod.syscall.str_arg2":
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Chmod.SyscallContext.CtxStrArg2"}
+		}
+		ev.Chmod.SyscallContext.CtxStrArg2 = rv
 		return nil
 	case "chown.file.change_time":
 		rv, ok := value.(int)

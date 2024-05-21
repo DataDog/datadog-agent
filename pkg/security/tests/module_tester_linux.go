@@ -544,6 +544,28 @@ func checkProcessContextFieldsForBlankValues(tb testing.TB, event *model.Event, 
 }
 
 //nolint:deadcode,unused
+func validateSyscallContextStr1(tb testing.TB, event *model.Event) {
+	eventJSON, err := serializers.MarshalEvent(event, nil)
+	if err != nil {
+		tb.Errorf("failed to marshal event: %v", err)
+		return
+	}
+
+	var data interface{}
+	if err := json.Unmarshal(eventJSON, &data); err != nil {
+		tb.Error(err)
+		tb.Error(string(eventJSON))
+		return
+	}
+
+	json, err := jsonpath.JsonPathLookup(data, "$.syscall.args.str_arg1")
+	if err != nil {
+		tb.Errorf("should have a syscall context, got %+v (%s)", json, spew.Sdump(data))
+		tb.Error(string(eventJSON))
+	}
+}
+
+//nolint:deadcode,unused
 func validateProcessContext(tb testing.TB, event *model.Event) {
 	if event.ProcessContext.IsKworker {
 		return

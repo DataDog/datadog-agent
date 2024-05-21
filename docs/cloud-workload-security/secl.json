@@ -1531,6 +1531,26 @@
           "name": "chmod.retval",
           "definition": "Return value of the syscall",
           "property_doc_link": "common-syscallevent-retval-doc"
+        },
+        {
+          "name": "chmod.syscall.int_arg1",
+          "definition": "first integer syscall argument",
+          "property_doc_link": "common-syscallcontext-syscall-int_arg1-doc"
+        },
+        {
+          "name": "chmod.syscall.int_arg2",
+          "definition": "Second integer syscall argument",
+          "property_doc_link": "common-syscallcontext-syscall-int_arg2-doc"
+        },
+        {
+          "name": "chmod.syscall.str_arg1",
+          "definition": "first string syscall argument",
+          "property_doc_link": "common-syscallcontext-syscall-str_arg1-doc"
+        },
+        {
+          "name": "chmod.syscall.str_arg2",
+          "definition": "second string syscall argument",
+          "property_doc_link": "common-syscallcontext-syscall-str_arg2-doc"
         }
       ]
     },
@@ -8445,6 +8465,7 @@
       "definition": "first integer syscall argument",
       "prefixes": [
         "chdir",
+        "chmod",
         "exec"
       ],
       "constants": "",
@@ -8458,6 +8479,7 @@
       "definition": "Second integer syscall argument",
       "prefixes": [
         "chdir",
+        "chmod",
         "exec"
       ],
       "constants": "",
@@ -8471,6 +8493,7 @@
       "definition": "first string syscall argument",
       "prefixes": [
         "chdir",
+        "chmod",
         "exec"
       ],
       "constants": "",
@@ -8484,6 +8507,7 @@
       "definition": "second string syscall argument",
       "prefixes": [
         "chdir",
+        "chmod",
         "exec"
       ],
       "constants": "",

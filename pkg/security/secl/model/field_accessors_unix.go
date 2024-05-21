@@ -518,6 +518,38 @@ func (ev *Event) GetChmodRetval() int64 {
 	return ev.Chmod.SyscallEvent.Retval
 }
 
+// GetChmodSyscallIntArg1 returns the value of the field, resolving if necessary
+func (ev *Event) GetChmodSyscallIntArg1() int {
+	if ev.GetEventType().String() != "chmod" {
+		return 0
+	}
+	return ev.FieldHandlers.ResolveSyscallCtxIntArg1(ev, &ev.Chmod.SyscallContext)
+}
+
+// GetChmodSyscallIntArg2 returns the value of the field, resolving if necessary
+func (ev *Event) GetChmodSyscallIntArg2() int {
+	if ev.GetEventType().String() != "chmod" {
+		return 0
+	}
+	return ev.FieldHandlers.ResolveSyscallCtxIntArg2(ev, &ev.Chmod.SyscallContext)
+}
+
+// GetChmodSyscallStrArg1 returns the value of the field, resolving if necessary
+func (ev *Event) GetChmodSyscallStrArg1() string {
+	if ev.GetEventType().String() != "chmod" {
+		return ""
+	}
+	return ev.FieldHandlers.ResolveSyscallCtxStrArg1(ev, &ev.Chmod.SyscallContext)
+}
+
+// GetChmodSyscallStrArg2 returns the value of the field, resolving if necessary
+func (ev *Event) GetChmodSyscallStrArg2() string {
+	if ev.GetEventType().String() != "chmod" {
+		return ""
+	}
+	return ev.FieldHandlers.ResolveSyscallCtxStrArg2(ev, &ev.Chmod.SyscallContext)
+}
+
 // GetChownFileChangeTime returns the value of the field, resolving if necessary
 func (ev *Event) GetChownFileChangeTime() uint64 {
 	if ev.GetEventType().String() != "chown" {

@@ -102,6 +102,7 @@ type SyscallContext struct {
 // ChmodEvent represents a chmod event
 type ChmodEvent struct {
 	SyscallEvent
+	SyscallContext
 	File FileEvent `field:"file"`
 	Mode uint32    `field:"file.destination.mode; file.destination.rights"` // SECLDoc[file.destination.mode] Definition:`New mode of the chmod-ed file` Constants:`File mode constants` SECLDoc[file.destination.rights] Definition:`New rights of the chmod-ed file` Constants:`File mode constants`
 }

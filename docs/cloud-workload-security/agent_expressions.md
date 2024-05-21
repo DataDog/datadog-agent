@@ -503,6 +503,10 @@ A file’s permissions were changed
 | [`chmod.file.uid`](#common-filefields-uid-doc) | UID of the file's owner |
 | [`chmod.file.user`](#common-filefields-user-doc) | User of the file's owner |
 | [`chmod.retval`](#common-syscallevent-retval-doc) | Return value of the syscall |
+| [`chmod.syscall.int_arg1`](#common-syscallcontext-syscall-int_arg1-doc) | first integer syscall argument |
+| [`chmod.syscall.int_arg2`](#common-syscallcontext-syscall-int_arg2-doc) | Second integer syscall argument |
+| [`chmod.syscall.str_arg1`](#common-syscallcontext-syscall-str_arg1-doc) | first string syscall argument |
+| [`chmod.syscall.str_arg2`](#common-syscallcontext-syscall-str_arg2-doc) | second string syscall argument |
 
 ### Event `chown`
 
@@ -2248,8 +2252,8 @@ Type: int
 
 Definition: first integer syscall argument
 
-`*.syscall.int_arg1` has 2 possible prefixes:
-`chdir` `exec`
+`*.syscall.int_arg1` has 3 possible prefixes:
+`chdir` `chmod` `exec`
 
 
 ### `*.syscall.int_arg2` {#common-syscallcontext-syscall-int_arg2-doc}
@@ -2257,8 +2261,8 @@ Type: int
 
 Definition: Second integer syscall argument
 
-`*.syscall.int_arg2` has 2 possible prefixes:
-`chdir` `exec`
+`*.syscall.int_arg2` has 3 possible prefixes:
+`chdir` `chmod` `exec`
 
 
 ### `*.syscall.str_arg1` {#common-syscallcontext-syscall-str_arg1-doc}
@@ -2266,8 +2270,8 @@ Type: string
 
 Definition: first string syscall argument
 
-`*.syscall.str_arg1` has 2 possible prefixes:
-`chdir` `exec`
+`*.syscall.str_arg1` has 3 possible prefixes:
+`chdir` `chmod` `exec`
 
 
 ### `*.syscall.str_arg2` {#common-syscallcontext-syscall-str_arg2-doc}
@@ -2275,8 +2279,8 @@ Type: string
 
 Definition: second string syscall argument
 
-`*.syscall.str_arg2` has 2 possible prefixes:
-`chdir` `exec`
+`*.syscall.str_arg2` has 3 possible prefixes:
+`chdir` `chmod` `exec`
 
 
 ### `*.tid` {#common-pidcontext-tid-doc}
