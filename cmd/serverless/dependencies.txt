@@ -38,7 +38,6 @@ crypto/subtle
 crypto/tls
 crypto/x509
 crypto/x509/pkix
-database/sql
 database/sql/driver
 embed
 encoding
@@ -66,6 +65,8 @@ github.com/DataDog/appsec-internal-go/netip
 github.com/DataDog/datadog-agent/cmd/agent/common/path
 github.com/DataDog/datadog-agent/cmd/serverless-init/cloudservice
 github.com/DataDog/datadog-agent/cmd/serverless-init/cloudservice/helper
+github.com/DataDog/datadog-agent/comp/api/api
+github.com/DataDog/datadog-agent/comp/api/api/utils
 github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration
 github.com/DataDog/datadog-agent/comp/core/config
 github.com/DataDog/datadog-agent/comp/core/flare/types
@@ -76,19 +77,13 @@ github.com/DataDog/datadog-agent/comp/core/log/logimpl
 github.com/DataDog/datadog-agent/comp/core/secrets
 github.com/DataDog/datadog-agent/comp/core/status
 github.com/DataDog/datadog-agent/comp/core/tagger
-github.com/DataDog/datadog-agent/comp/core/tagger/api
-github.com/DataDog/datadog-agent/comp/core/tagger/collectors
-github.com/DataDog/datadog-agent/comp/core/tagger/local
-github.com/DataDog/datadog-agent/comp/core/tagger/remote
-github.com/DataDog/datadog-agent/comp/core/tagger/replay
-github.com/DataDog/datadog-agent/comp/core/tagger/subscriber
-github.com/DataDog/datadog-agent/comp/core/tagger/tagstore
-github.com/DataDog/datadog-agent/comp/core/tagger/telemetry
 github.com/DataDog/datadog-agent/comp/core/tagger/types
 github.com/DataDog/datadog-agent/comp/core/tagger/utils
 github.com/DataDog/datadog-agent/comp/core/telemetry
+github.com/DataDog/datadog-agent/comp/core/telemetry/noopsimpl
 github.com/DataDog/datadog-agent/comp/core/workloadmeta
 github.com/DataDog/datadog-agent/comp/core/workloadmeta/telemetry
+github.com/DataDog/datadog-agent/comp/def
 github.com/DataDog/datadog-agent/comp/dogstatsd/constants
 github.com/DataDog/datadog-agent/comp/dogstatsd/listeners
 github.com/DataDog/datadog-agent/comp/dogstatsd/listeners/ratelimit
@@ -109,6 +104,7 @@ github.com/DataDog/datadog-agent/comp/forwarder/eventplatform
 github.com/DataDog/datadog-agent/comp/forwarder/orchestrator
 github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorinterface
 github.com/DataDog/datadog-agent/comp/logs/agent
+github.com/DataDog/datadog-agent/comp/logs/agent/agentimpl
 github.com/DataDog/datadog-agent/comp/logs/agent/config
 github.com/DataDog/datadog-agent/comp/logs/agent/flare
 github.com/DataDog/datadog-agent/comp/metadata/inventoryagent
@@ -135,9 +131,7 @@ github.com/DataDog/datadog-agent/pkg/config/env
 github.com/DataDog/datadog-agent/pkg/config/logs
 github.com/DataDog/datadog-agent/pkg/config/logs/internal/seelog
 github.com/DataDog/datadog-agent/pkg/config/model
-github.com/DataDog/datadog-agent/pkg/config/remote/client
 github.com/DataDog/datadog-agent/pkg/config/remote/data
-github.com/DataDog/datadog-agent/pkg/config/remote/meta
 github.com/DataDog/datadog-agent/pkg/config/setup
 github.com/DataDog/datadog-agent/pkg/config/setup/constants
 github.com/DataDog/datadog-agent/pkg/config/utils
@@ -241,14 +235,7 @@ github.com/DataDog/datadog-agent/pkg/util/cloudproviders/gce
 github.com/DataDog/datadog-agent/pkg/util/clusteragent
 github.com/DataDog/datadog-agent/pkg/util/common
 github.com/DataDog/datadog-agent/pkg/util/containers
-github.com/DataDog/datadog-agent/pkg/util/containers/metrics
-github.com/DataDog/datadog-agent/pkg/util/containers/metrics/containerd
-github.com/DataDog/datadog-agent/pkg/util/containers/metrics/cri
-github.com/DataDog/datadog-agent/pkg/util/containers/metrics/docker
-github.com/DataDog/datadog-agent/pkg/util/containers/metrics/ecsfargate
-github.com/DataDog/datadog-agent/pkg/util/containers/metrics/kubelet
 github.com/DataDog/datadog-agent/pkg/util/containers/metrics/provider
-github.com/DataDog/datadog-agent/pkg/util/containers/metrics/system
 github.com/DataDog/datadog-agent/pkg/util/dmi
 github.com/DataDog/datadog-agent/pkg/util/docker
 github.com/DataDog/datadog-agent/pkg/util/ec2
@@ -257,7 +244,7 @@ github.com/DataDog/datadog-agent/pkg/util/fargate
 github.com/DataDog/datadog-agent/pkg/util/filesystem
 github.com/DataDog/datadog-agent/pkg/util/flavor
 github.com/DataDog/datadog-agent/pkg/util/fxutil
-github.com/DataDog/datadog-agent/pkg/util/grpc
+github.com/DataDog/datadog-agent/pkg/util/grpc/context
 github.com/DataDog/datadog-agent/pkg/util/hostname
 github.com/DataDog/datadog-agent/pkg/util/hostname/validate
 github.com/DataDog/datadog-agent/pkg/util/http
@@ -266,7 +253,6 @@ github.com/DataDog/datadog-agent/pkg/util/kubelet
 github.com/DataDog/datadog-agent/pkg/util/kubernetes
 github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername
 github.com/DataDog/datadog-agent/pkg/util/kubernetes/hostinfo
-github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet
 github.com/DataDog/datadog-agent/pkg/util/log
 github.com/DataDog/datadog-agent/pkg/util/optional
 github.com/DataDog/datadog-agent/pkg/util/pointer
@@ -431,9 +417,6 @@ github.com/golang/protobuf/ptypes/empty
 github.com/golang/protobuf/ptypes/timestamp
 github.com/golang/protobuf/ptypes/wrappers
 github.com/google/uuid
-github.com/grpc-ecosystem/go-grpc-middleware
-github.com/grpc-ecosystem/go-grpc-middleware/auth
-github.com/grpc-ecosystem/go-grpc-middleware/util/metautils
 github.com/grpc-ecosystem/grpc-gateway/internal
 github.com/grpc-ecosystem/grpc-gateway/runtime
 github.com/grpc-ecosystem/grpc-gateway/utilities
@@ -483,7 +466,6 @@ github.com/philhofer/fwd
 github.com/pkg/errors
 github.com/pmezard/go-difflib/difflib
 github.com/prometheus/client_golang/prometheus
-github.com/prometheus/client_golang/prometheus/collectors
 github.com/prometheus/client_golang/prometheus/internal
 github.com/prometheus/client_golang/prometheus/promhttp
 github.com/prometheus/client_model/go
@@ -604,7 +586,6 @@ golang.org/x/exp/slices
 golang.org/x/net/http/httpguts
 golang.org/x/net/http/httpproxy
 golang.org/x/net/http2
-golang.org/x/net/http2/h2c
 golang.org/x/net/http2/hpack
 golang.org/x/net/idna
 golang.org/x/net/internal/socks
@@ -690,6 +671,7 @@ google.golang.org/protobuf/internal/descfmt
 google.golang.org/protobuf/internal/descopts
 google.golang.org/protobuf/internal/detrand
 google.golang.org/protobuf/internal/editiondefaults
+google.golang.org/protobuf/internal/editionssupport
 google.golang.org/protobuf/internal/encoding/defval
 google.golang.org/protobuf/internal/encoding/json
 google.golang.org/protobuf/internal/encoding/messageset
