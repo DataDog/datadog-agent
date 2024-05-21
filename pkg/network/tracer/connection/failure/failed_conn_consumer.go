@@ -91,10 +91,6 @@ func (c *TCPFailedConnConsumer) Start() {
 		return
 	}
 
-	var (
-		lostSamplesCount uint64
-	)
-
 	go func() {
 		dataChannel := c.eventHandler.DataChannel()
 		lostChannel := c.eventHandler.LostChannel()
@@ -124,7 +120,6 @@ func (c *TCPFailedConnConsumer) Start() {
 					return
 				}
 				failedConnConsumerTelemetry.eventsLost.Add(float64(lc))
-				lostSamplesCount += lc
 			}
 		}
 	}()

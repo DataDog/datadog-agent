@@ -1286,6 +1286,9 @@ func (s *TracerSuite) TestTCPDirection() {
 func (s *TracerSuite) TestTCPFailureConnectionTimeout() {
 	t := s.T()
 	t.Skip()
+	if runtime.GOOS == "windows" {
+		t.Skip("skipping on windows as it doesn't support setting up a drop rule")
+	}
 	setupDropTrafficRule(t)
 	cfg := testConfig()
 	cfg.TCPFailedConnectionsEnabled = true
