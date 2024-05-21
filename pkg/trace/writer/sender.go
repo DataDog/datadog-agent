@@ -268,7 +268,6 @@ func (s *sender) sendOnce(p *payload) bool {
 			// sender is stopped
 			return true
 		}
-		//s.attempt.Inc()
 
 		if r := p.retries.Inc(); (r&(r-1)) == 0 && r > 3 {
 			// Only log a warning if the retry attempt is a power of 2
