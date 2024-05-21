@@ -360,13 +360,19 @@ func CheckSystemProbeBehavior(t *testing.T, client *TestClient) {
 		require.NoError(tt, err)
 		files := strings.Split(strings.TrimSpace(output), "\n")
 		require.Greater(tt, len(files), 0, "ebpf object files should be present")
+
+		hostArch, err := client.Host.Execute("uname -m")
+		require.NoError(tt, err)
+		if hostArch == "aarch64" {
+			hostArch = "arm64"
+		}
+		archMetadata := fmt.Sprintf("<arch:%s>", hostArch)
+
 		for _, file := range files {
 			file = strings.TrimSpace(file)
-			fileOutput, err := client.Host.Execute(fmt.Sprintf("file %s", file))
-			require.NoError(tt, err, "cannot run file command on ebpf object file %s", file)
-
-			fileType := strings.Split(fileOutput, ":")[1]
-			require.Contains(tt, fileType, "eBPF", "ebpf object files should be valid and recognized as such")
+			ddMetadata, err := client.Host.Execute(fmt.Sprintf("readelf -p dd_metadata %s", file))
+			require.NoError(tt, err, "readelf should not error, file is %s", file)
+			require.Contains(tt, ddMetadata, archMetadata, "invalid arch metadata")
 		}
 	})
 }
