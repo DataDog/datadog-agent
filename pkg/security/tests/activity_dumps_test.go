@@ -84,7 +84,7 @@ func TestActivityDumps(t *testing.T) {
 		defer dockerInstance.stop()
 
 		time.Sleep(time.Second * 1) // to ensure we did not get ratelimited
-		cmd := dockerInstance.Command(goSyscallTester, []string{"-run-imds-test"}, []string{})
+		cmd := dockerInstance.Command(goSyscallTester, []string{"-setup-and-run-imds-test"}, []string{})
 		_, err = cmd.CombinedOutput()
 		if err != nil {
 			t.Fatal(err)

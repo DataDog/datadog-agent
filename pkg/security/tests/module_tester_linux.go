@@ -1315,7 +1315,7 @@ func (tm *testModule) findCgroupDump(id *activityDumpIdentifier) *activityDumpId
 }
 
 //nolint:deadcode,unused
-func (tm *testModule) addAllEventTypesOnDump(dockerInstance *dockerCmdWrapper, syscallTester string) {
+func (tm *testModule) addAllEventTypesOnDump(dockerInstance *dockerCmdWrapper, syscallTester string, goSyscallTester string) {
 	// open
 	cmd := dockerInstance.Command("touch", []string{filepath.Join(tm.Root(), "open")}, []string{})
 	_, _ = cmd.CombinedOutput()
@@ -1329,6 +1329,10 @@ func (tm *testModule) addAllEventTypesOnDump(dockerInstance *dockerCmdWrapper, s
 	_, _ = cmd.CombinedOutput()
 
 	// syscalls should be added with previous events
+
+	// imds
+	cmd = dockerInstance.Command(goSyscallTester, []string{"-run-imds-test"}, []string{})
+	_, _ = cmd.CombinedOutput()
 }
 
 //nolint:deadcode,unused
@@ -1401,6 +1405,16 @@ func searchForOpen(ad *dump.ActivityDump) bool {
 func searchForDNS(ad *dump.ActivityDump) bool {
 	for _, node := range ad.ActivityTree.ProcessNodes {
 		if len(node.DNSNames) > 0 {
+			return true
+		}
+	}
+	return false
+}
+
+//nolint:deadcode,unused
+func searchForIMDS(ad *dump.ActivityDump) bool {
+	for _, node := range ad.ActivityTree.ProcessNodes {
+		if len(node.IMDSEvents) > 0 {
 			return true
 		}
 	}
@@ -1499,6 +1513,9 @@ func (tm *testModule) extractAllDumpEventTypes(id *activityDumpIdentifier) ([]st
 	}
 	if searchForOpen(ad) {
 		res = append(res, "open")
+	}
+	if searchForIMDS(ad) {
+		res = append(res, "imds")
 	}
 	return res, nil
 }

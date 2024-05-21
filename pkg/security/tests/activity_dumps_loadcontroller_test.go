@@ -9,6 +9,7 @@
 package tests
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"slices"
@@ -125,6 +126,11 @@ func TestActivityDumpsLoadControllerEventTypes(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	goSyscallTester, err := loadSyscallTester(t, test, "syscall_go_tester")
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	// first, stop all running activity dumps
 	err = test.StopAllActivityDumps()
 	if err != nil {
@@ -136,6 +142,20 @@ func TestActivityDumpsLoadControllerEventTypes(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer dockerInstance.stop()
+
+	// setup IMDS interface
+	cmd := dockerInstance.Command(goSyscallTester, []string{"-setup-imds-test"}, []string{})
+	_, err = cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("ERROR: %v", err)
+	}
+	defer func() {
+		cleanup := dockerInstance.Command(goSyscallTester, []string{"-cleanup-imds-test"}, []string{})
+		_, err := cleanup.CombinedOutput()
+		if err != nil {
+			fmt.Printf("failed to cleanup IMDS test: %v", err)
+		}
+	}()
 
 	for activeEventTypes := activitydump.TracedEventTypesReductionOrder; ; activeEventTypes = activeEventTypes[1:] {
 		testName := ""
@@ -150,7 +170,7 @@ func TestActivityDumpsLoadControllerEventTypes(t *testing.T) {
 		}
 		t.Run(testName, func(t *testing.T) {
 			// add all event types to the dump
-			test.addAllEventTypesOnDump(dockerInstance, syscallTester)
+			test.addAllEventTypesOnDump(dockerInstance, syscallTester, goSyscallTester)
 			time.Sleep(time.Second * 3)
 			// trigger reducer
 			test.triggerLoadControllerReducer(dockerInstance, dump)
@@ -174,7 +194,7 @@ func TestActivityDumpsLoadControllerEventTypes(t *testing.T) {
 				activeTypes = append(activeTypes, model.FileOpenEventType)
 			}
 			if !isEventTypesStringSlicesEqual(activeTypes, presentEventTypes) {
-				t.Fatalf("Dump's event types are different as expected (%v) vs (%v)", activeEventTypes, presentEventTypes)
+				t.Fatalf("Dump's event types don't match: expected[%v] vs observed[%v]", activeEventTypes, presentEventTypes)
 			}
 			dump = nextDump
 		})
