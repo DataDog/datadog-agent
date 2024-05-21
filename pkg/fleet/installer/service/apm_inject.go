@@ -229,7 +229,11 @@ func (a *apmInjectorInstaller) deleteLDPreloadConfigContent(ldSoPreload []byte) 
 }
 
 func (a *apmInjectorInstaller) verifySharedLib(lib_path string) error {
-	cmd := exec.Command("/bin/echo", "1")
+	echoPath, err := exec.LookPath("echo")
+	if err != nil {
+		return fmt.Errorf("failed to find echo: %w", err)
+	}
+	cmd := exec.Command(echoPath, "1")
 	cmd.Env = append(os.Environ(), "LD_PRELOAD="+lib_path)
 	var buf bytes.Buffer
 	cmd.Stderr = &buf
