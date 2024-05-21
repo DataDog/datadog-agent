@@ -377,10 +377,14 @@ func easyjsonDdc0fdbeDecodeGithubComDataDogDatadogAgentPkgSecuritySerializers3(i
 			out.StrArg1 = string(in.String())
 		case "str_arg2":
 			out.StrArg2 = string(in.String())
+		case "str_arg3":
+			out.StrArg3 = string(in.String())
 		case "int_arg1":
 			out.IntArg1 = int(in.Int())
 		case "int_arg2":
 			out.IntArg2 = int(in.Int())
+		case "int_arg3":
+			out.IntArg3 = int(in.Int())
 		default:
 			in.SkipRecursive()
 		}
@@ -411,6 +415,16 @@ func easyjsonDdc0fdbeEncodeGithubComDataDogDatadogAgentPkgSecuritySerializers3(o
 		}
 		out.String(string(in.StrArg2))
 	}
+	if in.StrArg3 != "" {
+		const prefix string = ",\"str_arg3\":"
+		if first {
+			first = false
+			out.RawString(prefix[1:])
+		} else {
+			out.RawString(prefix)
+		}
+		out.String(string(in.StrArg3))
+	}
 	if in.IntArg1 != 0 {
 		const prefix string = ",\"int_arg1\":"
 		if first {
@@ -430,6 +444,16 @@ func easyjsonDdc0fdbeEncodeGithubComDataDogDatadogAgentPkgSecuritySerializers3(o
 			out.RawString(prefix)
 		}
 		out.Int(int(in.IntArg2))
+	}
+	if in.IntArg3 != 0 {
+		const prefix string = ",\"int_arg3\":"
+		if first {
+			first = false
+			out.RawString(prefix[1:])
+		} else {
+			out.RawString(prefix)
+		}
+		out.Int(int(in.IntArg3))
 	}
 	out.RawByte('}')
 }

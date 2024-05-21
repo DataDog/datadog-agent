@@ -18,7 +18,8 @@ long __attribute__((always_inline)) trace__sys_chdir(const char *path) {
         .policy = policy,
         .chdir = {}
     };
-    collect_syscall_ctx(&syscall, path, NULL, 0, 0);
+
+    collect_syscall_ctx(&syscall, SYSCALL_CTX_ARG_STR(0), (void *)path, NULL, NULL);
     cache_syscall(&syscall);
 
     return 0;

@@ -9,6 +9,7 @@
 package syscallctx
 
 import (
+	"encoding/binary"
 	"fmt"
 
 	lib "github.com/cilium/ebpf"
@@ -20,15 +21,19 @@ import (
 )
 
 const (
-	strMaxSize = 128 // see kernel definition
+	argMaxSize = 128 // see kernel definition
+
+	// types // see kernel definition
+	strArg = 1
+	intArg = 2
 )
 
 // SyscallCtx maps the kernel structure
-type SyscallCtx struct {
-	StrArg1 [strMaxSize]byte
-	StrArg2 [strMaxSize]byte
-	IntArg1 int64
-	IntArg2 int64
+type KernelSyscallCtx struct {
+	Types uint8
+	Arg1  [argMaxSize]byte
+	Arg2  [argMaxSize]byte
+	Arg3  [argMaxSize]byte
 }
 
 // Resolver resolves syscall context
@@ -37,23 +42,51 @@ type Resolver struct {
 }
 
 // Resolve resolves the syscall context
-func (sr *Resolver) Resolve(ctxID uint32) (string, string, int64, int64, error) {
-	var ctx SyscallCtx
-	if err := sr.ctxMap.Lookup(ctxID, &ctx); err != nil {
-		return "", "", 0, 0, fmt.Errorf("unable to resolve the syscall context for `%d`: %w", ctxID, err)
+func (sr *Resolver) Resolve(ctxID uint32, ctx *model.SyscallContext) error {
+	var kCtx KernelSyscallCtx
+	if err := sr.ctxMap.Lookup(ctxID, &kCtx); err != nil {
+		return fmt.Errorf("unable to resolve the syscall context for `%d`: %w", ctxID, err)
 	}
 
-	str1Arg, err := model.UnmarshalString(ctx.StrArg1[:], strMaxSize)
-	if err != nil {
-		return "", "", 0, 0, fmt.Errorf("unable to resolve the syscall context for `%d`: %w", ctxID, err)
+	isStrArg := func(pos int) bool {
+		return (kCtx.Types>>(pos*2))&strArg > 0
 	}
 
-	str2Arg, err := model.UnmarshalString(ctx.StrArg2[:], strMaxSize)
-	if err != nil {
-		return "", "", 0, 0, fmt.Errorf("unable to resolve the syscall context for `%d`: %w", ctxID, err)
+	isIntArg := func(pos int) bool {
+		return (kCtx.Types>>(pos*2))&intArg > 0
 	}
 
-	return str1Arg, str2Arg, ctx.IntArg1, ctx.IntArg2, nil
+	if isStrArg(0) {
+		arg, err := model.UnmarshalString(kCtx.Arg1[:], argMaxSize)
+		if err != nil {
+			return fmt.Errorf("unable to resolve the syscall context for `%d`: %w", ctxID, err)
+		}
+		ctx.CtxStrArg1 = arg
+	} else if isIntArg(0) {
+		ctx.CtxIntArg1 = int64(binary.NativeEndian.Uint64(kCtx.Arg1[:]))
+	}
+
+	if isStrArg(1) {
+		arg, err := model.UnmarshalString(kCtx.Arg2[:], argMaxSize)
+		if err != nil {
+			return fmt.Errorf("unable to resolve the syscall context for `%d`: %w", ctxID, err)
+		}
+		ctx.CtxStrArg2 = arg
+	} else if isIntArg(1) {
+		ctx.CtxIntArg2 = int64(binary.NativeEndian.Uint64(kCtx.Arg2[:]))
+	}
+
+	if isStrArg(2) {
+		arg, err := model.UnmarshalString(kCtx.Arg3[:], argMaxSize)
+		if err != nil {
+			return fmt.Errorf("unable to resolve the syscall context for `%d`: %w", ctxID, err)
+		}
+		ctx.CtxStrArg3 = arg
+	} else if isIntArg(2) {
+		ctx.CtxIntArg3 = int64(binary.NativeEndian.Uint64(kCtx.Arg3[:]))
+	}
+
+	return nil
 }
 
 // Start the syscall context resolver

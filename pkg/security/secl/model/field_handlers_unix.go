@@ -211,8 +211,10 @@ func (ev *Event) resolveFields(forADs bool) {
 	case "chdir":
 		_ = ev.FieldHandlers.ResolveSyscallCtxStrArg1(ev, &ev.Chdir.SyscallContext)
 		_ = ev.FieldHandlers.ResolveSyscallCtxStrArg2(ev, &ev.Chdir.SyscallContext)
+		_ = ev.FieldHandlers.ResolveSyscallCtxStrArg3(ev, &ev.Chdir.SyscallContext)
 		_ = ev.FieldHandlers.ResolveSyscallCtxIntArg1(ev, &ev.Chdir.SyscallContext)
 		_ = ev.FieldHandlers.ResolveSyscallCtxIntArg2(ev, &ev.Chdir.SyscallContext)
+		_ = ev.FieldHandlers.ResolveSyscallCtxIntArg3(ev, &ev.Chdir.SyscallContext)
 		_ = ev.FieldHandlers.ResolveFileFieldsUser(ev, &ev.Chdir.File.FileFields)
 		_ = ev.FieldHandlers.ResolveFileFieldsGroup(ev, &ev.Chdir.File.FileFields)
 		_ = ev.FieldHandlers.ResolveFileFieldsInUpperLayer(ev, &ev.Chdir.File.FileFields)
@@ -228,8 +230,10 @@ func (ev *Event) resolveFields(forADs bool) {
 	case "chmod":
 		_ = ev.FieldHandlers.ResolveSyscallCtxStrArg1(ev, &ev.Chmod.SyscallContext)
 		_ = ev.FieldHandlers.ResolveSyscallCtxStrArg2(ev, &ev.Chmod.SyscallContext)
+		_ = ev.FieldHandlers.ResolveSyscallCtxStrArg3(ev, &ev.Chmod.SyscallContext)
 		_ = ev.FieldHandlers.ResolveSyscallCtxIntArg1(ev, &ev.Chmod.SyscallContext)
 		_ = ev.FieldHandlers.ResolveSyscallCtxIntArg2(ev, &ev.Chmod.SyscallContext)
+		_ = ev.FieldHandlers.ResolveSyscallCtxIntArg3(ev, &ev.Chmod.SyscallContext)
 		_ = ev.FieldHandlers.ResolveFileFieldsUser(ev, &ev.Chmod.File.FileFields)
 		_ = ev.FieldHandlers.ResolveFileFieldsGroup(ev, &ev.Chmod.File.FileFields)
 		_ = ev.FieldHandlers.ResolveFileFieldsInUpperLayer(ev, &ev.Chmod.File.FileFields)
@@ -262,8 +266,10 @@ func (ev *Event) resolveFields(forADs bool) {
 	case "exec":
 		_ = ev.FieldHandlers.ResolveSyscallCtxStrArg1(ev, &ev.Exec.SyscallContext)
 		_ = ev.FieldHandlers.ResolveSyscallCtxStrArg2(ev, &ev.Exec.SyscallContext)
+		_ = ev.FieldHandlers.ResolveSyscallCtxStrArg3(ev, &ev.Exec.SyscallContext)
 		_ = ev.FieldHandlers.ResolveSyscallCtxIntArg1(ev, &ev.Exec.SyscallContext)
 		_ = ev.FieldHandlers.ResolveSyscallCtxIntArg2(ev, &ev.Exec.SyscallContext)
+		_ = ev.FieldHandlers.ResolveSyscallCtxIntArg3(ev, &ev.Exec.SyscallContext)
 		if ev.Exec.Process.IsNotKworker() {
 			_ = ev.FieldHandlers.ResolveFileFieldsUser(ev, &ev.Exec.Process.FileEvent.FileFields)
 		}
@@ -1019,8 +1025,10 @@ type FieldHandlers interface {
 	ResolveSetuidUser(ev *Event, e *SetuidEvent) string
 	ResolveSyscallCtxIntArg1(ev *Event, e *SyscallContext) int
 	ResolveSyscallCtxIntArg2(ev *Event, e *SyscallContext) int
+	ResolveSyscallCtxIntArg3(ev *Event, e *SyscallContext) int
 	ResolveSyscallCtxStrArg1(ev *Event, e *SyscallContext) string
 	ResolveSyscallCtxStrArg2(ev *Event, e *SyscallContext) string
+	ResolveSyscallCtxStrArg3(ev *Event, e *SyscallContext) string
 	ResolveXAttrName(ev *Event, e *SetXAttrEvent) string
 	ResolveXAttrNamespace(ev *Event, e *SetXAttrEvent) string
 	// custom handlers not tied to any fields
@@ -1131,11 +1139,17 @@ func (dfh *FakeFieldHandlers) ResolveSyscallCtxIntArg1(ev *Event, e *SyscallCont
 func (dfh *FakeFieldHandlers) ResolveSyscallCtxIntArg2(ev *Event, e *SyscallContext) int {
 	return int(e.CtxIntArg2)
 }
+func (dfh *FakeFieldHandlers) ResolveSyscallCtxIntArg3(ev *Event, e *SyscallContext) int {
+	return int(e.CtxIntArg3)
+}
 func (dfh *FakeFieldHandlers) ResolveSyscallCtxStrArg1(ev *Event, e *SyscallContext) string {
 	return e.CtxStrArg1
 }
 func (dfh *FakeFieldHandlers) ResolveSyscallCtxStrArg2(ev *Event, e *SyscallContext) string {
 	return e.CtxStrArg2
+}
+func (dfh *FakeFieldHandlers) ResolveSyscallCtxStrArg3(ev *Event, e *SyscallContext) string {
+	return e.CtxStrArg3
 }
 func (dfh *FakeFieldHandlers) ResolveXAttrName(ev *Event, e *SetXAttrEvent) string { return e.Name }
 func (dfh *FakeFieldHandlers) ResolveXAttrNamespace(ev *Event, e *SetXAttrEvent) string {

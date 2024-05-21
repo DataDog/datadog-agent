@@ -318,6 +318,14 @@ func (ev *Event) GetChdirSyscallIntArg2() int {
 	return ev.FieldHandlers.ResolveSyscallCtxIntArg2(ev, &ev.Chdir.SyscallContext)
 }
 
+// GetChdirSyscallIntArg3 returns the value of the field, resolving if necessary
+func (ev *Event) GetChdirSyscallIntArg3() int {
+	if ev.GetEventType().String() != "chdir" {
+		return 0
+	}
+	return ev.FieldHandlers.ResolveSyscallCtxIntArg3(ev, &ev.Chdir.SyscallContext)
+}
+
 // GetChdirSyscallStrArg1 returns the value of the field, resolving if necessary
 func (ev *Event) GetChdirSyscallStrArg1() string {
 	if ev.GetEventType().String() != "chdir" {
@@ -332,6 +340,14 @@ func (ev *Event) GetChdirSyscallStrArg2() string {
 		return ""
 	}
 	return ev.FieldHandlers.ResolveSyscallCtxStrArg2(ev, &ev.Chdir.SyscallContext)
+}
+
+// GetChdirSyscallStrArg3 returns the value of the field, resolving if necessary
+func (ev *Event) GetChdirSyscallStrArg3() string {
+	if ev.GetEventType().String() != "chdir" {
+		return ""
+	}
+	return ev.FieldHandlers.ResolveSyscallCtxStrArg3(ev, &ev.Chdir.SyscallContext)
 }
 
 // GetChmodFileChangeTime returns the value of the field, resolving if necessary
@@ -534,6 +550,14 @@ func (ev *Event) GetChmodSyscallIntArg2() int {
 	return ev.FieldHandlers.ResolveSyscallCtxIntArg2(ev, &ev.Chmod.SyscallContext)
 }
 
+// GetChmodSyscallIntArg3 returns the value of the field, resolving if necessary
+func (ev *Event) GetChmodSyscallIntArg3() int {
+	if ev.GetEventType().String() != "chmod" {
+		return 0
+	}
+	return ev.FieldHandlers.ResolveSyscallCtxIntArg3(ev, &ev.Chmod.SyscallContext)
+}
+
 // GetChmodSyscallStrArg1 returns the value of the field, resolving if necessary
 func (ev *Event) GetChmodSyscallStrArg1() string {
 	if ev.GetEventType().String() != "chmod" {
@@ -548,6 +572,14 @@ func (ev *Event) GetChmodSyscallStrArg2() string {
 		return ""
 	}
 	return ev.FieldHandlers.ResolveSyscallCtxStrArg2(ev, &ev.Chmod.SyscallContext)
+}
+
+// GetChmodSyscallStrArg3 returns the value of the field, resolving if necessary
+func (ev *Event) GetChmodSyscallStrArg3() string {
+	if ev.GetEventType().String() != "chmod" {
+		return ""
+	}
+	return ev.FieldHandlers.ResolveSyscallCtxStrArg3(ev, &ev.Chmod.SyscallContext)
 }
 
 // GetChownFileChangeTime returns the value of the field, resolving if necessary
@@ -1793,6 +1825,14 @@ func (ev *Event) GetExecSyscallIntArg2() int {
 	return ev.FieldHandlers.ResolveSyscallCtxIntArg2(ev, &ev.Exec.SyscallContext)
 }
 
+// GetExecSyscallIntArg3 returns the value of the field, resolving if necessary
+func (ev *Event) GetExecSyscallIntArg3() int {
+	if ev.GetEventType().String() != "exec" {
+		return 0
+	}
+	return ev.FieldHandlers.ResolveSyscallCtxIntArg3(ev, &ev.Exec.SyscallContext)
+}
+
 // GetExecSyscallStrArg1 returns the value of the field, resolving if necessary
 func (ev *Event) GetExecSyscallStrArg1() string {
 	if ev.GetEventType().String() != "exec" {
@@ -1807,6 +1847,14 @@ func (ev *Event) GetExecSyscallStrArg2() string {
 		return ""
 	}
 	return ev.FieldHandlers.ResolveSyscallCtxStrArg2(ev, &ev.Exec.SyscallContext)
+}
+
+// GetExecSyscallStrArg3 returns the value of the field, resolving if necessary
+func (ev *Event) GetExecSyscallStrArg3() string {
+	if ev.GetEventType().String() != "exec" {
+		return ""
+	}
+	return ev.FieldHandlers.ResolveSyscallCtxStrArg3(ev, &ev.Exec.SyscallContext)
 }
 
 // GetExecTid returns the value of the field, resolving if necessary

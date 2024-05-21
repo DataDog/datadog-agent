@@ -8,27 +8,52 @@
 #include "activity_dump.h"
 #include "span.h"
 
-void __attribute__((always_inline)) collect_syscall_ctx(struct syscall_cache_t *syscall, const char *str1, const char *str2, s64 n1, s64 n2) {
+#define SYSCALL_CTX_STR_TYPE 1
+#define SYSCALL_CTX_INT_TYPE 2
+
+#define SYSCALL_CTX_ARG(type, pos) (type << (pos * 2))
+#define SYSCALL_CTX_ARG_STR(pos) SYSCALL_CTX_ARG(SYSCALL_CTX_STR_TYPE, pos)
+#define SYSCALL_CTX_ARG_INT(pos) SYSCALL_CTX_ARG(SYSCALL_CTX_INT_TYPE, pos)
+
+#define IS_SYSCALL_CTX_ARG(types, type, pos) (types & (type << (pos * 2)))
+#define IS_SYSCALL_CTX_ARG_STR(types, pos) IS_SYSCALL_CTX_ARG(types, SYSCALL_CTX_STR_TYPE, pos)
+#define IS_SYSCALL_CTX_ARG_INT(types, pos) IS_SYSCALL_CTX_ARG(types, SYSCALL_CTX_INT_TYPE, pos)
+
+void __attribute__((always_inline)) collect_syscall_ctx(struct syscall_cache_t *syscall, u8 types, void *arg1, void *arg2, void *arg3) {
     u32 key = 0;
     char *data = bpf_map_lookup_elem(&syscall_ctx_gen, &key);
     if (!data) {
         return;
     }
 
-    if (str1) {
-        bpf_probe_read_str(data, MAX_SYSCALL_STR_CTX, str1);
-    } else {
-        data[0] = 0;
+    data[0] = types;
+
+    if (arg1) {
+        if (IS_SYSCALL_CTX_ARG_STR(types, 0)) {
+            bpf_probe_read_str(&data[1], MAX_SYSCALL_ARG_MAX_SIZE, arg1);
+        } else {
+            s64 *addr = (s64 *)&data[1];
+            addr[0] = *(s64 *)arg1;
+        }
     }
 
-    if (str2) {
-        bpf_probe_read_str(&data[MAX_SYSCALL_STR_CTX], MAX_SYSCALL_STR_CTX, str2);
-    } else {
-        data[MAX_SYSCALL_STR_CTX] = 0;
+    if (arg2) {
+        if (IS_SYSCALL_CTX_ARG_STR(types, 1)) {
+            bpf_probe_read_str(&data[1+MAX_SYSCALL_ARG_MAX_SIZE], MAX_SYSCALL_ARG_MAX_SIZE, arg2);
+        } else {
+            s64 *addr = (s64 *)&data[1+MAX_SYSCALL_ARG_MAX_SIZE];
+            addr[0] = *(s64 *)arg2;
+        }
     }
 
-    data[MAX_SYSCALL_CTX_SIZE-sizeof(s64)*2] = n1;
-    data[MAX_SYSCALL_CTX_SIZE-sizeof(s64)] = n2;
+    if (arg3) {
+        if (IS_SYSCALL_CTX_ARG_STR(types, 2)) {
+            bpf_probe_read_str(&data[1+MAX_SYSCALL_ARG_MAX_SIZE*2], MAX_SYSCALL_ARG_MAX_SIZE, arg3);
+        } else {
+            s64 *addr = (s64 *)&data[1+MAX_SYSCALL_ARG_MAX_SIZE*2];
+            addr[0] = *(s64 *)arg3;
+        }
+    }
 
     u32 id = rand32();
     syscall->ctx_id = id;

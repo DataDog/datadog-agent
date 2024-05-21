@@ -122,8 +122,8 @@ enum TC_TAIL_CALL_KEYS {
          O_NOATIME | O_CLOEXEC | O_PATH | __O_TMPFILE)
 #endif
 
-#define MAX_SYSCALL_STR_CTX 128
-#define MAX_SYSCALL_CTX_SIZE MAX_SYSCALL_STR_CTX*2 + 2*sizeof(s64) // 2 str argument of 128 max + 2 s24
+#define MAX_SYSCALL_ARG_MAX_SIZE 128
+#define MAX_SYSCALL_CTX_SIZE MAX_SYSCALL_ARG_MAX_SIZE*3 + 1 // types octet + 3 args
 
 __attribute__((always_inline)) u64 is_cgroup_activity_dumps_enabled() {
     u64 cgroup_activity_dumps_enabled;

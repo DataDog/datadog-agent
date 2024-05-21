@@ -1451,6 +1451,10 @@
           "type": "string",
           "description": "StrArg2 second string argument"
         },
+        "str_arg3": {
+          "type": "string",
+          "description": "StrArg3 third string argument"
+        },
         "int_arg1": {
           "type": "integer",
           "description": "IntArg1 first integer argument"
@@ -1458,6 +1462,10 @@
         "int_arg2": {
           "type": "integer",
           "description": "IntArg2 second integer argument"
+        },
+        "int_arg3": {
+          "type": "integer",
+          "description": "IntArg3 third integer argument"
         }
       },
       "additionalProperties": false,

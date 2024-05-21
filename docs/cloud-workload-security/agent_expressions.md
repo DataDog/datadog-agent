@@ -471,8 +471,10 @@ A process changed the current directory
 | [`chdir.retval`](#common-syscallevent-retval-doc) | Return value of the syscall |
 | [`chdir.syscall.int_arg1`](#common-syscallcontext-syscall-int_arg1-doc) | first integer syscall argument |
 | [`chdir.syscall.int_arg2`](#common-syscallcontext-syscall-int_arg2-doc) | Second integer syscall argument |
+| [`chdir.syscall.int_arg3`](#common-syscallcontext-syscall-int_arg3-doc) | Third integer syscall argument |
 | [`chdir.syscall.str_arg1`](#common-syscallcontext-syscall-str_arg1-doc) | first string syscall argument |
 | [`chdir.syscall.str_arg2`](#common-syscallcontext-syscall-str_arg2-doc) | second string syscall argument |
+| [`chdir.syscall.str_arg3`](#common-syscallcontext-syscall-str_arg3-doc) | third string syscall argument |
 
 ### Event `chmod`
 
@@ -505,8 +507,10 @@ A file’s permissions were changed
 | [`chmod.retval`](#common-syscallevent-retval-doc) | Return value of the syscall |
 | [`chmod.syscall.int_arg1`](#common-syscallcontext-syscall-int_arg1-doc) | first integer syscall argument |
 | [`chmod.syscall.int_arg2`](#common-syscallcontext-syscall-int_arg2-doc) | Second integer syscall argument |
+| [`chmod.syscall.int_arg3`](#common-syscallcontext-syscall-int_arg3-doc) | Third integer syscall argument |
 | [`chmod.syscall.str_arg1`](#common-syscallcontext-syscall-str_arg1-doc) | first string syscall argument |
 | [`chmod.syscall.str_arg2`](#common-syscallcontext-syscall-str_arg2-doc) | second string syscall argument |
+| [`chmod.syscall.str_arg3`](#common-syscallcontext-syscall-str_arg3-doc) | third string syscall argument |
 
 ### Event `chown`
 
@@ -639,8 +643,10 @@ A process was executed or forked
 | [`exec.ppid`](#common-process-ppid-doc) | Parent process ID |
 | [`exec.syscall.int_arg1`](#common-syscallcontext-syscall-int_arg1-doc) | first integer syscall argument |
 | [`exec.syscall.int_arg2`](#common-syscallcontext-syscall-int_arg2-doc) | Second integer syscall argument |
+| [`exec.syscall.int_arg3`](#common-syscallcontext-syscall-int_arg3-doc) | Third integer syscall argument |
 | [`exec.syscall.str_arg1`](#common-syscallcontext-syscall-str_arg1-doc) | first string syscall argument |
 | [`exec.syscall.str_arg2`](#common-syscallcontext-syscall-str_arg2-doc) | second string syscall argument |
+| [`exec.syscall.str_arg3`](#common-syscallcontext-syscall-str_arg3-doc) | third string syscall argument |
 | [`exec.tid`](#common-pidcontext-tid-doc) | Thread ID of the thread |
 | [`exec.tty_name`](#common-process-tty_name-doc) | Name of the TTY associated with the process |
 | [`exec.uid`](#common-credentials-uid-doc) | UID of the process |
@@ -2265,6 +2271,15 @@ Definition: Second integer syscall argument
 `chdir` `chmod` `exec`
 
 
+### `*.syscall.int_arg3` {#common-syscallcontext-syscall-int_arg3-doc}
+Type: int
+
+Definition: Third integer syscall argument
+
+`*.syscall.int_arg3` has 3 possible prefixes:
+`chdir` `chmod` `exec`
+
+
 ### `*.syscall.str_arg1` {#common-syscallcontext-syscall-str_arg1-doc}
 Type: string
 
@@ -2280,6 +2295,15 @@ Type: string
 Definition: second string syscall argument
 
 `*.syscall.str_arg2` has 3 possible prefixes:
+`chdir` `chmod` `exec`
+
+
+### `*.syscall.str_arg3` {#common-syscallcontext-syscall-str_arg3-doc}
+Type: string
+
+Definition: third string syscall argument
+
+`*.syscall.str_arg3` has 3 possible prefixes:
 `chdir` `chmod` `exec`
 
 

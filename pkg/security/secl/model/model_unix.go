@@ -90,11 +90,15 @@ type SyscallEvent struct {
 
 // SyscallContext contains syscall context
 type SyscallContext struct {
-	CtxID      uint32 `field:"-"`
+	CtxID uint32 `field:"-"`
+
 	CtxStrArg1 string `field:"syscall.str_arg1,handler:ResolveSyscallCtxStrArg1,weight:900"` // SECLDoc[syscall.str_arg1] Definition:`first string syscall argument`
 	CtxStrArg2 string `field:"syscall.str_arg2,handler:ResolveSyscallCtxStrArg2,weight:900"` // SECLDoc[syscall.str_arg2] Definition:`second string syscall argument`
-	CtxIntArg1 int64  `field:"syscall.int_arg1,handler:ResolveSyscallCtxIntArg1,weight:900"` // SECLDoc[syscall.int_arg1] Definition:`first integer syscall argument`
-	CtxIntArg2 int64  `field:"syscall.int_arg2,handler:ResolveSyscallCtxIntArg2,weight:900"` // SECLDoc[syscall.int_arg2] Definition:`Second integer syscall argument`
+	CtxStrArg3 string `field:"syscall.str_arg3,handler:ResolveSyscallCtxStrArg3,weight:900"` // SECLDoc[syscall.str_arg3] Definition:`third string syscall argument`
+
+	CtxIntArg1 int64 `field:"syscall.int_arg1,handler:ResolveSyscallCtxIntArg1,weight:900"` // SECLDoc[syscall.int_arg1] Definition:`first integer syscall argument`
+	CtxIntArg2 int64 `field:"syscall.int_arg2,handler:ResolveSyscallCtxIntArg2,weight:900"` // SECLDoc[syscall.int_arg2] Definition:`Second integer syscall argument`
+	CtxIntArg3 int64 `field:"syscall.int_arg3,handler:ResolveSyscallCtxIntArg3,weight:900"` // SECLDoc[syscall.int_arg3] Definition:`Third integer syscall argument`
 
 	CtxResolved bool `field:"-"`
 }

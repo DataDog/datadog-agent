@@ -37,10 +37,16 @@
                 "str_arg2": {
                     "type": "string"
                 },
+                "str_arg3": {
+                    "type": "string"
+                },
                 "int_arg1": {
                     "type": "number"
                 },
                 "int_arg2": {
+                    "type": "number"
+                },
+                "int_arg3": {
                     "type": "number"
                 }
             }

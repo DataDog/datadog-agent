@@ -411,6 +411,15 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: 900 * eval.HandlerWeight,
 		}, nil
+	case "chdir.syscall.int_arg3":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ev := ctx.Event.(*Event)
+				return int(ev.FieldHandlers.ResolveSyscallCtxIntArg3(ev, &ev.Chdir.SyscallContext))
+			},
+			Field:  field,
+			Weight: 900 * eval.HandlerWeight,
+		}, nil
 	case "chdir.syscall.str_arg1":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
@@ -425,6 +434,15 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) string {
 				ev := ctx.Event.(*Event)
 				return ev.FieldHandlers.ResolveSyscallCtxStrArg2(ev, &ev.Chdir.SyscallContext)
+			},
+			Field:  field,
+			Weight: 900 * eval.HandlerWeight,
+		}, nil
+	case "chdir.syscall.str_arg3":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveSyscallCtxStrArg3(ev, &ev.Chdir.SyscallContext)
 			},
 			Field:  field,
 			Weight: 900 * eval.HandlerWeight,
@@ -658,6 +676,15 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: 900 * eval.HandlerWeight,
 		}, nil
+	case "chmod.syscall.int_arg3":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ev := ctx.Event.(*Event)
+				return int(ev.FieldHandlers.ResolveSyscallCtxIntArg3(ev, &ev.Chmod.SyscallContext))
+			},
+			Field:  field,
+			Weight: 900 * eval.HandlerWeight,
+		}, nil
 	case "chmod.syscall.str_arg1":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
@@ -672,6 +699,15 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) string {
 				ev := ctx.Event.(*Event)
 				return ev.FieldHandlers.ResolveSyscallCtxStrArg2(ev, &ev.Chmod.SyscallContext)
+			},
+			Field:  field,
+			Weight: 900 * eval.HandlerWeight,
+		}, nil
+	case "chmod.syscall.str_arg3":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveSyscallCtxStrArg3(ev, &ev.Chmod.SyscallContext)
 			},
 			Field:  field,
 			Weight: 900 * eval.HandlerWeight,
@@ -1788,6 +1824,15 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: 900 * eval.HandlerWeight,
 		}, nil
+	case "exec.syscall.int_arg3":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ev := ctx.Event.(*Event)
+				return int(ev.FieldHandlers.ResolveSyscallCtxIntArg3(ev, &ev.Exec.SyscallContext))
+			},
+			Field:  field,
+			Weight: 900 * eval.HandlerWeight,
+		}, nil
 	case "exec.syscall.str_arg1":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
@@ -1802,6 +1847,15 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) string {
 				ev := ctx.Event.(*Event)
 				return ev.FieldHandlers.ResolveSyscallCtxStrArg2(ev, &ev.Exec.SyscallContext)
+			},
+			Field:  field,
+			Weight: 900 * eval.HandlerWeight,
+		}, nil
+	case "exec.syscall.str_arg3":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveSyscallCtxStrArg3(ev, &ev.Exec.SyscallContext)
 			},
 			Field:  field,
 			Weight: 900 * eval.HandlerWeight,
@@ -16565,8 +16619,10 @@ func (ev *Event) GetFields() []eval.Field {
 		"chdir.retval",
 		"chdir.syscall.int_arg1",
 		"chdir.syscall.int_arg2",
+		"chdir.syscall.int_arg3",
 		"chdir.syscall.str_arg1",
 		"chdir.syscall.str_arg2",
+		"chdir.syscall.str_arg3",
 		"chmod.file.change_time",
 		"chmod.file.destination.mode",
 		"chmod.file.destination.rights",
@@ -16592,8 +16648,10 @@ func (ev *Event) GetFields() []eval.Field {
 		"chmod.retval",
 		"chmod.syscall.int_arg1",
 		"chmod.syscall.int_arg2",
+		"chmod.syscall.int_arg3",
 		"chmod.syscall.str_arg1",
 		"chmod.syscall.str_arg2",
+		"chmod.syscall.str_arg3",
 		"chown.file.change_time",
 		"chown.file.destination.gid",
 		"chown.file.destination.group",
@@ -16704,8 +16762,10 @@ func (ev *Event) GetFields() []eval.Field {
 		"exec.ppid",
 		"exec.syscall.int_arg1",
 		"exec.syscall.int_arg2",
+		"exec.syscall.int_arg3",
 		"exec.syscall.str_arg1",
 		"exec.syscall.str_arg2",
+		"exec.syscall.str_arg3",
 		"exec.tid",
 		"exec.tty_name",
 		"exec.uid",
@@ -17907,10 +17967,14 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return int(ev.FieldHandlers.ResolveSyscallCtxIntArg1(ev, &ev.Chdir.SyscallContext)), nil
 	case "chdir.syscall.int_arg2":
 		return int(ev.FieldHandlers.ResolveSyscallCtxIntArg2(ev, &ev.Chdir.SyscallContext)), nil
+	case "chdir.syscall.int_arg3":
+		return int(ev.FieldHandlers.ResolveSyscallCtxIntArg3(ev, &ev.Chdir.SyscallContext)), nil
 	case "chdir.syscall.str_arg1":
 		return ev.FieldHandlers.ResolveSyscallCtxStrArg1(ev, &ev.Chdir.SyscallContext), nil
 	case "chdir.syscall.str_arg2":
 		return ev.FieldHandlers.ResolveSyscallCtxStrArg2(ev, &ev.Chdir.SyscallContext), nil
+	case "chdir.syscall.str_arg3":
+		return ev.FieldHandlers.ResolveSyscallCtxStrArg3(ev, &ev.Chdir.SyscallContext), nil
 	case "chmod.file.change_time":
 		return int(ev.Chmod.File.FileFields.CTime), nil
 	case "chmod.file.destination.mode":
@@ -17961,10 +18025,14 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return int(ev.FieldHandlers.ResolveSyscallCtxIntArg1(ev, &ev.Chmod.SyscallContext)), nil
 	case "chmod.syscall.int_arg2":
 		return int(ev.FieldHandlers.ResolveSyscallCtxIntArg2(ev, &ev.Chmod.SyscallContext)), nil
+	case "chmod.syscall.int_arg3":
+		return int(ev.FieldHandlers.ResolveSyscallCtxIntArg3(ev, &ev.Chmod.SyscallContext)), nil
 	case "chmod.syscall.str_arg1":
 		return ev.FieldHandlers.ResolveSyscallCtxStrArg1(ev, &ev.Chmod.SyscallContext), nil
 	case "chmod.syscall.str_arg2":
 		return ev.FieldHandlers.ResolveSyscallCtxStrArg2(ev, &ev.Chmod.SyscallContext), nil
+	case "chmod.syscall.str_arg3":
+		return ev.FieldHandlers.ResolveSyscallCtxStrArg3(ev, &ev.Chmod.SyscallContext), nil
 	case "chown.file.change_time":
 		return int(ev.Chown.File.FileFields.CTime), nil
 	case "chown.file.destination.gid":
@@ -18293,10 +18361,14 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return int(ev.FieldHandlers.ResolveSyscallCtxIntArg1(ev, &ev.Exec.SyscallContext)), nil
 	case "exec.syscall.int_arg2":
 		return int(ev.FieldHandlers.ResolveSyscallCtxIntArg2(ev, &ev.Exec.SyscallContext)), nil
+	case "exec.syscall.int_arg3":
+		return int(ev.FieldHandlers.ResolveSyscallCtxIntArg3(ev, &ev.Exec.SyscallContext)), nil
 	case "exec.syscall.str_arg1":
 		return ev.FieldHandlers.ResolveSyscallCtxStrArg1(ev, &ev.Exec.SyscallContext), nil
 	case "exec.syscall.str_arg2":
 		return ev.FieldHandlers.ResolveSyscallCtxStrArg2(ev, &ev.Exec.SyscallContext), nil
+	case "exec.syscall.str_arg3":
+		return ev.FieldHandlers.ResolveSyscallCtxStrArg3(ev, &ev.Exec.SyscallContext), nil
 	case "exec.tid":
 		return int(ev.Exec.Process.PIDContext.Tid), nil
 	case "exec.tty_name":
@@ -24257,9 +24329,13 @@ func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "chdir", nil
 	case "chdir.syscall.int_arg2":
 		return "chdir", nil
+	case "chdir.syscall.int_arg3":
+		return "chdir", nil
 	case "chdir.syscall.str_arg1":
 		return "chdir", nil
 	case "chdir.syscall.str_arg2":
+		return "chdir", nil
+	case "chdir.syscall.str_arg3":
 		return "chdir", nil
 	case "chmod.file.change_time":
 		return "chmod", nil
@@ -24311,9 +24387,13 @@ func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "chmod", nil
 	case "chmod.syscall.int_arg2":
 		return "chmod", nil
+	case "chmod.syscall.int_arg3":
+		return "chmod", nil
 	case "chmod.syscall.str_arg1":
 		return "chmod", nil
 	case "chmod.syscall.str_arg2":
+		return "chmod", nil
+	case "chmod.syscall.str_arg3":
 		return "chmod", nil
 	case "chown.file.change_time":
 		return "chown", nil
@@ -24535,9 +24615,13 @@ func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "exec", nil
 	case "exec.syscall.int_arg2":
 		return "exec", nil
+	case "exec.syscall.int_arg3":
+		return "exec", nil
 	case "exec.syscall.str_arg1":
 		return "exec", nil
 	case "exec.syscall.str_arg2":
+		return "exec", nil
+	case "exec.syscall.str_arg3":
 		return "exec", nil
 	case "exec.tid":
 		return "exec", nil
@@ -26854,9 +26938,13 @@ func (ev *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 	case "chdir.syscall.int_arg2":
 		return reflect.Int, nil
+	case "chdir.syscall.int_arg3":
+		return reflect.Int, nil
 	case "chdir.syscall.str_arg1":
 		return reflect.String, nil
 	case "chdir.syscall.str_arg2":
+		return reflect.String, nil
+	case "chdir.syscall.str_arg3":
 		return reflect.String, nil
 	case "chmod.file.change_time":
 		return reflect.Int, nil
@@ -26908,9 +26996,13 @@ func (ev *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 	case "chmod.syscall.int_arg2":
 		return reflect.Int, nil
+	case "chmod.syscall.int_arg3":
+		return reflect.Int, nil
 	case "chmod.syscall.str_arg1":
 		return reflect.String, nil
 	case "chmod.syscall.str_arg2":
+		return reflect.String, nil
+	case "chmod.syscall.str_arg3":
 		return reflect.String, nil
 	case "chown.file.change_time":
 		return reflect.Int, nil
@@ -27132,9 +27224,13 @@ func (ev *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 	case "exec.syscall.int_arg2":
 		return reflect.Int, nil
+	case "exec.syscall.int_arg3":
+		return reflect.Int, nil
 	case "exec.syscall.str_arg1":
 		return reflect.String, nil
 	case "exec.syscall.str_arg2":
+		return reflect.String, nil
+	case "exec.syscall.str_arg3":
 		return reflect.String, nil
 	case "exec.tid":
 		return reflect.Int, nil
@@ -29639,6 +29735,13 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		ev.Chdir.SyscallContext.CtxIntArg2 = int64(rv)
 		return nil
+	case "chdir.syscall.int_arg3":
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Chdir.SyscallContext.CtxIntArg3"}
+		}
+		ev.Chdir.SyscallContext.CtxIntArg3 = int64(rv)
+		return nil
 	case "chdir.syscall.str_arg1":
 		rv, ok := value.(string)
 		if !ok {
@@ -29652,6 +29755,13 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueTypeMismatch{Field: "Chdir.SyscallContext.CtxStrArg2"}
 		}
 		ev.Chdir.SyscallContext.CtxStrArg2 = rv
+		return nil
+	case "chdir.syscall.str_arg3":
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Chdir.SyscallContext.CtxStrArg3"}
+		}
+		ev.Chdir.SyscallContext.CtxStrArg3 = rv
 		return nil
 	case "chmod.file.change_time":
 		rv, ok := value.(int)
@@ -29821,6 +29931,13 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		ev.Chmod.SyscallContext.CtxIntArg2 = int64(rv)
 		return nil
+	case "chmod.syscall.int_arg3":
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Chmod.SyscallContext.CtxIntArg3"}
+		}
+		ev.Chmod.SyscallContext.CtxIntArg3 = int64(rv)
+		return nil
 	case "chmod.syscall.str_arg1":
 		rv, ok := value.(string)
 		if !ok {
@@ -29834,6 +29951,13 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueTypeMismatch{Field: "Chmod.SyscallContext.CtxStrArg2"}
 		}
 		ev.Chmod.SyscallContext.CtxStrArg2 = rv
+		return nil
+	case "chmod.syscall.str_arg3":
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Chmod.SyscallContext.CtxStrArg3"}
+		}
+		ev.Chmod.SyscallContext.CtxStrArg3 = rv
 		return nil
 	case "chown.file.change_time":
 		rv, ok := value.(int)
@@ -30810,6 +30934,13 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		ev.Exec.SyscallContext.CtxIntArg2 = int64(rv)
 		return nil
+	case "exec.syscall.int_arg3":
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Exec.SyscallContext.CtxIntArg3"}
+		}
+		ev.Exec.SyscallContext.CtxIntArg3 = int64(rv)
+		return nil
 	case "exec.syscall.str_arg1":
 		rv, ok := value.(string)
 		if !ok {
@@ -30823,6 +30954,13 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.SyscallContext.CtxStrArg2"}
 		}
 		ev.Exec.SyscallContext.CtxStrArg2 = rv
+		return nil
+	case "exec.syscall.str_arg3":
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Exec.SyscallContext.CtxStrArg3"}
+		}
+		ev.Exec.SyscallContext.CtxStrArg3 = rv
 		return nil
 	case "exec.tid":
 		if ev.Exec.Process == nil {

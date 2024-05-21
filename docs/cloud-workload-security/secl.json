@@ -1399,6 +1399,11 @@
           "property_doc_link": "common-syscallcontext-syscall-int_arg2-doc"
         },
         {
+          "name": "chdir.syscall.int_arg3",
+          "definition": "Third integer syscall argument",
+          "property_doc_link": "common-syscallcontext-syscall-int_arg3-doc"
+        },
+        {
           "name": "chdir.syscall.str_arg1",
           "definition": "first string syscall argument",
           "property_doc_link": "common-syscallcontext-syscall-str_arg1-doc"
@@ -1407,6 +1412,11 @@
           "name": "chdir.syscall.str_arg2",
           "definition": "second string syscall argument",
           "property_doc_link": "common-syscallcontext-syscall-str_arg2-doc"
+        },
+        {
+          "name": "chdir.syscall.str_arg3",
+          "definition": "third string syscall argument",
+          "property_doc_link": "common-syscallcontext-syscall-str_arg3-doc"
         }
       ]
     },
@@ -1543,6 +1553,11 @@
           "property_doc_link": "common-syscallcontext-syscall-int_arg2-doc"
         },
         {
+          "name": "chmod.syscall.int_arg3",
+          "definition": "Third integer syscall argument",
+          "property_doc_link": "common-syscallcontext-syscall-int_arg3-doc"
+        },
+        {
           "name": "chmod.syscall.str_arg1",
           "definition": "first string syscall argument",
           "property_doc_link": "common-syscallcontext-syscall-str_arg1-doc"
@@ -1551,6 +1566,11 @@
           "name": "chmod.syscall.str_arg2",
           "definition": "second string syscall argument",
           "property_doc_link": "common-syscallcontext-syscall-str_arg2-doc"
+        },
+        {
+          "name": "chmod.syscall.str_arg3",
+          "definition": "third string syscall argument",
+          "property_doc_link": "common-syscallcontext-syscall-str_arg3-doc"
         }
       ]
     },
@@ -2135,6 +2155,11 @@
           "property_doc_link": "common-syscallcontext-syscall-int_arg2-doc"
         },
         {
+          "name": "exec.syscall.int_arg3",
+          "definition": "Third integer syscall argument",
+          "property_doc_link": "common-syscallcontext-syscall-int_arg3-doc"
+        },
+        {
           "name": "exec.syscall.str_arg1",
           "definition": "first string syscall argument",
           "property_doc_link": "common-syscallcontext-syscall-str_arg1-doc"
@@ -2143,6 +2168,11 @@
           "name": "exec.syscall.str_arg2",
           "definition": "second string syscall argument",
           "property_doc_link": "common-syscallcontext-syscall-str_arg2-doc"
+        },
+        {
+          "name": "exec.syscall.str_arg3",
+          "definition": "third string syscall argument",
+          "property_doc_link": "common-syscallcontext-syscall-str_arg3-doc"
         },
         {
           "name": "exec.tid",
@@ -8487,6 +8517,20 @@
       "examples": []
     },
     {
+      "name": "*.syscall.int_arg3",
+      "link": "common-syscallcontext-syscall-int_arg3-doc",
+      "type": "int",
+      "definition": "Third integer syscall argument",
+      "prefixes": [
+        "chdir",
+        "chmod",
+        "exec"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
       "name": "*.syscall.str_arg1",
       "link": "common-syscallcontext-syscall-str_arg1-doc",
       "type": "string",
@@ -8505,6 +8549,20 @@
       "link": "common-syscallcontext-syscall-str_arg2-doc",
       "type": "string",
       "definition": "second string syscall argument",
+      "prefixes": [
+        "chdir",
+        "chmod",
+        "exec"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "*.syscall.str_arg3",
+      "link": "common-syscallcontext-syscall-str_arg3-doc",
+      "type": "string",
+      "definition": "third string syscall argument",
       "prefixes": [
         "chdir",
         "chmod",

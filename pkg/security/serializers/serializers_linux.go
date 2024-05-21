@@ -493,18 +493,25 @@ type SyscallArgsSerializer struct {
 	StrArg1 string `json:"str_arg1,omitempty"`
 	// StrArg2 second string argument
 	StrArg2 string `json:"str_arg2,omitempty"`
+	// StrArg3 third string argument
+	StrArg3 string `json:"str_arg3,omitempty"`
+
 	// IntArg1 first integer argument
 	IntArg1 int `json:"int_arg1,omitempty"`
 	// IntArg2 second integer argument
 	IntArg2 int `json:"int_arg2,omitempty"`
+	// IntArg3 third integer argument
+	IntArg3 int `json:"int_arg3,omitempty"`
 }
 
 func newSyscallArgsSerializer(sc *model.SyscallContext, e *model.Event) *SyscallArgsSerializer {
 	return &SyscallArgsSerializer{
 		StrArg1: e.FieldHandlers.ResolveSyscallCtxStrArg1(e, sc),
 		StrArg2: e.FieldHandlers.ResolveSyscallCtxStrArg2(e, sc),
+		StrArg3: e.FieldHandlers.ResolveSyscallCtxStrArg3(e, sc),
 		IntArg1: e.FieldHandlers.ResolveSyscallCtxIntArg1(e, sc),
 		IntArg2: e.FieldHandlers.ResolveSyscallCtxIntArg2(e, sc),
+		IntArg3: e.FieldHandlers.ResolveSyscallCtxIntArg3(e, sc),
 	}
 }
 

@@ -548,9 +548,9 @@ func (fh *EBPFFieldHandlers) ResolveAWSSecurityCredentials(e *model.Event) []mod
 }
 
 // ResolveSyscallCtxStrArg1 resolve syscall ctx
-func (fh *EBPFFieldHandlers) resolveSyscallCtx(ev *model.Event, e *model.SyscallContext) {
+func (fh *EBPFFieldHandlers) resolveSyscallCtx(_ *model.Event, e *model.SyscallContext) {
 	if !e.CtxResolved {
-		e.CtxStrArg1, e.CtxStrArg2, e.CtxIntArg1, e.CtxIntArg2, _ = fh.resolvers.SyscallCtxResolver.Resolve(e.CtxID)
+		_ = fh.resolvers.SyscallCtxResolver.Resolve(e.CtxID, e)
 		e.CtxResolved = true
 	}
 }
@@ -561,10 +561,16 @@ func (fh *EBPFFieldHandlers) ResolveSyscallCtxStrArg1(ev *model.Event, e *model.
 	return e.CtxStrArg1
 }
 
-// ResolveSyscallCtxStrArg1 resolve syscall ctx
+// ResolveSyscallCtxStrArg3 resolve syscall ctx
 func (fh *EBPFFieldHandlers) ResolveSyscallCtxStrArg2(ev *model.Event, e *model.SyscallContext) string {
 	fh.resolveSyscallCtx(ev, e)
 	return e.CtxStrArg2
+}
+
+// ResolveSyscallCtxStrArg3 resolve syscall ctx
+func (fh *EBPFFieldHandlers) ResolveSyscallCtxStrArg3(ev *model.Event, e *model.SyscallContext) string {
+	fh.resolveSyscallCtx(ev, e)
+	return e.CtxStrArg3
 }
 
 // ResolveSyscallCtxIntArg1 resolve syscall ctx
@@ -577,4 +583,10 @@ func (fh *EBPFFieldHandlers) ResolveSyscallCtxIntArg1(ev *model.Event, e *model.
 func (fh *EBPFFieldHandlers) ResolveSyscallCtxIntArg2(ev *model.Event, e *model.SyscallContext) int {
 	fh.resolveSyscallCtx(ev, e)
 	return int(e.CtxIntArg2)
+}
+
+// ResolveSyscallCtxIntArg3 resolve syscall ctx
+func (fh *EBPFFieldHandlers) ResolveSyscallCtxIntArg3(ev *model.Event, e *model.SyscallContext) int {
+	fh.resolveSyscallCtx(ev, e)
+	return int(e.CtxIntArg3)
 }

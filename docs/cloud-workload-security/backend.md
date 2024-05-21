@@ -1467,6 +1467,10 @@ CSM Threats logs have the following JSON schema:
                     "type": "string",
                     "description": "StrArg2 second string argument"
                 },
+                "str_arg3": {
+                    "type": "string",
+                    "description": "StrArg3 third string argument"
+                },
                 "int_arg1": {
                     "type": "integer",
                     "description": "IntArg1 first integer argument"
@@ -1474,6 +1478,10 @@ CSM Threats logs have the following JSON schema:
                 "int_arg2": {
                     "type": "integer",
                     "description": "IntArg2 second integer argument"
+                },
+                "int_arg3": {
+                    "type": "integer",
+                    "description": "IntArg3 third integer argument"
                 }
             },
             "additionalProperties": false,
@@ -3836,6 +3844,10 @@ CSM Threats logs have the following JSON schema:
             "type": "string",
             "description": "StrArg2 second string argument"
         },
+        "str_arg3": {
+            "type": "string",
+            "description": "StrArg3 third string argument"
+        },
         "int_arg1": {
             "type": "integer",
             "description": "IntArg1 first integer argument"
@@ -3843,6 +3855,10 @@ CSM Threats logs have the following JSON schema:
         "int_arg2": {
             "type": "integer",
             "description": "IntArg2 second integer argument"
+        },
+        "int_arg3": {
+            "type": "integer",
+            "description": "IntArg3 third integer argument"
         }
     },
     "additionalProperties": false,
@@ -3856,8 +3872,10 @@ CSM Threats logs have the following JSON schema:
 | ----- | ----------- |
 | `str_arg1` | StrArg1 first string argument |
 | `str_arg2` | StrArg2 second string argument |
+| `str_arg3` | StrArg3 third string argument |
 | `int_arg1` | IntArg1 first integer argument |
 | `int_arg2` | IntArg2 second integer argument |
+| `int_arg3` | IntArg3 third integer argument |
 
 
 ## `SyscallContext`
