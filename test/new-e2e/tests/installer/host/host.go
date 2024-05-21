@@ -79,9 +79,11 @@ func (h *Host) ReadFile(path string) ([]byte, error) {
 	return h.remote.ReadFile(path)
 }
 
-// WaitForUnit waits for a systemd unit to be active
-func (h *Host) WaitForUnit(unit string) {
-	h.remote.MustExecute(fmt.Sprintf("timeout=30; unit=%s; while ! systemctl is-active --quiet $unit && [ $timeout -gt 0 ]; do sleep 1; ((timeout--)); done; [ $timeout -ne 0 ]", unit))
+// WaitForUnitActive waits for a systemd unit to be active
+func (h *Host) WaitForUnitActive(units ...string) {
+	for _, unit := range units {
+		h.remote.MustExecute(fmt.Sprintf("timeout=30; unit=%s; while ! systemctl is-active --quiet $unit && [ $timeout -gt 0 ]; do sleep 1; ((timeout--)); done; [ $timeout -ne 0 ]", unit))
+	}
 }
 
 // BootstraperVersion returns the version of the bootstraper on the host.
@@ -92,6 +94,39 @@ func (h *Host) BootstraperVersion() string {
 // InstallerVersion returns the version of the installer on the host.
 func (h *Host) InstallerVersion() string {
 	return strings.TrimSpace(h.remote.MustExecute("sudo datadog-installer version"))
+}
+
+// AssertPackageInstalledByInstaller checks if a package is installed by the installer on the host.
+func (h *Host) AssertPackageInstalledByInstaller(pkgs ...string) {
+	for _, pkg := range pkgs {
+		h.remote.MustExecute("sudo datadog-installer is-installed " + pkg)
+	}
+}
+
+// AssertPackageInstalledByPackageManager checks if a package is installed by the package manager on the host.
+func (h *Host) AssertPackageInstalledByPackageManager(pkgs ...string) {
+	for _, pkg := range pkgs {
+		if _, err := h.remote.Execute("command -v dpkg-query"); err == nil {
+			h.remote.MustExecute("dpkg-query -l " + pkg)
+		} else if _, err := h.remote.Execute("command -v rpm"); err == nil {
+			h.remote.MustExecute("rpm -q " + pkg)
+		} else {
+			h.t.Fatal("no package manager found")
+		}
+	}
+}
+
+// AssertPackageNotInstalledByPackageManager checks if a package is not installed by the package manager on the host.
+func (h *Host) AssertPackageNotInstalledByPackageManager(pkgs ...string) {
+	for _, pkg := range pkgs {
+		if _, err := h.remote.Execute("command -v dpkg-query"); err == nil {
+			h.remote.MustExecute("! dpkg-query -l " + pkg)
+		} else if _, err := h.remote.Execute("command -v rpm"); err == nil {
+			h.remote.MustExecute("! rpm -q " + pkg)
+		} else {
+			h.t.Fatal("no package manager found")
+		}
+	}
 }
 
 // State returns the state of the host.

@@ -24,20 +24,19 @@ func testApmInjectAgent(os e2eos.Descriptor, arch e2eos.Architecture) packageSui
 	}
 }
 
-func (s *packageAgentSuite) SetupSuite() {
-	s.packageBaseSuite.SetupSuite()
-	s.host.InstallDocker()
-}
-
 func (s *packageApmInjectSuite) TestInstall() {
-	s.RunInstallScript("DD_APM_INSTRUMENTATION_ENABLED=all", envForceInstall("datadog-agent"), envForceInstall("datadog-apm-inject"), envForceInstall("datadog-apm-library-python"))
+	s.host.InstallDocker()
+	s.RunInstallScript("DD_APM_INSTRUMENTATION_ENABLED=all", "DD_APM_INSTRUMENTATION_LIBRARIES=python", envForceInstall("datadog-agent"), envForceInstall("datadog-apm-inject"), envForceInstall("datadog-apm-library-python"))
 	defer s.Purge()
+	s.host.WaitForUnitActive("datadog-agent.service", "datadog-agent-trace.service")
 
 	s.host.StartExamplePythonApp()
 	defer s.host.StopExamplePythonApp()
 	s.host.StartExamplePythonAppInDocker()
 	defer s.host.StopExamplePythonAppInDocker()
 
+	s.host.AssertPackageInstalledByInstaller("datadog-agent", "datadog-apm-inject", "datadog-apm-library-python")
+	s.host.AssertPackageNotInstalledByPackageManager("datadog-agent", "datadog-apm-inject", "datadog-apm-library-python")
 	state := s.host.State()
 	state.AssertFileExists("/etc/ld.so.preload", 0644, "root", "root")
 	s.assertLDPreloadInstrumented()
@@ -53,7 +52,8 @@ func (s *packageApmInjectSuite) TestInstall() {
 }
 
 func (s *packageApmInjectSuite) TestUninstall() {
-	s.RunInstallScript("DD_APM_INSTRUMENTATION_ENABLED=all", envForceInstall("datadog-agent"), envForceInstall("datadog-apm-inject"), envForceInstall("datadog-apm-library-python"))
+	s.host.InstallDocker()
+	s.RunInstallScript("DD_APM_INSTRUMENTATION_ENABLED=all", "DD_APM_INSTRUMENTATION_LIBRARIES=python", envForceInstall("datadog-agent"), envForceInstall("datadog-apm-inject"), envForceInstall("datadog-apm-library-python"))
 	s.Purge()
 
 	s.assertLDPreloadNotInstrumented()

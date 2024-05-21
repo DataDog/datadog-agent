@@ -152,7 +152,6 @@ func (s *packageBaseSuite) SetupSuite() {
 func (s *packageBaseSuite) RunInstallScript(params ...string) {
 	// FIXME: use the official install script
 	s.Env().RemoteHost.MustExecute(fmt.Sprintf(`%s bash -c "$(curl -L https://storage.googleapis.com/updater-dev/install_script_agent7.sh)"`, strings.Join(params, " ")), client.WithEnvVariables(installScriptEnv(s.arch)))
-
 	// Right now the install script can fail installing the installer silently, so we need to do this check or it will fail later in a way that is hard to debug
 	_, err := s.Env().RemoteHost.Execute("sudo datadog-installer version")
 	require.NoErrorf(s.T(), err, "installer not properly installed. logs: \n%s\n%s", s.Env().RemoteHost.MustExecute("cat /tmp/datadog-installer-stdout.log"), s.Env().RemoteHost.MustExecute("cat /tmp/datadog-installer-stderr.log"))
@@ -164,13 +163,16 @@ func envForceInstall(pkg string) string {
 
 func (s *packageBaseSuite) Purge() {
 	s.Env().RemoteHost.MustExecute("sudo apt-get remove -y --purge datadog-installer || sudo yum remove -y datadog-installer")
-	s.Env().RemoteHost.MustExecute("sudo rm -rf /etc/datadog-agent")
 }
 
 // setupGlobalEnv sets up the global environment variables for the agent processes
 // This is done with SystemD environment files overrides to avoid having to touch the agent configuration files
 // and potentially interfere with the tests.
 func (s *packageBaseSuite) setupGlobalEnv() {
+	// FIXME: this should be done in the installer
+	s.Env().RemoteHost.MustExecute("sudo mkdir -p /etc/datadog-agent")
+	s.Env().RemoteHost.MustExecute(`echo "api_key: deadbeefdeadbeefdeadbeefdeadbeef" | sudo tee /etc/datadog-agent/datadog.yaml`)
+
 	env := []string{
 		"DD_APM_RECEIVER_SOCKET=/var/tmp/apm.socket",
 	}
