@@ -76,9 +76,9 @@ func (c *CheckBase) BuildID(integrationConfigDigest uint64, instance, initConfig
 
 // Configure is provided for checks that require no config. If overridden,
 // the call to CommonConfigure must be preserved.
-func (c *CheckBase) Configure(senderManager sender.SenderManager, integrationConfigDigest uint64, data integration.Data, initConfig integration.Data, source string) error {
+func (c *CheckBase) Configure(senderManager sender.SenderManager, _ uint64, data integration.Data, initConfig integration.Data, source string) error {
 	c.senderManager = senderManager
-	err := c.CommonConfigure(senderManager, integrationConfigDigest, initConfig, data, source)
+	err := c.CommonConfigure(senderManager, initConfig, data, source)
 	if err != nil {
 		return err
 	}
@@ -96,9 +96,7 @@ func (c *CheckBase) Configure(senderManager sender.SenderManager, integrationCon
 
 // CommonConfigure is called when checks implement their own Configure method,
 // in order to setup common options (run interval, empty hostname)
-//
-//nolint:revive // TODO(AML) Fix revive linter
-func (c *CheckBase) CommonConfigure(senderManager sender.SenderManager, integrationConfigDigest uint64, initConfig, instanceConfig integration.Data, source string) error {
+func (c *CheckBase) CommonConfigure(senderManager sender.SenderManager, initConfig, instanceConfig integration.Data, source string) error {
 	c.senderManager = senderManager
 	handleConf := func(conf integration.Data, c *CheckBase) error {
 		commonOptions := integration.CommonInstanceConfig{}

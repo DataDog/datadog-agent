@@ -9,12 +9,16 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"slices"
 
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	"go.uber.org/fx"
 )
 
 var (
+	compLifecycleType = reflect.TypeOf((*compdef.Lifecycle)(nil)).Elem()
+
+	compInType  = reflect.TypeOf((*compdef.In)(nil)).Elem()
 	compOutType = reflect.TypeOf((*compdef.Out)(nil)).Elem()
 	fxInType    = reflect.TypeOf(fx.In{})
 	fxOutType   = reflect.TypeOf(fx.Out{})
@@ -154,6 +158,13 @@ func constructFxInAndOut(ctorFuncType reflect.Type) (reflect.Type, reflect.Type,
 		return nil, nil, false, err
 	}
 
+	if err := ensureFieldsNotAllowed(ctorInType, []reflect.Type{compOutType, fxOutType, fxInType}); err != nil {
+		return nil, nil, false, err
+	}
+	if err := ensureFieldsNotAllowed(ctorOutType, []reflect.Type{compInType, compLifecycleType, fxInType, fxOutType}); err != nil {
+		return nil, nil, false, err
+	}
+
 	// create types that have fx-aware embed-fields
 	// these are used to construct a function that can build the fx graph
 	inFxType, err := constructFxInType(ctorInType)
@@ -179,6 +190,7 @@ func constructFxAwareStruct(plainType reflect.Type, isOut bool) (reflect.Type, e
 		oldEmbed = compOutType
 		newEmbed = fxOutType
 	} else {
+		oldEmbed = compInType
 		newEmbed = fxInType
 	}
 	if plainType == nil {
@@ -192,6 +204,16 @@ func constructFxAwareStruct(plainType reflect.Type, isOut bool) (reflect.Type, e
 		return nil, fmt.Errorf("bad type: %T", plainType)
 	}
 	return replaceStructEmbeds(plainType, oldEmbed, newEmbed, true), nil
+}
+
+func ensureFieldsNotAllowed(typ reflect.Type, badEmbeds []reflect.Type) error {
+	for n := 0; n < typ.NumField(); n++ {
+		field := typ.Field(n)
+		if slices.Contains(badEmbeds, field.Type) {
+			return fmt.Errorf("invalid embedded field: %v", field.Type)
+		}
+	}
+	return nil
 }
 
 // replaceStructEmbeds copies a struct type to a newly created struct type, removing

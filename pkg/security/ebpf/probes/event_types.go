@@ -448,7 +448,9 @@ func GetSelectorsPerEventType(fentry bool) map[eval.EventType][]manager.ProbesSe
 			&manager.AllOf{Selectors: []manager.ProbesSelector{
 				kprobeOrFentry("set_fs_pwd"),
 			}},
-			&manager.OneOf{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "chdir", fentry, EntryAndExit)}},
+			&manager.OneOf{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "chdir", fentry, EntryAndExit)},
+			&manager.OneOf{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "fchdir", fentry, EntryAndExit)},
+		},
 	}
 
 	// add probes depending on loaded modules

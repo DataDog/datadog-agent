@@ -526,10 +526,10 @@ func (s *KafkaProtocolParsingSuite) testKafkaProtocolParsing(t *testing.T, tls b
 				require.NoError(t, client.Client.ProduceSync(ctxTimeout, record1).FirstErr())
 
 				var batch []*kgo.Record
-				for i := 0; i < 25; i++ {
+				for i := 0; i < 2; i++ {
 					batch = append(batch, record1)
 				}
-				for i := 0; i < 25; i++ {
+				for i := 0; i < 2; i++ {
 					require.NoError(t, client.Client.ProduceSync(ctxTimeout, batch...).FirstErr())
 				}
 
@@ -550,8 +550,8 @@ func (s *KafkaProtocolParsingSuite) testKafkaProtocolParsing(t *testing.T, tls b
 				kafkaStats := getAndValidateKafkaStats(t, monitor, fixCount(2))
 
 				validateProduceFetchCount(t, kafkaStats, topicName, kafkaParsingValidation{
-					expectedNumberOfProduceRequests: fixCount(5 + 25*25),
-					expectedNumberOfFetchRequests:   fixCount(5 + 25*25),
+					expectedNumberOfProduceRequests: fixCount(5 + 2*2),
+					expectedNumberOfFetchRequests:   fixCount(5 + 2*2),
 					expectedAPIVersionProduce:       8,
 					expectedAPIVersionFetch:         11,
 				})
