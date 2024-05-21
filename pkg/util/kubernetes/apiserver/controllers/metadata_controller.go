@@ -52,20 +52,20 @@ func newMetadataController(endpointsInformer coreinformers.EndpointsInformer, wm
 		queue: workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "endpoints"),
 	}
 
-	wmetaFilterParams := workloadmeta.FilterParams{
-		Kinds:     []workloadmeta.Kind{workloadmeta.KindKubernetesNode},
-		Source:    workloadmeta.SourceAll,
-		EventType: workloadmeta.EventTypeAll,
-	}
-
-	wmetaEventsCh := wmeta.Subscribe(
-		"metadata-controller",
-		workloadmeta.NormalPriority,
-		workloadmeta.NewFilter(&wmetaFilterParams),
-	)
-
 	go func() {
+		wmetaFilterParams := workloadmeta.FilterParams{
+			Kinds:     []workloadmeta.Kind{workloadmeta.KindKubernetesNode},
+			Source:    workloadmeta.SourceAll,
+			EventType: workloadmeta.EventTypeAll,
+		}
+
+		wmetaEventsCh := wmeta.Subscribe(
+			"metadata-controller",
+			workloadmeta.NormalPriority,
+			workloadmeta.NewFilter(&wmetaFilterParams),
+		)
 		defer wmeta.Unsubscribe(wmetaEventsCh)
+
 		for eventBundle := range wmetaEventsCh {
 			eventBundle.Acknowledge()
 
