@@ -2195,14 +2195,12 @@ func TestProcessResolution(t *testing.T) {
 	var cmd *exec.Cmd
 	var stdin io.WriteCloser
 	defer func() {
-		if cmd != nil {
-			if stdin != nil {
-				stdin.Close()
-			}
+		if stdin != nil {
+			stdin.Close()
+		}
 
-			if err := cmd.Wait(); err != nil {
-				t.Fatal(err)
-			}
+		if err := cmd.Wait(); err != nil {
+			t.Fatal(err)
 		}
 	}()
 
@@ -2213,7 +2211,7 @@ func TestProcessResolution(t *testing.T) {
 			"getchar", ";",
 			"open", "/tmp/test-process-resolution"}
 
-		cmd := exec.Command(syscallTester, args...)
+		cmd = exec.Command(syscallTester, args...)
 		stdin, err = cmd.StdinPipe()
 		if err != nil {
 			return err
