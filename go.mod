@@ -550,7 +550,7 @@ require (
 	go.opencensus.io v0.24.0 // indirect
 	go.opentelemetry.io/collector/consumer v0.100.0
 	go.opentelemetry.io/collector/featuregate v1.7.0
-	go.opentelemetry.io/collector/semconv v0.100.0 // indirect
+	go.opentelemetry.io/collector/semconv v0.100.0
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.51.0 // indirect
 	go.opentelemetry.io/contrib/propagators/b3 v1.26.0 // indirect
 	go.opentelemetry.io/otel v1.26.0 // indirect

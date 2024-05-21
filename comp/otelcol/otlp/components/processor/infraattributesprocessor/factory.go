@@ -50,7 +50,7 @@ func (f *factory) createMetricsProcessor(
 	cfg component.Config,
 	nextConsumer consumer.Metrics,
 ) (processor.Metrics, error) {
-	tep, err := newInfraAttributesMetricProcessor(set, cfg.(*Config), f.tagger)
+	iap, err := newInfraAttributesMetricProcessor(set, cfg.(*Config), f.tagger)
 	if err != nil {
 		return nil, err
 	}
@@ -59,7 +59,7 @@ func (f *factory) createMetricsProcessor(
 		set,
 		cfg,
 		nextConsumer,
-		tep.processMetrics,
+		iap.processMetrics,
 		processorhelper.WithCapabilities(processorCapabilities))
 }
 
@@ -69,7 +69,7 @@ func (f *factory) createLogsProcessor(
 	cfg component.Config,
 	nextConsumer consumer.Logs,
 ) (processor.Logs, error) {
-	tep, err := newInfraAttributesLogsProcessor(set, cfg.(*Config))
+	iap, err := newInfraAttributesLogsProcessor(set, cfg.(*Config))
 	if err != nil {
 		return nil, err
 	}
@@ -78,7 +78,7 @@ func (f *factory) createLogsProcessor(
 		set,
 		cfg,
 		nextConsumer,
-		tep.processLogs,
+		iap.processLogs,
 		processorhelper.WithCapabilities(processorCapabilities))
 }
 
@@ -88,7 +88,7 @@ func (f *factory) createTracesProcessor(
 	cfg component.Config,
 	nextConsumer consumer.Traces,
 ) (processor.Traces, error) {
-	tep, err := newInfraAttributesSpanProcessor(set, cfg.(*Config))
+	iap, err := newInfraAttributesSpanProcessor(set, cfg.(*Config))
 	if err != nil {
 		return nil, err
 	}
@@ -97,6 +97,6 @@ func (f *factory) createTracesProcessor(
 		set,
 		cfg,
 		nextConsumer,
-		tep.processTraces,
+		iap.processTraces,
 		processorhelper.WithCapabilities(processorCapabilities))
 }

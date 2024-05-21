@@ -22,7 +22,7 @@ func newInfraAttributesLogsProcessor(set processor.CreateSettings, _ *Config) (*
 		logger: set.Logger,
 	}
 
-	set.Logger.Info("Logs Tag Enrichment configured")
+	set.Logger.Info("Logs Infra Attributes Processor configured")
 	return telp, nil
 }
 
