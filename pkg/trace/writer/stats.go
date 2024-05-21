@@ -77,9 +77,7 @@ func NewStatsWriter(
 	}
 	climit := cfg.StatsWriter.ConnectionLimit
 	if climit == 0 {
-		// Allow 1% of the connection limit to outgoing sends. The original
-		// connection limit was removed and used to be 2000 (1% = 20)
-		climit = 20
+		climit = 5
 	}
 	qsize := cfg.StatsWriter.QueueSize
 	if qsize == 0 {
