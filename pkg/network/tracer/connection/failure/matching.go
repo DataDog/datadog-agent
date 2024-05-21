@@ -47,6 +47,9 @@ func NewFailedConns() *FailedConns {
 
 // MatchFailedConn increments the failed connection counters for a given connection based on the failed connection map
 func MatchFailedConn(conn *network.ConnectionStats, failedConnMap *FailedConns) {
+	if conn.Type != network.TCP {
+		return
+	}
 	connTuple := connStatsToTuple(conn)
 	failedConnMap.RLock()
 	defer failedConnMap.RUnlock()

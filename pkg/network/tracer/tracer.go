@@ -315,6 +315,7 @@ func (t *Tracer) storeClosedConnections(connections []network.ConnectionStats) {
 			failedConnMap.Unlock()
 		}()
 	}
+	//log.Errorf("SRC CONNECTIONS: %+v", connections)
 	for i := range connections {
 		cs := &connections[i]
 		cs.IsClosed = true

@@ -238,6 +238,11 @@ int kprobe__tcp_done(struct pt_regs *ctx) {
     if (!read_conn_tuple(&t, sk, pid_tgid, CONN_TYPE_TCP)) {
         return 0;
     }
+
+    conn_stats_ts_t *cst = bpf_map_lookup_elem(&conn_stats, &t);
+    if (cst) {
+        cleanup_conn(ctx, &t, sk);
+    }
     log_debug("adamk kprobe/tcp_done: netns: %u, sport: %u, dport: %u", t.netns, t.sport, t.dport);
     log_debug("adamk kprobe/tcp_done: netns: %u, saddr: %llu, daddr: %llu", t.netns, t.saddr_l, t.daddr_l);
 
