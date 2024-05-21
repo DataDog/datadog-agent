@@ -109,7 +109,7 @@ func (s *TagStore) ProcessTagInfo(tagInfos []*types.TagInfo) {
 
 		if info.DeleteEntity {
 			if exist {
-				storedTags.deleteSource(info.Source, s.clock.Now().Add(deletedTTL))
+				storedTags.setSourceExpiration(info.Source, s.clock.Now().Add(deletedTTL))
 			}
 			continue
 		}

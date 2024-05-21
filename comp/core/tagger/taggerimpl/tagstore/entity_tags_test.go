@@ -172,10 +172,10 @@ func TestDeleteSource(t *testing.T) {
 		lowCardTags: []string{"l1:v1"},
 	})
 
-	entityTags.deleteSource(testSource, expiryDate)
+	entityTags.setSourceExpiration(testSource, expiryDate)
 
 	// Different source is ignored
-	entityTags.deleteSource(invalidSource, time.Now())
+	entityTags.setSourceExpiration(invalidSource, time.Now())
 
 	assert.Equal(t, expiryDate, entityTags.expiryDate)
 }
@@ -210,7 +210,7 @@ func TestDeleteExpired(t *testing.T) {
 				lowCardTags: []string{"l1:v1"},
 			})
 
-			entityTags.deleteSource(testSource, expiryDate)
+			entityTags.setSourceExpiration(testSource, expiryDate)
 			entityTags.deleteExpired(test.time)
 			assert.Equal(t, test.expectShouldRemove, entityTags.shouldRemove())
 		})

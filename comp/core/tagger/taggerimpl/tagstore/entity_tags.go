@@ -15,6 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // This file defines the EntityTags interface which contains the tags for a
@@ -45,7 +46,7 @@ type EntityTags interface {
 	tagsBySource() map[string][]string
 	setTagsForSource(source string, tags sourceTags)
 	sources() []string
-	deleteSource(source string, expiryDate time.Time)
+	setSourceExpiration(source string, expiryDate time.Time)
 	deleteExpired(time time.Time) bool
 	shouldRemove() bool
 }
@@ -235,7 +236,7 @@ func (e *EntityTagsWithMultipleSources) sources() []string {
 	return sources
 }
 
-func (e *EntityTagsWithMultipleSources) deleteSource(source string, expiryDate time.Time) {
+func (e *EntityTagsWithMultipleSources) setSourceExpiration(source string, expiryDate time.Time) {
 	tags, ok := e.sourceTags[source]
 	if !ok {
 		return
@@ -300,6 +301,7 @@ func (e *EntityTagsWithSingleSource) getHashedTags(cardinality types.TagCardinal
 
 func (e *EntityTagsWithSingleSource) tagsForSource(source string) *sourceTags {
 	if source != e.source {
+		log.Errorf("Trying to get tags from source %s on entity with source %s", source, e.source)
 		return nil
 	}
 
@@ -318,6 +320,7 @@ func (e *EntityTagsWithSingleSource) tagsBySource() map[string][]string {
 
 func (e *EntityTagsWithSingleSource) setTagsForSource(source string, tags sourceTags) {
 	if source != e.source {
+		log.Errorf("Trying to set tags for source %s on entity with source %s", source, e.source)
 		return
 	}
 
@@ -339,10 +342,13 @@ func (e *EntityTagsWithSingleSource) sources() []string {
 	return []string{e.source}
 }
 
-func (e *EntityTagsWithSingleSource) deleteSource(source string, expiryDate time.Time) {
-	if source == e.source {
-		e.expiryDate = expiryDate
+func (e *EntityTagsWithSingleSource) setSourceExpiration(source string, expiryDate time.Time) {
+	if source != e.source {
+		log.Errorf("Trying to set expiration for source %s on entity with source %s", source, e.source)
+		return
 	}
+
+	e.expiryDate = expiryDate
 }
 
 func (e *EntityTagsWithSingleSource) deleteExpired(time time.Time) bool {
