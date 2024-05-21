@@ -38,6 +38,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/stats"
 	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/trace/testutil"
+	"github.com/DataDog/datadog-agent/pkg/trace/ticker"
 	"github.com/DataDog/datadog-agent/pkg/trace/timing"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/writer"
@@ -76,8 +77,9 @@ type mockConcentrator struct {
 	mu    sync.Mutex
 }
 
-func (c *mockConcentrator) Start() {}
-func (c *mockConcentrator) Stop()  {}
+func (c *mockConcentrator) Tasks() []ticker.TickTask { return nil }
+func (c *mockConcentrator) Start()                   {}
+func (c *mockConcentrator) Stop()                    {}
 func (c *mockConcentrator) Add(t stats.Input) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
