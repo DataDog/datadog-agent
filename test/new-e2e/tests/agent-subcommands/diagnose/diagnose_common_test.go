@@ -48,7 +48,7 @@ func getDiagnoseOutput(v *baseDiagnoseSuite, commandArgs ...agentclient.AgentArg
 	}, 5*time.Minute, 20*time.Second, "timedout waiting for fakeintake to be healthy")
 
 	diagnose := v.Env().Agent.Client.Diagnose(commandArgs...)
-	if strings.Contains(diagnose, "port-conflict") {
+	if runtime.GOOS == "windows" && strings.Contains(diagnose, "port-conflict") {
 		diagnose = strings.Replace(diagnose, "string-conflict", "", -1)
 	}
 	return diagnose
