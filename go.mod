@@ -136,7 +136,7 @@ require (
 	github.com/DataDog/ebpf-manager v0.6.0
 	github.com/DataDog/gopsutil v1.2.2
 	github.com/DataDog/nikos v1.12.4
-	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.16.0
+	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.16.1-0.20240521203313-5f63a21aaeb0
 	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/metrics v0.16.0
 	github.com/DataDog/opentelemetry-mapping-go/pkg/quantile v0.16.0
 	github.com/DataDog/sketches-go v1.4.4
@@ -599,7 +599,7 @@ require github.com/lorenzosaino/go-sysctl v0.3.1
 
 require (
 	github.com/DATA-DOG/go-sqlmock v1.5.2
-	github.com/DataDog/agent-payload/v5 v5.0.115
+	github.com/DataDog/agent-payload/v5 v5.0.118
 	github.com/DataDog/datadog-agent/cmd/agent/common/path v0.54.0-rc.2
 	github.com/DataDog/datadog-agent/comp/core/config v0.54.0-rc.2
 	github.com/DataDog/datadog-agent/comp/core/flare/types v0.54.0-rc.2
