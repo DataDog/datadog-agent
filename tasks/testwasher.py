@@ -46,10 +46,13 @@ class TestWasher:
         """
         Merge flakes marked in the go code and the ones from the flakes.yaml file
         """
-        shared_packages = marked_flakes.keys() & self.known_flaky_tests.keys()
-        for package in shared_packages:
-            marked_flakes[package] |= self.known_flaky_tests[package]
-        return self.known_flaky_tests | marked_flakes
+        known_flakes = self.known_flaky_tests.copy()
+        for package, tests in marked_flakes.items():
+            if package in known_flakes:
+                known_flakes[package] = known_flakes[package].union(tests)
+            else:
+                known_flakes[package] = tests
+        return known_flakes
 
     def parse_flaky_file(self):
         """

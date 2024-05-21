@@ -643,6 +643,17 @@ DATADOG_AGENT_RTLOADER_API void init_pymem_stats(rtloader_t *);
 */
 DATADOG_AGENT_RTLOADER_API void get_pymem_stats(rtloader_t *, pymem_stats_t *);
 
+/*! \fn void set_obfuscate_mongodb_string_cb(rtloader_t *, cb_obfuscate_mongodb_string_t)
+    \brief Sets a callback to be used by rtloader to allow retrieving a value for a given
+    check instance.
+    \param rtloader_t A rtloader_t * pointer to the RtLoader instance.
+    \param object A function pointer with cb_obfuscate_mongodb_string_t prototype to the callback
+    function.
+
+    The callback is expected to be provided by the rtloader caller - in go-context: CGO.
+*/
+DATADOG_AGENT_RTLOADER_API void set_obfuscate_mongodb_string_cb(rtloader_t *, cb_obfuscate_mongodb_string_t);
+
 #ifdef __cplusplus
 }
 #endif
