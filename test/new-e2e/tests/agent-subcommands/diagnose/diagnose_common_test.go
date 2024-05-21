@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"regexp"
 	"runtime"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -60,6 +61,11 @@ func (v *baseDiagnoseSuite) TestDiagnoseLocal() {
 }
 
 func (v *baseDiagnoseSuite) TestDiagnoseList() {
+
+	if runtime.GOOS == "windows" && slices.Contains(allSuites, "port-conflict") {
+		index := slices.Index(allSuites, "port-conflict")
+		allSuites = slices.Delete(allSuites, index, index+1)
+	}
 	diagnose := getDiagnoseOutput(v, agentclient.WithArgs([]string{"--list"}))
 	for _, suite := range allSuites {
 		assert.Contains(v.T(), diagnose, suite)
