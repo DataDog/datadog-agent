@@ -83,6 +83,7 @@ require (
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/logsagentexporter v0.54.0-rc.2
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/serializerexporter v0.54.0-rc.1
 	github.com/DataDog/datadog-agent/pkg/logs/message v0.54.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/proto v0.54.0-rc.2
 	github.com/DataDog/datadog-agent/pkg/serializer v0.54.0-rc.2
 	github.com/DataDog/datadog-agent/pkg/trace v0.54.0-rc.2
 	github.com/DataDog/datadog-agent/pkg/util/hostname/validate v0.54.0-rc.2
@@ -105,6 +106,7 @@ require (
 	go.opentelemetry.io/otel/metric v1.26.0
 	go.opentelemetry.io/otel/trace v1.26.0
 	go.uber.org/zap v1.27.0
+	google.golang.org/protobuf v1.34.0
 )
 
 require (
@@ -140,7 +142,6 @@ require (
 	github.com/DataDog/datadog-agent/pkg/obfuscate v0.54.0-rc.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/orchestrator/model v0.54.0-rc.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/process/util/api v0.54.0-rc.2 // indirect
-	github.com/DataDog/datadog-agent/pkg/proto v0.54.0-rc.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.54.0-rc.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/status/health v0.54.0-rc.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/tagger/types v0.54.0-rc.2 // indirect
@@ -286,7 +287,6 @@ require (
 	golang.org/x/tools v0.20.0 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20240401170217-c3f982113cda // indirect
 	google.golang.org/grpc v1.63.2 // indirect
-	google.golang.org/protobuf v1.34.0 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
