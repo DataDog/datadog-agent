@@ -10,6 +10,7 @@ from invoke import Collection, Task
 from tasks import (
     agent,
     ami,
+    bazel,
     bench,
     buildimages,
     cluster_agent,
@@ -164,6 +165,7 @@ ns.add_task(lint_go)
 # add namespaced tasks to the root
 ns.add_collection(agent)
 ns.add_collection(ami)
+ns.add_collection(bazel)
 ns.add_collection(buildimages)
 ns.add_collection(cluster_agent)
 ns.add_collection(cluster_agent_cloudfoundry)

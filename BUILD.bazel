@@ -24,7 +24,7 @@ gazelle(
         "otlp",
         "podman",
         "process",
-        # "python",
+        "python",
         # "systemd",
         # "trivy",
         "zk",

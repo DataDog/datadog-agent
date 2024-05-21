@@ -1,12 +1,49 @@
-load("@rules_go//go:def.bzl", "go_library")
+load("@rules_go//go:def.bzl", "go_library", "go_test")
 
 go_library(
     name = "integrations",
-    srcs = ["command_nopython.go"],
+    srcs = [
+        "command.go",
+        "integrations_darwin.go",
+        "integrations_nix.go",
+        "integrations_nix_helpers.go",
+        "integrations_windows.go",
+    ],
     importpath = "github.com/DataDog/datadog-agent/cmd/agent/subcommands/integrations",
     visibility = ["//visibility:public"],
     deps = [
         "//cmd/agent/command",
+        "//comp/core",
+        "//comp/core/config",
+        "//pkg/config",
+        "//pkg/util/executable",
+        "//pkg/util/fxutil",
+        "@com_github_coreos_go_semver//semver",
+        "@com_github_fatih_color//:color",
         "@com_github_spf13_cobra//:cobra",
+        "@org_uber_go_fx//:fx",
+    ] + select({
+        "@rules_go//go/platform:windows": [
+            "//pkg/util/winutil",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+go_test(
+    name = "integrations_test",
+    srcs = [
+        "command_test.go",
+        "integrations_test.go",
+    ],
+    embed = [":integrations"],
+    deps = [
+        "//cmd/agent/command",
+        "//comp/core",
+        "//comp/core/secrets",
+        "//pkg/util/fxutil",
+        "@com_github_coreos_go_semver//semver",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
     ],
 )

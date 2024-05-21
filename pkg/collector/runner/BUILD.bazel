@@ -4,7 +4,7 @@ go_library(
     name = "runner",
     srcs = [
         "runner.go",
-        "runner_nopython.go",
+        "runner_python.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/collector/runner",
     visibility = ["//visibility:public"],
@@ -12,6 +12,7 @@ go_library(
         "//pkg/aggregator/sender",
         "//pkg/collector/check",
         "//pkg/collector/check/id",
+        "//pkg/collector/python",
         "//pkg/collector/runner/tracker",
         "//pkg/collector/scheduler",
         "//pkg/collector/worker",
