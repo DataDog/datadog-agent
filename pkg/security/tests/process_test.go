@@ -1398,16 +1398,16 @@ func TestProcessMetadata(t *testing.T) {
 
 	t.Run("credentials", func(t *testing.T) {
 		test.WaitSignal(t, func() error {
-			attr := &syscall.ProcAttr{
-				Sys: &syscall.SysProcAttr{
-					Credential: &syscall.Credential{
-						Uid: 1001,
-						Gid: 2001,
-					},
+			attr := &syscall.SysProcAttr{
+				Credential: &syscall.Credential{
+					Uid: 1001,
+					Gid: 2001,
 				},
 			}
-			_, err := syscall.ForkExec(testFile, []string{}, attr)
-			return err
+
+			cmd := exec.Command(testFile)
+			cmd.SysProcAttr = attr
+			return cmd.Run()
 		}, test.validateExecEvent(t, noWrapperType, func(event *model.Event, rule *rules.Rule) {
 			assert.Equal(t, "exec", event.GetType(), "wrong event type")
 			assert.Equal(t, 1001, int(event.Exec.Credentials.UID), "wrong uid")
