@@ -906,7 +906,7 @@ func NewWindowsProbe(probe *Probe, config *config.Config, opts Opts) (*WindowsPr
 		return nil, err
 	}
 
-	discardedHandles, err := lru.New[fileObjectPointer, struct{}](config.RuntimeSecurity.WindowsFilenameCacheSize)
+	discardedHandles, err := lru.New[fileObjectPointer, struct{}](10240)
 	if err != nil {
 		return nil, err
 	}

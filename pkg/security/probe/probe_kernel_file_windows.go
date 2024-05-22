@@ -161,7 +161,12 @@ func (wp *WindowsProbe) parseCreateHandleArgs(e *etw.DDEventRecord) (*createHand
 		return nil, fmt.Errorf("unknown version %v", e.EventHeader.EventDescriptor.Version)
 	}
 
+	if strings.Compare(strings.ToLower(filepath.Ext(ca.fileName)), ".dll") != 0 {
+		wp.discardedFileHandles.Add(fileObjectPointer(ca.fileObject), struct{}{})
+		return nil, errDiscardedPath
+	}
 	if _, ok := wp.discardedPaths.Get(ca.fileName); ok {
+		wp.discardedFileHandles.Add(fileObjectPointer(ca.fileObject), struct{}{})
 		wp.stats.fileCreateSkippedDiscardedPaths++
 		return nil, errDiscardedPath
 	}
@@ -169,6 +174,7 @@ func (wp *WindowsProbe) parseCreateHandleArgs(e *etw.DDEventRecord) (*createHand
 	// not amazing to double compute the basename..
 	basename := filepath.Base(ca.fileName)
 	if _, ok := wp.discardedBasenames.Get(basename); ok {
+		wp.discardedFileHandles.Add(fileObjectPointer(ca.fileObject), struct{}{})
 		wp.stats.fileCreateSkippedDiscardedBasenames++
 		return nil, errDiscardedPath
 	}
