@@ -787,8 +787,8 @@ github.com/DataDog/opentelemetry-mapping-go/pkg/inframetadata v0.16.0 h1:Jl7/oQQ
 github.com/DataDog/opentelemetry-mapping-go/pkg/inframetadata v0.16.0/go.mod h1:P/l++2cDCeeq21KSmCEdXdMH9/WMdXP7uA/vjnxhtz8=
 github.com/DataDog/opentelemetry-mapping-go/pkg/internal/sketchtest v0.16.0 h1:VJT1Jjlz/ca999FEqaAS+He7S4eB14a+PJjczgRdgAY=
 github.com/DataDog/opentelemetry-mapping-go/pkg/internal/sketchtest v0.16.0/go.mod h1:66XlN7QpQKqIvw8e2UbCXV5X8wGnEw851nT9BjJ75dY=
-github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.16.0 h1:g/ztrLYZNfkpW6Bt8kMnLed5DaKRHEtiKE0opHXLHJk=
-github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.16.0/go.mod h1:dvIWN9pA2zWNTw5rhDWZgzZnhcfpH++d+8d1SWW6xkY=
+github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.16.1-0.20240521203313-5f63a21aaeb0 h1:uL1IM8DU+H9nuBe5ExXMgF5sADhdXsBsYDJpaE8qlrA=
+github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.16.1-0.20240521203313-5f63a21aaeb0/go.mod h1:dvIWN9pA2zWNTw5rhDWZgzZnhcfpH++d+8d1SWW6xkY=
 github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/logs v0.16.0 h1:NbKlfbjR2joF52jEBLs3MEnT6l5zM3MCyhUFkqARZpk=
 github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/logs v0.16.0/go.mod h1:+LijQ2LdlocAQ4WB+7KsoIGe90bfogkRslubd9swVow=
 github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/metrics v0.16.0 h1:H5DzD3rwgQCX0VI3A16KgsdmC5grUCyDFflaZDpfgMc=
@@ -2276,6 +2276,8 @@ github.com/open-telemetry/opamp-go v0.14.0 h1:KoziIK+wsFojhUXNTkCSTnCPf0eCMqFAac
 github.com/open-telemetry/opamp-go v0.14.0/go.mod h1:XOGCigljsLSTZ8FfLwvat0M1QDj3conIIgRa77BWrKs=
 github.com/open-telemetry/opentelemetry-collector-contrib/connector/countconnector v0.100.0 h1:TEtAasqgaz7THMLaS/E0siGStSad9O/8OlKj/P9IcoM=
 github.com/open-telemetry/opentelemetry-collector-contrib/connector/countconnector v0.100.0/go.mod h1:Qx4COF+eJS+vRNGIsClR8qK9JEd8PReC1oK0bW5khuk=
+github.com/open-telemetry/opentelemetry-collector-contrib/connector/datadogconnector v0.100.0 h1:YPOMwHbXLLDzGAi5iKgSbvExaQ88h2egLlhaSwVaBA8=
+github.com/open-telemetry/opentelemetry-collector-contrib/connector/datadogconnector v0.100.0/go.mod h1:sOHrAEYjRMFjWODxe2wYht9ldVLoNaYAUxrcU6Cgh0U=
 github.com/open-telemetry/opentelemetry-collector-contrib/connector/exceptionsconnector v0.100.0 h1:3k4gBhpHnX/7Mej5SPCqZK0Es1PTtQxw+GWTv/w5B3M=
 github.com/open-telemetry/opentelemetry-collector-contrib/connector/exceptionsconnector v0.100.0/go.mod h1:l3UETPUZIEPPQZ98zqCrnBXMlId8/Rw6cgh3FgOlXcg=
 github.com/open-telemetry/opentelemetry-collector-contrib/connector/grafanacloudconnector v0.100.0 h1:gR4BuuMTpfT2LP2PEiL++HDIBK96TwmpjaKjbV3DcUU=

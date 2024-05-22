@@ -15,6 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	corelog "github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/status"
+	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
 	"github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp"
@@ -51,6 +52,8 @@ type dependencies struct {
 
 	// InventoryAgent require the inventory metadata payload, allowing otelcol to add data to it.
 	InventoryAgent inventoryagent.Component
+
+	Tagger tagger.Component
 }
 
 type provides struct {
@@ -79,7 +82,7 @@ func (c *collector) start(context.Context) error {
 		}
 	}
 	var err error
-	col, err := otlp.NewPipelineFromAgentConfig(deps.Config, deps.Serializer, logch)
+	col, err := otlp.NewPipelineFromAgentConfig(deps.Config, deps.Serializer, logch, deps.Tagger)
 	if err != nil {
 		// failure to start the OTLP component shouldn't fail startup
 		deps.Log.Errorf("Error creating the OTLP ingest pipeline: %v", err)

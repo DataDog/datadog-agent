@@ -14,17 +14,22 @@ import (
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/otelcol"
 
-	"github.com/DataDog/datadog-agent/comp/core/hostname"
 	corelog "github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	collectorcontrib "github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/def"
 	collectordef "github.com/DataDog/datadog-agent/comp/otelcol/collector/def"
 	"github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/datadogexporter"
+	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/serializerexporter"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/processor/infraattributesprocessor"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
+	"github.com/DataDog/datadog-agent/pkg/trace/agent"
+	zapAgent "github.com/DataDog/datadog-agent/pkg/util/log/zap"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 )
 
 type dependencies struct {
@@ -37,8 +42,10 @@ type dependencies struct {
 	Provider         otelcol.ConfigProvider
 	CollectorContrib collectorcontrib.Component
 	Serializer       serializer.MetricSerializer
+	TraceAgent       *agent.Agent
 	LogsAgent        optional.Option[logsagentpipeline.Component]
-	HostName         hostname.Component
+	SourceProvider   serializerexporter.SourceProviderFunc
+	Tagger           tagger.Component
 }
 
 type collector struct {
@@ -49,23 +56,30 @@ type collector struct {
 
 // New returns a new instance of the collector component.
 func New(deps dependencies) (collectordef.Component, error) {
+	// Replace default core to use Agent logger
+	options := []zap.Option{
+		zap.WrapCore(func(zapcore.Core) zapcore.Core {
+			return zapAgent.NewZapCore()
+		}),
+	}
 	set := otelcol.CollectorSettings{
 		BuildInfo: component.BuildInfo{
 			Version:     "0.0.1",
 			Command:     "otel-agent",
 			Description: "Datadog Agent OpenTelemetry Collector Distribution",
 		},
+		LoggingOptions: options,
 		Factories: func() (otelcol.Factories, error) {
 			factories, err := deps.CollectorContrib.OTelComponentFactories()
 			if err != nil {
 				return otelcol.Factories{}, err
 			}
 			if v, ok := deps.LogsAgent.Get(); ok {
-				factories.Exporters[datadogexporter.Type] = datadogexporter.NewFactory(deps.Serializer, v, deps.HostName)
+				factories.Exporters[datadogexporter.Type] = datadogexporter.NewFactory(deps.TraceAgent, deps.Serializer, v, deps.SourceProvider)
 			} else {
-				factories.Exporters[datadogexporter.Type] = datadogexporter.NewFactory(deps.Serializer, nil, deps.HostName)
+				factories.Exporters[datadogexporter.Type] = datadogexporter.NewFactory(deps.TraceAgent, deps.Serializer, nil, deps.SourceProvider)
 			}
-			factories.Processors[infraattributesprocessor.Type] = infraattributesprocessor.NewFactory()
+			factories.Processors[infraattributesprocessor.Type] = infraattributesprocessor.NewFactory(deps.Tagger)
 			return factories, nil
 		},
 		ConfigProvider: deps.Provider,

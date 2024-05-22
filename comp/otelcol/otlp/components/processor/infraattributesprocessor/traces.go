@@ -21,7 +21,7 @@ func newInfraAttributesSpanProcessor(set processor.CreateSettings, _ *Config) (*
 	tesp := &infraAttributesSpanProcessor{
 		logger: set.Logger,
 	}
-	set.Logger.Info("Span Tag Enrichment configured")
+	set.Logger.Info("Span Infra Attributes Processor configured")
 	return tesp, nil
 }
 
