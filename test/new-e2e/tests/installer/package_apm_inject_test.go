@@ -30,7 +30,7 @@ func (s *packageApmInjectSuite) TestInstall() {
 	s.RunInstallScript()
 	defer s.Purge()
 	s.InstallAgentPackage()
-	s.InstallInjectorPackageTemp()
+	s.InstallPackageLatest("datadog-apm-inject")
 	s.InstallPackageLatest("datadog-apm-library-python")
 	s.host.StartExamplePythonApp()
 	defer s.host.StopExamplePythonApp()
@@ -55,7 +55,7 @@ func (s *packageApmInjectSuite) TestUninstall() {
 	s.host.InstallDocker()
 	s.RunInstallScript()
 	s.InstallAgentPackage()
-	s.InstallInjectorPackageTemp()
+	s.InstallPackageLatest("datadog-apm-inject")
 	s.InstallPackageLatest("datadog-apm-library-python")
 	s.Purge()
 
@@ -72,7 +72,7 @@ func (s *packageApmInjectSuite) TestDockerAdditionalFields() {
 
 	// Broken /etc/docker/daemon.json syntax
 	s.host.SetBrokenDockerConfig()
-	err := s.InstallInjectorPackageTempWithError()
+	err := s.InstallPackageLatestWithError("datadog-apm-inject")
 	require.Error(s.T(), err)
 	s.assertLDPreloadNotInstrumented()
 	s.assertDockerdConfigNotInstrumented()
@@ -88,7 +88,7 @@ func (s *packageApmInjectSuite) TestDockerBrokenJSON() {
 
 	// Additional fields in /etc/docker/daemon.json
 	s.host.SetBrokenDockerConfigAdditionalFields()
-	err := s.InstallInjectorPackageTempWithError()
+	err := s.InstallPackageLatestWithError("datadog-apm-inject")
 	require.Error(s.T(), err)
 	s.assertLDPreloadNotInstrumented()
 	s.assertDockerdConfigNotInstrumented()

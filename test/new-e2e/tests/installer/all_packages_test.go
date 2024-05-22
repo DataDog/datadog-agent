@@ -66,7 +66,7 @@ var (
 	packagesConfig = []testPackageConfig{
 		{name: "datadog-installer", defaultVersion: fmt.Sprintf("pipeline-%v", os.Getenv("CI_PIPELINE_ID")), registry: "669783387624.dkr.ecr.us-east-1.amazonaws.com", auth: "ecr"},
 		{name: "datadog-agent", defaultVersion: fmt.Sprintf("pipeline-%v", os.Getenv("CI_PIPELINE_ID")), registry: "669783387624.dkr.ecr.us-east-1.amazonaws.com", auth: "ecr"},
-		{name: "apm-inject", defaultVersion: "pipeline-34163111", registry: "669783387624.dkr.ecr.us-east-1.amazonaws.com", auth: "ecr"},
+		{name: "apm-inject", defaultVersion: "latest", registry: "gcr.io/datadoghq", auth: "docker"},
 	}
 )
 
@@ -174,27 +174,6 @@ func (s *packageBaseSuite) InstallAgentPackage() {
 	s.Env().RemoteHost.MustExecute(`timeout=30; unit=datadog-agent.service; while ! systemctl is-active --quiet $unit && [ $timeout -gt 0 ]; do sleep 1; ((timeout--)); done; [ $timeout -ne 0 ]`)
 }
 
-// TODO: This is a hack to install a working version of apm-inject
-func (s *packageBaseSuite) InstallInjectorPackageTemp() {
-	s.Env().RemoteHost.MustExecute("sudo -E datadog-installer install oci://669783387624.dkr.ecr.us-east-1.amazonaws.com/apm-inject-package:pipeline-34717565", client.WithEnvVariables(s.env))
-}
-
-// TODO: This is a hack to install a working version of apm-inject
-func (s *packageBaseSuite) InstallInjectorPackageTempWithError() error {
-	s.Env().RemoteHost.MustExecute(`echo "DD_APM_RECEIVER_SOCKET=/var/tmp/apm.socket" | sudo tee -a /etc/environment`)
-	if s.Env().FakeIntake != nil {
-		s.Env().RemoteHost.MustExecute(fmt.Sprintf(`echo "DD_APM_DD_URL=%s" | sudo tee -a /etc/environment`, s.Env().FakeIntake.URL))
-	}
-	s.Env().RemoteHost.MustExecute("sudo mkdir -p /etc/systemd/system/datadog-agent-trace.service.d")
-	s.Env().RemoteHost.MustExecute(`printf "[Service]\nEnvironmentFile=-/etc/environment\n" | sudo tee /etc/systemd/system/datadog-agent-trace.service.d/inject.conf`)
-	s.Env().RemoteHost.MustExecute("sudo systemctl daemon-reload")
-	_, err := s.Env().RemoteHost.Execute("sudo -E datadog-installer install oci://669783387624.dkr.ecr.us-east-1.amazonaws.com/apm-inject-package:pipeline-34163111", client.WithEnvVariables(s.env))
-	if err != nil {
-		return err
-	}
-	s.Env().RemoteHost.MustExecute(`sudo systemctl restart datadog-agent-trace`)
-	return nil
-}
 func (s *packageBaseSuite) InstallPackageLatest(pkg string) {
 	require.NoError(s.T(), s.InstallPackageLatestWithError(pkg))
 }
