@@ -401,6 +401,13 @@ func InitConfig(config pkgconfigmodel.Config) {
 	bindEnvAndSetLogsConfigKeys(config, "network_devices.netflow.forwarder.")
 
 	// Network Path
+	config.BindEnvAndSetDefault("network_path.connections_monitoring.enabled", false)
+	config.BindEnvAndSetDefault("network_path.collector.workers", 4)
+	config.BindEnvAndSetDefault("network_path.collector.input_chan_size", 1000)
+	config.BindEnvAndSetDefault("network_path.collector.processing_chan_size", 1000)
+	config.BindEnvAndSetDefault("network_path.collector.pathtest_ttl", "15m")
+	config.BindEnvAndSetDefault("network_path.collector.pathtest_interval", "5m")
+	config.BindEnvAndSetDefault("network_path.collector.flush_interval", "10s")
 	bindEnvAndSetLogsConfigKeys(config, "network_path.forwarder.")
 
 	// Kube ApiServer
@@ -751,6 +758,10 @@ func InitConfig(config pkgconfigmodel.Config) {
 	config.BindEnvAndSetDefault("sbom.host.enabled", false)
 	config.BindEnvAndSetDefault("sbom.host.analyzers", []string{"os"})
 
+	// Service discovery configuration
+	config.BindEnvAndSetDefault("service_discovery.enabled", true)
+	bindEnvAndSetLogsConfigKeys(config, "service_discovery.forwarder.")
+
 	// Orchestrator Explorer - process agent
 	// DEPRECATED in favor of `orchestrator_explorer.orchestrator_dd_url` setting. If both are set `orchestrator_explorer.orchestrator_dd_url` will take precedence.
 	config.BindEnv("process_config.orchestrator_dd_url", "DD_PROCESS_CONFIG_ORCHESTRATOR_DD_URL", "DD_PROCESS_AGENT_ORCHESTRATOR_DD_URL")
@@ -821,7 +832,7 @@ func InitConfig(config pkgconfigmodel.Config) {
 	}
 	config.BindEnvAndSetDefault("runtime_security_config.log_profiled_workloads", false)
 	config.BindEnvAndSetDefault("runtime_security_config.telemetry.ignore_dd_agent_containers", true)
-	config.BindEnvAndSetDefault("runtime_security_config.use_secruntime_track", false)
+	config.BindEnvAndSetDefault("runtime_security_config.use_secruntime_track", true)
 	bindEnvAndSetLogsConfigKeys(config, "runtime_security_config.endpoints.")
 	bindEnvAndSetLogsConfigKeys(config, "runtime_security_config.activity_dump.remote_storage.endpoints.")
 

@@ -392,7 +392,7 @@ func (fh *EBPFFieldHandlers) ResolvePackageName(ev *model.Event, f *model.FileEv
 			return ""
 		}
 
-		if pkg := fh.resolvers.SBOMResolver.ResolvePackage(ev.ProcessCacheEntry.ContainerID, f); pkg != nil {
+		if pkg := fh.resolvers.SBOMResolver.ResolvePackage(ev.ContainerContext.ID, f); pkg != nil {
 			f.PkgName = pkg.Name
 		}
 	}
@@ -411,7 +411,7 @@ func (fh *EBPFFieldHandlers) ResolvePackageVersion(ev *model.Event, f *model.Fil
 			return ""
 		}
 
-		if pkg := fh.resolvers.SBOMResolver.ResolvePackage(ev.ProcessCacheEntry.ContainerID, f); pkg != nil {
+		if pkg := fh.resolvers.SBOMResolver.ResolvePackage(ev.ContainerContext.ID, f); pkg != nil {
 			f.PkgVersion = pkg.Version
 		}
 	}
@@ -430,7 +430,7 @@ func (fh *EBPFFieldHandlers) ResolvePackageSourceVersion(ev *model.Event, f *mod
 			return ""
 		}
 
-		if pkg := fh.resolvers.SBOMResolver.ResolvePackage(ev.ProcessCacheEntry.ContainerID, f); pkg != nil {
+		if pkg := fh.resolvers.SBOMResolver.ResolvePackage(ev.ContainerContext.ID, f); pkg != nil {
 			f.PkgSrcVersion = pkg.SrcVersion
 		}
 	}
@@ -531,4 +531,10 @@ func (fh *EBPFFieldHandlers) ResolveK8SUID(_ *model.Event, evtCtx *model.UserSes
 func (fh *EBPFFieldHandlers) ResolveK8SGroups(_ *model.Event, evtCtx *model.UserSessionContext) []string {
 	fh.ResolveUserSessionContext(evtCtx)
 	return evtCtx.K8SGroups
+}
+
+// ResolveProcessCmdArgv resolves the command line
+func (fh *EBPFFieldHandlers) ResolveProcessCmdArgv(ev *model.Event, process *model.Process) []string {
+	cmdline := []string{fh.ResolveProcessArgv0(ev, process)}
+	return append(cmdline, fh.ResolveProcessArgv(ev, process)...)
 }

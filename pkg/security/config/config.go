@@ -224,6 +224,12 @@ type RuntimeSecurityConfig struct {
 
 	// Enforcement capabilities
 	EnforcementEnabled bool
+
+	//WindowsFilenameCacheSize is the max number of filenames to cache
+	WindowsFilenameCacheSize int
+
+	//WindowsRegistryCacheSize is the max number of registry paths to cache
+	WindowsRegistryCacheSize int
 }
 
 // Config defines a security config
@@ -277,8 +283,10 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 	}
 
 	rsConfig := &RuntimeSecurityConfig{
-		RuntimeEnabled: coreconfig.SystemProbe.GetBool("runtime_security_config.enabled"),
-		FIMEnabled:     coreconfig.SystemProbe.GetBool("runtime_security_config.fim_enabled"),
+		RuntimeEnabled:           coreconfig.SystemProbe.GetBool("runtime_security_config.enabled"),
+		FIMEnabled:               coreconfig.SystemProbe.GetBool("runtime_security_config.fim_enabled"),
+		WindowsFilenameCacheSize: coreconfig.SystemProbe.GetInt("runtime_security_config.windows_filename_cache_max"),
+		WindowsRegistryCacheSize: coreconfig.SystemProbe.GetInt("runtime_security_config.windows_registry_cache_max"),
 
 		SocketPath:           coreconfig.SystemProbe.GetString("runtime_security_config.socket"),
 		EventServerBurst:     coreconfig.SystemProbe.GetInt("runtime_security_config.event_server.burst"),
@@ -456,6 +464,20 @@ func (c *RuntimeSecurityConfig) sanitizeRuntimeSecurityConfigActivityDump() erro
 	if c.ActivityDumpTracedCgroupsCount > model.MaxTracedCgroupsCount {
 		c.ActivityDumpTracedCgroupsCount = model.MaxTracedCgroupsCount
 	}
+
+	hasProfileStorageFormat := false
+	for _, format := range c.ActivityDumpLocalStorageFormats {
+		hasProfileStorageFormat = hasProfileStorageFormat || format == Profile
+	}
+
+	if c.SecurityProfileEnabled && !hasProfileStorageFormat {
+		return fmt.Errorf("'profile' storage format has to be enabled when using security profiles, got only formats: %v", c.ActivityDumpLocalStorageFormats)
+	}
+
+	if c.SecurityProfileEnabled && c.ActivityDumpLocalStorageDirectory != c.SecurityProfileDir {
+		return fmt.Errorf("activity dumps storage directory '%s' has to be the same than security profile storage directory '%s'", c.ActivityDumpLocalStorageDirectory, c.SecurityProfileDir)
+	}
+
 	return nil
 }
 

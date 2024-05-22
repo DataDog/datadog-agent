@@ -40,3 +40,4 @@
 '@datadog/agent-build-and-releases': '#agent-build-and-releases'
 '@datadog/agent-ci-experience': '#agent-developer-experience'
 '@datadog/agent-developer-tools': '#agent-developer-experience'
+'@datadog/apm-onboarding': '#apm-onboarding'

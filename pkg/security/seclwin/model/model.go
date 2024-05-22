@@ -222,11 +222,6 @@ func (e *Event) IsAnomalyDetectionEvent() bool {
 	return e.Flags&EventFlagsAnomalyDetectionEvent > 0
 }
 
-// IsKernelSpaceAnomalyDetectionEvent returns true if the event is a kernel space anomaly detection event
-func (e *Event) IsKernelSpaceAnomalyDetectionEvent() bool {
-	return AnomalyDetectionSyscallEventType == e.GetEventType()
-}
-
 // AddToFlags adds a flag to the event
 func (e *Event) AddToFlags(flag uint32) {
 	e.Flags |= flag

@@ -81,6 +81,7 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 		config.MaxDNSStatsBuffered,
 		config.MaxHTTPStatsBuffered,
 		config.MaxKafkaStatsBuffered,
+		config.MaxPostgresStatsBuffered,
 		config.EnableNPMConnectionRollup,
 		config.EnableProcessEventMonitoring,
 	)
