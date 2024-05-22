@@ -2,7 +2,20 @@ load("@rules_go//go:def.bzl", "go_library")
 
 go_library(
     name = "containerd",
-    srcs = ["doc.go"],
+    srcs = [
+        "containerd.go",
+        "doc.go",
+    ],
     importpath = "github.com/DataDog/datadog-agent/pkg/sbom/collectors/containerd",
     visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/config",
+        "//comp/core/workloadmeta",
+        "//pkg/sbom",
+        "//pkg/sbom/collectors",
+        "//pkg/util/containerd",
+        "//pkg/util/log",
+        "//pkg/util/optional",
+        "//pkg/util/trivy",
+    ],
 )

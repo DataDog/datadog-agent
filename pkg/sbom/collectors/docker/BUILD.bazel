@@ -2,7 +2,20 @@ load("@rules_go//go:def.bzl", "go_library")
 
 go_library(
     name = "docker",
-    srcs = ["doc.go"],
+    srcs = [
+        "doc.go",
+        "docker.go",
+    ],
     importpath = "github.com/DataDog/datadog-agent/pkg/sbom/collectors/docker",
     visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/config",
+        "//comp/core/workloadmeta",
+        "//pkg/sbom",
+        "//pkg/sbom/collectors",
+        "//pkg/util/docker",
+        "//pkg/util/optional",
+        "//pkg/util/trivy",
+        "@com_github_docker_docker//client",
+    ],
 )

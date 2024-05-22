@@ -96,6 +96,12 @@ go_deps.gazelle_override(
     ],
     path = "github.com/openshift/api",
 )
+go_deps.gazelle_override(
+    directives = [
+        "gazelle:proto disable",
+    ],
+    path = "github.com/DataDog/agent-payload/v5",
+)
 
 # This dependency introduces a cyclic dependency back on the datadog-agent repo,
 # which logically enough creates problems.
