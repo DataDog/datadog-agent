@@ -134,7 +134,7 @@ func TestCPUCheckWindowsErrorCollectQueryData(t *testing.T) {
 	createPdhQuery = func() (PdhQueryInterface, error) {
 		return pdhQueryMock, nil
 	}
-	pdhQueryMock.On("AddCounter").Return()
+	pdhQueryMock.On("AddCounter", mock.Anything).Return()
 	pdhQueryMock.On("CollectQueryData").Return(errors.New("collectQueryData error")).Times(1)
 
 	cpuCheck := createCheck()
