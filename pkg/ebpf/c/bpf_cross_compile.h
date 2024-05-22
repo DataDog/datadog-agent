@@ -161,7 +161,7 @@
 #define __E_BPF_FUNC_set_hash_invalid true
 #endif
 
-#endif /* LINUX_VERSION_CODE < KERNEL_VERSION(4, 12, 0) */
+#endif /* LINUX_VERSION_CODE < KERNEL_VERSION(4, 10, 0) */
 
 #define bpf_helper_exists(x) __E_ ## x
 #endif /* defined(COMPILE_RUNTIME) */
