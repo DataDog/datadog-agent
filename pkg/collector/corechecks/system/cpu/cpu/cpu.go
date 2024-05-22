@@ -23,8 +23,8 @@ import (
 const CheckName = "cpu"
 
 // For testing purpose
-var times = cpu.Times
-var cpuInfo = cpu.Info
+var cpuTimesFunc = cpu.Times
+var cpuInfoFunc = cpu.Info
 
 // Check doesn't need additional fields
 type Check struct {
@@ -41,14 +41,14 @@ func (c *Check) Run() error {
 		return err
 	}
 
-	err = c.collectCtxSwitches(sender)
+	err = collectCtxSwitches(sender)
 	if err != nil {
 		log.Debugf("cpu.Check could not read context switches: %s", err.Error())
 		// Don't return here, we still want to collect the CPU metrics even if we could not
 		// read the context switches
 	}
 
-	cpuTimes, err := times(false)
+	cpuTimes, err := cpuTimesFunc(false)
 	if err != nil {
 		log.Errorf("cpu.Check: could not retrieve cpu stats: %s", err)
 		return err
@@ -103,7 +103,7 @@ func (c *Check) Configure(senderManager sender.SenderManager, _ uint64, data int
 	//       if a python check has run on this native windows thread prior and
 	//       CoInitialized() the thread to a different model (ie. single-threaded)
 	//       This will cause cpuInfo() to fail.
-	info, err := cpuInfo()
+	info, err := cpuInfoFunc()
 	if err != nil {
 		return fmt.Errorf("cpu.Check: could not query CPU info")
 	}
