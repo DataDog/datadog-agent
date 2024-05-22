@@ -78,3 +78,19 @@ func (h *Host) CallExamplePythonAppInDocker(traceID string) {
 		-H "X-Datadog-Sampling-Priority: 2"`,
 		traceID, traceID))
 }
+
+// SetBrokenDockerConfig injects a broken JSON in the Docker daemon configuration
+func (h *Host) SetBrokenDockerConfig() {
+	h.remote.MustExecute("echo 'broken' | sudo tee /etc/docker/daemon.json")
+}
+
+// SetBrokenDockerConfigAdditionalFields injects additional fields in the Docker daemon configuration
+// these fields are not supported
+func (h *Host) SetBrokenDockerConfigAdditionalFields() {
+	h.remote.MustExecute(`echo '{"tomato": "potato"}' | sudo tee /etc/docker/daemon.json`)
+}
+
+// RemoveBrokenDockerConfig removes the broken configuration from the Docker daemon
+func (h *Host) RemoveBrokenDockerConfig() {
+	h.remote.MustExecute("sudo rm /etc/docker/daemon.json")
+}

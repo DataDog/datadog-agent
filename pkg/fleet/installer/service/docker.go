@@ -12,9 +12,12 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"os"
 	"os/exec"
 	"path"
+	"strings"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
@@ -46,6 +49,7 @@ func (a *apmInjectorInstaller) setupDocker(ctx context.Context) (rollback func()
 		}
 		return reloadDockerConfig(ctx)
 	}
+
 	return rollback, reloadDockerConfig(ctx)
 }
 
@@ -115,6 +119,34 @@ func (a *apmInjectorInstaller) deleteDockerConfigContent(previousContent []byte)
 	}
 
 	return dockerConfigJSON, nil
+}
+
+// verifyDockerRuntime validates that docker runtime configuration contains
+// a path to the injector runtime.
+// As the reload is eventually consistent we have to retry a few times
+//
+// This method is valid since at least Docker 17.03 (last update 2018-08-30)
+func (a *apmInjectorInstaller) verifyDockerRuntime() (err error) {
+	for i := 0; i < 3; i++ {
+		if i > 0 {
+			time.Sleep(time.Second)
+		}
+		cmd := exec.Command("docker", "system", "info", "--format", "{{ .DefaultRuntime }}")
+		var outb bytes.Buffer
+		cmd.Stdout = &outb
+		err = cmd.Run()
+		if err != nil {
+			if i < 2 {
+				log.Debug("failed to verify docker runtime, retrying: ", err)
+			} else {
+				log.Warn("failed to verify docker runtime: ", err)
+			}
+		}
+		if strings.TrimSpace(outb.String()) == "dd-shim" {
+			return nil
+		}
+	}
+	return fmt.Errorf("docker default runtime has not been set to injector docker runtime")
 }
 
 func reloadDockerConfig(ctx context.Context) (err error) {

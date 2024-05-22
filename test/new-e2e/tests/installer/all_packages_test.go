@@ -149,11 +149,19 @@ func (s *packageBaseSuite) SetupSuite() {
 	s.host = host.New(s.T(), s.Env().RemoteHost, s.os, s.arch)
 }
 
-func (s *packageBaseSuite) RunInstallScript(params ...string) {
+func (s *packageBaseSuite) RunInstallScriptWithError(params ...string) error {
 	// FIXME: use the official install script
-	s.Env().RemoteHost.MustExecute(fmt.Sprintf(`%s bash -c "$(curl -L https://storage.googleapis.com/updater-dev/install_script_agent7.sh)"`, strings.Join(params, " ")), client.WithEnvVariables(installScriptEnv(s.arch)))
+	_, err := s.Env().RemoteHost.Execute(fmt.Sprintf(`%s bash -c "$(curl -L https://storage.googleapis.com/updater-dev/install_script_agent7.sh)"`, strings.Join(params, " ")), client.WithEnvVariables(installScriptEnv(s.arch)))
+	if err != nil {
+		return err
+	}
 	// Right now the install script can fail installing the installer silently, so we need to do this check or it will fail later in a way that is hard to debug
-	_, err := s.Env().RemoteHost.Execute("sudo datadog-installer version")
+	_, err = s.Env().RemoteHost.Execute("sudo datadog-installer version")
+	return err
+}
+
+func (s *packageBaseSuite) RunInstallScript(params ...string) {
+	err := s.RunInstallScriptWithError(params...)
 	require.NoErrorf(s.T(), err, "installer not properly installed. logs: \n%s\n%s", s.Env().RemoteHost.MustExecute("cat /tmp/datadog-installer-stdout.log"), s.Env().RemoteHost.MustExecute("cat /tmp/datadog-installer-stderr.log"))
 }
 

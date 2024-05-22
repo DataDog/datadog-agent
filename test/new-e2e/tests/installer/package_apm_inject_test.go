@@ -12,6 +12,7 @@ import (
 
 	e2eos "github.com/DataDog/test-infra-definitions/components/os"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 type packageApmInjectSuite struct {
@@ -56,6 +57,32 @@ func (s *packageApmInjectSuite) TestUninstall() {
 	s.RunInstallScript("DD_APM_INSTRUMENTATION_ENABLED=all", "DD_APM_INSTRUMENTATION_LIBRARIES=python", envForceInstall("datadog-agent"), envForceInstall("datadog-apm-inject"), envForceInstall("datadog-apm-library-python"))
 	s.Purge()
 
+	s.assertLDPreloadNotInstrumented()
+	s.assertDockerdConfigNotInstrumented()
+}
+
+func (s *packageApmInjectSuite) TestDockerAdditionalFields() {
+	s.host.InstallDocker()
+	// Broken /etc/docker/daemon.json syntax
+	s.host.SetBrokenDockerConfig()
+	defer s.host.RemoveBrokenDockerConfig()
+	err := s.RunInstallScriptWithError("DD_APM_INSTRUMENTATION_ENABLED=all", "DD_APM_INSTRUMENTATION_LIBRARIES=python", envForceInstall("datadog-agent"), envForceInstall("datadog-apm-inject"), envForceInstall("datadog-apm-library-python"))
+	defer s.Purge()
+
+	require.Error(s.T(), err)
+	s.assertLDPreloadNotInstrumented()
+	s.assertDockerdConfigNotInstrumented()
+}
+
+func (s *packageApmInjectSuite) TestDockerBrokenJSON() {
+	s.host.InstallDocker()
+	// Additional fields in /etc/docker/daemon.json
+	s.host.SetBrokenDockerConfigAdditionalFields()
+	defer s.host.RemoveBrokenDockerConfig()
+	err := s.RunInstallScriptWithError("DD_APM_INSTRUMENTATION_ENABLED=all", "DD_APM_INSTRUMENTATION_LIBRARIES=python", envForceInstall("datadog-agent"), envForceInstall("datadog-apm-inject"), envForceInstall("datadog-apm-library-python"))
+	defer s.Purge()
+
+	require.Error(s.T(), err)
 	s.assertLDPreloadNotInstrumented()
 	s.assertDockerdConfigNotInstrumented()
 }
