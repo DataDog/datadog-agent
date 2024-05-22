@@ -31,7 +31,7 @@ def build_test_binaries(ctx, excluded_tests=None):
     if excluded_tests is None:
         excluded_tests = []
 
-    test_binaries_folder = "test-binaries"
+    test_binaries_folder = "test/new-e2e/test-binaries"
     current_dir = os.getcwd()
     os.makedirs(test_binaries_folder, exist_ok=True)
     for team_tests in os.listdir("test/new-e2e/tests"):
