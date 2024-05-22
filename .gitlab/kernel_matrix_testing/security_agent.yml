@@ -117,9 +117,20 @@ kmt_run_secagent_tests_x64:
     - kmt_setup_env_secagent_x64
     - upload_dependencies_secagent_x64
     - upload_secagent_tests_x64
-  timeout: 3h
+  timeout: 1h 30m
   variables:
     ARCH: "x86_64"
+  retry:
+    max: 3
+    when:
+      - job_execution_timeout
+      - runner_system_failure
+      - stuck_or_timeout_failure
+      - unknown_failure
+      - api_failure
+      - scheduler_failure
+      - stale_schedule
+      - data_integrity_failure
   parallel:
     matrix:
       - TAG:
@@ -157,7 +168,18 @@ kmt_run_secagent_tests_arm64:
     - kmt_setup_env_secagent_arm64
     - upload_dependencies_secagent_arm64
     - upload_secagent_tests_arm64
-  timeout: 3h
+  timeout: 1h 30m
+  retry:
+    max: 3
+    when:
+      - job_execution_timeout
+      - runner_system_failure
+      - stuck_or_timeout_failure
+      - unknown_failure
+      - api_failure
+      - scheduler_failure
+      - stale_schedule
+      - data_integrity_failure
   variables:
     ARCH: "arm64"
   parallel:
