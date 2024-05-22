@@ -72,17 +72,6 @@ func (e *EventWrapper) Operation() Operation {
 	return e.operation
 }
 
-// replaceCaseInsensitive replaces all occurrences of old with new in a case-insensitive manner.
-func replaceCaseInsensitive(s, old, new string) string {
-	// Create a case-insensitive replacer
-	replacer := strings.NewReplacer(
-		strings.ToLower(old), new,
-		strings.ToUpper(old), new,
-		strings.Title(strings.ToLower(old)), new,
-	)
-	return replacer.Replace(s)
-}
-
 // extractTableName extracts the table name from the query.
 func (e *EventWrapper) extractTableName() string {
 	fragment := string(e.Tx.getFragment())
