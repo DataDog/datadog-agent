@@ -55,7 +55,6 @@ components_to_migrate = [
     "comp/metadata/inventoryagent/component.go",
     "comp/netflow/config/component.go",
     "comp/netflow/server/component.go",
-    "comp/otelcol/collector/component.go",
     "comp/remote-config/rcclient/component.go",
     "comp/trace/agent/component.go",
     "comp/trace/config/component.go",
