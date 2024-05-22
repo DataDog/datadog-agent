@@ -20,7 +20,7 @@ import (
 	gohaicpu "github.com/DataDog/datadog-agent/pkg/gohai/cpu"
 	gohaiutils "github.com/DataDog/datadog-agent/pkg/gohai/utils"
 	pdhtest "github.com/DataDog/datadog-agent/pkg/util/pdhutil"
-	
+
 	"github.com/stretchr/testify/assert"
 )
 
@@ -31,7 +31,7 @@ func createCheck() check.Check {
 	return cpuCheck
 }
 func TestCPUCheckWindowsRunOk(t *testing.T) {
-	cpuInfoFunc = func () *gohaicpu.Info {
+	cpuInfoFunc = func() *gohaicpu.Info {
 		return &gohaicpu.Info{
 			CPULogicalProcessors: gohaiutils.NewValue(uint64(1)),
 		}
@@ -77,7 +77,7 @@ func TestCPUCheckWindowsErrorInInstanceConfig(t *testing.T) {
 }
 
 func TestCPUCheckWindowsErrorCPULogicalProcessors(t *testing.T) {
-	cpuInfoFunc = func () *gohaicpu.Info {
+	cpuInfoFunc = func() *gohaicpu.Info {
 		return &gohaicpu.Info{
 			CPULogicalProcessors: gohaiutils.NewErrorValue[uint64](gohaiutils.ErrNotCollectable),
 		}
@@ -89,8 +89,6 @@ func TestCPUCheckWindowsErrorCPULogicalProcessors(t *testing.T) {
 
 	assert.NotNil(t, err)
 }
-
-
 
 func TestCPUCheckWindowsErrorCreatePdhQuery(t *testing.T) {
 	createPdhQueryError := errors.New("createPdhQuery error")
@@ -107,7 +105,7 @@ func TestCPUCheckWindowsErrorCreatePdhQuery(t *testing.T) {
 
 func TestCPUCheckWindowsErrorStoppedSender(t *testing.T) {
 	stoppedSenderError := errors.New("demultiplexer is stopped")
-	cpuInfoFunc = func () *gohaicpu.Info {
+	cpuInfoFunc = func() *gohaicpu.Info {
 		return &gohaicpu.Info{
 			CPULogicalProcessors: gohaiutils.NewValue(uint64(1)),
 		}
