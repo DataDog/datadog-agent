@@ -413,6 +413,17 @@ func (nr *Resolver) Start(ctx context.Context) error {
 	return nil
 }
 
+func (nr *Resolver) manualFlushNamespaces() {
+	probesCount := nr.tcResolver.FlushInactiveProbes(nr.manager, nr.IsLazyDeletionInterface)
+
+	// There is a possible race condition if we lose all network device creations but do notice the new network
+	// namespace: we will create a handle that will never be flushed by `nr.probe.flushInactiveNamespaces()`.
+	// To detect this race, compute the list of namespaces that are in cache, but for which we do not have any
+	// device. Defer a snapshot process for each of those namespaces, and delete them if the snapshot yields
+	// no new device.
+	nr.preventNetworkNamespaceDrift(probesCount)
+}
+
 func (nr *Resolver) flushNamespaces(ctx context.Context) {
 	ticker := time.NewTicker(flushNamespacesPeriod)
 	defer ticker.Stop()
@@ -422,14 +433,7 @@ func (nr *Resolver) flushNamespaces(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			probesCount := nr.tcResolver.FlushInactiveProbes(nr.manager, nr.IsLazyDeletionInterface)
-
-			// There is a possible race condition if we lose all network device creations but do notice the new network
-			// namespace: we will create a handle that will never be flushed by `nr.probe.flushInactiveNamespaces()`.
-			// To detect this race, compute the list of namespaces that are in cache, but for which we do not have any
-			// device. Defer a snapshot process for each of those namespaces, and delete them if the snapshot yields
-			// no new device.
-			nr.preventNetworkNamespaceDrift(probesCount)
+			nr.manualFlushNamespaces()
 		}
 	}
 }
@@ -554,6 +558,7 @@ func (nr *Resolver) Close() {
 		nr.networkNamespaces.Purge()
 		nr.Unlock()
 	}
+	nr.manualFlushNamespaces()
 }
 
 func newTmpFile(prefix string) (*os.File, error) {
