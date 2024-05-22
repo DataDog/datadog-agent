@@ -65,21 +65,13 @@ var defaultPeerTags = func() []string {
 	cfg, _ := ini.Load(peerTagFile)
 	keys := cfg.Section("dd.apm.peer.tags").Keys()
 
-	var tags []string = []string{"_dd.base_service", "cassandra.cluster",
-		"hazelcast.instance", "rulename", "statemachinename"}
+	var tags []string = []string{"_dd.base_service"}
 
 	if len(keys) > 0 {
 		for _, key := range keys {
 			value := strings.Split(key.Value(), ",")
 			for _, tag := range value {
-				if tag != "grpc.host" && tag != "http.host" &&
-					tag != "cassandra.keyspace" && tag != "rpc.system" &&
-					tag != "messaging.system" && tag != "peer.cluster.name" &&
-					tag != "hostname" && tag != "out.host" &&
-					tag != "messaging.destination" && tag != "messaging.destination.name" &&
-					tag != "messaging.rabbitmq.exchange" {
-					tags = append(tags, tag)
-				}
+				tags = append(tags, tag)
 			}
 		}
 	}
