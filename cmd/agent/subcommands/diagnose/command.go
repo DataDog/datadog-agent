@@ -196,6 +196,20 @@ This command print the inventory-host metadata payload. This payload is used by 
 		},
 	}
 
+	payloadInventoriesOtelCmd := &cobra.Command{
+		Use:   "inventory-otel",
+		Short: "Print the Inventory otel metadata payload.",
+		Long: `
+This command print the inventory-otel metadata payload. This payload is used by the 'inventories/sql' product.`,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return fxutil.OneShot(printPayload,
+				fx.Supply(payloadName("inventory-otel")),
+				fx.Supply(command.GetDefaultCoreBundleParams(cliParams.GlobalParams)),
+				core.Bundle(),
+			)
+		},
+	}
+
 	payloadInventoriesChecksCmd := &cobra.Command{
 		Use:   "inventory-checks",
 		Short: "Print the Inventory checks metadata payload.",
@@ -228,6 +242,7 @@ This command print the package-signing metadata payload. This payload is used by
 	showPayloadCommand.AddCommand(payloadGohaiCmd)
 	showPayloadCommand.AddCommand(payloadInventoriesAgentCmd)
 	showPayloadCommand.AddCommand(payloadInventoriesHostCmd)
+	showPayloadCommand.AddCommand(payloadInventoriesOtelCmd)
 	showPayloadCommand.AddCommand(payloadInventoriesChecksCmd)
 	showPayloadCommand.AddCommand(payloadInventoriesPkgSigningCmd)
 	diagnoseCommand.AddCommand(showPayloadCommand)
