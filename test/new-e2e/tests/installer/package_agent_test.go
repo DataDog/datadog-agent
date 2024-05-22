@@ -53,7 +53,7 @@ func (s *packageAgentSuite) TestInstall() {
 	// state.AssertFileExists("/etc/datadog-agent/install.json", 0644, "dd-agent", "dd-agent")
 }
 
-func (s *packageAgentSuite) TestTimeout() {
+func (s *packageAgentSuite) TestExperimentTimeout() {
 	s.RunInstallScript(envForceInstall("datadog-agent"))
 	defer s.Purge()
 	s.host.WaitForUnitActive("datadog-agent.service", "datadog-agent-trace.service", "datadog-agent-process.service")
@@ -112,7 +112,7 @@ func (s *packageAgentSuite) TestTimeout() {
 	)
 }
 
-func (s *packageAgentSuite) TestSigkill() {
+func (s *packageAgentSuite) TestExperimentIgnoringSigterm() {
 	s.RunInstallScript(envForceInstall("datadog-agent"))
 	defer s.Purge()
 	s.host.WaitForUnitActive("datadog-agent.service", "datadog-agent-trace.service", "datadog-agent-process.service")
@@ -183,7 +183,7 @@ func (s *packageAgentSuite) TestSigkill() {
 	)
 }
 
-func (s *packageAgentSuite) TestAgentExitCodes() {
+func (s *packageAgentSuite) TestExperimentExits() {
 	s.RunInstallScript(envForceInstall("datadog-agent"))
 	defer s.Purge()
 	s.host.WaitForUnitActive("datadog-agent.service", "datadog-agent-trace.service", "datadog-agent-process.service")

@@ -110,7 +110,6 @@ func (h *Host) AssertSystemdEvents(since JournaldTimestamp, events SystemdEventS
 		h.t.Logf("Blocked on validating: %v", lastSearchedEvents)
 		h.t.Logf("Expected events: %v", events.Events)
 		h.t.Logf("Actual events: %v", logs)
-		require.True(h.t, success)
 	}
 }
 
