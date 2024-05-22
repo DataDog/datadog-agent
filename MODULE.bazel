@@ -1,6 +1,21 @@
 bazel_dep(name = "rules_go", version = "0.47.1")
 bazel_dep(name = "gazelle", version = "0.36.0")
 bazel_dep(name = "platforms", version = "0.0.10")
+bazel_dep(name = "rules_pkg", version = "0.10.1")
+bazel_dep(name = "rules_python", version = "0.32.2")
+
+python = use_extension("@rules_python//python/extensions:python.bzl", "python")
+python.toolchain(
+    # https://github.com/bazelbuild/rules_python/pull/713#issuecomment-1885628496
+    # Running as root is not allowed by rules_python by default to enforce that the Python installation
+    # be read-only; the result of allowing root is that we may get cache misses on the toolchain.
+    # The Omnibus build is run by the root user, and for now it's inconvenient to work around this
+    # in any other way than enabling this flag.
+    # Currently we only really use this for pkg_tar so hopefully the impact will be low.
+    # As an alternative we could try to do away with the hermetic toolchain here and enable the system one.
+    ignore_root_user_error = True,
+    python_version = "3.11",
+)
 
 ##################
 ## GO / GAZELLE ##

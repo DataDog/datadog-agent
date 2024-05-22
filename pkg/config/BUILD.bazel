@@ -1,4 +1,4 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_binary", "go_library", "go_test")
 
 go_library(
     name = "config",
@@ -31,4 +31,18 @@ go_test(
     srcs = ["config_change_checker_test.go"],
     embed = [":config"],
     deps = ["@com_github_stretchr_testify//require"],
+)
+
+# keep: Config generator
+go_binary(
+    name = "render_config",
+    srcs = ["render_config.go"],
+    gotags = ["config_generator"],  # The source file has this tag
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "template",
+    srcs = ["config_template.yaml"],
+    visibility = ["//visibility:public"],
 )

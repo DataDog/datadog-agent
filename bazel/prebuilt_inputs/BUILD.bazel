@@ -2,17 +2,15 @@
 cc_import(
     name = "rtloader",
     hdrs = [
+        "rtloader/common/rtloader_mem.h",
         "rtloader/include/datadog_agent_rtloader.h",
         "rtloader/include/rtloader.h",
         "rtloader/include/rtloader_types.h",
-        "rtloader/common/rtloader_mem.h",
     ],
     includes = [
-        "bazel/prebuilt_inputs/rtloader/include",
         "bazel/prebuilt_inputs/rtloader/common",
+        "bazel/prebuilt_inputs/rtloader/include",
     ],
     shared_library = "rtloader/libdatadog-agent-rtloader.so",
     visibility = ["//visibility:public"],
 )
-
-

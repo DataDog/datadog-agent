@@ -1,4 +1,38 @@
 load("@rules_go//go:def.bzl", "go_binary", "go_library")
+load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_files", "strip_prefix")
+load("@rules_pkg//pkg:tar.bzl", "pkg_tar")
+
+AGENT_CORECHECKS = [
+    "container",
+    "containerd",
+    "container_image",
+    "container_lifecycle",
+    "cpu",
+    "cri",
+    "snmp",
+    "docker",
+    "file_handle",
+    "go_expvar",
+    "io",
+    "jmx",
+    "kubernetes_apiserver",
+    "load",
+    "memory",
+    "ntp",
+    "oom_kill",
+    "oracle",
+    "oracle-dbm",
+    "sbom",
+    "systemd",
+    "tcp_queue_length",
+    "uptime",
+    "winproc",
+    "jetson",
+    "telemetry",
+    "orchestrator_pod",
+    "orchestrator_ecs",
+    "cisco_sdwan",
+]
 
 go_library(
     name = "agent_lib",
@@ -122,4 +156,43 @@ go_binary(
         "github.com/DataDog/datadog-agent/pkg/collector/python.pythonHome3": "/opt/datadog-agent/embedded",  # keep
         "github.com/DataDog/datadog-agent/pkg/config/setup.DefaultPython": "3",  # keep
     },
+)
+
+pkg_tar(
+    name = "agent_dist",
+    srcs = [
+        ":bin_files",
+        ":config_files",
+    ],
+    package_dir = "bin/agent",
+)
+
+genrule(
+    name = "datadog_yaml",
+    srcs = ["//pkg/config:template"],
+    outs = ["datadog.yaml"],
+    cmd = """
+    $(execpath //pkg/config:render_config) agent-py3 $(execpath //pkg/config:template) $(RULEDIR)/datadog.yaml
+    """,
+    tools = ["//pkg/config:render_config"],
+)
+
+pkg_files(
+    name = "config_files",
+    srcs = [":datadog_yaml"] + glob(["dist/conf.d/%s.d/**" % check for check in AGENT_CORECHECKS]),
+    renames = {
+        ":datadog_yaml": "dist/datadog.yaml",
+    },
+    strip_prefix = strip_prefix.from_pkg(),
+)
+
+pkg_files(
+    name = "bin_files",
+    srcs = [
+        "dist/dd-agent",
+        ":agent",
+    ],
+    attributes = pkg_attributes(
+        mode = "0755",
+    ),
 )
