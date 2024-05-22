@@ -368,3 +368,26 @@ func TestSQLTableNames(t *testing.T) {
 		assert.Empty(t, span.Meta["sql.tables"])
 	})
 }
+
+func BenchmarkCCObfuscation(b *testing.B) {
+	ctx, cancelFunc := context.WithCancel(context.Background())
+	cfg := config.New()
+	cfg.Endpoints[0].APIKey = "test"
+	cfg.Obfuscation = &config.ObfuscationConfig{
+		CreditCards: obfuscate.CreditCardsConfig{Enabled: true},
+	}
+	agnt := NewAgent(ctx, cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{})
+	defer cancelFunc()
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		span := &pb.Span{Type: "typ", Meta: map[string]string{
+			"akey":         "somestring",
+			"bkey":         "somestring",
+			"card.number":  "5105-1051-0510-5100",
+			"_sample_rate": "1",
+			"sql.query":    "SELECT * FROM users WHERE id = 42",
+		}}
+		agnt.obfuscateSpan(span)
+	}
+}

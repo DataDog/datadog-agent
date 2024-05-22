@@ -89,8 +89,6 @@ const (
 	UnshareMountNsEventType
 	// SyscallsEventType Syscalls event
 	SyscallsEventType
-	// AnomalyDetectionSyscallEventType Anomaly Detection Syscall event
-	AnomalyDetectionSyscallEventType
 	// MaxKernelEventType is used internally to get the maximum number of kernel events.
 	MaxKernelEventType
 
@@ -110,7 +108,7 @@ const (
 	LastApproverEventType = SpliceEventType
 
 	// CustomLostReadEventType is the custom event used to report lost events detected in user space
-	CustomLostReadEventType = iota
+	CustomLostReadEventType EventType = iota
 	// CustomLostWriteEventType is the custom event used to report lost events detected in kernel space
 	CustomLostWriteEventType
 	// CustomRulesetLoadedEventType is the custom event used to report that a new ruleset was loaded
@@ -223,8 +221,6 @@ func (t EventType) String() string {
 		return "unshare_mntns"
 	case SyscallsEventType:
 		return "syscalls"
-	case AnomalyDetectionSyscallEventType:
-		return "anomaly_detection_syscall"
 
 	case CustomLostReadEventType:
 		return "lost_events_read"
