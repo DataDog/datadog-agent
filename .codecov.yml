@@ -1,5 +1,6 @@
 # See https://docs.codecov.com/docs/pull-request-comments
-# comment: false
+comment:
+  hide_project_coverage: true
 
 # See https://docs.codecov.com/docs/coverage-configuration
 coverage:
