@@ -27,6 +27,8 @@ type Check interface {
 	// - unlike Stop, it is called even if the check is not running when it's unscheduled
 	// - if the check is running, Cancel is called after Stop and may be called before the call to Stop completes
 	Cancel()
+	// InvalidateSender clears any cached sender state
+	InvalidateSender()
 	// String provides a printable version of the check name
 	String() string
 	// Configure configures the check

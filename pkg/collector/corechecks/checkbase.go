@@ -51,6 +51,7 @@ type CheckBase struct {
 	telemetry      bool
 	initConfig     string
 	instanceConfig string
+	sender         sender.Sender
 }
 
 // NewCheckBase returns a check base struct with a given check name
@@ -267,7 +268,14 @@ func (c *CheckBase) GetSender() (sender.Sender, error) {
 
 // GetRawSender is similar to GetSender, but does not provide the safety wrapper.
 func (c *CheckBase) GetRawSender() (sender.Sender, error) {
-	return c.senderManager.GetSender(c.ID())
+	if c.sender == nil {
+		s, err := c.senderManager.GetSender(c.ID())
+		if err != nil {
+			return nil, err
+		}
+		c.sender = s
+	}
+	return c.sender, nil
 }
 
 // GetSenderStats returns the stats from the last run of the check.
@@ -282,4 +290,9 @@ func (c *CheckBase) GetSenderStats() (stats.SenderStats, error) {
 // GetDiagnoses returns the diagnoses cached in last run or diagnose explicitly
 func (c *CheckBase) GetDiagnoses() ([]diagnosis.Diagnosis, error) {
 	return nil, nil
+}
+
+// InvalidateSender clears the cached sender
+func (c *CheckBase) InvalidateSender() {
+	c.sender = nil
 }

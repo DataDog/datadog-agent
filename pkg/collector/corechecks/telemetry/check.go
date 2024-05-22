@@ -11,13 +11,14 @@ import (
 	"fmt"
 	"strings"
 
+	dto "github.com/prometheus/client_model/go"
+
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
-	dto "github.com/prometheus/client_model/go"
 )
 
 const (
