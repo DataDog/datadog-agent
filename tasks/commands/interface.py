@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING
 from tasks.libs.common.color import color_message
 
 if TYPE_CHECKING:
-    from typing import Callable, Iterable
+    from collections.abc import Callable, Iterable
 
     from invoke import Result
 

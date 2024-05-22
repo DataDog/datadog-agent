@@ -9,8 +9,4 @@
 # TODO: https://datadoghq.atlassian.net/browse/CONTINT-4143
 test/new-e2e/tests/containers:  
   - TestEKSSuite/TestCPU/metric___container.cpu.usage{^kube_deployment:stress-ng$,^kube_namespace:workload-cpustress$}
-  - TestEKSSuite/TestCPU
-  - TestEKSSuite
   - TestKindSuite/TestCPU/metric___container.cpu.usage{^kube_deployment:stress-ng$,^kube_namespace:workload-cpustress$}
-  - TestKindSuite/TestCPU
-  - TestKindSuite

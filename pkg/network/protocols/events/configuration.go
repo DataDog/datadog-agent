@@ -10,6 +10,7 @@ package events
 import (
 	"math"
 	"os"
+	"slices"
 	"sync"
 
 	manager "github.com/DataDog/ebpf-manager"
@@ -78,6 +79,11 @@ func setupPerfMap(proto string, m *manager.Manager) {
 			RecordGetter:  handler.RecordGetter,
 		},
 	}
+	// The map appears as we list it in the Protocol struct.
+	m.Maps = slices.DeleteFunc(m.Maps, func(currentMap *manager.Map) bool {
+		return currentMap.Name == mapName
+	})
+
 	m.PerfMaps = append(m.PerfMaps, pm)
 	removeRingBufferHelperCalls(m)
 	setHandler(proto, handler)
@@ -95,6 +101,11 @@ func setupPerfRing(proto string, m *manager.Manager, o *manager.Options, numCPUs
 			RecordGetter:   handler.RecordGetter,
 		},
 	}
+
+	// The map appears as we list it in the Protocol struct.
+	m.Maps = slices.DeleteFunc(m.Maps, func(currentMap *manager.Map) bool {
+		return currentMap.Name == mapName
+	})
 
 	o.MapSpecEditors[mapName] = manager.MapSpecEditor{
 		Type:       ebpf.RingBuf,

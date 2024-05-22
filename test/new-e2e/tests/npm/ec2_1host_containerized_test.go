@@ -74,6 +74,7 @@ func dockerHostHttpbinEnvProvisioner() e2e.PulumiEnvRunFunc[dockerHostNginxEnv] 
 // TestEC2VMSuite will validate running the agent on a single EC2 VM
 func TestEC2VMContainerizedSuite(t *testing.T) {
 	t.Skip("temporarily skipping test suite due to flakiness")
+	t.Parallel()
 	s := &ec2VMContainerizedSuite{}
 
 	e2eParams := []e2e.SuiteOption{e2e.WithProvisioner(e2e.NewTypedPulumiProvisioner("dockerHostHttpbin", dockerHostHttpbinEnvProvisioner(), nil))}

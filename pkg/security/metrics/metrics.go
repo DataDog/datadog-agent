@@ -361,6 +361,9 @@ var (
 
 	// MetricEventMonitoringRunning is reported when the runtime-security module is running with event monitoring enabled
 	MetricEventMonitoringRunning = newAgentMetric(".event_monitoring.running")
+	// MetricEventMonitoringEventsDropped is the name of the metric used to count the number of bytes of event dropped
+	// Tags: consumer_id
+	MetricEventMonitoringEventsDropped = newRuntimeMetric(".event_monitoring.events.dropped")
 
 	// RuntimeMonitor metrics
 

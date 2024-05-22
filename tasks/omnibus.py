@@ -2,7 +2,7 @@ import os
 import sys
 
 from invoke import task
-from invoke.exceptions import UnexpectedExit
+from invoke.exceptions import Exit, UnexpectedExit
 
 from tasks.flavor import AgentFlavor
 from tasks.go import deps
@@ -163,7 +163,6 @@ def get_omnibus_env(
 def build(
     ctx,
     flavor=AgentFlavor.base.name,
-    agent_binaries=False,
     log_level="info",
     base_dir=None,
     gem_path=None,
@@ -215,10 +214,11 @@ def build(
 
     if not target_project:
         target_project = "agent"
-        if flavor.is_iot():
-            target_project = "iot-agent"
-        elif agent_binaries:
-            target_project = "agent-binaries"
+    if target_project != "agent" and flavor != AgentFlavor.base:
+        print("flavors only make sense when building the agent")
+        raise Exit(code=1)
+    if flavor.is_iot():
+        target_project = "iot-agent"
 
     # Get the python_mirror from the PIP_INDEX_URL environment variable if it is not passed in the args
     python_mirror = python_mirror or os.environ.get("PIP_INDEX_URL")

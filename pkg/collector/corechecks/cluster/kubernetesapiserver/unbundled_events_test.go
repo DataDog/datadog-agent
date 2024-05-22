@@ -71,7 +71,7 @@ func TestUnbundledEventsTransform(t *testing.T) {
 					Title:    "Pod default/redis: Failed",
 					Text:     "All containers terminated",
 					Ts:       ts.Time.Unix(),
-					Priority: event.EventPriorityNormal,
+					Priority: event.PriorityNormal,
 					Host:     "test-host-test-cluster",
 					Tags: []string{
 						"event_reason:Failed",
@@ -84,7 +84,7 @@ func TestUnbundledEventsTransform(t *testing.T) {
 						"pod_name:redis",
 						"source_component:kubelet",
 					},
-					AlertType:      event.EventAlertTypeWarning,
+					AlertType:      event.AlertTypeWarning,
 					AggregationKey: "kubernetes_apiserver:foobar",
 					SourceTypeName: "kubernetes",
 					EventType:      "kubernetes_apiserver",
