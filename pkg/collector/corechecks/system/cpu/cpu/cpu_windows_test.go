@@ -9,6 +9,7 @@ package cpu
 
 import (
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/metrics"
@@ -87,7 +88,7 @@ func TestCPUCheckWindowsErrorCPULogicalProcessors(t *testing.T) {
 
 	err := cpuCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test")
 
-	assert.NotNil(t, err)
+	assert.True(t, strings.Contains(err.Error(), "cpu.Check: could not get number of CPU:"))
 }
 
 func TestCPUCheckWindowsErrorCreatePdhQuery(t *testing.T) {
