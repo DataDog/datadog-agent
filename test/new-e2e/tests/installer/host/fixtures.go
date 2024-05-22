@@ -102,8 +102,8 @@ func (h *Host) RemoveBrokenDockerConfig() {
 	h.remote.MustExecute("sudo rm /etc/docker/daemon.json")
 }
 
-// SetupFakeAgentXP sets up a fake Agent XP with configurable options.
-func (h *Host) SetupFakeAgentXP() FakeAgent {
+// SetupFakeAgentExp sets up a fake Agent experiment with configurable options.
+func (h *Host) SetupFakeAgentExp() FakeAgent {
 	vBroken := "/opt/datadog-packages/datadog-agent/vbroken"
 	h.remote.MustExecute(fmt.Sprintf("sudo mkdir -p %s/embedded/bin", vBroken))
 	h.remote.MustExecute(fmt.Sprintf("sudo mkdir -p %s/bin/agent", vBroken))

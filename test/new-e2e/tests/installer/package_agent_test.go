@@ -58,7 +58,7 @@ func (s *packageAgentSuite) TestExperimentTimeout() {
 	defer s.Purge()
 	s.host.WaitForUnitActive("datadog-agent.service", "datadog-agent-trace.service", "datadog-agent-process.service")
 
-	s.host.SetupFakeAgentXP()
+	s.host.SetupFakeAgentExp()
 
 	// assert timeout is already set
 	s.host.AssertUnitProperty("datadog-agent-exp.service", "JobTimeoutUSec", "50min")
@@ -117,12 +117,13 @@ func (s *packageAgentSuite) TestExperimentIgnoringSigterm() {
 	defer s.Purge()
 	s.host.WaitForUnitActive("datadog-agent.service", "datadog-agent-trace.service", "datadog-agent-process.service")
 
-	s.host.SetupFakeAgentXP().
+	s.host.SetupFakeAgentExp().
 		SetStopWithSigkill("core-agent").
 		SetStopWithSigkill("process-agent").
 		SetStopWithSigkill("trace-agent")
 
 	for _, unit := range []string{traceUnitXP, processUnitXP, agentUnitXP} {
+		s.T().Logf("Testing timeoutStop of unit %s", traceUnitXP)
 		s.host.AssertUnitProperty(unit, "TimeoutStopUSec", "1min 30s")
 		s.host.Run(fmt.Sprintf("sudo mkdir -p /etc/systemd/system/%s.d/", unit))
 		defer s.host.Run(fmt.Sprintf("sudo rm -rf /etc/systemd/system/%s.d/", unit))
@@ -188,7 +189,7 @@ func (s *packageAgentSuite) TestExperimentExits() {
 	defer s.Purge()
 	s.host.WaitForUnitActive("datadog-agent.service", "datadog-agent-trace.service", "datadog-agent-process.service")
 
-	xpAgent := s.host.SetupFakeAgentXP()
+	xpAgent := s.host.SetupFakeAgentExp()
 
 	for _, exitProgram := range []string{"exit0", "exit1"} {
 		s.T().Logf("Testing exit code of %s", exitProgram)
@@ -244,7 +245,7 @@ func (s *packageAgentSuite) TestExperimentStopped() {
 	defer s.Purge()
 	s.host.WaitForUnitActive("datadog-agent.service", "datadog-agent-trace.service", "datadog-agent-process.service")
 
-	s.host.SetupFakeAgentXP()
+	s.host.SetupFakeAgentExp()
 
 	for _, stopCommand := range []string{"start datadog-agent", "stop datadog-agent-exp"} {
 		s.T().Logf("Testing stop experiment command %s", stopCommand)

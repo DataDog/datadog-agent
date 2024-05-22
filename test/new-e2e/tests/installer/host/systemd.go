@@ -62,6 +62,9 @@ func eventMatches(log journaldLog, event SystemdEvent) bool {
 	return match
 }
 
+// stripSystemd244 removes the events that are not present for systemd versions
+// before 244: 'ConditionPathExists' is added in 244 and used by
+// system-probe and security-agent
 func (h *Host) stripSystemd244(events []SystemdEvent) []SystemdEvent {
 	if h.systemdVersion >= 244 {
 		return events
