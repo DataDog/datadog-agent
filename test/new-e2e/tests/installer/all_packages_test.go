@@ -171,16 +171,13 @@ func envForceInstall(pkg string) string {
 
 func (s *packageBaseSuite) Purge() {
 	s.Env().RemoteHost.MustExecute("sudo apt-get remove -y --purge datadog-installer || sudo yum remove -y datadog-installer")
+	s.Env().RemoteHost.MustExecute("sudo systemctl reset-failed")
 }
 
 // setupGlobalEnv sets up the global environment variables for the agent processes
 // This is done with SystemD environment files overrides to avoid having to touch the agent configuration files
 // and potentially interfere with the tests.
 func (s *packageBaseSuite) setupGlobalEnv() {
-	// FIXME: this should be done in the installer
-	s.Env().RemoteHost.MustExecute("sudo mkdir -p /etc/datadog-agent")
-	s.Env().RemoteHost.MustExecute(`echo "api_key: deadbeefdeadbeefdeadbeefdeadbeef" | sudo tee /etc/datadog-agent/datadog.yaml`)
-
 	var env []string
 	if s.Env().FakeIntake != nil {
 		env = append(env, []string{

@@ -152,7 +152,7 @@ func RemoveAgent(ctx context.Context) {
 
 // StartAgentExperiment starts the agent experiment
 func StartAgentExperiment(ctx context.Context) error {
-	return startUnit(ctx, agentExp)
+	return startUnit(ctx, agentExp, "--no-block")
 }
 
 // StopAgentExperiment stops the agent experiment

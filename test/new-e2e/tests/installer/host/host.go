@@ -21,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
 	e2eos "github.com/DataDog/test-infra-definitions/components/os"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // Host is a remote host environment.
@@ -82,7 +83,8 @@ func (h *Host) ReadFile(path string) ([]byte, error) {
 // WaitForUnitActive waits for a systemd unit to be active
 func (h *Host) WaitForUnitActive(units ...string) {
 	for _, unit := range units {
-		h.remote.MustExecute(fmt.Sprintf("timeout=30; unit=%s; while ! systemctl is-active --quiet $unit && [ $timeout -gt 0 ]; do sleep 1; ((timeout--)); done; [ $timeout -ne 0 ]", unit))
+		_, err := h.remote.Execute(fmt.Sprintf("timeout=30; unit=%s; while ! systemctl is-active --quiet $unit && [ $timeout -gt 0 ]; do sleep 1; ((timeout--)); done; [ $timeout -ne 0 ]", unit))
+		require.NoError(h.t, err, "unit %s did not become active", unit)
 	}
 }
 
