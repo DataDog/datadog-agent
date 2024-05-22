@@ -174,9 +174,8 @@ kitchen_stress_security_agent:
 
 kitchen_test_security_agent_windows_x64:
   extends:
-    - .kitchen_os_windows
     - .kitchen_test_security_agent
-    - .kitchen_azure_x64
+    - .kitchen_os_windows
     - .kitchen_azure_location_north_central_us
   rules:
     !reference [.on_security_agent_changes_or_manual]
