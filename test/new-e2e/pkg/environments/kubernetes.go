@@ -21,6 +21,10 @@ type Kubernetes struct {
 
 // AwsKubernetes is an environment that contains a AWS Kubernetes cluster (EKS), the Agent and a FakeIntake.
 type AwsKubernetes struct {
-	Kubernetes
 	AwsEnvironment *aws.Environment
+
+	// Components
+	KubernetesCluster *components.KubernetesCluster
+	FakeIntake        *components.FakeIntake
+	Agent             *components.KubernetesAgent
 }
