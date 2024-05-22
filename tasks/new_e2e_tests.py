@@ -23,19 +23,21 @@ from tasks.modules import DEFAULT_MODULES
 
 
 @task
-def build_test_binaries(ctx):
+def build_test_binaries(ctx, excluded_tests=None):
     """
     Build test binaries for E2E tests
     """
+
+    if excluded_tests is None:
+        excluded_tests = []
+
     test_binaries_folder = "test-binaries"
     current_dir = os.getcwd()
     os.makedirs(test_binaries_folder, exist_ok=True)
-    # for team_tests in os.listdir("test/new-e2e/tests"):
-    #     if os.path.isdir(f"test/new-e2e/tests/{team_tests}"):
-    #         with ctx.cd(f"test/new-e2e/tests/{team_tests}"):
-    #             ctx.run(f"go test -c -o {test_binaries_folder}/{team_tests}/ ./...")
-    with ctx.cd("test/new-e2e/tests/agent-platform"):
-        ctx.run(f"go test -c -o {current_dir}/test-binaries/agent-platform/ ./...")
+    for team_tests in os.listdir("test/new-e2e/tests"):
+        if team_tests not in excluded_tests and os.path.isdir(f"test/new-e2e/tests/{team_tests}"):
+            with ctx.cd(f"test/new-e2e/tests/{team_tests}"):
+                ctx.run(f"go test -c -o {current_dir}/{test_binaries_folder}/{team_tests}/ ./...")
 
 
 @task(
