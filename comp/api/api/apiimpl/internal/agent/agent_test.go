@@ -133,12 +133,7 @@ func setupRoutes(t *testing.T) *mux.Router {
 		deps.Wmeta,
 		deps.LogsAgent,
 		sender,
-		deps.HostMetadata,
-		deps.InvAgent,
-		deps.InvHost,
 		deps.SecretResolver,
-		deps.InvChecks,
-		deps.PkgSigning,
 		deps.StatusComponent,
 		deps.Collector,
 		deps.Ac,
@@ -182,6 +177,26 @@ func TestSetupHandlers(t *testing.T) {
 			wantCode: 200,
 		},
 		{
+			route:    "/config",
+			method:   "GET",
+			wantCode: 200,
+		},
+		{
+			route:    "/config/list-runtime",
+			method:   "GET",
+			wantCode: 200,
+		},
+		{
+			route:    "/config/log_level",
+			method:   "GET",
+			wantCode: 200,
+		},
+		{
+			route:    "/config/log_level",
+			method:   "POST",
+			wantCode: 200,
+		},
+		{
 			route:    "/secrets",
 			method:   "GET",
 			wantCode: 200,
@@ -203,6 +218,36 @@ func TestSetupHandlers(t *testing.T) {
 		},
 		{
 			route:    "/workload-list",
+			method:   "GET",
+			wantCode: 200,
+		},
+		{
+			route:    "/metadata/v5",
+			method:   "GET",
+			wantCode: 200,
+		},
+		{
+			route:    "/metadata/gohai",
+			method:   "GET",
+			wantCode: 200,
+		},
+		{
+			route:    "/metadata/inventory-agent",
+			method:   "GET",
+			wantCode: 200,
+		},
+		{
+			route:    "/metadata/inventory-host",
+			method:   "GET",
+			wantCode: 200,
+		},
+		{
+			route:    "/metadata/inventory-checks",
+			method:   "GET",
+			wantCode: 200,
+		},
+		{
+			route:    "/metadata/package-signing",
 			method:   "GET",
 			wantCode: 200,
 		},

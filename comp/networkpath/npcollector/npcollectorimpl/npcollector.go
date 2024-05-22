@@ -87,8 +87,6 @@ func newNpCollectorImpl(epForwarder eventplatform.Forwarder, collectorConfigs *c
 		flushInterval:          collectorConfigs.flushInterval,
 		workers:                collectorConfigs.workers,
 
-		metricSender: metricsender.NewMetricSenderStatsd(statsd.Client),
-
 		receivedPathtestCount:    atomic.NewUint64(0),
 		processedTracerouteCount: atomic.NewUint64(0),
 		TimeNowFn:                time.Now,
@@ -96,8 +94,6 @@ func newNpCollectorImpl(epForwarder eventplatform.Forwarder, collectorConfigs *c
 		stopChan:      make(chan struct{}),
 		runDone:       make(chan struct{}),
 		flushLoopDone: make(chan struct{}),
-
-		statsdClient: statsd.Client,
 
 		runTraceroute: runTraceroute,
 	}
@@ -148,10 +144,18 @@ func (s *npCollectorImpl) start() error {
 		return errors.New("server already started")
 	}
 	s.running = true
+
 	s.logger.Info("Start NpCollector")
+
+	// Assigning statsd.Client in start() stage since we can't do it in newNpCollectorImpl
+	// due to statsd.Client not being configured yet.
+	s.metricSender = metricsender.NewMetricSenderStatsd(statsd.Client)
+	s.statsdClient = statsd.Client
+
 	go s.listenPathtests()
 	go s.flushLoop()
 	s.startWorkers()
+
 	return nil
 }
 
@@ -228,7 +232,6 @@ func runTraceroute(cfg traceroute.Config) (payload.NetworkPath, error) {
 
 func (s *npCollectorImpl) flushLoop() {
 	s.logger.Debugf("Starting flush loop")
-	defer s.logger.Debugf("Stopped flush loop")
 
 	flushTicker := time.NewTicker(s.flushInterval)
 
@@ -237,7 +240,7 @@ func (s *npCollectorImpl) flushLoop() {
 		select {
 		// stop sequence
 		case <-s.stopChan:
-			s.logger.Info("Stop flush loop")
+			s.logger.Info("Stopped flush loop")
 			s.flushLoopDone <- struct{}{}
 			flushTicker.Stop()
 			return

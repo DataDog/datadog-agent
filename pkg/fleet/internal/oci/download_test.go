@@ -10,7 +10,6 @@ package oci
 
 import (
 	"context"
-	"net/http"
 	"os"
 	"strings"
 	"testing"
@@ -189,8 +188,7 @@ func TestGetRefAndKeychain(t *testing.T) {
 			RegistryAuthOverride:        tt.registryAuthOverride,
 			RegistryAuthOverrideByImage: tt.regAuthOverrideByImage,
 		}
-		d := NewDownloader(env, http.DefaultClient)
-		actual := d.getRefAndKeychain(tt.url)
+		actual := getRefAndKeychain(env, tt.url)
 		assert.Equal(t, tt.expectedRef, actual.ref)
 		assert.Equal(t, tt.expectedKeychain, actual.keychain)
 	}

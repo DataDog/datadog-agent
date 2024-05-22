@@ -27,11 +27,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/replay"
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
-	"github.com/DataDog/datadog-agent/comp/metadata/host"
-	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
-	"github.com/DataDog/datadog-agent/comp/metadata/inventorychecks"
-	"github.com/DataDog/datadog-agent/comp/metadata/inventoryhost"
-	"github.com/DataDog/datadog-agent/comp/metadata/packagesigning"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcservice"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcservicemrf"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
@@ -74,12 +69,7 @@ func StartServers(
 	taggerComp tagger.Component,
 	logsAgent optional.Option[logsAgent.Component],
 	senderManager sender.DiagnoseSenderManager,
-	hostMetadata host.Component,
-	invAgent inventoryagent.Component,
-	invHost inventoryhost.Component,
 	secretResolver secrets.Component,
-	invChecks inventorychecks.Component,
-	pkgSigning packagesigning.Component,
 	statusComponent status.Component,
 	collector optional.Option[collector.Component],
 	ac autodiscovery.Component,
@@ -124,12 +114,7 @@ func StartServers(
 		taggerComp,
 		logsAgent,
 		senderManager,
-		hostMetadata,
-		invAgent,
-		invHost,
 		secretResolver,
-		invChecks,
-		pkgSigning,
 		statusComponent,
 		collector,
 		ac,
