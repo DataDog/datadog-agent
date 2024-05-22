@@ -66,7 +66,7 @@ func (v *baseDiagnoseSuite) TestDiagnoseList() {
 	}
 }
 
-func (v *baseDiagnoseSuite) TestDiagnoseInclude() {
+func (v *baseDiagnoseSuite) AssertDiagnoseInclude() {
 	diagnose := getDiagnoseOutput(v)
 	diagnoseSummary := getDiagnoseSummary(diagnose)
 	for _, suite := range allSuites {
@@ -87,7 +87,7 @@ func (v *baseDiagnoseSuite) TestDiagnoseInclude() {
 	assert.Equal(v.T(), diagnoseIncludeEverySuiteSummary, diagnoseSummary)
 }
 
-func (v *baseDiagnoseSuite) TestDiagnoseExclude() {
+func (v *baseDiagnoseSuite) AssertDiagnoseExclude() {
 	for _, suite := range allSuites {
 		diagnoseExclude := getDiagnoseOutput(v, agentclient.WithArgs([]string{"--exclude", suite}))
 		resultExclude := getDiagnoseSummary(diagnoseExclude)
