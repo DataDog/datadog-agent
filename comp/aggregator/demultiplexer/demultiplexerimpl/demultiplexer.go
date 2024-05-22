@@ -131,16 +131,16 @@ func (demux demultiplexer) LazyGetSenderManager() (sender.SenderManager, error) 
 	return demux, nil
 }
 
-func (demux demultiplexerEndpoint) dumpDogstatsdContexts(w http.ResponseWriter, _ *http.Request) {
-	path, err := dumpDogstatsdContextsImpl(demux.Comp, demux.Config)
+func (demuxendpoint demultiplexerEndpoint) dumpDogstatsdContexts(w http.ResponseWriter, _ *http.Request) {
+	path, err := demuxendpoint.dumpDogstatsdContextsImpl()
 	if err != nil {
-		utils.SetJSONError(w, demux.Log.Errorf("Failed to create dogstatsd contexts dump: %v", err), 500)
+		utils.SetJSONError(w, demuxendpoint.Log.Errorf("Failed to create dogstatsd contexts dump: %v", err), 500)
 		return
 	}
 
 	resp, err := json.Marshal(path)
 	if err != nil {
-		utils.SetJSONError(w, demux.Log.Errorf("Failed to serialize response: %v", err), 500)
+		utils.SetJSONError(w, demuxendpoint.Log.Errorf("Failed to serialize response: %v", err), 500)
 		return
 	}
 
@@ -148,8 +148,8 @@ func (demux demultiplexerEndpoint) dumpDogstatsdContexts(w http.ResponseWriter, 
 	w.Write(resp)
 }
 
-func dumpDogstatsdContextsImpl(demux demultiplexerComp.Component, config config.Component) (string, error) {
-	path := path.Join(config.GetString("run_path"), "dogstatsd_contexts.json.zstd")
+func (demuxendpoint demultiplexerEndpoint) dumpDogstatsdContextsImpl() (string, error) {
+	path := path.Join(demuxendpoint.Config.GetString("run_path"), "dogstatsd_contexts.json.zstd")
 
 	f, err := os.Create(path)
 	if err != nil {
@@ -160,7 +160,7 @@ func dumpDogstatsdContextsImpl(demux demultiplexerComp.Component, config config.
 
 	w := bufio.NewWriter(c)
 
-	for _, err := range []error{demux.DumpDogstatsdContexts(w), w.Flush(), c.Close(), f.Close()} {
+	for _, err := range []error{demuxendpoint.Comp.DumpDogstatsdContexts(w), w.Flush(), c.Close(), f.Close()} {
 		if err != nil {
 			return "", err
 		}
