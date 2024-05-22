@@ -1083,6 +1083,10 @@ CSM Threats logs have the following JSON schema:
                 "variables": {
                     "$ref": "#/$defs/Variables",
                     "description": "Variables values"
+                },
+                "truncated_ancestors": {
+                    "type": "boolean",
+                    "description": "True if the ancestors list was truncated because it was too big"
                 }
             },
             "additionalProperties": false,
@@ -3024,6 +3028,10 @@ CSM Threats logs have the following JSON schema:
         "variables": {
             "$ref": "#/$defs/Variables",
             "description": "Variables values"
+        },
+        "truncated_ancestors": {
+            "type": "boolean",
+            "description": "True if the ancestors list was truncated because it was too big"
         }
     },
     "additionalProperties": false,
@@ -3070,6 +3078,7 @@ CSM Threats logs have the following JSON schema:
 | `parent` | Parent process |
 | `ancestors` | Ancestor processes |
 | `variables` | Variables values |
+| `truncated_ancestors` | True if the ancestors list was truncated because it was too big |
 
 | References |
 | ---------- |

@@ -24,6 +24,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
 
+const processTreeMaxDepth = 200
+
 // FileSerializer serializes a file to JSON
 // easyjson:json
 type FileSerializer struct {
@@ -888,6 +890,16 @@ func newProcessContextSerializer(pc *model.ProcessContext, e *model.Event) *Proc
 		prev = s
 
 		ptr = it.Next()
+	}
+
+	// shrink the middle of the ancestors list if it is too long
+	if len(ps.Ancestors) > processTreeMaxDepth {
+		subLen := processTreeMaxDepth / 2
+		// we add one extra element to the leaf slice in case processTreeMaxDepth is an odd number
+		// this is to make sure the length of the resulting slice matches the value of processTreeMaxDepth
+		extraElem := processTreeMaxDepth % 2
+		ps.Ancestors = append(ps.Ancestors[0:subLen+extraElem], ps.Ancestors[len(ps.Ancestors)-subLen:]...)
+		ps.TruncatedAncestors = true
 	}
 
 	return &ps
