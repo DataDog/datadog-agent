@@ -21,7 +21,6 @@ import (
 	gohaicpu "github.com/DataDog/datadog-agent/pkg/gohai/cpu"
 	gohaiutils "github.com/DataDog/datadog-agent/pkg/gohai/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/pdhutil"
-	pdhtest "github.com/DataDog/datadog-agent/pkg/util/pdhutil"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -39,14 +38,14 @@ func TestCPUCheckWindowsRunOk(t *testing.T) {
 			CPULogicalProcessors: gohaiutils.NewValue(uint64(1)),
 		}
 	}
-	pdhtest.SetupTesting("..\\testfiles\\counter_indexes_en-us.txt", "..\\testfiles\\allcounters_en-us.txt")
+	pdhutil.SetupTesting("..\\testfiles\\counter_indexes_en-us.txt", "..\\testfiles\\allcounters_en-us.txt")
 	// The counters will have GetValue called twice because of the "Processor Information" issue workaround
 	// see AddToQuery() in cpu_windows.go
 	for i := 0; i < 2; i++ {
-		pdhtest.SetQueryReturnValue("\\\\.\\Processor Information(_Total)\\% Interrupt Time", 0.1)
-		pdhtest.SetQueryReturnValue("\\\\.\\Processor Information(_Total)\\% Idle Time", 80.1)
-		pdhtest.SetQueryReturnValue("\\\\.\\Processor Information(_Total)\\% User Time", 11.3)
-		pdhtest.SetQueryReturnValue("\\\\.\\Processor Information(_Total)\\% Privileged Time", 8.5)
+		pdhutil.SetQueryReturnValue("\\\\.\\Processor Information(_Total)\\% Interrupt Time", 0.1)
+		pdhutil.SetQueryReturnValue("\\\\.\\Processor Information(_Total)\\% Idle Time", 80.1)
+		pdhutil.SetQueryReturnValue("\\\\.\\Processor Information(_Total)\\% User Time", 11.3)
+		pdhutil.SetQueryReturnValue("\\\\.\\Processor Information(_Total)\\% Privileged Time", 8.5)
 	}
 
 	cpuCheck := createCheck()
