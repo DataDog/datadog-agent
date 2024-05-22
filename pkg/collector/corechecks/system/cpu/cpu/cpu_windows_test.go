@@ -20,15 +20,9 @@ import (
 	gohaicpu "github.com/DataDog/datadog-agent/pkg/gohai/cpu"
 	gohaiutils "github.com/DataDog/datadog-agent/pkg/gohai/utils"
 	pdhtest "github.com/DataDog/datadog-agent/pkg/util/pdhutil"
-
+	
 	"github.com/stretchr/testify/assert"
 )
-
-func CPUInfo() *gohaicpu.Info {
-	return &gohaicpu.Info{
-		CPULogicalProcessors: gohaiutils.NewValue(uint64(1)),
-	}
-}
 
 func createCheck() check.Check {
 	cpuCheckOpt := Factory()
@@ -37,7 +31,11 @@ func createCheck() check.Check {
 	return cpuCheck
 }
 func TestCPUCheckWindowsRunOk(t *testing.T) {
-	cpuInfoFunc = CPUInfo
+	cpuInfoFunc = func () *gohaicpu.Info {
+		return &gohaicpu.Info{
+			CPULogicalProcessors: gohaiutils.NewValue(uint64(1)),
+		}
+	}
 	pdhtest.SetupTesting("..\\testfiles\\counter_indexes_en-us.txt", "..\\testfiles\\allcounters_en-us.txt")
 	// The counters will have GetValue called twice because of the "Processor Information" issue workaround
 	// see AddToQuery() in cpu_windows.go
@@ -78,6 +76,22 @@ func TestCPUCheckWindowsErrorInInstanceConfig(t *testing.T) {
 	assert.NotNil(t, err)
 }
 
+func TestCPUCheckWindowsErrorCPULogicalProcessors(t *testing.T) {
+	cpuInfoFunc = func () *gohaicpu.Info {
+		return &gohaicpu.Info{
+			CPULogicalProcessors: gohaiutils.NewErrorValue[uint64](gohaiutils.ErrNotCollectable),
+		}
+	}
+	cpuCheck := createCheck()
+	m := mocksender.NewMockSender(cpuCheck.ID())
+
+	err := cpuCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test")
+
+	assert.NotNil(t, err)
+}
+
+
+
 func TestCPUCheckWindowsErrorCreatePdhQuery(t *testing.T) {
 	createPdhQueryError := errors.New("createPdhQuery error")
 	createPdhQuery = func() (*pdhtest.PdhQuery, error) {
@@ -93,7 +107,11 @@ func TestCPUCheckWindowsErrorCreatePdhQuery(t *testing.T) {
 
 func TestCPUCheckWindowsErrorStoppedSender(t *testing.T) {
 	stoppedSenderError := errors.New("demultiplexer is stopped")
-	cpuInfoFunc = CPUInfo
+	cpuInfoFunc = func () *gohaicpu.Info {
+		return &gohaicpu.Info{
+			CPULogicalProcessors: gohaiutils.NewValue(uint64(1)),
+		}
+	}
 	cpuCheck := createCheck()
 	m := mocksender.NewMockSender(cpuCheck.ID())
 
