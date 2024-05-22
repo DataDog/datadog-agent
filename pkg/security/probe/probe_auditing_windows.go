@@ -90,6 +90,8 @@ func (wp *WindowsProbe) parseObjectPermsChange(e *etw.DDEventRecord) (*objectPer
 
 	pc.processName = reader.GetNextString(data)
 
+	// translate the registry path, if it's a registry path, into the more canonical form
+	pc.objectName  = translateRegistryBasePath(pc.objectName)
 	return pc, nil
 }
 
