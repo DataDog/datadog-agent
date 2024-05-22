@@ -92,12 +92,12 @@ func TestCPUCheckWindowsErrorCPULogicalProcessors(t *testing.T) {
 }
 
 func TestCPUCheckWindowsErrorCreatePdhQuery(t *testing.T) {
-	createPdhQueryError := errors.New("createPdhQuery error")
 	cpuInfoFunc = func() *gohaicpu.Info {
 		return &gohaicpu.Info{
 			CPULogicalProcessors: gohaiutils.NewValue(uint64(1)),
 		}
 	}
+	createPdhQueryError := errors.New("createPdhQuery error")
 	createPdhQuery = func() (*pdhtest.PdhQuery, error) {
 		return nil, createPdhQueryError
 	}
