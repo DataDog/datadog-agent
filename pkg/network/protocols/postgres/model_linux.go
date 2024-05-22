@@ -75,10 +75,8 @@ func (e *EventWrapper) Operation() Operation {
 // extractTableName extracts the table name from the query.
 func (e *EventWrapper) extractTableName() string {
 	fragment := string(e.Tx.getFragment())
-	// Check if the string contains "IF EXISTS",
-	// temp solution for the fact that ObfuscateSQLString does not support "IF EXISTS".
-
-	// Compile a case-insensitive regex pattern
+	// Temp solution for the fact that ObfuscateSQLString does not support "IF EXISTS" or "if exists", so we remove
+	// it from the fragment if found.
 	re := regexp.MustCompile("(?i)if exists")
 	fragment = re.ReplaceAllString(fragment, "")
 
