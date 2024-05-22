@@ -73,6 +73,11 @@ jobs:
         id: current_go_version
         run: |
           echo "GO_VERSION=$(inv go-version)" >> $GITHUB_OUTPUT
+    
+      - name: Get current buildimage tag
+        id: current_buildimage_tag
+        run: |
+            echo "BUILDIMAGE_TAG=$(inv pipeline.get-image-tag)" >> $GITHUB_OUTPUT
 
       - name: Update buildimages IDs and Go version
         id: update_build_images
@@ -100,3 +105,22 @@ jobs:
           # the action fetches all branches and tags, in our case the branches we care about are already fetched
           # if they exist, so we can skip the fetch
           skip_fetch: true
+
+      - name: Render PR body
+        id: pr_body
+        run: |
+          echo "PR_BODY=$(inv buildimages.generate-pr-body ${{ steps.current_buildimage_tag.outputs.BUILDIMAGE_TAG }} ${{ inputs.images_id }} ${{ steps.current_go_version.outputs.GO_VERSION }} ${{ inputs.go_version }} ${{ inputs.test_version && '--test-version' || '' }})" >> $GITHUB_OUTPUT
+          
+
+      - name: create PR
+        uses: peter-evans/create-pull-request@v5
+        with:
+          # token: ${{ steps.app-token.outputs.token }}
+          base: main
+          branch: ${{ inputs.branch }}
+          draft: true
+          delete-branch: true
+          commit-message: ${{ steps.update_build_images.outputs.MESSAGE }}
+          title: "[automated] ${{ steps.update_build_images.outputs.MESSAGE }}"
+          labels: 'go-update'
+          body: ${{ steps.pr_body.outputs.PR_BODY }}
