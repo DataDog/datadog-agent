@@ -211,6 +211,10 @@ func (f *FakeDCAClient) PostLanguageMetadata(_ context.Context, _ *pbgo.ParentLa
 	panic("implement me")
 }
 
+func (f *FakeDCAClient) SupportsNamespaceMetadataCollection() bool {
+	panic("implement me")
+}
+
 func TestStartError(t *testing.T) {
 	fakeGardenUtil := FakeGardenUtil{}
 

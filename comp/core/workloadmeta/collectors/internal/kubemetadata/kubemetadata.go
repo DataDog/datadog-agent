@@ -233,7 +233,7 @@ func (c *collector) parsePods(
 
 		var nsLabels, nsAnnotations map[string]string
 
-		if c.dcaClient.Version().Major >= 7 && c.dcaClient.Version().Minor >= 55 {
+		if c.dcaClient.SupportsNamespaceMetadataCollection() {
 			// Cluster agent with version 7.55+
 			var nsMetadata *clusteragent.Metadata
 			nsMetadata, err = c.getNamespaceMetadata(pod.Metadata.Namespace)

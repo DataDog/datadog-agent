@@ -76,6 +76,7 @@ type DCAClientInterface interface {
 	GetKubernetesClusterID() (string, error)
 
 	PostLanguageMetadata(ctx context.Context, data *pbgo.ParentLanguageAnnotationRequest) error
+	SupportsNamespaceMetadataCollection() bool
 }
 
 // DCAClient is required to query the API of Datadog cluster agent
@@ -493,4 +494,9 @@ func (c *DCAClient) PostLanguageMetadata(ctx context.Context, data *pbgo.ParentL
 	// query https://host:port/api/v1/languagedetection without expecting a response
 	_, err = c.doQuery(ctx, languageDetectionPath, "POST", bytes.NewBuffer(queryBody), false, false)
 	return err
+}
+
+// SupportsNamespaceMetadataCollection returns true only if the cluster agent supports collecting namespace metadata
+func (c *DCAClient) SupportsNamespaceMetadataCollection() bool {
+	return c.Version().Major >= 7 && c.Version().Minor >= 55
 }

@@ -9,3 +9,6 @@
 features:
   - |
     Add support for `kubernetes_namespace_annotations_as_tags`.
+    This new option is equivalent to the existing `kubernetes_namespace_labels_as_tags`, 
+    but it considers namespace annotations instead of namespace labels.
+    With this new option, users can enrich tagging based on namespace annotations.

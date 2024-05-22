@@ -119,8 +119,8 @@ func TestHandleKubePod(t *testing.T) {
 				"ns-ownerteam": "ns-team",
 			},
 			nsAnnotationsAsTags: map[string]string{
-				"ns_tier":     "ns_tier",
-				"ns_security": "ns_security",
+				"ns_tier":            "ns_tier",
+				"namespace_security": "ns_security",
 			},
 			pod: workloadmeta.KubernetesPod{
 				EntityID: podEntityID,
@@ -166,8 +166,8 @@ func TestHandleKubePod(t *testing.T) {
 
 				// NS annotations as tags
 				NamespaceAnnotations: map[string]string{
-					"ns_tier":     "some_tier",
-					"ns_security": "critical",
+					"ns_tier":            "some_tier",
+					"namespace_security": "critical",
 				},
 
 				// kube_service tags
@@ -665,8 +665,8 @@ func TestHandleKubeNamespace(t *testing.T) {
 				"ns-ownerteam": "ns-team",
 			},
 			nsAnnotationsAsTags: map[string]string{
-				"ns_tier":     "ns_tier",
-				"ns_security": "ns_security",
+				"ns_tier":            "ns_tier",
+				"namespace_security": "ns_security",
 			},
 			namespace: workloadmeta.KubernetesNamespace{
 				EntityID: namespaceEntityID,
@@ -678,8 +678,8 @@ func TestHandleKubeNamespace(t *testing.T) {
 						"foo":          "bar",
 					},
 					Annotations: map[string]string{
-						"ns_tier":     "some_tier",
-						"ns_security": "critical",
+						"ns_tier":            "some_tier",
+						"namespace_security": "critical",
 					},
 				},
 			},

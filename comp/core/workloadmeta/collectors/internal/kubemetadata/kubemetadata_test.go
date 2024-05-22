@@ -127,6 +127,10 @@ func (f *FakeDCAClient) PostLanguageMetadata(_ context.Context, _ *pbgo.ParentLa
 	panic("implement me")
 }
 
+func (f *FakeDCAClient) SupportsNamespaceMetadataCollection() bool {
+	return f.LocalVersion.Major >= 7 && f.LocalVersion.Minor >= 55
+}
+
 func TestKubeMetadataCollector_getMetadata(t *testing.T) {
 	type fields struct {
 		dcaClient           clusteragent.DCAClientInterface
