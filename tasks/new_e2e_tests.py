@@ -114,7 +114,7 @@ def run(
     cmd = f'gotestsum --format {gotestsum_format} '
     if use_prebuilt_binaries:
         test_binary = f'test-binaries/{targets[0].replace("./tests", "")}.test'
-        cmd += '{junit_file_flag} {json_flag} --raw-command -- go tool test2json {test_binary} {verbose} -test.timeout {timeout} {nocache} {run} {skip} {test_run_arg} {osversion} {platform} {major_version} {arch} {flavor} {cws_supported_osversion} {src_agent_version} {dest_agent_version} {keep_stacks} {extra_flags}'
+        cmd += '{junit_file_flag} {json_flag} --raw-command -- go tool test2json {test_binary} -test.v -test.timeout {timeout} {nocache} {run} {skip} {test_run_arg} {osversion} {platform} {major_version} {arch} {flavor} {cws_supported_osversion} {src_agent_version} {dest_agent_version} {keep_stacks} {extra_flags}'
     else:
         cmd += '{junit_file_flag} {json_flag} --packages="{packages}" -- -ldflags="-X {REPO_PATH}/test/new-e2e/tests/containers.GitCommit={commit}" {verbose} -mod={go_mod} -vet=off -timeout {timeout} {nocache} {run} {skip} {test_run_arg} -args {osversion} {platform} {major_version} {arch} {flavor} {cws_supported_osversion} {src_agent_version} {dest_agent_version} {keep_stacks} {extra_flags}'
 
