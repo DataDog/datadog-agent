@@ -131,7 +131,7 @@ func (a *agentSuiteWindows) Test03CreateFileSignal() {
 
 	// Create CWS Agent rule
 	rule := fmt.Sprintf(`create.file.name == "%s" && create.file.path == "%s"`, fp.Base(filepath), filepath)
-	res, err := a.apiClient.CreateCWSAgentRule(agentRuleName, desc, rule)
+	res, err := a.apiClient.CreateCWSAgentRule(agentRuleName, desc, rule, []string{`os == "windows"`})
 	require.NoError(a.T(), err, "Agent rule creation failed")
 	agentRuleID = res.Data.GetId()
 

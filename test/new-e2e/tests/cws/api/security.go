@@ -101,7 +101,7 @@ func (c *Client) CreateCwsSignalRule(name string, msg string, agentRuleID string
 }
 
 // CreateCWSAgentRule creates a cws agent rule
-func (c *Client) CreateCWSAgentRule(name string, msg string, secl string) (*datadogV2.CloudWorkloadSecurityAgentRuleResponse, error) {
+func (c *Client) CreateCWSAgentRule(name string, msg string, secl string, filters []string) (*datadogV2.CloudWorkloadSecurityAgentRuleResponse, error) {
 	body := datadogV2.CloudWorkloadSecurityAgentRuleCreateRequest{
 		Data: datadogV2.CloudWorkloadSecurityAgentRuleCreateData{
 			Attributes: datadogV2.CloudWorkloadSecurityAgentRuleCreateAttributes{
@@ -109,6 +109,7 @@ func (c *Client) CreateCWSAgentRule(name string, msg string, secl string) (*data
 				Enabled:     datadog.PtrBool(true),
 				Expression:  secl,
 				Name:        name,
+				Filters:     filters,
 			},
 			Type: "agent_rule",
 		},
