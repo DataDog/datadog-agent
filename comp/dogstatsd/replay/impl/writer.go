@@ -22,7 +22,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/packets"
-	replaydef "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/def"
+	replay "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/def"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	protoutils "github.com/DataDog/datadog-agent/pkg/util/proto"
@@ -54,7 +54,7 @@ var captureFs = backendFs{
 type TrafficCaptureWriter struct {
 	zWriter   *zstd.Writer
 	writer    *bufio.Writer
-	Traffic   chan *replaydef.CaptureBuffer
+	Traffic   chan *replay.CaptureBuffer
 	ongoing   bool
 	accepting bool
 
@@ -71,14 +71,14 @@ type TrafficCaptureWriter struct {
 func NewTrafficCaptureWriter(depth int) *TrafficCaptureWriter {
 
 	return &TrafficCaptureWriter{
-		Traffic:     make(chan *replaydef.CaptureBuffer, depth),
+		Traffic:     make(chan *replay.CaptureBuffer, depth),
 		taggerState: make(map[int32]string),
 	}
 }
 
 // processMessage receives a capture buffer and writes it to disk while also tracking
 // the PID map to be persisted to the taggerState. Should not normally be called directly.
-func (tc *TrafficCaptureWriter) processMessage(msg *replaydef.CaptureBuffer) error {
+func (tc *TrafficCaptureWriter) processMessage(msg *replay.CaptureBuffer) error {
 	err := tc.writeNext(msg)
 
 	if err != nil {
@@ -256,7 +256,7 @@ func (tc *TrafficCaptureWriter) StopCapture() {
 }
 
 // Enqueue enqueues a capture buffer so it's written to file.
-func (tc *TrafficCaptureWriter) Enqueue(msg *replaydef.CaptureBuffer) bool {
+func (tc *TrafficCaptureWriter) Enqueue(msg *replay.CaptureBuffer) bool {
 	tc.RLock()
 	defer tc.RUnlock()
 
@@ -363,9 +363,9 @@ func (tc *TrafficCaptureWriter) writeState() (int, error) {
 	return n + 8, err
 }
 
-// writeNext writes the next replaydef.CaptureBuffer after serializing it to a protobuf format.
+// writeNext writes the next replay.CaptureBuffer after serializing it to a protobuf format.
 // Continuing writes after an error calling this function would result in a corrupted file
-func (tc *TrafficCaptureWriter) writeNext(msg *replaydef.CaptureBuffer) error {
+func (tc *TrafficCaptureWriter) writeNext(msg *replay.CaptureBuffer) error {
 	pb := pb.UnixDogstatsdMsg{
 		Timestamp:     msg.Pb.Timestamp,
 		PayloadSize:   msg.Pb.PayloadSize,

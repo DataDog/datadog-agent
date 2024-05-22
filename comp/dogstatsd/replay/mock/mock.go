@@ -14,12 +14,12 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/packets"
-	replaydef "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/def"
+	replay "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/def"
 )
 
 // Mock implements mock-specific methods.
 type Mock interface {
-	replaydef.Component
+	replay.Component
 }
 
 //nolint:revive // TODO(AML) Fix revive linter
@@ -28,7 +28,7 @@ type Requires struct {
 }
 
 //nolint:revive // TODO(AML) Fix revive linter
-func NewTrafficCapture(deps Requires) replaydef.Component {
+func NewTrafficCapture(deps Requires) replay.Component {
 	tc := &mockTrafficCapture{}
 	return tc
 }
@@ -71,7 +71,7 @@ func (tc *mockTrafficCapture) RegisterOOBPoolManager(p *packets.PoolManager) err
 }
 
 //nolint:revive // TODO(AML) Fix revive linter
-func (tc *mockTrafficCapture) Enqueue(msg *replaydef.CaptureBuffer) bool {
+func (tc *mockTrafficCapture) Enqueue(msg *replay.CaptureBuffer) bool {
 	return true
 }
 
