@@ -8,6 +8,7 @@ package model
 
 import (
 	"encoding/binary"
+	"fmt"
 	"math"
 	"time"
 )
@@ -78,6 +79,13 @@ func (e *Process) MarshalProcCache(data []byte, bootTime time.Time) (int, error)
 	copy(data[0:ContainerIDLen], e.ContainerID)
 	written := ContainerIDLen
 
+	compressedContainerID, err := marshalCompressedContainerID(e.ContainerID)
+	if err != nil {
+		return 0, err
+	}
+	copy(data[ContainerIDLen:ContainerIDLen+32], compressedContainerID)
+	written += 32
+
 	toAdd, err := MarshalBinary(data[written:], &e.FileEvent)
 	if err != nil {
 		return 0, err
@@ -97,6 +105,38 @@ func (e *Process) MarshalProcCache(data []byte, bootTime time.Time) (int, error)
 	copy(data[written:written+16], e.Comm)
 	written += 16
 	return written, nil
+}
+
+func marshalCompressedContainerID(containerID string) ([]byte, error) {
+	if len(containerID) == 0 {
+		return nil, nil
+	}
+
+	if len(containerID) != 64 {
+		return nil, fmt.Errorf("marshal container ID: wrong len (expected 64 or 0, got %d)", len(containerID))
+	}
+
+	res := make([]byte, 0, 32)
+	for i, b := range []byte(containerID) {
+		var value uint8
+		switch {
+		case '0' <= b && b <= '9':
+			value = b - '0'
+		case 'a' <= b && b <= 'f':
+			value = 10 + (b - 'a')
+		case 'A' <= b && b <= 'F':
+			value = 10 + (b - 'A')
+		default:
+			return nil, fmt.Errorf("non-hexa rune in container id: `%v`", b)
+		}
+
+		if i%2 == 0 {
+			res[i/2] |= value << 4
+		} else {
+			res[i/2] |= value
+		}
+	}
+	return res, nil
 }
 
 func marshalTime(data []byte, t time.Duration) {

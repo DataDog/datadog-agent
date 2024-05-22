@@ -1164,7 +1164,7 @@ func (p *EBPFResolver) syncCache(proc *process.Process, filledProc *utils.Filled
 	bootTime := p.timeResolver.GetBootTime()
 
 	// insert new entry in kernel maps
-	procCacheEntryB := make([]byte, 224)
+	procCacheEntryB := make([]byte, 256)
 	_, err := entry.Process.MarshalProcCache(procCacheEntryB, bootTime)
 	if err != nil {
 		seclog.Errorf("couldn't marshal proc_cache entry: %s", err)
