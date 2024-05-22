@@ -25,6 +25,11 @@ func TestExtractTableFunction(t *testing.T) {
 			tablesName: "test1",
 		},
 		{
+			name:       "single table name",
+			query:      `drop table if exists test1`,
+			tablesName: "test1",
+		},
+		{
 			name:       "validate unknown table name",
 			query:      `DROP TABLE`,
 			tablesName: "UNKNOWN",

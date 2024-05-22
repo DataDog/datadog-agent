@@ -10,6 +10,7 @@ package postgres
 import (
 	"bytes"
 	"fmt"
+	"regexp"
 	"strings"
 
 	"github.com/DataDog/go-sqllexer"
@@ -71,14 +72,26 @@ func (e *EventWrapper) Operation() Operation {
 	return e.operation
 }
 
+// replaceCaseInsensitive replaces all occurrences of old with new in a case-insensitive manner.
+func replaceCaseInsensitive(s, old, new string) string {
+	// Create a case-insensitive replacer
+	replacer := strings.NewReplacer(
+		strings.ToLower(old), new,
+		strings.ToUpper(old), new,
+		strings.Title(strings.ToLower(old)), new,
+	)
+	return replacer.Replace(s)
+}
+
 // extractTableName extracts the table name from the query.
 func (e *EventWrapper) extractTableName() string {
 	fragment := string(e.Tx.getFragment())
 	// Check if the string contains "IF EXISTS",
 	// temp solution for the fact that ObfuscateSQLString does not support "IF EXISTS".
-	if strings.Contains(fragment, "IF EXISTS") {
-		fragment = strings.ReplaceAll(fragment, "IF EXISTS", "")
-	}
+
+	// Compile a case-insensitive regex pattern
+	re := regexp.MustCompile("(?i)if exists")
+	fragment = re.ReplaceAllString(fragment, "")
 
 	// Normalize the query without obfuscating it.
 	_, statementMetadata, err := e.normalizer.Normalize(fragment, sqllexer.WithDBMS(sqllexer.DBMSPostgres))
