@@ -506,6 +506,20 @@ func TestGenerateCPUEnhancedMetrics(t *testing.T) {
 	assert.Len(t, timedMetrics, 0)
 }
 
+func TestGenerateCPUEnhancedMetricsDisabled(t *testing.T) {
+	os.Setenv("DD_ENHANCED_METRICS", "false")
+	defer os.Setenv("DD_ENHANCED_METRICS", "true")
+
+	demux := createDemultiplexer(t)
+	tags := []string{"functionname:test-function"}
+	now := time.Now()
+	args := GenerateCPUEnhancedMetricsArgs{100, 53, tags, demux, now}
+	go GenerateCPUEnhancedMetrics(args)
+	generatedMetrics, timedMetrics := demux.WaitForNumberOfSamples(4, 0, 100*time.Millisecond)
+	assert.Len(t, generatedMetrics, 0)
+	assert.Len(t, timedMetrics, 0)
+}
+
 func createDemultiplexer(t *testing.T) demultiplexer.FakeSamplerMock {
 	return fxutil.Test[demultiplexer.FakeSamplerMock](t, logimpl.MockModule(), compressionimpl.MockModule(), demultiplexerimpl.FakeSamplerMockModule(), hostnameimpl.MockModule())
 }
