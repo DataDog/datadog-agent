@@ -812,13 +812,13 @@ func (agg *BufferedAggregator) tags(withVersion bool) []string {
 	var tags []string
 
 	var err error
-	tags, err = agg.globalTags(tagger.ChecksCardinality)
+	tags, err = agg.globalTags(tagger.ChecksCardinality())
 	if err != nil {
 		log.Debugf("Couldn't get Global tags: %v", err)
 	}
 
 	if agg.tlmContainerTagsEnabled {
-		agentTags, err := agg.agentTags(tagger.ChecksCardinality)
+		agentTags, err := agg.agentTags(tagger.ChecksCardinality())
 		if err == nil {
 			if tags == nil {
 				tags = agentTags
