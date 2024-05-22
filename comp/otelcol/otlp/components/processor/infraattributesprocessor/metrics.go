@@ -78,48 +78,43 @@ func splitTag(tag string) (key string, value string) {
 }
 
 func (iamp *infraAttributesMetricProcessor) processMetrics(_ context.Context, md pmetric.Metrics) (pmetric.Metrics, error) {
-	if md.ResourceMetrics().Len() == 0 {
-		return md, nil
-	}
-	resourceAttributes := md.ResourceMetrics().At(0).Resource().Attributes()
-	entityIDs := entityIDsFromAttributes(resourceAttributes)
-	tagMap := make(map[string]string)
+	rms := md.ResourceMetrics()
+	for i := 0; i < rms.Len(); i++ {
+		resourceAttributes := rms.At(i).Resource().Attributes()
+		entityIDs := entityIDsFromAttributes(resourceAttributes)
+		tagMap := make(map[string]string)
 
-	// Get all unique tags from resource attributes and global tags
-	for _, entityID := range entityIDs {
-		entityTags, err := iamp.tagger.Tag(entityID, iamp.cardinality)
-		if err != nil {
-			iamp.logger.Error("Cannot get tags for entity", zap.String("entityID", entityID), zap.Error(err))
-			continue
+		// Get all unique tags from resource attributes and global tags
+		for _, entityID := range entityIDs {
+			entityTags, err := iamp.tagger.Tag(entityID, iamp.cardinality)
+			if err != nil {
+				iamp.logger.Error("Cannot get tags for entity", zap.String("entityID", entityID), zap.Error(err))
+				continue
+			}
+			for _, tag := range entityTags {
+				k, v := splitTag(tag)
+				_, hasTag := tagMap[k]
+				if k != "" && v != "" && !hasTag {
+					tagMap[k] = v
+				}
+			}
 		}
-		for _, tag := range entityTags {
+		globalTags, err := iamp.tagger.GlobalTags(iamp.cardinality)
+		if err != nil {
+			iamp.logger.Error("Cannot get global tags", zap.Error(err))
+		}
+		for _, tag := range globalTags {
 			k, v := splitTag(tag)
 			_, hasTag := tagMap[k]
 			if k != "" && v != "" && !hasTag {
 				tagMap[k] = v
 			}
 		}
-	}
-	globalTags, err := iamp.tagger.GlobalTags(iamp.cardinality)
-	if err != nil {
-		iamp.logger.Error("Cannot get global tags", zap.Error(err))
-	}
-	for _, tag := range globalTags {
-		k, v := splitTag(tag)
-		_, hasTag := tagMap[k]
-		if k != "" && v != "" && !hasTag {
-			tagMap[k] = v
-		}
-	}
 
-	// Add tags as resource attributes on all metrics
-	rms := md.ResourceMetrics()
-	for i := 0; i < rms.Len(); i++ {
-		rattrs := rms.At(i).Resource().Attributes()
+		// Add all tags as resource attributes
 		for k, v := range tagMap {
-			rattrs.PutStr(k, v)
+			resourceAttributes.PutStr(k, v)
 		}
 	}
-
 	return md, nil
 }
