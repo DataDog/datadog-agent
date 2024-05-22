@@ -36,6 +36,7 @@ func NewEC2Metadata(t *testing.T, h *Host, osFamily os.Family) *EC2Metadata {
 		panic(fmt.Sprintf("unsupported OS family: %v", osFamily))
 	}
 
+	t.Log("Getting EC2 metadata token")
 	output := h.MustExecute(cmd)
 	return &EC2Metadata{osFamily: osFamily, token: output, host: h, t: t}
 }
@@ -53,5 +54,6 @@ func (m *EC2Metadata) Get(name string) string {
 		panic(fmt.Sprintf("unsupported OS family: %v", m.osFamily))
 	}
 
+	m.t.Log("Getting EC2 metadata for", name)
 	return strings.TrimRight(m.host.MustExecute(cmd), "\r\n")
 }
