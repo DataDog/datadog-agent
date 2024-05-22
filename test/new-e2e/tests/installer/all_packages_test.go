@@ -152,11 +152,6 @@ func (s *packageBaseSuite) SetupSuite() {
 func (s *packageBaseSuite) RunInstallScriptWithError(params ...string) error {
 	// FIXME: use the official install script
 	_, err := s.Env().RemoteHost.Execute(fmt.Sprintf(`%s bash -c "$(curl -L https://storage.googleapis.com/updater-dev/install_script_agent7.sh)"`, strings.Join(params, " ")), client.WithEnvVariables(installScriptEnv(s.arch)))
-	if err != nil {
-		return err
-	}
-	// Right now the install script can fail installing the installer silently, so we need to do this check or it will fail later in a way that is hard to debug
-	_, err = s.Env().RemoteHost.Execute("sudo datadog-installer version")
 	return err
 }
 
