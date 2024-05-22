@@ -74,6 +74,16 @@ var handledErrorsLs = []handledError{
 		metric:      "ec2-timeout-state-change",
 		action:      retryStack | emitMetric,
 	},
+	{
+		errorType:   ioTimeout,
+		errorString: "i/o timeout",
+		action:      retryStack,
+	},
+	{
+		errorType:   tcp22ConnectionRefused,
+		errorString: "failed attempts: dial tcp :22: connect: connection refused",
+		action:      retryStack,
+	},
 }
 
 func errorMetric(errType string) datadogV2.MetricPayload {
