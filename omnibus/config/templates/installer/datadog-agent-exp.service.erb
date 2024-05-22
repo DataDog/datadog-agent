@@ -13,6 +13,8 @@ User=dd-agent
 EnvironmentFile=-<%= etc_dir %>/environment
 ExecStart=<%= agent_dir %>/bin/agent/agent run -p <%= agent_dir %>/run/agent.pid
 WatchdogSec=3000
+# For systemd>=240 smoother termination
+WatchdogSignal=SIGTERM
 
 [Install]
 WantedBy=multi-user.target
