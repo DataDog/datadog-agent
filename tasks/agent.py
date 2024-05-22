@@ -122,7 +122,6 @@ def build(
     python_home_3=None,
     major_version='7',
     python_runtimes='3',
-    arch='x64',
     exclude_rtloader=False,
     include_sds=False,
     go_mod="mod",
@@ -164,15 +163,11 @@ def build(
         # Important for x-compiling
         env["CGO_ENABLED"] = "1"
 
-        if arch == "x86":
-            env["GOARCH"] = "386"
-
-        build_messagetable(ctx, arch=arch)
-        vars = versioninfo_vars(ctx, major_version=major_version, python_runtimes=python_runtimes, arch=arch)
+        build_messagetable(ctx)
+        vars = versioninfo_vars(ctx, major_version=major_version, python_runtimes=python_runtimes)
         build_rc(
             ctx,
             "cmd/agent/windows_resources/agent.rc",
-            arch=arch,
             vars=vars,
             out="cmd/agent/rsrc.syso",
         )
@@ -181,7 +176,7 @@ def build(
 
     if flavor.is_iot():
         # Iot mode overrides whatever passed through `--build-exclude` and `--build-include`
-        build_tags = get_default_build_tags(build="agent", arch=arch, flavor=flavor)
+        build_tags = get_default_build_tags(build="agent", flavor=flavor)
     else:
         all_tags = set()
         if bundle_ebpf and "system-probe" in bundled_agents:
@@ -190,9 +185,9 @@ def build(
         for build in bundled_agents:
             all_tags.add("bundle_" + build.replace("-", "_"))
             include_tags = (
-                get_default_build_tags(build=build, arch=arch, flavor=flavor)
+                get_default_build_tags(build=build, flavor=flavor)
                 if build_include is None
-                else filter_incompatible_tags(build_include.split(","), arch=arch)
+                else filter_incompatible_tags(build_include.split(","))
             )
 
             exclude_tags = [] if build_exclude is None else build_exclude.split(",")
@@ -546,7 +541,7 @@ ENV DD_SSLKEYLOGFILE=/tmp/sslkeylog.txt
 
 
 @task
-def integration_tests(ctx, install_deps=False, race=False, remote_docker=False, go_mod="mod", arch="x64"):
+def integration_tests(ctx, install_deps=False, race=False, remote_docker=False, go_mod="mod"):
     """
     Run integration tests for the Agent
     """
@@ -554,16 +549,16 @@ def integration_tests(ctx, install_deps=False, race=False, remote_docker=False, 
         deps(ctx)
 
     if sys.platform == 'win32':
-        return _windows_integration_tests(ctx, race=race, go_mod=go_mod, arch=arch)
+        return _windows_integration_tests(ctx, race=race, go_mod=go_mod)
     else:
         # TODO: See if these will function on Windows
-        return _linux_integration_tests(ctx, race=race, remote_docker=remote_docker, go_mod=go_mod, arch=arch)
+        return _linux_integration_tests(ctx, race=race, remote_docker=remote_docker, go_mod=go_mod)
 
 
-def _windows_integration_tests(ctx, race=False, go_mod="mod", arch="x64"):
+def _windows_integration_tests(ctx, race=False, go_mod="mod"):
     test_args = {
         "go_mod": go_mod,
-        "go_build_tags": " ".join(get_default_build_tags(build="test", arch=arch)),
+        "go_build_tags": " ".join(get_default_build_tags(build="test")),
         "race_opt": "-race" if race else "",
         "exec_opts": "",
     }
@@ -597,10 +592,10 @@ def _windows_integration_tests(ctx, race=False, go_mod="mod", arch="x64"):
             ctx.run(f"{go_cmd} {test['prefix']} {test['extra_args']}")
 
 
-def _linux_integration_tests(ctx, race=False, remote_docker=False, go_mod="mod", arch="x64"):
+def _linux_integration_tests(ctx, race=False, remote_docker=False, go_mod="mod"):
     test_args = {
         "go_mod": go_mod,
-        "go_build_tags": " ".join(get_default_build_tags(build="test", arch=arch)),
+        "go_build_tags": " ".join(get_default_build_tags(build="test")),
         "race_opt": "-race" if race else "",
         "exec_opts": "",
     }

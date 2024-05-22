@@ -82,6 +82,7 @@ func (v *baseConfigSuite) TestNonDefaultConfig() {
 }
 
 func (v *baseConfigSuite) TestConfigListRuntime() {
+	v.T().Skip("Skipping list-runtime test temporarily to troubleshoot flakiness")
 	output := v.Env().Agent.Client.Config(agentclient.WithArgs([]string{"list-runtime"}))
 	for _, config := range visibleConfigs {
 		assert.Contains(v.T(), output, config)

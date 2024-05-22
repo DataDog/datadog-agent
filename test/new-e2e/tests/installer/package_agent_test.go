@@ -22,9 +22,9 @@ func testAgent(os e2eos.Descriptor, arch e2eos.Architecture) packageSuite {
 }
 
 func (s *packageAgentSuite) TestInstall() {
-	s.RunInstallScript()
+	s.RunInstallScript(envForceInstall("datadog-agent"))
 	defer s.Purge()
-	s.InstallAgentPackage()
+	s.host.WaitForUnitActive("datadog-agent.service", "datadog-agent-trace.service", "datadog-agent-process.service")
 
 	state := s.host.State()
 
@@ -39,9 +39,9 @@ func (s *packageAgentSuite) TestInstall() {
 }
 
 func (s *packageAgentSuite) TestExperimentStartedButNotInstalled() {
-	s.RunInstallScript()
+	s.RunInstallScript(envForceInstall("datadog-agent"))
 	defer s.Purge()
-	s.InstallAgentPackage()
+	s.host.WaitForUnitActive("datadog-agent.service", "datadog-agent-trace.service", "datadog-agent-process.service")
 
 	timestamp := s.host.LastJournaldTimestamp()
 	// Start the experiment while it's not installed. This should immediately revert to the stable version.

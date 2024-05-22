@@ -42,6 +42,7 @@ datadog:
   securityAgent:
     runtime:
       enabled: true
+      useSecruntimeTrack: false
 agents:
   volumes:
     - name: host-root-proc
