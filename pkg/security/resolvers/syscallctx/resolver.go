@@ -28,8 +28,8 @@ const (
 	intArg = 2
 )
 
-// SyscallCtx maps the kernel structure
-type KernelSyscallCtx struct {
+// KernelSyscallCtxStruct maps the kernel structure
+type KernelSyscallCtxStruct struct {
 	Types uint8
 	Arg1  [argMaxSize]byte
 	Arg2  [argMaxSize]byte
@@ -43,47 +43,47 @@ type Resolver struct {
 
 // Resolve resolves the syscall context
 func (sr *Resolver) Resolve(ctxID uint32, ctx *model.SyscallContext) error {
-	var kCtx KernelSyscallCtx
-	if err := sr.ctxMap.Lookup(ctxID, &kCtx); err != nil {
+	var ks KernelSyscallCtxStruct
+	if err := sr.ctxMap.Lookup(ctxID, &ks); err != nil {
 		return fmt.Errorf("unable to resolve the syscall context for `%d`: %w", ctxID, err)
 	}
 
 	isStrArg := func(pos int) bool {
-		return (kCtx.Types>>(pos*2))&strArg > 0
+		return (ks.Types>>(pos*2))&strArg > 0
 	}
 
 	isIntArg := func(pos int) bool {
-		return (kCtx.Types>>(pos*2))&intArg > 0
+		return (ks.Types>>(pos*2))&intArg > 0
 	}
 
 	if isStrArg(0) {
-		arg, err := model.UnmarshalString(kCtx.Arg1[:], argMaxSize)
+		arg, err := model.UnmarshalString(ks.Arg1[:], argMaxSize)
 		if err != nil {
 			return fmt.Errorf("unable to resolve the syscall context for `%d`: %w", ctxID, err)
 		}
 		ctx.CtxStrArg1 = arg
 	} else if isIntArg(0) {
-		ctx.CtxIntArg1 = int64(binary.NativeEndian.Uint64(kCtx.Arg1[:]))
+		ctx.CtxIntArg1 = int64(binary.NativeEndian.Uint64(ks.Arg1[:]))
 	}
 
 	if isStrArg(1) {
-		arg, err := model.UnmarshalString(kCtx.Arg2[:], argMaxSize)
+		arg, err := model.UnmarshalString(ks.Arg2[:], argMaxSize)
 		if err != nil {
 			return fmt.Errorf("unable to resolve the syscall context for `%d`: %w", ctxID, err)
 		}
 		ctx.CtxStrArg2 = arg
 	} else if isIntArg(1) {
-		ctx.CtxIntArg2 = int64(binary.NativeEndian.Uint64(kCtx.Arg2[:]))
+		ctx.CtxIntArg2 = int64(binary.NativeEndian.Uint64(ks.Arg2[:]))
 	}
 
 	if isStrArg(2) {
-		arg, err := model.UnmarshalString(kCtx.Arg3[:], argMaxSize)
+		arg, err := model.UnmarshalString(ks.Arg3[:], argMaxSize)
 		if err != nil {
 			return fmt.Errorf("unable to resolve the syscall context for `%d`: %w", ctxID, err)
 		}
 		ctx.CtxStrArg3 = arg
 	} else if isIntArg(2) {
-		ctx.CtxIntArg3 = int64(binary.NativeEndian.Uint64(kCtx.Arg3[:]))
+		ctx.CtxIntArg3 = int64(binary.NativeEndian.Uint64(ks.Arg3[:]))
 	}
 
 	return nil

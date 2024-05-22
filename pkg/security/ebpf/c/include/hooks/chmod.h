@@ -19,7 +19,7 @@ int __attribute__((always_inline)) trace__sys_chmod(const char *path, umode_t mo
             .mode = mode & S_IALLUGO,
         }
     };
-    //collect_syscall_ctx(&syscall, SYSCALL_CTX_ARG_STR(0) | SYSCALL_CTX_ARG_INT(1), (void *)path, (void *)&mode, NULL);
+    collect_syscall_ctx(&syscall, SYSCALL_CTX_ARG_STR(0) | SYSCALL_CTX_ARG_INT(1), (void *)path, (void *)&mode, NULL);
     cache_syscall(&syscall);
 
     return 0;

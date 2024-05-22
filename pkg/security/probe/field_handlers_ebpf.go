@@ -561,7 +561,7 @@ func (fh *EBPFFieldHandlers) ResolveSyscallCtxStrArg1(ev *model.Event, e *model.
 	return e.CtxStrArg1
 }
 
-// ResolveSyscallCtxStrArg3 resolve syscall ctx
+// ResolveSyscallCtxStrArg2 resolve syscall ctx
 func (fh *EBPFFieldHandlers) ResolveSyscallCtxStrArg2(ev *model.Event, e *model.SyscallContext) string {
 	fh.resolveSyscallCtx(ev, e)
 	return e.CtxStrArg2
