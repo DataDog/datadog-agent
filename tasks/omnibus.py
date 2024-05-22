@@ -211,12 +211,6 @@ def build(
         with timed(quiet=True) as durations['Deps']:
             deps(ctx)
 
-    if os.environ.get('ENABLE_BAZEL'):
-        # Prepare bazel build
-        # Ideally we'd rather use `bazel fetch` but that seems to fetch more than we actually need,
-        # so using build with the `--nobuild` flag gets us closer to what we need
-        ctx.run('bazel build --nobuild //cmd/agent:agent')
-
     # base dir (can be overridden through env vars, command line takes precedence)
     base_dir = base_dir or os.environ.get("OMNIBUS_BASE_DIR")
 
