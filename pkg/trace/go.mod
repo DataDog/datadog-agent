@@ -46,7 +46,7 @@ require (
 	google.golang.org/grpc v1.63.2
 	google.golang.org/protobuf v1.34.0
 	gopkg.in/ini.v1 v1.67.0
-    k8s.io/apimachinery v0.25.5
+	k8s.io/apimachinery v0.25.5
 )
 
 require (
