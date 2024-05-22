@@ -8,8 +8,6 @@ package diagnose
 import (
 	"fmt"
 	"regexp"
-	"runtime"
-	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -48,9 +46,6 @@ func getDiagnoseOutput(v *baseDiagnoseSuite, commandArgs ...agentclient.AgentArg
 	}, 5*time.Minute, 20*time.Second, "timedout waiting for fakeintake to be healthy")
 
 	diagnose := v.Env().Agent.Client.Diagnose(commandArgs...)
-	if runtime.GOOS == "windows" && strings.Contains(diagnose, "port-conflict") {
-		diagnose = strings.Replace(diagnose, "string-conflict", "", -1)
-	}
 	return diagnose
 }
 
@@ -65,10 +60,6 @@ func (v *baseDiagnoseSuite) TestDiagnoseLocal() {
 }
 
 func (v *baseDiagnoseSuite) TestDiagnoseList() {
-	if runtime.GOOS == "windows" && slices.Contains(allSuites, "port-conflict") {
-		index := slices.Index(allSuites, "port-conflict")
-		allSuites = slices.Delete(allSuites, index, index+1)
-	}
 	diagnose := getDiagnoseOutput(v, agentclient.WithArgs([]string{"--list"}))
 	for _, suite := range allSuites {
 		assert.Contains(v.T(), diagnose, suite)
@@ -76,9 +67,6 @@ func (v *baseDiagnoseSuite) TestDiagnoseList() {
 }
 
 func (v *baseDiagnoseSuite) TestDiagnoseInclude() {
-	if runtime.GOOS == "darwin" || runtime.GOOS == "linux" {
-		allSuites = append(allSuites, "port-conflict")
-	}
 	diagnose := getDiagnoseOutput(v)
 	diagnoseSummary := getDiagnoseSummary(diagnose)
 	for _, suite := range allSuites {
@@ -100,9 +88,6 @@ func (v *baseDiagnoseSuite) TestDiagnoseInclude() {
 }
 
 func (v *baseDiagnoseSuite) TestDiagnoseExclude() {
-	if runtime.GOOS == "darwin" || runtime.GOOS == "linux" {
-		allSuites = append(allSuites, "port-conflict")
-	}
 	for _, suite := range allSuites {
 		diagnoseExclude := getDiagnoseOutput(v, agentclient.WithArgs([]string{"--exclude", suite}))
 		resultExclude := getDiagnoseSummary(diagnoseExclude)
