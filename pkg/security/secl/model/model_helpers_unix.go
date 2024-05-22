@@ -242,20 +242,20 @@ func (e *FileEvent) IsOverlayFS() bool {
 type MountOrigin = uint32
 
 const (
-	MountOriginUnknown = iota // MountOriginUnknown unknown mount origin
-	MountOriginProcfs         //MountOriginProcfs mount point info from procfs
-	MountOriginEvent          // MountOriginEvent mount point info from an event
-	MountOriginUnshare        // MountOriginUnshare mount point info from an event
+	MountOriginUnknown MountOrigin = iota // MountOriginUnknown unknown mount origin
+	MountOriginProcfs                     //MountOriginProcfs mount point info from procfs
+	MountOriginEvent                      // MountOriginEvent mount point info from an event
+	MountOriginUnshare                    // MountOriginUnshare mount point info from an event
 )
 
 // MountSource source of the mount
 type MountSource = uint32
 
 const (
-	MountSourceUnknown  = iota // MountSourceUnknown mount resolved from unknow source
-	MountSourceMountID         // MountSourceMountID mount resolved with the mount id
-	MountSourceDevice          // MountSourceDevice mount resolved with the device
-	MountSourceSnapshot        // MountSourceSnapshot mount resolved from the snapshot
+	MountSourceUnknown  MountSource = iota // MountSourceUnknown mount resolved from unknow source
+	MountSourceMountID                     // MountSourceMountID mount resolved with the mount id
+	MountSourceDevice                      // MountSourceDevice mount resolved with the device
+	MountSourceSnapshot                    // MountSourceSnapshot mount resolved from the snapshot
 )
 
 // MountSources defines mount sources
