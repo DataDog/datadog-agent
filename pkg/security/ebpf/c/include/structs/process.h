@@ -15,6 +15,7 @@ struct process_entry_t {
 
 struct proc_cache_t {
     struct container_context_t container;
+    char container_id_opt[CONTAINER_ID_LEN / 2];
     struct process_entry_t entry;
 };
 
