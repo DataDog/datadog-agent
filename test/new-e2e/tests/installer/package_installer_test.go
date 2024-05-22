@@ -22,11 +22,11 @@ func testInstaller(os e2eos.Descriptor, arch e2eos.Architecture) packageSuite {
 }
 
 func (s *packageInstallerSuite) TestInstall() {
-	s.RunInstallScript()
+	s.RunInstallScript("DD_NO_AGENT_INSTALL=true")
 	defer s.Purge()
 
-	bootstraperVersion := s.BootstraperVersion()
-	installerVersion := s.InstallerVersion()
+	bootstraperVersion := s.host.BootstraperVersion()
+	installerVersion := s.host.InstallerVersion()
 	assert.Equal(s.T(), bootstraperVersion, installerVersion)
 
 	state := s.host.State()
@@ -52,7 +52,7 @@ func (s *packageInstallerSuite) TestInstall() {
 }
 
 func (s *packageInstallerSuite) TestUninstall() {
-	s.RunInstallScript()
+	s.RunInstallScript("DD_NO_AGENT_INSTALL=true")
 	s.Purge()
 
 	state := s.host.State()
