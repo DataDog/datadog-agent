@@ -29,6 +29,8 @@ var ignoreCfgLinux = []string{
 	"systemd",
 	"systemd-resolved",
 	"systemd-networkd",
+	"datadog-agent",
+	"livenessprobe",
 	"docker-proxy", // remove when we have docker support in place
 }
 
