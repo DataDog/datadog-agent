@@ -341,6 +341,10 @@ func (c *WorkloadMetaCollector) handleKubePod(ev workloadmeta.Event) []*types.Ta
 		utils.AddMetadataAsTags(name, value, c.nsLabelsAsTags, c.globNsLabels, tags)
 	}
 
+	for name, value := range pod.NamespaceAnnotations {
+		utils.AddMetadataAsTags(name, value, c.nsAnnotationsAsTags, c.globNsAnnotations, tags)
+	}
+
 	kubeServiceDisabled := false
 	for _, disabledTag := range config.Datadog.GetStringSlice("kubernetes_ad_tags_disabled") {
 		if disabledTag == "kube_service" {
@@ -444,6 +448,10 @@ func (c *WorkloadMetaCollector) handleKubeNamespace(ev workloadmeta.Event) []*ty
 
 	for name, value := range namespace.Labels {
 		utils.AddMetadataAsTags(name, value, c.nsLabelsAsTags, c.globNsLabels, tags)
+	}
+
+	for name, value := range namespace.Annotations {
+		utils.AddMetadataAsTags(name, value, c.nsAnnotationsAsTags, c.globNsAnnotations, tags)
 	}
 
 	low, orch, high, standard := tags.Compute()

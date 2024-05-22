@@ -58,9 +58,11 @@ type WorkloadMetaCollector struct {
 	labelsAsTags           map[string]string
 	annotationsAsTags      map[string]string
 	nsLabelsAsTags         map[string]string
+	nsAnnotationsAsTags    map[string]string
 	globLabels             map[string]glob.Glob
 	globAnnotations        map[string]glob.Glob
 	globNsLabels           map[string]glob.Glob
+	globNsAnnotations      map[string]glob.Glob
 	globContainerLabels    map[string]glob.Glob
 	globContainerEnvLabels map[string]glob.Glob
 
@@ -72,10 +74,11 @@ func (c *WorkloadMetaCollector) initContainerMetaAsTags(labelsAsTags, envAsTags 
 	c.containerEnvAsTags, c.globContainerEnvLabels = utils.InitMetadataAsTags(envAsTags)
 }
 
-func (c *WorkloadMetaCollector) initPodMetaAsTags(labelsAsTags, annotationsAsTags, nsLabelsAsTags map[string]string) {
+func (c *WorkloadMetaCollector) initPodMetaAsTags(labelsAsTags, annotationsAsTags, nsLabelsAsTags, nsAnnotationsAsTags map[string]string) {
 	c.labelsAsTags, c.globLabels = utils.InitMetadataAsTags(labelsAsTags)
 	c.annotationsAsTags, c.globAnnotations = utils.InitMetadataAsTags(annotationsAsTags)
 	c.nsLabelsAsTags, c.globNsLabels = utils.InitMetadataAsTags(nsLabelsAsTags)
+	c.nsAnnotationsAsTags, c.globNsAnnotations = utils.InitMetadataAsTags(nsAnnotationsAsTags)
 }
 
 // Run runs the continuous event watching loop and sends new tags to the
@@ -175,7 +178,8 @@ func NewWorkloadMetaCollector(_ context.Context, store workloadmeta.Component, p
 	labelsAsTags := config.Datadog.GetStringMapString("kubernetes_pod_labels_as_tags")
 	annotationsAsTags := config.Datadog.GetStringMapString("kubernetes_pod_annotations_as_tags")
 	nsLabelsAsTags := config.Datadog.GetStringMapString("kubernetes_namespace_labels_as_tags")
-	c.initPodMetaAsTags(labelsAsTags, annotationsAsTags, nsLabelsAsTags)
+	nsAnnotationsAsTags := config.Datadog.GetStringMapString("kubernetes_namespace_annotations_as_tags")
+	c.initPodMetaAsTags(labelsAsTags, annotationsAsTags, nsLabelsAsTags, nsAnnotationsAsTags)
 
 	return c
 }
