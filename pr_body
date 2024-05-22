@@ -1,0 +1,10 @@
+This PR was automatically created by the [Update buildimages Github Workflow](https://github.com/DataDog/datadog-agent/actions/workflows/buildimages-update.yml).
+
+### Buildimages update
+This PR updates the current buildimages (`v34562478-ec7ead93`) to `v34755039-a1927a37`(test version), here is the full changelog between:
+https://github.com/DataDog/datadog-agent-buildimages/compare/ec7ead93...a1927a37
+
+
+### Golang update
+This PR updates the current Golang version ([`1.21.10`](https://go.dev/doc/devel/release#go1.21.10)) to [`1.21.9`](https://go.dev/doc/devel/release#go1.21.9).
+
