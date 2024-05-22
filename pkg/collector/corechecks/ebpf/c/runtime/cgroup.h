@@ -27,7 +27,7 @@ static __always_inline int get_cgroup_name(char *buf, size_t sz) {
 #endif
     const char *name = BPF_CORE_READ(cur_tsk, cgroups, subsys[cgrp_id], cgroup, kn, name);
     if (bpf_probe_read_kernel(buf, sz, name) < 0) {
-            return 0;
+        return 0;
     }
 
     return 1;
