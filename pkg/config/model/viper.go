@@ -742,6 +742,7 @@ func (c *safeConfig) CopyConfig(cfg Config) {
 		c.proxies = cfg.proxies
 		c.configEnvVars = cfg.configEnvVars
 		c.unknownKeys = cfg.unknownKeys
+		c.notificationReceivers = cfg.notificationReceivers
 		return
 	}
 	panic("Replacement config must be an instance of safeConfig")
