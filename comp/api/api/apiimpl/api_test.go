@@ -29,7 +29,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
-	replaydef "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/def"
+	replay "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/def"
 	replaymock "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/fx-mock"
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
 	dogstatsddebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
@@ -68,7 +68,7 @@ type testdeps struct {
 	// TODO: remove these in the next PR once StartServer component arguments
 	//       are part of the api component dependency struct
 	DogstatsdServer       dogstatsdServer.Component
-	Capture               replaydef.Component
+	Capture               replay.Component
 	ServerDebug           dogstatsddebug.Component
 	HostMetadata          host.Component
 	InvAgent              inventoryagent.Component

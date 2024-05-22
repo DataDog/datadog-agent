@@ -18,7 +18,7 @@ import (
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/packets"
-	replaydef "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/def"
+	replay "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/def"
 	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
@@ -40,7 +40,7 @@ type trafficCapture struct {
 // TODO: (components) - remove once serverless is an FX app
 //
 //nolint:revive // TODO(AML) Fix revive linter
-func NewServerlessTrafficCapture() replaydef.Component {
+func NewServerlessTrafficCapture() replay.Component {
 	tc := newTrafficCaptureCompat(config.Datadog)
 	_ = tc.configure(context.TODO())
 	return tc
@@ -49,7 +49,7 @@ func NewServerlessTrafficCapture() replaydef.Component {
 // TODO: (components) - merge with newTrafficCaptureCompat once NewServerlessTrafficCapture is removed
 //
 //nolint:revive // TODO(AML) Fix revive linter
-func NewTrafficCapture(deps Requires) replaydef.Component {
+func NewTrafficCapture(deps Requires) replay.Component {
 	tc := newTrafficCaptureCompat(deps.Config)
 	deps.Lc.Append(compdef.Hook{
 		OnStart: tc.configure,
@@ -129,7 +129,7 @@ func (tc *trafficCapture) RegisterOOBPoolManager(p *packets.PoolManager) error {
 }
 
 // Enqueue enqueues a capture buffer so it's written to file.
-func (tc *trafficCapture) Enqueue(msg *replaydef.CaptureBuffer) bool {
+func (tc *trafficCapture) Enqueue(msg *replay.CaptureBuffer) bool {
 	tc.RLock()
 	defer tc.RUnlock()
 	return tc.writer.Enqueue(msg)

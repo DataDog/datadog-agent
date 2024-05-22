@@ -3,10 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package server implements a component to run the dogstatsd capture/replay
-//
-//nolint:revive // TODO(AML) Fix revive linter
-package def
+// Package replay is a component to run the dogstatsd capture/replay
+package replay
 
 import (
 	"time"
