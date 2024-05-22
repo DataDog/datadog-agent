@@ -64,7 +64,7 @@ var (
 var packagesConfig = []testPackageConfig{
 	{name: "datadog-installer", defaultVersion: fmt.Sprintf("pipeline-%v", os.Getenv("CI_PIPELINE_ID")), registry: "669783387624.dkr.ecr.us-east-1.amazonaws.com", auth: "ecr"},
 	{name: "datadog-agent", defaultVersion: fmt.Sprintf("pipeline-%v", os.Getenv("CI_PIPELINE_ID")), registry: "669783387624.dkr.ecr.us-east-1.amazonaws.com", auth: "ecr"},
-	{name: "datadog-apm-inject", defaultVersion: "pipeline-34163111", registry: "669783387624.dkr.ecr.us-east-1.amazonaws.com", auth: "ecr"},
+	{name: "datadog-apm-inject", defaultVersion: "latest", registry: "gcr.io/datadoghq", auth: "docker"},
 	{name: "datadog-apm-library-java", defaultVersion: "latest"},
 	{name: "datadog-apm-library-ruby", defaultVersion: "latest"},
 	{name: "datadog-apm-library-js", defaultVersion: "latest"},
