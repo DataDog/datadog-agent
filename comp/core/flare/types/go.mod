@@ -3,12 +3,12 @@ module github.com/DataDog/datadog-agent/comp/core/flare/types
 go 1.21.0
 
 replace (
-	github.com/DataDog/datadog-agent/comp/core/flare/def => ../def
+	github.com/DataDog/datadog-agent/comp/core/flare/builder => ../builder
 	github.com/DataDog/datadog-agent/comp/def => ../../../def
 )
 
 require (
-	github.com/DataDog/datadog-agent/comp/core/flare/def v0.0.0-00010101000000-000000000000
+	github.com/DataDog/datadog-agent/comp/core/flare/builder v0.0.0-00010101000000-000000000000
 	go.uber.org/fx v1.18.2
 )
 

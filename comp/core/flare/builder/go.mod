@@ -1,4 +1,4 @@
-module github.com/DataDog/datadog-agent/comp/core/flare/def
+module github.com/DataDog/datadog-agent/comp/core/flare/builder
 
 go 1.21.0
 

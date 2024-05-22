@@ -3,7 +3,7 @@ module github.com/DataDog/datadog-agent/comp/core/secrets
 go 1.21.0
 
 replace (
-	github.com/DataDog/datadog-agent/comp/core/flare/def => ../flare/def
+	github.com/DataDog/datadog-agent/comp/core/flare/builder => ../flare/builder
 	github.com/DataDog/datadog-agent/comp/core/flare/types => ../flare/types
 	github.com/DataDog/datadog-agent/comp/core/telemetry => ../telemetry
 	github.com/DataDog/datadog-agent/comp/def => ../../def
@@ -31,7 +31,7 @@ require (
 )
 
 require (
-	github.com/DataDog/datadog-agent/comp/core/flare/def v0.0.0-00010101000000-000000000000 // indirect
+	github.com/DataDog/datadog-agent/comp/core/flare/builder v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-agent/comp/core/telemetry v0.54.0-rc.2 // indirect
 	github.com/DataDog/datadog-agent/comp/def v0.55.0-devel // indirect
 	github.com/beorn7/perks v1.0.1 // indirect

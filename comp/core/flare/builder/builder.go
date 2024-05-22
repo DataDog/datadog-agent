@@ -3,10 +3,10 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package flaredef contains all the types needed by Flare providers without the underlying implementation and dependencies.
+// Package flarebuilder contains all the types needed by Flare providers without the underlying implementation and dependencies.
 // This allows components to offer flare capabilities without linking to the flare dependencies when the flare feature
 // is not built in the binary.
-package flaredef
+package flarebuilder
 
 import (
 	compdef "github.com/DataDog/datadog-agent/comp/def"

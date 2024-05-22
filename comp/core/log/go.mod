@@ -5,7 +5,7 @@ go 1.21.0
 replace (
 	github.com/DataDog/datadog-agent/cmd/agent/common/path => ../../../cmd/agent/common/path
 	github.com/DataDog/datadog-agent/comp/core/config => ../config
-	github.com/DataDog/datadog-agent/comp/core/flare/def => ../flare/def
+	github.com/DataDog/datadog-agent/comp/core/flare/builder => ../flare/builder
 	github.com/DataDog/datadog-agent/comp/core/flare/types => ../flare/types
 	github.com/DataDog/datadog-agent/comp/core/secrets => ../secrets
 	github.com/DataDog/datadog-agent/comp/core/telemetry => ../telemetry/
