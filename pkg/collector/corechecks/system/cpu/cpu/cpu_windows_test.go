@@ -47,11 +47,8 @@ func TestCPUCheckWindowsRunOk(t *testing.T) {
 		pdhutil.SetQueryReturnValue("\\\\.\\Processor Information(_Total)\\% User Time", 11.3)
 		pdhutil.SetQueryReturnValue("\\\\.\\Processor Information(_Total)\\% Privileged Time", 8.5)
 	}
-
 	cpuCheck := createCheck()
 	m := mocksender.NewMockSender(cpuCheck.ID())
-	cpuCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test")
-
 	m.On(metrics.GaugeType.String(), "system.cpu.num_cores", 1.0, "", []string(nil)).Return().Times(1)
 	m.On(metrics.GaugeType.String(), "system.cpu.interrupt", 0.1, "", []string(nil)).Return().Times(1)
 	m.On(metrics.GaugeType.String(), "system.cpu.idle", 80.1, "", []string(nil)).Return().Times(1)
@@ -62,11 +59,11 @@ func TestCPUCheckWindowsRunOk(t *testing.T) {
 	m.On(metrics.GaugeType.String(), "system.cpu.guest", 0.0, "", []string(nil)).Return().Times(1)
 	m.On("Commit").Return().Times(1)
 
-	cpuCheck.Run()
+	cpuCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test")
+	err := cpuCheck.Run()
 
 	m.AssertExpectations(t)
-	m.AssertNumberOfCalls(t, metrics.GaugeType.String(), 8)
-	m.AssertNumberOfCalls(t, "Commit", 1)
+	assert.Nil(t, err)
 }
 
 func TestCPUCheckWindowsErrorInInstanceConfig(t *testing.T) {
@@ -135,14 +132,19 @@ func TestCPUCheckWindowsErrorCollectQueryData(t *testing.T) {
 	}
 	pdhQueryMock.On("AddCounter", mock.Anything).Return()
 	pdhQueryMock.On("CollectQueryData").Return(errors.New("collectQueryData error")).Times(1)
-
 	cpuCheck := createCheck()
 	m := mocksender.NewMockSender(cpuCheck.ID())
+	m.On(metrics.GaugeType.String(), "system.cpu.num_cores", 1.0, "", []string(nil)).Return().Times(1)
+	m.On(metrics.GaugeType.String(), "system.cpu.iowait", 0.0, "", []string(nil)).Return().Times(1)
+	m.On(metrics.GaugeType.String(), "system.cpu.stolen", 0.0, "", []string(nil)).Return().Times(1)
+	m.On(metrics.GaugeType.String(), "system.cpu.guest", 0.0, "", []string(nil)).Return().Times(1)
+	m.On("Commit").Return().Times(1)
 
 	cpuCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test")
 	err := cpuCheck.Run()
 
-	assert.True(t, strings.Contains(err.Error(), "cpu.Check: Could not collect performance counter data:"))
+	m.AssertExpectations(t)
+	assert.Nil(t, err)
 }
 
 func TestCPUCheckWindowsErrorStoppedSender(t *testing.T) {
