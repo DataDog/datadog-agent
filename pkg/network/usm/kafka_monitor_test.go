@@ -953,6 +953,35 @@ func testKafkaFetchRaw(t *testing.T, tls bool, apiVersion int) {
 			numFetchedRecords: 1,
 		},
 		{
+			name:  "many partitions",
+			topic: defaultTopic,
+			buildResponse: func(topic string) kmsg.FetchResponse {
+				// Use a minimal record size in order to pack partitions more
+				// tightly and ensure that the program will have to parse more
+				// partitions per segment (using many tail calls, etc).
+				record := makeRecordWithVal([]byte(""))
+				var records []kmsg.Record
+				for i := 0; i < 1; i++ {
+					records = append(records, record)
+				}
+
+				recordBatch := makeRecordBatch(records...)
+				var batches []kmsg.RecordBatch
+				for i := 0; i < 1; i++ {
+					batches = append(batches, recordBatch)
+				}
+
+				partition := makeFetchResponseTopicPartition(batches...)
+				var partitions []kmsg.FetchResponseTopicPartition
+				for i := 0; i < 100; i++ {
+					partitions = append(partitions, partition)
+				}
+
+				return makeFetchResponse(apiVersion, makeFetchResponseTopic(topic, partitions...))
+			},
+			numFetchedRecords: 1 * 1 * 100,
+		},
+		{
 			name:  "many topics",
 			topic: defaultTopic,
 			buildResponse: func(topic string) kmsg.FetchResponse {
