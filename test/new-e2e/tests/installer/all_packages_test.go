@@ -181,9 +181,7 @@ func (s *packageBaseSuite) setupGlobalEnv() {
 	s.Env().RemoteHost.MustExecute("sudo mkdir -p /etc/datadog-agent")
 	s.Env().RemoteHost.MustExecute(`echo "api_key: deadbeefdeadbeefdeadbeefdeadbeef" | sudo tee /etc/datadog-agent/datadog.yaml`)
 
-	env := []string{
-		"DD_APM_RECEIVER_SOCKET=/var/tmp/apm.socket",
-	}
+	var env []string
 	if s.Env().FakeIntake != nil {
 		env = append(env, []string{
 			"DD_SKIP_SSL_VALIDATION=true",
