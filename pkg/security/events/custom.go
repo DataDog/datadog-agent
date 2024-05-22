@@ -58,6 +58,11 @@ const (
 	// BrokenProcessLineageErrorRuleDesc is the rule description for events with a broken process lineage
 	BrokenProcessLineageErrorRuleDesc = "Broken process lineage detected"
 
+	// NoProcessArgsEnvsErrorRuleID is the rule ID for events with no process args/envs
+	NoProcessArgsEnvsErrorRuleID = "no_process_args_envs"
+	// NoProcessArgsEnvsErrorRuleDesc is the rule description for events with no process args/envs
+	NoProcessArgsEnvsErrorRuleDesc = "Missing process arguments or environment variables detected"
+
 	// RefreshUserCacheRuleID is the rule ID used to refresh users and groups cache
 	RefreshUserCacheRuleID = "refresh_user_cache"
 
@@ -102,6 +107,7 @@ func AllCustomRuleIDs() []string {
 		NoProcessContextErrorRuleID,
 		BrokenProcessLineageErrorRuleID,
 		InternalCoreDumpRuleID,
+		NoProcessArgsEnvsErrorRuleID,
 	}
 }
 

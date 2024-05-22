@@ -40,6 +40,7 @@ var (
 		BrokenProcessLineageErrorRuleID: NewStdLimiter(rate.Every(30*time.Second), 1),
 		EBPFLessHelloMessageRuleID:      NewStdLimiter(rate.Inf, 1), // No limit on hello message
 		InternalCoreDumpRuleID:          NewStdLimiter(rate.Every(30*time.Second), 1),
+		NoProcessArgsEnvsErrorRuleID:    NewStdLimiter(rate.Every(30*time.Second), 1),
 	}
 )
 
