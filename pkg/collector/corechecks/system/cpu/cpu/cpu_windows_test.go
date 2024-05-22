@@ -20,9 +20,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	gohaicpu "github.com/DataDog/datadog-agent/pkg/gohai/cpu"
 	gohaiutils "github.com/DataDog/datadog-agent/pkg/gohai/utils"
+	"github.com/DataDog/datadog-agent/pkg/util/pdhutil"
 	pdhtest "github.com/DataDog/datadog-agent/pkg/util/pdhutil"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 )
 
 func createCheck() check.Check {
@@ -98,7 +100,7 @@ func TestCPUCheckWindowsErrorCreatePdhQuery(t *testing.T) {
 		}
 	}
 	createPdhQueryError := errors.New("createPdhQuery error")
-	createPdhQuery = func() (*pdhtest.PdhQuery, error) {
+	createPdhQuery = func() (PdhQueryInterface, error) {
 		return nil, createPdhQueryError
 	}
 	cpuCheck := createCheck()
@@ -107,6 +109,41 @@ func TestCPUCheckWindowsErrorCreatePdhQuery(t *testing.T) {
 	err := cpuCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test")
 
 	assert.Equal(t, createPdhQueryError, err)
+}
+
+type PdhQueryMock struct {
+	mock.Mock
+}
+
+func (m *PdhQueryMock) AddCounter(counter pdhutil.PdhCounter) {
+	m.Called(counter)
+}
+
+func (m *PdhQueryMock) CollectQueryData() error {
+	args := m.Called()
+	return args.Error(0)
+}
+
+func TestCPUCheckWindowsErrorCollectQueryData(t *testing.T) {
+	cpuInfoFunc = func() *gohaicpu.Info {
+		return &gohaicpu.Info{
+			CPULogicalProcessors: gohaiutils.NewValue(uint64(1)),
+		}
+	}
+	pdhQueryMock := &PdhQueryMock{}
+	createPdhQuery = func() (PdhQueryInterface, error) {
+		return pdhQueryMock, nil
+	}
+	pdhQueryMock.On("AddCounter").Return()
+	pdhQueryMock.On("CollectQueryData").Return(errors.New("collectQueryData error")).Times(1)
+
+	cpuCheck := createCheck()
+	m := mocksender.NewMockSender(cpuCheck.ID())
+
+	cpuCheck.Configure(m.GetSenderManager(), integration.FakeConfigHash, nil, nil, "test")
+	err := cpuCheck.Run()
+
+	assert.True(t, strings.Contains(err.Error(), "cpu.Check: Could not collect performance counter data:"))
 }
 
 func TestCPUCheckWindowsErrorStoppedSender(t *testing.T) {

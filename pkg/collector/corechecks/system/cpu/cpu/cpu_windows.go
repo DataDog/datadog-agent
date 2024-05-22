@@ -30,13 +30,21 @@ const CheckName = "cpu"
 
 // For testing purposes
 var cpuInfoFunc = cpu.CollectInfo
-var createPdhQuery = pdhutil.CreatePdhQuery
+
+type PdhQueryInterface interface {
+	AddCounter(counter pdhutil.PdhCounter)
+	CollectQueryData() error
+}
+
+var createPdhQuery = func() (PdhQueryInterface, error) {
+	return pdhutil.CreatePdhQuery()
+}
 
 // Check doesn't need additional fields
 type Check struct {
 	core.CheckBase
 	nbCPU    float64
-	pdhQuery *pdhutil.PdhQuery
+	pdhQuery PdhQueryInterface
 	// maps metric to counter object
 	counters map[string]pdhutil.PdhSingleInstanceCounter
 }
@@ -138,7 +146,7 @@ func (counter *processorPDHCounter) AddToQuery(query *pdhutil.PdhQuery) error {
 	return err
 }
 
-func addProcessorPdhCounter(query *pdhutil.PdhQuery, counterName string) pdhutil.PdhSingleInstanceCounter {
+func addProcessorPdhCounter(query PdhQueryInterface, counterName string) pdhutil.PdhSingleInstanceCounter {
 	var counter processorPDHCounter
 	counter.Initialize("Processor Information", counterName, "_Total")
 	query.AddCounter(&counter)
