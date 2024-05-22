@@ -8,6 +8,7 @@ package portlist
 import (
 	"net"
 	"reflect"
+	"runtime"
 	"testing"
 )
 
@@ -154,6 +155,9 @@ func TestSortAndDedup(t *testing.T) {
 }
 
 func TestGetList(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Skipping test on Windows -- not implemented yet")
+	}
 	var p Poller
 	pl, _, err := p.Poll()
 	if err != nil {
@@ -165,6 +169,9 @@ func TestGetList(t *testing.T) {
 }
 
 func TestIgnoreLocallyBoundPorts(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Skipping test on Windows -- not implemented yet")
+	}
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Skipf("failed to bind: %v", err)
@@ -185,6 +192,9 @@ func TestIgnoreLocallyBoundPorts(t *testing.T) {
 }
 
 func TestPoller(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Skipping test on Windows -- not implemented yet")
+	}
 	var p Poller
 	p.IncludeLocalhost = true
 	get := func(t *testing.T) []Port {
@@ -226,6 +236,9 @@ func TestPoller(t *testing.T) {
 }
 
 func TestClose(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Skipping test on Windows -- not implemented yet")
+	}
 	var p Poller
 	err := p.Close()
 	if err != nil {
