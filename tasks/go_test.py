@@ -318,7 +318,6 @@ def test(
     major_version='7',
     python_runtimes='3',
     timeout=180,
-    arch="x64",
     cache=True,
     test_run_name="",
     save_result_json=None,
@@ -354,7 +353,6 @@ def test(
     unit_tests_tags = compute_build_tags_for_flavor(
         flavor=flavor,
         build="unit-tests",
-        arch=arch,
         build_include=build_include,
         build_exclude=build_exclude,
         include_sds=include_sds,
@@ -941,7 +939,6 @@ def lint_go(
     build_include=None,
     build_exclude=None,
     rtloader_root=None,
-    arch="x64",
     cpus=None,
     timeout: int = None,
     golangci_lint_kwargs="",

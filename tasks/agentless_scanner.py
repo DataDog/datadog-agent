@@ -26,16 +26,15 @@ def build(
     build_include=None,
     build_exclude=None,
     major_version='7',
-    arch="x64",
     go_mod="mod",
 ):
     """
     Build Agentless-scanner
     """
     build_include = (
-        get_default_build_tags(build="agentless-scanner", arch=arch, flavor=AgentFlavor.agentless_scanner)
+        get_default_build_tags(build="agentless-scanner", flavor=AgentFlavor.agentless_scanner)
         if build_include is None
-        else filter_incompatible_tags(build_include.split(","), arch=arch)
+        else filter_incompatible_tags(build_include.split(","))
     )
     build_exclude = [] if build_exclude is None else build_exclude.split(",")
     build_tags = get_build_tags(build_include, build_exclude)
