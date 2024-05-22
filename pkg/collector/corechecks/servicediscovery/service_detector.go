@@ -6,7 +6,7 @@
 package servicediscovery
 
 import (
-	"golang.org/x/exp/slices"
+	"slices"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/apm"
