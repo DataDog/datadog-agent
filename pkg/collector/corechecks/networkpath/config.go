@@ -7,13 +7,10 @@ package networkpath
 
 import (
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"gopkg.in/yaml.v2"
 )
 
@@ -75,13 +72,7 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 	c.DestPort = instance.DestPort
 	c.MaxTTL = instance.MaxTTL
 	c.TimeoutMs = instance.TimeoutMs
-
-	c.Protocol, err = parseProtocol(instance.Protocol)
-	if err != nil {
-		// don't return an error here, this is instance level bad config so if we
-		// return here we'll
-		log.Errorf("failed to parse protocol for check: %+v, error: %s", c, err)
-	}
+	c.Protocol = instance.Protocol
 
 	c.MinCollectionInterval = firstNonZero(
 		time.Duration(instance.MinCollectionInterval)*time.Second,
@@ -96,15 +87,6 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 	c.Namespace = coreconfig.Datadog.GetString("network_devices.namespace")
 
 	return c, nil
-}
-
-func parseProtocol(protocol string) (string, error) {
-	upperProtocol := strings.ToUpper(protocol)
-	if upperProtocol != traceroute.TCP && upperProtocol != traceroute.UDP {
-		return protocol, fmt.Errorf("invalid protocol: %s", protocol)
-	}
-
-	return upperProtocol, nil
 }
 
 func firstNonZero(values ...time.Duration) time.Duration {

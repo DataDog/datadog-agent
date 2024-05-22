@@ -48,12 +48,12 @@ func (t *TCPv4) TracerouteSequential() (*Results, error) {
 	//
 	// TODO: do this once for the probe and hang on to the
 	// listener until we decide to close the probe
-	tcpAddr, err := LocalAddrForTCP4Host(t.Target, t.DestPort)
+	addr, err := LocalAddrForHost(t.Target, t.DestPort)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get local addres for target: %w", err)
 	}
-	t.srcIP = tcpAddr.IP
-	t.srcPort = tcpAddr.AddrPort().Port()
+	t.srcIP = addr.IP
+	t.srcPort = addr.AddrPort().Port()
 
 	// So far I haven't had success trying to simply create a socket
 	// using syscalls directly, but in theory doing so would allow us
@@ -61,7 +61,7 @@ func (t *TCPv4) TracerouteSequential() (*Results, error) {
 	// this way
 	//
 	// Create a raw ICMP listener to catch ICMP responses
-	icmpConn, err := net.ListenPacket("ip4:icmp", tcpAddr.IP.String())
+	icmpConn, err := net.ListenPacket("ip4:icmp", addr.IP.String())
 	if err != nil {
 		return nil, fmt.Errorf("failed to create ICMP listener: %w", err)
 	}
@@ -74,12 +74,12 @@ func (t *TCPv4) TracerouteSequential() (*Results, error) {
 
 	// Create a raw TCP listener to catch the TCP response from our final
 	// hop if we get one
-	tcpConn, err := net.ListenPacket("ip4:tcp", tcpAddr.IP.String())
+	tcpConn, err := net.ListenPacket("ip4:tcp", addr.IP.String())
 	if err != nil {
 		return nil, fmt.Errorf("failed to create TCP listener: %w", err)
 	}
 	defer tcpConn.Close()
-	log.Debugf("Listening for TCP on: %s\n", tcpAddr.IP.String()+":"+tcpAddr.AddrPort().String())
+	log.Debugf("Listening for TCP on: %s\n", addr.IP.String()+":"+addr.AddrPort().String())
 	// RawConn is necessary to set the TTL and ID fields
 	rawTcpConn, err := ipv4.NewRawConn(tcpConn)
 	if err != nil {

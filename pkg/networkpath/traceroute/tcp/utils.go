@@ -30,22 +30,23 @@ type (
 	MismatchError string
 )
 
-func LocalAddrForTCP4Host(destIP net.IP, destPort uint16) (*net.TCPAddr, error) {
-	// for macOS support we'd need to change this port to something like 53 as per Dublin Traceroute
+func LocalAddrForHost(destIP net.IP, destPort uint16) (*net.UDPAddr, error) {
 	// this is a quick way to get the local address for connecting to the host
-	conn, err := net.Dial("tcp4", net.JoinHostPort(destIP.String(), strconv.Itoa(int(destPort))))
+	// using UDP as the network type to avoid actually creating a connection to
+	// the host, just get the OS to give us a local IP and local ephemeral port
+	conn, err := net.Dial("udp4", net.JoinHostPort(destIP.String(), strconv.Itoa(int(destPort))))
 	if err != nil {
 		return nil, err
 	}
 	defer conn.Close()
 	localAddr := conn.LocalAddr()
 
-	localTCPAddr, ok := localAddr.(*net.TCPAddr)
+	localUDPAddr, ok := localAddr.(*net.UDPAddr)
 	if !ok {
-		return nil, fmt.Errorf("invalid address type for %s: want %T, got %T", localAddr, localTCPAddr, localAddr)
+		return nil, fmt.Errorf("invalid address type for %s: want %T, got %T", localAddr, localUDPAddr, localAddr)
 	}
 
-	return localTCPAddr, nil
+	return localUDPAddr, nil
 }
 
 // ReadRawPacket creates a gopacket given a byte array

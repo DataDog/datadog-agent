@@ -126,8 +126,14 @@ func (r *Runner) RunTraceroute(ctx context.Context, cfg Config) (payload.Network
 		return payload.NetworkPath{}, err
 	}
 
-	protocol := strings.ToUpper(cfg.Protocol)
 	var pathResult payload.NetworkPath
+	protocol := strings.ToUpper(cfg.Protocol)
+
+	// default to UDP if protocol
+	// is not set
+	if protocol == "" {
+		protocol = UDP
+	}
 	switch protocol {
 	case TCP:
 		log.Debugf("Running TCP traceroute for: %+v", cfg)
