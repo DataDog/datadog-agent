@@ -16,6 +16,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/fleet/env"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/service"
 	"github.com/DataDog/datadog-agent/pkg/fleet/internal/db"
@@ -73,41 +74,8 @@ type installerImpl struct {
 	tmpDirPath   string
 }
 
-// Option are the options for the package manager.
-type Option func(*options)
-
-type options struct {
-	registryAuth string
-	registry     string
-}
-
-func newOptions() *options {
-	return &options{
-		registryAuth: oci.RegistryAuthDefault,
-		registry:     "",
-	}
-}
-
-// WithRegistryAuth sets the registry authentication method.
-func WithRegistryAuth(registryAuth string) Option {
-	return func(o *options) {
-		o.registryAuth = registryAuth
-	}
-}
-
-// WithRegistry sets the registry URL.
-func WithRegistry(registry string) Option {
-	return func(o *options) {
-		o.registry = registry
-	}
-}
-
 // NewInstaller returns a new Package Manager.
-func NewInstaller(opts ...Option) (Installer, error) {
-	o := newOptions()
-	for _, opt := range opts {
-		opt(o)
-	}
+func NewInstaller(env *env.Env) (Installer, error) {
 	err := ensurePackageDirExists()
 	if err != nil {
 		return nil, fmt.Errorf("could not ensure packages directory exists: %w", err)
@@ -118,7 +86,7 @@ func NewInstaller(opts ...Option) (Installer, error) {
 	}
 	return &installerImpl{
 		db:           db,
-		downloader:   oci.NewDownloader(http.DefaultClient, o.registry, o.registryAuth),
+		downloader:   oci.NewDownloader(env, http.DefaultClient),
 		repositories: repository.NewRepositories(PackagesPath, LocksPack),
 		configsDir:   defaultConfigsDir,
 		tmpDirPath:   TmpDirPath,
