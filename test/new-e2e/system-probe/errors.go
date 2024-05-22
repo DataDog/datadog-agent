@@ -35,6 +35,8 @@ const (
 	insufficientCapacityError
 	aria2cMissingStatusError
 	ec2StateChangeTimeoutError
+	ioTimeout
+	tcp22ConnectionRefused
 )
 
 type handledError struct {
