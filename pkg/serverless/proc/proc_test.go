@@ -8,7 +8,6 @@
 package proc
 
 import (
-	"os"
 	"sort"
 	"testing"
 
@@ -55,24 +54,31 @@ func TestSearchProcsForEnvVariableNotFound(t *testing.T) {
 
 func TestParseCPUTotals(t *testing.T) {
 	path := "./testData/valid_stat"
-	file, _ := os.Open(path)
-	defer file.Close()
-	userCPUTimeMs, systemCPUTimeMs, _ := parseCPUTotals(file)
+	userCPUTimeMs, systemCPUTimeMs, err := GetCPUData(path)
 	assert.Equal(t, float64(23370), userCPUTimeMs)
 	assert.Equal(t, float64(1880), systemCPUTimeMs)
+	assert.Nil(t, err)
 
-	path = "./testData/invalid_stat_non_numerical_value"
-	file, _ = os.Open(path)
-	defer file.Close()
-	userCPUTimeMs, systemCPUTimeMs, err := parseCPUTotals(file)
+	path = "./testData/invalid_stat_non_numerical_value_1"
+	userCPUTimeMs, systemCPUTimeMs, err = GetCPUData(path)
+	assert.Equal(t, float64(0), userCPUTimeMs)
+	assert.Equal(t, float64(0), systemCPUTimeMs)
+	assert.NotNil(t, err)
+
+	path = "./testData/invalid_stat_non_numerical_value_2"
+	userCPUTimeMs, systemCPUTimeMs, err = GetCPUData(path)
 	assert.Equal(t, float64(0), userCPUTimeMs)
 	assert.Equal(t, float64(0), systemCPUTimeMs)
 	assert.NotNil(t, err)
 
 	path = "./testData/invalid_stat_wrong_number_columns"
-	file, _ = os.Open(path)
-	defer file.Close()
-	userCPUTimeMs, systemCPUTimeMs, err = parseCPUTotals(file)
+	userCPUTimeMs, systemCPUTimeMs, err = GetCPUData(path)
+	assert.Equal(t, float64(0), userCPUTimeMs)
+	assert.Equal(t, float64(0), systemCPUTimeMs)
+	assert.NotNil(t, err)
+
+	path = "./testData/nonexistant_stat"
+	userCPUTimeMs, systemCPUTimeMs, err = GetCPUData(path)
 	assert.Equal(t, float64(0), userCPUTimeMs)
 	assert.Equal(t, float64(0), systemCPUTimeMs)
 	assert.NotNil(t, err)

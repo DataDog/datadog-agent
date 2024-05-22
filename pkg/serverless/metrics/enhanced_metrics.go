@@ -286,7 +286,7 @@ func GenerateCPUEnhancedMetrics(args GenerateCPUEnhancedMetricsArgs) {
 
 // SendCPUEnhancedMetrics sends CPU enhanced metrics for the invocation
 func SendCPUEnhancedMetrics(userCPUOffsetMs, systemCPUOffsetMs float64, tags []string, demux aggregator.Demultiplexer) {
-	userCPUTimeMs, systemCPUTimeMs, err := proc.GetCPUData()
+	userCPUTimeMs, systemCPUTimeMs, err := proc.GetCPUData("/proc/stat")
 	if err != nil {
 		log.Debug("Could not emit CPU enhanced metrics")
 		return

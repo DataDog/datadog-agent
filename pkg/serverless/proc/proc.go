@@ -73,25 +73,13 @@ func SearchProcsForEnvVariable(procPath string, envName string) []string {
 }
 
 // GetCPUData collects CPU usage data, returning total user CPU time, total system CPU time, error
-func GetCPUData() (float64, float64, error) {
-	path := "/proc/stat"
+func GetCPUData(path string) (float64, float64, error) {
 	file, err := os.Open(path)
 	if err != nil {
 		return 0, 0, err
 	}
 	defer file.Close()
 
-	userCPUTimeMs, systemCPUTimeMs, err := parseCPUTotals(file)
-	if err != nil {
-		log.Debugf("Failed to parse CPU totals: %v", err)
-		return 0, 0, err
-	}
-
-	return userCPUTimeMs, systemCPUTimeMs, nil
-}
-
-// parseCPUTotals parses CPU usage data from proc files
-func parseCPUTotals(file *os.File) (float64, float64, error) {
 	reader := bufio.NewReader(file)
 	readLine, _, err := reader.ReadLine()
 	if err != nil {
