@@ -69,6 +69,7 @@ github.com/DataDog/datadog-agent/comp/api/api
 github.com/DataDog/datadog-agent/comp/api/api/utils
 github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration
 github.com/DataDog/datadog-agent/comp/core/config
+github.com/DataDog/datadog-agent/comp/core/flare/builder
 github.com/DataDog/datadog-agent/comp/core/flare/types
 github.com/DataDog/datadog-agent/comp/core/hostname
 github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface
