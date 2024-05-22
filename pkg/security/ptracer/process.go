@@ -126,11 +126,9 @@ func (tc *ProcessCache) GetSpan(tgid int) *SpanTLS {
 	return tc.tgid2Span[tgid]
 }
 
-// SetSpan sets the span TLS entry for the given pid
-func (tc *ProcessCache) SetSpan(tgid int, span *SpanTLS) {
-	if span != nil {
-		tc.tgid2Span[tgid] = span
-	}
+// SetSpanTLS sets the span TLS entry for the given pid
+func (tc *ProcessCache) SetSpanTLS(tgid int, span *SpanTLS) {
+	tc.tgid2Span[tgid] = span
 }
 
 // UnsetSpan unsets the span TLS entry for the given pid

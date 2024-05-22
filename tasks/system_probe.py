@@ -1546,9 +1546,23 @@ def process_btfhub_archive(ctx, branch="main"):
     output_dir = os.getcwd()
     with tempfile.TemporaryDirectory() as temp_dir:
         with ctx.cd(temp_dir):
-            ctx.run(
+            clone_cmd = (
                 f"git clone --depth=1 --single-branch --branch={branch} https://github.com/DataDog/btfhub-archive.git"
             )
+            retries = 2
+            downloaded = False
+
+            while not downloaded and retries > 0:
+                res = ctx.run(clone_cmd, warn=True)
+                downloaded = res is not None and res.ok
+
+                if not downloaded:
+                    retries -= 1
+                    print(f"Failed to clone btfhub-archive. Remaining retries: {retries}")
+
+            if not downloaded:
+                raise Exit("Failed to clone btfhub-archive")
+
             with ctx.cd("btfhub-archive"):
                 # iterate over all top-level directories, which are platforms (amzn, ubuntu, etc.)
                 with os.scandir(ctx.cwd) as pit:
