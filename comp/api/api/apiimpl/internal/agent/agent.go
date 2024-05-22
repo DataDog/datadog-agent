@@ -32,7 +32,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/gui"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
-	"github.com/DataDog/datadog-agent/comp/core/settings"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
@@ -71,7 +70,6 @@ func SetupHandlers(
 	eventPlatformReceiver eventplatformreceiver.Component,
 	ac autodiscovery.Component,
 	gui optional.Option[gui.Component],
-	settings settings.Component,
 	providers []api.EndpointProvider,
 ) *mux.Router {
 
@@ -93,18 +91,6 @@ func SetupHandlers(
 	r.HandleFunc("/{component}/status", componentStatusHandler).Methods("POST")
 	r.HandleFunc("/{component}/configs", componentConfigHandler).Methods("GET")
 	r.HandleFunc("/gui/csrf-token", func(w http.ResponseWriter, _ *http.Request) { getCSRFToken(w, gui) }).Methods("GET")
-	r.HandleFunc("/config", settings.GetFullConfig("")).Methods("GET")
-	r.HandleFunc("/config/list-runtime", settings.ListConfigurable).Methods("GET")
-	r.HandleFunc("/config/{setting}", func(w http.ResponseWriter, r *http.Request) {
-		vars := mux.Vars(r)
-		setting := vars["setting"]
-		settings.GetValue(setting, w, r)
-	}).Methods("GET")
-	r.HandleFunc("/config/{setting}", func(w http.ResponseWriter, r *http.Request) {
-		vars := mux.Vars(r)
-		setting := vars["setting"]
-		settings.SetValue(setting, w, r)
-	}).Methods("POST")
 	r.HandleFunc("/secrets", func(w http.ResponseWriter, r *http.Request) { secretInfo(w, r, secretResolver) }).Methods("GET")
 	r.HandleFunc("/secret/refresh", func(w http.ResponseWriter, r *http.Request) { secretRefresh(w, r, secretResolver) }).Methods("GET")
 	r.HandleFunc("/diagnose", func(w http.ResponseWriter, r *http.Request) {
