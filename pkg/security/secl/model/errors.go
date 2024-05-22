@@ -74,6 +74,27 @@ func (e *ErrProcessIncompleteLineage) Error() string {
 // ErrNoProcessContext defines an error for event without process context
 var ErrNoProcessContext = errors.New("process context not resolved")
 
+// ErrProcessArgumentsMissing defines an error for event without process arguments
+var ErrProcessArgumentsMissing = errors.New("process arguments not resolved")
+
+// ErrProcessEnvVarsMissing defines an error for event without process environment variables
+var ErrProcessEnvVarsMissing = errors.New("process environment variables not resolved")
+
+// ErrProcessArgsEnvsResolution defines an error for process args/envs resolution failure
+type ErrProcessArgsEnvsResolution struct {
+	Err error
+}
+
+// Unwrap implements the error interface
+func (e *ErrProcessArgsEnvsResolution) Unwrap() error {
+	return e.Err
+}
+
+// Error implements the error interface
+func (e *ErrProcessArgsEnvsResolution) Error() string {
+	return fmt.Sprintf("process args/envs resolution failed: %v", e.Err)
+}
+
 // ErrProcessBrokenLineage returned when a process lineage is broken
 type ErrProcessBrokenLineage struct {
 	Err error

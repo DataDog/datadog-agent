@@ -670,7 +670,8 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 			return
 		}
 
-		if err = p.Resolvers.ProcessResolver.ResolveNewProcessCacheEntry(event.ProcessCacheEntry, event.ContainerContext); err != nil {
+		err, nonCriticalErr := p.Resolvers.ProcessResolver.ResolveNewProcessCacheEntry(event.ProcessCacheEntry, event.ContainerContext)
+		if err != nil {
 			seclog.Debugf("failed to resolve new process cache entry context for pid %d: %s", event.PIDContext.Pid, err)
 
 			var errResolution *path.ErrPathResolution
@@ -679,6 +680,12 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 			}
 		} else {
 			p.Resolvers.ProcessResolver.AddExecEntry(event.ProcessCacheEntry, event.PIDContext.ExecInode)
+			if nonCriticalErr != nil {
+				var errArgsEnvsResolution *model.ErrProcessArgsEnvsResolution
+				if errors.As(nonCriticalErr, &errArgsEnvsResolution) {
+					event.Error = errArgsEnvsResolution
+				}
+			}
 		}
 
 		event.Exec.Process = &event.ProcessCacheEntry.Process
