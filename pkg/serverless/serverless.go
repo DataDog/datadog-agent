@@ -174,7 +174,7 @@ func callInvocationHandler(daemon *daemon.Daemon, arn string, deadlineMs int64, 
 	case <-doneChannel:
 		break
 	}
-	if cpuOffsetErr == nil {
+	if cpuOffsetErr == nil && daemon.MetricAgent != nil {
 		metrics.SendCPUEnhancedMetrics(userCPUTimeMsOffset, systemCPUTimeMsOffset, daemon.ExtraTags.Tags, daemon.MetricAgent.Demux)
 	} else {
 		log.Debug("Could not send CPU enhanced metrics")

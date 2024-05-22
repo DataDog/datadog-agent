@@ -8,5 +8,5 @@
 package proc
 
 func getClkTck() (int64, error) {
-	return 0, nil
+	return 1, nil
 }
