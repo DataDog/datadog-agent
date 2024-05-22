@@ -107,9 +107,8 @@ jobs:
           skip_fetch: true
 
       - name: Render PR body
-        id: pr_body
         run: |
-          echo "PR_BODY=$(inv buildimages.generate-pr-body ${{ steps.current_buildimage_tag.outputs.BUILDIMAGE_TAG }} ${{ inputs.images_id }} ${{ steps.current_go_version.outputs.GO_VERSION }} ${{ inputs.go_version }} ${{ inputs.test_version && '--test-version' || '' }})" >> $GITHUB_OUTPUT
+          inv buildimages.generate-pr-body ${{ steps.current_buildimage_tag.outputs.BUILDIMAGE_TAG }} ${{ inputs.images_id }} ${{ steps.current_go_version.outputs.GO_VERSION }} ${{ inputs.go_version }} ${{ inputs.test_version && '--test-version' || '' }} > pr_body
           
 
       - name: create PR
@@ -123,4 +122,4 @@ jobs:
           commit-message: ${{ steps.update_build_images.outputs.MESSAGE }}
           title: "[automated] ${{ steps.update_build_images.outputs.MESSAGE }}"
           labels: 'go-update'
-          body: ${{ steps.pr_body.outputs.PR_BODY }}
+          body-path: pr_body
