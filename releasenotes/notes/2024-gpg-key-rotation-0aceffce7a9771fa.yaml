@@ -8,5 +8,6 @@
 ---
 security:
   - |
-    Rotated RPM and APT GPG keys used to sign the agent package.
+    Current GPG keys used to sign new release of the agent are about to expire.
+    Following our 2024 GPG Key rotation plan, we rotated RPM and APT GPG keys used to sign the agent package.
 
