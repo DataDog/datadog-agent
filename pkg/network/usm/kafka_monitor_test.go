@@ -116,16 +116,33 @@ func TestKafkaProtocolParsing(t *testing.T) {
 func (s *KafkaProtocolParsingSuite) TestKafkaProtocolParsing() {
 	t := s.T()
 
+	var versions []*kversion.Versions
+	versions = append(versions, kversion.V2_5_0())
+
+	versionName := func(version *kversion.Versions) string {
+		produce, _ := version.LookupMaxKeyVersion(kafka.ProduceAPIKey)
+		fetch, _ := version.LookupMaxKeyVersion(kafka.FetchAPIKey)
+		return fmt.Sprintf("produce%d_fetch%d", produce, fetch)
+	}
+
 	t.Run("without TLS", func(t *testing.T) {
-		s.testKafkaProtocolParsing(t, false)
+		for _, version := range versions {
+			t.Run(versionName(version), func(t *testing.T) {
+				s.testKafkaProtocolParsing(t, false, version)
+			})
+		}
 	})
 
 	t.Run("with TLS", func(t *testing.T) {
-		s.testKafkaProtocolParsing(t, true)
+		for _, version := range versions {
+			t.Run(versionName(version), func(t *testing.T) {
+				s.testKafkaProtocolParsing(t, true, version)
+			})
+		}
 	})
 }
 
-func (s *KafkaProtocolParsingSuite) testKafkaProtocolParsing(t *testing.T, tls bool) {
+func (s *KafkaProtocolParsingSuite) testKafkaProtocolParsing(t *testing.T, tls bool, version *kversion.Versions) {
 	targetHost := "127.0.0.1"
 	serverHost := "127.0.0.1"
 
@@ -168,6 +185,9 @@ func (s *KafkaProtocolParsingSuite) testKafkaProtocolParsing(t *testing.T, tls b
 		return getDefaultTestConfiguration(tls)
 	}
 
+	tmp, _ := version.LookupMaxKeyVersion(kafka.FetchAPIKey)
+	expectedAPIVersionFetch := int(tmp)
+
 	tests := []kafkaParsingTestAttributes{
 		{
 			name: "Sanity - produce and fetch",
@@ -186,7 +206,7 @@ func (s *KafkaProtocolParsingSuite) testKafkaProtocolParsing(t *testing.T, tls b
 					DialFn:        dialFn,
 
 					CustomOptions: []kgo.Opt{
-						kgo.MaxVersions(kversion.V2_5_0()),
+						kgo.MaxVersions(version),
 						kgo.RecordPartitioner(kgo.ManualPartitioner()),
 						kgo.ClientID("xk6-kafka_linux_amd64@foobar (github.com/segmentio/kafka-go)"),
 					},
@@ -217,7 +237,7 @@ func (s *KafkaProtocolParsingSuite) testKafkaProtocolParsing(t *testing.T, tls b
 					expectedNumberOfProduceRequests: fixCount(1),
 					expectedNumberOfFetchRequests:   fixCount(1),
 					expectedAPIVersionProduce:       8,
-					expectedAPIVersionFetch:         11,
+					expectedAPIVersionFetch:         expectedAPIVersionFetch,
 				})
 			},
 			teardown:      kafkaTeardown,
@@ -280,7 +300,7 @@ func (s *KafkaProtocolParsingSuite) testKafkaProtocolParsing(t *testing.T, tls b
 					ServerAddress: ctx.targetAddress,
 					DialFn:        dialFn,
 					CustomOptions: []kgo.Opt{
-						kgo.MaxVersions(kversion.V2_5_0()),
+						kgo.MaxVersions(version),
 						kgo.ClientID(""),
 					},
 				})
@@ -323,7 +343,7 @@ func (s *KafkaProtocolParsingSuite) testKafkaProtocolParsing(t *testing.T, tls b
 					ServerAddress: ctx.targetAddress,
 					DialFn:        dialFn,
 					CustomOptions: []kgo.Opt{
-						kgo.MaxVersions(kversion.V2_5_0()),
+						kgo.MaxVersions(version),
 						kgo.ClientID(""),
 					},
 				})
@@ -415,7 +435,7 @@ func (s *KafkaProtocolParsingSuite) testKafkaProtocolParsing(t *testing.T, tls b
 					ServerAddress: ctx.targetAddress,
 					DialFn:        dialFn,
 					CustomOptions: []kgo.Opt{
-						kgo.MaxVersions(kversion.V2_5_0()),
+						kgo.MaxVersions(version),
 						kgo.ClientID(""),
 					},
 				})
@@ -454,7 +474,7 @@ func (s *KafkaProtocolParsingSuite) testKafkaProtocolParsing(t *testing.T, tls b
 					ServerAddress: ctx.targetAddress,
 					DialFn:        dialFn,
 					CustomOptions: []kgo.Opt{
-						kgo.MaxVersions(kversion.V2_5_0()),
+						kgo.MaxVersions(version),
 						kgo.RecordPartitioner(kgo.ManualPartitioner()),
 					},
 				})
@@ -485,7 +505,7 @@ func (s *KafkaProtocolParsingSuite) testKafkaProtocolParsing(t *testing.T, tls b
 					expectedNumberOfProduceRequests: fixCount(2),
 					expectedNumberOfFetchRequests:   fixCount(2),
 					expectedAPIVersionProduce:       8,
-					expectedAPIVersionFetch:         11,
+					expectedAPIVersionFetch:         expectedAPIVersionFetch,
 				})
 			},
 			teardown:      kafkaTeardown,
@@ -507,7 +527,7 @@ func (s *KafkaProtocolParsingSuite) testKafkaProtocolParsing(t *testing.T, tls b
 					ServerAddress: ctx.targetAddress,
 					DialFn:        dialFn,
 					CustomOptions: []kgo.Opt{
-						kgo.MaxVersions(kversion.V2_5_0()),
+						kgo.MaxVersions(version),
 						kgo.RecordPartitioner(kgo.ManualPartitioner()),
 					},
 				})
@@ -553,7 +573,7 @@ func (s *KafkaProtocolParsingSuite) testKafkaProtocolParsing(t *testing.T, tls b
 					expectedNumberOfProduceRequests: fixCount(5 + 2*2),
 					expectedNumberOfFetchRequests:   fixCount(5 + 2*2),
 					expectedAPIVersionProduce:       8,
-					expectedAPIVersionFetch:         11,
+					expectedAPIVersionFetch:         expectedAPIVersionFetch,
 				})
 			},
 			teardown:      kafkaTeardown,
@@ -597,7 +617,7 @@ func (s *KafkaProtocolParsingSuite) testKafkaProtocolParsing(t *testing.T, tls b
 							ServerAddress: ctx.targetAddress,
 							DialFn:        dialFn,
 							CustomOptions: []kgo.Opt{
-								kgo.MaxVersions(kversion.V2_5_0()),
+								kgo.MaxVersions(version),
 								kgo.ConsumeTopics(tt.topicName),
 								kgo.ClientID("test-client"),
 							},
