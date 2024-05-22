@@ -251,7 +251,7 @@ func (ac *AutoConfig) writeConfigCheckRaw(w http.ResponseWriter, _ *http.Request
 
 // fillFlare add the config-checks log to flares.
 func (ac *AutoConfig) fillFlare(fb flaretypes.FlareBuilder) error {
-	fb.AddFileFromFunc("config-check.log", func() ([]byte, error) {
+	fb.AddFileFromFunc("config-check.log", func() ([]byte, error) { //nolint:errcheck
 		bytes := ac.GetConfigCheck(true)
 		return bytes, nil
 	})
