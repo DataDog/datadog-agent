@@ -2,8 +2,6 @@
 Description=Datadog Agent
 After=network.target
 Wants=datadog-agent-trace.service datadog-agent-process.service datadog-agent-sysprobe.service datadog-agent-security.service
-Conflicts=datadog-agent-trace-exp.service datadog-agent-process-exp.service datadog-agent-sysprobe-exp.service datadog-agent-security-exp.service
-Before=datadog-agent-trace-exp.service datadog-agent-process-exp.service datadog-agent-sysprobe-exp.service datadog-agent-security-exp.service
 
 [Service]
 Type=simple

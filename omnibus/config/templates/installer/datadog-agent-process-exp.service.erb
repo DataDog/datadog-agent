@@ -1,6 +1,6 @@
 [Unit]
 Description=Datadog Process Agent Experiment
-After=network.target
+After=network.target datadog-agent-exp.service
 BindsTo=datadog-agent-exp.service
 
 [Service]

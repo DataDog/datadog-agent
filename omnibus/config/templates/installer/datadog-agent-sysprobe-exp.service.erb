@@ -1,7 +1,7 @@
 [Unit]
 Description=Datadog System Probe Experiment
 Requires=sys-kernel-debug.mount
-After=network.target sys-kernel-debug.mount
+After=network.target sys-kernel-debug.mount datadog-agent-exp.service
 BindsTo=datadog-agent-exp.service
 ConditionPathExists=<%= etc_dir %>/system-probe.yaml
 
