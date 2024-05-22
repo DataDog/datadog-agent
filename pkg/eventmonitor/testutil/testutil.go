@@ -10,6 +10,7 @@ import (
 	"os"
 	"testing"
 
+	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor"
 	emconfig "github.com/DataDog/datadog-agent/pkg/eventmonitor/config"
@@ -23,6 +24,9 @@ type PreStartCallback func(t *testing.T, evm *eventmonitor.EventMonitor)
 
 // StartEventMonitor creates and starts an event monitor for use in tests
 func StartEventMonitor(t *testing.T, callback PreStartCallback) {
+	if !sysconfig.ProcessEventDataStreamSupported() {
+		t.Skip("Process event data stream not supported on this kernel")
+	}
 	emconfig := emconfig.NewConfig()
 	secconfig, err := secconfig.NewConfig()
 	require.NoError(t, err)
