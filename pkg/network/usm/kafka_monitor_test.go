@@ -739,9 +739,21 @@ func appendResponse(dst []byte, response kmsg.FetchResponse, correlationID uint3
 	var data []byte
 	data = response.AppendTo(data)
 
-	// Length excludes the field itself
-	dst = appendUint32(dst, uint32(len(data)+4))
+	// +4 for correlationId
+	length := uint32(len(data)) + 4
+	if response.IsFlexible() {
+		// Tagged Values
+		length++
+	}
+
+	dst = appendUint32(dst, length)
 	dst = appendUint32(dst, correlationID)
+
+	if response.IsFlexible() {
+		var numTags uint8
+		dst = append(dst, numTags)
+	}
+
 	dst = append(dst, data...)
 
 	return dst
