@@ -1,2 +1,10 @@
-build --verbose_failures \
-  --define gotags=bundle_agent,apm,consul,containerd,cri,datadog.no_waf,docker,ec2,etcd,gce,jetson,jmx,kubeapiserver,kubelet,netcgo,oracle,orchestrator,otlp,podman,python,process,systemd,trivy,zk,zlib,zstd
+build --disk_cache=/tmp/bazel
+build --verbose_failures
+build --define gotags=bundle_agent,apm,consul,containerd,cri,datadog.no_waf,docker,ec2,etcd,gce,jetson,jmx,kubeapiserver,kubelet,netcgo,oracle,orchestrator,otlp,podman,python,process,systemd,trivy,zk,zlib,zstd
+
+# Load any settings & overrides specific to the current user from `/user.bazelrc`.
+#
+# This file should appear in `.gitignore` so that settings are not shared with team members. This
+# should be last statement in this config so the user configuration is able to overwrite flags from
+# this file. See https://bazel.build/configure/best-practices#bazelrc-file.
+try-import %workspace%/user.bazelrc
