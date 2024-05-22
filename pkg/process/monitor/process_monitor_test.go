@@ -92,11 +92,15 @@ func (s *processMonitorSuite) TestProcessMonitorSanity() {
 	callback := func(pid uint32) { numberOfExecs.Inc() }
 	registerCallback(t, pm, true, (*ProcessCallback)(&callback))
 
+	numberOfExits := atomic.Int32{}
+	exitCallback := func(pid uint32) { numberOfExits.Inc() }
+	registerCallback(t, pm, false, (*ProcessCallback)(&exitCallback))
+
 	initializePM(t, pm, s.useEventStream)
 	require.NoError(t, exec.Command(testBinaryPath, "test").Run())
 	require.Eventuallyf(t, func() bool {
-		return numberOfExecs.Load() > 1
-	}, time.Second, time.Millisecond*200, "didn't capture exec events %d", numberOfExecs.Load())
+		return numberOfExecs.Load() > 1 && numberOfExits.Load() > 0
+	}, time.Second, time.Millisecond*200, "didn't capture exec/exit events %d", numberOfExecs.Load())
 
 	require.GreaterOrEqual(t, pm.tel.events.Get(), pm.tel.exec.Get(), "events is not >= than exec")
 	require.GreaterOrEqual(t, pm.tel.events.Get(), pm.tel.exit.Get(), "events is not >= than exit")
@@ -149,12 +153,19 @@ func (s *processMonitorSuite) TestProcessRegisterMultipleExitCallbacks() {
 
 	const iterations = 10
 	counters := make([]*atomic.Int32, iterations)
+	exitCounters := make([]*atomic.Int32, iterations)
 	for i := 0; i < iterations; i++ {
 		counters[i] = &atomic.Int32{}
 		c := counters[i]
 		// Sanity subscribing a callback.
 		callback := func(pid uint32) { c.Inc() }
 		registerCallback(t, pm, true, (*ProcessCallback)(&callback))
+
+		exitCounters[i] = &atomic.Int32{}
+		exitc := exitCounters[i]
+		// Sanity subscribing a callback.
+		exitCallback := func(pid uint32) { exitc.Inc() }
+		registerCallback(t, pm, false, (*ProcessCallback)(&exitCallback))
 	}
 
 	initializePM(t, pm, s.useEventStream)
@@ -162,7 +173,11 @@ func (s *processMonitorSuite) TestProcessRegisterMultipleExitCallbacks() {
 	require.Eventuallyf(t, func() bool {
 		for i := 0; i < iterations; i++ {
 			if counters[i].Load() <= int32(0) {
-				t.Logf("iter %d didn't capture event", i)
+				t.Logf("iter %d didn't capture exec event", i)
+				return false
+			}
+			if exitCounters[i].Load() <= int32(0) {
+				t.Logf("iter %d didn't capture exit event", i)
 				return false
 			}
 		}
@@ -196,11 +211,15 @@ func TestProcessMonitorRefcount(t *testing.T) {
 func (s *processMonitorSuite) TestProcessMonitorInNamespace() {
 	t := s.T()
 	execSet := sync.Map{}
+	exitSet := sync.Map{}
 
 	pm := getProcessMonitor(t)
 
 	callback := func(pid uint32) { execSet.Store(pid, struct{}{}) }
 	registerCallback(t, pm, true, (*ProcessCallback)(&callback))
+
+	exitCallback := func(pid uint32) { exitSet.Store(pid, struct{}{}) }
+	registerCallback(t, pm, false, (*ProcessCallback)(&exitCallback))
 
 	monNs, err := netns.New()
 	require.NoError(t, err, "could not create network namespace for process monitor")
@@ -219,9 +238,10 @@ func (s *processMonitorSuite) TestProcessMonitorInNamespace() {
 	pid := uint32(cmd.ProcessState.Pid())
 
 	require.Eventually(t, func() bool {
-		_, captured := execSet.Load(pid)
-		return captured
-	}, time.Second, time.Millisecond*200, "did not capture process EXEC from root namespace")
+		_, capturedExec := execSet.Load(pid)
+		_, capturedExit := exitSet.Load(pid)
+		return capturedExec && capturedExit
+	}, time.Second, time.Millisecond*200, "did not capture process EXEC/EXIT from root namespace")
 
 	// Process in another NS
 	cmdNs, err := netns.New()
@@ -233,9 +253,10 @@ func (s *processMonitorSuite) TestProcessMonitorInNamespace() {
 	pid = uint32(cmd.ProcessState.Pid())
 
 	require.Eventually(t, func() bool {
-		_, captured := execSet.Load(pid)
-		return captured
-	}, time.Second, 200*time.Millisecond, "did not capture process EXEC from other namespace")
+		_, capturedExec := execSet.Load(pid)
+		_, capturedExit := exitSet.Load(pid)
+		return capturedExec && capturedExit
+	}, time.Second, 200*time.Millisecond, "did not capture process EXEC/EXIT from other namespace")
 
 	require.GreaterOrEqual(t, pm.tel.events.Get(), pm.tel.exec.Get(), "events is not >= than exec")
 	require.GreaterOrEqual(t, pm.tel.events.Get(), pm.tel.exit.Get(), "events is not >= than exit")
