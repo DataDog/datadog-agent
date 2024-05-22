@@ -29,6 +29,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write # push commit and branch
+      pull-requests: write
 
     steps:
       - name: Checkout branch
