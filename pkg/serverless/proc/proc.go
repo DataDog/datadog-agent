@@ -16,7 +16,6 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/tklauser/go-sysconf"
 )
 
 func getPidList(procPath string) []int {
@@ -108,7 +107,7 @@ func parseCPUTotals(file *os.File) (float64, float64, error) {
 
 	// SC_CLK_TCK is the system clock frequency in ticks per second
 	// We'll use this to convert CPU times from user HZ to milliseconds
-	clcktck, err := sysconf.Sysconf(sysconf.SC_CLK_TCK)
+	clcktck, err := getClkTck()
 	if err != nil {
 		return 0, 0, err
 	}
