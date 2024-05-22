@@ -81,8 +81,8 @@ func (h *Host) ReadFile(path string) ([]byte, error) {
 
 // DeletePath deletes a path on the host.
 func (h *Host) DeletePath(path string) {
-	h.remote.MustExecute(fmt.Sprintf("ls %s", path))
-	h.remote.MustExecute(fmt.Sprintf("rm -rf %s", path))
+	h.remote.MustExecute(fmt.Sprintf("sudo ls %s", path))
+	h.remote.MustExecute(fmt.Sprintf("sudo rm -rf %s", path))
 }
 
 // WaitForUnitActive waits for a systemd unit to be active
