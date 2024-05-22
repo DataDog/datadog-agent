@@ -69,7 +69,7 @@ func (f *factory) createLogsProcessor(
 	cfg component.Config,
 	nextConsumer consumer.Logs,
 ) (processor.Logs, error) {
-	tep, err := newInfraAttributesLogsProcessor(set, cfg.(*Config))
+	iap, err := newInfraAttributesLogsProcessor(set, cfg.(*Config), f.tagger)
 	if err != nil {
 		return nil, err
 	}
@@ -78,7 +78,7 @@ func (f *factory) createLogsProcessor(
 		set,
 		cfg,
 		nextConsumer,
-		tep.processLogs,
+		iap.processLogs,
 		processorhelper.WithCapabilities(processorCapabilities))
 }
 
