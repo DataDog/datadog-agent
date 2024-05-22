@@ -33,11 +33,11 @@ The payload is a JSON dict with the following fields
 - `logs_metadata` - **dict of string to list**: dictionary with the log source names as keys; values are a list of the metadata
   for each instance of that log source.
   Each instance is composed of:
-    - `detected_integration` - **string**: the name of the integration, can be empty.
     - `config` - **string**: the canonical JSON of the log source configuration.
     - `state` - **dict of string**: the current state of the log source.
       - `status` - **string**: one of `pending`, `error` or `success`.
       - `error` - **string**: the error description if any.
+    - `integration_name` - **string**: the name of the integration, can be empty.
 
 ("scrubbed" indicates that secrets are removed from the field value just as they are in logs)
 

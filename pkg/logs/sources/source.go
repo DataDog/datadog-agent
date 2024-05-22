@@ -46,11 +46,9 @@ type LogSource struct {
 	ParentSource *LogSource
 	// LatencyStats tracks internal stats on the time spent by messages from this source in a processing pipeline, i.e.
 	// the duration between when a message is decoded by the tailer/listener/decoder and when the message is handled by a sender
-	LatencyStats *statstracker.Tracker
-	BytesRead    *status.CountInfo
-	// DetectedIntegration is the integration name that was detected from the source
-	DetectedIntegration string
-	hiddenFromStatus    bool
+	LatencyStats     *statstracker.Tracker
+	BytesRead        *status.CountInfo
+	hiddenFromStatus bool
 }
 
 // NewLogSource creates a new log source.

@@ -38,6 +38,8 @@ const (
 type LogsConfig struct {
 	Type string
 
+	IntegrationName string
+
 	Port        int    // Network
 	IdleTimeout string `mapstructure:"idle_timeout" json:"idle_timeout"` // Network
 	Path        string // File, Journald
