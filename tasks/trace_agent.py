@@ -24,7 +24,6 @@ def build(
     install_path=None,
     major_version='7',
     python_runtimes='3',
-    arch="x64",
     go_mod="mod",
     bundle=False,
 ):
@@ -36,7 +35,6 @@ def build(
         return agent_build(
             ctx,
             race=race,
-            arch=arch,
             build_include=build_include,
             build_exclude=build_exclude,
             flavor=flavor,
@@ -55,15 +53,11 @@ def build(
 
     # generate windows resources
     if sys.platform == 'win32':
-        if arch == "x86":
-            env["GOARCH"] = "386"
-
-        build_messagetable(ctx, arch=arch)
-        vars = versioninfo_vars(ctx, major_version=major_version, python_runtimes=python_runtimes, arch=arch)
+        build_messagetable(ctx)
+        vars = versioninfo_vars(ctx, major_version=major_version, python_runtimes=python_runtimes)
         build_rc(
             ctx,
             "cmd/trace-agent/windows/resources/trace-agent.rc",
-            arch=arch,
             vars=vars,
             out="cmd/trace-agent/rsrc.syso",
         )
@@ -74,7 +68,7 @@ def build(
             flavor=flavor,
         )  # TODO/FIXME: Arch not passed to preserve build tags. Should this be fixed?
         if build_include is None
-        else filter_incompatible_tags(build_include.split(","), arch=arch)
+        else filter_incompatible_tags(build_include.split(","))
     )
     build_exclude = [] if build_exclude is None else build_exclude.split(",")
 
@@ -121,4 +115,4 @@ def benchmarks(ctx, bench, output="./trace-agent.benchmarks.out"):
         print("Argument --bench=<bench_regex> is required.")
         return
     with ctx.cd("./pkg/trace"):
-        ctx.run(f"go test -run=XXX -bench \"{bench}\" -benchmem -count 1 -benchtime 2s ./... | tee {output}")
+        ctx.run(f"go test -tags=test -run=XXX -bench \"{bench}\" -benchmem -count 1 -benchtime 2s ./... | tee {output}")

@@ -76,10 +76,9 @@ func (o *Opts) WithStateScopes(stateScopes map[Scope]VariableProviderFactory) *O
 	return o
 }
 
-// NewEvalOpts returns eval options
-func NewEvalOpts(eventTypeEnabled map[eval.EventType]bool) (*Opts, *eval.Opts) {
+// NewRuleOpts returns rule options
+func NewRuleOpts(eventTypeEnabled map[eval.EventType]bool) *Opts {
 	var ruleOpts Opts
-
 	ruleOpts.
 		WithEventTypeEnabled(eventTypeEnabled).
 		WithStateScopes(map[Scope]VariableProviderFactory{
@@ -95,13 +94,23 @@ func NewEvalOpts(eventTypeEnabled map[eval.EventType]bool) (*Opts, *eval.Opts) {
 			},
 		}).WithRuleSetTag(DefaultRuleSetTagValue)
 
+	return &ruleOpts
+}
+
+// NewEvalOpts returns eval options
+func NewEvalOpts() *eval.Opts {
 	var evalOpts eval.Opts
 	evalOpts.
 		WithConstants(model.SECLConstants()).
 		WithLegacyFields(model.SECLLegacyFields).
 		WithVariables(model.SECLVariables)
 
-	return &ruleOpts, &evalOpts
+	return &evalOpts
+}
+
+// NewBothOpts returns rule and eval options
+func NewBothOpts(eventTypeEnabled map[eval.EventType]bool) (*Opts, *eval.Opts) {
+	return NewRuleOpts(eventTypeEnabled), NewEvalOpts()
 }
 
 // MultiDiscarder represents a multi discarder, i.e. a discarder across multiple rule buckets

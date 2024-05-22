@@ -16,7 +16,6 @@ import (
 	"math/rand"
 	"os"
 	"strings"
-	"syscall"
 	"unsafe"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
@@ -66,6 +65,11 @@ type Resolver struct {
 	erpcStatsZero         []eRPCStats
 	numCPU                int
 	challenge             uint32
+
+	// buffers
+	filenameParts    []string
+	keys             []model.PathKey
+	cacheNameEntries []string
 
 	hitsCounters map[counterEntry]*atomic.Int64
 	missCounters map[counterEntry]*atomic.Int64
@@ -361,17 +365,14 @@ func (dr *Resolver) ResolveFromMap(pathKey model.PathKey, cache bool) (string, e
 
 	depth := int64(0)
 
-	var keys []model.PathKey
-	var cacheEntries []string
-
-	filenameParts := make([]string, 0, 128)
+	dr.prepareBuffersWithCapacity(128)
 
 	// Fetch path recursively
 	for i := 0; i <= model.MaxPathDepth; i++ {
 		var pathLeaf model.PathLeaf
 		pathKey.Write(keyBuffer)
 		if err := dr.pathnames.Lookup(keyBuffer, &pathLeaf); err != nil {
-			filenameParts = nil
+			dr.filenameParts = dr.filenameParts[:0]
 			resolutionErr = &ErrDentryPathKeyNotFound{PathKey: pathKey}
 			break
 		}
@@ -392,13 +393,13 @@ func (dr *Resolver) ResolveFromMap(pathKey model.PathKey, cache bool) (string, e
 			name = "/"
 		} else {
 			name = model.NullTerminatedString(pathLeaf.Name[:])
-			filenameParts = append(filenameParts, name)
+			dr.filenameParts = append(dr.filenameParts, name)
 		}
 
 		// do not cache fake path keys in the case of rename events
 		if !IsFakeInode(pathKey.Inode) && cache {
-			keys = append(keys, pathKey)
-			cacheEntries = append(cacheEntries, name)
+			dr.keys = append(dr.keys, pathKey)
+			dr.cacheNameEntries = append(dr.cacheNameEntries, name)
 		}
 
 		if pathLeaf.Parent.Inode == 0 {
@@ -409,15 +410,15 @@ func (dr *Resolver) ResolveFromMap(pathKey model.PathKey, cache bool) (string, e
 		pathKey = pathLeaf.Parent
 	}
 
-	filename := computeFilenameFromParts(filenameParts)
+	filename := computeFilenameFromParts(dr.filenameParts)
 
 	entry := counterEntry{
 		resolutionType: metrics.KernelMapsTag,
 		resolution:     metrics.PathResolutionTag,
 	}
 
-	if resolutionErr == nil && len(keys) > 0 {
-		resolutionErr = dr.cacheEntries(keys, cacheEntries)
+	if resolutionErr == nil && len(dr.keys) > 0 {
+		resolutionErr = dr.cacheEntries(dr.keys, dr.cacheNameEntries)
 
 		if depth > 0 {
 			dr.hitsCounters[entry].Add(depth)
@@ -521,9 +522,7 @@ func (dr *Resolver) ResolveFromERPC(pathKey model.PathKey, cache bool) (string, 
 	}
 
 	segmentCount := dr.computeSegmentCount()
-	filenameParts := make([]string, 0, segmentCount)
-	keys := make([]model.PathKey, 0, segmentCount)
-	cacheEntries := make([]string, 0, segmentCount)
+	dr.prepareBuffersWithCapacity(segmentCount)
 
 	i := 0
 	// make sure that we keep room for at least one pathKey + character + \0 => (sizeof(pathID) + 1 = 17)
@@ -561,18 +560,17 @@ func (dr *Resolver) ResolveFromERPC(pathKey model.PathKey, cache bool) (string, 
 		}
 
 		segment := model.NullTerminatedString(dr.erpcSegment[i:])
-		filenameParts = append(filenameParts, segment)
+		dr.filenameParts = append(dr.filenameParts, segment)
 		i += len(segment) + 1
 
 		if !IsFakeInode(pathKey.Inode) && cache {
-			keys = append(keys, pathKey)
-
-			cacheEntries = append(cacheEntries, segment)
+			dr.keys = append(dr.keys, pathKey)
+			dr.cacheNameEntries = append(dr.cacheNameEntries, segment)
 		}
 	}
 
-	if resolutionErr == nil && len(keys) > 0 {
-		resolutionErr = dr.cacheEntries(keys, cacheEntries)
+	if resolutionErr == nil && len(dr.keys) > 0 {
+		resolutionErr = dr.cacheEntries(dr.keys, dr.cacheNameEntries)
 
 		if depth > 0 {
 			dr.hitsCounters[entry].Add(depth)
@@ -583,7 +581,7 @@ func (dr *Resolver) ResolveFromERPC(pathKey model.PathKey, cache bool) (string, 
 		dr.missCounters[entry].Inc()
 	}
 
-	return computeFilenameFromParts(filenameParts), resolutionErr
+	return computeFilenameFromParts(dr.filenameParts), resolutionErr
 }
 
 // Resolve the pathname of a dentry, starting at the pathnameKey in the pathnames table
@@ -651,6 +649,26 @@ func (dr *Resolver) GetParent(pathKey model.PathKey) (model.PathKey, error) {
 	return pathKey, err
 }
 
+func (dr *Resolver) prepareBuffersWithCapacity(capacity int) {
+	if cap(dr.filenameParts) < capacity {
+		dr.filenameParts = make([]string, 0, capacity)
+	} else {
+		dr.filenameParts = dr.filenameParts[:0]
+	}
+
+	if cap(dr.keys) < capacity {
+		dr.keys = make([]model.PathKey, 0, capacity)
+	} else {
+		dr.keys = dr.keys[:0]
+	}
+
+	if cap(dr.cacheNameEntries) < capacity {
+		dr.cacheNameEntries = make([]string, 0, capacity)
+	} else {
+		dr.cacheNameEntries = dr.cacheNameEntries[:0]
+	}
+}
+
 // Start the dentry resolver
 func (dr *Resolver) Start(manager *manager.Manager) error {
 	pathnames, err := managerhelper.Map(manager, "pathnames")
@@ -684,7 +702,7 @@ func (dr *Resolver) Start(manager *manager.Manager) error {
 
 	// Memory map a BPF_F_MMAPABLE array map that ebpf writes to so that userspace can read it
 	if erpcBuffer.Flags()&unix.BPF_F_MMAPABLE != 0 {
-		dr.erpcSegment, err = syscall.Mmap(erpcBuffer.FD(), 0, 8*4096, unix.PROT_READ|unix.PROT_WRITE, unix.MAP_SHARED)
+		dr.erpcSegment, err = unix.Mmap(erpcBuffer.FD(), 0, 8*4096, unix.PROT_READ|unix.PROT_WRITE, unix.MAP_SHARED)
 		if err != nil {
 			return fmt.Errorf("failed to mmap dr_erpc_buffer map: %w", err)
 		}
@@ -711,7 +729,12 @@ func (dr *Resolver) Start(manager *manager.Manager) error {
 
 // Close cleans up the eRPC segment
 func (dr *Resolver) Close() error {
-	return fmt.Errorf("couldn't cleanup eRPC memory segment: %w", unix.Munmap(dr.erpcSegment))
+	if !dr.useBPFProgWriteUser {
+		if err := unix.Munmap(dr.erpcSegment); err != nil {
+			return fmt.Errorf("couldn't cleanup eRPC memory segment: %w", err)
+		}
+	}
+	return nil
 }
 
 // NewResolver returns a new dentry resolver
