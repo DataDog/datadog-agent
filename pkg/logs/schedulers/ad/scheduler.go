@@ -210,6 +210,11 @@ func (s *Scheduler) createSources(config integration.Config) ([]*sourcesPkg.LogS
 		}
 
 		source := sourcesPkg.NewLogSource(configName, cfg)
+		if config.Provider == names.File {
+			// If the log source comes from a config file it does not specify a log source
+			// We try to match it with the config name that is most likely the integration name
+			source.DetectedIntegration = configName
+		}
 		sources = append(sources, source)
 		if err := cfg.Validate(); err != nil {
 			log.Warnf("Invalid logs configuration: %v", err)
