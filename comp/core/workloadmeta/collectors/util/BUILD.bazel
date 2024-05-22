@@ -5,7 +5,7 @@ go_library(
     srcs = [
         "ecs_util.go",
         "image_metadata_util.go",
-        "image_util_stub.go",
+        "image_util.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util",
     visibility = ["//visibility:public"],
@@ -15,6 +15,10 @@ go_library(
         "//pkg/util/ecs/metadata/v3or4",
         "//pkg/util/flavor",
         "//pkg/util/log",
+        "@com_github_aquasecurity_trivy//pkg/sbom/core",
+        "@com_github_aquasecurity_trivy//pkg/sbom/cyclonedx",
+        "@com_github_cyclonedx_cyclonedx_go//:cyclonedx-go",
+        "@com_github_mohae_deepcopy//:deepcopy",
     ],
 )
 
@@ -23,9 +27,14 @@ go_test(
     srcs = [
         "ecs_util_test.go",
         "image_metadata_util_test.go",
+        "image_util_test.go",
     ],
     embed = [":util"],
     deps = [
+        "//comp/core/workloadmeta",
+        "@com_github_aquasecurity_trivy//pkg/sbom/core",
+        "@com_github_aquasecurity_trivy//pkg/sbom/cyclonedx",
+        "@com_github_cyclonedx_cyclonedx_go//:cyclonedx-go",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
     ],

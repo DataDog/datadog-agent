@@ -1,15 +1,40 @@
-load("@rules_go//go:def.bzl", "go_library")
+load("@rules_go//go:def.bzl", "go_library", "go_test")
 
 go_library(
     name = "journald",
-    srcs = ["launcher_nosystemd.go"],
+    srcs = ["launcher.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/logs/launchers/journald",
     visibility = ["//visibility:public"],
     deps = [
+        "//comp/logs/agent/config",
         "//comp/logs/agent/flare",
         "//pkg/logs/auditor",
         "//pkg/logs/launchers",
         "//pkg/logs/pipeline",
+        "//pkg/logs/sources",
         "//pkg/logs/tailers",
+        "//pkg/logs/tailers/journald",
+        "//pkg/util/log",
+        "//pkg/util/startstop",
+        "@com_github_coreos_go_systemd//sdjournal",
+    ],
+)
+
+go_test(
+    name = "journald_test",
+    srcs = ["launcher_test.go"],
+    embed = [":journald"],
+    deps = [
+        "//comp/logs/agent/config",
+        "//comp/logs/agent/flare",
+        "//pkg/logs/auditor",
+        "//pkg/logs/launchers",
+        "//pkg/logs/pipeline",
+        "//pkg/logs/sources",
+        "//pkg/logs/tailers",
+        "//pkg/logs/tailers/journald",
+        "//pkg/status/health",
+        "@com_github_coreos_go_systemd//sdjournal",
+        "@com_github_stretchr_testify//assert",
     ],
 )
