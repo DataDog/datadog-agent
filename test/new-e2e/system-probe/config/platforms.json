@@ -234,7 +234,7 @@
       "kernel": "4.9.0-19",
       "os_version": "9",
       "image": "debian-9-generic-x86_64.qcow2.xz",
-      "image_version": "usama.saqib/add-debian-9",
+      "image_version": "20240522_e732881e",
       "alt_version_names": [
         "stretch"
       ]
