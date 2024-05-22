@@ -237,14 +237,14 @@ func (w *TraceWriter) flush() {
 // w does not need to be locked during flushPayloads.
 func (w *TraceWriter) flushPayloads(payloads []*pb.TracerPayload) {
 	w.flushTicker.Reset(w.tick) // reset the flush timer whenever we flush
-	if len(w.tracerPayloads) == 0 {
+	if len(payloads) == 0 {
 		// nothing to do
 		return
 	}
 
 	defer w.timing.Since("datadog.trace_agent.trace_writer.encode_ms", time.Now())
 
-	log.Debugf("Serializing %d tracer payloads.", len(w.tracerPayloads))
+	log.Debugf("Serializing %d tracer payloads.", len(payloads))
 	p := pb.AgentPayload{
 		AgentVersion:       w.agentVersion,
 		HostName:           w.hostname,
