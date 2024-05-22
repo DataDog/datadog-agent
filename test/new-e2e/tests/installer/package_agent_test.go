@@ -61,15 +61,15 @@ func (s *packageAgentSuite) TestExperimentTimeout() {
 	s.host.SetupFakeAgentExp()
 
 	// assert timeout is already set
-	s.host.AssertUnitProperty("datadog-agent-exp.service", "JobTimeoutUSec", "50min")
+	s.host.AssertUnitProperty("datadog-agent-exp.service", "WatchdogUSec", "50min")
 
 	// shorten timeout for tests
 	s.host.Run("sudo mkdir -p /etc/systemd/system/datadog-agent-exp.service.d/")
 	defer s.host.Run("sudo rm -rf /etc/systemd/system/datadog-agent-exp.service.d/")
-	s.host.Run(`echo -e "[Unit]\nJobTimeoutSec=5" | sudo tee /etc/systemd/system/datadog-agent-exp.service.d/override.conf > /dev/null`)
+	s.host.Run(`echo -e "[Service]\nWatchdogSec=5" | sudo tee /etc/systemd/system/datadog-agent-exp.service.d/override.conf > /dev/null`)
 	s.host.Run(`sudo systemctl daemon-reload`)
 
-	s.host.AssertUnitProperty("datadog-agent-exp.service", "JobTimeoutUSec", "5s")
+	s.host.AssertUnitProperty("datadog-agent-exp.service", "WatchdogUSec", "5s")
 
 	timestamp := s.host.LastJournaldTimestamp()
 	s.host.Run(`sudo systemctl start datadog-agent-exp --no-block`)
@@ -131,7 +131,7 @@ func (s *packageAgentSuite) TestExperimentIgnoringSigterm() {
 			s.host.Run(fmt.Sprintf(`echo -e "[Service]\nTimeoutStopSec=1" | sudo tee /etc/systemd/system/%s.d/override.conf > /dev/null`, unit))
 		} else {
 			// using timeout on core agent to trigger the kill
-			s.host.Run(`echo -e "[Unit]\nJobTimeoutSec=5\n[Service]\nTimeoutStopSec=1" | sudo tee /etc/systemd/system/datadog-agent-exp.service.d/override.conf > /dev/null`)
+			s.host.Run(`echo -e "[Service]\nTimeoutStopSec=1\nWatchdogSec=5" | sudo tee /etc/systemd/system/datadog-agent-exp.service.d/override.conf > /dev/null`)
 		}
 		s.host.Run(`sudo systemctl daemon-reload`)
 		s.host.AssertUnitProperty(unit, "TimeoutStopUSec", "1s")

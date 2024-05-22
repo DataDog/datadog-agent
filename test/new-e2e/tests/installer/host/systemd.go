@@ -164,7 +164,7 @@ func (s SystemdEventSequence) Failed(unit string) SystemdEventSequence {
 
 // Timed adds a "Timed" event to the sequence
 func (s SystemdEventSequence) Timed(unit string) SystemdEventSequence {
-	s.Events = append(s.Events, []SystemdEvent{{Unit: unit, Pattern: "Timed.*"}})
+	s.Events = append(s.Events, []SystemdEvent{{Unit: unit, Pattern: ".*watchdog timeout.*"}})
 	return s
 }
 
