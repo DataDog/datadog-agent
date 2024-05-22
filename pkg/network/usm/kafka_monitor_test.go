@@ -941,6 +941,14 @@ func testKafkaFetchRaw(t *testing.T, tls bool, apiVersion int) {
 			numFetchedRecords: 5 * 4 * 3,
 		},
 		{
+			name:  "large topic name",
+			topic: strings.Repeat("a", 254) + "b",
+			buildResponse: func(topic string) kmsg.FetchResponse {
+				return makeFetchResponse(apiVersion, makeFetchResponseTopic(topic, makeFetchResponseTopicPartition(makeRecordBatch(makeRecord()))))
+			},
+			numFetchedRecords: 1,
+		},
+		{
 			// franz-go reads the size first
 			name:    "message size read first",
 			onlyTLS: true,
@@ -1240,7 +1248,7 @@ func validateProduceFetchCount(t *testing.T, kafkaStats map[kafka.Key]*kafka.Req
 	numberOfProduceRequests := 0
 	numberOfFetchRequests := 0
 	for kafkaKey, kafkaStat := range kafkaStats {
-		require.Equal(t, topicName, kafkaKey.TopicName)
+		require.Equal(t, topicName[:min(len(topicName), 80)], kafkaKey.TopicName)
 		switch kafkaKey.RequestAPIKey {
 		case kafka.ProduceAPIKey:
 			require.Equal(t, uint16(validation.expectedAPIVersionProduce), kafkaKey.RequestVersion)
