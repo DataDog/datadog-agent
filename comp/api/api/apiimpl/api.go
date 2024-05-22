@@ -17,7 +17,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/gui"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
-	"github.com/DataDog/datadog-agent/comp/core/settings"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
@@ -25,10 +24,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/replay"
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
-	"github.com/DataDog/datadog-agent/comp/metadata/host"
-	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
-	"github.com/DataDog/datadog-agent/comp/metadata/inventorychecks"
-	"github.com/DataDog/datadog-agent/comp/metadata/inventoryhost"
 	"github.com/DataDog/datadog-agent/comp/metadata/packagesigning"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcservice"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcservicemrf"
@@ -47,11 +42,7 @@ type apiServer struct {
 	dogstatsdServer   dogstatsdServer.Component
 	capture           replay.Component
 	pidMap            pidmap.Component
-	hostMetadata      host.Component
-	invAgent          inventoryagent.Component
-	invHost           inventoryhost.Component
 	secretResolver    secrets.Component
-	invChecks         inventorychecks.Component
 	pkgSigning        packagesigning.Component
 	statusComponent   status.Component
 	rcService         optional.Option[rcservice.Component]
@@ -63,7 +54,6 @@ type apiServer struct {
 	wmeta             workloadmeta.Component
 	collector         optional.Option[collector.Component]
 	gui               optional.Option[gui.Component]
-	settings          settings.Component
 	endpointProviders []api.EndpointProvider
 }
 
@@ -73,11 +63,7 @@ type dependencies struct {
 	DogstatsdServer   dogstatsdServer.Component
 	Capture           replay.Component
 	PidMap            pidmap.Component
-	HostMetadata      host.Component
-	InvAgent          inventoryagent.Component
-	InvHost           inventoryhost.Component
 	SecretResolver    secrets.Component
-	InvChecks         inventorychecks.Component
 	PkgSigning        packagesigning.Component
 	StatusComponent   status.Component
 	RcService         optional.Option[rcservice.Component]
@@ -89,7 +75,6 @@ type dependencies struct {
 	WorkloadMeta      workloadmeta.Component
 	Collector         optional.Option[collector.Component]
 	Gui               optional.Option[gui.Component]
-	Settings          settings.Component
 	EndpointProviders []api.EndpointProvider `group:"agent_endpoint"`
 }
 
@@ -100,11 +85,7 @@ func newAPIServer(deps dependencies) api.Component {
 		dogstatsdServer:   deps.DogstatsdServer,
 		capture:           deps.Capture,
 		pidMap:            deps.PidMap,
-		hostMetadata:      deps.HostMetadata,
-		invAgent:          deps.InvAgent,
-		invHost:           deps.InvHost,
 		secretResolver:    deps.SecretResolver,
-		invChecks:         deps.InvChecks,
 		pkgSigning:        deps.PkgSigning,
 		statusComponent:   deps.StatusComponent,
 		rcService:         deps.RcService,
@@ -116,7 +97,6 @@ func newAPIServer(deps dependencies) api.Component {
 		wmeta:             deps.WorkloadMeta,
 		collector:         deps.Collector,
 		gui:               deps.Gui,
-		settings:          deps.Settings,
 		endpointProviders: deps.EndpointProviders,
 	}
 }
@@ -139,7 +119,6 @@ func (server *apiServer) StartServer(
 		server.collector,
 		server.autoConfig,
 		server.gui,
-		server.settings,
 		server.endpointProviders,
 	)
 }

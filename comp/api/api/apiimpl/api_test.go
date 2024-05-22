@@ -22,7 +22,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/secrets/secretsimpl"
-	"github.com/DataDog/datadog-agent/comp/core/settings"
 	"github.com/DataDog/datadog-agent/comp/core/settings/settingsimpl"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/status/statusimpl"
@@ -36,13 +35,9 @@ import (
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/eventplatformreceiverimpl"
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
-	"github.com/DataDog/datadog-agent/comp/metadata/host"
 	"github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl"
-	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent/inventoryagentimpl"
-	"github.com/DataDog/datadog-agent/comp/metadata/inventorychecks"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventorychecks/inventorychecksimpl"
-	"github.com/DataDog/datadog-agent/comp/metadata/inventoryhost"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryhost/inventoryhostimpl"
 	"github.com/DataDog/datadog-agent/comp/metadata/packagesigning"
 	"github.com/DataDog/datadog-agent/comp/metadata/packagesigning/packagesigningimpl"
@@ -69,12 +64,8 @@ type testdeps struct {
 	DogstatsdServer       dogstatsdServer.Component
 	Capture               replay.Component
 	ServerDebug           dogstatsddebug.Component
-	HostMetadata          host.Component
-	InvAgent              inventoryagent.Component
 	Demux                 demultiplexer.Component
-	InvHost               inventoryhost.Component
 	SecretResolver        secrets.Component
-	InvChecks             inventorychecks.Component
 	PkgSigning            packagesigning.Component
 	StatusComponent       status.Mock
 	EventPlatformReceiver eventplatformreceiver.Component
@@ -86,7 +77,6 @@ type testdeps struct {
 	Autodiscovery         autodiscovery.Mock
 	Logs                  optional.Option[logsAgent.Component]
 	Collector             optional.Option[collector.Component]
-	Settings              settings.Component
 	EndpointProviders     []api.EndpointProvider `group:"agent_endpoint"`
 }
 
@@ -133,11 +123,7 @@ func getTestAPIServer(deps testdeps) api.Component {
 	apideps := dependencies{
 		DogstatsdServer:   deps.DogstatsdServer,
 		Capture:           deps.Capture,
-		HostMetadata:      deps.HostMetadata,
-		InvAgent:          deps.InvAgent,
-		InvHost:           deps.InvHost,
 		SecretResolver:    deps.SecretResolver,
-		InvChecks:         deps.InvChecks,
 		PkgSigning:        deps.PkgSigning,
 		StatusComponent:   deps.StatusComponent,
 		RcService:         deps.RcService,
@@ -147,7 +133,6 @@ func getTestAPIServer(deps testdeps) api.Component {
 		LogsAgentComp:     deps.Logs,
 		WorkloadMeta:      deps.WorkloadMeta,
 		Collector:         deps.Collector,
-		Settings:          deps.Settings,
 		EndpointProviders: deps.EndpointProviders,
 	}
 	return newAPIServer(apideps)
