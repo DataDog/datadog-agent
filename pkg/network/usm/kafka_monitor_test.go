@@ -673,14 +673,18 @@ func generateFetchRequest(apiVersion int, topic string) kmsg.FetchRequest {
 	return req
 }
 
-func makeRecord() kmsg.Record {
+func makeRecordWithVal(val []byte) kmsg.Record {
 	var tmp []byte
 	record := kmsg.NewRecord()
-	record.Value = []byte("Hello Kafka!")
+	record.Value = val
 	tmp = record.AppendTo(make([]byte, 0))
 	// 1 is the length of varint encoded 0
 	record.Length = int32(len(tmp) - 1)
 	return record
+}
+
+func makeRecord() kmsg.Record {
+	return makeRecordWithVal([]byte("Hello Kafka!"))
 }
 
 func makeRecordBatch(records ...kmsg.Record) kmsg.RecordBatch {
@@ -945,6 +949,44 @@ func testKafkaFetchRaw(t *testing.T, tls bool, apiVersion int) {
 			topic: strings.Repeat("a", 254) + "b",
 			buildResponse: func(topic string) kmsg.FetchResponse {
 				return makeFetchResponse(apiVersion, makeFetchResponseTopic(topic, makeFetchResponseTopicPartition(makeRecordBatch(makeRecord()))))
+			},
+			numFetchedRecords: 1,
+		},
+		{
+			name:  "many topics",
+			topic: defaultTopic,
+			buildResponse: func(topic string) kmsg.FetchResponse {
+				// Use a minimal record size in order to pack topics more
+				// tightly and ensure that the program will have to parse more
+				// partitions per segment (using many tail calls, etc).
+				record := makeRecordWithVal([]byte(""))
+				var records []kmsg.Record
+				for i := 0; i < 1; i++ {
+					records = append(records, record)
+				}
+
+				recordBatch := makeRecordBatch(records...)
+				var batches []kmsg.RecordBatch
+				for i := 0; i < 1; i++ {
+					batches = append(batches, recordBatch)
+				}
+
+				partition := makeFetchResponseTopicPartition(batches...)
+				var partitions []kmsg.FetchResponseTopicPartition
+				for i := 0; i < 1; i++ {
+					partitions = append(partitions, partition)
+				}
+
+				var topics []kmsg.FetchResponseTopic
+				topics = append(topics, makeFetchResponseTopic(topic, partitions...))
+				// These topics will be ignored in the current implementation,
+				// but we're adding them to ensure that we parse the number of
+				// topics correctly.
+				for i := 0; i < 128; i++ {
+					topics = append(topics, makeFetchResponseTopic(fmt.Sprintf("empty-%d", i), partitions...))
+				}
+
+				return makeFetchResponse(apiVersion, topics...)
 			},
 			numFetchedRecords: 1,
 		},
