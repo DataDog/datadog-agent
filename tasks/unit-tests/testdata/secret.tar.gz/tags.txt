@@ -1,0 +1,1 @@
+--tags ci.job.name:kitchen_windows_installer_agent-a6 --tags arch:x86_64 --tags os:windows upload_option.os_version_from_name

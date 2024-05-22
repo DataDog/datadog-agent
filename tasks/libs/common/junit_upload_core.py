@@ -1,4 +1,3 @@
-import glob
 import io
 import json
 import os
@@ -7,6 +6,8 @@ import re
 import tarfile
 import tempfile
 import xml.etree.ElementTree as ET
+from collections import defaultdict
+from pathlib import Path
 from shutil import which
 from subprocess import PIPE, CalledProcessError, Popen
 
@@ -70,38 +71,34 @@ def junit_upload_from_tgz(junit_tgz, codeowners_path=".github/CODEOWNERS"):
         codeowners = CodeOwners(f.read())
 
     flaky_tests = get_flaky_from_test_output()
-    junit_tgz = resolve_location(junit_tgz)
+    junit_tgz = find_tarball(junit_tgz)
 
-    xmlcounts = {}
-    with tempfile.TemporaryDirectory() as unpack_dir:
-        # unpack all files from archive
-        with tarfile.open(junit_tgz) as tgz:
-            tgz.extractall(path=unpack_dir)
-        tags = read_additional_tags(unpack_dir)
-        process_env = _update_environ(unpack_dir)
-        # for each unpacked xml file, split it and submit all parts
-        # NOTE: recursive=True is necessary for "**" to unpack into 0-n dirs, not just 1
-        xmls = 0
-        with collapsed_section("Uploading JUnit files"):
-            for xmlfile in glob.glob(f"{unpack_dir}/**/*.xml", recursive=True):
-                if not os.path.isfile(xmlfile):
+    with collapsed_section(f"Uploading JUnit files for {junit_tgz}"):
+        with tempfile.TemporaryDirectory() as unpack_dir:
+            working_dir = Path(unpack_dir)
+            # unpack all files from archive
+            with tarfile.open(junit_tgz) as tgz:
+                tgz.extractall(path=str(working_dir))
+
+            # Split xml files by codeowners
+            # Path().glob is recursive.
+            # We cast the glob generator to a list because we generate new xml files: that would lead to infinite loop
+            generated_xmls = 0
+            for xmlfile in list(working_dir.glob("**/*.xml")):
+                if not xmlfile.is_file():
                     print(f"[WARN] Matched folder named {xmlfile}")
                     continue
-                xmls += 1
-                with tempfile.TemporaryDirectory() as output_dir:
-                    written_owners, flavor = split_junitxml(xmlfile, codeowners, output_dir, flaky_tests)
-                    upload_junitxmls(output_dir, written_owners, flavor, xmlfile.split("/")[-1], process_env, tags)
-        xmlcounts[junit_tgz] = xmls
+                generated_xmls += split_junitxml(xmlfile, codeowners, flaky_tests)
+            print(f"Created {generated_xmls} JUnit XML files from {junit_tgz}")
+            # *-fast(-v2).tgz contains only tests related to the modified code, they can be empty
+            if generated_xmls == 0 and "-fast" not in junit_tgz:
+                raise Exit(f"[ERROR] No JUnit XML files for upload found in: {junit_tgz}")
 
-    empty_tgzs = []
-    for tgz, count in xmlcounts.items():
-        print(f"Submitted results for {count} JUnit XML files from {tgz}")
-        # *-fast(-v2).tgz contains only tests related to the modified code, they can be empty
-        if count == 0 and "-fast" not in tgz:
-            empty_tgzs.append(tgz)
-
-    if empty_tgzs:
-        raise Exit(f"[ERROR] No JUnit XML files for upload found in: {', '.join(empty_tgzs)}")
+            # Upload junit on a per-team basis
+            team_folders = [item for item in working_dir.iterdir() if item.is_dir()]
+            for team in team_folders:
+                print(f" Uploading {len(tuple(team.iterdir()))} files for {team.name}")
+                upload_junitxmls(team)
 
 
 def get_flaky_from_test_output():
@@ -125,7 +122,7 @@ def get_flaky_from_test_output():
     return flaky_tests
 
 
-def resolve_location(tarball):
+def find_tarball(tarball):
     """
     handle weird kitchen bug where it places the tarball in a subdirectory of the same name
     """
@@ -137,16 +134,19 @@ def resolve_location(tarball):
     return tarball
 
 
-def read_additional_tags(folder):
+def read_additional_tags(folder: Path):
+    """
+    Read tags from a tags.txt file in the given folder
+    """
     tags = None
-    tagsfile = os.path.join(folder, TAGS_FILE_NAME)
-    if os.path.exists(tagsfile):
-        with open(tagsfile) as tf:
+    tagsfile = folder / TAGS_FILE_NAME
+    if tagsfile.exists():
+        with tagsfile.open() as tf:
             tags = tf.read().split()
     return tags
 
 
-def split_junitxml(xml_path, codeowners, output_dir, flaky_tests):
+def split_junitxml(xml_path: Path, codeowners, flaky_tests):
     """
     Split a junit XML into several according to the suite name and the codeowners.
     Returns a list with the owners of the written files.
@@ -176,9 +176,9 @@ def split_junitxml(xml_path, codeowners, output_dir, flaky_tests):
         else:
             main_owner = owners[0][1][len(CODEOWNERS_ORG_PREFIX) :]
 
-        try:
+        if main_owner in output_xmls:
             xml = output_xmls[main_owner]
-        except KeyError:
+        else:
             xml = ET.ElementTree(ET.Element("testsuites"))
             output_xmls[main_owner] = xml
         # Flag the test as known flaky if gotestsum already knew it
@@ -188,51 +188,31 @@ def split_junitxml(xml_path, codeowners, output_dir, flaky_tests):
 
         xml.getroot().append(suite)
 
+    # Save the split XMLs in folders with <owner>_<flavor> name (they will be uploaded with the same tags)
     for owner, xml in output_xmls.items():
-        filepath = os.path.join(output_dir, owner + ".xml")
-        xml.write(filepath, encoding="UTF-8", xml_declaration=True)
+        write_dir = xml_path.parent / f"{owner}_{flavor}"
+        if not write_dir.exists():
+            write_dir.mkdir()
+        xml.write(write_dir / xml_path.name, encoding="UTF-8", xml_declaration=True)
+    return len(output_xmls)
 
-    return list(output_xmls), flavor
 
-
-def upload_junitxmls(output_dir, owners, flavor, xmlfile_name, process_env, additional_tags=None):
+def upload_junitxmls(team_dir: Path):
     """
     Upload all per-team split JUnit XMLs from given directory.
     """
+    additional_tags = read_additional_tags(team_dir.parent)
+    process_env = _update_environ(team_dir.parent)
     processes = []
 
-    for owner in owners:
-        junit_file_path = os.path.join(output_dir, owner + ".xml")
-        codeowner = CODEOWNERS_ORG_PREFIX + owner
-        slack_channel = GITHUB_SLACK_MAP.get(codeowner.lower(), DEFAULT_SLACK_CHANNEL)[1:]
-        jira_project = GITHUB_JIRA_MAP.get(codeowner.lower(), DEFAULT_JIRA_PROJECT)[0:]
-        args = [
-            "--service",
-            "datadog-agent",
-            "--tags",
-            f'test.codeowners:["{codeowner}"]',
-            "--tags",
-            f"test.flavor:{flavor}",
-            "--tags",
-            f"slack_channel:{slack_channel}",
-            "--tags",
-            f"jira_project:{jira_project}",
-        ]
-        if is_e2e_internal_failure(junit_file_path):
-            args.append("--tags")
-            args.append("e2e_internal_error:true")
-        if additional_tags and "upload_option.os_version_from_name" in additional_tags:
-            additional_tags.remove("upload_option.os_version_from_name")
-            additional_tags.append("--tags")
-            version_match = re.search(r"kitchen-rspec-([a-zA-Z0-9]+)-?([0-9-]*)-.*\.xml", xmlfile_name)
-            exact_version = version_match.group(1) + version_match.group(2).replace("-", ".")
-            additional_tags.append(f"version:{exact_version}")
-            print(additional_tags)
-
-        if additional_tags:
-            args.extend(additional_tags)
-        args.append(junit_file_path)
+    owner, flavor = team_dir.name.split("_")
+    # Kitchen/e2e can generate additional tags
+    xml_files = group_per_tags(team_dir, additional_tags)
+    for flags, files in xml_files.items():
+        args = set_tags(owner, flavor, flags, additional_tags, files[0])
+        args.extend(files)
         processes.append(Popen(DATADOG_CI_COMMAND + args, bufsize=-1, env=process_env, stdout=PIPE, stderr=PIPE))
+
     for process in processes:
         _, stderr = process.communicate()
         if stderr:
@@ -240,33 +220,80 @@ def upload_junitxmls(output_dir, owners, flavor, xmlfile_name, process_env, addi
             raise CalledProcessError(process.returncode, DATADOG_CI_COMMAND)
 
 
-def is_e2e_internal_failure(xml_path):
+def group_per_tags(team_dir: Path, additional_tags: list):
+    xml_files = defaultdict(list)
+    for file in team_dir.iterdir():
+        flags = "default"
+        if is_e2e_internal_failure(file):
+            flags = "e2e"
+        if is_kitchen_version(additional_tags):
+            flags = "kitchen" if flags == "default" else "kitchen-e2e"
+        xml_files[flags].append(str(file))
+    return xml_files
+
+
+def is_e2e_internal_failure(xml_path: Path):
     """
     Check if the given JUnit XML file contains E2E INTERAL ERROR string.
     """
-    with open(xml_path, encoding="utf8") as f:
+    with xml_path.open(encoding="utf8") as f:
         filecontent = f.read()
     return E2E_INTERNAL_ERROR_STRING in filecontent
 
 
-def _update_environ(unpack_dir):
+def is_kitchen_version(tags):
+    """
+    Check if we need to add the version from the kitchen file name to the tags
+    """
+    if tags and "upload_option.os_version_from_name" in tags:
+        return True
+    return False
+
+
+def set_tags(owner, flavor, flag: str, additional_tags, file_name):
+    codeowner = CODEOWNERS_ORG_PREFIX + owner
+    slack_channel = GITHUB_SLACK_MAP.get(codeowner.lower(), DEFAULT_SLACK_CHANNEL)[1:]
+    jira_project = GITHUB_JIRA_MAP.get(codeowner.lower(), DEFAULT_JIRA_PROJECT)[0:]
+    tags = [
+        "--service",
+        "datadog-agent",
+        "--tags",
+        f'test.codeowners:["{codeowner}"]',
+        "--tags",
+        f"test.flavor:{flavor}",
+        "--tags",
+        f"slack_channel:{slack_channel}",
+        "--tags",
+        f"jira_project:{jira_project}",
+    ]
+    if 'e2e' in flag:
+        tags.extend(["--tags", "e2e_internal_error:true"])
+    if 'kitchen' in flag:
+        version_match = re.search(r"kitchen-rspec-([a-zA-Z0-9]+)-?([0-9-]*)-.*\.xml", file_name)
+        exact_version = version_match.group(1) + version_match.group(2).replace("-", ".")
+        tags.extend(["--tags", f"version:{exact_version}"])
+        additional_tags.remove("upload_option.os_version_from_name")
+    tags.extend(additional_tags)
+    return tags
+
+
+def _update_environ(unpack_dir: Path):
     """
     Add job_url and job_env to current env if any, for the junit upload command
     """
     process_env = os.environ.copy()
     # read job url (see comment in produce_junit_tar)
     job_url = None
-    urlfile = os.path.join(unpack_dir, JOB_URL_FILE_NAME)
-    if os.path.exists(urlfile):
-        with open(urlfile) as jf:
+    urlfile = unpack_dir / JOB_URL_FILE_NAME
+    if urlfile.exists():
+        with urlfile.open() as jf:
             job_url = jf.read()
-        print(f"CI_JOB_URL={job_url}")
         process_env["CI_JOB_URL"] = job_url
 
     job_env = {}
-    envfile = os.path.join(unpack_dir, JOB_ENV_FILE_NAME)
-    if os.path.exists(envfile):
-        with open(envfile) as jf:
+    envfile = unpack_dir / JOB_ENV_FILE_NAME
+    if envfile.exists():
+        with envfile.open() as jf:
             for line in jf:
                 if not line.strip():
                     continue

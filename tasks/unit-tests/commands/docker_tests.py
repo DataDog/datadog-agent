@@ -1,5 +1,5 @@
 import unittest
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 from tasks.commands.docker import DockerCLI
 
@@ -9,6 +9,7 @@ class TestDockerCLI(unittest.TestCase):
         super().setUp()
         self.interface = DockerCLI("my-container")
 
+    @patch('builtins.print', new=MagicMock())
     @patch('invoke.run')
     def test_run_command(self, mock):
         self.interface.run_command(["echo", "Hello, World!"])
