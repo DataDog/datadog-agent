@@ -2,9 +2,6 @@ load("@rules_go//go:def.bzl", "go_library", "go_test")
 
 go_library(
     name = "python",
-    cdeps = [
-        "//bazel/prebuilt_inputs:rtloader",  # keep
-    ],
     srcs = [
         "aggregator.go",
         "check.go",
@@ -38,6 +35,9 @@ go_library(
         "test_util_windows.go",
         "util.go",
         "version.go",
+    ],
+    cdeps = [
+        "//bazel/prebuilt_inputs:rtloader",  # keep
     ],
     cgo = True,
     clinkopts = select({
