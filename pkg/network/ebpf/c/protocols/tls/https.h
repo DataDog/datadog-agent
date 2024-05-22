@@ -61,7 +61,6 @@ update_stack:
 }
 
 static __always_inline void tls_process(struct pt_regs *ctx, conn_tuple_t *t, void *buffer_ptr, size_t len, __u64 tags) {
-    conn_tuple_t final_tuple = {0};
     conn_tuple_t normalized_tuple = *t;
     normalize_tuple(&normalized_tuple);
     normalized_tuple.pid = 0;
@@ -104,15 +103,14 @@ static __always_inline void tls_process(struct pt_regs *ctx, conn_tuple_t *t, vo
     switch (protocol) {
     case PROTOCOL_HTTP:
         prog = TLS_HTTP_PROCESS;
-        final_tuple = normalized_tuple;
         break;
     case PROTOCOL_HTTP2:
         prog = TLS_HTTP2_FIRST_FRAME;
-        final_tuple = *t;
+        normalized_tuple = *t;
         break;
     case PROTOCOL_KAFKA:
         prog = TLS_KAFKA;
-        final_tuple = *t;
+        normalized_tuple = *t;
         break;
     default:
         return;
@@ -124,7 +122,7 @@ static __always_inline void tls_process(struct pt_regs *ctx, conn_tuple_t *t, vo
         return;
     }
     *args = (tls_dispatcher_arguments_t){
-        .tup = final_tuple,
+        .tup = normalized_tuple,
         .tags = tags,
         .buffer_ptr = buffer_ptr,
         .data_end = len,

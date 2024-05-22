@@ -52,6 +52,29 @@ static __always_inline void handle_new_query(struct __sk_buff *skb, skb_info_t *
     bpf_map_update_elem(&postgres_in_flight, conn_tuple, &new_transaction, BPF_ANY);
 }
 
+// Handles a new query by creating a new transaction and storing it in the map.
+// If a transaction already exists for the given connection, it is aborted.
+// Query message format - https://www.postgresql.org/docs/current/protocol-message-formats.html#PROTOCOL-MESSAGE-FORMATS-QUERY
+// the first 5 bytes are the message header, and the query is the rest of the payload.
+static __always_inline void handle_new_parse_query(struct __sk_buff *skb, skb_info_t *skb_info, conn_tuple_t *conn_tuple, __u32 query_len) {
+    postgres_transaction_t new_transaction = {};
+    new_transaction.request_started = bpf_ktime_get_ns();
+    read_into_buffer_postgres_query((char *)new_transaction.request_fragment, skb, skb_info->data_off);
+    // Skip the destination prepared statement name
+    u32 original_offset = skb_info->data_off;
+#pragma unroll(30)
+    for (__u32 i = 0; i < 30; ++i) {
+        skb_info->data_off++;
+        if (new_transaction.request_fragment[i] == '\0') {
+            break;
+        }
+    }
+    bpf_memset(new_transaction.request_fragment, 0, POSTGRES_BUFFER_SIZE);
+    read_into_buffer_postgres_query((char *)new_transaction.request_fragment, skb, skb_info->data_off);
+    new_transaction.original_query_size = query_len - (skb_info->data_off - original_offset);
+    bpf_map_update_elem(&postgres_in_flight, conn_tuple, &new_transaction, BPF_ANY);
+}
+
 // Handles a command complete message by enqueuing the transaction and deleting it from the in-flight map.
 // The format of the command complete message is described here: https://www.postgresql.org/docs/current/protocol-message-formats.html#PROTOCOL-MESSAGE-FORMATS-COMMANDCOMPLETE
 static __always_inline void handle_command_complete(conn_tuple_t *conn_tuple, postgres_transaction_t *transaction) {
@@ -96,6 +119,9 @@ int socket__postgres_process(struct __sk_buff* skb) {
         // message_len includes size of the payload, 4 bytes of the message length itself, but not the message tag.
         // So if we want to know the size of the payload, we need to subtract the size of the message length.
         handle_new_query(skb, &skb_info, &conn_tuple, header.message_len - sizeof(__u32));
+        return 0;
+    } else if (header.message_tag == POSTGRES_PARSE_MAGIC_BYTE) {
+        handle_new_parse_query(skb, &skb_info, &conn_tuple, header.message_len - sizeof(__u32));
         return 0;
     }
 

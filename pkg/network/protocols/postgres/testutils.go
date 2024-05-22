@@ -10,172 +10,110 @@ package postgres
 import (
 	"context"
 	"crypto/tls"
-	"database/sql"
-	"testing"
+	"errors"
+	"net"
+	"strconv"
+	"time"
 
-	"github.com/stretchr/testify/require"
-	"github.com/uptrace/bun"
-	"github.com/uptrace/bun/dialect/pgdialect"
-	"github.com/uptrace/bun/driver/pgdriver"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
-
-// DummyTable defines a table schema, so that `bun` module can generate queries for it.
-type DummyTable struct {
-	bun.BaseModel `bun:"table:dummy,alias:d"`
-
-	ID  int64 `bun:",pk,autoincrement"`
-	Foo string
-}
-
-var dummyModel = &DummyTable{ID: 1, Foo: "bar"}
 
 const (
 	// TLSDisabled represents the case when TLS is disabled.
 	TLSDisabled = false
 	// TLSEnabled represents the case when TLS is enabled.
 	TLSEnabled = true
+
+	// DefaultQuery is the default query to run.
+	DefaultQuery = "default"
+	emptyOption  = ""
+	NoLimit      = 0
 )
 
-// GetPGHandle returns a handle on the test Postgres DB. This does not initiate
-// a connection
-func GetPGHandle(t *testing.T, serverAddr string, enableTLS bool) *sql.DB {
-	t.Helper()
-
-	options := []pgdriver.Option{
-		pgdriver.WithNetwork("tcp"),
-		pgdriver.WithAddr(serverAddr),
-		pgdriver.WithUser("admin"),
-		pgdriver.WithPassword("password"),
-		pgdriver.WithDatabase("testdb"),
-	}
-
-	if enableTLS {
-		options = append(options, pgdriver.WithTLSConfig(&tls.Config{
-			InsecureSkipVerify: true,
-		}))
-	} else {
-		options = append(options, pgdriver.WithInsecure(true))
-	}
-
-	return sql.OpenDB(pgdriver.NewConnector(options...))
+type ConnectionOptions struct {
+	EnableTLS     bool
+	ServerAddress string
+	CustomDialer  func(ctx context.Context, network, addr string) (net.Conn, error)
+	Username      string
+	Password      string
+	DBName        string
 }
 
-// ConnectAndGetDB initiates a connection to the database, get a handle on the
+type PGClient struct {
+	DB *pgxpool.Pool
+}
+
+func optionOrDefault(option, emptyOption, fallback string) string {
+	if option == emptyOption {
+		return fallback
+	}
+	return option
+}
+
+// NewPGClient creates a new Postgres client for testing purposes.
+func NewPGClient(opts ConnectionOptions) (*PGClient, error) {
+	if opts.ServerAddress == "" {
+		return nil, errors.New("server address is required")
+	}
+	host, portStr, err := net.SplitHostPort(opts.ServerAddress)
+	if err != nil {
+		return nil, err
+	}
+	port, err := strconv.ParseUint(portStr, 10, 64)
+	if err != nil {
+		return nil, err
+	}
+	if port == 0 || port > 65535 {
+		return nil, errors.New("invalid port")
+	}
+	config, err := pgxpool.ParseConfig("")
+	if err != nil {
+		return nil, err
+	}
+
+	config.ConnConfig.Host = host
+	config.ConnConfig.Port = uint16(port)
+	config.ConnConfig.User = optionOrDefault(opts.Username, emptyOption, "admin")
+	config.ConnConfig.Password = optionOrDefault(opts.Password, emptyOption, "password")
+	config.ConnConfig.Database = optionOrDefault(opts.DBName, emptyOption, "testdb")
+
+	if opts.EnableTLS {
+		config.ConnConfig.TLSConfig = &tls.Config{
+			InsecureSkipVerify: true,
+		}
+	}
+
+	if opts.CustomDialer != nil {
+		config.ConnConfig.DialFunc = opts.CustomDialer
+	}
+
+	pool, err := pgxpool.NewWithConfig(context.Background(), config)
+	if err != nil {
+		return nil, err
+	}
+	return &PGClient{DB: pool}, nil
+}
+
+// Connect initiates a connection to the database, get a handle on the
 // test db, and register cleanup handlers for the test. Finally, it saves the db
 // handle and task context in the provided extras map.
-func ConnectAndGetDB(t *testing.T, serverAddr string, extras map[string]interface{}, enableTLS bool) {
-	t.Helper()
-
-	ctx := context.Background()
-
-	pg := GetPGHandle(t, serverAddr, enableTLS)
-	db := bun.NewDB(pg, pgdialect.New())
-
-	if extras != nil {
-		extras["ctx"] = ctx
-		extras["db"] = db
+func (c *PGClient) Connect() error {
+	if c.DB == nil {
+		return errors.New("db handle is nil")
 	}
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	return c.DB.Ping(ctx)
 }
 
-// The following are helpers around bun to quickly execute SQL query for use in
-// protocol classification tests.
-
-// GetCtx returns a pointer to the DC, and the task context from the extras map.
-func GetCtx(extras map[string]interface{}) (*bun.DB, context.Context) {
-	db := extras["db"].(*bun.DB)
-	taskCtx := extras["ctx"].(context.Context)
-
-	return db, taskCtx
+func (c *PGClient) Close() {
+	c.DB.Close()
 }
 
-// RunAlterQuery runs ALTER query on the test DB.
-func RunAlterQuery(t *testing.T, extras map[string]interface{}) {
-	t.Helper()
-	db, ctx := GetCtx(extras)
-
-	_, err := db.NewAddColumn().Model((*DummyTable)(nil)).ColumnExpr("new_column BOOL").Exec(ctx)
-	require.NoError(t, err)
-}
-
-// RunCreateQuery creates a new table.
-func RunCreateQuery(t *testing.T, extras map[string]interface{}) {
-	t.Helper()
-	db, ctx := GetCtx(extras)
-
-	_, err := db.NewCreateTable().Model((*DummyTable)(nil)).Exec(ctx)
-	require.NoError(t, err)
-}
-
-// RunDeleteQuery run a deletion query on the test DB.
-func RunDeleteQuery(t *testing.T, extras map[string]interface{}) {
-	t.Helper()
-	db, ctx := GetCtx(extras)
-
-	_, err := db.NewDelete().Model(dummyModel).WherePK().Exec(ctx)
-	require.NoError(t, err)
-}
-
-// RunDropQuery drops a table.
-func RunDropQuery(t *testing.T, extras map[string]interface{}) {
-	t.Helper()
-	db, ctx := GetCtx(extras)
-
-	_, err := db.NewDropTable().Model((*DummyTable)(nil)).IfExists().Exec(ctx)
-	require.NoError(t, err)
-}
-
-// RunInsertQuery inserts a new row in the table.
-func RunInsertQuery(t *testing.T, id int64, extras map[string]interface{}) {
-	t.Helper()
-	db, ctx := GetCtx(extras)
-
-	model := *dummyModel
-	model.ID = id
-
-	_, err := db.NewInsert().Model(&model).Exec(ctx)
-	require.NoError(t, err)
-}
-
-// RunMultiInsertQuery inserts multiple values into the table.
-func RunMultiInsertQuery(t *testing.T, extras map[string]interface{}, values ...string) {
-	t.Helper()
-	db, ctx := GetCtx(extras)
-
-	entries := make([]DummyTable, 0, len(values))
-	for _, value := range values {
-		entries = append(entries, DummyTable{Foo: value})
-	}
-	_, err := db.NewInsert().Model(&entries).Exec(ctx)
-	require.NoError(t, err)
-}
-
-// RunSelectQuery runs a SELECT query on the test DB.
-func RunSelectQuery(t *testing.T, extras map[string]interface{}) {
-	t.Helper()
-	RunSelectQueryWithLimit(t, extras, 0)
-}
-
-// RunSelectQueryWithLimit runs a SELECT query on the test DB with a limit on the number of rows to return.
-func RunSelectQueryWithLimit(t *testing.T, extras map[string]interface{}, limit int) {
-	t.Helper()
-	db, ctx := GetCtx(extras)
-
-	statement := db.NewSelect()
-	if limit > 0 {
-		statement = statement.Limit(limit)
-	}
-	_, err := statement.Model(dummyModel).Exec(ctx)
-	require.NoError(t, err)
-}
-
-// RunUpdateQuery runs an UPDATE query on the test DB.
-func RunUpdateQuery(t *testing.T, extras map[string]interface{}) {
-	t.Helper()
-	db, ctx := GetCtx(extras)
-
-	newModel := *dummyModel
-	newModel.Foo = "baz"
-
-	_, err := db.NewUpdate().Model(&newModel).WherePK().Exec(ctx)
-	require.NoError(t, err)
+func (c *PGClient) RunQuery(query string, args ...any) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 300*time.Second)
+	defer cancel()
+	res, err := c.DB.Query(ctx, query, args...)
+	res.Close()
+	return err
 }

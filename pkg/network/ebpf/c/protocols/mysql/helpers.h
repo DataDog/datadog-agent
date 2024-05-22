@@ -62,7 +62,7 @@ static __always_inline bool is_mysql(conn_tuple_t *tup, const char* buf, __u32 b
     switch (header.command_type) {
     case MYSQL_COMMAND_QUERY:
     case MYSQL_PREPARE_QUERY:
-        return is_sql_command((char*)(buf+sizeof(mysql_hdr)), buf_size-sizeof(mysql_hdr));
+        return is_sql_command((char*)buf, sizeof(mysql_hdr), buf_size);
     case MYSQL_SERVER_GREETING_V10:
     case MYSQL_SERVER_GREETING_V9:
         return is_version((char*)(buf+sizeof(mysql_hdr)), buf_size-sizeof(mysql_hdr));
