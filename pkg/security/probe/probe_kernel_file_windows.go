@@ -700,6 +700,8 @@ func (wp *WindowsProbe) parseNameDeleteArgs(e *etw.DDEventRecord) (*nameDeleteAr
 	}
 	return (*nameDeleteArgs)(ca), nil
 }
+
+// nolint: unused
 func (wp *WindowsProbe) convertDrivePath(devicefilename string) (string, error) {
 	// filepath doesn't seem to like the \Device\HarddiskVolume1 format
 	pathchunks := strings.Split(devicefilename, "\\")
