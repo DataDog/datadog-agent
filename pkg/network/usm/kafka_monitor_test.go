@@ -125,8 +125,10 @@ func (s *KafkaProtocolParsingSuite) TestKafkaProtocolParsing() {
 	versions = append(versions, fetch12)
 
 	versionName := func(version *kversion.Versions) string {
-		produce, _ := version.LookupMaxKeyVersion(kafka.ProduceAPIKey)
-		fetch, _ := version.LookupMaxKeyVersion(kafka.FetchAPIKey)
+		produce, found := version.LookupMaxKeyVersion(kafka.ProduceAPIKey)
+		require.True(t, found)
+		fetch, found := version.LookupMaxKeyVersion(kafka.FetchAPIKey)
+		require.True(t, found)
 		return fmt.Sprintf("produce%d_fetch%d", produce, fetch)
 	}
 
@@ -190,7 +192,8 @@ func (s *KafkaProtocolParsingSuite) testKafkaProtocolParsing(t *testing.T, tls b
 		return getDefaultTestConfiguration(tls)
 	}
 
-	tmp, _ := version.LookupMaxKeyVersion(kafka.FetchAPIKey)
+	tmp, found := version.LookupMaxKeyVersion(kafka.FetchAPIKey)
+	require.True(t, found)
 	expectedAPIVersionFetch := int(tmp)
 
 	tests := []kafkaParsingTestAttributes{
