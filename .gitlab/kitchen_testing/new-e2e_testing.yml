@@ -32,27 +32,27 @@
   variables:
     TARGETS: ./tests/agent-platform/upgrade
     TEAM: agent-build-and-releases
-    EXTRA_PARAMS: --osversion $E2E_OSVERS --platform $E2E_PLATFORM --arch $E2E_ARCH --flavor $FLAVOR
+    EXTRA_PARAMS: --osversion $E2E_OSVERS --platform $E2E_PLATFORM --arch $E2E_ARCH --flavor $FLAVOR --src-agent-version $START_MAJOR_VERSION --dest-agent-version $END_MAJOR_VERSION
   parallel:
     matrix:
       - START_MAJOR_VERSION: [5, 6]
         END_MAJOR_VERSION: [6]
   script:
     - export DATADOG_AGENT_API_KEY=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $INSTALL_SCRIPT_API_KEY_SSM_NAME)
-    - inv -e new-e2e-tests.run --targets $TARGETS --junit-tar "junit-${CI_JOB_ID}.tgz" ${EXTRA_PARAMS} --src-agent-version $START_MAJOR_VERSION --dest-agent-version $END_MAJOR_VERSION
-
+    - !reference [.new_e2e_template, script]
 .new-e2e_script_upgrade7:
   variables:
     TARGETS: ./tests/agent-platform/upgrade
     TEAM: agent-build-and-releases
-    EXTRA_PARAMS: --osversion $E2E_OSVERS --platform $E2E_PLATFORM --arch $E2E_ARCH --flavor $FLAVOR
+    EXTRA_PARAMS: --osversion $E2E_OSVERS --platform $E2E_PLATFORM --arch $E2E_ARCH --flavor $FLAVOR --src-agent-version $START_MAJOR_VERSION --dest-agent-version $END_MAJOR_VERSION
   parallel:
     matrix:
       - START_MAJOR_VERSION: [5, 6, 7]
         END_MAJOR_VERSION: [7]
   script:
     - export DATADOG_AGENT_API_KEY=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $INSTALL_SCRIPT_API_KEY_SSM_NAME )
-    - inv -e new-e2e-tests.run --targets $TARGETS --junit-tar "junit-${CI_JOB_ID}.tgz" ${EXTRA_PARAMS} --src-agent-version $START_MAJOR_VERSION --dest-agent-version $END_MAJOR_VERSION
+    - !reference [.new_e2e_template, script]
+
 
 .new-e2e_rpm:
   variables:
@@ -61,4 +61,5 @@
     EXTRA_PARAMS: --osversion $E2E_OSVERS --platform $E2E_PLATFORM --arch $E2E_ARCH
   script:
     - export DATADOG_AGENT_API_KEY=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh ci.agent-linux-install-script.datadog_api_key)
-    - inv -e new-e2e-tests.run --targets $TARGETS --junit-tar "junit-${CI_JOB_ID}.tgz" ${EXTRA_PARAMS}
+    - !reference [.new_e2e_template, script]
+
