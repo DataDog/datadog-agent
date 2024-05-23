@@ -121,8 +121,8 @@ func (r *secretResolver) fillFlare(fb flaretypes.FlareBuilder) error {
 	writer := bufio.NewWriter(&buffer)
 	r.GetDebugInfo(writer)
 	writer.Flush()
-	fb.AddFile("secrets.log", buffer.Bytes())
-	fb.CopyFile(r.auditFilename)
+	fb.AddFile("secrets.log", buffer.Bytes()) //nolint:errcheck
+	fb.CopyFile(r.auditFilename)              //nolint:errcheck
 	return nil
 }
 
@@ -367,6 +367,8 @@ func (r *secretResolver) processSecretResponse(secretResponse map[string]string,
 		if useAllowlist && !r.matchesAllowlist(handle) {
 			continue
 		}
+
+		log.Debugf("Secret %s has changed", handle)
 
 		places := make([]handlePlace, 0, len(r.origin[handle]))
 		for _, secretCtx := range r.origin[handle] {

@@ -84,11 +84,32 @@ func testAutoVersionTraces(t *testing.T, c *assert.CollectT, intake *components.
 		for _, tp := range tr.TracerPayloads {
 			t.Log("Tracer Payload Tags:", tp.Tags["_dd.tags.container"])
 			ctags, ok := getContainerTags(t, tp)
-			assert.True(t, ok)
+			assert.True(t, ok, "expected to find container tags at _dd.tags.container")
 			imageTag, ok := ctags["image_tag"]
-			assert.True(t, ok)
+			assert.True(t, ok, "expected to find image_tag in container tags")
 			t.Logf("Got image Tag: %v", imageTag)
 			assert.Equal(t, "main", imageTag)
+		}
+	}
+}
+
+func tracesSampledByProbabilitySampler(t *testing.T, c *assert.CollectT, intake *components.FakeIntake) {
+	t.Helper()
+	traces, err := intake.Client().GetTraces()
+	assert.NoError(c, err)
+	assert.NotEmpty(c, traces)
+	t.Log("Got traces", traces)
+	for _, p := range traces {
+		for _, tp := range p.AgentPayload.TracerPayloads {
+			for _, chunk := range tp.Chunks {
+				dm, ok := chunk.Tags["_dd.p.dm"]
+				if !ok {
+					t.Errorf("Expected trace chunk tags to contain _dd.p.dm, but it does not.")
+				}
+				if dm != "-9" {
+					t.Errorf("Expected dm == -9, but got %v", dm)
+				}
+			}
 		}
 	}
 }
@@ -122,7 +143,7 @@ func testIsTraceRootTag(t *testing.T, c *assert.CollectT, intake *components.Fak
 			for _, b := range s.Stats {
 				for _, cs := range b.Stats {
 					t.Logf("Got IsTraceRoot: %v", cs.GetIsTraceRoot())
-					assert.Equal(t, trace.TraceRootFlag_TRUE, cs.GetIsTraceRoot())
+					assert.Equal(t, trace.Trilean_TRUE, cs.GetIsTraceRoot())
 				}
 			}
 		}

@@ -38,9 +38,6 @@ if ENV["S3_OMNIBUS_CACHE_BUCKET"]
   end
 end
 
-if not ENV.has_key?("OMNIBUS_GIT_CACHE_DIR")
-  use_git_caching false
-else
-  use_git_caching true
-  git_cache_dir ENV["OMNIBUS_GIT_CACHE_DIR"]
-end
+# This setting can be overriden per-project (which is the case for the agent builds)
+use_git_caching false
+

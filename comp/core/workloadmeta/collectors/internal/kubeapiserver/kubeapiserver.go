@@ -43,6 +43,10 @@ func storeGenerators(cfg config.Reader) []storeGenerator {
 		generators = append(generators, newDeploymentStore)
 	}
 
+	if cfg.GetBool("kubernetes_namespace_collection_enabled") {
+		generators = append(generators, newNamespaceStore)
+	}
+
 	return generators
 }
 
@@ -73,7 +77,7 @@ func (c *collector) Start(ctx context.Context, wlmetaStore workloadmeta.Componen
 	if err != nil {
 		return err
 	}
-	client := apiserverClient.Cl
+	client := apiserverClient.InformerCl
 
 	// TODO(components): do not use the config.Datadog reference, use a component instead
 	for _, storeBuilder := range storeGenerators(config.Datadog) {

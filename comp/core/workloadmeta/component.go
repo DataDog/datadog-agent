@@ -13,7 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
-// team: container-integrations
+// team: container-platform
 
 // Component is the component type.
 type Component interface {
@@ -74,6 +74,10 @@ type Component interface {
 	// GetKubernetesDeployment returns metadata about a Kubernetes deployment. It fetches
 	// the entity with kind KindKubernetesDeployment and the given ID.
 	GetKubernetesDeployment(id string) (*KubernetesDeployment, error)
+
+	// GetKubernetesNamespace returns metadata about a Kubernetes namespace. It fetches
+	// the entity with kind KindKubernetesNamespace and the given ID.
+	GetKubernetesNamespace(id string) (*KubernetesNamespace, error)
 
 	// ListECSTasks returns metadata about all ECS tasks, equivalent to all
 	// entities with kind KindECSTask.

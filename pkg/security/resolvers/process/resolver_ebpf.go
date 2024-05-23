@@ -290,6 +290,10 @@ func (p *EBPFResolver) UpdateArgsEnvs(event *model.ArgsEnvsEvent) {
 
 // AddForkEntry adds an entry to the local cache and returns the newly created entry
 func (p *EBPFResolver) AddForkEntry(entry *model.ProcessCacheEntry, inode uint64) {
+	if entry.Pid == 0 {
+		return
+	}
+
 	p.Lock()
 	defer p.Unlock()
 
@@ -298,6 +302,10 @@ func (p *EBPFResolver) AddForkEntry(entry *model.ProcessCacheEntry, inode uint64
 
 // AddExecEntry adds an entry to the local cache and returns the newly created entry
 func (p *EBPFResolver) AddExecEntry(entry *model.ProcessCacheEntry, inode uint64) {
+	if entry.Pid == 0 {
+		return
+	}
+
 	p.Lock()
 	defer p.Unlock()
 
@@ -336,6 +344,10 @@ func (p *EBPFResolver) enrichEventFromProc(entry *model.ProcessCacheEntry, proc 
 
 	entry.FileEvent.FileFields = *info
 	setPathname(&entry.FileEvent, pathnameStr)
+
+	// force mount from procfs/snapshot
+	entry.FileEvent.MountOrigin = model.MountOriginProcfs
+	entry.FileEvent.MountSource = model.MountSourceSnapshot
 
 	entry.Process.ContainerID = string(containerID)
 
@@ -487,6 +499,10 @@ func (p *EBPFResolver) insertEntry(entry, prev *model.ProcessCacheEntry, source 
 }
 
 func (p *EBPFResolver) insertForkEntry(entry *model.ProcessCacheEntry, inode uint64, source uint64) {
+	if entry.Pid == 0 {
+		return
+	}
+
 	prev := p.entryCache[entry.Pid]
 	if prev != nil {
 		// this shouldn't happen but it is better to exit the prev and let the new one replace it
@@ -515,6 +531,10 @@ func (p *EBPFResolver) insertForkEntry(entry *model.ProcessCacheEntry, inode uin
 }
 
 func (p *EBPFResolver) insertExecEntry(entry *model.ProcessCacheEntry, inode uint64, source uint64) {
+	if entry.Pid == 0 {
+		return
+	}
+
 	prev := p.entryCache[entry.Pid]
 	if prev != nil {
 		if inode != 0 && prev.FileEvent.Inode != inode {
@@ -562,6 +582,10 @@ func (p *EBPFResolver) DeleteEntry(pid uint32, exitTime time.Time) {
 
 // Resolve returns the cache entry for the given pid
 func (p *EBPFResolver) Resolve(pid, tid uint32, inode uint64, useProcFS bool) *model.ProcessCacheEntry {
+	if pid == 0 {
+		return nil
+	}
+
 	p.Lock()
 	defer p.Unlock()
 
@@ -601,17 +625,19 @@ func (p *EBPFResolver) resolve(pid, tid uint32, inode uint64, useProcFS bool) *m
 	return nil
 }
 
-func (p *EBPFResolver) resolveFileFieldsPath(e *model.FileFields, pce *model.ProcessCacheEntry, ctrCtx *model.ContainerContext) (string, error) {
+func (p *EBPFResolver) resolveFileFieldsPath(e *model.FileFields, pce *model.ProcessCacheEntry, ctrCtx *model.ContainerContext) (string, string, model.MountSource, model.MountOrigin, error) {
 	var (
-		pathnameStr   string
-		err           error
-		maxDepthRetry = 3
+		pathnameStr, mountPath string
+		source                 model.MountSource
+		origin                 model.MountOrigin
+		err                    error
+		maxDepthRetry          = 3
 	)
 
 	for maxDepthRetry > 0 {
-		pathnameStr, err = p.pathResolver.ResolveFileFieldsPath(e, &pce.PIDContext, ctrCtx)
+		pathnameStr, mountPath, source, origin, err = p.pathResolver.ResolveFileFieldsPath(e, &pce.PIDContext, ctrCtx)
 		if err == nil {
-			return pathnameStr, nil
+			return pathnameStr, mountPath, source, origin, nil
 		}
 		parent, exists := p.entryCache[pce.PPid]
 		if !exists {
@@ -622,7 +648,7 @@ func (p *EBPFResolver) resolveFileFieldsPath(e *model.FileFields, pce *model.Pro
 		maxDepthRetry--
 	}
 
-	return pathnameStr, err
+	return pathnameStr, mountPath, source, origin, err
 }
 
 // SetProcessPath resolves process file path
@@ -640,11 +666,14 @@ func (p *EBPFResolver) SetProcessPath(fileEvent *model.FileEvent, pce *model.Pro
 		return onError("", &model.ErrInvalidKeyPath{Inode: fileEvent.Inode, MountID: fileEvent.MountID})
 	}
 
-	pathnameStr, err := p.resolveFileFieldsPath(&fileEvent.FileFields, pce, ctrCtx)
+	pathnameStr, mountPath, source, origin, err := p.resolveFileFieldsPath(&fileEvent.FileFields, pce, ctrCtx)
 	if err != nil {
 		return onError(pathnameStr, err)
 	}
 	setPathname(fileEvent, pathnameStr)
+	fileEvent.MountPath = mountPath
+	fileEvent.MountSource = source
+	fileEvent.MountOrigin = origin
 
 	return fileEvent.PathnameStr, nil
 }
@@ -745,6 +774,10 @@ func (p *EBPFResolver) ResolveFromKernelMaps(pid, tid uint32, inode uint64) *mod
 }
 
 func (p *EBPFResolver) resolveFromKernelMaps(pid, tid uint32, inode uint64) *model.ProcessCacheEntry {
+	if pid == 0 {
+		return nil
+	}
+
 	pidb := make([]byte, 4)
 	binary.NativeEndian.PutUint32(pidb, pid)
 

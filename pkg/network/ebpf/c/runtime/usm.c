@@ -18,6 +18,7 @@
 #include "protocols/http2/decoding.h"
 #include "protocols/http2/decoding-tls.h"
 #include "protocols/kafka/kafka-parsing.h"
+#include "protocols/postgres/decoding.h"
 #include "protocols/sockfd-probes.h"
 #include "protocols/tls/java/erpc_dispatcher.h"
 #include "protocols/tls/java/erpc_handlers.h"
@@ -182,6 +183,7 @@ int tracepoint__net__netif_receive_skb(struct pt_regs* ctx) {
     http2_batch_flush(ctx);
     terminated_http2_batch_flush(ctx);
     kafka_batch_flush(ctx);
+    postgres_batch_flush(ctx);
     return 0;
 }
 
@@ -284,6 +286,7 @@ int uprobe__crypto_tls_Conn_Write__return(struct pt_regs *ctx) {
 
     conn_tuple_t *t = conn_tup_from_tls_conn(od, (void*)call_data_ptr->conn_pointer, pid_tgid);
     if (t == NULL) {
+        log_debug("[go-tls-write-return] failed getting conn tup from tls conn for pid %llu", pid);
         bpf_map_delete_elem(&go_tls_write_args, &call_key);
         return 0;
     }
@@ -386,6 +389,7 @@ int uprobe__crypto_tls_Conn_Read__return(struct pt_regs *ctx) {
 
     conn_tuple_t* t = conn_tup_from_tls_conn(od, (void*) call_data_ptr->conn_pointer, pid_tgid);
     if (t == NULL) {
+        log_debug("[go-tls-read-return] failed getting conn tup from tls conn for pid %llu", pid);
         bpf_map_delete_elem(&go_tls_read_args, &call_key);
         return 0;
     }

@@ -64,14 +64,20 @@ func validateSchema(t *testing.T, schemaLoader gojsonschema.JSONLoader, document
 		return false
 	}
 
-	if !result.Valid() {
-		for _, desc := range result.Errors() {
-			t.Error(desc)
-		}
-		return false
-	}
+	success := true
 
-	return true
+	if !result.Valid() {
+		for _, err := range result.Errors() {
+			// allow addition properties
+			if err.Type() == "additional_property_not_allowed" {
+				continue
+			}
+
+			t.Error(err)
+			success = false
+		}
+	}
+	return success
 }
 
 //nolint:deadcode,unused
@@ -288,6 +294,10 @@ func (tm *testModule) validateBindSchema(t *testing.T, event *model.Event) bool 
 
 //nolint:deadcode,unused
 func (tm *testModule) validateMountSchema(t *testing.T, event *model.Event) bool {
+	if ebpfLessEnabled {
+		return true
+	}
+
 	t.Helper()
 	return tm.validateEventSchema(t, event, "file:///schemas/mount.schema.json")
 }

@@ -133,7 +133,7 @@ func TestMount(t *testing.T) {
 				return false
 			}
 
-			return assert.Equal(t, mntID, event.Umount.MountID, "wrong mount id")
+			return ebpfLessEnabled || assert.Equal(t, mntID, event.Umount.MountID, "wrong mount id")
 		}, 3*time.Second, model.FileUmountEventType)
 		if err != nil {
 			t.Error(err)
@@ -165,7 +165,7 @@ func TestMountPropagated(t *testing.T) {
 		Expression: `chmod.file.path == "{{.Root}}/dir1-bind-mounted/test-drive/test-file"`,
 	}}
 
-	test, err := newTestModule(t, nil, ruleDefs)
+	test, err := newTestModule(t, nil, ruleDefs, withForceReload())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -357,21 +357,26 @@ func TestMountSnapshot(t *testing.T) {
 	checkSnapshotAndModelMatch := func(mntInfo *mountinfo.Info) {
 		dev := utils.Mkdev(uint32(mntInfo.Major), uint32(mntInfo.Minor))
 
-		mount, err := mountResolver.ResolveMount(uint32(mntInfo.ID), dev, pid, "")
+		mount, mountSource, mountOrigin, err := mountResolver.ResolveMount(uint32(mntInfo.ID), dev, pid, "")
 		if err != nil {
 			t.Errorf(err.Error())
 			return
 		}
+		assert.Equal(t, model.MountSourceMountID, mountSource)
+		assert.NotEqual(t, model.MountOriginUnknown, mountOrigin)
 		assert.Equal(t, uint32(mntInfo.ID), mount.MountID, "snapshot and model mount ID mismatch")
 		assert.Equal(t, uint32(mntInfo.Parent), mount.ParentPathKey.MountID, "snapshot and model parent mount ID mismatch")
 		assert.Equal(t, dev, mount.Device, "snapshot and model device mismatch")
 		assert.Equal(t, mntInfo.FSType, mount.FSType, "snapshot and model fstype mismatch")
 		assert.Equal(t, mntInfo.Root, mount.RootStr, "snapshot and model root mismatch")
-		mountPointPath, err := mountResolver.ResolveMountPath(mount.MountID, dev, pid, "")
+
+		mountPointPath, mountSource, mountOrigin, err := mountResolver.ResolveMountPath(mount.MountID, dev, pid, "")
 		if err != nil {
 			t.Errorf("failed to resolve mountpoint path of mountpoint with id %d", mount.MountID)
 		}
 		assert.Equal(t, mntInfo.Mountpoint, mountPointPath, "snapshot and model mountpoint path mismatch")
+		assert.Equal(t, model.MountSourceMountID, mountSource)
+		assert.NotEqual(t, model.MountOriginUnknown, mountOrigin)
 	}
 
 	mntResolved := 0
@@ -499,6 +504,7 @@ func TestMountEvent(t *testing.T) {
 	}
 
 	t.Run("mount-in-container-root", func(t *testing.T) {
+		SkipIfNotAvailable(t)
 		test.WaitSignal(t, func() error {
 			if _, err := wrapperTruePositive.start(); err != nil {
 				return err

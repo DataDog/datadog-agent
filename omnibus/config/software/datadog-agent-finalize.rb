@@ -25,6 +25,9 @@ build do
         if windows_target?
             conf_dir_root = "#{Omnibus::Config.source_dir()}/etc/datadog-agent"
             conf_dir = "#{conf_dir_root}/extra_package_files/EXAMPLECONFSLOCATION"
+            # delete the directory if it exists, then recreate it, because
+            # move will skip/silently fail if the destination directory exists
+            delete conf_dir
             mkdir conf_dir
             move "#{install_dir}/etc/datadog-agent/datadog.yaml.example", conf_dir_root, :force=>true
             if ENV['WINDOWS_DDNPM_DRIVER'] and not ENV['WINDOWS_DDNPM_DRIVER'].empty? and not windows_arch_i386?
@@ -47,6 +50,9 @@ build do
 
             # load isn't supported by windows
             delete "#{conf_dir}/load.d"
+
+            # service_discovery isn't supported by windows
+            delete "#{conf_dir}/service_discovery.d"
 
             # Remove .pyc files from embedded Python
             command "del /q /s #{windows_safe_path(install_dir)}\\*.pyc"

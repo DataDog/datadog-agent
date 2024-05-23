@@ -46,16 +46,28 @@ func createTestProbe() (*WindowsProbe, error) {
 	if err != nil {
 		return nil, err
 	}
+	fc, err := lru.New[fileObjectPointer, fileCache](1024)
+	if err != nil {
+		return nil, err
+	}
+	rc, err := lru.New[regObjectPointer, string](1024)
+	if err != nil {
+		return nil, err
+	}
 
 	// probe and config are provided as null.  During the tests, it is assumed
 	// that we will not access those values.
 	wp := &WindowsProbe{
 		opts:               opts,
 		config:             cfg,
-		filePathResolver:   make(map[fileObjectPointer]string, 0),
-		regPathResolver:    make(map[regObjectPointer]string, 0),
+		filePathResolver:   fc,
+		regPathResolver:    rc,
 		discardedPaths:     discardedPaths,
 		discardedBasenames: discardedBasenames,
+
+		isRenameEnabled: true,
+		isWriteEnabled:  true,
+		isDeleteEnabled: true,
 	}
 	err = wp.Init()
 
@@ -309,8 +321,9 @@ func testSimpleFileWrite(t *testing.T, et *etwTester, testfilename string) {
 		select {
 		case <-et.loopExited:
 			return true
+		default:
+			return false
 		}
-		return false
 	}, 10*time.Second, 250*time.Millisecond, "did not get notification")
 
 	stopLoop(et, &wg)
@@ -365,8 +378,9 @@ func testSimpleFileDelete(t *testing.T, et *etwTester, testfilename string) {
 		select {
 		case <-et.loopExited:
 			return true
+		default:
+			return false
 		}
-		return false
 	}, 10*time.Second, 250*time.Millisecond, "did not get notification")
 
 	stopLoop(et, &wg)
@@ -429,8 +443,9 @@ func testSimpleFileRename(t *testing.T, et *etwTester, testfilename, testfileren
 		select {
 		case <-et.loopExited:
 			return true
+		default:
+			return false
 		}
-		return false
 	}, 10*time.Second, 250*time.Millisecond, "did not get notification")
 
 	stopLoop(et, &wg)

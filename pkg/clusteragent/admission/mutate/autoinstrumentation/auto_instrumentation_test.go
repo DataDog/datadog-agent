@@ -53,7 +53,7 @@ func TestInjectAutoInstruConfig(t *testing.T) {
 				},
 			},
 			expectedEnvKey: "JAVA_TOOL_OPTIONS",
-			expectedEnvVal: " -javaagent:/datadog-lib/dd-java-agent.jar -XX:OnError=/datadog-lib/continuousprofiler/tmp/dd_crash_uploader.sh -XX:ErrorFile=/datadog-lib/continuousprofiler/tmp/hs_err_pid_%p.log",
+			expectedEnvVal: " -javaagent:/datadog-lib/dd-java-agent.jar -XX:OnError=/datadog-lib/java/continuousprofiler/tmp/dd_crash_uploader.sh -XX:ErrorFile=/datadog-lib/java/continuousprofiler/tmp/hs_err_pid_%p.log",
 			wantErr:        false,
 		},
 		{
@@ -66,7 +66,7 @@ func TestInjectAutoInstruConfig(t *testing.T) {
 				},
 			},
 			expectedEnvKey: "JAVA_TOOL_OPTIONS",
-			expectedEnvVal: "predefined -javaagent:/datadog-lib/dd-java-agent.jar -XX:OnError=/datadog-lib/continuousprofiler/tmp/dd_crash_uploader.sh -XX:ErrorFile=/datadog-lib/continuousprofiler/tmp/hs_err_pid_%p.log",
+			expectedEnvVal: "predefined -javaagent:/datadog-lib/dd-java-agent.jar -XX:OnError=/datadog-lib/java/continuousprofiler/tmp/dd_crash_uploader.sh -XX:ErrorFile=/datadog-lib/java/continuousprofiler/tmp/hs_err_pid_%p.log",
 			wantErr:        false,
 		},
 		{
@@ -815,7 +815,7 @@ func injectAllEnvs() []corev1.EnvVar {
 		},
 		{
 			Name:  "JAVA_TOOL_OPTIONS",
-			Value: " -javaagent:/datadog-lib/dd-java-agent.jar -XX:OnError=/datadog-lib/continuousprofiler/tmp/dd_crash_uploader.sh -XX:ErrorFile=/datadog-lib/continuousprofiler/tmp/hs_err_pid_%p.log",
+			Value: " -javaagent:/datadog-lib/dd-java-agent.jar -XX:OnError=/datadog-lib/java/continuousprofiler/tmp/dd_crash_uploader.sh -XX:ErrorFile=/datadog-lib/java/continuousprofiler/tmp/hs_err_pid_%p.log",
 		},
 		{
 			Name:  "DD_DOTNET_TRACER_HOME",
@@ -913,7 +913,7 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 				},
 				{
 					Name:  "JAVA_TOOL_OPTIONS",
-					Value: " -javaagent:/datadog-lib/dd-java-agent.jar -XX:OnError=/datadog-lib/continuousprofiler/tmp/dd_crash_uploader.sh -XX:ErrorFile=/datadog-lib/continuousprofiler/tmp/hs_err_pid_%p.log",
+					Value: " -javaagent:/datadog-lib/dd-java-agent.jar -XX:OnError=/datadog-lib/java/continuousprofiler/tmp/dd_crash_uploader.sh -XX:ErrorFile=/datadog-lib/java/continuousprofiler/tmp/hs_err_pid_%p.log",
 				},
 				{
 					Name:  "DD_DOTNET_TRACER_HOME",
@@ -1051,7 +1051,7 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 				},
 				{
 					Name:  "JAVA_TOOL_OPTIONS",
-					Value: " -javaagent:/datadog-lib/dd-java-agent.jar -XX:OnError=/datadog-lib/continuousprofiler/tmp/dd_crash_uploader.sh -XX:ErrorFile=/datadog-lib/continuousprofiler/tmp/hs_err_pid_%p.log",
+					Value: " -javaagent:/datadog-lib/dd-java-agent.jar -XX:OnError=/datadog-lib/java/continuousprofiler/tmp/dd_crash_uploader.sh -XX:ErrorFile=/datadog-lib/java/continuousprofiler/tmp/hs_err_pid_%p.log",
 				},
 				{
 					Name:  "DD_DOTNET_TRACER_HOME",
@@ -1134,7 +1134,7 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 				},
 				{
 					Name:  "JAVA_TOOL_OPTIONS",
-					Value: " -javaagent:/datadog-lib/dd-java-agent.jar -XX:OnError=/datadog-lib/continuousprofiler/tmp/dd_crash_uploader.sh -XX:ErrorFile=/datadog-lib/continuousprofiler/tmp/hs_err_pid_%p.log",
+					Value: " -javaagent:/datadog-lib/dd-java-agent.jar -XX:OnError=/datadog-lib/java/continuousprofiler/tmp/dd_crash_uploader.sh -XX:ErrorFile=/datadog-lib/java/continuousprofiler/tmp/hs_err_pid_%p.log",
 				},
 				{
 					Name:  "DD_DOTNET_TRACER_HOME",
@@ -1204,7 +1204,7 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 				},
 				{
 					Name:  "JAVA_TOOL_OPTIONS",
-					Value: " -javaagent:/datadog-lib/dd-java-agent.jar -XX:OnError=/datadog-lib/continuousprofiler/tmp/dd_crash_uploader.sh -XX:ErrorFile=/datadog-lib/continuousprofiler/tmp/hs_err_pid_%p.log",
+					Value: " -javaagent:/datadog-lib/dd-java-agent.jar -XX:OnError=/datadog-lib/java/continuousprofiler/tmp/dd_crash_uploader.sh -XX:ErrorFile=/datadog-lib/java/continuousprofiler/tmp/hs_err_pid_%p.log",
 				},
 			},
 			expectedInjectedLibraries: map[string]string{"java": "latest"},
@@ -1300,7 +1300,7 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 				},
 				{
 					Name:  "JAVA_TOOL_OPTIONS",
-					Value: " -javaagent:/datadog-lib/dd-java-agent.jar -XX:OnError=/datadog-lib/continuousprofiler/tmp/dd_crash_uploader.sh -XX:ErrorFile=/datadog-lib/continuousprofiler/tmp/hs_err_pid_%p.log",
+					Value: " -javaagent:/datadog-lib/dd-java-agent.jar -XX:OnError=/datadog-lib/java/continuousprofiler/tmp/dd_crash_uploader.sh -XX:ErrorFile=/datadog-lib/java/continuousprofiler/tmp/hs_err_pid_%p.log",
 				},
 			},
 			expectedInjectedLibraries: map[string]string{"java": "latest"},
@@ -1651,7 +1651,7 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 				},
 				{
 					Name:  "JAVA_TOOL_OPTIONS",
-					Value: " -javaagent:/datadog-lib/dd-java-agent.jar -XX:OnError=/datadog-lib/continuousprofiler/tmp/dd_crash_uploader.sh -XX:ErrorFile=/datadog-lib/continuousprofiler/tmp/hs_err_pid_%p.log",
+					Value: " -javaagent:/datadog-lib/dd-java-agent.jar -XX:OnError=/datadog-lib/java/continuousprofiler/tmp/dd_crash_uploader.sh -XX:ErrorFile=/datadog-lib/java/continuousprofiler/tmp/hs_err_pid_%p.log",
 				},
 				{
 					Name:  "PYTHONPATH",
@@ -1763,7 +1763,7 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 				},
 				{
 					Name:  "JAVA_TOOL_OPTIONS",
-					Value: " -javaagent:/datadog-lib/dd-java-agent.jar -XX:OnError=/datadog-lib/continuousprofiler/tmp/dd_crash_uploader.sh -XX:ErrorFile=/datadog-lib/continuousprofiler/tmp/hs_err_pid_%p.log",
+					Value: " -javaagent:/datadog-lib/dd-java-agent.jar -XX:OnError=/datadog-lib/java/continuousprofiler/tmp/dd_crash_uploader.sh -XX:ErrorFile=/datadog-lib/java/continuousprofiler/tmp/hs_err_pid_%p.log",
 				},
 				{
 					Name:  "PYTHONPATH",

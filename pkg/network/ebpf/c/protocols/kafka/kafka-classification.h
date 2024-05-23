@@ -2,9 +2,9 @@
 #define __KAFKA_CLASSIFICATION_H
 
 #include "protocols/helpers/big_endian.h"
+#include "protocols/helpers/pktbuf.h"
 #include "protocols/kafka/defs.h"
 #include "protocols/kafka/maps.h"
-#include "protocols/kafka/pktbuf.h"
 #include "protocols/kafka/types.h"
 
 #define STRINGIFY(a) #a
