@@ -57,7 +57,7 @@ func SetupAgent(ctx context.Context, args []string) (err error) {
 	return msiexec("stable", "/i", args)
 }
 
-// StartAgentExperiment noop
+// StartAgentExperiment starts the agent experiment
 func StartAgentExperiment(ctx context.Context) (err error) {
 	span, _ := tracer.StartSpanFromContext(ctx, "start_experiment")
 	defer func() {
@@ -69,7 +69,7 @@ func StartAgentExperiment(ctx context.Context) (err error) {
 	return msiexec("experiment", "/i", nil)
 }
 
-// StopAgentExperiment noop
+// StopAgentExperiment stops the agent experiment
 func StopAgentExperiment(ctx context.Context) (err error) {
 	span, _ := tracer.StartSpanFromContext(ctx, "stop_experiment")
 	defer func() {
@@ -93,7 +93,7 @@ func PromoteAgentExperiment(_ context.Context) error {
 	return nil
 }
 
-// RemoveAgent noop
+// RemoveAgent stops and removes the agent
 func RemoveAgent(ctx context.Context) (err error) {
 	span, _ := tracer.StartSpanFromContext(ctx, "remove_agent")
 	defer func() {
