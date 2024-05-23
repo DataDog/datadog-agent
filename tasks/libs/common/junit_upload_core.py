@@ -7,6 +7,7 @@ import tarfile
 import tempfile
 import xml.etree.ElementTree as ET
 from collections import defaultdict
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from shutil import which
 from subprocess import PIPE, CalledProcessError, Popen
@@ -96,9 +97,8 @@ def junit_upload_from_tgz(junit_tgz, codeowners_path=".github/CODEOWNERS"):
 
             # Upload junit on a per-team basis
             team_folders = [item for item in working_dir.iterdir() if item.is_dir()]
-            for team in team_folders:
-                print(f" Uploading {len(tuple(team.iterdir()))} files for {team.name}")
-                upload_junitxmls(team)
+            with ThreadPoolExecutor() as executor:
+                executor.map(upload_junitxmls, team_folders)
 
 
 def get_flaky_from_test_output():
@@ -215,6 +215,7 @@ def upload_junitxmls(team_dir: Path):
 
     for process in processes:
         _, stderr = process.communicate()
+        print(f" Uploaded {len(tuple(team_dir.iterdir()))} files for {team_dir.name}")
         if stderr:
             print(f"Failed uploading junit:\n{stderr}", file=os.sys.stderr)
             raise CalledProcessError(process.returncode, DATADOG_CI_COMMAND)
