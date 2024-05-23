@@ -202,12 +202,10 @@ def test_flavor(
         with ctx.cd(module_path):
             packages = ' '.join(f"{t}/..." if not t.endswith("/...") else t for t in module.targets)
             with CodecovWorkaround(ctx, module_path, coverage, packages, args) as cov_test_path:
+                formatted_command = cmd.format(packages=packages, cov_test_path=cov_test_path, **args)
+                cleaned_command = " ".join([x for x in formatted_command.split(" ") if x != ""])
                 res = ctx.run(
-                    command=cmd.format(
-                        packages=packages,
-                        cov_test_path=cov_test_path,
-                        **args,
-                    ),
+                    command=cleaned_command,
                     env=env,
                     out_stream=test_profiler,
                     warn=True,

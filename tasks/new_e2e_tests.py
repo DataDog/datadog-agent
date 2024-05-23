@@ -117,7 +117,6 @@ def run(
             ctx.run("go build -o ../../../test/new-e2e/gotest-custom")
         binaries, pkg_names = get_binaries_from_targets(targets)
         cmd += '{junit_file_flag} {json_flag} --raw-command -- ./gotest-custom -binaries {test_binary} -pkgnames {pkg_names} -extra "-test.timeout {timeout} {nocache} {run} {skip} {test_run_arg} {osversion} {platform} {major_version} {arch} {flavor} {cws_supported_osversion} {src_agent_version} {dest_agent_version} {keep_stacks} {extra_flags}"'
-        cmd = " ".join(cmd.split(" ").remove(""))  # Remove not needed space
     else:
         cmd += '{junit_file_flag} {json_flag} --packages="{packages}" -- -ldflags="-X {REPO_PATH}/test/new-e2e/tests/containers.GitCommit={commit}" {verbose} -mod={go_mod} -vet=off -timeout {timeout} {nocache} {run} {skip} {test_run_arg} -args {osversion} {platform} {major_version} {arch} {flavor} {cws_supported_osversion} {src_agent_version} {dest_agent_version} {keep_stacks} {extra_flags}'
     args = {
