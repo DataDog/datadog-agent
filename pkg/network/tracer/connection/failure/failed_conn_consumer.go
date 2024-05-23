@@ -10,6 +10,7 @@ package failure
 
 import (
 	"sync"
+	"syscall"
 	"unsafe"
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
@@ -21,9 +22,9 @@ import (
 const failedConnConsumerModuleName = "network_tracer__ebpf"
 
 var allowListErrs = map[uint32]struct{}{
-	104: {}, // Connection reset by peer
-	110: {}, // Connection timed out
-	111: {}, // Connection refused
+	uint32(syscall.ECONNRESET):   {}, // Connection reset by peer
+	uint32(syscall.ETIMEDOUT):    {}, // Connection timed out
+	uint32(syscall.ECONNREFUSED): {}, // Connection refused
 }
 
 // Telemetry
@@ -69,11 +70,10 @@ func (c *TCPFailedConnConsumer) extractConn(data []byte) {
 	failedConn := (*netebpf.FailedConn)(unsafe.Pointer(&data[0]))
 	failedConnConsumerTelemetry.eventsReceived.Inc()
 
+	// Ignore failed connections that are not in the allow list
 	if _, exists := allowListErrs[failedConn.Reason]; !exists {
-		//log.Debugf("Ignoring failed connection with reason: %d", failedConn.Reason)
 		return
 	}
-	//log.Errorf("Adding failed connection to map: %+v", failedConn.Reason)
 	stats, ok := c.FailedConns.FailedConnMap[failedConn.Tup]
 	if !ok {
 		stats = &FailedConnStats{
@@ -82,7 +82,6 @@ func (c *TCPFailedConnConsumer) extractConn(data []byte) {
 		c.FailedConns.FailedConnMap[failedConn.Tup] = stats
 	}
 	stats.CountByErrCode[failedConn.Reason]++
-	//log.Errorf("Failed connection map: %+v", c.FailedConns.FailedConnMap)
 }
 
 // Start starts the consumer

@@ -2340,25 +2340,55 @@ LOOP:
 
 func (s *TracerSuite) TestTCPFailureConnectionTimeout() {
 	t := s.T()
-	t.Skip()
 	setupDropTrafficRule(t)
 	cfg := testConfig()
 	cfg.TCPFailedConnectionsEnabled = true
 	tr := setupTracer(t, cfg)
 
 	srvAddr := "127.0.0.1:10000"
-	conn, err := net.DialTimeout("tcp", srvAddr, 1000*time.Millisecond)
+	ipString, portString, err := net.SplitHostPort(srvAddr)
+	require.NoError(t, err)
+	ip := netip.MustParseAddr(ipString)
+	port, err := strconv.Atoi(portString)
+	require.NoError(t, err)
 
-	if err == nil {
-		conn.Close()
-	} else {
-		t.Log("adamk error", err)
+	addr := syscall.SockaddrInet4{
+		Port: port,
+		Addr: ip.As4(),
 	}
-	require.Error(t, err, "expected timeout error but got none")
+
+	// Create a TCP socket
+	sfd, err := syscall.Socket(syscall.AF_INET, syscall.SOCK_STREAM, syscall.IPPROTO_TCP)
+	require.NoError(t, err)
+	t.Cleanup(func() { syscall.Close(sfd) })
+
+	// Set TCP_USER_TIMEOUT to 1000 milliseconds
+	timeout := 1000 // milliseconds
+	err = syscall.SetsockoptInt(sfd, syscall.IPPROTO_TCP, syscall.TCP_USER_TIMEOUT, timeout)
+	require.NoError(t, err)
+
+	// Attempt to connect to the server
+	err = syscall.Connect(sfd, &addr)
+	if err != nil {
+		var errno syscall.Errno
+		if errors.As(err, &errno) && errors.Is(err, syscall.ETIMEDOUT) {
+			t.Log("Connection timed out as expected")
+		} else {
+			require.NoError(t, err, "could not connect to server: ", err)
+		}
+	}
+
+	// Get the local address and port of the socket
+	_sa, err := syscall.Getsockname(sfd)
+	require.NoError(t, err)
+	sa := _sa.(*syscall.SockaddrInet4)
+	ap := netip.AddrPortFrom(netip.AddrFrom4(sa.Addr), uint16(sa.Port))
+	t.Log("Local address and port:", ap)
 
 	// Check if the connection was recorded as failed due to timeout
 	require.Eventually(t, func() bool {
 		conns := getConnections(t, tr)
+		t.Log("CONNECTIONS: ", conns)
 		// 110 is the errno for ETIMEDOUT
 		found := findFailedConnectionByRemoteAddr(srvAddr, conns, 110)
 		return found
@@ -2430,7 +2460,7 @@ func (s *TracerSuite) TestTCPFailureConnectionReset() {
 		// 104 is the errno for ECONNRESET
 		found := findFailedConnection(t, c.LocalAddr(), serverAddr, conns, 104)
 		return found
-	}, 3*time.Second, 500*time.Millisecond, "Failed connection not recorded properly")
+	}, 3*time.Second, 100*time.Millisecond, "Failed connection not recorded properly")
 
 	require.NoError(t, c.Close(), "error closing client connection")
 }
@@ -2485,4 +2515,22 @@ func setupDropTrafficRule(tb testing.TB) (ns string) {
 	}
 	testutil.RunCommands(tb, cmds, false)
 	return
+}
+
+func setupUnstableIface(tb testing.TB) (ns string) {
+	tb.Cleanup(func() {
+		teardownUnstableIface(tb)
+	})
+	cmds := []string{
+		"sudo tc qdisc add dev lo root netem delay 1000ms",
+	}
+	testutil.RunCommands(tb, cmds, false)
+	return
+}
+
+func teardownUnstableIface(tb testing.TB) {
+	cmds := []string{
+		"sudo tc qdisc del dev lo root netem",
+	}
+	testutil.RunCommands(tb, cmds, false)
 }

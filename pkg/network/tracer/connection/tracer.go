@@ -266,7 +266,8 @@ func NewTracer(config *config.Config) (Tracer, error) {
 	closeConsumer := newTCPCloseConsumer(connCloseEventHandler, batchMgr)
 
 	var failedConnConsumer *failure.TCPFailedConnConsumer
-	if kprobe.FailedConnectionsSupported(config) {
+	// Failed connections are not supported on prebuilt
+	if kprobe.FailedConnectionsSupported(config) && tracerType != TracerTypeKProbePrebuilt {
 		failedConnConsumer = failure.NewFailedConnConsumer(failedConnsHandler)
 	}
 

@@ -205,8 +205,6 @@ int kprobe__tcp_close(struct pt_regs *ctx) {
         increment_telemetry_count(tcp_failed_connect);
     }
 
-    log_debug("adamk kprobe/tcp_close: 2");
-
     // Get network namespace id
     log_debug("adamk kprobe/tcp_close: tgid: %llu, pid: %llu", pid_tgid >> 32, pid_tgid & 0xFFFFFFFF);
     if (!read_conn_tuple(&t, sk, pid_tgid, CONN_TYPE_TCP)) {
@@ -234,13 +232,15 @@ int kprobe__tcp_done(struct pt_regs *ctx) {
     sk = (struct sock *)PT_REGS_PARM1(ctx);
 
     // Get network namespace id
-    log_debug("kprobe/tcp_done: tgid: %llu, pid: %llu", pid_tgid >> 32, pid_tgid & 0xFFFFFFFF);
+    log_debug("adamk kprobe/tcp_done: tgid: %llu, pid: %llu", pid_tgid >> 32, pid_tgid & 0xFFFFFFFF);
     if (!read_conn_tuple(&t, sk, pid_tgid, CONN_TYPE_TCP)) {
+        log_debug("adamk kprobe/tcp_done: err");
         return 0;
     }
 
     conn_stats_ts_t *cst = bpf_map_lookup_elem(&conn_stats, &t);
     if (cst) {
+        log_debug("adamk kprobe/tcp_done: flushing closed conn");
         cleanup_conn(ctx, &t, sk);
     }
     log_debug("adamk kprobe/tcp_done: netns: %u, sport: %u, dport: %u", t.netns, t.sport, t.dport);
