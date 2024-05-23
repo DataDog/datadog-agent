@@ -16,3 +16,4 @@ include:
   - .gitlab/package_build/rpm.yml
   - .gitlab/package_build/suse_rpm.yml
   - .gitlab/package_build/windows.yml
+  - .gitlab/package_build/linux.yml

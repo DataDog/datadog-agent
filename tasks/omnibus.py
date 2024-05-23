@@ -234,7 +234,12 @@ def build(
         bundle_install_omnibus(ctx, gem_path, env)
 
     omnibus_cache_dir = os.environ.get('OMNIBUS_GIT_CACHE_DIR')
-    use_omnibus_git_cache = omnibus_cache_dir is not None and target_project == "agent" and host_distribution != "ociru"
+    use_omnibus_git_cache = (
+        omnibus_cache_dir is not None
+        and target_project == "agent"
+        and host_distribution != "ociru"
+        and "OMNIBUS_PACKAGE_ARTIFACT_DIR" not in os.environ
+    )
     aws_cmd = "aws.cmd" if sys.platform == 'win32' else "aws"
     if use_omnibus_git_cache:
         # The cache will be written in the provided cache dir (see omnibus.rb) but
