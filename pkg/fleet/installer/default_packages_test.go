@@ -94,6 +94,12 @@ func TestDefaultPackages(t *testing.T) {
 			env:      &env.Env{DefaultPackagesInstallOverride: map[string]bool{"datadog-agent": true}, DefaultPackagesVersionOverride: map[string]string{"datadog-agent": "1.2.3"}},
 			expected: []pkg{{n: "datadog-agent", v: "1.2.3"}},
 		},
+		{
+			name:     "Package released but forced not to install",
+			packages: []defaultPackage{{name: "datadog-agent", released: true}},
+			env:      &env.Env{DefaultPackagesInstallOverride: map[string]bool{"datadog-agent": false}},
+			expected: nil,
+		},
 	}
 
 	for _, tt := range tests {
