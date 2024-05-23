@@ -3,8 +3,10 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package collectornoop is a no-op implementation of the collector
-package collectornoop
+//go:build !otlp
+
+// Package collector contains a no-op implementation of the collector
+package collector
 
 import (
 	collector "github.com/DataDog/datadog-agent/comp/otelcol/collector/def"
