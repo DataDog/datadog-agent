@@ -63,6 +63,10 @@ func SetupInstaller(ctx context.Context) (err error) {
 	if err != nil {
 		return fmt.Errorf("error getting dd-agent user and group IDs: %w", err)
 	}
+	err = os.MkdirAll("/etc/datadog-agent", 0755)
+	if err != nil {
+		return fmt.Errorf("error creating /etc/datadog-agent: %w", err)
+	}
 	err = os.MkdirAll("/var/log/datadog", 0755)
 	if err != nil {
 		return fmt.Errorf("error creating /var/log/datadog: %w", err)
@@ -79,6 +83,10 @@ func SetupInstaller(ctx context.Context) (err error) {
 	err = os.Chmod("/var/run/datadog/installer/locks", 0777)
 	if err != nil {
 		return fmt.Errorf("error changing permissions of /var/run/datadog/installer/locks: %w", err)
+	}
+	err = os.Chown("/etc/datadog-agent", ddAgentUID, ddAgentGID)
+	if err != nil {
+		return fmt.Errorf("error changing owner of /etc/datadog-agent: %w", err)
 	}
 	err = os.Chown("/var/log/datadog", ddAgentUID, ddAgentGID)
 	if err != nil {
@@ -99,6 +107,23 @@ func SetupInstaller(ctx context.Context) (err error) {
 		log.Info("Installer symlink already exists, skipping")
 	} else if err != nil {
 		return fmt.Errorf("error creating symlink to /usr/bin/datadog-installer: %w", err)
+	}
+
+	// Set up defaults for packages interacting with each other
+	if err = configureSocketsEnv(); err != nil {
+		return
+	}
+	if err = addSystemDEnvOverrides(agentUnit); err != nil {
+		return
+	}
+	if err = addSystemDEnvOverrides(agentExp); err != nil {
+		return
+	}
+	if err = addSystemDEnvOverrides(traceAgentUnit); err != nil {
+		return
+	}
+	if err = addSystemDEnvOverrides(traceAgentExp); err != nil {
+		return
 	}
 
 	// FIXME(Arthur): enable the daemon unit by default and use the same strategy as the system probe
@@ -187,7 +212,7 @@ func RemoveInstaller(ctx context.Context) {
 
 // StartInstallerExperiment installs the experimental systemd units for the installer
 func StartInstallerExperiment(ctx context.Context) error {
-	return startUnit(ctx, installerUnitExp)
+	return startUnit(ctx, installerUnitExp, "--no-block")
 }
 
 // StopInstallerExperiment starts the stable systemd units for the installer

@@ -54,7 +54,7 @@ func (o *Obfuscator) ObfuscateCreditCardNumber(key, val string) string {
 		// these tags are known to not be credit card numbers
 		return val
 	}
-	if strings.HasPrefix(key, "_dd") {
+	if strings.HasPrefix(key, "_") {
 		return val
 	}
 	if o.ccObfuscator.IsCardNumber(val) {
