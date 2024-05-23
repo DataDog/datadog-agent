@@ -7,20 +7,12 @@
 package demultiplexerimpl
 
 import (
-	"bufio"
 	"context"
-	"encoding/json"
-	"net/http"
-	"os"
-	"path"
 
 	"go.uber.org/fx"
 
 	demultiplexerComp "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	"github.com/DataDog/datadog-agent/comp/aggregator/diagnosesendermanager"
-	"github.com/DataDog/datadog-agent/comp/api/api"
-	"github.com/DataDog/datadog-agent/comp/api/api/utils"
-	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
@@ -31,7 +23,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
-	"github.com/DataDog/zstd"
 )
 
 // Module defines the fx options for this component.
@@ -48,19 +39,12 @@ type dependencies struct {
 	OrchestratorForwarder  orchestratorforwarder.Component
 	EventPlatformForwarder eventplatform.Component
 	Compressor             compression.Component
-	Config                 config.Component
 
 	Params Params
 }
 
 type demultiplexer struct {
 	*aggregator.AgentDemultiplexer
-}
-
-type demultiplexerEndpoint struct {
-	Comp   demultiplexerComp.Component
-	Config config.Component
-	Log    log.Component
 }
 
 type provides struct {
@@ -77,7 +61,6 @@ type provides struct {
 	DiagnosticSenderManager diagnosesendermanager.Component
 	SenderManager           sender.SenderManager
 	StatusProvider          status.InformationProvider
-	Endpoint                api.AgentEndpointProvider
 	AggregatorDemultiplexer aggregator.Demultiplexer
 }
 
@@ -108,12 +91,6 @@ func newDemultiplexer(deps dependencies) (provides, error) {
 		return nil
 	}})
 
-	endpoint := demultiplexerEndpoint{
-		Comp:   demultiplexer,
-		Config: deps.Config,
-		Log:    deps.Log,
-	}
-
 	return provides{
 		Comp:                    demultiplexer,
 		DiagnosticSenderManager: demultiplexer,
@@ -121,7 +98,6 @@ func newDemultiplexer(deps dependencies) (provides, error) {
 		StatusProvider: status.NewInformationProvider(demultiplexerStatus{
 			Log: deps.Log,
 		}),
-		Endpoint:                api.NewAgentEndpointProvider(endpoint.dumpDogstatsdContexts, "/dogstatsd-contexts-dump", "POST"),
 		AggregatorDemultiplexer: demultiplexer,
 	}, nil
 }
@@ -129,42 +105,4 @@ func newDemultiplexer(deps dependencies) (provides, error) {
 // LazyGetSenderManager gets an instance of SenderManager lazily.
 func (demux demultiplexer) LazyGetSenderManager() (sender.SenderManager, error) {
 	return demux, nil
-}
-
-func (demuxendpoint demultiplexerEndpoint) dumpDogstatsdContexts(w http.ResponseWriter, _ *http.Request) {
-	path, err := demuxendpoint.dumpDogstatsdContextsImpl()
-	if err != nil {
-		utils.SetJSONError(w, demuxendpoint.Log.Errorf("Failed to create dogstatsd contexts dump: %v", err), 500)
-		return
-	}
-
-	resp, err := json.Marshal(path)
-	if err != nil {
-		utils.SetJSONError(w, demuxendpoint.Log.Errorf("Failed to serialize response: %v", err), 500)
-		return
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	w.Write(resp)
-}
-
-func (demuxendpoint demultiplexerEndpoint) dumpDogstatsdContextsImpl() (string, error) {
-	path := path.Join(demuxendpoint.Config.GetString("run_path"), "dogstatsd_contexts.json.zstd")
-
-	f, err := os.Create(path)
-	if err != nil {
-		return "", err
-	}
-
-	c := zstd.NewWriter(f)
-
-	w := bufio.NewWriter(c)
-
-	for _, err := range []error{demuxendpoint.Comp.DumpDogstatsdContexts(w), w.Flush(), c.Close(), f.Close()} {
-		if err != nil {
-			return "", err
-		}
-	}
-
-	return path, nil
 }

@@ -8,12 +8,9 @@
 package demultiplexerimpl
 
 import (
-	"net/http"
-
 	"go.uber.org/fx"
 
 	demultiplexerComp "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
-	"github.com/DataDog/datadog-agent/comp/api/api"
 	"github.com/DataDog/datadog-agent/comp/core/hostname"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
@@ -53,11 +50,6 @@ func (m *mock) LazyGetSenderManager() (sender.SenderManager, error) {
 	return m, nil
 }
 
-// ServeHTTP is a simple mocked http.Handler function
-func (m *mock) handlerFunc(w http.ResponseWriter, _ *http.Request) {
-	w.Write([]byte("OK"))
-}
-
 type mockDependencies struct {
 	fx.In
 	Log      log.Component
@@ -68,10 +60,9 @@ type mockDependencies struct {
 type MockProvides struct {
 	fx.Out
 
-	Comp     demultiplexerComp.Component
-	Mock     demultiplexerComp.Mock
-	Sender   sender.SenderManager
-	Endpoint api.AgentEndpointProvider
+	Comp   demultiplexerComp.Component
+	Mock   demultiplexerComp.Mock
+	Sender sender.SenderManager
 }
 
 func newMock(deps mockDependencies) MockProvides {
@@ -87,9 +78,8 @@ func newMock(deps mockDependencies) MockProvides {
 
 	instance := &mock{AgentDemultiplexer: aggregator.InitAndStartAgentDemultiplexerForTest(aggDeps, opts, "")}
 	return MockProvides{
-		Comp:     instance,
-		Mock:     instance,
-		Sender:   instance,
-		Endpoint: api.NewAgentEndpointProvider(instance.handlerFunc, "/dogstatsd-contexts-dump", "POST"),
+		Comp:   instance,
+		Mock:   instance,
+		Sender: instance,
 	}
 }
