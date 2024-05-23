@@ -15,6 +15,7 @@ from time import perf_counter
 from invoke import Context
 
 from tasks.libs.common.color import color_message
+from tasks.libs.common.utils import running_in_ci
 
 DD_INVOKE_LOGS_FILE = "dd_invoke.log"
 WIN_TEMP_FOLDER = "C:\\Windows\\Temp"
@@ -31,19 +32,21 @@ def get_dd_invoke_logs_path() -> str:
     return os.path.join(temp_folder, DD_INVOKE_LOGS_FILE)
 
 
-def get_running_mode() -> str:
+def get_running_modes() -> dict[str, bool]:
     """
-    Get the running mode of the task.
-    If the task is run via pre-commit, the running mode is set to "pre_commit".
-    If the task is run via unittest, the running mode is set to "invoke_unit_tests".
-    Otherwise, it is set to "manual".
+    List the running modes of the task.
+    If the task is run via pre-commit -> "pre_commit"
+    If the task is run via unittest   -> "invoke_unit_tests"
+    If the task is run in the ci      -> "ci"
+    Neither pre-commit nor ci         -> "manual"
     """
-    output = "manual"
-    if os.environ.get("PRE_COMMIT", 0) == "1":
-        output = "pre_commit"
-    elif os.environ.get("INVOKE_UNIT_TESTS", 0) == "1" or 'unittest' in sys.modules:
-        output = "invoke_unit_tests"
-    return output
+    running_modes = {
+        "pre_commit": os.environ.get("PRE_COMMIT", 0) == "1",
+        "invoke_unit_tests": os.environ.get("INVOKE_UNIT_TESTS", 0) == "1" or 'unittest' in sys.modules,
+        "ci": running_in_ci(),
+    }
+    running_modes["manual"] = not (running_modes["pre_commit"] or running_modes["ci"])
+    return running_modes
 
 
 def log_invoke_task(
@@ -62,11 +65,11 @@ def log_invoke_task(
     """
     logging.basicConfig(filename=log_path, level=logging.INFO, format='%(message)s')
     user = getuser()
-    running_mode = get_running_mode()
+    running_modes = get_running_modes()
     task_info = {
         "name": name,
         "module": module,
-        "running_mode": running_mode,
+        "running_mode": running_modes,
         "datetime": task_datetime,
         "duration": duration,
         "user": user,
