@@ -545,6 +545,10 @@ func checkProcessContextFieldsForBlankValues(tb testing.TB, event *model.Event, 
 
 //nolint:deadcode,unused
 func validateSyscallContext(tb testing.TB, event *model.Event, jsonPath string) {
+	if ebpfLessEnabled {
+		return
+	}
+
 	eventJSON, err := serializers.MarshalEvent(event, nil)
 	if err != nil {
 		tb.Errorf("failed to marshal event: %v", err)

@@ -21,7 +21,8 @@ import (
 )
 
 const (
-	argMaxSize = 128 // see kernel definition
+	maxEntries = 1024 // see kernel definition
+	argMaxSize = 128  // see kernel definition
 
 	// types // see kernel definition
 	strArg = 1
@@ -44,8 +45,10 @@ type Resolver struct {
 
 // Resolve resolves the syscall context
 func (sr *Resolver) Resolve(ctxID uint32, ctx *model.SyscallContext) error {
+	key := ctxID % maxEntries
+
 	var ks KernelSyscallCtxStruct
-	if err := sr.ctxMap.Lookup(ctxID, &ks); err != nil {
+	if err := sr.ctxMap.Lookup(key, &ks); err != nil {
 		return fmt.Errorf("unable to resolve the syscall context for `%d`: %w", ctxID, err)
 	}
 

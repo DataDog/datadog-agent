@@ -34,7 +34,7 @@ void __attribute__((always_inline)) collect_syscall_ctx(struct syscall_cache_t *
     }
 
     u32 *id_ptr = (u32 *)&data[0];
-    id_ptr[0] = key;
+    id_ptr[0] = *id;
 
     data[4] = types;
 
@@ -65,7 +65,7 @@ void __attribute__((always_inline)) collect_syscall_ctx(struct syscall_cache_t *
         }
     }
 
-    syscall->ctx_id = key;
+    syscall->ctx_id = *id;
 }
 
 void __attribute__((always_inline)) monitor_syscalls(u64 event_type, int delta) {

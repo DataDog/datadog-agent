@@ -47,6 +47,8 @@ func TestChdir(t *testing.T) {
 	defer os.RemoveAll(testFolder)
 
 	t.Run("chdir", func(t *testing.T) {
+		SkipIfNotAvailable(t)
+
 		test.WaitSignal(t, func() error {
 			return os.Chdir(testFolder)
 		}, func(event *model.Event, rule *rules.Rule) {
@@ -57,6 +59,8 @@ func TestChdir(t *testing.T) {
 	})
 
 	t.Run("fchdir", func(t *testing.T) {
+		SkipIfNotAvailable(t)
+
 		test.WaitSignal(t, func() error {
 			f, err := os.Open(testFolder)
 			if err != nil {
@@ -71,6 +75,8 @@ func TestChdir(t *testing.T) {
 	})
 
 	t.Run("syscall-context", func(t *testing.T) {
+		SkipIfNotAvailable(t)
+
 		testFolder, _, err := test.Path("test-chdir-ctx")
 		if err != nil {
 			t.Fatal(err)
