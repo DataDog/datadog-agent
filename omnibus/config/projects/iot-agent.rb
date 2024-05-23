@@ -56,6 +56,7 @@ end
 if ENV["OMNIBUS_PACKAGE_ARTIFACT_DIR"]
   dependency "package-artifact"
   generate_distro_package = true
+  dependency 'init-scripts-iot-agent'
 else
   # ------------------------------------
   # Dependencies
