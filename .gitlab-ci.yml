@@ -642,9 +642,7 @@ workflow:
   - <<: *if_installer_tests
     when: always
 
-.on_all_new_e2e_tests:
-  - <<: *if_not_run_all_builds
-    when: never
+.on_all_install_script_tests:
   - <<: *if_installer_tests
 
 # Default kitchen tests are also run on dev branches
