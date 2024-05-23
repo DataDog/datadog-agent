@@ -1,35 +1,11 @@
 load("@gazelle//:def.bzl", "gazelle")
+load("//:bazel/lib/agent.bzl", "AGENT_BUILD_TAGS")
 
 gazelle(
     name = "gazelle",
-    build_tags = [
-        "bundle_agent",
-        # List of known tags borrowed from /tasks/build_tags.py
-        "apm",
-        "consul",
-        "containerd",
-        "cri",
-        "datadog.no_waf",
-        "docker",
-        "ec2",
-        "etcd",
-        "gce",
-        "jetson",
-        "jmx",
-        "kubeapiserver",
-        "kubelet",
-        "netcgo",  # Force the use of the CGO resolver. This will also have the effect of making the binary non-static
-        "oracle",
-        "orchestrator",
-        "otlp",
-        "podman",
-        "process",
-        "python",
-        "systemd",
-        "trivy",
-        "zk",
-        "zlib",
-        "zstd",
-        "test",  # used for unit-tests
-    ],
+    build_tags = (
+        AGENT_BUILD_TAGS + [
+            "test",  # used for unit-tests
+        ]
+    ),
 )
