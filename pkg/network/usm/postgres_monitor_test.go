@@ -76,7 +76,7 @@ func (s *postgresProtocolParsingSuite) TestDecoding() {
 	serverHost := "127.0.0.1"
 
 	serverAddress := net.JoinHostPort(serverHost, postgresPort)
-	require.NoError(t, postgres.RunServer(t, serverHost, postgresPort))
+	require.NoError(t, postgres.RunServer(t, serverHost, postgresPort, postgres.TLSDisabled))
 
 	tests := []postgresParsingTestAttributes{
 		{

@@ -1149,7 +1149,7 @@ func testPostgresProtocolClassification(t *testing.T, tr *Tracer, clientHost, ta
 	// Setting one instance of postgres server for all tests.
 	serverAddress := net.JoinHostPort(serverHost, postgresPort)
 	targetAddress := net.JoinHostPort(targetHost, postgresPort)
-	require.NoError(t, pgutils.RunServer(t, serverHost, postgresPort))
+	require.NoError(t, pgutils.RunServer(t, serverHost, postgresPort, pgutils.TLSDisabled))
 
 	tests := []protocolClassificationAttributes{
 		{
