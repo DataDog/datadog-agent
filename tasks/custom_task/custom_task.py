@@ -31,6 +31,21 @@ def get_dd_invoke_logs_path() -> str:
     return os.path.join(temp_folder, DD_INVOKE_LOGS_FILE)
 
 
+def get_running_mode() -> str:
+    """
+    Get the running mode of the task.
+    If the task is run via pre-commit, the running mode is set to "pre_commit".
+    If the task is run via unittest, the running mode is set to "invoke_unit_tests".
+    Otherwise, it is set to "manual".
+    """
+    output = "manual"
+    if os.environ.get("PRE_COMMIT", 0) == "1":
+        output = "pre_commit"
+    elif os.environ.get("INVOKE_UNIT_TESTS", 0) == "1" or 'unittest' in sys.modules:
+        output = "invoke_unit_tests"
+    return output
+
+
 def log_invoke_task(
     log_path: str, name: str, module: str, task_datetime: str, duration: float, task_result: str
 ) -> None:
@@ -47,7 +62,7 @@ def log_invoke_task(
     """
     logging.basicConfig(filename=log_path, level=logging.INFO, format='%(message)s')
     user = getuser()
-    running_mode = "pre_commit" if os.environ.get("PRE_COMMIT", 0) == "1" else "manual"
+    running_mode = get_running_mode()
     task_info = {
         "name": name,
         "module": module,
