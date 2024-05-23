@@ -124,6 +124,8 @@ BINARY_TO_TEST = ["serverless"]
 def test_dependencies_list(
     ctx: Context,
 ):
+    missmatch_binaries = set()
+
     for binary in BINARY_TO_TEST:
         binary_info = BINARIES[binary]
         entrypoint = binary_info["entrypoint"]
@@ -140,7 +142,7 @@ def test_dependencies_list(
                 filename = os.path.join(ctx.cwd, f"dependencies_{goos}_{goarch}.txt")
                 if not os.path.isfile(filename):
                     print(
-                        f"File {filename} does not exist. To execute the dependencies list check for the {binary} binary, please run the task `inv -e go-deps.dependencies-generate --binary {binary}"
+                        f"File {filename} does not exist. To execute the dependencies list check for the {binary} binary, please run the task `inv -e go-deps.dependencies-generate --binaries {binary}"
                     )
                     continue
 
@@ -161,52 +163,58 @@ def test_dependencies_list(
                 assert res
 
                 if res.stdout.strip() != deps:
-                    raise Exit(
-                        code=1,
-                        message=color_message(
-                            f"Dependencies list for {binary} {goos}/{goarch} does not match. To fix this check, please run `inv -e go-deps.dependencies-generate --binary {binary}",
-                            "red",
-                        ),
-                    )
+                    missmatch_binaries.add(binary)
+
+    if len(missmatch_binaries) > 0:
+        raise Exit(
+            code=1,
+            message=color_message(
+                f"Dependencies list for {list(missmatch_binaries)} does not match. To fix this check, please run `inv -e go-deps.dependencies-generate --binaries {','.join(missmatch_binaries)}`",
+                "red",
+            ),
+        )
 
 
 @task
 def dependencies_generate(
     ctx: Context,
-    binary: str,
+    binaries: str,
 ):
-    binary_info = BINARIES.get(binary, None)
-    if not binary_info:
-        raise Exit(
-            code=1,
-            message=color_message(f"Binary `{binary}` is not valid. Valid binaries are {list(BINARIES.keys())}", "red"),
-        )
-
-    entrypoint = binary_info["entrypoint"]
-    platforms = binary_info["platforms"]
-    flavor = binary_info.get("flavor", AgentFlavor.base)
-    build = binary_info.get("build", binary)
-
-    with ctx.cd(entrypoint):
-        for platform in platforms:
-            platform, arch = platform.split("/")
-
-            goos, goarch = GOOS_MAPPING[platform], GOARCH_MAPPING[arch]
-
-            filename = os.path.join(ctx.cwd, f"dependencies_{goos}_{goarch}.txt")
-
-            build_tags = get_default_build_tags(build=build, flavor=flavor, platform=platform)
-
-            env = {"GOOS": goos, "GOARCH": goarch, "CGO_ENABLED": "1"}
-            cmd = "go list -f '{{ join .Deps \"\\n\"}}'"
-
-            res = ctx.run(
-                f"{cmd} -tags {','.join(build_tags)}",
-                env=env,
-                hide='out',  # don't hide errors
+    for binary in binaries.split(','):
+        binary_info = BINARIES.get(binary, None)
+        if not binary_info:
+            raise Exit(
+                code=1,
+                message=color_message(
+                    f"Binary `{binary}` is not valid. Valid binaries are {list(BINARIES.keys())}", "red"
+                ),
             )
-            assert res
 
-            f = open(filename, "w")
-            f.write(res.stdout.strip())
-            f.close()
+        entrypoint = binary_info["entrypoint"]
+        platforms = binary_info["platforms"]
+        flavor = binary_info.get("flavor", AgentFlavor.base)
+        build = binary_info.get("build", binary)
+
+        with ctx.cd(entrypoint):
+            for platform in platforms:
+                platform, arch = platform.split("/")
+
+                goos, goarch = GOOS_MAPPING[platform], GOARCH_MAPPING[arch]
+
+                filename = os.path.join(ctx.cwd, f"dependencies_{goos}_{goarch}.txt")
+
+                build_tags = get_default_build_tags(build=build, flavor=flavor, platform=platform)
+
+                env = {"GOOS": goos, "GOARCH": goarch, "CGO_ENABLED": "1"}
+                cmd = "go list -f '{{ join .Deps \"\\n\"}}'"
+
+                res = ctx.run(
+                    f"{cmd} -tags {','.join(build_tags)}",
+                    env=env,
+                    hide='out',  # don't hide errors
+                )
+                assert res
+
+                f = open(filename, "w")
+                f.write(res.stdout.strip())
+                f.close()
