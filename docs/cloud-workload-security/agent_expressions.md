@@ -469,12 +469,7 @@ A process changed the current directory
 | [`chdir.file.uid`](#common-filefields-uid-doc) | UID of the file's owner |
 | [`chdir.file.user`](#common-filefields-user-doc) | User of the file's owner |
 | [`chdir.retval`](#common-syscallevent-retval-doc) | Return value of the syscall |
-| [`chdir.syscall.int_arg1`](#common-syscallcontext-syscall-int_arg1-doc) | first integer syscall argument |
-| [`chdir.syscall.int_arg2`](#common-syscallcontext-syscall-int_arg2-doc) | Second integer syscall argument |
-| [`chdir.syscall.int_arg3`](#common-syscallcontext-syscall-int_arg3-doc) | Third integer syscall argument |
-| [`chdir.syscall.str_arg1`](#common-syscallcontext-syscall-str_arg1-doc) | first string syscall argument |
-| [`chdir.syscall.str_arg2`](#common-syscallcontext-syscall-str_arg2-doc) | second string syscall argument |
-| [`chdir.syscall.str_arg3`](#common-syscallcontext-syscall-str_arg3-doc) | third string syscall argument |
+| [`chdir.syscall.path`](#chdir-syscall-path-doc) | path argument of the syscall |
 
 ### Event `chmod`
 
@@ -505,12 +500,8 @@ A file’s permissions were changed
 | [`chmod.file.uid`](#common-filefields-uid-doc) | UID of the file's owner |
 | [`chmod.file.user`](#common-filefields-user-doc) | User of the file's owner |
 | [`chmod.retval`](#common-syscallevent-retval-doc) | Return value of the syscall |
-| [`chmod.syscall.int_arg1`](#common-syscallcontext-syscall-int_arg1-doc) | first integer syscall argument |
-| [`chmod.syscall.int_arg2`](#common-syscallcontext-syscall-int_arg2-doc) | Second integer syscall argument |
-| [`chmod.syscall.int_arg3`](#common-syscallcontext-syscall-int_arg3-doc) | Third integer syscall argument |
-| [`chmod.syscall.str_arg1`](#common-syscallcontext-syscall-str_arg1-doc) | first string syscall argument |
-| [`chmod.syscall.str_arg2`](#common-syscallcontext-syscall-str_arg2-doc) | second string syscall argument |
-| [`chmod.syscall.str_arg3`](#common-syscallcontext-syscall-str_arg3-doc) | third string syscall argument |
+| [`chmod.syscall.mode`](#chmod-syscall-mode-doc) | mode argument of the syscall |
+| [`chmod.syscall.path`](#chmod-syscall-path-doc) | path argument of the syscall |
 
 ### Event `chown`
 
@@ -641,12 +632,7 @@ A process was executed or forked
 | [`exec.is_thread`](#common-process-is_thread-doc) | Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program) |
 | [`exec.pid`](#common-pidcontext-pid-doc) | Process ID of the process (also called thread group ID) |
 | [`exec.ppid`](#common-process-ppid-doc) | Parent process ID |
-| [`exec.syscall.int_arg1`](#common-syscallcontext-syscall-int_arg1-doc) | first integer syscall argument |
-| [`exec.syscall.int_arg2`](#common-syscallcontext-syscall-int_arg2-doc) | Second integer syscall argument |
-| [`exec.syscall.int_arg3`](#common-syscallcontext-syscall-int_arg3-doc) | Third integer syscall argument |
-| [`exec.syscall.str_arg1`](#common-syscallcontext-syscall-str_arg1-doc) | first string syscall argument |
-| [`exec.syscall.str_arg2`](#common-syscallcontext-syscall-str_arg2-doc) | second string syscall argument |
-| [`exec.syscall.str_arg3`](#common-syscallcontext-syscall-str_arg3-doc) | third string syscall argument |
+| [`exec.syscall.path`](#exec-syscall-path-doc) | path argument of the syscall |
 | [`exec.tid`](#common-pidcontext-tid-doc) | Thread ID of the thread |
 | [`exec.tty_name`](#common-process-tty_name-doc) | Name of the TTY associated with the process |
 | [`exec.uid`](#common-credentials-uid-doc) | UID of the process |
@@ -2253,60 +2239,6 @@ Constants: [File mode constants](#file-mode-constants)
 
 
 
-### `*.syscall.int_arg1` {#common-syscallcontext-syscall-int_arg1-doc}
-Type: int
-
-Definition: first integer syscall argument
-
-`*.syscall.int_arg1` has 3 possible prefixes:
-`chdir` `chmod` `exec`
-
-
-### `*.syscall.int_arg2` {#common-syscallcontext-syscall-int_arg2-doc}
-Type: int
-
-Definition: Second integer syscall argument
-
-`*.syscall.int_arg2` has 3 possible prefixes:
-`chdir` `chmod` `exec`
-
-
-### `*.syscall.int_arg3` {#common-syscallcontext-syscall-int_arg3-doc}
-Type: int
-
-Definition: Third integer syscall argument
-
-`*.syscall.int_arg3` has 3 possible prefixes:
-`chdir` `chmod` `exec`
-
-
-### `*.syscall.str_arg1` {#common-syscallcontext-syscall-str_arg1-doc}
-Type: string
-
-Definition: first string syscall argument
-
-`*.syscall.str_arg1` has 3 possible prefixes:
-`chdir` `chmod` `exec`
-
-
-### `*.syscall.str_arg2` {#common-syscallcontext-syscall-str_arg2-doc}
-Type: string
-
-Definition: second string syscall argument
-
-`*.syscall.str_arg2` has 3 possible prefixes:
-`chdir` `chmod` `exec`
-
-
-### `*.syscall.str_arg3` {#common-syscallcontext-syscall-str_arg3-doc}
-Type: string
-
-Definition: third string syscall argument
-
-`*.syscall.str_arg3` has 3 possible prefixes:
-`chdir` `chmod` `exec`
-
-
 ### `*.tid` {#common-pidcontext-tid-doc}
 Type: int
 
@@ -2468,6 +2400,13 @@ Constants: [Kernel Capability constants](#kernel-capability-constants)
 
 
 
+### `chdir.syscall.path` {#chdir-syscall-path-doc}
+Type: string
+
+Definition: path argument of the syscall
+
+
+
 ### `chmod.file.destination.mode` {#chmod-file-destination-mode-doc}
 Type: int
 
@@ -2485,6 +2424,20 @@ Definition: New rights of the chmod-ed file
 
 
 Constants: [File mode constants](#file-mode-constants)
+
+
+
+### `chmod.syscall.mode` {#chmod-syscall-mode-doc}
+Type: int
+
+Definition: mode argument of the syscall
+
+
+
+### `chmod.syscall.path` {#chmod-syscall-path-doc}
+Type: string
+
+Definition: path argument of the syscall
 
 
 
@@ -2617,6 +2570,13 @@ Definition: Service associated with the event
 Type: int
 
 Definition: Timestamp of the event
+
+
+
+### `exec.syscall.path` {#exec-syscall-path-doc}
+Type: string
+
+Definition: path argument of the syscall
 
 
 

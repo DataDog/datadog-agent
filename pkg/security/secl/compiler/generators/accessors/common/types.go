@@ -67,6 +67,7 @@ type StructField struct {
 	Alias            string
 	AliasPrefix      string
 	GettersOnly      bool
+	With             string
 }
 
 // GetEvaluatorType returns the evaluator type name

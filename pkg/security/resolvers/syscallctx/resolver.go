@@ -61,9 +61,9 @@ func (sr *Resolver) Resolve(ctxID uint32, ctx *model.SyscallContext) error {
 		if err != nil {
 			return fmt.Errorf("unable to resolve the syscall context for `%d`: %w", ctxID, err)
 		}
-		ctx.CtxStrArg1 = arg
+		ctx.StrArg1 = arg
 	} else if isIntArg(0) {
-		ctx.CtxIntArg1 = int64(binary.NativeEndian.Uint64(ks.Arg1[:]))
+		ctx.IntArg1 = int64(binary.NativeEndian.Uint64(ks.Arg1[:]))
 	}
 
 	if isStrArg(1) {
@@ -71,9 +71,9 @@ func (sr *Resolver) Resolve(ctxID uint32, ctx *model.SyscallContext) error {
 		if err != nil {
 			return fmt.Errorf("unable to resolve the syscall context for `%d`: %w", ctxID, err)
 		}
-		ctx.CtxStrArg2 = arg
+		ctx.StrArg2 = arg
 	} else if isIntArg(1) {
-		ctx.CtxIntArg2 = int64(binary.NativeEndian.Uint64(ks.Arg2[:]))
+		ctx.IntArg2 = int64(binary.NativeEndian.Uint64(ks.Arg2[:]))
 	}
 
 	if isStrArg(2) {
@@ -81,9 +81,9 @@ func (sr *Resolver) Resolve(ctxID uint32, ctx *model.SyscallContext) error {
 		if err != nil {
 			return fmt.Errorf("unable to resolve the syscall context for `%d`: %w", ctxID, err)
 		}
-		ctx.CtxStrArg3 = arg
+		ctx.StrArg3 = arg
 	} else if isIntArg(2) {
-		ctx.CtxIntArg3 = int64(binary.NativeEndian.Uint64(ks.Arg3[:]))
+		ctx.IntArg3 = int64(binary.NativeEndian.Uint64(ks.Arg3[:]))
 	}
 
 	return nil

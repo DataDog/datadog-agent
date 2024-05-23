@@ -90,17 +90,17 @@ type SyscallEvent struct {
 
 // SyscallContext contains syscall context
 type SyscallContext struct {
-	CtxID uint32 `field:"-"`
+	ID uint32 `field:"-"`
 
-	CtxStrArg1 string `field:"syscall.str_arg1,handler:ResolveSyscallCtxStrArg1,weight:900"` // SECLDoc[syscall.str_arg1] Definition:`first string syscall argument`
-	CtxStrArg2 string `field:"syscall.str_arg2,handler:ResolveSyscallCtxStrArg2,weight:900"` // SECLDoc[syscall.str_arg2] Definition:`second string syscall argument`
-	CtxStrArg3 string `field:"syscall.str_arg3,handler:ResolveSyscallCtxStrArg3,weight:900"` // SECLDoc[syscall.str_arg3] Definition:`third string syscall argument`
+	StrArg1 string `field:"syscall.str1,handler:ResolveSyscallCtxArgsStr1,weight:900,opts:getters_only"`
+	StrArg2 string `field:"syscall.str2,handler:ResolveSyscallCtxArgsStr2,weight:900,opts:getters_only"`
+	StrArg3 string `field:"syscall.str3,handler:ResolveSyscallCtxArgsStr3,weight:900,opts:getters_only"`
 
-	CtxIntArg1 int64 `field:"syscall.int_arg1,handler:ResolveSyscallCtxIntArg1,weight:900"` // SECLDoc[syscall.int_arg1] Definition:`first integer syscall argument`
-	CtxIntArg2 int64 `field:"syscall.int_arg2,handler:ResolveSyscallCtxIntArg2,weight:900"` // SECLDoc[syscall.int_arg2] Definition:`Second integer syscall argument`
-	CtxIntArg3 int64 `field:"syscall.int_arg3,handler:ResolveSyscallCtxIntArg3,weight:900"` // SECLDoc[syscall.int_arg3] Definition:`Third integer syscall argument`
+	IntArg1 int64 `field:"syscall.int1,handler:ResolveSyscallCtxArgsInt1,weight:900,opts:getters_only"`
+	IntArg2 int64 `field:"syscall.int2,handler:ResolveSyscallCtxArgsInt2,weight:900,opts:getters_only"`
+	IntArg3 int64 `field:"syscall.int3,handler:ResolveSyscallCtxArgsInt3,weight:900,opts:getters_only"`
 
-	CtxResolved bool `field:"-"`
+	Resolved bool `field:"-"`
 }
 
 // ChmodEvent represents a chmod event
@@ -109,6 +109,10 @@ type ChmodEvent struct {
 	SyscallContext
 	File FileEvent `field:"file"`
 	Mode uint32    `field:"file.destination.mode; file.destination.rights"` // SECLDoc[file.destination.mode] Definition:`New mode of the chmod-ed file` Constants:`File mode constants` SECLDoc[file.destination.rights] Definition:`New rights of the chmod-ed file` Constants:`File mode constants`
+
+	// Syscall context aliases
+	SyscallPath string `field:"syscall.path,handler:ResolveSyscallCtxArgsStr1,with:SyscallContext,weight:900"` // SECLDoc[syscall.path] Definition:`path argument of the syscall`
+	SyscallMode int64  `field:"syscall.mode,handler:ResolveSyscallCtxArgsInt2,with:SyscallContext,weight:900"` // SECLDoc[syscall.mode] Definition:`mode argument of the syscall`
 }
 
 // ChownEvent represents a chown event
@@ -247,6 +251,9 @@ type Process struct {
 type ExecEvent struct {
 	SyscallContext
 	*Process
+
+	// Syscall context aliases
+	SyscallPath string `field:"syscall.path,handler:ResolveSyscallCtxArgsStr1,with:SyscallContext,weight:900"` // SECLDoc[syscall.path] Definition:`path argument of the syscall`
 }
 
 // FileFields holds the information required to identify a file
@@ -360,6 +367,9 @@ type ChdirEvent struct {
 	SyscallEvent
 	SyscallContext
 	File FileEvent `field:"file"`
+
+	// Syscall context aliases
+	SyscallPath string `field:"syscall.path,handler:ResolveSyscallCtxArgsStr1,with:SyscallContext,weight:900"` // SECLDoc[syscall.path] Definition:`path argument of the syscall`
 }
 
 // OpenEvent represents an open event

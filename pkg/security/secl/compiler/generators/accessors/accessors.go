@@ -254,6 +254,7 @@ func handleIterator(module *common.Module, field seclField, fieldType, iterator,
 		Helper:           field.helper,
 		SkipADResolution: field.skipADResolution,
 		Check:            field.check,
+		With:             field.with,
 	}
 
 	return module.Iterators[alias]
@@ -292,6 +293,7 @@ func handleFieldWithHandler(module *common.Module, field seclField, aliasPrefix,
 		Alias:            alias,
 		AliasPrefix:      aliasPrefix,
 		GettersOnly:      field.gettersOnly,
+		With:             field.with,
 	}
 
 	module.Fields[alias] = newStructField
@@ -356,6 +358,7 @@ type seclField struct {
 	exposedAtEventRootOnly bool // fields that should only be exposed at the root of an event, i.e. `parent` should not be exposed for an `ancestor` of a process
 	containerStructName    string
 	gettersOnly            bool //  a field that is not exposed via SECL, but still has an accessor generated
+	with                   string
 }
 
 func parseFieldDef(def string) (seclField, error) {
@@ -384,6 +387,8 @@ func parseFieldDef(def string) (seclField, error) {
 					return field, err
 				}
 				field.weight = weight
+			case "with":
+				field.with = value
 			case "iterator":
 				field.iterator = value
 			case "check":
@@ -853,7 +858,10 @@ func getFieldHandler(allFields map[string]*common.StructField, field *common.Str
 		ptr = ""
 	}
 
-	return fmt.Sprintf("ev.FieldHandlers.%s(ev, %sev.%s)", field.Handler, ptr, field.Prefix)
+	if field.With == "" {
+		return fmt.Sprintf("ev.FieldHandlers.%s(ev, %sev.%s)", field.Handler, ptr, field.Prefix)
+	}
+	return fmt.Sprintf("ev.FieldHandlers.%s(ev, %sev.%s.%s)", field.Handler, ptr, field.Prefix, field.With)
 }
 
 func fieldADPrint(field *common.StructField, handler string) string {
@@ -913,6 +921,9 @@ func getHandlers(allFields map[string]*common.StructField) map[string]string {
 			if field.Prefix == "" {
 				handler = fmt.Sprintf("%s(ev *Event) %s", field.Handler, returnType)
 			} else {
+				if field.With != "" {
+					continue
+				}
 				handler = fmt.Sprintf("%s(ev *Event, e *%s) %s", field.Handler, field.Struct, returnType)
 			}
 

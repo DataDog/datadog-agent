@@ -547,46 +547,46 @@ func (fh *EBPFFieldHandlers) ResolveAWSSecurityCredentials(e *model.Event) []mod
 	return fh.resolvers.ProcessResolver.FetchAWSSecurityCredentials(e)
 }
 
-// ResolveSyscallCtxStrArg1 resolve syscall ctx
-func (fh *EBPFFieldHandlers) resolveSyscallCtx(_ *model.Event, e *model.SyscallContext) {
-	if !e.CtxResolved {
-		_ = fh.resolvers.SyscallCtxResolver.Resolve(e.CtxID, e)
-		e.CtxResolved = true
+// ResolveSyscallCtxArgs resolve syscall ctx
+func (fh *EBPFFieldHandlers) ResolveSyscallCtxArgs(_ *model.Event, e *model.SyscallContext) {
+	if !e.Resolved {
+		_ = fh.resolvers.SyscallCtxResolver.Resolve(e.ID, e)
+		e.Resolved = true
 	}
 }
 
-// ResolveSyscallCtxStrArg1 resolve syscall ctx
-func (fh *EBPFFieldHandlers) ResolveSyscallCtxStrArg1(ev *model.Event, e *model.SyscallContext) string {
-	fh.resolveSyscallCtx(ev, e)
-	return e.CtxStrArg1
+// ResolveSyscallCtxArgsStr1 resolve syscall ctx
+func (fh *EBPFFieldHandlers) ResolveSyscallCtxArgsStr1(ev *model.Event, e *model.SyscallContext) string {
+	fh.ResolveSyscallCtxArgs(ev, e)
+	return e.StrArg1
 }
 
-// ResolveSyscallCtxStrArg2 resolve syscall ctx
-func (fh *EBPFFieldHandlers) ResolveSyscallCtxStrArg2(ev *model.Event, e *model.SyscallContext) string {
-	fh.resolveSyscallCtx(ev, e)
-	return e.CtxStrArg2
+// ResolveSyscallCtxArgsStr2 resolve syscall ctx
+func (fh *EBPFFieldHandlers) ResolveSyscallCtxArgsStr2(ev *model.Event, e *model.SyscallContext) string {
+	fh.ResolveSyscallCtxArgs(ev, e)
+	return e.StrArg2
 }
 
-// ResolveSyscallCtxStrArg3 resolve syscall ctx
-func (fh *EBPFFieldHandlers) ResolveSyscallCtxStrArg3(ev *model.Event, e *model.SyscallContext) string {
-	fh.resolveSyscallCtx(ev, e)
-	return e.CtxStrArg3
+// ResolveSyscallCtxArgsStr3 resolve syscall ctx
+func (fh *EBPFFieldHandlers) ResolveSyscallCtxArgsStr3(ev *model.Event, e *model.SyscallContext) string {
+	fh.ResolveSyscallCtxArgs(ev, e)
+	return e.StrArg3
 }
 
-// ResolveSyscallCtxIntArg1 resolve syscall ctx
-func (fh *EBPFFieldHandlers) ResolveSyscallCtxIntArg1(ev *model.Event, e *model.SyscallContext) int {
-	fh.resolveSyscallCtx(ev, e)
-	return int(e.CtxIntArg1)
+// ResolveSyscallCtxArgsInt1 resolve syscall ctx
+func (fh *EBPFFieldHandlers) ResolveSyscallCtxArgsInt1(ev *model.Event, e *model.SyscallContext) int {
+	fh.ResolveSyscallCtxArgs(ev, e)
+	return int(e.IntArg1)
 }
 
-// ResolveSyscallCtxIntArg2 resolve syscall ctx
-func (fh *EBPFFieldHandlers) ResolveSyscallCtxIntArg2(ev *model.Event, e *model.SyscallContext) int {
-	fh.resolveSyscallCtx(ev, e)
-	return int(e.CtxIntArg2)
+// ResolveSyscallCtxArgsInt2 resolve syscall ctx
+func (fh *EBPFFieldHandlers) ResolveSyscallCtxArgsInt2(ev *model.Event, e *model.SyscallContext) int {
+	fh.ResolveSyscallCtxArgs(ev, e)
+	return int(e.IntArg2)
 }
 
-// ResolveSyscallCtxIntArg3 resolve syscall ctx
-func (fh *EBPFFieldHandlers) ResolveSyscallCtxIntArg3(ev *model.Event, e *model.SyscallContext) int {
-	fh.resolveSyscallCtx(ev, e)
-	return int(e.CtxIntArg3)
+// ResolveSyscallCtxArgsInt3 resolve syscall ctx
+func (fh *EBPFFieldHandlers) ResolveSyscallCtxArgsInt3(ev *model.Event, e *model.SyscallContext) int {
+	fh.ResolveSyscallCtxArgs(ev, e)
+	return int(e.IntArg3)
 }

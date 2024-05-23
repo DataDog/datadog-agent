@@ -584,7 +584,7 @@ func (e *SyscallContext) UnmarshalBinary(data []byte) (int, error) {
 	if len(data) < 8 {
 		return 0, ErrNotEnoughData
 	}
-	e.CtxID = uint32(binary.NativeEndian.Uint32(data))
+	e.ID = uint32(binary.NativeEndian.Uint32(data))
 
 	// padding
 

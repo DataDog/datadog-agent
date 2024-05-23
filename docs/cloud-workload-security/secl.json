@@ -1389,34 +1389,9 @@
           "property_doc_link": "common-syscallevent-retval-doc"
         },
         {
-          "name": "chdir.syscall.int_arg1",
-          "definition": "first integer syscall argument",
-          "property_doc_link": "common-syscallcontext-syscall-int_arg1-doc"
-        },
-        {
-          "name": "chdir.syscall.int_arg2",
-          "definition": "Second integer syscall argument",
-          "property_doc_link": "common-syscallcontext-syscall-int_arg2-doc"
-        },
-        {
-          "name": "chdir.syscall.int_arg3",
-          "definition": "Third integer syscall argument",
-          "property_doc_link": "common-syscallcontext-syscall-int_arg3-doc"
-        },
-        {
-          "name": "chdir.syscall.str_arg1",
-          "definition": "first string syscall argument",
-          "property_doc_link": "common-syscallcontext-syscall-str_arg1-doc"
-        },
-        {
-          "name": "chdir.syscall.str_arg2",
-          "definition": "second string syscall argument",
-          "property_doc_link": "common-syscallcontext-syscall-str_arg2-doc"
-        },
-        {
-          "name": "chdir.syscall.str_arg3",
-          "definition": "third string syscall argument",
-          "property_doc_link": "common-syscallcontext-syscall-str_arg3-doc"
+          "name": "chdir.syscall.path",
+          "definition": "path argument of the syscall",
+          "property_doc_link": "chdir-syscall-path-doc"
         }
       ]
     },
@@ -1543,34 +1518,14 @@
           "property_doc_link": "common-syscallevent-retval-doc"
         },
         {
-          "name": "chmod.syscall.int_arg1",
-          "definition": "first integer syscall argument",
-          "property_doc_link": "common-syscallcontext-syscall-int_arg1-doc"
+          "name": "chmod.syscall.mode",
+          "definition": "mode argument of the syscall",
+          "property_doc_link": "chmod-syscall-mode-doc"
         },
         {
-          "name": "chmod.syscall.int_arg2",
-          "definition": "Second integer syscall argument",
-          "property_doc_link": "common-syscallcontext-syscall-int_arg2-doc"
-        },
-        {
-          "name": "chmod.syscall.int_arg3",
-          "definition": "Third integer syscall argument",
-          "property_doc_link": "common-syscallcontext-syscall-int_arg3-doc"
-        },
-        {
-          "name": "chmod.syscall.str_arg1",
-          "definition": "first string syscall argument",
-          "property_doc_link": "common-syscallcontext-syscall-str_arg1-doc"
-        },
-        {
-          "name": "chmod.syscall.str_arg2",
-          "definition": "second string syscall argument",
-          "property_doc_link": "common-syscallcontext-syscall-str_arg2-doc"
-        },
-        {
-          "name": "chmod.syscall.str_arg3",
-          "definition": "third string syscall argument",
-          "property_doc_link": "common-syscallcontext-syscall-str_arg3-doc"
+          "name": "chmod.syscall.path",
+          "definition": "path argument of the syscall",
+          "property_doc_link": "chmod-syscall-path-doc"
         }
       ]
     },
@@ -2145,34 +2100,9 @@
           "property_doc_link": "common-process-ppid-doc"
         },
         {
-          "name": "exec.syscall.int_arg1",
-          "definition": "first integer syscall argument",
-          "property_doc_link": "common-syscallcontext-syscall-int_arg1-doc"
-        },
-        {
-          "name": "exec.syscall.int_arg2",
-          "definition": "Second integer syscall argument",
-          "property_doc_link": "common-syscallcontext-syscall-int_arg2-doc"
-        },
-        {
-          "name": "exec.syscall.int_arg3",
-          "definition": "Third integer syscall argument",
-          "property_doc_link": "common-syscallcontext-syscall-int_arg3-doc"
-        },
-        {
-          "name": "exec.syscall.str_arg1",
-          "definition": "first string syscall argument",
-          "property_doc_link": "common-syscallcontext-syscall-str_arg1-doc"
-        },
-        {
-          "name": "exec.syscall.str_arg2",
-          "definition": "second string syscall argument",
-          "property_doc_link": "common-syscallcontext-syscall-str_arg2-doc"
-        },
-        {
-          "name": "exec.syscall.str_arg3",
-          "definition": "third string syscall argument",
-          "property_doc_link": "common-syscallcontext-syscall-str_arg3-doc"
+          "name": "exec.syscall.path",
+          "definition": "path argument of the syscall",
+          "property_doc_link": "exec-syscall-path-doc"
         },
         {
           "name": "exec.tid",
@@ -8489,90 +8419,6 @@
       "examples": []
     },
     {
-      "name": "*.syscall.int_arg1",
-      "link": "common-syscallcontext-syscall-int_arg1-doc",
-      "type": "int",
-      "definition": "first integer syscall argument",
-      "prefixes": [
-        "chdir",
-        "chmod",
-        "exec"
-      ],
-      "constants": "",
-      "constants_link": "",
-      "examples": []
-    },
-    {
-      "name": "*.syscall.int_arg2",
-      "link": "common-syscallcontext-syscall-int_arg2-doc",
-      "type": "int",
-      "definition": "Second integer syscall argument",
-      "prefixes": [
-        "chdir",
-        "chmod",
-        "exec"
-      ],
-      "constants": "",
-      "constants_link": "",
-      "examples": []
-    },
-    {
-      "name": "*.syscall.int_arg3",
-      "link": "common-syscallcontext-syscall-int_arg3-doc",
-      "type": "int",
-      "definition": "Third integer syscall argument",
-      "prefixes": [
-        "chdir",
-        "chmod",
-        "exec"
-      ],
-      "constants": "",
-      "constants_link": "",
-      "examples": []
-    },
-    {
-      "name": "*.syscall.str_arg1",
-      "link": "common-syscallcontext-syscall-str_arg1-doc",
-      "type": "string",
-      "definition": "first string syscall argument",
-      "prefixes": [
-        "chdir",
-        "chmod",
-        "exec"
-      ],
-      "constants": "",
-      "constants_link": "",
-      "examples": []
-    },
-    {
-      "name": "*.syscall.str_arg2",
-      "link": "common-syscallcontext-syscall-str_arg2-doc",
-      "type": "string",
-      "definition": "second string syscall argument",
-      "prefixes": [
-        "chdir",
-        "chmod",
-        "exec"
-      ],
-      "constants": "",
-      "constants_link": "",
-      "examples": []
-    },
-    {
-      "name": "*.syscall.str_arg3",
-      "link": "common-syscallcontext-syscall-str_arg3-doc",
-      "type": "string",
-      "definition": "third string syscall argument",
-      "prefixes": [
-        "chdir",
-        "chmod",
-        "exec"
-      ],
-      "constants": "",
-      "constants_link": "",
-      "examples": []
-    },
-    {
       "name": "*.tid",
       "link": "common-pidcontext-tid-doc",
       "type": "int",
@@ -8898,6 +8744,18 @@
       "examples": []
     },
     {
+      "name": "chdir.syscall.path",
+      "link": "chdir-syscall-path-doc",
+      "type": "string",
+      "definition": "path argument of the syscall",
+      "prefixes": [
+        "chdir"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
       "name": "chmod.file.destination.mode",
       "link": "chmod-file-destination-mode-doc",
       "type": "int",
@@ -8919,6 +8777,30 @@
       ],
       "constants": "File mode constants",
       "constants_link": "file-mode-constants",
+      "examples": []
+    },
+    {
+      "name": "chmod.syscall.mode",
+      "link": "chmod-syscall-mode-doc",
+      "type": "int",
+      "definition": "mode argument of the syscall",
+      "prefixes": [
+        "chmod"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "chmod.syscall.path",
+      "link": "chmod-syscall-path-doc",
+      "type": "string",
+      "definition": "path argument of the syscall",
+      "prefixes": [
+        "chmod"
+      ],
+      "constants": "",
+      "constants_link": "",
       "examples": []
     },
     {
@@ -9132,6 +9014,18 @@
       "definition": "Timestamp of the event",
       "prefixes": [
         ""
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "exec.syscall.path",
+      "link": "exec-syscall-path-doc",
+      "type": "string",
+      "definition": "path argument of the syscall",
+      "prefixes": [
+        "exec"
       ],
       "constants": "",
       "constants_link": "",

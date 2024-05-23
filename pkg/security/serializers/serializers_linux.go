@@ -489,42 +489,40 @@ type AnomalyDetectionSyscallEventSerializer struct {
 // SyscallArgsSerializer args serializer
 // easyjson:json
 type SyscallArgsSerializer struct {
-	// StrArg1 first string argument
-	StrArg1 string `json:"str_arg1,omitempty"`
-	// StrArg2 second string argument
-	StrArg2 string `json:"str_arg2,omitempty"`
-	// StrArg3 third string argument
-	StrArg3 string `json:"str_arg3,omitempty"`
-
-	// IntArg1 first integer argument
-	IntArg1 int `json:"int_arg1,omitempty"`
-	// IntArg2 second integer argument
-	IntArg2 int `json:"int_arg2,omitempty"`
-	// IntArg3 third integer argument
-	IntArg3 int `json:"int_arg3,omitempty"`
+	// Path argument
+	Path string `json:"path,omitempty"`
+	// Mode argument
+	Mode int `json:"mode,omitempty"`
 }
 
 func newSyscallArgsSerializer(sc *model.SyscallContext, e *model.Event) *SyscallArgsSerializer {
-	return &SyscallArgsSerializer{
-		StrArg1: e.FieldHandlers.ResolveSyscallCtxStrArg1(e, sc),
-		StrArg2: e.FieldHandlers.ResolveSyscallCtxStrArg2(e, sc),
-		StrArg3: e.FieldHandlers.ResolveSyscallCtxStrArg3(e, sc),
-		IntArg1: e.FieldHandlers.ResolveSyscallCtxIntArg1(e, sc),
-		IntArg2: e.FieldHandlers.ResolveSyscallCtxIntArg2(e, sc),
-		IntArg3: e.FieldHandlers.ResolveSyscallCtxIntArg3(e, sc),
+	e.FieldHandlers.ResolveSyscallCtxArgs(e, sc)
+
+	switch e.GetEventType() {
+	case model.FileChmodEventType:
+		return &SyscallArgsSerializer{
+			Path: e.FieldHandlers.ResolveSyscallCtxArgsStr1(e, sc),
+			Mode: e.FieldHandlers.ResolveSyscallCtxArgsInt2(e, sc),
+		}
+	case model.FileChdirEventType, model.ExecEventType:
+		return &SyscallArgsSerializer{
+			Path: e.FieldHandlers.ResolveSyscallCtxArgsStr1(e, sc),
+		}
 	}
+
+	return nil
 }
 
 // SyscallContextSerializer serializes syscall context
 // easyjson:json
 type SyscallContextSerializer struct {
-	Args *SyscallArgsSerializer `json:"args,omitempty"`
+	Chmod *SyscallArgsSerializer `json:"chmod,omitempty"`
+	Chdir *SyscallArgsSerializer `json:"chdir,omitempty"`
+	Exec  *SyscallArgsSerializer `json:"exec,omitempty"`
 }
 
-func newSyscallContextSerializer(sc *model.SyscallContext, e *model.Event) *SyscallContextSerializer {
-	return &SyscallContextSerializer{
-		Args: newSyscallArgsSerializer(sc, e),
-	}
+func newSyscallContextSerializer() *SyscallContextSerializer {
+	return &SyscallContextSerializer{}
 }
 
 // EventSerializer serializes an event to JSON
@@ -1082,7 +1080,8 @@ func NewEventSerializer(event *model.Event, opts *eval.Opts) *EventSerializer {
 			},
 		}
 		s.EventContextSerializer.Outcome = serializeOutcome(event.Chmod.Retval)
-		s.SyscallContextSerializer = newSyscallContextSerializer(&event.Chmod.SyscallContext, event)
+		s.SyscallContextSerializer = newSyscallContextSerializer()
+		s.SyscallContextSerializer.Chmod = newSyscallArgsSerializer(&event.Chmod.SyscallContext, event)
 	case model.FileChownEventType:
 		s.FileEventSerializer = &FileEventSerializer{
 			FileSerializer: *newFileSerializer(&event.Chown.File, event),
@@ -1130,7 +1129,8 @@ func NewEventSerializer(event *model.Event, opts *eval.Opts) *EventSerializer {
 			FileSerializer: *newFileSerializer(&event.Chdir.File, event),
 		}
 		s.EventContextSerializer.Outcome = serializeOutcome(event.Chdir.Retval)
-		s.SyscallContextSerializer = newSyscallContextSerializer(&event.Chdir.SyscallContext, event)
+		s.SyscallContextSerializer = newSyscallContextSerializer()
+		s.SyscallContextSerializer.Chdir = newSyscallArgsSerializer(&event.Chdir.SyscallContext, event)
 	case model.FileUnlinkEventType:
 		s.FileEventSerializer = &FileEventSerializer{
 			FileSerializer: *newFileSerializer(&event.Unlink.File, event),
@@ -1268,7 +1268,8 @@ func NewEventSerializer(event *model.Event, opts *eval.Opts) *EventSerializer {
 			FileSerializer: *newFileSerializer(&event.ProcessContext.Process.FileEvent, event),
 		}
 		s.EventContextSerializer.Outcome = serializeOutcome(0)
-		s.SyscallContextSerializer = newSyscallContextSerializer(&event.Exec.SyscallContext, event)
+		s.SyscallContextSerializer = newSyscallContextSerializer()
+		s.SyscallContextSerializer.Exec = newSyscallArgsSerializer(&event.Exec.SyscallContext, event)
 	}
 
 	return s

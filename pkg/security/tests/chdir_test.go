@@ -26,7 +26,7 @@ func TestChdir(t *testing.T) {
 		},
 		{
 			ID:         "test_chdir_ctx",
-			Expression: `chdir.file.path == "{{.Root}}/test-chdir-ctx" && chdir.syscall.str_arg1 == "../../../..{{.Root}}/test-chdir-ctx"`,
+			Expression: `chdir.file.path == "{{.Root}}/test-chdir-ctx" && chdir.syscall.path == "../../../..{{.Root}}/test-chdir-ctx"`,
 		},
 	}
 
@@ -51,6 +51,8 @@ func TestChdir(t *testing.T) {
 			return os.Chdir(testFolder)
 		}, func(event *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_chdir_rule")
+
+			validateSyscallContext(t, event, "$.syscall.chdir.path")
 		})
 	})
 
@@ -83,6 +85,8 @@ func TestChdir(t *testing.T) {
 			return os.Chdir("../../../.." + testFolder)
 		}, func(event *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_chdir_ctx")
+
+			validateSyscallContext(t, event, "$.syscall.chdir.path")
 		})
 	})
 }

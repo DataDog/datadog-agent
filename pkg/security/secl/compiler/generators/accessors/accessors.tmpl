@@ -143,10 +143,14 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 						{{end}}
 
 						{{$Prefix := $Field.Prefix}}
-						{{ if not $Prefix }}
+						{{if not $Prefix}}
 							{{$Return = print "ev.FieldHandlers." $Field.Handler "(ev)"}}
 						{{else}}
-							{{$Return = print "ev.FieldHandlers." $Field.Handler "(ev, " $Ptr "ev." $Prefix ")"}}
+							{{$With := print $Ptr "ev." $Prefix}}
+							{{if $Field.With}}
+								{{$With = print $Ptr "ev." $Prefix "." $Field.With}}
+							{{end}}
+							{{$Return = print "ev.FieldHandlers." $Field.Handler "(ev, " $With ")"}}
 						{{end}}
 					{{end}}
 
@@ -289,7 +293,11 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 				{{ if not $Prefix }}
 					{{$Return = print "ev.FieldHandlers." $Field.Handler "(ev)"}}
 				{{else}}
-					{{$Return = print "ev.FieldHandlers." $Field.Handler "(ev, " $Ptr "ev." $Prefix ")"}}
+					{{$With := print $Ptr "ev." $Prefix}}
+					{{if $Field.With}}
+						{{$With = print $Ptr "ev." $Prefix "." $Field.With}}
+					{{end}}
+					{{$Return = print "ev.FieldHandlers." $Field.Handler "(ev, " $With ")"}}
 				{{end}}
 			{{end}}
 

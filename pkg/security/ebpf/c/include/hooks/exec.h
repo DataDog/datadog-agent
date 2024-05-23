@@ -19,7 +19,7 @@ int __attribute__((always_inline)) trace__sys_execveat(ctx_t *ctx, const char *p
             }
         }
     };
-    //collect_syscall_ctx(&syscall, SYSCALL_CTX_ARG_STR(0), (void *)path, NULL, NULL);
+    collect_syscall_ctx(&syscall, SYSCALL_CTX_ARG_STR(0), (void *)path, NULL, NULL);
     cache_syscall(&syscall);
 
     u64 pid_tgid = bpf_get_current_pid_tgid();

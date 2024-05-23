@@ -1459,29 +1459,13 @@ CSM Threats logs have the following JSON schema:
         },
         "SyscallArgs": {
             "properties": {
-                "str_arg1": {
+                "path": {
                     "type": "string",
-                    "description": "StrArg1 first string argument"
+                    "description": "Path argument"
                 },
-                "str_arg2": {
-                    "type": "string",
-                    "description": "StrArg2 second string argument"
-                },
-                "str_arg3": {
-                    "type": "string",
-                    "description": "StrArg3 third string argument"
-                },
-                "int_arg1": {
+                "mode": {
                     "type": "integer",
-                    "description": "IntArg1 first integer argument"
-                },
-                "int_arg2": {
-                    "type": "integer",
-                    "description": "IntArg2 second integer argument"
-                },
-                "int_arg3": {
-                    "type": "integer",
-                    "description": "IntArg3 third integer argument"
+                    "description": "Mode argument"
                 }
             },
             "additionalProperties": false,
@@ -1490,7 +1474,13 @@ CSM Threats logs have the following JSON schema:
         },
         "SyscallContext": {
             "properties": {
-                "args": {
+                "chmod": {
+                    "$ref": "#/$defs/SyscallArgs"
+                },
+                "chdir": {
+                    "$ref": "#/$defs/SyscallArgs"
+                },
+                "exec": {
                     "$ref": "#/$defs/SyscallArgs"
                 }
             },
@@ -3836,29 +3826,13 @@ CSM Threats logs have the following JSON schema:
 {{< code-block lang="json" collapsible="true" >}}
 {
     "properties": {
-        "str_arg1": {
+        "path": {
             "type": "string",
-            "description": "StrArg1 first string argument"
+            "description": "Path argument"
         },
-        "str_arg2": {
-            "type": "string",
-            "description": "StrArg2 second string argument"
-        },
-        "str_arg3": {
-            "type": "string",
-            "description": "StrArg3 third string argument"
-        },
-        "int_arg1": {
+        "mode": {
             "type": "integer",
-            "description": "IntArg1 first integer argument"
-        },
-        "int_arg2": {
-            "type": "integer",
-            "description": "IntArg2 second integer argument"
-        },
-        "int_arg3": {
-            "type": "integer",
-            "description": "IntArg3 third integer argument"
+            "description": "Mode argument"
         }
     },
     "additionalProperties": false,
@@ -3870,12 +3844,8 @@ CSM Threats logs have the following JSON schema:
 
 | Field | Description |
 | ----- | ----------- |
-| `str_arg1` | StrArg1 first string argument |
-| `str_arg2` | StrArg2 second string argument |
-| `str_arg3` | StrArg3 third string argument |
-| `int_arg1` | IntArg1 first integer argument |
-| `int_arg2` | IntArg2 second integer argument |
-| `int_arg3` | IntArg3 third integer argument |
+| `path` | Path argument |
+| `mode` | Mode argument |
 
 
 ## `SyscallContext`
@@ -3884,7 +3854,13 @@ CSM Threats logs have the following JSON schema:
 {{< code-block lang="json" collapsible="true" >}}
 {
     "properties": {
-        "args": {
+        "chmod": {
+            "$ref": "#/$defs/SyscallArgs"
+        },
+        "chdir": {
+            "$ref": "#/$defs/SyscallArgs"
+        },
+        "exec": {
             "$ref": "#/$defs/SyscallArgs"
         }
     },
@@ -3898,6 +3874,8 @@ CSM Threats logs have the following JSON schema:
 
 | References |
 | ---------- |
+| [SyscallArgs](#syscallargs) |
+| [SyscallArgs](#syscallargs) |
 | [SyscallArgs](#syscallargs) |
 
 ## `SyscallsEvent`

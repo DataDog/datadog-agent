@@ -488,7 +488,7 @@ func (p *EBPFProbe) unmarshalProcessCacheEntry(ev *model.Event, data []byte) (in
 
 	// don't provide a syscall context for Fork event for now
 	if ev.BaseEvent.Type == uint32(model.ExecEventType) {
-		ev.Exec.CtxID = sc.CtxID
+		ev.Exec.SyscallContext.ID = sc.ID
 	}
 
 	entry := p.Resolvers.ProcessResolver.NewProcessCacheEntry(ev.PIDContext)
