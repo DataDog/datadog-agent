@@ -97,18 +97,21 @@ else
   end
 end
 
-if heroku_target?
-  force_build_and_packaging = true
-  generate_distro_package = true
+do_build = false
+do_package = false
+
+if ENV["OMNIBUS_PACKAGE_ARTIFACT_DIR"]
+  dependency "package-artifact"
+  do_package = true
+  disable_healthcheck true
 else
-  force_build_and_packaging = false
-  if ENV["OMNIBUS_PACKAGE_ARTIFACT_DIR"]
-    dependency "package-artifact"
-    generate_distro_package = true
-    disable_healthcheck true
-  else
-    generate_distro_package = false
-  end
+  do_build = true
+end
+
+# For now we build and package in the same stage for heroku
+if heroku_target?
+  do_build = true
+  do_package = true
 end
 
 # build_version is computed by an invoke command/function.
@@ -133,7 +136,7 @@ description 'Datadog Monitoring Agent
 
 # .deb specific flags
 package :deb do
-  skip_packager !generate_distro_package
+  skip_packager !do_package
   vendor 'Datadog <package@datadoghq.com>'
   epoch 1
   license 'Apache License Version 2.0'
@@ -152,7 +155,7 @@ end
 
 # .rpm specific flags
 package :rpm do
-  skip_packager !generate_distro_package
+  skip_packager !do_package
   vendor 'Datadog <package@datadoghq.com>'
   epoch 1
   dist_tag ''
@@ -202,7 +205,7 @@ package :msi do
 end
 
 package :xz do
-  skip_packager (generate_distro_package && !BUILD_OCIRU)
+  skip_packager (!do_build && !BUILD_OCIRU)
   compression_threads COMPRESSION_THREADS
   compression_level COMPRESSION_LEVEL
 end
@@ -211,7 +214,7 @@ end
 # Dependencies
 # ------------------------------------
 
-if !generate_distro_package || force_build_and_packaging
+if do_build
   # Datadog agent
   dependency 'datadog-agent'
 
@@ -263,10 +266,11 @@ if !generate_distro_package || force_build_and_packaging
   # This must be the last dependency in the project.
   dependency 'datadog-agent-finalize'
   dependency 'datadog-cf-finalize'
-  if force_build_and_packaging
+  if do_package
     dependency "init-scripts-agent"
   end
-else
+end
+if do_package
   dependency "package-artifact"
   dependency "init-scripts-agent"
 end
@@ -279,7 +283,7 @@ end
 
 # all flavors use the same package scripts
 if linux_target?
-  if !generate_distro_package
+  if do_build
     extra_package_file "#{Omnibus::Config.project_root}/package-scripts/agent-deb"
     extra_package_file "#{Omnibus::Config.project_root}/package-scripts/agent-rpm"
   end
@@ -354,6 +358,6 @@ if linux_target? or windows_target?
   # the stripper will drop the symbols in a `.debug` folder in the installdir
   # we want to make sure that directory is not in the main build, while present
   # in the debug package.
-  strip_build windows_target? || !generate_distro_package || force_build_and_packaging
+  strip_build windows_target? || do_build
   debug_path ".debug"  # the strip symbols will be in here
 end
