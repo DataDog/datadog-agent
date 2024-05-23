@@ -20,7 +20,7 @@ func PreSetupInstaller() error {
 }
 
 // RemoveInstaller noop
-func RemoveInstaller(_ context.Context) {}
+func RemoveInstaller(_ context.Context) error { return nil }
 
 // StartInstallerExperiment noop
 func StartInstallerExperiment(_ context.Context) error {

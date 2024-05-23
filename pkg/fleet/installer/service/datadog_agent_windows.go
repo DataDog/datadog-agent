@@ -29,8 +29,10 @@ func msiexec(target, operation string, args []string) (err error) {
 	if err != nil {
 		return nil
 	}
-	if len(msis) != 1 {
+	if len(msis) > 1 {
 		return fmt.Errorf("too many MSIs in package")
+	} else if len(msis) == 0 {
+		return fmt.Errorf("no MSIs in package")
 	}
 
 	tmpDir, err := os.MkdirTemp(os.TempDir(), fmt.Sprintf("install-%s-*", filepath.Base(msis[0])))
@@ -69,7 +71,6 @@ func StartAgentExperiment(ctx context.Context) (err error) {
 
 // StopAgentExperiment noop
 func StopAgentExperiment(ctx context.Context) (err error) {
-	err = RemoveAgent(ctx)
 	span, ctx := tracer.StartSpanFromContext(ctx, "stop_experiment")
 	defer func() {
 		if err != nil {
@@ -77,6 +78,10 @@ func StopAgentExperiment(ctx context.Context) (err error) {
 		}
 		span.Finish(tracer.WithError(err))
 	}()
+	err = msiexec("experiment", "/x", nil)
+	if err != nil {
+		return err
+	}
 
 	// TODO: Need args here to restore DDAGENTUSER
 	return msiexec("stable", "/i", nil)

@@ -184,12 +184,17 @@ func (i *installerImpl) RemoveExperiment(ctx context.Context, pkg string) error 
 	i.m.Lock()
 	defer i.m.Unlock()
 
-	repository := i.repositories.Get(pkg)
-	err := repository.DeleteExperiment(ctx)
+	err := i.stopExperiment(ctx, pkg)
 	if err != nil {
 		return fmt.Errorf("could not delete experiment: %w", err)
 	}
-	return i.stopExperiment(ctx, pkg)
+
+	repository := i.repositories.Get(pkg)
+	err = repository.DeleteExperiment(ctx)
+	if err != nil {
+		return fmt.Errorf("could not delete experiment: %w", err)
+	}
+	return nil
 }
 
 // PromoteExperiment promotes an experiment to stable.
@@ -237,8 +242,11 @@ func (i *installerImpl) Purge(ctx context.Context) {
 func (i *installerImpl) Remove(ctx context.Context, pkg string) error {
 	i.m.Lock()
 	defer i.m.Unlock()
-	i.removePackage(ctx, pkg)
-	err := i.repositories.Delete(ctx, pkg)
+	err := i.removePackage(ctx, pkg)
+	if err != nil {
+		return fmt.Errorf("could not delete repository: %w", err)
+	}
+	err = i.repositories.Delete(ctx, pkg)
 	if err != nil {
 		return fmt.Errorf("could not delete repository: %w", err)
 	}
@@ -303,19 +311,16 @@ func (i *installerImpl) setupPackage(ctx context.Context, pkg string, args []str
 	}
 }
 
-func (i *installerImpl) removePackage(ctx context.Context, pkg string) {
+func (i *installerImpl) removePackage(ctx context.Context, pkg string) error {
 	switch pkg {
 	case packageDatadogAgent:
-		service.RemoveAgent(ctx)
-		return
+		return service.RemoveAgent(ctx)
 	case packageAPMInjector:
-		service.RemoveAPMInjector(ctx)
-		return
+		return service.RemoveAPMInjector(ctx)
 	case packageDatadogInstaller:
-		service.RemoveInstaller(ctx)
-		return
+		return service.RemoveInstaller(ctx)
 	default:
-		return
+		return nil
 	}
 }
 

@@ -48,11 +48,11 @@ func SetupAPMInjector(ctx context.Context) error {
 }
 
 // RemoveAPMInjector removes the APM injector
-func RemoveAPMInjector(ctx context.Context) {
+func RemoveAPMInjector(ctx context.Context) error {
 	span, ctx := tracer.StartSpanFromContext(ctx, "remove_injector")
 	defer span.Finish()
 	installer := newAPMInjectorInstaller(injectorPath)
-	installer.Remove(ctx)
+	return installer.Remove(ctx)
 }
 
 func newAPMInjectorInstaller(path string) *apmInjectorInstaller {
@@ -116,7 +116,7 @@ func (a *apmInjectorInstaller) Setup(ctx context.Context) (err error) {
 	return err
 }
 
-func (a *apmInjectorInstaller) Remove(ctx context.Context) {
+func (a *apmInjectorInstaller) Remove(ctx context.Context) error {
 	if _, err := a.ldPreloadFileUninstrument.mutate(); err != nil {
 		log.Warnf("Failed to remove ld preload config: %v", err)
 	}
@@ -124,6 +124,8 @@ func (a *apmInjectorInstaller) Remove(ctx context.Context) {
 	if err := a.uninstallDocker(ctx); err != nil {
 		log.Warnf("Failed to remove docker config: %v", err)
 	}
+	// TODO: return error to caller?
+	return nil
 }
 
 // setupSockets sets up the sockets for the APM injector
