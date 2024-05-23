@@ -60,6 +60,7 @@ func (c *CheckWrapper) destroySender() {
 	c.runM.Lock()
 	defer c.runM.Unlock()
 	c.done = true
+	c.inner.InvalidateSender()
 	c.senderManager.DestroySender(c.ID())
 }
 
@@ -99,6 +100,11 @@ func (c *CheckWrapper) GetWarnings() []error {
 // GetSenderStats implements Check#GetSenderStats
 func (c *CheckWrapper) GetSenderStats() (stats.SenderStats, error) {
 	return c.inner.GetSenderStats()
+}
+
+// InvalidateSender implements Check#InvalidateSender
+func (c *CheckWrapper) InvalidateSender() {
+	c.inner.InvalidateSender()
 }
 
 // Version implements Check#Version

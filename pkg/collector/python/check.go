@@ -63,6 +63,7 @@ type PythonCheck struct {
 	telemetry      bool // whether or not the telemetry is enabled for this check
 	initConfig     string
 	instanceConfig string
+	sender         sender.Sender
 }
 
 // NewPythonCheck conveniently creates a PythonCheck instance
@@ -108,7 +109,7 @@ func (c *PythonCheck) runCheckImpl(commitMetrics bool) error {
 	defer C.rtloader_free(rtloader, unsafe.Pointer(cResult))
 
 	if commitMetrics {
-		s, err := c.senderManager.GetSender(c.ID())
+		s, err := c.getSender()
 		if err != nil {
 			return fmt.Errorf("Failed to retrieve a Sender instance: %v", err)
 		}
@@ -248,7 +249,7 @@ func (c *PythonCheck) Configure(senderManager sender.SenderManager, integrationC
 
 	// Set service for this check
 	if len(commonGlobalOptions.Service) > 0 {
-		s, err := c.senderManager.GetSender(c.id)
+		s, err := c.getSender()
 		if err != nil {
 			log.Errorf("failed to retrieve a sender for check %s: %s", string(c.id), err)
 		} else {
@@ -269,7 +270,7 @@ func (c *PythonCheck) Configure(senderManager sender.SenderManager, integrationC
 
 	// Disable default hostname if specified
 	if commonOptions.EmptyDefaultHostname {
-		s, err := c.senderManager.GetSender(c.id)
+		s, err := c.getSender()
 		if err != nil {
 			log.Errorf("failed to retrieve a sender for check %s: %s", string(c.id), err)
 		} else {
@@ -279,7 +280,7 @@ func (c *PythonCheck) Configure(senderManager sender.SenderManager, integrationC
 
 	// Set configured service for this check, overriding the one possibly defined globally
 	if len(commonOptions.Service) > 0 {
-		s, err := c.senderManager.GetSender(c.id)
+		s, err := c.getSender()
 		if err != nil {
 			log.Errorf("failed to retrieve a sender for check %s: %s", string(c.id), err)
 		} else {
@@ -334,7 +335,7 @@ func (c *PythonCheck) Configure(senderManager sender.SenderManager, integrationC
 	c.source = source
 
 	// Add the possibly configured service as a tag for this check
-	s, err := c.senderManager.GetSender(c.id)
+	s, err := c.getSender()
 	if err != nil {
 		log.Errorf("failed to retrieve a sender for check %s: %s", string(c.id), err)
 	} else {
@@ -349,9 +350,25 @@ func (c *PythonCheck) Configure(senderManager sender.SenderManager, integrationC
 	return nil
 }
 
+func (c *PythonCheck) getSender() (sender.Sender, error) {
+	if c.sender == nil {
+		s, err := c.senderManager.GetSender(c.id)
+		if err != nil {
+			return nil, err
+		}
+		c.sender = s
+	}
+	return c.sender, nil
+}
+
+// InvalidateSender removes the cached sender
+func (c *PythonCheck) InvalidateSender() {
+	c.sender = nil
+}
+
 // GetSenderStats returns the stats from the last run of the check
 func (c *PythonCheck) GetSenderStats() (stats.SenderStats, error) {
-	sender, err := c.senderManager.GetSender(c.ID())
+	sender, err := c.getSender()
 	if err != nil {
 		return stats.SenderStats{}, fmt.Errorf("Failed to retrieve a Sender instance: %v", err)
 	}

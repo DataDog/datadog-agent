@@ -121,6 +121,10 @@ func (m *mockLongRunningCheck) Cancel() {
 	}
 }
 
+func (m *mockLongRunningCheck) InvalidateSender() {
+	m.Called()
+}
+
 func (m *mockLongRunningCheck) waitUntilRun() {
 	<-m.runningCh
 }

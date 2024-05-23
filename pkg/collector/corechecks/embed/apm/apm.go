@@ -232,6 +232,9 @@ func (c *APMCheck) GetSenderStats() (stats.SenderStats, error) {
 	return stats.NewSenderStats(), nil
 }
 
+// InvalidateSender does nothing
+func (c *APMCheck) InvalidateSender() {}
+
 // InitConfig returns the initConfig for the APM check
 func (c *APMCheck) InitConfig() string {
 	return c.initConfig

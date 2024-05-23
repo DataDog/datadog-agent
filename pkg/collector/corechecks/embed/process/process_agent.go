@@ -236,6 +236,9 @@ func (c *ProcessAgentCheck) GetSenderStats() (stats.SenderStats, error) {
 	return stats.NewSenderStats(), nil
 }
 
+// InvalidateSender does nothing
+func (c *ProcessAgentCheck) InvalidateSender() {}
+
 // GetDiagnoses returns the diagnoses of the check
 func (c *ProcessAgentCheck) GetDiagnoses() ([]diagnosis.Diagnosis, error) {
 	return nil, nil
