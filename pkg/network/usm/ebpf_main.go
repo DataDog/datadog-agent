@@ -65,6 +65,11 @@ const (
 	sockFDLookupArgsMap                    = "sockfd_lookup_args"
 	tupleByPidFDMap                        = "tuple_by_pid_fd"
 	pidFDByTupleMap                        = "pid_fd_by_tuple"
+	sockopsFunction                        = "sockops__sockops"
+	sockhash                               = "sockhash"
+	kafkaStreamParser                      = "sk_skb__kafka_stream_parser"
+	skSKBProtocolDispatcher                = "sk_skb__protocol_dispatcher"
+	skMsgProtocolDispatcher                = "sk_msg__protocol_dispatcher"
 
 	sockFDLookup    = "kprobe__sockfd_lookup_light"
 	sockFDLookupRet = "kretprobe__sockfd_lookup_light"
@@ -104,11 +109,30 @@ func newEBPFProgram(c *config.Config, connectionProtocolMap *ebpf.Map) (*ebpfPro
 			{Name: sockFDLookupArgsMap},
 			{Name: tupleByPidFDMap},
 			{Name: pidFDByTupleMap},
+			{Name: sockhash},
 		},
 		Probes: []*manager.Probe{
 			{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
 					EBPFFuncName: "kprobe__tcp_sendmsg",
+					UID:          probeUID,
+				},
+			},
+			// {
+			// 	ProbeIdentificationPair: manager.ProbeIdentificationPair{
+			// 		EBPFFuncName: kafkaStreamParser,
+			// 		UID:          probeUID,
+			// 	},
+			// },
+			{
+				ProbeIdentificationPair: manager.ProbeIdentificationPair{
+					EBPFFuncName: skSKBProtocolDispatcher,
+					UID:          probeUID,
+				},
+			},
+			{
+				ProbeIdentificationPair: manager.ProbeIdentificationPair{
+					EBPFFuncName: skMsgProtocolDispatcher,
 					UID:          probeUID,
 				},
 			},
@@ -127,6 +151,12 @@ func newEBPFProgram(c *config.Config, connectionProtocolMap *ebpf.Map) (*ebpfPro
 			{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
 					EBPFFuncName: protocolDispatcherSocketFilterFunction,
+					UID:          probeUID,
+				},
+			},
+			{
+				ProbeIdentificationPair: manager.ProbeIdentificationPair{
+					EBPFFuncName: sockopsFunction,
 					UID:          probeUID,
 				},
 			},

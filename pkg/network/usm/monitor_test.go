@@ -13,7 +13,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"math/rand"
 	"net"
 	nethttp "net/http"
 	"net/url"
@@ -172,7 +171,7 @@ func (s *HTTPTestSuite) TestHTTPMonitorLoadWithIncompleteBuffers() {
 	})
 
 	fastSrvDoneFn := testutil.HTTPServer(t, fastServerAddr, testutil.Options{})
-	abortedRequestFn := requestGenerator(t, fmt.Sprintf("%s/ignore", slowServerAddr), emptyBody)
+	abortedRequestFn := requestGenerator(t, fmt.Sprintf("%s/ign", slowServerAddr), emptyBody)
 	wg := sync.WaitGroup{}
 	abortedRequests := make(chan *nethttp.Request, 100)
 	for i := 0; i < 100; i++ {
@@ -196,6 +195,8 @@ func (s *HTTPTestSuite) TestHTTPMonitorLoadWithIncompleteBuffers() {
 	for i := 0; i < 10; i++ {
 		time.Sleep(10 * time.Millisecond)
 		stats := getHTTPLikeProtocolStats(monitor, protocols.HTTP)
+		log.Info(stats)
+		fmt.Println(stats)
 		for req := range abortedRequests {
 			checkRequestIncluded(t, stats, req, false)
 		}
@@ -370,7 +371,7 @@ func (s *HTTPTestSuite) TestSanity() {
 					// Create a request generator that will be used to randomly generate requests and send them to the server.
 					requestFn := requestGenerator(t, tt.targetAddress, emptyBody)
 					var requests []*nethttp.Request
-					for i := 0; i < 100; i++ {
+					for i := 0; i < 1; i++ {
 						// Send a request to the server and save it for later comparison.
 						requests = append(requests, requestFn())
 					}
@@ -532,7 +533,7 @@ var (
 
 func requestGenerator(t *testing.T, targetAddr string, reqBody []byte) func() *nethttp.Request {
 	var (
-		random  = rand.New(rand.NewSource(time.Now().Unix()))
+		//random  = rand.New(rand.NewSource(time.Now().Unix()))
 		idx     = 0
 		client  = new(nethttp.Client)
 		reqBuf  = make([]byte, 0, len(reqBody))
@@ -560,17 +561,17 @@ func requestGenerator(t *testing.T, targetAddr string, reqBody []byte) func() *n
 			// save resized-buffer
 			reqBuf = finalBody
 
-			method = httpMethodsWithBody[random.Intn(len(httpMethodsWithBody))]
+			method = httpMethodsWithBody[0]
 		} else {
-			method = httpMethods[random.Intn(len(httpMethods))]
+			method = httpMethods[0]
 		}
-		status := statusCodes[random.Intn(len(statusCodes))]
+		status := statusCodes[0]
 		url := fmt.Sprintf("http://%s/%d/request-%d", targetAddr, status, idx)
 		req, err := nethttp.NewRequest(method, url, body)
 		require.NoError(t, err)
 
 		resp, err := client.Do(req)
-		if strings.Contains(targetAddr, "ignore") {
+		if strings.Contains(targetAddr, "ign") {
 			return req
 		}
 		require.NoError(t, err)

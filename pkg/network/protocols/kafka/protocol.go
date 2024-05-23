@@ -37,13 +37,17 @@ type protocol struct {
 }
 
 const (
-	eventStreamName        = "kafka"
-	filterTailCall         = "socket__kafka_filter"
-	responseParserTailCall = "socket__kafka_response_parser"
-	dispatcherTailCall     = "socket__protocol_dispatcher_kafka"
-	kafkaHeapMap           = "kafka_heap"
-	inFlightMap            = "kafka_in_flight"
-	responseMap            = "kafka_response"
+	eventStreamName                               = "kafka"
+	filterTailCall                                = "socket__kafka_filter"
+	responseParserTailCall                        = "socket__kafka_response_parser"
+	dispatcherTailCall                            = "socket__protocol_dispatcher_kafka"
+	kafkaHeapMap                                  = "kafka_heap"
+	inFlightMap                                   = "kafka_in_flight"
+	responseMap                                   = "kafka_response"
+	skMsgFilterTailCall                           = "sk_msg__kafka_filter"
+	skMsgResponseParserTailCall                   = "sk_msg__kafka_response_parser"
+	skMsgDispatcherTailCall                       = "sk_msg__protocol_dispatcher_kafka"
+	skMsgProtocolDispatcherClassificationPrograms = "skmsg_dispatcher_classification_progs"
 
 	tlsFilterTailCall         = "uprobe__kafka_tls_filter"
 	tlsResponseParserTailCall = "uprobe__kafka_tls_response_parser"
@@ -57,6 +61,9 @@ const (
 var Spec = &protocols.ProtocolSpec{
 	Factory: newKafkaProtocol,
 	Maps: []*manager.Map{
+		{
+			Name: skMsgProtocolDispatcherClassificationPrograms,
+		},
 		{
 			Name: kafkaHeapMap,
 		},
@@ -105,6 +112,27 @@ var Spec = &protocols.ProtocolSpec{
 			Key:           uint32(protocols.DispatcherKafkaProg),
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				EBPFFuncName: dispatcherTailCall,
+			},
+		},
+		{
+			ProgArrayName: protocols.SkMsgProtocolDispatcherProgramsMap,
+			Key:           uint32(protocols.ProgramKafka),
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: skMsgFilterTailCall,
+			},
+		},
+		{
+			ProgArrayName: protocols.SkMsgProtocolDispatcherProgramsMap,
+			Key:           uint32(protocols.ProgramKafkaResponseParser),
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: skMsgResponseParserTailCall,
+			},
+		},
+		{
+			ProgArrayName: skMsgProtocolDispatcherClassificationPrograms,
+			Key:           uint32(protocols.DispatcherKafkaProg),
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: skMsgDispatcherTailCall,
 			},
 		},
 		{

@@ -247,4 +247,9 @@ static __always_inline __maybe_unused bool tls_is_kafka(tls_dispatcher_arguments
     return __is_kafka(pktbuf_from_tls(tls), buf, buf_size);
 }
 
+static __always_inline bool skskb_is_kafka(struct sk_msg_md *msg, const char* buf, __u32 buf_size)
+{
+    return __is_kafka(pktbuf_from_sk_msg_md(msg), buf, buf_size);
+}
+
 #endif

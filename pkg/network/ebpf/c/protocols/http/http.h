@@ -137,9 +137,9 @@ static __always_inline bool http_seen_before(http_transaction_t *http, skb_info_
         skb_info->tcp_seq = HTTP_TERMINATING;
     }
 
-    if (http->tcp_seq == skb_info->tcp_seq) {
-        return true;
-    }
+    // if (http->tcp_seq == skb_info->tcp_seq) {
+    //     return true;
+    // }
 
     // Update map entry with latest TCP sequence number
     http->tcp_seq = skb_info->tcp_seq;
@@ -181,7 +181,11 @@ static __always_inline void http_process(http_event_t *event, skb_info_t *skb_in
     http_parse_data(buffer, &packet_type, &method);
 
     http = http_fetch_state(tuple, http, packet_type);
+    log_debug("http: saddr %llx:%llx %u", tuple->saddr_h, tuple->saddr_l, tuple->sport);
+    log_debug("http: daddr %llx:%llx %u", tuple->daddr_h, tuple->daddr_l, tuple->dport);
+    log_debug("http: %p req_started %llu", http, http ? http->request_started : -1);
     if (!http || http_seen_before(http, skb_info, packet_type)) {
+         log_debug("!http / seen_before");
         return;
     }
 
@@ -230,25 +234,74 @@ static __always_inline bool http_allow_packet(conn_tuple_t *tuple, skb_info_t *s
     return true;
 }
 
-SEC("socket/http_filter")
+SEC("sk_skb/stream_verdict/http_filter")
 int socket__http_filter(struct __sk_buff* skb) {
     skb_info_t skb_info;
     http_event_t event;
+
+    log_debug("http_filter");
     bpf_memset(&event, 0, sizeof(http_event_t));
 
     if (!fetch_dispatching_arguments(&event.tuple, &skb_info)) {
         log_debug("http_filter failed to fetch arguments for tail call");
-        return 0;
+        return SK_PASS;
     }
 
     if (!http_allow_packet(&event.tuple, &skb_info)) {
-        return 0;
+        log_debug("http not allowed");
+        return SK_PASS;
     }
     normalize_tuple(&event.tuple);
 
     read_into_buffer_skb((char *)event.http.request_fragment, skb, skb_info.data_off);
     http_process(&event, &skb_info, NO_TAGS);
-    return 0;
+    return SK_PASS;
+}
+
+SEC("sk_msg/http_filter")
+int sk_msg__http_filter(struct sk_msg_md *msg) {
+    skb_info_t skb_info;
+    http_event_t event;
+
+    log_debug("sk_msg__http_filter");
+    bpf_memset(&event, 0, sizeof(http_event_t));
+
+    if (!fetch_dispatching_arguments(&event.tuple, &skb_info)) {
+        log_debug("sk_msg__http_filter failed to fetch arguments for tail call");
+        return SK_PASS;
+    }
+
+    if (!http_allow_packet(&event.tuple, &skb_info)) {
+        log_debug("http not allowed");
+        return SK_PASS;
+    }
+    normalize_tuple(&event.tuple);
+
+    u32 size = sizeof(event.http.request_fragment);
+    if (size > msg->size) {
+        size = msg->size;
+    }
+
+    long err = bpf_msg_pull_data(msg, 0, size, 0);
+    if (err < 0) {
+        log_debug("sk_msg__http_filter: pull fail %ld", err);
+        return SK_PASS;
+    }
+
+    void *data = msg->data;
+    void *data_end = msg->data_end;
+    if (data + size > data_end) {
+        log_debug("http data size wrong");
+        return SK_PASS;
+    }
+
+    // Could use direct access or memcpy here but the latter only allows built-time constants for size
+    size &= sizeof(event.http.request_fragment);
+    bpf_probe_read_kernel(event.http.request_fragment, size, msg->data);
+
+    //read_into_buffer_skb((char *)event.http.request_fragment, skb, skb_info.data_off);
+    http_process(&event, &skb_info, NO_TAGS);
+    return SK_PASS;
 }
 
 SEC("uprobe/http_process")
@@ -284,6 +337,18 @@ int uprobe__http_termination(struct pt_regs *ctx) {
     skb_info.tcp_flags |= TCPHDR_FIN;
     http_process(&event, &skb_info, NO_TAGS);
     http_batch_flush(ctx);
+
+    return 0;
+}
+
+static __always_inline  int sockops_http_termination(conn_tuple_t *tup) {
+    http_event_t event;
+    bpf_memset(&event, 0, sizeof(http_event_t));
+    bpf_memcpy(&event.tuple, tup, sizeof(conn_tuple_t));
+    skb_info_t skb_info = {0};
+    skb_info.tcp_flags |= TCPHDR_FIN;
+    normalize_tuple(&event.tuple);
+    http_process(&event, &skb_info, NO_TAGS);
 
     return 0;
 }

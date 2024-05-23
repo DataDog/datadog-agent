@@ -30,5 +30,6 @@
     BPF_PERCPU_ARRAY_MAP(kafka_client_id, char [CLIENT_ID_SIZE_TO_VALIDATE], 1)
     BPF_PERCPU_ARRAY_MAP(kafka_topic_name, char [TOPIC_NAME_MAX_STRING_SIZE_TO_VALIDATE], 1)
 #endif
+                                                                                                          
 
 #endif

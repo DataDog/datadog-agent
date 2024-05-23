@@ -134,6 +134,7 @@ __maybe_unused static __always_inline __u64 read_conn_tuple_skb(struct __sk_buff
     __u16 l3_proto = __load_half(skb, offsetof(struct ethhdr, h_proto));
     info->data_end = ETH_HLEN;
     __u8 l4_proto = 0;
+    
     switch (l3_proto) {
     case ETH_P_IP:
     {
@@ -184,6 +185,111 @@ __maybe_unused static __always_inline __u64 read_conn_tuple_skb(struct __sk_buff
 
     if ((info->data_end - info->data_off) < 0) {
         return 0;
+    }
+
+    return 1;
+}
+
+__maybe_unused static __always_inline __u64 read_conn_tuple_skb_cgroup(struct __sk_buff *skb, skb_info_t *info, conn_tuple_t *tup) {
+    bpf_memset(info, 0, sizeof(skb_info_t));
+
+    log_debug("read_conn_tuple_skb_cgroup bytes");
+    log_debug("%08x %08x", (__u32)__load_word(skb, 0), (__u32)__load_word(skb, 4));
+    log_debug("%08x %08x", (__u32)__load_word(skb, 8), (__u32)__load_word(skb, 12));
+    log_debug("remote_ip4: %08x (%u)", bpf_ntohl(skb->remote_ip4), bpf_ntohl(skb->remote_port));
+    log_debug("local_ip4: %08x (%u)", bpf_ntohl(skb->local_ip4), skb->local_port);
+    log_debug("proto: %d", skb->protocol);
+
+    info->data_off = 0;
+    info->data_end = skb->len;
+
+    if (skb->protocol != 8) {
+        log_debug("unknown protocol %d", skb->protocol);
+        return 0;
+    }
+
+    // TCP ack, termination, etc, cannot be captured(?)
+
+    // Ingress
+        tup->saddr_l = skb->remote_ip4;
+        tup->saddr_h = 0;
+        tup->daddr_l = skb->local_ip4;
+        tup->daddr_h = 0;
+        tup->sport = bpf_htonl(skb->remote_port);
+        tup->dport = skb->local_port;
+        tup->metadata |= CONN_V4 | CONN_TYPE_TCP;
+        u64 cookie = bpf_get_socket_cookie(skb);
+
+        tup->pid = cookie >> 32;
+        tup->netns = cookie;
+
+        log_debug("skb cookie %llu", bpf_get_socket_cookie(skb));
+
+        // u64 sk = (u64) skb->sk;
+        // if (sk) {
+        // bpf_memcpy(&tup->pid, &sk, sizeof(sk));
+        // }
+        // // u64 skaddr = (u64)skb->sk & 0xfffffffffffffffe;
+        // // if (skaddr) {
+        // // tup->pid = (skaddr >> 32) & 0xfffffffe;
+        // // tup->netns = skaddr & 0xfffffffe;
+        // // }
+
+    // Assume that empty packets arriving at the streamparser are TCP FINs. FIXME is this valid?
+    // Is there some other way to get at the metadata of the packet?
+    if (skb->len == 0) {
+      info->tcp_flags |= TCPHDR_FIN | TCPHDR_RST;
+    }
+
+    return 1;
+}
+
+__maybe_unused static __always_inline __u64 read_conn_tuple_sk_msg(struct sk_msg_md *msg, skb_info_t *info, conn_tuple_t *tup) {
+    bpf_memset(info, 0, sizeof(skb_info_t));
+
+    log_debug("read_conn_tuple_sk_msg");
+
+    // void *data = msg->data;
+    // void *data_end = msg->data_end;
+    // if (data + 16 > data_end) {
+    //     return 0;
+    // }
+
+    // log_debug("%08x %08x", *(u32 *)(data + 0), *(u32 *)(data + 4));
+    // log_debug("%08x %08x", *(u32 *)(data + 8), *(u32 *)(data + 12));
+    log_debug("remote_ip4: %08x (%u)", bpf_ntohl(msg->remote_ip4), bpf_ntohl(msg->remote_port));
+    log_debug("local_ip4: %08x (%u)", bpf_ntohl(msg->local_ip4), msg->local_port);
+    //log_debug("proto: %d", msg->protocol);
+
+    info->data_off = 0;
+    info->data_end = msg->size;
+
+    // if (skb->protocol != 8) {
+    //     log_debug("unknown protocol %d", skb->protocol);
+    //     return 0;
+    // }
+
+    // TCP ack, termination, etc, cannot be captured(?)
+
+    // Egress
+        tup->saddr_l = msg->local_ip4;
+        tup->saddr_h = 0;
+        tup->daddr_l = msg->remote_ip4;
+        tup->daddr_h = 0;
+        tup->sport = msg->local_port;
+        tup->dport = bpf_htonl(msg->remote_port);
+        tup->metadata |= CONN_V4 | CONN_TYPE_TCP;
+
+        // u64 skaddr = (u64)msg->sk& 0xfffffffffffffffe;
+        // if (skaddr) {
+        // tup->pid = (skaddr >> 32) & 0xfffffffe;
+        // tup->netns = skaddr & 0xfffffffe;
+        // }
+
+    // Assume that empty packets arriving at the streamparser are TCP FINs. FIXME is this valid?
+    // Is there some other way to get at the metadata of the packet?
+    if (msg->size == 0) {
+      info->tcp_flags |= TCPHDR_FIN | TCPHDR_RST;
     }
 
     return 1;
