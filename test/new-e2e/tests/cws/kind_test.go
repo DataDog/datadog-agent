@@ -78,7 +78,7 @@ func TestKindSuite(t *testing.T) {
 	t.Logf("Running testsuite with DD_HOSTNAME=%s", ddHostname)
 	e2e.Run[environments.Kubernetes](t, &kindSuite{ddHostname: ddHostname},
 		e2e.WithProvisioner(
-			awskubernetes.Provisioner(
+			awskubernetes.KindProvisioner(
 				awskubernetes.WithEC2VMOptions(
 					ec2.WithAMI(ami, osDesc, osDesc.Architecture),
 				),
