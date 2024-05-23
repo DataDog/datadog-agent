@@ -911,6 +911,11 @@ func NewWindowsProbe(probe *Probe, config *config.Config, opts Opts) (*WindowsPr
 	return p, nil
 }
 
+// SetApprovers applies approvers and removes the unused ones
+func (p *WindowsProbe) SetApprovers(eventType eval.EventType, approvers rules.Approvers) error {
+	return nil
+}
+
 // ApplyRuleSet setup the probes for the provided set of rules and returns the policy report.
 func (p *WindowsProbe) ApplyRuleSet(rs *rules.RuleSet) (*kfilters.ApplyRuleSetReport, error) {
 	p.isWriteEnabled = false
@@ -928,7 +933,18 @@ func (p *WindowsProbe) ApplyRuleSet(rs *rules.RuleSet) (*kfilters.ApplyRuleSetRe
 		}
 	}
 
-	return kfilters.NewApplyRuleSetReport(p.config.Probe, rs)
+	ars, err := kfilters.NewApplyRuleSetReport(p.config.Probe, rs)
+	if err != nil {
+		return nil, err
+	}
+
+	for eventType, report := range ars.Policies {
+		if err := p.SetApprovers(eventType, report.Approvers); err != nil {
+			return nil, err
+		}
+	}
+
+	return ars, nil
 }
 
 // FlushDiscarders invalidates all the discarders
