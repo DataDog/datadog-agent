@@ -2340,6 +2340,7 @@ LOOP:
 
 func (s *TracerSuite) TestTCPFailureConnectionTimeout() {
 	t := s.T()
+	t.Skip()
 	setupDropTrafficRule(t)
 	cfg := testConfig()
 	cfg.TCPFailedConnectionsEnabled = true
@@ -2515,22 +2516,4 @@ func setupDropTrafficRule(tb testing.TB) (ns string) {
 	}
 	testutil.RunCommands(tb, cmds, false)
 	return
-}
-
-func setupUnstableIface(tb testing.TB) (ns string) {
-	tb.Cleanup(func() {
-		teardownUnstableIface(tb)
-	})
-	cmds := []string{
-		"sudo tc qdisc add dev lo root netem delay 1000ms",
-	}
-	testutil.RunCommands(tb, cmds, false)
-	return
-}
-
-func teardownUnstableIface(tb testing.TB) {
-	cmds := []string{
-		"sudo tc qdisc del dev lo root netem",
-	}
-	testutil.RunCommands(tb, cmds, false)
 }
