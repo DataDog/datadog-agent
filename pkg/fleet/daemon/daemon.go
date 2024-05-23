@@ -61,8 +61,8 @@ type daemonImpl struct {
 	requestsWG    sync.WaitGroup
 }
 
-func newInstaller(config config.Reader, installerBin string) installer.Installer {
-	return exec.NewInstallerExec(env.FromConfig(config), installerBin)
+func newInstaller(env *env.Env, installerBin string) installer.Installer {
+	return exec.NewInstallerExec(env, installerBin)
 }
 
 // NewDaemon returns a new daemon.
@@ -79,9 +79,9 @@ func NewDaemon(rcFetcher client.ConfigFetcher, config config.Reader) (Daemon, er
 	if err != nil {
 		return nil, fmt.Errorf("could not create remote config client: %w", err)
 	}
-	installer := newInstaller(config, installerBin)
-	remoteUpdates := config.GetBool("updater.remote_updates")
-	return newDaemon(rc, installer, remoteUpdates), nil
+	env := env.FromConfig(config)
+	installer := newInstaller(env, installerBin)
+	return newDaemon(rc, installer, env.RemoteUpdates), nil
 }
 
 func newDaemon(rc *remoteConfig, installer installer.Installer, remoteUpdates bool) *daemonImpl {

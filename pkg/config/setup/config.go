@@ -886,10 +886,10 @@ func InitConfig(config pkgconfigmodel.Config) {
 
 	setupProcesses(config)
 
-	// Updater configuration
-	config.BindEnvAndSetDefault("updater.remote_updates", false)
-	config.BindEnv("updater.registry")
-	config.BindEnvAndSetDefault("updater.registry_auth", "")
+	// Installer configuration
+	config.BindEnvAndSetDefault("remote_updates", false)
+	config.BindEnvAndSetDefault("installer.registry.url", "")
+	config.BindEnvAndSetDefault("installer.registry.auth", "")
 }
 
 func agent(config pkgconfigmodel.Config) {
