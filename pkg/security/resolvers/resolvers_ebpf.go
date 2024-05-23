@@ -285,6 +285,14 @@ func (r *EBPFResolvers) snapshot() error {
 
 // Close cleans up any underlying resolver that requires a cleanup
 func (r *EBPFResolvers) Close() error {
+	// clean up the handles in netns resolver
+	r.NamespaceResolver.Close()
+
 	// clean up the dentry resolver eRPC segment
-	return r.DentryResolver.Close()
+	if err := r.DentryResolver.Close(); err != nil {
+		fmt.Println(err)
+		return err
+	}
+
+	return nil
 }

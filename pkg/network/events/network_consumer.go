@@ -10,7 +10,6 @@ package events
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor"
-	smodel "github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
 
 // NetworkConsumer describes a process monitoring object
@@ -32,13 +31,9 @@ func (n *NetworkConsumer) ID() string {
 
 // NewNetworkConsumer returns a new NetworkConsumer instance
 func NewNetworkConsumer(evm *eventmonitor.EventMonitor) (*NetworkConsumer, error) {
-	h := Handler()
-	if err := evm.AddEventTypeHandler(smodel.ForkEventType, h); err != nil {
+	h := Consumer()
+	if err := evm.AddEventConsumer(h); err != nil {
 		return nil, err
 	}
-	if err := evm.AddEventTypeHandler(smodel.ExecEventType, h); err != nil {
-		return nil, err
-	}
-
 	return &NetworkConsumer{}, nil
 }

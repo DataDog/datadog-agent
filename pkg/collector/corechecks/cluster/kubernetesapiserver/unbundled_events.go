@@ -66,7 +66,7 @@ func (c *unbundledTransformer) Transform(events []*v1.Event) ([]event.Event, []e
 		readableKey := buildReadableKey(involvedObject)
 		tagsAccumulator := tagset.NewHashlessTagsAccumulator()
 
-		tagsAccumulator.Append(getInvolvedObjectTags(involvedObject)...)
+		tagsAccumulator.Append(getInvolvedObjectTags(involvedObject, c.taggerInstance)...)
 		tagsAccumulator.Append(
 			fmt.Sprintf("source_component:%s", ev.Source.Component),
 			fmt.Sprintf("event_reason:%s", ev.Reason))
@@ -81,7 +81,7 @@ func (c *unbundledTransformer) Transform(events []*v1.Event) ([]event.Event, []e
 
 		datadogEvs = append(datadogEvs, event.Event{
 			Title:          fmt.Sprintf("%s: %s", readableKey, ev.Reason),
-			Priority:       event.EventPriorityNormal,
+			Priority:       event.PriorityNormal,
 			Host:           hostInfo.hostname,
 			SourceTypeName: "kubernetes",
 			EventType:      CheckName,
@@ -111,6 +111,14 @@ func (c *unbundledTransformer) getTagsFromTagger(obj v1.ObjectReference, tagsAcc
 		}
 		// we can get high Cardinality because tags on events is seemless.
 		tagsAcc.Append(entity.GetTags(types.HighCardinality)...)
+
+		namespaceEntityID := fmt.Sprintf("namespace://%s", obj.Namespace)
+		namespaceEntity, err := c.taggerInstance.GetEntity(namespaceEntityID)
+		if err != nil {
+			return
+		}
+		tagsAcc.Append(namespaceEntity.GetTags(types.HighCardinality)...)
+
 	default:
 		return
 	}

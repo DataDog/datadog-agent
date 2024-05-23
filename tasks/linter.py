@@ -1,12 +1,14 @@
+from __future__ import annotations
+
 import os
 import re
 import sys
 from collections import defaultdict
-from typing import List
 
 from invoke import Exit, task
 
 from tasks.build_tags import compute_build_tags_for_flavor
+from tasks.devcontainer import run_on_devcontainer
 from tasks.flavor import AgentFlavor
 from tasks.go import run_golangci_lint
 from tasks.libs.ciproviders.github_api import GithubAPI
@@ -73,9 +75,9 @@ def filenames(ctx):
     else:
         print("Checking filenames for illegal characters")
         forbidden_chars = '<>:"\\|?*'
-        for file in files:
-            if any(char in file for char in forbidden_chars):
-                print(f"Error: Found illegal character in path {file}")
+        for filename in files:
+            if any(char in filename for char in forbidden_chars):
+                print(f"Error: Found illegal character in path {filename}")
                 failure = True
 
     print("Checking filename length")
@@ -83,14 +85,16 @@ def filenames(ctx):
     prefix_length = 160
     # Maximum length supported by the win32 API
     max_length = 255
-    for file in files:
+    for filename in files:
         if (
-            not file.startswith(
+            not filename.startswith(
                 ('test/kitchen/', 'tools/windows/DatadogAgentInstaller', 'test/workload-checks', 'test/regression')
             )
-            and prefix_length + len(file) > max_length
+            and prefix_length + len(filename) > max_length
         ):
-            print(f"Error: path {file} is too long ({prefix_length + len(file) - max_length} characters too many)")
+            print(
+                f"Error: path {filename} is too long ({prefix_length + len(filename) - max_length} characters too many)"
+            )
             failure = True
 
     if failure:
@@ -98,6 +102,7 @@ def filenames(ctx):
 
 
 @task(iterable=['flavors'])
+@run_on_devcontainer
 def go(
     ctx,
     module=None,
@@ -108,13 +113,13 @@ def go(
     build_include=None,
     build_exclude=None,
     rtloader_root=None,
-    arch="x64",
     cpus=None,
     timeout: int = None,
     golangci_lint_kwargs="",
     headless_mode=False,
     include_sds=False,
     only_modified_packages=False,
+    run_on=None,  # noqa: U100, F841. Used by the run_on_devcontainer decorator
 ):
     """
     Run go linters on the given module and targets.
@@ -155,7 +160,6 @@ def go(
         build_include=build_include,
         build_exclude=build_exclude,
         rtloader_root=rtloader_root,
-        arch=arch,
         cpus=cpus,
         timeout=timeout,
         golangci_lint_kwargs=golangci_lint_kwargs,
@@ -182,7 +186,6 @@ def run_lint_go(
     build_include=None,
     build_exclude=None,
     rtloader_root=None,
-    arch="x64",
     cpus=None,
     timeout=None,
     golangci_lint_kwargs="",
@@ -192,7 +195,6 @@ def run_lint_go(
     linter_tags = build_tags or compute_build_tags_for_flavor(
         flavor=flavor,
         build=build,
-        arch=arch,
         build_include=build_include,
         build_exclude=build_exclude,
         include_sds=include_sds,
@@ -203,7 +205,6 @@ def run_lint_go(
         modules=modules,
         flavor=flavor,
         build_tags=linter_tags,
-        arch=arch,
         rtloader_root=rtloader_root,
         concurrency=cpus,
         timeout=timeout,
@@ -216,10 +217,9 @@ def run_lint_go(
 
 def lint_flavor(
     ctx,
-    modules: List[GoModule],
+    modules: list[GoModule],
     flavor: AgentFlavor,
-    build_tags: List[str],
-    arch: str,
+    build_tags: list[str],
     rtloader_root: bool,
     concurrency: int,
     timeout=None,
@@ -238,7 +238,6 @@ def lint_flavor(
                 targets=module.lint_targets,
                 rtloader_root=rtloader_root,
                 build_tags=build_tags,
-                arch=arch,
                 concurrency=concurrency,
                 timeout=timeout,
                 golangci_lint_kwargs=golangci_lint_kwargs,
@@ -280,15 +279,15 @@ def ssm_parameters(ctx):
     lint_folders = [".circleci", ".github", ".gitlab", "tasks", "test"]
     repo_files = ctx.run("git ls-files", hide="both")
     error_files = []
-    for file in repo_files.stdout.split("\n"):
-        if any(file.startswith(f) for f in lint_folders):
-            matched = is_get_parameter_call(file)
+    for filename in repo_files.stdout.split("\n"):
+        if any(filename.startswith(f) for f in lint_folders):
+            matched = is_get_parameter_call(filename)
             if matched:
                 error_files.append(matched)
     if error_files:
         print("The following files contain unexpected syntax for aws ssm get-parameter:")
-        for file in error_files:
-            print(f"  - {file}")
+        for filename in error_files:
+            print(f"  - {filename}")
         raise Exit(code=1)
 
 
