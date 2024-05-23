@@ -11,6 +11,7 @@ package process
 import (
 	"context"
 	"encoding/binary"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -1197,7 +1198,45 @@ func (p *EBPFResolver) syncCache(proc *process.Process, filledProc *utils.Filled
 	return entry, true
 }
 
-func (p *EBPFResolver) dumpEntry(writer io.Writer, entry *model.ProcessCacheEntry, already map[string]bool, withArgs bool) {
+// ToJSON return a json version of the cache
+func (p *EBPFResolver) ToJSON() ([]byte, error) {
+	dump := struct {
+		Entries []json.RawMessage
+	}{}
+
+	p.Walk(func(entry *model.ProcessCacheEntry) {
+		e := struct {
+			PID             uint32
+			PPID            uint32
+			Path            string
+			Inode           uint64
+			MountID         uint32
+			Source          string
+			ExecInode       uint64
+			IsThread        bool
+			IsParentMissing bool
+		}{
+			PID:             entry.Pid,
+			PPID:            entry.PPid,
+			Path:            entry.FileEvent.PathnameStr,
+			Inode:           entry.FileEvent.Inode,
+			MountID:         entry.FileEvent.MountID,
+			Source:          model.ProcessSourceToString(entry.Source),
+			ExecInode:       entry.ExecInode,
+			IsThread:        entry.IsThread,
+			IsParentMissing: entry.IsParentMissing,
+		}
+
+		d, err := json.Marshal(e)
+		if err == nil {
+			dump.Entries = append(dump.Entries, d)
+		}
+	})
+
+	return json.Marshal(dump)
+}
+
+func (p *EBPFResolver) toDot(writer io.Writer, entry *model.ProcessCacheEntry, already map[string]bool, withArgs bool) {
 	for entry != nil {
 		label := fmt.Sprintf("%s:%d", entry.Comm, entry.Pid)
 		if _, exists := already[label]; !exists {
@@ -1229,8 +1268,8 @@ func (p *EBPFResolver) dumpEntry(writer io.Writer, entry *model.ProcessCacheEntr
 	}
 }
 
-// Dump create a temp file and dump the cache
-func (p *EBPFResolver) Dump(withArgs bool) (string, error) {
+// ToDot create a temp file and dump the cache
+func (p *EBPFResolver) ToDot(withArgs bool) (string, error) {
 	dump, err := os.CreateTemp("/tmp", "process-cache-dump-")
 	if err != nil {
 		return "", err
@@ -1249,7 +1288,7 @@ func (p *EBPFResolver) Dump(withArgs bool) (string, error) {
 
 	already := make(map[string]bool)
 	for _, entry := range p.entryCache {
-		p.dumpEntry(dump, entry, already, withArgs)
+		p.toDot(dump, entry, already, withArgs)
 	}
 
 	fmt.Fprintf(dump, `}`)
