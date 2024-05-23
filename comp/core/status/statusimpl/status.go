@@ -390,7 +390,7 @@ func (s *statusImplementation) GetStatusBySections(sections []string, format str
 	}
 }
 
-// fillFlare add the inventory payload to flares.
+// fillFlare add the status.log to flares.
 func (s *statusImplementation) fillFlare(fb flaretypes.FlareBuilder) error {
 	fb.AddFileFromFunc("status.log", func() ([]byte, error) { return s.GetStatus("text", true) }) //nolint:errcheck
 	return nil

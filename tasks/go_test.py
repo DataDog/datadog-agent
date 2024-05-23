@@ -17,6 +17,7 @@ from datetime import datetime
 from pathlib import Path
 
 from invoke import task
+from invoke.context import Context
 from invoke.exceptions import Exit
 
 from tasks.agent import integration_tests as agent_integration_tests
@@ -785,7 +786,7 @@ def get_impacted_packages(ctx, build_tags=None):
                 formatted_path = "/".join(formatted_path.split("/")[:-1])
 
     imp = find_impacted_packages(dependencies, modified_packages)
-    return format_packages(ctx, imp)
+    return format_packages(ctx, impacted_packages=imp, build_tags=build_tags)
 
 
 def create_dependencies(ctx, build_tags=None):
@@ -831,12 +832,12 @@ def find_impacted_packages(dependencies, modified_modules, cache=None):
     return impacted_modules
 
 
-def format_packages(ctx, impacted_packages):
+def format_packages(ctx: Context, impacted_packages: set[str], build_tags: list[str] = None):
     """
     Format the packages list to be used in our test function. Will take each path and create a list of modules with its targets
     """
-    # if build_tags is None:
-    build_tags = []
+    if build_tags is None:
+        build_tags = []
 
     packages = [f'{package.replace("github.com/DataDog/datadog-agent/", "./")}' for package in impacted_packages]
     modules_to_test = {}

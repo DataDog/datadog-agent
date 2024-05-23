@@ -18,6 +18,7 @@ import (
 const (
 	envAPIKey                = "DD_API_KEY"
 	envSite                  = "DD_SITE"
+	envRemoteUpdates         = "DD_REMOTE_UPDATES"
 	envRegistryURL           = "DD_INSTALLER_REGISTRY_URL"
 	envRegistryAuth          = "DD_INSTALLER_REGISTRY_AUTH"
 	envDefaultPackageVersion = "DD_INSTALLER_DEFAULT_PKG_VERSION"
@@ -25,8 +26,9 @@ const (
 )
 
 var defaultEnv = Env{
-	APIKey: "",
-	Site:   "datadoghq.com",
+	APIKey:        "",
+	Site:          "datadoghq.com",
+	RemoteUpdates: false,
 
 	RegistryOverride:            "",
 	RegistryAuthOverride:        "",
@@ -43,8 +45,9 @@ var defaultEnv = Env{
 
 // Env contains the configuration for the installer.
 type Env struct {
-	APIKey string
-	Site   string
+	APIKey        string
+	Site          string
+	RemoteUpdates bool
 
 	RegistryOverride            string
 	RegistryAuthOverride        string
@@ -60,8 +63,9 @@ type Env struct {
 // FromEnv returns an Env struct with values from the environment.
 func FromEnv() *Env {
 	return &Env{
-		APIKey: getEnvOrDefault(envAPIKey, defaultEnv.APIKey),
-		Site:   getEnvOrDefault(envSite, defaultEnv.Site),
+		APIKey:        getEnvOrDefault(envAPIKey, defaultEnv.APIKey),
+		Site:          getEnvOrDefault(envSite, defaultEnv.Site),
+		RemoteUpdates: os.Getenv(envRemoteUpdates) == "true",
 
 		RegistryOverride:            getEnvOrDefault(envRegistryURL, defaultEnv.RegistryOverride),
 		RegistryAuthOverride:        getEnvOrDefault(envRegistryAuth, defaultEnv.RegistryAuthOverride),
@@ -80,8 +84,9 @@ func FromConfig(config config.Reader) *Env {
 	return &Env{
 		APIKey:               utils.SanitizeAPIKey(config.GetString("api_key")),
 		Site:                 config.GetString("site"),
-		RegistryOverride:     config.GetString("updater.registry"),
-		RegistryAuthOverride: config.GetString("updater.registry_auth"),
+		RemoteUpdates:        config.GetBool("remote_updates"),
+		RegistryOverride:     config.GetString("installer.registry.url"),
+		RegistryAuthOverride: config.GetString("installer.registry.auth"),
 	}
 }
 
@@ -93,6 +98,9 @@ func (e *Env) ToEnv() []string {
 	}
 	if e.Site != "" {
 		env = append(env, envSite+"="+e.Site)
+	}
+	if e.RemoteUpdates {
+		env = append(env, envRemoteUpdates+"=true")
 	}
 	if e.RegistryOverride != "" {
 		env = append(env, envRegistryURL+"="+e.RegistryOverride)

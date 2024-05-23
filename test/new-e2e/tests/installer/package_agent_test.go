@@ -34,6 +34,7 @@ func (s *packageAgentSuite) TestInstall() {
 	state.AssertUnitsDead("datadog-agent-sysprobe.service", "datadog-agent-security.service")
 
 	state.AssertFileExists("/etc/datadog-agent/install_info", 0644, "root", "root")
+	state.AssertFileExists("/etc/datadog-agent/datadog.yaml", 0640, "dd-agent", "dd-agent")
 	// FIXME: this file is either dd-agent or root depending on the OS for some reason
 	// state.AssertFileExists("/etc/datadog-agent/install.json", 0644, "dd-agent", "dd-agent")
 }
