@@ -65,6 +65,8 @@ type RuntimeSecurityConfig struct {
 	SelfTestSendReport bool
 	// RemoteConfigurationEnabled defines whether to use remote monitoring
 	RemoteConfigurationEnabled bool
+	// RemoteConfigurationDumpPolicies defines whether to dump remote config policy
+	RemoteConfigurationDumpPolicies bool
 	// LogPatterns pattern to be used by the logger for trace level
 	LogPatterns []string
 	// LogTags tags to be used by the logger for trace level
@@ -293,9 +295,10 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 		EventServerRate:      coreconfig.SystemProbe.GetInt("runtime_security_config.event_server.rate"),
 		EventServerRetention: coreconfig.SystemProbe.GetDuration("runtime_security_config.event_server.retention"),
 
-		SelfTestEnabled:            coreconfig.SystemProbe.GetBool("runtime_security_config.self_test.enabled"),
-		SelfTestSendReport:         coreconfig.SystemProbe.GetBool("runtime_security_config.self_test.send_report"),
-		RemoteConfigurationEnabled: isRemoteConfigEnabled(),
+		SelfTestEnabled:                 coreconfig.SystemProbe.GetBool("runtime_security_config.self_test.enabled"),
+		SelfTestSendReport:              coreconfig.SystemProbe.GetBool("runtime_security_config.self_test.send_report"),
+		RemoteConfigurationEnabled:      isRemoteConfigEnabled(),
+		RemoteConfigurationDumpPolicies: coreconfig.SystemProbe.GetBool("runtime_security_config.remote_configuration.dump_policies"),
 
 		// policy & ruleset
 		PoliciesDir:                         coreconfig.SystemProbe.GetString("runtime_security_config.policies.dir"),

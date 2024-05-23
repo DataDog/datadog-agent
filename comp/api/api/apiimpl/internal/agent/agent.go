@@ -17,6 +17,7 @@ import (
 	"net/http"
 	"os"
 	"path"
+	"sort"
 	"time"
 
 	"github.com/DataDog/zstd"
@@ -74,6 +75,7 @@ func SetupHandlers(
 ) *mux.Router {
 
 	// Register the handlers from the component providers
+	sort.Slice(providers, func(i, j int) bool { return providers[i].Route < providers[j].Route })
 	for _, p := range providers {
 		r.HandleFunc(p.Route, p.HandlerFunc).Methods(p.Methods...)
 	}

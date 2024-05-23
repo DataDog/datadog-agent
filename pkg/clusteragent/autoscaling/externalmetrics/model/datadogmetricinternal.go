@@ -278,7 +278,7 @@ func (d *DatadogMetricInternal) newCondition(status bool, updateTime metav1.Time
 		condition.Status = corev1.ConditionTrue
 	}
 
-	if prevCondition == nil || (prevCondition != nil && prevCondition.Status != condition.Status) {
+	if prevCondition == nil || (prevCondition.Status != condition.Status) {
 		condition.LastTransitionTime = updateTime
 	} else {
 		condition.LastTransitionTime = prevCondition.LastTransitionTime
