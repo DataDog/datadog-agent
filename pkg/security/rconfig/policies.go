@@ -129,22 +129,30 @@ func (r *RCPolicyProvider) LoadPolicies(macroFilters []rules.MacroFilter, ruleFi
 	r.RLock()
 	defer r.RUnlock()
 
-	load := func(id string, cfg []byte) {
+	load := func(id string, cfg []byte) error {
 		reader := bytes.NewReader(cfg)
-
 		policy, err := rules.LoadPolicy(id, rules.PolicyProviderTypeRC, reader, macroFilters, ruleFilters)
-		if err != nil {
-			errs = multierror.Append(errs, err)
-		}
 		normalize(policy)
 		policies = append(policies, policy)
+		return err
 	}
 
-	for _, c := range r.lastDefaults {
-		load(c.Metadata.ID, c.Config)
+	for cfgPath, c := range r.lastDefaults {
+		if err := load(c.Metadata.ID, c.Config); err != nil {
+			r.client.UpdateApplyStatus(cfgPath, state.ApplyStatus{State: state.ApplyStateError, Error: err.Error()})
+			errs = multierror.Append(errs, err)
+		} else {
+			r.client.UpdateApplyStatus(cfgPath, state.ApplyStatus{State: state.ApplyStateAcknowledged})
+		}
 	}
-	for _, c := range r.lastCustoms {
-		load(c.Metadata.ID, c.Config)
+
+	for cfgPath, c := range r.lastCustoms {
+		if err := load(c.Metadata.ID, c.Config); err != nil {
+			r.client.UpdateApplyStatus(cfgPath, state.ApplyStatus{State: state.ApplyStateError, Error: err.Error()})
+			errs = multierror.Append(errs, err)
+		} else {
+			r.client.UpdateApplyStatus(cfgPath, state.ApplyStatus{State: state.ApplyStateAcknowledged})
+		}
 	}
 
 	return policies, errs
