@@ -778,27 +778,25 @@ func downloadPolicy(log log.Component, config config.Component, _ secrets.Compon
 		return err
 	}
 
-	var defaultPolicy, customPolicy []byte
+	var defaultPolicy []byte
+	var customPolicies []string
+
 	for _, file := range reader.File {
-		if file.Name == "default.policy" {
+		if strings.HasSuffix(file.Name, ".policy") {
 			pf, err := file.Open()
 			if err != nil {
 				return err
 			}
-			defaultPolicy, err = io.ReadAll(pf)
+			policyData, err := io.ReadAll(pf)
 			pf.Close()
 			if err != nil {
 				return err
 			}
-		} else if file.Name == "custom.policy" {
-			pf, err := file.Open()
-			if err != nil {
-				return err
-			}
-			customPolicy, err = io.ReadAll(pf)
-			pf.Close()
-			if err != nil {
-				return err
+
+			if file.Name == "default.policy" {
+				defaultPolicy = policyData
+			} else {
+				customPolicies = append(customPolicies, string(policyData))
 			}
 		}
 	}
@@ -812,8 +810,8 @@ func downloadPolicy(log log.Component, config config.Component, _ secrets.Compon
 	if err := os.WriteFile(path.Join(tempDir, "default.policy"), defaultPolicy, 0644); err != nil {
 		return err
 	}
-	if customPolicy != nil {
-		if err := os.WriteFile(path.Join(tempDir, "custom.policy"), customPolicy, 0644); err != nil {
+	for i, customPolicy := range customPolicies {
+		if err := os.WriteFile(path.Join(tempDir, fmt.Sprintf("custom%d.policy", i+1)), []byte(customPolicy), 0644); err != nil {
 			return err
 		}
 	}
@@ -824,11 +822,10 @@ func downloadPolicy(log log.Component, config config.Component, _ secrets.Compon
 		}
 	}
 
-	// Extract rules from custom.policy
+	// Extract and merge rules from custom policies
 	var customRules string
-	if customPolicy != nil {
-		customPolicyStr := string(customPolicy)
-		customPolicyLines := strings.Split(customPolicyStr, "\n")
+	for _, customPolicy := range customPolicies {
+		customPolicyLines := strings.Split(customPolicy, "\n")
 		rulesIndex := -1
 		for i, line := range customPolicyLines {
 			if strings.TrimSpace(line) == "rules:" {
@@ -837,11 +834,11 @@ func downloadPolicy(log log.Component, config config.Component, _ secrets.Compon
 			}
 		}
 		if rulesIndex != -1 && rulesIndex+1 < len(customPolicyLines) {
-			customRules = strings.Join(customPolicyLines[rulesIndex+1:], "\n")
+			customRules += "\n" + strings.Join(customPolicyLines[rulesIndex+1:], "\n")
 		}
 	}
 
-	// Merge default.policy and custom.policy rules
+	// Output depending on user's specification
 	var outputContent string
 	switch downloadPolicyArgs.source {
 	case "all":
@@ -849,7 +846,7 @@ func downloadPolicy(log log.Component, config config.Component, _ secrets.Compon
 	case "default":
 		outputContent = string(defaultPolicy)
 	case "custom":
-		outputContent = string(customPolicy)
+		outputContent = string(customRules)
 	default:
 		return errors.New("invalid source specified")
 	}
