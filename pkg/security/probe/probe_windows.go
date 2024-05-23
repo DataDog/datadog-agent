@@ -84,6 +84,9 @@ type WindowsProbe struct {
 	discardedPaths     *lru.Cache[string, struct{}]
 	discardedBasenames *lru.Cache[string, struct{}]
 
+	// map of device path to volume name (i.e. c:)
+	volumeMap map[string]string
+
 	// actions
 	processKiller *ProcessKiller
 
@@ -171,6 +174,7 @@ func (p *WindowsProbe) initEtwFIM() error {
 	if !p.config.RuntimeSecurity.FIMEnabled {
 		return nil
 	}
+	_ = p.initializeVolumeMap()
 	// log at Warning right now because it's not expected to be enabled
 	log.Warnf("Enabling FIM processing")
 	etwSessionName := "SystemProbeFIM_ETW"
@@ -892,6 +896,8 @@ func NewWindowsProbe(probe *Probe, config *config.Config, opts Opts) (*WindowsPr
 
 		discardedPaths:     discardedPaths,
 		discardedBasenames: discardedBasenames,
+
+		volumeMap: make(map[string]string),
 
 		processKiller: NewProcessKiller(),
 	}
