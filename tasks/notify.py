@@ -33,8 +33,7 @@ Please check for typos in the JOBOWNERS file and/or add them to the Github <-> S
 """
 PROJECT_NAME = "DataDog/datadog-agent"
 AWS_S3_CP_CMD = "aws s3 cp --only-show-errors --region us-east-1 --sse AES256"
-# TODO : Create bucket
-S3_CI_BUCKET_URL = "s3://dd-ci-artefacts-build-stable/datadog-agent/job_executions"
+S3_CI_BUCKET_URL = "s3://dd-ci-artefacts-build-stable/datadog-agent/failed_jobs"
 CONSECUTIVE_THRESHOLD = 3
 CUMULATIVE_THRESHOLD = 5
 CUMULATIVE_LENGTH = 10
@@ -373,7 +372,7 @@ def generate_failure_messages(project_name: str, failed_jobs: FailedJobs) -> Dic
 
 
 @task
-def check_consistent_failures(ctx, job_failures_file="job_executions.json"):
+def check_consistent_failures(ctx, job_failures_file="job_executions.v2.json"):
     # Retrieve the stored document in aws s3. It has the following format:
     # {
     #     "pipeline_id": 123,
