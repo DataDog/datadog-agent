@@ -7,8 +7,10 @@
 package autodiscoveryimpl
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"sort"
 	"sync"
@@ -16,6 +18,8 @@ import (
 
 	"go.uber.org/atomic"
 	"go.uber.org/fx"
+
+	"github.com/fatih/color"
 
 	"github.com/DataDog/datadog-agent/comp/api/api"
 	"github.com/DataDog/datadog-agent/comp/api/api/utils"
@@ -26,7 +30,9 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/scheduler"
 	autodiscoveryStatus "github.com/DataDog/datadog-agent/comp/core/autodiscovery/status"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/telemetry"
+	autodiscoveryUtils "github.com/DataDog/datadog-agent/comp/core/autodiscovery/utils"
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
+	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	logComp "github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/status"
@@ -90,6 +96,8 @@ type provides struct {
 	Comp           autodiscovery.Component
 	StatusProvider status.InformationProvider
 	Endpoint       api.AgentEndpointProvider
+	EndpointRaw    api.AgentEndpointProvider
+	FlareProvider  flaretypes.Provider
 }
 
 // Module defines the fx options for this component.
@@ -106,7 +114,9 @@ func newProvides(deps dependencies) provides {
 		Comp:           c,
 		StatusProvider: status.NewInformationProvider(autodiscoveryStatus.GetProvider(c)),
 
-		Endpoint: api.NewAgentEndpointProvider(c.(*AutoConfig).writeConfigCheck, "/config-check", "GET"),
+		Endpoint:      api.NewAgentEndpointProvider(c.(*AutoConfig).writeConfigCheck, "/config-check", "GET"),
+		EndpointRaw:   api.NewAgentEndpointProvider(c.(*AutoConfig).writeConfigCheckRaw, "/config-check/raw", "GET"),
+		FlareProvider: flaretypes.NewProvider(c.(*AutoConfig).fillFlare),
 	}
 }
 
@@ -211,7 +221,14 @@ func (ac *AutoConfig) checkTagFreshness(ctx context.Context) {
 	}
 }
 
-func (ac *AutoConfig) writeConfigCheck(w http.ResponseWriter, _ *http.Request) {
+func (ac *AutoConfig) writeConfigCheck(w http.ResponseWriter, r *http.Request) {
+	verbose := r.URL.Query().Get("verbose") == "true"
+	bytes := ac.GetConfigCheck(verbose)
+
+	w.Write(bytes)
+}
+
+func (ac *AutoConfig) writeConfigCheckRaw(w http.ResponseWriter, _ *http.Request) {
 	var response integration.ConfigCheckResponse
 
 	configSlice := ac.LoadedConfigs()
@@ -225,12 +242,69 @@ func (ac *AutoConfig) writeConfigCheck(w http.ResponseWriter, _ *http.Request) {
 
 	jsonConfig, err := json.Marshal(response)
 	if err != nil {
-		utils.SetJSONError(w, log.Errorf("Unable to marshal config check response: %s", err), 500)
+		utils.SetJSONError(w, err, 500)
 		return
 	}
 
 	w.Write(jsonConfig)
+}
 
+// fillFlare add the config-checks log to flares.
+func (ac *AutoConfig) fillFlare(fb flaretypes.FlareBuilder) error {
+	fb.AddFileFromFunc("config-check.log", func() ([]byte, error) { //nolint:errcheck
+		bytes := ac.GetConfigCheck(true)
+		return bytes, nil
+	})
+	return nil
+}
+
+// GetConfigCheck returns scrubbed information from all configuration providers
+func (ac *AutoConfig) GetConfigCheck(verbose bool) []byte {
+	writer := new(bytes.Buffer)
+
+	configSlice := ac.LoadedConfigs()
+	sort.Slice(configSlice, func(i, j int) bool {
+		return configSlice[i].Name < configSlice[j].Name
+	})
+
+	resolveWarnings := GetResolveWarnings()
+	configErrors := GetConfigErrors()
+	unresolved := ac.GetUnresolvedTemplates()
+
+	if len(configErrors) > 0 {
+		fmt.Fprintf(writer, "=== Configuration %s ===\n", color.RedString("errors"))
+		for check, error := range configErrors {
+			fmt.Fprintf(writer, "\n%s: %s\n", color.RedString(check), error)
+		}
+	}
+
+	for _, c := range configSlice {
+		autodiscoveryUtils.PrintConfig(writer, c, "")
+	}
+
+	if verbose {
+		if len(resolveWarnings) > 0 {
+			fmt.Fprintf(writer, "\n=== Resolve %s ===\n", color.YellowString("warnings"))
+			for check, warnings := range resolveWarnings {
+				fmt.Fprintf(writer, "\n%s\n", color.YellowString(check))
+				for _, warning := range warnings {
+					fmt.Fprintf(writer, "* %s\n", warning)
+				}
+			}
+		}
+		if len(unresolved) > 0 {
+			fmt.Fprintf(writer, "\n=== %s Configs ===\n", color.YellowString("Unresolved"))
+			for ids, configs := range unresolved {
+				fmt.Fprintf(writer, "\n%s: %s\n", color.BlueString("Auto-discovery IDs"), color.YellowString(ids))
+				fmt.Fprintf(writer, "%s:\n", color.BlueString("Templates"))
+				for _, config := range configs {
+					fmt.Fprintln(writer, config.ScrubbedString())
+				}
+			}
+		}
+	}
+
+	return writer.Bytes()
 }
 
 // Start will listen to the service channels before anything is sent to them
