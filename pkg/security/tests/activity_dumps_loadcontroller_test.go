@@ -52,6 +52,7 @@ func TestActivityDumpsLoadControllerTimeout(t *testing.T) {
 		activityDumpTracedEventTypes:        testActivityDumpTracedEventTypes,
 		activityDumpLoadControllerPeriod:    testActivityDumpLoadControllerPeriod,
 		activityDumpLoadControllerTimeout:   time.Minute,
+		networkIngressEnabled:               true,
 	}
 	test, err := newTestModule(t, nil, []*rules.RuleDefinition{}, withStaticOpts(opts))
 	if err != nil {
@@ -116,6 +117,7 @@ func TestActivityDumpsLoadControllerEventTypes(t *testing.T) {
 		activityDumpLocalStorageFormats:     expectedFormats,
 		activityDumpTracedEventTypes:        testActivityDumpTracedEventTypes,
 		activityDumpLoadControllerPeriod:    testActivityDumpLoadControllerPeriod,
+		networkIngressEnabled:               true,
 	}))
 	if err != nil {
 		t.Fatal(err)
@@ -233,6 +235,7 @@ func TestActivityDumpsLoadControllerRateLimiter(t *testing.T) {
 		activityDumpLocalStorageFormats:     expectedFormats,
 		activityDumpTracedEventTypes:        testActivityDumpTracedEventTypes,
 		activityDumpLoadControllerPeriod:    testActivityDumpLoadControllerPeriod,
+		networkIngressEnabled:               true,
 	}))
 	if err != nil {
 		t.Fatal(err)

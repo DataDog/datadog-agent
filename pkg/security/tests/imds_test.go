@@ -69,7 +69,7 @@ func TestAWSIMDSv1Request(t *testing.T) {
 		}
 	}()
 
-	test, err := newTestModule(t, nil, ruleDefs)
+	test, err := newTestModule(t, nil, ruleDefs, withStaticOpts(testOpts{networkIngressEnabled: true}))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -147,7 +147,7 @@ func TestAWSIMDSv1Response(t *testing.T) {
 		}
 	}()
 
-	test, err := newTestModule(t, nil, ruleDefs)
+	test, err := newTestModule(t, nil, ruleDefs, withStaticOpts(testOpts{networkIngressEnabled: true}))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -174,6 +174,73 @@ func TestAWSIMDSv1Response(t *testing.T) {
 
 			test.validateIMDSSchema(t, event)
 		})
+	})
+}
+
+func TestNoAWSIMDSv1Response(t *testing.T) {
+	SkipIfNotAvailable(t)
+
+	checkKernelCompatibility(t, "RHEL, SLES and Oracle kernels", func(kv *kernel.Version) bool {
+		// TODO: Oracle because we are missing offsets
+		return kv.IsRH7Kernel() || kv.IsOracleUEKKernel() || kv.IsSLESKernel()
+	})
+
+	if testEnvironment != DockerEnvironment && !config.IsContainerized() {
+		if out, err := loadModule("veth"); err != nil {
+			t.Fatalf("couldn't load 'veth' module: %s,%v", string(out), err)
+		}
+	}
+
+	executable, err := os.Executable()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	ruleDefs := []*rules.RuleDefinition{
+		{
+			ID:         "test_rule_aws_imds_v1_response",
+			Expression: fmt.Sprintf(`imds.cloud_provider == "aws" && imds.aws.is_imds_v2 == false && imds.type == "response" && process.file.name == "%s"`, path.Base(executable)),
+		},
+	}
+
+	// create dummy interface
+	dummy, err := imdsutils.CreateDummyInterface(imdsutils.IMDSTestServerIP, imdsutils.CSMDummyInterface)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		if err = imdsutils.RemoveDummyInterface(dummy); err != nil {
+			t.Fatal(err)
+		}
+	}()
+
+	// create fake IMDS server
+	imdsServerAddr := fmt.Sprintf("%s:%v", imdsutils.IMDSTestServerIP, imdsutils.IMDSTestServerPort)
+	imdsServer := imdsutils.CreateIMDSServer(imdsServerAddr)
+	defer func() {
+		if err = imdsutils.StopIMDSserver(imdsServer); err != nil {
+			t.Fatal(err)
+		}
+	}()
+
+	test, err := newTestModule(t, nil, ruleDefs, withStaticOpts(testOpts{networkIngressEnabled: false}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.Close()
+
+	t.Run("no_aws_imds_v1_response", func(t *testing.T) {
+		if err := waitForIMDSResponseProbeEvent(test, func() error {
+			response, err := http.Get(fmt.Sprintf("http://%s%s", imdsServerAddr, imdsutils.IMDSSecurityCredentialsURL))
+			if err != nil {
+				return fmt.Errorf("failed to query IMDS server: %v", err)
+			}
+			defer response.Body.Close()
+
+			return nil
+		}, path.Base(executable)); err == nil {
+			t.Fatal("shouldn't get an event")
+		}
 	})
 }
 
@@ -228,7 +295,7 @@ func TestAWSIMDSv2Request(t *testing.T) {
 		}
 	}()
 
-	test, err := newTestModule(t, nil, ruleDefs)
+	test, err := newTestModule(t, nil, ruleDefs, withStaticOpts(testOpts{networkIngressEnabled: true}))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -306,7 +373,7 @@ func TestGCPIMDS(t *testing.T) {
 		}
 	}()
 
-	test, err := newTestModule(t, nil, ruleDefs)
+	test, err := newTestModule(t, nil, ruleDefs, withStaticOpts(testOpts{networkIngressEnabled: true}))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -384,7 +451,7 @@ func TestAzureIMDS(t *testing.T) {
 		}
 	}()
 
-	test, err := newTestModule(t, nil, ruleDefs)
+	test, err := newTestModule(t, nil, ruleDefs, withStaticOpts(testOpts{networkIngressEnabled: true}))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -462,7 +529,7 @@ func TestIBMIMDS(t *testing.T) {
 		}
 	}()
 
-	test, err := newTestModule(t, nil, ruleDefs)
+	test, err := newTestModule(t, nil, ruleDefs, withStaticOpts(testOpts{networkIngressEnabled: true}))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -540,7 +607,7 @@ func TestOracleIMDS(t *testing.T) {
 		}
 	}()
 
-	test, err := newTestModule(t, nil, ruleDefs)
+	test, err := newTestModule(t, nil, ruleDefs, withStaticOpts(testOpts{networkIngressEnabled: true}))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -623,7 +690,7 @@ func TestIMDSProcessContext(t *testing.T) {
 		}
 	}()
 
-	test, err := newTestModule(t, nil, ruleDefs)
+	test, err := newTestModule(t, nil, ruleDefs, withStaticOpts(testOpts{networkIngressEnabled: true}))
 	if err != nil {
 		t.Fatal(err)
 	}

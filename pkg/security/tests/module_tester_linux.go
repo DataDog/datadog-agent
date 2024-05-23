@@ -79,6 +79,8 @@ event_monitoring_config:
     - "*custom*"
   network:
     enabled: true
+    ingress:
+      enabled: {{ .NetworkIngressEnabled }}
   flush_discarder_window: 0
 {{if .DisableFilters}}
   enable_kernel_filters: false
@@ -1046,23 +1048,48 @@ func ifSyscallSupported(syscall string, test func(t *testing.T, syscallNB uintpt
 	}
 }
 
+// eventKeyValueFilter is used to filter events in `waitForProbeEvent`
+type eventKeyValueFilter struct {
+	key   string
+	value interface{}
+}
+
 // waitForProbeEvent returns the first open event with the provided filename.
 // WARNING: this function may yield a "fatal error: concurrent map writes" error if the ruleset of testModule does not
 // contain a rule on "open.file.path"
 //
 //nolint:deadcode,unused
-func waitForProbeEvent(test *testModule, action func() error, key string, value interface{}, eventType model.EventType) error {
+func waitForProbeEvent(test *testModule, action func() error, eventType model.EventType, filters ...eventKeyValueFilter) error {
 	return test.GetProbeEvent(action, func(event *model.Event) bool {
-		if v, _ := event.GetFieldValue(key); v == value {
-			return true
+		for _, filter := range filters {
+			if v, _ := event.GetFieldValue(filter.key); v != filter.value {
+				return false
+			}
 		}
-		return false
+		return true
 	}, getEventTimeout, eventType)
 }
 
 //nolint:deadcode,unused
 func waitForOpenProbeEvent(test *testModule, action func() error, filename string) error {
-	return waitForProbeEvent(test, action, "open.file.path", filename, model.FileOpenEventType)
+	return waitForProbeEvent(test, action, model.FileOpenEventType, eventKeyValueFilter{
+		key:   "open.file.path",
+		value: filename,
+	})
+}
+
+//nolint:deadcode,unused
+func waitForIMDSResponseProbeEvent(test *testModule, action func() error, processFileName string) error {
+	return waitForProbeEvent(test, action, model.IMDSEventType, []eventKeyValueFilter{
+		{
+			key:   "process.file.name",
+			value: processFileName,
+		},
+		{
+			key:   "imds.type",
+			value: "response",
+		},
+	}...)
 }
 
 //nolint:deadcode,unused

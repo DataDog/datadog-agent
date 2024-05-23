@@ -56,6 +56,7 @@ func TestActivityDumps(t *testing.T) {
 		activityDumpLocalStorageFormats:     expectedFormats,
 		activityDumpTracedEventTypes:        testActivityDumpTracedEventTypes,
 		activityDumpCleanupPeriod:           testActivityDumpCleanupPeriod,
+		networkIngressEnabled:               true,
 	}))
 	if err != nil {
 		t.Fatal(err)

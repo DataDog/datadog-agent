@@ -461,7 +461,7 @@ func (c *RuntimeSecurityConfig) sanitize() error {
 	return c.sanitizeRuntimeSecurityConfigActivityDump()
 }
 
-// sanitizeNetworkConfiguration ensures that runtime_security_config.activity_dump is properly configured
+// sanitizeRuntimeSecurityConfigActivityDump ensures that runtime_security_config.activity_dump is properly configured
 func (c *RuntimeSecurityConfig) sanitizeRuntimeSecurityConfigActivityDump() error {
 	var execFound bool
 	for _, evtType := range c.ActivityDumpTracedEventTypes {
