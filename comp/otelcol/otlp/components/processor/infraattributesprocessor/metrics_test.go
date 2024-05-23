@@ -14,7 +14,7 @@ import (
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/pmetric"
 	"go.opentelemetry.io/collector/processor/processortest"
-	conventions "go.opentelemetry.io/collector/semconv/v1.6.1"
+	conventions "go.opentelemetry.io/collector/semconv/v1.21.0"
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl/collectors"
@@ -184,6 +184,28 @@ func TestEntityIDsFromAttributes(t *testing.T) {
 				return attributes
 			}(),
 			entityIDs: []string{"container_id://container_id_goes_here", "kubernetes_pod_uid://k8s_pod_uid_goes_here"},
+		},
+		{
+			name: "container image ID",
+			attrs: func() pcommon.Map {
+				attributes := pcommon.NewMap()
+				attributes.FromRaw(map[string]interface{}{
+					conventions.AttributeContainerImageID: "docker.io/foo@sha256:sha_goes_here",
+				})
+				return attributes
+			}(),
+			entityIDs: []string{"container_image_metadata://sha256:sha_goes_here"},
+		},
+		{
+			name: "ecs task arn",
+			attrs: func() pcommon.Map {
+				attributes := pcommon.NewMap()
+				attributes.FromRaw(map[string]interface{}{
+					conventions.AttributeAWSECSTaskARN: "ecs_task_arn_goes_here",
+				})
+				return attributes
+			}(),
+			entityIDs: []string{"ecs_task://ecs_task_arn_goes_here"},
 		},
 		{
 			name: "only deployment name without namespace",

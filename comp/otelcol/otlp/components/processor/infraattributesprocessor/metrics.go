@@ -16,7 +16,7 @@ import (
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/pmetric"
 	"go.opentelemetry.io/collector/processor"
-	conventions "go.opentelemetry.io/collector/semconv/v1.6.1"
+	conventions "go.opentelemetry.io/collector/semconv/v1.21.0"
 	"go.uber.org/zap"
 )
 
@@ -44,6 +44,12 @@ func entityIDsFromAttributes(attrs pcommon.Map) []string {
 	// Prefixes come from pkg/util/kubernetes/kubelet and pkg/util/containers.
 	if containerID, ok := attrs.Get(conventions.AttributeContainerID); ok {
 		entityIDs = append(entityIDs, fmt.Sprintf("container_id://%v", containerID.AsString()))
+	}
+	if containerImageID, ok := attrs.Get(conventions.AttributeContainerImageID); ok {
+		splitImageID := strings.SplitN(containerImageID.AsString(), "@sha256:", 2)
+		if len(splitImageID) == 2 {
+			entityIDs = append(entityIDs, fmt.Sprintf("container_image_metadata://sha256:%v", splitImageID[1]))
+		}
 	}
 	if ecsTaskArn, ok := attrs.Get(conventions.AttributeAWSECSTaskARN); ok {
 		entityIDs = append(entityIDs, fmt.Sprintf("ecs_task://%v", ecsTaskArn.AsString()))
