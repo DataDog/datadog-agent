@@ -133,6 +133,8 @@ const (
 	SetRegistryKeyValueEventType
 	// DeleteRegistryKeyEventType event
 	DeleteRegistryKeyEventType
+	// ChangePermissionEventType event
+	ChangePermissionEventType
 	// MaxAllEventType is used internally to get the maximum number of events.
 	MaxAllEventType
 )
@@ -242,6 +244,8 @@ func (t EventType) String() string {
 		return "set_key_value"
 	case DeleteRegistryKeyEventType:
 		return "delete_key"
+	case ChangePermissionEventType:
+		return "change_permission"
 	default:
 		return "unknown"
 	}

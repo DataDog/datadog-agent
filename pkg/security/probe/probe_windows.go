@@ -636,7 +636,16 @@ func (p *WindowsProbe) handleETWNotification(ev *model.Event, notif etwNotificat
 			},
 			ValueName: arg.valueName,
 		}
+	case *objectPermsChange:
+		ev.Type = uint32(model.ChangePermissionEventType)
+		ev.ChangePermission = model.ChangePermissionEvent{
+			ObjectName: arg.objectName,
+			ObjectType: arg.objectType,
+			OldSd:      arg.oldSd,
+			NewSd:      arg.newSd,
+		}
 	}
+
 	if ev.Type != uint32(model.UnknownEventType) {
 		errRes := p.setProcessContext(notif.pid, ev)
 		if errRes != nil {

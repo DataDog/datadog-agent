@@ -22,6 +22,7 @@ func (m *Model) GetIterator(field eval.Field) (eval.Iterator, error) {
 }
 func (m *Model) GetEventTypes() []eval.EventType {
 	return []eval.EventType{
+		eval.EventType("change_permission"),
 		eval.EventType("create"),
 		eval.EventType("create_key"),
 		eval.EventType("delete_key"),
@@ -33,6 +34,42 @@ func (m *Model) GetEventTypes() []eval.EventType {
 }
 func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Evaluator, error) {
 	switch field {
+	case "change_permission.name":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ev := ctx.Event.(*Event)
+				return ev.ChangePermission.ObjectName
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+	case "change_permission.new_sd":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ev := ctx.Event.(*Event)
+				return ev.ChangePermission.NewSd
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+	case "change_permission.old_sd":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ev := ctx.Event.(*Event)
+				return ev.ChangePermission.OldSd
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+	case "change_permission.type":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ev := ctx.Event.(*Event)
+				return ev.ChangePermission.ObjectType
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
 	case "container.created_at":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -1312,6 +1349,10 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 }
 func (ev *Event) GetFields() []eval.Field {
 	return []eval.Field{
+		"change_permission.name",
+		"change_permission.new_sd",
+		"change_permission.old_sd",
+		"change_permission.type",
 		"container.created_at",
 		"container.id",
 		"container.tags",
@@ -1432,6 +1473,14 @@ func (ev *Event) GetFields() []eval.Field {
 }
 func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 	switch field {
+	case "change_permission.name":
+		return ev.ChangePermission.ObjectName, nil
+	case "change_permission.new_sd":
+		return ev.ChangePermission.NewSd, nil
+	case "change_permission.old_sd":
+		return ev.ChangePermission.OldSd, nil
+	case "change_permission.type":
+		return ev.ChangePermission.ObjectType, nil
 	case "container.created_at":
 		return int(ev.FieldHandlers.ResolveContainerCreatedAt(ev, ev.BaseEvent.ContainerContext)), nil
 	case "container.id":
@@ -1832,6 +1881,14 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 }
 func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 	switch field {
+	case "change_permission.name":
+		return "change_permission", nil
+	case "change_permission.new_sd":
+		return "change_permission", nil
+	case "change_permission.old_sd":
+		return "change_permission", nil
+	case "change_permission.type":
+		return "change_permission", nil
 	case "container.created_at":
 		return "*", nil
 	case "container.id":
@@ -2069,6 +2126,14 @@ func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 }
 func (ev *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 	switch field {
+	case "change_permission.name":
+		return reflect.String, nil
+	case "change_permission.new_sd":
+		return reflect.String, nil
+	case "change_permission.old_sd":
+		return reflect.String, nil
+	case "change_permission.type":
+		return reflect.String, nil
 	case "container.created_at":
 		return reflect.Int, nil
 	case "container.id":
@@ -2306,6 +2371,34 @@ func (ev *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 }
 func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 	switch field {
+	case "change_permission.name":
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "ChangePermission.ObjectName"}
+		}
+		ev.ChangePermission.ObjectName = rv
+		return nil
+	case "change_permission.new_sd":
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "ChangePermission.NewSd"}
+		}
+		ev.ChangePermission.NewSd = rv
+		return nil
+	case "change_permission.old_sd":
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "ChangePermission.OldSd"}
+		}
+		ev.ChangePermission.OldSd = rv
+		return nil
+	case "change_permission.type":
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "ChangePermission.ObjectType"}
+		}
+		ev.ChangePermission.ObjectType = rv
+		return nil
 	case "container.created_at":
 		if ev.BaseEvent.ContainerContext == nil {
 			ev.BaseEvent.ContainerContext = &ContainerContext{}

@@ -13,6 +13,38 @@ import (
 	"time"
 )
 
+// GetChangePermissionName returns the value of the field, resolving if necessary
+func (ev *Event) GetChangePermissionName() string {
+	if ev.GetEventType().String() != "change_permission" {
+		return ""
+	}
+	return ev.ChangePermission.ObjectName
+}
+
+// GetChangePermissionNewSd returns the value of the field, resolving if necessary
+func (ev *Event) GetChangePermissionNewSd() string {
+	if ev.GetEventType().String() != "change_permission" {
+		return ""
+	}
+	return ev.ChangePermission.NewSd
+}
+
+// GetChangePermissionOldSd returns the value of the field, resolving if necessary
+func (ev *Event) GetChangePermissionOldSd() string {
+	if ev.GetEventType().String() != "change_permission" {
+		return ""
+	}
+	return ev.ChangePermission.OldSd
+}
+
+// GetChangePermissionType returns the value of the field, resolving if necessary
+func (ev *Event) GetChangePermissionType() string {
+	if ev.GetEventType().String() != "change_permission" {
+		return ""
+	}
+	return ev.ChangePermission.ObjectType
+}
+
 // GetContainerCreatedAt returns the value of the field, resolving if necessary
 func (ev *Event) GetContainerCreatedAt() int {
 	if ev.BaseEvent.ContainerContext == nil {

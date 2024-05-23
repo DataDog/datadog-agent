@@ -60,6 +60,7 @@ func (ev *Event) resolveFields(forADs bool) {
 	_ = ev.FieldHandlers.ResolveUser(ev, &ev.BaseEvent.ProcessContext.Process)
 	// resolve event specific fields
 	switch ev.GetEventType().String() {
+	case "change_permission":
 	case "create":
 		_ = ev.FieldHandlers.ResolveFilePath(ev, &ev.CreateNewFile.File)
 		_ = ev.FieldHandlers.ResolveFileBasename(ev, &ev.CreateNewFile.File)

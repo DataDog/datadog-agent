@@ -42,6 +42,18 @@ type RegistrySerializer struct {
 	ValueName string `json:"value_name,omitempty"`
 }
 
+// ChangePermissionSerializer serializes a permission change to JSON
+type ChangePermissionSerializer struct {
+	// Object name
+	ObjectName string `json:"name,omitempty"`
+	// Object type
+	ObjectType string `json:"type,omitempty"`
+	// Original Security Descriptor
+	OldSd string `json:"old_sd,omitempty"`
+	// New Security Descriptor
+	NewSd string `json:"new_sd,omitempty"`
+}
+
 // ProcessSerializer serializes a process to JSON
 type ProcessSerializer struct {
 	// Process ID
@@ -72,14 +84,19 @@ type RegistryEventSerializer struct {
 	RegistrySerializer
 }
 
+type ChangePermissionEventSerializer struct {
+	ChangePermissionSerializer
+}
+
 // NetworkDeviceSerializer serializes the network device context to JSON
 type NetworkDeviceSerializer struct{}
 
 // EventSerializer serializes an event to JSON
 type EventSerializer struct {
 	*BaseEventSerializer
-	*RegistryEventSerializer `json:"registry,omitempty"`
-	*UserContextSerializer   `json:"usr,omitempty"`
+	*RegistryEventSerializer         `json:"registry,omitempty"`
+	*UserContextSerializer           `json:"usr,omitempty"`
+	*ChangePermissionEventSerializer `json:"permission_change,omitempty"`
 }
 
 func newFileSerializer(fe *model.FileEvent, e *model.Event, _ ...uint64) *FileSerializer {
@@ -109,6 +126,7 @@ func newRegistrySerializer(re *model.RegistryEvent, e *model.Event, _ ...uint64)
 	}
 	return rs
 }
+
 func newProcessSerializer(ps *model.Process, e *model.Event) *ProcessSerializer {
 	psSerializer := &ProcessSerializer{
 		ExecTime: utils.NewEasyjsonTimeIfNotZero(ps.ExecTime),
@@ -210,6 +228,15 @@ func NewEventSerializer(event *model.Event, opts *eval.Opts) *EventSerializer {
 	case model.DeleteRegistryKeyEventType:
 		s.RegistryEventSerializer = &RegistryEventSerializer{
 			RegistrySerializer: *newRegistrySerializer(&event.DeleteRegistryKey.Registry, event),
+		}
+	case model.ChangePermissionEventType:
+		s.ChangePermissionEventSerializer = &ChangePermissionEventSerializer{
+			ChangePermissionSerializer: ChangePermissionSerializer{
+				ObjectName: event.ChangePermission.ObjectName,
+				ObjectType: event.ChangePermission.ObjectType,
+				OldSd:      event.ChangePermission.OldSd,
+				NewSd:      event.ChangePermission.NewSd,
+			},
 		}
 	}
 
