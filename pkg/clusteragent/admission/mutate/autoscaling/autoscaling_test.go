@@ -22,16 +22,18 @@ import (
 )
 
 type fakeRecommender struct {
+	recID           string
 	recommendations map[string][]datadoghq.DatadogPodAutoscalerContainerResources
 	err             error
 }
 
 // GetRecommendations returns recommendations
-func (f *fakeRecommender) GetRecommendations(_ string, ownerRef metav1.OwnerReference) ([]datadoghq.DatadogPodAutoscalerContainerResources, error) {
+func (f *fakeRecommender) GetRecommendations(_ string, ownerRef metav1.OwnerReference) (string, []datadoghq.DatadogPodAutoscalerContainerResources, error) {
 	if recs, ok := f.recommendations[ownerRef.Name]; ok {
-		return recs, nil
+		return f.recID, recs, nil
 	}
-	return nil, f.err
+
+	return "", nil, f.err
 }
 
 func TestUpdateResources(t *testing.T) {
@@ -47,6 +49,7 @@ func TestUpdateResources(t *testing.T) {
 			name: "update resources when recommendations differ",
 			wh: &Webhook{
 				recommender: &fakeRecommender{
+					recID: "version1",
 					recommendations: map[string][]datadoghq.DatadogPodAutoscalerContainerResources{
 						"test-deployment": {
 							{Name: "container1", Limits: corev1.ResourceList{"cpu": resource.MustParse("500m")}, Requests: corev1.ResourceList{"memory": resource.MustParse("256Mi")}},
@@ -55,10 +58,13 @@ func TestUpdateResources(t *testing.T) {
 				},
 			},
 			pod: corev1.Pod{
-				ObjectMeta: metav1.ObjectMeta{OwnerReferences: []metav1.OwnerReference{{
-					Kind: "ReplicaSet",
-					Name: "test-deployment-968f49d86",
-				}}},
+				ObjectMeta: metav1.ObjectMeta{
+					OwnerReferences: []metav1.OwnerReference{{
+						Kind: "ReplicaSet",
+						Name: "test-deployment-968f49d86",
+					}},
+					Annotations: map[string]string{recommendationIDAnotation: "version0"},
+				},
 				Spec: corev1.PodSpec{
 					Containers: []corev1.Container{{
 						Name: "container1",
@@ -71,10 +77,13 @@ func TestUpdateResources(t *testing.T) {
 			},
 			wantInjected: true,
 			wantPod: corev1.Pod{
-				ObjectMeta: metav1.ObjectMeta{OwnerReferences: []metav1.OwnerReference{{
-					Kind: "ReplicaSet",
-					Name: "test-deployment-968f49d86",
-				}}},
+				ObjectMeta: metav1.ObjectMeta{
+					OwnerReferences: []metav1.OwnerReference{{
+						Kind: "ReplicaSet",
+						Name: "test-deployment-968f49d86",
+					}},
+					Annotations: map[string]string{recommendationIDAnotation: "version1"},
+				},
 				Spec: corev1.PodSpec{
 					Containers: []corev1.Container{{
 						Name: "container1",
@@ -90,6 +99,7 @@ func TestUpdateResources(t *testing.T) {
 			name: "update resources when there are none",
 			wh: &Webhook{
 				recommender: &fakeRecommender{
+					recID: "version0",
 					recommendations: map[string][]datadoghq.DatadogPodAutoscalerContainerResources{
 						"test-deployment": {
 							{Name: "container1", Limits: corev1.ResourceList{"cpu": resource.MustParse("500m")}, Requests: corev1.ResourceList{"memory": resource.MustParse("256Mi")}},
@@ -98,10 +108,13 @@ func TestUpdateResources(t *testing.T) {
 				},
 			},
 			pod: corev1.Pod{
-				ObjectMeta: metav1.ObjectMeta{OwnerReferences: []metav1.OwnerReference{{
-					Kind: "ReplicaSet",
-					Name: "test-deployment-968f49d86",
-				}}},
+				ObjectMeta: metav1.ObjectMeta{
+					OwnerReferences: []metav1.OwnerReference{{
+						Kind: "ReplicaSet",
+						Name: "test-deployment-968f49d86",
+					}},
+					Annotations: map[string]string{recommendationIDAnotation: "version0"},
+				},
 				Spec: corev1.PodSpec{
 					Containers: []corev1.Container{{
 						Name: "container1",
@@ -110,10 +123,13 @@ func TestUpdateResources(t *testing.T) {
 			},
 			wantInjected: true,
 			wantPod: corev1.Pod{
-				ObjectMeta: metav1.ObjectMeta{OwnerReferences: []metav1.OwnerReference{{
-					Kind: "ReplicaSet",
-					Name: "test-deployment-968f49d86",
-				}}},
+				ObjectMeta: metav1.ObjectMeta{
+					OwnerReferences: []metav1.OwnerReference{{
+						Kind: "ReplicaSet",
+						Name: "test-deployment-968f49d86",
+					}},
+					Annotations: map[string]string{recommendationIDAnotation: "version0"},
+				},
 				Spec: corev1.PodSpec{
 					Containers: []corev1.Container{{
 						Name: "container1",
@@ -129,6 +145,7 @@ func TestUpdateResources(t *testing.T) {
 			name: "no update when recommendations match",
 			wh: &Webhook{
 				recommender: &fakeRecommender{
+					recID: "version0",
 					recommendations: map[string][]datadoghq.DatadogPodAutoscalerContainerResources{
 						"test-deployment": {
 							{Name: "container1", Limits: corev1.ResourceList{"cpu": resource.MustParse("200m")}, Requests: corev1.ResourceList{"memory": resource.MustParse("128Mi")}},
@@ -137,10 +154,13 @@ func TestUpdateResources(t *testing.T) {
 				},
 			},
 			pod: corev1.Pod{
-				ObjectMeta: metav1.ObjectMeta{OwnerReferences: []metav1.OwnerReference{{
-					Kind: "ReplicaSet",
-					Name: "test-deployment-968f49d86",
-				}}},
+				ObjectMeta: metav1.ObjectMeta{
+					OwnerReferences: []metav1.OwnerReference{{
+						Kind: "ReplicaSet",
+						Name: "test-deployment-968f49d86",
+					}},
+					Annotations: map[string]string{recommendationIDAnotation: "version0"},
+				},
 				Spec: corev1.PodSpec{
 					Containers: []corev1.Container{{
 						Name: "container1",
@@ -152,10 +172,13 @@ func TestUpdateResources(t *testing.T) {
 				},
 			},
 			wantPod: corev1.Pod{
-				ObjectMeta: metav1.ObjectMeta{OwnerReferences: []metav1.OwnerReference{{
-					Kind: "ReplicaSet",
-					Name: "test-deployment-968f49d86",
-				}}},
+				ObjectMeta: metav1.ObjectMeta{
+					OwnerReferences: []metav1.OwnerReference{{
+						Kind: "ReplicaSet",
+						Name: "test-deployment-968f49d86",
+					}},
+					Annotations: map[string]string{recommendationIDAnotation: "version0"},
+				},
 				Spec: corev1.PodSpec{
 					Containers: []corev1.Container{{
 						Name: "container1",
@@ -252,6 +275,43 @@ func TestUpdateResources(t *testing.T) {
 				},
 			},
 			wantErr: true,
+			wantPod: corev1.Pod{
+				ObjectMeta: metav1.ObjectMeta{OwnerReferences: []metav1.OwnerReference{{
+					Kind: "ReplicaSet",
+					Name: "test-deployment-968f49d86",
+				}}},
+				Spec: corev1.PodSpec{
+					Containers: []corev1.Container{{
+						Name: "container1",
+						Resources: corev1.ResourceRequirements{
+							Limits:   corev1.ResourceList{"cpu": resource.MustParse("200m")},
+							Requests: corev1.ResourceList{"memory": resource.MustParse("128Mi")},
+						},
+					}},
+				},
+			},
+		},
+		{
+			name: "no update on empty recommendations",
+			wh: &Webhook{
+				recommender: &fakeRecommender{},
+			},
+			pod: corev1.Pod{
+				ObjectMeta: metav1.ObjectMeta{OwnerReferences: []metav1.OwnerReference{{
+					Kind: "ReplicaSet",
+					Name: "test-deployment-968f49d86",
+				}}},
+				Spec: corev1.PodSpec{
+					Containers: []corev1.Container{{
+						Name: "container1",
+						Resources: corev1.ResourceRequirements{
+							Limits:   corev1.ResourceList{"cpu": resource.MustParse("200m")},
+							Requests: corev1.ResourceList{"memory": resource.MustParse("128Mi")},
+						},
+					}},
+				},
+			},
+			wantErr: false,
 			wantPod: corev1.Pod{
 				ObjectMeta: metav1.ObjectMeta{OwnerReferences: []metav1.OwnerReference{{
 					Kind: "ReplicaSet",

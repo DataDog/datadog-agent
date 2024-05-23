@@ -24,12 +24,16 @@ import (
 )
 
 const (
-	webhookName = "autoscaling"
+	recommendationIDAnotation = "autoscaling.datadoghq.com/rec-id"
+
+	webhookName     = "autoscaling"
+	webhookEndpoint = "/autoscaling"
 
 	requestType = "request"
 	limitType   = "limit"
 )
 
+// Webhook implements the MutatingWebhook interface
 type Webhook struct {
 	name        string
 	isEnabled   bool
@@ -43,8 +47,8 @@ type Webhook struct {
 func NewWebhook(recommender workload.PatcherAdapter) *Webhook {
 	return &Webhook{
 		name:        webhookName,
-		isEnabled:   config.Datadog.GetBool("admission_controller.autoscaling.enabled"),
-		endpoint:    config.Datadog.GetString("admission_controller.autoscaling.endpoint"),
+		isEnabled:   config.Datadog.GetBool("autoscaling.workload.enabled"),
+		endpoint:    webhookEndpoint,
 		resources:   []string{"pods"},
 		operations:  []admiv1.OperationType{admiv1.Create},
 		recommender: recommender,
@@ -80,8 +84,10 @@ func (w *Webhook) Operations() []admiv1.OperationType {
 
 // LabelSelectors returns the label selectors that specify when the webhook
 // should be invoked
-func (w *Webhook) LabelSelectors(useNamespaceSelector bool) (namespaceSelector *metav1.LabelSelector, objectSelector *metav1.LabelSelector) {
-	return common.DefaultLabelSelectors(useNamespaceSelector)
+func (w *Webhook) LabelSelectors(_ bool) (namespaceSelector *metav1.LabelSelector, objectSelector *metav1.LabelSelector) {
+	// Autoscaling does not work like others. Targets are selected through existence of DPA objects.
+	// Hence, we need the equivalent of mutate unlabelled for this webhook.
+	return nil, nil
 }
 
 // MutateFunc returns the function that mutates the resources
@@ -110,12 +116,18 @@ func (w *Webhook) updateResources(pod *corev1.Pod, ns string, _ dynamic.Interfac
 		return false, fmt.Errorf("no owner found for pod %s", pod.Name)
 	}
 
-	_, recommendations, err := w.recommender.GetRecommendations(pod.Namespace, ownerRef)
-	if err != nil {
+	recommendationID, recommendations, err := w.recommender.GetRecommendations(pod.Namespace, ownerRef)
+	if err != nil || recommendationID == "" {
 		return false, err
 	}
 
+	// Patching the pod with the recommendations
 	injected := false
+	if pod.Annotations[recommendationIDAnotation] != recommendationID {
+		pod.Annotations[recommendationIDAnotation] = recommendationID
+		injected = true
+	}
+
 	for _, reco := range recommendations {
 		for i := range pod.Spec.Containers {
 			cont := &pod.Spec.Containers[i]
@@ -131,14 +143,14 @@ func (w *Webhook) updateResources(pod *corev1.Pod, ns string, _ dynamic.Interfac
 			for resource, limit := range reco.Limits {
 				if limit != cont.Resources.Limits[resource] {
 					cont.Resources.Limits[resource] = limit
-					injections.Set(limit.AsApproximateFloat64(), string(resource), ns, ownerRef.Name, cont.Name, limitType)
+					injections.Set(limit.AsApproximateFloat64(), string(resource), ns, ownerRef.Name, cont.Name, limitType, recommendationID)
 					injected = true
 				}
 			}
 			for resource, request := range reco.Requests {
 				if request != cont.Resources.Requests[resource] {
 					cont.Resources.Requests[resource] = request
-					injections.Set(request.AsApproximateFloat64(), string(resource), ns, ownerRef.Name, cont.Name, requestType)
+					injections.Set(request.AsApproximateFloat64(), string(resource), ns, ownerRef.Name, cont.Name, requestType, recommendationID)
 					injected = true
 				}
 			}

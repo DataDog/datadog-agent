@@ -41,7 +41,16 @@ type Controller interface {
 }
 
 // NewController returns the adequate implementation of the Controller interface.
-func NewController(client kubernetes.Interface, secretInformer coreinformers.SecretInformer, admissionInterface admissionregistration.Interface, isLeaderFunc func() bool, isLeaderNotif <-chan struct{}, config Config, wmeta workloadmeta.Component, pa workload.PatcherAdapter) Controller {
+func NewController(
+	client kubernetes.Interface,
+	secretInformer coreinformers.SecretInformer,
+	admissionInterface admissionregistration.Interface,
+	isLeaderFunc func() bool,
+	isLeaderNotif <-chan struct{},
+	config Config,
+	wmeta workloadmeta.Component,
+	pa workload.PatcherAdapter,
+) Controller {
 	if config.useAdmissionV1() {
 		return NewControllerV1(client, secretInformer, admissionInterface.V1().MutatingWebhookConfigurations(), isLeaderFunc, isLeaderNotif, config, wmeta, pa)
 	}

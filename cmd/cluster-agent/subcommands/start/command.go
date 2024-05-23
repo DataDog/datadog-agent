@@ -405,6 +405,10 @@ func start(log log.Component,
 			return fmt.Errorf("Remote config is disabled or failed to initialize, remote config is a required dependency for autoscaling")
 		}
 
+		if !config.GetBool("admission_controller.enabled") {
+			log.Error("Admission controller is disabled, vertical autoscaling requires the admission controller to be enabled. Vertical scaling will be disabled.")
+		}
+
 		if adapter, err := workload.StartWorkloadAutoscaling(mainCtx, apiCl, rcClient); err != nil {
 			pkglog.Errorf("Error while starting workload autoscaling: %v", err)
 		} else {
