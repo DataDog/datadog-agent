@@ -65,7 +65,7 @@ deploy_deb_testing-a6_x64:
     - echo "$APT_SIGNING_KEY_PASSPHRASE" | deb-s3 upload -c "pipeline-$DD_PIPELINE_ID-x86_64" -m 6 -b $DEB_TESTING_S3_BUCKET -a x86_64 --sign=$DEB_GPG_KEY_ID --gpg_options="--passphrase-fd 0 --batch --digest-algo SHA512" --preserve_versions --visibility public $OMNIBUS_PACKAGE_DIR/datadog-signing-keys_${DD_PIPELINE_ID}.deb
 
 deploy_deb_testing-a6_arm64:
-  rules: !reference [.on_all_new_e2e_tests]
+  rules: !reference [.on_all_install_script_tests]
   extends:
     - .deploy_deb_testing-a6
   needs: ["agent_deb-arm64-a6"]
@@ -117,7 +117,7 @@ deploy_deb_testing-a7_x64:
 
 deploy_deb_testing-a7_arm64:
   rules:
-    - !reference [.on_all_new_e2e_tests]
+    - !reference [.on_all_install_script_tests]
     - !reference [.on_installer_or_e2e_changes_or_manual]
   extends:
     - .deploy_deb_testing-a7
@@ -156,7 +156,7 @@ deploy_rpm_testing-a6_x64:
     - echo "$RPM_SIGNING_PASSPHRASE" | python2 /opt/rpm-s3/bin/rpm-s3 --verbose --visibility public-read -c "https://s3.amazonaws.com" -b $RPM_TESTING_S3_BUCKET -p "testing/pipeline-$DD_PIPELINE_ID/6/x86_64/" -a "x86_64" --sign --metadata-signing-key $RPM_GPG_KEY_ID $OMNIBUS_PACKAGE_DIR/datadog-*-6.*x86_64.rpm
 
 deploy_rpm_testing-a6_arm64:
-  rules: !reference [.on_all_new_e2e_tests]
+  rules: !reference [.on_all_install_script_tests]
   extends:
     - .deploy_rpm_testing-a6
   needs:
@@ -201,7 +201,7 @@ deploy_rpm_testing-a7_x64:
 
 deploy_rpm_testing-a7_arm64:
   rules:
-    - !reference [.on_all_new_e2e_tests]
+    - !reference [.on_all_install_script_tests]
     - !reference [.on_installer_or_e2e_changes_or_manual]
   extends:
     - .deploy_rpm_testing-a7
