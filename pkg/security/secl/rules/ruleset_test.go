@@ -550,6 +550,28 @@ func TestRuleSetApprovers14(t *testing.T) {
 	}
 }
 
+func TestRuleSetApprovers15(t *testing.T) {
+	exprs := []string{
+		`open.file.name =~ "*.dll"`,
+	}
+
+	rs := newRuleSet()
+	AddTestRuleExpr(t, rs, exprs...)
+
+	caps := FieldCapabilities{
+		{
+			Field:        "open.file.name",
+			Types:        eval.ScalarValueType | eval.PatternValueType,
+			FilterWeight: 3,
+		},
+	}
+
+	approvers, _ := rs.GetEventApprovers("open", caps)
+	if len(approvers) != 1 || len(approvers["open.file.name"]) != 1 {
+		t.Fatalf("shouldn't get an approver for `open.file.name`: %v", approvers)
+	}
+}
+
 func TestGetRuleEventType(t *testing.T) {
 	rule := eval.NewRule("aaa", `open.file.name == "test"`, &eval.Opts{})
 
