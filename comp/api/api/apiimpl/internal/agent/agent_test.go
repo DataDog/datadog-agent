@@ -18,7 +18,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
-	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexerendpoint/demultiplexerendpointimpl"
+	demultiplexerendpointmock "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexerendpoint/fx-mock"
 	"github.com/DataDog/datadog-agent/comp/api/api"
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
@@ -99,7 +99,7 @@ func getComponentDeps(t *testing.T) handlerdeps {
 		hostimpl.MockModule(),
 		inventoryagentimpl.MockModule(),
 		demultiplexerimpl.MockModule(),
-		demultiplexerendpointimpl.MockModule(),
+		demultiplexerendpointmock.MockModule(),
 		inventoryhostimpl.MockModule(),
 		secretsimpl.MockModule(),
 		fx.Provide(func(secretMock secrets.Mock) secrets.Component {

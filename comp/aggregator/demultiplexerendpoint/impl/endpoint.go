@@ -13,8 +13,6 @@ import (
 	"os"
 	"path"
 
-	"go.uber.org/fx"
-
 	"github.com/DataDog/zstd"
 
 	demultiplexerComp "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
@@ -22,18 +20,9 @@ import (
 	"github.com/DataDog/datadog-agent/comp/api/api/utils"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
-// Module defines the fx options for this component.
-func Module() fxutil.Module {
-	return fxutil.Component(
-		fx.Provide(newDemultiplexerAPIEndpoint))
-}
-
-type dependencies struct {
-	fx.In
-
+type Dependencies struct {
 	Log           log.Component
 	Config        config.Component
 	Demultiplexer demultiplexerComp.Component
@@ -45,20 +34,18 @@ type demultiplexerEndpoint struct {
 	log    log.Component
 }
 
-type provides struct {
-	fx.Out
-
+type Provides struct {
 	Endpoint api.AgentEndpointProvider
 }
 
-func newDemultiplexerAPIEndpoint(deps dependencies) provides {
+func NewComponent(deps Dependencies) Provides {
 	endpoint := demultiplexerEndpoint{
 		demux:  deps.Demultiplexer,
 		config: deps.Config,
 		log:    deps.Log,
 	}
 
-	return provides{
+	return Provides{
 		Endpoint: api.NewAgentEndpointProvider(endpoint.dumpDogstatsdContexts, "/dogstatsd-contexts-dump", "POST"),
 	}
 }

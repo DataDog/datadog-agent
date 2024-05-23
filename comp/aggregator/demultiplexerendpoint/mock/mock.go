@@ -5,23 +5,13 @@
 
 //go:build test
 
-package demultiplexerendpointimpl
+package demultiplexerendpointmock
 
 import (
 	"net/http"
 
-	"go.uber.org/fx"
-
 	"github.com/DataDog/datadog-agent/comp/api/api"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
-
-// MockModule defines the fx options for this component.
-func MockModule() fxutil.Module {
-	return fxutil.Component(
-		fx.Provide(newMock),
-	)
-}
 
 type mock struct {
 }
@@ -31,17 +21,14 @@ func (m *mock) handlerFunc(w http.ResponseWriter, _ *http.Request) {
 	w.Write([]byte("OK"))
 }
 
-// MockProvides is the mock component output
-type MockProvides struct {
-	fx.Out
-
+// Provides is the mock component output
+type Provides struct {
 	Endpoint api.AgentEndpointProvider
 }
 
-func newMock() MockProvides {
-
+func NewMock() Provides {
 	instance := &mock{}
-	return MockProvides{
+	return Provides{
 		Endpoint: api.NewAgentEndpointProvider(instance.handlerFunc, "/dogstatsd-contexts-dump", "POST"),
 	}
 }
