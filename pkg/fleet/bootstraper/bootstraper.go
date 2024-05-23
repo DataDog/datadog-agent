@@ -85,7 +85,7 @@ func Bootstrap(ctx context.Context, env *env.Env) error {
 		return fmt.Errorf("failed to get default packages: %w", err)
 	}
 	for _, url := range defaultPackages {
-		err = cmd.Install(ctx, url)
+		err = cmd.Install(ctx, url, nil)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "failed to install package %s: %v\n", url, err)
 		}
