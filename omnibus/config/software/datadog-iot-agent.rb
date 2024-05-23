@@ -55,33 +55,27 @@ build do
     copy 'bin/agent', "#{install_dir}/bin/"
 
     # Upstart
-    if debian_target?
-      erb source: "upstart_debian.conf.erb",
-          dest: "/etc/init/datadog-agent.conf",
-          mode: 0644,
-          vars: { install_dir: install_dir, etc_dir: etc_dir }
-    elsif redhat_target? || suse_target?
-      # Ship a different upstart job definition on RHEL to accommodate the old
-      # version of upstart (0.6.5) that RHEL 6 provides.
-      erb source: "upstart_redhat.conf.erb",
-          dest: "/etc/init/datadog-agent.conf",
-          mode: 0644,
-          vars: { install_dir: install_dir, etc_dir: etc_dir }
-    end
+    erb source: "upstart_debian.conf.erb",
+        dest: "/etc/init/datadog-agent.conf",
+        mode: 0644,
+        vars: { install_dir: install_dir, etc_dir: etc_dir }
+    # Ship a different upstart job definition on RHEL to accommodate the old
+    # version of upstart (0.6.5) that RHEL 6 provides.
+    erb source: "upstart_redhat.conf.erb",
+        dest: "/etc/init/datadog-agent.conf",
+        mode: 0644,
+        vars: { install_dir: install_dir, etc_dir: etc_dir }
 
     # Systemd
-    if debian_target?
-      erb source: "systemd.service.erb",
-          dest: "/lib/systemd/system/datadog-agent.service",
-          mode: 0644,
-          vars: { install_dir: install_dir, etc_dir: etc_dir }
-    else
-      mkdir "/usr/lib/systemd/system/"
-      erb source: "systemd.service.erb",
-          dest: "/usr/lib/systemd/system/datadog-agent.service",
-          mode: 0644,
-          vars: { install_dir: install_dir, etc_dir: etc_dir }
-    end
+    erb source: "systemd.service.erb",
+        dest: "/lib/systemd/system/datadog-agent.service",
+        mode: 0644,
+        vars: { install_dir: install_dir, etc_dir: etc_dir }
+    mkdir "/usr/lib/systemd/system/"
+    erb source: "systemd.service.erb",
+        dest: "/usr/lib/systemd/system/datadog-agent.service",
+        mode: 0644,
+        vars: { install_dir: install_dir, etc_dir: etc_dir }
 
   end
   if windows_target?

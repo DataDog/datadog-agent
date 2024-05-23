@@ -53,6 +53,30 @@ else
   end
 end
 
+if ENV["OMNIBUS_PACKAGE_ARTIFACT_DIR"]
+  dependency "package-artifact"
+  generate_distro_package = true
+else
+  # ------------------------------------
+  # Dependencies
+  # ------------------------------------
+
+  # creates required build directories
+  dependency 'preparation'
+
+  # Datadog agent
+  dependency 'datadog-iot-agent'
+
+  if windows_target?
+    dependency 'datadog-agent-finalize'
+  end
+
+  # version manifest file
+  dependency 'version-manifest'
+
+  generate_distro_package = false
+end
+
 if ENV.has_key?("OMNIBUS_WORKERS_OVERRIDE")
   COMPRESSION_THREADS = ENV["OMNIBUS_WORKERS_OVERRIDE"].to_i
 else
@@ -90,6 +114,7 @@ description 'Datadog IoT Agent
 
 # .deb specific flags
 package :deb do
+  skip_packager !generate_distro_package
   vendor 'Datadog <package@datadoghq.com>'
   epoch 1
   license 'Apache License Version 2.0'
@@ -108,6 +133,7 @@ end
 
 # .rpm specific flags
 package :rpm do
+  skip_packager !generate_distro_package
   vendor 'Datadog <package@datadoghq.com>'
   epoch 1
   dist_tag ''
@@ -137,9 +163,10 @@ if linux_target?
   end
 
   # Systemd
-  if debian_target?
+  if debian_target? || !generate_distro_package
     extra_package_file '/lib/systemd/system/datadog-agent.service'
-  else
+  end
+  if redhat_target? || suse_target? || !generate_distro_package
     extra_package_file '/usr/lib/systemd/system/datadog-agent.service'
   end
 
@@ -157,7 +184,9 @@ package :zip do
 end
 
 package :xz do
-  skip_packager true
+  skip_packager generate_distro_package
+  compression_threads COMPRESSION_THREADS
+  compression_level COMPRESSION_LEVEL
 end
 
 package :msi do
@@ -201,25 +230,12 @@ package :msi do
   })
 end
 
-# ------------------------------------
-# Dependencies
-# ------------------------------------
-
-# creates required build directories
-dependency 'preparation'
-
-# Datadog agent
-dependency 'datadog-iot-agent'
-
-if windows_target?
-  dependency 'datadog-agent-finalize'
-end
-
-# version manifest file
-dependency 'version-manifest'
-
 # package scripts
 if linux_target?
+  if !generate_distro_package
+    extra_package_file "#{Omnibus::Config.project_root}/package-scripts/iot-agent-deb"
+    extra_package_file "#{Omnibus::Config.project_root}/package-scripts/iot-agent-rpm"
+  end
   if debian_target?
     package_scripts_path "#{Omnibus::Config.project_root}/package-scripts/iot-agent-deb"
   else
