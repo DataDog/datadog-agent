@@ -52,7 +52,7 @@ func (s *packageInstallerSuite) TestInstall() {
 }
 
 func (s *packageInstallerSuite) TestInstallWithRemoteUpdates() {
-	s.RunInstallScript("DD_NO_AGENT_INSTALL=true DD_REMOTE_UPDATES=true")
+	s.RunInstallScript("DD_REMOTE_UPDATES=true")
 	defer s.Purge()
 	s.host.WaitForUnitActive("datadog-installer.service")
 
