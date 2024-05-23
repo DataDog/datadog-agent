@@ -70,9 +70,7 @@ var defaultPeerTags = func() []string {
 	if len(keys) > 0 {
 		for _, key := range keys {
 			value := strings.Split(key.Value(), ",")
-			for _, tag := range value {
-				tags = append(tags, tag)
-			}
+			tags = append(tags, value...)
 		}
 	}
 
