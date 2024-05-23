@@ -250,25 +250,6 @@ dependency 'datadog-agent-finalize'
 dependency 'datadog-cf-finalize'
 
 if linux_target?
-  extra_package_file '/etc/init/datadog-agent.conf'
-  extra_package_file '/etc/init/datadog-agent-process.conf'
-  extra_package_file '/etc/init/datadog-agent-sysprobe.conf'
-  extra_package_file '/etc/init/datadog-agent-trace.conf'
-  extra_package_file '/etc/init/datadog-agent-security.conf'
-  systemd_directory = "/usr/lib/systemd/system"
-  if debian_target?
-    systemd_directory = "/lib/systemd/system"
-
-    extra_package_file "/etc/init.d/datadog-agent"
-    extra_package_file "/etc/init.d/datadog-agent-process"
-    extra_package_file "/etc/init.d/datadog-agent-trace"
-    extra_package_file "/etc/init.d/datadog-agent-security"
-  end
-  extra_package_file "#{systemd_directory}/datadog-agent.service"
-  extra_package_file "#{systemd_directory}/datadog-agent-process.service"
-  extra_package_file "#{systemd_directory}/datadog-agent-sysprobe.service"
-  extra_package_file "#{systemd_directory}/datadog-agent-trace.service"
-  extra_package_file "#{systemd_directory}/datadog-agent-security.service"
   extra_package_file '/etc/datadog-agent/'
   extra_package_file '/usr/bin/dd-agent'
   extra_package_file '/var/log/datadog/'
