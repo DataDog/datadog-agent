@@ -557,6 +557,9 @@ func (p *EBPFLessProbe) HandleActions(ctx *eval.Context, rule *rules.Rule) {
 			p.processKiller.KillAndReport(action.Kill.Scope, action.Kill.Signal, ev, func(pid uint32, sig uint32) error {
 				return p.processKiller.KillFromUserspace(pid, sig, ev)
 			})
+		case action.Hash != nil:
+			// force the resolution as it will force the hash resolution as well
+			ev.ResolveFields()
 		}
 	}
 }

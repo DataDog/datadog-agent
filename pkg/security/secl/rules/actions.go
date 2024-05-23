@@ -29,6 +29,7 @@ type ActionDefinition struct {
 	Set      *SetDefinition      `yaml:"set"`
 	Kill     *KillDefinition     `yaml:"kill"`
 	CoreDump *CoreDumpDefinition `yaml:"coredump"`
+	Hash     *HashDefinition     `yaml:"hash"`
 
 	// internal
 	InternalCallback *InternalCallbackDefinition
@@ -129,3 +130,6 @@ type CoreDumpDefinition struct {
 	Dentry        bool `yaml:"dentry"`
 	NoCompression bool `yaml:"no_compression"`
 }
+
+// HashDefinition describes the 'hash' section of a rule action
+type HashDefinition struct{}
