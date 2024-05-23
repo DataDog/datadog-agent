@@ -120,7 +120,7 @@ k8s-e2e-otlp-main:
     E2E_COMMIT_SHA: $CI_COMMIT_SHORT_SHA
     E2E_OUTPUT_DIR: $CI_PROJECT_DIR/e2e-output
   script:
-    - inv -e new-e2e-tests.run --targets $TARGETS -c ddagent:imagePullRegistry=669783387624.dkr.ecr.us-east-1.amazonaws.com -c ddagent:imagePullUsername=AWS -c ddagent:imagePullPassword=$(aws ecr get-login-password) --junit-tar junit-${CI_JOB_ID}.tgz ${EXTRA_PARAMS} --test-washer
+    - inv -e new-e2e-tests.run --targets $TARGETS -c ddagent:imagePullRegistry=669783387624.dkr.ecr.us-east-1.amazonaws.com -c ddagent:imagePullUsername=AWS -c ddagent:imagePullPassword=$(aws ecr get-login-password) --junit-tar junit-${CI_JOB_ID}.tgz ${EXTRA_PARAMS} --test-washer --use-prebuilt-binaries
   after_script:
     - $CI_PROJECT_DIR/tools/ci/junit_upload.sh
   artifacts:
@@ -140,12 +140,14 @@ k8s-e2e-otlp-main:
 .new_e2e_template_needs_deb_windows_x64:
   extends: .new_e2e_template
   needs:
+    - build_e2e_test_binary
     - deploy_deb_testing-a7_x64
     - deploy_windows_testing-a7
 
 .new_e2e_template_needs_container_deploy:
   extends: .new_e2e_template
   needs:
+    - build_e2e_test_binary
     - qa_agent
     - qa_dca
     - qa_dogstatsd
@@ -219,6 +221,7 @@ new-e2e-npm-packages:
   extends: .new_e2e_template
   rules: !reference [.on_npm_or_e2e_changes_or_manual]
   needs:
+    - build_e2e_test_binary
     - deploy_deb_testing-a7_x64
     - deploy_rpm_testing-a7_x64
     - deploy_windows_testing-a7
@@ -231,6 +234,7 @@ new-e2e-npm-docker:
   extends: .new_e2e_template
   rules: !reference [.on_npm_or_e2e_changes_or_manual]
   needs:
+    - build_e2e_test_binary
     - qa_agent
   variables:
     TARGETS: ./tests/npm
@@ -248,6 +252,7 @@ new-e2e-cws:
   extends: .new_e2e_template
   rules: !reference [.on_cws_or_e2e_changes_or_manual]
   needs:
+    - build_e2e_test_binary
     - deploy_deb_testing-a7_x64
     - qa_cws_instrumentation
     - qa_agent
@@ -283,6 +288,7 @@ new-e2e-apm:
   extends: .new_e2e_template
   rules: !reference [.on_apm_or_e2e_changes_or_manual]
   needs:
+    - build_e2e_test_binary
     - qa_agent
     - deploy_deb_testing-a7_x64
   variables:
@@ -300,6 +306,7 @@ new-e2e-installer:
   rules:
     !reference [.on_installer_or_e2e_changes_or_manual]
   needs:
+    - build_e2e_test_binary
     - deploy_deb_testing-i7_arm64
     - deploy_deb_testing-i7_amd64
     - deploy_rpm_testing-i7_arm64
@@ -316,6 +323,7 @@ new-e2e-ndm-netflow:
   extends: .new_e2e_template
   rules: !reference [.on_ndm_netflow_or_e2e_changes_or_manual]
   needs:
+    - build_e2e_test_binary
     - qa_agent
   variables:
     TARGETS: ./tests/ndm/netflow
