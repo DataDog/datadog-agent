@@ -259,3 +259,26 @@ iot_agent_suse-x64:
   cache:
     - !reference [.cache_omnibus_ruby_deps, cache]
 
+dogstatsd_rpm-x64:
+  extends: .package_rpm_common
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  tags: ["arch:amd64"]
+  needs: ["dogstatsd-x64"]
+  variables:
+    PACKAGE_ARCH: x86_64
+    DD_PKG_ARCH: "x86_64"
+    DD_PROJECT: dogstatsd
+    RELEASE_VERSION: $RELEASE_VERSION_7
+    AGENT_MAJOR_VERSION: 7
+
+dogstatsd_suse-x64:
+  extends: .package_suse_rpm_common
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  tags: ["arch:amd64"]
+  needs: ["dogstatsd-x64"]
+  variables:
+    PACKAGE_ARCH: x86_64
+    DD_PKG_ARCH: "x86_64"
+    DD_PROJECT: dogstatsd
+    RELEASE_VERSION: $RELEASE_VERSION_7
+    AGENT_MAJOR_VERSION: 7
