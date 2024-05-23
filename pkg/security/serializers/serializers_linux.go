@@ -71,6 +71,12 @@ type FileSerializer struct {
 	Hashes []string `json:"hashes,omitempty"`
 	// State of the hashes or reason why they weren't computed
 	HashState string `json:"hash_state,omitempty"`
+	// MountPath path of the mount
+	MountPath string `json:"mount_path,omitempty"`
+	// MountSource source of the mount
+	MountSource string `json:"mount_source,omitempty"`
+	// MountOrigin origin of the mount
+	MountOrigin string `json:"mount_origin,omitempty"`
 }
 
 // UserContextSerializer serializes a user context to JSON
@@ -240,6 +246,8 @@ type ProcessSerializer struct {
 	IsExecExec bool `json:"is_exec_child,omitempty"`
 	// Process source
 	Source string `json:"source,omitempty"`
+	// List of syscalls captured to generate the event
+	Syscalls *SyscallsEventSerializer `json:"syscalls,omitempty"`
 }
 
 // FileEventSerializer serializes a file event to JSON
@@ -455,11 +463,16 @@ type SecurityProfileContextSerializer struct {
 	EventInProfile bool `json:"event_in_profile"`
 }
 
-// AnomalyDetectionSyscallEventSerializer serializes an anomaly detection for a syscall event
-type AnomalyDetectionSyscallEventSerializer struct {
-	// Name of the syscall that triggered the anomaly detection event
-	Syscall string `json:"syscall"`
+// SyscallSerializer serializes a syscall
+type SyscallSerializer struct {
+	// Name of the syscall
+	Name string `json:"name"`
+	// ID of the syscall in the host architecture
+	ID int `json:"id"`
 }
+
+// SyscallsEventSerializer serializes the syscalls from a syscalls event
+type SyscallsEventSerializer []SyscallSerializer
 
 // EventSerializer serializes an event to JSON
 // easyjson:json
@@ -470,25 +483,30 @@ type EventSerializer struct {
 	*DDContextSerializer              `json:"dd,omitempty"`
 	*SecurityProfileContextSerializer `json:"security_profile,omitempty"`
 
-	*SELinuxEventSerializer                 `json:"selinux,omitempty"`
-	*BPFEventSerializer                     `json:"bpf,omitempty"`
-	*MMapEventSerializer                    `json:"mmap,omitempty"`
-	*MProtectEventSerializer                `json:"mprotect,omitempty"`
-	*PTraceEventSerializer                  `json:"ptrace,omitempty"`
-	*ModuleEventSerializer                  `json:"module,omitempty"`
-	*SignalEventSerializer                  `json:"signal,omitempty"`
-	*SpliceEventSerializer                  `json:"splice,omitempty"`
-	*DNSEventSerializer                     `json:"dns,omitempty"`
-	*BindEventSerializer                    `json:"bind,omitempty"`
-	*MountEventSerializer                   `json:"mount,omitempty"`
-	*AnomalyDetectionSyscallEventSerializer `json:"anomaly_detection_syscall,omitempty"`
-	*UserContextSerializer                  `json:"usr,omitempty"`
+	*SELinuxEventSerializer  `json:"selinux,omitempty"`
+	*BPFEventSerializer      `json:"bpf,omitempty"`
+	*MMapEventSerializer     `json:"mmap,omitempty"`
+	*MProtectEventSerializer `json:"mprotect,omitempty"`
+	*PTraceEventSerializer   `json:"ptrace,omitempty"`
+	*ModuleEventSerializer   `json:"module,omitempty"`
+	*SignalEventSerializer   `json:"signal,omitempty"`
+	*SpliceEventSerializer   `json:"splice,omitempty"`
+	*DNSEventSerializer      `json:"dns,omitempty"`
+	*BindEventSerializer     `json:"bind,omitempty"`
+	*MountEventSerializer    `json:"mount,omitempty"`
+	*SyscallsEventSerializer `json:"syscalls,omitempty"`
+	*UserContextSerializer   `json:"usr,omitempty"`
 }
 
-func newAnomalyDetectionSyscallEventSerializer(e *model.AnomalyDetectionSyscallEvent) *AnomalyDetectionSyscallEventSerializer {
-	return &AnomalyDetectionSyscallEventSerializer{
-		Syscall: e.SyscallID.String(),
+func newSyscallsEventSerializer(e *model.SyscallsEvent) *SyscallsEventSerializer {
+	ses := SyscallsEventSerializer{}
+	for _, s := range e.Syscalls {
+		ses = append(ses, SyscallSerializer{
+			ID:   int(s),
+			Name: s.String(),
+		})
 	}
+	return &ses
 }
 
 func getInUpperLayer(f *model.FileFields) *bool {
@@ -525,6 +543,9 @@ func newFileSerializer(fe *model.FileEvent, e *model.Event, forceInode ...uint64
 		PackageName:         e.FieldHandlers.ResolvePackageName(e, fe),
 		PackageVersion:      e.FieldHandlers.ResolvePackageVersion(e, fe),
 		HashState:           fe.HashState.String(),
+		MountPath:           fe.MountPath,
+		MountSource:         model.MountSourceToString(fe.MountSource),
+		MountOrigin:         model.MountOriginToString(fe.MountOrigin),
 	}
 
 	// lazy hash serialization: we don't want to hash files for every event
@@ -838,6 +859,11 @@ func newProcessContextSerializer(pc *model.ProcessContext, e *model.Event) *Proc
 
 	ps := ProcessContextSerializer{
 		ProcessSerializer: newProcessSerializer(&pc.Process, e),
+	}
+
+	// add the syscalls from the event only for the top level parent
+	if e.GetEventType() == model.SyscallsEventType {
+		ps.Syscalls = newSyscallsEventSerializer(&e.Syscalls)
 	}
 
 	ctx := eval.NewContext(e)
@@ -1156,8 +1182,8 @@ func NewEventSerializer(event *model.Event, opts *eval.Opts) *EventSerializer {
 	case model.BindEventType:
 		s.EventContextSerializer.Outcome = serializeOutcome(event.Bind.Retval)
 		s.BindEventSerializer = newBindEventSerializer(event)
-	case model.AnomalyDetectionSyscallEventType:
-		s.AnomalyDetectionSyscallEventSerializer = newAnomalyDetectionSyscallEventSerializer(&event.AnomalyDetectionSyscallEvent)
+	case model.SyscallsEventType:
+		s.SyscallsEventSerializer = newSyscallsEventSerializer(&event.Syscalls)
 	case model.DNSEventType:
 		s.EventContextSerializer.Outcome = serializeOutcome(0)
 		s.DNSEventSerializer = newDNSEventSerializer(&event.DNS)

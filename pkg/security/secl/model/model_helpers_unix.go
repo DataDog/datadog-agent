@@ -238,6 +238,52 @@ func (e *FileEvent) IsOverlayFS() bool {
 	return e.Filesystem == "overlay"
 }
 
+// MountOrigin origin of the mount
+type MountOrigin = uint32
+
+const (
+	MountOriginUnknown MountOrigin = iota // MountOriginUnknown unknown mount origin
+	MountOriginProcfs                     //MountOriginProcfs mount point info from procfs
+	MountOriginEvent                      // MountOriginEvent mount point info from an event
+	MountOriginUnshare                    // MountOriginUnshare mount point info from an event
+)
+
+// MountSource source of the mount
+type MountSource = uint32
+
+const (
+	MountSourceUnknown  MountSource = iota // MountSourceUnknown mount resolved from unknow source
+	MountSourceMountID                     // MountSourceMountID mount resolved with the mount id
+	MountSourceDevice                      // MountSourceDevice mount resolved with the device
+	MountSourceSnapshot                    // MountSourceSnapshot mount resolved from the snapshot
+)
+
+// MountSources defines mount sources
+var MountSources = [...]string{
+	"unknown",
+	"mount_id",
+	"device",
+	"snapshot",
+}
+
+// MountSourceToString returns the string corresponding to a mount source
+func MountSourceToString(source MountSource) string {
+	return MountSources[source]
+}
+
+// MountOrigins defines mount origins
+var MountOrigins = [...]string{
+	"unknown",
+	"procfs",
+	"event",
+	"unshare",
+}
+
+// MountOriginToString returns the string corresponding to a mount origin
+func MountOriginToString(origin MountOrigin) string {
+	return MountOrigins[origin]
+}
+
 // GetFSType returns the filesystem type of the mountpoint
 func (m *Mount) GetFSType() string {
 	return m.FSType

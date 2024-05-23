@@ -600,7 +600,7 @@ def prepare(
         stack = check_and_get_stack(stack)
         assert stacks.stack_exists(
             stack
-        ), f"Stack {stack} does not exist. Please create with 'inv kmt.stack-create --stack=<name>'"
+        ), f"Stack {stack} does not exist. Please create with 'inv kmt.create-stack --stack=<name>'"
     else:
         stack = "ci"
 
@@ -914,7 +914,7 @@ def test(
     stack = check_and_get_stack(stack)
     assert stacks.stack_exists(
         stack
-    ), f"Stack {stack} does not exist. Please create with 'inv kmt.stack-create --stack=<name>'"
+    ), f"Stack {stack} does not exist. Please create with 'inv kmt.create-stack --stack=<name>'"
 
     if vms is None:
         vms = ",".join(stacks.get_all_vms_in_stack(stack))
@@ -1014,7 +1014,7 @@ def build(
     stack = check_and_get_stack(stack)
     assert stacks.stack_exists(
         stack
-    ), f"Stack {stack} does not exist. Please create with 'inv kmt.stack-create --stack=<name>'"
+    ), f"Stack {stack} does not exist. Please create with 'inv kmt.create-stack --stack=<name>'"
 
     if arch is None:
         arch = "local"

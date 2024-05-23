@@ -55,20 +55,6 @@ CSM Threats logs have the following JSON schema:
                 "rule_id"
             ]
         },
-        "AnomalyDetectionSyscallEvent": {
-            "properties": {
-                "syscall": {
-                    "type": "string",
-                    "description": "Name of the syscall that triggered the anomaly detection event"
-                }
-            },
-            "additionalProperties": false,
-            "type": "object",
-            "required": [
-                "syscall"
-            ],
-            "description": "AnomalyDetectionSyscallEventSerializer serializes an anomaly detection for a syscall event"
-        },
         "BPFEvent": {
             "properties": {
                 "cmd": {
@@ -389,6 +375,18 @@ CSM Threats logs have the following JSON schema:
                 "hash_state": {
                     "type": "string",
                     "description": "State of the hashes or reason why they weren't computed"
+                },
+                "mount_path": {
+                    "type": "string",
+                    "description": "MountPath path of the mount"
+                },
+                "mount_source": {
+                    "type": "string",
+                    "description": "MountSource source of the mount"
+                },
+                "mount_origin": {
+                    "type": "string",
+                    "description": "MountOrigin origin of the mount"
                 }
             },
             "additionalProperties": false,
@@ -497,6 +495,18 @@ CSM Threats logs have the following JSON schema:
                 "hash_state": {
                     "type": "string",
                     "description": "State of the hashes or reason why they weren't computed"
+                },
+                "mount_path": {
+                    "type": "string",
+                    "description": "MountPath path of the mount"
+                },
+                "mount_source": {
+                    "type": "string",
+                    "description": "MountSource source of the mount"
+                },
+                "mount_origin": {
+                    "type": "string",
+                    "description": "MountOrigin origin of the mount"
                 },
                 "destination": {
                     "$ref": "#/$defs/File",
@@ -946,6 +956,10 @@ CSM Threats logs have the following JSON schema:
                 "source": {
                     "type": "string",
                     "description": "Process source"
+                },
+                "syscalls": {
+                    "$ref": "#/$defs/SyscallsEvent",
+                    "description": "List of syscalls captured to generate the event"
                 }
             },
             "additionalProperties": false,
@@ -1074,6 +1088,10 @@ CSM Threats logs have the following JSON schema:
                 "source": {
                     "type": "string",
                     "description": "Process source"
+                },
+                "syscalls": {
+                    "$ref": "#/$defs/SyscallsEvent",
+                    "description": "List of syscalls captured to generate the event"
                 },
                 "parent": {
                     "$ref": "#/$defs/Process",
@@ -1311,6 +1329,32 @@ CSM Threats logs have the following JSON schema:
             ],
             "description": "SpliceEventSerializer serializes a splice event to JSON"
         },
+        "Syscall": {
+            "properties": {
+                "name": {
+                    "type": "string",
+                    "description": "Name of the syscall"
+                },
+                "id": {
+                    "type": "integer",
+                    "description": "ID of the syscall in the host architecture"
+                }
+            },
+            "additionalProperties": false,
+            "type": "object",
+            "required": [
+                "name",
+                "id"
+            ],
+            "description": "SyscallSerializer serializes a syscall"
+        },
+        "SyscallsEvent": {
+            "items": {
+                "$ref": "#/$defs/Syscall"
+            },
+            "type": "array",
+            "description": "SyscallsEventSerializer serializes the syscalls from a syscalls event"
+        },
         "UserContext": {
             "properties": {
                 "id": {
@@ -1439,8 +1483,8 @@ CSM Threats logs have the following JSON schema:
         "mount": {
             "$ref": "#/$defs/MountEvent"
         },
-        "anomaly_detection_syscall": {
-            "$ref": "#/$defs/AnomalyDetectionSyscallEvent"
+        "syscalls": {
+            "$ref": "#/$defs/SyscallsEvent"
         },
         "usr": {
             "$ref": "#/$defs/UserContext"
@@ -1480,7 +1524,7 @@ CSM Threats logs have the following JSON schema:
 | `dns` | $ref | Please see [DNSEvent](#dnsevent) |
 | `bind` | $ref | Please see [BindEvent](#bindevent) |
 | `mount` | $ref | Please see [MountEvent](#mountevent) |
-| `anomaly_detection_syscall` | $ref | Please see [AnomalyDetectionSyscallEvent](#anomalydetectionsyscallevent) |
+| `syscalls` | $ref | Please see [SyscallsEvent](#syscallsevent) |
 | `usr` | $ref | Please see [UserContext](#usercontext) |
 
 ## `AgentContext`
@@ -1527,32 +1571,6 @@ CSM Threats logs have the following JSON schema:
 
 {{< /code-block >}}
 
-
-
-## `AnomalyDetectionSyscallEvent`
-
-
-{{< code-block lang="json" collapsible="true" >}}
-{
-    "properties": {
-        "syscall": {
-            "type": "string",
-            "description": "Name of the syscall that triggered the anomaly detection event"
-        }
-    },
-    "additionalProperties": false,
-    "type": "object",
-    "required": [
-        "syscall"
-    ],
-    "description": "AnomalyDetectionSyscallEventSerializer serializes an anomaly detection for a syscall event"
-}
-
-{{< /code-block >}}
-
-| Field | Description |
-| ----- | ----------- |
-| `syscall` | Name of the syscall that triggered the anomaly detection event |
 
 
 ## `BPFEvent`
@@ -2036,6 +2054,18 @@ CSM Threats logs have the following JSON schema:
         "hash_state": {
             "type": "string",
             "description": "State of the hashes or reason why they weren't computed"
+        },
+        "mount_path": {
+            "type": "string",
+            "description": "MountPath path of the mount"
+        },
+        "mount_source": {
+            "type": "string",
+            "description": "MountSource source of the mount"
+        },
+        "mount_origin": {
+            "type": "string",
+            "description": "MountOrigin origin of the mount"
         }
     },
     "additionalProperties": false,
@@ -2073,6 +2103,9 @@ CSM Threats logs have the following JSON schema:
 | `package_version` | System package version |
 | `hashes` | List of cryptographic hashes of the file |
 | `hash_state` | State of the hashes or reason why they weren't computed |
+| `mount_path` | MountPath path of the mount |
+| `mount_source` | MountSource source of the mount |
+| `mount_origin` | MountOrigin origin of the mount |
 
 
 ## `FileEvent`
@@ -2178,6 +2211,18 @@ CSM Threats logs have the following JSON schema:
             "type": "string",
             "description": "State of the hashes or reason why they weren't computed"
         },
+        "mount_path": {
+            "type": "string",
+            "description": "MountPath path of the mount"
+        },
+        "mount_source": {
+            "type": "string",
+            "description": "MountSource source of the mount"
+        },
+        "mount_origin": {
+            "type": "string",
+            "description": "MountOrigin origin of the mount"
+        },
         "destination": {
             "$ref": "#/$defs/File",
             "description": "Target file information"
@@ -2230,6 +2275,9 @@ CSM Threats logs have the following JSON schema:
 | `package_version` | System package version |
 | `hashes` | List of cryptographic hashes of the file |
 | `hash_state` | State of the hashes or reason why they weren't computed |
+| `mount_path` | MountPath path of the mount |
+| `mount_source` | MountSource source of the mount |
+| `mount_origin` | MountOrigin origin of the mount |
 | `destination` | Target file information |
 | `new_mount_id` | New Mount ID |
 | `device` | Device associated with the file |
@@ -2832,6 +2880,10 @@ CSM Threats logs have the following JSON schema:
         "source": {
             "type": "string",
             "description": "Process source"
+        },
+        "syscalls": {
+            "$ref": "#/$defs/SyscallsEvent",
+            "description": "List of syscalls captured to generate the event"
         }
     },
     "additionalProperties": false,
@@ -2874,6 +2926,7 @@ CSM Threats logs have the following JSON schema:
 | `is_kworker` | Indicates whether the process is a kworker |
 | `is_exec_child` | Indicates whether the process is an exec following another exec |
 | `source` | Process source |
+| `syscalls` | List of syscalls captured to generate the event |
 
 | References |
 | ---------- |
@@ -2882,6 +2935,7 @@ CSM Threats logs have the following JSON schema:
 | [File](#file) |
 | [File](#file) |
 | [ContainerContext](#containercontext) |
+| [SyscallsEvent](#syscallsevent) |
 
 ## `ProcessContext`
 
@@ -3006,6 +3060,10 @@ CSM Threats logs have the following JSON schema:
             "type": "string",
             "description": "Process source"
         },
+        "syscalls": {
+            "$ref": "#/$defs/SyscallsEvent",
+            "description": "List of syscalls captured to generate the event"
+        },
         "parent": {
             "$ref": "#/$defs/Process",
             "description": "Parent process"
@@ -3062,6 +3120,7 @@ CSM Threats logs have the following JSON schema:
 | `is_kworker` | Indicates whether the process is a kworker |
 | `is_exec_child` | Indicates whether the process is an exec following another exec |
 | `source` | Process source |
+| `syscalls` | List of syscalls captured to generate the event |
 | `parent` | Parent process |
 | `ancestors` | Ancestor processes |
 | `variables` | Variables values |
@@ -3073,6 +3132,7 @@ CSM Threats logs have the following JSON schema:
 | [File](#file) |
 | [File](#file) |
 | [ContainerContext](#containercontext) |
+| [SyscallsEvent](#syscallsevent) |
 | [Process](#process) |
 | [Variables](#variables) |
 
@@ -3413,6 +3473,54 @@ CSM Threats logs have the following JSON schema:
 | ----- | ----------- |
 | `pipe_entry_flag` | Entry flag of the fd_out pipe passed to the splice syscall |
 | `pipe_exit_flag` | Exit flag of the fd_out pipe passed to the splice syscall |
+
+
+## `Syscall`
+
+
+{{< code-block lang="json" collapsible="true" >}}
+{
+    "properties": {
+        "name": {
+            "type": "string",
+            "description": "Name of the syscall"
+        },
+        "id": {
+            "type": "integer",
+            "description": "ID of the syscall in the host architecture"
+        }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+        "name",
+        "id"
+    ],
+    "description": "SyscallSerializer serializes a syscall"
+}
+
+{{< /code-block >}}
+
+| Field | Description |
+| ----- | ----------- |
+| `name` | Name of the syscall |
+| `id` | ID of the syscall in the host architecture |
+
+
+## `SyscallsEvent`
+
+
+{{< code-block lang="json" collapsible="true" >}}
+{
+    "items": {
+        "$ref": "#/$defs/Syscall"
+    },
+    "type": "array",
+    "description": "SyscallsEventSerializer serializes the syscalls from a syscalls event"
+}
+
+{{< /code-block >}}
+
 
 
 ## `UserContext`

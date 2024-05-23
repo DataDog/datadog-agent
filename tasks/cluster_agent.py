@@ -132,7 +132,7 @@ def image_build(ctx, arch=None, tag=AGENT_TAG, push=False):
         arch = CONTAINER_PLATFORM_MAPPING.get(platform.machine().lower())
 
     if arch is None:
-        print("Unable to determine architecture to build, please set `arch` parameter")
+        print("Unable to determine architecture to build, please set `arch`", file=sys.stderr)
         raise Exit(code=1)
 
     dca_binary = glob.glob(os.path.join(BIN_PATH, "datadog-cluster-agent"))
@@ -187,9 +187,17 @@ def hacky_dev_image_build(
     target_image="cluster-agent",
     push=False,
     signed_pull=False,
+    arch=None,
 ):
     os.environ["DELVE"] = "1"
     build(ctx)
+
+    if arch is None:
+        arch = CONTAINER_PLATFORM_MAPPING.get(platform.machine().lower())
+
+    if arch is None:
+        print("Unable to determine architecture to build, please set `arch`", file=sys.stderr)
+        raise Exit(code=1)
 
     if base_image is None:
         import requests
@@ -243,7 +251,7 @@ ENV DD_SSLKEYLOGFILE=/tmp/sslkeylog.txt
         pull_env = {}
         if signed_pull:
             pull_env['DOCKER_CONTENT_TRUST'] = '1'
-        ctx.run(f'docker build -t {target_image} -f {dockerfile.name} .', env=pull_env)
+        ctx.run(f'docker build --platform linux/{arch} -t {target_image} -f {dockerfile.name} .', env=pull_env)
 
         if push:
             ctx.run(f'docker push {target_image}')

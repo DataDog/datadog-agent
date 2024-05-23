@@ -10,6 +10,7 @@ package postgres
 import (
 	"bytes"
 	"fmt"
+	"regexp"
 	"strings"
 
 	"github.com/DataDog/go-sqllexer"
@@ -71,14 +72,14 @@ func (e *EventWrapper) Operation() Operation {
 	return e.operation
 }
 
+var re = regexp.MustCompile(`(?i)if\s+exists`)
+
 // extractTableName extracts the table name from the query.
 func (e *EventWrapper) extractTableName() string {
 	fragment := string(e.Tx.getFragment())
-	// Check if the string contains "IF EXISTS",
-	// temp solution for the fact that ObfuscateSQLString does not support "IF EXISTS".
-	if strings.Contains(fragment, "IF EXISTS") {
-		fragment = strings.ReplaceAll(fragment, "IF EXISTS", "")
-	}
+	// Temp solution for the fact that ObfuscateSQLString does not support "IF EXISTS" or "if exists", so we remove
+	// it from the fragment if found.
+	fragment = re.ReplaceAllString(fragment, "")
 
 	// Normalize the query without obfuscating it.
 	_, statementMetadata, err := e.normalizer.Normalize(fragment, sqllexer.WithDBMS(sqllexer.DBMSPostgres))
