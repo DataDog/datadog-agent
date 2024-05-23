@@ -25,7 +25,7 @@ func execute(sshClient *ssh.Client, command string) (string, error) {
 	return string(stdout), err
 }
 
-func getSSHClient(user, host string, privateKey, privateKeyPassphrase []byte) (*ssh.Client, error) {
+func getSSHClient(user, password, host string, privateKey, privateKeyPassphrase []byte) (*ssh.Client, error) {
 	var auth ssh.AuthMethod
 
 	if len(privateKey) > 0 {
@@ -42,6 +42,8 @@ func getSSHClient(user, host string, privateKey, privateKeyPassphrase []byte) (*
 			return nil, err
 		}
 		auth = ssh.PublicKeys(privateKeyAuth)
+	} else if len(password) > 0 {
+		auth = ssh.Password(password)
 	} else {
 		// Use the ssh agent
 		conn, err := net.Dial("unix", os.Getenv("SSH_AUTH_SOCK"))

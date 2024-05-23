@@ -23,7 +23,14 @@ var _ e2e.Initializable = &FakeIntake{}
 
 // Init is called by e2e test Suite after the component is provisioned.
 func (fi *FakeIntake) Init(e2e.Context) error {
-	fi.client = client.NewClient(fi.URL)
+	var clientUrl string
+	if len(fi.ClientURL) > 0 {
+		clientUrl = fi.ClientURL
+	} else {
+		clientUrl = fi.URL
+	}
+
+	fi.client = client.NewClient(clientUrl)
 	return nil
 }
 
