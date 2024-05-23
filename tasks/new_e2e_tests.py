@@ -113,13 +113,15 @@ def run(
 
     cmd = f'gotestsum --format {gotestsum_format} '
     if use_prebuilt_binaries:
-        test_binary = f'test-binaries/{targets[0].replace("./tests/", "")}.test'
-        cmd += '{junit_file_flag} {json_flag} --raw-command -- go tool test2json {test_binary} -test.v -test.timeout {timeout} {nocache} {run} {skip} {test_run_arg} {osversion} {platform} {major_version} {arch} {flavor} {cws_supported_osversion} {src_agent_version} {dest_agent_version} {keep_stacks} {extra_flags}'
+        with ctx.cd("internal/tools/gotest-custom"):
+            ctx.run("go build -o ../../../test/new-e2e/gotest-custom")
+        binaries, pkg_names = get_binaries_from_targets(targets)
+        cmd += '{junit_file_flag} {json_flag} --raw-command -- ./gotest-custom -binaries {test_binary} -pkgnames {pkg_names} -extra "-test.v -test.timeout {timeout} {nocache} {run} {skip} {test_run_arg} {osversion} {platform} {major_version} {arch} {flavor} {cws_supported_osversion} {src_agent_version} {dest_agent_version} {keep_stacks} {extra_flags}"'
     else:
         cmd += '{junit_file_flag} {json_flag} --packages="{packages}" -- -ldflags="-X {REPO_PATH}/test/new-e2e/tests/containers.GitCommit={commit}" {verbose} -mod={go_mod} -vet=off -timeout {timeout} {nocache} {run} {skip} {test_run_arg} -args {osversion} {platform} {major_version} {arch} {flavor} {cws_supported_osversion} {src_agent_version} {dest_agent_version} {keep_stacks} {extra_flags}'
-
     args = {
-        "test_binary": test_binary if use_prebuilt_binaries else "",
+        "test_binary": ",".join(binaries) if use_prebuilt_binaries else "",
+        "pkg_names": ",".join(pkg_names) if use_prebuilt_binaries else "",
         "go_mod": "mod",
         "timeout": "4h",
         "verbose": '-test.v' if verbose else '',
@@ -328,5 +330,35 @@ def _is_local_state(pulumi_about: dict) -> bool:
     return url.startswith("file://")
 
 
-def compute_prebuilt_binary_cmd():
-    
+def get_binaries_from_targets(targets: list[str]):
+    binaries = []
+    pkg_names = []
+
+    # Retrieve binary names
+    for target in targets:
+        path = 'test/new-e2e/test-binaries'
+        target = target.replace('./tests/', '')
+        print(target)
+        for element in target.split('/'):
+            print(element)
+            if element in os.listdir(path):
+                if os.path.isdir(os.path.join(path, element)):
+                    path = os.path.join(path, element)
+            if element + ".test" in os.listdir(path):
+                binaries.append(os.path.join(path, element + ".test"))
+                break
+        else:
+            bins = os.listdir(path)
+            for bin in bins:
+                if bin.endswith('.test'):
+                    binaries.append(os.path.join(path, bin))
+
+    # Retrieve package names
+    for binary in binaries:
+        pkg_names.append(
+            "github.com/DataDog/datadog-agent/" + binary.replace('.test', '').replace('test-binaries', 'tests')
+        )
+
+    binaries = [binary.replace('test/new-e2e/', '') for binary in binaries]
+
+    return binaries, pkg_names
