@@ -276,8 +276,6 @@ func Test_linuxImpl(t *testing.T) {
 			},
 		},
 		{
-			// TODO: ideally we would like to emit some sort of telemetry for this case.
-			//  For now, we just test we send the correct events to EvP.
 			name: "repeated_service_name",
 			checkRun: []*checkRun{
 				{
@@ -553,8 +551,8 @@ func Test_linuxImpl(t *testing.T) {
 				check.os.(*linuxImpl).procfs = mProcFS
 				check.os.(*linuxImpl).portPoller = mPortPoller
 				check.os.(*linuxImpl).time = mTimer
-				check.os.(*linuxImpl).sender.time = mTimer
-				check.os.(*linuxImpl).sender.hostname = mHostname
+				check.sender.time = mTimer
+				check.sender.hostname = mHostname
 
 				err = check.Run()
 				require.NoError(t, err)
