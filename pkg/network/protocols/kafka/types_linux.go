@@ -24,10 +24,6 @@ type EbpfTx struct {
 	Transaction KafkaTransaction
 }
 
-type KafkaFetchResponseRecordBatchesArray struct {
-	Bytes  uint32
-	Offset uint32
-}
 type KafkaTransactionKey struct {
 	Tuple     ConnTuple
 	Id        int32
