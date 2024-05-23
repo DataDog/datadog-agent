@@ -3,7 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package internal
+// Package winregistry provides helper functions for interacting with the Windows Registry
+package winregistry
 
 import (
 	"golang.org/x/sys/windows"

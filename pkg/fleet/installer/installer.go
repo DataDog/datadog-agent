@@ -225,9 +225,15 @@ func (i *installerImpl) Purge(ctx context.Context) {
 		if pkg == packageDatadogInstaller {
 			continue
 		}
-		i.removePackage(ctx, pkg)
+		packagerErr := i.removePackage(ctx, pkg)
+		if packagerErr != nil {
+			log.Warnf("could not remove package %s: %v", pkg, packagerErr)
+		}
 	}
-	i.removePackage(ctx, packageDatadogInstaller)
+	err = i.removePackage(ctx, packageDatadogInstaller)
+	if err != nil {
+		log.Warnf("could not remove installer: %v", err)
+	}
 
 	// remove all from disk
 	span, _ := tracer.StartSpanFromContext(ctx, "remove_all")

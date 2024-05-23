@@ -11,7 +11,7 @@ package service
 import (
 	"context"
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/fleet/internal"
+	"github.com/DataDog/datadog-agent/pkg/fleet/internal/winregistry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
 	"os"
@@ -20,7 +20,7 @@ import (
 )
 
 func msiexec(target, operation string, args []string) (err error) {
-	programData, err := internal.GetProgramDataDirForProduct("Datadog Installer")
+	programData, err := winregistry.GetProgramDataDirForProduct("Datadog Installer")
 	if err != nil {
 		return nil
 	}
@@ -47,7 +47,7 @@ func msiexec(target, operation string, args []string) (err error) {
 
 // SetupAgent installs and starts the agent
 func SetupAgent(ctx context.Context, args []string) (err error) {
-	span, ctx := tracer.StartSpanFromContext(ctx, "setup_agent")
+	span, _ := tracer.StartSpanFromContext(ctx, "setup_agent")
 	defer func() {
 		if err != nil {
 			log.Errorf("Failed to setup agent: %s", err)
@@ -59,7 +59,7 @@ func SetupAgent(ctx context.Context, args []string) (err error) {
 
 // StartAgentExperiment noop
 func StartAgentExperiment(ctx context.Context) (err error) {
-	span, ctx := tracer.StartSpanFromContext(ctx, "start_experiment")
+	span, _ := tracer.StartSpanFromContext(ctx, "start_experiment")
 	defer func() {
 		if err != nil {
 			log.Errorf("Failed to start agent experiment: %s", err)
@@ -71,7 +71,7 @@ func StartAgentExperiment(ctx context.Context) (err error) {
 
 // StopAgentExperiment noop
 func StopAgentExperiment(ctx context.Context) (err error) {
-	span, ctx := tracer.StartSpanFromContext(ctx, "stop_experiment")
+	span, _ := tracer.StartSpanFromContext(ctx, "stop_experiment")
 	defer func() {
 		if err != nil {
 			log.Errorf("Failed to stop agent experiment: %s", err)
@@ -95,7 +95,7 @@ func PromoteAgentExperiment(_ context.Context) error {
 
 // RemoveAgent noop
 func RemoveAgent(ctx context.Context) (err error) {
-	span, ctx := tracer.StartSpanFromContext(ctx, "remove_agent")
+	span, _ := tracer.StartSpanFromContext(ctx, "remove_agent")
 	defer func() {
 		if err != nil {
 			log.Errorf("Failed to remove agent: %s", err)

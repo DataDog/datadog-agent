@@ -8,7 +8,7 @@
 package installer
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/fleet/internal"
+	"github.com/DataDog/datadog-agent/pkg/fleet/internal/winregistry"
 	"golang.org/x/sys/windows"
 	"path/filepath"
 )
@@ -28,7 +28,7 @@ var (
 )
 
 func init() {
-	PackagesPath, _ = internal.GetProgramDataDirForProduct("Datadog Installer")
+	PackagesPath, _ = winregistry.GetProgramDataDirForProduct("Datadog Installer")
 	TmpDirPath = PackagesPath
 	LocksPack = filepath.Join(PackagesPath, "locks")
 	DefaultConfigsDir, _ = windows.KnownFolderPath(windows.FOLDERID_ProgramData, 0)
