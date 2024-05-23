@@ -55,6 +55,10 @@ func NewClient(opts Options) (*Client, error) {
 	if err != nil {
 		return nil, err
 	}
+	err = publishCh.Confirm(false)
+	if err != nil {
+		return nil, err
+	}
 	consumeConn, err := newAMQPConnection(opts)
 	if err != nil {
 		return nil, err
