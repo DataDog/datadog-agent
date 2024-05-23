@@ -70,7 +70,7 @@ description 'Datadog Installer
  See http://www.datadoghq.com/ for more information
 '
 
-if ENV["OMNIBUS_PACKAGE_ARTIFACT"]
+if ENV["OMNIBUS_PACKAGE_ARTIFACT_DIR"]
   dependency "package-artifact"
   generate_distro_package = true
 else
@@ -159,6 +159,6 @@ if linux_target?
   # the stripper will drop the symbols in a `.debug` folder in the installdir
   # we want to make sure that directory is not in the main build, while present
   # in the debug package.
-  strip_build true
+  strip_build !generate_distro_package
   debug_path ".debug"  # the strip symbols will be in here
 end

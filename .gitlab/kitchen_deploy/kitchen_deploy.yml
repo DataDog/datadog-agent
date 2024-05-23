@@ -285,6 +285,8 @@ deploy_suse_rpm_testing-i7_arm64:
   extends:
     - .deploy_rpm_testing-i7
   needs: ["installer_suse_rpm-arm64", "lint_linux-arm64"]
+  variables:
+    OMNIBUS_PACKAGE_DIR: $OMNIBUS_PACKAGE_DIR_SUSE
   script:
     - *setup_rpm_signing_key
     - set +x # make sure we don't output the creds to the build log
@@ -294,6 +296,8 @@ deploy_suse_rpm_testing-i7_x64:
   extends:
     - .deploy_rpm_testing-i7
   needs: ["installer_suse_rpm-amd64", "lint_linux-x64"]
+  variables:
+    OMNIBUS_PACKAGE_DIR: $OMNIBUS_PACKAGE_DIR_SUSE
   script:
     - *setup_rpm_signing_key
     - set +x # make sure we don't output the creds to the build log

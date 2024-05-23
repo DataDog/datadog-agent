@@ -105,3 +105,9 @@
   script:
     - $S3_CP_CMD --recursive --exclude "*" --include "*-7.*${PACKAGE_ARCH}.rpm" "$OMNIBUS_PACKAGE_DIR" "${S3_RELEASE_INSTALLER_ARTIFACTS_URI}/${ARTIFACTS_PREFIX}rpm/${PACKAGE_ARCH}/"
 
+.deploy_installer_suse_rpm:
+  extends: .deploy_installer_rpm
+  variables:
+    ARTIFACTS_PREFIX: suse_
+    OMNIBUS_PACKAGE_DIR: $OMNIBUS_PACKAGE_DIR_SUSE
+
