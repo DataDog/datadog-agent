@@ -205,6 +205,7 @@ def test_flavor(
             with CodecovWorkaround(ctx, module_path, coverage, packages, args) as cov_test_path:
                 formatted_command = cmd.format(packages=packages, cov_test_path=cov_test_path, **args)
                 cleaned_command = " ".join([x for x in formatted_command.split(" ") if x != ""])
+                print(cleaned_command)
                 res = ctx.run(
                     command=cleaned_command,
                     env=env,

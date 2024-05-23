@@ -37,7 +37,9 @@ def build_test_binaries(ctx, excluded_tests=None):
     for team_tests in os.listdir("test/new-e2e/tests"):
         if team_tests not in excluded_tests and os.path.isdir(f"test/new-e2e/tests/{team_tests}"):
             with ctx.cd(f"test/new-e2e/tests/{team_tests}"):
-                ctx.run(f"go test -c -o {current_dir}/{test_binaries_folder}/{team_tests}/ ./...")
+                ctx.run(
+                    f'go test -c -o {current_dir}/{test_binaries_folder}/{team_tests}/ -ldflags="-X {REPO_PATH}/test/new-e2e/tests/containers.GitCommit={get_git_commit()}" ./...'
+                )
 
 
 @task(
@@ -116,7 +118,8 @@ def run(
         with ctx.cd("internal/tools/gotest-custom"):
             ctx.run("go build -o ../../../test/new-e2e/gotest-custom")
         binaries, pkg_names = get_binaries_from_targets(targets)
-        cmd += '{junit_file_flag} {json_flag} --raw-command -- ./gotest-custom -binaries {test_binary} -pkgnames {pkg_names} -extra "-test.timeout {timeout} {nocache} {run} {skip} {test_run_arg} {osversion} {platform} {major_version} {arch} {flavor} {cws_supported_osversion} {src_agent_version} {dest_agent_version} {keep_stacks} {extra_flags}"'
+        cmd += "{junit_file_flag} {json_flag} --raw-command -- ./gotest-custom -binaries {test_binary} -pkgnames {pkg_names} -extra '-test.timeout {timeout} {nocache} {run} {skip} {test_run_arg} {osversion} {platform} {major_version} {arch} {flavor} {cws_supported_osversion} {src_agent_version} {dest_agent_version} {keep_stacks} {extra_flags}'"
+        print(cmd)
     else:
         cmd += '{junit_file_flag} {json_flag} --packages="{packages}" -- -ldflags="-X {REPO_PATH}/test/new-e2e/tests/containers.GitCommit={commit}" {verbose} -mod={go_mod} -vet=off -timeout {timeout} {nocache} {run} {skip} {test_run_arg} -args {osversion} {platform} {major_version} {arch} {flavor} {cws_supported_osversion} {src_agent_version} {dest_agent_version} {keep_stacks} {extra_flags}'
     args = {
