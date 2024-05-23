@@ -171,6 +171,8 @@ func (w *TraceWriter) Stop() {
 	// Wait for encoding/compression to complete on each payload,
 	// and submission to senders
 	w.wg.Wait()
+	w.mu.Lock()
+	defer w.mu.Unlock()
 	w.flush()
 	stopSenders(w.senders)
 }
