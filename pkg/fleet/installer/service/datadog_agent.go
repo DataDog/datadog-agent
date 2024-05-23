@@ -108,7 +108,7 @@ func SetupAgent(ctx context.Context) (err error) {
 	}
 	// this is expected during a fresh install with the install script / asible / chef / etc...
 	// the config is populated afterwards by the install method and the agent is restarted
-	if os.IsNotExist(err) {
+	if !os.IsNotExist(err) {
 		if err = startUnit(ctx, agentUnit); err != nil {
 			return err
 		}
