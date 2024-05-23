@@ -259,13 +259,14 @@ func GenerateCPUEnhancedMetrics(args GenerateCPUEnhancedMetricsArgs) {
 	if strings.ToLower(os.Getenv(systemMetricsEnvVar)) == "false" {
 		return
 	}
+	timestamp := float64(args.Time.UnixNano()) / float64(time.Second)
 	args.Demux.AggregateSample(metrics.MetricSample{
 		Name:       cpuSystemTimeMetric,
 		Value:      args.SystemCPUTimeMs,
 		Mtype:      metrics.DistributionType,
 		Tags:       args.Tags,
 		SampleRate: 1,
-		Timestamp:  float64(args.Time.UnixNano()) / float64(time.Second),
+		Timestamp:  timestamp,
 	})
 	args.Demux.AggregateSample(metrics.MetricSample{
 		Name:       cpuUserTimeMetric,
@@ -273,7 +274,7 @@ func GenerateCPUEnhancedMetrics(args GenerateCPUEnhancedMetricsArgs) {
 		Mtype:      metrics.DistributionType,
 		Tags:       args.Tags,
 		SampleRate: 1,
-		Timestamp:  float64(args.Time.UnixNano()) / float64(time.Second),
+		Timestamp:  timestamp,
 	})
 	args.Demux.AggregateSample(metrics.MetricSample{
 		Name:       cpuTotalTimeMetric,
@@ -281,7 +282,7 @@ func GenerateCPUEnhancedMetrics(args GenerateCPUEnhancedMetricsArgs) {
 		Mtype:      metrics.DistributionType,
 		Tags:       args.Tags,
 		SampleRate: 1,
-		Timestamp:  float64(args.Time.UnixNano()) / float64(time.Second),
+		Timestamp:  timestamp,
 	})
 }
 
