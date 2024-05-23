@@ -50,14 +50,30 @@ func New(t *testing.T, remote *components.RemoteHost, os e2eos.Descriptor, arch 
 	return host
 }
 
-// InstallDocker installs Docker on the host.
+// InstallDocker installs Docker on the host if it is not already installed.
 func (h *Host) InstallDocker() {
+	if _, err := h.remote.Execute("command -v docker"); err == nil {
+		return
+	}
+
 	switch h.os.Flavor {
 	case e2eos.AmazonLinux:
 		h.remote.MustExecute(`sudo sh -c "yum -y install docker && systemctl start docker"`)
 	default:
 		h.remote.MustExecute("curl -fsSL https://get.docker.com | sudo sh")
 	}
+}
+
+// GetDockerRuntimePath returns the runtime path of a docker runtime
+func (h *Host) GetDockerRuntimePath(runtime string) string {
+	var cmd string
+	switch h.os.Flavor {
+	case e2eos.AmazonLinux:
+		cmd = "sudo docker system info --format '{{ (index .Runtimes \"%s\").Path }}'"
+	default:
+		cmd = "sudo docker system info --format '{{ (index .Runtimes \"%s\").Runtime.Path }}'"
+	}
+	return strings.TrimSpace(h.remote.MustExecute(fmt.Sprintf(cmd, runtime)))
 }
 
 // Run executes a command on the host.
