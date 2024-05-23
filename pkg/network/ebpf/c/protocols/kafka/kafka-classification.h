@@ -140,31 +140,31 @@ static __always_inline int parse_varint_u16(u16 *out, u16 in, u32 *bytes)
 }
 
 static __always_inline s16 read_first_topic_name_size(pktbuf_t pkt, bool flexible, u32 *offset) {
-    u16 topic_name_size_tmp = 0;
+    u16 topic_name_size_raw = 0;
     // We assume we can always read two bytes. Even if the varint for the topic
     // name size is just one byte, the topic name itself will at least occupy
     // one more byte so reading two bytes is safe (we advance the offset based
     // on the number of actual bytes in the varint).
-    if (*offset + sizeof(topic_name_size_tmp) > pktbuf_data_end(pkt)) {
+    if (*offset + sizeof(topic_name_size_raw) > pktbuf_data_end(pkt)) {
         return 0;
     }
 
-    pktbuf_load_bytes(pkt, *offset, &topic_name_size_tmp, sizeof(topic_name_size_tmp));
+    pktbuf_load_bytes(pkt, *offset, &topic_name_size_raw, sizeof(topic_name_size_raw));
 
     s16 topic_name_size = 0;
     if (flexible) {
         u16 topic_name_size_tmp2 = 0;
         u32 varint_bytes = 0;
 
-        if (!parse_varint_u16(&topic_name_size_tmp2, topic_name_size_tmp, &varint_bytes)) {
+        if (!parse_varint_u16(&topic_name_size_tmp2, topic_name_size_raw, &varint_bytes)) {
             return 0;
         }
 
         topic_name_size = topic_name_size_tmp2 - 1;
         *offset += varint_bytes;
     } else {
-        topic_name_size = bpf_ntohs(topic_name_size_tmp);
-        *offset += sizeof(topic_name_size_tmp);
+        topic_name_size = bpf_ntohs(topic_name_size_raw);
+        *offset += sizeof(topic_name_size_raw);
     }
 
     return topic_name_size;
