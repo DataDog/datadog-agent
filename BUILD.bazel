@@ -1,6 +1,18 @@
 load("@gazelle//:def.bzl", "gazelle")
 load("//:bazel/lib/agent.bzl", "AGENT_BUILD_TAGS")
 
+# gazelle:prefix github.com/DataDog/datadog-agent
+# -- Gazelle excludes --
+# gazelle:exclude .github/**
+# gazelle:exclude .gitlab/**
+# gazelle:exclude Dockerfiles/**
+# gazelle:exclude chocolatey/**
+# gazelle:exclude rtloader/**
+# gazelle:exclude devenv/**
+# gazelle:exclude docs/**
+# gazelle:exclude tasks/**
+# gazelle:exclude test/**
+
 gazelle(
     name = "gazelle",
     build_tags = (
