@@ -155,6 +155,10 @@ type stats struct {
 
 	// currently not used, reserved for future use
 	etwChannelBlocked uint64
+
+	// map of unwanted etw notifications
+	unwantedFile map[uint16]uint64
+	unwantedReg  map[uint16]uint64
 }
 
 /*
@@ -305,6 +309,9 @@ func (p *WindowsProbe) setupEtw(ecb etwCallback) error {
 		switch e.EventHeader.ProviderID {
 		case etw.DDGUID(p.fileguid):
 			switch e.EventHeader.EventDescriptor.ID {
+			default:
+				p.stats.unwantedFile[e.EventHeader.EventDescriptor.ID]++
+				return
 			/*
 				case idNameCreate:
 					if ca, err := p.parseNameCreateArgs(e); err == nil {
@@ -332,12 +339,11 @@ func (p *WindowsProbe) setupEtw(ecb etwCallback) error {
 				}
 				p.stats.fileCreateNew++
 			case idCleanup:
-				/*
-					if ca, err := p.parseCleanupArgs(e); err == nil {
-						log.Tracef("Received cleanup event %d %s\n", e.EventHeader.EventDescriptor.ID, ca)
-						ecb(ca, e.EventHeader.ProcessID)
-					}
-				*/
+
+				if ca, err := p.parseCleanupArgs(e); err == nil {
+					log.Tracef("Received cleanup event %d %s\n", e.EventHeader.EventDescriptor.ID, ca)
+					ecb(ca, e.EventHeader.ProcessID)
+				}
 				p.stats.fileCleanup++
 			case idClose:
 				if ca, err := p.parseCloseArgs(e); err == nil {
@@ -348,14 +354,14 @@ func (p *WindowsProbe) setupEtw(ecb etwCallback) error {
 					p.discardedFileHandles.Remove(ca.fileObject)
 				}
 				p.stats.fileClose++
-			case idFlush:
-				/*
-					if fa, err := p.parseFlushArgs(e); err == nil {
-						ecb(fa, e.EventHeader.ProcessID)
-					}
-				*/
-				p.stats.fileFlush++
-
+			/*
+				case idFlush:
+					/*
+						if fa, err := p.parseFlushArgs(e); err == nil {
+							ecb(fa, e.EventHeader.ProcessID)
+						}
+					p.stats.fileFlush++
+			*/
 			case idWrite:
 				if p.isWriteEnabled {
 					if wa, err := p.parseWriteArgs(e); err == nil {
@@ -373,7 +379,6 @@ func (p *WindowsProbe) setupEtw(ecb etwCallback) error {
 							ecb(si, e.EventHeader.ProcessID)
 						}
 				*/
-				
 
 			case idSetDelete:
 				if p.isDeleteEnabled {
@@ -406,17 +411,18 @@ func (p *WindowsProbe) setupEtw(ecb etwCallback) error {
 						ecb(rn, e.EventHeader.ProcessID)
 					}
 				}
-			case idQueryInformation:
-				p.stats.fileidQueryInformation++
-			case idFSCTL:
-				/*
+			/*
+				case idQueryInformation:
+					p.stats.fileidQueryInformation++
+			*/
+			/*
+				case idFSCTL:
 					if fs, err := p.parseFsctlArgs(e); err == nil {
 						log.Tracef("Received FSCTL event %d %s\n", e.EventHeader.EventDescriptor.ID, fs)
 						ecb(fs, e.EventHeader.ProcessID)
 					}
-				*/
-				p.stats.fileidFSCTL++
-
+					p.stats.fileidFSCTL++
+			*/
 			case idRename29:
 				if p.isRenameEnabled {
 					if rn, err := p.parseRename29Args(e); err == nil {
@@ -429,6 +435,9 @@ func (p *WindowsProbe) setupEtw(ecb etwCallback) error {
 
 		case etw.DDGUID(p.regguid):
 			switch e.EventHeader.EventDescriptor.ID {
+			default:
+				p.stats.unwantedReg[e.EventHeader.EventDescriptor.ID]++
+				return
 			case idRegCreateKey:
 				if cka, err := p.parseCreateRegistryKey(e); err == nil {
 					//log.Tracef("Got idRegCreateKey %s", cka)
@@ -447,14 +456,13 @@ func (p *WindowsProbe) setupEtw(ecb etwCallback) error {
 					ecb(dka, e.EventHeader.ProcessID)
 				}
 				p.stats.regDeleteKey++
-
-			case idRegFlushKey:
-				/*
-					if dka, err := p.parseFlushKey(e); err == nil {
-						log.Tracef("Got idRegFlushKey %v", dka)
-					}
-				*/
-				p.stats.regFlushKey++
+			/*
+				case idRegFlushKey:
+						if dka, err := p.parseFlushKey(e); err == nil {
+							log.Tracef("Got idRegFlushKey %v", dka)
+						}
+					p.stats.regFlushKey++
+			*/
 			case idRegCloseKey:
 				if dka, err := p.parseCloseKeyArgs(e); err == nil {
 					log.Tracef("Got idRegCloseKey %s", dka)
@@ -541,7 +549,9 @@ func (p *WindowsProbe) Start() error {
 					continue
 				}
 			case notif := <-p.onETWNotification:
-				p.handleETWNotification(ev, notif)
+				if !p.handleETWNotification(ev, notif) {
+					continue
+				}
 			}
 
 			p.DispatchEvent(ev)
@@ -622,7 +632,7 @@ func (p *WindowsProbe) handleProcessStop(ev *model.Event, stop *procmon.ProcessS
 	return true
 }
 
-func (p *WindowsProbe) handleETWNotification(ev *model.Event, notif etwNotification) {
+func (p *WindowsProbe) handleETWNotification(ev *model.Event, notif etwNotification) bool {
 	// handle incoming events here
 	// each event will come in as a different type
 	// parse it with
@@ -638,13 +648,15 @@ func (p *WindowsProbe) handleETWNotification(ev *model.Event, notif etwNotificat
 		}
 	case *renameArgs:
 		p.renamePreArgs.Add(uint64(arg.fileObject), arg.fileName)
+		return false
 	case *rename29Args:
 		p.renamePreArgs.Add(uint64(arg.fileObject), arg.fileName)
+		return false
 	case *renamePath:
 		path, found := p.renamePreArgs.Get(uint64(arg.fileObject))
 		if !found {
 			log.Debugf("unable to find renamePreArgs for %d", uint64(arg.fileObject))
-			return
+			return false
 		}
 		ev.Type = uint32(model.FileRenameEventType)
 		ev.RenameFile = model.RenameFileEvent{
@@ -712,6 +724,8 @@ func (p *WindowsProbe) handleETWNotification(ev *model.Event, notif etwNotificat
 			},
 			ValueName: arg.valueName,
 		}
+	default:
+		return false
 	}
 
 	if ev.Type != uint32(model.UnknownEventType) {
@@ -719,7 +733,9 @@ func (p *WindowsProbe) handleETWNotification(ev *model.Event, notif etwNotificat
 		if errRes != nil {
 			log.Debugf("%v", errRes)
 		}
+		return true
 	}
+	return false
 }
 
 func (p *WindowsProbe) setProcessContext(pid uint32, event *model.Event) error {
@@ -889,7 +905,16 @@ func (p *WindowsProbe) SendStats() error {
 		if err := p.statsdClient.Gauge(metrics.MetricWindowsETWRealTimeBuffersLost, float64(etwstats.RealTimeBuffersLost), nil, 1); err != nil {
 			return err
 		}
-
+	}
+	for k, v := range p.stats.unwantedFile {
+		if err := p.statsdClient.Gauge(metrics.MetricWindowsUnwantedFile, float64(v), []string{fmt.Sprintf("id:ID_%d", k)}, 1); err != nil {
+			return err
+		}
+	}
+	for k, v := range p.stats.unwantedReg {
+		if err := p.statsdClient.Gauge(metrics.MetricWindowsUnwantedRegistry, float64(v), []string{fmt.Sprintf("id:ID_%d", k)}, 1); err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -949,14 +974,18 @@ func NewWindowsProbe(probe *Probe, config *config.Config, opts Opts) (*WindowsPr
 
 		renamePreArgs: rnc,
 
-		discardedPaths:     discardedPaths,
-		discardedBasenames: discardedBasenames,
+		discardedPaths:       discardedPaths,
+		discardedBasenames:   discardedBasenames,
 		discardedFileHandles: discardedHandles,
 
 		volumeMap: make(map[string]string),
 
 		processKiller:      NewProcessKiller(),
 		blockonchannelsend: bocs,
+		stats: stats{
+			unwantedFile: make(map[uint16]uint64),
+			unwantedReg:  make(map[uint16]uint64),
+		},
 	}
 
 	p.Resolvers, err = resolvers.NewResolvers(config, p.statsdClient, probe.scrubber)

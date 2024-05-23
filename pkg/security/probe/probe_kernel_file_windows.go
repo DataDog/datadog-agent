@@ -165,6 +165,7 @@ func (wp *WindowsProbe) parseCreateHandleArgs(e *etw.DDEventRecord) (*createHand
 		wp.discardedFileHandles.Add(fileObjectPointer(ca.fileObject), struct{}{})
 		return nil, errDiscardedPath
 	}
+
 	if _, ok := wp.discardedPaths.Get(ca.fileName); ok {
 		wp.discardedFileHandles.Add(fileObjectPointer(ca.fileObject), struct{}{})
 		wp.stats.fileCreateSkippedDiscardedPaths++

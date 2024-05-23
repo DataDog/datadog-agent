@@ -127,4 +127,10 @@ var (
 	//MetricWindowsRegPathEvictions is the metric for counting the number of registry path evictions
 	//Tags: -
 	MetricWindowsRegPathEvictions = newRuntimeMetric(".windows.registry_path_evictions")
+	//MetricWindowsUnwantedFile is the metric for counting the number of unwanted file notifications
+	//Tags: -
+	MetricWindowsUnwantedFile = newRuntimeMetric(".windows.unwanted_file")
+	//MetricWindowsUnwantedRegistry is the metric for counting the number of unwanted registry notifications
+	//Tags: -
+	MetricWindowsUnwantedRegistry = newRuntimeMetric(".windows.unwanted_registry")
 )

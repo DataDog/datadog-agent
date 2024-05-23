@@ -54,22 +54,31 @@ func createTestProbe() (*WindowsProbe, error) {
 	if err != nil {
 		return nil, err
 	}
+	discardedHandles, err := lru.New[fileObjectPointer, struct{}](10240)
+	if err != nil {
+		return nil, err
+	}
 
 	// probe and config are provided as null.  During the tests, it is assumed
 	// that we will not access those values.
 	wp := &WindowsProbe{
-		opts:               opts,
-		config:             cfg,
-		filePathResolver:   fc,
-		regPathResolver:    rc,
-		discardedPaths:     discardedPaths,
-		discardedBasenames: discardedBasenames,
+		opts:                 opts,
+		config:               cfg,
+		filePathResolver:     fc,
+		regPathResolver:      rc,
+		discardedPaths:       discardedPaths,
+		discardedBasenames:   discardedBasenames,
+		discardedFileHandles: discardedHandles,
 
 		isRenameEnabled: true,
 		isWriteEnabled:  true,
 		isDeleteEnabled: true,
 
 		volumeMap: make(map[string]string),
+		stats: stats{
+			unwantedFile: make(map[uint16]uint64),
+			unwantedReg:  make(map[uint16]uint64),
+		},
 	}
 	err = wp.Init()
 
