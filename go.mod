@@ -132,7 +132,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/pointer v0.54.0-rc.2
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.54.0-rc.2
 	github.com/DataDog/datadog-go/v5 v5.5.0
-	github.com/DataDog/datadog-operator v0.7.1-0.20240522074410-e0648ef62f13
+	github.com/DataDog/datadog-operator v0.7.1-0.20240522081847-e83dd785258a
 	github.com/DataDog/ebpf-manager v0.6.0
 	github.com/DataDog/gopsutil v1.2.2
 	github.com/DataDog/nikos v1.12.4
