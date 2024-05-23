@@ -25,7 +25,8 @@ func NewWindowsModel(_ *WindowsProbe) *model.Model {
 				!strings.HasPrefix(field, "open.") &&
 				!strings.HasPrefix(field, "set.") &&
 				!strings.HasPrefix(field, "delete.") &&
-				!strings.HasPrefix(field, "process.") {
+				!strings.HasPrefix(field, "process.") &&
+				!strings.HasPrefix(field, "change_permission") {
 				return fmt.Errorf("%s is not available with the Windows version", field)
 			}
 			return nil
