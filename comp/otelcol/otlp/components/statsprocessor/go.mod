@@ -1,4 +1,4 @@
-module github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/ingester
+module github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/statsprocessor
 
 go 1.21.0
 

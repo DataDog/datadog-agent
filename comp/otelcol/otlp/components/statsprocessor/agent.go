@@ -1,7 +1,7 @@
 // Copyright The OpenTelemetry Authors
 // SPDX-License-Identifier: Apache-2.0
 
-package ingester
+package statsprocessor
 
 import (
 	"context"
@@ -165,12 +165,12 @@ var _ Ingester = (*TraceAgent)(nil)
 
 // Ingester is able to ingest traces. Implemented by traceagent.
 type Ingester interface {
-	// Start starts the ingester.
+	// Start starts the statsprocessor.
 	Start()
 
 	// Ingest ingests the set of traces.
 	Ingest(ctx context.Context, traces ptrace.Traces)
 
-	// Stop stops the ingester.
+	// Stop stops the statsprocessor.
 	Stop()
 }
