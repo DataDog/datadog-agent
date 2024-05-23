@@ -97,6 +97,20 @@ else
   end
 end
 
+if heroku_target?
+  force_build_and_packaging = true
+  generate_distro_package = true
+else
+  force_build_and_packaging = false
+  if ENV["OMNIBUS_PACKAGE_ARTIFACT_DIR"]
+    dependency "package-artifact"
+    generate_distro_package = true
+    disable_healthcheck true
+  else
+    generate_distro_package = false
+  end
+end
+
 # build_version is computed by an invoke command/function.
 # We can't call it directly from there, we pass it through the environment instead.
 build_version ENV['PACKAGE_VERSION']
