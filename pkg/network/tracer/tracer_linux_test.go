@@ -2398,6 +2398,9 @@ func (s *TracerSuite) TestTCPFailureConnectionTimeout() {
 
 func (s *TracerSuite) TestTCPFailureConnectionRefused() {
 	t := s.T()
+	if ebpftest.GetBuildMode() == ebpftest.Prebuilt {
+		t.Skip()
+	}
 	cfg := testConfig()
 	cfg.TCPFailedConnectionsEnabled = true
 	tr := setupTracer(t, cfg)
@@ -2421,6 +2424,9 @@ func (s *TracerSuite) TestTCPFailureConnectionRefused() {
 
 func (s *TracerSuite) TestTCPFailureConnectionReset() {
 	t := s.T()
+	if ebpftest.GetBuildMode() == ebpftest.Prebuilt {
+		t.Skip()
+	}
 	cfg := testConfig()
 	cfg.TCPFailedConnectionsEnabled = true
 	tr := setupTracer(t, cfg)
