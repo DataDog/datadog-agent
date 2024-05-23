@@ -485,8 +485,8 @@ func TestProcessContext(t *testing.T) {
 					assert.Equal(t, args[i], argv[i], "expected arg not found")
 				}
 			} else {
-				assert.Equal(t, 459, len(argv), "incorrect number of args: %s", argv)
-				for i := 0; i != 459; i++ {
+				assert.Equal(t, 439, len(argv), "incorrect number of args: %s", argv)
+				for i := 0; i != 439; i++ {
 					assert.Equal(t, args[i], argv[i], "expected arg not found")
 				}
 			}
@@ -539,8 +539,8 @@ func TestProcessContext(t *testing.T) {
 					assert.Equal(t, expected, argv[i], "expected arg not found")
 				}
 			} else {
-				assert.Equal(t, 474, len(argv), "incorrect number of args: %s", argv)
-				for i := 0; i != 474; i++ {
+				assert.Equal(t, 457, len(argv), "incorrect number of args: %s", argv)
+				for i := 0; i != 457; i++ {
 					expected := args[i]
 					if len(expected) > model.MaxArgEnvSize {
 						expected = args[i][:model.MaxArgEnvSize-4] + "..." // 4 is the size number of the string
@@ -650,8 +650,8 @@ func TestProcessContext(t *testing.T) {
 					assert.Equal(t, envs[i], envp[i], "expected env not found")
 				}
 			} else {
-				assert.Equal(t, 736, len(envp), "incorrect number of envs: %s", envp)
-				for i := 0; i != 736; i++ {
+				assert.Equal(t, 704, len(envp), "incorrect number of envs: %s", envp)
+				for i := 0; i != 704; i++ {
 					assert.Equal(t, envs[i], envp[i], "expected env not found")
 				}
 			}
@@ -716,8 +716,8 @@ func TestProcessContext(t *testing.T) {
 					assert.Equal(t, expected, envp[i], "expected env not found")
 				}
 			} else {
-				assert.Equal(t, 895, len(envp), "incorrect number of envs: %s", envp)
-				for i := 0; i != 895; i++ {
+				assert.Equal(t, 863, len(envp), "incorrect number of envs: %s", envp)
+				for i := 0; i != 863; i++ {
 					expected := envs[i]
 					if len(expected) > model.MaxArgEnvSize {
 						expected = envs[i][:model.MaxArgEnvSize-4] + "..." // 4 is the size number of the string

@@ -392,9 +392,14 @@ int tail_call_target_get_envs_offset(void *ctx) {
 #pragma unroll
     for (i = 0; i < MAX_ARGS_READ_PER_TAIL && args_count < syscall->exec.args.count; i++) {
         bytes_read = bpf_probe_read_str(&buff->value[0], MAX_ARRAY_ELEMENT_SIZE, (void *)(args_start + offset));
-        if (bytes_read <= 0 || bytes_read == MAX_ARRAY_ELEMENT_SIZE) {
+        if (bytes_read < 0 || bytes_read == MAX_ARRAY_ELEMENT_SIZE) {
             syscall->exec.args_envs_ctx.envs_offset = 0;
             return 0;
+        } else if (buff->value[0] == '\0') {
+            // skip empty strings
+            // directly check the first character instead of bytes_read because bpf_probe_read_str()
+            // may return 0 or 1 depending on the kernel version when reading empty strings
+            bytes_read = 1;
         }
         offset += bytes_read;
         args_count++;
@@ -440,10 +445,19 @@ void __attribute__((always_inline)) parse_args_envs(void *ctx, struct args_envs_
 
 #pragma unroll
     for (i = 0; i < MAX_ARRAY_ELEMENT_PER_TAIL; i++) {
-        void *string_array_ptr = &(buff->value[(event.size + sizeof(bytes_read)) & (MAX_STR_BUFF_LEN - MAX_ARRAY_ELEMENT_SIZE - 1)]);
+        if (args_envs->counter == args_envs->count) {
+            break;
+        }
 
-        bytes_read = bpf_probe_read_str(string_array_ptr, MAX_ARRAY_ELEMENT_SIZE, (void *)(args_start + offset));
-        if (bytes_read > 0) {
+        char *string_array_ptr = &(buff->value[(event.size + sizeof(bytes_read)) & (MAX_STR_BUFF_LEN - MAX_ARRAY_ELEMENT_SIZE - 1)]);
+
+        bytes_read = bpf_probe_read_str((void *)string_array_ptr, MAX_ARRAY_ELEMENT_SIZE, (void *)(args_start + offset));
+        // skip empty strings
+        // depending on the kernel version, bpf_probe_read_str() may return 0 or 1 when reading empty strings
+        if (bytes_read == 0 || (bytes_read == 1 && *string_array_ptr == '\0')) {
+            offset += 1;
+            args_envs->counter++;
+        } else if (bytes_read > 0) {
             bytes_read--; // remove trailing 0
 
             // insert size before the string
@@ -470,11 +484,7 @@ void __attribute__((always_inline)) parse_args_envs(void *ctx, struct args_envs_
             } else {
                 event.size += data_length;
                 args_envs->counter++;
-                offset += bytes_read + 1;
-            }
-
-            if (args_envs->counter == args_envs->count) {
-                break;
+                offset += bytes_read + 1; // count trailing 0
             }
         } else {
             break;
