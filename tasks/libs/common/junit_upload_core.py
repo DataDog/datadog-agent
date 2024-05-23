@@ -74,31 +74,28 @@ def junit_upload_from_tgz(junit_tgz, codeowners_path=".github/CODEOWNERS"):
     flaky_tests = get_flaky_from_test_output()
     junit_tgz = find_tarball(junit_tgz)
 
-    with collapsed_section(f"Uploading JUnit files for {junit_tgz}"):
-        with tempfile.TemporaryDirectory() as unpack_dir:
-            working_dir = Path(unpack_dir)
-            # unpack all files from archive
-            with tarfile.open(junit_tgz) as tgz:
-                tgz.extractall(path=str(working_dir))
+    with collapsed_section(f"Uploading JUnit files for {junit_tgz}"), tempfile.TemporaryDirectory() as unpack_dir:
+        working_dir = Path(unpack_dir)
+        # unpack all files from archive
+        with tarfile.open(junit_tgz) as tgz:
+            tgz.extractall(path=str(working_dir))
 
-            # Split xml files by codeowners
-            # Path().glob is recursive.
-            # We cast the glob generator to a list because we generate new xml files: that would lead to infinite loop
-            generated_xmls = 0
-            for xmlfile in list(working_dir.glob("**/*.xml")):
-                if not xmlfile.is_file():
-                    print(f"[WARN] Matched folder named {xmlfile}")
-                    continue
-                generated_xmls += split_junitxml(xmlfile, codeowners, flaky_tests)
-            print(f"Created {generated_xmls} JUnit XML files from {junit_tgz}")
-            # *-fast(-v2).tgz contains only tests related to the modified code, they can be empty
-            if generated_xmls == 0 and "-fast" not in junit_tgz:
-                raise Exit(f"[ERROR] No JUnit XML files for upload found in: {junit_tgz}")
+        # Split xml files by codeowners
+        generated_xmls = 0
+        for xmlfile in list(working_dir.glob("**/*.xml")):  # We need to cast the generator to avoid infinite loop
+            if not xmlfile.is_file():
+                print(f"[WARN] Matched folder named {xmlfile}")
+                continue
+            generated_xmls += split_junitxml(xmlfile, codeowners, flaky_tests)
+        print(f"Created {generated_xmls} JUnit XML files from {junit_tgz}")
+        # *-fast(-v2).tgz contains only tests related to the modified code, they can be empty
+        if generated_xmls == 0 and "-fast" not in junit_tgz:
+            raise Exit(f"[ERROR] No JUnit XML files for upload found in: {junit_tgz}")
 
-            # Upload junit on a per-team basis
-            team_folders = [item for item in working_dir.iterdir() if item.is_dir()]
-            with ThreadPoolExecutor() as executor:
-                executor.map(upload_junitxmls, team_folders)
+        # Upload junit on a per-team basis
+        team_folders = [item for item in working_dir.iterdir() if item.is_dir()]
+        with ThreadPoolExecutor() as executor:
+            executor.map(upload_junitxmls, team_folders)
 
 
 def get_flaky_from_test_output():
@@ -246,9 +243,7 @@ def is_kitchen_version(tags):
     """
     Check if we need to add the version from the kitchen file name to the tags
     """
-    if tags and "upload_option.os_version_from_name" in tags:
-        return True
-    return False
+    return tags and "upload_option.os_version_from_name" in tags
 
 
 def set_tags(owner, flavor, flag: str, additional_tags, file_name):
