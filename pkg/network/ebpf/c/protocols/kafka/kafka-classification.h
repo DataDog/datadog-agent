@@ -128,11 +128,11 @@ static __always_inline int parse_varint_u16(u16 *out, u16 in, u32 *bytes)
     if (isMSBSet(first)) {
         *bytes += 1;
         tmp |= ((u16)(second & 0x7f)) << 7;
-    }
 
-    if (isMSBSet(second)) {
-        // varint larger than two bytes.
-        return false;
+        if (isMSBSet(second)) {
+            // varint larger than two bytes.
+            return false;
+        }
     }
 
     *out = tmp;
