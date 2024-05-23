@@ -68,17 +68,15 @@ type DownloadedPackage struct {
 
 // Downloader is the Downloader used by the installer to download packages.
 type Downloader struct {
-	env      *env.Env
-	keychain authn.Keychain
-	client   *http.Client
+	env    *env.Env
+	client *http.Client
 }
 
 // NewDownloader returns a new Downloader.
 func NewDownloader(env *env.Env, client *http.Client) *Downloader {
 	return &Downloader{
-		keychain: getKeychain(env.RegistryAuthOverride),
-		env:      env,
-		client:   client,
+		env:    env,
+		client: client,
 	}
 }
 
@@ -149,10 +147,12 @@ type urlWithKeychain struct {
 	keychain authn.Keychain
 }
 
-func (d *Downloader) getRefAndKeychain(url string) urlWithKeychain {
+// getRefAndKeychain returns the reference and keychain for the given URL.
+// This function applies potential registry and authentication overrides set either globally or per image.
+func getRefAndKeychain(env *env.Env, url string) urlWithKeychain {
 	imageWithIdentifier := url[strings.LastIndex(url, "/")+1:]
-	registryOverride := d.env.RegistryOverride
-	for image, override := range d.env.RegistryOverrideByImage {
+	registryOverride := env.RegistryOverride
+	for image, override := range env.RegistryOverrideByImage {
 		if strings.HasPrefix(imageWithIdentifier, image+":") || strings.HasPrefix(imageWithIdentifier, image+"@") {
 			registryOverride = override
 			break
@@ -165,9 +165,8 @@ func (d *Downloader) getRefAndKeychain(url string) urlWithKeychain {
 		}
 		ref = registryOverride + imageWithIdentifier
 	}
-
-	keychain := d.keychain
-	for image, override := range d.env.RegistryAuthOverrideByImage {
+	keychain := getKeychain(env.RegistryAuthOverride)
+	for image, override := range env.RegistryAuthOverrideByImage {
 		if strings.HasPrefix(imageWithIdentifier, image+":") || strings.HasPrefix(imageWithIdentifier, image+"@") {
 			keychain = getKeychain(override)
 			break
@@ -180,7 +179,7 @@ func (d *Downloader) getRefAndKeychain(url string) urlWithKeychain {
 }
 
 func (d *Downloader) downloadRegistry(ctx context.Context, url string) (oci.Image, error) {
-	refAndKeychain := d.getRefAndKeychain(url)
+	refAndKeychain := getRefAndKeychain(d.env, url)
 	ref, err := name.ParseReference(refAndKeychain.ref)
 	if err != nil {
 		return nil, fmt.Errorf("could not parse reference: %w", err)
