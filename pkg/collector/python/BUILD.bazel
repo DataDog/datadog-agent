@@ -99,7 +99,11 @@ go_library(
         ],
         "//conditions:default": [],
     }),
-    copts = ["-I pkg/collector/python/rtloader/include -I pkg/collector/python/rtloader/common"],
+    # keep
+    copts = [
+        "-Werror",
+        "-Wno-deprecated-declarations",
+    ],
     importpath = "github.com/DataDog/datadog-agent/pkg/collector/python",
     visibility = ["//visibility:public"],
     deps = [
