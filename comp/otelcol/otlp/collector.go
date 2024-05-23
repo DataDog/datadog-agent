@@ -32,6 +32,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/logsagentexporter"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/serializerexporter"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/processor/infraattributesprocessor"
+	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/datatype"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
@@ -189,11 +190,8 @@ type Pipeline struct {
 	col *otelcol.Collector
 }
 
-// CollectorStatus is the status struct for an OTLP pipeline's collector
-type CollectorStatus struct {
-	Status       string
-	ErrorMessage string
-}
+// CollectorStatus is an alias to the datatype, for convenience
+type CollectorStatus = datatype.CollectorStatus
 
 // NewPipeline defines a new OTLP pipeline.
 func NewPipeline(cfg PipelineConfig, s serializer.MetricSerializer, logsAgentChannel chan *message.Message) (*Pipeline, error) {

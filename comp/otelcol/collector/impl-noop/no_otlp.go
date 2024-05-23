@@ -8,13 +8,13 @@ package collectornoop
 
 import (
 	collector "github.com/DataDog/datadog-agent/comp/otelcol/collector/def"
-	"github.com/DataDog/datadog-agent/comp/otelcol/otlp"
+	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/datatype"
 )
 
 type noopImpl struct{}
 
-func (i *noopImpl) Status() otlp.CollectorStatus {
-	return otlp.CollectorStatus{}
+func (i *noopImpl) Status() datatype.CollectorStatus {
+	return datatype.CollectorStatus{}
 }
 
 // NewComponent returns a new instance of the collector component.

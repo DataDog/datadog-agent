@@ -21,9 +21,9 @@ import (
 	collectorcontrib "github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/def"
 	collector "github.com/DataDog/datadog-agent/comp/otelcol/collector/def"
 	"github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline"
-	"github.com/DataDog/datadog-agent/comp/otelcol/otlp"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/datadogexporter"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/processor/infraattributesprocessor"
+	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/datatype"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
@@ -123,8 +123,8 @@ func (c *collectorImpl) fillFlare(fb flarebuilder.FlareBuilder) error {
 	return nil
 }
 
-func (c *collectorImpl) Status() otlp.CollectorStatus {
-	return otlp.CollectorStatus{
+func (c *collectorImpl) Status() datatype.CollectorStatus {
+	return datatype.CollectorStatus{
 		Status: c.col.GetState().String(),
 	}
 }

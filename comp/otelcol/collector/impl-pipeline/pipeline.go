@@ -19,6 +19,7 @@ import (
 	collector "github.com/DataDog/datadog-agent/comp/otelcol/collector/def"
 	"github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp"
+	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/datatype"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
@@ -110,7 +111,7 @@ func (c *collectorImpl) stop(context.Context) error {
 }
 
 // Status returns the status of the collector.
-func (c *collectorImpl) Status() otlp.CollectorStatus {
+func (c *collectorImpl) Status() datatype.CollectorStatus {
 	return c.col.GetCollectorStatus()
 }
 
