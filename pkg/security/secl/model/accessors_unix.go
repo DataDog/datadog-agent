@@ -29500,9 +29500,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 	case "chdir.syscall.path":
 		rv, ok := value.(string)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Chdir.SyscallPath"}
+			return &eval.ErrValueTypeMismatch{Field: "Chdir.SyscallContext.StrArg1"}
 		}
-		ev.Chdir.SyscallPath = rv
+		ev.Chdir.SyscallContext.StrArg1 = rv
 		return nil
 	case "chmod.file.change_time":
 		rv, ok := value.(int)
@@ -29661,16 +29661,16 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 	case "chmod.syscall.mode":
 		rv, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Chmod.SyscallMode"}
+			return &eval.ErrValueTypeMismatch{Field: "Chmod.SyscallContext.IntArg2"}
 		}
-		ev.Chmod.SyscallMode = int64(rv)
+		ev.Chmod.SyscallContext.IntArg2 = int64(rv)
 		return nil
 	case "chmod.syscall.path":
 		rv, ok := value.(string)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Chmod.SyscallPath"}
+			return &eval.ErrValueTypeMismatch{Field: "Chmod.SyscallContext.StrArg1"}
 		}
-		ev.Chmod.SyscallPath = rv
+		ev.Chmod.SyscallContext.StrArg1 = rv
 		return nil
 	case "chown.file.change_time":
 		rv, ok := value.(int)
@@ -30636,9 +30636,9 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 	case "exec.syscall.path":
 		rv, ok := value.(string)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "Exec.SyscallPath"}
+			return &eval.ErrValueTypeMismatch{Field: "Exec.SyscallContext.StrArg1"}
 		}
-		ev.Exec.SyscallPath = rv
+		ev.Exec.SyscallContext.StrArg1 = rv
 		return nil
 	case "exec.tid":
 		if ev.Exec.Process == nil {

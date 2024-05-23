@@ -111,8 +111,8 @@ type ChmodEvent struct {
 	Mode uint32    `field:"file.destination.mode; file.destination.rights"` // SECLDoc[file.destination.mode] Definition:`New mode of the chmod-ed file` Constants:`File mode constants` SECLDoc[file.destination.rights] Definition:`New rights of the chmod-ed file` Constants:`File mode constants`
 
 	// Syscall context aliases
-	SyscallPath string `field:"syscall.path,handler:ResolveSyscallCtxArgsStr1,with:SyscallContext,weight:900"` // SECLDoc[syscall.path] Definition:`path argument of the syscall`
-	SyscallMode int64  `field:"syscall.mode,handler:ResolveSyscallCtxArgsInt2,with:SyscallContext,weight:900"` // SECLDoc[syscall.mode] Definition:`mode argument of the syscall`
+	SyscallPath string `field:"syscall.path,ref:chmod.syscall.str1"` // SECLDoc[syscall.path] Definition:`path argument of the syscall`
+	SyscallMode int64  `field:"syscall.mode,ref:chmod.syscall.int2"` // SECLDoc[syscall.mode] Definition:`mode argument of the syscall`
 }
 
 // ChownEvent represents a chown event
@@ -253,7 +253,7 @@ type ExecEvent struct {
 	*Process
 
 	// Syscall context aliases
-	SyscallPath string `field:"syscall.path,handler:ResolveSyscallCtxArgsStr1,with:SyscallContext,weight:900"` // SECLDoc[syscall.path] Definition:`path argument of the syscall`
+	SyscallPath string `field:"syscall.path,ref:exec.syscall.str1"` // SECLDoc[syscall.path] Definition:`path argument of the syscall`
 }
 
 // FileFields holds the information required to identify a file
@@ -369,7 +369,7 @@ type ChdirEvent struct {
 	File FileEvent `field:"file"`
 
 	// Syscall context aliases
-	SyscallPath string `field:"syscall.path,handler:ResolveSyscallCtxArgsStr1,with:SyscallContext,weight:900"` // SECLDoc[syscall.path] Definition:`path argument of the syscall`
+	SyscallPath string `field:"syscall.path,ref:chdir.syscall.str1"` // SECLDoc[syscall.path] Definition:`path argument of the syscall`
 }
 
 // OpenEvent represents an open event

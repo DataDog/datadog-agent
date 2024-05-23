@@ -19,6 +19,13 @@ import (
 
 {{range $Name, $Field := .Fields}}
 
+{{if $Field.Ref}}
+{{$Ref := index $.Fields $Field.Ref}}
+    {{if $Ref}}
+        {{$Field = $Ref}}
+    {{end}}
+{{end}}
+
 {{ $pascalCaseName := PascalCaseFieldName $Name }}
 
 {{$accessorReturnType := $Field.OrigType}}
@@ -62,8 +69,7 @@ func (ev *Event) Get{{$pascalCaseName}}() {{ $accessorReturnType }} {
             {{if $Field.Handler}}
                 {{$SubName = $Field.Iterator.Name | TrimPrefix $Field.Prefix}}
                 {{$Handler := $Field.Iterator.Name | TrimPrefix $Field.Handler}}
-                {{$With := print "&element" $SubName}}
-                {{$Return = print "ev.FieldHandlers." $Handler "(ev, " $With ")"}}
+                {{$Return = print "ev.FieldHandlers." $Handler "(ev, &element" $SubName ")"}}
             {{end}}
 
             {{if $Field.IsLength}}
@@ -117,17 +123,9 @@ func (ev *Event) Get{{$pascalCaseName}}() {{ $accessorReturnType }} {
             {{ if not $Prefix }}
                 {{$Return = print "ev.FieldHandlers." $Field.Handler "(ev)"}}
             {{- else if $Field.IsLength }}
-                {{$With := print $Ptr "ev." $Prefix}}
-                {{- if $Field.With }}
-                    {{$With = print $Ptr "ev." $Prefix "." $Field.With}}
-                {{end}}
-                {{$Return = print "len(ev.FieldHandlers." $Field.Handler "(ev, " $With "))"}}
+                {{$Return = print "len(ev.FieldHandlers." $Field.Handler "(ev, " $Ptr "ev." $Prefix "))"}}
             {{ else }}
-                {{$With := print $Ptr "ev." $Prefix}}
-                {{- if $Field.With }}
-                    {{$With = print $Ptr "ev." $Prefix "." $Field.With}}
-                {{end}}
-                {{$Return = print "ev.FieldHandlers." $Field.Handler "(ev, " $With ")"}}
+                {{$Return = print "ev.FieldHandlers." $Field.Handler "(ev, " $Ptr "ev." $Prefix ")"}}
             {{end}}
         {{end}}
 

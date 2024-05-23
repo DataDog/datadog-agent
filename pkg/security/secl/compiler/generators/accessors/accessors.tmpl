@@ -46,6 +46,13 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		{{continue}}
 	{{end}}
 
+	{{if $Field.Ref}}
+	{{$Ref := index $.Fields $Field.Ref}}
+		{{if $Ref}}
+			{{$Field = $Ref}}
+		{{end}}
+	{{end}}
+
 	case "{{$Name}}":
 		return &{{$Field.GetEvaluatorType}}{
 			{{- if $Field.OpOverrides}}
@@ -143,14 +150,10 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 						{{end}}
 
 						{{$Prefix := $Field.Prefix}}
-						{{if not $Prefix}}
+						{{ if not $Prefix }}
 							{{$Return = print "ev.FieldHandlers." $Field.Handler "(ev)"}}
 						{{else}}
-							{{$With := print $Ptr "ev." $Prefix}}
-							{{if $Field.With}}
-								{{$With = print $Ptr "ev." $Prefix "." $Field.With}}
-							{{end}}
-							{{$Return = print "ev.FieldHandlers." $Field.Handler "(ev, " $With ")"}}
+							{{$Return = print "ev.FieldHandlers." $Field.Handler "(ev, " $Ptr "ev." $Prefix ")"}}
 						{{end}}
 					{{end}}
 
@@ -216,6 +219,13 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		{{range $Name, $Field := .Fields}}
 		{{- if $Field.GettersOnly }}
 			{{continue}}
+		{{end}}
+
+		{{if $Field.Ref}}
+		{{$Ref := index $.Fields $Field.Ref}}
+			{{if $Ref}}
+				{{$Field = $Ref}}
+			{{end}}
 		{{end}}
 
 		case "{{$Name}}":
@@ -293,11 +303,7 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 				{{ if not $Prefix }}
 					{{$Return = print "ev.FieldHandlers." $Field.Handler "(ev)"}}
 				{{else}}
-					{{$With := print $Ptr "ev." $Prefix}}
-					{{if $Field.With}}
-						{{$With = print $Ptr "ev." $Prefix "." $Field.With}}
-					{{end}}
-					{{$Return = print "ev.FieldHandlers." $Field.Handler "(ev, " $With ")"}}
+					{{$Return = print "ev.FieldHandlers." $Field.Handler "(ev, " $Ptr "ev." $Prefix ")"}}
 				{{end}}
 			{{end}}
 
@@ -372,6 +378,13 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		{{range $Name, $Field := .Fields}}
 		{{- if $Field.GettersOnly }}
 			{{continue}}
+		{{end}}
+
+		{{if $Field.Ref}}
+		{{$Ref := index $.Fields $Field.Ref}}
+			{{if $Ref}}
+				{{$Field = $Ref}}
+			{{end}}
 		{{end}}
 
 		{{$FieldName := $Field.Name | printf "ev.%s"}}
