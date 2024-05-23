@@ -16,7 +16,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"path"
 	"runtime"
@@ -190,7 +189,7 @@ type downloadPolicyCliParams struct {
 
 	check      bool
 	outputPath string
-	target     string
+	source     string
 }
 
 func downloadPolicyCommands(globalParams *command.GlobalParams) []*cobra.Command {
@@ -215,7 +214,7 @@ func downloadPolicyCommands(globalParams *command.GlobalParams) []*cobra.Command
 
 	downloadPolicyCmd.Flags().BoolVar(&downloadPolicyArgs.check, "check", false, "Check policies after downloading")
 	downloadPolicyCmd.Flags().StringVar(&downloadPolicyArgs.outputPath, "output-path", "", "Output path for downloaded policies")
-	downloadPolicyCmd.Flags().StringVar(&downloadPolicyArgs.target, "target", "all", `Specify wether should download the custom, default or all policies. allowed: "all", "default", "custom"`)
+	downloadPolicyCmd.Flags().StringVar(&downloadPolicyArgs.source, "source", "all", `Specify wether should download the custom, default or all policies. allowed: "all", "default", "custom"`)
 
 	return []*cobra.Command{downloadPolicyCmd}
 }
@@ -786,7 +785,7 @@ func downloadPolicy(log log.Component, config config.Component, _ secrets.Compon
 			if err != nil {
 				return err
 			}
-			defaultPolicy, err = ioutil.ReadAll(pf)
+			defaultPolicy, err = io.ReadAll(pf)
 			pf.Close()
 			if err != nil {
 				return err
@@ -796,7 +795,7 @@ func downloadPolicy(log log.Component, config config.Component, _ secrets.Compon
 			if err != nil {
 				return err
 			}
-			customPolicy, err = ioutil.ReadAll(pf)
+			customPolicy, err = io.ReadAll(pf)
 			pf.Close()
 			if err != nil {
 				return err
@@ -810,11 +809,11 @@ func downloadPolicy(log log.Component, config config.Component, _ secrets.Compon
 	}
 	defer os.RemoveAll(tempDir)
 
-	if err := ioutil.WriteFile(path.Join(tempDir, "default.policy"), defaultPolicy, 0644); err != nil {
+	if err := os.WriteFile(path.Join(tempDir, "default.policy"), defaultPolicy, 0644); err != nil {
 		return err
 	}
 	if customPolicy != nil {
-		if err := ioutil.WriteFile(path.Join(tempDir, "custom.policy"), customPolicy, 0644); err != nil {
+		if err := os.WriteFile(path.Join(tempDir, "custom.policy"), customPolicy, 0644); err != nil {
 			return err
 		}
 	}
@@ -844,7 +843,7 @@ func downloadPolicy(log log.Component, config config.Component, _ secrets.Compon
 
 	// Merge default.policy and custom.policy rules
 	var outputContent string
-	switch downloadPolicyArgs.target {
+	switch downloadPolicyArgs.source {
 	case "all":
 		outputContent = string(defaultPolicy) + customRules
 	case "default":
@@ -852,7 +851,7 @@ func downloadPolicy(log log.Component, config config.Component, _ secrets.Compon
 	case "custom":
 		outputContent = string(customPolicy)
 	default:
-		return errors.New("invalid target specified")
+		return errors.New("invalid source specified")
 	}
 
 	_, err = outputWriter.Write([]byte(outputContent))
