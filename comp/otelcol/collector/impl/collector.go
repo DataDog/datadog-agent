@@ -78,7 +78,7 @@ func New(reqs Requires) (Provides, error) {
 			} else {
 				factories.Exporters[datadogexporter.Type] = datadogexporter.NewFactory(reqs.Serializer, nil, reqs.HostName)
 			}
-			factories.Processors[infraattributesprocessor.Type] = infraattributesprocessor.NewFactory(deps.Tagger)
+			factories.Processors[infraattributesprocessor.Type] = infraattributesprocessor.NewFactory(reqs.Tagger)
 			return factories, nil
 		},
 		ConfigProvider: reqs.Provider,
