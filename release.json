@@ -8,7 +8,7 @@
     "nightly": {
         "INTEGRATIONS_CORE_VERSION": "master",
         "OMNIBUS_SOFTWARE_VERSION": "8664357efd9187e1c16284e3d9811ea25d152186",
-        "OMNIBUS_RUBY_VERSION": "78573b961ef3400787a7069526d91795c1a34238",
+        "OMNIBUS_RUBY_VERSION": "chouquette/tmp_split_build_packaging",
         "JMXFETCH_VERSION": "0.49.1",
         "JMXFETCH_HASH": "6c5d4ae2f858aa57fac7f92d6615931bf95f9a99c92979090f2de9d4b3c1f0d3",
         "MACOS_BUILD_VERSION": "master",
@@ -27,7 +27,7 @@
     "nightly-a7": {
         "INTEGRATIONS_CORE_VERSION": "master",
         "OMNIBUS_SOFTWARE_VERSION": "8664357efd9187e1c16284e3d9811ea25d152186",
-        "OMNIBUS_RUBY_VERSION": "78573b961ef3400787a7069526d91795c1a34238",
+        "OMNIBUS_RUBY_VERSION": "chouquette/tmp_split_build_packaging",
         "JMXFETCH_VERSION": "0.49.1",
         "JMXFETCH_HASH": "6c5d4ae2f858aa57fac7f92d6615931bf95f9a99c92979090f2de9d4b3c1f0d3",
         "MACOS_BUILD_VERSION": "master",
