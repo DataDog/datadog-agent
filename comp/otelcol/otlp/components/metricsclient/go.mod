@@ -1,4 +1,4 @@
-module github.com/open-telemetry/opentelemetry-collector-contrib/internal/datadog
+module github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/metricsclient
 
 go 1.21.0
 
