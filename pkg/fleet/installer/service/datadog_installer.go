@@ -212,7 +212,7 @@ func RemoveInstaller(ctx context.Context) {
 
 // StartInstallerExperiment installs the experimental systemd units for the installer
 func StartInstallerExperiment(ctx context.Context) error {
-	return startUnit(ctx, installerUnitExp)
+	return startUnit(ctx, installerUnitExp, "--no-block")
 }
 
 // StopInstallerExperiment starts the stable systemd units for the installer

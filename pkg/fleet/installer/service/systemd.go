@@ -38,18 +38,20 @@ func findSystemdPath() (systemdPath string) {
 	return debSystemdPath
 }
 
-func stopUnit(ctx context.Context, unit string) error {
+func stopUnit(ctx context.Context, unit string, args ...string) error {
 	span, _ := tracer.StartSpanFromContext(ctx, "stop_unit")
 	defer span.Finish()
 	span.SetTag("unit", unit)
-	return exec.CommandContext(ctx, "systemctl", "stop", unit, "--no-block").Run()
+	args = append([]string{"stop", unit}, args...)
+	return exec.CommandContext(ctx, "systemctl", args...).Run()
 }
 
-func startUnit(ctx context.Context, unit string) error {
+func startUnit(ctx context.Context, unit string, args ...string) error {
 	span, _ := tracer.StartSpanFromContext(ctx, "start_unit")
 	defer span.Finish()
 	span.SetTag("unit", unit)
-	return exec.CommandContext(ctx, "systemctl", "start", unit, "--no-block").Run()
+	args = append([]string{"start", unit}, args...)
+	return exec.CommandContext(ctx, "systemctl", args...).Run()
 }
 
 func enableUnit(ctx context.Context, unit string) error {
