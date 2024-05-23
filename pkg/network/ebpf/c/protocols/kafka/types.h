@@ -89,7 +89,6 @@ typedef struct kafka_response_context_t {
     // KAFKA_FETCH_RESPONSE_RECORD_BATCHES_ARRAY_END.
     __u32 record_batches_arrays_idx;
     __u32 record_batches_arrays_count;
-    // kafka_fetch_response_record_batches_array saved_record_batch_array;
 } kafka_response_context_t;
 
 #define KAFKA_MAX_RECORD_BATCHES_ARRAYS 50u
