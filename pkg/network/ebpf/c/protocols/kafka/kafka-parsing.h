@@ -431,7 +431,6 @@ static __always_inline enum parse_result kafka_continue_parse_response_partition
                                                                             kafka_response_context_t *response,
                                                                             pktbuf_t pkt, u32 offset,
                                                                             u32 data_end,
-                                                                            enum parser_level level,
                                                                             u32 api_version)
 {
     u32 orig_offset = offset;
@@ -646,7 +645,6 @@ static __always_inline enum parse_result kafka_continue_parse_response_record_ba
                                                                             kafka_response_context_t *response,
                                                                             pktbuf_t pkt, u32 offset,
                                                                             u32 data_end,
-                                                                            enum parser_level level,
                                                                             u32 api_version)
 {
     u32 orig_offset = offset;
@@ -907,7 +905,7 @@ static __always_inline enum parse_result kafka_continue_parse_response(void *ctx
         response->record_batches_arrays_count = 0;
         response->record_batches_arrays_idx = 0;
 
-        ret = kafka_continue_parse_response_partition_loop(kafka, tup, response, pkt, offset, data_end, level, api_version);
+        ret = kafka_continue_parse_response_partition_loop(kafka, tup, response, pkt, offset, data_end, api_version);
         extra_debug("partition loop ret %d record_batches_array_count %u partitions_count %u", ret, response->record_batches_arrays_count, response->partitions_count);
 
         // If we have parsed any record batches arrays (message sets), then
@@ -935,7 +933,7 @@ static __always_inline enum parse_result kafka_continue_parse_response(void *ctx
     } else {
         extra_debug("record batches before loop idx %u count %u\n", response->record_batches_arrays_idx, response->record_batches_arrays_count);
 
-        ret = kafka_continue_parse_response_record_batches_loop(kafka, tup, response, pkt, offset, data_end, level, api_version);
+        ret = kafka_continue_parse_response_record_batches_loop(kafka, tup, response, pkt, offset, data_end, api_version);
         extra_debug("record batches loop ret %d carry_over_offset %d", ret, response->carry_over_offset);
         extra_debug("record batches after loop idx %u count %u\n", response->record_batches_arrays_idx, response->record_batches_arrays_count);
 
