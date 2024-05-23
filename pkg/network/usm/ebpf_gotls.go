@@ -284,6 +284,26 @@ var (
 	ErrInternalDDogProcessRejected = errors.New("internal datadog process rejected")
 )
 
+// GoTLSAttachPID attaches Go TLS hooks on the binary of process with
+// provided PID, if Go TLS is enabled.
+func GoTLSAttachPID(pid pid) error {
+	if goTLSSpec.Instance == nil {
+		return errors.New("GoTLS is not enabled")
+	}
+
+	return goTLSSpec.Instance.(*goTLSProgram).AttachPID(pid)
+}
+
+// GoTLSDetachPID detaches Go TLS hooks on the binary of process with
+// provided PID, if Go TLS is enabled.
+func GoTLSDetachPID(pid pid) error {
+	if goTLSSpec.Instance == nil {
+		return errors.New("GoTLS is not enabled")
+	}
+
+	return goTLSSpec.Instance.(*goTLSProgram).DetachPID(pid)
+}
+
 // AttachPID attaches the provided PID to the eBPF program.
 func (p *goTLSProgram) AttachPID(pid uint32) error {
 	if p.cfg.GoTLSExcludeSelf && pid == uint32(os.Getpid()) {

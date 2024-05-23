@@ -21,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
 	e2eos "github.com/DataDog/test-infra-definitions/components/os"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // Host is a remote host environment.
@@ -77,6 +78,63 @@ func (h *Host) FileExists(path string) (bool, error) {
 // ReadFile reads a file from the host.
 func (h *Host) ReadFile(path string) ([]byte, error) {
 	return h.remote.ReadFile(path)
+}
+
+// DeletePath deletes a path on the host.
+func (h *Host) DeletePath(path string) {
+	h.remote.MustExecute(fmt.Sprintf("sudo ls %s", path))
+	h.remote.MustExecute(fmt.Sprintf("sudo rm -rf %s", path))
+}
+
+// WaitForUnitActive waits for a systemd unit to be active
+func (h *Host) WaitForUnitActive(units ...string) {
+	for _, unit := range units {
+		_, err := h.remote.Execute(fmt.Sprintf("timeout=30; unit=%s; while ! systemctl is-active --quiet $unit && [ $timeout -gt 0 ]; do sleep 1; ((timeout--)); done; [ $timeout -ne 0 ]", unit))
+		require.NoError(h.t, err, "unit %s did not become active", unit)
+	}
+}
+
+// BootstraperVersion returns the version of the bootstraper on the host.
+func (h *Host) BootstraperVersion() string {
+	return strings.TrimSpace(h.remote.MustExecute("sudo datadog-bootstrap version"))
+}
+
+// InstallerVersion returns the version of the installer on the host.
+func (h *Host) InstallerVersion() string {
+	return strings.TrimSpace(h.remote.MustExecute("sudo datadog-installer version"))
+}
+
+// AssertPackageInstalledByInstaller checks if a package is installed by the installer on the host.
+func (h *Host) AssertPackageInstalledByInstaller(pkgs ...string) {
+	for _, pkg := range pkgs {
+		h.remote.MustExecute("sudo datadog-installer is-installed " + pkg)
+	}
+}
+
+// AssertPackageInstalledByPackageManager checks if a package is installed by the package manager on the host.
+func (h *Host) AssertPackageInstalledByPackageManager(pkgs ...string) {
+	for _, pkg := range pkgs {
+		if _, err := h.remote.Execute("command -v dpkg-query"); err == nil {
+			h.remote.MustExecute("dpkg-query -l " + pkg)
+		} else if _, err := h.remote.Execute("command -v rpm"); err == nil {
+			h.remote.MustExecute("rpm -q " + pkg)
+		} else {
+			h.t.Fatal("no package manager found")
+		}
+	}
+}
+
+// AssertPackageNotInstalledByPackageManager checks if a package is not installed by the package manager on the host.
+func (h *Host) AssertPackageNotInstalledByPackageManager(pkgs ...string) {
+	for _, pkg := range pkgs {
+		if _, err := h.remote.Execute("command -v dpkg-query"); err == nil {
+			h.remote.MustExecute("! dpkg-query -l " + pkg)
+		} else if _, err := h.remote.Execute("command -v rpm"); err == nil {
+			h.remote.MustExecute("! rpm -q " + pkg)
+		} else {
+			h.t.Fatal("no package manager found")
+		}
+	}
 }
 
 // State returns the state of the host.

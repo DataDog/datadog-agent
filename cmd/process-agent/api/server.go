@@ -40,16 +40,8 @@ func SetupAPIServerHandlers(deps APIServerDeps, r *mux.Router) {
 	r.HandleFunc("/config", deps.Settings.GetFullConfig("process_config")).Methods("GET")
 	r.HandleFunc("/config/all", deps.Settings.GetFullConfig("")).Methods("GET") // Get all fields from process-agent Config object
 	r.HandleFunc("/config/list-runtime", deps.Settings.ListConfigurable).Methods("GET")
-	r.HandleFunc("/config/{setting}", func(w http.ResponseWriter, r *http.Request) {
-		vars := mux.Vars(r)
-		setting := vars["setting"]
-		deps.Settings.GetValue(setting, w, r)
-	}).Methods("GET")
-	r.HandleFunc("/config/{setting}", func(w http.ResponseWriter, r *http.Request) {
-		vars := mux.Vars(r)
-		setting := vars["setting"]
-		deps.Settings.SetValue(setting, w, r)
-	}).Methods("POST")
+	r.HandleFunc("/config/{setting}", deps.Settings.GetValue).Methods("GET")
+	r.HandleFunc("/config/{setting}", deps.Settings.SetValue).Methods("POST")
 
 	r.HandleFunc("/agent/status", injectDeps(deps, statusHandler)).Methods("GET")
 	r.HandleFunc("/agent/tagger-list", injectDeps(deps, getTaggerList)).Methods("GET")

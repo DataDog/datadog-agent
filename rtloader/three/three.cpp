@@ -985,6 +985,11 @@ void Three::setGetProcessStartTimeCb(cb_get_process_start_time_t cb)
     _set_get_process_start_time_cb(cb);
 }
 
+void Three::setObfuscateMongoDBStringCb(cb_obfuscate_mongodb_string_t cb)
+{
+    _set_obfuscate_mongodb_string_cb(cb);
+}
+
 // Python Helpers
 
 // get_integration_list return a list of every datadog's wheels installed.

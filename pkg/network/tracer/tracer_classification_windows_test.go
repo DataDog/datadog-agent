@@ -17,7 +17,7 @@ func TestProtocolClassification(t *testing.T) {
 		t.Skip("Classification is not supported")
 	}
 	t.Run("without nat", func(t *testing.T) {
-		testProtocolClassification(t, nil, "localhost", "127.0.0.1", "127.0.0.1")
+		testProtocolClassificationCrossOS(t, nil, "localhost", "127.0.0.1", "127.0.0.1")
 	})
 }
 
