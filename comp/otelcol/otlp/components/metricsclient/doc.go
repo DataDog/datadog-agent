@@ -3,5 +3,5 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
-// package metricsclient provides a statsd.ClientInterface implementation to datadog exporter and datadog connector
+// Package metricsclient provides a statsd.ClientInterface implementation to datadog exporter and datadog connector
 package metricsclient

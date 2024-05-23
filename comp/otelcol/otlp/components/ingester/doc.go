@@ -3,5 +3,5 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
-// package ingester contains interfaces to process OTel traces and output stats
+// Package ingester contains interfaces to process OTel traces and output stats
 package ingester

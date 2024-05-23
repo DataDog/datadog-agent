@@ -36,13 +36,13 @@ type TraceAgent struct {
 	exit chan struct{}
 }
 
-// newAgent creates a new unstarted traceagent using the given context. Call Start to start the traceagent.
+// NewAgent creates a new unstarted traceagent using the given context. Call Start to start the traceagent.
 // The out channel will receive outoing stats payloads resulting from spans ingested using the Ingest method.
 func NewAgent(ctx context.Context, out chan *pb.StatsPayload, metricsClient statsd.ClientInterface, timingReporter timing.Reporter) *TraceAgent {
 	return NewAgentWithConfig(ctx, traceconfig.New(), out, metricsClient, timingReporter)
 }
 
-// newAgentWithConfig creates a new traceagent with the given config cfg. Used in tests; use newAgent instead.
+// NewAgentWithConfig creates a new traceagent with the given config cfg. Used in tests; use newAgent instead.
 func NewAgentWithConfig(ctx context.Context, cfg *traceconfig.AgentConfig, out chan *pb.StatsPayload, metricsClient statsd.ClientInterface, timingReporter timing.Reporter) *TraceAgent {
 	// disable the HTTP receiver
 	cfg.ReceiverPort = 0
@@ -163,7 +163,7 @@ func (p *TraceAgent) goProcess() {
 
 var _ Ingester = (*TraceAgent)(nil)
 
-// An Ingester is able to ingest traces. Implemented by traceagent.
+// Ingester is able to ingest traces. Implemented by traceagent.
 type Ingester interface {
 	// Start starts the ingester.
 	Start()
