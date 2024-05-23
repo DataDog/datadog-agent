@@ -52,6 +52,8 @@ pull_test_dockers_arm64:
 
 # -- BTF
 .upload_minimized_btfs:
+  extends:
+    - .kmt_retry
   stage: kernel_matrix_testing_prepare
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_x64$DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
   tags: ["arch:amd64"]
@@ -131,6 +133,8 @@ kmt_setup_env_sysprobe_x64:
     TEST_SETS: "no_tracersuite,only_tracersuite"
 
 .upload_sysprobe_tests:
+  extends:
+    - .kmt_retry
   stage: kernel_matrix_testing_prepare
   rules: !reference [.on_system_probe_or_e2e_changes_or_manual]
   before_script:

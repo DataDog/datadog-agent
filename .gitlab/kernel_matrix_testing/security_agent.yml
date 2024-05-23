@@ -48,6 +48,8 @@ kmt_setup_env_secagent_x64:
     TEST_SETS: all_tests
 
 .upload_secagent_tests:
+  extends:
+    - .kmt_retry
   stage: kernel_matrix_testing_prepare
   allow_failure: true
   rules: !reference [.on_security_agent_changes_or_manual]

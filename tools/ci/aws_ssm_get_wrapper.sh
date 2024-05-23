@@ -19,4 +19,4 @@ while [[ $retry_count -lt $max_retries ]]; do
 done
 
 echo "Failed to retrieve parameter after $max_retries retries"
-exit 1
+exit 666
