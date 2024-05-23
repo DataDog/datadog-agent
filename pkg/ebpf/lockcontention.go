@@ -9,6 +9,7 @@ package ebpf
 
 import (
 	"errors"
+	"filepath"
 	"fmt"
 	"math"
 	"os"
@@ -21,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	manager "github.com/DataDog/ebpf-manager"
+	"github.com/DataDog/ebpf-manager/tracefs"
 
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/link"
@@ -129,11 +131,16 @@ var lockTypes = map[uint32]string{
 }
 
 func lockContentionCollectorSupported() bool {
-	if _, err := os.Stat("/sys/kernel/tracing/events/lock/contention_begin/id"); errors.Is(err, os.ErrNotExist) {
+	traceFSRoot, err := tracefs.Root()
+	if err != nil {
 		return false
 	}
 
-	if _, err := os.Stat("/sys/kernel/tracing/events/lock/contention_end/id"); errors.Is(err, os.ErrNotExist) {
+	if _, err := os.Stat(filepath.Join(traceFSRoot, "events/lock/contention_begin/id")); errors.Is(err, os.ErrNotExist) {
+		return false
+	}
+
+	if _, err := os.Stat(filepath.Join(traceFSRoot, "events/lock/contention_end/id")); errors.Is(err, os.ErrNotExist) {
 		return false
 	}
 
@@ -143,6 +150,7 @@ func lockContentionCollectorSupported() bool {
 // NewLockContentionCollector creates a prometheus.Collector for eBPF lock contention metrics
 func NewLockContentionCollector() *LockContentionCollector {
 	if !lockContentionCollectorSupported() {
+		log.Infof("lock contention collector not supported")
 		return nil
 	}
 
@@ -252,6 +260,7 @@ func (l *LockContentionCollector) Initialize(trackAllResources bool) error {
 		return nil
 	}
 	defer func() {
+		log.Infof("lock contention collector initialized")
 		l.initialized = true
 	}()
 
