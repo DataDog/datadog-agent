@@ -9,10 +9,10 @@ package ebpf
 
 import (
 	"errors"
-	"filepath"
 	"fmt"
 	"math"
 	"os"
+	"path/filepath"
 	"slices"
 	"sync"
 	"syscall"
