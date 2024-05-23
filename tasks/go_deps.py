@@ -124,6 +124,10 @@ BINARY_TO_TEST = ["serverless"]
 def test_dependencies_list(
     ctx: Context,
 ):
+    """
+    Compare the dependencies list for the binaries in BINARY_TO_TEST with the actual dependencies of the binaries.
+    If the lists do not match, the task will raise an error.
+    """
     missmatch_binaries = set()
 
     for binary in BINARY_TO_TEST:
