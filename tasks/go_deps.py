@@ -168,3 +168,45 @@ def test_dependencies_list(
                             "red",
                         ),
                     )
+
+
+@task
+def dependencies_generate(
+    ctx: Context,
+    binary: str,
+):
+    binary_info = BINARIES.get(binary, None)
+    if not binary_info:
+        raise Exit(
+            code=1,
+            message=color_message(f"Binary `{binary}` is not valid. Valid binaries are {list(BINARIES.keys())}", "red"),
+        )
+
+    entrypoint = binary_info["entrypoint"]
+    platforms = binary_info["platforms"]
+    flavor = binary_info.get("flavor", AgentFlavor.base)
+    build = binary_info.get("build", binary)
+
+    with ctx.cd(entrypoint):
+        for platform in platforms:
+            platform, arch = platform.split("/")
+
+            goos, goarch = GOOS_MAPPING[platform], GOARCH_MAPPING[arch]
+
+            filename = os.path.join(ctx.cwd, f"dependencies_{goos}_{goarch}.txt")
+
+            build_tags = get_default_build_tags(build=build, flavor=flavor, platform=platform)
+
+            env = {"GOOS": goos, "GOARCH": goarch, "CGO_ENABLED": "1"}
+            cmd = "go list -f '{{ join .Deps \"\\n\"}}'"
+
+            res = ctx.run(
+                f"{cmd} -tags {','.join(build_tags)}",
+                env=env,
+                hide='out',  # don't hide errors
+            )
+            assert res
+
+            f = open(filename, "w")
+            f.write(res.stdout.strip())
+            f.close()
