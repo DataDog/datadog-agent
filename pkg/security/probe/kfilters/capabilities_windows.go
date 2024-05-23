@@ -13,7 +13,7 @@ func init() {
 	allCapabilities["create"] = Capabilities{
 		"create.file.name": {
 			PolicyFlags:     PolicyFlagBasename,
-			FieldValueTypes: eval.ScalarValueType | eval.GlobValueType,
+			FieldValueTypes: eval.ScalarValueType | eval.PatternValueType,
 		},
 	}
 }
