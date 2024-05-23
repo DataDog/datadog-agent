@@ -119,7 +119,7 @@ description 'Datadog Monitoring Agent
 
 # .deb specific flags
 package :deb do
-  skip_packager BUILD_OCIRU
+  skip_packager !generate_distro_package
   vendor 'Datadog <package@datadoghq.com>'
   epoch 1
   license 'Apache License Version 2.0'
@@ -138,7 +138,7 @@ end
 
 # .rpm specific flags
 package :rpm do
-  skip_packager BUILD_OCIRU
+  skip_packager !generate_distro_package
   vendor 'Datadog <package@datadoghq.com>'
   epoch 1
   dist_tag ''
@@ -188,7 +188,7 @@ package :msi do
 end
 
 package :xz do
-  skip_packager !BUILD_OCIRU
+  skip_packager (generate_distro_package && !BUILD_OCIRU)
   compression_threads COMPRESSION_THREADS
   compression_level COMPRESSION_LEVEL
 end
@@ -197,57 +197,65 @@ end
 # Dependencies
 # ------------------------------------
 
-# Datadog agent
-dependency 'datadog-agent'
+if !generate_distro_package || force_build_and_packaging
+  # Datadog agent
+  dependency 'datadog-agent'
 
-# System-probe
-if linux_target? && !heroku_target?
-  dependency 'system-probe'
-end
-
-if osx_target?
-  dependency 'datadog-agent-mac-app'
-end
-
-if with_python_runtime? "2"
-  dependency 'pylint2'
-  dependency 'datadog-agent-integrations-py2'
-end
-
-if with_python_runtime? "3"
-  dependency 'datadog-agent-integrations-py3'
-end
-
-if linux_target?
-  dependency 'datadog-security-agent-policies'
-end
-
-# Include traps db file in snmp.d/traps_db/
-dependency 'snmp-traps'
-
-# Additional software
-if windows_target?
-  if ENV['WINDOWS_DDNPM_DRIVER'] and not ENV['WINDOWS_DDNPM_DRIVER'].empty?
-    dependency 'datadog-windows-filter-driver'
+  # System-probe
+  if linux_target? && !heroku_target?
+    dependency 'system-probe'
   end
-  if ENV['WINDOWS_APMINJECT_MODULE'] and not ENV['WINDOWS_APMINJECT_MODULE'].empty?
-    dependency 'datadog-windows-apminject'
+
+  if osx_target?
+    dependency 'datadog-agent-mac-app'
   end
-  if ENV['WINDOWS_DDPROCMON_DRIVER'] and not ENV['WINDOWS_DDPROCMON_DRIVER'].empty?
-    dependency 'datadog-windows-procmon-driver'
-    ## this is a duplicate of the above dependency in linux
+
+  if with_python_runtime? "2"
+    dependency 'pylint2'
+    dependency 'datadog-agent-integrations-py2'
+  end
+
+  if with_python_runtime? "3"
+    dependency 'datadog-agent-integrations-py3'
+  end
+
+  if linux_target?
     dependency 'datadog-security-agent-policies'
   end
-end
 
-# this dependency puts few files out of the omnibus install dir and move them
-# in the final destination. This way such files will be listed in the packages
-# manifest and owned by the package manager. This is the only point in the build
-# process where we operate outside the omnibus install dir, thus the need of
-# the `extra_package_file` directive.
-# This must be the last dependency in the project.
-dependency 'datadog-agent-finalize'
-dependency 'datadog-cf-finalize'
+  # Include traps db file in snmp.d/traps_db/
+  dependency 'snmp-traps'
+
+  # Additional software
+  if windows_target?
+    if ENV['WINDOWS_DDNPM_DRIVER'] and not ENV['WINDOWS_DDNPM_DRIVER'].empty?
+      dependency 'datadog-windows-filter-driver'
+    end
+    if ENV['WINDOWS_APMINJECT_MODULE'] and not ENV['WINDOWS_APMINJECT_MODULE'].empty?
+      dependency 'datadog-windows-apminject'
+    end
+    if ENV['WINDOWS_DDPROCMON_DRIVER'] and not ENV['WINDOWS_DDPROCMON_DRIVER'].empty?
+      dependency 'datadog-windows-procmon-driver'
+      ## this is a duplicate of the above dependency in linux
+      dependency 'datadog-security-agent-policies'
+    end
+  end
+
+  # this dependency puts few files out of the omnibus install dir and move them
+  # in the final destination. This way such files will be listed in the packages
+  # manifest and owned by the package manager. This is the only point in the build
+  # process where we operate outside the omnibus install dir, thus the need of
+  # the `extra_package_file` directive.
+  # This must be the last dependency in the project.
+  dependency 'datadog-agent-finalize'
+  dependency 'datadog-cf-finalize'
+  if force_build_and_packaging
+    dependency "init-scripts-agent"
+  end
+else
+  dependency "package-artifact"
+  dependency "init-scripts-agent"
+end
 
 if linux_target?
   extra_package_file '/etc/datadog-agent/'
@@ -257,6 +265,10 @@ end
 
 # all flavors use the same package scripts
 if linux_target?
+  if !generate_distro_package
+    extra_package_file "#{Omnibus::Config.project_root}/package-scripts/agent-deb"
+    extra_package_file "#{Omnibus::Config.project_root}/package-scripts/agent-rpm"
+  end
   if debian_target?
     package_scripts_path "#{Omnibus::Config.project_root}/package-scripts/agent-deb"
   else
@@ -328,6 +340,6 @@ if linux_target? or windows_target?
   # the stripper will drop the symbols in a `.debug` folder in the installdir
   # we want to make sure that directory is not in the main build, while present
   # in the debug package.
-  strip_build true
+  strip_build windows_target? || !generate_distro_package || force_build_and_packaging
   debug_path ".debug"  # the strip symbols will be in here
 end
