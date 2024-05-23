@@ -6,9 +6,10 @@
 package mode
 
 import (
+	"os"
+
 	serverlessLog "github.com/DataDog/datadog-agent/cmd/serverless-init/log"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"os"
 )
 
 // Conf contains the configuration for the mode in which the serverless-init agent should run
@@ -28,11 +29,12 @@ const (
 func DetectMode() Conf {
 
 	envToSet := map[string]string{
-		"DD_REMOTE_CONFIGURATION_ENABLED": "false",
-		"DD_HOSTNAME":                     "none",
-		"DD_APM_ENABLED":                  "true",
-		"DD_TRACE_ENABLED":                "true",
-		"DD_LOGS_ENABLED":                 "true",
+		"DD_REMOTE_CONFIGURATION_ENABLED":      "false",
+		"DD_HOSTNAME":                          "none",
+		"DD_APM_ENABLED":                       "true",
+		"DD_TRACE_ENABLED":                     "true",
+		"DD_LOGS_ENABLED":                      "true",
+		"DD_INSTRUMENTATION_TELEMETRY_ENABLED": "false",
 	}
 
 	if len(os.Args) == 1 {
