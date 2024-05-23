@@ -46,7 +46,7 @@ def get_running_modes() -> dict[str, bool]:
         "ci": running_in_ci(),
     }
     running_modes["manual"] = not (running_modes["pre_commit"] or running_modes["ci"])
-    return running_modes
+    return [mode for mode, is_running in running_modes.items() if is_running]
 
 
 def log_invoke_task(
