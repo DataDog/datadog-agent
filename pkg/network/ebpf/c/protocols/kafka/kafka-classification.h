@@ -114,7 +114,8 @@ static __always_inline bool isMSBSet(uint8_t byte) {
 }
 
 // Parses a varint of maximum size two bytes. The maximum size is (0x7f << 7) |
-// 0x7f == 16383 bytes.
+// 0x7f == 16383 bytes. This is more than enough for the topic name size which
+// is a maximum of 255 bytes.
 static __always_inline int parse_varint_u16(u16 *out, u16 in, u32 *bytes)
 {
     *bytes = 1;
