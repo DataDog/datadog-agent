@@ -20,8 +20,9 @@ type ResolverInterface interface {
 	ResolveFilesystem(mountID uint32, device uint32, pid uint32, containerID string) (string, error)
 	Insert(m model.Mount, pid uint32) error
 	DelPid(pid uint32)
-	ResolveMountRoot(mountID uint32, device uint32, pid uint32, containerID string) (string, error)
-	ResolveMountPath(mountID uint32, device uint32, pid uint32, containerID string) (string, error)
-	ResolveMount(mountID uint32, device uint32, pid uint32, containerID string) (*model.Mount, error)
+	ResolveMountRoot(mountID uint32, device uint32, pid uint32, containerID string) (string, model.MountSource, model.MountOrigin, error)
+	ResolveMountPath(mountID uint32, device uint32, pid uint32, containerID string) (string, model.MountSource, model.MountOrigin, error)
+	ResolveMount(mountID uint32, device uint32, pid uint32, containerID string) (*model.Mount, model.MountSource, model.MountOrigin, error)
 	SendStats() error
+	ToJSON() ([]byte, error)
 }

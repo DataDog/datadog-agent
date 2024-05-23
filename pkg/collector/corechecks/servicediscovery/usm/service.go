@@ -10,6 +10,7 @@ import (
 	"io/fs"
 	"os"
 	"path"
+	"path/filepath"
 	"slices"
 	"strings"
 	"unicode"
@@ -22,6 +23,7 @@ type detectorCreatorFn func(ctx DetectionContext) detector
 const (
 	javaJarFlag      = "-jar"
 	javaJarExtension = ".jar"
+	dllExtension     = ".dll"
 	javaApachePrefix = "org.apache."
 	maxParseFileSize = 1024 * 1024
 )
@@ -30,6 +32,7 @@ const (
 type ServiceMetadata struct {
 	Name            string
 	AdditionalNames []string
+	FromDDService   bool
 	// for future usage: we can detect also the type, vendor, frameworks, etc
 }
 
@@ -58,8 +61,15 @@ type simpleDetector struct {
 	ctx DetectionContext
 }
 
+type dotnetDetector struct {
+	ctx DetectionContext
+}
+
 func newSimpleDetector(ctx DetectionContext) detector {
 	return &simpleDetector{ctx: ctx}
+}
+func newDotnetDetector(ctx DetectionContext) detector {
+	return &dotnetDetector{ctx: ctx}
 }
 
 // DetectionContext allows to detect ServiceMetadata.
@@ -82,14 +92,19 @@ func NewDetectionContext(logger *zap.Logger, args []string, envs []string, fs fs
 
 // workingDirFromEnvs returns the current working dir extracted from the PWD env
 func workingDirFromEnvs(envs []string) (string, bool) {
-	wd := ""
+	return extractEnvVar(envs, "PWD")
+}
+
+func extractEnvVar(envs []string, name string) (string, bool) {
+	value := ""
+	prefix := name + "="
 	for _, v := range envs {
-		if strings.HasPrefix(v, "PWD=") {
-			_, wd, _ = strings.Cut(v, "=")
+		if strings.HasPrefix(v, prefix) {
+			_, value, _ = strings.Cut(v, "=")
 			break
 		}
 	}
-	return wd, len(wd) > 0
+	return value, len(value) > 0
 }
 
 // abs returns the path itself if already absolute or the absolute path by joining cwd with path
@@ -120,19 +135,48 @@ var binsWithContext = map[string]detectorCreatorFn{
 	"java":      newJavaDetector,
 	"sudo":      newSimpleDetector,
 	"node":      newNodeDetector,
+	"dotnet":    newDotnetDetector,
 	"php":       newPhpDetector,
+	"gunicorn":  newGunicornDetector,
+}
+
+func checkForInjectionNaming(envs []string) bool {
+	fromDDService := true
+outer:
+	for _, v := range envs {
+		if strings.HasPrefix(v, "DD_INJECTION_ENABLED=") {
+			values := strings.Split(v[len("DD_INJECTION_ENABLED="):], ",")
+			for _, v := range values {
+				if v == "service_name" {
+					fromDDService = false
+					break outer
+				}
+			}
+		}
+	}
+	return fromDDService
 }
 
 // ExtractServiceMetadata attempts to detect ServiceMetadata from the given process.
-func ExtractServiceMetadata(ctx DetectionContext) (ServiceMetadata, bool) {
-	cmd := ctx.args
+func ExtractServiceMetadata(logger *zap.Logger, args []string, envs []string) (ServiceMetadata, bool) {
+	dc := DetectionContext{
+		logger: logger,
+		args:   args,
+		envs:   envs,
+		fs:     RealFs{},
+	}
+	cmd := dc.args
 	if len(cmd) == 0 || len(cmd[0]) == 0 {
 		return ServiceMetadata{}, false
 	}
 
-	if value, ok := chooseServiceNameFromEnvs(ctx.envs); ok {
-		return NewServiceMetadata(value), true
+	if value, ok := chooseServiceNameFromEnvs(dc.envs); ok {
+		metadata := NewServiceMetadata(value)
+		// we only want to set FromDDService to true if the name wasn't assigned by injection
+		metadata.FromDDService = checkForInjectionNaming(dc.envs)
+		return metadata, true
 	}
+
 	exe := cmd[0]
 	// check if all args are packed into the first argument
 	if len(cmd) == 1 {
@@ -151,8 +195,10 @@ func ExtractServiceMetadata(ctx DetectionContext) (ServiceMetadata, bool) {
 		exe = parseExeStartWithSymbol(exe)
 	}
 
+	exe = normalizeExeName(exe)
+
 	if detectorProvider, ok := binsWithContext[exe]; ok {
-		return detectorProvider(ctx).detect(cmd[1:])
+		return detectorProvider(dc).detect(cmd[1:])
 	}
 
 	// trim trailing file extensions
@@ -165,7 +211,7 @@ func ExtractServiceMetadata(ctx DetectionContext) (ServiceMetadata, bool) {
 
 func removeFilePath(s string) string {
 	if s != "" {
-		return path.Base(s)
+		return path.Base(filepath.ToSlash(s))
 	}
 	return s
 }
@@ -195,6 +241,32 @@ func parseExeStartWithSymbol(exe string) string {
 		result = result[:len(result)-1]
 	}
 	return result
+}
+
+func validVersion(str string) bool {
+	if len(str) == 0 {
+		return true
+	}
+	parts := strings.Split(str, ".")
+	for _, v := range parts {
+		for _, c := range v {
+			if !unicode.IsNumber(c) {
+				return false
+			}
+		}
+	}
+	return true
+}
+
+func normalizeExeName(exe string) string {
+	// PHP Executable with version number - phpX.X
+	if strings.HasPrefix(exe, "php") {
+		suffix := exe[3:]
+		if validVersion(suffix) {
+			return "php"
+		}
+	}
+	return exe
 }
 
 // chooseServiceNameFromEnvs extracts the service name from usual tracer env variables (DD_SERVICE, DD_TAGS).
@@ -233,6 +305,24 @@ func (simpleDetector) detect(args []string) (ServiceMetadata, bool) {
 		prevArgIsFlag = hasFlagPrefix
 	}
 
+	return ServiceMetadata{}, false
+}
+
+func (dd dotnetDetector) detect(args []string) (ServiceMetadata, bool) {
+	for _, a := range args {
+		if strings.HasPrefix(a, "-") {
+			continue
+		}
+		// when running assembly's dll, the cli must be executed without command
+		// https://learn.microsoft.com/en-us/dotnet/core/tools/dotnet-run#description
+		if strings.HasSuffix(strings.ToLower(a), dllExtension) {
+			file := removeFilePath(a)
+			return NewServiceMetadata(file[:len(file)-len(dllExtension)]), true
+		}
+		// dotnet cli syntax is something like `dotnet <cmd> <args> <dll> <prog args>`
+		// if the first non arg (`-v, --something, ...) is not a dll file, exit early since nothing is matching a dll execute case
+		break
+	}
 	return ServiceMetadata{}, false
 }
 

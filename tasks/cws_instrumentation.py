@@ -17,7 +17,6 @@ from tasks.libs.common.utils import (
     get_go_version,
     get_version,
 )
-from tasks.system_probe import CURRENT_ARCH
 
 BIN_DIR = os.path.join(".", "bin")
 BIN_PATH = os.path.join(BIN_DIR, "cws-instrumentation", bin_name("cws-instrumentation"))
@@ -32,9 +31,6 @@ def build(
     race=False,
     incremental_build=True,
     major_version='7',
-    # arch is never used here; we keep it to have a
-    # consistent CLI on the build task for all agents.
-    arch=CURRENT_ARCH,  # noqa: U100
     go_mod="mod",
     static=False,
     no_strip_binary=False,

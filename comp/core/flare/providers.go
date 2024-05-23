@@ -13,10 +13,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/flare/types"
 )
 
-var (
-	// Match .yaml and .yml to ship configuration files in the flare.
-	cnfFileExtRx = regexp.MustCompile(`(?i)\.ya?ml`)
-)
+// Match .yaml and .yml to ship configuration files in the flare.
+var cnfFileExtRx = regexp.MustCompile(`(?i)\.ya?ml`)
 
 func getFirstSuffix(s string) string {
 	return filepath.Ext(strings.TrimSuffix(s, filepath.Ext(s)))
@@ -46,9 +44,9 @@ func (f *flare) collectLogsFiles(fb types.FlareBuilder) error {
 	}
 
 	f.log.Flush()
-	fb.CopyDirToWithoutScrubbing(filepath.Dir(logFile), "logs", shouldIncludeFunc)
-	fb.CopyDirToWithoutScrubbing(filepath.Dir(jmxLogFile), "logs", shouldIncludeFunc)
-	fb.CopyDirToWithoutScrubbing(filepath.Dir(dogstatsdLogFile), "logs", shouldIncludeFunc)
+	fb.CopyDirToWithoutScrubbing(filepath.Dir(logFile), "logs", shouldIncludeFunc)          //nolint:errcheck
+	fb.CopyDirToWithoutScrubbing(filepath.Dir(jmxLogFile), "logs", shouldIncludeFunc)       //nolint:errcheck
+	fb.CopyDirToWithoutScrubbing(filepath.Dir(dogstatsdLogFile), "logs", shouldIncludeFunc) //nolint:errcheck
 	return nil
 }
 
@@ -60,7 +58,7 @@ func (f *flare) collectConfigFiles(fb types.FlareBuilder) error {
 	}
 
 	for prefix, filePath := range confSearchPaths {
-		fb.CopyDirTo(filePath, filepath.Join("etc", "confd", prefix), func(path string) bool {
+		fb.CopyDirTo(filePath, filepath.Join("etc", "confd", prefix), func(path string) bool { //nolint:errcheck
 			// ignore .example file
 			if filepath.Ext(path) == ".example" {
 				return false
@@ -79,14 +77,14 @@ func (f *flare) collectConfigFiles(fb types.FlareBuilder) error {
 		confDir := filepath.Dir(mainConfpath)
 
 		// zip up the config file that was actually used, if one exists
-		fb.CopyFileTo(mainConfpath, filepath.Join("etc", "datadog.yaml"))
+		fb.CopyFileTo(mainConfpath, filepath.Join("etc", "datadog.yaml")) //nolint:errcheck
 
 		// figure out system-probe file path based on main config path, and use best effort to include
 		// system-probe.yaml to the flare
-		fb.CopyFileTo(filepath.Join(confDir, "system-probe.yaml"), filepath.Join("etc", "system-probe.yaml"))
+		fb.CopyFileTo(filepath.Join(confDir, "system-probe.yaml"), filepath.Join("etc", "system-probe.yaml")) //nolint:errcheck
 
 		// use best effort to include security-agent.yaml to the flare
-		fb.CopyFileTo(filepath.Join(confDir, "security-agent.yaml"), filepath.Join("etc", "security-agent.yaml"))
+		fb.CopyFileTo(filepath.Join(confDir, "security-agent.yaml"), filepath.Join("etc", "security-agent.yaml")) //nolint:errcheck
 	}
 	return nil
 }

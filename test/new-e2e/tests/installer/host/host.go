@@ -21,14 +21,16 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
 	e2eos "github.com/DataDog/test-infra-definitions/components/os"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // Host is a remote host environment.
 type Host struct {
-	t      *testing.T
-	remote *components.RemoteHost
-	os     e2eos.Descriptor
-	arch   e2eos.Architecture
+	t              *testing.T
+	remote         *components.RemoteHost
+	os             e2eos.Descriptor
+	arch           e2eos.Architecture
+	systemdVersion int
 }
 
 // Option is an option to configure a Host.
@@ -46,7 +48,16 @@ func New(t *testing.T, remote *components.RemoteHost, os e2eos.Descriptor, arch 
 		opt(t, host)
 	}
 	host.uploadFixtures()
+	host.setSystemdVersion()
 	return host
+}
+
+func (h *Host) setSystemdVersion() {
+	strVersion := strings.TrimSpace(h.remote.MustExecute("systemctl --version | head -n1 | awk '{print $2}'"))
+	version, err := strconv.Atoi(strVersion)
+	require.NoError(h.t, err)
+	h.t.Log("Systemd version:", version)
+	h.systemdVersion = version
 }
 
 // InstallDocker installs Docker on the host.
@@ -79,10 +90,17 @@ func (h *Host) ReadFile(path string) ([]byte, error) {
 	return h.remote.ReadFile(path)
 }
 
+// DeletePath deletes a path on the host.
+func (h *Host) DeletePath(path string) {
+	h.remote.MustExecute(fmt.Sprintf("sudo ls %s", path))
+	h.remote.MustExecute(fmt.Sprintf("sudo rm -rf %s", path))
+}
+
 // WaitForUnitActive waits for a systemd unit to be active
 func (h *Host) WaitForUnitActive(units ...string) {
 	for _, unit := range units {
-		h.remote.MustExecute(fmt.Sprintf("timeout=30; unit=%s; while ! systemctl is-active --quiet $unit && [ $timeout -gt 0 ]; do sleep 1; ((timeout--)); done; [ $timeout -ne 0 ]", unit))
+		_, err := h.remote.Execute(fmt.Sprintf("timeout=30; unit=%s; while ! systemctl is-active --quiet $unit && [ $timeout -gt 0 ]; do sleep 1; ((timeout--)); done; [ $timeout -ne 0 ]", unit))
+		require.NoError(h.t, err, "unit %s did not become active", unit)
 	}
 }
 

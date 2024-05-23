@@ -5,6 +5,7 @@ go 1.21.0
 replace (
 	github.com/DataDog/datadog-agent/cmd/agent/common/path => ../../../cmd/agent/common/path
 	github.com/DataDog/datadog-agent/comp/core/config => ../config
+	github.com/DataDog/datadog-agent/comp/core/flare/builder => ../flare/builder
 	github.com/DataDog/datadog-agent/comp/core/flare/types => ../flare/types
 	github.com/DataDog/datadog-agent/comp/core/secrets => ../secrets
 	github.com/DataDog/datadog-agent/comp/core/telemetry => ../telemetry/
@@ -47,7 +48,7 @@ require (
 
 require (
 	github.com/DataDog/datadog-agent/comp/core/secrets v0.54.0-rc.2 // indirect
-	github.com/DataDog/datadog-agent/comp/def v0.54.0-rc.2 // indirect
+	github.com/DataDog/datadog-agent/comp/def v0.55.0-devel // indirect
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults v0.54.0-rc.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/model v0.54.0-rc.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/setup v0.54.0-rc.2 // indirect
