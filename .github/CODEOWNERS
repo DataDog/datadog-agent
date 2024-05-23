@@ -384,6 +384,7 @@
 /pkg/proto/datadog/languagedetection    @DataDog/processes
 /pkg/proto/datadog/process              @DataDog/processes
 /pkg/proto/datadog/trace                @DataDog/agent-apm
+/pkg/proto/datadog/workloadmeta         @DataDog/container-platform
 /pkg/remoteconfig/                      @DataDog/remote-config
 /pkg/runtime/                           @DataDog/agent-shared-components
 /pkg/serializer/                        @DataDog/agent-processing-and-routing

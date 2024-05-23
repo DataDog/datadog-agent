@@ -15,6 +15,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/api/api"
+	"github.com/DataDog/datadog-agent/comp/api/api/utils"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	"github.com/DataDog/datadog-agent/comp/core/log"
@@ -87,6 +89,7 @@ type provides struct {
 	Comp          packagesigning.Component
 	Provider      runnerimpl.Provider
 	FlareProvider flaretypes.Provider
+	Endpoint      api.AgentEndpointProvider
 }
 
 // Testing purpose
@@ -126,6 +129,7 @@ func newPackageSigningProvider(deps dependencies) provides {
 		Comp:          is,
 		Provider:      provider,
 		FlareProvider: is.FlareProvider(),
+		Endpoint:      api.NewAgentEndpointProvider(is.writePayloadAsJSON, "/metadata/package-signing", "GET"),
 	}
 }
 
@@ -181,4 +185,14 @@ func (is *pkgSigning) getPayload() marshaler.JSONMarshaler {
 		Metadata:  &signingMetadata{is.getData()},
 		UUID:      uuid.GetUUID(),
 	}
+}
+
+func (is *pkgSigning) writePayloadAsJSON(w http.ResponseWriter, _ *http.Request) {
+	// GetAsJSON already return scrubbed data
+	scrubbed, err := is.GetAsJSON()
+	if err != nil {
+		utils.SetJSONError(w, err, 500)
+		return
+	}
+	w.Write(scrubbed)
 }
