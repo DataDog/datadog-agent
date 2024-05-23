@@ -13,10 +13,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor"
 	emconfig "github.com/DataDog/datadog-agent/pkg/eventmonitor/config"
-	netconfig "github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/events"
 	procconsumer "github.com/DataDog/datadog-agent/pkg/process/events/consumer"
-	procmon "github.com/DataDog/datadog-agent/pkg/process/monitor"
 	secconfig "github.com/DataDog/datadog-agent/pkg/security/config"
 	secmodule "github.com/DataDog/datadog-agent/pkg/security/module"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -25,7 +23,7 @@ import (
 
 var eventMonitorModuleConfigNamespaces = []string{"event_monitoring_config", "runtime_security_config"}
 
-func createEventMonitorModule(_ *sysconfigtypes.Config, wmeta optional.Option[workloadmeta.Component]) (module.Module, error) {
+func createEventMonitor(_ *sysconfigtypes.Config, wmeta optional.Option[workloadmeta.Component]) (*eventmonitor.EventMonitor, error) {
 	emconfig := emconfig.NewConfig()
 
 	secconfig, err := secconfig.NewConfig()
@@ -79,16 +77,6 @@ func createEventMonitorModule(_ *sysconfigtypes.Config, wmeta optional.Option[wo
 		}
 		evm.RegisterEventConsumer(process)
 		log.Info("event monitoring process-agent consumer initialized")
-	}
-
-	netconfig := netconfig.New()
-	if netconfig.EnableUSMEventStream {
-		procmonconsumer, err := procmon.NewProcessMonitorEventConsumer(evm)
-		if err != nil {
-			return nil, err
-		}
-		evm.RegisterEventConsumer(procmonconsumer)
-		log.Info("USM process monitoring consumer initialized")
 	}
 
 	return evm, err

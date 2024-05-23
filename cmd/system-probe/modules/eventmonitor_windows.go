@@ -10,6 +10,9 @@ package modules
 import (
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/config"
+	sysconfigtypes "github.com/DataDog/datadog-agent/cmd/system-probe/config/types"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 // EventMonitor - Event monitor Factory
@@ -17,4 +20,8 @@ var EventMonitor = module.Factory{
 	Name:             config.EventMonitorModule,
 	ConfigNamespaces: eventMonitorModuleConfigNamespaces,
 	Fn:               createEventMonitorModule,
+}
+
+func createEventMonitorModule(config *sysconfigtypes.Config, wmeta optional.Option[workloadmeta.Component]) (module.Module, error) {
+	return createEventMonitor(config, wmeta)
 }
