@@ -106,17 +106,6 @@ upload_secagent_tests_arm64:
   stage: kernel_matrix_testing_security_agent
   rules: !reference [.on_security_agent_changes_or_manual]
   timeout: 1h 30m
-  retry:
-    max: 3
-    when:
-      - job_execution_timeout
-      - runner_system_failure
-      - stuck_or_timeout_failure
-      - unknown_failure
-      - api_failure
-      - scheduler_failure
-      - stale_schedule
-      - data_integrity_failure
   variables:
     TEST_COMPONENT: security-agent
 
