@@ -42,7 +42,7 @@ def get_running_modes() -> dict[str, bool]:
     """
     running_modes = {
         "pre_commit": os.environ.get("PRE_COMMIT", 0) == "1",
-        "invoke_unit_tests": os.environ.get("INVOKE_UNIT_TESTS", 0) == "1" or 'unittest' in sys.modules,
+        "invoke_unit_tests": os.environ.get("INVOKE_UNIT_TESTS", 0) == "1",
         "ci": running_in_ci(),
     }
     running_modes["manual"] = not (running_modes["pre_commit"] or running_modes["ci"])
