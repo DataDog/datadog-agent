@@ -9,14 +9,18 @@
 package runtime
 
 import (
+	"archive/zip"
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"os"
 	"path"
 	"runtime"
+	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -186,6 +190,7 @@ type downloadPolicyCliParams struct {
 
 	check      bool
 	outputPath string
+	target     string
 }
 
 func downloadPolicyCommands(globalParams *command.GlobalParams) []*cobra.Command {
@@ -210,6 +215,7 @@ func downloadPolicyCommands(globalParams *command.GlobalParams) []*cobra.Command
 
 	downloadPolicyCmd.Flags().BoolVar(&downloadPolicyArgs.check, "check", false, "Check policies after downloading")
 	downloadPolicyCmd.Flags().StringVar(&downloadPolicyArgs.outputPath, "output-path", "", "Output path for downloaded policies")
+	downloadPolicyCmd.Flags().StringVar(&downloadPolicyArgs.target, "target", "all", `Specify wether should download the custom, default or all policies. allowed: "all", "default", "custom"`)
 
 	return []*cobra.Command{downloadPolicyCmd}
 }
@@ -765,7 +771,38 @@ func downloadPolicy(log log.Component, config config.Component, _ secrets.Compon
 	if err != nil {
 		return err
 	}
+
+	// Unzip the downloaded file containing both default and custom policies
 	resBytes := []byte(res)
+	reader, err := zip.NewReader(bytes.NewReader(resBytes), int64(len(resBytes)))
+	if err != nil {
+		return err
+	}
+
+	var defaultPolicy, customPolicy []byte
+	for _, file := range reader.File {
+		if file.Name == "default.policy" {
+			pf, err := file.Open()
+			if err != nil {
+				return err
+			}
+			defaultPolicy, err = ioutil.ReadAll(pf)
+			pf.Close()
+			if err != nil {
+				return err
+			}
+		} else if file.Name == "custom.policy" {
+			pf, err := file.Open()
+			if err != nil {
+				return err
+			}
+			customPolicy, err = ioutil.ReadAll(pf)
+			pf.Close()
+			if err != nil {
+				return err
+			}
+		}
+	}
 
 	tempDir, err := os.MkdirTemp("", "policy_check")
 	if err != nil {
@@ -773,9 +810,13 @@ func downloadPolicy(log log.Component, config config.Component, _ secrets.Compon
 	}
 	defer os.RemoveAll(tempDir)
 
-	tempOutputPath := path.Join(tempDir, "check.policy")
-	if err := os.WriteFile(tempOutputPath, resBytes, 0644); err != nil {
+	if err := ioutil.WriteFile(path.Join(tempDir, "default.policy"), defaultPolicy, 0644); err != nil {
 		return err
+	}
+	if customPolicy != nil {
+		if err := ioutil.WriteFile(path.Join(tempDir, "custom.policy"), customPolicy, 0644); err != nil {
+			return err
+		}
 	}
 
 	if downloadPolicyArgs.check {
@@ -784,7 +825,37 @@ func downloadPolicy(log log.Component, config config.Component, _ secrets.Compon
 		}
 	}
 
-	_, err = outputWriter.Write(resBytes)
+	// Extract rules from custom.policy
+	var customRules string
+	if customPolicy != nil {
+		customPolicyStr := string(customPolicy)
+		customPolicyLines := strings.Split(customPolicyStr, "\n")
+		rulesIndex := -1
+		for i, line := range customPolicyLines {
+			if strings.TrimSpace(line) == "rules:" {
+				rulesIndex = i
+				break
+			}
+		}
+		if rulesIndex != -1 && rulesIndex+1 < len(customPolicyLines) {
+			customRules = strings.Join(customPolicyLines[rulesIndex+1:], "\n")
+		}
+	}
+
+	// Merge default.policy and custom.policy rules
+	var outputContent string
+	switch downloadPolicyArgs.target {
+	case "all":
+		outputContent = string(defaultPolicy) + customRules
+	case "default":
+		outputContent = string(defaultPolicy)
+	case "custom":
+		outputContent = string(customPolicy)
+	default:
+		return errors.New("invalid target specified")
+	}
+
+	_, err = outputWriter.Write([]byte(outputContent))
 	if err != nil {
 		return err
 	}
