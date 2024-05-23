@@ -11,12 +11,11 @@ import (
 	"testing"
 	"time"
 
-	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
-
 	"github.com/spf13/cast"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/cmd/serverless-init/mode"
+	"github.com/DataDog/datadog-agent/comp/logs/agent/agentimpl"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/serverless/logs"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -68,7 +67,7 @@ func (tfa *TestFlushableAgent) Flush() {
 func TestFlushSuccess(t *testing.T) {
 	metricAgent := &TestFlushableAgent{}
 	traceAgent := &TestFlushableAgent{}
-	mockLogsAgent := logsAgent.NewMockServerlessLogsAgent()
+	mockLogsAgent := agentimpl.NewMockServerlessLogsAgent()
 	lastFlush(100*time.Millisecond, metricAgent, traceAgent, mockLogsAgent)
 	assert.Equal(t, true, metricAgent.hasBeenCalled)
 	assert.Equal(t, true, mockLogsAgent.DidFlush())
@@ -77,7 +76,7 @@ func TestFlushSuccess(t *testing.T) {
 func TestFlushTimeout(t *testing.T) {
 	metricAgent := &TestTimeoutFlushableAgent{}
 	traceAgent := &TestTimeoutFlushableAgent{}
-	mockLogsAgent := logsAgent.NewMockServerlessLogsAgent()
+	mockLogsAgent := agentimpl.NewMockServerlessLogsAgent()
 	mockLogsAgent.SetFlushDelay(time.Hour)
 
 	lastFlush(100*time.Millisecond, metricAgent, traceAgent, mockLogsAgent)
