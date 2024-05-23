@@ -24,6 +24,8 @@ BPF_ARRAY_MAP(splice_entry_flags_approvers, u32, 1)
 BPF_ARRAY_MAP(splice_exit_flags_approvers, u32, 1)
 BPF_ARRAY_MAP(bpf_cmd_approvers, u64, 1)
 BPF_ARRAY_MAP(syscalls_stats_enabled, u32, 1)
+BPF_ARRAY_MAP(syscall_ctx_gen_id, u32, 1)
+BPF_ARRAY_MAP(syscall_ctx, char[MAX_SYSCALL_CTX_SIZE], MAX_SYSCALL_CTX_ENTRIES)
 
 BPF_HASH_MAP(activity_dumps_config, u64, struct activity_dump_config, 1) // max entries will be overridden at runtime
 BPF_HASH_MAP(activity_dump_config_defaults, u32, struct activity_dump_config, 1)
@@ -68,9 +70,6 @@ BPF_LRU_MAP(user_sessions, struct user_session_key_t, struct user_session_t, 102
 BPF_LRU_MAP_FLAGS(tasks_in_coredump, u64, u8, 64, BPF_F_NO_COMMON_LRU)
 BPF_LRU_MAP_FLAGS(syscalls, u64, struct syscall_cache_t, 1, BPF_F_NO_COMMON_LRU) // max entries will be overridden at runtime
 
-BPF_LRU_MAP_FLAGS(syscall_ctx, u32, char[MAX_SYSCALL_CTX_SIZE], 1024, BPF_F_NO_COMMON_LRU)
-
-BPF_PERCPU_ARRAY_MAP(syscall_ctx_gen, char[MAX_SYSCALL_CTX_SIZE], 1)
 BPF_PERCPU_ARRAY_MAP(dr_erpc_state, struct dr_erpc_state_t, 1)
 BPF_PERCPU_ARRAY_MAP(cgroup_tracing_event_gen, struct cgroup_tracing_event_t, EVENT_GEN_SIZE)
 BPF_PERCPU_ARRAY_MAP(fb_discarder_stats, struct discarder_stats_t, EVENT_LAST_DISCARDER+1)

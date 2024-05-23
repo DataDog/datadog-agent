@@ -30,6 +30,7 @@ const (
 
 // KernelSyscallCtxStruct maps the kernel structure
 type KernelSyscallCtxStruct struct {
+	ID    uint32
 	Types uint8
 	Arg1  [argMaxSize]byte
 	Arg2  [argMaxSize]byte
@@ -46,6 +47,10 @@ func (sr *Resolver) Resolve(ctxID uint32, ctx *model.SyscallContext) error {
 	var ks KernelSyscallCtxStruct
 	if err := sr.ctxMap.Lookup(ctxID, &ks); err != nil {
 		return fmt.Errorf("unable to resolve the syscall context for `%d`: %w", ctxID, err)
+	}
+
+	if ctxID != ks.ID {
+		return fmt.Errorf("incorrect id `%d` vs `%d`", ctxID, ks.ID)
 	}
 
 	isStrArg := func(pos int) bool {
