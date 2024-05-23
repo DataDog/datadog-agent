@@ -22,7 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/log"
 )
 
-type Dependencies struct {
+type Requires struct {
 	Log           log.Component
 	Config        config.Component
 	Demultiplexer demultiplexerComp.Component
@@ -38,11 +38,11 @@ type Provides struct {
 	Endpoint api.AgentEndpointProvider
 }
 
-func NewComponent(deps Dependencies) Provides {
+func NewComponent(reqs Requires) Provides {
 	endpoint := demultiplexerEndpoint{
-		demux:  deps.Demultiplexer,
-		config: deps.Config,
-		log:    deps.Log,
+		demux:  reqs.Demultiplexer,
+		config: reqs.Config,
+		log:    reqs.Log,
 	}
 
 	return Provides{
