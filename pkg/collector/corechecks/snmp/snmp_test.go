@@ -57,6 +57,9 @@ func createDeps(t *testing.T) deps {
 }
 
 func Test_Run_simpleCase(t *testing.T) {
+	testDir := t.TempDir()
+	mockConfig := config.Mock(t)
+	mockConfig.SetWithoutSource("run_path", testDir)
 	deps := createDeps(t)
 	profile.SetConfdPathAndCleanProfiles()
 	sess := session.CreateMockSession()
@@ -336,6 +339,9 @@ tags:
 }
 
 func Test_Run_customIfSpeed(t *testing.T) {
+	testDir := t.TempDir()
+	mockConfig := config.Mock(t)
+	mockConfig.SetWithoutSource("run_path", testDir)
 	report.TimeNow = common.MockTimeNow
 	deps := createDeps(t)
 	profile.SetConfdPathAndCleanProfiles()
@@ -480,6 +486,9 @@ metrics:
 }
 
 func TestSupportedMetricTypes(t *testing.T) {
+	testDir := t.TempDir()
+	mockConfig := config.Mock(t)
+	mockConfig.SetWithoutSource("run_path", testDir)
 	profile.SetConfdPathAndCleanProfiles()
 	sess := session.CreateMockSession()
 	sessionFactory := func(*checkconfig.CheckConfig) (session.Session, error) {
@@ -553,6 +562,9 @@ metrics:
 }
 
 func TestProfile(t *testing.T) {
+	testDir := t.TempDir()
+	mockConfig := config.Mock(t)
+	mockConfig.SetWithoutSource("run_path", testDir)
 	timeNow = common.MockTimeNow
 
 	deps := createDeps(t)
@@ -948,6 +960,9 @@ profiles:
 }
 
 func TestServiceCheckFailures(t *testing.T) {
+	testDir := t.TempDir()
+	mockConfig := config.Mock(t)
+	mockConfig.SetWithoutSource("run_path", testDir)
 	profile.SetConfdPathAndCleanProfiles()
 	sess := session.CreateMockSession()
 	sessionFactory := func(*checkconfig.CheckConfig) (session.Session, error) {
@@ -1029,6 +1044,9 @@ namespace: nsSubnet
 }
 
 func TestCheck_Run(t *testing.T) {
+	testDir := t.TempDir()
+	mockConfig := config.Mock(t)
+	mockConfig.SetWithoutSource("run_path", testDir)
 	sysObjectIDPacketInvalidSysObjectIDMock := gosnmp.SnmpPacket{
 		Variables: []gosnmp.SnmpPDU{
 			{
@@ -1245,6 +1263,9 @@ namespace: '%s'
 }
 
 func TestCheck_Run_sessionCloseError(t *testing.T) {
+	testDir := t.TempDir()
+	mockConfig := config.Mock(t)
+	mockConfig.SetWithoutSource("run_path", testDir)
 	profile.SetConfdPathAndCleanProfiles()
 
 	sess := session.CreateMockSession()
@@ -1290,8 +1311,7 @@ metrics:
 
 func TestReportDeviceMetadataEvenOnProfileError(t *testing.T) {
 	testDir := t.TempDir()
-	mockConfig := config.Mock(t)
-	mockConfig.SetWithoutSource("run_path", testDir)
+	config.Datadog.SetWithoutSource("run_path", testDir)
 
 	timeNow = common.MockTimeNow
 
@@ -1602,6 +1622,9 @@ tags:
 }
 
 func TestReportDeviceMetadataWithFetchError(t *testing.T) {
+	testDir := t.TempDir()
+	mockConfig := config.Mock(t)
+	mockConfig.SetWithoutSource("run_path", testDir)
 	timeNow = common.MockTimeNow
 	deps := createDeps(t)
 	senderManager := deps.Demultiplexer
@@ -1713,6 +1736,9 @@ tags:
 }
 
 func TestDiscovery(t *testing.T) {
+	testDir := t.TempDir()
+	mockConfig := config.Mock(t)
+	mockConfig.SetWithoutSource("run_path", testDir)
 	deps := createDeps(t)
 	timeNow = common.MockTimeNow
 	profile.SetConfdPathAndCleanProfiles()
@@ -2056,6 +2082,9 @@ metric_tags:
 }
 
 func TestDiscovery_CheckError(t *testing.T) {
+	testDir := t.TempDir()
+	mockConfig := config.Mock(t)
+	mockConfig.SetWithoutSource("run_path", testDir)
 	deps := createDeps(t)
 	profile.SetConfdPathAndCleanProfiles()
 
@@ -2132,6 +2161,9 @@ metric_tags:
 }
 
 func TestDeviceIDAsHostname(t *testing.T) {
+	testDir := t.TempDir()
+	mockConfig := config.Mock(t)
+	mockConfig.SetWithoutSource("run_path", testDir)
 	deps := createDeps(t)
 	cache.Cache.Delete(cache.BuildAgentKey("hostname")) // clean existing hostname cache
 
@@ -2323,6 +2355,9 @@ use_device_id_as_hostname: true
 }
 
 func TestDiscoveryDeviceIDAsHostname(t *testing.T) {
+	testDir := t.TempDir()
+	mockConfig := config.Mock(t)
+	mockConfig.SetWithoutSource("run_path", testDir)
 	deps := createDeps(t)
 	cache.Cache.Delete(cache.BuildAgentKey("hostname")) // clean existing hostname cache
 	timeNow = common.MockTimeNow
