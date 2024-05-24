@@ -12,20 +12,18 @@ import (
 	"testing"
 
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes/fake"
 
-	"github.com/stretchr/testify/assert"
-
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestPodParser_Parse(t *testing.T) {
 	filterAnnotations := []string{"ignoreAnnotation"}
 
-	parser, err := newPodParser(filterAnnotations, true)
+	parser, err := newPodParser(filterAnnotations)
 	assert.NoError(t, err)
 
 	referencePod := corev1.Pod{
@@ -55,43 +53,6 @@ func TestPodParser_Parse(t *testing.T) {
 					VolumeSource: corev1.VolumeSource{
 						PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
 							ClaimName: "pvcName",
-						},
-					},
-				},
-			},
-			Containers: []corev1.Container{
-				{
-					Name: "cont1",
-					Resources: corev1.ResourceRequirements{
-						Limits: corev1.ResourceList{
-							"cpu": resource.MustParse("100m"),
-						},
-						Requests: corev1.ResourceList{
-							"memory": resource.MustParse("100Mi"),
-						},
-					},
-				},
-				{
-					Name: "cont2",
-					Resources: corev1.ResourceRequirements{
-						Limits: corev1.ResourceList{
-							"cpu": resource.MustParse("200m"),
-						},
-						Requests: corev1.ResourceList{
-							"memory": resource.MustParse("200Mi"),
-						},
-					},
-				},
-			},
-			InitContainers: []corev1.Container{
-				{
-					Name: "init-cont",
-					Resources: corev1.ResourceRequirements{
-						Limits: corev1.ResourceList{
-							"cpu": resource.MustParse("200m"),
-						},
-						Requests: corev1.ResourceList{
-							"memory": resource.MustParse("200Mi"),
 						},
 					},
 				},
@@ -140,25 +101,6 @@ func TestPodParser_Parse(t *testing.T) {
 		IP:                         "127.0.0.1",
 		PriorityClass:              "priorityClass",
 		QOSClass:                   "Guaranteed",
-		Containers: []workloadmeta.OrchestratorContainer{
-			{
-				Name:     "cont1",
-				Limits:   map[string]string{"cpu": "100m"},
-				Requests: map[string]string{"memory": "100Mi"},
-			},
-			{
-				Name:     "cont2",
-				Limits:   map[string]string{"cpu": "200m"},
-				Requests: map[string]string{"memory": "200Mi"},
-			},
-		},
-		InitContainers: []workloadmeta.OrchestratorContainer{
-			{
-				Name:     "init-cont",
-				Limits:   map[string]string{"cpu": "200m"},
-				Requests: map[string]string{"memory": "200Mi"},
-			},
-		},
 	}
 
 	assert.Equal(t, expected, parsed)
@@ -172,26 +114,7 @@ func Test_PodsFakeKubernetesClient(t *testing.T) {
 	}
 
 	createResource := func(cl *fake.Clientset) error {
-		_, err := cl.CoreV1().Pods(metav1.NamespaceAll).Create(context.TODO(), &corev1.Pod{
-			ObjectMeta: objectMeta,
-			Spec: corev1.PodSpec{
-				Containers: []corev1.Container{
-					{
-						Name: "test-container",
-						Resources: corev1.ResourceRequirements{
-							Limits: corev1.ResourceList{
-								"cpu":    resource.MustParse("100m"),
-								"memory": resource.MustParse("100Mi"),
-							},
-							Requests: corev1.ResourceList{
-								"cpu":    resource.MustParse("100m"),
-								"memory": resource.MustParse("100Mi"),
-							},
-						},
-					},
-				},
-			},
-		}, metav1.CreateOptions{})
+		_, err := cl.CoreV1().Pods(metav1.NamespaceAll).Create(context.TODO(), &corev1.Pod{ObjectMeta: objectMeta}, metav1.CreateOptions{})
 		return err
 	}
 	expected := workloadmeta.EventBundle{
