@@ -56,9 +56,9 @@ func GetSubprocessOutput(argv **C.char, env **C.char, cStdout **C.char, cStderr 
 		defer wg.Done()
 		output, err = io.ReadAll(stdout)
 		if err != nil {
-			log.Fatal(err)
+			log.Errorf("error from subprocess callback: %s", err)
 		}
-		log.Errorf("STDOUT from subprocess: %s", output)
+		log.Errorf("STDOUT from subprocess callback: %s", output)
 	}()
 
 	stderr, err := cmd.StderrPipe()
@@ -73,9 +73,9 @@ func GetSubprocessOutput(argv **C.char, env **C.char, cStdout **C.char, cStderr 
 		defer wg.Done()
 		outputErr, err = io.ReadAll(stderr)
 		if err != nil {
-			log.Fatal(err)
+			log.Errorf("error from subprocess callback: %s", err)
 		}
-		log.Errorf("STDERR from subprocess: %s", outputErr)
+		log.Errorf("STDERR from subprocess callback: %s", outputErr)
 	}()
 
 	cmd.Start() //nolint:errcheck
