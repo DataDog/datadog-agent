@@ -705,6 +705,14 @@ api_key:
 #
 # GUI_port: <GUI_PORT>
 
+## @param GUI_session_expiration - duration - optional
+## @env GUI_SESSION_EXPIRATION - duration - optional
+## The duration after which a GUI session will expire.
+## Setting 'GUI_SESSION_EXPIRATION: 0' disable session expiration.
+## Default is "0s" (sessions do not expire).
+#
+# GUI_session_expiration: <SESSION_EXPIRATION_DURATION>
+
 ## @param health_port - integer - optional - default: 0
 ## @env DD_HEALTH_PORT - integer - optional - default: 0
 ## The Agent can expose its health check on a dedicated http port.
