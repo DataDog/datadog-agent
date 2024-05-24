@@ -121,7 +121,7 @@ BINARY_TO_TEST = ["serverless"]
 
 
 @task
-def test_dependencies_list(
+def test_list(
     ctx: Context,
 ):
     """
@@ -146,7 +146,7 @@ def test_dependencies_list(
                 filename = os.path.join(ctx.cwd, f"dependencies_{goos}_{goarch}.txt")
                 if not os.path.isfile(filename):
                     print(
-                        f"File {filename} does not exist. To execute the dependencies list check for the {binary} binary, please run the task `inv -e go-deps.dependencies-generate --binaries {binary}"
+                        f"File {filename} does not exist. To execute the dependencies list check for the {binary} binary, please run the task `inv -e go-deps.generate --binaries {binary}"
                     )
                     continue
 
@@ -173,14 +173,14 @@ def test_dependencies_list(
         raise Exit(
             code=1,
             message=color_message(
-                f"Dependencies list for {list(mismatch_binaries)} does not match. To fix this check, please run `inv -e go-deps.dependencies-generate --binaries {','.join(mismatch_binaries)}`",
+                f"Dependencies list for {list(mismatch_binaries)} does not match. To fix this check, please run `inv -e go-deps.generate --binaries {','.join(mismatch_binaries)}`",
                 "red",
             ),
         )
 
 
 @task
-def dependencies_generate(
+def generate(
     ctx: Context,
     binaries: str,
 ):

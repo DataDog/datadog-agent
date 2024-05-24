@@ -74,4 +74,4 @@ golang_deps_test:
     - source /root/.bashrc
     - !reference [.retrieve_linux_go_deps]
   script:
-    - inv -e go-deps.test-dependencies-list
+    - inv -e go-deps.test-list
