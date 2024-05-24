@@ -113,7 +113,7 @@ k8s-e2e-otlp-main:
     - pulumi login "s3://dd-pulumi-state?region=us-east-1&awssdk=v2&profile=$AWS_PROFILE"
   variables:
     KUBERNETES_MEMORY_REQUEST: 1Gi
-    KUBERNETES_MEMORY_LIMIT: 1Gi
+    KUBERNETES_MEMORY_LIMIT: 2Gi
     KUBERNETES_CPU_REQUEST: 4
     E2E_PUBLIC_KEY_PATH: /tmp/agent-qa-ssh-key.pub
     E2E_PRIVATE_KEY_PATH: /tmp/agent-qa-ssh-key
