@@ -384,7 +384,7 @@ static __always_inline enum parse_result __read_varint(kafka_response_context_t 
     return RET_DONE;
 }
 
-static __always_inline enum parse_result read_varint_restartable(kafka_response_context_t *response,
+static __always_inline enum parse_result read_varint(kafka_response_context_t *response,
                                                       pktbuf_t pkt, u64 *out, u32 *offset,
                                                       u32 data_end,
                                                       bool first)
@@ -392,7 +392,7 @@ static __always_inline enum parse_result read_varint_restartable(kafka_response_
     return __read_varint(response, pkt, out, offset, data_end, first);
 }
 
-static __always_inline enum parse_result read_varint_or_s16_restartable(
+static __always_inline enum parse_result read_varint_or_s16(
                                                             bool flexible,
                                                             kafka_response_context_t *response,
                                                             pktbuf_t pkt,
@@ -405,7 +405,7 @@ static __always_inline enum parse_result read_varint_or_s16_restartable(
 
     if (flexible) {
         u64 tmp = 0;
-        ret = read_varint_restartable(response, pkt, &tmp, offset, data_end, first);
+        ret = read_varint(response, pkt, &tmp, offset, data_end, first);
         *val = tmp;
     } else {
         ret = read_with_remainder_s16(response, pkt, offset, data_end, val, first);
@@ -414,7 +414,7 @@ static __always_inline enum parse_result read_varint_or_s16_restartable(
     return ret;
 }
 
-static __always_inline enum parse_result read_varint_or_s32_restartable(
+static __always_inline enum parse_result read_varint_or_s32(
                                                             bool flexible,
                                                             kafka_response_context_t *response,
                                                             pktbuf_t pkt,
@@ -427,7 +427,7 @@ static __always_inline enum parse_result read_varint_or_s32_restartable(
 
     if (flexible) {
         u64 tmp = 0;
-        ret = read_varint_restartable(response, pkt, &tmp, offset, data_end, first);
+        ret = read_varint(response, pkt, &tmp, offset, data_end, first);
         *val = tmp;
     } else {
         ret = read_with_remainder(response, pkt, offset, data_end, val, first);
@@ -507,7 +507,7 @@ static __always_inline enum parse_result kafka_continue_parse_response_partition
     case KAFKA_FETCH_RESPONSE_NUM_TOPICS:
         {
             s32 num_topics = 0;
-            ret = read_varint_or_s32_restartable(flexible, response, pkt, &offset, data_end, &num_topics, true);
+            ret = read_varint_or_s32(flexible, response, pkt, &offset, data_end, &num_topics, true);
             extra_debug("num_topics: %u", num_topics);
             if (ret != RET_DONE) {
                 return ret;
@@ -522,7 +522,7 @@ static __always_inline enum parse_result kafka_continue_parse_response_partition
     case KAFKA_FETCH_RESPONSE_TOPIC_NAME_SIZE:
         {
             s16 topic_name_size = 0;
-            ret = read_varint_or_s16_restartable(flexible, response, pkt, &offset, data_end, &topic_name_size, true);
+            ret = read_varint_or_s16(flexible, response, pkt, &offset, data_end, &topic_name_size, true);
             extra_debug("topic_name_size: %u", topic_name_size);
             if (ret != RET_DONE) {
                 return ret;
@@ -540,7 +540,7 @@ static __always_inline enum parse_result kafka_continue_parse_response_partition
     case KAFKA_FETCH_RESPONSE_NUM_PARTITIONS:
         {
             s32 number_of_partitions = 0;
-            ret = read_varint_or_s32_restartable(flexible, response, pkt, &offset, data_end, &number_of_partitions, true);
+            ret = read_varint_or_s32(flexible, response, pkt, &offset, data_end, &number_of_partitions, true);
             extra_debug("number_of_partitions: %u", number_of_partitions);
             if (ret != RET_DONE) {
                 return ret;
@@ -599,7 +599,7 @@ static __always_inline enum parse_result kafka_continue_parse_response_partition
         case KAFKA_FETCH_RESPONSE_PARTITION_ABORTED_TRANSACTIONS:
             if (api_version >= 4) {
                 s32 aborted_transactions = 0;
-                ret = read_varint_or_s32_restartable(flexible, response, pkt, &offset, data_end, &aborted_transactions, first);
+                ret = read_varint_or_s32(flexible, response, pkt, &offset, data_end, &aborted_transactions, first);
                 if (ret != RET_DONE) {
                     return ret;
                 }
@@ -644,7 +644,7 @@ static __always_inline enum parse_result kafka_continue_parse_response_partition
                 goto exit;
             }
 
-            ret = read_varint_or_s32_restartable(flexible, response, pkt, &offset, data_end, &response->record_batches_num_bytes, first);
+            ret = read_varint_or_s32(flexible, response, pkt, &offset, data_end, &response->record_batches_num_bytes, first);
             if (ret != RET_DONE) {
                 return ret;
             }
