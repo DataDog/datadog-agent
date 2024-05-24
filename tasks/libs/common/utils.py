@@ -261,6 +261,7 @@ def get_build_flags(
         env['CGO_LDFLAGS'] = os.environ.get('CGO_LDFLAGS', '') + ' -Wl,--allow-multiple-definition'
 
     extra_cgo_flags = " -Werror -Wno-deprecated-declarations"
+    extra_cgo_flags += " -D__CGO__"  # Some C files include definitions that can cause duplicate symbols if included in CGo code (bpf_metadata.h) mainly
     if rtloader_headers:
         extra_cgo_flags += f" -I{rtloader_headers}"
     if rtloader_common_headers:
