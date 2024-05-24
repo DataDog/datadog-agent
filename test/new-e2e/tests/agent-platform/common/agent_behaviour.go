@@ -348,6 +348,11 @@ func CheckSystemProbeBehavior(t *testing.T, client *TestClient) {
 		files := strings.Split(strings.TrimSpace(output), "\n")
 		require.Greater(tt, len(files), 0, "ebpf object files should be present")
 
+		_, err = client.Host.Execute("command -v readelf")
+		if err != nil {
+			t.Skip("readelf is not available on the host")
+		}
+
 		hostArch, err := client.Host.Execute("uname -m")
 		require.NoError(tt, err)
 		hostArch = strings.TrimSpace(hostArch)
