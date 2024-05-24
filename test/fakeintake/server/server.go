@@ -115,7 +115,6 @@ func NewServer(options ...Option) *Server {
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("/", fi.handleDatadogRequest)
-	mux.HandleFunc("/fakeintake/stop", fi.handleStop)
 	mux.HandleFunc("/fakeintake/payloads", fi.handleGetPayloads)
 	mux.HandleFunc("/fakeintake/health", fi.handleFakeHealth)
 	mux.HandleFunc("/fakeintake/routestats", fi.handleGetRouteStats)
@@ -182,18 +181,6 @@ func WithReadyChannel(ready chan bool) Option {
 			return
 		}
 		fi.ready = ready
-	}
-}
-
-// WithShutdownChannel assign a channel to get notified when the server is shutting down
-func WithShutdownChannel(shutdown chan struct{}) Option {
-	return func(fi *Server) {
-		if fi.IsRunning() {
-			log.Println("Fake intake is already running. Stop it and try again to change the shutdown channel.")
-			return
-		}
-
-		fi.shutdown = shutdown
 	}
 }
 
@@ -307,19 +294,6 @@ func (fi *Server) cleanUpPayloadsRoutine() {
 			fi.store.CleanUpPayloadsOlderThan(retentionTimeAgo)
 		}
 	}
-}
-
-func (fi *Server) handleStop(w http.ResponseWriter, _ *http.Request) {
-	writeHTTPResponse(w, httpResponse{
-		statusCode: http.StatusOK,
-	})
-	log.Println("Fakeintake received stop instruction")
-	go func() {
-		err := fi.Stop()
-		if err != nil {
-			log.Printf("Error stopping fakeintake: %v", err)
-		}
-	}()
 }
 
 func (fi *Server) handleDatadogRequest(w http.ResponseWriter, req *http.Request) {
