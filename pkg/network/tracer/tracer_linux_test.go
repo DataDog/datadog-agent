@@ -2367,6 +2367,7 @@ func (s *TracerSuite) TestTCPFailureConnectionTimeout() {
 
 	// Set TCP_USER_TIMEOUT to 1000 milliseconds
 	timeout := 1000 // milliseconds
+	//nolint:staticcheck
 	err = syscall.SetsockoptInt(sfd, syscall.IPPROTO_TCP, syscall.TCP_USER_TIMEOUT, timeout)
 	require.NoError(t, err)
 
