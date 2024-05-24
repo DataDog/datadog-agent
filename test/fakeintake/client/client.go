@@ -101,6 +101,7 @@ type Client struct {
 	orchestratorManifestAggregator aggregator.OrchestratorManifestAggregator
 	metadataAggregator             aggregator.MetadataAggregator
 	ndmflowAggregator              aggregator.NDMFlowAggregator
+	serviceDiscoveryAggregator     aggregator.ServiceDiscoveryAggregator
 }
 
 // NewClient creates a new fake intake client
@@ -124,6 +125,7 @@ func NewClient(fakeIntakeURL string) *Client {
 		orchestratorManifestAggregator: aggregator.NewOrchestratorManifestAggregator(),
 		metadataAggregator:             aggregator.NewMetadataAggregator(),
 		ndmflowAggregator:              aggregator.NewNDMFlowAggregator(),
+		serviceDiscoveryAggregator:     aggregator.NewServiceDiscoveryAggregator(),
 	}
 }
 
