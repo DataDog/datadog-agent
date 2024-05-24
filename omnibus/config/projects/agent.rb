@@ -266,11 +266,11 @@ if do_build
   # This must be the last dependency in the project.
   dependency 'datadog-agent-finalize'
   dependency 'datadog-cf-finalize'
+  # Special csae for heroku which does build & packaging in a single step
   if do_package
     dependency "init-scripts-agent"
   end
-end
-if do_package
+elsif do_package
   dependency "package-artifact"
   dependency "init-scripts-agent"
 end
@@ -287,10 +287,12 @@ if linux_target?
     extra_package_file "#{Omnibus::Config.project_root}/package-scripts/agent-deb"
     extra_package_file "#{Omnibus::Config.project_root}/package-scripts/agent-rpm"
   end
-  if debian_target?
-    package_scripts_path "#{Omnibus::Config.project_root}/package-scripts/agent-deb"
-  else
-    package_scripts_path "#{Omnibus::Config.project_root}/package-scripts/agent-rpm"
+  if do_package
+    if debian_target?
+      package_scripts_path "#{Omnibus::Config.project_root}/package-scripts/agent-deb"
+    else
+      package_scripts_path "#{Omnibus::Config.project_root}/package-scripts/agent-rpm"
+    end
   end
 elsif osx_target?
     package_scripts_path "#{Omnibus::Config.project_root}/package-scripts/agent-dmg"
