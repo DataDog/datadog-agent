@@ -128,7 +128,7 @@ def test_dependencies_list(
     Compare the dependencies list for the binaries in BINARY_TO_TEST with the actual dependencies of the binaries.
     If the lists do not match, the task will raise an error.
     """
-    missmatch_binaries = set()
+    mismatch_binaries = set()
 
     for binary in BINARY_TO_TEST:
         binary_info = BINARIES[binary]
@@ -167,13 +167,13 @@ def test_dependencies_list(
                 assert res
 
                 if res.stdout.strip() != deps:
-                    missmatch_binaries.add(binary)
+                    mismatch_binaries.add(binary)
 
-    if len(missmatch_binaries) > 0:
+    if len(mismatch_binaries) > 0:
         raise Exit(
             code=1,
             message=color_message(
-                f"Dependencies list for {list(missmatch_binaries)} does not match. To fix this check, please run `inv -e go-deps.dependencies-generate --binaries {','.join(missmatch_binaries)}`",
+                f"Dependencies list for {list(mismatch_binaries)} does not match. To fix this check, please run `inv -e go-deps.dependencies-generate --binaries {','.join(mismatch_binaries)}`",
                 "red",
             ),
         )
