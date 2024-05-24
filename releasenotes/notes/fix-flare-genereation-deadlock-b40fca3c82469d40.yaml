@@ -8,4 +8,4 @@
 ---
 fixes:
   - |
-    Fixed an issue where the datadog-agent status and datadog-agent flare commands would hang if a non-core Agent's port was occupied by a process that caused incoming connections to hang.
+    Fixed an issue where the ``datadog-agent status`` and ``datadog-agent flare`` commands could hang while trying to reach other agent processes.
