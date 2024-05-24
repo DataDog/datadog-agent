@@ -13,7 +13,9 @@ import (
 )
 
 const (
+	// UDP represents the UDP protocol
 	UDP = "UDP"
+	// TCP represents the TCP protocol
 	TCP = "TCP"
 )
 

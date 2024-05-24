@@ -1,3 +1,9 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
+// Package tcp adds a TCP traceroute implementation to the agent
 package tcp
 
 import (
@@ -13,6 +19,8 @@ import (
 )
 
 type (
+	// TCPv4 encapsulates the data needed to run
+	// a TCPv4 traceroute
 	TCPv4 struct {
 		Target   net.IP
 		srcIP    net.IP // calculated internally
@@ -25,6 +33,8 @@ type (
 		Timeout  time.Duration // full timeout for all packets
 	}
 
+	// Results encapsulates a response from the TCP
+	// traceroute
 	Results struct {
 		Source     net.IP
 		SourcePort uint16
@@ -33,6 +43,8 @@ type (
 		Hops       []*Hop
 	}
 
+	// Hop encapsulates information about a single
+	// hop in a TCP traceroute
 	Hop struct {
 		IP       net.IP
 		Port     uint16
@@ -42,15 +54,17 @@ type (
 	}
 )
 
+// TracerouteSequential runs a traceroute sequentially where a packet is
+// sent and we wait for a response before sending the next packet
 func (t *TCPv4) TracerouteSequential() (*Results, error) {
 	// Get local address for the interface that connects to this
 	// host and store in in the probe
 	//
 	// TODO: do this once for the probe and hang on to the
 	// listener until we decide to close the probe
-	addr, err := LocalAddrForHost(t.Target, t.DestPort)
+	addr, err := localAddrForHost(t.Target, t.DestPort)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get local addres for target: %w", err)
+		return nil, fmt.Errorf("failed to get local address for target: %w", err)
 	}
 	t.srcIP = addr.IP
 	t.srcPort = addr.AddrPort().Port()
@@ -81,7 +95,7 @@ func (t *TCPv4) TracerouteSequential() (*Results, error) {
 	defer tcpConn.Close()
 	log.Debugf("Listening for TCP on: %s\n", addr.IP.String()+":"+addr.AddrPort().String())
 	// RawConn is necessary to set the TTL and ID fields
-	rawTcpConn, err := ipv4.NewRawConn(tcpConn)
+	rawTCPConn, err := ipv4.NewRawConn(tcpConn)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get raw TCP listener: %w", err)
 	}
@@ -91,13 +105,13 @@ func (t *TCPv4) TracerouteSequential() (*Results, error) {
 
 	// TODO: better logic around timeout for sequential is needed
 	// right now we're just hacking around the existing
-	// need to convert uint8 to int for proper converstion to
+	// need to convert uint8 to int for proper conversion to
 	// time.Duration
 	timeout := t.Timeout / time.Duration(int(t.MaxTTL-t.MinTTL))
 
 	for i := int(t.MinTTL); i <= int(t.MaxTTL); i++ {
 		seqNumber := rand.Uint32()
-		hop, err := t.sendAndReceive(rawIcmpConn, rawTcpConn, i, seqNumber, timeout)
+		hop, err := t.sendAndReceive(rawIcmpConn, rawTCPConn, i, seqNumber, timeout)
 		// TODO: create an unknown hop here instead
 		if err != nil {
 			return nil, fmt.Errorf("failed to run traceroute: %w", err)
@@ -120,7 +134,7 @@ func (t *TCPv4) TracerouteSequential() (*Results, error) {
 	}, nil
 }
 
-func (t *TCPv4) sendAndReceive(rawIcmpConn *ipv4.RawConn, rawTcpConn *ipv4.RawConn, ttl int, seqNum uint32, timeout time.Duration) (*Hop, error) {
+func (t *TCPv4) sendAndReceive(rawIcmpConn *ipv4.RawConn, rawTCPConn *ipv4.RawConn, ttl int, seqNum uint32, timeout time.Duration) (*Hop, error) {
 	flags := byte(0)
 	flags |= SYN
 	tcpHeader, tcpPacket, err := CreateRawTCPPacket(t.srcIP, t.srcPort, t.Target, t.DestPort, seqNum, ttl, flags)
@@ -131,14 +145,14 @@ func (t *TCPv4) sendAndReceive(rawIcmpConn *ipv4.RawConn, rawTcpConn *ipv4.RawCo
 
 	log.Debugf("Sending on port: %d\n", t.srcPort)
 
-	err = SendPacket(rawTcpConn, tcpHeader, tcpPacket)
+	err = SendPacket(rawTCPConn, tcpHeader, tcpPacket)
 	if err != nil {
 		log.Errorf("failed to send TCP SYN: %s", err.Error())
 		return nil, err
 	}
 
 	start := time.Now() // TODO: is this the best place to start?
-	hopIP, hopPort, icmpType, end, err := listenAnyPacket(rawIcmpConn, rawTcpConn, timeout, t.srcIP, t.srcPort, t.Target, t.DestPort, seqNum)
+	hopIP, hopPort, icmpType, end, err := listenAnyPacket(rawIcmpConn, rawTCPConn, timeout, t.srcIP, t.srcPort, t.Target, t.DestPort, seqNum)
 	if err != nil {
 		log.Errorf("failed to listen for packets: %s", err.Error())
 		return nil, err

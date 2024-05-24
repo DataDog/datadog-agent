@@ -17,18 +17,27 @@ import (
 )
 
 const (
+	// URG is the urgent TCP flag
 	URG = 1 << 5
+	// ACK is the acknowledge TCP flag
 	ACK = 1 << 4
+	// PSH is the push TCP flag
 	PSH = 1 << 3
+	// RST is the reset TCP flag
 	RST = 1 << 2
+	// SYN is the synchronization TCP flag
 	SYN = 1 << 1
+	// FIN is the final TCP flag
 	FIN = 1 << 0
 )
 
 type (
+	// CanceledError is sent when a listener
+	// is canceled
 	CanceledError string
-	MismatchError string
 
+	// ICMPResponse encapsulates the data from
+	// an ICMP response packet needed for matching
 	ICMPResponse struct {
 		SrcIP        net.IP
 		DstIP        net.IP
@@ -40,6 +49,8 @@ type (
 		InnerSeqNum  uint32
 	}
 
+	// TCPResponse encapsulates the data from a
+	// TCP response needed for matching
 	TCPResponse struct {
 		SrcIP       net.IP
 		DstIP       net.IP
@@ -47,7 +58,7 @@ type (
 	}
 )
 
-func LocalAddrForHost(destIP net.IP, destPort uint16) (*net.UDPAddr, error) {
+func localAddrForHost(destIP net.IP, destPort uint16) (*net.UDPAddr, error) {
 	// this is a quick way to get the local address for connecting to the host
 	// using UDP as the network type to avoid actually creating a connection to
 	// the host, just get the OS to give us a local IP and local ephemeral port
@@ -66,12 +77,12 @@ func LocalAddrForHost(destIP net.IP, destPort uint16) (*net.UDPAddr, error) {
 	return localUDPAddr, nil
 }
 
-// ReadRawPacket creates a gopacket given a byte array
+// readRawPacket creates a gopacket given a byte array
 // containing a packet
 //
 // TODO: try doing this manually to see if it's more performant
 // we should either always use gopacket or never use gopacket
-func ReadRawPacket(rawPacket []byte) gopacket.Packet {
+func readRawPacket(rawPacket []byte) gopacket.Packet {
 	return gopacket.NewPacket(rawPacket, layers.LayerTypeIPv4, gopacket.Default)
 }
 
@@ -247,6 +258,7 @@ func MarshalPacket(header *ipv4.Header, payload []byte) ([]byte, error) {
 	return packet, nil
 }
 
+// SendPacket sends a raw IPv4 packet using the passed connection
 func SendPacket(rawConn *ipv4.RawConn, header *ipv4.Header, payload []byte) error {
 	if err := rawConn.WriteTo(header, payload, nil); err != nil {
 		return err
@@ -320,11 +332,10 @@ func listenAnyPacket(icmpConn *ipv4.RawConn, tcpConn *ipv4.RawConn, timeout time
 			// For now, return nil error with empty hop data
 			log.Debug("timed out waiting for responses")
 			return net.IP{}, 0, 0, finished, nil
-		} else {
-			log.Errorf("TCP Error: %s", tcpErr.Error())
-			log.Errorf("ICMP Error: %s", icmpErr.Error())
-			return net.IP{}, 0, 0, finished, multierr.Append(fmt.Errorf("tcp error: %w", tcpErr), fmt.Errorf("icmp error: %w", icmpErr))
 		}
+		log.Errorf("TCP Error: %s", tcpErr.Error())
+		log.Errorf("ICMP Error: %s", icmpErr.Error())
+		return net.IP{}, 0, 0, finished, multierr.Append(fmt.Errorf("tcp error: %w", tcpErr), fmt.Errorf("icmp error: %w", icmpErr))
 	}
 
 	// if there was an error for TCP, but not
@@ -349,7 +360,10 @@ func handlePackets(ctx context.Context, conn *ipv4.RawConn, listener string, loc
 		default:
 		}
 		now := time.Now()
-		conn.SetReadDeadline(now.Add(time.Millisecond * 100))
+		err := conn.SetReadDeadline(now.Add(time.Millisecond * 100))
+		if err != nil {
+			return net.IP{}, 0, 0, fmt.Errorf("failed to read: %w", err)
+		}
 		header, packet, _, err := conn.ReadFrom(buf)
 		if err != nil {
 			if nerr, ok := err.(*net.OpError); ok {
@@ -388,7 +402,7 @@ func parseICMP(header *ipv4.Header, payload []byte) (*ICMPResponse, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal packet: %w", err)
 	}
-	packet := ReadRawPacket(packetBytes)
+	packet := readRawPacket(packetBytes)
 
 	return ParseICMPPacket(packet)
 }
@@ -409,7 +423,7 @@ func parseTCP(header *ipv4.Header, payload []byte) (*TCPResponse, error) {
 		return nil, fmt.Errorf("failed to marshal packet: %w", err)
 	}
 
-	packet := ReadRawPacket(packetBytes)
+	packet := readRawPacket(packetBytes)
 	tcpResp, err := ParseTCPPacket(packet)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse TCP packet: %w", err)
@@ -433,8 +447,4 @@ func tcpMatch(localIP net.IP, localPort uint16, remoteIP net.IP, remotePort uint
 
 func (c CanceledError) Error() string {
 	return string(c)
-}
-
-func (m MismatchError) Error() string {
-	return string(m)
 }
