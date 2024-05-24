@@ -72,10 +72,12 @@ const (
 )
 
 const (
-	// TCDNSRequestKey is the key to DNS request program
+	// TCDNSRequestKey is the key to the DNS request program
 	TCDNSRequestKey uint32 = iota + 1
-	// TCDNSRequestParserKey is the key to DNS request parser program
+	// TCDNSRequestParserKey is the key to the DNS request parser program
 	TCDNSRequestParserKey
+	// TCIMDSRequestParserKey is the key to the IMDS request program
+	TCIMDSRequestParserKey
 )
 
 const (

@@ -67,6 +67,7 @@ type Event struct {
 
 	// network events
 	DNS  DNSEvent  `field:"dns" event:"dns"`   // [7.36] [Network] A DNS request was sent
+	IMDS IMDSEvent `field:"imds" event:"imds"` // [7.55] [Network] An IMDS event was captured
 	Bind BindEvent `field:"bind" event:"bind"` // [7.37] [Network] A bind was executed
 
 	// internal usage
@@ -187,6 +188,8 @@ type Process struct {
 
 	UserSession UserSessionContext `field:"user_session"` // SECLDoc[user_session] Definition:`User Session context of this process`
 
+	AWSSecurityCredentials []AWSSecurityCredentials `field:"-"`
+
 	ArgsID uint32 `field:"-"`
 	EnvsID uint32 `field:"-"`
 
@@ -194,16 +197,16 @@ type Process struct {
 	EnvsEntry *EnvsEntry `field:"-"`
 
 	// defined to generate accessors, ArgsTruncated and EnvsTruncated are used during by unmarshaller
-	Argv0         string   `field:"argv0,handler:ResolveProcessArgv0,weight:100"`                                                                                                                   // SECLDoc[argv0] Definition:`First argument of the process`
-	Args          string   `field:"args,handler:ResolveProcessArgs,weight:500"`                                                                                                                     // SECLDoc[args] Definition:`Arguments of the process (as a string, excluding argv0)` Example:`exec.args == "-sV -p 22,53,110,143,4564 198.116.0-255.1-127"` Description:`Matches any process with these exact arguments.` Example:`exec.args =~ "* -F * http*"` Description:`Matches any process that has the "-F" argument anywhere before an argument starting with "http".`
-	Argv          []string `field:"argv,handler:ResolveProcessArgv,weight:500; args_flags,handler:ResolveProcessArgsFlags,opts:helper; args_options,handler:ResolveProcessArgsOptions,opts:helper"` // SECLDoc[argv] Definition:`Arguments of the process (as an array, excluding argv0)` Example:`exec.argv in ["127.0.0.1"]` Description:`Matches any process that has this IP address as one of its arguments.` SECLDoc[args_flags] Definition:`Flags in the process arguments` Example:`exec.args_flags in ["s"] && exec.args_flags in ["V"]` Description:`Matches any process with both "-s" and "-V" flags in its arguments. Also matches "-sV".` SECLDoc[args_options] Definition:`Argument of the process as options` Example:`exec.args_options in ["p=0-1024"]` Description:`Matches any process that has either "-p 0-1024" or "--p=0-1024" in its arguments.`
-	ArgsTruncated bool     `field:"args_truncated,handler:ResolveProcessArgsTruncated"`                                                                                                             // SECLDoc[args_truncated] Definition:`Indicator of arguments truncation`
-	Envs          []string `field:"envs,handler:ResolveProcessEnvs,weight:100"`                                                                                                                     // SECLDoc[envs] Definition:`Environment variable names of the process`
-	Envp          []string `field:"envp,handler:ResolveProcessEnvp,weight:100"`                                                                                                                     // SECLDoc[envp] Definition:`Environment variables of the process`
-	EnvsTruncated bool     `field:"envs_truncated,handler:ResolveProcessEnvsTruncated"`                                                                                                             // SECLDoc[envs_truncated] Definition:`Indicator of environment variables truncation`
+	Argv0         string   `field:"argv0,handler:ResolveProcessArgv0,weight:100"`                                                                                                                                                                            // SECLDoc[argv0] Definition:`First argument of the process`
+	Args          string   `field:"args,handler:ResolveProcessArgs,weight:500"`                                                                                                                                                                              // SECLDoc[args] Definition:`Arguments of the process (as a string, excluding argv0)` Example:`exec.args == "-sV -p 22,53,110,143,4564 198.116.0-255.1-127"` Description:`Matches any process with these exact arguments.` Example:`exec.args =~ "* -F * http*"` Description:`Matches any process that has the "-F" argument anywhere before an argument starting with "http".`
+	Argv          []string `field:"argv,handler:ResolveProcessArgv,weight:500; cmdargv,handler:ResolveProcessCmdArgv,opts:getters_only; args_flags,handler:ResolveProcessArgsFlags,opts:helper; args_options,handler:ResolveProcessArgsOptions,opts:helper"` // SECLDoc[argv] Definition:`Arguments of the process (as an array, excluding argv0)` Example:`exec.argv in ["127.0.0.1"]` Description:`Matches any process that has this IP address as one of its arguments.` SECLDoc[args_flags] Definition:`Flags in the process arguments` Example:`exec.args_flags in ["s"] && exec.args_flags in ["V"]` Description:`Matches any process with both "-s" and "-V" flags in its arguments. Also matches "-sV".` SECLDoc[args_options] Definition:`Argument of the process as options` Example:`exec.args_options in ["p=0-1024"]` Description:`Matches any process that has either "-p 0-1024" or "--p=0-1024" in its arguments.`
+	ArgsTruncated bool     `field:"args_truncated,handler:ResolveProcessArgsTruncated"`                                                                                                                                                                      // SECLDoc[args_truncated] Definition:`Indicator of arguments truncation`
+	Envs          []string `field:"envs,handler:ResolveProcessEnvs,weight:100"`                                                                                                                                                                              // SECLDoc[envs] Definition:`Environment variable names of the process`
+	Envp          []string `field:"envp,handler:ResolveProcessEnvp,weight:100"`                                                                                                                                                                              // SECLDoc[envp] Definition:`Environment variables of the process`
+	EnvsTruncated bool     `field:"envs_truncated,handler:ResolveProcessEnvsTruncated"`                                                                                                                                                                      // SECLDoc[envs_truncated] Definition:`Indicator of environment variables truncation`
 
-	ArgsScrubbed string   `field:"args_scrubbed,handler:ResolveProcessArgsScrubbed,weight:500,opts:getters_only"`
-	ArgvScrubbed []string `field:"argv_scrubbed,handler:ResolveProcessArgvScrubbed,weight:500,opts:getters_only"`
+	ArgsScrubbed string   `field:"args_scrubbed,handler:ResolveProcessArgsScrubbed,opts:getters_only"`
+	ArgvScrubbed []string `field:"argv_scrubbed,handler:ResolveProcessArgvScrubbed,opts:getters_only"`
 
 	// symlink to the process binary
 	SymlinkPathnameStr [MaxSymlinks]string `field:"-"`
@@ -255,6 +258,10 @@ type FileEvent struct {
 	PathnameStr string `field:"path,handler:ResolveFilePath,opts:length" op_override:"ProcessSymlinkPathname"`     // SECLDoc[path] Definition:`File's path` Example:`exec.file.path == "/usr/bin/apt"` Description:`Matches the execution of the file located at /usr/bin/apt` Example:`open.file.path == "/etc/passwd"` Description:`Matches any process opening the /etc/passwd file.`
 	BasenameStr string `field:"name,handler:ResolveFileBasename,opts:length" op_override:"ProcessSymlinkBasename"` // SECLDoc[name] Definition:`File's basename` Example:`exec.file.name == "apt"` Description:`Matches the execution of any file named apt.`
 	Filesystem  string `field:"filesystem,handler:ResolveFileFilesystem"`                                          // SECLDoc[filesystem] Definition:`File's filesystem`
+
+	MountPath   string `field:"-"`
+	MountSource uint32 `field:"-"`
+	MountOrigin uint32 `field:"-"`
 
 	PathResolutionError error `field:"-"`
 
@@ -311,6 +318,7 @@ type Mount struct {
 	MountPointStr  string  `field:"-"`
 	RootStr        string  `field:"-"`
 	Path           string  `field:"-"`
+	Origin         uint32  `field:"-"`
 }
 
 // MountEvent represents a mount event
@@ -450,9 +458,9 @@ type MMapEvent struct {
 	File       FileEvent `field:"file"`
 	Addr       uint64    `field:"-"`
 	Offset     uint64    `field:"-"`
-	Len        uint32    `field:"-"`
-	Protection int       `field:"protection"` // SECLDoc[protection] Definition:`memory segment protection` Constants:`Protection constants`
-	Flags      int       `field:"flags"`      // SECLDoc[flags] Definition:`memory segment flags` Constants:`MMap flags`
+	Len        uint64    `field:"-"`
+	Protection uint64    `field:"protection"` // SECLDoc[protection] Definition:`memory segment protection` Constants:`Protection constants`
+	Flags      uint64    `field:"flags"`      // SECLDoc[flags] Definition:`memory segment flags` Constants:`MMap flags`
 }
 
 // MProtectEvent represents a mprotect event

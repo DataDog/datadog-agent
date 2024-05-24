@@ -29,12 +29,12 @@ type myKindSuite struct {
 
 func TestMyKindSuite(t *testing.T) {
 	e2e.Run(t, &myKindSuite{}, e2e.WithProvisioner(
-		awskubernetes.Provisioner(
+		awskubernetes.KindProvisioner(
 			awskubernetes.WithoutFakeIntake(),
-			awskubernetes.WithWorkloadApp(func(e config.CommonEnvironment, kubeProvider *kubernetes.Provider) (*compkube.Workload, error) {
+			awskubernetes.WithWorkloadApp(func(e config.Env, kubeProvider *kubernetes.Provider) (*compkube.Workload, error) {
 				return nginx.K8sAppDefinition(e, kubeProvider, "nginx", "", nil)
 			}),
-			awskubernetes.WithWorkloadApp(func(e config.CommonEnvironment, kubeProvider *kubernetes.Provider) (*compkube.Workload, error) {
+			awskubernetes.WithWorkloadApp(func(e config.Env, kubeProvider *kubernetes.Provider) (*compkube.Workload, error) {
 				return dogstatsd.K8sAppDefinition(e, kubeProvider, "dogstatsd", 8125, "/var/run/datadog/dsd.socket")
 			}),
 		)))

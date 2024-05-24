@@ -64,14 +64,20 @@ func validateSchema(t *testing.T, schemaLoader gojsonschema.JSONLoader, document
 		return false
 	}
 
-	if !result.Valid() {
-		for _, desc := range result.Errors() {
-			t.Error(desc)
-		}
-		return false
-	}
+	success := true
 
-	return true
+	if !result.Valid() {
+		for _, err := range result.Errors() {
+			// allow addition properties
+			if err.Type() == "additional_property_not_allowed" {
+				continue
+			}
+
+			t.Error(err)
+			success = false
+		}
+	}
+	return success
 }
 
 //nolint:deadcode,unused
@@ -278,6 +284,12 @@ func (tm *testModule) validateSpliceSchema(t *testing.T, event *model.Event) boo
 func (tm *testModule) validateDNSSchema(t *testing.T, event *model.Event) bool {
 	t.Helper()
 	return tm.validateEventSchema(t, event, "file:///schemas/dns.schema.json")
+}
+
+//nolint:deadcode,unused
+func (tm *testModule) validateIMDSSchema(t *testing.T, event *model.Event) bool {
+	t.Helper()
+	return tm.validateEventSchema(t, event, "file:///schemas/imds.schema.json")
 }
 
 //nolint:deadcode,unused

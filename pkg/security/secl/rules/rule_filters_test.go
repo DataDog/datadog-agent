@@ -9,8 +9,9 @@
 package rules
 
 import (
-	"github.com/stretchr/testify/assert"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func TestRuleIDFilter(t *testing.T) {
