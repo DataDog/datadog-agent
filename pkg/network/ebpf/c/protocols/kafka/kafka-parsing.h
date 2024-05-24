@@ -319,10 +319,10 @@ static __always_inline enum parse_result read_with_remainder(kafka_response_cont
 //
 // The varints can actually up to 10 bytes long but we only support up to
 // MAX_VARINT_BYTES length due to code size limitations.
-static __always_inline enum parse_result __read_varint(kafka_response_context_t *response,
-                                                      pktbuf_t pkt, u64 *out, u32 *offset,
-                                                      u32 data_end,
-                                                      bool first)
+static __always_inline enum parse_result read_varint(kafka_response_context_t *response,
+                                                    pktbuf_t pkt, u64 *out, u32 *offset,
+                                                    u32 data_end,
+                                                    bool first)
 {
     uint32_t shift_amount = 0;
     uint64_t value = 0;
@@ -382,14 +382,6 @@ static __always_inline enum parse_result __read_varint(kafka_response_context_t 
 
     *out = value - 1;
     return RET_DONE;
-}
-
-static __always_inline enum parse_result read_varint(kafka_response_context_t *response,
-                                                      pktbuf_t pkt, u64 *out, u32 *offset,
-                                                      u32 data_end,
-                                                      bool first)
-{
-    return __read_varint(response, pkt, out, offset, data_end, first);
 }
 
 static __always_inline enum parse_result read_varint_or_s16(
