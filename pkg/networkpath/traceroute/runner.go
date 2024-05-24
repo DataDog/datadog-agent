@@ -254,8 +254,9 @@ func (r *Runner) processTCPResults(res *tcp.Results, hname string, destinationHo
 	}
 
 	for i, hop := range res.Hops {
+		ttl := i + 1
 		isSuccess := false
-		hopname := fmt.Sprintf("unknown_hop_%d", i)
+		hopname := fmt.Sprintf("unknown_hop_%d", ttl)
 		hostname := hopname
 
 		if !hop.IP.Equal(net.IP{}) {
@@ -265,7 +266,7 @@ func (r *Runner) processTCPResults(res *tcp.Results, hname string, destinationHo
 		}
 
 		npHop := payload.NetworkPathHop{
-			TTL:       i,
+			TTL:       ttl,
 			IPAddress: hopname,
 			Hostname:  hostname,
 			RTT:       float64(hop.RTT.Microseconds()) / float64(1000),

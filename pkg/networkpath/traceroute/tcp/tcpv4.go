@@ -94,11 +94,9 @@ func (t *TCPv4) TracerouteSequential() (*Results, error) {
 	// need to convert uint8 to int for proper converstion to
 	// time.Duration
 	timeout := t.Timeout / time.Duration(int(t.MaxTTL-t.MinTTL))
-	// random sequence number for this traceroute theoretically
-	// prevents
-	seqNumber := uint32(123 + rand.Intn(34959))
 
 	for i := int(t.MinTTL); i <= int(t.MaxTTL); i++ {
+		seqNumber := rand.Uint32()
 		hop, err := t.sendAndReceive(rawIcmpConn, rawTcpConn, i, seqNumber, timeout)
 		// TODO: create an unknown hop here instead
 		if err != nil {
