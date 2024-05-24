@@ -3,25 +3,22 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux
-
-// Package kfilters holds kfilters related files
-package kfilters
+// Package rules holds rules related files
+package rules
 
 import (
 	"fmt"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/ast"
-	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
 
-// AddRuleExpr adds a rule expression
-func AddRuleExpr(t testing.TB, rs *rules.RuleSet, exprs ...string) {
-	var ruleDefs []*rules.RuleDefinition
+// AddTestRuleExpr adds a rule expression
+func AddTestRuleExpr(t testing.TB, rs *RuleSet, exprs ...string) {
+	var ruleDefs []*RuleDefinition
 
 	for i, expr := range exprs {
-		ruleDef := &rules.RuleDefinition{
+		ruleDef := &RuleDefinition{
 			ID:         fmt.Sprintf("ID%d", i),
 			Expression: expr,
 			Tags:       make(map[string]string),

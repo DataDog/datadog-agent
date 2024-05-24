@@ -237,7 +237,7 @@ github.com/anchore/go-struct-converter: Copyright (c) 2022-2023 Anchore, Inc.
 github.com/bitnami/go-version/pkg/version: Copyright (c) 2023-2024 Carlos Rodríguez Hernández
 github.com/kylelemons/godebug: Copyright (c) 2013-2020 Kyle Lemons
 github.com/santhosh-tekuri/jsonschema: Copyright (c) 2017-2024 Santhosh Kumar Tekuri
-
+github.com/chrusty/protoc-gen-jsonschema: Copyright (c) 2017 The Authors
 
 # The Copyright information is not contained in the LICENSE file, but it can be found in other
 # files in the package, such as:

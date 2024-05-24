@@ -38,6 +38,7 @@ func (s *packageApmInjectSuite) TestInstall() {
 	s.host.AssertPackageInstalledByInstaller("datadog-agent", "datadog-apm-inject", "datadog-apm-library-python")
 	s.host.AssertPackageNotInstalledByPackageManager("datadog-agent", "datadog-apm-inject", "datadog-apm-library-python")
 	state := s.host.State()
+	state.AssertFileExists("/var/run/datadog/installer/environment", 0644, "root", "root")
 	state.AssertFileExists("/etc/ld.so.preload", 0644, "root", "root")
 	s.assertLDPreloadInstrumented()
 	s.assertDockerdInstrumented()

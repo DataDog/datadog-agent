@@ -2805,6 +2805,70 @@ func (ev *Event) GetExitUserSessionK8sUsername() string {
 	return ev.FieldHandlers.ResolveK8SUsername(ev, &ev.Exit.Process.UserSession)
 }
 
+// GetImdsAwsIsImdsV2 returns the value of the field, resolving if necessary
+func (ev *Event) GetImdsAwsIsImdsV2() bool {
+	if ev.GetEventType().String() != "imds" {
+		return false
+	}
+	return ev.IMDS.AWS.IsIMDSv2
+}
+
+// GetImdsAwsSecurityCredentialsType returns the value of the field, resolving if necessary
+func (ev *Event) GetImdsAwsSecurityCredentialsType() string {
+	if ev.GetEventType().String() != "imds" {
+		return ""
+	}
+	return ev.IMDS.AWS.SecurityCredentials.Type
+}
+
+// GetImdsCloudProvider returns the value of the field, resolving if necessary
+func (ev *Event) GetImdsCloudProvider() string {
+	if ev.GetEventType().String() != "imds" {
+		return ""
+	}
+	return ev.IMDS.CloudProvider
+}
+
+// GetImdsHost returns the value of the field, resolving if necessary
+func (ev *Event) GetImdsHost() string {
+	if ev.GetEventType().String() != "imds" {
+		return ""
+	}
+	return ev.IMDS.Host
+}
+
+// GetImdsServer returns the value of the field, resolving if necessary
+func (ev *Event) GetImdsServer() string {
+	if ev.GetEventType().String() != "imds" {
+		return ""
+	}
+	return ev.IMDS.Server
+}
+
+// GetImdsType returns the value of the field, resolving if necessary
+func (ev *Event) GetImdsType() string {
+	if ev.GetEventType().String() != "imds" {
+		return ""
+	}
+	return ev.IMDS.Type
+}
+
+// GetImdsUrl returns the value of the field, resolving if necessary
+func (ev *Event) GetImdsUrl() string {
+	if ev.GetEventType().String() != "imds" {
+		return ""
+	}
+	return ev.IMDS.URL
+}
+
+// GetImdsUserAgent returns the value of the field, resolving if necessary
+func (ev *Event) GetImdsUserAgent() string {
+	if ev.GetEventType().String() != "imds" {
+		return ""
+	}
+	return ev.IMDS.UserAgent
+}
+
 // GetLinkFileChangeTime returns the value of the field, resolving if necessary
 func (ev *Event) GetLinkFileChangeTime() uint64 {
 	if ev.GetEventType().String() != "link" {

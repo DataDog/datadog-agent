@@ -68,6 +68,8 @@ func createTestProbe() (*WindowsProbe, error) {
 		isRenameEnabled: true,
 		isWriteEnabled:  true,
 		isDeleteEnabled: true,
+
+		volumeMap: make(map[string]string),
 	}
 	err = wp.Init()
 
