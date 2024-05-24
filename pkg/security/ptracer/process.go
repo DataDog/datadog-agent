@@ -9,6 +9,7 @@
 package ptracer
 
 import (
+	"fmt"
 	"slices"
 
 	"github.com/DataDog/datadog-agent/pkg/security/proto/ebpfless"
@@ -84,12 +85,22 @@ func (tc *ProcessCache) SetAsThreadOf(process *Process, ppid int) {
 		return
 	}
 
+	if parent.Tgid != process.Pid {
+		fmt.Printf("DEBUG: SetAsThreadOf %d <- %d\n", parent.Tgid, process.Pid)
+	}
+
 	// share resources, parent should never be nil
 	process.Tgid = parent.Tgid
 	process.Res = parent.Res
 
 	// re-add to update the caches
 	tc.Add(process.Pid, process)
+
+	// span := tc.GetSpan(parent.Tgid)
+	// if span != nil {
+	// 	tc.SetSpan(process.Tgid, span)
+	// 	fmt.Printf("SET PROCESS %d span herited from %d (ppid %d)\n", parent.Tgid, process.Tgid, ppid)
+	// }
 }
 
 // Remove a pid
@@ -130,6 +141,7 @@ func (tc *ProcessCache) GetSpan(tgid int) *SpanTLS {
 func (tc *ProcessCache) SetSpan(tgid int, span *SpanTLS) {
 	if span != nil {
 		tc.tgid2Span[tgid] = span
+		fmt.Printf("DEBUG: SetSpan %d\n", tgid)
 	}
 }
 
@@ -140,5 +152,24 @@ func (tc *ProcessCache) UnsetSpan(tgid int) {
 
 // HeritSpan will copy the TLS section from the parent to the child if any
 func (tc *ProcessCache) HeritSpan(ppid, pid int) {
+	// parent := tc.Get(ppid)
+	// if parent == nil {
+	// 	return
+	// }
+	// // span := tc.GetSpan(ppid)
+	// span := tc.GetSpan(parent.Tgid)
+	// if span != nil {
+	// 	span.ppid = ppid
+	// 	fmt.Printf("DEBUG: HeritSpan %d -> %d\n", ppid, pid)
+	// 	tc.SetSpan(pid, span)
+	// }
 	tc.SetSpan(pid, tc.GetSpan(ppid))
 }
+
+/*
+   papa
+   - > child (x50)
+   - register tls
+       - exec
+
+*/

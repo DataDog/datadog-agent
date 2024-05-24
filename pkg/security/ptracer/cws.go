@@ -316,6 +316,7 @@ func StartCWSPtracer(args []string, envs []string, probeAddr string, opts Opts) 
 		process := pc.Get(pid)
 		if process == nil {
 			process = NewProcess(pid)
+			fmt.Printf("DEBUG: new process %d -> %d\n", ppid, pid)
 			pc.Add(pid, process)
 		}
 
@@ -353,6 +354,12 @@ func StartCWSPtracer(args []string, envs []string, probeAddr string, opts Opts) 
 
 			// if available, gather span
 			syscallMsg.SpanContext = fillSpanContext(tracer, process.Tgid, pid, pc.GetSpan(process.Tgid))
+			// span := pc.GetSpan(process.Tgid)
+			// syscallMsg.SpanContext = fillSpanContext(tracer, process.Tgid, pid, span)
+			// // special case fallback
+			// if (nr == ExecveNr || nr == ExecveatNr) && span != nil && syscallMsg.SpanContext == nil {
+			// 	syscallMsg.SpanContext = fallbackFillSpanContext(tracer, span)
+			// }
 
 			/* internal special cases */
 			switch nr {
