@@ -1675,3 +1675,4 @@ def show_last_test_results(ctx: Context, stack: str | None = None):
     table.append(["Total"] + [_color_result(total_by_vm[vm]) for vm in vm_list])
 
     print(tabulate(table, headers=["Package"] + vm_list))
+    print("Legend: Successes/Failures/Skipped")
