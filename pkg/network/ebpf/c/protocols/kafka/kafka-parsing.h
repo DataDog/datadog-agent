@@ -1432,7 +1432,9 @@ static __always_inline bool kafka_process(conn_tuple_t *tup, kafka_info_t *kafka
         offset += sizeof(s32);
         break;
     case KAFKA_FETCH:
-        offset += get_topic_offset_from_fetch_request(&kafka_header);
+        if (!get_topic_offset_from_fetch_request(&kafka_header, pkt, &offset)) {
+            return false;
+        }
         if (kafka_header.api_version >= 12) {
             flexible = true;
             if (!skip_varint_number_of_topics(pkt, &offset)) {

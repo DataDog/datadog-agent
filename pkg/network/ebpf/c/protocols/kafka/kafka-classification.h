@@ -256,35 +256,50 @@ static __always_inline bool get_topic_offset_from_produce_request(const kafka_he
     return true;
 }
 
-// Getting the offset the topic name in the fetch request.
-static __always_inline u32 get_topic_offset_from_fetch_request(const kafka_header_t *kafka_header) {
-    u32 offset = 0;
+static __always_inline bool skip_request_tagged_fields(pktbuf_t pkt, u32 *offset) {
+    if (*offset >= pktbuf_data_end(pkt)) {
+        return false;
+    }
 
-    if (kafka_header->api_version >= 12) {
-        // Skip tagged fields (assumed empty)
-        offset += 1;
+    u8 num_tagged_fields = 0;
+
+    pktbuf_load_bytes(pkt, *offset, &num_tagged_fields, 1);
+    *offset += 1;
+
+    // We don't support parsing tagged fields for now.
+    return num_tagged_fields == 0;
+}
+
+// Getting the offset the topic name in the fetch request.
+static __always_inline bool get_topic_offset_from_fetch_request(const kafka_header_t *kafka_header, pktbuf_t pkt, u32 *offset) {
+    u32 api_version = kafka_header->api_version;
+
+    if (api_version >= 12) {
+        if (!skip_request_tagged_fields(pkt, offset)) {
+            return false;
+        }
     }
 
     // replica_id => INT32
     // max_wait_ms => INT32
     // min_bytes => INT32
-    offset += 3 * sizeof(s32);
+    *offset += 3 * sizeof(s32);
 
-    if (kafka_header->api_version >= 3) {
+    if (api_version >= 3) {
         // max_bytes => INT32
-        offset += sizeof(s32);
-        if (kafka_header->api_version >= 4) {
+        *offset += sizeof(s32);
+        if (api_version >= 4) {
             // isolation_level => INT8
-            offset += sizeof(s8);
-            if (kafka_header->api_version >= 7) {
+            *offset += sizeof(s8);
+            if (api_version >= 7) {
                 // session_id => INT32
                 // session_epoch => INT32
-                offset += 2 * sizeof(s32);
+                *offset += 2 * sizeof(s32);
             }
         }
     }
 
-    return offset;
+    return true;
 }
 
 // Calls the relevant function, according to the api_key.
@@ -300,7 +315,9 @@ static __always_inline bool is_kafka_request(const kafka_header_t *kafka_header,
         }
         break;
     case KAFKA_FETCH:
-        offset += get_topic_offset_from_fetch_request(kafka_header);
+        if (!get_topic_offset_from_fetch_request(kafka_header, pkt, &offset)) {
+            return false;
+        }
         flexible = kafka_header->api_version >= 12;
         break;
     default:
