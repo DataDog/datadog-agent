@@ -466,7 +466,8 @@ def update_statistics(job_executions: Executions):
         if len(job_executions.jobs[job_name].jobs_info) > CUMULATIVE_LENGTH:
             job_executions.jobs[job_name].jobs_info.pop(0)
         # Save the failed job if it hits the threshold
-        if job_executions.jobs[job_name].consecutive_failures == CONSECUTIVE_THRESHOLD:
+        # if job_executions.jobs[job_name].consecutive_failures == CONSECUTIVE_THRESHOLD:
+        if job_executions.jobs[job_name].consecutive_failures >= 1:
             consecutive_alerts[job_name] = [job for job in job_executions.jobs[job_name].jobs_info if job.failing]
         if sum(1 for job in job_executions.jobs[job_name].jobs_info if job.failing) == CUMULATIVE_THRESHOLD:
             cumulative_alerts[job_name] = [job for job in job_executions.jobs[job_name].jobs_info if job.failing]
