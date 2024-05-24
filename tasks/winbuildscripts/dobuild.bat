@@ -23,7 +23,6 @@ SET PATH=%PATH%;%GOPATH%/bin
 @echo GOPATH %GOPATH%
 @echo PATH %PATH%
 @echo VSTUDIO_ROOT %VSTUDIO_ROOT%
-@echo TARGET_ARCH %TARGET_ARCH%
 
 REM Section to pre-install libyajl2 gem with fix for gcc10 compatibility
 Powershell -C "ridk enable; ./tasks/winbuildscripts/libyajl2_install.ps1"
@@ -34,11 +33,6 @@ if "%TARGET_ARCH%" == "x64" (
     call ridk enable
 )
 
-if "%TARGET_ARCH%" == "x86" (
-    @echo IN x86 BRANCH
-    REM Use 64-bit toolchain to build gems
-    Powershell -C "ridk enable; cd omnibus; bundle install"
-)
 set REPO_ROOT=%~p0\..\..
 pushd .
 cd %REPO_ROOT% || exit /b 101
@@ -59,4 +53,10 @@ if "%OMNIBUS_TARGET%" == "main" (
     @echo "inv -e msi.build --major-version %MAJOR_VERSION% --python-runtimes "%PY_RUNTIMES%" --release-version %RELEASE_VERSION%
     inv -e msi.build --major-version %MAJOR_VERSION% --python-runtimes "%PY_RUNTIMES%" --release-version %RELEASE_VERSION% || exit /b 106
 )
+
+REM Build the OCI package for the Agent 7 only.
+if %MAJOR_VERSION% == 7 (
+    Powershell -C "./tasks/winbuildscripts/Generate-OCIPackage.ps1"
+)
+
 popd

@@ -55,9 +55,6 @@ def build(
     incremental_build=True,
     install_path=None,
     major_version='7',
-    # arch is never used here; we keep it to have a
-    # consistent CLI on the build task for all agents.
-    arch=CURRENT_ARCH,  # noqa: U100
     go_mod="mod",
     skip_assets=False,
     static=False,
@@ -71,7 +68,6 @@ def build(
             ctx,
             install_path=install_path,
             race=race,
-            arch=arch,
             go_mod=go_mod,
         )
 
@@ -89,15 +85,11 @@ def build(
     ## build windows resources
     # generate windows resources
     if sys.platform == 'win32':
-        if arch == "x86":
-            env["GOARCH"] = "386"
-
-        build_messagetable(ctx, arch=arch)
-        vars = versioninfo_vars(ctx, major_version=major_version, arch=arch)
+        build_messagetable(ctx)
+        vars = versioninfo_vars(ctx, major_version=major_version)
         build_rc(
             ctx,
             "cmd/security-agent/windows_resources/security-agent.rc",
-            arch=arch,
             vars=vars,
             out="cmd/security-agent/rsrc.syso",
         )
@@ -362,7 +354,6 @@ def build_functional_tests(
     ctx,
     output='pkg/security/tests/testsuite',
     srcpath='pkg/security/tests',
-    arch=CURRENT_ARCH,
     major_version='7',
     build_tags='functionaltests',
     build_flags='',
@@ -379,7 +370,6 @@ def build_functional_tests(
             build_cws_object_files(
                 ctx,
                 major_version=major_version,
-                arch=arch,
                 kernel_release=kernel_release,
                 debug=debug,
             )
@@ -388,8 +378,6 @@ def build_functional_tests(
     ldflags, gcflags, env = get_build_flags(ctx, major_version=major_version, static=static)
 
     env["CGO_ENABLED"] = "1"
-    if arch == "x86":
-        env["GOARCH"] = "386"
 
     build_tags = build_tags.split(",")
     if not is_windows:
@@ -405,7 +393,7 @@ def build_functional_tests(
 
     if not skip_linters:
         targets = [srcpath]
-        results = run_golangci_lint(ctx, module_path="", targets=targets, build_tags=build_tags, arch=arch)
+        results = run_golangci_lint(ctx, module_path="", targets=targets, build_tags=build_tags)
         for result in results:
             # golangci exits with status 1 when it finds an issue
             if result.exited != 0:
@@ -436,7 +424,6 @@ def build_functional_tests(
 def build_stress_tests(
     ctx,
     output=f"pkg/security/tests/{STRESS_TEST_SUITE}",
-    arch=CURRENT_ARCH,
     major_version='7',
     bundle_ebpf=True,
     skip_linters=False,
@@ -446,7 +433,6 @@ def build_stress_tests(
     build_functional_tests(
         ctx,
         output=output,
-        arch=arch,
         major_version=major_version,
         build_tags='stresstests',
         bundle_ebpf=bundle_ebpf,
@@ -459,7 +445,6 @@ def build_stress_tests(
 def stress_tests(
     ctx,
     verbose=False,
-    arch=CURRENT_ARCH,
     major_version='7',
     output=f"pkg/security/tests/{STRESS_TEST_SUITE}",
     bundle_ebpf=True,
@@ -469,7 +454,6 @@ def stress_tests(
 ):
     build_stress_tests(
         ctx,
-        arch=arch,
         major_version=major_version,
         output=output,
         bundle_ebpf=bundle_ebpf,
@@ -490,7 +474,6 @@ def functional_tests(
     ctx,
     verbose=False,
     race=False,
-    arch=CURRENT_ARCH,
     major_version='7',
     output='pkg/security/tests/testsuite',
     bundle_ebpf=True,
@@ -501,7 +484,6 @@ def functional_tests(
 ):
     build_functional_tests(
         ctx,
-        arch=arch,
         major_version=major_version,
         output=output,
         bundle_ebpf=bundle_ebpf,
@@ -535,7 +517,6 @@ def ebpfless_functional_tests(
 ):
     build_functional_tests(
         ctx,
-        arch=arch,
         major_version=major_version,
         output=output,
         bundle_ebpf=bundle_ebpf,
@@ -557,7 +538,6 @@ def ebpfless_functional_tests(
 def kitchen_functional_tests(
     ctx,
     verbose=False,
-    arch=CURRENT_ARCH,
     major_version='7',
     build_tests=False,
     testflags='',
@@ -566,7 +546,6 @@ def kitchen_functional_tests(
         functional_tests(
             ctx,
             verbose=verbose,
-            arch=arch,
             major_version=major_version,
             output="test/kitchen/site-cookbooks/dd-security-agent-check/files/testsuite",
             testflags=testflags,
@@ -595,7 +574,6 @@ def docker_functional_tests(
 ):
     build_functional_tests(
         ctx,
-        arch=arch,
         major_version=major_version,
         output="pkg/security/tests/testsuite",
         bundle_ebpf=bundle_ebpf,
@@ -911,7 +889,6 @@ def run_ebpf_unit_tests(ctx, verbose=False, trace=False):
     build_cws_object_files(
         ctx,
         major_version='7',
-        arch=CURRENT_ARCH,
         kernel_release=None,
         with_unit_test=True,
     )

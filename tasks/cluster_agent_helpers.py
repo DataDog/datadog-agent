@@ -21,15 +21,12 @@ def build_common(
     development,
     skip_assets,
     go_mod="mod",
-    arch="x64",
 ):
     """
     Build Cluster Agent
     """
 
-    build_include = (
-        build_tags if build_include is None else filter_incompatible_tags(build_include.split(","), arch=arch)
-    )
+    build_include = build_tags if build_include is None else filter_incompatible_tags(build_include.split(","))
     build_exclude = [] if build_exclude is None else build_exclude.split(",")
     build_tags = get_build_tags(build_include, build_exclude)
 

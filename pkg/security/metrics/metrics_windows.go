@@ -121,4 +121,10 @@ var (
 	//MetricWindowsETWTotalNotifications is the metric for counting the total number of ETW notifications
 	//Tags: -
 	MetricWindowsETWTotalNotifications = newRuntimeMetric(".windows.etw_total_notifications")
+	//MetricWindowsFilePathEvictions is the metric for counting the number of file path evictions
+	//Tags: -
+	MetricWindowsFilePathEvictions = newRuntimeMetric(".windows.file_path_evictions")
+	//MetricWindowsRegPathEvictions is the metric for counting the number of registry path evictions
+	//Tags: -
+	MetricWindowsRegPathEvictions = newRuntimeMetric(".windows.registry_path_evictions")
 )

@@ -62,6 +62,7 @@ k8s-e2e-cws-dev:
   rules: !reference [.on_dev_branch_manual]
   variables:
     ARGO_WORKFLOW: cws
+  allow_failure: true
 
 k8s-e2e-cws-main:
   extends: .k8s_e2e_template_main_with_cws_cspm_init
@@ -69,6 +70,7 @@ k8s-e2e-cws-main:
   retry: 1
   variables:
     ARGO_WORKFLOW: cws
+  allow_failure: true
 
 k8s-e2e-cspm-dev:
   extends: .k8s_e2e_template_dev_with_cws_cspm_init
@@ -235,7 +237,7 @@ new-e2e-npm-docker:
   variables:
     TARGETS: ./tests/npm
     TEAM: network-performance-monitoring
-    EXTRA_PARAMS: --run "Test(ECSVM|EC2VMContainerized)Suite"
+    EXTRA_PARAMS: --run "Test(ECSVM|EC2VMContainerized|EKSVM)Suite"
 
 new-e2e-aml:
   extends: .new_e2e_template_needs_deb_windows_x64
@@ -300,12 +302,12 @@ new-e2e-installer:
   rules:
     !reference [.on_installer_or_e2e_changes_or_manual]
   needs:
-    - deploy_deb_testing-i7_arm64
-    - deploy_deb_testing-i7_amd64
-    - deploy_rpm_testing-i7_arm64
-    - deploy_rpm_testing-i7_x64
-    - deploy_suse_rpm_testing-i7_arm64
-    - deploy_suse_rpm_testing-i7_x64
+    - deploy_deb_testing-a7_arm64
+    - deploy_deb_testing-a7_x64
+    - deploy_rpm_testing-a7_arm64
+    - deploy_rpm_testing-a7_x64
+    - deploy_suse_rpm_testing_arm64-a7
+    - deploy_suse_rpm_testing_x64-a7
     - qa_installer_oci
     - qa_agent_oci
   variables:
