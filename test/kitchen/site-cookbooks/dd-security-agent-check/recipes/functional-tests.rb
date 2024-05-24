@@ -172,10 +172,7 @@ if not ['redhat', 'suse', 'opensuseleap', 'rocky'].include?(node[:platform])
     # to DataDog/datadog-agent-buildimages.
     file "#{node['common']['work_dir']}/Dockerfile" do
       content <<-EOF
-      FROM ghcr.io/paulcacheux/cws-centos7@sha256:4fc1aac178b5c1690ce71c37f22b8a23cedfb969c7056702c21be50e848e554f
-
-      COPY clang-bpf /opt/datadog-agent/embedded/bin/
-      COPY llc-bpf /opt/datadog-agent/embedded/bin/
+      FROM ghcr.io/paulcacheux/cws-centos7@sha256:b16587f1cc7caebc1a18868b9fbd3823e79457065513e591352c4d929b14c426
 
       CMD sleep 7200
       EOF
