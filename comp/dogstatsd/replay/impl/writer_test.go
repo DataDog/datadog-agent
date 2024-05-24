@@ -21,6 +21,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/packets"
+	replay "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/def"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -65,7 +66,7 @@ func writerTest(t *testing.T, z bool) {
 			time.Sleep(duration)
 
 			for i := 0; i < iterations; i++ {
-				buff := CapPool.Get().(*CaptureBuffer)
+				buff := new(replay.CaptureBuffer)
 				pkt := manager.Get().(*packets.Packet)
 				pkt.Buffer = []byte("foo.bar|5|#some:tag")
 				pkt.Source = packets.UDS

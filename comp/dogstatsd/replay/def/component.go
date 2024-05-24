@@ -3,18 +3,13 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package server implements a component to run the dogstatsd capture/replay
-//
-//nolint:revive // TODO(AML) Fix revive linter
+// Package replay is a component to run the dogstatsd capture/replay
 package replay
 
 import (
 	"time"
 
-	"go.uber.org/fx"
-
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/packets"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 // team: agent-metrics-logs
@@ -46,19 +41,31 @@ type Component interface {
 	GetStartUpError() error
 }
 
-// Mock implements mock-specific methods.
-type Mock interface {
-	Component
+// UnixDogstatsdMsg mirrors the exported fields of pkg/proto/pbgo/core/model.pb.go 'UnixDogstatsdMsg
+// to avoid forcing the import of pbgo on every user of dogstatsd.
+type UnixDogstatsdMsg struct {
+	Timestamp     int64
+	PayloadSize   int32
+	Payload       []byte
+	Pid           int32
+	AncillarySize int32
+	Ancillary     []byte
 }
 
-// Module defines the fx options for this component.
-func Module() fxutil.Module {
-	return fxutil.Component(
-		fx.Provide(newTrafficCapture))
+// CaptureBuffer holds pointers to captured packet's buffers (and oob buffer if required) and the protobuf
+// message used for serialization.
+type CaptureBuffer struct {
+	Pb          UnixDogstatsdMsg
+	Oob         *[]byte
+	Pid         int32
+	ContainerID string
+	Buff        *packets.Packet
 }
 
-// MockModule defines the fx options for the mock component.
-func MockModule() fxutil.Module {
-	return fxutil.Component(
-		fx.Provide(newMockTrafficCapture))
-}
+const (
+	// GUID will be used as the GUID during capture replays
+	// This is a magic number chosen for no particular reason other than the fact its
+	// quite large an improbable to match an actual Group ID on any given box. We
+	// need this number to identify replayed Unix socket ancillary credentials.
+	GUID = 999888777
+)

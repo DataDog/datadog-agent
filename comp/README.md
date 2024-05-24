@@ -204,7 +204,7 @@ Package pidmap implements a component for tracking pid and containerID relations
 
 ### [comp/dogstatsd/replay](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/dogstatsd/replay)
 
-Package server implements a component to run the dogstatsd capture/replay
+Package replay is a component to run the dogstatsd capture/replay
 
 ### [comp/dogstatsd/server](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/dogstatsd/server)
 

@@ -10,6 +10,8 @@ package replay
 import (
 	"os"
 	"syscall"
+
+	replay "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/def"
 )
 
 // GetUcredsForPid returns the replay ucreds for the specified pid
@@ -17,7 +19,7 @@ func GetUcredsForPid(pid int32) []byte {
 	ucreds := &syscall.Ucred{
 		Pid: int32(os.Getpid()),
 		Uid: uint32(pid),
-		Gid: GUID,
+		Gid: replay.GUID,
 	}
 
 	return syscall.UnixCredentials(ucreds)
