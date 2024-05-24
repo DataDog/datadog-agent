@@ -35,8 +35,8 @@ func (m *testDaemon) Stop(ctx context.Context) error {
 	return args.Error(0)
 }
 
-func (m *testDaemon) Install(ctx context.Context, url string) error {
-	args := m.Called(ctx, url)
+func (m *testDaemon) Install(ctx context.Context, url string, args []string) error {
+	args := m.Called(ctx, url, args)
 	return args.Error(0)
 }
 
