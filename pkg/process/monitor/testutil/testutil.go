@@ -11,10 +11,11 @@ package testutil
 import (
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor"
 	procmon "github.com/DataDog/datadog-agent/pkg/process/monitor"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/stretchr/testify/require"
 )
 
 // RegisterProcessMonitorEventConsumer registers the process monitor consumer to an EventMonitor
