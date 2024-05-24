@@ -443,6 +443,96 @@ def send_notification(ctx: Context, alert_jobs):
         send_slack_message("#agent-platform-ops", message)
 
 
+# @task
+# def send_summary_notifications(_, n_failed_to_display=8):
+#     """
+#     Send a summary notification to each teams with the jobs that fail the most
+#     """
+
+#     from tasks.libs.ciproviders.gitlab_api import get_gitlab_repo
+
+#     agent = get_gitlab_repo()
+
+#     # Sorted by id by default (sorted by creation date)
+#     all_pipelines = []
+#     for pipeline in agent.pipelines.list(per_page=100, iterator=True):
+#         dt = datetime.fromisoformat(pipeline.created_at)
+
+#         # Stop if older than 24 hours
+#         if dt <= datetime.now() - timedelta(minutes=30):  # TODO : timedelta(days=1):
+#             break
+
+#         if pipeline.ref == 'main':
+#             all_pipelines.append(pipeline)
+
+#     if all_pipelines == []:
+#         print(color_message('WARNING: No pipeline found in the last 24 hours', color='yellow'), file=sys.stderr)
+#         return
+
+#     print([p.to_json() for p in all_pipelines])
+
+#     exit()
+
+#     # TODO : For each team
+#     # TODO : Use class ?
+#     # TODO : Civisibility link
+#     job = {"name": 'job1', "stage": 'stage1', "n_failed": 42, "n_total": 50, "link": 'https://path/to/job'}
+#     jobs = [job]
+#     jobs = sorted(jobs, key=lambda x: x["n_failed"], reverse=True)[:n_failed_to_display]
+
+#     # Create message
+#     # TODO : Only main ?
+#     message = 'These jobs you own have the most failures on main:\n'
+#     for job in jobs:
+#         message += f'- <{job["link"]}|{job["name"]}> ({job["n_failed"]}/{job["n_total"]})\n'
+
+#     # Send
+#     print('[NOTIFICATION]')
+#     print(message)
+
+
+@task
+def send_failure_summary_notification(_, list_max_len=10):
+    # TODO
+    jobs = os.environ["JOB_FAILURES"]
+    jobs = json.loads(jobs)
+    # with open('/tmp/failures.json') as fail, open('/tmp/success.json') as succ:
+    #     jobs = {'failures': json.load(fail), 'success': json.load(succ)}
+
+    # stats[i] = [#failures, #total]
+    stats = {}
+    for bucket in jobs['failures']['data']['buckets']:
+        name = bucket['by']['@ci.job.name']
+        fail = bucket['computes']['c0']
+        stats[name] = [fail, None]
+
+    for bucket in jobs['success']['data']['buckets']:
+        name = bucket['by']['@ci.job.name']
+        success = bucket['computes']['c0']
+        if name in stats:
+            stats[name][1] = stats[name][0] + success
+
+    # List of (job_name, failure_count) ordered by failure_count
+    stats = sorted(stats.items(), key=lambda x: (x[1][0], x[1][1] if x[1][1] is not None else 0), reverse=True)[:list_max_len]
+    message = 'These jobs have the most failures in the last 24 hours:'
+    for name, (fail, total) in stats:
+        link = CI_VISIBILITY_JOB_URL.format(name.replace(' ', '%20'))
+        if total is None:
+            message += f"\n- <{link}|{name}>: **{fail}** failures"
+        else:
+            message += f"\n- <{link}|{name}>: **{fail}** failures / {total} runs"
+
+    message += '\nClick <https://app.datadoghq.com/ci/pipeline-executions?query=ci_level%3Ajob%20env%3Aprod%20%40git.repository.id%3A%22gitlab.ddbuild.io%2FDataDog%2Fdatadog-agent%22%20%40ci.pipeline.name%3A%22DataDog%2Fdatadog-agent%22%20%40ci.provider.instance%3Agitlab-ci%20%40git.branch%3Amain%20%40ci.status%3Aerror&agg_m=count&agg_m_source=base&agg_q=%40ci.job.name&agg_q_source=base&agg_t=count&fromUser=false&index=cipipeline&sort_m=count&sort_m_source=base&sort_t=count&top_n=25&top_o=top&viz=toplist&x_missing=true&paused=false|here> for more details.'
+
+    # Send message
+    from slack_sdk import WebClient
+
+    client = WebClient(os.environ["SLACK_API_TOKEN"])
+    client.chat_postMessage(channel='#celian-tests', text=message)
+
+    print('Message sent')
+
+
 @task
 def unit_tests(ctx, pipeline_id, pipeline_url, branch_name):
     from tasks.libs.ciproviders.github_api import GithubAPI
