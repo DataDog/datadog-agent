@@ -54,9 +54,6 @@ const (
 	numRanges         = "num_of_ranges"
 	logTwoNumOfRanges = "log2_num_of_ranges"
 
-	disableKptrRestrict = "1"
-	enableKptrRestrict  = "2"
-
 	// maximum lock ranges to track
 	maxTrackedRanges = 16384
 )
