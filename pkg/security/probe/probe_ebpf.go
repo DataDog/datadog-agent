@@ -1113,6 +1113,9 @@ func (p *EBPFProbe) validEventTypeForConfig(eventType string) bool {
 	if eventType == "dns" && !p.config.Probe.NetworkEnabled {
 		return false
 	}
+	if eventType == "imds" && (!p.config.Probe.NetworkEnabled || !p.config.Probe.NetworkIngressEnabled) {
+		return false
+	}
 	return true
 }
 
