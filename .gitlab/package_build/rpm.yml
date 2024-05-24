@@ -144,6 +144,7 @@ agent_rpm-arm64-a7:
     - !reference [.setup_ruby_mirror_linux]
     - !reference [.setup_python_mirror_linux]
     - !reference [.retrieve_linux_go_deps]
+    - !reference [.cache_omnibus_ruby_deps, setup]
     - echo "Detected host architecture $(uname -m)"
     # $DD_TARGET_ARCH is only set by Arm build images, so assume amd64 if not present
     - echo "Target architecture ${DD_TARGET_ARCH:=amd64}"
@@ -167,6 +168,8 @@ agent_rpm-arm64-a7:
     expire_in: 2 weeks
     paths:
       - $OMNIBUS_PACKAGE_DIR
+  cache:
+    - !reference [.cache_omnibus_ruby_deps, cache]
 
 iot_agent_rpm-x64:
   extends: .iot_agent_build_common_rpm
@@ -223,6 +226,7 @@ dogstatsd_rpm-x64:
   before_script:
     - source /root/.bashrc
     - !reference [.retrieve_linux_go_deps]
+    - !reference [.cache_omnibus_ruby_deps, setup]
   script:
     # remove artifacts from previous pipelines that may come from the cache
     - rm -rf $OMNIBUS_PACKAGE_DIR/*
@@ -242,3 +246,5 @@ dogstatsd_rpm-x64:
     expire_in: 2 weeks
     paths:
       - $OMNIBUS_PACKAGE_DIR
+  cache:
+    - !reference [.cache_omnibus_ruby_deps, cache]
