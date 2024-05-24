@@ -389,8 +389,6 @@ def check_consistent_failures(ctx, job_failures_file="job_executions.v2.json"):
     # The jobs dictionary contains the consecutive and cumulative failures for each job
     # The consecutive failures are reset to 0 when the job is not failing, and are raising an alert when reaching the CONSECUTIVE_THRESHOLD (3)
     # The cumulative failures list contains 1 for failures, 0 for succes. They contain only then CUMULATIVE_LENGTH(10) last executions and raise alert when 50% failure rate is reached
-    # TODO :
-    os.environ["CI_PIPELINE_ID"] = "35031736"
     job_executions = retrieve_job_executions(ctx, job_failures_file)
     print('Retrieved job executions:', job_executions)
 
@@ -482,13 +480,8 @@ def send_notification(ctx: Context, alert_jobs):
     message = alert_jobs["consecutive"].message(ctx) + alert_jobs["cumulative"].message()
     message = message.strip()
 
-    # TODO
-    print('[NOTIFICATION]', message)
-
     if message:
-        # TODO
-        # send_slack_message("#agent-platform-ops", message)
-        send_slack_message("#celian-tests", message)
+        send_slack_message("#agent-platform-ops", message)
 
 
 @task

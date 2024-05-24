@@ -16,21 +16,6 @@ notify-on-tagged-success:
     *$CI_COMMIT_REF_NAME* is available in the staging repositories."
     postmessage "#agent-release-sync" "$MESSAGE_TEXT"
 
-notify-test:
-  extends: .slack-notifier-base
-  stage: notify
-  needs: []
-  # dependencies: []
-  tags: ["arch:amd64"]
-  # resource_group: notification
-  timeout: 15 minutes # Added to prevent a stuck job blocking the resource_group defined above
-  script:
-    - export GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $GITLAB_READ_API_TOKEN_SSM_NAME)
-    - export DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $API_KEY_ORG2_SSM_NAME)
-    - !reference [.setup_python_mirror_linux]
-    - python3 -m pip install -r requirements.txt -r tasks/libs/requirements-notifications.txt
-    - invoke notify.check-consistent-failures
-
 notify:
   extends: .slack-notifier-base
   stage: notify
