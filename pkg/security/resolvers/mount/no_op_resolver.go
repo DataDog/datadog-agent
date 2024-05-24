@@ -65,3 +65,8 @@ func (mr *NoOpResolver) ResolveMount(_ uint32, _ uint32, _ uint32, _ string) (*m
 func (mr *NoOpResolver) SendStats() error {
 	return nil
 }
+
+// ToJSON return a json version of the cache
+func (mr *NoOpResolver) ToJSON() ([]byte, error) {
+	return nil, nil
+}

@@ -20,11 +20,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DataDog/datadog-agent/test/fakeintake/api"
 	"github.com/benbjohnson/clock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	"github.com/DataDog/datadog-agent/test/fakeintake/api"
 )
 
 func TestServer(t *testing.T) {
@@ -416,7 +415,6 @@ func testServer(t *testing.T, opts ...Option) {
 				json.NewDecoder(cleanedResponse.Body).Decode(&getCleanedResponse)
 				return len(getCleanedResponse.Payloads) == 2
 			}, 5*time.Second, 100*time.Millisecond, "should contain 2 elements after cleanup of only older elements")
-			fi.Stop()
 		})
 	}
 
@@ -594,6 +592,17 @@ func testServer(t *testing.T, opts ...Option) {
 		responseBody, err := io.ReadAll(response.Body)
 		require.NoError(t, err, "Error reading response body")
 		assert.Equal(t, []byte(`{"errors":[]}`), responseBody)
+	})
+
+	t.Run("should contain a Fakeintake-ID header", func(t *testing.T) {
+		fi, _ := InitialiseForTests(t, opts...)
+		defer fi.Stop()
+
+		response, err := http.Get(fi.URL() + "/fakeintake/health")
+		require.NoError(t, err, "Error on GET request")
+		defer response.Body.Close()
+		assert.NotEmpty(t, response.Header.Get("Fakeintake-ID"), "Fakeintake-ID header is empty")
+		assert.Equal(t, http.StatusOK, response.StatusCode, "unexpected code")
 	})
 }
 

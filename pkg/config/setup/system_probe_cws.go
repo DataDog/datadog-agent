@@ -34,6 +34,7 @@ func initCWSSystemProbeConfig(cfg pkgconfigmodel.Config) {
 	cfg.BindEnvAndSetDefault("runtime_security_config.self_test.enabled", true)
 	cfg.BindEnvAndSetDefault("runtime_security_config.self_test.send_report", true)
 	cfg.BindEnvAndSetDefault("runtime_security_config.remote_configuration.enabled", true)
+	cfg.BindEnvAndSetDefault("runtime_security_config.remote_configuration.dump_policies", false)
 	cfg.BindEnvAndSetDefault("runtime_security_config.direct_send_from_system_probe", false)
 	cfg.BindEnvAndSetDefault("runtime_security_config.use_secruntime_track", false)
 	cfg.BindEnvAndSetDefault("runtime_security_config.compliance_module.enabled", false)
@@ -49,7 +50,7 @@ func initCWSSystemProbeConfig(cfg pkgconfigmodel.Config) {
 	cfg.BindEnvAndSetDefault("runtime_security_config.activity_dump.min_timeout", "10m")
 	cfg.BindEnvAndSetDefault("runtime_security_config.activity_dump.max_dump_size", 1750)
 	cfg.BindEnvAndSetDefault("runtime_security_config.activity_dump.traced_cgroups_count", 5)
-	cfg.BindEnvAndSetDefault("runtime_security_config.activity_dump.traced_event_types", []string{"exec", "open", "dns"})
+	cfg.BindEnvAndSetDefault("runtime_security_config.activity_dump.traced_event_types", []string{"exec", "open", "dns", "imds"})
 	cfg.BindEnv("runtime_security_config.activity_dump.cgroup_dump_timeout") // deprecated in favor of dump_duration
 	cfg.BindEnvAndSetDefault("runtime_security_config.activity_dump.dump_duration", "900s")
 	cfg.BindEnvAndSetDefault("runtime_security_config.activity_dump.rate_limiter", 500)
@@ -116,6 +117,9 @@ func initCWSSystemProbeConfig(cfg pkgconfigmodel.Config) {
 	// CWS -eBPF Less
 	cfg.BindEnvAndSetDefault("runtime_security_config.ebpfless.enabled", false)
 	cfg.BindEnvAndSetDefault("runtime_security_config.ebpfless.socket", constants.DefaultEBPFLessProbeAddr)
+
+	// CWS - IMDS
+	cfg.BindEnvAndSetDefault("runtime_security_config.imds_ipv4", "169.254.169.254")
 
 	// CWS enforcement capabilities
 	cfg.BindEnvAndSetDefault("runtime_security_config.enforcement.enabled", true)

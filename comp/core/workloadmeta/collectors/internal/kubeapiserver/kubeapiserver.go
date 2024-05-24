@@ -35,7 +35,7 @@ type storeGenerator func(context.Context, workloadmeta.Component, kubernetes.Int
 func storeGenerators(cfg config.Reader) []storeGenerator {
 	generators := []storeGenerator{newNodeStore}
 
-	if cfg.GetBool("cluster_agent.collect_kubernetes_tags") {
+	if cfg.GetBool("cluster_agent.collect_kubernetes_tags") || cfg.GetBool("autoscaling.workload.enabled") {
 		generators = append(generators, newPodStore)
 	}
 

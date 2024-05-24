@@ -11,6 +11,7 @@ package dentry
 import (
 	"bytes"
 	"encoding/binary"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"math/rand"
@@ -725,6 +726,47 @@ func (dr *Resolver) Start(manager *manager.Manager) error {
 	binary.NativeEndian.PutUint32(dr.erpcRequest.Data[24:28], uint32(dr.erpcSegmentSize))
 
 	return nil
+}
+
+// ToJSON return a json version of the cache
+func (dr *Resolver) ToJSON() ([]byte, error) {
+	dump := struct {
+		Entries []json.RawMessage
+	}{}
+
+	for mountID, cache := range dr.cache {
+		e := struct {
+			MountID uint32
+			Entries []struct {
+				PathKey   model.PathKey
+				PathEntry PathEntry
+			}
+		}{
+			MountID: mountID,
+		}
+
+		for _, key := range cache.Keys() {
+			value, exists := cache.Get(key)
+			if !exists {
+				continue
+			}
+
+			e.Entries = append(e.Entries, struct {
+				PathKey   model.PathKey
+				PathEntry PathEntry
+			}{
+				PathKey:   key,
+				PathEntry: value,
+			})
+		}
+
+		data, err := json.Marshal(e)
+		if err == nil {
+			dump.Entries = append(dump.Entries, data)
+		}
+	}
+
+	return json.Marshal(dump)
 }
 
 // Close cleans up the eRPC segment

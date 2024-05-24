@@ -15,6 +15,9 @@ from tasks.go import GOARCH_MAPPING, GOOS_MAPPING
 from tasks.libs.common.color import color_message
 from tasks.libs.common.datadog_api import create_gauge, send_metrics
 
+METRIC_GO_DEPS_ALL_NAME = "datadog.agent.go_dependencies.all"
+METRIC_GO_DEPS_EXTERNAL_NAME = "datadog.agent.go_dependencies.external"
+
 
 def compute_count_metric(
     ctx: Context,
@@ -35,17 +38,10 @@ def compute_count_metric(
         timestamp = int(datetime.datetime.now(datetime.UTC).timestamp())
 
     goos, goarch = GOOS_MAPPING[platform], GOARCH_MAPPING[arch]
-    tags = [
-        f"build:{build}",
-        f"flavor:{flavor.name}",
-        f"os:{goos}",
-        f"arch:{goarch}",
-    ]
-    tags.extend(extra_tags)
-
     build_tags = get_default_build_tags(build=build, flavor=flavor, platform=platform)
 
-    env = {"GOOS": goos, "GOARCH": goarch}
+    # need to explicitly enable CGO to also include CGO-only deps when checking different platforms
+    env = {"GOOS": goos, "GOARCH": goarch, "CGO_ENABLED": "1"}
     cmd = "go list -f '{{ join .Deps \"\\n\"}}'"
     with ctx.cd(entrypoint):
         res = ctx.run(
@@ -59,8 +55,16 @@ def compute_count_metric(
     count = len(deps)
     external = sum(1 for dep in deps if not dep.startswith("github.com/DataDog/datadog-agent/"))
 
-    metric_count = create_gauge("datadog.agent.go_dependencies.all", timestamp, count, tags=tags)
-    metric_external = create_gauge("datadog.agent.go_dependencies.external", timestamp, external, tags=tags)
+    tags = [
+        f"build:{build}",
+        f"flavor:{flavor.name}",
+        f"os:{goos}",
+        f"arch:{goarch}",
+    ]
+    tags.extend(extra_tags)
+
+    metric_count = create_gauge(METRIC_GO_DEPS_ALL_NAME, timestamp, count, tags=tags)
+    metric_external = create_gauge(METRIC_GO_DEPS_EXTERNAL_NAME, timestamp, external, tags=tags)
     return metric_count, metric_external
 
 
