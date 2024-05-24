@@ -85,12 +85,22 @@ class TestGroupPerTag(unittest.TestCase):
 
 
 class TestSetTag(unittest.TestCase):
-    def test_default(self):
+    @patch.dict("os.environ", {"CI_PIPELINE_ID": "1515"})
+    @patch("tasks.libs.common.junit_upload_core.get_gitlab_repo")
+    def test_default(self, mock_gitlab):
+        mock_instance = MagicMock()
+        mock_instance.pipelines.get.return_value = MagicMock()
+        mock_gitlab.return_value = mock_instance
         tags = junit.set_tags("agent-ci-experience", "base", "", {}, "")
-        self.assertEqual(len(tags), 10)
+        self.assertEqual(len(tags), 12)
         self.assertIn("slack_channel:agent-developer-experience", tags)
 
-    def test_flag(self):
+    @patch.dict("os.environ", {"CI_PIPELINE_ID": "1664"})
+    @patch("tasks.libs.common.junit_upload_core.get_gitlab_repo")
+    def test_flag(self, mock_gitlab):
+        mock_instance = MagicMock()
+        mock_instance.pipelines.get.return_value = MagicMock()
+        mock_gitlab.return_value = mock_instance
         tags = junit.set_tags(
             "agent-ci-experience",
             "base",
@@ -98,24 +108,34 @@ class TestSetTag(unittest.TestCase):
             ["upload_option.os_version_from_name"],
             "kitchen-rspec-win2016-azure-x86_64.xml",
         )
-        self.assertEqual(len(tags), 14)
+        self.assertEqual(len(tags), 16)
         self.assertIn("e2e_internal_error:true", tags)
         self.assertIn("version:win2016", tags)
         self.assertNotIn("upload_option.os_version_from_name", tags)
 
-    def test_additional_tags(self):
+    @patch.dict("os.environ", {"CI_PIPELINE_ID": "1789"})
+    @patch("tasks.libs.common.junit_upload_core.get_gitlab_repo")
+    def test_additional_tags(self, mock_gitlab):
+        mock_instance = MagicMock()
+        mock_instance.pipelines.get.return_value = MagicMock()
+        mock_gitlab.return_value = mock_instance
         tags = junit.set_tags("agent-ci-experience", "base", "", ["--tags", "simple:basique"], "")
-        self.assertEqual(len(tags), 12)
+        self.assertEqual(len(tags), 14)
         self.assertIn("simple:basique", tags)
 
 
 class TestJUnitUploadFromTGZ(unittest.TestCase):
+    @patch.dict("os.environ", {"CI_PIPELINE_ID": "1664"})
     @patch("builtins.print", new=MagicMock())
+    @patch("tasks.libs.common.junit_upload_core.get_gitlab_repo")
     @patch("tasks.libs.common.junit_upload_core.Popen")
-    def test_e2e(self, mock_popen):
+    def test_e2e(self, mock_popen, mock_gitlab):
         mock_instance = MagicMock()
         mock_instance.communicate.return_value = (b"stdout", b"")
         mock_popen.return_value = mock_instance
+        mock_project = MagicMock()
+        mock_project.pipelines.get.return_value = MagicMock()
+        mock_gitlab.return_value = mock_project
         junit.junit_upload_from_tgz("tasks/unit-tests/testdata/junit-tests_deb-x64-py3.tgz")
         mock_popen.assert_called()
         self.assertEqual(mock_popen.call_count, 31)
