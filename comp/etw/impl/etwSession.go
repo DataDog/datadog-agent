@@ -63,7 +63,7 @@ func (e *etwSession) EnableProvider(providerGUID windows.GUID) error {
 	}
 	/*
 	 * the enabled list and disabled list are mutually exclusive; the API
-	 * allows you to send one or the other but not both. 
+	 * allows you to send one or the other but not both.
 	 */
 	if len(cfg.EnabledIDs) > 0 && len(cfg.DisabledIDs) > 0 {
 		return fmt.Errorf("cannot enable and disable the same provider at the same time")
