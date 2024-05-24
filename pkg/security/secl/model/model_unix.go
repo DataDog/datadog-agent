@@ -256,6 +256,10 @@ type FileEvent struct {
 	BasenameStr string `field:"name,handler:ResolveFileBasename,opts:length" op_override:"ProcessSymlinkBasename"` // SECLDoc[name] Definition:`File's basename` Example:`exec.file.name == "apt"` Description:`Matches the execution of any file named apt.`
 	Filesystem  string `field:"filesystem,handler:ResolveFileFilesystem"`                                          // SECLDoc[filesystem] Definition:`File's filesystem`
 
+	MountPath   string `field:"-"`
+	MountSource uint32 `field:"-"`
+	MountOrigin uint32 `field:"-"`
+
 	PathResolutionError error `field:"-"`
 
 	PkgName       string `field:"package.name,handler:ResolvePackageName"`                    // SECLDoc[package.name] Definition:`[Experimental] Name of the package that provided this file`
@@ -311,6 +315,7 @@ type Mount struct {
 	MountPointStr  string  `field:"-"`
 	RootStr        string  `field:"-"`
 	Path           string  `field:"-"`
+	Origin         uint32  `field:"-"`
 }
 
 // MountEvent represents a mount event
