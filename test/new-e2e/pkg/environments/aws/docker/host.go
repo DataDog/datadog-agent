@@ -38,7 +38,6 @@ type ProvisionerParams struct {
 	agentOptions      []dockeragentparams.Option
 	fakeintakeOptions []fakeintake.Option
 	extraConfigParams runner.ConfigMap
-	awsEnvironment    *aws.Environment
 }
 
 func newProvisionerParams() *ProvisionerParams {
@@ -49,7 +48,6 @@ func newProvisionerParams() *ProvisionerParams {
 		agentOptions:      []dockeragentparams.Option{},
 		fakeintakeOptions: []fakeintake.Option{},
 		extraConfigParams: runner.ConfigMap{},
-		awsEnvironment:    nil,
 	}
 }
 
@@ -122,26 +120,27 @@ func WithoutAgent() ProvisionerOption {
 	}
 }
 
-// WithAwsEnvironment sets the AWS environment to use
-// If not set, a new environment will be created
-func WithAwsEnvironment(env *aws.Environment) ProvisionerOption {
-	return func(params *ProvisionerParams) error {
-		params.awsEnvironment = env
-		return nil
-	}
+type RunParams struct {
+	Environment       *aws.Environment
+	ProvisionerParams *ProvisionerParams
 }
 
 // Run deploys a docker environment given a pulumi.Context
-func Run(ctx *pulumi.Context, env *environments.DockerHost, params *ProvisionerParams) error {
-	if params.awsEnvironment == nil {
-		awsEnv, err := aws.NewEnvironment(ctx)
+func Run(ctx *pulumi.Context, env *environments.DockerHost, runParams RunParams) error {
+	var awsEnv aws.Environment
+	if runParams.Environment == nil {
+		var err error
+		awsEnv, err = aws.NewEnvironment(ctx)
 		if err != nil {
 			return err
 		}
-		params.awsEnvironment = &awsEnv
+	} else {
+		awsEnv = *runParams.Environment
 	}
 
-	host, err := ec2.NewVM(*params.awsEnvironment, params.name, params.vmOptions...)
+	params := runParams.ProvisionerParams
+
+	host, err := ec2.NewVM(awsEnv, params.name, params.vmOptions...)
 	if err != nil {
 		return err
 	}
@@ -152,12 +151,12 @@ func Run(ctx *pulumi.Context, env *environments.DockerHost, params *ProvisionerP
 
 	// install the ECR credentials helper
 	// required to get pipeline agent images
-	installEcrCredsHelperCmd, err := ec2.InstallECRCredentialsHelper(*params.awsEnvironment, host)
+	installEcrCredsHelperCmd, err := ec2.InstallECRCredentialsHelper(awsEnv, host)
 	if err != nil {
 		return err
 	}
 
-	manager, err := docker.NewManager(params.awsEnvironment, host, utils.PulumiDependsOn(installEcrCredsHelperCmd))
+	manager, err := docker.NewManager(&awsEnv, host, utils.PulumiDependsOn(installEcrCredsHelperCmd))
 	if err != nil {
 		return err
 	}
@@ -168,7 +167,7 @@ func Run(ctx *pulumi.Context, env *environments.DockerHost, params *ProvisionerP
 
 	// Create FakeIntake if required
 	if params.fakeintakeOptions != nil {
-		fakeIntake, err := fakeintake.NewECSFargateInstance(*params.awsEnvironment, params.name, params.fakeintakeOptions...)
+		fakeIntake, err := fakeintake.NewECSFargateInstance(awsEnv, params.name, params.fakeintakeOptions...)
 		if err != nil {
 			return err
 		}
@@ -190,7 +189,7 @@ func Run(ctx *pulumi.Context, env *environments.DockerHost, params *ProvisionerP
 
 	// Create Agent if required
 	if params.agentOptions != nil {
-		agent, err := agent.NewDockerAgent(params.awsEnvironment, host, manager, params.agentOptions...)
+		agent, err := agent.NewDockerAgent(&awsEnv, host, manager, params.agentOptions...)
 		if err != nil {
 			return err
 		}
@@ -213,7 +212,10 @@ func Provisioner(opts ...ProvisionerOption) e2e.TypedProvisioner[environments.Do
 	// We need to build params here to be able to use params.name in the provisioner name
 	params := GetProvisionerParams(opts...)
 	provisioner := e2e.NewTypedPulumiProvisioner(provisionerBaseID+params.name, func(ctx *pulumi.Context, env *environments.DockerHost) error {
-		return Run(ctx, env, params)
+		return Run(ctx, env, RunParams{
+			Environment:       nil,
+			ProvisionerParams: params,
+		})
 	}, params.extraConfigParams)
 
 	return provisioner

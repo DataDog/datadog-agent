@@ -43,7 +43,6 @@ type ProvisionerParams struct {
 	extraConfigParams  runner.ConfigMap
 	installDocker      bool
 	installUpdater     bool
-	awsEnvironment     *aws.Environment
 }
 
 func newProvisionerParams() *ProvisionerParams {
@@ -151,15 +150,6 @@ func WithDocker() ProvisionerOption {
 	}
 }
 
-// WithAwsEnvironment sets the AWS environment to use.
-// If none is provided, a new one will be created.
-func WithAwsEnvironment(awsEnv *aws.Environment) ProvisionerOption {
-	return func(params *ProvisionerParams) error {
-		params.awsEnvironment = awsEnv
-		return nil
-	}
-}
-
 // ProvisionerNoAgentNoFakeIntake wraps Provisioner with hardcoded WithoutAgent and WithoutFakeIntake options.
 func ProvisionerNoAgentNoFakeIntake(opts ...ProvisionerOption) e2e.TypedProvisioner[environments.Host] {
 	mergedOpts := make([]ProvisionerOption, 0, len(opts)+2)
@@ -178,17 +168,27 @@ func ProvisionerNoFakeIntake(opts ...ProvisionerOption) e2e.TypedProvisioner[env
 	return Provisioner(mergedOpts...)
 }
 
+// RunParams is a set of parameters for the Run function.
+type RunParams struct {
+	Environment       *aws.Environment
+	ProvisionerParams *ProvisionerParams
+}
+
 // Run deploys a environment given a pulumi.Context
-func Run(ctx *pulumi.Context, env *environments.Host, params *ProvisionerParams) error {
-	if params.awsEnvironment == nil {
-		awsEnv, err := aws.NewEnvironment(ctx)
+func Run(ctx *pulumi.Context, env *environments.Host, runParams RunParams) error {
+	var awsEnv aws.Environment
+	if runParams.Environment == nil {
+		var err error
+		awsEnv, err = aws.NewEnvironment(ctx)
 		if err != nil {
 			return err
 		}
-		params.awsEnvironment = &awsEnv
+	} else {
+		awsEnv = *runParams.Environment
 	}
 
-	host, err := ec2.NewVM(*params.awsEnvironment, params.name, params.instanceOptions...)
+	params := runParams.ProvisionerParams
+	host, err := ec2.NewVM(awsEnv, params.name, params.instanceOptions...)
 	if err != nil {
 		return err
 	}
@@ -198,7 +198,7 @@ func Run(ctx *pulumi.Context, env *environments.Host, params *ProvisionerParams)
 	}
 
 	if params.installDocker {
-		dockerManager, err := docker.NewManager(params.awsEnvironment, host)
+		dockerManager, err := docker.NewManager(&awsEnv, host)
 		if err != nil {
 			return err
 		}
@@ -215,7 +215,7 @@ func Run(ctx *pulumi.Context, env *environments.Host, params *ProvisionerParams)
 
 	// Create FakeIntake if required
 	if params.fakeintakeOptions != nil {
-		fakeIntake, err := fakeintake.NewECSFargateInstance(*params.awsEnvironment, params.name, params.fakeintakeOptions...)
+		fakeIntake, err := fakeintake.NewECSFargateInstance(awsEnv, params.name, params.fakeintakeOptions...)
 		if err != nil {
 			return err
 		}
@@ -241,7 +241,7 @@ func Run(ctx *pulumi.Context, env *environments.Host, params *ProvisionerParams)
 
 	// Create Agent if required
 	if params.installUpdater && params.agentOptions != nil {
-		updater, err := updater.NewHostUpdater(params.awsEnvironment, host, params.agentOptions...)
+		updater, err := updater.NewHostUpdater(&awsEnv, host, params.agentOptions...)
 		if err != nil {
 			return err
 		}
@@ -253,7 +253,7 @@ func Run(ctx *pulumi.Context, env *environments.Host, params *ProvisionerParams)
 		// todo: add agent once updater installs agent on bootstrap
 		env.Agent = nil
 	} else if params.agentOptions != nil {
-		agent, err := agent.NewHostAgent(params.awsEnvironment, host, params.agentOptions...)
+		agent, err := agent.NewHostAgent(&awsEnv, host, params.agentOptions...)
 		if err != nil {
 			return err
 		}
@@ -282,7 +282,7 @@ func Provisioner(opts ...ProvisionerOption) e2e.TypedProvisioner[environments.Ho
 		// We ALWAYS need to make a deep copy of `params`, as the provisioner can be called multiple times.
 		// and it's easy to forget about it, leading to hard to debug issues.
 		params := GetProvisionerParams(opts...)
-		return Run(ctx, env, params)
+		return Run(ctx, env, RunParams{ProvisionerParams: params})
 	}, params.extraConfigParams)
 
 	return provisioner

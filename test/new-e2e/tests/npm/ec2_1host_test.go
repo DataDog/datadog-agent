@@ -38,13 +38,12 @@ func hostDockerHttpbinEnvProvisioner(opt ...awshost.ProvisionerOption) e2e.Pulum
 		}
 		opts := []awshost.ProvisionerOption{
 			awshost.WithAgentOptions(agentparams.WithSystemProbeConfig(systemProbeConfigNPM)),
-			awshost.WithAwsEnvironment(&awsEnv),
 		}
 		if len(opt) > 0 {
 			opts = append(opts, opt...)
 		}
 		params := awshost.GetProvisionerParams(opts...)
-		awshost.Run(ctx, &env.Host, params)
+		awshost.Run(ctx, &env.Host, awshost.RunParams{Environment: &awsEnv, ProvisionerParams: params})
 
 		vmName := "httpbinvm"
 
