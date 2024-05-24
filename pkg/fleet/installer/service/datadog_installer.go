@@ -181,6 +181,15 @@ func getAgentIDs() (uid, gid int, err error) {
 
 // startInstallerStable starts the stable systemd units for the installer
 func startInstallerStable(ctx context.Context) (err error) {
+	_, err = os.Stat("/etc/datadog-agent/datadog.yaml")
+	if err != nil && !os.IsNotExist(err) {
+		return err
+	}
+	// this is expected during a fresh install with the install script / asible / chef / etc...
+	// the config is populated afterwards by the install method and the agent is restarted
+	if os.IsNotExist(err) {
+		return nil
+	}
 	return startUnit(ctx, installerUnit)
 }
 
