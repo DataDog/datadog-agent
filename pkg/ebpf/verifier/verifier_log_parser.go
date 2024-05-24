@@ -7,7 +7,6 @@ package verifier
 
 import (
 	"fmt"
-	"log"
 	"math"
 	"regexp"
 	"strconv"
@@ -21,19 +20,11 @@ var (
 	regInfoRegex        = regexp.MustCompile(`^([a-z_]+)?(P)?(-?[0-9]+|\((.*)\))`)
 )
 
-// regStateData holds information from the last matched register state line, so it can
-// be used by subsequent instructions during parsing
-type regStateData struct {
-	InsnIdx int    // Instruction index for the register state
-	RegData string // Register state data
-}
-
 // verifierLogParser is a struct that maintains the state necessary to parse the verifier log
 // and extract the complexity information.
 type verifierLogParser struct {
-	complexity        ComplexityInfo      // Resulting complexity information
-	lastRegStateMatch *regStateData       // Matched data from the last register state line
-	progSourceMap     map[int]*SourceLine // Mapping of assembly instruction to source line
+	complexity    ComplexityInfo      // Resulting complexity information
+	progSourceMap map[int]*SourceLine // Mapping of assembly instruction to source line
 }
 
 func newVerifierLogParser(progSourceMap map[int]*SourceLine) *verifierLogParser {
@@ -49,9 +40,6 @@ func newVerifierLogParser(progSourceMap map[int]*SourceLine) *verifierLogParser 
 // parseVerifierLog parses the verifier log and returns the complexity information, which is also stored
 // in the verifierLogParser struct.
 func (vlp *verifierLogParser) parseVerifierLog(log string) (*ComplexityInfo, error) {
-	// Reset the state of the last register state match
-	vlp.lastRegStateMatch = nil
-
 	// Read all the verifier log, parse the assembly instructions and count how many times we've seen them
 	for _, line := range strings.Split(log, "\n") {
 		if err := vlp.parseLine(line); err != nil {
@@ -84,6 +72,35 @@ func (vlp *verifierLogParser) parseVerifierLog(log string) (*ComplexityInfo, err
 	return &vlp.complexity, nil
 }
 
+func (vlp *verifierLogParser) tryAttachRegisterState(regData string, insIdx int) error {
+	insinfo, ok := vlp.complexity.InsnMap[insIdx]
+	if !ok {
+		// Some times we will not have the previous instruction available depending on how
+		// the verifier outputs register state. For example, in some versions it will generate
+		// the state *before* each instruction, but we want the state *after* the instruction, and
+		// as such the first state we find (state before instruction 1) will have no match, for example.
+		return nil
+	}
+
+	// For ease of parsing, replace certain patterns that introduce spaces and make parsing harder
+	regData = strings.ReplaceAll(regData, "; ", ";")
+
+	regMatches := singleRegStateRegex.FindAllStringSubmatch(regData, -1)
+	regState := make(map[int]*RegisterState)
+	for _, regMatch := range regMatches {
+		data, err := parseRegisterState(regMatch)
+		if err != nil {
+			return fmt.Errorf("failed to parse register state ('%s'): %w", regData, err)
+		}
+		regState[data.Register] = data
+	}
+
+	insinfo.RegisterState = regState
+	insinfo.RegisterStateRaw = regData
+
+	return nil
+}
+
 func (vlp *verifierLogParser) parseLine(line string) error {
 	match := regStateRegex.FindStringSubmatch(line)
 	if len(match) > 0 {
@@ -92,10 +109,10 @@ func (vlp *verifierLogParser) parseLine(line string) error {
 			return fmt.Errorf("failed to parse instruction index (line is '%s'): %w", line, err)
 		}
 
-		// Save the last match with register state, we will use it when we get to an instruction
-		vlp.lastRegStateMatch = &regStateData{
-			InsnIdx: regInsnIdx,
-			RegData: match[2],
+		// Try attach the register state to the previous instruction
+		err = vlp.tryAttachRegisterState(match[2], regInsnIdx-1)
+		if err != nil {
+			return fmt.Errorf("failed to attach register state (line is '%s'): %w", line, err)
 		}
 		return nil
 	}
@@ -118,34 +135,12 @@ func (vlp *verifierLogParser) parseLine(line string) error {
 		insinfo.Source = vlp.progSourceMap[insIdx]
 	}
 
-	// Now parse the register state if we have it and the instruction number matches
-	if vlp.lastRegStateMatch != nil && vlp.lastRegStateMatch.InsnIdx == insIdx {
-		regData := vlp.lastRegStateMatch.RegData
-
-		// For ease of parsing, replace certain patterns that introduce spaces and make parsing harder
-		regData = strings.ReplaceAll(regData, "; ", ";")
-
-		regMatches := singleRegStateRegex.FindAllStringSubmatch(regData, -1)
-		regState := make(map[int]*RegisterState)
-		for _, regMatch := range regMatches {
-			data, err := parseRegisterState(regMatch)
-			if err != nil {
-				return fmt.Errorf("failed to parse register state (line is '%s', register is '%s'): %w", line, regData, err)
-			}
-			regState[data.Register] = data
-		}
-
-		insinfo.RegisterState = regState
-		insinfo.RegisterStateRaw = vlp.lastRegStateMatch.RegData
-	} else {
-		log.Printf("WARN: No register state found for instruction %d\n", insIdx)
-	}
-
 	// In some kernel versions (6.5 at least), the register state for the next instruction might be printed after this instruction
 	if len(match) >= 4 && match[3] != "" {
-		vlp.lastRegStateMatch = &regStateData{
-			InsnIdx: insIdx + 1,
-			RegData: match[3][2:], // Remove the leading "; "
+		regData := match[3][2:] // Remove the leading "; "
+		err = vlp.tryAttachRegisterState(regData, insIdx)
+		if err != nil {
+			return fmt.Errorf("Cannot attach register state to instruction %d: %w", insIdx, err)
 		}
 	}
 

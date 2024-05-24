@@ -49,7 +49,7 @@ type InstructionInfo struct {
 	TimesProcessed   int                    `json:"times_processed"`
 	Source           *SourceLine            `json:"source"`
 	Code             string                 `json:"code"`
-	RegisterState    map[int]*RegisterState `json:"register_state"`
+	RegisterState    map[int]*RegisterState `json:"register_state"` // Register state after execution of the instruction
 	RegisterStateRaw string                 `json:"register_state_raw"`
 }
 

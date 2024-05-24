@@ -70,8 +70,8 @@ func TestLogParsingWithRegisterState(t *testing.T) {
 		expected map[int]*InstructionInfo
 	}{
 		{
-			name:  "RegisterStateBeforeInsn",
-			input: "5: R1_w=0 fp-16_w=00000000\n5: (63) *(u32 *)(r10 -16) = r2\n",
+			name:  "RegisterStateSeparate",
+			input: "5: (63) *(u32 *)(r10 -16) = r2\n6: R1_w=0 fp-16_w=00000000\n",
 			expected: map[int]*InstructionInfo{
 				5: {
 					Index:          5,
@@ -92,27 +92,11 @@ func TestLogParsingWithRegisterState(t *testing.T) {
 			},
 		},
 		{
-			name:  "RegisterStateAfterInsn",
-			input: "5: R1_w=0 fp-16_w=00000000\n5: (63) *(u32 *)(r10 -16) = r2     ; R2_w=scalar() fp-16_w=0000mmmm\n6: (63) *(u32 *)(r10 -16) = r2\n",
+			name:  "RegisterStateAttachedToInsn",
+			input: "5: (63) *(u32 *)(r10 -16) = r2     ; R2_w=scalar() fp-16_w=0000mmmm\n",
 			expected: map[int]*InstructionInfo{
 				5: {
 					Index:          5,
-					TimesProcessed: 1,
-					Source:         nil,
-					Code:           "*(u32 *)(r10 -16) = r2",
-					RegisterState: map[int]*RegisterState{
-						1: {
-							Register: 1,
-							Live:     "written",
-							Type:     "scalar",
-							Value:    "0",
-							Precise:  false,
-						},
-					},
-					RegisterStateRaw: "R1_w=0 fp-16_w=00000000",
-				},
-				6: {
-					Index:          6,
 					TimesProcessed: 1,
 					Source:         nil,
 					Code:           "*(u32 *)(r10 -16) = r2",
@@ -150,7 +134,7 @@ func TestLogParsingWith(t *testing.T) {
 	}{
 		{
 			name:  "SingleInstructionForLine",
-			input: "5: R1_w=0 fp-16_w=00000000\n5: (63) *(u32 *)(r10 -16) = r2\n",
+			input: "5: (63) *(u32 *)(r10 -16) = r2\n6: R1_w=0 fp-16_w=00000000",
 			progSourceMap: map[int]*SourceLine{
 				5: {
 					LineInfo: "file.c:5",
