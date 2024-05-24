@@ -1,5 +1,6 @@
 import datetime
 import os
+from collections import namedtuple
 from collections.abc import Iterable
 
 from invoke.context import Context
@@ -118,6 +119,7 @@ def send_count_metrics(
 
 
 BINARY_TO_TEST = ["serverless"]
+FailedBinary = namedtuple('failedBinary', ['binary', 'os', 'arch'])
 
 
 @task
@@ -167,13 +169,15 @@ def test_list(
                 assert res
 
                 if res.stdout.strip() != deps:
-                    mismatch_binaries.add(binary)
+                    mismatch_binaries.add(FailedBinary(binary, goos, goarch))
 
     if len(mismatch_binaries) > 0:
+        binary_list = ', '.join([f"{binary} ({os}/{arch})" for binary, os, arch in mismatch_binaries])
+
         raise Exit(
             code=1,
             message=color_message(
-                f"Dependencies list for {list(mismatch_binaries)} does not match. To fix this check, please run `inv -e go-deps.generate --binaries {','.join(mismatch_binaries)}`",
+                f"Dependencies list for {binary_list} does not match. To fix this check, please run `inv -e go-deps.generate`",
                 "red",
             ),
         )
@@ -182,18 +186,9 @@ def test_list(
 @task
 def generate(
     ctx: Context,
-    binaries: str,
 ):
-    for binary in binaries.split(','):
-        binary_info = BINARIES.get(binary, None)
-        if not binary_info:
-            raise Exit(
-                code=1,
-                message=color_message(
-                    f"Binary `{binary}` is not valid. Valid binaries are {list(BINARIES.keys())}", "red"
-                ),
-            )
-
+    for binary in BINARY_TO_TEST:
+        binary_info = BINARIES[binary]
         entrypoint = binary_info["entrypoint"]
         platforms = binary_info["platforms"]
         flavor = binary_info.get("flavor", AgentFlavor.base)
