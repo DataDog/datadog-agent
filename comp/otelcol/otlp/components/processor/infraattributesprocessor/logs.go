@@ -5,10 +5,8 @@
 
 package infraattributesprocessor
 
-
 import (
 	"context"
-	"strings"
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
@@ -20,28 +18,20 @@ import (
 )
 
 type infraAttributesLogProcessor struct {
-	logger		*zap.Logger
+	logger      *zap.Logger
 	tagger      tagger.Component
 	cardinality types.TagCardinality
 }
 
 func newInfraAttributesLogsProcessor(set processor.CreateSettings, cfg *Config, tagger tagger.Component) (*infraAttributesLogProcessor, error) {
 	telp := &infraAttributesLogProcessor{
-		logger: set.Logger,
+		logger:      set.Logger,
 		tagger:      tagger,
 		cardinality: cfg.Cardinality,
 	}
 
 	set.Logger.Info("Logs Infra Attributes configured")
 	return telp, nil
-}
-
-func splitTag(tag string) (key string, value string) {
-	split := strings.SplitN(tag, ":", 2)
-	if len(split) < 2 || split[0] == "" || split[1] == "" {
-		return "", ""
-	}
-	return split[0], split[1]
 }
 
 func (ialp *infraAttributesLogProcessor) processLogs(_ context.Context, ld plog.Logs) (plog.Logs, error) {
