@@ -114,4 +114,5 @@ installer_deb-arm64:
     PACKAGE_ARCH: arm64
     DESTINATION_DEB: "datadog-installer_7_arm64.deb"
     DD_PKG_ARCH: "arm64"
+    DD_PROJECT: "installer"
 
