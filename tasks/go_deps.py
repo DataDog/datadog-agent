@@ -33,17 +33,9 @@ def compute_count_metric(
         timestamp = int(datetime.datetime.now(datetime.UTC).timestamp())
 
     goos, goarch = GOOS_MAPPING[platform], GOARCH_MAPPING[arch]
-    tags = [
-        f"build:{build}",
-        f"flavor:{flavor.name}",
-        f"os:{goos}",
-        f"arch:{goarch}",
-    ]
-    tags.extend(extra_tags)
-
     build_tags = get_default_build_tags(build=build, flavor=flavor, platform=platform)
 
-    env = {"GOOS": goos, "GOARCH": goarch}
+    env = {"GOOS": goos, "GOARCH": goarch, "CGO_ENABLED": "1"}
     cmd = "go list -f '{{ join .Deps \"\\n\"}}'"
     with ctx.cd(entrypoint):
         res = ctx.run(
@@ -56,6 +48,14 @@ def compute_count_metric(
     deps = res.stdout.strip().split("\n")
     count = len(deps)
     external = sum(1 for dep in deps if not dep.startswith("github.com/DataDog/datadog-agent/"))
+
+    tags = [
+        f"build:{build}",
+        f"flavor:{flavor.name}",
+        f"os:{goos}",
+        f"arch:{goarch}",
+    ]
+    tags.extend(extra_tags)
 
     metric_count = create_gauge("datadog.agent.go_dependencies.all", timestamp, count, tags=tags)
     metric_external = create_gauge("datadog.agent.go_dependencies.external", timestamp, external, tags=tags)
