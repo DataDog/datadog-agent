@@ -40,6 +40,10 @@ func createTestProbe() (*WindowsProbe, error) {
 	if err != nil {
 		return nil, err
 	}
+	wp.isRenameEnabled = true
+	wp.isDeleteEnabled = true
+	wp.isWriteEnabled = true
+
 	err = wp.Init()
 
 	// do not call Start(), as start assumes we can load the driver.  these tests
