@@ -201,8 +201,10 @@ int kprobe__tcp_close(struct pt_regs *ctx) {
     sk = (struct sock *)PT_REGS_PARM1(ctx);
 
     // Should actually delete something only if the connection never got established & increment counter
+    // We also return here since failed connections are flushed as closed in tcp_done
     if (bpf_map_delete_elem(&tcp_ongoing_connect_pid, &sk) == 0) {
         increment_telemetry_count(tcp_failed_connect);
+        return 0;
     }
 
     // Get network namespace id
@@ -230,27 +232,36 @@ int kprobe__tcp_done(struct pt_regs *ctx) {
     conn_tuple_t t = {};
     u64 pid_tgid = bpf_get_current_pid_tgid();
     sk = (struct sock *)PT_REGS_PARM1(ctx);
+    __u64 *failed_conn_pid = 0;
+    int err = 0;
 
-    // Get network namespace id
+    failed_conn_pid = bpf_map_lookup_elem(&tcp_ongoing_connect_pid, &sk);
+
+    if (failed_conn_pid && pid_tgid == 0) {
+        bpf_probe_read_kernel_with_telemetry(&pid_tgid, sizeof(pid_tgid), &failed_conn_pid);
+    }
+
     log_debug("adamk kprobe/tcp_done: tgid: %llu, pid: %llu", pid_tgid >> 32, pid_tgid & 0xFFFFFFFF);
+
     if (!read_conn_tuple(&t, sk, pid_tgid, CONN_TYPE_TCP)) {
         log_debug("adamk kprobe/tcp_done: err");
         return 0;
     }
 
     conn_stats_ts_t *cst = bpf_map_lookup_elem(&conn_stats, &t);
-    if (cst) {
+    if (cst || failed_conn_pid) {
         log_debug("adamk kprobe/tcp_done: flushing closed conn");
         cleanup_conn(ctx, &t, sk);
     }
+
     log_debug("adamk kprobe/tcp_done: netns: %u, sport: %u, dport: %u", t.netns, t.sport, t.dport);
     log_debug("adamk kprobe/tcp_done: netns: %u, saddr: %llu, daddr: %llu", t.netns, t.saddr_l, t.daddr_l);
 
-    int err = 0;
     bpf_probe_read_kernel_with_telemetry(&err, sizeof(err), (&sk->sk_err));
     if (err != 0 && tcp_failed_connections_enabled()) {
         flush_tcp_failure(ctx, &t, err);
     }
+
     return 0;
 }
 
@@ -932,7 +943,7 @@ int kretprobe__tcp_retransmit_skb(struct pt_regs *ctx) {
 SEC("kprobe/tcp_connect")
 int kprobe__tcp_connect(struct pt_regs *ctx) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
-    log_debug("kprobe/tcp_connect: tgid: %llu, pid: %llu", pid_tgid >> 32, pid_tgid & 0xFFFFFFFF);
+    log_debug("adamk kprobe/tcp_connect: tgid: %llu, pid: %llu", pid_tgid >> 32, pid_tgid & 0xFFFFFFFF);
     struct sock *skp = (struct sock *)PT_REGS_PARM1(ctx);
 
     bpf_map_update_with_telemetry(tcp_ongoing_connect_pid, &skp, &pid_tgid, BPF_ANY);
@@ -950,7 +961,7 @@ int kprobe__tcp_finish_connect(struct pt_regs *ctx) {
 
     u64 pid_tgid = *pid_tgid_p;
     bpf_map_delete_elem(&tcp_ongoing_connect_pid, &skp);
-    log_debug("kprobe/tcp_finish_connect: tgid: %llu, pid: %llu", pid_tgid >> 32, pid_tgid & 0xFFFFFFFF);
+    log_debug("adamk kprobe/tcp_finish_connect: tgid: %llu, pid: %llu", pid_tgid >> 32, pid_tgid & 0xFFFFFFFF);
 
     conn_tuple_t t = {};
     if (!read_conn_tuple(&t, skp, pid_tgid, CONN_TYPE_TCP)) {
@@ -960,7 +971,7 @@ int kprobe__tcp_finish_connect(struct pt_regs *ctx) {
     handle_tcp_stats(&t, skp, TCP_ESTABLISHED);
     handle_message(&t, 0, 0, CONN_DIRECTION_OUTGOING, 0, 0, PACKET_COUNT_NONE, skp);
 
-    log_debug("kprobe/tcp_connect: netns: %u, sport: %u, dport: %u", t.netns, t.sport, t.dport);
+    log_debug("adamk kprobe/tcp_connect: netns: %u, sport: %u, dport: %u", t.netns, t.sport, t.dport);
 
     return 0;
 }

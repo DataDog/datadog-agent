@@ -53,25 +53,25 @@ func MatchFailedConn(conn *network.ConnectionStats, failedConnMap *FailedConns) 
 	connTuple := connStatsToTuple(conn)
 	failedConnMap.RLock()
 	defer failedConnMap.RUnlock()
-	if conn.DPort == 10000 {
-		log.Errorf("connTuple: %+v", conn)
-		log.Errorf("failedConnMap: %+v", failedConnMap.FailedConnMap)
-		log.Errorf("")
-	}
+	//if conn.DPort == 10000 {
+	log.Errorf("connTuple: %+v", conn)
+	log.Errorf("failedConnMap: %+v", failedConnMap.FailedConnMap)
+	log.Errorf("")
+	//}
 	handleMatch(connTuple, conn, failedConnMap)
 	// Check for a match with a zeroed PID to account for timeouts
-	savedPid := connTuple.Pid
-	connTuple.Pid = 0
-	handleMatch(connTuple, conn, failedConnMap)
-	connTuple.Pid = savedPid
+	//savedPid := connTuple.Pid
+	//connTuple.Pid = 0
+	//handleMatch(connTuple, conn, failedConnMap)
+	//connTuple.Pid = savedPid
 }
 
 func handleMatch(connTuple ebpf.ConnTuple, conn *network.ConnectionStats, failedConnMap *FailedConns) {
 	if failedConn, ok := failedConnMap.FailedConnMap[connTuple]; ok {
 		conn.TCPFailures = make(map[uint32]uint32)
 		for errCode, count := range failedConn.CountByErrCode {
-			// TODO: delete entry from map if we find a match so we don't match the same failure to different conns
 			conn.TCPFailures[errCode] += count
+			//delete(failedConnMap.FailedConnMap, connTuple)
 			//log.Errorf("Found match: %+v", conn)
 		}
 	}

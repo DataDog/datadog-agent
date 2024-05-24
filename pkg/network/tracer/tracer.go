@@ -337,9 +337,9 @@ func (t *Tracer) storeClosedConnections(connections []network.ConnectionStats) {
 		tracerTelemetry.closedConns.Inc(cs.Type.String())
 		if failedConnsEnabled {
 			failure.MatchFailedConn(cs, failedConnMap)
-			if cs.DPort == 10000 {
-				log.Errorf("adamk Failed connection: %+v", cs)
-			}
+			//if cs.DPort == 10000 {
+			log.Errorf("adamk Failed connection: %+v", cs)
+			//}
 		}
 	}
 
@@ -558,8 +558,12 @@ func (t *Tracer) getConnections(activeBuffer *network.ConnectionBuffer) (latestU
 		return 0, nil, err
 	}
 
+	failureMap := t.ebpfTracer.GetFailedConnections()
 	activeConnections = activeBuffer.Connections()
+
 	for i := range activeConnections {
+		log.Errorf("adamk ACTIVE CONNECTION: %+v", activeConnections[i])
+
 		activeConnections[i].IPTranslation = t.conntracker.GetTranslationForConn(activeConnections[i])
 		// do gateway resolution only on active connections outside
 		// the map iteration loop to not add to connections while
@@ -568,6 +572,7 @@ func (t *Tracer) getConnections(activeBuffer *network.ConnectionBuffer) (latestU
 		// endpoint)
 		t.connVia(&activeConnections[i])
 		t.addProcessInfo(&activeConnections[i])
+		failure.MatchFailedConn(&activeConnections[i], failureMap)
 	}
 
 	// get rid of stale process entries in the cache

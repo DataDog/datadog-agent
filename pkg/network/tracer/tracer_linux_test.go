@@ -2340,7 +2340,7 @@ LOOP:
 
 func (s *TracerSuite) TestTCPFailureConnectionTimeout() {
 	t := s.T()
-	t.Skip()
+	//t.Skip()
 	setupDropTrafficRule(t)
 	cfg := testConfig()
 	cfg.TCPFailedConnectionsEnabled = true
@@ -2389,11 +2389,12 @@ func (s *TracerSuite) TestTCPFailureConnectionTimeout() {
 	// Check if the connection was recorded as failed due to timeout
 	require.Eventually(t, func() bool {
 		conns := getConnections(t, tr)
-		t.Log("CONNECTIONS: ", conns)
+		t.Log(len(conns.Conns))
+		t.Log(conns)
 		// 110 is the errno for ETIMEDOUT
 		found := findFailedConnectionByRemoteAddr(srvAddr, conns, 110)
 		return found
-	}, 3*time.Second, 500*time.Millisecond, "Failed connection not recorded properly")
+	}, 3*time.Second, 1000*time.Millisecond, "Failed connection not recorded properly")
 }
 
 func (s *TracerSuite) TestTCPFailureConnectionRefused() {
