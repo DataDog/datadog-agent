@@ -440,10 +440,10 @@ def go_fix(ctx, fix=None):
 def get_deps(ctx, path):
     with ctx.cd(path):
         # Might fail if no mod tidy
-        deps = ctx.run("go list -deps ./...", hide=True, warn=True).stdout.strip().split('\n')
+        deps: list[str] = ctx.run("go list -deps ./...", hide=True, warn=True).stdout.strip().splitlines()
         prefix = 'github.com/DataDog/datadog-agent/'
         deps = [
-            dep[len(prefix) :]
+            dep.removeprefix(prefix)
             for dep in deps
             if dep.startswith(prefix) and dep != f'github.com/DataDog/datadog-agent/{path}'
         ]
@@ -586,7 +586,7 @@ def create_module(ctx, path: str, no_verify: bool = False):
         if not no_verify:
             # Stage updated files since some linting tasks will require it
             print(color_message("Staging new module files", "bold"))
-            ctx.run("find . '(' -name modules.py -o -name go.mod -o -name go.sum ')' -exec git add '{}' ';'")
+            ctx.run("git add --all")
 
             print(color_message("Linting repo", "blue"))
             print(color_message("Running internal-deps-checker task", "bold"))
