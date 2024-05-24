@@ -146,6 +146,8 @@ func easyjsonA1e47abeDecodeGithubComDataDogDatadogAgentPkgSecuritySerializers1(i
 			}
 		case "variables":
 			(out.Variables).UnmarshalEasyJSON(in)
+		case "truncated_ancestors":
+			out.TruncatedAncestors = bool(in.Bool())
 		case "pid":
 			out.Pid = uint32(in.Uint32())
 		case "ppid":
@@ -434,6 +436,16 @@ func easyjsonA1e47abeEncodeGithubComDataDogDatadogAgentPkgSecuritySerializers1(o
 			out.RawString(prefix)
 		}
 		(in.Variables).MarshalEasyJSON(out)
+	}
+	if in.TruncatedAncestors {
+		const prefix string = ",\"truncated_ancestors\":"
+		if first {
+			first = false
+			out.RawString(prefix[1:])
+		} else {
+			out.RawString(prefix)
+		}
+		out.Bool(bool(in.TruncatedAncestors))
 	}
 	if in.Pid != 0 {
 		const prefix string = ",\"pid\":"

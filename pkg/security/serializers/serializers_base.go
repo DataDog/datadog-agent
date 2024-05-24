@@ -73,6 +73,8 @@ type ProcessContextSerializer struct {
 	Ancestors []*ProcessSerializer `json:"ancestors,omitempty"`
 	// Variables values
 	Variables Variables `json:"variables,omitempty"`
+	// True if the ancestors list was truncated because it was too big
+	TruncatedAncestors bool `json:"truncated_ancestors,omitempty"`
 }
 
 // IPPortSerializer is used to serialize an IP and Port context to JSON

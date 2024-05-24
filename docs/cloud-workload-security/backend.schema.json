@@ -1196,6 +1196,10 @@
         "variables": {
           "$ref": "#/$defs/Variables",
           "description": "Variables values"
+        },
+        "truncated_ancestors": {
+          "type": "boolean",
+          "description": "True if the ancestors list was truncated because it was too big"
         }
       },
       "additionalProperties": false,
