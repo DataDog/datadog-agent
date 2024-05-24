@@ -29,7 +29,7 @@ from tasks.libs.common.utils import (
     get_gopath,
     get_version,
 )
-from tasks.libs.types.arch import ARCH_AMD64, ARCH_I386, Arch
+from tasks.libs.types.arch import ARCH_AMD64, Arch
 from tasks.process_agent import TempDir
 from tasks.system_probe import (
     CURRENT_ARCH,
