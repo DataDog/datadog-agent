@@ -14,7 +14,7 @@ import (
 	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes/source"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
-	semconv117 "go.opentelemetry.io/collector/semconv/v1.17.0"
+	semconv125 "go.opentelemetry.io/collector/semconv/v1.25.0"
 	semconv "go.opentelemetry.io/collector/semconv/v1.6.1"
 	"go.opentelemetry.io/otel/attribute"
 )
@@ -176,7 +176,7 @@ func GetOTelResource(span ptrace.Span, res pcommon.Resource) (resName string) {
 		} else if m := GetOTelAttrValInResAndSpanAttrs(span, res, false, semconv.AttributeMessagingOperation); m != "" {
 			resName = m
 			// use the messaging operation
-			if dest := GetOTelAttrValInResAndSpanAttrs(span, res, false, semconv.AttributeMessagingDestination, semconv117.AttributeMessagingDestinationName); dest != "" {
+			if dest := GetOTelAttrValInResAndSpanAttrs(span, res, false, semconv.AttributeMessagingDestination, semconv125.AttributeMessagingDestinationName); dest != "" {
 				resName = resName + " " + dest
 			}
 		} else if m := GetOTelAttrValInResAndSpanAttrs(span, res, false, semconv.AttributeRPCMethod); m != "" {

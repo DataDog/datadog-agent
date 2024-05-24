@@ -33,7 +33,7 @@ import (
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	"go.opentelemetry.io/collector/pdata/ptrace/ptraceotlp"
-	semconv117 "go.opentelemetry.io/collector/semconv/v1.17.0"
+	semconv125 "go.opentelemetry.io/collector/semconv/v1.25.0"
 	semconv "go.opentelemetry.io/collector/semconv/v1.6.1"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
@@ -552,7 +552,7 @@ func (o *OTLPReceiver) convertSpan(rattr map[string]string, lib pcommon.Instrume
 		default:
 			// Exclude Datadog APM conventions.
 			// These are handled below explicitly.
-			if k != "http.method" && k != "http.status_code" {
+			if k != semconv125.AttributeHTTPMethod && k != semconv125.AttributeHTTPStatusCode {
 				setMetaOTLP(span, k, v.AsString())
 			}
 		}
@@ -562,11 +562,11 @@ func (o *OTLPReceiver) convertSpan(rattr map[string]string, lib pcommon.Instrume
 		// `http.method` is also the Datadog APM convention for the HTTP method.
 		// We check both conventions and use the new one if it is present.
 		// See https://datadoghq.atlassian.net/wiki/spaces/APM/pages/2357395856/Span+attributes#[inlineExtension]HTTP
-		if k == "http.request.method" {
+		if k == semconv125.AttributeHTTPRequestMethod {
 			gotMethodFromNewConv = true
-			setMetaOTLP(span, "http.method", v.AsString())
-		} else if k == "http.method" && !gotMethodFromNewConv {
-			setMetaOTLP(span, "http.method", v.AsString())
+			setMetaOTLP(span, semconv125.AttributeHTTPMethod, v.AsString())
+		} else if k == semconv125.AttributeHTTPMethod && !gotMethodFromNewConv {
+			setMetaOTLP(span, semconv125.AttributeHTTPMethod, v.AsString())
 		}
 
 		// `http.status_code` was renamed to `http.response.status_code` in the HTTP stabilization from v1.23.
@@ -574,11 +574,11 @@ func (o *OTLPReceiver) convertSpan(rattr map[string]string, lib pcommon.Instrume
 		// `http.status_code` is also the Datadog APM convention for the HTTP status code.
 		// We check both conventions and use the new one if it is present.
 		// See https://datadoghq.atlassian.net/wiki/spaces/APM/pages/2357395856/Span+attributes#[inlineExtension]HTTP
-		if k == "http.response.status_code" {
+		if k == semconv125.AttributeHTTPResponseStatusCode {
 			gotStatusCodeFromNewConv = true
-			setMetaOTLP(span, "http.status_code", v.AsString())
-		} else if k == "http.status_code" && !gotStatusCodeFromNewConv {
-			setMetaOTLP(span, "http.status_code", v.AsString())
+			setMetaOTLP(span, semconv125.AttributeHTTPStatusCode, v.AsString())
+		} else if k == semconv125.AttributeHTTPStatusCode && !gotStatusCodeFromNewConv {
+			setMetaOTLP(span, semconv125.AttributeHTTPStatusCode, v.AsString())
 		}
 
 		return true
@@ -638,7 +638,7 @@ func (o *OTLPReceiver) convertSpan(rattr map[string]string, lib pcommon.Instrume
 func resourceFromTags(meta map[string]string) string {
 	// `http.method` was renamed to `http.request.method` in the HTTP stabilization from v1.23.
 	// See https://opentelemetry.io/docs/specs/semconv/http/migration-guide/#summary-of-changes
-	if _, m := getFirstFromMap(meta, "http.request.method", "http.method"); m != "" {
+	if _, m := getFirstFromMap(meta, semconv125.AttributeHTTPRequestMethod, semconv125.AttributeHTTPMethod); m != "" {
 		// use the HTTP method + route (if available)
 		if _, route := getFirstFromMap(meta, semconv.AttributeHTTPRoute, "grpc.path"); route != "" {
 			return m + " " + route
@@ -646,7 +646,7 @@ func resourceFromTags(meta map[string]string) string {
 		return m
 	} else if m := meta[string(semconv.AttributeMessagingOperation)]; m != "" {
 		// use the messaging operation
-		if _, dest := getFirstFromMap(meta, semconv.AttributeMessagingDestination, semconv117.AttributeMessagingDestinationName); dest != "" {
+		if _, dest := getFirstFromMap(meta, semconv.AttributeMessagingDestination, semconv125.AttributeMessagingDestinationName); dest != "" {
 			return m + " " + dest
 		}
 		return m
@@ -700,7 +700,7 @@ func status2Error(status ptrace.Status, events ptrace.SpanEventSlice, span *pb.S
 		if status.Message() != "" {
 			// use the status message
 			span.Meta["error.msg"] = status.Message()
-		} else if _, httpcode := getFirstFromMap(span.Meta, "http.response.status_code", "http.status_code"); httpcode != "" {
+		} else if _, httpcode := getFirstFromMap(span.Meta, semconv125.AttributeHTTPResponseStatusCode, semconv125.AttributeHTTPStatusCode); httpcode != "" {
 			// `http.status_code` was renamed to `http.response.status_code` in the HTTP stabilization from v1.23.
 			// See https://opentelemetry.io/docs/specs/semconv/http/migration-guide/#summary-of-changes
 

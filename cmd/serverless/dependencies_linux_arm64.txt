@@ -631,8 +631,8 @@ go.opentelemetry.io/collector/receiver/otlpreceiver/internal/metadata
 go.opentelemetry.io/collector/receiver/otlpreceiver/internal/metrics
 go.opentelemetry.io/collector/receiver/otlpreceiver/internal/trace
 go.opentelemetry.io/collector/receiver/receiverhelper
-go.opentelemetry.io/collector/semconv/v1.17.0
 go.opentelemetry.io/collector/semconv/v1.18.0
+go.opentelemetry.io/collector/semconv/v1.25.0
 go.opentelemetry.io/collector/semconv/v1.6.1
 go.opentelemetry.io/collector/service
 go.opentelemetry.io/collector/service/extensions
@@ -947,6 +947,7 @@ html/template
 internal/abi
 internal/bisect
 internal/bytealg
+internal/chacha8rand
 internal/coverage/rtcov
 internal/cpu
 internal/fmtsort
