@@ -10,6 +10,7 @@ go_library(
         "kubelet_client.go",
         "kubelet_common.go",
         "kubelet_hosts.go",
+        "kubelet_interface.go",  # keep
         "kubelet_orchestrator.go",
         "metadata.go",
         "pod.go",

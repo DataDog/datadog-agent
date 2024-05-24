@@ -4,6 +4,7 @@ go_library(
     name = "docker",
     srcs = [
         "docker.go",
+        "image_sbom_stub.go",  # keep
         "image_sbom_trivy.go",
         "stub.go",
     ],

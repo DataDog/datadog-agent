@@ -16,6 +16,7 @@ go_library(
         "remote.go",
         "setup.go",
         "setup_mock.go",
+        "setup_real.go",  # keep
     ],
     importpath = "github.com/DataDog/datadog-agent/comp/trace/config",
     visibility = ["//visibility:public"],
