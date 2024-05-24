@@ -141,6 +141,8 @@ static __always_inline int parse_varint_u16(u16 *out, u16 in, u32 *bytes)
     return true;
 }
 
+// `flexible` indicates that the API version is a flexible version as described in
+// https://cwiki.apache.org/confluence/display/KAFKA/KIP-482%3A+The+Kafka+Protocol+should+Support+Optional+Tagged+Fields
 static __always_inline s16 read_first_topic_name_size(pktbuf_t pkt, bool flexible, u32 *offset) {
     u16 topic_name_size_raw = 0;
     // We assume we can always read two bytes. Even if the varint for the topic
