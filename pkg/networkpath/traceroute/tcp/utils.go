@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
 package tcp
 
 import (
@@ -86,61 +91,33 @@ func readRawPacket(rawPacket []byte) gopacket.Packet {
 	return gopacket.NewPacket(rawPacket, layers.LayerTypeIPv4, gopacket.Default)
 }
 
-// LayerCat prints the IPv4, TCP, and ICMP layers of
-// a packet then lists all layers by type
-func LayerCat(pkt gopacket.Packet) error {
+func parseIPv4Layer(pkt gopacket.Packet) (net.IP, net.IP, error) {
 	if ipLayer := pkt.Layer(layers.LayerTypeIPv4); ipLayer != nil {
-		fmt.Println("This is an IPv4 packet!")
-		tcp, ok := ipLayer.(*layers.IPv4)
+		ip, ok := ipLayer.(*layers.IPv4)
 		if !ok {
-			return fmt.Errorf("failed to assert IPv4 layer type")
+			return net.IP{}, net.IP{}, fmt.Errorf("failed to assert IPv4 layer type")
 		}
-		fmt.Printf("IPv4 layer: %+v\n", tcp)
+
+		return ip.SrcIP, ip.DstIP, nil
 	}
 
-	if tcpLayer := pkt.Layer(layers.LayerTypeTCP); tcpLayer != nil {
-		fmt.Println("This is a TCP packet!")
-		tcp, ok := tcpLayer.(*layers.TCP)
-		if !ok {
-			return fmt.Errorf("failed to assert TCP layer type")
-		}
-		fmt.Printf("TCP layer: %+v\n", tcp)
-	}
-
-	if icmpLayer := pkt.Layer(layers.LayerTypeICMPv4); icmpLayer != nil {
-		fmt.Println("This is an ICMPv4 packet!")
-		tcp, ok := icmpLayer.(*layers.ICMPv4)
-		if !ok {
-			return fmt.Errorf("failed to assert ICMPv4 layer type")
-		}
-		fmt.Printf("ICMPv4 layer: %+v\n", tcp)
-	}
-
-	for _, layer := range pkt.Layers() {
-		fmt.Println("Packet layer: ", layer.LayerType())
-	}
-
-	return nil
+	return net.IP{}, net.IP{}, fmt.Errorf("packet does not contain an IPv4 layer")
 }
 
-// ParseICMPPacket takes in a gopacket.Packet and tries to convert to an ICMP message
+// parseICMPPacket takes in a gopacket.Packet and tries to convert to an ICMP message
 // it returns all the fields from the packet we need to validate it's the response
 // we're looking for
-func ParseICMPPacket(pkt gopacket.Packet) (*icmpResponse, error) {
+func parseICMPPacket(pkt gopacket.Packet) (*icmpResponse, error) {
 	// this parsing could likely be improved to be more performant if we read from the
 	// the original packet bytes directly where we expect the required fields to be
 	// or even just creating a single DecodingLayerParser but in both cases we lose
 	// some flexibility
+	var err error
 	icmpResponse := icmpResponse{}
 
-	if ipLayer := pkt.Layer(layers.LayerTypeIPv4); ipLayer != nil {
-		ip, ok := ipLayer.(*layers.IPv4)
-		if !ok {
-			return nil, fmt.Errorf("failed to assert IPv4 layer type")
-		}
-
-		icmpResponse.SrcIP = ip.SrcIP
-		icmpResponse.DstIP = ip.DstIP
+	icmpResponse.SrcIP, icmpResponse.DstIP, err = parseIPv4Layer(pkt)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decode ICMP packet: %w", err)
 	}
 
 	if icmpLayer := pkt.Layer(layers.LayerTypeICMPv4); icmpLayer != nil {
@@ -176,28 +153,22 @@ func ParseICMPPacket(pkt gopacket.Packet) (*icmpResponse, error) {
 		icmpResponse.InnerSrcPort = uint16(innerTCPLayer.SrcPort)
 		icmpResponse.InnerDstPort = uint16(innerTCPLayer.DstPort)
 		icmpResponse.InnerSeqNum = innerTCPLayer.Seq
+	} else {
+		return nil, fmt.Errorf("packet does not contain an ICMP layer")
 	}
 
 	return &icmpResponse, nil
 }
 
-func ParseTCPPacket(pkt gopacket.Packet) (*tcpResponse, error) {
+func parseTCPPacket(pkt gopacket.Packet) (*tcpResponse, error) {
 	// this parsing could likely be improved to be more performant if we read from the
 	// the original packet bytes directly where we expect the required fields to be
+	var err error
 	tcpResponse := tcpResponse{}
 
-	// TODO: separate this out into its own function since we do this
-	// for ICMP and TCP
-	if ipLayer := pkt.Layer(layers.LayerTypeIPv4); ipLayer != nil {
-		ip, ok := ipLayer.(*layers.IPv4)
-		if !ok {
-			return nil, fmt.Errorf("failed to assert IPv4 layer type")
-		}
-
-		tcpResponse.SrcIP = ip.SrcIP
-		tcpResponse.DstIP = ip.DstIP
-	} else {
-		return nil, fmt.Errorf("packet does not contain an IPv4 layer")
+	tcpResponse.SrcIP, tcpResponse.DstIP, err = parseIPv4Layer(pkt)
+	if err != nil {
+		return nil, err
 	}
 
 	if tcpLayer := pkt.Layer(layers.LayerTypeTCP); tcpLayer != nil {
@@ -208,14 +179,14 @@ func ParseTCPPacket(pkt gopacket.Packet) (*tcpResponse, error) {
 
 		tcpResponse.TCPResponse = tcp
 	} else {
-		return nil, fmt.Errorf("packet does not contain an TCP layer")
+		return nil, fmt.Errorf("packet does not contain a TCP layer")
 	}
 
 	return &tcpResponse, nil
 }
 
-// CreateRawTCPPacket creates a TCP packet with the specified parameters
-func CreateRawTCPPacket(sourceIP net.IP, sourcePort uint16, destIP net.IP, destPort uint16, seqNum uint32, ttl int, flags byte) (*ipv4.Header, []byte, error) {
+// createRawTCPPacket creates a TCP packet with the specified parameters
+func createRawTCPPacket(sourceIP net.IP, sourcePort uint16, destIP net.IP, destPort uint16, seqNum uint32, ttl int, flags byte) (*ipv4.Header, []byte, error) {
 	ipHdr := ipv4.Header{
 		Version:  4,
 		Len:      20,
@@ -258,8 +229,8 @@ func MarshalPacket(header *ipv4.Header, payload []byte) ([]byte, error) {
 	return packet, nil
 }
 
-// SendPacket sends a raw IPv4 packet using the passed connection
-func SendPacket(rawConn *ipv4.RawConn, header *ipv4.Header, payload []byte) error {
+// sendPacket sends a raw IPv4 packet using the passed connection
+func sendPacket(rawConn *ipv4.RawConn, header *ipv4.Header, payload []byte) error {
 	if err := rawConn.WriteTo(header, payload, nil); err != nil {
 		return err
 	}
@@ -378,7 +349,8 @@ func handlePackets(ctx context.Context, conn *ipv4.RawConn, listener string, loc
 		if listener == "icmp" {
 			icmpResponse, err := parseICMP(header, packet)
 			if err != nil {
-				return net.IP{}, 0, 0, fmt.Errorf("failed to parse ICMP packet: %w", err)
+				log.Debugf("failed to parse ICMP packet: %s", err.Error())
+				continue
 			}
 			if icmpMatch(localIP, localPort, remoteIP, remotePort, seqNum, icmpResponse) {
 				return icmpResponse.SrcIP, 0, icmpResponse.TypeCode, nil
@@ -386,7 +358,8 @@ func handlePackets(ctx context.Context, conn *ipv4.RawConn, listener string, loc
 		} else if listener == "tcp" {
 			tcpResp, err := parseTCP(header, packet)
 			if err != nil {
-				return net.IP{}, 0, 0, fmt.Errorf("failed to parse TCP packet: %w", err)
+				log.Debugf("failed to parse TCP packet: %s", err.Error())
+				continue
 			}
 			if tcpMatch(localIP, localPort, remoteIP, remotePort, seqNum, tcpResp) {
 				return tcpResp.SrcIP, uint16(tcpResp.TCPResponse.SrcPort), 0, nil
@@ -404,7 +377,7 @@ func parseICMP(header *ipv4.Header, payload []byte) (*icmpResponse, error) {
 	}
 	packet := readRawPacket(packetBytes)
 
-	return ParseICMPPacket(packet)
+	return parseICMPPacket(packet)
 }
 
 func icmpMatch(localIP net.IP, localPort uint16, remoteIP net.IP, remotePort uint16, seqNum uint32, response *icmpResponse) bool {
@@ -424,7 +397,7 @@ func parseTCP(header *ipv4.Header, payload []byte) (*tcpResponse, error) {
 	}
 
 	packet := readRawPacket(packetBytes)
-	tcpResp, err := ParseTCPPacket(packet)
+	tcpResp, err := parseTCPPacket(packet)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse TCP packet: %w", err)
 	}

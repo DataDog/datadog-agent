@@ -137,7 +137,7 @@ func (t *TCPv4) TracerouteSequential() (*Results, error) {
 func (t *TCPv4) sendAndReceive(rawIcmpConn *ipv4.RawConn, rawTCPConn *ipv4.RawConn, ttl int, seqNum uint32, timeout time.Duration) (*Hop, error) {
 	flags := byte(0)
 	flags |= SYN
-	tcpHeader, tcpPacket, err := CreateRawTCPPacket(t.srcIP, t.srcPort, t.Target, t.DestPort, seqNum, ttl, flags)
+	tcpHeader, tcpPacket, err := createRawTCPPacket(t.srcIP, t.srcPort, t.Target, t.DestPort, seqNum, ttl, flags)
 	if err != nil {
 		log.Errorf("failed to create TCP packet with TTL: %d, error: %s", ttl, err.Error())
 		return nil, err
@@ -145,7 +145,7 @@ func (t *TCPv4) sendAndReceive(rawIcmpConn *ipv4.RawConn, rawTCPConn *ipv4.RawCo
 
 	log.Debugf("Sending on port: %d\n", t.srcPort)
 
-	err = SendPacket(rawTCPConn, tcpHeader, tcpPacket)
+	err = sendPacket(rawTCPConn, tcpHeader, tcpPacket)
 	if err != nil {
 		log.Errorf("failed to send TCP SYN: %s", err.Error())
 		return nil, err
