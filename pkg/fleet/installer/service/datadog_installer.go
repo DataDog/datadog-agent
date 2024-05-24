@@ -45,7 +45,7 @@ func SetupInstaller(ctx context.Context) (err error) {
 	defer func() {
 		if err != nil {
 			log.Errorf("Failed to setup installer: %s, reverting", err)
-			RemoveInstaller(ctx)
+			err = RemoveInstaller(ctx)
 		}
 	}()
 

@@ -60,7 +60,7 @@ func TestInstallStable(t *testing.T) {
 	defer s.Close()
 	installer := newTestPackageManager(t, s, t.TempDir(), t.TempDir())
 
-	err := installer.Install(testCtx, s.PackageURL(fixtures.FixtureSimpleV1))
+	err := installer.Install(testCtx, s.PackageURL(fixtures.FixtureSimpleV1), nil)
 	assert.NoError(t, err)
 	r := installer.repositories.Get(fixtures.FixtureSimpleV1.Package)
 	state, err := r.GetState()
@@ -80,7 +80,7 @@ func TestInstallExperiment(t *testing.T) {
 	defer s.Close()
 	installer := newTestPackageManager(t, s, t.TempDir(), t.TempDir())
 
-	err := installer.Install(testCtx, s.PackageURL(fixtures.FixtureSimpleV1))
+	err := installer.Install(testCtx, s.PackageURL(fixtures.FixtureSimpleV1), nil)
 	assert.NoError(t, err)
 	err = installer.InstallExperiment(testCtx, s.PackageURL(fixtures.FixtureSimpleV2))
 	assert.NoError(t, err)
@@ -103,7 +103,7 @@ func TestInstallPromoteExperiment(t *testing.T) {
 	defer s.Close()
 	installer := newTestPackageManager(t, s, t.TempDir(), t.TempDir())
 
-	err := installer.Install(testCtx, s.PackageURL(fixtures.FixtureSimpleV1))
+	err := installer.Install(testCtx, s.PackageURL(fixtures.FixtureSimpleV1), nil)
 	assert.NoError(t, err)
 	err = installer.InstallExperiment(testCtx, s.PackageURL(fixtures.FixtureSimpleV2))
 	assert.NoError(t, err)
@@ -127,7 +127,7 @@ func TestUninstallExperiment(t *testing.T) {
 	defer s.Close()
 	installer := newTestPackageManager(t, s, t.TempDir(), t.TempDir())
 
-	err := installer.Install(testCtx, s.PackageURL(fixtures.FixtureSimpleV1))
+	err := installer.Install(testCtx, s.PackageURL(fixtures.FixtureSimpleV1), nil)
 	assert.NoError(t, err)
 	err = installer.InstallExperiment(testCtx, s.PackageURL(fixtures.FixtureSimpleV2))
 	assert.NoError(t, err)

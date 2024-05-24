@@ -42,8 +42,8 @@ func (m *testPackageManager) States() (map[string]repository.State, error) {
 	return args.Get(0).(map[string]repository.State), args.Error(1)
 }
 
-func (m *testPackageManager) Install(ctx context.Context, url string) error {
-	args := m.Called(ctx, url)
+func (m *testPackageManager) Install(ctx context.Context, url string, args []string) error {
+	args := m.Called(ctx, url, args)
 	return args.Error(0)
 }
 
@@ -158,7 +158,7 @@ func TestInstall(t *testing.T) {
 	testURL := "oci://example.com/test-package:1.0.0"
 	i.pm.On("Install", mock.Anything, testURL).Return(nil).Once()
 
-	err := i.Install(context.Background(), testURL)
+	err := i.Install(context.Background(), testURL, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

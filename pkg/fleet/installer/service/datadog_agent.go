@@ -56,7 +56,7 @@ func SetupAgent(ctx context.Context, _ []string) (err error) {
 	defer func() {
 		if err != nil {
 			log.Errorf("Failed to setup agent: %s, reverting", err)
-			RemoveAgent(ctx)
+			err = RemoveAgent(ctx)
 		}
 		span.Finish(tracer.WithError(err))
 	}()
