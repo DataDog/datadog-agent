@@ -40,6 +40,10 @@ Package aggregator implements the "aggregator" bundle,
 
 Package demultiplexer defines the aggregator demultiplexer
 
+### [comp/aggregator/demultiplexerendpoint](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/aggregator/demultiplexerendpoint)
+
+Package demultiplexerendpoint component provides the /dogstatsd-contexts-dump API endpoint that can register via Fx value groups.
+
 ### [comp/aggregator/diagnosesendermanager](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/aggregator/diagnosesendermanager)
 
 *Datadog Team*: agent-shared-components

@@ -44,9 +44,11 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"regexp"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/cenkalti/backoff/v4"
@@ -59,6 +61,7 @@ import (
 )
 
 const (
+	fakeintakeIDHeader           = "Fakeintake-ID"
 	metricsEndpoint              = "/api/v2/series"
 	checkRunsEndpoint            = "/api/v1/check_run"
 	logsEndpoint                 = "/api/v2/logs"
@@ -81,9 +84,22 @@ const (
 // ErrNoFlareAvailable is returned when no flare is available
 var ErrNoFlareAvailable = errors.New("no flare available")
 
+// Option is a configuration option for the client
+type Option func(*Client)
+
+// WithoutStrictFakeintakeIDCheck disables strict fakeintake ID check
+func WithoutStrictFakeintakeIDCheck() Option {
+	return func(c *Client) {
+		c.strictFakeintakeIDCheck = false
+	}
+}
+
 // Client is a fake intake client
 type Client struct {
-	fakeIntakeURL string
+	fakeintakeID            string
+	fakeIntakeURL           string
+	strictFakeintakeIDCheck bool
+	fakeintakeIDMutex       sync.RWMutex
 
 	metricAggregator               aggregator.MetricAggregator
 	checkRunAggregator             aggregator.CheckRunAggregator
@@ -105,8 +121,10 @@ type Client struct {
 
 // NewClient creates a new fake intake client
 // fakeIntakeURL: the host of the fake Datadog intake server
-func NewClient(fakeIntakeURL string) *Client {
-	return &Client{
+func NewClient(fakeIntakeURL string, opts ...Option) *Client {
+	client := &Client{
+		strictFakeintakeIDCheck:        true,
+		fakeintakeIDMutex:              sync.RWMutex{},
 		fakeIntakeURL:                  strings.TrimSuffix(fakeIntakeURL, "/"),
 		metricAggregator:               aggregator.NewMetricAggregator(),
 		checkRunAggregator:             aggregator.NewCheckRunAggregator(),
@@ -125,6 +143,11 @@ func NewClient(fakeIntakeURL string) *Client {
 		metadataAggregator:             aggregator.NewMetadataAggregator(),
 		ndmflowAggregator:              aggregator.NewNDMFlowAggregator(),
 	}
+	for _, opt := range opts {
+		opt(client)
+	}
+
+	return client
 }
 
 // PayloadFilter is used to filter payloads by name and resource type
@@ -782,13 +805,36 @@ func (c *Client) get(route string) ([]byte, error) {
 	var body []byte
 	err := backoff.Retry(func() error {
 		tmpResp, err := http.Get(fmt.Sprintf("%s/%s", c.fakeIntakeURL, route))
+		if err, ok := err.(net.Error); ok && err.Timeout() {
+			panic("fakeintake call timed out")
+		}
 		if err != nil {
 			return err
 		}
+
 		defer tmpResp.Body.Close()
 		if tmpResp.StatusCode != http.StatusOK {
-			return fmt.Errorf("Expected %d got %d", http.StatusOK, tmpResp.StatusCode)
+			return fmt.Errorf("expected %d got %d", http.StatusOK, tmpResp.StatusCode)
 		}
+		// If strictFakeintakeIDCheck is enabled, we check that the fakeintake ID is the same as the one we expect
+		// If the fakeintake ID is not set yet we set the one we get from the first request
+		// If the fakeintake does not return its id in the header we do not check it
+		requestFakeintakeID := tmpResp.Header.Get(fakeintakeIDHeader)
+		if c.strictFakeintakeIDCheck && requestFakeintakeID != "" {
+			if c.fakeintakeID == "" {
+				c.fakeintakeIDMutex.Lock()
+				c.fakeintakeID = requestFakeintakeID
+				c.fakeintakeIDMutex.Unlock()
+			} else {
+				c.fakeintakeIDMutex.RLock()
+				currentFakeintakeID := c.fakeintakeID
+				c.fakeintakeIDMutex.RUnlock()
+				if currentFakeintakeID != requestFakeintakeID {
+					panic(fmt.Sprintf("expected fakeintakeID %s got %s: The fakeintake probably restarted during your test", currentFakeintakeID, requestFakeintakeID))
+				}
+			}
+		}
+
 		body, err = io.ReadAll(tmpResp.Body)
 		return err
 	}, backoff.WithMaxRetries(backoff.NewConstantBackOff(5*time.Second), 4))

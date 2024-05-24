@@ -99,6 +99,24 @@ func (a *apmInjectorInstaller) Setup(ctx context.Context) (err error) {
 	if err := a.verifyDockerRuntime(); err != nil {
 		return err
 	}
+
+	// Set up defaults for agent sockets
+	if err = configureSocketsEnv(); err != nil {
+		return
+	}
+	if err = addSystemDEnvOverrides(agentUnit); err != nil {
+		return
+	}
+	if err = addSystemDEnvOverrides(agentExp); err != nil {
+		return
+	}
+	if err = addSystemDEnvOverrides(traceAgentUnit); err != nil {
+		return
+	}
+	if err = addSystemDEnvOverrides(traceAgentExp); err != nil {
+		return
+	}
+
 	return nil
 }
 

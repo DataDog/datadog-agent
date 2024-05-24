@@ -21,12 +21,11 @@ import (
 	"github.com/spf13/afero"
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
+	taggerproto "github.com/DataDog/datadog-agent/comp/core/tagger/proto"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/packets"
 	replay "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/def"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	protoutils "github.com/DataDog/datadog-agent/pkg/util/proto"
-
 	"github.com/golang/protobuf/proto"
 )
 
@@ -319,7 +318,7 @@ func (tc *TrafficCaptureWriter) writeState() (int, error) {
 			continue
 		}
 
-		entityID, err := protoutils.Tagger2PbEntityID(entity.ID)
+		entityID, err := taggerproto.Tagger2PbEntityID(entity.ID)
 		if err != nil {
 			log.Warnf("unable to compute valid EntityID for %v", id)
 			continue

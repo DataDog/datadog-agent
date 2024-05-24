@@ -81,6 +81,9 @@ type ProcessInfo struct {
 
 // FileReader attempts to read the most representative file associated to a process.
 func (pi ProcessInfo) FileReader() (io.ReadCloser, bool) {
+	if len(pi.Args) == 0 {
+		return nil, false
+	}
 	fileName := pi.Args[0]
 	// if it's an absolute path, use it
 	if strings.HasPrefix(fileName, "/") {
