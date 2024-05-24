@@ -155,10 +155,10 @@ static __always_inline s16 read_first_topic_name_size(pktbuf_t pkt, bool flexibl
 
     s16 topic_name_size = 0;
     if (flexible) {
-        u16 topic_name_size_tmp2 = 0;
+        u16 topic_name_size_tmp = 0;
         u32 varint_bytes = 0;
 
-        if (!parse_varint_u16(&topic_name_size_tmp2, topic_name_size_raw, &varint_bytes)) {
+        if (!parse_varint_u16(&topic_name_size_tmp, topic_name_size_raw, &varint_bytes)) {
             return 0;
         }
 
