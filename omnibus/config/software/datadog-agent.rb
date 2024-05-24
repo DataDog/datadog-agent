@@ -137,8 +137,14 @@ build do
     copy 'bin/agent/dist', "#{install_dir}/bin/agent"
     mkdir Omnibus::Config.package_dir() unless Dir.exists?(Omnibus::Config.package_dir())
   end
-
-  if not bundled_agents.include? "trace-agent"
+  if ENV["ENABLE_BAZEL"]
+    # Run the Bazel build
+    target = "//cmd/trace-agent"
+    command "bazel build #{target}"
+    # Get the binary out
+    mkdir "bin/trace-agent"
+    command "cp $(bazel cquery --output=files #{target}) bin/trace-agent"
+  elsif not ENV["ENABLE_BAZEL"] and not bundled_agents.include? "trace-agent"
     platform = windows_arch_i386? ? "x86" : "x64"
     command "invoke trace-agent.build --install-path=#{install_dir} --major-version #{major_version_arg} --flavor #{flavor_arg}", :env => env
   end
@@ -156,8 +162,10 @@ build do
 
   if windows_target?
     copy 'bin/process-agent/process-agent.exe', "#{install_dir}/bin/agent"
+    copy 'bin/trace-agent/trace-agent.exe', "#{install_dir}/bin/agent"
   else
     copy 'bin/process-agent/process-agent', "#{install_dir}/embedded/bin"
+    copy 'bin/trace-agent/trace-agent', "#{install_dir}/embedded/bin"
   end
 
   # System-probe

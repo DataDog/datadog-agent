@@ -8,9 +8,11 @@ go_library(
         "common.go",
         "config_reader.go",
         "consul.go",
+        "consul_nop.go",  # keep
         "container.go",
         "endpointschecks.go",
         "etcd.go",
+        "etcd_nop.go",  # keep
         "file.go",
         "kube_endpoints_file_nop.go",
         "kube_endpoints_nop.go",
@@ -23,6 +25,7 @@ go_library(
         "remote_config.go",
         "utils.go",
         "zookeeper.go",
+        "zookeeper_nop.go",  # keep
     ],
     importpath = "github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers",
     visibility = ["//visibility:public"],

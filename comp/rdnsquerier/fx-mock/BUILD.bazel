@@ -5,7 +5,9 @@ go_library(
     srcs = [
         "common.go",
         "compression_mock.go",
+        "no_compression.go",  # keep
         "zlib_and_zstd.go",
+        "zlib_no_zstd.go",  # keep
     ],
     importpath = "github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl",
     visibility = ["//visibility:public"],

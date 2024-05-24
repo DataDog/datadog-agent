@@ -6,6 +6,7 @@ go_library(
         "ecs_util.go",
         "image_metadata_util.go",
         "image_util.go",
+        "image_util_stub.go",  # keep
     ],
     importpath = "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util",
     visibility = ["//visibility:public"],

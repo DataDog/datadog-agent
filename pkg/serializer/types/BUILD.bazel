@@ -2,7 +2,10 @@ load("@rules_go//go:def.bzl", "go_library")
 
 go_library(
     name = "types",
-    srcs = ["types_orchestrator.go"],
+    srcs = [
+        "types.go",  # keep
+        "types_orchestrator.go",
+    ],
     importpath = "github.com/DataDog/datadog-agent/pkg/serializer/types",
     visibility = ["//visibility:public"],
     deps = [

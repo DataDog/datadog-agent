@@ -5,6 +5,7 @@ go_library(
     srcs = [
         "diagnosis.go",
         "gce.go",
+        "gce_no_tags.go",  # keep
         "gce_tags.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/util/cloudproviders/gce",

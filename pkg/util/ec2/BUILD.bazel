@@ -7,6 +7,7 @@ go_library(
         "dmi.go",
         "ec2.go",
         "ec2_account_id.go",
+        "ec2_no_tags.go",  # keep
         "ec2_tags.go",
         "imds_helpers.go",
         "network.go",

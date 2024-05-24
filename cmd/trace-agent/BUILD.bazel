@@ -15,5 +15,16 @@ go_library(
 go_binary(
     name = "trace-agent",
     embed = [":trace-agent_lib"],
+    # keep
+    gotags = [
+        "containerd",
+        "datadog.no_waf",
+        "docker",
+        "kubeapiserver",
+        "kubelet",
+        "netcgo",
+        "otlp",
+        "podman",
+    ],
     visibility = ["//visibility:public"],
 )
