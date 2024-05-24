@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/report"
+	"github.com/DataDog/datadog-agent/pkg/config"
 
 	"github.com/gosnmp/gosnmp"
 	"github.com/stretchr/testify/assert"
@@ -1288,6 +1289,10 @@ metrics:
 }
 
 func TestReportDeviceMetadataEvenOnProfileError(t *testing.T) {
+	testDir := t.TempDir()
+	mockConfig := config.Mock(t)
+	mockConfig.SetWithoutSource("run_path", testDir)
+
 	timeNow = common.MockTimeNow
 
 	deps := createDeps(t)
