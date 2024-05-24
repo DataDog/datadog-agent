@@ -586,7 +586,7 @@ def create_module(ctx, path: str, no_verify: bool = False):
         if not no_verify:
             # Stage updated files since some linting tasks will require it
             print(color_message("Staging new module files", "bold"))
-            ctx.run("find . '(' -name go.mod -o -name go.sum ')' -exec git add '{}' ';'")
+            ctx.run("find . '(' -name modules.py -o -name go.mod -o -name go.sum ')' -exec git add '{}' ';'")
 
             print(color_message("Linting repo", "blue"))
             print(color_message("Running internal-deps-checker task", "bold"))
