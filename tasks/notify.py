@@ -480,8 +480,10 @@ def send_notification(ctx: Context, alert_jobs):
     # TODO
     print('[NOTIFICATION]', message)
 
-    # if message:
-    #     send_slack_message("#agent-platform-ops", message)
+    if message:
+        # TODO
+        # send_slack_message("#agent-platform-ops", message)
+        send_slack_message("#celian-tests", message)
 
 
 @task
