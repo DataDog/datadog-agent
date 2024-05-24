@@ -514,32 +514,32 @@ type EventConsumer struct {
 
 // NewProcessMonitorEventConsumer returns a new process monitor event consumer
 func NewProcessMonitorEventConsumer(em *eventmonitor.EventMonitor) (*EventConsumer, error) {
-	fc := &EventConsumer{}
-	err := em.AddEventConsumer(fc)
-	return fc, err
+	consumer := &EventConsumer{}
+	err := em.AddEventConsumer(consumer)
+	return consumer, err
 }
 
 // ChanSize returns the channel size used by this consumer
-func (fc *EventConsumer) ChanSize() int {
+func (ec *EventConsumer) ChanSize() int {
 	return 100
 }
 
 // ID returns the ID of this consumer
-func (fc *EventConsumer) ID() string {
+func (ec *EventConsumer) ID() string {
 	return "PROCESS_MONITOR"
 }
 
 // Start the consumer
-func (fc *EventConsumer) Start() error {
+func (ec *EventConsumer) Start() error {
 	return nil
 }
 
 // Stop the consumer
-func (fc *EventConsumer) Stop() {
+func (ec *EventConsumer) Stop() {
 }
 
 // EventTypes returns the event types handled by this consumer
-func (fc *EventConsumer) EventTypes() []model.EventType {
+func (ec *EventConsumer) EventTypes() []model.EventType {
 	return []model.EventType{
 		model.ExecEventType,
 		model.ExitEventType,
@@ -547,14 +547,14 @@ func (fc *EventConsumer) EventTypes() []model.EventType {
 }
 
 // HandleEvent handles events received from the event monitor
-func (fc *EventConsumer) HandleEvent(event any) {
+func (ec *EventConsumer) HandleEvent(event any) {
 	sevent, ok := event.(*Event)
 	if !ok {
 		return
 	}
 
-	fc.Lock()
-	defer fc.Unlock()
+	ec.Lock()
+	defer ec.Unlock()
 
 	pm := processMonitor
 	pm.tel.events.Add(1)
@@ -573,7 +573,7 @@ func (fc *EventConsumer) HandleEvent(event any) {
 }
 
 // Copy should copy the given event or return nil to discard it
-func (fc *EventConsumer) Copy(event *model.Event) any {
+func (ec *EventConsumer) Copy(event *model.Event) any {
 	return &Event{
 		Type: event.GetEventType(),
 		Pid:  event.GetProcessPid(),
