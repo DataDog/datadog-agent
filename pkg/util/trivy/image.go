@@ -17,7 +17,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/sbom/telemetry"
 	fimage "github.com/aquasecurity/trivy/pkg/fanal/image"
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
@@ -26,6 +25,8 @@ import (
 	"github.com/google/go-containerregistry/pkg/v1/tarball"
 	"github.com/samber/lo"
 	"golang.org/x/xerrors"
+
+	"github.com/DataDog/datadog-agent/pkg/sbom/telemetry"
 )
 
 var mu sync.Mutex
@@ -62,7 +63,7 @@ func imageOpener(ctx context.Context, collector, ref string, f *os.File, imageSa
 
 // image is a wrapper for github.com/google/go-containerregistry/pkg/v1/daemon.Image
 // daemon.Image loads the entire image into the memory at first,
-// but it doesn't need to load it if the information is already in the cache,
+// but it doesn't need to load it if the information is already in the persistentCache,
 // To avoid entire loading, this wrapper uses ImageInspectWithRaw and checks image ID and layer IDs.
 type image struct {
 	v1.Image

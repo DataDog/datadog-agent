@@ -80,7 +80,7 @@ type collectorConfig struct {
 type Collector struct {
 	config           collectorConfig
 	cacheInitialized sync.Once
-	cache            CacheWithCleaner
+	persistentCache  CacheWithCleaner
 	osScanner        ospkg.Scanner
 	langScanner      langpkg.Scanner
 	vulnClient       vulnerability.Client
@@ -174,7 +174,7 @@ func NewCollector(cfg config.Component, wmeta optional.Option[workloadmeta.Compo
 	return &Collector{
 		config: collectorConfig{
 			clearCacheOnClose: cfg.GetBool("sbom.clear_cache_on_exit"),
-			maxCacheSize:      cfg.GetInt("sbom.cache.max_disk_size"),
+			maxCacheSize:      cfg.GetInt("sbom.persistentCache.max_disk_size"),
 			overlayFSSupport:  cfg.GetBool("sbom.container_image.overlayfs_direct_scan"),
 		},
 		osScanner:   ospkg.NewScanner(),
@@ -202,33 +202,33 @@ func GetGlobalCollector(cfg config.Component, wmeta optional.Option[workloadmeta
 
 // Close closes the collector
 func (c *Collector) Close() error {
-	if c.cache == nil {
+	if c.persistentCache == nil {
 		return nil
 	}
 
 	if c.config.clearCacheOnClose {
-		if err := c.cache.Clear(); err != nil {
-			return fmt.Errorf("error when clearing trivy cache: %w", err)
+		if err := c.persistentCache.Clear(); err != nil {
+			return fmt.Errorf("error when clearing trivy persistentCache: %w", err)
 		}
 	}
 
-	return c.cache.Close()
+	return c.persistentCache.Close()
 }
 
-// CleanCache cleans the cache
+// CleanCache cleans the persistentCache
 func (c *Collector) CleanCache() error {
-	if c.cache != nil {
-		return c.cache.clean()
+	if c.persistentCache != nil {
+		return c.persistentCache.clean()
 	}
 	return nil
 }
 
-// getCache returns the cache with the cache Cleaner. It should initializes the cache
+// getCache returns the persistentCache with the persistentCache Cleaner. It should initializes the persistentCache
 // only once to avoid blocking the CLI with the `flock` file system.
 func (c *Collector) getCache() (CacheWithCleaner, error) {
 	var err error
 	c.cacheInitialized.Do(func() {
-		c.cache, err = NewCustomBoltCache(
+		c.persistentCache, err = NewCustomBoltCache(
 			c.wmeta,
 			defaultCacheDir(),
 			c.config.maxCacheSize,
@@ -239,7 +239,7 @@ func (c *Collector) getCache() (CacheWithCleaner, error) {
 		return nil, err
 	}
 
-	return c.cache, nil
+	return c.persistentCache, nil
 }
 
 // ScanDockerImage scans a docker image
@@ -364,7 +364,7 @@ func (c *Collector) ScanContainerdImageFromFilesystem(ctx context.Context, imgMe
 }
 
 func (c *Collector) scanFilesystem(ctx context.Context, fsys fs.FS, path string, imgMeta *workloadmeta.ContainerImageMetadata, scanOptions sbom.ScanOptions) (sbom.Report, error) {
-	// For filesystem scans, it is required to walk the filesystem to get the cache key so caching does not add any value.
+	// For filesystem scans, it is required to walk the filesystem to get the persistentCache key so caching does not add any value.
 	// TODO: Cache directly the trivy report for container images
 	cache := newMemoryCache()
 
@@ -373,7 +373,7 @@ func (c *Collector) scanFilesystem(ctx context.Context, fsys fs.FS, path string,
 		return nil, fmt.Errorf("unable to create artifact from fs, err: %w", err)
 	}
 
-	trivyReport, err := c.scan(ctx, fsArtifact, applier.NewApplier(cache), imgMeta, cache)
+	trivyReport, err := c.scan(ctx, fsArtifact, applier.NewApplier(cache), imgMeta, cache, false)
 	if err != nil {
 		if imgMeta != nil {
 			return nil, fmt.Errorf("unable to marshal report to sbom format for image %s, err: %w", imgMeta.ID, err)
@@ -400,8 +400,8 @@ func (c *Collector) ScanFilesystem(ctx context.Context, fsys fs.FS, path string,
 	return c.scanFilesystem(ctx, fsys, path, nil, scanOptions)
 }
 
-func (c *Collector) scan(ctx context.Context, artifact artifact.Artifact, applier applier.Applier, imgMeta *workloadmeta.ContainerImageMetadata, cache CacheWithCleaner) (*types.Report, error) {
-	if imgMeta != nil && cache != nil {
+func (c *Collector) scan(ctx context.Context, artifact artifact.Artifact, applier applier.Applier, imgMeta *workloadmeta.ContainerImageMetadata, cache CacheWithCleaner, useCache bool) (*types.Report, error) {
+	if useCache && imgMeta != nil && cache != nil {
 		// The artifact reference is only needed to clean up the blobs after the scan.
 		// It is re-generated from cached partial results during the scan.
 		artifactReference, err := artifact.Inspect(ctx)
@@ -435,7 +435,7 @@ func (c *Collector) scanImage(ctx context.Context, fanalImage ftypes.Image, imgM
 		return nil, fmt.Errorf("unable to create artifact from image, err: %w", err)
 	}
 
-	trivyReport, err := c.scan(ctx, imageArtifact, applier.NewApplier(cache), imgMeta, c.cache)
+	trivyReport, err := c.scan(ctx, imageArtifact, applier.NewApplier(cache), imgMeta, c.persistentCache, true)
 	if err != nil {
 		return nil, fmt.Errorf("unable to marshal report to sbom format, err: %w", err)
 	}

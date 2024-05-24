@@ -64,8 +64,7 @@ type Collector struct {
 	containerdClient cutil.ContainerdItf
 	wmeta            optional.Option[workloadmeta.Component]
 
-	fromFileSystem bool
-	closed         bool
+	closed bool
 }
 
 // CleanCache cleans the cache
@@ -81,7 +80,6 @@ func (c *Collector) Init(cfg config.Component, wmeta optional.Option[workloadmet
 	}
 	c.wmeta = wmeta
 	c.trivyCollector = trivyCollector
-	c.fromFileSystem = cfg.GetBool("sbom.container_image.use_mount")
 	c.opts = sbom.ScanOptionsFromConfig(cfg, true)
 	return nil
 }
@@ -117,7 +115,7 @@ func (c *Collector) Scan(ctx context.Context, request sbom.ScanRequest) sbom.Sca
 	}
 
 	var report sbom.Report
-	if c.fromFileSystem {
+	if c.opts.UseMount {
 		report, err = c.trivyCollector.ScanContainerdImageFromFilesystem(
 			ctx,
 			imageMeta,
