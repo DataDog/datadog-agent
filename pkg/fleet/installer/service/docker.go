@@ -12,65 +12,55 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"os"
 	"os/exec"
 	"path"
+	"strings"
+	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
 )
 
 type dockerDaemonConfig map[string]interface{}
 
 var (
-	tmpDockerDaemonPath = path.Join(setup.InstallPath, "run", "daemon.json.tmp")
-	dockerDaemonPath    = "/etc/docker/daemon.json"
+	dockerDaemonPath = "/etc/docker/daemon.json"
 )
 
-// setDockerConfig sets up the docker daemon to use the APM injector
-// even if docker isn't installed, to prepare for if it is installed
-// later
-func (a *apmInjectorInstaller) setDockerConfig(ctx context.Context) error {
-	// Create docker dir if it doesn't exist
-	err := executeHelperCommand(ctx, createDockerDirCommand)
+func (a *apmInjectorInstaller) setupDocker(ctx context.Context) (rollback func() error, err error) {
+	if !isDockerInstalled(ctx) {
+		return nil, nil
+	}
+	err = os.MkdirAll("/etc/docker", 0755)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	var file []byte
-	stat, err := os.Stat(dockerDaemonPath)
-	if err == nil {
-		// Read the existing configuration
-		file, err = os.ReadFile(dockerDaemonPath)
-		if err != nil {
+	rollbackDockerConfig, err := a.dockerConfigInstrument.mutate()
+	if err != nil {
+		return nil, err
+	}
+
+	rollback = func() error {
+		if err := rollbackDockerConfig(); err != nil {
 			return err
 		}
-	} else if !os.IsNotExist(err) {
-		return err
+		return reloadDockerConfig(ctx)
 	}
 
-	dockerConfigJSON, err := a.setDockerConfigContent(file)
-	if err != nil {
+	return rollback, reloadDockerConfig(ctx)
+}
+
+func (a *apmInjectorInstaller) uninstallDocker(ctx context.Context) error {
+	if !isDockerInstalled(ctx) {
+		return nil
+	}
+	if _, err := a.dockerConfigUninstrument.mutate(); err != nil {
 		return err
 	}
-
-	// Write the new configuration to a temporary file
-	perms := os.FileMode(0644)
-	if stat != nil {
-		perms = stat.Mode()
-	}
-	err = os.WriteFile(tmpDockerDaemonPath, dockerConfigJSON, perms)
-	if err != nil {
-		return err
-	}
-
-	// Move the temporary file to the final location
-	err = executeHelperCommand(ctx, string(replaceDockerCommand))
-	if err != nil {
-		return err
-	}
-
-	return restartDocker(ctx)
+	return reloadDockerConfig(ctx)
 }
 
 // setDockerConfigContent sets the content of the docker daemon configuration
@@ -102,44 +92,6 @@ func (a *apmInjectorInstaller) setDockerConfigContent(previousContent []byte) ([
 	return dockerConfigJSON, nil
 }
 
-// deleteDockerConfig restores the docker daemon configuration
-func (a *apmInjectorInstaller) deleteDockerConfig(ctx context.Context) error {
-	var file []byte
-	stat, err := os.Stat(dockerDaemonPath)
-	if err == nil {
-		// Read the existing configuration
-		file, err = os.ReadFile(dockerDaemonPath)
-		if err != nil {
-			return err
-		}
-	} else if os.IsNotExist(err) {
-		// If the file doesn't exist, there's nothing to do
-		return nil
-	}
-
-	dockerConfigJSON, err := a.deleteDockerConfigContent(file)
-	if err != nil {
-		return err
-	}
-
-	// Write the new configuration to a temporary file
-	perms := os.FileMode(0644)
-	if stat != nil {
-		perms = stat.Mode()
-	}
-	err = os.WriteFile(tmpDockerDaemonPath, dockerConfigJSON, perms)
-	if err != nil {
-		return err
-	}
-
-	// Move the temporary file to the final location
-	err = executeHelperCommand(ctx, string(replaceDockerCommand))
-	if err != nil {
-		return err
-	}
-	return restartDocker(ctx)
-}
-
 // deleteDockerConfigContent restores the content of the docker daemon configuration
 func (a *apmInjectorInstaller) deleteDockerConfigContent(previousContent []byte) ([]byte, error) {
 	dockerConfig := dockerDaemonConfig{}
@@ -169,21 +121,49 @@ func (a *apmInjectorInstaller) deleteDockerConfigContent(previousContent []byte)
 	return dockerConfigJSON, nil
 }
 
-// restartDocker reloads the docker daemon if it exists
-func restartDocker(ctx context.Context) error {
-	if !isDockerInstalled() {
-		log.Info("installer: docker is not installed, skipping reload")
-		return nil
+// verifyDockerRuntime validates that docker runtime configuration contains
+// a path to the injector runtime.
+// As the reload is eventually consistent we have to retry a few times
+//
+// This method is valid since at least Docker 17.03 (last update 2018-08-30)
+func (a *apmInjectorInstaller) verifyDockerRuntime() (err error) {
+	for i := 0; i < 3; i++ {
+		if i > 0 {
+			time.Sleep(time.Second)
+		}
+		cmd := exec.Command("docker", "system", "info", "--format", "{{ .DefaultRuntime }}")
+		var outb bytes.Buffer
+		cmd.Stdout = &outb
+		err = cmd.Run()
+		if err != nil {
+			if i < 2 {
+				log.Debug("failed to verify docker runtime, retrying: ", err)
+			} else {
+				log.Warn("failed to verify docker runtime: ", err)
+			}
+		}
+		if strings.TrimSpace(outb.String()) == "dd-shim" {
+			return nil
+		}
 	}
-	return executeHelperCommand(ctx, restartDockerCommand)
+	return fmt.Errorf("docker default runtime has not been set to injector docker runtime")
+}
+
+func reloadDockerConfig(ctx context.Context) (err error) {
+	span, _ := tracer.StartSpanFromContext(ctx, "reload_docker")
+	defer span.Finish(tracer.WithError(err))
+	return exec.CommandContext(ctx, "systemctl", "reload", "docker").Run()
 }
 
 // isDockerInstalled checks if docker is installed on the system
-func isDockerInstalled() bool {
-	cmd := exec.Command("which", "docker")
+func isDockerInstalled(ctx context.Context) bool {
+	span, _ := tracer.StartSpanFromContext(ctx, "is_docker_installed")
+	defer span.Finish()
+	cmd := exec.CommandContext(ctx, "which", "docker")
 	var outb bytes.Buffer
 	cmd.Stdout = &outb
 	err := cmd.Run()
+	span.SetTag("is_installed", err == nil)
 	if err != nil {
 		log.Warn("installer: failed to check if docker is installed, assuming it isn't: ", err)
 		return false

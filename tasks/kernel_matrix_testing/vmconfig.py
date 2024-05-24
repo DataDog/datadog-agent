@@ -7,7 +7,7 @@ import os
 import platform
 import random
 from collections import defaultdict
-from typing import TYPE_CHECKING, Any, List, cast
+from typing import TYPE_CHECKING, Any, cast
 from urllib.parse import urlparse
 
 from invoke.context import Context
@@ -491,7 +491,7 @@ def image_source_to_path(vmset: VMSetDict):
         vmset["image"]["image_source"] = url_to_fspath(vmset["image"]["image_source"])
         return
 
-    for kernel in cast(List['DistroKernel'], vmset.get("kernels", [])):
+    for kernel in cast(list['DistroKernel'], vmset.get("kernels", [])):
         kernel["image_source"] = url_to_fspath(kernel["image_source"])
 
     for disk in vmset.get("disks", []):

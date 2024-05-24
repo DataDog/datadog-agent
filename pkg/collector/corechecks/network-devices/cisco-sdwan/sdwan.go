@@ -148,7 +148,7 @@ func (c *CiscoSdwanCheck) Configure(senderManager sender.SenderManager, integrat
 	// Must be called before c.CommonConfigure
 	c.BuildID(integrationConfigDigest, rawInstance, rawInitConfig)
 
-	err := c.CommonConfigure(senderManager, integrationConfigDigest, rawInitConfig, rawInstance, source)
+	err := c.CommonConfigure(senderManager, rawInitConfig, rawInstance, source)
 	if err != nil {
 		return err
 	}
@@ -166,7 +166,7 @@ func (c *CiscoSdwanCheck) Configure(senderManager sender.SenderManager, integrat
 	c.config = instanceConfig
 
 	if c.config.Namespace == "" {
-		c.config.Namespace = "cisco-sdwan"
+		c.config.Namespace = "default"
 	} else {
 		namespace, err := utils.NormalizeNamespace(c.config.Namespace)
 		if err != nil {

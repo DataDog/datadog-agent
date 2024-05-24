@@ -5,6 +5,7 @@
     - !reference [.setup_ruby_mirror_linux]
     - !reference [.setup_python_mirror_linux]
     - !reference [.retrieve_linux_go_deps]
+    - !reference [.cache_omnibus_ruby_deps, setup]
     # remove artifacts from previous pipelines that may come from the cache
     - rm -rf $OMNIBUS_PACKAGE_DIR_SUSE/*
     # Artifacts and cache must live within project directory but we run omnibus in a neutral directory.
@@ -33,6 +34,8 @@
     expire_in: 2 weeks
     paths:
       - $OMNIBUS_PACKAGE_DIR_SUSE
+  cache:
+    - !reference [.cache_omnibus_ruby_deps, cache]
 
 # build Agent package for suse-x64
 agent_suse-x64-a6:
@@ -92,6 +95,7 @@ agent_suse-arm64-a7:
     - !reference [.on_all_builds]
     - !reference [.on_packaging_change]
     - !reference [.on_go-version_change]
+    - !reference [.on_installer_or_e2e_changes_or_manual]
   stage: package_build
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_arm64$DATADOG_AGENT_ARMBUILDIMAGES_SUFFIX:$DATADOG_AGENT_ARMBUILDIMAGES
   tags: ["arch:arm64"]

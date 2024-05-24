@@ -16,8 +16,11 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/DataDog/datadog-agent/pkg/fleet/env"
 	"github.com/DataDog/datadog-agent/pkg/fleet/internal/fixtures"
+	"github.com/google/go-containerregistry/pkg/authn"
 	oci "github.com/google/go-containerregistry/pkg/v1"
+	"github.com/google/go-containerregistry/pkg/v1/google"
 )
 
 type testDownloadServer struct {
@@ -31,11 +34,11 @@ func newTestDownloadServer(t *testing.T) *testDownloadServer {
 }
 
 func (s *testDownloadServer) Downloader() *Downloader {
-	return NewDownloader(s.Client(), "", RegistryAuthDefault)
+	return NewDownloader(&env.Env{}, s.Client())
 }
 
-func (s *testDownloadServer) DownloaderRegistryOverride() *Downloader {
-	return NewDownloader(s.Client(), "my.super/registry", RegistryAuthDefault)
+func (s *testDownloadServer) DownloaderWithEnv(env *env.Env) *Downloader {
+	return NewDownloader(env, s.Client())
 }
 
 func (s *testDownloadServer) Image(f fixtures.Fixture) oci.Image {
@@ -55,6 +58,7 @@ func TestDownload(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, fixtures.FixtureSimpleV1.Package, downloadedPackage.Name)
 	assert.Equal(t, fixtures.FixtureSimpleV1.Version, downloadedPackage.Version)
+	assert.NotZero(t, downloadedPackage.Size)
 	tmpDir := t.TempDir()
 	err = downloadedPackage.ExtractLayers(DatadogPackageLayerMediaType, tmpDir)
 	assert.NoError(t, err)
@@ -70,6 +74,7 @@ func TestDownloadLayout(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, fixtures.FixtureSimpleV1.Package, downloadedPackage.Name)
 	assert.Equal(t, fixtures.FixtureSimpleV1.Version, downloadedPackage.Version)
+	assert.NotZero(t, downloadedPackage.Size)
 	tmpDir := t.TempDir()
 	err = downloadedPackage.ExtractLayers(DatadogPackageLayerMediaType, tmpDir)
 	assert.NoError(t, err)
@@ -100,25 +105,93 @@ func TestDownloadPlatformNotAvailable(t *testing.T) {
 func TestDownloadRegistryWithOverride(t *testing.T) {
 	s := newTestDownloadServer(t)
 	defer s.Close()
-	d := s.DownloaderRegistryOverride()
+	d := s.DownloaderWithEnv(&env.Env{
+		RegistryOverride: "fake.io",
+	})
 
 	_, err := d.Download(context.Background(), s.PackageURL(fixtures.FixtureSimpleV1))
 	assert.Error(t, err) // Host not found
 }
 
-func TestGetRegistryURL(t *testing.T) {
-	s := newTestDownloadServer(t)
-	defer s.Close()
+func TestGetRefAndKeychain(t *testing.T) {
+	type test struct {
+		registryOverride       string
+		regOverrideByImage     map[string]string
+		registryAuthOverride   string
+		regAuthOverrideByImage map[string]string
+		url                    string
+		expectedRef            string
+		expectedKeychain       authn.Keychain
+	}
 
-	testURL := s.URL() + "/simple@sha256:2aaf415ad1bd66fd9ba5214603c7fb27ef2eb595baf21222cde22846e02aab4d"
+	tests := []test{
+		{url: "docker.io/datadog/agent-package-dev:latest", expectedRef: "docker.io/datadog/agent-package-dev:latest", expectedKeychain: authn.DefaultKeychain},
+		{url: "gcr.io/datadoghq/agent-package@sha256:1234", expectedRef: "gcr.io/datadoghq/agent-package@sha256:1234", expectedKeychain: authn.DefaultKeychain},
+		{url: "docker.io/datadog/agent-package-dev:latest", registryOverride: "fake.io", expectedRef: "fake.io/agent-package-dev:latest", expectedKeychain: authn.DefaultKeychain},
+		{url: "gcr.io/datadoghq/agent-package@sha256:1234", registryOverride: "fake.io", expectedRef: "fake.io/agent-package@sha256:1234", expectedKeychain: authn.DefaultKeychain},
+		{
+			url:                "docker.io/datadog/agent-package-dev:latest",
+			regOverrideByImage: map[string]string{"agent-package-dev": "fake.io"},
+			expectedRef:        "fake.io/agent-package-dev:latest",
+			expectedKeychain:   authn.DefaultKeychain,
+		},
+		{
+			url:                "gcr.io/datadoghq/agent-package@sha256:1234",
+			regOverrideByImage: map[string]string{"agent-package": "fake.io"},
+			expectedRef:        "fake.io/agent-package@sha256:1234",
+			expectedKeychain:   authn.DefaultKeychain,
+		},
+		{
+			url:                "gcr.io/datadoghq/agent-package@sha256:1234",
+			regOverrideByImage: map[string]string{"agent-package": "fake.io"},
+			expectedRef:        "fake.io/agent-package@sha256:1234",
+			expectedKeychain:   authn.DefaultKeychain,
+		},
+		{
+			url:                "gcr.io/datadoghq/agent-package@sha256:1234",
+			registryOverride:   "fake-other.io",
+			regOverrideByImage: map[string]string{"agent-package": "fake.io"},
+			expectedRef:        "fake.io/agent-package@sha256:1234",
+			expectedKeychain:   authn.DefaultKeychain,
+		},
+		{
+			url:                "gcr.io/datadoghq/agent-package-dev@sha256:1234",
+			registryOverride:   "fake-other.io",
+			regOverrideByImage: map[string]string{"agent-package": "fake.io"},
+			expectedRef:        "fake-other.io/agent-package-dev@sha256:1234",
+			expectedKeychain:   authn.DefaultKeychain,
+		},
+		{
+			url:                  "gcr.io/datadoghq/agent-package-dev@sha256:1234",
+			registryAuthOverride: "gcr",
+			expectedRef:          "gcr.io/datadoghq/agent-package-dev@sha256:1234",
+			expectedKeychain:     google.Keychain,
+		},
+		{
+			url:                    "gcr.io/datadoghq/agent-package-dev@sha256:1234",
+			regAuthOverrideByImage: map[string]string{"agent-package": "gcr"},
+			expectedRef:            "gcr.io/datadoghq/agent-package-dev@sha256:1234",
+			expectedKeychain:       authn.DefaultKeychain,
+		},
+		{
+			url:                    "gcr.io/datadoghq/agent-package-dev@sha256:1234",
+			regAuthOverrideByImage: map[string]string{"agent-package-dev": "gcr"},
+			expectedRef:            "gcr.io/datadoghq/agent-package-dev@sha256:1234",
+			expectedKeychain:       google.Keychain,
+		},
+	}
 
-	d := s.Downloader()
-	url := d.getRegistryURL(testURL)
-	assert.Equal(t, s.URL()+"/simple@sha256:2aaf415ad1bd66fd9ba5214603c7fb27ef2eb595baf21222cde22846e02aab4d", url)
-
-	d = s.DownloaderRegistryOverride()
-	url = d.getRegistryURL(testURL)
-	assert.Equal(t, "my.super/registry/simple@sha256:2aaf415ad1bd66fd9ba5214603c7fb27ef2eb595baf21222cde22846e02aab4d", url)
+	for _, tt := range tests {
+		env := &env.Env{
+			RegistryOverride:            tt.registryOverride,
+			RegistryOverrideByImage:     tt.regOverrideByImage,
+			RegistryAuthOverride:        tt.registryAuthOverride,
+			RegistryAuthOverrideByImage: tt.regAuthOverrideByImage,
+		}
+		actual := getRefAndKeychain(env, tt.url)
+		assert.Equal(t, tt.expectedRef, actual.ref)
+		assert.Equal(t, tt.expectedKeychain, actual.keychain)
+	}
 }
 
 func TestPackageURL(t *testing.T) {
@@ -131,12 +204,12 @@ func TestPackageURL(t *testing.T) {
 
 	tests := []test{
 		{site: "datad0g.com", pkg: "datadog-agent", version: "latest", expected: "oci://docker.io/datadog/agent-package-dev:latest"},
-		{site: "datadoghq.com", pkg: "datadog-agent", version: "1.2.3", expected: "oci://public.ecr.aws/datadog/agent-package:1.2.3"},
+		{site: "datadoghq.com", pkg: "datadog-agent", version: "1.2.3", expected: "oci://gcr.io/datadoghq/agent-package:1.2.3"},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.site, func(t *testing.T) {
-			actual := PackageURL(tt.site, tt.pkg, tt.version)
+			actual := PackageURL(&env.Env{Site: tt.site}, tt.pkg, tt.version)
 			if actual != tt.expected {
 				t.Errorf("expected %s, got %s", tt.expected, actual)
 			}

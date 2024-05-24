@@ -210,7 +210,7 @@ func (c *GenericCollector) Run() {
 		}
 		if err != nil {
 			// at the end of stream, but its OK
-			if err == io.EOF {
+			if errors.Is(err, io.EOF) {
 				continue
 			}
 

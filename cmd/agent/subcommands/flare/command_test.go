@@ -6,6 +6,7 @@
 package flare
 
 import (
+	"maps"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -39,6 +40,8 @@ func getPprofTestServer(t *testing.T) (tcpServer *httptest.Server, unixServer *h
 			w.Write([]byte("block"))
 		case "/debug/stats": // only for system-probe
 			w.WriteHeader(200)
+		case "/debug/pprof/trace":
+			w.Write([]byte("trace"))
 		default:
 			w.WriteHeader(500)
 		}
@@ -59,9 +62,6 @@ func getPprofTestServer(t *testing.T) (tcpServer *httptest.Server, unixServer *h
 }
 
 func TestReadProfileData(t *testing.T) {
-	if runtime.GOOS == "darwin" {
-		t.Skip("FIXME: Failing test on macOS - #incident-26991")
-	}
 	ts, uts := getPprofTestServer(t)
 	t.Cleanup(func() {
 		ts.Close()
@@ -97,26 +97,35 @@ func TestReadProfileData(t *testing.T) {
 		"core-block.pprof":              []byte("block"),
 		"core-cpu.pprof":                []byte("10_sec_cpu_pprof"),
 		"core-mutex.pprof":              []byte("mutex"),
+		"core.trace":                    []byte("trace"),
 		"process-1st-heap.pprof":        []byte("heap_profile"),
 		"process-2nd-heap.pprof":        []byte("heap_profile"),
 		"process-block.pprof":           []byte("block"),
 		"process-cpu.pprof":             []byte("10_sec_cpu_pprof"),
 		"process-mutex.pprof":           []byte("mutex"),
+		"process.trace":                 []byte("trace"),
 		"security-agent-1st-heap.pprof": []byte("heap_profile"),
 		"security-agent-2nd-heap.pprof": []byte("heap_profile"),
 		"security-agent-block.pprof":    []byte("block"),
 		"security-agent-cpu.pprof":      []byte("10_sec_cpu_pprof"),
 		"security-agent-mutex.pprof":    []byte("mutex"),
+		"security-agent.trace":          []byte("trace"),
 		"trace-1st-heap.pprof":          []byte("heap_profile"),
 		"trace-2nd-heap.pprof":          []byte("heap_profile"),
 		"trace-block.pprof":             []byte("block"),
 		"trace-cpu.pprof":               []byte("10_sec_cpu_pprof"),
 		"trace-mutex.pprof":             []byte("mutex"),
-		"system-probe-1st-heap.pprof":   []byte("heap_profile"),
-		"system-probe-2nd-heap.pprof":   []byte("heap_profile"),
-		"system-probe-block.pprof":      []byte("block"),
-		"system-probe-cpu.pprof":        []byte("10_sec_cpu_pprof"),
-		"system-probe-mutex.pprof":      []byte("mutex"),
+		"trace.trace":                   []byte("trace"),
+	}
+	if runtime.GOOS != "darwin" {
+		maps.Copy(expected, flare.ProfileData{
+			"system-probe-1st-heap.pprof": []byte("heap_profile"),
+			"system-probe-2nd-heap.pprof": []byte("heap_profile"),
+			"system-probe-block.pprof":    []byte("block"),
+			"system-probe-cpu.pprof":      []byte("10_sec_cpu_pprof"),
+			"system-probe-mutex.pprof":    []byte("mutex"),
+			"system-probe.trace":          []byte("trace"),
+		})
 	}
 
 	require.Len(t, data, len(expected), "expected pprof data has more or less profiles than expected")
@@ -126,9 +135,6 @@ func TestReadProfileData(t *testing.T) {
 }
 
 func TestReadProfileDataNoTraceAgent(t *testing.T) {
-	if runtime.GOOS == "darwin" {
-		t.Skip("FIXME: Failing test on macOS - #incident-26991")
-	}
 	ts, uts := getPprofTestServer(t)
 	t.Cleanup(func() {
 		ts.Close()
@@ -165,21 +171,29 @@ func TestReadProfileDataNoTraceAgent(t *testing.T) {
 		"core-block.pprof":              []byte("block"),
 		"core-cpu.pprof":                []byte("10_sec_cpu_pprof"),
 		"core-mutex.pprof":              []byte("mutex"),
+		"core.trace":                    []byte("trace"),
 		"process-1st-heap.pprof":        []byte("heap_profile"),
 		"process-2nd-heap.pprof":        []byte("heap_profile"),
 		"process-block.pprof":           []byte("block"),
 		"process-cpu.pprof":             []byte("10_sec_cpu_pprof"),
 		"process-mutex.pprof":           []byte("mutex"),
+		"process.trace":                 []byte("trace"),
 		"security-agent-1st-heap.pprof": []byte("heap_profile"),
 		"security-agent-2nd-heap.pprof": []byte("heap_profile"),
 		"security-agent-block.pprof":    []byte("block"),
 		"security-agent-cpu.pprof":      []byte("10_sec_cpu_pprof"),
 		"security-agent-mutex.pprof":    []byte("mutex"),
-		"system-probe-1st-heap.pprof":   []byte("heap_profile"),
-		"system-probe-2nd-heap.pprof":   []byte("heap_profile"),
-		"system-probe-block.pprof":      []byte("block"),
-		"system-probe-cpu.pprof":        []byte("10_sec_cpu_pprof"),
-		"system-probe-mutex.pprof":      []byte("mutex"),
+		"security-agent.trace":          []byte("trace"),
+	}
+	if runtime.GOOS != "darwin" {
+		maps.Copy(expected, flare.ProfileData{
+			"system-probe-1st-heap.pprof": []byte("heap_profile"),
+			"system-probe-2nd-heap.pprof": []byte("heap_profile"),
+			"system-probe-block.pprof":    []byte("block"),
+			"system-probe-cpu.pprof":      []byte("10_sec_cpu_pprof"),
+			"system-probe-mutex.pprof":    []byte("mutex"),
+			"system-probe.trace":          []byte("trace"),
+		})
 	}
 
 	require.Len(t, data, len(expected), "expected pprof data has more or less profiles than expected")

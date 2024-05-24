@@ -104,6 +104,7 @@ func MakeCommand() *cobra.Command {
 					path.DefaultLogFile,
 					path.DefaultJmxLogFile,
 					path.DefaultDogstatsDLogFile,
+					path.DefaultStreamlogsLogFile,
 				)),
 				fx.Supply(optional.NewNoneOption[autodiscovery.Component]()),
 				flare.Module(),

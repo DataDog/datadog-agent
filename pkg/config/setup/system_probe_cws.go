@@ -34,9 +34,13 @@ func initCWSSystemProbeConfig(cfg pkgconfigmodel.Config) {
 	cfg.BindEnvAndSetDefault("runtime_security_config.self_test.enabled", true)
 	cfg.BindEnvAndSetDefault("runtime_security_config.self_test.send_report", true)
 	cfg.BindEnvAndSetDefault("runtime_security_config.remote_configuration.enabled", true)
+	cfg.BindEnvAndSetDefault("runtime_security_config.remote_configuration.dump_policies", false)
 	cfg.BindEnvAndSetDefault("runtime_security_config.direct_send_from_system_probe", false)
 	cfg.BindEnvAndSetDefault("runtime_security_config.use_secruntime_track", false)
 	cfg.BindEnvAndSetDefault("runtime_security_config.compliance_module.enabled", false)
+
+	cfg.SetDefault("runtime_security_config.windows_filename_cache_max", 16384)
+	cfg.SetDefault("runtime_security_config.windows_registry_cache_max", 4096)
 
 	// CWS - activity dump
 	cfg.BindEnvAndSetDefault("runtime_security_config.activity_dump.enabled", true)
@@ -105,6 +109,7 @@ func initCWSSystemProbeConfig(cfg pkgconfigmodel.Config) {
 	cfg.BindEnvAndSetDefault("runtime_security_config.hash_resolver.max_hash_burst", 1000)
 	cfg.BindEnvAndSetDefault("runtime_security_config.hash_resolver.hash_algorithms", []string{"sha1", "sha256", "ssdeep"})
 	cfg.BindEnvAndSetDefault("runtime_security_config.hash_resolver.cache_size", 500)
+	cfg.BindEnvAndSetDefault("runtime_security_config.hash_resolver.replace", map[string]string{})
 
 	// CWS - UserSessions
 	cfg.BindEnvAndSetDefault("runtime_security_config.user_sessions.cache_size", 1024)

@@ -9,6 +9,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -24,16 +25,6 @@ const (
 )
 
 var installerUnits = []string{installerUnit, installerUnitExp}
-
-// PreSetupInstaller creates the necessary directories for the installer to be installed.
-// FIXME: This is a preinst and I feel bad about it
-func PreSetupInstaller() error {
-	err := os.MkdirAll("/opt/datadog-packages", 0755)
-	if err != nil {
-		return fmt.Errorf("error creating /opt/datadog-packages: %w", err)
-	}
-	return nil
-}
 
 func addDDAgentUser(ctx context.Context) error {
 	if _, err := user.Lookup("dd-agent"); err == nil {
@@ -72,25 +63,70 @@ func SetupInstaller(ctx context.Context) (err error) {
 	if err != nil {
 		return fmt.Errorf("error getting dd-agent user and group IDs: %w", err)
 	}
+	err = os.MkdirAll("/etc/datadog-agent", 0755)
+	if err != nil {
+		return fmt.Errorf("error creating /etc/datadog-agent: %w", err)
+	}
 	err = os.MkdirAll("/var/log/datadog", 0755)
 	if err != nil {
 		return fmt.Errorf("error creating /var/log/datadog: %w", err)
 	}
-	err = os.MkdirAll("/var/run/datadog-packages", 0777)
+	err = os.MkdirAll("/var/run/datadog/installer", 0755)
 	if err != nil {
-		return fmt.Errorf("error creating /var/run/datadog-packages: %w", err)
+		return fmt.Errorf("error creating /var/run/datadog/installer: %w", err)
+	}
+	err = os.MkdirAll("/var/run/datadog/installer/locks", 0777)
+	if err != nil {
+		return fmt.Errorf("error creating /var/run/datadog/installer/locks: %w", err)
 	}
 	// Locks directory can already be created by a package install
-	err = os.Chmod("/var/run/datadog-packages", 0777)
+	err = os.Chmod("/var/run/datadog/installer/locks", 0777)
 	if err != nil {
-		return fmt.Errorf("error changing permissions of /var/run/datadog-packages: %w", err)
+		return fmt.Errorf("error changing permissions of /var/run/datadog/installer/locks: %w", err)
+	}
+	err = os.Chown("/etc/datadog-agent", ddAgentUID, ddAgentGID)
+	if err != nil {
+		return fmt.Errorf("error changing owner of /etc/datadog-agent: %w", err)
 	}
 	err = os.Chown("/var/log/datadog", ddAgentUID, ddAgentGID)
 	if err != nil {
 		return fmt.Errorf("error changing owner of /var/log/datadog: %w", err)
 	}
+	err = os.Chown("/var/run/datadog", ddAgentUID, ddAgentGID)
+	if err != nil {
+		return fmt.Errorf("error changing owner of /var/run/datadog: %w", err)
+	}
+	err = os.Chown("/var/run/datadog/installer", ddAgentUID, ddAgentGID)
+	if err != nil {
+		return fmt.Errorf("error changing owner of /var/run/datadog/installer: %w", err)
+	}
 
-	// FIXME(Arthur): enable the daemon unit by default and use the same strategy as the agent
+	// Create installer path symlink
+	err = os.Symlink("/opt/datadog-packages/datadog-installer/stable/bin/installer/installer", "/usr/bin/datadog-installer")
+	if err != nil && errors.Is(err, os.ErrExist) {
+		log.Info("Installer symlink already exists, skipping")
+	} else if err != nil {
+		return fmt.Errorf("error creating symlink to /usr/bin/datadog-installer: %w", err)
+	}
+
+	// Set up defaults for packages interacting with each other
+	if err = configureSocketsEnv(); err != nil {
+		return
+	}
+	if err = addSystemDEnvOverrides(agentUnit); err != nil {
+		return
+	}
+	if err = addSystemDEnvOverrides(agentExp); err != nil {
+		return
+	}
+	if err = addSystemDEnvOverrides(traceAgentUnit); err != nil {
+		return
+	}
+	if err = addSystemDEnvOverrides(traceAgentExp); err != nil {
+		return
+	}
+
+	// FIXME(Arthur): enable the daemon unit by default and use the same strategy as the system probe
 	if os.Getenv("DD_REMOTE_UPDATES") != "true" {
 		return nil
 	}
@@ -122,6 +158,7 @@ func SetupInstaller(ctx context.Context) (err error) {
 	return startInstallerStable(ctx)
 }
 
+// getAgentIDs returns the UID and GID of the dd-agent user and group.
 func getAgentIDs() (uid, gid int, err error) {
 	ddAgentUser, err := user.Lookup("dd-agent")
 	if err != nil {
@@ -151,6 +188,12 @@ func startInstallerStable(ctx context.Context) (err error) {
 func RemoveInstaller(ctx context.Context) {
 	for _, unit := range installerUnits {
 		if err := stopUnit(ctx, unit); err != nil {
+			exitErr, ok := err.(*exec.ExitError)
+			// unit is not installed, avoid noisy warn logs
+			// https://www.freedesktop.org/software/systemd/man/latest/systemd.exec.html#Process%20Exit%20Codes
+			if ok && exitErr.ExitCode() == 5 {
+				continue
+			}
 			log.Warnf("Failed stop unit %s: %s", unit, err)
 		}
 		if err := disableUnit(ctx, unit); err != nil {
@@ -160,11 +203,16 @@ func RemoveInstaller(ctx context.Context) {
 			log.Warnf("Failed to stop %s: %s", unit, err)
 		}
 	}
+
+	// Remove symlink
+	if err := os.Remove("/usr/bin/datadog-installer"); err != nil {
+		log.Warnf("Failed to remove /usr/bin/datadog-installer: %s", err)
+	}
 }
 
 // StartInstallerExperiment installs the experimental systemd units for the installer
 func StartInstallerExperiment(ctx context.Context) error {
-	return startUnit(ctx, installerUnitExp)
+	return startUnit(ctx, installerUnitExp, "--no-block")
 }
 
 // StopInstallerExperiment starts the stable systemd units for the installer

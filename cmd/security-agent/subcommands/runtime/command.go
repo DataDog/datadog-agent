@@ -418,6 +418,24 @@ func newFakeWindowsEvent() eval.Event {
 	return winmodel.NewFakeEvent()
 }
 
+func newEvalOpts(winModel bool) *eval.Opts {
+	var evalOpts eval.Opts
+
+	if winModel {
+		evalOpts.
+			WithConstants(winmodel.SECLConstants()).
+			WithLegacyFields(winmodel.SECLLegacyFields).
+			WithVariables(model.SECLVariables)
+	} else {
+		evalOpts.
+			WithConstants(model.SECLConstants()).
+			WithLegacyFields(model.SECLLegacyFields).
+			WithVariables(model.SECLVariables)
+	}
+
+	return &evalOpts
+}
+
 func checkPoliciesLocal(args *checkPoliciesCliParams, writer io.Writer) error {
 	cfg := &pconfig.Config{
 		EnableKernelFilters: true,
@@ -429,7 +447,8 @@ func checkPoliciesLocal(args *checkPoliciesCliParams, writer io.Writer) error {
 	// enabled all the rules
 	enabled := map[eval.EventType]bool{"*": true}
 
-	ruleOpts, evalOpts := rules.NewEvalOpts(enabled)
+	ruleOpts := rules.NewRuleOpts(enabled)
+	evalOpts := newEvalOpts(args.windowsModel)
 
 	ruleOpts.WithLogger(seclog.DefaultLogger)
 
@@ -548,7 +567,8 @@ func evalRule(_ log.Component, _ config.Component, _ secrets.Component, evalArgs
 	// enabled all the rules
 	enabled := map[eval.EventType]bool{"*": true}
 
-	ruleOpts, evalOpts := rules.NewEvalOpts(enabled)
+	ruleOpts := rules.NewRuleOpts(enabled)
+	evalOpts := newEvalOpts(evalArgs.windowsModel)
 	ruleOpts.WithLogger(seclog.DefaultLogger)
 
 	agentVersionFilter, err := newAgentVersionFilter()
@@ -727,7 +747,7 @@ func downloadPolicy(log log.Component, config config.Component, _ secrets.Compon
 		outputWriter = f
 	}
 
-	downloadURL := fmt.Sprintf("https://api.%s/api/v2/security/cloud_workload/policy/download", site)
+	downloadURL := fmt.Sprintf("https://api.%s/api/v2/remote_config/products/cws/policy/download", site)
 	fmt.Fprintf(os.Stderr, "Policy download url: %s\n", downloadURL)
 
 	headers := map[string]string{

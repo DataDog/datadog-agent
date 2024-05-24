@@ -10,8 +10,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/api/api"
+	apiutils "github.com/DataDog/datadog-agent/comp/api/api/utils"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	"github.com/DataDog/datadog-agent/comp/core/log"
@@ -143,6 +146,7 @@ type provides struct {
 	Comp          inventoryhost.Component
 	Provider      runnerimpl.Provider
 	FlareProvider flaretypes.Provider
+	Endpoint      api.AgentEndpointProvider
 }
 
 func newInventoryHostProvider(deps dependencies) provides {
@@ -159,6 +163,7 @@ func newInventoryHostProvider(deps dependencies) provides {
 		Comp:          ih,
 		Provider:      ih.MetadataProvider(),
 		FlareProvider: ih.FlareProvider(),
+		Endpoint:      api.NewAgentEndpointProvider(ih.writePayloadAsJSON, "/metadata/inventory-host", "GET"),
 	}
 }
 
@@ -254,4 +259,14 @@ func (ih *invHost) getPayload() marshaler.JSONMarshaler {
 		Metadata:  ih.data,
 		UUID:      uuid.GetUUID(),
 	}
+}
+
+func (ih *invHost) writePayloadAsJSON(w http.ResponseWriter, _ *http.Request) {
+	// GetAsJSON already return scrubbed data
+	scrubbed, err := ih.GetAsJSON()
+	if err != nil {
+		apiutils.SetJSONError(w, err, 500)
+		return
+	}
+	w.Write(scrubbed)
 }

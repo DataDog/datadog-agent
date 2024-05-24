@@ -3,13 +3,13 @@ from __future__ import annotations
 import itertools
 import json
 import os
-import platform
 import re
 import tempfile
 from collections import defaultdict
+from collections.abc import Iterable
 from glob import glob
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Iterable, cast
+from typing import TYPE_CHECKING, Any, cast
 
 from invoke.context import Context
 from invoke.tasks import task
@@ -18,7 +18,7 @@ from tasks.kernel_matrix_testing import stacks, vmconfig
 from tasks.kernel_matrix_testing.ci import KMTTestRunJob, get_all_jobs_for_pipeline
 from tasks.kernel_matrix_testing.compiler import CONTAINER_AGENT_PATH, all_compilers, get_compiler
 from tasks.kernel_matrix_testing.config import ConfigManager
-from tasks.kernel_matrix_testing.download import arch_mapping, update_rootfs
+from tasks.kernel_matrix_testing.download import arch_mapping, full_arch, update_rootfs
 from tasks.kernel_matrix_testing.infra import (
     SSH_OPTIONS,
     HostInstance,
@@ -34,8 +34,10 @@ from tasks.kernel_matrix_testing.kmt_os import get_kmt_os
 from tasks.kernel_matrix_testing.platforms import get_platforms, platforms_file
 from tasks.kernel_matrix_testing.stacks import check_and_get_stack, ec2_instance_ids
 from tasks.kernel_matrix_testing.tool import Exit, ask, error, get_binary_target_arch, info, warn
+from tasks.kernel_matrix_testing.vars import arch_ls
 from tasks.libs.build.ninja import NinjaWriter
 from tasks.libs.common.utils import get_build_flags
+from tasks.security_agent import build_functional_tests, build_stress_tests
 from tasks.system_probe import (
     BPF_TAG,
     EMBEDDED_SHARE_DIR,
@@ -47,8 +49,6 @@ from tasks.system_probe import (
     go_package_dirs,
     ninja_generate,
 )
-from tasks.security_agent import build_functional_tests, build_stress_tests
-from tasks.kernel_matrix_testing.vars import arch_ls
 
 if TYPE_CHECKING:
     from tasks.kernel_matrix_testing.types import (  # noqa: F401
@@ -84,6 +84,7 @@ LLC_PATH_CI = "/tmp/llc-bpf"
 
 CLANG_PATH_LOCAL = "/opt/datadog-agent/embedded/bin/clang-bpf"
 LLC_PATH_LOCAL = "/opt/datadog-agent/embedded/bin/llc-bpf"
+
 
 @task
 def create_stack(ctx, stack=None):
@@ -242,9 +243,14 @@ def ls(_, distro=True, custom=False):
     print(tabulate(vmconfig.get_image_list(distro, custom), headers='firstrow', tablefmt='fancy_grid'))
 
 
-@task
-def init(ctx: Context, lite=False):
-    init_kernel_matrix_testing_system(ctx, lite)
+@task(
+    help={
+        "lite": "If set, then do not download any VM images locally",
+        "images": "Comma separated list of images to update, instead of everything. The format of each image is '<os_id>-<os_version>'. Refer to platforms.json for the appropriate values for <os_id> and <os_version>.",
+    }
+)
+def init(ctx: Context, lite=False, images: str | None = None):
+    init_kernel_matrix_testing_system(ctx, lite, images)
     config_ssh_key(ctx)
 
 
@@ -329,8 +335,16 @@ def config_ssh_key(ctx: Context):
     )
 
 
-@task
-def update_resources(ctx: Context, vmconfig_template="system-probe", all_archs=False):
+@task(
+    help={
+        "vmconfig-template": "template to use for the target component",
+        "all_archs": "Download images for all supported architectures. By default only images for the host architecture are downloaded",
+        "images": "Comma separated list of images to update, instead of everything. The format of each image is '<os_id>-<os_version>'. Refer to platforms.json for the appropriate values for <os_id> and <os_version>.",
+    }
+)
+def update_resources(
+    ctx: Context, vmconfig_template="system-probe", all_archs: bool = False, images: str | None = None
+):
     kmt_os = get_kmt_os()
 
     warn("Updating resource dependencies will delete all running stacks.")
@@ -340,18 +354,13 @@ def update_resources(ctx: Context, vmconfig_template="system-probe", all_archs=F
     for stack in glob(f"{kmt_os.stacks_dir}/*"):
         destroy_stack(ctx, stack=os.path.basename(stack))
 
-    update_rootfs(ctx, kmt_os.rootfs_dir, vmconfig_template, all_archs=all_archs)
-
-
-@task
-def build_compiler(ctx: Context):
-    for cc in all_compilers(ctx):
-        cc.build()
+    update_rootfs(ctx, kmt_os.rootfs_dir, vmconfig_template, all_archs=all_archs, images=images)
 
 
 @task
 def start_compiler(ctx: Context):
     for cc in all_compilers(ctx):
+        info(f"[+] Starting compiler {cc.name}")
         cc.start()
 
 
@@ -399,12 +408,6 @@ def download_gotestsum(ctx: Context, arch: Arch, fgotestsum: PathOrStr):
     ctx.run(f"cp {paths.tools}/gotestsum {fgotestsum}")
 
 
-def full_arch(arch: ArchOrLocal) -> Arch:
-    if arch == "local":
-        return arch_mapping[platform.machine()]
-    return arch
-
-
 class KMTPaths:
     def __init__(self, stack: str | None, arch: Arch):
         self.stack = stack
@@ -450,6 +453,7 @@ class KMTPaths:
 def is_root():
     return os.getuid() == 0
 
+
 def ninja_define_rules(nw: NinjaWriter):
     # go build does not seem to be designed to run concurrently on the same
     # source files. To make go build work with ninja we create a pool to force
@@ -465,7 +469,7 @@ def ninja_define_rules(nw: NinjaWriter):
         name="gobin",
         command="$chdir && $env $go build -o $out $tags $ldflags $in $tool",
     )
-    nw.rule(name="copyfiles", command="install -D $in $out $mode")
+    nw.rule(name="copyfiles", command="mkdir -p $$(dirname $out) && install $in $out $mode")
 
 
 def ninja_build_dependencies(nw: NinjaWriter, kmt_paths: KMTPaths, go_path: str):
@@ -521,10 +525,12 @@ def ninja_build_dependencies(nw: NinjaWriter, kmt_paths: KMTPaths, go_path: str)
     )
 
 
-def ninja_copy_ebpf_files(nw, component, kmt_paths, filter_fn = lambda _: True):
+def ninja_copy_ebpf_files(nw, component, kmt_paths, filter_fn=lambda _: True):
     # copy ebpf files
     ebpf_files = [
-        os.path.abspath(i) for i in glob("pkg/ebpf/bytecode/build/**/*", recursive=True) if os.path.isfile(i) and Path(i).suffix in ['.c', '.o'] and filter_fn(i)
+        os.path.abspath(i)
+        for i in glob("pkg/ebpf/bytecode/build/**/*", recursive=True)
+        if os.path.isfile(i) and Path(i).suffix in ['.c', '.o'] and filter_fn(i)
     ]
 
     output = kmt_paths.secagent_tests if component == "security-agent" else kmt_paths.sysprobe_tests
@@ -554,11 +560,11 @@ def kmt_secagent_prepare(
         bundle_ebpf=False,
         race=True,
         debug=True,
-        output=f"{kmt_paths.secagent_tests}/testsuite",
+        output=f"{kmt_paths.secagent_tests}/pkg/security/testsuite",
         skip_linters=True,
         skip_object_files=True,
     )
-    build_stress_tests(ctx, output=f"{kmt_paths.secagent_tests}/stresssuite", skip_linters=True)
+    build_stress_tests(ctx, output=f"{kmt_paths.secagent_tests}/pkg/security/stresssuite", skip_linters=True)
 
     go_path = "go"
     go_root = os.getenv("GOROOT")
@@ -571,9 +577,12 @@ def kmt_secagent_prepare(
 
         ninja_define_rules(nw)
         ninja_build_dependencies(nw, kmt_paths, go_path)
-        ninja_copy_ebpf_files(nw, "security-agent", kmt_paths, filter_fn = lambda x: os.path.basename(x).startswith("runtime-security"))
+        ninja_copy_ebpf_files(
+            nw, "security-agent", kmt_paths, filter_fn=lambda x: os.path.basename(x).startswith("runtime-security")
+        )
 
     ctx.run(f"ninja -d explain -v -f {nf_path}")
+
 
 @task
 def prepare(
@@ -589,7 +598,9 @@ def prepare(
 ):
     if not ci:
         stack = check_and_get_stack(stack)
-        assert stacks.stack_exists(stack), f"Stack {stack} does not exist. Please create with 'inv kmt.stack-create --stack=<name>'"
+        assert stacks.stack_exists(
+            stack
+        ), f"Stack {stack} does not exist. Please create with 'inv kmt.create-stack --stack=<name>'"
     else:
         stack = "ci"
 
@@ -621,7 +632,10 @@ def prepare(
     else:
         raise Exit(f"Component can only be 'system-probe' or 'security-agent'. {component} not supported.")
 
-    go_root = os.getenv("GOROOT")
+    go_root = os.getenv("GOPATH")
+    if go_root is None:
+        raise Exit("GOPATH is not set, cannot continue.")
+
     if not ci:
         download_gotestsum(ctx, arch, f"{go_root}/bin/gotestsum")
 
@@ -645,7 +659,8 @@ def prepare(
 
     for sf, df in copy_executables.items():
         if os.path.exists(sf) and not os.path.exists(df):
-            ctx.run(f"install -D {sf} {df}")
+            ctx.run(f"mkdir -p {os.path.dirname(df)}")
+            ctx.run(f"install {sf} {df}")
 
     if ci:
         return
@@ -766,6 +781,10 @@ def kmt_sysprobe_prepare(
                 variables["extra_arguments"] = extra_arguments
 
             go_files = [os.path.abspath(i) for i in glob(f"{pkg}/*.go")]
+
+            # We delete the output file to force ninja to rebuild the testsuite everytime
+            # because it cannot track go dependencies correctly.
+            ctx.run(f"rm -f {output_path}")
             nw.build(
                 inputs=[pkg],
                 outputs=[output_path],
@@ -775,16 +794,22 @@ def kmt_sysprobe_prepare(
                 variables=variables,
             )
 
-            testdata = os.path.join(pkg, "testdata")
-            if os.path.exists(testdata):
-                nw.build(inputs=[testdata], outputs=[os.path.join(target_path, "testdata")], rule="copyextra")
-
             if pkg.endswith("java"):
                 nw.build(
                     inputs=[os.path.join(pkg, "agent-usm.jar")],
                     outputs=[os.path.join(target_path, "agent-usm.jar")],
                     rule="copyfiles",
                 )
+
+        # handle testutils and testdata seperately since they are
+        # shared across packages
+        target_pkgs = build_target_packages([])
+        for pkg in target_pkgs:
+            target_path = os.path.join(kmt_paths.sysprobe_tests, os.path.relpath(pkg, os.getcwd()))
+
+            testdata = os.path.join(pkg, "testdata")
+            if os.path.exists(testdata):
+                nw.build(inputs=[testdata], outputs=[os.path.join(target_path, "testdata")], rule="copyextra")
 
             for gobin in [
                 "gotls_client",
@@ -810,6 +835,50 @@ def kmt_sysprobe_prepare(
                     )
 
     ctx.run(f"ninja -d explain -v -f {nf_path}")
+
+
+def images_matching_ci(ctx, domains):
+    platforms = get_platforms()
+    arch = full_arch("local")
+    kmt_os = get_kmt_os()
+
+    not_matches = list()
+    for tag in platforms[arch]:
+        platinfo = platforms[arch][tag]
+        vmid = f"{platinfo['os_id']}_{platinfo['os_version']}"
+
+        check_tag = False
+        for d in domains:
+            if vmid in d.name:
+                check_tag = True
+                break
+
+        if not check_tag:
+            continue
+
+        manifest_file = '.'.join(platinfo["image"].split('.')[:-2]) + ".manifest"
+
+        if not (kmt_os.rootfs_dir / manifest_file).exists():
+            not_matches.append(platinfo["image"])
+            continue
+
+        with open(kmt_os.rootfs_dir / manifest_file) as f:
+            for line in f:
+                key, value = line.strip().split('=', 1)
+                if key != "IMAGE_VERSION":
+                    continue
+
+                value = value.replace('"', '')
+                if value != platinfo["image_version"]:
+                    not_matches.append(platinfo["image"])
+
+    for name in not_matches:
+        warn(f"[-] {name} does not match version in CI")
+
+    if len(not_matches) > 0:
+        return False
+
+    return True
 
 
 @task(
@@ -843,15 +912,22 @@ def test(
     test_extra_arguments=None,
 ):
     stack = check_and_get_stack(stack)
-    assert stacks.stack_exists(stack), f"Stack {stack} does not exist. Please create with 'inv kmt.stack-create --stack=<name>'"
+    assert stacks.stack_exists(
+        stack
+    ), f"Stack {stack} does not exist. Please create with 'inv kmt.create-stack --stack=<name>'"
 
     if vms is None:
         vms = ",".join(stacks.get_all_vms_in_stack(stack))
         info(f"[+] Running tests on all VMs in stack {stack}: vms={vms}")
+
     ssh_key_obj = try_get_ssh_key(ctx, ssh_key)
     infra = build_infrastructure(stack, ssh_key_obj)
     domains = filter_target_domains(vms, infra)
     used_archs = get_archs_in_domains(domains)
+
+    if not images_matching_ci(ctx, domains):
+        if ask("Some VMs do not match version in CI. Continue anyway [y/N]") != "y":
+            return
 
     assert len(domains) > 0, f"no vms found from list {vms}. Run `inv -e kmt.status` to see all VMs in current stack"
 
@@ -927,18 +1003,24 @@ def build_layout(ctx, domains, layout: str, verbose: bool):
 )
 def build(
     ctx: Context,
-    vms: str,
+    vms: str | None = None,
     stack: str | None = None,
     ssh_key: str | None = None,
     verbose=True,
-    arch: ArchOrLocal | None = None,
-    layout: str | None = "tasks/kernel_matrix_testing/build-layout.json",
+    arch: str | None = None,
+    component: Component = "system-probe",
+    layout: str = "tasks/kernel_matrix_testing/build-layout.json",
 ):
     stack = check_and_get_stack(stack)
-    assert stacks.stack_exists(stack), f"Stack {stack} does not exist. Please create with 'inv kmt.stack-create --stack=<name>'"
+    assert stacks.stack_exists(
+        stack
+    ), f"Stack {stack} does not exist. Please create with 'inv kmt.create-stack --stack=<name>'"
 
     if arch is None:
         arch = "local"
+
+    if vms is None:
+        vms = ",".join(stacks.get_all_vms_in_stack(stack))
 
     assert os.path.exists(layout), f"File {layout} does not exist"
 
@@ -951,25 +1033,35 @@ def build(
     domains = filter_target_domains(vms, infra, arch)
     cc = get_compiler(ctx, arch)
 
+    if not images_matching_ci(ctx, domains):
+        if ask("Some VMs do not match version in CI. Continue anyway [y/N]") != "y":
+            return
+
     assert len(domains) > 0, f"no vms found from list {vms}. Run `inv -e kmt.status` to see all VMs in current stack"
 
+    cc.exec(f"cd {CONTAINER_AGENT_PATH} && inv -e system-probe.object-files")
+
+    build_task = "build-sysprobe-binary" if component == "system-probe" else "build"
     cc.exec(
-        f"cd {CONTAINER_AGENT_PATH} && git config --global --add safe.directory {CONTAINER_AGENT_PATH} && inv -e system-probe.build --no-bundle",
+        f"cd {CONTAINER_AGENT_PATH} && git config --global --add safe.directory {CONTAINER_AGENT_PATH} && inv -e {component}.{build_task} --no-bundle",
     )
+
     cc.exec(f"tar cf {CONTAINER_AGENT_PATH}/kmt-deps/{stack}/build-embedded-dir.tar {EMBEDDED_SHARE_DIR}")
 
     build_layout(ctx, domains, layout, verbose)
     for d in domains:
-        d.copy(ctx, "./bin/system-probe", "/root/")
+        d.copy(ctx, f"./bin/{component}", "/root/")
         d.copy(ctx, f"kmt-deps/{stack}/build-embedded-dir.tar", "/")
         d.run_cmd(ctx, "tar xf /build-embedded-dir.tar -C /", verbose=verbose)
-        info(f"[+] system-probe built for {d.name} @ /root")
+        info(f"[+] {component} built for {d.name} @ /root")
 
 
 @task
 def clean(ctx: Context, stack: str | None = None, container=False, image=False):
     stack = check_and_get_stack(stack)
-    assert stacks.stack_exists(stack), f"Stack {stack} does not exist. Please create with 'inv kmt.create-stack --stack=<name>'"
+    assert stacks.stack_exists(
+        stack
+    ), f"Stack {stack} does not exist. Please create with 'inv kmt.create-stack --stack=<name>'"
 
     cc = get_compiler(ctx, full_arch("local"))
     cc.exec("inv -e system-probe.clean", run_dir=CONTAINER_AGENT_PATH)
@@ -1333,7 +1425,7 @@ def explain_ci_failure(_, pipeline: str):
             failreason = testfail  # By default, we assume it's a test failure
 
             # Now check the artifacts, we'll guess why the job failed based on the size
-            for artifact in job.job_data.get("artifacts", []):
+            for artifact in job.job.artifacts:
                 if artifact.get("filename") == "artifacts.zip":
                     fsize = artifact.get("size", 0)
                     if fsize < 1500:

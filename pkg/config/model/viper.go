@@ -70,8 +70,7 @@ type safeConfig struct {
 	notificationReceivers []NotificationReceiver
 
 	// Proxy settings
-	proxiesOnce sync.Once
-	proxies     *Proxy
+	proxies *Proxy
 
 	// configEnvVars is the set of env vars that are consulted for
 	// configuration values.
@@ -740,8 +739,10 @@ func (c *safeConfig) CopyConfig(cfg Config) {
 		c.configSources = cfg.configSources
 		c.envPrefix = cfg.envPrefix
 		c.envKeyReplacer = cfg.envKeyReplacer
+		c.proxies = cfg.proxies
 		c.configEnvVars = cfg.configEnvVars
 		c.unknownKeys = cfg.unknownKeys
+		c.notificationReceivers = cfg.notificationReceivers
 		return
 	}
 	panic("Replacement config must be an instance of safeConfig")
@@ -749,20 +750,23 @@ func (c *safeConfig) CopyConfig(cfg Config) {
 
 // GetProxies returns the proxy settings from the configuration
 func (c *safeConfig) GetProxies() *Proxy {
-	c.proxiesOnce.Do(func() {
-		if c.GetBool("fips.enabled") {
-			return
-		}
-		if !c.IsSet("proxy.http") && !c.IsSet("proxy.https") && !c.IsSet("proxy.no_proxy") {
-			return
-		}
-		p := &Proxy{
-			HTTP:    c.GetString("proxy.http"),
-			HTTPS:   c.GetString("proxy.https"),
-			NoProxy: c.GetStringSlice("proxy.no_proxy"),
-		}
+	c.Lock()
+	defer c.Unlock()
+	if c.proxies != nil {
+		return c.proxies
+	}
+	if c.Viper.GetBool("fips.enabled") {
+		return nil
+	}
+	if !c.Viper.IsSet("proxy.http") && !c.Viper.IsSet("proxy.https") && !c.Viper.IsSet("proxy.no_proxy") {
+		return nil
+	}
+	p := &Proxy{
+		HTTP:    c.Viper.GetString("proxy.http"),
+		HTTPS:   c.Viper.GetString("proxy.https"),
+		NoProxy: c.Viper.GetStringSlice("proxy.no_proxy"),
+	}
 
-		c.proxies = p
-	})
+	c.proxies = p
 	return c.proxies
 }

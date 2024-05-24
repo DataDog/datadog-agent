@@ -162,9 +162,14 @@ int hook__do_fork(ctx_t *ctx) {
 
 SEC("tracepoint/sched/sched_process_fork")
 int sched_process_fork(struct _tracepoint_sched_process_fork *args) {
+    u64 sched_process_fork_parent_pid_offset;
+    LOAD_CONSTANT("sched_process_fork_parent_pid_offset", sched_process_fork_parent_pid_offset);
+    u64 sched_process_fork_child_pid_offset;
+    LOAD_CONSTANT("sched_process_fork_child_pid_offset", sched_process_fork_child_pid_offset);
+
     u32 pid = 0, parent_pid = 0;
-    bpf_probe_read(&pid, sizeof(pid), &args->child_pid);
-    bpf_probe_read(&parent_pid, sizeof(parent_pid), &args->parent_pid);
+    bpf_probe_read(&pid, sizeof(pid), (void *)args + sched_process_fork_child_pid_offset);
+    bpf_probe_read(&parent_pid, sizeof(parent_pid), (void *)args + sched_process_fork_parent_pid_offset);
     // ignore the rest if kworker
     struct syscall_cache_t *syscall = peek_syscall(EVENT_FORK);
     if (!syscall || syscall->fork.is_kthread || parent_pid == 2) {
@@ -455,7 +460,11 @@ void __attribute__((always_inline)) parse_args_envs(void *ctx, struct args_envs_
                     offset += bytes_read + 1; // count trailing 0
                 }
 
-                send_event(ctx, EVENT_ARGS_ENVS, event);
+                u64 size = offsetof(struct args_envs_event_t, value) + event.size;
+                if (size > sizeof(struct args_envs_event_t)) {
+                    size = sizeof(struct args_envs_event_t);
+                }
+                send_event_with_size_ptr(ctx, EVENT_ARGS_ENVS, &event, size);
                 event.size = 0;
             } else {
                 event.size += data_length;

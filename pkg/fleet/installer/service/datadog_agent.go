@@ -12,6 +12,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"os/exec"
 
 	"github.com/DataDog/datadog-agent/pkg/util/installinfo"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -19,6 +20,7 @@ import (
 )
 
 const (
+	agentSymlink      = "/usr/bin/datadog-agent"
 	agentUnit         = "datadog-agent.service"
 	traceAgentUnit    = "datadog-agent-trace.service"
 	processAgentUnit  = "datadog-agent-process.service"
@@ -61,16 +63,16 @@ func SetupAgent(ctx context.Context) (err error) {
 
 	for _, unit := range stableUnits {
 		if err = loadUnit(ctx, unit); err != nil {
-			return
+			return err
 		}
 	}
 	for _, unit := range experimentalUnits {
 		if err = loadUnit(ctx, unit); err != nil {
-			return
+			return err
 		}
 	}
 	if err = os.MkdirAll("/etc/datadog-agent", 0755); err != nil {
-		return
+		return err
 	}
 	ddAgentUID, ddAgentGID, err := getAgentIDs()
 	if err != nil {
@@ -78,34 +80,40 @@ func SetupAgent(ctx context.Context) (err error) {
 	}
 
 	if err = os.Chown("/etc/datadog-agent", ddAgentUID, ddAgentGID); err != nil {
-		return
+		return err
 	}
 
 	if err = systemdReload(ctx); err != nil {
-		return
+		return err
 	}
 
 	for _, unit := range stableUnits {
 		if err = enableUnit(ctx, unit); err != nil {
-			return
+			return err
 		}
 	}
-	for _, unit := range stableUnits {
-		if err = startUnit(ctx, unit); err != nil {
-			return
-		}
-	}
-	if err = createAgentSymlink(ctx); err != nil {
-		return
+	if err = exec.CommandContext(ctx, "ln", "-sf", "/opt/datadog-packages/datadog-agent/stable/bin/agent/agent", agentSymlink).Run(); err != nil {
+		return err
 	}
 
 	// write installinfo before start, or the agent could write it
 	// TODO: add installer version properly
 	if err = installinfo.WriteInstallInfo("installer_package", "manual_update"); err != nil {
-		return
+		return err
 	}
 
-	return
+	_, err = os.Stat("/etc/datadog-agent/datadog.yaml")
+	if err != nil && !os.IsNotExist(err) {
+		return err
+	}
+	// this is expected during a fresh install with the install script / asible / chef / etc...
+	// the config is populated afterwards by the install method and the agent is restarted
+	if !os.IsNotExist(err) {
+		if err = startUnit(ctx, agentUnit); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // RemoveAgent stops and removes the agent
@@ -142,7 +150,7 @@ func RemoveAgent(ctx context.Context) {
 			log.Warnf("Failed to remove %s: %s", unit, err)
 		}
 	}
-	if err := rmAgentSymlink(ctx); err != nil {
+	if err := os.Remove(agentSymlink); err != nil {
 		log.Warnf("Failed to remove agent symlink: %s", err)
 	}
 	installinfo.RmInstallInfo()
@@ -150,7 +158,7 @@ func RemoveAgent(ctx context.Context) {
 
 // StartAgentExperiment starts the agent experiment
 func StartAgentExperiment(ctx context.Context) error {
-	return startUnit(ctx, agentExp)
+	return startUnit(ctx, agentExp, "--no-block")
 }
 
 // StopAgentExperiment stops the agent experiment

@@ -84,7 +84,8 @@ func TestBuildVerifierStats(t *testing.T) {
 	for _, path := range objectFiles {
 		files = append(files, path)
 	}
-	stats, _, failedToLoad, err := BuildVerifierStats(&StatsOptions{ObjectFiles: files})
+	results, failedToLoad, err := BuildVerifierStats(&StatsOptions{ObjectFiles: files})
+	stats := results.Stats
 	require.NoError(t, err)
 
 	assert.True(t, len(stats) > 0)
@@ -125,11 +126,48 @@ func TestBuildVerifierStats(t *testing.T) {
 
 	// sanity check the values we can somehow bound
 	for _, stat := range stats {
-		if kversion >= kernel.VersionCode(5, 2, 0) {
-			assert.True(t, stat.VerificationTime.Value > 0)
-		}
 		assert.True(t, stat.StackDepth.Value >= 0 && stat.StackDepth.Value <= EBPFStackLimit)
 		assert.True(t, stat.InstructionsProcessedLimit.Value > 0 && stat.InstructionsProcessedLimit.Value <= bpfComplexity)
 		assert.True(t, stat.InstructionsProcessed.Value > 0 && stat.InstructionsProcessed.Value <= stat.InstructionsProcessedLimit.Value)
+	}
+}
+
+func TestParseRegisterState(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected *RegisterState
+	}{
+		{
+			name:  "SingleScalar",
+			input: "R0=inv0",
+			expected: &RegisterState{
+				Register: 0,
+				Live:     "",
+				Type:     "scalar",
+				Value:    "0",
+				Precise:  false,
+			},
+		},
+		{
+			name:  "WithOnlyMaxValues",
+			input: "R2_w=inv(id=2,smax_value=9223372032559808512,umax_value=18446744069414584320,var_off=(0x0;0xffffffff00000000),s32_min_value=0,s32_max_value=0,u32_max_value=0)",
+			expected: &RegisterState{
+				Register: 2,
+				Live:     "written",
+				Type:     "scalar",
+				Value:    "[0, 2^63 - 1]",
+				Precise:  false,
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			parts := singleRegStateRegex.FindStringSubmatch(tt.input)
+			result, err := parseRegisterState(parts)
+			require.NoError(t, err)
+			require.Equal(t, tt.expected, result)
+		})
 	}
 }

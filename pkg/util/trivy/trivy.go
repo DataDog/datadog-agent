@@ -11,10 +11,12 @@ package trivy
 import (
 	"context"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"runtime"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -40,6 +42,8 @@ import (
 	"github.com/aquasecurity/trivy/pkg/types"
 	"github.com/aquasecurity/trivy/pkg/vulnerability"
 	"github.com/containerd/containerd"
+	"github.com/containerd/containerd/errdefs"
+	"github.com/containerd/containerd/leases"
 	"github.com/docker/docker/client"
 
 	// This is required to load sqlite based RPM databases
@@ -66,6 +70,7 @@ type ContainerdAccessor func() (cutil.ContainerdItf, error)
 type collectorConfig struct {
 	clearCacheOnClose bool
 	maxCacheSize      int
+	overlayFSSupport  bool
 }
 
 // Collector uses trivy to generate a SBOM
@@ -167,6 +172,7 @@ func NewCollector(cfg config.Component, wmeta optional.Option[workloadmeta.Compo
 		config: collectorConfig{
 			clearCacheOnClose: cfg.GetBool("sbom.clear_cache_on_exit"),
 			maxCacheSize:      cfg.GetInt("sbom.cache.max_disk_size"),
+			overlayFSSupport:  cfg.GetBool("sbom.container_image.overlayfs_direct_scan"),
 		},
 		osScanner:   ospkg.NewScanner(),
 		langScanner: langpkg.NewScanner(),
@@ -244,7 +250,30 @@ func (c *Collector) ScanDockerImage(ctx context.Context, imgMeta *workloadmeta.C
 		return nil, fmt.Errorf("unable to convert docker image, err: %w", err)
 	}
 
+	if c.config.overlayFSSupport && fanalImage.inspect.GraphDriver.Name == "overlay2" {
+		return c.scanOverlayFS(ctx, fanalImage, imgMeta, scanOptions)
+	}
+
 	return c.scanImage(ctx, fanalImage, imgMeta, scanOptions)
+}
+
+func (c *Collector) scanOverlayFS(ctx context.Context, fanalImage *image, imgMeta *workloadmeta.ContainerImageMetadata, scanOptions sbom.ScanOptions) (sbom.Report, error) {
+	var layers []string
+	if layerDirs, ok := fanalImage.inspect.GraphDriver.Data["LowerDir"]; ok {
+		layers = append(layers, strings.Split(layerDirs, ":")...)
+	}
+
+	if layerDirs, ok := fanalImage.inspect.GraphDriver.Data["UpperDir"]; ok {
+		layers = append(layers, strings.Split(layerDirs, ":")...)
+	}
+
+	fs := NewFS(layers)
+	report, err := c.scanFilesystem(ctx, fs, ".", imgMeta, scanOptions)
+	if err != nil {
+		return nil, err
+	}
+
+	return report, nil
 }
 
 // ScanContainerdImage scans containerd image
@@ -255,6 +284,33 @@ func (c *Collector) ScanContainerdImage(ctx context.Context, imgMeta *workloadme
 	}
 	if err != nil {
 		return nil, fmt.Errorf("unable to convert containerd image, err: %w", err)
+	}
+
+	if c.config.overlayFSSupport && fanalImage.inspect.GraphDriver.Name == "overlay2" {
+		// Computing duration of containerd lease
+		deadline, _ := ctx.Deadline()
+		expiration := deadline.Sub(time.Now().Add(cleanupTimeout))
+
+		clClient := client.RawClient()
+
+		imageID := imgMeta.ID
+
+		// Adding a lease to cleanup dandling snaphots at expiration
+		ctx, done, err := clClient.WithLease(ctx,
+			leases.WithID(imageID),
+			leases.WithExpiration(expiration),
+		)
+		if err != nil && !errdefs.IsAlreadyExists(err) {
+			return nil, fmt.Errorf("unable to get a lease, err: %w", err)
+		}
+
+		report, err := c.scanOverlayFS(ctx, fanalImage, imgMeta, scanOptions)
+
+		if err := done(ctx); err != nil {
+			log.Warnf("Unable to cancel containerd lease with id: %s, err: %v", imageID, err)
+		}
+
+		return report, err
 	}
 
 	return c.scanImage(ctx, fanalImage, imgMeta, scanOptions)
@@ -292,23 +348,33 @@ func (c *Collector) ScanContainerdImageFromFilesystem(ctx context.Context, imgMe
 		}
 	}()
 
-	return c.scanFilesystem(ctx, imagePath, imgMeta, scanOptions)
+	return c.scanFilesystem(ctx, os.DirFS("/"), imagePath, imgMeta, scanOptions)
 }
 
-func (c *Collector) scanFilesystem(ctx context.Context, path string, imgMeta *workloadmeta.ContainerImageMetadata, scanOptions sbom.ScanOptions) (sbom.Report, error) {
+func (c *Collector) scanFilesystem(ctx context.Context, fsys fs.FS, path string, imgMeta *workloadmeta.ContainerImageMetadata, scanOptions sbom.ScanOptions) (sbom.Report, error) {
 	// For filesystem scans, it is required to walk the filesystem to get the cache key so caching does not add any value.
 	// TODO: Cache directly the trivy report for container images
 	cache := newMemoryCache()
 
-	fsArtifact, err := local2.NewArtifact(path, cache, getDefaultArtifactOption(path, scanOptions))
+	fsArtifact, err := local2.NewArtifact(fsys, path, cache, getDefaultArtifactOption(".", scanOptions))
 	if err != nil {
 		return nil, fmt.Errorf("unable to create artifact from fs, err: %w", err)
 	}
 
 	trivyReport, err := c.scan(ctx, fsArtifact, applier.NewApplier(cache), imgMeta, cache)
 	if err != nil {
+		if imgMeta != nil {
+			return nil, fmt.Errorf("unable to marshal report to sbom format for image %s, err: %w", imgMeta.ID, err)
+		}
 		return nil, fmt.Errorf("unable to marshal report to sbom format, err: %w", err)
 	}
+
+	log.Debugf("Found OS: %+v", trivyReport.Metadata.OS)
+	pkgCount := 0
+	for _, results := range trivyReport.Results {
+		pkgCount += len(results.Packages)
+	}
+	log.Debugf("Found %d packages", pkgCount)
 
 	return &Report{
 		Report:    trivyReport,
@@ -318,8 +384,8 @@ func (c *Collector) scanFilesystem(ctx context.Context, path string, imgMeta *wo
 }
 
 // ScanFilesystem scans file-system
-func (c *Collector) ScanFilesystem(ctx context.Context, path string, scanOptions sbom.ScanOptions) (sbom.Report, error) {
-	return c.scanFilesystem(ctx, path, nil, scanOptions)
+func (c *Collector) ScanFilesystem(ctx context.Context, fsys fs.FS, path string, scanOptions sbom.ScanOptions) (sbom.Report, error) {
+	return c.scanFilesystem(ctx, fsys, path, nil, scanOptions)
 }
 
 func (c *Collector) scan(ctx context.Context, artifact artifact.Artifact, applier applier.Applier, imgMeta *workloadmeta.ContainerImageMetadata, cache CacheWithCleaner) (*types.Report, error) {
