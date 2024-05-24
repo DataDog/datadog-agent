@@ -29,11 +29,16 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	commonpath "github.com/DataDog/datadog-agent/cmd/agent/common/path"
+	"github.com/DataDog/datadog-agent/cmd/agent/subcommands/streamlogs"
+	coreConfig "github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core"
 )
 
 // Module defines the fx options for this component.
 func Module() fxutil.Module {
 	return fxutil.Component(
+		core.Bundle(),
 		fx.Provide(newRemoteConfigClient),
 		fx.Provide(func(c rcclient.Component) optional.Option[rcclient.Component] {
 			return optional.NewOption[rcclient.Component](c)
@@ -55,12 +60,15 @@ type rcClient struct {
 	// Tasks are separated from the other products, because they must be executed once
 	taskListeners     []types.RCAgentTaskListener
 	settingsComponent settings.Component
+	Log log.Component
+	Config coreConfig.Component
 }
 
 type dependencies struct {
 	fx.In
 
 	Log log.Component
+	Config coreConfig.Component
 	Lc  fx.Lifecycle
 
 	Params            rcclient.Params             `optional:"true"`
@@ -120,6 +128,8 @@ func newRemoteConfigClient(deps dependencies) (rcclient.Component, error) {
 		client:            c,
 		clientMRF:         clientMRF,
 		settingsComponent: deps.SettingsComponent,
+		Log: deps.Log,
+		Config: deps.Config,
 	}
 
 	if config.IsRemoteConfigEnabled(config.Datadog) {
@@ -377,7 +387,9 @@ func (rc rcClient) agentTaskUpdateCallback(updates map[string]state.RawConfig, a
 				}
 			}
 		}(originalConfigPath, originalConfig)
-	}
+	}	
+	streamlogs.StreamLogs(rc.Log, rc.Config, getDefaultStreamLogParams())
+
 
 	// Check if one of the task reaches timeout
 	c := make(chan struct{})
@@ -394,4 +406,13 @@ func (rc rcClient) agentTaskUpdateCallback(updates map[string]state.RawConfig, a
 		// timed out
 		pkglog.Warnf("Timeout of at least one agent task configuration")
 	}
+}
+
+func getDefaultStreamLogParams() *streamlogs.CliParams {
+	var defaultRemoteConfigDuration = 60 * time.Second
+    return &streamlogs.CliParams{
+        FilePath: commonpath.DefaultStreamlogsLogFile,
+        Duration: defaultRemoteConfigDuration,
+        Quiet:    true,
+    }
 }
