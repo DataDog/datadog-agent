@@ -35,90 +35,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	activity_tree "github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree"
+	secprofModel "github.com/DataDog/datadog-agent/pkg/security/security_profile/model"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
 
 // DefaultProfileName used as default profile name
 const DefaultProfileName = "default"
-
-// EventFilteringProfileState is used to compute metrics for the event filtering feature
-type EventFilteringProfileState uint8
-
-const (
-	// NoProfile is used to count the events for which we didn't have a profile
-	NoProfile EventFilteringProfileState = iota
-	// ProfileAtMaxSize is used to count the events that didn't make it into a profile because their matching profile
-	// reached the max size threshold
-	ProfileAtMaxSize
-	// UnstableEventType is used to count the events that didn't make it into a profile because their matching profile was
-	// unstable for their event type
-	UnstableEventType
-	// StableEventType is used to count the events linked to a stable profile for their event type
-	StableEventType
-	// AutoLearning is used to count the event during the auto learning phase
-	AutoLearning
-	// WorkloadWarmup is used to count the learned events due to workload warm up time
-	WorkloadWarmup
-)
-
-func (efr EventFilteringProfileState) String() string {
-	switch efr {
-	case NoProfile:
-		return "no_profile"
-	case ProfileAtMaxSize:
-		return "profile_at_max_size"
-	case UnstableEventType:
-		return "unstable_event_type"
-	case StableEventType:
-		return "stable_event_type"
-	case AutoLearning:
-		return "auto_learning"
-	case WorkloadWarmup:
-		return "workload_warmup"
-	}
-	return ""
-}
-
-func (efr EventFilteringProfileState) toTag() string {
-	return "profile_state:" + efr.String()
-}
-
-func (efr EventFilteringProfileState) toProto() proto.EventProfileState {
-	switch efr {
-	case NoProfile:
-		return proto.EventProfileState_NO_PROFILE
-	case ProfileAtMaxSize:
-		return proto.EventProfileState_PROFILE_AT_MAX_SIZE
-	case UnstableEventType:
-		return proto.EventProfileState_UNSTABLE_PROFILE
-	case StableEventType:
-		return proto.EventProfileState_STABLE_PROFILE
-	case AutoLearning:
-		return proto.EventProfileState_AUTO_LEARNING
-	case WorkloadWarmup:
-		return proto.EventProfileState_WORKLOAD_WARMUP
-	}
-	return proto.EventProfileState_NO_PROFILE
-}
-
-// ProtoToState converts a proto state to a profile one
-func ProtoToState(eps proto.EventProfileState) EventFilteringProfileState {
-	switch eps {
-	case proto.EventProfileState_NO_PROFILE:
-		return NoProfile
-	case proto.EventProfileState_PROFILE_AT_MAX_SIZE:
-		return ProfileAtMaxSize
-	case proto.EventProfileState_UNSTABLE_PROFILE:
-		return UnstableEventType
-	case proto.EventProfileState_STABLE_PROFILE:
-		return StableEventType
-	case proto.EventProfileState_AUTO_LEARNING:
-		return AutoLearning
-	case proto.EventProfileState_WORKLOAD_WARMUP:
-		return WorkloadWarmup
-	}
-	return NoProfile
-}
 
 // EventFilteringResult is used to compute metrics for the event filtering feature
 type EventFilteringResult uint8
@@ -144,14 +66,32 @@ func (efr EventFilteringResult) toTag() string {
 	return ""
 }
 
+// ProtoToState converts a proto state to a profile one
+func ProtoToState(eps proto.EventProfileState) secprofModel.EventFilteringProfileState {
+	switch eps {
+	case proto.EventProfileState_NO_PROFILE:
+		return secprofModel.NoProfile
+	case proto.EventProfileState_PROFILE_AT_MAX_SIZE:
+		return secprofModel.ProfileAtMaxSize
+	case proto.EventProfileState_UNSTABLE_PROFILE:
+		return secprofModel.UnstableEventType
+	case proto.EventProfileState_STABLE_PROFILE:
+		return secprofModel.StableEventType
+	case proto.EventProfileState_AUTO_LEARNING:
+		return secprofModel.AutoLearning
+	case proto.EventProfileState_WORKLOAD_WARMUP:
+		return secprofModel.WorkloadWarmup
+	}
+	return secprofModel.NoProfile
+}
+
 var (
-	allEventFilteringProfileState = []EventFilteringProfileState{NoProfile, ProfileAtMaxSize, UnstableEventType, StableEventType, AutoLearning, WorkloadWarmup}
-	allEventFilteringResults      = []EventFilteringResult{InProfile, NotInProfile, NA}
+	allEventFilteringResults = []EventFilteringResult{InProfile, NotInProfile, NA}
 )
 
 type eventFilteringEntry struct {
 	eventType model.EventType
-	state     EventFilteringProfileState
+	state     secprofModel.EventFilteringProfileState
 	result    EventFilteringResult
 }
 
@@ -269,7 +209,7 @@ func (m *SecurityProfileManager) OnLocalStorageCleanup(files []string) {
 
 func (m *SecurityProfileManager) initMetricsMap() {
 	for i := model.EventType(0); i < model.MaxKernelEventType; i++ {
-		for _, state := range allEventFilteringProfileState {
+		for _, state := range secprofModel.AllEventFilteringProfileState {
 			for _, result := range allEventFilteringResults {
 				m.eventFiltering[eventFilteringEntry{
 					eventType: i,
@@ -593,7 +533,7 @@ func (m *SecurityProfileManager) stop() {
 	}
 }
 
-func (m *SecurityProfileManager) incrementEventFilteringStat(eventType model.EventType, state EventFilteringProfileState, result EventFilteringResult) {
+func (m *SecurityProfileManager) incrementEventFilteringStat(eventType model.EventType, state secprofModel.EventFilteringProfileState, result EventFilteringResult) {
 	m.eventFiltering[eventFilteringEntry{eventType, state, result}].Inc()
 }
 
@@ -656,7 +596,7 @@ func (m *SecurityProfileManager) SendStats() error {
 	}
 
 	for entry, count := range m.eventFiltering {
-		tags := []string{fmt.Sprintf("event_type:%s", entry.eventType), entry.state.toTag(), entry.result.toTag()}
+		tags := []string{fmt.Sprintf("event_type:%s", entry.eventType), entry.state.ToTag(), entry.result.toTag()}
 		if value := count.Swap(0); value > 0 {
 			if err := m.statsdClient.Count(metrics.MetricSecurityProfileEventFiltering, int64(value), tags, 1.0); err != nil {
 				return fmt.Errorf("couldn't send MetricSecurityProfileEventFiltering metric: %w", err)
@@ -791,11 +731,11 @@ func (m *SecurityProfileManager) LookupEventInProfiles(event *model.Event) {
 	// lookup profile
 	profile := m.GetProfile(selector)
 	if profile == nil || profile.ActivityTree == nil {
-		m.incrementEventFilteringStat(event.GetEventType(), NoProfile, NA)
+		m.incrementEventFilteringStat(event.GetEventType(), secprofModel.NoProfile, NA)
 		return
 	}
 	if !profile.IsEventTypeValid(event.GetEventType()) || !profile.loadedInKernel {
-		m.incrementEventFilteringStat(event.GetEventType(), NoProfile, NA)
+		m.incrementEventFilteringStat(event.GetEventType(), secprofModel.NoProfile, NA)
 		return
 	}
 
@@ -828,39 +768,39 @@ func (m *SecurityProfileManager) LookupEventInProfiles(event *model.Event) {
 
 	// if we have one version of the profile in unstable for this event type, just skip the whole process
 	globalEventTypeProfilState := profile.GetGlobalEventTypeState(event.GetEventType())
-	if globalEventTypeProfilState == UnstableEventType {
-		m.incrementEventFilteringStat(event.GetEventType(), UnstableEventType, NA)
+	if globalEventTypeProfilState == secprofModel.UnstableEventType {
+		m.incrementEventFilteringStat(event.GetEventType(), secprofModel.UnstableEventType, NA)
 		return
 	}
 
 	profileState := m.tryAutolearn(profile, ctx, event, imageTag)
-	if profileState != NoProfile {
+	if profileState != secprofModel.NoProfile {
 		ctx.eventTypeState[event.GetEventType()].state = profileState
 	}
 	switch profileState {
-	case NoProfile, ProfileAtMaxSize, UnstableEventType:
+	case secprofModel.NoProfile, secprofModel.ProfileAtMaxSize, secprofModel.UnstableEventType:
 		// an error occurred or we are in unstable state
 		// do not link the profile to avoid sending anomalies
 		return
-	case AutoLearning, WorkloadWarmup:
+	case secprofModel.AutoLearning, secprofModel.WorkloadWarmup:
 		// the event was either already in the profile, or has just been inserted
 		FillProfileContextFromProfile(&event.SecurityProfileContext, profile, imageTag)
 		event.AddToFlags(model.EventFlagsSecurityProfileInProfile)
 
 		return
-	case StableEventType:
+	case secprofModel.StableEventType:
 		// check if the event is in its profile
 		// and if this is not an exec event, check if we can benefit of the occasion to add missing processes
 		insertMissingProcesses := false
 		if event.GetEventType() != model.ExecEventType {
-			if execState := m.getEventTypeState(profile, ctx, event, model.ExecEventType, imageTag); execState == AutoLearning || execState == WorkloadWarmup {
+			if execState := m.getEventTypeState(profile, ctx, event, model.ExecEventType, imageTag); execState == secprofModel.AutoLearning || execState == secprofModel.WorkloadWarmup {
 				insertMissingProcesses = true
 			}
 		}
 		found, err := profile.ActivityTree.Contains(event, insertMissingProcesses, imageTag, activity_tree.ProfileDrift, m.resolvers)
 		if err != nil {
 			// ignore, evaluation failed
-			m.incrementEventFilteringStat(event.GetEventType(), NoProfile, NA)
+			m.incrementEventFilteringStat(event.GetEventType(), secprofModel.NoProfile, NA)
 			return
 		}
 		FillProfileContextFromProfile(&event.SecurityProfileContext, profile, imageTag)
@@ -877,12 +817,12 @@ func (m *SecurityProfileManager) LookupEventInProfiles(event *model.Event) {
 }
 
 // tryAutolearn tries to autolearn the input event. It returns the profile state: stable, unstable, autolearning or workloadwarmup
-func (m *SecurityProfileManager) tryAutolearn(profile *SecurityProfile, ctx *VersionContext, event *model.Event, imageTag string) EventFilteringProfileState {
+func (m *SecurityProfileManager) tryAutolearn(profile *SecurityProfile, ctx *VersionContext, event *model.Event, imageTag string) secprofModel.EventFilteringProfileState {
 	profileState := m.getEventTypeState(profile, ctx, event, event.GetEventType(), imageTag)
 	var nodeType activity_tree.NodeGenerationType
-	if profileState == AutoLearning {
+	if profileState == secprofModel.AutoLearning {
 		nodeType = activity_tree.ProfileDrift
-	} else if profileState == WorkloadWarmup {
+	} else if profileState == secprofModel.WorkloadWarmup {
 		nodeType = activity_tree.WorkloadWarmup
 	} else { // Stable or Unstable state
 		return profileState
@@ -895,14 +835,14 @@ func (m *SecurityProfileManager) tryAutolearn(profile *SecurityProfile, ctx *Ver
 	insertMissingProcesses := false
 	if event.GetEventType() == model.ExecEventType {
 		insertMissingProcesses = true
-	} else if execState := m.getEventTypeState(profile, ctx, event, model.ExecEventType, imageTag); execState == AutoLearning || execState == WorkloadWarmup {
+	} else if execState := m.getEventTypeState(profile, ctx, event, model.ExecEventType, imageTag); execState == secprofModel.AutoLearning || execState == secprofModel.WorkloadWarmup {
 		insertMissingProcesses = true
 	}
 
 	newEntry, err := profile.ActivityTree.Insert(event, insertMissingProcesses, imageTag, nodeType, m.resolvers)
 	if err != nil {
-		m.incrementEventFilteringStat(event.GetEventType(), NoProfile, NA)
-		return NoProfile
+		m.incrementEventFilteringStat(event.GetEventType(), secprofModel.NoProfile, NA)
+		return secprofModel.NoProfile
 	} else if newEntry {
 		eventState, ok := ctx.eventTypeState[event.GetEventType()]
 		if ok { // should always be the case
@@ -912,7 +852,7 @@ func (m *SecurityProfileManager) tryAutolearn(profile *SecurityProfile, ctx *Ver
 		// if a previous version of this profile was stable for this event type,
 		// and a new entry was added, trigger an anomaly detection
 		globalEventTypeState := profile.GetGlobalEventTypeState(event.GetEventType())
-		if globalEventTypeState == StableEventType && m.canGenerateAnomaliesFor(event) {
+		if globalEventTypeState == secprofModel.StableEventType && m.canGenerateAnomaliesFor(event) {
 			event.AddToFlags(model.EventFlagsAnomalyDetectionEvent)
 		}
 
@@ -1013,57 +953,57 @@ func (m *SecurityProfileManager) FetchSilentWorkloads() map[cgroupModel.Workload
 	return out
 }
 
-func (m *SecurityProfileManager) getEventTypeState(profile *SecurityProfile, pctx *VersionContext, event *model.Event, eventType model.EventType, imageTag string) EventFilteringProfileState {
+func (m *SecurityProfileManager) getEventTypeState(profile *SecurityProfile, pctx *VersionContext, event *model.Event, eventType model.EventType, imageTag string) secprofModel.EventFilteringProfileState {
 	eventState, ok := pctx.eventTypeState[event.GetEventType()]
 	if !ok {
 		eventState = &EventTypeState{
 			lastAnomalyNano: pctx.firstSeenNano,
-			state:           AutoLearning,
+			state:           secprofModel.AutoLearning,
 		}
 		pctx.eventTypeState[eventType] = eventState
-	} else if eventState.state == UnstableEventType {
+	} else if eventState.state == secprofModel.UnstableEventType {
 		// If for the given event type we already are on UnstableEventType, just return
 		// (once reached, this state is immutable)
 		if eventType == event.GetEventType() { // increment stat only once for each event
-			m.incrementEventFilteringStat(eventType, UnstableEventType, NA)
+			m.incrementEventFilteringStat(eventType, secprofModel.UnstableEventType, NA)
 		}
-		return UnstableEventType
+		return secprofModel.UnstableEventType
 	}
 
 	var nodeType activity_tree.NodeGenerationType
-	var profileState EventFilteringProfileState
+	var profileState secprofModel.EventFilteringProfileState
 	// check if we are at the beginning of a workload lifetime
 	if event.ResolveEventTime().Sub(time.Unix(0, int64(event.ContainerContext.CreatedAt))) < m.config.RuntimeSecurity.AnomalyDetectionWorkloadWarmupPeriod {
 		nodeType = activity_tree.WorkloadWarmup
-		profileState = WorkloadWarmup
+		profileState = secprofModel.WorkloadWarmup
 	} else {
 		// If for the given event type we already are on StableEventType (and outside of the warmup period), just return
-		if eventState.state == StableEventType {
-			return StableEventType
+		if eventState.state == secprofModel.StableEventType {
+			return secprofModel.StableEventType
 		}
 
 		if eventType == event.GetEventType() { // update the stable/unstable states only for the event event type
 			// did we reached the stable state time limit ?
 			if time.Duration(event.TimestampRaw-eventState.lastAnomalyNano) >= m.config.RuntimeSecurity.GetAnomalyDetectionMinimumStablePeriod(eventType) {
-				eventState.state = StableEventType
+				eventState.state = secprofModel.StableEventType
 				// call the activity dump manager to stop dumping workloads from the current profile selector
 				if m.activityDumpManager != nil {
 					uniqueImageTagSeclector := profile.selector
 					uniqueImageTagSeclector.Tag = imageTag
 					m.activityDumpManager.StopDumpsWithSelector(uniqueImageTagSeclector)
 				}
-				return StableEventType
+				return secprofModel.StableEventType
 			}
 
 			// did we reached the unstable time limit ?
 			if time.Duration(event.TimestampRaw-profile.loadedNano) >= m.config.RuntimeSecurity.AnomalyDetectionUnstableProfileTimeThreshold {
-				eventState.state = UnstableEventType
-				return UnstableEventType
+				eventState.state = secprofModel.UnstableEventType
+				return secprofModel.UnstableEventType
 			}
 		}
 
 		nodeType = activity_tree.ProfileDrift
-		profileState = AutoLearning
+		profileState = secprofModel.AutoLearning
 	}
 
 	// check if the unstable size limit was reached, but only for the event event type
@@ -1073,16 +1013,16 @@ func (m *SecurityProfileManager) getEventTypeState(profile *SecurityProfile, pct
 		// rearming the lastAnomalyNano timer based on if it's something new or not.
 		found, err := profile.ActivityTree.Contains(event, false /*insertMissingProcesses*/, imageTag, nodeType, m.resolvers)
 		if err != nil {
-			m.incrementEventFilteringStat(eventType, NoProfile, NA)
-			return NoProfile
+			m.incrementEventFilteringStat(eventType, secprofModel.NoProfile, NA)
+			return secprofModel.NoProfile
 		} else if !found {
 			eventState.lastAnomalyNano = event.TimestampRaw
-		} else if profileState == WorkloadWarmup {
+		} else if profileState == secprofModel.WorkloadWarmup {
 			// if it's NOT something's new AND we are on container warmup period, just pretend
 			// we are in learning/warmup phase (as we know, this event is already present on the profile)
-			return WorkloadWarmup
+			return secprofModel.WorkloadWarmup
 		}
-		return ProfileAtMaxSize
+		return secprofModel.ProfileAtMaxSize
 	}
 	return profileState
 }

@@ -40,7 +40,7 @@ func SecurityProfileToProto(input *SecurityProfile) *proto.SecurityProfile {
 		for evtType, evtState := range ctx.eventTypeState {
 			outCtx.EventTypeState[uint32(evtType)] = &proto.EventTypeState{
 				LastAnomalyNano:   evtState.lastAnomalyNano,
-				EventProfileState: evtState.state.toProto(),
+				EventProfileState: evtState.state.ToProto(),
 			}
 		}
 		copy(outCtx.Syscalls, ctx.Syscalls)
