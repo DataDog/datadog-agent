@@ -135,7 +135,9 @@ static __always_inline int parse_varint_u16(u16 *out, u16 in, u32 *bytes)
         }
     }
 
-    *out = tmp;
+    // When lengths are stored as varints in the protocol, they are always
+    // stored as N + 1.
+    *out = tmp - 1;
     return true;
 }
 
@@ -160,7 +162,7 @@ static __always_inline s16 read_first_topic_name_size(pktbuf_t pkt, bool flexibl
             return 0;
         }
 
-        topic_name_size = topic_name_size_tmp2 - 1;
+        topic_name_size = topic_name_size_tmp;
         *offset += varint_bytes;
     } else {
         topic_name_size = bpf_ntohs(topic_name_size_raw);

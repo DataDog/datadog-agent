@@ -379,6 +379,8 @@ static __always_inline enum parse_result read_varint(kafka_response_context_t *r
         return RET_ERR;
     }
 
+    // When lengths are stored as varints in the protocol, they are always
+    // stored as N + 1.
     *out = value - 1;
     return RET_DONE;
 }
