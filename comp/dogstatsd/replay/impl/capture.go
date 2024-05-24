@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-2021 Datadog, Inc.
 
+//nolint:revive // TODO(AML) Fix revive linter
 package replay
 
 import (
@@ -13,29 +14,21 @@ import (
 	"time"
 
 	"github.com/spf13/afero"
-	"go.uber.org/fx"
 
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
+	compdef "github.com/DataDog/datadog-agent/comp/def"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/packets"
+	replay "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/def"
 	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
-const (
-	// GUID will be used as the GUID during capture replays
-	// This is a magic number chosen for no particular reason other than the fact its
-	// quite large an improbable to match an actual Group ID on any given box. We
-	// need this number to identify replayed Unix socket ancillary credentials.
-	GUID = 999888777
-)
-
-type dependencies struct {
-	fx.In
-
-	Lc     fx.Lifecycle
+//nolint:revive // TODO(AML) Fix revive linter
+type Requires struct {
+	Lc     compdef.Lifecycle
 	Config configComponent.Component
 }
 
-// TrafficCapture allows capturing traffic from our listeners and writing it to file
+// trafficCapture allows capturing traffic from our listeners and writing it to file
 type trafficCapture struct {
 	writer       *TrafficCaptureWriter
 	config       config.Reader
@@ -47,16 +40,18 @@ type trafficCapture struct {
 // TODO: (components) - remove once serverless is an FX app
 //
 //nolint:revive // TODO(AML) Fix revive linter
-func NewServerlessTrafficCapture() Component {
+func NewServerlessTrafficCapture() replay.Component {
 	tc := newTrafficCaptureCompat(config.Datadog)
 	_ = tc.configure(context.TODO())
 	return tc
 }
 
 // TODO: (components) - merge with newTrafficCaptureCompat once NewServerlessTrafficCapture is removed
-func newTrafficCapture(deps dependencies) Component {
+//
+//nolint:revive // TODO(AML) Fix revive linter
+func NewTrafficCapture(deps Requires) replay.Component {
 	tc := newTrafficCaptureCompat(deps.Config)
-	deps.Lc.Append(fx.Hook{
+	deps.Lc.Append(compdef.Hook{
 		OnStart: tc.configure,
 	})
 
@@ -134,7 +129,7 @@ func (tc *trafficCapture) RegisterOOBPoolManager(p *packets.PoolManager) error {
 }
 
 // Enqueue enqueues a capture buffer so it's written to file.
-func (tc *trafficCapture) Enqueue(msg *CaptureBuffer) bool {
+func (tc *trafficCapture) Enqueue(msg *replay.CaptureBuffer) bool {
 	tc.RLock()
 	defer tc.RUnlock()
 	return tc.writer.Enqueue(msg)

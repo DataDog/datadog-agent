@@ -13,10 +13,11 @@ import (
 )
 
 type defaultPackage struct {
-	name           string
-	released       bool
-	releasedBySite []string
-	condition      func(*env.Env) bool
+	name                      string
+	released                  bool
+	releasedBySite            []string
+	releasedWithRemoteUpdates bool
+	condition                 func(*env.Env) bool
 }
 
 var defaultPackagesList = []defaultPackage{
@@ -26,7 +27,7 @@ var defaultPackagesList = []defaultPackage{
 	{name: "datadog-apm-library-js", released: false, condition: apmInjectEnabled},
 	{name: "datadog-apm-library-dotnet", released: false, condition: apmInjectEnabled},
 	{name: "datadog-apm-library-python", released: false, condition: apmInjectEnabled},
-	{name: "datadog-agent", released: false},
+	{name: "datadog-agent", released: false, releasedWithRemoteUpdates: true},
 }
 
 // DefaultPackages resolves the default packages URLs to install based on the environment.
@@ -37,7 +38,7 @@ func DefaultPackages(env *env.Env) []string {
 func defaultPackages(env *env.Env, defaultPackages []defaultPackage) []string {
 	var packages []string
 	for _, p := range defaultPackages {
-		released := p.released || slices.Contains(p.releasedBySite, env.Site)
+		released := p.released || slices.Contains(p.releasedBySite, env.Site) || (p.releasedWithRemoteUpdates && env.RemoteUpdates)
 		installOverride, isOverridden := env.DefaultPackagesInstallOverride[p.name]
 		condition := p.condition == nil || p.condition(env)
 

@@ -3,33 +3,39 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-2021 Datadog, Inc.
 
-package replay
+//go:build test
+
+//nolint:revive // TODO(AML) Fix revive linter
+package mock
 
 import (
-	"context"
 	"sync"
+	"testing"
 	"time"
 
-	"go.uber.org/fx"
-
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/packets"
+	replay "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/def"
 )
+
+// Mock implements mock-specific methods.
+type Mock interface {
+	replay.Component
+}
+
+//nolint:revive // TODO(AML) Fix revive linter
+type Requires struct {
+	T testing.TB
+}
+
+//nolint:revive // TODO(AML) Fix revive linter
+func NewTrafficCapture(deps Requires) replay.Component {
+	tc := &mockTrafficCapture{}
+	return tc
+}
 
 type mockTrafficCapture struct {
 	isRunning bool
 	sync.RWMutex
-}
-
-func newMockTrafficCapture(deps dependencies) Component {
-	tc := &mockTrafficCapture{}
-	deps.Lc.Append(fx.Hook{
-		OnStart: tc.configure,
-	})
-	return tc
-}
-
-func (tc *mockTrafficCapture) configure(_ context.Context) error {
-	return nil
 }
 
 func (tc *mockTrafficCapture) IsOngoing() bool {
@@ -65,7 +71,7 @@ func (tc *mockTrafficCapture) RegisterOOBPoolManager(p *packets.PoolManager) err
 }
 
 //nolint:revive // TODO(AML) Fix revive linter
-func (tc *mockTrafficCapture) Enqueue(msg *CaptureBuffer) bool {
+func (tc *mockTrafficCapture) Enqueue(msg *replay.CaptureBuffer) bool {
 	return true
 }
 
