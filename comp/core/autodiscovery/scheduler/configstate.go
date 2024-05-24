@@ -9,6 +9,7 @@ import (
 	"sync"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	"github.com/mohae/deepcopy"
 )
 
 // ConfigState represents the state of the config: scheduled or unscheduled
@@ -18,7 +19,7 @@ type ConfigState int8
 type TaskStatus int8
 
 // Digest is the unique identifier of the config
-type Digest string
+type Digest uint64
 
 const (
 	// Scheduled config should be scheduled or is scheduled
@@ -36,9 +37,7 @@ type ConfigStateData struct {
 
 // copy returns a copy of ConfigStateData
 func (c ConfigStateData) copy() ConfigStateData {
-	var configCopy *integration.Config
-	originalConfig := *c.config
-	configCopy = &originalConfig
+	configCopy := deepcopy.Copy(c.config).(*integration.Config)
 	return ConfigStateData{
 		desiredState: c.desiredState,
 		config:       configCopy,
@@ -71,7 +70,7 @@ func (store *ConfigStateStore) UpdateDesiredState(changes integration.ConfigChan
 	digests := make([]Digest, 0, len(changes.Unschedule)+len(changes.Schedule))
 	if len(changes.Unschedule) > 0 {
 		for idx, config := range changes.Unschedule {
-			configDigest := Digest(config.Digest())
+			configDigest := Digest(config.FastDigest())
 			store.configStateMap[configDigest] = ConfigStateData{
 				desiredState: Unscheduled,
 				config:       &changes.Unschedule[idx],
@@ -81,7 +80,7 @@ func (store *ConfigStateStore) UpdateDesiredState(changes integration.ConfigChan
 	}
 	if len(changes.Schedule) > 0 {
 		for idx, config := range changes.Schedule {
-			configDigest := Digest(config.Digest())
+			configDigest := Digest(config.FastDigest())
 			store.configStateMap[configDigest] = ConfigStateData{
 				desiredState: Scheduled,
 				config:       &changes.Schedule[idx],

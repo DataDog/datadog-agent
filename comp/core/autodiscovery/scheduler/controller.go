@@ -30,7 +30,7 @@ type Controller struct {
 
 	// scheduledConfigs contains the set of configs that have been scheduled
 	// via the schedulerController, but not subsequently unscheduled.
-	scheduledConfigs map[string]*integration.Config
+	scheduledConfigs map[Digest]*integration.Config
 
 	// ConfigStateStore contains the desired state of configs
 	ConfigStateStore *ConfigStateStore
@@ -49,7 +49,7 @@ type workItem struct {
 // NewController inits a scheduler controller
 func NewController() *Controller {
 	schedulerController := Controller{
-		scheduledConfigs: make(map[string]*integration.Config),
+		scheduledConfigs: make(map[Digest]*integration.Config),
 		activeSchedulers: make(map[string]Scheduler),
 		queue:            workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "Controller"),
 		stopChannel:      make(chan struct{}),
@@ -72,7 +72,7 @@ func (ms *Controller) start() {
 // Register a new scheduler to receive configurations.
 // Previously scheduled configurations that have not subsequently been
 // unscheduled can be replayed with the replayConfigs flag.  This replay occurs
-// immediately, before the AddScheduler call returns.
+// immediately, before the Register call returns.
 func (ms *Controller) Register(name string, s Scheduler, replayConfigs bool) {
 	ms.m.Lock()
 	if _, ok := ms.activeSchedulers[name]; ok {
@@ -145,7 +145,7 @@ func (ms *Controller) processNextWorkItem() bool {
 		return false
 	}
 	configDigest := item.(workItem).digest
-	configState, found := ms.ConfigStateStore.GetConfigState(configDigest)
+	desiredConfigState, found := ms.ConfigStateStore.GetConfigState(configDigest)
 	if !found {
 		log.Warnf("config %s not found in ConfigStateStore", configDigest)
 		ms.queue.Done(item)
@@ -153,9 +153,9 @@ func (ms *Controller) processNextWorkItem() bool {
 	}
 
 	currentState := Unscheduled
-	desiredState := configState.desiredState
-	configName := configState.config.Name
-	if _, found := ms.scheduledConfigs[string(configDigest)]; found {
+	desiredState := desiredConfigState.desiredState
+	configName := desiredConfigState.config.Name
+	if _, found := ms.scheduledConfigs[configDigest]; found {
 		currentState = Scheduled
 	}
 	if desiredState == currentState {
@@ -167,12 +167,12 @@ func (ms *Controller) processNextWorkItem() bool {
 	for _, scheduler := range ms.activeSchedulers {
 		if desiredState == Scheduled {
 			//to be scheduled
-			scheduler.Schedule(([]integration.Config{*configState.config})) // TODO: check status of action
-			ms.scheduledConfigs[string(configDigest)] = configState.config
+			scheduler.Schedule(([]integration.Config{*desiredConfigState.config})) // TODO: check status of action
+			ms.scheduledConfigs[configDigest] = desiredConfigState.config
 		} else {
 			//to be unscheduled
-			scheduler.Unschedule(([]integration.Config{*configState.config})) // TODO: check status of action
-			delete(ms.scheduledConfigs, string(configDigest))
+			scheduler.Unschedule(([]integration.Config{*desiredConfigState.config})) // TODO: check status of action
+			delete(ms.scheduledConfigs, configDigest)
 		}
 	}
 	ms.m.Unlock()
@@ -190,15 +190,5 @@ func (ms *Controller) Stop() {
 	close(ms.stopChannel)
 	ms.queue.ShutDown()
 	ms.started = false
-	ms.scheduledConfigs = make(map[string]*integration.Config)
-}
-
-// Purge removes all scheduled configs and desired states, testing only
-func (ms *Controller) Purge() {
-	ms.queue.ShutDown()
-	ms.queue = workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "Controller")
-	ms.m.Lock()
-	defer ms.m.Unlock()
-	ms.scheduledConfigs = make(map[string]*integration.Config)
-	ms.ConfigStateStore.PurgeConfigStates()
+	ms.scheduledConfigs = make(map[Digest]*integration.Config)
 }
