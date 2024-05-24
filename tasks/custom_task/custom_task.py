@@ -32,7 +32,7 @@ def get_dd_invoke_logs_path() -> str:
     return os.path.join(temp_folder, DD_INVOKE_LOGS_FILE)
 
 
-def get_running_modes() -> dict[str, bool]:
+def get_running_modes() -> list[str]:
     """
     List the running modes of the task.
     If the task is run via pre-commit -> "pre_commit"
