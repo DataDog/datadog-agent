@@ -151,5 +151,5 @@ class CompilerImage:
         self.exec("touch /tmp/cross-compile-ready")  # Signal that we're ready for cross-compilation
 
 
-def get_compiler(ctx: Context, arch: str | Arch):
-    return CompilerImage(ctx, Arch.from_str(arch))
+def get_compiler(ctx: Context):
+    return CompilerImage(ctx, Arch.local())

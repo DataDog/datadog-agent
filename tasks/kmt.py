@@ -364,7 +364,7 @@ def update_resources(
 
 @task
 def start_compiler(ctx: Context):
-    cc = get_compiler(ctx, "local")
+    cc = get_compiler(ctx)
     info(f"[+] Starting compiler {cc.name}")
     cc.start()
 
@@ -404,7 +404,7 @@ def download_gotestsum(ctx: Context, arch: Arch, fgotestsum: PathOrStr):
     paths = KMTPaths(None, arch)
     paths.tools.mkdir(parents=True, exist_ok=True)
 
-    cc = get_compiler(ctx, arch)
+    cc = get_compiler(ctx)
     target_path = CONTAINER_AGENT_PATH / paths.tools.relative_to(paths.repo_root)
     cc.exec(
         f"cd {TOOLS_PATH} && go install {GOTESTSUM} && cp /go/bin/gotestsum {target_path}",
@@ -599,7 +599,7 @@ def prepare(
         raise Exit(
             f"Architecture {arch} (inferred {arch_obj}) is not supported. Supported architectures are amd64 and arm64"
         )
-    cc = get_compiler(ctx, "local")
+    cc = get_compiler(ctx)
 
     if arch_obj.is_cross_compiling():
         cc.ensure_ready_for_cross_compile()
@@ -1042,7 +1042,7 @@ def build(
     ssh_key_obj = try_get_ssh_key(ctx, ssh_key)
     infra = build_infrastructure(stack, ssh_key_obj)
     domains = filter_target_domains(vms, infra, arch_obj)
-    cc = get_compiler(ctx, arch_obj)
+    cc = get_compiler(ctx)
 
     if not images_matching_ci(ctx, domains):
         if ask("Some VMs do not match version in CI. Continue anyway [y/N]") != "y":
@@ -1074,7 +1074,7 @@ def clean(ctx: Context, stack: str | None = None, container=False, image=False):
         stack
     ), f"Stack {stack} does not exist. Please create with 'inv kmt.create-stack --stack=<name>'"
 
-    cc = get_compiler(ctx, "local")
+    cc = get_compiler(ctx)
     cc.exec("inv -e system-probe.clean", run_dir=CONTAINER_AGENT_PATH)
     ctx.run("rm -rf ./test/kitchen/site-cookbooks/dd-system-probe-check/files/default/tests/pkg")
     ctx.run(f"rm -rf kmt-deps/{stack}", warn=True)
