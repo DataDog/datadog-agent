@@ -356,7 +356,7 @@ func (t *tracerOffsetGuesser) checkAndUpdateCurrentOffset(mp *maps.GenericMap[ui
 			break
 		}
 
-		if t.status.Dport == htons(expected.dport) && t.status.Sport == expected.sport {
+		if t.status.Dport == htons(expected.dport) {
 			t.logAndAdvance(t.status.Offset_dport, GuessFamily)
 			// we know the family ((struct __sk_common)->skc_family) is
 			// after the skc_dport field, so we start from there
@@ -364,9 +364,7 @@ func (t *tracerOffsetGuesser) checkAndUpdateCurrentOffset(mp *maps.GenericMap[ui
 			break
 		}
 		t.status.Offset_dport++
-		t.status.Offset_sport++
 		t.status.Offset_dport, _ = skipOverlaps(t.status.Offset_dport, t.sockRanges())
-		t.status.Offset_sport, _ = skipOverlaps(t.status.Offset_sport, t.sockRanges())
 	case GuessFamily:
 		t.status.Offset_family, overlapped = skipOverlaps(t.status.Offset_family, t.sockRanges())
 		if overlapped {
@@ -375,11 +373,27 @@ func (t *tracerOffsetGuesser) checkAndUpdateCurrentOffset(mp *maps.GenericMap[ui
 		}
 
 		if t.status.Family == expected.family {
-			t.logAndAdvance(t.status.Offset_family, GuessSAddrFl4)
+			t.logAndAdvance(t.status.Offset_family, GuessSPort)
+			// we know the sport ((struct inet_sock)->inet_sport) is
+			// after the family field, so we start from there
+			t.status.Offset_sport = t.status.Offset_family
 			break
 		}
 		t.status.Offset_family++
 		t.status.Offset_family, _ = skipOverlaps(t.status.Offset_family, t.sockRanges())
+	case GuessSPort:
+		t.status.Offset_sport, overlapped = skipOverlaps(t.status.Offset_sport, t.sockRanges())
+		if overlapped {
+			// adjusted offset from eBPF overlapped with another field, we need to check new offset
+			break
+		}
+
+		if t.status.Sport == htons(expected.sport) {
+			t.logAndAdvance(t.status.Offset_sport, GuessSAddrFl4)
+			break
+		}
+		t.status.Offset_sport++
+		t.status.Offset_sport, _ = skipOverlaps(t.status.Offset_sport, t.sockRanges())
 	case GuessSAddrFl4:
 		t.status.Offset_saddr_fl4, overlapped = skipOverlaps(t.status.Offset_saddr_fl4, t.flowI4Ranges())
 		if overlapped {
@@ -577,7 +591,7 @@ func (t *tracerOffsetGuesser) checkAndUpdateCurrentOffset(mp *maps.GenericMap[ui
 		t.status.Offset_rtt, _ = skipOverlaps(t.status.Offset_rtt, t.sockRanges())
 		t.status.Offset_rtt_var = t.status.Offset_rtt + 4
 	case GuessSocketSK:
-		if t.status.Sport_via_sk == expected.sport && t.status.Dport_via_sk == htons(expected.dport) {
+		if t.status.Sport_via_sk == htons(expected.sport) && t.status.Dport_via_sk == htons(expected.dport) {
 			// if we are on kernel version < 4.7, net_dev_queue tracepoint will not be activated, and thus we should skip
 			// the guessing for `struct sk_buff`
 			next := GuessSKBuffSock
@@ -610,7 +624,7 @@ func (t *tracerOffsetGuesser) checkAndUpdateCurrentOffset(mp *maps.GenericMap[ui
 			break
 		}
 
-		if t.status.Sport_via_sk_via_sk_buf == expected.sportFl4 && t.status.Dport_via_sk_via_sk_buf == htons(expected.dportFl4) {
+		if t.status.Sport_via_sk_via_sk_buf == htons(expected.sportFl4) && t.status.Dport_via_sk_via_sk_buf == htons(expected.dportFl4) {
 			t.logAndAdvance(t.status.Offset_sk_buff_sock, GuessSKBuffTransportHeader)
 			break
 		}

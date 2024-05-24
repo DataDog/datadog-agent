@@ -13,6 +13,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"os/exec"
 	"path"
 	"strings"
 
@@ -20,22 +21,10 @@ import (
 	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
 )
 
-var (
-	injectorConfigPrefix = []byte("# BEGIN LD PRELOAD CONFIG")
-	injectorConfigSuffix = []byte("# END LD PRELOAD CONFIG")
-)
-
 const (
-	injectorConfigTemplate = `
-apm_config:
-  receiver_socket: %s
-use_dogstatsd: true
-dogstatsd_socket: %s
-`
-	datadogConfigPath = "/etc/datadog-agent/datadog.yaml"
-	ldSoPreloadPath   = "/etc/ld.so.preload"
-	injectorPath      = "/opt/datadog-packages/datadog-apm-inject/stable"
-	oldLDPath         = "/opt/datadog/apm/inject/launcher.preload.so"
+	injectorPath    = "/opt/datadog-packages/datadog-apm-inject/stable"
+	ldSoPreloadPath = "/etc/ld.so.preload"
+	oldLauncherPath = "/opt/datadog/apm/inject/launcher.preload.so"
 )
 
 // SetupAPMInjector sets up the injector at bootstrap
@@ -61,7 +50,6 @@ func newAPMInjectorInstaller(path string) *apmInjectorInstaller {
 	}
 	a.ldPreloadFileInstrument = newFileMutator(ldSoPreloadPath, a.setLDPreloadConfigContent, nil, nil)
 	a.ldPreloadFileUninstrument = newFileMutator(ldSoPreloadPath, a.deleteLDPreloadConfigContent, nil, nil)
-	a.agentConfigSockets = newFileMutator(datadogConfigPath, a.setAgentConfigContent, nil, nil)
 	a.dockerConfigInstrument = newFileMutator(dockerDaemonPath, a.setDockerConfigContent, nil, nil)
 	a.dockerConfigUninstrument = newFileMutator(dockerDaemonPath, a.deleteDockerConfigContent, nil, nil)
 	return a
@@ -71,49 +59,65 @@ type apmInjectorInstaller struct {
 	installPath               string
 	ldPreloadFileInstrument   *fileMutator
 	ldPreloadFileUninstrument *fileMutator
-	agentConfigSockets        *fileMutator
 	dockerConfigInstrument    *fileMutator
 	dockerConfigUninstrument  *fileMutator
 }
 
 // Setup sets up the APM injector
 func (a *apmInjectorInstaller) Setup(ctx context.Context) (err error) {
-	var rollbackAgentConfig, rollbackLDPreload, rollbackDockerConfig func() error
+	// Check if the shared library is working before adding it to the preload
+	if err := a.verifySharedLib(path.Join(a.installPath, "inject", "launcher.preload.so")); err != nil {
+		return err
+	}
+
+	rollbackLDPreload, err := a.ldPreloadFileInstrument.mutate()
+	if err != nil {
+		return err
+	}
 	defer func() {
 		if err != nil {
-			// todo propagate rollbacks until success of package installation
-			if rollbackLDPreload != nil {
-				if err := rollbackLDPreload(); err != nil {
-					log.Warnf("Failed to rollback ld preload: %v", err)
-				}
-			}
-			if rollbackAgentConfig != nil {
-				if err := rollbackAgentConfig(); err != nil {
-					log.Warnf("Failed to rollback agent config: %v", err)
-				}
-			}
-			if rollbackDockerConfig != nil {
-				if err := rollbackDockerConfig(); err != nil {
-					log.Warnf("Failed to rollback docker config: %v", err)
-				}
+			if err := rollbackLDPreload(); err != nil {
+				log.Warnf("Failed to rollback agent config: %v", err)
 			}
 		}
 	}()
 
-	rollbackAgentConfig, err = a.setupSockets(ctx)
-	if err != nil {
-		return err
-	}
-
-	rollbackLDPreload, err = a.ldPreloadFileInstrument.mutate()
-	if err != nil {
-		return err
-	}
-
 	// TODO only instrument docker if DD_APM_INSTRUMENTATION_ENABLED=docker
-	// is set
-	rollbackDockerConfig, err = a.setupDocker(ctx)
-	return err
+	rollbackDockerConfig, err := a.setupDocker(ctx)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if err != nil {
+			if err := rollbackDockerConfig(); err != nil {
+				log.Warnf("Failed to rollback agent config: %v", err)
+			}
+		}
+	}()
+
+	// Verify that the docker runtime is as expected
+	if err := a.verifyDockerRuntime(); err != nil {
+		return err
+	}
+
+	// Set up defaults for agent sockets
+	if err = configureSocketsEnv(); err != nil {
+		return
+	}
+	if err = addSystemDEnvOverrides(agentUnit); err != nil {
+		return
+	}
+	if err = addSystemDEnvOverrides(agentExp); err != nil {
+		return
+	}
+	if err = addSystemDEnvOverrides(traceAgentUnit); err != nil {
+		return
+	}
+	if err = addSystemDEnvOverrides(traceAgentExp); err != nil {
+		return
+	}
+
+	return nil
 }
 
 func (a *apmInjectorInstaller) Remove(ctx context.Context) {
@@ -126,42 +130,6 @@ func (a *apmInjectorInstaller) Remove(ctx context.Context) {
 	}
 }
 
-// setupSockets sets up the sockets for the APM injector
-// TODO rework entirely for safe transition
-func (a *apmInjectorInstaller) setupSockets(ctx context.Context) (func() error, error) {
-
-	// don't install sockets if already in env variable
-	if os.Getenv("DD_APM_RECEIVER_SOCKET") != "" {
-		return nil, nil
-	}
-
-	// TODO: remove sockets from run
-	if err := a.setRunPermissions(); err != nil {
-		return nil, err
-	}
-	rollbackAgentConfig, err := a.agentConfigSockets.mutate()
-	if err != nil {
-		return nil, err
-	}
-	if err := restartTraceAgent(ctx); err != nil {
-		return nil, err
-	}
-	rollback := func() error {
-		if err := rollbackAgentConfig(); err != nil {
-			return err
-		}
-		if err := restartTraceAgent(ctx); err != nil {
-			return err
-		}
-		return nil
-	}
-	return rollback, nil
-}
-
-func (a *apmInjectorInstaller) setRunPermissions() error {
-	return os.Chmod(path.Join(a.installPath, "inject", "run"), 0777)
-}
-
 // setLDPreloadConfigContent sets the content of the LD preload configuration
 func (a *apmInjectorInstaller) setLDPreloadConfigContent(ldSoPreload []byte) ([]byte, error) {
 	launcherPreloadPath := path.Join(a.installPath, "inject", "launcher.preload.so")
@@ -171,8 +139,8 @@ func (a *apmInjectorInstaller) setLDPreloadConfigContent(ldSoPreload []byte) ([]
 		return ldSoPreload, nil
 	}
 
-	if bytes.Contains(ldSoPreload, []byte(oldLDPath)) {
-		return bytes.ReplaceAll(ldSoPreload, []byte(oldLDPath), []byte(launcherPreloadPath)), nil
+	if bytes.Contains(ldSoPreload, []byte(oldLauncherPath)) {
+		return bytes.ReplaceAll(ldSoPreload, []byte(oldLauncherPath), []byte(launcherPreloadPath)), nil
 	}
 
 	var buf bytes.Buffer
@@ -216,35 +184,17 @@ func (a *apmInjectorInstaller) deleteLDPreloadConfigContent(ldSoPreload []byte) 
 	return nil, fmt.Errorf("failed to remove %s from %s", launcherPreloadPath, ldSoPreloadPath)
 }
 
-// setAgentConfigContent adds the agent configuration for the APM injector if it is not there already
-// We assume that the agent file has been created by the installer's postinst script
-//
-// Note: This is not safe, as it assumes there were no changes to the agent configuration made without
-// restart by the user. This means that the agent can crash on restart. This is a limitation of the current
-// installer system and this will be replaced by a proper experiment when available. This is a temporary
-// solution to allow the APM injector to be installed, and if the agent crashes, we try to detect it and
-// restore the previous configuration
-func (a *apmInjectorInstaller) setAgentConfigContent(content []byte) ([]byte, error) {
-	runPath := path.Join(a.installPath, "inject", "run")
-	apmSocketPath := path.Join(runPath, "apm.socket")
-	dsdSocketPath := path.Join(runPath, "dsd.socket")
-
-	if !bytes.Contains(content, injectorConfigPrefix) {
-		content = append(content, []byte("\n")...)
-		content = append(content, injectorConfigPrefix...)
-		content = append(content, []byte(
-			fmt.Sprintf(injectorConfigTemplate, apmSocketPath, dsdSocketPath),
-		)...)
-		content = append(content, injectorConfigSuffix...)
-		content = append(content, []byte("\n")...)
+func (a *apmInjectorInstaller) verifySharedLib(libPath string) error {
+	echoPath, err := exec.LookPath("echo")
+	if err != nil {
+		return fmt.Errorf("failed to find echo: %w", err)
 	}
-	return content, nil
-}
-
-// restartTraceAgent restarts the stable trace agent
-func restartTraceAgent(ctx context.Context) error {
-	if err := restartUnit(ctx, "datadog-agent-trace.service"); err != nil {
-		return err
+	cmd := exec.Command(echoPath, "1")
+	cmd.Env = append(os.Environ(), "LD_PRELOAD="+libPath)
+	var buf bytes.Buffer
+	cmd.Stderr = &buf
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("failed to verify injected lib %s (%w): %s", libPath, err, buf.String())
 	}
 	return nil
 }

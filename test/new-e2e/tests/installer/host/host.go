@@ -21,14 +21,16 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
 	e2eos "github.com/DataDog/test-infra-definitions/components/os"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // Host is a remote host environment.
 type Host struct {
-	t      *testing.T
-	remote *components.RemoteHost
-	os     e2eos.Descriptor
-	arch   e2eos.Architecture
+	t              *testing.T
+	remote         *components.RemoteHost
+	os             e2eos.Descriptor
+	arch           e2eos.Architecture
+	systemdVersion int
 }
 
 // Option is an option to configure a Host.
@@ -46,7 +48,16 @@ func New(t *testing.T, remote *components.RemoteHost, os e2eos.Descriptor, arch 
 		opt(t, host)
 	}
 	host.uploadFixtures()
+	host.setSystemdVersion()
 	return host
+}
+
+func (h *Host) setSystemdVersion() {
+	strVersion := strings.TrimSpace(h.remote.MustExecute("systemctl --version | head -n1 | awk '{print $2}'"))
+	version, err := strconv.Atoi(strVersion)
+	require.NoError(h.t, err)
+	h.t.Log("Systemd version:", version)
+	h.systemdVersion = version
 }
 
 // InstallDocker installs Docker on the host.
@@ -77,6 +88,63 @@ func (h *Host) FileExists(path string) (bool, error) {
 // ReadFile reads a file from the host.
 func (h *Host) ReadFile(path string) ([]byte, error) {
 	return h.remote.ReadFile(path)
+}
+
+// DeletePath deletes a path on the host.
+func (h *Host) DeletePath(path string) {
+	h.remote.MustExecute(fmt.Sprintf("sudo ls %s", path))
+	h.remote.MustExecute(fmt.Sprintf("sudo rm -rf %s", path))
+}
+
+// WaitForUnitActive waits for a systemd unit to be active
+func (h *Host) WaitForUnitActive(units ...string) {
+	for _, unit := range units {
+		_, err := h.remote.Execute(fmt.Sprintf("timeout=30; unit=%s; while ! systemctl is-active --quiet $unit && [ $timeout -gt 0 ]; do sleep 1; ((timeout--)); done; [ $timeout -ne 0 ]", unit))
+		require.NoError(h.t, err, "unit %s did not become active", unit)
+	}
+}
+
+// BootstraperVersion returns the version of the bootstraper on the host.
+func (h *Host) BootstraperVersion() string {
+	return strings.TrimSpace(h.remote.MustExecute("sudo datadog-bootstrap version"))
+}
+
+// InstallerVersion returns the version of the installer on the host.
+func (h *Host) InstallerVersion() string {
+	return strings.TrimSpace(h.remote.MustExecute("sudo datadog-installer version"))
+}
+
+// AssertPackageInstalledByInstaller checks if a package is installed by the installer on the host.
+func (h *Host) AssertPackageInstalledByInstaller(pkgs ...string) {
+	for _, pkg := range pkgs {
+		h.remote.MustExecute("sudo datadog-installer is-installed " + pkg)
+	}
+}
+
+// AssertPackageInstalledByPackageManager checks if a package is installed by the package manager on the host.
+func (h *Host) AssertPackageInstalledByPackageManager(pkgs ...string) {
+	for _, pkg := range pkgs {
+		if _, err := h.remote.Execute("command -v dpkg-query"); err == nil {
+			h.remote.MustExecute("dpkg-query -l " + pkg)
+		} else if _, err := h.remote.Execute("command -v rpm"); err == nil {
+			h.remote.MustExecute("rpm -q " + pkg)
+		} else {
+			h.t.Fatal("no package manager found")
+		}
+	}
+}
+
+// AssertPackageNotInstalledByPackageManager checks if a package is not installed by the package manager on the host.
+func (h *Host) AssertPackageNotInstalledByPackageManager(pkgs ...string) {
+	for _, pkg := range pkgs {
+		if _, err := h.remote.Execute("command -v dpkg-query"); err == nil {
+			h.remote.MustExecute("! dpkg-query -l " + pkg)
+		} else if _, err := h.remote.Execute("command -v rpm"); err == nil {
+			h.remote.MustExecute("! rpm -q " + pkg)
+		} else {
+			h.t.Fatal("no package manager found")
+		}
+	}
 }
 
 // State returns the state of the host.
@@ -418,7 +486,7 @@ func (s *State) AssertUnitsEnabled(names ...string) {
 	for _, name := range names {
 		unit, ok := s.Units[name]
 		assert.True(s.t, ok, "unit %v is not enabled", name)
-		assert.NotEqual(s.t, "unknown", unit.Enabled, "unit %v is not enabled", name)
+		assert.Equal(s.t, "enabled", unit.Enabled, "unit %v is not enabled", name)
 	}
 }
 
@@ -436,6 +504,15 @@ func (s *State) AssertUnitsNotLoaded(names ...string) {
 	for _, name := range names {
 		_, ok := s.Units[name]
 		assert.True(s.t, !ok, "unit %v is loaded", name)
+	}
+}
+
+// AssertUnitsNotEnabled asserts that a systemd unit is not enabled
+func (s *State) AssertUnitsNotEnabled(names ...string) {
+	for _, name := range names {
+		unit, ok := s.Units[name]
+		assert.True(s.t, ok, "unit %v is enabled", name)
+		assert.Equal(s.t, "disabled", unit.Enabled, "unit %v is enabled", name)
 	}
 }
 

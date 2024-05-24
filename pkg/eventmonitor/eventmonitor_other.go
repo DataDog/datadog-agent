@@ -9,11 +9,8 @@
 package eventmonitor
 
 import (
-	"fmt"
-
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor/config"
 	"github.com/DataDog/datadog-agent/pkg/security/probe"
-	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-go/v5/statsd"
 	"google.golang.org/grpc"
 )
@@ -29,13 +26,7 @@ type EventMonitor struct {
 	Probe        *probe.Probe
 }
 
-// EventTypeHandler event type based handler
-type EventTypeHandler interface {
-}
-
-// AddEventTypeHandler registers an event handler
-//
-//nolint:revive // TODO(SEC) Fix revive linter
-func (m *EventMonitor) AddEventTypeHandler(eventType model.EventType, handler EventTypeHandler) error {
-	return fmt.Errorf("Not implemented on this platform")
+// AddEventConsumer add a consumer
+func (m *EventMonitor) AddEventConsumer(_ EventConsumer) error {
+	return nil
 }

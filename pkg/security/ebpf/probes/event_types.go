@@ -443,6 +443,15 @@ func GetSelectorsPerEventType(fentry bool) map[eval.EventType][]manager.ProbesSe
 			}},
 		},
 
+		// List of probes required to capture IMDS events
+		"imds": {
+			&manager.AllOf{Selectors: []manager.ProbesSelector{
+				&manager.AllOf{Selectors: NetworkSelectors()},
+				&manager.AllOf{Selectors: NetworkVethSelectors()},
+				kprobeOrFentry("security_socket_bind"),
+			}},
+		},
+
 		// List of probes required to capture chdir events
 		"chdir": {
 			&manager.AllOf{Selectors: []manager.ProbesSelector{

@@ -36,15 +36,21 @@ __attribute__((always_inline)) int route_pkt(struct __sk_buff *skb, struct packe
             pid_route.addr[1] = pkt->translated_ns_flow.flow.daddr[1];
             pid_route.port = pkt->translated_ns_flow.flow.dport;
             pid_route.netns = pkt->translated_ns_flow.netns;
+            break;
         }
     }
     pkt->pid = get_flow_pid(&pid_route);
 
     // TODO: l3 / l4 firewall
 
-    // route l7 protocol
+    // route DNS requests
     if (pkt->l4_protocol == IPPROTO_UDP && pkt->translated_ns_flow.flow.dport == htons(53)) {
         tail_call_to_classifier(skb, DNS_REQUEST);
+    }
+
+    // route IMDS requests
+    if (pkt->l4_protocol == IPPROTO_TCP && ((pkt->ns_flow.flow.saddr[0] & 0xFFFFFFFF) == get_imds_ip() || (pkt->ns_flow.flow.daddr[0] & 0xFFFFFFFF) == get_imds_ip() )) {
+        tail_call_to_classifier(skb, IMDS_REQUEST);
     }
 
     return ACT_OK;

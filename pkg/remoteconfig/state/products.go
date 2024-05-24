@@ -6,28 +6,30 @@
 package state
 
 var validProducts = map[string]struct{}{
-	ProductUpdaterCatalogDD:  {},
-	ProductUpdaterAgent:      {},
-	ProductUpdaterTask:       {},
-	ProductAgentConfig:       {},
-	ProductAgentFailover:     {},
-	ProductAgentTask:         {},
-	ProductAgentIntegrations: {},
-	ProductAPMSampling:       {},
-	ProductCWSDD:             {},
-	ProductCWSCustom:         {},
-	ProductCWSProfiles:       {},
-	ProductCSMSideScanning:   {},
-	ProductASM:               {},
-	ProductASMFeatures:       {},
-	ProductASMDD:             {},
-	ProductASMData:           {},
-	ProductAPMTracing:        {},
-	ProductSDSRules:          {},
-	ProductSDSAgentConfig:    {},
-	ProductLiveDebugging:     {},
-	ProductTesting1:          {},
-	ProductTesting2:          {},
+	ProductUpdaterCatalogDD:             {},
+	ProductUpdaterAgent:                 {},
+	ProductUpdaterTask:                  {},
+	ProductAgentConfig:                  {},
+	ProductAgentFailover:                {},
+	ProductAgentTask:                    {},
+	ProductAgentIntegrations:            {},
+	ProductAPMSampling:                  {},
+	ProductCWSDD:                        {},
+	ProductCWSCustom:                    {},
+	ProductCWSProfiles:                  {},
+	ProductCSMSideScanning:              {},
+	ProductASM:                          {},
+	ProductASMFeatures:                  {},
+	ProductASMDD:                        {},
+	ProductASMData:                      {},
+	ProductAPMTracing:                   {},
+	ProductSDSRules:                     {},
+	ProductSDSAgentConfig:               {},
+	ProductLiveDebugging:                {},
+	ProductContainerAutoscalingSettings: {},
+	ProductContainerAutoscalingValues:   {},
+	ProductTesting1:                     {},
+	ProductTesting2:                     {},
 }
 
 const (
@@ -71,6 +73,10 @@ const (
 	ProductSDSAgentConfig = "SDS_AGENT_CONFIG"
 	// ProductLiveDebugging is the dynamic instrumentation product
 	ProductLiveDebugging = "LIVE_DEBUGGING"
+	// ProductContainerAutoscalingSettings receives definition of container autoscaling
+	ProductContainerAutoscalingSettings = "CONTAINER_AUTOSCALING_SETTINGS"
+	// ProductContainerAutoscalingValues receives values for container autoscaling
+	ProductContainerAutoscalingValues = "CONTAINER_AUTOSCALING_VALUES"
 	// ProductTesting1 is a product used for testing remote config
 	ProductTesting1 = "TESTING1"
 	// ProductTesting2 is a product used for testing remote config

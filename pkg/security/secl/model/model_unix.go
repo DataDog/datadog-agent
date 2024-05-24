@@ -67,6 +67,7 @@ type Event struct {
 
 	// network events
 	DNS  DNSEvent  `field:"dns" event:"dns"`   // [7.36] [Network] A DNS request was sent
+	IMDS IMDSEvent `field:"imds" event:"imds"` // [7.55] [Network] An IMDS event was captured
 	Bind BindEvent `field:"bind" event:"bind"` // [7.37] [Network] A bind was executed
 
 	// internal usage
@@ -187,6 +188,8 @@ type Process struct {
 
 	UserSession UserSessionContext `field:"user_session"` // SECLDoc[user_session] Definition:`User Session context of this process`
 
+	AWSSecurityCredentials []AWSSecurityCredentials `field:"-"`
+
 	ArgsID uint32 `field:"-"`
 	EnvsID uint32 `field:"-"`
 
@@ -256,6 +259,10 @@ type FileEvent struct {
 	BasenameStr string `field:"name,handler:ResolveFileBasename,opts:length" op_override:"ProcessSymlinkBasename"` // SECLDoc[name] Definition:`File's basename` Example:`exec.file.name == "apt"` Description:`Matches the execution of any file named apt.`
 	Filesystem  string `field:"filesystem,handler:ResolveFileFilesystem"`                                          // SECLDoc[filesystem] Definition:`File's filesystem`
 
+	MountPath   string `field:"-"`
+	MountSource uint32 `field:"-"`
+	MountOrigin uint32 `field:"-"`
+
 	PathResolutionError error `field:"-"`
 
 	PkgName       string `field:"package.name,handler:ResolvePackageName"`                    // SECLDoc[package.name] Definition:`[Experimental] Name of the package that provided this file`
@@ -311,6 +318,7 @@ type Mount struct {
 	MountPointStr  string  `field:"-"`
 	RootStr        string  `field:"-"`
 	Path           string  `field:"-"`
+	Origin         uint32  `field:"-"`
 }
 
 // MountEvent represents a mount event

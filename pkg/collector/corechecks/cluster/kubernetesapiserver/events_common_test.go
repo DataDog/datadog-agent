@@ -23,22 +23,22 @@ func TestGetDDAlertType(t *testing.T) {
 	tests := []struct {
 		name    string
 		k8sType string
-		want    event.EventAlertType
+		want    event.AlertType
 	}{
 		{
 			name:    "normal",
 			k8sType: "Normal",
-			want:    event.EventAlertTypeInfo,
+			want:    event.AlertTypeInfo,
 		},
 		{
 			name:    "warning",
 			k8sType: "Warning",
-			want:    event.EventAlertTypeWarning,
+			want:    event.AlertTypeWarning,
 		},
 		{
 			name:    "unknown",
 			k8sType: "Unknown",
-			want:    event.EventAlertTypeInfo,
+			want:    event.AlertTypeInfo,
 		},
 	}
 	for _, tt := range tests {

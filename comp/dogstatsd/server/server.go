@@ -17,6 +17,7 @@ import (
 
 	"go.uber.org/fx"
 
+	"github.com/DataDog/datadog-agent/comp/api/api"
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
 	logComponent "github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
@@ -79,6 +80,13 @@ type dependencies struct {
 	PidMap pidmap.Component
 	Params Params
 	WMeta  optional.Option[workloadmeta.Component]
+}
+
+type provides struct {
+	fx.Out
+
+	Comp          Component
+	StatsEndpoint api.AgentEndpointProvider
 }
 
 // When the internal telemetry is enabled, used to tag the origin
@@ -198,17 +206,20 @@ func initTelemetry(cfg config.Reader, logger logComponent.Component) {
 }
 
 // TODO: (components) - merge with newServerCompat once NewServerlessServer is removed
-func newServer(deps dependencies) Component {
+func newServer(deps dependencies) provides {
 	s := newServerCompat(deps.Config, deps.Log, deps.Replay, deps.Debug, deps.Params.Serverless, deps.Demultiplexer, deps.WMeta, deps.PidMap)
 
-	if config.Datadog.GetBool("use_dogstatsd") {
+	if deps.Config.GetBool("use_dogstatsd") {
 		deps.Lc.Append(fx.Hook{
 			OnStart: s.startHook,
 			OnStop:  s.stop,
 		})
 	}
 
-	return s
+	return provides{
+		Comp:          s,
+		StatsEndpoint: api.NewAgentEndpointProvider(s.writeStats, "/dogstatsd-stats", "GET"),
+	}
 
 }
 

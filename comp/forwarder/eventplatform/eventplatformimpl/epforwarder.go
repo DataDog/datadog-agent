@@ -202,6 +202,18 @@ var passthroughPipelineDescs = []passthroughPipelineDesc{
 		defaultBatchMaxSize:           pkgconfig.DefaultBatchMaxSize,
 		defaultInputChanSize:          pkgconfig.DefaultInputChanSize,
 	},
+	{
+		eventType:                     eventplatform.EventTypeServiceDiscovery,
+		category:                      "Service Discovery",
+		contentType:                   logshttp.JSONContentType,
+		endpointsConfigPrefix:         "service_discovery.forwarder.",
+		hostnameEndpointPrefix:        "instrumentation-telemetry-intake.",
+		intakeTrackType:               "apmtelemetry",
+		defaultBatchMaxConcurrentSend: 10,
+		defaultBatchMaxContentSize:    pkgconfig.DefaultBatchMaxContentSize,
+		defaultBatchMaxSize:           pkgconfig.DefaultBatchMaxSize,
+		defaultInputChanSize:          pkgconfig.DefaultInputChanSize,
+	},
 }
 
 type defaultEventPlatformForwarder struct {
@@ -509,7 +521,7 @@ func NewNoopEventPlatformForwarder(hostname hostnameinterface.Component) eventpl
 }
 
 func newNoopEventPlatformForwarder(hostname hostnameinterface.Component) *defaultEventPlatformForwarder {
-	f := newDefaultEventPlatformForwarder(pkgconfig.Datadog, eventplatformreceiverimpl.NewReceiver(hostname))
+	f := newDefaultEventPlatformForwarder(pkgconfig.Datadog, eventplatformreceiverimpl.NewReceiver(hostname).Comp)
 	// remove the senders
 	for _, p := range f.pipelines {
 		p.strategy = nil

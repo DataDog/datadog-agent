@@ -51,3 +51,35 @@ func TestSearchProcsForEnvVariableNotFound(t *testing.T) {
 	result := SearchProcsForEnvVariable("./testData", "xxx")
 	assert.Equal(t, 0, len(result))
 }
+
+func TestParseCPUTotals(t *testing.T) {
+	path := "./testData/valid_stat"
+	userCPUTimeMs, systemCPUTimeMs, err := GetCPUData(path)
+	assert.Equal(t, float64(23370), userCPUTimeMs)
+	assert.Equal(t, float64(1880), systemCPUTimeMs)
+	assert.Nil(t, err)
+
+	path = "./testData/invalid_stat_non_numerical_value_1"
+	userCPUTimeMs, systemCPUTimeMs, err = GetCPUData(path)
+	assert.Equal(t, float64(0), userCPUTimeMs)
+	assert.Equal(t, float64(0), systemCPUTimeMs)
+	assert.NotNil(t, err)
+
+	path = "./testData/invalid_stat_non_numerical_value_2"
+	userCPUTimeMs, systemCPUTimeMs, err = GetCPUData(path)
+	assert.Equal(t, float64(0), userCPUTimeMs)
+	assert.Equal(t, float64(0), systemCPUTimeMs)
+	assert.NotNil(t, err)
+
+	path = "./testData/invalid_stat_wrong_number_columns"
+	userCPUTimeMs, systemCPUTimeMs, err = GetCPUData(path)
+	assert.Equal(t, float64(0), userCPUTimeMs)
+	assert.Equal(t, float64(0), systemCPUTimeMs)
+	assert.NotNil(t, err)
+
+	path = "./testData/nonexistant_stat"
+	userCPUTimeMs, systemCPUTimeMs, err = GetCPUData(path)
+	assert.Equal(t, float64(0), userCPUTimeMs)
+	assert.Equal(t, float64(0), systemCPUTimeMs)
+	assert.NotNil(t, err)
+}

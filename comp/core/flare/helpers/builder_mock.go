@@ -26,6 +26,9 @@ type FlareBuilderMock struct {
 }
 
 // NewFlareBuilderMock return a FlareBuilderMock to test flare providers.
+//
+// 'local' relates to where the flare is currently created. Flare created from the Agent process are not local. Flares
+// created directly from the CLI are local. Almost every flare Provider shouldn't care where the flare is being built.
 func NewFlareBuilderMock(t *testing.T, local bool) *FlareBuilderMock {
 	root := t.TempDir()
 
@@ -40,6 +43,7 @@ func NewFlareBuilderMock(t *testing.T, local bool) *FlareBuilderMock {
 	t.Cleanup(func() { builder.logFile.Close() })
 	return fb
 }
+
 func (m *FlareBuilderMock) filePath(path ...string) string {
 	return filepath.Join(
 		append(

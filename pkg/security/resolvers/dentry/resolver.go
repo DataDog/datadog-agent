@@ -11,12 +11,12 @@ package dentry
 import (
 	"bytes"
 	"encoding/binary"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"math/rand"
 	"os"
 	"strings"
-	"syscall"
 	"unsafe"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
@@ -703,7 +703,7 @@ func (dr *Resolver) Start(manager *manager.Manager) error {
 
 	// Memory map a BPF_F_MMAPABLE array map that ebpf writes to so that userspace can read it
 	if erpcBuffer.Flags()&unix.BPF_F_MMAPABLE != 0 {
-		dr.erpcSegment, err = syscall.Mmap(erpcBuffer.FD(), 0, 8*4096, unix.PROT_READ|unix.PROT_WRITE, unix.MAP_SHARED)
+		dr.erpcSegment, err = unix.Mmap(erpcBuffer.FD(), 0, 8*4096, unix.PROT_READ|unix.PROT_WRITE, unix.MAP_SHARED)
 		if err != nil {
 			return fmt.Errorf("failed to mmap dr_erpc_buffer map: %w", err)
 		}
@@ -728,9 +728,55 @@ func (dr *Resolver) Start(manager *manager.Manager) error {
 	return nil
 }
 
+// ToJSON return a json version of the cache
+func (dr *Resolver) ToJSON() ([]byte, error) {
+	dump := struct {
+		Entries []json.RawMessage
+	}{}
+
+	for mountID, cache := range dr.cache {
+		e := struct {
+			MountID uint32
+			Entries []struct {
+				PathKey   model.PathKey
+				PathEntry PathEntry
+			}
+		}{
+			MountID: mountID,
+		}
+
+		for _, key := range cache.Keys() {
+			value, exists := cache.Get(key)
+			if !exists {
+				continue
+			}
+
+			e.Entries = append(e.Entries, struct {
+				PathKey   model.PathKey
+				PathEntry PathEntry
+			}{
+				PathKey:   key,
+				PathEntry: value,
+			})
+		}
+
+		data, err := json.Marshal(e)
+		if err == nil {
+			dump.Entries = append(dump.Entries, data)
+		}
+	}
+
+	return json.Marshal(dump)
+}
+
 // Close cleans up the eRPC segment
 func (dr *Resolver) Close() error {
-	return fmt.Errorf("couldn't cleanup eRPC memory segment: %w", unix.Munmap(dr.erpcSegment))
+	if !dr.useBPFProgWriteUser {
+		if err := unix.Munmap(dr.erpcSegment); err != nil {
+			return fmt.Errorf("couldn't cleanup eRPC memory segment: %w", err)
+		}
+	}
+	return nil
 }
 
 // NewResolver returns a new dentry resolver

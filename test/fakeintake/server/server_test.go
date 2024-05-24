@@ -20,11 +20,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DataDog/datadog-agent/test/fakeintake/api"
 	"github.com/benbjohnson/clock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	"github.com/DataDog/datadog-agent/test/fakeintake/api"
 )
 
 func TestServer(t *testing.T) {
@@ -48,41 +47,32 @@ func testServer(t *testing.T, opts ...Option) {
 		assert.Equal(t, "server not running", err.Error())
 	})
 
-	for _, tt := range []struct {
-		name         string
-		opt          Option
-		expectedAddr string
-	}{
-		{
-			name:         "Make sure WithPort sets the port correctly",
-			opt:          WithPort(1234),
-			expectedAddr: "0.0.0.0:1234",
-		},
-		{
-			name:         "Make sure WithAddress sets the port correctly",
-			opt:          WithAddress("127.0.0.1:3456"),
-			expectedAddr: "127.0.0.1:3456",
-		},
-	} {
-		t.Run(tt.name, func(t *testing.T) {
-			newOpts := append(opts, tt.opt)
-			fi := NewServer(newOpts...)
-			assert.Equal(t, tt.expectedAddr, fi.server.Addr)
-			fi.Start()
-			assert.EventuallyWithT(t, func(collect *assert.CollectT) {
-				assert.True(collect, fi.IsRunning())
-				resp, err := http.Get(fmt.Sprintf("http://%s/fakeintake/health", tt.expectedAddr))
-				assert.NoError(collect, err)
-				if err != nil {
-					return
-				}
-				defer resp.Body.Close()
-				assert.Equal(collect, http.StatusOK, resp.StatusCode)
-			}, 500*time.Millisecond, 10*time.Millisecond)
-			err := fi.Stop()
-			assert.NoError(t, err)
-		})
-	}
+	t.Run("Make sure WithPort sets the port correctly", func(t *testing.T) {
+		// do not start the server to avoid actually binding to 0.0.0.0
+		newOpts := append(opts, WithPort(1234))
+		fi := NewServer(newOpts...)
+		assert.Equal(t, "0.0.0.0:1234", fi.server.Addr)
+	})
+
+	t.Run("Make sure WithAddress sets the port correctly", func(t *testing.T) {
+		expectedAddr := "127.0.0.1:3456"
+		newOpts := append(opts, WithAddress(expectedAddr))
+		fi := NewServer(newOpts...)
+		assert.Equal(t, expectedAddr, fi.server.Addr)
+		fi.Start()
+		assert.EventuallyWithT(t, func(collect *assert.CollectT) {
+			assert.True(collect, fi.IsRunning())
+			resp, err := http.Get(fmt.Sprintf("http://%s/fakeintake/health", expectedAddr))
+			assert.NoError(collect, err)
+			if err != nil {
+				return
+			}
+			defer resp.Body.Close()
+			assert.Equal(collect, http.StatusOK, resp.StatusCode)
+		}, 500*time.Millisecond, 10*time.Millisecond)
+		err := fi.Stop()
+		assert.NoError(t, err)
+	})
 
 	t.Run("should run after start", func(t *testing.T) {
 		newOpts := append(opts, WithClock(clock.NewMock()), WithAddress("127.0.0.1:0"))
@@ -425,7 +415,6 @@ func testServer(t *testing.T, opts ...Option) {
 				json.NewDecoder(cleanedResponse.Body).Decode(&getCleanedResponse)
 				return len(getCleanedResponse.Payloads) == 2
 			}, 5*time.Second, 100*time.Millisecond, "should contain 2 elements after cleanup of only older elements")
-			fi.Stop()
 		})
 	}
 
@@ -603,6 +592,17 @@ func testServer(t *testing.T, opts ...Option) {
 		responseBody, err := io.ReadAll(response.Body)
 		require.NoError(t, err, "Error reading response body")
 		assert.Equal(t, []byte(`{"errors":[]}`), responseBody)
+	})
+
+	t.Run("should contain a Fakeintake-ID header", func(t *testing.T) {
+		fi, _ := InitialiseForTests(t, opts...)
+		defer fi.Stop()
+
+		response, err := http.Get(fi.URL() + "/fakeintake/health")
+		require.NoError(t, err, "Error on GET request")
+		defer response.Body.Close()
+		assert.NotEmpty(t, response.Header.Get("Fakeintake-ID"), "Fakeintake-ID header is empty")
+		assert.Equal(t, http.StatusOK, response.StatusCode, "unexpected code")
 	})
 }
 
