@@ -41,6 +41,7 @@ Triggers are events that correspond to types of activity seen by the system. The
 | `dns` | Network | A DNS request was sent | 7.36 |
 | `exec` | Process | A process was executed or forked | 7.27 |
 | `exit` | Process | A process was terminated | 7.38 |
+| `imds` | Network | An IMDS event was captured | 7.55 |
 | `link` | File | Create a new name/alias for a file | 7.27 |
 | `load_module` | Kernel | A new kernel module was loaded | 7.35 |
 | `mkdir` | File | A directory was created | 7.27 |
@@ -719,6 +720,21 @@ A process was terminated
 | [`exit.user_session.k8s_groups`](#common-usersessioncontext-k8s_groups-doc) | Kubernetes groups of the user that executed the process |
 | [`exit.user_session.k8s_uid`](#common-usersessioncontext-k8s_uid-doc) | Kubernetes UID of the user that executed the process |
 | [`exit.user_session.k8s_username`](#common-usersessioncontext-k8s_username-doc) | Kubernetes username of the user that executed the process |
+
+### Event `imds`
+
+An IMDS event was captured
+
+| Property | Definition |
+| -------- | ------------- |
+| [`imds.aws.is_imds_v2`](#imds-aws-is_imds_v2-doc) | a boolean which specifies if the IMDS event follows IMDSv1 or IMDSv2 conventions |
+| [`imds.aws.security_credentials.type`](#imds-aws-security_credentials-type-doc) | the security credentials type |
+| [`imds.cloud_provider`](#imds-cloud_provider-doc) | the intended cloud provider of the IMDS event |
+| [`imds.host`](#imds-host-doc) | the host of the HTTP protocol |
+| [`imds.server`](#imds-server-doc) | the server header of a response |
+| [`imds.type`](#imds-type-doc) | the type of IMDS event |
+| [`imds.url`](#imds-url-doc) | the queried IMDS URL |
+| [`imds.user_agent`](#imds-user_agent-doc) | the user agent of the HTTP client |
 
 ### Event `link`
 
@@ -2543,6 +2559,62 @@ Definition: Cause of the process termination (one of EXITED, SIGNALED, COREDUMPE
 Type: int
 
 Definition: Exit code of the process or number of the signal that caused the process to terminate
+
+
+
+### `imds.aws.is_imds_v2` {#imds-aws-is_imds_v2-doc}
+Type: bool
+
+Definition: a boolean which specifies if the IMDS event follows IMDSv1 or IMDSv2 conventions
+
+
+
+### `imds.aws.security_credentials.type` {#imds-aws-security_credentials-type-doc}
+Type: string
+
+Definition: the security credentials type
+
+
+
+### `imds.cloud_provider` {#imds-cloud_provider-doc}
+Type: string
+
+Definition: the intended cloud provider of the IMDS event
+
+
+
+### `imds.host` {#imds-host-doc}
+Type: string
+
+Definition: the host of the HTTP protocol
+
+
+
+### `imds.server` {#imds-server-doc}
+Type: string
+
+Definition: the server header of a response
+
+
+
+### `imds.type` {#imds-type-doc}
+Type: string
+
+Definition: the type of IMDS event
+
+
+
+### `imds.url` {#imds-url-doc}
+Type: string
+
+Definition: the queried IMDS URL
+
+
+
+### `imds.user_agent` {#imds-user_agent-doc}
+Type: string
+
+Definition: the user agent of the HTTP client
 
 
 

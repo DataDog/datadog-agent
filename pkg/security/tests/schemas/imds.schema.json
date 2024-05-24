@@ -1,0 +1,93 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "imds.json",
+    "type": "object",
+    "allOf": [
+        {
+            "$ref": "/schemas/event.json"
+        },
+        {
+            "$ref": "/schemas/usr.json"
+        },
+        {
+            "$ref": "/schemas/process_context.json"
+        },
+        {
+            "$ref": "/schemas/network.json"
+        },
+        {
+            "date": {
+                "$ref": "/schemas/datetime.json"
+            }
+        },
+        {
+            "properties": {
+                "imds": {
+                    "type": "object",
+                    "required": [
+                        "cloud_provider",
+                        "type"
+                    ],
+                    "properties": {
+                        "type": {
+                            "type": "string"
+                        },
+                        "cloud_provider": {
+                            "type": "string"
+                        },
+                        "host": {
+                            "type": "string"
+                        },
+                        "url": {
+                            "type": "string"
+                        },
+                        "user_agent": {
+                            "type": "string"
+                        },
+                        "server": {
+                            "type": "string"
+                        },
+                        "aws": {
+                            "type": "object",
+                            "required": [
+                                "is_imds_v2"
+                            ],
+                            "properties": {
+                                "is_imds_v2": {
+                                    "type": "boolean"
+                                },
+                                "security_credentials": {
+                                    "type": "object",
+                                    "required": [
+                                        "code",
+                                        "type",
+                                        "access_key_id",
+                                        "last_updated",
+                                        "expiration"
+                                    ],
+                                    "properties": {
+                                        "code": {
+                                            "type": "string"
+                                        },
+                                        "type": {
+                                            "type": "string"
+                                        },
+                                        "access_key_id": {
+                                            "type": "string"
+                                        },
+                                        "last_updated": {
+                                            "type": "string"
+                                        },
+                                        "expiration": {
+                                            "type": "string"
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    ]
+}

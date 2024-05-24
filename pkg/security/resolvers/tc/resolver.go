@@ -87,7 +87,7 @@ func (tcr *Resolver) SetupNewTCClassifierWithNetNSHandle(device model.NetDevice,
 	defer tcr.Unlock()
 
 	var combinedErr multierror.Error
-	for _, tcProbe := range probes.GetTCProbes() {
+	for _, tcProbe := range probes.GetTCProbes(tcr.config.NetworkIngressEnabled) {
 		// make sure we're not overriding an existing network probe
 		deviceKey := NetDeviceKey{IfIndex: device.IfIndex, NetNS: device.NetNS, NetworkDirection: tcProbe.NetworkDirection}
 		_, ok := tcr.programs[deviceKey]
