@@ -366,39 +366,41 @@ func (pm *ProcessMonitor) Initialize(useEventStream bool) error {
 
 			pm.processMonitorWG.Add(1)
 
-			if !useEventStream {
-				pm.done = make(chan struct{})
-				// Setting up the main loop
-				pm.netlinkDoneChannel = make(chan struct{})
-				pm.netlinkErrorsChannel = make(chan error, 10)
-				pm.netlinkEventsChannel = make(chan netlink.ProcEvent, processMonitorEventQueueSize)
+			if useEventStream {
+				return
+			}
 
-				go pm.mainEventLoop()
+			pm.done = make(chan struct{})
+			// Setting up the main loop
+			pm.netlinkDoneChannel = make(chan struct{})
+			pm.netlinkErrorsChannel = make(chan error, 10)
+			pm.netlinkEventsChannel = make(chan netlink.ProcEvent, processMonitorEventQueueSize)
 
-				if err := kernel.WithRootNS(kernel.ProcFSRoot(), func() error {
-					return netlink.ProcEventMonitor(pm.netlinkEventsChannel, pm.netlinkDoneChannel, pm.netlinkErrorsChannel, netlink.PROC_EVENT_EXEC|netlink.PROC_EVENT_EXIT)
-				}); err != nil {
-					initErr = fmt.Errorf("couldn't initialize process monitor: %w", err)
+			go pm.mainEventLoop()
+
+			if err := kernel.WithRootNS(kernel.ProcFSRoot(), func() error {
+				return netlink.ProcEventMonitor(pm.netlinkEventsChannel, pm.netlinkDoneChannel, pm.netlinkErrorsChannel, netlink.PROC_EVENT_EXEC|netlink.PROC_EVENT_EXIT)
+			}); err != nil {
+				initErr = fmt.Errorf("couldn't initialize process monitor: %w", err)
+			}
+
+			pm.processExecCallbacksMutex.RLock()
+			execCallbacksLength := len(pm.processExecCallbacks)
+			pm.processExecCallbacksMutex.RUnlock()
+
+			// Initialize should be called only once after we registered all callbacks. Thus, if we have no registered
+			// callback, no need to scan already running processes.
+			if execCallbacksLength > 0 {
+				handleProcessExecWrapper := func(pid int) error {
+					pm.handleProcessExec(uint32(pid))
+					return nil
 				}
-
-				pm.processExecCallbacksMutex.RLock()
-				execCallbacksLength := len(pm.processExecCallbacks)
-				pm.processExecCallbacksMutex.RUnlock()
-
-				// Initialize should be called only once after we registered all callbacks. Thus, if we have no registered
-				// callback, no need to scan already running processes.
-				if execCallbacksLength > 0 {
-					handleProcessExecWrapper := func(pid int) error {
-						pm.handleProcessExec(uint32(pid))
-						return nil
-					}
-					// Scanning already running processes
-					log.Info("process monitor init, scanning all processes")
-					if err := kernel.WithAllProcs(kernel.ProcFSRoot(), handleProcessExecWrapper); err != nil {
-						initErr = fmt.Errorf("process monitor init, scanning all process failed %s", err)
-						pm.tel.processScanFailed.Add(1)
-						return
-					}
+				// Scanning already running processes
+				log.Info("process monitor init, scanning all processes")
+				if err := kernel.WithAllProcs(kernel.ProcFSRoot(), handleProcessExecWrapper); err != nil {
+					initErr = fmt.Errorf("process monitor init, scanning all process failed %s", err)
+					pm.tel.processScanFailed.Add(1)
+					return
 				}
 			}
 		},
