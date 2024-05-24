@@ -20,6 +20,9 @@ import (
 	"sync"
 	"time"
 
+	"github.com/containerd/containerd/mount"
+	"github.com/containerd/containerd/namespaces"
+
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/sbom"
@@ -251,24 +254,23 @@ func (c *Collector) ScanDockerImage(ctx context.Context, imgMeta *workloadmeta.C
 	}
 
 	if c.config.overlayFSSupport && fanalImage.inspect.GraphDriver.Name == "overlay2" {
-		return c.scanOverlayFS(ctx, fanalImage, imgMeta, scanOptions)
+		var layers []string
+		if layerDirs, ok := fanalImage.inspect.GraphDriver.Data["LowerDir"]; ok {
+			layers = append(layers, strings.Split(layerDirs, ":")...)
+		}
+
+		if layerDirs, ok := fanalImage.inspect.GraphDriver.Data["UpperDir"]; ok {
+			layers = append(layers, strings.Split(layerDirs, ":")...)
+		}
+		return c.scanOverlayFS(ctx, layers, imgMeta, scanOptions)
 	}
 
 	return c.scanImage(ctx, fanalImage, imgMeta, scanOptions)
 }
 
-func (c *Collector) scanOverlayFS(ctx context.Context, fanalImage *image, imgMeta *workloadmeta.ContainerImageMetadata, scanOptions sbom.ScanOptions) (sbom.Report, error) {
-	var layers []string
-	if layerDirs, ok := fanalImage.inspect.GraphDriver.Data["LowerDir"]; ok {
-		layers = append(layers, strings.Split(layerDirs, ":")...)
-	}
-
-	if layerDirs, ok := fanalImage.inspect.GraphDriver.Data["UpperDir"]; ok {
-		layers = append(layers, strings.Split(layerDirs, ":")...)
-	}
-
-	fs := NewFS(layers)
-	report, err := c.scanFilesystem(ctx, fs, ".", imgMeta, scanOptions)
+func (c *Collector) scanOverlayFS(ctx context.Context, layers []string, imgMeta *workloadmeta.ContainerImageMetadata, scanOptions sbom.ScanOptions) (sbom.Report, error) {
+	overlayFsReader := NewFS(layers)
+	report, err := c.scanFilesystem(ctx, overlayFsReader, ".", imgMeta, scanOptions)
 	if err != nil {
 		return nil, err
 	}
@@ -286,25 +288,35 @@ func (c *Collector) ScanContainerdImage(ctx context.Context, imgMeta *workloadme
 		return nil, fmt.Errorf("unable to convert containerd image, err: %w", err)
 	}
 
-	if c.config.overlayFSSupport && fanalImage.inspect.GraphDriver.Name == "overlay2" {
+	if c.config.overlayFSSupport {
 		// Computing duration of containerd lease
 		deadline, _ := ctx.Deadline()
 		expiration := deadline.Sub(time.Now().Add(cleanupTimeout))
-
 		clClient := client.RawClient()
-
 		imageID := imgMeta.ID
 
+		mounts, err := client.Mounts(ctx, expiration, imgMeta.Namespace, img)
+		if err != nil {
+			return nil, fmt.Errorf("unable to get mounts for image %s, err: %w", imgMeta.ID, err)
+		}
+		layers := extractLayersFromOverlayFSMounts(mounts)
+		if len(layers) == 0 {
+			return nil, fmt.Errorf("unable to extract layers from overlayfs mounts for image %s", imgMeta.ID)
+		}
+		ctx = namespaces.WithNamespace(ctx, imgMeta.Namespace)
 		// Adding a lease to cleanup dandling snaphots at expiration
 		ctx, done, err := clClient.WithLease(ctx,
 			leases.WithID(imageID),
 			leases.WithExpiration(expiration),
+			leases.WithLabels(map[string]string{
+				"containerd.io/gc.ref.snapshot." + containerd.DefaultSnapshotter: imageID,
+			}),
 		)
 		if err != nil && !errdefs.IsAlreadyExists(err) {
 			return nil, fmt.Errorf("unable to get a lease, err: %w", err)
 		}
 
-		report, err := c.scanOverlayFS(ctx, fanalImage, imgMeta, scanOptions)
+		report, err := c.scanOverlayFS(ctx, layers, imgMeta, scanOptions)
 
 		if err := done(ctx); err != nil {
 			log.Warnf("Unable to cancel containerd lease with id: %s, err: %v", imageID, err)
@@ -433,4 +445,19 @@ func (c *Collector) scanImage(ctx context.Context, fanalImage ftypes.Image, imgM
 		id:        trivyReport.Metadata.ImageID,
 		marshaler: c.marshaler,
 	}, nil
+}
+
+func extractLayersFromOverlayFSMounts(mounts []mount.Mount) []string {
+	var layers []string
+	for _, mount := range mounts {
+		for _, opt := range mount.Options {
+			for _, prefix := range []string{"upperdir=", "lowerdir="} {
+				trimmedOpt := strings.TrimPrefix(opt, prefix)
+				if trimmedOpt != opt {
+					layers = append(layers, strings.Split(trimmedOpt, ":")...)
+				}
+			}
+		}
+	}
+	return layers
 }
