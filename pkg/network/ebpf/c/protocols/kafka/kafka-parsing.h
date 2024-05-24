@@ -1435,9 +1435,9 @@ static __always_inline bool kafka_process(conn_tuple_t *tup, kafka_info_t *kafka
         offset += get_topic_offset_from_fetch_request(&kafka_header);
         if (kafka_header.api_version >= 12) {
             flexible = true;
-            // This could be more than one byte if the number of topics is >127,
-            // this is not handled at the moment.
-            offset += sizeof(s8);
+            if (!skip_varint_number_of_topics(pkt, &offset)) {
+                return false;
+            }
         } else {
             offset += sizeof(s32);
         }

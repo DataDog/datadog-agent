@@ -141,6 +141,30 @@ static __always_inline int parse_varint_u16(u16 *out, u16 in, u32 *bytes)
     return true;
 }
 
+static __always_inline bool skip_varint_number_of_topics(pktbuf_t pkt, u32 *offset) {
+    u8 bytes[2] = {};
+
+    // Should be safe to assume that there is always more than one byte present,
+    // since there will be the topic name etc after the number of topics.
+    if (*offset + sizeof(bytes) > pktbuf_data_end(pkt)) {
+        return false;
+    }
+
+    pktbuf_load_bytes(pkt, *offset, bytes, sizeof(bytes));
+
+    *offset += 1;
+    if (isMSBSet(bytes[0])) {
+        *offset += 1;
+
+        if (isMSBSet(bytes[1])) {
+            // More than 16383 topics?
+            return false;
+        }
+    }
+
+    return true;
+}
+
 // `flexible` indicates that the API version is a flexible version as described in
 // https://cwiki.apache.org/confluence/display/KAFKA/KIP-482%3A+The+Kafka+Protocol+should+Support+Optional+Tagged+Fields
 static __always_inline s16 read_first_topic_name_size(pktbuf_t pkt, bool flexible, u32 *offset) {
@@ -179,9 +203,9 @@ static __always_inline s16 read_first_topic_name_size(pktbuf_t pkt, bool flexibl
 static __always_inline bool validate_first_topic_name(pktbuf_t pkt, bool flexible, u32 offset) {
     // Skipping number of entries for now
     if (flexible) {
-        // This could be more than one byte if the number of topics is >127,
-        // this is not handled at the moment.
-        offset += sizeof(s8);
+        if (!skip_varint_number_of_topics(pkt, &offset)) {
+            return false;
+        }
     } else {
         offset += sizeof(s32);
     }
