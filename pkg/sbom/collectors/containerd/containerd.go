@@ -13,6 +13,8 @@ import (
 	"fmt"
 	"reflect"
 
+	"github.com/containerd/containerd"
+
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/sbom"
@@ -32,6 +34,8 @@ const resultChanSize = 1000
 type scanRequest struct {
 	imageID string
 }
+
+type scannerFunc func(ctx context.Context, imgMeta *workloadmeta.ContainerImageMetadata, img containerd.Image, client cutil.ContainerdItf, scanOptions sbom.ScanOptions) (sbom.Report, error)
 
 // NewScanRequest creates a new scan request
 func NewScanRequest(imageID string) sbom.ScanRequest {
@@ -115,23 +119,15 @@ func (c *Collector) Scan(ctx context.Context, request sbom.ScanRequest) sbom.Sca
 	}
 
 	var report sbom.Report
+	var scanner scannerFunc
 	if c.opts.UseMount {
-		report, err = c.trivyCollector.ScanContainerdImageFromFilesystem(
-			ctx,
-			imageMeta,
-			image,
-			c.containerdClient,
-			c.opts,
-		)
+		scanner = c.trivyCollector.ScanContainerdImageFromFilesystem
+	} else if c.opts.OverlayFsScan {
+		scanner = c.trivyCollector.ScanContainerdImageFromSnapshotter
 	} else {
-		report, err = c.trivyCollector.ScanContainerdImage(
-			ctx,
-			imageMeta,
-			image,
-			c.containerdClient,
-			c.opts,
-		)
+		scanner = c.trivyCollector.ScanContainerdImage
 	}
+	report, err = scanner(ctx, imageMeta, image, c.containerdClient, c.opts)
 	scanResult := sbom.ScanResult{
 		Error:   err,
 		Report:  report,

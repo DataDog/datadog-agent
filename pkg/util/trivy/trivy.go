@@ -242,8 +242,8 @@ func (c *Collector) getCache() (CacheWithCleaner, error) {
 	return c.persistentCache, nil
 }
 
-// ScanDockerImage scans a docker image
-func (c *Collector) ScanDockerImage(ctx context.Context, imgMeta *workloadmeta.ContainerImageMetadata, client client.ImageAPIClient, scanOptions sbom.ScanOptions) (sbom.Report, error) {
+// ScanDockerImageFromGraphDriver scans a docker image directly from the graph driver
+func (c *Collector) ScanDockerImageFromGraphDriver(ctx context.Context, imgMeta *workloadmeta.ContainerImageMetadata, client client.ImageAPIClient, scanOptions sbom.ScanOptions) (sbom.Report, error) {
 	fanalImage, cleanup, err := convertDockerImage(ctx, client, imgMeta)
 	if cleanup != nil {
 		defer cleanup()
@@ -253,7 +253,7 @@ func (c *Collector) ScanDockerImage(ctx context.Context, imgMeta *workloadmeta.C
 		return nil, fmt.Errorf("unable to convert docker image, err: %w", err)
 	}
 
-	if c.config.overlayFSSupport && fanalImage.inspect.GraphDriver.Name == "overlay2" {
+	if fanalImage.inspect.GraphDriver.Name == "overlay2" {
 		var layers []string
 		if layerDirs, ok := fanalImage.inspect.GraphDriver.Data["LowerDir"]; ok {
 			layers = append(layers, strings.Split(layerDirs, ":")...)
@@ -263,6 +263,20 @@ func (c *Collector) ScanDockerImage(ctx context.Context, imgMeta *workloadmeta.C
 			layers = append(layers, strings.Split(layerDirs, ":")...)
 		}
 		return c.scanOverlayFS(ctx, layers, imgMeta, scanOptions)
+	}
+
+	return nil, fmt.Errorf("unsupported graph driver: %s", fanalImage.inspect.GraphDriver.Name)
+}
+
+// ScanDockerImage scans a docker image by exporting it and scanning the tarball
+func (c *Collector) ScanDockerImage(ctx context.Context, imgMeta *workloadmeta.ContainerImageMetadata, client client.ImageAPIClient, scanOptions sbom.ScanOptions) (sbom.Report, error) {
+	fanalImage, cleanup, err := convertDockerImage(ctx, client, imgMeta)
+	if cleanup != nil {
+		defer cleanup()
+	}
+
+	if err != nil {
+		return nil, fmt.Errorf("unable to convert docker image, err: %w", err)
 	}
 
 	return c.scanImage(ctx, fanalImage, imgMeta, scanOptions)
@@ -278,7 +292,46 @@ func (c *Collector) scanOverlayFS(ctx context.Context, layers []string, imgMeta 
 	return report, nil
 }
 
-// ScanContainerdImage scans containerd image
+// ScanContainerdImageFromSnapshotter scans containerd image directly from the snapshotter
+func (c *Collector) ScanContainerdImageFromSnapshotter(ctx context.Context, imgMeta *workloadmeta.ContainerImageMetadata, img containerd.Image, client cutil.ContainerdItf, scanOptions sbom.ScanOptions) (sbom.Report, error) {
+	// Computing duration of containerd lease
+	deadline, _ := ctx.Deadline()
+	expiration := deadline.Sub(time.Now().Add(cleanupTimeout))
+	clClient := client.RawClient()
+	imageID := imgMeta.ID
+
+	mounts, err := client.Mounts(ctx, expiration, imgMeta.Namespace, img)
+	if err != nil {
+		return nil, fmt.Errorf("unable to get mounts for image %s, err: %w", imgMeta.ID, err)
+	}
+	layers := extractLayersFromOverlayFSMounts(mounts)
+	if len(layers) == 0 {
+		return nil, fmt.Errorf("unable to extract layers from overlayfs mounts for image %s", imgMeta.ID)
+	}
+
+	ctx = namespaces.WithNamespace(ctx, imgMeta.Namespace)
+	// Adding a lease to cleanup dandling snaphots at expiration
+	ctx, done, err := clClient.WithLease(ctx,
+		leases.WithID(imageID),
+		leases.WithExpiration(expiration),
+		leases.WithLabels(map[string]string{
+			"containerd.io/gc.ref.snapshot." + containerd.DefaultSnapshotter: imageID,
+		}),
+	)
+	if err != nil && !errdefs.IsAlreadyExists(err) {
+		return nil, fmt.Errorf("unable to get a lease, err: %w", err)
+	}
+
+	report, err := c.scanOverlayFS(ctx, layers, imgMeta, scanOptions)
+
+	if err := done(ctx); err != nil {
+		log.Warnf("Unable to cancel containerd lease with id: %s, err: %v", imageID, err)
+	}
+
+	return report, err
+}
+
+// ScanContainerdImage scans containerd image by exporting it and scanning the tarball
 func (c *Collector) ScanContainerdImage(ctx context.Context, imgMeta *workloadmeta.ContainerImageMetadata, img containerd.Image, client cutil.ContainerdItf, scanOptions sbom.ScanOptions) (sbom.Report, error) {
 	fanalImage, cleanup, err := convertContainerdImage(ctx, client.RawClient(), imgMeta, img)
 	if cleanup != nil {
@@ -286,43 +339,6 @@ func (c *Collector) ScanContainerdImage(ctx context.Context, imgMeta *workloadme
 	}
 	if err != nil {
 		return nil, fmt.Errorf("unable to convert containerd image, err: %w", err)
-	}
-
-	if c.config.overlayFSSupport {
-		// Computing duration of containerd lease
-		deadline, _ := ctx.Deadline()
-		expiration := deadline.Sub(time.Now().Add(cleanupTimeout))
-		clClient := client.RawClient()
-		imageID := imgMeta.ID
-
-		mounts, err := client.Mounts(ctx, expiration, imgMeta.Namespace, img)
-		if err != nil {
-			return nil, fmt.Errorf("unable to get mounts for image %s, err: %w", imgMeta.ID, err)
-		}
-		layers := extractLayersFromOverlayFSMounts(mounts)
-		if len(layers) == 0 {
-			return nil, fmt.Errorf("unable to extract layers from overlayfs mounts for image %s", imgMeta.ID)
-		}
-		ctx = namespaces.WithNamespace(ctx, imgMeta.Namespace)
-		// Adding a lease to cleanup dandling snaphots at expiration
-		ctx, done, err := clClient.WithLease(ctx,
-			leases.WithID(imageID),
-			leases.WithExpiration(expiration),
-			leases.WithLabels(map[string]string{
-				"containerd.io/gc.ref.snapshot." + containerd.DefaultSnapshotter: imageID,
-			}),
-		)
-		if err != nil && !errdefs.IsAlreadyExists(err) {
-			return nil, fmt.Errorf("unable to get a lease, err: %w", err)
-		}
-
-		report, err := c.scanOverlayFS(ctx, layers, imgMeta, scanOptions)
-
-		if err := done(ctx); err != nil {
-			log.Warnf("Unable to cancel containerd lease with id: %s, err: %v", imageID, err)
-		}
-
-		return report, err
 	}
 
 	return c.scanImage(ctx, fanalImage, imgMeta, scanOptions)

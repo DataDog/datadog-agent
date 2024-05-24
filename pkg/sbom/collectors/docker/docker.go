@@ -27,6 +27,8 @@ import (
 // 1000 is already a very large default value
 const resultChanSize = 1000
 
+type scannerFunc func(ctx context.Context, imgMeta *workloadmeta.ContainerImageMetadata, client client.ImageAPIClient, scanOptions sbom.ScanOptions) (sbom.Report, error)
+
 // scanRequest defines a scan request. This struct should be
 // hashable to be pushed in the work queue for processing.
 type scanRequest struct {
@@ -106,7 +108,13 @@ func (c *Collector) Scan(ctx context.Context, request sbom.ScanRequest) sbom.Sca
 		return sbom.ScanResult{Error: fmt.Errorf("image metadata not found for image id %s: %s", dockerScanRequest.ID(), err)}
 	}
 
-	report, err := c.trivyCollector.ScanDockerImage(
+	var scanner scannerFunc
+	if c.opts.OverlayFsScan {
+		scanner = c.trivyCollector.ScanDockerImageFromGraphDriver
+	} else {
+		scanner = c.trivyCollector.ScanDockerImage
+	}
+	report, err := scanner(
 		ctx,
 		imageMeta,
 		c.cl,
