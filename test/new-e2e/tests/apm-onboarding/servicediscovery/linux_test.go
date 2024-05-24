@@ -7,6 +7,7 @@ package servicediscovery
 
 import (
 	"encoding/json"
+	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
 	"os"
 	"strconv"
 	"testing"
@@ -42,15 +43,28 @@ func (s *linuxTestSuite) SetupSuite() {
 	s.BaseSuite.SetupSuite()
 
 	s.provisionServer()
-	s.startServices()
 }
 
 func (s *linuxTestSuite) TestServiceDiscoveryCheck() {
 	t := s.T()
+	s.startServices()
+	defer s.stopServices()
 
 	assert.EventuallyWithT(t, func(t *assert.CollectT) {
 		assertRunningChecks(t, s.Env().RemoteHost, []string{"service_discovery"})
 	}, 2*time.Minute, 5*time.Second)
+
+	var payloads []*aggregator.ServiceDiscoveryPayload
+	assert.EventuallyWithT(t, func(c *assert.CollectT) {
+		var err error
+		payloads, err = s.Env().FakeIntake.Client().GetServiceDiscoveries()
+		assert.NoError(c, err, "failed to get service discovery payloads from fakeintake")
+
+		// Wait for 3 payloads, as services must be detected in two check runs to be returned
+		assert.GreaterOrEqual(c, len(payloads), 3, "fewer than 2 payloads returned")
+	}, 5*time.Minute, 10*time.Second)
+
+	// TODO: check payloads
 }
 
 type checkStatus struct {
@@ -88,11 +102,13 @@ func (s *linuxTestSuite) provisionServer() {
 }
 
 func (s *linuxTestSuite) startServices() {
-	s.commandWithEnv("PORT=8080 node /home/ubuntu/e2e-test/node/server.js &")
-	s.commandWithEnv("PORT=8081 go run /home/ubuntu/e2e-test/go/main.go &")
-	s.commandWithEnv("PORT=8082 python3 /home/ubuntu/e2e-test/python/server.py &")
+	s.Env().RemoteHost.MustExecute("sudo systemctl start go-svc")
+	s.Env().RemoteHost.MustExecute("sudo systemctl start node-svc")
+	s.Env().RemoteHost.MustExecute("sudo systemctl start python-svc")
 }
 
-func (s *linuxTestSuite) commandWithEnv(command string) {
-	s.Env().RemoteHost.MustExecute("source $HOME/.nvm/nvm.sh && " + command)
+func (s *linuxTestSuite) stopServices() {
+	s.Env().RemoteHost.MustExecute("sudo systemctl stop go-svc")
+	s.Env().RemoteHost.MustExecute("sudo systemctl stop node-svc")
+	s.Env().RemoteHost.MustExecute("sudo systemctl stop python-svc")
 }

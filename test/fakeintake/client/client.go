@@ -76,6 +76,7 @@ const (
 	orchestratorManifestEndpoint = "/api/v2/orchmanif"
 	metadataEndpoint             = "/api/v1/metadata"
 	ndmflowEndpoint              = "/api/v2/ndmflow"
+	apmTelemetryEndpoint         = "/api/v2/apmtelemetry"
 )
 
 // ErrNoFlareAvailable is returned when no flare is available
@@ -253,6 +254,14 @@ func (c *Client) getNDMFlows() error {
 		return err
 	}
 	return c.ndmflowAggregator.UnmarshallPayloads(payloads)
+}
+
+func (c *Client) getServiceDiscoveries() error {
+	payloads, err := c.getFakePayloads(apmTelemetryEndpoint)
+	if err != nil {
+		return err
+	}
+	return c.serviceDiscoveryAggregator.UnmarshallPayloads(payloads)
 }
 
 // GetLatestFlare queries the Fake Intake to fetch flares that were sent by a Datadog Agent and returns the latest flare as a Flare struct
@@ -859,4 +868,18 @@ func (c *Client) GetNDMFlows() ([]*aggregator.NDMFlow, error) {
 		ndmflows = append(ndmflows, c.ndmflowAggregator.GetPayloadsByName(name)...)
 	}
 	return ndmflows, nil
+}
+
+// GetServiceDiscoveries fetches fakeintake on `api/v2/apmtelemetry` endpoint and returns
+// all received service discovery payloads
+func (c *Client) GetServiceDiscoveries() ([]*aggregator.ServiceDiscoveryPayload, error) {
+	err := c.getServiceDiscoveries()
+	if err != nil {
+		return nil, err
+	}
+	var payloads []*aggregator.ServiceDiscoveryPayload
+	for _, name := range c.processDiscoveryAggregator.GetNames() {
+		payloads = append(payloads, c.serviceDiscoveryAggregator.GetPayloadsByName(name)...)
+	}
+	return payloads, nil
 }
