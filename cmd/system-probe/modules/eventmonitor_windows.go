@@ -20,6 +20,6 @@ var EventMonitor = module.Factory{
 	Fn:               createEventMonitorModule,
 }
 
-func createProcessMonitorConsumer(evm *eventmonitor.EventMonitor) (eventmonitor.EventConsumerInterface, error) {
+func createProcessMonitorConsumer(_ *eventmonitor.EventMonitor) (eventmonitor.EventConsumerInterface, error) {
 	return nil, nil
 }
