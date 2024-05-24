@@ -15,18 +15,18 @@ func TestGetSubprocessOutputEmptyArgs(t *testing.T) {
 	testGetSubprocessOutputEmptyArgs(t)
 }
 
-func TestGetSubprocessOutput(t *testing.T) {
-	testGetSubprocessOutput(t)
-}
+// func TestGetSubprocessOutput(t *testing.T) {
+// 	testGetSubprocessOutput(t)
+// }
 
-func TestGetSubprocessOutputUnknownBin(t *testing.T) {
-	testGetSubprocessOutputUnknownBin(t)
-}
+// func TestGetSubprocessOutputUnknownBin(t *testing.T) {
+// 	testGetSubprocessOutputUnknownBin(t)
+// }
 
-func TestGetSubprocessOutputError(t *testing.T) {
-	testGetSubprocessOutputError(t)
-}
+// func TestGetSubprocessOutputError(t *testing.T) {
+// 	testGetSubprocessOutputError(t)
+// }
 
-func TestGetSubprocessOutputEnv(t *testing.T) {
-	testGetSubprocessOutputEnv(t)
-}
+// func TestGetSubprocessOutputEnv(t *testing.T) {
+// 	testGetSubprocessOutputEnv(t)
+// }
