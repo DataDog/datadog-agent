@@ -384,55 +384,12 @@ static __always_inline enum parse_result __read_varint(kafka_response_context_t 
     return RET_DONE;
 }
 
-static __always_inline enum parse_result read_varint_nonrestartable(pktbuf_t pkt, u64 *out, u32 *offset, u32 data_end)
-{
-    return __read_varint(NULL, pkt, out, offset, data_end, false);
-}
-
 static __always_inline enum parse_result read_varint_restartable(kafka_response_context_t *response,
                                                       pktbuf_t pkt, u64 *out, u32 *offset,
                                                       u32 data_end,
                                                       bool first)
 {
     return __read_varint(response, pkt, out, offset, data_end, first);
-}
-
-static __always_inline enum parse_result read_varint_or_s16(pktbuf_t pkt, bool flexible, s16 *out, u32 *offset, u32 data_end)
-{
-    if (flexible) {
-        u64 tmp = 0;
-        enum parse_result ret = read_varint_nonrestartable(pkt, &tmp, offset, data_end);
-        *out = tmp;
-        return ret;
-    }
-
-    if (*offset + sizeof(s16) > data_end) {
-        return RET_EOP;
-    }
-
-    PKTBUF_READ_BIG_ENDIAN_WRAPPER(s16, tmp, pkt, *offset);
-    *out = tmp;
-
-    return RET_DONE;
-}
-
-static __always_inline enum parse_result read_varint_or_s32(pktbuf_t pkt, bool flexible, s32 *out, u32 *offset, u32 data_end)
-{
-    if (flexible) {
-        u64 tmp = 0;
-        enum parse_result ret = read_varint_nonrestartable(pkt, &tmp, offset, data_end);
-        *out = tmp;
-        return ret;
-    }
-
-    if (*offset + sizeof(s32) > data_end) {
-        return RET_EOP;
-    }
-
-    PKTBUF_READ_BIG_ENDIAN_WRAPPER(s32, tmp, pkt, *offset);
-    *out = tmp;
-
-    return RET_DONE;
 }
 
 static __always_inline enum parse_result read_varint_or_s16_restartable(
