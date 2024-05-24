@@ -7,11 +7,10 @@ from typing import TYPE_CHECKING
 import invoke.exceptions as ie
 from invoke.context import Context
 
-from tasks.kernel_matrix_testing.types import PathOrStr
 from tasks.kernel_matrix_testing.vars import arch_mapping
 
 if TYPE_CHECKING:
-    from tasks.kernel_matrix_testing.types import Arch
+    from tasks.kernel_matrix_testing.types import Arch, PathOrStr
 
 try:
     from termcolor import colored
