@@ -12,6 +12,22 @@
 
 #define TOPIC_NAME_MAX_STRING_SIZE 80
 
+// The number of varint bytes required to support the specified values.
+// 127
+#define VARINT_BYTES_0000007f   1
+// 16383
+#define VARINT_BYTES_00003fff   2
+// 2097151
+#define VARINT_BYTES_001fffff   3
+// 268435455
+#define VARINT_BYTES_0fffffff   4
+
+#define VARINT_BYTES_NUM_TOPICS VARINT_BYTES_001fffff
+#define VARINT_BYTES_TOPIC_NAME_SIZE VARINT_BYTES_001fffff
+#define VARINT_BYTES_NUM_PARTITIONS VARINT_BYTES_001fffff
+#define VARINT_BYTES_NUM_ABORTED_TRANSACTIONS VARINT_BYTES_001fffff
+#define VARINT_BYTES_RECORD_BATCHES_NUM_BYTES VARINT_BYTES_001fffff
+
 #define KAFKA_RESPONSE_PARSER_MAX_ITERATIONS 10
 
 // We do not have a way to validate the size of the aborted transactions list

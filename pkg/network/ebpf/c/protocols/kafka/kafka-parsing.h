@@ -318,11 +318,12 @@ static __always_inline enum parse_result read_with_remainder(kafka_response_cont
 // https://cwiki.apache.org/confluence/display/KAFKA/KIP-482%3A+The+Kafka+Protocol+should+Support+Optional+Tagged+Fields
 //
 // The varints can actually up to 10 bytes long but we only support up to
-// MAX_VARINT_BYTES length due to code size limitations.
+// max_bytes length due to code size limitations.
 static __always_inline enum parse_result read_varint(kafka_response_context_t *response,
                                                     pktbuf_t pkt, u64 *out, u32 *offset,
                                                     u32 data_end,
-                                                    bool first)
+                                                    bool first,
+                                                    u32 max_bytes)
 {
     uint32_t shift_amount = 0;
     uint64_t value = 0;
@@ -342,10 +343,8 @@ static __always_inline enum parse_result read_varint(kafka_response_context_t *r
 
     u8 current_byte = 0;
 
-#define MAX_VARINT_BYTES 3
-
-    #pragma unroll(MAX_VARINT_BYTES)
-    for (; i < MAX_VARINT_BYTES; i++) {
+    #pragma unroll
+    for (; i < max_bytes; i++) {
         // This check works better than setting i = startpos initially which leads
         // to complaints from the verifier about too much complexity.
         if (i < startpos) {
@@ -373,7 +372,7 @@ static __always_inline enum parse_result read_varint(kafka_response_context_t *r
         }
     }
 
-    if ((i == MAX_VARINT_BYTES - 1) && isMSBSet(current_byte)) {
+    if ((i == max_bytes - 1) && isMSBSet(current_byte)) {
         // The last byte in the unsigned varint contains a continuation bit,
         // this shouldn't happen if MAX_VARINT_BYTES = 10, but if it is lesser,
         // then we could be hitting a number we don't support.
@@ -391,13 +390,14 @@ static __always_inline enum parse_result read_varint_or_s16(
                                                             u32 *offset,
                                                             u32 data_end,
                                                             s16 *val,
-                                                            bool first)
+                                                            bool first,
+                                                            u32 max_varint_bytes)
 {
     enum parse_result ret;
 
     if (flexible) {
         u64 tmp = 0;
-        ret = read_varint(response, pkt, &tmp, offset, data_end, first);
+        ret = read_varint(response, pkt, &tmp, offset, data_end, first, max_varint_bytes);
         *val = tmp;
     } else {
         ret = read_with_remainder_s16(response, pkt, offset, data_end, val, first);
@@ -413,13 +413,14 @@ static __always_inline enum parse_result read_varint_or_s32(
                                                             u32 *offset,
                                                             u32 data_end,
                                                             s32 *val,
-                                                            bool first)
+                                                            bool first,
+                                                            u32 max_varint_bytes)
 {
     enum parse_result ret;
 
     if (flexible) {
         u64 tmp = 0;
-        ret = read_varint(response, pkt, &tmp, offset, data_end, first);
+        ret = read_varint(response, pkt, &tmp, offset, data_end, first, max_varint_bytes);
         *val = tmp;
     } else {
         ret = read_with_remainder(response, pkt, offset, data_end, val, first);
@@ -527,7 +528,8 @@ static __always_inline enum parse_result kafka_continue_parse_response_partition
     case KAFKA_FETCH_RESPONSE_NUM_TOPICS:
         {
             s32 num_topics = 0;
-            ret = read_varint_or_s32(flexible, response, pkt, &offset, data_end, &num_topics, true);
+            ret = read_varint_or_s32(flexible, response, pkt, &offset, data_end, &num_topics, true,
+                                     VARINT_BYTES_NUM_TOPICS);
             extra_debug("num_topics: %u", num_topics);
             if (ret != RET_DONE) {
                 return ret;
@@ -542,7 +544,8 @@ static __always_inline enum parse_result kafka_continue_parse_response_partition
     case KAFKA_FETCH_RESPONSE_TOPIC_NAME_SIZE:
         {
             s16 topic_name_size = 0;
-            ret = read_varint_or_s16(flexible, response, pkt, &offset, data_end, &topic_name_size, true);
+            ret = read_varint_or_s16(flexible, response, pkt, &offset, data_end, &topic_name_size, true,
+                                     VARINT_BYTES_TOPIC_NAME_SIZE);
             extra_debug("topic_name_size: %u", topic_name_size);
             if (ret != RET_DONE) {
                 return ret;
@@ -560,7 +563,8 @@ static __always_inline enum parse_result kafka_continue_parse_response_partition
     case KAFKA_FETCH_RESPONSE_NUM_PARTITIONS:
         {
             s32 number_of_partitions = 0;
-            ret = read_varint_or_s32(flexible, response, pkt, &offset, data_end, &number_of_partitions, true);
+            ret = read_varint_or_s32(flexible, response, pkt, &offset, data_end, &number_of_partitions, true,
+                                     VARINT_BYTES_NUM_PARTITIONS);
             extra_debug("number_of_partitions: %u", number_of_partitions);
             if (ret != RET_DONE) {
                 return ret;
@@ -620,7 +624,8 @@ static __always_inline enum parse_result kafka_continue_parse_response_partition
         case KAFKA_FETCH_RESPONSE_PARTITION_ABORTED_TRANSACTIONS:
             if (api_version >= 4) {
                 s32 aborted_transactions = 0;
-                ret = read_varint_or_s32(flexible, response, pkt, &offset, data_end, &aborted_transactions, first);
+                ret = read_varint_or_s32(flexible, response, pkt, &offset, data_end, &aborted_transactions, first,
+                                         VARINT_BYTES_NUM_ABORTED_TRANSACTIONS);
                 if (ret != RET_DONE) {
                     return ret;
                 }
@@ -666,7 +671,8 @@ static __always_inline enum parse_result kafka_continue_parse_response_partition
                 goto exit;
             }
 
-            ret = read_varint_or_s32(flexible, response, pkt, &offset, data_end, &response->record_batches_num_bytes, first);
+            ret = read_varint_or_s32(flexible, response, pkt, &offset, data_end, &response->record_batches_num_bytes, first,
+                                     VARINT_BYTES_RECORD_BATCHES_NUM_BYTES);
             if (ret != RET_DONE) {
                 return ret;
             }
