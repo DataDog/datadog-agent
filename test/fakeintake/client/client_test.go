@@ -567,6 +567,11 @@ func TestClient(t *testing.T) {
 	})
 
 	t.Run("test strict fakeintakeid check mode", func(t *testing.T) {
+		defer func() {
+			if r := recover(); r != nil {
+				assert.Equal(t, "expected fakeintakeID 20000000-0000-0000-0000-000000000000 got 10000000-0000-0000-0000-000000000000: The fakeintake probably restarted during your test", r)
+			}
+		}()
 		ts := NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			if r.URL.Path == "/fakeintake/health" {
 				w.Header().Set("Fakeintake-ID", "10000000-0000-0000-0000-000000000000")
@@ -584,8 +589,9 @@ func TestClient(t *testing.T) {
 		require.NoError(t, err)
 		_, err = client.get("fakeintake/hello")
 		require.NoError(t, err)
-		_, err = client.get("fakeintake/health")
-		require.Error(t, err)
+		client.get("fakeintake/health")
+		// should never be called because we expect previous call to panic
+		t.Fail()
 	})
 
 	t.Run("test non-strict fakeintakeid check mode", func(t *testing.T) {

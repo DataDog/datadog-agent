@@ -84,12 +84,6 @@ const (
 // ErrNoFlareAvailable is returned when no flare is available
 var ErrNoFlareAvailable = errors.New("no flare available")
 
-// ErrFakeintakeRestarted is returned when fakeintake is restarted
-var ErrFakeintakeRestarted = errors.New("fakeintake restarted")
-
-// ErrFakeintakeTimeout is returned when fakeintake times out
-var ErrFakeintakeTimeout = errors.New("fakeintake timeout")
-
 // Option is a configuration option for the client
 type Option func(*Client)
 
@@ -812,7 +806,7 @@ func (c *Client) get(route string) ([]byte, error) {
 	err := backoff.Retry(func() error {
 		tmpResp, err := http.Get(fmt.Sprintf("%s/%s", c.fakeIntakeURL, route))
 		if err, ok := err.(net.Error); ok && err.Timeout() {
-			return ErrFakeintakeTimeout
+			panic("fakeintake call timed out")
 		}
 		if err != nil {
 			return err
@@ -836,7 +830,7 @@ func (c *Client) get(route string) ([]byte, error) {
 				currentFakeintakeID := c.fakeintakeID
 				c.fakeintakeIDMutex.RUnlock()
 				if currentFakeintakeID != requestFakeintakeID {
-					return fmt.Errorf("expected %s got %s: %w", currentFakeintakeID, requestFakeintakeID, ErrFakeintakeRestarted)
+					panic(fmt.Sprintf("expected fakeintakeID %s got %s: The fakeintake probably restarted during your test", currentFakeintakeID, requestFakeintakeID))
 				}
 			}
 		}
