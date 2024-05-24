@@ -32,8 +32,6 @@ const (
 // Requires specifies a list of dependencies required for the collector
 // to be instantiated.
 type Requires struct {
-	compdef.In
-
 	// Lc specifies the lifecycle settings, used for appending startup
 	// and shutdown hooks.
 	Lc compdef.Lifecycle
