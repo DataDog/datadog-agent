@@ -15,6 +15,8 @@ import (
 	"time"
 )
 
+const tokenVersion = "v1"
+
 // authenticator represents an authentication mechanism.
 type authenticator struct {
 	duration   time.Duration // The duration for which the authentication token is valid.
@@ -36,12 +38,17 @@ func (a *authenticator) GenerateAccessToken() string {
 func (a *authenticator) ValidateToken(token string) error {
 	// Split the token into the payload and HMAC sum
 	parts := strings.Split(token, ".")
-	if len(parts) != 2 {
+	if len(parts) != 3 {
 		return fmt.Errorf("invalid token format")
 	}
 
+	// Check token version
+	if parts[0] != tokenVersion {
+		return fmt.Errorf("token version mismatch: got %s, expected %s", parts[0], tokenVersion)
+	}
+
 	// Decode the payload from base64
-	payloadBytes, err := base64.StdEncoding.DecodeString(parts[0])
+	payloadBytes, err := base64.StdEncoding.DecodeString(parts[1])
 	if err != nil {
 		return fmt.Errorf("failed to decode payload: %w", err)
 	}
@@ -56,7 +63,7 @@ func (a *authenticator) ValidateToken(token string) error {
 	expirationTime := int64(binary.LittleEndian.Uint64(payloadBytes[8:]))
 
 	// Decode the HMAC sum from base64
-	hmacSum, err := base64.StdEncoding.DecodeString(parts[1])
+	hmacSum, err := base64.StdEncoding.DecodeString(parts[2])
 	if err != nil {
 		return fmt.Errorf("failed to decode HMAC sum: %w", err)
 	}
@@ -84,6 +91,10 @@ func (a *authenticator) ValidateToken(token string) error {
 		return fmt.Errorf("token is expired")
 	}
 
+	if a.duration != 0 && now.After(time.Unix(issuedTime, 0).Add(a.duration)) {
+		return fmt.Errorf("token is expired")
+	}
+
 	return nil
 }
 
@@ -93,11 +104,11 @@ func (a *authenticator) ValidateToken(token string) error {
 // The generated token is returned as a string.
 //
 // Token representation:
-// +--------------------------------+----------------+----------------------------------+
-// | Base64 Encoded Payload         | "." Separator  | Base64 Encoded HMAC Sum          |
-// +--------------------------------+----------------+----------------------------------+
-// | ~24 characters                 | 1 character    | ~44 characters                   |
-// +--------------------------------+----------------+----------------------------------+
+// +----------------+----------------+--------------------------------+----------------+----------------------------------+
+// | Token Version  | "." Separator  | Base64 Encoded Payload         | "." Separator  | Base64 Encoded HMAC Sum          |
+// +----------------+----------------+--------------------------------+----------------+----------------------------------+
+// | ~3 characters  | 1 character    | ~24 characters                 | 1 character    | ~44 characters                   |
+// +----------------+----------------+--------------------------------+----------------+----------------------------------+
 // with payload
 // +----------------+----------------+
 // | Issued Time    | Expiration Time|
@@ -120,7 +131,5 @@ func hmacToken(key []byte, issued time.Time, expiration time.Time) string {
 	hmacBase64 := base64.StdEncoding.EncodeToString(hmacSum)
 
 	// Combine the issued time and HMAC sum with a "." separator
-	token := payloadBase64 + "." + hmacBase64
-
-	return token
+	return tokenVersion + "." + payloadBase64 + "." + hmacBase64
 }

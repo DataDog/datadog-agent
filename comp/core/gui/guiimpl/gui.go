@@ -18,7 +18,6 @@ import (
 	"path"
 	"path/filepath"
 	"strconv"
-	"strings"
 	"text/template"
 	"time"
 
@@ -26,7 +25,6 @@ import (
 
 	"github.com/dvsekhvalnov/jose2go/base64url"
 	"github.com/gorilla/mux"
-	"github.com/urfave/negroni"
 
 	"github.com/DataDog/datadog-agent/comp/api/api"
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
@@ -128,21 +126,20 @@ func newGui(deps dependencies) provides {
 	g.auth = newAuthenticator(authToken, sessionExpiration)
 
 	// Serve the (secured) index page on the default endpoint
-	router.Handle("/", g.authorizeAccess(http.HandlerFunc(generateIndex)))
 	router.HandleFunc("/auth", g.getAccessToken).Methods("GET")
+	securedRouter := router.PathPrefix("/").Subrouter()
+	securedRouter.HandleFunc("/", generateIndex).Methods("GET")
 
 	// Mount our (secured) filesystem at the view/{path} route
-	router.PathPrefix("/view/").Handler(http.StripPrefix("/view/", g.authorizeAccess(http.HandlerFunc(serveAssets))))
+	securedRouter.PathPrefix("/view/").Handler(http.StripPrefix("/view/", http.HandlerFunc(serveAssets)))
 
 	// Set up handlers for the API
-	agentRouter := mux.NewRouter().PathPrefix("/agent").Subrouter().StrictSlash(true)
+	agentRouter := securedRouter.PathPrefix("/agent").Subrouter().StrictSlash(true)
 	agentHandler(agentRouter, deps.Flare, deps.Status, deps.Config, g.startTimestamp)
-	checkRouter := mux.NewRouter().PathPrefix("/checks").Subrouter().StrictSlash(true)
+	checkRouter := securedRouter.PathPrefix("/checks").Subrouter().StrictSlash(true)
 	checkHandler(checkRouter, deps.Collector, deps.Ac)
 
-	// Add authorization middleware to all the API endpoints
-	router.PathPrefix("/agent").Handler(negroni.New(negroni.HandlerFunc(g.authorizePOST), negroni.Wrap(agentRouter)))
-	router.PathPrefix("/checks").Handler(negroni.New(negroni.HandlerFunc(g.authorizePOST), negroni.Wrap(checkRouter)))
+	securedRouter.Use(g.authMiddleware)
 
 	g.router = router
 
@@ -255,56 +252,32 @@ func (g *gui) getAccessToken(w http.ResponseWriter, r *http.Request) {
 
 	// accessToken, err := g.auth.Authenticate(intentToken)
 	// if authToken is valid, set the accessToken as a cookie and redirect the user to root page
-	http.SetCookie(w, &http.Cookie{Name: "accessToken", Value: accessToken, Path: "/"})
+	http.SetCookie(w, &http.Cookie{Name: "accessToken", Value: accessToken, Path: "/", HttpOnly: true})
 	http.Redirect(w, r, "/", http.StatusFound)
 }
 
 // Middleware which blocks access to secured files from unauthorized clients
-func (g *gui) authorizeAccess(h http.Handler) http.Handler {
+func (g *gui) authMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Disable caching
 		w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
 
 		cookie, _ := r.Cookie("accessToken")
 		if cookie == nil {
-			w.WriteHeader(http.StatusUnauthorized)
-			http.Error(w, "no accessToken token", 401)
+			http.Error(w, "missing accessToken", http.StatusUnauthorized)
 			return
 		}
 
 		// check accessToken is valid (same key, same sessionId)
 		err := g.auth.ValidateToken(cookie.Value)
 		if err != nil {
-			w.WriteHeader(http.StatusUnauthorized)
-			http.Error(w, err.Error(), 401)
+			http.Error(w, err.Error(), http.StatusUnauthorized)
 			return
 		}
 
 		// Token was valid: serve the requested resource
-		h.ServeHTTP(w, r)
+		next.ServeHTTP(w, r)
 	})
-}
-
-// Middleware which blocks POST requests from unauthorized clients
-func (g *gui) authorizePOST(w http.ResponseWriter, r *http.Request, next http.HandlerFunc) {
-	authHeader := r.Header["Authorization"]
-	if len(authHeader) == 0 || authHeader[0] == "" || strings.Split(authHeader[0], " ")[0] != "Bearer" {
-		w.WriteHeader(http.StatusUnauthorized)
-		http.Error(w, "invalid authorization scheme", 401)
-		return
-	}
-
-	token := strings.Split(authHeader[0], " ")[1]
-
-	// check accessToken is valid (same key, same sessionId)
-	err := g.auth.ValidateToken(token)
-	if err != nil {
-		w.WriteHeader(http.StatusUnauthorized)
-		http.Error(w, "invalid accessToken", 401)
-		return
-	}
-
-	next(w, r)
 }
 
 // Helper function which unmarshals a POST requests data into a Payload object

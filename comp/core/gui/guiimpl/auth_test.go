@@ -41,7 +41,7 @@ func TestAuthenticator(t *testing.T) {
 		},
 		{
 			name:   "malformed issued time",
-			token:  "abcded.12345",
+			token:  "v1.abcded.12345",
 			errMsg: "failed to decode payload",
 		},
 		{
@@ -63,11 +63,16 @@ func TestAuthenticator(t *testing.T) {
 				binary.LittleEndian.PutUint64(payloadBytes, uint64(time.Now().Unix()))
 				binary.LittleEndian.PutUint64(payloadBytes[8:], uint64(time.Now().Add(5*time.Minute).Unix()))
 				payloadBase64 := base64.StdEncoding.EncodeToString(payloadBytes)
-				parts[0] = payloadBase64
+				parts[1] = payloadBase64
 
-				return parts[0] + "." + parts[1]
+				return parts[0] + "." + parts[1] + "." + parts[2]
 			}(),
 			errMsg: "invalid token signature",
+		},
+		{
+			name:   "wrong version",
+			token:  "_" + hmacToken([]byte(key), time.Now(), time.Now().Add(5*time.Minute)),
+			errMsg: "token version mismatch",
 		},
 	}
 
