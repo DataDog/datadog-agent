@@ -386,7 +386,7 @@ func (m *SecurityProfileManager) FillProfileContextFromContainerID(id string, ct
 }
 
 // FillProfileContextFromProfile fills the given ctx with profile infos
-func FillProfileContextFromProfile(ctx *model.SecurityProfileContext, profile *SecurityProfile, imageTag string) {
+func FillProfileContextFromProfile(ctx *model.SecurityProfileContext, profile *SecurityProfile, imageTag string, state secprofModel.EventFilteringProfileState) {
 	profile.Lock()
 	defer profile.Unlock()
 
@@ -396,6 +396,7 @@ func FillProfileContextFromProfile(ctx *model.SecurityProfileContext, profile *S
 	}
 
 	ctx.EventTypes = profile.eventTypes
+	ctx.EventTypeState = state
 	profileContext, ok := profile.versionContexts[imageTag]
 	if ok { // should always be the case
 		ctx.Tags = profileContext.Tags
@@ -784,7 +785,7 @@ func (m *SecurityProfileManager) LookupEventInProfiles(event *model.Event) {
 		return
 	case secprofModel.AutoLearning, secprofModel.WorkloadWarmup:
 		// the event was either already in the profile, or has just been inserted
-		FillProfileContextFromProfile(&event.SecurityProfileContext, profile, imageTag)
+		FillProfileContextFromProfile(&event.SecurityProfileContext, profile, imageTag, profileState)
 		event.AddToFlags(model.EventFlagsSecurityProfileInProfile)
 
 		return
@@ -803,7 +804,7 @@ func (m *SecurityProfileManager) LookupEventInProfiles(event *model.Event) {
 			m.incrementEventFilteringStat(event.GetEventType(), secprofModel.NoProfile, NA)
 			return
 		}
-		FillProfileContextFromProfile(&event.SecurityProfileContext, profile, imageTag)
+		FillProfileContextFromProfile(&event.SecurityProfileContext, profile, imageTag, profileState)
 		if found {
 			event.AddToFlags(model.EventFlagsSecurityProfileInProfile)
 			m.incrementEventFilteringStat(event.GetEventType(), profileState, InProfile)
