@@ -44,7 +44,7 @@ type KafkaResponseContext struct {
 	State                       uint8
 	Remainder                   uint8
 	Varint_position             uint8
-	Restart_at_partition_end    uint8
+	Partition_state             uint8
 	Remainder_buf               [4]int8
 	Record_batches_num_bytes    int32
 	Record_batch_length         int32

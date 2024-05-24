@@ -54,6 +54,7 @@ typedef enum {
     KAFKA_FETCH_RESPONSE_RECORD_BATCH_RECORDS_COUNT,
     KAFKA_FETCH_RESPONSE_RECORD_BATCH_END,
     KAFKA_FETCH_RESPONSE_RECORD_BATCHES_ARRAY_END,
+    KAFKA_FETCH_RESPONSE_PARTITION_TAGGED_FIELDS,
     KAFKA_FETCH_RESPONSE_PARTITION_END,
 } __attribute__ ((packed)) kafka_response_state;
 
@@ -72,9 +73,8 @@ typedef struct kafka_response_context_t {
     __u8 remainder;
     // The current byte of the varint where we paused processing.
     __u8 varint_position;
-    // Whether the parition parsing needs resume from the end of the
-    // current partition or start of the next.
-    __u8 restart_at_partition_end;
+    // Where the parition parsing needs to resume from.
+    kafka_response_state partition_state;
     char remainder_buf[4];
     __s32 record_batches_num_bytes;
     __s32 record_batch_length;

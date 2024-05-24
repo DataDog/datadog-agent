@@ -436,6 +436,34 @@ static __always_inline enum parse_result read_varint_or_s32(
     return ret;
 }
 
+static __always_inline enum parse_result skip_tagged_fields(kafka_response_context_t *response,
+                                                            pktbuf_t pkt,
+                                                            u32 *offset,
+                                                            u32 data_end,
+                                                            bool verify)
+{
+    if (*offset >= data_end) {
+        response->carry_over_offset = *offset - data_end;
+        return RET_EOP;
+    }
+
+    if (verify) {
+        u8 num_tagged_fields = 0;
+
+        pktbuf_load_bytes(pkt, *offset, &num_tagged_fields, 1);
+        extra_debug("num_tagged_fields: %u", num_tagged_fields);
+
+        if (num_tagged_fields != 0) {
+            // We don't support parsing tagged fields for now.
+            return RET_ERR;
+        }
+    }
+
+    *offset += 1;
+
+    return RET_DONE;
+}
+
 enum parser_level {
     PARSER_LEVEL_PARTITION,
     PARSER_LEVEL_RECORD_BATCH,
@@ -459,6 +487,7 @@ static enum parser_level parser_state_to_level(kafka_response_state state)
     case KAFKA_FETCH_RESPONSE_RECORD_BATCH_END:
     case KAFKA_FETCH_RESPONSE_RECORD_BATCHES_ARRAY_END:
         return PARSER_LEVEL_RECORD_BATCH;
+    case KAFKA_FETCH_RESPONSE_PARTITION_TAGGED_FIELDS:
     case KAFKA_FETCH_RESPONSE_PARTITION_END:
         return PARSER_LEVEL_PARTITION;
     }
@@ -486,15 +515,14 @@ static __always_inline enum parse_result kafka_continue_parse_response_partition
 
     switch (response->state) {
     case KAFKA_FETCH_RESPONSE_START:
-        if (offset >= data_end) {
-            response->carry_over_offset = offset - data_end;
-            return RET_EOP;
+        if (flexible) {
+            ret = skip_tagged_fields(response, pkt, &offset, data_end, true);
+            if (ret != RET_DONE) {
+                return ret;
+            }
         }
 
-        if (flexible) {
-            offset += sizeof(u8); // Skip tagged fields
-        }
-         if (api_version >= 1) {
+        if (api_version >= 1) {
             offset += sizeof(s32); // Skip throttle_time_ms
         }
         if (api_version >= 7) {
@@ -564,6 +592,7 @@ static __always_inline enum parse_result kafka_continue_parse_response_partition
     case KAFKA_FETCH_RESPONSE_RECORD_BATCH_RECORDS_COUNT:
     case KAFKA_FETCH_RESPONSE_RECORD_BATCH_END:
     case KAFKA_FETCH_RESPONSE_RECORD_BATCHES_ARRAY_END:
+    case KAFKA_FETCH_RESPONSE_PARTITION_TAGGED_FIELDS:
     case KAFKA_FETCH_RESPONSE_PARTITION_END:
         break;
     }
@@ -623,7 +652,8 @@ static __always_inline enum parse_result kafka_continue_parse_response_partition
                     u32 transaction_size = sizeof(s64) * 2;
 
                     if (flexible) {
-                        // Assume zero tagged fields
+                        // Assume zero tagged fields.  It's a bit involved to verify that they are
+                        // zero here so we don't do it for now.
                         transaction_size += sizeof(u8);
                     }
 
@@ -665,10 +695,16 @@ static __always_inline enum parse_result kafka_continue_parse_response_partition
             }
 
             offset += response->record_batches_num_bytes;
+            response->state = KAFKA_FETCH_RESPONSE_PARTITION_TAGGED_FIELDS;
+            // fallthrough
 
-            // Tagged values
+        case KAFKA_FETCH_RESPONSE_PARTITION_TAGGED_FIELDS:
             if (flexible) {
-                offset += sizeof(u8);
+                // Verification disabled due to code size limitations.
+                ret = skip_tagged_fields(response, pkt, &offset, data_end, false);
+                if (ret != RET_DONE) {
+                    return ret;
+                }
             }
             response->state = KAFKA_FETCH_RESPONSE_PARTITION_END;
             // fallthrough
@@ -866,12 +902,8 @@ static __always_inline enum parse_result kafka_continue_parse_response_record_ba
             // than the one used for the final access operation.
             u64 idx = response->record_batches_arrays_idx + 1;
             if (idx >= response->record_batches_arrays_count) {
-                bool flexible = api_version >= 12;
                 response->record_batches_arrays_idx = idx;
                 response->carry_over_offset = offset - orig_offset;
-                if (flexible) {
-                    response->carry_over_offset += sizeof(u8);
-                }
                 return RET_DONE;
             }
 
@@ -894,6 +926,7 @@ static __always_inline enum parse_result kafka_continue_parse_response_record_ba
         case KAFKA_FETCH_RESPONSE_PARTITION_START:
         case KAFKA_FETCH_RESPONSE_PARTITION_ABORTED_TRANSACTIONS:
         case KAFKA_FETCH_RESPONSE_RECORD_BATCHES_ARRAY_START:
+        case KAFKA_FETCH_RESPONSE_PARTITION_TAGGED_FIELDS:
         case KAFKA_FETCH_RESPONSE_PARTITION_END:
             extra_debug("invalid state %d in record batches array parser", response->state);
             break;
@@ -989,7 +1022,7 @@ static __always_inline enum parse_result kafka_continue_parse_response(void *ctx
         if (ret != RET_ERR && response->record_batches_arrays_count) {
             response->varint_value = 0;
             response->varint_position = 0;
-            response->restart_at_partition_end = response->state == KAFKA_FETCH_RESPONSE_PARTITION_END;
+            response->partition_state = response->state;
             response->state = KAFKA_FETCH_RESPONSE_RECORD_BATCH_START;
             response->record_batches_num_bytes = kafka->record_batches_arrays[0].num_bytes;
             response->carry_over_offset = kafka->record_batches_arrays[0].offset;
@@ -1019,11 +1052,18 @@ static __always_inline enum parse_result kafka_continue_parse_response(void *ctx
                 return ret;
             }
 
-            if (response->restart_at_partition_end) {
-                response->state = KAFKA_FETCH_RESPONSE_PARTITION_END;
-            } else {
-                response->state = KAFKA_FETCH_RESPONSE_PARTITION_START;
+            // We resume the partition parsing at the end of the record batches
+            // array, since that's the offset we have in `carry_over_offset`.  However,
+            // on the previous run of the partition parser, the parser may have have
+            // stopped somewhere before the start of the record batches array in
+            // the _next_ partition, and thus already have reduced the
+            // `partitions_count` to account for the current partition.  In that
+            // case, we need to adjust `partitions_count` since we will be
+            // re-running the end states for the current partition.
+            if (response->partition_state <= KAFKA_FETCH_RESPONSE_RECORD_BATCHES_ARRAY_START) {
+                response->partitions_count++;
             }
+            response->state = KAFKA_FETCH_RESPONSE_PARTITION_TAGGED_FIELDS;
 
             // Caller will do tail call
             return RET_LOOP_END;
