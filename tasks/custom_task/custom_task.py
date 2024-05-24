@@ -40,9 +40,12 @@ def get_running_modes() -> dict[str, bool]:
     If the task is run in the ci      -> "ci"
     Neither pre-commit nor ci         -> "manual"
     """
+    # This will catch when devs are running the unit tests with the unittest module directly.
+    # When running the unit tests with the invoke command, the INVOKE_UNIT_TESTS env variable is set.
+    is_running_ut = "unittest" in " ".join(sys.argv)
     running_modes = {
         "pre_commit": os.environ.get("PRE_COMMIT", 0) == "1",
-        "invoke_unit_tests": os.environ.get("INVOKE_UNIT_TESTS", 0) == "1",
+        "invoke_unit_tests": is_running_ut or os.environ.get("INVOKE_UNIT_TESTS", 0) == "1",
         "ci": running_in_ci(),
     }
     running_modes["manual"] = not (running_modes["pre_commit"] or running_modes["ci"])
