@@ -841,7 +841,7 @@ def kmt_sysprobe_prepare(
                             "chdir": "true",
                             "tags": "-tags=\"test\"",
                             "ldflags": "-ldflags=\"-extldflags '-static'\"",
-                            "env": env_str
+                            "env": env_str,
                         },
                     )
 
