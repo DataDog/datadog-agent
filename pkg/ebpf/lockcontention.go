@@ -34,7 +34,8 @@ const (
 	// or just system-probe resources
 	TrackAllEBPFResources = true
 
-	bpfObjectFile = "bytecode/build/co-re/lock_contention.o"
+	lockContetionBpfObjectFile = "bytecode/build/co-re/lock_contention.o"
+	ksymsIterBpfObjectFile     = "bytecode/build/co-re/ksyms_iter.o"
 
 	// bpf map names
 	mapAddrFdBpfMap = "map_addr_fd"
@@ -260,8 +261,10 @@ func (l *LockContentionCollector) Initialize(trackAllResources bool) error {
 		return nil
 	}
 	defer func() {
-		log.Infof("lock contention collector initialized")
-		l.initialized = true
+		if err == nil {
+			log.Infof("lock contention collector initialized")
+			l.initialized = true
+		}
 	}()
 
 	l.trackedLockMemRanges = make(map[LockRange]*mapStats)
@@ -299,7 +302,7 @@ func (l *LockContentionCollector) Initialize(trackAllResources bool) error {
 
 	var ranges uint32
 	var cpus uint32
-	if err := LoadCOREAsset(bpfObjectFile, func(bc bytecode.AssetReader, managerOptions manager.Options) error {
+	if err := LoadCOREAsset(lockContetionBpfObjectFile, func(bc bytecode.AssetReader, managerOptions manager.Options) error {
 		collectionSpec, err := ebpf.LoadCollectionSpecFromReader(bc)
 		if err != nil {
 			return fmt.Errorf("failed to load collection spec: %w", err)
@@ -320,10 +323,10 @@ func (l *LockContentionCollector) Initialize(trackAllResources bool) error {
 
 		// Ideally we would want this to be the max number of proccesses allowed
 		// by the kernel, however verifier constraints force us to choose a smaller
-		// value. This value has been experimentally verifier to pass the verifier.
+		// value. This value has been experimentally determined to pass the verifier.
 		collectionSpec.Maps[timeStampBpfMap].MaxEntries = 16384
 
-		addrs, err := getKernelSymbolsAddressesWithKptrRestrict(kernelAddresses...)
+		addrs, err := getKernelSymbolsAddressesWithKallsymsIterator(kernelAddresses...)
 		if err != nil {
 			return fmt.Errorf("unable to fetch kernel symbol addresses: %w", err)
 		}
@@ -504,27 +507,6 @@ func estimateNumOfLockRanges(tm map[uint32]*targetMap, cpu uint32) uint32 {
 	return num
 }
 
-func setKptrRestrict(val string) error {
-	kptrRestrict := "/proc/sys/kernel/kptr_restrict"
-
-	if !(val == enableKptrRestrict || val == disableKptrRestrict) {
-		return fmt.Errorf("invalid value %q to write to %q", val, kptrRestrict)
-	}
-
-	f, err := os.OpenFile(kptrRestrict, os.O_RDWR, 0)
-	if err != nil {
-		return fmt.Errorf("error opening file %q: %w", kptrRestrict, err)
-	}
-	defer f.Close()
-
-	_, err = f.WriteString(val)
-	if err != nil {
-		return fmt.Errorf("error writing to file %q: %w", kptrRestrict, err)
-	}
-
-	return nil
-}
-
 func useDummyRead(addrs map[string]uint64) bool {
 	_, okFops := addrs["bpf_map_fops"]
 	_, okRead := addrs["bpf_dummy_read"]
@@ -532,22 +514,61 @@ func useDummyRead(addrs map[string]uint64) bool {
 	return !okFops && okRead
 }
 
-func getKernelSymbolsAddressesWithKptrRestrict(kernelAddresses ...string) (map[string]uint64, error) {
-	if err := setKptrRestrict(disableKptrRestrict); err != nil {
-		return nil, fmt.Errorf("unable to disable kptr_restrict: %w", err)
+type ksymIterProgram struct {
+	BpfIteratorDumpKsyms *ebpf.Program `ebpf:"bpf_iter__dump_ksyms"`
+}
+
+func getKernelSymbolsAddressesWithKallsymsIterator(kernelAddresses ...string) (map[string]uint64, error) {
+	var prog ksymIterProgram
+
+	if err := LoadCOREAsset(ksymsIterBpfObjectFile, func(bc bytecode.AssetReader, managerOptions manager.Options) error {
+		collectionSpec, err := ebpf.LoadCollectionSpecFromReader(bc)
+		if err != nil {
+			return fmt.Errorf("failed to load collection spec: %w", err)
+		}
+
+		opts := ebpf.CollectionOptions{
+			Programs: ebpf.ProgramOptions{
+				LogLevel:    ebpf.LogLevelBranch,
+				LogSize:     10 * 1024 * 1024,
+				KernelTypes: managerOptions.VerifierOptions.Programs.KernelTypes,
+			},
+		}
+
+		if err := collectionSpec.LoadAndAssign(&prog, &opts); err != nil {
+			var ve *ebpf.VerifierError
+			if errors.As(err, &ve) {
+				return fmt.Errorf("verfier error loading collection: %s\n%+v", err, ve)
+			}
+			return fmt.Errorf("failed to load objects: %w", err)
+		}
+
+		return nil
+	}); err != nil {
+		return nil, err
 	}
 
-	addrs, err := GetKernelSymbolsAddresses(kernelAddresses...)
+	iter, err := link.AttachIter(link.IterOptions{
+		Program: prog.BpfIteratorDumpKsyms,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to attach bpf iterator: %w", err)
+	}
+	defer iter.Close()
+
+	ksymsReader, err := iter.Open()
+	if err != nil {
+		return nil, err
+	}
+	defer ksymsReader.Close()
+
+	addrs, err := GetKernelSymbolsAddressesNoCache(ksymsReader, kernelAddresses...)
 	if err != nil {
 		// on debian 12 bpf_map_fops is not exported, so we use
 		// bpf_dummy_read instead
 		if dummyRead := useDummyRead(addrs); !dummyRead {
 			return nil, err
 		}
-	}
-
-	if err := setKptrRestrict(enableKptrRestrict); err != nil {
-		return nil, fmt.Errorf("unable to enable kptr_restrict: %w", err)
 	}
 
 	return addrs, nil
