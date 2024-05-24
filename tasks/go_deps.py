@@ -1,4 +1,5 @@
 import datetime
+import io
 import os
 from collections import namedtuple
 from collections.abc import Iterable
@@ -146,7 +147,7 @@ def send_count_metrics(
 
 
 BINARY_TO_TEST = ["serverless"]
-FailedBinary = namedtuple('failedBinary', ['binary', 'os', 'arch'])
+MisMacthBinary = namedtuple('failedBinary', ['binary', 'os', 'arch', 'differences'])
 
 
 @task
@@ -186,17 +187,42 @@ def test_list(
                 list = compute_binary_dependencies_list(ctx, build, flavor, platform, arch)
 
                 if list != deps:
-                    mismatch_binaries.add(FailedBinary(binary, goos, goarch))
+                    new_dependencies_lines = len(list.splitlines())
+                    recorded_dependencies_lines = len(deps.splitlines())
+
+                    mismatch_binaries.add(
+                        MisMacthBinary(binary, goos, goarch, new_dependencies_lines - recorded_dependencies_lines)
+                    )
 
     if len(mismatch_binaries) > 0:
-        binary_list = ', '.join([f"{binary} ({os}/{arch})" for binary, os, arch in mismatch_binaries])
+        message = io.StringIO()
+
+        for mismatch_binary in mismatch_binaries:
+            if mismatch_binary.differences > 0:
+                message.write(
+                    color_message(
+                        f"You added some dependencies to {mismatch_binary.binary} ({mismatch_binary.os}/{mismatch_binary.arch}). The customers have raised complaints about the size of the Agent binary. Adding new dependencies to the binary increases its size. Do we really need to add this dependency?\n",
+                        "red",
+                    )
+                )
+            else:
+                message.write(
+                    color_message(
+                        f"You removed some dependencies from {mismatch_binary.binary} ({mismatch_binary.os}/{mismatch_binary.arch}). Congratulations!\n",
+                        "green",
+                    )
+                )
+
+        message.write(
+            color_message(
+                "To fix this check, please run `inv -e go-deps.generate`",
+                "orange",
+            )
+        )
 
         raise Exit(
             code=1,
-            message=color_message(
-                f"Dependencies list for {binary_list} does not match. To fix this check, please run `inv -e go-deps.generate`",
-                "red",
-            ),
+            message=message.getvalue(),
         )
 
 
