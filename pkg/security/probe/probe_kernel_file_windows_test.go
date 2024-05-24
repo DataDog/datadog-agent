@@ -233,25 +233,25 @@ func testSimpleCreate(t *testing.T, et *etwTester, testfilename string) {
 	assert.Equal(t, 4, len(et.notifications), "expected 4 notifications, got %d", len(et.notifications))
 
 	if c, ok := et.notifications[0].(*createHandleArgs); ok {
-		assert.True(t, isSameFile(testfilename, c.fileName), "expected %s, got %s", testfilename, c.fileName)
+		assert.True(t, isSameFile(testfilename, c.filePath), "expected %s, got %s", testfilename, c.filePath)
 	} else {
 		t.Errorf("expected createHandleArgs, got %T", et.notifications[0])
 	}
 
 	if cf, ok := et.notifications[1].(*createNewFileArgs); ok {
-		assert.True(t, isSameFile(testfilename, cf.fileName), "expected %s, got %s", testfilename, cf.fileName)
+		assert.True(t, isSameFile(testfilename, cf.filePath), "expected %s, got %s", testfilename, cf.filePath)
 	} else {
 		t.Errorf("expected createNewFileArgs, got %T", et.notifications[1])
 	}
 
 	if cu, ok := et.notifications[2].(*cleanupArgs); ok {
-		assert.True(t, isSameFile(testfilename, cu.fileName), "expected %s, got %s", testfilename, cu.fileName)
+		assert.True(t, isSameFile(testfilename, cu.filePath), "expected %s, got %s", testfilename, cu.filePath)
 	} else {
 		t.Errorf("expected cleanupArgs, got %T", et.notifications[2])
 	}
 
 	if cl, ok := et.notifications[3].(*closeArgs); ok {
-		assert.True(t, isSameFile(testfilename, cl.fileName), "expected %s, got %s", testfilename, cl.fileName)
+		assert.True(t, isSameFile(testfilename, cl.filePath), "expected %s, got %s", testfilename, cl.filePath)
 	} else {
 		t.Errorf("expected closeArgs, got %T", et.notifications[3])
 	}
@@ -313,20 +313,20 @@ func testSimpleFileWrite(t *testing.T, et *etwTester, testfilename string) {
 	assert.Equal(t, 3, len(et.notifications), "expected 3 notifications, got %d", len(et.notifications))
 
 	if c, ok := et.notifications[0].(*createHandleArgs); ok {
-		assert.True(t, isSameFile(testfilename, c.fileName), "expected %s, got %s", testfilename, c.fileName)
+		assert.True(t, isSameFile(testfilename, c.filePath), "expected %s, got %s", testfilename, c.filePath)
 	} else {
 		t.Errorf("expected createHandleArgs, got %T", et.notifications[0])
 	}
 
 	if wa, ok := et.notifications[1].(*writeArgs); ok {
-		assert.True(t, isSameFile(testfilename, wa.fileName), "expected %s, got %s", testfilename, wa.fileName)
+		assert.True(t, isSameFile(testfilename, wa.filePath), "expected %s, got %s", testfilename, wa.filePath)
 		assert.Equal(t, uint32(5), wa.IOSize, "expected 5, got %d", wa.IOSize)
 	} else {
 		t.Errorf("expected writeArgs, got %T", et.notifications[1])
 	}
 
 	if cl, ok := et.notifications[2].(*cleanupArgs); ok {
-		assert.True(t, isSameFile(testfilename, cl.fileName), "expected %s, got %s", testfilename, cl.fileName)
+		assert.True(t, isSameFile(testfilename, cl.filePath), "expected %s, got %s", testfilename, cl.filePath)
 	} else {
 		t.Errorf("expected cleanup, got %T", et.notifications[2])
 	}
@@ -377,20 +377,20 @@ func testSimpleFileDelete(t *testing.T, et *etwTester, testfilename string) {
 		}
 	*/
 	if c, ok := et.notifications[0].(*createHandleArgs); ok {
-		assert.True(t, isSameFile(testfilename, c.fileName), "expected %s, got %s", testfilename, c.fileName)
+		assert.True(t, isSameFile(testfilename, c.filePath), "expected %s, got %s", testfilename, c.filePath)
 	} else {
 		t.Errorf("expected createHandleArgs, got %T", et.notifications[0])
 	}
 
 	if wa, ok := et.notifications[1].(*setDeleteArgs); ok {
-		assert.True(t, isSameFile(testfilename, wa.fileName), "expected %s, got %s", testfilename, wa.fileName)
+		assert.True(t, isSameFile(testfilename, wa.filePath), "expected %s, got %s", testfilename, wa.filePath)
 	} else {
 		t.Errorf("expected setDelete, got %T", et.notifications[1])
 	}
 
 	/*
 		if cl, ok := et.notifications[2].(*cleanupArgs); ok {
-			assert.True(t, isSameFile(testfilename, cl.fileName), "expected %s, got %s", testfilename, cl.fileName)
+			assert.True(t, isSameFile(testfilename, cl.filePath), "expected %s, got %s", testfilename, cl.filePath)
 		} else {
 			t.Errorf("expected cleanup, got %T", et.notifications[2])
 		}
@@ -435,7 +435,7 @@ func testSimpleFileRename(t *testing.T, et *etwTester, testfilename, testfileren
 	//assert.Equal(t, 4, len(et.notifications), "expected 4 notifications, got %d", len(et.notifications))
 
 	if c, ok := et.notifications[0].(*createHandleArgs); ok {
-		assert.True(t, isSameFile(testfilename, c.fileName), "expected %s, got %s", testfilename, c.fileName)
+		assert.True(t, isSameFile(testfilename, c.filePath), "expected %s, got %s", testfilename, c.filePath)
 	} else {
 		t.Errorf("expected createHandleArgs, got %T", et.notifications[0])
 	}
@@ -446,7 +446,7 @@ func testSimpleFileRename(t *testing.T, et *etwTester, testfilename, testfileren
 	var ndx int
 	for ndx = 1; ndx < len(et.notifications); ndx++ {
 		if ra, ok := et.notifications[ndx].(*renameArgs); ok {
-			assert.True(t, isSameFile(testfilename, ra.fileName), "expected %s, got %s", testfilename, ra.fileName)
+			assert.True(t, isSameFile(testfilename, ra.filePath), "expected %s, got %s", testfilename, ra.filePath)
 			break
 		}
 	}
@@ -505,7 +505,7 @@ func testFileOpen(t *testing.T, et *etwTester, testfilename string) {
 	assert.Equal(t, 3, len(et.notifications), "expected 3 notifications, got %d", len(et.notifications))
 
 	if c, ok := et.notifications[0].(*createHandleArgs); ok {
-		assert.True(t, isSameFile(testfilename, c.fileName), "expected %s, got %s", testfilename, c.fileName)
+		assert.True(t, isSameFile(testfilename, c.filePath), "expected %s, got %s", testfilename, c.filePath)
 		// this should be same as sharing argument to Createfile
 		assert.Equal(t, uint32(windows.FILE_SHARE_READ), c.shareAccess, "Sharing mode did not match")
 		assert.Equal(t, expectedCreateOptions, c.createOptions, "Create options did not match")
@@ -515,13 +515,13 @@ func testFileOpen(t *testing.T, et *etwTester, testfilename string) {
 	}
 
 	if cu, ok := et.notifications[1].(*cleanupArgs); ok {
-		assert.True(t, isSameFile(testfilename, cu.fileName), "expected %s, got %s", testfilename, cu.fileName)
+		assert.True(t, isSameFile(testfilename, cu.filePath), "expected %s, got %s", testfilename, cu.filePath)
 	} else {
 		t.Errorf("expected cleanupArgs, got %T", et.notifications[2])
 	}
 
 	if cl, ok := et.notifications[2].(*closeArgs); ok {
-		assert.True(t, isSameFile(testfilename, cl.fileName), "expected %s, got %s", testfilename, cl.fileName)
+		assert.True(t, isSameFile(testfilename, cl.filePath), "expected %s, got %s", testfilename, cl.filePath)
 	} else {
 		t.Errorf("expected closeArgs, got %T", et.notifications[3])
 	}

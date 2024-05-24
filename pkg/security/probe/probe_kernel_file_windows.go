@@ -79,8 +79,8 @@ type createHandleArgs struct {
 	createOptions    uint32
 	createAttributes uint32
 	shareAccess      uint32
-	fileName         string
-	userFileName     string
+	filePath         string
+	userFilePath     string
 }
 
 /*
@@ -148,7 +148,7 @@ func (wp *WindowsProbe) parseCreateHandleArgs(e *etw.DDEventRecord) (*createHand
 		ca.createAttributes = data.GetUint32(28)
 		ca.shareAccess = data.GetUint32(32)
 
-		ca.fileName, _, _, _ = data.ParseUnicodeString(36)
+		ca.filePath, _, _, _ = data.ParseUnicodeString(36)
 	} else if e.EventHeader.EventDescriptor.Version == 1 {
 
 		ca.irp = data.GetUint64(0)
@@ -158,24 +158,23 @@ func (wp *WindowsProbe) parseCreateHandleArgs(e *etw.DDEventRecord) (*createHand
 		ca.createAttributes = data.GetUint32(24)
 		ca.shareAccess = data.GetUint32(28)
 
-		ca.fileName, _, _, _ = data.ParseUnicodeString(32)
+		ca.filePath, _, _, _ = data.ParseUnicodeString(32)
 	} else {
 		return nil, fmt.Errorf("unknown version %v", e.EventHeader.EventDescriptor.Version)
 	}
-
-	if _, ok := wp.discardedPaths.Get(ca.fileName); ok {
+	if _, ok := wp.discardedPaths.Get(ca.filePath); ok {
 		wp.stats.fileCreateSkippedDiscardedPaths++
 		return nil, errDiscardedPath
 	}
 
-	ca.userFileName = wp.mustConvertDrivePath(ca.fileName)
-	if _, ok := wp.discardedUserPaths.Get(ca.userFileName); ok {
+	ca.userFilePath = wp.mustConvertDrivePath(ca.filePath)
+	if _, ok := wp.discardedUserPaths.Get(ca.userFilePath); ok {
 		wp.stats.fileCreateSkippedDiscardedPaths++
 		return nil, errDiscardedPath
 	}
 
 	// not amazing to double compute the basename..
-	basename := filepath.Base(ca.fileName)
+	basename := filepath.Base(ca.filePath)
 	if _, ok := wp.discardedBasenames.Get(basename); ok {
 		wp.stats.fileCreateSkippedDiscardedBasenames++
 		return nil, errDiscardedPath
@@ -183,8 +182,8 @@ func (wp *WindowsProbe) parseCreateHandleArgs(e *etw.DDEventRecord) (*createHand
 
 	// lru is thread safe, has its own locking
 	fc := fileCache{
-		fileName:     ca.fileName,
-		userFileName: ca.userFileName,
+		filePath:     ca.filePath,
+		userFilePath: ca.userFilePath,
 	}
 	if wp.filePathResolver.Add(ca.fileObject, fc) {
 		wp.stats.fileNameCacheEvictions++
@@ -206,7 +205,7 @@ func (ca *createHandleArgs) string(t string) string {
 	var output strings.Builder
 
 	output.WriteString(t + " PID: " + strconv.Itoa(int(ca.ProcessID)) + "\n")
-	output.WriteString("         Name: " + ca.fileName + "\n")
+	output.WriteString("         Name: " + ca.filePath + "\n")
 	output.WriteString("         Opts: " + strconv.FormatUint(uint64(ca.createOptions), 16) + " Share: " + strconv.FormatUint(uint64(ca.shareAccess), 16) + "\n")
 	output.WriteString("         OBJ:  " + strconv.FormatUint(uint64(ca.fileObject), 16) + "\n")
 
@@ -251,8 +250,8 @@ type setInformationArgs struct {
 	fileKey      uint64
 	extraInfo    uint64
 	infoClass    uint32
-	fileName     string
-	userFileName string
+	filePath     string
+	userFilePath string
 }
 type setDeleteArgs setInformationArgs
 type renameArgs setInformationArgs
@@ -286,8 +285,8 @@ func (wp *WindowsProbe) parseInformationArgs(e *etw.DDEventRecord) (*setInformat
 
 	// lru is thread safe, has its own locking
 	if s, ok := wp.filePathResolver.Get(fileObjectPointer(sia.fileObject)); ok {
-		sia.fileName = s.fileName
-		sia.userFileName = s.userFileName
+		sia.filePath = s.filePath
+		sia.userFilePath = s.userFilePath
 	}
 
 	return sia, nil
@@ -298,7 +297,7 @@ func (sia *setInformationArgs) string(t string) string {
 	var output strings.Builder
 
 	output.WriteString(t + " TID: " + strconv.Itoa(int(sia.threadID)) + "\n")
-	output.WriteString("      Name: " + sia.fileName + "\n")
+	output.WriteString("      Name: " + sia.filePath + "\n")
 	output.WriteString("      InfoClass: " + strconv.FormatUint(uint64(sia.infoClass), 16) + "\n")
 	output.WriteString("         OBJ:  " + strconv.FormatUint(uint64(sia.fileObject), 16) + "\n")
 	output.WriteString("         KEY:  " + strconv.FormatUint(uint64(sia.fileKey), 16) + "\n")
@@ -390,8 +389,8 @@ type cleanupArgs struct {
 	threadID     uint64
 	fileObject   fileObjectPointer
 	fileKey      uint64
-	fileName     string
-	userFileName string
+	filePath     string
+	userFilePath string
 }
 
 // nolint: unused
@@ -422,8 +421,8 @@ func (wp *WindowsProbe) parseCleanupArgs(e *etw.DDEventRecord) (*cleanupArgs, er
 
 	// lru is thread safe, has its own locking
 	if s, ok := wp.filePathResolver.Get(fileObjectPointer(ca.fileObject)); ok {
-		ca.fileName = s.fileName
-		ca.userFileName = s.userFileName
+		ca.filePath = s.filePath
+		ca.userFilePath = s.userFilePath
 	}
 
 	return ca, nil
@@ -452,7 +451,7 @@ func (ca *cleanupArgs) string(t string) string {
 	var output strings.Builder
 
 	output.WriteString(t + ": TID: " + strconv.Itoa(int(ca.threadID)) + "\n")
-	output.WriteString("           Name: " + ca.fileName + "\n")
+	output.WriteString("           Name: " + ca.filePath + "\n")
 	output.WriteString("         OBJ:  " + strconv.FormatUint(uint64(ca.fileObject), 16) + "\n")
 	output.WriteString("         KEY:  " + strconv.FormatUint(uint64(ca.fileKey), 16) + "\n")
 	return output.String()
@@ -484,8 +483,8 @@ type readArgs struct {
 	IOSize       uint32
 	IOFlags      uint32
 	extraFlags   uint32 // zero if version 0, as they're not supplied
-	fileName     string
-	userFileName string
+	filePath     string
+	userFilePath string
 }
 type writeArgs readArgs
 
@@ -516,8 +515,8 @@ func (wp *WindowsProbe) parseReadArgs(e *etw.DDEventRecord) (*readArgs, error) {
 	}
 	// lru is thread safe, has its own locking
 	if s, ok := wp.filePathResolver.Get(fileObjectPointer(ra.fileObject)); ok {
-		ra.fileName = s.fileName
-		ra.userFileName = s.userFileName
+		ra.filePath = s.filePath
+		ra.userFilePath = s.userFilePath
 	}
 	return ra, nil
 }
@@ -529,7 +528,7 @@ func (ra *readArgs) string(t string) string {
 	output.WriteString(t + ": PID: " + strconv.Itoa(int(ra.DDEventHeader.ProcessID)) + "\n")
 	output.WriteString("        fo: " + strconv.FormatUint(uint64(ra.fileObject), 16) + "\n")
 	output.WriteString("        fk: " + strconv.FormatUint(uint64(ra.fileKey), 16) + "\n")
-	output.WriteString("        Name: " + ra.fileName + "\n")
+	output.WriteString("        Name: " + ra.filePath + "\n")
 	output.WriteString("        Size: " + strconv.FormatUint(uint64(ra.IOSize), 16) + "\n")
 	return output.String()
 
@@ -618,8 +617,8 @@ func (wp *WindowsProbe) parseDeletePathArgs(e *etw.DDEventRecord) (*deletePathAr
 
 	// lru is thread safe, has its own locking
 	if s, ok := wp.filePathResolver.Get(fileObjectPointer(dpa.fileObject)); ok {
-		dpa.oldPath = s.fileName
-		dpa.oldUserPath = s.userFileName
+		dpa.oldPath = s.filePath
+		dpa.oldUserPath = s.userFilePath
 		// question, should we reset the filePathResolver here?
 	}
 	return dpa, nil
@@ -673,8 +672,8 @@ func (sla *setLinkPath) String() string {
 type nameCreateArgs struct {
 	etw.DDEventHeader
 	fileKey      fileObjectPointer
-	fileName     string
-	userFileName string
+	filePath     string
+	userFilePath string
 }
 
 type nameDeleteArgs nameCreateArgs
@@ -686,14 +685,14 @@ func (wp *WindowsProbe) parseNameCreateArgs(e *etw.DDEventRecord) (*nameCreateAr
 	data := etwimpl.GetUserData(e)
 	if e.EventHeader.EventDescriptor.Version == 0 {
 		ca.fileKey = fileObjectPointer(data.GetUint64(0))
-		ca.fileName, _, _, _ = data.ParseUnicodeString(8)
+		ca.filePath, _, _, _ = data.ParseUnicodeString(8)
 	} else if e.EventHeader.EventDescriptor.Version == 1 {
 		ca.fileKey = fileObjectPointer(data.GetUint64(0))
-		ca.fileName, _, _, _ = data.ParseUnicodeString(8)
+		ca.filePath, _, _, _ = data.ParseUnicodeString(8)
 	} else {
 		return nil, fmt.Errorf("unknown version number %v", e.EventHeader.EventDescriptor.Version)
 	}
-	ca.userFileName = wp.mustConvertDrivePath(ca.fileName)
+	ca.userFilePath = wp.mustConvertDrivePath(ca.filePath)
 
 	return ca, nil
 }
@@ -703,7 +702,7 @@ func (ca *nameCreateArgs) string(t string) string {
 	var output strings.Builder
 
 	output.WriteString(t + ": KEY: " + strconv.FormatUint(uint64(ca.fileKey), 16) + "\n")
-	output.WriteString("        Name: " + ca.fileName + "\n")
+	output.WriteString("        Name: " + ca.filePath + "\n")
 	return output.String()
 
 }

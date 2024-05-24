@@ -100,8 +100,8 @@ type WindowsProbe struct {
 // filecache currently only has a filename.  But this is going to expand really soon.  so go ahead
 // and have the wrapper struct even though right now it doesn't add anything.
 type fileCache struct {
-	fileName     string
-	userFileName string
+	filePath     string
+	userFilePath string
 }
 
 type etwNotification struct {
@@ -595,21 +595,21 @@ func (p *WindowsProbe) handleETWNotification(ev *model.Event, notif etwNotificat
 		ev.CreateNewFile = model.CreateNewFileEvent{
 			File: model.FimFileEvent{
 				FileObject:      uint64(arg.fileObject),
-				PathnameStr:     arg.fileName,
-				UserPathnameStr: arg.userFileName,
-				BasenameStr:     filepath.Base(arg.fileName),
+				PathnameStr:     arg.filePath,
+				UserPathnameStr: arg.userFilePath,
+				BasenameStr:     filepath.Base(arg.filePath),
 			},
 		}
 	case *renameArgs:
 		fc := fileCache{
-			fileName:     arg.fileName,
-			userFileName: arg.userFileName,
+			filePath:     arg.filePath,
+			userFilePath: arg.userFilePath,
 		}
 		p.renamePreArgs.Add(uint64(arg.fileObject), fc)
 	case *rename29Args:
 		fc := fileCache{
-			fileName:     arg.fileName,
-			userFileName: arg.userFileName,
+			filePath:     arg.filePath,
+			userFilePath: arg.userFilePath,
 		}
 		p.renamePreArgs.Add(uint64(arg.fileObject), fc)
 	case *renamePath:
@@ -622,9 +622,9 @@ func (p *WindowsProbe) handleETWNotification(ev *model.Event, notif etwNotificat
 		ev.RenameFile = model.RenameFileEvent{
 			Old: model.FimFileEvent{
 				FileObject:      uint64(arg.fileObject),
-				PathnameStr:     fileCache.fileName,
-				UserPathnameStr: fileCache.userFileName,
-				BasenameStr:     filepath.Base(fileCache.fileName),
+				PathnameStr:     fileCache.filePath,
+				UserPathnameStr: fileCache.userFilePath,
+				BasenameStr:     filepath.Base(fileCache.filePath),
 			},
 			New: model.FimFileEvent{
 				FileObject:      uint64(arg.fileObject),
@@ -639,9 +639,9 @@ func (p *WindowsProbe) handleETWNotification(ev *model.Event, notif etwNotificat
 		ev.DeleteFile = model.DeleteFileEvent{
 			File: model.FimFileEvent{
 				FileObject:      uint64(arg.fileObject),
-				PathnameStr:     arg.fileName,
-				UserPathnameStr: arg.userFileName,
-				BasenameStr:     filepath.Base(arg.fileName),
+				PathnameStr:     arg.filePath,
+				UserPathnameStr: arg.userFilePath,
+				BasenameStr:     filepath.Base(arg.filePath),
 			},
 		}
 	case *writeArgs:
@@ -649,9 +649,9 @@ func (p *WindowsProbe) handleETWNotification(ev *model.Event, notif etwNotificat
 		ev.WriteFile = model.WriteFileEvent{
 			File: model.FimFileEvent{
 				FileObject:      uint64(arg.fileObject),
-				PathnameStr:     arg.fileName,
-				UserPathnameStr: arg.userFileName,
-				BasenameStr:     filepath.Base(arg.fileName),
+				PathnameStr:     arg.filePath,
+				UserPathnameStr: arg.userFilePath,
+				BasenameStr:     filepath.Base(arg.filePath),
 			},
 		}
 
