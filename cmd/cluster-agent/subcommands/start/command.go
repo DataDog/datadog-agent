@@ -399,13 +399,20 @@ func start(log log.Component,
 	}
 
 	// Autoscaling Product
+	var pa workload.PatcherAdapter
 	if config.GetBool("autoscaling.workload.enabled") {
 		if rcClient == nil {
 			return fmt.Errorf("Remote config is disabled or failed to initialize, remote config is a required dependency for autoscaling")
 		}
 
-		if err := workload.StartWorkloadAutoscaling(mainCtx, apiCl, rcClient); err != nil {
+		if !config.GetBool("admission_controller.enabled") {
+			log.Error("Admission controller is disabled, vertical autoscaling requires the admission controller to be enabled. Vertical scaling will be disabled.")
+		}
+
+		if adapter, err := workload.StartWorkloadAutoscaling(mainCtx, apiCl, rcClient); err != nil {
 			pkglog.Errorf("Error while starting workload autoscaling: %v", err)
+		} else {
+			pa = adapter
 		}
 	}
 
@@ -454,7 +461,7 @@ func start(log log.Component,
 			StopCh:              stopCh,
 		}
 
-		webhooks, err := admissionpkg.StartControllers(admissionCtx, wmeta)
+		webhooks, err := admissionpkg.StartControllers(admissionCtx, wmeta, pa)
 		if err != nil {
 			pkglog.Errorf("Could not start admission controller: %v", err)
 		} else {
