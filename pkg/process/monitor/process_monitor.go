@@ -508,9 +508,7 @@ type Event struct {
 
 // EventConsumer defines an event consumer to handle event monitor events in the
 // process monitor
-type EventConsumer struct {
-	sync.RWMutex
-}
+type EventConsumer struct{}
 
 // NewProcessMonitorEventConsumer returns a new process monitor event consumer
 func NewProcessMonitorEventConsumer(em *eventmonitor.EventMonitor) (*EventConsumer, error) {
@@ -552,9 +550,6 @@ func (ec *EventConsumer) HandleEvent(event any) {
 	if !ok {
 		return
 	}
-
-	ec.Lock()
-	defer ec.Unlock()
 
 	processMonitor.tel.events.Add(1)
 	switch sevent.Type {
