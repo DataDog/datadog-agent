@@ -405,9 +405,9 @@ def download_gotestsum(ctx: Context, arch: Arch, fgotestsum: PathOrStr):
     paths.tools.mkdir(parents=True, exist_ok=True)
 
     cc = get_compiler(ctx)
-    target_path = CONTAINER_AGENT_PATH / paths.tools.relative_to(paths.repo_root)
+    target_path = CONTAINER_AGENT_PATH / paths.tools.relative_to(paths.repo_root) / "gotestsum"
     cc.exec(
-        f"cd {TOOLS_PATH} && go install {GOTESTSUM} && cp /go/bin/gotestsum {target_path}",
+        f"cd {TOOLS_PATH} && GOARCH={arch.go_arch} go build -o {target_path} {GOTESTSUM}",
     )
 
     ctx.run(f"cp {paths.tools}/gotestsum {fgotestsum}")
@@ -770,7 +770,7 @@ def kmt_sysprobe_prepare(
         for key, val in env.items():
             new_val = val.replace('\n', ' ')
             env_str += f"{key}='{new_val}' "
-        env_str.rstrip()
+        env_str = env_str.rstrip()
 
         ninja_define_rules(nw)
         ninja_build_dependencies(ctx, nw, kmt_paths, go_path, arch)
@@ -841,6 +841,7 @@ def kmt_sysprobe_prepare(
                             "chdir": "true",
                             "tags": "-tags=\"test\"",
                             "ldflags": "-ldflags=\"-extldflags '-static'\"",
+                            "env": env_str
                         },
                     )
 
