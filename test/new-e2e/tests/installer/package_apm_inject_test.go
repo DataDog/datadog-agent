@@ -12,7 +12,6 @@ import (
 
 	e2eos "github.com/DataDog/test-infra-definitions/components/os"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 type packageApmInjectSuite struct {
@@ -27,17 +26,19 @@ func testApmInjectAgent(os e2eos.Descriptor, arch e2eos.Architecture) packageSui
 
 func (s *packageApmInjectSuite) TestInstall() {
 	s.host.InstallDocker()
-	s.RunInstallScript()
+	s.RunInstallScript("DD_APM_INSTRUMENTATION_ENABLED=all", "DD_APM_INSTRUMENTATION_LIBRARIES=python", envForceInstall("datadog-agent"), envForceInstall("datadog-apm-inject"), envForceInstall("datadog-apm-library-python"))
 	defer s.Purge()
-	s.InstallAgentPackage()
-	s.InstallInjectorPackageTemp()
-	s.InstallPackageLatest("datadog-apm-library-python")
+	s.host.WaitForUnitActive("datadog-agent.service", "datadog-agent-trace.service")
+
 	s.host.StartExamplePythonApp()
 	defer s.host.StopExamplePythonApp()
 	s.host.StartExamplePythonAppInDocker()
 	defer s.host.StopExamplePythonAppInDocker()
 
+	s.host.AssertPackageInstalledByInstaller("datadog-agent", "datadog-apm-inject", "datadog-apm-library-python")
+	s.host.AssertPackageNotInstalledByPackageManager("datadog-agent", "datadog-apm-inject", "datadog-apm-library-python")
 	state := s.host.State()
+	state.AssertFileExists("/var/run/datadog/installer/environment", 0644, "root", "root")
 	state.AssertFileExists("/etc/ld.so.preload", 0644, "root", "root")
 	s.assertLDPreloadInstrumented()
 	s.assertDockerdInstrumented()
@@ -53,10 +54,7 @@ func (s *packageApmInjectSuite) TestInstall() {
 
 func (s *packageApmInjectSuite) TestUninstall() {
 	s.host.InstallDocker()
-	s.RunInstallScript()
-	s.InstallAgentPackage()
-	s.InstallInjectorPackageTemp()
-	s.InstallPackageLatest("datadog-apm-library-python")
+	s.RunInstallScript("DD_APM_INSTRUMENTATION_ENABLED=all", "DD_APM_INSTRUMENTATION_LIBRARIES=python", envForceInstall("datadog-agent"), envForceInstall("datadog-apm-inject"), envForceInstall("datadog-apm-library-python"))
 	s.Purge()
 
 	s.assertLDPreloadNotInstrumented()
@@ -65,34 +63,28 @@ func (s *packageApmInjectSuite) TestUninstall() {
 
 func (s *packageApmInjectSuite) TestDockerAdditionalFields() {
 	s.host.InstallDocker()
-	s.RunInstallScript()
-	defer s.Purge()
-	s.InstallAgentPackage()
-	s.InstallPackageLatest("datadog-apm-library-python")
-
 	// Broken /etc/docker/daemon.json syntax
 	s.host.SetBrokenDockerConfig()
-	err := s.InstallInjectorPackageTempWithError()
-	require.Error(s.T(), err)
+	defer s.host.RemoveBrokenDockerConfig()
+	err := s.RunInstallScriptWithError("DD_APM_INSTRUMENTATION_ENABLED=all", "DD_APM_INSTRUMENTATION_LIBRARIES=python", envForceInstall("datadog-agent"), envForceInstall("datadog-apm-inject"), envForceInstall("datadog-apm-library-python"))
+	defer s.Purge()
+
+	assert.Error(s.T(), err)
 	s.assertLDPreloadNotInstrumented()
 	s.assertDockerdConfigNotInstrumented()
-	s.host.RemoveBrokenDockerConfig()
 }
 
 func (s *packageApmInjectSuite) TestDockerBrokenJSON() {
 	s.host.InstallDocker()
-	s.RunInstallScript()
-	defer s.Purge()
-	s.InstallAgentPackage()
-	s.InstallPackageLatest("datadog-apm-library-python")
-
 	// Additional fields in /etc/docker/daemon.json
 	s.host.SetBrokenDockerConfigAdditionalFields()
-	err := s.InstallInjectorPackageTempWithError()
-	require.Error(s.T(), err)
+	defer s.host.RemoveBrokenDockerConfig()
+	err := s.RunInstallScriptWithError("DD_APM_INSTRUMENTATION_ENABLED=all", "DD_APM_INSTRUMENTATION_LIBRARIES=python", envForceInstall("datadog-agent"), envForceInstall("datadog-apm-inject"), envForceInstall("datadog-apm-library-python"))
+	defer s.Purge()
+
+	assert.Error(s.T(), err)
 	s.assertLDPreloadNotInstrumented()
 	s.assertDockerdConfigNotInstrumented()
-	s.host.RemoveBrokenDockerConfig()
 }
 
 func (s *packageApmInjectSuite) assertTraceReceived(traceID uint64) {

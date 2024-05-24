@@ -163,6 +163,16 @@ struct dns_event_t {
     char name[DNS_MAX_LENGTH];
 };
 
+struct imds_event_t {
+    struct kevent_t event;
+    struct process_context_t process;
+    struct span_context_t span;
+    struct container_context_t container;
+    struct network_context_t network;
+
+    u8 body[IMDS_MAX_LENGTH];
+};
+
 struct link_event_t {
     struct kevent_t event;
     struct process_context_t process;

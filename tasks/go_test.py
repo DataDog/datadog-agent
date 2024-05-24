@@ -17,6 +17,7 @@ from datetime import datetime
 from pathlib import Path
 
 from invoke import task
+from invoke.context import Context
 from invoke.exceptions import Exit
 
 from tasks.agent import integration_tests as agent_integration_tests
@@ -318,7 +319,6 @@ def test(
     major_version='7',
     python_runtimes='3',
     timeout=180,
-    arch="x64",
     cache=True,
     test_run_name="",
     save_result_json=None,
@@ -354,7 +354,6 @@ def test(
     unit_tests_tags = compute_build_tags_for_flavor(
         flavor=flavor,
         build="unit-tests",
-        arch=arch,
         build_include=build_include,
         build_exclude=build_exclude,
         include_sds=include_sds,
@@ -787,7 +786,7 @@ def get_impacted_packages(ctx, build_tags=None):
                 formatted_path = "/".join(formatted_path.split("/")[:-1])
 
     imp = find_impacted_packages(dependencies, modified_packages)
-    return format_packages(ctx, imp)
+    return format_packages(ctx, impacted_packages=imp, build_tags=build_tags)
 
 
 def create_dependencies(ctx, build_tags=None):
@@ -833,12 +832,12 @@ def find_impacted_packages(dependencies, modified_modules, cache=None):
     return impacted_modules
 
 
-def format_packages(ctx, impacted_packages):
+def format_packages(ctx: Context, impacted_packages: set[str], build_tags: list[str] = None):
     """
     Format the packages list to be used in our test function. Will take each path and create a list of modules with its targets
     """
-    # if build_tags is None:
-    build_tags = []
+    if build_tags is None:
+        build_tags = []
 
     packages = [f'{package.replace("github.com/DataDog/datadog-agent/", "./")}' for package in impacted_packages]
     modules_to_test = {}
@@ -941,7 +940,6 @@ def lint_go(
     build_include=None,
     build_exclude=None,
     rtloader_root=None,
-    arch="x64",
     cpus=None,
     timeout: int = None,
     golangci_lint_kwargs="",

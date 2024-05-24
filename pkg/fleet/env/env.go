@@ -7,6 +7,7 @@
 package env
 
 import (
+	"fmt"
 	"os"
 	"strings"
 
@@ -15,46 +16,66 @@ import (
 )
 
 const (
-	envAPIKey         = "DD_API_KEY"
-	envSite           = "DD_SITE"
-	envRegistry       = "DD_INSTALLER_REGISTRY"
-	envRegistryAuth   = "DD_INSTALLER_REGISTRY_AUTH"
-	envDefaultVersion = "DD_INSTALLER_DEFAULT_VERSION"
+	envAPIKey                = "DD_API_KEY"
+	envSite                  = "DD_SITE"
+	envRemoteUpdates         = "DD_REMOTE_UPDATES"
+	envRegistryURL           = "DD_INSTALLER_REGISTRY_URL"
+	envRegistryAuth          = "DD_INSTALLER_REGISTRY_AUTH"
+	envDefaultPackageVersion = "DD_INSTALLER_DEFAULT_PKG_VERSION"
+	envDefaultPackageInstall = "DD_INSTALLER_DEFAULT_PKG_INSTALL"
 )
 
 var defaultEnv = Env{
-	APIKey: "",
-	Site:   "datadoghq.com",
+	APIKey:        "",
+	Site:          "datadoghq.com",
+	RemoteUpdates: false,
 
-	RegistryOverride:                "",
-	RegistryAuthOverride:            "",
-	RegistryOverrideByImage:         map[string]string{},
-	DefaultVersionOverrideByPackage: map[string]string{},
+	RegistryOverride:            "",
+	RegistryAuthOverride:        "",
+	RegistryOverrideByImage:     map[string]string{},
+	RegistryAuthOverrideByImage: map[string]string{},
+
+	DefaultPackagesInstallOverride: map[string]bool{},
+	DefaultPackagesVersionOverride: map[string]string{},
+
+	InstallScript: InstallScriptEnv{
+		APMInstrumentationEnabled: "",
+	},
 }
 
 // Env contains the configuration for the installer.
 type Env struct {
-	APIKey string
-	Site   string
+	APIKey        string
+	Site          string
+	RemoteUpdates bool
 
-	RegistryOverride                string
-	RegistryAuthOverride            string
-	RegistryOverrideByImage         map[string]string
-	RegistryAuthOverrideByImage     map[string]string
-	DefaultVersionOverrideByPackage map[string]string
+	RegistryOverride            string
+	RegistryAuthOverride        string
+	RegistryOverrideByImage     map[string]string
+	RegistryAuthOverrideByImage map[string]string
+
+	DefaultPackagesInstallOverride map[string]bool
+	DefaultPackagesVersionOverride map[string]string
+
+	InstallScript InstallScriptEnv
 }
 
 // FromEnv returns an Env struct with values from the environment.
 func FromEnv() *Env {
 	return &Env{
-		APIKey: getEnvOrDefault(envAPIKey, defaultEnv.APIKey),
-		Site:   getEnvOrDefault(envSite, defaultEnv.Site),
+		APIKey:        getEnvOrDefault(envAPIKey, defaultEnv.APIKey),
+		Site:          getEnvOrDefault(envSite, defaultEnv.Site),
+		RemoteUpdates: os.Getenv(envRemoteUpdates) == "true",
 
-		RegistryOverride:                getEnvOrDefault(envRegistry, defaultEnv.RegistryOverride),
-		RegistryAuthOverride:            getEnvOrDefault(envRegistryAuth, defaultEnv.RegistryAuthOverride),
-		RegistryOverrideByImage:         overridesByNameFromEnv(envRegistry, []string{envRegistryAuth}),
-		RegistryAuthOverrideByImage:     overridesByNameFromEnv(envRegistryAuth, []string{}),
-		DefaultVersionOverrideByPackage: overridesByNameFromEnv(envDefaultVersion, []string{}),
+		RegistryOverride:            getEnvOrDefault(envRegistryURL, defaultEnv.RegistryOverride),
+		RegistryAuthOverride:        getEnvOrDefault(envRegistryAuth, defaultEnv.RegistryAuthOverride),
+		RegistryOverrideByImage:     overridesByNameFromEnv(envRegistryURL, func(s string) string { return s }),
+		RegistryAuthOverrideByImage: overridesByNameFromEnv(envRegistryAuth, func(s string) string { return s }),
+
+		DefaultPackagesInstallOverride: overridesByNameFromEnv(envDefaultPackageInstall, func(s string) bool { return s == "true" }),
+		DefaultPackagesVersionOverride: overridesByNameFromEnv(envDefaultPackageVersion, func(s string) string { return s }),
+
+		InstallScript: installScriptEnvFromEnv(),
 	}
 }
 
@@ -63,61 +84,61 @@ func FromConfig(config config.Reader) *Env {
 	return &Env{
 		APIKey:               utils.SanitizeAPIKey(config.GetString("api_key")),
 		Site:                 config.GetString("site"),
-		RegistryOverride:     config.GetString("updater.registry"),
-		RegistryAuthOverride: config.GetString("updater.registry_auth"),
+		RemoteUpdates:        config.GetBool("remote_updates"),
+		RegistryOverride:     config.GetString("installer.registry.url"),
+		RegistryAuthOverride: config.GetString("installer.registry.auth"),
 	}
 }
 
 // ToEnv returns a slice of environment variables from the Env struct.
 func (e *Env) ToEnv() []string {
-	env := []string{
-		envAPIKey + "=" + e.APIKey,
-		envSite + "=" + e.Site,
-		envRegistry + "=" + e.RegistryOverride,
-		envRegistryAuth + "=" + e.RegistryAuthOverride,
+	var env []string
+	if e.APIKey != "" {
+		env = append(env, envAPIKey+"="+e.APIKey)
 	}
-	env = append(env, overridesByNameToEnv(envRegistry, e.RegistryOverrideByImage)...)
+	if e.Site != "" {
+		env = append(env, envSite+"="+e.Site)
+	}
+	if e.RemoteUpdates {
+		env = append(env, envRemoteUpdates+"=true")
+	}
+	if e.RegistryOverride != "" {
+		env = append(env, envRegistryURL+"="+e.RegistryOverride)
+	}
+	if e.RegistryAuthOverride != "" {
+		env = append(env, envRegistryAuth+"="+e.RegistryAuthOverride)
+	}
+	env = append(env, overridesByNameToEnv(envRegistryURL, e.RegistryOverrideByImage)...)
 	env = append(env, overridesByNameToEnv(envRegistryAuth, e.RegistryAuthOverrideByImage)...)
-	env = append(env, overridesByNameToEnv(envDefaultVersion, e.DefaultVersionOverrideByPackage)...)
+	env = append(env, overridesByNameToEnv(envDefaultPackageInstall, e.DefaultPackagesInstallOverride)...)
+	env = append(env, overridesByNameToEnv(envDefaultPackageVersion, e.DefaultPackagesVersionOverride)...)
 	return env
 }
 
-func overridesByNameFromEnv(envPrefix string, ignoreEnvs []string) map[string]string {
+func overridesByNameFromEnv[T any](envPrefix string, convert func(string) T) map[string]T {
 	env := os.Environ()
-	overridesByPackage := map[string]string{}
+	overridesByPackage := map[string]T{}
 	for _, e := range env {
-		parts := strings.SplitN(e, "=", 2)
-		if len(parts) != 2 {
+		keyVal := strings.SplitN(e, "=", 2)
+		if len(keyVal) != 2 {
 			continue
 		}
-		key := parts[0]
-		val := parts[1]
-		ignore := false
-		for _, ignoreEnv := range ignoreEnvs {
-			if strings.HasPrefix(key, ignoreEnv) {
-				ignore = true
-				break
-			}
-		}
-		if ignore {
-			continue
-		}
-		if strings.HasPrefix(key, envPrefix+"_") {
-			pkg := strings.TrimPrefix(key, envPrefix+"_")
+		if strings.HasPrefix(keyVal[0], envPrefix+"_") {
+			pkg := strings.TrimPrefix(keyVal[0], envPrefix+"_")
 			pkg = strings.ToLower(pkg)
 			pkg = strings.ReplaceAll(pkg, "_", "-")
-			overridesByPackage[pkg] = val
+			overridesByPackage[pkg] = convert(keyVal[1])
 		}
 	}
 	return overridesByPackage
 }
 
-func overridesByNameToEnv(envPrefix string, overridesByPackage map[string]string) []string {
+func overridesByNameToEnv[T any](envPrefix string, overridesByPackage map[string]T) []string {
 	env := []string{}
 	for pkg, override := range overridesByPackage {
 		pkg = strings.ReplaceAll(pkg, "-", "_")
 		pkg = strings.ToUpper(pkg)
-		env = append(env, envPrefix+"_"+pkg+"="+override)
+		env = append(env, envPrefix+"_"+pkg+"="+fmt.Sprint(override))
 	}
 	return env
 }

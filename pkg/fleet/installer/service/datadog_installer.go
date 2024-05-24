@@ -109,23 +109,6 @@ func SetupInstaller(ctx context.Context) (err error) {
 		return fmt.Errorf("error creating symlink to /usr/bin/datadog-installer: %w", err)
 	}
 
-	// Set up defaults for packages interacting with each other
-	if err = configureSocketsEnv(); err != nil {
-		return
-	}
-	if err = addSystemDEnvOverrides(agentUnit); err != nil {
-		return
-	}
-	if err = addSystemDEnvOverrides(agentExp); err != nil {
-		return
-	}
-	if err = addSystemDEnvOverrides(traceAgentUnit); err != nil {
-		return
-	}
-	if err = addSystemDEnvOverrides(traceAgentExp); err != nil {
-		return
-	}
-
 	// FIXME(Arthur): enable the daemon unit by default and use the same strategy as the system probe
 	if os.Getenv("DD_REMOTE_UPDATES") != "true" {
 		return nil
@@ -181,6 +164,15 @@ func getAgentIDs() (uid, gid int, err error) {
 
 // startInstallerStable starts the stable systemd units for the installer
 func startInstallerStable(ctx context.Context) (err error) {
+	_, err = os.Stat("/etc/datadog-agent/datadog.yaml")
+	if err != nil && !os.IsNotExist(err) {
+		return err
+	}
+	// this is expected during a fresh install with the install script / asible / chef / etc...
+	// the config is populated afterwards by the install method and the agent is restarted
+	if os.IsNotExist(err) {
+		return nil
+	}
 	return startUnit(ctx, installerUnit)
 }
 
@@ -212,7 +204,7 @@ func RemoveInstaller(ctx context.Context) {
 
 // StartInstallerExperiment installs the experimental systemd units for the installer
 func StartInstallerExperiment(ctx context.Context) error {
-	return startUnit(ctx, installerUnitExp)
+	return startUnit(ctx, installerUnitExp, "--no-block")
 }
 
 // StopInstallerExperiment starts the stable systemd units for the installer

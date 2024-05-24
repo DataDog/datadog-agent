@@ -4,6 +4,7 @@ import os
 import re
 import sys
 from collections import defaultdict
+from glob import glob
 
 from invoke import Exit, task
 
@@ -17,6 +18,7 @@ from tasks.libs.ciproviders.gitlab_api import (
     get_gitlab_repo,
     get_preset_contexts,
     load_context,
+    read_includes,
 )
 from tasks.libs.common.check_tools_version import check_tools_version
 from tasks.libs.common.utils import DEFAULT_BRANCH, GITHUB_REPO_NAME, color_message, is_pr_context, running_in_ci
@@ -113,7 +115,6 @@ def go(
     build_include=None,
     build_exclude=None,
     rtloader_root=None,
-    arch="x64",
     cpus=None,
     timeout: int = None,
     golangci_lint_kwargs="",
@@ -161,7 +162,6 @@ def go(
         build_include=build_include,
         build_exclude=build_exclude,
         rtloader_root=rtloader_root,
-        arch=arch,
         cpus=cpus,
         timeout=timeout,
         golangci_lint_kwargs=golangci_lint_kwargs,
@@ -188,7 +188,6 @@ def run_lint_go(
     build_include=None,
     build_exclude=None,
     rtloader_root=None,
-    arch="x64",
     cpus=None,
     timeout=None,
     golangci_lint_kwargs="",
@@ -198,7 +197,6 @@ def run_lint_go(
     linter_tags = build_tags or compute_build_tags_for_flavor(
         flavor=flavor,
         build=build,
-        arch=arch,
         build_include=build_include,
         build_exclude=build_exclude,
         include_sds=include_sds,
@@ -209,7 +207,6 @@ def run_lint_go(
         modules=modules,
         flavor=flavor,
         build_tags=linter_tags,
-        arch=arch,
         rtloader_root=rtloader_root,
         concurrency=cpus,
         timeout=timeout,
@@ -225,7 +222,6 @@ def lint_flavor(
     modules: list[GoModule],
     flavor: AgentFlavor,
     build_tags: list[str],
-    arch: str,
     rtloader_root: bool,
     concurrency: int,
     timeout=None,
@@ -244,7 +240,6 @@ def lint_flavor(
                 targets=module.lint_targets,
                 rtloader_root=rtloader_root,
                 build_tags=build_tags,
-                arch=arch,
                 concurrency=concurrency,
                 timeout=timeout,
                 golangci_lint_kwargs=golangci_lint_kwargs,
@@ -392,3 +387,47 @@ def releasenote(ctx):
 def update_go(_):
     _update_references(warn=False, version="1.2.3", dry_run=True)
     _update_go_mods(warn=False, version="1.2.3", include_otel_modules=True, dry_run=True)
+
+
+@task(iterable=['job_files'])
+def test_change_path(_, job_files=None):
+    """
+    Verify that the jobs defined within job_files contain a change path rule.
+    """
+    job_files = job_files or (['.gitlab/e2e/e2e.yml'] + list(glob('.gitlab/kitchen_testing/new-e2e_testing/*.yml')))
+
+    # Read gitlab config
+    config = generate_gitlab_full_configuration(".gitlab-ci.yml", {}, return_dump=False, apply_postprocessing=True)
+
+    # Fetch all test jobs
+    test_config = read_includes(job_files, return_config=True, add_file_path=True)
+    tests = [(test, data['_file_path']) for test, data in test_config.items() if test[0] != '.']
+
+    def contains_valid_change_rule(rule):
+        """
+        Verifies that the job rule contains the required change path configuration.
+        """
+        if 'changes' not in rule or 'paths' not in rule['changes']:
+            return False
+
+        # The change paths should be more than just test files
+        return any(
+            not path.startswith(('test/', './test/', 'test\\', '.\\test\\')) for path in rule['changes']['paths']
+        )
+
+    # Verify that all tests contain a change path rule
+    tests_without_change_path = defaultdict(list)
+    for test, filepath in tests:
+        if not any(contains_valid_change_rule(rule) for rule in config[test]['rules'] if isinstance(rule, dict)):
+            tests_without_change_path[filepath].append(test)
+
+    if len(tests_without_change_path) != 0:
+        print(color_message("error: Tests without required change paths rule:", "red"), file=sys.stderr)
+        for filepath, tests in tests_without_change_path.items():
+            print(f"- {color_message(filepath, 'bold')}: {', '.join(tests)}", file=sys.stderr)
+
+        raise RuntimeError(
+            'Some tests do not contain required change paths rule, they must contain at least one non-test path.'
+        )
+    else:
+        print(color_message("success: All tests contain a change paths rule", "green"))
