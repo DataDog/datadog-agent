@@ -8,6 +8,12 @@
 package kubeapiserver
 
 import (
+	"context"
+	"fmt"
+	"github.com/stretchr/testify/assert"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	fakediscovery "k8s.io/client-go/discovery/fake"
+	fakeclientset "k8s.io/client-go/kubernetes/fake"
 	"reflect"
 	"testing"
 
@@ -78,4 +84,18 @@ func copyMap(in map[string]string) map[string]string {
 		out[key] = value
 	}
 	return out
+}
+
+func Test_discoverGVRs(t *testing.T) {
+	client := fakeclientset.NewSimpleClientset()
+	fakeDiscoveryClient, ok := client.Discovery().(*fakediscovery.FakeDiscovery)
+	assert.Truef(t, ok, "Failed to initialise fake discovery client")
+
+	ctx := context.Background()
+
+	client.AppsV1().Deployments("default").Create(ctx, nil, metav1.CreateOptions{})
+
+	result, err := discoverGVRs(fakeDiscoveryClient, []string{"deployments"})
+	assert.NoError(t, err)
+	fmt.Println("Checkpoint Here: ", result)
 }

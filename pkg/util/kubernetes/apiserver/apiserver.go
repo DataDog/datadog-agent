@@ -27,10 +27,12 @@ import (
 	vpa "k8s.io/autoscaler/vertical-pod-autoscaler/pkg/client/clientset/versioned"
 	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/discovery/cached/memory"
+
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/dynamic/dynamicinformer"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/metadata"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/restmapper"
 	"k8s.io/client-go/scale"
@@ -658,6 +660,21 @@ func (c *APIClient) RESTClient(apiPath string, groupVersion *schema.GroupVersion
 	clientConfig.NegotiatedSerializer = negotiatedSerializer
 
 	return rest.RESTClientFor(clientConfig)
+}
+
+// MetadataClient returns a new kubernetes metadata client
+func (c *APIClient) MetadataClient() (metadata.Interface, error) {
+	clientConfig, err := getClientConfig(c.defaultInformerTimeout)
+	if err != nil {
+		return nil, err
+	}
+
+	metaclient := metadata.NewForConfigOrDie(clientConfig)
+	return metaclient, nil
+}
+
+func (c *APIClient) DiscoveryClient() discovery.DiscoveryInterface {
+	return c.Cl.Discovery()
 }
 
 // NewSPDYExecutor returns a new SPDY executor for the provided method and URL

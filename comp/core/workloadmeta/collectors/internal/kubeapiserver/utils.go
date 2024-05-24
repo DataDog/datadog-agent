@@ -11,7 +11,11 @@ import (
 	"fmt"
 	"regexp"
 
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	utilserror "k8s.io/apimachinery/pkg/util/errors"
+	"k8s.io/client-go/discovery"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 func filterMapStringKey(mapInput map[string]string, keyFilters []*regexp.Regexp) map[string]string {
@@ -51,4 +55,52 @@ func filterToRegex(filter string) (*regexp.Regexp, error) {
 		return nil, errormsg
 	}
 	return r, nil
+}
+
+func discoverGVRs(discoveryClient discovery.DiscoveryInterface, resources []string) ([]schema.GroupVersionResource, error) {
+	discoveredResources, err := discoverResources(discoveryClient)
+	if err != nil {
+		return nil, err
+	}
+
+	gvrs := make([]schema.GroupVersionResource, 0, len(resources))
+	for _, resource := range resources {
+		gv, found := discoveredResources[resource]
+		fmt.Println("Looking for resource ", resource, " and result is: ", found)
+		if found {
+			gvrs = append(gvrs, schema.GroupVersionResource{Group: gv.Group, Version: gv.Version, Resource: resource})
+		} else {
+			log.Errorf("failed to auto-discover group/version of resource %s,", resource)
+		}
+	}
+
+	return gvrs, nil
+}
+
+func discoverResources(discoveryClient discovery.DiscoveryInterface) (map[string]schema.GroupVersion, error) {
+	apiGroups, apiResourceLists, err := discoveryClient.ServerGroupsAndResources()
+	if err != nil {
+		return nil, err
+	}
+
+	preferredGroupVersions := make(map[string]struct{})
+	for _, group := range apiGroups {
+		preferredGroupVersions[group.PreferredVersion.GroupVersion] = struct{}{}
+	}
+
+	discoveredResources := map[string]schema.GroupVersion{}
+	for _, resourceList := range apiResourceLists {
+		_, found := preferredGroupVersions[resourceList.GroupVersion]
+		if found {
+			for _, resource := range resourceList.APIResources {
+				// No need to handle error because we are sure it is correctly formatted
+				gv, _ := schema.ParseGroupVersion(resourceList.GroupVersion)
+				discoveredResources[resource.Name] = gv
+			}
+		}
+	}
+
+	fmt.Println("Checkpoint 2: ", discoveredResources)
+
+	return discoveredResources, nil
 }

@@ -8,10 +8,15 @@
 package kubeapiserver
 
 import (
+	"reflect"
 	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	fakediscovery "k8s.io/client-go/discovery/fake"
+	fakeclientset "k8s.io/client-go/kubernetes/fake"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 )
@@ -109,3 +114,263 @@ func collectResultStoreGenerator(funcs []storeGenerator) []*reflectorStore {
 	}
 	return stores
 }
+
+func Test_metadataCollectionGVRs_WithFunctionalDiscovery(t *testing.T) {
+	tests := []struct {
+		name                  string
+		apiServerResourceList []*metav1.APIResourceList
+		expectedGVRs          []schema.GroupVersionResource
+		cfg                   map[string]interface{}
+	}{
+		{
+			name:                  "no requested resources, no resources at all!",
+			apiServerResourceList: []*metav1.APIResourceList{},
+			expectedGVRs:          []schema.GroupVersionResource{},
+			cfg: map[string]interface{}{
+				"cluster_agent.kube_metadata_collection.enabled":   true,
+				"cluster_agent.kube_metadata_collection.resources": "",
+			},
+		},
+		{
+			name:                  "requested resources, but no resources at all!",
+			apiServerResourceList: []*metav1.APIResourceList{},
+			expectedGVRs:          []schema.GroupVersionResource{},
+			cfg: map[string]interface{}{
+				"cluster_agent.kube_metadata_collection.enabled":   true,
+				"cluster_agent.kube_metadata_collection.resources": "deployments",
+			},
+		},
+		{
+			name: "only one resource (deployments), only one version, correct resource requested",
+			apiServerResourceList: []*metav1.APIResourceList{
+				{
+					GroupVersion: "apps/v1",
+					APIResources: []metav1.APIResource{
+						{
+							Name:       "deployments",
+							Kind:       "Deployment",
+							Namespaced: true,
+						},
+					},
+				},
+			},
+			expectedGVRs: []schema.GroupVersionResource{{Resource: "deployments", Group: "apps", Version: "v1"}},
+			cfg: map[string]interface{}{
+				"cluster_agent.kube_metadata_collection.enabled":   true,
+				"cluster_agent.kube_metadata_collection.resources": "deployments",
+			},
+		},
+		{
+			name: "only one resource (deployments), only one version, wrong resource requested",
+			apiServerResourceList: []*metav1.APIResourceList{
+				{
+					GroupVersion: "apps/v1",
+					APIResources: []metav1.APIResource{
+						{
+							Name:       "deployments",
+							Kind:       "Deployment",
+							Namespaced: true,
+						},
+					},
+				},
+			},
+			expectedGVRs: []schema.GroupVersionResource{},
+			cfg: map[string]interface{}{
+				"cluster_agent.kube_metadata_collection.enabled":   true,
+				"cluster_agent.kube_metadata_collection.resources": "daemonsets",
+			},
+		},
+		{
+			name: "multiple resources (deployments, statefulsets), multiple versions, all resources requested",
+			apiServerResourceList: []*metav1.APIResourceList{
+				{
+					GroupVersion: "apps/v1",
+					APIResources: []metav1.APIResource{
+						{
+							Name:       "deployments",
+							Kind:       "Deployment",
+							Namespaced: true,
+						},
+					},
+				},
+				{
+					GroupVersion: "apps/v1beta1",
+					APIResources: []metav1.APIResource{
+						{
+							Name:       "deployments",
+							Kind:       "Deployment",
+							Namespaced: true,
+						},
+					},
+				},
+				{
+					GroupVersion: "apps/v1",
+					APIResources: []metav1.APIResource{
+						{
+							Name:       "statefulsets",
+							Kind:       "StatefulSet",
+							Namespaced: true,
+						},
+					},
+				},
+				{
+					GroupVersion: "apps/v1beta1",
+					APIResources: []metav1.APIResource{
+						{
+							Name:       "statefulsets",
+							Kind:       "StatefulSet",
+							Namespaced: true,
+						},
+					},
+				},
+			},
+			expectedGVRs: []schema.GroupVersionResource{
+				{Resource: "deployments", Group: "apps", Version: "v1"},
+				{Resource: "statefulsets", Group: "apps", Version: "v1"},
+			},
+			cfg: map[string]interface{}{
+				"cluster_agent.kube_metadata_collection.enabled":   true,
+				"cluster_agent.kube_metadata_collection.resources": "deployments statefulsets",
+			},
+		},
+		{
+			name: "multiple resources (deployments, statefulsets), multiple versions, only one resource requested",
+			apiServerResourceList: []*metav1.APIResourceList{
+				{
+					GroupVersion: "apps/v1",
+					APIResources: []metav1.APIResource{
+						{
+							Name:       "deployments",
+							Kind:       "Deployment",
+							Namespaced: true,
+						},
+					},
+				},
+				{
+					GroupVersion: "apps/v1beta1",
+					APIResources: []metav1.APIResource{
+						{
+							Name:       "deployments",
+							Kind:       "Deployment",
+							Namespaced: true,
+						},
+					},
+				},
+				{
+					GroupVersion: "apps/v1",
+					APIResources: []metav1.APIResource{
+						{
+							Name:       "statefulsets",
+							Kind:       "StatefulSet",
+							Namespaced: true,
+						},
+					},
+				},
+				{
+					GroupVersion: "apps/v1beta1",
+					APIResources: []metav1.APIResource{
+						{
+							Name:       "statefulsets",
+							Kind:       "StatefulSet",
+							Namespaced: true,
+						},
+					},
+				},
+			},
+			expectedGVRs: []schema.GroupVersionResource{{Resource: "deployments", Group: "apps", Version: "v1"}},
+			cfg: map[string]interface{}{
+				"cluster_agent.kube_metadata_collection.enabled":   true,
+				"cluster_agent.kube_metadata_collection.resources": "deployments",
+			},
+		},
+		{
+			name: "multiple resources (deployments, statefulsets), multiple versions, two resources requested (one with a typo)",
+			apiServerResourceList: []*metav1.APIResourceList{
+				{
+					GroupVersion: "apps/v1",
+					APIResources: []metav1.APIResource{
+						{
+							Name:       "deployments",
+							Kind:       "Deployment",
+							Namespaced: true,
+						},
+					},
+				},
+				{
+					GroupVersion: "apps/v1beta1",
+					APIResources: []metav1.APIResource{
+						{
+							Name:       "deployments",
+							Kind:       "Deployment",
+							Namespaced: true,
+						},
+					},
+				},
+				{
+					GroupVersion: "apps/v1",
+					APIResources: []metav1.APIResource{
+						{
+							Name:       "statefulsets",
+							Kind:       "StatefulSet",
+							Namespaced: true,
+						},
+					},
+				},
+				{
+					GroupVersion: "apps/v1beta1",
+					APIResources: []metav1.APIResource{
+						{
+							Name:       "statefulsets",
+							Kind:       "StatefulSet",
+							Namespaced: true,
+						},
+					},
+				},
+			},
+			expectedGVRs: []schema.GroupVersionResource{
+				{Resource: "deployments", Group: "apps", Version: "v1"},
+			},
+			cfg: map[string]interface{}{
+				"cluster_agent.kube_metadata_collection.enabled":   true,
+				"cluster_agent.kube_metadata_collection.resources": "deployments statefulsetsy",
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(tt *testing.T) {
+			cfg := config.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
+			for k, v := range test.cfg {
+				cfg.SetWithoutSource(k, v)
+			}
+
+			client := fakeclientset.NewSimpleClientset()
+			fakeDiscoveryClient, ok := client.Discovery().(*fakediscovery.FakeDiscovery)
+			assert.Truef(t, ok, "Failed to initialise fake discovery client")
+
+			fakeDiscoveryClient.Resources = test.apiServerResourceList
+
+			discoveredGVRs, err := metadataCollectionGVRs(cfg, fakeDiscoveryClient)
+			assert.NoErrorf(t, err, "Function should not have returned an error")
+
+			assert.Truef(t, reflect.DeepEqual(discoveredGVRs, test.expectedGVRs), "Expected %v but got %v.", test.expectedGVRs, discoveredGVRs)
+		})
+	}
+}
+
+/*
+type MockFailingDiscoveryClient struct {
+	fakediscovery.FakeDiscovery
+}
+
+func (m *MockFailingDiscoveryClient) ServerGroupsAndResources() ([]*metav1.APIGroup, []*metav1.APIResourceList, error) {
+	return nil, nil, fmt.Errorf("timeout error")
+}
+
+func Test_metadataCollectionGVRs_WithDiscoveryFailure(t *testing.T) {
+	discoveryClient := &MockFailingDiscoveryClient{}
+	discoveredGVRs, err := discoverGVRs(discoveryClient, []string{})
+	assert.Errorf(t, err, "Function should have returned an error")
+	assert.Nilf(t, discoveredGVRs, "Discovered GVRs should be nil")
+}
+*/

@@ -470,6 +470,8 @@ func InitConfig(config pkgconfigmodel.Config) {
 	config.BindEnvAndSetDefault("cluster_agent.language_detection.cleanup.language_ttl", "30m")
 	// language annotation cleanup period
 	config.BindEnvAndSetDefault("cluster_agent.language_detection.cleanup.period", "10m")
+	config.BindEnvAndSetDefault("cluster_agent.kube_metadata_collection.enabled", false)
+	config.BindEnvAndSetDefault("cluster_agent.kube_metadata_collection.resources", []string{})
 
 	// Metadata endpoints
 
