@@ -391,7 +391,7 @@ static __always_inline enum parse_result read_varint_or_s16(
                                                             pktbuf_t pkt,
                                                             u32 *offset,
                                                             u32 data_end,
-                                                            s16 *val,
+                                                            s64 *val,
                                                             bool first,
                                                             u32 max_varint_bytes)
 {
@@ -402,7 +402,9 @@ static __always_inline enum parse_result read_varint_or_s16(
         ret = read_varint(response, pkt, &tmp, offset, data_end, first, max_varint_bytes);
         *val = tmp;
     } else {
-        ret = read_with_remainder_s16(response, pkt, offset, data_end, val, first);
+        u16 tmp = 0;
+        ret = read_with_remainder_s16(response, pkt, offset, data_end, &tmp, first);
+        *val = tmp;
     }
 
     return ret;
@@ -414,7 +416,7 @@ static __always_inline enum parse_result read_varint_or_s32(
                                                             pktbuf_t pkt,
                                                             u32 *offset,
                                                             u32 data_end,
-                                                            s32 *val,
+                                                            s64 *val,
                                                             bool first,
                                                             u32 max_varint_bytes)
 {
@@ -425,7 +427,9 @@ static __always_inline enum parse_result read_varint_or_s32(
         ret = read_varint(response, pkt, &tmp, offset, data_end, first, max_varint_bytes);
         *val = tmp;
     } else {
-        ret = read_with_remainder(response, pkt, offset, data_end, val, first);
+        s32 tmp = 0;
+        ret = read_with_remainder(response, pkt, offset, data_end, &tmp, first);
+        *val = tmp;
     }
 
     return ret;
@@ -529,10 +533,10 @@ static __always_inline enum parse_result kafka_continue_parse_response_partition
 
     case KAFKA_FETCH_RESPONSE_NUM_TOPICS:
         {
-            s32 num_topics = 0;
+            s64 num_topics = 0;
             ret = read_varint_or_s32(flexible, response, pkt, &offset, data_end, &num_topics, true,
                                      VARINT_BYTES_NUM_TOPICS);
-            extra_debug("num_topics: %u", num_topics);
+            extra_debug("num_topics: %lld", num_topics);
             if (ret != RET_DONE) {
                 return ret;
             }
@@ -545,10 +549,10 @@ static __always_inline enum parse_result kafka_continue_parse_response_partition
 
     case KAFKA_FETCH_RESPONSE_TOPIC_NAME_SIZE:
         {
-            s16 topic_name_size = 0;
+            s64 topic_name_size = 0;
             ret = read_varint_or_s16(flexible, response, pkt, &offset, data_end, &topic_name_size, true,
                                      VARINT_BYTES_TOPIC_NAME_SIZE);
-            extra_debug("topic_name_size: %u", topic_name_size);
+            extra_debug("topic_name_size: %lld", topic_name_size);
             if (ret != RET_DONE) {
                 return ret;
             }
@@ -564,10 +568,10 @@ static __always_inline enum parse_result kafka_continue_parse_response_partition
 
     case KAFKA_FETCH_RESPONSE_NUM_PARTITIONS:
         {
-            s32 number_of_partitions = 0;
+            s64 number_of_partitions = 0;
             ret = read_varint_or_s32(flexible, response, pkt, &offset, data_end, &number_of_partitions, true,
                                      VARINT_BYTES_NUM_PARTITIONS);
-            extra_debug("number_of_partitions: %u", number_of_partitions);
+            extra_debug("number_of_partitions: %lld", number_of_partitions);
             if (ret != RET_DONE) {
                 return ret;
             }
@@ -625,14 +629,14 @@ static __always_inline enum parse_result kafka_continue_parse_response_partition
 
         case KAFKA_FETCH_RESPONSE_PARTITION_ABORTED_TRANSACTIONS:
             if (api_version >= 4) {
-                s32 aborted_transactions = 0;
+                s64 aborted_transactions = 0;
                 ret = read_varint_or_s32(flexible, response, pkt, &offset, data_end, &aborted_transactions, first,
                                          VARINT_BYTES_NUM_ABORTED_TRANSACTIONS);
                 if (ret != RET_DONE) {
                     return ret;
                 }
 
-                extra_debug("aborted_transactions: %d", aborted_transactions);
+                extra_debug("aborted_transactions: %lld", aborted_transactions);
 
                 // Note that -1 is a valid value which means that the list is empty.
                 if (aborted_transactions < -1) {
@@ -643,7 +647,7 @@ static __always_inline enum parse_result kafka_continue_parse_response_partition
                 // would wait for the end of the aborted_transactions list. So add a limit
                 // as a heuristic.
                 if (aborted_transactions >= KAFKA_MAX_ABORTED_TRANSACTIONS) {
-                    extra_debug("Possibly invalid aborted_transactions %d", aborted_transactions);
+                    extra_debug("Possibly invalid aborted_transactions %lld", aborted_transactions);
                     return RET_ERR;
                 }
                 if (aborted_transactions >= 0) {
@@ -673,11 +677,14 @@ static __always_inline enum parse_result kafka_continue_parse_response_partition
                 goto exit;
             }
 
-            ret = read_varint_or_s32(flexible, response, pkt, &offset, data_end, &response->record_batches_num_bytes, first,
+            s64 tmp = 0;
+            ret = read_varint_or_s32(flexible, response, pkt, &offset, data_end, &tmp, first,
                                      VARINT_BYTES_RECORD_BATCHES_NUM_BYTES);
             if (ret != RET_DONE) {
                 return ret;
             }
+
+            response->record_batches_num_bytes = tmp;
 
             extra_debug("record_batches_num_bytes: %d", response->record_batches_num_bytes);
 
