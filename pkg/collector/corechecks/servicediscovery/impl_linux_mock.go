@@ -20,8 +20,8 @@ import (
 	reflect "reflect"
 
 	portlist "github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/portlist"
-	procfs "github.com/prometheus/procfs"
 	gomock "github.com/golang/mock/gomock"
+	procfs "github.com/prometheus/procfs"
 )
 
 // Mockproc is a mock of proc interface.

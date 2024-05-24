@@ -39,7 +39,7 @@ def go_deps(ctx, baseline_ref=None, report_file=None):
     binaries = {
         "agent": {
             "entrypoint": "cmd/agent",
-            "platforms": ["linux/x64", "linux/arm64", "win32/x64", "win32/x86", "darwin/x64", "darwin/arm64"],
+            "platforms": ["linux/x64", "linux/arm64", "win32/x64", "darwin/x64", "darwin/arm64"],
         },
         "iot-agent": {
             "build": "agent",
@@ -77,7 +77,7 @@ def go_deps(ctx, baseline_ref=None, report_file=None):
         "system-probe": {"entrypoint": "cmd/system-probe", "platforms": ["linux/x64", "linux/arm64", "win32/x64"]},
         "trace-agent": {
             "entrypoint": "cmd/trace-agent",
-            "platforms": ["linux/x64", "linux/arm64", "win32/x64", "win32/x86", "darwin/x64", "darwin/arm64"],
+            "platforms": ["linux/x64", "linux/arm64", "win32/x64", "darwin/x64", "darwin/arm64"],
         },
         "heroku-trace-agent": {
             "build": "trace-agent",
@@ -107,9 +107,7 @@ def go_deps(ctx, baseline_ref=None, report_file=None):
                             depsfile = os.path.join(tmpdir, f"{target}-{branch_name}")
                             flavor = details.get("flavor", AgentFlavor.base)
                             build = details.get("build", binary)
-                            build_tags = get_default_build_tags(
-                                build=build, arch=arch, platform=platform, flavor=flavor
-                            )
+                            build_tags = get_default_build_tags(build=build, platform=platform, flavor=flavor)
                             env = {"GOOS": goos, "GOARCH": goarch}
                             ctx.run(f"{dep_cmd} -tags \"{' '.join(build_tags)}\" > {depsfile}", env=env)
         finally:

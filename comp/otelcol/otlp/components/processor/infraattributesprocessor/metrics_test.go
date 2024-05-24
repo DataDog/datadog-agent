@@ -11,17 +11,20 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"go.opentelemetry.io/collector/consumer/consumertest"
+	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/pmetric"
 	"go.opentelemetry.io/collector/processor/processortest"
+	conventions "go.opentelemetry.io/collector/semconv/v1.21.0"
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl/collectors"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 )
 
 type metricNameTest struct {
 	name                  string
 	inMetrics             pmetric.Metrics
-	outResourceAttributes map[string]any
+	outResourceAttributes []map[string]any
 }
 
 type metricWithResource struct {
@@ -36,20 +39,21 @@ var (
 
 	standardTests = []metricNameTest{
 		{
-			name: "one tag",
+			name: "one tag with global",
 			inMetrics: testResourceMetrics([]metricWithResource{{
 				metricNames: inMetricNames,
 				resourceAttributes: map[string]any{
 					"container.id": "test",
 				},
 			}}),
-			outResourceAttributes: map[string]any{
+			outResourceAttributes: []map[string]any{{
+				"global":       "tag",
 				"container.id": "test",
 				"container":    "id",
-			},
+			}},
 		},
 		{
-			name: "two tags",
+			name: "two tags with global",
 			inMetrics: testResourceMetrics([]metricWithResource{{
 				metricNames: inMetricNames,
 				resourceAttributes: map[string]any{
@@ -58,16 +62,63 @@ var (
 					"k8s.deployment.name": "deployment",
 				},
 			}}),
-			outResourceAttributes: map[string]any{
+			outResourceAttributes: []map[string]any{{
+				"global":              "tag",
 				"container.id":        "test",
 				"k8s.namespace.name":  "namespace",
 				"k8s.deployment.name": "deployment",
 				"container":           "id",
 				"deployment":          "name",
+			}},
+		},
+		{
+			name: "two resource metrics, two tags with global",
+			inMetrics: testResourceMetrics([]metricWithResource{
+				{
+					metricNames: inMetricNames,
+					resourceAttributes: map[string]any{
+						"container.id": "test",
+					},
+				},
+				{
+					metricNames: inMetricNames,
+					resourceAttributes: map[string]any{
+						"k8s.namespace.name":  "namespace",
+						"k8s.deployment.name": "deployment",
+					},
+				}}),
+			outResourceAttributes: []map[string]any{
+				{
+					"global":       "tag",
+					"container.id": "test",
+					"container":    "id",
+				},
+				{
+					"global":              "tag",
+					"k8s.namespace.name":  "namespace",
+					"k8s.deployment.name": "deployment",
+					"deployment":          "name",
+				},
 			},
 		},
 	}
 )
+
+func testResourceMetrics(mwrs []metricWithResource) pmetric.Metrics {
+	md := pmetric.NewMetrics()
+
+	for _, mwr := range mwrs {
+		rm := md.ResourceMetrics().AppendEmpty()
+		//nolint:errcheck
+		rm.Resource().Attributes().FromRaw(mwr.resourceAttributes)
+		ms := rm.ScopeMetrics().AppendEmpty().Metrics()
+		for _, name := range mwr.metricNames {
+			m := ms.AppendEmpty()
+			m.SetName(name)
+		}
+	}
+	return md
+}
 
 func TestInfraAttributesMetricProcessor(t *testing.T) {
 	for _, test := range standardTests {
@@ -79,8 +130,9 @@ func TestInfraAttributesMetricProcessor(t *testing.T) {
 			}
 			fakeTagger := taggerimpl.SetupFakeTagger(t)
 			defer fakeTagger.ResetTagger()
-			fakeTagger.SetTags("container_id://test", "foo", []string{"container:id"}, nil, nil, nil)
-			fakeTagger.SetTags("deployment://namespace/deployment", "foo", []string{"deployment:name"}, nil, nil, nil)
+			fakeTagger.SetTags("container_id://test", "test", []string{"container:id"}, nil, nil, nil)
+			fakeTagger.SetTags("deployment://namespace/deployment", "test", []string{"deployment:name"}, nil, nil, nil)
+			fakeTagger.SetTags(collectors.GlobalEntityID, "test", []string{"global:tag"}, nil, nil, nil)
 			factory := NewFactory(fakeTagger)
 			fmp, err := factory.CreateMetricsProcessor(
 				context.Background(),
@@ -101,23 +153,122 @@ func TestInfraAttributesMetricProcessor(t *testing.T) {
 			assert.NoError(t, fmp.Shutdown(ctx))
 
 			assert.Len(t, next.AllMetrics(), 1)
-			assert.EqualValues(t, test.outResourceAttributes, next.AllMetrics()[0].ResourceMetrics().At(0).Resource().Attributes().AsRaw())
+			for i, out := range test.outResourceAttributes {
+				rms := next.AllMetrics()[0].ResourceMetrics().At(i)
+				assert.NotNil(t, rms)
+				assert.EqualValues(t, out, rms.Resource().Attributes().AsRaw())
+			}
 		})
 	}
 }
 
-func testResourceMetrics(mwrs []metricWithResource) pmetric.Metrics {
-	md := pmetric.NewMetrics()
-
-	for _, mwr := range mwrs {
-		rm := md.ResourceMetrics().AppendEmpty()
-		//nolint:errcheck
-		rm.Resource().Attributes().FromRaw(mwr.resourceAttributes)
-		ms := rm.ScopeMetrics().AppendEmpty().Metrics()
-		for _, name := range mwr.metricNames {
-			m := ms.AppendEmpty()
-			m.SetName(name)
-		}
+func TestEntityIDsFromAttributes(t *testing.T) {
+	tests := []struct {
+		name      string
+		attrs     pcommon.Map
+		entityIDs []string
+	}{
+		{
+			name:      "none",
+			attrs:     pcommon.NewMap(),
+			entityIDs: []string{},
+		},
+		{
+			name: "pod UID and container ID",
+			attrs: func() pcommon.Map {
+				attributes := pcommon.NewMap()
+				attributes.FromRaw(map[string]interface{}{
+					conventions.AttributeContainerID: "container_id_goes_here",
+					conventions.AttributeK8SPodUID:   "k8s_pod_uid_goes_here",
+				})
+				return attributes
+			}(),
+			entityIDs: []string{"container_id://container_id_goes_here", "kubernetes_pod_uid://k8s_pod_uid_goes_here"},
+		},
+		{
+			name: "container image ID",
+			attrs: func() pcommon.Map {
+				attributes := pcommon.NewMap()
+				attributes.FromRaw(map[string]interface{}{
+					conventions.AttributeContainerImageID: "docker.io/foo@sha256:sha_goes_here",
+				})
+				return attributes
+			}(),
+			entityIDs: []string{"container_image_metadata://sha256:sha_goes_here"},
+		},
+		{
+			name: "ecs task arn",
+			attrs: func() pcommon.Map {
+				attributes := pcommon.NewMap()
+				attributes.FromRaw(map[string]interface{}{
+					conventions.AttributeAWSECSTaskARN: "ecs_task_arn_goes_here",
+				})
+				return attributes
+			}(),
+			entityIDs: []string{"ecs_task://ecs_task_arn_goes_here"},
+		},
+		{
+			name: "only deployment name without namespace",
+			attrs: func() pcommon.Map {
+				attributes := pcommon.NewMap()
+				attributes.FromRaw(map[string]interface{}{
+					conventions.AttributeK8SDeploymentName: "k8s_deployment_name_goes_here",
+				})
+				return attributes
+			}(),
+			entityIDs: []string{},
+		},
+		{
+			name: "deployment name and namespace",
+			attrs: func() pcommon.Map {
+				attributes := pcommon.NewMap()
+				attributes.FromRaw(map[string]interface{}{
+					conventions.AttributeK8SDeploymentName: "k8s_deployment_name_goes_here",
+					conventions.AttributeK8SNamespaceName:  "k8s_namespace_goes_here",
+				})
+				return attributes
+			}(),
+			entityIDs: []string{"deployment://k8s_namespace_goes_here/k8s_deployment_name_goes_here", "namespace://k8s_namespace_goes_here"},
+		},
+		{
+			name: "only namespace name",
+			attrs: func() pcommon.Map {
+				attributes := pcommon.NewMap()
+				attributes.FromRaw(map[string]interface{}{
+					conventions.AttributeK8SNamespaceName: "k8s_namespace_goes_here",
+				})
+				return attributes
+			}(),
+			entityIDs: []string{"namespace://k8s_namespace_goes_here"},
+		},
+		{
+			name: "only node UID",
+			attrs: func() pcommon.Map {
+				attributes := pcommon.NewMap()
+				attributes.FromRaw(map[string]interface{}{
+					conventions.AttributeK8SNodeUID: "k8s_node_uid_goes_here",
+				})
+				return attributes
+			}(),
+			entityIDs: []string{"kubernetes_node_uid://k8s_node_uid_goes_here"},
+		},
+		{
+			name: "only process pid",
+			attrs: func() pcommon.Map {
+				attributes := pcommon.NewMap()
+				attributes.FromRaw(map[string]interface{}{
+					conventions.AttributeProcessPID: "process_pid_goes_here",
+				})
+				return attributes
+			}(),
+			entityIDs: []string{"process://process_pid_goes_here"},
+		},
 	}
-	return md
+
+	for _, testInstance := range tests {
+		t.Run(testInstance.name, func(t *testing.T) {
+			entityIDs := entityIDsFromAttributes(testInstance.attrs)
+			assert.Equal(t, testInstance.entityIDs, entityIDs)
+		})
+	}
 }
