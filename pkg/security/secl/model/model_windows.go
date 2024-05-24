@@ -140,8 +140,10 @@ type DeleteRegistryKeyEvent struct {
 
 // ChangePermissionEvent defines object permission change
 type ChangePermissionEvent struct {
-	ObjectName string `field:"name"`   // SECLDoc[name] Definition:`Name of the object of which permission was changed`
-	ObjectType string `field:"type"`   // SECLDoc[type] Definition:`Type of the object of which permission was changed`
-	OldSd      string `field:"old_sd"` // SECLDoc[old_sd] Definition:`Original Security Descriptor of the object of which permission was changed`
-	NewSd      string `field:"new_sd"` // SECLDoc[name] Definition:`New Security Descriptor of the object of which permission was changed`
+	UserName   string `field:"username"`                                    // SECLDoc[username] Definition:`Username of the permission change author`
+	UserDomain string `field:"user_domain"`                                 // SECLDoc[user_domain] Definition:`Domain name of the permission change author`
+	ObjectName string `field:"path"`                                        // SECLDoc[name] Definition:`Name of the object of which permission was changed`
+	ObjectType string `field:"type"`                                        // SECLDoc[type] Definition:`Type of the object of which permission was changed`
+	OldSd      string `field:"old_sd,handler:ResolveOldSecurityDescriptor"` // SECLDoc[old_sd] Definition:`Original Security Descriptor of the object of which permission was changed`
+	NewSd      string `field:"new_sd,handler:ResolveNewSecurityDescriptor"` // SECLDoc[name] Definition:`New Security Descriptor of the object of which permission was changed`
 }

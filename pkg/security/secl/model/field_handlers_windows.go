@@ -61,6 +61,8 @@ func (ev *Event) resolveFields(forADs bool) {
 	// resolve event specific fields
 	switch ev.GetEventType().String() {
 	case "change_permission":
+		_ = ev.FieldHandlers.ResolveOldSecurityDescriptor(ev, &ev.ChangePermission)
+		_ = ev.FieldHandlers.ResolveNewSecurityDescriptor(ev, &ev.ChangePermission)
 	case "create":
 		_ = ev.FieldHandlers.ResolveFilePath(ev, &ev.CreateNewFile.File)
 		_ = ev.FieldHandlers.ResolveFileBasename(ev, &ev.CreateNewFile.File)
@@ -97,6 +99,8 @@ type FieldHandlers interface {
 	ResolveEventTimestamp(ev *Event, e *BaseEvent) int
 	ResolveFileBasename(ev *Event, e *FileEvent) string
 	ResolveFilePath(ev *Event, e *FileEvent) string
+	ResolveNewSecurityDescriptor(ev *Event, e *ChangePermissionEvent) string
+	ResolveOldSecurityDescriptor(ev *Event, e *ChangePermissionEvent) string
 	ResolveProcessCmdLine(ev *Event, e *Process) string
 	ResolveProcessCmdLineScrubbed(ev *Event, e *Process) string
 	ResolveProcessCreatedAt(ev *Event, e *Process) int
@@ -123,7 +127,13 @@ func (dfh *FakeFieldHandlers) ResolveEventTimestamp(ev *Event, e *BaseEvent) int
 func (dfh *FakeFieldHandlers) ResolveFileBasename(ev *Event, e *FileEvent) string {
 	return e.BasenameStr
 }
-func (dfh *FakeFieldHandlers) ResolveFilePath(ev *Event, e *FileEvent) string     { return e.PathnameStr }
+func (dfh *FakeFieldHandlers) ResolveFilePath(ev *Event, e *FileEvent) string { return e.PathnameStr }
+func (dfh *FakeFieldHandlers) ResolveNewSecurityDescriptor(ev *Event, e *ChangePermissionEvent) string {
+	return e.NewSd
+}
+func (dfh *FakeFieldHandlers) ResolveOldSecurityDescriptor(ev *Event, e *ChangePermissionEvent) string {
+	return e.OldSd
+}
 func (dfh *FakeFieldHandlers) ResolveProcessCmdLine(ev *Event, e *Process) string { return e.CmdLine }
 func (dfh *FakeFieldHandlers) ResolveProcessCmdLineScrubbed(ev *Event, e *Process) string {
 	return e.CmdLineScrubbed

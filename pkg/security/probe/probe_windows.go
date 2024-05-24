@@ -639,6 +639,8 @@ func (p *WindowsProbe) handleETWNotification(ev *model.Event, notif etwNotificat
 	case *objectPermsChange:
 		ev.Type = uint32(model.ChangePermissionEventType)
 		ev.ChangePermission = model.ChangePermissionEvent{
+			UserName:   arg.subjectUserName,
+			UserDomain: arg.subjectDomainName,
 			ObjectName: arg.objectName,
 			ObjectType: arg.objectType,
 			OldSd:      arg.oldSd,

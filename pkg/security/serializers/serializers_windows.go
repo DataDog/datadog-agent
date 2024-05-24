@@ -44,8 +44,12 @@ type RegistrySerializer struct {
 
 // ChangePermissionSerializer serializes a permission change to JSON
 type ChangePermissionSerializer struct {
+	// User name
+	UserName string `json:"username,omitempty"`
+	// User domain
+	UserDomain string `json:"user_domain,omitempty"`
 	// Object name
-	ObjectName string `json:"name,omitempty"`
+	ObjectName string `json:"path,omitempty"`
 	// Object type
 	ObjectType string `json:"type,omitempty"`
 	// Original Security Descriptor
@@ -232,10 +236,12 @@ func NewEventSerializer(event *model.Event, opts *eval.Opts) *EventSerializer {
 	case model.ChangePermissionEventType:
 		s.ChangePermissionEventSerializer = &ChangePermissionEventSerializer{
 			ChangePermissionSerializer: ChangePermissionSerializer{
+				UserName:   event.ChangePermission.UserName,
+				UserDomain: event.ChangePermission.UserDomain,
 				ObjectName: event.ChangePermission.ObjectName,
 				ObjectType: event.ChangePermission.ObjectType,
-				OldSd:      event.ChangePermission.OldSd,
-				NewSd:      event.ChangePermission.NewSd,
+				OldSd:      event.FieldHandlers.ResolveOldSecurityDescriptor(event, &event.ChangePermission),
+				NewSd:      event.FieldHandlers.ResolveNewSecurityDescriptor(event, &event.ChangePermission),
 			},
 		}
 	}
