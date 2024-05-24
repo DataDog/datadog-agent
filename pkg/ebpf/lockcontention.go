@@ -258,10 +258,8 @@ func (l *LockContentionCollector) Initialize(trackAllResources bool) error {
 		return nil
 	}
 	defer func() {
-		if err == nil {
-			log.Infof("lock contention collector initialized")
-			l.initialized = true
-		}
+		log.Infof("lock contention collector initialized")
+		l.initialized = true
 	}()
 
 	l.trackedLockMemRanges = make(map[LockRange]*mapStats)
