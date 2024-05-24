@@ -21,7 +21,7 @@ def gen_ssh_key(ctx: Context, kmt_dir: PathOrStr):
     ctx.run(f"chmod 600 {kmt_dir}/ddvm_rsa")
 
 
-def init_kernel_matrix_testing_system(ctx: Context, lite: bool):
+def init_kernel_matrix_testing_system(ctx: Context, lite: bool, images):
     kmt_os = get_kmt_os()
 
     if shutil.which("pulumi") is None:
@@ -56,7 +56,7 @@ def init_kernel_matrix_testing_system(ctx: Context, lite: bool):
     # download dependencies
     if not lite:
         info("[+] Downloading VM images")
-        download_rootfs(ctx, kmt_os.rootfs_dir, "system-probe")
+        download_rootfs(ctx, kmt_os.rootfs_dir, "system-probe", images)
         gen_ssh_key(ctx, kmt_os.kmt_dir)
 
     # build docker compile image
@@ -66,6 +66,6 @@ def init_kernel_matrix_testing_system(ctx: Context, lite: bool):
 
     if kmt_os.name == "macos":
         for cc in all_compilers(ctx):
-            cc.build()
+            cc.start()
     else:
-        get_compiler(ctx, "local").build()
+        get_compiler(ctx, "local").start()

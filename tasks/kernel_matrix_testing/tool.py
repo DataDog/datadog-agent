@@ -10,7 +10,7 @@ from invoke.context import Context
 from tasks.kernel_matrix_testing.vars import arch_mapping
 
 if TYPE_CHECKING:
-    from tasks.kernel_matrix_testing.types import Arch
+    from tasks.kernel_matrix_testing.types import Arch, PathOrStr
 
 try:
     from termcolor import colored
@@ -60,7 +60,7 @@ def full_arch(arch: str):
     return arch_mapping[arch]
 
 
-def get_binary_target_arch(ctx: Context, file: str) -> Arch | None:
+def get_binary_target_arch(ctx: Context, file: PathOrStr) -> Arch | None:
     res = ctx.run(f"file {file}")
     if res is None or not res.ok:
         return None
@@ -69,10 +69,9 @@ def get_binary_target_arch(ctx: Context, file: str) -> Arch | None:
     if 'executable' not in res.stdout:
         return None
 
-    # Second field of the file output is the architecture, get a standard
-    # value if possible
-    binary_arch = res.stdout.split(",")[1].strip()
-    for word in binary_arch.split(" "):
+    # Get a standard value if possible
+    words = [x.strip(",.") for x in res.stdout.split(" ")]
+    for word in words:
         if word in arch_mapping:
             return arch_mapping[word]
 

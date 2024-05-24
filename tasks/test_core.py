@@ -1,8 +1,9 @@
+from __future__ import annotations
+
 import abc
 import json
 import os
 from collections import defaultdict
-from typing import Dict, List
 
 from tasks.flavor import AgentFlavor
 from tasks.libs.common.color import color_message
@@ -119,7 +120,7 @@ class ModuleTestResult(ModuleResult):
 
 
 def test_core(
-    modules: List[GoModule],
+    modules: list[GoModule],
     flavor: AgentFlavor,
     module_class: GoModule,
     operation_name: str,
@@ -144,6 +145,7 @@ def test_core(
             continue
 
         command(modules_results, module, module_result)
+
     return modules_results
 
 
@@ -182,7 +184,7 @@ def process_input_args(
     return modules, flavor
 
 
-def process_module_results(flavor: AgentFlavor, module_results: Dict[str, Dict[str, List[ModuleResult]]]):
+def process_module_results(flavor: AgentFlavor, module_results: dict[str, dict[str, list[ModuleResult]]]):
     """
     Prints failures in module results, and returns False if at least one module failed.
     """

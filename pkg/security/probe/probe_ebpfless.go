@@ -340,10 +340,10 @@ func (p *EBPFLessProbe) DispatchEvent(event *model.Event) {
 	})
 
 	// send event to wildcard handlers, like the CWS rule engine, first
-	p.probe.sendEventToWildcardHandlers(event)
+	p.probe.sendEventToHandlers(event)
 
 	// send event to specific event handlers, like the event monitor consumers, subsequently
-	p.probe.sendEventToSpecificEventTypeHandlers(event)
+	p.probe.sendEventToConsumers(event)
 }
 
 // Init the probe

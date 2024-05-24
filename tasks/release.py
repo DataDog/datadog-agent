@@ -30,6 +30,7 @@ from tasks.libs.common.utils import (
 from tasks.libs.types.version import Version
 from tasks.modules import DEFAULT_MODULES
 from tasks.pipeline import edit_schedule, run
+from tasks.release_metrics.metrics import get_prs_metrics, get_release_lead_time
 
 # Generic version regex. Aims to match:
 # - X.Y.Z
@@ -45,12 +46,17 @@ RC_VERSION_RE = re.compile(r'\d+[.]\d+[.]\d+-rc\.\d+')
 MINOR_RC_VERSION_RE = re.compile(r'\d+[.]\d+[.]0-rc\.\d+')
 
 UNFREEZE_REPO_AGENT = "datadog-agent"
-UNFREEZE_REPOS = [UNFREEZE_REPO_AGENT, "omnibus-software", "omnibus-ruby", "datadog-agent-macos-build"]
+UNFREEZE_REPOS = ["omnibus-software", "omnibus-ruby", "datadog-agent-macos-build", UNFREEZE_REPO_AGENT]
 RELEASE_JSON_FIELDS_TO_UPDATE = [
     "INTEGRATIONS_CORE_VERSION",
     "OMNIBUS_SOFTWARE_VERSION",
     "OMNIBUS_RUBY_VERSION",
     "MACOS_BUILD_VERSION",
+]
+
+GITLAB_FILES_TO_UPDATE = [
+    ".gitlab-ci.yml",
+    ".gitlab/notify/notify.yml",
 ]
 
 
@@ -1328,7 +1334,7 @@ Make sure that milestone is open before trying again.""",
         )
 
     print(color_message(f"Set labels and milestone for PR #{updated_pr.number}", "bold"))
-    print(color_message(f"Done preparing release PR. The PR is available here: {updated_pr.html_url}", "bold"))
+    print(color_message(f"Done creating new PR. Link: {updated_pr.html_url}", "bold"))
 
     return updated_pr.html_url
 
@@ -1468,41 +1474,6 @@ def create_and_update_release_branch(ctx, repo, release_branch, base_directory="
         print(color_message(f"Branching out to {release_branch}", "bold"))
         ctx.run(f"git checkout -b {release_branch}")
 
-        if repo == UNFREEZE_REPO_AGENT:
-            # Step 1.1 - In datadog-agent repo update base_branch and nightly builds entries
-            rj = _load_release_json()
-
-            rj["base_branch"] = release_branch
-
-            for nightly in ["nightly", "nightly-a7"]:
-                for field in RELEASE_JSON_FIELDS_TO_UPDATE:
-                    rj[nightly][field] = f"{release_branch}"
-
-            _save_release_json(rj)
-
-            # Step 1.2 - In datadog-agent repo update gitlab-ci.yaml jobs
-            with open(".gitlab-ci.yml") as gl:
-                file_content = gl.readlines()
-
-            with open(".gitlab-ci.yml", "w") as gl:
-                for line in file_content:
-                    if re.search(r"compare_to: main", line):
-                        gl.write(line.replace("main", f"{release_branch}"))
-                    else:
-                        gl.write(line)
-
-            # Step 1.3 - Commit new changes
-            ctx.run("git add release.json .gitlab-ci.yml")
-            ok = try_git_command(ctx, f"git commit -m 'Update release.json and .gitlab-ci.yml with {release_branch}'")
-            if not ok:
-                raise Exit(
-                    color_message(
-                        f"Could not create commit. Please commit manually and push the commit to the {release_branch} branch.",
-                        "red",
-                    ),
-                    code=1,
-                )
-
         # Step 2 - Push newly created release branch to the remote repository
 
         print(color_message("Pushing new branch to the upstream repository", "bold"))
@@ -1524,7 +1495,7 @@ def unfreeze(ctx, base_directory="~/dd", major_versions="6,7", upstream="origin"
     That includes:
     - creates a release branch in datadog-agent, datadog-agent-macos, omnibus-ruby and omnibus-software repositories,
     - updates release.json on new datadog-agent branch to point to newly created release branches in nightly section
-    - updates entries in .gitlab-ci.yml which depend on local branch name
+    - updates entries in .gitlab-ci.yml and .gitlab/notify/notify.yml which depend on local branch name
 
     Notes:
     base_directory - path to the directory where dd repos are cloned, defaults to ~/dd, but can be overwritten.
@@ -1560,8 +1531,74 @@ def unfreeze(ctx, base_directory="~/dd", major_versions="6,7", upstream="origin"
     ):
         raise Exit(color_message("Aborting.", "red"), code=1)
 
+    # Step 1 - Create release branches in all required repositories
+
     for repo in UNFREEZE_REPOS:
         create_and_update_release_branch(ctx, repo, release_branch, base_directory=base_directory, upstream=upstream)
+
+    # Step 2 - Create PRs with new settings in datadog-agent repository
+
+    with ctx.cd(f"{base_directory}/{UNFREEZE_REPO_AGENT}"):
+        update_branch = f"{release_branch}-updates"
+
+        ctx.run(f"git checkout {release_branch}")
+        ctx.run(f"git checkout -b {update_branch}")
+
+        # Step 2.1 - Update release.json
+        rj = _load_release_json()
+
+        rj["base_branch"] = release_branch
+
+        for nightly in ["nightly", "nightly-a7"]:
+            for field in RELEASE_JSON_FIELDS_TO_UPDATE:
+                rj[nightly][field] = f"{release_branch}"
+
+        _save_release_json(rj)
+
+        # Step 1.2 - In datadog-agent repo update gitlab-ci.yaml and notify.yml jobs
+        for file in GITLAB_FILES_TO_UPDATE:
+            with open(file) as gl:
+                file_content = gl.readlines()
+
+            with open(file, "w") as gl:
+                for line in file_content:
+                    if re.search(r"compare_to: main", line):
+                        gl.write(line.replace("main", f"{release_branch}"))
+                    else:
+                        gl.write(line)
+
+        # Step 1.3 - Commit new changes
+        ctx.run("git add release.json .gitlab-ci.yml .gitlab/notify/notify.yml")
+        ok = try_git_command(
+            ctx, f"git commit -m 'Update release.json, .gitlab-ci.yml and notify.yml with {release_branch}'"
+        )
+        if not ok:
+            raise Exit(
+                color_message(
+                    f"Could not create commit. Please commit manually and push the commit to the {release_branch} branch.",
+                    "red",
+                ),
+                code=1,
+            )
+
+        # Step 1.4 - Push branch and create PR
+        print(color_message("Pushing new branch to the upstream repository", "bold"))
+        res = ctx.run(f"git push --set-upstream {upstream} {update_branch}", warn=True)
+        if res.exited is None or res.exited > 0:
+            raise Exit(
+                color_message(
+                    f"Could not push branch {update_branch} to the upstream '{upstream}'. Please push it manually and then open a PR against {release_branch}.",
+                    "red",
+                ),
+                code=1,
+            )
+
+        create_pr(
+            f"[release] Update release.json and gitlab files for {release_branch} branch",
+            release_branch,
+            update_branch,
+            current,
+        )
 
 
 def _update_last_stable(_, version, major_versions="6,7"):
@@ -1726,3 +1763,40 @@ def get_active_release_branch(_ctx):
         print(f"{release_branch.name}")
     else:
         print("main")
+
+
+@task
+def generate_release_metrics(ctx, milestone, freeze_date, release_date):
+    """
+    Task to run after the release is done to generate release metrics.
+
+    milestone - github milestone number for the release. Expected format like '7.54.0'
+    freeze_date - date when the code freeze was started. Expected format YYYY-MM-DD, like '2022-02-01'
+    release_date - date when the release was done. Expected format YYYY-MM-DD, like '2022-09-15'
+
+    Results are formatted in a way that can be easily copied to https://docs.google.com/spreadsheets/d/1r39CtyuvoznIDx1JhhLHQeAzmJB182n7ln8nToiWQ8s/edit#gid=1490566519
+    Copy paste numbers to the respective sheets and select 'Split text to columns'.
+    """
+
+    # Step 1: Lead Time for Changes data
+    lead_time = get_release_lead_time(freeze_date, release_date)
+    print("Lead Time for Changes data")
+    print("--------------------------")
+    print(lead_time)
+
+    # Step 2: Agent stability data
+    prs = get_prs_metrics(milestone, freeze_date)
+    print("\n")
+    print("Agent stability data")
+    print("--------------------")
+    print(f"{prs['total']}, {prs['before_freeze']}, {prs['on_freeze']}, {prs['after_freeze']}")
+
+    # Step 3: Code changes
+    code_stats = ctx.run(
+        f"git log --shortstat {milestone}-devel..{milestone} | grep \"files changed\" | awk '{{files+=$1; inserted+=$4; deleted+=$6}} END {{print files,\",\", inserted,\",\", deleted}}'",
+        hide=True,
+    ).stdout.strip()
+    print("\n")
+    print("Code changes")
+    print("------------")
+    print(code_stats)

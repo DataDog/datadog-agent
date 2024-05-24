@@ -130,10 +130,10 @@ func TestWinCrashReporting(t *testing.T) {
 		assert.NoError(t, err)
 
 		expected := event.Event{
-			Priority:       event.EventPriorityNormal,
+			Priority:       event.PriorityNormal,
 			SourceTypeName: CheckName,
 			EventType:      CheckName,
-			AlertType:      event.EventAlertTypeError,
+			AlertType:      event.AlertTypeError,
 			Title:          formatTitle(p),
 			Text:           formatText(p),
 		}

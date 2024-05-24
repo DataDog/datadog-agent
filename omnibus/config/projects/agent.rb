@@ -197,11 +197,6 @@ end
 # Dependencies
 # ------------------------------------
 
-# creates required build directories
-dependency 'datadog-agent-prepare'
-
-dependency 'agent-dependencies'
-
 # Datadog agent
 dependency 'datadog-agent'
 
@@ -222,9 +217,6 @@ end
 if with_python_runtime? "3"
   dependency 'datadog-agent-integrations-py3'
 end
-
-# Used for memory profiling with the `status py` agent subcommand
-dependency 'pympler'
 
 if linux_target?
   dependency 'datadog-security-agent-policies'

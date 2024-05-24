@@ -15,6 +15,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/cmd/trace-agent/subcommands"
+	"github.com/DataDog/datadog-agent/comp/agent/autoexit"
+	"github.com/DataDog/datadog-agent/comp/agent/autoexit/autoexitimpl"
 	"github.com/DataDog/datadog-agent/comp/api/authtoken/fetchonlyimpl"
 	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/configsync"
@@ -91,6 +93,7 @@ func runTraceAgentProcess(ctx context.Context, cliParams *Params, defaultConfPat
 			InitHelper: common.GetWorkloadmetaInit(),
 		}),
 		workloadmeta.Module(),
+		autoexitimpl.Module(),
 		statsd.Module(),
 		fx.Provide(func(coreConfig coreconfig.Component) tagger.Params {
 			if coreConfig.GetBool("apm_config.remote_tagger") {
@@ -111,7 +114,7 @@ func runTraceAgentProcess(ctx context.Context, cliParams *Params, defaultConfPat
 		fetchonlyimpl.Module(),
 		configsyncimpl.OptionalModule(),
 		// Force the instantiation of the components
-		fx.Invoke(func(_ agent.Component, _ optional.Option[configsync.Component]) {}),
+		fx.Invoke(func(_ agent.Component, _ optional.Option[configsync.Component], _ autoexit.Component) {}),
 	)
 	if err != nil && errors.Is(err, agent.ErrAgentDisabled) {
 		return nil

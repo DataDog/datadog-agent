@@ -2,17 +2,10 @@
 #define __KAFKA_CLASSIFICATION_H
 
 #include "protocols/helpers/big_endian.h"
+#include "protocols/helpers/pktbuf.h"
 #include "protocols/kafka/defs.h"
 #include "protocols/kafka/maps.h"
 #include "protocols/kafka/types.h"
-
-// Wraps the mechanism of reading big-endian number (s16 or s32) from the packet, and increasing the offset.
-#define READ_BIG_ENDIAN_WRAPPER(type, name, skb, offset)    \
-    type name = 0;                                          \
-    if (!read_big_endian_##type(skb, offset, &name)) {      \
-        return false;                                       \
-    }                                                       \
-    offset += sizeof(type);
 
 #define STRINGIFY(a) #a
 
@@ -53,7 +46,7 @@ _Pragma( STRINGIFY(unroll(max_buffer_size)) )                                   
 
 // Reads the client id (up to CLIENT_ID_SIZE_TO_VALIDATE bytes from the given offset), and verifies if it is valid,
 // namely, composed only from characters from [a-zA-Z0-9._-].
-static __always_inline bool is_valid_client_id(struct __sk_buff *skb, u32 offset, u16 real_client_id_size) {
+static __always_inline bool is_valid_client_id(pktbuf_t pkt, u32 offset, u16 real_client_id_size) {
     const u32 key = 0;
     // Fetch the client id buffer from per-cpu array, which gives us the ability to extend the size of the buffer,
     // as the stack is limited with the number of bytes we can allocate on.
@@ -62,7 +55,7 @@ static __always_inline bool is_valid_client_id(struct __sk_buff *skb, u32 offset
         return false;
     }
     bpf_memset(client_id, 0, CLIENT_ID_SIZE_TO_VALIDATE);
-    bpf_skb_load_bytes_with_telemetry(skb, offset, (char *)client_id, CLIENT_ID_SIZE_TO_VALIDATE);
+    pktbuf_load_bytes_with_telemetry(pkt, offset, (char *)client_id, CLIENT_ID_SIZE_TO_VALIDATE);
 
     // Returns true if client_id is composed out of the characters [a-z], [A-Z], [0-9], ".", "_", or "-".
     CHECK_STRING_VALID_CLIENT_ID(CLIENT_ID_SIZE_TO_VALIDATE, real_client_id_size, client_id);
@@ -114,15 +107,15 @@ static __always_inline bool is_valid_kafka_request_header(const kafka_header_t *
     return kafka_header->client_id_size >= -1;
 }
 
-READ_INTO_BUFFER(topic_name, TOPIC_NAME_MAX_STRING_SIZE_TO_VALIDATE, BLK_SIZE)
+PKTBUF_READ_INTO_BUFFER(topic_name, TOPIC_NAME_MAX_STRING_SIZE_TO_VALIDATE, BLK_SIZE)
 
 // Reads the first topic name (can be multiple), up to TOPIC_NAME_MAX_STRING_SIZE_TO_VALIDATE bytes from the given offset, and
 // verifies if it is valid, namely, composed only from characters from [a-zA-Z0-9._-].
-static __always_inline bool validate_first_topic_name(struct __sk_buff *skb, u32 offset) {
+static __always_inline bool validate_first_topic_name(pktbuf_t pkt, u32 offset) {
     // Skipping number of entries for now
     offset += sizeof(s32);
 
-    READ_BIG_ENDIAN_WRAPPER(s16, topic_name_size, skb, offset);
+    PKTBUF_READ_BIG_ENDIAN_WRAPPER(s16, topic_name_size, pkt, offset);
     if (topic_name_size <= 0 || topic_name_size > TOPIC_NAME_MAX_ALLOWED_SIZE) {
         return false;
     }
@@ -134,31 +127,31 @@ static __always_inline bool validate_first_topic_name(struct __sk_buff *skb, u32
     }
     bpf_memset(topic_name, 0, TOPIC_NAME_MAX_STRING_SIZE_TO_VALIDATE);
 
-    read_into_buffer_topic_name((char *)topic_name, skb, offset);
+    pktbuf_read_into_buffer_topic_name((char *)topic_name, pkt, offset);
     offset += topic_name_size;
 
     CHECK_STRING_VALID_TOPIC_NAME(TOPIC_NAME_MAX_STRING_SIZE_TO_VALIDATE, topic_name_size, topic_name);
 }
 
 // Getting the offset (out parameter) of the first topic name in the produce request.
-static __always_inline bool get_topic_offset_from_produce_request(const kafka_header_t *kafka_header, struct __sk_buff *skb, u32 *out_offset) {
+static __always_inline bool get_topic_offset_from_produce_request(const kafka_header_t *kafka_header, pktbuf_t pkt, u32 *out_offset) {
     const s16 api_version = kafka_header->api_version;
     u32 offset = *out_offset;
     if (api_version >= 3) {
-        READ_BIG_ENDIAN_WRAPPER(s16, transactional_id_size, skb, offset);
+        PKTBUF_READ_BIG_ENDIAN_WRAPPER(s16, transactional_id_size, pkt, offset);
         if (transactional_id_size > 0) {
             offset += transactional_id_size;
         }
     }
 
-    READ_BIG_ENDIAN_WRAPPER(s16, acks, skb, offset);
+    PKTBUF_READ_BIG_ENDIAN_WRAPPER(s16, acks, pkt, offset);
     if (acks > 1 || acks < -1) {
         // The number of acknowledgments the producer requires the leader to have received before considering a request
         // complete. Allowed values: 0 for no acknowledgments, 1 for only the leader and -1 for the full ISR.
         return false;
     }
 
-    READ_BIG_ENDIAN_WRAPPER(s32, timeout_ms, skb, offset);
+    PKTBUF_READ_BIG_ENDIAN_WRAPPER(s32, timeout_ms, pkt, offset);
     if (timeout_ms < 0) {
         // timeout_ms cannot be negative.
         return false;
@@ -193,13 +186,13 @@ static __always_inline u32 get_topic_offset_from_fetch_request(const kafka_heade
 }
 
 // Calls the relevant function, according to the api_key.
-static __always_inline bool is_kafka_request(const kafka_header_t *kafka_header, struct __sk_buff *skb, u32 offset) {
+static __always_inline bool is_kafka_request(const kafka_header_t *kafka_header, pktbuf_t pkt, u32 offset) {
     // Due to old-verifiers limitations, if the request is fetch or produce, we are calculating the offset of the topic
     // name in the request, and then validate the topic. We have to have shared call for validate_first_topic_name
     // as the function is huge, rather than call validate_first_topic_name for each api_key.
     switch (kafka_header->api_key) {
     case KAFKA_PRODUCE:
-        if (!get_topic_offset_from_produce_request(kafka_header, skb, &offset)) {
+        if (!get_topic_offset_from_produce_request(kafka_header, pkt, &offset)) {
             return false;
         }
         break;
@@ -209,11 +202,11 @@ static __always_inline bool is_kafka_request(const kafka_header_t *kafka_header,
     default:
         return false;
     }
-    return validate_first_topic_name(skb, offset);
+    return validate_first_topic_name(pkt, offset);
 }
 
 // Checks if the packet represents a kafka request.
-static __always_inline bool is_kafka(struct __sk_buff *skb, skb_info_t *skb_info, const char* buf, __u32 buf_size) {
+static __always_inline bool __is_kafka(pktbuf_t pkt, const char* buf, __u32 buf_size) {
     CHECK_PRELIMINARY_BUFFER_CONDITIONS(buf, buf_size, KAFKA_MIN_LENGTH);
 
     const kafka_header_t *header_view = (kafka_header_t *)buf;
@@ -229,11 +222,11 @@ static __always_inline bool is_kafka(struct __sk_buff *skb, skb_info_t *skb_info
         return false;
     }
 
-    u32 offset = skb_info->data_off + sizeof(kafka_header_t);
+    u32 offset = pktbuf_data_offset(pkt) + sizeof(kafka_header_t);
     // Validate client ID
     // Client ID size can be equal to '-1' if the client id is null.
     if (kafka_header.client_id_size > 0) {
-        if (!is_valid_client_id(skb, offset, kafka_header.client_id_size)) {
+        if (!is_valid_client_id(pkt, offset, kafka_header.client_id_size)) {
             return false;
         }
         offset += kafka_header.client_id_size;
@@ -241,7 +234,17 @@ static __always_inline bool is_kafka(struct __sk_buff *skb, skb_info_t *skb_info
         return false;
     }
 
-    return is_kafka_request(&kafka_header, skb, offset);
+    return is_kafka_request(&kafka_header, pkt, offset);
+}
+
+static __always_inline bool is_kafka(struct __sk_buff *skb, skb_info_t *skb_info, const char* buf, __u32 buf_size)
+{
+    return __is_kafka(pktbuf_from_skb(skb, skb_info), buf, buf_size);
+}
+
+static __always_inline __maybe_unused bool tls_is_kafka(tls_dispatcher_arguments_t *tls, const char* buf, __u32 buf_size)
+{
+    return __is_kafka(pktbuf_from_tls(tls), buf, buf_size);
 }
 
 #endif

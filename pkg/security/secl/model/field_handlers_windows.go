@@ -62,10 +62,12 @@ func (ev *Event) resolveFields(forADs bool) {
 	switch ev.GetEventType().String() {
 	case "create":
 		_ = ev.FieldHandlers.ResolveFimFilePath(ev, &ev.CreateNewFile.File)
+		_ = ev.FieldHandlers.ResolveFileUserPath(ev, &ev.CreateNewFile.File)
 		_ = ev.FieldHandlers.ResolveFimFileBasename(ev, &ev.CreateNewFile.File)
 	case "create_key":
 	case "delete":
 		_ = ev.FieldHandlers.ResolveFimFilePath(ev, &ev.DeleteFile.File)
+		_ = ev.FieldHandlers.ResolveFileUserPath(ev, &ev.DeleteFile.File)
 		_ = ev.FieldHandlers.ResolveFimFileBasename(ev, &ev.DeleteFile.File)
 	case "delete_key":
 	case "exec":
@@ -73,7 +75,6 @@ func (ev *Event) resolveFields(forADs bool) {
 		_ = ev.FieldHandlers.ResolveFileBasename(ev, &ev.Exec.Process.FileEvent)
 		_ = ev.FieldHandlers.ResolveProcessCreatedAt(ev, ev.Exec.Process)
 		_ = ev.FieldHandlers.ResolveProcessCmdLine(ev, ev.Exec.Process)
-		_ = ev.FieldHandlers.ResolveProcessCmdLineScrubbed(ev, ev.Exec.Process)
 		_ = ev.FieldHandlers.ResolveUser(ev, ev.Exec.Process)
 		_ = ev.FieldHandlers.ResolveProcessEnvs(ev, ev.Exec.Process)
 		_ = ev.FieldHandlers.ResolveProcessEnvp(ev, ev.Exec.Process)
@@ -82,19 +83,21 @@ func (ev *Event) resolveFields(forADs bool) {
 		_ = ev.FieldHandlers.ResolveFileBasename(ev, &ev.Exit.Process.FileEvent)
 		_ = ev.FieldHandlers.ResolveProcessCreatedAt(ev, ev.Exit.Process)
 		_ = ev.FieldHandlers.ResolveProcessCmdLine(ev, ev.Exit.Process)
-		_ = ev.FieldHandlers.ResolveProcessCmdLineScrubbed(ev, ev.Exit.Process)
 		_ = ev.FieldHandlers.ResolveUser(ev, ev.Exit.Process)
 		_ = ev.FieldHandlers.ResolveProcessEnvs(ev, ev.Exit.Process)
 		_ = ev.FieldHandlers.ResolveProcessEnvp(ev, ev.Exit.Process)
 	case "open_key":
 	case "rename":
 		_ = ev.FieldHandlers.ResolveFimFilePath(ev, &ev.RenameFile.Old)
+		_ = ev.FieldHandlers.ResolveFileUserPath(ev, &ev.RenameFile.Old)
 		_ = ev.FieldHandlers.ResolveFimFileBasename(ev, &ev.RenameFile.Old)
 		_ = ev.FieldHandlers.ResolveFimFilePath(ev, &ev.RenameFile.New)
+		_ = ev.FieldHandlers.ResolveFileUserPath(ev, &ev.RenameFile.New)
 		_ = ev.FieldHandlers.ResolveFimFileBasename(ev, &ev.RenameFile.New)
 	case "set_key_value":
 	case "write":
 		_ = ev.FieldHandlers.ResolveFimFilePath(ev, &ev.WriteFile.File)
+		_ = ev.FieldHandlers.ResolveFileUserPath(ev, &ev.WriteFile.File)
 		_ = ev.FieldHandlers.ResolveFimFileBasename(ev, &ev.WriteFile.File)
 	}
 }
@@ -107,6 +110,7 @@ type FieldHandlers interface {
 	ResolveEventTimestamp(ev *Event, e *BaseEvent) int
 	ResolveFileBasename(ev *Event, e *FileEvent) string
 	ResolveFilePath(ev *Event, e *FileEvent) string
+	ResolveFileUserPath(ev *Event, e *FimFileEvent) string
 	ResolveFimFileBasename(ev *Event, e *FimFileEvent) string
 	ResolveFimFilePath(ev *Event, e *FimFileEvent) string
 	ResolveProcessCmdLine(ev *Event, e *Process) string
@@ -136,6 +140,9 @@ func (dfh *FakeFieldHandlers) ResolveFileBasename(ev *Event, e *FileEvent) strin
 	return e.BasenameStr
 }
 func (dfh *FakeFieldHandlers) ResolveFilePath(ev *Event, e *FileEvent) string { return e.PathnameStr }
+func (dfh *FakeFieldHandlers) ResolveFileUserPath(ev *Event, e *FimFileEvent) string {
+	return e.UserPathnameStr
+}
 func (dfh *FakeFieldHandlers) ResolveFimFileBasename(ev *Event, e *FimFileEvent) string {
 	return e.BasenameStr
 }

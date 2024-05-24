@@ -4,8 +4,8 @@ import tempfile
 
 from invoke import task
 
-from tasks.rtloader import get_dev_path
 from tasks.libs.common.utils import collapsed_section
+from tasks.rtloader import get_dev_path
 
 is_windows = sys.platform == "win32"
 is_darwin = sys.platform == "darwin"

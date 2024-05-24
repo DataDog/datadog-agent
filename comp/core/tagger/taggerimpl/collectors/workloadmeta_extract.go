@@ -136,6 +136,8 @@ func (c *WorkloadMetaCollector) processEvents(evBundle workloadmeta.EventBundle)
 				tagInfos = append(tagInfos, c.handleKubePod(ev)...)
 			case workloadmeta.KindKubernetesNode:
 				tagInfos = append(tagInfos, c.handleKubeNode(ev)...)
+			case workloadmeta.KindKubernetesNamespace:
+				tagInfos = append(tagInfos, c.handleKubeNamespace(ev)...)
 			case workloadmeta.KindECSTask:
 				tagInfos = append(tagInfos, c.handleECSTask(ev)...)
 			case workloadmeta.KindContainerImageMetadata:
@@ -339,6 +341,10 @@ func (c *WorkloadMetaCollector) handleKubePod(ev workloadmeta.Event) []*types.Ta
 		utils.AddMetadataAsTags(name, value, c.nsLabelsAsTags, c.globNsLabels, tags)
 	}
 
+	for name, value := range pod.NamespaceAnnotations {
+		utils.AddMetadataAsTags(name, value, c.nsAnnotationsAsTags, c.globNsAnnotations, tags)
+	}
+
 	kubeServiceDisabled := false
 	for _, disabledTag := range config.Datadog.GetStringSlice("kubernetes_ad_tags_disabled") {
 		if disabledTag == "kube_service" {
@@ -425,6 +431,34 @@ func (c *WorkloadMetaCollector) handleKubeNode(ev workloadmeta.Event) []*types.T
 		{
 			Source:               nodeSource,
 			Entity:               buildTaggerEntityID(node.EntityID),
+			HighCardTags:         high,
+			OrchestratorCardTags: orch,
+			LowCardTags:          low,
+			StandardTags:         standard,
+		},
+	}
+
+	return tagInfos
+}
+
+func (c *WorkloadMetaCollector) handleKubeNamespace(ev workloadmeta.Event) []*types.TagInfo {
+	namespace := ev.Entity.(*workloadmeta.KubernetesNamespace)
+
+	tags := utils.NewTagList()
+
+	for name, value := range namespace.Labels {
+		utils.AddMetadataAsTags(name, value, c.nsLabelsAsTags, c.globNsLabels, tags)
+	}
+
+	for name, value := range namespace.Annotations {
+		utils.AddMetadataAsTags(name, value, c.nsAnnotationsAsTags, c.globNsAnnotations, tags)
+	}
+
+	low, orch, high, standard := tags.Compute()
+	tagInfos := []*types.TagInfo{
+		{
+			Source:               nodeSource,
+			Entity:               buildTaggerEntityID(namespace.EntityID),
 			HighCardTags:         high,
 			OrchestratorCardTags: orch,
 			LowCardTags:          low,
@@ -716,6 +750,8 @@ func buildTaggerEntityID(entityID workloadmeta.EntityID) string {
 		return kubelet.PodUIDToTaggerEntityName(entityID.ID)
 	case workloadmeta.KindKubernetesNode:
 		return kubelet.NodeUIDToTaggerEntityName(entityID.ID)
+	case workloadmeta.KindKubernetesNamespace:
+		return fmt.Sprintf("namespace://%s", entityID.ID)
 	case workloadmeta.KindECSTask:
 		return fmt.Sprintf("ecs_task://%s", entityID.ID)
 	case workloadmeta.KindContainerImageMetadata:

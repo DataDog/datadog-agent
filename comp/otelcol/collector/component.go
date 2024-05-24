@@ -11,23 +11,14 @@ package collector
 import (
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/comp/otelcol/otlp"
+	collectordef "github.com/DataDog/datadog-agent/comp/otelcol/collector/def"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 // team: opentelemetry
 
-// TODO: This component can't use the fx lifecycle hooks for starting and stopping
-// because it depends on the logs agent component's log channel which isn't ready at
-// that time and can't be obtained. This needs to be addressed as an improvement
-// of the logs agent component.
-
 // Component specifies the interface implemented by the collector module.
-type Component interface {
-	Start() error
-	Stop()
-	Status() otlp.CollectorStatus
-}
+type Component = collectordef.Component
 
 // Module specifies the Collector module bundle.
 func Module() fxutil.Module {

@@ -338,6 +338,16 @@ func (w *workloadmeta) GetKubernetesDeployment(id string) (*KubernetesDeployment
 	return entity.(*KubernetesDeployment), nil
 }
 
+// GetKubernetesNamespace implements Store#GetKubernetesNamespace
+func (w *workloadmeta) GetKubernetesNamespace(id string) (*KubernetesNamespace, error) {
+	entity, err := w.getEntityByKind(KindKubernetesNamespace, id)
+	if err != nil {
+		return nil, err
+	}
+
+	return entity.(*KubernetesNamespace), nil
+}
+
 // ListECSTasks implements Store#ListECSTasks
 func (w *workloadmeta) ListECSTasks() []*ECSTask {
 	entities := w.listEntitiesByKind(KindECSTask)

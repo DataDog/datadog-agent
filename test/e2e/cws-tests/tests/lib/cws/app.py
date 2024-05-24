@@ -173,7 +173,7 @@ class App(common.App):
         api_key = os.environ["DD_API_KEY"]
         app_key = os.environ["DD_APP_KEY"]
 
-        url = f"https://api.{site}/api/v2/security/cloud_workload/policy/download"
+        url = f"https://api.{site}/api/v2/remote_config/products/cws/policy/download"
         with requests.get(
             url,
             headers={

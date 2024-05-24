@@ -9,6 +9,7 @@ import sys
 
 from invoke import task
 from invoke.exceptions import Exit
+
 from tasks.libs.common.utils import collapsed_section
 
 
@@ -56,7 +57,7 @@ def clear_cmake_cache(rtloader_path, settings):
 
 
 @task
-def make(ctx, install_prefix=None, python_runtimes='3', cmake_options='', arch="x64"):
+def make(ctx, install_prefix=None, python_runtimes='3', cmake_options=''):
     dev_path = get_dev_path()
 
     if cmake_options.find("-G") == -1:
@@ -82,9 +83,6 @@ def make(ctx, install_prefix=None, python_runtimes='3', cmake_options='', arch="
 
     for option, value in settings.items():
         cmake_args += f" -D{option}={value} "
-
-    if arch == "x86":
-        cmake_args += " -DARCH_I386=ON"
 
     if sys.platform == 'darwin':
         cmake_args += " -DCMAKE_OSX_DEPLOYMENT_TARGET=10.13"

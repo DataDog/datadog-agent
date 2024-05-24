@@ -106,7 +106,7 @@ func (p *Provider) Provide(kc kubelet.KubeUtilInterface, sender sender.Sender) e
 
 		podData, err := p.store.GetKubernetesPod(podStats.PodRef.UID) //from workloadmeta store
 		if err != nil || podData == nil {
-			log.Warnf("Couldn't get pod data from workloadmeta store, error = %v ", err)
+			log.Infof("Couldn't get pod data from workloadmeta store, error = %v ", err)
 			continue
 		}
 		if podData.Phase == "Running" || podData.Phase == "Pending" {

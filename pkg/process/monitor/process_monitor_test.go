@@ -182,9 +182,10 @@ func TestProcessMonitorInNamespace(t *testing.T) {
 	// Process in root NS
 	cmd := exec.Command("/bin/echo")
 	require.NoError(t, cmd.Run(), "could not run process in root namespace")
+	pid := uint32(cmd.ProcessState.Pid())
 
 	require.Eventually(t, func() bool {
-		_, captured := execSet.Load(cmd.ProcessState.Pid())
+		_, captured := execSet.Load(pid)
 		return captured
 	}, time.Second, time.Millisecond*200, "did not capture process EXEC from root namespace")
 
@@ -195,9 +196,10 @@ func TestProcessMonitorInNamespace(t *testing.T) {
 
 	cmd = exec.Command("/bin/echo")
 	require.NoError(t, kernel.WithNS(cmdNs, cmd.Run), "could not run process in other network namespace")
+	pid = uint32(cmd.ProcessState.Pid())
 
 	require.Eventually(t, func() bool {
-		_, captured := execSet.Load(cmd.ProcessState.Pid())
+		_, captured := execSet.Load(pid)
 		return captured
 	}, time.Second, 200*time.Millisecond, "did not capture process EXEC from other namespace")
 

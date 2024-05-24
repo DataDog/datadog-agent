@@ -59,17 +59,16 @@ Each service has two entity identifiers: the AD service ID (from `svc.GetService
 These both uniquely identify an entity, but using different syntax.
 
 <!-- NOTE: a similar table appears in comp/core/tagger/README.md; please keep both in sync -->
-| *Service*                         | *Service ID*                                                      | *Tagger Entity*                                                    |
-|-----------------------------------|-------------------------------------------------------------------|--------------------------------------------------------------------|
-| workloadmeta.KindContainer        | `<runtime>://<sha>`                                               | `container_id://<sha>`                                             |
-| workloadmeta.KindGardenContainer  | `garden_container://<sha>`                                        | `container_id://<sha>`                                             |
-| workloadmeta.KindKubernetesPod    | `kubernetes_pod://<uid>`                                          | `kubernetes_pod_uid://<uid>`                                       |
-| workloadmeta.KindECSTask          | `ecs_task://<task-id>`                                            | `ecs_task://<task-id>`                                             |
-| CloudFoundry LRP                  | `<processGuid>/<svcName>/<instanceGuid>` or `<appGuid>/<svcName>` | `<processGuid>/<svcName>/<instanceGuid>`  or `<appGuid>/<svcName>` |
-| Container runtime or orchestrator | `_<name>` e.g., `_containerd`                                     | (none)                                                             |
-| Kubernetes Endpoint               | `kube_endpoint_uid://<namespace>/<name>/<ip>`                     | `kube_endpoint_uid://<namespace>/<name>/<ip>`                      |
-| Kubernetes Service                | `kube_service://<namespace>/<name>`                               | `kube_service://<namespace>/<name>`                                |
-| SNMP Config                       | config hash                                                       | config hash                                                        |
+| *Service*                         | *Service ID*                                                      | *Tagger Entity*              |
+|-----------------------------------|-------------------------------------------------------------------|------------------------------|
+| workloadmeta.KindContainer        | `<runtime>://<sha>`                                               | `container_id://<sha>`       |
+| workloadmeta.KindKubernetesPod    | `kubernetes_pod://<uid>`                                          | `kubernetes_pod_uid://<uid>` |
+| workloadmeta.KindECSTask          | `ecs_task://<task-id>`                                            | `ecs_task://<task-id>`       |
+| CloudFoundry LRP                  | `<processGuid>/<svcName>/<instanceGuid>` or `<appGuid>/<svcName>` | (none)                       |
+| Container runtime or orchestrator | `_<name>` e.g., `_containerd`                                     | (none)                       |
+| Kubernetes Endpoint               | `kube_endpoint_uid://<namespace>/<name>/<ip>`                     | (none)                       |
+| Kubernetes Service                | `kube_service://<namespace>/<name>`                               | (none)                       |
+| SNMP Config                       | config hash                                                       | (none)                       |
 
 ## MetaScheduler
 

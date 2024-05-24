@@ -326,15 +326,34 @@ def register_state_to_str(reg: ComplexityRegisterState, compinfo_widths: tuple[i
     return f"{' ' * total_indent} |    R{reg['register']} ({reg['type']}){reg_liveness}: {reg['value']}"
 
 
-def get_complexity_for_function(program: str, function: str, debug=False) -> ComplexityData:
+def get_complexity_for_function(object_file: str, function: str, debug=False) -> ComplexityData:
     if debug:
-        program += "_debug"
+        object_file += "_debug"
 
-    func_name = f"{program}/{function.replace('/', '__')}"
+    function = function.replace('/', '__')
+    func_name = f"{object_file}/{function}"
     complexity_data_file = COMPLEXITY_DATA_DIR / f"{func_name}.json"
 
     if not os.path.exists(complexity_data_file):
-        raise Exit(f"Complexity data for {func_name} not found at {complexity_data_file}")
+        # Fall back to use section name
+        print(
+            f"Complexity data for function {func_name} not found at {complexity_data_file}, trying to find it as section..."
+        )
+
+        with open(COMPLEXITY_DATA_DIR / object_file / "mappings.json") as f:
+            mappings = json.load(f)
+        if func_name not in mappings:
+            raise Exit(f"Cannot find complexity data for {func_name}, neither as function nor section name")
+
+        funcs = mappings[function]
+        if len(funcs) > 1:
+            raise Exit(
+                f"Multiple functions corresponding to section {func_name}: {funcs}. Please choose only one of them"
+            )
+
+        function = funcs[0]
+        func_name = f"{object_file}/{function}"
+        complexity_data_file = COMPLEXITY_DATA_DIR / f"{func_name}.json"
 
     with open(complexity_data_file) as f:
         return json.load(f)
@@ -342,7 +361,7 @@ def get_complexity_for_function(program: str, function: str, debug=False) -> Com
 
 @task(
     help={
-        "program": "The program to analyze",
+        "object_file": "The program to analyze",
         "function": "The function to analyze",
         "debug": "Use debug builds",
         "show_assembly": "Show the assembly code for each line",
@@ -353,7 +372,7 @@ def get_complexity_for_function(program: str, function: str, debug=False) -> Com
 )
 def annotate_complexity(
     _: Context,
-    program: str,
+    object_file: str,
     function: str,
     debug=False,
     show_assembly=False,
@@ -362,7 +381,7 @@ def annotate_complexity(
     show_raw_register_state=False,
 ):
     """Show source code with annotated complexity information for the given program and function"""
-    complexity_data = get_complexity_for_function(program, function, debug)
+    complexity_data = get_complexity_for_function(object_file, function, debug)
     all_files = {x.split(":")[0] for x in complexity_data["source_map"].keys()}
 
     if colored is None:
@@ -460,7 +479,7 @@ def annotate_complexity(
     with open(VERIFIER_STATS) as f:
         verifier_stats = json.load(f)
 
-    func_name = f"{program}/{function.replace('/', '__')}"
+    func_name = f"{object_file}/{function.replace('/', '__')}"
     if func_name not in verifier_stats:
         raise Exit(f"Verification stats for {func_name} not found in {VERIFIER_STATS}")
 

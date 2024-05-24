@@ -16,26 +16,19 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common/path"
-	"github.com/DataDog/datadog-agent/comp/aggregator/diagnosesendermanager"
-	"github.com/DataDog/datadog-agent/comp/aggregator/diagnosesendermanager/diagnosesendermanagerimpl"
-	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/core"
-	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/flare/helpers"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/settings"
 	settingshttp "github.com/DataDog/datadog-agent/pkg/config/settings/http"
-	"github.com/DataDog/datadog-agent/pkg/diagnose"
 	"github.com/DataDog/datadog-agent/pkg/flare"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/input"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 type cliParams struct {
@@ -94,11 +87,8 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 					SecretParams: secrets.NewEnabledParams(),
 					LogParams:    logimpl.ForOneShot(LoggerName, DefaultLogLevel, true),
 				}),
-				fx.Supply(optional.NewNoneOption[collector.Component]()),
 				core.Bundle(),
 				compressionimpl.Module(),
-				diagnosesendermanagerimpl.Module(),
-				fx.Supply(optional.NewNoneOption[autodiscovery.Component]()),
 			)
 		},
 	}
@@ -159,11 +149,7 @@ func readProfileData(seconds int) (flare.ProfileData, error) {
 	return pdata, nil
 }
 
-func run(cliParams *cliParams,
-	diagnoseSenderManager diagnosesendermanager.Component,
-	collector optional.Option[collector.Component],
-	secretResolver secrets.Component,
-	ac optional.Option[autodiscovery.Component]) error {
+func run(cliParams *cliParams, _ config.Component) error {
 	fmt.Fprintln(color.Output, color.BlueString("Asking the Cluster Agent to build the flare archive."))
 	var (
 		profile flare.ProfileData
@@ -222,8 +208,7 @@ func run(cliParams *cliParams,
 			fmt.Fprintln(color.Output, color.RedString("The agent was unable to make a full flare: %s.", e.Error()))
 		}
 		fmt.Fprintln(color.Output, color.YellowString("Initiating flare locally, some logs will be missing."))
-		diagnoseDeps := diagnose.NewSuitesDeps(diagnoseSenderManager, collector, secretResolver, optional.NewNoneOption[workloadmeta.Component](), ac)
-		filePath, e = flare.CreateDCAArchive(true, path.GetDistPath(), logFile, profile, diagnoseDeps, nil)
+		filePath, e = flare.CreateDCAArchive(true, path.GetDistPath(), logFile, profile, nil)
 		if e != nil {
 			fmt.Printf("The flare zipfile failed to be created: %s\n", e)
 			return e

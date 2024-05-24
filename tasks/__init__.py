@@ -42,6 +42,7 @@ from tasks import (
     sds,
     security_agent,
     selinux,
+    setup,
     system_probe,
     systray,
     trace_agent,
@@ -49,6 +50,7 @@ from tasks import (
 )
 from tasks.build_tags import audit_tag_impact, print_default_build_tags
 from tasks.components import lint_components, lint_fxutil_oneshot_test
+from tasks.custom_task.custom_task import custom__call__
 from tasks.fuzz import fuzz
 from tasks.go import (
     check_go_mod_replaces,
@@ -81,7 +83,6 @@ from tasks.show_linters_issues import show_linters_issues
 from tasks.unit_tests import invoke_unit_tests
 from tasks.update_go import go_version, update_go
 from tasks.windows_resources import build_messagetable
-from tasks.custom_task.custom_task import custom__call__
 
 Task.__call__ = custom__call__
 
@@ -97,7 +98,6 @@ ns.add_task(deps_vendored)
 ns.add_task(lint_licenses)
 ns.add_task(generate_licenses)
 ns.add_task(lint_components)
-ns.add_task(lint_go)
 ns.add_task(lint_fxutil_oneshot_test)
 ns.add_task(generate_protobuf)
 ns.add_task(reset)
@@ -122,9 +122,10 @@ ns.add_task(fuzz)
 ns.add_task(go_fix)
 ns.add_task(build_messagetable)
 ns.add_task(get_impacted_packages)
-
 ns.add_task(get_modified_packages)
 ns.add_task(send_unit_tests_stats)
+# To deprecate
+ns.add_task(lint_go)
 
 # add namespaced tasks to the root
 ns.add_collection(agent)
@@ -150,6 +151,7 @@ ns.add_collection(notify)
 ns.add_collection(otel_agent)
 ns.add_collection(sds)
 ns.add_collection(selinux)
+ns.add_collection(setup)
 ns.add_collection(systray)
 ns.add_collection(release)
 ns.add_collection(rtloader)

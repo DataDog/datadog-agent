@@ -143,7 +143,7 @@ func testIsTraceRootTag(t *testing.T, c *assert.CollectT, intake *components.Fak
 			for _, b := range s.Stats {
 				for _, cs := range b.Stats {
 					t.Logf("Got IsTraceRoot: %v", cs.GetIsTraceRoot())
-					assert.Equal(t, trace.TraceRootFlag_TRUE, cs.GetIsTraceRoot())
+					assert.Equal(t, trace.Trilean_TRUE, cs.GetIsTraceRoot())
 				}
 			}
 		}

@@ -10,11 +10,15 @@ package usm
 import (
 	"bufio"
 	"context"
+	"crypto/tls"
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"io"
 	"net"
 	nethttp "net/http"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -35,11 +39,15 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/kafka"
+	gotlsutils "github.com/DataDog/datadog-agent/pkg/network/protocols/tls/gotls/testutil"
+	"github.com/DataDog/datadog-agent/pkg/network/tracer/testutil/proxy"
+	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
 const (
-	kafkaPort = "9092"
+	kafkaPort    = "9092"
+	kafkaTLSPort = "9093"
 )
 
 // testContext shares the context of a given test.
@@ -108,7 +116,16 @@ func TestKafkaProtocolParsing(t *testing.T) {
 func (s *KafkaProtocolParsingSuite) TestKafkaProtocolParsing() {
 	t := s.T()
 
-	clientHost := "localhost"
+	t.Run("without TLS", func(t *testing.T) {
+		s.testKafkaProtocolParsing(t, false)
+	})
+
+	t.Run("with TLS", func(t *testing.T) {
+		s.testKafkaProtocolParsing(t, true)
+	})
+}
+
+func (s *KafkaProtocolParsingSuite) testKafkaProtocolParsing(t *testing.T, tls bool) {
 	targetHost := "127.0.0.1"
 	serverHost := "127.0.0.1"
 
@@ -121,13 +138,34 @@ func (s *KafkaProtocolParsingSuite) TestKafkaProtocolParsing() {
 		}
 	}
 
-	serverAddress := net.JoinHostPort(serverHost, kafkaPort)
-	targetAddress := net.JoinHostPort(targetHost, kafkaPort)
+	port := kafkaPort
+	if tls {
+		port = kafkaTLSPort
+	}
 
-	defaultDialer := &net.Dialer{
-		LocalAddr: &net.TCPAddr{
-			IP: net.ParseIP(clientHost),
-		},
+	serverAddress := net.JoinHostPort(serverHost, port)
+	targetAddress := net.JoinHostPort(targetHost, port)
+
+	const unixPath = "/tmp/transparent.sock"
+
+	dialFn := func(ctx context.Context, network, address string) (net.Conn, error) {
+		var d net.Dialer
+		return d.DialContext(ctx, "unix", unixPath)
+	}
+
+	// With non-TLS, we need to double the stats since we use Docker and the
+	// packets are seen twice. This is not needed in the TLS case since there
+	// the data comes from uprobes on the binary.
+	fixCount := func(count int) int {
+		if tls {
+			return count
+		}
+
+		return count * 2
+	}
+
+	getConfig := func() *config.Config {
+		return getDefaultTestConfiguration(tls)
 	}
 
 	tests := []kafkaParsingTestAttributes{
@@ -145,7 +183,8 @@ func (s *KafkaProtocolParsingSuite) TestKafkaProtocolParsing() {
 				topicName := ctx.extras["topic_name"].(string)
 				client, err := kafka.NewClient(kafka.Options{
 					ServerAddress: ctx.targetAddress,
-					Dialer:        defaultDialer,
+					DialFn:        dialFn,
+
 					CustomOptions: []kgo.Opt{
 						kgo.MaxVersions(kversion.V2_5_0()),
 						kgo.RecordPartitioner(kgo.ManualPartitioner()),
@@ -172,18 +211,17 @@ func (s *KafkaProtocolParsingSuite) TestKafkaProtocolParsing() {
 				_, err = req.RequestWith(ctxTimeout, client.Client)
 				require.NoError(t, err)
 
-				// We expect 2 occurrences for each connection as we are working with a docker, so (1 produce + 1 fetch) * 2 = (4 stats)
-				kafkaStats := getAndValidateKafkaStats(t, monitor, 4)
+				kafkaStats := getAndValidateKafkaStats(t, monitor, fixCount(2))
 
 				validateProduceFetchCount(t, kafkaStats, topicName, kafkaParsingValidation{
-					expectedNumberOfProduceRequests: 2,
-					expectedNumberOfFetchRequests:   2,
+					expectedNumberOfProduceRequests: fixCount(1),
+					expectedNumberOfFetchRequests:   fixCount(1),
 					expectedAPIVersionProduce:       8,
 					expectedAPIVersionFetch:         11,
 				})
 			},
 			teardown:      kafkaTeardown,
-			configuration: getDefaultTestConfiguration,
+			configuration: getConfig,
 		},
 		{
 			name: "TestProduceClientIdEmptyString",
@@ -199,7 +237,7 @@ func (s *KafkaProtocolParsingSuite) TestKafkaProtocolParsing() {
 				topicName := ctx.extras["topic_name"].(string)
 				client, err := kafka.NewClient(kafka.Options{
 					ServerAddress: ctx.targetAddress,
-					Dialer:        defaultDialer,
+					DialFn:        dialFn,
 					CustomOptions: []kgo.Opt{
 						kgo.MaxVersions(kversion.V1_0_0()),
 						kgo.ClientID(""),
@@ -214,18 +252,17 @@ func (s *KafkaProtocolParsingSuite) TestKafkaProtocolParsing() {
 				defer cancel()
 				require.NoError(t, client.Client.ProduceSync(ctxTimeout, record).FirstErr(), "record had a produce error while synchronously producing")
 
-				// We expect 2 occurrences for each connection as we are working with a docker, so (1 produce) * 2 = (2 stats)
-				kafkaStats := getAndValidateKafkaStats(t, monitor, 2)
+				kafkaStats := getAndValidateKafkaStats(t, monitor, fixCount(1))
 
 				validateProduceFetchCount(t, kafkaStats, topicName, kafkaParsingValidation{
-					expectedNumberOfProduceRequests: 2,
+					expectedNumberOfProduceRequests: fixCount(1),
 					expectedNumberOfFetchRequests:   0,
 					expectedAPIVersionProduce:       5,
 					expectedAPIVersionFetch:         0,
 				})
 			},
 			teardown:      kafkaTeardown,
-			configuration: getDefaultTestConfiguration,
+			configuration: getConfig,
 		},
 		{
 			name: "TestManyProduceRequests",
@@ -241,7 +278,7 @@ func (s *KafkaProtocolParsingSuite) TestKafkaProtocolParsing() {
 				topicName := ctx.extras["topic_name"].(string)
 				client, err := kafka.NewClient(kafka.Options{
 					ServerAddress: ctx.targetAddress,
-					Dialer:        defaultDialer,
+					DialFn:        dialFn,
 					CustomOptions: []kgo.Opt{
 						kgo.MaxVersions(kversion.V2_5_0()),
 						kgo.ClientID(""),
@@ -259,17 +296,16 @@ func (s *KafkaProtocolParsingSuite) TestKafkaProtocolParsing() {
 					cancel()
 				}
 
-				// We expect 2 occurrences for each connection as we are working with a docker, so (1 produce) * 2 = (2 stats)
-				kafkaStats := getAndValidateKafkaStats(t, monitor, 2)
+				kafkaStats := getAndValidateKafkaStats(t, monitor, fixCount(1))
 				validateProduceFetchCount(t, kafkaStats, topicName, kafkaParsingValidation{
-					expectedNumberOfProduceRequests: numberOfIterations * 2,
+					expectedNumberOfProduceRequests: fixCount(numberOfIterations),
 					expectedNumberOfFetchRequests:   0,
 					expectedAPIVersionProduce:       8,
 					expectedAPIVersionFetch:         0,
 				})
 			},
 			teardown:      kafkaTeardown,
-			configuration: getDefaultTestConfiguration,
+			configuration: getConfig,
 		},
 		{
 			name: "TestHTTPAndKafka",
@@ -285,7 +321,7 @@ func (s *KafkaProtocolParsingSuite) TestKafkaProtocolParsing() {
 				topicName := ctx.extras["topic_name"].(string)
 				client, err := kafka.NewClient(kafka.Options{
 					ServerAddress: ctx.targetAddress,
-					Dialer:        defaultDialer,
+					DialFn:        dialFn,
 					CustomOptions: []kgo.Opt{
 						kgo.MaxVersions(kversion.V2_5_0()),
 						kgo.ClientID(""),
@@ -319,7 +355,7 @@ func (s *KafkaProtocolParsingSuite) TestKafkaProtocolParsing() {
 				srvDoneFn()
 
 				httpOccurrences := PrintableInt(0)
-				expectedKafkaRequestCount := 2
+				expectedKafkaRequestCount := fixCount(1)
 				kafkaStatsCount := PrintableInt(0)
 				kafkaStats := make(map[kafka.Key]*kafka.RequestStat)
 				require.Eventually(t, func() bool {
@@ -348,10 +384,9 @@ func (s *KafkaProtocolParsingSuite) TestKafkaProtocolParsing() {
 					return len(kafkaStats) == expectedKafkaRequestCount && httpOccurrences.Load() == httpRequestCount
 				}, time.Second*3, time.Millisecond*100, "Expected to find %d http requests (captured %v), and %d kafka requests (captured %v)", httpRequestCount, &httpOccurrences, expectedKafkaRequestCount, &kafkaStatsCount)
 
-				// We expect 2 occurrences for each connection as we are working with a docker, so (1 produce) * 2 = (2 stats)
 				validateProduceFetchCount(t, kafkaStats, topicName,
 					kafkaParsingValidation{
-						expectedNumberOfProduceRequests: 2,
+						expectedNumberOfProduceRequests: fixCount(1),
 						expectedNumberOfFetchRequests:   0,
 						expectedAPIVersionProduce:       8,
 						expectedAPIVersionFetch:         0,
@@ -359,10 +394,8 @@ func (s *KafkaProtocolParsingSuite) TestKafkaProtocolParsing() {
 			},
 			teardown: kafkaTeardown,
 			configuration: func() *config.Config {
-				cfg := config.New()
+				cfg := getConfig()
 				cfg.EnableHTTPMonitoring = true
-				cfg.EnableKafkaMonitoring = true
-				cfg.MaxTrackedConnections = 1000
 				return cfg
 			},
 		},
@@ -380,7 +413,7 @@ func (s *KafkaProtocolParsingSuite) TestKafkaProtocolParsing() {
 				topicName := ctx.extras["topic_name"].(string)
 				client, err := kafka.NewClient(kafka.Options{
 					ServerAddress: ctx.targetAddress,
-					Dialer:        defaultDialer,
+					DialFn:        dialFn,
 					CustomOptions: []kgo.Opt{
 						kgo.MaxVersions(kversion.V2_5_0()),
 						kgo.ClientID(""),
@@ -419,7 +452,7 @@ func (s *KafkaProtocolParsingSuite) TestKafkaProtocolParsing() {
 				topicName := ctx.extras["topic_name"].(string)
 				client, err := kafka.NewClient(kafka.Options{
 					ServerAddress: ctx.targetAddress,
-					Dialer:        defaultDialer,
+					DialFn:        dialFn,
 					CustomOptions: []kgo.Opt{
 						kgo.MaxVersions(kversion.V2_5_0()),
 						kgo.RecordPartitioner(kgo.ManualPartitioner()),
@@ -446,18 +479,17 @@ func (s *KafkaProtocolParsingSuite) TestKafkaProtocolParsing() {
 				_, err = req.RequestWith(ctxTimeout, client.Client)
 				require.NoError(t, err)
 
-				// We expect 2 occurrences for each connection as we are working with a docker, so (1 produce) * 2 = (2 stats)
-				kafkaStats := getAndValidateKafkaStats(t, monitor, 2*2)
+				kafkaStats := getAndValidateKafkaStats(t, monitor, fixCount(2))
 
 				validateProduceFetchCount(t, kafkaStats, topicName, kafkaParsingValidation{
-					expectedNumberOfProduceRequests: 2 * 2,
-					expectedNumberOfFetchRequests:   2 * 2,
+					expectedNumberOfProduceRequests: fixCount(2),
+					expectedNumberOfFetchRequests:   fixCount(2),
 					expectedAPIVersionProduce:       8,
 					expectedAPIVersionFetch:         11,
 				})
 			},
 			teardown:      kafkaTeardown,
-			configuration: getDefaultTestConfiguration,
+			configuration: getConfig,
 		},
 		{
 			name: "Multiple records with and without batching",
@@ -473,7 +505,7 @@ func (s *KafkaProtocolParsingSuite) TestKafkaProtocolParsing() {
 				topicName := ctx.extras["topic_name"].(string)
 				client, err := kafka.NewClient(kafka.Options{
 					ServerAddress: ctx.targetAddress,
-					Dialer:        defaultDialer,
+					DialFn:        dialFn,
 					CustomOptions: []kgo.Opt{
 						kgo.MaxVersions(kversion.V2_5_0()),
 						kgo.RecordPartitioner(kgo.ManualPartitioner()),
@@ -494,10 +526,10 @@ func (s *KafkaProtocolParsingSuite) TestKafkaProtocolParsing() {
 				require.NoError(t, client.Client.ProduceSync(ctxTimeout, record1).FirstErr())
 
 				var batch []*kgo.Record
-				for i := 0; i < 25; i++ {
+				for i := 0; i < 2; i++ {
 					batch = append(batch, record1)
 				}
-				for i := 0; i < 25; i++ {
+				for i := 0; i < 2; i++ {
 					require.NoError(t, client.Client.ProduceSync(ctxTimeout, batch...).FirstErr())
 				}
 
@@ -515,18 +547,17 @@ func (s *KafkaProtocolParsingSuite) TestKafkaProtocolParsing() {
 				_, err = req.RequestWith(ctxTimeout, client.Client)
 				require.NoError(t, err)
 
-				// We expect 2 occurrences for each connection as we are working with a docker, so (1 produce) * 2 = (2 stats)
-				kafkaStats := getAndValidateKafkaStats(t, monitor, 2*2)
+				kafkaStats := getAndValidateKafkaStats(t, monitor, fixCount(2))
 
 				validateProduceFetchCount(t, kafkaStats, topicName, kafkaParsingValidation{
-					expectedNumberOfProduceRequests: (5 + 25*25) * 2,
-					expectedNumberOfFetchRequests:   (5 + 25*25) * 2,
+					expectedNumberOfProduceRequests: fixCount(5 + 2*2),
+					expectedNumberOfFetchRequests:   fixCount(5 + 2*2),
 					expectedAPIVersionProduce:       8,
 					expectedAPIVersionFetch:         11,
 				})
 			},
 			teardown:      kafkaTeardown,
-			configuration: getDefaultTestConfiguration,
+			configuration: getConfig,
 		},
 		{
 			name: "Kafka Kernel Telemetry",
@@ -564,7 +595,7 @@ func (s *KafkaProtocolParsingSuite) TestKafkaProtocolParsing() {
 					t.Run(tt.name, func(t *testing.T) {
 						client, err := kafka.NewClient(kafka.Options{
 							ServerAddress: ctx.targetAddress,
-							Dialer:        defaultDialer,
+							DialFn:        dialFn,
 							CustomOptions: []kgo.Opt{
 								kgo.MaxVersions(kversion.V2_5_0()),
 								kgo.ConsumeTopics(tt.topicName),
@@ -580,25 +611,24 @@ func (s *KafkaProtocolParsingSuite) TestKafkaProtocolParsing() {
 						defer cancel()
 						require.NoError(t, client.Client.ProduceSync(ctxTimeout, record).FirstErr(), "record had a produce error while synchronously producing")
 
-						// To prevent races, we introduce a small delay to allow kgo to send fetch requests for the new topic.
-						time.Sleep(100 * time.Millisecond)
-						telemetryMap, err := kafka.GetKernelTelemetryMap(monitor.ebpfProgram.Manager.Manager)
-						require.NoError(t, err)
+						var telemetryMap *kafka.RawKernelTelemetry
+						require.Eventually(t, func() bool {
+							telemetryMap, err = kafka.GetKernelTelemetryMap(monitor.ebpfProgram.Manager.Manager)
+							require.NoError(t, err)
 
-						// Ensure that the other buckets remain unchanged before verifying the expected bucket.
-						for idx := 0; idx < kafka.TopicNameBuckets; idx++ {
-							if idx != tt.expectedBucketIndex {
-								require.Equal(t, currentRawKernelTelemetry.Name_size_buckets[idx],
-									telemetryMap.Name_size_buckets[idx],
-									"Expected bucket (%d) to remain unchanged", idx)
+							// Ensure that the other buckets remain unchanged before verifying the expected bucket.
+							for idx := 0; idx < kafka.TopicNameBuckets; idx++ {
+								if idx != tt.expectedBucketIndex {
+									require.Equal(t, currentRawKernelTelemetry.Name_size_buckets[idx],
+										telemetryMap.Name_size_buckets[idx],
+										"Expected bucket (%d) to remain unchanged", idx)
+								}
 							}
-						}
 
-						// Verify that the expected bucket contains the correct number of occurrences.
-						expectedNumberOfOccurrences := 4 // (1 produce request + 1 fetch request) * 2 connections (docker container and localhost)
-						require.Equal(t,
-							uint64(expectedNumberOfOccurrences)+currentRawKernelTelemetry.Name_size_buckets[tt.expectedBucketIndex],
-							telemetryMap.Name_size_buckets[tt.expectedBucketIndex])
+							// Verify that the expected bucket contains the correct number of occurrences.
+							expectedNumberOfOccurrences := fixCount(2) // (1 produce request + 1 fetch request)
+							return uint64(expectedNumberOfOccurrences)+currentRawKernelTelemetry.Name_size_buckets[tt.expectedBucketIndex] == telemetryMap.Name_size_buckets[tt.expectedBucketIndex]
+						}, time.Second*3, time.Millisecond*100)
 
 						// Update the current raw kernel telemetry for the next iteration
 						currentRawKernelTelemetry = telemetryMap
@@ -606,13 +636,27 @@ func (s *KafkaProtocolParsingSuite) TestKafkaProtocolParsing() {
 				}
 			},
 			teardown:      kafkaTeardown,
-			configuration: getDefaultTestConfiguration,
+			configuration: getConfig,
 		},
 	}
 
+	proxyProcess, cancel := proxy.NewExternalUnixTransparentProxyServer(t, unixPath, serverAddress, tls)
+	t.Cleanup(cancel)
+	require.NoError(t, proxy.WaitForConnectionReady(unixPath))
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			testProtocolParsingInner(t, tt, tt.configuration())
+			if tt.teardown != nil {
+				t.Cleanup(func() {
+					tt.teardown(t, tt.context)
+				})
+			}
+			cfg := tt.configuration()
+			monitor := newKafkaMonitor(t, cfg)
+			if tls && cfg.EnableGoTLSSupport {
+				utils.WaitForProgramsToBeTraced(t, "go-tls", proxyProcess.Process.Pid)
+			}
+			tt.testBody(t, tt.context, monitor)
 		})
 	}
 }
@@ -702,56 +746,6 @@ type Message struct {
 	response []byte
 }
 
-func runCannedTransaction(t *testing.T, msgs []Message) {
-	// Use a different port than 9092 since the docker support code doesn't wait
-	// for the container with the real Kafka server used in previous tests to terminate,
-	// which leads to races. The disadvantage of not using 9092 is that you may
-	// have to explicitly pick the protocol in Wireshark when debugging with a packet
-	// trace.
-	address := "127.0.0.1:8082"
-	listener, err := net.Listen("tcp", address)
-	require.NoError(t, err)
-	defer listener.Close()
-
-	go func() {
-		conn, err := listener.Accept()
-		require.NoError(t, err)
-		defer conn.Close()
-
-		reader := bufio.NewReader(conn)
-
-		for _, msg := range msgs {
-			if len(msg.request) > 0 {
-				_, err := io.ReadFull(reader, msg.request)
-				require.NoError(t, err)
-			}
-
-			if len(msg.response) > 0 {
-				conn.Write(msg.response)
-			}
-		}
-	}()
-
-	conn, err := net.Dial("tcp", address)
-	require.NoError(t, err)
-	defer conn.Close()
-
-	reader := bufio.NewReader(conn)
-	for _, msg := range msgs {
-		if len(msg.request) > 0 {
-			// Note that the net package sets TCP_NODELAY by default,
-			// so this will send out each msg individually, which
-			// is which we want to test split segment handling.
-			conn.Write(msg.request)
-		}
-
-		if len(msg.response) > 0 {
-			_, err := io.ReadFull(reader, msg.response)
-			require.NoError(t, err)
-		}
-	}
-}
-
 func appendMessages(messages []Message, correlationID int, req kmsg.FetchRequest, resp kmsg.FetchResponse) []Message {
 	formatter := kmsg.NewRequestFormatter(kmsg.FormatterClientID("kgo"))
 	data := formatter.AppendRequest(make([]byte, 0), &req, int32(correlationID))
@@ -763,12 +757,159 @@ func appendMessages(messages []Message, correlationID int, req kmsg.FetchRequest
 	)
 }
 
-func TestKafkaFetchRaw(t *testing.T) {
+// CannedClientServer allows running a TCP server/client pair, optionally
+// using TLS, which allows sending a list of canned messages comprising
+// of requests and responses between the client and the server. This
+// allows fine-graned control about where the boundaries between data
+// chunks go, enabling us to verify the parsing continuation handling.
+type CannedClientServer struct {
+	control  chan []Message
+	done     chan bool
+	unixPath string
+	address  string
+	tls      bool
+	t        *testing.T
+}
+
+func newCannedClientServer(t *testing.T, tls bool) *CannedClientServer {
+	return &CannedClientServer{
+		control:  make(chan []Message, 100),
+		done:     make(chan bool, 1),
+		unixPath: "/tmp/transparent.sock",
+		// Use a different port than 9092 since the docker support code doesn't wait
+		// for the container with the real Kafka server used in previous tests to terminate,
+		// which leads to races. The disadvantage of not using 9092 is that you may
+		// have to explicitly pick the protocol in Wireshark when debugging with a packet
+		// trace.
+		address: "127.0.0.1:8082",
+		tls:     tls,
+		t:       t,
+	}
+}
+
+func (can *CannedClientServer) runServer() {
+	var listener net.Listener
+	var err error
+	var f *os.File
+	if can.tls {
+		curDir, _ := testutil.CurDir()
+		crtPath := filepath.Join(curDir, "../protocols/http/testutil/testdata/cert.pem.0")
+		keyPath := filepath.Join(curDir, "../protocols/http/testutil/testdata/server.key")
+		cer, err2 := tls.LoadX509KeyPair(crtPath, keyPath)
+		require.NoError(can.t, err2)
+
+		config := &tls.Config{Certificates: []tls.Certificate{cer}}
+
+		// Only for decoding TLS with Wireshark. Disabled by default since it can result
+		// in strange errors later if permissions/ownership are wrong on this file.
+		// f, err := os.OpenFile("/tmp/ssl.log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0600)
+		// if err != nil {
+		// 	config.KeyLogWriter = f
+		// }
+
+		listener, err = tls.Listen("tcp", can.address, config)
+	} else {
+		listener, err = net.Listen("tcp", can.address)
+	}
+	require.NoError(can.t, err)
+
+	can.t.Cleanup(func() {
+		close(can.control)
+		<-can.done
+	})
+
+	go func() {
+		defer f.Close()
+		defer listener.Close()
+
+		conn, err := listener.Accept()
+		require.NoError(can.t, err)
+		conn.Close()
+
+		// Delay close of connections to work around the known issue of races
+		// between `tcp_close()` and the uprobes.  On the client side, the
+		// connection is only closed after waiting for the stats.
+		var prevconn net.Conn
+
+		for msgs := range can.control {
+			if prevconn != nil {
+				prevconn.Close()
+			}
+			conn, err = listener.Accept()
+			require.NoError(can.t, err)
+
+			reader := bufio.NewReader(conn)
+			for _, msg := range msgs {
+				if len(msg.request) > 0 {
+					_, err := io.ReadFull(reader, msg.request)
+					require.NoError(can.t, err)
+				}
+
+				if len(msg.response) > 0 {
+					conn.Write(msg.response)
+				}
+			}
+
+			prevconn = conn
+		}
+
+		if prevconn != nil {
+			prevconn.Close()
+		}
+
+		can.done <- true
+	}()
+}
+
+func (can *CannedClientServer) runProxy() int {
+	proxyProcess, cancel := proxy.NewExternalUnixControlProxyServer(can.t, can.unixPath, can.address, can.tls)
+	can.t.Cleanup(cancel)
+	require.NoError(can.t, proxy.WaitForConnectionReady(can.unixPath))
+
+	return proxyProcess.Process.Pid
+}
+
+func (can *CannedClientServer) runClient(msgs []Message) {
+	can.control <- msgs
+
+	conn, err := net.Dial("unix", can.unixPath)
+	require.NoError(can.t, err)
+	can.t.Cleanup(func() { _ = conn.Close() })
+
+	reader := bufio.NewReader(conn)
+	for _, msg := range msgs {
+		buf := make([]byte, 0)
+		buf = binary.BigEndian.AppendUint64(buf, uint64(len(msg.request)))
+		conn.Write(buf)
+
+		if len(msg.request) > 0 {
+			// Note that the net package sets TCP_NODELAY by default,
+			// so this will send out each msg individually, which
+			// is which we want to test split segment handling.
+			conn.Write(msg.request)
+		}
+
+		buf = make([]byte, 0)
+		buf = binary.BigEndian.AppendUint64(buf, uint64(len(msg.response)))
+		conn.Write(buf)
+
+		if len(msg.response) > 0 {
+			_, err := io.ReadFull(reader, msg.response)
+			require.NoError(can.t, err)
+		}
+	}
+}
+
+func testKafkaFetchRaw(t *testing.T, tls bool) {
 	skipTestIfKernelNotSupported(t)
 	topic := "test-topic"
+
+	req := generateFetchRequest(topic)
 	tests := []struct {
 		name              string
 		buildResponse     func() kmsg.FetchResponse
+		buildMessages     func(kmsg.FetchResponse) []Message
+		onlyTLS           bool
 		numFetchedRecords int
 	}{
 		{
@@ -795,6 +936,73 @@ func TestKafkaFetchRaw(t *testing.T) {
 				return makeFetchResponse(makeFetchResponseTopic(topic, partitions...))
 			},
 			numFetchedRecords: 5 * 4 * 3,
+		},
+		{
+			// franz-go reads the size first
+			name:    "message size read first",
+			onlyTLS: true,
+			buildResponse: func() kmsg.FetchResponse {
+				record := makeRecord()
+				partition := makeFetchResponseTopicPartition(makeRecordBatch(record))
+				return makeFetchResponse(makeFetchResponseTopic(topic, partition))
+			},
+			buildMessages: func(resp kmsg.FetchResponse) []Message {
+				formatter := kmsg.NewRequestFormatter(kmsg.FormatterClientID("kgo"))
+				var msgs []Message
+				reqData := formatter.AppendRequest(make([]byte, 0), &req, int32(55))
+				respData := appendResponse(make([]byte, 0), resp, uint32(55))
+
+				msgs = append(msgs, Message{request: reqData})
+				msgs = append(msgs, Message{response: respData[0:4]})
+				msgs = append(msgs, Message{response: respData[4:]})
+				return msgs
+			},
+			numFetchedRecords: 1,
+		},
+		{
+			// librdkafka reads the message size and the correlation id first
+			name:    "message size and correlation ID read first",
+			onlyTLS: true,
+			buildResponse: func() kmsg.FetchResponse {
+				record := makeRecord()
+				partition := makeFetchResponseTopicPartition(makeRecordBatch(record))
+				return makeFetchResponse(makeFetchResponseTopic(topic, partition))
+			},
+			buildMessages: func(resp kmsg.FetchResponse) []Message {
+				formatter := kmsg.NewRequestFormatter(kmsg.FormatterClientID("kgo"))
+				var msgs []Message
+				reqData := formatter.AppendRequest(make([]byte, 0), &req, int32(55))
+				respData := appendResponse(make([]byte, 0), resp, uint32(55))
+
+				msgs = append(msgs, Message{request: reqData})
+				msgs = append(msgs, Message{response: respData[0:8]})
+				msgs = append(msgs, Message{response: respData[8:]})
+				return msgs
+			},
+			numFetchedRecords: 1,
+		},
+		{
+			// kafka-go reads the message size and the correlation id separately
+			name:    "message size first, then correlation ID",
+			onlyTLS: true,
+			buildResponse: func() kmsg.FetchResponse {
+				record := makeRecord()
+				partition := makeFetchResponseTopicPartition(makeRecordBatch(record))
+				return makeFetchResponse(makeFetchResponseTopic(topic, partition))
+			},
+			buildMessages: func(resp kmsg.FetchResponse) []Message {
+				formatter := kmsg.NewRequestFormatter(kmsg.FormatterClientID("kgo"))
+				var msgs []Message
+				reqData := formatter.AppendRequest(make([]byte, 0), &req, int32(55))
+				respData := appendResponse(make([]byte, 0), resp, uint32(55))
+
+				msgs = append(msgs, Message{request: reqData})
+				msgs = append(msgs, Message{response: respData[0:4]})
+				msgs = append(msgs, Message{response: respData[4:8]})
+				msgs = append(msgs, Message{response: respData[8:]})
+				return msgs
+			},
+			numFetchedRecords: 1,
 		},
 		{
 			name: "aborted transactions",
@@ -829,23 +1037,43 @@ func TestKafkaFetchRaw(t *testing.T) {
 		},
 	}
 
-	req := generateFetchRequest(topic)
+	can := newCannedClientServer(t, tls)
+	can.runServer()
+	proxyPid := can.runProxy()
 
 	for _, tt := range tests {
+		if tt.onlyTLS && !tls {
+			continue
+		}
+
 		t.Run(tt.name, func(t *testing.T) {
 			resp := tt.buildResponse()
 			var msgs []Message
-			msgs = appendMessages(msgs, 99, req, resp)
 
-			monitor := newKafkaMonitor(t, getDefaultTestConfiguration())
-			runCannedTransaction(t, msgs)
+			if tt.buildMessages == nil {
+				msgs = appendMessages(msgs, 99, req, resp)
+			} else {
+				msgs = tt.buildMessages(resp)
+			}
+
+			monitor := newKafkaMonitor(t, getDefaultTestConfiguration(tls))
+			if tls {
+				utils.WaitForProgramsToBeTraced(t, "go-tls", proxyPid)
+			}
+
+			can.runClient(msgs)
+
 			kafkaStats := getAndValidateKafkaStats(t, monitor, 1)
-
 			validateProduceFetchCount(t, kafkaStats, topic, kafkaParsingValidation{
 				expectedNumberOfFetchRequests: tt.numFetchedRecords,
 				expectedAPIVersionFetch:       11,
 			})
 		})
+
+		// Test with buildMessages have custom splitters
+		if tt.buildMessages != nil {
+			continue
+		}
 
 		name := fmt.Sprintf("split/%s", tt.name)
 		t.Run(name, func(t *testing.T) {
@@ -860,7 +1088,7 @@ func TestKafkaFetchRaw(t *testing.T) {
 				respData := appendResponse(make([]byte, 0), resp, uint32(splitIdx))
 
 				// There is an assumption in the code that the first segment contains the data
-				// up to and including the number of paritions.  This size is 38 bytes with
+				// up to and including the number of partitions.  This size is 38 bytes with
 				// the topic name test-topic and API version 11.
 				minSegSize := 38
 				require.Equal(t, topic, "test-topic")
@@ -886,8 +1114,11 @@ func TestKafkaFetchRaw(t *testing.T) {
 
 			}
 
-			monitor := newKafkaMonitor(t, getDefaultTestConfiguration())
-			runCannedTransaction(t, msgs)
+			monitor := newKafkaMonitor(t, getDefaultTestConfiguration(tls))
+			if tls {
+				utils.WaitForProgramsToBeTraced(t, "go-tls", proxyPid)
+			}
+			can.runClient(msgs)
 			kafkaStats := getAndValidateKafkaStats(t, monitor, 1)
 
 			validateProduceFetchCount(t, kafkaStats, topic, kafkaParsingValidation{
@@ -898,9 +1129,23 @@ func TestKafkaFetchRaw(t *testing.T) {
 	}
 }
 
+func TestKafkaFetchRaw(t *testing.T) {
+	t.Run("without TLS", func(t *testing.T) {
+		testKafkaFetchRaw(t, false)
+	})
+
+	t.Run("with TLS", func(t *testing.T) {
+		if !gotlsutils.GoTLSSupported(t, config.New()) {
+			t.Skip("GoTLS not supported for this setup")
+		}
+
+		testKafkaFetchRaw(t, true)
+	})
+}
+
 func TestKafkaInFlightMapCleaner(t *testing.T) {
 	skipTestIfKernelNotSupported(t)
-	cfg := getDefaultTestConfiguration()
+	cfg := getDefaultTestConfiguration(false)
 	cfg.HTTPMapCleanerInterval = 5 * time.Second
 	cfg.HTTPIdleConnectionTTL = time.Second
 	monitor := newKafkaMonitor(t, cfg)
@@ -995,20 +1240,14 @@ func validateProduceFetchCount(t *testing.T, kafkaStats map[kafka.Key]*kafka.Req
 		"Expected %d fetch requests but got %d", validation.expectedNumberOfFetchRequests, numberOfFetchRequests)
 }
 
-func testProtocolParsingInner(t *testing.T, params kafkaParsingTestAttributes, cfg *config.Config) {
-	if params.teardown != nil {
-		t.Cleanup(func() {
-			params.teardown(t, params.context)
-		})
-	}
-	monitor := newKafkaMonitor(t, cfg)
-	params.testBody(t, params.context, monitor)
-}
-
-func getDefaultTestConfiguration() *config.Config {
+func getDefaultTestConfiguration(tls bool) *config.Config {
 	cfg := config.New()
 	cfg.EnableKafkaMonitoring = true
 	cfg.MaxTrackedConnections = 1000
+	if tls {
+		cfg.EnableGoTLSSupport = true
+		cfg.GoTLSExcludeSelf = true
+	}
 	return cfg
 }
 
@@ -1019,6 +1258,7 @@ func newKafkaMonitor(t *testing.T, cfg *config.Config) *Monitor {
 	t.Cleanup(func() {
 		monitor.Stop()
 	})
+	t.Cleanup(utils.ResetDebugger)
 
 	err = monitor.Start()
 	require.NoError(t, err)

@@ -30,6 +30,7 @@ import (
 	internalAPI "github.com/DataDog/datadog-agent/comp/api/api"
 	authtokenimpl "github.com/DataDog/datadog-agent/comp/api/authtoken/createandfetchimpl"
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
+	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
 	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl"
 
 	"github.com/DataDog/datadog-agent/comp/api/api/apiimpl"
@@ -165,7 +166,8 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			fx.Supply(optional.NewNoneOption[rcservicemrf.Component]()),
 			fx.Provide(func() status.Component { return nil }),
 			fx.Provide(func() eventplatformreceiver.Component { return nil }),
-			fx.Provide(func() optional.Option[collector.Component] { return optional.NewNoneOption[collector.Component]() }),
+			fx.Supply(optional.NewNoneOption[collector.Component]()),
+			fx.Supply(optional.NewNoneOption[logsAgent.Component]()),
 			fx.Provide(tagger.NewTaggerParamsForCoreAgent),
 			taggerimpl.Module(),
 			autodiscoveryimpl.Module(),
@@ -303,7 +305,6 @@ func disableCmdPort() {
 func runJmxCommandConsole(config config.Component,
 	cliParams *cliParams,
 	wmeta workloadmeta.Component,
-	taggerComp tagger.Component,
 	ac autodiscovery.Component,
 	diagnoseSendermanager diagnosesendermanager.Component,
 	secretResolver secrets.Component,
@@ -343,7 +344,7 @@ func runJmxCommandConsole(config config.Component,
 		return err
 	}
 
-	err = standalone.ExecJMXCommandConsole(cliParams.command, cliParams.cliSelectedChecks, cliParams.jmxLogLevel, allConfigs, wmeta, taggerComp, ac, diagnoseSendermanager, agentAPI, collector, jmxLogger)
+	err = standalone.ExecJMXCommandConsole(cliParams.command, cliParams.cliSelectedChecks, cliParams.jmxLogLevel, allConfigs, diagnoseSendermanager, agentAPI, jmxLogger)
 
 	if runtime.GOOS == "windows" {
 		standalone.PrintWindowsUserWarning("jmx")

@@ -36,12 +36,6 @@ repos:
       entry: 'python3 tasks/git-hooks/protected-branches.py'
       language: system
       pass_filenames: false
-    - id: revive
-      name: revive
-      description: revive
-      entry: 'python3 tasks/git-hooks/revive.py'
-      language: system
-      files: \.go$
     - id: govet
       name: govet
       description: go vet
@@ -90,6 +84,15 @@ repos:
       always_run: true
       pass_filenames: false
       stages: [pre-push]
+    - id: go-linter
+      name: go-linter
+      description: run go linter on modified packages
+      entry: 'inv linter.go --only-modified-packages'
+      language: system
+      require_serial: true
+      always_run: true
+      pass_filenames: false
+      stages: [ pre-push ]
     - id: shell-check-no-set-x
       name: shell-check-no-set-x
       description: check that no `set -x` is set within github / gitlab workflows

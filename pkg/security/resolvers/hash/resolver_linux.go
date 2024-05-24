@@ -15,6 +15,7 @@ import (
 	"fmt"
 	"hash"
 	"io"
+	"io/fs"
 	"os"
 	"slices"
 
@@ -207,6 +208,15 @@ func (resolver *Resolver) getHashFunction(algorithm model.HashAlgorithm) hash.Ha
 	}
 }
 
+func getFileInfo(path string) (fs.FileMode, int64, error) {
+	fileInfo, err := os.Stat(path)
+	if err != nil {
+		return 0, 0, err
+	}
+
+	return fileInfo.Mode(), fileInfo.Size(), nil
+}
+
 // hash hashes the provided file event
 func (resolver *Resolver) hash(eventType model.EventType, process *model.Process, file *model.FileEvent) {
 	if !file.IsPathnameStrResolved || len(file.PathnameStr) == 0 {
@@ -247,10 +257,18 @@ func (resolver *Resolver) hash(eventType model.EventType, process *model.Process
 	}
 
 	// open the target file
-	var lastErr error
-	var f *os.File
+	var (
+		lastErr error
+		f       *os.File
+		mode    fs.FileMode
+		size    int64
+	)
 	for _, pidCandidate := range rootPIDs {
-		f, lastErr = os.Open(utils.ProcRootFilePath(pidCandidate, file.PathnameStr))
+		path := utils.ProcRootFilePath(pidCandidate, file.PathnameStr)
+		if mode, size, lastErr = getFileInfo(path); !mode.IsRegular() {
+			continue
+		}
+		f, lastErr = os.Open(path)
 		if lastErr == nil {
 			break
 		}
@@ -270,30 +288,23 @@ func (resolver *Resolver) hash(eventType model.EventType, process *model.Process
 		file.HashState = model.FileOpenError
 		return
 	}
-	defer f.Close()
 
-	fi, err := f.Stat()
-	if err != nil {
+	if f == nil {
 		file.HashState = model.FileNotFound
 		resolver.hashMiss[eventType][model.FileNotFound].Inc()
 		return
 	}
-
-	// is this a regular file ?
-	if !fi.Mode().IsRegular() {
-		file.HashState = model.Done
-		return
-	}
+	defer f.Close()
 
 	// is the file size above the configured limit
-	if fi.Size() > resolver.opts.MaxFileSize {
+	if size > resolver.opts.MaxFileSize {
 		resolver.hashMiss[eventType][model.FileTooBig].Inc()
 		file.HashState = model.FileTooBig
 		return
 	}
 
 	// is the file empty ?
-	if fi.Size() == 0 {
+	if size == 0 {
 		resolver.hashMiss[eventType][model.FileEmpty].Inc()
 		file.HashState = model.FileEmpty
 		return
@@ -318,7 +329,7 @@ func (resolver *Resolver) hash(eventType model.EventType, process *model.Process
 	}
 	multiWriter := newSizeLimitedWriter(io.MultiWriter(hashers...), int(resolver.opts.MaxFileSize))
 
-	if _, err = io.Copy(multiWriter, f); err != nil {
+	if _, err := io.Copy(multiWriter, f); err != nil {
 		if errors.Is(err, ErrSizeLimitReached) {
 			resolver.hashMiss[eventType][model.FileTooBig].Inc()
 			file.HashState = model.FileTooBig

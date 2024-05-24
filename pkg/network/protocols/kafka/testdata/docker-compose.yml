@@ -13,17 +13,24 @@ services:
     image: bitnami/kafka:3.4
     ports:
       - "${KAFKA_PORT:-9092}:9092"
+      - "${KAFKA_TLS_PORT:-9093}:9093"
     environment:
       - KAFKA_ENABLE_KRAFT=false
-      - KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP=CLIENT:PLAINTEXT
-      - KAFKA_CFG_LISTENERS=CLIENT://:9092
-      - KAFKA_CFG_ADVERTISED_LISTENERS=CLIENT://${KAFKA_ADDR:-127.0.0.1}:${KAFKA_PORT:-9092}
+      - KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP=CLIENT:PLAINTEXT,SSL:SSL
+      - KAFKA_CFG_LISTENERS=CLIENT://:9092,SSL://:9093
+      - KAFKA_CFG_ADVERTISED_LISTENERS=CLIENT://${KAFKA_ADDR:-127.0.0.1}:${KAFKA_PORT:-9092},SSL://${KAFKA_ADDR:-127.0.0.1}:${KAFKA_TLS_PORT:-9093}
       - KAFKA_CFG_INTER_BROKER_LISTENER_NAME=CLIENT
       - KAFKA_CFG_ZOOKEEPER_CONNECT=zookeeper:2181
       - ALLOW_PLAINTEXT_LISTENER=yes
       - KAFKA_CFG_DELETE_TOPIC_ENABLE=true
       - KAFKA_CFG_ZOOKEEPER_CONNECTION_TIMEOUT_MS=30000
       - KAFKA_MESSAGE_MAX_BYTES=1048576
+      - KAFKA_CERTIFICATE_PASSWORD=password
+      - KAFKA_TLS_TYPE=JKS
+      - KAFKA_TLS_CLIENT_AUTH=none
+    volumes:
+      - './kafka.keystore.jks:/opt/bitnami/kafka/config/certs/kafka.keystore.jks:ro'
+      - './kafka.truststore.jks:/opt/bitnami/kafka/config/certs/kafka.truststore.jks:ro'
     depends_on:
       - zookeeper
     tmpfs:

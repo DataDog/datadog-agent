@@ -679,6 +679,41 @@ func TestGetKubernetesDeployment(t *testing.T) {
 	tassert.True(t, errors.IsNotFound(err))
 }
 
+func TestGetKubernetesNamespace(t *testing.T) {
+	deps := fxutil.Test[dependencies](t, fx.Options(
+		logimpl.MockModule(),
+		config.MockModule(),
+		fx.Supply(NewParams()),
+	))
+
+	s := newWorkloadmetaObject(deps)
+
+	namespace := &KubernetesNamespace{
+		EntityID: EntityID{
+			Kind: KindKubernetesNamespace,
+			ID:   "default",
+		},
+	}
+
+	s.handleEvents([]CollectorEvent{
+		{
+			Type:   EventTypeSet,
+			Source: fooSource,
+			Entity: namespace,
+		},
+	})
+
+	retrievedNamespace, err := s.GetKubernetesNamespace("default")
+	tassert.NoError(t, err)
+
+	if !reflect.DeepEqual(namespace, retrievedNamespace) {
+		t.Errorf("expected namespace %q to match the one in the store", retrievedNamespace.ID)
+	}
+
+	_, err = s.GetKubernetesNamespace("datadog-cluster-agent")
+	tassert.True(t, errors.IsNotFound(err))
+}
+
 func TestGetProcess(t *testing.T) {
 	deps := fxutil.Test[dependencies](t, fx.Options(
 		logimpl.MockModule(),

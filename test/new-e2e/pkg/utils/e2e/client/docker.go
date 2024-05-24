@@ -11,7 +11,9 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/DataDog/test-infra-definitions/components/remote"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner/parameters"
+	"github.com/DataDog/test-infra-definitions/components/docker"
 	"github.com/docker/cli/cli/connhelper"
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/client"
@@ -29,10 +31,15 @@ type Docker struct {
 
 // NewDocker creates a new instance of Docker
 // NOTE: docker+ssh does not support password protected SSH keys.
-func NewDocker(t *testing.T, host remote.HostOutput, privateKeyPath string) (*Docker, error) {
-	deamonURL := fmt.Sprintf("ssh://%v@%v", host.Username, host.Address)
+func NewDocker(t *testing.T, dockerOutput docker.ManagerOutput) (*Docker, error) {
+	deamonURL := fmt.Sprintf("ssh://%v@%v", dockerOutput.Host.Username, dockerOutput.Host.Address)
 
 	sshOpts := []string{"-o", "StrictHostKeyChecking no"}
+
+	privateKeyPath, err := runner.GetProfile().ParamStore().GetWithDefault(parameters.PrivateKeyPath, "")
+	if err != nil {
+		return nil, err
+	}
 	if privateKeyPath != "" {
 		sshOpts = append(sshOpts, "-i", privateKeyPath)
 	}

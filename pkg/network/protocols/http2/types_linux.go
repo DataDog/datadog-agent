@@ -76,18 +76,14 @@ type EbpfTx struct {
 	Stream HTTP2Stream
 }
 type HTTP2Telemetry struct {
-	Request_seen                       uint64
-	Response_seen                      uint64
-	End_of_stream                      uint64
-	End_of_stream_rst                  uint64
-	Literal_value_exceeds_frame        uint64
-	Exceeding_max_interesting_frames   uint64
-	Exceeding_max_frames_to_filter     uint64
-	Path_size_bucket                   [8]uint64
-	Fragmented_frame_count_headers     uint64
-	Fragmented_frame_count_rst         uint64
-	Fragmented_frame_count_data_eos    uint64
-	Fragmented_frame_count_headers_eos uint64
+	Request_seen                     uint64
+	Response_seen                    uint64
+	End_of_stream                    uint64
+	End_of_stream_rst                uint64
+	Literal_value_exceeds_frame      uint64
+	Exceeding_max_interesting_frames uint64
+	Exceeding_max_frames_to_filter   uint64
+	Path_size_bucket                 [8]uint64
 }
 type HTTP2RemainderEntry struct {
 	Remainder uint32

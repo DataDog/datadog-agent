@@ -27,6 +27,11 @@ type testPackageManager struct {
 	mock.Mock
 }
 
+func (m *testPackageManager) IsInstalled(ctx context.Context, pkg string) (bool, error) {
+	args := m.Called(ctx, pkg)
+	return args.Bool(0), args.Error(1)
+}
+
 func (m *testPackageManager) State(pkg string) (repository.State, error) {
 	args := m.Called(pkg)
 	return args.Get(0).(repository.State), args.Error(1)

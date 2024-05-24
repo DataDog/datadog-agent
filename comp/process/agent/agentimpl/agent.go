@@ -14,7 +14,6 @@ import (
 	logComponent "github.com/DataDog/datadog-agent/comp/core/log"
 	statusComponent "github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
-	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/process/agent"
 	expvars "github.com/DataDog/datadog-agent/comp/process/expvars/expvarsimpl"
 	"github.com/DataDog/datadog-agent/comp/process/hostinfo"
@@ -53,7 +52,6 @@ type dependencies struct {
 	Submitter      submitterComp.Component
 	SysProbeConfig sysprobeconfig.Component
 	HostInfo       hostinfo.Component
-	Telemetry      telemetry.Component
 }
 
 type processAgent struct {
@@ -108,7 +106,7 @@ func newProcessAgent(deps dependencies) provides {
 	if flavor.GetFlavor() != flavor.ProcessAgent {
 		// We return a status provider when the component is used outside of the process agent
 		// as the component status is unique from the typical agent status in this case.
-		err := expvars.InitProcessStatus(deps.Config, deps.SysProbeConfig, deps.HostInfo, deps.Log, deps.Telemetry)
+		err := expvars.InitProcessStatus(deps.Config, deps.SysProbeConfig, deps.HostInfo, deps.Log)
 		if err != nil {
 			_ = deps.Log.Critical("Failed to initialize process status server:", err)
 		}

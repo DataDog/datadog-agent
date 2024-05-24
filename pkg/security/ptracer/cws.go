@@ -16,6 +16,7 @@ import (
 	"net"
 	"os"
 	"os/exec"
+	"os/signal"
 	"path/filepath"
 	"sync"
 	"syscall"
@@ -203,7 +204,7 @@ func StartCWSPtracer(args []string, envs []string, probeAddr string, opts Opts) 
 	syscallHandlers := make(map[int]syscallHandler)
 	PtracedSyscalls := registerFIMHandlers(syscallHandlers)
 	PtracedSyscalls = append(PtracedSyscalls, registerProcessHandlers(syscallHandlers)...)
-	PtracedSyscalls = append(PtracedSyscalls, registerSpanHandlers(syscallHandlers)...)
+	PtracedSyscalls = append(PtracedSyscalls, registerERPCHandlers(syscallHandlers)...)
 
 	tracerOpts := TracerOpts{
 		Syscalls:        PtracedSyscalls,
@@ -216,6 +217,16 @@ func StartCWSPtracer(args []string, envs []string, probeAddr string, opts Opts) 
 	if err != nil {
 		return err
 	}
+
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan,
+		syscall.SIGINT,
+		syscall.SIGTERM,
+		syscall.SIGQUIT)
+	go func() {
+		<-sigChan
+		_ = syscall.Kill(tracer.PID, syscall.SIGTERM)
+	}()
 
 	var (
 		msgDataChan    = make(chan []byte, 100000)
@@ -397,8 +408,12 @@ func StartCWSPtracer(args []string, envs []string, probeAddr string, opts Opts) 
 					pc.Add(process.Tgid, process)
 				}
 			case IoctlNr:
-				pc.SetSpan(process.Tgid, handleIoctl(tracer, process, regs))
-
+				req := handleERPC(tracer, process, regs)
+				if len(req) != 0 {
+					if isTLSRegisterRequest(req) {
+						pc.SetSpanTLS(process.Tgid, handleTLSRegister(req))
+					}
+				}
 			}
 		case CallbackPostType:
 			syscallMsg, msgExists := process.Nr[nr]

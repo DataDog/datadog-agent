@@ -414,10 +414,10 @@ func (p *EBPFProbe) DispatchEvent(event *model.Event) {
 	}
 
 	// send event to wildcard handlers, like the CWS rule engine, first
-	p.probe.sendEventToWildcardHandlers(event)
+	p.probe.sendEventToHandlers(event)
 
 	// send event to specific event handlers, like the event monitor consumers, subsequently
-	p.probe.sendEventToSpecificEventTypeHandlers(event)
+	p.probe.sendEventToConsumers(event)
 
 	// handle anomaly detections
 	if event.IsAnomalyDetectionEvent() {
@@ -468,7 +468,7 @@ func (p *EBPFProbe) unmarshalContexts(data []byte, event *model.Event) (int, err
 }
 
 func eventWithNoProcessContext(eventType model.EventType) bool {
-	return eventType == model.DNSEventType || eventType == model.LoadModuleEventType || eventType == model.UnloadModuleEventType
+	return eventType == model.DNSEventType || eventType == model.IMDSEventType || eventType == model.LoadModuleEventType || eventType == model.UnloadModuleEventType
 }
 
 func (p *EBPFProbe) unmarshalProcessCacheEntry(ev *model.Event, data []byte) (int, error) {
@@ -683,7 +683,7 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 		// TODO: this should be moved in the resolver itself in order to handle the fallbacks
 		if event.Mount.GetFSType() == "nsfs" {
 			nsid := uint32(event.Mount.RootPathKey.Inode)
-			mountPath, err := p.Resolvers.MountResolver.ResolveMountPath(event.Mount.MountID, event.Mount.Device, event.PIDContext.Pid, event.ContainerContext.ID)
+			mountPath, _, _, err := p.Resolvers.MountResolver.ResolveMountPath(event.Mount.MountID, event.Mount.Device, event.PIDContext.Pid, event.ContainerContext.ID)
 			if err != nil {
 				seclog.Debugf("failed to get mount path: %v", err)
 			} else {
@@ -699,7 +699,7 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 		}
 
 		// we can skip this error as this is for the umount only and there is no impact on the filepath resolution
-		mount, _ := p.Resolvers.MountResolver.ResolveMount(event.Umount.MountID, 0, event.PIDContext.Pid, event.ContainerContext.ID)
+		mount, _, _, _ := p.Resolvers.MountResolver.ResolveMount(event.Umount.MountID, 0, event.PIDContext.Pid, event.ContainerContext.ID)
 		if mount != nil && mount.GetFSType() == "nsfs" {
 			nsid := uint32(mount.RootPathKey.Inode)
 			if namespace := p.Resolvers.NamespaceResolver.ResolveNetworkNamespace(nsid); namespace != nil {
@@ -922,6 +922,12 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 
 			return
 		}
+	case model.IMDSEventType:
+		if _, err = event.IMDS.UnmarshalBinary(data[offset:]); err != nil {
+			seclog.Errorf("failed to decode IMDS event: %s (offset %d, len %d)", err, offset, len(data))
+			return
+		}
+		defer p.Resolvers.ProcessResolver.UpdateAWSSecurityCredentials(event.PIDContext.Pid, event)
 	case model.BindEventType:
 		if _, err = event.Bind.UnmarshalBinary(data[offset:]); err != nil {
 			seclog.Errorf("failed to decode bind event: %s (offset %d, len %d)", err, offset, len(data))
@@ -930,11 +936,6 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 	case model.SyscallsEventType:
 		if _, err = event.Syscalls.UnmarshalBinary(data[offset:]); err != nil {
 			seclog.Errorf("failed to decode syscalls event: %s (offset %d, len %d)", err, offset, len(data))
-			return
-		}
-	case model.AnomalyDetectionSyscallEventType:
-		if _, err = event.AnomalyDetectionSyscallEvent.UnmarshalBinary(data[offset:]); err != nil {
-			seclog.Errorf("failed to decode anomaly detection for syscall event: %s (offset %d, len %d)", err, offset, len(data))
 			return
 		}
 	}
@@ -1110,6 +1111,9 @@ func (p *EBPFProbe) isNeededForSecurityProfile(eventType eval.EventType) bool {
 
 func (p *EBPFProbe) validEventTypeForConfig(eventType string) bool {
 	if eventType == "dns" && !p.config.Probe.NetworkEnabled {
+		return false
+	}
+	if eventType == "imds" && (!p.config.Probe.NetworkEnabled || !p.config.Probe.NetworkIngressEnabled) {
 		return false
 	}
 	return true
@@ -1459,7 +1463,7 @@ func (p *EBPFProbe) GetFieldHandlers() model.FieldHandlers {
 
 // DumpProcessCache dumps the process cache
 func (p *EBPFProbe) DumpProcessCache(withArgs bool) (string, error) {
-	return p.Resolvers.ProcessResolver.Dump(withArgs)
+	return p.Resolvers.ProcessResolver.ToDot(withArgs)
 }
 
 // NewEBPFProbe instantiates a new runtime security agent probe
@@ -1549,6 +1553,33 @@ func NewEBPFProbe(probe *Probe, config *config.Config, opts Opts, wmeta optional
 
 	p.managerOptions.ConstantEditors = append(p.managerOptions.ConstantEditors, constantfetch.CreateConstantEditors(p.constantOffsets)...)
 
+	p.managerOptions.ConstantEditors = append(p.managerOptions.ConstantEditors,
+		manager.ConstantEditor{
+			Name:  constantfetch.OffsetNameSchedProcessForkChildPid,
+			Value: constantfetch.ReadTracepointFieldOffsetWithFallback("sched/sched_process_fork", "child_pid", 44),
+		},
+		manager.ConstantEditor{
+			Name:  constantfetch.OffsetNameSchedProcessForkParentPid,
+			Value: constantfetch.ReadTracepointFieldOffsetWithFallback("sched/sched_process_fork", "parent_pid", 24),
+		},
+		manager.ConstantEditor{
+			Name:  constantfetch.OffsetNameSysMmapOff,
+			Value: constantfetch.ReadTracepointFieldOffsetWithFallback("syscalls/sys_enter_mmap", "off", 56) + constantfetch.GetRHEL93MMapDelta(p.kernelVersion),
+		},
+		manager.ConstantEditor{
+			Name:  constantfetch.OffsetNameSysMmapLen,
+			Value: constantfetch.ReadTracepointFieldOffsetWithFallback("syscalls/sys_enter_mmap", "len", 24) + constantfetch.GetRHEL93MMapDelta(p.kernelVersion),
+		},
+		manager.ConstantEditor{
+			Name:  constantfetch.OffsetNameSysMmapProt,
+			Value: constantfetch.ReadTracepointFieldOffsetWithFallback("syscalls/sys_enter_mmap", "prot", 32) + constantfetch.GetRHEL93MMapDelta(p.kernelVersion),
+		},
+		manager.ConstantEditor{
+			Name:  constantfetch.OffsetNameSysMmapFlags,
+			Value: constantfetch.ReadTracepointFieldOffsetWithFallback("syscalls/sys_enter_mmap", "flags", 40) + constantfetch.GetRHEL93MMapDelta(p.kernelVersion),
+		},
+	)
+
 	areCGroupADsEnabled := config.RuntimeSecurity.ActivityDumpTracedCgroupsCount > 0
 
 	// Add global constant editors
@@ -1568,10 +1599,6 @@ func NewEBPFProbe(probe *Probe, config *config.Config, opts Opts, wmeta optional
 		manager.ConstantEditor{
 			Name:  "ovl_path_in_ovl_inode",
 			Value: getOvlPathInOvlInode(p.kernelVersion),
-		},
-		manager.ConstantEditor{
-			Name:  "mount_id_offset",
-			Value: mount.GetMountIDOffset(p.kernelVersion),
 		},
 		manager.ConstantEditor{
 			Name:  "getattr2",
@@ -1628,6 +1655,10 @@ func NewEBPFProbe(probe *Probe, config *config.Config, opts Opts, wmeta optional
 		manager.ConstantEditor{
 			Name:  "monitor_syscalls_map_enabled",
 			Value: utils.BoolTouint64(probe.Opts.SyscallsMonitorEnabled),
+		},
+		manager.ConstantEditor{
+			Name:  "imds_ip",
+			Value: uint64(config.RuntimeSecurity.IMDSIPv4),
 		},
 	)
 
@@ -1869,8 +1900,7 @@ func AppendProbeRequestsToFetcher(constantFetcher constantfetch.ConstantFetcher,
 	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameVMAreaStructFlags, "struct vm_area_struct", "vm_flags", "linux/mm_types.h")
 	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameFileFinode, "struct file", "f_inode", "linux/fs.h")
 	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameFileFpath, "struct file", "f_path", "linux/fs.h")
-	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameSchedProcessForkChildPid, "trace_event_raw_sched_process_fork", "child_pid", "")
-	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameSchedProcessForkParentPid, "trace_event_raw_sched_process_fork", "parent_pid", "")
+	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameMountMntID, "struct mount", "mnt_id", "")
 	if kv.Code >= kernel.Kernel5_3 {
 		constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameKernelCloneArgsExitSignal, "struct kernel_clone_args", "exit_signal", "linux/sched/task.h")
 	}
@@ -1916,6 +1946,7 @@ func AppendProbeRequestsToFetcher(constantFetcher constantfetch.ConstantFetcher,
 
 	// network related constants
 	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameNetDeviceStructIfIndex, "struct net_device", "ifindex", "linux/netdevice.h")
+	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameNetDeviceStructName, "struct net_device", "name", "linux/netdevice.h")
 	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameDeviceStructNdNet, "struct net_device", "nd_net", "linux/netdevice.h")
 	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameSockCommonStructSKCNet, "struct sock_common", "skc_net", "net/sock.h")
 	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameSockCommonStructSKCFamily, "struct sock_common", "skc_family", "net/sock.h")
@@ -1966,6 +1997,14 @@ func (p *EBPFProbe) HandleActions(ctx *eval.Context, rule *rules.Rule) {
 				}
 				return p.processKiller.KillFromUserspace(pid, sig, ev)
 			})
+		case action.CoreDump != nil:
+			if p.config.RuntimeSecurity.InternalMonitoringEnabled {
+				dump := NewCoreDump(action.CoreDump, p.Resolvers, serializers.NewEventSerializer(ev, nil))
+				rule := events.NewCustomRule(events.InternalCoreDumpRuleID, events.InternalCoreDumpRuleDesc)
+				event := events.NewCustomEvent(model.UnknownEventType, dump)
+
+				p.probe.DispatchCustomEvent(rule, event)
+			}
 		}
 	}
 }

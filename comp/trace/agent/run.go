@@ -14,7 +14,6 @@ import (
 	"runtime/debug"
 	"time"
 
-	"github.com/DataDog/datadog-agent/cmd/manager"
 	remotecfg "github.com/DataDog/datadog-agent/cmd/trace-agent/config/remote"
 	"github.com/DataDog/datadog-agent/comp/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/api/security"
@@ -47,12 +46,6 @@ func runAgentSidekicks(ag *agent) error {
 
 	if err := util.SetupCoreDump(coreconfig.Datadog); err != nil {
 		log.Warnf("Can't setup core dumps: %v, core dumps might not be available after a crash", err)
-	}
-
-	err = manager.ConfigureAutoExit(ag.ctx, coreconfig.Datadog)
-	if err != nil {
-		ag.telemetryCollector.SendStartupError(telemetry.CantSetupAutoExit, err)
-		return fmt.Errorf("Unable to configure auto-exit, err: %v", err)
 	}
 
 	rand.Seed(time.Now().UTC().UnixNano())

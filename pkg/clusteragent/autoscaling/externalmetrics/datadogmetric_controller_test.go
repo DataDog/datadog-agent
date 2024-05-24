@@ -23,6 +23,7 @@ import (
 
 	datadoghq "github.com/DataDog/datadog-operator/apis/datadoghq/v1alpha1"
 
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/externalmetrics/model"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 
@@ -89,7 +90,7 @@ func (f *fixture) runControllerSync(leader bool, datadogMetricID string, expecte
 	err := controller.processDatadogMetric(datadogMetricID)
 	assert.Equal(f.t, expectedError, err)
 
-	actions := filterInformerActions(f.client.Actions(), "datadogmetrics")
+	actions := autoscaling.FilterInformerActions(f.client.Actions(), "datadogmetrics")
 	for i, action := range actions {
 		if len(f.actions) < i+1 {
 			f.t.Errorf("%d unexpected actions: %+v", len(actions)-len(f.actions), actions[i:])
@@ -97,7 +98,7 @@ func (f *fixture) runControllerSync(leader bool, datadogMetricID string, expecte
 		}
 
 		expectedAction := f.actions[i]
-		checkAction(f.t, expectedAction, action)
+		autoscaling.CheckAction(f.t, expectedAction, action)
 	}
 
 	if len(f.actions) > len(actions) {

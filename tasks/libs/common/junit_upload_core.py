@@ -155,8 +155,11 @@ def split_junitxml(xml_path, codeowners, output_dir, flaky_tests):
         # don't, so for determining ownership we append "/" temporarily.
         owners = codeowners.of(path + "/")
         if not owners:
+            # In kitchen testing the test name might not be a file path, so we check the file attribute instead
             filepath = next(tree.iter("testcase")).attrib.get("file", None)
             if filepath:
+                if filepath.startswith("./"):  # Leading "./" is not handled by codeowners
+                    filepath = filepath[2:]
                 owners = codeowners.of(filepath)
                 main_owner = owners[0][1][len(CODEOWNERS_ORG_PREFIX) :]
             else:

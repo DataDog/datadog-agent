@@ -119,7 +119,6 @@ func StartControllers(ctx ControllerContext) errors.Aggregate {
 func startMetadataController(ctx ControllerContext, c chan error) {
 	metaController := NewMetadataController(
 		ctx.InformerFactory.Core().V1().Nodes(),
-		ctx.InformerFactory.Core().V1().Namespaces(),
 		ctx.InformerFactory.Core().V1().Endpoints(),
 	)
 	go metaController.Run(ctx.StopCh)

@@ -6,40 +6,33 @@
 package config
 
 import (
-	"bytes"
-	"context"
 	"errors"
 	"fmt"
 	"html"
 	"net/http"
 	"net/url"
 	"os"
-	"os/exec"
 	"regexp"
 	"strconv"
 	"strings"
 	"time"
 
+	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes"
+	"go.opentelemetry.io/collector/component/componenttest"
+
 	corecompcfg "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp"
-	"github.com/DataDog/datadog-agent/pkg/api/security"
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
-	rc "github.com/DataDog/datadog-agent/pkg/config/remote/client"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
-	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
-	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 	"github.com/DataDog/datadog-agent/pkg/util/fargate"
-	"github.com/DataDog/datadog-agent/pkg/util/grpc"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
-	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes"
-	"go.opentelemetry.io/collector/component/componenttest"
 )
 
 // team: agent-apm
@@ -113,15 +106,7 @@ func prepareConfig(c corecompcfg.Component) (*config.AgentConfig, error) {
 		cfg.Proxy = httputils.GetProxyTransportFunc(p, c)
 	}
 	if coreconfig.IsRemoteConfigEnabled(coreConfigObject) && coreConfigObject.GetBool("remote_configuration.apm_sampling.enabled") {
-		client, err := rc.NewGRPCClient(
-			ipcAddress,
-			coreconfig.GetIPCPort(),
-			func() (string, error) { return security.FetchAuthToken(c) },
-			rc.WithAgent(rcClientName, version.AgentVersion),
-			rc.WithProducts(state.ProductAPMSampling, state.ProductAgentConfig),
-			rc.WithPollInterval(rcClientPollInterval),
-			rc.WithDirectorRootOverride(c.GetString("site"), c.GetString("remote_configuration.director_root")),
-		)
+		client, err := remote(c, ipcAddress)
 		if err != nil {
 			log.Errorf("Error when subscribing to remote config management %v", err)
 		} else {
@@ -230,6 +215,10 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 	}
 	if core.IsSet("apm_config.connection_limit") {
 		c.ConnectionLimit = core.GetInt("apm_config.connection_limit")
+	}
+	c.PeerServiceAggregation = core.GetBool("apm_config.peer_service_aggregation")
+	if c.PeerServiceAggregation {
+		log.Warn("`apm_config.peer_service_aggregation` is deprecated, please use `apm_config.peer_tags_aggregation` instead")
 	}
 	c.PeerTagsAggregation = core.GetBool("apm_config.peer_tags_aggregation")
 	c.ComputeStatsBySpanKind = core.GetBool("apm_config.compute_stats_by_span_kind")
@@ -800,77 +789,10 @@ func validate(c *config.AgentConfig, core corecompcfg.Component) error {
 	}
 
 	if c.Hostname == "" && !core.GetBool("serverless.enabled") {
-		// no user-set hostname, try to acquire
-		if err := acquireHostname(c); err != nil {
-			log.Infof("Could not get hostname via gRPC: %v. Falling back to other methods.", err)
-			if err := acquireHostnameFallback(c); err != nil {
-				return err
-			}
+		if err := hostname(c); err != nil {
+			return err
 		}
 	}
-	return nil
-}
-
-// fallbackHostnameFunc specifies the function to use for obtaining the hostname
-// when it can not be obtained by any other means. It is replaced in tests.
-var fallbackHostnameFunc = os.Hostname
-
-// acquireHostname attempts to acquire a hostname for the trace-agent by connecting to the core agent's
-// gRPC endpoints. If it fails, it will return an error.
-func acquireHostname(c *config.AgentConfig) error {
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-	defer cancel()
-
-	ipcAddress, err := coreconfig.GetIPCAddress()
-	if err != nil {
-		return err
-	}
-
-	client, err := grpc.GetDDAgentClient(ctx, ipcAddress, coreconfig.GetIPCPort())
-	if err != nil {
-		return err
-	}
-	reply, err := client.GetHostname(ctx, &pbgo.HostnameRequest{})
-	if err != nil {
-		return err
-	}
-	if c.HasFeature("disable_empty_hostname") && reply.Hostname == "" {
-		log.Infof("Acquired empty hostname from gRPC but it's disallowed.")
-		return errors.New("empty hostname disallowed")
-	}
-	c.Hostname = reply.Hostname
-	log.Infof("Acquired hostname from gRPC: %s", c.Hostname)
-	return nil
-}
-
-// acquireHostnameFallback attempts to acquire a hostname for this configuration. It
-// tries to shell out to the infrastructure agent for this, if DD_AGENT_BIN is
-// set, otherwise falling back to os.Hostname.
-func acquireHostnameFallback(c *config.AgentConfig) error {
-	var out bytes.Buffer
-	cmd := exec.Command(c.DDAgentBin, "hostname")
-	cmd.Env = append(os.Environ(), cmd.Env...) // needed for Windows
-	cmd.Stdout = &out
-	err := cmd.Run()
-	c.Hostname = strings.TrimSpace(out.String())
-	if emptyDisallowed := c.HasFeature("disable_empty_hostname") && c.Hostname == ""; err != nil || emptyDisallowed {
-		if emptyDisallowed {
-			log.Infof("Core agent returned empty hostname but is disallowed by disable_empty_hostname feature flag. Falling back to os.Hostname.")
-		}
-		// There was either an error retrieving the hostname from the core agent, or
-		// it was empty and its disallowed by the disable_empty_hostname feature flag.
-		host, err2 := fallbackHostnameFunc()
-		if err2 != nil {
-			return fmt.Errorf("couldn't get hostname from agent (%q), nor from OS (%q). Try specifying it by means of config or the DD_HOSTNAME env var", err, err2)
-		}
-		if emptyDisallowed && host == "" {
-			return errors.New("empty hostname disallowed")
-		}
-		c.Hostname = host
-		log.Infof("Acquired hostname from OS: %q. Core agent was unreachable at %q: %v.", c.Hostname, c.DDAgentBin, err)
-		return nil
-	}
-	log.Infof("Acquired hostname from core agent (%s): %q.", c.DDAgentBin, c.Hostname)
 	return nil
 }
 

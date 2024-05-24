@@ -6,11 +6,7 @@
 package agent
 
 import (
-	"strings"
-
-	"github.com/DataDog/datadog-agent/pkg/obfuscate"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
-	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 )
@@ -30,6 +26,16 @@ const (
 
 func (a *Agent) obfuscateSpan(span *pb.Span) {
 	o := a.obfuscator
+
+	if a.conf.Obfuscation != nil && a.conf.Obfuscation.CreditCards.Enabled {
+		for k, v := range span.Meta {
+			newV := o.ObfuscateCreditCardNumber(k, v)
+			if v != newV {
+				span.Meta[k] = newV
+			}
+		}
+	}
+
 	switch span.Type {
 	case "sql", "cassandra":
 		if span.Resource == "" {
@@ -107,65 +113,4 @@ func (a *Agent) obfuscateStatsGroup(b *pb.ClientGroupedStats) {
 	case "redis":
 		b.Resource = o.QuantizeRedisString(b.Resource)
 	}
-}
-
-// ccObfuscator maintains credit card obfuscation state and processing.
-type ccObfuscator struct {
-	luhn bool
-}
-
-func newCreditCardsObfuscator(cfg config.CreditCardsConfig) *ccObfuscator {
-	cco := &ccObfuscator{luhn: cfg.Luhn}
-	if cfg.Enabled {
-		// obfuscator disabled
-		pb.SetMetaHook(cco.MetaHook)
-	}
-	return cco
-}
-
-func (cco *ccObfuscator) Stop() { pb.SetMetaHook(nil) }
-
-// MetaHook checks the tag with the given key and val and returns the final
-// value to be assigned to this tag.
-//
-// For example, in this specific use-case, if the val is detected to be a credit
-// card number, "?" will be returned.
-func (cco *ccObfuscator) MetaHook(k, v string) (newval string) {
-	switch k {
-	case "_sample_rate",
-		"_sampling_priority_v1",
-		"error",
-		"error.msg",
-		"error.type",
-		"error.stack",
-		"env",
-		"graphql.field",
-		"graphql.query",
-		"graphql.type",
-		"graphql.operation.name",
-		"grpc.code",
-		"grpc.method",
-		"grpc.request",
-		"http.status_code",
-		"http.method",
-		"runtime-id",
-		"out.host",
-		"out.port",
-		"sampling.priority",
-		"span.type",
-		"span.name",
-		"service.name",
-		"service",
-		"sql.query",
-		"version":
-		// these tags are known to not be credit card numbers
-		return v
-	}
-	if strings.HasPrefix(k, "_dd") {
-		return v
-	}
-	if obfuscate.IsCardNumber(v, cco.luhn) {
-		return "?"
-	}
-	return v
 }

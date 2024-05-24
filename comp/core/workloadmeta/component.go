@@ -32,7 +32,7 @@ type Component interface {
 	// evolves or as information about the entity is reported from multiple
 	// sources (such as a container runtime and an orchestrator).
 	//
-	// See the documentation for EventBundle regarding appropropriate handling
+	// See the documentation for EventBundle regarding appropriate handling
 	// for messages on this channel.
 	Subscribe(name string, priority SubscriberPriority, filter *Filter) chan EventBundle
 
@@ -74,6 +74,10 @@ type Component interface {
 	// GetKubernetesDeployment returns metadata about a Kubernetes deployment. It fetches
 	// the entity with kind KindKubernetesDeployment and the given ID.
 	GetKubernetesDeployment(id string) (*KubernetesDeployment, error)
+
+	// GetKubernetesNamespace returns metadata about a Kubernetes namespace. It fetches
+	// the entity with kind KindKubernetesNamespace and the given ID.
+	GetKubernetesNamespace(id string) (*KubernetesNamespace, error)
 
 	// ListECSTasks returns metadata about all ECS tasks, equivalent to all
 	// entities with kind KindECSTask.

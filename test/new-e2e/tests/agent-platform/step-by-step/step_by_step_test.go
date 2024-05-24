@@ -118,7 +118,7 @@ func TestStepByStepScript(t *testing.T) {
 func (is *stepByStepSuite) TestStepByStep() {
 	fileManager := filemanager.NewUnix(is.Env().RemoteHost)
 	unixHelper := helpers.NewUnix()
-	agentClient, err := client.NewHostAgentClient(is.T(), is.Env().RemoteHost, false)
+	agentClient, err := client.NewHostAgentClient(is, is.Env().RemoteHost.HostOutput, false)
 	require.NoError(is.T(), err)
 	VMclient := common.NewTestClient(is.Env().RemoteHost, agentClient, fileManager, unixHelper)
 

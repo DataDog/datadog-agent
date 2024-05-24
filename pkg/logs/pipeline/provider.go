@@ -8,6 +8,7 @@ package pipeline
 import (
 	"context"
 
+	"github.com/hashicorp/go-multierror"
 	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
@@ -133,7 +134,7 @@ func (p *provider) reconfigureSDS(config []byte, orderType sds.ReconfigureOrderT
 	for _, response := range responses {
 		err := <-response
 		if err != nil {
-			rerr = err
+			rerr = multierror.Append(rerr, err)
 		}
 		close(response)
 	}

@@ -14,7 +14,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/comp/core"
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -85,7 +86,10 @@ func newTestWorkloadmetaListener(t *testing.T) *testWorkloadmetaListener {
 	}
 
 	w := fxutil.Test[workloadmeta.Mock](t, fx.Options(
-		core.MockBundle(),
+		fx.Supply(config.Params{}),
+		fx.Supply(logimpl.Params{}),
+		logimpl.MockModule(),
+		config.MockModule(),
 		fx.Supply(context.Background()),
 		fx.Supply(workloadmeta.NewParams()),
 		workloadmeta.MockModule(),
