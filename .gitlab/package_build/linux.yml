@@ -34,9 +34,7 @@
   cache:
     - !reference [.cache_omnibus_ruby_deps, cache]
 
-# build Agent 6 binaries for x86_64
-datadog-agent-6-x64:
-  extends: .agent_build_common
+.agent_build_x86:
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
   needs:
@@ -47,66 +45,54 @@ datadog-agent-6-x64:
       "generate_minimized_btfs_x64",
     ]
   variables:
+    PACKAGE_ARCH: amd64
+
+.agent_build_arm64:
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64$DATADOG_AGENT_ARMBUILDIMAGES_SUFFIX:$DATADOG_AGENT_ARMBUILDIMAGES
+  tags: ["arch:arm64"]
+  needs:
+    [
+      "go_mod_tidy_check",
+      "build_system-probe-arm64",
+      "go_deps",
+      "generate_minimized_btfs_arm64",
+    ]
+  variables:
+    PACKAGE_ARCH: arm64
+
+# build Agent 6 binaries for x86_64
+datadog-agent-6-x64:
+  extends: [.agent_build_common, .agent_build_x86]
+  variables:
     AGENT_MAJOR_VERSION: 6
     PYTHON_RUNTIMES: "2,3"
-    PACKAGE_ARCH: amd64
   before_script:
     - export RELEASE_VERSION=$RELEASE_VERSION_6
 
 # build Agent 7 binaries for x86_64
 datadog-agent-7-x64:
-  extends: .agent_build_common
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
-  tags: ["arch:amd64"]
-  needs:
-    [
-      "go_mod_tidy_check",
-      "build_system-probe-x64",
-      "go_deps",
-      "generate_minimized_btfs_x64",
-    ]
+  extends: [.agent_build_common, .agent_build_x86]
   variables:
     AGENT_MAJOR_VERSION: 7
     PYTHON_RUNTIMES: "3"
-    PACKAGE_ARCH: amd64
   before_script:
     - export RELEASE_VERSION=$RELEASE_VERSION_7
 
 # build Agent 6 binaries for arm64
 datadog-agent-6-arm64:
-  extends: .agent_build_common
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64$DATADOG_AGENT_ARMBUILDIMAGES_SUFFIX:$DATADOG_AGENT_ARMBUILDIMAGES
-  tags: ["arch:arm64"]
-  needs:
-    [
-      "go_mod_tidy_check",
-      "build_system-probe-arm64",
-      "go_deps",
-      "generate_minimized_btfs_arm64",
-    ]
+  extends: [.agent_build_common, .agent_build_arm64]
   variables:
     AGENT_MAJOR_VERSION: 6
     PYTHON_RUNTIMES: "2,3"
-    PACKAGE_ARCH: arm64
   before_script:
     - export RELEASE_VERSION=$RELEASE_VERSION_6
 
 # build Agent 7 binaries for arm64
 datadog-agent-7-arm64:
-  extends: .agent_build_common
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64$DATADOG_AGENT_ARMBUILDIMAGES_SUFFIX:$DATADOG_AGENT_ARMBUILDIMAGES
-  tags: ["arch:arm64"]
-  needs:
-    [
-      "go_mod_tidy_check",
-      "build_system-probe-arm64",
-      "go_deps",
-      "generate_minimized_btfs_arm64",
-    ]
+  extends: [.agent_build_common, .agent_build_arm64]
   variables:
     AGENT_MAJOR_VERSION: 7
     PYTHON_RUNTIMES: "3"
-    PACKAGE_ARCH: arm64
   before_script:
     - export RELEASE_VERSION=$RELEASE_VERSION_7
 
