@@ -11,7 +11,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
-// Module defines the fx options for this mock component
+// MockModule defines the fx options for this mock component
 func MockModule() fxutil.Module {
 	return fxutil.Component(
 		fxutil.ProvideComponentConstructor(

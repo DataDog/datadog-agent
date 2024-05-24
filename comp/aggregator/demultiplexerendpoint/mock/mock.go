@@ -5,6 +5,7 @@
 
 //go:build test
 
+// Package demultiplexerendpointmock provides a mock component for demultiplexerendpoint
 package demultiplexerendpointmock
 
 import (
@@ -26,6 +27,7 @@ type Provides struct {
 	Endpoint api.AgentEndpointProvider
 }
 
+// NewMock creates a new mock component
 func NewMock() Provides {
 	instance := &mock{}
 	return Provides{
