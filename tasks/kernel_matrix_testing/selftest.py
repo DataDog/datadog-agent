@@ -68,7 +68,7 @@ def selftest_prepare(ctx: Context, _: bool, component: Component, cross_compile:
 
     vms = f"{target.name}-debian11-distro"
 
-    ctx.run(f"inv kmt.destroy-stack --stack={stack}", warn=True, hide=True)
+    ctx.run(f"inv kmt.destroy-stack --stack={stack}", warn=True)
     res = ctx.run(f"inv -e kmt.gen-config --stack={stack} --vms={vms} --init-stack --yes", warn=True)
     if res is None or not res.ok:
         return None, "Cannot generate config with inv kmt.gen-config"
