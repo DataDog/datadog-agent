@@ -8,6 +8,7 @@ package workloadmeta
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"sync"
 	"time"
@@ -67,17 +68,19 @@ type dependencies struct {
 type provider struct {
 	fx.Out
 
-	Comp          Component
-	FlareProvider flaretypes.Provider
-	Endpoint      api.AgentEndpointProvider
+	Comp                         Component
+	FlareProvider                flaretypes.Provider
+	WorkloadListEndpoint         api.AgentEndpointProvider
+	PodContainerMetadataEndpoint api.AgentEndpointProvider
 }
 
 type optionalProvider struct {
 	fx.Out
 
-	Comp          optional.Option[Component]
-	FlareProvider flaretypes.Provider
-	Endpoint      api.AgentEndpointProvider
+	Comp                         optional.Option[Component]
+	FlareProvider                flaretypes.Provider
+	WorkloadListEndpoint         api.AgentEndpointProvider
+	PodContainerMetadataEndpoint api.AgentEndpointProvider
 }
 
 func newWorkloadMeta(deps dependencies) provider {
@@ -123,9 +126,10 @@ func newWorkloadMeta(deps dependencies) provider {
 	}})
 
 	return provider{
-		Comp:          wm,
-		FlareProvider: flaretypes.NewProvider(wm.sbomFlareProvider),
-		Endpoint:      api.NewAgentEndpointProvider(wm.writeResponse, "/workload-list", "GET"),
+		Comp:                         wm,
+		FlareProvider:                flaretypes.NewProvider(wm.sbomFlareProvider),
+		WorkloadListEndpoint:         api.NewAgentEndpointProvider(wm.writeResponse, "/workload-list", "GET"),
+		PodContainerMetadataEndpoint: api.NewAgentEndpointProvider(wm.podContainerMetadataHandler, "/pod-container-metadata", "GET"),
 	}
 }
 
@@ -138,10 +142,68 @@ func newWorkloadMetaOptional(deps dependencies) optionalProvider {
 	c := newWorkloadMeta(deps)
 
 	return optionalProvider{
-		Comp:          optional.NewOption(c.Comp),
-		FlareProvider: c.FlareProvider,
-		Endpoint:      c.Endpoint,
+		Comp:                         optional.NewOption(c.Comp),
+		FlareProvider:                c.FlareProvider,
+		WorkloadListEndpoint:         c.WorkloadListEndpoint,
+		PodContainerMetadataEndpoint: c.PodContainerMetadataEndpoint,
 	}
+}
+
+type PodContainerMetadata struct {
+	Name       string                `json:"name"`
+	Cmd        []string              `json:"cmd"`
+	Entrypoint []string              `json:"entrypoint"`
+	Image      OrchestratorContainer `json:"image"`
+}
+
+func (wm *workloadmeta) podContainerMetadata(name, ns string) (map[string]PodContainerMetadata, error) {
+	if ns == "" || name == "" {
+		return nil, fmt.Errorf("missing pod name or namespaces")
+	}
+
+	pod, err := wm.GetKubernetesPodByName(name, ns)
+	if err != nil {
+		return nil, err
+	}
+
+	out := map[string]PodContainerMetadata{}
+	for _, c := range pod.Containers {
+		image, err := wm.GetImage(c.Image.ImageMetadataID())
+		if err != nil {
+			return out, fmt.Errorf("could not get image for container %s: %w", c.Name, err)
+		}
+
+		out[c.Name] = PodContainerMetadata{
+			Name: c.Name,
+			Image: c,
+			Cmd: image.Cmd,
+			Entrypoint: image.Entrypoint,
+		}
+	}
+
+	return out, nil
+}
+
+func (wm *workloadmeta) podContainerMetadataHandler(w http.ResponseWriter, r *http.Request) {
+	var (
+		q    = r.URL.Query()
+		name = q.Get("name")
+		ns   = q.Get("ns")
+	)
+
+	output, err := wm.podContainerMetadata(name, ns)
+	if err != nil {
+		utils.SetJSONError(w, wm.log.Errorf("error fetching pod container metadata for pod=%s/%s: %v", ns, name, err), 500)
+		return
+	}
+
+	jsonDump, err := json.Marshal(output)
+	if err != nil {
+		utils.SetJSONError(w, wm.log.Errorf("unable to marshal pod-container-metadata: %v", err), 500)
+		return
+	}
+
+	w.Write(jsonDump)
 }
 
 func (wm *workloadmeta) writeResponse(w http.ResponseWriter, r *http.Request) {
