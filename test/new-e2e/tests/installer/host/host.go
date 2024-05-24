@@ -26,10 +26,11 @@ import (
 
 // Host is a remote host environment.
 type Host struct {
-	t      *testing.T
-	remote *components.RemoteHost
-	os     e2eos.Descriptor
-	arch   e2eos.Architecture
+	t              *testing.T
+	remote         *components.RemoteHost
+	os             e2eos.Descriptor
+	arch           e2eos.Architecture
+	systemdVersion int
 }
 
 // Option is an option to configure a Host.
@@ -47,7 +48,16 @@ func New(t *testing.T, remote *components.RemoteHost, os e2eos.Descriptor, arch 
 		opt(t, host)
 	}
 	host.uploadFixtures()
+	host.setSystemdVersion()
 	return host
+}
+
+func (h *Host) setSystemdVersion() {
+	strVersion := strings.TrimSpace(h.remote.MustExecute("systemctl --version | head -n1 | awk '{print $2}'"))
+	version, err := strconv.Atoi(strVersion)
+	require.NoError(h.t, err)
+	h.t.Log("Systemd version:", version)
+	h.systemdVersion = version
 }
 
 // InstallDocker installs Docker on the host if it is not already installed.
@@ -492,7 +502,7 @@ func (s *State) AssertUnitsEnabled(names ...string) {
 	for _, name := range names {
 		unit, ok := s.Units[name]
 		assert.True(s.t, ok, "unit %v is not enabled", name)
-		assert.NotEqual(s.t, "unknown", unit.Enabled, "unit %v is not enabled", name)
+		assert.Equal(s.t, "enabled", unit.Enabled, "unit %v is not enabled", name)
 	}
 }
 
@@ -510,6 +520,15 @@ func (s *State) AssertUnitsNotLoaded(names ...string) {
 	for _, name := range names {
 		_, ok := s.Units[name]
 		assert.True(s.t, !ok, "unit %v is loaded", name)
+	}
+}
+
+// AssertUnitsNotEnabled asserts that a systemd unit is not enabled
+func (s *State) AssertUnitsNotEnabled(names ...string) {
+	for _, name := range names {
+		unit, ok := s.Units[name]
+		assert.True(s.t, ok, "unit %v is enabled", name)
+		assert.Equal(s.t, "disabled", unit.Enabled, "unit %v is enabled", name)
 	}
 }
 

@@ -32,4 +32,23 @@ func Test_serviceDetector(t *testing.T) {
 	}
 	got := sd.Detect(pInfo)
 	assert.Equal(t, want, got)
+
+	// pass in nil slices and see if anything blows up
+	pInfoEmpty := processInfo{
+		PID:     0,
+		CmdLine: nil,
+		Env:     nil,
+		Cwd:     "",
+		Stat:    procStat{},
+		Ports:   nil,
+	}
+	wantEmpty := serviceMetadata{
+		Name:               "",
+		Language:           "UNKNOWN",
+		Type:               "web_service",
+		APMInstrumentation: "none",
+		FromDDService:      false,
+	}
+	gotEmpty := sd.Detect(pInfoEmpty)
+	assert.Equal(t, wantEmpty, gotEmpty)
 }

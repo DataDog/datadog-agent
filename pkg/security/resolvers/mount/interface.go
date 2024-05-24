@@ -24,4 +24,5 @@ type ResolverInterface interface {
 	ResolveMountPath(mountID uint32, device uint32, pid uint32, containerID string) (string, model.MountSource, model.MountOrigin, error)
 	ResolveMount(mountID uint32, device uint32, pid uint32, containerID string) (*model.Mount, model.MountSource, model.MountOrigin, error)
 	SendStats() error
+	ToJSON() ([]byte, error)
 }

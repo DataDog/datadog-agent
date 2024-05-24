@@ -38,6 +38,7 @@ type linuxImpl struct {
 	procfs     procFS
 	portPoller portPoller
 	time       timer
+	bootTime   uint64
 
 	serviceDetector *serviceDetector
 	sender          *telemetrySender
@@ -60,8 +61,13 @@ func newLinuxImpl(sender *telemetrySender, ignoreCfg map[string]bool) (osImpl, e
 	if err != nil {
 		return nil, err
 	}
+	stat, err := pfs.Stat()
+	if err != nil {
+		return nil, err
+	}
 	return &linuxImpl{
 		procfs:            wProcFS{pfs},
+		bootTime:          stat.BootTime,
 		portPoller:        poller,
 		time:              realTime{},
 		sender:            sender,
@@ -122,10 +128,13 @@ func (li *linuxImpl) DiscoverServices() error {
 		stopped []serviceInfo
 	)
 
+	now := li.time.Now()
+
 	// potentialServices contains processes that we scanned in the previous iteration and had open ports.
 	// we check if they are still alive in this iteration, and if so, we send a start-service telemetry event.
 	for pid, svc := range li.potentialServices {
 		if _, ok := procs[pid]; ok {
+			svc.LastHeartbeat = now
 			li.aliveServices[pid] = svc
 			started = append(started, *svc)
 		}
@@ -163,14 +172,13 @@ func (li *linuxImpl) DiscoverServices() error {
 	}
 
 	// check if services previously marked as alive still are.
-	now := li.time.Now()
 	for pid, svc := range li.aliveServices {
 		if _, ok := procs[pid]; !ok {
 			delete(li.aliveServices, pid)
 			stopped = append(stopped, *svc)
 		} else if now.Sub(svc.LastHeartbeat).Truncate(time.Minute) >= heartbeatTime {
-			li.sender.sendHeartbeatServiceEvent(*svc)
 			svc.LastHeartbeat = now
+			li.sender.sendHeartbeatServiceEvent(*svc)
 		}
 	}
 
@@ -270,13 +278,17 @@ func (li *linuxImpl) getServiceInfo(p proc, openPorts map[int]portlist.List) (*s
 
 	// for now, docker-proxy is going on the ignore list
 
+	// calculate the start time
+	// divide Starttime by 100 to go from clicks since boot to seconds since boot
+	startTimeSecs := li.bootTime + (stat.Starttime / 100)
+
 	pInfo := processInfo{
 		PID:     p.PID(),
 		CmdLine: cmdline,
 		Env:     env,
 		Cwd:     cwd,
 		Stat: procStat{
-			StartTime: stat.Starttime,
+			StartTime: startTimeSecs,
 		},
 		Ports: ports,
 	}

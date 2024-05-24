@@ -415,6 +415,82 @@ func TestExtractServiceMetadata(t *testing.T) {
 			expectedServiceTag: "howdy",
 			fromDDService:      false,
 		},
+		{
+			name: "gunicorn simple",
+			cmdline: []string{
+				"gunicorn",
+				"--workers=2",
+				"test:app",
+			},
+			expectedServiceTag: "test",
+		},
+		{
+			name: "gunicorn from name",
+			cmdline: []string{
+				"gunicorn",
+				"--workers=2",
+				"-b",
+				"0.0.0.0",
+				"-n",
+				"dummy",
+				"test:app",
+			},
+			expectedServiceTag: "dummy",
+		},
+		{
+			name: "gunicorn from name (long arg)",
+			cmdline: []string{
+				"gunicorn",
+				"--workers=2",
+				"-b",
+				"0.0.0.0",
+				"--name=dummy",
+				"test:app",
+			},
+			expectedServiceTag: "dummy",
+		},
+		{
+			name: "gunicorn from name in env",
+			cmdline: []string{
+				"gunicorn",
+				"test:app",
+			},
+			envs:               []string{"GUNICORN_CMD_ARGS=--bind=127.0.0.1:8080 --workers=3 -n dummy"},
+			expectedServiceTag: "dummy",
+		},
+		{
+			name: "gunicorn without app found",
+			cmdline: []string{
+				"gunicorn",
+			},
+			envs:               []string{"GUNICORN_CMD_ARGS=--bind=127.0.0.1:8080 --workers=3"},
+			expectedServiceTag: "gunicorn",
+		},
+		{
+			name: "gunicorn with partial wsgi app",
+			cmdline: []string{
+				"gunicorn",
+				"my.package",
+			},
+			expectedServiceTag: "my.package",
+		},
+		{
+			name: "gunicorn with empty WSGI_APP env",
+			cmdline: []string{
+				"gunicorn",
+				"my.package",
+			},
+			envs:               []string{"WSGI_APP="},
+			expectedServiceTag: "my.package",
+		},
+		{
+			name: "gunicorn with WSGI_APP env",
+			cmdline: []string{
+				"gunicorn",
+			},
+			envs:               []string{"WSGI_APP=test:app"},
+			expectedServiceTag: "test",
+		},
 	}
 
 	for _, tt := range tests {

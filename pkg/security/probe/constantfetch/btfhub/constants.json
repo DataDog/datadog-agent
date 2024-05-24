@@ -23304,6 +23304,13 @@
 			"distrib": "ol",
 			"version": "7",
 			"arch": "x86_64",
+			"uname_release": "4.14.35-2047.537.3.el7uek.x86_64",
+			"cindex": 96
+		},
+		{
+			"distrib": "ol",
+			"version": "7",
+			"arch": "x86_64",
 			"uname_release": "4.14.35-2048.el7uek.x86_64",
 			"cindex": 96
 		},
