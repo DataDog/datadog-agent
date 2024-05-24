@@ -87,6 +87,33 @@ def compute_all_count_metrics(ctx: Context, extra_tags: Iterable[str] = ()):
     return series
 
 
+def compute_binary_dependencies_list(
+    ctx: Context,
+    build: str,
+    flavor: AgentFlavor,
+    platform: str,
+    arch: str,
+):
+    """
+    Compute binary import list for the given build/flavor/platform/arch.
+    """
+    goos, goarch = GOOS_MAPPING[platform], GOARCH_MAPPING[arch]
+
+    build_tags = get_default_build_tags(build=build, flavor=flavor, platform=platform)
+
+    env = {"GOOS": goos, "GOARCH": goarch, "CGO_ENABLED": "1"}
+    cmd = "go list -f '{{ join .Deps \"\\n\"}}'"
+
+    res = ctx.run(
+        f"{cmd} -tags {','.join(build_tags)}",
+        env=env,
+        hide='out',  # don't hide errors
+    )
+    assert res
+
+    return res.stdout.strip()
+
+
 @task
 def send_count_metrics(
     ctx: Context,
@@ -156,19 +183,9 @@ def test_list(
                 deps = deps_file.read()
                 deps_file.close()
 
-                build_tags = get_default_build_tags(build=build, flavor=flavor, platform=platform)
+                list = compute_binary_dependencies_list(ctx, build, flavor, platform, arch)
 
-                env = {"GOOS": goos, "GOARCH": goarch, "CGO_ENABLED": "1"}
-                cmd = "go list -f '{{ join .Deps \"\\n\"}}'"
-
-                res = ctx.run(
-                    f"{cmd} -tags {','.join(build_tags)}",
-                    env=env,
-                    hide='out',  # don't hide errors
-                )
-                assert res
-
-                if res.stdout.strip() != deps:
+                if list != deps:
                     mismatch_binaries.add(FailedBinary(binary, goos, goarch))
 
     if len(mismatch_binaries) > 0:
@@ -202,18 +219,8 @@ def generate(
 
                 filename = os.path.join(ctx.cwd, f"dependencies_{goos}_{goarch}.txt")
 
-                build_tags = get_default_build_tags(build=build, flavor=flavor, platform=platform)
-
-                env = {"GOOS": goos, "GOARCH": goarch, "CGO_ENABLED": "1"}
-                cmd = "go list -f '{{ join .Deps \"\\n\"}}'"
-
-                res = ctx.run(
-                    f"{cmd} -tags {','.join(build_tags)}",
-                    env=env,
-                    hide='out',  # don't hide errors
-                )
-                assert res
+                list = compute_binary_dependencies_list(ctx, build, flavor, platform, arch)
 
                 f = open(filename, "w")
-                f.write(res.stdout.strip())
+                f.write(list)
                 f.close()
