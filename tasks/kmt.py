@@ -14,6 +14,7 @@ from typing import TYPE_CHECKING, Any, cast
 from invoke.context import Context
 from invoke.tasks import task
 
+from tasks.kernel_matrix_testing import selftest as selftests
 from tasks.kernel_matrix_testing import stacks, vmconfig
 from tasks.kernel_matrix_testing.ci import KMTTestRunJob, get_all_jobs_for_pipeline
 from tasks.kernel_matrix_testing.compiler import CONTAINER_AGENT_PATH, all_compilers, get_compiler
@@ -34,7 +35,7 @@ from tasks.kernel_matrix_testing.kmt_os import get_kmt_os
 from tasks.kernel_matrix_testing.platforms import get_platforms, platforms_file
 from tasks.kernel_matrix_testing.stacks import check_and_get_stack, ec2_instance_ids
 from tasks.kernel_matrix_testing.tool import Exit, ask, error, get_binary_target_arch, info, warn
-from tasks.kernel_matrix_testing.vars import arch_ls
+from tasks.kernel_matrix_testing.vars import KMTPaths, arch_ls
 from tasks.libs.build.ninja import NinjaWriter
 from tasks.libs.common.utils import get_build_flags
 from tasks.security_agent import build_functional_tests, build_stress_tests
@@ -102,6 +103,7 @@ def create_stack(ctx, stack=None):
         "from-ci-pipeline": "Generate a vmconfig.json file with the VMs that failed jobs in pipeline with the given ID.",
         "use-local-if-possible": "(Only when --from-ci-pipeline is used) If the VM is for the same architecture as the host, use the local VM instead of the remote one.",
         "vmconfig_template": "Template to use for the generated vmconfig.json file. Defaults to 'system-probe'. A file named 'vmconfig-<vmconfig_template>.json' must exist in 'tasks/new-e2e/system-probe/config/'",
+        "yes": "Do not ask for confirmation",
     }
 )
 def gen_config(
@@ -119,6 +121,7 @@ def gen_config(
     from_ci_pipeline: str | None = None,
     use_local_if_possible=False,
     vmconfig_template: Component = "system-probe",
+    yes=False,
 ):
     """
     Generate a vmconfig.json file with the given VMs.
@@ -137,12 +140,13 @@ def gen_config(
             output_file=output_file,
             use_local_if_possible=use_local_if_possible,
             vmconfig_template=vmconfig_template,
+            yes=yes,
         )
     else:
         vcpu = DEFAULT_VCPU if vcpu is None else vcpu
         memory = DEFAULT_MEMORY if memory is None else memory
         vmconfig.gen_config(
-            ctx, stack, vms, sets, init_stack, vcpu, memory, new, ci, arch, output_file, vmconfig_template
+            ctx, stack, vms, sets, init_stack, vcpu, memory, new, ci, arch, output_file, vmconfig_template, yes=yes
         )
 
 
@@ -159,6 +163,7 @@ def gen_config_from_ci_pipeline(
     arch: str = "",
     output_file="vmconfig.json",
     vmconfig_template: Component = "system-probe",
+    yes=False,
 ):
     """
     Generate a vmconfig.json file with the VMs that failed jobs in the given pipeline.
@@ -201,7 +206,7 @@ def gen_config_from_ci_pipeline(
     vcpu = DEFAULT_VCPU if vcpu is None else vcpu
     memory = DEFAULT_MEMORY if memory is None else memory
     vmconfig.gen_config(
-        ctx, stack, ",".join(vms), "", init_stack, vcpu, memory, new, ci, arch, output_file, vmconfig_template
+        ctx, stack, ",".join(vms), "", init_stack, vcpu, memory, new, ci, arch, output_file, vmconfig_template, yes=yes
     )
     info("[+] You can run the following command to execute only packages with failed tests")
     print(f"inv kmt.test --packages=\"{' '.join(failed_packages)}\"")
@@ -408,48 +413,6 @@ def download_gotestsum(ctx: Context, arch: Arch, fgotestsum: PathOrStr):
     ctx.run(f"cp {paths.tools}/gotestsum {fgotestsum}")
 
 
-class KMTPaths:
-    def __init__(self, stack: str | None, arch: Arch):
-        self.stack = stack
-        self.arch = arch
-
-    @property
-    def repo_root(self):
-        # this file is tasks/kmt.py, so two parents is the agent folder
-        return Path(__file__).parent.parent
-
-    @property
-    def root(self):
-        return self.repo_root / "kmt-deps"
-
-    @property
-    def arch_dir(self):
-        return self.stack_dir / self.arch
-
-    @property
-    def stack_dir(self):
-        if self.stack is None:
-            raise Exit("no stack name provided, cannot use stack-specific paths")
-
-        return self.root / self.stack
-
-    @property
-    def dependencies(self):
-        return self.arch_dir / "opt/testing-tools"
-
-    @property
-    def sysprobe_tests(self):
-        return self.arch_dir / "opt/system-probe-tests"
-
-    @property
-    def secagent_tests(self):
-        return self.arch_dir / "opt/security-agent-tests"
-
-    @property
-    def tools(self):
-        return self.root / self.arch / "tools"
-
-
 def is_root():
     return os.getuid() == 0
 
@@ -550,6 +513,7 @@ def kmt_secagent_prepare(
     packages: str | None = None,
     verbose: bool = True,
     ci: bool = True,
+    compile_only: bool = False,
 ):
     kmt_paths = KMTPaths(stack, arch)
     kmt_paths.secagent_tests.mkdir(exist_ok=True, parents=True)
@@ -595,6 +559,7 @@ def prepare(
     packages=None,
     verbose=True,
     ci=False,
+    compile_only=False,
 ):
     if not ci:
         stack = check_and_get_stack(stack)
@@ -662,7 +627,7 @@ def prepare(
             ctx.run(f"mkdir -p {os.path.dirname(df)}")
             ctx.run(f"install {sf} {df}")
 
-    if ci:
+    if ci or compile_only:
         return
 
     if vms is None or vms == "":
@@ -1625,3 +1590,16 @@ def tmux(ctx: Context, stack: str | None = None):
             ctx.run(f"tmux select-layout -t kmt-{stack_name}:{i} tiled")
 
     info(f"[+] Tmux session kmt-{stack_name} created. Attach with 'tmux attach -t kmt-{stack_name}'")
+
+
+@task(
+    help={
+        "allow_infra_changes": "Allow infrastructure changes to be made during the selftest",
+        "filter": "Filter to run only tests matching the given regex",
+    }
+)
+def selftest(ctx: Context, allow_infra_changes=False, filter: str | None = None):
+    """Run all KMT selftests, reporting status at the end. Can be used for debugging in KMT development
+    or for troubleshooting.
+    """
+    selftests.selftest(ctx, allow_infra_changes=allow_infra_changes, filter=filter)
