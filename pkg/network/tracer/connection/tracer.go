@@ -267,7 +267,10 @@ func NewTracer(config *config.Config) (Tracer, error) {
 
 	var failedConnConsumer *failure.TCPFailedConnConsumer
 	// Failed connections are not supported on prebuilt
-	if kprobe.FailedConnectionsSupported(config) && tracerType != TracerTypeKProbePrebuilt {
+	if tracerType == TracerTypeKProbePrebuilt {
+		config.TCPFailedConnectionsEnabled = false
+	}
+	if kprobe.FailedConnectionsSupported(config) {
 		failedConnConsumer = failure.NewFailedConnConsumer(failedConnsHandler)
 	}
 

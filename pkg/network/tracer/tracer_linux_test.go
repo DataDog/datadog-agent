@@ -2340,7 +2340,9 @@ LOOP:
 
 func (s *TracerSuite) TestTCPFailureConnectionTimeout() {
 	t := s.T()
-	//t.Skip()
+	if ebpftest.GetBuildMode() == ebpftest.Prebuilt {
+		t.Skip()
+	}
 	setupDropTrafficRule(t)
 	cfg := testConfig()
 	cfg.TCPFailedConnectionsEnabled = true

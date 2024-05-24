@@ -558,7 +558,6 @@ func (t *Tracer) getConnections(activeBuffer *network.ConnectionBuffer) (latestU
 		return 0, nil, err
 	}
 
-	failureMap := t.ebpfTracer.GetFailedConnections()
 	activeConnections = activeBuffer.Connections()
 
 	for i := range activeConnections {
@@ -572,7 +571,6 @@ func (t *Tracer) getConnections(activeBuffer *network.ConnectionBuffer) (latestU
 		// endpoint)
 		t.connVia(&activeConnections[i])
 		t.addProcessInfo(&activeConnections[i])
-		failure.MatchFailedConn(&activeConnections[i], failureMap)
 	}
 
 	// get rid of stale process entries in the cache
