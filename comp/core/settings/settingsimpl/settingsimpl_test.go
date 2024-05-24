@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"html"
 	"io"
+	"net/http"
 	"net/http/httptest"
 	"testing"
 
@@ -18,7 +19,9 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/settings"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/gorilla/mux"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
 )
 
@@ -131,67 +134,76 @@ func TestRuntimeSettings(t *testing.T) {
 		{
 			"GetValue",
 			func(t *testing.T, comp settings.Component) {
-				responseRecorder := httptest.NewRecorder()
+				router := mux.NewRouter()
+				router.HandleFunc("/config/{setting}", comp.GetValue).Methods("GET")
+				ts := httptest.NewServer(router)
+				defer ts.Close()
 
-				request := httptest.NewRequest("GET", "http://agent.host/test/", nil)
+				request, err := http.NewRequest("GET", ts.URL+"/config/foo", nil)
+				require.NoError(t, err)
 
-				comp.GetValue("foo", responseRecorder, request)
-
-				resp := responseRecorder.Result()
-				defer resp.Body.Close()
+				resp, err := ts.Client().Do(request)
+				require.NoError(t, err)
 				body, _ := io.ReadAll(resp.Body)
+				resp.Body.Close()
 
-				assert.Equal(t, 200, responseRecorder.Code)
+				assert.Equal(t, 200, resp.StatusCode)
 				assert.Equal(t, "{\"value\":{\"Value\":\"\",\"Source\":\"\"}}", string(body))
 
-				requestWithSources := httptest.NewRequest("GET", "http://agent.host?sources=true", nil)
-				responseRecorder2 := httptest.NewRecorder()
+				requestWithSources, err := http.NewRequest("GET", ts.URL+"/config/foo?sources=true", nil)
+				require.NoError(t, err)
 
-				comp.GetValue("foo", responseRecorder2, requestWithSources)
-				resp2 := responseRecorder2.Result()
-				defer resp2.Body.Close()
-				body, _ = io.ReadAll(resp2.Body)
+				resp, err = ts.Client().Do(requestWithSources)
+				require.NoError(t, err)
+				body, _ = io.ReadAll(resp.Body)
+				resp.Body.Close()
 
-				assert.Equal(t, 200, responseRecorder2.Code)
+				assert.Equal(t, 200, resp.StatusCode)
 				assert.Equal(t, "{\"sources_value\":[{\"Source\":\"default\",\"Value\":null},{\"Source\":\"unknown\",\"Value\":null},{\"Source\":\"file\",\"Value\":null},{\"Source\":\"environment-variable\",\"Value\":null},{\"Source\":\"agent-runtime\",\"Value\":null},{\"Source\":\"local-config-process\",\"Value\":null},{\"Source\":\"remote-config\",\"Value\":null},{\"Source\":\"cli\",\"Value\":null}],\"value\":{\"Value\":\"\",\"Source\":\"\"}}", string(body))
 
-				responseRecorder3 := httptest.NewRecorder()
+				unknownSettingRequest, err := http.NewRequest("GET", ts.URL+"/config/non_existing", nil)
+				require.NoError(t, err)
 
-				comp.GetValue("non_existing", responseRecorder3, request)
-				resp3 := responseRecorder3.Result()
-				defer resp3.Body.Close()
-				body, _ = io.ReadAll(resp3.Body)
+				resp, err = ts.Client().Do(unknownSettingRequest)
+				require.NoError(t, err)
+				body, _ = io.ReadAll(resp.Body)
+				resp.Body.Close()
 
-				assert.Equal(t, 400, responseRecorder3.Code)
+				assert.Equal(t, 400, resp.StatusCode)
 				assert.Equal(t, "{\"error\":\"setting non_existing not found\"}\n", string(body))
 			},
 		},
 		{
 			"SetValue",
 			func(t *testing.T, comp settings.Component) {
-				responseRecorder := httptest.NewRecorder()
+				router := mux.NewRouter()
+				router.HandleFunc("/config/{setting}", comp.GetValue).Methods("GET")
+				router.HandleFunc("/config/{setting}", comp.SetValue).Methods("POST")
+				ts := httptest.NewServer(router)
+				defer ts.Close()
 
 				requestBody := fmt.Sprintf("value=%s", html.EscapeString("fancy"))
-				request := httptest.NewRequest("POST", "http://agent.host/test/", bytes.NewBuffer([]byte(requestBody)))
+				request, err := http.NewRequest("POST", ts.URL+"/config/foo", bytes.NewBuffer([]byte(requestBody)))
+				require.NoError(t, err)
 				request.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
-				comp.SetValue("foo", responseRecorder, request)
-
-				resp := responseRecorder.Result()
-				defer resp.Body.Close()
+				resp, err := ts.Client().Do(request)
+				require.NoError(t, err)
 				body, _ := io.ReadAll(resp.Body)
+				resp.Body.Close()
 
-				assert.Equal(t, 200, responseRecorder.Code)
+				assert.Equal(t, 200, resp.StatusCode)
 				assert.Equal(t, "", string(body))
 
-				responseRecorder2 := httptest.NewRecorder()
+				request, err = http.NewRequest("GET", ts.URL+"/config/foo", nil)
+				require.NoError(t, err)
 
-				comp.GetValue("foo", responseRecorder2, request)
-				resp2 := responseRecorder2.Result()
-				defer resp2.Body.Close()
-				body, _ = io.ReadAll(resp2.Body)
+				resp, err = ts.Client().Do(request)
+				require.NoError(t, err)
+				body, _ = io.ReadAll(resp.Body)
+				resp.Body.Close()
 
-				assert.Equal(t, 200, responseRecorder2.Code)
+				assert.Equal(t, 200, resp.StatusCode)
 				assert.Equal(t, "{\"value\":{\"Value\":\"fancy\",\"Source\":\"cli\"}}", string(body))
 			},
 		},

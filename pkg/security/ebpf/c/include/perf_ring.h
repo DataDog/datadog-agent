@@ -38,8 +38,9 @@ void __attribute__((always_inline)) store_ring_buffer_stats() {
 void __attribute__((always_inline)) send_event_with_size_ptr(void *ctx, u64 event_type, void *kernel_event, u64 kernel_event_size) {
     struct kevent_t *header = kernel_event;
     header->type = event_type;
-    header->cpu = bpf_get_smp_processor_id();
     header->timestamp = bpf_ktime_get_ns();
+
+    u64 cpu = bpf_get_smp_processor_id();
 
 #if USE_RING_BUFFER == 1
     u64 use_ring_buffer;
@@ -48,10 +49,10 @@ void __attribute__((always_inline)) send_event_with_size_ptr(void *ctx, u64 even
     if (use_ring_buffer) {
         perf_ret = bpf_ringbuf_output(&events, kernel_event, kernel_event_size, 0);
     } else {
-        perf_ret = bpf_perf_event_output(ctx, &events, header->cpu, kernel_event, kernel_event_size);
+        perf_ret = bpf_perf_event_output(ctx, &events, cpu, kernel_event, kernel_event_size);
     }
 #else
-    int perf_ret = bpf_perf_event_output(ctx, &events, header->cpu, kernel_event, kernel_event_size);
+    int perf_ret = bpf_perf_event_output(ctx, &events, cpu, kernel_event, kernel_event_size);
 #endif
 
     if (event_type < EVENT_MAX) {

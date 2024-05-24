@@ -8,6 +8,16 @@ package payload
 
 import "github.com/DataDog/datadog-agent/pkg/network"
 
+// Protocol defines supported network protocols
+type Protocol string
+
+const (
+	// ProtocolTCP is the TCP protocol.
+	ProtocolTCP Protocol = "TCP"
+	// ProtocolUDP is the UDP protocol.
+	ProtocolUDP Protocol = "UDP"
+)
+
 // NetworkPathHop encapsulates the data for a single
 // hop within a path
 type NetworkPathHop struct {
@@ -40,6 +50,7 @@ type NetworkPath struct {
 	Timestamp   int64                  `json:"timestamp"`
 	Namespace   string                 `json:"namespace"` // namespace used to resolve NDM resources
 	PathID      string                 `json:"path_id"`
+	Protocol    Protocol               `json:"protocol"`
 	Source      NetworkPathSource      `json:"source"`
 	Destination NetworkPathDestination `json:"destination"`
 	Hops        []NetworkPathHop       `json:"hops"`

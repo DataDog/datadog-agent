@@ -91,7 +91,7 @@ new-e2e-agent-platform-install-script-ubuntu-a7-arm64:
     - .new-e2e_ubuntu_a7_arm64
     - .new-e2e_agent_a7
   rules:
-    !reference [.on_all_new_e2e_tests]
+    !reference [.on_all_install_script_tests]
   variables:
     FLAVOR: datadog-agent
 

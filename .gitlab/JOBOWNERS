@@ -43,7 +43,7 @@ iot_agent_suse*                      @DataDog/agent-build-and-releases
 dogstatsd_suse*                      @DataDog/agent-build-and-releases
 agent_dmg*                           @DataDog/agent-build-and-releases
 *oci*                                @DataDog/agent-build-and-releases
-windows_msi*                         @DataDog/windows-agent
+windows_*                            @DataDog/windows-agent
 
 # Packaging
 installer_*                          @DataDog/agent-build-and-releases
