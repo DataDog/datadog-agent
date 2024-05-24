@@ -351,6 +351,7 @@ func CheckSystemProbeBehavior(t *testing.T, client *TestClient) {
 		_, err = client.Host.Execute("command -v readelf")
 		if err != nil {
 			t.Skip("readelf is not available on the host")
+			return
 		}
 
 		hostArch, err := client.Host.Execute("uname -m")
