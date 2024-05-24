@@ -201,7 +201,7 @@ def test_list(
             if mismatch_binary.differences > 0:
                 message.write(
                     color_message(
-                        f"You added some dependencies to {mismatch_binary.binary} ({mismatch_binary.os}/{mismatch_binary.arch}). The customers have raised complaints about the size of the Agent binary. Adding new dependencies to the binary increases its size. Do we really need to add this dependency?\n",
+                        f"You added some dependencies to {mismatch_binary.binary} ({mismatch_binary.os}/{mismatch_binary.arch}). Adding new dependencies to the binary increases its size. Do we really need to add this dependency?\n",
                         "red",
                     )
                 )
