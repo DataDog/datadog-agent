@@ -62,7 +62,7 @@ func TestController(t *testing.T) {
 	// schedule some configs before registering
 	c1 := makeConfig("one")
 	c2 := makeConfig("two")
-	ms.Schedule([]integration.Config{c1, c2})
+	ms.ApplyChanges(integration.ConfigChanges{Schedule: []integration.Config{c1, c2}})
 	// register a scheduler and see that it gets caught up
 	s1 := &scheduler{}
 	ms.Register("s1", s1, true)
@@ -70,14 +70,14 @@ func TestController(t *testing.T) {
 	require.ElementsMatch(t, []event{{true, "one"}, {true, "two"}}, s1.events)
 	s1.mutex.Unlock()
 
-	ms.Schedule([]integration.Config{c1, c2})
+	ms.ApplyChanges(integration.ConfigChanges{Schedule: []integration.Config{c1, c2}})
 	clk := clock.NewMock()
 	clk.Add(2000 * time.Millisecond)
 	s1.reset()
 	// remove one of those configs and add another
-	ms.Unschedule([]integration.Config{c1})
+	ms.ApplyChanges(integration.ConfigChanges{Unschedule: []integration.Config{c1}})
 	c3 := makeConfig("three")
-	ms.Schedule([]integration.Config{c3})
+	ms.ApplyChanges(integration.ConfigChanges{Schedule: []integration.Config{c3}})
 	// check s1 was informed about those in order
 	clk.Add(2000 * time.Millisecond)
 	s1.mutex.Lock()
@@ -96,7 +96,7 @@ func TestController(t *testing.T) {
 
 	// unsubscribe s1 and see that it no longer gets events
 	ms.Deregister("s1")
-	ms.Unschedule([]integration.Config{c2})
+	ms.ApplyChanges(integration.ConfigChanges{Unschedule: []integration.Config{c2}})
 	clk.Add(2000 * time.Millisecond)
 	s1.mutex.Lock()
 	require.Equal(t, []event{}, s1.events)

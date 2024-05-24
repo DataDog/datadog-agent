@@ -659,8 +659,7 @@ func (ac *AutoConfig) applyChanges(changes integration.ConfigChanges) {
 			telemetry.ScheduledConfigs.Inc(conf.Provider, configType(conf))
 		}
 	}
-	digests := ac.schedulerController.ConfigStateStore.UpdateDesiredState(changes)
-	ac.schedulerController.ApplyChanges(digests)
+	ac.schedulerController.ApplyChanges(changes)
 }
 
 func (ac *AutoConfig) deleteMappingsOfCheckIDsWithSecrets(configs []integration.Config) {

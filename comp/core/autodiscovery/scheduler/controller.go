@@ -33,17 +33,13 @@ type Controller struct {
 	scheduledConfigs map[Digest]*integration.Config
 
 	// ConfigStateStore contains the desired state of configs
-	ConfigStateStore *ConfigStateStore
+	configStateStore *ConfigStateStore
 
 	// a workqueue to process the config events
 	queue workqueue.RateLimitingInterface
 
 	started     bool
 	stopChannel chan struct{}
-}
-
-type workItem struct {
-	digest Digest
 }
 
 // NewController inits a scheduler controller
@@ -53,7 +49,7 @@ func NewController() *Controller {
 		activeSchedulers: make(map[string]Scheduler),
 		queue:            workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "Controller"),
 		stopChannel:      make(chan struct{}),
-		ConfigStateStore: NewConfigStateStore(),
+		configStateStore: NewConfigStateStore(),
 	}
 	schedulerController.start()
 	return &schedulerController
@@ -85,7 +81,7 @@ func (ms *Controller) Register(name string, s Scheduler, replayConfigs bool) {
 	// this occurs under the protection of `ms.m`, so no config may be double-
 	// scheduled or missed in this process.
 	if replayConfigs {
-		configStates := ms.ConfigStateStore.List()
+		configStates := ms.configStateStore.List()
 
 		configs := make([]integration.Config, 0, len(configStates))
 		for _, config := range configStates {
@@ -109,22 +105,13 @@ func (ms *Controller) Deregister(name string) {
 }
 
 // ApplyChanges add configDigests to the workqueue
-func (ms *Controller) ApplyChanges(digests []Digest) {
+func (ms *Controller) ApplyChanges(changes integration.ConfigChanges) {
+	//update desired state immediately
+	digests := ms.configStateStore.UpdateDesiredState(changes)
+	//add digest to workqueue for processing later
 	for _, configDigest := range digests {
-		ms.queue.Add(workItem{digest: configDigest})
+		ms.queue.Add(configDigest)
 	}
-}
-
-// Schedule for test only, actual scheduling should be done by the autoconfig.applyChanges
-func (ms *Controller) Schedule(configs []integration.Config) {
-	digests := ms.ConfigStateStore.UpdateDesiredState(integration.ConfigChanges{Schedule: configs})
-	ms.ApplyChanges(digests)
-}
-
-// Unschedule for test only, actual unscheduling should be done by the autoconfig.applyChanges
-func (ms *Controller) Unschedule(configs []integration.Config) {
-	digests := ms.ConfigStateStore.UpdateDesiredState(integration.ConfigChanges{Unschedule: configs})
-	ms.ApplyChanges(digests)
 }
 
 func (ms *Controller) worker() {
@@ -144,10 +131,10 @@ func (ms *Controller) processNextWorkItem() bool {
 	if quit {
 		return false
 	}
-	configDigest := item.(workItem).digest
-	desiredConfigState, found := ms.ConfigStateStore.GetConfigState(configDigest)
+	configDigest := item.(Digest)
+	desiredConfigState, found := ms.configStateStore.GetConfigState(configDigest)
 	if !found {
-		log.Warnf("config %s not found in ConfigStateStore", configDigest)
+		log.Warnf("config %d not found in configStateStore", configDigest)
 		ms.queue.Done(item)
 		return true
 	}
@@ -159,7 +146,8 @@ func (ms *Controller) processNextWorkItem() bool {
 		currentState = Scheduled
 	}
 	if desiredState == currentState {
-		ms.queue.Done(item) // no action needed
+		ms.queue.Done(item)                       // no action needed
+		ms.configStateStore.Cleanup(configDigest) // cleanup the config state if it is unscheduled already
 		return true
 	}
 	log.Tracef("Controller starts processing config %s: currentState: %d, desiredState: %d", configName, currentState, desiredState)
@@ -173,6 +161,7 @@ func (ms *Controller) processNextWorkItem() bool {
 			//to be unscheduled
 			scheduler.Unschedule(([]integration.Config{*desiredConfigState.config})) // TODO: check status of action
 			delete(ms.scheduledConfigs, configDigest)
+			ms.configStateStore.Cleanup(configDigest)
 		}
 	}
 	ms.m.Unlock()

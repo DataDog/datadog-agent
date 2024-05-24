@@ -111,9 +111,15 @@ func (store *ConfigStateStore) GetConfigState(configDigest Digest) (ConfigStateD
 	return configStateDataCopy, found
 }
 
-// PurgeConfigStates purges all config desired states
-func (store *ConfigStateStore) PurgeConfigStates() {
+// Cleanup if config desired states is Unscheduled, we remove it after it has been unscheduled by controller
+// during this cleanup operation, the store is locked to avoid race condition from updateDesiredState
+func (store *ConfigStateStore) Cleanup(configDigest Digest) {
 	store.configsLock.Lock()
 	defer store.configsLock.Unlock()
-	store.configStateMap = make(map[Digest]ConfigStateData)
+	configStateData, found := store.configStateMap[configDigest]
+	if found {
+		if configStateData.desiredState == Unscheduled {
+			delete(store.configStateMap, configDigest)
+		}
+	}
 }
