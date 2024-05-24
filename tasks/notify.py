@@ -388,6 +388,7 @@ def check_consistent_failures(ctx, job_failures_file="job_executions.v2.json"):
     # The consecutive failures are reset to 0 when the job is not failing, and are raising an alert when reaching the CONSECUTIVE_THRESHOLD (3)
     # The cumulative failures list contains 1 for failures, 0 for succes. They contain only then CUMULATIVE_LENGTH(10) last executions and raise alert when 50% failure rate is reached
     job_executions = retrieve_job_executions(ctx, job_failures_file)
+    print('Retrieved job executions:', job_executions)
 
     # By-pass if the pipeline chronological order is not respected
     if job_executions.pipeline_id > int(os.getenv("CI_PIPELINE_ID")):
@@ -395,6 +396,7 @@ def check_consistent_failures(ctx, job_failures_file="job_executions.v2.json"):
     job_executions.pipeline_id = int(os.getenv("CI_PIPELINE_ID"))
 
     alert_jobs, job_executions = update_statistics(job_executions)
+    print('Retrieved alert_jobs, job_executions:', alert_jobs, job_executions)
 
     send_notification(ctx, alert_jobs)
 
@@ -475,8 +477,11 @@ def send_notification(ctx: Context, alert_jobs):
     message = alert_jobs["consecutive"].message(ctx) + alert_jobs["cumulative"].message()
     message = message.strip()
 
-    if message:
-        send_slack_message("#agent-platform-ops", message)
+    # TODO
+    print('[NOTIFICATION]', message)
+
+    # if message:
+    #     send_slack_message("#agent-platform-ops", message)
 
 
 @task
