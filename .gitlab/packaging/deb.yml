@@ -115,4 +115,6 @@ installer_deb-arm64:
     DESTINATION_DEB: "datadog-installer_7_arm64.deb"
     DD_PKG_ARCH: "arm64"
     DD_PROJECT: "installer"
+    RELEASE_VERSION: $RELEASE_VERSION_7
+    AGENT_MAJOR_VERSION: 7
 
