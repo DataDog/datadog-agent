@@ -13,8 +13,30 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
 	"sync"
 	"time"
+
+	v1 "k8s.io/api/core/v1"
+	"k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
+	"k8s.io/apimachinery/pkg/api/meta"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/fields"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	vpa "k8s.io/autoscaler/vertical-pod-autoscaler/pkg/client/clientset/versioned"
+	"k8s.io/client-go/discovery"
+	"k8s.io/client-go/discovery/cached/memory"
+	"k8s.io/client-go/dynamic"
+	"k8s.io/client-go/dynamic/dynamicinformer"
+	"k8s.io/client-go/informers"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
+	"k8s.io/client-go/restmapper"
+	"k8s.io/client-go/scale"
+	"k8s.io/client-go/tools/clientcmd"
+	"k8s.io/client-go/tools/remotecommand"
+	apiregistrationclient "k8s.io/kube-aggregator/pkg/client/clientset_generated/clientset/typed/apiregistration/v1"
 
 	apiv1 "github.com/DataDog/datadog-agent/pkg/clusteragent/api/v1"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -23,19 +45,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
-	v1 "k8s.io/api/core/v1"
-	"k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/fields"
-	"k8s.io/apimachinery/pkg/runtime"
-	vpa "k8s.io/autoscaler/vertical-pod-autoscaler/pkg/client/clientset/versioned"
-	"k8s.io/client-go/dynamic"
-	"k8s.io/client-go/dynamic/dynamicinformer"
-	"k8s.io/client-go/informers"
-	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/rest"
-	"k8s.io/client-go/tools/clientcmd"
-	apiregistrationclient "k8s.io/kube-aggregator/pkg/client/clientset_generated/clientset/typed/apiregistration/v1"
 )
 
 var (
@@ -65,6 +74,14 @@ type APIClient struct {
 
 	// DynamicCl holds a dynamic kubernetes client
 	DynamicCl dynamic.Interface
+
+	// ScaleCl holds the scale kubernetes client
+	ScaleCl scale.ScalesGetter
+
+	// RESTMapper is used to map resources to GVR
+	// Implement with restmapper.NewDeferredDiscoveryRESTMapper(cachedClient)
+	// So that nothing is fetched until needed
+	RESTMapper meta.RESTMapper
 
 	//
 	// Informer clients (high or no timeout, use for Informers/Watch calls)
@@ -264,6 +281,19 @@ func getKubeVPAClient(timeout time.Duration) (vpa.Interface, error) {
 	return vpa.NewForConfig(clientConfig)
 }
 
+func getScaleClient(discoveryCl discovery.ServerResourcesInterface, restMapper meta.RESTMapper, timeout time.Duration) (scale.ScalesGetter, error) {
+	clientConfig, err := getClientConfig(timeout)
+	if err != nil {
+		return nil, err
+	}
+
+	// borrowed from HPA controller
+	// we don't use cached discovery because DiscoveryScaleKindResolver does its own caching,
+	// so we want to re-fetch every time when we actually ask for it
+	scaleKindResolver := scale.NewDiscoveryScaleKindResolver(discoveryCl)
+	return scale.NewForConfig(clientConfig, restMapper, dynamic.LegacyAPIPathResolverFunc, scaleKindResolver)
+}
+
 // GetInformerWithOptions returns
 func (c *APIClient) GetInformerWithOptions(resyncPeriod *time.Duration, options ...informers.SharedInformerOption) informers.SharedInformerFactory {
 	if resyncPeriod == nil {
@@ -275,7 +305,6 @@ func (c *APIClient) GetInformerWithOptions(resyncPeriod *time.Duration, options 
 
 func (c *APIClient) connect() error {
 	var err error
-
 	// Clients
 	c.Cl, err = GetKubeClient(c.defaultClientTimeout)
 	if err != nil {
@@ -286,6 +315,17 @@ func (c *APIClient) connect() error {
 	c.DynamicCl, err = getKubeDynamicClient(c.defaultClientTimeout)
 	if err != nil {
 		log.Infof("Could not get apiserver dynamic client: %v", err)
+		return err
+	}
+
+	// RESTMapper
+	cachedClient := memory.NewMemCacheClient(c.Cl.Discovery())
+	c.RESTMapper = restmapper.NewDeferredDiscoveryRESTMapper(cachedClient)
+
+	// Scale client  has specific init and dependencies
+	c.ScaleCl, err = getScaleClient(c.Cl.Discovery(), c.RESTMapper, c.defaultClientTimeout)
+	if err != nil {
+		log.Infof("Could not get scale client: %v", err)
 		return err
 	}
 
@@ -328,7 +368,8 @@ func (c *APIClient) connect() error {
 		config.Datadog.GetBool("orchestrator_explorer.enabled") ||
 		config.Datadog.GetBool("external_metrics_provider.use_datadogmetric_crd") ||
 		config.Datadog.GetBool("external_metrics_provider.wpa_controller") ||
-		config.Datadog.GetBool("cluster_checks.enabled") {
+		config.Datadog.GetBool("cluster_checks.enabled") ||
+		config.Datadog.GetBool("autoscaling.workload.enabled") {
 		c.DynamicInformerFactory = dynamicinformer.NewDynamicSharedInformerFactory(c.DynamicInformerCl, c.defaultInformerResyncPeriod)
 	}
 
@@ -600,4 +641,32 @@ func (c *APIClient) GetARandomNodeName(ctx context.Context) (string, error) {
 	}
 
 	return nodeList.Items[0].Name, nil
+}
+
+// RESTClient returns a new REST client
+func (c *APIClient) RESTClient(apiPath string, groupVersion *schema.GroupVersion, negotiatedSerializer runtime.NegotiatedSerializer) (*rest.RESTClient, error) {
+	clientConfig, err := getClientConfig(c.defaultClientTimeout)
+	if err != nil {
+		return nil, err
+	}
+
+	clientConfig.APIPath = apiPath
+	clientConfig.GroupVersion = groupVersion
+	clientConfig.NegotiatedSerializer = negotiatedSerializer
+
+	return rest.RESTClientFor(clientConfig)
+}
+
+// NewSPDYExecutor returns a new SPDY executor for the provided method and URL
+func (c *APIClient) NewSPDYExecutor(apiPath string, groupVersion *schema.GroupVersion, negotiatedSerializer runtime.NegotiatedSerializer, method string, url *url.URL) (remotecommand.Executor, error) {
+	clientConfig, err := getClientConfig(c.defaultClientTimeout)
+	if err != nil {
+		return nil, err
+	}
+
+	clientConfig.APIPath = apiPath
+	clientConfig.GroupVersion = groupVersion
+	clientConfig.NegotiatedSerializer = negotiatedSerializer
+
+	return remotecommand.NewSPDYExecutor(clientConfig, method, url)
 }

@@ -15,16 +15,14 @@ import (
 
 	yaml "gopkg.in/yaml.v2"
 
-	"github.com/DataDog/datadog-agent/comp/api/api/apiimpl/response"
+	"github.com/DataDog/viper"
+
+	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
+
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/pkg/api/util"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	snmplistener "github.com/DataDog/datadog-agent/pkg/snmp"
-	"github.com/DataDog/viper"
 )
-
-var configCheckURLSnmp string
 
 // SNMPConfig is a generic container for configuration data specific to the SNMP
 // integration.
@@ -143,28 +141,24 @@ func parseConfigSnmpMain(conf config.Component) ([]SNMPConfig, error) {
 // GetConfigCheckSnmp returns each SNMPConfig for all running config checks, by querying the local agent.
 // If the agent isn't running or is unreachable, this will fail.
 func GetConfigCheckSnmp(conf config.Component) ([]SNMPConfig, error) {
+	// TODO: change the URL if the snmp check is a cluster check
+	// add /agent/config-check/raw to cluster agent API
+	// Copy the code from comp/core/autodiscovery/autodiscoveryimpl/autoconfig.go#writeConfigCheckRaw
+	endpoint, err := apiutil.NewIPCEndpoint(conf, "/agent/config-check/raw")
+	if err != nil {
+		return nil, err
+	}
 
-	c := util.GetClient(false) // FIX: get certificates right then make this true
+	res, err := endpoint.DoGet()
+	if err != nil {
+		return nil, err
+	}
 
-	// Set session token
-	err := util.SetAuthToken(conf)
 	if err != nil {
 		return nil, err
 	}
-	ipcAddress, err := pkgconfigsetup.GetIPCAddress(conf)
-	if err != nil {
-		return nil, err
-	}
-	//TODO: change the configCheckURLSnmp if the snmp check is a cluster check
-	if configCheckURLSnmp == "" {
-		configCheckURLSnmp = fmt.Sprintf("https://%v:%v/agent/config-check", ipcAddress, conf.GetInt("cmd_port"))
-	}
-	r, err := util.DoGet(c, configCheckURLSnmp, util.LeaveConnectionOpen)
-	if err != nil {
-		return nil, err
-	}
-	cr := response.ConfigCheckResponse{}
-	err = json.Unmarshal(r, &cr)
+	cr := integration.ConfigCheckResponse{}
+	err = json.Unmarshal(res, &cr)
 	if err != nil {
 		return nil, err
 	}

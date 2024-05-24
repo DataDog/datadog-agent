@@ -5,7 +5,13 @@
 
 package utils
 
-import "github.com/DataDog/datadog-agent/pkg/version"
+import (
+	"context"
+
+	"github.com/DataDog/datadog-agent/pkg/util/hostname"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/version"
+)
 
 // CopyStrings makes a copy of a list of strings
 func CopyStrings(tags []string) []string {
@@ -25,4 +31,21 @@ func BoolToFloat64(val bool) float64 {
 		return 1.
 	}
 	return 0.
+}
+
+// GetCommonAgentTags returns commonly used Agent tags
+// Add new tags with caution since it can add cardinality to metrics.
+// This function might be used in multiple places.
+func GetCommonAgentTags() []string {
+	var tags []string
+
+	agentHost, err := hostname.Get(context.TODO())
+	if err != nil {
+		log.Warnf("Error getting the hostname: %v", err)
+	} else {
+		tags = append(tags, "agent_host:"+agentHost)
+	}
+
+	tags = append(tags, GetAgentVersionTag())
+	return tags
 }

@@ -197,11 +197,6 @@ end
 # Dependencies
 # ------------------------------------
 
-# creates required build directories
-dependency 'datadog-agent-prepare'
-
-dependency 'agent-dependencies'
-
 # Datadog agent
 dependency 'datadog-agent'
 

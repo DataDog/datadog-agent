@@ -89,8 +89,6 @@ const (
 	UnshareMountNsEventType
 	// SyscallsEventType Syscalls event
 	SyscallsEventType
-	// AnomalyDetectionSyscallEventType Anomaly Detection Syscall event
-	AnomalyDetectionSyscallEventType
 	// MaxKernelEventType is used internally to get the maximum number of kernel events.
 	MaxKernelEventType
 
@@ -123,8 +121,13 @@ const (
 	CustomTruncatedParentsEventType
 	// CustomSelfTestEventType is the custom event used to report the results of a self test run
 	CustomSelfTestEventType
+
 	// CreateNewFileEventType event
 	CreateNewFileEventType
+	// DeleteFileEventType event
+	DeleteFileEventType
+	// WriteFileEventType event
+	WriteFileEventType
 	// CreateRegistryKeyEventType event
 	CreateRegistryKeyEventType
 	// OpenRegistryKeyEventType event
@@ -133,6 +136,7 @@ const (
 	SetRegistryKeyValueEventType
 	// DeleteRegistryKeyEventType event
 	DeleteRegistryKeyEventType
+
 	// MaxAllEventType is used internally to get the maximum number of events.
 	MaxAllEventType
 )
@@ -217,8 +221,6 @@ func (t EventType) String() string {
 		return "unshare_mntns"
 	case SyscallsEventType:
 		return "syscalls"
-	case AnomalyDetectionSyscallEventType:
-		return "anomaly_detection_syscall"
 
 	case CustomLostReadEventType:
 		return "lost_events_read"
@@ -234,6 +236,10 @@ func (t EventType) String() string {
 		return "self_test"
 	case CreateNewFileEventType:
 		return "create"
+	case DeleteFileEventType:
+		return "delete"
+	case WriteFileEventType:
+		return "write"
 	case CreateRegistryKeyEventType:
 		return "create_key"
 	case OpenRegistryKeyEventType:

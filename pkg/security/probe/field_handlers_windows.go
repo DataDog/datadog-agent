@@ -38,8 +38,23 @@ func (fh *FieldHandlers) ResolveFilePath(_ *model.Event, f *model.FileEvent) str
 	return f.PathnameStr
 }
 
+// ResolveFileUserPath resolves the inode to a full user path
+func (fh *FieldHandlers) ResolveFileUserPath(_ *model.Event, f *model.FimFileEvent) string {
+	return f.UserPathnameStr
+}
+
 // ResolveFileBasename resolves the inode to a full path
 func (fh *FieldHandlers) ResolveFileBasename(_ *model.Event, f *model.FileEvent) string {
+	return f.BasenameStr
+}
+
+// ResolveFimFilePath resolves the inode to a full path
+func (fh *FieldHandlers) ResolveFimFilePath(_ *model.Event, f *model.FimFileEvent) string {
+	return f.PathnameStr
+}
+
+// ResolveFimFileBasename resolves the inode to a full path
+func (fh *FieldHandlers) ResolveFimFileBasename(_ *model.Event, f *model.FimFileEvent) string {
 	return f.BasenameStr
 }
 

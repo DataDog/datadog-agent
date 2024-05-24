@@ -10,104 +10,82 @@ package service
 
 import (
 	"context"
-	"encoding/json"
 	"os"
+	"os/exec"
 	"path"
 
+	"github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
 )
 
-type unitCommand string
-
 var (
-	systemdPath = "/lib/systemd/system" // todo load it at build time from omnibus
+	systemdPath = findSystemdPath()
 )
 
 const (
-	startCommand            unitCommand = "start"
-	stopCommand             unitCommand = "stop"
-	enableCommand           unitCommand = "enable"
-	disableCommand          unitCommand = "disable"
-	loadCommand             unitCommand = "load-unit"
-	removeCommand           unitCommand = "remove-unit"
-	backupCommand           unitCommand = `backup-file`
-	restoreCommand          unitCommand = `restore-file`
-	replaceDockerCommand                = `{"command":"replace-docker"}`
-	restartDockerCommand                = `{"command":"restart-docker"}`
-	createDockerDirCommand              = `{"command":"create-docker-dir"}`
-	replaceLDPreloadCommand             = `{"command":"replace-ld-preload"}`
-	systemdReloadCommand                = `{"command":"systemd-reload"}`
+	debSystemdPath = "/lib/systemd/system" // todo load it at build time from omnibus
+	rpmSystemdPath = "/usr/lib/systemd/system"
 )
 
-type privilegeCommand struct {
-	Command string `json:"command,omitempty"`
-	Unit    string `json:"unit,omitempty"`
-	Path    string `json:"path,omitempty"`
-	Content string `json:"content,omitempty"`
+// findSystemdPath todo: this is a hacky way to detect on which os family we are currently
+// running and finding the correct systemd path.
+// We should probably provide the correct path when we build the package
+func findSystemdPath() (systemdPath string) {
+	if _, err := os.Stat(rpmSystemdPath); err == nil {
+		return rpmSystemdPath
+	}
+	return debSystemdPath
 }
 
-// restartUnit restarts a systemd unit
-func restartUnit(ctx context.Context, unit string) error {
-	// check that the unit exists first
-	if _, err := os.Stat(path.Join(systemdPath, unit)); os.IsNotExist(err) {
-		log.Infof("Unit %s does not exist, skipping restart", unit)
-		return nil
-	}
-
-	if err := stopUnit(ctx, unit); err != nil {
-		return err
-	}
-	if err := startUnit(ctx, unit); err != nil {
-		return err
-	}
-	return nil
+func stopUnit(ctx context.Context, unit string, args ...string) error {
+	span, _ := tracer.StartSpanFromContext(ctx, "stop_unit")
+	defer span.Finish()
+	span.SetTag("unit", unit)
+	args = append([]string{"stop", unit}, args...)
+	return exec.CommandContext(ctx, "systemctl", args...).Run()
 }
 
-func stopUnit(ctx context.Context, unit string) error {
-	return executeHelperCommand(ctx, wrapUnitCommand(stopCommand, unit))
-}
-
-func startUnit(ctx context.Context, unit string) error {
-	return executeHelperCommand(ctx, wrapUnitCommand(startCommand, unit))
+func startUnit(ctx context.Context, unit string, args ...string) error {
+	span, _ := tracer.StartSpanFromContext(ctx, "start_unit")
+	defer span.Finish()
+	span.SetTag("unit", unit)
+	args = append([]string{"start", unit}, args...)
+	return exec.CommandContext(ctx, "systemctl", args...).Run()
 }
 
 func enableUnit(ctx context.Context, unit string) error {
-	return executeHelperCommand(ctx, wrapUnitCommand(enableCommand, unit))
+	span, _ := tracer.StartSpanFromContext(ctx, "enable_unit")
+	defer span.Finish()
+	span.SetTag("unit", unit)
+	return exec.CommandContext(ctx, "systemctl", "enable", unit).Run()
 }
 
 func disableUnit(ctx context.Context, unit string) error {
-	return executeHelperCommand(ctx, wrapUnitCommand(disableCommand, unit))
+	span, _ := tracer.StartSpanFromContext(ctx, "disable_unit")
+	defer span.Finish()
+	span.SetTag("unit", unit)
+	return exec.CommandContext(ctx, "systemctl", "disable", unit).Run()
 }
 
 func loadUnit(ctx context.Context, unit string) error {
-	return executeHelperCommand(ctx, wrapUnitCommand(loadCommand, unit))
+	span, _ := tracer.StartSpanFromContext(ctx, "load_unit")
+	defer span.Finish()
+	span.SetTag("unit", unit)
+	return exec.CommandContext(ctx, "cp", "-f", path.Join(setup.InstallPath, "systemd", unit), path.Join(systemdPath, unit)).Run()
 }
 
 func removeUnit(ctx context.Context, unit string) error {
-	return executeHelperCommand(ctx, wrapUnitCommand(removeCommand, unit))
+	span, _ := tracer.StartSpanFromContext(ctx, "remove_unit")
+	defer span.Finish()
+	span.SetTag("unit", unit)
+	return os.Remove(path.Join(systemdPath, unit))
 }
 
 func systemdReload(ctx context.Context) error {
-	return executeHelperCommand(ctx, systemdReloadCommand)
-}
-
-func wrapUnitCommand(command unitCommand, unit string) string {
-	privilegeCommand := privilegeCommand{Command: string(command), Unit: unit}
-	rawJSON, err := json.Marshal(privilegeCommand)
-	if err != nil {
-		// can't happen as we control the struct
-		panic(err)
-	}
-	return string(rawJSON)
-}
-
-func executeCommandStruct(ctx context.Context, command privilegeCommand) error {
-	rawJSON, err := json.Marshal(command)
-	if err != nil {
-		return err
-	}
-	privilegeCommandJSON := string(rawJSON)
-	return executeHelperCommand(ctx, privilegeCommandJSON)
+	span, _ := tracer.StartSpanFromContext(ctx, "systemd_reload")
+	defer span.Finish()
+	return exec.CommandContext(ctx, "systemctl", "daemon-reload").Run()
 }
 
 // isSystemdRunning checks if systemd is running using the documented way

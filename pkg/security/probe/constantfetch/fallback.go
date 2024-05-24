@@ -99,6 +99,8 @@ func (f *FallbackConstantFetcher) appendRequest(id string) {
 		value = getPipeInodeInfoStructRingsize(f.kernelVersion)
 	case OffsetNameNetDeviceStructIfIndex:
 		value = getNetDeviceIfindexOffset(f.kernelVersion)
+	case OffsetNameNetDeviceStructName:
+		value = getNetDeviceNameOffset(f.kernelVersion)
 	case OffsetNameNetStructNS:
 		value = getNetNSOffset(f.kernelVersion)
 	case OffsetNameNetStructProcInum:
@@ -137,6 +139,8 @@ func (f *FallbackConstantFetcher) appendRequest(id string) {
 		value = getFileFinodeOffset(f.kernelVersion)
 	case OffsetNameFileFpath:
 		value = getFileFpathOffset(f.kernelVersion)
+	case OffsetNameMountMntID:
+		value = getMountIDOffset(f.kernelVersion)
 	}
 	f.res[id] = value
 }
@@ -176,7 +180,11 @@ func getSizeOfStructInode(kv *kernel.Version) uint64 {
 	case kv.IsRH8Kernel() || kv.IsRH9Kernel():
 		sizeOf = 648
 	case kv.IsSuse12Kernel():
-		sizeOf = 560
+		if kv.IsInRangeCloseOpen(kernel.Kernel4_12, kernel.Kernel4_13) && kv.Code.Patch() >= 14 {
+			sizeOf = 592
+		} else {
+			sizeOf = 560
+		}
 	case kv.IsSuse15Kernel():
 		sizeOf = 592
 	case kv.IsOracleUEKKernel():
@@ -560,7 +568,11 @@ func getSizeOfUpid(kv *kernel.Version) uint64 {
 	case kv.IsRH8Kernel():
 		sizeOfUpid = 16
 	case kv.IsSuse12Kernel():
-		sizeOfUpid = 16
+		if kv.IsInRangeCloseOpen(kernel.Kernel4_12, kernel.Kernel4_13) && kv.Code.Patch() >= 14 {
+			sizeOfUpid = 32
+		} else {
+			sizeOfUpid = 16
+		}
 	case kv.IsSuse15Kernel():
 		if kv.IsInRangeCloseOpen(kernel.Kernel5_3, kernel.Kernel5_4) {
 			sizeOfUpid = 16
@@ -733,6 +745,8 @@ func getNetNSOffset(kv *kernel.Version) uint64 {
 	// purposes. This commit was cherry-picked in stable releases 4.9.168, 4.14.111, 4.19.34 and 5.0.7
 	// and is part of master since 5.1
 	case kv.IsRH8Kernel():
+		fallthrough
+	case kv.IsSuse12Kernel():
 		fallthrough
 	case (kv.IsInRangeCloseOpen(kernel.Kernel4_9, kernel.Kernel4_10) && kv.Code.Patch() >= 168) ||
 		(kv.IsInRangeCloseOpen(kernel.Kernel4_14, kernel.Kernel4_15) && kv.Code.Patch() >= 111) ||
@@ -993,4 +1007,19 @@ func getFileFpathOffset(kv *kernel.Version) uint64 {
 	default:
 		return 16
 	}
+}
+
+func getMountIDOffset(kv *kernel.Version) uint64 {
+	switch {
+	case kv.IsSuseKernel() || kv.Code >= kernel.Kernel5_12:
+		return 292
+	case kv.Code != 0 && kv.Code < kernel.Kernel4_13:
+		return 268
+	default:
+		return 284
+	}
+}
+
+func getNetDeviceNameOffset(_ *kernel.Version) uint64 {
+	return 0
 }

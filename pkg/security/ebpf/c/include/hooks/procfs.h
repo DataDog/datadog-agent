@@ -101,6 +101,9 @@ int hook_path_get(ctx_t *ctx) {
         return 0;
     }
     bpf_probe_read(&route.port, sizeof(route.port), &sk->__sk_common.skc_num);
+    // Calling htons is necessary to support snapshotted bound port. Without it, we're can't properly route incoming
+    // traffic to the relevant process.
+    route.port = htons(route.port);
 
     // save pid route
     u32 pid = *procfs_pid;

@@ -13,3 +13,6 @@ extensions:
       env:
         - name: "staging"
           ci_pipeline: "//fake_placeholder:fake_placeholder"
+  datadoghq.com/change-detection:
+    source_patterns:
+      - service.datadog.yaml

@@ -570,6 +570,7 @@ func TestGenerateTemplatesV1beta1(t *testing.T) {
 				mockConfig.SetWithoutSource("admission_controller.auto_instrumentation.enabled", false)
 				mockConfig.SetWithoutSource("admission_controller.cws_instrumentation.enabled", true)
 				mockConfig.SetWithoutSource("admission_controller.cws_instrumentation.mutate_unlabelled", true)
+				mockConfig.SetWithoutSource("cluster_agent.service_account_name", "datadog-cluster-agent")
 			},
 			configFunc: func() Config { return NewConfig(false, false) },
 			want: func() []admiv1beta1.MutatingWebhook {
@@ -610,6 +611,7 @@ func TestGenerateTemplatesV1beta1(t *testing.T) {
 				mockConfig.SetWithoutSource("admission_controller.auto_instrumentation.enabled", false)
 				mockConfig.SetWithoutSource("admission_controller.cws_instrumentation.enabled", true)
 				mockConfig.SetWithoutSource("admission_controller.cws_instrumentation.mutate_unlabelled", false)
+				mockConfig.SetWithoutSource("cluster_agent.service_account_name", "datadog-cluster-agent")
 			},
 			configFunc: func() Config { return NewConfig(false, false) },
 			want: func() []admiv1beta1.MutatingWebhook {
@@ -646,6 +648,7 @@ func TestGenerateTemplatesV1beta1(t *testing.T) {
 				mockConfig.SetWithoutSource("admission_controller.auto_instrumentation.enabled", false)
 				mockConfig.SetWithoutSource("admission_controller.cws_instrumentation.enabled", true)
 				mockConfig.SetWithoutSource("admission_controller.cws_instrumentation.mutate_unlabelled", true)
+				mockConfig.SetWithoutSource("cluster_agent.service_account_name", "datadog-cluster-agent")
 			},
 			configFunc: func() Config { return NewConfig(false, true) },
 			want: func() []admiv1beta1.MutatingWebhook {
@@ -686,6 +689,7 @@ func TestGenerateTemplatesV1beta1(t *testing.T) {
 				mockConfig.SetWithoutSource("admission_controller.auto_instrumentation.enabled", false)
 				mockConfig.SetWithoutSource("admission_controller.cws_instrumentation.enabled", true)
 				mockConfig.SetWithoutSource("admission_controller.cws_instrumentation.mutate_unlabelled", false)
+				mockConfig.SetWithoutSource("cluster_agent.service_account_name", "datadog-cluster-agent")
 			},
 			configFunc: func() Config { return NewConfig(false, true) },
 			want: func() []admiv1beta1.MutatingWebhook {
@@ -943,7 +947,7 @@ func TestGenerateTemplatesV1beta1(t *testing.T) {
 
 			c := &ControllerV1beta1{}
 			c.config = tt.configFunc()
-			c.mutatingWebhooks = mutatingWebhooks(wmeta)
+			c.mutatingWebhooks = mutatingWebhooks(wmeta, nil)
 			c.generateTemplates()
 
 			assert.EqualValues(t, tt.want(), c.webhookTemplates)
@@ -1078,6 +1082,7 @@ func (f *fixtureV1beta1) createController() (*ControllerV1beta1, informers.Share
 		make(chan struct{}),
 		v1beta1Cfg,
 		wmeta,
+		nil,
 	), factory
 }
 

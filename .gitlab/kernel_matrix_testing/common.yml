@@ -48,32 +48,6 @@
   - $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $AGENT_QA_PROFILE_SSM_NAME >> ~/.aws/config
   - export AWS_PROFILE=agent-qa-ci
 
-.prepare_common_dependency_upload:
-  # Build dependencies directory
-  - mkdir -p $DEPENDENCIES
-  - pushd $DEPENDENCIES
-  # copy clang and llc bins
-  - mkdir -p $EMBEDDED_BIN
-  - cp $CLANG_BPF $EMBEDDED_BIN
-  - cp $LLC_BPF $EMBEDDED_BIN
-  - mkdir -p $EMBEDDED_INC
-  # copy gotestsum and test2json
-  - mkdir -p $GO_BIN
-  - cp $GOTESTSUM $GO_BIN
-  - cp $TEST2JSON $GO_BIN
-  - mkdir junit
-  - mkdir testjson
-  - mkdir pkgjson
-  - popd
-  - pushd $CI_PROJECT_DIR/test/new-e2e/system-probe/test-runner && go build -o $DEPENDENCIES/test-runner && popd
-  - pushd $CI_PROJECT_DIR/test/new-e2e/system-probe/test-json-review && go build -o $DEPENDENCIES/test-json-review && popd
-  - cp $CI_PROJECT_DIR/test/new-e2e/system-probe/test-runner/files/*.json $DEPENDENCIES/
-  # package all the dependencies
-  - ls -la $DEPENDENCIES
-  - pushd $DD_AGENT_TESTING_DIR/$ARCH
-  - tar czvf ../$ARCHIVE_NAME dependencies
-  - popd
-
 .collect_outcomes_kmt:
   - MICRO_VM_IP=$(jq --exit-status --arg TAG $TAG --arg ARCH $ARCH --arg TEST_SET $TEST_SET -r '.[$ARCH].microvms | map(select(."vmset-tags"| index($TEST_SET))) | map(select(.tag==$TAG)) | .[].ip' $CI_PROJECT_DIR/stack.output)
   # Collect setup-ddvm systemd service logs
@@ -103,7 +77,6 @@
     - !reference [.wait_for_instance]
     - !reference [.get_instance_ip_by_type]
     - !reference [.setup_ssh_config]
-    - scp $CI_PROJECT_DIR/test/new-e2e/system-probe/test/micro-vm-init.sh metal_instance:/opt/kernel-version-testing
     - |
       if [ -d $DD_AGENT_TESTING_DIR/kmt-dockers-$ARCH ]; then
         tar czvf $DD_AGENT_TESTING_DIR/kmt-dockers-$ARCH.tar.gz -C $DD_AGENT_TESTING_DIR kmt-dockers-$ARCH
@@ -187,6 +160,17 @@
 
 # -- Test runners
 .kmt_run_tests:
+  retry:
+    max: 2
+    when:
+      - job_execution_timeout
+      - runner_system_failure
+      - stuck_or_timeout_failure
+      - unknown_failure
+      - api_failure
+      - scheduler_failure
+      - stale_schedule
+      - data_integrity_failure
   variables:
     AWS_EC2_SSH_KEY_FILE: $CI_PROJECT_DIR/ssh_key
     RETRY: 2
@@ -214,9 +198,9 @@
     # ssh into each micro-vm and run initialization script. This script will also run the tests.
     - scp "$DD_AGENT_TESTING_DIR/job_env.txt" "metal_instance:/home/ubuntu/job_env-${ARCH}-${TAG}-${TEST_SET}.txt"
     - ssh metal_instance "scp /home/ubuntu/job_env-${ARCH}-${TAG}-${TEST_SET}.txt ${MICRO_VM_IP}:/job_env.txt"
-    - NESTED_VM_CMD="/home/ubuntu/connector -host ${MICRO_VM_IP} -user root -ssh-file /home/kernel-version-testing/ddvm_rsa -vm-cmd '/root/fetch_dependencies.sh ${ARCH} && /opt/kernel-version-testing/micro-vm-init.sh -retry ${RETRY} -test-root /system-probe-tests -packages-run-config /${TEST_SET}.json'"
+    - NESTED_VM_CMD="/home/ubuntu/connector -host ${MICRO_VM_IP} -user root -ssh-file /home/kernel-version-testing/ddvm_rsa -vm-cmd 'CI=true /root/fetch_dependencies.sh ${ARCH} && /opt/micro-vm-init.sh -test-tools /opt/testing-tools -retry ${RETRY} -test-root /opt/${TEST_COMPONENT}-tests -packages-run-config /opt/${TEST_SET}.json'"
     - $CI_PROJECT_DIR/connector-$ARCH -host $INSTANCE_IP -user ubuntu -ssh-file $AWS_EC2_SSH_KEY_FILE -vm-cmd "${NESTED_VM_CMD}"
-    - ssh metal_instance "ssh ${MICRO_VM_IP} '/test-json-review'"
+    - ssh metal_instance "ssh ${MICRO_VM_IP} '/opt/testing-tools/test-json-review'"
   artifacts:
     expire_in: 2 weeks
     when: always
