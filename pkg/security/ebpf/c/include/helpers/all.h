@@ -9,6 +9,7 @@
 #include "dentry_resolver.h"
 #include "discaders.h"
 #include "dns.h"
+#include "imds.h"
 #include "erpc.h"
 #include "events.h"
 #include "events_predicates.h"

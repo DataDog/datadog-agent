@@ -51,6 +51,18 @@ func (s *packageInstallerSuite) TestInstall() {
 	state.AssertUnitsNotLoaded("datadog-installer.service", "datadog-installer-exp.service")
 }
 
+func (s *packageInstallerSuite) TestInstallWithRemoteUpdates() {
+	s.RunInstallScript("DD_REMOTE_UPDATES=true")
+	defer s.Purge()
+	s.host.WaitForUnitActive("datadog-installer.service")
+
+	state := s.host.State()
+	state.AssertUnitsLoaded("datadog-installer.service", "datadog-installer-exp.service")
+	state.AssertUnitsEnabled("datadog-installer.service")
+	state.AssertUnitsNotEnabled("datadog-installer-exp.service")
+	state.AssertUnitsRunning("datadog-installer.service")
+}
+
 func (s *packageInstallerSuite) TestUninstall() {
 	s.RunInstallScript("DD_NO_AGENT_INSTALL=true")
 	s.Purge()
@@ -72,4 +84,18 @@ func (s *packageInstallerSuite) TestUninstall() {
 
 	state.AssertPathDoesNotExist("/usr/bin/datadog-bootstrap")
 	state.AssertPathDoesNotExist("/usr/bin/datadog-installer")
+}
+
+func (s *packageInstallerSuite) TestReInstall() {
+	s.RunInstallScript("DD_NO_AGENT_INSTALL=true")
+	defer s.Purge()
+
+	// remove an installer directory and re-install it. Given that the installer is already installed,
+	// it should not be re-installed and the directory should not be re-created.
+	s.host.DeletePath("/opt/datadog-packages/datadog-installer/stable/systemd")
+	s.RunInstallScript("DD_NO_AGENT_INSTALL=true")
+
+	state := s.host.State()
+	state.AssertPathDoesNotExist("/opt/datadog-packages/datadog-installer/stable/systemd")
+	s.host.AssertPackageInstalledByInstaller("datadog-installer")
 }

@@ -24,6 +24,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
 
+const processTreeMaxDepth = 200
+
 // FileSerializer serializes a file to JSON
 // easyjson:json
 type FileSerializer struct {
@@ -71,6 +73,12 @@ type FileSerializer struct {
 	Hashes []string `json:"hashes,omitempty"`
 	// State of the hashes or reason why they weren't computed
 	HashState string `json:"hash_state,omitempty"`
+	// MountPath path of the mount
+	MountPath string `json:"mount_path,omitempty"`
+	// MountSource source of the mount
+	MountSource string `json:"mount_source,omitempty"`
+	// MountOrigin origin of the mount
+	MountOrigin string `json:"mount_origin,omitempty"`
 }
 
 // UserContextSerializer serializes a user context to JSON
@@ -242,6 +250,8 @@ type ProcessSerializer struct {
 	Source string `json:"source,omitempty"`
 	// List of syscalls captured to generate the event
 	Syscalls *SyscallsEventSerializer `json:"syscalls,omitempty"`
+	// List of AWS Security Credentials that the process had access to
+	AWSSecurityCredentials []*AWSSecurityCredentialsSerializer `json:"aws_security_credentials,omitempty"`
 }
 
 // FileEventSerializer serializes a file event to JSON
@@ -486,6 +496,7 @@ type EventSerializer struct {
 	*SignalEventSerializer   `json:"signal,omitempty"`
 	*SpliceEventSerializer   `json:"splice,omitempty"`
 	*DNSEventSerializer      `json:"dns,omitempty"`
+	*IMDSEventSerializer     `json:"imds,omitempty"`
 	*BindEventSerializer     `json:"bind,omitempty"`
 	*MountEventSerializer    `json:"mount,omitempty"`
 	*SyscallsEventSerializer `json:"syscalls,omitempty"`
@@ -537,6 +548,9 @@ func newFileSerializer(fe *model.FileEvent, e *model.Event, forceInode ...uint64
 		PackageName:         e.FieldHandlers.ResolvePackageName(e, fe),
 		PackageVersion:      e.FieldHandlers.ResolvePackageVersion(e, fe),
 		HashState:           fe.HashState.String(),
+		MountPath:           fe.MountPath,
+		MountSource:         model.MountSourceToString(fe.MountSource),
+		MountOrigin:         model.MountOriginToString(fe.MountOrigin),
 	}
 
 	// lazy hash serialization: we don't want to hash files for every event
@@ -614,6 +628,13 @@ func newProcessSerializer(ps *model.Process, e *model.Event) *ProcessSerializer 
 
 		if ps.UserSession.ID != 0 {
 			psSerializer.UserSession = newUserSessionContextSerializer(&ps.UserSession, e)
+		}
+
+		awsSecurityCredentials := e.FieldHandlers.ResolveAWSSecurityCredentials(e)
+		if len(awsSecurityCredentials) > 0 {
+			for _, creds := range awsSecurityCredentials {
+				psSerializer.AWSSecurityCredentials = append(psSerializer.AWSSecurityCredentials, newAWSSecurityCredentialsSerializer(&creds))
+			}
 		}
 
 		if len(ps.ContainerID) != 0 {
@@ -888,6 +909,16 @@ func newProcessContextSerializer(pc *model.ProcessContext, e *model.Event) *Proc
 		prev = s
 
 		ptr = it.Next()
+	}
+
+	// shrink the middle of the ancestors list if it is too long
+	if len(ps.Ancestors) > processTreeMaxDepth {
+		subLen := processTreeMaxDepth / 2
+		// we add one extra element to the leaf slice in case processTreeMaxDepth is an odd number
+		// this is to make sure the length of the resulting slice matches the value of processTreeMaxDepth
+		extraElem := processTreeMaxDepth % 2
+		ps.Ancestors = append(ps.Ancestors[0:subLen+extraElem], ps.Ancestors[len(ps.Ancestors)-subLen:]...)
+		ps.TruncatedAncestors = true
 	}
 
 	return &ps
@@ -1178,6 +1209,9 @@ func NewEventSerializer(event *model.Event, opts *eval.Opts) *EventSerializer {
 	case model.DNSEventType:
 		s.EventContextSerializer.Outcome = serializeOutcome(0)
 		s.DNSEventSerializer = newDNSEventSerializer(&event.DNS)
+	case model.IMDSEventType:
+		s.EventContextSerializer.Outcome = serializeOutcome(0)
+		s.IMDSEventSerializer = newIMDSEventSerializer(&event.IMDS)
 	}
 
 	return s
