@@ -267,6 +267,23 @@ type ContainerImage struct {
 	RepoDigest string
 }
 
+// ImageMetadataID is the ID we can use to fetch [[ContainerImageMetadata]]
+// from the metadata store.
+//
+// Because the ContainerImage might have the container runtime
+// as _prefix_ (ie: docker://), we split off the first part
+// of the identifier.
+//
+// If it isn't present, we return the full ID.
+func (c ContainerImage) ImageMetadataID() string {
+	_, after, found := strings.Cut(c.ID, "://")
+	if !found {
+		return c.ID
+	}
+
+	return after
+}
+
 // NewContainerImage builds a ContainerImage from an image name and its id
 func NewContainerImage(imageID string, imageName string) (ContainerImage, error) {
 	image := ContainerImage{
