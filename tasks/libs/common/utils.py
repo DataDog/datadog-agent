@@ -66,6 +66,10 @@ def running_in_ci():
     return running_in_circleci() or running_in_github_actions() or running_in_gitlab_ci()
 
 
+def running_in_pyapp():
+    return os.environ.get("PYAPP") == "1"
+
+
 def bin_name(name):
     """
     Generate platform dependent names for binaries
