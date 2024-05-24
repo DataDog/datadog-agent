@@ -29,13 +29,22 @@ import (
 const CheckName = "cpu"
 
 // For testing purposes
-var cpuInfo = cpu.CollectInfo
+var cpuInfoFunc = cpu.CollectInfo
+
+type PdhQueryInterface interface {
+	AddCounter(counter pdhutil.PdhCounter)
+	CollectQueryData() error
+}
+
+var createPdhQuery = func() (PdhQueryInterface, error) {
+	return pdhutil.CreatePdhQuery()
+}
 
 // Check doesn't need additional fields
 type Check struct {
 	core.CheckBase
 	nbCPU    float64
-	pdhQuery *pdhutil.PdhQuery
+	pdhQuery PdhQueryInterface
 	// maps metric to counter object
 	counters map[string]pdhutil.PdhSingleInstanceCounter
 }
@@ -137,7 +146,7 @@ func (counter *processorPDHCounter) AddToQuery(query *pdhutil.PdhQuery) error {
 	return err
 }
 
-func addProcessorPdhCounter(query *pdhutil.PdhQuery, counterName string) pdhutil.PdhSingleInstanceCounter {
+func addProcessorPdhCounter(query PdhQueryInterface, counterName string) pdhutil.PdhSingleInstanceCounter {
 	var counter processorPDHCounter
 	counter.Initialize("Processor Information", counterName, "_Total")
 	query.AddCounter(&counter)
@@ -145,13 +154,13 @@ func addProcessorPdhCounter(query *pdhutil.PdhQuery, counterName string) pdhutil
 }
 
 // Configure the CPU check doesn't need configuration
-func (c *Check) Configure(senderManager sender.SenderManager, integrationConfigDigest uint64, data integration.Data, initConfig integration.Data, source string) error {
-	if err := c.CommonConfigure(senderManager, integrationConfigDigest, initConfig, data, source); err != nil {
+func (c *Check) Configure(senderManager sender.SenderManager, _ uint64, data integration.Data, initConfig integration.Data, source string) error {
+	if err := c.CommonConfigure(senderManager, initConfig, data, source); err != nil {
 		return err
 	}
 
 	// do nothing
-	info := cpuInfo()
+	info := cpuInfoFunc()
 	cpucount, err := info.CPULogicalProcessors.Value()
 	if err != nil {
 		return fmt.Errorf("cpu.Check: could not get number of CPU: %w", err)
@@ -159,7 +168,7 @@ func (c *Check) Configure(senderManager sender.SenderManager, integrationConfigD
 	c.nbCPU = float64(cpucount)
 
 	// Create PDH query
-	c.pdhQuery, err = pdhutil.CreatePdhQuery()
+	c.pdhQuery, err = createPdhQuery()
 	if err != nil {
 		return err
 	}

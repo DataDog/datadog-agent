@@ -27,7 +27,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/secrets/secretsimpl"
-	"github.com/DataDog/datadog-agent/comp/core/settings"
 	"github.com/DataDog/datadog-agent/comp/core/settings/settingsimpl"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/status/statusimpl"
@@ -80,7 +79,6 @@ type handlerdeps struct {
 	EventPlatformReceiver eventplatformreceiver.Component
 	Ac                    autodiscovery.Mock
 	Tagger                tagger.Mock
-	Settings              settings.Component
 	EndpointProviders     []api.EndpointProvider `group:"agent_endpoint"`
 }
 
@@ -132,18 +130,12 @@ func setupRoutes(t *testing.T) *mux.Router {
 		deps.Wmeta,
 		deps.LogsAgent,
 		sender,
-		deps.HostMetadata,
-		deps.InvAgent,
 		deps.Demux,
-		deps.InvHost,
 		deps.SecretResolver,
-		deps.InvChecks,
-		deps.PkgSigning,
 		deps.StatusComponent,
 		deps.Collector,
 		deps.EventPlatformReceiver,
 		deps.Ac,
-		deps.Settings,
 		deps.EndpointProviders,
 	)
 
@@ -163,6 +155,26 @@ func TestSetupHandlers(t *testing.T) {
 		},
 		{
 			route:    "/flare",
+			method:   "POST",
+			wantCode: 200,
+		},
+		{
+			route:    "/config",
+			method:   "GET",
+			wantCode: 200,
+		},
+		{
+			route:    "/config/list-runtime",
+			method:   "GET",
+			wantCode: 200,
+		},
+		{
+			route:    "/config/log_level",
+			method:   "GET",
+			wantCode: 200,
+		},
+		{
+			route:    "/config/log_level",
 			method:   "POST",
 			wantCode: 200,
 		},
@@ -188,6 +200,36 @@ func TestSetupHandlers(t *testing.T) {
 		},
 		{
 			route:    "/workload-list",
+			method:   "GET",
+			wantCode: 200,
+		},
+		{
+			route:    "/metadata/v5",
+			method:   "GET",
+			wantCode: 200,
+		},
+		{
+			route:    "/metadata/gohai",
+			method:   "GET",
+			wantCode: 200,
+		},
+		{
+			route:    "/metadata/inventory-agent",
+			method:   "GET",
+			wantCode: 200,
+		},
+		{
+			route:    "/metadata/inventory-host",
+			method:   "GET",
+			wantCode: 200,
+		},
+		{
+			route:    "/metadata/inventory-checks",
+			method:   "GET",
+			wantCode: 200,
+		},
+		{
+			route:    "/metadata/package-signing",
 			method:   "GET",
 			wantCode: 200,
 		},

@@ -205,7 +205,8 @@ def try_get_ssh_key(ctx: Context, key_hint: str | None) -> SSHKey | None:
     """
     if key_hint is not None:
         checked_paths: list[str] = []
-        possible_paths = map(Path, [key_hint, f"~/.ssh/{key_hint}", f"~/.ssh/{key_hint}.pem"])
+        home = Path.home()
+        possible_paths = map(Path, [key_hint, f"{home}/.ssh/{key_hint}", f"{home}/.ssh/{key_hint}.pem"])
         for path in possible_paths:
             checked_paths.append(os.fspath(path))
             if not path.is_file():
@@ -240,7 +241,7 @@ def try_get_ssh_key(ctx: Context, key_hint: str | None) -> SSHKey | None:
             return {'path': None, 'name': key_hint, 'aws_key_name': key_hint}
 
         raise Exit(
-            f"Could not find file for ssh key {key_hint}. Looked in {possible_paths}, it's not a path, not a file name nor a key name"
+            f"Could not find file for ssh key {key_hint}. Looked in {list(possible_paths)}, it's not a path, not a file name nor a key name"
         )
 
     cm = ConfigManager()
@@ -249,7 +250,7 @@ def try_get_ssh_key(ctx: Context, key_hint: str | None) -> SSHKey | None:
 
 def ensure_key_in_agent(ctx: Context, key: SSHKey):
     info(f"[+] Checking that key {key} is in the SSH agent...")
-    res = ctx.run(f"ssh-add -l | grep {key['name']}")
+    res = ctx.run(f"ssh-add -l | grep {key['name']}", warn=True)
     if res is None or not res.ok:
         if key['path'] is None:
             raise Exit(f"Key {key} not found in the agent and no path provided to add it")

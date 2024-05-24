@@ -24,8 +24,7 @@ const (
 	serverSrcPath = "external_unix_proxy_server"
 )
 
-// NewExternalUnixTransparentProxyServer triggers an external unix transparent proxy (plaintext or TLS) server.
-func NewExternalUnixTransparentProxyServer(t *testing.T, unixPath, remoteAddr string, useTLS bool) (*exec.Cmd, context.CancelFunc) {
+func newExternalUnixTransparentProxyServer(t *testing.T, unixPath, remoteAddr string, useTLS, useControl bool) (*exec.Cmd, context.CancelFunc) {
 	curDir, err := testutil.CurDir()
 	require.NoError(t, err)
 	serverBin, err := usmtestutil.BuildUnixTransparentProxyServer(curDir, serverSrcPath)
@@ -34,6 +33,9 @@ func NewExternalUnixTransparentProxyServer(t *testing.T, unixPath, remoteAddr st
 	args := []string{serverBin, "-unix", unixPath, "-remote", remoteAddr}
 	if useTLS {
 		args = append(args, "-tls")
+	}
+	if useControl {
+		args = append(args, "-control")
 	}
 	cancelCtx, cancel := context.WithCancel(context.Background())
 	commandLine := strings.Join(args, " ")
@@ -46,4 +48,15 @@ func NewExternalUnixTransparentProxyServer(t *testing.T, unixPath, remoteAddr st
 			_, _ = c.Process.Wait()
 		}
 	}
+}
+
+// NewExternalUnixTransparentProxyServer triggers an external unix transparent proxy (plaintext or TLS) server.
+func NewExternalUnixTransparentProxyServer(t *testing.T, unixPath, remoteAddr string, useTLS bool) (*exec.Cmd, context.CancelFunc) {
+	return newExternalUnixTransparentProxyServer(t, unixPath, remoteAddr, useTLS, false)
+}
+
+// NewExternalUnixControlProxyServer triggers an external unix proxy (plaintext or TLS) server with control
+// messages.
+func NewExternalUnixControlProxyServer(t *testing.T, unixPath, remoteAddr string, useTLS bool) (*exec.Cmd, context.CancelFunc) {
+	return newExternalUnixTransparentProxyServer(t, unixPath, remoteAddr, useTLS, true)
 }

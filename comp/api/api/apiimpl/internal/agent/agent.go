@@ -10,13 +10,14 @@ package agent
 
 import (
 	"bufio"
-	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"os"
 	"path"
+	"sort"
 	"time"
 
 	"github.com/DataDog/zstd"
@@ -31,7 +32,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
-	"github.com/DataDog/datadog-agent/comp/core/settings"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
@@ -39,22 +39,15 @@ import (
 	dogstatsddebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver"
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
-	"github.com/DataDog/datadog-agent/comp/metadata/host"
-	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
-	"github.com/DataDog/datadog-agent/comp/metadata/inventorychecks"
-	"github.com/DataDog/datadog-agent/comp/metadata/inventoryhost"
-	"github.com/DataDog/datadog-agent/comp/metadata/packagesigning"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/diagnose"
 	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
-	"github.com/DataDog/datadog-agent/pkg/gohai"
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
-	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
 
 var mimeTypeMap = map[string]string{
@@ -70,22 +63,17 @@ func SetupHandlers(
 	wmeta workloadmeta.Component,
 	logsAgent optional.Option[logsAgent.Component],
 	senderManager sender.DiagnoseSenderManager,
-	hostMetadata host.Component,
-	invAgent inventoryagent.Component,
 	demux demultiplexer.Component,
-	invHost inventoryhost.Component,
 	secretResolver secrets.Component,
-	invChecks inventorychecks.Component,
-	pkgSigning packagesigning.Component,
 	statusComponent status.Component,
 	collector optional.Option[collector.Component],
 	eventPlatformReceiver eventplatformreceiver.Component,
 	ac autodiscovery.Component,
-	settings settings.Component,
 	providers []api.EndpointProvider,
 ) *mux.Router {
 
 	// Register the handlers from the component providers
+	sort.Slice(providers, func(i, j int) bool { return providers[i].Route < providers[j].Route })
 	for _, p := range providers {
 		r.HandleFunc(p.Route, p.HandlerFunc).Methods(p.Methods...)
 	}
@@ -102,26 +90,8 @@ func SetupHandlers(
 	r.HandleFunc("/{component}/status", func(w http.ResponseWriter, r *http.Request) { componentStatusGetterHandler(w, r, statusComponent) }).Methods("GET")
 	r.HandleFunc("/{component}/status", componentStatusHandler).Methods("POST")
 	r.HandleFunc("/{component}/configs", componentConfigHandler).Methods("GET")
-	r.HandleFunc("/config", settings.GetFullConfig("")).Methods("GET")
-	r.HandleFunc("/config/list-runtime", settings.ListConfigurable).Methods("GET")
-	r.HandleFunc("/config/{setting}", func(w http.ResponseWriter, r *http.Request) {
-		vars := mux.Vars(r)
-		setting := vars["setting"]
-		settings.GetValue(setting, w, r)
-	}).Methods("GET")
-	r.HandleFunc("/config/{setting}", func(w http.ResponseWriter, r *http.Request) {
-		vars := mux.Vars(r)
-		setting := vars["setting"]
-		settings.SetValue(setting, w, r)
-	}).Methods("POST")
 	r.HandleFunc("/secrets", func(w http.ResponseWriter, r *http.Request) { secretInfo(w, r, secretResolver) }).Methods("GET")
 	r.HandleFunc("/secret/refresh", func(w http.ResponseWriter, r *http.Request) { secretRefresh(w, r, secretResolver) }).Methods("GET")
-	r.HandleFunc("/metadata/gohai", metadataPayloadGohai).Methods("GET")
-	r.HandleFunc("/metadata/v5", func(w http.ResponseWriter, r *http.Request) { metadataPayloadV5(w, r, hostMetadata) }).Methods("GET")
-	r.HandleFunc("/metadata/inventory-checks", func(w http.ResponseWriter, r *http.Request) { metadataPayloadInvChecks(w, r, invChecks) }).Methods("GET")
-	r.HandleFunc("/metadata/inventory-agent", func(w http.ResponseWriter, r *http.Request) { metadataPayloadInvAgent(w, r, invAgent) }).Methods("GET")
-	r.HandleFunc("/metadata/inventory-host", func(w http.ResponseWriter, r *http.Request) { metadataPayloadInvHost(w, r, invHost) }).Methods("GET")
-	r.HandleFunc("/metadata/package-signing", func(w http.ResponseWriter, r *http.Request) { metadataPayloadPkgSigning(w, r, pkgSigning) }).Methods("GET")
 	r.HandleFunc("/diagnose", func(w http.ResponseWriter, r *http.Request) {
 		diagnoseDeps := diagnose.NewSuitesDeps(senderManager, collector, secretResolver, optional.NewOption(wmeta), optional.NewOption[autodiscovery.Component](ac))
 		getDiagnose(w, r, diagnoseDeps)
@@ -381,77 +351,6 @@ func secretRefresh(w http.ResponseWriter, _ *http.Request, secretResolver secret
 	w.Write([]byte(result))
 }
 
-func metadataPayloadV5(w http.ResponseWriter, _ *http.Request, hostMetadataComp host.Component) {
-	jsonPayload, err := hostMetadataComp.GetPayloadAsJSON(context.Background())
-	if err != nil {
-		utils.SetJSONError(w, log.Errorf("Unable to marshal v5 metadata payload: %s", err), 500)
-		return
-	}
-
-	scrubbed, err := scrubber.ScrubBytes(jsonPayload)
-	if err != nil {
-		utils.SetJSONError(w, log.Errorf("Unable to scrub metadata payload: %s", err), 500)
-		return
-	}
-	w.Write(scrubbed)
-}
-
-func metadataPayloadGohai(w http.ResponseWriter, _ *http.Request) {
-	payload := gohai.GetPayloadWithProcesses(config.IsContainerized())
-	jsonPayload, err := json.MarshalIndent(payload, "", "  ")
-	if err != nil {
-		utils.SetJSONError(w, log.Errorf("Unable to marshal gohai metadata payload: %s", err), 500)
-		return
-	}
-
-	scrubbed, err := scrubber.ScrubBytes(jsonPayload)
-	if err != nil {
-		utils.SetJSONError(w, log.Errorf("Unable to scrub gohai metadata payload: %s", err), 500)
-		return
-	}
-	w.Write(scrubbed)
-}
-
-func metadataPayloadInvChecks(w http.ResponseWriter, _ *http.Request, invChecks inventorychecks.Component) {
-	// GetAsJSON already return scrubbed data
-	scrubbed, err := invChecks.GetAsJSON()
-	if err != nil {
-		utils.SetJSONError(w, err, 500)
-		return
-	}
-	w.Write(scrubbed)
-}
-
-func metadataPayloadInvAgent(w http.ResponseWriter, _ *http.Request, invAgent inventoryagent.Component) {
-	// GetAsJSON already return scrubbed data
-	scrubbed, err := invAgent.GetAsJSON()
-	if err != nil {
-		utils.SetJSONError(w, err, 500)
-		return
-	}
-	w.Write(scrubbed)
-}
-
-func metadataPayloadInvHost(w http.ResponseWriter, _ *http.Request, invHost inventoryhost.Component) {
-	// GetAsJSON already return scrubbed data
-	scrubbed, err := invHost.GetAsJSON()
-	if err != nil {
-		utils.SetJSONError(w, err, 500)
-		return
-	}
-	w.Write(scrubbed)
-}
-
-func metadataPayloadPkgSigning(w http.ResponseWriter, _ *http.Request, pkgSigning packagesigning.Component) {
-	// GetAsJSON already return scrubbed data
-	scrubbed, err := pkgSigning.GetAsJSON()
-	if err != nil {
-		utils.SetJSONError(w, err, 500)
-		return
-	}
-	w.Write(scrubbed)
-}
-
 func getDiagnose(w http.ResponseWriter, r *http.Request, diagnoseDeps diagnose.SuitesDeps) {
 	var diagCfg diagnosis.Config
 
@@ -474,11 +373,24 @@ func getDiagnose(w http.ResponseWriter, r *http.Request, diagnoseDeps diagnose.S
 	_ = conn.SetDeadline(time.Time{})
 
 	// Indicate that we are already running in Agent process (and flip RunLocal)
-	diagCfg.RunningInAgentProcess = true
 	diagCfg.RunLocal = true
 
+	var diagnoses []diagnosis.Diagnoses
+	var err error
+
 	// Get diagnoses via API
-	diagnoses, err := diagnose.Run(diagCfg, diagnoseDeps)
+	// TODO: Once API component will be refactored, clean these dependencies
+	collector, ok := diagnoseDeps.Collector.Get()
+	if ok {
+		diagnoses, err = diagnose.RunInAgentProcess(diagCfg, diagnose.NewSuitesDepsInAgentProcess(collector))
+	} else {
+		ac, ok := diagnoseDeps.AC.Get()
+		if ok {
+			diagnoses, err = diagnose.RunInCLIProcess(diagCfg, diagnose.NewSuitesDepsInCLIProcess(diagnoseDeps.SenderManager, diagnoseDeps.SecretResolver, diagnoseDeps.WMeta, ac))
+		} else {
+			err = errors.New("collector or autoDiscovery not found")
+		}
+	}
 	if err != nil {
 		utils.SetJSONError(w, log.Errorf("Running diagnose in Agent process failed: %s", err), 500)
 		return

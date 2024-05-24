@@ -275,7 +275,7 @@ func (a *etwtracerimpl) start(_ context.Context) error {
 	a.log.Infof("Starting Datadog APM ETW tracer component")
 	var err error
 	etwSessionName := "Datadog APM ETW tracer"
-	a.session, err = a.etw.NewSession(etwSessionName)
+	a.session, err = a.etw.NewSession(etwSessionName, func(cfg *etw.SessionConfiguration) {})
 	if err != nil {
 		a.log.Errorf("Failed to create the ETW session '%s': %v", etwSessionName, err)
 		// Don't fail the Agent startup

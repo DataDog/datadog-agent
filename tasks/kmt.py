@@ -6,9 +6,10 @@ import os
 import re
 import tempfile
 from collections import defaultdict
+from collections.abc import Iterable
 from glob import glob
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Iterable, cast
+from typing import TYPE_CHECKING, Any, cast
 
 from invoke.context import Context
 from invoke.tasks import task
@@ -468,7 +469,7 @@ def ninja_define_rules(nw: NinjaWriter):
         name="gobin",
         command="$chdir && $env $go build -o $out $tags $ldflags $in $tool",
     )
-    nw.rule(name="copyfiles", command="install -D $in $out $mode")
+    nw.rule(name="copyfiles", command="mkdir -p $$(dirname $out) && install $in $out $mode")
 
 
 def ninja_build_dependencies(nw: NinjaWriter, kmt_paths: KMTPaths, go_path: str):
@@ -599,7 +600,7 @@ def prepare(
         stack = check_and_get_stack(stack)
         assert stacks.stack_exists(
             stack
-        ), f"Stack {stack} does not exist. Please create with 'inv kmt.stack-create --stack=<name>'"
+        ), f"Stack {stack} does not exist. Please create with 'inv kmt.create-stack --stack=<name>'"
     else:
         stack = "ci"
 
@@ -658,7 +659,8 @@ def prepare(
 
     for sf, df in copy_executables.items():
         if os.path.exists(sf) and not os.path.exists(df):
-            ctx.run(f"install -D {sf} {df}")
+            ctx.run(f"mkdir -p {os.path.dirname(df)}")
+            ctx.run(f"install {sf} {df}")
 
     if ci:
         return
@@ -779,6 +781,10 @@ def kmt_sysprobe_prepare(
                 variables["extra_arguments"] = extra_arguments
 
             go_files = [os.path.abspath(i) for i in glob(f"{pkg}/*.go")]
+
+            # We delete the output file to force ninja to rebuild the testsuite everytime
+            # because it cannot track go dependencies correctly.
+            ctx.run(f"rm -f {output_path}")
             nw.build(
                 inputs=[pkg],
                 outputs=[output_path],
@@ -788,16 +794,22 @@ def kmt_sysprobe_prepare(
                 variables=variables,
             )
 
-            testdata = os.path.join(pkg, "testdata")
-            if os.path.exists(testdata):
-                nw.build(inputs=[testdata], outputs=[os.path.join(target_path, "testdata")], rule="copyextra")
-
             if pkg.endswith("java"):
                 nw.build(
                     inputs=[os.path.join(pkg, "agent-usm.jar")],
                     outputs=[os.path.join(target_path, "agent-usm.jar")],
                     rule="copyfiles",
                 )
+
+        # handle testutils and testdata seperately since they are
+        # shared across packages
+        target_pkgs = build_target_packages([])
+        for pkg in target_pkgs:
+            target_path = os.path.join(kmt_paths.sysprobe_tests, os.path.relpath(pkg, os.getcwd()))
+
+            testdata = os.path.join(pkg, "testdata")
+            if os.path.exists(testdata):
+                nw.build(inputs=[testdata], outputs=[os.path.join(target_path, "testdata")], rule="copyextra")
 
             for gobin in [
                 "gotls_client",
@@ -902,7 +914,7 @@ def test(
     stack = check_and_get_stack(stack)
     assert stacks.stack_exists(
         stack
-    ), f"Stack {stack} does not exist. Please create with 'inv kmt.stack-create --stack=<name>'"
+    ), f"Stack {stack} does not exist. Please create with 'inv kmt.create-stack --stack=<name>'"
 
     if vms is None:
         vms = ",".join(stacks.get_all_vms_in_stack(stack))
@@ -1002,7 +1014,7 @@ def build(
     stack = check_and_get_stack(stack)
     assert stacks.stack_exists(
         stack
-    ), f"Stack {stack} does not exist. Please create with 'inv kmt.stack-create --stack=<name>'"
+    ), f"Stack {stack} does not exist. Please create with 'inv kmt.create-stack --stack=<name>'"
 
     if arch is None:
         arch = "local"

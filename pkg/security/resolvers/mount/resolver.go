@@ -9,6 +9,7 @@
 package mount
 
 import (
+	"encoding/json"
 	"path"
 	"slices"
 	"strings"
@@ -43,6 +44,22 @@ type redemptionEntry struct {
 
 // newMountFromMountInfo - Creates a new Mount from parsed MountInfo data
 func newMountFromMountInfo(mnt *mountinfo.Info) *model.Mount {
+	root := mnt.Root
+
+	if mnt.FSType == "btrfs" {
+		var subvol string
+		for _, opt := range strings.Split(mnt.VFSOptions, ",") {
+			name, val, ok := strings.Cut(opt, "=")
+			if ok && name == "subvol" {
+				subvol = val
+			}
+		}
+
+		if subvol != "" {
+			root = strings.TrimPrefix(root, subvol)
+		}
+	}
+
 	// create a Mount out of the parsed MountInfo
 	return &model.Mount{
 		MountID: uint32(mnt.ID),
@@ -53,7 +70,8 @@ func newMountFromMountInfo(mnt *mountinfo.Info) *model.Mount {
 		FSType:        mnt.FSType,
 		MountPointStr: mnt.Mountpoint,
 		Path:          mnt.Mountpoint,
-		RootStr:       mnt.Root,
+		RootStr:       root,
+		Origin:        model.MountOriginProcfs,
 	}
 }
 
@@ -203,7 +221,7 @@ func (mr *Resolver) ResolveFilesystem(mountID uint32, device uint32, pid uint32,
 	mr.lock.Lock()
 	defer mr.lock.Unlock()
 
-	mount, err := mr.resolveMount(mountID, device, pid, containerID)
+	mount, _, _, err := mr.resolveMount(mountID, device, pid, containerID)
 	if err != nil {
 		return model.UnknownFS, err
 	}
@@ -312,81 +330,93 @@ func (mr *Resolver) lookupByDevice(device uint32, pid uint32) *model.Mount {
 	return result
 }
 
-func (mr *Resolver) lookupMount(mountID uint32, device uint32, pid uint32) *model.Mount {
+func (mr *Resolver) lookupMount(mountID uint32, device uint32, pid uint32) (*model.Mount, model.MountSource, model.MountOrigin) {
 	mount := mr.lookupByMountID(mountID)
 	if mount != nil {
-		return mount
+		return mount, model.MountSourceMountID, mount.Origin
 	}
 
-	return mr.lookupByDevice(device, pid)
+	mount = mr.lookupByDevice(device, pid)
+	if mount == nil {
+		return nil, model.MountSourceUnknown, model.MountOriginUnknown
+	}
+	return mount, model.MountSourceDevice, mount.Origin
 }
 
-func (mr *Resolver) _getMountPath(mountID uint32, device uint32, pid uint32, cache map[uint32]bool) (string, error) {
+func (mr *Resolver) _getMountPath(mountID uint32, device uint32, pid uint32, cache map[uint32]bool) (string, model.MountSource, model.MountOrigin, error) {
 	if _, err := mr.IsMountIDValid(mountID); err != nil {
-		return "", err
+		return "", model.MountSourceUnknown, model.MountOriginUnknown, err
 	}
 
-	mount := mr.lookupMount(mountID, device, pid)
+	mount, source, origin := mr.lookupMount(mountID, device, pid)
 	if mount == nil {
-		return "", &ErrMountNotFound{MountID: mountID}
+		return "", source, origin, &ErrMountNotFound{MountID: mountID}
 	}
 
 	if len(mount.Path) > 0 {
-		return mount.Path, nil
+		return mount.Path, source, origin, nil
 	}
 
 	mountPointStr := mount.MountPointStr
 	if mountPointStr == "/" {
-		return mountPointStr, nil
+		return mountPointStr, source, mount.Origin, nil
 	}
 
 	// avoid infinite loop
 	if _, exists := cache[mountID]; exists {
-		return "", ErrMountLoop
+		return "", source, mount.Origin, ErrMountLoop
 	}
 	cache[mountID] = true
 
 	if mount.ParentPathKey.MountID == 0 {
-		return "", ErrMountUndefined
+		return "", source, mount.Origin, ErrMountUndefined
 	}
 
-	parentMountPath, err := mr._getMountPath(mount.ParentPathKey.MountID, mount.Device, pid, cache)
+	parentMountPath, parentSource, parentOrigin, err := mr._getMountPath(mount.ParentPathKey.MountID, mount.Device, pid, cache)
 	if err != nil {
-		return "", err
+		return "", parentSource, parentOrigin, err
 	}
 	mountPointStr = path.Join(parentMountPath, mountPointStr)
 
+	if parentSource != model.MountSourceMountID {
+		source = parentSource
+	}
+
+	if parentOrigin != model.MountOriginEvent {
+		origin = parentOrigin
+	}
+
 	if len(mountPointStr) == 0 {
-		return "", ErrMountPathEmpty
+		return "", source, origin, ErrMountPathEmpty
 	}
 
 	mount.Path = mountPointStr
 
-	return mountPointStr, nil
+	return mountPointStr, source, origin, nil
 }
 
-func (mr *Resolver) getMountPath(mountID uint32, device uint32, pid uint32) (string, error) {
+func (mr *Resolver) getMountPath(mountID uint32, device uint32, pid uint32) (string, model.MountSource, model.MountOrigin, error) {
 	return mr._getMountPath(mountID, device, pid, map[uint32]bool{})
 }
 
 // ResolveMountRoot returns the root of a mount identified by its mount ID.
-func (mr *Resolver) ResolveMountRoot(mountID uint32, device uint32, pid uint32, containerID string) (string, error) {
+func (mr *Resolver) ResolveMountRoot(mountID uint32, device uint32, pid uint32, containerID string) (string, model.MountSource, model.MountOrigin, error) {
 	mr.lock.Lock()
 	defer mr.lock.Unlock()
 
 	return mr.resolveMountRoot(mountID, device, pid, containerID)
 }
 
-func (mr *Resolver) resolveMountRoot(mountID uint32, device uint32, pid uint32, containerID string) (string, error) {
-	mount, err := mr.resolveMount(mountID, device, pid, containerID)
+func (mr *Resolver) resolveMountRoot(mountID uint32, device uint32, pid uint32, containerID string) (string, model.MountSource, model.MountOrigin, error) {
+	mount, source, origin, err := mr.resolveMount(mountID, device, pid, containerID)
 	if err != nil {
-		return "", err
+		return "", source, origin, err
 	}
-	return mount.RootStr, nil
+	return mount.RootStr, source, origin, err
 }
 
 // ResolveMountPath returns the path of a mount identified by its mount ID.
-func (mr *Resolver) ResolveMountPath(mountID uint32, device uint32, pid uint32, containerID string) (string, error) {
+func (mr *Resolver) ResolveMountPath(mountID uint32, device uint32, pid uint32, containerID string) (string, model.MountSource, model.MountOrigin, error) {
 	mr.lock.Lock()
 	defer mr.lock.Unlock()
 
@@ -412,78 +442,78 @@ func (mr *Resolver) reSyncCache(mountID uint32, pids []uint32, containerID strin
 	return nil
 }
 
-func (mr *Resolver) resolveMountPath(mountID uint32, device uint32, pid uint32, containerID string) (string, error) {
+func (mr *Resolver) resolveMountPath(mountID uint32, device uint32, pid uint32, containerID string) (string, model.MountSource, model.MountOrigin, error) {
 	if _, err := mr.IsMountIDValid(mountID); err != nil {
-		return "", err
+		return "", model.MountSourceUnknown, model.MountOriginUnknown, err
 	}
 
 	// force a resolution here to make sure the LRU keeps doing its job and doesn't evict important entries
 	workload, _ := mr.cgroupsResolver.GetWorkload(containerID)
 
-	path, err := mr.getMountPath(mountID, device, pid)
+	path, source, origin, err := mr.getMountPath(mountID, device, pid)
 	if err == nil {
 		mr.cacheHitsStats.Inc()
-		return path, nil
+		return path, source, origin, nil
 	}
 	mr.cacheMissStats.Inc()
 
 	if !mr.opts.UseProcFS {
-		return "", &ErrMountNotFound{MountID: mountID}
+		return "", model.MountSourceUnknown, model.MountOriginUnknown, &ErrMountNotFound{MountID: mountID}
 	}
 
 	if err := mr.reSyncCache(mountID, []uint32{pid}, containerID, workload); err != nil {
-		return "", err
+		return "", model.MountSourceUnknown, model.MountOriginUnknown, err
 	}
 
-	path, err = mr.getMountPath(mountID, device, pid)
+	path, source, origin, err = mr.getMountPath(mountID, device, pid)
 	if err == nil {
 		mr.procHitsStats.Inc()
-		return path, nil
+		return path, source, origin, nil
 	}
 	mr.procMissStats.Inc()
 
-	return "", err
+	return "", model.MountSourceUnknown, model.MountOriginUnknown, err
 }
 
 // ResolveMount returns the mount
-func (mr *Resolver) ResolveMount(mountID uint32, device uint32, pid uint32, containerID string) (*model.Mount, error) {
+func (mr *Resolver) ResolveMount(mountID uint32, device uint32, pid uint32, containerID string) (*model.Mount, model.MountSource, model.MountOrigin, error) {
 	mr.lock.Lock()
 	defer mr.lock.Unlock()
 
 	return mr.resolveMount(mountID, device, pid, containerID)
 }
 
-func (mr *Resolver) resolveMount(mountID uint32, device uint32, pid uint32, containerID string) (*model.Mount, error) {
+func (mr *Resolver) resolveMount(mountID uint32, device uint32, pid uint32, containerID string) (*model.Mount, model.MountSource, model.MountOrigin, error) {
 	if _, err := mr.IsMountIDValid(mountID); err != nil {
-		return nil, err
+		return nil, model.MountSourceUnknown, model.MountOriginUnknown, err
 	}
 
 	// force a resolution here to make sure the LRU keeps doing its job and doesn't evict important entries
 	workload, _ := mr.cgroupsResolver.GetWorkload(containerID)
 
-	mount := mr.lookupMount(mountID, device, pid)
+	mount, source, origin := mr.lookupMount(mountID, device, pid)
 	if mount != nil {
 		mr.cacheHitsStats.Inc()
-		return mount, nil
+		return mount, source, origin, nil
 	}
 	mr.cacheMissStats.Inc()
 
 	if !mr.opts.UseProcFS {
-		return nil, &ErrMountNotFound{MountID: mountID}
+		return nil, model.MountSourceUnknown, model.MountOriginUnknown, &ErrMountNotFound{MountID: mountID}
 	}
 
 	if err := mr.reSyncCache(mountID, []uint32{pid}, containerID, workload); err != nil {
-		return nil, err
+		return nil, model.MountSourceUnknown, model.MountOriginUnknown, err
 	}
 
 	mount = mr.mounts[mountID]
 	if mount != nil {
 		mr.procHitsStats.Inc()
-		return mount, nil
+		return mount, model.MountSourceMountID, mount.Origin, nil
 	}
 	mr.procMissStats.Inc()
 
-	return nil, &ErrMountNotFound{MountID: mountID}
+	return nil, model.MountSourceUnknown, model.MountOriginUnknown, &ErrMountNotFound{MountID: mountID}
 }
 
 // GetVFSLinkDentryPosition gets VFS link dentry position
@@ -574,6 +604,25 @@ func (mr *Resolver) SendStats() error {
 	}
 
 	return mr.statsdClient.Gauge(metrics.MetricMountResolverCacheSize, float64(len(mr.mounts)), []string{}, 1.0)
+}
+
+// ToJSON return a json version of the cache
+func (mr *Resolver) ToJSON() ([]byte, error) {
+	dump := struct {
+		Entries []json.RawMessage
+	}{}
+
+	mr.lock.RLock()
+	defer mr.lock.RUnlock()
+
+	for _, mount := range mr.mounts {
+		d, err := json.Marshal(mount)
+		if err == nil {
+			dump.Entries = append(dump.Entries, d)
+		}
+	}
+
+	return json.Marshal(dump)
 }
 
 // NewResolver instantiates a new mount resolver
