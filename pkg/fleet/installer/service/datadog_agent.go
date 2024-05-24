@@ -117,7 +117,7 @@ func SetupAgent(ctx context.Context, _ []string) (err error) {
 }
 
 // RemoveAgent stops and removes the agent
-func RemoveAgent(ctx context.Context) {
+func RemoveAgent(ctx context.Context) error {
 	span, ctx := tracer.StartSpanFromContext(ctx, "remove_agent_units")
 	defer span.Finish()
 	// stop experiments, they can restart stable agent
@@ -154,6 +154,8 @@ func RemoveAgent(ctx context.Context) {
 		log.Warnf("Failed to remove agent symlink: %s", err)
 	}
 	installinfo.RmInstallInfo()
+	// TODO: Return error to caller?
+	return nil
 }
 
 // StartAgentExperiment starts the agent experiment
