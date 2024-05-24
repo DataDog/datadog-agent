@@ -134,7 +134,7 @@ func (i *installerImpl) Install(ctx context.Context, url string) error {
 	if err != nil {
 		return fmt.Errorf("not enough disk space: %w", err)
 	}
-	tmpDir, err := os.MkdirTemp(i.tmpDirPath, fmt.Sprintf("install-stable-%s-*", pkg.Name)) // * is replaced by a random string
+	tmpDir, err := os.MkdirTemp(i.tmpDirPath, fmt.Sprintf("tmp-install-stable-%s-*", pkg.Name)) // * is replaced by a random string
 	if err != nil {
 		return fmt.Errorf("could not create temporary directory: %w", err)
 	}
@@ -179,7 +179,7 @@ func (i *installerImpl) InstallExperiment(ctx context.Context, url string) error
 	if err != nil {
 		return fmt.Errorf("not enough disk space: %w", err)
 	}
-	tmpDir, err := os.MkdirTemp(i.tmpDirPath, fmt.Sprintf("install-experiment-%s-*", pkg.Name)) // * is replaced by a random string
+	tmpDir, err := os.MkdirTemp(i.tmpDirPath, fmt.Sprintf("tmp-install-experiment-%s-*", pkg.Name)) // * is replaced by a random string
 	if err != nil {
 		return fmt.Errorf("could not create temporary directory: %w", err)
 	}
