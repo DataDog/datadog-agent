@@ -556,18 +556,17 @@ func (ec *EventConsumer) HandleEvent(event any) {
 	ec.Lock()
 	defer ec.Unlock()
 
-	pm := processMonitor
-	pm.tel.events.Add(1)
+	processMonitor.tel.events.Add(1)
 	switch sevent.Type {
 	case model.ExecEventType:
-		pm.tel.exec.Add(1)
-		if pm.hasExecCallbacks.Load() {
-			pm.handleProcessExec(sevent.Pid)
+		processMonitor.tel.exec.Add(1)
+		if processMonitor.hasExecCallbacks.Load() {
+			processMonitor.handleProcessExec(sevent.Pid)
 		}
 	case model.ExitEventType:
-		pm.tel.exit.Add(1)
-		if pm.hasExitCallbacks.Load() {
-			pm.handleProcessExit(sevent.Pid)
+		processMonitor.tel.exit.Add(1)
+		if processMonitor.hasExitCallbacks.Load() {
+			processMonitor.handleProcessExit(sevent.Pid)
 		}
 	}
 }
