@@ -166,8 +166,14 @@ enum parse_result {
     RET_LOOP_END = -2,
 };
 
-static __always_inline enum parse_result read_with_remainder_s16(kafka_response_context_t *response, pktbuf_t pkt,
-                                                             u32 *offset, u32 data_end, s16 *val, bool first)
+struct read_with_remainder_config {
+    u32 want_bytes;
+    void (*convert)(void *dest, void *src);
+};
+
+static __always_inline enum parse_result __read_with_remainder(struct read_with_remainder_config config,
+                                                               kafka_response_context_t *response, pktbuf_t pkt,
+                                                               u32 *offset, u32 data_end, void *val, bool first)
 {
     if (*offset >= data_end) {
         // The offset we want to read is completely outside of the current
@@ -179,7 +185,7 @@ static __always_inline enum parse_result read_with_remainder_s16(kafka_response_
 
     u32 avail = data_end - *offset;
     u32 remainder = response->remainder;
-    u32 want = sizeof(*val);
+    u32 want = config.want_bytes;
 
     extra_debug("avail %u want %u remainder %u", avail, want, remainder);
 
@@ -190,7 +196,7 @@ static __always_inline enum parse_result read_with_remainder_s16(kafka_response_
     }
 
     if (avail < want) {
-        // We have less than 4 bytes left in the packet.
+        // We have less than `want` bytes left in the packet.
 
         if (remainder) {
             // We don't handle the case where we already have a remainder saved
@@ -211,99 +217,9 @@ static __always_inline enum parse_result read_with_remainder_s16(kafka_response_
     if (!remainder) {
         // No remainder, and 4 or more bytes more in the packet, so just
         // do a normal read.
-        pktbuf_load_bytes(pkt, *offset, val, sizeof(*val));
-        *offset += sizeof(*val);
-        *val = bpf_ntohs(*val);
-        extra_debug("read without remainder: %d", *val);
-        return RET_DONE;
-    }
-
-    // We'll be using up the remainder so clear it.
-    response->remainder = 0;
-
-    // The remainder_buf contains up to 3 head bytes of the value we
-    // need to read, saved from the previous packet. Read the tail
-    // bytes of the value from the current packet and reconstruct
-    // the value to be read.
-    u8 *reconstruct = response->remainder_buf;
-    u8 tail[2] = {0};
-
-    pktbuf_load_bytes(pkt, *offset, &tail, 1);
-
-    switch (remainder) {
-    case 1:
-        reconstruct[1] = tail[0];
-    //    reconstruct[2] = tail[1];
-    //    reconstruct[3] = tail[2];
-    //    break;
-    //case 2:
-    //    reconstruct[2] = tail[0];
-    //    reconstruct[3] = tail[1];
-    //    break;
-    //case 3:
-    //    reconstruct[3] = tail[0];
-    //    break;
-    }
-
-    *offset += want - remainder;
-    *val = bpf_ntohs(*(u16 *)reconstruct);
-    extra_debug("read with remainder: %d", *val);
-
-    return RET_DONE;
-}
-
-// TCP segments splits can happen at any point in the response. If a
-// field happens to straddles the segment boundary, we need to read
-// some bytes from the old packet and the rest from the new packet.
-static __always_inline enum parse_result read_with_remainder(kafka_response_context_t *response, pktbuf_t pkt,
-                                                             u32 *offset, u32 data_end, s32 *val, bool first)
-{
-    if (*offset >= data_end) {
-        // The offset we want to read is completely outside of the current
-        // packet. No remainder to save, we just need to save the offset
-        // at which we need to start reading the next packet from.
-        response->carry_over_offset = *offset - data_end;
-        return RET_EOP;
-    }
-
-    u32 avail = data_end - *offset;
-    u32 remainder = response->remainder;
-    u32 want = sizeof(s32);
-
-    extra_debug("avail %u want %u remainder %u", avail, want, remainder);
-
-    // Statically optimize away code for non-first iteration of loop since there
-    // can be no intra-packet remainder.
-    if (!first) {
-        remainder = 0;
-    }
-
-    if (avail < want) {
-        // We have less than 4 bytes left in the packet.
-
-        if (remainder) {
-            // We don't handle the case where we already have a remainder saved
-            // and the new packet is so small that it doesn't allow us to fully
-            // read the value we want to read. Actually we don't need to check
-            // for 4 bytes but just enough bytes to fill the value, but in reality
-            // packet sizes so small are highly unlikely so just check for 4 bytes.
-            extra_debug("Continuation packet less than 4 bytes?");
-            return RET_ERR;
-        }
-
-        // This is negative and so kafka_continue_parse_response() will save
-        // remainder.
-        response->carry_over_offset = *offset - data_end;
-        return RET_EOP;
-    }
-
-    if (!remainder) {
-        // No remainder, and 4 or more bytes more in the packet, so just
-        // do a normal read.
-        pktbuf_load_bytes(pkt, *offset, val, sizeof(*val));
-        *offset += sizeof(*val);
-        *val = bpf_ntohl(*val);
-        extra_debug("read without remainder: %d", *val);
+        pktbuf_load_bytes(pkt, *offset, val, want);
+        *offset += want;
+        config.convert(val, val);
         return RET_DONE;
     }
 
@@ -317,30 +233,84 @@ static __always_inline enum parse_result read_with_remainder(kafka_response_cont
     u8 *reconstruct = response->remainder_buf;
     u8 tail[4] = {0};
 
-    pktbuf_load_bytes(pkt, *offset, &tail, 4);
+    pktbuf_load_bytes(pkt, *offset, &tail, want);
 
     switch (remainder) {
     case 1:
         reconstruct[1] = tail[0];
-        reconstruct[2] = tail[1];
-        reconstruct[3] = tail[2];
+        if (want > 2) {
+            reconstruct[2] = tail[1];
+            reconstruct[3] = tail[2];
+        }
         break;
     case 2:
-        reconstruct[2] = tail[0];
-        reconstruct[3] = tail[1];
+        if (want > 2) {
+            reconstruct[2] = tail[0];
+            reconstruct[3] = tail[1];
+        }
         break;
     case 3:
-        reconstruct[3] = tail[0];
+        if (want > 2) {
+            reconstruct[3] = tail[0];
+        }
         break;
     }
 
     *offset += want - remainder;
-    *val = bpf_ntohl(*(u32 *)reconstruct);
-    extra_debug("read with remainder: %d", *val);
+    config.convert(val, reconstruct);
 
     return RET_DONE;
 }
 
+static __always_inline void convert_u16(void *dest, void *src)
+{
+    u16 *dest16 = dest;
+    u16 *src16 = src;
+
+    *dest16 = bpf_ntohs(*src16);
+
+    if (src == dest) {
+        extra_debug("read without remainder: %u", *dest16);
+    } else {
+        extra_debug("read with remainder: %u", *dest16);
+    }
+}
+
+static __always_inline enum parse_result read_with_remainder_s16(kafka_response_context_t *response, pktbuf_t pkt,
+                                                             u32 *offset, u32 data_end, s16 *val, bool first)
+{
+    struct read_with_remainder_config config = {
+        .want_bytes = sizeof(u16),
+        .convert = convert_u16,
+    };
+
+    return __read_with_remainder(config, response, pkt, offset, data_end, val, first);
+}
+
+static __always_inline void convert_u32(void *dest, void *src)
+{
+    u32 *dest32 = dest;
+    u32 *src32 = src;
+
+    *dest32 = bpf_ntohl(*src32);
+
+    if (src == dest) {
+        extra_debug("read without remainder: %u", *dest32);
+    } else {
+        extra_debug("read with remainder: %u", *dest32);
+    }
+}
+
+static __always_inline enum parse_result read_with_remainder(kafka_response_context_t *response, pktbuf_t pkt,
+                                                             u32 *offset, u32 data_end, s32 *val, bool first)
+{
+    struct read_with_remainder_config config = {
+        .want_bytes = sizeof(u32),
+        .convert = convert_u32,
+    };
+
+    return __read_with_remainder(config, response, pkt, offset, data_end, val, first);
+}
 
 // Parses varints, based on:
 // https://stackoverflow.com/questions/19758270/read-varint-from-linux-sockets
