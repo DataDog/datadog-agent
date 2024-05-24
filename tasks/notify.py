@@ -13,6 +13,7 @@ from invoke import task
 from invoke.context import Context
 from invoke.exceptions import Exit, UnexpectedExit
 
+from tasks.libs.ciproviders.gitlab_api import BASE_URL
 from tasks.libs.common.datadog_api import create_count, send_metrics
 from tasks.libs.pipeline.data import get_failed_jobs
 from tasks.libs.pipeline.notifications import (
@@ -46,7 +47,7 @@ class ExecutionsJobInfo:
         self.failing = failing
 
     def url(self):
-        return f'https://gitlab.dd.build.io/DataDog/datadog-agent/-/jobs/{self.job_id}'
+        return f'{BASE_URL}/DataDog/datadog-agent/-/jobs/{self.job_id}'
 
     def to_json(self):
         return {"id": self.job_id, "failing": self.failing}
