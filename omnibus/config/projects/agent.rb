@@ -103,7 +103,7 @@ do_package = false
 if ENV["OMNIBUS_PACKAGE_ARTIFACT_DIR"]
   dependency "package-artifact"
   do_package = true
-  disable_healthcheck true
+  skip_healthcheck true
 else
   do_build = true
 end
