@@ -186,6 +186,12 @@ DEFAULT_MODULES = {
     "comp/otelcol/otlp/components/exporter/datadogexporter": GoModule(
         "comp/otelcol/otlp/components/exporter/datadogexporter", independent=True
     ),
+    "comp/otelcol/otlp/components/metricsclient": GoModule(
+        "comp/otelcol/otlp/components/metricsclient", independent=True
+    ),
+    "comp/otelcol/otlp/components/statsprocessor": GoModule(
+        "comp/otelcol/otlp/components/statsprocessor", independent=True
+    ),
     "comp/otelcol/otlp/testutil": GoModule("comp/otelcol/otlp/testutil", independent=True),
     "comp/otelcol/collector-contrib/def": GoModule(
         "comp/otelcol/collector-contrib/def", independent=True, used_by_otel=True
