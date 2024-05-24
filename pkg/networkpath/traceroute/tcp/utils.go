@@ -32,13 +32,13 @@ const (
 )
 
 type (
-	// CanceledError is sent when a listener
+	// canceledError is sent when a listener
 	// is canceled
-	CanceledError string
+	canceledError string
 
-	// ICMPResponse encapsulates the data from
+	// icmpResponse encapsulates the data from
 	// an ICMP response packet needed for matching
-	ICMPResponse struct {
+	icmpResponse struct {
 		SrcIP        net.IP
 		DstIP        net.IP
 		TypeCode     layers.ICMPv4TypeCode
@@ -49,9 +49,9 @@ type (
 		InnerSeqNum  uint32
 	}
 
-	// TCPResponse encapsulates the data from a
+	// tcpResponse encapsulates the data from a
 	// TCP response needed for matching
-	TCPResponse struct {
+	tcpResponse struct {
 		SrcIP       net.IP
 		DstIP       net.IP
 		TCPResponse *layers.TCP
@@ -126,12 +126,12 @@ func LayerCat(pkt gopacket.Packet) error {
 // ParseICMPPacket takes in a gopacket.Packet and tries to convert to an ICMP message
 // it returns all the fields from the packet we need to validate it's the response
 // we're looking for
-func ParseICMPPacket(pkt gopacket.Packet) (*ICMPResponse, error) {
+func ParseICMPPacket(pkt gopacket.Packet) (*icmpResponse, error) {
 	// this parsing could likely be improved to be more performant if we read from the
 	// the original packet bytes directly where we expect the required fields to be
 	// or even just creating a single DecodingLayerParser but in both cases we lose
 	// some flexibility
-	icmpResponse := ICMPResponse{}
+	icmpResponse := icmpResponse{}
 
 	if ipLayer := pkt.Layer(layers.LayerTypeIPv4); ipLayer != nil {
 		ip, ok := ipLayer.(*layers.IPv4)
@@ -181,10 +181,10 @@ func ParseICMPPacket(pkt gopacket.Packet) (*ICMPResponse, error) {
 	return &icmpResponse, nil
 }
 
-func ParseTCPPacket(pkt gopacket.Packet) (*TCPResponse, error) {
+func ParseTCPPacket(pkt gopacket.Packet) (*tcpResponse, error) {
 	// this parsing could likely be improved to be more performant if we read from the
 	// the original packet bytes directly where we expect the required fields to be
-	tcpResponse := TCPResponse{}
+	tcpResponse := tcpResponse{}
 
 	// TODO: separate this out into its own function since we do this
 	// for ICMP and TCP
@@ -320,8 +320,8 @@ func listenAnyPacket(icmpConn *ipv4.RawConn, tcpConn *ipv4.RawConn, timeout time
 	finished := time.Now()
 
 	if tcpErr != nil && icmpErr != nil {
-		_, tcpCanceled := tcpErr.(CanceledError)
-		_, icmpCanceled := icmpErr.(CanceledError)
+		_, tcpCanceled := tcpErr.(canceledError)
+		_, icmpCanceled := icmpErr.(canceledError)
 		if icmpCanceled && tcpCanceled {
 			// TODO: better handling of listener timeout case
 			// this signifies an unknown hop
@@ -356,7 +356,7 @@ func handlePackets(ctx context.Context, conn *ipv4.RawConn, listener string, loc
 	for {
 		select {
 		case <-ctx.Done():
-			return net.IP{}, 0, 0, CanceledError("listener canceled")
+			return net.IP{}, 0, 0, canceledError("listener canceled")
 		default:
 		}
 		now := time.Now()
@@ -397,7 +397,7 @@ func handlePackets(ctx context.Context, conn *ipv4.RawConn, listener string, loc
 	}
 }
 
-func parseICMP(header *ipv4.Header, payload []byte) (*ICMPResponse, error) {
+func parseICMP(header *ipv4.Header, payload []byte) (*icmpResponse, error) {
 	packetBytes, err := MarshalPacket(header, payload)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal packet: %w", err)
@@ -407,17 +407,17 @@ func parseICMP(header *ipv4.Header, payload []byte) (*ICMPResponse, error) {
 	return ParseICMPPacket(packet)
 }
 
-func icmpMatch(localIP net.IP, localPort uint16, remoteIP net.IP, remotePort uint16, seqNum uint32, icmpResponse *ICMPResponse) bool {
+func icmpMatch(localIP net.IP, localPort uint16, remoteIP net.IP, remotePort uint16, seqNum uint32, response *icmpResponse) bool {
 	log.Debugf("Sent packet fields SRC %s:%d, DST %s:%d, Seq: %d", localIP.String(), localPort, remoteIP.String(), remotePort, seqNum)
-	log.Debugf("Received ICMP fields SRC %s:%d, DST %s:%d, Seq: %d", icmpResponse.InnerSrcIP.String(), icmpResponse.InnerSrcPort, icmpResponse.InnerDstIP.String(), icmpResponse.InnerDstPort, icmpResponse.InnerSeqNum)
-	return localIP.Equal(icmpResponse.InnerSrcIP) &&
-		remoteIP.Equal(icmpResponse.InnerDstIP) &&
-		localPort == icmpResponse.InnerSrcPort &&
-		remotePort == icmpResponse.InnerDstPort &&
-		seqNum == icmpResponse.InnerSeqNum
+	log.Debugf("Received ICMP fields SRC %s:%d, DST %s:%d, Seq: %d", response.InnerSrcIP.String(), response.InnerSrcPort, response.InnerDstIP.String(), response.InnerDstPort, response.InnerSeqNum)
+	return localIP.Equal(response.InnerSrcIP) &&
+		remoteIP.Equal(response.InnerDstIP) &&
+		localPort == response.InnerSrcPort &&
+		remotePort == response.InnerDstPort &&
+		seqNum == response.InnerSeqNum
 }
 
-func parseTCP(header *ipv4.Header, payload []byte) (*TCPResponse, error) {
+func parseTCP(header *ipv4.Header, payload []byte) (*tcpResponse, error) {
 	packetBytes, err := MarshalPacket(header, payload)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal packet: %w", err)
@@ -432,19 +432,19 @@ func parseTCP(header *ipv4.Header, payload []byte) (*TCPResponse, error) {
 	return tcpResp, nil
 }
 
-func tcpMatch(localIP net.IP, localPort uint16, remoteIP net.IP, remotePort uint16, seqNum uint32, tcpResponse *TCPResponse) bool {
-	flagsCheck := (tcpResponse.TCPResponse.SYN && tcpResponse.TCPResponse.ACK) || tcpResponse.TCPResponse.RST
-	sourcePort := uint16(tcpResponse.TCPResponse.SrcPort)
-	destPort := uint16(tcpResponse.TCPResponse.DstPort)
+func tcpMatch(localIP net.IP, localPort uint16, remoteIP net.IP, remotePort uint16, seqNum uint32, response *tcpResponse) bool {
+	flagsCheck := (response.TCPResponse.SYN && response.TCPResponse.ACK) || response.TCPResponse.RST
+	sourcePort := uint16(response.TCPResponse.SrcPort)
+	destPort := uint16(response.TCPResponse.DstPort)
 
-	return remoteIP.Equal(tcpResponse.SrcIP) &&
+	return remoteIP.Equal(response.SrcIP) &&
 		remotePort == sourcePort &&
-		localIP.Equal(tcpResponse.DstIP) &&
+		localIP.Equal(response.DstIP) &&
 		localPort == destPort &&
-		seqNum == tcpResponse.TCPResponse.Ack-1 &&
+		seqNum == response.TCPResponse.Ack-1 &&
 		flagsCheck
 }
 
-func (c CanceledError) Error() string {
+func (c canceledError) Error() string {
 	return string(c)
 }
