@@ -94,6 +94,10 @@ type WindowsProbe struct {
 	isRenameEnabled bool
 	isWriteEnabled  bool
 	isDeleteEnabled bool
+
+	// channel handling.  Currently configurable, but should probably be set
+	// to false with a configurable size value
+	blockonchannelsend bool
 }
 
 // filecache currently only has a filename.  But this is going to expand really soon.  so go ahead
@@ -458,7 +462,15 @@ func (p *WindowsProbe) Start() error {
 		go func() {
 			defer p.fimwg.Done()
 			err := p.setupEtw(func(n interface{}, pid uint32) {
-				p.onETWNotification <- etwNotification{n, pid}
+				if p.blockonchannelsend {
+					p.onETWNotification <- etwNotification{n, pid}
+				} else {
+					select {
+					case p.onETWNotification <- etwNotification{n, pid}:
+					default:
+						p.stats.etwChannelBlocked++
+					}
+				}
 			})
 			log.Infof("Done StartTracing %v", err)
 		}()
@@ -844,6 +856,11 @@ func initializeWindowsProbe(config *config.Config, opts Opts) (*WindowsProbe, er
 		return nil, err
 	}
 
+	bocs := config.RuntimeSecurity.WindowsProbeBlockOnChannelSend
+
+	etwNotificationSize := config.RuntimeSecurity.ETWEventsChannelSize
+	log.Infof("Setting ETW channel size to %d", etwNotificationSize)
+
 	ctx, cancelFnc := context.WithCancel(context.Background())
 
 	p := &WindowsProbe{
@@ -855,7 +872,7 @@ func initializeWindowsProbe(config *config.Config, opts Opts) (*WindowsProbe, er
 		onStart:           make(chan *procmon.ProcessStartNotification),
 		onStop:            make(chan *procmon.ProcessStopNotification),
 		onError:           make(chan bool),
-		onETWNotification: make(chan etwNotification),
+		onETWNotification: make(chan etwNotification, etwNotificationSize),
 
 		filePathResolver: fc,
 		regPathResolver:  rc,
@@ -868,6 +885,8 @@ func initializeWindowsProbe(config *config.Config, opts Opts) (*WindowsProbe, er
 		volumeMap: make(map[string]string),
 
 		processKiller: NewProcessKiller(),
+
+		blockonchannelsend: bocs,
 
 		stats: stats{
 			fileNotifications:          make(map[uint16]uint64),
