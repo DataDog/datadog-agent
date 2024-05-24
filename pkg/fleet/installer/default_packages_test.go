@@ -65,6 +65,12 @@ func TestDefaultPackages(t *testing.T) {
 			expected: []pkg{{n: "datadog-agent", v: "latest"}},
 		},
 		{
+			name:     "Package released with remote updates",
+			packages: []defaultPackage{{name: "datadog-agent", released: false, releasedWithRemoteUpdates: true}},
+			env:      &env.Env{RemoteUpdates: true},
+			expected: []pkg{{n: "datadog-agent", v: "latest"}},
+		},
+		{
 			name:     "Package released to another site",
 			packages: []defaultPackage{{name: "datadog-agent", releasedBySite: []string{"datadoghq.eu"}}},
 			env:      &env.Env{Site: "datadoghq.com"},
