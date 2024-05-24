@@ -363,6 +363,7 @@ func CheckSystemProbeBehavior(t *testing.T, client *TestClient) {
 
 		hostArch, err := client.Host.Execute("uname -m")
 		require.NoError(tt, err)
+		hostArch = strings.TrimSpace(hostArch)
 		if hostArch == "aarch64" {
 			hostArch = "arm64"
 		}
