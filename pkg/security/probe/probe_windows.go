@@ -104,6 +104,31 @@ type WindowsProbe struct {
 	isDeleteEnabled bool
 
 	blockonchannelsend bool
+	// approvers
+	approvers map[eval.Field][]approver
+}
+
+type approver interface {
+	Approve(_ string) bool
+}
+
+type patternApprover struct {
+	matcher *eval.PatternStringMatcher
+}
+
+// Approve the value
+func (p *patternApprover) Approve(value string) bool {
+	return p.matcher.Matches(value)
+}
+
+func newPatternApprover(pattern string) (*patternApprover, error) {
+	var matcher eval.PatternStringMatcher
+	if err := matcher.Compile(pattern, true); err != nil {
+		return nil, err
+	}
+	return &patternApprover{
+		matcher: &matcher,
+	}, nil
 }
 
 type renameState struct {
@@ -156,6 +181,8 @@ type stats struct {
 	// currently not used, reserved for future use
 	etwChannelBlocked uint64
 
+	// approver rejections
+	createFileApproverRejects uint64
 	// map of unwanted etw notifications
 	unwantedFile map[uint16]uint64
 	unwantedReg  map[uint16]uint64
@@ -314,6 +341,23 @@ func (p *WindowsProbe) Stop() {
 	if p.pm != nil {
 		p.pm.Stop()
 	}
+}
+
+// currently support only string base approver for now
+func (p *WindowsProbe) approve(field eval.Field, value string) bool {
+	approvers, exists := p.approvers[field]
+	if !exists {
+		// no approvers, so no filtering for this field
+		return true
+	}
+
+	for _, approver := range approvers {
+		if approver.Approve(value) {
+			return true
+		}
+	}
+
+	return false
 }
 
 func (p *WindowsProbe) setupEtw(ecb etwCallback) error {
@@ -653,6 +697,7 @@ func (p *WindowsProbe) handleETWNotification(ev *model.Event, notif etwNotificat
 	// parse it with
 	switch arg := notif.arg.(type) {
 	case *createNewFileArgs:
+
 		ev.Type = uint32(model.CreateNewFileEventType)
 		ev.CreateNewFile = model.CreateNewFileEvent{
 			File: model.FimFileEvent{
@@ -921,6 +966,9 @@ func (p *WindowsProbe) SendStats() error {
 			return err
 		}
 	}
+	if err := p.statsdClient.Gauge(metrics.MetricWindowsApproverRejects, float64(p.stats.createFileApproverRejects), nil, 1); err != nil {
+		return err
+	}
 	for k, v := range p.stats.unwantedFile {
 		if err := p.statsdClient.Gauge(metrics.MetricWindowsUnwantedFile, float64(v), []string{fmt.Sprintf("id:ID_%d", k)}, 1); err != nil {
 			return err
@@ -1001,6 +1049,8 @@ func NewWindowsProbe(probe *Probe, config *config.Config, opts Opts) (*WindowsPr
 			unwantedFile: make(map[uint16]uint64),
 			unwantedReg:  make(map[uint16]uint64),
 		},
+
+		approvers: make(map[eval.Field][]approver),
 	}
 
 	p.Resolvers, err = resolvers.NewResolvers(config, p.statsdClient, probe.scrubber)
@@ -1016,6 +1066,29 @@ func NewWindowsProbe(probe *Probe, config *config.Config, opts Opts) (*WindowsPr
 	p.zeroEvent()
 
 	return p, nil
+}
+
+// SetApprovers applies approvers and removes the unused ones
+func (p *WindowsProbe) SetApprovers(eventType eval.EventType, approvers rules.Approvers) error {
+	for name, els := range approvers {
+		for _, el := range els {
+			if el.Type == eval.ScalarValueType || el.Type == eval.PatternValueType {
+				value, ok := el.Value.(string)
+				if !ok {
+					return errors.New("invalid pattern type")
+				}
+
+				ap, err := newPatternApprover(value)
+				if err != nil {
+					return err
+				}
+				l := p.approvers[name]
+				p.approvers[name] = append(l, ap)
+			}
+		}
+	}
+
+	return nil
 }
 
 // ApplyRuleSet setup the probes for the provided set of rules and returns the policy report.
@@ -1035,7 +1108,18 @@ func (p *WindowsProbe) ApplyRuleSet(rs *rules.RuleSet) (*kfilters.ApplyRuleSetRe
 		}
 	}
 
-	return kfilters.NewApplyRuleSetReport(p.config.Probe, rs)
+	ars, err := kfilters.NewApplyRuleSetReport(p.config.Probe, rs)
+	if err != nil {
+		return nil, err
+	}
+
+	for eventType, report := range ars.Policies {
+		if err := p.SetApprovers(eventType, report.Approvers); err != nil {
+			return nil, err
+		}
+	}
+
+	return ars, nil
 }
 
 // FlushDiscarders invalidates all the discarders

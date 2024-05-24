@@ -133,4 +133,7 @@ var (
 	//MetricWindowsUnwantedRegistry is the metric for counting the number of unwanted registry notifications
 	//Tags: -
 	MetricWindowsUnwantedRegistry = newRuntimeMetric(".windows.unwanted_registry")
+	//MetricWindowsApproverRejects is the metric for counting the number of approver rejects
+	//Tags: -
+	MetricWindowsApproverRejects = newRuntimeMetric(".windows.approver_rejects")
 )
