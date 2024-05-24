@@ -24,7 +24,7 @@ import (
 )
 
 // MutationFunc is a function that mutates a pod
-type MutationFunc func(*corev1.Pod, string, dynamic.Interface) (bool, error)
+type MutationFunc func(pod *corev1.Pod, ns string, cl dynamic.Interface) (bool, error)
 
 // Mutate handles mutating pods and encoding and decoding admission
 // requests and responses for the public mutate functions

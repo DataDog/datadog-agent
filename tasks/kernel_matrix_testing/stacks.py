@@ -188,7 +188,7 @@ def launch_stack(
 ):
     stack = check_and_get_stack(stack)
     if not stack_exists(stack):
-        raise Exit(f"Stack {stack} does not exist. Please create with 'inv kmt.stack-create --stack=<name>'")
+        raise Exit(f"Stack {stack} does not exist. Please create with 'inv kmt.create-stack --stack=<name>'")
 
     if not vm_config_exists(stack):
         raise Exit(f"No {VMCONFIG} for stack {stack}. Refer to 'inv kmt.gen-config --help'")
@@ -374,7 +374,7 @@ def destroy_stack_force(ctx: Context, stack: str):
 def destroy_stack(ctx: Context, stack: str | None, pulumi: bool, ssh_key: str | None):
     stack = check_and_get_stack(stack)
     if not stack_exists(stack):
-        raise Exit(f"Stack {stack} does not exist. Please create with 'inv kmt.stack-create --stack=<name>'")
+        raise Exit(f"Stack {stack} does not exist. Please create with 'inv kmt.create-stack --stack=<name>'")
 
     info(f"[*] Destroying stack {stack}")
     if pulumi:
@@ -388,7 +388,7 @@ def destroy_stack(ctx: Context, stack: str | None, pulumi: bool, ssh_key: str | 
 def pause_stack(stack: str | None = None):
     stack = check_and_get_stack(stack)
     if not stack_exists(stack):
-        raise Exit(f"Stack {stack} does not exist. Please create with 'inv kmt.stack-create --stack=<name>'")
+        raise Exit(f"Stack {stack} does not exist. Please create with 'inv kmt.create-stack --stack=<name>'")
     if libvirt is None:
         raise NoLibvirt()
     conn = libvirt.open(get_kmt_os().libvirt_socket)
@@ -399,7 +399,7 @@ def pause_stack(stack: str | None = None):
 def resume_stack(stack=None):
     stack = check_and_get_stack(stack)
     if not stack_exists(stack):
-        raise Exit(f"Stack {stack} does not exist. Please create with 'inv kmt.stack-create --stack=<name>'")
+        raise Exit(f"Stack {stack} does not exist. Please create with 'inv kmt.create-stack --stack=<name>'")
     if libvirt is None:
         raise NoLibvirt()
     conn = libvirt.open(get_kmt_os().libvirt_socket)

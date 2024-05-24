@@ -65,6 +65,10 @@ const (
 	EBPFLessHelloMessageRuleID = "ebpfless_hello_msg"
 	// EBPFLessHelloMessageRuleDesc is the rule description for the hello msg event
 	EBPFLessHelloMessageRuleDesc = "Hello message received"
+	// InternalCoreDumpRuleID internal core dump
+	InternalCoreDumpRuleID = "internal_core_dump"
+	// InternalCoreDumpRuleDesc internal core dump
+	InternalCoreDumpRuleDesc = "Internal Core Dump"
 )
 
 // CustomEventCommonFields represents the fields common to all custom events
@@ -97,6 +101,7 @@ func AllCustomRuleIDs() []string {
 		AnomalyDetectionRuleID,
 		NoProcessContextErrorRuleID,
 		BrokenProcessLineageErrorRuleID,
+		InternalCoreDumpRuleID,
 	}
 }
 

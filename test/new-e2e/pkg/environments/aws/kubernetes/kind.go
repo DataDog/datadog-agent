@@ -11,11 +11,9 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/optional"
 	"github.com/DataDog/test-infra-definitions/common/utils"
 
-	"github.com/DataDog/test-infra-definitions/common/config"
 	"github.com/DataDog/test-infra-definitions/components/datadog/agent"
 	"github.com/DataDog/test-infra-definitions/components/datadog/kubernetesagentparams"
 	kubeComp "github.com/DataDog/test-infra-definitions/components/kubernetes"
@@ -33,99 +31,8 @@ const (
 	defaultVMName     = "kind"
 )
 
-// ProvisionerParams contains all the parameters needed to create the environment
-type ProvisionerParams struct {
-	name              string
-	vmOptions         []ec2.VMOption
-	agentOptions      []kubernetesagentparams.Option
-	fakeintakeOptions []fakeintake.Option
-	extraConfigParams runner.ConfigMap
-	workloadAppFuncs  []WorkloadAppFunc
-}
-
-func newProvisionerParams() *ProvisionerParams {
-	return &ProvisionerParams{
-		name:              defaultVMName,
-		vmOptions:         []ec2.VMOption{},
-		agentOptions:      []kubernetesagentparams.Option{},
-		fakeintakeOptions: []fakeintake.Option{},
-		extraConfigParams: runner.ConfigMap{},
-		workloadAppFuncs:  []WorkloadAppFunc{},
-	}
-}
-
-// ProvisionerOption is a function that modifies the ProvisionerParams
-type ProvisionerOption func(*ProvisionerParams) error
-
-// WithName sets the name of the provisioner
-func WithName(name string) ProvisionerOption {
-	return func(params *ProvisionerParams) error {
-		params.name = name
-		return nil
-	}
-}
-
-// WithEC2VMOptions adds options to the EC2 VM
-func WithEC2VMOptions(opts ...ec2.VMOption) ProvisionerOption {
-	return func(params *ProvisionerParams) error {
-		params.vmOptions = opts
-		return nil
-	}
-}
-
-// WithAgentOptions adds options to the agent
-func WithAgentOptions(opts ...kubernetesagentparams.Option) ProvisionerOption {
-	return func(params *ProvisionerParams) error {
-		params.agentOptions = opts
-		return nil
-	}
-}
-
-// WithFakeIntakeOptions adds options to the fake intake
-func WithFakeIntakeOptions(opts ...fakeintake.Option) ProvisionerOption {
-	return func(params *ProvisionerParams) error {
-		params.fakeintakeOptions = opts
-		return nil
-	}
-}
-
-// WithoutFakeIntake removes the fake intake
-func WithoutFakeIntake() ProvisionerOption {
-	return func(params *ProvisionerParams) error {
-		params.fakeintakeOptions = nil
-		return nil
-	}
-}
-
-// WithoutAgent removes the agent
-func WithoutAgent() ProvisionerOption {
-	return func(params *ProvisionerParams) error {
-		params.agentOptions = nil
-		return nil
-	}
-}
-
-// WithExtraConfigParams adds extra config parameters to the environment
-func WithExtraConfigParams(configMap runner.ConfigMap) ProvisionerOption {
-	return func(params *ProvisionerParams) error {
-		params.extraConfigParams = configMap
-		return nil
-	}
-}
-
-// WorkloadAppFunc is a function that deploys a workload app to a kube provider
-type WorkloadAppFunc func(e config.Env, kubeProvider *kubernetes.Provider) (*kubeComp.Workload, error)
-
-// WithWorkloadApp adds a workload app to the environment
-func WithWorkloadApp(appFunc WorkloadAppFunc) ProvisionerOption {
-	return func(params *ProvisionerParams) error {
-		params.workloadAppFuncs = append(params.workloadAppFuncs, appFunc)
-		return nil
-	}
-}
-
-// Provisioner creates a new provisioner
-func Provisioner(opts ...ProvisionerOption) e2e.TypedProvisioner[environments.Kubernetes] {
+// KindProvisioner creates a new provisioner
+func KindProvisioner(opts ...ProvisionerOption) e2e.TypedProvisioner[environments.Kubernetes] {
 	// We ALWAYS need to make a deep copy of `params`, as the provisioner can be called multiple times.
 	// and it's easy to forget about it, leading to hard to debug issues.
 	params := newProvisionerParams()

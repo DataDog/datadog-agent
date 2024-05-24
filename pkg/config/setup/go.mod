@@ -3,6 +3,7 @@ module github.com/DataDog/datadog-agent/pkg/config/setup
 go 1.21.0
 
 replace (
+	github.com/DataDog/datadog-agent/comp/core/flare/builder => ../../../comp/core/flare/builder
 	github.com/DataDog/datadog-agent/comp/core/flare/types => ../../../comp/core/flare/types
 	github.com/DataDog/datadog-agent/comp/core/secrets => ../../../comp/core/secrets
 	github.com/DataDog/datadog-agent/comp/core/telemetry => ../../../comp/core/telemetry
@@ -44,9 +45,10 @@ require (
 )
 
 require (
+	github.com/DataDog/datadog-agent/comp/core/flare/builder v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-agent/comp/core/flare/types v0.54.0-rc.2 // indirect
 	github.com/DataDog/datadog-agent/comp/core/telemetry v0.54.0-rc.2 // indirect
-	github.com/DataDog/datadog-agent/comp/def v0.54.0-rc.2 // indirect
+	github.com/DataDog/datadog-agent/comp/def v0.55.0-devel // indirect
 	github.com/DataDog/datadog-agent/pkg/telemetry v0.54.0-rc.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.54.0-rc.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.54.0-rc.2 // indirect
