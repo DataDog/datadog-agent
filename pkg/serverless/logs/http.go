@@ -34,12 +34,7 @@ func (l *LambdaLogsAPIServer) Close() {
 //
 //nolint:revive // TODO(SERV) Fix revive linter
 func (c *LambdaLogsAPIServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	data, err := io.ReadAll(r.Body)
-	if err != nil {
-		log.Errorf("Error reading request body: %s", err)
-		w.WriteHeader(400)
-		return
-	}
+	data, _ := io.ReadAll(r.Body)
 	defer r.Body.Close()
 	messages, err := parseLogsAPIPayload(data)
 	if err != nil {
