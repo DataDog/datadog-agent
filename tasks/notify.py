@@ -390,7 +390,6 @@ def check_consistent_failures(ctx, job_failures_file="job_executions.v2.json"):
     # The consecutive failures are reset to 0 when the job is not failing, and are raising an alert when reaching the CONSECUTIVE_THRESHOLD (3)
     # The cumulative failures list contains 1 for failures, 0 for succes. They contain only then CUMULATIVE_LENGTH(10) last executions and raise alert when 50% failure rate is reached
     job_executions = retrieve_job_executions(ctx, job_failures_file)
-    print('Retrieved job executions:', job_executions)
 
     # By-pass if the pipeline chronological order is not respected
     if job_executions.pipeline_id > int(os.getenv("CI_PIPELINE_ID")):
@@ -398,7 +397,6 @@ def check_consistent_failures(ctx, job_failures_file="job_executions.v2.json"):
     job_executions.pipeline_id = int(os.getenv("CI_PIPELINE_ID"))
 
     alert_jobs, job_executions = update_statistics(job_executions)
-    print('Retrieved alert_jobs, job_executions:', alert_jobs, job_executions)
 
     send_notification(ctx, alert_jobs)
 
@@ -464,8 +462,7 @@ def update_statistics(job_executions: Executions):
         if len(job_executions.jobs[job_name].jobs_info) > CUMULATIVE_LENGTH:
             job_executions.jobs[job_name].jobs_info.pop(0)
         # Save the failed job if it hits the threshold
-        # if job_executions.jobs[job_name].consecutive_failures == CONSECUTIVE_THRESHOLD:
-        if job_executions.jobs[job_name].consecutive_failures >= 1:
+        if job_executions.jobs[job_name].consecutive_failures == CONSECUTIVE_THRESHOLD:
             consecutive_alerts[job_name] = [job for job in job_executions.jobs[job_name].jobs_info if job.failing]
         if sum(1 for job in job_executions.jobs[job_name].jobs_info if job.failing) == CUMULATIVE_THRESHOLD:
             cumulative_alerts[job_name] = [job for job in job_executions.jobs[job_name].jobs_info if job.failing]
