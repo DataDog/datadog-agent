@@ -242,6 +242,21 @@ func (p *WindowsProbe) initEtwFIM() error {
 		// try masking on create & create_new_file
 		// given the current requirements, I think we can _probably_ just do create_new_file
 		cfg.MatchAnyKeyword = 0x18A0
+
+		fileIds := []uint16{
+			idCreate,
+			idCreateNewFile,
+			idCleanup,
+			idClose,
+			idWrite,
+			idSetDelete,
+			idDeletePath,
+			idRename,
+			idRenamePath,
+			idRename29,
+		}
+
+		cfg.EnabledIDs = fileIds
 	})
 	p.fimSession.ConfigureProvider(p.regguid, func(cfg *etw.ProviderConfiguration) {
 		cfg.TraceLevel = etw.TRACE_LEVEL_VERBOSE
@@ -328,7 +343,7 @@ func (p *WindowsProbe) setupEtw(ecb etwCallback) error {
 			*/
 			case idCreate:
 				if ca, err := p.parseCreateHandleArgs(e); err == nil {
-					//log.Tracef("Received idCreate event %d %s\n", e.EventHeader.EventDescriptor.ID, ca)
+					log.Tracef("Received idCreate event %d %s\n", e.EventHeader.EventDescriptor.ID, ca)
 					ecb(ca, e.EventHeader.ProcessID)
 				}
 				p.stats.fileCreate++
@@ -347,7 +362,7 @@ func (p *WindowsProbe) setupEtw(ecb etwCallback) error {
 				p.stats.fileCleanup++
 			case idClose:
 				if ca, err := p.parseCloseArgs(e); err == nil {
-					//log.Tracef("Received Close event %d %s\n", e.EventHeader.EventDescriptor.ID, ca)
+					log.Tracef("Received Close event %d %s\n", e.EventHeader.EventDescriptor.ID, ca)
 					ecb(ca, e.EventHeader.ProcessID)
 					// lru is thread safe, has its own locking
 					p.filePathResolver.Remove(ca.fileObject)

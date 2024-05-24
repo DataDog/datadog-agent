@@ -566,7 +566,7 @@ func testFileOpen(t *testing.T, et *etwTester, testfilename string) {
 }
 func TestETWFileNotifications(t *testing.T) {
 	if false {
-		ebpftest.LogLevel(t, "info")
+		ebpftest.LogLevel(t, "trace")
 	}
 	ex, err := os.Executable()
 	require.NoError(t, err, "could not get executable path")
