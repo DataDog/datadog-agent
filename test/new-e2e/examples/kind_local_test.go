@@ -35,5 +35,5 @@ func (v *myLocalKindSuite) TestClusterAgentInstalled() {
 		}
 	}
 	assert.True(v.T(), containsClusterAgent, "Cluster Agent not found")
-	assert.Equal(v.T(), v.Env().Agent.InstallNameLinux, "dda")
+	assert.Equal(v.T(), v.Env().Agent.InstallNameLinux, "dda-linux")
 }
