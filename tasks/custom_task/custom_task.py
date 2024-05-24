@@ -72,7 +72,7 @@ def log_invoke_task(
     task_info = {
         "name": name,
         "module": module,
-        "running_mode": running_modes,
+        "running_modes": running_modes,
         "datetime": task_datetime,
         "duration": duration,
         "user": user,
