@@ -11,11 +11,11 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/proto"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/telemetry"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/util/grpc"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	protoutils "github.com/DataDog/datadog-agent/pkg/util/proto"
 )
 
 const (
@@ -37,7 +37,7 @@ type Server struct {
 
 // StreamEntities streams entities from the workloadmeta store applying the given filter
 func (s *Server) StreamEntities(in *pb.WorkloadmetaStreamRequest, out pb.AgentSecure_WorkloadmetaStreamEntitiesServer) error {
-	filter, err := protoutils.WorkloadmetaFilterFromProtoFilter(in.GetFilter())
+	filter, err := proto.WorkloadmetaFilterFromProtoFilter(in.GetFilter())
 	if err != nil {
 		return err
 	}
@@ -59,7 +59,7 @@ func (s *Server) StreamEntities(in *pb.WorkloadmetaStreamRequest, out pb.AgentSe
 			protobufEvents := make([]*pb.WorkloadmetaEvent, 0, len(eventBundle.Events))
 
 			for _, event := range eventBundle.Events {
-				protobufEvent, err := protoutils.ProtobufEventFromWorkloadmetaEvent(event)
+				protobufEvent, err := proto.ProtobufEventFromWorkloadmetaEvent(event)
 
 				if err != nil {
 					log.Errorf("error converting workloadmeta event to protobuf: %s", err)

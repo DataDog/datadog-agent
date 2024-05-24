@@ -92,14 +92,19 @@ func NewDetectionContext(logger *zap.Logger, args []string, envs []string, fs fs
 
 // workingDirFromEnvs returns the current working dir extracted from the PWD env
 func workingDirFromEnvs(envs []string) (string, bool) {
-	wd := ""
+	return extractEnvVar(envs, "PWD")
+}
+
+func extractEnvVar(envs []string, name string) (string, bool) {
+	value := ""
+	prefix := name + "="
 	for _, v := range envs {
-		if strings.HasPrefix(v, "PWD=") {
-			_, wd, _ = strings.Cut(v, "=")
+		if strings.HasPrefix(v, prefix) {
+			_, value, _ = strings.Cut(v, "=")
 			break
 		}
 	}
-	return wd, len(wd) > 0
+	return value, len(value) > 0
 }
 
 // abs returns the path itself if already absolute or the absolute path by joining cwd with path
@@ -132,6 +137,7 @@ var binsWithContext = map[string]detectorCreatorFn{
 	"node":      newNodeDetector,
 	"dotnet":    newDotnetDetector,
 	"php":       newPhpDetector,
+	"gunicorn":  newGunicornDetector,
 }
 
 func checkForInjectionNaming(envs []string) bool {

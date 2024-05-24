@@ -202,9 +202,9 @@ func installScriptEnv(arch e2eos.Architecture) map[string]string {
 		"DD_INSTALLER":             "true",
 		"TESTING_KEYS_URL":         "keys.datadoghq.com",
 		"TESTING_APT_URL":          "apttesting.datad0g.com",
-		"TESTING_APT_REPO_VERSION": fmt.Sprintf("pipeline-%s-i7-%s 7", os.Getenv("CI_PIPELINE_ID"), arch),
+		"TESTING_APT_REPO_VERSION": fmt.Sprintf("pipeline-%s-a7-%s 7", os.Getenv("CI_PIPELINE_ID"), arch),
 		"TESTING_YUM_URL":          "yumtesting.datad0g.com",
-		"TESTING_YUM_VERSION_PATH": fmt.Sprintf("testing/pipeline-%s-i7/7", os.Getenv("CI_PIPELINE_ID")),
+		"TESTING_YUM_VERSION_PATH": fmt.Sprintf("testing/pipeline-%s-a7/7", os.Getenv("CI_PIPELINE_ID")),
 	}
 	for _, pkg := range packagesConfig {
 		name := strings.ToUpper(strings.ReplaceAll(pkg.name, "-", "_"))

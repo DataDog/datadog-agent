@@ -67,6 +67,7 @@ type Event struct {
 
 	// network events
 	DNS  DNSEvent  `field:"dns" event:"dns"`   // [7.36] [Network] A DNS request was sent
+	IMDS IMDSEvent `field:"imds" event:"imds"` // [7.55] [Network] An IMDS event was captured
 	Bind BindEvent `field:"bind" event:"bind"` // [7.37] [Network] A bind was executed
 
 	// internal usage
@@ -186,6 +187,8 @@ type Process struct {
 	Credentials
 
 	UserSession UserSessionContext `field:"user_session"` // SECLDoc[user_session] Definition:`User Session context of this process`
+
+	AWSSecurityCredentials []AWSSecurityCredentials `field:"-"`
 
 	ArgsID uint32 `field:"-"`
 	EnvsID uint32 `field:"-"`

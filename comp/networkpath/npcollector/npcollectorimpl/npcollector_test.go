@@ -96,6 +96,7 @@ func Test_NpCollector_runningAndProcessing(t *testing.T) {
 		var p payload.NetworkPath
 		if cfg.DestHostname == "127.0.0.2" {
 			p = payload.NetworkPath{
+				Protocol:    payload.ProtocolUDP,
 				Source:      payload.NetworkPathSource{Hostname: "abc"},
 				Destination: payload.NetworkPathDestination{Hostname: "abc", IPAddress: "127.0.0.2", Port: 80},
 				Hops: []payload.NetworkPathHop{
@@ -106,6 +107,7 @@ func Test_NpCollector_runningAndProcessing(t *testing.T) {
 		}
 		if cfg.DestHostname == "127.0.0.4" {
 			p = payload.NetworkPath{
+				Protocol:    payload.ProtocolUDP,
 				Source:      payload.NetworkPathSource{Hostname: "abc"},
 				Destination: payload.NetworkPathDestination{Hostname: "abc", IPAddress: "127.0.0.4", Port: 80},
 				Hops: []payload.NetworkPathHop{
@@ -124,6 +126,7 @@ func Test_NpCollector_runningAndProcessing(t *testing.T) {
     "timestamp": 0,
     "namespace": "",
     "path_id": "",
+    "protocol": "UDP",
     "source": {
         "hostname": "abc",
         "via": null,
@@ -159,6 +162,7 @@ func Test_NpCollector_runningAndProcessing(t *testing.T) {
     "timestamp": 0,
     "namespace": "",
     "path_id": "",
+    "protocol": "UDP",
     "source": {
         "hostname": "abc",
         "via": null,

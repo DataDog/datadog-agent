@@ -35,13 +35,9 @@ import (
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/eventplatformreceiverimpl"
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
-	"github.com/DataDog/datadog-agent/comp/metadata/host"
 	"github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl"
-	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent/inventoryagentimpl"
-	"github.com/DataDog/datadog-agent/comp/metadata/inventorychecks"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventorychecks/inventorychecksimpl"
-	"github.com/DataDog/datadog-agent/comp/metadata/inventoryhost"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryhost/inventoryhostimpl"
 	"github.com/DataDog/datadog-agent/comp/metadata/packagesigning"
 	"github.com/DataDog/datadog-agent/comp/metadata/packagesigning/packagesigningimpl"
@@ -68,12 +64,8 @@ type testdeps struct {
 	DogstatsdServer       dogstatsdServer.Component
 	Capture               replay.Component
 	ServerDebug           dogstatsddebug.Component
-	HostMetadata          host.Component
-	InvAgent              inventoryagent.Component
 	Demux                 demultiplexer.Component
-	InvHost               inventoryhost.Component
 	SecretResolver        secrets.Component
-	InvChecks             inventorychecks.Component
 	PkgSigning            packagesigning.Component
 	StatusComponent       status.Mock
 	EventPlatformReceiver eventplatformreceiver.Component
@@ -129,26 +121,19 @@ func getComponentDependencies(t *testing.T) testdeps {
 
 func getTestAPIServer(deps testdeps) api.Component {
 	apideps := dependencies{
-		DogstatsdServer:       deps.DogstatsdServer,
-		Capture:               deps.Capture,
-		ServerDebug:           deps.ServerDebug,
-		HostMetadata:          deps.HostMetadata,
-		InvAgent:              deps.InvAgent,
-		Demux:                 deps.Demux,
-		InvHost:               deps.InvHost,
-		SecretResolver:        deps.SecretResolver,
-		InvChecks:             deps.InvChecks,
-		PkgSigning:            deps.PkgSigning,
-		StatusComponent:       deps.StatusComponent,
-		EventPlatformReceiver: deps.EventPlatformReceiver,
-		RcService:             deps.RcService,
-		RcServiceMRF:          deps.RcServiceMRF,
-		AuthToken:             deps.AuthToken,
-		Tagger:                deps.Tagger,
-		LogsAgentComp:         deps.Logs,
-		WorkloadMeta:          deps.WorkloadMeta,
-		Collector:             deps.Collector,
-		EndpointProviders:     deps.EndpointProviders,
+		DogstatsdServer:   deps.DogstatsdServer,
+		Capture:           deps.Capture,
+		SecretResolver:    deps.SecretResolver,
+		PkgSigning:        deps.PkgSigning,
+		StatusComponent:   deps.StatusComponent,
+		RcService:         deps.RcService,
+		RcServiceMRF:      deps.RcServiceMRF,
+		AuthToken:         deps.AuthToken,
+		Tagger:            deps.Tagger,
+		LogsAgentComp:     deps.Logs,
+		WorkloadMeta:      deps.WorkloadMeta,
+		Collector:         deps.Collector,
+		EndpointProviders: deps.EndpointProviders,
 	}
 	return newAPIServer(apideps)
 }

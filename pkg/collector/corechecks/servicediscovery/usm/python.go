@@ -12,12 +12,22 @@ import (
 )
 
 const (
-	initPy     = "__init__.py"
-	allPyFiles = "*.py"
+	initPy             = "__init__.py"
+	allPyFiles         = "*.py"
+	gunicornEnvCmdArgs = "GUNICORN_CMD_ARGS"
+	wsgiAppEnv         = "WSGI_APP"
 )
 
 type pythonDetector struct {
 	ctx DetectionContext
+}
+
+type gunicornDetector struct {
+	ctx DetectionContext
+}
+
+func newGunicornDetector(ctx DetectionContext) detector {
+	return &gunicornDetector{ctx: ctx}
 }
 
 func newPythonDetector(ctx DetectionContext) detector {
@@ -97,4 +107,55 @@ func (p pythonDetector) findNearestTopLevel(fp string) string {
 		up = path.Dir(current)
 	}
 	return path.Base(last)
+}
+
+func (g gunicornDetector) detect(args []string) (ServiceMetadata, bool) {
+	if fromEnv, ok := extractEnvVar(g.ctx.envs, gunicornEnvCmdArgs); ok {
+		name, ok := extractGunicornNameFrom(strings.Split(fromEnv, " "))
+		if ok {
+			return NewServiceMetadata(name), true
+		}
+	}
+	if wsgiApp, ok := extractEnvVar(g.ctx.envs, wsgiAppEnv); ok && len(wsgiApp) > 0 {
+		return NewServiceMetadata(parseNameFromWsgiApp(wsgiApp)), true
+	}
+
+	if name, ok := extractGunicornNameFrom(args); ok {
+		return NewServiceMetadata(name), true
+	}
+	return NewServiceMetadata("gunicorn"), true
+}
+
+func extractGunicornNameFrom(args []string) (string, bool) {
+	skip, capture := false, false
+	for _, a := range args {
+		if capture {
+			return a, true
+		}
+		if skip {
+			skip = false
+			continue
+		}
+		if strings.HasPrefix(a, "-") {
+			if a == "-n" {
+				capture = true
+				continue
+			}
+			skip = !strings.ContainsRune(a, '=')
+			if skip {
+				continue
+			}
+			if value, ok := strings.CutPrefix(a, "--name="); ok {
+				return value, true
+			}
+		} else {
+			return parseNameFromWsgiApp(args[len(args)-1]), true
+		}
+	}
+	return "", false
+}
+
+func parseNameFromWsgiApp(wsgiApp string) string {
+	name, _, _ := strings.Cut(wsgiApp, ":")
+	return name
 }
