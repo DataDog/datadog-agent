@@ -1216,11 +1216,9 @@ func testKafkaFetchRaw(t *testing.T, tls bool, apiVersion int) {
 				reqData := formatter.AppendRequest(make([]byte, 0), &req, int32(splitIdx))
 				respData := appendResponse(make([]byte, 0), resp, uint32(splitIdx))
 
-				// There is an assumption in the code that the first segment contains the data
-				// up to and including the number of partitions.
-				minSegSize := 0
-				minSegSize = 28
-				minSegSize += len(tt.topic)
+				// There is an assumption in the code that there are no splits
+				// inside the header.
+				minSegSize := 8
 
 				segSize := min(minSegSize+splitIdx, len(respData))
 				if segSize >= len(respData) {

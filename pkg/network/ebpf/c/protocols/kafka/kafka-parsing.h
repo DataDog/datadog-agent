@@ -166,6 +166,92 @@ enum parse_result {
     RET_LOOP_END = -2,
 };
 
+static __always_inline enum parse_result read_with_remainder_s16(kafka_response_context_t *response, pktbuf_t pkt,
+                                                             u32 *offset, u32 data_end, s16 *val, bool first)
+{
+    if (*offset >= data_end) {
+        // The offset we want to read is completely outside of the current
+        // packet. No remainder to save, we just need to save the offset
+        // at which we need to start reading the next packet from.
+        response->carry_over_offset = *offset - data_end;
+        return RET_EOP;
+    }
+
+    u32 avail = data_end - *offset;
+    u32 remainder = response->remainder;
+    u32 want = sizeof(*val);
+
+    extra_debug("avail %u want %u remainder %u", avail, want, remainder);
+
+    // Statically optimize away code for non-first iteration of loop since there
+    // can be no intra-packet remainder.
+    if (!first) {
+        remainder = 0;
+    }
+
+    if (avail < want) {
+        // We have less than 4 bytes left in the packet.
+
+        if (remainder) {
+            // We don't handle the case where we already have a remainder saved
+            // and the new packet is so small that it doesn't allow us to fully
+            // read the value we want to read. Actually we don't need to check
+            // for 4 bytes but just enough bytes to fill the value, but in reality
+            // packet sizes so small are highly unlikely so just check for 4 bytes.
+            extra_debug("Continuation packet less than 4 bytes?");
+            return RET_ERR;
+        }
+
+        // This is negative and so kafka_continue_parse_response() will save
+        // remainder.
+        response->carry_over_offset = *offset - data_end;
+        return RET_EOP;
+    }
+
+    if (!remainder) {
+        // No remainder, and 4 or more bytes more in the packet, so just
+        // do a normal read.
+        pktbuf_load_bytes(pkt, *offset, val, sizeof(*val));
+        *offset += sizeof(*val);
+        *val = bpf_ntohs(*val);
+        extra_debug("read without remainder: %d", *val);
+        return RET_DONE;
+    }
+
+    // We'll be using up the remainder so clear it.
+    response->remainder = 0;
+
+    // The remainder_buf contains up to 3 head bytes of the value we
+    // need to read, saved from the previous packet. Read the tail
+    // bytes of the value from the current packet and reconstruct
+    // the value to be read.
+    u8 *reconstruct = response->remainder_buf;
+    u8 tail[2] = {0};
+
+    pktbuf_load_bytes(pkt, *offset, &tail, 1);
+
+    switch (remainder) {
+    case 1:
+        reconstruct[1] = tail[0];
+    //    reconstruct[2] = tail[1];
+    //    reconstruct[3] = tail[2];
+    //    break;
+    //case 2:
+    //    reconstruct[2] = tail[0];
+    //    reconstruct[3] = tail[1];
+    //    break;
+    //case 3:
+    //    reconstruct[3] = tail[0];
+    //    break;
+    }
+
+    *offset += want - remainder;
+    *val = bpf_ntohs(*(u16 *)reconstruct);
+    extra_debug("read with remainder: %d", *val);
+
+    return RET_DONE;
+}
+
 // TCP segments splits can happen at any point in the response. If a
 // field happens to straddles the segment boundary, we need to read
 // some bytes from the old packet and the rest from the new packet.
@@ -379,6 +465,28 @@ static __always_inline enum parse_result read_varint_or_s32(pktbuf_t pkt, bool f
     return RET_DONE;
 }
 
+static __always_inline enum parse_result read_varint_or_s16_restartable(
+                                                            bool flexible,
+                                                            kafka_response_context_t *response,
+                                                            pktbuf_t pkt,
+                                                            u32 *offset,
+                                                            u32 data_end,
+                                                            s16 *val,
+                                                            bool first)
+{
+    enum parse_result ret;
+
+    if (flexible) {
+        u64 tmp = 0;
+        ret = read_varint_restartable(response, pkt, &tmp, offset, data_end, first);
+        *val = tmp;
+    } else {
+        ret = read_with_remainder_s16(response, pkt, offset, data_end, val, first);
+    }
+
+    return ret;
+}
+
 static __always_inline enum parse_result read_varint_or_s32_restartable(
                                                             bool flexible,
                                                             kafka_response_context_t *response,
@@ -410,6 +518,9 @@ static enum parser_level parser_state_to_level(kafka_response_state state)
 {
     switch (state) {
     case KAFKA_FETCH_RESPONSE_START:
+    case KAFKA_FETCH_RESPONSE_NUM_TOPICS:
+    case KAFKA_FETCH_RESPONSE_TOPIC_NAME_SIZE:
+    case KAFKA_FETCH_RESPONSE_NUM_PARTITIONS:
     case KAFKA_FETCH_RESPONSE_PARTITION_START:
     case KAFKA_FETCH_RESPONSE_PARTITION_ABORTED_TRANSACTIONS:
     case KAFKA_FETCH_RESPONSE_RECORD_BATCHES_ARRAY_START:
@@ -446,7 +557,8 @@ static __always_inline enum parse_result kafka_continue_parse_response_partition
     offset += response->carry_over_offset;
     response->carry_over_offset = 0;
 
-    if (response->state == KAFKA_FETCH_RESPONSE_START) {
+    switch (response->state) {
+    case KAFKA_FETCH_RESPONSE_START:
         if (offset >= data_end) {
             response->carry_over_offset = offset - data_end;
             return RET_EOP;
@@ -462,44 +574,71 @@ static __always_inline enum parse_result kafka_continue_parse_response_partition
             offset += sizeof(s16); // Skip error_code
             offset += sizeof(s32); // Skip session_id
         }
+        response->state = KAFKA_FETCH_RESPONSE_NUM_TOPICS;
+        // fallthrough
 
-        s32 num_topics = 0;
-        ret = read_varint_or_s32(pkt, flexible, &num_topics, &offset, data_end);
-        extra_debug("num_topics: %u", num_topics);
-        if (ret != RET_DONE) {
-            return RET_ERR;
+    case KAFKA_FETCH_RESPONSE_NUM_TOPICS:
+        {
+            s32 num_topics = 0;
+            ret = read_varint_or_s32_restartable(flexible, response, pkt, &offset, data_end, &num_topics, true);
+            extra_debug("num_topics: %u", num_topics);
+            if (ret != RET_DONE) {
+                return ret;
+            }
+            if (num_topics <= 0) {
+                return RET_ERR;
+            }
         }
-        if (num_topics <= 0) {
-            return RET_ERR;
-        }
+        response->state = KAFKA_FETCH_RESPONSE_TOPIC_NAME_SIZE;
+        // fallthrough
 
-        s16 topic_name_size = 0;
-        ret = read_varint_or_s16(pkt, flexible, &topic_name_size, &offset, data_end);
-        extra_debug("topic_name_size: %u", topic_name_size);
-        if (ret != RET_DONE) {
-            return RET_ERR;
-        }
-        if (topic_name_size <= 0 || topic_name_size > TOPIC_NAME_MAX_ALLOWED_SIZE) {
-            return RET_ERR;
-        }
+    case KAFKA_FETCH_RESPONSE_TOPIC_NAME_SIZE:
+        {
+            s16 topic_name_size = 0;
+            ret = read_varint_or_s16_restartable(flexible, response, pkt, &offset, data_end, &topic_name_size, true);
+            extra_debug("topic_name_size: %u", topic_name_size);
+            if (ret != RET_DONE) {
+                return ret;
+            }
+            if (topic_name_size <= 0 || topic_name_size > TOPIC_NAME_MAX_ALLOWED_SIZE) {
+                return RET_ERR;
+            }
 
-        // Should we check that topic name matches the topic we expect?
-        offset += topic_name_size;
-
-        s32 number_of_partitions = 0;
-        ret = read_varint_or_s32(pkt, flexible, &number_of_partitions, &offset, data_end);
-        extra_debug("number_of_partitions: %u", number_of_partitions);
-        if (ret != RET_DONE) {
-            return RET_ERR;
+            // Should we check that topic name matches the topic we expect?
+            offset += topic_name_size;
         }
-        if (number_of_partitions <= 0) {
-            return RET_ERR;
-        }
+        response->state = KAFKA_FETCH_RESPONSE_NUM_PARTITIONS;
+        // fallthrough
 
-        response->partitions_count = number_of_partitions;
-        response->state = KAFKA_FETCH_RESPONSE_PARTITION_START;
-        response->record_batches_num_bytes = 0;
-        response->record_batch_length = 0;
+    case KAFKA_FETCH_RESPONSE_NUM_PARTITIONS:
+        {
+            s32 number_of_partitions = 0;
+            ret = read_varint_or_s32_restartable(flexible, response, pkt, &offset, data_end, &number_of_partitions, true);
+            extra_debug("number_of_partitions: %u", number_of_partitions);
+            if (ret != RET_DONE) {
+                return ret;
+            }
+            if (number_of_partitions <= 0) {
+                return RET_ERR;
+            }
+
+            response->partitions_count = number_of_partitions;
+            response->state = KAFKA_FETCH_RESPONSE_PARTITION_START;
+            response->record_batches_num_bytes = 0;
+            response->record_batch_length = 0;
+        }
+        break;
+    case KAFKA_FETCH_RESPONSE_PARTITION_START:
+    case KAFKA_FETCH_RESPONSE_PARTITION_ABORTED_TRANSACTIONS:
+    case KAFKA_FETCH_RESPONSE_RECORD_BATCHES_ARRAY_START:
+    case KAFKA_FETCH_RESPONSE_RECORD_BATCH_START:
+    case KAFKA_FETCH_RESPONSE_RECORD_BATCH_LENGTH:
+    case KAFKA_FETCH_RESPONSE_RECORD_BATCH_MAGIC:
+    case KAFKA_FETCH_RESPONSE_RECORD_BATCH_RECORDS_COUNT:
+    case KAFKA_FETCH_RESPONSE_RECORD_BATCH_END:
+    case KAFKA_FETCH_RESPONSE_RECORD_BATCHES_ARRAY_END:
+    case KAFKA_FETCH_RESPONSE_PARTITION_END:
+        break;
     }
 
 #pragma unroll(KAFKA_RESPONSE_PARSER_MAX_ITERATIONS)
@@ -509,6 +648,9 @@ static __always_inline enum parse_result kafka_continue_parse_response_partition
         extra_debug("partition state: %d", response->state);
         switch (response->state) {
         case KAFKA_FETCH_RESPONSE_START:
+        case KAFKA_FETCH_RESPONSE_NUM_TOPICS:
+        case KAFKA_FETCH_RESPONSE_TOPIC_NAME_SIZE:
+        case KAFKA_FETCH_RESPONSE_NUM_PARTITIONS:
             // Never happens. Only present to supress a compiler warning.
             break;
         case KAFKA_FETCH_RESPONSE_PARTITION_START:
@@ -819,6 +961,9 @@ static __always_inline enum parse_result kafka_continue_parse_response_record_ba
             break;
 
         case KAFKA_FETCH_RESPONSE_START:
+        case KAFKA_FETCH_RESPONSE_NUM_TOPICS:
+        case KAFKA_FETCH_RESPONSE_TOPIC_NAME_SIZE:
+        case KAFKA_FETCH_RESPONSE_NUM_PARTITIONS:
         case KAFKA_FETCH_RESPONSE_PARTITION_START:
         case KAFKA_FETCH_RESPONSE_PARTITION_ABORTED_TRANSACTIONS:
         case KAFKA_FETCH_RESPONSE_RECORD_BATCHES_ARRAY_START:
