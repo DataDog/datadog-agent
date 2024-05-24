@@ -187,10 +187,10 @@ func startInstallerStable(ctx context.Context) (err error) {
 	}
 	// this is expected during a fresh install with the install script / asible / chef / etc...
 	// the config is populated afterwards by the install method and the agent is restarted
-	if !os.IsNotExist(err) {
-		return startUnit(ctx, installerUnit)
+	if os.IsNotExist(err) {
+		return nil
 	}
-	return nil
+	return startUnit(ctx, installerUnit)
 }
 
 // RemoveInstaller removes the installer systemd units
