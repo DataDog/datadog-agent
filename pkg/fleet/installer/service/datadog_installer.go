@@ -109,23 +109,6 @@ func SetupInstaller(ctx context.Context) (err error) {
 		return fmt.Errorf("error creating symlink to /usr/bin/datadog-installer: %w", err)
 	}
 
-	// Set up defaults for packages interacting with each other
-	if err = configureSocketsEnv(); err != nil {
-		return
-	}
-	if err = addSystemDEnvOverrides(agentUnit); err != nil {
-		return
-	}
-	if err = addSystemDEnvOverrides(agentExp); err != nil {
-		return
-	}
-	if err = addSystemDEnvOverrides(traceAgentUnit); err != nil {
-		return
-	}
-	if err = addSystemDEnvOverrides(traceAgentExp); err != nil {
-		return
-	}
-
 	// FIXME(Arthur): enable the daemon unit by default and use the same strategy as the system probe
 	if os.Getenv("DD_REMOTE_UPDATES") != "true" {
 		return nil

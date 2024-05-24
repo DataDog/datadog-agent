@@ -65,6 +65,12 @@ func TestDefaultPackages(t *testing.T) {
 			expected: []pkg{{n: "datadog-agent", v: "latest"}},
 		},
 		{
+			name:     "Package released with remote updates",
+			packages: []defaultPackage{{name: "datadog-agent", released: false, releasedWithRemoteUpdates: true}},
+			env:      &env.Env{RemoteUpdates: true},
+			expected: []pkg{{n: "datadog-agent", v: "latest"}},
+		},
+		{
 			name:     "Package released to another site",
 			packages: []defaultPackage{{name: "datadog-agent", releasedBySite: []string{"datadoghq.eu"}}},
 			env:      &env.Env{Site: "datadoghq.com"},
@@ -93,6 +99,12 @@ func TestDefaultPackages(t *testing.T) {
 			packages: []defaultPackage{{name: "datadog-agent", released: false}},
 			env:      &env.Env{DefaultPackagesInstallOverride: map[string]bool{"datadog-agent": true}, DefaultPackagesVersionOverride: map[string]string{"datadog-agent": "1.2.3"}},
 			expected: []pkg{{n: "datadog-agent", v: "1.2.3"}},
+		},
+		{
+			name:     "APM inject before agent",
+			packages: []defaultPackage{{name: "datadog-apm-inject", released: true}, {name: "datadog-agent", released: true}},
+			env:      &env.Env{},
+			expected: []pkg{{n: "datadog-apm-inject", v: "latest"}, {n: "datadog-agent", v: "latest"}},
 		},
 	}
 

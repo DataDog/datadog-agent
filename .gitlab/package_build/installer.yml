@@ -92,6 +92,7 @@ datadog-agent-oci-arm64-a7:
     - source /root/.bashrc
     - !reference [.setup_ruby_mirror_linux]
     - !reference [.retrieve_linux_go_deps]
+    - !reference [.cache_omnibus_ruby_deps, setup]
     - echo "About to build for $RELEASE_VERSION"
     # remove artifacts from previous pipelines that may come from the cache
     - rm -rf $OMNIBUS_PACKAGE_DIR/*
@@ -107,6 +108,8 @@ datadog-agent-oci-arm64-a7:
     expire_in: 2 weeks
     paths:
       - $OMNIBUS_PACKAGE_DIR
+  cache:
+    - !reference [.cache_omnibus_ruby_deps, cache]
 
 # We build a "regular" installer, meant to be packaged as deb/rpm, without a custom install path
 # and an artifact intended for OCI packaging, which has a custom install path
