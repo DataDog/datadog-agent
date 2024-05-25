@@ -76,4 +76,7 @@ var (
 	//MetricWindowsRegistryNotificationsProcessed is the metric for counting the number of registry notifications processed
 	//Tags: -
 	MetricWindowsRegistryNotificationsProcessed = newRuntimeMetric(".windows.registry_notifications_processed")
+	//MetricWindowsApproverRejects is the metric for counting the number of approver rejects
+	//Tags: -
+	MetricWindowsApproverRejects = newRuntimeMetric(".windows.approver_rejects")
 )
