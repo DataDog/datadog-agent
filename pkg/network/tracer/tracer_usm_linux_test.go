@@ -49,9 +49,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/mysql"
 	pgutils "github.com/DataDog/datadog-agent/pkg/network/protocols/postgres"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/redis"
+	gotlstestutil "github.com/DataDog/datadog-agent/pkg/network/protocols/tls/gotls/testutil"
 	prototls "github.com/DataDog/datadog-agent/pkg/network/protocols/tls/openssl"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/kprobe"
+	"github.com/DataDog/datadog-agent/pkg/network/usm"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/testutil/grpc"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 	grpc2 "github.com/DataDog/datadog-agent/pkg/util/grpc"
@@ -103,6 +105,12 @@ func classificationSupported(config *config.Config) bool {
 func skipIfUsingNAT(t *testing.T, ctx testContext) {
 	if ctx.targetAddress != ctx.serverAddress {
 		t.Skip("test is not supported when NAT is applied")
+	}
+}
+
+func skipIfGoTLSNotSupported(t *testing.T, _ testContext) {
+	if !gotlstestutil.GoTLSSupported(t, config.New()) {
+		t.Skip("GoTLS is not supported")
 	}
 }
 
@@ -2076,5 +2084,54 @@ func testProtocolClassificationLinux(t *testing.T, tr *Tracer, clientHost, targe
 		t.Run(tt.name, func(t *testing.T) {
 			tt.testFunc(t, tr, clientHost, targetHost, serverHost)
 		})
+	}
+}
+
+func goTLSAttachPID(t *testing.T, pid int) {
+	t.Helper()
+	require.NoError(t, usm.GoTLSAttachPID(uint32(pid)))
+	utils.WaitForProgramsToBeTraced(t, "go-tls", pid)
+}
+
+func goTLSDetachPID(t *testing.T, pid int) {
+	t.Helper()
+
+	// The program is not traced; nothing to do.
+	if !utils.IsProgramTraced("go-tls", pid) {
+		return
+	}
+
+	require.NoError(t, usm.GoTLSDetachPID(uint32(pid)))
+
+	require.Eventually(t, func() bool {
+		return !utils.IsProgramTraced("go-tls", pid)
+	}, 5*time.Second, 100*time.Millisecond, "process %v is still traced by Go-TLS after detaching", pid)
+}
+
+// goTLSDetacherWrapper meant to run before the given callback and detach USM GoTLS monitoring from the given PID.
+// It is mainly used in the TLS classification tests, as we need to have a clean slate before running the actual test,
+// and since uprobes are not affected by the calls to `Pause` and `Resume` of the eBPF manager, so we detach from the
+// target process before the setup phase.
+func goTLSDetacherWrapper(pid int, callback func(t *testing.T, ctx testContext)) func(t *testing.T, ctx testContext) {
+	return func(t *testing.T, ctx testContext) {
+		goTLSDetachPID(t, pid)
+		if callback != nil {
+			callback(t, ctx)
+		}
+	}
+}
+
+// goTLSAttacherWrapper meant to run before the given callback and attach USM GoTLS monitoring to the given PID.
+// It is mainly used in the TLS classification tests, as we need to have a clean slate before running the actual test,
+// and since uprobes are not affected by the calls to `Pause` and `Resume` of the eBPF manager, so we detach from the
+// target process before the setup phase, we attach to it before the actual test, and detach from it after the test,
+// to ensure the validation process is not affected by the monitoring.
+func goTLSAttacherWrapper(pid int, callback func(t *testing.T, ctx testContext)) func(t *testing.T, ctx testContext) {
+	return func(t *testing.T, ctx testContext) {
+		goTLSAttachPID(t, pid)
+		defer goTLSDetachPID(t, pid)
+		if callback != nil {
+			callback(t, ctx)
+		}
 	}
 }
