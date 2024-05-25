@@ -311,7 +311,7 @@ func (t *Tracer) storeClosedConnections(connections []network.ConnectionStats) {
 		defer func() {
 			failedConnMap.Lock()
 			tracerTelemetry.failedConnOrphans.Add(float64(len(failedConnMap.FailedConnMap)))
-			//clear(failedConnMap.FailedConnMap)
+			clear(failedConnMap.FailedConnMap)
 			failedConnMap.Unlock()
 		}()
 	}
