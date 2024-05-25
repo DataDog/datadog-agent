@@ -46,34 +46,55 @@ func NewFailedConns() *FailedConns {
 }
 
 // MatchFailedConn increments the failed connection counters for a given connection based on the failed connection map
+//func MatchFailedConn(conn *network.ConnectionStats, failedConnMap *FailedConns) {
+//	if conn.Type != network.TCP {
+//		return
+//	}
+//	connTuple := connStatsToTuple(conn)
+//	failedConnMap.RLock()
+//	defer failedConnMap.RUnlock()
+//	log.Errorf("connTuple: %+v", conn)
+//	log.Errorf("failedConnMap: %+v", failedConnMap.FailedConnMap)
+//	log.Errorf("")
+//	if failedConn, ok := failedConnMap.FailedConnMap[connTuple]; ok {
+//		log.Errorf("Found failure match!: %+v", conn)
+//		conn.TCPFailures = make(map[uint32]uint32)
+//		for errCode, count := range failedConn.CountByErrCode {
+//			log.Errorf("incrementing failure count: %+v", errCode)
+//			conn.TCPFailures[errCode] += count
+//			delete(failedConnMap.FailedConnMap, connTuple)
+//		}
+//	}
+//}
+
+// MatchFailedConn increments the failed connection counters for a given connection based on the failed connection map
 func MatchFailedConn(conn *network.ConnectionStats, failedConnMap *FailedConns) {
 	if conn.Type != network.TCP {
 		return
 	}
 	connTuple := connStatsToTuple(conn)
+
+	// Read lock to check if the connection exists
 	failedConnMap.RLock()
-	defer failedConnMap.RUnlock()
-	//if conn.DPort == 10000 {
+	failedConn, ok := failedConnMap.FailedConnMap[connTuple]
 	log.Errorf("connTuple: %+v", conn)
 	log.Errorf("failedConnMap: %+v", failedConnMap.FailedConnMap)
 	log.Errorf("")
-	//}
-	handleMatch(connTuple, conn, failedConnMap)
-	// Check for a match with a zeroed PID to account for timeouts
-	//savedPid := connTuple.Pid
-	//connTuple.Pid = 0
-	//handleMatch(connTuple, conn, failedConnMap)
-	//connTuple.Pid = savedPid
-}
+	failedConnMap.RUnlock()
 
-func handleMatch(connTuple ebpf.ConnTuple, conn *network.ConnectionStats, failedConnMap *FailedConns) {
-	if failedConn, ok := failedConnMap.FailedConnMap[connTuple]; ok {
+	// If connection exists, proceed to increment failure count and delete
+	if ok {
+		log.Errorf("Found failure match!: %+v", conn)
 		conn.TCPFailures = make(map[uint32]uint32)
+
+		// Write lock to modify the map
+		failedConnMap.Lock()
 		for errCode, count := range failedConn.CountByErrCode {
+			log.Errorf("incrementing failure count: %+v", errCode)
 			conn.TCPFailures[errCode] += count
-			//delete(failedConnMap.FailedConnMap, connTuple)
-			//log.Errorf("Found match: %+v", conn)
 		}
+		delete(failedConnMap.FailedConnMap, connTuple)
+		failedConnMap.Unlock()
 	}
 }
 

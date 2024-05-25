@@ -561,8 +561,6 @@ func (t *Tracer) getConnections(activeBuffer *network.ConnectionBuffer) (latestU
 	activeConnections = activeBuffer.Connections()
 
 	for i := range activeConnections {
-		log.Errorf("adamk ACTIVE CONNECTION: %+v", activeConnections[i])
-
 		activeConnections[i].IPTranslation = t.conntracker.GetTranslationForConn(activeConnections[i])
 		// do gateway resolution only on active connections outside
 		// the map iteration loop to not add to connections while
