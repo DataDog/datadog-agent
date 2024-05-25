@@ -356,10 +356,11 @@ func handleTerminationSignals(serverlessDaemon *daemon.Daemon, stopCh chan struc
 
 func envVarToInt(envVar string, defaultValue int) int {
 	if value, ok := os.LookupEnv(envVar); ok {
-		if intValue, err := strconv.Atoi(value); err == nil {
-			log.Warnf("%s must be int type, got %s: %s", envVar, value, err)
+		intValue, err := strconv.Atoi(value)
+		if err == nil {
 			return intValue
 		}
+		log.Warnf("%s must be int type, got %s: %s", envVar, value, err)
 	}
 	return defaultValue
 }
