@@ -129,7 +129,7 @@ func parseICMPPacket(pkt gopacket.Packet) (*icmpResponse, error) {
 
 		var payload []byte
 		if len(icmp.Payload) < 40 {
-			log.Debugf("Payload length %d is less than 40, extending...\n", len(icmp.Payload))
+			log.Tracef("Payload length %d is less than 40, extending...\n", len(icmp.Payload))
 			payload = make([]byte, 40)
 			copy(payload, icmp.Payload)
 			// we have to set this in order for the TCP
@@ -294,18 +294,16 @@ func listenAnyPacket(icmpConn *ipv4.RawConn, tcpConn *ipv4.RawConn, timeout time
 		_, tcpCanceled := tcpErr.(canceledError)
 		_, icmpCanceled := icmpErr.(canceledError)
 		if icmpCanceled && tcpCanceled {
-			// TODO: better handling of listener timeout case
-			// this signifies an unknown hop
-			//
-			// TODO: better handling of the mismatch case which
-			// right now becomes an unknown hop
-			//
-			// For now, return nil error with empty hop data
-			log.Debug("timed out waiting for responses")
+			log.Trace("timed out waiting for responses")
 			return net.IP{}, 0, 0, finished, nil
 		}
-		log.Errorf("TCP Error: %s", tcpErr.Error())
-		log.Errorf("ICMP Error: %s", icmpErr.Error())
+		if tcpErr != nil {
+			log.Errorf("TCP listener error: %s", tcpErr.Error())
+		}
+		if icmpErr != nil {
+			log.Errorf("ICMP listener error: %s", icmpErr.Error())
+		}
+
 		return net.IP{}, 0, 0, finished, multierr.Append(fmt.Errorf("tcp error: %w", tcpErr), fmt.Errorf("icmp error: %w", icmpErr))
 	}
 
@@ -381,8 +379,6 @@ func parseICMP(header *ipv4.Header, payload []byte) (*icmpResponse, error) {
 }
 
 func icmpMatch(localIP net.IP, localPort uint16, remoteIP net.IP, remotePort uint16, seqNum uint32, response *icmpResponse) bool {
-	log.Debugf("Sent packet fields SRC %s:%d, DST %s:%d, Seq: %d", localIP.String(), localPort, remoteIP.String(), remotePort, seqNum)
-	log.Debugf("Received ICMP fields SRC %s:%d, DST %s:%d, Seq: %d", response.InnerSrcIP.String(), response.InnerSrcPort, response.InnerDstIP.String(), response.InnerDstPort, response.InnerSeqNum)
 	return localIP.Equal(response.InnerSrcIP) &&
 		remoteIP.Equal(response.InnerDstIP) &&
 		localPort == response.InnerSrcPort &&

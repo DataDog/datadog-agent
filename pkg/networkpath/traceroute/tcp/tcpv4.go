@@ -112,12 +112,11 @@ func (t *TCPv4) TracerouteSequential() (*Results, error) {
 	for i := int(t.MinTTL); i <= int(t.MaxTTL); i++ {
 		seqNumber := rand.Uint32()
 		hop, err := t.sendAndReceive(rawIcmpConn, rawTCPConn, i, seqNumber, timeout)
-		// TODO: create an unknown hop here instead
 		if err != nil {
 			return nil, fmt.Errorf("failed to run traceroute: %w", err)
 		}
 		hops = append(hops, hop)
-		log.Debugf("Discovered hop: %+v", hop)
+		log.Tracef("Discovered hop: %+v", hop)
 		// if we've reached our destination,
 		// we're done
 		if hop.IsDest {
@@ -142,8 +141,6 @@ func (t *TCPv4) sendAndReceive(rawIcmpConn *ipv4.RawConn, rawTCPConn *ipv4.RawCo
 		log.Errorf("failed to create TCP packet with TTL: %d, error: %s", ttl, err.Error())
 		return nil, err
 	}
-
-	log.Debugf("Sending on port: %d\n", t.srcPort)
 
 	err = sendPacket(rawTCPConn, tcpHeader, tcpPacket)
 	if err != nil {
