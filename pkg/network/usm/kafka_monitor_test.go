@@ -945,7 +945,7 @@ func testKafkaFetchRaw(t *testing.T, tls bool) {
 			onlyTLS: true,
 			buildResponse: func() kmsg.FetchResponse {
 				record := makeRecord()
-				partition := makeFetchResponseTopicPartition(makeRecordBatch(record))
+				partition := makeFetchResponseTopicPartition(0, makeRecordBatch(record))
 				return makeFetchResponse(makeFetchResponseTopic(topic, partition))
 			},
 			buildMessages: func(resp kmsg.FetchResponse) []Message {
@@ -967,7 +967,7 @@ func testKafkaFetchRaw(t *testing.T, tls bool) {
 			onlyTLS: true,
 			buildResponse: func() kmsg.FetchResponse {
 				record := makeRecord()
-				partition := makeFetchResponseTopicPartition(makeRecordBatch(record))
+				partition := makeFetchResponseTopicPartition(0, makeRecordBatch(record))
 				return makeFetchResponse(makeFetchResponseTopic(topic, partition))
 			},
 			buildMessages: func(resp kmsg.FetchResponse) []Message {
@@ -989,7 +989,7 @@ func testKafkaFetchRaw(t *testing.T, tls bool) {
 			onlyTLS: true,
 			buildResponse: func() kmsg.FetchResponse {
 				record := makeRecord()
-				partition := makeFetchResponseTopicPartition(makeRecordBatch(record))
+				partition := makeFetchResponseTopicPartition(0, makeRecordBatch(record))
 				return makeFetchResponse(makeFetchResponseTopic(topic, partition))
 			},
 			buildMessages: func(resp kmsg.FetchResponse) []Message {

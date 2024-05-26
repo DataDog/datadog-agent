@@ -255,7 +255,7 @@ static __always_inline enum parse_result read_with_remainder(kafka_response_cont
     return RET_DONE;
 }
 
-static __always_inline enum parse_result read_with_remainder_s16(kafka_response_context_t *response, const struct __sk_buff *skb,
+static __always_inline enum parse_result read_with_remainder_s16(kafka_response_context_t *response, pktbuf_t pkt,
                                                              u32 *offset, u32 data_end, s16 *val, bool first)
 {
     if (*offset >= data_end) {
@@ -300,7 +300,7 @@ static __always_inline enum parse_result read_with_remainder_s16(kafka_response_
     if (!remainder) {
         // No remainder, and 2 or more bytes more in the packet, so just
         // do a normal read.
-        bpf_skb_load_bytes(skb, *offset, val, sizeof(*val));
+        pktbuf_load_bytes(pkt, *offset, val, sizeof(*val));
         *offset += sizeof(*val);
         *val = bpf_ntohs(*val);
         extra_debug("read without remainder: %d", *val);
@@ -318,7 +318,7 @@ static __always_inline enum parse_result read_with_remainder_s16(kafka_response_
     u8 *reconstruct = response->remainder_buf;
     u8 tail[2] = {0};
 
-    bpf_skb_load_bytes(skb, *offset, &tail, 1);
+    pktbuf_load_bytes(pkt, *offset, &tail, 1);
 
     switch (remainder) {
     case 1:
@@ -396,15 +396,15 @@ static __always_inline enum parse_result kafka_continue_parse_response_loop(kafk
             break;
         case KAFKA_FETCH_RESPONSE_PARTITION_START:
             offset += sizeof(s32); // Skip partition_index
-            response->state = KAFKA_FETCH_RESPONSE_ERROR_CODE_START;
+            response->state = KAFKA_FETCH_RESPONSE_PARTITION_ERROR_CODE_START;
             // fallthrough
 
-         case KAFKA_FETCH_RESPONSE_ERROR_CODE_START:
+         case KAFKA_FETCH_RESPONSE_PARTITION_ERROR_CODE_START:
          {
             // Error codes range from -1 to 119 as per the Kafka protocol specification.
             // For details, refer to: https://kafka.apache.org/protocol.html#protocol_error_codes
             s16 error_code = 0;
-            ret = read_with_remainder_s16(response, skb, &offset, data_end, &error_code, first);
+            ret = read_with_remainder_s16(response, pkt, &offset, data_end, &error_code, first);
             if (ret != RET_DONE) {
                 return ret;
             }
