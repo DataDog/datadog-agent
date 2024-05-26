@@ -35,6 +35,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serverless/proxy"
 	"github.com/DataDog/datadog-agent/pkg/serverless/random"
 	"github.com/DataDog/datadog-agent/pkg/serverless/registration"
+	"github.com/DataDog/datadog-agent/pkg/serverless/streamlogs"
 	"github.com/DataDog/datadog-agent/pkg/serverless/trace"
 	"github.com/DataDog/datadog-agent/pkg/serverless/trace/inferredspan"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
@@ -246,6 +247,12 @@ func runAgent() {
 				log.Errorf("Error setting up the logs agent: %s", err)
 			}
 			serverlessDaemon.SetLogsAgent(logsAgent)
+			ctx, cancel := context.WithCancel(context.Background())
+			go streamlogs.Run(ctx, logsAgent, os.Stdout)
+			go func() {
+				<-stopCh
+				cancel()
+			}()
 		}
 	}()
 
