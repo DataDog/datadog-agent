@@ -106,7 +106,7 @@ func testDecoding(t *testing.T, isTLS bool) {
 	// With non-TLS, we need to double the stats since we use Docker and the
 	// packets are seen twice. This is not needed in the TLS case since there
 	// the data comes from uprobes on the binary.
-	fixCount := func(count int) int {
+	adjustCount := func(count int) int {
 		if isTLS {
 			return count
 		}
@@ -131,7 +131,7 @@ func testDecoding(t *testing.T, isTLS bool) {
 			validation: func(t *testing.T, ctx testContext, monitor *Monitor) {
 				validatePostgres(t, monitor, map[string]map[postgres.Operation]int{
 					"dummy": {
-						postgres.CreateTableOP: fixCount(1),
+						postgres.CreateTableOP: adjustCount(1),
 					},
 				})
 			},
@@ -157,7 +157,7 @@ func testDecoding(t *testing.T, isTLS bool) {
 			validation: func(t *testing.T, ctx testContext, monitor *Monitor) {
 				validatePostgres(t, monitor, map[string]map[postgres.Operation]int{
 					"dummy": {
-						postgres.InsertOP: fixCount(2),
+						postgres.InsertOP: adjustCount(2),
 					},
 				})
 			},
@@ -180,7 +180,7 @@ func testDecoding(t *testing.T, isTLS bool) {
 			validation: func(t *testing.T, ctx testContext, monitor *Monitor) {
 				validatePostgres(t, monitor, map[string]map[postgres.Operation]int{
 					"dummy": {
-						postgres.UpdateOP: fixCount(1),
+						postgres.UpdateOP: adjustCount(1),
 					},
 				})
 			},
@@ -203,7 +203,7 @@ func testDecoding(t *testing.T, isTLS bool) {
 			validation: func(t *testing.T, ctx testContext, monitor *Monitor) {
 				validatePostgres(t, monitor, map[string]map[postgres.Operation]int{
 					"dummy": {
-						postgres.SelectOP: fixCount(1),
+						postgres.SelectOP: adjustCount(1),
 					},
 				})
 			},
@@ -224,7 +224,7 @@ func testDecoding(t *testing.T, isTLS bool) {
 			validation: func(t *testing.T, ctx testContext, monitor *Monitor) {
 				validatePostgres(t, monitor, map[string]map[postgres.Operation]int{
 					"dummy": {
-						postgres.DropTableOP: fixCount(1),
+						postgres.DropTableOP: adjustCount(1),
 					},
 				})
 			},
@@ -254,10 +254,10 @@ func testDecoding(t *testing.T, isTLS bool) {
 			validation: func(t *testing.T, ctx testContext, monitor *Monitor) {
 				validatePostgres(t, monitor, map[string]map[postgres.Operation]int{
 					"dummy": {
-						postgres.SelectOP:      fixCount(1),
-						postgres.UpdateOP:      fixCount(1),
-						postgres.InsertOP:      fixCount(20),
-						postgres.CreateTableOP: fixCount(1),
+						postgres.SelectOP:      adjustCount(1),
+						postgres.UpdateOP:      adjustCount(1),
+						postgres.InsertOP:      adjustCount(20),
+						postgres.CreateTableOP: adjustCount(1),
 					},
 				})
 			},
@@ -282,10 +282,10 @@ func testDecoding(t *testing.T, isTLS bool) {
 			validation: func(t *testing.T, ctx testContext, monitor *Monitor) {
 				validatePostgres(t, monitor, map[string]map[postgres.Operation]int{
 					"table_table_table_table_table_table_table_table_tab": {
-						postgres.CreateTableOP: fixCount(1),
+						postgres.CreateTableOP: adjustCount(1),
 					},
 					"table_table_table_table_table_table_table_t": {
-						postgres.DropTableOP: fixCount(1),
+						postgres.DropTableOP: adjustCount(1),
 					},
 				})
 			},
@@ -317,7 +317,7 @@ func testDecoding(t *testing.T, isTLS bool) {
 			validation: func(t *testing.T, ctx testContext, monitor *Monitor) {
 				validatePostgres(t, monitor, map[string]map[postgres.Operation]int{
 					"dummy": {
-						postgres.SelectOP: fixCount(2),
+						postgres.SelectOP: adjustCount(2),
 					},
 				})
 			},

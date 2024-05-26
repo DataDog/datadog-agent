@@ -161,7 +161,7 @@ int uprobe__postgres_tls_process(struct pt_regs *ctx) {
         return 0;
     }
 
-    // On stack for 4.14
+    // Copying the tuple to the stack to handle verifier issues on kernel 4.14.
     conn_tuple_t tup = args->tup;
 
     pktbuf_t pkt = pktbuf_from_tls(args);
@@ -178,7 +178,7 @@ int uprobe__postgres_tls_termination(struct pt_regs *ctx) {
         return 0;
     }
 
-    // On stack for 4.14
+    // Copying the tuple to the stack to handle verifier issues on kernel 4.14.
     conn_tuple_t tup = args->tup;
     postgres_tcp_termination(&tup);
     return 0;
