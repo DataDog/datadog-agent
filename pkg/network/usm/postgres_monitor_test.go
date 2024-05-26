@@ -10,6 +10,7 @@ package usm
 import (
 	"fmt"
 	"net"
+	"os"
 	"reflect"
 	"strings"
 	"sync"
@@ -25,6 +26,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/postgres"
+	gotlstestutil "github.com/DataDog/datadog-agent/pkg/network/protocols/tls/gotls/testutil"
+	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 )
 
 const (
@@ -61,7 +64,7 @@ func (s *postgresProtocolParsingSuite) TestLoadPostgresBinary() {
 	t := s.T()
 	for name, debug := range map[string]bool{"enabled": true, "disabled": false} {
 		t.Run(name, func(t *testing.T) {
-			cfg := getPostgresDefaultTestConfiguration()
+			cfg := getPostgresDefaultTestConfiguration(postgres.TLSDisabled)
 			cfg.BPFDebug = debug
 			setupUSMTLSMonitor(t, cfg)
 		})
@@ -71,10 +74,45 @@ func (s *postgresProtocolParsingSuite) TestLoadPostgresBinary() {
 func (s *postgresProtocolParsingSuite) TestDecoding() {
 	t := s.T()
 
+	tests := []struct {
+		name  string
+		isTLS bool
+	}{
+		{
+			name:  "with TLS",
+			isTLS: true,
+		},
+		{
+			name:  "without TLS",
+			isTLS: false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.isTLS && !gotlstestutil.GoTLSSupported(t, config.New()) {
+				t.Skip("GoTLS not supported for this setup")
+			}
+			testDecoding(t, tt.isTLS)
+		})
+	}
+}
+
+func testDecoding(t *testing.T, isTLS bool) {
 	serverHost := "127.0.0.1"
 
 	serverAddress := net.JoinHostPort(serverHost, postgresPort)
-	require.NoError(t, postgres.RunServer(t, serverHost, postgresPort, postgres.TLSDisabled))
+	require.NoError(t, postgres.RunServer(t, serverHost, postgresPort, isTLS))
+
+	// With non-TLS, we need to double the stats since we use Docker and the
+	// packets are seen twice. This is not needed in the TLS case since there
+	// the data comes from uprobes on the binary.
+	fixCount := func(count int) int {
+		if isTLS {
+			return count
+		}
+
+		return count * 2
+	}
 
 	tests := []postgresParsingTestAttributes{
 		{
@@ -82,6 +120,7 @@ func (s *postgresProtocolParsingSuite) TestDecoding() {
 			preMonitorSetup: func(t *testing.T, ctx testContext) {
 				pg := postgres.NewPGClient(postgres.ConnectionOptions{
 					ServerAddress: ctx.serverAddress,
+					EnableTLS:     isTLS,
 				})
 				ctx.extras["pg"] = pg
 			},
@@ -92,7 +131,7 @@ func (s *postgresProtocolParsingSuite) TestDecoding() {
 			validation: func(t *testing.T, ctx testContext, monitor *Monitor) {
 				validatePostgres(t, monitor, map[string]map[postgres.Operation]int{
 					"dummy": {
-						postgres.CreateTableOP: 2,
+						postgres.CreateTableOP: fixCount(1),
 					},
 				})
 			},
@@ -102,6 +141,7 @@ func (s *postgresProtocolParsingSuite) TestDecoding() {
 			preMonitorSetup: func(t *testing.T, ctx testContext) {
 				pg := postgres.NewPGClient(postgres.ConnectionOptions{
 					ServerAddress: ctx.serverAddress,
+					EnableTLS:     isTLS,
 				})
 				ctx.extras["pg"] = pg
 				require.NoError(t, pg.RunCreateQuery())
@@ -117,7 +157,7 @@ func (s *postgresProtocolParsingSuite) TestDecoding() {
 			validation: func(t *testing.T, ctx testContext, monitor *Monitor) {
 				validatePostgres(t, monitor, map[string]map[postgres.Operation]int{
 					"dummy": {
-						postgres.InsertOP: 4,
+						postgres.InsertOP: fixCount(2),
 					},
 				})
 			},
@@ -127,6 +167,7 @@ func (s *postgresProtocolParsingSuite) TestDecoding() {
 			preMonitorSetup: func(t *testing.T, ctx testContext) {
 				pg := postgres.NewPGClient(postgres.ConnectionOptions{
 					ServerAddress: ctx.serverAddress,
+					EnableTLS:     isTLS,
 				})
 				ctx.extras["pg"] = pg
 				require.NoError(t, pg.RunCreateQuery())
@@ -139,7 +180,7 @@ func (s *postgresProtocolParsingSuite) TestDecoding() {
 			validation: func(t *testing.T, ctx testContext, monitor *Monitor) {
 				validatePostgres(t, monitor, map[string]map[postgres.Operation]int{
 					"dummy": {
-						postgres.UpdateOP: 2,
+						postgres.UpdateOP: fixCount(1),
 					},
 				})
 			},
@@ -149,6 +190,7 @@ func (s *postgresProtocolParsingSuite) TestDecoding() {
 			preMonitorSetup: func(t *testing.T, ctx testContext) {
 				pg := postgres.NewPGClient(postgres.ConnectionOptions{
 					ServerAddress: ctx.serverAddress,
+					EnableTLS:     isTLS,
 				})
 				ctx.extras["pg"] = pg
 				require.NoError(t, pg.RunCreateQuery())
@@ -161,7 +203,7 @@ func (s *postgresProtocolParsingSuite) TestDecoding() {
 			validation: func(t *testing.T, ctx testContext, monitor *Monitor) {
 				validatePostgres(t, monitor, map[string]map[postgres.Operation]int{
 					"dummy": {
-						postgres.SelectOP: 2,
+						postgres.SelectOP: fixCount(1),
 					},
 				})
 			},
@@ -171,6 +213,7 @@ func (s *postgresProtocolParsingSuite) TestDecoding() {
 			preMonitorSetup: func(t *testing.T, ctx testContext) {
 				pg := postgres.NewPGClient(postgres.ConnectionOptions{
 					ServerAddress: ctx.serverAddress,
+					EnableTLS:     isTLS,
 				})
 				ctx.extras["pg"] = pg
 			},
@@ -181,7 +224,7 @@ func (s *postgresProtocolParsingSuite) TestDecoding() {
 			validation: func(t *testing.T, ctx testContext, monitor *Monitor) {
 				validatePostgres(t, monitor, map[string]map[postgres.Operation]int{
 					"dummy": {
-						postgres.DropTableOP: 2,
+						postgres.DropTableOP: fixCount(1),
 					},
 				})
 			},
@@ -191,22 +234,30 @@ func (s *postgresProtocolParsingSuite) TestDecoding() {
 			preMonitorSetup: func(t *testing.T, ctx testContext) {
 				pg := postgres.NewPGClient(postgres.ConnectionOptions{
 					ServerAddress: ctx.serverAddress,
+					EnableTLS:     isTLS,
 				})
 				ctx.extras["pg"] = pg
 			},
 			postMonitorSetup: func(t *testing.T, ctx testContext) {
 				pg := ctx.extras["pg"].(*postgres.PGClient)
-				prepareTestDB(t, ctx)
+				require.NoError(t, pg.RunCreateQuery())
+				values := make([]string, 5)
+				for i := 0; i < 20; i++ {
+					for j := 0; j < len(values); j++ {
+						values[j] = fmt.Sprintf("value-%d", i*len(values)+j+1)
+					}
+					require.NoError(t, pg.RunMultiInsertQuery(values...))
+				}
 				require.NoError(t, pg.RunSelectQueryWithLimit(50))
 				require.NoError(t, pg.RunUpdateQuery())
 			},
 			validation: func(t *testing.T, ctx testContext, monitor *Monitor) {
 				validatePostgres(t, monitor, map[string]map[postgres.Operation]int{
 					"dummy": {
-						postgres.SelectOP:      2,
-						postgres.UpdateOP:      2,
-						postgres.InsertOP:      40,
-						postgres.CreateTableOP: 2,
+						postgres.SelectOP:      fixCount(1),
+						postgres.UpdateOP:      fixCount(1),
+						postgres.InsertOP:      fixCount(20),
+						postgres.CreateTableOP: fixCount(1),
 					},
 				})
 			},
@@ -216,6 +267,7 @@ func (s *postgresProtocolParsingSuite) TestDecoding() {
 			preMonitorSetup: func(t *testing.T, ctx testContext) {
 				pg := postgres.NewPGClient(postgres.ConnectionOptions{
 					ServerAddress: ctx.serverAddress,
+					EnableTLS:     isTLS,
 				})
 				ctx.extras["pg"] = pg
 			},
@@ -230,10 +282,10 @@ func (s *postgresProtocolParsingSuite) TestDecoding() {
 			validation: func(t *testing.T, ctx testContext, monitor *Monitor) {
 				validatePostgres(t, monitor, map[string]map[postgres.Operation]int{
 					"table_table_table_table_table_table_table_table_tab": {
-						postgres.CreateTableOP: 2,
+						postgres.CreateTableOP: fixCount(1),
 					},
 					"table_table_table_table_table_table_table_t": {
-						postgres.DropTableOP: 2,
+						postgres.DropTableOP: fixCount(1),
 					},
 				})
 			},
@@ -243,6 +295,7 @@ func (s *postgresProtocolParsingSuite) TestDecoding() {
 			preMonitorSetup: func(t *testing.T, ctx testContext) {
 				pg := postgres.NewPGClient(postgres.ConnectionOptions{
 					ServerAddress: ctx.serverAddress,
+					EnableTLS:     isTLS,
 				})
 				ctx.extras["pg"] = pg
 				require.NoError(t, pg.RunCreateQuery())
@@ -264,7 +317,7 @@ func (s *postgresProtocolParsingSuite) TestDecoding() {
 			validation: func(t *testing.T, ctx testContext, monitor *Monitor) {
 				validatePostgres(t, monitor, map[string]map[postgres.Operation]int{
 					"dummy": {
-						postgres.SelectOP: 4,
+						postgres.SelectOP: fixCount(2),
 					},
 				})
 			},
@@ -291,7 +344,10 @@ func (s *postgresProtocolParsingSuite) TestDecoding() {
 			if tt.preMonitorSetup != nil {
 				tt.preMonitorSetup(t, tt.context)
 			}
-			monitor := setupUSMTLSMonitor(t, getPostgresDefaultTestConfiguration())
+			monitor := setupUSMTLSMonitor(t, getPostgresDefaultTestConfiguration(isTLS))
+			if isTLS {
+				utils.WaitForProgramsToBeTraced(t, "go-tls", os.Getpid())
+			}
 			tt.postMonitorSetup(t, tt.context)
 			tt.validation(t, tt.context, monitor)
 		})
@@ -321,7 +377,7 @@ func (s *postgresProtocolParsingSuite) TestCleanupEBPFEntriesOnTermination() {
 	t := s.T()
 
 	// Creating the monitor
-	monitor := setupUSMTLSMonitor(t, getPostgresDefaultTestConfiguration())
+	monitor := setupUSMTLSMonitor(t, getPostgresDefaultTestConfiguration(postgres.TLSDisabled))
 
 	wg := sync.WaitGroup{}
 
@@ -363,26 +419,15 @@ func (s *postgresProtocolParsingSuite) TestCleanupEBPFEntriesOnTermination() {
 	require.Len(t, entries, 0)
 }
 
-func getPostgresDefaultTestConfiguration() *config.Config {
+func getPostgresDefaultTestConfiguration(enableTLS bool) *config.Config {
 	cfg := config.New()
 	cfg.EnablePostgresMonitoring = true
 	cfg.MaxTrackedConnections = 1000
+	cfg.EnableGoTLSSupport = enableTLS
+	// If GO TLS is enabled, we need to allow self traffic to be captured.
+	// If GO TLS is disabled, the value is irrelevant.
+	cfg.GoTLSExcludeSelf = false
 	return cfg
-}
-
-func prepareTestDB(t *testing.T, ctx testContext) {
-	pg := postgres.NewPGClient(postgres.ConnectionOptions{
-		ServerAddress: ctx.serverAddress,
-	})
-	ctx.extras["pg"] = pg
-	require.NoError(t, pg.RunCreateQuery())
-	values := make([]string, 5)
-	for i := 0; i < 20; i++ {
-		for j := 0; j < len(values); j++ {
-			values[j] = fmt.Sprintf("value-%d", i*len(values)+j+1)
-		}
-		require.NoError(t, pg.RunMultiInsertQuery(values...))
-	}
 }
 
 func validatePostgres(t *testing.T, monitor *Monitor, expectedStats map[string]map[postgres.Operation]int) {
