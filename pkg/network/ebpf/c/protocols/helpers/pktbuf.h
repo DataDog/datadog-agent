@@ -135,7 +135,7 @@ PKTBUF_READ_BIG_ENDIAN(s8)
             read_into_buffer_##name(buffer, pkt.skb, offset);                                            \
             return;                                                                                      \
         case PKTBUF_TLS:                                                                                 \
-            read_into_user_buffer_##name(buffer, pkt.tls->buffer_ptr + pkt.tls->data_off + offset);      \
+            read_into_user_buffer_##name(buffer, pkt.tls->buffer_ptr + offset);                          \
             return;                                                                                      \
         }                                                                                                \
         pktbuf_invalid_operation();                                                                      \
