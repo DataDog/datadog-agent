@@ -326,7 +326,7 @@ func (s *postgresProtocolParsingSuite) TestCleanupEBPFEntriesOnTermination() {
 	wg := sync.WaitGroup{}
 
 	// Spinning the TCP server
-	const serverAddress = "127.0.0.1:5432"
+	const serverAddress = "127.0.0.1:5433" // Using a different port than 5432 to avoid errors like "address already in use"
 	srv := testutil.NewTCPServer(serverAddress, func(conn net.Conn) {
 		defer conn.Close()
 		defer wg.Done()
