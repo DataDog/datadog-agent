@@ -23,6 +23,8 @@ const (
 	CreateTableOP
 	// DropTableOP represents a DROP TABLE operation.
 	DropTableOP
+	// AlterTableOP represents an ALTER TABLE operation.
+	AlterTableOP
 )
 
 // String returns the string representation of the operation.
@@ -38,6 +40,8 @@ func (op Operation) String() string {
 		return "CREATE"
 	case DropTableOP:
 		return "DROP"
+	case AlterTableOP:
+		return "ALTER"
 	default:
 		return "UNKNOWN"
 	}
@@ -56,6 +60,8 @@ func FromString(op string) Operation {
 		return CreateTableOP
 	case "DROP":
 		return DropTableOP
+	case "ALTER":
+		return AlterTableOP
 	default:
 		return UnknownOP
 	}

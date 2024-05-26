@@ -167,6 +167,27 @@ func (s *postgresProtocolParsingSuite) TestDecoding() {
 			},
 		},
 		{
+			name: "alter command",
+			preMonitorSetup: func(t *testing.T, ctx testContext) {
+				pg := postgres.NewPGClient(postgres.ConnectionOptions{
+					ServerAddress: ctx.serverAddress,
+				})
+				ctx.extras["pg"] = pg
+				require.NoError(t, pg.RunCreateQuery())
+			},
+			postMonitorSetup: func(t *testing.T, ctx testContext) {
+				pg := ctx.extras["pg"].(*postgres.PGClient)
+				require.NoError(t, pg.RunAlterQuery())
+			},
+			validation: func(t *testing.T, ctx testContext, monitor *Monitor) {
+				validatePostgres(t, monitor, map[string]map[postgres.Operation]int{
+					"dummy": {
+						postgres.AlterTableOP: 2,
+					},
+				})
+			},
+		},
+		{
 			name: "drop table",
 			preMonitorSetup: func(t *testing.T, ctx testContext) {
 				pg := postgres.NewPGClient(postgres.ConnectionOptions{
