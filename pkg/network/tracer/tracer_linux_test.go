@@ -2366,7 +2366,7 @@ func (s *TracerSuite) TestTCPFailureConnectionTimeout() {
 	t.Cleanup(func() { syscall.Close(sfd) })
 
 	// Set TCP_USER_TIMEOUT to 1000 milliseconds
-	timeout := 1000 // milliseconds
+	timeout := 500 // milliseconds
 	//syscall.TCP_USER_TIMEOUT is 18 but not defined in our linter
 	err = syscall.SetsockoptInt(sfd, syscall.IPPROTO_TCP, 18, timeout)
 	require.NoError(t, err)
@@ -2397,7 +2397,7 @@ func (s *TracerSuite) TestTCPFailureConnectionTimeout() {
 		// 110 is the errno for ETIMEDOUT
 		found := findFailedConnectionByRemoteAddr(srvAddr, conns, 110)
 		return found
-	}, 3*time.Second, 1000*time.Millisecond, "Failed connection not recorded properly")
+	}, 3*time.Second, 100*time.Millisecond, "Failed connection not recorded properly")
 }
 
 func (s *TracerSuite) TestTCPFailureConnectionRefused() {

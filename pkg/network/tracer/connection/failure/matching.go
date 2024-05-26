@@ -10,6 +10,7 @@ package failure
 import (
 	"fmt"
 	"sync"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf"
@@ -20,12 +21,13 @@ import (
 // FailedConnStats is a wrapper to help document the purpose of the underlying map
 type FailedConnStats struct {
 	CountByErrCode map[uint32]uint32
+	Expiry         int64
 }
 
 // String returns a string representation of the failedConnStats
 func (t FailedConnStats) String() string {
 	return fmt.Sprintf(
-		"failedConns: {countByErrCode: %+v}", t.CountByErrCode,
+		"FailedConnStats{CountByErrCode: %v, Expiry: %d}", t.CountByErrCode, t.Expiry,
 	)
 }
 
@@ -44,28 +46,6 @@ func NewFailedConns() *FailedConns {
 		FailedConnMap: make(map[ebpf.ConnTuple]*FailedConnStats),
 	}
 }
-
-// MatchFailedConn increments the failed connection counters for a given connection based on the failed connection map
-//func MatchFailedConn(conn *network.ConnectionStats, failedConnMap *FailedConns) {
-//	if conn.Type != network.TCP {
-//		return
-//	}
-//	connTuple := connStatsToTuple(conn)
-//	failedConnMap.RLock()
-//	defer failedConnMap.RUnlock()
-//	log.Errorf("connTuple: %+v", conn)
-//	log.Errorf("failedConnMap: %+v", failedConnMap.FailedConnMap)
-//	log.Errorf("")
-//	if failedConn, ok := failedConnMap.FailedConnMap[connTuple]; ok {
-//		log.Errorf("Found failure match!: %+v", conn)
-//		conn.TCPFailures = make(map[uint32]uint32)
-//		for errCode, count := range failedConn.CountByErrCode {
-//			log.Errorf("incrementing failure count: %+v", errCode)
-//			conn.TCPFailures[errCode] += count
-//			delete(failedConnMap.FailedConnMap, connTuple)
-//		}
-//	}
-//}
 
 // MatchFailedConn increments the failed connection counters for a given connection based on the failed connection map
 func MatchFailedConn(conn *network.ConnectionStats, failedConnMap *FailedConns) {
@@ -88,13 +68,27 @@ func MatchFailedConn(conn *network.ConnectionStats, failedConnMap *FailedConns) 
 		conn.TCPFailures = make(map[uint32]uint32)
 
 		// Write lock to modify the map
-		failedConnMap.Lock()
+		//failedConnMap.Lock()
 		for errCode, count := range failedConn.CountByErrCode {
 			log.Errorf("incrementing failure count: %+v", errCode)
 			conn.TCPFailures[errCode] += count
 		}
-		delete(failedConnMap.FailedConnMap, connTuple)
-		failedConnMap.Unlock()
+		//delete(failedConnMap.FailedConnMap, connTuple)
+		//failedConnMap.Unlock()
+	}
+}
+
+// RemoveExpired removes expired failed connections from the map
+func (fc *FailedConns) RemoveExpired() {
+	fc.Lock()
+	defer fc.Unlock()
+
+	now := time.Now().Unix()
+
+	for connTuple, failedConn := range fc.FailedConnMap {
+		if failedConn.Expiry < now {
+			delete(fc.FailedConnMap, connTuple)
+		}
 	}
 }
 

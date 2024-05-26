@@ -11,6 +11,7 @@ package failure
 import (
 	"sync"
 	"syscall"
+	"time"
 	"unsafe"
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
@@ -78,10 +79,12 @@ func (c *TCPFailedConnConsumer) extractConn(data []byte) {
 	if !ok {
 		stats = &FailedConnStats{
 			CountByErrCode: make(map[uint32]uint32),
+			Expiry:         time.Now().Add(2 * time.Minute).Unix(),
 		}
 		c.FailedConns.FailedConnMap[failedConn.Tup] = stats
 	}
 	stats.CountByErrCode[failedConn.Reason]++
+	stats.Expiry = time.Now().Add(2 * time.Minute).Unix()
 }
 
 // Start starts the consumer
