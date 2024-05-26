@@ -409,10 +409,10 @@ static __always_inline enum parse_result kafka_continue_parse_response_loop(kafk
                 return ret;
             }
             if (error_code < -1 || error_code > 119) {
-                log_debug("kafka: invalid error code: %d", error_code);
+                extra_debug("invalid error code: %d", error_code);
                 return RET_ERR;
             }
-            log_debug("kafka: Got error code: %d", error_code);
+            extra_debug("got error code: %d", error_code);
             response->transaction.error_code = (s8)error_code;
 
             offset += sizeof(s64); // Skip high_watermark
