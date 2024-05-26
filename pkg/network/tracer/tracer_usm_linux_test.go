@@ -108,6 +108,7 @@ func skipIfUsingNAT(t *testing.T, ctx testContext) {
 	}
 }
 
+// skipIfGoTLSNotSupported skips the test if GoTLS is not supported.
 func skipIfGoTLSNotSupported(t *testing.T, _ testContext) {
 	if !gotlstestutil.GoTLSSupported(t, config.New()) {
 		t.Skip("GoTLS is not supported")
@@ -2111,12 +2112,16 @@ func testProtocolClassificationLinux(t *testing.T, tr *Tracer, clientHost, targe
 	}
 }
 
+// goTLSAttachPID attaches the Go-TLS monitoring to the given PID.
+// Wraps the call to the Go-TLS attach function and waits for the program to be traced.
 func goTLSAttachPID(t *testing.T, pid int) {
 	t.Helper()
 	require.NoError(t, usm.GoTLSAttachPID(uint32(pid)))
 	utils.WaitForProgramsToBeTraced(t, "go-tls", pid)
 }
 
+// goTLSDetachPID detaches the Go-TLS monitoring from the given PID.
+// Wraps the call to the Go-TLS detach function and waits for the program to be untraced.
 func goTLSDetachPID(t *testing.T, pid int) {
 	t.Helper()
 
