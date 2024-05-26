@@ -46,7 +46,7 @@ static __always_inline void classify_decrypted_payload(protocol_stack_t *stack, 
     }
 
     protocol_t proto = PROTOCOL_UNKNOWN;
-    classify_protocol_for_dispatcher(&proto, t, buffer, len);
+    classify_protocol_for_tls_dispatcher(&proto, t, buffer, len);
     if (proto == PROTOCOL_UNKNOWN) {
         return;
     }
