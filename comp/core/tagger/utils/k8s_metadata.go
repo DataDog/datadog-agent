@@ -15,14 +15,14 @@ import (
 )
 
 // InitMetadataAsTags prepares labels and annotations as tags
-// - It lower-case all the labels in metadataAsTags
+// - It lower-case all the keys in metadataAsTags
 // - It compiles all the patterns and stores them in a map of glob.Glob objects
 func InitMetadataAsTags(metadataAsTags map[string]string) (map[string]string, map[string]glob.Glob) {
 	// We lower-case the values collected by viper as well as the ones from inspecting the pod labels/annotations.
 	globMap := map[string]glob.Glob{}
-	for label, value := range metadataAsTags {
-		delete(metadataAsTags, label)
-		pattern := strings.ToLower(label)
+	for metadataKey, value := range metadataAsTags {
+		delete(metadataAsTags, metadataKey)
+		pattern := strings.ToLower(metadataKey)
 		metadataAsTags[pattern] = value
 		if strings.Contains(pattern, "*") {
 			g, err := glob.Compile(pattern)

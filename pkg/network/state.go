@@ -19,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/kafka"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/postgres"
 	"github.com/DataDog/datadog-agent/pkg/network/slice"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
@@ -40,6 +41,7 @@ var stateTelemetry = struct {
 	httpStatsDropped       *telemetry.StatCounterWrapper
 	http2StatsDropped      *telemetry.StatCounterWrapper
 	kafkaStatsDropped      *telemetry.StatCounterWrapper
+	postgresStatsDropped   *telemetry.StatCounterWrapper
 	dnsPidCollisions       *telemetry.StatCounterWrapper
 	incomingDirectionFixes telemetry.Counter
 	outgoingDirectionFixes telemetry.Counter
@@ -53,6 +55,7 @@ var stateTelemetry = struct {
 	telemetry.NewStatCounterWrapper(stateModuleName, "http_stats_dropped", []string{}, "Counter measuring the number of http stats dropped"),
 	telemetry.NewStatCounterWrapper(stateModuleName, "http2_stats_dropped", []string{}, "Counter measuring the number of http2 stats dropped"),
 	telemetry.NewStatCounterWrapper(stateModuleName, "kafka_stats_dropped", []string{}, "Counter measuring the number of kafka stats dropped"),
+	telemetry.NewStatCounterWrapper(stateModuleName, "postgres_stats_dropped", []string{}, "Counter measuring the number of postgres stats dropped"),
 	telemetry.NewStatCounterWrapper(stateModuleName, "dns_pid_collisions", []string{}, "Counter measuring the number of DNS PID collisions"),
 	telemetry.NewCounter(stateModuleName, "incoming_direction_fixes", []string{}, "Counter measuring the number of udp direction fixes for incoming connections"),
 	telemetry.NewCounter(stateModuleName, "outgoing_direction_fixes", []string{}, "Counter measuring the number of udp/tcp direction fixes for outgoing connections"),
@@ -119,10 +122,11 @@ type State interface {
 
 // Delta represents a delta of network data compared to the last call to State.
 type Delta struct {
-	Conns []ConnectionStats
-	HTTP  map[http.Key]*http.RequestStats
-	HTTP2 map[http.Key]*http.RequestStats
-	Kafka map[kafka.Key]*kafka.RequestStats
+	Conns    []ConnectionStats
+	HTTP     map[http.Key]*http.RequestStats
+	HTTP2    map[http.Key]*http.RequestStats
+	Kafka    map[kafka.Key]*kafka.RequestStats
+	Postgres map[postgres.Key]*postgres.RequestStat
 }
 
 type lastStateTelemetry struct {
@@ -135,6 +139,7 @@ type lastStateTelemetry struct {
 	httpStatsDropped      int64
 	http2StatsDropped     int64
 	kafkaStatsDropped     int64
+	postgresStatsDropped  int64
 	dnsPidCollisions      int64
 }
 
@@ -231,11 +236,12 @@ type client struct {
 	closed    *closedConnections
 	stats     map[StatCookie]StatCounters
 	// maps by dns key the domain (string) to stats structure
-	dnsStats        dns.StatsByKeyByNameByType
-	httpStatsDelta  map[http.Key]*http.RequestStats
-	http2StatsDelta map[http.Key]*http.RequestStats
-	kafkaStatsDelta map[kafka.Key]*kafka.RequestStats
-	lastTelemetries map[ConnTelemetryType]int64
+	dnsStats           dns.StatsByKeyByNameByType
+	httpStatsDelta     map[http.Key]*http.RequestStats
+	http2StatsDelta    map[http.Key]*http.RequestStats
+	kafkaStatsDelta    map[kafka.Key]*kafka.RequestStats
+	postgresStatsDelta map[postgres.Key]*postgres.RequestStat
+	lastTelemetries    map[ConnTelemetryType]int64
 }
 
 func (c *client) Reset() {
@@ -250,6 +256,7 @@ func (c *client) Reset() {
 	c.httpStatsDelta = make(map[http.Key]*http.RequestStats)
 	c.http2StatsDelta = make(map[http.Key]*http.RequestStats)
 	c.kafkaStatsDelta = make(map[kafka.Key]*kafka.RequestStats)
+	c.postgresStatsDelta = make(map[postgres.Key]*postgres.RequestStat)
 }
 
 type networkState struct {
@@ -268,6 +275,7 @@ type networkState struct {
 	maxDNSStats                 int
 	maxHTTPStats                int
 	maxKafkaStats               int
+	maxPostgresStats            int
 	enableConnectionRollup      bool
 	processEventConsumerEnabled bool
 
@@ -277,7 +285,7 @@ type networkState struct {
 }
 
 // NewState creates a new network state
-func NewState(clientExpiry time.Duration, maxClosedConns uint32, maxClientStats int, maxDNSStats int, maxHTTPStats int, maxKafkaStats int, enableConnectionRollup bool, processEventConsumerEnabled bool) State {
+func NewState(clientExpiry time.Duration, maxClosedConns uint32, maxClientStats, maxDNSStats, maxHTTPStats, maxKafkaStats, maxPostgresStats int, enableConnectionRollup bool, processEventConsumerEnabled bool) State {
 	ns := &networkState{
 		clients:                map[string]*client{},
 		clientExpiry:           clientExpiry,
@@ -286,6 +294,7 @@ func NewState(clientExpiry time.Duration, maxClosedConns uint32, maxClientStats 
 		maxDNSStats:            maxDNSStats,
 		maxHTTPStats:           maxHTTPStats,
 		maxKafkaStats:          maxKafkaStats,
+		maxPostgresStats:       maxPostgresStats,
 		enableConnectionRollup: enableConnectionRollup,
 		mergeStatsBuffers: [2][]byte{
 			make([]byte, ConnectionByteKeyMaxLen),
@@ -402,14 +411,18 @@ func (ns *networkState) GetDelta(
 		case protocols.HTTP2:
 			stats := protocolStats.(map[http.Key]*http.RequestStats)
 			ns.storeHTTP2Stats(stats)
+		case protocols.Postgres:
+			stats := protocolStats.(map[postgres.Key]*postgres.RequestStat)
+			ns.storePostgresStats(stats)
 		}
 	}
 
 	return Delta{
-		Conns: append(active, closed...),
-		HTTP:  client.httpStatsDelta,
-		HTTP2: client.http2StatsDelta,
-		Kafka: client.kafkaStatsDelta,
+		Conns:    append(active, closed...),
+		HTTP:     client.httpStatsDelta,
+		HTTP2:    client.http2StatsDelta,
+		Kafka:    client.kafkaStatsDelta,
+		Postgres: client.postgresStatsDelta,
 	}
 }
 
@@ -462,11 +475,12 @@ func (ns *networkState) logTelemetry() {
 	httpStatsDroppedDelta := stateTelemetry.httpStatsDropped.Load() - ns.lastTelemetry.httpStatsDropped
 	http2StatsDroppedDelta := stateTelemetry.http2StatsDropped.Load() - ns.lastTelemetry.http2StatsDropped
 	kafkaStatsDroppedDelta := stateTelemetry.kafkaStatsDropped.Load() - ns.lastTelemetry.kafkaStatsDropped
+	postgresStatsDroppedDelta := stateTelemetry.postgresStatsDropped.Load() - ns.lastTelemetry.postgresStatsDropped
 	dnsPidCollisionsDelta := stateTelemetry.dnsPidCollisions.Load() - ns.lastTelemetry.dnsPidCollisions
 
 	// Flush log line if any metric is non-zero
-	if connDroppedDelta > 0 || closedConnDroppedDelta > 0 || dnsStatsDroppedDelta > 0 ||
-		httpStatsDroppedDelta > 0 || http2StatsDroppedDelta > 0 || kafkaStatsDroppedDelta > 0 {
+	if connDroppedDelta > 0 || closedConnDroppedDelta > 0 || dnsStatsDroppedDelta > 0 || httpStatsDroppedDelta > 0 ||
+		http2StatsDroppedDelta > 0 || kafkaStatsDroppedDelta > 0 || postgresStatsDroppedDelta > 0 {
 		s := "State telemetry: "
 		s += " [%d connections dropped due to stats]"
 		s += " [%d closed connections dropped]"
@@ -474,6 +488,7 @@ func (ns *networkState) logTelemetry() {
 		s += " [%d HTTP stats dropped]"
 		s += " [%d HTTP2 stats dropped]"
 		s += " [%d Kafka stats dropped]"
+		s += " [%d postgres stats dropped]"
 		log.Warnf(s,
 			connDroppedDelta,
 			closedConnDroppedDelta,
@@ -481,6 +496,7 @@ func (ns *networkState) logTelemetry() {
 			httpStatsDroppedDelta,
 			http2StatsDroppedDelta,
 			kafkaStatsDroppedDelta,
+			postgresStatsDroppedDelta,
 		)
 	}
 
@@ -509,6 +525,7 @@ func (ns *networkState) logTelemetry() {
 	ns.lastTelemetry.httpStatsDropped = stateTelemetry.httpStatsDropped.Load()
 	ns.lastTelemetry.http2StatsDropped = stateTelemetry.http2StatsDropped.Load()
 	ns.lastTelemetry.kafkaStatsDropped = stateTelemetry.kafkaStatsDropped.Load()
+	ns.lastTelemetry.postgresStatsDropped = stateTelemetry.postgresStatsDropped.Load()
 	ns.lastTelemetry.dnsPidCollisions = stateTelemetry.dnsPidCollisions.Load()
 }
 
@@ -750,20 +767,52 @@ func (ns *networkState) storeKafkaStats(allStats map[kafka.Key]*kafka.RequestSta
 	}
 }
 
+// storePostgresStats stores the latest Postgres stats for all clients
+func (ns *networkState) storePostgresStats(allStats map[postgres.Key]*postgres.RequestStat) {
+	if len(ns.clients) == 1 {
+		for _, client := range ns.clients {
+			if len(client.postgresStatsDelta) == 0 && len(allStats) <= ns.maxPostgresStats {
+				// optimization for the common case:
+				// if there is only one client and no previous state, no memory allocation is needed
+				client.postgresStatsDelta = allStats
+				return
+			}
+		}
+	}
+
+	for key, stats := range allStats {
+		for _, client := range ns.clients {
+			prevStats, ok := client.postgresStatsDelta[key]
+			if !ok && len(client.postgresStatsDelta) >= ns.maxPostgresStats {
+				stateTelemetry.postgresStatsDropped.Inc()
+				continue
+			}
+
+			if prevStats != nil {
+				prevStats.CombineWith(stats)
+				client.postgresStatsDelta[key] = prevStats
+			} else {
+				client.postgresStatsDelta[key] = stats
+			}
+		}
+	}
+}
+
 func (ns *networkState) getClient(clientID string) *client {
 	if c, ok := ns.clients[clientID]; ok {
 		return c
 	}
 	closedConnections := &closedConnections{conns: make([]ConnectionStats, 0, minClosedCapacity), byCookie: make(map[StatCookie]int)}
 	c := &client{
-		lastFetch:       time.Now(),
-		stats:           make(map[StatCookie]StatCounters),
-		closed:          closedConnections,
-		dnsStats:        dns.StatsByKeyByNameByType{},
-		httpStatsDelta:  map[http.Key]*http.RequestStats{},
-		http2StatsDelta: map[http.Key]*http.RequestStats{},
-		kafkaStatsDelta: map[kafka.Key]*kafka.RequestStats{},
-		lastTelemetries: make(map[ConnTelemetryType]int64),
+		lastFetch:          time.Now(),
+		stats:              make(map[StatCookie]StatCounters),
+		closed:             closedConnections,
+		dnsStats:           dns.StatsByKeyByNameByType{},
+		httpStatsDelta:     map[http.Key]*http.RequestStats{},
+		http2StatsDelta:    map[http.Key]*http.RequestStats{},
+		kafkaStatsDelta:    map[kafka.Key]*kafka.RequestStats{},
+		postgresStatsDelta: map[postgres.Key]*postgres.RequestStat{},
+		lastTelemetries:    make(map[ConnTelemetryType]int64),
 	}
 	ns.clients[clientID] = c
 	return c

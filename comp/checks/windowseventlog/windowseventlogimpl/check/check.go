@@ -55,7 +55,7 @@ type Check struct {
 	excludedMessages []*regexp.Regexp
 
 	// event metrics
-	eventPriority agentEvent.EventPriority
+	eventPriority agentEvent.Priority
 
 	// security profile
 	ddSecurityEventsFilter eventdatafilter.Filter
@@ -166,7 +166,7 @@ func (c *Check) Configure(senderManager sender.SenderManager, integrationConfigD
 	// common CoreCheck requirements
 	// This check supports multiple instances, BuildID must be called before CommonConfigure
 	c.BuildID(integrationConfigDigest, data, initConfig)
-	err := c.CommonConfigure(senderManager, integrationConfigDigest, initConfig, data, source)
+	err := c.CommonConfigure(senderManager, initConfig, data, source)
 	if err != nil {
 		return fmt.Errorf("configuration error: %w", err)
 	}

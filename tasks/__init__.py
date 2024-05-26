@@ -23,6 +23,7 @@ from tasks import (
     epforwarder,
     fakeintake,
     github_tasks,
+    go_deps,
     installer,
     kmt,
     linter,
@@ -98,7 +99,6 @@ ns.add_task(deps_vendored)
 ns.add_task(lint_licenses)
 ns.add_task(generate_licenses)
 ns.add_task(lint_components)
-ns.add_task(lint_go)
 ns.add_task(lint_fxutil_oneshot_test)
 ns.add_task(generate_protobuf)
 ns.add_task(reset)
@@ -123,9 +123,10 @@ ns.add_task(fuzz)
 ns.add_task(go_fix)
 ns.add_task(build_messagetable)
 ns.add_task(get_impacted_packages)
-
 ns.add_task(get_modified_packages)
 ns.add_task(send_unit_tests_stats)
+# To deprecate
+ns.add_task(lint_go)
 
 # add namespaced tasks to the root
 ns.add_collection(agent)
@@ -142,6 +143,7 @@ ns.add_collection(dogstatsd)
 ns.add_collection(ebpf)
 ns.add_collection(emacs)
 ns.add_collection(epforwarder)
+ns.add_collection(go_deps)
 ns.add_collection(linter)
 ns.add_collection(msi)
 ns.add_collection(github_tasks, "github")

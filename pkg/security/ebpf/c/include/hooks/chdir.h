@@ -29,6 +29,11 @@ HOOK_SYSCALL_ENTRY1(chdir, const char*, path)
     return trace__sys_chdir();
 }
 
+HOOK_SYSCALL_ENTRY1(fchdir, unsigned int, fd)
+{
+    return trace__sys_chdir();
+}
+
 HOOK_ENTRY("set_fs_pwd")
 int hook_set_fs_pwd(ctx_t *ctx) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_CHDIR);
@@ -88,6 +93,11 @@ int __attribute__((always_inline)) sys_chdir_ret(void *ctx, int retval, int dr_t
 }
 
 HOOK_SYSCALL_EXIT(chdir) {
+    int retval = SYSCALL_PARMRET(ctx);
+    return sys_chdir_ret(ctx, retval, DR_KPROBE_OR_FENTRY);
+}
+
+HOOK_SYSCALL_EXIT(fchdir) {
     int retval = SYSCALL_PARMRET(ctx);
     return sys_chdir_ret(ctx, retval, DR_KPROBE_OR_FENTRY);
 }

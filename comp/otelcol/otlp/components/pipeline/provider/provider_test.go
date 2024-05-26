@@ -7,14 +7,13 @@ package provider
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
-	"time"
 
+	"github.com/open-telemetry/opentelemetry-collector-contrib/exporter/datadogexporter"
 	"github.com/stretchr/testify/assert"
-	"go.opentelemetry.io/collector/component"
-	"go.opentelemetry.io/collector/config/configtelemetry"
 	"go.opentelemetry.io/collector/connector"
 	"go.opentelemetry.io/collector/connector/connectortest"
 	"go.opentelemetry.io/collector/exporter"
@@ -26,90 +25,21 @@ import (
 	"go.opentelemetry.io/collector/processor/processortest"
 	"go.opentelemetry.io/collector/receiver"
 	"go.opentelemetry.io/collector/receiver/receivertest"
-	"go.opentelemetry.io/collector/service"
-	"go.opentelemetry.io/collector/service/pipelines"
-	"go.opentelemetry.io/collector/service/telemetry"
-	"go.uber.org/zap/zapcore"
+	"gopkg.in/yaml.v3"
 )
 
-func nopConfig() *otelcol.Config {
-	nopType, _ := component.NewType("nop")
-	tracesType, _ := component.NewType("traces")
-	metricsType, _ := component.NewType("metrics")
-	logsType, _ := component.NewType("logs")
-	return &otelcol.Config{
-		Receivers:  map[component.ID]component.Config{component.NewID(nopType): receivertest.NewNopFactory().CreateDefaultConfig()},
-		Processors: map[component.ID]component.Config{component.NewID(nopType): processortest.NewNopFactory().CreateDefaultConfig()},
-		Exporters:  map[component.ID]component.Config{component.NewID(nopType): exportertest.NewNopFactory().CreateDefaultConfig()},
-		Extensions: map[component.ID]component.Config{component.NewID(nopType): extensiontest.NewNopFactory().CreateDefaultConfig()},
-		Connectors: map[component.ID]component.Config{component.NewIDWithName(nopType, "connector"): connectortest.NewNopFactory().CreateDefaultConfig()},
-		Service: service.Config{
-			Extensions: []component.ID{component.NewID(nopType)},
-			Pipelines: pipelines.Config{
-				component.NewID(tracesType): {
-					Receivers:  []component.ID{component.NewID(nopType)},
-					Processors: []component.ID{component.NewID(nopType)},
-					Exporters:  []component.ID{component.NewID(nopType)},
-				},
-				component.NewID(metricsType): {
-					Receivers:  []component.ID{component.NewID(nopType)},
-					Processors: []component.ID{component.NewID(nopType)},
-					Exporters:  []component.ID{component.NewID(nopType)},
-				},
-				component.NewID(logsType): {
-					Receivers:  []component.ID{component.NewID(nopType)},
-					Processors: []component.ID{component.NewID(nopType)},
-					Exporters:  []component.ID{component.NewID(nopType)},
-				},
-			},
-			Telemetry: telemetry.Config{
-				Logs: telemetry.LogsConfig{
-					Level:       zapcore.InfoLevel,
-					Development: false,
-					Encoding:    "console",
-					Sampling: &telemetry.LogsSamplingConfig{
-						Enabled:    true,
-						Tick:       10 * time.Second,
-						Initial:    10,
-						Thereafter: 100,
-					},
-					OutputPaths:       []string{"stderr"},
-					ErrorOutputPaths:  []string{"stderr"},
-					DisableCaller:     false,
-					DisableStacktrace: false,
-					InitialFields:     map[string]any(nil),
-				},
-				Metrics: telemetry.MetricsConfig{
-					Level:   configtelemetry.LevelNormal,
-					Address: ":8888",
-				},
-			},
-		},
-	}
-}
-
-func uriFromFile(filename string) (string, error) {
-	yamlBytes, err := os.ReadFile(filepath.Join("testdata", filename))
-	if err != nil {
-		return "", err
-	}
-
-	return "yaml:" + string(yamlBytes), nil
+func uriFromFile(filename string) string {
+	fmt.Println(filepath.Join("testdata", filename))
+	return filepath.Join("testdata", filename)
 }
 
 func TestNewConfigProvider(t *testing.T) {
-	uriLocation, err := uriFromFile("config.yaml")
-	assert.NoError(t, err)
-
-	_, err = NewConfigProvider([]string{uriLocation})
+	_, err := NewConfigProvider([]string{uriFromFile("nop/config.yaml")})
 	assert.NoError(t, err)
 }
 
 func TestConfigProviderGet(t *testing.T) {
-	uriLocation, err := uriFromFile("config.yaml")
-	assert.NoError(t, err)
-
-	provider, err := NewConfigProvider([]string{uriLocation})
+	provider, err := NewConfigProvider([]string{uriFromFile("nop/config.yaml")})
 	assert.NoError(t, err)
 
 	factories, err := nopFactories()
@@ -121,11 +51,23 @@ func TestConfigProviderGet(t *testing.T) {
 	err = conf.Validate()
 	assert.NoError(t, err)
 
-	assert.Equal(t, nopConfig(), conf)
+	upstreamProvider, err := upstreamConfigProvider("nop/config.yaml")
+	assert.NoError(t, err)
+
+	expectedConf, err := upstreamProvider.Get(context.Background(), factories)
+	assert.NoError(t, err)
+
+	assert.Equal(t, expectedConf, conf)
+}
+
+func upstreamConfigProvider(file string) (otelcol.ConfigProvider, error) {
+	configProviderSettings := newDefaultConfigProviderSettings([]string{uriFromFile(file)})
+
+	return otelcol.NewConfigProvider(configProviderSettings)
 }
 
 func TestConfigProviderWatch(t *testing.T) {
-	provider, err := NewConfigProvider([]string{"test"})
+	provider, err := NewConfigProvider([]string{uriFromFile("nop/config.yaml")})
 	assert.NoError(t, err)
 
 	var expected <-chan error
@@ -133,11 +75,90 @@ func TestConfigProviderWatch(t *testing.T) {
 }
 
 func TestConfigProviderShutdown(t *testing.T) {
-	provider, err := NewConfigProvider([]string{"test"})
+	provider, err := NewConfigProvider([]string{uriFromFile("nop/config.yaml")})
 	assert.NoError(t, err)
 
 	err = provider.Shutdown(context.Background())
 	assert.NoError(t, err)
+}
+
+func TestGetConfDump(t *testing.T) {
+	t.Run("nop", func(t *testing.T) {
+		provider, err := NewConfigProvider([]string{uriFromFile("nop/config.yaml")})
+		assert.NoError(t, err)
+
+		factories, err := nopFactories()
+		assert.NoError(t, err)
+
+		conf, err := provider.Get(context.Background(), factories)
+		assert.NoError(t, err)
+
+		err = conf.Validate()
+		assert.NoError(t, err)
+
+		// we cannot compare the raw configs, as the config contains maps which are marshalled in
+		// random order. Instead we unmarshal to a string map to compare.
+		t.Run("provided", func(t *testing.T) {
+			yamlStringConf := provider.GetProvidedConf()
+			var stringMap = map[string]interface{}{}
+			err = yaml.Unmarshal([]byte(yamlStringConf), stringMap)
+			assert.NoError(t, err)
+
+			resultYamlBytesConf, err := os.ReadFile(filepath.Join("testdata", "nop", "config-result.yaml"))
+			assert.NoError(t, err)
+			var resultStringMap = map[string]interface{}{}
+			err = yaml.Unmarshal(resultYamlBytesConf, resultStringMap)
+			assert.NoError(t, err)
+
+			fmt.Println()
+
+			assert.Equal(t, resultStringMap, stringMap)
+		})
+
+		t.Run("enhanced", func(t *testing.T) {
+			yamlStringConf := provider.GetEnhancedConf()
+			assert.Equal(t, "not supported", yamlStringConf)
+		})
+	})
+
+	t.Run("dd", func(t *testing.T) {
+		provider, err := NewConfigProvider([]string{uriFromFile("dd/config-dd.yaml")})
+		assert.NoError(t, err)
+
+		factories, err := nopFactories()
+		assert.NoError(t, err)
+
+		conf, err := provider.Get(context.Background(), factories)
+		assert.NoError(t, err)
+
+		err = conf.Validate()
+		assert.NoError(t, err)
+
+		// we cannot compare the raw configs, as the config contains maps which are marshalled in
+		// random order. Instead we unmarshal to a string map to compare.
+		t.Run("provided", func(t *testing.T) {
+			yamlStringConf := provider.GetProvidedConf()
+			var stringMap = map[string]interface{}{}
+			err = yaml.Unmarshal([]byte(yamlStringConf), stringMap)
+			assert.NoError(t, err)
+
+			resultYamlBytesConf, err := os.ReadFile(filepath.Join("testdata", "dd/config-dd-result.yaml"))
+			assert.NoError(t, err)
+			var resultStringMap = map[string]interface{}{}
+			err = yaml.Unmarshal(resultYamlBytesConf, resultStringMap)
+			assert.NoError(t, err)
+
+			fmt.Println()
+
+			assert.Equal(t, resultStringMap, stringMap)
+		})
+
+		t.Run("enhanced", func(t *testing.T) {
+			yamlStringConf := provider.GetEnhancedConf()
+			assert.Equal(t, "not supported", yamlStringConf)
+		})
+	})
+
 }
 
 func nopFactories() (otelcol.Factories, error) {
@@ -156,7 +177,7 @@ func nopFactories() (otelcol.Factories, error) {
 		return otelcol.Factories{}, err
 	}
 
-	if factories.Exporters, err = exporter.MakeFactoryMap(exportertest.NewNopFactory()); err != nil {
+	if factories.Exporters, err = exporter.MakeFactoryMap(exportertest.NewNopFactory(), datadogexporter.NewFactory()); err != nil {
 		return otelcol.Factories{}, err
 	}
 

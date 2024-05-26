@@ -5,7 +5,6 @@
 #include "dentry_resolver.h"
 
 struct kevent_t {
-    u64 cpu;
     u64 timestamp;
     u32 type;
     u32 flags;

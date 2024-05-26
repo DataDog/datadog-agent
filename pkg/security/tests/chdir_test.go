@@ -47,4 +47,18 @@ func TestChdir(t *testing.T) {
 			assertTriggeredRule(t, rule, "test_chdir_rule")
 		})
 	})
+
+	t.Run("fchdir", func(t *testing.T) {
+		test.WaitSignal(t, func() error {
+			f, err := os.Open(testFolder)
+			if err != nil {
+				return err
+			}
+			defer f.Close()
+
+			return f.Chdir()
+		}, func(event *model.Event, rule *rules.Rule) {
+			assertTriggeredRule(t, rule, "test_chdir_rule")
+		})
+	})
 }

@@ -120,11 +120,12 @@ func NewConcentrator(conf *config.AgentConfig, out chan *pb.StatsPayload, now ti
 		agentEnv:               conf.DefaultEnv,
 		agentHostname:          conf.Hostname,
 		agentVersion:           conf.AgentVersion,
-		peerTagsAggregation:    conf.PeerTagsAggregation,
+		peerTagsAggregation:    conf.PeerServiceAggregation || conf.PeerTagsAggregation,
 		computeStatsBySpanKind: conf.ComputeStatsBySpanKind,
 		statsd:                 statsd,
 	}
-	if conf.PeerTagsAggregation {
+	// NOTE: maintain backwards-compatibility with old peer service flag that will eventually be deprecated.
+	if conf.PeerServiceAggregation || conf.PeerTagsAggregation {
 		c.peerTagKeys = preparePeerTags(append(defaultPeerTags, conf.PeerTags...)...)
 	}
 	return &c

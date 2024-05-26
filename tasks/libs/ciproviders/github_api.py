@@ -1,8 +1,9 @@
+from __future__ import annotations
+
 import base64
 import os
 import platform
 import subprocess
-from typing import List
 
 try:
     from github import Auth, Github, GithubException, GithubIntegration, GithubObject
@@ -219,7 +220,7 @@ class GithubAPI:
         pr = self.get_pr(pr_id)
         pr.add_to_labels(label)
 
-    def get_pr_labels(self, pr_id: int) -> List[str]:
+    def get_pr_labels(self, pr_id: int) -> list[str]:
         """
         Returns the labels of a pull request
         """
@@ -227,7 +228,7 @@ class GithubAPI:
 
         return [label.name for label in pr.get_labels()]
 
-    def get_pr_files(self, pr_id: int) -> List[str]:
+    def get_pr_files(self, pr_id: int) -> list[str]:
         """
         Returns the files involved in the PR
         """

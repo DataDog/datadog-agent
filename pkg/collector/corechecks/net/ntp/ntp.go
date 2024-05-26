@@ -155,7 +155,7 @@ func (c *NTPCheck) Configure(senderManager sender.SenderManager, integrationConf
 	c.BuildID(integrationConfigDigest, data, initConfig)
 	c.cfg = cfg
 
-	err = c.CommonConfigure(senderManager, integrationConfigDigest, initConfig, data, source)
+	err = c.CommonConfigure(senderManager, initConfig, data, source)
 	if err != nil {
 		return err
 	}

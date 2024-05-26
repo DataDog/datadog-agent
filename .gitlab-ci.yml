@@ -164,20 +164,20 @@ variables:
   # To use images from datadog-agent-buildimages dev branches, set the corresponding
   # SUFFIX variable to _test_only
   DATADOG_AGENT_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_BUILDIMAGES: v32778237-8467c81e
+  DATADOG_AGENT_BUILDIMAGES: v34815905-ae40295e
   DATADOG_AGENT_WINBUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_WINBUILDIMAGES: v32778237-8467c81e
+  DATADOG_AGENT_WINBUILDIMAGES: v34815905-ae40295e
   DATADOG_AGENT_ARMBUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_ARMBUILDIMAGES: v32778237-8467c81e
+  DATADOG_AGENT_ARMBUILDIMAGES: v34815905-ae40295e
   DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_SYSPROBE_BUILDIMAGES: v32778237-8467c81e
+  DATADOG_AGENT_SYSPROBE_BUILDIMAGES: v34815905-ae40295e
   DATADOG_AGENT_BTF_GEN_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_BTF_GEN_BUILDIMAGES: v32778237-8467c81e
+  DATADOG_AGENT_BTF_GEN_BUILDIMAGES: v34815905-ae40295e
 
   DATADOG_AGENT_EMBEDDED_PATH: /opt/datadog-agent/embedded
-  DEB_GPG_KEY_ID: ad9589b7
-  DEB_GPG_KEY_NAME: "Datadog, Inc. Master key"
-  RPM_GPG_KEY_ID: fd4bf915
+  DEB_GPG_KEY_ID: c0962c7d
+  DEB_GPG_KEY_NAME: "Datadog, Inc. APT key"
+  RPM_GPG_KEY_ID: b01082d3
   RPM_GPG_KEY_NAME: "Datadog, Inc. RPM key"
   DOCKER_REGISTRY_URL: docker.io
   KITCHEN_INFRASTRUCTURE_FLAKES_RETRY: 2
@@ -204,8 +204,9 @@ variables:
   ARTIFACTORY_BYPASS_SSM_NAME: ci.datadog-agent.artifactory_bypass  # agent-ci-experience
   CHANGELOG_COMMIT_SHA_SSM_NAME: ci.datadog-agent.gitlab_changelog_commit_sha  # agent-ci-experience
   CHOCOLATEY_API_KEY_SSM_NAME: ci.datadog-agent.chocolatey_api_key  # windows-agent
-  DEB_GPG_KEY_SSM_NAME: ci.datadog-agent.deb_signing_private_key_v2_${DEB_GPG_KEY_ID}  # agent-build-and-releases
-  DEB_SIGNING_PASSPHRASE_SSM_NAME: ci.datadog-agent.deb_signing_key_passphrase_v2_${DEB_GPG_KEY_ID}  # agent-build-and-releases
+  CODECOV_TOKEN_SSM_NAME: ci.datadog-agent.codecov_token  # agent-ci-experience
+  DEB_GPG_KEY_SSM_NAME: ci.datadog-agent.deb_signing_private_key_${DEB_GPG_KEY_ID}  # agent-build-and-releases
+  DEB_SIGNING_PASSPHRASE_SSM_NAME: ci.datadog-agent.deb_signing_key_passphrase_${DEB_GPG_KEY_ID}  # agent-build-and-releases
   DOCKER_REGISTRY_LOGIN_SSM_KEY: ci.datadog-agent.docker_hub_login  # agent-ci-experience
   DOCKER_REGISTRY_PWD_SSM_KEY: ci.datadog-agent.docker_hub_pwd  # agent-ci-experience
   E2E_TESTS_API_KEY_SSM_NAME: ci.datadog-agent.e2e_tests_api_key  # agent-developer-tools
@@ -226,8 +227,8 @@ variables:
   MACOS_GITHUB_APP_ID_2_SSM_NAME: ci.datadog-agent.macos_github_app_id_2  # agent-ci-experience
   MACOS_GITHUB_INSTALLATION_ID_2_SSM_NAME: ci.datadog-agent.macos_github_installation_id_2  # agent-ci-experience
   MACOS_GITHUB_KEY_2_SSM_NAME: ci.datadog-agent.macos_github_key_b64_2  # agent-ci-experience
-  RPM_GPG_KEY_SSM_NAME: ci.datadog-agent.rpm_signing_private_key_v2_${RPM_GPG_KEY_ID}  # agent-build-and-releases
-  RPM_SIGNING_PASSPHRASE_SSM_NAME: ci.datadog-agent.rpm_signing_key_passphrase_v2_${RPM_GPG_KEY_ID}  # agent-build-and-releases
+  RPM_GPG_KEY_SSM_NAME: ci.datadog-agent.rpm_signing_private_key_${RPM_GPG_KEY_ID}  # agent-build-and-releases
+  RPM_SIGNING_PASSPHRASE_SSM_NAME: ci.datadog-agent.rpm_signing_key_passphrase_${RPM_GPG_KEY_ID}  # agent-build-and-releases
   SMP_ACCOUNT_ID_SSM_NAME: ci.datadog-agent.single-machine-performance-account-id  # single-machine-performance
   SMP_AGENT_TEAM_ID_SSM_NAME: ci.datadog-agent.single-machine-performance-agent-team-id  # single-machine-performance
   SMP_API_SSM_NAME: ci.datadog-agent.single-machine-performance-api  # single-machine-performance
@@ -398,6 +399,9 @@ workflow:
       variables:
         USE_CACHING_PROXY_PYTHON: "false"
         USE_CACHING_PROXY_RUBY: "false"
+    - if: $DDR_WORKFLOW_ID != null
+      variables:
+        DEPLOY_AGENT: "true"
 
 #
 # List of rule blocks used in the pipeline
@@ -638,9 +642,7 @@ workflow:
   - <<: *if_installer_tests
     when: always
 
-.on_all_new_e2e_tests:
-  - <<: *if_not_run_all_builds
-    when: never
+.on_all_install_script_tests:
   - <<: *if_installer_tests
 
 # Default kitchen tests are also run on dev branches
@@ -921,8 +923,11 @@ workflow:
   - !reference [.on_e2e_main_release_or_rc]
   - changes:
       paths:
-        # TODO: Add paths that should trigger tests for process
         - test/new-e2e/tests/process/**/*
+        - cmd/process-agent/**/*
+        - comp/process/**/*
+        - pkg/process/**/*
+        - pkg/config/setup/process.go
       compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
   - when: manual
     allow_failure: true

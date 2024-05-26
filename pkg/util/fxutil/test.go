@@ -118,6 +118,7 @@ func TestRun(t *testing.T, f func() error) {
 	var fxFakeAppRan bool
 	fxAppTestOverride = func(i interface{}, opts []fx.Option) error {
 		fxFakeAppRan = true
+		opts = append(opts, fx.Provide(newFxLifecycleAdapter))
 		require.NoError(t, fx.ValidateApp(opts...))
 		return nil
 	}

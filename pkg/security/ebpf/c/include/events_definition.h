@@ -143,10 +143,9 @@ struct mmap_event_t {
     struct file_t file;
     u64 addr;
     u64 offset;
-    u32 len;
-    int protection;
-    int flags;
-    u32 padding;
+    u64 len;
+    u64 protection;
+    u64 flags;
 };
 
 struct dns_event_t {
@@ -162,6 +161,16 @@ struct dns_event_t {
     u16 qclass;
     u16 size;
     char name[DNS_MAX_LENGTH];
+};
+
+struct imds_event_t {
+    struct kevent_t event;
+    struct process_context_t process;
+    struct span_context_t span;
+    struct container_context_t container;
+    struct network_context_t network;
+
+    u8 body[IMDS_MAX_LENGTH];
 };
 
 struct link_event_t {

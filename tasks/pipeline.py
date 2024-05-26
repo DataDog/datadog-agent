@@ -12,7 +12,7 @@ from invoke import task
 from invoke.exceptions import Exit
 
 from tasks.libs.ciproviders.github_api import GithubAPI
-from tasks.libs.ciproviders.gitlab_api import get_gitlab_bot_token, get_gitlab_repo
+from tasks.libs.ciproviders.gitlab_api import get_gitlab_bot_token, get_gitlab_repo, refresh_pipeline
 from tasks.libs.common.color import color_message
 from tasks.libs.common.utils import (
     DEFAULT_BRANCH,
@@ -453,7 +453,7 @@ def trigger_child_pipeline(_, git_ref, project_name, variable=None, follow=True)
         wait_for_pipeline(repo, pipeline)
 
         # Check pipeline status
-        pipeline.refresh()
+        refresh_pipeline(pipeline)
         pipestatus = pipeline.status.lower().strip()
 
         if pipestatus != "success":

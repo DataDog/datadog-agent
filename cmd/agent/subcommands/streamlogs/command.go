@@ -30,8 +30,8 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// cliParams are the command-line arguments for this subcommand
-type cliParams struct {
+// CliParams are the command-line arguments for this subcommand
+type CliParams struct {
 	*command.GlobalParams
 
 	filters diagnostic.Filters
@@ -41,11 +41,14 @@ type cliParams struct {
 
 	// Duration represents the duration of the log stream.
 	Duration time.Duration
+
+	//	Quiet represents whether the log stream should be quiet.
+	Quiet bool
 }
 
 // Commands returns a slice of subcommands for the 'agent' command.
 func Commands(globalParams *command.GlobalParams) []*cobra.Command {
-	cliParams := &cliParams{
+	cliParams := &CliParams{
 		GlobalParams: globalParams,
 	}
 
@@ -67,21 +70,9 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	cmd.Flags().StringVar(&cliParams.filters.Service, "service", "", "Filter by service")
 	cmd.Flags().StringVarP(&cliParams.FilePath, "output", "o", "", "Output file path to write the log stream")
 	cmd.Flags().DurationVarP(&cliParams.Duration, "duration", "d", 0, "Duration of the log stream (default: 0, infinite)")
-	// PreRunE is used to validate the file path before stream-logs is run.
+	cmd.Flags().BoolVarP(&cliParams.Quiet, "quiet", "q", false, "Quiet mode (no output to stdout)")
+	// PreRunE is used to validate duration before stream-logs is run.
 	cmd.PreRunE = func(cmd *cobra.Command, args []string) error {
-		if cliParams.FilePath != "" {
-			// Check if the file path's directory exists or create it.
-			dir := filepath.Dir(cliParams.FilePath)
-			if _, err := os.Stat(dir); os.IsNotExist(err) {
-				// Directory does not exist, attempt to create it.
-				if err := os.MkdirAll(dir, 0755); err != nil {
-					return fmt.Errorf("unable to create directory path: %s, error: %v", dir, err)
-				}
-			} else if err != nil {
-				// Some other error occurred when checking the directory.
-				return fmt.Errorf("error checking directory path: %s, error: %v", dir, err)
-			}
-		}
 		if cliParams.Duration < 0 {
 			return fmt.Errorf("duration must be a positive value")
 		}
@@ -92,7 +83,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 }
 
 //nolint:revive // TODO(AML) Fix revive linter
-func streamLogs(log log.Component, config config.Component, cliParams *cliParams) error {
+func streamLogs(log log.Component, config config.Component, cliParams *CliParams) error {
 	ipcAddress, err := pkgconfig.GetIPCAddress()
 	if err != nil {
 		return err
@@ -110,6 +101,11 @@ func streamLogs(log log.Component, config config.Component, cliParams *cliParams
 	var bufWriter *bufio.Writer
 
 	if cliParams.FilePath != "" {
+		err = checkDirExists(cliParams.FilePath)
+		if err != nil {
+			return fmt.Errorf("error creating directory for file %s: %v", cliParams.FilePath, err)
+		}
+
 		f, bufWriter, err = openFileForWriting(cliParams.FilePath)
 		if err != nil {
 			return fmt.Errorf("error opening file %s for writing: %v", cliParams.FilePath, err)
@@ -124,7 +120,9 @@ func streamLogs(log log.Component, config config.Component, cliParams *cliParams
 	}
 
 	return streamRequest(urlstr, body, cliParams.Duration, func(chunk []byte) {
-		fmt.Print(string(chunk))
+		if !cliParams.Quiet {
+			fmt.Print(string(chunk))
+		}
 
 		if bufWriter != nil {
 			if _, err = bufWriter.Write(chunk); err != nil {
@@ -165,4 +163,22 @@ func openFileForWriting(filePath string) (*os.File, *bufio.Writer, error) {
 	}
 	bufWriter := bufio.NewWriter(f) // default 4096 bytes buffer
 	return f, bufWriter, nil
+}
+
+// checkDirExists checks if the directory for the given path exists, if not then create it.
+func checkDirExists(path string) error {
+	dir := filepath.Dir(path)
+	if _, err := os.Stat(dir); os.IsNotExist(err) {
+		if err := os.MkdirAll(dir, 0755); err != nil {
+			return err
+		}
+	} else if err != nil {
+		return err
+	}
+	return nil
+}
+
+// StreamLogs is a public function that can be used by other packages to stream logs.
+func StreamLogs(log log.Component, config config.Component, cliParams *CliParams) error {
+	return streamLogs(log, config, cliParams)
 }

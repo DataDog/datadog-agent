@@ -11,7 +11,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
 	agentcache "github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
@@ -37,8 +36,6 @@ type MetadataController struct {
 	nodeLister       corelisters.NodeLister
 	nodeListerSynced cache.InformerSynced
 
-	namespaceListerSynced cache.InformerSynced
-
 	endpointsLister       corelisters.EndpointsLister
 	endpointsListerSynced cache.InformerSynced
 
@@ -49,7 +46,7 @@ type MetadataController struct {
 }
 
 // NewMetadataController returns a new metadata controller
-func NewMetadataController(nodeInformer coreinformers.NodeInformer, namespaceInformer coreinformers.NamespaceInformer, endpointsInformer coreinformers.EndpointsInformer) *MetadataController {
+func NewMetadataController(nodeInformer coreinformers.NodeInformer, endpointsInformer coreinformers.EndpointsInformer) *MetadataController {
 	m := &MetadataController{
 		queue: workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "endpoints"),
 	}
@@ -61,8 +58,6 @@ func NewMetadataController(nodeInformer coreinformers.NodeInformer, namespaceInf
 	}
 	m.nodeLister = nodeInformer.Lister()
 	m.nodeListerSynced = nodeInformer.Informer().HasSynced
-
-	m.namespaceListerSynced = namespaceInformer.Informer().HasSynced
 
 	if _, err := endpointsInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc:    m.addEndpoints,
@@ -86,7 +81,7 @@ func (m *MetadataController) Run(stopCh <-chan struct{}) {
 	log.Infof("Starting metadata controller")
 	defer log.Infof("Stopping metadata controller")
 
-	if !cache.WaitForCacheSync(stopCh, m.nodeListerSynced, m.namespaceListerSynced, m.endpointsListerSynced) {
+	if !cache.WaitForCacheSync(stopCh, m.nodeListerSynced, m.endpointsListerSynced) {
 		return
 	}
 
@@ -318,25 +313,4 @@ func GetPodMetadataNames(nodeName, ns, podName string) ([]string, error) {
 		metaList = append(metaList, fmt.Sprintf("kube_service:%s", s))
 	}
 	return metaList, nil
-}
-
-// GetNamespaceLabels retrieves the labels of the queried namespace from the cache of the shared informer.
-func GetNamespaceLabels(nsName string) (map[string]string, error) {
-	if !config.Datadog.GetBool("kubernetes_collect_metadata_tags") {
-		return nil, log.Errorf("Metadata collection is disabled on the Cluster Agent")
-	}
-
-	as, err := GetAPIClient()
-	if err != nil {
-		return nil, err
-	}
-
-	ns, err := as.InformerFactory.Core().V1().Namespaces().Lister().Get(nsName)
-	if err != nil {
-		return nil, err
-	}
-	if ns == nil {
-		return nil, fmt.Errorf("cannot get namespace %s from the informer's cache", nsName)
-	}
-	return ns.Labels, nil
 }

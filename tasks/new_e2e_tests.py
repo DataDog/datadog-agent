@@ -2,13 +2,14 @@
 Running E2E Tests with infra based on Pulumi
 """
 
+from __future__ import annotations
+
 import json
 import os
 import os.path
 import shutil
 import tempfile
 from pathlib import Path
-from typing import List
 
 import yaml
 from invoke.context import Context
@@ -239,8 +240,8 @@ def _clean_stacks(ctx: Context):
         _remove_stack(ctx, stack)
 
 
-def _get_existing_stacks(ctx: Context) -> List[str]:
-    e2e_stacks: List[str] = []
+def _get_existing_stacks(ctx: Context) -> list[str]:
+    e2e_stacks: list[str] = []
     output = ctx.run("pulumi stack ls --all --project e2elocal --json", hide=True, env=_get_default_env())
     if output is None or not output:
         return []

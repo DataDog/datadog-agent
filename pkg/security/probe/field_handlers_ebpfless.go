@@ -343,3 +343,14 @@ func (fh *EBPFLessFieldHandlers) ResolveHashesFromEvent(ev *model.Event, f *mode
 
 // ResolveUserSessionContext resolves and updates the provided user session context
 func (fh *EBPFLessFieldHandlers) ResolveUserSessionContext(_ *model.UserSessionContext) {}
+
+// ResolveProcessCmdArgv resolves the command line
+func (fh *EBPFLessFieldHandlers) ResolveProcessCmdArgv(ev *model.Event, process *model.Process) []string {
+	cmdline := []string{fh.ResolveProcessArgv0(ev, process)}
+	return append(cmdline, fh.ResolveProcessArgv(ev, process)...)
+}
+
+// ResolveAWSSecurityCredentials resolves and updates the AWS security credentials of the input process entry
+func (fh *EBPFLessFieldHandlers) ResolveAWSSecurityCredentials(_ *model.Event) []model.AWSSecurityCredentials {
+	return nil
+}

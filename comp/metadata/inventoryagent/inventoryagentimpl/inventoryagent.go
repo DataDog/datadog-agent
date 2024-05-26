@@ -10,6 +10,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"reflect"
 	"strings"
 	"sync"
@@ -18,6 +19,8 @@ import (
 	"github.com/DataDog/viper"
 	"go.uber.org/fx"
 
+	"github.com/DataDog/datadog-agent/comp/api/api"
+	"github.com/DataDog/datadog-agent/comp/api/api/utils"
 	"github.com/DataDog/datadog-agent/comp/api/authtoken"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
@@ -111,6 +114,7 @@ type provides struct {
 	Provider             runnerimpl.Provider
 	FlareProvider        flaretypes.Provider
 	StatusHeaderProvider status.HeaderInformationProvider
+	Endpoint             api.AgentEndpointProvider
 }
 
 func newInventoryAgentProvider(deps dependencies) provides {
@@ -136,6 +140,7 @@ func newInventoryAgentProvider(deps dependencies) provides {
 		Provider:             ia.MetadataProvider(),
 		FlareProvider:        ia.FlareProvider(),
 		StatusHeaderProvider: status.NewHeaderInformationProvider(ia),
+		Endpoint:             api.NewAgentEndpointProvider(ia.writePayloadAsJSON, "/metadata/inventory-agent", "GET"),
 	}
 }
 
@@ -285,6 +290,7 @@ func (ia *inventoryagent) fetchSystemProbeMetadata() {
 
 	ia.data["feature_usm_enabled"] = sysProbeConf.GetBool("service_monitoring_config.enabled")
 	ia.data["feature_usm_kafka_enabled"] = sysProbeConf.GetBool("service_monitoring_config.enable_kafka_monitoring")
+	ia.data["feature_usm_postgres_enabled"] = sysProbeConf.GetBool("service_monitoring_config.enable_postgres_monitoring")
 	ia.data["feature_usm_java_tls_enabled"] = sysProbeConf.GetBool("service_monitoring_config.tls.java.enabled")
 	ia.data["feature_usm_http2_enabled"] = sysProbeConf.GetBool("service_monitoring_config.enable_http2_monitoring")
 	ia.data["feature_usm_istio_enabled"] = sysProbeConf.GetBool("service_monitoring_config.tls.istio.enabled")
@@ -355,6 +361,16 @@ func (ia *inventoryagent) refreshMetadata() {
 	ia.fetchTraceAgentMetadata()
 	// system-probe ecosystem
 	ia.fetchSystemProbeMetadata()
+}
+
+func (ia *inventoryagent) writePayloadAsJSON(w http.ResponseWriter, _ *http.Request) {
+	// GetAsJSON already return scrubbed data
+	scrubbed, err := ia.GetAsJSON()
+	if err != nil {
+		utils.SetJSONError(w, err, 500)
+		return
+	}
+	w.Write(scrubbed)
 }
 
 // Set updates a metadata value in the payload. The given value will be stored in the cache without being copied. It is

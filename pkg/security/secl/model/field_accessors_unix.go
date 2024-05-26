@@ -901,6 +901,17 @@ func (ev *Event) GetExecCapPermitted() uint64 {
 	return ev.Exec.Process.Credentials.CapPermitted
 }
 
+// GetExecCmdargv returns the value of the field, resolving if necessary
+func (ev *Event) GetExecCmdargv() []string {
+	if ev.GetEventType().String() != "exec" {
+		return []string{}
+	}
+	if ev.Exec.Process == nil {
+		return []string{}
+	}
+	return ev.FieldHandlers.ResolveProcessCmdArgv(ev, ev.Exec.Process)
+}
+
 // GetExecComm returns the value of the field, resolving if necessary
 func (ev *Event) GetExecComm() string {
 	if ev.GetEventType().String() != "exec" {
@@ -1897,6 +1908,17 @@ func (ev *Event) GetExitCause() uint32 {
 	return ev.Exit.Cause
 }
 
+// GetExitCmdargv returns the value of the field, resolving if necessary
+func (ev *Event) GetExitCmdargv() []string {
+	if ev.GetEventType().String() != "exit" {
+		return []string{}
+	}
+	if ev.Exit.Process == nil {
+		return []string{}
+	}
+	return ev.FieldHandlers.ResolveProcessCmdArgv(ev, ev.Exit.Process)
+}
+
 // GetExitCode returns the value of the field, resolving if necessary
 func (ev *Event) GetExitCode() uint32 {
 	if ev.GetEventType().String() != "exit" {
@@ -2783,6 +2805,70 @@ func (ev *Event) GetExitUserSessionK8sUsername() string {
 	return ev.FieldHandlers.ResolveK8SUsername(ev, &ev.Exit.Process.UserSession)
 }
 
+// GetImdsAwsIsImdsV2 returns the value of the field, resolving if necessary
+func (ev *Event) GetImdsAwsIsImdsV2() bool {
+	if ev.GetEventType().String() != "imds" {
+		return false
+	}
+	return ev.IMDS.AWS.IsIMDSv2
+}
+
+// GetImdsAwsSecurityCredentialsType returns the value of the field, resolving if necessary
+func (ev *Event) GetImdsAwsSecurityCredentialsType() string {
+	if ev.GetEventType().String() != "imds" {
+		return ""
+	}
+	return ev.IMDS.AWS.SecurityCredentials.Type
+}
+
+// GetImdsCloudProvider returns the value of the field, resolving if necessary
+func (ev *Event) GetImdsCloudProvider() string {
+	if ev.GetEventType().String() != "imds" {
+		return ""
+	}
+	return ev.IMDS.CloudProvider
+}
+
+// GetImdsHost returns the value of the field, resolving if necessary
+func (ev *Event) GetImdsHost() string {
+	if ev.GetEventType().String() != "imds" {
+		return ""
+	}
+	return ev.IMDS.Host
+}
+
+// GetImdsServer returns the value of the field, resolving if necessary
+func (ev *Event) GetImdsServer() string {
+	if ev.GetEventType().String() != "imds" {
+		return ""
+	}
+	return ev.IMDS.Server
+}
+
+// GetImdsType returns the value of the field, resolving if necessary
+func (ev *Event) GetImdsType() string {
+	if ev.GetEventType().String() != "imds" {
+		return ""
+	}
+	return ev.IMDS.Type
+}
+
+// GetImdsUrl returns the value of the field, resolving if necessary
+func (ev *Event) GetImdsUrl() string {
+	if ev.GetEventType().String() != "imds" {
+		return ""
+	}
+	return ev.IMDS.URL
+}
+
+// GetImdsUserAgent returns the value of the field, resolving if necessary
+func (ev *Event) GetImdsUserAgent() string {
+	if ev.GetEventType().String() != "imds" {
+		return ""
+	}
+	return ev.IMDS.UserAgent
+}
+
 // GetLinkFileChangeTime returns the value of the field, resolving if necessary
 func (ev *Event) GetLinkFileChangeTime() uint64 {
 	if ev.GetEventType().String() != "link" {
@@ -3664,17 +3750,17 @@ func (ev *Event) GetMmapFileUser() string {
 }
 
 // GetMmapFlags returns the value of the field, resolving if necessary
-func (ev *Event) GetMmapFlags() int {
+func (ev *Event) GetMmapFlags() uint64 {
 	if ev.GetEventType().String() != "mmap" {
-		return 0
+		return uint64(0)
 	}
 	return ev.MMap.Flags
 }
 
 // GetMmapProtection returns the value of the field, resolving if necessary
-func (ev *Event) GetMmapProtection() int {
+func (ev *Event) GetMmapProtection() uint64 {
 	if ev.GetEventType().String() != "mmap" {
-		return 0
+		return uint64(0)
 	}
 	return ev.MMap.Protection
 }
@@ -4212,6 +4298,27 @@ func (ev *Event) GetProcessAncestorsCapPermitted() []uint64 {
 		element := (*ProcessCacheEntry)(ptr)
 		result := element.ProcessContext.Process.Credentials.CapPermitted
 		values = append(values, result)
+		ptr = iterator.Next()
+	}
+	return values
+}
+
+// GetProcessAncestorsCmdargv returns the value of the field, resolving if necessary
+func (ev *Event) GetProcessAncestorsCmdargv() []string {
+	if ev.BaseEvent.ProcessContext == nil {
+		return []string{}
+	}
+	if ev.BaseEvent.ProcessContext.Ancestor == nil {
+		return []string{}
+	}
+	var values []string
+	ctx := eval.NewContext(ev)
+	iterator := &ProcessAncestorsIterator{}
+	ptr := iterator.Front(ctx)
+	for ptr != nil {
+		element := (*ProcessCacheEntry)(ptr)
+		result := ev.FieldHandlers.ResolveProcessCmdArgv(ev, &element.ProcessContext.Process)
+		values = append(values, result...)
 		ptr = iterator.Next()
 	}
 	return values
@@ -5704,6 +5811,14 @@ func (ev *Event) GetProcessCapPermitted() uint64 {
 	return ev.BaseEvent.ProcessContext.Process.Credentials.CapPermitted
 }
 
+// GetProcessCmdargv returns the value of the field, resolving if necessary
+func (ev *Event) GetProcessCmdargv() []string {
+	if ev.BaseEvent.ProcessContext == nil {
+		return []string{}
+	}
+	return ev.FieldHandlers.ResolveProcessCmdArgv(ev, &ev.BaseEvent.ProcessContext.Process)
+}
+
 // GetProcessComm returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessComm() string {
 	if ev.BaseEvent.ProcessContext == nil {
@@ -6438,6 +6553,20 @@ func (ev *Event) GetProcessParentCapPermitted() uint64 {
 		return uint64(0)
 	}
 	return ev.BaseEvent.ProcessContext.Parent.Credentials.CapPermitted
+}
+
+// GetProcessParentCmdargv returns the value of the field, resolving if necessary
+func (ev *Event) GetProcessParentCmdargv() []string {
+	if ev.BaseEvent.ProcessContext == nil {
+		return []string{}
+	}
+	if ev.BaseEvent.ProcessContext.Parent == nil {
+		return []string{}
+	}
+	if !ev.BaseEvent.ProcessContext.HasParent() {
+		return []string{}
+	}
+	return ev.FieldHandlers.ResolveProcessCmdArgv(ev, ev.BaseEvent.ProcessContext.Parent)
 }
 
 // GetProcessParentComm returns the value of the field, resolving if necessary
@@ -7797,6 +7926,30 @@ func (ev *Event) GetPtraceTraceeAncestorsCapPermitted() []uint64 {
 		element := (*ProcessCacheEntry)(ptr)
 		result := element.ProcessContext.Process.Credentials.CapPermitted
 		values = append(values, result)
+		ptr = iterator.Next()
+	}
+	return values
+}
+
+// GetPtraceTraceeAncestorsCmdargv returns the value of the field, resolving if necessary
+func (ev *Event) GetPtraceTraceeAncestorsCmdargv() []string {
+	if ev.GetEventType().String() != "ptrace" {
+		return []string{}
+	}
+	if ev.PTrace.Tracee == nil {
+		return []string{}
+	}
+	if ev.PTrace.Tracee.Ancestor == nil {
+		return []string{}
+	}
+	var values []string
+	ctx := eval.NewContext(ev)
+	iterator := &ProcessAncestorsIterator{}
+	ptr := iterator.Front(ctx)
+	for ptr != nil {
+		element := (*ProcessCacheEntry)(ptr)
+		result := ev.FieldHandlers.ResolveProcessCmdArgv(ev, &element.ProcessContext.Process)
+		values = append(values, result...)
 		ptr = iterator.Next()
 	}
 	return values
@@ -9520,6 +9673,17 @@ func (ev *Event) GetPtraceTraceeCapPermitted() uint64 {
 	return ev.PTrace.Tracee.Process.Credentials.CapPermitted
 }
 
+// GetPtraceTraceeCmdargv returns the value of the field, resolving if necessary
+func (ev *Event) GetPtraceTraceeCmdargv() []string {
+	if ev.GetEventType().String() != "ptrace" {
+		return []string{}
+	}
+	if ev.PTrace.Tracee == nil {
+		return []string{}
+	}
+	return ev.FieldHandlers.ResolveProcessCmdArgv(ev, &ev.PTrace.Tracee.Process)
+}
+
 // GetPtraceTraceeComm returns the value of the field, resolving if necessary
 func (ev *Event) GetPtraceTraceeComm() string {
 	if ev.GetEventType().String() != "ptrace" {
@@ -10467,6 +10631,23 @@ func (ev *Event) GetPtraceTraceeParentCapPermitted() uint64 {
 		return uint64(0)
 	}
 	return ev.PTrace.Tracee.Parent.Credentials.CapPermitted
+}
+
+// GetPtraceTraceeParentCmdargv returns the value of the field, resolving if necessary
+func (ev *Event) GetPtraceTraceeParentCmdargv() []string {
+	if ev.GetEventType().String() != "ptrace" {
+		return []string{}
+	}
+	if ev.PTrace.Tracee == nil {
+		return []string{}
+	}
+	if ev.PTrace.Tracee.Parent == nil {
+		return []string{}
+	}
+	if !ev.PTrace.Tracee.HasParent() {
+		return []string{}
+	}
+	return ev.FieldHandlers.ResolveProcessCmdArgv(ev, ev.PTrace.Tracee.Parent)
 }
 
 // GetPtraceTraceeParentComm returns the value of the field, resolving if necessary
@@ -13051,6 +13232,30 @@ func (ev *Event) GetSignalTargetAncestorsCapPermitted() []uint64 {
 	return values
 }
 
+// GetSignalTargetAncestorsCmdargv returns the value of the field, resolving if necessary
+func (ev *Event) GetSignalTargetAncestorsCmdargv() []string {
+	if ev.GetEventType().String() != "signal" {
+		return []string{}
+	}
+	if ev.Signal.Target == nil {
+		return []string{}
+	}
+	if ev.Signal.Target.Ancestor == nil {
+		return []string{}
+	}
+	var values []string
+	ctx := eval.NewContext(ev)
+	iterator := &ProcessAncestorsIterator{}
+	ptr := iterator.Front(ctx)
+	for ptr != nil {
+		element := (*ProcessCacheEntry)(ptr)
+		result := ev.FieldHandlers.ResolveProcessCmdArgv(ev, &element.ProcessContext.Process)
+		values = append(values, result...)
+		ptr = iterator.Next()
+	}
+	return values
+}
+
 // GetSignalTargetAncestorsComm returns the value of the field, resolving if necessary
 func (ev *Event) GetSignalTargetAncestorsComm() []string {
 	if ev.GetEventType().String() != "signal" {
@@ -14769,6 +14974,17 @@ func (ev *Event) GetSignalTargetCapPermitted() uint64 {
 	return ev.Signal.Target.Process.Credentials.CapPermitted
 }
 
+// GetSignalTargetCmdargv returns the value of the field, resolving if necessary
+func (ev *Event) GetSignalTargetCmdargv() []string {
+	if ev.GetEventType().String() != "signal" {
+		return []string{}
+	}
+	if ev.Signal.Target == nil {
+		return []string{}
+	}
+	return ev.FieldHandlers.ResolveProcessCmdArgv(ev, &ev.Signal.Target.Process)
+}
+
 // GetSignalTargetComm returns the value of the field, resolving if necessary
 func (ev *Event) GetSignalTargetComm() string {
 	if ev.GetEventType().String() != "signal" {
@@ -15716,6 +15932,23 @@ func (ev *Event) GetSignalTargetParentCapPermitted() uint64 {
 		return uint64(0)
 	}
 	return ev.Signal.Target.Parent.Credentials.CapPermitted
+}
+
+// GetSignalTargetParentCmdargv returns the value of the field, resolving if necessary
+func (ev *Event) GetSignalTargetParentCmdargv() []string {
+	if ev.GetEventType().String() != "signal" {
+		return []string{}
+	}
+	if ev.Signal.Target == nil {
+		return []string{}
+	}
+	if ev.Signal.Target.Parent == nil {
+		return []string{}
+	}
+	if !ev.Signal.Target.HasParent() {
+		return []string{}
+	}
+	return ev.FieldHandlers.ResolveProcessCmdArgv(ev, ev.Signal.Target.Parent)
 }
 
 // GetSignalTargetParentComm returns the value of the field, resolving if necessary

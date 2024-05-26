@@ -56,7 +56,16 @@ type mockDependencies struct {
 	Hostname hostname.Component
 }
 
-func newMock(deps mockDependencies) (demultiplexerComp.Component, demultiplexerComp.Mock, sender.SenderManager) {
+// MockProvides is the mock component output
+type MockProvides struct {
+	fx.Out
+
+	Comp   demultiplexerComp.Component
+	Mock   demultiplexerComp.Mock
+	Sender sender.SenderManager
+}
+
+func newMock(deps mockDependencies) MockProvides {
 	opts := aggregator.DefaultAgentDemultiplexerOptions()
 	opts.DontStartForwarders = true
 
@@ -68,5 +77,9 @@ func newMock(deps mockDependencies) (demultiplexerComp.Component, demultiplexerC
 	}
 
 	instance := &mock{AgentDemultiplexer: aggregator.InitAndStartAgentDemultiplexerForTest(aggDeps, opts, "")}
-	return instance, instance, instance
+	return MockProvides{
+		Comp:   instance,
+		Mock:   instance,
+		Sender: instance,
+	}
 }

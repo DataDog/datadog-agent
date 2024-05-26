@@ -94,6 +94,22 @@ hostname: 1.2.3.4
 				Namespace:             "my-namespace",
 			},
 		},
+		{
+			name: "source and destination service config",
+			rawInstance: []byte(`
+hostname: 1.2.3.4
+source_service: service-a
+destination_service: service-b
+`),
+			rawInitConfig: []byte(``),
+			expectedConfig: &CheckConfig{
+				DestHostname:          "1.2.3.4",
+				SourceService:         "service-a",
+				DestinationService:    "service-b",
+				MinCollectionInterval: time.Duration(60) * time.Second,
+				Namespace:             "my-namespace",
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

@@ -1,8 +1,9 @@
+from __future__ import annotations
+
 import json
 import os
 import pathlib
 import unittest
-from typing import List
 from unittest.mock import MagicMock, patch
 
 from codeowners import CodeOwners
@@ -15,7 +16,7 @@ from tasks.libs.pipeline.notifications import find_job_owners
 from tasks.libs.types.types import FailedJobReason, FailedJobs, FailedJobType
 
 
-def get_fake_jobs() -> List[ProjectJob]:
+def get_fake_jobs() -> list[ProjectJob]:
     with open("tasks/unit-tests/testdata/jobs.json") as f:
         jobs = json.load(f)
 

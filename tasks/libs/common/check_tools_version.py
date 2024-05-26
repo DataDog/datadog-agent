@@ -1,6 +1,7 @@
+from __future__ import annotations
+
 import json
 import sys
-from typing import List
 
 from invoke import Context
 
@@ -45,7 +46,7 @@ def current_golangci_lint_v(ctx: Context) -> str:
     return ctx.run(cmd, hide=True).stdout.split(' ')[3]
 
 
-def check_tools_version(ctx: Context, tools_list: List[str]) -> bool:
+def check_tools_version(ctx: Context, tools_list: list[str]) -> bool:
     """
     Check that each installed tool in tools_list is the version expected for the repo.
     """

@@ -84,6 +84,7 @@ spec:
                 enabled: true
               runtime:
                 enabled: true
+                useSecruntimeTrack: false
                 network:
                   enabled: false
 

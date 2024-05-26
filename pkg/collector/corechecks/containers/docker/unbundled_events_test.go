@@ -11,11 +11,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
-	"github.com/stretchr/testify/assert"
 )
 
 func TestUnbundledEventsTransform(t *testing.T) {
@@ -63,13 +64,13 @@ func TestUnbundledEventsTransform(t *testing.T) {
 				{
 					Title:          "Container foobar: oom",
 					Text:           "Container foobar (running image \"foo:latest\"): oom",
-					AlertType:      event.EventAlertTypeError,
+					AlertType:      event.AlertTypeError,
 					AggregationKey: "docker:foobar",
 					Ts:             ts.Unix(),
 					Host:           hostname,
 					SourceTypeName: "docker",
 					EventType:      "docker",
-					Priority:       event.EventPriorityNormal,
+					Priority:       event.PriorityNormal,
 					Tags: []string{
 						"image_name:foo",
 						"image_tag:latest",

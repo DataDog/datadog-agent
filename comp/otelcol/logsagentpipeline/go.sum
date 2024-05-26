@@ -43,8 +43,8 @@ github.com/DataDog/agent-payload/v5 v5.0.106 h1:A3dGX+JYoL7OJe2crpxznW7hWxLxhOk/
 github.com/DataDog/agent-payload/v5 v5.0.106/go.mod h1:COngtbYYCncpIPiE5D93QlXDH/3VAKk10jDNwGHcMRE=
 github.com/DataDog/dd-sensitive-data-scanner/sds-go/go v0.0.0-20240419161837-f1b2f553edfe h1:efzxujZ7VHWFxjmWjcJyUEpPrN8qdiZPYb+dBw547Wo=
 github.com/DataDog/dd-sensitive-data-scanner/sds-go/go v0.0.0-20240419161837-f1b2f553edfe/go.mod h1:TX7CTOQ3LbQjfAi4SwqUoR5gY1zfUk7VRBDTuArjaDc=
-github.com/DataDog/viper v1.13.0 h1:XE5cJiXeXkyijwgspwZiH6iroWYLgAPXTOhcBnDBOMs=
-github.com/DataDog/viper v1.13.0/go.mod h1:wDdUVJ2SHaMaPrCZrlRCObwkubsX8j5sme3LaR/SGTc=
+github.com/DataDog/viper v1.13.3 h1:0++798wZLEenL1JbF8dMmwFl6WMlAVxLtzVuws/LlVc=
+github.com/DataDog/viper v1.13.3/go.mod h1:wDdUVJ2SHaMaPrCZrlRCObwkubsX8j5sme3LaR/SGTc=
 github.com/Microsoft/go-winio v0.6.1 h1:9/kr64B9VUZrLm5YYwbGtUJnMgqWVOdUAXu6Migciow=
 github.com/Microsoft/go-winio v0.6.1/go.mod h1:LRdKpFKfdobln8UmuiYcKPot9D2v6svN5+sAH+4kjUM=
 github.com/OneOfOne/xxhash v1.2.2/go.mod h1:HSdplMjZKSmBqAxg5vPj2TmRDmfkzw+cTzAElWljhcU=
