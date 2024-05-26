@@ -461,8 +461,6 @@
 /pkg/network/ebpf/c/prebuilt/http*      @DataDog/universal-service-monitoring
 /pkg/network/ebpf/c/runtime/http*       @DataDog/universal-service-monitoring
 /pkg/network/ebpf/c/protocols/          @DataDog/universal-service-monitoring
-/pkg/network/encoding/marshal/http*     @DataDog/universal-service-monitoring
-/pkg/network/encoding/marshal/kafka*    @DataDog/universal-service-monitoring
 /pkg/network/encoding/marshal/*usm*     @DataDog/universal-service-monitoring
 /pkg/network/encoding/marshal/*_windows*.go  @DataDog/windows-kernel-integrations
 /pkg/network/etw/                       @DataDog/windows-kernel-integrations
