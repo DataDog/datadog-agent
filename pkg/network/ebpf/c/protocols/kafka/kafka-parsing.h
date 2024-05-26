@@ -200,6 +200,84 @@ static __always_inline enum parse_result read_with_remainder(kafka_response_cont
     return RET_DONE;
 }
 
+static __always_inline enum parse_result read_with_remainder_s16(kafka_response_context_t *response, const struct __sk_buff *skb,
+                                                             u32 *offset, u32 data_end, s16 *val, bool first)
+{
+    if (*offset >= data_end) {
+        // The offset we want to read is completely outside of the current
+        // packet. No remainder to save, we just need to save the offset
+        // at which we need to start reading the next packet from.
+        response->carry_over_offset = *offset - data_end;
+        return RET_EOP;
+    }
+
+    u32 avail = data_end - *offset;
+    u32 remainder = response->remainder;
+    u32 want = sizeof(*val);
+
+    extra_debug("avail %u want %u remainder %u", avail, want, remainder);
+
+    // Statically optimize away code for non-first iteration of loop since there
+    // can be no intra-packet remainder.
+    if (!first) {
+        remainder = 0;
+    }
+
+    if (avail < want) {
+        // We have less than 2 bytes left in the packet.
+
+        if (remainder) {
+            // We don't handle the case where we already have a remainder saved
+            // and the new packet is so small that it doesn't allow us to fully
+            // read the value we want to read. Actually we don't need to check
+            // for 2 bytes but just enough bytes to fill the value, but in reality
+            // packet sizes so small are highly unlikely so just check for 2 bytes.
+            extra_debug("Continuation packet less than 2 bytes?");
+            return RET_ERR;
+        }
+
+        // This is negative and so kafka_continue_parse_response() will save
+        // remainder.
+        response->carry_over_offset = *offset - data_end;
+        return RET_EOP;
+    }
+
+    if (!remainder) {
+        // No remainder, and 2 or more bytes more in the packet, so just
+        // do a normal read.
+        bpf_skb_load_bytes(skb, *offset, val, sizeof(*val));
+        *offset += sizeof(*val);
+        *val = bpf_ntohs(*val);
+        extra_debug("read without remainder: %d", *val);
+        return RET_DONE;
+    }
+
+    // We'll be using up the remainder so clear it.
+    response->remainder = 0;
+
+    // The remainder_buf contains up to 1 head bytes of the value we
+    // need to read, saved from the previous packet. Read the tail
+    // bytes of the value from the current packet and reconstruct
+    // the value to be read.
+//    u8 *reconstruct = response->remainder_buf_s16;
+    u8 *reconstruct = response->remainder_buf;
+    u8 tail[2] = {0};
+
+    bpf_skb_load_bytes(skb, *offset, &tail, 1);
+
+    switch (remainder) {
+    case 1:
+        reconstruct[1] = tail[0];
+        break;
+    }
+
+    *offset += want - remainder;
+    *val = bpf_ntohs(*(u16 *)reconstruct);
+    extra_debug("read with remainder: %d", *val);
+
+    return RET_DONE;
+}
+
 static __always_inline enum parse_result kafka_continue_parse_response_loop(kafka_info_t *kafka,
                                                                             conn_tuple_t *tup,
                                                                             kafka_response_context_t *response,
@@ -227,20 +305,24 @@ static __always_inline enum parse_result kafka_continue_parse_response_loop(kafk
         switch (response->state) {
         case KAFKA_FETCH_RESPONSE_PARTITION_START:
             offset += sizeof(s32); // Skip partition_index
+            response->state = KAFKA_FETCH_RESPONSE_ERROR_CODE_START;
+            // fallthrough
 
+         case KAFKA_FETCH_RESPONSE_ERROR_CODE_START:
+         {
             // Error codes range from -1 to 119 as per the Kafka protocol specification.
             // For details, refer to: https://kafka.apache.org/protocol.html#protocol_error_codes
-            // TODO: read_with_remainder only support s32, we need another version for s16
             s16 error_code = 0;
-            bpf_skb_load_bytes(skb, offset, &error_code, sizeof(error_code));
-            error_code = bpf_ntohs(error_code);
+            ret = read_with_remainder_s16(response, skb, &offset, data_end, &error_code, first);
+            if (ret != RET_DONE) {
+                return ret;
+            }
             if (error_code < -1 || error_code > 119) {
                 log_debug("kafka: invalid error code: %d", error_code);
                 return RET_ERR;
             }
             log_debug("kafka: Got error code: %d", error_code);
             response->transaction.error_code = (s8)error_code;
-            offset += sizeof(error_code); // Skip error_code
 
             offset += sizeof(s64); // Skip high_watermark
 
@@ -254,6 +336,7 @@ static __always_inline enum parse_result kafka_continue_parse_response_loop(kafk
 
             response->state = KAFKA_FETCH_RESPONSE_PARTITION_ABORTED_TRANSACTIONS;
             // fallthrough
+            }
 
         case KAFKA_FETCH_RESPONSE_PARTITION_ABORTED_TRANSACTIONS:
             if (request->request_api_version >= 4) {
