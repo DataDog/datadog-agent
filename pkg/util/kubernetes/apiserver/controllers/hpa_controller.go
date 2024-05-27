@@ -5,7 +5,7 @@
 
 //go:build kubeapiserver
 
-package apiserver
+package controllers
 
 import (
 	"sync"
@@ -28,12 +28,12 @@ import (
 )
 
 const (
-	// maxRetries is the maximum number of times we try to process an autoscaler before it is dropped out of the HPAqueue.
+	// maxRetries is the maximum number of times we try to process an autoscaler before it is dropped out of the hpaQueue.
 	maxRetries = 10
 )
 
-// PollerConfig holds the configuration of the metrics poller
-type PollerConfig struct {
+// pollerConfig holds the configuration of the metrics poller
+type pollerConfig struct {
 	gcPeriodSeconds int
 	refreshPeriod   int
 }
@@ -43,14 +43,14 @@ type metricsBatch struct {
 	m    sync.Mutex
 }
 
-// AutoscalersController is responsible for synchronizing horizontal pod autoscalers from the Kubernetes
+// autoscalersController is responsible for synchronizing horizontal pod autoscalers from the Kubernetes
 // apiserver to determine the metrics that need to be provided by the custom metrics server.
 // This controller also queries Datadog for the values of detected external metrics.
 //
 // The controller takes care to garbage collect any data while processing updates/deletes
 // so that the cache does not contain data for deleted hpas
 // This controller is used by the Datadog Cluster Agent and supports Kubernetes 1.10+.
-type AutoscalersController struct {
+type autoscalersController struct {
 	autoscalersLister       cache.GenericLister
 	autoscalersListerSynced cache.InformerSynced
 	wpaEnabled              bool
@@ -58,10 +58,10 @@ type AutoscalersController struct {
 	wpaListerSynced         cache.InformerSynced
 
 	// Autoscalers that need to be added to the cache.
-	HPAqueue workqueue.RateLimitingInterface
-	WPAqueue workqueue.RateLimitingInterface
+	hpaQueue workqueue.RateLimitingInterface
+	wpaQueue workqueue.RateLimitingInterface
 
-	EventRecorder record.EventRecorder
+	eventRecorder record.EventRecorder
 
 	// used in unit tests to wait until hpas are synced
 	autoscalers chan interface{}
@@ -70,14 +70,14 @@ type AutoscalersController struct {
 	hpaProc      autoscalers.ProcessorInterface
 	store        custommetrics.Store
 	clientSet    kubernetes.Interface
-	poller       PollerConfig
+	poller       pollerConfig
 	isLeaderFunc func() bool
 	mu           sync.Mutex
 }
 
-// RunHPA starts the controller to process events about Horizontal Pod Autoscalers
-func (h *AutoscalersController) RunHPA(stopCh <-chan struct{}) {
-	defer h.HPAqueue.ShutDown()
+// runHPA starts the controller to process events about Horizontal Pod Autoscalers
+func (h *autoscalersController) runHPA(stopCh <-chan struct{}) {
+	defer h.hpaQueue.ShutDown()
 
 	log.Infof("Starting HPA Controller ... ")
 	defer log.Infof("Stopping HPA Controller")
@@ -89,8 +89,8 @@ func (h *AutoscalersController) RunHPA(stopCh <-chan struct{}) {
 	wait.Until(h.worker, time.Second, stopCh)
 }
 
-// enableHPA adds the handlers to the AutoscalersController to support HPAs
-func (h *AutoscalersController) enableHPA(client kubernetes.Interface, informerFactory informers.SharedInformerFactory) {
+// enableHPA adds the handlers to the autoscalersController to support HPAs
+func (h *autoscalersController) enableHPA(client kubernetes.Interface, informerFactory informers.SharedInformerFactory) {
 	hpaGVR, err := autoscalers.DiscoverHPAGroupVersionResource(client)
 	if err != nil {
 		log.Errorf("unable to discover HPA GroupVersionResource: %s", err)
@@ -119,19 +119,19 @@ func (h *AutoscalersController) enableHPA(client kubernetes.Interface, informerF
 	h.autoscalersListerSynced = informer.HasSynced
 }
 
-func (h *AutoscalersController) worker() {
+func (h *autoscalersController) worker() {
 	for h.processNextHPA() {
 	}
 }
 
-func (h *AutoscalersController) processNextHPA() bool {
-	key, quit := h.HPAqueue.Get()
+func (h *autoscalersController) processNextHPA() bool {
+	key, quit := h.hpaQueue.Get()
 	if quit {
-		log.Infof("HPA controller HPAqueue is shutting down, stopping processing")
+		log.Infof("HPA controller hpaQueue is shutting down, stopping processing")
 		return false
 	}
 	log.Tracef("Processing %s", key)
-	defer h.HPAqueue.Done(key)
+	defer h.hpaQueue.Done(key)
 
 	err := h.syncHPA(key)
 	h.handleErr(err, key)
@@ -143,7 +143,7 @@ func (h *AutoscalersController) processNextHPA() bool {
 	return true
 }
 
-func (h *AutoscalersController) syncHPA(key interface{}) error {
+func (h *autoscalersController) syncHPA(key interface{}) error {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 
@@ -163,7 +163,7 @@ func (h *AutoscalersController) syncHPA(key interface{}) error {
 	default:
 		if hpaCached == nil {
 			log.Errorf("Could not parse empty hpa %s/%s from local store", ns, name)
-			return ErrIsEmpty
+			return errIsEmpty
 		}
 		emList := autoscalers.InspectHPA(hpaCached)
 		if len(emList) == 0 {
@@ -181,22 +181,22 @@ func (h *AutoscalersController) syncHPA(key interface{}) error {
 	return err
 }
 
-func (h *AutoscalersController) addAutoscaler(obj interface{}) {
+func (h *autoscalersController) addAutoscaler(obj interface{}) {
 	newAutoscaler, ok := obj.(metav1.Object)
 	if !ok {
 		log.Errorf("Expected a metav1.Object type, got: %v", obj)
 		return
 	}
 	log.Debugf("Adding autoscaler %s/%s", newAutoscaler.GetNamespace(), newAutoscaler.GetName())
-	h.EventRecorder.Event(obj.(runtime.Object), corev1.EventTypeNormal, autoscalerNowHandleMsgEvent, "")
+	h.eventRecorder.Event(obj.(runtime.Object), corev1.EventTypeNormal, autoscalerNowHandleMsgEvent, "")
 	h.enqueue(newAutoscaler)
 }
 
-// the AutoscalersController does not benefit from a diffing logic.
+// the autoscalersController does not benefit from a diffing logic.
 // Adding the new obj and dropping the previous one is sufficient.
 // FIXME if the metric name or scope is changed in the Ref manifest we should propagate the change
 // to the Global store here
-func (h *AutoscalersController) updateAutoscaler(old, obj interface{}) {
+func (h *autoscalersController) updateAutoscaler(old, obj interface{}) {
 	newAutoscaler, ok := obj.(metav1.Object)
 	if !ok {
 		log.Errorf("Expected a metav1.Object type, got: %v", obj)
@@ -224,9 +224,9 @@ func (h *AutoscalersController) updateAutoscaler(old, obj interface{}) {
 
 // Processing the Delete Events in the Eventhandler as obj is deleted from the local store thereafter.
 // Only here can we retrieve the content of the Ref to properly process and delete it.
-// FIXME we could have an update in the HPAqueue while processing the deletion, we should make
+// FIXME we could have an update in the hpaQueue while processing the deletion, we should make
 // sure we process them in order instead. For now, the gc logic allows us to recover.
-func (h *AutoscalersController) deleteAutoscaler(o interface{}) {
+func (h *autoscalersController) deleteAutoscaler(o interface{}) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 

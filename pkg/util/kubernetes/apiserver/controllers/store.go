@@ -5,15 +5,16 @@
 
 //go:build kubeapiserver
 
-package apiserver
+package controllers
 
 import (
 	"sync"
 
-	agentcache "github.com/DataDog/datadog-agent/pkg/util/cache"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-
 	"github.com/patrickmn/go-cache"
+
+	agentcache "github.com/DataDog/datadog-agent/pkg/util/cache"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // globalMetaBundleStore uses the global cache instance for the Agent.
@@ -27,16 +28,16 @@ var globalMetaBundleStore = &metaBundleStore{
 type metaBundleStore struct {
 	mu sync.RWMutex
 
-	// we don't expire items in the cache and instead rely on the `MetadataController`
+	// we don't expire items in the cache and instead rely on the `metadataController`
 	// to delete items for nodes that were deleted in the apiserver to prevent data
 	// from going missing until the next resync period.
 	cache *cache.Cache
 }
 
-func (m *metaBundleStore) get(nodeName string) (*metadataMapperBundle, bool) {
-	cacheKey := agentcache.BuildAgentKey(metadataMapperCachePrefix, nodeName)
+func (m *metaBundleStore) get(nodeName string) (*apiserver.MetadataMapperBundle, bool) {
+	cacheKey := agentcache.BuildAgentKey(apiserver.MetadataMapperCachePrefix, nodeName)
 
-	var metaBundle *metadataMapperBundle
+	var metaBundle *apiserver.MetadataMapperBundle
 
 	m.mu.RLock()
 	defer m.mu.RUnlock()
@@ -46,7 +47,7 @@ func (m *metaBundleStore) get(nodeName string) (*metadataMapperBundle, bool) {
 		return nil, false
 	}
 
-	metaBundle, ok = v.(*metadataMapperBundle)
+	metaBundle, ok = v.(*apiserver.MetadataMapperBundle)
 	if !ok {
 		log.Errorf("invalid cache format for the cacheKey: %s", cacheKey)
 		return nil, false
@@ -55,17 +56,17 @@ func (m *metaBundleStore) get(nodeName string) (*metadataMapperBundle, bool) {
 	return metaBundle, true
 }
 
-func (m *metaBundleStore) getCopyOrNew(nodeName string) *metadataMapperBundle {
-	cacheKey := agentcache.BuildAgentKey(metadataMapperCachePrefix, nodeName)
+func (m *metaBundleStore) getCopyOrNew(nodeName string) *apiserver.MetadataMapperBundle {
+	cacheKey := agentcache.BuildAgentKey(apiserver.MetadataMapperCachePrefix, nodeName)
 
-	metaBundle := newMetadataMapperBundle()
+	metaBundle := apiserver.NewMetadataMapperBundle()
 
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
 	v, ok := m.cache.Get(cacheKey)
 	if ok {
-		oldMetaBundle, ok := v.(*metadataMapperBundle)
+		oldMetaBundle, ok := v.(*apiserver.MetadataMapperBundle)
 		if !ok {
 			log.Errorf("invalid cache format for the cacheKey: %s", cacheKey)
 		} else {
@@ -76,8 +77,8 @@ func (m *metaBundleStore) getCopyOrNew(nodeName string) *metadataMapperBundle {
 	return metaBundle
 }
 
-func (m *metaBundleStore) set(nodeName string, metaBundle *metadataMapperBundle) {
-	cacheKey := agentcache.BuildAgentKey(metadataMapperCachePrefix, nodeName)
+func (m *metaBundleStore) set(nodeName string, metaBundle *apiserver.MetadataMapperBundle) {
+	cacheKey := agentcache.BuildAgentKey(apiserver.MetadataMapperCachePrefix, nodeName)
 
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -86,7 +87,7 @@ func (m *metaBundleStore) set(nodeName string, metaBundle *metadataMapperBundle)
 }
 
 func (m *metaBundleStore) delete(nodeName string) {
-	cacheKey := agentcache.BuildAgentKey(metadataMapperCachePrefix, nodeName)
+	cacheKey := agentcache.BuildAgentKey(apiserver.MetadataMapperCachePrefix, nodeName)
 
 	m.mu.Lock()
 	defer m.mu.Unlock()
