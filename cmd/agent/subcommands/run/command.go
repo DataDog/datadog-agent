@@ -79,7 +79,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/defaults"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd"
-	"github.com/DataDog/datadog-agent/comp/dogstatsd/replay"
+	replay "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/def"
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
 	dogstatsddebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
 	dogstatsdStatusimpl "github.com/DataDog/datadog-agent/comp/dogstatsd/status/statusimpl"

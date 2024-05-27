@@ -23,6 +23,7 @@ from tasks import (
     epforwarder,
     fakeintake,
     github_tasks,
+    go_deps,
     installer,
     kmt,
     linter,
@@ -142,6 +143,7 @@ ns.add_collection(dogstatsd)
 ns.add_collection(ebpf)
 ns.add_collection(emacs)
 ns.add_collection(epforwarder)
+ns.add_collection(go_deps)
 ns.add_collection(linter)
 ns.add_collection(msi)
 ns.add_collection(github_tasks, "github")
