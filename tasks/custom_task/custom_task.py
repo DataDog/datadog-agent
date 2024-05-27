@@ -47,6 +47,7 @@ def get_running_modes() -> list[str]:
         "pre_commit": os.environ.get("PRE_COMMIT", 0) == "1",
         "invoke_unit_tests": is_running_ut or os.environ.get("INVOKE_UNIT_TESTS", 0) == "1",
         "ci": running_in_ci(),
+        "pyapp": os.environ.get("PYAPP") == "1",
     }
     running_modes["manual"] = not (running_modes["pre_commit"] or running_modes["ci"])
     return [mode for mode, is_running in running_modes.items() if is_running]
@@ -77,6 +78,7 @@ def log_invoke_task(
         "duration": duration,
         "user": user,
         "result": task_result,
+        "python_version": f"{sys.version_info[0]}.{sys.version_info[1]}.{sys.version_info[2]}",
     }
     logging.info(task_info)
 

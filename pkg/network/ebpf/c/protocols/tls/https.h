@@ -108,6 +108,10 @@ static __always_inline void tls_process(struct pt_regs *ctx, conn_tuple_t *t, vo
         prog = TLS_KAFKA;
         final_tuple = *t;
         break;
+    case PROTOCOL_POSTGRES:
+        prog = TLS_POSTGRES;
+        final_tuple = normalized_tuple;
+        break;
     default:
         return;
     }
@@ -191,6 +195,10 @@ static __always_inline void tls_finish(struct pt_regs *ctx, conn_tuple_t *t, boo
     case PROTOCOL_KAFKA:
         prog = TLS_KAFKA_TERMINATION;
         final_tuple = *t;
+        break;
+    case PROTOCOL_POSTGRES:
+        prog = TLS_POSTGRES_TERMINATION;
+        final_tuple = normalized_tuple;
         break;
     default:
         return;
