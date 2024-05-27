@@ -14,10 +14,11 @@ import (
 // RequestSummary represents a (debug-friendly) aggregated view of requests
 // matching a (client, server, path, method) tuple
 type RequestSummary struct {
-	Client       Address
-	Server       Address
-	ByRequestAPI map[string]int
-	TopicName    string
+	Client    Address
+	Server    Address
+	Operation string
+	TopicName string
+	ByStatus  map[int8]Stats
 }
 
 // Address represents represents a IP:Port
@@ -39,13 +40,11 @@ func Kafka(stats map[kafka.Key]*kafka.RequestStats) []RequestSummary {
 		clientAddr := formatIP(key.SrcIPLow, key.SrcIPHigh)
 		serverAddr := formatIP(key.DstIPLow, key.DstIPHigh)
 
-		byRequestAPI := make(map[string]int)
-		// TODO: Consider all error codes
-		switch key.RequestAPIKey {
-		case kafka.ProduceAPIKey:
-			byRequestAPI["produce"] = requestStat.ErrorCodeToStat[0].Count
-		case kafka.FetchAPIKey:
-			byRequestAPI["fetch"] = requestStat.ErrorCodeToStat[0].Count
+		operationName := "unknown"
+		if key.RequestAPIKey == kafka.ProduceAPIKey {
+			operationName = "produce"
+		} else if key.RequestAPIKey == kafka.FetchAPIKey {
+			operationName = "fetch"
 		}
 
 		debug := RequestSummary{
@@ -58,8 +57,16 @@ func Kafka(stats map[kafka.Key]*kafka.RequestStats) []RequestSummary {
 				Port: key.DstPort,
 			},
 
-			ByRequestAPI: byRequestAPI,
-			TopicName:    key.TopicName,
+			Operation: operationName,
+			TopicName: key.TopicName,
+			ByStatus:  make(map[int8]Stats, len(requestStat.ErrorCodeToStat)),
+		}
+
+		for status, stat := range requestStat.ErrorCodeToStat {
+
+			debug.ByStatus[status] = Stats{
+				Count: stat.Count,
+			}
 		}
 
 		all = append(all, debug)
