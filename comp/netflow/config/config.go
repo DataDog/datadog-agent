@@ -8,6 +8,7 @@ package config
 
 import (
 	"fmt"
+
 	"github.com/DataDog/datadog-agent/comp/core/log"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -33,6 +34,8 @@ type NetflowConfig struct {
 
 	PrometheusListenerAddress string `mapstructure:"prometheus_listener_address"` // Example `localhost:9090`
 	PrometheusListenerEnabled bool   `mapstructure:"prometheus_listener_enabled"`
+
+	CorrectSamplingRate *bool `mapstructure:"correct_sampling_rate"`
 }
 
 // ListenerConfig contains configuration for a single flow listener
@@ -133,6 +136,11 @@ func (mainConfig *NetflowConfig) SetDefaults(namespace string, logger log.Compon
 
 	if mainConfig.PrometheusListenerAddress == "" {
 		mainConfig.PrometheusListenerAddress = common.DefaultPrometheusListenerAddress
+	}
+
+	if mainConfig.CorrectSamplingRate == nil {
+		correctSamplingRate := common.DefaultCorrectSamplingRate
+		mainConfig.CorrectSamplingRate = &correctSamplingRate
 	}
 
 	return nil

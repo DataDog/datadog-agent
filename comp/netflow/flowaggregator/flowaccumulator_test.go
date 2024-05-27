@@ -74,6 +74,25 @@ func Test_flowAccumulator_add(t *testing.T) {
 			"custom_field_2": "second_flow_field",
 		},
 	}
+	flowAWithSamplingRate := &common.Flow{
+		FlowType:       common.TypeNetFlow9,
+		ExporterAddr:   []byte{127, 0, 0, 1},
+		StartTimestamp: 1234578,
+		EndTimestamp:   1234579,
+		Bytes:          10,
+		Packets:        2,
+		SamplingRate:   100,
+		SrcAddr:        []byte{10, 10, 10, 10},
+		DstAddr:        []byte{10, 10, 10, 20},
+		IPProtocol:     uint32(6),
+		SrcPort:        2000,
+		DstPort:        80,
+		TCPFlags:       ackFlag,
+		AdditionalFields: map[string]any{
+			"custom_field":   "another_test",
+			"custom_field_2": "second_flow_field",
+		},
+	}
 	flowB1 := &common.Flow{
 		FlowType:       common.TypeNetFlow9,
 		ExporterAddr:   []byte{127, 0, 0, 1},
@@ -90,10 +109,11 @@ func Test_flowAccumulator_add(t *testing.T) {
 	}
 
 	// When
-	acc := newFlowAccumulator(common.DefaultAggregatorFlushInterval, common.DefaultAggregatorFlushInterval, common.DefaultAggregatorPortRollupThreshold, false, logger)
+	acc := newFlowAccumulator(common.DefaultAggregatorFlushInterval, common.DefaultAggregatorFlushInterval, common.DefaultAggregatorPortRollupThreshold, false, logger, common.DefaultCorrectSamplingRate)
 	acc.add(flowA1)
 	acc.add(flowA2)
 	acc.add(flowB1)
+	acc.add(flowAWithSamplingRate)
 
 	// Then
 	assert.Equal(t, 2, len(acc.flows))
@@ -101,8 +121,8 @@ func Test_flowAccumulator_add(t *testing.T) {
 	wrappedFlowA := acc.flows[flowA1.AggregationHash()]
 	assert.Equal(t, []byte{10, 10, 10, 10}, wrappedFlowA.flow.SrcAddr)
 	assert.Equal(t, []byte{10, 10, 10, 20}, wrappedFlowA.flow.DstAddr)
-	assert.Equal(t, uint64(30), wrappedFlowA.flow.Bytes)
-	assert.Equal(t, uint64(6), wrappedFlowA.flow.Packets)
+	assert.Equal(t, uint64(1030), wrappedFlowA.flow.Bytes)
+	assert.Equal(t, uint64(206), wrappedFlowA.flow.Packets)
 	assert.Equal(t, uint64(1234568), wrappedFlowA.flow.StartTimestamp)
 	assert.Equal(t, uint64(1234579), wrappedFlowA.flow.EndTimestamp)
 	assert.Equal(t, synAckFlag, wrappedFlowA.flow.TCPFlags)
@@ -163,7 +183,7 @@ func Test_flowAccumulator_portRollUp(t *testing.T) {
 	}
 
 	// When
-	acc := newFlowAccumulator(common.DefaultAggregatorFlushInterval, common.DefaultAggregatorFlushInterval, 3, false, logger)
+	acc := newFlowAccumulator(common.DefaultAggregatorFlushInterval, common.DefaultAggregatorFlushInterval, 3, false, logger, common.DefaultCorrectSamplingRate)
 	acc.add(flowA1)
 	acc.add(flowA2)
 
@@ -239,7 +259,7 @@ func Test_flowAccumulator_flush(t *testing.T) {
 	}
 
 	// When
-	acc := newFlowAccumulator(flushInterval, flowContextTTL, common.DefaultAggregatorPortRollupThreshold, false, logger)
+	acc := newFlowAccumulator(flushInterval, flowContextTTL, common.DefaultAggregatorPortRollupThreshold, false, logger, common.DefaultCorrectSamplingRate)
 	acc.add(flow)
 
 	// Then

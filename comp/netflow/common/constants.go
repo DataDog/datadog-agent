@@ -26,4 +26,7 @@ const (
 
 	// DefaultPrometheusListenerAddress is the default goflow prometheus listener address
 	DefaultPrometheusListenerAddress = "localhost:9090"
+
+	// DefaultCorrectSamplingRate is the default behavior for correcting sampling rate
+	DefaultCorrectSamplingRate = true
 )

@@ -41,6 +41,8 @@ type flowAccumulator struct {
 	hashCollisionFlowCount *atomic.Uint64
 
 	logger log.Component
+
+	correctSamplingRate bool
 }
 
 func newFlowContext(flow *common.Flow) flowContext {
@@ -51,7 +53,7 @@ func newFlowContext(flow *common.Flow) flowContext {
 	}
 }
 
-func newFlowAccumulator(aggregatorFlushInterval time.Duration, aggregatorFlowContextTTL time.Duration, portRollupThreshold int, portRollupDisabled bool, logger log.Component) *flowAccumulator {
+func newFlowAccumulator(aggregatorFlushInterval time.Duration, aggregatorFlowContextTTL time.Duration, portRollupThreshold int, portRollupDisabled bool, logger log.Component, correctSamplingRate bool) *flowAccumulator {
 	return &flowAccumulator{
 		flows:                  make(map[uint64]flowContext),
 		flowFlushInterval:      aggregatorFlushInterval,
@@ -61,6 +63,7 @@ func newFlowAccumulator(aggregatorFlushInterval time.Duration, aggregatorFlowCon
 		portRollupDisabled:     portRollupDisabled,
 		hashCollisionFlowCount: atomic.NewUint64(0),
 		logger:                 logger,
+		correctSamplingRate:    correctSamplingRate,
 	}
 }
 
@@ -132,6 +135,10 @@ func (f *flowAccumulator) add(flowToAdd *common.Flow) {
 		go f.detectHashCollision(aggHash, *aggFlow.flow, *flowToAdd)
 
 		// accumulate flowToAdd with existing flow(s) with same hash
+		if f.correctSamplingRate && flowToAdd.SamplingRate != 0 {
+			flowToAdd.Bytes = flowToAdd.Bytes * flowToAdd.SamplingRate
+			flowToAdd.Packets = flowToAdd.Packets * flowToAdd.SamplingRate
+		}
 		aggFlow.flow.Bytes += flowToAdd.Bytes
 		aggFlow.flow.Packets += flowToAdd.Packets
 		aggFlow.flow.StartTimestamp = common.Min(aggFlow.flow.StartTimestamp, flowToAdd.StartTimestamp)

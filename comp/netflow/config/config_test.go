@@ -21,6 +21,7 @@ import (
 )
 
 func TestReadConfig(t *testing.T) {
+	trueVal := true
 	logger := fxutil.Test[log.Component](t, logimpl.MockModule())
 
 	var tests = []struct {
@@ -68,6 +69,7 @@ network_devices:
 				AggregatorPortRollupThreshold:          20,
 				AggregatorRollupTrackerRefreshInterval: 60,
 				AggregatorPortRollupDisabled:           true,
+				CorrectSamplingRate:                    &trueVal,
 				PrometheusListenerEnabled:              true,
 				PrometheusListenerAddress:              "127.0.0.1:9099",
 				Listeners: []ListenerConfig{
@@ -106,6 +108,7 @@ network_devices:
 				AggregatorPortRollupThreshold:          10,
 				AggregatorRollupTrackerRefreshInterval: 300,
 				PrometheusListenerAddress:              "localhost:9090",
+				CorrectSamplingRate:                    &trueVal,
 				Listeners: []ListenerConfig{
 					{
 						FlowType:  common.TypeNetFlow9,
@@ -136,6 +139,7 @@ network_devices:
 				AggregatorPortRollupThreshold:          10,
 				AggregatorRollupTrackerRefreshInterval: 300,
 				PrometheusListenerAddress:              "localhost:9090",
+				CorrectSamplingRate:                    &trueVal,
 				Listeners: []ListenerConfig{
 					{
 						FlowType:  common.TypeNetFlow9,
@@ -192,6 +196,7 @@ network_devices:
 				AggregatorPortRollupThreshold:          10,
 				AggregatorRollupTrackerRefreshInterval: 300,
 				PrometheusListenerAddress:              "localhost:9090",
+				CorrectSamplingRate:                    &trueVal,
 				Listeners: []ListenerConfig{
 					{
 						FlowType:  common.TypeNetFlow9,

@@ -47,6 +47,7 @@ import (
 )
 
 func TestAggregator(t *testing.T) {
+	trueVal := true
 	stoppedMu := sync.RWMutex{} // Mutex needed to avoid race condition in test
 	flushTime, _ := time.Parse(time.RFC3339, "2019-02-18T16:00:06Z")
 	sender := mocksender.NewMockSender("")
@@ -61,6 +62,7 @@ func TestAggregator(t *testing.T) {
 		AggregatorFlushInterval:                1,
 		AggregatorPortRollupThreshold:          10,
 		AggregatorRollupTrackerRefreshInterval: 3600,
+		CorrectSamplingRate:                    &trueVal,
 		Listeners: []config.ListenerConfig{
 			{
 				FlowType: common.TypeNetFlow9,
@@ -217,6 +219,7 @@ stopLoop:
 }
 
 func TestAggregator_withMockPayload(t *testing.T) {
+	trueVal := true
 	port, err := ndmtestutils.GetFreePort()
 	require.NoError(t, err)
 	flushTime, _ := time.Parse(time.RFC3339, "2019-02-18T16:00:06Z")
@@ -232,6 +235,7 @@ func TestAggregator_withMockPayload(t *testing.T) {
 		AggregatorFlushInterval:                1,
 		AggregatorPortRollupThreshold:          10,
 		AggregatorRollupTrackerRefreshInterval: 3600,
+		CorrectSamplingRate:                    &trueVal,
 		Listeners: []config.ListenerConfig{
 			{
 				FlowType: common.TypeNetFlow9,
@@ -325,6 +329,7 @@ func TestAggregator_withMockPayload(t *testing.T) {
 }
 
 func TestFlowAggregator_flush_submitCollectorMetrics_error(t *testing.T) {
+	trueVal := true
 	// 1/ Arrange
 	logger := fxutil.Test[log.Component](t, logimpl.MockModule())
 	var b bytes.Buffer
@@ -346,6 +351,7 @@ func TestFlowAggregator_flush_submitCollectorMetrics_error(t *testing.T) {
 		AggregatorFlushInterval:                1,
 		AggregatorPortRollupThreshold:          10,
 		AggregatorRollupTrackerRefreshInterval: 3600,
+		CorrectSamplingRate:                    &trueVal,
 		Listeners: []config.ListenerConfig{
 			{
 				FlowType: common.TypeNetFlow9,
@@ -374,6 +380,7 @@ func TestFlowAggregator_flush_submitCollectorMetrics_error(t *testing.T) {
 }
 
 func TestFlowAggregator_submitCollectorMetrics(t *testing.T) {
+	trueVal := true
 	sender := mocksender.NewMockSender("")
 	sender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	sender.On("MonotonicCount", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
@@ -385,6 +392,7 @@ func TestFlowAggregator_submitCollectorMetrics(t *testing.T) {
 		AggregatorFlushInterval:                1,
 		AggregatorPortRollupThreshold:          10,
 		AggregatorRollupTrackerRefreshInterval: 3600,
+		CorrectSamplingRate:                    &trueVal,
 		Listeners: []config.ListenerConfig{
 			{
 				FlowType: common.TypeNetFlow9,
@@ -454,6 +462,7 @@ func TestFlowAggregator_submitCollectorMetrics(t *testing.T) {
 }
 
 func TestFlowAggregator_submitCollectorMetrics_error(t *testing.T) {
+	trueVal := true
 	sender := mocksender.NewMockSender("")
 	conf := config.NetflowConfig{
 		StopTimeout:                            10,
@@ -461,6 +470,7 @@ func TestFlowAggregator_submitCollectorMetrics_error(t *testing.T) {
 		AggregatorFlushInterval:                1,
 		AggregatorPortRollupThreshold:          10,
 		AggregatorRollupTrackerRefreshInterval: 3600,
+		CorrectSamplingRate:                    &trueVal,
 		Listeners: []config.ListenerConfig{
 			{
 				FlowType: common.TypeNetFlow9,
@@ -488,6 +498,7 @@ func TestFlowAggregator_submitCollectorMetrics_error(t *testing.T) {
 }
 
 func TestFlowAggregator_sendExporterMetadata_multiplePayloads(t *testing.T) {
+	trueVal := true
 	sender := mocksender.NewMockSender("")
 	conf := config.NetflowConfig{
 		StopTimeout:                            10,
@@ -495,6 +506,7 @@ func TestFlowAggregator_sendExporterMetadata_multiplePayloads(t *testing.T) {
 		AggregatorFlushInterval:                1,
 		AggregatorPortRollupThreshold:          10,
 		AggregatorRollupTrackerRefreshInterval: 3600,
+		CorrectSamplingRate:                    &trueVal,
 		Listeners: []config.ListenerConfig{
 			{
 				FlowType: common.TypeNetFlow9,
@@ -572,6 +584,7 @@ func TestFlowAggregator_sendExporterMetadata_multiplePayloads(t *testing.T) {
 }
 
 func TestFlowAggregator_sendExporterMetadata_noPayloads(t *testing.T) {
+	trueVal := true
 	sender := mocksender.NewMockSender("")
 	conf := config.NetflowConfig{
 		StopTimeout:                            10,
@@ -579,6 +592,7 @@ func TestFlowAggregator_sendExporterMetadata_noPayloads(t *testing.T) {
 		AggregatorFlushInterval:                1,
 		AggregatorPortRollupThreshold:          10,
 		AggregatorRollupTrackerRefreshInterval: 3600,
+		CorrectSamplingRate:                    &trueVal,
 		Listeners: []config.ListenerConfig{
 			{
 				FlowType: common.TypeNetFlow9,
@@ -603,6 +617,7 @@ func TestFlowAggregator_sendExporterMetadata_noPayloads(t *testing.T) {
 }
 
 func TestFlowAggregator_sendExporterMetadata_invalidIPIgnored(t *testing.T) {
+	trueVal := true
 	sender := mocksender.NewMockSender("")
 	conf := config.NetflowConfig{
 		StopTimeout:                            10,
@@ -610,6 +625,7 @@ func TestFlowAggregator_sendExporterMetadata_invalidIPIgnored(t *testing.T) {
 		AggregatorFlushInterval:                1,
 		AggregatorPortRollupThreshold:          10,
 		AggregatorRollupTrackerRefreshInterval: 3600,
+		CorrectSamplingRate:                    &trueVal,
 		Listeners: []config.ListenerConfig{
 			{
 				FlowType:  common.TypeNetFlow9,
@@ -687,6 +703,7 @@ func TestFlowAggregator_sendExporterMetadata_invalidIPIgnored(t *testing.T) {
 }
 
 func TestFlowAggregator_sendExporterMetadata_multipleNamespaces(t *testing.T) {
+	trueVal := true
 	sender := mocksender.NewMockSender("")
 	conf := config.NetflowConfig{
 		StopTimeout:                            10,
@@ -694,6 +711,7 @@ func TestFlowAggregator_sendExporterMetadata_multipleNamespaces(t *testing.T) {
 		AggregatorFlushInterval:                1,
 		AggregatorPortRollupThreshold:          10,
 		AggregatorRollupTrackerRefreshInterval: 3600,
+		CorrectSamplingRate:                    &trueVal,
 		Listeners: []config.ListenerConfig{
 			{
 				FlowType:  common.TypeNetFlow9,
@@ -790,6 +808,7 @@ func TestFlowAggregator_sendExporterMetadata_multipleNamespaces(t *testing.T) {
 }
 
 func TestFlowAggregator_sendExporterMetadata_singleExporterIpWithMultipleFlowTypes(t *testing.T) {
+	trueVal := true
 	sender := mocksender.NewMockSender("")
 	conf := config.NetflowConfig{
 		StopTimeout:                            10,
@@ -797,6 +816,7 @@ func TestFlowAggregator_sendExporterMetadata_singleExporterIpWithMultipleFlowTyp
 		AggregatorFlushInterval:                1,
 		AggregatorPortRollupThreshold:          10,
 		AggregatorRollupTrackerRefreshInterval: 3600,
+		CorrectSamplingRate:                    &trueVal,
 		Listeners: []config.ListenerConfig{
 			{
 				FlowType:  common.TypeNetFlow9,
@@ -1155,6 +1175,7 @@ func TestFlowAggregator_getSequenceDelta(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			trueVal := true
 			sender := mocksender.NewMockSender("")
 			conf := config.NetflowConfig{
 				StopTimeout:                            10,
@@ -1162,6 +1183,7 @@ func TestFlowAggregator_getSequenceDelta(t *testing.T) {
 				AggregatorFlushInterval:                1,
 				AggregatorPortRollupThreshold:          10,
 				AggregatorRollupTrackerRefreshInterval: 3600,
+				CorrectSamplingRate:                    &trueVal,
 			}
 			agg := NewFlowAggregator(sender, nil, &conf, "my-hostname", logger)
 			for roundNum, testRound := range tt.rounds {
