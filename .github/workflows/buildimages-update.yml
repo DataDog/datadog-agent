@@ -29,12 +29,11 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write # push commit and branch
+      pull-requests: write
 
     steps:
       - name: Checkout branch
         uses: actions/checkout@0ad4b8fadaa221de15dcec353f45205ec38ea70b # v4.1.4
-        with:
-          ref: ${{ github.head_ref }}
 
       - name: Fetch branch
         # this step needs the github repository to be already cloned locally
@@ -73,6 +72,11 @@ jobs:
         id: current_go_version
         run: |
           echo "GO_VERSION=$(inv go-version)" >> $GITHUB_OUTPUT
+    
+      - name: Get current buildimage tag
+        id: current_buildimage_tag
+        run: |
+            echo "BUILDIMAGE_TAG=$(inv pipeline.get-image-tag)" >> $GITHUB_OUTPUT
 
       - name: Update buildimages IDs and Go version
         id: update_build_images
@@ -100,3 +104,33 @@ jobs:
           # the action fetches all branches and tags, in our case the branches we care about are already fetched
           # if they exist, so we can skip the fetch
           skip_fetch: true
+
+      - name: Check if PR exists
+        id: check_pr
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          prs=$(gh pr list \
+              --repo "$GITHUB_REPOSITORY" \
+              --head ${{ inputs.branch }} \
+              --base ${{ github.ref }} \
+              --json title \
+              --jq 'length')
+          if [ prs > 0 ]; then
+              echo "SKIP=true" >> $GITHUB_OUTPUT
+          fi
+
+      # Create PR only if there is no pre-existing PR on the branch
+      - name: Create PR
+        if: ${{ steps.check_pr.outputs.SKIP != 'true' }}
+        env:
+          TMP_PR_BODY_PATH: /tmp/pr_body
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          inv -e buildimages.generate-pr-body ${{ steps.current_buildimage_tag.outputs.BUILDIMAGE_TAG }} ${{ inputs.images_id }} ${{ steps.current_go_version.outputs.GO_VERSION }} ${{ inputs.go_version }} ${{ inputs.test_version && '--test-version' || '' }} > $TMP_PR_BODY_PATH
+          gh pr create \
+          -B ${{ github.ref }} \
+          -t "[automated] ${{ steps.update_build_images.outputs.MESSAGE }}" \
+          -F $TMP_PR_BODY_PATH \
+          -d \
+          -l "go-update,team/agent-shared-components" \

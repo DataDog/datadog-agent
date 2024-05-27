@@ -33,3 +33,31 @@ def update_test_infra_definitions(ctx: Context, commit_sha: str, go_mod_only: bo
     os.chdir("test/new-e2e")
     ctx.run(f"go get github.com/DataDog/test-infra-definitions@{commit_sha}")
     ctx.run("go mod tidy")
+
+
+@task
+def generate_pr_body(
+    _: Context,
+    old_build_image_tag: str,
+    new_build_image_tag: str,
+    old_go_version: str,
+    new_go_version: str,
+    test_version: bool = False,
+):
+    """
+    Generate the PR body used for buildimages-update Github workflow
+    """
+    pr_body = f"""This PR was automatically created by the [Update buildimages Github Workflow](https://github.com/DataDog/datadog-agent/actions/workflows/buildimages-update.yml).
+
+### Buildimages update
+This PR updates the current buildimages (`{old_build_image_tag}`) to `{new_build_image_tag}`{'(test version)' if test_version else ''}, here is the full changelog between:
+https://github.com/DataDog/datadog-agent-buildimages/compare/{old_build_image_tag.split("-")[1]}...{new_build_image_tag.split("-")[1]}
+"""
+
+    if old_go_version != new_go_version:
+        pr_body += f"""
+
+### Golang update
+This PR updates the current Golang version ([`{old_go_version}`](https://go.dev/doc/devel/release#go{old_go_version})) to [`{new_go_version}`](https://go.dev/doc/devel/release#go{new_go_version}).
+"""
+    print(pr_body)
