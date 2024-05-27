@@ -48,19 +48,19 @@ func NewFailedConns() *FailedConns {
 }
 
 // MatchFailedConn increments the failed connection counters for a given connection based on the failed connection map
-func MatchFailedConn(conn *network.ConnectionStats, failedConnMap *FailedConns) {
+func (fc *FailedConns) MatchFailedConn(conn *network.ConnectionStats) {
 	if conn.Type != network.TCP {
 		return
 	}
 	connTuple := connStatsToTuple(conn)
 
 	// Read lock to check if the connection exists
-	failedConnMap.RLock()
-	failedConn, ok := failedConnMap.FailedConnMap[connTuple]
+	fc.RLock()
+	failedConn, ok := fc.FailedConnMap[connTuple]
 	log.Errorf("connTuple: %+v", conn)
-	log.Errorf("failedConnMap: %+v", failedConnMap.FailedConnMap)
+	log.Errorf("failedConnMap: %+v", fc.FailedConnMap)
 	log.Errorf("")
-	failedConnMap.RUnlock()
+	fc.RUnlock()
 
 	// If connection exists, proceed to increment failure count and delete
 	if ok {
@@ -68,13 +68,10 @@ func MatchFailedConn(conn *network.ConnectionStats, failedConnMap *FailedConns) 
 		conn.TCPFailures = make(map[uint32]uint32)
 
 		// Write lock to modify the map
-		//failedConnMap.Lock()
 		for errCode, count := range failedConn.CountByErrCode {
 			log.Errorf("incrementing failure count: %+v", errCode)
 			conn.TCPFailures[errCode] += count
 		}
-		//delete(failedConnMap.FailedConnMap, connTuple)
-		//failedConnMap.Unlock()
 	}
 }
 
