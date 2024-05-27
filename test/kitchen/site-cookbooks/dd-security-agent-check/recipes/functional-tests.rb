@@ -174,6 +174,9 @@ if not ['redhat', 'suse', 'opensuseleap', 'rocky'].include?(node[:platform])
       content <<-EOF
       FROM ghcr.io/paulcacheux/cws-centos7@sha256:b16587f1cc7caebc1a18868b9fbd3823e79457065513e591352c4d929b14c426
 
+      COPY clang-bpf /opt/datadog-agent/embedded/bin/
+      COPY llc-bpf /opt/datadog-agent/embedded/bin/
+
       CMD sleep 7200
       EOF
       action :create
