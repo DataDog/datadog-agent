@@ -61,14 +61,14 @@ func newTestMessage(msg string) *message.Message {
 
 func TestRun(t *testing.T) {
 	type handleMessageArgs struct {
-		message *message.Message
+		message  *message.Message
 		rendered []byte
 	}
 	tests := []struct {
-		name             string
+		name                  string
 		handleMessageArgsList []handleMessageArgs
-		diableStreamLogs bool
-		wantW            string
+		diableStreamLogs      bool
+		wantW                 string
 	}{
 		{
 			name:             "disable stream-logs",
@@ -76,19 +76,19 @@ func TestRun(t *testing.T) {
 			wantW:            "",
 		},
 		{
-			name:             "enable stream-logs",
+			name: "enable stream-logs",
 			handleMessageArgsList: []handleMessageArgs{
 				{
-					message: newTestMessage("log-1"),
+					message:  newTestMessage("log-1"),
 					rendered: []byte("log-1"),
 				},
 				{
-					message: newTestMessage("ログ2"),
+					message:  newTestMessage("ログ2"),
 					rendered: []byte("ログ2"),
 				},
 				{
 					// When logs-agent stops, nil message is sent to stream-logs
-					message: nil,
+					message:  nil,
 					rendered: nil,
 				},
 			},
