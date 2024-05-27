@@ -63,6 +63,14 @@ func (s *PostgresSuite) TestFormatPostgresStats() {
 		postgres.InsertOP,
 		tableName,
 	)
+	truncateKey := postgres.NewKey(
+		localhost,
+		localhost,
+		postgresClientPort,
+		postgresServerPort,
+		postgres.TruncateTableOP,
+		tableName,
+	)
 
 	in := &network.Connections{
 		BufferedData: network.BufferedData{
@@ -76,6 +84,10 @@ func (s *PostgresSuite) TestFormatPostgresStats() {
 				FirstLatencySample: 5,
 			},
 			insertKey: {
+				Count:              10,
+				FirstLatencySample: 5,
+			},
+			truncateKey: {
 				Count:              10,
 				FirstLatencySample: 5,
 			},
@@ -98,6 +110,16 @@ func (s *PostgresSuite) TestFormatPostgresStats() {
 					Postgres: &model.PostgresStats{
 						TableName:          tableName,
 						Operation:          model.PostgresOperation_PostgresInsertOp,
+						FirstLatencySample: 5,
+						Count:              10,
+					},
+				},
+			},
+			{
+				DbStats: &model.DatabaseStats_Postgres{
+					Postgres: &model.PostgresStats{
+						TableName:          tableName,
+						Operation:          model.PostgresOperation_PostgresTruncateOp,
 						FirstLatencySample: 5,
 						Count:              10,
 					},
