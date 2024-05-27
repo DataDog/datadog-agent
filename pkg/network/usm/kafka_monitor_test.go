@@ -46,8 +46,9 @@ import (
 )
 
 const (
-	kafkaPort    = "9092"
-	kafkaTLSPort = "9093"
+	kafkaPort             = "9092"
+	kafkaTLSPort          = "9093"
+	kafkaSuccessErrorCode = 0
 )
 
 // testContext shares the context of a given test.
@@ -218,7 +219,7 @@ func (s *KafkaProtocolParsingSuite) testKafkaProtocolParsing(t *testing.T, tls b
 					expectedNumberOfFetchRequests:   fixCount(1),
 					expectedAPIVersionProduce:       8,
 					expectedAPIVersionFetch:         11,
-				}, 0)
+				}, kafkaSuccessErrorCode)
 			},
 			teardown:      kafkaTeardown,
 			configuration: getConfig,
@@ -259,7 +260,7 @@ func (s *KafkaProtocolParsingSuite) testKafkaProtocolParsing(t *testing.T, tls b
 					expectedNumberOfFetchRequests:   0,
 					expectedAPIVersionProduce:       5,
 					expectedAPIVersionFetch:         0,
-				}, 0)
+				}, kafkaSuccessErrorCode)
 			},
 			teardown:      kafkaTeardown,
 			configuration: getConfig,
@@ -302,7 +303,7 @@ func (s *KafkaProtocolParsingSuite) testKafkaProtocolParsing(t *testing.T, tls b
 					expectedNumberOfFetchRequests:   0,
 					expectedAPIVersionProduce:       8,
 					expectedAPIVersionFetch:         0,
-				}, 0)
+				}, kafkaSuccessErrorCode)
 			},
 			teardown:      kafkaTeardown,
 			configuration: getConfig,
@@ -390,7 +391,7 @@ func (s *KafkaProtocolParsingSuite) testKafkaProtocolParsing(t *testing.T, tls b
 						expectedNumberOfFetchRequests:   0,
 						expectedAPIVersionProduce:       8,
 						expectedAPIVersionFetch:         0,
-					}, 0)
+					}, kafkaSuccessErrorCode)
 			},
 			teardown: kafkaTeardown,
 			configuration: func() *config.Config {
@@ -486,7 +487,7 @@ func (s *KafkaProtocolParsingSuite) testKafkaProtocolParsing(t *testing.T, tls b
 					expectedNumberOfFetchRequests:   fixCount(2),
 					expectedAPIVersionProduce:       8,
 					expectedAPIVersionFetch:         11,
-				}, 0)
+				}, kafkaSuccessErrorCode)
 			},
 			teardown:      kafkaTeardown,
 			configuration: getConfig,
@@ -554,7 +555,7 @@ func (s *KafkaProtocolParsingSuite) testKafkaProtocolParsing(t *testing.T, tls b
 					expectedNumberOfFetchRequests:   fixCount(5 + 2*2),
 					expectedAPIVersionProduce:       8,
 					expectedAPIVersionFetch:         11,
-				}, 0)
+				}, kafkaSuccessErrorCode)
 			},
 			teardown:      kafkaTeardown,
 			configuration: getConfig,
@@ -929,7 +930,7 @@ func testKafkaFetchRaw(t *testing.T, tls bool) {
 					batches = append(batches, recordBatch)
 				}
 
-				partition := makeFetchResponseTopicPartition(0, batches...)
+				partition := makeFetchResponseTopicPartition(kafkaSuccessErrorCode, batches...)
 				var partitions []kmsg.FetchResponseTopicPartition
 				for i := 0; i < 3; i++ {
 					partitions = append(partitions, partition)
@@ -945,7 +946,7 @@ func testKafkaFetchRaw(t *testing.T, tls bool) {
 			onlyTLS: true,
 			buildResponse: func() kmsg.FetchResponse {
 				record := makeRecord()
-				partition := makeFetchResponseTopicPartition(0, makeRecordBatch(record))
+				partition := makeFetchResponseTopicPartition(kafkaSuccessErrorCode, makeRecordBatch(record))
 				return makeFetchResponse(makeFetchResponseTopic(topic, partition))
 			},
 			buildMessages: func(resp kmsg.FetchResponse) []Message {
@@ -967,7 +968,7 @@ func testKafkaFetchRaw(t *testing.T, tls bool) {
 			onlyTLS: true,
 			buildResponse: func() kmsg.FetchResponse {
 				record := makeRecord()
-				partition := makeFetchResponseTopicPartition(0, makeRecordBatch(record))
+				partition := makeFetchResponseTopicPartition(kafkaSuccessErrorCode, makeRecordBatch(record))
 				return makeFetchResponse(makeFetchResponseTopic(topic, partition))
 			},
 			buildMessages: func(resp kmsg.FetchResponse) []Message {
@@ -989,7 +990,7 @@ func testKafkaFetchRaw(t *testing.T, tls bool) {
 			onlyTLS: true,
 			buildResponse: func() kmsg.FetchResponse {
 				record := makeRecord()
-				partition := makeFetchResponseTopicPartition(0, makeRecordBatch(record))
+				partition := makeFetchResponseTopicPartition(kafkaSuccessErrorCode, makeRecordBatch(record))
 				return makeFetchResponse(makeFetchResponseTopic(topic, partition))
 			},
 			buildMessages: func(resp kmsg.FetchResponse) []Message {
@@ -1010,7 +1011,7 @@ func testKafkaFetchRaw(t *testing.T, tls bool) {
 			name: "aborted transactions",
 			buildResponse: func() kmsg.FetchResponse {
 				record := makeRecord()
-				partition := makeFetchResponseTopicPartition(0, makeRecordBatch(record, record))
+				partition := makeFetchResponseTopicPartition(kafkaSuccessErrorCode, makeRecordBatch(record, record))
 				aborted := kmsg.NewFetchResponseTopicPartitionAbortedTransaction()
 
 				for i := 0; i < 10; i++ {
@@ -1026,7 +1027,7 @@ func testKafkaFetchRaw(t *testing.T, tls bool) {
 			buildResponse: func() kmsg.FetchResponse {
 				record := makeRecord()
 				recordBatch := makeRecordBatch(record, record, record)
-				partition := makeFetchResponseTopicPartition(0, recordBatch)
+				partition := makeFetchResponseTopicPartition(kafkaSuccessErrorCode, recordBatch)
 
 				// Partial record batch, aka "Truncated Content" in Wireshark.  See
 				// comment near FetchResponseTopicPartition.RecordBatch in kmsg.
