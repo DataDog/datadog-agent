@@ -1,0 +1,48 @@
+build_e2e_test_binary:
+  stage: binary_build
+  rules:
+    - !reference [.except_mergequeue]
+    - when: on_success
+  needs: []
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  tags: ["arch:amd64"]
+  script:
+    - inv new-e2e-tests.build-test-binaries --excluded-tests "agent-metric-logs"
+  artifacts:
+    paths:
+      - $CI_PROJECT_DIR/test/new-e2e/test-binaries
+  variables:
+    KUBERNETES_MEMORY_LIMIT: "16Gi"
+    KUBERNETES_MEMORY_REQUEST: "16Gi"
+    KUBERNETES_CPU_LIMIT: "8"
+
+
+test_e2e_test_binary:
+  stage: binary_build
+  rules:
+    - !reference [.except_mergequeue]
+    - when: on_success
+  needs: ["build_e2e_test_binary"]
+  tags: ["arch:amd64"]
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/test-infra-definitions/runner$TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX:$TEST_INFRA_DEFINITIONS_BUILDIMAGES
+  script:
+    - inv -e new-e2e-tests.run --targets ./tests/agent-platform/install-script --junit-tar junit-${CI_JOB_ID}.tgz ${EXTRA_PARAMS} --use-prebuilt-binaries
+  variables:
+    EXTRA_PARAMS: --osversion ubuntu-20-04,ubuntu-22-04 --platform ubuntu --major-version 7 --arch x86_64 --flavor datadog-agent
+
+new-e2e-agent-platform-install-script-ubuntu-a7-x86_64-test:
+  stage: kitchen_testing
+  needs: ["build_e2e_test_binary"]
+  extends:
+    - .new_e2e_template
+    - .new-e2e_install_script
+    - .new-e2e_os_ubuntu
+    - .new-e2e_ubuntu_a7_x86_64
+    - .new-e2e_agent_a7
+  rules:
+    !reference [.on_default_new_e2e_tests]
+  variables:
+    FLAVOR: datadog-agent
+    E2E_PIPELINE_ID: ""
+    KUBERNETES_MEMORY_REQUEST: "2Gi"
+    KUBERNETES_MEMORY_LIMIT: "2Gi"

@@ -56,7 +56,7 @@
   extends:
     - .new-e2e_windows_msi
     - .new-e2e_agent_a6
-  needs: ["deploy_windows_testing-a6"]
+  needs: ["deploy_windows_testing-a6", "build_e2e_test_binary"]
 
 ## full tests
 new-e2e-windows-agent-msi-windows-server-a6-x86_64:
@@ -75,7 +75,7 @@ new-e2e-windows-agent-msi-windows-server-a6-x86_64:
   extends:
     - .new-e2e_windows_msi
     - .new-e2e_agent_a7
-  needs: ["deploy_windows_testing-a7"]
+  needs: ["deploy_windows_testing-a7", "build_e2e_test_binary"]
 
 ## full tests
 new-e2e-windows-agent-msi-windows-server-a7-x86_64:

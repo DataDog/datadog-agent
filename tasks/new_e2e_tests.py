@@ -22,6 +22,26 @@ from tasks.libs.common.utils import REPO_PATH, get_git_commit
 from tasks.modules import DEFAULT_MODULES
 
 
+@task
+def build_test_binaries(ctx, excluded_tests=None):
+    """
+    Build test binaries for E2E tests
+    """
+
+    if excluded_tests is None:
+        excluded_tests = []
+
+    test_binaries_folder = "test/new-e2e/test-binaries"
+    current_dir = os.getcwd()
+    os.makedirs(test_binaries_folder, exist_ok=True)
+    for team_tests in os.listdir("test/new-e2e/tests"):
+        if team_tests not in excluded_tests and os.path.isdir(f"test/new-e2e/tests/{team_tests}"):
+            with ctx.cd(f"test/new-e2e/tests/{team_tests}"):
+                ctx.run(
+                    f'go test -c -o {current_dir}/{test_binaries_folder}/{team_tests}/ -ldflags="-X {REPO_PATH}/test/new-e2e/tests/containers.GitCommit={get_git_commit()}" ./...'
+                )
+
+
 @task(
     iterable=['tags', 'targets', 'configparams'],
     help={
@@ -57,6 +77,7 @@ def run(
     junit_tar="",
     test_run_name="",
     test_washer=False,
+    use_prebuilt_binaries=False,
 ):
     """
     Run E2E Tests based on test-infra-definitions infrastructure provisioning.
@@ -93,13 +114,21 @@ def run(
         test_run_arg = f"-run {test_run_name}"
 
     cmd = f'gotestsum --format {gotestsum_format} '
-    cmd += '{junit_file_flag} {json_flag} --packages="{packages}" -- -ldflags="-X {REPO_PATH}/test/new-e2e/tests/containers.GitCommit={commit}" {verbose} -mod={go_mod} -vet=off -timeout {timeout} -tags "{go_build_tags}" {nocache} {run} {skip} {test_run_arg} -args {osversion} {platform} {major_version} {arch} {flavor} {cws_supported_osversion} {src_agent_version} {dest_agent_version} {keep_stacks} {extra_flags}'
-
+    if use_prebuilt_binaries:
+        with ctx.cd("internal/tools/gotest-custom"):
+            ctx.run("go build -o ../../../test/new-e2e/gotest-custom")
+        binaries, pkg_names = get_binaries_from_targets(targets)
+        cmd += "{junit_file_flag} {json_flag} --raw-command -- ./gotest-custom -binaries {test_binary} -pkgnames {pkg_names} -extra '-test.timeout {timeout} {nocache} {run} {skip} {test_run_arg} {osversion} {platform} {major_version} {arch} {flavor} {cws_supported_osversion} {src_agent_version} {dest_agent_version} {keep_stacks} {extra_flags}'"
+        print(cmd)
+    else:
+        cmd += '{junit_file_flag} {json_flag} --packages="{packages}" -- -ldflags="-X {REPO_PATH}/test/new-e2e/tests/containers.GitCommit={commit}" {verbose} -mod={go_mod} -vet=off -timeout {timeout} {nocache} {run} {skip} {test_run_arg} -args {osversion} {platform} {major_version} {arch} {flavor} {cws_supported_osversion} {src_agent_version} {dest_agent_version} {keep_stacks} {extra_flags}'
     args = {
+        "test_binary": ",".join(binaries) if use_prebuilt_binaries else "",
+        "pkg_names": ",".join(pkg_names) if use_prebuilt_binaries else "",
         "go_mod": "mod",
         "timeout": "4h",
-        "verbose": '-v' if verbose else '',
-        "nocache": '-count=1' if not cache else '',
+        "verbose": '-test.v' if verbose else '',
+        "nocache": '-test.count=1' if not cache else '',
         "REPO_PATH": REPO_PATH,
         "commit": get_git_commit(),
         "run": '-test.run ' + run if run else '',
@@ -302,3 +331,37 @@ def _is_local_state(pulumi_about: dict) -> bool:
     if url is None or not isinstance(url, str):
         return False
     return url.startswith("file://")
+
+
+def get_binaries_from_targets(targets: list[str]):
+    binaries = []
+    pkg_names = []
+
+    # Retrieve binary names
+    for target in targets:
+        path = 'test/new-e2e/test-binaries'
+        target = target.replace('./tests/', '')
+        print(target)
+        for element in target.split('/'):
+            print(element)
+            if element in os.listdir(path):
+                if os.path.isdir(os.path.join(path, element)):
+                    path = os.path.join(path, element)
+            if element + ".test" in os.listdir(path):
+                binaries.append(os.path.join(path, element + ".test"))
+                break
+        else:
+            bins = os.listdir(path)
+            for bin in bins:
+                if bin.endswith('.test'):
+                    binaries.append(os.path.join(path, bin))
+
+    # Retrieve package names
+    for binary in binaries:
+        pkg_names.append(
+            "github.com/DataDog/datadog-agent/" + binary.replace('.test', '').replace('test-binaries', 'tests')
+        )
+
+    binaries = [binary.replace('test/new-e2e/', '') for binary in binaries]
+
+    return binaries, pkg_names
