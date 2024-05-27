@@ -181,3 +181,8 @@ func copyFile(src, dst string) (err error) {
 
 	return nil
 }
+
+func (ft *fileMutator) cleanup() {
+	_ = os.Remove(ft.pathTmp)
+	_ = os.Remove(ft.pathBackup)
+}

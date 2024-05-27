@@ -23,7 +23,6 @@ import (
 	e2eos "github.com/DataDog/test-infra-definitions/components/os"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
 	"github.com/stretchr/testify/require"
-	"gopkg.in/yaml.v2"
 )
 
 type packageTests func(os e2eos.Descriptor, arch e2eos.Architecture) packageSuite
@@ -62,13 +61,16 @@ var (
 	}
 )
 
-var (
-	packagesConfig = []testPackageConfig{
-		{name: "datadog-installer", defaultVersion: fmt.Sprintf("pipeline-%v", os.Getenv("CI_PIPELINE_ID")), registry: "669783387624.dkr.ecr.us-east-1.amazonaws.com", auth: "ecr"},
-		{name: "datadog-agent", defaultVersion: fmt.Sprintf("pipeline-%v", os.Getenv("CI_PIPELINE_ID")), registry: "669783387624.dkr.ecr.us-east-1.amazonaws.com", auth: "ecr"},
-		{name: "apm-inject", defaultVersion: "pipeline-34163111", registry: "669783387624.dkr.ecr.us-east-1.amazonaws.com", auth: "ecr"},
-	}
-)
+var packagesConfig = []testPackageConfig{
+	{name: "datadog-installer", defaultVersion: fmt.Sprintf("pipeline-%v", os.Getenv("CI_PIPELINE_ID")), registry: "669783387624.dkr.ecr.us-east-1.amazonaws.com", auth: "ecr"},
+	{name: "datadog-agent", defaultVersion: fmt.Sprintf("pipeline-%v", os.Getenv("CI_PIPELINE_ID")), registry: "669783387624.dkr.ecr.us-east-1.amazonaws.com", auth: "ecr"},
+	{name: "datadog-apm-inject", defaultVersion: "latest"},
+	{name: "datadog-apm-library-java", defaultVersion: "latest"},
+	{name: "datadog-apm-library-ruby", defaultVersion: "latest"},
+	{name: "datadog-apm-library-js", defaultVersion: "latest"},
+	{name: "datadog-apm-library-dotnet", defaultVersion: "latest"},
+	{name: "datadog-apm-library-python", defaultVersion: "latest"},
+}
 
 func TestPackages(t *testing.T) {
 	var flavors []e2eos.Descriptor
@@ -118,7 +120,6 @@ type packageBaseSuite struct {
 	e2e.BaseSuite[environments.Host]
 	host *host.Host
 
-	env  map[string]string
 	opts []awshost.ProvisionerOption
 	pkg  string
 	arch e2eos.Architecture
@@ -131,7 +132,6 @@ func newPackageSuite(pkg string, os e2eos.Descriptor, arch e2eos.Architecture, o
 		arch: arch,
 		pkg:  pkg,
 		opts: opts,
-		env:  env(arch),
 	}
 }
 
@@ -145,68 +145,56 @@ func (s *packageBaseSuite) ProvisionerOptions() []awshost.ProvisionerOption {
 
 func (s *packageBaseSuite) SetupSuite() {
 	s.BaseSuite.SetupSuite()
+	s.setupFakeIntake()
 	s.host = host.New(s.T(), s.Env().RemoteHost, s.os, s.arch)
 }
 
-func (s *packageBaseSuite) RunInstallScript() {
-	// fixme: use the official install & remove manual creation of /etc/datadog-agent/datadog.yaml
-	s.Env().RemoteHost.MustExecute(`bash -c "$(curl -L https://storage.googleapis.com/updater-dev/install_script_agent7.sh)"`, client.WithEnvVariables(s.env))
-	datadogConfig := map[string]interface{}{
-		"api_key": "deadbeefdeadbeefdeadbeefdeadbeef",
-	}
-	if s.Env().FakeIntake != nil {
-		datadogConfig["dd_url"] = s.Env().FakeIntake.URL
-		datadogConfig["skip_ssl_validation"] = true
-		datadogConfig["apm_config"] = map[string]interface{}{
-			"apm_dd_url": s.Env().FakeIntake.URL,
-		}
-	}
-	rawDatadogConfig, err := yaml.Marshal(datadogConfig)
-	require.NoError(s.T(), err)
-	s.Env().RemoteHost.MustExecute("sudo mkdir -p /etc/datadog-agent")
-	s.Env().RemoteHost.MustExecute(fmt.Sprintf("echo '%s' | sudo tee /etc/datadog-agent/datadog.yaml", string(rawDatadogConfig)))
-	_, err = s.Env().RemoteHost.Execute("sudo datadog-installer version")
-	// Right now the install script can fail installing the installer silently, so we need to do this check or it will fail later in a way that is hard to debug
+func (s *packageBaseSuite) RunInstallScriptWithError(params ...string) error {
+	// FIXME: use the official install script
+	_, err := s.Env().RemoteHost.Execute(fmt.Sprintf(`%s bash -c "$(curl -L https://storage.googleapis.com/updater-dev/install_script_agent7.sh)"`, strings.Join(params, " ")), client.WithEnvVariables(installScriptEnv(s.arch)))
+	return err
+}
+
+func (s *packageBaseSuite) RunInstallScript(params ...string) {
+	err := s.RunInstallScriptWithError(params...)
 	require.NoErrorf(s.T(), err, "installer not properly installed. logs: \n%s\n%s", s.Env().RemoteHost.MustExecute("cat /tmp/datadog-installer-stdout.log"), s.Env().RemoteHost.MustExecute("cat /tmp/datadog-installer-stderr.log"))
-	s.Env().RemoteHost.MustExecute("sudo chown -R dd-agent:dd-agent /etc/datadog-agent")
 }
 
-func (s *packageBaseSuite) InstallAgentPackage() {
-	s.Env().RemoteHost.MustExecute(`sudo -E datadog-installer install oci://669783387624.dkr.ecr.us-east-1.amazonaws.com/agent-package:`+fmt.Sprintf("pipeline-%v", os.Getenv("CI_PIPELINE_ID")), client.WithEnvVariables(s.env))
-	s.Env().RemoteHost.MustExecute(`timeout=30; unit=datadog-agent.service; while ! systemctl is-active --quiet $unit && [ $timeout -gt 0 ]; do sleep 1; ((timeout--)); done; [ $timeout -ne 0 ]`)
+func envForceInstall(pkg string) string {
+	return "DD_INSTALLER_DEFAULT_PKG_INSTALL_" + strings.ToUpper(strings.ReplaceAll(pkg, "-", "_")) + "=true"
 }
 
-// TODO: This is a hack to install a working version of apm-inject
-func (s *packageBaseSuite) InstallInjectorPackageTemp() {
-	s.Env().RemoteHost.MustExecute(`echo "DD_APM_RECEIVER_SOCKET=/var/tmp/apm.socket" | sudo tee -a /etc/environment`)
-	if s.Env().FakeIntake != nil {
-		s.Env().RemoteHost.MustExecute(fmt.Sprintf(`echo "DD_APM_DD_URL=%s" | sudo tee -a /etc/environment`, s.Env().FakeIntake.URL))
-	}
-	s.Env().RemoteHost.MustExecute("sudo mkdir -p /etc/systemd/system/datadog-agent-trace.service.d")
-	s.Env().RemoteHost.MustExecute(`printf "[Service]\nEnvironmentFile=-/etc/environment\n" | sudo tee /etc/systemd/system/datadog-agent-trace.service.d/inject.conf`)
-	s.Env().RemoteHost.MustExecute("sudo systemctl daemon-reload")
-	s.Env().RemoteHost.MustExecute("sudo -E datadog-installer install oci://669783387624.dkr.ecr.us-east-1.amazonaws.com/apm-inject-package:pipeline-34163111", client.WithEnvVariables(s.env))
-	s.Env().RemoteHost.MustExecute(`sudo systemctl restart datadog-agent-trace`)
-}
-
-func (s *packageBaseSuite) InstallPackageLatest(pkg string) {
-	s.Env().RemoteHost.MustExecute(fmt.Sprintf(`sudo -E datadog-installer install oci://gcr.io/datadoghq/%s-package:latest`, strings.TrimPrefix(pkg, "datadog-")), client.WithEnvVariables(s.env))
+func envForceNoInstall(pkg string) string {
+	return "DD_INSTALLER_DEFAULT_PKG_INSTALL_" + strings.ToUpper(strings.ReplaceAll(pkg, "-", "_")) + "=false"
 }
 
 func (s *packageBaseSuite) Purge() {
 	s.Env().RemoteHost.MustExecute("sudo apt-get remove -y --purge datadog-installer || sudo yum remove -y datadog-installer")
-	s.Env().RemoteHost.MustExecute("sudo rm -rf /etc/datadog-agent")
 }
 
-func (s *packageBaseSuite) BootstraperVersion() string {
-	return strings.TrimSpace(s.Env().RemoteHost.MustExecute("sudo datadog-bootstrap version"))
+// setupFakeIntake sets up the fake intake for the agent and trace agent.
+// This is done with SystemD environment files overrides to avoid having to touch the agent configuration files
+// and potentially interfere with the tests.
+func (s *packageBaseSuite) setupFakeIntake() {
+	var env []string
+	if s.Env().FakeIntake != nil {
+		env = append(env, []string{
+			"DD_SKIP_SSL_VALIDATION=true",
+			"DD_URL=" + s.Env().FakeIntake.URL,
+			"DD_APM_DD_URL=" + s.Env().FakeIntake.URL,
+		}...)
+	}
+	for _, e := range env {
+		s.Env().RemoteHost.MustExecute(fmt.Sprintf(`echo "%s" | sudo tee -a /etc/environment`, e))
+	}
+	s.Env().RemoteHost.MustExecute("sudo mkdir -p /etc/systemd/system/datadog-agent.service.d")
+	s.Env().RemoteHost.MustExecute("sudo mkdir -p /etc/systemd/system/datadog-agent-trace.service.d")
+	s.Env().RemoteHost.MustExecute(`printf "[Service]\nEnvironmentFile=-/etc/environment\n" | sudo tee /etc/systemd/system/datadog-agent-trace.service.d/fake-intake.conf`)
+	s.Env().RemoteHost.MustExecute(`printf "[Service]\nEnvironmentFile=-/etc/environment\n" | sudo tee /etc/systemd/system/datadog-agent-trace.service.d/fake-intake.conf`)
+	s.Env().RemoteHost.MustExecute("sudo systemctl daemon-reload")
 }
 
-func (s *packageBaseSuite) InstallerVersion() string {
-	return strings.TrimSpace(s.Env().RemoteHost.MustExecute("sudo datadog-installer version"))
-}
-
-func env(arch e2eos.Architecture) map[string]string {
+func installScriptEnv(arch e2eos.Architecture) map[string]string {
 	apiKey := os.Getenv("DD_API_KEY")
 	if apiKey == "" {
 		apiKey = "deadbeefdeadbeefdeadbeefdeadbeef"
@@ -216,19 +204,24 @@ func env(arch e2eos.Architecture) map[string]string {
 		"DD_SITE":    "datadoghq.com",
 		// Install Script env variables
 		"DD_INSTALLER":             "true",
-		"DD_NO_AGENT_INSTALL":      "true",
 		"TESTING_KEYS_URL":         "keys.datadoghq.com",
 		"TESTING_APT_URL":          "apttesting.datad0g.com",
-		"TESTING_APT_REPO_VERSION": fmt.Sprintf("pipeline-%s-i7-%s 7", os.Getenv("CI_PIPELINE_ID"), arch),
+		"TESTING_APT_REPO_VERSION": fmt.Sprintf("pipeline-%s-a7-%s 7", os.Getenv("CI_PIPELINE_ID"), arch),
 		"TESTING_YUM_URL":          "yumtesting.datad0g.com",
-		"TESTING_YUM_VERSION_PATH": fmt.Sprintf("testing/pipeline-%s-i7/7", os.Getenv("CI_PIPELINE_ID")),
+		"TESTING_YUM_VERSION_PATH": fmt.Sprintf("testing/pipeline-%s-a7/7", os.Getenv("CI_PIPELINE_ID")),
 	}
 	for _, pkg := range packagesConfig {
 		name := strings.ToUpper(strings.ReplaceAll(pkg.name, "-", "_"))
 		image := strings.TrimPrefix(name, "DATADOG_") + "_PACKAGE"
-		env[fmt.Sprintf("DD_INSTALLER_REGISTRY_%s", image)] = pkg.registry
-		env[fmt.Sprintf("DD_INSTALLER_REGISTRY_AUTH_%s", image)] = pkg.auth
-		env[fmt.Sprintf("DD_INSTALLER_DEFAULT_VERSION_%s", name)] = pkg.defaultVersion
+		if pkg.registry != "" {
+			env[fmt.Sprintf("DD_INSTALLER_REGISTRY_URL_%s", image)] = pkg.registry
+		}
+		if pkg.auth != "" {
+			env[fmt.Sprintf("DD_INSTALLER_REGISTRY_AUTH_%s", image)] = pkg.auth
+		}
+		if pkg.defaultVersion != "" && pkg.defaultVersion != "latest" {
+			env[fmt.Sprintf("DD_INSTALLER_DEFAULT_PKG_VERSION_%s", name)] = pkg.defaultVersion
+		}
 	}
 	return env
 }

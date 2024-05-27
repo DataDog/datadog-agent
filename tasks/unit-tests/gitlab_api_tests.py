@@ -29,3 +29,19 @@ class TestGenerateGitlabFullConfiguration(unittest.TestCase):
         with open("tasks/unit-tests/testdata/expected.yml") as f:
             expected = f.read()
         self.assertEqual(full_configuration, expected)
+
+
+class TestGitlabYaml(unittest.TestCase):
+    def make_test(self, file):
+        config = generate_gitlab_full_configuration(file, return_dump=False, apply_postprocessing=True)
+
+        self.assertDictEqual(config['target'], config['expected'])
+
+    def test_reference(self):
+        self.make_test("tasks/unit-tests/testdata/yaml_reference.yml")
+
+    def test_extends(self):
+        self.make_test("tasks/unit-tests/testdata/yaml_extends.yml")
+
+    def test_extends_reference(self):
+        self.make_test("tasks/unit-tests/testdata/yaml_extends_reference.yml")

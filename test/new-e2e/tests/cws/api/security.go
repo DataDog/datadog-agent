@@ -114,9 +114,9 @@ func (c *Client) CreateCWSAgentRule(name string, msg string, secl string) (*data
 		},
 	}
 
-	api := datadogV2.NewCloudWorkloadSecurityApi(c.api)
+	api := datadogV2.NewCSMThreatsApi(c.api)
 
-	response, r, err := api.CreateCloudWorkloadSecurityAgentRule(c.ctx, body)
+	response, r, err := api.CreateCSMThreatsAgentRule(c.ctx, body)
 	if r != nil {
 		_ = r.Body.Close()
 	}
@@ -139,8 +139,8 @@ func (c *Client) DeleteSignalRule(ruleID string) error {
 
 // DeleteAgentRule deletes an agent rule
 func (c *Client) DeleteAgentRule(ruleID string) error {
-	api := datadogV2.NewCloudWorkloadSecurityApi(c.api)
-	r, err := api.DeleteCloudWorkloadSecurityAgentRule(c.ctx, ruleID)
+	api := datadogV2.NewCSMThreatsApi(c.api)
+	r, err := api.DeleteCSMThreatsAgentRule(c.ctx, ruleID)
 	if r != nil {
 		_ = r.Body.Close()
 	}

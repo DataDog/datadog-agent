@@ -18,6 +18,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
+	demultiplexerendpointmock "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexerendpoint/fx-mock"
 	"github.com/DataDog/datadog-agent/comp/api/api"
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
@@ -28,7 +29,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/secrets/secretsimpl"
-	"github.com/DataDog/datadog-agent/comp/core/settings"
 	"github.com/DataDog/datadog-agent/comp/core/settings/settingsimpl"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/status/statusimpl"
@@ -82,7 +82,6 @@ type handlerdeps struct {
 	Ac                    autodiscovery.Mock
 	Tagger                tagger.Mock
 	Gui                   optional.Option[gui.Component]
-	Settings              settings.Component
 	EndpointProviders     []api.EndpointProvider `group:"agent_endpoint"`
 }
 
@@ -100,6 +99,7 @@ func getComponentDeps(t *testing.T) handlerdeps {
 		hostimpl.MockModule(),
 		inventoryagentimpl.MockModule(),
 		demultiplexerimpl.MockModule(),
+		demultiplexerendpointmock.MockModule(),
 		inventoryhostimpl.MockModule(),
 		secretsimpl.MockModule(),
 		fx.Provide(func(secretMock secrets.Mock) secrets.Component {
@@ -130,24 +130,14 @@ func setupRoutes(t *testing.T) *mux.Router {
 	router := mux.NewRouter()
 	SetupHandlers(
 		router,
-		deps.Server,
-		deps.ServerDebug,
 		deps.Wmeta,
 		deps.LogsAgent,
 		sender,
-		deps.HostMetadata,
-		deps.InvAgent,
-		deps.Demux,
-		deps.InvHost,
 		deps.SecretResolver,
-		deps.InvChecks,
-		deps.PkgSigning,
 		deps.StatusComponent,
 		deps.Collector,
-		deps.EventPlatformReceiver,
 		deps.Ac,
 		deps.Gui,
-		deps.Settings,
 		deps.EndpointProviders,
 	)
 
@@ -167,6 +157,41 @@ func TestSetupHandlers(t *testing.T) {
 		},
 		{
 			route:    "/flare",
+			method:   "POST",
+			wantCode: 200,
+		},
+		{
+			route:    "/stream-event-platform",
+			method:   "POST",
+			wantCode: 200,
+		},
+		{
+			route:    "/dogstatsd-contexts-dump",
+			method:   "POST",
+			wantCode: 200,
+		},
+		{
+			route:    "/dogstatsd-stats",
+			method:   "GET",
+			wantCode: 200,
+		},
+		{
+			route:    "/config",
+			method:   "GET",
+			wantCode: 200,
+		},
+		{
+			route:    "/config/list-runtime",
+			method:   "GET",
+			wantCode: 200,
+		},
+		{
+			route:    "/config/log_level",
+			method:   "GET",
+			wantCode: 200,
+		},
+		{
+			route:    "/config/log_level",
 			method:   "POST",
 			wantCode: 200,
 		},
@@ -192,6 +217,36 @@ func TestSetupHandlers(t *testing.T) {
 		},
 		{
 			route:    "/workload-list",
+			method:   "GET",
+			wantCode: 200,
+		},
+		{
+			route:    "/metadata/v5",
+			method:   "GET",
+			wantCode: 200,
+		},
+		{
+			route:    "/metadata/gohai",
+			method:   "GET",
+			wantCode: 200,
+		},
+		{
+			route:    "/metadata/inventory-agent",
+			method:   "GET",
+			wantCode: 200,
+		},
+		{
+			route:    "/metadata/inventory-host",
+			method:   "GET",
+			wantCode: 200,
+		},
+		{
+			route:    "/metadata/inventory-checks",
+			method:   "GET",
+			wantCode: 200,
+		},
+		{
+			route:    "/metadata/package-signing",
 			method:   "GET",
 			wantCode: 200,
 		},

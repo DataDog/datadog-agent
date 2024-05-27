@@ -33,7 +33,7 @@ func CreateSecurityAgentArchive(local bool, logFilePath string, statusComponent 
 func createSecurityAgentArchive(fb flaretypes.FlareBuilder, logFilePath string, statusComponent status.Component) {
 	// If the request against the API does not go through we don't collect the status log.
 	if fb.IsLocal() {
-		fb.AddFile("local", []byte(""))
+		fb.AddFile("local", []byte("")) //nolint:errcheck
 	} else {
 		// The Status will be unavailable unless the agent is running.
 		// Only zip it up if the agent is running
@@ -48,16 +48,16 @@ func createSecurityAgentArchive(fb flaretypes.FlareBuilder, logFilePath string, 
 
 	getLogFiles(fb, logFilePath)
 	getConfigFiles(fb, searchPaths{})
-	getComplianceFiles(fb) //nolint:errcheck
-	getRuntimeFiles(fb)    //nolint:errcheck
-	getExpVar(fb)          //nolint:errcheck
-	fb.AddFileFromFunc("envvars.log", getEnvVars)
-	linuxKernelSymbols(fb)                      //nolint:errcheck
-	getLinuxPid1MountInfo(fb)                   //nolint:errcheck
-	getLinuxDmesg(fb)                           //nolint:errcheck
-	getLinuxKprobeEvents(fb)                    //nolint:errcheck
-	getLinuxTracingAvailableEvents(fb)          //nolint:errcheck
-	getLinuxTracingAvailableFilterFunctions(fb) //nolint:errcheck
+	getComplianceFiles(fb)                        //nolint:errcheck
+	getRuntimeFiles(fb)                           //nolint:errcheck
+	getExpVar(fb)                                 //nolint:errcheck
+	fb.AddFileFromFunc("envvars.log", getEnvVars) //nolint:errcheck
+	linuxKernelSymbols(fb)                        //nolint:errcheck
+	getLinuxPid1MountInfo(fb)                     //nolint:errcheck
+	getLinuxDmesg(fb)                             //nolint:errcheck
+	getLinuxKprobeEvents(fb)                      //nolint:errcheck
+	getLinuxTracingAvailableEvents(fb)            //nolint:errcheck
+	getLinuxTracingAvailableFilterFunctions(fb)   //nolint:errcheck
 }
 
 func getComplianceFiles(fb flaretypes.FlareBuilder) error {
