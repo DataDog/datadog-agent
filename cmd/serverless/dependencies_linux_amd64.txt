@@ -203,6 +203,7 @@ github.com/DataDog/datadog-agent/pkg/serverless/proc
 github.com/DataDog/datadog-agent/pkg/serverless/proxy
 github.com/DataDog/datadog-agent/pkg/serverless/random
 github.com/DataDog/datadog-agent/pkg/serverless/registration
+github.com/DataDog/datadog-agent/pkg/serverless/streamlogs
 github.com/DataDog/datadog-agent/pkg/serverless/tags
 github.com/DataDog/datadog-agent/pkg/serverless/trace
 github.com/DataDog/datadog-agent/pkg/serverless/trace/inferredspan
