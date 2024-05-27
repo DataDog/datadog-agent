@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package streamlogs_test package contians tests for streamlogs.
+// Package streamlogs_test package contains tests for streamlogs.
 package streamlogs_test
 
 import (
