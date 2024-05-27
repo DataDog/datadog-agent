@@ -54,11 +54,9 @@ func (a *Agent) SetupHandlers(r *mux.Router) {
 	r.HandleFunc("/config/list-runtime", a.settings.ListConfigurable).Methods("GET")
 	r.HandleFunc("/config/{setting}", a.settings.GetValue).Methods("GET")
 	r.HandleFunc("/config/{setting}", a.settings.SetValue).Methods("POST")
-	r.HandleFunc("/workload-list/short", func(w http.ResponseWriter, r *http.Request) {
-		workloadList(w, false, a.wmeta)
-	}).Methods("GET")
-	r.HandleFunc("/workload-list/verbose", func(w http.ResponseWriter, r *http.Request) {
-		workloadList(w, true, a.wmeta)
+	r.HandleFunc("/workload-list", func(w http.ResponseWriter, r *http.Request) {
+		verbose := r.URL.Query().Get("verbose") == "true"
+		workloadList(w, verbose, a.wmeta)
 	}).Methods("GET")
 }
 

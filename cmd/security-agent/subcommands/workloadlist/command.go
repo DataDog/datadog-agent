@@ -99,8 +99,8 @@ func workloadURL(config config.Component, verbose bool) (string, error) {
 	url := fmt.Sprintf("https://%s/agent/workload-list", addressPort)
 
 	if verbose {
-		return url + "/verbose", nil
+		return url + "?verbose=true", nil
 	}
 
-	return url + "/short", nil
+	return url, nil
 }
