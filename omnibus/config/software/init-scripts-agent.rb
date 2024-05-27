@@ -101,10 +101,10 @@ build do
         dest: "#{systemd_directory}/datadog-agent-security.service",
         mode: 0644,
         vars: { install_dir: install_dir, etc_dir: etc_dir }
+    project.extra_package_file "#{systemd_directory}/datadog-agent.service"
+    project.extra_package_file "#{systemd_directory}/datadog-agent-process.service"
+    project.extra_package_file "#{systemd_directory}/datadog-agent-sysprobe.service"
+    project.extra_package_file "#{systemd_directory}/datadog-agent-trace.service"
+    project.extra_package_file "#{systemd_directory}/datadog-agent-security.service"
   end
-  project.extra_package_file "#{systemd_directory}/datadog-agent.service"
-  project.extra_package_file "#{systemd_directory}/datadog-agent-process.service"
-  project.extra_package_file "#{systemd_directory}/datadog-agent-sysprobe.service"
-  project.extra_package_file "#{systemd_directory}/datadog-agent-trace.service"
-  project.extra_package_file "#{systemd_directory}/datadog-agent-security.service"
 end
