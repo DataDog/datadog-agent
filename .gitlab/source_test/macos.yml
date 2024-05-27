@@ -57,6 +57,7 @@ lint_macos:
   before_script:
     - pyenv install 3.11.8
     - pyenv global 3.11.8
+    - export PATH="/Users/ec2-user/.pyenv/versions/3.11.8/bin:$PATH"
     - export PATH="/Users/ec2-user/go/bin:$PATH"
     - eval $(gimme 1.21.10)
 
