@@ -201,10 +201,12 @@ int kprobe__tcp_close(struct pt_regs *ctx) {
     sk = (struct sock *)PT_REGS_PARM1(ctx);
 
     // Should actually delete something only if the connection never got established & increment counter
-    // We also return here since failed connections are flushed as closed in tcp_done
     if (bpf_map_delete_elem(&tcp_ongoing_connect_pid, &sk) == 0) {
         increment_telemetry_count(tcp_failed_connect);
-        return 0;
+        // if failed connections are enabled, they were already flushed in tcp_done
+        if (tcp_failed_connections_enabled()) {
+            return 0;
+        }
     }
 
     // Get network namespace id

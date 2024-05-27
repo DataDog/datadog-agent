@@ -163,12 +163,14 @@ type closedConnections struct {
 func (cc *closedConnections) insert(c ConnectionStats, maxClosedConns uint32) {
 	// If we have reached the limit, drop an empty connection
 	if uint32(len(cc.conns)) >= maxClosedConns {
+		log.Errorf("adamk dropping closed connection: %v", c)
 		stateTelemetry.closedConnDropped.Inc(c.Type.String())
 		cc.dropEmpty(c)
 		return
 	}
 	// If the connection is empty append at the end
 	if isEmpty(c) {
+		log.Errorf("adamk inserting empty closed connection: %v", c)
 		cc.conns = append(cc.conns, c)
 		cc.byCookie[c.Cookie] = len(cc.conns) - 1
 		return
@@ -598,12 +600,14 @@ func (ns *networkState) storeClosedConnections(conns []ConnectionStats) {
 	for _, client := range ns.clients {
 		for _, c := range conns {
 			if i, ok := client.closed.byCookie[c.Cookie]; ok {
+				log.Errorf("adamk found closed connection cookie match: %v", c)
 				if ns.mergeConnectionStats(&client.closed.conns[i], &c) {
 					stateTelemetry.statsCookieCollisions.Inc()
 					client.closed.replaceAt(i, c)
 				}
 				continue
 			}
+			log.Errorf("adamk inserting closed connection: %v", c)
 			client.closed.insert(c, ns.maxClosedConns)
 		}
 	}
@@ -836,8 +840,10 @@ func (ns *networkState) mergeConnections(id string, active []ConnectionStats) (_
 	// filter closed connections, keeping those that have changed or have not
 	// been aggregated into another connection
 	closed = filterConnections(client.closed.conns, func(closedConn *ConnectionStats) bool {
+		log.Errorf("adamk pre merge closed connection: %v", closedConn)
 		cookie := closedConn.Cookie
 		if activeConn := activeByCookie[cookie]; activeConn != nil {
+			log.Errorf("adamk found active connection match: %v", activeConn)
 			if ns.mergeConnectionStats(closedConn, activeConn) {
 				stateTelemetry.statsCookieCollisions.Inc()
 				// remove any previous stats since we

@@ -337,7 +337,7 @@ func (t *Tracer) storeClosedConnections(connections []network.ConnectionStats) {
 		tracerTelemetry.closedConns.Inc(cs.Type.String())
 		if failedConnsEnabled {
 			failedConnMap.MatchFailedConn(cs)
-			log.Errorf("adamk Failed connection: %+v", cs)
+			log.Errorf("adamk post match connection: %+v", cs)
 		}
 	}
 
