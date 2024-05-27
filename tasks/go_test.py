@@ -528,7 +528,7 @@ def e2e_tests(ctx, target="gitlab", agent_image="", dca_image="", argo_workflow=
 
 
 @task
-def get_modified_packages(ctx, build_tags=None) -> list[GoModule]:
+def get_modified_packages(ctx, build_tags=None, lint=False) -> list[GoModule]:
     modified_files = get_modified_files(ctx)
     modified_go_files = [
         f"./{file}" for file in modified_files if file.endswith(".go") or file.endswith(".mod") or file.endswith(".sum")
@@ -546,14 +546,16 @@ def get_modified_packages(ctx, build_tags=None) -> list[GoModule]:
 
         # Since several modules can match the path we take only the most precise one
         for module_path in DEFAULT_MODULES:
-            if module_path in modified_file:
-                if len(module_path) > match_precision:
-                    match_precision = len(module_path)
-                    best_module_path = module_path
+            if module_path in modified_file and len(module_path) > match_precision:
+                match_precision = len(module_path)
+                best_module_path = module_path
 
         # Check if the package is in the target list of the module we want to test
         targeted = False
-        for target in DEFAULT_MODULES[best_module_path].targets:
+
+        targets = DEFAULT_MODULES[best_module_path].lint_targets if lint else DEFAULT_MODULES[best_module_path].targets
+
+        for target in targets:
             if os.path.normpath(os.path.join(best_module_path, target)) in modified_file:
                 targeted = True
                 break
