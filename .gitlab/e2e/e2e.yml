@@ -166,12 +166,14 @@ new-e2e-containers:
   variables:
     TARGETS: ./tests/containers
     TEAM: container-integrations
-    KUBERNETES_MEMORY_REQUEST: 8Gi
-    KUBERNETES_MEMORY_LIMIT: 8Gi
   parallel:
     matrix:
       - EXTRA_PARAMS: --run TestKindSuite
+        KUBERNETES_MEMORY_REQUEST: 16Gi
+        KUBERNETES_MEMORY_LIMIT: 16Gi
       - EXTRA_PARAMS: --run TestEKSSuite
+        KUBERNETES_MEMORY_REQUEST: 8Gi
+        KUBERNETES_MEMORY_LIMIT: 8Gi
       - EXTRA_PARAMS: --run TestECSSuite
       - EXTRA_PARAMS: --run TestDockerSuite
       - EXTRA_PARAMS: --skip "Test(Kind|EKS|ECS|Docker)Suite"
@@ -275,6 +277,8 @@ new-e2e-cws:
       - EXTRA_PARAMS: --run TestAgentSuite
       - EXTRA_PARAMS: --run TestECSFargate
       - EXTRA_PARAMS: --run TestKindSuite
+        KUBERNETES_MEMORY_REQUEST: 16Gi
+        KUBERNETES_MEMORY_LIMIT: 16Gi
   # Temporary, remove once we made sure the recent changes have no impact on the stability of these tests
   allow_failure: true
 
