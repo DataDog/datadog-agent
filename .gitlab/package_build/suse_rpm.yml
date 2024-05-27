@@ -134,6 +134,7 @@ iot_agent_suse-x64:
     - !reference [.setup_ruby_mirror_linux]
     - !reference [.setup_python_mirror_linux]
     - !reference [.retrieve_linux_go_deps]
+    - !reference [.cache_omnibus_ruby_deps, setup]
     - echo "Detected host architecture $(uname -m)"
     # $DD_TARGET_ARCH is only set by Arm build images, so assume amd64 if not present
     - echo "Target architecture ${DD_TARGET_ARCH:=amd64}"
@@ -155,6 +156,8 @@ iot_agent_suse-x64:
     expire_in: 2 weeks
     paths:
       - $OMNIBUS_PACKAGE_DIR_SUSE
+  cache:
+    - !reference [.cache_omnibus_ruby_deps, cache]
 
 dogstatsd_suse-x64:
   stage: package_build
@@ -169,6 +172,7 @@ dogstatsd_suse-x64:
   before_script:
     - source /root/.bashrc
     - !reference [.retrieve_linux_go_deps]
+    - !reference [.cache_omnibus_ruby_deps, setup]
   script:
     # remove artifacts from previous pipelines that may come from the cache
     - rm -rf $OMNIBUS_PACKAGE_DIR_SUSE/*
@@ -190,3 +194,5 @@ dogstatsd_suse-x64:
     expire_in: 2 weeks
     paths:
       - $OMNIBUS_PACKAGE_DIR_SUSE
+  cache:
+    - !reference [.cache_omnibus_ruby_deps, cache]
