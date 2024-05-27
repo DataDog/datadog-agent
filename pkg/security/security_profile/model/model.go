@@ -8,10 +8,6 @@
 // Package model holds the security profile data model
 package model
 
-import (
-	proto "github.com/DataDog/agent-payload/v5/cws/dumpsv1"
-)
-
 // EventFilteringProfileState is used to compute metrics for the event filtering feature
 type EventFilteringProfileState uint8
 
