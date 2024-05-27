@@ -7,6 +7,7 @@ package aggregator
 
 import (
 	"io"
+	"maps"
 	"unsafe"
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
@@ -33,6 +34,8 @@ type resolverEntry struct {
 	lastSeen int64
 	context  *Context
 }
+
+type resolverMap map[ckey.ContextKey]resolverEntry
 
 const (
 	// ContextSizeInBytes is the size of a context in bytes
@@ -66,7 +69,7 @@ var _ util.HasSizeInBytes = &Context{}
 // contextResolver allows tracking and expiring contexts
 type contextResolver struct {
 	id               string
-	contextsByKey    map[ckey.ContextKey]resolverEntry
+	contextsByKey    resolverMap
 	seendByMtype     []bool
 	countsByMtype    []uint64
 	bytesByMtype     []uint64
@@ -85,7 +88,7 @@ func (cr *contextResolver) generateContextKey(metricSampleContext metrics.Metric
 func newContextResolver(cache *tags.Store, id string) *contextResolver {
 	return &contextResolver{
 		id:               id,
-		contextsByKey:    make(map[ckey.ContextKey]resolverEntry),
+		contextsByKey:    resolverMap{},
 		seendByMtype:     make([]bool, metrics.NumMetricTypes),
 		countsByMtype:    make([]uint64, metrics.NumMetricTypes),
 		bytesByMtype:     make([]uint64, metrics.NumMetricTypes),
@@ -137,8 +140,7 @@ func (cr *contextResolver) trackContext(metricSampleContext metrics.MetricSample
 }
 
 func (cr *contextResolver) get(key ckey.ContextKey) (*Context, bool) {
-	ctx, found := cr.contextsByKey[key]
-	return ctx.context, found
+	return cr.contextsByKey.get(key)
 }
 
 func (cr *contextResolver) length() int {
@@ -180,11 +182,10 @@ func (cr *contextResolver) release() {
 	}
 }
 
-//nolint:revive // TODO(AML) Fix revive linter
-func (cr *contextResolver) sendOriginTelemetry(timestamp float64, series metrics.SerieSink, hostname string, constTags []string) {
+func (rm resolverMap) sendOriginTelemetry(timestamp float64, series metrics.SerieSink, hostname string, constTags []string) {
 	// Within the contextResolver, each set of tags is represented by a unique pointer.
 	perOrigin := map[*tags.Entry]uint64{}
-	for _, cx := range cr.contextsByKey {
+	for _, cx := range rm {
 		perOrigin[cx.context.taggerTags]++
 	}
 
@@ -209,6 +210,11 @@ func (cr *contextResolver) sendOriginTelemetry(timestamp float64, series metrics
 			Points: []metrics.Point{{Ts: timestamp, Value: float64(count)}},
 		})
 	}
+}
+
+func (rm resolverMap) get(key ckey.ContextKey) (*Context, bool) {
+	ctx, found := rm[key]
+	return ctx.context, found
 }
 
 // timestampContextResolver allows tracking and expiring contexts based on time.
@@ -259,16 +265,16 @@ func (cr *timestampContextResolver) expireContexts(timestamp int64) {
 	}
 }
 
-func (cr *timestampContextResolver) sendOriginTelemetry(timestamp float64, series metrics.SerieSink, hostname string, tags []string) {
-	cr.resolver.sendOriginTelemetry(timestamp, series, hostname, tags)
-}
-
 func (cr *timestampContextResolver) dumpContexts(dest io.Writer) error {
 	return cr.resolver.dumpContexts(dest)
 }
 
 func (cr *timestampContextResolver) updateMetrics(countsByMTypeGauge telemetry.Gauge, bytesByMTypeGauge telemetry.Gauge) {
 	cr.resolver.updateMetrics(countsByMTypeGauge, bytesByMTypeGauge)
+}
+
+func (cr *timestampContextResolver) cloneContexts() resolverMap {
+	return maps.Clone(cr.resolver.contextsByKey)
 }
 
 // countBasedContextResolver allows tracking and expiring contexts based on the number
