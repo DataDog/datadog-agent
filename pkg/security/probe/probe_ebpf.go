@@ -1456,21 +1456,29 @@ func (p *EBPFProbe) ApplyRuleSet(rs *rules.RuleSet) (*kfilters.ApplyRuleSetRepor
 		}
 	}
 
+	eventTypes := rs.GetEventTypes()
+
+	// activity dump & security profiles
 	needRawSyscalls := p.isNeededForActivityDump(model.SyscallsEventType.String())
-	if !needRawSyscalls && p.config.RuntimeSecurity.EnforcementRawSyscallEnabled {
-		// Add syscall monitor probes if it's either activated or
-		// there is an 'kill' action in the ruleset
-		for _, rule := range rs.GetRules() {
-			for _, action := range rule.Definition.Actions {
-				if action.Kill != nil {
-					needRawSyscalls = true
-					break
+
+	// kill action
+	if p.config.RuntimeSecurity.EnforcementEnabled && isKillActionPresent(rs) {
+		if !p.config.RuntimeSecurity.EnforcementRawSyscallEnabled {
+			// force FIM and Process category so that we can catch most of the activity
+			categories := model.GetEventTypePerCategory(model.FIMCategory, model.ProcessCategory)
+			for _, list := range categories {
+				for _, eventType := range list {
+					if !slices.Contains(eventTypes, eventType) {
+						eventTypes = append(eventTypes, eventType)
+					}
 				}
 			}
+		} else {
+			needRawSyscalls = true
 		}
 	}
 
-	if err := p.updateProbes(rs.GetEventTypes(), needRawSyscalls); err != nil {
+	if err := p.updateProbes(eventTypes, needRawSyscalls); err != nil {
 		return nil, fmt.Errorf("failed to select probes: %w", err)
 	}
 

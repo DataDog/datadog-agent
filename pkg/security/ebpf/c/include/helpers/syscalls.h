@@ -46,8 +46,13 @@ struct policy_t __attribute__((always_inline)) fetch_policy(u64 event_type) {
 
 // cache_syscall checks the event policy in order to see if the syscall struct can be cached
 void __attribute__((always_inline)) cache_syscall(struct syscall_cache_t *syscall) {
-    u64 key = bpf_get_current_pid_tgid();
-    bpf_map_update_elem(&syscalls, &key, syscall, BPF_ANY);
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+    u32 pid = pid_tgid >> 32;
+
+    // handle kill action
+    send_signal(pid);
+
+    bpf_map_update_elem(&syscalls, &pid_tgid, syscall, BPF_ANY);
 
     monitor_syscalls(syscall->type, 1);
 }

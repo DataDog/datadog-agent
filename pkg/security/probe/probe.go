@@ -410,3 +410,14 @@ func (p *Probe) IsActivityDumpTagRulesEnabled() bool {
 func (p *Probe) IsSecurityProfileEnabled() bool {
 	return p.Config.RuntimeSecurity.SecurityProfileEnabled
 }
+
+func isKillActionPresent(rs *rules.RuleSet) bool {
+	for _, rule := range rs.GetRules() {
+		for _, action := range rule.Definition.Actions {
+			if action.Kill != nil {
+				return true
+			}
+		}
+	}
+	return false
+}
