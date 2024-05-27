@@ -123,4 +123,5 @@ func initCWSSystemProbeConfig(cfg pkgconfigmodel.Config) {
 
 	// CWS enforcement capabilities
 	cfg.BindEnvAndSetDefault("runtime_security_config.enforcement.enabled", true)
+	cfg.BindEnvAndSetDefault("runtime_security_config.enforcement.raw_syscall.enabled", true)
 }
