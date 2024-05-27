@@ -38,7 +38,7 @@ from tasks.kernel_matrix_testing.tool import Exit, ask, error, get_binary_target
 from tasks.kernel_matrix_testing.vars import KMT_SUPPORTED_ARCHS, KMTPaths
 from tasks.libs.build.ninja import NinjaWriter
 from tasks.libs.common.utils import get_build_flags
-from tasks.libs.types.arch import ARCH_AMD64, ARCH_ARM64, Arch, KMTArchName
+from tasks.libs.types.arch import Arch, KMTArchName
 from tasks.security_agent import build_functional_tests, build_stress_tests
 from tasks.system_probe import (
     BPF_TAG,
@@ -595,7 +595,7 @@ def prepare(
     if arch is None:
         arch = "local"
     arch_obj = Arch.from_str(arch)
-    if arch_obj not in {ARCH_AMD64, ARCH_ARM64}:
+    if arch_obj.kmt_arch not in KMT_SUPPORTED_ARCHS:
         raise Exit(
             f"Architecture {arch} (inferred {arch_obj}) is not supported. Supported architectures are amd64 and arm64"
         )
