@@ -41,9 +41,8 @@ class CompilerImage:
     def image(self):
         suffix, version = get_build_image_suffix_and_version()
         image_base = "486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe"
-        image_arch = "x64" if self.arch == ARCH_AMD64 else "arm64"
 
-        return f"{image_base}_{image_arch}{suffix}:{version}"
+        return f"{image_base}_{self.arch.ci_arch}{suffix}:{version}"
 
     @property
     def is_running(self):
