@@ -84,3 +84,30 @@ func (m sketchMap) flushBefore(beforeTs int64, f func(ckey.ContextKey, metrics.S
 		delete(m, ts)
 	}
 }
+
+// splitBefore removes and returns sketches inserted before beforeTs.
+func (m sketchMap) splitBefore(beforeTs int64) sketchMap {
+	out := sketchMap{}
+	for ts, byCtx := range m {
+		if ts < beforeTs {
+			out[ts] = byCtx
+			delete(m, ts)
+		}
+	}
+	return out
+}
+
+func (m sketchMap) toPoints() map[ckey.ContextKey][]metrics.SketchPoint {
+	pointsByCtx := make(map[ckey.ContextKey][]metrics.SketchPoint)
+	for ts, byCtx := range m {
+		for ck, as := range byCtx {
+			if sketch := as.Finish(); sketch != nil {
+				pointsByCtx[ck] = append(pointsByCtx[ck], metrics.SketchPoint{
+					Sketch: sketch,
+					Ts:     ts,
+				})
+			}
+		}
+	}
+	return pointsByCtx
+}

@@ -261,7 +261,7 @@ func TestOriginTelemetry(t *testing.T) {
 	r.trackContext(&mockSample{"bar", []string{"baz"}, []string{}}, 0)
 	sink := mockSink{}
 	ts := 1672835152.0
-	r.sendOriginTelemetry(ts, &sink, "test", []string{"test"})
+	r.contextsByKey.sendOriginTelemetry(ts, &sink, "test", []string{"test"})
 
 	assert.ElementsMatch(t, sink, []*metrics.Serie{{
 		Name:   "datadog.agent.aggregator.dogstatsd_contexts_by_origin",
