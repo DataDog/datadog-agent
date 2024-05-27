@@ -782,7 +782,7 @@ func newCannedClientServer(t *testing.T, tls bool) *CannedClientServer {
 		// which leads to races. The disadvantage of not using 9092 is that you may
 		// have to explicitly pick the protocol in Wireshark when debugging with a packet
 		// trace.
-		address: "127.0.0.1:9092",
+		address: "127.0.0.1:8082",
 		tls:     tls,
 		t:       t,
 	}
