@@ -36,7 +36,7 @@ type Controller struct {
 	configStateStore *ConfigStateStore
 
 	// a workqueue to process the config events
-	queue workqueue.RateLimitingInterface
+	queue workqueue.DelayingInterface
 
 	started     bool
 	stopChannel chan struct{}
@@ -47,7 +47,11 @@ func NewController() *Controller {
 	schedulerController := Controller{
 		scheduledConfigs: make(map[Digest]*integration.Config),
 		activeSchedulers: make(map[string]Scheduler),
-		queue:            workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "Controller"),
+		// No delay for adding items to the queue first time
+		// Add a delay for subsequent retries if check fails
+		queue: workqueue.NewDelayingQueueWithConfig(workqueue.DelayingQueueConfig{
+			Name: "ADSchedulerController",
+		}),
 		stopChannel:      make(chan struct{}),
 		configStateStore: NewConfigStateStore(),
 	}
