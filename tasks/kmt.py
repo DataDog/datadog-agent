@@ -802,7 +802,7 @@ def kmt_sysprobe_prepare(
     ctx.run(f"ninja -d explain -v -f {nf_path}")
 
 
-def images_matching_ci(ctx, domains):
+def images_matching_ci(ctx: Context, domains: list[LibvirtDomain]):
     platforms = get_platforms()
     arch = full_arch("local")
     kmt_os = get_kmt_os()
@@ -814,7 +814,7 @@ def images_matching_ci(ctx, domains):
 
         check_tag = False
         for d in domains:
-            if vmid in d.name:
+            if vmid in d.name and d.instance.arch == "local":
                 check_tag = True
                 break
 
@@ -840,10 +840,7 @@ def images_matching_ci(ctx, domains):
     for name in not_matches:
         warn(f"[-] {name} does not match version in CI")
 
-    if len(not_matches) > 0:
-        return False
-
-    return True
+    return len(not_matches) == 0
 
 
 @task(
