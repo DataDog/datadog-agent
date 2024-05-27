@@ -16,10 +16,10 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/remote"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/proto"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	grpcutil "github.com/DataDog/datadog-agent/pkg/util/grpc"
-	protoutils "github.com/DataDog/datadog-agent/pkg/util/proto"
 )
 
 const (
@@ -102,7 +102,7 @@ func (s *streamHandler) HandleResponse(resp interface{}) ([]workloadmeta.Collect
 	var collectorEvents []workloadmeta.CollectorEvent
 
 	for _, protoEvent := range response.Events {
-		workloadmetaEvent, err := protoutils.WorkloadmetaEventFromProtoEvent(protoEvent)
+		workloadmetaEvent, err := proto.WorkloadmetaEventFromProtoEvent(protoEvent)
 		if err != nil {
 			return nil, err
 		}

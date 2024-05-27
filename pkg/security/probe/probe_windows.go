@@ -82,6 +82,7 @@ type WindowsProbe struct {
 	stats stats
 	// discarders
 	discardedPaths     *lru.Cache[string, struct{}]
+	discardedUserPaths *lru.Cache[string, struct{}]
 	discardedBasenames *lru.Cache[string, struct{}]
 
 	// map of device path to volume name (i.e. c:)
@@ -862,10 +863,13 @@ func (p *WindowsProbe) SendStats() error {
 	}
 	return nil
 }
-
-// NewWindowsProbe instantiates a new runtime security agent probe
-func NewWindowsProbe(probe *Probe, config *config.Config, opts Opts) (*WindowsProbe, error) {
+func initializeWindowsProbe(config *config.Config, opts Opts) (*WindowsProbe, error) {
 	discardedPaths, err := lru.New[string, struct{}](1 << 10)
+	if err != nil {
+		return nil, err
+	}
+
+	discardedUserPaths, err := lru.New[string, struct{}](1 << 10)
 	if err != nil {
 		return nil, err
 	}
@@ -892,7 +896,6 @@ func NewWindowsProbe(probe *Probe, config *config.Config, opts Opts) (*WindowsPr
 	ctx, cancelFnc := context.WithCancel(context.Background())
 
 	p := &WindowsProbe{
-		probe:             probe,
 		config:            config,
 		opts:              opts,
 		statsdClient:      opts.StatsdClient,
@@ -909,13 +912,24 @@ func NewWindowsProbe(probe *Probe, config *config.Config, opts Opts) (*WindowsPr
 		renamePreArgs: rnc,
 
 		discardedPaths:     discardedPaths,
+		discardedUserPaths: discardedUserPaths,
 		discardedBasenames: discardedBasenames,
 
 		volumeMap: make(map[string]string),
 
 		processKiller: NewProcessKiller(),
 	}
+	return p, nil
+}
 
+// NewWindowsProbe instantiates a new runtime security agent probe
+func NewWindowsProbe(probe *Probe, config *config.Config, opts Opts) (*WindowsProbe, error) {
+
+	p, err := initializeWindowsProbe(config, opts)
+	if err != nil {
+		return nil, err
+	}
+	p.probe = probe
 	p.Resolvers, err = resolvers.NewResolvers(config, p.statsdClient, probe.scrubber)
 	if err != nil {
 		return nil, err
@@ -954,6 +968,7 @@ func (p *WindowsProbe) ApplyRuleSet(rs *rules.RuleSet) (*kfilters.ApplyRuleSetRe
 // FlushDiscarders invalidates all the discarders
 func (p *WindowsProbe) FlushDiscarders() error {
 	p.discardedPaths.Purge()
+	p.discardedUserPaths.Purge()
 	p.discardedBasenames.Purge()
 	return nil
 }
@@ -968,6 +983,13 @@ func (p *WindowsProbe) OnNewDiscarder(_ *rules.RuleSet, ev *model.Event, field e
 		path := ev.CreateNewFile.File.PathnameStr
 		seclog.Debugf("new discarder for `%s` -> `%v`", field, path)
 		p.discardedPaths.Add(path, struct{}{})
+	} else if field == "create.file.path" {
+		path := ev.CreateNewFile.File.UserPathnameStr
+		if path == "" {
+			return
+		}
+		seclog.Debugf("new discarder for `%s` -> `%v`", field, path)
+		p.discardedUserPaths.Add(path, struct{}{})
 	} else if field == "create.file.name" {
 		basename := ev.CreateNewFile.File.BasenameStr
 		seclog.Debugf("new discarder for `%s` -> `%v`", field, basename)

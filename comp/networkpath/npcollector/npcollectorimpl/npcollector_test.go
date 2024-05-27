@@ -128,9 +128,7 @@ func Test_NpCollector_runningAndProcessing(t *testing.T) {
     "path_id": "",
     "protocol": "UDP",
     "source": {
-        "hostname": "abc",
-        "via": null,
-        "network_id": ""
+        "hostname": "abc"
     },
     "destination": {
         "hostname": "abc",
@@ -142,18 +140,15 @@ func Test_NpCollector_runningAndProcessing(t *testing.T) {
             "ttl": 0,
             "ip_address": "1.1.1.1",
             "hostname": "hop_1",
-            "rtt": 0,
             "success": false
         },
         {
             "ttl": 0,
             "ip_address": "1.1.1.2",
             "hostname": "hop_2",
-            "rtt": 0,
             "success": false
         }
-    ],
-    "tags": null
+    ]
 }
 `)
 	// language=json
@@ -164,9 +159,7 @@ func Test_NpCollector_runningAndProcessing(t *testing.T) {
     "path_id": "",
     "protocol": "UDP",
     "source": {
-        "hostname": "abc",
-        "via": null,
-        "network_id": ""
+        "hostname": "abc"
     },
     "destination": {
         "hostname": "abc",
@@ -178,18 +171,15 @@ func Test_NpCollector_runningAndProcessing(t *testing.T) {
             "ttl": 0,
             "ip_address": "1.1.1.3",
             "hostname": "hop_1",
-            "rtt": 0,
             "success": false
         },
         {
             "ttl": 0,
             "ip_address": "1.1.1.4",
             "hostname": "hop_2",
-            "rtt": 0,
             "success": false
         }
-    ],
-    "tags": null
+    ]
 }
 `)
 	mockEpForwarder.EXPECT().SendEventPlatformEventBlocking(
