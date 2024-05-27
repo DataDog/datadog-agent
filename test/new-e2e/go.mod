@@ -244,7 +244,7 @@ require (
 	github.com/pulumi/pulumi-aws/sdk/v6 v6.25.0
 	github.com/pulumi/pulumi-awsx/sdk/v2 v2.5.0
 	github.com/pulumi/pulumi-eks/sdk/v2 v2.2.1
-	github.com/pulumi/pulumi-kubernetes/sdk/v4 v4.9.0
+	github.com/pulumi/pulumi-kubernetes/sdk/v4 v4.12.0
 	github.com/xeipuuv/gojsonschema v1.2.0
 )
 
