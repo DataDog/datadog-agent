@@ -94,32 +94,42 @@ jobs:
             echo 'MESSAGE=Update Go version to ${{ inputs.go_version }}' >> $GITHUB_OUTPUT
           fi
 
-      # - uses: stefanzweifel/git-auto-commit-action@8621497c8c39c72f3e2a999a26b4ca1b5058a842 # v5.0.1
-      #   id: autocommit
-      #   with:
-      #     commit_message: ${{ steps.update_build_images.outputs.MESSAGE }}
-      #     branch: ${{ inputs.branch }}
-      #     create_branch: true
-      #     # allow empty commits, so that the branch always exists if the workflow succeeds
-      #     commit_options: '--allow-empty'
-      #     skip_dirty_check: true # prevents pushing an empty commit if false
-      #     # the action fetches all branches and tags, in our case the branches we care about are already fetched
-      #     # if they exist, so we can skip the fetch
-      #     skip_fetch: true
-
-      - name: Render PR body
-        run: |
-          inv buildimages.generate-pr-body ${{ steps.current_buildimage_tag.outputs.BUILDIMAGE_TAG }} ${{ inputs.images_id }} ${{ steps.current_go_version.outputs.GO_VERSION }} ${{ inputs.go_version }} ${{ inputs.test_version && '--test-version' || '' }} > /tmp/pr_body
-          
-
-      - name: create PR
-        uses: peter-evans/create-pull-request@6d6857d36972b65feb161a90e484f2984215f83e # v6.0.1
+      - uses: stefanzweifel/git-auto-commit-action@8621497c8c39c72f3e2a999a26b4ca1b5058a842 # v5.0.1
+        id: autocommit
         with:
-          base: main
+          commit_message: ${{ steps.update_build_images.outputs.MESSAGE }}
           branch: ${{ inputs.branch }}
-          draft: true
-          delete-branch: true
-          commit-message: ${{ steps.update_build_images.outputs.MESSAGE }}
-          title: "[automated] ${{ steps.update_build_images.outputs.MESSAGE }}"
-          labels: 'go-update'
-          body-path: /tmp/pr_body
+          create_branch: true
+          # allow empty commits, so that the branch always exists if the workflow succeeds
+          commit_options: '--allow-empty'
+          skip_dirty_check: true # prevents pushing an empty commit if false
+          # the action fetches all branches and tags, in our case the branches we care about are already fetched
+          # if they exist, so we can skip the fetch
+          skip_fetch: true
+
+      - name: Check if PR exists
+        id: check_pr
+        run: |
+          prs=$(gh pr list \
+              --repo "$GITHUB_REPOSITORY" \
+              --head ${{ inputs.branch }} \
+              --base ${{ github.head_ref }} \
+              --json title \
+              --jq 'length')
+          if ((prs > 0)); then
+              echo "skip=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      # Create PR only if there is no pre-existing PR on the branch
+      - name: Create PR
+        if: ${{ steps.check_pr.outputs.skip != 'true' }}
+        env:
+          TMP_PR_BODY_PATH: /tmp/pr_body
+        run: |
+          inv buildimages.generate-pr-body ${{ steps.current_buildimage_tag.outputs.BUILDIMAGE_TAG }} ${{ inputs.images_id }} ${{ steps.current_go_version.outputs.GO_VERSION }} ${{ inputs.go_version }} ${{ inputs.test_version && '--test-version' || '' }} > $TMP_PR_BODY_PATH \
+          && gh pr create \
+          -B ${{ github.head_ref }} 
+          -t "[automated] ${{ steps.update_build_images.outputs.MESSAGE }}"
+          -F $TMP_PR_BODY_PATH \
+          -d \
+          -l "go-update,team/agent-shared-components" \
