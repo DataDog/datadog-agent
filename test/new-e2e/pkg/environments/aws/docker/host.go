@@ -120,6 +120,7 @@ func WithoutAgent() ProvisionerOption {
 	}
 }
 
+// RunParams contains parameters for the run function
 type RunParams struct {
 	Environment       *aws.Environment
 	ProvisionerParams *ProvisionerParams
@@ -212,10 +213,7 @@ func Provisioner(opts ...ProvisionerOption) e2e.TypedProvisioner[environments.Do
 	// We need to build params here to be able to use params.name in the provisioner name
 	params := GetProvisionerParams(opts...)
 	provisioner := e2e.NewTypedPulumiProvisioner(provisionerBaseID+params.name, func(ctx *pulumi.Context, env *environments.DockerHost) error {
-		return Run(ctx, env, RunParams{
-			Environment:       nil,
-			ProvisionerParams: params,
-		})
+		return Run(ctx, env, RunParams{ProvisionerParams: params})
 	}, params.extraConfigParams)
 
 	return provisioner
