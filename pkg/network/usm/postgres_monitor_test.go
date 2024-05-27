@@ -31,8 +31,28 @@ import (
 )
 
 const (
-	postgresPort = "5432"
+	postgresPort           = "5432"
+	createTableQuery       = "CREATE TABLE dummy (id SERIAL PRIMARY KEY, foo TEXT)"
+	updateSingleValueQuery = "UPDATE dummy SET foo = 'updated' WHERE id = 1"
+	selectAllQuery         = "SELECT * FROM dummy"
+	dropTableQuery         = "DROP TABLE IF EXISTS dummy"
 )
+
+func createInsertQuery(values ...string) string {
+	return fmt.Sprintf("INSERT INTO dummy (foo) VALUES ('%s')", strings.Join(values, "'), ('"))
+}
+
+func generateTestValues(startingIndex, count int) []string {
+	values := make([]string, count)
+	for i := 0; i < count; i++ {
+		values[i] = fmt.Sprintf("value-%d", startingIndex+i)
+	}
+	return values
+}
+
+func generateSelectLimitQuery(limit int) string {
+	return fmt.Sprintf("SELECT * FROM dummy limit %d", limit)
+}
 
 // postgresParsingTestAttributes holds all attributes a single postgres parsing test should have.
 type postgresParsingTestAttributes struct {
@@ -97,11 +117,32 @@ func (s *postgresProtocolParsingSuite) TestDecoding() {
 	}
 }
 
+// waitForPostgresServer verifies that the postgres server is up and running.
+// It tries to connect to the server until it succeeds or the timeout is reached.
+// We need that function (and cannot relay on the RunServer method) as the target regex is being logged a couple os
+// milliseconds before the server is actually ready to accept connections.
+func waitForPostgresServer(t *testing.T, serverAddress string, enableTLS bool) {
+	pgClient, err := postgres.NewPGXClient(postgres.ConnectionOptions{
+		ServerAddress: serverAddress,
+		EnableTLS:     enableTLS,
+	})
+	require.NoError(t, err)
+	defer pgClient.Close()
+	require.Eventually(t, func() bool {
+		return pgClient.Ping() == nil
+	}, 5*time.Second, 100*time.Millisecond, "couldn't connect to postgres server")
+}
+
 func testDecoding(t *testing.T, isTLS bool) {
 	serverHost := "127.0.0.1"
 
 	serverAddress := net.JoinHostPort(serverHost, postgresPort)
 	require.NoError(t, postgres.RunServer(t, serverHost, postgresPort, isTLS))
+	// Verifies that the postgres server is up and running.
+	// It tries to connect to the server until it succeeds or the timeout is reached.
+	// We need that function (and cannot relay on the RunServer method) as the target regex is being logged a couple os
+	// milliseconds before the server is actually ready to accept connections.
+	waitForPostgresServer(t, serverAddress, isTLS)
 
 	// With non-TLS, we need to double the stats since we use Docker and the
 	// packets are seen twice. This is not needed in the TLS case since there
@@ -118,15 +159,17 @@ func testDecoding(t *testing.T, isTLS bool) {
 		{
 			name: "create table",
 			preMonitorSetup: func(t *testing.T, ctx testContext) {
-				pg := postgres.NewPGClient(postgres.ConnectionOptions{
+				pg, err := postgres.NewPGXClient(postgres.ConnectionOptions{
 					ServerAddress: ctx.serverAddress,
 					EnableTLS:     isTLS,
 				})
+				require.NoError(t, err)
+				require.NoError(t, pg.Ping())
 				ctx.extras["pg"] = pg
 			},
 			postMonitorSetup: func(t *testing.T, ctx testContext) {
-				pg := ctx.extras["pg"].(*postgres.PGClient)
-				require.NoError(t, pg.RunCreateQuery())
+				pg := ctx.extras["pg"].(*postgres.PGXClient)
+				require.NoError(t, pg.RunQuery(createTableQuery))
 			},
 			validation: func(t *testing.T, ctx testContext, monitor *Monitor) {
 				validatePostgres(t, monitor, map[string]map[postgres.Operation]int{
@@ -139,19 +182,21 @@ func testDecoding(t *testing.T, isTLS bool) {
 		{
 			name: "insert rows in table",
 			preMonitorSetup: func(t *testing.T, ctx testContext) {
-				pg := postgres.NewPGClient(postgres.ConnectionOptions{
+				pg, err := postgres.NewPGXClient(postgres.ConnectionOptions{
 					ServerAddress: ctx.serverAddress,
 					EnableTLS:     isTLS,
 				})
+				require.NoError(t, err)
+				require.NoError(t, pg.Ping())
 				ctx.extras["pg"] = pg
-				require.NoError(t, pg.RunCreateQuery())
+				require.NoError(t, pg.RunQuery(createTableQuery))
 			},
 			postMonitorSetup: func(t *testing.T, ctx testContext) {
-				pg := ctx.extras["pg"].(*postgres.PGClient)
+				pg := ctx.extras["pg"].(*postgres.PGXClient)
 				// Sending 2 insert queries, each with 5 values.
 				// We want to ensure we're capturing both requests.
 				for i := 0; i < 2; i++ {
-					require.NoError(t, pg.RunMultiInsertQuery("value-1", "value-2", "value-3", "value-4", "value-5"))
+					require.NoError(t, pg.RunQuery(createInsertQuery(generateTestValues(5*i, 5*(1+i))...)))
 				}
 			},
 			validation: func(t *testing.T, ctx testContext, monitor *Monitor) {
@@ -165,17 +210,19 @@ func testDecoding(t *testing.T, isTLS bool) {
 		{
 			name: "update a row in a table",
 			preMonitorSetup: func(t *testing.T, ctx testContext) {
-				pg := postgres.NewPGClient(postgres.ConnectionOptions{
+				pg, err := postgres.NewPGXClient(postgres.ConnectionOptions{
 					ServerAddress: ctx.serverAddress,
 					EnableTLS:     isTLS,
 				})
+				require.NoError(t, err)
+				require.NoError(t, pg.Ping())
 				ctx.extras["pg"] = pg
-				require.NoError(t, pg.RunCreateQuery())
-				require.NoError(t, pg.RunMultiInsertQuery("value-1"))
+				require.NoError(t, pg.RunQuery(createTableQuery))
+				require.NoError(t, pg.RunQuery(createInsertQuery("value-1")))
 			},
 			postMonitorSetup: func(t *testing.T, ctx testContext) {
-				pg := ctx.extras["pg"].(*postgres.PGClient)
-				require.NoError(t, pg.RunUpdateQuery())
+				pg := ctx.extras["pg"].(*postgres.PGXClient)
+				require.NoError(t, pg.RunQuery(updateSingleValueQuery))
 			},
 			validation: func(t *testing.T, ctx testContext, monitor *Monitor) {
 				validatePostgres(t, monitor, map[string]map[postgres.Operation]int{
@@ -188,17 +235,19 @@ func testDecoding(t *testing.T, isTLS bool) {
 		{
 			name: "select",
 			preMonitorSetup: func(t *testing.T, ctx testContext) {
-				pg := postgres.NewPGClient(postgres.ConnectionOptions{
+				pg, err := postgres.NewPGXClient(postgres.ConnectionOptions{
 					ServerAddress: ctx.serverAddress,
 					EnableTLS:     isTLS,
 				})
+				require.NoError(t, err)
+				require.NoError(t, pg.Ping())
 				ctx.extras["pg"] = pg
-				require.NoError(t, pg.RunCreateQuery())
-				require.NoError(t, pg.RunMultiInsertQuery("value-1"))
+				require.NoError(t, pg.RunQuery(createTableQuery))
+				require.NoError(t, pg.RunQuery(createInsertQuery("value-1")))
 			},
 			postMonitorSetup: func(t *testing.T, ctx testContext) {
-				pg := ctx.extras["pg"].(*postgres.PGClient)
-				require.NoError(t, pg.RunSelectQuery())
+				pg := ctx.extras["pg"].(*postgres.PGXClient)
+				require.NoError(t, pg.RunQuery(selectAllQuery))
 			},
 			validation: func(t *testing.T, ctx testContext, monitor *Monitor) {
 				validatePostgres(t, monitor, map[string]map[postgres.Operation]int{
@@ -211,15 +260,17 @@ func testDecoding(t *testing.T, isTLS bool) {
 		{
 			name: "drop table",
 			preMonitorSetup: func(t *testing.T, ctx testContext) {
-				pg := postgres.NewPGClient(postgres.ConnectionOptions{
+				pg, err := postgres.NewPGXClient(postgres.ConnectionOptions{
 					ServerAddress: ctx.serverAddress,
 					EnableTLS:     isTLS,
 				})
+				require.NoError(t, err)
+				require.NoError(t, pg.Ping())
 				ctx.extras["pg"] = pg
 			},
 			postMonitorSetup: func(t *testing.T, ctx testContext) {
-				pg := ctx.extras["pg"].(*postgres.PGClient)
-				require.NoError(t, pg.RunDropQuery())
+				pg := ctx.extras["pg"].(*postgres.PGXClient)
+				require.NoError(t, pg.RunQuery(dropTableQuery))
 			},
 			validation: func(t *testing.T, ctx testContext, monitor *Monitor) {
 				validatePostgres(t, monitor, map[string]map[postgres.Operation]int{
@@ -232,24 +283,28 @@ func testDecoding(t *testing.T, isTLS bool) {
 		{
 			name: "combo - multiple operations should be captured",
 			preMonitorSetup: func(t *testing.T, ctx testContext) {
-				pg := postgres.NewPGClient(postgres.ConnectionOptions{
+				pg, err := postgres.NewPGXClient(postgres.ConnectionOptions{
 					ServerAddress: ctx.serverAddress,
 					EnableTLS:     isTLS,
 				})
+				require.NoError(t, err)
+				require.NoError(t, pg.Ping())
 				ctx.extras["pg"] = pg
 			},
 			postMonitorSetup: func(t *testing.T, ctx testContext) {
-				pg := ctx.extras["pg"].(*postgres.PGClient)
-				require.NoError(t, pg.RunCreateQuery())
-				values := make([]string, 5)
+				pg, err := postgres.NewPGXClient(postgres.ConnectionOptions{
+					ServerAddress: ctx.serverAddress,
+					EnableTLS:     isTLS,
+				})
+				require.NoError(t, err)
+				require.NoError(t, pg.Ping())
+				ctx.extras["pg"] = pg
+				require.NoError(t, pg.RunQuery(createTableQuery))
 				for i := 0; i < 20; i++ {
-					for j := 0; j < len(values); j++ {
-						values[j] = fmt.Sprintf("value-%d", i*len(values)+j+1)
-					}
-					require.NoError(t, pg.RunMultiInsertQuery(values...))
+					require.NoError(t, pg.RunQuery(createInsertQuery(generateTestValues(i*5, 5)...)))
 				}
-				require.NoError(t, pg.RunSelectQueryWithLimit(50))
-				require.NoError(t, pg.RunUpdateQuery())
+				require.NoError(t, pg.RunQuery(generateSelectLimitQuery(50)))
+				require.NoError(t, pg.RunQuery(updateSingleValueQuery))
 			},
 			validation: func(t *testing.T, ctx testContext, monitor *Monitor) {
 				validatePostgres(t, monitor, map[string]map[postgres.Operation]int{
@@ -265,19 +320,19 @@ func testDecoding(t *testing.T, isTLS bool) {
 		{
 			name: "query is truncated",
 			preMonitorSetup: func(t *testing.T, ctx testContext) {
-				pg := postgres.NewPGClient(postgres.ConnectionOptions{
+				pg, err := postgres.NewPGXClient(postgres.ConnectionOptions{
 					ServerAddress: ctx.serverAddress,
 					EnableTLS:     isTLS,
 				})
+				require.NoError(t, err)
+				require.NoError(t, pg.Ping())
 				ctx.extras["pg"] = pg
 			},
 			postMonitorSetup: func(t *testing.T, ctx testContext) {
-				pg := ctx.extras["pg"].(*postgres.PGClient)
+				pg := ctx.extras["pg"].(*postgres.PGXClient)
 				longTableName := strings.Repeat("table_", 15)
-				_, err := pg.DB().Query(fmt.Sprintf("CREATE TABLE %s (id SERIAL PRIMARY KEY, foo TEXT)", longTableName), nil)
-				require.NoError(t, err)
-				_, err = pg.DB().Query(fmt.Sprintf("DROP TABLE IF EXISTS %s", longTableName), nil)
-				require.NoError(t, err)
+				require.NoError(t, pg.RunQuery(fmt.Sprintf("CREATE TABLE %s (id SERIAL PRIMARY KEY, foo TEXT)", longTableName)))
+				require.NoError(t, pg.RunQuery(fmt.Sprintf("DROP TABLE IF EXISTS %s", longTableName)))
 			},
 			validation: func(t *testing.T, ctx testContext, monitor *Monitor) {
 				validatePostgres(t, monitor, map[string]map[postgres.Operation]int{
@@ -293,26 +348,23 @@ func testDecoding(t *testing.T, isTLS bool) {
 		{
 			name: "too many messages in a single packet",
 			preMonitorSetup: func(t *testing.T, ctx testContext) {
-				pg := postgres.NewPGClient(postgres.ConnectionOptions{
+				pg, err := postgres.NewPGXClient(postgres.ConnectionOptions{
 					ServerAddress: ctx.serverAddress,
 					EnableTLS:     isTLS,
 				})
+				require.NoError(t, err)
+				require.NoError(t, pg.Ping())
 				ctx.extras["pg"] = pg
-				require.NoError(t, pg.RunCreateQuery())
-				values := make([]string, 100)
-				for i := 0; i < len(values); i++ {
-					values[i] = fmt.Sprintf("value-%d", i+1)
-				}
-				require.NoError(t, pg.RunMultiInsertQuery(values...))
+				require.NoError(t, pg.RunQuery(createTableQuery))
+				require.NoError(t, pg.RunQuery(createInsertQuery(generateTestValues(0, 100)...)))
 			},
 			postMonitorSetup: func(t *testing.T, ctx testContext) {
-				pg := ctx.extras["pg"].(*postgres.PGClient)
+				pg := ctx.extras["pg"].(*postgres.PGXClient)
 				// Should produce 2 postgres transactions (one for the server and one for the docker proxy)
-				require.NoError(t, pg.RunSelectQueryWithLimit(1))
-				// We should miss that query, as the response is too big.
-				require.NoError(t, pg.RunSelectQuery())
+				require.NoError(t, pg.RunQuery(generateSelectLimitQuery(1)))
+				require.NoError(t, pg.RunQuery(selectAllQuery))
 				// Should produce 2 postgres transactions (one for the server and one for the docker proxy)
-				require.NoError(t, pg.RunSelectQueryWithLimit(1))
+				require.NoError(t, pg.RunQuery(generateSelectLimitQuery(1)))
 			},
 			validation: func(t *testing.T, ctx testContext, monitor *Monitor) {
 				validatePostgres(t, monitor, map[string]map[postgres.Operation]int{
@@ -337,9 +389,9 @@ func testDecoding(t *testing.T, isTLS bool) {
 				if !ok {
 					return
 				}
-				pg := pgEntry.(*postgres.PGClient)
+				pg := pgEntry.(*postgres.PGXClient)
 				defer pg.Close()
-				_ = pg.RunDropQuery()
+				_ = pg.RunQuery(dropTableQuery)
 			})
 			if tt.preMonitorSetup != nil {
 				tt.preMonitorSetup(t, tt.context)
@@ -348,6 +400,13 @@ func testDecoding(t *testing.T, isTLS bool) {
 			if isTLS {
 				utils.WaitForProgramsToBeTraced(t, "go-tls", os.Getpid())
 			}
+			obj, ok := tt.context.extras["pg"]
+			require.True(t, ok)
+			pgClient := obj.(*postgres.PGXClient)
+			// Since we cannot classify 'Parse' message, we need to send a harmless message that we know how
+			// to classify to ensure the monitor is able to process the messages.
+			// That's a workaround until we can classify the 'Parse' message.
+			require.NoError(t, pgClient.Ping())
 			tt.postMonitorSetup(t, tt.context)
 			tt.validation(t, tt.context, monitor)
 		})

@@ -70,6 +70,42 @@ static void __always_inline postgres_tcp_termination(conn_tuple_t *tup) {
     bpf_map_delete_elem(&postgres_in_flight, tup);
 }
 
+// Tries to skip the next null-terminated string. Returns the number of bytes to skip, or 0 if the null terminator was
+// not found within the first 128 (POSTGRES_SKIP_STRING_ITERATIONS * BLK_SIZE) bytes.
+static int __always_inline skip_string(pktbuf_t pkt, int message_len) {
+    const __u32 original_data_off = pktbuf_data_offset(pkt);
+    __u32 data_off = original_data_off;
+    __u32 data_end = pktbuf_data_end(pkt);
+    // If the message is larger than the buffer, we limit the data_end to the end of the message.
+    if (data_off + message_len < data_end) {
+        data_end = data_off + message_len;
+    }
+
+    char temp_buffer[BLK_SIZE] = {0};
+    __u8 size_to_read = 0;
+
+    #pragma unroll(POSTGRES_SKIP_STRING_ITERATIONS)
+    for (int iter = 0; iter < POSTGRES_SKIP_STRING_ITERATIONS; iter++) {
+        // We read the next block of data into the temp buffer. We read the minimum between the size of the temp buffer
+        // and the remaining data in the message.
+        size_to_read = data_end - data_off > sizeof(temp_buffer) ? sizeof(temp_buffer) : data_end - data_off;
+        pktbuf_load_bytes(pkt, data_off, temp_buffer, sizeof(temp_buffer));
+
+        #pragma unroll(BLK_SIZE)
+        for (int i = 0; i < BLK_SIZE; i++) {
+            if (i >= size_to_read) {
+                return SKIP_STRING_FAILED;
+            }
+            if (temp_buffer[i] == '\0') {
+                return data_off + i + 1 - original_data_off;
+            }
+        }
+
+        data_off += size_to_read;
+    }
+    return SKIP_STRING_FAILED;
+}
+
 // Main processing logic for the Postgres protocol. It reads the first message header and decides what to do based on the
 // message tag. If the message is a new query, it stores the query in the in-flight map. If the message is a command
 // complete, it enqueues the transaction and deletes it from the in-flight map. If the message is not a command complete,
@@ -84,9 +120,24 @@ static __always_inline void postgres_entrypoint(pktbuf_t pkt, conn_tuple_t *conn
     // Advance the data offset to the end of the first message header.
     pktbuf_advance(pkt, sizeof(struct pg_message_header));
 
+    // If the message is a Parse message, we skip the statement cache name string, and then proceed to the query string.
+    bool is_query = header.message_tag == POSTGRES_PARSE_MAGIC_BYTE;
+    if (is_query) {
+        int length = skip_string(pkt, header.message_len - sizeof(__u32));
+        if (length <= 0 || length >= header.message_len - sizeof(__u32)) {
+            // We failed to find the null terminator within the first 128 bytes of the message, so we cannot read the
+            // query string. We ignore the message.
+            return;
+        }
+        pktbuf_advance(pkt, length);
+        header.message_len -= length;
+    }
+
+    // If the message is either a Parse message (is_query == true already) or a Query message, we process the query string.
+    is_query = is_query || header.message_tag == POSTGRES_QUERY_MAGIC_BYTE;
     // If the message is a new query, we store the query in the in-flight map.
     // If we had a transaction for the connection, we override it and drops the previous one.
-    if (header.message_tag == POSTGRES_QUERY_MAGIC_BYTE) {
+    if (is_query) {
         // message_len includes size of the payload, 4 bytes of the message length itself, but not the message tag.
         // So if we want to know the size of the payload, we need to subtract the size of the message length.
         handle_new_query(pkt, conn_tuple, header.message_len - sizeof(__u32));
