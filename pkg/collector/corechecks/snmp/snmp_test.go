@@ -56,6 +56,7 @@ func createDeps(t *testing.T) deps {
 }
 
 func Test_Run_simpleCase(t *testing.T) {
+	// We cache the run_path directory because the chk.Run() method will write in cache
 	testDir := t.TempDir()
 	coreconfig.Datadog.SetWithoutSource("run_path", testDir)
 	deps := createDeps(t)
