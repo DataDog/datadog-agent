@@ -60,9 +60,13 @@ func newTestMessage(msg string) *message.Message {
 }
 
 func TestRun(t *testing.T) {
+	type handleMessageArgs struct {
+		message *message.Message
+		rendered []byte
+	}
 	tests := []struct {
 		name             string
-		logMessages      []string
+		handleMessageArgsList []handleMessageArgs
 		diableStreamLogs bool
 		wantW            string
 	}{
@@ -72,8 +76,22 @@ func TestRun(t *testing.T) {
 			wantW:            "",
 		},
 		{
-			name:             "stream-logs",
-			logMessages:      []string{"log-1", "ログ2"},
+			name:             "enable stream-logs",
+			handleMessageArgsList: []handleMessageArgs{
+				{
+					message: newTestMessage("log-1"),
+					rendered: []byte("log-1"),
+				},
+				{
+					message: newTestMessage("ログ2"),
+					rendered: []byte("ログ2"),
+				},
+				{
+					// When logs-agent stops, nil message is sent to stream-logs
+					message: nil,
+					rendered: nil,
+				},
+			},
 			diableStreamLogs: false,
 			wantW: `DD_EXTENSION | stream-logs | Integration Name: AWS Logs | Type: unit-test | Status: INFO | Timestamp: 2024-05-26 12:14:39 +0000 UTC | Service: test-lambda | Source: lambda | Tags: tag1:value1,tag2:value2 | Message: log-1
 DD_EXTENSION | stream-logs | Integration Name: AWS Logs | Type: unit-test | Status: INFO | Timestamp: 2024-05-26 12:14:39 +0000 UTC | Service: test-lambda | Source: lambda | Tags: tag1:value1,tag2:value2 | Message: ログ2
@@ -92,8 +110,8 @@ DD_EXTENSION | stream-logs | Integration Name: AWS Logs | Type: unit-test | Stat
 			getter := &messageReceiverGetter{bufferedMessageReceiver: bmr}
 			go streamlogs.Run(ctx, getter, &buf)
 			time.Sleep(10 * time.Millisecond) // wait for the bmr to be enabled
-			for _, msg := range tt.logMessages {
-				bmr.HandleMessage(newTestMessage(msg), []byte(msg), "")
+			for _, args := range tt.handleMessageArgsList {
+				bmr.HandleMessage(args.message, args.rendered, "")
 			}
 			time.Sleep(10 * time.Millisecond) // wait for the stream-logs to process the messages
 			cancel()                          // stop stream-logs

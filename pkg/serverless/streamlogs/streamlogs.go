@@ -39,6 +39,9 @@ type Formatter struct{}
 
 // Format formats the stream-logs.
 func (Formatter) Format(m *message.Message, _ string, redactedMsg []byte) string {
+	if m == nil {
+		return ""
+	}
 	ts := m.ServerlessExtra.Timestamp
 	if ts.IsZero() {
 		ts = time.Now().UTC()
@@ -75,6 +78,9 @@ func Run(ctx context.Context, mrg messageReceiverGetter, w io.Writer) {
 	defer mr.SetEnabled(false)
 	// Fields to be filtered are single kind of string in the serverless environment.
 	for line := range mr.Filter(nil, ctx.Done()) {
+		if line == "" {
+			continue
+		}
 		fmt.Fprintf(w, "%s %s", streamLogsPrefix, line)
 	}
 }
