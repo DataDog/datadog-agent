@@ -20,6 +20,7 @@ import (
 )
 
 const (
+	pathDebRPMAgent   = "/opt/datadog-agent"
 	agentSymlink      = "/usr/bin/datadog-agent"
 	agentUnit         = "datadog-agent.service"
 	traceAgentUnit    = "datadog-agent-trace.service"
@@ -60,6 +61,10 @@ func SetupAgent(ctx context.Context) (err error) {
 		}
 		span.Finish(tracer.WithError(err))
 	}()
+
+	if err = stopOldAgentUnits(ctx); err != nil {
+		return err
+	}
 
 	for _, unit := range stableUnits {
 		if err = loadUnit(ctx, unit); err != nil {
@@ -113,7 +118,7 @@ func SetupAgent(ctx context.Context) (err error) {
 			return err
 		}
 	}
-	return nil
+	return removeOldAgentFiles()
 }
 
 // RemoveAgent stops and removes the agent
@@ -154,6 +159,40 @@ func RemoveAgent(ctx context.Context) {
 		log.Warnf("Failed to remove agent symlink: %s", err)
 	}
 	installinfo.RmInstallInfo()
+}
+
+func noDebRpmAgent() bool {
+	_, err := os.Stat(pathDebRPMAgent)
+	return os.IsNotExist(err)
+}
+
+func stopOldAgentUnits(ctx context.Context) error {
+	if noDebRpmAgent() {
+		return nil
+	}
+	span, ctx := tracer.StartSpanFromContext(ctx, "remove_old_agent_units")
+	defer span.Finish()
+	for _, unit := range stableUnits {
+		if err := stopUnit(ctx, unit); err != nil {
+			exitError, ok := err.(*exec.ExitError)
+			if ok && exitError.ExitCode() == 5 {
+				continue
+			}
+			return err
+		}
+		if err := disableUnit(ctx, unit); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// removeOldAgentFiles removes old agent files
+func removeOldAgentFiles() error {
+	if noDebRpmAgent() {
+		return nil
+	}
+	return os.RemoveAll(pathDebRPMAgent)
 }
 
 // StartAgentExperiment starts the agent experiment
