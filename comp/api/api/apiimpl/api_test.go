@@ -117,6 +117,12 @@ func getComponentDependencies(t *testing.T) testdeps {
 			return optional.NewNoneOption[collector.Component]()
 		}),
 		settingsimpl.MockModule(),
+		// Ensure we pass a nil endpoint to test that we always filter out nil endpoints
+		fx.Provide(func() api.AgentEndpointProvider {
+			return api.AgentEndpointProvider{
+				Provider: nil,
+			}
+		}),
 	)
 }
 
