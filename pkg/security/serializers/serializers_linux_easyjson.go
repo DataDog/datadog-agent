@@ -814,6 +814,8 @@ func easyjsonDdc0fdbeDecodeGithubComDataDogDatadogAgentPkgSecuritySerializers8(i
 			}
 		case "event_in_profile":
 			out.EventInProfile = bool(in.Bool())
+		case "event_type_state":
+			out.EventTypeState = string(in.String())
 		default:
 			in.SkipRecursive()
 		}
@@ -858,6 +860,11 @@ func easyjsonDdc0fdbeEncodeGithubComDataDogDatadogAgentPkgSecuritySerializers8(o
 		const prefix string = ",\"event_in_profile\":"
 		out.RawString(prefix)
 		out.Bool(bool(in.EventInProfile))
+	}
+	{
+		const prefix string = ",\"event_type_state\":"
+		out.RawString(prefix)
+		out.String(string(in.EventTypeState))
 	}
 	out.RawByte('}')
 }

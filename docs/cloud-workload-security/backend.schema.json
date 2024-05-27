@@ -1368,6 +1368,10 @@
         "event_in_profile": {
           "type": "boolean",
           "description": "True if the corresponding event is part of this profile"
+        },
+        "event_type_state": {
+          "type": "string",
+          "description": "State of the event type in this profile"
         }
       },
       "additionalProperties": false,
@@ -1376,7 +1380,8 @@
         "name",
         "version",
         "tags",
-        "event_in_profile"
+        "event_in_profile",
+        "event_type_state"
       ],
       "description": "SecurityProfileContextSerializer serializes the security profile context in an event"
     },

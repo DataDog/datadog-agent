@@ -1384,6 +1384,10 @@ CSM Threats logs have the following JSON schema:
                 "event_in_profile": {
                     "type": "boolean",
                     "description": "True if the corresponding event is part of this profile"
+                },
+                "event_type_state": {
+                    "type": "string",
+                    "description": "State of the event type in this profile"
                 }
             },
             "additionalProperties": false,
@@ -1392,7 +1396,8 @@ CSM Threats logs have the following JSON schema:
                 "name",
                 "version",
                 "tags",
-                "event_in_profile"
+                "event_in_profile",
+                "event_type_state"
             ],
             "description": "SecurityProfileContextSerializer serializes the security profile context in an event"
         },
@@ -3693,6 +3698,10 @@ CSM Threats logs have the following JSON schema:
         "event_in_profile": {
             "type": "boolean",
             "description": "True if the corresponding event is part of this profile"
+        },
+        "event_type_state": {
+            "type": "string",
+            "description": "State of the event type in this profile"
         }
     },
     "additionalProperties": false,
@@ -3701,7 +3710,8 @@ CSM Threats logs have the following JSON schema:
         "name",
         "version",
         "tags",
-        "event_in_profile"
+        "event_in_profile",
+        "event_type_state"
     ],
     "description": "SecurityProfileContextSerializer serializes the security profile context in an event"
 }
@@ -3714,6 +3724,7 @@ CSM Threats logs have the following JSON schema:
 | `version` | Version of the profile in use |
 | `tags` | List of tags associated to this profile |
 | `event_in_profile` | True if the corresponding event is part of this profile |
+| `event_type_state` | State of the event type in this profile |
 
 
 ## `SignalEvent`
