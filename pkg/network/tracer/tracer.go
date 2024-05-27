@@ -573,7 +573,9 @@ func (t *Tracer) getConnections(activeBuffer *network.ConnectionBuffer) (latestU
 	t.processCache.Trim()
 
 	// remove state failed connections from map
-	t.ebpfTracer.GetFailedConnections().RemoveExpired()
+	if kprobe.FailedConnectionsSupported(t.config) {
+		t.ebpfTracer.GetFailedConnections().RemoveExpired()
+	}
 
 	entryCount := len(activeConnections)
 	if entryCount >= int(t.config.MaxTrackedConnections) {

@@ -77,6 +77,9 @@ func (fc *FailedConns) MatchFailedConn(conn *network.ConnectionStats) {
 
 // RemoveExpired removes expired failed connections from the map
 func (fc *FailedConns) RemoveExpired() {
+	if fc == nil {
+		return
+	}
 	fc.Lock()
 	defer fc.Unlock()
 
