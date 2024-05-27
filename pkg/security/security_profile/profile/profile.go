@@ -27,14 +27,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	activity_tree "github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree"
 	mtdt "github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree/metadata"
-	secprofModel "github.com/DataDog/datadog-agent/pkg/security/security_profile/model"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
 
 // EventTypeState defines an event type state
 type EventTypeState struct {
 	lastAnomalyNano uint64
-	state           secprofModel.EventFilteringProfileState
+	state           model.EventFilteringProfileState
 }
 
 // VersionContext holds the context of one version (defined by its image tag)
@@ -282,61 +281,61 @@ func (p *SecurityProfile) ToSecurityProfileMessage() *api.SecurityProfileMessage
 }
 
 // GetState returns the state of a profile for a given imageTag
-func (p *SecurityProfile) GetState(imageTag string) secprofModel.EventFilteringProfileState {
+func (p *SecurityProfile) GetState(imageTag string) model.EventFilteringProfileState {
 	pCtx, ok := p.versionContexts[imageTag]
 	if !ok {
-		return secprofModel.NoProfile
+		return model.NoProfile
 	}
 	if len(pCtx.eventTypeState) == 0 {
-		return secprofModel.AutoLearning
+		return model.AutoLearning
 	}
-	state := secprofModel.StableEventType
+	state := model.StableEventType
 	for _, et := range p.eventTypes {
 		s, ok := pCtx.eventTypeState[et]
 		if !ok {
 			continue
 		}
-		if s.state == secprofModel.UnstableEventType {
-			return secprofModel.UnstableEventType
-		} else if s.state != secprofModel.StableEventType {
-			state = secprofModel.AutoLearning
+		if s.state == model.UnstableEventType {
+			return model.UnstableEventType
+		} else if s.state != model.StableEventType {
+			state = model.AutoLearning
 		}
 	}
 	return state
 }
 
-func (p *SecurityProfile) getGlobalState() secprofModel.EventFilteringProfileState {
-	globalState := secprofModel.AutoLearning
+func (p *SecurityProfile) getGlobalState() model.EventFilteringProfileState {
+	globalState := model.AutoLearning
 	for imageTag := range p.versionContexts {
 		state := p.GetState(imageTag)
-		if state == secprofModel.UnstableEventType {
-			return secprofModel.UnstableEventType
-		} else if state == secprofModel.StableEventType {
-			globalState = secprofModel.StableEventType
+		if state == model.UnstableEventType {
+			return model.UnstableEventType
+		} else if state == model.StableEventType {
+			globalState = model.StableEventType
 		}
 	}
 	return globalState // AutoLearning or StableEventType
 }
 
 // GetGlobalState returns the global state of a profile: AutoLearning, StableEventType or UnstableEventType
-func (p *SecurityProfile) GetGlobalState() secprofModel.EventFilteringProfileState {
+func (p *SecurityProfile) GetGlobalState() model.EventFilteringProfileState {
 	p.versionContextsLock.Lock()
 	defer p.versionContextsLock.Unlock()
 	return p.getGlobalState()
 }
 
 // GetGlobalEventTypeState returns the global state of a profile for a given event type: AutoLearning, StableEventType or UnstableEventType
-func (p *SecurityProfile) GetGlobalEventTypeState(et model.EventType) secprofModel.EventFilteringProfileState {
-	globalState := secprofModel.AutoLearning
+func (p *SecurityProfile) GetGlobalEventTypeState(et model.EventType) model.EventFilteringProfileState {
+	globalState := model.AutoLearning
 	for _, ctx := range p.versionContexts {
 		s, ok := ctx.eventTypeState[et]
 		if !ok {
 			continue
 		}
-		if s.state == secprofModel.UnstableEventType {
-			return secprofModel.UnstableEventType
-		} else if s.state == secprofModel.StableEventType {
-			globalState = secprofModel.StableEventType
+		if s.state == model.UnstableEventType {
+			return model.UnstableEventType
+		} else if s.state == model.StableEventType {
+			globalState = model.StableEventType
 		}
 	}
 	return globalState // AutoLearning or StableEventType
@@ -456,7 +455,7 @@ func (p *SecurityProfile) ListAllVersionStates() {
 }
 
 // SetVersionState force a state for a given version (debug purpose only)
-func (p *SecurityProfile) SetVersionState(imageTag string, state secprofModel.EventFilteringProfileState) error {
+func (p *SecurityProfile) SetVersionState(imageTag string, state model.EventFilteringProfileState) error {
 	p.versionContextsLock.Lock()
 	defer p.versionContextsLock.Unlock()
 

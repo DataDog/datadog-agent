@@ -17,7 +17,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model/usersession"
-	secprofModel "github.com/DataDog/datadog-agent/pkg/security/security_profile/model"
 )
 
 // Model describes the data model for the runtime security agent events
@@ -88,11 +87,11 @@ type ContainerContext struct {
 
 // SecurityProfileContext holds the security context of the profile
 type SecurityProfileContext struct {
-	Name           string                                  `field:"name"`        // SECLDoc[name] Definition:`Name of the security profile`
-	Version        string                                  `field:"version"`     // SECLDoc[version] Definition:`Version of the security profile`
-	Tags           []string                                `field:"tags"`        // SECLDoc[tags] Definition:`Tags of the security profile`
-	EventTypes     []EventType                             `field:"event_types"` // SECLDoc[event_types] Definition:`Event types enabled for the security profile`
-	EventTypeState secprofModel.EventFilteringProfileState `field:"-"`           // State of the event type in this profile
+	Name           string                     `field:"name"`        // SECLDoc[name] Definition:`Name of the security profile`
+	Version        string                     `field:"version"`     // SECLDoc[version] Definition:`Version of the security profile`
+	Tags           []string                   `field:"tags"`        // SECLDoc[tags] Definition:`Tags of the security profile`
+	EventTypes     []EventType                `field:"event_types"` // SECLDoc[event_types] Definition:`Event types enabled for the security profile`
+	EventTypeState EventFilteringProfileState `field:"-"`           // State of the event type in this profile
 }
 
 // IPPortContext is used to hold an IP and Port

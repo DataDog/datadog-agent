@@ -15,7 +15,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
-	secprofModel "github.com/DataDog/datadog-agent/pkg/security/security_profile/model"
 )
 
 // booleanTagEquals returns true if the given rule has the given tag set to a boolean and its value matches the given value
@@ -81,7 +80,7 @@ func (as *AutoSuppression) Suppresses(rule *rules.Rule, event *model.Event) bool
 			if event.IsInProfile() {
 				as.count(rule.ID, securityProfileSuppressionType)
 				return true
-			} else if isWorkloadDriftOnlyRule(rule) && event.SecurityProfileContext.EventTypeState == secprofModel.NoProfile {
+			} else if isWorkloadDriftOnlyRule(rule) && event.SecurityProfileContext.EventTypeState == model.NoProfile {
 				as.count(rule.ID, noWorkloadDriftSuppressionType)
 				return true
 			}

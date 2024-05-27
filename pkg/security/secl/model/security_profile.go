@@ -54,22 +54,3 @@ func (efr EventFilteringProfileState) String() string {
 func (efr EventFilteringProfileState) ToTag() string {
 	return "profile_state:" + efr.String()
 }
-
-// ToProto convert a profile state to a proto one
-func (efr EventFilteringProfileState) ToProto() proto.EventProfileState {
-	switch efr {
-	case NoProfile:
-		return proto.EventProfileState_NO_PROFILE
-	case ProfileAtMaxSize:
-		return proto.EventProfileState_PROFILE_AT_MAX_SIZE
-	case UnstableEventType:
-		return proto.EventProfileState_UNSTABLE_PROFILE
-	case StableEventType:
-		return proto.EventProfileState_STABLE_PROFILE
-	case AutoLearning:
-		return proto.EventProfileState_AUTO_LEARNING
-	case WorkloadWarmup:
-		return proto.EventProfileState_WORKLOAD_WARMUP
-	}
-	return proto.EventProfileState_NO_PROFILE
-}

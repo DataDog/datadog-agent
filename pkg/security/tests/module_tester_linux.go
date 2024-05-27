@@ -1751,7 +1751,7 @@ func (tm *testModule) ListAllProfiles() {
 	spm.ListAllProfileStates()
 }
 
-func (tm *testModule) SetProfileVersionState(selector *cgroupModel.WorkloadSelector, imageTag string, state profile.EventFilteringProfileState) error {
+func (tm *testModule) SetProfileVersionState(selector *cgroupModel.WorkloadSelector, imageTag string, state model.EventFilteringProfileState) error {
 	p, ok := tm.probe.PlatformProbe.(*sprobe.EBPFProbe)
 	if !ok {
 		return errors.New("no ebpf probe")
