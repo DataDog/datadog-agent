@@ -14,11 +14,7 @@
     # remove artifacts from previous pipelines that may come from the cache
     - export OMNIBUS_PACKAGE_ARTIFACT="$(ls ${OMNIBUS_PACKAGE_DIR}/*.tar.xz | head -n 1)"
     - echo "Packaging artifact ${OMNIBUS_PACKAGE_ARTIFACT} to .rpm"
-    # Artifacts and cache must live within project directory but we run omnibus in a neutral directory.
-    # Thus, we move the artifacts at the end in a gitlab-friendly dir.
-    - RPM_GPG_KEY=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $RPM_GPG_KEY_SSM_NAME)
-    - printf -- "$RPM_GPG_KEY" | gpg --import --batch
-    - export RPM_SIGNING_PASSPHRASE=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $RPM_SIGNING_PASSPHRASE_SSM_NAME)
+    - !reference [.setup_rpm_signing_key]
     - inv -e omnibus.build --release-version "$RELEASE_VERSION" --base-dir $OMNIBUS_BASE_DIR --skip-deps --target-project=installer ${OMNIBUS_EXTRA_ARGS}
     - ls -la $OMNIBUS_PACKAGE_DIR/
     - !reference [.lint_linux_packages]
