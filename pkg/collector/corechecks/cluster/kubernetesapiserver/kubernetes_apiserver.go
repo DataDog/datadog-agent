@@ -25,7 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	ddConfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
@@ -117,7 +117,7 @@ type KubeASCheck struct {
 
 func (c *KubeASConfig) parse(data []byte) error {
 	// default values
-	c.CollectEvent = config.Datadog().GetBool("collect_kubernetes_events")
+	c.CollectEvent = ddConfig.Datadog().GetBool("collect_kubernetes_events")
 	c.CollectOShiftQuotas = true
 	c.ResyncPeriodEvents = defaultResyncPeriodInSecond
 	c.UseComponentStatus = true
@@ -166,6 +166,13 @@ func (k *KubeASCheck) Configure(senderManager sender.SenderManager, _ uint64, co
 	hostnameDetected, _ := hostname.Get(context.TODO())
 	clusterName := clustername.GetRFC1123CompliantClusterName(context.TODO(), hostnameDetected)
 
+	// Automatically add events based on activated Datadog products
+	if ddConfig.Datadog().GetBool("autoscaling.workload.enabled") {
+		k.instance.CollectedEventTypes = append(k.instance.CollectedEventTypes, collectedEventType{
+			Source: "datadog-workload-autoscaler",
+		})
+	}
+
 	if k.instance.UnbundleEvents {
 		k.eventCollection.Transformer = newUnbundledTransformer(clusterName, tagger.GetTaggerInstance(), k.instance.CollectedEventTypes)
 	} else {
@@ -184,7 +191,7 @@ func (k *KubeASCheck) Run() error {
 	}
 	defer sender.Commit()
 
-	if config.Datadog().GetBool("cluster_agent.enabled") {
+	if ddConfig.Datadog().GetBool("cluster_agent.enabled") {
 		log.Debug("Cluster agent is enabled. Not running Kubernetes API Server check or collecting Kubernetes Events.")
 		return nil
 	}
@@ -192,7 +199,7 @@ func (k *KubeASCheck) Run() error {
 	// The Cluster Agent will passed in the `skip_leader_election` bool.
 	if !k.instance.LeaderSkip {
 		// Only run if Leader Election is enabled.
-		if !config.Datadog().GetBool("leader_election") {
+		if !ddConfig.Datadog().GetBool("leader_election") {
 			return log.Error("Leader Election not enabled. Not running Kubernetes API Server check or collecting Kubernetes Events.")
 		}
 		leader, errLeader := cluster.RunLeaderElection()
@@ -287,7 +294,6 @@ func (k *KubeASCheck) eventCollectionCheck() ([]event.Event, error) {
 		resync,
 		k.eventCollection.Filter,
 	)
-
 	if err != nil {
 		k.Warnf("Could not collect events from the api server: %s", err.Error()) //nolint:errcheck
 		return nil, err
