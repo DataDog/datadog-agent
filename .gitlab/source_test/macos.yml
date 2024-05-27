@@ -52,16 +52,22 @@ lint_macos:
     - python3 -m pip install -r tasks/libs/requirements-github.txt
     - inv -e github.trigger-macos --workflow-type "lint" --datadog-agent-ref "$CI_COMMIT_SHA" --python-runtimes "$PYTHON_RUNTIMES" --version-cache "$VERSION_CACHE_CONTENT"
 
+.macos_gitlab_amd64:
+  # This is temporary until we do this in the macOS runner definition
+  before_script:
+    - pyenv install 3.11.8
+    - pyenv global 3.11.8
+    - export PATH="/Users/ec2-user/go/bin:$PATH"
+    - eval $(gimme 1.21.10)
+
 lint_macos_gitlab_amd64:
   stage: source_test
+  extends: .macos_gitlab_amd64
   tags: ["macos:monterey-amd64", "specific:true"]
   needs: ["setup_agent_version"]
   variables:
     PYTHON_RUNTIMES: "3"
   script:
-    - export PATH="/Users/ec2-user/.pyenv/versions/3.9.6/bin:$PATH"
-    - export PATH="/Users/ec2-user/go/bin:$PATH"
-    - eval $(gimme 1.21.10)
     - python3 -m pip install -r requirements.txt
     - inv -e rtloader.make --install-prefix=$CI_PROJECT_DIR/dev --python-runtimes $PYTHON_RUNTIMES
     - inv -e rtloader.install
@@ -71,14 +77,12 @@ lint_macos_gitlab_amd64:
 
 tests_macos_gitlab_amd64:
   stage: source_test
+  extends: .macos_gitlab_amd64
   tags: ["macos:monterey-amd64", "specific:true"]
   needs: ["setup_agent_version"]
   variables:
     PYTHON_RUNTIMES: "3"
   script:
-    - export PATH="/Users/ec2-user/.pyenv/versions/3.9.6/bin:$PATH"
-    - export PATH="/Users/ec2-user/go/bin:$PATH"
-    - eval $(gimme 1.21.10)
     - python3 -m pip install -r requirements.txt -r tasks/libs/requirements-github.txt
     - inv -e install-tools
     - inv -e deps
