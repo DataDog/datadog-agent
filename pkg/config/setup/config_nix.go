@@ -36,6 +36,8 @@ const (
 	DefaultSecurityAgentLogFile = "/var/log/datadog/security-agent.log"
 	// DefaultProcessAgentLogFile is the default process-agent log file
 	DefaultProcessAgentLogFile = "/var/log/datadog/process-agent.log"
+	// DefaultOTelAgentLogFile is the default otel-agent log file
+	DefaultOTelAgentLogFile = "/var/log/datadog/otel-agent.log"
 	// defaultSystemProbeLogFilePath is the default system-probe log file
 	defaultSystemProbeLogFilePath = "/var/log/datadog/system-probe.log"
 )

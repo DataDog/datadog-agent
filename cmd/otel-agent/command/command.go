@@ -23,7 +23,7 @@ import (
 
 const (
 	// loggerName is the application logger identifier
-	loggerName = "OTELCOL"
+	loggerName = "otel-agent"
 )
 
 // MakeRootCommand is the root command for the trace-agent

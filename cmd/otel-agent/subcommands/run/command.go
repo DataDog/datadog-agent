@@ -40,7 +40,8 @@ import (
 	tracecomp "github.com/DataDog/datadog-agent/comp/trace"
 	traceagentcomp "github.com/DataDog/datadog-agent/comp/trace/agent"
 	traceconfig "github.com/DataDog/datadog-agent/comp/trace/config"
-	"github.com/DataDog/datadog-agent/pkg/config/env"
+	pkgconfigenv "github.com/DataDog/datadog-agent/pkg/config/env"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	pkgagent "github.com/DataDog/datadog-agent/pkg/trace/agent"
@@ -125,7 +126,7 @@ func runOTelAgentCommand(ctx context.Context, params *subcommands.GlobalParams, 
 			if err != nil {
 				return nil, nil, err
 			}
-			env.DetectFeatures(c)
+			pkgconfigenv.DetectFeatures(c)
 			return c, tcfg, nil
 		}),
 
@@ -150,7 +151,7 @@ func runOTelAgentCommand(ctx context.Context, params *subcommands.GlobalParams, 
 
 		fx.Supply(optional.NewNoneOption[secrets.Component]()),
 		fx.Provide(func(c coreconfig.Component) corelogimpl.Params {
-			return corelogimpl.ForOneShot(params.LoggerName, c.GetString("log_level"), true)
+			return corelogimpl.ForDaemon(params.LoggerName, "log_file", pkgconfigsetup.DefaultOTelAgentLogFile)
 		}),
 		logsagentpipelineimpl.Module(),
 		// We create strategy.ZlibStrategy directly to avoid build tags
