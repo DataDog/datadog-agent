@@ -21,8 +21,9 @@ jobs:
       - name: Checkout datadog-agent base branch
         run: |
           cd go/src/github.com/DataDog/datadog-agent
-          git fetch origin $GITHUB_BASE_REF --depth 1
-          git checkout $GITHUB_BASE_REF
+          git fetch origin $GITHUB_BASE_REF
+          TARGET=$(git merge-base $GITHUB_HEAD_REF $GITHUB_BASE_REF)
+          git checkout $TARGET
 
       - name: Checkout the datadog-lambda-extension repository
         uses: actions/checkout@0ad4b8fadaa221de15dcec353f45205ec38ea70b # v4.1.4
