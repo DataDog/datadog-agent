@@ -78,6 +78,7 @@ def log_invoke_task(
         "duration": duration,
         "user": user,
         "result": task_result,
+        "python_version": f"{sys.version_info[0]}.{sys.version_info[1]}.{sys.version_info[2]}",
     }
     logging.info(task_info)
 
