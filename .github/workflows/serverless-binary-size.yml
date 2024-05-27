@@ -22,10 +22,7 @@ jobs:
         run: |
           cd go/src/github.com/DataDog/datadog-agent
           git fetch origin $GITHUB_HEAD_REF $GITHUB_BASE_REF
-          # needs to checkout to the branches before getting the merge base
-          git checkout $GITHUB_HEAD_REF
-          git checkout $GITHUB_BASE_REF
-          TARGET=$(git merge-base $GITHUB_HEAD_REF $GITHUB_BASE_REF)
+          TARGET=$(git merge-base origin/$GITHUB_HEAD_REF origin/$GITHUB_BASE_REF)
           git checkout $TARGET
 
       - name: Checkout the datadog-lambda-extension repository
