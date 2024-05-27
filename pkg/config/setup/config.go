@@ -973,9 +973,6 @@ func agent(config pkgconfigmodel.Config) {
 	config.SetKnown("proxy.http")
 	config.SetKnown("proxy.https")
 	config.SetKnown("proxy.no_proxy")
-
-	// Define the duration after which subagent configuration fetch will timeout
-	config.BindEnvAndSetDefault("subagent_config_fetch_timeout", "30s")
 }
 
 func fips(config pkgconfigmodel.Config) {
