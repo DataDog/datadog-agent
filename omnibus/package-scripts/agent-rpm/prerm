@@ -115,6 +115,9 @@ remove_sysprobe_secagent_files()
     if [ -d "$INSTALL_DIR/run" ]; then
         rmdir "$INSTALL_DIR/run" 2>/dev/null || true
     fi
+
+    # Remove any unpacked BTF files
+    find "$INSTALL_DIR/embedded/share/system-probe/ebpf/co-re/btf" -name "*.btf*" -type f -delete || true
 }
 
 remove_remote_config_db()
