@@ -166,6 +166,8 @@ new-e2e-containers:
   variables:
     TARGETS: ./tests/containers
     TEAM: container-integrations
+    KUBERNETES_MEMORY_REQUEST: 8Gi
+    KUBERNETES_MEMORY_LIMIT: 8Gi
   parallel:
     matrix:
       - EXTRA_PARAMS: --run TestKindSuite
@@ -323,6 +325,8 @@ new-e2e-installer:
     - qa_installer_oci
     - qa_agent_oci
   variables:
+    KUBERNETES_MEMORY_REQUEST: 8Gi
+    KUBERNETES_MEMORY_LIMIT: 8Gi
     TARGETS: ./tests/installer
     TEAM: fleet
 
