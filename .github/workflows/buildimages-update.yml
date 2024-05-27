@@ -34,8 +34,6 @@ jobs:
     steps:
       - name: Checkout branch
         uses: actions/checkout@0ad4b8fadaa221de15dcec353f45205ec38ea70b # v4.1.4
-        with:
-          ref: ${{ github.head_ref }}
 
       - name: Fetch branch
         # this step needs the github repository to be already cloned locally
@@ -113,7 +111,7 @@ jobs:
           prs=$(gh pr list \
               --repo "$GITHUB_REPOSITORY" \
               --head ${{ inputs.branch }} \
-              --base ${{ github.head_ref }} \
+              --base ${{ github.ref }} \
               --json title \
               --jq 'length')
           if ((prs > 0)); then
