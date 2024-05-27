@@ -232,7 +232,7 @@ func (c *collector) parsePods(
 
 		var nsLabels, nsAnnotations map[string]string
 
-		if c.dcaClient.SupportsNamespaceMetadataCollection() {
+		if c.isDCAEnabled() && c.dcaClient.SupportsNamespaceMetadataCollection() {
 			// Cluster agent with version 7.55+
 			var nsMetadata *clusteragent.Metadata
 			nsMetadata, err = c.getNamespaceMetadata(pod.Metadata.Namespace)
