@@ -1,14 +1,9 @@
-// Unless explicitly stated otherwise all files in this repository are licensed
-// under the Apache License Version 2.0.
-// This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-present Datadog, Inc.
-
-// Package streamlogs_test package is for testing streamlogs package.
 package streamlogs_test
 
 import (
 	"bytes"
 	"context"
+	"sync"
 	"testing"
 	"time"
 
@@ -60,6 +55,8 @@ func newTestMessage(msg string) *message.Message {
 }
 
 func TestRun(t *testing.T) {
+	var bufferMutex sync.Mutex // To pass tests with `-race` flag
+
 	type handleMessageArgs struct {
 		message  *message.Message
 		rendered []byte
@@ -108,14 +105,23 @@ DD_EXTENSION | stream-logs | Integration Name: AWS Logs | Type: unit-test | Stat
 			ctx, cancel := context.WithCancel(context.Background())
 			bmr := diagnostic.NewBufferedMessageReceiver(streamlogs.Formatter{}, nil)
 			getter := &messageReceiverGetter{bufferedMessageReceiver: bmr}
-			go streamlogs.Run(ctx, getter, &buf)
+
+			go func() {
+				bufferMutex.Lock()
+				defer bufferMutex.Unlock()
+				streamlogs.Run(ctx, getter, &buf)
+			}()
+
 			time.Sleep(10 * time.Millisecond) // wait for the bmr to be enabled
 			for _, args := range tt.handleMessageArgsList {
 				bmr.HandleMessage(args.message, args.rendered, "")
 			}
 			time.Sleep(10 * time.Millisecond) // wait for the stream-logs to process the messages
 			cancel()                          // stop stream-logs
+
+			bufferMutex.Lock()
 			require.Equal(t, tt.wantW, buf.String())
+			bufferMutex.Unlock()
 		})
 	}
 }
