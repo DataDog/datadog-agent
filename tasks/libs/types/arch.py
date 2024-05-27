@@ -133,14 +133,5 @@ ARCH_AMD64 = Arch(
     windows_arch="x64",
     spellings={"amd64", "x86_64", "x64", "x86-64"},
 )
-ARCH_I386 = Arch(
-    name="i386",
-    go_arch="386",
-    gcc_arch="i386",
-    kernel_arch="x86",
-    kmt_arch=None,
-    windows_arch="x86",
-    spellings={"386", "i386", "x86"},
-)
 
-ALL_ARCHS = [ARCH_AMD64, ARCH_ARM64, ARCH_I386]
+ALL_ARCHS = [ARCH_AMD64, ARCH_ARM64]
