@@ -80,7 +80,7 @@ class ExecutionsJobSummary:
         )
 
 
-class Executions:
+class PipelineRuns:
     def __init__(self):
         self.jobs: dict[str, ExecutionsJobSummary] = {}
         self.pipeline_id = 0
@@ -93,7 +93,7 @@ class Executions:
 
     @staticmethod
     def from_json(json):
-        job_executions = Executions()
+        job_executions = PipelineRuns()
         job_executions.jobs = {name: ExecutionsJobSummary.from_json(job) for name, job in json["jobs"].items()}
         job_executions.pipeline_id = json.get("pipeline_id", 0)
 
@@ -374,7 +374,7 @@ def retrieve_job_executions(ctx, job_failures_file):
         )
         with open(job_failures_file) as f:
             job_executions = json.load(f)
-        job_executions = Executions.from_json(job_executions)
+        job_executions = PipelineRuns.from_json(job_executions)
     except UnexpectedExit as e:
         if "404" in e.result.stderr:
             job_executions = create_initial_job_executions(job_failures_file)
@@ -384,13 +384,13 @@ def retrieve_job_executions(ctx, job_failures_file):
 
 
 def create_initial_job_executions(job_failures_file):
-    job_executions = Executions()
+    job_executions = PipelineRuns()
     with open(job_failures_file, "w") as f:
         json.dump(job_executions.to_json(), f)
     return job_executions
 
 
-def update_statistics(job_executions: Executions):
+def update_statistics(job_executions: PipelineRuns):
     consecutive_alerts = {}
     cumulative_alerts = {}
 

@@ -294,7 +294,7 @@ class TestUpdateStatistics(unittest.TestCase):
             for a in [{"name": "nifnif", "id": 504685380}, {"name": "nafnaf", "id": 504685380}]
         ]
         ok = {"id": None, "failing": False}
-        j = notify.Executions.from_json(
+        j = notify.PipelineRuns.from_json(
             {
                 "jobs": {
                     "nafnaf": {
@@ -308,17 +308,17 @@ class TestUpdateStatistics(unittest.TestCase):
                             ok,
                             ok,
                             ok,
-                            {"id": 42, "failing": True},
-                            {"id": 618, "failing": True},
+                            {"id": 422184420, "failing": True},
+                            {"id": 618314618, "failing": True},
                         ],
                     },
                     "noufnouf": {
                         "consecutive_failures": 2,
                         "jobs_info": [
-                            {"id": 42, "failing": True},
+                            {"id": 422184420, "failing": True},
                             ok,
-                            {"id": 314, "failing": True},
-                            {"id": 618, "failing": True},
+                            {"id": 618314618, "failing": True},
+                            {"id": 314618314, "failing": True},
                         ],
                     },
                 }
@@ -349,7 +349,7 @@ class TestUpdateStatistics(unittest.TestCase):
             ProjectJob(MagicMock(), attrs=a | {"id": 42})
             for a in [{"name": "poulidor"}, {"name": "virenque"}, {"name": "bardet"}]
         ]
-        j = notify.Executions.from_json(
+        j = notify.PipelineRuns.from_json(
             {
                 "jobs": {
                     "poulidor": {
