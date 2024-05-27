@@ -8,6 +8,7 @@ package fetcher
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/client"
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -29,7 +30,7 @@ func SecurityAgentConfig(config config.Reader) (string, error) {
 	}
 
 	c := util.GetClient(false)
-	c.Timeout = config.GetDuration("server_timeout")
+	c.Timeout = config.GetDuration("server_timeout") * time.Second
 
 	apiConfigURL := fmt.Sprintf("https://localhost:%v/agent/config", port)
 	client := settingshttp.NewClient(c, apiConfigURL, "security-agent", settingshttp.NewHTTPClientOptions(util.CloseConnection))
@@ -49,7 +50,7 @@ func TraceAgentConfig(config config.Reader) (string, error) {
 	}
 
 	c := util.GetClient(false)
-	c.Timeout = config.GetDuration("server_timeout")
+	c.Timeout = config.GetDuration("server_timeout") * time.Second
 
 	ipcAddressWithPort := fmt.Sprintf("http://127.0.0.1:%d/config", port)
 
@@ -80,7 +81,7 @@ func ProcessAgentConfig(config config.Reader, getEntireConfig bool) (string, err
 	}
 
 	c := util.GetClient(false)
-	c.Timeout = config.GetDuration("server_timeout")
+	c.Timeout = config.GetDuration("server_timeout") * time.Second
 
 	client := settingshttp.NewClient(c, ipcAddressWithPort, "process-agent", settingshttp.NewHTTPClientOptions(util.CloseConnection))
 
