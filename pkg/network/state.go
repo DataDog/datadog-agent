@@ -199,9 +199,11 @@ func (cc *closedConnections) insert(c ConnectionStats, maxClosedConns uint32) {
 // If neither of these conditions are true, it will drop the first empty connection and replace it with
 // the incoming connection.
 func (cc *closedConnections) dropEmpty(c ConnectionStats) {
+	log.Errorf("adamk dropping empty closed connection?: %v", c)
 	if isEmpty(c) || cc.emptyStart == len(cc.conns) {
 		return
 	}
+	log.Errorf("adamk dropping empty closed connection: %v", c)
 	delete(cc.byCookie, cc.conns[cc.emptyStart].Cookie)
 	cc.conns[cc.emptyStart] = c
 	cc.byCookie[c.Cookie] = cc.emptyStart
@@ -249,6 +251,7 @@ type client struct {
 }
 
 func (c *client) Reset() {
+	log.Errorf("adamk resetting client")
 	half := cap(c.closed.conns) / 2
 	if closedLen := len(c.closed.conns); closedLen > minClosedCapacity && closedLen < half {
 		c.closed.conns = make([]ConnectionStats, half)
