@@ -14,7 +14,6 @@ import (
 	"os"
 	"os/exec"
 	"os/user"
-	"path/filepath"
 	"strconv"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -139,16 +138,6 @@ func SetupInstaller(ctx context.Context) (err error) {
 		return err
 	}
 
-	// Chown installer run path
-	runPath, err := filepath.EvalSymlinks("/opt/datadog-packages/datadog-installer/stable/run")
-	if err != nil {
-		return fmt.Errorf("error resolving symlink for /opt/datadog-packages/datadog-installer/stable/run: %w", err)
-	}
-	err = os.Chown(runPath, ddAgentUID, ddAgentGID)
-	if err != nil {
-		return fmt.Errorf("error changing owner of %s: %w", runPath, err)
-	}
-
 	return startInstallerStable(ctx)
 }
 
@@ -215,20 +204,6 @@ func RemoveInstaller(ctx context.Context) {
 
 // StartInstallerExperiment installs the experimental systemd units for the installer
 func StartInstallerExperiment(ctx context.Context) error {
-	// Chown installer run path
-	ddAgentUID, ddAgentGID, err := getAgentIDs()
-	if err != nil {
-		return fmt.Errorf("error getting dd-agent user and group IDs: %w", err)
-	}
-	runPath, err := filepath.EvalSymlinks("/opt/datadog-packages/datadog-installer/experiment/run")
-	if err != nil {
-		return fmt.Errorf("error resolving symlink for /opt/datadog-packages/datadog-installer/experiment/run: %w", err)
-	}
-	err = os.Chown(runPath, ddAgentUID, ddAgentGID)
-	if err != nil {
-		return fmt.Errorf("error changing owner of %s: %w", runPath, err)
-	}
-
 	return startUnit(ctx, installerUnitExp, "--no-block")
 }
 
