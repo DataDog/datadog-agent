@@ -21,7 +21,7 @@ jobs:
       - name: Checkout datadog-agent base branch
         run: |
           cd go/src/github.com/DataDog/datadog-agent
-          git fetch origin $GITHUB_BASE_REF
+          git fetch origin $GITHUB_HEAD_REF $GITHUB_BASE_REF
           TARGET=$(git merge-base $GITHUB_HEAD_REF $GITHUB_BASE_REF)
           git checkout $TARGET
 
