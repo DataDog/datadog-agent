@@ -13,7 +13,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
-	"path/filepath"
+	"path"
 	"sync"
 	"time"
 
@@ -188,7 +188,7 @@ func (i *inventoryotel) fetchRemoteOtelConfig(u *url.URL) (otelMetadata, error) 
 }
 
 func (i *inventoryotel) fetchDummyOtelConfig(_ *url.URL) (otelMetadata, error) {
-	dummy, err := dummyFS.ReadFile(filepath.Join("dummy_data", "response.json"))
+	dummy, err := dummyFS.ReadFile(path.Join("dummy_data", "response.json"))
 	if err != nil {
 		i.log.Errorf("Unable to read embedded dummy data:", err)
 		return nil, err
