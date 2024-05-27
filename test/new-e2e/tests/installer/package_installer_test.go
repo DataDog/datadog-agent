@@ -43,6 +43,7 @@ func (s *packageInstallerSuite) TestInstall() {
 	state.AssertDirExists("/opt/datadog-installer", 0755, "root", "root")
 	state.AssertDirExists("/opt/datadog-packages", 0755, "root", "root")
 	state.AssertDirExists("/opt/datadog-packages/datadog-installer", 0755, "root", "root")
+	state.AssertDirExists("/opt/datadog-packages/datadog-installer/stable/run", 0755, "dd-agent", "dd-agent")
 
 	state.AssertSymlinkExists("/usr/bin/datadog-bootstrap", "/opt/datadog-installer/bin/installer/installer", "root", "root")
 	state.AssertSymlinkExists("/usr/bin/datadog-installer", "/opt/datadog-packages/datadog-installer/stable/bin/installer/installer", "root", "root")
