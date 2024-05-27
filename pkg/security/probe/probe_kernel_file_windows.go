@@ -162,9 +162,14 @@ func (wp *WindowsProbe) parseCreateHandleArgs(e *etw.DDEventRecord) (*createHand
 	} else {
 		return nil, fmt.Errorf("unknown version %v", e.EventHeader.EventDescriptor.Version)
 	}
-	ca.userFileName = wp.mustConvertDrivePath(ca.fileName)
 
 	if _, ok := wp.discardedPaths.Get(ca.fileName); ok {
+		wp.stats.fileCreateSkippedDiscardedPaths++
+		return nil, errDiscardedPath
+	}
+
+	ca.userFileName = wp.mustConvertDrivePath(ca.fileName)
+	if _, ok := wp.discardedUserPaths.Get(ca.userFileName); ok {
 		wp.stats.fileCreateSkippedDiscardedPaths++
 		return nil, errDiscardedPath
 	}
