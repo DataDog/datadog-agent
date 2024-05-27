@@ -237,10 +237,19 @@ int kprobe__tcp_done(struct pt_regs *ctx) {
     __u64 *failed_conn_pid = 0;
     int err = 0;
 
+    bpf_probe_read_kernel_with_telemetry(&err, sizeof(err), (&sk->sk_err));
+    if (err == 0 || !tcp_failed_connections_enabled()) {
+        return 0;
+    }
+
     failed_conn_pid = bpf_map_lookup_elem(&tcp_ongoing_connect_pid, &sk);
 
     if (failed_conn_pid && pid_tgid == 0) {
         bpf_probe_read_kernel_with_telemetry(&pid_tgid, sizeof(pid_tgid), &failed_conn_pid);
+    }
+
+    if (!failed_conn_pid) {
+        bpf_map_update_with_telemetry(tcp_ongoing_connect_pid, &sk, &pid_tgid, BPF_ANY);
     }
 
     log_debug("adamk kprobe/tcp_done: tgid: %llu, pid: %llu", pid_tgid >> 32, pid_tgid & 0xFFFFFFFF);
@@ -250,19 +259,16 @@ int kprobe__tcp_done(struct pt_regs *ctx) {
         return 0;
     }
 
-    conn_stats_ts_t *cst = bpf_map_lookup_elem(&conn_stats, &t);
-    if (cst || failed_conn_pid) {
-        log_debug("adamk kprobe/tcp_done: flushing closed conn");
-        cleanup_conn(ctx, &t, sk);
-    }
+    // conn_stats_ts_t *cst = bpf_map_lookup_elem(&conn_stats, &t);
+    // if (cst || failed_conn_pid) {
+    log_debug("adamk kprobe/tcp_done: flushing closed conn");
+    cleanup_conn(ctx, &t, sk);
+    // }
 
     log_debug("adamk kprobe/tcp_done: netns: %u, sport: %u, dport: %u", t.netns, t.sport, t.dport);
     log_debug("adamk kprobe/tcp_done: netns: %u, saddr: %llu, daddr: %llu", t.netns, t.saddr_l, t.daddr_l);
 
-    bpf_probe_read_kernel_with_telemetry(&err, sizeof(err), (&sk->sk_err));
-    if (err != 0 && tcp_failed_connections_enabled()) {
-        flush_tcp_failure(ctx, &t, err);
-    }
+    flush_tcp_failure(ctx, &t, err);
 
     return 0;
 }

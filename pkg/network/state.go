@@ -173,6 +173,8 @@ func (cc *closedConnections) insert(c ConnectionStats, maxClosedConns uint32) {
 		log.Errorf("adamk inserting empty closed connection: %v", c)
 		cc.conns = append(cc.conns, c)
 		cc.byCookie[c.Cookie] = len(cc.conns) - 1
+		log.Errorf("adamk inserted empty closed connection: %v", c)
+		log.Errorf("adamk inserted empty closed connection: %+v", cc.conns)
 		return
 	}
 
@@ -839,6 +841,7 @@ func (ns *networkState) mergeConnections(id string, active []ConnectionStats) (_
 
 	// filter closed connections, keeping those that have changed or have not
 	// been aggregated into another connection
+	log.Errorf("adamk pre merge closed connections length: %d", len(client.closed.conns))
 	closed = filterConnections(client.closed.conns, func(closedConn *ConnectionStats) bool {
 		log.Errorf("adamk pre merge closed connection: %v", closedConn)
 		cookie := closedConn.Cookie
