@@ -583,36 +583,9 @@ def docker_functional_tests(
         kernel_release=kernel_release,
     )
 
-    add_arch_line = ""
-    if arch == "x86":
-        add_arch_line = "RUN dpkg --add-architecture i386"
-
-    dockerfile = f"""
-FROM ubuntu:22.04
-
-ENV DOCKER_DD_AGENT=yes
-
-{add_arch_line}
-
-RUN apt-get update -y \
-    && apt-get install -y --no-install-recommends xfsprogs ca-certificates iproute2 clang-14 llvm-14 \
-    && rm -rf /var/lib/apt/lists/*
-
-RUN mkdir -p /opt/datadog-agent/embedded/bin
-RUN ln -s $(which clang-14) /opt/datadog-agent/embedded/bin/clang-bpf
-RUN ln -s $(which llc-14) /opt/datadog-agent/embedded/bin/llc-bpf
-    """
-
-    docker_image_tag_name = "docker-functional-tests"
-
-    # build docker image
-    with tempfile.TemporaryDirectory() as temp_dir:
-        print("Create tmp dir:", temp_dir)
-        with open(os.path.join(temp_dir, "Dockerfile"), "w") as f:
-            f.write(dockerfile)
-
-        cmd = 'docker build {docker_file_ctx} --tag {image_tag}'
-        ctx.run(cmd.format(**{"docker_file_ctx": temp_dir, "image_tag": docker_image_tag_name}))
+    image_tag = (
+        "ghcr.io/paulcacheux/cws-centos7@sha256:b16587f1cc7caebc1a18868b9fbd3823e79457065513e591352c4d929b14c426"
+    )
 
     container_name = 'security-agent-tests'
     capabilities = ['SYS_ADMIN', 'SYS_RESOURCE', 'SYS_PTRACE', 'NET_ADMIN', 'IPC_LOCK', 'ALL']
@@ -626,6 +599,7 @@ RUN ln -s $(which llc-14) /opt/datadog-agent/embedded/bin/llc-bpf
     cmd += '-v /usr/lib/os-release:/host/usr/lib/os-release '
     cmd += '-v /etc/passwd:/etc/passwd '
     cmd += '-v /etc/group:/etc/group '
+    cmd += '-v /opt/datadog-agent/embedded/:/opt/datadog-agent/embedded/ '
     cmd += '-v ./pkg/security/tests:/tests {image_tag} sleep 3600'
 
     args = {
@@ -633,7 +607,7 @@ RUN ln -s $(which llc-14) /opt/datadog-agent/embedded/bin/llc-bpf
         "REPO_PATH": REPO_PATH,
         "container_name": container_name,
         "caps": ' '.join(f"--cap-add {cap}" for cap in capabilities),
-        "image_tag": f"{docker_image_tag_name}:latest",
+        "image_tag": image_tag,
     }
 
     ctx.run(cmd.format(**args))
