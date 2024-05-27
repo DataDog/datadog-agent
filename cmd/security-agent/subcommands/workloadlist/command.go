@@ -21,7 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
-	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -64,7 +64,7 @@ func workloadList(_ log.Component, config config.Component, cliParams *cliParams
 		return err
 	}
 
-	url, err := workloadURL(cliParams.verboseList)
+	url, err := workloadURL(config, cliParams.verboseList)
 	if err != nil {
 		return err
 	}
@@ -90,8 +90,8 @@ func workloadList(_ log.Component, config config.Component, cliParams *cliParams
 	return nil
 }
 
-func workloadURL(verbose bool) (string, error) {
-	addressPort, err := ddconfig.GetSecurityAgentAPIAddressPort()
+func workloadURL(config config.Component, verbose bool) (string, error) {
+	addressPort, err := pkgconfigsetup.GetSecurityAgentAPIAddressPort(config)
 	if err != nil {
 		return "", fmt.Errorf("config error: %s", err.Error())
 	}

@@ -263,8 +263,3 @@ func LoadWithoutSecret() (*model.Warnings, error) {
 func GetProcessAPIAddressPort() (string, error) {
 	return pkgconfigsetup.GetProcessAPIAddressPort(Datadog)
 }
-
-// GetSecurityAgentAPIAddressPort Alias using Datadog config
-func GetSecurityAgentAPIAddressPort() (string, error) {
-	return pkgconfigsetup.GetSecurityAgentAPIAddressPort(Datadog)
-}
