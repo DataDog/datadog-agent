@@ -2265,8 +2265,12 @@ func TestKafkaStats(t *testing.T) {
 
 	key := kafka.NewKey(c.Source, c.Dest, c.SPort, c.DPort, "my-topic", kafka.ProduceAPIKey, 1)
 
-	kafkaStats := make(map[kafka.Key]*kafka.RequestStat)
-	kafkaStats[key] = &kafka.RequestStat{Count: 2}
+	kafkaStats := make(map[kafka.Key]*kafka.RequestStats)
+	kafkaStats[key] = &kafka.RequestStats{
+		ErrorCodeToStat: map[int8]*kafka.RequestStat{
+			0: {Count: 2},
+		},
+	}
 	usmStats := make(map[protocols.ProtocolType]interface{})
 	usmStats[protocols.Kafka] = kafkaStats
 
@@ -2291,9 +2295,13 @@ func TestKafkaStatsWithMultipleClients(t *testing.T) {
 	}
 
 	getStats := func(topicName string) map[protocols.ProtocolType]interface{} {
-		kafkaStats := make(map[kafka.Key]*kafka.RequestStat)
+		kafkaStats := make(map[kafka.Key]*kafka.RequestStats)
 		key := kafka.NewKey(c.Source, c.Dest, c.SPort, c.DPort, topicName, kafka.ProduceAPIKey, 1)
-		kafkaStats[key] = &kafka.RequestStat{Count: 2}
+		kafkaStats[key] = &kafka.RequestStats{
+			ErrorCodeToStat: map[int8]*kafka.RequestStat{
+				0: {Count: 2},
+			},
+		}
 
 		usmStats := make(map[protocols.ProtocolType]interface{})
 		usmStats[protocols.Kafka] = kafkaStats
