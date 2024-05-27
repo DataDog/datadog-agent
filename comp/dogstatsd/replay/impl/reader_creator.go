@@ -3,17 +3,16 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-2020 Datadog, Inc.
 
-//go:build !serverless
-
 package replay
 
 import (
 	"fmt"
 
-	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/zstd"
 	"github.com/h2non/filetype"
+
+	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // NewTrafficCaptureReader creates a TrafficCaptureReader instance

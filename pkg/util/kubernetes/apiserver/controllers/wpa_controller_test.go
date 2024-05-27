@@ -6,7 +6,7 @@
 //go:build !race && kubeapiserver
 // +build !race,kubeapiserver
 
-package apiserver
+package controllers
 
 import (
 	"context"
@@ -16,6 +16,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DataDog/watermarkpodautoscaler/api/v1alpha1"
 	"github.com/cenkalti/backoff"
 	"github.com/cihub/seelog"
 	"github.com/stretchr/testify/assert"
@@ -25,9 +26,6 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
-	//nolint:revive // TODO(CAPP) Fix revive linter
-	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
@@ -40,11 +38,10 @@ import (
 	"k8s.io/client-go/tools/record"
 	"k8s.io/client-go/util/retry"
 
-	"github.com/DataDog/watermarkpodautoscaler/api/v1alpha1"
-
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/custommetrics"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/errors"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/autoscalers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
@@ -171,14 +168,14 @@ func TestUpdateWPA(t *testing.T) {
 	}
 }
 
-// newFakeWPAController creates an AutoscalersController. Use enableWPA(wpa_informers.SharedInformerFactory) to add the event handlers to it. Use Run() to add the event handlers and start processing the events.
-func newFakeWPAController(t *testing.T, kubeClient kubernetes.Interface, client dynamic.Interface, isLeaderFunc func() bool, dcl autoscalers.DatadogClient) (*AutoscalersController, wpa_informers.DynamicSharedInformerFactory) {
+// newFakeWPAController creates an autoscalersController. Use enableWPA(wpa_informers.SharedInformerFactory) to add the event handlers to it. Use Run() to add the event handlers and start processing the events.
+func newFakeWPAController(t *testing.T, kubeClient kubernetes.Interface, client dynamic.Interface, isLeaderFunc func() bool, dcl autoscalers.DatadogClient) (*autoscalersController, wpa_informers.DynamicSharedInformerFactory) {
 	eventBroadcaster := record.NewBroadcaster()
 	eventBroadcaster.StartLogging(t.Logf)
 
 	// need to fake wpa_client.
 	inf := wpa_informers.NewDynamicSharedInformerFactory(client, 0)
-	autoscalerController, _ := NewAutoscalersController(
+	autoscalerController, _ := newAutoscalersController(
 		kubeClient,
 		eventBroadcaster.NewRecorder(scheme, corev1.EventSource{Component: "FakeWPAController"}),
 		isLeaderFunc,
@@ -217,7 +214,7 @@ func newFakeWatermarkPodAutoscaler(name, ns string, uid types.UID, metricName st
 		},
 	}
 
-	if err := UnstructuredFromAutoscaler(wpa, obj); err != nil {
+	if err := apiserver.UnstructuredFromAutoscaler(wpa, obj); err != nil {
 		panic("Failed to construct unstructured WPA")
 	}
 
@@ -284,15 +281,15 @@ func TestWPAController(t *testing.T) {
 	inf.WaitForCacheSync(stop)
 	inf.Start(stop)
 
-	go hctrl.RunWPA(stop, wpaClient, inf)
+	go hctrl.runWPA(stop, wpaClient, inf)
 
-	hctrl.RunControllerLoop(stop)
+	hctrl.runControllerLoop(stop)
 
-	res, err := wpaClient.Resource(gvrWPA).Namespace(namespace).Get(context.TODO(), wpaName, v1.GetOptions{})
+	res, err := wpaClient.Resource(gvrWPA).Namespace(namespace).Get(context.TODO(), wpaName, metav1.GetOptions{})
 	require.NoError(t, err)
 
 	wpaDecoded := &v1alpha1.WatermarkPodAutoscaler{}
-	err = UnstructuredIntoWPA(res, wpaDecoded)
+	err = apiserver.UnstructuredIntoWPA(res, wpaDecoded)
 	require.NoError(t, err)
 	require.Equal(t, wpaName, wpaDecoded.Name)
 
@@ -309,7 +306,7 @@ func TestWPAController(t *testing.T) {
 	require.NoError(t, err)
 
 	storedWPA := &v1alpha1.WatermarkPodAutoscaler{}
-	err = UnstructuredIntoWPA(storedWPAObject, storedWPA)
+	err = apiserver.UnstructuredIntoWPA(storedWPAObject, storedWPA)
 	require.NoError(t, err)
 
 	require.Equal(t, storedWPA, wpaDecoded)
@@ -335,7 +332,7 @@ func TestWPAController(t *testing.T) {
 	})
 
 	retrier := retry.RetryOnConflict(retry.DefaultRetry, func() error {
-		resWPA, errWPA := wpaClient.Resource(gvrWPA).Namespace(namespace).Get(context.TODO(), wpaName, v1.GetOptions{})
+		resWPA, errWPA := wpaClient.Resource(gvrWPA).Namespace(namespace).Get(context.TODO(), wpaName, metav1.GetOptions{})
 		require.NoError(t, errWPA)
 
 		metrics, found, err := unstructured.NestedSlice(resWPA.Object, "spec", "metrics")
@@ -365,8 +362,8 @@ func TestWPAController(t *testing.T) {
 		err = unstructured.SetNestedField(resWPA.Object, annotations["kubectl.kubernetes.io/last-applied-configuration"], "metadata", "annotations", "kubectl.kubernetes.io/last-applied-configuration")
 		require.NoError(t, err)
 
-		res, updateErr := wpaClient.Resource(gvrWPA).Namespace(namespace).Update(context.TODO(), resWPA, v1.UpdateOptions{})
-		err = UnstructuredIntoWPA(res, wpaDecoded)
+		res, updateErr := wpaClient.Resource(gvrWPA).Namespace(namespace).Update(context.TODO(), resWPA, metav1.UpdateOptions{})
+		err = apiserver.UnstructuredIntoWPA(res, wpaDecoded)
 		require.NoError(t, err)
 
 		return updateErr
@@ -394,7 +391,7 @@ func TestWPAController(t *testing.T) {
 
 	storedWPAObject, err = hctrl.wpaLister.ByNamespace(namespace).Get(wpaName)
 	require.NoError(t, err)
-	err = UnstructuredIntoWPA(storedWPAObject, storedWPA)
+	err = apiserver.UnstructuredIntoWPA(storedWPAObject, storedWPA)
 	require.NoError(t, err)
 	require.Equal(t, storedWPA, wpaDecoded)
 	// Checking the local cache holds the correct Data.
@@ -431,7 +428,7 @@ func TestWPAController(t *testing.T) {
 	})
 
 	// Verify that a Delete removes the Data from the Global Store
-	err = wpaClient.Resource(gvrWPA).Namespace(namespace).Delete(context.TODO(), wpaName, v1.DeleteOptions{})
+	err = wpaClient.Resource(gvrWPA).Namespace(namespace).Delete(context.TODO(), wpaName, metav1.DeleteOptions{})
 	require.NoError(t, err)
 	testutil.RequireTrueBeforeTimeout(t, frequency, timeout, func() bool {
 		storedExternal, err := store.ListAllExternalMetricValues()
@@ -586,7 +583,7 @@ func TestUnstructuredIntoWPA(t *testing.T) {
 			caseName: "All good",
 			obj:      wpa1,
 			expectedWpa: &v1alpha1.WatermarkPodAutoscaler{
-				ObjectMeta: v1.ObjectMeta{
+				ObjectMeta: metav1.ObjectMeta{
 					Name:      "wpa-1",
 					Namespace: "ns",
 					UID:       "1234-abc",
@@ -598,7 +595,7 @@ func TestUnstructuredIntoWPA(t *testing.T) {
 							Type: v1alpha1.ExternalMetricSourceType,
 							External: &v1alpha1.ExternalMetricSource{
 								MetricName:     "test",
-								MetricSelector: &v1.LabelSelector{MatchLabels: map[string]string{"foo": "bar"}},
+								MetricSelector: &metav1.LabelSelector{MatchLabels: map[string]string{"foo": "bar"}},
 							},
 						},
 					},
@@ -610,7 +607,7 @@ func TestUnstructuredIntoWPA(t *testing.T) {
 	for i, testCase := range testCases {
 		t.Run(fmt.Sprintf("#%d %s", i, testCase.caseName), func(t *testing.T) {
 			testWPA := &v1alpha1.WatermarkPodAutoscaler{}
-			err := UnstructuredIntoWPA(testCase.obj, testWPA)
+			err := apiserver.UnstructuredIntoWPA(testCase.obj, testWPA)
 			require.Equal(t, testCase.error, err)
 			if err == nil {
 				// because we use the fake client, the GVK is missing from the WPA object.

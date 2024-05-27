@@ -78,7 +78,6 @@ github.com/DataDog/datadog-agent/comp/core/log/logimpl
 github.com/DataDog/datadog-agent/comp/core/secrets
 github.com/DataDog/datadog-agent/comp/core/status
 github.com/DataDog/datadog-agent/comp/core/tagger
-github.com/DataDog/datadog-agent/comp/core/tagger/proto
 github.com/DataDog/datadog-agent/comp/core/tagger/types
 github.com/DataDog/datadog-agent/comp/core/tagger/utils
 github.com/DataDog/datadog-agent/comp/core/telemetry
@@ -94,7 +93,7 @@ github.com/DataDog/datadog-agent/comp/dogstatsd/packets
 github.com/DataDog/datadog-agent/comp/dogstatsd/pidmap
 github.com/DataDog/datadog-agent/comp/dogstatsd/pidmap/pidmapimpl
 github.com/DataDog/datadog-agent/comp/dogstatsd/replay/def
-github.com/DataDog/datadog-agent/comp/dogstatsd/replay/impl
+github.com/DataDog/datadog-agent/comp/dogstatsd/replay/impl-noop
 github.com/DataDog/datadog-agent/comp/dogstatsd/server
 github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug
 github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug/serverdebugimpl
@@ -174,7 +173,6 @@ github.com/DataDog/datadog-agent/pkg/metrics/servicecheck
 github.com/DataDog/datadog-agent/pkg/obfuscate
 github.com/DataDog/datadog-agent/pkg/orchestrator/model
 github.com/DataDog/datadog-agent/pkg/process/util/api/headers
-github.com/DataDog/datadog-agent/pkg/proto/pbgo/core
 github.com/DataDog/datadog-agent/pkg/proto/pbgo/process
 github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace
 github.com/DataDog/datadog-agent/pkg/remoteconfig/state
@@ -426,20 +424,9 @@ github.com/gogo/protobuf/sortkeys
 github.com/gogo/protobuf/types
 github.com/golang/groupcache/lru
 github.com/golang/mock/gomock
-github.com/golang/protobuf/descriptor
-github.com/golang/protobuf/jsonpb
 github.com/golang/protobuf/proto
-github.com/golang/protobuf/protoc-gen-go/descriptor
-github.com/golang/protobuf/ptypes/any
-github.com/golang/protobuf/ptypes/duration
-github.com/golang/protobuf/ptypes/empty
-github.com/golang/protobuf/ptypes/timestamp
-github.com/golang/protobuf/ptypes/wrappers
 github.com/golang/snappy
 github.com/google/uuid
-github.com/grpc-ecosystem/grpc-gateway/internal
-github.com/grpc-ecosystem/grpc-gateway/runtime
-github.com/grpc-ecosystem/grpc-gateway/utilities
 github.com/grpc-ecosystem/grpc-gateway/v2/internal/httprule
 github.com/grpc-ecosystem/grpc-gateway/v2/runtime
 github.com/grpc-ecosystem/grpc-gateway/v2/utilities
@@ -806,12 +793,9 @@ gonum.org/v1/gonum/lapack
 gonum.org/v1/gonum/lapack/gonum
 gonum.org/v1/gonum/lapack/lapack64
 gonum.org/v1/gonum/mat
-google.golang.org/genproto/googleapis/api
-google.golang.org/genproto/googleapis/api/annotations
 google.golang.org/genproto/googleapis/api/httpbody
 google.golang.org/genproto/googleapis/rpc/errdetails
 google.golang.org/genproto/googleapis/rpc/status
-google.golang.org/genproto/protobuf/field_mask
 google.golang.org/grpc
 google.golang.org/grpc/attributes
 google.golang.org/grpc/backoff
@@ -901,7 +885,6 @@ google.golang.org/protobuf/types/descriptorpb
 google.golang.org/protobuf/types/gofeaturespb
 google.golang.org/protobuf/types/known/anypb
 google.golang.org/protobuf/types/known/durationpb
-google.golang.org/protobuf/types/known/emptypb
 google.golang.org/protobuf/types/known/fieldmaskpb
 google.golang.org/protobuf/types/known/structpb
 google.golang.org/protobuf/types/known/timestamppb

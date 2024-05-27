@@ -5,19 +5,17 @@
 
 //go:build kubeapiserver
 
-package apiserver
+package controllers
 
 import (
 	"context"
 	"testing"
 	"time"
 
+	gocache "github.com/patrickmn/go-cache"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	apiv1 "github.com/DataDog/datadog-agent/pkg/clusteragent/api/v1"
-	"github.com/DataDog/datadog-agent/pkg/util/testutil"
-
+	"go.uber.org/fx"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -27,13 +25,19 @@ import (
 	"k8s.io/client-go/kubernetes/fake"
 	"k8s.io/client-go/tools/cache"
 
-	gocache "github.com/patrickmn/go-cache"
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	apiv1 "github.com/DataDog/datadog-agent/pkg/clusteragent/api/v1"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
+	"github.com/DataDog/datadog-agent/pkg/util/testutil"
 )
 
 func TestMetadataControllerSyncEndpoints(t *testing.T) {
 	client := fake.NewSimpleClientset()
 
-	metaController, informerFactory := newFakeMetadataController(client)
+	metaController, informerFactory := newFakeMetadataController(client, newMockWorkloadMeta(t))
 
 	// don't use the global store so we can can inspect the store without
 	// it being modified by other tests.
@@ -62,22 +66,30 @@ func TestMetadataControllerSyncEndpoints(t *testing.T) {
 		"3.3.3.3",
 	)
 
-	for _, node := range []*v1.Node{
-		{ObjectMeta: metav1.ObjectMeta{Name: "node1"}},
-		{ObjectMeta: metav1.ObjectMeta{Name: "node2"}},
-		{ObjectMeta: metav1.ObjectMeta{Name: "node3"}},
-	} {
-		// We are adding objects directly into the store for testing purposes. Do NOT call
-		// informerFactory.Start() since the fake apiserver client doesn't actually contain our objects.
-		err := informerFactory.
-			Core().
-			V1().
-			Nodes().
-			Informer().
-			GetStore().
-			Add(node)
+	// Create nodes in workloadmeta
+	for _, nodeName := range []string{"node1", "node2", "node3"} {
+		err := metaController.wmeta.Push(
+			"metadata-controller",
+			workloadmeta.Event{
+				Type: workloadmeta.EventTypeSet,
+				Entity: &workloadmeta.KubernetesNode{
+					EntityID: workloadmeta.EntityID{
+						Kind: workloadmeta.KindKubernetesNode,
+						ID:   nodeName,
+					},
+					EntityMeta: workloadmeta.EntityMeta{
+						Name: nodeName,
+					},
+				},
+			},
+		)
 		require.NoError(t, err)
 	}
+
+	// Wait until the workloadmeta events have been processed
+	require.Eventually(t, func() bool {
+		return len(metaController.wmeta.ListKubernetesNodes()) == 3
+	}, 5*time.Second, 100*time.Millisecond)
 
 	tests := []struct {
 		desc            string
@@ -426,15 +438,15 @@ func TestMetadataController(t *testing.T) {
 	_, err = c.Endpoints("default").Create(context.TODO(), ep, metav1.CreateOptions{})
 	require.NoError(t, err)
 
-	metaController, informerFactory := newFakeMetadataController(client)
+	metaController, informerFactory := newFakeMetadataController(client, newMockWorkloadMeta(t))
 
 	stop := make(chan struct{})
 	defer close(stop)
 	informerFactory.Start(stop)
-	go metaController.Run(stop)
+	go metaController.run(stop)
 
 	testutil.AssertTrueBeforeTimeout(t, 100*time.Millisecond, 2*time.Second, func() bool {
-		return metaController.endpointsListerSynced() && metaController.nodeListerSynced()
+		return metaController.endpointsListerSynced()
 	})
 
 	testutil.AssertTrueBeforeTimeout(t, 100*time.Millisecond, 2*time.Second, func() bool {
@@ -450,14 +462,14 @@ func TestMetadataController(t *testing.T) {
 		return true
 	})
 
-	cl := &APIClient{Cl: client, defaultClientTimeout: 5}
+	cl := &apiserver.APIClient{Cl: client}
 
 	testutil.AssertTrueBeforeTimeout(t, 100*time.Millisecond, 2*time.Second, func() bool {
-		fullmapper, errList := GetMetadataMapBundleOnAllNodes(cl)
+		fullmapper, errList := apiserver.GetMetadataMapBundleOnAllNodes(cl)
 		require.Nil(t, errList)
 		list := fullmapper.Nodes
 		assert.Contains(t, list, "ip-172-31-119-125")
-		bundle := metadataMapperBundle{Services: list["ip-172-31-119-125"].Services}
+		bundle := apiserver.MetadataMapperBundle{Services: list["ip-172-31-119-125"].Services}
 		services, found := bundle.ServicesForPod(metav1.NamespaceDefault, "nginx")
 		if !found {
 			return false
@@ -467,12 +479,24 @@ func TestMetadataController(t *testing.T) {
 	})
 }
 
-func newFakeMetadataController(client kubernetes.Interface) (*MetadataController, informers.SharedInformerFactory) {
+func newMockWorkloadMeta(t *testing.T) workloadmeta.Component {
+	return fxutil.Test[workloadmeta.Mock](
+		t,
+		fx.Options(
+			logimpl.MockModule(),
+			config.MockModule(),
+			fx.Supply(workloadmeta.NewParams()),
+			workloadmeta.MockModuleV2(),
+		),
+	)
+}
+
+func newFakeMetadataController(client kubernetes.Interface, wmeta workloadmeta.Component) (*metadataController, informers.SharedInformerFactory) {
 	informerFactory := informers.NewSharedInformerFactory(client, 1*time.Second)
 
-	metaController := NewMetadataController(
-		informerFactory.Core().V1().Nodes(),
+	metaController := newMetadataController(
 		informerFactory.Core().V1().Endpoints(),
+		wmeta,
 	)
 
 	return metaController, informerFactory
