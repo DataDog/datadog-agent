@@ -57,7 +57,6 @@ type RequestStat struct {
 // CombineWith merges the data in 2 RequestStats objects
 // newStats is kept as it is, while the method receiver gets mutated
 func (r *RequestStats) CombineWith(newStats *RequestStats) {
-	// TODO: This can be optimized by saving the error code we've seen and only accessing these instead of going over all error codes
 	for statusCode, newRequests := range newStats.ErrorCodeToStat {
 		if newRequests.Count == 0 {
 			// Nothing to do in this case
@@ -67,7 +66,7 @@ func (r *RequestStats) CombineWith(newStats *RequestStats) {
 	}
 }
 
-// AddRequest takes information about a HTTP transaction and adds it to the request stats
+// AddRequest takes information about a Kafka transaction and adds it to the request stats
 func (r *RequestStats) AddRequest(errorCode int8, count int) {
 	if !isValidKafkaErrorCode(errorCode) {
 		return
