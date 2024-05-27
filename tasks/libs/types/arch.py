@@ -21,6 +21,7 @@ class Arch:
     different names.
 
     Use Arch.from_str to convert from a string to an Arch object.
+    Use Arch.local() to get the Arch object for the current machine's architecture.
     """
 
     def __init__(

@@ -1131,6 +1131,7 @@ def get_linux_header_dirs(
     # Inspect the paths and compute a priority for each of them based on how well
     # they match the restrictions given by our arguments.
     # Also, maintain a sort order to ensure that headers are included in the right position.
+    # Priority and sort order will be the first two elements of each tuple of the list.
     paths_with_priority_and_sort_order: list[tuple[int, int, Path]] = []
     discarded_paths: list[tuple[str, Path]] = []  # Keep track of the discarded paths so we can debug failures
     for path in candidates:
