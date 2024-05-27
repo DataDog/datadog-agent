@@ -970,7 +970,7 @@ workflow:
       paths:
         - .gitlab/**/*
         - omnibus/config/**/*
-        - pkg/installer/**/*
+        - pkg/fleet/**/*
         - cmd/installer/**/*
         - test/new-e2e/tests/installer/**/*
         - tasks/installer.py
