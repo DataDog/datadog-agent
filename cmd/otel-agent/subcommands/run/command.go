@@ -33,7 +33,8 @@ import (
 	configprovider "github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/pipeline/provider"
 	"github.com/DataDog/datadog-agent/comp/serializer/compression"
 	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl/strategy"
-	"github.com/DataDog/datadog-agent/pkg/config/env"
+	pkgconfigenv "github.com/DataDog/datadog-agent/pkg/config/env"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -113,7 +114,7 @@ func runOTelAgentCommand(_ context.Context, params *subcommands.GlobalParams, op
 			if err != nil {
 				return nil, err
 			}
-			env.DetectFeatures(c)
+			pkgconfigenv.DetectFeatures(c)
 			return c, nil
 		}),
 
@@ -130,7 +131,7 @@ func runOTelAgentCommand(_ context.Context, params *subcommands.GlobalParams, op
 
 		fx.Supply(optional.NewNoneOption[secrets.Component]()),
 		fx.Provide(func(c config.Component) corelogimpl.Params {
-			return corelogimpl.ForOneShot(params.LoggerName, c.GetString("log_level"), true)
+			return corelogimpl.ForDaemon(params.LoggerName, "log_file", pkgconfigsetup.DefaultOTelAgentLogFile)
 		}),
 		logsagentpipelineimpl.Module(),
 		// We create strategy.ZlibStrategy directly to avoid build tags
