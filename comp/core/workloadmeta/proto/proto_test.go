@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
 
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
@@ -377,6 +378,23 @@ func TestConversions(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestProtobufFilterFromWorkloadmetaFilter(t *testing.T) {
+	filter := workloadmeta.NewFilter(
+		&workloadmeta.FilterParams{
+			Kinds:     []workloadmeta.Kind{workloadmeta.KindContainer},
+			Source:    workloadmeta.SourceRuntime,
+			EventType: workloadmeta.EventTypeSet,
+		},
+	)
+
+	protoFilter, err := ProtobufFilterFromWorkloadmetaFilter(filter)
+	require.NoError(t, err)
+
+	assert.ElementsMatch(t, []pb.WorkloadmetaKind{pb.WorkloadmetaKind_CONTAINER}, protoFilter.Kinds)
+	assert.Equal(t, pb.WorkloadmetaSource_RUNTIME, protoFilter.Source)
+	assert.Equal(t, pb.WorkloadmetaEventType_EVENT_TYPE_SET, protoFilter.EventType)
 }
 
 func TestWorkloadmetaFilterFromProtoFilter(t *testing.T) {
