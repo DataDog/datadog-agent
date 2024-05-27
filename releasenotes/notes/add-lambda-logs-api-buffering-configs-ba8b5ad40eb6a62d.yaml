@@ -8,7 +8,7 @@
 ---
 features:
   - |
-    Enable to set the buffering configuration of Lambda Logs API
-    via ``DD_LOGS_CONFIG_LAMBDA_LOGS_BUFFERING_TIMEOUT_MS``,
-    ``DD_LOGS_CONFIG_LAMBDA_LOGS_BUFFERING_MAX_BYTES`` and
+    You can now set the buffering configuration of Lambda Logs API
+    using ``DD_LOGS_CONFIG_LAMBDA_LOGS_BUFFERING_TIMEOUT_MS``,
+    ``DD_LOGS_CONFIG_LAMBDA_LOGS_BUFFERING_MAX_BYTES``, and
     ``DD_LOGS_CONFIG_LAMBDA_LOGS_BUFFERING_MAX_ITEMS``.
