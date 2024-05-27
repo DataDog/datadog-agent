@@ -979,9 +979,9 @@ func TestKafkaSerializationWithLocalhostTraffic(t *testing.T) {
 		BufferedData: network.BufferedData{
 			Conns: connections,
 		},
-		Kafka: map[kafka.Key]*kafka.RequestStat{
+		Kafka: map[kafka.Key]*kafka.RequestStats{
 			kafkaKey: {
-				Count: 10,
+				ErrorCodeToStat: map[int8]*kafka.RequestStat{0: {Count: 10}},
 			},
 		},
 	}
