@@ -49,10 +49,11 @@ func InitAndStartServerlessDemultiplexer(keysPerDomain map[string][]string, forw
 	serializer := serializer.NewSerializer(forwarder, nil, compressionimpl.NewCompressor(config.Datadog()), config.Datadog(), h)
 	metricSamplePool := metrics.NewMetricSamplePool(MetricSamplePoolBatchSize, utils.IsTelemetryEnabled(config.Datadog()))
 	tagsStore := tags.NewStore(config.Datadog().GetBool("aggregator_use_tags_store"), "timesampler")
+	flushAsync := config.Datadog().GetBool("aggregator_use_async_flush")
 
 	statsdSampler := NewTimeSampler(TimeSamplerID(0), bucketSize, tagsStore, "")
 	flushAndSerializeInParallel := NewFlushAndSerializeInParallel(config.Datadog())
-	statsdWorker := newTimeSamplerWorker(statsdSampler, DefaultFlushInterval, bufferSize, metricSamplePool, flushAndSerializeInParallel, tagsStore)
+	statsdWorker := newTimeSamplerWorker(statsdSampler, DefaultFlushInterval, flushAsync, bufferSize, metricSamplePool, flushAndSerializeInParallel, tagsStore)
 
 	demux := &ServerlessDemultiplexer{
 		log:              log,
