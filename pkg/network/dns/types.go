@@ -7,8 +7,6 @@
 package dns
 
 import (
-	"github.com/google/gopacket/layers"
-
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/intern"
 )
@@ -34,7 +32,7 @@ func ToHostname(s string) Hostname {
 }
 
 // QueryType is the DNS record type
-type QueryType layers.DNSType
+type QueryType int
 
 // DNSType known values.
 const (
