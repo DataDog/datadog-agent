@@ -85,10 +85,16 @@ func (s *KafkaSuite) TestFormatKafkaStats() {
 		},
 		Kafka: map[kafka.Key]*kafka.RequestStats{
 			kafkaKey1: {
-				map[int8]*kafka.RequestStat{0: {Count: 10}, 1: {Count: 2}},
+				ErrorCodeToStat: map[int8]*kafka.RequestStat{
+					0: {Count: 10},
+					1: {Count: 2},
+				},
 			},
 			kafkaKey2: {
-				map[int8]*kafka.RequestStat{0: {Count: 2}, 10: {Count: 5}},
+				ErrorCodeToStat: map[int8]*kafka.RequestStat{
+					0:  {Count: 2},
+					10: {Count: 5},
+				},
 			},
 		},
 	}
@@ -158,7 +164,9 @@ func (s *KafkaSuite) TestKafkaIDCollisionRegression() {
 		},
 		Kafka: map[kafka.Key]*kafka.RequestStats{
 			kafkaKey: {
-				map[int8]*kafka.RequestStat{0: {Count: 10}},
+				ErrorCodeToStat: map[int8]*kafka.RequestStat{
+					0: {Count: 10},
+				},
 			},
 		},
 	}
@@ -217,7 +225,9 @@ func (s *KafkaSuite) TestKafkaLocalhostScenario() {
 		},
 		Kafka: map[kafka.Key]*kafka.RequestStats{
 			kafkaKey: {
-				map[int8]*kafka.RequestStat{0: {Count: 10}},
+				ErrorCodeToStat: map[int8]*kafka.RequestStat{
+					0: {Count: 10},
+				},
 			},
 		},
 	}
