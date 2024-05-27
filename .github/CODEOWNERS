@@ -176,6 +176,7 @@
 /cmd/otel-agent/                        @DataDog/opentelemetry
 /cmd/process-agent/                     @DataDog/processes
 /cmd/serverless/                        @DataDog/serverless
+/cmd/serverless/dependencies*.txt       @DataDog/serverless @DataDog/agent-shared-components
 /cmd/serverless-init/                   @DataDog/serverless
 /cmd/system-probe/                      @DataDog/ebpf-platform
 /cmd/system-probe/config/adjust_npm.go  @DataDog/ebpf-platform @DataDog/Networks

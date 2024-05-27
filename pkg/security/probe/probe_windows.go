@@ -862,9 +862,7 @@ func (p *WindowsProbe) SendStats() error {
 	}
 	return nil
 }
-
-// NewWindowsProbe instantiates a new runtime security agent probe
-func NewWindowsProbe(probe *Probe, config *config.Config, opts Opts) (*WindowsProbe, error) {
+func initializeWindowsProbe(config *config.Config, opts Opts) (*WindowsProbe, error) {
 	discardedPaths, err := lru.New[string, struct{}](1 << 10)
 	if err != nil {
 		return nil, err
@@ -892,7 +890,6 @@ func NewWindowsProbe(probe *Probe, config *config.Config, opts Opts) (*WindowsPr
 	ctx, cancelFnc := context.WithCancel(context.Background())
 
 	p := &WindowsProbe{
-		probe:             probe,
 		config:            config,
 		opts:              opts,
 		statsdClient:      opts.StatsdClient,
@@ -915,7 +912,17 @@ func NewWindowsProbe(probe *Probe, config *config.Config, opts Opts) (*WindowsPr
 
 		processKiller: NewProcessKiller(),
 	}
+	return p, nil
+}
 
+// NewWindowsProbe instantiates a new runtime security agent probe
+func NewWindowsProbe(probe *Probe, config *config.Config, opts Opts) (*WindowsProbe, error) {
+
+	p, err := initializeWindowsProbe(config, opts)
+	if err != nil {
+		return nil, err
+	}
+	p.probe = probe
 	p.Resolvers, err = resolvers.NewResolvers(config, p.statsdClient, probe.scrubber)
 	if err != nil {
 		return nil, err
