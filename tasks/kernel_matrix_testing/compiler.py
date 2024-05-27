@@ -128,11 +128,13 @@ class CompilerImage:
         else:
             target = ARCH_ARM64
 
-        # Hardcoded links to the header packages for each architecture. Reasons:
-        # 1. While right now they're similar and we'd only need a single link, in other cases they have different formats
-        # 2. Automated retrieval of these URLs is not easy
-        # 3. As we're cross-compiling, even if these become outdated with respect to the kernel used in the build image, we don't
-        #    care that much as the kernel version is not going to match anyways, we're not running in the local system.
+        # Hardcoded links to the header packages for each architecture. Why do this and not have something more automated?
+        # 1. While right now the URLs are similar and we'd only need a single link with variable replacement, this might
+        #    change as the repository layout is not under our control.
+        # 2. Automatic detection of these URLs is not direct (querying the package repo APIs is not trivial) and we'd need some
+        #    level of hard-coding some URLs or assumptions anyways.
+        # 3. Even if someone forgets to update these URLs, it's not a big deal, as we're building inside of a Docker image which will
+        #    likely have a different kernel than the target system where the built eBPF files are going to run anyways.
         header_package_urls: dict[Arch, str] = {
             ARCH_AMD64: "http://deb.debian.org/debian-security/pool/updates/main/l/linux-5.10/linux-headers-5.10.0-0.deb10.28-amd64_5.10.209-2~deb10u1_amd64.deb",
             ARCH_ARM64: "http://deb.debian.org/debian-security/pool/updates/main/l/linux-5.10/linux-headers-5.10.0-0.deb10.28-arm64_5.10.209-2~deb10u1_arm64.deb",
