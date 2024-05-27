@@ -172,6 +172,7 @@ func initAgentDemultiplexer(log log.Component,
 	log.Debug("the Demultiplexer will use", statsdPipelinesCount, "pipelines")
 
 	statsdWorkers := make([]*timeSamplerWorker, statsdPipelinesCount)
+	flushAsync := pkgconfigsetup.Datadog().GetBool("aggregator_use_async_flush")
 
 	for i := 0; i < statsdPipelinesCount; i++ {
 		// the sampler
@@ -181,7 +182,7 @@ func initAgentDemultiplexer(log log.Component,
 
 		// its worker (process loop + flush/serialization mechanism)
 
-		statsdWorkers[i] = newTimeSamplerWorker(statsdSampler, options.FlushInterval,
+		statsdWorkers[i] = newTimeSamplerWorker(statsdSampler, options.FlushInterval, flushAsync,
 			bufferSize, metricSamplePool, agg.flushAndSerializeInParallel, tagsStore)
 	}
 

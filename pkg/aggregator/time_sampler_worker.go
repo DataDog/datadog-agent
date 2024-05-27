@@ -27,6 +27,7 @@ type timeSamplerWorker struct {
 
 	// flushInterval is the automatic flush interval
 	flushInterval time.Duration
+	flushAsync    bool
 
 	// flushBlocklist is the blocklist used when flushing metrics to the serializer.
 	// It's main use-case is to filter out some metrics after their aggregation
@@ -57,9 +58,10 @@ type dumpTrigger struct {
 	done chan error
 }
 
-func newTimeSamplerWorker(sampler *TimeSampler, flushInterval time.Duration, bufferSize int,
+func newTimeSamplerWorker(sampler *TimeSampler, flushInterval time.Duration, flushAsync bool, bufferSize int,
 	metricSamplePool *metrics.MetricSamplePool,
 	parallelSerialization FlushAndSerializeInParallel, tagsStore *tags.Store) *timeSamplerWorker {
+
 	return &timeSamplerWorker{
 		sampler: sampler,
 
@@ -67,6 +69,7 @@ func newTimeSamplerWorker(sampler *TimeSampler, flushInterval time.Duration, buf
 		parallelSerialization: parallelSerialization,
 
 		flushInterval: flushInterval,
+		flushAsync:    flushAsync,
 
 		samplesChan:   make(chan []metrics.MetricSample, bufferSize),
 		stopChan:      make(chan struct{}),
@@ -116,8 +119,12 @@ func (w *timeSamplerWorker) stop() {
 }
 
 func (w *timeSamplerWorker) triggerFlush(trigger flushTrigger) {
-	w.sampler.flush(float64(trigger.time.Unix()), trigger.seriesSink, trigger.sketchesSink, w.flushBlocklist, trigger.forceFlushAll)
-	trigger.blockChan <- struct{}{}
+	if w.flushAsync {
+		w.sampler.flushAsync(float64(trigger.time.Unix()), trigger.seriesSink, trigger.sketchesSink, w.flushBlocklist, trigger.forceFlushAll, trigger.blockChan)
+	} else {
+	    w.sampler.flush(float64(trigger.time.Unix()), trigger.seriesSink, trigger.sketchesSink, w.flushBlocklist, trigger.forceFlushAll)
+		trigger.blockChan <- struct{}{}
+	}
 }
 
 func (w *timeSamplerWorker) dumpContexts(dest io.Writer) error {

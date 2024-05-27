@@ -680,17 +680,15 @@ func BenchmarkTimeSampler(b *testing.B) {
 }
 
 func flushSerie(sampler *TimeSampler, timestamp float64, forceFlushAll bool) (metrics.Series, metrics.SketchSeriesList) {
-	var series metrics.Series
-	var sketches metrics.SketchSeriesList
-
-	sampler.flush(timestamp, &series, &sketches, nil, forceFlushAll)
-	return series, sketches
+	flushSerieWithBlocklist(sampler, timestamp, nil, forceFlushAll)
 }
 
 func flushSerieWithBlocklist(sampler *TimeSampler, timestamp float64, bl *utilstrings.Blocklist, forceFlushAll bool) (metrics.Series, metrics.SketchSeriesList) {
 	var series metrics.Series
 	var sketches metrics.SketchSeriesList
 
-	sampler.flush(timestamp, &series, &sketches, bl, forceFlushAll)
+	blockChan := make(chan struct{})
+	sampler.flushAsync(timestamp, &series, &sketches, bl, forceFlushAll, blockChan)
+	<-blockChan
 	return series, sketches
 }
