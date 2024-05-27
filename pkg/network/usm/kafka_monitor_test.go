@@ -26,6 +26,7 @@ import (
 
 	"github.com/cilium/ebpf"
 	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 	"github.com/twmb/franz-go/pkg/kgo"
@@ -354,17 +355,16 @@ func (s *KafkaProtocolParsingSuite) testKafkaProtocolParsing(t *testing.T, tls b
 				}
 				srvDoneFn()
 
-				httpOccurrences := PrintableInt(0)
+				httpOccurrences := 0
 				expectedKafkaRequestCount := fixCount(1)
-				kafkaStatsCount := PrintableInt(0)
 				kafkaStats := make(map[kafka.Key]*kafka.RequestStat)
-				require.Eventually(t, func() bool {
+				require.EventuallyWithT(t, func(collect *assert.CollectT) {
 					allStats := monitor.GetProtocolStats()
 					require.NotNil(t, allStats)
 
 					httpStats, ok := allStats[protocols.HTTP]
 					if ok {
-						httpOccurrences.Add(countRequestOccurrences(httpStats.(map[http.Key]*http.RequestStats), req))
+						httpOccurrences += countRequestOccurrences(httpStats.(map[http.Key]*http.RequestStats), req)
 					}
 
 					kafkaProtocolStats, ok := allStats[protocols.Kafka]
@@ -380,9 +380,9 @@ func (s *KafkaProtocolParsingSuite) testKafkaProtocolParsing(t *testing.T, tls b
 							}
 						}
 					}
-					kafkaStatsCount = PrintableInt(len(kafkaStats))
-					return len(kafkaStats) == expectedKafkaRequestCount && httpOccurrences.Load() == httpRequestCount
-				}, time.Second*3, time.Millisecond*100, "Expected to find %d http requests (captured %v), and %d kafka requests (captured %v)", httpRequestCount, &httpOccurrences, expectedKafkaRequestCount, &kafkaStatsCount)
+					assert.Equal(collect, expectedKafkaRequestCount, len(kafkaStats), "Unexpected number of HTTP requests")
+					assert.Equal(collect, httpRequestCount, httpOccurrences, "Unexpected number of Kafka requests")
+				}, time.Second*3, time.Millisecond*100)
 
 				validateProduceFetchCount(t, kafkaStats, topicName,
 					kafkaParsingValidation{
@@ -1195,9 +1195,8 @@ func (i *PrintableInt) Add(other int) {
 }
 
 func getAndValidateKafkaStats(t *testing.T, monitor *Monitor, expectedStatsCount int) map[kafka.Key]*kafka.RequestStat {
-	statsCount := PrintableInt(0)
 	kafkaStats := make(map[kafka.Key]*kafka.RequestStat)
-	require.Eventually(t, func() bool {
+	require.EventuallyWithT(t, func(collect *assert.CollectT) {
 		protocolStats := monitor.GetProtocolStats()
 		kafkaProtocolStats, exists := protocolStats[protocols.Kafka]
 		// We might not have kafka stats, and it might be the expected case (to capture 0).
@@ -1212,9 +1211,8 @@ func getAndValidateKafkaStats(t *testing.T, monitor *Monitor, expectedStatsCount
 				}
 			}
 		}
-		statsCount = PrintableInt(len(kafkaStats))
-		return expectedStatsCount == len(kafkaStats)
-	}, time.Second*5, time.Millisecond*100, "Expected to find a %d stats, instead captured %v", expectedStatsCount, &statsCount)
+		assert.Equal(collect, expectedStatsCount, len(kafkaStats), "Did not find expected number of stats")
+	}, time.Second*5, time.Millisecond*100)
 	return kafkaStats
 }
 
