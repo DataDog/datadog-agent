@@ -994,7 +994,9 @@ func TestKafkaSerializationWithLocalhostTraffic(t *testing.T) {
 					RequestVersion: apiVersion2,
 				},
 				Topic: topicName,
-				Count: 10,
+				StatsByStatusCode: map[int32]*model.KafkaStats{
+					0: {Count: 10},
+				},
 			},
 		},
 	}
