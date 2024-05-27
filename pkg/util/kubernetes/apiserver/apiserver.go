@@ -673,10 +673,6 @@ func (c *APIClient) MetadataClient() (metadata.Interface, error) {
 	return metaclient, nil
 }
 
-func (c *APIClient) DiscoveryClient() discovery.DiscoveryInterface {
-	return c.Cl.Discovery()
-}
-
 // NewSPDYExecutor returns a new SPDY executor for the provided method and URL
 func (c *APIClient) NewSPDYExecutor(apiPath string, groupVersion *schema.GroupVersion, negotiatedSerializer runtime.NegotiatedSerializer, method string, url *url.URL) (remotecommand.Executor, error) {
 	clientConfig, err := getClientConfig(c.defaultClientTimeout)

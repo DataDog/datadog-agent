@@ -795,10 +795,12 @@ type KubernetesMetadata struct {
 	GVR schema.GroupVersionResource
 }
 
+// GetID implements Entity#GetID.
 func (m *KubernetesMetadata) GetID() EntityID {
 	return m.EntityID
 }
 
+// Merge implements Entity#Merge.
 func (m *KubernetesMetadata) Merge(e Entity) error {
 	mm, ok := e.(*KubernetesMetadata)
 	if !ok {

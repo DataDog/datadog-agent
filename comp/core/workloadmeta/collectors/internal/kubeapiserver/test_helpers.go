@@ -10,10 +10,11 @@ package kubeapiserver
 import (
 	"context"
 	"fmt"
-	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
 	"testing"
 	"time"
+
+	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -102,7 +103,8 @@ func testCollectMetadataEvent(t *testing.T, createObjects func() []runtime.Objec
 	// Create test scheme
 	testScheme := runtime.NewScheme()
 	// Register Metadata objects types to the test scheme
-	v1.AddMetaToScheme(testScheme)
+	err := v1.AddMetaToScheme(testScheme)
+	assert.NoError(t, err)
 
 	objects := createObjects()
 

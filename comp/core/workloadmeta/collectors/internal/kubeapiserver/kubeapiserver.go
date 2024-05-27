@@ -23,7 +23,6 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/metadata"
 	"k8s.io/client-go/tools/cache"
 )
 
@@ -35,9 +34,6 @@ const (
 
 // storeGenerator returns a new store specific to a given resource
 type storeGenerator func(context.Context, workloadmeta.Component, kubernetes.Interface) (*cache.Reflector, *reflectorStore)
-
-// metadataStoreGenerator returns a new kubernetes metadata store for a specific GVR
-type metadataStoreGenerator func(context.Context, workloadmeta.Component, metadata.Interface, schema.GroupVersionResource) (*cache.Reflector, *reflectorStore)
 
 func storeGenerators(cfg config.Reader) []storeGenerator {
 	generators := []storeGenerator{newNodeStore}

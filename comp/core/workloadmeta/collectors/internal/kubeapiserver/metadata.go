@@ -12,7 +12,6 @@ import (
 	"fmt"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/watch"
@@ -41,7 +40,7 @@ func newMetadataStore(ctx context.Context, wlmetaStore workloadmeta.Component, m
 	metadataReflector := cache.NewNamedReflector(
 		componentName,
 		metadataListerWatcher,
-		&v1.PartialObjectMetadata{},
+		&metav1.PartialObjectMetadata{},
 		metadataStore,
 		noResync,
 	)
@@ -57,7 +56,7 @@ func newMetadataParser(gvr schema.GroupVersionResource) objectParser {
 }
 
 func (p metadataParser) Parse(obj interface{}) workloadmeta.Entity {
-	partialObjectMetadata := obj.(*v1.PartialObjectMetadata)
+	partialObjectMetadata := obj.(*metav1.PartialObjectMetadata)
 	id := fmt.Sprintf("%s/%s/%s", p.gvr.Resource, partialObjectMetadata.Namespace, partialObjectMetadata.Name)
 
 	return &workloadmeta.KubernetesMetadata{

@@ -17,7 +17,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
@@ -28,7 +27,7 @@ func TestParse_ParsePartialObjectMetadata(t *testing.T) {
 	testcases := []struct {
 		name                  string
 		gvr                   schema.GroupVersionResource
-		partialObjectMetadata *v1.PartialObjectMetadata
+		partialObjectMetadata *metav1.PartialObjectMetadata
 		expected              *workloadmeta.KubernetesMetadata
 	}{
 		{
@@ -38,8 +37,8 @@ func TestParse_ParsePartialObjectMetadata(t *testing.T) {
 				Version:  "v1",
 				Resource: "deployments",
 			},
-			partialObjectMetadata: &v1.PartialObjectMetadata{
-				ObjectMeta: v1.ObjectMeta{
+			partialObjectMetadata: &metav1.PartialObjectMetadata{
+				ObjectMeta: metav1.ObjectMeta{
 					Name:        "test-app",
 					Namespace:   "default",
 					Labels:      map[string]string{"l1": "v1", "l2": "v2", "l3": "v3"},
@@ -71,8 +70,8 @@ func TestParse_ParsePartialObjectMetadata(t *testing.T) {
 				Version:  "v1",
 				Resource: "namespaces",
 			},
-			partialObjectMetadata: &v1.PartialObjectMetadata{
-				ObjectMeta: v1.ObjectMeta{
+			partialObjectMetadata: &metav1.PartialObjectMetadata{
+				ObjectMeta: metav1.ObjectMeta{
 					Name:        "test-namespace",
 					Namespace:   "",
 					Labels:      map[string]string{"l1": "v1", "l2": "v2", "l3": "v3"},
