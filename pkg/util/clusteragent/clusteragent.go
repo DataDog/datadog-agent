@@ -61,7 +61,6 @@ type DCAClientInterface interface {
 	Version() version.Version
 	ClusterAgentAPIEndpoint() string
 
-	GetVersion() (version.Version, error)
 	GetNodeLabels(nodeName string) (map[string]string, error)
 	GetNodeAnnotations(nodeName string) (map[string]string, error)
 	GetNamespaceLabels(nsName string) (map[string]string, error)
@@ -192,7 +191,7 @@ func (c *DCAClient) initHTTPClient() error {
 	}
 
 	// Validate the cluster-agent client by checking the version
-	clusterAgentVersion, err := c.GetVersion()
+	clusterAgentVersion, err := c.getVersion()
 	if err != nil {
 		return err
 	}
@@ -384,8 +383,8 @@ func (c *DCAClient) doJSONQueryToLeader(ctx context.Context, path, method string
 	return err
 }
 
-// GetVersion fetches the version of the Cluster Agent. Used in the agent status command.
-func (c *DCAClient) GetVersion() (version.Version, error) {
+// getVersion fetches the version of the Cluster Agent
+func (c *DCAClient) getVersion() (version.Version, error) {
 	var version version.Version
 	err := c.doJSONQuery(context.TODO(), "version", "GET", nil, &version, false)
 	return version, err

@@ -75,10 +75,6 @@ func (f *FakeDCAClient) ClusterAgentAPIEndpoint() string {
 	return f.LocalClusterAgentAPIEndpoint
 }
 
-func (f *FakeDCAClient) GetVersion() (version.Version, error) {
-	return f.LocalVersion, f.VersionErr
-}
-
 func (f *FakeDCAClient) GetNodeLabels(_ string) (map[string]string, error) {
 	return f.NodeLabels, f.NodeLabelsErr
 }

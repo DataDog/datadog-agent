@@ -156,10 +156,6 @@ func (f *FakeDCAClient) ClusterAgentAPIEndpoint() string {
 	panic("implement me")
 }
 
-func (f *FakeDCAClient) GetVersion() (version.Version, error) {
-	panic("implement me")
-}
-
 func (f *FakeDCAClient) GetNodeLabels(_ string) (map[string]string, error) {
 	panic("implement me")
 }
