@@ -39,7 +39,6 @@ func (s *packageInstallerSuite) TestInstall() {
 	state.AssertDirExists("/var/run/datadog", 0755, "dd-agent", "dd-agent")
 	state.AssertDirExists("/var/run/datadog/installer", 0755, "dd-agent", "dd-agent")
 	state.AssertDirExists("/var/run/datadog/installer/locks", 0777, "root", "root")
-	state.AssertFileExists("/var/run/datadog/installer/environment", 0644, "root", "root")
 
 	state.AssertDirExists("/opt/datadog-installer", 0755, "root", "root")
 	state.AssertDirExists("/opt/datadog-packages", 0755, "root", "root")
@@ -50,6 +49,18 @@ func (s *packageInstallerSuite) TestInstall() {
 	state.AssertSymlinkExists("/usr/bin/datadog-installer", "/opt/datadog-packages/datadog-installer/stable/bin/installer/installer", "root", "root")
 
 	state.AssertUnitsNotLoaded("datadog-installer.service", "datadog-installer-exp.service")
+}
+
+func (s *packageInstallerSuite) TestInstallWithRemoteUpdates() {
+	s.RunInstallScript("DD_REMOTE_UPDATES=true")
+	defer s.Purge()
+	s.host.WaitForUnitActive("datadog-installer.service")
+
+	state := s.host.State()
+	state.AssertUnitsLoaded("datadog-installer.service", "datadog-installer-exp.service")
+	state.AssertUnitsEnabled("datadog-installer.service")
+	state.AssertUnitsNotEnabled("datadog-installer-exp.service")
+	state.AssertUnitsRunning("datadog-installer.service")
 }
 
 func (s *packageInstallerSuite) TestUninstall() {

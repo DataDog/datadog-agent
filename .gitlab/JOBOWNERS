@@ -13,8 +13,10 @@ security_go_generate_check           @DataDog/agent-security
 prepare_sysprobe_ebpf_functional_tests* @DataDog/ebpf-platform
 prepare_secagent_ebpf_functional_tests* @DataDog/agent-security
 
-# Golang dependency list generation (currently disabled)
-golang_deps_generate                 @DataDog/agent-shared-components
+# Send count metrics about Golang dependencies
+golang_deps_send_count_metrics       @DataDog/agent-shared-components
+# Golang test dependecies diff
+golang_deps_test                     @DataDog/agent-shared-components
 # Golang dependency diff generation
 golang_deps_diff                     @DataDog/ebpf-platform
 golang_deps_commenter                @DataDog/ebpf-platform

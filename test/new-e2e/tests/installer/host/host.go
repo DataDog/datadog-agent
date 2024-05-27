@@ -486,7 +486,7 @@ func (s *State) AssertUnitsEnabled(names ...string) {
 	for _, name := range names {
 		unit, ok := s.Units[name]
 		assert.True(s.t, ok, "unit %v is not enabled", name)
-		assert.NotEqual(s.t, "unknown", unit.Enabled, "unit %v is not enabled", name)
+		assert.Equal(s.t, "enabled", unit.Enabled, "unit %v is not enabled", name)
 	}
 }
 
@@ -504,6 +504,15 @@ func (s *State) AssertUnitsNotLoaded(names ...string) {
 	for _, name := range names {
 		_, ok := s.Units[name]
 		assert.True(s.t, !ok, "unit %v is loaded", name)
+	}
+}
+
+// AssertUnitsNotEnabled asserts that a systemd unit is not enabled
+func (s *State) AssertUnitsNotEnabled(names ...string) {
+	for _, name := range names {
+		unit, ok := s.Units[name]
+		assert.True(s.t, ok, "unit %v is enabled", name)
+		assert.Equal(s.t, "disabled", unit.Enabled, "unit %v is enabled", name)
 	}
 }
 

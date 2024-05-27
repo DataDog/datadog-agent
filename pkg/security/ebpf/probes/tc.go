@@ -14,17 +14,8 @@ import (
 )
 
 // GetTCProbes returns the list of TCProbes
-func GetTCProbes() []*manager.Probe {
-	return []*manager.Probe{
-		{
-			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				UID:          SecurityAgentUID,
-				EBPFFuncName: "classifier_ingress",
-			},
-			NetworkDirection: manager.Ingress,
-			TCFilterProtocol: unix.ETH_P_ALL,
-			KeepProgramSpec:  true,
-		},
+func GetTCProbes(withNetworkIngress bool) []*manager.Probe {
+	out := []*manager.Probe{
 		{
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				UID:          SecurityAgentUID,
@@ -35,6 +26,20 @@ func GetTCProbes() []*manager.Probe {
 			KeepProgramSpec:  true,
 		},
 	}
+
+	if withNetworkIngress {
+		out = append(out, &manager.Probe{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				UID:          SecurityAgentUID,
+				EBPFFuncName: "classifier_ingress",
+			},
+			NetworkDirection: manager.Ingress,
+			TCFilterProtocol: unix.ETH_P_ALL,
+			KeepProgramSpec:  true,
+		})
+	}
+
+	return out
 }
 
 // GetAllTCProgramFunctions returns the list of TC classifier sections
@@ -42,9 +47,10 @@ func GetAllTCProgramFunctions() []string {
 	output := []string{
 		"classifier_dns_request_parser",
 		"classifier_dns_request",
+		"classifier_imds_request",
 	}
 
-	for _, tcProbe := range GetTCProbes() {
+	for _, tcProbe := range GetTCProbes(true) {
 		output = append(output, tcProbe.EBPFFuncName)
 	}
 
@@ -73,6 +79,13 @@ func getTCTailCallRoutes() []manager.TailCallRoute {
 			Key:           TCDNSRequestParserKey,
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				EBPFFuncName: "classifier_dns_request_parser",
+			},
+		},
+		{
+			ProgArrayName: "classifier_router",
+			Key:           TCIMDSRequestParserKey,
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: "classifier_imds_request",
 			},
 		},
 	}

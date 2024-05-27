@@ -76,7 +76,7 @@ type WindowsProbe struct {
 	regPathResolver  *lru.Cache[regObjectPointer, string]
 
 	// state tracking
-	renamePreArgs *lru.Cache[uint64, string]
+	renamePreArgs *lru.Cache[uint64, fileCache]
 
 	// stats
 	stats stats
@@ -99,7 +99,8 @@ type WindowsProbe struct {
 // filecache currently only has a filename.  But this is going to expand really soon.  so go ahead
 // and have the wrapper struct even though right now it doesn't add anything.
 type fileCache struct {
-	fileName string
+	fileName     string
+	userFileName string
 }
 
 type etwNotification struct {
@@ -592,17 +593,26 @@ func (p *WindowsProbe) handleETWNotification(ev *model.Event, notif etwNotificat
 		ev.Type = uint32(model.CreateNewFileEventType)
 		ev.CreateNewFile = model.CreateNewFileEvent{
 			File: model.FimFileEvent{
-				FileObject:  uint64(arg.fileObject),
-				PathnameStr: arg.fileName,
-				BasenameStr: filepath.Base(arg.fileName),
+				FileObject:      uint64(arg.fileObject),
+				PathnameStr:     arg.fileName,
+				UserPathnameStr: arg.userFileName,
+				BasenameStr:     filepath.Base(arg.fileName),
 			},
 		}
 	case *renameArgs:
-		p.renamePreArgs.Add(uint64(arg.fileObject), arg.fileName)
+		fc := fileCache{
+			fileName:     arg.fileName,
+			userFileName: arg.userFileName,
+		}
+		p.renamePreArgs.Add(uint64(arg.fileObject), fc)
 	case *rename29Args:
-		p.renamePreArgs.Add(uint64(arg.fileObject), arg.fileName)
+		fc := fileCache{
+			fileName:     arg.fileName,
+			userFileName: arg.userFileName,
+		}
+		p.renamePreArgs.Add(uint64(arg.fileObject), fc)
 	case *renamePath:
-		path, found := p.renamePreArgs.Get(uint64(arg.fileObject))
+		fileCache, found := p.renamePreArgs.Get(uint64(arg.fileObject))
 		if !found {
 			log.Debugf("unable to find renamePreArgs for %d", uint64(arg.fileObject))
 			return
@@ -610,14 +620,16 @@ func (p *WindowsProbe) handleETWNotification(ev *model.Event, notif etwNotificat
 		ev.Type = uint32(model.FileRenameEventType)
 		ev.RenameFile = model.RenameFileEvent{
 			Old: model.FimFileEvent{
-				FileObject:  uint64(arg.fileObject),
-				PathnameStr: path,
-				BasenameStr: filepath.Base(path),
+				FileObject:      uint64(arg.fileObject),
+				PathnameStr:     fileCache.fileName,
+				UserPathnameStr: fileCache.userFileName,
+				BasenameStr:     filepath.Base(fileCache.fileName),
 			},
 			New: model.FimFileEvent{
-				FileObject:  uint64(arg.fileObject),
-				PathnameStr: arg.filePath,
-				BasenameStr: filepath.Base(arg.filePath),
+				FileObject:      uint64(arg.fileObject),
+				PathnameStr:     arg.filePath,
+				UserPathnameStr: arg.userFilePath,
+				BasenameStr:     filepath.Base(arg.filePath),
 			},
 		}
 		p.renamePreArgs.Remove(uint64(arg.fileObject))
@@ -625,18 +637,20 @@ func (p *WindowsProbe) handleETWNotification(ev *model.Event, notif etwNotificat
 		ev.Type = uint32(model.DeleteFileEventType)
 		ev.DeleteFile = model.DeleteFileEvent{
 			File: model.FimFileEvent{
-				FileObject:  uint64(arg.fileObject),
-				PathnameStr: arg.fileName,
-				BasenameStr: filepath.Base(arg.fileName),
+				FileObject:      uint64(arg.fileObject),
+				PathnameStr:     arg.fileName,
+				UserPathnameStr: arg.userFileName,
+				BasenameStr:     filepath.Base(arg.fileName),
 			},
 		}
 	case *writeArgs:
 		ev.Type = uint32(model.WriteFileEventType)
 		ev.WriteFile = model.WriteFileEvent{
 			File: model.FimFileEvent{
-				FileObject:  uint64(arg.fileObject),
-				PathnameStr: arg.fileName,
-				BasenameStr: filepath.Base(arg.fileName),
+				FileObject:      uint64(arg.fileObject),
+				PathnameStr:     arg.fileName,
+				UserPathnameStr: arg.userFileName,
+				BasenameStr:     filepath.Base(arg.fileName),
 			},
 		}
 
@@ -848,9 +862,7 @@ func (p *WindowsProbe) SendStats() error {
 	}
 	return nil
 }
-
-// NewWindowsProbe instantiates a new runtime security agent probe
-func NewWindowsProbe(probe *Probe, config *config.Config, opts Opts) (*WindowsProbe, error) {
+func initializeWindowsProbe(config *config.Config, opts Opts) (*WindowsProbe, error) {
 	discardedPaths, err := lru.New[string, struct{}](1 << 10)
 	if err != nil {
 		return nil, err
@@ -870,7 +882,7 @@ func NewWindowsProbe(probe *Probe, config *config.Config, opts Opts) (*WindowsPr
 		return nil, err
 	}
 
-	rnc, err := lru.New[uint64, string](5)
+	rnc, err := lru.New[uint64, fileCache](5)
 	if err != nil {
 		return nil, err
 	}
@@ -878,7 +890,6 @@ func NewWindowsProbe(probe *Probe, config *config.Config, opts Opts) (*WindowsPr
 	ctx, cancelFnc := context.WithCancel(context.Background())
 
 	p := &WindowsProbe{
-		probe:             probe,
 		config:            config,
 		opts:              opts,
 		statsdClient:      opts.StatsdClient,
@@ -901,7 +912,17 @@ func NewWindowsProbe(probe *Probe, config *config.Config, opts Opts) (*WindowsPr
 
 		processKiller: NewProcessKiller(),
 	}
+	return p, nil
+}
 
+// NewWindowsProbe instantiates a new runtime security agent probe
+func NewWindowsProbe(probe *Probe, config *config.Config, opts Opts) (*WindowsProbe, error) {
+
+	p, err := initializeWindowsProbe(config, opts)
+	if err != nil {
+		return nil, err
+	}
+	p.probe = probe
 	p.Resolvers, err = resolvers.NewResolvers(config, p.statsdClient, probe.scrubber)
 	if err != nil {
 		return nil, err
