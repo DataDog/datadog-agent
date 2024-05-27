@@ -94,6 +94,8 @@ func toPostgresModelOperation(op postgres.Operation) model.PostgresOperation {
 		return model.PostgresOperation_PostgresCreateOp
 	case postgres.DropTableOP:
 		return model.PostgresOperation_PostgresDropOp
+	case postgres.AlterTableOP:
+		return model.PostgresOperation_PostgresAlterOp
 	default:
 		return model.PostgresOperation_PostgresUnknownOp
 	}
