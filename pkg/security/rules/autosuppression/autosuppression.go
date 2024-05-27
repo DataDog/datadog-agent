@@ -73,18 +73,18 @@ func (as *AutoSuppression) Init(opts Opts) {
 // Suppresses returns true if the event should be suppressed for the given rule, false otherwise. It also counts statistics depending on this result
 func (as *AutoSuppression) Suppresses(rule *rules.Rule, event *model.Event) bool {
 	if isAllowAutosuppressionRule(rule) && slices.Contains(as.opts.EventTypes, event.GetEventType()) {
+		if as.opts.ActivityDumpAutoSuppressionEnabled && event.HasActiveActivityDump() {
+			as.count(rule.ID, activityDumpSuppressionType)
+			return true
+		}
 		if as.opts.SecurityProfileAutoSuppressionEnabled {
 			if event.IsInProfile() {
 				as.count(rule.ID, securityProfileSuppressionType)
 				return true
-			} else if isWorkloadDriftOnlyRule(rule) && event.SecurityProfileContext.EventTypeState != secprofModel.StableEventType {
+			} else if isWorkloadDriftOnlyRule(rule) && event.SecurityProfileContext.EventTypeState == secprofModel.NoProfile {
 				as.count(rule.ID, noWorkloadDriftSuppressionType)
 				return true
 			}
-		}
-		if as.opts.ActivityDumpAutoSuppressionEnabled && event.HasActiveActivityDump() {
-			as.count(rule.ID, activityDumpSuppressionType)
-			return true
 		}
 	}
 	return false
