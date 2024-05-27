@@ -40,7 +40,7 @@ TMP_PROFILE_COV_PREFIX = "coverage.out.rerun"
 GO_COV_TEST_PATH = "test_with_coverage"
 GO_TEST_RESULT_TMP_JSON = 'module_test_output.json'
 WINDOWS_MAX_PACKAGES_NUMBER = 150
-TRIGGER_ALL_TESTS_PATHS = ["tasks/go_test.py", "tasks/build_tags.py", ".gitlab/source_test/*"]
+TRIGGER_ALL_TESTS_PATHS = ["tasks/gotest.py", "tasks/build_tags.py", ".gitlab/source_test/*"]
 
 
 class TestProfiler:
@@ -757,7 +757,7 @@ def get_impacted_packages(ctx, build_tags=None):
                 message=f"No file matched {file} make sure you modified TRIGGER_ALL_TEST_FILES if you renamed one of them",
             )
 
-    # Some files like tasks/go_test.py should trigger all tests
+    # Some files like tasks/gotest.py should trigger all tests
     if should_run_all_tests(files, TRIGGER_ALL_TESTS_PATHS):
         return DEFAULT_MODULES.values()
 

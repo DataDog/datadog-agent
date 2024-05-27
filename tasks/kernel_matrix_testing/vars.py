@@ -48,3 +48,10 @@ class KMTPaths:
     @property
     def tools(self):
         return self.root / self.arch.kmt_arch / "tools"
+
+    @property
+    def test_results(self):
+        return self.stack_dir / "test-results"
+
+    def vm_test_results(self, vm_name: str):
+        return self.test_results / vm_name

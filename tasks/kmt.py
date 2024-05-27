@@ -4,7 +4,9 @@ import itertools
 import json
 import os
 import re
+import shutil
 import tempfile
+import xml.etree.ElementTree as ET
 from collections import defaultdict
 from collections.abc import Callable, Iterable
 from glob import glob
@@ -848,7 +850,7 @@ def kmt_sysprobe_prepare(
     ctx.run(f"ninja -d explain -v -f {nf_path}")
 
 
-def images_matching_ci(ctx, domains):
+def images_matching_ci(ctx: Context, domains: list[LibvirtDomain]):
     platforms = get_platforms()
     arch = Arch.local().kmt_arch
     kmt_os = get_kmt_os()
@@ -860,7 +862,7 @@ def images_matching_ci(ctx, domains):
 
         check_tag = False
         for d in domains:
-            if vmid in d.name:
+            if vmid in d.name and d.instance.arch == "local":
                 check_tag = True
                 break
 
@@ -886,10 +888,7 @@ def images_matching_ci(ctx, domains):
     for name in not_matches:
         warn(f"[-] {name} does not match version in CI")
 
-    if len(not_matches) > 0:
-        return False
-
-    return True
+    return len(not_matches) == 0
 
 
 @task(
@@ -959,6 +958,9 @@ def test(
     if run is not None and len(pkgs) > 1:
         raise Exit("Only a single package can be specified when running specific tests")
 
+    paths = KMTPaths(stack, Arch.local())  # Arch is not relevant to the test result paths, which is what we want now
+    shutil.rmtree(paths.test_results, ignore_errors=True)  # Reset test-results folder
+
     run_config = build_run_config(run, pkgs)
     with tempfile.NamedTemporaryFile(mode='w') as tmp:
         json.dump(run_config, tmp)
@@ -979,6 +981,16 @@ def test(
             info(f"[+] Running tests on {d}")
             d.copy(ctx, f"{tmp.name}", remote_tmp)
             d.run_cmd(ctx, f"/opt/micro-vm-init.sh {' '.join(args)}", verbose=verbose)
+
+            info(f"[+] Showing summary of results for {d}")
+            d.run_cmd(ctx, "/opt/testing-tools/test-json-review", verbose=verbose)
+
+            info(f"[+] Tests completed on {d}, downloading results...")
+            target_folder = paths.vm_test_results(d.name)
+            target_folder.mkdir(parents=True, exist_ok=True)
+            d.download(ctx, "/ci-visibility/junit/", target_folder)
+
+    show_last_test_results(ctx, stack)
 
 
 def build_layout(ctx, domains, layout: str, verbose: bool):
@@ -1651,3 +1663,59 @@ def selftest(ctx: Context, allow_infra_changes=False, filter: str | None = None)
     or for troubleshooting.
     """
     selftests.selftest(ctx, allow_infra_changes=allow_infra_changes, filter=filter)
+
+
+@task
+def show_last_test_results(ctx: Context, stack: str | None = None):
+    stack = check_and_get_stack(stack)
+    assert stacks.stack_exists(
+        stack
+    ), f"Stack {stack} does not exist. Please create with 'inv kmt.create-stack --stack=<name>'"
+    assert tabulate is not None, "tabulate module is not installed, please install it to continue"
+
+    paths = KMTPaths(stack, Arch.local())
+    results: dict[str, dict[str, tuple[int, int, int]]] = defaultdict(dict)
+    vm_list: list[str] = []
+    total_by_vm: dict[str, tuple[int, int, int]] = defaultdict(lambda: (0, 0, 0))
+
+    for vm_folder in paths.test_results.iterdir():
+        if not vm_folder.is_dir():
+            continue
+
+        vm_name = "-".join(vm_folder.name.split('-')[:2])
+        vm_list.append(vm_name)
+
+        for file in vm_folder.glob("*.xml"):
+            xml = ET.parse(file)
+
+            for testsuite in xml.findall(".//testsuite"):
+                pkgname = testsuite.get("name")
+                if pkgname is None:
+                    continue
+
+                tests = int(testsuite.get("tests") or "0")
+                failures = int(testsuite.get("failures") or "0")
+                errors = int(testsuite.get("errors") or "0")
+                skipped = int(testsuite.get("skipped") or "0")
+                successes = tests - failures - errors - skipped
+                result_tuple = (successes, failures, skipped)
+
+                results[pkgname][vm_name] = result_tuple
+                total_by_vm[vm_name] = tuple(x + y for x, y in zip(result_tuple, total_by_vm[vm_name], strict=True))  # type: ignore
+
+    def _color_result(result: tuple[int, int, int]) -> str:
+        success = colored(str(result[0]), "green" if result[0] > 0 else None)
+        failures = colored(str(result[1]), "red" if result[1] > 0 else None)
+        skipped = colored(str(result[2]), "yellow" if result[2] > 0 else None)
+
+        return f"{success}/{failures}/{skipped}"
+
+    table: list[list[str]] = []
+    for package, vm_results in sorted(results.items(), key=lambda x: x[0]):
+        row = [package] + [_color_result(vm_results.get(vm, (0, 0, 0))) for vm in vm_list]
+        table.append(row)
+
+    table.append(["Total"] + [_color_result(total_by_vm[vm]) for vm in vm_list])
+
+    print(tabulate(table, headers=["Package"] + vm_list))
+    print("\nLegend: Successes/Failures/Skipped")

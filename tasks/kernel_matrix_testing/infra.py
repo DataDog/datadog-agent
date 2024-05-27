@@ -111,6 +111,13 @@ class LibvirtDomain:
         run = f"ssh {ssh_options_command(extra_opts)} -o IdentitiesOnly=yes -i {self.ssh_key} root@{self.ip} {{proxy_cmd}} '{cmd}'"
         return self.instance.runner.run_cmd(ctx, self.instance, run, allow_fail, verbose)
 
+    def _get_rsync_base(self, exclude: PathOrStr | None) -> str:
+        exclude_arg = ""
+        if exclude is not None:
+            exclude_arg = f"--exclude '{exclude}'"
+
+        return f"rsync -e \"ssh {ssh_options_command({'IdentitiesOnly': 'yes'})} {{proxy_cmd}} -i {self.ssh_key}\" -p -rt --exclude='.git*' {exclude_arg} --filter=':- .gitignore'"
+
     def copy(
         self,
         ctx: Context,
@@ -119,15 +126,21 @@ class LibvirtDomain:
         exclude: PathOrStr | None = None,
         verbose: bool = False,
     ):
-        exclude_arg = ""
-        if exclude is not None:
-            exclude_arg = f"--exclude '{exclude}'"
-        verbose_arg = "-v" if verbose else ""
-
         # Always ensure that the parent directory exists, rsync creates the rest
         self.run_cmd(ctx, f"mkdir -p {os.path.dirname(target)}", verbose=verbose)
 
-        run = f"rsync {verbose_arg} -e \"ssh {ssh_options_command({'IdentitiesOnly': 'yes'})} {{proxy_cmd}} -i {self.ssh_key}\" -p -rt --exclude='.git*' {exclude_arg} --filter=':- .gitignore' {source} root@{self.ip}:{target}"
+        run = self._get_rsync_base(exclude) + f" {source} root@{self.ip}:{target}"
+        return self.instance.runner.run_cmd(ctx, self.instance, run, False, verbose)
+
+    def download(
+        self,
+        ctx: Context,
+        source: PathOrStr,
+        target: PathOrStr,
+        exclude: PathOrStr | None = None,
+        verbose: bool = False,
+    ):
+        run = self._get_rsync_base(exclude) + f" root@{self.ip}:{source} {target}"
         return self.instance.runner.run_cmd(ctx, self.instance, run, False, verbose)
 
     def __repr__(self):

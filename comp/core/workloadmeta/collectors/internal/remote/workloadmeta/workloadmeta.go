@@ -26,15 +26,32 @@ const (
 	collectorID = "remote-workloadmeta"
 )
 
+// Params defines the parameters of the remote workloadmeta collector.
+type Params struct {
+	Filter *workloadmeta.Filter
+}
+
+type dependencies struct {
+	fx.In
+
+	Params Params
+}
+
 type client struct {
-	cl pb.AgentSecureClient
+	cl     pb.AgentSecureClient
+	filter *workloadmeta.Filter
 }
 
 func (c *client) StreamEntities(ctx context.Context, _ ...grpc.CallOption) (remote.Stream, error) {
+	protoFilter, err := proto.ProtobufFilterFromWorkloadmetaFilter(c.filter)
+	if err != nil {
+		return nil, err
+	}
+
 	streamcl, err := c.cl.WorkloadmetaStreamEntities(
 		ctx,
 		&pb.WorkloadmetaStreamRequest{
-			Filter: nil, // Subscribes to all events
+			Filter: protoFilter,
 		},
 	)
 	if err != nil {
@@ -52,17 +69,21 @@ func (s *stream) Recv() (interface{}, error) {
 }
 
 type streamHandler struct {
-	port int
+	port   int
+	filter *workloadmeta.Filter
 	config.Config
 }
 
 // NewCollector returns a CollectorProvider to build a remote workloadmeta collector, and an error if any.
-func NewCollector() (workloadmeta.CollectorProvider, error) {
+func NewCollector(deps dependencies) (workloadmeta.CollectorProvider, error) {
 	return workloadmeta.CollectorProvider{
 		Collector: &remote.GenericCollector{
-			CollectorID:   collectorID,
-			StreamHandler: &streamHandler{Config: config.Datadog},
-			Catalog:       workloadmeta.Remote,
+			CollectorID: collectorID,
+			StreamHandler: &streamHandler{
+				filter: deps.Params.Filter,
+				Config: config.Datadog,
+			},
+			Catalog: workloadmeta.Remote,
 		},
 	}, nil
 }
@@ -86,7 +107,10 @@ func (s *streamHandler) Port() int {
 }
 
 func (s *streamHandler) NewClient(cc grpc.ClientConnInterface) remote.GrpcClient {
-	return &client{cl: pb.NewAgentSecureClient(cc)}
+	return &client{
+		cl:     pb.NewAgentSecureClient(cc),
+		filter: s.filter,
+	}
 }
 
 // IsEnabled always return true for the remote workloadmeta because it uses the remote catalog

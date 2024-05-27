@@ -108,6 +108,9 @@ type EBPFProbe struct {
 	cancelFnc context.CancelFunc
 	wg        sync.WaitGroup
 
+	// TC Classifier
+	newTCNetDevices chan model.NetDevice
+
 	// Ring
 	eventStream EventStream
 
@@ -342,6 +345,10 @@ func (p *EBPFProbe) Setup() error {
 func (p *EBPFProbe) Start() error {
 	// Apply rules to the snapshotted data before starting the event stream to avoid concurrency issues
 	p.playSnapshot()
+
+	// start new tc classifier loop
+	go p.startSetupNewTCClassifierLoop()
+
 	return p.eventStream.Start(&p.wg)
 }
 
@@ -903,13 +910,13 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 			seclog.Errorf("failed to decode net_device event: %s (offset %d, len %d)", err, offset, len(data))
 			return
 		}
-		_ = p.setupNewTCClassifier(event.NetDevice.Device)
+		p.pushNewTCClassifierRequest(event.NetDevice.Device)
 	case model.VethPairEventType:
 		if _, err = event.VethPair.UnmarshalBinary(data[offset:]); err != nil {
 			seclog.Errorf("failed to decode veth_pair event: %s (offset %d, len %d)", err, offset, len(data))
 			return
 		}
-		_ = p.setupNewTCClassifier(event.VethPair.PeerDevice)
+		p.pushNewTCClassifierRequest(event.VethPair.PeerDevice)
 	case model.DNSEventType:
 		if _, err = event.DNS.UnmarshalBinary(data[offset:]); err != nil {
 			if errors.Is(err, model.ErrDNSNameMalformatted) {
@@ -1290,6 +1297,8 @@ func (p *EBPFProbe) Close() error {
 	// perf map reader are ignored
 	p.cancelFnc()
 
+	close(p.newTCNetDevices)
+
 	// we wait until both the reorderer and the monitor are stopped
 	p.wg.Wait()
 
@@ -1312,6 +1321,32 @@ type QueuedNetworkDeviceError struct {
 
 func (err QueuedNetworkDeviceError) Error() string {
 	return err.msg
+}
+
+func (p *EBPFProbe) pushNewTCClassifierRequest(device model.NetDevice) {
+	select {
+	case p.newTCNetDevices <- device:
+		// do nothing
+	default:
+		seclog.Errorf("failed to slot new tc classifier request: %v", device)
+	}
+}
+
+func (p *EBPFProbe) startSetupNewTCClassifierLoop() {
+	for {
+		select {
+		case <-p.ctx.Done():
+			return
+		case netDevice, ok := <-p.newTCNetDevices:
+			if !ok {
+				return
+			}
+
+			if err := p.setupNewTCClassifier(netDevice); err != nil {
+				seclog.Errorf("error setting up new tc classifier: %v", err)
+			}
+		}
+	}
 }
 
 func (p *EBPFProbe) setupNewTCClassifier(device model.NetDevice) error {
@@ -1488,6 +1523,7 @@ func NewEBPFProbe(probe *Probe, config *config.Config, opts Opts, wmeta optional
 		isRuntimeDiscarded:   !probe.Opts.DontDiscardRuntime,
 		ctx:                  ctx,
 		cancelFnc:            cancelFnc,
+		newTCNetDevices:      make(chan model.NetDevice, 16),
 		processKiller:        NewProcessKiller(),
 	}
 

@@ -97,7 +97,7 @@ func newAPIServer(deps dependencies) api.Component {
 		wmeta:             deps.WorkloadMeta,
 		collector:         deps.Collector,
 		gui:               deps.Gui,
-		endpointProviders: deps.EndpointProviders,
+		endpointProviders: fxutil.GetAndFilterGroup(deps.EndpointProviders),
 	}
 }
 
