@@ -418,7 +418,10 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 	t.ebpfTracer.FlushPending()
 
 	buffer := network.ClientPool.Get(clientID)
+	log.Errorf("adamk fetching connections for clientID: %s", clientID)
 	latestTime, active, err := t.getConnections(buffer.ConnectionBuffer)
+	log.Errorf("adamk fetched connections for clientID: %s", clientID)
+	log.Errorf("adamk active connections: %+v", active)
 	if err != nil {
 		return nil, fmt.Errorf("error retrieving connections: %s", err)
 	}
@@ -536,6 +539,7 @@ func (t *Tracer) getConnections(activeBuffer *network.ConnectionBuffer) (latestU
 	}
 
 	var expired []network.ConnectionStats
+	log.Error("adamk getting eBPF connections")
 	err = t.ebpfTracer.GetConnections(activeBuffer, func(c *network.ConnectionStats) bool {
 		if t.connectionExpired(c, uint64(latestTime), cachedConntrack) {
 			expired = append(expired, *c)
@@ -572,7 +576,7 @@ func (t *Tracer) getConnections(activeBuffer *network.ConnectionBuffer) (latestU
 	// get rid of stale process entries in the cache
 	t.processCache.Trim()
 
-	// remove state failed connections from map
+	// remove stale failed connections from map
 	if kprobe.FailedConnectionsSupported(t.config) {
 		t.ebpfTracer.GetFailedConnections().RemoveExpired()
 	}

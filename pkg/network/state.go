@@ -375,7 +375,9 @@ func (ns *networkState) GetDelta(
 	defer client.Reset()
 
 	// Update all connections with relevant up-to-date stats for client
+	log.Error("adamk merging connections")
 	active, closed := ns.mergeConnections(id, active)
+	log.Errorf("adamk closed connections: %v", closed)
 
 	cs := slice.NewChain(active, closed)
 	ns.determineConnectionIntraHost(cs)
@@ -397,6 +399,7 @@ func (ns *networkState) GetDelta(
 	closed = filterConnections(closed, func(c *ConnectionStats) bool {
 		return !aggr.Aggregate(c)
 	})
+	log.Errorf("adamk closed connections post filter: %v", closed)
 
 	aggr.finalize()
 

@@ -2397,7 +2397,7 @@ func (s *TracerSuite) TestTCPFailureConnectionTimeout() {
 		// 110 is the errno for ETIMEDOUT
 		found := findFailedConnectionByRemoteAddr(srvAddr, conns, 110)
 		return found
-	}, 3*time.Second, 100*time.Millisecond, "Failed connection not recorded properly")
+	}, 3*time.Second, 1000*time.Millisecond, "Failed connection not recorded properly")
 }
 
 func (s *TracerSuite) TestTCPFailureConnectionRefused() {
