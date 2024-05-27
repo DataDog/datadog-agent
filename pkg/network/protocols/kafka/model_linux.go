@@ -36,6 +36,7 @@ func (tx *EbpfTx) RecordsCount() uint32 {
 	return tx.Transaction.Records_count
 }
 
+// ErrorCode returns the error code in the transaction
 func (tx *EbpfTx) ErrorCode() int8 {
 	return tx.Transaction.Error_code
 }
