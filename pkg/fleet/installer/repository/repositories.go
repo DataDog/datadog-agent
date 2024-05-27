@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 // Repositories manages multiple repositories.
@@ -41,6 +42,10 @@ func (r *Repositories) loadRepositories() (map[string]*Repository, error) {
 	}
 	for _, d := range dir {
 		if !d.IsDir() {
+			continue
+		}
+		if strings.HasPrefix(d.Name(), "tmp-install") {
+			// Temporary extraction dir, ignore
 			continue
 		}
 		repo := r.newRepository(d.Name())

@@ -65,6 +65,16 @@ type apmInjectorInstaller struct {
 
 // Setup sets up the APM injector
 func (a *apmInjectorInstaller) Setup(ctx context.Context) (err error) {
+	// /var/log/datadog is created by default with datadog-installer install
+	err = os.Mkdir("/var/log/datadog/dotnet", 0777)
+	if err != nil && !os.IsExist(err) {
+		return fmt.Errorf("error creating /var/log/datadog/dotnet: %w", err)
+	}
+	// a umask 0022 is frequently set by default, so we need to change the permissions by hand
+	err = os.Chmod("/var/log/datadog/dotnet", 0777)
+	if err != nil {
+		return fmt.Errorf("error changing permissions on /var/log/datadog/dotnet: %w", err)
+	}
 	// Check if the shared library is working before adding it to the preload
 	if err := a.verifySharedLib(path.Join(a.installPath, "inject", "launcher.preload.so")); err != nil {
 		return err
