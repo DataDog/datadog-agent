@@ -134,7 +134,7 @@ func deployAgent(ctx *pulumi.Context, awsEnv *resAws.Environment, cluster *local
 
 	// Deploy standalone dogstatsd
 	if awsEnv.DogstatsdDeploy() {
-		if _, err := dogstatsdstandalone.K8sAppDefinition(awsEnv, kindKubeProvider, "dogstatsd-standalone", fakeIntake, true, clusterName); err != nil {
+		if _, err := dogstatsdstandalone.K8sAppDefinition(awsEnv, kindKubeProvider, "dogstatsd-standalone", fakeIntake, true, clusterName, agentDependency); err != nil {
 			return nil, err
 		}
 	}
