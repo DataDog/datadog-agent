@@ -7,6 +7,7 @@ package verifier
 
 import (
 	"math"
+	"sort"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -230,6 +231,14 @@ func TestLogParsingWith(t *testing.T) {
 			vlp := newVerifierLogParser(tt.progSourceMap)
 			_, err := vlp.parseVerifierLog(tt.input)
 			require.NoError(t, err)
+
+			// Fix to avoid flakiness, sort the assembly instructions
+			// as they might be in a different order, due to dict iteration
+			// order being random.
+			for _, lineData := range vlp.complexity.SourceMap {
+				sort.Ints(lineData.AssemblyInsns)
+			}
+
 			require.Equal(t, tt.expected, vlp.complexity)
 		})
 	}
