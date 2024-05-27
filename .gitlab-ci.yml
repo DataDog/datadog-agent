@@ -607,7 +607,7 @@ workflow:
   - <<: *if_run_all_unit_tests
   - changes:
       paths:
-        - pkg/installer/**/*
+        - pkg/fleet/**/*
       compare_to: main
     variables:
       FAST_TESTS: "true"
