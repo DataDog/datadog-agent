@@ -84,7 +84,7 @@ func initManager(mgr *ddebpf.Manager, connCloseEventHandler ddebpf.EventHandler,
 		{Name: probes.TCPCloseProgsMap},
 	}
 	util.SetupClosedConnHandler(connCloseEventHandler, mgr, cfg)
-	if cfg.TCPFailedConnectionsEnabled {
+	if FailedConnectionsSupported(cfg) {
 		util.SetupFailedConnHandler(failedConnsHandler, mgr, cfg)
 	}
 
