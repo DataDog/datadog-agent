@@ -127,10 +127,11 @@ jobs:
           TMP_PR_BODY_PATH: /tmp/pr_body
           GH_TOKEN: ${{ github.token }}
         run: |
-          inv buildimages.generate-pr-body ${{ steps.current_buildimage_tag.outputs.BUILDIMAGE_TAG }} ${{ inputs.images_id }} ${{ steps.current_go_version.outputs.GO_VERSION }} ${{ inputs.go_version }} ${{ inputs.test_version && '--test-version' || '' }} > $TMP_PR_BODY_PATH \
-          && gh pr create \
+          inv buildimages.generate-pr-body ${{ steps.current_buildimage_tag.outputs.BUILDIMAGE_TAG }} ${{ inputs.images_id }} ${{ steps.current_go_version.outputs.GO_VERSION }} ${{ inputs.go_version }} ${{ inputs.test_version && '--test-version' || '' }} | \
+          gh pr create \
+          -f \
           -B ${{ github.ref }} 
           -t "[automated] ${{ steps.update_build_images.outputs.MESSAGE }}"
-          -F $TMP_PR_BODY_PATH \
+          -F - \
           -d \
           -l "go-update,team/agent-shared-components" \
