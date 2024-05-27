@@ -42,15 +42,16 @@ CUMULATIVE_LENGTH = 10
 
 
 class ExecutionsJobInfo:
-    def __init__(self, job_id: int, failing: bool = True):
+    def __init__(self, job_id: int, failing: bool = True, commit: str = None):
         self.job_id = job_id
         self.failing = failing
+        self.commit = commit
 
     def url(self):
         return f'{BASE_URL}/DataDog/datadog-agent/-/jobs/{self.job_id}'
 
     def to_json(self):
-        return {"id": self.job_id, "failing": self.failing}
+        return {"id": self.job_id, "failing": self.failing, "commit": self.commit}
 
     @staticmethod
     def ci_visibility_url(name):
@@ -58,7 +59,7 @@ class ExecutionsJobInfo:
 
     @staticmethod
     def from_json(json):
-        return ExecutionsJobInfo(json["id"], json["failing"])
+        return ExecutionsJobInfo(json["id"], json["failing"], json["commit"])
 
 
 class ExecutionsJobSummary:
@@ -138,8 +139,9 @@ class ConsecutiveJobAlert:
             return ''
 
         # Find initial PR
-        initial_pr_sha = ctx.run(f'git rev-parse HEAD~{CONSECUTIVE_THRESHOLD - 1}', hide=True).stdout.strip()
-        initial_pr_info = get_pr_from_commit(initial_pr_sha, PROJECT_NAME)
+        initial_pr_sha = next(iter(self.failures.values()))[0].commit
+        initial_pr_title = ctx.run(f'git show -s --format=%s {initial_pr_sha}', hide=True).stdout.strip()
+        initial_pr_info = get_pr_from_commit(initial_pr_title, PROJECT_NAME)
         if initial_pr_info:
             pr_id, pr_url = initial_pr_info
             initial_pr = f'<{pr_url}|{pr_id}>'
@@ -333,9 +335,9 @@ def check_consistent_failures(ctx, job_failures_file="job_executions.v2.json"):
     # {
     #     "pipeline_id": 123,
     #     "jobs": {
-    #         "job1": {"consecutive_failures": 2, "jobs_info": [{"id": null, "failing": false}, {"id": 314618, "failing": true}, {"id": 618314, "failing": true}]},
-    #         "job2": {"consecutive_failures": 0, "cumulative_failures": [{"id": 314618, "failing": true}, {"id": null, "failing": false}]},
-    #         "job3": {"consecutive_failures": 1, "cumulative_failures": [{"id": 314618, "failing": true}]},
+    #         "job1": {"consecutive_failures": 2, "jobs_info": [{"id": null, "failing": false, "commit": "abcdef42"}, {"id": 314618, "failing": true, "commit": "abcdef42"}, {"id": 618314, "failing": true, "commit": "abcdef42"}]},
+    #         "job2": {"consecutive_failures": 0, "cumulative_failures": [{"id": 314618, "failing": true, "commit": "abcdef42"}, {"id": null, "failing": false, "commit": "abcdef42"}]},
+    #         "job3": {"consecutive_failures": 1, "cumulative_failures": [{"id": 314618, "failing": true, "commit": "abcdef42"}]},
     #     }
     # }
     # NOTE: this format is described by the Executions class
@@ -343,6 +345,7 @@ def check_consistent_failures(ctx, job_failures_file="job_executions.v2.json"):
     # The jobs dictionary contains the consecutive and cumulative failures for each job
     # The consecutive failures are reset to 0 when the job is not failing, and are raising an alert when reaching the CONSECUTIVE_THRESHOLD (3)
     # The cumulative failures list contains 1 for failures, 0 for succes. They contain only then CUMULATIVE_LENGTH(10) last executions and raise alert when 50% failure rate is reached
+
     job_executions = retrieve_job_executions(ctx, job_failures_file)
 
     # By-pass if the pipeline chronological order is not respected
@@ -396,7 +399,8 @@ def update_statistics(job_executions: PipelineRuns):
 
     # Update statistics and collect consecutive failed jobs
     failed_jobs = get_failed_jobs(PROJECT_NAME, os.getenv("CI_PIPELINE_ID"))
-    failed_dict = {job.name: ExecutionsJobInfo(job.id, True) for job in failed_jobs.all_failures()}
+    commit_sha = os.getenv("CI_COMMIT_SHA")
+    failed_dict = {job.name: ExecutionsJobInfo(job.id, True, commit_sha) for job in failed_jobs.all_failures()}
 
     # Insert newly failing jobs
     new_failed_jobs = {name for name in failed_dict if name not in job_executions.jobs}

@@ -293,7 +293,8 @@ class TestUpdateStatistics(unittest.TestCase):
             ProjectJob(MagicMock(), attrs=a)
             for a in [{"name": "nifnif", "id": 504685380}, {"name": "nafnaf", "id": 504685380}]
         ]
-        ok = {"id": None, "failing": False}
+        os.environ["CI_COMMIT_SHA"] = "abcdef42"
+        ok = {"id": None, "failing": False, 'commit': 'abcdef42'}
         j = notify.PipelineRuns.from_json(
             {
                 "jobs": {
@@ -308,17 +309,17 @@ class TestUpdateStatistics(unittest.TestCase):
                             ok,
                             ok,
                             ok,
-                            {"id": 422184420, "failing": True},
-                            {"id": 618314618, "failing": True},
+                            {"id": 422184420, "failing": True, 'commit': 'abcdef42'},
+                            {"id": 618314618, "failing": True, 'commit': 'abcdef42'},
                         ],
                     },
                     "noufnouf": {
                         "consecutive_failures": 2,
                         "jobs_info": [
-                            {"id": 422184420, "failing": True},
+                            {"id": 422184420, "failing": True, 'commit': 'abcdef42'},
                             ok,
-                            {"id": 618314618, "failing": True},
-                            {"id": 314618314, "failing": True},
+                            {"id": 618314618, "failing": True, 'commit': 'abcdef42'},
+                            {"id": 314618314, "failing": True, 'commit': 'abcdef42'},
                         ],
                     },
                 }
@@ -343,10 +344,10 @@ class TestUpdateStatistics(unittest.TestCase):
     @patch("tasks.notify.get_failed_jobs")
     def test_multiple_failures(self, mock_get_failed):
         failed_jobs = mock_get_failed.return_value
-        fail = {"id": 42, "failing": True}
-        ok = {"id": None, "failing": False}
+        fail = {"id": 42, "failing": True, 'commit': 'abcdef42'}
+        ok = {"id": None, "failing": False, 'commit': 'abcdef42'}
         failed_jobs.all_failures.return_value = [
-            ProjectJob(MagicMock(), attrs=a | {"id": 42})
+            ProjectJob(MagicMock(), attrs=a | {"id": 42, 'commit': 'abcdef42'})
             for a in [{"name": "poulidor"}, {"name": "virenque"}, {"name": "bardet"}]
         ]
         j = notify.PipelineRuns.from_json(
