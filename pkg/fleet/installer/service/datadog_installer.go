@@ -14,6 +14,7 @@ import (
 	"os"
 	"os/exec"
 	"os/user"
+	"path/filepath"
 	"strconv"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -109,23 +110,6 @@ func SetupInstaller(ctx context.Context) (err error) {
 		return fmt.Errorf("error creating symlink to /usr/bin/datadog-installer: %w", err)
 	}
 
-	// Set up defaults for packages interacting with each other
-	if err = configureSocketsEnv(); err != nil {
-		return
-	}
-	if err = addSystemDEnvOverrides(agentUnit); err != nil {
-		return
-	}
-	if err = addSystemDEnvOverrides(agentExp); err != nil {
-		return
-	}
-	if err = addSystemDEnvOverrides(traceAgentUnit); err != nil {
-		return
-	}
-	if err = addSystemDEnvOverrides(traceAgentExp); err != nil {
-		return
-	}
-
 	// FIXME(Arthur): enable the daemon unit by default and use the same strategy as the system probe
 	if os.Getenv("DD_REMOTE_UPDATES") != "true" {
 		return nil
@@ -153,6 +137,16 @@ func SetupInstaller(ctx context.Context) (err error) {
 
 	if err = enableUnit(ctx, installerUnit); err != nil {
 		return err
+	}
+
+	// Chown installer run path
+	runPath, err := filepath.EvalSymlinks("/opt/datadog-packages/datadog-installer/stable/run")
+	if err != nil {
+		return fmt.Errorf("error resolving symlink for /opt/datadog-packages/datadog-installer/stable/run: %w", err)
+	}
+	err = os.Chown(runPath, ddAgentUID, ddAgentGID)
+	if err != nil {
+		return fmt.Errorf("error changing owner of %s: %w", runPath, err)
 	}
 
 	return startInstallerStable(ctx)
@@ -221,6 +215,20 @@ func RemoveInstaller(ctx context.Context) {
 
 // StartInstallerExperiment installs the experimental systemd units for the installer
 func StartInstallerExperiment(ctx context.Context) error {
+	// Chown installer run path
+	ddAgentUID, ddAgentGID, err := getAgentIDs()
+	if err != nil {
+		return fmt.Errorf("error getting dd-agent user and group IDs: %w", err)
+	}
+	runPath, err := filepath.EvalSymlinks("/opt/datadog-packages/datadog-installer/experiment/run")
+	if err != nil {
+		return fmt.Errorf("error resolving symlink for /opt/datadog-packages/datadog-installer/experiment/run: %w", err)
+	}
+	err = os.Chown(runPath, ddAgentUID, ddAgentGID)
+	if err != nil {
+		return fmt.Errorf("error changing owner of %s: %w", runPath, err)
+	}
+
 	return startUnit(ctx, installerUnitExp, "--no-block")
 }
 

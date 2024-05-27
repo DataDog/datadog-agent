@@ -46,7 +46,6 @@ type event struct {
 
 type telemetrySender struct {
 	sender   sender.Sender
-	time     timer
 	hostname hostname.Component
 }
 
@@ -70,7 +69,7 @@ func (ts *telemetrySender) newEvent(t eventType, svc serviceInfo) *event {
 			ServiceLanguage:     svc.meta.Language,
 			ServiceType:         svc.meta.Type,
 			StartTime:           int64(svc.process.Stat.StartTime),
-			LastSeen:            ts.time.Now().Unix(),
+			LastSeen:            svc.LastHeartbeat.Unix(),
 			APMInstrumentation:  svc.meta.APMInstrumentation,
 			ServiceNameSource:   nameSource,
 		},
@@ -80,7 +79,6 @@ func (ts *telemetrySender) newEvent(t eventType, svc serviceInfo) *event {
 func newTelemetrySender(sender sender.Sender) *telemetrySender {
 	return &telemetrySender{
 		sender:   sender,
-		time:     realTime{},
 		hostname: hostnameimpl.NewHostnameService(),
 	}
 }

@@ -67,6 +67,8 @@ func (c *Check) Run() error {
 
 	// Add tags to path
 	commonTags := append(utils.GetCommonAgentTags(), c.config.Tags...)
+	path.Source.Service = c.config.SourceService
+	path.Destination.Service = c.config.DestinationService
 	path.Tags = commonTags
 
 	// send to EP

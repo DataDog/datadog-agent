@@ -23,8 +23,8 @@ const (
 type NetworkPathHop struct {
 	TTL       int     `json:"ttl"`
 	IPAddress string  `json:"ip_address"`
-	Hostname  string  `json:"hostname"`
-	RTT       float64 `json:"rtt"`
+	Hostname  string  `json:"hostname,omitempty"`
+	RTT       float64 `json:"rtt,omitempty"`
 	Success   bool    `json:"success"`
 }
 
@@ -32,8 +32,9 @@ type NetworkPathHop struct {
 // about the source of a path
 type NetworkPathSource struct {
 	Hostname  string       `json:"hostname"`
-	Via       *network.Via `json:"via"`
-	NetworkID string       `json:"network_id"` // Today this will be a VPC ID since we only resolve AWS resources
+	Via       *network.Via `json:"via,omitempty"`
+	NetworkID string       `json:"network_id,omitempty"` // Today this will be a VPC ID since we only resolve AWS resources
+	Service   string       `json:"service,omitempty"`
 }
 
 // NetworkPathDestination encapsulates information
@@ -42,6 +43,7 @@ type NetworkPathDestination struct {
 	Hostname  string `json:"hostname"`
 	IPAddress string `json:"ip_address"`
 	Port      uint16 `json:"port"`
+	Service   string `json:"service,omitempty"`
 }
 
 // NetworkPath encapsulates data that defines a
@@ -54,5 +56,5 @@ type NetworkPath struct {
 	Source      NetworkPathSource      `json:"source"`
 	Destination NetworkPathDestination `json:"destination"`
 	Hops        []NetworkPathHop       `json:"hops"`
-	Tags        []string               `json:"tags"`
+	Tags        []string               `json:"tags,omitempty"`
 }
