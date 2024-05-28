@@ -337,7 +337,7 @@ func (t *Tracer) storeClosedConnections(connections []network.ConnectionStats) {
 		tracerTelemetry.closedConns.Inc(cs.Type.String())
 		if failedConnsEnabled {
 			failedConnMap.MatchFailedConn(cs)
-			log.Errorf("adamk post match connection: %+v", cs)
+			//log.Errorf("adamk post match connection: %+v", cs)
 		}
 	}
 
@@ -418,10 +418,9 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 	t.ebpfTracer.FlushPending()
 
 	buffer := network.ClientPool.Get(clientID)
-	log.Errorf("adamk fetching connections for clientID: %s", clientID)
+	log.Errorf("adamk fetching active connections for clientID: %s", clientID)
 	latestTime, active, err := t.getConnections(buffer.ConnectionBuffer)
-	log.Errorf("adamk fetched connections for clientID: %s", clientID)
-	log.Errorf("adamk active connections: %+v", active)
+	log.Errorf("adamk fetched active connections for clientID: %s", clientID)
 	if err != nil {
 		return nil, fmt.Errorf("error retrieving connections: %s", err)
 	}
@@ -539,7 +538,7 @@ func (t *Tracer) getConnections(activeBuffer *network.ConnectionBuffer) (latestU
 	}
 
 	var expired []network.ConnectionStats
-	log.Error("adamk getting eBPF connections")
+	log.Error("adamk getting eBPF active connections")
 	err = t.ebpfTracer.GetConnections(activeBuffer, func(c *network.ConnectionStats) bool {
 		if t.connectionExpired(c, uint64(latestTime), cachedConntrack) {
 			expired = append(expired, *c)

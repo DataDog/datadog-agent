@@ -378,6 +378,7 @@ func (ns *networkState) GetDelta(
 	// Update the latest known time
 	ns.latestTimeEpoch = latestTime
 
+	log.Errorf("adamk getting delta (closed conns) for client: %v", id)
 	client := ns.getClient(id)
 	defer client.Reset()
 
@@ -602,7 +603,9 @@ func (ns *networkState) StoreClosedConnections(closed []ConnectionStats) {
 
 // storeClosedConnection stores the given connection for every client
 func (ns *networkState) storeClosedConnections(conns []ConnectionStats) {
-	for _, client := range ns.clients {
+	log.Errorf("adamk storing closed connections for # clients: %d", len(ns.clients))
+	for id, client := range ns.clients {
+		log.Errorf("adamk storing closed connections for client: %v", id)
 		for _, c := range conns {
 			if i, ok := client.closed.byCookie[c.Cookie]; ok {
 				log.Errorf("adamk found closed connection cookie match: %v", c)
@@ -612,9 +615,10 @@ func (ns *networkState) storeClosedConnections(conns []ConnectionStats) {
 				}
 				continue
 			}
-			log.Errorf("adamk inserting closed connection: %v", c)
+			log.Errorf("adamk inserting closed connections: %v", c)
 			client.closed.insert(c, ns.maxClosedConns)
 		}
+		log.Errorf("adamk closed connections post store: %v", client.closed.conns)
 	}
 }
 
@@ -818,7 +822,7 @@ func (ns *networkState) getClient(clientID string) *client {
 		log.Errorf("adamk CLIENT closed conns: %v", c.closed)
 		return c
 	}
-	log.Errorf("adamk creating client: %s", clientID)
+	log.Errorf("adamk failed to find client. creating client: %s", clientID)
 	closedConnections := &closedConnections{conns: make([]ConnectionStats, 0, minClosedCapacity), byCookie: make(map[StatCookie]int)}
 	c := &client{
 		lastFetch:          time.Now(),
