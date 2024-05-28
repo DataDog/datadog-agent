@@ -363,6 +363,7 @@
 /pkg/config/setup/system_probe_cws.go           @DataDog/agent-security
 /pkg/config/setup/system_probe_cws_notwin.go    @DataDog/agent-security
 /pkg/config/setup/system_probe_cws_windows.go   @DataDog/windows-kernel-integrations
+/pkg/config/setup/security_agent.go             @DataDog/agent-security
 /pkg/config/remote/                     @DataDog/remote-config
 /pkg/config/remote/meta/                @DataDog/remote-config @DataDog/software-integrity-and-trust
 /pkg/containerlifecycle/                @Datadog/container-integrations

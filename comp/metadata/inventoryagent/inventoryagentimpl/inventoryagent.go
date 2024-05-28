@@ -18,6 +18,7 @@ import (
 
 	"github.com/DataDog/viper"
 	"go.uber.org/fx"
+	"gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/comp/api/api"
 	"github.com/DataDog/datadog-agent/comp/api/api/utils"
@@ -391,6 +392,22 @@ func (ia *inventoryagent) Set(name string, value interface{}) {
 	}
 }
 
+func (ia *inventoryagent) marshalAndScrub(data interface{}) (string, error) {
+	flareScrubber := scrubber.NewWithDefaults()
+
+	provided, err := yaml.Marshal(data)
+	if err != nil {
+		return "", ia.log.Errorf("could not marshal agent configuration: %s", err)
+	}
+
+	scrubbed, err := flareScrubber.ScrubYaml(provided)
+	if err != nil {
+		return "", ia.log.Errorf("could not scrubb agent configuration: %s", err)
+	}
+
+	return string(scrubbed), nil
+}
+
 func (ia *inventoryagent) getPayload() marshaler.JSONMarshaler {
 	ia.m.Lock()
 	defer ia.m.Unlock()
@@ -403,19 +420,27 @@ func (ia *inventoryagent) getPayload() marshaler.JSONMarshaler {
 		data[k] = v
 	}
 
-	configLayer := map[string]func() (string, error){
-		"full_configuration":                 ia.getFullConfiguration,
-		"provided_configuration":             ia.getProvidedConfiguration,
-		"file_configuration":                 ia.getFileConfiguration,
-		"environment_variable_configuration": ia.getEnvVarConfiguration,
-		"agent_runtime_configuration":        ia.getRuntimeConfiguration,
-		"remote_configuration":               ia.getRemoteConfiguration,
-		"cli_configuration":                  ia.getCliConfiguration,
-		"source_local_configuration":         ia.getSourceLocalConfiguration,
-	}
-	for layer, getter := range configLayer {
-		if conf, err := getter(); err == nil {
-			data[layer] = conf
+	if ia.conf.GetBool("inventories_configuration_enabled") {
+		layers := ia.conf.AllSettingsBySource()
+		layersName := map[model.Source]string{
+			model.SourceFile:               "file_configuration",
+			model.SourceEnvVar:             "environment_variable_configuration",
+			model.SourceAgentRuntime:       "agent_runtime_configuration",
+			model.SourceLocalConfigProcess: "source_local_configuration",
+			model.SourceRC:                 "remote_configuration",
+			model.SourceCLI:                "cli_configuration",
+		}
+
+		for source, conf := range layers {
+			if json, err := ia.marshalAndScrub(conf); err == nil {
+				data[layersName[source]] = json
+			}
+		}
+		if json, err := ia.marshalAndScrub(ia.conf.AllSettings()); err == nil {
+			data["full_configuration"] = json
+		}
+		if json, err := ia.marshalAndScrub(ia.conf.AllSettingsWithoutDefault()); err == nil {
+			data["provided_configuration"] = json
 		}
 	}
 

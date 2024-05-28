@@ -82,6 +82,7 @@ type WindowsProbe struct {
 	stats stats
 	// discarders
 	discardedPaths     *lru.Cache[string, struct{}]
+	discardedUserPaths *lru.Cache[string, struct{}]
 	discardedBasenames *lru.Cache[string, struct{}]
 
 	// map of device path to volume name (i.e. c:)
@@ -852,6 +853,11 @@ func initializeWindowsProbe(config *config.Config, opts Opts) (*WindowsProbe, er
 		return nil, err
 	}
 
+	discardedUserPaths, err := lru.New[string, struct{}](1 << 10)
+	if err != nil {
+		return nil, err
+	}
+
 	discardedBasenames, err := lru.New[string, struct{}](1 << 10)
 	if err != nil {
 		return nil, err
@@ -895,6 +901,7 @@ func initializeWindowsProbe(config *config.Config, opts Opts) (*WindowsProbe, er
 		renamePreArgs: rnc,
 
 		discardedPaths:     discardedPaths,
+		discardedUserPaths: discardedUserPaths,
 		discardedBasenames: discardedBasenames,
 
 		volumeMap: make(map[string]string),
@@ -916,7 +923,7 @@ func initializeWindowsProbe(config *config.Config, opts Opts) (*WindowsProbe, er
 // NewWindowsProbe instantiates a new runtime security agent probe
 func NewWindowsProbe(probe *Probe, config *config.Config, opts Opts) (*WindowsProbe, error) {
 
-	p, err := initializeWindowsProbe(config, opts)
+  p, err := initializeWindowsProbe(config, opts)
 	if err != nil {
 		return nil, err
 	}
@@ -959,6 +966,7 @@ func (p *WindowsProbe) ApplyRuleSet(rs *rules.RuleSet) (*kfilters.ApplyRuleSetRe
 // FlushDiscarders invalidates all the discarders
 func (p *WindowsProbe) FlushDiscarders() error {
 	p.discardedPaths.Purge()
+	p.discardedUserPaths.Purge()
 	p.discardedBasenames.Purge()
 	return nil
 }
@@ -973,6 +981,13 @@ func (p *WindowsProbe) OnNewDiscarder(_ *rules.RuleSet, ev *model.Event, field e
 		path := ev.CreateNewFile.File.PathnameStr
 		seclog.Debugf("new discarder for `%s` -> `%v`", field, path)
 		p.discardedPaths.Add(path, struct{}{})
+	} else if field == "create.file.path" {
+		path := ev.CreateNewFile.File.UserPathnameStr
+		if path == "" {
+			return
+		}
+		seclog.Debugf("new discarder for `%s` -> `%v`", field, path)
+		p.discardedUserPaths.Add(path, struct{}{})
 	} else if field == "create.file.name" {
 		basename := ev.CreateNewFile.File.BasenameStr
 		seclog.Debugf("new discarder for `%s` -> `%v`", field, basename)
