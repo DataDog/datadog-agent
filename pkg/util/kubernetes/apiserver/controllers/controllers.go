@@ -5,12 +5,15 @@
 
 //go:build kubeapiserver
 
-package apiserver
+// Package controllers is responsible for running the Kubernetes controllers
+// needed by the Datadog Cluster Agent
+package controllers
 
 import (
+	"errors"
 	"sync"
 
-	"k8s.io/apimachinery/pkg/util/errors"
+	k8serrors "k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/dynamic/dynamicinformer"
 	"k8s.io/client-go/informers"
@@ -18,10 +21,16 @@ import (
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/record"
 
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/autoscalers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+
+const autoscalerNowHandleMsgEvent = "Autoscaler is now handled by the Cluster-Agent"
+
+var errIsEmpty = errors.New("entity is empty") //nolint:revive
 
 type startFunc func(ControllerContext, chan error)
 
@@ -31,21 +40,21 @@ type controllerFuncs struct {
 }
 
 var controllerCatalog = map[controllerName]controllerFuncs{
-	metadataController: {
+	metadataControllerName: {
 		func() bool { return config.Datadog.GetBool("kubernetes_collect_metadata_tags") },
 		startMetadataController,
 	},
-	autoscalersController: {
+	autoscalersControllerName: {
 		func() bool {
 			return config.Datadog.GetBool("external_metrics_provider.enabled") && !config.Datadog.GetBool("external_metrics_provider.use_datadogmetric_crd")
 		},
 		startAutoscalersController,
 	},
-	servicesController: {
+	servicesControllerName: {
 		func() bool { return config.Datadog.GetBool("cluster_checks.enabled") },
 		registerServicesInformer,
 	},
-	endpointsController: {
+	endpointsControllerName: {
 		func() bool { return config.Datadog.GetBool("cluster_checks.enabled") },
 		registerEndpointsInformer,
 	},
@@ -53,20 +62,21 @@ var controllerCatalog = map[controllerName]controllerFuncs{
 
 // ControllerContext holds all the attributes needed by the controllers
 type ControllerContext struct {
-	informers              map[InformerName]cache.SharedInformer
+	informers              map[apiserver.InformerName]cache.SharedInformer
 	InformerFactory        informers.SharedInformerFactory
 	DynamicClient          dynamic.Interface
 	DynamicInformerFactory dynamicinformer.DynamicSharedInformerFactory
 	Client                 kubernetes.Interface
 	IsLeaderFunc           func() bool
 	EventRecorder          record.EventRecorder
+	WorkloadMeta           workloadmeta.Component
 	StopCh                 chan struct{}
 }
 
 // StartControllers runs the enabled Kubernetes controllers for the Datadog Cluster Agent. This is
 // only called once, when we have confirmed we could correctly connect to the API server.
-func StartControllers(ctx ControllerContext) errors.Aggregate {
-	ctx.informers = make(map[InformerName]cache.SharedInformer)
+func StartControllers(ctx ControllerContext) k8serrors.Aggregate {
+	ctx.informers = make(map[apiserver.InformerName]cache.SharedInformer)
 
 	var wg sync.WaitGroup
 	errChan := make(chan error, len(controllerCatalog))
@@ -104,12 +114,12 @@ func StartControllers(ctx ControllerContext) errors.Aggregate {
 	ctx.InformerFactory.Start(ctx.StopCh)
 
 	// Wait for the cache to sync
-	if err := SyncInformers(ctx.informers, 0); err != nil {
+	if err := apiserver.SyncInformers(ctx.informers, 0); err != nil {
 		errs = append(errs, err)
 	}
 
 	// NewAggregate will filter out nil errors
-	return errors.NewAggregate(errs)
+	return k8serrors.NewAggregate(errs)
 }
 
 // startMetadataController starts the informers needed for metadata collection.
@@ -117,27 +127,27 @@ func StartControllers(ctx ControllerContext) errors.Aggregate {
 //
 //nolint:revive // TODO(CAPP) Fix revive linter
 func startMetadataController(ctx ControllerContext, c chan error) {
-	metaController := NewMetadataController(
-		ctx.InformerFactory.Core().V1().Nodes(),
+	metaController := newMetadataController(
 		ctx.InformerFactory.Core().V1().Endpoints(),
+		ctx.WorkloadMeta,
 	)
-	go metaController.Run(ctx.StopCh)
+	go metaController.run(ctx.StopCh)
 }
 
 // startAutoscalersController starts the informers needed for autoscaling.
 // The synchronization of the informers is handled by the controller.
 func startAutoscalersController(ctx ControllerContext, c chan error) {
 	var err error
-	dogCl, err = autoscalers.NewDatadogClient()
+	apiserver.DogCl, err = autoscalers.NewDatadogClient()
 	if err != nil {
 		c <- err
 		return
 	}
-	autoscalersController, err := NewAutoscalersController(
+	autoscalersController, err := newAutoscalersController(
 		ctx.Client,
 		ctx.EventRecorder,
 		ctx.IsLeaderFunc,
-		dogCl,
+		apiserver.DogCl,
 	)
 	if err != nil {
 		c <- err
@@ -145,20 +155,20 @@ func startAutoscalersController(ctx ControllerContext, c chan error) {
 	}
 
 	if config.Datadog.GetBool("external_metrics_provider.wpa_controller") {
-		go autoscalersController.RunWPA(ctx.StopCh, ctx.DynamicClient, ctx.DynamicInformerFactory)
+		go autoscalersController.runWPA(ctx.StopCh, ctx.DynamicClient, ctx.DynamicInformerFactory)
 	}
 
 	autoscalersController.enableHPA(ctx.Client, ctx.InformerFactory)
-	go autoscalersController.RunHPA(ctx.StopCh)
+	go autoscalersController.runHPA(ctx.StopCh)
 
-	autoscalersController.RunControllerLoop(ctx.StopCh)
+	autoscalersController.runControllerLoop(ctx.StopCh)
 }
 
 // registerServicesInformer registers the services informer.
 //
 //nolint:revive // TODO(CAPP) Fix revive linter
 func registerServicesInformer(ctx ControllerContext, c chan error) {
-	ctx.informers[ServicesInformer] = ctx.InformerFactory.Core().V1().Services().Informer()
+	ctx.informers[servicesInformer] = ctx.InformerFactory.Core().V1().Services().Informer()
 }
 
 // registerEndpointsInformer registers the endpoints informer.

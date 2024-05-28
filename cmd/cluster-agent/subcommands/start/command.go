@@ -20,6 +20,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/controllers"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
@@ -302,17 +303,18 @@ func start(log log.Component,
 	eventBroadcaster.StartRecordingToSink(&corev1.EventSinkImpl{Interface: apiCl.Cl.CoreV1().Events("")})
 	eventRecorder := eventBroadcaster.NewRecorder(scheme.Scheme, v1.EventSource{Component: "datadog-cluster-agent"})
 
-	ctx := apiserver.ControllerContext{
+	ctx := controllers.ControllerContext{
 		InformerFactory:        apiCl.InformerFactory,
 		DynamicClient:          apiCl.DynamicInformerCl,
 		DynamicInformerFactory: apiCl.DynamicInformerFactory,
 		Client:                 apiCl.InformerCl,
 		IsLeaderFunc:           le.IsLeader,
 		EventRecorder:          eventRecorder,
+		WorkloadMeta:           wmeta,
 		StopCh:                 stopCh,
 	}
 
-	if aggErr := apiserver.StartControllers(ctx); aggErr != nil {
+	if aggErr := controllers.StartControllers(ctx); aggErr != nil {
 		for _, err := range aggErr.Errors() {
 			pkglog.Warnf("Error while starting controller: %v", err)
 		}

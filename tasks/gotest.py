@@ -40,7 +40,7 @@ TMP_PROFILE_COV_PREFIX = "coverage.out.rerun"
 GO_COV_TEST_PATH = "test_with_coverage"
 GO_TEST_RESULT_TMP_JSON = 'module_test_output.json'
 WINDOWS_MAX_PACKAGES_NUMBER = 150
-TRIGGER_ALL_TESTS_PATHS = ["tasks/go_test.py", "tasks/build_tags.py", ".gitlab/source_test/*"]
+TRIGGER_ALL_TESTS_PATHS = ["tasks/gotest.py", "tasks/build_tags.py", ".gitlab/source_test/*"]
 
 
 class TestProfiler:
@@ -528,7 +528,7 @@ def e2e_tests(ctx, target="gitlab", agent_image="", dca_image="", argo_workflow=
 
 
 @task
-def get_modified_packages(ctx, build_tags=None) -> list[GoModule]:
+def get_modified_packages(ctx, build_tags=None, lint=False) -> list[GoModule]:
     modified_files = get_modified_files(ctx)
     modified_go_files = [
         f"./{file}" for file in modified_files if file.endswith(".go") or file.endswith(".mod") or file.endswith(".sum")
@@ -546,14 +546,16 @@ def get_modified_packages(ctx, build_tags=None) -> list[GoModule]:
 
         # Since several modules can match the path we take only the most precise one
         for module_path in DEFAULT_MODULES:
-            if module_path in modified_file:
-                if len(module_path) > match_precision:
-                    match_precision = len(module_path)
-                    best_module_path = module_path
+            if module_path in modified_file and len(module_path) > match_precision:
+                match_precision = len(module_path)
+                best_module_path = module_path
 
         # Check if the package is in the target list of the module we want to test
         targeted = False
-        for target in DEFAULT_MODULES[best_module_path].targets:
+
+        targets = DEFAULT_MODULES[best_module_path].lint_targets if lint else DEFAULT_MODULES[best_module_path].targets
+
+        for target in targets:
             if os.path.normpath(os.path.join(best_module_path, target)) in modified_file:
                 targeted = True
                 break
@@ -755,7 +757,7 @@ def get_impacted_packages(ctx, build_tags=None):
                 message=f"No file matched {file} make sure you modified TRIGGER_ALL_TEST_FILES if you renamed one of them",
             )
 
-    # Some files like tasks/go_test.py should trigger all tests
+    # Some files like tasks/gotest.py should trigger all tests
     if should_run_all_tests(files, TRIGGER_ALL_TESTS_PATHS):
         return DEFAULT_MODULES.values()
 

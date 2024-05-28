@@ -5,7 +5,7 @@
 
 //go:build !race && kubeapiserver
 
-package apiserver
+package controllers
 
 import (
 	"context"
@@ -88,13 +88,13 @@ func newFakeHorizontalPodAutoscaler(name, ns string, uid string, metricName stri
 	}
 }
 
-func newFakeAutoscalerController(t *testing.T, client kubernetes.Interface, isLeaderFunc func() bool, dcl autoscalers.DatadogClient) (*AutoscalersController, informers.SharedInformerFactory) {
+func newFakeAutoscalerController(t *testing.T, client kubernetes.Interface, isLeaderFunc func() bool, dcl autoscalers.DatadogClient) (*autoscalersController, informers.SharedInformerFactory) {
 	informerFactory := informers.NewSharedInformerFactory(client, 0)
 
 	eventBroadcaster := record.NewBroadcaster()
 	eventBroadcaster.StartLogging(t.Logf)
 
-	autoscalerController, _ := NewAutoscalersController(
+	autoscalerController, _ := newAutoscalersController(
 		client,
 		eventBroadcaster.NewRecorder(kscheme.Scheme, corev1.EventSource{Component: "FakeAutoscalerController"}),
 		isLeaderFunc,
@@ -331,9 +331,9 @@ func TestAutoscalerController(t *testing.T) {
 	defer close(stop)
 	inf.Start(stop)
 
-	go hctrl.RunHPA(stop)
+	go hctrl.runHPA(stop)
 
-	hctrl.RunControllerLoop(stop)
+	hctrl.runControllerLoop(stop)
 
 	c := client.AutoscalingV2beta1()
 	require.NotNil(t, c)

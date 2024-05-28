@@ -28,10 +28,12 @@ import (
 
 const (
 	// InFlightMap is the name of the in-flight map.
-	InFlightMap      = "postgres_in_flight"
-	scratchBufferMap = "postgres_scratch_buffer"
-	processTailCall  = "socket__postgres_process"
-	eventStream      = "postgres"
+	InFlightMap            = "postgres_in_flight"
+	scratchBufferMap       = "postgres_scratch_buffer"
+	processTailCall        = "socket__postgres_process"
+	tlsProcessTailCall     = "uprobe__postgres_tls_process"
+	tlsTerminationTailCall = "uprobe__postgres_tls_termination"
+	eventStream            = "postgres"
 )
 
 // protocol holds the state of the postgres protocol monitoring.
@@ -68,6 +70,20 @@ var Spec = &protocols.ProtocolSpec{
 			Key:           uint32(protocols.ProgramPostgres),
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				EBPFFuncName: processTailCall,
+			},
+		},
+		{
+			ProgArrayName: protocols.TLSDispatcherProgramsMap,
+			Key:           uint32(protocols.ProgramTLSPostgres),
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: tlsProcessTailCall,
+			},
+		},
+		{
+			ProgArrayName: protocols.TLSDispatcherProgramsMap,
+			Key:           uint32(protocols.ProgramTLSPostgresTermination),
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: tlsTerminationTailCall,
 			},
 		},
 	},
