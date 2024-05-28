@@ -67,11 +67,9 @@ var defaultPeerTags = func() []string {
 
 	var tags []string = []string{"_dd.base_service"}
 
-	if len(keys) > 0 {
-		for _, key := range keys {
-			value := strings.Split(key.Value(), ",")
-			tags = append(tags, value...)
-		}
+	for _, key := range keys {
+		value := strings.Split(key.Value(), ",")
+		tags = append(tags, value...)
 	}
 
 	sort.Strings(tags)
