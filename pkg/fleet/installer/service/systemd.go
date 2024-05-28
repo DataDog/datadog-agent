@@ -19,9 +19,7 @@ import (
 	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
 )
 
-const (
-	systemdPath    = "/etc/systemd/system"
-)
+const systemdPath = "/etc/systemd/system"
 
 func stopUnit(ctx context.Context, unit string, args ...string) error {
 	span, _ := tracer.StartSpanFromContext(ctx, "stop_unit")
