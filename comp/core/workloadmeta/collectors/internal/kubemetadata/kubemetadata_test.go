@@ -67,12 +67,16 @@ type FakeDCAClient struct {
 	ClusterIDErr error
 }
 
-func (f *FakeDCAClient) Version(_ bool) version.Version {
+func (f *FakeDCAClient) Version() version.Version {
 	return f.LocalVersion
 }
 
 func (f *FakeDCAClient) ClusterAgentAPIEndpoint() string {
 	return f.LocalClusterAgentAPIEndpoint
+}
+
+func (f *FakeDCAClient) GetVersion() (version.Version, error) {
+	return f.LocalVersion, f.VersionErr
 }
 
 func (f *FakeDCAClient) GetNodeLabels(_ string) (map[string]string, error) {

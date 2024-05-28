@@ -29,7 +29,11 @@ func GetDCAStatus(stats map[string]interface{}) {
 	}
 	clusterAgentDetails["Endpoint"] = dcaCl.ClusterAgentAPIEndpoint()
 
-	ver := dcaCl.Version(true)
+	ver, err := dcaCl.GetVersion()
+	if err != nil {
+		clusterAgentDetails["ConnectionError"] = err.Error()
+		return
+	}
 	clusterAgentDetails["Version"] = ver.String()
 }
 

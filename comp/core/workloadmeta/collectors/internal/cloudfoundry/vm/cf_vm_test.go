@@ -148,11 +148,15 @@ type FakeDCAClient struct {
 	ClusterIDErr error
 }
 
-func (f *FakeDCAClient) Version(_ bool) version.Version {
+func (f *FakeDCAClient) Version() version.Version {
 	panic("implement me")
 }
 
 func (f *FakeDCAClient) ClusterAgentAPIEndpoint() string {
+	panic("implement me")
+}
+
+func (f *FakeDCAClient) GetVersion() (version.Version, error) {
 	panic("implement me")
 }
 

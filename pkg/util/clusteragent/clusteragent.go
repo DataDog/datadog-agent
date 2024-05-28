@@ -58,9 +58,10 @@ type Metadata struct {
 
 // DCAClientInterface  is required to query the API of Datadog cluster agent
 type DCAClientInterface interface {
-	Version(withRefresh bool) version.Version
+	Version() version.Version
 	ClusterAgentAPIEndpoint() string
 
+	GetVersion() (version.Version, error)
 	GetNodeLabels(nodeName string) (map[string]string, error)
 	GetNodeAnnotations(nodeName string) (map[string]string, error)
 	GetNamespaceLabels(nsName string) (map[string]string, error)
@@ -191,7 +192,7 @@ func (c *DCAClient) initHTTPClient() error {
 	}
 
 	// Validate the cluster-agent client by checking the version
-	clusterAgentVersion, err := c.getVersion()
+	clusterAgentVersion, err := c.GetVersion()
 	if err != nil {
 		return err
 	}
@@ -282,19 +283,9 @@ func GetClusterAgentEndpoint() (string, error) {
 }
 
 // Version returns ClusterAgentVersion already stored in the DCAClient
-// It refreshes the cached version before returning it if withRefresh is true
-func (c *DCAClient) Version(withRefresh bool) version.Version {
-	c.clusterAgentClientLock.Lock()
-	defer c.clusterAgentClientLock.Unlock()
-
-	if withRefresh {
-		ver, err := c.getVersion()
-		if err != nil {
-			log.Errorf("failed to refresh cluster agent version")
-		} else {
-			c.clusterAgentVersion = ver
-		}
-	}
+func (c *DCAClient) Version() version.Version {
+	c.clusterAgentClientLock.RLock()
+	defer c.clusterAgentClientLock.RUnlock()
 
 	return c.clusterAgentVersion
 }
@@ -393,8 +384,8 @@ func (c *DCAClient) doJSONQueryToLeader(ctx context.Context, path, method string
 	return err
 }
 
-// getVersion fetches the version of the Cluster Agent
-func (c *DCAClient) getVersion() (version.Version, error) {
+// GetVersion fetches the version of the Cluster Agent. Used in the agent status command.
+func (c *DCAClient) GetVersion() (version.Version, error) {
 	var version version.Version
 	err := c.doJSONQuery(context.TODO(), "version", "GET", nil, &version, false)
 	return version, err
@@ -507,6 +498,5 @@ func (c *DCAClient) PostLanguageMetadata(ctx context.Context, data *pbgo.ParentL
 
 // SupportsNamespaceMetadataCollection returns true only if the cluster agent supports collecting namespace metadata
 func (c *DCAClient) SupportsNamespaceMetadataCollection() bool {
-	dcaVersion := c.Version(false)
-	return dcaVersion.Major >= 7 && dcaVersion.Minor >= 55
+	return c.Version().Major >= 7 && c.Version().Minor >= 55
 }
