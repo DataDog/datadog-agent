@@ -19,6 +19,8 @@ import (
 
 	"go.uber.org/fx"
 
+	"github.com/DataDog/datadog-agent/comp/api/api"
+	"github.com/DataDog/datadog-agent/comp/api/api/utils"
 	"github.com/DataDog/datadog-agent/comp/api/authtoken"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
@@ -92,6 +94,7 @@ type provides struct {
 	Provider             runnerimpl.Provider
 	FlareProvider        flaretypes.Provider
 	StatusHeaderProvider status.HeaderInformationProvider
+	Endpoint             api.AgentEndpointProvider
 }
 
 func newInventoryOtelProvider(deps dependencies) provides {
@@ -133,6 +136,7 @@ func newInventoryOtelProvider(deps dependencies) provides {
 		Provider:             i.MetadataProvider(),
 		FlareProvider:        i.FlareProvider(),
 		StatusHeaderProvider: status.NewHeaderInformationProvider(i),
+		Endpoint:             api.NewAgentEndpointProvider(i.writePayloadAsJSON, "/metadata/inventory-otel", "GET"),
 	}
 }
 
@@ -241,6 +245,16 @@ func (i *inventoryotel) getPayload() marshaler.JSONMarshaler {
 		Metadata:  data,
 		UUID:      uuid.GetUUID(),
 	}
+}
+
+func (i *inventoryotel) writePayloadAsJSON(w http.ResponseWriter, _ *http.Request) {
+	// GetAsJSON already return scrubbed data
+	scrubbed, err := i.GetAsJSON()
+	if err != nil {
+		utils.SetJSONError(w, err, 500)
+		return
+	}
+	w.Write(scrubbed)
 }
 
 // Get returns a copy of the agent metadata. Useful to be incorporated in the status page.

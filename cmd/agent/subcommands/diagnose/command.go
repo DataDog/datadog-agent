@@ -290,7 +290,7 @@ func printPayload(name payloadName, _ log.Component, config config.Component) er
 
 	r, err := util.DoGet(c, apiConfigURL, util.CloseConnection)
 	if err != nil {
-		return fmt.Errorf("Could not fetch metadata v5 payload: %s", err)
+		return fmt.Errorf("Could not fetch metadata payload: %s", err)
 	}
 
 	fmt.Println(string(r))
