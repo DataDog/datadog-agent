@@ -1144,7 +1144,7 @@ func NewProbe(config *config.Config, opts Opts, _ optional.Option[workloadmeta.C
 }
 
 // SetApprovers applies approvers and removes the unused ones
-func (p *WindowsProbe) SetApprovers(eventType eval.EventType, approvers rules.Approvers) error {
+func (p *WindowsProbe) SetApprovers(_ eval.EventType, approvers rules.Approvers) error {
 	for name, els := range approvers {
 		for _, el := range els {
 			if el.Type == eval.ScalarValueType || el.Type == eval.PatternValueType {
