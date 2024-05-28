@@ -223,11 +223,12 @@ if linux_target?
   if !do_package
     extra_package_file "#{Omnibus::Config.project_root}/package-scripts/iot-agent-deb"
     extra_package_file "#{Omnibus::Config.project_root}/package-scripts/iot-agent-rpm"
-  end
-  if debian_target?
-    package_scripts_path "#{Omnibus::Config.project_root}/package-scripts/iot-agent-deb"
   else
-    package_scripts_path "#{Omnibus::Config.project_root}/package-scripts/iot-agent-rpm"
+    if debian_target?
+      package_scripts_path "#{Omnibus::Config.project_root}/package-scripts/iot-agent-deb"
+    else
+      package_scripts_path "#{Omnibus::Config.project_root}/package-scripts/iot-agent-rpm"
+    end
   end
 end
 
