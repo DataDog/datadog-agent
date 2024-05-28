@@ -87,7 +87,7 @@ func getDiagnosisResultForOutput(r diagnosis.Result) string {
 		result = color.RedString("FAIL")
 	} else if r == diagnosis.DiagnosisWarning {
 		result = color.YellowString("WARNING")
-	} else { //if d.Result == diagnosis.DiagnosisUnexpectedError
+	} else { // if d.Result == diagnosis.DiagnosisUnexpectedError
 		result = color.HiRedString("UNEXPECTED ERROR")
 	}
 
@@ -188,7 +188,6 @@ func matchConfigFilters(filter diagSuiteFilter, s string) bool {
 }
 
 func getSortedAndFilteredDiagnoseSuites[T any](diagCfg diagnosis.Config, values []T, getName func(T) string) ([]T, error) {
-
 	var filter diagSuiteFilter
 	var err error
 
@@ -308,13 +307,13 @@ func requestDiagnosesFromAgentProcess(diagCfg diagnosis.Config) ([]diagnosis.Dia
 	}
 
 	// Make sure we have a session token (for privileged information)
-	if err = util.SetAuthToken(pkgconfig.Datadog); err != nil {
+	if err = util.SetAuthToken(pkgconfig.Datadog()); err != nil {
 		return nil, fmt.Errorf("auth error: %w", err)
 	}
 
 	// Form call end-point
 	//nolint:revive // TODO(CINT) Fix revive linter
-	diagnoseURL := fmt.Sprintf("https://%v:%v/agent/diagnose", ipcAddress, pkgconfig.Datadog.GetInt("cmd_port"))
+	diagnoseURL := fmt.Sprintf("https://%v:%v/agent/diagnose", ipcAddress, pkgconfig.Datadog().GetInt("cmd_port"))
 
 	// Serialized diag config to pass it to Agent execution context
 	var cfgSer []byte
@@ -473,7 +472,8 @@ func NewSuitesDepsInCLIProcess(
 	senderManager sender.DiagnoseSenderManager,
 	secretResolver secrets.Component,
 	wmeta optional.Option[workloadmeta.Component],
-	ac autodiscovery.Component) SuitesDepsInCLIProcess {
+	ac autodiscovery.Component,
+) SuitesDepsInCLIProcess {
 	return SuitesDepsInCLIProcess{
 		senderManager:  senderManager,
 		secretResolver: secretResolver,
@@ -504,7 +504,8 @@ func NewSuitesDeps(
 	senderManager sender.DiagnoseSenderManager,
 	collector optional.Option[collector.Component],
 	secretResolver secrets.Component,
-	wmeta optional.Option[workloadmeta.Component], ac optional.Option[autodiscovery.Component]) SuitesDeps {
+	wmeta optional.Option[workloadmeta.Component], ac optional.Option[autodiscovery.Component],
+) SuitesDeps {
 	return SuitesDeps{
 		SenderManager:  senderManager,
 		Collector:      collector,

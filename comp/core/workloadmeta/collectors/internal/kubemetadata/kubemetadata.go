@@ -81,7 +81,7 @@ func (c *collector) Start(_ context.Context, store workloadmeta.Component) error
 
 	// If DCA is enabled and can't communicate with the DCA, let worloadmeta retry.
 	var errDCA error
-	if config.Datadog.GetBool("cluster_agent.enabled") {
+	if config.Datadog().GetBool("cluster_agent.enabled") {
 		c.dcaEnabled = false
 		c.dcaClient, errDCA = clusteragent.GetClusterAgentClient()
 		if errDCA != nil {
@@ -93,7 +93,7 @@ func (c *collector) Start(_ context.Context, store workloadmeta.Component) error
 			}
 
 			// We return the permanent fail only if fallback is disabled
-			if retry.IsErrPermaFail(errDCA) && !config.Datadog.GetBool("cluster_agent.tagging_fallback") {
+			if retry.IsErrPermaFail(errDCA) && !config.Datadog().GetBool("cluster_agent.tagging_fallback") {
 				return errDCA
 			}
 
@@ -104,7 +104,7 @@ func (c *collector) Start(_ context.Context, store workloadmeta.Component) error
 	}
 
 	// Fallback to local metamapper if DCA not enabled, or in permafail state with fallback enabled.
-	if !config.Datadog.GetBool("cluster_agent.enabled") || errDCA != nil {
+	if !config.Datadog().GetBool("cluster_agent.enabled") || errDCA != nil {
 		// Using GetAPIClient as error returned follows the IsErrWillRetry/IsErrPermaFail
 		// Workloadmeta will retry calling this method until permafail
 		c.apiClient, err = apiserver.GetAPIClient()
@@ -113,9 +113,9 @@ func (c *collector) Start(_ context.Context, store workloadmeta.Component) error
 		}
 	}
 
-	c.updateFreq = time.Duration(config.Datadog.GetInt("kubernetes_metadata_tag_update_freq")) * time.Second
-	c.collectNamespaceLabels = len(config.Datadog.GetStringMapString("kubernetes_namespace_labels_as_tags")) > 0
-	c.collectNamespaceAnnotations = len(config.Datadog.GetStringMapString("kubernetes_namespace_annotations_as_tags")) > 0
+	c.updateFreq = time.Duration(config.Datadog().GetInt("kubernetes_metadata_tag_update_freq")) * time.Second
+	c.collectNamespaceLabels = len(config.Datadog().GetStringMapString("kubernetes_namespace_labels_as_tags")) > 0
+	c.collectNamespaceAnnotations = len(config.Datadog().GetStringMapString("kubernetes_namespace_annotations_as_tags")) > 0
 
 	return err
 }
@@ -174,6 +174,7 @@ func (c *collector) Pull(ctx context.Context) error {
 func (c *collector) GetID() string {
 	return c.id
 }
+
 func (c *collector) GetTargetCatalog() workloadmeta.AgentType {
 	return c.catalog
 }

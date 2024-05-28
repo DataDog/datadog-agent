@@ -67,7 +67,7 @@ func (c *collector) Start(_ context.Context, store workloadmeta.Component) error
 	}
 
 	var dbPath string
-	dbPath = config.Datadog.GetString("podman_db_path")
+	dbPath = config.Datadog().GetString("podman_db_path")
 
 	// We verify the user-provided path exists to prevent the collector entering a failing loop.
 	if dbPath != "" && !dbIsAccessible(dbPath) {

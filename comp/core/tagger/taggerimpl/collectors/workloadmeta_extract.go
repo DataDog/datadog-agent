@@ -347,7 +347,7 @@ func (c *WorkloadMetaCollector) handleKubePod(ev workloadmeta.Event) []*types.Ta
 	}
 
 	kubeServiceDisabled := false
-	for _, disabledTag := range config.Datadog.GetStringSlice("kubernetes_ad_tags_disabled") {
+	for _, disabledTag := range config.Datadog().GetStringSlice("kubernetes_ad_tags_disabled") {
 		if disabledTag == "kube_service" {
 			kubeServiceDisabled = true
 			break
@@ -484,7 +484,7 @@ func (c *WorkloadMetaCollector) handleECSTask(ev workloadmeta.Event) []*types.Ta
 	taskTags.AddOrchestrator("task_arn", task.ID)
 
 	if task.ClusterName != "" {
-		if !config.Datadog.GetBool("disable_cluster_name_tag_key") {
+		if !config.Datadog().GetBool("disable_cluster_name_tag_key") {
 			taskTags.AddLow("cluster_name", task.ClusterName)
 		}
 		taskTags.AddLow("ecs_cluster_name", task.ClusterName)

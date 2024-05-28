@@ -285,7 +285,7 @@ func RunAgent(log log.Component, config config.Component, telemetry telemetry.Co
 
 	// Setup expvar server
 	port := config.GetString("security_agent.expvar_port")
-	pkgconfig.Datadog.Set("expvar_port", port, model.SourceAgentRuntime)
+	pkgconfig.Datadog().Set("expvar_port", port, model.SourceAgentRuntime)
 	if config.GetBool("telemetry.enabled") {
 		http.Handle("/telemetry", telemetry.Handler())
 	}
