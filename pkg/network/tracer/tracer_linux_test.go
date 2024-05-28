@@ -2353,7 +2353,6 @@ func (s *TracerSuite) TestTCPFailureConnectionTimeout() {
 	cfg.TCPFailedConnectionsEnabled = true
 	cfg.ClientStateExpiry = 5 * time.Minute
 	tr := setupTracer(t, cfg)
-	t.Log("adamk test config: ", cfg)
 
 	srvAddr := "127.0.0.1:10000"
 	ipString, portString, err := net.SplitHostPort(srvAddr)
@@ -2372,7 +2371,7 @@ func (s *TracerSuite) TestTCPFailureConnectionTimeout() {
 	require.NoError(t, err)
 	t.Cleanup(func() { syscall.Close(sfd) })
 
-	// Set TCP_USER_TIMEOUT to 1000 milliseconds
+	// Set TCP_USER_TIMEOUT to 500 milliseconds
 	timeout := 500 // milliseconds
 	//syscall.TCP_USER_TIMEOUT is 18 but not defined in our linter
 	err = syscall.SetsockoptInt(sfd, syscall.IPPROTO_TCP, 18, timeout)

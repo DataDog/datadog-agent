@@ -194,7 +194,6 @@ int kretprobe__udp_sendpage(struct pt_regs *ctx) {
 
 SEC("kprobe/tcp_close")
 int kprobe__tcp_close(struct pt_regs *ctx) {
-    log_debug("adamk kprobe/tcp_close: start");
     struct sock *sk;
     conn_tuple_t t = {};
     u64 pid_tgid = bpf_get_current_pid_tgid();
@@ -210,13 +209,12 @@ int kprobe__tcp_close(struct pt_regs *ctx) {
     }
 
     // Get network namespace id
-    log_debug("adamk kprobe/tcp_close: tgid: %llu, pid: %llu", pid_tgid >> 32, pid_tgid & 0xFFFFFFFF);
+    log_debug("kprobe/tcp_close: tgid: %llu, pid: %llu", pid_tgid >> 32, pid_tgid & 0xFFFFFFFF);
     if (!read_conn_tuple(&t, sk, pid_tgid, CONN_TYPE_TCP)) {
-        log_debug("adamk kprobe/tcp_close: err");
+        log_debug("kprobe/tcp_close: err");
         return 0;
     }
-    log_debug("adamk kprobe/tcp_close: netns: %u, sport: %u, dport: %u", t.netns, t.sport, t.dport);
-    log_debug("adamk kprobe/tcp_close: netns: %u, saddr: %llu, daddr: %llu", t.netns, t.saddr_l, t.daddr_l);
+    log_debug("kprobe/tcp_close: netns: %u, sport: %u, dport: %u", t.netns, t.sport, t.dport);
 
     cleanup_conn(ctx, &t, sk);
 
@@ -252,21 +250,16 @@ int kprobe__tcp_done(struct pt_regs *ctx) {
         bpf_map_update_with_telemetry(tcp_ongoing_connect_pid, &sk, &pid_tgid, BPF_ANY);
     }
 
-    log_debug("adamk kprobe/tcp_done: tgid: %llu, pid: %llu", pid_tgid >> 32, pid_tgid & 0xFFFFFFFF);
+    log_debug("kprobe/tcp_done: tgid: %llu, pid: %llu", pid_tgid >> 32, pid_tgid & 0xFFFFFFFF);
 
     if (!read_conn_tuple(&t, sk, pid_tgid, CONN_TYPE_TCP)) {
-        log_debug("adamk kprobe/tcp_done: err");
+        log_debug("kprobe/tcp_done: err");
         return 0;
     }
 
-    // conn_stats_ts_t *cst = bpf_map_lookup_elem(&conn_stats, &t);
-    // if (cst || failed_conn_pid) {
-    log_debug("adamk kprobe/tcp_done: flushing closed conn");
     cleanup_conn(ctx, &t, sk);
-    // }
 
-    log_debug("adamk kprobe/tcp_done: netns: %u, sport: %u, dport: %u", t.netns, t.sport, t.dport);
-    log_debug("adamk kprobe/tcp_done: netns: %u, saddr: %llu, daddr: %llu", t.netns, t.saddr_l, t.daddr_l);
+    log_debug("kprobe/tcp_done: netns: %u, sport: %u, dport: %u", t.netns, t.sport, t.dport);
 
     flush_tcp_failure(ctx, &t, err);
 
@@ -951,7 +944,7 @@ int kretprobe__tcp_retransmit_skb(struct pt_regs *ctx) {
 SEC("kprobe/tcp_connect")
 int kprobe__tcp_connect(struct pt_regs *ctx) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
-    log_debug("adamk kprobe/tcp_connect: tgid: %llu, pid: %llu", pid_tgid >> 32, pid_tgid & 0xFFFFFFFF);
+    log_debug("kprobe/tcp_connect: tgid: %llu, pid: %llu", pid_tgid >> 32, pid_tgid & 0xFFFFFFFF);
     struct sock *skp = (struct sock *)PT_REGS_PARM1(ctx);
 
     bpf_map_update_with_telemetry(tcp_ongoing_connect_pid, &skp, &pid_tgid, BPF_ANY);
@@ -969,7 +962,7 @@ int kprobe__tcp_finish_connect(struct pt_regs *ctx) {
 
     u64 pid_tgid = *pid_tgid_p;
     bpf_map_delete_elem(&tcp_ongoing_connect_pid, &skp);
-    log_debug("adamk kprobe/tcp_finish_connect: tgid: %llu, pid: %llu", pid_tgid >> 32, pid_tgid & 0xFFFFFFFF);
+    log_debug("kprobe/tcp_finish_connect: tgid: %llu, pid: %llu", pid_tgid >> 32, pid_tgid & 0xFFFFFFFF);
 
     conn_tuple_t t = {};
     if (!read_conn_tuple(&t, skp, pid_tgid, CONN_TYPE_TCP)) {
@@ -979,7 +972,7 @@ int kprobe__tcp_finish_connect(struct pt_regs *ctx) {
     handle_tcp_stats(&t, skp, TCP_ESTABLISHED);
     handle_message(&t, 0, 0, CONN_DIRECTION_OUTGOING, 0, 0, PACKET_COUNT_NONE, skp);
 
-    log_debug("adamk kprobe/tcp_connect: netns: %u, sport: %u, dport: %u", t.netns, t.sport, t.dport);
+    log_debug("kprobe/tcp_connect: netns: %u, sport: %u, dport: %u", t.netns, t.sport, t.dport);
 
     return 0;
 }
