@@ -68,16 +68,16 @@ func SetupAgent(ctx context.Context) (err error) {
 
 	for _, unit := range stableUnits {
 		if err = loadUnit(ctx, unit); err != nil {
-			return err
+			return fmt.Errorf("failed to load %s: %v", unit, err)
 		}
 	}
 	for _, unit := range experimentalUnits {
 		if err = loadUnit(ctx, unit); err != nil {
-			return err
+			return fmt.Errorf("failed to load %s: %v", unit, err)
 		}
 	}
 	if err = os.MkdirAll("/etc/datadog-agent", 0755); err != nil {
-		return err
+		return fmt.Errorf("failed to create /etc/datadog-agent: %v", err)
 	}
 	ddAgentUID, ddAgentGID, err := getAgentIDs()
 	if err != nil {
@@ -85,30 +85,30 @@ func SetupAgent(ctx context.Context) (err error) {
 	}
 
 	if err = os.Chown("/etc/datadog-agent", ddAgentUID, ddAgentGID); err != nil {
-		return err
+		return fmt.Errorf("failed to chown /etc/datadog-agent: %v", err)
 	}
 
 	if err = systemdReload(ctx); err != nil {
-		return err
+		return fmt.Errorf("failed to reload systemd daemon: %v", err)
 	}
 
 	// enabling the agentUnit only is enough as others are triggered by it
 	if err = enableUnit(ctx, agentUnit); err != nil {
-		return err
+		return fmt.Errorf("failed to enable %s: %v", agentUnit, err)
 	}
 	if err = exec.CommandContext(ctx, "ln", "-sf", "/opt/datadog-packages/datadog-agent/stable/bin/agent/agent", agentSymlink).Run(); err != nil {
-		return err
+		return fmt.Errorf("failed to create symlink: %v", err)
 	}
 
 	// write installinfo before start, or the agent could write it
 	// TODO: add installer version properly
 	if err = installinfo.WriteInstallInfo("installer_package", "manual_update"); err != nil {
-		return err
+		return fmt.Errorf("failed to write install info: %v", err)
 	}
 
 	_, err = os.Stat("/etc/datadog-agent/datadog.yaml")
 	if err != nil && !os.IsNotExist(err) {
-		return err
+		return fmt.Errorf("failed to check if /etc/datadog-agent/datadog.yaml exists: %v", err)
 	}
 	// this is expected during a fresh install with the install script / asible / chef / etc...
 	// the config is populated afterwards by the install method and the agent is restarted
@@ -117,7 +117,10 @@ func SetupAgent(ctx context.Context) (err error) {
 			return err
 		}
 	}
-	return removeOldAgentFiles()
+	if err = removeOldAgentFiles(); err != nil {
+		return fmt.Errorf("failed to remove old agent files: %v", err)
+	}
+	return nil
 }
 
 // RemoveAgent stops and removes the agent
@@ -173,12 +176,13 @@ func stopOldAgentUnits(ctx context.Context) error {
 		if err := stopUnit(ctx, unit); err != nil {
 			exitError, ok := err.(*exec.ExitError)
 			if ok && exitError.ExitCode() == 5 {
+				// exit code 5 means the unit is not loaded, we can continue
 				continue
 			}
-			return err
+			return fmt.Errorf("failed to stop %s: %v", unit, err)
 		}
 		if err := disableUnit(ctx, unit); err != nil {
-			return err
+			return fmt.Errorf("failed to disable %s: %v", unit, err)
 		}
 	}
 	return nil
