@@ -1300,6 +1300,8 @@ func TestProcessExec(t *testing.T) {
 			assertFieldEqual(t, event, "exec.file.path", executable)
 			assertFieldIsOneOf(t, event, "process.parent.file.name", []string{"sh", "bash", "dash"}, "wrong process parent file name")
 			assertFieldStringArrayIndexedOneOf(t, event, "process.ancestors.file.name", 0, []string{"sh", "bash", "dash"})
+
+			validateSyscallContext(t, event, "$.syscall.exec.path")
 		}))
 	})
 

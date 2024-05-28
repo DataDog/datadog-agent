@@ -29,8 +29,8 @@ import (
 func detectAgentV1URL() (string, error) {
 	urls := make([]string, 0, 3)
 
-	if len(config.Datadog.GetString("ecs_agent_url")) > 0 {
-		urls = append(urls, config.Datadog.GetString("ecs_agent_url"))
+	if len(config.Datadog().GetString("ecs_agent_url")) > 0 {
+		urls = append(urls, config.Datadog().GetString("ecs_agent_url"))
 	}
 
 	if config.IsContainerized() {
@@ -42,7 +42,7 @@ func detectAgentV1URL() (string, error) {
 			urls = append(urls, agentURLS...)
 		}
 		// Try the default gateway
-		gw, err := system.GetDefaultGateway(config.Datadog.GetString("proc_root"))
+		gw, err := system.GetDefaultGateway(config.Datadog().GetString("proc_root"))
 		if err != nil {
 			log.Debugf("Could not get docker default gateway: %s", err)
 		}
@@ -76,7 +76,7 @@ func getAgentV1ContainerURLs(ctx context.Context) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	ecsConfig, err := du.Inspect(ctx, config.Datadog.GetString("ecs_agent_container_name"), false)
+	ecsConfig, err := du.Inspect(ctx, config.Datadog().GetString("ecs_agent_container_name"), false)
 	if err != nil {
 		return nil, err
 	}

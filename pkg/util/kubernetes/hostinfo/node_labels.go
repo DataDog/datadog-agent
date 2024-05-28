@@ -49,7 +49,7 @@ func (n *NodeInfo) GetNodeLabels(ctx context.Context) (map[string]string, error)
 		return nil, err
 	}
 
-	if config.Datadog.GetBool("cluster_agent.enabled") {
+	if config.Datadog().GetBool("cluster_agent.enabled") {
 		cl, err := n.getClusterAgentFunc()
 		if err != nil {
 			return nil, err

@@ -33,13 +33,13 @@ repos:
     - id: protected-branches
       name: protected-branches
       description: checks that the commit isn't created on a protected branch
-      entry: 'python3 tasks/git-hooks/protected-branches.py'
+      entry: 'python3 -m tasks.git-hooks.protected-branches'
       language: system
       pass_filenames: false
     - id: govet
       name: govet
       description: go vet
-      entry: 'python3 tasks/git-hooks/govet.py'
+      entry: 'python3 -m tasks.git-hooks.govet'
       language: system
       require_serial: true
       files: \.go$
@@ -59,7 +59,7 @@ repos:
     - id: clang-format
       name: clang-format
       description: clang-format
-      entry: 'python3 tasks/git-hooks/clang-format.py'
+      entry: 'python3 -m tasks.git-hooks.clang-format'
       language: system
       require_serial: true
       files: '^pkg/(ebpf|network|security)/.*\.(c|h)$'
@@ -96,11 +96,10 @@ repos:
     - id: shell-check-no-set-x
       name: shell-check-no-set-x
       description: check that no `set -x` is set within github / gitlab workflows
-      entry: inv pre-commit.shell-check-no-set-x
+      entry: 'python3 -m tasks.git-hooks.set-x'
       language: system
       require_serial: true
       files: (\.yaml|\.yml|\.sh|Dockerfile)$
-      pass_filenames: false
     - id: gitlab-configuration
       name: gitlab-configuration
       description: test the gitlab configuration on main

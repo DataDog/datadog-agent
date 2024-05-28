@@ -153,7 +153,7 @@ func (s *Scheduler) createSources(config integration.Config) ([]*sourcesPkg.LogS
 		// config attached to a container label or a pod annotation
 		configs, err = logsConfig.ParseJSON(config.LogsConfig)
 	case names.RemoteConfig:
-		if pkgconfig.Datadog.GetBool("remote_configuration.agent_integrations.allow_log_config_scheduling") {
+		if pkgconfig.Datadog().GetBool("remote_configuration.agent_integrations.allow_log_config_scheduling") {
 			// config supplied by remote config
 			configs, err = logsConfig.ParseJSON(config.LogsConfig)
 		} else {

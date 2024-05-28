@@ -93,32 +93,6 @@ build do
         end
 
         if linux_target?
-            # Move system service files
-            mkdir "/etc/init"
-            move "#{install_dir}/scripts/datadog-agent.conf", "/etc/init"
-            move "#{install_dir}/scripts/datadog-agent-trace.conf", "/etc/init"
-            move "#{install_dir}/scripts/datadog-agent-process.conf", "/etc/init"
-            move "#{install_dir}/scripts/datadog-agent-sysprobe.conf", "/etc/init"
-            move "#{install_dir}/scripts/datadog-agent-security.conf", "/etc/init"
-            systemd_directory = "/usr/lib/systemd/system"
-            if debian_target?
-                # debian recommends using a different directory for systemd unit files
-                systemd_directory = "/lib/systemd/system"
-
-                # sysvinit support for debian only for now
-                mkdir "/etc/init.d"
-                move "#{install_dir}/scripts/datadog-agent", "/etc/init.d"
-                move "#{install_dir}/scripts/datadog-agent-trace", "/etc/init.d"
-                move "#{install_dir}/scripts/datadog-agent-process", "/etc/init.d"
-                move "#{install_dir}/scripts/datadog-agent-security", "/etc/init.d"
-            end
-            mkdir systemd_directory
-            move "#{install_dir}/scripts/datadog-agent.service", systemd_directory
-            move "#{install_dir}/scripts/datadog-agent-trace.service", systemd_directory
-            move "#{install_dir}/scripts/datadog-agent-process.service", systemd_directory
-            move "#{install_dir}/scripts/datadog-agent-sysprobe.service", systemd_directory
-            move "#{install_dir}/scripts/datadog-agent-security.service", systemd_directory
-
             # Move configuration files
             mkdir "/etc/datadog-agent"
             move "#{install_dir}/bin/agent/dd-agent", "/usr/bin/dd-agent"

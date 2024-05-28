@@ -37,31 +37,16 @@ type trafficCapture struct {
 	sync.RWMutex
 }
 
-// TODO: (components) - remove once serverless is an FX app
-//
-//nolint:revive // TODO(AML) Fix revive linter
-func NewServerlessTrafficCapture() replay.Component {
-	tc := newTrafficCaptureCompat(config.Datadog)
-	_ = tc.configure(context.TODO())
-	return tc
-}
-
-// TODO: (components) - merge with newTrafficCaptureCompat once NewServerlessTrafficCapture is removed
-//
 //nolint:revive // TODO(AML) Fix revive linter
 func NewTrafficCapture(deps Requires) replay.Component {
-	tc := newTrafficCaptureCompat(deps.Config)
+	tc := &trafficCapture{
+		config: deps.Config,
+	}
 	deps.Lc.Append(compdef.Hook{
 		OnStart: tc.configure,
 	})
 
 	return tc
-}
-
-func newTrafficCaptureCompat(cfg config.Reader) *trafficCapture {
-	return &trafficCapture{
-		config: cfg,
-	}
 }
 
 func (tc *trafficCapture) configure(_ context.Context) error {
@@ -100,7 +85,6 @@ func (tc *trafficCapture) StartCapture(p string, d time.Duration, compressed boo
 	go tc.writer.Capture(target, d, compressed)
 
 	return path, nil
-
 }
 
 // StopCapture stops an ongoing TrafficCapture.
@@ -141,7 +125,6 @@ func (tc *trafficCapture) defaultlocation() string {
 		location = path.Join(tc.config.GetString("run_path"), "dsd_capture")
 	}
 	return location
-
 }
 
 func (tc *trafficCapture) GetStartUpError() error {

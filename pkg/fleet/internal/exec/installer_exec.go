@@ -124,13 +124,14 @@ func (i *InstallerExec) IsInstalled(ctx context.Context, pkg string) (_ bool, er
 }
 
 // DefaultPackages returns the default packages to install.
-func (i *InstallerExec) DefaultPackages(ctx context.Context) ([]string, error) {
+func (i *InstallerExec) DefaultPackages(ctx context.Context) (_ []string, err error) {
 	cmd := i.newInstallerCmd(ctx, "default-packages")
+	defer func() { cmd.span.Finish(tracer.WithError(err)) }()
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
-	err := cmd.Run()
+	err = cmd.Run()
 	if err != nil {
 		return nil, fmt.Errorf("error running default-packages: %w\n%s", err, stderr.String())
 	}
