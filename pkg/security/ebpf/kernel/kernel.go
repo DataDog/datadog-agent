@@ -260,6 +260,7 @@ func (k *Version) IsSLESKernel() bool {
 	return k.OsRelease["ID"] == "sles"
 }
 
+// IsOpenSUSELeapKernel returns whether the kernel is an opensuse kernel
 func (k *Version) IsOpenSUSELeapKernel() bool {
 	return k.OsRelease["ID"] == "opensuse-leap"
 }
