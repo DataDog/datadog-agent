@@ -19,24 +19,24 @@ replace (
 )
 
 require (
-	github.com/DataDog/datadog-agent/pkg/aggregator/ckey v0.54.0-rc.5
-	github.com/DataDog/datadog-agent/pkg/config/model v0.54.0-rc.5
-	github.com/DataDog/datadog-agent/pkg/tagger/types v0.54.0-rc.5
-	github.com/DataDog/datadog-agent/pkg/tagset v0.54.0-rc.5
-	github.com/DataDog/datadog-agent/pkg/telemetry v0.54.0-rc.5
-	github.com/DataDog/datadog-agent/pkg/util/buf v0.54.0-rc.5
-	github.com/DataDog/datadog-agent/pkg/util/log v0.54.0-rc.5
+	github.com/DataDog/datadog-agent/pkg/aggregator/ckey v0.54.0
+	github.com/DataDog/datadog-agent/pkg/config/model v0.54.0
+	github.com/DataDog/datadog-agent/pkg/tagger/types v0.54.0
+	github.com/DataDog/datadog-agent/pkg/tagset v0.54.0
+	github.com/DataDog/datadog-agent/pkg/telemetry v0.54.0
+	github.com/DataDog/datadog-agent/pkg/util/buf v0.54.0
+	github.com/DataDog/datadog-agent/pkg/util/log v0.54.0
 	github.com/DataDog/opentelemetry-mapping-go/pkg/quantile v0.14.0
 	github.com/stretchr/testify v1.9.0
 	go.uber.org/atomic v1.11.0
 )
 
 require (
-	github.com/DataDog/datadog-agent/comp/core/telemetry v0.54.0-rc.5 // indirect
-	github.com/DataDog/datadog-agent/comp/def v0.54.0-rc.5 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.54.0-rc.5 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.54.0-rc.5 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/sort v0.54.0-rc.5 // indirect
+	github.com/DataDog/datadog-agent/comp/core/telemetry v0.54.0 // indirect
+	github.com/DataDog/datadog-agent/comp/def v0.54.0 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.54.0 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.54.0 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/sort v0.54.0 // indirect
 	github.com/DataDog/sketches-go v1.4.4 // indirect
 	github.com/DataDog/viper v1.13.0 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect

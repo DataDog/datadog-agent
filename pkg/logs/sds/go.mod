@@ -43,37 +43,37 @@ replace (
 )
 
 require (
-	github.com/DataDog/datadog-agent/pkg/logs/message v0.54.0-rc.5
-	github.com/DataDog/datadog-agent/pkg/telemetry v0.54.0-rc.5
-	github.com/DataDog/datadog-agent/pkg/util/log v0.54.0-rc.5
+	github.com/DataDog/datadog-agent/pkg/logs/message v0.54.0
+	github.com/DataDog/datadog-agent/pkg/telemetry v0.54.0
+	github.com/DataDog/datadog-agent/pkg/util/log v0.54.0
 	github.com/DataDog/dd-sensitive-data-scanner/sds-go/go v0.0.0-20240419161837-f1b2f553edfe
 	github.com/stretchr/testify v1.9.0
 )
 
 require (
-	github.com/DataDog/datadog-agent/comp/core/secrets v0.54.0-rc.5 // indirect
-	github.com/DataDog/datadog-agent/comp/core/telemetry v0.54.0-rc.5 // indirect
-	github.com/DataDog/datadog-agent/comp/def v0.54.0-rc.5 // indirect
-	github.com/DataDog/datadog-agent/comp/logs/agent/config v0.54.0-rc.5 // indirect
-	github.com/DataDog/datadog-agent/pkg/collector/check/defaults v0.54.0-rc.5 // indirect
-	github.com/DataDog/datadog-agent/pkg/config/env v0.54.0-rc.5 // indirect
-	github.com/DataDog/datadog-agent/pkg/config/model v0.54.0-rc.5 // indirect
-	github.com/DataDog/datadog-agent/pkg/config/setup v0.54.0-rc.5 // indirect
-	github.com/DataDog/datadog-agent/pkg/config/utils v0.54.0-rc.5 // indirect
-	github.com/DataDog/datadog-agent/pkg/logs/sources v0.54.0-rc.5 // indirect
-	github.com/DataDog/datadog-agent/pkg/logs/status/utils v0.54.0-rc.5 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/executable v0.54.0-rc.5 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.54.0-rc.5 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.54.0-rc.5 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/hostname/validate v0.54.0-rc.5 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/optional v0.54.0-rc.5 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/pointer v0.54.0-rc.5 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.54.0-rc.5 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/statstracker v0.54.0-rc.5 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/system v0.54.0-rc.5 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/system/socket v0.54.0-rc.5 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/winutil v0.54.0-rc.5 // indirect
-	github.com/DataDog/datadog-agent/pkg/version v0.54.0-rc.5 // indirect
+	github.com/DataDog/datadog-agent/comp/core/secrets v0.54.0 // indirect
+	github.com/DataDog/datadog-agent/comp/core/telemetry v0.54.0 // indirect
+	github.com/DataDog/datadog-agent/comp/def v0.54.0 // indirect
+	github.com/DataDog/datadog-agent/comp/logs/agent/config v0.54.0 // indirect
+	github.com/DataDog/datadog-agent/pkg/collector/check/defaults v0.54.0 // indirect
+	github.com/DataDog/datadog-agent/pkg/config/env v0.54.0 // indirect
+	github.com/DataDog/datadog-agent/pkg/config/model v0.54.0 // indirect
+	github.com/DataDog/datadog-agent/pkg/config/setup v0.54.0 // indirect
+	github.com/DataDog/datadog-agent/pkg/config/utils v0.54.0 // indirect
+	github.com/DataDog/datadog-agent/pkg/logs/sources v0.54.0 // indirect
+	github.com/DataDog/datadog-agent/pkg/logs/status/utils v0.54.0 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/executable v0.54.0 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.54.0 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.54.0 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/hostname/validate v0.54.0 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/optional v0.54.0 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/pointer v0.54.0 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.54.0 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/statstracker v0.54.0 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/system v0.54.0 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/system/socket v0.54.0 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/winutil v0.54.0 // indirect
+	github.com/DataDog/datadog-agent/pkg/version v0.54.0 // indirect
 	github.com/DataDog/viper v1.13.0 // indirect
 	github.com/Microsoft/go-winio v0.6.1 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
