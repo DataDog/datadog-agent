@@ -2338,15 +2338,21 @@ LOOP:
 	assert.Less(t, conn.Duration, 2*time.Second, "connection duration should be between 1 and 2 seconds")
 }
 
+var failedConnectionsBuildModes = map[ebpftest.BuildMode]struct{}{
+	ebpftest.CORE:            {},
+	ebpftest.RuntimeCompiled: {},
+}
+
 func (s *TracerSuite) TestTCPFailureConnectionTimeout() {
 	t := s.T()
-	if ebpftest.GetBuildMode() == ebpftest.Prebuilt {
+	if _, ok := failedConnectionsBuildModes[ebpftest.GetBuildMode()]; !ok {
 		t.Skip()
 	}
 	setupDropTrafficRule(t)
 	cfg := testConfig()
 	cfg.TCPFailedConnectionsEnabled = true
 	tr := setupTracer(t, cfg)
+	t.Log("adamk test config: ", cfg)
 
 	srvAddr := "127.0.0.1:10000"
 	ipString, portString, err := net.SplitHostPort(srvAddr)
@@ -2402,7 +2408,7 @@ func (s *TracerSuite) TestTCPFailureConnectionTimeout() {
 
 func (s *TracerSuite) TestTCPFailureConnectionRefused() {
 	t := s.T()
-	if ebpftest.GetBuildMode() == ebpftest.Prebuilt {
+	if _, ok := failedConnectionsBuildModes[ebpftest.GetBuildMode()]; !ok {
 		t.Skip()
 	}
 	cfg := testConfig()
@@ -2428,7 +2434,7 @@ func (s *TracerSuite) TestTCPFailureConnectionRefused() {
 
 func (s *TracerSuite) TestTCPFailureConnectionReset() {
 	t := s.T()
-	if ebpftest.GetBuildMode() == ebpftest.Prebuilt {
+	if _, ok := failedConnectionsBuildModes[ebpftest.GetBuildMode()]; !ok {
 		t.Skip()
 	}
 	cfg := testConfig()

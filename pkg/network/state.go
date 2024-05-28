@@ -812,9 +812,13 @@ func (ns *networkState) storePostgresStats(allStats map[postgres.Key]*postgres.R
 }
 
 func (ns *networkState) getClient(clientID string) *client {
+	log.Errorf("adamk getting client: %s", clientID)
 	if c, ok := ns.clients[clientID]; ok {
+		log.Errorf("adamk found client: %s", clientID)
+		log.Errorf("adamk CLIENT closed conns: %v", c.closed)
 		return c
 	}
+	log.Errorf("adamk creating client: %s", clientID)
 	closedConnections := &closedConnections{conns: make([]ConnectionStats, 0, minClosedCapacity), byCookie: make(map[StatCookie]int)}
 	c := &client{
 		lastFetch:          time.Now(),
