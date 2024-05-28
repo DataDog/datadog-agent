@@ -1296,6 +1296,21 @@ func testPostgresProtocolClassification(t *testing.T, tr *Tracer, clientHost, ta
 			},
 		},
 		{
+			name: "truncate",
+			preTracerSetup: func(t *testing.T, ctx testContext) {
+				pg := pgutils.NewPGClient(pgutils.ConnectionOptions{
+					ServerAddress: ctx.serverAddress,
+					EnableTLS:     enableTLS,
+				})
+				ctx.extras["pg"] = pg
+				require.NoError(t, pg.RunCreateQuery())
+			},
+			postTracerSetup: func(t *testing.T, ctx testContext) {
+				pg := ctx.extras["pg"].(*pgutils.PGClient)
+				require.NoError(t, pg.RunTruncateQuery())
+			},
+		},
+		{
 			// Test that we classify long queries that would be
 			// splitted between multiple packets correctly
 			name: "long query",
