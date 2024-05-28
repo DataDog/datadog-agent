@@ -36,6 +36,7 @@ const (
 	updateSingleValueQuery = "UPDATE dummy SET foo = 'updated' WHERE id = 1"
 	selectAllQuery         = "SELECT * FROM dummy"
 	dropTableQuery         = "DROP TABLE IF EXISTS dummy"
+	deleteTableQuery       = "DELETE FROM dummy WHERE id = 1"
 )
 
 func createInsertQuery(values ...string) string {
@@ -260,20 +261,23 @@ func testDecoding(t *testing.T, isTLS bool) {
 		{
 			name: "delete row from table",
 			preMonitorSetup: func(t *testing.T, ctx testContext) {
-				pg := postgres.NewPGClient(postgres.ConnectionOptions{
+				pg, err := postgres.NewPGXClient(postgres.ConnectionOptions{
 					ServerAddress: ctx.serverAddress,
+					EnableTLS:     isTLS,
 				})
+				require.NoError(t, err)
+				require.NoError(t, pg.Ping())
 				ctx.extras["pg"] = pg
-				require.NoError(t, pg.RunCreateQuery())
+				require.NoError(t, pg.RunQuery(createTableQuery))
 			},
 			postMonitorSetup: func(t *testing.T, ctx testContext) {
-				pg := ctx.extras["pg"].(*postgres.PGClient)
-				require.NoError(t, pg.RunDeleteQuery())
+				pg := ctx.extras["pg"].(*postgres.PGXClient)
+				require.NoError(t, pg.RunQuery(deleteTableQuery))
 			},
 			validation: func(t *testing.T, ctx testContext, monitor *Monitor) {
 				validatePostgres(t, monitor, map[string]map[postgres.Operation]int{
 					"dummy": {
-						postgres.DeleteTableOP: 2,
+						postgres.DeleteTableOP: adjustCount(1),
 					},
 				})
 			},
