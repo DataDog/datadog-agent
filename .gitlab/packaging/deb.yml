@@ -117,9 +117,6 @@ installer_deb-arm64:
     DD_PROJECT: "installer"
     RELEASE_VERSION: $RELEASE_VERSION_7
     AGENT_MAJOR_VERSION: 7
-    DD_PROJECT: "installer"
-    RELEASE_VERSION: $RELEASE_VERSION_7
-    AGENT_MAJOR_VERSION: 7
 
 .package_iot_deb_common:
   before_script:
