@@ -96,7 +96,7 @@ static int __always_inline skip_string(pktbuf_t pkt, int message_len) {
             if (i >= size_to_read) {
                 return SKIP_STRING_FAILED;
             }
-            if (temp_buffer[i] == '\0') {
+            if (temp_buffer[i] == NULL_TERMINATOR) {
                 return data_off + i + 1 - original_data_off;
             }
         }
@@ -174,10 +174,15 @@ static __always_inline void postgres_handle_parse_message(pktbuf_t pkt, conn_tup
     // Advance the data offset to the end of the first message header.
     pktbuf_advance(pkt, sizeof(struct pg_message_header));
 
-    int length = skip_string(pkt, header.message_len - sizeof(__u32));
-    if (length <= 0 || length >= header.message_len - sizeof(__u32)) {
+    // message_len includes size of the payload, 4 bytes of the message length itself, but not the message tag.
+    // So if we want to know the size of the payload, we need to subtract the size of the message length.
+    __u32 payload_data_length = header.message_len - sizeof(__u32);
+    int length = skip_string(pkt, payload_data_length);
+    if (length <= 0 || length >= payload_data_length) {
         // We failed to find the null terminator within the first 128 bytes of the message, so we cannot read the
-        // query string. We ignore the message.
+        // query string. We ignore the message. If length is 0, we failed to find the null terminator, and if it's
+        // greater than or equal to the payload length, we reached to the end of the payload and we don't have the query
+        // string after the first string.
         return;
     }
     pktbuf_advance(pkt, length);
@@ -189,6 +194,10 @@ static __always_inline void postgres_handle_parse_message(pktbuf_t pkt, conn_tup
     return;
 }
 
+// Entrypoint to process plaintext Postgres traffic. Pulls the connection tuple and the packet buffer from the map and
+// calls the main processing function. If the packet is a TCP termination, it calls the termination function.
+// If the message is a parse message, it tail calls to the dedicated function to handle it as it is too large to be
+// inlined in the main entrypoint. Otherwise, it calls the main processing function.
 SEC("socket/postgres_process")
 int socket__postgres_process(struct __sk_buff* skb) {
     skb_info_t skb_info = {};
@@ -221,6 +230,8 @@ int socket__postgres_process(struct __sk_buff* skb) {
     return 0;
 }
 
+// Handles plaintext Postgres Parse messages. Pulls the connection tuple and the packet buffer from the map and calls the
+// dedicated function to handle the message.
 SEC("socket/postgres_process_parse_message")
 int socket__postgres_process_parse_message(struct __sk_buff* skb) {
     skb_info_t skb_info = {};
@@ -237,6 +248,9 @@ int socket__postgres_process_parse_message(struct __sk_buff* skb) {
     return 0;
 }
 
+// Entrypoint to process TLS Postgres traffic. Pulls the connection tuple and the packet buffer from the map and calls
+// the main processing function. If the packet is a Parse message, it tail calls to the dedicated function to handle it.
+// Otherwise, it calls the main processing function.
 SEC("uprobe/postgres_tls_process")
 int uprobe__postgres_tls_process(struct pt_regs *ctx) {
     const __u32 zero = 0;
@@ -264,6 +278,8 @@ int uprobe__postgres_tls_process(struct pt_regs *ctx) {
     return 0;
 }
 
+// Handles TLS Postgres Parse messages. Pulls the connection tuple and the packet buffer from the map and calls the
+// dedicated function to handle the message.
 SEC("uprobe/postgres_tls_process_parse_message")
 int uprobe__postgres_tls_process_parse_message(struct pt_regs *ctx) {
     const __u32 zero = 0;
@@ -281,6 +297,7 @@ int uprobe__postgres_tls_process_parse_message(struct pt_regs *ctx) {
     return 0;
 }
 
+// Handles connection termination for a TLS Postgres connection.
 SEC("uprobe/postgres_tls_termination")
 int uprobe__postgres_tls_termination(struct pt_regs *ctx) {
     const __u32 zero = 0;
