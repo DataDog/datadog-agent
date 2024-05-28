@@ -8,13 +8,17 @@ package snmp
 
 import (
 	"embed"
+	"fmt"
 	"path"
 	"testing"
 	"time"
 
+	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
+	"github.com/DataDog/datadog-agent/test/fakeintake/client"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/test-infra-definitions/components/datadog/agent"
 	"github.com/DataDog/test-infra-definitions/components/datadog/dockeragentparams"
@@ -154,4 +158,37 @@ func (s *snmpDockerSuite) TestSnmp() {
 		assert.NoError(c, err)
 		assert.Contains(c, metrics, "snmp.sysUpTimeInstance", "metrics %v doesn't contain snmp.sysUpTimeInstance", metrics)
 	}, 5*time.Minute, 10*time.Second)
+}
+
+func (s *snmpDockerSuite) TestSnmpTagsAreStoredOnRestart() {
+	fakeintake := s.Env().FakeIntake.Client()
+	initialMetrics, err := fakeintake.FilterMetrics("snmp.device.reachable",
+		client.WithTags[*aggregator.MetricSeries]([]string{}),
+	)
+	initialTags := initialMetrics[0].Tags
+	_, err = s.Env().RemoteHost.Execute("docker stop dd-snmp")
+	require.NoError(s.T(), err)
+
+	err = fakeintake.FlushServerAndResetAggregators()
+	require.NoError(s.T(), err)
+
+	_, err = s.Env().RemoteHost.Execute(fmt.Sprintf("docker restart %s", s.Env().Agent.ContainerName))
+	require.NoError(s.T(), err)
+
+	err = fakeintake.FlushServerAndResetAggregators()
+	require.NoError(s.T(), err)
+
+	require.EventuallyWithT(s.T(), func(t *assert.CollectT) {
+		metrics, err := fakeintake.FilterMetrics("snmp.device.reachable",
+			client.WithTags[*aggregator.MetricSeries]([]string{}),
+		)
+		require.NoError(t, err)
+		assert.NotEmpty(t, metrics)
+		if len(metrics) == 0 {
+			return
+		}
+		tags := metrics[0].Tags
+		require.ElementsMatch(t, tags, initialTags)
+		require.Len(s.T(), tags, 9)
+	}, 5*time.Minute, 5*time.Second)
 }
