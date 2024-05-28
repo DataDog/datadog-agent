@@ -237,7 +237,7 @@ new-e2e-npm-docker:
   variables:
     TARGETS: ./tests/npm
     TEAM: network-performance-monitoring
-    EXTRA_PARAMS: --run "Test(ECSVM|EC2VMContainerized)Suite"
+    EXTRA_PARAMS: --run "Test(ECSVM|EC2VMContainerized|EKSVM)Suite"
 
 new-e2e-aml:
   extends: .new_e2e_template_needs_deb_windows_x64

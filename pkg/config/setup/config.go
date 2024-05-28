@@ -584,6 +584,9 @@ func InitConfig(config pkgconfigmodel.Config) {
 	config.BindEnvAndSetDefault("checks_tag_cardinality", "low")
 	config.BindEnvAndSetDefault("dogstatsd_tag_cardinality", "low")
 
+	// Autoscaling product
+	config.BindEnvAndSetDefault("autoscaling.workload.enabled", false)
+
 	config.BindEnvAndSetDefault("hpa_watcher_polling_freq", 10)
 	config.BindEnvAndSetDefault("hpa_watcher_gc_period", 60*5) // 5 minutes
 	config.BindEnvAndSetDefault("hpa_configmap_name", "datadog-custom-metrics")
@@ -786,7 +789,7 @@ func InitConfig(config pkgconfigmodel.Config) {
 	config.BindEnvAndSetDefault("inventories_first_run_delay", 60)
 
 	// Datadog security agent (common)
-	config.BindEnvAndSetDefault("security_agent.cmd_port", 5010)
+	config.BindEnvAndSetDefault("security_agent.cmd_port", DefaultSecurityAgentCmdPort)
 	config.BindEnvAndSetDefault("security_agent.expvar_port", 5011)
 	config.BindEnvAndSetDefault("security_agent.log_file", DefaultSecurityAgentLogFile)
 	config.BindEnvAndSetDefault("security_agent.remote_tagger", true)

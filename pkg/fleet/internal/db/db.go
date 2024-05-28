@@ -123,7 +123,7 @@ func (p *PackagesDB) HasPackage(name string) (bool, error) {
 			return fmt.Errorf("bucket not found")
 		}
 		v := b.Get([]byte(name))
-		hasPackage = v != nil
+		hasPackage = len(v) > 0
 		return nil
 	})
 	if err != nil {
@@ -141,7 +141,7 @@ func (p *PackagesDB) GetPackage(name string) (Package, error) {
 			return fmt.Errorf("bucket not found")
 		}
 		v := b.Get([]byte(name))
-		if v == nil {
+		if len(v) == 0 {
 			return ErrPackageNotFound
 		}
 		err := json.Unmarshal(v, &pkg)

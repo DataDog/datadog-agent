@@ -96,6 +96,7 @@ func Test_NpCollector_runningAndProcessing(t *testing.T) {
 		var p payload.NetworkPath
 		if cfg.DestHostname == "127.0.0.2" {
 			p = payload.NetworkPath{
+				Protocol:    payload.ProtocolUDP,
 				Source:      payload.NetworkPathSource{Hostname: "abc"},
 				Destination: payload.NetworkPathDestination{Hostname: "abc", IPAddress: "127.0.0.2", Port: 80},
 				Hops: []payload.NetworkPathHop{
@@ -106,6 +107,7 @@ func Test_NpCollector_runningAndProcessing(t *testing.T) {
 		}
 		if cfg.DestHostname == "127.0.0.4" {
 			p = payload.NetworkPath{
+				Protocol:    payload.ProtocolUDP,
 				Source:      payload.NetworkPathSource{Hostname: "abc"},
 				Destination: payload.NetworkPathDestination{Hostname: "abc", IPAddress: "127.0.0.4", Port: 80},
 				Hops: []payload.NetworkPathHop{
@@ -124,10 +126,9 @@ func Test_NpCollector_runningAndProcessing(t *testing.T) {
     "timestamp": 0,
     "namespace": "",
     "path_id": "",
+    "protocol": "UDP",
     "source": {
-        "hostname": "abc",
-        "via": null,
-        "network_id": ""
+        "hostname": "abc"
     },
     "destination": {
         "hostname": "abc",
@@ -139,18 +140,15 @@ func Test_NpCollector_runningAndProcessing(t *testing.T) {
             "ttl": 0,
             "ip_address": "1.1.1.1",
             "hostname": "hop_1",
-            "rtt": 0,
             "success": false
         },
         {
             "ttl": 0,
             "ip_address": "1.1.1.2",
             "hostname": "hop_2",
-            "rtt": 0,
             "success": false
         }
-    ],
-    "tags": null
+    ]
 }
 `)
 	// language=json
@@ -159,10 +157,9 @@ func Test_NpCollector_runningAndProcessing(t *testing.T) {
     "timestamp": 0,
     "namespace": "",
     "path_id": "",
+    "protocol": "UDP",
     "source": {
-        "hostname": "abc",
-        "via": null,
-        "network_id": ""
+        "hostname": "abc"
     },
     "destination": {
         "hostname": "abc",
@@ -174,18 +171,15 @@ func Test_NpCollector_runningAndProcessing(t *testing.T) {
             "ttl": 0,
             "ip_address": "1.1.1.3",
             "hostname": "hop_1",
-            "rtt": 0,
             "success": false
         },
         {
             "ttl": 0,
             "ip_address": "1.1.1.4",
             "hostname": "hop_2",
-            "rtt": 0,
             "success": false
         }
-    ],
-    "tags": null
+    ]
 }
 `)
 	mockEpForwarder.EXPECT().SendEventPlatformEventBlocking(

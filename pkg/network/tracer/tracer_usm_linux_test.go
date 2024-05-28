@@ -15,6 +15,7 @@ import (
 	"io"
 	"net"
 	nethttp "net/http"
+	"os"
 	"os/exec"
 	"strconv"
 	"strings"
@@ -28,7 +29,6 @@ import (
 	"github.com/stretchr/testify/suite"
 	"github.com/twmb/franz-go/pkg/kgo"
 	"github.com/twmb/franz-go/pkg/kversion"
-	"github.com/uptrace/bun"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"golang.org/x/net/http2"
@@ -49,9 +49,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/mysql"
 	pgutils "github.com/DataDog/datadog-agent/pkg/network/protocols/postgres"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/redis"
+	gotlstestutil "github.com/DataDog/datadog-agent/pkg/network/protocols/tls/gotls/testutil"
 	prototls "github.com/DataDog/datadog-agent/pkg/network/protocols/tls/openssl"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/kprobe"
+	"github.com/DataDog/datadog-agent/pkg/network/usm"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/testutil/grpc"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 	grpc2 "github.com/DataDog/datadog-agent/pkg/util/grpc"
@@ -106,6 +108,13 @@ func skipIfUsingNAT(t *testing.T, ctx testContext) {
 	}
 }
 
+// skipIfGoTLSNotSupported skips the test if GoTLS is not supported.
+func skipIfGoTLSNotSupported(t *testing.T, _ testContext) {
+	if !gotlstestutil.GoTLSSupported(t, config.New()) {
+		t.Skip("GoTLS is not supported")
+	}
+}
+
 // composeSkips skips if one of the given filters is matched.
 func composeSkips(skippers ...func(t *testing.T, ctx testContext)) func(t *testing.T, ctx testContext) {
 	return func(t *testing.T, ctx testContext) {
@@ -145,6 +154,8 @@ func (s *USMSuite) TestProtocolClassification() {
 
 	cfg.EnableNativeTLSMonitoring = true
 	cfg.EnableHTTPMonitoring = true
+	cfg.EnablePostgresMonitoring = true
+	cfg.EnableGoTLSSupport = gotlstestutil.GoTLSSupported(t, cfg)
 	tr, err := NewTracer(cfg)
 	require.NoError(t, err)
 	t.Cleanup(tr.Stop)
@@ -412,6 +423,7 @@ func testTLSClassification(t *testing.T, tr *Tracer, clientHost, targetHost, ser
 			fn   func(t *testing.T, tr *Tracer, clientHost, targetHost, serverHost string)
 		}{
 			{"HTTP", testHTTPSClassification},
+			{"postgres", testPostgresProtocolClassificationWrapper(pgutils.TLSEnabled)},
 		}
 
 		for _, tt := range tests {
@@ -1115,8 +1127,33 @@ func testMySQLProtocolClassification(t *testing.T, tr *Tracer, clientHost, targe
 	}
 }
 
-func testPostgresProtocolClassification(t *testing.T, tr *Tracer, clientHost, targetHost, serverHost string) {
-	skipFunc := composeSkips(skipIfUsingNAT)
+// waitForPostgresServer verifies that the postgres server is up and running.
+// It tries to connect to the server until it succeeds or the timeout is reached.
+// We need that function (and cannot relay on the RunServer method) as the target regex is being logged a couple os
+// milliseconds before the server is actually ready to accept connections.
+func waitForPostgresServer(t *testing.T, serverAddress string, enableTLS bool) {
+	pgClient := pgutils.NewPGClient(pgutils.ConnectionOptions{
+		ServerAddress: serverAddress,
+		EnableTLS:     enableTLS,
+	})
+	defer pgClient.Close()
+	require.Eventually(t, func() bool {
+		return pgClient.Ping() == nil
+	}, 5*time.Second, 100*time.Millisecond, "couldn't connect to postgres server")
+}
+
+func testPostgresProtocolClassificationWrapper(enableTLS bool) func(t *testing.T, tr *Tracer, clientHost, targetHost, serverHost string) {
+	return func(t *testing.T, tr *Tracer, clientHost, targetHost, serverHost string) {
+		testPostgresProtocolClassification(t, tr, clientHost, targetHost, serverHost, enableTLS)
+	}
+}
+
+func testPostgresProtocolClassification(t *testing.T, tr *Tracer, clientHost, targetHost, serverHost string, enableTLS bool) {
+	skippers := []func(t *testing.T, ctx testContext){skipIfUsingNAT}
+	if enableTLS {
+		skippers = append(skippers, skipIfGoTLSNotSupported)
+	}
+	skipFunc := composeSkips(skippers...)
 	skipFunc(t, testContext{
 		serverAddress: serverHost,
 		serverPort:    postgresPort,
@@ -1127,201 +1164,197 @@ func testPostgresProtocolClassification(t *testing.T, tr *Tracer, clientHost, ta
 		t.Skip("postgres tests are not supported DNat")
 	}
 
-	postgresTeardown := func(t *testing.T, ctx testContext) {
-		dbEntry, ok := ctx.extras["db"]
-		if !ok {
-			return
-		}
-		db := dbEntry.(*bun.DB)
-		defer db.Close()
-		taskCtx := ctx.extras["ctx"].(context.Context)
-		_, _ = db.NewDropTable().Model((*pgutils.DummyTable)(nil)).Exec(taskCtx)
-	}
-
 	// Setting one instance of postgres server for all tests.
 	serverAddress := net.JoinHostPort(serverHost, postgresPort)
 	targetAddress := net.JoinHostPort(targetHost, postgresPort)
-	require.NoError(t, pgutils.RunServer(t, serverHost, postgresPort))
+	require.NoError(t, pgutils.RunServer(t, serverHost, postgresPort, enableTLS))
+	// Verifies that the postgres server is up and running.
+	// It tries to connect to the server until it succeeds or the timeout is reached.
+	// We need that function (and cannot relay on the RunServer method) as the target regex is being logged a couple os
+	// milliseconds before the server is actually ready to accept connections.
+	waitForPostgresServer(t, serverAddress, enableTLS)
+
+	expectedProtocolStack := &protocols.Stack{Application: protocols.Postgres}
+	if enableTLS {
+		expectedProtocolStack.Encryption = protocols.TLS
+		// Our client runs in this binary. By default, USM will exclude the current process from tracing. But,
+		// we need to include it in this case. So we allowing it by setting GoTLSExcludeSelf to false and resetting it
+		// after the test.
+		require.NoError(t, usm.SetGoTLSExcludeSelf(false))
+		t.Cleanup(func() {
+			require.NoError(t, usm.SetGoTLSExcludeSelf(true))
+		})
+	}
 
 	tests := []protocolClassificationAttributes{
 		{
-			name: "postgres - connect",
-			context: testContext{
-				serverPort:    postgresPort,
-				targetAddress: targetAddress,
-				serverAddress: serverAddress,
-				extras:        make(map[string]interface{}),
-			},
+			name: "connect",
 			postTracerSetup: func(t *testing.T, ctx testContext) {
-				pg := pgutils.GetPGHandle(t, ctx.serverAddress)
-				conn, err := pg.Conn(context.Background())
-				require.NoError(t, err)
-				defer conn.Close()
+				pg := pgutils.NewPGClient(pgutils.ConnectionOptions{
+					ServerAddress: ctx.serverAddress,
+					EnableTLS:     enableTLS,
+				})
+				defer pg.Close()
+				// Ping is not supported by the classification, but we need to trigger a connection handshake between
+				// the client and the server to classify the connection. So ping is a reasonable choice.
+				require.NoError(t, pg.Ping())
 			},
-			validation: validateProtocolConnection(&protocols.Stack{Application: protocols.Postgres}),
-			teardown:   postgresTeardown,
 		},
 		{
-			name: "postgres - insert",
-			context: testContext{
-				serverPort:    postgresPort,
-				targetAddress: targetAddress,
-				serverAddress: serverAddress,
-				extras:        make(map[string]interface{}),
-			},
+			name: "insert",
 			preTracerSetup: func(t *testing.T, ctx testContext) {
-				pgutils.ConnectAndGetDB(t, ctx.serverAddress, ctx.extras)
-				pgutils.RunCreateQuery(t, ctx.extras)
+				pg := pgutils.NewPGClient(pgutils.ConnectionOptions{
+					ServerAddress: ctx.serverAddress,
+					EnableTLS:     enableTLS,
+				})
+				ctx.extras["pg"] = pg
+				require.NoError(t, pg.RunCreateQuery())
 			},
 			postTracerSetup: func(t *testing.T, ctx testContext) {
-				pgutils.RunInsertQuery(t, 1, ctx.extras)
+				pg := ctx.extras["pg"].(*pgutils.PGClient)
+				require.NoError(t, pg.RunInsertQuery(1))
 			},
-			validation: validateProtocolConnection(&protocols.Stack{Application: protocols.Postgres}),
-			teardown:   postgresTeardown,
 		},
 		{
-			name: "postgres - delete",
-			context: testContext{
-				serverPort:    postgresPort,
-				targetAddress: targetAddress,
-				serverAddress: serverAddress,
-				extras:        make(map[string]interface{}),
-			},
+			name: "delete",
 			preTracerSetup: func(t *testing.T, ctx testContext) {
-				pgutils.ConnectAndGetDB(t, ctx.serverAddress, ctx.extras)
-				pgutils.RunCreateQuery(t, ctx.extras)
-				pgutils.RunInsertQuery(t, 1, ctx.extras)
+				pg := pgutils.NewPGClient(pgutils.ConnectionOptions{
+					ServerAddress: ctx.serverAddress,
+					EnableTLS:     enableTLS,
+				})
+				ctx.extras["pg"] = pg
+				require.NoError(t, pg.RunCreateQuery())
+				require.NoError(t, pg.RunInsertQuery(1))
 			},
 			postTracerSetup: func(t *testing.T, ctx testContext) {
-				pgutils.RunDeleteQuery(t, ctx.extras)
+				pg := ctx.extras["pg"].(*pgutils.PGClient)
+				require.NoError(t, pg.RunDeleteQuery())
 			},
-			validation: validateProtocolConnection(&protocols.Stack{Application: protocols.Postgres}),
-			teardown:   postgresTeardown,
 		},
 		{
-			name: "postgres - select",
-			context: testContext{
-				serverPort:    postgresPort,
-				targetAddress: targetAddress,
-				serverAddress: serverAddress,
-				extras:        make(map[string]interface{}),
-			},
+			name: "select",
 			preTracerSetup: func(t *testing.T, ctx testContext) {
-				pgutils.ConnectAndGetDB(t, ctx.serverAddress, ctx.extras)
-				pgutils.RunCreateQuery(t, ctx.extras)
+				pg := pgutils.NewPGClient(pgutils.ConnectionOptions{
+					ServerAddress: ctx.serverAddress,
+					EnableTLS:     enableTLS,
+				})
+				ctx.extras["pg"] = pg
+				require.NoError(t, pg.RunCreateQuery())
 			},
 			postTracerSetup: func(t *testing.T, ctx testContext) {
-				pgutils.RunSelectQuery(t, ctx.extras)
+				pg := ctx.extras["pg"].(*pgutils.PGClient)
+				require.NoError(t, pg.RunSelectQuery())
 			},
-			validation: validateProtocolConnection(&protocols.Stack{Application: protocols.Postgres}),
-			teardown:   postgresTeardown,
 		},
 		{
-			name: "postgres - update",
-			context: testContext{
-				serverPort:    postgresPort,
-				targetAddress: targetAddress,
-				serverAddress: serverAddress,
-				extras:        make(map[string]interface{}),
-			},
+			name: "update",
 			preTracerSetup: func(t *testing.T, ctx testContext) {
-				pgutils.ConnectAndGetDB(t, ctx.serverAddress, ctx.extras)
-				pgutils.RunCreateQuery(t, ctx.extras)
-				pgutils.RunInsertQuery(t, 1, ctx.extras)
+				pg := pgutils.NewPGClient(pgutils.ConnectionOptions{
+					ServerAddress: ctx.serverAddress,
+					EnableTLS:     enableTLS,
+				})
+				ctx.extras["pg"] = pg
+				require.NoError(t, pg.RunCreateQuery())
+				require.NoError(t, pg.RunInsertQuery(1))
 			},
 			postTracerSetup: func(t *testing.T, ctx testContext) {
-				pgutils.RunUpdateQuery(t, ctx.extras)
+				pg := ctx.extras["pg"].(*pgutils.PGClient)
+				require.NoError(t, pg.RunUpdateQuery())
 			},
-			validation: validateProtocolConnection(&protocols.Stack{Application: protocols.Postgres}),
-			teardown:   postgresTeardown,
 		},
 		{
-			name: "postgres - drop",
-			context: testContext{
-				serverPort:    postgresPort,
-				targetAddress: targetAddress,
-				serverAddress: serverAddress,
-				extras:        make(map[string]interface{}),
-			},
+			name: "drop",
 			preTracerSetup: func(t *testing.T, ctx testContext) {
-				pgutils.ConnectAndGetDB(t, ctx.serverAddress, ctx.extras)
-				pgutils.RunCreateQuery(t, ctx.extras)
-				pgutils.RunInsertQuery(t, 1, ctx.extras)
+				pg := pgutils.NewPGClient(pgutils.ConnectionOptions{
+					ServerAddress: ctx.serverAddress,
+					EnableTLS:     enableTLS,
+				})
+				ctx.extras["pg"] = pg
+				require.NoError(t, pg.RunCreateQuery())
+				require.NoError(t, pg.RunInsertQuery(1))
 			},
 			postTracerSetup: func(t *testing.T, ctx testContext) {
-				pgutils.RunDropQuery(t, ctx.extras)
+				pg := ctx.extras["pg"].(*pgutils.PGClient)
+				require.NoError(t, pg.RunDropQuery())
 			},
-			validation: validateProtocolConnection(&protocols.Stack{Application: protocols.Postgres}),
-			teardown:   postgresTeardown,
 		},
 		{
-			name: "postgres - alter",
-			context: testContext{
-				serverPort:    postgresPort,
-				targetAddress: targetAddress,
-				serverAddress: serverAddress,
-				extras:        make(map[string]interface{}),
-			},
+			name: "alter",
 			preTracerSetup: func(t *testing.T, ctx testContext) {
-				pgutils.ConnectAndGetDB(t, ctx.serverAddress, ctx.extras)
-				pgutils.RunCreateQuery(t, ctx.extras)
+				pg := pgutils.NewPGClient(pgutils.ConnectionOptions{
+					ServerAddress: ctx.serverAddress,
+					EnableTLS:     enableTLS,
+				})
+				ctx.extras["pg"] = pg
+				require.NoError(t, pg.RunCreateQuery())
 			},
 			postTracerSetup: func(t *testing.T, ctx testContext) {
-				pgutils.RunAlterQuery(t, ctx.extras)
+				pg := ctx.extras["pg"].(*pgutils.PGClient)
+				require.NoError(t, pg.RunAlterQuery())
 			},
-			validation: validateProtocolConnection(&protocols.Stack{Application: protocols.Postgres}),
-			teardown:   postgresTeardown,
 		},
 		{
 			// Test that we classify long queries that would be
 			// splitted between multiple packets correctly
-			name: "postgres - long query",
-			context: testContext{
-				serverPort:    postgresPort,
-				targetAddress: targetAddress,
-				serverAddress: serverAddress,
-				extras:        make(map[string]interface{}),
-			},
+			name: "long query",
 			preTracerSetup: func(t *testing.T, ctx testContext) {
-				pgutils.ConnectAndGetDB(t, ctx.serverAddress, ctx.extras)
-				pgutils.RunCreateQuery(t, ctx.extras)
+				pg := pgutils.NewPGClient(pgutils.ConnectionOptions{
+					ServerAddress: ctx.serverAddress,
+					EnableTLS:     enableTLS,
+				})
+				ctx.extras["pg"] = pg
+				require.NoError(t, pg.RunCreateQuery())
 			},
 			postTracerSetup: func(t *testing.T, ctx testContext) {
-				db := ctx.extras["db"].(*bun.DB)
-				taskCtx := ctx.extras["ctx"].(context.Context)
+				pg := ctx.extras["pg"].(*pgutils.PGClient)
 
 				// This will fail but it should make a query and be classified
-				_, _ = db.NewInsert().Model(&pgutils.DummyTable{Foo: strings.Repeat("#", 16384)}).Exec(taskCtx)
+				require.NoError(t, pg.RunMultiInsertQuery(strings.Repeat("#", 16384)))
 			},
-			validation: validateProtocolConnection(&protocols.Stack{Application: protocols.Postgres}),
-			teardown:   postgresTeardown,
 		},
 		{
 			// Test that we classify long queries that would be
 			// splitted between multiple packets correctly
-			name: "postgres - long response",
-			context: testContext{
-				serverPort:    postgresPort,
-				targetAddress: targetAddress,
-				serverAddress: serverAddress,
-				extras:        make(map[string]interface{}),
-			},
+			name: "long response",
 			preTracerSetup: func(t *testing.T, ctx testContext) {
-				pgutils.ConnectAndGetDB(t, ctx.serverAddress, ctx.extras)
-				pgutils.RunCreateQuery(t, ctx.extras)
+				pg := pgutils.NewPGClient(pgutils.ConnectionOptions{
+					ServerAddress: ctx.serverAddress,
+					EnableTLS:     enableTLS,
+				})
+				ctx.extras["pg"] = pg
+				require.NoError(t, pg.RunCreateQuery())
 				for i := int64(1); i < 200; i++ {
-					pgutils.RunInsertQuery(t, i, ctx.extras)
+					require.NoError(t, pg.RunInsertQuery(i))
 				}
 			},
 			postTracerSetup: func(t *testing.T, ctx testContext) {
-				pgutils.RunSelectQuery(t, ctx.extras)
+				pg := ctx.extras["pg"].(*pgutils.PGClient)
+				require.NoError(t, pg.RunSelectQuery())
 			},
-			validation: validateProtocolConnection(&protocols.Stack{Application: protocols.Postgres}),
-			teardown:   postgresTeardown,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			tt.validation = validateProtocolConnection(expectedProtocolStack)
+			tt.teardown = func(t *testing.T, ctx testContext) {
+				pgEntry, ok := ctx.extras["pg"]
+				if !ok {
+					return
+				}
+				pg := pgEntry.(*pgutils.PGClient)
+				defer pg.Close()
+				_ = pg.RunDropQuery()
+			}
+			tt.context = testContext{
+				serverPort:    postgresPort,
+				targetAddress: targetAddress,
+				serverAddress: serverAddress,
+				extras:        make(map[string]interface{}),
+			}
+			if enableTLS {
+				tt.preTracerSetup = goTLSDetacherWrapper(os.Getpid(), tt.preTracerSetup)
+				tt.postTracerSetup = goTLSAttacherWrapper(os.Getpid(), tt.postTracerSetup)
+			}
 			testProtocolClassificationInner(t, tt, tr)
 		})
 	}
@@ -2053,7 +2086,7 @@ func testProtocolClassificationLinux(t *testing.T, tr *Tracer, clientHost, targe
 		},
 		{
 			name:     "postgres",
-			testFunc: testPostgresProtocolClassification,
+			testFunc: testPostgresProtocolClassificationWrapper(pgutils.TLSDisabled),
 		},
 		{
 			name:     "mongo",
@@ -2076,5 +2109,58 @@ func testProtocolClassificationLinux(t *testing.T, tr *Tracer, clientHost, targe
 		t.Run(tt.name, func(t *testing.T) {
 			tt.testFunc(t, tr, clientHost, targetHost, serverHost)
 		})
+	}
+}
+
+// goTLSAttachPID attaches the Go-TLS monitoring to the given PID.
+// Wraps the call to the Go-TLS attach function and waits for the program to be traced.
+func goTLSAttachPID(t *testing.T, pid int) {
+	t.Helper()
+	require.NoError(t, usm.GoTLSAttachPID(uint32(pid)))
+	utils.WaitForProgramsToBeTraced(t, "go-tls", pid)
+}
+
+// goTLSDetachPID detaches the Go-TLS monitoring from the given PID.
+// Wraps the call to the Go-TLS detach function and waits for the program to be untraced.
+func goTLSDetachPID(t *testing.T, pid int) {
+	t.Helper()
+
+	// The program is not traced; nothing to do.
+	if !utils.IsProgramTraced("go-tls", pid) {
+		return
+	}
+
+	require.NoError(t, usm.GoTLSDetachPID(uint32(pid)))
+
+	require.Eventually(t, func() bool {
+		return !utils.IsProgramTraced("go-tls", pid)
+	}, 5*time.Second, 100*time.Millisecond, "process %v is still traced by Go-TLS after detaching", pid)
+}
+
+// goTLSDetacherWrapper meant to run before the given callback and detach USM GoTLS monitoring from the given PID.
+// It is mainly used in the TLS classification tests, as we need to have a clean slate before running the actual test,
+// and since uprobes are not affected by the calls to `Pause` and `Resume` of the eBPF manager, so we detach from the
+// target process before the setup phase.
+func goTLSDetacherWrapper(pid int, callback func(t *testing.T, ctx testContext)) func(t *testing.T, ctx testContext) {
+	return func(t *testing.T, ctx testContext) {
+		goTLSDetachPID(t, pid)
+		if callback != nil {
+			callback(t, ctx)
+		}
+	}
+}
+
+// goTLSAttacherWrapper meant to run before the given callback and attach USM GoTLS monitoring to the given PID.
+// It is mainly used in the TLS classification tests, as we need to have a clean slate before running the actual test,
+// and since uprobes are not affected by the calls to `Pause` and `Resume` of the eBPF manager, so we detach from the
+// target process before the setup phase, we attach to it before the actual test, and detach from it after the test,
+// to ensure the validation process is not affected by the monitoring.
+func goTLSAttacherWrapper(pid int, callback func(t *testing.T, ctx testContext)) func(t *testing.T, ctx testContext) {
+	return func(t *testing.T, ctx testContext) {
+		goTLSAttachPID(t, pid)
+		defer goTLSDetachPID(t, pid)
+		if callback != nil {
+			callback(t, ctx)
+		}
 	}
 }

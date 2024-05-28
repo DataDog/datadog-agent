@@ -167,6 +167,12 @@ DEFAULT_MODULES = {
     "comp/otelcol/otlp/components/exporter/serializerexporter": GoModule(
         "comp/otelcol/otlp/components/exporter/serializerexporter", independent=True
     ),
+    "comp/otelcol/otlp/components/metricsclient": GoModule(
+        "comp/otelcol/otlp/components/metricsclient", independent=True
+    ),
+    "comp/otelcol/otlp/components/statsprocessor": GoModule(
+        "comp/otelcol/otlp/components/statsprocessor", independent=True
+    ),
     "comp/otelcol/otlp/testutil": GoModule("comp/otelcol/otlp/testutil", independent=True),
     "comp/serializer/compression": GoModule("comp/serializer/compression", independent=True),
     "internal/tools": GoModule("internal/tools", condition=lambda: False, should_tag=False),

@@ -54,7 +54,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/defaults"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/pidmap"
-	"github.com/DataDog/datadog-agent/comp/dogstatsd/replay"
+	replay "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/def"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/server"
 	serverdebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
 	"github.com/DataDog/datadog-agent/comp/forwarder"

@@ -108,6 +108,9 @@ type EBPFProbe struct {
 	cancelFnc context.CancelFunc
 	wg        sync.WaitGroup
 
+	// TC Classifier
+	newTCNetDevices chan model.NetDevice
+
 	// Ring
 	eventStream EventStream
 
@@ -342,6 +345,10 @@ func (p *EBPFProbe) Setup() error {
 func (p *EBPFProbe) Start() error {
 	// Apply rules to the snapshotted data before starting the event stream to avoid concurrency issues
 	p.playSnapshot()
+
+	// start new tc classifier loop
+	go p.startSetupNewTCClassifierLoop()
+
 	return p.eventStream.Start(&p.wg)
 }
 
@@ -468,7 +475,7 @@ func (p *EBPFProbe) unmarshalContexts(data []byte, event *model.Event) (int, err
 }
 
 func eventWithNoProcessContext(eventType model.EventType) bool {
-	return eventType == model.DNSEventType || eventType == model.LoadModuleEventType || eventType == model.UnloadModuleEventType
+	return eventType == model.DNSEventType || eventType == model.IMDSEventType || eventType == model.LoadModuleEventType || eventType == model.UnloadModuleEventType
 }
 
 func (p *EBPFProbe) unmarshalProcessCacheEntry(ev *model.Event, data []byte) (int, error) {
@@ -903,13 +910,13 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 			seclog.Errorf("failed to decode net_device event: %s (offset %d, len %d)", err, offset, len(data))
 			return
 		}
-		_ = p.setupNewTCClassifier(event.NetDevice.Device)
+		p.pushNewTCClassifierRequest(event.NetDevice.Device)
 	case model.VethPairEventType:
 		if _, err = event.VethPair.UnmarshalBinary(data[offset:]); err != nil {
 			seclog.Errorf("failed to decode veth_pair event: %s (offset %d, len %d)", err, offset, len(data))
 			return
 		}
-		_ = p.setupNewTCClassifier(event.VethPair.PeerDevice)
+		p.pushNewTCClassifierRequest(event.VethPair.PeerDevice)
 	case model.DNSEventType:
 		if _, err = event.DNS.UnmarshalBinary(data[offset:]); err != nil {
 			if errors.Is(err, model.ErrDNSNameMalformatted) {
@@ -922,6 +929,12 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 
 			return
 		}
+	case model.IMDSEventType:
+		if _, err = event.IMDS.UnmarshalBinary(data[offset:]); err != nil {
+			seclog.Errorf("failed to decode IMDS event: %s (offset %d, len %d)", err, offset, len(data))
+			return
+		}
+		defer p.Resolvers.ProcessResolver.UpdateAWSSecurityCredentials(event.PIDContext.Pid, event)
 	case model.BindEventType:
 		if _, err = event.Bind.UnmarshalBinary(data[offset:]); err != nil {
 			seclog.Errorf("failed to decode bind event: %s (offset %d, len %d)", err, offset, len(data))
@@ -1107,6 +1120,9 @@ func (p *EBPFProbe) validEventTypeForConfig(eventType string) bool {
 	if eventType == "dns" && !p.config.Probe.NetworkEnabled {
 		return false
 	}
+	if eventType == "imds" && (!p.config.Probe.NetworkEnabled || !p.config.Probe.NetworkIngressEnabled) {
+		return false
+	}
 	return true
 }
 
@@ -1281,6 +1297,8 @@ func (p *EBPFProbe) Close() error {
 	// perf map reader are ignored
 	p.cancelFnc()
 
+	close(p.newTCNetDevices)
+
 	// we wait until both the reorderer and the monitor are stopped
 	p.wg.Wait()
 
@@ -1303,6 +1321,32 @@ type QueuedNetworkDeviceError struct {
 
 func (err QueuedNetworkDeviceError) Error() string {
 	return err.msg
+}
+
+func (p *EBPFProbe) pushNewTCClassifierRequest(device model.NetDevice) {
+	select {
+	case p.newTCNetDevices <- device:
+		// do nothing
+	default:
+		seclog.Errorf("failed to slot new tc classifier request: %v", device)
+	}
+}
+
+func (p *EBPFProbe) startSetupNewTCClassifierLoop() {
+	for {
+		select {
+		case <-p.ctx.Done():
+			return
+		case netDevice, ok := <-p.newTCNetDevices:
+			if !ok {
+				return
+			}
+
+			if err := p.setupNewTCClassifier(netDevice); err != nil {
+				seclog.Errorf("error setting up new tc classifier: %v", err)
+			}
+		}
+	}
 }
 
 func (p *EBPFProbe) setupNewTCClassifier(device model.NetDevice) error {
@@ -1413,7 +1457,7 @@ func (p *EBPFProbe) ApplyRuleSet(rs *rules.RuleSet) (*kfilters.ApplyRuleSetRepor
 	}
 
 	needRawSyscalls := p.isNeededForActivityDump(model.SyscallsEventType.String())
-	if !needRawSyscalls {
+	if !needRawSyscalls && p.config.RuntimeSecurity.EnforcementRawSyscallEnabled {
 		// Add syscall monitor probes if it's either activated or
 		// there is an 'kill' action in the ruleset
 		for _, rule := range rs.GetRules() {
@@ -1454,7 +1498,7 @@ func (p *EBPFProbe) GetFieldHandlers() model.FieldHandlers {
 
 // DumpProcessCache dumps the process cache
 func (p *EBPFProbe) DumpProcessCache(withArgs bool) (string, error) {
-	return p.Resolvers.ProcessResolver.Dump(withArgs)
+	return p.Resolvers.ProcessResolver.ToDot(withArgs)
 }
 
 // NewEBPFProbe instantiates a new runtime security agent probe
@@ -1479,6 +1523,7 @@ func NewEBPFProbe(probe *Probe, config *config.Config, opts Opts, wmeta optional
 		isRuntimeDiscarded:   !probe.Opts.DontDiscardRuntime,
 		ctx:                  ctx,
 		cancelFnc:            cancelFnc,
+		newTCNetDevices:      make(chan model.NetDevice, 16),
 		processKiller:        NewProcessKiller(),
 	}
 
@@ -1646,6 +1691,10 @@ func NewEBPFProbe(probe *Probe, config *config.Config, opts Opts, wmeta optional
 		manager.ConstantEditor{
 			Name:  "monitor_syscalls_map_enabled",
 			Value: utils.BoolTouint64(probe.Opts.SyscallsMonitorEnabled),
+		},
+		manager.ConstantEditor{
+			Name:  "imds_ip",
+			Value: uint64(config.RuntimeSecurity.IMDSIPv4),
 		},
 	)
 
@@ -1984,6 +2033,14 @@ func (p *EBPFProbe) HandleActions(ctx *eval.Context, rule *rules.Rule) {
 				}
 				return p.processKiller.KillFromUserspace(pid, sig, ev)
 			})
+		case action.CoreDump != nil:
+			if p.config.RuntimeSecurity.InternalMonitoringEnabled {
+				dump := NewCoreDump(action.CoreDump, p.Resolvers, serializers.NewEventSerializer(ev, nil))
+				rule := events.NewCustomRule(events.InternalCoreDumpRuleID, events.InternalCoreDumpRuleDesc)
+				event := events.NewCustomEvent(model.UnknownEventType, dump)
+
+				p.probe.DispatchCustomEvent(rule, event)
+			}
 		}
 	}
 }
