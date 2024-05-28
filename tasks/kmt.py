@@ -658,7 +658,7 @@ def prepare(
                 && cd /opt/btf/ \
                 && tar cJf minimized-btfs.tar.xz * \
                 && mkdir -p {btf_dir} \
-                && mv /opt/btf/minimized-btfs.tar.xz {btf_dir}/",
+                && mv /opt/btf/minimized-btfs.tar.xz {btf_dir}/ || [ -f /sys/kernel/btf/vmlinux ] ",
         )
         info(f"[+] Tests packages setup in target VM {d}")
 
