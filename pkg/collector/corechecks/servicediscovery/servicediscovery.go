@@ -155,8 +155,7 @@ func (c *Check) Configure(senderManager sender.SenderManager, _ uint64, instance
 func (c *Check) Run() error {
 	start := time.Now()
 	defer func() {
-		end := time.Now()
-		diff := end.Sub(start).Seconds()
+		diff := time.Since(start).Seconds()
 		metricTimeToScan.Observe(diff)
 	}()
 
@@ -188,7 +187,11 @@ func (c *Check) Run() error {
 				continue
 			}
 			err := fmt.Errorf("found repeated service name: %s", svc.meta.Name)
-			telemetryFromError(newErrWithCode(err, errorCodeRepeatedServiceName, &svc.meta))
+			telemetryFromError(errWithCode{
+				err:  err,
+				code: errorCodeRepeatedServiceName,
+				svc:  &svc.meta,
+			})
 			// track the PID, so we don't increase this counter in every run of the check.
 			c.sentRepeatedEventPIDs[svc.process.PID] = true
 		}

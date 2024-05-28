@@ -12,9 +12,9 @@ import (
 type errCode string
 
 const (
-	errorCodeProcfs              = "procfs"
-	errorCodePortPoller          = "port_poller"
-	errorCodeRepeatedServiceName = "repeated_service_name"
+	errorCodeProcfs              errCode = "procfs"
+	errorCodePortPoller          errCode = "port_poller"
+	errorCodeRepeatedServiceName errCode = "repeated_service_name"
 )
 
 type errWithCode struct {
@@ -23,18 +23,10 @@ type errWithCode struct {
 	svc  *serviceMetadata
 }
 
-func newErrWithCode(err error, code errCode, svc *serviceMetadata) error {
-	return &errWithCode{
-		err:  err,
-		code: code,
-		svc:  svc,
-	}
-}
-
-func (e *errWithCode) Error() string {
+func (e errWithCode) Error() string {
 	return fmt.Sprintf("%s: %s", e.code, e.err.Error())
 }
 
-func (e *errWithCode) Code() string {
-	return string(e.code)
+func (e errWithCode) Code() errCode {
+	return e.code
 }

@@ -45,14 +45,14 @@ var (
 )
 
 func telemetryFromError(err error) {
-	var codeErr *errWithCode
+	var codeErr errWithCode
 	if errors.As(err, &codeErr) {
 		log.Debugf("sending telemetry for error: %v", err)
 		svc := serviceMetadata{}
 		if codeErr.svc != nil {
 			svc = *codeErr.svc
 		}
-		tags := []string{codeErr.Code(), svc.Name, svc.Language, svc.Type}
+		tags := []string{string(codeErr.Code()), svc.Name, svc.Language, svc.Type}
 		metricFailureEvents.Inc(tags...)
 	}
 }

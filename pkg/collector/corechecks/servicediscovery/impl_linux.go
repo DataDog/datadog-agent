@@ -80,12 +80,20 @@ func newLinuxImpl(ignoreCfg map[string]bool) (osImpl, error) {
 func (li *linuxImpl) DiscoverServices() (*discoveredServices, error) {
 	procs, err := li.aliveProcs()
 	if err != nil {
-		return nil, newErrWithCode(err, errorCodeProcfs, nil)
+		return nil, errWithCode{
+			err:  err,
+			code: errorCodeProcfs,
+			svc:  nil,
+		}
 	}
 
 	ports, err := li.portPoller.OpenPorts()
 	if err != nil {
-		return nil, newErrWithCode(err, errorCodePortPoller, nil)
+		return nil, errWithCode{
+			err:  err,
+			code: errorCodePortPoller,
+			svc:  nil,
+		}
 	}
 	portsByPID := map[int]portlist.List{}
 	for _, p := range ports {
@@ -123,7 +131,11 @@ func (li *linuxImpl) DiscoverServices() (*discoveredServices, error) {
 
 			svc, err := li.getServiceInfo(p, portsByPID)
 			if err != nil {
-				telemetryFromError(newErrWithCode(err, errorCodeProcfs, nil))
+				telemetryFromError(errWithCode{
+					err:  err,
+					code: errorCodeProcfs,
+					svc:  nil,
+				})
 				log.Errorf("[pid: %d] failed to get process info: %v", pid, err)
 				li.ignoreProcs[pid] = true
 				continue
