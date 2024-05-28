@@ -2444,8 +2444,8 @@ func (s *TracerSuite) TestTCPFailureConnectionReset() {
 	srv := NewTCPServer(func(c net.Conn) {
 		if tcpConn, ok := c.(*net.TCPConn); ok {
 			tcpConn.SetLinger(0)
-			buf := make([]byte, 10) // Slightly larger buffer
-			_, _ = c.Read(buf)      // Attempt to read
+			buf := make([]byte, 10)
+			_, _ = c.Read(buf)
 			time.Sleep(10 * time.Millisecond)
 		}
 		c.Close()

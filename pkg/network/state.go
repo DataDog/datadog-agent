@@ -550,6 +550,7 @@ func (ns *networkState) RegisterClient(id string) {
 	ns.Lock()
 	defer ns.Unlock()
 
+	log.Errorf("adamk registering client: %v", id)
 	_ = ns.getClient(id)
 }
 
