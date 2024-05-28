@@ -151,6 +151,7 @@ def go(
         headless_mode,
         build_tags=build_tags,
         only_modified_packages=only_modified_packages,
+        lint=True,
     )
 
     lint_results = run_lint_go(
