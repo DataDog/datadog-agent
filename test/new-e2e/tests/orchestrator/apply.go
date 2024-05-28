@@ -40,7 +40,7 @@ func Apply(ctx *pulumi.Context) error {
 
 	// Deploy testing workload
 	if awsEnv.TestingWorkloadDeploy() {
-		if _, err := redis.K8sAppDefinition(awsEnv, kindKubeProvider, "workload-redis", false, agentDependency); err != nil {
+		if _, err := redis.K8sAppDefinition(awsEnv, kindKubeProvider, "workload-redis", true, agentDependency); err != nil {
 			return fmt.Errorf("failed to install redis: %w", err)
 		}
 	}
@@ -134,7 +134,7 @@ func deployAgent(ctx *pulumi.Context, awsEnv *resAws.Environment, cluster *local
 
 	// Deploy standalone dogstatsd
 	if awsEnv.DogstatsdDeploy() {
-		if _, err := dogstatsdstandalone.K8sAppDefinition(awsEnv, kindKubeProvider, "dogstatsd-standalone", fakeIntake, true, clusterName, agentDependency); err != nil {
+		if _, err := dogstatsdstandalone.K8sAppDefinition(awsEnv, kindKubeProvider, "dogstatsd-standalone", fakeIntake, false, clusterName); err != nil {
 			return nil, err
 		}
 	}
