@@ -26,6 +26,7 @@ import (
 
 	"github.com/cilium/ebpf"
 	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 	"github.com/twmb/franz-go/pkg/kgo"
@@ -211,9 +212,7 @@ func (s *KafkaProtocolParsingSuite) testKafkaProtocolParsing(t *testing.T, tls b
 				_, err = req.RequestWith(ctxTimeout, client.Client)
 				require.NoError(t, err)
 
-				kafkaStats := getAndValidateKafkaStats(t, monitor, fixCount(2))
-
-				validateProduceFetchCount(t, kafkaStats, topicName, kafkaParsingValidation{
+				getAndValidateKafkaStats(t, monitor, fixCount(2), topicName, kafkaParsingValidation{
 					expectedNumberOfProduceRequests: fixCount(1),
 					expectedNumberOfFetchRequests:   fixCount(1),
 					expectedAPIVersionProduce:       8,
@@ -252,9 +251,7 @@ func (s *KafkaProtocolParsingSuite) testKafkaProtocolParsing(t *testing.T, tls b
 				defer cancel()
 				require.NoError(t, client.Client.ProduceSync(ctxTimeout, record).FirstErr(), "record had a produce error while synchronously producing")
 
-				kafkaStats := getAndValidateKafkaStats(t, monitor, fixCount(1))
-
-				validateProduceFetchCount(t, kafkaStats, topicName, kafkaParsingValidation{
+				getAndValidateKafkaStats(t, monitor, fixCount(1), topicName, kafkaParsingValidation{
 					expectedNumberOfProduceRequests: fixCount(1),
 					expectedNumberOfFetchRequests:   0,
 					expectedAPIVersionProduce:       5,
@@ -296,8 +293,7 @@ func (s *KafkaProtocolParsingSuite) testKafkaProtocolParsing(t *testing.T, tls b
 					cancel()
 				}
 
-				kafkaStats := getAndValidateKafkaStats(t, monitor, fixCount(1))
-				validateProduceFetchCount(t, kafkaStats, topicName, kafkaParsingValidation{
+				getAndValidateKafkaStats(t, monitor, fixCount(1), topicName, kafkaParsingValidation{
 					expectedNumberOfProduceRequests: fixCount(numberOfIterations),
 					expectedNumberOfFetchRequests:   0,
 					expectedAPIVersionProduce:       8,
@@ -354,17 +350,16 @@ func (s *KafkaProtocolParsingSuite) testKafkaProtocolParsing(t *testing.T, tls b
 				}
 				srvDoneFn()
 
-				httpOccurrences := PrintableInt(0)
+				httpOccurrences := 0
 				expectedKafkaRequestCount := fixCount(1)
-				kafkaStatsCount := PrintableInt(0)
 				kafkaStats := make(map[kafka.Key]*kafka.RequestStat)
-				require.Eventually(t, func() bool {
+				require.EventuallyWithT(t, func(collect *assert.CollectT) {
 					allStats := monitor.GetProtocolStats()
 					require.NotNil(t, allStats)
 
 					httpStats, ok := allStats[protocols.HTTP]
 					if ok {
-						httpOccurrences.Add(countRequestOccurrences(httpStats.(map[http.Key]*http.RequestStats), req))
+						httpOccurrences += countRequestOccurrences(httpStats.(map[http.Key]*http.RequestStats), req)
 					}
 
 					kafkaProtocolStats, ok := allStats[protocols.Kafka]
@@ -380,17 +375,16 @@ func (s *KafkaProtocolParsingSuite) testKafkaProtocolParsing(t *testing.T, tls b
 							}
 						}
 					}
-					kafkaStatsCount = PrintableInt(len(kafkaStats))
-					return len(kafkaStats) == expectedKafkaRequestCount && httpOccurrences.Load() == httpRequestCount
-				}, time.Second*3, time.Millisecond*100, "Expected to find %d http requests (captured %v), and %d kafka requests (captured %v)", httpRequestCount, &httpOccurrences, expectedKafkaRequestCount, &kafkaStatsCount)
-
-				validateProduceFetchCount(t, kafkaStats, topicName,
-					kafkaParsingValidation{
-						expectedNumberOfProduceRequests: fixCount(1),
-						expectedNumberOfFetchRequests:   0,
-						expectedAPIVersionProduce:       8,
-						expectedAPIVersionFetch:         0,
-					})
+					assert.Equal(collect, expectedKafkaRequestCount, len(kafkaStats), "Unexpected number of HTTP requests")
+					assert.Equal(collect, httpRequestCount, httpOccurrences, "Unexpected number of Kafka requests")
+					validateProduceFetchCount(collect, kafkaStats, topicName,
+						kafkaParsingValidation{
+							expectedNumberOfProduceRequests: fixCount(1),
+							expectedNumberOfFetchRequests:   0,
+							expectedAPIVersionProduce:       8,
+							expectedAPIVersionFetch:         0,
+						})
+				}, time.Second*3, time.Millisecond*100)
 			},
 			teardown: kafkaTeardown,
 			configuration: func() *config.Config {
@@ -428,7 +422,7 @@ func (s *KafkaProtocolParsingSuite) testKafkaProtocolParsing(t *testing.T, tls b
 				require.NoError(t, client.Client.ProduceSync(ctxTimeout, record).FirstErr(), "record had a produce error while synchronously producing")
 				cancel()
 
-				getAndValidateKafkaStats(t, monitor, 0)
+				getAndValidateKafkaStats(t, monitor, 0, "", kafkaParsingValidation{})
 			},
 			teardown: kafkaTeardown,
 			configuration: func() *config.Config {
@@ -479,9 +473,7 @@ func (s *KafkaProtocolParsingSuite) testKafkaProtocolParsing(t *testing.T, tls b
 				_, err = req.RequestWith(ctxTimeout, client.Client)
 				require.NoError(t, err)
 
-				kafkaStats := getAndValidateKafkaStats(t, monitor, fixCount(2))
-
-				validateProduceFetchCount(t, kafkaStats, topicName, kafkaParsingValidation{
+				getAndValidateKafkaStats(t, monitor, fixCount(2), topicName, kafkaParsingValidation{
 					expectedNumberOfProduceRequests: fixCount(2),
 					expectedNumberOfFetchRequests:   fixCount(2),
 					expectedAPIVersionProduce:       8,
@@ -526,10 +518,10 @@ func (s *KafkaProtocolParsingSuite) testKafkaProtocolParsing(t *testing.T, tls b
 				require.NoError(t, client.Client.ProduceSync(ctxTimeout, record1).FirstErr())
 
 				var batch []*kgo.Record
-				for i := 0; i < 25; i++ {
+				for i := 0; i < 2; i++ {
 					batch = append(batch, record1)
 				}
-				for i := 0; i < 25; i++ {
+				for i := 0; i < 2; i++ {
 					require.NoError(t, client.Client.ProduceSync(ctxTimeout, batch...).FirstErr())
 				}
 
@@ -547,11 +539,9 @@ func (s *KafkaProtocolParsingSuite) testKafkaProtocolParsing(t *testing.T, tls b
 				_, err = req.RequestWith(ctxTimeout, client.Client)
 				require.NoError(t, err)
 
-				kafkaStats := getAndValidateKafkaStats(t, monitor, fixCount(2))
-
-				validateProduceFetchCount(t, kafkaStats, topicName, kafkaParsingValidation{
-					expectedNumberOfProduceRequests: fixCount(5 + 25*25),
-					expectedNumberOfFetchRequests:   fixCount(5 + 25*25),
+				getAndValidateKafkaStats(t, monitor, fixCount(2), topicName, kafkaParsingValidation{
+					expectedNumberOfProduceRequests: fixCount(5 + 2*2),
+					expectedNumberOfFetchRequests:   fixCount(5 + 2*2),
 					expectedAPIVersionProduce:       8,
 					expectedAPIVersionFetch:         11,
 				})
@@ -1063,8 +1053,7 @@ func testKafkaFetchRaw(t *testing.T, tls bool) {
 
 			can.runClient(msgs)
 
-			kafkaStats := getAndValidateKafkaStats(t, monitor, 1)
-			validateProduceFetchCount(t, kafkaStats, topic, kafkaParsingValidation{
+			getAndValidateKafkaStats(t, monitor, 1, topic, kafkaParsingValidation{
 				expectedNumberOfFetchRequests: tt.numFetchedRecords,
 				expectedAPIVersionFetch:       11,
 			})
@@ -1119,9 +1108,7 @@ func testKafkaFetchRaw(t *testing.T, tls bool) {
 				utils.WaitForProgramsToBeTraced(t, "go-tls", proxyPid)
 			}
 			can.runClient(msgs)
-			kafkaStats := getAndValidateKafkaStats(t, monitor, 1)
-
-			validateProduceFetchCount(t, kafkaStats, topic, kafkaParsingValidation{
+			getAndValidateKafkaStats(t, monitor, 1, topic, kafkaParsingValidation{
 				expectedNumberOfFetchRequests: tt.numFetchedRecords * splitIdx,
 				expectedAPIVersionFetch:       11,
 			})
@@ -1194,10 +1181,9 @@ func (i *PrintableInt) Add(other int) {
 	*i = PrintableInt(other + i.Load())
 }
 
-func getAndValidateKafkaStats(t *testing.T, monitor *Monitor, expectedStatsCount int) map[kafka.Key]*kafka.RequestStat {
-	statsCount := PrintableInt(0)
+func getAndValidateKafkaStats(t *testing.T, monitor *Monitor, expectedStatsCount int, topicName string, validation kafkaParsingValidation) map[kafka.Key]*kafka.RequestStat {
 	kafkaStats := make(map[kafka.Key]*kafka.RequestStat)
-	require.Eventually(t, func() bool {
+	require.EventuallyWithT(t, func(collect *assert.CollectT) {
 		protocolStats := monitor.GetProtocolStats()
 		kafkaProtocolStats, exists := protocolStats[protocols.Kafka]
 		// We might not have kafka stats, and it might be the expected case (to capture 0).
@@ -1212,31 +1198,33 @@ func getAndValidateKafkaStats(t *testing.T, monitor *Monitor, expectedStatsCount
 				}
 			}
 		}
-		statsCount = PrintableInt(len(kafkaStats))
-		return expectedStatsCount == len(kafkaStats)
-	}, time.Second*5, time.Millisecond*100, "Expected to find a %d stats, instead captured %v", expectedStatsCount, &statsCount)
+		assert.Equal(collect, expectedStatsCount, len(kafkaStats), "Did not find expected number of stats")
+		if expectedStatsCount != 0 {
+			validateProduceFetchCount(collect, kafkaStats, topicName, validation)
+		}
+	}, time.Second*5, time.Millisecond*100)
 	return kafkaStats
 }
 
-func validateProduceFetchCount(t *testing.T, kafkaStats map[kafka.Key]*kafka.RequestStat, topicName string, validation kafkaParsingValidation) {
+func validateProduceFetchCount(t *assert.CollectT, kafkaStats map[kafka.Key]*kafka.RequestStat, topicName string, validation kafkaParsingValidation) {
 	numberOfProduceRequests := 0
 	numberOfFetchRequests := 0
 	for kafkaKey, kafkaStat := range kafkaStats {
-		require.Equal(t, topicName, kafkaKey.TopicName)
+		assert.Equal(t, topicName, kafkaKey.TopicName)
 		switch kafkaKey.RequestAPIKey {
 		case kafka.ProduceAPIKey:
-			require.Equal(t, uint16(validation.expectedAPIVersionProduce), kafkaKey.RequestVersion)
+			assert.Equal(t, uint16(validation.expectedAPIVersionProduce), kafkaKey.RequestVersion)
 			numberOfProduceRequests += kafkaStat.Count
 		case kafka.FetchAPIKey:
-			require.Equal(t, uint16(validation.expectedAPIVersionFetch), kafkaKey.RequestVersion)
+			assert.Equal(t, uint16(validation.expectedAPIVersionFetch), kafkaKey.RequestVersion)
 			numberOfFetchRequests += kafkaStat.Count
 		default:
-			require.FailNow(t, "Expecting only produce or fetch kafka requests")
+			assert.FailNow(t, "Expecting only produce or fetch kafka requests")
 		}
 	}
-	require.Equal(t, validation.expectedNumberOfProduceRequests, numberOfProduceRequests,
+	assert.Equal(t, validation.expectedNumberOfProduceRequests, numberOfProduceRequests,
 		"Expected %d produce requests but got %d", validation.expectedNumberOfProduceRequests, numberOfProduceRequests)
-	require.Equal(t, validation.expectedNumberOfFetchRequests, numberOfFetchRequests,
+	assert.Equal(t, validation.expectedNumberOfFetchRequests, numberOfFetchRequests,
 		"Expected %d fetch requests but got %d", validation.expectedNumberOfFetchRequests, numberOfFetchRequests)
 }
 

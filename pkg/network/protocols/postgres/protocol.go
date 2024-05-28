@@ -27,10 +27,13 @@ import (
 )
 
 const (
-	inFlightMap      = "postgres_in_flight"
-	scratchBufferMap = "postgres_scratch_buffer"
-	processTailCall  = "socket__postgres_process"
-	eventStream      = "postgres"
+	// InFlightMap is the name of the in-flight map.
+	InFlightMap            = "postgres_in_flight"
+	scratchBufferMap       = "postgres_scratch_buffer"
+	processTailCall        = "socket__postgres_process"
+	tlsProcessTailCall     = "uprobe__postgres_tls_process"
+	tlsTerminationTailCall = "uprobe__postgres_tls_termination"
+	eventStream            = "postgres"
 )
 
 // protocol holds the state of the postgres protocol monitoring.
@@ -46,10 +49,19 @@ var Spec = &protocols.ProtocolSpec{
 	Factory: newPostgresProtocol,
 	Maps: []*manager.Map{
 		{
-			Name: inFlightMap,
+			Name: InFlightMap,
 		},
 		{
 			Name: scratchBufferMap,
+		},
+		{
+			Name: "postgres_batch_events",
+		},
+		{
+			Name: "postgres_batch_state",
+		},
+		{
+			Name: "postgres_batches",
 		},
 	},
 	TailCalls: []manager.TailCallRoute{
@@ -58,6 +70,20 @@ var Spec = &protocols.ProtocolSpec{
 			Key:           uint32(protocols.ProgramPostgres),
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				EBPFFuncName: processTailCall,
+			},
+		},
+		{
+			ProgArrayName: protocols.TLSDispatcherProgramsMap,
+			Key:           uint32(protocols.ProgramTLSPostgres),
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: tlsProcessTailCall,
+			},
+		},
+		{
+			ProgArrayName: protocols.TLSDispatcherProgramsMap,
+			Key:           uint32(protocols.ProgramTLSPostgresTermination),
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: tlsTerminationTailCall,
 			},
 		},
 	},
@@ -81,7 +107,7 @@ func (p *protocol) Name() string {
 
 // ConfigureOptions add the necessary options for the postgres monitoring to work, to be used by the manager.
 func (p *protocol) ConfigureOptions(mgr *manager.Manager, opts *manager.Options) {
-	opts.MapSpecEditors[inFlightMap] = manager.MapSpecEditor{
+	opts.MapSpecEditors[InFlightMap] = manager.MapSpecEditor{
 		MaxEntries: p.cfg.MaxUSMConcurrentRequests,
 		EditorFlag: manager.EditMaxEntries,
 	}
@@ -125,7 +151,7 @@ func (p *protocol) Stop(*manager.Manager) {
 
 // DumpMaps dumps map contents for debugging.
 func (p *protocol) DumpMaps(w io.Writer, mapName string, currentMap *ebpf.Map) {
-	if mapName == inFlightMap { // maps/postgres_in_flight (BPF_MAP_TYPE_HASH), key ConnTuple, value EbpfTx
+	if mapName == InFlightMap { // maps/postgres_in_flight (BPF_MAP_TYPE_HASH), key ConnTuple, value EbpfTx
 		var key netebpf.ConnTuple
 		var value EbpfTx
 		protocols.WriteMapDumpHeader(w, currentMap, mapName, key, value)
@@ -154,14 +180,14 @@ func (*protocol) IsBuildModeSupported(buildmode.Type) bool {
 func (p *protocol) processPostgres(events []EbpfEvent) {
 	for i := range events {
 		tx := &events[i]
-		p.statskeeper.Process(&EventWrapper{EbpfEvent: tx})
+		p.statskeeper.Process(NewEventWrapper(tx))
 	}
 }
 
 func (p *protocol) setupMapCleaner(mgr *manager.Manager) {
-	postgresInflight, _, err := mgr.GetMap(inFlightMap)
+	postgresInflight, _, err := mgr.GetMap(InFlightMap)
 	if err != nil {
-		log.Errorf("error getting %s map: %s", inFlightMap, err)
+		log.Errorf("error getting %s map: %s", InFlightMap, err)
 		return
 	}
 	mapCleaner, err := ddebpf.NewMapCleaner[netebpf.ConnTuple, EbpfTx](postgresInflight, 1024)

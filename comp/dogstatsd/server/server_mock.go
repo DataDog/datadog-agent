@@ -6,17 +6,37 @@
 package server
 
 import (
+	"net/http"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/api/api"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	"go.uber.org/fx"
 )
 
 type serverMock struct {
 	isRunning bool
 }
 
-func newMock() Component {
-	return &serverMock{}
+// MockProvides is the mock component output
+type MockProvides struct {
+	fx.Out
+
+	Comp     Component
+	Endpoint api.AgentEndpointProvider
+}
+
+func newMock() MockProvides {
+	m := &serverMock{}
+	return MockProvides{
+		Comp:     m,
+		Endpoint: api.NewAgentEndpointProvider(m.handlerFunc, "/dogstatsd-stats", "GET"),
+	}
+}
+
+// ServeHTTP is a simple mocked http.Handler function
+func (s *serverMock) handlerFunc(w http.ResponseWriter, _ *http.Request) {
+	w.Write([]byte("OK"))
 }
 
 //nolint:revive // TODO(AML) Fix revive linter
@@ -25,10 +45,12 @@ func (s *serverMock) Start(demultiplexer aggregator.Demultiplexer) error {
 	return nil
 }
 
+// Stop is a mocked function that flips isRunning to false
 func (s *serverMock) Stop() {
 	s.isRunning = false
 }
 
+// IsRunning is a mocked function that returns whether the mock was set to running
 func (s *serverMock) IsRunning() bool {
 	return s.isRunning
 }
@@ -38,14 +60,17 @@ func (s *serverMock) Capture(p string, d time.Duration, compressed bool) (string
 	return "", nil
 }
 
+// UdsListenerRunning is a mocked function that returns false
 func (s *serverMock) UdsListenerRunning() bool {
 	return false
 }
 
+// UDPLocalAddr is a mocked function but UDP isn't enabled on the mock
 func (s *serverMock) UDPLocalAddr() string {
 	return ""
 }
 
+// ServerlessFlush is a noop mocked function
 func (s *serverMock) ServerlessFlush(time.Duration) {}
 
 //nolint:revive // TODO(AML) Fix revive linter

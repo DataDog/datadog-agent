@@ -148,9 +148,10 @@ def download_rootfs(
                 tmp.write(f" dir={rootfs_dir}\n")
                 tmp.write(f" out={sum_file}\n")
                 # download manifest file
-                tmp.write(os.path.join(url_base, branch, f"{manifest_file}") + "\n")
-                tmp.write(f" dir={rootfs_dir}\n")
-                tmp.write(f" out={manifest_file}\n")
+                if "docker" not in f:
+                    tmp.write(os.path.join(url_base, branch, f"{manifest_file}") + "\n")
+                    tmp.write(f" dir={rootfs_dir}\n")
+                    tmp.write(f" out={manifest_file}\n")
             tmp.write("\n")
         ctx.run(f"cat {path}")
         res = ctx.run(f"aria2c -i {path} -j {len(to_download)}")

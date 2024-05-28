@@ -12,38 +12,30 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
-	"sort"
 
 	"github.com/gorilla/mux"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common/path"
 	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
-	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
-	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/autodiscoveryimpl"
-	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
-	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/settings"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
-	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/diagnose"
 	"github.com/DataDog/datadog-agent/pkg/flare"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 // SetupHandlers adds the specific handlers for cluster agent endpoints
-func SetupHandlers(r *mux.Router, wmeta workloadmeta.Component, ac autodiscovery.Component, senderManager sender.DiagnoseSenderManager, collector optional.Option[collector.Component], statusComponent status.Component, secretResolver secrets.Component, settings settings.Component) {
+func SetupHandlers(r *mux.Router, wmeta workloadmeta.Component, ac autodiscovery.Component, statusComponent status.Component, settings settings.Component) {
 	r.HandleFunc("/version", getVersion).Methods("GET")
 	r.HandleFunc("/hostname", getHostname).Methods("GET")
 	r.HandleFunc("/flare", func(w http.ResponseWriter, r *http.Request) {
-		makeFlare(w, r, senderManager, collector, secretResolver, wmeta, statusComponent, ac)
+		makeFlare(w, r, statusComponent)
 	}).Methods("POST")
 	r.HandleFunc("/stop", stopAgent).Methods("POST")
 	r.HandleFunc("/status", func(w http.ResponseWriter, r *http.Request) { getStatus(w, r, statusComponent) }).Methods("GET")
@@ -53,16 +45,8 @@ func SetupHandlers(r *mux.Router, wmeta workloadmeta.Component, ac autodiscovery
 	}).Methods("GET")
 	r.HandleFunc("/config", settings.GetFullConfig("")).Methods("GET")
 	r.HandleFunc("/config/list-runtime", settings.ListConfigurable).Methods("GET")
-	r.HandleFunc("/config/{setting}", func(w http.ResponseWriter, r *http.Request) {
-		vars := mux.Vars(r)
-		setting := vars["setting"]
-		settings.GetValue(setting, w, r)
-	}).Methods("GET")
-	r.HandleFunc("/config/{setting}", func(w http.ResponseWriter, r *http.Request) {
-		vars := mux.Vars(r)
-		setting := vars["setting"]
-		settings.SetValue(setting, w, r)
-	}).Methods("POST")
+	r.HandleFunc("/config/{setting}", settings.GetValue).Methods("GET")
+	r.HandleFunc("/config/{setting}", settings.SetValue).Methods("POST")
 	r.HandleFunc("/tagger-list", getTaggerList).Methods("GET")
 	r.HandleFunc("/workload-list", func(w http.ResponseWriter, r *http.Request) {
 		getWorkloadList(w, r, wmeta)
@@ -84,7 +68,7 @@ func getStatus(w http.ResponseWriter, r *http.Request, statusComponent status.Co
 }
 
 //nolint:revive // TODO(CINT) Fix revive linter
-func getHealth(w http.ResponseWriter, r *http.Request) {
+func getHealth(w http.ResponseWriter, _ *http.Request) {
 	h := health.GetReady()
 
 	if len(h.Unhealthy) > 0 {
@@ -102,7 +86,7 @@ func getHealth(w http.ResponseWriter, r *http.Request) {
 }
 
 //nolint:revive // TODO(CINT) Fix revive linter
-func stopAgent(w http.ResponseWriter, r *http.Request) {
+func stopAgent(w http.ResponseWriter, _ *http.Request) {
 	signals.Stopper <- true
 	w.Header().Set("Content-Type", "application/json")
 	j, _ := json.Marshal("")
@@ -110,7 +94,7 @@ func stopAgent(w http.ResponseWriter, r *http.Request) {
 }
 
 //nolint:revive // TODO(CINT) Fix revive linter
-func getVersion(w http.ResponseWriter, r *http.Request) {
+func getVersion(w http.ResponseWriter, _ *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	av, err := version.Agent()
 	if err != nil {
@@ -140,7 +124,7 @@ func getHostname(w http.ResponseWriter, r *http.Request) {
 	w.Write(j)
 }
 
-func makeFlare(w http.ResponseWriter, r *http.Request, senderManager sender.DiagnoseSenderManager, collector optional.Option[collector.Component], secretResolver secrets.Component, wmeta workloadmeta.Component, statusComponent status.Component, ac autodiscovery.Component) {
+func makeFlare(w http.ResponseWriter, r *http.Request, statusComponent status.Component) {
 	log.Infof("Making a flare")
 	w.Header().Set("Content-Type", "application/json")
 
@@ -163,8 +147,7 @@ func makeFlare(w http.ResponseWriter, r *http.Request, senderManager sender.Diag
 	if logFile == "" {
 		logFile = path.DefaultDCALogFile
 	}
-	diagnoseDeps := diagnose.NewSuitesDeps(senderManager, collector, secretResolver, optional.NewOption(wmeta), optional.NewOption[autodiscovery.Component](ac))
-	filePath, err := flare.CreateDCAArchive(false, path.GetDistPath(), logFile, profile, diagnoseDeps, statusComponent)
+	filePath, err := flare.CreateDCAArchive(false, path.GetDistPath(), logFile, profile, statusComponent)
 	if err != nil || filePath == "" {
 		if err != nil {
 			log.Errorf("The flare failed to be created: %s", err)
@@ -179,29 +162,14 @@ func makeFlare(w http.ResponseWriter, r *http.Request, senderManager sender.Diag
 
 //nolint:revive // TODO(CINT) Fix revive linter
 func getConfigCheck(w http.ResponseWriter, r *http.Request, ac autodiscovery.Component) {
-	var response integration.ConfigCheckResponse
+	verbose := r.URL.Query().Get("verbose") == "true"
+	bytes := ac.GetConfigCheck(verbose)
 
-	configSlice := ac.LoadedConfigs()
-	sort.Slice(configSlice, func(i, j int) bool {
-		return configSlice[i].Name < configSlice[j].Name
-	})
-	response.Configs = configSlice
-	response.ResolveWarnings = autodiscoveryimpl.GetResolveWarnings()
-	response.ConfigErrors = autodiscoveryimpl.GetConfigErrors()
-	response.Unresolved = ac.GetUnresolvedTemplates()
-
-	jsonConfig, err := json.Marshal(response)
-	if err != nil {
-		log.Errorf("Unable to marshal config check response: %s", err)
-		setJSONError(w, err, 500)
-		return
-	}
-
-	w.Write(jsonConfig)
+	w.Write(bytes)
 }
 
 //nolint:revive // TODO(CINT) Fix revive linter
-func getTaggerList(w http.ResponseWriter, r *http.Request) {
+func getTaggerList(w http.ResponseWriter, _ *http.Request) {
 	response := tagger.List()
 
 	jsonTags, err := json.Marshal(response)

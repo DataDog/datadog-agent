@@ -76,6 +76,15 @@ class CompilerImage:
         if self.is_running:
             self.stop()
 
+        # Check if the image exists
+        res = self.ctx.run(f"docker image inspect {self.image}", hide=True, warn=True)
+        if res is None or not res.ok:
+            info(f"[!] Image {self.image} not found, logging in and pulling...")
+            self.ctx.run(
+                "aws-vault exec sso-build-stable-developer -- aws ecr --region us-east-1 get-login-password | docker login --username AWS --password-stdin 486234852809.dkr.ecr.us-east-1.amazonaws.com"
+            )
+            self.ctx.run(f"docker pull {self.image}")
+
         self.ctx.run(
             f"docker run -d --restart always --name {self.name} --mount type=bind,source=./,target={CONTAINER_AGENT_PATH} {self.image} sleep \"infinity\""
         )

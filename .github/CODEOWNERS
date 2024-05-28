@@ -176,6 +176,7 @@
 /cmd/otel-agent/                        @DataDog/opentelemetry
 /cmd/process-agent/                     @DataDog/processes
 /cmd/serverless/                        @DataDog/serverless
+/cmd/serverless/dependencies*.txt       @DataDog/serverless @DataDog/agent-shared-components
 /cmd/serverless-init/                   @DataDog/serverless
 /cmd/system-probe/                      @DataDog/ebpf-platform
 /cmd/system-probe/config/adjust_npm.go  @DataDog/ebpf-platform @DataDog/Networks
@@ -210,11 +211,11 @@
 /docs/cluster-agent/                    @DataDog/documentation @DataDog/container-platform
 /docs/dev/checks/                       @DataDog/documentation @DataDog/agent-metrics-logs
 /docs/cloud-workload-security/          @DataDog/documentation @DataDog/agent-security
+/docs/serverless                        @DataDog/documentation @DataDog/serverless
 
-/docs/public/architecture/components/                        @DataDog/agent-shared-components
-/docs/public/architecture/dogstatsd/                         @DataDog/agent-metrics-logs
-/docs/public/guidelines/components/                          @DataDog/agent-shared-components
-/docs/public/how-to/components/                              @DataDog/agent-shared-components
+/docs/public/components/                                     @DataDog/documentation @DataDog/agent-shared-components
+/docs/public/architecture/dogstatsd/                         @DataDog/documentation @DataDog/agent-metrics-logs
+/docs/public/guidelines/deprecated-components-documentation/ @DataDog/documentation @DataDog/agent-shared-components
 
 /google-marketplace/                    @DataDog/container-ecosystems
 
@@ -251,6 +252,7 @@
 /comp/metadata @DataDog/agent-shared-components
 /comp/ndmtmp @DataDog/network-device-monitoring
 /comp/netflow @DataDog/network-device-monitoring
+/comp/networkpath @DataDog/Networks @DataDog/network-device-monitoring
 /comp/otelcol @DataDog/opentelemetry
 /comp/process @DataDog/processes
 /comp/remote-config @DataDog/remote-config
@@ -315,6 +317,7 @@
 /comp/core/autodiscovery/providers/remote_config*.go  @DataDog/remote-config
 /pkg/cloudfoundry                       @Datadog/platform-integrations
 /pkg/clusteragent/                      @DataDog/container-platform
+/pkg/clusteragent/autoscaling/          @DataDog/container-integrations
 /pkg/clusteragent/admission/mutate/autoinstrumentation/ @DataDog/container-platform @DataDog/apm-onboarding
 /pkg/clusteragent/orchestrator/         @DataDog/container-app
 /pkg/clusteragent/telemetry/            @DataDog/telemetry-and-analytics
@@ -337,6 +340,7 @@
 /pkg/collector/corechecks/net/          @DataDog/platform-integrations
 /pkg/collector/corechecks/oracle        @DataDog/database-monitoring
 /pkg/collector/corechecks/sbom/         @DataDog/container-integrations
+/pkg/collector/corechecks/servicediscovery/ @DataDog/apm-onboarding
 /pkg/collector/corechecks/snmp/         @DataDog/network-device-monitoring
 /pkg/collector/corechecks/system/                 @DataDog/platform-integrations
 /pkg/collector/corechecks/system/**/*_windows*.go @DataDog/platform-integrations @DataDog/windows-agent
@@ -359,6 +363,7 @@
 /pkg/config/setup/system_probe_cws.go           @DataDog/agent-security
 /pkg/config/setup/system_probe_cws_notwin.go    @DataDog/agent-security
 /pkg/config/setup/system_probe_cws_windows.go   @DataDog/windows-kernel-integrations
+/pkg/config/setup/security_agent.go             @DataDog/agent-security
 /pkg/config/remote/                     @DataDog/remote-config
 /pkg/config/remote/meta/                @DataDog/remote-config @DataDog/software-integrity-and-trust
 /pkg/containerlifecycle/                @Datadog/container-integrations
@@ -382,6 +387,7 @@
 /pkg/proto/datadog/languagedetection    @DataDog/processes
 /pkg/proto/datadog/process              @DataDog/processes
 /pkg/proto/datadog/trace                @DataDog/agent-apm
+/pkg/proto/datadog/workloadmeta         @DataDog/container-platform
 /pkg/remoteconfig/                      @DataDog/remote-config
 /pkg/runtime/                           @DataDog/agent-shared-components
 /pkg/serializer/                        @DataDog/agent-processing-and-routing
@@ -506,6 +512,7 @@
 /tasks/                                 @DataDog/agent-developer-tools @DataDog/agent-ci-experience
 /tasks/msi.py                           @DataDog/windows-agent
 /tasks/agent.py                         @DataDog/agent-shared-components
+/tasks/go_deps.py                       @DataDog/agent-shared-components
 /tasks/dogstatsd.py                     @DataDog/agent-metrics-logs
 /tasks/update_go.py                     @DataDog/agent-shared-components
 /tasks/unit-tests/update_go_tests.py    @DataDog/agent-shared-components

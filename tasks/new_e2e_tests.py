@@ -17,7 +17,7 @@ from invoke.exceptions import Exit
 from invoke.tasks import task
 
 from tasks.flavor import AgentFlavor
-from tasks.go_test import process_test_result, test_flavor
+from tasks.gotest import process_test_result, test_flavor
 from tasks.libs.common.utils import REPO_PATH, get_git_commit
 from tasks.modules import DEFAULT_MODULES
 

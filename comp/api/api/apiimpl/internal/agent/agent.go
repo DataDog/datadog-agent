@@ -9,53 +9,36 @@
 package agent
 
 import (
-	"bufio"
-	"context"
 	"encoding/json"
-	"fmt"
+	"errors"
 	"io"
 	"net/http"
-	"os"
-	"path"
+	"sort"
 	"time"
 
-	"github.com/DataDog/zstd"
 	"github.com/gorilla/mux"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
 
-	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	"github.com/DataDog/datadog-agent/comp/api/api"
 	"github.com/DataDog/datadog-agent/comp/api/api/utils"
+	streamutils "github.com/DataDog/datadog-agent/comp/api/api/utils/stream"
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/gui"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
-	"github.com/DataDog/datadog-agent/comp/core/settings"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
-	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
-	dogstatsddebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
-	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver"
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
-	"github.com/DataDog/datadog-agent/comp/metadata/host"
-	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
-	"github.com/DataDog/datadog-agent/comp/metadata/inventorychecks"
-	"github.com/DataDog/datadog-agent/comp/metadata/inventoryhost"
-	"github.com/DataDog/datadog-agent/comp/metadata/packagesigning"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
-	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/diagnose"
 	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
-	"github.com/DataDog/datadog-agent/pkg/gohai"
-	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
-	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
 
 var mimeTypeMap = map[string]string{
@@ -66,30 +49,21 @@ var mimeTypeMap = map[string]string{
 // SetupHandlers adds the specific handlers for /agent endpoints
 func SetupHandlers(
 	r *mux.Router,
-	server dogstatsdServer.Component,
-	serverDebug dogstatsddebug.Component,
 	wmeta workloadmeta.Component,
 	logsAgent optional.Option[logsAgent.Component],
 	senderManager sender.DiagnoseSenderManager,
-	hostMetadata host.Component,
-	invAgent inventoryagent.Component,
-	demux demultiplexer.Component,
-	invHost inventoryhost.Component,
 	secretResolver secrets.Component,
-	invChecks inventorychecks.Component,
-	pkgSigning packagesigning.Component,
 	statusComponent status.Component,
 	collector optional.Option[collector.Component],
-	eventPlatformReceiver eventplatformreceiver.Component,
 	ac autodiscovery.Component,
 	gui optional.Option[gui.Component],
-	settings settings.Component,
 	providers []api.EndpointProvider,
 ) *mux.Router {
 
 	// Register the handlers from the component providers
+	sort.Slice(providers, func(i, j int) bool { return providers[i].Route() < providers[j].Route() })
 	for _, p := range providers {
-		r.HandleFunc(p.Route, p.HandlerFunc).Methods(p.Methods...)
+		r.HandleFunc(p.Route(), p.HandlerFunc()).Methods(p.Methods()...)
 	}
 
 	// TODO: move these to a component that is registerable
@@ -99,42 +73,17 @@ func SetupHandlers(
 	r.HandleFunc("/status", func(w http.ResponseWriter, r *http.Request) {
 		getStatus(w, r, statusComponent, "")
 	}).Methods("GET")
-	r.HandleFunc("/stream-event-platform", streamEventPlatform(eventPlatformReceiver)).Methods("POST")
 	r.HandleFunc("/status/health", getHealth).Methods("GET")
 	r.HandleFunc("/{component}/status", func(w http.ResponseWriter, r *http.Request) { componentStatusGetterHandler(w, r, statusComponent) }).Methods("GET")
 	r.HandleFunc("/{component}/status", componentStatusHandler).Methods("POST")
 	r.HandleFunc("/{component}/configs", componentConfigHandler).Methods("GET")
 	r.HandleFunc("/gui/csrf-token", func(w http.ResponseWriter, _ *http.Request) { getCSRFToken(w, gui) }).Methods("GET")
-	r.HandleFunc("/config", settings.GetFullConfig("")).Methods("GET")
-	r.HandleFunc("/config/list-runtime", settings.ListConfigurable).Methods("GET")
-	r.HandleFunc("/config/{setting}", func(w http.ResponseWriter, r *http.Request) {
-		vars := mux.Vars(r)
-		setting := vars["setting"]
-		settings.GetValue(setting, w, r)
-	}).Methods("GET")
-	r.HandleFunc("/config/{setting}", func(w http.ResponseWriter, r *http.Request) {
-		vars := mux.Vars(r)
-		setting := vars["setting"]
-		settings.SetValue(setting, w, r)
-	}).Methods("POST")
 	r.HandleFunc("/secrets", func(w http.ResponseWriter, r *http.Request) { secretInfo(w, r, secretResolver) }).Methods("GET")
 	r.HandleFunc("/secret/refresh", func(w http.ResponseWriter, r *http.Request) { secretRefresh(w, r, secretResolver) }).Methods("GET")
-	r.HandleFunc("/metadata/gohai", metadataPayloadGohai).Methods("GET")
-	r.HandleFunc("/metadata/v5", func(w http.ResponseWriter, r *http.Request) { metadataPayloadV5(w, r, hostMetadata) }).Methods("GET")
-	r.HandleFunc("/metadata/inventory-checks", func(w http.ResponseWriter, r *http.Request) { metadataPayloadInvChecks(w, r, invChecks) }).Methods("GET")
-	r.HandleFunc("/metadata/inventory-agent", func(w http.ResponseWriter, r *http.Request) { metadataPayloadInvAgent(w, r, invAgent) }).Methods("GET")
-	r.HandleFunc("/metadata/inventory-host", func(w http.ResponseWriter, r *http.Request) { metadataPayloadInvHost(w, r, invHost) }).Methods("GET")
-	r.HandleFunc("/metadata/package-signing", func(w http.ResponseWriter, r *http.Request) { metadataPayloadPkgSigning(w, r, pkgSigning) }).Methods("GET")
 	r.HandleFunc("/diagnose", func(w http.ResponseWriter, r *http.Request) {
 		diagnoseDeps := diagnose.NewSuitesDeps(senderManager, collector, secretResolver, optional.NewOption(wmeta), optional.NewOption[autodiscovery.Component](ac))
 		getDiagnose(w, r, diagnoseDeps)
 	}).Methods("POST")
-
-	r.HandleFunc("/dogstatsd-contexts-dump", func(w http.ResponseWriter, r *http.Request) { dumpDogstatsdContexts(w, r, demux) }).Methods("POST")
-	// Some agent subcommands do not provide these dependencies (such as JMX)
-	if server != nil && serverDebug != nil {
-		r.HandleFunc("/dogstatsd-stats", func(w http.ResponseWriter, r *http.Request) { getDogstatsdStats(w, r, server, serverDebug) }).Methods("GET")
-	}
 
 	if logsAgent, ok := logsAgent.Get(); ok {
 		r.HandleFunc("/stream-logs", streamLogs(logsAgent)).Methods("POST")
@@ -230,128 +179,9 @@ func getStatus(w http.ResponseWriter, r *http.Request, statusComponent status.Co
 	w.Write(s)
 }
 
+// TODO: logsAgent is a module so have to make the api component a module too
 func streamLogs(logsAgent logsAgent.Component) func(w http.ResponseWriter, r *http.Request) {
-	return getStreamFunc(func() messageReceiver { return logsAgent.GetMessageReceiver() }, "logs", "logs agent")
-}
-
-func streamEventPlatform(eventPlatformReceiver eventplatformreceiver.Component) func(w http.ResponseWriter, r *http.Request) {
-	return getStreamFunc(func() messageReceiver { return eventPlatformReceiver }, "event platform payloads", "agent")
-}
-
-type messageReceiver interface {
-	SetEnabled(e bool) bool
-	Filter(filters *diagnostic.Filters, done <-chan struct{}) <-chan string
-}
-
-func getStreamFunc(messageReceiverFunc func() messageReceiver, streamType, agentType string) func(w http.ResponseWriter, r *http.Request) {
-	return func(w http.ResponseWriter, r *http.Request) {
-		log.Infof("Got a request to stream %s.", streamType)
-		w.Header().Set("Transfer-Encoding", "chunked")
-
-		messageReceiver := messageReceiverFunc()
-
-		flusher, ok := w.(http.Flusher)
-		if !ok {
-			log.Errorf("Expected a Flusher type, got: %v", w)
-			return
-		}
-
-		if messageReceiver == nil {
-			http.Error(w, fmt.Sprintf("The %s is not running", agentType), 405)
-			flusher.Flush()
-			log.Infof("The %s is not running - can't stream %s", agentType, streamType)
-			return
-		}
-
-		if !messageReceiver.SetEnabled(true) {
-			http.Error(w, fmt.Sprintf("Another client is already streaming %s.", streamType), 405)
-			flusher.Flush()
-			log.Infof("%s are already streaming. Dropping connection.", streamType)
-			return
-		}
-		defer messageReceiver.SetEnabled(false)
-
-		var filters diagnostic.Filters
-
-		if r.Body != http.NoBody {
-			body, err := io.ReadAll(r.Body)
-			if err != nil {
-				http.Error(w, log.Errorf("Error while reading HTTP request body: %s", err).Error(), 500)
-				return
-			}
-
-			if err := json.Unmarshal(body, &filters); err != nil {
-				http.Error(w, log.Errorf("Error while unmarshaling JSON from request body: %s", err).Error(), 500)
-				return
-			}
-		}
-
-		// Reset the `server_timeout` deadline for this connection as streaming holds the connection open.
-		conn := utils.GetConnection(r)
-		_ = conn.SetDeadline(time.Time{})
-
-		done := make(chan struct{})
-		defer close(done)
-		logChan := messageReceiver.Filter(&filters, done)
-		flushTimer := time.NewTicker(time.Second)
-		for {
-			// Handlers for detecting a closed connection (from either the server or client)
-			select {
-			case <-w.(http.CloseNotifier).CloseNotify(): //nolint
-				return
-			case <-r.Context().Done():
-				return
-			case line := <-logChan:
-				fmt.Fprint(w, line)
-			case <-flushTimer.C:
-				// The buffer will flush on its own most of the time, but when we run out of logs flush so the client is up to date.
-				flusher.Flush()
-			}
-		}
-	}
-}
-
-func getDogstatsdStats(w http.ResponseWriter, _ *http.Request, dogstatsdServer dogstatsdServer.Component, serverDebug dogstatsddebug.Component) {
-	log.Info("Got a request for the Dogstatsd stats.")
-
-	if !config.Datadog.GetBool("use_dogstatsd") {
-		w.Header().Set("Content-Type", "application/json")
-		body, _ := json.Marshal(map[string]string{
-			"error":      "Dogstatsd not enabled in the Agent configuration",
-			"error_type": "no server",
-		})
-		w.WriteHeader(400)
-		w.Write(body)
-		return
-	}
-
-	if !config.Datadog.GetBool("dogstatsd_metrics_stats_enable") {
-		w.Header().Set("Content-Type", "application/json")
-		body, _ := json.Marshal(map[string]string{
-			"error":      "Dogstatsd metrics stats not enabled in the Agent configuration",
-			"error_type": "not enabled",
-		})
-		w.WriteHeader(400)
-		w.Write(body)
-		return
-	}
-
-	// Weird state that should not happen: dogstatsd is enabled
-	// but the server has not been successfully initialized.
-	// Return no data.
-	if !dogstatsdServer.IsRunning() {
-		w.Header().Set("Content-Type", "application/json")
-		w.Write([]byte(`{}`))
-		return
-	}
-
-	jsonStats, err := serverDebug.GetJSONDebugStats()
-	if err != nil {
-		utils.SetJSONError(w, log.Errorf("Error getting marshalled Dogstatsd stats: %s", err), 500)
-		return
-	}
-
-	w.Write(jsonStats)
+	return streamutils.GetStreamFunc(func() streamutils.MessageReceiver { return logsAgent.GetMessageReceiver() }, "logs", "logs agent")
 }
 
 func getHealth(w http.ResponseWriter, _ *http.Request) {
@@ -393,77 +223,6 @@ func secretRefresh(w http.ResponseWriter, _ *http.Request, secretResolver secret
 	w.Write([]byte(result))
 }
 
-func metadataPayloadV5(w http.ResponseWriter, _ *http.Request, hostMetadataComp host.Component) {
-	jsonPayload, err := hostMetadataComp.GetPayloadAsJSON(context.Background())
-	if err != nil {
-		utils.SetJSONError(w, log.Errorf("Unable to marshal v5 metadata payload: %s", err), 500)
-		return
-	}
-
-	scrubbed, err := scrubber.ScrubBytes(jsonPayload)
-	if err != nil {
-		utils.SetJSONError(w, log.Errorf("Unable to scrub metadata payload: %s", err), 500)
-		return
-	}
-	w.Write(scrubbed)
-}
-
-func metadataPayloadGohai(w http.ResponseWriter, _ *http.Request) {
-	payload := gohai.GetPayloadWithProcesses(config.IsContainerized())
-	jsonPayload, err := json.MarshalIndent(payload, "", "  ")
-	if err != nil {
-		utils.SetJSONError(w, log.Errorf("Unable to marshal gohai metadata payload: %s", err), 500)
-		return
-	}
-
-	scrubbed, err := scrubber.ScrubBytes(jsonPayload)
-	if err != nil {
-		utils.SetJSONError(w, log.Errorf("Unable to scrub gohai metadata payload: %s", err), 500)
-		return
-	}
-	w.Write(scrubbed)
-}
-
-func metadataPayloadInvChecks(w http.ResponseWriter, _ *http.Request, invChecks inventorychecks.Component) {
-	// GetAsJSON already return scrubbed data
-	scrubbed, err := invChecks.GetAsJSON()
-	if err != nil {
-		utils.SetJSONError(w, err, 500)
-		return
-	}
-	w.Write(scrubbed)
-}
-
-func metadataPayloadInvAgent(w http.ResponseWriter, _ *http.Request, invAgent inventoryagent.Component) {
-	// GetAsJSON already return scrubbed data
-	scrubbed, err := invAgent.GetAsJSON()
-	if err != nil {
-		utils.SetJSONError(w, err, 500)
-		return
-	}
-	w.Write(scrubbed)
-}
-
-func metadataPayloadInvHost(w http.ResponseWriter, _ *http.Request, invHost inventoryhost.Component) {
-	// GetAsJSON already return scrubbed data
-	scrubbed, err := invHost.GetAsJSON()
-	if err != nil {
-		utils.SetJSONError(w, err, 500)
-		return
-	}
-	w.Write(scrubbed)
-}
-
-func metadataPayloadPkgSigning(w http.ResponseWriter, _ *http.Request, pkgSigning packagesigning.Component) {
-	// GetAsJSON already return scrubbed data
-	scrubbed, err := pkgSigning.GetAsJSON()
-	if err != nil {
-		utils.SetJSONError(w, err, 500)
-		return
-	}
-	w.Write(scrubbed)
-}
-
 func getDiagnose(w http.ResponseWriter, r *http.Request, diagnoseDeps diagnose.SuitesDeps) {
 	var diagCfg diagnosis.Config
 
@@ -486,11 +245,24 @@ func getDiagnose(w http.ResponseWriter, r *http.Request, diagnoseDeps diagnose.S
 	_ = conn.SetDeadline(time.Time{})
 
 	// Indicate that we are already running in Agent process (and flip RunLocal)
-	diagCfg.RunningInAgentProcess = true
 	diagCfg.RunLocal = true
 
+	var diagnoses []diagnosis.Diagnoses
+	var err error
+
 	// Get diagnoses via API
-	diagnoses, err := diagnose.Run(diagCfg, diagnoseDeps)
+	// TODO: Once API component will be refactored, clean these dependencies
+	collector, ok := diagnoseDeps.Collector.Get()
+	if ok {
+		diagnoses, err = diagnose.RunInAgentProcess(diagCfg, diagnose.NewSuitesDepsInAgentProcess(collector))
+	} else {
+		ac, ok := diagnoseDeps.AC.Get()
+		if ok {
+			diagnoses, err = diagnose.RunInCLIProcess(diagCfg, diagnose.NewSuitesDepsInCLIProcess(diagnoseDeps.SenderManager, diagnoseDeps.SecretResolver, diagnoseDeps.WMeta, ac))
+		} else {
+			err = errors.New("collector or autoDiscovery not found")
+		}
+	}
 	if err != nil {
 		utils.SetJSONError(w, log.Errorf("Running diagnose in Agent process failed: %s", err), 500)
 		return
@@ -502,47 +274,4 @@ func getDiagnose(w http.ResponseWriter, r *http.Request, diagnoseDeps diagnose.S
 	if err != nil {
 		utils.SetJSONError(w, log.Errorf("Unable to marshal config check response: %s", err), 500)
 	}
-}
-
-func dumpDogstatsdContexts(w http.ResponseWriter, _ *http.Request, demux demultiplexer.Component) {
-	if demux == nil {
-		utils.SetJSONError(w, log.Errorf("Unable to stream dogstatsd contexts, demultiplexer is not initialized"), 404)
-		return
-	}
-
-	path, err := dumpDogstatsdContextsImpl(demux)
-	if err != nil {
-		utils.SetJSONError(w, log.Errorf("Failed to create dogstatsd contexts dump: %v", err), 500)
-		return
-	}
-
-	resp, err := json.Marshal(path)
-	if err != nil {
-		utils.SetJSONError(w, log.Errorf("Failed to serialize response: %v", err), 500)
-		return
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	w.Write(resp)
-}
-
-func dumpDogstatsdContextsImpl(demux demultiplexer.Component) (string, error) {
-	path := path.Join(config.Datadog.GetString("run_path"), "dogstatsd_contexts.json.zstd")
-
-	f, err := os.Create(path)
-	if err != nil {
-		return "", err
-	}
-
-	c := zstd.NewWriter(f)
-
-	w := bufio.NewWriter(c)
-
-	for _, err := range []error{demux.DumpDogstatsdContexts(w), w.Flush(), c.Close(), f.Close()} {
-		if err != nil {
-			return "", err
-		}
-	}
-
-	return path, nil
 }

@@ -58,6 +58,7 @@ func (agent *agentCommandRunner) executeCommandWithError(command string, command
 
 	arguments := []string{command}
 	arguments = append(arguments, args.Args...)
+	agent.t.Logf("Running agent command: %+q", arguments)
 	output, err := agent.executor.execute(arguments)
 	return output, err
 }
@@ -172,6 +173,7 @@ func (agent *agentCommandRunner) StatusWithError(commandArgs ...agentclient.Agen
 func (agent *agentCommandRunner) waitForReadyTimeout(timeout time.Duration) error {
 	interval := 100 * time.Millisecond
 	maxRetries := timeout.Milliseconds() / interval.Milliseconds()
+	agent.t.Log("Waiting for the agent to be ready")
 	err := backoff.Retry(func() error {
 		_, err := agent.executor.execute([]string{"status"})
 		if err != nil {

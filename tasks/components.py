@@ -234,6 +234,11 @@ def make_components_md(bundles, components_without_bundle):
         yield c.doc
 
 
+def build_codeowner_entry(path, team):
+    teams = [f'@DataDog/{team}' for team in team.split(' ')]
+    return f'/{path} ' + ' '.join(teams)
+
+
 def make_codeowners(codeowners_lines, bundles, components_without_bundle):
     codeowners_lines = codeowners_lines.__iter__()
 
@@ -250,15 +255,15 @@ def make_codeowners(codeowners_lines, bundles, components_without_bundle):
     different_components = []
     for b in bundles:
         if b.team:
-            yield f'/{b.path} @DataDog/{b.team}'
+            yield build_codeowner_entry(b.path, b.team)
         for c in b.components:
             if c.team != b.team:
                 different_components.append(c)
     for c in different_components:
         if c.team:
-            yield f'/{c.path} @DataDog/{c.team}'
+            yield build_codeowner_entry(c.path, c.team)
     for c in components_without_bundle:
-        yield f'/{c.path} @DataDog/{c.team}'
+        yield build_codeowner_entry(c.path, c.team)
 
     # drop lines from the existing codeowners until "# END COMPONENTS"
     for line in codeowners_lines:

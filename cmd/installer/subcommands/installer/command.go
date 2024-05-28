@@ -10,10 +10,12 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/cmd/installer/command"
 	"github.com/DataDog/datadog-agent/pkg/fleet/bootstraper"
+	"github.com/DataDog/datadog-agent/pkg/fleet/env"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer"
 	"github.com/DataDog/datadog-agent/pkg/fleet/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -23,12 +25,6 @@ import (
 )
 
 const (
-	envBootstrapInstallerVersion = "DD_INSTALLER_BOOTSTRAP_VERSION"
-	envRegistry                  = "DD_INSTALLER_REGISTRY"
-	envRegistryAuth              = "DD_INSTALLER_REGISTRY_AUTH"
-	envAPIKey                    = "DD_API_KEY"
-	envSite                      = "DD_SITE"
-
 	envUpgrade                          = "DD_UPGRADE"
 	envAPMInstrumentationNoConfigChange = "DD_APM_INSTRUMENTATION_NO_CONFIG_CHANGE"
 	envSystemProbeEnsureConfig          = "DD_SYSTEM_PROBE_ENSURE_CONFIG"
@@ -50,34 +46,30 @@ const (
 
 // Commands returns the installer subcommands.
 func Commands(_ *command.GlobalParams) []*cobra.Command {
-	return []*cobra.Command{versionCommand(), bootstrapCommand(), installCommand(), removeCommand(), installExperimentCommand(), removeExperimentCommand(), promoteExperimentCommand(), garbageCollectCommand(), purgeCommand(), isInstalledCommand()}
+	return []*cobra.Command{bootstrapCommand(), installCommand(), removeCommand(), installExperimentCommand(), removeExperimentCommand(), promoteExperimentCommand(), garbageCollectCommand(), purgeCommand(), isInstalledCommand()}
+}
+
+// UnprivilegedCommands returns the unprivileged installer subcommands.
+func UnprivilegedCommands(_ *command.GlobalParams) []*cobra.Command {
+	return []*cobra.Command{versionCommand(), defaultPackagesCommand()}
 }
 
 type cmd struct {
-	t            *telemetry.Telemetry
-	ctx          context.Context
-	span         ddtrace.Span
-	registry     string
-	registryAuth string
-	apiKey       string
-	site         string
+	t    *telemetry.Telemetry
+	ctx  context.Context
+	span ddtrace.Span
+	env  *env.Env
 }
 
 func newCmd(operation string) *cmd {
-	t := newTelemetry()
+	env := env.FromEnv()
+	t := newTelemetry(env)
 	span, ctx := newSpan(operation)
-	registry := os.Getenv(envRegistry)
-	registryAuth := os.Getenv(envRegistryAuth)
-	apiKey := os.Getenv(envAPIKey)
-	site := os.Getenv(envSite)
 	return &cmd{
-		t:            t,
-		ctx:          ctx,
-		span:         span,
-		registry:     registry,
-		registryAuth: registryAuth,
-		apiKey:       apiKey,
-		site:         site,
+		t:    t,
+		ctx:  ctx,
+		span: span,
+		env:  env,
 	}
 }
 
@@ -96,16 +88,14 @@ type installerCmd struct {
 	installer.Installer
 }
 
-func newInstallerCmd(operation string) (*installerCmd, error) {
+func newInstallerCmd(operation string) (_ *installerCmd, err error) {
 	cmd := newCmd(operation)
-	var opts []installer.Option
-	if cmd.registry != "" {
-		opts = append(opts, installer.WithRegistry(cmd.registry))
-	}
-	if cmd.registryAuth != "" {
-		opts = append(opts, installer.WithRegistryAuth(cmd.registryAuth))
-	}
-	i, err := installer.NewInstaller(opts...)
+	defer func() {
+		if err != nil {
+			cmd.Stop(err)
+		}
+	}()
+	i, err := installer.NewInstaller(cmd.env)
 	if err != nil {
 		return nil, err
 	}
@@ -117,27 +107,10 @@ func newInstallerCmd(operation string) (*installerCmd, error) {
 
 type bootstraperCmd struct {
 	*cmd
-	opts []bootstraper.Option
 }
 
 func newBootstraperCmd(operation string) *bootstraperCmd {
 	cmd := newCmd(operation)
-	var opts []bootstraper.Option
-	if cmd.registry != "" {
-		opts = append(opts, bootstraper.WithRegistry(cmd.registry))
-	}
-	if cmd.registryAuth != "" {
-		opts = append(opts, bootstraper.WithRegistryAuth(cmd.registryAuth))
-	}
-	if cmd.apiKey != "" {
-		opts = append(opts, bootstraper.WithAPIKey(cmd.apiKey))
-	}
-	if cmd.site != "" {
-		opts = append(opts, bootstraper.WithSite(cmd.site))
-	}
-	if os.Getenv(envBootstrapInstallerVersion) != "" {
-		opts = append(opts, bootstraper.WithInstallerVersion(os.Getenv(envBootstrapInstallerVersion)))
-	}
 	cmd.span.SetTag("env.DD_UPGRADE", os.Getenv(envUpgrade))
 	cmd.span.SetTag("env.DD_APM_INSTRUMENTATION_NO_CONFIG_CHANGE", os.Getenv(envAPMInstrumentationNoConfigChange))
 	cmd.span.SetTag("env.DD_SYSTEM_PROBE_ENSURE_CONFIG", os.Getenv(envSystemProbeEnsureConfig))
@@ -155,22 +128,16 @@ func newBootstraperCmd(operation string) *bootstraperCmd {
 	cmd.span.SetTag("env.DD_AGENT_MAJOR_VERSION", os.Getenv(envAgentMajorVersion))
 	cmd.span.SetTag("env.DD_AGENT_MINOR_VERSION", os.Getenv(envAgentMinorVersion))
 	return &bootstraperCmd{
-		opts: opts,
-		cmd:  cmd,
+		cmd: cmd,
 	}
 }
 
-func newTelemetry() *telemetry.Telemetry {
-	apiKey := os.Getenv(envAPIKey)
-	site := os.Getenv(envSite)
-	if site == "" {
-		site = "datadoghq.com"
-	}
-	if apiKey == "" {
+func newTelemetry(env *env.Env) *telemetry.Telemetry {
+	if env.APIKey == "" {
 		fmt.Printf("telemetry disabled: missing DD_API_KEY\n")
 		return nil
 	}
-	t, err := telemetry.NewTelemetry(apiKey, site, "datadog-installer")
+	t, err := telemetry.NewTelemetry(env, "datadog-installer")
 	if err != nil {
 		fmt.Printf("failed to initialize telemetry: %v\n", err)
 		return nil
@@ -203,6 +170,19 @@ func versionCommand() *cobra.Command {
 	}
 }
 
+func defaultPackagesCommand() *cobra.Command {
+	return &cobra.Command{
+		Use:     "default-packages",
+		Short:   "Print the list of default packages to install",
+		GroupID: "installer",
+		RunE: func(_ *cobra.Command, _ []string) error {
+			defaultPackages := installer.DefaultPackages(env.FromEnv())
+			fmt.Fprintf(os.Stdout, "%s\n", strings.Join(defaultPackages, "\n"))
+			return nil
+		},
+	}
+}
+
 func bootstrapCommand() *cobra.Command {
 	var timeout time.Duration
 	cmd := &cobra.Command{
@@ -214,7 +194,7 @@ func bootstrapCommand() *cobra.Command {
 			defer func() { b.Stop(err) }()
 			ctx, cancel := context.WithTimeout(b.ctx, timeout)
 			defer cancel()
-			return bootstraper.Bootstrap(ctx, b.opts...)
+			return bootstraper.Bootstrap(ctx, b.env)
 		},
 	}
 	cmd.Flags().DurationVarP(&timeout, "timeout", "T", 3*time.Minute, "timeout to bootstrap with")
@@ -229,10 +209,10 @@ func installCommand() *cobra.Command {
 		Args:    cobra.ExactArgs(1),
 		RunE: func(_ *cobra.Command, args []string) (err error) {
 			i, err := newInstallerCmd("install")
-			defer func() { i.Stop(err) }()
 			if err != nil {
 				return err
 			}
+			defer func() { i.Stop(err) }()
 			i.span.SetTag("params.url", args[0])
 			return i.Install(i.ctx, args[0])
 		},
@@ -248,10 +228,10 @@ func removeCommand() *cobra.Command {
 		Args:    cobra.ExactArgs(1),
 		RunE: func(_ *cobra.Command, args []string) (err error) {
 			i, err := newInstallerCmd("remove")
-			defer func() { i.Stop(err) }()
 			if err != nil {
 				return err
 			}
+			defer func() { i.Stop(err) }()
 			i.span.SetTag("params.package", args[0])
 			return i.Remove(i.ctx, args[0])
 		},
@@ -267,10 +247,10 @@ func purgeCommand() *cobra.Command {
 		Args:    cobra.NoArgs,
 		RunE: func(_ *cobra.Command, _ []string) (err error) {
 			i, err := newInstallerCmd("purge")
-			defer func() { i.Stop(err) }()
 			if err != nil {
 				return err
 			}
+			defer func() { i.Stop(err) }()
 			i.Purge(i.ctx)
 			return nil
 		},
@@ -286,10 +266,10 @@ func installExperimentCommand() *cobra.Command {
 		Args:    cobra.ExactArgs(1),
 		RunE: func(_ *cobra.Command, args []string) (err error) {
 			i, err := newInstallerCmd("install_experiment")
-			defer func() { i.Stop(err) }()
 			if err != nil {
 				return err
 			}
+			defer func() { i.Stop(err) }()
 			i.span.SetTag("params.url", args[0])
 			return i.InstallExperiment(i.ctx, args[0])
 		},
@@ -305,10 +285,10 @@ func removeExperimentCommand() *cobra.Command {
 		Args:    cobra.ExactArgs(1),
 		RunE: func(_ *cobra.Command, args []string) (err error) {
 			i, err := newInstallerCmd("remove_experiment")
-			defer func() { i.Stop(err) }()
 			if err != nil {
 				return err
 			}
+			defer func() { i.Stop(err) }()
 			i.span.SetTag("params.package", args[0])
 			return i.RemoveExperiment(i.ctx, args[0])
 		},
@@ -324,10 +304,10 @@ func promoteExperimentCommand() *cobra.Command {
 		Args:    cobra.ExactArgs(1),
 		RunE: func(_ *cobra.Command, args []string) (err error) {
 			i, err := newInstallerCmd("promote_experiment")
-			defer func() { i.Stop(err) }()
 			if err != nil {
 				return err
 			}
+			defer func() { i.Stop(err) }()
 			i.span.SetTag("params.package", args[0])
 			return i.PromoteExperiment(i.ctx, args[0])
 		},
@@ -343,10 +323,10 @@ func garbageCollectCommand() *cobra.Command {
 		Args:    cobra.NoArgs,
 		RunE: func(_ *cobra.Command, _ []string) (err error) {
 			i, err := newInstallerCmd("garbage_collect")
-			defer func() { i.Stop(err) }()
 			if err != nil {
 				return err
 			}
+			defer func() { i.Stop(err) }()
 			return i.GarbageCollect(i.ctx)
 		},
 	}
@@ -366,10 +346,10 @@ func isInstalledCommand() *cobra.Command {
 		Args:    cobra.ExactArgs(1),
 		RunE: func(_ *cobra.Command, args []string) (err error) {
 			i, err := newInstallerCmd("is_installed")
-			defer func() { i.Stop(err) }()
 			if err != nil {
 				return err
 			}
+			defer func() { i.Stop(err) }()
 			installed, err := i.IsInstalled(i.ctx, args[0])
 			if err != nil {
 				return err

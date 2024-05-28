@@ -77,7 +77,7 @@ func (c *Check) Configure(
 ) error {
 	c.BuildID(integrationConfigDigest, data, initConfig)
 
-	err := c.CommonConfigure(senderManager, integrationConfigDigest, initConfig, data, source)
+	err := c.CommonConfigure(senderManager, initConfig, data, source)
 	if err != nil {
 		return err
 	}

@@ -15,6 +15,7 @@ from time import perf_counter
 from invoke import Context
 
 from tasks.libs.common.color import color_message
+from tasks.libs.common.utils import running_in_ci, running_in_pre_commit, running_in_pyapp
 
 DD_INVOKE_LOGS_FILE = "dd_invoke.log"
 WIN_TEMP_FOLDER = "C:\\Windows\\Temp"
@@ -29,6 +30,27 @@ def get_dd_invoke_logs_path() -> str:
     """
     temp_folder = WIN_TEMP_FOLDER if sys.platform == 'win32' else UNIX_TEMP_FOLDER
     return os.path.join(temp_folder, DD_INVOKE_LOGS_FILE)
+
+
+def get_running_modes() -> list[str]:
+    """
+    List the running modes of the task.
+    If the task is run via pre-commit -> "pre_commit"
+    If the task is run via unittest   -> "invoke_unit_tests"
+    If the task is run in the ci      -> "ci"
+    Neither pre-commit nor ci         -> "manual"
+    """
+    # This will catch when devs are running the unit tests with the unittest module directly.
+    # When running the unit tests with the invoke command, the INVOKE_UNIT_TESTS env variable is set.
+    is_running_ut = "unittest" in " ".join(sys.argv)
+    running_modes = {
+        "pre_commit": running_in_pre_commit(),
+        "invoke_unit_tests": is_running_ut or os.environ.get("INVOKE_UNIT_TESTS", 0) == "1",
+        "ci": running_in_ci(),
+        "pyapp": running_in_pyapp(),
+    }
+    running_modes["manual"] = not (running_modes["pre_commit"] or running_modes["ci"])
+    return [mode for mode, is_running in running_modes.items() if is_running]
 
 
 def log_invoke_task(
@@ -47,15 +69,16 @@ def log_invoke_task(
     """
     logging.basicConfig(filename=log_path, level=logging.INFO, format='%(message)s')
     user = getuser()
-    running_mode = "pre_commit" if os.environ.get("PRE_COMMIT", 0) == "1" else "manual"
+    running_modes = get_running_modes()
     task_info = {
         "name": name,
         "module": module,
-        "running_mode": running_mode,
+        "running_modes": running_modes,
         "datetime": task_datetime,
         "duration": duration,
         "user": user,
         "result": task_result,
+        "python_version": f"{sys.version_info[0]}.{sys.version_info[1]}.{sys.version_info[2]}",
     }
     logging.info(task_info)
 

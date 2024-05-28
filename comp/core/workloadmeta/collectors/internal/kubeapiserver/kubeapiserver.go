@@ -35,7 +35,7 @@ type storeGenerator func(context.Context, workloadmeta.Component, kubernetes.Int
 func storeGenerators(cfg config.Reader) []storeGenerator {
 	generators := []storeGenerator{newNodeStore}
 
-	if cfg.GetBool("cluster_agent.collect_kubernetes_tags") {
+	if cfg.GetBool("cluster_agent.collect_kubernetes_tags") || cfg.GetBool("autoscaling.workload.enabled") {
 		generators = append(generators, newPodStore)
 	}
 
@@ -77,7 +77,7 @@ func (c *collector) Start(ctx context.Context, wlmetaStore workloadmeta.Componen
 	if err != nil {
 		return err
 	}
-	client := apiserverClient.Cl
+	client := apiserverClient.InformerCl
 
 	// TODO(components): do not use the config.Datadog reference, use a component instead
 	for _, storeBuilder := range storeGenerators(config.Datadog) {

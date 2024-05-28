@@ -19,7 +19,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
 
 	"github.com/DataDog/datadog-agent/pkg/security/config"
-	lru "github.com/hashicorp/golang-lru/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -37,26 +36,14 @@ func createTestProbe() (*WindowsProbe, error) {
 	}
 	cfg.RuntimeSecurity.FIMEnabled = true
 
-	discardedPaths, err := lru.New[string, struct{}](1 << 10)
+	wp, err := initializeWindowsProbe(cfg, opts)
 	if err != nil {
 		return nil, err
 	}
+	wp.isRenameEnabled = true
+	wp.isDeleteEnabled = true
+	wp.isWriteEnabled = true
 
-	discardedBasenames, err := lru.New[string, struct{}](1 << 10)
-	if err != nil {
-		return nil, err
-	}
-
-	// probe and config are provided as null.  During the tests, it is assumed
-	// that we will not access those values.
-	wp := &WindowsProbe{
-		opts:               opts,
-		config:             cfg,
-		filePathResolver:   make(map[fileObjectPointer]string, 0),
-		regPathResolver:    make(map[regObjectPointer]string, 0),
-		discardedPaths:     discardedPaths,
-		discardedBasenames: discardedBasenames,
-	}
 	err = wp.Init()
 
 	// do not call Start(), as start assumes we can load the driver.  these tests
