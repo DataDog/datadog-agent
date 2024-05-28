@@ -1156,12 +1156,14 @@ func (p *EBPFProbe) updateProbes(ruleEventTypes []eval.EventType, needRawSyscall
 	activatedProbes = append(activatedProbes, p.Resolvers.TCResolver.SelectTCProbes())
 
 	if needRawSyscalls {
+		seclog.Errorf("SYSCALL MONITOR FAIL: needRawSyscalls: %v", needRawSyscalls)
 		activatedProbes = append(activatedProbes, probes.SyscallMonitorSelectors...)
 	} else {
 		// ActivityDumps
 		if p.config.RuntimeSecurity.ActivityDumpEnabled {
 			for _, e := range p.profileManagers.GetActivityDumpTracedEventTypes() {
 				if e == model.SyscallsEventType {
+					seclog.Errorf("SYSCALL MONITOR FAIL: Update AD: %v", p.profileManagers.GetActivityDumpTracedEventTypes())
 					activatedProbes = append(activatedProbes, probes.SyscallMonitorSelectors...)
 					break
 				}
@@ -1575,6 +1577,7 @@ func NewEBPFProbe(probe *Probe, config *config.Config, opts Opts, wmeta optional
 		for _, e := range config.RuntimeSecurity.ActivityDumpTracedEventTypes {
 			if e == model.SyscallsEventType {
 				// Add syscall monitor probes
+				seclog.Errorf("SYSCALL MONITOR FAIL: NewEBPFProbe: %v", config.RuntimeSecurity.ActivityDumpTracedEventTypes)
 				p.managerOptions.ActivatedProbes = append(p.managerOptions.ActivatedProbes, probes.SyscallMonitorSelectors...)
 				break
 			}
