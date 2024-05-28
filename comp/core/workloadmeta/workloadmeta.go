@@ -150,10 +150,10 @@ func newWorkloadMetaOptional(deps dependencies) optionalProvider {
 }
 
 type PodContainerMetadata struct {
-	Name       string                `json:"name"`
-	Cmd        []string              `json:"cmd"`
-	Entrypoint []string              `json:"entrypoint"`
-	Image      OrchestratorContainer `json:"image"`
+	Name       string         `json:"name"`
+	Cmd        []string       `json:"cmd"`
+	Entrypoint []string       `json:"entrypoint"`
+	Image      ContainerImage `json:"image"`
 }
 
 func (wm *workloadmeta) podContainerMetadata(name, ns string) (map[string]PodContainerMetadata, error) {
@@ -174,9 +174,9 @@ func (wm *workloadmeta) podContainerMetadata(name, ns string) (map[string]PodCon
 		}
 
 		out[c.Name] = PodContainerMetadata{
-			Name: c.Name,
-			Image: c,
-			Cmd: image.Cmd,
+			Name:       c.Name,
+			Image:      c.Image,
+			Cmd:        image.Cmd,
 			Entrypoint: image.Entrypoint,
 		}
 	}
