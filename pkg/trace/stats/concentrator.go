@@ -62,10 +62,14 @@ type Concentrator struct {
 var peerTagFile []byte
 
 var defaultPeerTags = func() []string {
-	cfg, _ := ini.Load(peerTagFile)
-	keys := cfg.Section("dd.apm.peer.tags").Keys()
-
 	var tags []string = []string{"_dd.base_service"}
+
+	cfg, err := ini.Load(peerTagFile)
+	if err != nil {
+		log.Error("Error loading file for peer tags: ", err)
+		return tags
+	}
+	keys := cfg.Section("dd.apm.peer.tags").Keys()
 
 	for _, key := range keys {
 		value := strings.Split(key.Value(), ",")
