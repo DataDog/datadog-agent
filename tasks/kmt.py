@@ -651,15 +651,16 @@ def prepare(
     for d in domains:
         d.copy(ctx, paths.dependencies, "/opt/", verbose=verbose)
         d.copy(ctx, f"{paths.arch_dir}/opt/*", "/opt/", exclude="*.ninja", verbose=verbose)
-        d.run_cmd(
-            ctx,
-            f"! [ -f {btf_dir}/minimized-btfs.tar.xz ] \
-                && [ -d /opt/btf ] \
-                && cd /opt/btf/ \
-                && tar cJf minimized-btfs.tar.xz * \
-                && mkdir -p {btf_dir} \
-                && mv /opt/btf/minimized-btfs.tar.xz {btf_dir}/ || [ -f /sys/kernel/btf/vmlinux ] ",
-        )
+        if not os.path.exists("/sys/kernel/btf/vmlinux"):
+            d.run_cmd(
+                ctx,
+                f"! [ -f {btf_dir}/minimized-btfs.tar.xz ] \
+                    && [ -d /opt/btf ] \
+                    && cd /opt/btf/ \
+                    && tar cJf minimized-btfs.tar.xz * \
+                    && mkdir -p {btf_dir} \
+                    && mv /opt/btf/minimized-btfs.tar.xz {btf_dir}/",
+            )
         info(f"[+] Tests packages setup in target VM {d}")
 
 
