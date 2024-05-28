@@ -142,7 +142,7 @@ func run(
 	mainCtx, mainCtxCancel := context.WithCancel(context.Background())
 	defer mainCtxCancel() // Calling cancel twice is safe
 
-	if !pkgconfig.Datadog.IsSet("api_key") {
+	if !pkgconfig.Datadog().IsSet("api_key") {
 		pkglog.Critical("no API key configured, exiting")
 		return nil
 	}
@@ -172,7 +172,7 @@ func run(
 		return err
 	}
 
-	common.LoadComponents(secretResolver, wmeta, ac, pkgconfig.Datadog.GetString("confd_path"))
+	common.LoadComponents(secretResolver, wmeta, ac, pkgconfig.Datadog().GetString("confd_path"))
 
 	// Set up check collector
 	ac.AddScheduler("check", pkgcollector.InitCheckScheduler(optional.NewOption(collector), demultiplexer), true)
@@ -215,19 +215,19 @@ func run(
 }
 
 func initializeCCCache(ctx context.Context) error {
-	pollInterval := time.Second * time.Duration(pkgconfig.Datadog.GetInt("cloud_foundry_cc.poll_interval"))
+	pollInterval := time.Second * time.Duration(pkgconfig.Datadog().GetInt("cloud_foundry_cc.poll_interval"))
 	_, err := cloudfoundry.ConfigureGlobalCCCache(
 		ctx,
-		pkgconfig.Datadog.GetString("cloud_foundry_cc.url"),
-		pkgconfig.Datadog.GetString("cloud_foundry_cc.client_id"),
-		pkgconfig.Datadog.GetString("cloud_foundry_cc.client_secret"),
-		pkgconfig.Datadog.GetBool("cloud_foundry_cc.skip_ssl_validation"),
+		pkgconfig.Datadog().GetString("cloud_foundry_cc.url"),
+		pkgconfig.Datadog().GetString("cloud_foundry_cc.client_id"),
+		pkgconfig.Datadog().GetString("cloud_foundry_cc.client_secret"),
+		pkgconfig.Datadog().GetBool("cloud_foundry_cc.skip_ssl_validation"),
 		pollInterval,
-		pkgconfig.Datadog.GetInt("cloud_foundry_cc.apps_batch_size"),
-		pkgconfig.Datadog.GetBool("cluster_agent.refresh_on_cache_miss"),
-		pkgconfig.Datadog.GetBool("cluster_agent.serve_nozzle_data"),
-		pkgconfig.Datadog.GetBool("cluster_agent.sidecars_tags"),
-		pkgconfig.Datadog.GetBool("cluster_agent.isolation_segments_tags"),
+		pkgconfig.Datadog().GetInt("cloud_foundry_cc.apps_batch_size"),
+		pkgconfig.Datadog().GetBool("cluster_agent.refresh_on_cache_miss"),
+		pkgconfig.Datadog().GetBool("cluster_agent.serve_nozzle_data"),
+		pkgconfig.Datadog().GetBool("cluster_agent.sidecars_tags"),
+		pkgconfig.Datadog().GetBool("cluster_agent.isolation_segments_tags"),
 		nil,
 	)
 	if err != nil {
@@ -237,11 +237,11 @@ func initializeCCCache(ctx context.Context) error {
 }
 
 func initializeBBSCache(ctx context.Context) error {
-	pollInterval := time.Second * time.Duration(pkgconfig.Datadog.GetInt("cloud_foundry_bbs.poll_interval"))
+	pollInterval := time.Second * time.Duration(pkgconfig.Datadog().GetInt("cloud_foundry_bbs.poll_interval"))
 	// NOTE: we can't use GetPollInterval in ConfigureGlobalBBSCache, as that causes import cycle
 
-	includeListString := pkgconfig.Datadog.GetStringSlice("cloud_foundry_bbs.env_include")
-	excludeListString := pkgconfig.Datadog.GetStringSlice("cloud_foundry_bbs.env_exclude")
+	includeListString := pkgconfig.Datadog().GetStringSlice("cloud_foundry_bbs.env_include")
+	excludeListString := pkgconfig.Datadog().GetStringSlice("cloud_foundry_bbs.env_exclude")
 
 	includeList := make([]*regexp.Regexp, len(includeListString))
 	excludeList := make([]*regexp.Regexp, len(excludeListString))
@@ -264,10 +264,10 @@ func initializeBBSCache(ctx context.Context) error {
 
 	bc, err := cloudfoundry.ConfigureGlobalBBSCache(
 		ctx,
-		pkgconfig.Datadog.GetString("cloud_foundry_bbs.url"),
-		pkgconfig.Datadog.GetString("cloud_foundry_bbs.ca_file"),
-		pkgconfig.Datadog.GetString("cloud_foundry_bbs.cert_file"),
-		pkgconfig.Datadog.GetString("cloud_foundry_bbs.key_file"),
+		pkgconfig.Datadog().GetString("cloud_foundry_bbs.url"),
+		pkgconfig.Datadog().GetString("cloud_foundry_bbs.ca_file"),
+		pkgconfig.Datadog().GetString("cloud_foundry_bbs.cert_file"),
+		pkgconfig.Datadog().GetString("cloud_foundry_bbs.key_file"),
 		pollInterval,
 		includeList,
 		excludeList,

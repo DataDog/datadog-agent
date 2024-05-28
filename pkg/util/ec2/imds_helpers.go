@@ -25,7 +25,7 @@ var (
 )
 
 func getToken(ctx context.Context) (string, time.Time, error) {
-	tokenLifetime := time.Duration(config.Datadog.GetInt("ec2_metadata_token_lifetime")) * time.Second
+	tokenLifetime := time.Duration(config.Datadog().GetInt("ec2_metadata_token_lifetime")) * time.Second
 	// Set the local expiration date before requesting the metadata endpoint so the local expiration date will always
 	// expire before the expiration date computed on the AWS side. The expiration date is set minus the renewal window
 	// to ensure the token will be refreshed before it expires.
@@ -37,7 +37,7 @@ func getToken(ctx context.Context) (string, time.Time, error) {
 			"X-aws-ec2-metadata-token-ttl-seconds": fmt.Sprintf("%d", int(tokenLifetime.Seconds())),
 		},
 		nil,
-		config.Datadog.GetDuration("ec2_metadata_timeout")*time.Millisecond, config.Datadog)
+		config.Datadog().GetDuration("ec2_metadata_timeout")*time.Millisecond, config.Datadog())
 	if err != nil {
 		return "", time.Now(), err
 	}
@@ -50,7 +50,7 @@ func getMetadataItemWithMaxLength(ctx context.Context, endpoint string, forceIMD
 		return result, err
 	}
 
-	maxLength := config.Datadog.GetInt("metadata_endpoints_max_hostname_size")
+	maxLength := config.Datadog().GetInt("metadata_endpoints_max_hostname_size")
 	if len(result) > maxLength {
 		return "", fmt.Errorf("%v gave a response with length > to %v", endpoint, maxLength)
 	}
@@ -67,7 +67,7 @@ func getMetadataItem(ctx context.Context, endpoint string, forceIMDSv2 bool) (st
 
 // UseIMDSv2 returns true if the agent should use IMDSv2
 func UseIMDSv2(forceIMDSv2 bool) bool {
-	return config.Datadog.GetBool("ec2_prefer_imdsv2") || forceIMDSv2
+	return config.Datadog().GetBool("ec2_prefer_imdsv2") || forceIMDSv2
 }
 
 func doHTTPRequest(ctx context.Context, url string, forceIMDSv2 bool) (string, error) {
@@ -87,7 +87,7 @@ func doHTTPRequest(ctx context.Context, url string, forceIMDSv2 bool) (string, e
 			}
 		}
 	}
-	res, err := httputils.Get(ctx, url, headers, time.Duration(config.Datadog.GetInt("ec2_metadata_timeout"))*time.Millisecond, config.Datadog)
+	res, err := httputils.Get(ctx, url, headers, time.Duration(config.Datadog().GetInt("ec2_metadata_timeout"))*time.Millisecond, config.Datadog())
 	// We don't want to register the source when we force imdsv2
 	if err == nil && !forceIMDSv2 {
 		setCloudProviderSource(source)

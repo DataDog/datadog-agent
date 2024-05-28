@@ -47,7 +47,7 @@ type Webhook struct {
 func NewWebhook(recommender workload.PatcherAdapter) *Webhook {
 	return &Webhook{
 		name:        webhookName,
-		isEnabled:   config.Datadog.GetBool("autoscaling.workload.enabled"),
+		isEnabled:   config.Datadog().GetBool("autoscaling.workload.enabled"),
 		endpoint:    webhookEndpoint,
 		resources:   []string{"pods"},
 		operations:  []admiv1.OperationType{admiv1.Create},
