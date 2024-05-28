@@ -84,7 +84,6 @@ func (c *tcpCloseConsumer) Stop() {
 func (c *tcpCloseConsumer) extractConn(data []byte) {
 	ct := (*netebpf.Conn)(unsafe.Pointer(&data[0]))
 	conn := c.buffer.Next()
-	//log.Errorf("received tcp close with tuple: %+v", ct.Tup)
 	populateConnStats(conn, &ct.Tup, &ct.Conn_stats, c.ch)
 	updateTCPStats(conn, &ct.Tcp_stats, ct.Tcp_retransmits)
 }

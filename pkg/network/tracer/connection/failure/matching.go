@@ -15,7 +15,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // FailedConnStats is a wrapper to help document the purpose of the underlying map
@@ -57,19 +56,14 @@ func (fc *FailedConns) MatchFailedConn(conn *network.ConnectionStats) {
 	// Read lock to check if the connection exists
 	fc.RLock()
 	failedConn, ok := fc.FailedConnMap[connTuple]
-	log.Errorf("connTuple: %+v", conn)
-	log.Errorf("failedConnMap: %+v", fc.FailedConnMap)
-	log.Errorf("")
 	fc.RUnlock()
 
 	// If connection exists, proceed to increment failure count and delete
 	if ok {
-		log.Errorf("Found failure match!: %+v", conn)
 		conn.TCPFailures = make(map[uint32]uint32)
 
 		// Write lock to modify the map
 		for errCode, count := range failedConn.CountByErrCode {
-			log.Errorf("incrementing failure count: %+v", errCode)
 			conn.TCPFailures[errCode] += count
 		}
 	}

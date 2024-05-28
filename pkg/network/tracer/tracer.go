@@ -315,7 +315,6 @@ func (t *Tracer) storeClosedConnections(connections []network.ConnectionStats) {
 			failedConnMap.Unlock()
 		}()
 	}
-	//log.Errorf("SRC CONNECTIONS: %+v", connections)
 	for i := range connections {
 		cs := &connections[i]
 		cs.IsClosed = true
@@ -556,7 +555,6 @@ func (t *Tracer) getConnections(activeBuffer *network.ConnectionBuffer) (latestU
 	}
 
 	activeConnections = activeBuffer.Connections()
-
 	for i := range activeConnections {
 		activeConnections[i].IPTranslation = t.conntracker.GetTranslationForConn(activeConnections[i])
 		// do gateway resolution only on active connections outside
