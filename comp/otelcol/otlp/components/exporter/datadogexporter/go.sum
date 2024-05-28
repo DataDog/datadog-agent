@@ -16,8 +16,8 @@ github.com/DataDog/mmh3 v0.0.0-20210722141835-012dc69a9e49 h1:EbzDX8HPk5uE2FsJYx
 github.com/DataDog/mmh3 v0.0.0-20210722141835-012dc69a9e49/go.mod h1:SvsjzyJlSg0rKsqYgdcFxeEVflx3ZNAyFfkUHP0TxXg=
 github.com/DataDog/opentelemetry-mapping-go/pkg/internal/sketchtest v0.16.0 h1:VJT1Jjlz/ca999FEqaAS+He7S4eB14a+PJjczgRdgAY=
 github.com/DataDog/opentelemetry-mapping-go/pkg/internal/sketchtest v0.16.0/go.mod h1:66XlN7QpQKqIvw8e2UbCXV5X8wGnEw851nT9BjJ75dY=
-github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.16.1-0.20240521203313-5f63a21aaeb0 h1:uL1IM8DU+H9nuBe5ExXMgF5sADhdXsBsYDJpaE8qlrA=
-github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.16.1-0.20240521203313-5f63a21aaeb0/go.mod h1:dvIWN9pA2zWNTw5rhDWZgzZnhcfpH++d+8d1SWW6xkY=
+github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.16.1 h1:ZI8u3CgdMXpDplrf9/gIr13+/g/tUzUcBMk2ZhXgzLE=
+github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.16.1/go.mod h1:dvIWN9pA2zWNTw5rhDWZgzZnhcfpH++d+8d1SWW6xkY=
 github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/logs v0.16.0 h1:NbKlfbjR2joF52jEBLs3MEnT6l5zM3MCyhUFkqARZpk=
 github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/logs v0.16.0/go.mod h1:+LijQ2LdlocAQ4WB+7KsoIGe90bfogkRslubd9swVow=
 github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/metrics v0.16.0 h1:H5DzD3rwgQCX0VI3A16KgsdmC5grUCyDFflaZDpfgMc=

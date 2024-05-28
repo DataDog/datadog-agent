@@ -747,7 +747,7 @@ func downloadPolicy(log log.Component, config config.Component, _ secrets.Compon
 		outputWriter = f
 	}
 
-	downloadURL := fmt.Sprintf("https://api.%s/api/v2/security/cloud_workload/policy/download", site)
+	downloadURL := fmt.Sprintf("https://api.%s/api/v2/remote_config/products/cws/policy/download", site)
 	fmt.Fprintf(os.Stderr, "Policy download url: %s\n", downloadURL)
 
 	headers := map[string]string{

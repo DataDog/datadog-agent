@@ -22,7 +22,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/secrets/secretsimpl"
-	"github.com/DataDog/datadog-agent/comp/core/settings"
 	"github.com/DataDog/datadog-agent/comp/core/settings/settingsimpl"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/status/statusimpl"
@@ -86,7 +85,6 @@ type testdeps struct {
 	Autodiscovery         autodiscovery.Mock
 	Logs                  optional.Option[logsAgent.Component]
 	Collector             optional.Option[collector.Component]
-	Settings              settings.Component
 	EndpointProviders     []api.EndpointProvider `group:"agent_endpoint"`
 }
 
@@ -150,7 +148,6 @@ func getTestAPIServer(deps testdeps) api.Component {
 		LogsAgentComp:         deps.Logs,
 		WorkloadMeta:          deps.WorkloadMeta,
 		Collector:             deps.Collector,
-		Settings:              deps.Settings,
 		EndpointProviders:     deps.EndpointProviders,
 	}
 	return newAPIServer(apideps)

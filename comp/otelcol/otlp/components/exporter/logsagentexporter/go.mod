@@ -4,6 +4,7 @@ go 1.21.0
 
 replace (
 	github.com/DataDog/datadog-agent/comp/core/config => ../../../../../../comp/core/config
+	github.com/DataDog/datadog-agent/comp/core/flare/builder => ../../../../../../comp/core/flare/builder
 	github.com/DataDog/datadog-agent/comp/core/flare/types => ../../../../../../comp/core/flare/types
 	github.com/DataDog/datadog-agent/comp/core/secrets => ../../../../../../comp/core/secrets
 	github.com/DataDog/datadog-agent/comp/core/telemetry => ../../../../../../comp/core/telemetry
@@ -41,7 +42,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/logs/message v0.54.0-rc.2
 	github.com/DataDog/datadog-agent/pkg/logs/sources v0.54.0-rc.2
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.54.0-rc.2
-	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.16.1-0.20240521203313-5f63a21aaeb0
+	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.16.1
 	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/logs v0.14.0
 	github.com/stormcat24/protodep v0.1.8
 	github.com/stretchr/testify v1.9.0

@@ -425,6 +425,7 @@ func (m *Mount) UnmarshalBinary(data []byte) (int, error) {
 	}
 
 	m.MountID = m.RootPathKey.MountID
+	m.Origin = MountOriginEvent
 
 	return 56, nil
 }
@@ -436,7 +437,13 @@ func (e *MountEvent) UnmarshalBinary(data []byte) (int, error) {
 
 // UnmarshalBinary unmarshalls a binary representation of itself
 func (e *UnshareMountNSEvent) UnmarshalBinary(data []byte) (int, error) {
-	return e.Mount.UnmarshalBinary(data)
+	n, err := e.Mount.UnmarshalBinary(data)
+	if err != nil {
+		return 0, err
+	}
+	e.Origin = MountOriginUnshare
+
+	return n, nil
 }
 
 // UnmarshalBinary unmarshalls a binary representation of itself

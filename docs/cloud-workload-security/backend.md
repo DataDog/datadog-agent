@@ -375,6 +375,18 @@ CSM Threats logs have the following JSON schema:
                 "hash_state": {
                     "type": "string",
                     "description": "State of the hashes or reason why they weren't computed"
+                },
+                "mount_path": {
+                    "type": "string",
+                    "description": "MountPath path of the mount"
+                },
+                "mount_source": {
+                    "type": "string",
+                    "description": "MountSource source of the mount"
+                },
+                "mount_origin": {
+                    "type": "string",
+                    "description": "MountOrigin origin of the mount"
                 }
             },
             "additionalProperties": false,
@@ -483,6 +495,18 @@ CSM Threats logs have the following JSON schema:
                 "hash_state": {
                     "type": "string",
                     "description": "State of the hashes or reason why they weren't computed"
+                },
+                "mount_path": {
+                    "type": "string",
+                    "description": "MountPath path of the mount"
+                },
+                "mount_source": {
+                    "type": "string",
+                    "description": "MountSource source of the mount"
+                },
+                "mount_origin": {
+                    "type": "string",
+                    "description": "MountOrigin origin of the mount"
                 },
                 "destination": {
                     "$ref": "#/$defs/File",
@@ -2030,6 +2054,18 @@ CSM Threats logs have the following JSON schema:
         "hash_state": {
             "type": "string",
             "description": "State of the hashes or reason why they weren't computed"
+        },
+        "mount_path": {
+            "type": "string",
+            "description": "MountPath path of the mount"
+        },
+        "mount_source": {
+            "type": "string",
+            "description": "MountSource source of the mount"
+        },
+        "mount_origin": {
+            "type": "string",
+            "description": "MountOrigin origin of the mount"
         }
     },
     "additionalProperties": false,
@@ -2067,6 +2103,9 @@ CSM Threats logs have the following JSON schema:
 | `package_version` | System package version |
 | `hashes` | List of cryptographic hashes of the file |
 | `hash_state` | State of the hashes or reason why they weren't computed |
+| `mount_path` | MountPath path of the mount |
+| `mount_source` | MountSource source of the mount |
+| `mount_origin` | MountOrigin origin of the mount |
 
 
 ## `FileEvent`
@@ -2172,6 +2211,18 @@ CSM Threats logs have the following JSON schema:
             "type": "string",
             "description": "State of the hashes or reason why they weren't computed"
         },
+        "mount_path": {
+            "type": "string",
+            "description": "MountPath path of the mount"
+        },
+        "mount_source": {
+            "type": "string",
+            "description": "MountSource source of the mount"
+        },
+        "mount_origin": {
+            "type": "string",
+            "description": "MountOrigin origin of the mount"
+        },
         "destination": {
             "$ref": "#/$defs/File",
             "description": "Target file information"
@@ -2224,6 +2275,9 @@ CSM Threats logs have the following JSON schema:
 | `package_version` | System package version |
 | `hashes` | List of cryptographic hashes of the file |
 | `hash_state` | State of the hashes or reason why they weren't computed |
+| `mount_path` | MountPath path of the mount |
+| `mount_source` | MountSource source of the mount |
+| `mount_origin` | MountOrigin origin of the mount |
 | `destination` | Target file information |
 | `new_mount_id` | New Mount ID |
 | `device` | Device associated with the file |

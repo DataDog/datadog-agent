@@ -329,6 +329,7 @@ func InitConfig(config pkgconfigmodel.Config) {
 	config.BindEnvAndSetDefault("kubernetes_node_annotations_as_host_aliases", []string{"cluster.k8s.io/machine"})
 	config.BindEnvAndSetDefault("kubernetes_node_label_as_cluster_name", "")
 	config.BindEnvAndSetDefault("kubernetes_namespace_labels_as_tags", map[string]string{})
+	config.BindEnvAndSetDefault("kubernetes_namespace_annotations_as_tags", map[string]string{})
 	config.BindEnvAndSetDefault("container_cgroup_prefix", "")
 	config.BindEnvAndSetDefault("kubernetes_namespace_collection_enabled", false) // Enables collection of kubernetes namespace information
 
@@ -582,6 +583,9 @@ func InitConfig(config pkgconfigmodel.Config) {
 	// Changing this setting may impact your custom metrics billing.
 	config.BindEnvAndSetDefault("checks_tag_cardinality", "low")
 	config.BindEnvAndSetDefault("dogstatsd_tag_cardinality", "low")
+
+	// Autoscaling product
+	config.BindEnvAndSetDefault("autoscaling.workload.enabled", false)
 
 	config.BindEnvAndSetDefault("hpa_watcher_polling_freq", 10)
 	config.BindEnvAndSetDefault("hpa_watcher_gc_period", 60*5) // 5 minutes
@@ -885,10 +889,10 @@ func InitConfig(config pkgconfigmodel.Config) {
 
 	setupProcesses(config)
 
-	// Updater configuration
-	config.BindEnvAndSetDefault("updater.remote_updates", false)
-	config.BindEnv("updater.registry")
-	config.BindEnvAndSetDefault("updater.registry_auth", "")
+	// Installer configuration
+	config.BindEnvAndSetDefault("remote_updates", false)
+	config.BindEnvAndSetDefault("installer.registry.url", "")
+	config.BindEnvAndSetDefault("installer.registry.auth", "")
 }
 
 func agent(config pkgconfigmodel.Config) {

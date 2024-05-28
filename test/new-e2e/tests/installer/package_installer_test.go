@@ -22,11 +22,11 @@ func testInstaller(os e2eos.Descriptor, arch e2eos.Architecture) packageSuite {
 }
 
 func (s *packageInstallerSuite) TestInstall() {
-	s.RunInstallScript()
+	s.RunInstallScript("DD_NO_AGENT_INSTALL=true")
 	defer s.Purge()
 
-	bootstraperVersion := s.BootstraperVersion()
-	installerVersion := s.InstallerVersion()
+	bootstraperVersion := s.host.BootstraperVersion()
+	installerVersion := s.host.InstallerVersion()
 	assert.Equal(s.T(), bootstraperVersion, installerVersion)
 
 	state := s.host.State()
@@ -34,10 +34,12 @@ func (s *packageInstallerSuite) TestInstall() {
 	state.AssertUserExists("dd-agent")
 	state.AssertUserHasGroup("dd-agent", "dd-agent")
 
+	state.AssertDirExists("/etc/datadog-agent", 0755, "dd-agent", "dd-agent")
 	state.AssertDirExists("/var/log/datadog", 0755, "dd-agent", "dd-agent")
 	state.AssertDirExists("/var/run/datadog", 0755, "dd-agent", "dd-agent")
 	state.AssertDirExists("/var/run/datadog/installer", 0755, "dd-agent", "dd-agent")
 	state.AssertDirExists("/var/run/datadog/installer/locks", 0777, "root", "root")
+	state.AssertFileExists("/var/run/datadog/installer/environment", 0644, "root", "root")
 
 	state.AssertDirExists("/opt/datadog-installer", 0755, "root", "root")
 	state.AssertDirExists("/opt/datadog-packages", 0755, "root", "root")
@@ -50,7 +52,7 @@ func (s *packageInstallerSuite) TestInstall() {
 }
 
 func (s *packageInstallerSuite) TestUninstall() {
-	s.RunInstallScript()
+	s.RunInstallScript("DD_NO_AGENT_INSTALL=true")
 	s.Purge()
 
 	state := s.host.State()
@@ -70,4 +72,18 @@ func (s *packageInstallerSuite) TestUninstall() {
 
 	state.AssertPathDoesNotExist("/usr/bin/datadog-bootstrap")
 	state.AssertPathDoesNotExist("/usr/bin/datadog-installer")
+}
+
+func (s *packageInstallerSuite) TestReInstall() {
+	s.RunInstallScript("DD_NO_AGENT_INSTALL=true")
+	defer s.Purge()
+
+	// remove an installer directory and re-install it. Given that the installer is already installed,
+	// it should not be re-installed and the directory should not be re-created.
+	s.host.DeletePath("/opt/datadog-packages/datadog-installer/stable/systemd")
+	s.RunInstallScript("DD_NO_AGENT_INSTALL=true")
+
+	state := s.host.State()
+	state.AssertPathDoesNotExist("/opt/datadog-packages/datadog-installer/stable/systemd")
+	s.host.AssertPackageInstalledByInstaller("datadog-installer")
 }

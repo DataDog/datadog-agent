@@ -54,6 +54,11 @@ func (ts *telemetrySender) newEvent(t eventType, svc serviceInfo) *event {
 	host := ts.hostname.GetSafe(context.Background())
 	env := pkgconfig.Datadog.GetString("env")
 
+	nameSource := "generated"
+	if svc.meta.FromDDService {
+		nameSource = "provided"
+	}
+
 	return &event{
 		RequestType: t,
 		APIVersion:  "v2",
@@ -67,8 +72,7 @@ func (ts *telemetrySender) newEvent(t eventType, svc serviceInfo) *event {
 			StartTime:           int64(svc.process.Stat.StartTime),
 			LastSeen:            ts.time.Now().Unix(),
 			APMInstrumentation:  svc.meta.APMInstrumentation,
-			// TODO: leaving empty for now
-			ServiceNameSource: "",
+			ServiceNameSource:   nameSource,
 		},
 	}
 }

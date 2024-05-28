@@ -71,6 +71,12 @@ type FileSerializer struct {
 	Hashes []string `json:"hashes,omitempty"`
 	// State of the hashes or reason why they weren't computed
 	HashState string `json:"hash_state,omitempty"`
+	// MountPath path of the mount
+	MountPath string `json:"mount_path,omitempty"`
+	// MountSource source of the mount
+	MountSource string `json:"mount_source,omitempty"`
+	// MountOrigin origin of the mount
+	MountOrigin string `json:"mount_origin,omitempty"`
 }
 
 // UserContextSerializer serializes a user context to JSON
@@ -537,6 +543,9 @@ func newFileSerializer(fe *model.FileEvent, e *model.Event, forceInode ...uint64
 		PackageName:         e.FieldHandlers.ResolvePackageName(e, fe),
 		PackageVersion:      e.FieldHandlers.ResolvePackageVersion(e, fe),
 		HashState:           fe.HashState.String(),
+		MountPath:           fe.MountPath,
+		MountSource:         model.MountSourceToString(fe.MountSource),
+		MountOrigin:         model.MountOriginToString(fe.MountOrigin),
 	}
 
 	// lazy hash serialization: we don't want to hash files for every event

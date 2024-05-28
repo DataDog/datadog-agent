@@ -238,6 +238,7 @@ func Test_linuxImpl(t *testing.T) {
 						StartTime:           procLaunchedTime.Unix(),
 						LastSeen:            startTime.Add(1 * time.Minute).Unix(),
 						APMInstrumentation:  "none",
+						ServiceNameSource:   "generated",
 					},
 				},
 				{
@@ -253,6 +254,7 @@ func Test_linuxImpl(t *testing.T) {
 						StartTime:           procLaunchedTime.Unix(),
 						LastSeen:            startTime.Add(20 * time.Minute).Unix(),
 						APMInstrumentation:  "none",
+						ServiceNameSource:   "generated",
 					},
 				},
 				{
@@ -268,6 +270,7 @@ func Test_linuxImpl(t *testing.T) {
 						StartTime:           procLaunchedTime.Unix(),
 						LastSeen:            startTime.Add(21 * time.Minute).Unix(),
 						APMInstrumentation:  "none",
+						ServiceNameSource:   "generated",
 					},
 				},
 			},
@@ -348,6 +351,7 @@ func Test_linuxImpl(t *testing.T) {
 						StartTime:           procLaunchedTime.Unix(),
 						LastSeen:            startTime.Add(1 * time.Minute).Unix(),
 						APMInstrumentation:  "none",
+						ServiceNameSource:   "generated",
 					},
 				},
 				{
@@ -363,6 +367,7 @@ func Test_linuxImpl(t *testing.T) {
 						StartTime:           procLaunchedTime.Unix(),
 						LastSeen:            startTime.Add(1 * time.Minute).Unix(),
 						APMInstrumentation:  "none",
+						ServiceNameSource:   "generated",
 					},
 				},
 				{
@@ -378,6 +383,7 @@ func Test_linuxImpl(t *testing.T) {
 						StartTime:           procLaunchedTime.Unix(),
 						LastSeen:            startTime.Add(20 * time.Minute).Unix(),
 						APMInstrumentation:  "none",
+						ServiceNameSource:   "generated",
 					},
 				},
 				{
@@ -393,6 +399,7 @@ func Test_linuxImpl(t *testing.T) {
 						StartTime:           procLaunchedTime.Unix(),
 						LastSeen:            startTime.Add(20 * time.Minute).Unix(),
 						APMInstrumentation:  "none",
+						ServiceNameSource:   "generated",
 					},
 				},
 				{
@@ -408,6 +415,7 @@ func Test_linuxImpl(t *testing.T) {
 						StartTime:           procLaunchedTime.Unix(),
 						LastSeen:            startTime.Add(21 * time.Minute).Unix(),
 						APMInstrumentation:  "none",
+						ServiceNameSource:   "generated",
 					},
 				},
 			},
@@ -480,6 +488,7 @@ func Test_linuxImpl(t *testing.T) {
 						StartTime:           procLaunchedTime.Unix(),
 						LastSeen:            startTime.Add(1 * time.Minute).Unix(),
 						APMInstrumentation:  "none",
+						ServiceNameSource:   "generated",
 					},
 				},
 				{
@@ -495,6 +504,7 @@ func Test_linuxImpl(t *testing.T) {
 						StartTime:           procLaunchedTime.Unix(),
 						LastSeen:            startTime.Add(22 * time.Minute).Unix(),
 						APMInstrumentation:  "none",
+						ServiceNameSource:   "generated",
 					},
 				},
 			},

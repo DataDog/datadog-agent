@@ -77,7 +77,7 @@ func (c *collector) Start(ctx context.Context, wlmetaStore workloadmeta.Componen
 	if err != nil {
 		return err
 	}
-	client := apiserverClient.Cl
+	client := apiserverClient.InformerCl
 
 	// TODO(components): do not use the config.Datadog reference, use a component instead
 	for _, storeBuilder := range storeGenerators(config.Datadog) {

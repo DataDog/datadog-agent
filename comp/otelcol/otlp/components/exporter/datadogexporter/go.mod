@@ -5,6 +5,7 @@ go 1.21.0
 replace (
 	github.com/DataDog/datadog-agent/cmd/agent/common/path => ../../../../../../cmd/agent/common/path
 	github.com/DataDog/datadog-agent/comp/core/config => ../../../../../core/config
+	github.com/DataDog/datadog-agent/comp/core/flare/builder => ../../../../../core/flare/builder
 	github.com/DataDog/datadog-agent/comp/core/flare/types => ../../../../../core/flare/types
 	github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface => ../../../../../core/hostname/hostnameinterface
 	github.com/DataDog/datadog-agent/comp/core/log => ../../../../../core/log
@@ -87,7 +88,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/trace v0.54.0-rc.2
 	github.com/DataDog/datadog-agent/pkg/util/hostname/validate v0.54.0-rc.2
 	github.com/DataDog/datadog-go/v5 v5.5.0
-	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.16.1-0.20240521203313-5f63a21aaeb0
+	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.16.1
 	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/metrics v0.16.0
 	github.com/stretchr/testify v1.9.0
 	go.opentelemetry.io/collector/component v0.100.0
@@ -116,7 +117,7 @@ require (
 	github.com/DataDog/datadog-agent/comp/core/secrets v0.54.0-rc.2 // indirect
 	github.com/DataDog/datadog-agent/comp/core/status v0.54.0-rc.2 // indirect
 	github.com/DataDog/datadog-agent/comp/core/telemetry v0.54.0-rc.2 // indirect
-	github.com/DataDog/datadog-agent/comp/def v0.54.0-rc.2 // indirect
+	github.com/DataDog/datadog-agent/comp/def v0.55.0-devel // indirect
 	github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder v0.54.0-rc.2 // indirect
 	github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorinterface v0.54.0-rc.2 // indirect
 	github.com/DataDog/datadog-agent/comp/logs/agent/config v0.54.0-rc.2 // indirect

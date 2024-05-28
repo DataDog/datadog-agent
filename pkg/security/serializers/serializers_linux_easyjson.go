@@ -2317,6 +2317,12 @@ func easyjsonDdc0fdbeDecodeGithubComDataDogDatadogAgentPkgSecuritySerializers19(
 			}
 		case "hash_state":
 			out.HashState = string(in.String())
+		case "mount_path":
+			out.MountPath = string(in.String())
+		case "mount_source":
+			out.MountSource = string(in.String())
+		case "mount_origin":
+			out.MountOrigin = string(in.String())
 		default:
 			in.SkipRecursive()
 		}
@@ -2499,6 +2505,21 @@ func easyjsonDdc0fdbeEncodeGithubComDataDogDatadogAgentPkgSecuritySerializers19(
 		const prefix string = ",\"hash_state\":"
 		out.RawString(prefix)
 		out.String(string(in.HashState))
+	}
+	if in.MountPath != "" {
+		const prefix string = ",\"mount_path\":"
+		out.RawString(prefix)
+		out.String(string(in.MountPath))
+	}
+	if in.MountSource != "" {
+		const prefix string = ",\"mount_source\":"
+		out.RawString(prefix)
+		out.String(string(in.MountSource))
+	}
+	if in.MountOrigin != "" {
+		const prefix string = ",\"mount_origin\":"
+		out.RawString(prefix)
+		out.String(string(in.MountOrigin))
 	}
 	out.RawByte('}')
 }
@@ -2695,6 +2716,12 @@ func easyjsonDdc0fdbeDecodeGithubComDataDogDatadogAgentPkgSecuritySerializers20(
 			}
 		case "hash_state":
 			out.HashState = string(in.String())
+		case "mount_path":
+			out.MountPath = string(in.String())
+		case "mount_source":
+			out.MountSource = string(in.String())
+		case "mount_origin":
+			out.MountOrigin = string(in.String())
 		default:
 			in.SkipRecursive()
 		}
@@ -2917,6 +2944,21 @@ func easyjsonDdc0fdbeEncodeGithubComDataDogDatadogAgentPkgSecuritySerializers20(
 		const prefix string = ",\"hash_state\":"
 		out.RawString(prefix)
 		out.String(string(in.HashState))
+	}
+	if in.MountPath != "" {
+		const prefix string = ",\"mount_path\":"
+		out.RawString(prefix)
+		out.String(string(in.MountPath))
+	}
+	if in.MountSource != "" {
+		const prefix string = ",\"mount_source\":"
+		out.RawString(prefix)
+		out.String(string(in.MountSource))
+	}
+	if in.MountOrigin != "" {
+		const prefix string = ",\"mount_origin\":"
+		out.RawString(prefix)
+		out.String(string(in.MountOrigin))
 	}
 	out.RawByte('}')
 }

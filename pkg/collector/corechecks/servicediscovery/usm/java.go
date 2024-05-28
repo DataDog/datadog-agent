@@ -21,7 +21,9 @@ func newJavaDetector(ctx DetectionContext) detector {
 func (jd javaDetector) detect(args []string) (ServiceMetadata, bool) {
 	// Look for dd.service
 	if index := slices.IndexFunc(args, func(arg string) bool { return strings.HasPrefix(arg, "-Ddd.service=") }); index != -1 {
-		return NewServiceMetadata(strings.TrimPrefix(args[index], "-Ddd.service=")), true
+		metadata := NewServiceMetadata(strings.TrimPrefix(args[index], "-Ddd.service="))
+		metadata.FromDDService = true
+		return metadata, true
 	}
 	prevArgIsFlag := false
 	var additionalNames []string

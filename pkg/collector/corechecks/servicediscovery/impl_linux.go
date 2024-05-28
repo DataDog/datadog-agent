@@ -26,6 +26,12 @@ func init() {
 var ignoreCfgLinux = []string{
 	"sshd",
 	"dhclient",
+	"systemd",
+	"systemd-resolved",
+	"systemd-networkd",
+	"datadog-agent",
+	"livenessprobe",
+	"docker-proxy", // remove when we have docker support in place
 }
 
 type linuxImpl struct {
@@ -258,6 +264,11 @@ func (li *linuxImpl) getServiceInfo(p proc, openPorts map[int]portlist.List) (*s
 	for _, port := range openPorts[p.PID()] {
 		ports = append(ports, int(port.Port))
 	}
+
+	// if the process name is docker-proxy, we should talk to docker to get the process command line and env vars
+	// have to see how far this can go but not for the initial release
+
+	// for now, docker-proxy is going on the ignore list
 
 	pInfo := processInfo{
 		PID:     p.PID(),
