@@ -597,7 +597,7 @@ def create_module(ctx, path: str, no_verify: bool = False):
         if not is_empty:
             # Tidy all
             print(color_message("Running tidy-all task", "bold"))
-            tidy_all(ctx)
+            tidy(ctx)
 
         if not no_verify:
             # Stage updated files since some linting tasks will require it
