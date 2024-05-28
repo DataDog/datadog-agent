@@ -28,7 +28,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/gui"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
-	"github.com/DataDog/datadog-agent/comp/core/status"
 
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
@@ -41,11 +40,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
-var mimeTypeMap = map[string]string{
-	"text": "text/plain",
-	"json": "application/json",
-}
-
 // SetupHandlers adds the specific handlers for /agent endpoints
 func SetupHandlers(
 	r *mux.Router,
@@ -53,7 +47,6 @@ func SetupHandlers(
 	logsAgent optional.Option[logsAgent.Component],
 	senderManager sender.DiagnoseSenderManager,
 	secretResolver secrets.Component,
-	statusComponent status.Component,
 	collector optional.Option[collector.Component],
 	ac autodiscovery.Component,
 	gui optional.Option[gui.Component],
@@ -70,11 +63,7 @@ func SetupHandlers(
 	r.HandleFunc("/version", common.GetVersion).Methods("GET")
 	r.HandleFunc("/hostname", getHostname).Methods("GET")
 	r.HandleFunc("/stop", stopAgent).Methods("POST")
-	r.HandleFunc("/status", func(w http.ResponseWriter, r *http.Request) {
-		getStatus(w, r, statusComponent, "")
-	}).Methods("GET")
 	r.HandleFunc("/status/health", getHealth).Methods("GET")
-	r.HandleFunc("/{component}/status", func(w http.ResponseWriter, r *http.Request) { componentStatusGetterHandler(w, r, statusComponent) }).Methods("GET")
 	r.HandleFunc("/{component}/status", componentStatusHandler).Methods("POST")
 	r.HandleFunc("/{component}/configs", componentConfigHandler).Methods("GET")
 	r.HandleFunc("/gui/csrf-token", func(w http.ResponseWriter, _ *http.Request) { getCSRFToken(w, gui) }).Methods("GET")
@@ -121,17 +110,6 @@ func componentConfigHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func componentStatusGetterHandler(w http.ResponseWriter, r *http.Request, status status.Component) {
-	vars := mux.Vars(r)
-	component := vars["component"]
-	switch component {
-	case "py":
-		getPythonStatus(w, r)
-	default:
-		getStatus(w, r, status, component)
-	}
-}
-
 func componentStatusHandler(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	component := vars["component"]
@@ -141,42 +119,6 @@ func componentStatusHandler(w http.ResponseWriter, r *http.Request) {
 	default:
 		http.Error(w, log.Errorf("bad url or resource does not exist").Error(), 404)
 	}
-}
-
-func getStatus(w http.ResponseWriter, r *http.Request, statusComponent status.Component, section string) {
-	log.Info("Got a request for the status. Making status.")
-	verbose := r.URL.Query().Get("verbose") == "true"
-	format := r.URL.Query().Get("format")
-	var contentType string
-	var s []byte
-
-	contentType, ok := mimeTypeMap[format]
-
-	if !ok {
-		log.Warn("Got a request with invalid format parameter. Defaulting to 'text' format")
-		format = "text"
-		contentType = mimeTypeMap[format]
-	}
-	w.Header().Set("Content-Type", contentType)
-
-	var err error
-	if len(section) > 0 {
-		s, err = statusComponent.GetStatusBySections([]string{section}, format, verbose)
-	} else {
-		s, err = statusComponent.GetStatus(format, verbose)
-	}
-
-	if err != nil {
-		if format == "text" {
-			http.Error(w, log.Errorf("Error getting status. Error: %v.", err).Error(), 500)
-			return
-		}
-
-		utils.SetJSONError(w, log.Errorf("Error getting status. Error: %v, Status: %v", err, s), 500)
-		return
-	}
-
-	w.Write(s)
 }
 
 // TODO: logsAgent is a module so have to make the api component a module too

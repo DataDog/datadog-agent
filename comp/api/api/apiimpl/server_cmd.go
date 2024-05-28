@@ -28,7 +28,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/gui"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
-	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	taggerserver "github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl/server"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
@@ -64,7 +63,6 @@ func startCMDServer(
 	logsAgent optional.Option[logsAgent.Component],
 	senderManager sender.DiagnoseSenderManager,
 	secretResolver secrets.Component,
-	statusComponent status.Component,
 	collector optional.Option[collector.Component],
 	ac autodiscovery.Component,
 	gui optional.Option[gui.Component],
@@ -139,7 +137,6 @@ func startCMDServer(
 				logsAgent,
 				senderManager,
 				secretResolver,
-				statusComponent,
 				collector,
 				ac,
 				gui,

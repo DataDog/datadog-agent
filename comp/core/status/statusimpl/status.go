@@ -23,6 +23,7 @@ import (
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
 
+	"github.com/DataDog/datadog-agent/comp/api/api"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	"github.com/DataDog/datadog-agent/comp/core/status"
@@ -46,6 +47,7 @@ type provides struct {
 
 	Comp          status.Component
 	FlareProvider flaretypes.Provider
+	ApiEndpoints  []api.EndpointProvider `group:"agent_endpoint,flatten"`
 }
 
 type statusImplementation struct {
@@ -126,6 +128,7 @@ func newStatus(deps dependencies) provides {
 	return provides{
 		Comp:          c,
 		FlareProvider: flaretypes.NewProvider(c.fillFlare),
+		ApiEndpoints:  c.apiEndpoints(),
 	}
 }
 

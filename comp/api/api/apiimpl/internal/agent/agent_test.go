@@ -134,7 +134,6 @@ func setupRoutes(t *testing.T) *mux.Router {
 		deps.LogsAgent,
 		sender,
 		deps.SecretResolver,
-		deps.StatusComponent,
 		deps.Collector,
 		deps.Ac,
 		deps.Gui,

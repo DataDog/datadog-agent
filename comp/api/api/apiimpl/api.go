@@ -17,7 +17,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/gui"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
-	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/pidmap"
@@ -44,7 +43,6 @@ type apiServer struct {
 	pidMap            pidmap.Component
 	secretResolver    secrets.Component
 	pkgSigning        packagesigning.Component
-	statusComponent   status.Component
 	rcService         optional.Option[rcservice.Component]
 	rcServiceMRF      optional.Option[rcservicemrf.Component]
 	authToken         authtoken.Component
@@ -65,7 +63,6 @@ type dependencies struct {
 	PidMap            pidmap.Component
 	SecretResolver    secrets.Component
 	PkgSigning        packagesigning.Component
-	StatusComponent   status.Component
 	RcService         optional.Option[rcservice.Component]
 	RcServiceMRF      optional.Option[rcservicemrf.Component]
 	AuthToken         authtoken.Component
@@ -87,7 +84,6 @@ func newAPIServer(deps dependencies) api.Component {
 		pidMap:            deps.PidMap,
 		secretResolver:    deps.SecretResolver,
 		pkgSigning:        deps.PkgSigning,
-		statusComponent:   deps.StatusComponent,
 		rcService:         deps.RcService,
 		rcServiceMRF:      deps.RcServiceMRF,
 		authToken:         deps.AuthToken,
@@ -115,7 +111,6 @@ func (server *apiServer) StartServer(
 		server.logsAgentComp,
 		senderManager,
 		server.secretResolver,
-		server.statusComponent,
 		server.collector,
 		server.autoConfig,
 		server.gui,

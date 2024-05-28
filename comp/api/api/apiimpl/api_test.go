@@ -132,7 +132,6 @@ func getTestAPIServer(deps testdeps) api.Component {
 		Capture:           deps.Capture,
 		SecretResolver:    deps.SecretResolver,
 		PkgSigning:        deps.PkgSigning,
-		StatusComponent:   deps.StatusComponent,
 		RcService:         deps.RcService,
 		RcServiceMRF:      deps.RcServiceMRF,
 		AuthToken:         deps.AuthToken,

@@ -39,27 +39,27 @@ type EndpointProvider interface {
 	Route() string
 }
 
-// endpointProvider is the implementation of EndpointProvider interface
-type endpointProvider struct {
-	methods []string
-	route   string
-	handler http.HandlerFunc
+// EndpointProviderImpl is the implementation of EndpointProvider interface
+type EndpointProviderImpl struct {
+	MethodsValue []string
+	RouteValue   string
+	HandlerValue http.HandlerFunc
 }
 
 // Methods returns the methods for the endpoint.
 // e.g.: "GET", "POST", "PUT".
-func (p endpointProvider) Methods() []string {
-	return p.methods
+func (p EndpointProviderImpl) Methods() []string {
+	return p.MethodsValue
 }
 
 // Route returns the route for the endpoint.
-func (p endpointProvider) Route() string {
-	return p.route
+func (p EndpointProviderImpl) Route() string {
+	return p.RouteValue
 }
 
 // HandlerFunc returns the handler function for the endpoint.
-func (p endpointProvider) HandlerFunc() http.HandlerFunc {
-	return p.handler
+func (p EndpointProviderImpl) HandlerFunc() http.HandlerFunc {
+	return p.HandlerValue
 }
 
 // AgentEndpointProvider is the provider for registering endpoints to the internal agent api server
@@ -72,10 +72,10 @@ type AgentEndpointProvider struct {
 // NewAgentEndpointProvider returns a AgentEndpointProvider to register the endpoint provided to the internal agent api server
 func NewAgentEndpointProvider(handlerFunc http.HandlerFunc, route string, methods ...string) AgentEndpointProvider {
 	return AgentEndpointProvider{
-		Provider: endpointProvider{
-			handler: handlerFunc,
-			route:   route,
-			methods: methods,
+		Provider: EndpointProviderImpl{
+			HandlerValue: handlerFunc,
+			RouteValue:   route,
+			MethodsValue: methods,
 		},
 	}
 }
