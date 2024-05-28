@@ -14,6 +14,7 @@ import (
 
 	"github.com/cenkalti/backoff"
 
+	wmdef "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
@@ -32,9 +33,9 @@ const (
 
 type subscriber struct {
 	name     string
-	priority SubscriberPriority
-	ch       chan EventBundle
-	filter   *Filter
+	priority wmdef.SubscriberPriority
+	ch       chan wmdef.EventBundle
+	filter   *wmdef.Filter
 }
 
 // start starts the workload metadata store.
@@ -103,18 +104,18 @@ func (w *workloadmeta) start(ctx context.Context) {
 // as they happen. On first subscription, it will also generate an EventTypeSet
 // event for each entity present in the store that matches filter, unless the
 // filter type is EventTypeUnset.
-func (w *workloadmeta) Subscribe(name string, priority SubscriberPriority, filter *Filter) chan EventBundle {
+func (w *workloadmeta) Subscribe(name string, priority wmdef.SubscriberPriority, filter *wmdef.Filter) chan wmdef.EventBundle {
 	// ch needs to be buffered since we'll send it events before the
 	// subscriber has the chance to start receiving from it. if it's
 	// unbuffered, it'll deadlock.
 	sub := subscriber{
 		name:     name,
 		priority: priority,
-		ch:       make(chan EventBundle, 1),
+		ch:       make(chan wmdef.EventBundle, 1),
 		filter:   filter,
 	}
 
-	var events []Event
+	var events []wmdef.Event
 
 	// lock the store and only unlock once the subscriber has been added,
 	// otherwise the subscriber can lose events. adding the subscriber
@@ -123,7 +124,7 @@ func (w *workloadmeta) Subscribe(name string, priority SubscriberPriority, filte
 	w.storeMut.RLock()
 	defer w.storeMut.RUnlock()
 
-	if filter == nil || (filter != nil && filter.EventType() != EventTypeUnset) {
+	if filter == nil || (filter != nil && filter.EventType() != wmdef.EventTypeUnset) {
 		for kind, entitiesOfKind := range w.store {
 			if !sub.filter.MatchKind(kind) {
 				continue
@@ -132,8 +133,8 @@ func (w *workloadmeta) Subscribe(name string, priority SubscriberPriority, filte
 			for _, cachedEntity := range entitiesOfKind {
 				entity := cachedEntity.get(sub.filter.Source())
 				if entity != nil {
-					events = append(events, Event{
-						Type:   EventTypeSet,
+					events = append(events, wmdef.Event{
+						Type:   wmdef.EventTypeSet,
 						Entity: entity,
 					})
 				}
@@ -171,7 +172,7 @@ func (w *workloadmeta) Subscribe(name string, priority SubscriberPriority, filte
 }
 
 // Unsubscribe ends a subscription to entity events and closes its channel.
-func (w *workloadmeta) Unsubscribe(ch chan EventBundle) {
+func (w *workloadmeta) Unsubscribe(ch chan wmdef.EventBundle) {
 	w.subscribersMut.Lock()
 	defer w.subscribersMut.Unlock()
 
@@ -186,28 +187,28 @@ func (w *workloadmeta) Unsubscribe(ch chan EventBundle) {
 }
 
 // GetContainer implements Store#GetContainer.
-func (w *workloadmeta) GetContainer(id string) (*Container, error) {
-	entity, err := w.getEntityByKind(KindContainer, id)
+func (w *workloadmeta) GetContainer(id string) (*wmdef.Container, error) {
+	entity, err := w.getEntityByKind(wmdef.KindContainer, id)
 	if err != nil {
 		return nil, err
 	}
 
-	return entity.(*Container), nil
+	return entity.(*wmdef.Container), nil
 }
 
 // ListContainers implements Store#ListContainers.
-func (w *workloadmeta) ListContainers() []*Container {
+func (w *workloadmeta) ListContainers() []*wmdef.Container {
 	return w.ListContainersWithFilter(nil)
 }
 
 // ListContainersWithFilter implements Store#ListContainersWithFilter
-func (w *workloadmeta) ListContainersWithFilter(filter ContainerFilterFunc) []*Container {
-	entities := w.listEntitiesByKind(KindContainer)
+func (w *workloadmeta) ListContainersWithFilter(filter wmdef.ContainerFilterFunc) []*wmdef.Container {
+	entities := w.listEntitiesByKind(wmdef.KindContainer)
 
 	// Not very efficient
-	containers := make([]*Container, 0, len(entities))
+	containers := make([]*wmdef.Container, 0, len(entities))
 	for _, entity := range entities {
-		container := entity.(*Container)
+		container := entity.(*wmdef.Container)
 
 		if filter == nil || filter(container) {
 			containers = append(containers, container)
@@ -218,25 +219,25 @@ func (w *workloadmeta) ListContainersWithFilter(filter ContainerFilterFunc) []*C
 }
 
 // GetKubernetesPod implements Store#GetKubernetesPod
-func (w *workloadmeta) GetKubernetesPod(id string) (*KubernetesPod, error) {
-	entity, err := w.getEntityByKind(KindKubernetesPod, id)
+func (w *workloadmeta) GetKubernetesPod(id string) (*wmdef.KubernetesPod, error) {
+	entity, err := w.getEntityByKind(wmdef.KindKubernetesPod, id)
 	if err != nil {
 		return nil, err
 	}
 
-	return entity.(*KubernetesPod), nil
+	return entity.(*wmdef.KubernetesPod), nil
 }
 
 // GetKubernetesPodByName implements Store#GetKubernetesPodByName
-func (w *workloadmeta) GetKubernetesPodByName(podName, podNamespace string) (*KubernetesPod, error) {
-	entities := w.listEntitiesByKind(KindKubernetesPod)
+func (w *workloadmeta) GetKubernetesPodByName(podName, podNamespace string) (*wmdef.KubernetesPod, error) {
+	entities := w.listEntitiesByKind(wmdef.KindKubernetesPod)
 
 	// TODO race condition with statefulsets
 	// If a statefulset pod is recreated, the pod name and namespace would be identical, but the pod UID would be
 	// different. There is the possibility that the new pod is added to the workloadmeta store before the old one is
 	// removed, so there is a chance that the wrong pod is returned.
 	for k := range entities {
-		entity := entities[k].(*KubernetesPod)
+		entity := entities[k].(*wmdef.KubernetesPod)
 		if entity.Name == podName && entity.Namespace == podNamespace {
 			return entity, nil
 		}
@@ -246,36 +247,36 @@ func (w *workloadmeta) GetKubernetesPodByName(podName, podNamespace string) (*Ku
 }
 
 // GetProcess implements Store#GetProcess.
-func (w *workloadmeta) GetProcess(pid int32) (*Process, error) {
+func (w *workloadmeta) GetProcess(pid int32) (*wmdef.Process, error) {
 	id := strconv.Itoa(int(pid))
 
-	entity, err := w.getEntityByKind(KindProcess, id)
+	entity, err := w.getEntityByKind(wmdef.KindProcess, id)
 	if err != nil {
 		return nil, err
 	}
 
-	return entity.(*Process), nil
+	return entity.(*wmdef.Process), nil
 }
 
 // ListProcesses implements Store#ListProcesses.
-func (w *workloadmeta) ListProcesses() []*Process {
-	entities := w.listEntitiesByKind(KindProcess)
+func (w *workloadmeta) ListProcesses() []*wmdef.Process {
+	entities := w.listEntitiesByKind(wmdef.KindProcess)
 
-	processes := make([]*Process, 0, len(entities))
+	processes := make([]*wmdef.Process, 0, len(entities))
 	for i := range entities {
-		processes = append(processes, entities[i].(*Process))
+		processes = append(processes, entities[i].(*wmdef.Process))
 	}
 
 	return processes
 }
 
 // ListProcessesWithFilter implements Store#ListProcessesWithFilter
-func (w *workloadmeta) ListProcessesWithFilter(filter ProcessFilterFunc) []*Process {
-	entities := w.listEntitiesByKind(KindProcess)
+func (w *workloadmeta) ListProcessesWithFilter(filter wmdef.ProcessFilterFunc) []*wmdef.Process {
+	entities := w.listEntitiesByKind(wmdef.KindProcess)
 
-	processes := make([]*Process, 0, len(entities))
+	processes := make([]*wmdef.Process, 0, len(entities))
 	for i := range entities {
-		process := entities[i].(*Process)
+		process := entities[i].(*wmdef.Process)
 
 		if filter == nil || filter(process) {
 			processes = append(processes, process)
@@ -286,11 +287,11 @@ func (w *workloadmeta) ListProcessesWithFilter(filter ProcessFilterFunc) []*Proc
 }
 
 // GetKubernetesPodForContainer implements Store#GetKubernetesPodForContainer
-func (w *workloadmeta) GetKubernetesPodForContainer(containerID string) (*KubernetesPod, error) {
+func (w *workloadmeta) GetKubernetesPodForContainer(containerID string) (*wmdef.KubernetesPod, error) {
 	w.storeMut.RLock()
 	defer w.storeMut.RUnlock()
 
-	containerEntities, ok := w.store[KindContainer]
+	containerEntities, ok := w.store[wmdef.KindContainer]
 	if !ok {
 		return nil, errors.NewNotFound(containerID)
 	}
@@ -300,12 +301,12 @@ func (w *workloadmeta) GetKubernetesPodForContainer(containerID string) (*Kubern
 		return nil, errors.NewNotFound(containerID)
 	}
 
-	container := containerEntity.cached.(*Container)
-	if container.Owner == nil || container.Owner.Kind != KindKubernetesPod {
+	container := containerEntity.cached.(*wmdef.Container)
+	if container.Owner == nil || container.Owner.Kind != wmdef.KindKubernetesPod {
 		return nil, errors.NewNotFound(containerID)
 	}
 
-	podEntities, ok := w.store[KindKubernetesPod]
+	podEntities, ok := w.store[wmdef.KindKubernetesPod]
 	if !ok {
 		return nil, errors.NewNotFound(container.Owner.ID)
 	}
@@ -315,58 +316,58 @@ func (w *workloadmeta) GetKubernetesPodForContainer(containerID string) (*Kubern
 		return nil, errors.NewNotFound(container.Owner.ID)
 	}
 
-	return pod.cached.(*KubernetesPod), nil
+	return pod.cached.(*wmdef.KubernetesPod), nil
 }
 
 // ListKubernetesNodes implements Store#ListKubernetesNodes
-func (w *workloadmeta) ListKubernetesNodes() []*KubernetesNode {
-	entities := w.listEntitiesByKind(KindKubernetesNode)
+func (w *workloadmeta) ListKubernetesNodes() []*wmdef.KubernetesNode {
+	entities := w.listEntitiesByKind(wmdef.KindKubernetesNode)
 
-	nodes := make([]*KubernetesNode, 0, len(entities))
+	nodes := make([]*wmdef.KubernetesNode, 0, len(entities))
 	for i := range entities {
-		nodes = append(nodes, entities[i].(*KubernetesNode))
+		nodes = append(nodes, entities[i].(*wmdef.KubernetesNode))
 	}
 
 	return nodes
 }
 
 // GetKubernetesNode implements Store#GetKubernetesNode
-func (w *workloadmeta) GetKubernetesNode(id string) (*KubernetesNode, error) {
-	entity, err := w.getEntityByKind(KindKubernetesNode, id)
+func (w *workloadmeta) GetKubernetesNode(id string) (*wmdef.KubernetesNode, error) {
+	entity, err := w.getEntityByKind(wmdef.KindKubernetesNode, id)
 	if err != nil {
 		return nil, err
 	}
 
-	return entity.(*KubernetesNode), nil
+	return entity.(*wmdef.KubernetesNode), nil
 }
 
 // GetKubernetesDeployment implements Store#GetKubernetesDeployment
-func (w *workloadmeta) GetKubernetesDeployment(id string) (*KubernetesDeployment, error) {
-	entity, err := w.getEntityByKind(KindKubernetesDeployment, id)
+func (w *workloadmeta) GetKubernetesDeployment(id string) (*wmdef.KubernetesDeployment, error) {
+	entity, err := w.getEntityByKind(wmdef.KindKubernetesDeployment, id)
 	if err != nil {
 		return nil, err
 	}
 
-	return entity.(*KubernetesDeployment), nil
+	return entity.(*wmdef.KubernetesDeployment), nil
 }
 
 // GetKubernetesNamespace implements Store#GetKubernetesNamespace
-func (w *workloadmeta) GetKubernetesNamespace(id string) (*KubernetesNamespace, error) {
-	entity, err := w.getEntityByKind(KindKubernetesNamespace, id)
+func (w *workloadmeta) GetKubernetesNamespace(id string) (*wmdef.KubernetesNamespace, error) {
+	entity, err := w.getEntityByKind(wmdef.KindKubernetesNamespace, id)
 	if err != nil {
 		return nil, err
 	}
 
-	return entity.(*KubernetesNamespace), nil
+	return entity.(*wmdef.KubernetesNamespace), nil
 }
 
 // ListECSTasks implements Store#ListECSTasks
-func (w *workloadmeta) ListECSTasks() []*ECSTask {
-	entities := w.listEntitiesByKind(KindECSTask)
+func (w *workloadmeta) ListECSTasks() []*wmdef.ECSTask {
+	entities := w.listEntitiesByKind(wmdef.KindECSTask)
 
-	tasks := make([]*ECSTask, 0, len(entities))
+	tasks := make([]*wmdef.ECSTask, 0, len(entities))
 	for _, entity := range entities {
-		task := entity.(*ECSTask)
+		task := entity.(*wmdef.ECSTask)
 		tasks = append(tasks, task)
 	}
 
@@ -374,22 +375,22 @@ func (w *workloadmeta) ListECSTasks() []*ECSTask {
 }
 
 // GetECSTask implements Store#GetECSTask
-func (w *workloadmeta) GetECSTask(id string) (*ECSTask, error) {
-	entity, err := w.getEntityByKind(KindECSTask, id)
+func (w *workloadmeta) GetECSTask(id string) (*wmdef.ECSTask, error) {
+	entity, err := w.getEntityByKind(wmdef.KindECSTask, id)
 	if err != nil {
 		return nil, err
 	}
 
-	return entity.(*ECSTask), nil
+	return entity.(*wmdef.ECSTask), nil
 }
 
 // ListImages implements Store#ListImages
-func (w *workloadmeta) ListImages() []*ContainerImageMetadata {
-	entities := w.listEntitiesByKind(KindContainerImageMetadata)
+func (w *workloadmeta) ListImages() []*wmdef.ContainerImageMetadata {
+	entities := w.listEntitiesByKind(wmdef.KindContainerImageMetadata)
 
-	images := make([]*ContainerImageMetadata, 0, len(entities))
+	images := make([]*wmdef.ContainerImageMetadata, 0, len(entities))
 	for _, entity := range entities {
-		image := entity.(*ContainerImageMetadata)
+		image := entity.(*wmdef.ContainerImageMetadata)
 		images = append(images, image)
 	}
 
@@ -397,36 +398,36 @@ func (w *workloadmeta) ListImages() []*ContainerImageMetadata {
 }
 
 // GetImage implements Store#GetImage
-func (w *workloadmeta) GetImage(id string) (*ContainerImageMetadata, error) {
-	entity, err := w.getEntityByKind(KindContainerImageMetadata, id)
+func (w *workloadmeta) GetImage(id string) (*wmdef.ContainerImageMetadata, error) {
+	entity, err := w.getEntityByKind(wmdef.KindContainerImageMetadata, id)
 	if err != nil {
 		return nil, err
 	}
 
-	return entity.(*ContainerImageMetadata), nil
+	return entity.(*wmdef.ContainerImageMetadata), nil
 }
 
 // Notify implements Store#Notify
-func (w *workloadmeta) Notify(events []CollectorEvent) {
+func (w *workloadmeta) Notify(events []wmdef.CollectorEvent) {
 	if len(events) > 0 {
 		w.eventCh <- events
 	}
 }
 
 // ResetProcesses implements Store#ResetProcesses
-func (w *workloadmeta) ResetProcesses(newProcesses []Entity, source Source) {
+func (w *workloadmeta) ResetProcesses(newProcesses []wmdef.Entity, source wmdef.Source) {
 	w.storeMut.RLock()
 	defer w.storeMut.RUnlock()
 
-	var events []CollectorEvent
-	newProcessEntities := classifyByKindAndID(newProcesses)[KindProcess]
+	var events []wmdef.CollectorEvent
+	newProcessEntities := classifyByKindAndID(newProcesses)[wmdef.KindProcess]
 
-	processStore := w.store[KindProcess]
+	processStore := w.store[wmdef.KindProcess]
 	// Remove outdated stored processes
 	for ID, storedProcess := range processStore {
 		if newP, found := newProcessEntities[ID]; !found || storedProcess.cached != newP {
-			events = append(events, CollectorEvent{
-				Type:   EventTypeUnset,
+			events = append(events, wmdef.CollectorEvent{
+				Type:   wmdef.EventTypeUnset,
 				Source: source,
 				Entity: storedProcess.cached,
 			})
@@ -435,8 +436,8 @@ func (w *workloadmeta) ResetProcesses(newProcesses []Entity, source Source) {
 
 	// Add new processes
 	for _, newP := range newProcesses {
-		events = append(events, CollectorEvent{
-			Type:   EventTypeSet,
+		events = append(events, wmdef.CollectorEvent{
+			Type:   wmdef.EventTypeSet,
 			Source: source,
 			Entity: newP,
 		})
@@ -446,18 +447,18 @@ func (w *workloadmeta) ResetProcesses(newProcesses []Entity, source Source) {
 }
 
 // Reset implements Store#Reset
-func (w *workloadmeta) Reset(newEntities []Entity, source Source) {
+func (w *workloadmeta) Reset(newEntities []wmdef.Entity, source wmdef.Source) {
 	w.storeMut.RLock()
 	defer w.storeMut.RUnlock()
 
-	var events []CollectorEvent
+	var events []wmdef.CollectorEvent
 
 	// Create a "set" event for each entity that need to be in the store.
 	// The store will takes care of not sending events for entities that already
 	// exist and haven't changed.
 	for _, newEntity := range newEntities {
-		events = append(events, CollectorEvent{
-			Type:   EventTypeSet,
+		events = append(events, wmdef.CollectorEvent{
+			Type:   wmdef.EventTypeSet,
 			Source: source,
 			Entity: newEntity,
 		})
@@ -468,13 +469,13 @@ func (w *workloadmeta) Reset(newEntities []Entity, source Source) {
 	for kind, storedEntitiesOfKind := range w.store {
 		initialEntitiesOfKind, found := newEntitiesByKindAndID[kind]
 		if !found {
-			initialEntitiesOfKind = make(map[string]Entity)
+			initialEntitiesOfKind = make(map[string]wmdef.Entity)
 		}
 
 		for ID, storedEntity := range storedEntitiesOfKind {
 			if _, found = initialEntitiesOfKind[ID]; !found {
-				events = append(events, CollectorEvent{
-					Type:   EventTypeUnset,
+				events = append(events, wmdef.CollectorEvent{
+					Type:   wmdef.EventTypeUnset,
 					Source: source,
 					Entity: storedEntity.cached,
 				})
@@ -485,9 +486,9 @@ func (w *workloadmeta) Reset(newEntities []Entity, source Source) {
 	w.Notify(events)
 }
 
-func (w *workloadmeta) validatePushEvents(events []Event) error {
+func (w *workloadmeta) validatePushEvents(events []wmdef.Event) error {
 	for _, event := range events {
-		if event.Type != EventTypeSet && event.Type != EventTypeUnset {
+		if event.Type != wmdef.EventTypeSet && event.Type != wmdef.EventTypeUnset {
 			return fmt.Errorf("unsupported Event type: only EventTypeSet and EventTypeUnset types are allowed for push events")
 		}
 	}
@@ -495,15 +496,15 @@ func (w *workloadmeta) validatePushEvents(events []Event) error {
 }
 
 // Push implements Store#Push
-func (w *workloadmeta) Push(source Source, events ...Event) error {
+func (w *workloadmeta) Push(source wmdef.Source, events ...wmdef.Event) error {
 	err := w.validatePushEvents(events)
 	if err != nil {
 		return err
 	}
 
-	collectorEvents := make([]CollectorEvent, len(events))
+	collectorEvents := make([]wmdef.CollectorEvent, len(events))
 	for index, event := range events {
-		collectorEvents[index] = CollectorEvent{
+		collectorEvents[index] = wmdef.CollectorEvent{
 			Type:   event.Type,
 			Source: source,
 			Entity: event.Entity,
@@ -595,7 +596,7 @@ func (w *workloadmeta) pull(ctx context.Context) {
 
 		// Run each pull in its own separate goroutine to reduce
 		// latency and unlock the main goroutine to do other work.
-		go func(id string, c Collector) {
+		go func(id string, c wmdef.Collector) {
 			pullCtx, pullCancel := context.WithTimeout(ctx, maxCollectorPullTime)
 			defer pullCancel()
 
@@ -614,14 +615,14 @@ func (w *workloadmeta) pull(ctx context.Context) {
 	}
 }
 
-func (w *workloadmeta) handleEvents(evs []CollectorEvent) {
+func (w *workloadmeta) handleEvents(evs []wmdef.CollectorEvent) {
 	w.storeMut.Lock()
 	w.subscribersMut.Lock()
 	defer w.subscribersMut.Unlock()
 
-	filteredEvents := make(map[subscriber][]Event, len(w.subscribers))
+	filteredEvents := make(map[subscriber][]wmdef.Event, len(w.subscribers))
 	for _, sub := range w.subscribers {
-		filteredEvents[sub] = make([]Event, 0, len(evs))
+		filteredEvents[sub] = make([]wmdef.Event, 0, len(evs))
 	}
 
 	for _, ev := range evs {
@@ -638,7 +639,7 @@ func (w *workloadmeta) handleEvents(evs []CollectorEvent) {
 		cachedEntity, ok := entitiesOfKind[entityID.ID]
 
 		switch ev.Type {
-		case EventTypeSet:
+		case wmdef.EventTypeSet:
 			if !ok {
 				entitiesOfKind[entityID.ID] = newCachedEntity()
 				cachedEntity = entitiesOfKind[entityID.ID]
@@ -656,7 +657,7 @@ func (w *workloadmeta) handleEvents(evs []CollectorEvent) {
 			if !changed {
 				continue
 			}
-		case EventTypeUnset:
+		case wmdef.EventTypeUnset:
 			// if the entity we're trying to remove was not
 			// present in the store, skip generating any
 			// events for downstream subscribers. this
@@ -701,9 +702,9 @@ func (w *workloadmeta) handleEvents(evs []CollectorEvent) {
 			}
 
 			var isEventTypeSet bool
-			if ev.Type == EventTypeSet {
+			if ev.Type == wmdef.EventTypeSet {
 				isEventTypeSet = true
-			} else if filter.Source() == SourceAll {
+			} else if filter.Source() == wmdef.SourceAll {
 				isEventTypeSet = len(cachedEntity.sources) > 1
 			} else {
 				isEventTypeSet = false
@@ -711,8 +712,8 @@ func (w *workloadmeta) handleEvents(evs []CollectorEvent) {
 
 			entity := cachedEntity.get(filter.Source())
 			if isEventTypeSet {
-				filteredEvents[sub] = append(filteredEvents[sub], Event{
-					Type:   EventTypeSet,
+				filteredEvents[sub] = append(filteredEvents[sub], wmdef.Event{
+					Type:   wmdef.EventTypeSet,
 					Entity: entity,
 				})
 			} else {
@@ -723,8 +724,8 @@ func (w *workloadmeta) handleEvents(evs []CollectorEvent) {
 					continue
 				}
 
-				filteredEvents[sub] = append(filteredEvents[sub], Event{
-					Type:   EventTypeUnset,
+				filteredEvents[sub] = append(filteredEvents[sub], wmdef.Event{
+					Type:   wmdef.EventTypeUnset,
 					Entity: entity,
 				})
 			}
@@ -745,7 +746,7 @@ func (w *workloadmeta) handleEvents(evs []CollectorEvent) {
 	}
 }
 
-func (w *workloadmeta) getEntityByKind(kind Kind, id string) (Entity, error) {
+func (w *workloadmeta) getEntityByKind(kind wmdef.Kind, id string) (wmdef.Entity, error) {
 	w.storeMut.RLock()
 	defer w.storeMut.RUnlock()
 
@@ -762,7 +763,7 @@ func (w *workloadmeta) getEntityByKind(kind Kind, id string) (Entity, error) {
 	return entity.cached, nil
 }
 
-func (w *workloadmeta) listEntitiesByKind(kind Kind) []Entity {
+func (w *workloadmeta) listEntitiesByKind(kind wmdef.Kind) []wmdef.Entity {
 	w.storeMut.RLock()
 	defer w.storeMut.RUnlock()
 
@@ -771,7 +772,7 @@ func (w *workloadmeta) listEntitiesByKind(kind Kind) []Entity {
 		return nil
 	}
 
-	entities := make([]Entity, 0, len(entitiesOfKind))
+	entities := make([]wmdef.Entity, 0, len(entitiesOfKind))
 	for _, entity := range entitiesOfKind {
 		entities = append(entities, entity.cached)
 	}
@@ -793,8 +794,8 @@ func (w *workloadmeta) unsubscribeAll() {
 }
 
 // call holding lock on w.subscribersMut
-func (w *workloadmeta) notifyChannel(name string, ch chan EventBundle, events []Event, wait bool) {
-	bundle := EventBundle{
+func (w *workloadmeta) notifyChannel(name string, ch chan wmdef.EventBundle, events []wmdef.Event, wait bool) {
+	bundle := wmdef.EventBundle{
 		Ch:     make(chan struct{}),
 		Events: events,
 	}
@@ -811,8 +812,8 @@ func (w *workloadmeta) notifyChannel(name string, ch chan EventBundle, events []
 	}
 }
 
-func classifyByKindAndID(entities []Entity) map[Kind]map[string]Entity {
-	res := make(map[Kind]map[string]Entity)
+func classifyByKindAndID(entities []wmdef.Entity) map[wmdef.Kind]map[string]wmdef.Entity {
+	res := make(map[wmdef.Kind]map[string]wmdef.Entity)
 
 	for _, entity := range entities {
 		kind := entity.GetID().Kind
@@ -820,7 +821,7 @@ func classifyByKindAndID(entities []Entity) map[Kind]map[string]Entity {
 
 		_, found := res[kind]
 		if !found {
-			res[kind] = make(map[string]Entity)
+			res[kind] = make(map[string]wmdef.Entity)
 		}
 		res[kind][entityID] = entity
 	}

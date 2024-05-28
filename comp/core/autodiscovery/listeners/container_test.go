@@ -14,7 +14,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	workloadmetaimpl "github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 )
 
 func TestCreateContainerService(t *testing.T) {
@@ -279,10 +280,10 @@ func TestCreateContainerService(t *testing.T) {
 			listener, wlm := newContainerListener(t)
 
 			if tt.container != nil {
-				listener.Store().(workloadmeta.Mock).Set(tt.container)
+				listener.Store().(workloadmetaimpl.Mock).Set(tt.container)
 			}
 			if tt.pod != nil {
-				listener.Store().(workloadmeta.Mock).Set(tt.pod)
+				listener.Store().(workloadmetaimpl.Mock).Set(tt.pod)
 			}
 
 			listener.createContainerService(tt.container)

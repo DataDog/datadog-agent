@@ -14,7 +14,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	workloadmetaimpl "github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 
@@ -88,12 +89,12 @@ func TestHandleUnsetEvent(t *testing.T) {
 }
 
 func TestPodWatcherStartStop(t *testing.T) {
-	wlm := fxutil.Test[workloadmeta.Mock](t, fx.Options(
+	wlm := fxutil.Test[workloadmetaimpl.Mock](t, fx.Options(
 		logimpl.MockModule(),
 		config.MockModule(),
 		fx.Supply(context.Background()),
 		fx.Supply(workloadmeta.NewParams()),
-		workloadmeta.MockModuleV2(),
+		workloadmetaimpl.MockModuleV2(),
 	))
 	pw := newPodWatcher(wlm)
 	ctx, cancel := context.WithCancel(context.Background())

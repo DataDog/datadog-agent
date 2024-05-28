@@ -16,7 +16,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	workloadmetaimpl "github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -85,14 +86,14 @@ func newTestWorkloadmetaListener(t *testing.T) *testWorkloadmetaListener {
 		t.Fatalf("cannot initialize container filters: %s", err)
 	}
 
-	w := fxutil.Test[workloadmeta.Mock](t, fx.Options(
+	w := fxutil.Test[workloadmetaimpl.Mock](t, fx.Options(
 		fx.Supply(config.Params{}),
 		fx.Supply(logimpl.Params{}),
 		logimpl.MockModule(),
 		config.MockModule(),
 		fx.Supply(context.Background()),
 		fx.Supply(workloadmeta.NewParams()),
-		workloadmeta.MockModule(),
+		workloadmetaimpl.MockModule(),
 	))
 
 	return &testWorkloadmetaListener{

@@ -7,63 +7,35 @@ package workloadmeta
 
 import (
 	"fmt"
-	"io"
 
-	"github.com/fatih/color"
-
+	wmdef "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// WorkloadDumpResponse is used to dump the store content.
-type WorkloadDumpResponse struct {
-	Entities map[string]WorkloadEntity `json:"entities"`
-}
-
-// WorkloadEntity contains entity data.
-type WorkloadEntity struct {
-	Infos map[string]string `json:"infos"`
-}
-
-// Write writes the stores content in a given writer.
-// Useful for agent's CLI and Flare.
-func (wdr WorkloadDumpResponse) Write(writer io.Writer) {
-	if writer != color.Output {
-		color.NoColor = true
-	}
-
-	for kind, entities := range wdr.Entities {
-		for entity, info := range entities.Infos {
-			fmt.Fprintf(writer, "\n=== Entity %s %s ===\n", color.GreenString(kind), color.GreenString(entity))
-			fmt.Fprint(writer, info)
-			fmt.Fprintln(writer, "===")
-		}
-	}
-}
-
 // Dump implements Store#Dump
-func (w *workloadmeta) Dump(verbose bool) WorkloadDumpResponse {
-	workloadList := WorkloadDumpResponse{
-		Entities: make(map[string]WorkloadEntity),
+func (w *workloadmeta) Dump(verbose bool) wmdef.WorkloadDumpResponse {
+	workloadList := wmdef.WorkloadDumpResponse{
+		Entities: make(map[string]wmdef.WorkloadEntity),
 	}
 
-	entityToString := func(entity Entity) (string, error) {
+	entityToString := func(entity wmdef.Entity) (string, error) {
 		var info string
 		switch e := entity.(type) {
-		case *Container:
+		case *wmdef.Container:
 			info = e.String(verbose)
-		case *KubernetesPod:
+		case *wmdef.KubernetesPod:
 			info = e.String(verbose)
-		case *KubernetesNode:
+		case *wmdef.KubernetesNode:
 			info = e.String(verbose)
-		case *ECSTask:
+		case *wmdef.ECSTask:
 			info = e.String(verbose)
-		case *ContainerImageMetadata:
+		case *wmdef.ContainerImageMetadata:
 			info = e.String(verbose)
-		case *Process:
+		case *wmdef.Process:
 			info = e.String(verbose)
-		case *KubernetesDeployment:
+		case *wmdef.KubernetesDeployment:
 			info = e.String(verbose)
-		case *KubernetesNamespace:
+		case *wmdef.KubernetesNamespace:
 			info = e.String(verbose)
 		default:
 			return "", fmt.Errorf("unsupported type %T", e)
@@ -76,7 +48,7 @@ func (w *workloadmeta) Dump(verbose bool) WorkloadDumpResponse {
 	defer w.storeMut.RUnlock()
 
 	for kind, store := range w.store {
-		entities := WorkloadEntity{Infos: make(map[string]string)}
+		entities := wmdef.WorkloadEntity{Infos: make(map[string]string)}
 		for id, cachedEntity := range store {
 			if verbose && len(cachedEntity.sources) > 1 {
 				for source, entity := range cachedEntity.sources {

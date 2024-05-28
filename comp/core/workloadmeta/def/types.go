@@ -6,11 +6,13 @@
 package workloadmeta
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"strings"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	langUtil "github.com/DataDog/datadog-agent/pkg/languagedetection/util"
 
 	"github.com/CycloneDX/cyclonedx-go"
@@ -1336,3 +1338,7 @@ func (e EventBundle) Acknowledge() {
 		close(e.Ch)
 	}
 }
+
+// InitHelper this should be provided as a helper to allow passing the component into
+// the inithook for additional start-time configutation.
+type InitHelper func(context.Context, Component, config.Component) error

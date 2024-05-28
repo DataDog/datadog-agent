@@ -14,7 +14,8 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	workloadmetaimpl "github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics/provider"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet/mock"
@@ -25,11 +26,11 @@ import (
 )
 
 func TestKubeletCollectorLinux(t *testing.T) {
-	metadataStore := fxutil.Test[workloadmeta.Mock](t, fx.Options(
+	metadataStore := fxutil.Test[workloadmetaimpl.Mock](t, fx.Options(
 		core.MockBundle(),
 		fx.Supply(context.Background()),
 		fx.Supply(workloadmeta.NewParams()),
-		workloadmeta.MockModule(),
+		workloadmetaimpl.MockModule(),
 	))
 
 	kubeletMock := mock.NewKubeletMock()
@@ -159,11 +160,11 @@ func TestKubeletCollectorLinux(t *testing.T) {
 }
 
 func TestKubeletCollectorWindows(t *testing.T) {
-	metadataStore := fxutil.Test[workloadmeta.Mock](t, fx.Options(
+	metadataStore := fxutil.Test[workloadmetaimpl.Mock](t, fx.Options(
 		core.MockBundle(),
 		fx.Supply(context.Background()),
 		fx.Supply(workloadmeta.NewParams()),
-		workloadmeta.MockModule(),
+		workloadmetaimpl.MockModule(),
 	))
 	kubeletMock := mock.NewKubeletMock()
 
@@ -273,11 +274,11 @@ func TestContainerIDForPodUIDAndContName(t *testing.T) {
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			metadataStore := fxutil.Test[workloadmeta.Mock](t, fx.Options(
+			metadataStore := fxutil.Test[workloadmetaimpl.Mock](t, fx.Options(
 				core.MockBundle(),
 				fx.Supply(context.Background()),
 				fx.Supply(workloadmeta.NewParams()),
-				workloadmeta.MockModule(),
+				workloadmetaimpl.MockModule(),
 			))
 
 			kubeletMock := mock.NewKubeletMock()

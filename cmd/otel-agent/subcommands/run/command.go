@@ -10,6 +10,9 @@ package run
 import (
 	"context"
 
+	"github.com/spf13/cobra"
+	"go.opentelemetry.io/collector/otelcol"
+
 	agentConfig "github.com/DataDog/datadog-agent/cmd/otel-agent/config"
 	"github.com/DataDog/datadog-agent/cmd/otel-agent/subcommands"
 	"github.com/DataDog/datadog-agent/comp/api/authtoken/fetchonlyimpl"
@@ -22,7 +25,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
 	"github.com/DataDog/datadog-agent/comp/forwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorinterface"
@@ -39,8 +43,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
-	"github.com/spf13/cobra"
-	"go.opentelemetry.io/collector/otelcol"
 
 	"go.uber.org/fx"
 )
@@ -81,7 +83,7 @@ func runOTelAgentCommand(_ context.Context, params *subcommands.GlobalParams, op
 		forwarder.Bundle(),
 		corelogimpl.Module(),
 		inventoryagentimpl.Module(),
-		workloadmeta.Module(),
+		workloadmetafx.Module(),
 		hostnameimpl.Module(),
 		fx.Provide(tagger.NewTaggerParams),
 		taggerimpl.Module(),

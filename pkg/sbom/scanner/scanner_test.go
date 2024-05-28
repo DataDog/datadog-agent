@@ -17,7 +17,8 @@ import (
 
 	compConfig "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	workloadmetaimpl "github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/sbom"
@@ -73,12 +74,12 @@ var _ sbom.Report = mockReport{}
 // Test retry handling in case of an error
 func TestRetryLogic_Error(t *testing.T) {
 	// Create a workload meta global store
-	workloadmetaStore := fxutil.Test[workloadmeta.Mock](t, fx.Options(
+	workloadmetaStore := fxutil.Test[workloadmetaimpl.Mock](t, fx.Options(
 		logimpl.MockModule(),
 		compConfig.MockModule(),
 		fx.Supply(context.Background()),
 		fx.Supply(workloadmeta.NewParams()),
-		workloadmeta.MockModuleV2(),
+		workloadmetaimpl.MockModuleV2(),
 	))
 
 	// Store the image
@@ -155,12 +156,12 @@ func TestRetryLogic_Error(t *testing.T) {
 
 func TestRetryLogic_ImageDeleted(t *testing.T) {
 	// Create a workload meta global store
-	workloadmetaStore := fxutil.Test[workloadmeta.Mock](t, fx.Options(
+	workloadmetaStore := fxutil.Test[workloadmetaimpl.Mock](t, fx.Options(
 		logimpl.MockModule(),
 		compConfig.MockModule(),
 		fx.Supply(context.Background()),
 		fx.Supply(workloadmeta.NewParams()),
-		workloadmeta.MockModuleV2(),
+		workloadmetaimpl.MockModuleV2(),
 	))
 
 	// Store the image
@@ -222,12 +223,12 @@ func TestRetryLogic_ImageDeleted(t *testing.T) {
 // Test retry handling in case of an error when sending the result to a full channel
 func TestRetryChannelFull(t *testing.T) {
 	// Create a workload meta global store
-	workloadmetaStore := fxutil.Test[workloadmeta.Mock](t, fx.Options(
+	workloadmetaStore := fxutil.Test[workloadmetaimpl.Mock](t, fx.Options(
 		logimpl.MockModule(),
 		compConfig.MockModule(),
 		fx.Supply(context.Background()),
 		fx.Supply(workloadmeta.NewParams()),
-		workloadmeta.MockModuleV2(),
+		workloadmetaimpl.MockModuleV2(),
 	))
 
 	// Store the image

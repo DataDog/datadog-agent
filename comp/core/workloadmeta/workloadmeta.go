@@ -19,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	"github.com/DataDog/datadog-agent/comp/core/log"
+	wmdef "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/util/common"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
@@ -33,24 +34,20 @@ type workloadmeta struct {
 
 	// Store related
 	storeMut sync.RWMutex
-	store    map[Kind]map[string]*cachedEntity // store[entity.Kind][entity.ID] = &cachedEntity{}
+	store    map[wmdef.Kind]map[string]*cachedEntity // store[entity.Kind][entity.ID] = &cachedEntity{}
 
 	subscribersMut sync.RWMutex
 	subscribers    []subscriber
 
 	collectorMut sync.RWMutex
-	candidates   map[string]Collector
-	collectors   map[string]Collector
+	candidates   map[string]wmdef.Collector
+	collectors   map[string]wmdef.Collector
 
-	eventCh chan []CollectorEvent
+	eventCh chan []wmdef.CollectorEvent
 
 	ongoingPullsMut sync.Mutex
 	ongoingPulls    map[string]time.Time // collector ID => time when last pull started
 }
-
-// InitHelper this should be provided as a helper to allow passing the component into
-// the inithook for additional start-time configutation.
-type InitHelper func(context.Context, Component, config.Component) error
 
 type dependencies struct {
 	fx.In
@@ -59,29 +56,32 @@ type dependencies struct {
 
 	Log     log.Component
 	Config  config.Component
-	Catalog CollectorList `group:"workloadmeta"`
+	Catalog wmdef.CollectorList `group:"workloadmeta"`
 
-	Params Params
+	Params wmdef.Params
 }
 
-type provider struct {
+// Provider contains components provided by workloadmeta constructor.
+type Provider struct {
 	fx.Out
 
-	Comp          Component
+	Comp          wmdef.Component
 	FlareProvider flaretypes.Provider
 	Endpoint      api.AgentEndpointProvider
 }
 
-type optionalProvider struct {
+// OptionalProvider contains components provided by workloadmeta optional constructor.
+type OptionalProvider struct {
 	fx.Out
 
-	Comp          optional.Option[Component]
+	Comp          optional.Option[wmdef.Component]
 	FlareProvider flaretypes.Provider
 	Endpoint      api.AgentEndpointProvider
 }
 
-func newWorkloadMeta(deps dependencies) provider {
-	candidates := make(map[string]Collector)
+// NewWorkloadMeta creates a new workloadmeta component.
+func NewWorkloadMeta(deps dependencies) Provider {
+	candidates := make(map[string]wmdef.Collector)
 	for _, c := range fxutil.GetAndFilterGroup(deps.Catalog) {
 		if (c.GetTargetCatalog() & deps.Params.AgentType) > 0 {
 			candidates[c.GetID()] = c
@@ -92,10 +92,10 @@ func newWorkloadMeta(deps dependencies) provider {
 		log:    deps.Log,
 		config: deps.Config,
 
-		store:        make(map[Kind]map[string]*cachedEntity),
+		store:        make(map[wmdef.Kind]map[string]*cachedEntity),
 		candidates:   candidates,
-		collectors:   make(map[string]Collector),
-		eventCh:      make(chan []CollectorEvent, eventChBufferSize),
+		collectors:   make(map[string]wmdef.Collector),
+		eventCh:      make(chan []wmdef.CollectorEvent, eventChBufferSize),
 		ongoingPulls: make(map[string]time.Time),
 	}
 
@@ -122,22 +122,23 @@ func newWorkloadMeta(deps dependencies) provider {
 		return nil
 	}})
 
-	return provider{
+	return Provider{
 		Comp:          wm,
 		FlareProvider: flaretypes.NewProvider(wm.sbomFlareProvider),
 		Endpoint:      api.NewAgentEndpointProvider(wm.writeResponse, "/workload-list", "GET"),
 	}
 }
 
-func newWorkloadMetaOptional(deps dependencies) optionalProvider {
+// NewWorkloadMetaOptional creates a new optional workloadmeta component.
+func NewWorkloadMetaOptional(deps dependencies) OptionalProvider {
 	if deps.Params.NoInstance {
-		return optionalProvider{
-			Comp: optional.NewNoneOption[Component](),
+		return OptionalProvider{
+			Comp: optional.NewNoneOption[wmdef.Component](),
 		}
 	}
-	c := newWorkloadMeta(deps)
+	c := NewWorkloadMeta(deps)
 
-	return optionalProvider{
+	return OptionalProvider{
 		Comp:          optional.NewOption(c.Comp),
 		FlareProvider: c.FlareProvider,
 		Endpoint:      c.Endpoint,

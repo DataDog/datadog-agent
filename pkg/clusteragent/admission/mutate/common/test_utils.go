@@ -20,7 +20,8 @@ import (
 
 	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	workloadmetaimpl "github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/util"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -231,12 +232,12 @@ type MockDeployment struct {
 // FakeStoreWithDeployment sets up a fake workloadmeta with the given
 // deployments
 func FakeStoreWithDeployment(t *testing.T, deployments []MockDeployment) workloadmeta.Component {
-	mockStore := fxutil.Test[workloadmeta.Mock](t, fx.Options(
+	mockStore := fxutil.Test[workloadmetaimpl.Mock](t, fx.Options(
 		logimpl.MockModule(),
 		coreconfig.MockModule(),
 		fx.Supply(workloadmeta.NewParams()),
 		fx.Supply(context.Background()),
-		workloadmeta.MockModule(),
+		workloadmetaimpl.MockModule(),
 	))
 
 	for _, d := range deployments {

@@ -26,7 +26,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core"
 	configcomp "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	workloadmetaimpl "github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -596,7 +597,7 @@ func TestProcessEvents(t *testing.T) {
 	wmeta := fxutil.Test[optional.Option[workloadmeta.Component]](t, fx.Options(
 		core.MockBundle(),
 		fx.Supply(workloadmeta.NewParams()),
-		workloadmeta.MockModule(),
+		workloadmetaimpl.MockModule(),
 		fx.Replace(configcomp.MockParams{
 			Overrides: map[string]interface{}{
 				"sbom.cache_directory":         cacheDir,
@@ -611,12 +612,12 @@ func TestProcessEvents(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			SBOMsSent := atomic.NewInt32(0)
 
-			workloadmetaStore := fxutil.Test[workloadmeta.Mock](t, fx.Options(
+			workloadmetaStore := fxutil.Test[workloadmetaimpl.Mock](t, fx.Options(
 				logimpl.MockModule(),
 				configcomp.MockModule(),
 				fx.Supply(context.Background()),
 				fx.Supply(workloadmeta.NewParams()),
-				workloadmeta.MockModuleV2(),
+				workloadmetaimpl.MockModuleV2(),
 			))
 
 			sender := mocksender.NewMockSender("")

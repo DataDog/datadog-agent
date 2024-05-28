@@ -16,7 +16,7 @@ import (
 	containerdevents "github.com/containerd/containerd/events"
 	"google.golang.org/protobuf/proto"
 
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	cutil "github.com/DataDog/datadog-agent/pkg/util/containerd"
 )
 

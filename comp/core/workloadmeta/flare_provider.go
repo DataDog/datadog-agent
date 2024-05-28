@@ -8,8 +8,11 @@ package workloadmeta
 import (
 	"encoding/json"
 	"fmt"
-	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
+
 	"github.com/samber/lo"
+
+	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
+	wmdef "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 )
 
 /*
@@ -23,7 +26,7 @@ with workloadmeta to dump its state.
 func (w *workloadmeta) sbomFlareProvider(fb flaretypes.FlareBuilder) error {
 	images := w.ListImages()
 
-	fields := lo.SliceToMap(images, func(image *ContainerImageMetadata) (string, *SBOM) {
+	fields := lo.SliceToMap(images, func(image *wmdef.ContainerImageMetadata) (string, *wmdef.SBOM) {
 		return image.ID, image.SBOM
 	})
 

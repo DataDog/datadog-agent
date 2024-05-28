@@ -4,7 +4,6 @@
 // Copyright 2023-present Datadog, Inc.
 
 //go:build test
-// +build test
 
 // Package workloadmeta provides the workloadmeta component for the Datadog Agent
 package workloadmeta
@@ -12,6 +11,7 @@ package workloadmeta
 import (
 	"go.uber.org/fx"
 
+	wmdef "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
@@ -21,31 +21,33 @@ import (
 
 // Mock implements mock-specific methods.
 type Mock interface {
-	Component
+	wmdef.Component
 
 	// The following are for testing purposes and should maybe be revisited
 	// Set allows setting an entity in the workloadmeta store
-	Set(entity Entity)
+	Set(entity wmdef.Entity)
 
 	// Unset removes an entity from the workloadmeta store
-	Unset(entity Entity)
+	Unset(entity wmdef.Entity)
 
 	// GetConfig returns a Config Reader for the internal injected config
 	GetConfig() config.Reader
 
 	// GetConfig returns a Config Reader for the internal injected config
-	GetNotifiedEvents() []CollectorEvent
+	GetNotifiedEvents() []wmdef.CollectorEvent
 
 	// SubscribeToEvents returns a channel that receives events
-	SubscribeToEvents() chan CollectorEvent
+	SubscribeToEvents() chan wmdef.CollectorEvent
 }
 
 // MockModule defines the fx options for the mock component.
 func MockModule() fxutil.Module {
 	return fxutil.Component(
 		fx.Provide(newWorkloadMetaMock),
-		fx.Provide(func(mock Mock) Component { return mock }),
-		fx.Provide(func(mock Mock) optional.Option[Component] { return optional.NewOption[Component](mock) }),
+		fx.Provide(func(mock Mock) wmdef.Component { return mock }),
+		fx.Provide(func(mock Mock) optional.Option[wmdef.Component] {
+			return optional.NewOption[wmdef.Component](mock)
+		}),
 	)
 }
 
@@ -57,7 +59,9 @@ func MockModule() fxutil.Module {
 func MockModuleV2() fxutil.Module {
 	return fxutil.Component(
 		fx.Provide(newWorkloadMetaMockV2),
-		fx.Provide(func(mock Mock) Component { return mock }),
-		fx.Provide(func(mock Mock) optional.Option[Component] { return optional.NewOption[Component](mock) }),
+		fx.Provide(func(mock Mock) wmdef.Component { return mock }),
+		fx.Provide(func(mock Mock) optional.Option[wmdef.Component] {
+			return optional.NewOption[wmdef.Component](mock)
+		}),
 	)
 }
