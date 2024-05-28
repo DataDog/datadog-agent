@@ -8,7 +8,9 @@
 package agentimpl
 
 import (
-	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	"time"
+
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	pkgConfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
@@ -26,7 +28,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serverless/streamlogs"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
-	"time"
 )
 
 // Note: Building the logs-agent for serverless separately removes the
