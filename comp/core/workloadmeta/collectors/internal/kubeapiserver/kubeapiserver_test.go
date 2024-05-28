@@ -13,6 +13,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	fakediscovery "k8s.io/client-go/discovery/fake"
@@ -351,26 +352,9 @@ func Test_metadataCollectionGVRs_WithFunctionalDiscovery(t *testing.T) {
 			fakeDiscoveryClient.Resources = test.apiServerResourceList
 
 			discoveredGVRs, err := metadataCollectionGVRs(cfg, fakeDiscoveryClient)
-			assert.NoErrorf(t, err, "Function should not have returned an error")
+			require.NoErrorf(t, err, "Function should not have returned an error")
 
 			assert.Truef(t, reflect.DeepEqual(discoveredGVRs, test.expectedGVRs), "Expected %v but got %v.", test.expectedGVRs, discoveredGVRs)
 		})
 	}
 }
-
-/*
-type MockFailingDiscoveryClient struct {
-	fakediscovery.FakeDiscovery
-}
-
-func (m *MockFailingDiscoveryClient) ServerGroupsAndResources() ([]*metav1.APIGroup, []*metav1.APIResourceList, error) {
-	return nil, nil, fmt.Errorf("timeout error")
-}
-
-func Test_metadataCollectionGVRs_WithDiscoveryFailure(t *testing.T) {
-	discoveryClient := &MockFailingDiscoveryClient{}
-	discoveredGVRs, err := discoverGVRs(discoveryClient, []string{})
-	assert.Errorf(t, err, "Function should have returned an error")
-	assert.Nilf(t, discoveredGVRs, "Discovered GVRs should be nil")
-}
-*/

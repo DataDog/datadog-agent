@@ -66,7 +66,6 @@ func discoverGVRs(discoveryClient discovery.DiscoveryInterface, resources []stri
 	gvrs := make([]schema.GroupVersionResource, 0, len(resources))
 	for _, resource := range resources {
 		gv, found := discoveredResources[resource]
-		fmt.Println("Looking for resource ", resource, " and result is: ", found)
 		if found {
 			gvrs = append(gvrs, schema.GroupVersionResource{Group: gv.Group, Version: gv.Version, Resource: resource})
 		} else {
@@ -99,8 +98,6 @@ func discoverResources(discoveryClient discovery.DiscoveryInterface) (map[string
 			}
 		}
 	}
-
-	fmt.Println("Checkpoint 2: ", discoveredResources)
 
 	return discoveredResources, nil
 }

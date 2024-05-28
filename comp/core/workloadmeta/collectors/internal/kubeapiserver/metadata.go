@@ -55,9 +55,16 @@ func newMetadataParser(gvr schema.GroupVersionResource) objectParser {
 	return metadataParser{gvr}
 }
 
+// generateEntityID generates and returns a unique entity id for KubernetesMetadata entity
+// for namespaced objects, the id will have the format {resourceType}/{namespace}/{name} (e.g. deployments/default/app )
+// for cluster scoped objects, the id will have the format {resourceType}//{name} (e.g. node//master-node)
+func (p metadataParser) generateEntityID(resource, namespace, name string) string {
+	return fmt.Sprintf("%s/%s/%s", resource, namespace, name)
+}
+
 func (p metadataParser) Parse(obj interface{}) workloadmeta.Entity {
 	partialObjectMetadata := obj.(*metav1.PartialObjectMetadata)
-	id := fmt.Sprintf("%s/%s/%s", p.gvr.Resource, partialObjectMetadata.Namespace, partialObjectMetadata.Name)
+	id := p.generateEntityID(p.gvr.Resource, partialObjectMetadata.Namespace, partialObjectMetadata.Name)
 
 	return &workloadmeta.KubernetesMetadata{
 		EntityID: workloadmeta.EntityID{

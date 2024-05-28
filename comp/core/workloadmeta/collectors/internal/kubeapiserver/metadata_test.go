@@ -10,16 +10,14 @@ package kubeapiserver
 import (
 	"testing"
 
-	"k8s.io/apimachinery/pkg/runtime"
-
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
-
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 )
 
 func TestParse_ParsePartialObjectMetadata(t *testing.T) {

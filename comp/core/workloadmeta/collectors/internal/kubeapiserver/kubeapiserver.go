@@ -10,11 +10,11 @@ package kubeapiserver
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -35,7 +35,7 @@ const (
 // storeGenerator returns a new store specific to a given resource
 type storeGenerator func(context.Context, workloadmeta.Component, kubernetes.Interface) (*cache.Reflector, *reflectorStore)
 
-func storeGenerators(cfg config.Reader) []storeGenerator {
+func storeGenerators(cfg model.Reader) []storeGenerator {
 	generators := []storeGenerator{newNodeStore}
 
 	if cfg.GetBool("cluster_agent.collect_kubernetes_tags") || cfg.GetBool("autoscaling.workload.enabled") {
@@ -53,16 +53,14 @@ func storeGenerators(cfg config.Reader) []storeGenerator {
 	return generators
 }
 
-func metadataCollectionGVRs(cfg config.Reader, discoveryClient discovery.DiscoveryInterface) ([]schema.GroupVersionResource, error) {
+func metadataCollectionGVRs(cfg model.Reader, discoveryClient discovery.DiscoveryInterface) ([]schema.GroupVersionResource, error) {
 	if !cfg.GetBool("cluster_agent.kube_metadata_collection.enabled") {
 		return []schema.GroupVersionResource{}, nil
 	}
 
 	requestedResources := cfg.GetStringSlice("cluster_agent.kube_metadata_collection.resources")
-	fmt.Println("Checkpoint point: requestedResources = ", requestedResources)
 
 	discoveredResourcesGVs, err := discoverGVRs(discoveryClient, requestedResources)
-	fmt.Println("Checkpoint error: ", err)
 	return discoveredResourcesGVs, err
 }
 
@@ -102,7 +100,8 @@ func (c *collector) Start(ctx context.Context, wlmetaStore workloadmeta.Componen
 
 	// Initialize metadata collection informers
 	// TODO(components): do not use the config.Datadog reference, use a component instead
-	gvrs, err := metadataCollectionGVRs(config.Datadog, client.Discovery())
+	gvrs, err := metadataCollectionGVRs(config.Datadog(), client.Discovery())
+
 	if err != nil {
 		log.Errorf("failed to discover Group and Version of requested resources: %v", err)
 	} else {
