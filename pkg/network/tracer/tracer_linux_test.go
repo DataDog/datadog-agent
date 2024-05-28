@@ -2351,6 +2351,7 @@ func (s *TracerSuite) TestTCPFailureConnectionTimeout() {
 	setupDropTrafficRule(t)
 	cfg := testConfig()
 	cfg.TCPFailedConnectionsEnabled = true
+	cfg.ClientStateExpiry = 5 * time.Minute
 	tr := setupTracer(t, cfg)
 	t.Log("adamk test config: ", cfg)
 
