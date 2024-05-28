@@ -653,7 +653,7 @@ def prepare(
         d.copy(ctx, f"{paths.arch_dir}/opt/*", "/opt/", exclude="*.ninja", verbose=verbose)
         d.run_cmd(
             ctx,
-            f"! [ -f {btf_dir}/minimized-btfs.tar.xz \
+            f"! [ -f {btf_dir}/minimized-btfs.tar.xz ] \
                 && [ -d /opt/btf ] \
                 && cd /opt/btf/ \
                 && tar cJf minimized-btfs.tar.xz * \
