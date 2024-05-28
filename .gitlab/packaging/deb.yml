@@ -119,6 +119,9 @@ installer_deb-arm64:
     AGENT_MAJOR_VERSION: 7
 
 .package_iot_deb_common:
+  rules:
+    - !reference [.except_mergequeue]
+    - when: on_success
   before_script:
     - export RELEASE_VERSION=$RELEASE_VERSION_7
   stage: packaging
