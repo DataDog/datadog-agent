@@ -1434,6 +1434,17 @@ func (p *EBPFProbe) applyDefaultFilterPolicies() {
 	}
 }
 
+func isKillActionPresent(rs *rules.RuleSet) bool {
+	for _, rule := range rs.GetRules() {
+		for _, action := range rule.Definition.Actions {
+			if action.Kill != nil {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 // ApplyRuleSet apply the required update to handle the new ruleset
 func (p *EBPFProbe) ApplyRuleSet(rs *rules.RuleSet) (*kfilters.ApplyRuleSetReport, error) {
 	if p.opts.SyscallsMonitorEnabled {
