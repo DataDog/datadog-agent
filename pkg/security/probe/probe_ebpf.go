@@ -1153,6 +1153,13 @@ func (p *EBPFProbe) updateProbes(ruleEventTypes []eval.EventType, needRawSyscall
 		}
 	}
 
+	// if we are using tracepoints to probe syscall exits, i.e. if we are using an old kernel version (< 4.12)
+	// we need to use raw_syscall tracepoints for exits, as syscall are not trace when running an ia32 userspace
+	// process
+	if probes.ShouldUseSyscallExitTracepoints() {
+		activatedProbes = append(activatedProbes, &manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: probes.SecurityAgentUID, EBPFFuncName: "sys_exit"}})
+	}
+
 	activatedProbes = append(activatedProbes, p.Resolvers.TCResolver.SelectTCProbes())
 
 	if needRawSyscalls {
@@ -1700,18 +1707,6 @@ func NewEBPFProbe(probe *Probe, config *config.Config, opts Opts, wmeta optional
 
 	p.managerOptions.ConstantEditors = append(p.managerOptions.ConstantEditors, DiscarderConstants...)
 	p.managerOptions.ConstantEditors = append(p.managerOptions.ConstantEditors, getCGroupWriteConstants())
-
-	// if we are using tracepoints to probe syscall exits, i.e. if we are using an old kernel version (< 4.12)
-	// we need to use raw_syscall tracepoints for exits, as syscall are not trace when running an ia32 userspace
-	// process
-	if probes.ShouldUseSyscallExitTracepoints() {
-		p.managerOptions.ConstantEditors = append(p.managerOptions.ConstantEditors,
-			manager.ConstantEditor{
-				Name:  "tracepoint_raw_syscall_fallback",
-				Value: utils.BoolTouint64(true),
-			},
-		)
-	}
 
 	p.managerOptions.ConstantEditors = append(p.managerOptions.ConstantEditors,
 		manager.ConstantEditor{

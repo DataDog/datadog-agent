@@ -88,11 +88,7 @@ int __attribute__((always_inline)) handle_sys_exit(struct tracepoint_raw_syscall
 
 SEC("tracepoint/raw_syscalls/sys_exit")
 int sys_exit(struct tracepoint_raw_syscalls_sys_exit_t *args) {
-    u64 fallback;
-    LOAD_CONSTANT("tracepoint_raw_syscall_fallback", fallback);
-    if (fallback) {
-        handle_sys_exit(args);
-    }
+    handle_sys_exit(args);
     return 0;
 }
 
