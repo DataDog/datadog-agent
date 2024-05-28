@@ -10,6 +10,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -56,7 +57,7 @@ func SetupAgent(ctx context.Context, _ []string) (err error) {
 	defer func() {
 		if err != nil {
 			log.Errorf("Failed to setup agent: %s, reverting", err)
-			err = RemoveAgent(ctx)
+			err = errors.Join(err, RemoveAgent(ctx))
 		}
 		span.Finish(tracer.WithError(err))
 	}()

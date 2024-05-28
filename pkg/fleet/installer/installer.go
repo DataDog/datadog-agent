@@ -238,9 +238,9 @@ func (i *installerImpl) Purge(ctx context.Context) {
 		if pkg.Name == packageDatadogInstaller {
 			continue
 		}
-		packagerErr := i.removePackage(ctx, pkg.Name)
-		if packagerErr != nil {
-			log.Warnf("could not remove package %s: %v", pkg.Name, packagerErr)
+		err := i.removePackage(ctx, pkg.Name)
+		if err != nil {
+			log.Warnf("could not remove package %s: %v", pkg.Name, err)
 		}
 	}
 	err = i.removePackage(ctx, packageDatadogInstaller)
@@ -263,7 +263,7 @@ func (i *installerImpl) Remove(ctx context.Context, pkg string) error {
 	defer i.m.Unlock()
 	err := i.removePackage(ctx, pkg)
 	if err != nil {
-		return fmt.Errorf("could not delete repository: %w", err)
+		return fmt.Errorf("could not remove package: %w", err)
 	}
 	err = i.repositories.Delete(ctx, pkg)
 	if err != nil {
@@ -310,8 +310,8 @@ func (i *installerImpl) promoteExperiment(ctx context.Context, pkg string) error
 	switch pkg {
 	case packageDatadogAgent:
 		return service.PromoteAgentExperiment(ctx)
-	/*case packageAPMInjector:
-	return service.PromoteExperiment(ctx)*/
+	case packageAPMInjector:
+		return service.StopInstallerExperiment(ctx)
 	default:
 		return nil
 	}
