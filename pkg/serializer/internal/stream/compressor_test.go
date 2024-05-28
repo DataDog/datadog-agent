@@ -166,6 +166,30 @@ func TestMaxCompressedSizePayload(t *testing.T) {
 	}
 }
 
+func TestZstdCompressionLevel(t *testing.T) {
+	tests := []int{1,5,9}
+
+	for _, level := range tests {
+		t.Run(fmt.Sprintf("zstd %d", level), func(t *testing.T) {
+			m := &marshaler.DummyMarshaller{
+				Items:  []string{"A", "B", "C"},
+				Header: "{[",
+				Footer: "]}",
+			}
+			mockConfig := pkgconfigsetup.Conf()
+			mockConfig.SetWithoutSource("serializer_compressor_kind", "zstd")
+			mockConfig.SetDefault("serializer_compressor_level", level)
+
+			builder := NewJSONPayloadBuilder(true, mockConfig, compressionimpl.NewCompressor(mockConfig))
+			payloads, err := BuildJSONPayload(builder, m)
+			require.NoError(t, err)
+			require.Len(t, payloads, 1)
+
+			require.Equal(t, "{[A,B,C]}", payloadToString(payloads[0].GetContent(), mockConfig))
+		})
+	}
+}
+
 func TestTwoPayload(t *testing.T) {
 	tests := map[string]struct {
 		kind           string
