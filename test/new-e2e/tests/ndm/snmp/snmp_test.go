@@ -165,6 +165,8 @@ func (s *snmpDockerSuite) TestSnmpTagsAreStoredOnRestart() {
 	initialMetrics, err := fakeintake.FilterMetrics("snmp.device.reachable",
 		client.WithTags[*aggregator.MetricSeries]([]string{}),
 	)
+	require.NoError(s.T(), err)
+
 	initialTags := initialMetrics[0].Tags
 	_, err = s.Env().RemoteHost.Execute("docker stop dd-snmp")
 	require.NoError(s.T(), err)
@@ -183,11 +185,13 @@ func (s *snmpDockerSuite) TestSnmpTagsAreStoredOnRestart() {
 			client.WithTags[*aggregator.MetricSeries]([]string{}),
 		)
 		require.NoError(t, err)
-		assert.NotEmpty(t, metrics)
-		if len(metrics) == 0 {
+		if assert.NotEmpty(t, metrics) {
 			return
 		}
+
 		tags := metrics[0].Tags
+
+		require.Zero(t, metrics[0].Points[0].Value)
 		require.ElementsMatch(t, tags, initialTags)
 		require.Len(s.T(), tags, 9)
 	}, 5*time.Minute, 5*time.Second)
