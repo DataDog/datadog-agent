@@ -67,6 +67,9 @@ type Component interface {
 	// to this function.
 	GetKubernetesPodByName(podName, podNamespace string) (*KubernetesPod, error)
 
+	// ListKubernetesNodes returns metadata about all known Kubernetes nodes
+	ListKubernetesNodes() []*KubernetesNode
+
 	// GetKubernetesNode returns metadata about a Kubernetes node. It fetches
 	// the entity with kind KindKubernetesNode and the given ID.
 	GetKubernetesNode(id string) (*KubernetesNode, error)

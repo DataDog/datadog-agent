@@ -39,9 +39,15 @@ func defaultPackages(env *env.Env, defaultPackages []defaultPackage) []string {
 	var packages []string
 	for _, p := range defaultPackages {
 		released := p.released || slices.Contains(p.releasedBySite, env.Site) || (p.releasedWithRemoteUpdates && env.RemoteUpdates)
-		forcedInstall := env.DefaultPackagesInstallOverride[p.name]
+		installOverride, isOverridden := env.DefaultPackagesInstallOverride[p.name]
 		condition := p.condition == nil || p.condition(env)
-		if (released && condition) || forcedInstall {
+
+		shouldInstall := released && condition
+		if isOverridden {
+			shouldInstall = installOverride
+		}
+
+		if shouldInstall {
 			version := "latest"
 			if v, ok := env.DefaultPackagesVersionOverride[p.name]; ok {
 				version = v

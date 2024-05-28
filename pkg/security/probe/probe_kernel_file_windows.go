@@ -178,6 +178,13 @@ func (wp *WindowsProbe) parseCreateHandleArgs(e *etw.DDEventRecord) (*createHand
 		wp.stats.fileCreateSkippedDiscardedPaths++
 		return nil, errDiscardedPath
 	}
+
+	ca.userFileName = wp.mustConvertDrivePath(ca.fileName)
+	if _, ok := wp.discardedUserPaths.Get(ca.userFileName); ok {
+		wp.stats.fileCreateSkippedDiscardedPaths++
+		return nil, errDiscardedPath
+	}
+
 	if _, ok := wp.discardedBasenames.Get(basename); ok {
 		wp.discardedFileHandles.Add(fileObjectPointer(ca.fileObject), struct{}{})
 		wp.stats.fileCreateSkippedDiscardedBasenames++

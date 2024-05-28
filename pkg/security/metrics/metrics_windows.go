@@ -14,8 +14,10 @@ var (
 	//Tags: -
 	MetricWindowsProcessStop = newRuntimeMetric(".windows.process.stop")
 
+	//MetricWindowsFileResolverOverwrite is the metric for counting file create notifications for cache overwrites
 	//Tags: -
 	MetricWindowsFileResolverOverwrite = newRuntimeMetric(".windows.file_resolver.overwrite")
+
 	//MetricWindowsFileResolverNew is the metric for counting file create notifications for new files
 	//Tags: -
 	MetricWindowsFileResolverNew = newRuntimeMetric(".windows.file_resolver.new")

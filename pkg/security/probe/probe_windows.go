@@ -83,6 +83,7 @@ type WindowsProbe struct {
 
 	// discarders
 	discardedPaths     *lru.Cache[string, struct{}]
+	discardedUserPaths *lru.Cache[string, struct{}]
 	discardedBasenames *lru.Cache[string, struct{}]
 
 	discardedFileHandles *lru.Cache[fileObjectPointer, struct{}]
@@ -244,22 +245,21 @@ func (p *WindowsProbe) initEtwFIM() error {
 		// try masking on create & create_new_file
 		// given the current requirements, I think we can _probably_ just do create_new_file
 		cfg.MatchAnyKeyword = 0x18A0
-		/*
-			fileIds := []uint16{
-				idCreate,
-				idCreateNewFile,
-				idCleanup,
-				idClose,
-				idWrite,
-				idSetDelete,
-				idDeletePath,
-				idRename,
-				idRenamePath,
-				idRename29,
-			}
 
-			cfg.EnabledIDs = fileIds
-		*/
+		fileIds := []uint16{
+			idCreate,
+			idCreateNewFile,
+			idCleanup,
+			idClose,
+			idWrite,
+			idSetDelete,
+			idDeletePath,
+			idRename,
+			idRenamePath,
+			idRename29,
+		}
+
+		cfg.EnabledIDs = fileIds
 	})
 	p.fimSession.ConfigureProvider(p.regguid, func(cfg *etw.ProviderConfiguration) {
 		cfg.TraceLevel = etw.TRACE_LEVEL_VERBOSE
@@ -903,6 +903,11 @@ func initializeWindowsProbe(config *config.Config, opts Opts) (*WindowsProbe, er
 		return nil, err
 	}
 
+	discardedUserPaths, err := lru.New[string, struct{}](1 << 10)
+	if err != nil {
+		return nil, err
+	}
+
 	discardedBasenames, err := lru.New[string, struct{}](1 << 10)
 	if err != nil {
 		return nil, err
@@ -949,8 +954,10 @@ func initializeWindowsProbe(config *config.Config, opts Opts) (*WindowsProbe, er
 
 		renamePreArgs: rnc,
 
-		discardedPaths:       discardedPaths,
-		discardedBasenames:   discardedBasenames,
+		discardedPaths:     discardedPaths,
+		discardedUserPaths: discardedUserPaths,
+		discardedBasenames: discardedBasenames,
+
 		discardedFileHandles: dfh,
 
 		approvers: make(map[eval.Field][]approver),
@@ -973,8 +980,7 @@ func initializeWindowsProbe(config *config.Config, opts Opts) (*WindowsProbe, er
 
 // NewWindowsProbe instantiates a new runtime security agent probe
 func NewWindowsProbe(probe *Probe, config *config.Config, opts Opts) (*WindowsProbe, error) {
-
-	p, err := initializeWindowsProbe(config, opts)
+  p, err := initializeWindowsProbe(config, opts)
 	if err != nil {
 		return nil, err
 	}
@@ -1028,6 +1034,7 @@ func (p *WindowsProbe) ApplyRuleSet(rs *rules.RuleSet) (*kfilters.ApplyRuleSetRe
 // FlushDiscarders invalidates all the discarders
 func (p *WindowsProbe) FlushDiscarders() error {
 	p.discardedPaths.Purge()
+	p.discardedUserPaths.Purge()
 	p.discardedBasenames.Purge()
 	return nil
 }
@@ -1042,6 +1049,13 @@ func (p *WindowsProbe) OnNewDiscarder(_ *rules.RuleSet, ev *model.Event, field e
 		path := ev.CreateNewFile.File.PathnameStr
 		seclog.Debugf("new discarder for `%s` -> `%v`", field, path)
 		p.discardedPaths.Add(path, struct{}{})
+	} else if field == "create.file.path" {
+		path := ev.CreateNewFile.File.UserPathnameStr
+		if path == "" {
+			return
+		}
+		seclog.Debugf("new discarder for `%s` -> `%v`", field, path)
+		p.discardedUserPaths.Add(path, struct{}{})
 	} else if field == "create.file.name" {
 		basename := ev.CreateNewFile.File.BasenameStr
 		seclog.Debugf("new discarder for `%s` -> `%v`", field, basename)
