@@ -10,7 +10,6 @@
   - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
 
 include:
-  - .gitlab/package_build/deb.yml
   - .gitlab/package_build/heroku.yml
   - .gitlab/package_build/dmg.yml
   - .gitlab/package_build/installer.yml
