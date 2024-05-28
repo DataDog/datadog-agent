@@ -379,7 +379,10 @@ def update_resources(
 def start_compiler(ctx: Context):
     for cc in all_compilers(ctx):
         info(f"[+] Starting compiler {cc.name}")
-        cc.start()
+        try:
+            cc.start()
+        except Exception as e:
+            error(f"[-] Error starting compiler {cc.name}: {e}")
 
 
 def filter_target_domains(vms: str, infra: dict[ArchOrLocal, HostInstance], arch: ArchOrLocal | None = None):
