@@ -34,6 +34,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/util/api"
 	apicfg "github.com/DataDog/datadog-agent/pkg/process/util/api/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util/api/headers"
+	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -224,6 +225,7 @@ func (s *CheckSubmitter) Start() error {
 		tags := []string{
 			fmt.Sprintf("version:%s", agentVersion.GetNumberAndPre()),
 			fmt.Sprintf("revision:%s", agentVersion.Commit),
+			fmt.Sprintf("agent:%s", flavor.GetFlavor()),
 		}
 		for {
 			select {

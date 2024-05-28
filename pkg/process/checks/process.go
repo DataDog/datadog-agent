@@ -8,6 +8,7 @@ package checks
 import (
 	"context"
 	"errors"
+	"fmt"
 	"regexp"
 	"strings"
 	"time"
@@ -340,8 +341,8 @@ func (p *ProcessCheck) run(groupID int32, collectRealTime bool) (RunResult, erro
 		p.realtimeLastRun = p.lastRun
 	}
 
-	statsd.Client.Gauge("datadog.process.containers.host_count", float64(totalContainers), []string{}, 1) //nolint:errcheck
-	statsd.Client.Gauge("datadog.process.processes.host_count", float64(totalProcs), []string{}, 1)       //nolint:errcheck
+	statsd.Client.Gauge("datadog.process.containers.host_count", float64(totalContainers), []string{fmt.Sprintf("agent:%s", flavor.GetFlavor())}, 1) //nolint:errcheck
+	statsd.Client.Gauge("datadog.process.processes.host_count", float64(totalProcs), []string{fmt.Sprintf("agent:%s", flavor.GetFlavor())}, 1)       //nolint:errcheck
 	log.Debugf("collected processes in %s", time.Since(start))
 
 	return result, nil
