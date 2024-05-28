@@ -27,6 +27,9 @@ type InstanceConfig struct {
 
 	DestPort uint16 `yaml:"port"`
 
+	SourceService      string `yaml:"source_service"`
+	DestinationService string `yaml:"destination_service"`
+
 	MaxTTL uint8 `yaml:"max_ttl"`
 
 	TimeoutMs uint `yaml:"timeout"` // millisecond
@@ -41,6 +44,8 @@ type InstanceConfig struct {
 type CheckConfig struct {
 	DestHostname          string
 	DestPort              uint16
+	SourceService         string
+	DestinationService    string
 	MaxTTL                uint8
 	TimeoutMs             uint
 	MinCollectionInterval time.Duration
@@ -67,6 +72,8 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 
 	c.DestHostname = instance.DestHostname
 	c.DestPort = instance.DestPort
+	c.SourceService = instance.SourceService
+	c.DestinationService = instance.DestinationService
 	c.MaxTTL = instance.MaxTTL
 	c.TimeoutMs = instance.TimeoutMs
 

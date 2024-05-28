@@ -18,6 +18,58 @@ CSM Threats logs have the following JSON schema:
 {
     "$id": "https://github.com/DataDog/datadog-agent/tree/main/pkg/security/serializers",
     "$defs": {
+        "AWSIMDSEvent": {
+            "properties": {
+                "is_imds_v2": {
+                    "type": "boolean",
+                    "description": "is_imds_v2 reports if the IMDS event follows IMDSv1 or IMDSv2 conventions"
+                },
+                "security_credentials": {
+                    "$ref": "#/$defs/AWSSecurityCredentials",
+                    "description": "SecurityCredentials holds the scrubbed data collected on the security credentials"
+                }
+            },
+            "additionalProperties": false,
+            "type": "object",
+            "required": [
+                "is_imds_v2"
+            ],
+            "description": "AWSIMDSEventSerializer serializes an AWS IMDS event to JSON"
+        },
+        "AWSSecurityCredentials": {
+            "properties": {
+                "code": {
+                    "type": "string",
+                    "description": "code is the IMDS server code response"
+                },
+                "type": {
+                    "type": "string",
+                    "description": "type is the security credentials type"
+                },
+                "access_key_id": {
+                    "type": "string",
+                    "description": "access_key_id is the unique access key ID of the credentials"
+                },
+                "last_updated": {
+                    "type": "string",
+                    "description": "last_updated is the last time the credentials were updated"
+                },
+                "expiration": {
+                    "type": "string",
+                    "description": "expiration is the expiration date of the credentials"
+                }
+            },
+            "additionalProperties": false,
+            "type": "object",
+            "required": [
+                "code",
+                "type",
+                "access_key_id",
+                "last_updated",
+                "expiration"
+            ],
+            "description": "AWSSecurityCredentialsSerializer serializes the security credentials from an AWS IMDS request"
+        },
         "AgentContext": {
             "properties": {
                 "rule_id": {
@@ -375,6 +427,18 @@ CSM Threats logs have the following JSON schema:
                 "hash_state": {
                     "type": "string",
                     "description": "State of the hashes or reason why they weren't computed"
+                },
+                "mount_path": {
+                    "type": "string",
+                    "description": "MountPath path of the mount"
+                },
+                "mount_source": {
+                    "type": "string",
+                    "description": "MountSource source of the mount"
+                },
+                "mount_origin": {
+                    "type": "string",
+                    "description": "MountOrigin origin of the mount"
                 }
             },
             "additionalProperties": false,
@@ -484,6 +548,18 @@ CSM Threats logs have the following JSON schema:
                     "type": "string",
                     "description": "State of the hashes or reason why they weren't computed"
                 },
+                "mount_path": {
+                    "type": "string",
+                    "description": "MountPath path of the mount"
+                },
+                "mount_source": {
+                    "type": "string",
+                    "description": "MountSource source of the mount"
+                },
+                "mount_origin": {
+                    "type": "string",
+                    "description": "MountOrigin origin of the mount"
+                },
                 "destination": {
                     "$ref": "#/$defs/File",
                     "description": "Target file information"
@@ -508,6 +584,45 @@ CSM Threats logs have the following JSON schema:
                 "gid"
             ],
             "description": "FileEventSerializer serializes a file event to JSON"
+        },
+        "IMDSEvent": {
+            "properties": {
+                "type": {
+                    "type": "string",
+                    "description": "type is the type of IMDS event"
+                },
+                "cloud_provider": {
+                    "type": "string",
+                    "description": "cloud_provider is the intended cloud provider of the IMDS event"
+                },
+                "url": {
+                    "type": "string",
+                    "description": "url is the url of the IMDS request"
+                },
+                "host": {
+                    "type": "string",
+                    "description": "host is the host of the HTTP protocol"
+                },
+                "user_agent": {
+                    "type": "string",
+                    "description": "user_agent is the user agent of the HTTP client"
+                },
+                "server": {
+                    "type": "string",
+                    "description": "server is the server header of a response"
+                },
+                "aws": {
+                    "$ref": "#/$defs/AWSIMDSEvent",
+                    "description": "AWS holds the AWS specific data parsed from the IMDS event"
+                }
+            },
+            "additionalProperties": false,
+            "type": "object",
+            "required": [
+                "type",
+                "cloud_provider"
+            ],
+            "description": "IMDSEventSerializer serializes an IMDS event to JSON"
         },
         "IPPort": {
             "properties": {
@@ -936,6 +1051,13 @@ CSM Threats logs have the following JSON schema:
                 "syscalls": {
                     "$ref": "#/$defs/SyscallsEvent",
                     "description": "List of syscalls captured to generate the event"
+                },
+                "aws_security_credentials": {
+                    "items": {
+                        "$ref": "#/$defs/AWSSecurityCredentials"
+                    },
+                    "type": "array",
+                    "description": "List of AWS Security Credentials that the process had access to"
                 }
             },
             "additionalProperties": false,
@@ -1069,6 +1191,13 @@ CSM Threats logs have the following JSON schema:
                     "$ref": "#/$defs/SyscallsEvent",
                     "description": "List of syscalls captured to generate the event"
                 },
+                "aws_security_credentials": {
+                    "items": {
+                        "$ref": "#/$defs/AWSSecurityCredentials"
+                    },
+                    "type": "array",
+                    "description": "List of AWS Security Credentials that the process had access to"
+                },
                 "parent": {
                     "$ref": "#/$defs/Process",
                     "description": "Parent process"
@@ -1083,6 +1212,10 @@ CSM Threats logs have the following JSON schema:
                 "variables": {
                     "$ref": "#/$defs/Variables",
                     "description": "Variables values"
+                },
+                "truncated_ancestors": {
+                    "type": "boolean",
+                    "description": "True if the ancestors list was truncated because it was too big"
                 }
             },
             "additionalProperties": false,
@@ -1324,6 +1457,37 @@ CSM Threats logs have the following JSON schema:
             ],
             "description": "SyscallSerializer serializes a syscall"
         },
+        "SyscallArgs": {
+            "properties": {
+                "path": {
+                    "type": "string",
+                    "description": "Path argument"
+                },
+                "mode": {
+                    "type": "integer",
+                    "description": "Mode argument"
+                }
+            },
+            "additionalProperties": false,
+            "type": "object",
+            "description": "SyscallArgsSerializer args serializer"
+        },
+        "SyscallContext": {
+            "properties": {
+                "chmod": {
+                    "$ref": "#/$defs/SyscallArgs"
+                },
+                "chdir": {
+                    "$ref": "#/$defs/SyscallArgs"
+                },
+                "exec": {
+                    "$ref": "#/$defs/SyscallArgs"
+                }
+            },
+            "additionalProperties": false,
+            "type": "object",
+            "description": "SyscallContextSerializer serializes syscall context"
+        },
         "SyscallsEvent": {
             "items": {
                 "$ref": "#/$defs/Syscall"
@@ -1453,6 +1617,9 @@ CSM Threats logs have the following JSON schema:
         "dns": {
             "$ref": "#/$defs/DNSEvent"
         },
+        "imds": {
+            "$ref": "#/$defs/IMDSEvent"
+        },
         "bind": {
             "$ref": "#/$defs/BindEvent"
         },
@@ -1464,6 +1631,9 @@ CSM Threats logs have the following JSON schema:
         },
         "usr": {
             "$ref": "#/$defs/UserContext"
+        },
+        "syscall": {
+            "$ref": "#/$defs/SyscallContext"
         }
     },
     "additionalProperties": false,
@@ -1498,10 +1668,96 @@ CSM Threats logs have the following JSON schema:
 | `signal` | $ref | Please see [SignalEvent](#signalevent) |
 | `splice` | $ref | Please see [SpliceEvent](#spliceevent) |
 | `dns` | $ref | Please see [DNSEvent](#dnsevent) |
+| `imds` | $ref | Please see [IMDSEvent](#imdsevent) |
 | `bind` | $ref | Please see [BindEvent](#bindevent) |
 | `mount` | $ref | Please see [MountEvent](#mountevent) |
 | `syscalls` | $ref | Please see [SyscallsEvent](#syscallsevent) |
 | `usr` | $ref | Please see [UserContext](#usercontext) |
+| `syscall` | $ref | Please see [SyscallContext](#syscallcontext) |
+
+## `AWSIMDSEvent`
+
+
+{{< code-block lang="json" collapsible="true" >}}
+{
+    "properties": {
+        "is_imds_v2": {
+            "type": "boolean",
+            "description": "is_imds_v2 reports if the IMDS event follows IMDSv1 or IMDSv2 conventions"
+        },
+        "security_credentials": {
+            "$ref": "#/$defs/AWSSecurityCredentials",
+            "description": "SecurityCredentials holds the scrubbed data collected on the security credentials"
+        }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+        "is_imds_v2"
+    ],
+    "description": "AWSIMDSEventSerializer serializes an AWS IMDS event to JSON"
+}
+
+{{< /code-block >}}
+
+| Field | Description |
+| ----- | ----------- |
+| `is_imds_v2` | is_imds_v2 reports if the IMDS event follows IMDSv1 or IMDSv2 conventions |
+| `security_credentials` | SecurityCredentials holds the scrubbed data collected on the security credentials |
+
+| References |
+| ---------- |
+| [AWSSecurityCredentials](#awssecuritycredentials) |
+
+## `AWSSecurityCredentials`
+
+
+{{< code-block lang="json" collapsible="true" >}}
+{
+    "properties": {
+        "code": {
+            "type": "string",
+            "description": "code is the IMDS server code response"
+        },
+        "type": {
+            "type": "string",
+            "description": "type is the security credentials type"
+        },
+        "access_key_id": {
+            "type": "string",
+            "description": "access_key_id is the unique access key ID of the credentials"
+        },
+        "last_updated": {
+            "type": "string",
+            "description": "last_updated is the last time the credentials were updated"
+        },
+        "expiration": {
+            "type": "string",
+            "description": "expiration is the expiration date of the credentials"
+        }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+        "code",
+        "type",
+        "access_key_id",
+        "last_updated",
+        "expiration"
+    ],
+    "description": "AWSSecurityCredentialsSerializer serializes the security credentials from an AWS IMDS request"
+}
+
+{{< /code-block >}}
+
+| Field | Description |
+| ----- | ----------- |
+| `code` | code is the IMDS server code response |
+| `type` | type is the security credentials type |
+| `access_key_id` | access_key_id is the unique access key ID of the credentials |
+| `last_updated` | last_updated is the last time the credentials were updated |
+| `expiration` | expiration is the expiration date of the credentials |
+
 
 ## `AgentContext`
 
@@ -2030,6 +2286,18 @@ CSM Threats logs have the following JSON schema:
         "hash_state": {
             "type": "string",
             "description": "State of the hashes or reason why they weren't computed"
+        },
+        "mount_path": {
+            "type": "string",
+            "description": "MountPath path of the mount"
+        },
+        "mount_source": {
+            "type": "string",
+            "description": "MountSource source of the mount"
+        },
+        "mount_origin": {
+            "type": "string",
+            "description": "MountOrigin origin of the mount"
         }
     },
     "additionalProperties": false,
@@ -2067,6 +2335,9 @@ CSM Threats logs have the following JSON schema:
 | `package_version` | System package version |
 | `hashes` | List of cryptographic hashes of the file |
 | `hash_state` | State of the hashes or reason why they weren't computed |
+| `mount_path` | MountPath path of the mount |
+| `mount_source` | MountSource source of the mount |
+| `mount_origin` | MountOrigin origin of the mount |
 
 
 ## `FileEvent`
@@ -2172,6 +2443,18 @@ CSM Threats logs have the following JSON schema:
             "type": "string",
             "description": "State of the hashes or reason why they weren't computed"
         },
+        "mount_path": {
+            "type": "string",
+            "description": "MountPath path of the mount"
+        },
+        "mount_source": {
+            "type": "string",
+            "description": "MountSource source of the mount"
+        },
+        "mount_origin": {
+            "type": "string",
+            "description": "MountOrigin origin of the mount"
+        },
         "destination": {
             "$ref": "#/$defs/File",
             "description": "Target file information"
@@ -2224,6 +2507,9 @@ CSM Threats logs have the following JSON schema:
 | `package_version` | System package version |
 | `hashes` | List of cryptographic hashes of the file |
 | `hash_state` | State of the hashes or reason why they weren't computed |
+| `mount_path` | MountPath path of the mount |
+| `mount_source` | MountSource source of the mount |
+| `mount_origin` | MountOrigin origin of the mount |
 | `destination` | Target file information |
 | `new_mount_id` | New Mount ID |
 | `device` | Device associated with the file |
@@ -2232,6 +2518,66 @@ CSM Threats logs have the following JSON schema:
 | References |
 | ---------- |
 | [File](#file) |
+
+## `IMDSEvent`
+
+
+{{< code-block lang="json" collapsible="true" >}}
+{
+    "properties": {
+        "type": {
+            "type": "string",
+            "description": "type is the type of IMDS event"
+        },
+        "cloud_provider": {
+            "type": "string",
+            "description": "cloud_provider is the intended cloud provider of the IMDS event"
+        },
+        "url": {
+            "type": "string",
+            "description": "url is the url of the IMDS request"
+        },
+        "host": {
+            "type": "string",
+            "description": "host is the host of the HTTP protocol"
+        },
+        "user_agent": {
+            "type": "string",
+            "description": "user_agent is the user agent of the HTTP client"
+        },
+        "server": {
+            "type": "string",
+            "description": "server is the server header of a response"
+        },
+        "aws": {
+            "$ref": "#/$defs/AWSIMDSEvent",
+            "description": "AWS holds the AWS specific data parsed from the IMDS event"
+        }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+        "type",
+        "cloud_provider"
+    ],
+    "description": "IMDSEventSerializer serializes an IMDS event to JSON"
+}
+
+{{< /code-block >}}
+
+| Field | Description |
+| ----- | ----------- |
+| `type` | type is the type of IMDS event |
+| `cloud_provider` | cloud_provider is the intended cloud provider of the IMDS event |
+| `url` | url is the url of the IMDS request |
+| `host` | host is the host of the HTTP protocol |
+| `user_agent` | user_agent is the user agent of the HTTP client |
+| `server` | server is the server header of a response |
+| `aws` | AWS holds the AWS specific data parsed from the IMDS event |
+
+| References |
+| ---------- |
+| [AWSIMDSEvent](#awsimdsevent) |
 
 ## `IPPort`
 
@@ -2830,6 +3176,13 @@ CSM Threats logs have the following JSON schema:
         "syscalls": {
             "$ref": "#/$defs/SyscallsEvent",
             "description": "List of syscalls captured to generate the event"
+        },
+        "aws_security_credentials": {
+            "items": {
+                "$ref": "#/$defs/AWSSecurityCredentials"
+            },
+            "type": "array",
+            "description": "List of AWS Security Credentials that the process had access to"
         }
     },
     "additionalProperties": false,
@@ -2873,6 +3226,7 @@ CSM Threats logs have the following JSON schema:
 | `is_exec_child` | Indicates whether the process is an exec following another exec |
 | `source` | Process source |
 | `syscalls` | List of syscalls captured to generate the event |
+| `aws_security_credentials` | List of AWS Security Credentials that the process had access to |
 
 | References |
 | ---------- |
@@ -3010,6 +3364,13 @@ CSM Threats logs have the following JSON schema:
             "$ref": "#/$defs/SyscallsEvent",
             "description": "List of syscalls captured to generate the event"
         },
+        "aws_security_credentials": {
+            "items": {
+                "$ref": "#/$defs/AWSSecurityCredentials"
+            },
+            "type": "array",
+            "description": "List of AWS Security Credentials that the process had access to"
+        },
         "parent": {
             "$ref": "#/$defs/Process",
             "description": "Parent process"
@@ -3024,6 +3385,10 @@ CSM Threats logs have the following JSON schema:
         "variables": {
             "$ref": "#/$defs/Variables",
             "description": "Variables values"
+        },
+        "truncated_ancestors": {
+            "type": "boolean",
+            "description": "True if the ancestors list was truncated because it was too big"
         }
     },
     "additionalProperties": false,
@@ -3067,9 +3432,11 @@ CSM Threats logs have the following JSON schema:
 | `is_exec_child` | Indicates whether the process is an exec following another exec |
 | `source` | Process source |
 | `syscalls` | List of syscalls captured to generate the event |
+| `aws_security_credentials` | List of AWS Security Credentials that the process had access to |
 | `parent` | Parent process |
 | `ancestors` | Ancestor processes |
 | `variables` | Variables values |
+| `truncated_ancestors` | True if the ancestors list was truncated because it was too big |
 
 | References |
 | ---------- |
@@ -3452,6 +3819,64 @@ CSM Threats logs have the following JSON schema:
 | `name` | Name of the syscall |
 | `id` | ID of the syscall in the host architecture |
 
+
+## `SyscallArgs`
+
+
+{{< code-block lang="json" collapsible="true" >}}
+{
+    "properties": {
+        "path": {
+            "type": "string",
+            "description": "Path argument"
+        },
+        "mode": {
+            "type": "integer",
+            "description": "Mode argument"
+        }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "description": "SyscallArgsSerializer args serializer"
+}
+
+{{< /code-block >}}
+
+| Field | Description |
+| ----- | ----------- |
+| `path` | Path argument |
+| `mode` | Mode argument |
+
+
+## `SyscallContext`
+
+
+{{< code-block lang="json" collapsible="true" >}}
+{
+    "properties": {
+        "chmod": {
+            "$ref": "#/$defs/SyscallArgs"
+        },
+        "chdir": {
+            "$ref": "#/$defs/SyscallArgs"
+        },
+        "exec": {
+            "$ref": "#/$defs/SyscallArgs"
+        }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "description": "SyscallContextSerializer serializes syscall context"
+}
+
+{{< /code-block >}}
+
+
+| References |
+| ---------- |
+| [SyscallArgs](#syscallargs) |
+| [SyscallArgs](#syscallargs) |
+| [SyscallArgs](#syscallargs) |
 
 ## `SyscallsEvent`
 
