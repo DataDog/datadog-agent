@@ -81,4 +81,11 @@ var (
 	//MetricWindowsApproverRejects is the metric for counting the number of approver rejects
 	//Tags: -
 	MetricWindowsApproverRejects = newRuntimeMetric(".windows.approver_rejects")
+
+	//MetricWindowsEventCacheOverflow is the metric for counting the number of event cache overflows
+	//Tags: -
+	MetricWindowsEventCacheOverflow = newRuntimeMetric(".windows.event_cache_overflow")
+	//MetricWindowEventCacheUnderflow is the metric for counting the number of event cache underflows
+	//Tags: -
+	MetricWindowsEventCacheUnderflow = newRuntimeMetric(".windows.event_cache_underflow")
 )
