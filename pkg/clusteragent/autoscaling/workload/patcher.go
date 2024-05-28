@@ -10,8 +10,9 @@ package workload
 import (
 	"fmt"
 
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/model"
 	datadoghq "github.com/DataDog/datadog-operator/apis/datadoghq/v1alpha1"
+
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/model"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -28,6 +29,10 @@ type patcherAdapter struct {
 }
 
 var _ PatcherAdapter = patcherAdapter{}
+
+func newPatcherAdapter(store *store) PatcherAdapter {
+	return patcherAdapter{store: store}
+}
 
 // GetPodAutoscalerFromOwnerRef searches for a PodAutoscalerInternal object associated with the given owner reference
 // If no PodAutoscalerInternal is found or no vertical recommendation, it returns ("", nil, nil)

@@ -755,8 +755,8 @@ github.com/DataDog/datadog-api-client-go/v2 v2.25.0/go.mod h1:QKOu6vscsh87fMY1lH
 github.com/DataDog/datadog-go v3.2.0+incompatible/go.mod h1:LButxg5PwREeZtORoXG3tL4fMGNddJ+vMq1mwgfaqoQ=
 github.com/DataDog/datadog-go/v5 v5.5.0 h1:G5KHeB8pWBNXT4Jtw0zAkhdxEAWSpWH00geHI6LDrKU=
 github.com/DataDog/datadog-go/v5 v5.5.0/go.mod h1:K9kcYBlxkcPP8tvvjZZKs/m1edNAUFzBbdpTUKfCsuw=
-github.com/DataDog/datadog-operator v0.7.1-0.20240522074410-e0648ef62f13 h1:Q5ucbyAaIdlGdagQtp5QS/aeRwtjC2ahWWsG0Kmtj5Q=
-github.com/DataDog/datadog-operator v0.7.1-0.20240522074410-e0648ef62f13/go.mod h1:4C7T1SWCw8TmzXh19IqjLv3ZeCVeS5J3Zfht113+Ke4=
+github.com/DataDog/datadog-operator v0.7.1-0.20240522081847-e83dd785258a h1:GO/7UZHWOivCTEsI5Yjf2l1ovqISEXJS2nm3sw4CjKg=
+github.com/DataDog/datadog-operator v0.7.1-0.20240522081847-e83dd785258a/go.mod h1:4C7T1SWCw8TmzXh19IqjLv3ZeCVeS5J3Zfht113+Ke4=
 github.com/DataDog/dd-sensitive-data-scanner/sds-go/go v0.0.0-20240419161837-f1b2f553edfe h1:efzxujZ7VHWFxjmWjcJyUEpPrN8qdiZPYb+dBw547Wo=
 github.com/DataDog/dd-sensitive-data-scanner/sds-go/go v0.0.0-20240419161837-f1b2f553edfe/go.mod h1:TX7CTOQ3LbQjfAi4SwqUoR5gY1zfUk7VRBDTuArjaDc=
 github.com/DataDog/ebpf-manager v0.6.0 h1:7EpsQwa07+lObYyrVQ7AnSjHS1gkw1vgjVlbBvGDCTI=
@@ -797,8 +797,8 @@ github.com/DataDog/opentelemetry-mapping-go/pkg/quantile v0.16.0 h1:BdfRSuCoHyKa
 github.com/DataDog/opentelemetry-mapping-go/pkg/quantile v0.16.0/go.mod h1:6eYyd+lJYH+uRuZqhyW/u+9ykaXBWetDGj44+txz6jU=
 github.com/DataDog/sketches-go v1.4.4 h1:dF52vzXRFSPOj2IjXSWLvXq3jubL4CI69kwYjJ1w5Z8=
 github.com/DataDog/sketches-go v1.4.4/go.mod h1:XR0ns2RtEEF09mDKXiKZiQg+nfZStrq1ZuL1eezeZe0=
-github.com/DataDog/trivy v0.0.0-20240426155824-6c986dae34c1 h1:0iL9+kxw9y4OJeI4pZAwxZ76ah0Sj6AEuv7mh3Vp0N0=
-github.com/DataDog/trivy v0.0.0-20240426155824-6c986dae34c1/go.mod h1:xmc7xCb5KSg2mFbztyInH8ciotVbad9SOmGFClgD0cU=
+github.com/DataDog/trivy v0.0.0-20240524155722-0c355f8e174c h1:Xsdjt6y5ajENVAasDmdl0d6jbFkSYwhi5HD9CXke9Rc=
+github.com/DataDog/trivy v0.0.0-20240524155722-0c355f8e174c/go.mod h1:xmc7xCb5KSg2mFbztyInH8ciotVbad9SOmGFClgD0cU=
 github.com/DataDog/viper v1.13.3 h1:0++798wZLEenL1JbF8dMmwFl6WMlAVxLtzVuws/LlVc=
 github.com/DataDog/viper v1.13.3/go.mod h1:wDdUVJ2SHaMaPrCZrlRCObwkubsX8j5sme3LaR/SGTc=
 github.com/DataDog/walker v0.0.0-20230418153152-7f29bb2dc950 h1:2imDajw3V85w1iqHsuXN+hUBZQVF+r9eME8tsPq/HpA=

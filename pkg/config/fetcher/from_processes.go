@@ -8,6 +8,7 @@ package fetcher
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/client"
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -23,9 +24,15 @@ func SecurityAgentConfig(config config.Reader) (string, error) {
 		return "", err
 	}
 
-	c := util.GetClient(false)
+	port := config.GetInt("security_agent.cmd_port")
+	if port <= 0 {
+		return "", fmt.Errorf("invalid security_agent.cmd_port -- %d", port)
+	}
 
-	apiConfigURL := fmt.Sprintf("https://localhost:%v/agent/config", config.GetInt("security_agent.cmd_port"))
+	c := util.GetClient(false)
+	c.Timeout = config.GetDuration("server_timeout") * time.Second
+
+	apiConfigURL := fmt.Sprintf("https://localhost:%v/agent/config", port)
 	client := settingshttp.NewClient(c, apiConfigURL, "security-agent", settingshttp.NewHTTPClientOptions(util.CloseConnection))
 	return client.FullConfig()
 }
@@ -37,12 +44,13 @@ func TraceAgentConfig(config config.Reader) (string, error) {
 		return "", err
 	}
 
-	c := util.GetClient(false)
-
 	port := config.GetInt("apm_config.debug.port")
 	if port <= 0 {
 		return "", fmt.Errorf("invalid apm_config.debug.port -- %d", port)
 	}
+
+	c := util.GetClient(false)
+	c.Timeout = config.GetDuration("server_timeout") * time.Second
 
 	ipcAddressWithPort := fmt.Sprintf("http://127.0.0.1:%d/config", port)
 
@@ -56,8 +64,6 @@ func ProcessAgentConfig(config config.Reader, getEntireConfig bool) (string, err
 	if err != nil {
 		return "", err
 	}
-
-	c := util.GetClient(false)
 
 	ipcAddress, err := setup.GetIPCAddress(config)
 	if err != nil {
@@ -73,6 +79,9 @@ func ProcessAgentConfig(config config.Reader, getEntireConfig bool) (string, err
 	if getEntireConfig {
 		ipcAddressWithPort += "/all"
 	}
+
+	c := util.GetClient(false)
+	c.Timeout = config.GetDuration("server_timeout") * time.Second
 
 	client := settingshttp.NewClient(c, ipcAddressWithPort, "process-agent", settingshttp.NewHTTPClientOptions(util.CloseConnection))
 

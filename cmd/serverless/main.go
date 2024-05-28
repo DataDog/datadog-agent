@@ -89,7 +89,7 @@ func runAgent() {
 	stopCh := make(chan struct{})
 
 	flavor.SetFlavor(flavor.ServerlessAgent)
-	config.Datadog.Set("use_v2_api.series", false, model.SourceAgentRuntime)
+	config.Datadog().Set("use_v2_api.series", false, model.SourceAgentRuntime)
 
 	// Disable remote configuration for now as it just spams the debug logs
 	// and provides no value.
@@ -119,7 +119,7 @@ func runAgent() {
 
 	debug.OutputDatadogEnvVariablesForDebugging()
 
-	config.Datadog.SetConfigFile(datadogConfigPath)
+	config.Datadog().SetConfigFile(datadogConfigPath)
 	// Load datadog.yaml file into the config, so that metricAgent can pick these configurations
 	if _, err := config.LoadWithoutSecret(); err != nil {
 		log.Errorf("Error happened when loading configuration from datadog.yaml for metric agent: %s", err)
@@ -188,7 +188,7 @@ func runAgent() {
 	}
 	metricAgent.Start(daemon.FlushTimeout, &metrics.MetricConfig{}, &metrics.MetricDogStatsD{})
 	serverlessDaemon.SetStatsdServer(metricAgent)
-	serverlessDaemon.SetupLogCollectionHandler(logsAPICollectionRoute, logChannel, config.Datadog.GetBool("serverless.logs_enabled"), config.Datadog.GetBool("enhanced_metrics"), lambdaInitMetricChan)
+	serverlessDaemon.SetupLogCollectionHandler(logsAPICollectionRoute, logChannel, config.Datadog().GetBool("serverless.logs_enabled"), config.Datadog().GetBool("enhanced_metrics"), lambdaInitMetricChan)
 
 	// Concurrently start heavyweight features
 	var wg sync.WaitGroup
@@ -198,7 +198,7 @@ func runAgent() {
 	go func() {
 		defer wg.Done()
 		traceAgent := &trace.ServerlessTraceAgent{}
-		traceAgent.Start(config.Datadog.GetBool("apm_config.enabled"), &trace.LoadConfig{Path: datadogConfigPath}, lambdaSpanChan, coldStartSpanId)
+		traceAgent.Start(config.Datadog().GetBool("apm_config.enabled"), &trace.LoadConfig{Path: datadogConfigPath}, lambdaSpanChan, coldStartSpanId)
 		serverlessDaemon.SetTraceAgent(traceAgent)
 	}()
 
@@ -315,7 +315,7 @@ func runAgent() {
 		)
 	}
 
-	serverlessDaemon.ComputeGlobalTags(configUtils.GetConfiguredTags(config.Datadog, true))
+	serverlessDaemon.ComputeGlobalTags(configUtils.GetConfiguredTags(config.Datadog(), true))
 
 	// run the invocation loop in a routine
 	// we don't want to start this mainloop before because once we're waiting on

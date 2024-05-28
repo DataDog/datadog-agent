@@ -361,7 +361,7 @@ func TestDefaultHostConfig(t *testing.T) {
 
 	expectedHosts := []string{"0.datadog.pool.ntp.org", "1.datadog.pool.ntp.org", "2.datadog.pool.ntp.org", "3.datadog.pool.ntp.org"}
 	testedConfig := []byte(``)
-	config.Datadog.SetWithoutSource("cloud_provider_metadata", []string{})
+	config.Datadog().SetWithoutSource("cloud_provider_metadata", []string{})
 
 	ntpCheck := new(NTPCheck)
 	ntpCheck.Configure(aggregator.NewNoOpSenderManager(), integration.FakeConfigHash, testedConfig, []byte(""), "test")

@@ -18,26 +18,26 @@ import (
 )
 
 // StartWorkloadAutoscaling starts the workload autoscaling controller
-func StartWorkloadAutoscaling(ctx context.Context, apiCl *apiserver.APIClient, rcClient rcClient) error {
+func StartWorkloadAutoscaling(ctx context.Context, apiCl *apiserver.APIClient, rcClient rcClient) (PatcherAdapter, error) {
 	if apiCl == nil {
-		return fmt.Errorf("Impossible to start workload autoscaling without valid APIClient")
+		return nil, fmt.Errorf("Impossible to start workload autoscaling without valid APIClient")
 	}
 
 	le, err := leaderelection.GetLeaderEngine()
 	if err != nil {
-		return fmt.Errorf("Unable to start workload autoscaling as LeaderElection failed with: %v", err)
+		return nil, fmt.Errorf("Unable to start workload autoscaling as LeaderElection failed with: %v", err)
 	}
 
 	store := autoscaling.NewStore[model.PodAutoscalerInternal]()
 
 	_, err = newConfigRetriever(store, le.IsLeader, rcClient)
 	if err != nil {
-		return fmt.Errorf("Unable to start workload autoscaling config retriever: %w", err)
+		return nil, fmt.Errorf("Unable to start workload autoscaling config retriever: %w", err)
 	}
 
 	controller, err := newController(apiCl.RESTMapper, apiCl.ScaleCl, apiCl.DynamicInformerCl, apiCl.DynamicInformerFactory, le.IsLeader, store)
 	if err != nil {
-		return fmt.Errorf("Unable to start workload autoscaling controller: %w", err)
+		return nil, fmt.Errorf("Unable to start workload autoscaling controller: %w", err)
 	}
 
 	// Start informers & controllers (informers can be started multiple times)
@@ -46,5 +46,5 @@ func StartWorkloadAutoscaling(ctx context.Context, apiCl *apiserver.APIClient, r
 
 	go controller.Run(ctx)
 
-	return nil
+	return newPatcherAdapter(store), nil
 }

@@ -9,6 +9,7 @@
 package mount
 
 import (
+	"encoding/json"
 	"path"
 	"slices"
 	"strings"
@@ -603,6 +604,25 @@ func (mr *Resolver) SendStats() error {
 	}
 
 	return mr.statsdClient.Gauge(metrics.MetricMountResolverCacheSize, float64(len(mr.mounts)), []string{}, 1.0)
+}
+
+// ToJSON return a json version of the cache
+func (mr *Resolver) ToJSON() ([]byte, error) {
+	dump := struct {
+		Entries []json.RawMessage
+	}{}
+
+	mr.lock.RLock()
+	defer mr.lock.RUnlock()
+
+	for _, mount := range mr.mounts {
+		d, err := json.Marshal(mount)
+		if err == nil {
+			dump.Entries = append(dump.Entries, d)
+		}
+	}
+
+	return json.Marshal(dump)
 }
 
 // NewResolver instantiates a new mount resolver
