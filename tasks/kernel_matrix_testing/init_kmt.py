@@ -63,7 +63,7 @@ def init_kernel_matrix_testing_system(ctx: Context, lite: bool, images):
 
     info("[+] Installing pulumi plugins")
     with ctx.cd(test_infra_dir):
-        ctx.run("go caca futi download")
+        ctx.run("go mod download")
         ctx.run("PULUMI_CONFIG_PASSPHRASE=dummy pulumi --non-interactive plugin install")
 
     pulumi_test_cmd = "pulumi --non-interactive plugin ls"
