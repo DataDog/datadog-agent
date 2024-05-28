@@ -374,10 +374,14 @@ func GetSelectorsPerEventType(fentry bool) map[eval.EventType][]manager.ProbesSe
 		// List of probes required to capture mmap events
 		"mmap": {
 			&manager.AllOf{Selectors: []manager.ProbesSelector{
-				&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "tracepoint_syscalls_sys_enter_mmap"}},
-				&manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: SecurityAgentUID, EBPFFuncName: "tracepoint_syscalls_sys_exit_mmap"}},
+				kprobeOrFentry("vm_mmap_pgoff"),
+				kretprobeOrFexit("vm_mmap_pgoff"),
 				kprobeOrFentry("security_mmap_file"),
-			}}},
+			}},
+			&manager.BestEffort{Selectors: []manager.ProbesSelector{
+				kprobeOrFentry("get_unmapped_area"),
+			}},
+		},
 
 		// List of probes required to capture mprotect events
 		"mprotect": {
