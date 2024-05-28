@@ -23,6 +23,7 @@ from tasks import (
     epforwarder,
     fakeintake,
     github_tasks,
+    go_deps,
     installer,
     kmt,
     linter,
@@ -66,7 +67,7 @@ from tasks.go import (
     reset,
     tidy_all,
 )
-from tasks.go_test import (
+from tasks.gotest import (
     codecov,
     e2e_tests,
     get_impacted_packages,
@@ -79,7 +80,7 @@ from tasks.go_test import (
 from tasks.install_tasks import download_tools, install_devcontainer_cli, install_shellcheck, install_tools
 from tasks.junit_tasks import junit_upload
 from tasks.libs.common.go_workspaces import handle_go_work
-from tasks.show_linters_issues import show_linters_issues
+from tasks.show_linters_issues.show_linters_issues import show_linters_issues
 from tasks.unit_tests import invoke_unit_tests
 from tasks.update_go import go_version, update_go
 from tasks.windows_resources import build_messagetable
@@ -142,6 +143,7 @@ ns.add_collection(dogstatsd)
 ns.add_collection(ebpf)
 ns.add_collection(emacs)
 ns.add_collection(epforwarder)
+ns.add_collection(go_deps)
 ns.add_collection(linter)
 ns.add_collection(msi)
 ns.add_collection(github_tasks, "github")

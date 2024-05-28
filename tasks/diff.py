@@ -15,6 +15,57 @@ from tasks.libs.common.color import color_message
 from tasks.libs.common.utils import check_uncommitted_changes
 from tasks.release import _get_release_json_value
 
+BINARIES = {
+    "agent": {
+        "entrypoint": "cmd/agent",
+        "platforms": ["linux/x64", "linux/arm64", "win32/x64", "darwin/x64", "darwin/arm64"],
+    },
+    "iot-agent": {
+        "build": "agent",
+        "entrypoint": "cmd/agent",
+        "flavor": AgentFlavor.iot,
+        "platforms": ["linux/x64", "linux/arm64"],
+    },
+    "heroku-agent": {
+        "build": "agent",
+        "entrypoint": "cmd/agent",
+        "flavor": AgentFlavor.heroku,
+        "platforms": ["linux/x64"],
+    },
+    "cluster-agent": {"entrypoint": "cmd/cluster-agent", "platforms": ["linux/x64", "linux/arm64"]},
+    "cluster-agent-cloudfoundry": {
+        "entrypoint": "cmd/cluster-agent-cloudfoundry",
+        "platforms": ["linux/x64", "linux/arm64"],
+    },
+    "dogstatsd": {"entrypoint": "cmd/dogstatsd", "platforms": ["linux/x64", "linux/arm64"]},
+    "process-agent": {
+        "entrypoint": "cmd/process-agent",
+        "platforms": ["linux/x64", "linux/arm64", "win32/x64", "darwin/x64", "darwin/arm64"],
+    },
+    "heroku-process-agent": {
+        "build": "process-agent",
+        "entrypoint": "cmd/process-agent",
+        "flavor": AgentFlavor.heroku,
+        "platforms": ["linux/x64"],
+    },
+    "security-agent": {
+        "entrypoint": "cmd/security-agent",
+        "platforms": ["linux/x64", "linux/arm64"],
+    },
+    "serverless": {"entrypoint": "cmd/serverless", "platforms": ["linux/x64", "linux/arm64"]},
+    "system-probe": {"entrypoint": "cmd/system-probe", "platforms": ["linux/x64", "linux/arm64", "win32/x64"]},
+    "trace-agent": {
+        "entrypoint": "cmd/trace-agent",
+        "platforms": ["linux/x64", "linux/arm64", "win32/x64", "darwin/x64", "darwin/arm64"],
+    },
+    "heroku-trace-agent": {
+        "build": "trace-agent",
+        "entrypoint": "cmd/trace-agent",
+        "flavor": AgentFlavor.heroku,
+        "platforms": ["linux/x64"],
+    },
+}
+
 
 @task
 def go_deps(ctx, baseline_ref=None, report_file=None):
@@ -35,57 +86,6 @@ def go_deps(ctx, baseline_ref=None, report_file=None):
         base_branch = _get_release_json_value("base_branch")
         baseline_ref = ctx.run(f"git merge-base {commit_sha} origin/{base_branch}", hide=True).stdout.strip()
 
-    # platforms are the agent task recognized os/platform and arch values, not Go-specific values
-    binaries = {
-        "agent": {
-            "entrypoint": "cmd/agent",
-            "platforms": ["linux/x64", "linux/arm64", "win32/x64", "win32/x86", "darwin/x64", "darwin/arm64"],
-        },
-        "iot-agent": {
-            "build": "agent",
-            "entrypoint": "cmd/agent",
-            "flavor": AgentFlavor.iot,
-            "platforms": ["linux/x64", "linux/arm64"],
-        },
-        "heroku-agent": {
-            "build": "agent",
-            "entrypoint": "cmd/agent",
-            "flavor": AgentFlavor.heroku,
-            "platforms": ["linux/x64"],
-        },
-        "cluster-agent": {"entrypoint": "cmd/cluster-agent", "platforms": ["linux/x64", "linux/arm64"]},
-        "cluster-agent-cloudfoundry": {
-            "entrypoint": "cmd/cluster-agent-cloudfoundry",
-            "platforms": ["linux/x64", "linux/arm64"],
-        },
-        "dogstatsd": {"entrypoint": "cmd/dogstatsd", "platforms": ["linux/x64", "linux/arm64"]},
-        "process-agent": {
-            "entrypoint": "cmd/process-agent",
-            "platforms": ["linux/x64", "linux/arm64", "win32/x64", "darwin/x64", "darwin/arm64"],
-        },
-        "heroku-process-agent": {
-            "build": "process-agent",
-            "entrypoint": "cmd/process-agent",
-            "flavor": AgentFlavor.heroku,
-            "platforms": ["linux/x64"],
-        },
-        "security-agent": {
-            "entrypoint": "cmd/security-agent",
-            "platforms": ["linux/x64", "linux/arm64"],
-        },
-        "serverless": {"entrypoint": "cmd/serverless", "platforms": ["linux/x64", "linux/arm64"]},
-        "system-probe": {"entrypoint": "cmd/system-probe", "platforms": ["linux/x64", "linux/arm64", "win32/x64"]},
-        "trace-agent": {
-            "entrypoint": "cmd/trace-agent",
-            "platforms": ["linux/x64", "linux/arm64", "win32/x64", "win32/x86", "darwin/x64", "darwin/arm64"],
-        },
-        "heroku-trace-agent": {
-            "build": "trace-agent",
-            "entrypoint": "cmd/trace-agent",
-            "flavor": AgentFlavor.heroku,
-            "platforms": ["linux/x64"],
-        },
-    }
     diffs = {}
     dep_cmd = "go list -f '{{ range .Deps }}{{ printf \"%s\\n\" . }}{{end}}'"
 
@@ -97,7 +97,7 @@ def go_deps(ctx, baseline_ref=None, report_file=None):
                 if branch_ref:
                     ctx.run(f"git checkout -q {branch_ref}")
 
-                for binary, details in binaries.items():
+                for binary, details in BINARIES.items():
                     with ctx.cd(details.get("entrypoint")):
                         for combo in details.get("platforms"):
                             platform, arch = combo.split("/")
@@ -107,16 +107,14 @@ def go_deps(ctx, baseline_ref=None, report_file=None):
                             depsfile = os.path.join(tmpdir, f"{target}-{branch_name}")
                             flavor = details.get("flavor", AgentFlavor.base)
                             build = details.get("build", binary)
-                            build_tags = get_default_build_tags(
-                                build=build, arch=arch, platform=platform, flavor=flavor
-                            )
+                            build_tags = get_default_build_tags(build=build, platform=platform, flavor=flavor)
                             env = {"GOOS": goos, "GOARCH": goarch}
                             ctx.run(f"{dep_cmd} -tags \"{' '.join(build_tags)}\" > {depsfile}", env=env)
         finally:
             ctx.run(f"git checkout -q {current_branch}")
 
         # compute diffs for each target
-        for binary, details in binaries.items():
+        for binary, details in BINARIES.items():
             for combo in details.get("platforms"):
                 platform, arch = combo.split("/")
                 goos, goarch = GOOS_MAPPING.get(platform), GOARCH_MAPPING.get(arch)
@@ -137,7 +135,7 @@ def go_deps(ctx, baseline_ref=None, report_file=None):
                 f"Comparison: {commit_sha}\n",
                 "<table><thead><tr><th>binary</th><th>os</th><th>arch</th><th>change</th></tr></thead><tbody>",
             ]
-            for binary, details in binaries.items():
+            for binary, details in BINARIES.items():
                 for combo in details.get("platforms"):
                     platform, arch = combo.split("/")
                     goos, goarch = GOOS_MAPPING.get(platform), GOARCH_MAPPING.get(arch)

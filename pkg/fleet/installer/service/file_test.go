@@ -10,6 +10,7 @@ package service
 
 import (
 	"errors"
+	"io/fs"
 	"os"
 	"testing"
 
@@ -123,4 +124,22 @@ func assertFile(t *testing.T, path, expectedContent string, expectedMode os.File
 	require.NoError(t, err)
 	mode := fileInfo.Mode()
 	require.Equal(t, expectedMode, mode)
+}
+
+func TestCleanup(t *testing.T) {
+	tmpDir := t.TempDir()
+	originalPath := tmpDir + "/original.txt"
+	mode := fs.FileMode(0744)
+	os.WriteFile(originalPath, []byte(originalContent), mode)
+	mutator := newFileMutator(originalPath, nil, nil, nil)
+	os.WriteFile(mutator.pathTmp, []byte(originalContent), mode)
+	os.WriteFile(mutator.pathBackup, []byte(originalContent), mode)
+	assert.FileExists(t, mutator.pathTmp)
+	assert.FileExists(t, mutator.pathBackup)
+	assert.FileExists(t, mutator.path)
+
+	mutator.cleanup()
+	assert.FileExists(t, mutator.path)
+	assert.NoFileExists(t, mutator.pathTmp)
+	assert.NoFileExists(t, mutator.pathBackup)
 }

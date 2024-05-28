@@ -22,8 +22,7 @@ const (
 	installerPackage = "datadog-installer"
 	installerBinPath = "bin/installer/installer"
 
-	hashFilePath = "/opt/datadog-installer/run/installer-hash"
-	rootTmpDir   = "/opt/datadog-installer/run"
+	rootTmpDir = "/opt/datadog-installer/run"
 )
 
 // Bootstrap installs a first version of the installer on the disk.
@@ -33,14 +32,13 @@ const (
 // 2. Export the installer image as an OCI layout on the disk.
 // 3. Extract the installer image layers on the disk.
 // 4. Run the installer from the extract layer with `install file://<layout-path>`.
-// 5. Write a file on the disk with the hash of the installed version.
+// 5. Get the list of default packages to install and install them.
 func Bootstrap(ctx context.Context, env *env.Env) error {
-
 	// 1. Download the installer package from the registry.
 	downloader := oci.NewDownloader(env, http.DefaultClient)
 	version := "latest"
-	if env.DefaultVersionOverrideByPackage[installerPackage] != "" {
-		version = env.DefaultVersionOverrideByPackage[installerPackage]
+	if env.DefaultPackagesVersionOverride[installerPackage] != "" {
+		version = env.DefaultPackagesVersionOverride[installerPackage]
 	}
 	installerURL := oci.PackageURL(env, installerPackage, version)
 	downloadedPackage, err := downloader.Download(ctx, installerURL)
@@ -49,17 +47,6 @@ func Bootstrap(ctx context.Context, env *env.Env) error {
 	}
 	if downloadedPackage.Name != installerPackage {
 		return fmt.Errorf("unexpected package name: %s, expected %s", downloadedPackage.Name, installerPackage)
-	}
-	hash, err := downloadedPackage.Image.Digest()
-	if err != nil {
-		return fmt.Errorf("failed to get image digest: %w", err)
-	}
-	existingHash, err := os.ReadFile(hashFilePath)
-	if err != nil && !os.IsNotExist(err) {
-		return fmt.Errorf("failed to read hash file: %w", err)
-	}
-	if string(existingHash) == hash.String() {
-		return nil
 	}
 
 	// 2. Export the installer image as an OCI layout on the disk.
@@ -92,10 +79,16 @@ func Bootstrap(ctx context.Context, env *env.Env) error {
 		return fmt.Errorf("failed to run installer: %w", err)
 	}
 
-	// 5. Write a file on the disk with the hash of the installed version.
-	err = os.WriteFile(hashFilePath, []byte(hash.String()), 0644)
+	// 6. Get the list of default packages to install and install them.
+	defaultPackages, err := cmd.DefaultPackages(ctx)
 	if err != nil {
-		return fmt.Errorf("failed to write hash file: %w", err)
+		return fmt.Errorf("failed to get default packages: %w", err)
+	}
+	for _, url := range defaultPackages {
+		err = cmd.Install(ctx, url)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "failed to install package %s: %v\n", url, err)
+		}
 	}
 	return nil
 }

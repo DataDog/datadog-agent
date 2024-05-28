@@ -200,11 +200,13 @@ func TestSet(t *testing.T) {
 	config.Set("foo", "quux", SourceRC)
 	config.Set("foo", "corge", SourceCLI)
 
-	assert.Equal(t, config.AllSourceSettingsWithoutDefault(SourceFile), map[string]interface{}{"foo": "bar"})
-	assert.Equal(t, config.AllSourceSettingsWithoutDefault(SourceEnvVar), map[string]interface{}{"foo": "baz"})
-	assert.Equal(t, config.AllSourceSettingsWithoutDefault(SourceAgentRuntime), map[string]interface{}{"foo": "qux"})
-	assert.Equal(t, config.AllSourceSettingsWithoutDefault(SourceRC), map[string]interface{}{"foo": "quux"})
-	assert.Equal(t, config.AllSourceSettingsWithoutDefault(SourceCLI), map[string]interface{}{"foo": "corge"})
+	layers := config.AllSettingsBySource()
+
+	assert.Equal(t, layers[SourceFile], map[string]interface{}{"foo": "bar"})
+	assert.Equal(t, layers[SourceEnvVar], map[string]interface{}{"foo": "baz"})
+	assert.Equal(t, layers[SourceAgentRuntime], map[string]interface{}{"foo": "qux"})
+	assert.Equal(t, layers[SourceRC], map[string]interface{}{"foo": "quux"})
+	assert.Equal(t, layers[SourceCLI], map[string]interface{}{"foo": "corge"})
 
 	assert.Equal(t, config.Get("foo"), "corge")
 }
@@ -291,7 +293,7 @@ func TestAllFileSettingsWithoutDefault(t *testing.T) {
 		map[string]interface{}{
 			"baz": "qux",
 		},
-		config.AllSourceSettingsWithoutDefault(SourceFile),
+		config.AllSettingsWithoutDefault(),
 	)
 }
 
@@ -311,7 +313,7 @@ foo: bar
 
 	assert.Equal(t, "bar", config.Get("foo"))
 	assert.Equal(t, SourceFile, config.GetSource("foo"))
-	assert.Equal(t, map[string]interface{}{"foo": "bar"}, config.AllSourceSettingsWithoutDefault(SourceFile))
+	assert.Equal(t, map[string]interface{}{"foo": "bar"}, config.AllSettingsWithoutDefault())
 }
 
 func TestNotification(t *testing.T) {
@@ -360,4 +362,24 @@ func TestCheckKnownKey(t *testing.T) {
 
 	config.Get("foobar")
 	assert.Contains(t, config.unknownKeys, "foobar")
+}
+
+func TestCopyConfig(t *testing.T) {
+	config := NewConfig("test", "DD", strings.NewReplacer(".", "_"))
+	config.SetDefault("baz", "qux")
+	config.Set("foo", "bar", SourceFile)
+	config.BindEnv("xyz", "XXYYZZ")
+	config.SetKnown("tyu")
+	config.OnUpdate(func(key string, _, _ any) {})
+
+	backup := NewConfig("test", "DD", strings.NewReplacer(".", "_"))
+	backup.CopyConfig(config)
+
+	assert.Equal(t, "qux", backup.Get("baz"))
+	assert.Equal(t, "bar", backup.Get("foo"))
+	t.Setenv("XXYYZZ", "value")
+	assert.Equal(t, "value", backup.Get("xyz"))
+	assert.True(t, backup.IsKnown("tyu"))
+	// can't compare function pointers directly so just check the number of callbacks
+	assert.Len(t, backup.(*safeConfig).notificationReceivers, 1, "notification receivers should be copied")
 }

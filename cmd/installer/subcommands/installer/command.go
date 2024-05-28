@@ -10,6 +10,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/cmd/installer/command"
@@ -45,7 +46,12 @@ const (
 
 // Commands returns the installer subcommands.
 func Commands(_ *command.GlobalParams) []*cobra.Command {
-	return []*cobra.Command{versionCommand(), bootstrapCommand(), installCommand(), removeCommand(), installExperimentCommand(), removeExperimentCommand(), promoteExperimentCommand(), garbageCollectCommand(), purgeCommand(), isInstalledCommand()}
+	return []*cobra.Command{bootstrapCommand(), installCommand(), removeCommand(), installExperimentCommand(), removeExperimentCommand(), promoteExperimentCommand(), garbageCollectCommand(), purgeCommand(), isInstalledCommand()}
+}
+
+// UnprivilegedCommands returns the unprivileged installer subcommands.
+func UnprivilegedCommands(_ *command.GlobalParams) []*cobra.Command {
+	return []*cobra.Command{versionCommand(), defaultPackagesCommand()}
 }
 
 type cmd struct {
@@ -160,6 +166,19 @@ func versionCommand() *cobra.Command {
 		GroupID: "installer",
 		Run: func(_ *cobra.Command, _ []string) {
 			fmt.Println(version.AgentVersion)
+		},
+	}
+}
+
+func defaultPackagesCommand() *cobra.Command {
+	return &cobra.Command{
+		Use:     "default-packages",
+		Short:   "Print the list of default packages to install",
+		GroupID: "installer",
+		RunE: func(_ *cobra.Command, _ []string) error {
+			defaultPackages := installer.DefaultPackages(env.FromEnv())
+			fmt.Fprintf(os.Stdout, "%s\n", strings.Join(defaultPackages, "\n"))
+			return nil
 		},
 	}
 }

@@ -136,4 +136,8 @@ const (
 	ProgramTLSKafkaResponseParser TLSProgramType = C.TLS_KAFKA_RESPONSE_PARSER
 	// ProgramTLSKafkaTermination is tail call to process Kafka TLS termination.
 	ProgramTLSKafkaTermination TLSProgramType = C.TLS_KAFKA_TERMINATION
+	// ProgramTLSPostgres is tail call to process Postgres TLS frames.
+	ProgramTLSPostgres TLSProgramType = C.TLS_POSTGRES
+	// ProgramTLSPostgresTermination is tail call to process Postgres TLS termination.
+	ProgramTLSPostgresTermination TLSProgramType = C.TLS_POSTGRES_TERMINATION
 )

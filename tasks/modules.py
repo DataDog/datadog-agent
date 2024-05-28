@@ -158,6 +158,7 @@ DEFAULT_MODULES = {
     "pkg/tagset": GoModule("pkg/tagset", independent=True),
     "pkg/metrics": GoModule("pkg/metrics", independent=True),
     "pkg/telemetry": GoModule("pkg/telemetry", independent=True),
+    "comp/core/flare/builder": GoModule("comp/core/flare/builder", independent=True),
     "comp/core/flare/types": GoModule("comp/core/flare/types", independent=True),
     "comp/core/hostname/hostnameinterface": GoModule("comp/core/hostname/hostnameinterface", independent=True),
     "comp/core/config": GoModule("comp/core/config", independent=True),
@@ -184,6 +185,12 @@ DEFAULT_MODULES = {
     ),
     "comp/otelcol/otlp/components/exporter/datadogexporter": GoModule(
         "comp/otelcol/otlp/components/exporter/datadogexporter", independent=True
+    ),
+    "comp/otelcol/otlp/components/metricsclient": GoModule(
+        "comp/otelcol/otlp/components/metricsclient", independent=True
+    ),
+    "comp/otelcol/otlp/components/statsprocessor": GoModule(
+        "comp/otelcol/otlp/components/statsprocessor", independent=True
     ),
     "comp/otelcol/otlp/testutil": GoModule("comp/otelcol/otlp/testutil", independent=True),
     "comp/otelcol/collector-contrib/def": GoModule(

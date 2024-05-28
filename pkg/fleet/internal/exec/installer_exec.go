@@ -7,10 +7,12 @@
 package exec
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"os"
 	"os/exec"
+	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/env"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer"
@@ -119,6 +121,28 @@ func (i *InstallerExec) IsInstalled(ctx context.Context, pkg string) (_ bool, er
 		return false, err
 	}
 	return true, nil
+}
+
+// DefaultPackages returns the default packages to install.
+func (i *InstallerExec) DefaultPackages(ctx context.Context) (_ []string, err error) {
+	cmd := i.newInstallerCmd(ctx, "default-packages")
+	defer func() { cmd.span.Finish(tracer.WithError(err)) }()
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+	err = cmd.Run()
+	if err != nil {
+		return nil, fmt.Errorf("error running default-packages: %w\n%s", err, stderr.String())
+	}
+	var defaultPackages []string
+	for _, line := range strings.Split(stdout.String(), "\n") {
+		if line == "" {
+			continue
+		}
+		defaultPackages = append(defaultPackages, line)
+	}
+	return defaultPackages, nil
 }
 
 // State returns the state of a package.

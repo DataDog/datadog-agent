@@ -186,6 +186,7 @@ upload_sysprobe_tests_arm64:
   extends: .kmt_run_tests
   stage: kernel_matrix_testing_system_probe
   rules: !reference [.on_system_probe_or_e2e_changes_or_manual]
+  timeout: 1h 30m
   variables:
     TEST_COMPONENT: system-probe
 
@@ -199,7 +200,6 @@ kmt_run_sysprobe_tests_x64:
     - upload_dependencies_sysprobe_x64
     - upload_sysprobe_tests_x64
     - upload_minimized_btfs_sysprobe_x64
-  timeout: 3h
   variables:
     ARCH: "x86_64"
   parallel:
@@ -237,7 +237,6 @@ kmt_run_sysprobe_tests_arm64:
     - upload_dependencies_sysprobe_arm64
     - upload_sysprobe_tests_arm64
     - upload_minimized_btfs_sysprobe_arm64
-  timeout: 3h
   variables:
     ARCH: "arm64"
   parallel:

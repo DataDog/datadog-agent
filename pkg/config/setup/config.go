@@ -329,6 +329,7 @@ func InitConfig(config pkgconfigmodel.Config) {
 	config.BindEnvAndSetDefault("kubernetes_node_annotations_as_host_aliases", []string{"cluster.k8s.io/machine"})
 	config.BindEnvAndSetDefault("kubernetes_node_label_as_cluster_name", "")
 	config.BindEnvAndSetDefault("kubernetes_namespace_labels_as_tags", map[string]string{})
+	config.BindEnvAndSetDefault("kubernetes_namespace_annotations_as_tags", map[string]string{})
 	config.BindEnvAndSetDefault("container_cgroup_prefix", "")
 	config.BindEnvAndSetDefault("kubernetes_namespace_collection_enabled", false) // Enables collection of kubernetes namespace information
 
@@ -583,6 +584,9 @@ func InitConfig(config pkgconfigmodel.Config) {
 	config.BindEnvAndSetDefault("checks_tag_cardinality", "low")
 	config.BindEnvAndSetDefault("dogstatsd_tag_cardinality", "low")
 
+	// Autoscaling product
+	config.BindEnvAndSetDefault("autoscaling.workload.enabled", false)
+
 	config.BindEnvAndSetDefault("hpa_watcher_polling_freq", 10)
 	config.BindEnvAndSetDefault("hpa_watcher_gc_period", 60*5) // 5 minutes
 	config.BindEnvAndSetDefault("hpa_configmap_name", "datadog-custom-metrics")
@@ -758,6 +762,10 @@ func InitConfig(config pkgconfigmodel.Config) {
 	config.BindEnvAndSetDefault("sbom.host.enabled", false)
 	config.BindEnvAndSetDefault("sbom.host.analyzers", []string{"os"})
 
+	// Service discovery configuration
+	config.BindEnvAndSetDefault("service_discovery.enabled", true)
+	bindEnvAndSetLogsConfigKeys(config, "service_discovery.forwarder.")
+
 	// Orchestrator Explorer - process agent
 	// DEPRECATED in favor of `orchestrator_explorer.orchestrator_dd_url` setting. If both are set `orchestrator_explorer.orchestrator_dd_url` will take precedence.
 	config.BindEnv("process_config.orchestrator_dd_url", "DD_PROCESS_CONFIG_ORCHESTRATOR_DD_URL", "DD_PROCESS_AGENT_ORCHESTRATOR_DD_URL")
@@ -781,7 +789,7 @@ func InitConfig(config pkgconfigmodel.Config) {
 	config.BindEnvAndSetDefault("inventories_first_run_delay", 60)
 
 	// Datadog security agent (common)
-	config.BindEnvAndSetDefault("security_agent.cmd_port", 5010)
+	config.BindEnvAndSetDefault("security_agent.cmd_port", DefaultSecurityAgentCmdPort)
 	config.BindEnvAndSetDefault("security_agent.expvar_port", 5011)
 	config.BindEnvAndSetDefault("security_agent.log_file", DefaultSecurityAgentLogFile)
 	config.BindEnvAndSetDefault("security_agent.remote_tagger", true)
@@ -828,7 +836,7 @@ func InitConfig(config pkgconfigmodel.Config) {
 	}
 	config.BindEnvAndSetDefault("runtime_security_config.log_profiled_workloads", false)
 	config.BindEnvAndSetDefault("runtime_security_config.telemetry.ignore_dd_agent_containers", true)
-	config.BindEnvAndSetDefault("runtime_security_config.use_secruntime_track", false)
+	config.BindEnvAndSetDefault("runtime_security_config.use_secruntime_track", true)
 	bindEnvAndSetLogsConfigKeys(config, "runtime_security_config.endpoints.")
 	bindEnvAndSetLogsConfigKeys(config, "runtime_security_config.activity_dump.remote_storage.endpoints.")
 
@@ -881,10 +889,10 @@ func InitConfig(config pkgconfigmodel.Config) {
 
 	setupProcesses(config)
 
-	// Updater configuration
-	config.BindEnvAndSetDefault("updater.remote_updates", false)
-	config.BindEnv("updater.registry")
-	config.BindEnvAndSetDefault("updater.registry_auth", "")
+	// Installer configuration
+	config.BindEnvAndSetDefault("remote_updates", false)
+	config.BindEnvAndSetDefault("installer.registry.url", "")
+	config.BindEnvAndSetDefault("installer.registry.auth", "")
 }
 
 func agent(config pkgconfigmodel.Config) {

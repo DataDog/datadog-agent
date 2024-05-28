@@ -232,7 +232,6 @@ func runTraceroute(cfg traceroute.Config) (payload.NetworkPath, error) {
 
 func (s *npCollectorImpl) flushLoop() {
 	s.logger.Debugf("Starting flush loop")
-	defer s.logger.Debugf("Stopped flush loop")
 
 	flushTicker := time.NewTicker(s.flushInterval)
 
@@ -241,7 +240,7 @@ func (s *npCollectorImpl) flushLoop() {
 		select {
 		// stop sequence
 		case <-s.stopChan:
-			s.logger.Info("Stop flush loop")
+			s.logger.Info("Stopped flush loop")
 			s.flushLoopDone <- struct{}{}
 			flushTicker.Stop()
 			return
