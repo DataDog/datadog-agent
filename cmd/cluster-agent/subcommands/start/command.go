@@ -401,7 +401,7 @@ func start(log log.Component,
 	}
 
 	// Autoscaling Product
-	var pa workload.PatcherAdapter
+	var pa workload.PODPatcher
 	if config.GetBool("autoscaling.workload.enabled") {
 		if rcClient == nil {
 			return fmt.Errorf("Remote config is disabled or failed to initialize, remote config is a required dependency for autoscaling")

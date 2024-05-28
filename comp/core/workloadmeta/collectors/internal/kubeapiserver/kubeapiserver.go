@@ -80,7 +80,7 @@ func (c *collector) Start(ctx context.Context, wlmetaStore workloadmeta.Componen
 	client := apiserverClient.InformerCl
 
 	// TODO(components): do not use the config.Datadog reference, use a component instead
-	for _, storeBuilder := range storeGenerators(config.Datadog) {
+	for _, storeBuilder := range storeGenerators(config.Datadog()) {
 		reflector, store := storeBuilder(ctx, wlmetaStore, client)
 		objectStores = append(objectStores, store)
 		go reflector.Run(ctx.Done())

@@ -150,6 +150,7 @@ typedef enum {
     PROG_KAFKA_RESPONSE_PARSER,
     PROG_GRPC,
     PROG_POSTGRES,
+    PROG_POSTGRES_PROCESS_PARSE_MESSAGE,
     // Add before this value.
     PROG_MAX,
 } protocol_prog_t;
@@ -168,6 +169,7 @@ typedef enum {
     TLS_KAFKA_RESPONSE_PARSER,
     TLS_KAFKA_TERMINATION,
     TLS_POSTGRES,
+    TLS_PROG_POSTGRES_PROCESS_PARSE_MESSAGE,
     TLS_POSTGRES_TERMINATION,
     TLS_PROG_MAX,
 } tls_prog_t;

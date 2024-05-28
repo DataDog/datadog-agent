@@ -57,6 +57,7 @@ from tasks.go import (
     check_go_mod_replaces,
     check_go_version,
     check_mod_tidy,
+    create_module,
     deps,
     deps_vendored,
     generate_licenses,
@@ -118,6 +119,7 @@ ns.add_task(check_go_mod_replaces)
 ns.add_task(tidy_all)
 ns.add_task(internal_deps_checker)
 ns.add_task(check_go_version)
+ns.add_task(create_module)
 ns.add_task(junit_upload)
 ns.add_task(fuzz)
 ns.add_task(go_fix)

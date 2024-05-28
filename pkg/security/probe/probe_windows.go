@@ -80,10 +80,13 @@ type WindowsProbe struct {
 
 	// stats
 	stats stats
+
 	// discarders
 	discardedPaths     *lru.Cache[string, struct{}]
 	discardedUserPaths *lru.Cache[string, struct{}]
 	discardedBasenames *lru.Cache[string, struct{}]
+
+	discardedFileHandles *lru.Cache[fileObjectPointer, struct{}]
 
 	// map of device path to volume name (i.e. c:)
 	volumeMap map[string]string
@@ -95,6 +98,35 @@ type WindowsProbe struct {
 	isRenameEnabled bool
 	isWriteEnabled  bool
 	isDeleteEnabled bool
+
+	// channel handling.  Currently configurable, but should probably be set
+	// to false with a configurable size value
+	blockonchannelsend bool
+	// approvers
+	approvers map[eval.Field][]approver
+}
+
+type approver interface {
+	Approve(_ string) bool
+}
+
+type patternApprover struct {
+	matcher *eval.PatternStringMatcher
+}
+
+// Approve the value
+func (p *patternApprover) Approve(value string) bool {
+	return p.matcher.Matches(value)
+}
+
+func newPatternApprover(pattern string) (*patternApprover, error) {
+	var matcher eval.PatternStringMatcher
+	if err := matcher.Compile(pattern, true); err != nil {
+		return nil, err
+	}
+	return &patternApprover{
+		matcher: &matcher,
+	}, nil
 }
 
 // filecache currently only has a filename.  But this is going to expand really soon.  so go ahead
@@ -130,6 +162,9 @@ type stats struct {
 
 	// currently not used, reserved for future use
 	etwChannelBlocked uint64
+
+	// approver rejections
+	createFileApproverRejects uint64
 
 	totalEtwNotifications uint64
 }
@@ -210,6 +245,21 @@ func (p *WindowsProbe) initEtwFIM() error {
 		// try masking on create & create_new_file
 		// given the current requirements, I think we can _probably_ just do create_new_file
 		cfg.MatchAnyKeyword = 0x18A0
+
+		fileIds := []uint16{
+			idCreate,
+			idCreateNewFile,
+			idCleanup,
+			idClose,
+			idWrite,
+			idSetDelete,
+			idDeletePath,
+			idRename,
+			idRenamePath,
+			idRename29,
+		}
+
+		cfg.EnabledIDs = fileIds
 	})
 	p.fimSession.ConfigureProvider(p.regguid, func(cfg *etw.ProviderConfiguration) {
 		cfg.TraceLevel = etw.TRACE_LEVEL_VERBOSE
@@ -269,6 +319,22 @@ func (p *WindowsProbe) Stop() {
 	}
 }
 
+// currently support only string base approver for now
+func (p *WindowsProbe) approve(field eval.Field, value string) bool {
+	approvers, exists := p.approvers[field]
+	if !exists {
+		// no approvers, so no filtering for this field
+		return true
+	}
+
+	for _, approver := range approvers {
+		if approver.Approve(value) {
+			return true
+		}
+	}
+
+	return false
+}
 func (p *WindowsProbe) setupEtw(ecb etwCallback) error {
 
 	log.Info("Starting tracing...")
@@ -459,7 +525,15 @@ func (p *WindowsProbe) Start() error {
 		go func() {
 			defer p.fimwg.Done()
 			err := p.setupEtw(func(n interface{}, pid uint32) {
-				p.onETWNotification <- etwNotification{n, pid}
+				if p.blockonchannelsend {
+					p.onETWNotification <- etwNotification{n, pid}
+				} else {
+					select {
+					case p.onETWNotification <- etwNotification{n, pid}:
+					default:
+						p.stats.etwChannelBlocked++
+					}
+				}
 			})
 			log.Infof("Done StartTracing %v", err)
 		}()
@@ -776,6 +850,9 @@ func (p *WindowsProbe) SendStats() error {
 	if err := p.statsdClient.Gauge(metrics.MetricWindowsETWTotalNotifications, float64(p.stats.totalEtwNotifications), nil, 1); err != nil {
 		return err
 	}
+	if err := p.statsdClient.Gauge(metrics.MetricWindowsApproverRejects, float64(p.stats.createFileApproverRejects), nil, 1); err != nil {
+		return err
+	}
 	if etwstats, err := p.fimSession.GetSessionStatistics(); err == nil {
 		if err := p.statsdClient.Gauge(metrics.MetricWindowsETWNumberOfBuffers, float64(etwstats.NumberOfBuffers), nil, 1); err != nil {
 			return err
@@ -844,11 +921,20 @@ func initializeWindowsProbe(config *config.Config, opts Opts) (*WindowsProbe, er
 	if err != nil {
 		return nil, err
 	}
+	dfh, err := lru.New[fileObjectPointer, struct{}](config.RuntimeSecurity.WindowsFilenameCacheSize)
+	if err != nil {
+		return nil, err
+	}
 
 	rnc, err := lru.New[uint64, fileCache](5)
 	if err != nil {
 		return nil, err
 	}
+
+	bocs := config.RuntimeSecurity.WindowsProbeBlockOnChannelSend
+
+	etwNotificationSize := config.RuntimeSecurity.ETWEventsChannelSize
+	log.Infof("Setting ETW channel size to %d", etwNotificationSize)
 
 	ctx, cancelFnc := context.WithCancel(context.Background())
 
@@ -861,7 +947,7 @@ func initializeWindowsProbe(config *config.Config, opts Opts) (*WindowsProbe, er
 		onStart:           make(chan *procmon.ProcessStartNotification),
 		onStop:            make(chan *procmon.ProcessStopNotification),
 		onError:           make(chan bool),
-		onETWNotification: make(chan etwNotification),
+		onETWNotification: make(chan etwNotification, etwNotificationSize),
 
 		filePathResolver: fc,
 		regPathResolver:  rc,
@@ -872,9 +958,15 @@ func initializeWindowsProbe(config *config.Config, opts Opts) (*WindowsProbe, er
 		discardedUserPaths: discardedUserPaths,
 		discardedBasenames: discardedBasenames,
 
+		discardedFileHandles: dfh,
+
+		approvers: make(map[eval.Field][]approver),
+
 		volumeMap: make(map[string]string),
 
 		processKiller: NewProcessKiller(),
+
+		blockonchannelsend: bocs,
 
 		stats: stats{
 			fileNotifications:          make(map[uint16]uint64),
@@ -925,7 +1017,18 @@ func (p *WindowsProbe) ApplyRuleSet(rs *rules.RuleSet) (*kfilters.ApplyRuleSetRe
 		}
 	}
 
-	return kfilters.NewApplyRuleSetReport(p.config.Probe, rs)
+	ars, err := kfilters.NewApplyRuleSetReport(p.config.Probe, rs)
+	if err != nil {
+		return nil, err
+	}
+
+	for eventType, report := range ars.Policies {
+		if err := p.SetApprovers(eventType, report.Approvers); err != nil {
+			return nil, err
+		}
+	}
+
+	return ars, nil
 }
 
 // FlushDiscarders invalidates all the discarders
@@ -1038,4 +1141,27 @@ func NewProbe(config *config.Config, opts Opts, _ optional.Option[workloadmeta.C
 	p.PlatformProbe = pp
 
 	return p, nil
+}
+
+// SetApprovers applies approvers and removes the unused ones
+func (p *WindowsProbe) SetApprovers(_ eval.EventType, approvers rules.Approvers) error {
+	for name, els := range approvers {
+		for _, el := range els {
+			if el.Type == eval.ScalarValueType || el.Type == eval.PatternValueType {
+				value, ok := el.Value.(string)
+				if !ok {
+					return errors.New("invalid pattern type")
+				}
+
+				ap, err := newPatternApprover(value)
+				if err != nil {
+					return err
+				}
+				l := p.approvers[name]
+				p.approvers[name] = append(l, ap)
+			}
+		}
+	}
+
+	return nil
 }

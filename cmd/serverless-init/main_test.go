@@ -8,7 +8,6 @@
 package main
 
 import (
-	"strings"
 	"testing"
 
 	"github.com/spf13/cast"
@@ -19,15 +18,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
-func setupTest() {
-	config.Datadog = config.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
-	config.InitConfig(config.Datadog)
-}
-
 func TestTagsSetup(t *testing.T) {
 	// TODO: Fix and re-enable flaky test
 	t.Skip()
-	setupTest()
+
+	config.Mock(t)
 
 	ddTagsEnv := "key1:value1 key2:value2 key3:value3:4"
 	ddExtraTagsEnv := "key22:value22 key23:value23"

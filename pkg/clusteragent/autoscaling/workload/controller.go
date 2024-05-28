@@ -17,6 +17,7 @@ import (
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/dynamic/dynamicinformer"
 	scaleclient "k8s.io/client-go/scale"
+	"k8s.io/client-go/tools/record"
 	"k8s.io/utils/clock"
 
 	datadoghq "github.com/DataDog/datadog-operator/apis/datadoghq/v1alpha1"
@@ -47,6 +48,8 @@ type store = autoscaling.Store[model.PodAutoscalerInternal]
 type Controller struct {
 	*autoscaling.Controller
 
+	eventRecorder record.EventRecorder
+
 	clock clock.Clock
 	store *store
 
@@ -55,6 +58,7 @@ type Controller struct {
 
 // newController returns a new workload autoscaling controller
 func newController(
+	eventRecorder record.EventRecorder,
 	restMapper apimeta.RESTMapper,
 	scaleClient scaleclient.ScalesGetter,
 	dynamicClient dynamic.Interface,
@@ -63,7 +67,8 @@ func newController(
 	store *store,
 ) (*Controller, error) {
 	c := &Controller{
-		clock: clock.RealClock{},
+		eventRecorder: eventRecorder,
+		clock:         clock.RealClock{},
 	}
 
 	baseController, err := autoscaling.NewController(controllerID, c, dynamicClient, dynamicInformer, podAutoscalerGVR, isLeader, store)
@@ -73,7 +78,7 @@ func newController(
 
 	c.Controller = baseController
 	c.store = store
-	c.horizontalController = newHorizontalReconciler(restMapper, scaleClient)
+	c.horizontalController = newHorizontalReconciler(c.clock, eventRecorder, restMapper, scaleClient)
 
 	return c, nil
 }
@@ -232,7 +237,7 @@ func (c *Controller) syncPodAutoscaler(ctx context.Context, key, ns, name string
 	}
 
 	// Now that everything is synced, we can perform the actual processing
-	result, err := c.handleScaling(ctx, &podAutoscalerInternal)
+	result, err := c.handleScaling(ctx, podAutoscaler, &podAutoscalerInternal)
 	if err != nil {
 		podAutoscalerInternal.Error = err
 	}
@@ -252,9 +257,9 @@ func (c *Controller) syncPodAutoscaler(ctx context.Context, key, ns, name string
 	return result, err
 }
 
-func (c *Controller) handleScaling(ctx context.Context, podAutoscalerInternal *model.PodAutoscalerInternal) (autoscaling.ProcessResult, error) {
+func (c *Controller) handleScaling(ctx context.Context, podAutoscaler *datadoghq.DatadogPodAutoscaler, podAutoscalerInternal *model.PodAutoscalerInternal) (autoscaling.ProcessResult, error) {
 	// Handle horizontal scaling
-	return c.horizontalController.sync(ctx, podAutoscalerInternal)
+	return c.horizontalController.sync(ctx, podAutoscaler, podAutoscalerInternal)
 }
 
 func (c *Controller) createPodAutoscaler(ctx context.Context, podAutoscalerInternal model.PodAutoscalerInternal) error {

@@ -354,3 +354,38 @@ func (fh *EBPFLessFieldHandlers) ResolveProcessCmdArgv(ev *model.Event, process 
 func (fh *EBPFLessFieldHandlers) ResolveAWSSecurityCredentials(_ *model.Event) []model.AWSSecurityCredentials {
 	return nil
 }
+
+// ResolveSyscallCtxArgs resolve syscall ctx
+func (fh *EBPFLessFieldHandlers) ResolveSyscallCtxArgs(_ *model.Event, e *model.SyscallContext) {
+	e.Resolved = true
+}
+
+// ResolveSyscallCtxArgsStr1 resolve syscall ctx
+func (fh *EBPFLessFieldHandlers) ResolveSyscallCtxArgsStr1(_ *model.Event, e *model.SyscallContext) string {
+	return e.StrArg1
+}
+
+// ResolveSyscallCtxArgsStr2 resolve syscall ctx
+func (fh *EBPFLessFieldHandlers) ResolveSyscallCtxArgsStr2(_ *model.Event, e *model.SyscallContext) string {
+	return e.StrArg2
+}
+
+// ResolveSyscallCtxArgsStr3 resolve syscall ctx
+func (fh *EBPFLessFieldHandlers) ResolveSyscallCtxArgsStr3(_ *model.Event, e *model.SyscallContext) string {
+	return e.StrArg3
+}
+
+// ResolveSyscallCtxArgsInt1 resolve syscall ctx
+func (fh *EBPFLessFieldHandlers) ResolveSyscallCtxArgsInt1(_ *model.Event, e *model.SyscallContext) int {
+	return int(e.IntArg1)
+}
+
+// ResolveSyscallCtxArgsInt2 resolve syscall ctx
+func (fh *EBPFLessFieldHandlers) ResolveSyscallCtxArgsInt2(_ *model.Event, e *model.SyscallContext) int {
+	return int(e.IntArg2)
+}
+
+// ResolveSyscallCtxArgsInt3 resolve syscall ctx
+func (fh *EBPFLessFieldHandlers) ResolveSyscallCtxArgsInt3(_ *model.Event, e *model.SyscallContext) int {
+	return int(e.IntArg3)
+}

@@ -14,7 +14,7 @@ import (
 // getPrometheusConfigs reads and initializes the openmetrics checks from the configuration
 // It defines a default openmetrics instances with default AD if the checks configuration is empty
 func getPrometheusConfigs() ([]*types.PrometheusCheck, error) {
-	checks, err := types.PrometheusScrapeChecksTransformer(config.Datadog.GetString("prometheus_scrape.checks"))
+	checks, err := types.PrometheusScrapeChecksTransformer(config.Datadog().GetString("prometheus_scrape.checks"))
 	if err != nil {
 		return []*types.PrometheusCheck{}, err
 	}
@@ -26,7 +26,7 @@ func getPrometheusConfigs() ([]*types.PrometheusCheck, error) {
 
 	validChecks := []*types.PrometheusCheck{}
 	for i, check := range checks {
-		if err := check.Init(config.Datadog.GetInt("prometheus_scrape.version")); err != nil {
+		if err := check.Init(config.Datadog().GetInt("prometheus_scrape.version")); err != nil {
 			log.Errorf("Ignoring check configuration (# %d): %v", i+1, err)
 			continue
 		}
