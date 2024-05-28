@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import glob
 import os
+import posixpath
 import re
 import shutil
 import sys
@@ -452,7 +453,7 @@ def get_deps(ctx, path):
 
 
 def add_replaces(ctx, path, replaces: list[str]):
-    repo_path = os.path.abspath('.')
+    repo_path = posixpath.abspath('.')
     with ctx.cd(path):
         for repo_local_path in replaces:
             if repo_local_path != path:
@@ -509,14 +510,14 @@ def create_module(ctx, path: str, no_verify: bool = False):
     - packages: Comma separated list of packages the will use the new module
     """
 
-    path = path.rstrip('/')
+    path = path.rstrip('/').rstrip('\\')
 
     if check_uncommitted_changes(ctx):
         raise RuntimeError("There are uncomitted changes, all changes must be committed to run this command.")
 
     # Perform checks + save current state to restore it in case of failure
-    assert not os.path.exists(path + '/go.mod'), f"Path {path + '/go.mod'} already exists"
-    is_empty = not os.path.exists(path)
+    assert not posixpath.exists(path + '/go.mod'), f"Path {path + '/go.mod'} already exists"
+    is_empty = not posixpath.exists(path)
 
     # Get info
     with open('go.mod') as f:
@@ -566,8 +567,9 @@ def create_module(ctx, path: str, no_verify: bool = False):
             # Find module that must include the new module
             dependent_modules = []
             for gomod in glob.glob('./**/go.mod', recursive=True):
-                mod_path = os.path.dirname(gomod)
-                if os.path.abspath(mod_path) != os.path.abspath(path):
+                gomod = Path(gomod).as_posix()
+                mod_path = posixpath.dirname(gomod)
+                if posixpath.abspath(mod_path) != posixpath.abspath(path):
                     deps = get_deps(ctx, mod_path)
                     if path in deps:
                         dependent_modules.append(mod_path)
