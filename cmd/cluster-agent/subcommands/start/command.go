@@ -20,6 +20,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/controllers"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
@@ -302,17 +303,18 @@ func start(log log.Component,
 	eventBroadcaster.StartRecordingToSink(&corev1.EventSinkImpl{Interface: apiCl.Cl.CoreV1().Events("")})
 	eventRecorder := eventBroadcaster.NewRecorder(scheme.Scheme, v1.EventSource{Component: "datadog-cluster-agent"})
 
-	ctx := apiserver.ControllerContext{
+	ctx := controllers.ControllerContext{
 		InformerFactory:        apiCl.InformerFactory,
 		DynamicClient:          apiCl.DynamicInformerCl,
 		DynamicInformerFactory: apiCl.DynamicInformerFactory,
 		Client:                 apiCl.InformerCl,
 		IsLeaderFunc:           le.IsLeader,
 		EventRecorder:          eventRecorder,
+		WorkloadMeta:           wmeta,
 		StopCh:                 stopCh,
 	}
 
-	if aggErr := apiserver.StartControllers(ctx); aggErr != nil {
+	if aggErr := controllers.StartControllers(ctx); aggErr != nil {
 		for _, err := range aggErr.Errors() {
 			pkglog.Warnf("Error while starting controller: %v", err)
 		}
@@ -399,13 +401,20 @@ func start(log log.Component,
 	}
 
 	// Autoscaling Product
+	var pa workload.PatcherAdapter
 	if config.GetBool("autoscaling.workload.enabled") {
 		if rcClient == nil {
 			return fmt.Errorf("Remote config is disabled or failed to initialize, remote config is a required dependency for autoscaling")
 		}
 
-		if err := workload.StartWorkloadAutoscaling(mainCtx, apiCl, rcClient); err != nil {
+		if !config.GetBool("admission_controller.enabled") {
+			log.Error("Admission controller is disabled, vertical autoscaling requires the admission controller to be enabled. Vertical scaling will be disabled.")
+		}
+
+		if adapter, err := workload.StartWorkloadAutoscaling(mainCtx, apiCl, rcClient); err != nil {
 			pkglog.Errorf("Error while starting workload autoscaling: %v", err)
+		} else {
+			pa = adapter
 		}
 	}
 
@@ -454,7 +463,7 @@ func start(log log.Component,
 			StopCh:              stopCh,
 		}
 
-		webhooks, err := admissionpkg.StartControllers(admissionCtx, wmeta)
+		webhooks, err := admissionpkg.StartControllers(admissionCtx, wmeta, pa)
 		if err != nil {
 			pkglog.Errorf("Could not start admission controller: %v", err)
 		} else {

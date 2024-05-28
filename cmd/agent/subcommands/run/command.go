@@ -41,6 +41,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/agent/jmxlogger/jmxloggerimpl"
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
+	demultiplexerendpointfx "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexerendpoint/fx"
 	internalAPI "github.com/DataDog/datadog-agent/comp/api/api"
 	"github.com/DataDog/datadog-agent/comp/api/api/apiimpl"
 	authtokenimpl "github.com/DataDog/datadog-agent/comp/api/authtoken/createandfetchimpl"
@@ -79,7 +80,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/defaults"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd"
-	"github.com/DataDog/datadog-agent/comp/dogstatsd/replay"
+	replay "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/def"
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
 	dogstatsddebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
 	dogstatsdStatusimpl "github.com/DataDog/datadog-agent/comp/dogstatsd/status/statusimpl"
@@ -370,6 +371,7 @@ func getSharedFxOption() fx.Option {
 		apiimpl.Module(),
 		compressionimpl.Module(),
 		demultiplexerimpl.Module(),
+		demultiplexerendpointfx.Module(),
 		dogstatsd.Bundle(),
 		fx.Provide(func(logsagent optional.Option[logsAgent.Component]) optional.Option[logsagentpipeline.Component] {
 			if la, ok := logsagent.Get(); ok {

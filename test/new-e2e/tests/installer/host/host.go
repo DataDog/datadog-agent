@@ -60,14 +60,30 @@ func (h *Host) setSystemdVersion() {
 	h.systemdVersion = version
 }
 
-// InstallDocker installs Docker on the host.
+// InstallDocker installs Docker on the host if it is not already installed.
 func (h *Host) InstallDocker() {
+	if _, err := h.remote.Execute("command -v docker"); err == nil {
+		return
+	}
+
 	switch h.os.Flavor {
 	case e2eos.AmazonLinux:
 		h.remote.MustExecute(`sudo sh -c "yum -y install docker && systemctl start docker"`)
 	default:
 		h.remote.MustExecute("curl -fsSL https://get.docker.com | sudo sh")
 	}
+}
+
+// GetDockerRuntimePath returns the runtime path of a docker runtime
+func (h *Host) GetDockerRuntimePath(runtime string) string {
+	var cmd string
+	switch h.os.Flavor {
+	case e2eos.AmazonLinux:
+		cmd = "sudo docker system info --format '{{ (index .Runtimes \"%s\").Path }}'"
+	default:
+		cmd = "sudo docker system info --format '{{ (index .Runtimes \"%s\").Runtime.Path }}'"
+	}
+	return strings.TrimSpace(h.remote.MustExecute(fmt.Sprintf(cmd, runtime)))
 }
 
 // Run executes a command on the host.
@@ -486,7 +502,7 @@ func (s *State) AssertUnitsEnabled(names ...string) {
 	for _, name := range names {
 		unit, ok := s.Units[name]
 		assert.True(s.t, ok, "unit %v is not enabled", name)
-		assert.NotEqual(s.t, "unknown", unit.Enabled, "unit %v is not enabled", name)
+		assert.Equal(s.t, "enabled", unit.Enabled, "unit %v is not enabled", name)
 	}
 }
 
@@ -504,6 +520,15 @@ func (s *State) AssertUnitsNotLoaded(names ...string) {
 	for _, name := range names {
 		_, ok := s.Units[name]
 		assert.True(s.t, !ok, "unit %v is loaded", name)
+	}
+}
+
+// AssertUnitsNotEnabled asserts that a systemd unit is not enabled
+func (s *State) AssertUnitsNotEnabled(names ...string) {
+	for _, name := range names {
+		unit, ok := s.Units[name]
+		assert.True(s.t, ok, "unit %v is enabled", name)
+		assert.Equal(s.t, "disabled", unit.Enabled, "unit %v is enabled", name)
 	}
 }
 

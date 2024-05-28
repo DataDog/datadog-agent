@@ -25,7 +25,7 @@ func TestBasicFileTest(t *testing.T) {
 	//ebpftest.LogLevel(t, "info")
 	cfn := &rules.RuleDefinition{
 		ID:         "test_create_file",
-		Expression: `create.file.name =~ "test.bad" && create.file.device_path =~ "\Device\*\Temp\**"`,
+		Expression: `create.file.name =~ "test.bad" && create.file.path =~ "C:\Temp\**"`,
 	}
 	opts := testOpts{
 		enableFIM: true,
@@ -68,7 +68,7 @@ func TestRenameFileEvent(t *testing.T) {
 	// ebpftest.LogLevel(t, "info")
 	cfn := &rules.RuleDefinition{
 		ID:         "test_rename_file",
-		Expression: `rename.file.name =~ "test.bad" && rename.file.device_path =~ "\Device\*\Temp\**"`,
+		Expression: `rename.file.name =~ "test.bad" && rename.file.path =~ "C:\Temp\**"`,
 	}
 	opts := testOpts{
 		enableFIM: true,
@@ -105,7 +105,7 @@ func TestDeleteFileEvent(t *testing.T) {
 	// ebpftest.LogLevel(t, "info")
 	cfn := &rules.RuleDefinition{
 		ID:         "test_delete_file",
-		Expression: `delete.file.name =~ "test.bad" && delete.file.device_path =~ "\Device\*\Temp\**"`,
+		Expression: `delete.file.name =~ "test.bad" && delete.file.path =~ "C:\Temp\**"`,
 	}
 	opts := testOpts{
 		enableFIM: true,
@@ -141,7 +141,7 @@ func TestWriteFileEvent(t *testing.T) {
 	// ebpftest.LogLevel(t, "info")
 	cfn := &rules.RuleDefinition{
 		ID:         "test_write_file",
-		Expression: `write.file.name =~ "test.bad" && write.file.device_path =~ "\Device\*\Temp\**"`,
+		Expression: `write.file.name =~ "test.bad" && write.file.path =~ "C:\Temp\**"`,
 	}
 	opts := testOpts{
 		enableFIM: true,

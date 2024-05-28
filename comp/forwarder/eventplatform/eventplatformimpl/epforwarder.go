@@ -521,7 +521,7 @@ func NewNoopEventPlatformForwarder(hostname hostnameinterface.Component) eventpl
 }
 
 func newNoopEventPlatformForwarder(hostname hostnameinterface.Component) *defaultEventPlatformForwarder {
-	f := newDefaultEventPlatformForwarder(pkgconfig.Datadog, eventplatformreceiverimpl.NewReceiver(hostname))
+	f := newDefaultEventPlatformForwarder(pkgconfig.Datadog, eventplatformreceiverimpl.NewReceiver(hostname).Comp)
 	// remove the senders
 	for _, p := range f.pipelines {
 		p.strategy = nil

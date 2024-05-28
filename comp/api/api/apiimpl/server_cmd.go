@@ -20,7 +20,6 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 
-	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	"github.com/DataDog/datadog-agent/comp/api/api"
 	"github.com/DataDog/datadog-agent/comp/api/api/apiimpl/internal/agent"
 	"github.com/DataDog/datadog-agent/comp/api/api/apiimpl/internal/check"
@@ -34,10 +33,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	workloadmetaServer "github.com/DataDog/datadog-agent/comp/core/workloadmeta/server"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/pidmap"
-	"github.com/DataDog/datadog-agent/comp/dogstatsd/replay"
+	replay "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/def"
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
-	dogstatsddebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
-	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver"
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcservice"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcservicemrf"
@@ -61,16 +58,13 @@ func startCMDServer(
 	dogstatsdServer dogstatsdServer.Component,
 	capture replay.Component,
 	pidMap pidmap.Component,
-	serverDebug dogstatsddebug.Component,
 	wmeta workloadmeta.Component,
 	taggerComp tagger.Component,
 	logsAgent optional.Option[logsAgent.Component],
 	senderManager sender.DiagnoseSenderManager,
-	demux demultiplexer.Component,
 	secretResolver secrets.Component,
 	statusComponent status.Component,
 	collector optional.Option[collector.Component],
-	eventPlatformReceiver eventplatformreceiver.Component,
 	ac autodiscovery.Component,
 	providers []api.EndpointProvider,
 ) (err error) {
@@ -139,16 +133,12 @@ func startCMDServer(
 		http.StripPrefix("/agent",
 			agent.SetupHandlers(
 				agentMux,
-				dogstatsdServer,
-				serverDebug,
 				wmeta,
 				logsAgent,
 				senderManager,
-				demux,
 				secretResolver,
 				statusComponent,
 				collector,
-				eventPlatformReceiver,
 				ac,
 				providers,
 			)))

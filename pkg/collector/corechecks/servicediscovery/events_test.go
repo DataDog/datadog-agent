@@ -52,7 +52,6 @@ func Test_telemetrySender(t *testing.T) {
 
 	ts := newTelemetrySender(mSender)
 	ts.hostname = mHostname
-	ts.time = mTimer
 
 	svc := serviceInfo{
 		process: processInfo{
@@ -152,7 +151,6 @@ func Test_telemetrySender_name_provided(t *testing.T) {
 
 	ts := newTelemetrySender(mSender)
 	ts.hostname = mHostname
-	ts.time = mTimer
 
 	svc := serviceInfo{
 		process: processInfo{

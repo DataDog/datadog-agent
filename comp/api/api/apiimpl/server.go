@@ -14,7 +14,6 @@ import (
 
 	"github.com/cihub/seelog"
 
-	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	"github.com/DataDog/datadog-agent/comp/api/api"
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
@@ -23,10 +22,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/pidmap"
-	"github.com/DataDog/datadog-agent/comp/dogstatsd/replay"
+	replay "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/def"
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
-	dogstatsddebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
-	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver"
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcservice"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcservicemrf"
@@ -66,16 +63,13 @@ func StartServers(
 	dogstatsdServer dogstatsdServer.Component,
 	capture replay.Component,
 	pidMap pidmap.Component,
-	serverDebug dogstatsddebug.Component,
 	wmeta workloadmeta.Component,
 	taggerComp tagger.Component,
 	logsAgent optional.Option[logsAgent.Component],
 	senderManager sender.DiagnoseSenderManager,
-	demux demultiplexer.Component,
 	secretResolver secrets.Component,
 	statusComponent status.Component,
 	collector optional.Option[collector.Component],
-	eventPlatformReceiver eventplatformreceiver.Component,
 	ac autodiscovery.Component,
 	providers []api.EndpointProvider,
 ) error {
@@ -112,16 +106,13 @@ func StartServers(
 		dogstatsdServer,
 		capture,
 		pidMap,
-		serverDebug,
 		wmeta,
 		taggerComp,
 		logsAgent,
 		senderManager,
-		demux,
 		secretResolver,
 		statusComponent,
 		collector,
-		eventPlatformReceiver,
 		ac,
 		providers,
 	); err != nil {
