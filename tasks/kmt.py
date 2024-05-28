@@ -525,15 +525,13 @@ def kmt_secagent_prepare(
     ctx: Context,
     vms: str | None = None,
     stack: str | None = None,
-    arch: Arch | str | None = None,
+    arch: Arch | str = "local",
     ssh_key: str | None = None,
     packages: str | None = None,
     verbose: bool = True,
     ci: bool = True,
     compile_only: bool = False,
 ):
-    if arch is None:
-        arch = "local"
     arch = Arch.from_str(arch)
     kmt_paths = KMTPaths(stack, arch)
     kmt_paths.secagent_tests.mkdir(exist_ok=True, parents=True)
@@ -582,7 +580,7 @@ def prepare(
     component: Component,
     vms: str | None = None,
     stack: str | None = None,
-    arch: str | Arch | None = None,
+    arch: str | Arch = "local",
     ssh_key: str | None = None,
     packages=None,
     verbose=True,
@@ -597,8 +595,6 @@ def prepare(
     else:
         stack = "ci"
 
-    if arch is None:
-        arch = "local"
     arch_obj = Arch.from_str(arch)
     if arch_obj.kmt_arch not in KMT_SUPPORTED_ARCHS:
         raise Exit(

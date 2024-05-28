@@ -18,6 +18,9 @@ if TYPE_CHECKING:
 
 CONTAINER_AGENT_PATH = "/tmp/datadog-agent"
 
+AMD64_DEBIAN_KERNEL_HEADERS_URL = "http://deb.debian.org/debian-security/pool/updates/main/l/linux-5.10/linux-headers-5.10.0-0.deb10.28-amd64_5.10.209-2~deb10u1_amd64.deb"
+ARM64_DEBIAN_KERNEL_HEADERS_URL = "http://deb.debian.org/debian-security/pool/updates/main/l/linux-5.10/linux-headers-5.10.0-0.deb10.28-arm64_5.10.209-2~deb10u1_arm64.deb"
+
 
 def get_build_image_suffix_and_version() -> tuple[str, str]:
     gitlab_ci_file = Path(__file__).parent.parent.parent / ".gitlab-ci.yml"
@@ -60,12 +63,14 @@ class CompilerImage:
             info(f"[*] Compiler for {self.arch} not running, starting it...")
             self.start()
 
-    def exec(self, cmd: str, user="compiler", verbose=True, run_dir: PathOrStr | None = None, warn=False):
+    def exec(self, cmd: str, user="compiler", verbose=True, run_dir: PathOrStr | None = None, allow_fail=False):
         if run_dir:
             cmd = f"cd {run_dir} && {cmd}"
 
         self.ensure_running()
-        return self.ctx.run(f"docker exec -u {user} -i {self.name} bash -c \"{cmd}\"", hide=(not verbose), warn=warn)
+        return self.ctx.run(
+            f"docker exec -u {user} -i {self.name} bash -c \"{cmd}\"", hide=(not verbose), warn=allow_fail
+        )
 
     def stop(self) -> Result:
         res = self.ctx.run(f"docker rm -f $(docker ps -aqf \"name={self.name}\")")
@@ -116,17 +121,13 @@ class CompilerImage:
         self.prepare_for_cross_compile()
 
     def ensure_ready_for_cross_compile(self):
-        res = self.exec("test -f /tmp/cross-compile-ready", user="root", warn=True)
-        if res is not None and not res.ok:
+        res = self.exec("test -f /tmp/cross-compile-ready", user="root", allow_fail=True)
+        if res is None or not res.ok:
             info("[*] Compiler image not ready for cross-compilation, preparing...")
             self.prepare_for_cross_compile()
 
     def prepare_for_cross_compile(self):
-        target: Arch
-        if self.arch == ARCH_ARM64:
-            target = ARCH_AMD64
-        else:
-            target = ARCH_ARM64
+        target = ARCH_AMD64 if self.arch == ARCH_ARM64 else ARCH_ARM64
 
         # Hardcoded links to the header packages for each architecture. Why do this and not have something more automated?
         # 1. While right now the URLs are similar and we'd only need a single link with variable replacement, this might
@@ -136,8 +137,8 @@ class CompilerImage:
         # 3. Even if someone forgets to update these URLs, it's not a big deal, as we're building inside of a Docker image which will
         #    likely have a different kernel than the target system where the built eBPF files are going to run anyways.
         header_package_urls: dict[Arch, str] = {
-            ARCH_AMD64: "http://deb.debian.org/debian-security/pool/updates/main/l/linux-5.10/linux-headers-5.10.0-0.deb10.28-amd64_5.10.209-2~deb10u1_amd64.deb",
-            ARCH_ARM64: "http://deb.debian.org/debian-security/pool/updates/main/l/linux-5.10/linux-headers-5.10.0-0.deb10.28-arm64_5.10.209-2~deb10u1_arm64.deb",
+            ARCH_AMD64: AMD64_DEBIAN_KERNEL_HEADERS_URL,
+            ARCH_ARM64: ARM64_DEBIAN_KERNEL_HEADERS_URL,
         }
 
         header_package_path = "/tmp/headers.deb"
@@ -145,7 +146,10 @@ class CompilerImage:
 
         # Uncompress the package in the root directory, so that we have access to the headers
         # We cannot install because the architecture will not match
-        self.exec(f"dpkg-deb -x {header_package_path} /", user="root")
+        # Extract into a .tar file and then use tar to extract the contents to avoid issues
+        # with dpkg-deb not respecting symlinks.
+        self.exec(f"dpkg-deb --fsys-tarfile {header_package_path} > {header_package_path}.tar", user="root")
+        self.exec(f"tar -h -xvf {header_package_path}.tar -C /", user="root")
 
         # Install the corresponding arch compilers
         self.exec(f"apt update && apt install -y gcc-{target.gcc_arch.replace('_', '-')}-linux-gnu", user="root")
