@@ -138,6 +138,12 @@ func TestStartupCatalog(t *testing.T) {
 
 	// Get healthy
 	<-token.C
+	cat.pingComponents(time.Time{}) // First ping will make component healthy and fill the channel again.
+	status = cat.getStatus()
+	assert.Len(t, status.Healthy, 2)
+	assert.Contains(t, status.Healthy, "test1")
+
+	// Make sure that we stay health even if we don't ping.
 	cat.pingComponents(time.Time{})
 	status = cat.getStatus()
 	assert.Len(t, status.Healthy, 2)
