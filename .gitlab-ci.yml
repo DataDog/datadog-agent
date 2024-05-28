@@ -74,8 +74,8 @@ stages:
   - integration_test
   - benchmarks
   - package_build
-  - pkg_metrics
   - packaging
+  - pkg_metrics
   - kitchen_deploy
   - kitchen_testing
   - container_build

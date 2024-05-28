@@ -573,6 +573,9 @@ def kmt_secagent_prepare(
     ctx.run(f"ninja -d explain -v -f {nf_path}")
 
 
+btf_dir = "/opt/system-probe-tests/pkg/ebpf/bytecode/build/co-re/btf"
+
+
 @task
 def prepare(
     ctx: Context,
@@ -690,6 +693,17 @@ def prepare(
 
         # Copy all test files
         d.copy(ctx, paths.arch_dir / "opt/*", "/opt/", exclude="*.ninja", verbose=verbose)
+
+        # Copy BTF files
+        d.run_cmd(
+            ctx,
+            f"! [ -f {btf_dir}/minimized-btfs.tar.xz \
+                && [ -d /opt/btf ] \
+                && cd /opt/btf/ \
+                && tar cJf minimized-btfs.tar.xz * \
+                && mkdir -p {btf_dir} \
+                && mv /opt/btf/minimized-btfs.tar.xz {btf_dir}/",
+        )
 
         info(f"[+] Tests packages and dependencies setup in target VM {d}")
 
