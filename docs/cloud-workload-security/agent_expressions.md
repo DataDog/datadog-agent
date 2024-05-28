@@ -469,6 +469,7 @@ A process changed the current directory
 | [`chdir.file.uid`](#common-filefields-uid-doc) | UID of the file's owner |
 | [`chdir.file.user`](#common-filefields-user-doc) | User of the file's owner |
 | [`chdir.retval`](#common-syscallevent-retval-doc) | Return value of the syscall |
+| [`chdir.syscall.path`](#chdir-syscall-path-doc) | path argument of the syscall |
 
 ### Event `chmod`
 
@@ -499,6 +500,8 @@ A file’s permissions were changed
 | [`chmod.file.uid`](#common-filefields-uid-doc) | UID of the file's owner |
 | [`chmod.file.user`](#common-filefields-user-doc) | User of the file's owner |
 | [`chmod.retval`](#common-syscallevent-retval-doc) | Return value of the syscall |
+| [`chmod.syscall.mode`](#chmod-syscall-mode-doc) | mode argument of the syscall |
+| [`chmod.syscall.path`](#chmod-syscall-path-doc) | path argument of the syscall |
 
 ### Event `chown`
 
@@ -629,6 +632,7 @@ A process was executed or forked
 | [`exec.is_thread`](#common-process-is_thread-doc) | Indicates whether the process is considered a thread (that is, a child process that hasn't executed another program) |
 | [`exec.pid`](#common-pidcontext-pid-doc) | Process ID of the process (also called thread group ID) |
 | [`exec.ppid`](#common-process-ppid-doc) | Parent process ID |
+| [`exec.syscall.path`](#exec-syscall-path-doc) | path argument of the syscall |
 | [`exec.tid`](#common-pidcontext-tid-doc) | Thread ID of the thread |
 | [`exec.tty_name`](#common-process-tty_name-doc) | Name of the TTY associated with the process |
 | [`exec.uid`](#common-credentials-uid-doc) | UID of the process |
@@ -2396,6 +2400,13 @@ Constants: [Kernel Capability constants](#kernel-capability-constants)
 
 
 
+### `chdir.syscall.path` {#chdir-syscall-path-doc}
+Type: string
+
+Definition: path argument of the syscall
+
+
+
 ### `chmod.file.destination.mode` {#chmod-file-destination-mode-doc}
 Type: int
 
@@ -2413,6 +2424,20 @@ Definition: New rights of the chmod-ed file
 
 
 Constants: [File mode constants](#file-mode-constants)
+
+
+
+### `chmod.syscall.mode` {#chmod-syscall-mode-doc}
+Type: int
+
+Definition: mode argument of the syscall
+
+
+
+### `chmod.syscall.path` {#chmod-syscall-path-doc}
+Type: string
+
+Definition: path argument of the syscall
 
 
 
@@ -2545,6 +2570,13 @@ Definition: Service associated with the event
 Type: int
 
 Definition: Timestamp of the event
+
+
+
+### `exec.syscall.path` {#exec-syscall-path-doc}
+Type: string
+
+Definition: path argument of the syscall
 
 
 

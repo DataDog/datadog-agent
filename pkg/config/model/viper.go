@@ -40,7 +40,16 @@ const (
 )
 
 // sources list the known sources, following the order of hierarchy between them
-var sources = []Source{SourceDefault, SourceUnknown, SourceFile, SourceEnvVar, SourceAgentRuntime, SourceLocalConfigProcess, SourceRC, SourceCLI}
+var sources = []Source{
+	SourceDefault,
+	SourceUnknown,
+	SourceFile,
+	SourceEnvVar,
+	SourceAgentRuntime,
+	SourceLocalConfigProcess,
+	SourceRC,
+	SourceCLI,
+}
 
 // ValueWithSource is a tuple for a source and a value, not necessarily the applied value in the main config
 type ValueWithSource struct {
@@ -606,7 +615,7 @@ func (c *safeConfig) AllSettings() map[string]interface{} {
 	return c.Viper.AllSettings()
 }
 
-// AllSettingsWithoutDefault wraps Viper for concurrent access
+// AllSettingsWithoutDefault returns a copy of the all the settings in the configuration without defaults
 func (c *safeConfig) AllSettingsWithoutDefault() map[string]interface{} {
 	c.RLock()
 	defer c.RUnlock()
@@ -616,14 +625,26 @@ func (c *safeConfig) AllSettingsWithoutDefault() map[string]interface{} {
 	return c.Viper.AllSettingsWithoutDefault()
 }
 
-// AllSourceSettingsWithoutDefault wraps Viper for concurrent access
-func (c *safeConfig) AllSourceSettingsWithoutDefault(source Source) map[string]interface{} {
+// AllSettingsBySource returns the settings from each source (file, env vars, ...)
+func (c *safeConfig) AllSettingsBySource() map[Source]interface{} {
 	c.RLock()
 	defer c.RUnlock()
 
-	// AllSourceSettingsWithoutDefault returns a fresh map, so the caller may do with it
-	// as they please without holding the lock.
-	return c.configSources[source].AllSettingsWithoutDefault()
+	sources := []Source{
+		SourceDefault,
+		SourceUnknown,
+		SourceFile,
+		SourceEnvVar,
+		SourceAgentRuntime,
+		SourceRC,
+		SourceCLI,
+		SourceLocalConfigProcess,
+	}
+	res := map[Source]interface{}{}
+	for _, source := range sources {
+		res[source] = c.configSources[source].AllSettingsWithoutDefault()
+	}
+	return res
 }
 
 // AddConfigPath wraps Viper for concurrent access

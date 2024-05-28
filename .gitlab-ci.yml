@@ -74,8 +74,8 @@ stages:
   - integration_test
   - benchmarks
   - package_build
-  - pkg_metrics
   - packaging
+  - pkg_metrics
   - kitchen_deploy
   - kitchen_testing
   - container_build
@@ -607,7 +607,7 @@ workflow:
   - <<: *if_run_all_unit_tests
   - changes:
       paths:
-        - pkg/installer/**/*
+        - pkg/fleet/**/*
       compare_to: main
     variables:
       FAST_TESTS: "true"
@@ -970,7 +970,7 @@ workflow:
       paths:
         - .gitlab/**/*
         - omnibus/config/**/*
-        - pkg/installer/**/*
+        - pkg/fleet/**/*
         - cmd/installer/**/*
         - test/new-e2e/tests/installer/**/*
         - tasks/installer.py
