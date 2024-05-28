@@ -1232,8 +1232,6 @@ process_config:
 `)
 
 func TestConfigAssignAtPath(t *testing.T) {
-	t.Skip("This test is flaky due to configAssignAtPath not playing well with config.AllSettings, see ASCII-1421")
-
 	// CircleCI sets NO_PROXY, so unset it for this test
 	unsetEnvForTest(t, "NO_PROXY")
 
@@ -1283,6 +1281,41 @@ use_proxy_for_cloud_metadata: true
 	err = configAssignAtPath(config, []string{"additional_endpoints", "https://url1.com", "5"}, "invalid")
 	assert.Error(t, err)
 	assert.Equal(t, err.Error(), "index out of range 5 >= 2")
+}
+
+func TestConfigAssignAtPathWorksWithGet(t *testing.T) {
+	// CircleCI sets NO_PROXY, so unset it for this test
+	unsetEnvForTest(t, "NO_PROXY")
+
+	config := Conf()
+	config.SetWithoutSource("use_proxy_for_cloud_metadata", true)
+	configPath := filepath.Join(t.TempDir(), "datadog.yaml")
+	os.WriteFile(configPath, testExampleConf, 0o600)
+	config.SetConfigFile(configPath)
+
+	_, err := LoadCustom(config, "unit_test", optional.NewNoneOption[secrets.Component](), nil)
+	assert.NoError(t, err)
+
+	err = configAssignAtPath(config, []string{"secret_backend_command"}, "different")
+	assert.NoError(t, err)
+
+	err = configAssignAtPath(config, []string{"additional_endpoints", "https://url1.com", "1"}, "changed")
+	assert.NoError(t, err)
+
+	err = configAssignAtPath(config, []string{"process_config", "additional_endpoints", "https://url2.eu", "0"}, "modified")
+	assert.NoError(t, err)
+
+	var expected interface{} = `different`
+	res := config.Get("secret_backend_command")
+	require.Equal(t, expected, res)
+
+	expected = []interface{}([]interface{}{"first", "changed"})
+	res = config.Get("additional_endpoints.https://url1.com")
+	require.Equal(t, expected, res)
+
+	expected = []interface{}([]interface{}{"modified"})
+	res = config.Get("process_config.additional_endpoints.https://url2.eu")
+	require.Equal(t, expected, res)
 }
 
 var testSimpleConf = []byte(`secret_backend_command: some command
