@@ -31,7 +31,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"github.com/DataDog/datadog-agent/pkg/util/system"
-	"github.com/DataDog/zstd"
 )
 
 const (
@@ -76,6 +75,9 @@ const (
 
 	// DefaultCompressorKind is the default compressor. Options available are 'zlib' and 'zstd'
 	DefaultCompressorKind = "zlib"
+
+	// This should mirror the default compression level defined in https://github.com/DataDog/zstd/blob/1.x/zstd.go#L23
+	DefaultZstdCompressionLevel = 5
 
 	// DefaultLogsSenderBackoffFactor is the default logs sender backoff randomness factor
 	DefaultLogsSenderBackoffFactor = 2.0
@@ -1136,7 +1138,7 @@ func serializer(config pkgconfigmodel.Config) {
 	config.BindEnvAndSetDefault("serializer_max_series_payload_size", 512000)
 	config.BindEnvAndSetDefault("serializer_max_series_uncompressed_payload_size", 5242880)
 	config.BindEnvAndSetDefault("serializer_compressor_kind", DefaultCompressorKind)
-	config.BindEnvAndSetDefault("serializer_compressor_level", zstd.DefaultCompression)
+	config.BindEnvAndSetDefault("serializer_zstd_compressor_level", DefaultZstdCompressionLevel)
 
 	config.BindEnvAndSetDefault("use_v2_api.series", true)
 	// Serializer: allow user to blacklist any kind of payload to be sent

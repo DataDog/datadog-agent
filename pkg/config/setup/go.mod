@@ -40,7 +40,6 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/optional v0.54.0-rc.2
 	github.com/DataDog/datadog-agent/pkg/util/system v0.54.0-rc.2
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.54.0-rc.2
-	github.com/DataDog/zstd v1.5.5
 	github.com/stretchr/testify v1.9.0
 	gopkg.in/yaml.v2 v2.4.0
 )

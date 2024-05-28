@@ -178,7 +178,7 @@ func TestZstdCompressionLevel(t *testing.T) {
 			}
 			mockConfig := pkgconfigsetup.Conf()
 			mockConfig.SetWithoutSource("serializer_compressor_kind", "zstd")
-			mockConfig.SetDefault("serializer_compressor_level", level)
+			mockConfig.SetDefault("serializer_zstd_compressor_level", level)
 
 			builder := NewJSONPayloadBuilder(true, mockConfig, compressionimpl.NewCompressor(mockConfig))
 			payloads, err := BuildJSONPayload(builder, m)
