@@ -64,7 +64,6 @@ func (v *baseFlareSuite) TestLocalFlareDefaultFiles() {
 }
 
 func (v *baseFlareSuite) TestFlareProfiling() {
-	v.T().Skip("Skipping list-runtime test temporarily to troubleshoot flakiness")
 	args := agentclient.WithArgs([]string{"--email", "e2e@test.com", "--send", "--profile", "31",
 		"--profile-blocking", "--profile-blocking-rate", "5000", "--profile-mutex", "--profile-mutex-fraction", "200"})
 	flare, logs := requestAgentFlareAndFetchFromFakeIntake(v, args)

@@ -56,7 +56,6 @@ func CompleteFlare(fb flaretypes.FlareBuilder, diagnoseDeps diagnose.SuitesDeps)
 		fb.AddFile("status.log", []byte("unable to get the status of the agent, is it running?"))           //nolint:errcheck
 		fb.AddFile("config-check.log", []byte("unable to get loaded checks config, is the agent running?")) //nolint:errcheck
 	} else {
-		fb.AddFileFromFunc("config-check.log", getConfigCheck)                          //nolint:errcheck
 		fb.AddFileFromFunc("tagger-list.json", getAgentTaggerList)                      //nolint:errcheck
 		fb.AddFileFromFunc("workload-list.log", getAgentWorkloadList)                   //nolint:errcheck
 		fb.AddFileFromFunc("process-agent_tagger-list.json", getProcessAgentTaggerList) //nolint:errcheck
@@ -288,13 +287,6 @@ func getDiagnoses(isFlareLocal bool, deps diagnose.SuitesDeps) func() ([]byte, e
 	}
 
 	return func() ([]byte, error) { return functionOutputToBytes(fct), nil }
-}
-
-func getConfigCheck() ([]byte, error) {
-	fct := func(w io.Writer) error {
-		return GetConfigCheck(w, true)
-	}
-	return functionOutputToBytes(fct), nil
 }
 
 func getAgentTaggerList() ([]byte, error) {

@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/serverless/proc"
 	json "github.com/json-iterator/go"
 
 	"github.com/DataDog/datadog-agent/pkg/serverless/daemon"
@@ -157,6 +158,7 @@ func WaitForNextInvocation(stopCh chan struct{}, daemon *daemon.Daemon, id regis
 }
 
 func callInvocationHandler(daemon *daemon.Daemon, arn string, deadlineMs int64, safetyBufferTimeout time.Duration, requestID string, invocationHandler InvocationHandler) {
+	userCPUTimeMsOffset, systemCPUTimeMsOffset, cpuOffsetErr := proc.GetCPUData("/proc/stat")
 	timeout := computeTimeout(time.Now(), deadlineMs, safetyBufferTimeout)
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
@@ -168,9 +170,14 @@ func callInvocationHandler(daemon *daemon.Daemon, arn string, deadlineMs int64, 
 		log.Debug("Timeout detected, finishing the current invocation now to allow receiving the SHUTDOWN event")
 		// Tell the Daemon that the runtime is done (even though it isn't, because it's timing out) so that we can receive the SHUTDOWN event
 		daemon.TellDaemonRuntimeDone()
-		return
+		break
 	case <-doneChannel:
-		return
+		break
+	}
+	if cpuOffsetErr == nil && daemon.MetricAgent != nil {
+		metrics.SendCPUEnhancedMetrics(userCPUTimeMsOffset, systemCPUTimeMsOffset, daemon.ExtraTags.Tags, daemon.MetricAgent.Demux)
+	} else {
+		log.Debug("Could not send CPU enhanced metrics")
 	}
 }
 

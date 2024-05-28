@@ -302,6 +302,62 @@ func (ev *Event) GetChdirRetval() int64 {
 	return ev.Chdir.SyscallEvent.Retval
 }
 
+// GetChdirSyscallInt1 returns the value of the field, resolving if necessary
+func (ev *Event) GetChdirSyscallInt1() int {
+	if ev.GetEventType().String() != "chdir" {
+		return 0
+	}
+	return ev.FieldHandlers.ResolveSyscallCtxArgsInt1(ev, &ev.Chdir.SyscallContext)
+}
+
+// GetChdirSyscallInt2 returns the value of the field, resolving if necessary
+func (ev *Event) GetChdirSyscallInt2() int {
+	if ev.GetEventType().String() != "chdir" {
+		return 0
+	}
+	return ev.FieldHandlers.ResolveSyscallCtxArgsInt2(ev, &ev.Chdir.SyscallContext)
+}
+
+// GetChdirSyscallInt3 returns the value of the field, resolving if necessary
+func (ev *Event) GetChdirSyscallInt3() int {
+	if ev.GetEventType().String() != "chdir" {
+		return 0
+	}
+	return ev.FieldHandlers.ResolveSyscallCtxArgsInt3(ev, &ev.Chdir.SyscallContext)
+}
+
+// GetChdirSyscallPath returns the value of the field, resolving if necessary
+func (ev *Event) GetChdirSyscallPath() string {
+	if ev.GetEventType().String() != "chdir" {
+		return ""
+	}
+	return ev.FieldHandlers.ResolveSyscallCtxArgsStr1(ev, &ev.Chdir.SyscallContext)
+}
+
+// GetChdirSyscallStr1 returns the value of the field, resolving if necessary
+func (ev *Event) GetChdirSyscallStr1() string {
+	if ev.GetEventType().String() != "chdir" {
+		return ""
+	}
+	return ev.FieldHandlers.ResolveSyscallCtxArgsStr1(ev, &ev.Chdir.SyscallContext)
+}
+
+// GetChdirSyscallStr2 returns the value of the field, resolving if necessary
+func (ev *Event) GetChdirSyscallStr2() string {
+	if ev.GetEventType().String() != "chdir" {
+		return ""
+	}
+	return ev.FieldHandlers.ResolveSyscallCtxArgsStr2(ev, &ev.Chdir.SyscallContext)
+}
+
+// GetChdirSyscallStr3 returns the value of the field, resolving if necessary
+func (ev *Event) GetChdirSyscallStr3() string {
+	if ev.GetEventType().String() != "chdir" {
+		return ""
+	}
+	return ev.FieldHandlers.ResolveSyscallCtxArgsStr3(ev, &ev.Chdir.SyscallContext)
+}
+
 // GetChmodFileChangeTime returns the value of the field, resolving if necessary
 func (ev *Event) GetChmodFileChangeTime() uint64 {
 	if ev.GetEventType().String() != "chmod" {
@@ -484,6 +540,70 @@ func (ev *Event) GetChmodRetval() int64 {
 		return int64(0)
 	}
 	return ev.Chmod.SyscallEvent.Retval
+}
+
+// GetChmodSyscallInt1 returns the value of the field, resolving if necessary
+func (ev *Event) GetChmodSyscallInt1() int {
+	if ev.GetEventType().String() != "chmod" {
+		return 0
+	}
+	return ev.FieldHandlers.ResolveSyscallCtxArgsInt1(ev, &ev.Chmod.SyscallContext)
+}
+
+// GetChmodSyscallInt2 returns the value of the field, resolving if necessary
+func (ev *Event) GetChmodSyscallInt2() int {
+	if ev.GetEventType().String() != "chmod" {
+		return 0
+	}
+	return ev.FieldHandlers.ResolveSyscallCtxArgsInt2(ev, &ev.Chmod.SyscallContext)
+}
+
+// GetChmodSyscallInt3 returns the value of the field, resolving if necessary
+func (ev *Event) GetChmodSyscallInt3() int {
+	if ev.GetEventType().String() != "chmod" {
+		return 0
+	}
+	return ev.FieldHandlers.ResolveSyscallCtxArgsInt3(ev, &ev.Chmod.SyscallContext)
+}
+
+// GetChmodSyscallMode returns the value of the field, resolving if necessary
+func (ev *Event) GetChmodSyscallMode() int {
+	if ev.GetEventType().String() != "chmod" {
+		return 0
+	}
+	return ev.FieldHandlers.ResolveSyscallCtxArgsInt2(ev, &ev.Chmod.SyscallContext)
+}
+
+// GetChmodSyscallPath returns the value of the field, resolving if necessary
+func (ev *Event) GetChmodSyscallPath() string {
+	if ev.GetEventType().String() != "chmod" {
+		return ""
+	}
+	return ev.FieldHandlers.ResolveSyscallCtxArgsStr1(ev, &ev.Chmod.SyscallContext)
+}
+
+// GetChmodSyscallStr1 returns the value of the field, resolving if necessary
+func (ev *Event) GetChmodSyscallStr1() string {
+	if ev.GetEventType().String() != "chmod" {
+		return ""
+	}
+	return ev.FieldHandlers.ResolveSyscallCtxArgsStr1(ev, &ev.Chmod.SyscallContext)
+}
+
+// GetChmodSyscallStr2 returns the value of the field, resolving if necessary
+func (ev *Event) GetChmodSyscallStr2() string {
+	if ev.GetEventType().String() != "chmod" {
+		return ""
+	}
+	return ev.FieldHandlers.ResolveSyscallCtxArgsStr2(ev, &ev.Chmod.SyscallContext)
+}
+
+// GetChmodSyscallStr3 returns the value of the field, resolving if necessary
+func (ev *Event) GetChmodSyscallStr3() string {
+	if ev.GetEventType().String() != "chmod" {
+		return ""
+	}
+	return ev.FieldHandlers.ResolveSyscallCtxArgsStr3(ev, &ev.Chmod.SyscallContext)
 }
 
 // GetChownFileChangeTime returns the value of the field, resolving if necessary
@@ -1713,6 +1833,62 @@ func (ev *Event) GetExecPpid() uint32 {
 	return ev.Exec.Process.PPid
 }
 
+// GetExecSyscallInt1 returns the value of the field, resolving if necessary
+func (ev *Event) GetExecSyscallInt1() int {
+	if ev.GetEventType().String() != "exec" {
+		return 0
+	}
+	return ev.FieldHandlers.ResolveSyscallCtxArgsInt1(ev, &ev.Exec.SyscallContext)
+}
+
+// GetExecSyscallInt2 returns the value of the field, resolving if necessary
+func (ev *Event) GetExecSyscallInt2() int {
+	if ev.GetEventType().String() != "exec" {
+		return 0
+	}
+	return ev.FieldHandlers.ResolveSyscallCtxArgsInt2(ev, &ev.Exec.SyscallContext)
+}
+
+// GetExecSyscallInt3 returns the value of the field, resolving if necessary
+func (ev *Event) GetExecSyscallInt3() int {
+	if ev.GetEventType().String() != "exec" {
+		return 0
+	}
+	return ev.FieldHandlers.ResolveSyscallCtxArgsInt3(ev, &ev.Exec.SyscallContext)
+}
+
+// GetExecSyscallPath returns the value of the field, resolving if necessary
+func (ev *Event) GetExecSyscallPath() string {
+	if ev.GetEventType().String() != "exec" {
+		return ""
+	}
+	return ev.FieldHandlers.ResolveSyscallCtxArgsStr1(ev, &ev.Exec.SyscallContext)
+}
+
+// GetExecSyscallStr1 returns the value of the field, resolving if necessary
+func (ev *Event) GetExecSyscallStr1() string {
+	if ev.GetEventType().String() != "exec" {
+		return ""
+	}
+	return ev.FieldHandlers.ResolveSyscallCtxArgsStr1(ev, &ev.Exec.SyscallContext)
+}
+
+// GetExecSyscallStr2 returns the value of the field, resolving if necessary
+func (ev *Event) GetExecSyscallStr2() string {
+	if ev.GetEventType().String() != "exec" {
+		return ""
+	}
+	return ev.FieldHandlers.ResolveSyscallCtxArgsStr2(ev, &ev.Exec.SyscallContext)
+}
+
+// GetExecSyscallStr3 returns the value of the field, resolving if necessary
+func (ev *Event) GetExecSyscallStr3() string {
+	if ev.GetEventType().String() != "exec" {
+		return ""
+	}
+	return ev.FieldHandlers.ResolveSyscallCtxArgsStr3(ev, &ev.Exec.SyscallContext)
+}
+
 // GetExecTid returns the value of the field, resolving if necessary
 func (ev *Event) GetExecTid() uint32 {
 	if ev.GetEventType().String() != "exec" {
@@ -2803,6 +2979,70 @@ func (ev *Event) GetExitUserSessionK8sUsername() string {
 		return ""
 	}
 	return ev.FieldHandlers.ResolveK8SUsername(ev, &ev.Exit.Process.UserSession)
+}
+
+// GetImdsAwsIsImdsV2 returns the value of the field, resolving if necessary
+func (ev *Event) GetImdsAwsIsImdsV2() bool {
+	if ev.GetEventType().String() != "imds" {
+		return false
+	}
+	return ev.IMDS.AWS.IsIMDSv2
+}
+
+// GetImdsAwsSecurityCredentialsType returns the value of the field, resolving if necessary
+func (ev *Event) GetImdsAwsSecurityCredentialsType() string {
+	if ev.GetEventType().String() != "imds" {
+		return ""
+	}
+	return ev.IMDS.AWS.SecurityCredentials.Type
+}
+
+// GetImdsCloudProvider returns the value of the field, resolving if necessary
+func (ev *Event) GetImdsCloudProvider() string {
+	if ev.GetEventType().String() != "imds" {
+		return ""
+	}
+	return ev.IMDS.CloudProvider
+}
+
+// GetImdsHost returns the value of the field, resolving if necessary
+func (ev *Event) GetImdsHost() string {
+	if ev.GetEventType().String() != "imds" {
+		return ""
+	}
+	return ev.IMDS.Host
+}
+
+// GetImdsServer returns the value of the field, resolving if necessary
+func (ev *Event) GetImdsServer() string {
+	if ev.GetEventType().String() != "imds" {
+		return ""
+	}
+	return ev.IMDS.Server
+}
+
+// GetImdsType returns the value of the field, resolving if necessary
+func (ev *Event) GetImdsType() string {
+	if ev.GetEventType().String() != "imds" {
+		return ""
+	}
+	return ev.IMDS.Type
+}
+
+// GetImdsUrl returns the value of the field, resolving if necessary
+func (ev *Event) GetImdsUrl() string {
+	if ev.GetEventType().String() != "imds" {
+		return ""
+	}
+	return ev.IMDS.URL
+}
+
+// GetImdsUserAgent returns the value of the field, resolving if necessary
+func (ev *Event) GetImdsUserAgent() string {
+	if ev.GetEventType().String() != "imds" {
+		return ""
+	}
+	return ev.IMDS.UserAgent
 }
 
 // GetLinkFileChangeTime returns the value of the field, resolving if necessary
