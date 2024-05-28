@@ -1,5 +1,5 @@
 prelude:
     |
-    Release on: 2024-05-28
+    Release on: 2024-05-29
 
     - Please refer to the `7.54.0 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7540>`_ for the list of changes on the Core Checks
