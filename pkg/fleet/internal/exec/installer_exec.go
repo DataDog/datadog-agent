@@ -45,7 +45,6 @@ func (i *InstallerExec) newInstallerCmd(ctx context.Context, command string, arg
 	env := i.env.ToEnv()
 	span, ctx := tracer.StartSpanFromContext(ctx, fmt.Sprintf("installer.%s", command))
 	span.SetTag("args", args)
-	span.SetTag("env", env)
 	cmd := exec.CommandContext(ctx, i.installerBinPath, append([]string{command}, args...)...)
 	env = append(os.Environ(), env...)
 	cmd.Cancel = func() error {
