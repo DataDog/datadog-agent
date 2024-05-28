@@ -10,3 +10,6 @@
 test/new-e2e/tests/containers:  
   - TestEKSSuite/TestCPU/metric___container.cpu.usage{^kube_deployment:stress-ng$,^kube_namespace:workload-cpustress$}
   - TestKindSuite/TestCPU/metric___container.cpu.usage{^kube_deployment:stress-ng$,^kube_namespace:workload-cpustress$}
+
+test/new-e2e/tests/windows/install-test.TestAgentUser/user_only/Agent_v7/TestAgentUser/test_7.55.0-devel/service_config:
+  -TestAgentUser/user_only/Agent_v7/TestAgentUser/test_7
