@@ -150,6 +150,13 @@ func runOTelAgentCommand(ctx context.Context, params *subcommands.GlobalParams, 
 		}),
 
 		fx.Supply(optional.NewNoneOption[secrets.Component]()),
+		fx.Provide(func(coreConfig coreconfig.Component) tagger.Params {
+			if coreConfig.GetBool("otel_collector.remote_tagger") {
+				return tagger.NewNodeRemoteTaggerParamsWithFallback()
+			}
+			return tagger.NewTaggerParams()
+		}),
+		taggerimpl.Module(),
 		fx.Provide(func(c coreconfig.Component) corelogimpl.Params {
 			return corelogimpl.ForDaemon(params.LoggerName, "log_file", pkgconfigsetup.DefaultOTelAgentLogFile)
 		}),
@@ -195,13 +202,6 @@ func runOTelAgentCommand(ctx context.Context, params *subcommands.GlobalParams, 
 		// fx.Provide(func(c traceagentcomp.Component) *pkgagent.Agent {
 		// 	return c.GetAgent()
 		// }),
-		fx.Provide(func(coreConfig coreconfig.Component) tagger.Params {
-			if coreConfig.GetBool("apm_config.remote_tagger") {
-				return tagger.NewNodeRemoteTaggerParamsWithFallback()
-			}
-			return tagger.NewTaggerParams()
-		}),
-		taggerimpl.Module(),
 		fx.Provide(func(cfg traceconfig.Component) telemetry.TelemetryCollector {
 			return telemetry.NewCollector(cfg.Object())
 		}),

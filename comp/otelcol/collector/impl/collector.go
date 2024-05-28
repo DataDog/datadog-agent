@@ -10,6 +10,7 @@ package collectorimpl
 
 import (
 	"context"
+	"fmt"
 
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/otelcol"
@@ -96,6 +97,7 @@ func New(reqs Requires) (Provides, error) {
 	}
 	col, err := otelcol.NewCollector(set)
 	if err != nil {
+		fmt.Printf("Error creating the collector: %v", err)
 		return Provides{}, err
 	}
 	c := &collectorImpl{
@@ -114,7 +116,11 @@ func New(reqs Requires) (Provides, error) {
 	}, nil
 }
 
-func (c *collectorImpl) start(context.Context) error {
+func (c *collectorImpl) start(ctx context.Context) error {
+	err := c.col.DryRun(ctx)
+	if err != nil {
+		return err
+	}
 	go func() {
 		if err := c.col.Run(context.Background()); err != nil {
 			c.log.Errorf("Error running the collector pipeline: %v", err)

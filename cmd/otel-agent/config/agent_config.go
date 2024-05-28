@@ -13,6 +13,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/datadogexporter"
+	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/processor/infraattributesprocessor"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	traceconfig "github.com/DataDog/datadog-agent/pkg/trace/config"
@@ -90,7 +91,22 @@ func NewConfigComponent(ctx context.Context, uris []string) (config.Component, *
 	pkgconfig.Set("apm_config.peer_tags", ddc.Traces.PeerTags, pkgconfigmodel.SourceLocalConfigProcess)
 	pkgconfig.Set("apm_config.compute_stats_by_span_kind", ddc.Traces.ComputeStatsBySpanKind, pkgconfigmodel.SourceLocalConfigProcess)
 
+	if isInfraAttributesProcessorEnabled(sc) {
+		pkgconfig.Set("otel_collector.remote_tagger", true, pkgconfigmodel.SourceLocalConfigProcess)
+	}
+
 	return pkgconfig, tcfg, nil
+}
+
+func isInfraAttributesProcessorEnabled(sc *service.Config) bool {
+	for _, p := range sc.Pipelines {
+		for _, pp := range p.Processors {
+			if pp.Name() == infraattributesprocessor.Type.String() {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func getServiceConfig(cfg *confmap.Conf) (*service.Config, error) {
