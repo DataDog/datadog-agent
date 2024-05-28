@@ -37,7 +37,7 @@ import (
 )
 
 var /* const */ (
-	envVarEnv   = ddConfig.Datadog.GetString("env")
+	envVarEnv   = ddConfig.Datadog().GetString("env")
 	sourceAgent = "agent"
 )
 

@@ -26,12 +26,12 @@ import (
 // we must make sure that the build tags in this file match.
 
 func TestContainerCheck(t *testing.T) {
-	deps := createDeps(t)
 	originalFlavor := flavor.GetFlavor()
 	defer flavor.SetFlavor(originalFlavor)
 
 	// Make sure the container check can be enabled if the process check is disabled
 	t.Run("containers enabled; rt enabled", func(t *testing.T) {
+		deps := createDeps(t)
 		cfg := config.Mock(t)
 		cfg.SetWithoutSource("process_config.process_collection.enabled", false)
 		cfg.SetWithoutSource("process_config.container_collection.enabled", true)
@@ -46,6 +46,7 @@ func TestContainerCheck(t *testing.T) {
 
 	// Make sure that disabling RT disables the rt container check
 	t.Run("containers enabled; rt disabled", func(t *testing.T) {
+		deps := createDeps(t)
 		cfg := config.Mock(t)
 		cfg.SetWithoutSource("process_config.process_collection.enabled", false)
 		cfg.SetWithoutSource("process_config.container_collection.enabled", true)
@@ -59,6 +60,7 @@ func TestContainerCheck(t *testing.T) {
 
 	// Make sure the container check cannot be enabled if we cannot access containers
 	t.Run("cannot access containers", func(t *testing.T) {
+		deps := createDeps(t)
 		cfg := config.Mock(t)
 		cfg.SetWithoutSource("process_config.process_collection.enabled", false)
 		cfg.SetWithoutSource("process_config.container_collection.enabled", true)
@@ -71,6 +73,7 @@ func TestContainerCheck(t *testing.T) {
 
 	// Make sure the container and process check are mutually exclusive
 	t.Run("mutual exclusion", func(t *testing.T) {
+		deps := createDeps(t)
 		cfg := config.Mock(t)
 		cfg.SetWithoutSource("process_config.process_collection.enabled", true)
 		cfg.SetWithoutSource("process_config.container_collection.enabled", true)

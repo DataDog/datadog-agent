@@ -174,7 +174,7 @@ func TestCPUCheckLinuxErrorStoppedSender(t *testing.T) {
 }
 
 func TestCPUCheckLinuxErrorProcFsPathNoExists(t *testing.T) {
-	config.Datadog.SetDefault("procfs_path", "/tmp")
+	config.Datadog().SetDefault("procfs_path", "/tmp")
 	cpuInfoFunc = func() ([]cpu.InfoStat, error) {
 		return cpuInfo, nil
 	}
@@ -201,7 +201,7 @@ func TestCPUCheckLinuxErrorProcFsPathEmptyFile(t *testing.T) {
 		t.Fatal("Error creating temporary file:", err)
 	}
 	defer os.Remove(tempFile.Name())
-	config.Datadog.SetDefault("procfs_path", os.TempDir())
+	config.Datadog().SetDefault("procfs_path", os.TempDir())
 	cpuInfoFunc = func() ([]cpu.InfoStat, error) {
 		return cpuInfo, nil
 	}
@@ -232,7 +232,7 @@ func TestCPUCheckLinuxErrorProcFsPathWrongFormat(t *testing.T) {
 	if err != nil {
 		t.Fatal("Error writing to temporary file:", err)
 	}
-	config.Datadog.SetDefault("procfs_path", os.TempDir())
+	config.Datadog().SetDefault("procfs_path", os.TempDir())
 	cpuInfoFunc = func() ([]cpu.InfoStat, error) {
 		return cpuInfo, nil
 	}

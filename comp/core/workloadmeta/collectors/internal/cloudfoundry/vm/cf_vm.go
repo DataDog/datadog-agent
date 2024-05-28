@@ -70,10 +70,10 @@ func (c *collector) Start(_ context.Context, store workloadmeta.Component) error
 		return err
 	}
 
-	c.nodeName = config.Datadog.GetString("bosh_id")
+	c.nodeName = config.Datadog().GetString("bosh_id")
 
 	// Check for Cluster Agent availability (will be retried at each pull)
-	c.dcaEnabled = config.Datadog.GetBool("cluster_agent.enabled")
+	c.dcaEnabled = config.Datadog().GetBool("cluster_agent.enabled")
 	c.dcaClient = c.getDCAClient()
 
 	return nil

@@ -164,7 +164,7 @@ func (ch *chooser) start() {
 
 // preferred returns the preferred LogWhat, based on configuration
 func (ch *chooser) preferred() LogWhat {
-	if config.Datadog.GetBool("logs_config.k8s_container_use_file") {
+	if config.Datadog().GetBool("logs_config.k8s_container_use_file") {
 		return LogPods
 	}
 	return LogContainers

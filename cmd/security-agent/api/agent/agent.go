@@ -138,7 +138,7 @@ func (a *Agent) getHealth(w http.ResponseWriter, _ *http.Request) {
 func (a *Agent) makeFlare(w http.ResponseWriter, _ *http.Request) {
 	log.Infof("Making a flare")
 	w.Header().Set("Content-Type", "application/json")
-	logFile := config.Datadog.GetString("security_agent.log_file")
+	logFile := config.Datadog().GetString("security_agent.log_file")
 
 	filePath, err := flare.CreateSecurityAgentArchive(false, logFile, a.statusComponent)
 	if err != nil || filePath == "" {
