@@ -61,6 +61,8 @@ type testContext struct {
 	serverPort string
 	// The address for the client to communicate with.
 	targetAddress string
+	// Clients that should be torn down at the end of the test
+	clients []*kafka.Client
 	// A dynamic map that allows extending the context easily between phases of the test.
 	extras map[string]interface{}
 }
@@ -72,7 +74,7 @@ type kafkaParsingTestAttributes struct {
 	// Specific test context, allows to share states among different phases of the test.
 	context testContext
 	// The test body
-	testBody func(t *testing.T, ctx testContext, monitor *Monitor)
+	testBody func(t *testing.T, ctx *testContext, monitor *Monitor)
 	// Cleaning test resources if needed.
 	teardown func(t *testing.T, ctx testContext)
 	// Configuration for the monitor object
@@ -131,10 +133,7 @@ func (s *KafkaProtocolParsingSuite) testKafkaProtocolParsing(t *testing.T, tls b
 	serverHost := "127.0.0.1"
 
 	kafkaTeardown := func(t *testing.T, ctx testContext) {
-		if _, ok := ctx.extras["client"]; !ok {
-			return
-		}
-		if client, ok := ctx.extras["client"].(*kafka.Client); ok {
+		for _, client := range ctx.clients {
 			defer client.Client.Close()
 		}
 	}
@@ -180,7 +179,7 @@ func (s *KafkaProtocolParsingSuite) testKafkaProtocolParsing(t *testing.T, tls b
 					"topic_name": s.getTopicName(),
 				},
 			},
-			testBody: func(t *testing.T, ctx testContext, monitor *Monitor) {
+			testBody: func(t *testing.T, ctx *testContext, monitor *Monitor) {
 				topicName := ctx.extras["topic_name"].(string)
 				client, err := kafka.NewClient(kafka.Options{
 					ServerAddress: ctx.targetAddress,
@@ -193,7 +192,7 @@ func (s *KafkaProtocolParsingSuite) testKafkaProtocolParsing(t *testing.T, tls b
 					},
 				})
 				require.NoError(t, err)
-				ctx.extras["client"] = client
+				ctx.clients = append(ctx.clients, client)
 				require.NoError(t, client.CreateTopic(topicName))
 
 				record := &kgo.Record{Topic: topicName, Value: []byte("Hello Kafka!")}
@@ -232,7 +231,7 @@ func (s *KafkaProtocolParsingSuite) testKafkaProtocolParsing(t *testing.T, tls b
 					"topic_name": s.getTopicName(),
 				},
 			},
-			testBody: func(t *testing.T, ctx testContext, monitor *Monitor) {
+			testBody: func(t *testing.T, ctx *testContext, monitor *Monitor) {
 				topicName := ctx.extras["topic_name"].(string)
 				client, err := kafka.NewClient(kafka.Options{
 					ServerAddress: ctx.targetAddress,
@@ -243,7 +242,7 @@ func (s *KafkaProtocolParsingSuite) testKafkaProtocolParsing(t *testing.T, tls b
 					},
 				})
 				require.NoError(t, err)
-				ctx.extras["client"] = client
+				ctx.clients = append(ctx.clients, client)
 				require.NoError(t, client.CreateTopic(topicName))
 
 				record := &kgo.Record{Topic: topicName, Value: []byte("Hello Kafka!")}
@@ -271,7 +270,7 @@ func (s *KafkaProtocolParsingSuite) testKafkaProtocolParsing(t *testing.T, tls b
 					"topic_name": s.getTopicName(),
 				},
 			},
-			testBody: func(t *testing.T, ctx testContext, monitor *Monitor) {
+			testBody: func(t *testing.T, ctx *testContext, monitor *Monitor) {
 				topicName := ctx.extras["topic_name"].(string)
 				client, err := kafka.NewClient(kafka.Options{
 					ServerAddress: ctx.targetAddress,
@@ -282,7 +281,7 @@ func (s *KafkaProtocolParsingSuite) testKafkaProtocolParsing(t *testing.T, tls b
 					},
 				})
 				require.NoError(t, err)
-				ctx.extras["client"] = client
+				ctx.clients = append(ctx.clients, client)
 				require.NoError(t, client.CreateTopic(topicName))
 
 				numberOfIterations := 1000
@@ -313,7 +312,7 @@ func (s *KafkaProtocolParsingSuite) testKafkaProtocolParsing(t *testing.T, tls b
 					"topic_name": s.getTopicName(),
 				},
 			},
-			testBody: func(t *testing.T, ctx testContext, monitor *Monitor) {
+			testBody: func(t *testing.T, ctx *testContext, monitor *Monitor) {
 				topicName := ctx.extras["topic_name"].(string)
 				client, err := kafka.NewClient(kafka.Options{
 					ServerAddress: ctx.targetAddress,
@@ -324,7 +323,7 @@ func (s *KafkaProtocolParsingSuite) testKafkaProtocolParsing(t *testing.T, tls b
 					},
 				})
 				require.NoError(t, err)
-				ctx.extras["client"] = client
+				ctx.clients = append(ctx.clients, client)
 				require.NoError(t, client.CreateTopic(topicName))
 
 				record := &kgo.Record{Topic: topicName, Value: []byte("Hello Kafka!")}
@@ -403,7 +402,7 @@ func (s *KafkaProtocolParsingSuite) testKafkaProtocolParsing(t *testing.T, tls b
 					"topic_name": s.getTopicName(),
 				},
 			},
-			testBody: func(t *testing.T, ctx testContext, monitor *Monitor) {
+			testBody: func(t *testing.T, ctx *testContext, monitor *Monitor) {
 				topicName := ctx.extras["topic_name"].(string)
 				client, err := kafka.NewClient(kafka.Options{
 					ServerAddress: ctx.targetAddress,
@@ -414,7 +413,7 @@ func (s *KafkaProtocolParsingSuite) testKafkaProtocolParsing(t *testing.T, tls b
 					},
 				})
 				require.NoError(t, err)
-				ctx.extras["client"] = client
+				ctx.clients = append(ctx.clients, client)
 				require.NoError(t, client.CreateTopic(topicName))
 
 				record := &kgo.Record{Topic: topicName, Value: []byte("Hello Kafka!")}
@@ -442,7 +441,7 @@ func (s *KafkaProtocolParsingSuite) testKafkaProtocolParsing(t *testing.T, tls b
 					"topic_name": s.getTopicName(),
 				},
 			},
-			testBody: func(t *testing.T, ctx testContext, monitor *Monitor) {
+			testBody: func(t *testing.T, ctx *testContext, monitor *Monitor) {
 				topicName := ctx.extras["topic_name"].(string)
 				client, err := kafka.NewClient(kafka.Options{
 					ServerAddress: ctx.targetAddress,
@@ -453,7 +452,7 @@ func (s *KafkaProtocolParsingSuite) testKafkaProtocolParsing(t *testing.T, tls b
 					},
 				})
 				require.NoError(t, err)
-				ctx.extras["client"] = client
+				ctx.clients = append(ctx.clients, client)
 				require.NoError(t, client.CreateTopic(topicName))
 
 				record1 := &kgo.Record{Topic: topicName, Value: []byte("Hello Kafka!")}
@@ -493,7 +492,7 @@ func (s *KafkaProtocolParsingSuite) testKafkaProtocolParsing(t *testing.T, tls b
 					"topic_name": s.getTopicName(),
 				},
 			},
-			testBody: func(t *testing.T, ctx testContext, monitor *Monitor) {
+			testBody: func(t *testing.T, ctx *testContext, monitor *Monitor) {
 				topicName := ctx.extras["topic_name"].(string)
 				client, err := kafka.NewClient(kafka.Options{
 					ServerAddress: ctx.targetAddress,
@@ -504,7 +503,7 @@ func (s *KafkaProtocolParsingSuite) testKafkaProtocolParsing(t *testing.T, tls b
 					},
 				})
 				require.NoError(t, err)
-				ctx.extras["client"] = client
+				ctx.clients = append(ctx.clients, client)
 				require.NoError(t, client.CreateTopic(topicName))
 
 				record1 := &kgo.Record{Topic: topicName, Partition: 1, Value: []byte("Hello Kafka!")}
@@ -557,7 +556,7 @@ func (s *KafkaProtocolParsingSuite) testKafkaProtocolParsing(t *testing.T, tls b
 				serverAddress: serverAddress,
 				extras:        map[string]interface{}{},
 			},
-			testBody: func(t *testing.T, ctx testContext, monitor *Monitor) {
+			testBody: func(t *testing.T, ctx *testContext, monitor *Monitor) {
 				tests := []struct {
 					name                string
 					topicName           string
@@ -593,7 +592,7 @@ func (s *KafkaProtocolParsingSuite) testKafkaProtocolParsing(t *testing.T, tls b
 							},
 						})
 						require.NoError(t, err)
-						ctx.extras["client"] = client
+						ctx.clients = append(ctx.clients, client)
 						require.NoError(t, client.CreateTopic(tt.topicName))
 
 						record := &kgo.Record{Topic: tt.topicName, Value: []byte("Hello Kafka!")}
@@ -646,7 +645,7 @@ func (s *KafkaProtocolParsingSuite) testKafkaProtocolParsing(t *testing.T, tls b
 			if tls && cfg.EnableGoTLSSupport {
 				utils.WaitForProgramsToBeTraced(t, "go-tls", proxyProcess.Process.Pid)
 			}
-			tt.testBody(t, tt.context, monitor)
+			tt.testBody(t, &tt.context, monitor)
 		})
 	}
 }
