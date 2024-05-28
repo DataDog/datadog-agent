@@ -95,6 +95,10 @@ type WindowsProbe struct {
 	isRenameEnabled bool
 	isWriteEnabled  bool
 	isDeleteEnabled bool
+
+	// channel handling.  Currently configurable, but should probably be set
+	// to false with a configurable size value
+	blockonchannelsend bool
 }
 
 // filecache currently only has a filename.  But this is going to expand really soon.  so go ahead
@@ -210,6 +214,21 @@ func (p *WindowsProbe) initEtwFIM() error {
 		// try masking on create & create_new_file
 		// given the current requirements, I think we can _probably_ just do create_new_file
 		cfg.MatchAnyKeyword = 0x18A0
+
+		fileIds := []uint16{
+			idCreate,
+			idCreateNewFile,
+			idCleanup,
+			idClose,
+			idWrite,
+			idSetDelete,
+			idDeletePath,
+			idRename,
+			idRenamePath,
+			idRename29,
+		}
+
+		cfg.EnabledIDs = fileIds
 	})
 	p.fimSession.ConfigureProvider(p.regguid, func(cfg *etw.ProviderConfiguration) {
 		cfg.TraceLevel = etw.TRACE_LEVEL_VERBOSE
@@ -459,7 +478,15 @@ func (p *WindowsProbe) Start() error {
 		go func() {
 			defer p.fimwg.Done()
 			err := p.setupEtw(func(n interface{}, pid uint32) {
-				p.onETWNotification <- etwNotification{n, pid}
+				if p.blockonchannelsend {
+					p.onETWNotification <- etwNotification{n, pid}
+				} else {
+					select {
+					case p.onETWNotification <- etwNotification{n, pid}:
+					default:
+						p.stats.etwChannelBlocked++
+					}
+				}
 			})
 			log.Infof("Done StartTracing %v", err)
 		}()
@@ -850,6 +877,11 @@ func initializeWindowsProbe(config *config.Config, opts Opts) (*WindowsProbe, er
 		return nil, err
 	}
 
+	bocs := config.RuntimeSecurity.WindowsProbeBlockOnChannelSend
+
+	etwNotificationSize := config.RuntimeSecurity.ETWEventsChannelSize
+	log.Infof("Setting ETW channel size to %d", etwNotificationSize)
+
 	ctx, cancelFnc := context.WithCancel(context.Background())
 
 	p := &WindowsProbe{
@@ -861,7 +893,7 @@ func initializeWindowsProbe(config *config.Config, opts Opts) (*WindowsProbe, er
 		onStart:           make(chan *procmon.ProcessStartNotification),
 		onStop:            make(chan *procmon.ProcessStopNotification),
 		onError:           make(chan bool),
-		onETWNotification: make(chan etwNotification),
+		onETWNotification: make(chan etwNotification, etwNotificationSize),
 
 		filePathResolver: fc,
 		regPathResolver:  rc,
@@ -876,6 +908,8 @@ func initializeWindowsProbe(config *config.Config, opts Opts) (*WindowsProbe, er
 
 		processKiller: NewProcessKiller(),
 
+		blockonchannelsend: bocs,
+
 		stats: stats{
 			fileNotifications:          make(map[uint16]uint64),
 			fileProcessedNotifications: make(map[uint16]uint64),
@@ -888,6 +922,7 @@ func initializeWindowsProbe(config *config.Config, opts Opts) (*WindowsProbe, er
 
 // NewWindowsProbe instantiates a new runtime security agent probe
 func NewWindowsProbe(probe *Probe, config *config.Config, opts Opts) (*WindowsProbe, error) {
+
 	p, err := initializeWindowsProbe(config, opts)
 	if err != nil {
 		return nil, err

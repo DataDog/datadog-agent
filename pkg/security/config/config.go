@@ -235,6 +235,15 @@ type RuntimeSecurityConfig struct {
 	//WindowsRegistryCacheSize is the max number of registry paths to cache
 	WindowsRegistryCacheSize int
 
+	// ETWEventsChannelSize windows specific ETW channel buffer size
+	ETWEventsChannelSize int
+
+	//ETWEventsMaxBuffers sets the maximumbuffers argument to ETW
+	ETWEventsMaxBuffers int
+
+	// WindowsProbeChannelUnbuffered defines if the windows probe channel should be unbuffered
+	WindowsProbeBlockOnChannelSend bool
+
 	// IMDSIPv4 is used to provide a custom IP address for the IMDS endpoint
 	IMDSIPv4 uint32
 }
@@ -290,10 +299,13 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 	}
 
 	rsConfig := &RuntimeSecurityConfig{
-		RuntimeEnabled:           coreconfig.SystemProbe.GetBool("runtime_security_config.enabled"),
-		FIMEnabled:               coreconfig.SystemProbe.GetBool("runtime_security_config.fim_enabled"),
-		WindowsFilenameCacheSize: coreconfig.SystemProbe.GetInt("runtime_security_config.windows_filename_cache_max"),
-		WindowsRegistryCacheSize: coreconfig.SystemProbe.GetInt("runtime_security_config.windows_registry_cache_max"),
+		RuntimeEnabled:                 coreconfig.SystemProbe.GetBool("runtime_security_config.enabled"),
+		FIMEnabled:                     coreconfig.SystemProbe.GetBool("runtime_security_config.fim_enabled"),
+		WindowsFilenameCacheSize:       coreconfig.SystemProbe.GetInt("runtime_security_config.windows_filename_cache_max"),
+		WindowsRegistryCacheSize:       coreconfig.SystemProbe.GetInt("runtime_security_config.windows_registry_cache_max"),
+		ETWEventsChannelSize:           coreconfig.SystemProbe.GetInt("runtime_security_config.etw_events_channel_size"),
+		ETWEventsMaxBuffers:            coreconfig.SystemProbe.GetInt("runtime_security_config.etw_events_max_buffers"),
+		WindowsProbeBlockOnChannelSend: coreconfig.SystemProbe.GetBool("runtime_security_config.windows_probe_block_on_channel_send"),
 
 		SocketPath:           coreconfig.SystemProbe.GetString("runtime_security_config.socket"),
 		EventServerBurst:     coreconfig.SystemProbe.GetInt("runtime_security_config.event_server.burst"),
