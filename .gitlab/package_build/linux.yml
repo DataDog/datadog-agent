@@ -129,3 +129,43 @@ iot-agent-armhf:
   tags: ["arch:arm64"]
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_armhf$DATADOG_AGENT_ARMBUILDIMAGES_SUFFIX:$DATADOG_AGENT_ARMBUILDIMAGES
 
+.dogstatsd_build_common:
+  rules:
+    - !reference [.except_mergequeue]
+    - when: on_success
+  stage: package_build
+  script:
+    - source /root/.bashrc
+    - echo "About to build for $RELEASE_VERSION"
+    - !reference [.setup_ruby_mirror_linux]
+    - !reference [.setup_python_mirror_linux]
+    - !reference [.retrieve_linux_go_deps]
+    - !reference [.cache_omnibus_ruby_deps, setup]
+    # remove artifacts from previous pipelines that may come from the cache
+    - rm -rf $OMNIBUS_PACKAGE_DIR/*
+    - inv -e omnibus.build --release-version $RELEASE_VERSION_7 --major-version 7 --python-runtimes 3 --base-dir $OMNIBUS_BASE_DIR  ${USE_S3_CACHING} --skip-deps --go-mod-cache="$GOPATH/pkg/mod" --target-project dogstatsd
+    - ls -la $OMNIBUS_PACKAGE_DIR
+    - !reference [.upload_sbom_artifacts]
+  variables:
+    KUBERNETES_CPU_REQUEST: 16
+    KUBERNETES_MEMORY_REQUEST: "32Gi"
+    KUBERNETES_MEMORY_LIMIT: "32Gi"
+  artifacts:
+    expire_in: 2 weeks
+    paths:
+      - $OMNIBUS_PACKAGE_DIR
+  cache:
+    - !reference [.cache_omnibus_ruby_deps, cache]
+
+dogstatsd-x64:
+  extends: .dogstatsd_build_common
+  needs: ["go_mod_tidy_check", "build_dogstatsd-binary_x64", "go_deps"]
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  tags: ["arch:amd64"]
+
+dogstatsd-arm64:
+  extends: .dogstatsd_build_common
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64$DATADOG_AGENT_ARMBUILDIMAGES_SUFFIX:$DATADOG_AGENT_ARMBUILDIMAGES
+  tags: ["arch:arm64"]
+  needs: ["go_mod_tidy_check", "build_dogstatsd-binary_arm64", "go_deps"]
+
