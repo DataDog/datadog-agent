@@ -21,8 +21,6 @@ import (
 
 const (
 	systemdPath    = "/etc/systemd/system"
-	debSystemdPath = "/lib/systemd/system"
-	rpmSystemdPath = "/usr/lib/systemd/system"
 )
 
 func stopUnit(ctx context.Context, unit string, args ...string) error {
