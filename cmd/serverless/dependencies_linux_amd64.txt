@@ -407,14 +407,6 @@ github.com/go-logr/logr
 github.com/go-logr/logr/funcr
 github.com/go-logr/stdr
 github.com/go-viper/mapstructure/v2
-github.com/gobwas/glob
-github.com/gobwas/glob/compiler
-github.com/gobwas/glob/match
-github.com/gobwas/glob/syntax
-github.com/gobwas/glob/syntax/ast
-github.com/gobwas/glob/syntax/lexer
-github.com/gobwas/glob/util/runes
-github.com/gobwas/glob/util/strings
 github.com/godbus/dbus/v5
 github.com/gogo/protobuf/gogoproto
 github.com/gogo/protobuf/jsonpb
