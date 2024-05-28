@@ -33,7 +33,7 @@ build do
         mode: 0o644,
         vars: { install_dir: install_dir, etc_dir: etc_dir }
     project.extra_package_file '/lib/systemd/system/datadog-agent.service'
-  elsif redhat_target?
+  elsif redhat_target? || suse_target?
     mkdir '/usr/lib/systemd/system/'
     erb source: 'systemd.service.erb',
         dest: '/usr/lib/systemd/system/datadog-agent.service',
