@@ -651,7 +651,8 @@ def prepare(
     for d in domains:
         d.copy(ctx, paths.dependencies, "/opt/", verbose=verbose)
         d.copy(ctx, f"{paths.arch_dir}/opt/*", "/opt/", exclude="*.ninja", verbose=verbose)
-        if not os.path.exists("/sys/kernel/btf/vmlinux"):
+        res = d.run_cmd("[ -f /sys/kernel/btf/vmlinux ]", warn=True)
+        if res is None or not res.ok:
             d.run_cmd(
                 ctx,
                 f"! [ -f {btf_dir}/minimized-btfs.tar.xz ] \
