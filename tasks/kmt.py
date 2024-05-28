@@ -947,10 +947,10 @@ def test(
         for d in domains:
             info(f"[+] Running tests on {d}")
             d.copy(ctx, f"{tmp.name}", remote_tmp)
-            d.run_cmd(ctx, f"/opt/micro-vm-init.sh {' '.join(args)}", verbose=verbose)
+            d.run_cmd(ctx, f"/opt/micro-vm-init.sh {' '.join(args)}", verbose=verbose, allow_fail=True)
 
             info(f"[+] Showing summary of results for {d}")
-            d.run_cmd(ctx, "/opt/testing-tools/test-json-review", verbose=verbose)
+            d.run_cmd(ctx, "/opt/testing-tools/test-json-review", verbose=verbose, allow_fail=True)
 
             info(f"[+] Tests completed on {d}, downloading results...")
             target_folder = paths.vm_test_results(d.name)
