@@ -188,18 +188,21 @@ func (c *collector) parsePods(
 
 	var err error
 	var metadataByNsPods apiv1.NamespacesPodsStringsSet
-	if c.isDCAEnabled() && c.dcaClient.Version().Major >= 1 && c.dcaClient.Version().Minor >= 3 {
-		var nodeName string
-		nodeName, err = c.kubeUtil.GetNodename(ctx)
-		if err != nil {
-			log.Errorf("Could not retrieve the Nodename, err: %v", err)
-			return events, err
-		}
+	if c.isDCAEnabled() {
+		dcaVersion := c.dcaClient.Version(false)
+		if dcaVersion.Major >= 1 && dcaVersion.Minor >= 3 {
+			var nodeName string
+			nodeName, err = c.kubeUtil.GetNodename(ctx)
+			if err != nil {
+				log.Errorf("Could not retrieve the Nodename, err: %v", err)
+				return events, err
+			}
 
-		metadataByNsPods, err = c.dcaClient.GetPodsMetadataForNode(nodeName)
-		if err != nil {
-			log.Debugf("Could not pull the metadata map of pods on node %s from the Datadog Cluster Agent: %s", nodeName, err.Error())
-			return events, err
+			metadataByNsPods, err = c.dcaClient.GetPodsMetadataForNode(nodeName)
+			if err != nil {
+				log.Debugf("Could not pull the metadata map of pods on node %s from the Datadog Cluster Agent: %s", nodeName, err.Error())
+				return events, err
+			}
 		}
 	}
 
@@ -341,7 +344,7 @@ func (c *collector) getNamespaceMetadata(ns string) (*clusteragent.Metadata, err
 
 func (c *collector) isDCAEnabled() bool {
 	if c.dcaEnabled && c.dcaClient != nil {
-		v := c.dcaClient.Version()
+		v := c.dcaClient.Version(false)
 		if v.String() != "0.0.0" { // means not initialized
 			return true
 		}
