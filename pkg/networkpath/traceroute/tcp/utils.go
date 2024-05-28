@@ -82,109 +82,6 @@ func localAddrForHost(destIP net.IP, destPort uint16) (*net.UDPAddr, error) {
 	return localUDPAddr, nil
 }
 
-// readRawPacket creates a gopacket given a byte array
-// containing a packet
-//
-// TODO: try doing this manually to see if it's more performant
-// we should either always use gopacket or never use gopacket
-func readRawPacket(rawPacket []byte) gopacket.Packet {
-	return gopacket.NewPacket(rawPacket, layers.LayerTypeIPv4, gopacket.Default)
-}
-
-func parseIPv4Layer(pkt gopacket.Packet) (net.IP, net.IP, error) {
-	if ipLayer := pkt.Layer(layers.LayerTypeIPv4); ipLayer != nil {
-		ip, ok := ipLayer.(*layers.IPv4)
-		if !ok {
-			return net.IP{}, net.IP{}, fmt.Errorf("failed to assert IPv4 layer type")
-		}
-
-		return ip.SrcIP, ip.DstIP, nil
-	}
-
-	return net.IP{}, net.IP{}, fmt.Errorf("packet does not contain an IPv4 layer")
-}
-
-// parseICMPPacket takes in a gopacket.Packet and tries to convert to an ICMP message
-// it returns all the fields from the packet we need to validate it's the response
-// we're looking for
-func parseICMPPacket(pkt gopacket.Packet) (*icmpResponse, error) {
-	// this parsing could likely be improved to be more performant if we read from the
-	// the original packet bytes directly where we expect the required fields to be
-	// or even just creating a single DecodingLayerParser but in both cases we lose
-	// some flexibility
-	var err error
-	icmpResponse := icmpResponse{}
-
-	icmpResponse.SrcIP, icmpResponse.DstIP, err = parseIPv4Layer(pkt)
-	if err != nil {
-		return nil, fmt.Errorf("failed to decode ICMP packet: %w", err)
-	}
-
-	if icmpLayer := pkt.Layer(layers.LayerTypeICMPv4); icmpLayer != nil {
-		icmp, ok := icmpLayer.(*layers.ICMPv4)
-		if !ok {
-			return nil, fmt.Errorf("failed to assert ICMPv4 layer type")
-		}
-		icmpResponse.TypeCode = icmp.TypeCode
-
-		var payload []byte
-		if len(icmp.Payload) < 40 {
-			log.Tracef("Payload length %d is less than 40, extending...\n", len(icmp.Payload))
-			payload = make([]byte, 40)
-			copy(payload, icmp.Payload)
-			// we have to set this in order for the TCP
-			// parser to work
-			payload[32] = 5 << 4 // set data offset
-		} else {
-			payload = icmp.Payload
-		}
-
-		// if we're in an ICMP packet, we know that we should have
-		// an inner IPv4 and TCP header section
-		var innerIPLayer layers.IPv4
-		var innerTCPLayer layers.TCP
-		decoded := []gopacket.LayerType{}
-		innerIPParser := gopacket.NewDecodingLayerParser(layers.LayerTypeIPv4, &innerIPLayer, &innerTCPLayer)
-		if err := innerIPParser.DecodeLayers(payload, &decoded); err != nil {
-			return nil, fmt.Errorf("failed to decode ICMP payload: %w", err)
-		}
-		icmpResponse.InnerSrcIP = innerIPLayer.SrcIP
-		icmpResponse.InnerDstIP = innerIPLayer.DstIP
-		icmpResponse.InnerSrcPort = uint16(innerTCPLayer.SrcPort)
-		icmpResponse.InnerDstPort = uint16(innerTCPLayer.DstPort)
-		icmpResponse.InnerSeqNum = innerTCPLayer.Seq
-	} else {
-		return nil, fmt.Errorf("packet does not contain an ICMP layer")
-	}
-
-	return &icmpResponse, nil
-}
-
-func parseTCPPacket(pkt gopacket.Packet) (*tcpResponse, error) {
-	// this parsing could likely be improved to be more performant if we read from the
-	// the original packet bytes directly where we expect the required fields to be
-	var err error
-	tcpResponse := tcpResponse{}
-
-	tcpResponse.SrcIP, tcpResponse.DstIP, err = parseIPv4Layer(pkt)
-	if err != nil {
-		return nil, err
-	}
-
-	if tcpLayer := pkt.Layer(layers.LayerTypeTCP); tcpLayer != nil {
-		tcp, ok := tcpLayer.(*layers.TCP)
-		if !ok {
-			return nil, fmt.Errorf("failed to assert TCP layer type")
-		}
-
-		tcpResponse.TCPResponse = tcp
-	} else {
-		return nil, fmt.Errorf("packet does not contain a TCP layer")
-	}
-
-	return &tcpResponse, nil
-}
-
 // createRawTCPPacket creates a TCP packet with the specified parameters
 func createRawTCPPacket(sourceIP net.IP, sourcePort uint16, destIP net.IP, destPort uint16, seqNum uint32, ttl int, flags byte) (*ipv4.Header, []byte, error) {
 	ipHdr := ipv4.Header{
@@ -214,28 +111,15 @@ func createRawTCPPacket(sourceIP net.IP, sourcePort uint16, destIP net.IP, destP
 	return &ipHdr, tcpPacket, nil
 }
 
-// MarshalPacket takes in an ipv4 header and a payload and copies
-// them into a newly allocated []byte
-func MarshalPacket(header *ipv4.Header, payload []byte) ([]byte, error) {
-	hdrBytes, err := header.Marshal()
-	if err != nil {
-		return nil, err
-	}
+func tcpChecksum(ipHdr *ipv4.Header, tcpHeader []byte) uint16 {
+	pseudoHeader := []byte{}
+	pseudoHeader = append(pseudoHeader, ipHdr.Src.To4()...)
+	pseudoHeader = append(pseudoHeader, ipHdr.Dst.To4()...)
+	pseudoHeader = append(pseudoHeader, 0) // reserved
+	pseudoHeader = append(pseudoHeader, byte(ipHdr.Protocol))
+	pseudoHeader = append(pseudoHeader, 0, byte(len(tcpHeader))) // tcp length
 
-	packet := make([]byte, len(hdrBytes)+len(payload))
-	copy(packet[:len(hdrBytes)], hdrBytes)
-	copy(packet[len(hdrBytes):], payload)
-
-	return packet, nil
-}
-
-// sendPacket sends a raw IPv4 packet using the passed connection
-func sendPacket(rawConn *ipv4.RawConn, header *ipv4.Header, payload []byte) error {
-	if err := rawConn.WriteTo(header, payload, nil); err != nil {
-		return err
-	}
-
-	return nil
+	return checksum(append(pseudoHeader, tcpHeader...))
 }
 
 func checksum(data []byte) uint16 {
@@ -253,15 +137,13 @@ func checksum(data []byte) uint16 {
 	return uint16(^sum)
 }
 
-func tcpChecksum(ipHdr *ipv4.Header, tcpHeader []byte) uint16 {
-	pseudoHeader := []byte{}
-	pseudoHeader = append(pseudoHeader, ipHdr.Src.To4()...)
-	pseudoHeader = append(pseudoHeader, ipHdr.Dst.To4()...)
-	pseudoHeader = append(pseudoHeader, 0) // reserved
-	pseudoHeader = append(pseudoHeader, byte(ipHdr.Protocol))
-	pseudoHeader = append(pseudoHeader, 0, byte(len(tcpHeader))) // tcp length
+// sendPacket sends a raw IPv4 packet using the passed connection
+func sendPacket(rawConn *ipv4.RawConn, header *ipv4.Header, payload []byte) error {
+	if err := rawConn.WriteTo(header, payload, nil); err != nil {
+		return err
+	}
 
-	return checksum(append(pseudoHeader, tcpHeader...))
+	return nil
 }
 
 func listenAnyPacket(icmpConn *ipv4.RawConn, tcpConn *ipv4.RawConn, timeout time.Duration, localIP net.IP, localPort uint16, remoteIP net.IP, remotePort uint16, seqNum uint32) (net.IP, uint16, layers.ICMPv4TypeCode, time.Time, error) {
@@ -368,6 +250,43 @@ func handlePackets(ctx context.Context, conn *ipv4.RawConn, listener string, loc
 	}
 }
 
+// MarshalPacket takes in an ipv4 header and a payload and copies
+// them into a newly allocated []byte
+func MarshalPacket(header *ipv4.Header, payload []byte) ([]byte, error) {
+	hdrBytes, err := header.Marshal()
+	if err != nil {
+		return nil, err
+	}
+
+	packet := make([]byte, len(hdrBytes)+len(payload))
+	copy(packet[:len(hdrBytes)], hdrBytes)
+	copy(packet[len(hdrBytes):], payload)
+
+	return packet, nil
+}
+
+// readRawPacket creates a gopacket given a byte array
+// containing a packet
+//
+// TODO: try doing this manually to see if it's more performant
+// we should either always use gopacket or never use gopacket
+func readRawPacket(rawPacket []byte) gopacket.Packet {
+	return gopacket.NewPacket(rawPacket, layers.LayerTypeIPv4, gopacket.Default)
+}
+
+func parseIPv4Layer(pkt gopacket.Packet) (net.IP, net.IP, error) {
+	if ipLayer := pkt.Layer(layers.LayerTypeIPv4); ipLayer != nil {
+		ip, ok := ipLayer.(*layers.IPv4)
+		if !ok {
+			return net.IP{}, net.IP{}, fmt.Errorf("failed to assert IPv4 layer type")
+		}
+
+		return ip.SrcIP, ip.DstIP, nil
+	}
+
+	return net.IP{}, net.IP{}, fmt.Errorf("packet does not contain an IPv4 layer")
+}
+
 func parseICMP(header *ipv4.Header, payload []byte) (*icmpResponse, error) {
 	packetBytes, err := MarshalPacket(header, payload)
 	if err != nil {
@@ -378,12 +297,60 @@ func parseICMP(header *ipv4.Header, payload []byte) (*icmpResponse, error) {
 	return parseICMPPacket(packet)
 }
 
-func icmpMatch(localIP net.IP, localPort uint16, remoteIP net.IP, remotePort uint16, seqNum uint32, response *icmpResponse) bool {
-	return localIP.Equal(response.InnerSrcIP) &&
-		remoteIP.Equal(response.InnerDstIP) &&
-		localPort == response.InnerSrcPort &&
-		remotePort == response.InnerDstPort &&
-		seqNum == response.InnerSeqNum
+// parseICMPPacket takes in a gopacket.Packet and tries to convert to an ICMP message
+// it returns all the fields from the packet we need to validate it's the response
+// we're looking for
+func parseICMPPacket(pkt gopacket.Packet) (*icmpResponse, error) {
+	// this parsing could likely be improved to be more performant if we read from the
+	// the original packet bytes directly where we expect the required fields to be
+	// or even just creating a single DecodingLayerParser but in both cases we lose
+	// some flexibility
+	var err error
+	icmpResponse := icmpResponse{}
+
+	icmpResponse.SrcIP, icmpResponse.DstIP, err = parseIPv4Layer(pkt)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decode ICMP packet: %w", err)
+	}
+
+	if icmpLayer := pkt.Layer(layers.LayerTypeICMPv4); icmpLayer != nil {
+		icmp, ok := icmpLayer.(*layers.ICMPv4)
+		if !ok {
+			return nil, fmt.Errorf("failed to assert ICMPv4 layer type")
+		}
+		icmpResponse.TypeCode = icmp.TypeCode
+
+		var payload []byte
+		if len(icmp.Payload) < 40 {
+			log.Tracef("Payload length %d is less than 40, extending...\n", len(icmp.Payload))
+			payload = make([]byte, 40)
+			copy(payload, icmp.Payload)
+			// we have to set this in order for the TCP
+			// parser to work
+			payload[32] = 5 << 4 // set data offset
+		} else {
+			payload = icmp.Payload
+		}
+
+		// if we're in an ICMP packet, we know that we should have
+		// an inner IPv4 and TCP header section
+		var innerIPLayer layers.IPv4
+		var innerTCPLayer layers.TCP
+		decoded := []gopacket.LayerType{}
+		innerIPParser := gopacket.NewDecodingLayerParser(layers.LayerTypeIPv4, &innerIPLayer, &innerTCPLayer)
+		if err := innerIPParser.DecodeLayers(payload, &decoded); err != nil {
+			return nil, fmt.Errorf("failed to decode ICMP payload: %w", err)
+		}
+		icmpResponse.InnerSrcIP = innerIPLayer.SrcIP
+		icmpResponse.InnerDstIP = innerIPLayer.DstIP
+		icmpResponse.InnerSrcPort = uint16(innerTCPLayer.SrcPort)
+		icmpResponse.InnerDstPort = uint16(innerTCPLayer.DstPort)
+		icmpResponse.InnerSeqNum = innerTCPLayer.Seq
+	} else {
+		return nil, fmt.Errorf("packet does not contain an ICMP layer")
+	}
+
+	return &icmpResponse, nil
 }
 
 func parseTCP(header *ipv4.Header, payload []byte) (*tcpResponse, error) {
@@ -399,6 +366,39 @@ func parseTCP(header *ipv4.Header, payload []byte) (*tcpResponse, error) {
 	}
 
 	return tcpResp, nil
+}
+
+func parseTCPPacket(pkt gopacket.Packet) (*tcpResponse, error) {
+	// this parsing could likely be improved to be more performant if we read from the
+	// the original packet bytes directly where we expect the required fields to be
+	var err error
+	tcpResponse := tcpResponse{}
+
+	tcpResponse.SrcIP, tcpResponse.DstIP, err = parseIPv4Layer(pkt)
+	if err != nil {
+		return nil, err
+	}
+
+	if tcpLayer := pkt.Layer(layers.LayerTypeTCP); tcpLayer != nil {
+		tcp, ok := tcpLayer.(*layers.TCP)
+		if !ok {
+			return nil, fmt.Errorf("failed to assert TCP layer type")
+		}
+
+		tcpResponse.TCPResponse = tcp
+	} else {
+		return nil, fmt.Errorf("packet does not contain a TCP layer")
+	}
+
+	return &tcpResponse, nil
+}
+
+func icmpMatch(localIP net.IP, localPort uint16, remoteIP net.IP, remotePort uint16, seqNum uint32, response *icmpResponse) bool {
+	return localIP.Equal(response.InnerSrcIP) &&
+		remoteIP.Equal(response.InnerDstIP) &&
+		localPort == response.InnerSrcPort &&
+		remotePort == response.InnerDstPort &&
+		seqNum == response.InnerSeqNum
 }
 
 func tcpMatch(localIP net.IP, localPort uint16, remoteIP net.IP, remotePort uint16, seqNum uint32, response *tcpResponse) bool {
