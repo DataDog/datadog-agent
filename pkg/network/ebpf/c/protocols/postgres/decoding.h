@@ -111,21 +111,17 @@ static int __always_inline skip_string(pktbuf_t pkt, int message_len) {
 // complete, it enqueues the transaction and deletes it from the in-flight map. If the message is not a command complete,
 // it tries to read up to POSTGRES_MAX_MESSAGES messages, looking for a command complete message.
 // If the message is not a new query or a command complete, it ignores the message.
-static __always_inline void postgres_entrypoint(pktbuf_t pkt, conn_tuple_t *conn_tuple) {
+static __always_inline void postgres_entrypoint(pktbuf_t pkt, conn_tuple_t *conn_tuple, struct pg_message_header *header) {
     // Read first message header
-    struct pg_message_header header;
-    if (!read_message_header(pkt, &header)) {
-        return;
-    }
     // Advance the data offset to the end of the first message header.
     pktbuf_advance(pkt, sizeof(struct pg_message_header));
 
     // If the message is a new query, we store the query in the in-flight map.
     // If we had a transaction for the connection, we override it and drops the previous one.
-    if (header.message_tag == POSTGRES_QUERY_MAGIC_BYTE) {
+    if (header->message_tag == POSTGRES_QUERY_MAGIC_BYTE) {
         // message_len includes size of the payload, 4 bytes of the message length itself, but not the message tag.
         // So if we want to know the size of the payload, we need to subtract the size of the message length.
-        handle_new_query(pkt, conn_tuple, header.message_len - sizeof(__u32));
+        handle_new_query(pkt, conn_tuple, header->message_len - sizeof(__u32));
         return;
     }
 
@@ -137,7 +133,7 @@ static __always_inline void postgres_entrypoint(pktbuf_t pkt, conn_tuple_t *conn
     }
 
     // If the message is a command complete, we enqueue the transaction and delete it from the in-flight map.
-    if (header.message_tag == POSTGRES_COMMAND_COMPLETE_MAGIC_BYTE) {
+    if (header->message_tag == POSTGRES_COMMAND_COMPLETE_MAGIC_BYTE) {
         handle_command_complete(conn_tuple, transaction);
         return;
     }
@@ -148,21 +144,21 @@ static __always_inline void postgres_entrypoint(pktbuf_t pkt, conn_tuple_t *conn
     // Advance the data offset to the end of the first message (after the payload). The message length includes the size
     // of the payload, 4 bytes of the message length itself, but not the message tag. Since we already moved the data
     // offset to the end of the message header, we want to jump over the payload.
-    pktbuf_advance(pkt, header.message_len - sizeof(__u32));
+    pktbuf_advance(pkt, header->message_len - sizeof(__u32));
 
 #pragma unroll(POSTGRES_MAX_MESSAGES)
     for (__u32 iteration = 0; iteration < POSTGRES_MAX_MESSAGES; ++iteration) {
-        if (!read_message_header(pkt, &header)) {
+        if (!read_message_header(pkt, header)) {
             break;
         }
-        if (header.message_tag == POSTGRES_COMMAND_COMPLETE_MAGIC_BYTE) {
+        if (header->message_tag == POSTGRES_COMMAND_COMPLETE_MAGIC_BYTE) {
             handle_command_complete(conn_tuple, transaction);
             break;
         }
         // We didn't find a command complete message, so we advance the data offset to the end of the message.
         // reminder, the message length includes the size of the payload, 4 bytes of the message length itself, but not
         // the message tag. So we need to add 1 to the message length to jump over the entire message.
-        pktbuf_advance(pkt, header.message_len + 1);
+        pktbuf_advance(pkt, header->message_len + 1);
     }
     return;
 }
@@ -221,7 +217,7 @@ int socket__postgres_process(struct __sk_buff* skb) {
         return 0;
     }
 
-    postgres_entrypoint(pkt, &conn_tuple);
+    postgres_entrypoint(pkt, &conn_tuple, &header);
     return 0;
 }
 
@@ -264,7 +260,7 @@ int uprobe__postgres_tls_process(struct pt_regs *ctx) {
         bpf_tail_call_compat(ctx, &tls_process_progs, TLS_PROG_POSTGRES_PROCESS_PARSE_MESSAGE);
         return 0;
     }
-    postgres_entrypoint(pkt, &tup);
+    postgres_entrypoint(pkt, &tup, &header);
     return 0;
 }
 
