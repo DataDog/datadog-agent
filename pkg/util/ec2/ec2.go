@@ -221,7 +221,7 @@ func extractClusterName(tags []string) (string, error) {
 
 // IsDefaultHostname returns whether the given hostname is a default one for EC2
 func IsDefaultHostname(hostname string) bool {
-	return isDefaultHostname(hostname, config.Datadog.GetBool("ec2_use_windows_prefix_detection"))
+	return isDefaultHostname(hostname, config.Datadog().GetBool("ec2_use_windows_prefix_detection"))
 }
 
 // IsDefaultHostnameForIntake returns whether the given hostname is a default one for EC2 for the intake

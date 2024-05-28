@@ -251,7 +251,7 @@ func TestDatadogExternalQuery(t *testing.T) {
 				queryMetricsFunc: test.queryfunc,
 			}
 			p := Processor{datadogClient: cl}
-			points, err := p.queryDatadogExternal(test.metricName, time.Duration(config.Datadog.GetInt64("external_metrics_provider.bucket_size"))*time.Second)
+			points, err := p.queryDatadogExternal(test.metricName, time.Duration(config.Datadog().GetInt64("external_metrics_provider.bucket_size"))*time.Second)
 			if test.err != nil {
 				require.EqualError(t, test.err, err.Error())
 			}
