@@ -35,5 +35,5 @@ class TestRunningIn(unittest.TestCase):
 
         for env_var, value, expected, func in parameters:
             with self.subTest(env_var=env_var, value=value, expected_value=expected):
-                with mock.patch.dict(os.environ, {env_var: value}):
+                with mock.patch.dict(os.environ, {env_var: value}, clear=True):
                     self.assertEqual(expected, func())
