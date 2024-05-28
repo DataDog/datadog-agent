@@ -92,10 +92,9 @@ func SetupAgent(ctx context.Context) (err error) {
 		return err
 	}
 
-	for _, unit := range stableUnits {
-		if err = enableUnit(ctx, unit); err != nil {
-			return err
-		}
+	// enabling the agentUnit only is enough as others are triggered by it
+	if err = enableUnit(ctx, agentUnit); err != nil {
+		return err
 	}
 	if err = exec.CommandContext(ctx, "ln", "-sf", "/opt/datadog-packages/datadog-agent/stable/bin/agent/agent", agentSymlink).Run(); err != nil {
 		return err
@@ -137,20 +136,18 @@ func RemoveAgent(ctx context.Context) {
 			log.Warnf("Failed to stop %s: %s", unit, err)
 		}
 	}
-	// purge experimental units
+
+	if err := disableUnit(ctx, agentUnit); err != nil {
+		log.Warnf("Failed to disable %s: %s", agentUnit, err)
+	}
+
+	// remove units from disk
 	for _, unit := range experimentalUnits {
-		if err := disableUnit(ctx, unit); err != nil {
-			log.Warnf("Failed to disable %s: %s", unit, err)
-		}
 		if err := removeUnit(ctx, unit); err != nil {
 			log.Warnf("Failed to remove %s: %s", unit, err)
 		}
 	}
-	// purge stable units
 	for _, unit := range stableUnits {
-		if err := disableUnit(ctx, unit); err != nil {
-			log.Warnf("Failed to disable %s: %s", unit, err)
-		}
 		if err := removeUnit(ctx, unit); err != nil {
 			log.Warnf("Failed to remove %s: %s", unit, err)
 		}

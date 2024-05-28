@@ -53,21 +53,7 @@ func (s *packageAgentSuite) TestInstall() {
 
 func (s *packageAgentSuite) assertUnits(state host.State, oldUnits bool) {
 	state.AssertUnitsLoaded(agentUnit, traceUnit, processUnit, probeUnit, securityUnit)
-	if oldUnits {
-		pkgManager := s.host.GetPkgManager()
-		switch pkgManager {
-		case "dpkg":
-			// system-probe is not enabled on Deb
-			state.AssertUnitsEnabled(agentUnit, traceUnit, processUnit, securityUnit)
-		case "rpm":
-			// only the agent unit is enabled on RPM
-			state.AssertUnitsEnabled(agentUnit)
-		default:
-			s.T().Fatalf("unsupported package manager: %s", pkgManager)
-		}
-	} else {
-		state.AssertUnitsEnabled(agentUnit, traceUnit, processUnit, probeUnit, securityUnit)
-	}
+	state.AssertUnitsEnabled(agentUnit)
 	state.AssertUnitsRunning(agentUnit, traceUnit, processUnit)
 	state.AssertUnitsDead(probeUnit, securityUnit)
 
