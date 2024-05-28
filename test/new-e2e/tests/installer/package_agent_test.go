@@ -371,7 +371,6 @@ func (s *packageAgentSuite) TestExperimentStopped() {
 }
 
 func (s *packageAgentSuite) purgeAgentDebInstall() {
-	s.Env().RemoteHost.MustExecute("sudo rm -rf /var/run/datadog")
 	s.Env().RemoteHost.MustExecute("sudo rm -rf /etc/datadog-agent")
 	pkgManager := s.host.GetPkgManager()
 	switch pkgManager {
