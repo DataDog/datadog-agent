@@ -818,6 +818,7 @@ func (ns *networkState) storePostgresStats(allStats map[postgres.Key]*postgres.R
 
 func (ns *networkState) getClient(clientID string) *client {
 	log.Errorf("adamk getting client: %s", clientID)
+	log.Errorf("adamk clients: %v", ns.clients)
 	if c, ok := ns.clients[clientID]; ok {
 		log.Errorf("adamk found client: %s", clientID)
 		log.Errorf("adamk CLIENT closed conns: %v", c.closed)
