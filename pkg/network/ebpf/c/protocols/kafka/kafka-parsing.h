@@ -952,6 +952,8 @@ static __always_inline enum parse_result kafka_continue_parse_response_record_ba
 static __always_inline void kafka_call_response_parser(void *ctx, conn_tuple_t *tup, pktbuf_t pkt, kafka_response_state state, u32 api_version)
 {
     enum parser_level level = parser_state_to_level(state);
+    // Leave uninitialzed to get a compile-time warning if we miss setting it in
+    // some code path.
     u32 index;
 
     switch (pkt.type) {
