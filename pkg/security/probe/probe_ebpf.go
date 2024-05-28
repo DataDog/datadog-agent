@@ -1165,6 +1165,13 @@ func (p *EBPFProbe) updateProbes(ruleEventTypes []eval.EventType, needRawSyscall
 		}
 	}
 
+	// if we are using tracepoints to probe syscall exits, i.e. if we are using an old kernel version (< 4.12)
+	// we need to use raw_syscall tracepoints for exits, as syscall are not trace when running an ia32 userspace
+	// process
+	if probes.ShouldUseSyscallExitTracepoints() {
+		activatedProbes = append(activatedProbes, &manager.ProbeSelector{ProbeIdentificationPair: manager.ProbeIdentificationPair{UID: probes.SecurityAgentUID, EBPFFuncName: "sys_exit"}})
+	}
+
 	activatedProbes = append(activatedProbes, p.Resolvers.TCResolver.SelectTCProbes())
 
 	if needRawSyscalls {
@@ -1446,6 +1453,17 @@ func (p *EBPFProbe) applyDefaultFilterPolicies() {
 	}
 }
 
+func isKillActionPresent(rs *rules.RuleSet) bool {
+	for _, rule := range rs.GetRules() {
+		for _, action := range rule.Definition.Actions {
+			if action.Kill != nil {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 // ApplyRuleSet apply the required update to handle the new ruleset
 func (p *EBPFProbe) ApplyRuleSet(rs *rules.RuleSet) (*kfilters.ApplyRuleSetReport, error) {
 	if p.opts.SyscallsMonitorEnabled {
@@ -1468,21 +1486,29 @@ func (p *EBPFProbe) ApplyRuleSet(rs *rules.RuleSet) (*kfilters.ApplyRuleSetRepor
 		}
 	}
 
+	eventTypes := rs.GetEventTypes()
+
+	// activity dump & security profiles
 	needRawSyscalls := p.isNeededForActivityDump(model.SyscallsEventType.String())
-	if !needRawSyscalls && p.config.RuntimeSecurity.EnforcementRawSyscallEnabled {
-		// Add syscall monitor probes if it's either activated or
-		// there is an 'kill' action in the ruleset
-		for _, rule := range rs.GetRules() {
-			for _, action := range rule.Definition.Actions {
-				if action.Kill != nil {
-					needRawSyscalls = true
-					break
+
+	// kill action
+	if p.config.RuntimeSecurity.EnforcementEnabled && isKillActionPresent(rs) {
+		if !p.config.RuntimeSecurity.EnforcementRawSyscallEnabled {
+			// force FIM and Process category so that we can catch most of the activity
+			categories := model.GetEventTypePerCategory(model.FIMCategory, model.ProcessCategory)
+			for _, list := range categories {
+				for _, eventType := range list {
+					if !slices.Contains(eventTypes, eventType) {
+						eventTypes = append(eventTypes, eventType)
+					}
 				}
 			}
+		} else {
+			needRawSyscalls = true
 		}
 	}
 
-	if err := p.updateProbes(rs.GetEventTypes(), needRawSyscalls); err != nil {
+	if err := p.updateProbes(eventTypes, needRawSyscalls); err != nil {
 		return nil, fmt.Errorf("failed to select probes: %w", err)
 	}
 
@@ -1712,18 +1738,6 @@ func NewEBPFProbe(probe *Probe, config *config.Config, opts Opts, wmeta optional
 
 	p.managerOptions.ConstantEditors = append(p.managerOptions.ConstantEditors, DiscarderConstants...)
 	p.managerOptions.ConstantEditors = append(p.managerOptions.ConstantEditors, getCGroupWriteConstants())
-
-	// if we are using tracepoints to probe syscall exits, i.e. if we are using an old kernel version (< 4.12)
-	// we need to use raw_syscall tracepoints for exits, as syscall are not trace when running an ia32 userspace
-	// process
-	if probes.ShouldUseSyscallExitTracepoints() {
-		p.managerOptions.ConstantEditors = append(p.managerOptions.ConstantEditors,
-			manager.ConstantEditor{
-				Name:  "tracepoint_raw_syscall_fallback",
-				Value: utils.BoolTouint64(true),
-			},
-		)
-	}
 
 	p.managerOptions.ConstantEditors = append(p.managerOptions.ConstantEditors,
 		manager.ConstantEditor{

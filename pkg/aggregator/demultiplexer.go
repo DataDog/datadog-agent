@@ -146,8 +146,8 @@ func GetDogStatsDWorkerAndPipelineCount() (int, int) {
 func getDogStatsDWorkerAndPipelineCount(vCPUs int) (int, int) {
 	var dsdWorkerCount int
 	var pipelineCount int
-	autoAdjust := config.Datadog.GetBool("dogstatsd_pipeline_autoadjust")
-	autoAdjustStrategy := config.Datadog.GetString("dogstatsd_pipeline_autoadjust_strategy")
+	autoAdjust := config.Datadog().GetBool("dogstatsd_pipeline_autoadjust")
+	autoAdjustStrategy := config.Datadog().GetString("dogstatsd_pipeline_autoadjust_strategy")
 
 	if autoAdjustStrategy != AutoAdjustStrategyMaxThroughput && autoAdjustStrategy != AutoAdjustStrategyPerOrigin {
 		log.Warnf("Invalid value for 'dogstatsd_pipeline_autoadjust_strategy', using default value: %s", AutoAdjustStrategyMaxThroughput)
@@ -160,7 +160,7 @@ func getDogStatsDWorkerAndPipelineCount(vCPUs int) (int, int) {
 	// ------------------------------------
 
 	if !autoAdjust {
-		pipelineCount = config.Datadog.GetInt("dogstatsd_pipeline_count")
+		pipelineCount = config.Datadog().GetInt("dogstatsd_pipeline_count")
 		if pipelineCount <= 0 { // guard against configuration mistakes
 			pipelineCount = 1
 		}
@@ -199,7 +199,7 @@ func getDogStatsDWorkerAndPipelineCount(vCPUs int) (int, int) {
 			pipelineCount = 1
 		}
 
-		if config.Datadog.GetInt("dogstatsd_pipeline_count") > 1 {
+		if config.Datadog().GetInt("dogstatsd_pipeline_count") > 1 {
 			log.Warn("DogStatsD pipeline count value ignored since 'dogstatsd_pipeline_autoadjust' is enabled.")
 		}
 	} else if autoAdjustStrategy == AutoAdjustStrategyPerOrigin {
@@ -216,7 +216,7 @@ func getDogStatsDWorkerAndPipelineCount(vCPUs int) (int, int) {
 			dsdWorkerCount = 2
 		}
 
-		pipelineCount = config.Datadog.GetInt("dogstatsd_pipeline_count")
+		pipelineCount = config.Datadog().GetInt("dogstatsd_pipeline_count")
 		if pipelineCount <= 0 { // guard against configuration mistakes
 			pipelineCount = vCPUs * 2
 		}

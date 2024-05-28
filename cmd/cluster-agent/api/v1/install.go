@@ -21,7 +21,7 @@ import (
 // InstallMetadataEndpoints registers endpoints for metadata
 func InstallMetadataEndpoints(r *mux.Router, w workloadmeta.Component) {
 	log.Debug("Registering metadata endpoints")
-	if config.Datadog.GetBool("cloud_foundry") {
+	if config.Datadog().GetBool("cloud_foundry") {
 		installCloudFoundryMetadataEndpoints(r)
 	} else {
 		installKubernetesMetadataEndpoints(r, w)

@@ -63,6 +63,30 @@ func (s *PostgresSuite) TestFormatPostgresStats() {
 		postgres.InsertOP,
 		tableName,
 	)
+	updateKey := postgres.NewKey(
+		localhost,
+		localhost,
+		postgresClientPort,
+		postgresServerPort,
+		postgres.UpdateOP,
+		tableName,
+	)
+	createKey := postgres.NewKey(
+		localhost,
+		localhost,
+		postgresClientPort,
+		postgresServerPort,
+		postgres.CreateTableOP,
+		tableName,
+	)
+	dropKey := postgres.NewKey(
+		localhost,
+		localhost,
+		postgresClientPort,
+		postgresServerPort,
+		postgres.DropTableOP,
+		tableName,
+	)
 
 	in := &network.Connections{
 		BufferedData: network.BufferedData{
@@ -76,6 +100,18 @@ func (s *PostgresSuite) TestFormatPostgresStats() {
 				FirstLatencySample: 5,
 			},
 			insertKey: {
+				Count:              10,
+				FirstLatencySample: 5,
+			},
+			updateKey: {
+				Count:              10,
+				FirstLatencySample: 5,
+			},
+			createKey: {
+				Count:              10,
+				FirstLatencySample: 5,
+			},
+			dropKey: {
 				Count:              10,
 				FirstLatencySample: 5,
 			},
@@ -98,6 +134,36 @@ func (s *PostgresSuite) TestFormatPostgresStats() {
 					Postgres: &model.PostgresStats{
 						TableName:          tableName,
 						Operation:          model.PostgresOperation_PostgresInsertOp,
+						FirstLatencySample: 5,
+						Count:              10,
+					},
+				},
+			},
+			{
+				DbStats: &model.DatabaseStats_Postgres{
+					Postgres: &model.PostgresStats{
+						TableName:          tableName,
+						Operation:          model.PostgresOperation_PostgresUpdateOp,
+						FirstLatencySample: 5,
+						Count:              10,
+					},
+				},
+			},
+			{
+				DbStats: &model.DatabaseStats_Postgres{
+					Postgres: &model.PostgresStats{
+						TableName:          tableName,
+						Operation:          model.PostgresOperation_PostgresCreateOp,
+						FirstLatencySample: 5,
+						Count:              10,
+					},
+				},
+			},
+			{
+				DbStats: &model.DatabaseStats_Postgres{
+					Postgres: &model.PostgresStats{
+						TableName:          tableName,
+						Operation:          model.PostgresOperation_PostgresDropOp,
 						FirstLatencySample: 5,
 						Count:              10,
 					},
