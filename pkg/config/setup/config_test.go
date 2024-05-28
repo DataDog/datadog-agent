@@ -426,7 +426,7 @@ func TestProxy(t *testing.T) {
 
 			path := t.TempDir()
 			configPath := filepath.Join(path, "empty_conf.yaml")
-			os.WriteFile(configPath, nil, 0600)
+			os.WriteFile(configPath, nil, 0o600)
 			config.SetConfigFile(configPath)
 
 			resolver := secretsimpl.NewMock()
@@ -531,7 +531,7 @@ func TestDatabaseMonitoringAurora(t *testing.T) {
 
 			path := t.TempDir()
 			configPath := filepath.Join(path, "empty_conf.yaml")
-			os.WriteFile(configPath, nil, 0600)
+			os.WriteFile(configPath, nil, 0o600)
 			config.SetConfigFile(configPath)
 
 			resolver := secretsimpl.NewMock()
@@ -545,7 +545,6 @@ func TestDatabaseMonitoringAurora(t *testing.T) {
 			c.tests(t, config)
 		})
 	}
-
 }
 
 func TestSanitizeAPIKeyConfig(t *testing.T) {
@@ -1180,7 +1179,7 @@ func TestProxyLoadedFromConfigFile(t *testing.T) {
 
 	tempDir := t.TempDir()
 	configTest := path.Join(tempDir, "datadog.yaml")
-	os.WriteFile(configTest, []byte("proxy:\n  http: \"http://localhost:1234\"\n  https: \"https://localhost:1234\""), 0644)
+	os.WriteFile(configTest, []byte("proxy:\n  http: \"http://localhost:1234\"\n  https: \"https://localhost:1234\""), 0o644)
 
 	conf.AddConfigPath(tempDir)
 	LoadWithoutSecret(conf, []string{})
@@ -1203,7 +1202,7 @@ func TestProxyLoadedFromConfigFileAndEnvVars(t *testing.T) {
 
 	tempDir := t.TempDir()
 	configTest := path.Join(tempDir, "datadog.yaml")
-	os.WriteFile(configTest, []byte("proxy:\n  http: \"http://localhost:5678\"\n  https: \"http://localhost:5678\""), 0644)
+	os.WriteFile(configTest, []byte("proxy:\n  http: \"http://localhost:5678\"\n  https: \"http://localhost:5678\""), 0o644)
 
 	conf.AddConfigPath(tempDir)
 	LoadWithoutSecret(conf, []string{})
@@ -1241,7 +1240,7 @@ func TestConfigAssignAtPath(t *testing.T) {
 	config := Conf()
 	config.SetWithoutSource("use_proxy_for_cloud_metadata", true)
 	configPath := filepath.Join(t.TempDir(), "datadog.yaml")
-	os.WriteFile(configPath, testExampleConf, 0600)
+	os.WriteFile(configPath, testExampleConf, 0o600)
 	config.SetConfigFile(configPath)
 
 	_, err := LoadCustom(config, "unit_test", optional.NewNoneOption[secrets.Component](), nil)
@@ -1298,7 +1297,7 @@ func TestConfigAssignAtPathSimple(t *testing.T) {
 	config := Conf()
 	config.SetWithoutSource("use_proxy_for_cloud_metadata", true)
 	configPath := filepath.Join(t.TempDir(), "datadog.yaml")
-	os.WriteFile(configPath, testSimpleConf, 0600)
+	os.WriteFile(configPath, testSimpleConf, 0o600)
 	config.SetConfigFile(configPath)
 
 	_, err := LoadCustom(config, "unit_test", optional.NewNoneOption[secrets.Component](), nil)
@@ -1347,7 +1346,7 @@ use_proxy_for_cloud_metadata: true
 
 	config := Conf()
 	configPath := filepath.Join(t.TempDir(), "datadog.yaml")
-	os.WriteFile(configPath, testMinimalConf, 0600)
+	os.WriteFile(configPath, testMinimalConf, 0o600)
 	config.SetConfigFile(configPath)
 
 	resolver := secretsimpl.NewMock()
@@ -1393,7 +1392,7 @@ func TestConfigAssignAtPathForIntMapKeys(t *testing.T) {
 
 	// Even if a map is using keys that looks like stringified ints, calling
 	// configAssignAtPath will still work correctly
-	var testIntKeysConf = []byte(`
+	testIntKeysConf := []byte(`
 additional_endpoints:
   0: apple
   1: banana
@@ -1402,7 +1401,7 @@ additional_endpoints:
 	config := Conf()
 	config.SetWithoutSource("use_proxy_for_cloud_metadata", true)
 	configPath := filepath.Join(t.TempDir(), "datadog.yaml")
-	os.WriteFile(configPath, testIntKeysConf, 0600)
+	os.WriteFile(configPath, testIntKeysConf, 0o600)
 	config.SetConfigFile(configPath)
 
 	_, err := LoadCustom(config, "unit_test", optional.NewNoneOption[secrets.Component](), nil)
