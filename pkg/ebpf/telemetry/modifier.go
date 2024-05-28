@@ -29,7 +29,7 @@ func (t *ErrorsTelemetryModifier) BeforeInit(m *manager.Manager, opts *manager.O
 // AfterInit pre-populates the telemetry maps with entries corresponding to the ebpf program of the manager.
 func (t *ErrorsTelemetryModifier) AfterInit(m *manager.Manager, _ *manager.Options) error {
 	if errorsTelemetry != nil {
-		if err := errorsTelemetry.fillMaps(m); err != nil {
+		if err := errorsTelemetry.populateMapsWithKeys(m); err != nil {
 			return err
 		}
 	}

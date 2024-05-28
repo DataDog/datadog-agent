@@ -43,18 +43,6 @@ var helperNames = map[int]string{
 	perfEventOutput: "bpf_perf_event_output",
 }
 
-type ebpfErrorsTelemetry interface {
-	sync.Locker
-	setup(opts *manager.Options)
-	fillMaps(m *manager.Manager) error
-	getMapKeys() map[string]uint64
-	getProbeKeys() map[string]uint64
-	setProbe(name string, hash uint64)
-	isInitialized() bool
-	getMapsTelemetryEntry(key uint64) (MapErrTelemetry, error)
-	getHelpersTelemetryEntry(key uint64) (HelperErrTelemetry, error)
-}
-
 // EBPFTelemetry struct contains all the maps that
 // are registered to have their telemetry collected.
 type EBPFTelemetry struct {
@@ -65,52 +53,11 @@ type EBPFTelemetry struct {
 	probeKeys    map[string]uint64
 }
 
-func (e *EBPFTelemetry) Lock() {
-	e.mtx.Lock()
-}
-
-func (e *EBPFTelemetry) Unlock() {
-	e.mtx.Unlock()
-}
-
-func (e *EBPFTelemetry) setup(opts *manager.Options) {
-	e.setupMapEditors(opts)
-}
-
-func (e *EBPFTelemetry) fillMaps(m *manager.Manager) error {
-	return e.populateMapsWithKeys(m)
-}
-
-func (e *EBPFTelemetry) getMapKeys() map[string]uint64 {
-	return e.mapKeys
-}
-
-func (e *EBPFTelemetry) getProbeKeys() map[string]uint64 {
-	return e.probeKeys
-}
-
-func (e *EBPFTelemetry) setProbe(name string, hash uint64) {
-	e.probeKeys[name] = hash
-}
-
-func (e *EBPFTelemetry) isInitialized() bool {
-	return e.mapErrMap != nil && e.helperErrMap != nil
-}
-
-func (e *EBPFTelemetry) getMapsTelemetryEntry(key uint64) (MapErrTelemetry, error) {
-	var val MapErrTelemetry
-	err := e.mapErrMap.Lookup(&key, &val)
-	return val, err
-}
-
-func (e *EBPFTelemetry) getHelpersTelemetryEntry(key uint64) (HelperErrTelemetry, error) {
-	var val HelperErrTelemetry
-	err := e.helperErrMap.Lookup(&key, &val)
-	return val, err
-}
+// A singleton instance of the ebpf telemetry struct. Used by the collector and the ebpf managers (via ErrorsTelemetryModifier).
+var errorsTelemetry *EBPFTelemetry
 
 // newEBPFTelemetry initializes a new EBPFTelemetry object
-func newEBPFTelemetry() ebpfErrorsTelemetry {
+func newEBPFTelemetry() *EBPFTelemetry {
 	errorsTelemetry = &EBPFTelemetry{
 		mapKeys:   make(map[string]uint64),
 		probeKeys: make(map[string]uint64),
@@ -118,46 +65,46 @@ func newEBPFTelemetry() ebpfErrorsTelemetry {
 	return errorsTelemetry
 }
 
-func (e *EBPFTelemetry) setupMapEditors(opts *manager.Options) {
-	if (e.mapErrMap != nil) || (e.helperErrMap != nil) {
+func (b *EBPFTelemetry) setupMapEditors(opts *manager.Options) {
+	if (b.mapErrMap != nil) || (b.helperErrMap != nil) {
 		if opts.MapEditors == nil {
 			opts.MapEditors = make(map[string]*ebpf.Map)
 		}
 	}
 	// if the maps have already been loaded, setup editors to point to them
-	if e.mapErrMap != nil {
-		opts.MapEditors[probes.MapErrTelemetryMap] = e.mapErrMap.Map()
+	if b.mapErrMap != nil {
+		opts.MapEditors[probes.MapErrTelemetryMap] = b.mapErrMap.Map()
 	}
-	if e.helperErrMap != nil {
-		opts.MapEditors[probes.HelperErrTelemetryMap] = e.helperErrMap.Map()
+	if b.helperErrMap != nil {
+		opts.MapEditors[probes.HelperErrTelemetryMap] = b.helperErrMap.Map()
 	}
 }
 
 // populateMapsWithKeys initializes the maps for holding telemetry info.
 // It must be called after the manager is initialized
-func (e *EBPFTelemetry) populateMapsWithKeys(m *manager.Manager) error {
-	e.mtx.Lock()
-	defer e.mtx.Unlock()
+func (b *EBPFTelemetry) populateMapsWithKeys(m *manager.Manager) error {
+	b.mtx.Lock()
+	defer b.mtx.Unlock()
 
 	// first manager to call will populate the maps
-	if e.mapErrMap == nil {
-		e.mapErrMap, _ = maps.GetMap[uint64, MapErrTelemetry](m, probes.MapErrTelemetryMap)
+	if b.mapErrMap == nil {
+		b.mapErrMap, _ = maps.GetMap[uint64, MapErrTelemetry](m, probes.MapErrTelemetryMap)
 	}
-	if e.helperErrMap == nil {
-		e.helperErrMap, _ = maps.GetMap[uint64, HelperErrTelemetry](m, probes.HelperErrTelemetryMap)
+	if b.helperErrMap == nil {
+		b.helperErrMap, _ = maps.GetMap[uint64, HelperErrTelemetry](m, probes.HelperErrTelemetryMap)
 	}
 
-	if err := e.initializeMapErrTelemetryMap(m.Maps); err != nil {
+	if err := b.initializeMapErrTelemetryMap(m.Maps); err != nil {
 		return err
 	}
-	if err := e.initializeHelperErrTelemetryMap(); err != nil {
+	if err := b.initializeHelperErrTelemetryMap(); err != nil {
 		return err
 	}
 	return nil
 }
 
-func (e *EBPFTelemetry) initializeMapErrTelemetryMap(maps []*manager.Map) error {
-	if e.mapErrMap == nil {
+func (b *EBPFTelemetry) initializeMapErrTelemetryMap(maps []*manager.Map) error {
+	if b.mapErrMap == nil {
 		return nil
 	}
 
@@ -166,29 +113,29 @@ func (e *EBPFTelemetry) initializeMapErrTelemetryMap(maps []*manager.Map) error 
 	for _, m := range maps {
 		// Some maps, such as the telemetry maps, are
 		// redefined in multiple programs.
-		if _, ok := e.mapKeys[m.Name]; ok {
+		if _, ok := b.mapKeys[m.Name]; ok {
 			continue
 		}
 
 		key := mapKey(h, m)
-		err := e.mapErrMap.Update(&key, z, ebpf.UpdateNoExist)
+		err := b.mapErrMap.Update(&key, z, ebpf.UpdateNoExist)
 		if err != nil && !errors.Is(err, ebpf.ErrKeyExist) {
 			return fmt.Errorf("failed to initialize telemetry struct for map %s", m.Name)
 		}
-		e.mapKeys[m.Name] = key
+		b.mapKeys[m.Name] = key
 	}
 	return nil
 }
 
-func (e *EBPFTelemetry) initializeHelperErrTelemetryMap() error {
-	if e.helperErrMap == nil {
+func (b *EBPFTelemetry) initializeHelperErrTelemetryMap() error {
+	if b.helperErrMap == nil {
 		return nil
 	}
 
 	// the `probeKeys` get added during instruction patching, so we just try to insert entries for any that don't exist
 	z := new(HelperErrTelemetry)
-	for p, key := range e.probeKeys {
-		err := e.helperErrMap.Update(&key, z, ebpf.UpdateNoExist)
+	for p, key := range b.probeKeys {
+		err := b.helperErrMap.Update(&key, z, ebpf.UpdateNoExist)
 		if err != nil && !errors.Is(err, ebpf.ErrKeyExist) {
 			return fmt.Errorf("failed to initialize telemetry struct for probe %s", p)
 		}
@@ -200,7 +147,7 @@ func (e *EBPFTelemetry) initializeHelperErrTelemetryMap() error {
 // It will patch the instructions of all the manager probes and `undefinedProbes` provided.
 // Constants are replaced for map error and helper error keys with their respective values.
 // This must be called before ebpf-manager.Manager.Init/InitWithOptions
-func setupForTelemetry(m *manager.Manager, options *manager.Options, bpfTelemetry ebpfErrorsTelemetry) error {
+func setupForTelemetry(m *manager.Manager, options *manager.Options, bpfTelemetry *EBPFTelemetry) error {
 	activateBPFTelemetry, err := ebpfTelemetrySupported()
 	if err != nil {
 		return err
@@ -219,7 +166,7 @@ func setupForTelemetry(m *manager.Manager, options *manager.Options, bpfTelemetr
 		}
 
 		if bpfTelemetry != nil {
-			bpfTelemetry.setup(options)
+			bpfTelemetry.setupMapEditors(options)
 		}
 
 		options.ConstantEditors = append(options.ConstantEditors, buildMapErrTelemetryConstants(m)...)
@@ -230,7 +177,7 @@ func setupForTelemetry(m *manager.Manager, options *manager.Options, bpfTelemetr
 	return nil
 }
 
-func patchEBPFTelemetry(m *manager.Manager, enable bool, bpfTelemetry ebpfErrorsTelemetry) error {
+func patchEBPFTelemetry(m *manager.Manager, enable bool, bpfTelemetry *EBPFTelemetry) error {
 	const symbol = "telemetry_program_id_key"
 	newIns := asm.Mov.Reg(asm.R1, asm.R1)
 	if enable {
@@ -258,7 +205,7 @@ func patchEBPFTelemetry(m *manager.Manager, enable bool, bpfTelemetry ebpfErrors
 					}
 					key := probeKey(h, fn)
 					load.Constant = int64(key)
-					bpfTelemetry.setProbe(fn, key)
+					bpfTelemetry.probeKeys[fn] = key
 				}
 			}
 		}

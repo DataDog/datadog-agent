@@ -1979,10 +1979,7 @@ func (s *TracerSuite) TestGetMapsTelemetry() {
 	ebpfTelemetryCollector, ok := tr.bpfErrorsCollector.(*ebpftelemetry.EBPFErrorsCollector)
 	require.True(t, ok)
 
-	telemetry, ok := ebpfTelemetryCollector.T.(*ebpftelemetry.EBPFTelemetry)
-	require.True(t, ok)
-	mapsTelemetry := telemetry.GetMapsTelemetry()
-
+	mapsTelemetry := ebpfTelemetryCollector.T.GetMapsTelemetry()
 	t.Logf("EBPF Maps telemetry: %v\n", mapsTelemetry)
 
 	tcpStatsErrors, ok := mapsTelemetry[probes.TCPStatsMap].(map[string]uint64)
@@ -2038,9 +2035,7 @@ func (s *TracerSuite) TestGetHelpersTelemetry() {
 	ebpfTelemetryCollector, ok := tr.bpfErrorsCollector.(*ebpftelemetry.EBPFErrorsCollector)
 	require.True(t, ok)
 
-	telemetry, ok := ebpfTelemetryCollector.T.(*ebpftelemetry.EBPFTelemetry)
-	require.True(t, ok)
-	helperTelemetry := telemetry.GetHelpersTelemetry()
+	helperTelemetry := ebpfTelemetryCollector.T.GetHelpersTelemetry()
 	t.Logf("EBPF helper telemetry: %v\n", helperTelemetry)
 
 	openAtErrors, ok := helperTelemetry[expectedErrorTP].(map[string]interface{})
