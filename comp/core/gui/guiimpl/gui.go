@@ -96,8 +96,7 @@ type provides struct {
 func newGui(deps dependencies) provides {
 
 	p := provides{
-		Comp:     optional.NewNoneOption[guicomp.Component](),
-		Endpoint: api.NewAgentEndpointProvider(func(_ http.ResponseWriter, _ *http.Request) {}, "/gui/intent", "GET"),
+		Comp: optional.NewNoneOption[guicomp.Component](),
 	}
 	guiPort := deps.Config.GetString("GUI_port")
 
@@ -125,8 +124,8 @@ func newGui(deps dependencies) provides {
 	sessionExpiration := deps.Config.GetDuration("GUI_session_expiration")
 	g.auth = newAuthenticator(authToken, sessionExpiration)
 
-	// Serve the (secured) index page on the default endpoint
 	router.HandleFunc("/auth", g.getAccessToken).Methods("GET")
+	// Serve the (secured) index page on the default endpoint
 	securedRouter := router.PathPrefix("/").Subrouter()
 	securedRouter.HandleFunc("/", generateIndex).Methods("GET")
 
@@ -139,6 +138,7 @@ func newGui(deps dependencies) provides {
 	checkRouter := securedRouter.PathPrefix("/checks").Subrouter().StrictSlash(true)
 	checkHandler(checkRouter, deps.Collector, deps.Ac)
 
+	// Check token on every securedRouter endpoints
 	securedRouter.Use(g.authMiddleware)
 
 	g.router = router
@@ -177,8 +177,8 @@ func (g *gui) stop(_ context.Context) error {
 	return nil
 }
 
+// Generate a single use IntentToken (32 random chars base64 encoded)
 func (g *gui) getIntentToken(w http.ResponseWriter, _ *http.Request) {
-	// var profile ProfileData
 	key := make([]byte, 32)
 	_, e := rand.Read(key)
 	if e != nil {
@@ -231,8 +231,8 @@ func serveAssets(w http.ResponseWriter, req *http.Request) {
 
 func (g *gui) getAccessToken(w http.ResponseWriter, r *http.Request) {
 
+	// intentToken is present in the query when the GUI is opened from the CLI
 	intentToken := r.URL.Query().Get("intent")
-	// authToken is present in the query when the GUI is opened from the CLI
 	if intentToken == "" {
 		w.WriteHeader(http.StatusUnauthorized)
 		http.Error(w, "missing intentToken", 401)
@@ -250,8 +250,7 @@ func (g *gui) getAccessToken(w http.ResponseWriter, r *http.Request) {
 	// generate accessToken
 	accessToken := g.auth.GenerateAccessToken()
 
-	// accessToken, err := g.auth.Authenticate(intentToken)
-	// if authToken is valid, set the accessToken as a cookie and redirect the user to root page
+	// set the accessToken as a cookie and redirect the user to root page
 	http.SetCookie(w, &http.Cookie{Name: "accessToken", Value: accessToken, Path: "/", HttpOnly: true})
 	http.Redirect(w, r, "/", http.StatusFound)
 }
