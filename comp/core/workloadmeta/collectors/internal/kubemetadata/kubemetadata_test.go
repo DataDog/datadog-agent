@@ -67,7 +67,7 @@ type FakeDCAClient struct {
 	ClusterIDErr error
 }
 
-func (f *FakeDCAClient) Version() version.Version {
+func (f *FakeDCAClient) Version(_ bool) version.Version {
 	return f.LocalVersion
 }
 

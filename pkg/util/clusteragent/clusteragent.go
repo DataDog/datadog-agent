@@ -58,7 +58,7 @@ type Metadata struct {
 
 // DCAClientInterface  is required to query the API of Datadog cluster agent
 type DCAClientInterface interface {
-	Version() version.Version
+	Version(withRefresh bool) version.Version
 	ClusterAgentAPIEndpoint() string
 
 	GetNodeLabels(nodeName string) (map[string]string, error)
@@ -282,9 +282,19 @@ func GetClusterAgentEndpoint() (string, error) {
 }
 
 // Version returns ClusterAgentVersion already stored in the DCAClient
-func (c *DCAClient) Version() version.Version {
-	c.clusterAgentClientLock.RLock()
-	defer c.clusterAgentClientLock.RUnlock()
+// It refreshes the cached version before returning it if withRefresh is true
+func (c *DCAClient) Version(withRefresh bool) version.Version {
+	c.clusterAgentClientLock.Lock()
+	defer c.clusterAgentClientLock.Unlock()
+
+	if withRefresh {
+		ver, err := c.getVersion()
+		if err != nil {
+			log.Errorf("failed to refresh cluster agent version")
+		} else {
+			c.clusterAgentVersion = ver
+		}
+	}
 
 	return c.clusterAgentVersion
 }
@@ -497,5 +507,6 @@ func (c *DCAClient) PostLanguageMetadata(ctx context.Context, data *pbgo.ParentL
 
 // SupportsNamespaceMetadataCollection returns true only if the cluster agent supports collecting namespace metadata
 func (c *DCAClient) SupportsNamespaceMetadataCollection() bool {
-	return c.Version().Major >= 7 && c.Version().Minor >= 55
+	dcaVersion := c.Version(false)
+	return dcaVersion.Major >= 7 && dcaVersion.Minor >= 55
 }
