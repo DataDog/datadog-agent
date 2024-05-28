@@ -79,38 +79,8 @@ description 'Datadog dogstatsd agent
 # Generic package information
 # ------------------------------------
 
-if ENV["OMNIBUS_PACKAGE_ARTIFACT_DIR"]
-  dependency "package-artifact"
-  generate_distro_package = true
-else
-  generate_distro_package = false
-  # ------------------------------------
-  # Dependencies
-  # ------------------------------------
-
-  # creates required build directories
-  dependency 'datadog-agent-prepare'
-
-  # version manifest file
-  dependency 'version-manifest'
-
-  # Dogstatsd
-  dependency 'datadog-dogstatsd'
-
-  # this dependency puts few files out of the omnibus install dir and move them
-  # in the final destination. This way such files will be listed in the packages
-  # manifest and owned by the package manager. This is the only point in the build
-  # process where we operate outside the omnibus install dir, thus the need of
-  # the `extra_package_file` directive.
-  # This must be the last dependency in the project.
-
-  dependency 'datadog-dogstatsd-finalize'
-end
-
-
 # .deb specific flags
 package :deb do
-  skip_packager !generate_distro_package
   vendor 'Datadog <package@datadoghq.com>'
   epoch 1
   license 'Apache License Version 2.0'
@@ -129,7 +99,6 @@ end
 
 # .rpm specific flags
 package :rpm do
-  skip_packager !generate_distro_package
   vendor 'Datadog <package@datadoghq.com>'
   epoch 1
   dist_tag ''
@@ -154,9 +123,7 @@ package :zip do
 end
 
 package :xz do
-  skip_packager generate_distro_package
-  compression_threads COMPRESSION_THREADS
-  compression_level COMPRESSION_LEVEL
+  skip_packager true
 end
 
 package :msi do
@@ -200,12 +167,30 @@ compress :dmg do
   pkg_position '10, 10'
 end
 
+# ------------------------------------
+# Dependencies
+# ------------------------------------
+
+# creates required build directories
+dependency 'datadog-agent-prepare'
+
+# version manifest file
+dependency 'version-manifest'
+
+# Dogstatsd
+dependency 'datadog-dogstatsd'
+
+# this dependency puts few files out of the omnibus install dir and move them
+# in the final destination. This way such files will be listed in the packages
+# manifest and owned by the package manager. This is the only point in the build
+# process where we operate outside the omnibus install dir, thus the need of
+# the `extra_package_file` directive.
+# This must be the last dependency in the project.
+
+dependency 'datadog-dogstatsd-finalize'
+
 # package scripts
 if linux_target?
-  if !generate_distro_package
-    extra_package_file "#{Omnibus::Config.project_root}/package-scripts/dogstatsd-deb"
-    extra_package_file "#{Omnibus::Config.project_root}/package-scripts/dogstatsd-rpm"
-  end
   if debian_target?
     package_scripts_path "#{Omnibus::Config.project_root}/package-scripts/dogstatsd-deb"
   else
