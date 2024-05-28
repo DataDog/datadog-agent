@@ -51,10 +51,10 @@ func TestAddResourceTags(t *testing.T) {
 				expectedTags.AddLow("environment", "sandbox")
 				expectedTags.AddLow("project", "ecs-test")
 				expectedTags.AddLow("foo_bar_baz", "val")
-				config.Datadog.SetWithoutSource("ecs_resource_tags_replace_colon", true)
+				config.Datadog().SetWithoutSource("ecs_resource_tags_replace_colon", true)
 				return expectedTags
 			},
-			resetFunc: func() { config.Datadog.SetWithoutSource("ecs_resource_tags_replace_colon", false) },
+			resetFunc: func() { config.Datadog().SetWithoutSource("ecs_resource_tags_replace_colon", false) },
 		},
 		{
 			name: "replace colon enabled, do not replace tag value",
@@ -70,10 +70,10 @@ func TestAddResourceTags(t *testing.T) {
 				expectedTags.AddLow("environment", "sandbox")
 				expectedTags.AddLow("project", "ecs-test")
 				expectedTags.AddLow("foo_bar_baz", "val1:val2")
-				config.Datadog.SetWithoutSource("ecs_resource_tags_replace_colon", true)
+				config.Datadog().SetWithoutSource("ecs_resource_tags_replace_colon", true)
 				return expectedTags
 			},
-			resetFunc: func() { config.Datadog.SetWithoutSource("ecs_resource_tags_replace_colon", false) },
+			resetFunc: func() { config.Datadog().SetWithoutSource("ecs_resource_tags_replace_colon", false) },
 		},
 		{
 			name: "replace colon disabled",

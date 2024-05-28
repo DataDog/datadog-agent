@@ -61,7 +61,7 @@ func (s *Server) Start() error {
 	// Validate token for every request
 	r.Use(validateToken)
 
-	err := util.CreateAndSetAuthToken(config.Datadog)
+	err := util.CreateAndSetAuthToken(config.Datadog())
 	if err != nil {
 		return err
 	}
@@ -95,7 +95,7 @@ func (s *Server) Start() error {
 		Handler:      r,
 		ErrorLog:     stdLog.New(logWriter, "Error from the agent http API server: ", 0), // log errors to seelog,
 		TLSConfig:    &tlsConfig,
-		WriteTimeout: config.Datadog.GetDuration("server_timeout") * time.Second,
+		WriteTimeout: config.Datadog().GetDuration("server_timeout") * time.Second,
 	}
 	tlsListener := tls.NewListener(s.listener, &tlsConfig)
 

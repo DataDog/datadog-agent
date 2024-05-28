@@ -25,6 +25,8 @@ def gen_ssh_key(ctx: Context, kmt_dir: PathOrStr):
 
 def init_kernel_matrix_testing_system(ctx: Context, lite: bool, images):
     kmt_os = get_kmt_os()
+
+    info("[+] Installing OS-specific general requirements...")
     kmt_os.install_requirements(ctx)
 
     if sys.version_info >= (3, 12):
@@ -59,12 +61,13 @@ def init_kernel_matrix_testing_system(ctx: Context, lite: bool, images):
 
         ctx.run(f"git clone git@github.com:DataDog/test-infra-definitions.git {test_infra_dir}")
 
+    info("[+] Installing pulumi plugins")
     with ctx.cd(test_infra_dir):
         ctx.run("go mod download")
         ctx.run("PULUMI_CONFIG_PASSPHRASE=dummy pulumi --non-interactive plugin install")
 
     pulumi_test_cmd = "pulumi --non-interactive plugin ls"
-    res = ctx.run(pulumi_test_cmd)
+    res = ctx.run(pulumi_test_cmd, warn=True)
     if res is None or not res.ok:
         raise Exit(
             f"Running {pulumi_test_cmd} failed, check that the installation is correct (see tasks/kernel_matrix_testing/README.md)"
@@ -96,7 +99,9 @@ def init_kernel_matrix_testing_system(ctx: Context, lite: bool, images):
     if not lite:
         info("[+] Downloading VM images")
         download_rootfs(ctx, kmt_os.rootfs_dir, "system-probe", images)
-        gen_ssh_key(ctx, kmt_os.kmt_dir)
+
+    # Copy the SSH key we use to connect
+    gen_ssh_key(ctx, kmt_os.kmt_dir)
 
     # build docker compile image
     info("[+] Building compiler image")
@@ -108,5 +113,3 @@ def init_kernel_matrix_testing_system(ctx: Context, lite: bool, images):
             cc.start()
     else:
         get_compiler(ctx, "local").start()
-
-    ctx.run("inv kmt.config_ssh_key")

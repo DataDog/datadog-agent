@@ -87,7 +87,7 @@ func HandleEnv() error {
 
 	// Validate that an API key has been set, either by DD_API_KEY or read from KMS or Secrets Manager
 	// ---------------------------
-	if !config.Datadog.IsSet("api_key") {
+	if !config.Datadog().IsSet("api_key") {
 		// we're not reporting the error to AWS because we don't want the function
 		// execution to be stopped. TODO(remy): discuss with AWS if there is way
 		// of reporting non-critical init errors.

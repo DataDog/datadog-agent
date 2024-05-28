@@ -96,7 +96,7 @@ func newDummyClusterAgent() (*dummyClusterAgent, error) {
 			"/version":           `{"Major":0, "Minor":0, "Patch":0, "Pre":"test", "Meta":"test", "Commit":"1337"}`,
 			"/api/v1/cluster/id": `"94e43011-177b-11ea-a4fe-42010a8401d2"`,
 		},
-		token:    config.Datadog.GetString("cluster_agent.auth_token"),
+		token:    config.Datadog().GetString("cluster_agent.auth_token"),
 		requests: make(chan *http.Request, 100),
 	}
 	return dca, nil
@@ -112,7 +112,7 @@ func newDummyClusterAgentWithCFMetadata() (*dummyClusterAgent, error) {
 			"/version":                   `{"Major":0, "Minor":0, "Patch":0, "Pre":"test", "Meta":"test", "Commit":"1337"}`,
 		},
 		requests: make(chan *http.Request, 100),
-		token:    config.Datadog.GetString("cluster_agent.auth_token"),
+		token:    config.Datadog().GetString("cluster_agent.auth_token"),
 	}
 
 	return dca, nil
@@ -729,7 +729,7 @@ func TestClusterAgentSuite(t *testing.T) {
 	defer os.Remove(f.Name())
 
 	s := &clusterAgentSuite{}
-	config.Datadog.SetConfigFile(f.Name())
+	config.Datadog().SetConfigFile(f.Name())
 	s.authTokenPath = filepath.Join(fakeDir, clusterAgentAuthTokenFilename)
 	_, err = os.Stat(s.authTokenPath)
 	require.NotNil(t, err, fmt.Sprintf("%v", err))

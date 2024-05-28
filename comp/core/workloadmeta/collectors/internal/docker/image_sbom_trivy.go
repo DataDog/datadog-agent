@@ -24,11 +24,11 @@ import (
 )
 
 func imageMetadataCollectionIsEnabled() bool {
-	return config.Datadog.GetBool("container_image.enabled")
+	return config.Datadog().GetBool("container_image.enabled")
 }
 
 func sbomCollectionIsEnabled() bool {
-	return imageMetadataCollectionIsEnabled() && config.Datadog.GetBool("sbom.container_image.enabled")
+	return imageMetadataCollectionIsEnabled() && config.Datadog().GetBool("sbom.container_image.enabled")
 }
 
 func (c *collector) startSBOMCollection(ctx context.Context) error {
