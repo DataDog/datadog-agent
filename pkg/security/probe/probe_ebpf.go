@@ -1459,12 +1459,14 @@ func (p *EBPFProbe) ApplyRuleSet(rs *rules.RuleSet) (*kfilters.ApplyRuleSetRepor
 	}
 
 	needRawSyscalls := p.isNeededForActivityDump(model.SyscallsEventType.String())
+	seclog.Errorf("SYSCALL MONITOR FAIL: needRawSyscalls: %v", needRawSyscalls)
 	if !needRawSyscalls && p.config.RuntimeSecurity.EnforcementRawSyscallEnabled {
 		// Add syscall monitor probes if it's either activated or
 		// there is an 'kill' action in the ruleset
 		for _, rule := range rs.GetRules() {
 			for _, action := range rule.Definition.Actions {
 				if action.Kill != nil {
+					seclog.Errorf("SYSCALL MONITOR FAIL: needRawSyscalls: %v", action.Kill)
 					needRawSyscalls = true
 					break
 				}
