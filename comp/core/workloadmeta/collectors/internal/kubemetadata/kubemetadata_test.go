@@ -67,16 +67,12 @@ type FakeDCAClient struct {
 	ClusterIDErr error
 }
 
-func (f *FakeDCAClient) Version() version.Version {
+func (f *FakeDCAClient) Version(_ bool) version.Version {
 	return f.LocalVersion
 }
 
 func (f *FakeDCAClient) ClusterAgentAPIEndpoint() string {
 	return f.LocalClusterAgentAPIEndpoint
-}
-
-func (f *FakeDCAClient) GetVersion() (version.Version, error) {
-	return f.LocalVersion, f.VersionErr
 }
 
 func (f *FakeDCAClient) GetNodeLabels(_ string) (map[string]string, error) {
@@ -485,6 +481,43 @@ func TestKubeMetadataCollector_parsePods(t *testing.T) {
 						NamespaceLabels: map[string]string{
 							"label": "value",
 						},
+					},
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name: "cluster agent not enabled, ns labels enabled, ns annotations enabled",
+			args: args{
+				pods: pods,
+			},
+			fields: fields{
+				kubeUtil:                    kubeUtilFake,
+				dcaEnabled:                  false,
+				collectNamespaceLabels:      true,
+				collectNamespaceAnnotations: true,
+				dcaClient:                   nil,
+			},
+			namespaceLabelsAsTags: map[string]string{
+				"label": "tag",
+			},
+			namespaceAnnotationsAsTags: map[string]string{
+				"annotation": "tag",
+			},
+			want: []workloadmeta.CollectorEvent{
+				{
+					Type:   workloadmeta.EventTypeSet,
+					Source: workloadmeta.SourceClusterOrchestrator,
+					Entity: &workloadmeta.KubernetesPod{
+						EntityID: workloadmeta.EntityID{
+							Kind: workloadmeta.KindKubernetesPod,
+							ID:   "foouid",
+						},
+						EntityMeta: workloadmeta.EntityMeta{
+							Name:      "foo",
+							Namespace: "default",
+						},
+						KubeServices: []string{},
 					},
 				},
 			},

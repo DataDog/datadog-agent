@@ -162,16 +162,31 @@ func (wp *WindowsProbe) parseCreateHandleArgs(e *etw.DDEventRecord) (*createHand
 	} else {
 		return nil, fmt.Errorf("unknown version %v", e.EventHeader.EventDescriptor.Version)
 	}
+
+	// not amazing to double compute the basename..
+	basename := filepath.Base(ca.fileName)
+
+	if !wp.approve("create.file.name", basename) {
+		wp.discardedFileHandles.Add(fileObjectPointer(ca.fileObject), struct{}{})
+		wp.stats.createFileApproverRejects++
+		return nil, errDiscardedPath
+	}
 	ca.userFileName = wp.mustConvertDrivePath(ca.fileName)
 
 	if _, ok := wp.discardedPaths.Get(ca.fileName); ok {
+		wp.discardedFileHandles.Add(fileObjectPointer(ca.fileObject), struct{}{})
 		wp.stats.fileCreateSkippedDiscardedPaths++
 		return nil, errDiscardedPath
 	}
 
-	// not amazing to double compute the basename..
-	basename := filepath.Base(ca.fileName)
+	ca.userFileName = wp.mustConvertDrivePath(ca.fileName)
+	if _, ok := wp.discardedUserPaths.Get(ca.userFileName); ok {
+		wp.stats.fileCreateSkippedDiscardedPaths++
+		return nil, errDiscardedPath
+	}
+
 	if _, ok := wp.discardedBasenames.Get(basename); ok {
+		wp.discardedFileHandles.Add(fileObjectPointer(ca.fileObject), struct{}{})
 		wp.stats.fileCreateSkippedDiscardedBasenames++
 		return nil, errDiscardedPath
 	}
@@ -279,6 +294,9 @@ func (wp *WindowsProbe) parseInformationArgs(e *etw.DDEventRecord) (*setInformat
 		return nil, fmt.Errorf("unknown version number %v", e.EventHeader.EventDescriptor.Version)
 	}
 
+	if _, ok := wp.discardedFileHandles.Get(fileObjectPointer(sia.fileObject)); ok {
+		return nil, errDiscardedPath
+	}
 	// lru is thread safe, has its own locking
 	if s, ok := wp.filePathResolver.Get(fileObjectPointer(sia.fileObject)); ok {
 		sia.fileName = s.fileName
@@ -415,6 +433,9 @@ func (wp *WindowsProbe) parseCleanupArgs(e *etw.DDEventRecord) (*cleanupArgs, er
 		return nil, fmt.Errorf("unknown version number %v", e.EventHeader.EventDescriptor.Version)
 	}
 
+	if _, ok := wp.discardedFileHandles.Get(fileObjectPointer(ca.fileObject)); ok {
+		return nil, errDiscardedPath
+	}
 	// lru is thread safe, has its own locking
 	if s, ok := wp.filePathResolver.Get(fileObjectPointer(ca.fileObject)); ok {
 		ca.fileName = s.fileName
@@ -508,6 +529,9 @@ func (wp *WindowsProbe) parseReadArgs(e *etw.DDEventRecord) (*readArgs, error) {
 		ra.extraFlags = data.GetUint32(44)
 	} else {
 		return nil, fmt.Errorf("unknown version number %v", e.EventHeader.EventDescriptor.Version)
+	}
+	if _, ok := wp.discardedFileHandles.Get(fileObjectPointer(ra.fileObject)); ok {
+		return nil, errDiscardedPath
 	}
 	// lru is thread safe, has its own locking
 	if s, ok := wp.filePathResolver.Get(fileObjectPointer(ra.fileObject)); ok {
@@ -611,6 +635,9 @@ func (wp *WindowsProbe) parseDeletePathArgs(e *etw.DDEventRecord) (*deletePathAr
 	}
 	dpa.userFilePath = wp.mustConvertDrivePath(dpa.filePath)
 
+	if _, ok := wp.discardedFileHandles.Get(fileObjectPointer(dpa.fileObject)); ok {
+		return nil, errDiscardedPath
+	}
 	// lru is thread safe, has its own locking
 	if s, ok := wp.filePathResolver.Get(fileObjectPointer(dpa.fileObject)); ok {
 		dpa.oldPath = s.fileName
