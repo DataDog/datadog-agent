@@ -992,7 +992,7 @@ workflow:
   - when: manual
     allow_failure: true
 
-.on_ndm_or_e2e_changes_or_manual:
+.on_ndm_snmp_or_e2e_changes_or_manual:
   - !reference [.on_e2e_main_release_or_rc]
   - changes:
       paths:
