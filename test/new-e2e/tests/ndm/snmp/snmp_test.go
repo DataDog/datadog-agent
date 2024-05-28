@@ -180,19 +180,19 @@ func (s *snmpDockerSuite) TestSnmpTagsAreStoredOnRestart() {
 	err = fakeintake.FlushServerAndResetAggregators()
 	require.NoError(s.T(), err)
 
+	var metrics []*aggregator.MetricSeries
+
 	require.EventuallyWithT(s.T(), func(t *assert.CollectT) {
-		metrics, err := fakeintake.FilterMetrics("snmp.device.reachable",
+		metrics, err = fakeintake.FilterMetrics("snmp.device.reachable",
 			client.WithTags[*aggregator.MetricSeries]([]string{}),
 		)
 		require.NoError(t, err)
-		if assert.NotEmpty(t, metrics) {
-			return
-		}
-
-		tags := metrics[0].Tags
-
-		require.Zero(t, metrics[0].Points[0].Value)
-		require.ElementsMatch(t, tags, initialTags)
-		require.Len(s.T(), tags, 9)
+		assert.NotEmpty(t, metrics)
 	}, 5*time.Minute, 5*time.Second)
+
+	tags := metrics[0].Tags
+
+	require.Zero(s.T(), metrics[0].Points[0].Value)
+	require.ElementsMatch(s.T(), tags, initialTags)
+	require.Len(s.T(), tags, 9)
 }
