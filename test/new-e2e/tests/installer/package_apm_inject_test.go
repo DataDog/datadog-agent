@@ -46,6 +46,7 @@ func (s *packageApmInjectSuite) TestInstall() {
 	s.host.AssertPackageNotInstalledByPackageManager("datadog-agent", "datadog-apm-inject", "datadog-apm-library-python")
 	state := s.host.State()
 	state.AssertFileExists("/var/run/datadog/installer/environment", 0644, "root", "root")
+	state.AssertDirExists("/var/log/datadog/dotnet", 0777, "root", "root")
 	state.AssertFileExists("/etc/ld.so.preload", 0644, "root", "root")
 	s.assertLDPreloadInstrumented(injectOCIPath)
 	s.assertSocketPath("/var/run/datadog/installer/apm.socket")

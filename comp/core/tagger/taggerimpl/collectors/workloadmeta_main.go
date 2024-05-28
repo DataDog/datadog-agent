@@ -11,8 +11,9 @@ import (
 
 	"github.com/gobwas/glob"
 
+	k8smetadata "github.com/DataDog/datadog-agent/comp/core/tagger/k8s_metadata"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/taglist"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
-	"github.com/DataDog/datadog-agent/comp/core/tagger/utils"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
@@ -70,15 +71,15 @@ type WorkloadMetaCollector struct {
 }
 
 func (c *WorkloadMetaCollector) initContainerMetaAsTags(labelsAsTags, envAsTags map[string]string) {
-	c.containerLabelsAsTags, c.globContainerLabels = utils.InitMetadataAsTags(labelsAsTags)
-	c.containerEnvAsTags, c.globContainerEnvLabels = utils.InitMetadataAsTags(envAsTags)
+	c.containerLabelsAsTags, c.globContainerLabels = k8smetadata.InitMetadataAsTags(labelsAsTags)
+	c.containerEnvAsTags, c.globContainerEnvLabels = k8smetadata.InitMetadataAsTags(envAsTags)
 }
 
 func (c *WorkloadMetaCollector) initPodMetaAsTags(labelsAsTags, annotationsAsTags, nsLabelsAsTags, nsAnnotationsAsTags map[string]string) {
-	c.labelsAsTags, c.globLabels = utils.InitMetadataAsTags(labelsAsTags)
-	c.annotationsAsTags, c.globAnnotations = utils.InitMetadataAsTags(annotationsAsTags)
-	c.nsLabelsAsTags, c.globNsLabels = utils.InitMetadataAsTags(nsLabelsAsTags)
-	c.nsAnnotationsAsTags, c.globNsAnnotations = utils.InitMetadataAsTags(nsAnnotationsAsTags)
+	c.labelsAsTags, c.globLabels = k8smetadata.InitMetadataAsTags(labelsAsTags)
+	c.annotationsAsTags, c.globAnnotations = k8smetadata.InitMetadataAsTags(annotationsAsTags)
+	c.nsLabelsAsTags, c.globNsLabels = k8smetadata.InitMetadataAsTags(nsLabelsAsTags)
+	c.nsAnnotationsAsTags, c.globNsAnnotations = k8smetadata.InitMetadataAsTags(nsAnnotationsAsTags)
 }
 
 // Run runs the continuous event watching loop and sends new tags to the
@@ -101,7 +102,7 @@ func (c *WorkloadMetaCollector) collectStaticGlobalTags(ctx context.Context) {
 		}
 	}
 	if len(c.staticTags) > 0 {
-		tags := utils.NewTagList()
+		tags := taglist.NewTagList()
 
 		for tag, value := range c.staticTags {
 			tags.AddLow(tag, value)
