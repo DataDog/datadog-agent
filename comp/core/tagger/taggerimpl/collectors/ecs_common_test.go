@@ -8,7 +8,7 @@ package collectors
 import (
 	"testing"
 
-	"github.com/DataDog/datadog-agent/comp/core/tagger/utils"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/taglist"
 	"github.com/DataDog/datadog-agent/pkg/config"
 
 	"github.com/stretchr/testify/assert"
@@ -18,7 +18,7 @@ func TestAddResourceTags(t *testing.T) {
 	tests := []struct {
 		name      string
 		taskTags  map[string]string
-		loadFunc  func() *utils.TagList
+		loadFunc  func() *taglist.TagList
 		resetFunc func()
 	}{
 		{
@@ -29,8 +29,8 @@ func TestAddResourceTags(t *testing.T) {
 				"aws:ecs:clusterName": "test-cluster",
 				"aws:ecs:serviceName": "nginx-awsvpc",
 			},
-			loadFunc: func() *utils.TagList {
-				expectedTags := utils.NewTagList()
+			loadFunc: func() *taglist.TagList {
+				expectedTags := taglist.NewTagList()
 				expectedTags.AddLow("environment", "sandbox")
 				expectedTags.AddLow("project", "ecs-test")
 				return expectedTags
@@ -46,8 +46,8 @@ func TestAddResourceTags(t *testing.T) {
 				"aws:ecs:clusterName": "test-cluster",
 				"aws:ecs:serviceName": "nginx-awsvpc",
 			},
-			loadFunc: func() *utils.TagList {
-				expectedTags := utils.NewTagList()
+			loadFunc: func() *taglist.TagList {
+				expectedTags := taglist.NewTagList()
 				expectedTags.AddLow("environment", "sandbox")
 				expectedTags.AddLow("project", "ecs-test")
 				expectedTags.AddLow("foo_bar_baz", "val")
@@ -65,8 +65,8 @@ func TestAddResourceTags(t *testing.T) {
 				"aws:ecs:clusterName": "test-cluster",
 				"aws:ecs:serviceName": "nginx-awsvpc",
 			},
-			loadFunc: func() *utils.TagList {
-				expectedTags := utils.NewTagList()
+			loadFunc: func() *taglist.TagList {
+				expectedTags := taglist.NewTagList()
 				expectedTags.AddLow("environment", "sandbox")
 				expectedTags.AddLow("project", "ecs-test")
 				expectedTags.AddLow("foo_bar_baz", "val1:val2")
@@ -84,8 +84,8 @@ func TestAddResourceTags(t *testing.T) {
 				"aws:ecs:clusterName": "test-cluster",
 				"aws:ecs:serviceName": "nginx-awsvpc",
 			},
-			loadFunc: func() *utils.TagList {
-				expectedTags := utils.NewTagList()
+			loadFunc: func() *taglist.TagList {
+				expectedTags := taglist.NewTagList()
 				expectedTags.AddLow("environment", "sandbox")
 				expectedTags.AddLow("project", "ecs-test")
 				expectedTags.AddLow("foo:bar:baz", "val")
@@ -97,7 +97,7 @@ func TestAddResourceTags(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			defer tt.resetFunc()
-			tags := utils.NewTagList()
+			tags := taglist.NewTagList()
 			expectedTags := tt.loadFunc()
 			addResourceTags(tags, tt.taskTags)
 			assert.Equal(t, expectedTags, tags)
