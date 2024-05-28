@@ -1,10 +1,11 @@
+from __future__ import annotations
+
 import json
 import os
 import pathlib
 import re
 import subprocess
 from collections import defaultdict
-from typing import Dict
 
 import gitlab
 import yaml
@@ -16,10 +17,10 @@ from tasks.libs.owners.parsing import read_owners
 from tasks.libs.types.types import FailedJobReason, FailedJobs, Test
 
 
-def load_and_validate(file_name: str, default_placeholder: str, default_value: str) -> Dict[str, str]:
+def load_and_validate(file_name: str, default_placeholder: str, default_value: str) -> dict[str, str]:
     p = pathlib.Path(os.path.realpath(__file__)).parent.joinpath(file_name)
 
-    result: Dict[str, str] = {}
+    result: dict[str, str] = {}
     with p.open(encoding='utf-8') as file_stream:
         for key, value in yaml.safe_load(file_stream).items():
             if not (isinstance(key, str) and isinstance(value, str)):
@@ -85,7 +86,7 @@ def get_failed_tests(project_name, job: ProjectJob, owners_file=".github/CODEOWN
     return failed_tests.values()
 
 
-def find_job_owners(failed_jobs: FailedJobs, owners_file: str = ".gitlab/JOBOWNERS") -> Dict[str, FailedJobs]:
+def find_job_owners(failed_jobs: FailedJobs, owners_file: str = ".gitlab/JOBOWNERS") -> dict[str, FailedJobs]:
     owners = read_owners(owners_file)
     owners_to_notify = defaultdict(FailedJobs)
     # For e2e test infrastructure errors, notify the agent-e2e-testing team

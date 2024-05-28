@@ -27,6 +27,14 @@ const (
 	DispatcherKafkaProg DispatcherProgramType = C.DISPATCHER_KAFKA_PROG
 )
 
+// TLSDispatcherProgramType is a C type to represent the eBPF programs used for TLS tail calls.
+type TLSDispatcherProgramType C.tls_dispatcher_prog_t
+
+const (
+	// TLSDispatcherKafkaProg is the Golang representation of the C.TLS_DISPATCHER_KAFKA_PROG enum.
+	TLSDispatcherKafkaProg TLSDispatcherProgramType = C.TLS_DISPATCHER_KAFKA_PROG
+)
+
 // ProgramType is a C type to represent the eBPF programs used for tail calls.
 type ProgramType C.protocol_prog_t
 
@@ -47,6 +55,8 @@ const (
 	ProgramKafka ProgramType = C.PROG_KAFKA
 	// ProgramKafkaResponseParser is the Golang representation of the C.PROG_KAFKA_RESPONSE_PARSER enum
 	ProgramKafkaResponseParser ProgramType = C.PROG_KAFKA_RESPONSE_PARSER
+	// ProgramPostgres is the Golang representation of the C.PROG_POSTGRES enum
+	ProgramPostgres ProgramType = C.PROG_POSTGRES
 )
 
 // Application layer of the protocol stack.
@@ -120,4 +130,14 @@ const (
 	ProgramTLSHTTP2EOSParser TLSProgramType = C.TLS_HTTP2_EOS_PARSER
 	// ProgramTLSHTTP2Termination is tail call to process TLS HTTP2 termination.
 	ProgramTLSHTTP2Termination TLSProgramType = C.TLS_HTTP2_TERMINATION
+	// ProgramTLSKafka is tail call to process Kafka TLS frames,
+	ProgramTLSKafka TLSProgramType = C.TLS_KAFKA
+	// ProgramTLSKafkaResponseParser is tail call to process Kafka TLS responses,
+	ProgramTLSKafkaResponseParser TLSProgramType = C.TLS_KAFKA_RESPONSE_PARSER
+	// ProgramTLSKafkaTermination is tail call to process Kafka TLS termination.
+	ProgramTLSKafkaTermination TLSProgramType = C.TLS_KAFKA_TERMINATION
+	// ProgramTLSPostgres is tail call to process Postgres TLS frames.
+	ProgramTLSPostgres TLSProgramType = C.TLS_POSTGRES
+	// ProgramTLSPostgresTermination is tail call to process Postgres TLS termination.
+	ProgramTLSPostgresTermination TLSProgramType = C.TLS_POSTGRES_TERMINATION
 )

@@ -2516,6 +2516,55 @@
       ]
     },
     {
+      "name": "imds",
+      "definition": "An IMDS event was captured",
+      "type": "Network",
+      "from_agent_version": "7.55",
+      "experimental": false,
+      "properties": [
+        {
+          "name": "imds.aws.is_imds_v2",
+          "definition": "a boolean which specifies if the IMDS event follows IMDSv1 or IMDSv2 conventions",
+          "property_doc_link": "imds-aws-is_imds_v2-doc"
+        },
+        {
+          "name": "imds.aws.security_credentials.type",
+          "definition": "the security credentials type",
+          "property_doc_link": "imds-aws-security_credentials-type-doc"
+        },
+        {
+          "name": "imds.cloud_provider",
+          "definition": "the intended cloud provider of the IMDS event",
+          "property_doc_link": "imds-cloud_provider-doc"
+        },
+        {
+          "name": "imds.host",
+          "definition": "the host of the HTTP protocol",
+          "property_doc_link": "imds-host-doc"
+        },
+        {
+          "name": "imds.server",
+          "definition": "the server header of a response",
+          "property_doc_link": "imds-server-doc"
+        },
+        {
+          "name": "imds.type",
+          "definition": "the type of IMDS event",
+          "property_doc_link": "imds-type-doc"
+        },
+        {
+          "name": "imds.url",
+          "definition": "the queried IMDS URL",
+          "property_doc_link": "imds-url-doc"
+        },
+        {
+          "name": "imds.user_agent",
+          "definition": "the user agent of the HTTP client",
+          "property_doc_link": "imds-user_agent-doc"
+        }
+      ]
+    },
+    {
       "name": "link",
       "definition": "Create a new name/alias for a file",
       "type": "File",
@@ -8933,6 +8982,102 @@
       "definition": "Exit code of the process or number of the signal that caused the process to terminate",
       "prefixes": [
         "exit"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "imds.aws.is_imds_v2",
+      "link": "imds-aws-is_imds_v2-doc",
+      "type": "bool",
+      "definition": "a boolean which specifies if the IMDS event follows IMDSv1 or IMDSv2 conventions",
+      "prefixes": [
+        "imds.aws"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "imds.aws.security_credentials.type",
+      "link": "imds-aws-security_credentials-type-doc",
+      "type": "string",
+      "definition": "the security credentials type",
+      "prefixes": [
+        "imds.aws.security_credentials"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "imds.cloud_provider",
+      "link": "imds-cloud_provider-doc",
+      "type": "string",
+      "definition": "the intended cloud provider of the IMDS event",
+      "prefixes": [
+        "imds"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "imds.host",
+      "link": "imds-host-doc",
+      "type": "string",
+      "definition": "the host of the HTTP protocol",
+      "prefixes": [
+        "imds"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "imds.server",
+      "link": "imds-server-doc",
+      "type": "string",
+      "definition": "the server header of a response",
+      "prefixes": [
+        "imds"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "imds.type",
+      "link": "imds-type-doc",
+      "type": "string",
+      "definition": "the type of IMDS event",
+      "prefixes": [
+        "imds"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "imds.url",
+      "link": "imds-url-doc",
+      "type": "string",
+      "definition": "the queried IMDS URL",
+      "prefixes": [
+        "imds"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "imds.user_agent",
+      "link": "imds-user_agent-doc",
+      "type": "string",
+      "definition": "the user agent of the HTTP client",
+      "prefixes": [
+        "imds"
       ],
       "constants": "",
       "constants_link": "",

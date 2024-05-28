@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build test
+
 package fxutil
 
 import (
@@ -20,10 +22,6 @@ import (
 type NoDependencies struct {
 	fx.In
 }
-
-// fxAppTestOverride allows TestRunCommand and TestOneShotSubcommand to
-// override the Run and OneShot functions.  It is always nil in production.
-var fxAppTestOverride func(interface{}, []fx.Option) error
 
 // Test starts an app and returns fulfilled dependencies
 //
@@ -67,6 +65,7 @@ func TestApp[T any](opts ...fx.Option) (*fx.App, T, error) {
 
 	app := fx.New(
 		delayed.option(),
+		fx.Provide(newFxLifecycleAdapter),
 		fx.Options(opts...),
 	)
 	var err error
@@ -99,6 +98,7 @@ func TestStart(t testing.TB, opts fx.Option, appAssert appAssertFn, fn interface
 	delayed := newDelayedFxInvocation(fn)
 	app := fx.New(
 		fx.Supply(fx.Annotate(t, fx.As(new(testing.TB)))),
+		fx.Provide(newFxLifecycleAdapter),
 		delayed.option(),
 		opts,
 	)
@@ -116,6 +116,7 @@ func TestRun(t *testing.T, f func() error) {
 	var fxFakeAppRan bool
 	fxAppTestOverride = func(i interface{}, opts []fx.Option) error {
 		fxFakeAppRan = true
+		opts = append(opts, fx.Provide(newFxLifecycleAdapter))
 		require.NoError(t, fx.ValidateApp(opts...))
 		return nil
 	}
@@ -162,11 +163,13 @@ func TestOneShotSubcommand(
 		require.NoError(t,
 			fx.ValidateApp(
 				append(opts,
+					fx.Provide(newFxLifecycleAdapter),
 					fx.Invoke(oneShotFunc))...))
 
 		// build an app without the oneShotFunc, and with verifyFn
 		app := fxtest.New(t,
 			append(opts,
+				fx.Provide(newFxLifecycleAdapter),
 				fx.Supply(fx.Annotate(t, fx.As(new(testing.TB)))),
 				fx.Invoke(verifyFn))...)
 		defer app.RequireStart().RequireStop()
@@ -198,6 +201,7 @@ func TestOneShot(t *testing.T, fct func()) {
 		require.NoError(t,
 			fx.ValidateApp(
 				append(opts,
+					fx.Provide(newFxLifecycleAdapter),
 					fx.Invoke(oneShotFunc))...))
 		return nil
 	}
@@ -230,6 +234,7 @@ func TestBundle(t *testing.T, bundle BundleOptions, extraOptions ...fx.Option) {
 		invoke,
 		bundle,
 		fx.Options(extraOptions...),
+		fx.Provide(newFxLifecycleAdapter),
 		fx.Supply(fx.Annotate(t, fx.As(new(testing.TB)))),
 	))
 }

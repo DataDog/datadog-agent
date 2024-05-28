@@ -10,16 +10,8 @@ package ptracer
 
 import (
 	"encoding/binary"
-	"syscall"
 
 	"github.com/DataDog/datadog-agent/pkg/security/proto/ebpfless"
-)
-
-const (
-	// RPCCmd defines the ioctl CMD magic used by APM to register span TLS
-	RPCCmd uint64 = 0xdeadc001
-	// RegisterSpanTLSOp defines the span TLS register op code
-	RegisterSpanTLSOp uint8 = 6
 )
 
 // SpanTLS holds the needed informations to retrieve spans on a TLS
@@ -29,42 +21,15 @@ type SpanTLS struct {
 	base       uintptr
 }
 
-func registerSpanHandlers(handlers map[int]syscallHandler) []string {
-	fimHandlers := []syscallHandler{
-		{
-			IDs:        []syscallID{{ID: IoctlNr, Name: "ioctl"}},
-			Func:       nil,
-			ShouldSend: nil,
-			RetFunc:    nil,
-		},
-	}
-	syscallList := []string{}
-	for _, h := range fimHandlers {
-		for _, id := range h.IDs {
-			if id.ID >= 0 { // insert only available syscalls
-				handlers[id.ID] = h
-				syscallList = append(syscallList, id.Name)
-			}
-		}
-	}
-	return syscallList
+func isTLSRegisterRequest(req []byte) bool {
+	return req[0] == RegisterSpanTLSOp
 }
 
-func handleIoctl(tracer *Tracer, process *Process, regs syscall.PtraceRegs) *SpanTLS {
-	fd := tracer.ReadArgUint64(regs, 1)
-	if fd != RPCCmd {
-		return nil
-	}
-
-	pRequests, err := tracer.ReadArgData(process.Pid, regs, 2, 257)
-	if err != nil || pRequests[0] != RegisterSpanTLSOp {
-		return nil
-	}
-
+func handleTLSRegister(req []byte) *SpanTLS {
 	return &SpanTLS{
-		format:     binary.NativeEndian.Uint64(pRequests[1:9]),
-		maxThreads: binary.NativeEndian.Uint64(pRequests[9:17]),
-		base:       uintptr(binary.NativeEndian.Uint64(pRequests[17:25])),
+		format:     binary.NativeEndian.Uint64(req[1:9]),
+		maxThreads: binary.NativeEndian.Uint64(req[9:17]),
+		base:       uintptr(binary.NativeEndian.Uint64(req[17:25])),
 	}
 }
 

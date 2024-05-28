@@ -149,7 +149,7 @@ func Run(ctx *pulumi.Context, env *environments.WindowsHost, params *Provisioner
 	}
 
 	if params.activeDirectoryOptions != nil {
-		activeDirectoryComp, activeDirectoryResources, err := activedirectory.NewActiveDirectory(ctx, awsEnv.CommonEnvironment, host, params.activeDirectoryOptions...)
+		activeDirectoryComp, activeDirectoryResources, err := activedirectory.NewActiveDirectory(ctx, &awsEnv, host, params.activeDirectoryOptions...)
 		if err != nil {
 			return err
 		}
@@ -190,7 +190,7 @@ func Run(ctx *pulumi.Context, env *environments.WindowsHost, params *Provisioner
 	}
 
 	if params.agentOptions != nil {
-		agent, err := agent.NewHostAgent(awsEnv.CommonEnvironment, host, params.agentOptions...)
+		agent, err := agent.NewHostAgent(&awsEnv, host, params.agentOptions...)
 		if err != nil {
 			return err
 		}
@@ -198,11 +198,10 @@ func Run(ctx *pulumi.Context, env *environments.WindowsHost, params *Provisioner
 		if err != nil {
 			return err
 		}
+		env.Agent.ClientOptions = params.agentClientOptions
 	} else {
 		env.Agent = nil
 	}
-
-	env.AgentClientOptions = params.agentClientOptions
 
 	return nil
 }

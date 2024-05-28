@@ -145,7 +145,7 @@ func (r *Runner) RunTraceroute(ctx context.Context, cfg Config) (payload.Network
 		return payload.NetworkPath{}, err
 	}
 
-	pathResult, err := r.processResults(results, hname, rawDest, dest)
+	pathResult, err := r.processResults(results, hname, rawDest, destPort, dest)
 	if err != nil {
 		return payload.NetworkPath{}, err
 	}
@@ -173,7 +173,7 @@ func getPorts(configDestPort uint16) (uint16, uint16, bool) {
 	return destPort, srcPort, useSourcePort
 }
 
-func (r *Runner) processResults(res *results.Results, hname string, destinationHost string, destinationIP net.IP) (payload.NetworkPath, error) {
+func (r *Runner) processResults(res *results.Results, hname string, destinationHost string, destinationPort uint16, destinationIP net.IP) (payload.NetworkPath, error) {
 	type node struct {
 		node  string
 		probe *results.Probe
@@ -183,13 +183,15 @@ func (r *Runner) processResults(res *results.Results, hname string, destinationH
 
 	traceroutePath := payload.NetworkPath{
 		PathID:    pathID,
+		Protocol:  payload.ProtocolUDP,
 		Timestamp: time.Now().UnixMilli(),
 		Source: payload.NetworkPathSource{
 			Hostname:  hname,
 			NetworkID: r.networkID,
 		},
 		Destination: payload.NetworkPathDestination{
-			Hostname:  destinationHost,
+			Hostname:  getDestinationHostname(destinationHost),
+			Port:      destinationPort,
 			IPAddress: destinationIP.String(),
 		},
 	}
@@ -301,22 +303,6 @@ func (r *Runner) processResults(res *results.Results, hname string, destinationH
 
 	log.Debugf("Traceroute path metadata payload: %+v", traceroutePath)
 	return traceroutePath, nil
-}
-
-func getHostname(ipAddr string) string {
-	// TODO: this reverse lookup appears to have some standard timeout that is relatively
-	// high. Consider switching to something where there is greater control.
-	currHost := ""
-	currHostList, _ := net.LookupAddr(ipAddr)
-	log.Debugf("Reverse DNS List: %+v", currHostList)
-
-	if len(currHostList) > 0 {
-		// TODO: Reverse DNS: Do we need to handle cases with multiple DNS being returned?
-		currHost = currHostList[0]
-	} else {
-		currHost = ipAddr
-	}
-	return currHost
 }
 
 func createGatewayLookup() (network.GatewayLookup, uint32, error) {

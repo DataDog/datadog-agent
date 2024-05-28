@@ -10,6 +10,7 @@ import (
 	"bytes"
 	"errors"
 	"expvar"
+	"fmt"
 
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 
@@ -196,6 +197,8 @@ func (c *Compressor) Close() ([]byte, error) {
 
 	payload := make([]byte, c.compressed.Len())
 	copy(payload, c.compressed.Bytes())
+
+	fmt.Printf("\033[31m%v\033[0m\n", "Emitted payload")
 
 	expvarsTotalPayloads.Add(1)
 	tlmTotalPayloads.Inc()

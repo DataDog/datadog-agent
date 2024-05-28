@@ -2399,6 +2399,37 @@ func TestSetMaxMemCPU(t *testing.T) {
 	})
 }
 
+func TestPeerServiceAggregation(t *testing.T) {
+	t.Run("disabled", func(t *testing.T) {
+		config := fxutil.Test[Component](t, fx.Options(
+			corecomp.MockModule(),
+			MockModule(),
+		))
+		// underlying config
+		cfg := config.Object()
+
+		require.NotNil(t, cfg)
+		assert.False(t, cfg.PeerServiceAggregation)
+	})
+
+	t.Run("enabled", func(t *testing.T) {
+		overrides := map[string]interface{}{
+			"apm_config.peer_service_aggregation": true,
+		}
+
+		config := fxutil.Test[Component](t, fx.Options(
+			corecomp.MockModule(),
+			fx.Replace(corecomp.MockParams{Overrides: overrides}),
+			MockModule(),
+		))
+		// underlying config
+		cfg := config.Object()
+
+		require.NotNil(t, cfg)
+		assert.True(t, cfg.PeerServiceAggregation)
+	})
+}
+
 func TestComputeStatsBySpanKind(t *testing.T) {
 	t.Run("disabled", func(t *testing.T) {
 		config := fxutil.Test[Component](t, fx.Options(

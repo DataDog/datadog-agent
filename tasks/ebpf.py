@@ -265,7 +265,7 @@ class ComplexityAssemblyInsn(TypedDict):
     code: str  # noqa: F841
     index: int  # noqa: F841
     times_processed: int  # noqa: F841
-    register_state: dict[str, ComplexityRegisterState]  # noqa: F841
+    register_state: dict[str, ComplexityRegisterState]  # noqa: F841  # Register state after the instruction is executed
     register_state_raw: str  # noqa: F841
 
 
@@ -443,30 +443,26 @@ def annotate_complexity(
                                 # Get all the registers that were used in this instruction
                                 registers = re.findall(r"r\d+", asm_code)
 
-                                # The register state after this instruction is found in the next instruction
-                                # Also, JSON map indices are strings so we need to convert the asm_idx to a string
-                                next_insn = str(asm_idx + 1)
-                                if next_insn in complexity_data["insn_map"]:
-                                    next_insn_data = complexity_data["insn_map"][next_insn]
-                                    reg_state = next_insn_data["register_state"]
+                                # This is the register state after the statement is executed
+                                reg_state = asm_line["register_state"]
 
-                                    if show_raw_register_state:
-                                        total_indent = 4 + 3 + get_total_complexity_stats_len(compinfo_widths)
-                                        raw_state = next_insn_data['register_state_raw'].split(':', 1)[1].strip()
-                                        print(f"{' ' * total_indent} | {colored(raw_state, 'blue', attrs=['dark'])}")
+                                if show_raw_register_state:
+                                    total_indent = 4 + 3 + get_total_complexity_stats_len(compinfo_widths)
+                                    raw_state = asm_line['register_state_raw'].split(':', 1)[1].strip()
+                                    print(f"{' ' * total_indent} | {colored(raw_state, 'blue', attrs=['dark'])}")
 
-                                    for reg in registers:
-                                        reg_idx = reg[1:]  # Remove the 'r' prefix
-                                        if reg_idx in reg_state:
-                                            reg_data = reg_state[reg_idx]
-                                            reg_info = register_state_to_str(reg_data, compinfo_widths)
-                                            print(
-                                                colored(
-                                                    reg_info,
-                                                    "blue",
-                                                    attrs=["dark"],
-                                                )
+                                for reg in registers:
+                                    reg_idx = reg[1:]  # Remove the 'r' prefix
+                                    if reg_idx in reg_state:
+                                        reg_data = reg_state[reg_idx]
+                                        reg_info = register_state_to_str(reg_data, compinfo_widths)
+                                        print(
+                                            colored(
+                                                reg_info,
+                                                "blue",
+                                                attrs=["dark"],
                                             )
+                                        )
 
                 elif len(buffer) == 9:
                     # Print the last lines if we have no line information

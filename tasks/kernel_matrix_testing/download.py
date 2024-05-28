@@ -148,9 +148,10 @@ def download_rootfs(
                 tmp.write(f" dir={rootfs_dir}\n")
                 tmp.write(f" out={sum_file}\n")
                 # download manifest file
-                tmp.write(os.path.join(url_base, branch, f"{manifest_file}") + "\n")
-                tmp.write(f" dir={rootfs_dir}\n")
-                tmp.write(f" out={manifest_file}\n")
+                if "docker" not in f:
+                    tmp.write(os.path.join(url_base, branch, f"{manifest_file}") + "\n")
+                    tmp.write(f" dir={rootfs_dir}\n")
+                    tmp.write(f" out={manifest_file}\n")
             tmp.write("\n")
         ctx.run(f"cat {path}")
         res = ctx.run(f"aria2c -i {path} -j {len(to_download)}")
@@ -170,10 +171,14 @@ def download_rootfs(
         raise Exit("Failed to set permissions 0766 to rootfs")
 
 
-def full_arch(arch: ArchOrLocal) -> Arch:
+def full_arch(arch: str) -> Arch:
     if arch == "local":
         return arch_mapping[platform.machine()]
-    return arch
+    else:
+        try:
+            return arch_mapping[arch]
+        except KeyError:
+            raise Exit(f"Invalid architecture {arch}, valid values are {', '.join(arch_mapping.keys())}")
 
 
 def update_rootfs(

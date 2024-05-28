@@ -201,10 +201,12 @@ func TestGetHostname(t *testing.T) {
 	var responseCode int
 	var lastRequest *http.Request
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// save the last request before writing the response to avoid a race when asserting
+		lastRequest = r
+
 		w.Header().Set("Content-Type", "text/plain")
 		w.WriteHeader(responseCode)
 		io.WriteString(w, expected)
-		lastRequest = r
 	}))
 	defer ts.Close()
 	metadataURL = ts.URL

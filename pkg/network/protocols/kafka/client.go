@@ -25,6 +25,7 @@ const (
 type Options struct {
 	ServerAddress string
 	Dialer        *net.Dialer
+	DialFn        func(context.Context, string, string) (net.Conn, error)
 	CustomOptions []kgo.Opt
 }
 
@@ -39,6 +40,8 @@ func NewClient(opts Options) (*Client, error) {
 	kafkaOptions = append(kafkaOptions, opts.CustomOptions...)
 	if opts.Dialer != nil {
 		kafkaOptions = append(kafkaOptions, kgo.Dialer(opts.Dialer.DialContext))
+	} else if opts.DialFn != nil {
+		kafkaOptions = append(kafkaOptions, kgo.Dialer(opts.DialFn))
 	}
 	client, err := kgo.NewClient(kafkaOptions...)
 	if err != nil {

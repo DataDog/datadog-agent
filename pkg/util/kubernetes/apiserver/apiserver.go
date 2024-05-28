@@ -19,16 +19,21 @@ import (
 
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	vpa "k8s.io/autoscaler/vertical-pod-autoscaler/pkg/client/clientset/versioned"
+	"k8s.io/client-go/discovery"
+	"k8s.io/client-go/discovery/cached/memory"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/dynamic/dynamicinformer"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
+	"k8s.io/client-go/restmapper"
+	"k8s.io/client-go/scale"
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/tools/remotecommand"
 	apiregistrationclient "k8s.io/kube-aggregator/pkg/client/clientset_generated/clientset/typed/apiregistration/v1"
@@ -46,15 +51,17 @@ var (
 	globalAPIClient     *APIClient
 	globalAPIClientOnce sync.Once
 	ErrNotFound         = errors.New("entity not found") //nolint:revive
-	ErrIsEmpty          = errors.New("entity is empty")  //nolint:revive
 	ErrNotLeader        = errors.New("not Leader")       //nolint:revive
 )
 
 const (
-	tokenTime                 = "tokenTimestamp"
-	tokenKey                  = "tokenKey"
-	metadataMapExpire         = 2 * time.Minute
-	metadataMapperCachePrefix = "KubernetesMetadataMapping"
+	// MetadataMapperCachePrefix is the prefix used for the cache key that
+	// contains the Kubernetes metadata.
+	MetadataMapperCachePrefix = "KubernetesMetadataMapping"
+
+	tokenTime         = "tokenTimestamp"
+	tokenKey          = "tokenKey"
+	metadataMapExpire = 2 * time.Minute
 )
 
 // APIClient provides authenticated access to the
@@ -69,6 +76,14 @@ type APIClient struct {
 
 	// DynamicCl holds a dynamic kubernetes client
 	DynamicCl dynamic.Interface
+
+	// ScaleCl holds the scale kubernetes client
+	ScaleCl scale.ScalesGetter
+
+	// RESTMapper is used to map resources to GVR
+	// Implement with restmapper.NewDeferredDiscoveryRESTMapper(cachedClient)
+	// So that nothing is fetched until needed
+	RESTMapper meta.RESTMapper
 
 	//
 	// Informer clients (high or no timeout, use for Informers/Watch calls)
@@ -268,6 +283,19 @@ func getKubeVPAClient(timeout time.Duration) (vpa.Interface, error) {
 	return vpa.NewForConfig(clientConfig)
 }
 
+func getScaleClient(discoveryCl discovery.ServerResourcesInterface, restMapper meta.RESTMapper, timeout time.Duration) (scale.ScalesGetter, error) {
+	clientConfig, err := getClientConfig(timeout)
+	if err != nil {
+		return nil, err
+	}
+
+	// borrowed from HPA controller
+	// we don't use cached discovery because DiscoveryScaleKindResolver does its own caching,
+	// so we want to re-fetch every time when we actually ask for it
+	scaleKindResolver := scale.NewDiscoveryScaleKindResolver(discoveryCl)
+	return scale.NewForConfig(clientConfig, restMapper, dynamic.LegacyAPIPathResolverFunc, scaleKindResolver)
+}
+
 // GetInformerWithOptions returns
 func (c *APIClient) GetInformerWithOptions(resyncPeriod *time.Duration, options ...informers.SharedInformerOption) informers.SharedInformerFactory {
 	if resyncPeriod == nil {
@@ -289,6 +317,17 @@ func (c *APIClient) connect() error {
 	c.DynamicCl, err = getKubeDynamicClient(c.defaultClientTimeout)
 	if err != nil {
 		log.Infof("Could not get apiserver dynamic client: %v", err)
+		return err
+	}
+
+	// RESTMapper
+	cachedClient := memory.NewMemCacheClient(c.Cl.Discovery())
+	c.RESTMapper = restmapper.NewDeferredDiscoveryRESTMapper(cachedClient)
+
+	// Scale client  has specific init and dependencies
+	c.ScaleCl, err = getScaleClient(c.Cl.Discovery(), c.RESTMapper, c.defaultClientTimeout)
+	if err != nil {
+		log.Infof("Could not get scale client: %v", err)
 		return err
 	}
 
@@ -331,7 +370,8 @@ func (c *APIClient) connect() error {
 		config.Datadog.GetBool("orchestrator_explorer.enabled") ||
 		config.Datadog.GetBool("external_metrics_provider.use_datadogmetric_crd") ||
 		config.Datadog.GetBool("external_metrics_provider.wpa_controller") ||
-		config.Datadog.GetBool("cluster_checks.enabled") {
+		config.Datadog.GetBool("cluster_checks.enabled") ||
+		config.Datadog.GetBool("autoscaling.workload.enabled") {
 		c.DynamicInformerFactory = dynamicinformer.NewDynamicSharedInformerFactory(c.DynamicInformerCl, c.defaultInformerResyncPeriod)
 	}
 
@@ -365,14 +405,15 @@ func (c *APIClient) connect() error {
 	return nil
 }
 
-// metadataMapperBundle maps pod names to associated metadata.
-type metadataMapperBundle struct {
+// MetadataMapperBundle maps pod names to associated metadata.
+type MetadataMapperBundle struct {
 	Services apiv1.NamespacesPodsStringsSet
 	mapOnIP  bool // temporary opt-out of the new mapping logic
 }
 
-func newMetadataMapperBundle() *metadataMapperBundle {
-	return &metadataMapperBundle{
+// NewMetadataMapperBundle returns a new MetadataMapperBundle
+func NewMetadataMapperBundle() *MetadataMapperBundle {
+	return &MetadataMapperBundle{
 		Services: apiv1.NewNamespacesPodsStringsSet(),
 		mapOnIP:  config.Datadog.GetBool("kubernetes_map_services_on_ip"),
 	}
@@ -506,7 +547,7 @@ func GetMetadataMapBundleOnAllNodes(cl *APIClient) (*apiv1.MetadataResponse, err
 	}
 
 	for _, node := range nodes {
-		var bundle *metadataMapperBundle
+		var bundle *MetadataMapperBundle
 		bundle, err = getMetadataMapBundle(node.Name)
 		if err != nil {
 			warn := fmt.Sprintf("Node %s could not be added to the service map bundle: %s", node.Name, err.Error())
@@ -531,13 +572,13 @@ func GetMetadataMapBundleOnNode(nodeName string) (*apiv1.MetadataResponse, error
 	return stats, nil
 }
 
-func getMetadataMapBundle(nodeName string) (*metadataMapperBundle, error) {
-	nodeNameCacheKey := cache.BuildAgentKey(metadataMapperCachePrefix, nodeName)
+func getMetadataMapBundle(nodeName string) (*MetadataMapperBundle, error) {
+	nodeNameCacheKey := cache.BuildAgentKey(MetadataMapperCachePrefix, nodeName)
 	metaBundle, found := cache.Cache.Get(nodeNameCacheKey)
 	if !found {
 		return nil, fmt.Errorf("the key %s was not found in the cache", nodeNameCacheKey)
 	}
-	return metaBundle.(*metadataMapperBundle), nil
+	return metaBundle.(*MetadataMapperBundle), nil
 }
 
 func getNodeList(cl *APIClient) ([]v1.Node, error) {
@@ -577,7 +618,7 @@ func (c *APIClient) IsAPIServerReady(ctx context.Context) (bool, error) {
 	return err == nil, err
 }
 
-func convertmetadataMapperBundleToAPI(input *metadataMapperBundle) *apiv1.MetadataResponseBundle {
+func convertmetadataMapperBundleToAPI(input *MetadataMapperBundle) *apiv1.MetadataResponseBundle {
 	output := apiv1.NewMetadataResponseBundle()
 	if input == nil {
 		return output

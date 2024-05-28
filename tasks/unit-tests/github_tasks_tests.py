@@ -1,5 +1,7 @@
+from __future__ import annotations
+
 import unittest
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 from invoke.context import Context
 
@@ -26,6 +28,7 @@ class GithubAPIMock:
 class TestAssignTeamLabelMock(unittest.TestCase):
     CODEOWNERS_FILE = './tasks/unit-tests/testdata/codeowners.txt'
 
+    @patch("builtins.print", new=MagicMock())
     def make_test(self, changed_files, expected_labels, pr_labels=None, possible_labels=None):
         from tasks.libs.owners.parsing import read_owners
 
@@ -33,9 +36,11 @@ class TestAssignTeamLabelMock(unittest.TestCase):
 
         fake_codeowners = read_owners(TestAssignTeamLabelMock.CODEOWNERS_FILE)
 
-        with patch('tasks.libs.ciproviders.github_api.GithubAPI') as gh_mock, patch.object(
-            tasks.github_tasks, 'read_owners'
-        ) as read_owners_mock, patch.object(tasks.github_tasks, '_get_team_labels') as team_labels_mock:
+        with (
+            patch('tasks.libs.ciproviders.github_api.GithubAPI') as gh_mock,
+            patch.object(tasks.github_tasks, 'read_owners') as read_owners_mock,
+            patch.object(tasks.github_tasks, '_get_team_labels') as team_labels_mock,
+        ):
             gh = GithubAPIMock(
                 pr_labels or [],
                 changed_files,

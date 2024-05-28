@@ -1,0 +1,7 @@
+---
+
+logs:
+  - type: udp
+    port: 10518
+    service: "test-app"
+    source: "logger"

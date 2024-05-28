@@ -11,7 +11,8 @@ import (
 	"context"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/comp/core/tagger/utils"
+	k8smetadata "github.com/DataDog/datadog-agent/comp/core/tagger/k8s_metadata"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/taglist"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -98,11 +99,11 @@ func getAnnotationsToTags() map[string]string {
 }
 
 func extractTags(nodeLabels, labelsToTags map[string]string) []string {
-	tagList := utils.NewTagList()
-	labelsToTags, glob := utils.InitMetadataAsTags(labelsToTags)
+	tagList := taglist.NewTagList()
+	labelsToTags, glob := k8smetadata.InitMetadataAsTags(labelsToTags)
 	for labelName, labelValue := range nodeLabels {
 		labelName, labelValue := LabelPreprocessor(labelName, labelValue)
-		utils.AddMetadataAsTags(labelName, labelValue, labelsToTags, glob, tagList)
+		k8smetadata.AddMetadataAsTags(labelName, labelValue, labelsToTags, glob, tagList)
 	}
 
 	tags, _, _, _ := tagList.Compute()

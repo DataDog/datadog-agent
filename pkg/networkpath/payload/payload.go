@@ -8,13 +8,23 @@ package payload
 
 import "github.com/DataDog/datadog-agent/pkg/network"
 
+// Protocol defines supported network protocols
+type Protocol string
+
+const (
+	// ProtocolTCP is the TCP protocol.
+	ProtocolTCP Protocol = "TCP"
+	// ProtocolUDP is the UDP protocol.
+	ProtocolUDP Protocol = "UDP"
+)
+
 // NetworkPathHop encapsulates the data for a single
 // hop within a path
 type NetworkPathHop struct {
 	TTL       int     `json:"ttl"`
 	IPAddress string  `json:"ip_address"`
-	Hostname  string  `json:"hostname"`
-	RTT       float64 `json:"rtt"`
+	Hostname  string  `json:"hostname,omitempty"`
+	RTT       float64 `json:"rtt,omitempty"`
 	Success   bool    `json:"success"`
 }
 
@@ -22,8 +32,9 @@ type NetworkPathHop struct {
 // about the source of a path
 type NetworkPathSource struct {
 	Hostname  string       `json:"hostname"`
-	Via       *network.Via `json:"via"`
-	NetworkID string       `json:"network_id"` // Today this will be a VPC ID since we only resolve AWS resources
+	Via       *network.Via `json:"via,omitempty"`
+	NetworkID string       `json:"network_id,omitempty"` // Today this will be a VPC ID since we only resolve AWS resources
+	Service   string       `json:"service,omitempty"`
 }
 
 // NetworkPathDestination encapsulates information
@@ -31,6 +42,8 @@ type NetworkPathSource struct {
 type NetworkPathDestination struct {
 	Hostname  string `json:"hostname"`
 	IPAddress string `json:"ip_address"`
+	Port      uint16 `json:"port"`
+	Service   string `json:"service,omitempty"`
 }
 
 // NetworkPath encapsulates data that defines a
@@ -39,8 +52,9 @@ type NetworkPath struct {
 	Timestamp   int64                  `json:"timestamp"`
 	Namespace   string                 `json:"namespace"` // namespace used to resolve NDM resources
 	PathID      string                 `json:"path_id"`
+	Protocol    Protocol               `json:"protocol"`
 	Source      NetworkPathSource      `json:"source"`
 	Destination NetworkPathDestination `json:"destination"`
 	Hops        []NetworkPathHop       `json:"hops"`
-	Tags        []string               `json:"tags"`
+	Tags        []string               `json:"tags,omitempty"`
 }

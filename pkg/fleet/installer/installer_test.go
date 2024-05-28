@@ -18,7 +18,9 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/DataDog/datadog-agent/pkg/fleet/env"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
+	"github.com/DataDog/datadog-agent/pkg/fleet/internal/db"
 	"github.com/DataDog/datadog-agent/pkg/fleet/internal/fixtures"
 	"github.com/DataDog/datadog-agent/pkg/fleet/internal/oci"
 )
@@ -31,9 +33,12 @@ type testPackageManager struct {
 
 func newTestPackageManager(t *testing.T, s *fixtures.Server, rootPath string, locksPath string) *testPackageManager {
 	repositories := repository.NewRepositories(rootPath, locksPath)
+	db, err := db.New(filepath.Join(rootPath, "packages.db"))
+	assert.NoError(t, err)
 	return &testPackageManager{
 		installerImpl{
-			downloader:   oci.NewDownloader(s.Client(), "", oci.RegistryAuthDefault),
+			db:           db,
+			downloader:   oci.NewDownloader(&env.Env{}, s.Client()),
 			repositories: repositories,
 			configsDir:   t.TempDir(),
 			tmpDirPath:   rootPath,

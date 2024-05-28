@@ -67,6 +67,10 @@ func (ev *Event) resolveFields(forADs bool) {
         case "{{$Name}}":
             {{- range $Key, $FieldName := $EventType.Fields }}
                 {{- $Field := index $.Fields $FieldName }}
+                {{- if $Field.GettersOnly }}
+	                {{continue}}
+                {{end}}
+
                 {{ $resolver := $Field | GetFieldHandler $.AllFields }}
                 {{ if ne $resolver "" }}
                     {{$Checks := $Field | GetChecks $.AllFields}}

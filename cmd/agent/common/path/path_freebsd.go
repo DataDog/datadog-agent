@@ -26,6 +26,8 @@ const (
 	DefaultJMXFlareDirectory = "/var/log/datadog/jmxinfo/"
 	//DefaultDogstatsDLogFile points to the dogstatsd stats log file that will be used if not configured
 	DefaultDogstatsDLogFile = "/var/log/datadog/dogstatsd_info/dogstatsd-stats.log"
+	//DefaultStreamlogsLogFile points to the stream logs log file that will be used if not configured
+	DefaultStreamlogsLogFile = "/var/log/datadog/streamlogs_info/streamlogs.log"
 )
 
 var (

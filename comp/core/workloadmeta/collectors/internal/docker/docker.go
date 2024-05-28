@@ -382,7 +382,7 @@ func extractImage(ctx context.Context, container types.ContainerJSON, resolve re
 			log.Debugf("cannot split image name %q for container %q: %s", resolvedImageSpec, container.ID, err)
 
 			// fallback and try to parse the original imageSpec anyway
-			if err == containers.ErrImageIsSha256 {
+			if errors.Is(err, containers.ErrImageIsSha256) {
 				name, registry, shortName, tag, err = containers.SplitImageName(imageSpec)
 				if err != nil {
 					log.Debugf("cannot split image name %q for container %q: %s", imageSpec, container.ID, err)

@@ -250,6 +250,7 @@ qa_agent:
   rules:
     - !reference [.on_container_or_e2e_changes_or_manual]
     - !reference [.on_apm_or_e2e_changes_or_manual]
+    - !reference [.on_npm_or_e2e_changes_or_manual]
   needs:
     - docker_build_agent7
     - docker_build_agent7_arm64

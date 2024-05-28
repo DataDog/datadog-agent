@@ -1,7 +1,7 @@
 single-machine-performance-regression_detector:
   stage: functional_test
   rules:
-    - !reference [.except_mergequeue]
+    - !reference [.except_main_or_release_branch]
     - when: on_success
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/docker_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["runner:docker"]

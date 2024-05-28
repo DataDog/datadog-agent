@@ -32,7 +32,7 @@ build do
   env = with_embedded_path(env)
 
   if linux_target?
-    command "invoke installer.build --rebuild --install-path=#{install_dir}", env: env
+    command "invoke installer.build --rebuild --run-path=/var/run/datadog/installer --install-path=#{install_dir}", env: env
     mkdir "#{install_dir}/bin"
     mkdir "#{install_dir}/run/"
     mkdir "#{install_dir}/systemd/"

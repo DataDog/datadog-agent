@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
 	"github.com/DataDog/datadog-agent/comp/core/settings"
 	"github.com/DataDog/datadog-agent/comp/core/status"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/flare"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
@@ -29,13 +30,15 @@ import (
 type Agent struct {
 	statusComponent status.Component
 	settings        settings.Component
+	wmeta           workloadmeta.Component
 }
 
 // NewAgent returns a new Agent
-func NewAgent(statusComponent status.Component, settings settings.Component) *Agent {
+func NewAgent(statusComponent status.Component, settings settings.Component, wmeta workloadmeta.Component) *Agent {
 	return &Agent{
 		statusComponent: statusComponent,
 		settings:        settings,
+		wmeta:           wmeta,
 	}
 }
 
@@ -49,16 +52,26 @@ func (a *Agent) SetupHandlers(r *mux.Router) {
 	r.HandleFunc("/status/health", a.getHealth).Methods("GET")
 	r.HandleFunc("/config", a.settings.GetFullConfig("")).Methods("GET")
 	r.HandleFunc("/config/list-runtime", a.settings.ListConfigurable).Methods("GET")
-	r.HandleFunc("/config/{setting}", func(w http.ResponseWriter, r *http.Request) {
-		vars := mux.Vars(r)
-		setting := vars["setting"]
-		a.settings.GetValue(setting, w, r)
+	r.HandleFunc("/config/{setting}", a.settings.GetValue).Methods("GET")
+	r.HandleFunc("/config/{setting}", a.settings.SetValue).Methods("POST")
+	r.HandleFunc("/workload-list", func(w http.ResponseWriter, r *http.Request) {
+		verbose := r.URL.Query().Get("verbose") == "true"
+		workloadList(w, verbose, a.wmeta)
 	}).Methods("GET")
-	r.HandleFunc("/config/{setting}", func(w http.ResponseWriter, r *http.Request) {
-		vars := mux.Vars(r)
-		setting := vars["setting"]
-		a.settings.SetValue(setting, w, r)
-	}).Methods("POST")
+}
+
+func workloadList(w http.ResponseWriter, verbose bool, wmeta workloadmeta.Component) {
+	response := wmeta.Dump(verbose)
+	jsonDump, err := json.Marshal(response)
+	if err != nil {
+		err := log.Errorf("Unable to marshal workload list response: %v", err)
+		w.Header().Set("Content-Type", "application/json")
+		body, _ := json.Marshal(map[string]string{"error": err.Error()})
+		http.Error(w, string(body), 500)
+		return
+	}
+
+	w.Write(jsonDump)
 }
 
 func (a *Agent) stopAgent(w http.ResponseWriter, _ *http.Request) {

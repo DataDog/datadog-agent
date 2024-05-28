@@ -1,5 +1,4 @@
 import os
-import re
 import subprocess
 import sys
 from contextlib import contextmanager
@@ -8,7 +7,6 @@ from invoke import Context, task
 
 from tasks.libs.common.color import color_message
 
-FORBIDDEN_CODECOV_FLAG_CHARS = re.compile(r'[^\w\.\-]')
 AGENT_MODULE_PATH_PREFIX = "github.com/DataDog/datadog-agent/"
 
 
@@ -92,16 +90,6 @@ class GoModule:
 
         return [f"{self.path}/{self.__version(agent_version)}"]
 
-    def codecov_path(self):
-        """Return the path of the Go module, normalized to satisfy Codecov
-        restrictions on flags.
-        https://docs.codecov.com/docs/flags
-        """
-        if self.path == ".":
-            return "main"
-
-        return re.sub(FORBIDDEN_CODECOV_FLAG_CHARS, '_', self.path)
-
     def full_path(self):
         """Return the absolute path of the Go module."""
         return os.path.abspath(self.path)
@@ -170,6 +158,7 @@ DEFAULT_MODULES = {
     "pkg/tagset": GoModule("pkg/tagset", independent=True),
     "pkg/metrics": GoModule("pkg/metrics", independent=True),
     "pkg/telemetry": GoModule("pkg/telemetry", independent=True),
+    "comp/core/flare/builder": GoModule("comp/core/flare/builder", independent=True),
     "comp/core/flare/types": GoModule("comp/core/flare/types", independent=True),
     "comp/core/hostname/hostnameinterface": GoModule("comp/core/hostname/hostnameinterface", independent=True),
     "comp/core/config": GoModule("comp/core/config", independent=True),
@@ -196,6 +185,12 @@ DEFAULT_MODULES = {
     ),
     "comp/otelcol/otlp/components/exporter/datadogexporter": GoModule(
         "comp/otelcol/otlp/components/exporter/datadogexporter", independent=True
+    ),
+    "comp/otelcol/otlp/components/metricsclient": GoModule(
+        "comp/otelcol/otlp/components/metricsclient", independent=True
+    ),
+    "comp/otelcol/otlp/components/statsprocessor": GoModule(
+        "comp/otelcol/otlp/components/statsprocessor", independent=True
     ),
     "comp/otelcol/otlp/testutil": GoModule("comp/otelcol/otlp/testutil", independent=True),
     "comp/otelcol/collector-contrib/def": GoModule(

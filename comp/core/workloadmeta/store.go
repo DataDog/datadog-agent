@@ -318,6 +318,18 @@ func (w *workloadmeta) GetKubernetesPodForContainer(containerID string) (*Kubern
 	return pod.cached.(*KubernetesPod), nil
 }
 
+// ListKubernetesNodes implements Store#ListKubernetesNodes
+func (w *workloadmeta) ListKubernetesNodes() []*KubernetesNode {
+	entities := w.listEntitiesByKind(KindKubernetesNode)
+
+	nodes := make([]*KubernetesNode, 0, len(entities))
+	for i := range entities {
+		nodes = append(nodes, entities[i].(*KubernetesNode))
+	}
+
+	return nodes
+}
+
 // GetKubernetesNode implements Store#GetKubernetesNode
 func (w *workloadmeta) GetKubernetesNode(id string) (*KubernetesNode, error) {
 	entity, err := w.getEntityByKind(KindKubernetesNode, id)
@@ -336,6 +348,16 @@ func (w *workloadmeta) GetKubernetesDeployment(id string) (*KubernetesDeployment
 	}
 
 	return entity.(*KubernetesDeployment), nil
+}
+
+// GetKubernetesNamespace implements Store#GetKubernetesNamespace
+func (w *workloadmeta) GetKubernetesNamespace(id string) (*KubernetesNamespace, error) {
+	entity, err := w.getEntityByKind(KindKubernetesNamespace, id)
+	if err != nil {
+		return nil, err
+	}
+
+	return entity.(*KubernetesNamespace), nil
 }
 
 // ListECSTasks implements Store#ListECSTasks
