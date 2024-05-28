@@ -36,7 +36,7 @@ func CreateDCAArchive(local bool, distPath, logFilePath string, pdata ProfileDat
 	}
 
 	confSearchPaths := map[string]string{
-		"":     config.Datadog.GetString("confd_path"),
+		"":     config.Datadog().GetString("confd_path"),
 		"dist": filepath.Join(distPath, "conf.d"),
 	}
 
@@ -75,14 +75,14 @@ func createDCAArchive(fb flaretypes.FlareBuilder, confSearchPaths map[string]str
 	fb.AddFileFromFunc("workload-list.log", getDCAWorkloadList)                    //nolint:errcheck
 	getPerformanceProfileDCA(fb, pdata)
 
-	if config.Datadog.GetBool("external_metrics_provider.enabled") {
+	if config.Datadog().GetBool("external_metrics_provider.enabled") {
 		getHPAStatus(fb) //nolint:errcheck
 	}
 }
 
 // QueryDCAMetrics gets the metrics payload exposed by the cluster agent
 func QueryDCAMetrics() ([]byte, error) {
-	r, err := http.Get(fmt.Sprintf("http://localhost:%d/metrics", config.Datadog.GetInt("metrics_port")))
+	r, err := http.Get(fmt.Sprintf("http://localhost:%d/metrics", config.Datadog().GetInt("metrics_port")))
 	if err != nil {
 		return nil, err
 	}
@@ -173,7 +173,7 @@ func getDCATaggerList() ([]byte, error) {
 		return nil, err
 	}
 
-	taggerListURL := fmt.Sprintf("https://%v:%v/tagger-list", ipcAddress, config.Datadog.GetInt("cluster_agent.cmd_port"))
+	taggerListURL := fmt.Sprintf("https://%v:%v/tagger-list", ipcAddress, config.Datadog().GetInt("cluster_agent.cmd_port"))
 
 	return getTaggerList(taggerListURL)
 }
@@ -184,7 +184,7 @@ func getDCAWorkloadList() ([]byte, error) {
 		return nil, err
 	}
 
-	return getWorkloadList(fmt.Sprintf("https://%v:%v/workload-list?verbose=true", ipcAddress, config.Datadog.GetInt("cluster_agent.cmd_port")))
+	return getWorkloadList(fmt.Sprintf("https://%v:%v/workload-list?verbose=true", ipcAddress, config.Datadog().GetInt("cluster_agent.cmd_port")))
 }
 
 func getPerformanceProfileDCA(fb flaretypes.FlareBuilder, pdata ProfileData) {

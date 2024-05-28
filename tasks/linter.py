@@ -349,7 +349,7 @@ def gitlab_ci(_, test="all", custom_context=None):
     for context in all_contexts:
         print("Test gitlab configuration with context: ", context)
         config = generate_gitlab_full_configuration(".gitlab-ci.yml", dict(context))
-        res = agent.ci_lint.create({"content": config})
+        res = agent.ci_lint.create({"content": config, "dry_run": True, "include_jobs": True})
         status = color_message("valid", "green") if res.valid else color_message("invalid", "red")
         print(f"Config is {status}")
         if len(res.warnings) > 0:

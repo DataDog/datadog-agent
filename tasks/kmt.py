@@ -257,13 +257,24 @@ def ls(_, distro=True, custom=False):
     }
 )
 def init(ctx: Context, lite=False, images: str | None = None):
-    init_kernel_matrix_testing_system(ctx, lite, images)
+    try:
+        init_kernel_matrix_testing_system(ctx, lite, images)
+    except Exception as e:
+        error(f"[-] Error initializing kernel matrix testing system: {e}")
+        raise Exit("[-] Initialization failed")
+
+    info("[+] Kernel matrix testing system initialized successfully")
     config_ssh_key(ctx)
 
 
 @task
 def config_ssh_key(ctx: Context):
     """Automatically configure the default SSH key to use"""
+    info("[+] Configuring SSH key for use with the KMT AWS instances")
+    info(
+        "[+] Ensure your desired SSH key is set up in the AWS sandbox account (not agent-sandbox) so we can check its existence"
+    )
+    info("[+] Reminder that key pairs for AWS are configured in AWS > EC2 > Key Pairs")
     agent_choices = [
         ("ssh", "Keys located in ~/.ssh"),
         ("1password", "1Password SSH agent (valid for any other SSH agent too)"),
@@ -368,7 +379,10 @@ def update_resources(
 def start_compiler(ctx: Context):
     for cc in all_compilers(ctx):
         info(f"[+] Starting compiler {cc.name}")
-        cc.start()
+        try:
+            cc.start()
+        except Exception as e:
+            error(f"[-] Error starting compiler {cc.name}: {e}")
 
 
 def filter_target_domains(vms: str, infra: dict[ArchOrLocal, HostInstance], arch: ArchOrLocal | None = None):
