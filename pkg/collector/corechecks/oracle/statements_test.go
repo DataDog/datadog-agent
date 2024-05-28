@@ -126,3 +126,49 @@ func TestUInt64Binding(t *testing.T) {
 		assert.Equalf(t, retValue, 1, "IN uint64")
 	}
 }
+
+func TestLongMultibyteQuery(t *testing.T) {
+	c, _ := newDefaultCheck(t, "", "")
+	defer c.Teardown()
+
+	c.dbmEnabled = true
+
+	// This is to ensure that query samples return rows
+	c.config.QuerySamples.IncludeAllSessions = true
+
+	c.statementsLastRun = time.Now().Add(-48 * time.Hour)
+	err := c.Run()
+	assert.NoError(t, err, "check run")
+
+	// We're just testing the agent's ability to handle a SQL query whose bytes exceed 4k
+	// when there's less than 4k characters. Actual result doesn't matter so long as it eventually collects
+	// the query
+	longQuery := "SELECT sid AS "
+	for i := 0; i < 1500; i++ {
+		longQuery += "氏"
+	}
+	longQuery += " FROM v$session LIMIT 1;"
+
+	_, err = c.db.Exec(longQuery)
+	if err != nil {
+		fmt.Printf("row error %s", err)
+		return
+	}
+	found := false
+	for i := 0; i < 10; i++ {
+		// Run checks while statement size ramps down until the test query is found
+		err = c.Run()
+		assert.NoError(t, err, "check run")
+		for _, r := range c.lastOracleRows {
+			if r.SQLText == longQuery {
+				found = true
+				break
+			}
+		}
+		if found {
+			break
+		}
+	}
+	assert.True(t, found)
+
+}
