@@ -923,7 +923,7 @@ func initializeWindowsProbe(config *config.Config, opts Opts) (*WindowsProbe, er
 // NewWindowsProbe instantiates a new runtime security agent probe
 func NewWindowsProbe(probe *Probe, config *config.Config, opts Opts) (*WindowsProbe, error) {
 
-  p, err := initializeWindowsProbe(config, opts)
+	p, err := initializeWindowsProbe(config, opts)
 	if err != nil {
 		return nil, err
 	}
