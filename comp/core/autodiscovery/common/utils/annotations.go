@@ -37,12 +37,7 @@ func ExtractTemplatesFromMap(key string, input map[string]string, prefix string)
 	}
 	configs = append(configs, checksConfigs...)
 
-	logCheckName := ""
-	if len(configs) >= 1 {
-		// Consider the first check name as the log check name, even if it's empty
-		logCheckName = configs[0].Name
-	}
-	logsConfigs, err := extractLogsTemplatesFromMap(logCheckName, key, input, prefix)
+	logsConfigs, err := extractLogsTemplatesFromMap(configs, key, input, prefix)
 	if err != nil {
 		errors = append(errors, fmt.Errorf("could not extract logs config: %v", err))
 	}
@@ -86,11 +81,17 @@ func extractCheckTemplatesFromMap(key string, input map[string]string, prefix st
 
 // extractLogsTemplatesFromMap returns the logs configuration from a given map,
 // if none are found return an empty list.
-func extractLogsTemplatesFromMap(logCheckName string, key string, input map[string]string, prefix string) ([]integration.Config, error) {
+func extractLogsTemplatesFromMap(configs []integration.Config, key string, input map[string]string, prefix string) ([]integration.Config, error) {
 	value, found := input[prefix+logsConfigPath]
 	if !found {
 		return []integration.Config{}, nil
 	}
+	logCheckName := ""
+	if len(configs) >= 1 {
+		// Consider the first check name as the log check name, even if it's empty
+		logCheckName = configs[0].Name
+	}
+
 	var data interface{}
 	err := json.Unmarshal([]byte(value), &data)
 	if err != nil {
@@ -292,13 +293,7 @@ func extractTemplatesFromMapWithV2(entityName string, annotations map[string]str
 	}
 
 	if actualPrefix != "" {
-		logCheckName := ""
-		if len(configs) >= 1 {
-			// Consider the first check name as the log check name, even if it's empty
-			logCheckName = configs[0].Name
-		}
-
-		c, err := extractLogsTemplatesFromMap(logCheckName, entityName, annotations, actualPrefix)
+		c, err := extractLogsTemplatesFromMap(configs, entityName, annotations, actualPrefix)
 
 		if err != nil {
 			errors = append(errors, fmt.Errorf("could not extract logs config: %v", err))
