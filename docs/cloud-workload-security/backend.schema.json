@@ -1441,6 +1441,37 @@
       ],
       "description": "SyscallSerializer serializes a syscall"
     },
+    "SyscallArgs": {
+      "properties": {
+        "path": {
+          "type": "string",
+          "description": "Path argument"
+        },
+        "mode": {
+          "type": "integer",
+          "description": "Mode argument"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "description": "SyscallArgsSerializer args serializer"
+    },
+    "SyscallContext": {
+      "properties": {
+        "chmod": {
+          "$ref": "#/$defs/SyscallArgs"
+        },
+        "chdir": {
+          "$ref": "#/$defs/SyscallArgs"
+        },
+        "exec": {
+          "$ref": "#/$defs/SyscallArgs"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "description": "SyscallContextSerializer serializes syscall context"
+    },
     "SyscallsEvent": {
       "items": {
         "$ref": "#/$defs/Syscall"
@@ -1584,6 +1615,9 @@
     },
     "usr": {
       "$ref": "#/$defs/UserContext"
+    },
+    "syscall": {
+      "$ref": "#/$defs/SyscallContext"
     }
   },
   "additionalProperties": false,

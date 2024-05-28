@@ -3,13 +3,15 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package utils
+package k8smetadata
 
 import (
 	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+
+	"github.com/DataDog/datadog-agent/comp/core/tagger/taglist"
 )
 
 func TestMetadataAsTags(t *testing.T) {
@@ -121,7 +123,7 @@ func TestMetadataAsTags(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			tagList := NewTagList()
+			tagList := taglist.NewTagList()
 			m, g := InitMetadataAsTags(tt.metadataAsTags)
 			AddMetadataAsTags(tt.k, tt.v, m, g, tagList)
 			tags, _, _, _ := tagList.Compute()

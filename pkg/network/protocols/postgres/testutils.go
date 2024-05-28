@@ -37,6 +37,20 @@ type ConnectionOptions struct {
 	EnableTLS     bool
 }
 
+func buildDSN(opts ConnectionOptions) string {
+	sslMode := "disable"
+	if opts.EnableTLS {
+		sslMode = "allow"
+	}
+	return fmt.Sprintf("postgres://%s:%s@%s/%s?sslmode=%s",
+		optionOrDefault(opts.Username, "", "admin"),
+		optionOrDefault(opts.Password, "", "password"),
+		optionOrDefault(opts.ServerAddress, "", "localhost:5432"),
+		optionOrDefault(opts.DBName, "", "testdb"),
+		sslMode,
+	)
+}
+
 // PGClient is a simple wrapper around the `bun` module to interact with a Postgres DB.
 type PGClient struct {
 	db *bun.DB
@@ -44,20 +58,8 @@ type PGClient struct {
 
 // NewPGClient creates a new Postgres client for testing purposes.
 func NewPGClient(opts ConnectionOptions) *PGClient {
-	sslMode := "disable"
-	if opts.EnableTLS {
-		sslMode = "allow"
-	}
-	connStr := fmt.Sprintf("postgres://%s:%s@%s/%s?sslmode=%s",
-		optionOrDefault(opts.Username, "", "admin"),
-		optionOrDefault(opts.Password, "", "password"),
-		optionOrDefault(opts.ServerAddress, "", "localhost:5432"),
-		optionOrDefault(opts.DBName, "", "testdb"),
-		sslMode,
-	)
-
 	return &PGClient{
-		db: bun.NewDB(sql.OpenDB(pgdriver.NewConnector(pgdriver.WithDSN(connStr))), pgdialect.New()),
+		db: bun.NewDB(sql.OpenDB(pgdriver.NewConnector(pgdriver.WithDSN(buildDSN(opts)))), pgdialect.New()),
 	}
 }
 
