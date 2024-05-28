@@ -404,17 +404,18 @@ def check_mod_tidy(ctx, test_folder="testmodule"):
 
 @task
 def tidy_all(ctx):
-    print(color_message('This command is deprecated, please use `tidy` instead', "orange"))
-    print("Running `tidy`...")
+    sys.stderr.write(color_message('This command is deprecated, please use `tidy` instead\n', "orange"))
+    sys.stderr.write("Running `tidy`...\n")
     tidy(ctx)
 
 
 @task
 def tidy(ctx, only_modified_packages=False):
-    # TODO: if only_modified_packages then use `go mod tidy -diff` with golang 1.23
+    # TODO: if only_modified_packages then use `go mod tidy -diff` with golang 1.23, probably in a separate check-mod-tidy task
     # https://github.com/golang/go/issues/27005
     from tasks import get_modified_packages
 
+    # TODO: Also include packages that import them
     modules = get_modified_packages(ctx) if only_modified_packages else DEFAULT_MODULES.values()
 
     for mod in modules:
