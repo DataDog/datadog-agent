@@ -114,6 +114,7 @@ github.com/DataDog/datadog-agent/comp/otelcol/otlp
 github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/logsagentexporter
 github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/serializerexporter
 github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/processor/infraattributesprocessor
+github.com/DataDog/datadog-agent/comp/otelcol/otlp/datatype
 github.com/DataDog/datadog-agent/comp/otelcol/otlp/internal/configutils
 github.com/DataDog/datadog-agent/comp/remote-config/rcclient/types
 github.com/DataDog/datadog-agent/comp/serializer/compression
@@ -918,6 +919,7 @@ html/template
 internal/abi
 internal/bisect
 internal/bytealg
+internal/chacha8rand
 internal/coverage/rtcov
 internal/cpu
 internal/fmtsort
