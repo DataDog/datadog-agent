@@ -10,7 +10,6 @@ import (
 	"bytes"
 	"errors"
 	"expvar"
-	"fmt"
 
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 
