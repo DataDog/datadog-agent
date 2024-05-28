@@ -739,7 +739,7 @@ def is_pr_context(branch, pr_id, test_name):
 
 @contextmanager
 def collapsed_section(section_name):
-    section_id = section_name.replace(" ", "_")
+    section_id = section_name.replace(" ", "_").replace("/", "_")
     in_ci = running_in_gitlab_ci()
     try:
         if in_ci:
