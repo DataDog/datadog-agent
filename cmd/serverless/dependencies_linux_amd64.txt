@@ -407,14 +407,6 @@ github.com/go-logr/logr
 github.com/go-logr/logr/funcr
 github.com/go-logr/stdr
 github.com/go-viper/mapstructure/v2
-github.com/gobwas/glob
-github.com/gobwas/glob/compiler
-github.com/gobwas/glob/match
-github.com/gobwas/glob/syntax
-github.com/gobwas/glob/syntax/ast
-github.com/gobwas/glob/syntax/lexer
-github.com/gobwas/glob/util/runes
-github.com/gobwas/glob/util/strings
 github.com/godbus/dbus/v5
 github.com/gogo/protobuf/gogoproto
 github.com/gogo/protobuf/jsonpb
@@ -487,7 +479,6 @@ github.com/patrickmn/go-cache
 github.com/pelletier/go-toml
 github.com/philhofer/fwd
 github.com/pkg/errors
-github.com/pmezard/go-difflib/difflib
 github.com/prometheus/client_golang/prometheus
 github.com/prometheus/client_golang/prometheus/internal
 github.com/prometheus/client_golang/prometheus/promhttp
@@ -521,8 +512,6 @@ github.com/spf13/cobra
 github.com/spf13/jwalterweatherman
 github.com/spf13/pflag
 github.com/stormcat24/protodep/pkg/logger
-github.com/stretchr/testify/assert
-github.com/stretchr/testify/require
 github.com/tinylib/msgp/msgp
 github.com/tklauser/go-sysconf
 github.com/tklauser/numcpus
@@ -721,12 +710,10 @@ go.uber.org/dig/internal/dot
 go.uber.org/dig/internal/graph
 go.uber.org/fx
 go.uber.org/fx/fxevent
-go.uber.org/fx/fxtest
 go.uber.org/fx/internal/fxclock
 go.uber.org/fx/internal/fxlog
 go.uber.org/fx/internal/fxreflect
 go.uber.org/fx/internal/lifecycle
-go.uber.org/fx/internal/testutil
 go.uber.org/multierr
 go.uber.org/zap
 go.uber.org/zap/buffer

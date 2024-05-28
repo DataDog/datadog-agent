@@ -1,5 +1,6 @@
 import getpass
 import os
+import platform
 import plistlib
 import sys
 from pathlib import Path
@@ -48,6 +49,23 @@ class Linux:
 
     qemu_conf = os.path.join("/", "etc", "libvirt", "qemu.conf")
 
+    packages = [
+        "aria2",
+        "fio",
+        "socat",
+        "qemu-kvm",
+        "libvirt-daemon-system",
+        "curl",
+        "debootstrap",
+        "libguestfs-tools",
+        "libvirt-dev",
+        "python3-pip",
+        "nfs-kernel-server",
+        "rpcbind",
+        "ssh-askpass",
+        "xsltproc",
+    ]
+
     @staticmethod
     def restart_libvirtd(ctx, sudo):
         ctx.run(f"{sudo} systemctl restart libvirtd.service")
@@ -76,6 +94,16 @@ class Linux:
 
         Linux.restart_libvirtd(ctx, sudo)
 
+    @staticmethod
+    def install_requirements(ctx: Context):
+        ctx.run("sudo apt update")
+        ctx.run(f"sudo apt install -y {' '.join(Linux.packages)}")
+
+        if platform.machine() == "aarch64":
+            ctx.rin("sudo apt install -y qemu-efi-aarch64")
+
+        ctx.run("sudo systemctl start nfs-kernel-server.service")
+
 
 class MacOS:
     kmt_dir = get_home_macos()
@@ -91,6 +119,8 @@ class MacOS:
     libvirt_socket = f"qemu:///system?socket={libvirt_system_dir}/libvirt-sock"
     virtlogd_conf = get_homebrew_prefix() / "etc/libvirt/virtlogd.conf"
     ddvm_rsa = kmt_dir / "ddvm_rsa"
+
+    packages = ["aria2", "fio", "socat", "libvirt", "gnu-sed", "qemu", "libvirt"]
 
     @staticmethod
     def assert_user_in_docker_group(_):
@@ -178,3 +208,7 @@ class MacOS:
 
         ctx.run("sudo nfsd enable || true")
         ctx.run("sudo nfsd update")
+
+    @staticmethod
+    def install_requirements(ctx: Context):
+        ctx.run("brew install " + " ".join(MacOS.packages))

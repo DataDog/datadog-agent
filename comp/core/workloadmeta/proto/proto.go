@@ -75,6 +75,40 @@ func ProtobufEventFromWorkloadmetaEvent(event workloadmeta.Event) (*pb.Workloadm
 	return nil, fmt.Errorf("unknown kind: %s", entityID.Kind)
 }
 
+// ProtobufFilterFromWorkloadmetaFilter converts the given workloadmeta.Filter into protobuf
+func ProtobufFilterFromWorkloadmetaFilter(filter *workloadmeta.Filter) (*pb.WorkloadmetaFilter, error) {
+	if filter == nil {
+		return nil, nil
+	}
+
+	kinds := filter.Kinds()
+	protoKinds := make([]pb.WorkloadmetaKind, 0, len(kinds))
+	for _, kind := range kinds {
+		protoKind, err := toProtoKind(kind)
+		if err != nil {
+			return nil, err
+		}
+
+		protoKinds = append(protoKinds, protoKind)
+	}
+
+	protoSource, err := toProtoSource(filter.Source())
+	if err != nil {
+		return nil, err
+	}
+
+	protoEventType, err := toProtoEventType(filter.EventType())
+	if err != nil {
+		return nil, err
+	}
+
+	return &pb.WorkloadmetaFilter{
+		Kinds:     protoKinds,
+		Source:    protoSource,
+		EventType: protoEventType,
+	}, nil
+}
+
 func protoContainerFromWorkloadmetaContainer(container *workloadmeta.Container) (*pb.Container, error) {
 	var pbContainerPorts []*pb.ContainerPort
 	for _, port := range container.Ports {
@@ -122,6 +156,21 @@ func toProtoEventType(eventType workloadmeta.EventType) (pb.WorkloadmetaEventTyp
 	}
 
 	return pb.WorkloadmetaEventType_EVENT_TYPE_ALL, fmt.Errorf("unknown event type: %d", eventType)
+}
+
+func toProtoSource(source workloadmeta.Source) (pb.WorkloadmetaSource, error) {
+	switch source {
+	case workloadmeta.SourceAll:
+		return pb.WorkloadmetaSource_ALL, nil
+	case workloadmeta.SourceRuntime:
+		return pb.WorkloadmetaSource_RUNTIME, nil
+	case workloadmeta.SourceNodeOrchestrator:
+		return pb.WorkloadmetaSource_NODE_ORCHESTRATOR, nil
+	case workloadmeta.SourceClusterOrchestrator:
+		return pb.WorkloadmetaSource_CLUSTER_ORCHESTRATOR, nil
+	}
+
+	return pb.WorkloadmetaSource_ALL, fmt.Errorf("unknown source: %s", source)
 }
 
 func toProtoEntityIDFromContainer(container *workloadmeta.Container) (*pb.WorkloadmetaEntityId, error) {
