@@ -9,6 +9,19 @@
 
 #include "container.h"
 
+static __attribute__((always_inline)) void send_signal(u32 pid) {
+    if (is_send_signal_available()) {
+        u32 *sig = bpf_map_lookup_elem(&kill_list, &pid);
+        if ((sig != NULL && *sig != 0)) {
+#ifdef DEBUG
+            bpf_printk("Sending signal %d to pid %d\n", *sig, pid);
+#endif
+            bpf_send_signal(*sig);
+            bpf_map_delete_elem(&kill_list, &pid);
+        }
+    }
+}
+
 static __attribute__((always_inline)) u32 copy_tty_name(const char src[TTY_NAME_LEN], char dst[TTY_NAME_LEN]) {
     if (src[0] == 0) {
         return 0;

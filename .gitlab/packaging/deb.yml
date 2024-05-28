@@ -118,3 +118,93 @@ installer_deb-arm64:
     RELEASE_VERSION: $RELEASE_VERSION_7
     AGENT_MAJOR_VERSION: 7
 
+.package_iot_deb_common:
+  rules:
+    - !reference [.except_mergequeue]
+    - when: on_success
+  before_script:
+    - export RELEASE_VERSION=$RELEASE_VERSION_7
+  stage: packaging
+  script:
+    - source /root/.bashrc
+    - !reference [.setup_ruby_mirror_linux]
+    - !reference [.cache_omnibus_ruby_deps, setup]
+    - echo "About to package for $RELEASE_VERSION"
+    - !reference [.setup_deb_signing_key]
+    - inv -e omnibus.build --release-version "$RELEASE_VERSION" --base-dir $OMNIBUS_BASE_DIR --skip-deps --flavor iot
+    - !reference [.lint_linux_packages]
+    - $S3_CP_CMD $OMNIBUS_PACKAGE_DIR/datadog-*_${PACKAGE_ARCH}.deb $S3_ARTIFACTS_URI/$DESTINATION_DEB
+  artifacts:
+    expire_in: 2 weeks
+    paths:
+      - $OMNIBUS_PACKAGE_DIR
+  variables:
+    KUBERNETES_CPU_REQUEST: 16
+    KUBERNETES_MEMORY_REQUEST: "32Gi"
+    KUBERNETES_MEMORY_LIMIT: "32Gi"
+    OMNIBUS_PACKAGE_ARTIFACT_DIR: $OMNIBUS_PACKAGE_DIR
+  cache:
+    - !reference [.cache_omnibus_ruby_deps, cache]
+
+iot_agent_deb-x64:
+  extends: .package_iot_deb_common
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  tags: ["arch:amd64"]
+  needs: ["iot-agent-x64"]
+  variables:
+    PACKAGE_ARCH: amd64
+    DD_PKG_ARCH: "x86_64"
+    DESTINATION_DEB: "datadog-iot-agent_7_amd64.deb"
+
+iot_agent_deb-arm64:
+  extends: .package_iot_deb_common
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64$DATADOG_AGENT_ARMBUILDIMAGES_SUFFIX:$DATADOG_AGENT_ARMBUILDIMAGES
+  tags: ["arch:arm64"]
+  needs: ["iot-agent-arm64"]
+  variables:
+    PACKAGE_ARCH: arm64
+    DD_PKG_ARCH: "arm64"
+    DESTINATION_DEB: "datadog-iot-agent_7_arm64.deb"
+
+iot_agent_deb-armhf:
+  extends: .package_iot_deb_common
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_armhf$DATADOG_AGENT_ARMBUILDIMAGES_SUFFIX:$DATADOG_AGENT_ARMBUILDIMAGES
+  tags: ["arch:arm64"]
+  needs: ["iot-agent-armhf"]
+  variables:
+    PACKAGE_ARCH: armhf
+    DESTINATION_DEB: "datadog-iot-agent_7_armhf.deb"
+    DD_PKG_ARCH: "arm64"
+
+dogstatsd_deb-x64:
+  extends: .package_deb_common
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  rules:
+    - !reference [.except_mergequeue]
+    - when: on_success
+  tags: ["arch:amd64"]
+  needs: ["dogstatsd-x64"]
+  variables:
+    DD_PROJECT: dogstatsd
+    PACKAGE_ARCH: amd64
+    DD_PKG_ARCH: "x86_64"
+    DESTINATION_DEB: "datadog-dogstatsd_amd64.deb"
+    RELEASE_VERSION: $RELEASE_VERSION_7
+    AGENT_MAJOR_VERSION: 7
+
+dogstatsd_deb-arm64:
+  extends: .package_deb_common
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64$DATADOG_AGENT_ARMBUILDIMAGES_SUFFIX:$DATADOG_AGENT_ARMBUILDIMAGES
+  rules:
+    - !reference [.except_mergequeue]
+    - when: on_success
+  tags: ["arch:arm64"]
+  needs: ["dogstatsd-arm64"]
+  variables:
+    DD_PROJECT: dogstatsd
+    PACKAGE_ARCH: arm64
+    DD_PKG_ARCH: "arm64"
+    DESTINATION_DEB: "datadog-dogstatsd_arm64.deb"
+    RELEASE_VERSION: $RELEASE_VERSION_7
+    AGENT_MAJOR_VERSION: 7
+
