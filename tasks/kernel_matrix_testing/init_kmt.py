@@ -72,7 +72,12 @@ def init_kernel_matrix_testing_system(ctx: Context, lite: bool, images):
 
     if not lite:
         if shutil.which("libvirtd") is None:
-            raise Exit("libvirtd not found in $PATH, did you run tasks/kernel_matrix_testing/env-setup.sh?")
+            if Path("/opt/homebrew/sbin/libvirtd").exists():
+                raise Exit(
+                    "libvirtd is installed in /opt/homebrew/sbin/libvirtd, but not in $PATH. /opt/homebrew/sbin should be part of your $PATH variable"
+                )
+            else:
+                raise Exit("libvirtd not found in $PATH, did you run tasks/kernel_matrix_testing/env-setup.sh?")
 
         info("[+] OS-specific setup")
         kmt_os.init_local(ctx)
