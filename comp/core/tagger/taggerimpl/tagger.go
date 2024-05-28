@@ -367,7 +367,7 @@ func (t *TaggerClient) ResetCaptureTagger() {
 // enrichment, the metric and its tags is sent to the context key generator, which
 // is taking care of deduping the tags while generating the context key.
 func (t *TaggerClient) EnrichTags(tb tagset.TagsAccumulator, originInfo taggertypes.OriginInfo) {
-	cardinality := t.taggerCardinality(originInfo.Cardinality)
+	cardinality := taggerCardinality(originInfo.Cardinality, t.dogstatsdCardinality)
 
 	productOrigin := originInfo.ProductOrigin
 	// If origin_detection_unified is disabled, we use DogStatsD's Legacy Origin Detection.
@@ -502,16 +502,17 @@ func (t *TaggerClient) DogstatsdCardinality() types.TagCardinality {
 }
 
 // taggerCardinality converts tagger cardinality string to types.TagCardinality
-// It defaults to DogstatsdCardinality if the string is empty or unknown
-func (t *TaggerClient) taggerCardinality(cardinality string) types.TagCardinality {
+// It should be defaulted to DogstatsdCardinality if the string is empty or unknown
+func taggerCardinality(cardinality string,
+	defaultCardinality types.TagCardinality) types.TagCardinality {
 	if cardinality == "" {
-		return t.dogstatsdCardinality
+		return defaultCardinality
 	}
 
 	taggerCardinality, err := types.StringToTagCardinality(cardinality)
 	if err != nil {
 		log.Tracef("Couldn't convert cardinality tag: %v", err)
-		return t.dogstatsdCardinality
+		return defaultCardinality
 	}
 
 	return taggerCardinality

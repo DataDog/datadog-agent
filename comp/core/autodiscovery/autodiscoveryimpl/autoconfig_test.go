@@ -524,5 +524,5 @@ type Deps struct {
 }
 
 func createDeps(t *testing.T) Deps {
-	return fxutil.Test[Deps](t, core.MockBundle(), workloadmeta.MockModule(), fx.Supply(workloadmeta.NewParams()), taggerimpl.MockModule())
+	return fxutil.Test[Deps](t, core.MockBundle(), workloadmeta.MockModule(), fx.Supply(workloadmeta.NewParams()), fx.Supply(tagger.NewFakeTaggerParams()), taggerimpl.Module())
 }
