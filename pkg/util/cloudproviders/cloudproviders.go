@@ -86,7 +86,7 @@ func GetCloudProviderNTPHosts(ctx context.Context) []string {
 
 	for _, cloudNTPDetector := range detectors {
 		if cloudNTPServers := cloudNTPDetector.callback(ctx); cloudNTPServers != nil {
-			log.Debugf("Detected NTP servers from %s cloud provider: %+q", cloudNTPDetector.name, cloudNTPServers)
+			log.Infof("Detected NTP servers from %s cloud provider: %+q", cloudNTPDetector.name, cloudNTPServers)
 			return cloudNTPServers
 		}
 	}
