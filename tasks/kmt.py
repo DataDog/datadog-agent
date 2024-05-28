@@ -550,6 +550,9 @@ def kmt_secagent_prepare(
     ctx.run(f"ninja -d explain -v -f {nf_path}")
 
 
+btf_dir = "/opt/system-probe-tests/pkg/ebpf/bytecode/build/co-re/btf"
+
+
 @task
 def prepare(
     ctx: Context,
@@ -648,6 +651,15 @@ def prepare(
     for d in domains:
         d.copy(ctx, paths.dependencies, "/opt/", verbose=verbose)
         d.copy(ctx, f"{paths.arch_dir}/opt/*", "/opt/", exclude="*.ninja", verbose=verbose)
+        d.run_cmd(
+            ctx,
+            f"! [ -f {btf_dir}/minimized-btfs.tar.xz \
+                && [ -d /opt/btf ] \
+                && cd /opt/btf/ \
+                && tar cJf minimized-btfs.tar.xz * \
+                && mkdir -p {btf_dir} \
+                && mv /opt/btf/minimized-btfs.tar.xz {btf_dir}/",
+        )
         info(f"[+] Tests packages setup in target VM {d}")
 
 
@@ -935,10 +947,10 @@ def test(
         for d in domains:
             info(f"[+] Running tests on {d}")
             d.copy(ctx, f"{tmp.name}", remote_tmp)
-            d.run_cmd(ctx, f"/opt/micro-vm-init.sh {' '.join(args)}", verbose=verbose)
+            d.run_cmd(ctx, f"/opt/micro-vm-init.sh {' '.join(args)}", verbose=verbose, allow_fail=True)
 
             info(f"[+] Showing summary of results for {d}")
-            d.run_cmd(ctx, "/opt/testing-tools/test-json-review", verbose=verbose)
+            d.run_cmd(ctx, "/opt/testing-tools/test-json-review", verbose=verbose, allow_fail=True)
 
             info(f"[+] Tests completed on {d}, downloading results...")
             target_folder = paths.vm_test_results(d.name)
