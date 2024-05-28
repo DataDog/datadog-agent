@@ -51,7 +51,6 @@ func (a *logAgent) SetupPipeline(
 	// setup the pipeline provider that provides pairs of processor and sender
 	pipelineProvider := pipeline.NewServerlessProvider(config.NumberOfPipelines, a.auditor, diagnosticMessageReceiver, processingRules, a.endpoints, destinationsCtx, NewStatusProvider(), a.hostname, a.config)
 
-	// setup the sole launcher for this agent
 	lnchrs := launchers.NewLaunchers(a.sources, pipelineProvider, a.auditor, a.tracker)
 	lnchrs.AddLauncher(channel.NewLauncher())
 	lnchrs.AddLauncher(filelauncher.NewLauncher(
