@@ -156,7 +156,7 @@ func TestInstall(t *testing.T) {
 	defer i.Stop()
 
 	testURL := "oci://example.com/test-package:1.0.0"
-	i.pm.On("Install", mock.Anything, testURL).Return(nil).Once()
+	i.pm.On("Install", mock.Anything, testURL, []string(nil)).Return(nil).Once()
 
 	err := i.Install(context.Background(), testURL, nil)
 	if err != nil {
