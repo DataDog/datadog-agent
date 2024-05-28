@@ -102,15 +102,15 @@ func (resolver *Resolver) GetHumanReadableSD(sddl string) (string, error) {
 	// Extract the owner and group SIDs
 	owner, group := extractOwnerGroup(sddl)
 	if owner != "" {
-		ownerName, err := resolver.userGroupResolver.GetUser(owner)
-		if err != nil {
+		ownerName := resolver.userGroupResolver.GetUser(owner)
+		if ownerName == "" {
 			ownerName = owner // Fallback to SID string if account lookup fails
 		}
 		builder.WriteString(fmt.Sprintf("Owner: %s\n", ownerName))
 	}
 	if group != "" {
-		groupName, err := resolver.userGroupResolver.GetUser(group)
-		if err != nil {
+		groupName := resolver.userGroupResolver.GetUser(group)
+		if groupName == "" {
 			groupName = group // Fallback to SID string if account lookup fails
 		}
 		builder.WriteString(fmt.Sprintf("Group: %s\n", groupName))
@@ -141,8 +141,8 @@ func (resolver *Resolver) GetHumanReadableSD(sddl string) (string, error) {
 		translatedType := translateAceType(aceType)
 		translatedPermissions := accessMaskToString(permissions)
 
-		accountName, err := resolver.userGroupResolver.GetUser(trustee)
-		if err != nil {
+		accountName := resolver.userGroupResolver.GetUser(trustee)
+		if accountName == "" {
 			accountName = trustee // Fallback to SID string if account lookup fails
 		}
 
