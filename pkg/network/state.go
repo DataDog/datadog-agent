@@ -1468,5 +1468,5 @@ func (ns *networkState) mergeConnectionStats(a, b *ConnectionStats) (collision b
 func isEmpty(conn ConnectionStats) bool {
 	return conn.Monotonic.RecvBytes == 0 && conn.Monotonic.RecvPackets == 0 &&
 		conn.Monotonic.SentBytes == 0 && conn.Monotonic.SentPackets == 0 &&
-		conn.Monotonic.Retransmits == 0
+		conn.Monotonic.Retransmits == 0 && len(conn.TCPFailures) == 0
 }
