@@ -1301,12 +1301,10 @@ func (tm *testModule) StartADocker() (*dockerCmdWrapper, error) {
 func (tm *testModule) GetDumpFromDocker(dockerInstance *dockerCmdWrapper) (*activityDumpIdentifier, error) {
 	dumps, err := tm.ListActivityDumps()
 	if err != nil {
-		_, _ = dockerInstance.stop()
 		return nil, err
 	}
 	dump := findLearningContainerID(dumps, dockerInstance.containerID)
 	if dump == nil {
-		_, _ = dockerInstance.stop()
 		return nil, errors.New("ContainerID not found on activity dump list")
 	}
 	return dump, nil
@@ -1319,6 +1317,7 @@ func (tm *testModule) StartADockerGetDump() (*dockerCmdWrapper, *activityDumpIde
 	}
 	dump, err := tm.GetDumpFromDocker(dockerInstance)
 	if err != nil {
+		_, _ = dockerInstance.stop()
 		return nil, nil, err
 	}
 	return dockerInstance, dump, nil
