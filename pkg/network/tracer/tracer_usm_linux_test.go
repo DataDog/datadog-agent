@@ -1304,6 +1304,7 @@ func testPostgresProtocolClassification(t *testing.T, tr *Tracer, clientHost, ta
 				})
 				ctx.extras["pg"] = pg
 				require.NoError(t, pg.RunCreateQuery())
+				require.NoError(t, pg.RunInsertQuery(1))
 			},
 			postTracerSetup: func(t *testing.T, ctx testContext) {
 				pg := ctx.extras["pg"].(*pgutils.PGClient)
