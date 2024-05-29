@@ -12,6 +12,7 @@ packaging_oci:
     KUBERNETES_CPU_REQUEST: 16
     KUBERNETES_MEMORY_REQUEST: "32Gi"
     KUBERNETES_MEMORY_LIMIT: "32Gi"
+    OCI_PRODUCT: "datadog-agent"
   script:
     - python3 -m pip install -r tasks/libs/requirements-github.txt
     - export GITHUB_KEY_B64=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh ci.datadog-agent.platform-github-app-key)
