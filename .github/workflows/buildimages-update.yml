@@ -3,33 +3,100 @@ name: Update buildimages
 on:
   workflow_dispatch:
     inputs:
-      job_failures:
-        description: 'Job failures'
+      images_id:
+        description: 'Images ID'
         required: true
         type: string
+      go_version:
+        description: 'Go version'
+        required: true
+        type: string
+      branch:
+        description: 'Git branch to use'
+        required: true
+        type: string
+      test_version:
+        description: 'Whether the images are test images'
+        required: true
+        type: boolean
+      include_otel_modules:
+        description: 'Whether to also bump the Go version in modules used by OpenTelemetry'
+        required: true
+        type: boolean
 
 jobs:
-  send-failure-summary-team-notification:
+  open-go-update-pr:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write # push commit and branch
+
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - name: Checkout branch
+        uses: actions/checkout@0ad4b8fadaa221de15dcec353f45205ec38ea70b # v4.1.4
         with:
-          # TODO
-          ref: celian/rfc-team-notifications-2-acix-253
-          fetch-depth: 0
-      - name: Setup python
-        uses: actions/setup-python@v5
+          ref: ${{ github.head_ref }}
+
+      - name: Fetch branch
+        # this step needs the github repository to be already cloned locally
+        id: branch_fetch
+        run: |
+          if git fetch origin "refs/heads/${{ inputs.branch }}"; then
+            echo "RESULT=true" >> $GITHUB_OUTPUT
+          else
+            echo "RESULT=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Checkout branch
+        uses: actions/checkout@0ad4b8fadaa221de15dcec353f45205ec38ea70b # v4.1.4
+        if: ${{ steps.branch_fetch.outputs.RESULT == 'true' }}
         with:
+          ref: ${{ inputs.branch }}
+
+      - name: Setup Python and pip
+        uses: actions/setup-python@82c7e631bb3cdc910f68e0081d67478d79c6982d # v5.1.0
+        with:
+          # use Python < 3.12 so that distutil is still available by default
           python-version: 3.11
-          cache: 'pip'
-          cache-dependency-path: '**/requirements*.txt'
-      - name: Install dependencies
-        run: pip install -r requirements.txt -r tasks/requirements.txt
-      - name: Create and send failure summary notification to team channel
-        id: send_failure_summary_team_notification
+          cache: "pip"
+
+      - uses: actions/setup-go@0c52d547c9bc32b1aa3301fd7a9cb496313a4491 # v5.0.0
+        with:
+          # use the go version from the input, not from the .go-version file
+          # in case it's a Go update PR
+          go-version: ${{ inputs.go_version }}
+
+      - name: Install python dependencies
+        run: |
+          python3 -m pip install -r requirements.txt
+
+      - name: Get current Go version
+        id: current_go_version
+        run: |
+          echo "GO_VERSION=$(inv go-version)" >> $GITHUB_OUTPUT
+
+      - name: Update buildimages IDs and Go version
+        id: update_build_images
         env:
-          # Too much data to be passed by arguments
-          JOB_FAILURES: ${{ inputs.job_failures }}
-          SLACK_API_TOKEN: ${{ secrets.SLACK_DATADOG_AGENT_BOT_TOKEN }}
-        run: inv -e notify.send-failure-summary-notification
+          TEST_VERSION_FLAG: ${{ inputs.test_version && '--test-version' || '--no-test-version' }}
+          INCLUDE_OTEL_MODULES: ${{ inputs.include_otel_modules && '--include-otel-modules' || '' }}
+        run: |
+          if [ "${{ steps.current_go_version.outputs.GO_VERSION }}" = "${{ inputs.go_version }}" ]; then
+            inv -e buildimages.update --image-tag ${{ inputs.images_id }} $TEST_VERSION_FLAG
+            echo 'MESSAGE=Update buildimages ID to ${{ inputs.images_id }}' >> $GITHUB_OUTPUT
+          else
+            inv -e update-go --image-tag ${{ inputs.images_id }} $TEST_VERSION_FLAG $INCLUDE_OTEL_MODULES -v "${{ inputs.go_version }}"
+            echo 'MESSAGE=Update Go version to ${{ inputs.go_version }}' >> $GITHUB_OUTPUT
+          fi
+
+      - uses: stefanzweifel/git-auto-commit-action@8621497c8c39c72f3e2a999a26b4ca1b5058a842 # v5.0.1
+        id: autocommit
+        with:
+          commit_message: ${{ steps.update_build_images.outputs.MESSAGE }}
+          branch: ${{ inputs.branch }}
+          create_branch: true
+          # allow empty commits, so that the branch always exists if the workflow succeeds
+          commit_options: '--allow-empty'
+          skip_dirty_check: true # prevents pushing an empty commit if false
+          # the action fetches all branches and tags, in our case the branches we care about are already fetched
+          # if they exist, so we can skip the fetch
+          skip_fetch: true
