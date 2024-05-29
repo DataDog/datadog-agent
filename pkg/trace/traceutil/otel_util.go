@@ -7,6 +7,7 @@ package traceutil
 
 import (
 	"context"
+	"encoding/binary"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
@@ -167,7 +168,7 @@ func GetOTelService(span ptrace.Span, res pcommon.Resource, normalize bool) stri
 func GetOTelResource(span ptrace.Span, res pcommon.Resource) (resName string) {
 	resName = GetOTelAttrValInResAndSpanAttrs(span, res, false, "resource.name")
 	if resName == "" {
-		if m := GetOTelAttrValInResAndSpanAttrs(span, res, false, semconv.AttributeHTTPMethod); m != "" {
+		if m := GetOTelAttrValInResAndSpanAttrs(span, res, false, "http.request.method", semconv.AttributeHTTPMethod); m != "" {
 			// use the HTTP method + route (if available)
 			resName = m
 			if route := GetOTelAttrValInResAndSpanAttrs(span, res, false, semconv.AttributeHTTPRoute); route != "" {
@@ -264,6 +265,9 @@ func GetOTelHostname(span ptrace.Span, res pcommon.Resource, tr *attributes.Tran
 
 // GetOTelStatusCode returns the DD status code of the OTel span.
 func GetOTelStatusCode(span ptrace.Span) uint32 {
+	if code, ok := span.Attributes().Get("http.response.status_code"); ok {
+		return uint32(code.Int())
+	}
 	if code, ok := span.Attributes().Get(semconv.AttributeHTTPStatusCode); ok {
 		return uint32(code.Int())
 	}
@@ -272,12 +276,51 @@ func GetOTelStatusCode(span ptrace.Span) uint32 {
 
 // GetOTelContainerTags returns a list of DD container tags in the OTel resource attributes.
 // Tags are always normalized.
-func GetOTelContainerTags(rattrs pcommon.Map) []string {
+func GetOTelContainerTags(rattrs pcommon.Map, tagKeys []string) []string {
 	var containerTags []string
 	containerTagsMap := attributes.ContainerTagsFromResourceAttributes(rattrs)
-	for k, v := range containerTagsMap {
-		t := NormalizeTag(k + ":" + v)
-		containerTags = append(containerTags, t)
+	for _, key := range tagKeys {
+		if mappedKey, ok := attributes.ContainerMappings[key]; ok {
+			// If the key has a mapping in ContainerMappings, use the mapped key
+			if val, ok := containerTagsMap[mappedKey]; ok {
+				t := NormalizeTag(mappedKey + ":" + val)
+				containerTags = append(containerTags, t)
+			}
+		} else {
+			// Otherwise populate as additional container tags
+			if val := GetOTelAttrVal(rattrs, false, key); val != "" {
+				t := NormalizeTag(key + ":" + val)
+				containerTags = append(containerTags, t)
+			}
+		}
 	}
 	return containerTags
+}
+
+// OTelTraceIDToUint64 converts an OTel trace ID to an uint64
+func OTelTraceIDToUint64(b [16]byte) uint64 {
+	return binary.BigEndian.Uint64(b[len(b)-8:])
+}
+
+// OTelSpanIDToUint64 converts an OTel span ID to an uint64
+func OTelSpanIDToUint64(b [8]byte) uint64 {
+	return binary.BigEndian.Uint64(b[:])
+}
+
+var spanKindNames = map[ptrace.SpanKind]string{
+	ptrace.SpanKindUnspecified: "unspecified",
+	ptrace.SpanKindInternal:    "internal",
+	ptrace.SpanKindServer:      "server",
+	ptrace.SpanKindClient:      "client",
+	ptrace.SpanKindProducer:    "producer",
+	ptrace.SpanKindConsumer:    "consumer",
+}
+
+// OTelSpanKindName converts the given SpanKind to a valid Datadog span kind name.
+func OTelSpanKindName(k ptrace.SpanKind) string {
+	name, ok := spanKindNames[k]
+	if !ok {
+		return "unspecified"
+	}
+	return name
 }

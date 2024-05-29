@@ -281,6 +281,14 @@ func NewBufferedAggregator(s serializer.MetricSerializer, eventPlatformForwarder
 		agentName = flavor.HerokuAgent
 	}
 
+	if config.Datadog().GetBool("djm_config.enabled") {
+		AddRecurrentSeries(&metrics.Serie{
+			Name:   "datadog.djm.agent_host",
+			Points: []metrics.Point{{Value: 1.0}},
+			MType:  metrics.APIGaugeType,
+		})
+	}
+
 	tagsStore := tags.NewStore(config.Datadog().GetBool("aggregator_use_tags_store"), "aggregator")
 
 	aggregator := &BufferedAggregator{
@@ -812,13 +820,13 @@ func (agg *BufferedAggregator) tags(withVersion bool) []string {
 	var tags []string
 
 	var err error
-	tags, err = agg.globalTags(tagger.ChecksCardinality)
+	tags, err = agg.globalTags(tagger.ChecksCardinality())
 	if err != nil {
 		log.Debugf("Couldn't get Global tags: %v", err)
 	}
 
 	if agg.tlmContainerTagsEnabled {
-		agentTags, err := agg.agentTags(tagger.ChecksCardinality)
+		agentTags, err := agg.agentTags(tagger.ChecksCardinality())
 		if err == nil {
 			if tags == nil {
 				tags = agentTags

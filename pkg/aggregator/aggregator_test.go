@@ -595,6 +595,30 @@ func TestTimeSamplerFlush(t *testing.T) {
 	assertSeriesEqual(t, s.series, expectedSeries)
 }
 
+func TestAddDJMRecurrentSeries(t *testing.T) {
+	// this test IS USING globals (recurrentSeries)
+	// -
+
+	djmEnabled := pkgconfig.Datadog().GetBool("djm_config.enabled")
+	pkgconfig.Datadog().SetWithoutSource("djm_config.enabled", true)
+	defer pkgconfig.Datadog().SetWithoutSource("djm_config.enabled", djmEnabled)
+
+	s := &MockSerializerIterableSerie{}
+	// NewBufferedAggregator with DJM enable will create a new recurrentSeries
+	NewBufferedAggregator(s, nil, "hostname", DefaultFlushInterval)
+
+	expectedRecurrentSeries := metrics.Series{&metrics.Serie{
+		Name:   "datadog.djm.agent_host",
+		Points: []metrics.Point{{Value: 1.0}},
+		MType:  metrics.APIGaugeType,
+	}}
+
+	require.EqualValues(t, expectedRecurrentSeries, recurrentSeries)
+
+	// Reset recurrentSeries
+	recurrentSeries = metrics.Series{}
+}
+
 // The implementation of MockSerializer.SendIterableSeries uses `s.Called(series).Error(0)`.
 // It calls internaly `Printf` on each field of the real type of `IterableStreamJSONMarshaler` which is `IterableSeries`.
 // It can lead to a race condition, if another goruntine call `IterableSeries.Append` which modifies `series.count`.

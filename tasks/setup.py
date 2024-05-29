@@ -4,6 +4,7 @@ Helpers for setting up your environment
 
 from __future__ import annotations
 
+import os
 import re
 import sys
 from collections.abc import Iterable
@@ -171,13 +172,21 @@ def enable_pre_commit(ctx) -> SetupResult:
     if running_in_pyapp():
         import shutil
 
-        # We use a custom version that use devagent instead of inv directly, that requires the venv to be loaded
+        # TODO Remove in a couple of weeks
+        # Remove the old devagent file if it exists
+        if os.path.isfile(".pre-commit-config-devagent.yaml"):
+            os.remove(".pre-commit-config-devagent.yaml")
+
+        # We use a custom version that use deva instead of inv directly, that requires the venv to be loaded
         from pre_commit import update_pyapp_file
 
         config_file = update_pyapp_file()
-        if not shutil.which("devagent"):
+        if not shutil.which("deva"):
             status = Status.WARN
-            message = "`devagent` is not in your PATH"
+            if shutil.which("devagent"):
+                message = "`devagent` has been renamed `deva`. Please, rename your binary, no need to download the new version."
+            else:
+                message = "`deva` is not in your PATH"
     else:
         config_file = ".pre-commit-config.yaml"
 

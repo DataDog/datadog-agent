@@ -36,6 +36,8 @@ const (
 	updateSingleValueQuery = "UPDATE dummy SET foo = 'updated' WHERE id = 1"
 	selectAllQuery         = "SELECT * FROM dummy"
 	dropTableQuery         = "DROP TABLE IF EXISTS dummy"
+	deleteTableQuery       = "DELETE FROM dummy WHERE id = 1"
+	alterTableQuery        = "ALTER TABLE dummy ADD test VARCHAR(255);"
 )
 
 func createInsertQuery(values ...string) string {
@@ -253,6 +255,54 @@ func testDecoding(t *testing.T, isTLS bool) {
 				validatePostgres(t, monitor, map[string]map[postgres.Operation]int{
 					"dummy": {
 						postgres.SelectOP: adjustCount(1),
+					},
+				})
+			},
+		},
+		{
+			name: "delete row from table",
+			preMonitorSetup: func(t *testing.T, ctx testContext) {
+				pg, err := postgres.NewPGXClient(postgres.ConnectionOptions{
+					ServerAddress: ctx.serverAddress,
+					EnableTLS:     isTLS,
+				})
+				require.NoError(t, err)
+				require.NoError(t, pg.Ping())
+				ctx.extras["pg"] = pg
+				require.NoError(t, pg.RunQuery(createTableQuery))
+			},
+			postMonitorSetup: func(t *testing.T, ctx testContext) {
+				pg := ctx.extras["pg"].(*postgres.PGXClient)
+				require.NoError(t, pg.RunQuery(deleteTableQuery))
+			},
+			validation: func(t *testing.T, ctx testContext, monitor *Monitor) {
+				validatePostgres(t, monitor, map[string]map[postgres.Operation]int{
+					"dummy": {
+						postgres.DeleteTableOP: adjustCount(1),
+					},
+				})
+			},
+		},
+		{
+			name: "alter command",
+			preMonitorSetup: func(t *testing.T, ctx testContext) {
+				pg, err := postgres.NewPGXClient(postgres.ConnectionOptions{
+					ServerAddress: ctx.serverAddress,
+					EnableTLS:     isTLS,
+				})
+				require.NoError(t, err)
+				require.NoError(t, pg.Ping())
+				ctx.extras["pg"] = pg
+				require.NoError(t, pg.RunQuery(createTableQuery))
+			},
+			postMonitorSetup: func(t *testing.T, ctx testContext) {
+				pg := ctx.extras["pg"].(*postgres.PGXClient)
+				require.NoError(t, pg.RunQuery(alterTableQuery))
+			},
+			validation: func(t *testing.T, ctx testContext, monitor *Monitor) {
+				validatePostgres(t, monitor, map[string]map[postgres.Operation]int{
+					"dummy": {
+						postgres.AlterTableOP: adjustCount(1),
 					},
 				})
 			},
