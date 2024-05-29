@@ -488,7 +488,7 @@ def send_failure_summary_notification(_, list_max_len=10):
 
     # TODO : Send multiple messages if necessary
     client = WebClient(os.environ["SLACK_API_TOKEN"])
-    client.chat_postMessage(channel='#celian-tests', text=message, name='Daily Job Failure Report', icon_emoji=':datadog:')
+    client.chat_postMessage(channel='#celian-tests', text='\n'.join(message), name='Daily Job Failure Report', icon_emoji=':datadog:')
 
     print('Message sent')
 
