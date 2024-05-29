@@ -92,7 +92,7 @@ func TestMetadataProvider(t *testing.T) {
 func TestFlareProvider(t *testing.T) {
 	i := getTestInventoryPayload(t, nil)
 
-	assert.NotNil(t, i.FlareProvider().Provider)
+	assert.NotNil(t, i.FlareProvider().Callback)
 }
 
 func TestGetAsJSON(t *testing.T) {

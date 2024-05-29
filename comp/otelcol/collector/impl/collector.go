@@ -14,15 +14,16 @@ import (
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/otelcol"
 
+	flarebuilder "github.com/DataDog/datadog-agent/comp/core/flare/builder"
 	corelog "github.com/DataDog/datadog-agent/comp/core/log"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	collectorcontrib "github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/def"
-	collectordef "github.com/DataDog/datadog-agent/comp/otelcol/collector/def"
+	collector "github.com/DataDog/datadog-agent/comp/otelcol/collector/def"
 	"github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline"
-	"github.com/DataDog/datadog-agent/comp/otelcol/otlp"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/datadogexporter"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/serializerexporter"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/processor/infraattributesprocessor"
+	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/datatype"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	zapAgent "github.com/DataDog/datadog-agent/pkg/util/log/zap"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
@@ -30,7 +31,15 @@ import (
 	"go.uber.org/zap/zapcore"
 )
 
-type dependencies struct {
+type collectorImpl struct {
+	log          corelog.Component
+	set          otelcol.CollectorSettings
+	col          *otelcol.Collector
+	flareEnabled bool
+}
+
+// Requires declares the input types to the constructor
+type Requires struct {
 	// Lc specifies the compdef lifecycle settings, used for appending startup
 	// and shutdown hooks.
 	Lc compdef.Lifecycle
@@ -44,14 +53,16 @@ type dependencies struct {
 	SourceProvider   serializerexporter.SourceProviderFunc
 }
 
-type collector struct {
-	deps dependencies
-	set  otelcol.CollectorSettings
-	col  *otelcol.Collector
+// Provides declares the output types from the constructor
+type Provides struct {
+	compdef.Out
+
+	Comp          collector.Component
+	FlareProvider flarebuilder.Provider
 }
 
-// New returns a new instance of the collector component.
-func New(deps dependencies) (collectordef.Component, error) {
+// NewComponent returns a new instance of the collector component.
+func NewComponent(reqs Requires) (Provides, error) {
 	// Replace default core to use Agent logger
 	options := []zap.Option{
 		zap.WrapCore(func(zapcore.Core) zapcore.Core {
@@ -66,53 +77,64 @@ func New(deps dependencies) (collectordef.Component, error) {
 		},
 		LoggingOptions: options,
 		Factories: func() (otelcol.Factories, error) {
-			factories, err := deps.CollectorContrib.OTelComponentFactories()
+			factories, err := reqs.CollectorContrib.OTelComponentFactories()
 			if err != nil {
 				return otelcol.Factories{}, err
 			}
-			if v, ok := deps.LogsAgent.Get(); ok {
-				factories.Exporters[datadogexporter.Type] = datadogexporter.NewFactory(deps.Serializer, v, deps.SourceProvider)
+			if v, ok := reqs.LogsAgent.Get(); ok {
+				factories.Exporters[datadogexporter.Type] = datadogexporter.NewFactory(reqs.Serializer, v, reqs.SourceProvider)
 			} else {
-				factories.Exporters[datadogexporter.Type] = datadogexporter.NewFactory(deps.Serializer, nil, deps.SourceProvider)
+				factories.Exporters[datadogexporter.Type] = datadogexporter.NewFactory(reqs.Serializer, nil, reqs.SourceProvider)
 			}
 			factories.Processors[infraattributesprocessor.Type] = infraattributesprocessor.NewFactory()
 			return factories, nil
 		},
-		ConfigProvider: deps.Provider,
+		ConfigProvider: reqs.Provider,
 	}
 	col, err := otelcol.NewCollector(set)
 	if err != nil {
-		return nil, err
+		return Provides{}, err
 	}
-	c := &collector{
-		deps: deps,
-		set:  set,
-		col:  col,
+	c := &collectorImpl{
+		log: reqs.Log,
+		set: set,
+		col: col,
 	}
 
-	deps.Lc.Append(compdef.Hook{
+	reqs.Lc.Append(compdef.Hook{
 		OnStart: c.start,
 		OnStop:  c.stop,
 	})
-	return c, nil
+	return Provides{
+		Comp:          c,
+		FlareProvider: flarebuilder.NewProvider(c.fillFlare),
+	}, nil
 }
 
-func (c *collector) start(context.Context) error {
+func (c *collectorImpl) start(context.Context) error {
 	go func() {
 		if err := c.col.Run(context.Background()); err != nil {
-			c.deps.Log.Errorf("Error running the collector pipeline: %v", err)
+			c.log.Errorf("Error running the collector pipeline: %v", err)
 		}
 	}()
 	return nil
 }
 
-func (c *collector) stop(context.Context) error {
+func (c *collectorImpl) stop(context.Context) error {
 	c.col.Shutdown()
 	return nil
 }
 
-func (c *collector) Status() otlp.CollectorStatus {
-	return otlp.CollectorStatus{
+func (c *collectorImpl) fillFlare(fb flarebuilder.FlareBuilder) error {
+	if c.flareEnabled {
+		// TODO: placeholder for now, until OTel extension exists to provide data
+		fb.AddFile("otel-agent.log", []byte("otel-agent flare")) //nolint:errcheck
+	}
+	return nil
+}
+
+func (c *collectorImpl) Status() datatype.CollectorStatus {
+	return datatype.CollectorStatus{
 		Status: c.col.GetState().String(),
 	}
 }

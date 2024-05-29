@@ -9,7 +9,7 @@
 // Should be removed once `github.com/DataDog/agent-payload/v5/process` can be imported with CGO disabled.
 //go:build cgo && linux
 
-//nolint:revive // TODO(PLINT) Fix revive linter
+// Package oomkill contains the OOMKill check.
 package oomkill
 
 import (
@@ -118,7 +118,7 @@ func (m *OOMKillCheck) Run() error {
 		entityID := containers.BuildTaggerEntityName(containerID)
 		var tags []string
 		if entityID != "" {
-			tags, err = tagger.Tag(entityID, tagger.ChecksCardinality)
+			tags, err = tagger.Tag(entityID, tagger.ChecksCardinality())
 			if err != nil {
 				log.Errorf("Error collecting tags for container %s: %s", containerID, err)
 			}
@@ -132,7 +132,6 @@ func (m *OOMKillCheck) Run() error {
 			triggerTypeText = "This OOM kill was invoked by the system."
 		}
 		tags = append(tags, "trigger_type:"+triggerType)
-
 		tags = append(tags, "trigger_process_name:"+line.FComm)
 		tags = append(tags, "process_name:"+line.TComm)
 
@@ -141,6 +140,7 @@ func (m *OOMKillCheck) Run() error {
 
 		// submit event with a few more details
 		event := event.Event{
+			AlertType:      event.AlertTypeError,
 			Priority:       event.PriorityNormal,
 			SourceTypeName: CheckName,
 			EventType:      CheckName,

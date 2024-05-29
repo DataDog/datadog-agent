@@ -47,21 +47,26 @@ func (mr *NoOpResolver) Insert(_ model.Mount, _ uint32) error {
 func (mr *NoOpResolver) DelPid(_ uint32) {}
 
 // ResolveMountRoot returns the root of a mount identified by its mount ID.
-func (mr *NoOpResolver) ResolveMountRoot(_ uint32, _ uint32, _ uint32, _ string) (string, error) {
-	return "", nil
+func (mr *NoOpResolver) ResolveMountRoot(_ uint32, _ uint32, _ uint32, _ string) (string, model.MountSource, model.MountOrigin, error) {
+	return "", model.MountSourceUnknown, model.MountOriginUnknown, nil
 }
 
 // ResolveMountPath returns the path of a mount identified by its mount ID.
-func (mr *NoOpResolver) ResolveMountPath(_ uint32, _ uint32, _ uint32, _ string) (string, error) {
-	return "", nil
+func (mr *NoOpResolver) ResolveMountPath(_ uint32, _ uint32, _ uint32, _ string) (string, model.MountSource, model.MountOrigin, error) {
+	return "", model.MountSourceUnknown, model.MountOriginUnknown, nil
 }
 
 // ResolveMount returns the mount
-func (mr *NoOpResolver) ResolveMount(_ uint32, _ uint32, _ uint32, _ string) (*model.Mount, error) {
-	return nil, errors.New("not available")
+func (mr *NoOpResolver) ResolveMount(_ uint32, _ uint32, _ uint32, _ string) (*model.Mount, model.MountSource, model.MountOrigin, error) {
+	return nil, model.MountSourceUnknown, model.MountOriginUnknown, errors.New("not available")
 }
 
 // SendStats sends metrics about the current state of the mount resolver
 func (mr *NoOpResolver) SendStats() error {
 	return nil
+}
+
+// ToJSON return a json version of the cache
+func (mr *NoOpResolver) ToJSON() ([]byte, error) {
+	return nil, nil
 }

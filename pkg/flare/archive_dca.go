@@ -36,7 +36,7 @@ func CreateDCAArchive(local bool, distPath, logFilePath string, pdata ProfileDat
 	}
 
 	confSearchPaths := map[string]string{
-		"":     config.Datadog.GetString("confd_path"),
+		"":     config.Datadog().GetString("confd_path"),
 		"dist": filepath.Join(distPath, "conf.d"),
 	}
 
@@ -47,11 +47,11 @@ func CreateDCAArchive(local bool, distPath, logFilePath string, pdata ProfileDat
 func createDCAArchive(fb flaretypes.FlareBuilder, confSearchPaths map[string]string, logFilePath string, pdata ProfileData, statusComponent status.Component) {
 	// If the request against the API does not go through we don't collect the status log.
 	if fb.IsLocal() {
-		fb.AddFile("local", nil)
+		fb.AddFile("local", nil) //nolint:errcheck
 	} else {
 		// The Status will be unavailable unless the agent is running.
 		// Only zip it up if the agent is running
-		err := fb.AddFileFromFunc("cluster-agent-status.log", func() ([]byte, error) { return statusComponent.GetStatus("text", true) })
+		err := fb.AddFileFromFunc("cluster-agent-status.log", func() ([]byte, error) { return statusComponent.GetStatus("text", true) }) //nolint:errcheck
 		if err != nil {
 			log.Errorf("Error getting the status of the DCA, %q", err)
 			return
@@ -61,28 +61,28 @@ func createDCAArchive(fb flaretypes.FlareBuilder, confSearchPaths map[string]str
 
 	getLogFiles(fb, logFilePath)
 	getConfigFiles(fb, confSearchPaths)
-	getClusterAgentConfigCheck(fb)   //nolint:errcheck
-	getExpVar(fb)                    //nolint:errcheck
-	getMetadataMap(fb)               //nolint:errcheck
-	getClusterAgentClusterChecks(fb) //nolint:errcheck
-	getClusterAgentDiagnose(fb)      //nolint:errcheck
-	fb.AddFileFromFunc("agent-daemonset.yaml", getAgentDaemonSet)
-	fb.AddFileFromFunc("cluster-agent-deployment.yaml", getClusterAgentDeployment)
-	fb.AddFileFromFunc("helm-values.yaml", getHelmValues)
-	fb.AddFileFromFunc("envvars.log", getEnvVars)
-	fb.AddFileFromFunc("telemetry.log", QueryDCAMetrics)
-	fb.AddFileFromFunc("tagger-list.json", getDCATaggerList)
-	fb.AddFileFromFunc("workload-list.log", getDCAWorkloadList)
+	getClusterAgentConfigCheck(fb)                                                 //nolint:errcheck
+	getExpVar(fb)                                                                  //nolint:errcheck
+	getMetadataMap(fb)                                                             //nolint:errcheck
+	getClusterAgentClusterChecks(fb)                                               //nolint:errcheck
+	getClusterAgentDiagnose(fb)                                                    //nolint:errcheck
+	fb.AddFileFromFunc("agent-daemonset.yaml", getAgentDaemonSet)                  //nolint:errcheck
+	fb.AddFileFromFunc("cluster-agent-deployment.yaml", getClusterAgentDeployment) //nolint:errcheck
+	fb.AddFileFromFunc("helm-values.yaml", getHelmValues)                          //nolint:errcheck
+	fb.AddFileFromFunc("envvars.log", getEnvVars)                                  //nolint:errcheck
+	fb.AddFileFromFunc("telemetry.log", QueryDCAMetrics)                           //nolint:errcheck
+	fb.AddFileFromFunc("tagger-list.json", getDCATaggerList)                       //nolint:errcheck
+	fb.AddFileFromFunc("workload-list.log", getDCAWorkloadList)                    //nolint:errcheck
 	getPerformanceProfileDCA(fb, pdata)
 
-	if config.Datadog.GetBool("external_metrics_provider.enabled") {
+	if config.Datadog().GetBool("external_metrics_provider.enabled") {
 		getHPAStatus(fb) //nolint:errcheck
 	}
 }
 
 // QueryDCAMetrics gets the metrics payload exposed by the cluster agent
 func QueryDCAMetrics() ([]byte, error) {
-	r, err := http.Get(fmt.Sprintf("http://localhost:%d/metrics", config.Datadog.GetInt("metrics_port")))
+	r, err := http.Get(fmt.Sprintf("http://localhost:%d/metrics", config.Datadog().GetInt("metrics_port")))
 	if err != nil {
 		return nil, err
 	}
@@ -173,7 +173,7 @@ func getDCATaggerList() ([]byte, error) {
 		return nil, err
 	}
 
-	taggerListURL := fmt.Sprintf("https://%v:%v/tagger-list", ipcAddress, config.Datadog.GetInt("cluster_agent.cmd_port"))
+	taggerListURL := fmt.Sprintf("https://%v:%v/tagger-list", ipcAddress, config.Datadog().GetInt("cluster_agent.cmd_port"))
 
 	return getTaggerList(taggerListURL)
 }
@@ -184,11 +184,11 @@ func getDCAWorkloadList() ([]byte, error) {
 		return nil, err
 	}
 
-	return getWorkloadList(fmt.Sprintf("https://%v:%v/workload-list?verbose=true", ipcAddress, config.Datadog.GetInt("cluster_agent.cmd_port")))
+	return getWorkloadList(fmt.Sprintf("https://%v:%v/workload-list?verbose=true", ipcAddress, config.Datadog().GetInt("cluster_agent.cmd_port")))
 }
 
 func getPerformanceProfileDCA(fb flaretypes.FlareBuilder, pdata ProfileData) {
 	for name, data := range pdata {
-		fb.AddFileWithoutScrubbing(filepath.Join("profiles", name), data)
+		fb.AddFileWithoutScrubbing(filepath.Join("profiles", name), data) //nolint:errcheck
 	}
 }

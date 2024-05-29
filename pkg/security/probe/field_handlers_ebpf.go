@@ -49,11 +49,14 @@ func (fh *EBPFFieldHandlers) ResolveProcessCacheEntry(ev *model.Event) (*model.P
 // ResolveFilePath resolves the inode to a full path
 func (fh *EBPFFieldHandlers) ResolveFilePath(ev *model.Event, f *model.FileEvent) string {
 	if !f.IsPathnameStrResolved && len(f.PathnameStr) == 0 {
-		path, err := fh.resolvers.PathResolver.ResolveFileFieldsPath(&f.FileFields, &ev.PIDContext, ev.ContainerContext)
+		path, mountPath, source, origin, err := fh.resolvers.PathResolver.ResolveFileFieldsPath(&f.FileFields, &ev.PIDContext, ev.ContainerContext)
 		if err != nil {
 			ev.SetPathResolutionError(f, err)
 		}
 		f.SetPathnameStr(path)
+		f.MountPath = mountPath
+		f.MountSource = source
+		f.MountOrigin = origin
 	}
 
 	return f.PathnameStr
@@ -124,7 +127,7 @@ func (fh *EBPFFieldHandlers) ResolveXAttrNamespace(ev *model.Event, e *model.Set
 // ResolveMountPointPath resolves a mount point path
 func (fh *EBPFFieldHandlers) ResolveMountPointPath(ev *model.Event, e *model.MountEvent) string {
 	if len(e.MountPointPath) == 0 {
-		mountPointPath, err := fh.resolvers.MountResolver.ResolveMountPath(e.MountID, 0, ev.PIDContext.Pid, ev.ContainerContext.ID)
+		mountPointPath, _, _, err := fh.resolvers.MountResolver.ResolveMountPath(e.MountID, 0, ev.PIDContext.Pid, ev.ContainerContext.ID)
 		if err != nil {
 			e.MountPointPathResolutionError = err
 			return ""
@@ -137,7 +140,7 @@ func (fh *EBPFFieldHandlers) ResolveMountPointPath(ev *model.Event, e *model.Mou
 // ResolveMountSourcePath resolves a mount source path
 func (fh *EBPFFieldHandlers) ResolveMountSourcePath(ev *model.Event, e *model.MountEvent) string {
 	if e.BindSrcMountID != 0 && len(e.MountSourcePath) == 0 {
-		bindSourceMountPath, err := fh.resolvers.MountResolver.ResolveMountPath(e.BindSrcMountID, 0, ev.PIDContext.Pid, ev.ContainerContext.ID)
+		bindSourceMountPath, _, _, err := fh.resolvers.MountResolver.ResolveMountPath(e.BindSrcMountID, 0, ev.PIDContext.Pid, ev.ContainerContext.ID)
 		if err != nil {
 			e.MountSourcePathResolutionError = err
 			return ""
@@ -155,7 +158,7 @@ func (fh *EBPFFieldHandlers) ResolveMountSourcePath(ev *model.Event, e *model.Mo
 // ResolveMountRootPath resolves a mount root path
 func (fh *EBPFFieldHandlers) ResolveMountRootPath(ev *model.Event, e *model.MountEvent) string {
 	if len(e.MountRootPath) == 0 {
-		mountRootPath, err := fh.resolvers.MountResolver.ResolveMountRoot(e.MountID, 0, ev.PIDContext.Pid, ev.ContainerContext.ID)
+		mountRootPath, _, _, err := fh.resolvers.MountResolver.ResolveMountRoot(e.MountID, 0, ev.PIDContext.Pid, ev.ContainerContext.ID)
 		if err != nil {
 			e.MountRootPathResolutionError = err
 			return ""
@@ -392,7 +395,7 @@ func (fh *EBPFFieldHandlers) ResolvePackageName(ev *model.Event, f *model.FileEv
 			return ""
 		}
 
-		if pkg := fh.resolvers.SBOMResolver.ResolvePackage(ev.ProcessCacheEntry.ContainerID, f); pkg != nil {
+		if pkg := fh.resolvers.SBOMResolver.ResolvePackage(ev.ContainerContext.ID, f); pkg != nil {
 			f.PkgName = pkg.Name
 		}
 	}
@@ -411,7 +414,7 @@ func (fh *EBPFFieldHandlers) ResolvePackageVersion(ev *model.Event, f *model.Fil
 			return ""
 		}
 
-		if pkg := fh.resolvers.SBOMResolver.ResolvePackage(ev.ProcessCacheEntry.ContainerID, f); pkg != nil {
+		if pkg := fh.resolvers.SBOMResolver.ResolvePackage(ev.ContainerContext.ID, f); pkg != nil {
 			f.PkgVersion = pkg.Version
 		}
 	}
@@ -430,7 +433,7 @@ func (fh *EBPFFieldHandlers) ResolvePackageSourceVersion(ev *model.Event, f *mod
 			return ""
 		}
 
-		if pkg := fh.resolvers.SBOMResolver.ResolvePackage(ev.ProcessCacheEntry.ContainerID, f); pkg != nil {
+		if pkg := fh.resolvers.SBOMResolver.ResolvePackage(ev.ContainerContext.ID, f); pkg != nil {
 			f.PkgSrcVersion = pkg.SrcVersion
 		}
 	}
@@ -508,7 +511,7 @@ func (fh *EBPFFieldHandlers) ResolveProcessCreatedAt(_ *model.Event, e *model.Pr
 // ResolveUserSessionContext resolves and updates the provided user session context
 func (fh *EBPFFieldHandlers) ResolveUserSessionContext(evtCtx *model.UserSessionContext) {
 	if !evtCtx.Resolved {
-		ctx := fh.resolvers.UserSessions.ResolveUserSession(evtCtx.ID)
+		ctx := fh.resolvers.UserSessionsResolver.ResolveUserSession(evtCtx.ID)
 		if ctx != nil {
 			*evtCtx = *ctx
 		}
@@ -537,4 +540,53 @@ func (fh *EBPFFieldHandlers) ResolveK8SGroups(_ *model.Event, evtCtx *model.User
 func (fh *EBPFFieldHandlers) ResolveProcessCmdArgv(ev *model.Event, process *model.Process) []string {
 	cmdline := []string{fh.ResolveProcessArgv0(ev, process)}
 	return append(cmdline, fh.ResolveProcessArgv(ev, process)...)
+}
+
+// ResolveAWSSecurityCredentials resolves and updates the AWS security credentials of the input process entry
+func (fh *EBPFFieldHandlers) ResolveAWSSecurityCredentials(e *model.Event) []model.AWSSecurityCredentials {
+	return fh.resolvers.ProcessResolver.FetchAWSSecurityCredentials(e)
+}
+
+// ResolveSyscallCtxArgs resolve syscall ctx
+func (fh *EBPFFieldHandlers) ResolveSyscallCtxArgs(_ *model.Event, e *model.SyscallContext) {
+	if !e.Resolved {
+		_ = fh.resolvers.SyscallCtxResolver.Resolve(e.ID, e)
+		e.Resolved = true
+	}
+}
+
+// ResolveSyscallCtxArgsStr1 resolve syscall ctx
+func (fh *EBPFFieldHandlers) ResolveSyscallCtxArgsStr1(ev *model.Event, e *model.SyscallContext) string {
+	fh.ResolveSyscallCtxArgs(ev, e)
+	return e.StrArg1
+}
+
+// ResolveSyscallCtxArgsStr2 resolve syscall ctx
+func (fh *EBPFFieldHandlers) ResolveSyscallCtxArgsStr2(ev *model.Event, e *model.SyscallContext) string {
+	fh.ResolveSyscallCtxArgs(ev, e)
+	return e.StrArg2
+}
+
+// ResolveSyscallCtxArgsStr3 resolve syscall ctx
+func (fh *EBPFFieldHandlers) ResolveSyscallCtxArgsStr3(ev *model.Event, e *model.SyscallContext) string {
+	fh.ResolveSyscallCtxArgs(ev, e)
+	return e.StrArg3
+}
+
+// ResolveSyscallCtxArgsInt1 resolve syscall ctx
+func (fh *EBPFFieldHandlers) ResolveSyscallCtxArgsInt1(ev *model.Event, e *model.SyscallContext) int {
+	fh.ResolveSyscallCtxArgs(ev, e)
+	return int(e.IntArg1)
+}
+
+// ResolveSyscallCtxArgsInt2 resolve syscall ctx
+func (fh *EBPFFieldHandlers) ResolveSyscallCtxArgsInt2(ev *model.Event, e *model.SyscallContext) int {
+	fh.ResolveSyscallCtxArgs(ev, e)
+	return int(e.IntArg2)
+}
+
+// ResolveSyscallCtxArgsInt3 resolve syscall ctx
+func (fh *EBPFFieldHandlers) ResolveSyscallCtxArgsInt3(ev *model.Event, e *model.SyscallContext) int {
+	fh.ResolveSyscallCtxArgs(ev, e)
+	return int(e.IntArg3)
 }

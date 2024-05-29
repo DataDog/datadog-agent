@@ -14,10 +14,13 @@ var (
 	// InstallPath is the default install path for the agent
 	// It might be overridden at build time
 	InstallPath = "/opt/datadog-agent"
+
+	// defaultRunPath is the default path for the agent's runtime files
+	// It might be overridden at build time
+	defaultRunPath = "/opt/datadog-agent/run"
 )
 
 var (
-	defaultRunPath = filepath.Join(InstallPath, "run")
 	// defaultSystemProbeAddress is the default unix socket path to be used for connecting to the system probe
 	defaultSystemProbeAddress = filepath.Join(InstallPath, "run/sysprobe.sock")
 	// defaultEventMonitorAddress is the default unix socket path to be used for connecting to the event monitor
