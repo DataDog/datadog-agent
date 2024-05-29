@@ -2,7 +2,7 @@ module github.com/DataDog/datadog-agent/comp/otelcol/provider/def
 
 go 1.21.0
 
-require go.opentelemetry.io/collector/otelcol v0.101.0
+require go.opentelemetry.io/collector/otelcol v0.100.0
 
 require (
 	github.com/beorn7/perks v1.0.1 // indirect

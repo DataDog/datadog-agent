@@ -716,7 +716,7 @@ require (
 	go.opentelemetry.io/collector/confmap/provider/httpsprovider v0.101.0
 	go.opentelemetry.io/collector/confmap/provider/yamlprovider v0.101.0
 	go.opentelemetry.io/collector/extension v0.101.0
-	go.opentelemetry.io/collector/otelcol v0.101.0
+	go.opentelemetry.io/collector/otelcol v0.100.0
 	go.opentelemetry.io/collector/processor v0.101.0
 	go.opentelemetry.io/collector/service v0.101.0
 	go.uber.org/goleak v1.3.0

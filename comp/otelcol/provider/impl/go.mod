@@ -18,7 +18,7 @@ require (
 	go.opentelemetry.io/collector/connector v0.101.0
 	go.opentelemetry.io/collector/exporter v0.101.0
 	go.opentelemetry.io/collector/extension v0.101.0
-	go.opentelemetry.io/collector/otelcol v0.101.0
+	go.opentelemetry.io/collector/otelcol v0.100.0
 	go.opentelemetry.io/collector/processor v0.101.0
 	go.opentelemetry.io/collector/receiver v0.101.0
 	gopkg.in/yaml.v3 v3.0.1
