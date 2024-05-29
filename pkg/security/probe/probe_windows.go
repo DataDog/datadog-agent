@@ -11,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
+	"slices"
 	"sync"
 	"time"
 
@@ -102,8 +103,10 @@ type WindowsProbe struct {
 	// channel handling.  Currently configurable, but should probably be set
 	// to false with a configurable size value
 	blockonchannelsend bool
+
 	// approvers
-	approvers map[eval.Field][]approver
+	currentEventTypes []string
+	approvers         map[eval.Field][]approver
 }
 
 type approver interface {
@@ -321,9 +324,11 @@ func (p *WindowsProbe) Stop() {
 
 func (p *WindowsProbe) approveFimBasename(value string) bool {
 	fields := []string{"create.file.name", "rename.file.name", "delete.file.name", "write.file.name"}
+	eventTypes := []string{"create", "rename", "delete", "write"}
 
-	for _, field := range fields {
-		if p.approve(field, value) {
+	for i, field := range fields {
+		eventType := eventTypes[i]
+		if p.approve(field, eventType, value) {
 			return true
 		}
 	}
@@ -331,11 +336,11 @@ func (p *WindowsProbe) approveFimBasename(value string) bool {
 }
 
 // currently support only string base approver for now
-func (p *WindowsProbe) approve(field eval.Field, value string) bool {
+func (p *WindowsProbe) approve(field eval.Field, eventType string, value string) bool {
 	approvers, exists := p.approvers[field]
 	if !exists {
-		// no approvers, so no filtering for this field
-		return true
+		// no approvers, so no filtering for this field, except if no rule for this event type
+		return slices.Contains(p.currentEventTypes, eventType)
 	}
 
 	for _, approver := range approvers {
@@ -1017,7 +1022,9 @@ func (p *WindowsProbe) ApplyRuleSet(rs *rules.RuleSet) (*kfilters.ApplyRuleSetRe
 	p.isRenameEnabled = false
 	p.isDeleteEnabled = false
 
-	for _, eventType := range rs.GetEventTypes() {
+	p.currentEventTypes = rs.GetEventTypes()
+
+	for _, eventType := range p.currentEventTypes {
 		switch eventType {
 		case model.FileRenameEventType.String():
 			p.isRenameEnabled = true
@@ -1033,7 +1040,9 @@ func (p *WindowsProbe) ApplyRuleSet(rs *rules.RuleSet) (*kfilters.ApplyRuleSetRe
 		return nil, err
 	}
 
-	clear(p.approvers) // remove old approvers
+	// remove old approvers
+	clear(p.approvers)
+
 	for eventType, report := range ars.Policies {
 		if err := p.SetApprovers(eventType, report.Approvers); err != nil {
 			return nil, err
