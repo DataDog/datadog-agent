@@ -149,7 +149,7 @@ func (t *TCPv4) sendAndReceive(rawIcmpConn *ipv4.RawConn, rawTCPConn *ipv4.RawCo
 	}
 
 	start := time.Now() // TODO: is this the best place to start?
-	hopIP, hopPort, icmpType, end, err := listenAnyPacket(rawIcmpConn, rawTCPConn, timeout, t.srcIP, t.srcPort, t.Target, t.DestPort, seqNum)
+	hopIP, hopPort, icmpType, end, err := listenPackets(rawIcmpConn, rawTCPConn, timeout, t.srcIP, t.srcPort, t.Target, t.DestPort, seqNum)
 	if err != nil {
 		log.Errorf("failed to listen for packets: %s", err.Error())
 		return nil, err

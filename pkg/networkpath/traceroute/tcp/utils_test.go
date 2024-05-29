@@ -3,9 +3,12 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// go:build test
+
 package tcp
 
 import (
+	"context"
 	"net"
 	"reflect"
 	"strings"
@@ -15,6 +18,7 @@ import (
 	"github.com/google/gopacket/layers"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/net/ipv4"
 )
 
 var (
@@ -22,7 +26,42 @@ var (
 	dstIP = net.ParseIP("5.6.7.8")
 )
 
-func TestParseIPv4Layer(t *testing.T) {
+func Test_handlePackets(t *testing.T) {
+	tt := []struct {
+		description string
+		// input
+		ctx        context.Context
+		conn       *ipv4.RawConn
+		listener   string
+		localIP    net.IP
+		localPort  uint16
+		remoteIP   net.IP
+		remotePort uint16
+		seqNum     uint32
+		// output
+		expectedIP       net.IP
+		expectedPort     uint16
+		expectedTypeCode layers.ICMPv4TypeCode
+		errMsg           string
+	}{}
+
+	for _, test := range tt {
+		t.Run(test.description, func(t *testing.T) {
+			actualIP, actualPort, actualTypeCode, err := handlePackets(test.ctx, test.conn, test.listener, test.localIP, test.localPort, test.remoteIP, test.remotePort, test.seqNum)
+			if test.errMsg != "" {
+				require.Error(t, err)
+				assert.True(t, strings.Contains(err.Error(), test.errMsg))
+				return
+			}
+			require.NoError(t, err)
+			assert.Truef(t, test.expectedIP.Equal(actualIP), "mismatch source IPs: expected %s, got %s", test.expectedIP.String(), actualIP.String())
+			assert.Equal(t, test.expectedPort, actualPort)
+			assert.Equal(t, test.expectedTypeCode, actualTypeCode)
+		})
+	}
+}
+
+func Test_parseIPv4Layer(t *testing.T) {
 	ipv4Layer := createMockIPv4Layer(srcIP, dstIP, 1)
 	buf := gopacket.NewSerializeBuffer()
 	gopacket.SerializeLayers(buf, gopacket.SerializeOptions{},
@@ -68,7 +107,7 @@ func TestParseIPv4Layer(t *testing.T) {
 	}
 }
 
-func TestParseICMPLayer(t *testing.T) {
+func Test_parseICMPPacket(t *testing.T) {
 	innerSrcIP := net.ParseIP("10.0.0.1")
 	innerDstIP := net.ParseIP("192.168.1.1")
 	ipv4Layer := createMockIPv4Layer(srcIP, dstIP, layers.IPProtocolICMPv4)
@@ -161,7 +200,7 @@ func TestParseICMPLayer(t *testing.T) {
 	}
 }
 
-func TestParseTCPPacket(t *testing.T) {
+func Test_parseTCPPacket(t *testing.T) {
 	ipv4Layer := createMockIPv4Layer(srcIP, dstIP, layers.IPProtocolTCP)
 	tcpLayer := createMockTCPLayer(12345, 443, 28394, 12737, true, true, true)
 

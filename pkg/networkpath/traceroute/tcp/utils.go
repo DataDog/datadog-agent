@@ -146,7 +146,12 @@ func sendPacket(rawConn *ipv4.RawConn, header *ipv4.Header, payload []byte) erro
 	return nil
 }
 
-func listenAnyPacket(icmpConn *ipv4.RawConn, tcpConn *ipv4.RawConn, timeout time.Duration, localIP net.IP, localPort uint16, remoteIP net.IP, remotePort uint16, seqNum uint32) (net.IP, uint16, layers.ICMPv4TypeCode, time.Time, error) {
+// listenPackets takes in raw ICMP and TCP connections and listens for matching ICMP
+// and TCP responses based on the passed in trace information. If neither listener
+// receives a matching packet within the timeout, a blank response is returned.
+// Once a matching packet is received by a listener, it will cause the other listener
+// to be canceled, and data from the matching packet will be returned to the caller
+func listenPackets(icmpConn *ipv4.RawConn, tcpConn *ipv4.RawConn, timeout time.Duration, localIP net.IP, localPort uint16, remoteIP net.IP, remotePort uint16, seqNum uint32) (net.IP, uint16, layers.ICMPv4TypeCode, time.Time, error) {
 	var tcpErr error
 	var icmpErr error
 	var wg sync.WaitGroup
@@ -201,7 +206,7 @@ func listenAnyPacket(icmpConn *ipv4.RawConn, tcpConn *ipv4.RawConn, timeout time
 
 // handlePackets in its current implementation should listen for the first matching
 // packet on the connection and then return. If no packet is received within the
-// timeout, it should return a timeout exceeded error
+// timeout or if the listener is canceled, it should return a canceledError
 func handlePackets(ctx context.Context, conn *ipv4.RawConn, listener string, localIP net.IP, localPort uint16, remoteIP net.IP, remotePort uint16, seqNum uint32) (net.IP, uint16, layers.ICMPv4TypeCode, error) {
 	buf := make([]byte, 1024)
 	for {
