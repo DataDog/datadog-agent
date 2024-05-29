@@ -54,32 +54,41 @@ func TestSearchProcsForEnvVariableNotFound(t *testing.T) {
 
 func TestParseCPUTotals(t *testing.T) {
 	path := "./testData/valid_stat"
-	userCPUTimeMs, systemCPUTimeMs, err := GetCPUData(path)
-	assert.Equal(t, float64(23370), userCPUTimeMs)
-	assert.Equal(t, float64(1880), systemCPUTimeMs)
+	cpuData, err := GetCPUData(path)
 	assert.Nil(t, err)
+	assert.Equal(t, float64(23370), cpuData.TotalUserTimeMs)
+	assert.Equal(t, float64(1880), cpuData.TotalSystemTimeMs)
+	assert.Equal(t, float64(178380), cpuData.TotalIdleTimeMs)
+	assert.Equal(t, 2, len(cpuData.IndividualCPUIdleTimes))
+	assert.Equal(t, float64(91880), cpuData.IndividualCPUIdleTimes["cpu0"])
+	assert.Equal(t, float64(86490), cpuData.IndividualCPUIdleTimes["cpu1"])
 
 	path = "./testData/invalid_stat_non_numerical_value_1"
-	userCPUTimeMs, systemCPUTimeMs, err = GetCPUData(path)
-	assert.Equal(t, float64(0), userCPUTimeMs)
-	assert.Equal(t, float64(0), systemCPUTimeMs)
+	cpuData, err = GetCPUData(path)
 	assert.NotNil(t, err)
+	assert.Nil(t, cpuData)
 
 	path = "./testData/invalid_stat_non_numerical_value_2"
-	userCPUTimeMs, systemCPUTimeMs, err = GetCPUData(path)
-	assert.Equal(t, float64(0), userCPUTimeMs)
-	assert.Equal(t, float64(0), systemCPUTimeMs)
+	cpuData, err = GetCPUData(path)
 	assert.NotNil(t, err)
+	assert.Nil(t, cpuData)
 
-	path = "./testData/invalid_stat_wrong_number_columns"
-	userCPUTimeMs, systemCPUTimeMs, err = GetCPUData(path)
-	assert.Equal(t, float64(0), userCPUTimeMs)
-	assert.Equal(t, float64(0), systemCPUTimeMs)
+	path = "./testData/invalid_stat_malformed_first_line"
+	cpuData, err = GetCPUData(path)
 	assert.NotNil(t, err)
+	assert.Nil(t, cpuData)
 
-	path = "./testData/nonexistant_stat"
-	userCPUTimeMs, systemCPUTimeMs, err = GetCPUData(path)
-	assert.Equal(t, float64(0), userCPUTimeMs)
-	assert.Equal(t, float64(0), systemCPUTimeMs)
+	path = "./testData/invalid_stat_malformed_per_cpu_line"
+	cpuData, err = GetCPUData(path)
+	assert.Nil(t, err)
+	assert.Equal(t, float64(23370), cpuData.TotalUserTimeMs)
+	assert.Equal(t, float64(1880), cpuData.TotalSystemTimeMs)
+	assert.Equal(t, float64(178380), cpuData.TotalIdleTimeMs)
+	assert.Equal(t, 0, len(cpuData.IndividualCPUIdleTimes))
+
+	path = "./testData/nonexistent_stat"
+	cpuData, err = GetCPUData(path)
 	assert.NotNil(t, err)
+	assert.Nil(t, cpuData)
+
 }

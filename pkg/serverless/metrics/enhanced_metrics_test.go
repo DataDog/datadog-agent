@@ -474,18 +474,18 @@ func TestGenerateEnhancedMetricsFromRuntimeDoneLogOK(t *testing.T) {
 func TestGenerateCPUEnhancedMetrics(t *testing.T) {
 	demux := createDemultiplexer(t)
 	tags := []string{"functionname:test-function"}
-	now := time.Now()
-	args := GenerateCPUEnhancedMetricsArgs{100, 53, tags, demux, now}
+	now := float64(time.Now().UnixNano()) / float64(time.Second)
+	args := GenerateCPUEnhancedMetricsArgs{100, 53, 200, tags, demux, now}
 	go GenerateCPUEnhancedMetrics(args)
 	generatedMetrics, timedMetrics := demux.WaitForNumberOfSamples(4, 0, 100*time.Millisecond)
-	assert.Equal(t, generatedMetrics, []metrics.MetricSample{
+	assert.Equal(t, []metrics.MetricSample{
 		{
 			Name:       cpuSystemTimeMetric,
 			Value:      53,
 			Mtype:      metrics.DistributionType,
 			Tags:       tags,
 			SampleRate: 1,
-			Timestamp:  float64(now.UnixNano()) / float64(time.Second),
+			Timestamp:  now,
 		},
 		{
 			Name:       cpuUserTimeMetric,
@@ -493,7 +493,7 @@ func TestGenerateCPUEnhancedMetrics(t *testing.T) {
 			Mtype:      metrics.DistributionType,
 			Tags:       tags,
 			SampleRate: 1,
-			Timestamp:  float64(now.UnixNano()) / float64(time.Second),
+			Timestamp:  now,
 		},
 		{
 			Name:       cpuTotalTimeMetric,
@@ -501,22 +501,61 @@ func TestGenerateCPUEnhancedMetrics(t *testing.T) {
 			Mtype:      metrics.DistributionType,
 			Tags:       tags,
 			SampleRate: 1,
-			Timestamp:  float64(now.UnixNano()) / float64(time.Second),
-		}})
+			Timestamp:  now,
+		}},
+		generatedMetrics,
+	)
 	assert.Len(t, timedMetrics, 0)
 }
 
-func TestGenerateCPUEnhancedMetricsDisabled(t *testing.T) {
-	os.Setenv("DD_ENHANCED_METRICS", "false")
-	defer os.Setenv("DD_ENHANCED_METRICS", "true")
-
+func TestGenerateCPUUtilizationEnhancedMetrics(t *testing.T) {
 	demux := createDemultiplexer(t)
 	tags := []string{"functionname:test-function"}
-	now := time.Now()
-	args := GenerateCPUEnhancedMetricsArgs{100, 53, tags, demux, now}
-	go GenerateCPUEnhancedMetrics(args)
+	now := float64(time.Now().UnixNano()) / float64(time.Second)
+	args := GenerateCPUUtilizationEnhancedMetricArgs{
+		IndividualCPUIdleOffsetTimes: map[string]float64{
+			"cpu0": 10,
+			"cpu1": 20,
+		},
+		IndividualCPUIdleTimes: map[string]float64{
+			"cpu0": 30,
+			"cpu1": 80,
+		},
+		TotalIdleTime: 80,
+		UptimeMs:      100,
+		Tags:          tags,
+		Demux:         demux,
+		Time:          now,
+	}
+	go GenerateCPUUtilizationEnhancedMetrics(args)
 	generatedMetrics, timedMetrics := demux.WaitForNumberOfSamples(4, 0, 100*time.Millisecond)
-	assert.Len(t, generatedMetrics, 0)
+	assert.Equal(t, []metrics.MetricSample{
+		{
+			Name:       cpuTotalUtilizationMetric,
+			Value:      60,
+			Mtype:      metrics.DistributionType,
+			Tags:       tags,
+			SampleRate: 1,
+			Timestamp:  now,
+		},
+		{
+			Name:       cpuMaxUtilizationMetric,
+			Value:      80,
+			Mtype:      metrics.DistributionType,
+			Tags:       append(tags, "cpu_name:cpu0"),
+			SampleRate: 1,
+			Timestamp:  now,
+		},
+		{
+			Name:       cpuMinUtilizationMetric,
+			Value:      40,
+			Mtype:      metrics.DistributionType,
+			Tags:       append(tags, "cpu_name:cpu1"),
+			SampleRate: 1,
+			Timestamp:  now,
+		}},
+		generatedMetrics,
+	)
 	assert.Len(t, timedMetrics, 0)
 }
 

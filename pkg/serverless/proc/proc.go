@@ -7,9 +7,7 @@
 package proc
 
 import (
-	"bufio"
 	"bytes"
-	"errors"
 	"fmt"
 	"os"
 	"strconv"
@@ -72,45 +70,72 @@ func SearchProcsForEnvVariable(procPath string, envName string) []string {
 	return result
 }
 
-// GetCPUData collects CPU usage data, returning total user CPU time, total system CPU time, error
-func GetCPUData(path string) (float64, float64, error) {
+type CPUData struct {
+	TotalUserTimeMs   float64
+	TotalSystemTimeMs float64
+	TotalIdleTimeMs   float64
+	// Maps CPU core name (e.g. "cpu1") to time in ms that the CPU spent in the idle process
+	IndividualCPUIdleTimes map[string]float64
+}
+
+// GetCPUData collects aggregated and per-core CPU usage data
+func GetCPUData(path string) (*CPUData, error) {
+	cpuData := CPUData{}
+
 	file, err := os.Open(path)
 	if err != nil {
-		return 0, 0, err
+		return nil, err
 	}
 	defer file.Close()
 
-	reader := bufio.NewReader(file)
-	readLine, _, err := reader.ReadLine()
+	var label string
+	var totalUser, totalNice, totalSystem, totalIdle, totalIowait, totalIrq, totalSoftirq, totalSteal, totalGuest, totalGuestNice float64
+	_, err = fmt.Fscanln(file, &label, &totalUser, &totalNice, &totalSystem, &totalIdle, &totalIowait, &totalIrq, &totalSoftirq, &totalSteal, &totalGuest, &totalGuestNice)
 	if err != nil {
-		return 0, 0, err
-	}
-
-	// The first line contains CPU totals aggregated across all CPUs
-	lineString := string(readLine)
-	cpuTotals := strings.Split(lineString, " ")
-	if len(cpuTotals) != 12 {
-		return 0, 0, errors.New("incorrect number of columns in file")
+		return nil, err
 	}
 
 	// SC_CLK_TCK is the system clock frequency in ticks per second
 	// We'll use this to convert CPU times from user HZ to milliseconds
 	clcktck, err := getClkTck()
 	if err != nil {
-		return 0, 0, err
+		return nil, err
 	}
 
-	userCPUTime, err := strconv.ParseFloat(cpuTotals[2], 64)
+	cpuData.TotalUserTimeMs = (1000 * totalUser) / float64(clcktck)
+	cpuData.TotalSystemTimeMs = (1000 * totalSystem) / float64(clcktck)
+	cpuData.TotalIdleTimeMs = (1000 * totalIdle) / float64(clcktck)
+
+	// Scan for cpuN lines
+	perCPUDataMap := map[string]float64{}
+	var perCPULabel string
+	var user, nice, system, idle, iowait, irq, softirq, steal, guest, guestNice float64
+	for {
+		_, err = fmt.Fscanln(file, &perCPULabel, &user, &nice, &system, &idle, &iowait, &irq, &softirq, &steal, &guest, &guestNice)
+		if err != nil || !strings.HasPrefix(perCPULabel, "cpu") {
+			break
+		}
+		perCPUDataMap[perCPULabel] = (1000 * idle) / float64(clcktck)
+	}
+	cpuData.IndividualCPUIdleTimes = perCPUDataMap
+
+	return &cpuData, nil
+}
+
+// GetUptime collects uptime data
+func GetUptime(path string) (float64, error) {
+	file, err := os.Open(path)
 	if err != nil {
-		return 0, 0, err
+		return 0, err
 	}
-	userCPUTimeMs := (1000 * userCPUTime) / float64(clcktck)
+	defer file.Close()
 
-	systemCPUTime, err := strconv.ParseFloat(cpuTotals[4], 64)
+	var uptime, idleTime float64
+	_, err = fmt.Fscanln(file, &uptime, &idleTime)
 	if err != nil {
-		return 0, 0, err
+		return 0, err
 	}
-	systemCPUTimeMs := (1000 * systemCPUTime) / float64(clcktck)
 
-	return userCPUTimeMs, systemCPUTimeMs, nil
+	// Convert from seconds to milliseconds
+	return uptime * 1000, nil
 }

@@ -7,6 +7,7 @@
 package metrics
 
 import (
+	"fmt"
 	"math"
 	"os"
 	"strings"
@@ -42,13 +43,16 @@ const (
 	OutOfMemoryMetric = "aws.lambda.enhanced.out_of_memory"
 	timeoutsMetric    = "aws.lambda.enhanced.timeouts"
 	// ErrorsMetric is the name of the errors enhanced Lambda metric
-	ErrorsMetric          = "aws.lambda.enhanced.errors"
-	invocationsMetric     = "aws.lambda.enhanced.invocations"
-	asmInvocationsMetric  = "aws.lambda.enhanced.asm.invocations"
-	cpuSystemTimeMetric   = "aws.lambda.enhanced.cpu_system_time"
-	cpuUserTimeMetric     = "aws.lambda.enhanced.cpu_user_time"
-	cpuTotalTimeMetric    = "aws.lambda.enhanced.cpu_total_time"
-	enhancedMetricsEnvVar = "DD_ENHANCED_METRICS"
+	ErrorsMetric              = "aws.lambda.enhanced.errors"
+	invocationsMetric         = "aws.lambda.enhanced.invocations"
+	asmInvocationsMetric      = "aws.lambda.enhanced.asm.invocations"
+	cpuSystemTimeMetric       = "aws.lambda.enhanced.cpu_system_time"
+	cpuUserTimeMetric         = "aws.lambda.enhanced.cpu_user_time"
+	cpuTotalTimeMetric        = "aws.lambda.enhanced.cpu_total_time"
+	cpuTotalUtilizationMetric = "aws.lambda.enhanced.cpu_total_utilization"
+	cpuMaxUtilizationMetric   = "aws.lambda.enhanced.cpu_max_utilization"
+	cpuMinUtilizationMetric   = "aws.lambda.enhanced.cpu_min_utilization"
+	enhancedMetricsEnvVar     = "DD_ENHANCED_METRICS"
 )
 
 func getOutOfMemorySubstrings() []string {
@@ -247,25 +251,32 @@ func SendASMInvocationEnhancedMetric(tags []string, demux aggregator.Demultiplex
 type GenerateCPUEnhancedMetricsArgs struct {
 	UserCPUTimeMs   float64
 	SystemCPUTimeMs float64
+	Uptime          float64
 	Tags            []string
 	Demux           aggregator.Demultiplexer
-	Time            time.Time
+	Time            float64
+}
+
+type GenerateCPUUtilizationEnhancedMetricArgs struct {
+	IndividualCPUIdleOffsetTimes map[string]float64
+	IndividualCPUIdleTimes       map[string]float64
+	TotalIdleTime                float64
+	UptimeMs                     float64
+	Tags                         []string
+	Demux                        aggregator.Demultiplexer
+	Time                         float64
 }
 
 // GenerateCPUEnhancedMetrics generates enhanced metrics for CPU time spent running the function in kernel mode,
 // in user mode, and in total
 func GenerateCPUEnhancedMetrics(args GenerateCPUEnhancedMetricsArgs) {
-	if strings.ToLower(os.Getenv(enhancedMetricsEnvVar)) == "false" {
-		return
-	}
-	timestamp := float64(args.Time.UnixNano()) / float64(time.Second)
 	args.Demux.AggregateSample(metrics.MetricSample{
 		Name:       cpuSystemTimeMetric,
 		Value:      args.SystemCPUTimeMs,
 		Mtype:      metrics.DistributionType,
 		Tags:       args.Tags,
 		SampleRate: 1,
-		Timestamp:  timestamp,
+		Timestamp:  args.Time,
 	})
 	args.Demux.AggregateSample(metrics.MetricSample{
 		Name:       cpuUserTimeMetric,
@@ -273,7 +284,7 @@ func GenerateCPUEnhancedMetrics(args GenerateCPUEnhancedMetricsArgs) {
 		Mtype:      metrics.DistributionType,
 		Tags:       args.Tags,
 		SampleRate: 1,
-		Timestamp:  timestamp,
+		Timestamp:  args.Time,
 	})
 	args.Demux.AggregateSample(metrics.MetricSample{
 		Name:       cpuTotalTimeMetric,
@@ -281,23 +292,93 @@ func GenerateCPUEnhancedMetrics(args GenerateCPUEnhancedMetricsArgs) {
 		Mtype:      metrics.DistributionType,
 		Tags:       args.Tags,
 		SampleRate: 1,
-		Timestamp:  timestamp,
+		Timestamp:  args.Time,
 	})
 }
 
 // SendCPUEnhancedMetrics sends CPU enhanced metrics for the invocation
-func SendCPUEnhancedMetrics(userCPUOffsetMs, systemCPUOffsetMs float64, tags []string, demux aggregator.Demultiplexer) {
-	userCPUTimeMs, systemCPUTimeMs, err := proc.GetCPUData("/proc/stat")
+func SendCPUEnhancedMetrics(cpuOffsetData proc.CPUData, uptimeOffset float64, tags []string, demux aggregator.Demultiplexer) {
+	if strings.ToLower(os.Getenv(enhancedMetricsEnvVar)) == "false" {
+		return
+	}
+	cpuData, err := proc.GetCPUData("/proc/stat")
 	if err != nil {
 		log.Debug("Could not emit CPU enhanced metrics")
 		return
 	}
+
+	now := float64(time.Now().UnixNano()) / float64(time.Second)
 	GenerateCPUEnhancedMetrics(GenerateCPUEnhancedMetricsArgs{
-		UserCPUTimeMs:   userCPUTimeMs - userCPUOffsetMs,
-		SystemCPUTimeMs: systemCPUTimeMs - systemCPUOffsetMs,
+		UserCPUTimeMs:   cpuData.TotalUserTimeMs - cpuOffsetData.TotalUserTimeMs,
+		SystemCPUTimeMs: cpuData.TotalSystemTimeMs - cpuOffsetData.TotalSystemTimeMs,
 		Tags:            tags,
 		Demux:           demux,
-		Time:            time.Now(),
+		Time:            now,
+	})
+
+	perCoreData := cpuData.IndividualCPUIdleTimes
+	if perCoreData != nil {
+		uptimeMs, err := proc.GetUptime("/proc/uptime")
+		if err != nil {
+			log.Debug("Could not emit CPU enhanced metrics")
+			return
+		}
+		uptimeMs = uptimeMs - uptimeOffset
+		totalIdleTime := cpuData.TotalIdleTimeMs - cpuOffsetData.TotalIdleTimeMs
+		GenerateCPUUtilizationEnhancedMetrics(GenerateCPUUtilizationEnhancedMetricArgs{cpuOffsetData.IndividualCPUIdleTimes, cpuData.IndividualCPUIdleTimes, totalIdleTime, uptimeMs, tags, demux, now})
+	}
+
+}
+
+func GenerateCPUUtilizationEnhancedMetrics(args GenerateCPUUtilizationEnhancedMetricArgs) {
+	var maxUtilizedCPUName, minUtilizedCPUName string
+	maxIdleTime := 0.0
+	minIdleTime := math.MaxFloat64
+	for cpuName, cpuIdleTime := range args.IndividualCPUIdleTimes {
+		// Maximally utilized CPU is the one with the least time spent in the idle process
+		if cpuIdleTime < minIdleTime {
+			maxUtilizedCPUName = cpuName
+			minIdleTime = cpuIdleTime
+		}
+		// Minimally utilized CPU is the one with the most time spent in the idle process
+		if cpuIdleTime >= maxIdleTime {
+			minUtilizedCPUName = cpuName
+			maxIdleTime = cpuIdleTime
+		}
+	}
+
+	maxIdleTime = args.IndividualCPUIdleTimes[maxUtilizedCPUName] - args.IndividualCPUIdleOffsetTimes[maxUtilizedCPUName]
+	minIdleTime = args.IndividualCPUIdleTimes[minUtilizedCPUName] - args.IndividualCPUIdleOffsetTimes[minUtilizedCPUName]
+
+	maxUtilizedPercent := 100 * (args.UptimeMs - maxIdleTime) / args.UptimeMs
+	minUtilizedPercent := 100 * (args.UptimeMs - minIdleTime) / args.UptimeMs
+
+	numberCPUs := float64(len(args.IndividualCPUIdleTimes))
+	totalUtilizedPercent := 100 * (args.UptimeMs*numberCPUs - args.TotalIdleTime) / (args.UptimeMs * numberCPUs)
+
+	args.Demux.AggregateSample(metrics.MetricSample{
+		Name:       cpuTotalUtilizationMetric,
+		Value:      totalUtilizedPercent,
+		Mtype:      metrics.DistributionType,
+		Tags:       args.Tags,
+		SampleRate: 1,
+		Timestamp:  args.Time,
+	})
+	args.Demux.AggregateSample(metrics.MetricSample{
+		Name:       cpuMaxUtilizationMetric,
+		Value:      maxUtilizedPercent,
+		Mtype:      metrics.DistributionType,
+		Tags:       append(args.Tags, fmt.Sprintf("cpu_name:%s", maxUtilizedCPUName)),
+		SampleRate: 1,
+		Timestamp:  args.Time,
+	})
+	args.Demux.AggregateSample(metrics.MetricSample{
+		Name:       cpuMinUtilizationMetric,
+		Value:      minUtilizedPercent,
+		Mtype:      metrics.DistributionType,
+		Tags:       append(args.Tags, fmt.Sprintf("cpu_name:%s", minUtilizedCPUName)),
+		SampleRate: 1,
+		Timestamp:  args.Time,
 	})
 }
 

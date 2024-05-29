@@ -158,7 +158,8 @@ func WaitForNextInvocation(stopCh chan struct{}, daemon *daemon.Daemon, id regis
 }
 
 func callInvocationHandler(daemon *daemon.Daemon, arn string, deadlineMs int64, safetyBufferTimeout time.Duration, requestID string, invocationHandler InvocationHandler) {
-	userCPUTimeMsOffset, systemCPUTimeMsOffset, cpuOffsetErr := proc.GetCPUData("/proc/stat")
+	cpuOffsetData, cpuOffsetErr := proc.GetCPUData("/proc/stat")
+	uptimeOffset, uptimeOffsetErr := proc.GetUptime("/proc/uptime")
 	timeout := computeTimeout(time.Now(), deadlineMs, safetyBufferTimeout)
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
@@ -174,8 +175,8 @@ func callInvocationHandler(daemon *daemon.Daemon, arn string, deadlineMs int64, 
 	case <-doneChannel:
 		break
 	}
-	if cpuOffsetErr == nil && daemon.MetricAgent != nil {
-		metrics.SendCPUEnhancedMetrics(userCPUTimeMsOffset, systemCPUTimeMsOffset, daemon.ExtraTags.Tags, daemon.MetricAgent.Demux)
+	if cpuOffsetErr == nil && uptimeOffsetErr == nil && daemon.MetricAgent != nil {
+		metrics.SendCPUEnhancedMetrics(*cpuOffsetData, uptimeOffset, daemon.ExtraTags.Tags, daemon.MetricAgent.Demux)
 	} else {
 		log.Debug("Could not send CPU enhanced metrics")
 	}
