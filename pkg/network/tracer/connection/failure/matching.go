@@ -15,7 +15,16 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
 )
+
+var telemetryModuleName = "network_tracer__failure"
+
+var failureTelemetry = struct {
+	failedConnOrphans telemetry.Counter
+}{
+	telemetry.NewCounter(telemetryModuleName, "failed_conn_orphans", []string{}, "Counter measuring the number of orphans after associating failed connections with a closed connection"),
+}
 
 // FailedConnStats is a wrapper to help document the purpose of the underlying map
 type FailedConnStats struct {
@@ -78,6 +87,8 @@ func (fc *FailedConns) RemoveExpired() {
 	defer fc.Unlock()
 
 	now := time.Now().Unix()
+
+	failureTelemetry.failedConnOrphans.Add(float64(len(fc.FailedConnMap)))
 
 	for connTuple, failedConn := range fc.FailedConnMap {
 		if failedConn.Expiry < now {

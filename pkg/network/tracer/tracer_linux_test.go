@@ -2406,6 +2406,53 @@ func (s *TracerSuite) TestTCPFailureConnectionTimeout() {
 	}, 3*time.Second, 1000*time.Millisecond, "Failed connection not recorded properly")
 }
 
+func (s *TracerSuite) TestTCPFailureTimeout2() {
+	t := s.T()
+	// Enable BPF-based system probe
+	cfg := testConfig()
+	cfg.TCPFailedConnectionsEnabled = true
+	tr := setupTracer(t, cfg)
+
+	// Create TCP Server which sends back serverMessageSize bytes
+	server := NewTCPServer(func(c net.Conn) {
+		r := bufio.NewReader(c)
+		r.ReadBytes(byte('\n'))
+		c.Write(genPayload(serverMessageSize))
+		c.Close()
+	})
+	t.Cleanup(server.Shutdown)
+	require.NoError(t, server.Run())
+
+	// Connect to server
+	c, err := net.DialTimeout("tcp", server.address, time.Second)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer c.Close()
+
+	// Write clientMessageSize to server, and read response
+	if _, err = c.Write(genPayload(clientMessageSize)); err != nil {
+		t.Fatal(err)
+	}
+	r := bufio.NewReader(c)
+	r.ReadBytes(byte('\n'))
+
+	iptablesWrapper(t, func() {
+		for i := 0; i < 99; i++ {
+			// Send a bunch of messages
+			c.Write(genPayload(clientMessageSize))
+		}
+		time.Sleep(time.Second)
+	})
+
+	// Iterate through active connections until we find connection created above, and confirm send + recv counts and there was at least 1 retransmission
+	conns := getConnections(t, tr)
+
+	found := findFailedConnectionByRemoteAddr(server.address, conns, 110)
+	require.True(t, found)
+
+}
+
 func (s *TracerSuite) TestTCPFailureConnectionRefused() {
 	t := s.T()
 	if _, ok := failedConnectionsBuildModes[ebpftest.GetBuildMode()]; !ok {
