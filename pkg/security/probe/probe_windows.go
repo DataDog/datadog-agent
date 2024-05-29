@@ -319,6 +319,17 @@ func (p *WindowsProbe) Stop() {
 	}
 }
 
+func (p *WindowsProbe) approveFimBasename(value string) bool {
+	fields := []string{"create.file.name", "rename.file.name", "delete.file.name", "write.file.name"}
+
+	for _, field := range fields {
+		if p.approve(field, value) {
+			return true
+		}
+	}
+	return false
+}
+
 // currently support only string base approver for now
 func (p *WindowsProbe) approve(field eval.Field, value string) bool {
 	approvers, exists := p.approvers[field]

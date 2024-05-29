@@ -166,7 +166,7 @@ func (wp *WindowsProbe) parseCreateHandleArgs(e *etw.DDEventRecord) (*createHand
 	// not amazing to double compute the basename..
 	basename := filepath.Base(ca.fileName)
 
-	if !wp.approve("create.file.name", basename) {
+	if !wp.approveFimBasename(basename) {
 		wp.discardedFileHandles.Add(fileObjectPointer(ca.fileObject), struct{}{})
 		wp.stats.createFileApproverRejects++
 		return nil, errDiscardedPath
