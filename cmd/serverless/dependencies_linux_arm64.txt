@@ -918,7 +918,6 @@ html/template
 internal/abi
 internal/bisect
 internal/bytealg
-internal/chacha8rand
 internal/coverage/rtcov
 internal/cpu
 internal/fmtsort
