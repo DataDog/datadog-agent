@@ -105,6 +105,7 @@ upload_secagent_tests_arm64:
   allow_failure: true
   stage: kernel_matrix_testing_security_agent
   rules: !reference [.on_security_agent_changes_or_manual]
+  timeout: 1h 30m
   variables:
     TEST_COMPONENT: security-agent
 
@@ -117,7 +118,6 @@ kmt_run_secagent_tests_x64:
     - kmt_setup_env_secagent_x64
     - upload_dependencies_secagent_x64
     - upload_secagent_tests_x64
-  timeout: 3h
   variables:
     ARCH: "x86_64"
   parallel:
@@ -158,7 +158,6 @@ kmt_run_secagent_tests_arm64:
     - kmt_setup_env_secagent_arm64
     - upload_dependencies_secagent_arm64
     - upload_secagent_tests_arm64
-  timeout: 3h
   variables:
     ARCH: "arm64"
   parallel:

@@ -39,7 +39,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.54.0-rc.2
 	github.com/DataDog/datadog-agent/pkg/util/log v0.54.0-rc.2
 	github.com/DataDog/datadog-agent/pkg/util/pointer v0.54.0-rc.2
-	github.com/DataDog/viper v1.13.3
+	github.com/DataDog/viper v1.13.4
 	github.com/stretchr/testify v1.9.0
 	go.uber.org/fx v1.18.2
 )

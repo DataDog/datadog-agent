@@ -137,7 +137,7 @@ var allowedEnvvarNames = []string{
 
 func getAllowedEnvvars() []string {
 	allowed := allowedEnvvarNames
-	allowed = append(allowed, config.Datadog.GetEnvVars()...)
+	allowed = append(allowed, config.Datadog().GetEnvVars()...)
 	var found []string
 	for _, envvar := range os.Environ() {
 		parts := strings.SplitN(envvar, "=", 2)

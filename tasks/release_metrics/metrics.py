@@ -20,10 +20,9 @@ def get_release_lead_time(freeze_date, release_date):
 def get_prs_metrics(milestone, freeze_date):
     github = GithubAPI(repository=GITHUB_REPO_NAME)
     freeze_date = datetime.strptime(freeze_date, "%Y-%m-%d").date()
-    repo = github.repo()
     pr_counts = {"total": 0, "before_freeze": 0, "on_freeze": 0, "after_freeze": 0}
-    m = get_milestone(repo, milestone)
-    issues = repo.get_issues(m, state='closed')
+    m = get_milestone(github.repo, milestone)
+    issues = github.repo.get_issues(m, state='closed')
     for issue in issues:
         if issue.pull_request is None or issue.pull_request.raw_data['merged_at'] is None:
             continue
