@@ -547,13 +547,6 @@ func startAgent(
 		}
 	}
 
-	// start the cmd HTTP server
-	if err = agentAPI.StartServer(
-		demultiplexer,
-	); err != nil {
-		return log.Errorf("Error while starting api server, exiting: %v", err)
-	}
-
 	// start clc runner server
 	// only start when the cluster agent is enabled and a cluster check runner host is enabled
 	if pkgconfig.Datadog().GetBool("cluster_agent.enabled") && pkgconfig.Datadog().GetBool("clc_runner_enabled") {

@@ -7,10 +7,12 @@
 package apiimpl
 
 import (
+	"context"
 	"net"
 
 	"go.uber.org/fx"
 
+	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	"github.com/DataDog/datadog-agent/comp/api/api"
 	"github.com/DataDog/datadog-agent/comp/api/authtoken"
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
@@ -34,7 +36,11 @@ import (
 // Module defines the fx options for this component.
 func Module() fxutil.Module {
 	return fxutil.Component(
-		fx.Provide(newAPIServer))
+		fx.Provide(newAPIServer),
+		fx.Provide(func(sender demultiplexer.Component) sender.DiagnoseSenderManager {
+			return sender
+		}),
+	)
 }
 
 type apiServer struct {
@@ -52,12 +58,14 @@ type apiServer struct {
 	logsAgentComp     optional.Option[logsAgent.Component]
 	wmeta             workloadmeta.Component
 	collector         optional.Option[collector.Component]
+	senderManager     sender.DiagnoseSenderManager
 	endpointProviders []api.EndpointProvider
 }
 
 type dependencies struct {
 	fx.In
 
+	Lc                fx.Lifecycle
 	DogstatsdServer   dogstatsdServer.Component
 	Capture           replay.Component
 	PidMap            pidmap.Component
@@ -72,13 +80,14 @@ type dependencies struct {
 	LogsAgentComp     optional.Option[logsAgent.Component]
 	WorkloadMeta      workloadmeta.Component
 	Collector         optional.Option[collector.Component]
+	SenderManager     sender.DiagnoseSenderManager
 	EndpointProviders []api.EndpointProvider `group:"agent_endpoint"`
 }
 
 var _ api.Component = (*apiServer)(nil)
 
 func newAPIServer(deps dependencies) api.Component {
-	return &apiServer{
+	server := apiServer{
 		dogstatsdServer:   deps.DogstatsdServer,
 		capture:           deps.Capture,
 		pidMap:            deps.PidMap,
@@ -93,29 +102,19 @@ func newAPIServer(deps dependencies) api.Component {
 		logsAgentComp:     deps.LogsAgentComp,
 		wmeta:             deps.WorkloadMeta,
 		collector:         deps.Collector,
+		senderManager:     deps.SenderManager,
 		endpointProviders: fxutil.GetAndFilterGroup(deps.EndpointProviders),
 	}
-}
 
-// StartServer creates the router and starts the HTTP server
-func (server *apiServer) StartServer(
-	senderManager sender.DiagnoseSenderManager,
-) error {
-	return StartServers(server.rcService,
-		server.rcServiceMRF,
-		server.dogstatsdServer,
-		server.capture,
-		server.pidMap,
-		server.wmeta,
-		server.taggerComp,
-		server.logsAgentComp,
-		senderManager,
-		server.secretResolver,
-		server.statusComponent,
-		server.collector,
-		server.autoConfig,
-		server.endpointProviders,
-	)
+	deps.Lc.Append(fx.Hook{
+		OnStart: server.StartServers,
+		OnStop: func(_ context.Context) error {
+			StopServers()
+			return nil
+		},
+	})
+
+	return &server
 }
 
 // StopServer closes the connection and the server
