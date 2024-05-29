@@ -20,7 +20,7 @@ import (
 )
 
 const (
-	pathDebRPMAgent   = "/opt/datadog-agent"
+	pathOldAgent      = "/opt/datadog-agent"
 	agentSymlink      = "/usr/bin/datadog-agent"
 	agentUnit         = "datadog-agent.service"
 	traceAgentUnit    = "datadog-agent-trace.service"
@@ -161,13 +161,13 @@ func RemoveAgent(ctx context.Context) {
 	installinfo.RmInstallInfo()
 }
 
-func noDebRpmAgent() bool {
-	_, err := os.Stat(pathDebRPMAgent)
-	return os.IsNotExist(err)
+func oldAgentInstalled() bool {
+	_, err := os.Stat(pathOldAgent)
+	return !os.IsNotExist(err)
 }
 
 func stopOldAgentUnits(ctx context.Context) error {
-	if noDebRpmAgent() {
+	if oldAgentInstalled() {
 		return nil
 	}
 	span, ctx := tracer.StartSpanFromContext(ctx, "remove_old_agent_units")
@@ -190,10 +190,10 @@ func stopOldAgentUnits(ctx context.Context) error {
 
 // removeOldAgentFiles removes old agent files
 func removeOldAgentFiles() error {
-	if noDebRpmAgent() {
+	if oldAgentInstalled() {
 		return nil
 	}
-	return os.RemoveAll(pathDebRPMAgent)
+	return os.RemoveAll(pathOldAgent)
 }
 
 // StartAgentExperiment starts the agent experiment
