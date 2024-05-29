@@ -11,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"sync"
 	"time"
 
 	"github.com/cilium/ebpf"
@@ -39,9 +40,17 @@ const (
 
 var (
 	ErrEbpflessNotEnabled = errors.New("ebpf-less tracer not enabled")
+
+	ebpfLessTracerTelemetry = struct {
+		skippedPackets telemetry.Counter
+	}{
+		telemetry.NewCounter(ebpfLessTelemetryPrefix, "skipped_packets", []string{"reason"}, "Counter measuring skipped packets"),
+	}
 )
 
 type ebpfLessTracer struct {
+	m sync.Mutex
+
 	config *config.Config
 
 	packetSrc *filter.AFPacketSource
@@ -49,16 +58,15 @@ type ebpfLessTracer struct {
 	keyBuf    []byte
 	keyConn   network.ConnectionStats
 
+	udp *udpProcessor
+	tcp *tcpProcessor
+
 	// connection maps
-	tcpInProgress map[string]*network.ConnectionStats
-	conns         map[string]*network.ConnectionStats
-	boundPorts    *ebpfless.BoundPorts
+	conns        map[string]*network.ConnectionStats
+	boundPorts   *ebpfless.BoundPorts
+	cookieHasher *cookieHasher
 
 	ns netns.NsHandle
-
-	telemetry struct {
-		skippedPackets telemetry.Counter
-	}
 }
 
 func NewEbpfLessTracer(cfg *config.Config) (*ebpfLessTracer, error) {
@@ -72,21 +80,21 @@ func NewEbpfLessTracer(cfg *config.Config) (*ebpfLessTracer, error) {
 	}
 
 	tr := &ebpfLessTracer{
-		config:        cfg,
-		packetSrc:     packetSrc,
-		exit:          make(chan struct{}),
-		keyBuf:        make([]byte, network.ConnectionByteKeyMaxLen),
-		tcpInProgress: make(map[string]*network.ConnectionStats, cfg.MaxTrackedConnections),
-		conns:         make(map[string]*network.ConnectionStats, cfg.MaxTrackedConnections),
-		boundPorts:    ebpfless.NewBoundPorts(cfg),
+		config:       cfg,
+		packetSrc:    packetSrc,
+		exit:         make(chan struct{}),
+		keyBuf:       make([]byte, network.ConnectionByteKeyMaxLen),
+		udp:          &udpProcessor{},
+		tcp:          newTCPProcessor(),
+		conns:        make(map[string]*network.ConnectionStats, cfg.MaxTrackedConnections),
+		boundPorts:   ebpfless.NewBoundPorts(cfg),
+		cookieHasher: newCookieHasher(),
 	}
 
 	tr.ns, err = netns.Get()
 	if err != nil {
 		return nil, fmt.Errorf("error getting current net ns: %w", err)
 	}
-
-	tr.telemetry.skippedPackets = telemetry.NewCounter(ebpfLessTelemetryPrefix, "skipped_packets", []string{"reason"}, "Counter measuring skipped packets")
 
 	return tr, nil
 }
@@ -114,11 +122,11 @@ func (t *ebpfLessTracer) Start(func([]network.ConnectionStats)) error {
 
 				// only process PACKET_HOST and PACK_OUTGOING packets
 				if pktType != unix.PACKET_HOST && pktType != unix.PACKET_OUTGOING {
-					t.telemetry.skippedPackets.Inc("unsupported_packet_type")
+					ebpfLessTracerTelemetry.skippedPackets.Inc("unsupported_packet_type")
 					return nil
 				}
 
-				if err := t.processConnection(pktType, ip4, ip6, udp, tcp, decoded); err != nil {
+				if err := t.processConnection(pktType, &ip4, &ip6, &udp, &tcp, decoded); err != nil {
 					log.Warnf("could not process packet: %s", err)
 				}
 
@@ -137,34 +145,35 @@ func (t *ebpfLessTracer) Start(func([]network.ConnectionStats)) error {
 
 func (t *ebpfLessTracer) processConnection(
 	pktType uint8,
-	ip4 layers.IPv4,
-	ip6 layers.IPv6,
-	udp layers.UDP,
-	tcp layers.TCP,
+	ip4 *layers.IPv4,
+	ip6 *layers.IPv6,
+	udp *layers.UDP,
+	tcp *layers.TCP,
 	decoded []gopacket.LayerType,
 ) error {
 	t.keyConn.Source, t.keyConn.Dest = util.Address{}, util.Address{}
 	t.keyConn.SPort, t.keyConn.DPort = 0, 0
+	keyConn := &t.keyConn
 	var udpPresent, tcpPresent bool
 	for _, layerType := range decoded {
 		switch layerType {
 		case layers.LayerTypeIPv4:
-			t.keyConn.Source = util.AddressFromNetIP(ip4.SrcIP)
-			t.keyConn.Dest = util.AddressFromNetIP(ip4.DstIP)
-			t.keyConn.Family = network.AFINET
+			keyConn.Source = util.AddressFromNetIP(ip4.SrcIP)
+			keyConn.Dest = util.AddressFromNetIP(ip4.DstIP)
+			keyConn.Family = network.AFINET
 		case layers.LayerTypeIPv6:
-			t.keyConn.Source = util.AddressFromNetIP(ip6.SrcIP)
-			t.keyConn.Dest = util.AddressFromNetIP(ip6.DstIP)
-			t.keyConn.Family = network.AFINET6
+			keyConn.Source = util.AddressFromNetIP(ip6.SrcIP)
+			keyConn.Dest = util.AddressFromNetIP(ip6.DstIP)
+			keyConn.Family = network.AFINET6
 		case layers.LayerTypeTCP:
-			t.keyConn.SPort = uint16(tcp.SrcPort)
-			t.keyConn.DPort = uint16(tcp.DstPort)
-			t.keyConn.Type = network.TCP
+			keyConn.SPort = uint16(tcp.SrcPort)
+			keyConn.DPort = uint16(tcp.DstPort)
+			keyConn.Type = network.TCP
 			tcpPresent = true
 		case layers.LayerTypeUDP:
-			t.keyConn.SPort = uint16(udp.SrcPort)
-			t.keyConn.DPort = uint16(udp.DstPort)
-			t.keyConn.Type = network.UDP
+			keyConn.SPort = uint16(udp.SrcPort)
+			keyConn.DPort = uint16(udp.DstPort)
+			keyConn.Type = network.UDP
 			udpPresent = true
 		}
 	}
@@ -172,32 +181,48 @@ func (t *ebpfLessTracer) processConnection(
 	// check if have all the basic pieces
 	if !udpPresent && !tcpPresent {
 		log.Debugf("ignoring packet since its not udp or tcp")
-		t.telemetry.skippedPackets.Inc("not_tcp_udp")
+		ebpfLessTracerTelemetry.skippedPackets.Inc("not_tcp_udp")
 		return nil
 	}
 
-	if !t.keyConn.Source.IsValid() ||
-		!t.keyConn.Dest.IsValid() ||
-		t.keyConn.SPort == 0 ||
-		t.keyConn.DPort == 0 {
-		return fmt.Errorf("missing dest/source ip/port in packet conn=%+v", t.keyConn)
+	if !keyConn.Source.IsValid() ||
+		!keyConn.Dest.IsValid() ||
+		keyConn.SPort == 0 ||
+		keyConn.DPort == 0 {
+		return fmt.Errorf("missing dest/source ip/port in packet conn=%+v", keyConn)
 	}
 
-	flipSourceDest(&t.keyConn, pktType)
+	flipSourceDest(keyConn, pktType)
+	t.determineConnectionDirection(keyConn, pktType)
 
+	t.m.Lock()
+	defer t.m.Unlock()
+
+	key := string(keyConn.ByteKey(t.keyBuf))
+	conn := t.conns[key]
+	if conn == nil {
+		conn = &network.ConnectionStats{}
+		*conn = *keyConn
+		t.cookieHasher.Hash(conn)
+		conn.Duration = time.Duration(time.Now().UnixNano())
+	}
+
+	ls := ebpfless.NewLayers(conn.Family, conn.Type, ip4, ip6, udp, tcp)
 	var err error
-	switch t.keyConn.Type {
+	switch conn.Type {
 	case network.UDP:
-		err = udpConnection(&t.keyConn, pktType, udp)
+		err = t.udp.process(conn, pktType, ls)
 	case network.TCP:
-		var processed bool
-		if processed, err = t.tcpConnection(&t.keyConn, pktType, ip4, ip6, tcp); !processed {
-			return nil
-		}
+		err = t.tcp.process(conn, pktType, ls)
 	}
 
 	if err != nil {
 		return fmt.Errorf("error processing connection: %w", err)
+	}
+
+	if conn.Type == network.UDP || conn.Monotonic.TCPEstablished > 0 {
+		conn.LastUpdateEpoch = uint64(time.Now().UnixNano())
+		t.conns[key] = conn
 	}
 
 	log.Debugf("connection: %s", conn)
@@ -211,90 +236,10 @@ func flipSourceDest(conn *network.ConnectionStats, pktType uint8) {
 	}
 }
 
-func udpConnection(conn *network.ConnectionStats, pktType uint8, udp layers.UDP) error {
-	if udp.Length == 0 {
-		return fmt.Errorf("udp packet with length 0")
-	}
+func (t *ebpfLessTracer) determineConnectionDirection(conn *network.ConnectionStats, pktType uint8) {
+	t.m.Lock()
+	defer t.m.Unlock()
 
-	updateConnectionStats(conn, pktType, udp.Length-8)
-	return nil
-}
-
-func ipv6PayloadLen(ip6 layers.IPv6) (uint16, error) {
-	if ip6.NextHeader == layers.IPProtocolUDP || ip6.NextHeader == layers.IPProtocolTCP {
-		return ip6.Length, nil
-	}
-
-	var ipExt layers.IPv6ExtensionSkipper
-	parser := gopacket.NewDecodingLayerParser(gopacket.LayerTypePayload, &ipExt)
-	decoded := make([]gopacket.LayerType, 0, 1)
-	l := ip6.Length
-	payload := ip6.Payload
-	for len(payload) > 0 {
-		err := parser.DecodeLayers(payload, &decoded)
-		if err != nil {
-			return 0, fmt.Errorf("error decoding with ipv6 extension skipper: %w", err)
-		}
-
-		if len(decoded) == 0 {
-			return l, nil
-		}
-
-		l -= uint16(len(ipExt.Contents))
-		if ipExt.NextHeader == layers.IPProtocolTCP || ipExt.NextHeader == layers.IPProtocolUDP {
-			break
-		}
-
-		payload = ipExt.Payload
-	}
-
-	return l, nil
-}
-
-func (t *ebpfLessTracer) tcpConnection(conn *network.ConnectionStats, pktType uint8, ip4 layers.IPv4, ip6 layers.IPv6, tcp layers.TCP) (processed bool, err error) {
-	if tcp.SYN && !tcp.ACK {
-		t.tcpInProgress[string(conn.ByteKey(t.keyBuf))] = conn
-		return
-	}
-
-	if tcp.SYN || tcp.FIN {
-		return false, nil
-	}
-
-	var payloadLen uint16
-	switch conn.Family {
-	case network.AFINET:
-		payloadLen = ip4.Length - uint16(ip4.IHL)*4 - uint16(tcp.DataOffset)*4
-	case network.AFINET6:
-		if ip6.Length == 0 {
-			return true, fmt.Errorf("not processing ipv6 jumbogram")
-		}
-
-		l, err := ipv6PayloadLen(ip6)
-		if err != nil {
-			return true, err
-		}
-
-		payloadLen = l - uint16(tcp.DataOffset)*4
-	}
-
-	updateConnectionStats(conn, pktType, payloadLen)
-
-	return true, nil
-}
-
-func updateConnectionStats(conn *network.ConnectionStats, pktType uint8, payloadLen uint16) {
-	switch pktType {
-	case unix.PACKET_OUTGOING:
-		conn.Monotonic.SentPackets++
-		conn.Monotonic.SentBytes += uint64(payloadLen)
-	case unix.PACKET_HOST:
-		conn.Monotonic.RecvPackets++
-		conn.Monotonic.RecvBytes += uint64(payloadLen)
-	}
-}
-
-func (t *ebpfLessTracer) determineConnectionDirection(conn *network.ConnectionStats, pktType uint8, isSyn, isAck bool) {
 	ok := t.boundPorts.Find(conn.Type, conn.SPort)
 	if ok {
 		// incoming connection
@@ -302,23 +247,13 @@ func (t *ebpfLessTracer) determineConnectionDirection(conn *network.ConnectionSt
 		return
 	}
 
-	switch conn.Type {
-	case network.TCP:
-		if !isSyn || isAck {
-			return
-		}
-
-		// isSyn && !isAck
+	if conn.Type == network.TCP {
 		switch pktType {
 		case unix.PACKET_HOST:
 			conn.Direction = network.INCOMING
 		case unix.PACKET_OUTGOING:
-			// new outgoing connection
 			conn.Direction = network.OUTGOING
 		}
-
-		key := string(conn.ByteKey(t.keyBuf))
-		t.tcpInProgress[key] = conn
 	}
 }
 
@@ -336,6 +271,24 @@ func (t *ebpfLessTracer) Stop() {
 // GetConnections returns the list of currently active connections, using the buffer provided.
 // The optional filter function is used to prevent unwanted connections from being returned and consuming resources.
 func (t *ebpfLessTracer) GetConnections(buffer *network.ConnectionBuffer, filter func(*network.ConnectionStats) bool) error {
+	t.m.Lock()
+	defer t.m.Unlock()
+
+	if len(t.conns) == 0 {
+		return nil
+	}
+
+	log.Trace(t.conns)
+	conns := make([]network.ConnectionStats, 0, len(t.conns))
+	for _, c := range t.conns {
+		if filter != nil && !filter(c) {
+			continue
+		}
+
+		conns = append(conns, *c)
+	}
+
+	buffer.Append(conns)
 	return nil
 }
 
@@ -344,7 +297,13 @@ func (t *ebpfLessTracer) FlushPending() {}
 
 // Remove deletes the connection from tracking state.
 // It does not prevent the connection from re-appearing later, if additional traffic occurs.
-func (t *ebpfLessTracer) Remove(conn *network.ConnectionStats) error { return nil }
+func (t *ebpfLessTracer) Remove(conn *network.ConnectionStats) error {
+	t.m.Lock()
+	defer t.m.Unlock()
+
+	delete(t.conns, string(conn.ByteKey(t.keyBuf)))
+	return nil
+}
 
 // GetMap returns the underlying named map. This is useful if any maps are shared with other eBPF components.
 // An individual ebpfLessTracer implementation may choose which maps to expose via this function.
@@ -373,3 +332,94 @@ func (t *ebpfLessTracer) Describe(descs chan<- *prometheus.Desc) {}
 func (t *ebpfLessTracer) Collect(metrics chan<- prometheus.Metric) {}
 
 var _ Tracer = &ebpfLessTracer{}
+
+type udpProcessor struct {
+}
+
+func (u *udpProcessor) process(conn *network.ConnectionStats, pktType uint8, ls ebpfless.Layers) error {
+	payloadLen, err := ls.PayloadLen()
+	if err != nil {
+		return err
+	}
+
+	switch pktType {
+	case unix.PACKET_OUTGOING:
+		conn.Monotonic.SentPackets++
+		conn.Monotonic.SentBytes += uint64(payloadLen)
+	case unix.PACKET_HOST:
+		conn.Monotonic.RecvPackets++
+		conn.Monotonic.RecvBytes += uint64(payloadLen)
+	}
+
+	return nil
+}
+
+type tcpAckSeq struct {
+	ack, seq uint32
+}
+
+type tcpProcessor struct {
+	buf   []byte
+	conns map[string]struct {
+		established bool
+		closed      bool
+		tx, rx      tcpAckSeq
+	}
+}
+
+func newTCPProcessor() *tcpProcessor {
+	return &tcpProcessor{
+		buf: make([]byte, network.ConnectionByteKeyMaxLen),
+		conns: map[string]struct {
+			established bool
+			closed      bool
+			tx, rx      tcpAckSeq
+		}{},
+	}
+}
+
+func (t *tcpProcessor) process(conn *network.ConnectionStats, pktType uint8, ls ebpfless.Layers) error {
+	payloadLen, err := ls.PayloadLen()
+	if err != nil {
+		return err
+	}
+
+	tcp := ls.TCP
+	log.TraceFunc(func() string {
+		return fmt.Sprintf("tcp processor: pktType=%+v seq=%+v ack=%+v fin=%+v rst=%+v syn=%+v ack=%+v", pktType, tcp.Seq, tcp.Ack, tcp.FIN, tcp.RST, tcp.SYN, tcp.ACK)
+	})
+	key := string(conn.ByteKey(t.buf))
+	c := t.conns[key]
+	log.TraceFunc(func() string {
+		return fmt.Sprintf("pre ack_seq=%+v", c)
+	})
+	switch pktType {
+	case unix.PACKET_OUTGOING:
+		conn.Monotonic.SentPackets++
+		conn.Monotonic.SentBytes += uint64(payloadLen)
+	case unix.PACKET_HOST:
+		conn.Monotonic.RecvPackets++
+		conn.Monotonic.RecvBytes += uint64(payloadLen)
+	}
+
+	if tcp.FIN || tcp.RST {
+		if !c.closed {
+			c.closed = true
+			conn.Monotonic.TCPClosed++
+			conn.Duration = time.Duration(time.Now().UnixNano() - int64(conn.Duration))
+		}
+		delete(t.conns, key)
+		return nil
+	}
+
+	if !tcp.SYN && !c.established {
+		c.established = true
+		conn.Monotonic.TCPEstablished++
+	}
+
+	log.TraceFunc(func() string {
+		return fmt.Sprintf("ack_seq=%+v", c)
+	})
+	t.conns[key] = c
+	return nil
+}

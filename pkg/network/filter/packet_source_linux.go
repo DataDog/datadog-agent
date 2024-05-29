@@ -129,7 +129,7 @@ func (p *AFPacketSource) VisitPackets(exit <-chan struct{}, visit func([]byte, u
 			return err
 		}
 
-		log.Tracef("packet on interface %d, pkt type %d", stats.InterfaceIndex, stats.AncillaryData[0].(afpacket.AncillaryPktType).Type)
+		//log.Tracef("packet on interface %d, pkt type %d", stats.InterfaceIndex, stats.AncillaryData[0].(afpacket.AncillaryPktType).Type)
 		if err := visit(data, stats.AncillaryData[0].(afpacket.AncillaryPktType).Type, stats.Timestamp); err != nil {
 			return err
 		}

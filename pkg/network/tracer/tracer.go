@@ -246,25 +246,28 @@ func newConntracker(cfg *config.Config) (netlink.Conntracker, error) {
 	var c netlink.Conntracker
 	var err error
 
-	ns, err := cfg.GetRootNetNs()
-	if err != nil {
-		log.Warnf("error fetching root net namespace, will not attempt to load nf_conntrack_netlink module: %s", err)
-	} else {
-		defer ns.Close()
-		if err = netlink.LoadNfConntrackKernelModule(ns); err != nil {
-			log.Warnf("failed to load conntrack kernel module, though it may already be loaded: %s", err)
+	if !cfg.EnableEbpflessTracer {
+		ns, err := cfg.GetRootNetNs()
+		if err != nil {
+			log.Warnf("error fetching root net namespace, will not attempt to load nf_conntrack_netlink module: %s", err)
+		} else {
+			defer ns.Close()
+			if err = netlink.LoadNfConntrackKernelModule(ns); err != nil {
+				log.Warnf("failed to load conntrack kernel module, though it may already be loaded: %s", err)
+			}
 		}
-	}
-	if cfg.EnableEbpfConntracker {
-		if c, err = NewEBPFConntracker(cfg); err == nil {
-			return c, nil
+		if cfg.EnableEbpfConntracker {
+			if c, err = NewEBPFConntracker(cfg); err == nil {
+				return c, nil
+			}
+			log.Warnf("error initializing ebpf conntracker: %s", err)
+		} else {
+			log.Info("ebpf conntracker disabled")
 		}
-		log.Warnf("error initializing ebpf conntracker: %s", err)
-	} else {
-		log.Info("ebpf conntracker disabled")
+
+		log.Info("falling back to netlink conntracker")
 	}
 
-	log.Info("falling back to netlink conntracker")
 	if c, err = netlink.NewConntracker(cfg); err == nil {
 		return c, nil
 	}

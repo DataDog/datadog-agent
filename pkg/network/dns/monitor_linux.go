@@ -59,7 +59,7 @@ func NewReverseDNS(cfg *config.Config) (ReverseDNS, error) {
 
 	var p *ebpfProgram
 	pre410Kernel := currKernelVersion < kernel.VersionCode(4, 1, 0)
-	if pre410Kernel {
+	if pre410Kernel || cfg.EnableEbpflessTracer {
 		if bpfFilter, err := generateBPFFilter(cfg); err != nil {
 			return nil, fmt.Errorf("error creating bpf classic filter: %w", err)
 		} else if err = packetSrc.SetBPF(bpfFilter); err != nil {

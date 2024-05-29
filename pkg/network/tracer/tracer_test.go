@@ -155,7 +155,8 @@ func (s *TracerSuite) TestGetStats() {
 
 func (s *TracerSuite) TestTCPSendAndReceive() {
 	t := s.T()
-	tr := setupTracer(t, testConfig())
+	cfg := testConfig()
+	tr := setupTracer(t, cfg)
 
 	// Create TCP Server which, for every line, sends back a message with size=serverMessageSize
 	server := NewTCPServer(func(c net.Conn) {
@@ -207,10 +208,12 @@ func (s *TracerSuite) TestTCPSendAndReceive() {
 	m := conn.Monotonic
 	assert.Equal(t, 10*clientMessageSize, int(m.SentBytes))
 	assert.Equal(t, 10*serverMessageSize, int(m.RecvBytes))
-	assert.Equal(t, os.Getpid(), int(conn.Pid))
 	assert.Equal(t, addrPort(server.address), int(conn.DPort))
 	assert.Equal(t, network.OUTGOING, conn.Direction)
 	assert.True(t, conn.IntraHost)
+	if !cfg.EnableEbpflessTracer {
+		assert.Equal(t, os.Getpid(), int(conn.Pid))
+	}
 }
 
 func (s *TracerSuite) TestTCPShortLived() {
@@ -557,14 +560,16 @@ func (s *TracerSuite) TestLocalDNSCollectionEnabled() {
 	_, err = cn.Write([]byte("test"))
 	assert.NoError(t, err)
 
-	found := false
-
 	// Iterate through active connections making sure theres at least one connection
-	for _, c := range getConnections(t, tr).Conns {
-		found = found || isLocalDNS(c)
-	}
+	require.Eventually(t, func() bool {
+		for _, c := range getConnections(t, tr).Conns {
+			if isLocalDNS(c) {
+				return true
+			}
+		}
 
-	assert.True(t, found)
+		return false
+	}, 3*time.Second, 100*time.Millisecond, "could not find connection")
 }
 
 func isLocalDNS(c network.ConnectionStats) bool {
@@ -1027,12 +1032,17 @@ func testDNSStats(t *testing.T, tr *Tracer, domain string, success, failure, tim
 	require.NoError(t, tr.reverseDNS.WaitForDomain(domain))
 
 	// Iterate through active connections until we find connection created above, and confirm send + recv counts
-	connections := getConnections(t, tr)
-	conn, ok := findConnection(dnsClientAddr, dnsServerAddr, connections)
-	require.True(t, ok)
+	var conn *network.ConnectionStats
+	require.Eventually(t, func() bool {
+		connections := getConnections(t, tr)
+		conn, _ = findConnection(dnsClientAddr, dnsServerAddr, connections)
+		return conn != nil
+	}, 3*time.Second, 100*time.Millisecond, "failed to find connection")
 
 	assert.Equal(t, queryMsg.Len(), int(conn.Monotonic.SentBytes))
-	assert.Equal(t, os.Getpid(), int(conn.Pid))
+	if !tr.config.EnableEbpflessTracer {
+		assert.Equal(t, os.Getpid(), int(conn.Pid))
+	}
 	assert.Equal(t, dnsServerAddr.Port, int(conn.DPort))
 
 	var total uint32
@@ -1186,10 +1196,15 @@ func (s *TracerSuite) TestConnectedUDPSendIPv6() {
 	bytesSent, err := conn.Write(message)
 	require.NoError(t, err)
 
-	connections := getConnections(t, tr)
-	outgoing := searchConnections(connections, func(cs network.ConnectionStats) bool {
-		return cs.DPort == uint16(remotePort)
-	})
+	var outgoing []network.ConnectionStats
+	require.Eventually(t, func() bool {
+		connections := getConnections(t, tr)
+		outgoing = searchConnections(connections, func(cs network.ConnectionStats) bool {
+			return cs.DPort == uint16(remotePort)
+		})
+
+		return len(outgoing) == 1
+	}, 3*time.Second, 100*time.Millisecond, "failed to find connection")
 
 	require.Len(t, outgoing, 1)
 	assert.Equal(t, remoteAddr.IP.String(), outgoing[0].Dest.String())
@@ -1252,4 +1267,16 @@ func (s *TracerSuite) TestTCPDirection() {
 	assert.Equal(t, conn.Direction, network.OUTGOING, "connection direction must be outgoing: %s", conn)
 	conn = incomingConns[0]
 	assert.Equal(t, conn.Direction, network.INCOMING, "connection direction must be incoming: %s", conn)
+}
+
+func skipOnEbpflessNotSupported(t *testing.T, cfg *config.Config) {
+	if cfg.EnableEbpflessTracer {
+		t.Skip("not supported on ebpf-less")
+	}
+}
+
+func skipEbpflessTodo(t *testing.T, cfg *config.Config) {
+	if cfg.EnableEbpflessTracer {
+		t.Skip("TODO: ebpf-less")
+	}
 }

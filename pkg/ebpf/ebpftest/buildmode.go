@@ -15,6 +15,7 @@ var (
 	RuntimeCompiled BuildMode
 	CORE            BuildMode
 	Fentry          BuildMode
+	Ebpfless        BuildMode
 )
 
 func init() {
@@ -22,6 +23,7 @@ func init() {
 	RuntimeCompiled = runtimeCompiled{}
 	CORE = core{}
 	Fentry = fentry{}
+	Ebpfless = ebpfless{}
 }
 
 // BuildMode is an eBPF build mode
@@ -91,5 +93,22 @@ func (f fentry) Env() map[string]string {
 		"DD_ENABLE_CO_RE":                    "true",
 		"DD_ALLOW_RUNTIME_COMPILED_FALLBACK": "false",
 		"DD_ALLOW_PRECOMPILED_FALLBACK":      "false",
+	}
+}
+
+type ebpfless struct{}
+
+func (e ebpfless) String() string {
+	return "eBPFless"
+}
+
+func (e ebpfless) Env() map[string]string {
+	return map[string]string{
+		"NETWORK_TRACER_FENTRY_TESTS":        "false",
+		"DD_ENABLE_RUNTIME_COMPILER":         "false",
+		"DD_ENABLE_CO_RE":                    "false",
+		"DD_ALLOW_RUNTIME_COMPILED_FALLBACK": "false",
+		"DD_ALLOW_PRECOMPILED_FALLBACK":      "false",
+		"DD_NETWORK_CONFIG_ENABLE_EBPF_LESS": "true",
 	}
 }
