@@ -6,7 +6,6 @@ go 1.21.0
 
 require (
 	github.com/DataDog/datadog-agent/pkg/util/log v0.54.0-rc.2
-	github.com/DataDog/datadog-agent/pkg/util/testutil v0.52.1
 	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575
 	github.com/moby/sys/mountinfo v0.7.1
 	github.com/shirou/gopsutil/v3 v3.24.1
@@ -36,5 +35,4 @@ require (
 replace (
 	github.com/DataDog/datadog-agent/pkg/util/log => ../util/log
 	github.com/DataDog/datadog-agent/pkg/util/scrubber => ../util/scrubber
-	github.com/DataDog/datadog-agent/pkg/util/testutil => ../util/testutil
 )

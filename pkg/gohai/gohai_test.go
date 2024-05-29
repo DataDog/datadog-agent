@@ -8,15 +8,13 @@ package gohai
 import (
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestGetPayload(t *testing.T) {
 	gohai := GetPayload(false)
-	flake.Mark(t)
 
-	assert.Nil(t, gohai.Gohai.CPU)
+	assert.NotNil(t, gohai.Gohai.CPU)
 	assert.NotNil(t, gohai.Gohai.FileSystem)
 	assert.NotNil(t, gohai.Gohai.Memory)
 	assert.NotNil(t, gohai.Gohai.Network)
