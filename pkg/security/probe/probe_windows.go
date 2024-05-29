@@ -1022,6 +1022,7 @@ func (p *WindowsProbe) ApplyRuleSet(rs *rules.RuleSet) (*kfilters.ApplyRuleSetRe
 		return nil, err
 	}
 
+	clear(p.approvers) // remove old approvers
 	for eventType, report := range ars.Policies {
 		if err := p.SetApprovers(eventType, report.Approvers); err != nil {
 			return nil, err
