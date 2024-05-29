@@ -175,6 +175,6 @@ iot_agent_deb-armhf:
     PACKAGE_ARCH: armhf
     DESTINATION_DEB: "datadog-iot-agent_7_armhf.deb"
     DD_PKG_ARCH: "arm64"
-    FORCE_REDUCED_COMPRESSION: true
+    FORCED_COMPRESSION_LEVEL: 5
 
 
