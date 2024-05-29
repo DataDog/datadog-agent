@@ -80,7 +80,13 @@ func NewAgentEndpointProvider(handlerFunc http.HandlerFunc, route string, method
 	}
 }
 
-// AgentEndpointProviderBatch is a builder to provide multiple AgentEndpointProvider.
+// AgentEndpointProviderBatch is a batch structure which implements the builder pattern to provide multiple AgentEndpointProvider
+type AgentEndpointProviderBatch struct {
+	// endpoints is a slice of endpointProvider that will be used to build the AgentEndpointProvider.
+	endpoints []endpointProvider
+}
+
+// NewAgentEndpointProviderBatch returns a AgentEndpointProviderBatch which allow you to register multiple AgentEndpointProvider
 //
 // Usage:
 //
@@ -89,15 +95,11 @@ func NewAgentEndpointProvider(handlerFunc http.HandlerFunc, route string, method
 //	batch.Add(func2, "/endpoint2", GET)
 //	// ... add more providers as needed
 //	agentEndpointProvider := batch.Build()
-type AgentEndpointProviderBatch struct {
-	// endpoints is a slice of endpointProvider that will be used to build the AgentEndpointProvider.
-	endpoints []endpointProvider
-}
-
 func NewAgentEndpointProviderBatch() AgentEndpointProviderBatch {
 	return AgentEndpointProviderBatch{}
 }
 
+// Add allow you to add endpoint to the current batch
 func (b AgentEndpointProviderBatch) Add(handlerFunc http.HandlerFunc, route string, methods ...string) AgentEndpointProviderBatch {
 	b.endpoints = append(b.endpoints, endpointProvider{
 		handler: handlerFunc,
@@ -107,6 +109,7 @@ func (b AgentEndpointProviderBatch) Add(handlerFunc http.HandlerFunc, route stri
 	return b
 }
 
+// Build convert your batch into an AgentEndpointProvider
 func (b AgentEndpointProviderBatch) Build() AgentEndpointProvider {
 	p := []EndpointProvider{}
 	for _, endpoint := range b.endpoints {
