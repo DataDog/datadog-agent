@@ -10,9 +10,18 @@ package workload
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
+
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/dynamic"
+	"k8s.io/client-go/tools/record"
+	"k8s.io/utils/clock"
 
 	datadoghq "github.com/DataDog/datadog-operator/apis/datadoghq/v1alpha1"
 
@@ -21,205 +30,208 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/model"
 	k8sutil "github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-
-	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/resource"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/client-go/dynamic"
+	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 )
 
 const (
-	subsystem  = "vertical_controller"
-	annotation = "autoscaling.datadoghq.com/scaling-hash"
-
-	requeueAfterSuccessTime = time.Minute
+	rolloutCheckRequeueDelay = 2 * time.Minute
 )
-
-var supportedKinds = map[string]struct{}{
-	k8sutil.DeploymentKind: {},
-}
 
 // verticalController is responsible for updating targetRef objects with the vertical recommendations
 type verticalController struct {
-	cl dynamic.Interface
-	pw PodWatcher
+	clock         clock.Clock
+	eventRecorder record.EventRecorder
+	dynamicClient dynamic.Interface
+	podWatcher    podWatcher
 }
 
 // newVerticalController creates a new *verticalController
-func newVerticalController(cl dynamic.Interface, pw PodWatcher) *verticalController {
+func newVerticalController(clock clock.Clock, eventRecorder record.EventRecorder, cl dynamic.Interface, pw podWatcher) *verticalController {
 	res := &verticalController{
-		cl: cl,
-		pw: pw,
+		clock:         clock,
+		eventRecorder: eventRecorder,
+		dynamicClient: cl,
+		podWatcher:    pw,
 	}
 	return res
 }
 
-func (u *verticalController) sync(ctx context.Context, autoscalerInternal *model.PodAutoscalerInternal) (processResult, error) {
-	// Perform some basic checks on the workload
-	if autoscalerInternal.Spec == nil {
-		err := fmt.Errorf("missing spec")
-		log.Errorf("%s/%s: %s", autoscalerInternal.Namespace, autoscalerInternal.Name, err)
-		return withStatusUpdate(true, autoscaling.NoRequeue), err
+func (u *verticalController) sync(ctx context.Context, podAutoscaler *datadoghq.DatadogPodAutoscaler, autoscalerInternal *model.PodAutoscalerInternal) (autoscaling.ProcessResult, error) {
+	// Check if the autoscaler has a vertical scaling recommendation
+	if autoscalerInternal.ScalingValues.Vertical == nil || autoscalerInternal.ScalingValues.Vertical.ResourcesHash == "" {
+		// Clearing live state if no recommendation is available
+		autoscalerInternal.VerticalLastActionError = nil
+		autoscalerInternal.ScaledReplicas = nil
+		return autoscaling.NoRequeue, nil
 	}
 
-	if autoscalerInternal.Spec.TargetRef.Name == "" {
-		err := fmt.Errorf("missing target ref name")
-		log.Errorf("%s/%s: %s", autoscalerInternal.Namespace, autoscalerInternal.Name, err)
-		return withStatusUpdate(true, autoscaling.NoRequeue), err
-	}
-
-	if autoscalerInternal.Spec.TargetRef.Kind == "" {
-		err := fmt.Errorf("missing target ref kind")
-		log.Errorf("%s/%s: %s", autoscalerInternal.Namespace, autoscalerInternal.Name, err)
-		return withStatusUpdate(true, autoscaling.NoRequeue), err
-	}
-
-	if autoscalerInternal.ScalingValues.Vertical == nil || len(autoscalerInternal.ScalingValues.Vertical.ContainerResources) == 0 {
-		log.Debugf("%s/%s: No vertical recommendations", autoscalerInternal.Namespace, autoscalerInternal.Name)
-		return withStatusUpdate(false, autoscaling.NoRequeue), nil
-	}
-
-	if autoscalerInternal.ScalingValuesHash == "" {
-		err := fmt.Errorf("no scaling hash for workload")
-		log.Errorf("%s/%s: %s", autoscalerInternal.Namespace, autoscalerInternal.Name, err)
-		return withStatusUpdate(true, autoscaling.NoRequeue), err
-	}
-
-	gvk, err := autoscalerInternal.GetTargetGVK()
-	if err != nil || autoscalerInternal.Spec.TargetRef.APIVersion == "" {
-		err := fmt.Errorf("failed to parse API version %s: %w", autoscalerInternal.Spec.TargetRef.APIVersion, err)
-		log.Errorf("%s/%s: %s", autoscalerInternal.Namespace, autoscalerInternal.Name, err)
-		return withStatusUpdate(true, autoscaling.NoRequeue), err
-	}
-
-	// Check if the owner kind is supported
-	kind := autoscalerInternal.Spec.TargetRef.Kind
-	if _, ok := supportedKinds[kind]; !ok {
-		err := fmt.Errorf("Unsupported owner kind %s", kind)
-		log.Errorf("%s/%s: %s", autoscalerInternal.Namespace, autoscalerInternal.Name, err)
-		return withStatusUpdate(true, autoscaling.NoRequeue), err
+	recomendationID := autoscalerInternal.ScalingValues.Vertical.ResourcesHash
+	targetGVK, err := autoscalerInternal.GetTargetGVK()
+	if err != nil {
+		return autoscaling.NoRequeue, err
 	}
 
 	// Get the pod owner from the workload
 	target := NamespacedPodOwner{
 		Namespace: autoscalerInternal.Namespace,
 		Name:      autoscalerInternal.Spec.TargetRef.Name,
-		Kind:      kind,
+		Kind:      targetGVK.Kind,
 	}
 
 	// Get the pods for the pod owner
-	pods := u.pw.GetPodsForOwner(target)
+	pods := u.podWatcher.GetPodsForOwner(target)
 	if len(pods) == 0 {
-		err := fmt.Errorf("Failed to get pods for owner %s", target)
-		log.Debugf("%s/%s: %s", autoscalerInternal.Namespace, autoscalerInternal.Name, err)
-		return withStatusUpdate(true, autoscaling.Requeue), err
+		// If we found nothing, we'll wait just until the next sync
+		log.Debugf("No pods found for autoscaler: %s, gvk: %s, name: %s", autoscalerInternal.ID(), targetGVK.String(), autoscalerInternal.Spec.TargetRef.Name)
+		return autoscaling.ProcessResult{Requeue: true, RequeueAfter: rolloutCheckRequeueDelay}, nil
 	}
 
-	// Check if a pod needs to be updated
-	needUpdate := false
-	recommendations := autoscalerInternal.ScalingValues.Vertical.ContainerResources
+	// Compute pods per resourceHash and per owner
+	podsPerRecomendationID := make(map[string]int32)
+	podsPerDirectOwner := make(map[string]int32)
 	for _, pod := range pods {
-		for _, reco := range recommendations {
-			for _, cont := range pod.Containers {
-				if !equalResources(reco.Requests, cont.Requests) ||
-					!equalResources(reco.Limits, cont.Limits) {
-					needUpdate = true
-					break
-				}
-			}
+		// PODs without any recommendation will be stored with "" key
+		podsPerRecomendationID[pod.Annotations[model.RecommendationIDAnnotation]] = podsPerRecomendationID[pod.Annotations[model.RecommendationIDAnnotation]] + 1
+
+		if len(pod.Owners) == 0 {
+			// This condition should never happen since the pod watcher groups pods by owner
+			log.Warnf("Pod %s/%s has no owner", pod.Namespace, pod.Name)
+			continue
 		}
-	}
-	if !needUpdate {
-		log.Debugf("%s/%s: No update needed for workload", autoscalerInternal.Namespace, autoscalerInternal.Name)
-		return withStatusUpdate(false, autoscaling.NoRequeue), nil
+		podsPerDirectOwner[pod.Owners[0].ID] = podsPerDirectOwner[pod.Owners[0].ID] + 1
 	}
 
-	// Check if a rollout is ongoing
-	if target.Kind == k8sutil.DeploymentKind && rolloutOngoingForDeployment(pods) {
-		err := fmt.Errorf("another rollout is ongoing")
-		log.Debugf("%s/%s: %s", autoscalerInternal.Namespace, autoscalerInternal.Name, err)
-		return withStatusUpdate(true, autoscaling.Requeue), err
+	// Update scaled replicas status
+	autoscalerInternal.ScaledReplicas = pointer.Ptr(podsPerRecomendationID[recomendationID])
+
+	// Check if we're allowed to rollout, we don't care about the source in this case, so passing most favorable source: manual
+	updateStrategy, reason := getVerticalPatchingStrategy(autoscalerInternal)
+	if updateStrategy == datadoghq.DatadogPodAutoscalerDisabledUpdateStrategy {
+		autoscalerInternal.VerticalLastActionError = errors.New(reason)
+		return autoscaling.NoRequeue, nil
 	}
+
+	// Check if last action was done in the `rolloutCheckRequeueDelay` window
+	if autoscalerInternal.VerticalLastAction != nil && autoscalerInternal.VerticalLastAction.Time.Add(rolloutCheckRequeueDelay).After(u.clock.Now()) {
+		log.Debugf("Last action was done less than %s ago for autoscaler: %s, skipping", rolloutCheckRequeueDelay.String(), autoscalerInternal.ID())
+		return autoscaling.ProcessResult{Requeue: true, RequeueAfter: rolloutCheckRequeueDelay}, nil
+	}
+
+	switch targetGVK.Kind {
+	case k8sutil.DeploymentKind:
+		return u.syncDeploymentKind(ctx, podAutoscaler, autoscalerInternal, updateStrategy, target, targetGVK, recomendationID, pods, podsPerRecomendationID, podsPerDirectOwner)
+	default:
+		autoscalerInternal.VerticalLastActionError = fmt.Errorf("automic rollout not available for target Kind: %s. Applying to existing PODs require manual trigger", targetGVK.Kind)
+		return autoscaling.NoRequeue, nil
+	}
+}
+
+func (u *verticalController) syncDeploymentKind(
+	ctx context.Context,
+	podAutoscaler *datadoghq.DatadogPodAutoscaler,
+	autoscalerInternal *model.PodAutoscalerInternal,
+	_ datadoghq.DatadogPodAutoscalerUpdateStrategy,
+	target NamespacedPodOwner,
+	targetGVK schema.GroupVersionKind,
+	recommendationID string,
+	pods []*workloadmeta.KubernetesPod,
+	podsPerRecomendationID map[string]int32,
+	podsPerDirectOwner map[string]int32,
+) (autoscaling.ProcessResult, error) {
+	// Check if we need to rollout, currently basic check with 100% match expected.
+	// TODO: Refine the logic and add backoff for stuck PODs.
+	if podsPerRecomendationID[recommendationID] == int32(len(pods)) {
+		autoscalerInternal.VerticalLastActionError = nil
+		return autoscaling.NoRequeue, nil
+	}
+
+	// Check if a rollout is already ongoing
+	// TODO: Refine the logic and add backoff for stuck PODs.
+	if len(podsPerDirectOwner) > 1 {
+		log.Debugf("Rollout already ongoing for autoscaler: %s, gvk: %s, name: %s", autoscalerInternal.ID(), targetGVK.String(), autoscalerInternal.Spec.TargetRef.Name)
+		return autoscaling.ProcessResult{Requeue: true, RequeueAfter: rolloutCheckRequeueDelay}, nil
+	}
+
+	// Normally we should check updateStrategy here, we currently only support one way, so not required for now.
 
 	// Generate the patch request which adds the scaling hash annotation to the pod template
-	gvr := gvk.GroupVersion().WithResource(fmt.Sprintf("%ss", strings.ToLower(gvk.Kind)))
+	gvr := targetGVK.GroupVersion().WithResource(fmt.Sprintf("%ss", strings.ToLower(targetGVK.Kind)))
+	patchTime := u.clock.Now()
 	patchData, err := json.Marshal(map[string]interface{}{
 		"spec": map[string]interface{}{
 			"template": map[string]interface{}{
 				"metadata": map[string]interface{}{
 					"annotations": map[string]string{
-						annotation: autoscalerInternal.ScalingValuesHash,
+						model.RolloutTimestampAnnotation: patchTime.Format(time.RFC3339),
+						model.RecommendationIDAnnotation: recommendationID,
 					},
 				},
 			},
 		},
 	})
 	if err != nil {
-		err := fmt.Errorf("Failed to serialize data :%v", patchData)
-		log.Errorf("%s/%s: %s", autoscalerInternal.Namespace, autoscalerInternal.Name, err)
-		return withStatusUpdate(true, autoscaling.NoRequeue), err
+		autoscalerInternal.VerticalLastActionError = fmt.Errorf("Unable to produce JSONPatch : %v", err)
+		return autoscaling.Requeue, err
 	}
 
-	// Patch the target
-	_, err = u.cl.Resource(gvr).Namespace(target.Namespace).Patch(ctx, target.Name, types.MergePatchType, patchData, metav1.PatchOptions{})
+	// Apply patch to trigger rollout
+	_, err = u.dynamicClient.Resource(gvr).Namespace(target.Namespace).Patch(ctx, target.Name, types.StrategicMergePatchType, patchData, metav1.PatchOptions{})
 	if err != nil {
-		err := fmt.Errorf("Failed to patch %s: %s/%s -- %v", gvr.String(), target.Namespace, target.Name, err)
-		log.Errorf("%s/%s: %s", autoscalerInternal.Namespace, autoscalerInternal.Name, err)
-		Patches.Inc(target.Kind, target.Name, target.Namespace, "error")
-		return withStatusUpdate(true, autoscaling.Requeue), err
+		err = fmt.Errorf("failed to trigger rollout for gvk: %s, name: %s, err: %v", targetGVK.String(), autoscalerInternal.Spec.TargetRef.Name, err)
+		rolloutTriggered.Inc(target.Kind, target.Name, target.Namespace, "error")
+		autoscalerInternal.VerticalLastActionError = err
+		u.eventRecorder.Event(podAutoscaler, corev1.EventTypeWarning, model.FailedTriggerRolloutEventReason, err.Error())
 
+		return autoscaling.Requeue, err
 	}
+
+	// Propagating information about the rollout
+	log.Infof("Successfully triggered rollout for autoscaler: %s, gvk: %s, name: %s", autoscalerInternal.ID(), targetGVK.String(), autoscalerInternal.Spec.TargetRef.Name)
+	rolloutTriggered.Inc(target.Kind, target.Name, target.Namespace, "success")
+	u.eventRecorder.Eventf(podAutoscaler, corev1.EventTypeNormal, model.SuccessfulTriggerRolloutEventReason, "Successfully triggered rollout on target:%s/%s", targetGVK.String(), autoscalerInternal.Spec.TargetRef.Name)
+
+	autoscalerInternal.VerticalLastActionError = nil
 	autoscalerInternal.VerticalLastAction = &datadoghq.DatadogPodAutoscalerVerticalAction{
-		Time: metav1.Now(),
-		Type: datadoghq.DatadogPodAutoscalerRolloutTriggeredVerticalActionType,
+		Time:    metav1.NewTime(patchTime),
+		Version: recommendationID,
+		Type:    datadoghq.DatadogPodAutoscalerRolloutTriggeredVerticalActionType,
 	}
-	Patches.Inc(target.Kind, target.Name, target.Namespace, "success")
 
-	// Need to requeue the object to make sure the rollout completed
-	return withStatusUpdate(true, autoscaling.ProcessResult{RequeueAfter: requeueAfterSuccessTime}), nil
+	// Requeue regularly to check for rollout completion
+	return autoscaling.ProcessResult{Requeue: true, RequeueAfter: rolloutCheckRequeueDelay}, nil
 }
 
-func equalResources(resourceList corev1.ResourceList, resourceMap map[string]string) bool {
-	if len(resourceList) != len(resourceMap) {
-		return false
+// getVerticalPatchingStrategy applied policies to determine effective patching strategy.
+// Return (strategy, reason). Reason is only returned when chosen strategy disables vertical patching.
+func getVerticalPatchingStrategy(autoscalerInternal *model.PodAutoscalerInternal) (datadoghq.DatadogPodAutoscalerUpdateStrategy, string) {
+	// If we don't have spec, we cannot take decisions, should not happen.
+	if autoscalerInternal.Spec == nil {
+		return datadoghq.DatadogPodAutoscalerDisabledUpdateStrategy, "pod autoscaling hasn't been initialized yet"
 	}
-	for k, v := range resourceList {
-		res, ok := resourceMap[string(k)]
-		if !ok {
-			return false
-		}
-		quantity, err := resource.ParseQuantity(res)
-		if err != nil {
-			log.Errorf("Failed to parse quantity %s", res)
-			return false
-		}
-		if !v.Equal(quantity) {
-			return false
-		}
-	}
-	return true
-}
 
-// rolloutOngoingForDeployment returns true if a rollout is ongoing for the given deployment
-// It compares the owner of the pods to check if they are the same.
-// If not, it means that a replicaset has been created and a rollout is ongoing.
-func rolloutOngoingForDeployment(pods []*workloadmeta.KubernetesPod) bool {
-	// Check if a rollout is already in progress
-	var ownerID string
-	for _, pod := range pods {
-		if len(pod.Owners) == 0 {
-			// This condition should never happen since the pod watcher groups pods by owner
-			log.Warnf("Pod %s/%s has no owner", pod.Namespace, pod.Name)
-			continue
+	// If we don't have a ScalingValue, we cannot take decisions, should not happen.
+	if autoscalerInternal.ScalingValues.Vertical == nil {
+		return datadoghq.DatadogPodAutoscalerDisabledUpdateStrategy, "no scaling values available"
+	}
+
+	// By default, policy is to allow all
+	if autoscalerInternal.Spec.Policy == nil {
+		return datadoghq.DatadogPodAutoscalerAutoUpdateStrategy, ""
+	}
+
+	// We do have policies, checking if they allow this source
+	if !model.ApplyModeAllowSource(autoscalerInternal.Spec.Policy.ApplyMode, autoscalerInternal.ScalingValues.Vertical.Source) {
+		return datadoghq.DatadogPodAutoscalerDisabledUpdateStrategy, fmt.Sprintf("vertical scaling disabled due to applyMode: %s not allowing recommendations from source: %s", autoscalerInternal.Spec.Policy.ApplyMode, autoscalerInternal.ScalingValues.Vertical.Source)
+	}
+
+	if autoscalerInternal.Spec.Policy.Update != nil {
+		if autoscalerInternal.Spec.Policy.Update.Strategy == datadoghq.DatadogPodAutoscalerDisabledUpdateStrategy {
+			return datadoghq.DatadogPodAutoscalerDisabledUpdateStrategy, "vertical scaling disabled due to update strategy set to disabled"
 		}
 
-		if ownerID == "" {
-			ownerID = pod.Owners[0].ID
-		} else if ownerID != pod.Owners[0].ID {
-			log.Debugf("Pod %s/%s has owner different from %s (%s), a rollout might be ongoing. Retrying later.", pod.Namespace, pod.Name, ownerID, pod.Owners[0].ID)
-			return true
-		}
+		return autoscalerInternal.Spec.Policy.Update.Strategy, ""
 	}
-	return false
+
+	// No update strategy defined, defaulting to auto
+	return datadoghq.DatadogPodAutoscalerAutoUpdateStrategy, ""
 }

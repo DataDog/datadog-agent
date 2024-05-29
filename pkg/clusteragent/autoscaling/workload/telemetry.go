@@ -11,17 +11,17 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 )
 
-var (
-	commonOpts = telemetry.Options{NoDoubleUnderscoreSep: true}
+const (
+	subsystem = "workload_autoscaling"
 )
 
-var (
-	// Patches tracks the number of patch requests sent by the patcher to the kubernetes api server
-	Patches = telemetry.NewCounterWithOpts(
-		subsystem,
-		"patches",
-		[]string{"owner_kind", "owner_name", "namespace", "status"},
-		"Tracks the number of patch requests sent by the patcher to the kubernetes api server",
-		commonOpts,
-	)
+var commonOpts = telemetry.Options{NoDoubleUnderscoreSep: true}
+
+// rolloutTriggered tracks the number of patch requests sent by the patcher to the kubernetes api server
+var rolloutTriggered = telemetry.NewCounterWithOpts(
+	subsystem,
+	"rollout_triggered",
+	[]string{"owner_kind", "owner_name", "namespace", "status"},
+	"Tracks the number of patch requests sent by the patcher to the kubernetes api server",
+	commonOpts,
 )

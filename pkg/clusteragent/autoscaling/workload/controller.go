@@ -22,7 +22,6 @@ import (
 
 	datadoghq "github.com/DataDog/datadog-operator/apis/datadoghq/v1alpha1"
 
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/model"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -54,7 +53,7 @@ type Controller struct {
 	clock clock.Clock
 	store *store
 
-	podWatcher           PodWatcher
+	podWatcher           podWatcher
 	horizontalController *horizontalController
 	verticalController   *verticalController
 }
@@ -68,7 +67,7 @@ func newController(
 	dynamicInformer dynamicinformer.DynamicSharedInformerFactory,
 	isLeader func() bool,
 	store *store,
-	wlm workloadmeta.Component,
+	podWatcher podWatcher,
 ) (*Controller, error) {
 	c := &Controller{
 		eventRecorder: eventRecorder,
@@ -82,11 +81,11 @@ func newController(
 
 	c.Controller = baseController
 	c.store = store
-	c.podWatcher = newPodWatcher(wlm)
+	c.podWatcher = podWatcher
 
 	// TODO: Ensure that controllers do not take action before the podwatcher is synced
 	c.horizontalController = newHorizontalReconciler(c.clock, eventRecorder, restMapper, scaleClient)
-	c.verticalController = newVerticalController(dynamicClient, c.podWatcher)
+	c.verticalController = newVerticalController(c.clock, eventRecorder, dynamicClient, c.podWatcher)
 
 	return c, nil
 }
@@ -232,7 +231,6 @@ func (c *Controller) syncPodAutoscaler(ctx context.Context, key, ns, name string
 			}
 
 			podAutoscalerInternal.Generation = podAutoscaler.Generation
-			c.store.Set(key, podAutoscalerInternal, c.ID)
 		}
 	}
 
@@ -240,15 +238,14 @@ func (c *Controller) syncPodAutoscaler(ctx context.Context, key, ns, name string
 	if podAutoscalerInternal.Spec.Owner == datadoghq.DatadogPodAutoscalerLocalOwner {
 		if podAutoscalerInternal.Generation != podAutoscaler.Generation {
 			podAutoscalerInternal.UpdateFromPodAutoscaler(podAutoscaler)
-			c.store.Set(key, podAutoscalerInternal, c.ID)
 		}
 	}
 
+	// Reaching this point, we had an error in processing, clearing up global error
+	podAutoscalerInternal.Error = nil
+
 	// Now that everything is synced, we can perform the actual processing
 	result, err := c.handleScaling(ctx, podAutoscaler, &podAutoscalerInternal)
-	if err != nil {
-		podAutoscalerInternal.Error = err
-	}
 
 	// Update status based on latest state
 	statusErr := c.updatePodAutoscalerStatus(ctx, podAutoscalerInternal, podAutoscaler)
@@ -269,13 +266,11 @@ func (c *Controller) handleScaling(ctx context.Context, podAutoscaler *datadoghq
 	// TODO: While horizontal scaling is in progress we should not start vertical scaling
 	// While vertical scaling is in progress we should only allow horizontal upscale
 	horizontalRes, err := c.horizontalController.sync(ctx, podAutoscaler, podAutoscalerInternal)
-	podAutoscalerInternal.HorizontalLastActionError = err
 	if err != nil {
 		return horizontalRes, err
 	}
 
-	verticalRes, err := c.verticalController.sync(ctx, podAutoscalerInternal)
-	return verticalRes, err
+	return c.verticalController.sync(ctx, podAutoscaler, podAutoscalerInternal)
 }
 
 func (c *Controller) createPodAutoscaler(ctx context.Context, podAutoscalerInternal model.PodAutoscalerInternal) error {
@@ -325,11 +320,16 @@ func (c *Controller) updatePodAutoscalerSpec(ctx context.Context, podAutoscalerI
 }
 
 func (c *Controller) updatePodAutoscalerStatus(ctx context.Context, podAutoscalerInternal model.PodAutoscalerInternal, podAutoscaler *datadoghq.DatadogPodAutoscaler) error {
+	newStatus := podAutoscalerInternal.BuildStatus(metav1.NewTime(c.clock.Now()), &podAutoscaler.Status)
+	if autoscaling.Semantic.DeepEqual(podAutoscaler.Status, newStatus) {
+		return nil
+	}
+
 	log.Debugf("Updating PodAutoscaler Status: %s/%s", podAutoscalerInternal.Namespace, podAutoscalerInternal.Name)
 	autoscalerObj := &datadoghq.DatadogPodAutoscaler{
 		TypeMeta:   podAutoscalerMeta,
 		ObjectMeta: podAutoscaler.ObjectMeta,
-		Status:     podAutoscalerInternal.BuildStatus(metav1.NewTime(c.clock.Now()), &podAutoscaler.Status),
+		Status:     newStatus,
 	}
 
 	obj, err := autoscaling.ToUnstructured(autoscalerObj)
