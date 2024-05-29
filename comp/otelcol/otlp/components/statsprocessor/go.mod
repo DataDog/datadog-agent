@@ -33,7 +33,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/log v0.54.0-rc.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/pointer v0.54.0-rc.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.54.0-rc.2 // indirect
-	github.com/DataDog/go-sqllexer v0.0.9 // indirect
+	github.com/DataDog/go-sqllexer v0.0.12 // indirect
 	github.com/DataDog/go-tuf v1.1.0-0.5.2 // indirect
 	github.com/DataDog/sketches-go v1.4.2 // indirect
 	github.com/Microsoft/go-winio v0.6.1 // indirect
