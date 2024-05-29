@@ -230,6 +230,10 @@ func (p *WindowsProbe) initEtwFIM() error {
 }
 
 func (p *WindowsProbe) reconfigureProvider() error {
+	if !p.config.RuntimeSecurity.FIMEnabled {
+		return nil
+	}
+
 	pidsList := make([]uint32, 0)
 
 	p.fimSession.ConfigureProvider(p.fileguid, func(cfg *etw.ProviderConfiguration) {
