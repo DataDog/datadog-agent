@@ -1181,8 +1181,9 @@ def get_linux_header_dirs(
     linux_headers = [(path, ord) for prio, ord, path in paths_with_priority_and_sort_order if prio == max_priority]
 
     # Include sort order is important, ensure we respect the sort order we defined while
-    # discovering the paths
-    linux_headers = [path for path, _ in sorted(linux_headers, key=lambda x: x[1])]
+    # discovering the paths. Also, in case of equal sort order, sort by path name to ensure
+    # a deterministic order (useful to stop ninja from rebuilding on reordering of headers).
+    linux_headers = [path for path, _ in sorted(linux_headers, key=lambda x: (x[1], x[0]))]
 
     # Now construct all subdirectories. Again, order is important, so keep the list
     subdirs = [
