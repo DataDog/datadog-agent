@@ -23,6 +23,7 @@ from tasks.libs.pipeline.notifications import (
     GITHUB_JIRA_MAP,
     GITHUB_SLACK_MAP,
 )
+from tasks.modules import DEFAULT_MODULES
 
 E2E_INTERNAL_ERROR_STRING = "E2E INTERNAL ERROR"
 CODEOWNERS_ORG_PREFIX = "@DataDog/"
@@ -107,13 +108,17 @@ def get_flaky_from_test_output():
     TEST_OUTPUT_FILE = "module_test_output.json"
     FLAKE_MESSAGE = "flakytest: this is a known flaky test"
     test_output = []
-
-    with open(TEST_OUTPUT_FILE) as f:
-        for line in f.readlines():
-            test_output.append(json.loads(line))
-    flaky_tests = [
-        "/".join([test["Package"], test["Test"]]) for test in test_output if FLAKE_MESSAGE in test.get("Output", "")
-    ]
+    flaky_tests = []
+    for module in DEFAULT_MODULES:
+        if os.path.isfile(os.path.join(module, TEST_OUTPUT_FILE)):
+            with open(TEST_OUTPUT_FILE) as f:
+                for line in f.readlines():
+                    test_output.append(json.loads(line))
+            flaky_tests += [
+                "/".join([test["Package"], test["Test"]])
+                for test in test_output
+                if FLAKE_MESSAGE in test.get("Output", "")
+            ]
     print(f"[INFO] Found {len(flaky_tests)} flaky tests.")
     return flaky_tests
 
