@@ -21,18 +21,18 @@ func (p *Poller) init() {
 	p.os = newWindowsOSImpl(p.IncludeLocalhost)
 }
 
-type WindowsOSImpl struct {
-	includeLocalhost bool
+type windowsOSImpl struct {
+	includeLocalhost bogit ol
 }
 
 func newWindowsOSImpl(includeLocalhost bool) osImpl {
-	return &WindowsOSImpl{
+	return &windowsOSImpl{
 		includeLocalhost: includeLocalhost,
 	}
 }
 
-func (im *WindowsOSImpl) AppendListeningPorts(_ []Port) ([]Port, error) {
+func (im *windowsOSImpl) AppendListeningPorts(_ []Port) ([]Port, error) {
 	return nil, ErrNotImplemented
 }
 
-func (*WindowsOSImpl) Close() error { return ErrNotImplemented }
+func (*windowsOSImpl) Close() error { return ErrNotImplemented }
