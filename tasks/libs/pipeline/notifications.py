@@ -106,6 +106,16 @@ def find_job_owners(failed_jobs: FailedJobs, owners_file: str = ".gitlab/JOBOWNE
     return owners_to_notify
 
 
+def get_pr_from_commit(commit_title, project_title) -> tuple[str, str] | None:
+    parsed_pr_id_found = re.search(r'.*\(#([0-9]*)\)$', commit_title)
+    if not parsed_pr_id_found:
+        return None
+
+    parsed_pr_id = parsed_pr_id_found.group(1)
+
+    return parsed_pr_id, f"{DATADOG_AGENT_GITHUB_ORG_URL}/{project_title}/pull/{parsed_pr_id}"
+
+
 def base_message(header, state):
     project_title = os.getenv("CI_PROJECT_TITLE")
     # commit_title needs a default string value, otherwise the re.search line below crashes
@@ -119,11 +129,10 @@ def base_message(header, state):
     author = get_git_author()
 
     # Try to find a PR id (e.g #12345) in the commit title and add a link to it in the message if found.
-    parsed_pr_id_found = re.search(r'.*\(#([0-9]*)\)$', commit_title)
+    pr_info = get_pr_from_commit(commit_title, project_title)
     enhanced_commit_title = commit_title
-    if parsed_pr_id_found:
-        parsed_pr_id = parsed_pr_id_found.group(1)
-        pr_url_github = f"{DATADOG_AGENT_GITHUB_ORG_URL}/{project_title}/pull/{parsed_pr_id}"
+    if pr_info:
+        parsed_pr_id, pr_url_github = pr_info
         enhanced_commit_title = enhanced_commit_title.replace(f"#{parsed_pr_id}", f"<{pr_url_github}|#{parsed_pr_id}>")
 
     return f"""{header} pipeline <{pipeline_url}|{pipeline_id}> for {commit_ref_name} {state}.
