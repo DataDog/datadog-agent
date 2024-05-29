@@ -8,6 +8,7 @@ package writer
 import (
 	"compress/gzip"
 	"errors"
+	"io"
 	"strings"
 	"sync"
 	"time"
@@ -236,6 +237,18 @@ func (w *TraceWriter) flush() {
 	w.flushPayloads(w.tracerPayloads)
 }
 
+var gzpool = sync.Pool{}
+
+func getGZW(w io.Writer) (*gzip.Writer, error) {
+	gw := gzpool.Get()
+	if gw == nil {
+		return gzip.NewWriterLevel(w, gzip.BestSpeed)
+	}
+	gws := gw.(*gzip.Writer)
+	gws.Reset(w)
+	return gws, nil
+}
+
 // w does not need to be locked during flushPayloads.
 func (w *TraceWriter) flushPayloads(payloads []*pb.TracerPayload) {
 	w.flushTicker.Reset(w.tick) // reset the flush timer whenever we flush
@@ -275,13 +288,14 @@ func (w *TraceWriter) serialize(pl *pb.AgentPayload) {
 		headerLanguages:    strings.Join(info.Languages(), "|"),
 	})
 	p.body.Grow(len(b) / 2)
-	gzipw, err := gzip.NewWriterLevel(p.body, gzip.BestSpeed)
+	gzipw, err := getGZW(p.body)
 	if err != nil {
 		// it will never happen, unless an invalid compression is chosen;
 		// we know gzip.BestSpeed is valid.
-		log.Errorf("gzip.NewWriterLevel: %d", err)
+		log.Errorf("Failed to initialize gzip writer. No traces can be sent: %v", err)
 		return
 	}
+	defer gzpool.Put(gzipw)
 	if _, err := gzipw.Write(b); err != nil {
 		log.Errorf("Error gzipping trace payload: %v", err)
 	}
