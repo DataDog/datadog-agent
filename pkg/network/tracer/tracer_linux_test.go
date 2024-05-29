@@ -2348,13 +2348,13 @@ func (s *TracerSuite) TestTCPFailureConnectionTimeout() {
 	if _, ok := failedConnectionsBuildModes[ebpftest.GetBuildMode()]; !ok {
 		t.Skip("Skipping test on unsupported build mode: ", ebpftest.GetBuildMode())
 	}
+	// TODO: remove this check when we fix this test on kernels < 4.15
 	if kernel.VersionCode(4, 15, 0) > kv {
 		t.Skip("Skipping test on kernels < 4.15")
 	}
 	setupDropTrafficRule(t)
 	cfg := testConfig()
 	cfg.TCPFailedConnectionsEnabled = true
-	cfg.ClientStateExpiry = 5 * time.Minute
 	tr := setupTracer(t, cfg)
 
 	srvAddr := "127.0.0.1:10000"
@@ -2368,19 +2368,14 @@ func (s *TracerSuite) TestTCPFailureConnectionTimeout() {
 		Port: port,
 		Addr: ip.As4(),
 	}
-
-	// Create a TCP socket
 	sfd, err := syscall.Socket(syscall.AF_INET, syscall.SOCK_STREAM, syscall.IPPROTO_TCP)
 	require.NoError(t, err)
 	t.Cleanup(func() { syscall.Close(sfd) })
 
-	// Set TCP_USER_TIMEOUT to 500 milliseconds
-	timeout := 500 // milliseconds
-	//syscall.TCP_USER_TIMEOUT is 18 but not defined in our linter
-	err = syscall.SetsockoptInt(sfd, syscall.IPPROTO_TCP, 18, timeout)
+	//syscall.TCP_USER_TIMEOUT is 18 but not defined in our linter. Set it to 500ms
+	err = syscall.SetsockoptInt(sfd, syscall.IPPROTO_TCP, 18, 500)
 	require.NoError(t, err)
 
-	// Attempt to connect to the server
 	err = syscall.Connect(sfd, &addr)
 	if err != nil {
 		var errno syscall.Errno
@@ -2391,69 +2386,19 @@ func (s *TracerSuite) TestTCPFailureConnectionTimeout() {
 		}
 	}
 
-	// Get the local address and port of the socket
-	//_sa, err := syscall.Getsockname(sfd)
-	//require.NoError(t, err)
-	//sa := _sa.(*syscall.SockaddrInet4)
-	//ap := netip.AddrPortFrom(netip.AddrFrom4(sa.Addr), uint16(sa.Port))
-	//t.Log("Local address and port:", ap)
-
-	// Check if the connection was recorded as failed due to timeout
-	require.Eventually(t, func() bool {
-		conns := getConnections(t, tr)
-		// 110 is the errno for ETIMEDOUT
-		return findFailedConnectionByRemoteAddr(srvAddr, conns, 110)
-	}, 3*time.Second, 1000*time.Millisecond, "Failed connection not recorded properly")
-}
-
-func (s *TracerSuite) TestTCPFailureConnectionTimeout2() {
-	t := s.T()
-	t.Skip()
-	if _, ok := failedConnectionsBuildModes[ebpftest.GetBuildMode()]; !ok {
-		t.Skip()
-	}
-	setupDropTrafficRule(t)
-	cfg := testConfig()
-	cfg.TCPFailedConnectionsEnabled = true
-	tr := setupTracer(t, cfg)
-
-	srvAddr := "127.0.0.1:10000"
-
-	dialer := net.Dialer{
-		Timeout: 500 * time.Millisecond, // Set the connection timeout
-		Control: func(network, address string, c syscall.RawConn) error {
-			var opErr error
-			if err := c.Control(func(fd uintptr) {
-				opErr = syscall.SetsockoptInt(int(fd), syscall.IPPROTO_TCP, 18, 500)
-			}); err != nil {
-				return err
-			}
-			return opErr
-		},
-	}
-
-	conn, err := dialer.Dial("tcp", srvAddr)
-	if err != nil {
-		t.Logf("Connection attempt failed: %v", err)
-		require.Error(t, err, "expected timeout error but got none")
-	} else {
-		conn.Close() // Close the connection if somehow established
-	}
-
-	localAddr := conn.LocalAddr()
-
-	serverAddress, err := net.ResolveTCPAddr("tcp", srvAddr)
+	f := os.NewFile(uintptr(sfd), "")
+	defer f.Close()
+	c, err := net.FileConn(f)
 	require.NoError(t, err)
+	port = c.LocalAddr().(*net.TCPAddr).Port
+	// the addr here is 0.0.0.0, but the tracer sees it as 127.0.0.1
+	localAddr := fmt.Sprintf("127.0.0.1:%d", port)
 
-	t.Log("ADAMK 1")
 	// Check if the connection was recorded as failed due to timeout
 	require.Eventually(t, func() bool {
 		conns := getConnections(t, tr)
-		t.Log("ADAMK 2")
 		// 110 is the errno for ETIMEDOUT
-		found := findFailedConnection(t, localAddr, serverAddress, conns, 110)
-		t.Log("ADAMK 3")
-		return found
+		return findFailedConnection(t, localAddr, srvAddr, conns, 110)
 	}, 3*time.Second, 1000*time.Millisecond, "Failed connection not recorded properly")
 }
 
@@ -2506,7 +2451,6 @@ func (s *TracerSuite) TestTCPFailureConnectionReset() {
 	t.Cleanup(srv.Shutdown)
 
 	serverAddr := srv.ln.Addr()
-	t.Log("serverAddr", serverAddr.String())
 	c, err := net.Dial("tcp", serverAddr.String())
 	require.NoError(t, err, "could not connect to server: ", err)
 
@@ -2519,48 +2463,36 @@ func (s *TracerSuite) TestTCPFailureConnectionReset() {
 	// Read from server to ensure that the server has a chance to reset the connection
 	_, readErr := c.Read(make([]byte, 4))
 	require.Error(t, readErr, "expected connection reset error but got none")
-	t.Log("Read error:", readErr)
 
 	// Check if the connection was recorded as reset
 	require.Eventually(t, func() bool {
 		conns := getConnections(t, tr)
-		t.Log("conns", conns)
 		// 104 is the errno for ECONNRESET
-		found := findFailedConnection(t, c.LocalAddr(), serverAddr, conns, 104)
-		return found
+		return findFailedConnection(t, c.LocalAddr().String(), serverAddr.String(), conns, 104)
 	}, 3*time.Second, 100*time.Millisecond, "Failed connection not recorded properly")
 
 	require.NoError(t, c.Close(), "error closing client connection")
 }
 
 // findFailedConnection is a utility function to find a failed connection based on specific TCP error codes
-func findFailedConnection(t *testing.T, local, remote net.Addr, conns *network.Connections, errorCode uint32) bool {
+func findFailedConnection(t *testing.T, local, remote string, conns *network.Connections, errorCode uint32) bool {
 	// Extract the address and port from the net.Addr types
-	localAddrPort, err := netip.ParseAddrPort(local.String())
+	localAddrPort, err := netip.ParseAddrPort(local)
 	if err != nil {
 		t.Logf("Failed to parse local address: %v", err)
 		return false
 	}
-	remoteAddrPort, err := netip.ParseAddrPort(remote.String())
+	remoteAddrPort, err := netip.ParseAddrPort(remote)
 	if err != nil {
 		t.Logf("Failed to parse remote address: %v", err)
 		return false
 	}
 
 	failureFilter := func(cs network.ConnectionStats) bool {
-		// Construct the AddrPort combination from the connection stats
 		localMatch := netip.AddrPortFrom(cs.Source.Addr, cs.SPort) == localAddrPort
 		remoteMatch := netip.AddrPortFrom(cs.Dest.Addr, cs.DPort) == remoteAddrPort
-		if localMatch && remoteMatch {
-			t.Log("TCPFailures", cs.TCPFailures)
-			t.Log("errorCode", errorCode)
-			t.Log("cs.TCPFailures[errorCode]", cs.TCPFailures[errorCode])
-		}
 		return localMatch && remoteMatch && cs.TCPFailures[errorCode] > 0
 	}
-
-	// Debug logs for tracking
-	t.Logf("Searching for failure: Local: %s, Remote: %s, Error Code: %d", localAddrPort, remoteAddrPort, errorCode)
 
 	return network.FirstConnection(conns, failureFilter) != nil
 }
