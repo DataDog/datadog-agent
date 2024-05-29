@@ -82,6 +82,7 @@ import (
 	replay "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/def"
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
 	dogstatsddebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
+	"github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
 	dogstatsdStatusimpl "github.com/DataDog/datadog-agent/comp/dogstatsd/status/statusimpl"
 	"github.com/DataDog/datadog-agent/comp/forwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
@@ -218,6 +219,7 @@ func run(log log.Component,
 	demultiplexer demultiplexer.Component,
 	sharedSerializer serializer.MetricSerializer,
 	logsAgent optional.Option[logsAgent.Component],
+	_ statsd.Component,
 	processAgent processAgent.Component,
 	otelcollector otelcollector.Component,
 	_ host.Component,
@@ -364,6 +366,7 @@ func getSharedFxOption() fx.Option {
 		traceagentStatusImpl.Module(),
 		processagentStatusImpl.Module(),
 		dogstatsdStatusimpl.Module(),
+		statsd.Module(),
 		statusimpl.Module(),
 		authtokenimpl.Module(),
 		apiimpl.Module(),

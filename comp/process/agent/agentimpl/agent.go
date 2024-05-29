@@ -14,13 +14,16 @@ import (
 	logComponent "github.com/DataDog/datadog-agent/comp/core/log"
 	statusComponent "github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
+	compstatsd "github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
 	"github.com/DataDog/datadog-agent/comp/process/agent"
 	expvars "github.com/DataDog/datadog-agent/comp/process/expvars/expvarsimpl"
 	"github.com/DataDog/datadog-agent/comp/process/hostinfo"
 	"github.com/DataDog/datadog-agent/comp/process/runner"
 	submitterComp "github.com/DataDog/datadog-agent/comp/process/submitter"
 	"github.com/DataDog/datadog-agent/comp/process/types"
+	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
+	processStatsd "github.com/DataDog/datadog-agent/pkg/process/statsd"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -52,6 +55,7 @@ type dependencies struct {
 	Submitter      submitterComp.Component
 	SysProbeConfig sysprobeconfig.Component
 	HostInfo       hostinfo.Component
+	Statsd         compstatsd.Component
 }
 
 type processAgent struct {
@@ -89,6 +93,15 @@ func newProcessAgent(deps dependencies) provides {
 	// Look to see if any checks are enabled, if not, return since the agent doesn't need to be enabled.
 	if len(enabledChecks) == 0 {
 		deps.Log.Info(agentDisabledMessage)
+		return provides{
+			Comp: processAgent{
+				enabled: false,
+			},
+		}
+	}
+
+	if err := processStatsd.Configure(ddconfig.GetBindHost(), deps.Config.GetInt("dogstatsd_port"), deps.Statsd.CreateForHostPort); err != nil {
+		deps.Log.Criticalf("Error configuring statsd for process-agent: %s", err)
 		return provides{
 			Comp: processAgent{
 				enabled: false,

@@ -26,6 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/process/submitter/submitterimpl"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
 	checkMocks "github.com/DataDog/datadog-agent/pkg/process/checks/mocks"
+	"github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -117,6 +118,7 @@ func TestProcessAgentComponentOnLinux(t *testing.T) {
 				submitterimpl.MockModule(),
 				taggerimpl.MockModule(),
 				telemetryimpl.Module(),
+				statsd.MockModule(),
 				Module(),
 
 				fx.Replace(configComp.MockParams{Overrides: map[string]interface{}{
@@ -178,6 +180,7 @@ func TestStatusProvider(t *testing.T) {
 				submitterimpl.MockModule(),
 				taggerimpl.MockModule(),
 				telemetryimpl.Module(),
+				statsd.MockModule(),
 				Module(),
 				fx.Replace(configComp.MockParams{Overrides: map[string]interface{}{
 					"process_config.run_in_core_agent.enabled": true,
@@ -215,6 +218,7 @@ func TestTelemetryCoreAgent(t *testing.T) {
 		hostinfoimpl.MockModule(),
 		submitterimpl.MockModule(),
 		taggerimpl.MockModule(),
+		statsd.MockModule(),
 		Module(),
 		fx.Replace(configComp.MockParams{Overrides: map[string]interface{}{
 			"process_config.run_in_core_agent.enabled": true,
