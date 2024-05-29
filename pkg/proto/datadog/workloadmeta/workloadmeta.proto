@@ -51,7 +51,7 @@ message ContainerImage {
   string name = 3;
   string shortName = 4;
   string tag = 5;
-  string repo_digest = 6; 
+  string repo_digest = 6;
 }
 
 message ContainerPort {
@@ -106,6 +106,7 @@ message Container {
   Runtime runtime = 9;
   ContainerState state = 10;
   repeated string collectorTags = 11;
+  string cgroupPath = 12;
 }
 
 message KubernetesPodOwner {

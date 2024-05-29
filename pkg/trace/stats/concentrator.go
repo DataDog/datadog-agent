@@ -180,8 +180,9 @@ func computeStatsForSpanKind(s *pb.Span) bool {
 
 // Input specifies a set of traces originating from a certain payload.
 type Input struct {
-	Traces      []traceutil.ProcessedTrace
-	ContainerID string
+	Traces        []traceutil.ProcessedTrace
+	ContainerID   string
+	ContainerTags []string
 }
 
 // NewStatsInput allocates a stats input for an incoming trace payload
@@ -205,14 +206,14 @@ func NewStatsInput(numChunks int, containerID string, clientComputedStats bool, 
 func (c *Concentrator) Add(t Input) {
 	c.mu.Lock()
 	for _, trace := range t.Traces {
-		c.addNow(&trace, t.ContainerID)
+		c.addNow(&trace, t.ContainerID, t.ContainerTags)
 	}
 	c.mu.Unlock()
 }
 
 // addNow adds the given input into the concentrator.
 // Callers must guard!
-func (c *Concentrator) addNow(pt *traceutil.ProcessedTrace, containerID string) {
+func (c *Concentrator) addNow(pt *traceutil.ProcessedTrace, containerID string, containerTags []string) {
 	hostname := pt.TracerHostname
 	if hostname == "" {
 		hostname = c.agentHostname
@@ -250,6 +251,9 @@ func (c *Concentrator) addNow(pt *traceutil.ProcessedTrace, containerID string) 
 		b, ok := c.buckets[btime]
 		if !ok {
 			b = NewRawBucket(uint64(btime), uint64(c.bsize))
+			if containerID != "" && len(containerTags) > 0 {
+				b.containerTagsByID[containerID] = containerTags
+			}
 			c.buckets[btime] = b
 		}
 		b.HandleSpan(s, weight, isTop, pt.TraceChunk.Origin, aggKey, c.peerTagsAggregation, c.peerTagKeys)
@@ -264,6 +268,7 @@ func (c *Concentrator) Flush(force bool) *pb.StatsPayload {
 
 func (c *Concentrator) flushNow(now int64, force bool) *pb.StatsPayload {
 	m := make(map[PayloadAggregationKey][]*pb.ClientStatsBucket)
+	containerTagsByID := make(map[string][]string)
 
 	c.mu.Lock()
 	for ts, srb := range c.buckets {
@@ -281,6 +286,9 @@ func (c *Concentrator) flushNow(now int64, force bool) *pb.StatsPayload {
 		log.Debugf("Flushing bucket %d", ts)
 		for k, b := range srb.Export() {
 			m[k] = append(m[k], b)
+			if ctags, ok := srb.containerTagsByID[k.ContainerID]; ok {
+				containerTagsByID[k.ContainerID] = ctags
+			}
 		}
 		delete(c.buckets, ts)
 	}
@@ -302,9 +310,11 @@ func (c *Concentrator) flushNow(now int64, force bool) *pb.StatsPayload {
 			GitCommitSha: k.GitCommitSha,
 			ImageTag:     k.ImageTag,
 			Stats:        s,
+			Tags:         containerTagsByID[k.ContainerID],
 		}
 		sb = append(sb, p)
 	}
+
 	return &pb.StatsPayload{Stats: sb, AgentHostname: c.agentHostname, AgentEnv: c.agentEnv, AgentVersion: c.agentVersion}
 }
 
