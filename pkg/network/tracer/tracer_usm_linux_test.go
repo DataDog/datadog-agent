@@ -1561,7 +1561,7 @@ func testRedisProtocolClassification(t *testing.T, tr *Tracer, clientHost, targe
 	// Setting one instance of redis server for all tests.
 	serverAddress := net.JoinHostPort(serverHost, redisPort)
 	targetAddress := net.JoinHostPort(targetHost, redisPort)
-	require.NoError(t, redis.RunServer(t, serverHost, redisPort))
+	require.NoError(t, redis.RunServer(t, serverHost, redisPort, redis.Plaintext))
 
 	tests := []protocolClassificationAttributes{
 		{

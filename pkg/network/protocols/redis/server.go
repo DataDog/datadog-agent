@@ -7,18 +7,32 @@
 package redis
 
 import (
+	"fmt"
+	"path/filepath"
 	"regexp"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
 	protocolsUtils "github.com/DataDog/datadog-agent/pkg/network/protocols/testutil"
 )
 
 // RunServer runs a Redis server in a docker container
-func RunServer(t testing.TB, serverAddr, serverPort string) error {
+func RunServer(t testing.TB, serverAddr, serverPort string, withTLS TLSSetting) error {
+	cert, _, err := testutil.GetCertsPaths()
+	require.NoError(t, err)
+	certsDir := filepath.Dir(cert)
+
 	env := []string{
 		"REDIS_ADDR=" + serverAddr,
 		"REDIS_PORT=" + serverPort,
+		"CERTS_PATH=" + certsDir,
+	}
+
+	if withTLS {
+		args := fmt.Sprintf("REDIS_ARGS=--tls-port %v --port 0 --tls-cert-file /certs/cert.pem.0 --tls-key-file /certs/server.key --tls-auth-clients no", serverPort)
+		env = append(env, args)
 	}
 
 	t.Helper()

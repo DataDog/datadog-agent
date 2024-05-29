@@ -3,8 +3,12 @@ name: redis
 services:
   redis:
     image: redis:7-alpine
-    entrypoint: redis-server --ignore-warnings ARM64-COW-BUG
+    entrypoint: redis-server --ignore-warnings ARM64-COW-BUG ${REDIS_ARGS}
     ports:
       - ${REDIS_ADDR:-127.0.0.1}:${REDIS_PORT:-6379}:6379
     environment:
       - "ALLOW_EMPTY_PASSWORD=yes"
+    volumes:
+      - type: bind
+        source: ${CERTS_PATH}
+        target: /certs
