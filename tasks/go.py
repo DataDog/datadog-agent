@@ -415,6 +415,7 @@ def tidy(ctx):
     promises = []
     for mod in DEFAULT_MODULES.values():
         with ctx.cd(mod.full_path()):
+            # https://docs.pyinvoke.org/en/stable/api/runners.html#invoke.runners.Runner.run
             promises.append(ctx.run("go mod tidy", asynchronous=True))
 
     for promise in promises:
