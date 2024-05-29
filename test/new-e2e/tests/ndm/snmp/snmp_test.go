@@ -172,7 +172,7 @@ func (s *snmpDockerSuite) TestSnmpTagsAreStoredOnRestart() {
 
 	require.EventuallyWithT(s.T(), func(t *assert.CollectT) {
 		initialMetrics, err = fakeintake.FilterMetrics("snmp.device.reachable")
-		assert.NoError(s.T(), err)
+		assert.NoError(t, err)
 	}, 5*time.Minute, 5*time.Second)
 
 	initialTags := initialMetrics[0].Tags
