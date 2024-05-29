@@ -66,16 +66,53 @@ func (p endpointProvider) HandlerFunc() http.HandlerFunc {
 type AgentEndpointProvider struct {
 	fx.Out
 
-	Provider EndpointProvider `group:"agent_endpoint"`
+	Provider []EndpointProvider `group:"agent_endpoint,flatten"`
 }
 
 // NewAgentEndpointProvider returns a AgentEndpointProvider to register the endpoint provided to the internal agent api server
 func NewAgentEndpointProvider(handlerFunc http.HandlerFunc, route string, methods ...string) AgentEndpointProvider {
 	return AgentEndpointProvider{
-		Provider: endpointProvider{
+		Provider: []EndpointProvider{endpointProvider{
 			handler: handlerFunc,
 			route:   route,
 			methods: methods,
-		},
+		}},
+	}
+}
+
+// AgentEndpointProviderBatch is a builder to provide multiple AgentEndpointProvider.
+//
+// Usage:
+//
+//	batch := NewAgentEndpointProviderBatch()
+//	batch.Add(func, "/endpoint1", GET)
+//	batch.Add(func2, "/endpoint2", GET)
+//	// ... add more providers as needed
+//	agentEndpointProvider := batch.Build()
+type AgentEndpointProviderBatch struct {
+	// endpoints is a slice of endpointProvider that will be used to build the AgentEndpointProvider.
+	endpoints []endpointProvider
+}
+
+func NewAgentEndpointProviderBatch() AgentEndpointProviderBatch {
+	return AgentEndpointProviderBatch{}
+}
+
+func (b AgentEndpointProviderBatch) Add(handlerFunc http.HandlerFunc, route string, methods ...string) AgentEndpointProviderBatch {
+	b.endpoints = append(b.endpoints, endpointProvider{
+		handler: handlerFunc,
+		route:   route,
+		methods: methods,
+	})
+	return b
+}
+
+func (b AgentEndpointProviderBatch) Build() AgentEndpointProvider {
+	p := []EndpointProvider{}
+	for _, endpoint := range b.endpoints {
+		p = append(p, endpoint)
+	}
+	return AgentEndpointProvider{
+		Provider: p,
 	}
 }
