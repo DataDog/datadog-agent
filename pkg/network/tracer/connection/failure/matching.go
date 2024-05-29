@@ -22,8 +22,10 @@ var telemetryModuleName = "network_tracer__failure"
 
 var failureTelemetry = struct {
 	failedConnOrphans telemetry.Counter
+	failedConnMatches telemetry.Counter
 }{
 	telemetry.NewCounter(telemetryModuleName, "failed_conn_orphans", []string{}, "Counter measuring the number of orphans after associating failed connections with a closed connection"),
+	telemetry.NewCounter(telemetryModuleName, "failed_conn_matches", []string{}, "Counter measuring the number of successful matches of failed connections with closed connections"),
 }
 
 // FailedConnStats is a wrapper to help document the purpose of the underlying map
@@ -62,16 +64,14 @@ func (fc *FailedConns) MatchFailedConn(conn *network.ConnectionStats) {
 	}
 	connTuple := connStatsToTuple(conn)
 
-	// Read lock to check if the connection exists
 	fc.RLock()
 	failedConn, ok := fc.FailedConnMap[connTuple]
 	fc.RUnlock()
 
-	// If connection exists, proceed to increment failure count and delete
 	if ok {
+		// found matching failed connection
 		conn.TCPFailures = make(map[uint32]uint32)
 
-		// Write lock to modify the map
 		for errCode, count := range failedConn.CountByErrCode {
 			conn.TCPFailures[errCode] += count
 		}
