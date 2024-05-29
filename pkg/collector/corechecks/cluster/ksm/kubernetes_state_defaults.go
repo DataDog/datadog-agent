@@ -7,14 +7,20 @@
 
 package ksm
 
-import "github.com/DataDog/datadog-agent/pkg/util/kubernetes"
+import (
+	"k8s.io/kube-state-metrics/v2/pkg/customresourcestate"
+
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
+)
 
 // ksmMetricPrefix defines the KSM metrics namespace
 const ksmMetricPrefix = "kubernetes_state."
 
 // defaultMetricNamesMapper returns a map that translates KSM metric names to Datadog metric names
-func defaultMetricNamesMapper() map[string]string {
-	return map[string]string{
+// It also includes custom resources metrics for gauges and statesets.
+// CR types: https://github.com/kubernetes/kube-state-metrics/blob/main/docs/metrics/extend/customresourcestate-metrics.md#metric-types
+func (k *KSMCheck) defaultMetricNamesMapper() map[string]string {
+	res := map[string]string{
 		"kube_apiservice_status_condition":                                                         "apiservice.condition",
 		"kube_customresourcedefinition_status_condition":                                           "crd.condition",
 		"kube_daemonset_status_current_number_scheduled":                                           "daemonset.scheduled",
@@ -89,6 +95,18 @@ func defaultMetricNamesMapper() map[string]string {
 		"kube_job_duration":                                                                        "job.duration",
 		"kube_ingress_path":                                                                        "ingress.path",
 	}
+	if k.instance == nil {
+		return res
+	}
+	for _, customResource := range k.instance.CustomResource.Spec.Resources {
+		for _, generator := range customResource.Metrics {
+			if generator.Each.Type == customresourcestate.MetricTypeGauge ||
+				generator.Each.Type == customresourcestate.MetricTypeStateSet {
+				res[customResource.GetMetricNamePrefix()+"_"+generator.Name] = "customresource." + generator.Name
+			}
+		}
+	}
+	return res
 }
 
 // defaultLabelsMapper returns a map that contains the default labels to tag names mapping
