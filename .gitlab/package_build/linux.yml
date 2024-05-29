@@ -132,5 +132,5 @@ iot-agent-armhf:
     # On armv7, dpkg is built as a 32bits application, which means
     # we can only address 32 bits of memory, which is likely to OOM
     # if we use too many compression threads or a too agressive level
-    FORCED_COMPRESSION_LEVEL: 5
+    FORCED_PACKAGE_COMPRESSION_LEVEL: 5
 
