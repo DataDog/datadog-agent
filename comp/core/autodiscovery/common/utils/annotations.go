@@ -89,6 +89,9 @@ func extractLogsTemplatesFromMap(configs []integration.Config, key string, input
 	logCheckName := ""
 	if len(configs) >= 1 {
 		// Consider the first check name as the log check name, even if it's empty
+		// It's possible to have different names in different configs, and it would mean that one attached multiple integrations
+		// to a single container (e.g. redis + nginx). We expect we won't encounter this most of the time,
+		// but if it happens it means we're tagging the wrong integration name.
 		logCheckName = configs[0].Name
 	}
 
