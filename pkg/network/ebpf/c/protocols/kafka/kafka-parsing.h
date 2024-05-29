@@ -413,6 +413,19 @@ static __always_inline enum parse_result kafka_continue_parse_response_loop(kafk
                 return RET_ERR;
             }
             extra_debug("got error code: %d", error_code);
+
+            // This optimization prevents enqueuing a transaction for every partition, which could significantly increase the number of events.
+            // We enqueue the transaction only when a partition has a different error code than the previous one.
+            // Thus, in the typical scenario where most partitions have no error (error_code = 0), the transaction is enqueued only once for all relevant partitions.
+            if error_code != transaction.error_code {
+                extra_debug("partition error code %d is different from last partition error code %d, enqueuing the current record count",
+                    error_code,
+                    transaction.error_code);
+                kafka_batch_enqueue_wrapper(kafka, tup, &response->transaction);
+                // Reset records count for the next partition, so we won't be double counting.
+                response->transaction.records_count = 0;
+            }
+
             response->transaction.error_code = (s8)error_code;
 
             offset += sizeof(s64); // Skip high_watermark
@@ -603,18 +616,10 @@ static __always_inline enum parse_result kafka_continue_parse_response_loop(kafk
 
         case KAFKA_FETCH_RESPONSE_PARTITION_END:
             response->partitions_count--;
-            if (response->partitions_count == 0) {
-                extra_debug("enqueue final partition, records_count %d",  response->transaction.records_count);
+             if (response->partitions_count == 0) {
+                extra_debug("enqueueing as partition count is 0, records_count %d",  response->transaction.records_count);
                 kafka_batch_enqueue_wrapper(kafka, tup, &response->transaction);
                 return RET_DONE;
-            } else {
-                extra_debug("enqueue partition, #partitions left %d, records_count %d",
-                    response->partitions_count,
-                    response->transaction.records_count);
-                kafka_batch_enqueue_wrapper(kafka, tup, &response->transaction);
-                // Reset records count for the next partition, so we won't be double counting.
-                response->transaction.records_count = 0;
-            }
 
             response->state = KAFKA_FETCH_RESPONSE_PARTITION_START;
             break;
