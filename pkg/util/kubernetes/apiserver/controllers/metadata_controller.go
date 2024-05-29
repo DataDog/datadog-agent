@@ -52,6 +52,17 @@ func newMetadataController(endpointsInformer coreinformers.EndpointsInformer, wm
 		queue: workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "endpoints"),
 	}
 
+	m.store = globalMetaBundleStore // default to global store
+	if _, err := endpointsInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+		AddFunc:    m.addEndpoints,
+		UpdateFunc: m.updateEndpoints,
+		DeleteFunc: m.deleteEndpoints,
+	}); err != nil {
+		log.Errorf("error adding event handler to node informer: %f", err)
+	}
+	m.endpointsLister = endpointsInformer.Lister()
+	m.endpointsListerSynced = endpointsInformer.Informer().HasSynced
+
 	go func() {
 		wmetaFilterParams := workloadmeta.FilterParams{
 			Kinds:     []workloadmeta.Kind{workloadmeta.KindKubernetesNode},
@@ -83,18 +94,6 @@ func newMetadataController(endpointsInformer coreinformers.EndpointsInformer, wm
 			}
 		}
 	}()
-
-	if _, err := endpointsInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
-		AddFunc:    m.addEndpoints,
-		UpdateFunc: m.updateEndpoints,
-		DeleteFunc: m.deleteEndpoints,
-	}); err != nil {
-		log.Errorf("error adding event handler to node informer: %f", err)
-	}
-	m.endpointsLister = endpointsInformer.Lister()
-	m.endpointsListerSynced = endpointsInformer.Informer().HasSynced
-
-	m.store = globalMetaBundleStore // default to global store
 
 	return m
 }
