@@ -477,7 +477,7 @@ def send_failure_summary_notification(_, list_max_len=10):
     from slack_sdk import WebClient
 
     client = WebClient(os.environ["SLACK_API_TOKEN"])
-    client.chat_postMessage(channel='#celian-tests', text='\n'.join(message))
+    client.chat_postMessage(channel='#agent-platform-ops', text='\n'.join(message))
 
     print('Message sent')
 
