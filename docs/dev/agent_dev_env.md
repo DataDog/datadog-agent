@@ -46,7 +46,7 @@ The `deva` CLI tool is a single binary that can be used to install and manage th
 To install `deva`, you'll need to:
 
 1. Download the binary for your platform from the [releases page](https://github.com/DataDog/datadog-agent-devtools/releases/latest),
-2. Make it executable,
+2. Make it executable (and optionally add it to your PATH),
 3. Run the invoke command you need, using `deva` in place of `invoke` or `inv`.
 
 The Python environment will automatically be created on the first run. and will be reused for subsequent runs. For example:
