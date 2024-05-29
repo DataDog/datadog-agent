@@ -48,7 +48,7 @@ type Container struct {
 	ContainerARN  string            `json:"ContainerARN,omitempty"` // present only in v4
 	Health        *HealthStatus     `json:"Health,omitempty"`
 	Volumes       []Volume          `json:"Volumes,omitempty"`
-	ExitCode      *int32            `json:"ExitCode,omitempty"`
+	ExitCode      *int64            `json:"ExitCode,omitempty"`
 	Snapshotter   string            `json:"Snapshotter,omitempty"`
 }
 
@@ -56,7 +56,7 @@ type Container struct {
 type HealthStatus struct {
 	Status   string `json:"status,omitempty"`
 	Since    string `json:"statusSince,omitempty"`
-	ExitCode *int32 `json:"exitCode,omitempty"`
+	ExitCode *int64 `json:"exitCode,omitempty"`
 	Output   string `json:"output,omitempty"`
 }
 

@@ -52,8 +52,7 @@ func TestBuildCollectorEvent(t *testing.T) {
 		},
 	}
 
-	exitCode := uint32(137)
-	expectedExitCode := int32(exitCode)
+	exitCode := int64(137)
 	exitTime := time.Now()
 	fakeExitInfo := &exitInfo{exitCode: &exitCode, exitTS: exitTime}
 
@@ -171,7 +170,7 @@ func TestBuildCollectorEvent(t *testing.T) {
 						ID:   containerID,
 					},
 					State: workloadmeta.ContainerState{
-						ExitCode:   &expectedExitCode,
+						ExitCode:   &exitCode,
 						FinishedAt: exitTime,
 					},
 				},

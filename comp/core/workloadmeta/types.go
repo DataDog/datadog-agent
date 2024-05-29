@@ -313,7 +313,7 @@ type ContainerState struct {
 	CreatedAt  time.Time
 	StartedAt  time.Time
 	FinishedAt time.Time
-	ExitCode   *int32
+	ExitCode   *int64
 }
 
 // String returns a string representation of ContainerState.
@@ -395,7 +395,7 @@ func (c ContainerVolume) String(_ bool) string {
 type ContainerHealthStatus struct {
 	Status   string
 	Since    *time.Time
-	ExitCode *int32
+	ExitCode *int64
 	Output   string
 }
 

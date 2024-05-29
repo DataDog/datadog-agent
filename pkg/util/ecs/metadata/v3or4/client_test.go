@@ -103,7 +103,7 @@ var expected = &Task{
 			Health: &HealthStatus{
 				Status:   "HEALTHY",
 				Since:    "2023-11-20T12:11:16.383262018Z",
-				ExitCode: pointer.Ptr[int32](-1),
+				ExitCode: pointer.Ptr(int64(-1)),
 			},
 			Volumes: []Volume{
 				{

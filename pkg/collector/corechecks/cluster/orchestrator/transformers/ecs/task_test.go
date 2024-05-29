@@ -77,7 +77,7 @@ func TestExtractECSTask(t *testing.T) {
 					Health: &workloadmeta.ContainerHealthStatus{
 						Status:   "HEALTHY",
 						Since:    &now,
-						ExitCode: pointer.Ptr[int32](2),
+						ExitCode: pointer.Ptr(int64(2)),
 					},
 					Type: "NORMAL",
 				},

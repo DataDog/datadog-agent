@@ -121,7 +121,7 @@ func TestProcessContainer(t *testing.T) {
 	}
 
 	now := time.Now()
-	exitCode := int32(1)
+	exitCode := int64(1)
 	podContainer := workloadmeta.Container{
 		EntityID: workloadmeta.EntityID{
 			ID:   "cont1",

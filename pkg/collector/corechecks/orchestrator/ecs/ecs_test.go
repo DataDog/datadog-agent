@@ -247,7 +247,7 @@ func container1(v4 bool) *workloadmeta.Container {
 			DisplayName: "log_router_container",
 			Health: &workloadmeta.ContainerHealthStatus{
 				Status:   "HEALTHY",
-				ExitCode: pointer.Ptr[int32](-2),
+				ExitCode: pointer.Ptr(int64(-2)),
 			},
 			Type: "NORMAL",
 		}
