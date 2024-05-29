@@ -436,11 +436,39 @@ def update_statistics(job_executions: PipelineRuns):
 
 
 def send_notification(ctx: Context, alert_jobs):
+    """
+    Send alert notifications to slack and send metrics to Datadog
+    """
+    metrics = []
+    timestamp = int(datetime.now(timezone.utc).timestamp())
+
     message = alert_jobs["consecutive"].message(ctx) + alert_jobs["cumulative"].message()
     message = message.strip()
 
     if message:
         send_slack_message("#agent-platform-ops", message)
+        print('Sent message')
+
+        # TODO : When these notifications will be sent to many teams, update the team tag (https://datadoghq.atlassian.net/browse/ACIX-255)
+        owner = '@datadog/agent-all'
+        team_name = owner.removeprefix('@datadog/')
+
+        # Create metrics for consecutive and cumulative alerts
+        metrics += [
+            create_count(
+                metric_name=f"datadog.ci.failed_job_alerts.{alert_type}",
+                timestamp=timestamp,
+                tags=[f"team:{team_name}", "repository:datadog-agent"],
+                unit="notification",
+                value=len(alert_jobs[alert_type].failures),
+            )
+            for alert_type in ("consecutive", "cumulative")
+            if len(alert_jobs[alert_type].failures) > 0
+        ]
+
+    if metrics:
+        send_metrics(metrics)
+        print('Sent metrics')
 
 
 @task
