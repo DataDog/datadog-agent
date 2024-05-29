@@ -7,6 +7,9 @@
 #   - "TestInstallScript/test_install_script_on_centos-79_x86_64_datadog-agent_agent_7"
 
 # TODO: https://datadoghq.atlassian.net/browse/CONTINT-4143
-test/new-e2e/tests/containers:  
-  - TestEKSSuite/TestCPU/metric___container.cpu.usage{^kube_deployment:stress-ng$,^kube_namespace:workload-cpustress$}
-  - TestKindSuite/TestCPU/metric___container.cpu.usage{^kube_deployment:stress-ng$,^kube_namespace:workload-cpustress$}
+test/new-e2e/tests/containers:
+- TestEKSSuite/TestCPU/metric___container.cpu.usage{^kube_deployment:stress-ng$,^kube_namespace:workload-cpustress$}
+- TestKindSuite/TestCPU/metric___container.cpu.usage{^kube_deployment:stress-ng$,^kube_namespace:workload-cpustress$}
+
+test/new-e2e/tests/agent-platform/install-script:
+  - TestInstallScript/test_install_script_on_ubuntu-16-04_x86_64_datadog-heroku-agent_agent_6
