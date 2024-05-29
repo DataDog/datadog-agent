@@ -908,7 +908,7 @@ gopkg.in/DataDog/dd-trace-go.v1/internal/samplernames
 gopkg.in/DataDog/dd-trace-go.v1/internal/telemetry
 gopkg.in/DataDog/dd-trace-go.v1/internal/traceprof
 gopkg.in/DataDog/dd-trace-go.v1/internal/version
-ggopkg.in/ini.v1
+gopkg.in/ini.v1
 gopkg.in/yaml.v2
 gopkg.in/yaml.v3
 hash
