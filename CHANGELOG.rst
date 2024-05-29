@@ -2,6 +2,208 @@
 Release Notes
 =============
 
+.. _Release Notes_7.54.0:
+
+7.54.0 / 6.54.0
+================
+
+.. _Release Notes_7.54.0_Prelude:
+
+Prelude
+-------
+
+Release on: 2024-05-29
+
+- Please refer to the `7.54.0 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7540>`_ for the list of changes on the Core Checks
+
+
+.. _Release Notes_7.54.0_Upgrade Notes:
+
+Upgrade Notes
+-------------
+
+- Upgraded JMXFetch to `0.49.1 <https://github.com/DataDog/jmxfetch/releases/tag/0.49.1>`_ which adds support for
+  ZGC Major and Minor Cycles and ZGC Major and Minor Pauses beans.
+
+- Add a configuration option ``admission_controller.inject_config.inject_container_name`` to
+  retrieve the container tags for dogstatsd metrics and apm traces in setups where origin detection is
+  not supported (windows, nested virtualization with cgroupv2...).
+  This option will inject the container name along with the pod uid in ``DD_ENTITY_ID`` if it was not set manually.
+  Note that this option is disabled by default and is incompatible with prior versions of the agent . Thus, we
+  recommend enabling it only if you are using the latest version of the agent.
+  In case a rollback to an incompatible version is needed, it will be necessary to delete the pods in which
+  ``DD_ENTITY_ID`` was injected by the latest agent to preserve pod tags in dogstatsd metrics and traces.
+
+
+.. _Release Notes_7.54.0_New Features:
+
+New Features
+------------
+
+- APM: Add a new Probabilistic Sampler sampling mechanism, which is
+  compatible with OpenTelemetry's Probabilistic Sampling Processor.
+
+- CWS: Add support for ``write`` events on Windows.
+
+- CWS: Add support for ``delete`` event on Windows.
+
+- CWS: Add ``chdir``, ``mount`` and ``umount`` in ``ptracer`` mode.
+
+- CWS: Add APM spans in ``ptracer`` mode.
+
+- CWS: Add support for file hashing in ``ptracer`` mode.
+
+- CWS: Allow writing rules for rename events on Windows.
+
+- Set kubelet core check to be enabled by default.
+
+- Add ``dogstatsd_pipeline_autoadjust_strategy`` setting with ``max_throughput`` and ``per_origin``
+  strategies. ``max_throughput`` is the already existing strategy (when ``dogstatsd_pipeline_autoadjust``
+  is ``true``). ``per_origin`` will let you create an arbitrary number of pipelines (based on ``dogstatsd_pipeline_count``),
+  and will try to isolate containers based on their advertised origin. This will improve compression.
+
+- [NDM] Add Cisco SD-WAN integration.
+
+- In the Logs Agent, add support for the Sensitive Data Scanner
+  library to process logs.
+
+- USM now captures TLS traffic from NodeJS applications.
+
+
+.. _Release Notes_7.54.0_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- This change allows DBM Autodiscovery users to optionally set the region for where their aurora clusters are running.
+  This can be used in lieu of relying on IMDS to discover the region through instance metadata. This is a nicer experience for users
+  running in Docker, who would be required to complete extra steps in their instance metadata configuration to allow the Docker container
+  access to the instance metadata.
+
+- Activate the autodiscovery automatically if at least one configuration is given in `network_devices.autodiscovery`. Remove the `listeners: -snmp` requirement.
+
+- Updates the Agent status output to show if a check is in a cancelling state. Once
+  canceled, the check is removed from the status output.
+
+- Report EKS Fargate configuration to the Agent metadata payload.
+
+- Adding ``dirname`` tag for full filepath log configurations. This tag
+  was only added previously if using a wildcard filepath log configuration.
+
+- Agents are now built with Go ``1.21.9``.
+
+- Collect clusters' extended resources capacity and allocatable.
+
+- Collect all node resource capacities and allocatable metrics for cluster management.
+
+- Collect pod limits and requests.
+
+- CWS: Always snapshot memory mapped files in activity dumps. This allows easier mapping of workload to loaded shared libraries.
+
+- CWS: Normalize Windows filenames before going through glob matching.
+
+- CWS: Support non seccomp mode in ``ptracer`` mode.
+
+- Add ``agent status [name]`` subcommand to fetch only a given section status (for example, ``datadog-agent status forwarder``` to get forwarder status).
+
+- dogstatsd: Implement new config option `origin_detection_unified`.
+  This new option will allow users to configure the origin detection behavior for DogStatsD.
+  When enabled, the DogStatsD server will use the default Origin Detection logic.
+
+- `snmp_listener` now lives under `network_devices` with the name `network_devices.autodiscovery`. While the old configuration will continue to work, if both configurations are present, the new one will take priority.
+
+- [oracle] Add ``oracle.user_sessions`` metric.
+
+- The OTLP ingestion endpoint now supports the same settings and protocol as the OpenTelemetry Collector OTLP receiver v0.97.0.
+
+- Supports Podman newer versions (4.8+) using SQLite instead of BoltDB for the containers database backend.
+  Setting ``podman_db_path`` to the path with the ``db.sql`` file (e.g. ``/var/lib/containers/storage/db.sql``) will make the Datadog Agent use the SQLite format.
+  **Note**: If ``podman_db_path`` is not set (default), the Datadog Agent attempts to use the default file ``libpod/bolt_state.db`` and ``db.sql`` from ``/var/lib/containers/storage``.
+
+- Allow certain Process Agent checks to be run from the core agent using the `processchecks` 
+  subcommand.
+
+- check output from the Process Agent component are added to the flare when used in the core agent.
+
+- expvars from the Process Agent component are added to the flare when used in the core Agent.
+
+- Status of the Process Agent component will be shown when used in the core Agent.
+
+- NDM: SNMP devices are now tagged by `device_ip` and `device_id`.
+
+
+.. _Release Notes_7.54.0_Deprecation Notes:
+
+Deprecation Notes
+-----------------
+
+- The ``datadog-agent status component [name]`` syntax will be replaced by ``datadog-agent status [name]`` in Datadog Agent 7.55
+
+- Removed log that was noisy when Process Agent was running on ECS Fargate.
+
+- The `flare_stripped_keys` configuration is now deprecated. Use `scrubber.additional_keys` instead.
+
+
+.. _Release Notes_7.54.0_Bug Fixes:
+
+Bug Fixes
+---------
+
+- APM: Fix potential connection issues by ensuring connection semaphore release
+  during errors.
+
+- APM: Removed unsupported configuration parameter ``apm_config.log_throttling`` from code and documentation.
+
+- Disables the creation of build-id files in RPM packages. These are
+  provided for debugging tools, but can lead to conflicts when multiple
+  packages have the same build-id files. This conflict prevents the second
+  package from being installed.
+
+- Fix a race condition that could prevent JMX checks from running.
+
+- OTLP ingest for traces now supports stable (v1.23.0+) semantic conventions for HTTP Spans.
+  Old (v1.20.0 and older) semantic conventions are still supported. When both are reported,
+  the new semantic conventions take precedence and old semantic conventions are ignored.
+
+- Don't log when failing to fetch config of other Agents
+
+- The `User-Agent` header is now set to `datadog-agent/<version>` for logs
+  forwarding requests to `/api/v2/logs`. Previously it was set to
+  `Go-http-client/1.1`.
+
+- APM: Fixes issue where match-all replace tags rules could inadvertently affect required datadog tags. It is still possible to redact specific Datadog tags by targeting them explicitly.
+
+- Fixes containers file-based log collection when using the ``k8s-file`` podman log driver and the ``logs_config.use_podman_logs`` parameter.
+
+- The Process Agent no longer crashes when pidMode is misconfigured on ECS Fargate. A warning is logged instead.
+
+- Fix panic when running process checks in the core Agent with telemetry enabled.
+
+- The Agent health check will now continue running even if the API key validation endpoint returns a 403 response code. Because this can occur due to transient issues, retrying will allow the Agent health indicator to recover in some cases.
+
+- Fix type conversion error while generating the trace-agent status.
+
+- APM: fix a bug where the Trace Agent would ignore `proxy.no_proxy` configuration values
+
+- Create missing default configuration files during the upgrade, change, and repair actions of the Windows Installer.
+
+
+.. _Release Notes_7.54.0_Other Notes:
+
+Other Notes
+-----------
+
+- APM: While adding another sampler, we have modified the Rare sampler
+  so that it no longer has a separate TTL for priority traces, meaning
+  it no longer distinguishes between traces with priority > 0 and
+  priority <= 0. It is necessary to detangle the various samplers so
+  they can work independently from each other, in this case, so the
+  Rare sampler can work with the Probabilistic Sampler. This should not
+  have a noticeable impact on users.
+
+- CWS: Allow ``fim_enabled`` to explicitly be set to false on Windows to enable process monitoring only.
+
+
 .. _Release Notes_7.53.0:
 
 7.53.0 / 6.53.0

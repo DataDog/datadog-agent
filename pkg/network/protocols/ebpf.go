@@ -53,8 +53,14 @@ const (
 	ProgramHTTP2EOSParser ProgramType = C.PROG_HTTP2_EOS_PARSER
 	// ProgramKafka is the Golang representation of the C.PROG_KAFKA enum
 	ProgramKafka ProgramType = C.PROG_KAFKA
-	// ProgramKafkaResponseParser is the Golang representation of the C.PROG_KAFKA_RESPONSE_PARSER enum
-	ProgramKafkaResponseParser ProgramType = C.PROG_KAFKA_RESPONSE_PARSER
+	// ProgramKafkaResponsePartitionParserV0 is the Golang representation of the C.PROG_KAFKA_RESPONSE_PARTITION_PARSER_v0 enum
+	ProgramKafkaResponsePartitionParserV0 ProgramType = C.PROG_KAFKA_RESPONSE_PARTITION_PARSER_V0
+	// ProgramKafkaResponsePartitionParserV12 is the Golang representation of the C.PROG_KAFKA_RESPONSE_PARTITION_PARSER_v0 enum
+	ProgramKafkaResponsePartitionParserV12 ProgramType = C.PROG_KAFKA_RESPONSE_PARTITION_PARSER_V12
+	// ProgramKafkaResponseRecordBatchParserV0 is the Golang representation of the C.PROG_KAFKA_RESPONSE_RECORD_BATCH_PARSER_v0 enum
+	ProgramKafkaResponseRecordBatchParserV0 ProgramType = C.PROG_KAFKA_RESPONSE_RECORD_BATCH_PARSER_V0
+	// ProgramKafkaResponseRecordBatchParserV12 is the Golang representation of the C.PROG_KAFKA_RESPONSE_RECORD_BATCH_PARSER_v0 enum
+	ProgramKafkaResponseRecordBatchParserV12 ProgramType = C.PROG_KAFKA_RESPONSE_RECORD_BATCH_PARSER_V12
 	// ProgramPostgres is the Golang representation of the C.PROG_POSTGRES enum
 	ProgramPostgres ProgramType = C.PROG_POSTGRES
 	// ProgramPostgresParseMessage is the Golang representation of the C.PROG_POSTGRES_PROCESS_PARSE_MESSAGE enum
@@ -134,8 +140,14 @@ const (
 	ProgramTLSHTTP2Termination TLSProgramType = C.TLS_HTTP2_TERMINATION
 	// ProgramTLSKafka is tail call to process Kafka TLS frames,
 	ProgramTLSKafka TLSProgramType = C.TLS_KAFKA
-	// ProgramTLSKafkaResponseParser is tail call to process Kafka TLS responses,
-	ProgramTLSKafkaResponseParser TLSProgramType = C.TLS_KAFKA_RESPONSE_PARSER
+	// ProgramTLSKafkaResponsePartitionParserV0 is the Golang representation of the C.TLS_KAFKA_RESPONSE_PARTITION_PARSER_v0 enum
+	ProgramTLSKafkaResponsePartitionParserV0 ProgramType = C.TLS_KAFKA_RESPONSE_PARTITION_PARSER_V0
+	// ProgramTLSKafkaResponsePartitionParserV12 is the Golang representation of the C.TLS_KAFKA_RESPONSE_PARTITION_PARSER_v0 enum
+	ProgramTLSKafkaResponsePartitionParserV12 ProgramType = C.TLS_KAFKA_RESPONSE_PARTITION_PARSER_V12
+	// ProgramTLSKafkaResponseRecordBatchParserV0 is the Golang representation of the C.TLS_KAFKA_RESPONSE_RECORD_BATCH_PARSER_v0 enum
+	ProgramTLSKafkaResponseRecordBatchParserV0 ProgramType = C.TLS_KAFKA_RESPONSE_RECORD_BATCH_PARSER_V0
+	// ProgramTLSKafkaResponseRecordBatchParserV12 is the Golang representation of the C.TLS_KAFKA_RESPONSE_RECORD_BATCH_PARSER_v0 enum
+	ProgramTLSKafkaResponseRecordBatchParserV12 ProgramType = C.TLS_KAFKA_RESPONSE_RECORD_BATCH_PARSER_V12
 	// ProgramTLSKafkaTermination is tail call to process Kafka TLS termination.
 	ProgramTLSKafkaTermination TLSProgramType = C.TLS_KAFKA_TERMINATION
 	// ProgramTLSPostgres is tail call to process Postgres TLS frames.

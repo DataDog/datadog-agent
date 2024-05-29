@@ -908,6 +908,9 @@ func InitConfig(config pkgconfigmodel.Config) {
 	config.BindEnvAndSetDefault("remote_updates", false)
 	config.BindEnvAndSetDefault("installer.registry.url", "")
 	config.BindEnvAndSetDefault("installer.registry.auth", "")
+
+	// Data Jobs Monitoring config
+	config.BindEnvAndSetDefault("djm_config.enabled", false)
 }
 
 func agent(config pkgconfigmodel.Config) {
