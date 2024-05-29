@@ -2406,7 +2406,7 @@ func (s *TracerSuite) TestTCPFailureConnectionTimeout() {
 	}, 3*time.Second, 1000*time.Millisecond, "Failed connection not recorded properly")
 }
 
-func (s *TracerSuite) TestTCPFailureTimeout2() {
+func (s *TracerSuite) TestTCPFailureConnectionTimeout2() {
 	t := s.T()
 	// Enable BPF-based system probe
 	cfg := testConfig()

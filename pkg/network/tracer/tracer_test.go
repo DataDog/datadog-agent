@@ -84,7 +84,6 @@ func setupTracer(t testing.TB, cfg *config.Config) *Tracer {
 	require.NoError(t, err)
 	t.Cleanup(tr.Stop)
 
-	t.Log("Tracer started")
 	initTracerState(t, tr)
 	return tr
 }

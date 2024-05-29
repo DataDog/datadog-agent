@@ -87,14 +87,16 @@ func (fc *FailedConns) RemoveExpired() {
 	defer fc.Unlock()
 
 	now := time.Now().Unix()
-
-	failureTelemetry.failedConnOrphans.Add(float64(len(fc.FailedConnMap)))
+	removed := 0
 
 	for connTuple, failedConn := range fc.FailedConnMap {
 		if failedConn.Expiry < now {
+			removed++
 			delete(fc.FailedConnMap, connTuple)
 		}
 	}
+
+	failureTelemetry.failedConnOrphans.Add(float64(removed))
 }
 
 // connStatsToTuple converts a ConnectionStats to a ConnTuple
