@@ -14,8 +14,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	corelog "github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/status"
-	compdef "github.com/DataDog/datadog-agent/comp/def"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
+	compdef "github.com/DataDog/datadog-agent/comp/def"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
 	collector "github.com/DataDog/datadog-agent/comp/otelcol/collector/def"
 	"github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline"
@@ -71,7 +71,7 @@ type collectorImpl struct {
 	serializer     serializer.MetricSerializer
 	logsAgent      optional.Option[logsagentpipeline.Component]
 	inventoryAgent inventoryagent.Component
-	tagger tagger.Component
+	tagger         tagger.Component
 }
 
 func (c *collectorImpl) start(context.Context) error {
@@ -125,7 +125,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 		serializer:     reqs.Serializer,
 		logsAgent:      reqs.LogsAgent,
 		inventoryAgent: reqs.InventoryAgent,
-		tagger: reqs.Tagger,
+		tagger:         reqs.Tagger,
 	}
 
 	reqs.Lc.Append(compdef.Hook{
