@@ -14,7 +14,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
-	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/impl"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	workloadmetaimpl "github.com/DataDog/datadog-agent/comp/core/workloadmeta/impl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 
 	"github.com/stretchr/testify/assert"
@@ -88,12 +89,12 @@ func TestHandleUnsetEvent(t *testing.T) {
 }
 
 func TestListenWorkloadmeta(t *testing.T) {
-	wlm := fxutil.Test[workloadmeta.Mock](t, fx.Options(
+	wlm := fxutil.Test[workloadmetaimpl.Mock](t, fx.Options(
 		logimpl.MockModule(),
 		config.MockModule(),
 		fx.Supply(context.Background()),
 		fx.Supply(workloadmeta.NewParams()),
-		workloadmeta.MockModuleV2(),
+		workloadmetaimpl.MockModuleV2(),
 	))
 	cf := newContainerFilter(wlm)
 	go cf.start()

@@ -82,8 +82,7 @@ github.com/DataDog/datadog-agent/comp/core/tagger/types
 github.com/DataDog/datadog-agent/comp/core/tagger/utils
 github.com/DataDog/datadog-agent/comp/core/telemetry
 github.com/DataDog/datadog-agent/comp/core/telemetry/noopsimpl
-github.com/DataDog/datadog-agent/comp/core/workloadmeta
-github.com/DataDog/datadog-agent/comp/core/workloadmeta/telemetry
+github.com/DataDog/datadog-agent/comp/core/workloadmeta/def
 github.com/DataDog/datadog-agent/comp/def
 github.com/DataDog/datadog-agent/comp/dogstatsd/constants
 github.com/DataDog/datadog-agent/comp/dogstatsd/listeners
@@ -387,7 +386,6 @@ github.com/aws/smithy-go/transport/http/internal/io
 github.com/benbjohnson/clock
 github.com/beorn7/perks/quantile
 github.com/briandowns/spinner
-github.com/cenkalti/backoff
 github.com/cenkalti/backoff/v4
 github.com/cespare/xxhash/v2
 github.com/cihub/seelog
@@ -495,7 +493,6 @@ github.com/richardartoul/molecule/src/protowire
 github.com/rivo/uniseg
 github.com/rs/cors
 github.com/rs/cors/internal
-github.com/samber/lo
 github.com/secure-systems-lab/go-securesystemslib/cjson
 github.com/shirou/gopsutil/v3/common
 github.com/shirou/gopsutil/v3/cpu
