@@ -469,9 +469,8 @@ def send_failure_summary_notification(_, list_max_len=10):
     # # List of (job_name, failure_count) ordered by failure_count
     # stats = sorted(((name, (fail, success)) for (name, (fail, success)) in stats.items() if fail > 0), key=lambda x: (x[1][0], x[1][1] if x[1][1] is not None else 0), reverse=True)[:list_max_len]
 
-    # TODO
-    print('jobs', jobs)
-    stats = list(jobs.items())
+    # List of (job_name, failure_count) ordered by failure_count
+    stats = sorted(((name, (fail, success)) for (name, (fail, success)) in jobs.items() if fail > 0), key=lambda x: (x[1][0], x[1][1] if x[1][1] is not None else 0), reverse=True)[:list_max_len]
 
     # Don't send message if no failure
     if len(stats) == 0:
