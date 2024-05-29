@@ -474,8 +474,9 @@ def get_version(
     pipeline_id=None,
     include_git=False,
     include_pre=True,
+    fake_condition=True,
 ):
-    if True:
+    if fake_condition:
         return "7.53.0"
     version = ""
     if pipeline_id is None:
