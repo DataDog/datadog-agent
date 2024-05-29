@@ -214,11 +214,11 @@ network_devices:
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			config.Datadog.SetConfigType("yaml")
-			err := config.Datadog.ReadConfig(strings.NewReader(tt.configYaml))
+			config.Datadog().SetConfigType("yaml")
+			err := config.Datadog().ReadConfig(strings.NewReader(tt.configYaml))
 			require.NoError(t, err)
 
-			readConfig, err := ReadConfig(config.Datadog, logger)
+			readConfig, err := ReadConfig(config.Datadog(), logger)
 			if tt.expectedError != "" {
 				assert.ErrorContains(t, err, tt.expectedError)
 				assert.Nil(t, readConfig)

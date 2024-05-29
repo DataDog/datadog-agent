@@ -177,7 +177,7 @@ func EKSRunFunc(ctx *pulumi.Context, env *environments.AwsKubernetes, params *Pr
 		// Create configuration for POD subnets if any
 		workloadDeps := make([]pulumi.Resource, 0)
 		if podSubnets := awsEnv.EKSPODSubnets(); len(podSubnets) > 0 {
-			eniConfigs, err := localEks.NewENIConfigs(awsEnv, comp.KubeProvider, podSubnets, awsEnv.DefaultSecurityGroups())
+			eniConfigs, err := localEks.NewENIConfigs(awsEnv, podSubnets, awsEnv.DefaultSecurityGroups(), pulumi.Provider(eksKubeProvider))
 			if err != nil {
 				return err
 			}
@@ -259,7 +259,7 @@ func EKSRunFunc(ctx *pulumi.Context, env *environments.AwsKubernetes, params *Pr
 
 		// Create unmanaged node groups
 		if params.eksWindowsNodeGroup {
-			_, err := localEks.NewWindowsUnmanagedNodeGroup(awsEnv, cluster, windowsNodeRole)
+			_, err := localEks.NewWindowsNodeGroup(awsEnv, cluster, windowsNodeRole)
 			if err != nil {
 				return err
 			}

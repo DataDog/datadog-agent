@@ -176,6 +176,7 @@
 /cmd/otel-agent/                        @DataDog/opentelemetry
 /cmd/process-agent/                     @DataDog/processes
 /cmd/serverless/                        @DataDog/serverless
+/cmd/serverless/dependencies*.txt       @DataDog/serverless @DataDog/agent-shared-components
 /cmd/serverless-init/                   @DataDog/serverless
 /cmd/system-probe/                      @DataDog/ebpf-platform
 /cmd/system-probe/config/adjust_npm.go  @DataDog/ebpf-platform @DataDog/Networks
@@ -317,6 +318,7 @@
 /pkg/cloudfoundry                       @Datadog/platform-integrations
 /pkg/clusteragent/                      @DataDog/container-platform
 /pkg/clusteragent/autoscaling/          @DataDog/container-integrations
+/pkg/clusteragent/admission/mutate/autoscaling          @DataDog/container-integrations
 /pkg/clusteragent/admission/mutate/autoinstrumentation/ @DataDog/container-platform @DataDog/apm-onboarding
 /pkg/clusteragent/orchestrator/         @DataDog/container-app
 /pkg/clusteragent/telemetry/            @DataDog/telemetry-and-analytics
@@ -362,6 +364,7 @@
 /pkg/config/setup/system_probe_cws.go           @DataDog/agent-security
 /pkg/config/setup/system_probe_cws_notwin.go    @DataDog/agent-security
 /pkg/config/setup/system_probe_cws_windows.go   @DataDog/windows-kernel-integrations
+/pkg/config/setup/security_agent.go             @DataDog/agent-security
 /pkg/config/remote/                     @DataDog/remote-config
 /pkg/config/remote/meta/                @DataDog/remote-config @DataDog/software-integrity-and-trust
 /pkg/containerlifecycle/                @Datadog/container-integrations
@@ -460,8 +463,6 @@
 /pkg/network/ebpf/c/prebuilt/http*      @DataDog/universal-service-monitoring
 /pkg/network/ebpf/c/runtime/http*       @DataDog/universal-service-monitoring
 /pkg/network/ebpf/c/protocols/          @DataDog/universal-service-monitoring
-/pkg/network/encoding/marshal/http*     @DataDog/universal-service-monitoring
-/pkg/network/encoding/marshal/kafka*    @DataDog/universal-service-monitoring
 /pkg/network/encoding/marshal/*usm*     @DataDog/universal-service-monitoring
 /pkg/network/encoding/marshal/*_windows*.go  @DataDog/windows-kernel-integrations
 /pkg/network/etw/                       @DataDog/windows-kernel-integrations
@@ -510,6 +511,7 @@
 /tasks/                                 @DataDog/agent-developer-tools @DataDog/agent-ci-experience
 /tasks/msi.py                           @DataDog/windows-agent
 /tasks/agent.py                         @DataDog/agent-shared-components
+/tasks/go_deps.py                       @DataDog/agent-shared-components
 /tasks/dogstatsd.py                     @DataDog/agent-metrics-logs
 /tasks/update_go.py                     @DataDog/agent-shared-components
 /tasks/unit-tests/update_go_tests.py    @DataDog/agent-shared-components

@@ -25,7 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/mapper"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/packets"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/pidmap"
-	"github.com/DataDog/datadog-agent/comp/dogstatsd/replay"
+	replay "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/def"
 	serverdebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -220,7 +220,6 @@ func newServer(deps dependencies) provides {
 		Comp:          s,
 		StatsEndpoint: api.NewAgentEndpointProvider(s.writeStats, "/dogstatsd-stats", "GET"),
 	}
-
 }
 
 func newServerCompat(cfg config.Reader, log logComponent.Component, capture replay.Component, debug serverdebug.Component, serverless bool, demux aggregator.Demultiplexer, wmeta optional.Option[workloadmeta.Component], pidMap pidmap.Component) *server {
@@ -331,7 +330,6 @@ func newServerCompat(cfg config.Reader, log logComponent.Component, capture repl
 }
 
 func (s *server) startHook(context context.Context) error {
-
 	err := s.start(context)
 	if err != nil {
 		s.log.Errorf("Could not start dogstatsd: %s", err)
@@ -342,7 +340,6 @@ func (s *server) startHook(context context.Context) error {
 }
 
 func (s *server) start(context.Context) error {
-
 	packetsChannel := make(chan packets.Packets, s.config.GetInt("dogstatsd_queue_size"))
 	tmpListeners := make([]listeners.StatsdListener, 0, 2)
 
@@ -547,7 +544,6 @@ func (s *server) forwarder(fcon net.Conn) {
 		case packets := <-s.captureChan:
 			for _, packet := range packets {
 				_, err := fcon.Write(packet.Contents)
-
 				if err != nil {
 					s.log.Warnf("Forwarding packet failed : %s", err)
 				}

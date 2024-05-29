@@ -88,11 +88,31 @@ type SyscallEvent struct {
 	Retval int64 `field:"retval"` // SECLDoc[retval] Definition:`Return value of the syscall` Constants:`Error constants`
 }
 
+// SyscallContext contains syscall context
+type SyscallContext struct {
+	ID uint32 `field:"-"`
+
+	StrArg1 string `field:"syscall.str1,handler:ResolveSyscallCtxArgsStr1,weight:900,opts:getters_only"`
+	StrArg2 string `field:"syscall.str2,handler:ResolveSyscallCtxArgsStr2,weight:900,opts:getters_only"`
+	StrArg3 string `field:"syscall.str3,handler:ResolveSyscallCtxArgsStr3,weight:900,opts:getters_only"`
+
+	IntArg1 int64 `field:"syscall.int1,handler:ResolveSyscallCtxArgsInt1,weight:900,opts:getters_only"`
+	IntArg2 int64 `field:"syscall.int2,handler:ResolveSyscallCtxArgsInt2,weight:900,opts:getters_only"`
+	IntArg3 int64 `field:"syscall.int3,handler:ResolveSyscallCtxArgsInt3,weight:900,opts:getters_only"`
+
+	Resolved bool `field:"-"`
+}
+
 // ChmodEvent represents a chmod event
 type ChmodEvent struct {
 	SyscallEvent
+	SyscallContext
 	File FileEvent `field:"file"`
 	Mode uint32    `field:"file.destination.mode; file.destination.rights"` // SECLDoc[file.destination.mode] Definition:`New mode of the chmod-ed file` Constants:`File mode constants` SECLDoc[file.destination.rights] Definition:`New rights of the chmod-ed file` Constants:`File mode constants`
+
+	// Syscall context aliases
+	SyscallPath string `field:"syscall.path,ref:chmod.syscall.str1"` // SECLDoc[syscall.path] Definition:`path argument of the syscall`
+	SyscallMode int64  `field:"syscall.mode,ref:chmod.syscall.int2"` // SECLDoc[syscall.mode] Definition:`mode argument of the syscall`
 }
 
 // ChownEvent represents a chown event
@@ -229,7 +249,11 @@ type Process struct {
 
 // ExecEvent represents a exec event
 type ExecEvent struct {
+	SyscallContext
 	*Process
+
+	// Syscall context aliases
+	SyscallPath string `field:"syscall.path,ref:exec.syscall.str1"` // SECLDoc[syscall.path] Definition:`path argument of the syscall`
 }
 
 // FileFields holds the information required to identify a file
@@ -341,7 +365,11 @@ type UnshareMountNSEvent struct {
 // ChdirEvent represents a chdir event
 type ChdirEvent struct {
 	SyscallEvent
+	SyscallContext
 	File FileEvent `field:"file"`
+
+	// Syscall context aliases
+	SyscallPath string `field:"syscall.path,ref:chdir.syscall.str1"` // SECLDoc[syscall.path] Definition:`path argument of the syscall`
 }
 
 // OpenEvent represents an open event

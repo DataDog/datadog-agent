@@ -25,7 +25,7 @@ func GetClusterAgentConfigCheck(w io.Writer, withDebug bool) error {
 	c := util.GetClient(false) // FIX: get certificates right then make this true
 
 	// Set session token
-	err := util.SetAuthToken(config.Datadog)
+	err := util.SetAuthToken(config.Datadog())
 	if err != nil {
 		return err
 	}
@@ -37,13 +37,12 @@ func GetClusterAgentConfigCheck(w io.Writer, withDebug bool) error {
 
 	targetURL := url.URL{
 		Scheme:   "https",
-		Host:     fmt.Sprintf("localhost:%v", config.Datadog.GetInt("cluster_agent.cmd_port")),
+		Host:     fmt.Sprintf("localhost:%v", config.Datadog().GetInt("cluster_agent.cmd_port")),
 		Path:     "config-check",
 		RawQuery: v.Encode(),
 	}
 
 	r, err := util.DoGet(c, targetURL.String(), util.LeaveConnectionOpen)
-
 	if err != nil {
 		if r != nil && string(r) != "" {
 			return fmt.Errorf("the agent ran into an error while checking config: %s", string(r))

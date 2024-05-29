@@ -28,7 +28,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
-	"github.com/DataDog/datadog-agent/comp/dogstatsd/replay"
+	replay "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/def"
+	replaymock "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/fx-mock"
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
 	dogstatsddebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug/serverdebugimpl"
@@ -87,7 +88,7 @@ func getComponentDependencies(t *testing.T) testdeps {
 		hostnameimpl.MockModule(),
 		flareimpl.MockModule(),
 		dogstatsdServer.MockModule(),
-		replay.MockModule(),
+		replaymock.MockModule(),
 		serverdebugimpl.MockModule(),
 		hostimpl.MockModule(),
 		inventoryagentimpl.MockModule(),
@@ -116,6 +117,12 @@ func getComponentDependencies(t *testing.T) testdeps {
 			return optional.NewNoneOption[collector.Component]()
 		}),
 		settingsimpl.MockModule(),
+		// Ensure we pass a nil endpoint to test that we always filter out nil endpoints
+		fx.Provide(func() api.AgentEndpointProvider {
+			return api.AgentEndpointProvider{
+				Provider: nil,
+			}
+		}),
 	)
 }
 
