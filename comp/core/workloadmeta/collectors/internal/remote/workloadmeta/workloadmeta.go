@@ -81,7 +81,7 @@ func NewCollector(deps dependencies) (workloadmeta.CollectorProvider, error) {
 			CollectorID: collectorID,
 			StreamHandler: &streamHandler{
 				filter: deps.Params.Filter,
-				Config: config.Datadog,
+				Config: config.Datadog(),
 			},
 			Catalog: workloadmeta.Remote,
 		},

@@ -63,11 +63,11 @@ func (s *mockServer) StreamEntities(_ *pbgo.ProcessStreamEntitiesRequest, out pb
 
 func TestCollection(t *testing.T) {
 	// Create Auth Token for the client
-	if _, err := os.Stat(security.GetAuthTokenFilepath(pkgconfig.Datadog)); os.IsNotExist(err) {
-		security.CreateOrFetchToken(pkgconfig.Datadog)
+	if _, err := os.Stat(security.GetAuthTokenFilepath(pkgconfig.Datadog())); os.IsNotExist(err) {
+		security.CreateOrFetchToken(pkgconfig.Datadog())
 		defer func() {
 			// cleanup
-			os.Remove(security.GetAuthTokenFilepath(pkgconfig.Datadog))
+			os.Remove(security.GetAuthTokenFilepath(pkgconfig.Datadog()))
 		}()
 	}
 	creationTime := time.Now().Unix()

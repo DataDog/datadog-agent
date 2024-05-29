@@ -87,7 +87,7 @@ func validatePath(field eval.Field, fieldValue eval.FieldValue) error {
 
 // ValidateField validates the value of a field
 func (m *Model) ValidateField(field eval.Field, fieldValue eval.FieldValue) error {
-	if strings.HasSuffix(field, "path") {
+	if strings.HasSuffix(field, ".path") && !strings.HasSuffix(field, ".syscall.path") {
 		if err := validatePath(field, fieldValue); err != nil {
 			return err
 		}
@@ -405,6 +405,9 @@ func (dfh *FakeFieldHandlers) ResolveAWSSecurityCredentials(_ *Event) []AWSSecur
 	return nil
 }
 
+// ResolveSyscallCtxArgs resolves syscall context
+func (dfh *FakeFieldHandlers) ResolveSyscallCtxArgs(_ *Event, _ *SyscallContext) {}
+
 // SELinuxEventKind represents the event kind for SELinux events
 type SELinuxEventKind uint32
 
@@ -423,4 +426,5 @@ type ExtraFieldHandlers interface {
 	ResolveHashes(eventType EventType, process *Process, file *FileEvent) []string
 	ResolveUserSessionContext(evtCtx *UserSessionContext)
 	ResolveAWSSecurityCredentials(event *Event) []AWSSecurityCredentials
+	ResolveSyscallCtxArgs(ev *Event, e *SyscallContext)
 }

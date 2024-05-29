@@ -20,7 +20,7 @@ import (
 )
 
 var (
-	linterTimeout = time.Duration(config.Datadog.GetInt("python3_linter_timeout")) * time.Second
+	linterTimeout = time.Duration(config.Datadog().GetInt("python3_linter_timeout")) * time.Second
 )
 
 type warning struct {

@@ -162,7 +162,7 @@ func NewWorkloadMetaCollector(_ context.Context, store workloadmeta.Component, p
 		tagProcessor:           p,
 		store:                  store,
 		children:               make(map[string]map[string]struct{}),
-		collectEC2ResourceTags: config.Datadog.GetBool("ecs_collect_resource_tags_ec2"),
+		collectEC2ResourceTags: config.Datadog().GetBool("ecs_collect_resource_tags_ec2"),
 	}
 
 	containerLabelsAsTags := mergeMaps(
@@ -176,10 +176,10 @@ func NewWorkloadMetaCollector(_ context.Context, store workloadmeta.Component, p
 	)
 	c.initContainerMetaAsTags(containerLabelsAsTags, containerEnvAsTags)
 
-	labelsAsTags := config.Datadog.GetStringMapString("kubernetes_pod_labels_as_tags")
-	annotationsAsTags := config.Datadog.GetStringMapString("kubernetes_pod_annotations_as_tags")
-	nsLabelsAsTags := config.Datadog.GetStringMapString("kubernetes_namespace_labels_as_tags")
-	nsAnnotationsAsTags := config.Datadog.GetStringMapString("kubernetes_namespace_annotations_as_tags")
+	labelsAsTags := config.Datadog().GetStringMapString("kubernetes_pod_labels_as_tags")
+	annotationsAsTags := config.Datadog().GetStringMapString("kubernetes_pod_annotations_as_tags")
+	nsLabelsAsTags := config.Datadog().GetStringMapString("kubernetes_namespace_labels_as_tags")
+	nsAnnotationsAsTags := config.Datadog().GetStringMapString("kubernetes_namespace_annotations_as_tags")
 	c.initPodMetaAsTags(labelsAsTags, annotationsAsTags, nsLabelsAsTags, nsAnnotationsAsTags)
 
 	return c
@@ -188,7 +188,7 @@ func NewWorkloadMetaCollector(_ context.Context, store workloadmeta.Component, p
 // retrieveMappingFromConfig gets a stringmapstring config key and
 // lowercases all map keys to make envvar and yaml sources consistent
 func retrieveMappingFromConfig(configKey string) map[string]string {
-	labelsList := config.Datadog.GetStringMapString(configKey)
+	labelsList := config.Datadog().GetStringMapString(configKey)
 	for label, value := range labelsList {
 		delete(labelsList, label)
 		labelsList[strings.ToLower(label)] = value

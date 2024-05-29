@@ -335,11 +335,6 @@ func NewBaseEventSerializer(event *model.Event, opts *eval.Opts) *BaseEventSeria
 		}
 		s.ExitEventSerializer = newExitEventSerializer(event)
 		s.EventContextSerializer.Outcome = serializeOutcome(0)
-	case model.ExecEventType:
-		s.FileEventSerializer = &FileEventSerializer{
-			FileSerializer: *newFileSerializer(&event.ProcessContext.Process.FileEvent, event),
-		}
-		s.EventContextSerializer.Outcome = serializeOutcome(0)
 	}
 
 	return s
