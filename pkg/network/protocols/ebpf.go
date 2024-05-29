@@ -57,6 +57,8 @@ const (
 	ProgramKafkaResponseParser ProgramType = C.PROG_KAFKA_RESPONSE_PARSER
 	// ProgramPostgres is the Golang representation of the C.PROG_POSTGRES enum
 	ProgramPostgres ProgramType = C.PROG_POSTGRES
+	// ProgramPostgresParseMessage is the Golang representation of the C.PROG_POSTGRES_PROCESS_PARSE_MESSAGE enum
+	ProgramPostgresParseMessage ProgramType = C.PROG_POSTGRES_PROCESS_PARSE_MESSAGE
 )
 
 // Application layer of the protocol stack.
@@ -136,4 +138,10 @@ const (
 	ProgramTLSKafkaResponseParser TLSProgramType = C.TLS_KAFKA_RESPONSE_PARSER
 	// ProgramTLSKafkaTermination is tail call to process Kafka TLS termination.
 	ProgramTLSKafkaTermination TLSProgramType = C.TLS_KAFKA_TERMINATION
+	// ProgramTLSPostgres is tail call to process Postgres TLS frames.
+	ProgramTLSPostgres TLSProgramType = C.TLS_POSTGRES
+	// ProgramTLSPostgresParseMessage is tail call to process Parse message of Postgres frames.
+	ProgramTLSPostgresParseMessage TLSProgramType = C.TLS_PROG_POSTGRES_PROCESS_PARSE_MESSAGE
+	// ProgramTLSPostgresTermination is tail call to process Postgres TLS termination.
+	ProgramTLSPostgresTermination TLSProgramType = C.TLS_POSTGRES_TERMINATION
 )

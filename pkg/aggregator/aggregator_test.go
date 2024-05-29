@@ -569,8 +569,8 @@ func TestTags(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			defer pkgconfig.Datadog.SetWithoutSource("basic_telemetry_add_container_tags", nil)
-			pkgconfig.Datadog.SetWithoutSource("basic_telemetry_add_container_tags", tt.tlmContainerTagsEnabled)
+			defer pkgconfig.Datadog().SetWithoutSource("basic_telemetry_add_container_tags", nil)
+			pkgconfig.Datadog().SetWithoutSource("basic_telemetry_add_container_tags", tt.tlmContainerTagsEnabled)
 			agg := NewBufferedAggregator(nil, nil, tt.hostname, time.Second)
 			agg.agentTags = tt.agentTags
 			agg.globalTags = tt.globalTags
@@ -580,9 +580,9 @@ func TestTags(t *testing.T) {
 }
 
 func TestTimeSamplerFlush(t *testing.T) {
-	pc := pkgconfig.Datadog.GetInt("dogstatsd_pipeline_count")
-	pkgconfig.Datadog.SetWithoutSource("dogstatsd_pipeline_count", 1)
-	defer pkgconfig.Datadog.SetWithoutSource("dogstatsd_pipeline_count", pc)
+	pc := pkgconfig.Datadog().GetInt("dogstatsd_pipeline_count")
+	pkgconfig.Datadog().SetWithoutSource("dogstatsd_pipeline_count", 1)
+	defer pkgconfig.Datadog().SetWithoutSource("dogstatsd_pipeline_count", pc)
 
 	s := &MockSerializerIterableSerie{}
 	s.On("SendServiceChecks", mock.Anything).Return(nil)
@@ -599,9 +599,9 @@ func TestAddDJMRecurrentSeries(t *testing.T) {
 	// this test IS USING globals (recurrentSeries)
 	// -
 
-	djmEnabled := pkgconfig.Datadog.GetBool("djm_config.enabled")
-	pkgconfig.Datadog.SetWithoutSource("djm_config.enabled", true)
-	defer pkgconfig.Datadog.SetWithoutSource("djm_config.enabled", djmEnabled)
+	djmEnabled := pkgconfig.Datadog().GetBool("djm_config.enabled")
+	pkgconfig.Datadog().SetWithoutSource("djm_config.enabled", true)
+	defer pkgconfig.Datadog().SetWithoutSource("djm_config.enabled", djmEnabled)
 
 	s := &MockSerializerIterableSerie{}
 	// NewBufferedAggregator with DJM enable will create a new recurrentSeries

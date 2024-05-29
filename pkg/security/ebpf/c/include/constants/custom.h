@@ -65,16 +65,23 @@ enum DENTRY_ERPC_RESOLUTION_CODE {
     DR_ERPC_UNKNOWN_ERROR,
 };
 
+enum TC_TAIL_CALL_KEYS {
+    UNKNOWN,
+    DNS_REQUEST,
+    DNS_REQUEST_PARSER,
+    IMDS_REQUEST,
+};
+
 #define DNS_MAX_LENGTH 256
 #define DNS_EVENT_KEY 0
-#define DNS_REQUEST        1
-#define DNS_REQUEST_PARSER 2
 
 #define EGRESS 1
 #define INGRESS 2
 #define ACT_OK TC_ACT_UNSPEC
 #define ACT_SHOT TC_ACT_SHOT
 #define PACKET_KEY 0
+#define IMDS_EVENT_KEY 0
+#define IMDS_MAX_LENGTH 2048
 
 #define STATE_NULL 0
 #define STATE_NEWLINK 1
@@ -114,6 +121,10 @@ enum DENTRY_ERPC_RESOLUTION_CODE {
          FASYNC | O_DIRECT | O_LARGEFILE | O_DIRECTORY | O_NOFOLLOW | \
          O_NOATIME | O_CLOEXEC | O_PATH | __O_TMPFILE)
 #endif
+
+#define MAX_SYSCALL_CTX_ENTRIES 1024
+#define MAX_SYSCALL_ARG_MAX_SIZE 128
+#define MAX_SYSCALL_CTX_SIZE MAX_SYSCALL_ARG_MAX_SIZE*3 + 4 + 1 // id + types octet + 3 args
 
 __attribute__((always_inline)) u64 is_cgroup_activity_dumps_enabled() {
     u64 cgroup_activity_dumps_enabled;
@@ -172,6 +183,12 @@ static __attribute__((always_inline)) u64 is_anomaly_syscalls_enabled() {
     u64 anomaly;
     LOAD_CONSTANT("anomaly_syscalls", anomaly);
     return anomaly;
+};
+
+static __attribute__((always_inline)) u64 get_imds_ip() {
+    u64 imds_ip;
+    LOAD_CONSTANT("imds_ip", imds_ip);
+    return imds_ip;
 };
 
 #endif
