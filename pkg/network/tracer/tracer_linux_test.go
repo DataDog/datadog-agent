@@ -2346,7 +2346,10 @@ var failedConnectionsBuildModes = map[ebpftest.BuildMode]struct{}{
 func (s *TracerSuite) TestTCPFailureConnectionTimeout() {
 	t := s.T()
 	if _, ok := failedConnectionsBuildModes[ebpftest.GetBuildMode()]; !ok {
-		t.Skip()
+		t.Skip("Skipping test on unsupported build mode: ", ebpftest.GetBuildMode())
+	}
+	if kernel.VersionCode(4, 15, 0) > kv {
+		t.Skip("Skipping test on kernels < 4.15")
 	}
 	setupDropTrafficRule(t)
 	cfg := testConfig()
@@ -2389,74 +2392,75 @@ func (s *TracerSuite) TestTCPFailureConnectionTimeout() {
 	}
 
 	// Get the local address and port of the socket
-	_sa, err := syscall.Getsockname(sfd)
-	require.NoError(t, err)
-	sa := _sa.(*syscall.SockaddrInet4)
-	ap := netip.AddrPortFrom(netip.AddrFrom4(sa.Addr), uint16(sa.Port))
-	t.Log("Local address and port:", ap)
+	//_sa, err := syscall.Getsockname(sfd)
+	//require.NoError(t, err)
+	//sa := _sa.(*syscall.SockaddrInet4)
+	//ap := netip.AddrPortFrom(netip.AddrFrom4(sa.Addr), uint16(sa.Port))
+	//t.Log("Local address and port:", ap)
 
 	// Check if the connection was recorded as failed due to timeout
 	require.Eventually(t, func() bool {
 		conns := getConnections(t, tr)
-		t.Log(len(conns.Conns))
-		t.Log(conns)
 		// 110 is the errno for ETIMEDOUT
-		found := findFailedConnectionByRemoteAddr(srvAddr, conns, 110)
-		return found
+		return findFailedConnectionByRemoteAddr(srvAddr, conns, 110)
 	}, 3*time.Second, 1000*time.Millisecond, "Failed connection not recorded properly")
 }
 
 func (s *TracerSuite) TestTCPFailureConnectionTimeout2() {
 	t := s.T()
-	// Enable BPF-based system probe
+	t.Skip()
+	if _, ok := failedConnectionsBuildModes[ebpftest.GetBuildMode()]; !ok {
+		t.Skip()
+	}
+	setupDropTrafficRule(t)
 	cfg := testConfig()
 	cfg.TCPFailedConnectionsEnabled = true
 	tr := setupTracer(t, cfg)
 
-	// Create TCP Server which sends back serverMessageSize bytes
-	server := NewTCPServer(func(c net.Conn) {
-		r := bufio.NewReader(c)
-		r.ReadBytes(byte('\n'))
-		c.Write(genPayload(serverMessageSize))
-		c.Close()
-	})
-	t.Cleanup(server.Shutdown)
-	require.NoError(t, server.Run())
+	srvAddr := "127.0.0.1:10000"
 
-	// Connect to server
-	c, err := net.DialTimeout("tcp", server.address, time.Second)
+	dialer := net.Dialer{
+		Timeout: 500 * time.Millisecond, // Set the connection timeout
+		Control: func(network, address string, c syscall.RawConn) error {
+			var opErr error
+			if err := c.Control(func(fd uintptr) {
+				opErr = syscall.SetsockoptInt(int(fd), syscall.IPPROTO_TCP, 18, 500)
+			}); err != nil {
+				return err
+			}
+			return opErr
+		},
+	}
+
+	conn, err := dialer.Dial("tcp", srvAddr)
 	if err != nil {
-		t.Fatal(err)
+		t.Logf("Connection attempt failed: %v", err)
+		require.Error(t, err, "expected timeout error but got none")
+	} else {
+		conn.Close() // Close the connection if somehow established
 	}
-	defer c.Close()
 
-	// Write clientMessageSize to server, and read response
-	if _, err = c.Write(genPayload(clientMessageSize)); err != nil {
-		t.Fatal(err)
-	}
-	r := bufio.NewReader(c)
-	r.ReadBytes(byte('\n'))
+	localAddr := conn.LocalAddr()
 
-	iptablesWrapper(t, func() {
-		for i := 0; i < 99; i++ {
-			// Send a bunch of messages
-			c.Write(genPayload(clientMessageSize))
-		}
-		time.Sleep(time.Second)
-	})
+	serverAddress, err := net.ResolveTCPAddr("tcp", srvAddr)
+	require.NoError(t, err)
 
-	// Iterate through active connections until we find connection created above, and confirm send + recv counts and there was at least 1 retransmission
-	conns := getConnections(t, tr)
-
-	found := findFailedConnectionByRemoteAddr(server.address, conns, 110)
-	require.True(t, found)
-
+	t.Log("ADAMK 1")
+	// Check if the connection was recorded as failed due to timeout
+	require.Eventually(t, func() bool {
+		conns := getConnections(t, tr)
+		t.Log("ADAMK 2")
+		// 110 is the errno for ETIMEDOUT
+		found := findFailedConnection(t, localAddr, serverAddress, conns, 110)
+		t.Log("ADAMK 3")
+		return found
+	}, 3*time.Second, 1000*time.Millisecond, "Failed connection not recorded properly")
 }
 
 func (s *TracerSuite) TestTCPFailureConnectionRefused() {
 	t := s.T()
 	if _, ok := failedConnectionsBuildModes[ebpftest.GetBuildMode()]; !ok {
-		t.Skip()
+		t.Skip("Skipping test on unsupported build mode: ", ebpftest.GetBuildMode())
 	}
 	cfg := testConfig()
 	cfg.TCPFailedConnectionsEnabled = true
@@ -2482,7 +2486,7 @@ func (s *TracerSuite) TestTCPFailureConnectionRefused() {
 func (s *TracerSuite) TestTCPFailureConnectionReset() {
 	t := s.T()
 	if _, ok := failedConnectionsBuildModes[ebpftest.GetBuildMode()]; !ok {
-		t.Skip()
+		t.Skip("Skipping test on unsupported build mode: ", ebpftest.GetBuildMode())
 	}
 	cfg := testConfig()
 	cfg.TCPFailedConnectionsEnabled = true

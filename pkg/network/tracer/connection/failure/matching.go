@@ -19,14 +19,14 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 )
 
-var telemetryModuleName = "network_tracer__failure"
+var telemetryModuleName = "network_tracer__tcp_failure"
 
 var failureTelemetry = struct {
 	failedConnOrphans telemetry.Counter
 	failedConnMatches telemetry.Counter
 }{
-	telemetry.NewCounter(telemetryModuleName, "failed_conn_orphans", []string{}, "Counter measuring the number of orphans after associating failed connections with a closed connection"),
-	telemetry.NewCounter(telemetryModuleName, "failed_conn_matches", []string{"type"}, "Counter measuring the number of successful matches of failed connections with closed connections"),
+	telemetry.NewCounter(telemetryModuleName, "orphans", []string{}, "Counter measuring the number of orphans after associating failed connections with a closed connection"),
+	telemetry.NewCounter(telemetryModuleName, "matches", []string{"type"}, "Counter measuring the number of successful matches of failed connections with closed connections"),
 }
 
 // FailedConnStats is a wrapper to help document the purpose of the underlying map
@@ -66,10 +66,9 @@ func (fc *FailedConns) MatchFailedConn(conn *network.ConnectionStats) {
 	connTuple := connStatsToTuple(conn)
 
 	fc.RLock()
-	failedConn, ok := fc.FailedConnMap[connTuple]
-	fc.RUnlock()
+	defer fc.RUnlock()
 
-	if ok {
+	if failedConn, ok := fc.FailedConnMap[connTuple]; ok {
 		// found matching failed connection
 		conn.TCPFailures = make(map[uint32]uint32)
 
