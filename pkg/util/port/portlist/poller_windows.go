@@ -22,7 +22,7 @@ func (p *Poller) init() {
 }
 
 type windowsOSImpl struct {
-	includeLocalhost bogit ol
+	includeLocalhost bool
 }
 
 func newWindowsOSImpl(includeLocalhost bool) osImpl {
