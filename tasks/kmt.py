@@ -775,17 +775,16 @@ def kmt_sysprobe_prepare(
 
             go_files = [os.path.abspath(i) for i in glob(f"{pkg}/*.go")]
 
-            # We delete the output file to force ninja to rebuild the testsuite everytime
-            # because it cannot track go dependencies correctly.
-            ctx.run(f"rm -f {output_path}")
-            nw.build(
-                inputs=[pkg],
-                outputs=[output_path],
-                implicit=go_files,
-                rule="gotestsuite",
-                pool="gobuild",
-                variables=variables,
-            )
+            # skip packages without test files
+            if any(x.endswith("_test.go") for x in go_files):
+                nw.build(
+                    inputs=[pkg],
+                    outputs=[output_path],
+                    implicit=go_files,
+                    rule="gotestsuite",
+                    pool="gobuild",
+                    variables=variables,
+                )
 
             if pkg.endswith("java"):
                 nw.build(
