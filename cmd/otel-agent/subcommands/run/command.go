@@ -38,6 +38,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"github.com/spf13/cobra"
+	"go.opentelemetry.io/collector/otelcol"
 
 	"go.uber.org/fx"
 )
@@ -85,6 +86,10 @@ func runOTelAgentCommand(_ context.Context, params *subcommands.GlobalParams, op
 		collectorfx.Module(),
 		collectorcontribFx.Module(),
 		fx.Provide(configprovider.NewConfigProvider),
+		// For FX to provide the otelcol.ConfigProvider from the configprovider.ExtendedConfigProvider
+		fx.Provide(func(cp configprovider.ExtendedConfigProvider) otelcol.ConfigProvider {
+			return cp
+		}),
 		fx.Provide(func() (config.Component, error) {
 			c, err := agentConfig.NewConfigComponent(context.Background(), params.ConfPaths)
 			if err != nil {

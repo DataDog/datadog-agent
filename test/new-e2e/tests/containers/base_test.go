@@ -50,6 +50,14 @@ func (suite *baseSuite) TearDownSuite() {
 	suite.endTime = time.Now()
 }
 
+func (suite *baseSuite) BeforeTest(suiteName, testName string) {
+	suite.T().Logf("START  %s/%s %s", suiteName, testName, time.Now())
+}
+
+func (suite *baseSuite) AfterTest(suiteName, testName string) {
+	suite.T().Logf("FINISH %s/%s %s", suiteName, testName, time.Now())
+}
+
 type testMetricArgs struct {
 	Filter   testMetricFilterArgs
 	Expect   testMetricExpectArgs

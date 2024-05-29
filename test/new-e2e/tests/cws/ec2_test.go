@@ -214,7 +214,7 @@ func (a *agentSuite) Test03OpenSignal() {
 			assert.Contains(c, e.Tags, "tag1", "missing event tag")
 			assert.Contains(c, e.Tags, "tag2", "missing event tag")
 		})
-	}, 4*time.Minute, 20*time.Second)
+	}, 10*time.Minute, 30*time.Second)
 
 	// Check app signal
 	assert.EventuallyWithT(a.T(), func(c *assert.CollectT) {

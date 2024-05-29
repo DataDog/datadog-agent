@@ -1,5 +1,20 @@
 Component,Origin,License,Copyright
 core,bitbucket.org/atlassian/go-asap/v2,Apache-2.0,Copyright 2015 Atlassian Pty Ltd
+core,cloud.google.com/go/auth,Apache-2.0,Copyright 2019 Google LLC
+core,cloud.google.com/go/auth/credentials,Apache-2.0,Copyright 2019 Google LLC
+core,cloud.google.com/go/auth/credentials/internal/externalaccount,Apache-2.0,Copyright 2019 Google LLC
+core,cloud.google.com/go/auth/credentials/internal/externalaccountuser,Apache-2.0,Copyright 2019 Google LLC
+core,cloud.google.com/go/auth/credentials/internal/gdch,Apache-2.0,Copyright 2019 Google LLC
+core,cloud.google.com/go/auth/credentials/internal/impersonate,Apache-2.0,Copyright 2019 Google LLC
+core,cloud.google.com/go/auth/credentials/internal/stsexchange,Apache-2.0,Copyright 2019 Google LLC
+core,cloud.google.com/go/auth/grpctransport,Apache-2.0,Copyright 2019 Google LLC
+core,cloud.google.com/go/auth/httptransport,Apache-2.0,Copyright 2019 Google LLC
+core,cloud.google.com/go/auth/internal,Apache-2.0,Copyright 2019 Google LLC
+core,cloud.google.com/go/auth/internal/credsfile,Apache-2.0,Copyright 2019 Google LLC
+core,cloud.google.com/go/auth/internal/jwt,Apache-2.0,Copyright 2019 Google LLC
+core,cloud.google.com/go/auth/internal/transport,Apache-2.0,Copyright 2019 Google LLC
+core,cloud.google.com/go/auth/internal/transport/cert,Apache-2.0,Copyright 2019 Google LLC
+core,cloud.google.com/go/auth/oauth2adapt,Apache-2.0,Copyright 2019 Google LLC
 core,cloud.google.com/go/civil,Apache-2.0,Copyright 2019 Google LLC
 core,cloud.google.com/go/compute/metadata,Apache-2.0,Copyright 2019 Google LLC
 core,cloud.google.com/go/iam,Apache-2.0,Copyright 2019 Google LLC
@@ -164,6 +179,7 @@ core,github.com/Code-Hex/go-generics-cache/policy/lru,MIT,Copyright (c) 2021 cod
 core,github.com/Code-Hex/go-generics-cache/policy/mru,MIT,Copyright (c) 2021 codehex
 core,github.com/Code-Hex/go-generics-cache/policy/simple,MIT,Copyright (c) 2021 codehex
 core,github.com/CycloneDX/cyclonedx-go,Apache-2.0,Copyright & License | Copyright (c) OWASP Foundation | Copyright (c) OWASP Foundation. All Rights Reserved | Copyright OWASP Foundation
+core,github.com/DataDog/agent-payload/v5/autoscaling/kubernetes,BSD-3-Clause,"Copyright (c) 2017, Datadog, Inc"
 core,github.com/DataDog/agent-payload/v5/contimage,BSD-3-Clause,"Copyright (c) 2017, Datadog, Inc"
 core,github.com/DataDog/agent-payload/v5/contlcycle,BSD-3-Clause,"Copyright (c) 2017, Datadog, Inc"
 core,github.com/DataDog/agent-payload/v5/cws/dumpsv1,BSD-3-Clause,"Copyright (c) 2017, Datadog, Inc"
@@ -188,13 +204,13 @@ core,github.com/DataDog/datadog-api-client-go/v2,Apache-2.0,"Copyright 2019-Pres
 core,github.com/DataDog/datadog-api-client-go/v2/api/datadog,Apache-2.0,"Copyright 2019-Present Datadog, Inc"
 core,github.com/DataDog/datadog-api-client-go/v2/api/datadogV2,Apache-2.0,"Copyright 2019-Present Datadog, Inc"
 core,github.com/DataDog/datadog-go/v5/statsd,MIT,"Copyright (c) 2015 Datadog, Inc"
-core,github.com/DataDog/datadog-operator/apis/datadoghq/common,Apache-2.0,"Copyright 2016-2020 Datadog, Inc"
-core,github.com/DataDog/datadog-operator/apis/datadoghq/common/v1,Apache-2.0,"Copyright 2016-2020 Datadog, Inc"
-core,github.com/DataDog/datadog-operator/apis/datadoghq/v1alpha1,Apache-2.0,"Copyright 2016-2020 Datadog, Inc"
-core,github.com/DataDog/datadog-operator/apis/datadoghq/v2alpha1,Apache-2.0,"Copyright 2016-2020 Datadog, Inc"
-core,github.com/DataDog/datadog-operator/apis/utils,Apache-2.0,"Copyright 2016-2020 Datadog, Inc"
-core,github.com/DataDog/datadog-operator/pkg/defaulting,Apache-2.0,"Copyright 2016-2020 Datadog, Inc"
-core,github.com/DataDog/datadog-operator/pkg/utils,Apache-2.0,"Copyright 2016-2020 Datadog, Inc"
+core,github.com/DataDog/datadog-operator/apis/datadoghq/common,Apache-2.0,"Copyright 2016-present Datadog, Inc"
+core,github.com/DataDog/datadog-operator/apis/datadoghq/common/v1,Apache-2.0,"Copyright 2016-present Datadog, Inc"
+core,github.com/DataDog/datadog-operator/apis/datadoghq/v1alpha1,Apache-2.0,"Copyright 2016-present Datadog, Inc"
+core,github.com/DataDog/datadog-operator/apis/datadoghq/v2alpha1,Apache-2.0,"Copyright 2016-present Datadog, Inc"
+core,github.com/DataDog/datadog-operator/apis/utils,Apache-2.0,"Copyright 2016-present Datadog, Inc"
+core,github.com/DataDog/datadog-operator/pkg/defaulting,Apache-2.0,"Copyright 2016-present Datadog, Inc"
+core,github.com/DataDog/datadog-operator/pkg/utils,Apache-2.0,"Copyright 2016-present Datadog, Inc"
 core,github.com/DataDog/dd-sensitive-data-scanner/sds-go/go,Apache-2.0,"Copyright 2024-present Datadog, Inc"
 core,github.com/DataDog/ebpf-manager,MIT,Copyright (c) 2021 Authors of Datadog
 core,github.com/DataDog/ebpf-manager/internal,MIT,Copyright (c) 2021 Authors of Datadog
@@ -265,6 +281,9 @@ core,github.com/GehirnInc/crypt/common,BSD-2-Clause,"- [Jonas mg](https://github
 core,github.com/GehirnInc/crypt/internal,BSD-2-Clause,"- [Jonas mg](https://github.com/kless) | - [Kohei YOSHIDA](https://github.com/yosida95) | Copyright (c) 2012, Jeramey Crawford <jeramey@antihe.ro> | [Jeramey Crawford](https://github.com/jeramey)"
 core,github.com/GehirnInc/crypt/sha256_crypt,BSD-2-Clause,"- [Jonas mg](https://github.com/kless) | - [Kohei YOSHIDA](https://github.com/yosida95) | Copyright (c) 2012, Jeramey Crawford <jeramey@antihe.ro> | [Jeramey Crawford](https://github.com/jeramey)"
 core,github.com/GehirnInc/crypt/sha512_crypt,BSD-2-Clause,"- [Jonas mg](https://github.com/kless) | - [Kohei YOSHIDA](https://github.com/yosida95) | Copyright (c) 2012, Jeramey Crawford <jeramey@antihe.ro> | [Jeramey Crawford](https://github.com/jeramey)"
+core,github.com/GoogleCloudPlatform/grpc-gcp-go/grpcgcp,Apache-2.0,Copyright 2024 gRPC authors.
+core,github.com/GoogleCloudPlatform/grpc-gcp-go/grpcgcp/grpc_gcp,Apache-2.0,Copyright 2024 gRPC authors.
+core,github.com/GoogleCloudPlatform/grpc-gcp-go/grpcgcp/multiendpoint,Apache-2.0,Copyright 2024 gRPC authors.
 core,github.com/GoogleCloudPlatform/opentelemetry-operations-go/detectors/gcp,Apache-2.0,Copyright 2020 Google LLC
 core,github.com/IBM/sarama,MIT,Copyright (c) 2013 Shopify | Copyright (c) 2023 IBM Corporation
 core,github.com/Intevation/gval,BSD-3-Clause,"Copyright (c) 2017, Paessler AG <support@paessler.com>"
@@ -839,6 +858,7 @@ core,github.com/census-instrumentation/opencensus-proto/gen-go/trace/v1,Apache-2
 core,github.com/cespare/xxhash/v2,MIT,Copyright (c) 2016 Caleb Spare
 core,github.com/cheggaaa/pb/v3,BSD-3-Clause,"Copyright (c) 2012-2015, Sergey Cherepanov"
 core,github.com/cheggaaa/pb/v3/termutil,BSD-3-Clause,"Copyright (c) 2012-2015, Sergey Cherepanov"
+core,github.com/chrusty/protoc-gen-jsonschema,Apache-2.0,Copyright (c) 2017 The Authors
 core,github.com/cihub/seelog,BSD-3-Clause,"Copyright (c) 2012, Cloud Instruments Co., Ltd. <info@cin.io>"
 core,github.com/cilium/ebpf,MIT,"Copyright (c) 2017 Nathan Sweet | Copyright (c) 2018, 2019 Cloudflare | Copyright (c) 2019 Authors of Cilium"
 core,github.com/cilium/ebpf/asm,MIT,"Copyright (c) 2017 Nathan Sweet | Copyright (c) 2018, 2019 Cloudflare | Copyright (c) 2019 Authors of Cilium"
@@ -1358,6 +1378,7 @@ core,github.com/google/gnostic-models/jsonschema,Apache-2.0,"Copyright 2017-2022
 core,github.com/google/gnostic-models/openapiv2,Apache-2.0,"Copyright 2017-2022, Google LLC"
 core,github.com/google/gnostic-models/openapiv3,Apache-2.0,"Copyright 2017-2022, Google LLC"
 core,github.com/google/go-cmp/cmp,BSD-3-Clause,Copyright (c) 2017 The Go Authors. All rights reserved.
+core,github.com/google/go-cmp/cmp/cmpopts,BSD-3-Clause,Copyright (c) 2017 The Go Authors. All rights reserved.
 core,github.com/google/go-cmp/cmp/internal/diff,BSD-3-Clause,Copyright (c) 2017 The Go Authors. All rights reserved.
 core,github.com/google/go-cmp/cmp/internal/flags,BSD-3-Clause,Copyright (c) 2017 The Go Authors. All rights reserved.
 core,github.com/google/go-cmp/cmp/internal/function,BSD-3-Clause,Copyright (c) 2017 The Go Authors. All rights reserved.
@@ -1544,18 +1565,23 @@ core,github.com/invopop/jsonschema,MIT,Copyright (C) 2014 Alec Thomas
 core,github.com/ionos-cloud/sdk-go/v6,Apache-2.0,Copyright 2021 IONOS
 core,github.com/itchyny/gojq,MIT,Copyright (c) 2019-2024 itchyny
 core,github.com/itchyny/timefmt-go,MIT,Copyright (c) 2020-2022 itchyny
-core,github.com/jackc/chunkreader/v2,MIT,Copyright (c) 2019 Jack Christensen
-core,github.com/jackc/pgconn,MIT,Copyright (c) 2019-2021 Jack Christensen
-core,github.com/jackc/pgconn/internal/ctxwatch,MIT,Copyright (c) 2019-2021 Jack Christensen
-core,github.com/jackc/pgconn/stmtcache,MIT,Copyright (c) 2019-2021 Jack Christensen
-core,github.com/jackc/pgio,MIT,Copyright (c) 2019 Jack Christensen
 core,github.com/jackc/pgpassfile,MIT,Copyright (c) 2019 Jack Christensen
-core,github.com/jackc/pgproto3/v2,MIT,Copyright (c) 2019 Jack Christensen
 core,github.com/jackc/pgservicefile,MIT,Copyright (c) 2020 Jack Christensen
-core,github.com/jackc/pgtype,MIT,Copyright (c) 2013-2021 Jack Christensen
-core,github.com/jackc/pgx/v4,MIT,Copyright (c) 2013-2021 Jack Christensen
-core,github.com/jackc/pgx/v4/internal/sanitize,MIT,Copyright (c) 2013-2021 Jack Christensen
-core,github.com/jackc/pgx/v4/stdlib,MIT,Copyright (c) 2013-2021 Jack Christensen
+core,github.com/jackc/pgx/v5,MIT,Copyright (c) 2013-2021 Jack Christensen
+core,github.com/jackc/pgx/v5/internal/anynil,MIT,Copyright (c) 2013-2021 Jack Christensen
+core,github.com/jackc/pgx/v5/internal/iobufpool,MIT,Copyright (c) 2013-2021 Jack Christensen
+core,github.com/jackc/pgx/v5/internal/pgio,MIT,Copyright (c) 2013-2021 Jack Christensen
+core,github.com/jackc/pgx/v5/internal/sanitize,MIT,Copyright (c) 2013-2021 Jack Christensen
+core,github.com/jackc/pgx/v5/internal/stmtcache,MIT,Copyright (c) 2013-2021 Jack Christensen
+core,github.com/jackc/pgx/v5/pgconn,MIT,Copyright (c) 2013-2021 Jack Christensen
+core,github.com/jackc/pgx/v5/pgconn/internal/bgreader,MIT,Copyright (c) 2013-2021 Jack Christensen
+core,github.com/jackc/pgx/v5/pgconn/internal/ctxwatch,MIT,Copyright (c) 2013-2021 Jack Christensen
+core,github.com/jackc/pgx/v5/pgproto3,MIT,Copyright (c) 2013-2021 Jack Christensen
+core,github.com/jackc/pgx/v5/pgtype,MIT,Copyright (c) 2013-2021 Jack Christensen
+core,github.com/jackc/pgx/v5/pgxpool,MIT,Copyright (c) 2013-2021 Jack Christensen
+core,github.com/jackc/pgx/v5/stdlib,MIT,Copyright (c) 2013-2021 Jack Christensen
+core,github.com/jackc/puddle/v2,MIT,Copyright (c) 2018 Jack Christensen
+core,github.com/jackc/puddle/v2/internal/genstack,MIT,Copyright (c) 2018 Jack Christensen
 core,github.com/jaegertracing/jaeger/cmd/agent/app/configmanager,Apache-2.0,Copyright 2015-2019 The Jaeger Project Authors
 core,github.com/jaegertracing/jaeger/cmd/agent/app/configmanager/grpc,Apache-2.0,Copyright 2015-2019 The Jaeger Project Authors
 core,github.com/jaegertracing/jaeger/cmd/agent/app/customtransport,Apache-2.0,Copyright 2015-2019 The Jaeger Project Authors
@@ -2446,7 +2472,6 @@ core,github.com/opencontainers/selinux/go-selinux,Apache-2.0,Copyright (c) 2017 
 core,github.com/opencontainers/selinux/go-selinux/label,Apache-2.0,Copyright (c) 2017 The Authors
 core,github.com/opencontainers/selinux/pkg/pwalkdir,Apache-2.0,Copyright (c) 2017 The Authors
 core,github.com/openshift/api/quota/v1,Apache-2.0,"Copyright 2020 Red Hat, Inc."
-core,github.com/openshift/api/security/v1,Apache-2.0,"Copyright 2020 Red Hat, Inc."
 core,github.com/openshift/client-go/quota/clientset/versioned,Apache-2.0,"Copyright 2014 Red Hat, Inc"
 core,github.com/openshift/client-go/quota/clientset/versioned/scheme,Apache-2.0,"Copyright 2014 Red Hat, Inc"
 core,github.com/openshift/client-go/quota/clientset/versioned/typed/quota/v1,Apache-2.0,"Copyright 2014 Red Hat, Inc"
@@ -2588,6 +2613,7 @@ core,github.com/rivo/uniseg,MIT,Copyright (c) 2019 Oliver Kuederle
 core,github.com/robfig/cron/v3,MIT,Copyright (C) 2012 Rob Figueiredo
 core,github.com/rogpeppe/go-internal/fmtsort,BSD-3-Clause,Copyright (c) 2018 The Go Authors. All rights reserved
 core,github.com/rs/cors,MIT,Copyright (c) 2014 Olivier Poitrey <rs@dailymotion.com>
+core,github.com/rs/cors/internal,MIT,Copyright (c) 2014 Olivier Poitrey <rs@dailymotion.com>
 core,github.com/rs/zerolog,MIT,Copyright (c) 2017 Olivier Poitrey
 core,github.com/rs/zerolog/internal/cbor,MIT,Copyright (c) 2017 Olivier Poitrey
 core,github.com/rs/zerolog/internal/json,MIT,Copyright (c) 2017 Olivier Poitrey
@@ -4010,10 +4036,12 @@ core,k8s.io/client-go/applyconfigurations/storage/v1,Apache-2.0,Copyright 2014 T
 core,k8s.io/client-go/applyconfigurations/storage/v1alpha1,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/client-go/applyconfigurations/storage/v1beta1,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/client-go/discovery,Apache-2.0,Copyright 2014 The Kubernetes Authors.
+core,k8s.io/client-go/discovery/cached/memory,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/client-go/discovery/fake,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/client-go/dynamic,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/client-go/dynamic/dynamicinformer,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/client-go/dynamic/dynamiclister,Apache-2.0,Copyright 2014 The Kubernetes Authors.
+core,k8s.io/client-go/dynamic/fake,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/client-go/informers,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/client-go/informers/admissionregistration,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/client-go/informers/admissionregistration/v1,Apache-2.0,Copyright 2014 The Kubernetes Authors.
@@ -4234,6 +4262,7 @@ core,k8s.io/client-go/listers/storage/v1alpha1,Apache-2.0,Copyright 2014 The Kub
 core,k8s.io/client-go/listers/storage/v1beta1,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/client-go/metadata,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/client-go/openapi,Apache-2.0,Copyright 2014 The Kubernetes Authors.
+core,k8s.io/client-go/openapi/cached,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/client-go/pkg/apis/clientauthentication,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/client-go/pkg/apis/clientauthentication/install,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/client-go/pkg/apis/clientauthentication/v1,Apache-2.0,Copyright 2014 The Kubernetes Authors.
@@ -4245,6 +4274,14 @@ core,k8s.io/client-go/rest,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/client-go/rest/fake,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/client-go/rest/watch,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/client-go/restmapper,Apache-2.0,Copyright 2014 The Kubernetes Authors.
+core,k8s.io/client-go/scale,Apache-2.0,Copyright 2014 The Kubernetes Authors.
+core,k8s.io/client-go/scale/scheme,Apache-2.0,Copyright 2014 The Kubernetes Authors.
+core,k8s.io/client-go/scale/scheme/appsint,Apache-2.0,Copyright 2014 The Kubernetes Authors.
+core,k8s.io/client-go/scale/scheme/appsv1beta1,Apache-2.0,Copyright 2014 The Kubernetes Authors.
+core,k8s.io/client-go/scale/scheme/appsv1beta2,Apache-2.0,Copyright 2014 The Kubernetes Authors.
+core,k8s.io/client-go/scale/scheme/autoscalingv1,Apache-2.0,Copyright 2014 The Kubernetes Authors.
+core,k8s.io/client-go/scale/scheme/extensionsint,Apache-2.0,Copyright 2014 The Kubernetes Authors.
+core,k8s.io/client-go/scale/scheme/extensionsv1beta1,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/client-go/testing,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/client-go/tools/auth,Apache-2.0,Copyright 2014 The Kubernetes Authors.
 core,k8s.io/client-go/tools/cache,Apache-2.0,Copyright 2014 The Kubernetes Authors.

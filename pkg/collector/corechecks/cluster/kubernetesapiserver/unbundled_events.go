@@ -81,7 +81,7 @@ func (c *unbundledTransformer) Transform(events []*v1.Event) ([]event.Event, []e
 
 		datadogEvs = append(datadogEvs, event.Event{
 			Title:          fmt.Sprintf("%s: %s", readableKey, ev.Reason),
-			Priority:       event.EventPriorityNormal,
+			Priority:       event.PriorityNormal,
 			Host:           hostInfo.hostname,
 			SourceTypeName: "kubernetes",
 			EventType:      CheckName,

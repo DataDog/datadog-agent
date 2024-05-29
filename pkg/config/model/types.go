@@ -53,7 +53,7 @@ type Reader interface {
 
 	AllSettings() map[string]interface{}
 	AllSettingsWithoutDefault() map[string]interface{}
-	AllSourceSettingsWithoutDefault(source Source) map[string]interface{}
+	AllSettingsBySource() map[Source]interface{}
 	// AllKeysLowercased returns all config keys in the config, no matter how they are set.
 	// Note that it returns the keys lowercased.
 	AllKeysLowercased() []string

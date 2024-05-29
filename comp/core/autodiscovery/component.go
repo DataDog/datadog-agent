@@ -37,5 +37,7 @@ type Component interface {
 	// TODO (component): deprecate start/stop methods
 	Start()
 	Stop()
+	// TODO (component): once cluster agent uses the API component remove this function
+	GetConfigCheck(verbose bool) []byte
 	IsStarted() bool
 }

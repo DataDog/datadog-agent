@@ -43,7 +43,7 @@ var vmIDFetcher = cachedfetch.Fetcher{
 	Attempt: func(ctx context.Context) (interface{}, error) {
 		res, err := getResponseWithMaxLength(ctx,
 			metadataURL+"/metadata/instance/compute/vmId?api-version=2017-04-02&format=text",
-			config.Datadog.GetInt("metadata_endpoints_max_hostname_size"))
+			config.Datadog().GetInt("metadata_endpoints_max_hostname_size"))
 		if err != nil {
 			return nil, fmt.Errorf("Azure HostAliases: unable to query metadata endpoint: %s", err)
 		}
@@ -110,12 +110,12 @@ func getResponse(ctx context.Context, url string) (string, error) {
 		return "", fmt.Errorf("cloud provider is disabled by configuration")
 	}
 
-	return httputils.Get(ctx, url, map[string]string{"Metadata": "true"}, timeout, config.Datadog)
+	return httputils.Get(ctx, url, map[string]string{"Metadata": "true"}, timeout, config.Datadog())
 }
 
 // GetHostname returns hostname based on Azure instance metadata.
 func GetHostname(ctx context.Context) (string, error) {
-	return getHostnameWithConfig(ctx, config.Datadog)
+	return getHostnameWithConfig(ctx, config.Datadog())
 }
 
 var instanceMetaFetcher = cachedfetch.Fetcher{

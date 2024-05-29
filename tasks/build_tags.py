@@ -171,9 +171,6 @@ WINDOWS_EXCLUDE_TAGS = {"linux_bpf"}
 # List of tags to always remove when building on Darwin/macOS
 DARWIN_EXCLUDED_TAGS = {"docker", "containerd", "cri"}
 
-# List of tags to always remove when building on Windows 32-bits
-WINDOWS_32BIT_EXCLUDE_TAGS = {"docker", "kubeapiserver", "kubelet", "orchestrator"}
-
 # Unit test build tags
 UNIT_TEST_TAGS = {"test"}
 
@@ -230,7 +227,6 @@ build_tags = {
 
 def compute_build_tags_for_flavor(
     build: str,
-    arch: str,
     build_include: list[str],
     build_exclude: list[str],
     flavor: AgentFlavor = AgentFlavor.base,
@@ -246,9 +242,9 @@ def compute_build_tags_for_flavor(
     Then, remove from these the provided list of tags to exclude.
     """
     build_include = (
-        get_default_build_tags(build=build, arch=arch, flavor=flavor)
+        get_default_build_tags(build=build, flavor=flavor)
         if build_include is None
-        else filter_incompatible_tags(build_include.split(","), arch=arch)
+        else filter_incompatible_tags(build_include.split(","))
     )
 
     build_exclude = [] if build_exclude is None else build_exclude.split(",")
@@ -262,7 +258,7 @@ def compute_build_tags_for_flavor(
 
 
 @task
-def print_default_build_tags(_, build="agent", arch="x64", flavor=AgentFlavor.base.name):
+def print_default_build_tags(_, build="agent", flavor=AgentFlavor.base.name):
     """
     Build the default list of tags based on the build type and current platform.
     Prints as comma separated list suitable for go tooling (eg, gopls, govulncheck)
@@ -278,10 +274,10 @@ def print_default_build_tags(_, build="agent", arch="x64", flavor=AgentFlavor.ba
         print(f"'{flavor}' does not correspond to an agent flavor. Options: {flavorOptions}")
         exit(1)
 
-    print(",".join(sorted(get_default_build_tags(build, arch, flavor))))
+    print(",".join(sorted(get_default_build_tags(build=build, flavor=flavor))))
 
 
-def get_default_build_tags(build="agent", arch="x64", flavor=AgentFlavor.base, platform=sys.platform):
+def get_default_build_tags(build="agent", flavor=AgentFlavor.base, platform=sys.platform):
     """
     Build the default list of tags based on the build type and current platform.
 
@@ -293,10 +289,10 @@ def get_default_build_tags(build="agent", arch="x64", flavor=AgentFlavor.base, p
         print("Warning: unrecognized build type, no build tags included.", file=sys.stderr)
         include = set()
 
-    return sorted(filter_incompatible_tags(include, arch=arch, platform=platform))
+    return sorted(filter_incompatible_tags(include, platform=platform))
 
 
-def filter_incompatible_tags(include, arch="x64", platform=sys.platform):
+def filter_incompatible_tags(include, platform=sys.platform):
     """
     Filter out tags incompatible with the platform.
     include can be a list or a set.
@@ -311,9 +307,6 @@ def filter_incompatible_tags(include, arch="x64", platform=sys.platform):
 
     if platform == "darwin":
         exclude = exclude.union(DARWIN_EXCLUDED_TAGS)
-
-    if platform == "win32" and arch == "x86":
-        exclude = exclude.union(WINDOWS_32BIT_EXCLUDE_TAGS)
 
     return get_build_tags(include, exclude)
 
