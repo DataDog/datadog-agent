@@ -951,6 +951,7 @@ log/internal
 log/slog
 log/slog/internal
 log/slog/internal/buffer
+maps
 math
 math/big
 math/bits
