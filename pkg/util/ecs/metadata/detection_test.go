@@ -35,7 +35,7 @@ func TestLocateECSHTTP(t *testing.T) {
 	ts := ecsinterface.Start()
 	defer ts.Close()
 
-	config.Datadog.SetDefault("ecs_agent_url", ts.URL)
+	config.Datadog().SetDefault("ecs_agent_url", ts.URL)
 
 	_, err = newAutodetectedClientV1()
 	require.NoError(t, err)
@@ -58,7 +58,7 @@ func TestLocateECSHTTPFail(t *testing.T) {
 	ts := ecsinterface.Start()
 	defer ts.Close()
 
-	config.Datadog.SetDefault("ecs_agent_url", ts.URL)
+	config.Datadog().SetDefault("ecs_agent_url", ts.URL)
 
 	_, err = newAutodetectedClientV1()
 	require.Error(t, err)
@@ -76,8 +76,8 @@ func TestGetAgentV1ContainerURLs(t *testing.T) {
 	config.SetFeatures(t, config.Docker)
 
 	ctx := context.Background()
-	config.Datadog.SetDefault("ecs_agent_container_name", "ecs-agent-custom")
-	defer config.Datadog.SetDefault("ecs_agent_container_name", "ecs-agent")
+	config.Datadog().SetDefault("ecs_agent_container_name", "ecs-agent-custom")
+	defer config.Datadog().SetDefault("ecs_agent_container_name", "ecs-agent")
 
 	// Setting mocked data in cache
 	nets := make(map[string]*network.EndpointSettings)

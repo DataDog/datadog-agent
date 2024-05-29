@@ -30,7 +30,7 @@ func NewTagList() *TagList {
 		orchestratorCardTags: make(map[string]bool),
 		highCardTags:         make(map[string]bool),
 		standardTags:         make(map[string]bool),
-		splitList:            config.Datadog.GetStringMapString("tag_value_split_separator"),
+		splitList:            config.Datadog().GetStringMapString("tag_value_split_separator"),
 	}
 }
 

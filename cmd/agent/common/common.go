@@ -28,8 +28,8 @@ func GetPythonPaths() []string {
 	return []string{
 		path.GetDistPath(), // common modules are shipped in the dist path directly or under the "checks/" sub-dir
 		path.PyChecksPath,  // integrations-core legacy checks
-		filepath.Join(path.GetDistPath(), "checks.d"),  // custom checks in the "checks.d/" sub-dir of the dist path
-		config.Datadog.GetString("additional_checksd"), // custom checks, least precedent check location
+		filepath.Join(path.GetDistPath(), "checks.d"),    // custom checks in the "checks.d/" sub-dir of the dist path
+		config.Datadog().GetString("additional_checksd"), // custom checks, least precedent check location
 	}
 }
 
@@ -48,5 +48,5 @@ func NewSettingsClient() (settings.Client, error) {
 		return nil, err
 	}
 	hc := util.GetClient(false)
-	return settingshttp.NewClient(hc, fmt.Sprintf("https://%v:%v/agent/config", ipcAddress, config.Datadog.GetInt("cmd_port")), "agent", settingshttp.NewHTTPClientOptions(util.LeaveConnectionOpen)), nil
+	return settingshttp.NewClient(hc, fmt.Sprintf("https://%v:%v/agent/config", ipcAddress, config.Datadog().GetInt("cmd_port")), "agent", settingshttp.NewHTTPClientOptions(util.LeaveConnectionOpen)), nil
 }
