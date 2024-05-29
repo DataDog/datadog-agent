@@ -448,6 +448,8 @@ def send_failure_summary_notification(_, list_max_len=10):
     # TODO
     jobs = os.environ["JOB_FAILURES"]
     jobs = json.loads(jobs)
+    print(jobs)
+    return
     # with open('/tmp/failures.json') as fail, open('/tmp/success.json') as succ:
     #     jobs = {'failures': json.load(fail), 'success': json.load(succ)}
 
@@ -477,11 +479,11 @@ def send_failure_summary_notification(_, list_max_len=10):
     for name, (fail, total) in stats:
         link = CI_VISIBILITY_JOB_URL.format(name.replace(' ', '%20'))
         if total is None:
-            message.append(f"\n- <{link}|{name}>: *{fail} failures*")
+            message.append(f"- <{link}|{name}>: *{fail} failures*")
         else:
-            message.append(f"\n- <{link}|{name}>: *{fail} failures* / {total} runs")
+            message.append(f"- <{link}|{name}>: *{fail} failures* / {total} runs")
 
-    message.append('\nClick <https://app.datadoghq.com/ci/pipeline-executions?query=ci_level%3Ajob%20env%3Aprod%20%40git.repository.id%3A%22gitlab.ddbuild.io%2FDataDog%2Fdatadog-agent%22%20%40ci.pipeline.name%3A%22DataDog%2Fdatadog-agent%22%20%40ci.provider.instance%3Agitlab-ci%20%40git.branch%3Amain%20%40ci.status%3Aerror&agg_m=count&agg_m_source=base&agg_q=%40ci.job.name&agg_q_source=base&agg_t=count&fromUser=false&index=cipipeline&sort_m=count&sort_m_source=base&sort_t=count&top_n=25&top_o=top&viz=toplist&x_missing=true&paused=false|here> for more details.')
+    message.append('Click <https://app.datadoghq.com/ci/pipeline-executions?query=ci_level%3Ajob%20env%3Aprod%20%40git.repository.id%3A%22gitlab.ddbuild.io%2FDataDog%2Fdatadog-agent%22%20%40ci.pipeline.name%3A%22DataDog%2Fdatadog-agent%22%20%40ci.provider.instance%3Agitlab-ci%20%40git.branch%3Amain%20%40ci.status%3Aerror&agg_m=count&agg_m_source=base&agg_q=%40ci.job.name&agg_q_source=base&agg_t=count&fromUser=false&index=cipipeline&sort_m=count&sort_m_source=base&sort_t=count&top_n=25&top_o=top&viz=toplist&x_missing=true&paused=false|here> for more details.')
 
     # Send message
     from slack_sdk import WebClient
