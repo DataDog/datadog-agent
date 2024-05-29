@@ -310,7 +310,7 @@ func (i *installerImpl) promoteExperiment(ctx context.Context, pkg string) error
 	switch pkg {
 	case packageDatadogAgent:
 		return service.PromoteAgentExperiment(ctx)
-	case packageAPMInjector:
+	case packageDatadogInstaller:
 		return service.StopInstallerExperiment(ctx)
 	default:
 		return nil
