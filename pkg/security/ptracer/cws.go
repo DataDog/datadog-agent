@@ -185,7 +185,9 @@ func StartCWSPtracer(args []string, envs []string, probeAddr string, opts Opts) 
 	if probeAddr != "" {
 		logger.Debugf("connection to system-probe...")
 		if opts.Async {
-			go connectClient()
+			go func() {
+				_ = connectClient()
+			}()
 		} else {
 			err = connectClient()
 			if err != nil {
@@ -290,7 +292,9 @@ func StartCWSPtracer(args []string, envs []string, probeAddr string, opts Opts) 
 							time.Sleep(time.Second)
 							// re-init connection
 							logger.Debugf("try to reconnect to system-probe...")
-							go connectClient()
+							go func() {
+								_ = connectClient()
+							}()
 							continue
 						}
 
@@ -314,7 +318,9 @@ func StartCWSPtracer(args []string, envs []string, probeAddr string, opts Opts) 
 						}
 						if err = sendMsgData(client, data); err != nil {
 							logger.Debugf("error sending hallo msg: %v", err)
-							go connectClient()
+							go func() {
+								_ = connectClient()
+							}()
 							continue
 						}
 						break LOOP
@@ -337,7 +343,9 @@ func StartCWSPtracer(args []string, envs []string, probeAddr string, opts Opts) 
 
 				// re-init connection
 				logger.Debugf("try to reconnect to system-probe...")
-				go connectClient()
+				go func() {
+					_ = connectClient()
+				}()
 				// After reconnection, we will send an hello message with the SeqNum of 0, then
 				// all the stored msg on the chan uppon here with their initial SeqNum.
 				// This way, we will only have a mismatch between sequence numbers for (at maximum)
