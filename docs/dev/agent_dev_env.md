@@ -39,7 +39,7 @@ On Windows, install Python 2.7 and/or 3.11 via the [official installer](https://
 
 [Invoke](http://www.pyinvoke.org) is a task runner written in Python that is extensively used in this project to orchestrate builds and test runs. To run the tasks, you need to have it installed on your machine. We offer two different ways to run our invoke tasks.
 
-##### Installation with the `deva` CLI tool (recommended)
+##### `deva` (recommended)
 
 The `deva` CLI tool is a single binary that can be used to install and manage the development environment for the Agent, built by the Datadog team. It will install all the necessary Python dependencies for you. The development environment will be completely independent of your system Python installation. This tool leverages [PyApp](https://ofek.dev/pyapp/latest/), a wrapper for Python applications that bootstrap themselves at runtime. In our case, we wrap `invoke` itself and include the dependencies needed to work on the Agent.
 
