@@ -46,6 +46,13 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		{{continue}}
 	{{end}}
 
+	{{if $Field.Ref}}
+	{{$Ref := index $.Fields $Field.Ref}}
+		{{if $Ref}}
+			{{$Field = $Ref}}
+		{{end}}
+	{{end}}
+
 	case "{{$Name}}":
 		return &{{$Field.GetEvaluatorType}}{
 			{{- if $Field.OpOverrides}}
@@ -214,6 +221,13 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 			{{continue}}
 		{{end}}
 
+		{{if $Field.Ref}}
+		{{$Ref := index $.Fields $Field.Ref}}
+			{{if $Ref}}
+				{{$Field = $Ref}}
+			{{end}}
+		{{end}}
+
 		case "{{$Name}}":
 		{{if $Field.Iterator}}
 			var values []{{$Field.ReturnType}}
@@ -364,6 +378,13 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		{{range $Name, $Field := .Fields}}
 		{{- if $Field.GettersOnly }}
 			{{continue}}
+		{{end}}
+
+		{{if $Field.Ref}}
+		{{$Ref := index $.Fields $Field.Ref}}
+			{{if $Ref}}
+				{{$Field = $Ref}}
+			{{end}}
 		{{end}}
 
 		{{$FieldName := $Field.Name | printf "ev.%s"}}

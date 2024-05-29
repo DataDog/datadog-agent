@@ -3,7 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package utils
+// Package taglist provides helpers to interact with a tag list.
+package taglist
 
 import (
 	"fmt"
@@ -29,7 +30,7 @@ func NewTagList() *TagList {
 		orchestratorCardTags: make(map[string]bool),
 		highCardTags:         make(map[string]bool),
 		standardTags:         make(map[string]bool),
-		splitList:            config.Datadog.GetStringMapString("tag_value_split_separator"),
+		splitList:            config.Datadog().GetStringMapString("tag_value_split_separator"),
 	}
 }
 

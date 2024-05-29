@@ -155,7 +155,7 @@ func startCMDServer(
 		cmdAddr,
 		tlsConfig,
 		s,
-		grpcutil.TimeoutHandlerFunc(cmdMuxHandler, time.Duration(config.Datadog.GetInt64("server_timeout"))*time.Second),
+		grpcutil.TimeoutHandlerFunc(cmdMuxHandler, time.Duration(config.Datadog().GetInt64("server_timeout"))*time.Second),
 	)
 
 	startServer(cmdListener, srv, cmdServerName)

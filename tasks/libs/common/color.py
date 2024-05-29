@@ -1,5 +1,6 @@
 def color_message(message, color):
     colors = {
+        "magenta": "\033[95m",
         "blue": "\033[94m",
         "green": "\033[92m",
         "orange": "\033[93m",

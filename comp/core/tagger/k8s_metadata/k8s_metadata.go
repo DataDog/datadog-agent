@@ -3,11 +3,13 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package utils
+// Package k8smetadata provides utilities to handle kubernetes metadata as tags
+package k8smetadata
 
 import (
 	"strings"
 
+	"github.com/DataDog/datadog-agent/comp/core/tagger/taglist"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/tmplvar"
 
@@ -37,7 +39,7 @@ func InitMetadataAsTags(metadataAsTags map[string]string) (map[string]string, ma
 }
 
 // AddMetadataAsTags converts name and value into tags based on the metadata as tags configuration and patterns
-func AddMetadataAsTags(name, value string, metadataAsTags map[string]string, glob map[string]glob.Glob, tags *TagList) {
+func AddMetadataAsTags(name, value string, metadataAsTags map[string]string, glob map[string]glob.Glob, tags *taglist.TagList) {
 	for pattern, tmplStr := range metadataAsTags {
 		n := strings.ToLower(name)
 		if g, ok := glob[pattern]; ok {

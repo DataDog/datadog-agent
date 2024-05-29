@@ -51,7 +51,7 @@ type telemetrySender struct {
 
 func (ts *telemetrySender) newEvent(t eventType, svc serviceInfo) *event {
 	host := ts.hostname.GetSafe(context.Background())
-	env := pkgconfig.Datadog.GetString("env")
+	env := pkgconfig.Datadog().GetString("env")
 
 	nameSource := "generated"
 	if svc.meta.FromDDService {

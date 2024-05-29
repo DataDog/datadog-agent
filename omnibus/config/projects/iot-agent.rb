@@ -53,6 +53,31 @@ else
   end
 end
 
+if ENV["OMNIBUS_PACKAGE_ARTIFACT_DIR"]
+  dependency "package-artifact"
+  do_package = true
+  dependency 'init-scripts-iot-agent'
+else
+  # ------------------------------------
+  # Dependencies
+  # ------------------------------------
+
+  # creates required build directories
+  dependency 'preparation'
+
+  # Datadog agent
+  dependency 'datadog-iot-agent'
+
+  if windows_target?
+    dependency 'datadog-agent-finalize'
+  end
+
+  # version manifest file
+  dependency 'version-manifest'
+
+  do_package = false
+end
+
 if ENV.has_key?("OMNIBUS_WORKERS_OVERRIDE")
   COMPRESSION_THREADS = ENV["OMNIBUS_WORKERS_OVERRIDE"].to_i
 else
@@ -90,6 +115,7 @@ description 'Datadog IoT Agent
 
 # .deb specific flags
 package :deb do
+  skip_packager !do_package
   vendor 'Datadog <package@datadoghq.com>'
   epoch 1
   license 'Apache License Version 2.0'
@@ -108,6 +134,7 @@ end
 
 # .rpm specific flags
 package :rpm do
+  skip_packager !do_package
   vendor 'Datadog <package@datadoghq.com>'
   epoch 1
   dist_tag ''
@@ -131,18 +158,6 @@ end
 
 # Linux
 if linux_target?
-  # Upstart
-  if debian_target? || redhat_target? || suse_target?
-    extra_package_file '/etc/init/datadog-agent.conf'
-  end
-
-  # Systemd
-  if debian_target?
-    extra_package_file '/lib/systemd/system/datadog-agent.service'
-  else
-    extra_package_file '/usr/lib/systemd/system/datadog-agent.service'
-  end
-
   # Example configuration files for the agent and the checks
   extra_package_file '/etc/datadog-agent/datadog.yaml.example'
   extra_package_file '/etc/datadog-agent/conf.d/'
@@ -157,7 +172,9 @@ package :zip do
 end
 
 package :xz do
-  skip_packager true
+  skip_packager do_package
+  compression_threads COMPRESSION_THREADS
+  compression_level COMPRESSION_LEVEL
 end
 
 package :msi do
@@ -201,29 +218,17 @@ package :msi do
   })
 end
 
-# ------------------------------------
-# Dependencies
-# ------------------------------------
-
-# creates required build directories
-dependency 'preparation'
-
-# Datadog agent
-dependency 'datadog-iot-agent'
-
-if windows_target?
-  dependency 'datadog-agent-finalize'
-end
-
-# version manifest file
-dependency 'version-manifest'
-
 # package scripts
 if linux_target?
-  if debian_target?
-    package_scripts_path "#{Omnibus::Config.project_root}/package-scripts/iot-agent-deb"
+  if !do_package
+    extra_package_file "#{Omnibus::Config.project_root}/package-scripts/iot-agent-deb"
+    extra_package_file "#{Omnibus::Config.project_root}/package-scripts/iot-agent-rpm"
   else
-    package_scripts_path "#{Omnibus::Config.project_root}/package-scripts/iot-agent-rpm"
+    if debian_target?
+      package_scripts_path "#{Omnibus::Config.project_root}/package-scripts/iot-agent-deb"
+    else
+      package_scripts_path "#{Omnibus::Config.project_root}/package-scripts/iot-agent-rpm"
+    end
   end
 end
 

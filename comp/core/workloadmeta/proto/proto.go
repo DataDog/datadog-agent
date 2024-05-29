@@ -72,7 +72,11 @@ func ProtobufEventFromWorkloadmetaEvent(event workloadmeta.Event) (*pb.Workloadm
 		}, nil
 	}
 
-	return nil, fmt.Errorf("unknown kind: %s", entityID.Kind)
+	// We have not defined a conversion for the workloadmeta type included in
+	// the given event.
+	// This is not considered to be an error because we only support some
+	// types. The list is defined in the remote workloadmeta collector.
+	return nil, nil
 }
 
 // ProtobufFilterFromWorkloadmetaFilter converts the given workloadmeta.Filter into protobuf

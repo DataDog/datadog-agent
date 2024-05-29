@@ -8,38 +8,112 @@
 package workload
 
 import (
-	"fmt"
-
-	datadoghq "github.com/DataDog/datadog-operator/apis/datadoghq/v1alpha1"
+	corev1 "k8s.io/api/core/v1"
+	"k8s.io/client-go/tools/record"
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/model"
-
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// PatcherAdapter allows a workload patcher to access and modify data available in controller store
-type PatcherAdapter interface {
-	// GetPodAutoscalerFromOwnerRef returns the PodAutoscalerInternal object associated with the given owner reference
-	// NOTE: The returned PodAutoscalerInternal should never be modified
-	GetRecommendations(ns string, ownerRef metav1.OwnerReference) (string, []datadoghq.DatadogPodAutoscalerContainerResources, error)
+// PODPatcher allows a workload patcher to patch a workload with the recommendations from the autoscaler
+type PODPatcher interface {
+	// ApplyRecommendation applies the recommendation to the given pod
+	ApplyRecommendations(pod *corev1.Pod) (bool, error)
 }
 
-type patcherAdapter struct {
-	store *store
+type podPatcher struct {
+	store         *store
+	eventRecorder record.EventRecorder
 }
 
-var _ PatcherAdapter = patcherAdapter{}
+var _ PODPatcher = podPatcher{}
 
-func newPatcherAdapter(store *store) PatcherAdapter {
-	return patcherAdapter{store: store}
+func newPODPatcher(store *store, eventRecorder record.EventRecorder) PODPatcher {
+	return podPatcher{
+		store:         store,
+		eventRecorder: eventRecorder,
+	}
 }
 
-// GetPodAutoscalerFromOwnerRef searches for a PodAutoscalerInternal object associated with the given owner reference
-// If no PodAutoscalerInternal is found or no vertical recommendation, it returns ("", nil, nil)
-func (pa patcherAdapter) GetRecommendations(ns string, ownerRef metav1.OwnerReference) (string, []datadoghq.DatadogPodAutoscalerContainerResources, error) {
+func (pa podPatcher) ApplyRecommendations(pod *corev1.Pod) (bool, error) {
+	autoscaler, err := pa.findAutoscaler(pod)
+	if err != nil {
+		return false, err
+	}
+	if autoscaler == nil {
+		// This POD is not managed by an autoscaler
+		return false, nil
+	}
+
+	// Check if the autoscaler has recommendations
+	if autoscaler.ScalingValues.Vertical == nil || autoscaler.ScalingValues.Vertical.ResourcesHash == "" || len(autoscaler.ScalingValues.Vertical.ContainerResources) == 0 {
+		log.Debugf("Autoscaler %s has no vertical recommendations for POD %s/%s, not patching", autoscaler.ID(), pod.Namespace, pod.Name)
+		return false, nil
+	}
+
+	// Patching the pod with the recommendations
+	patched := false
+	if pod.Annotations == nil {
+		pod.Annotations = map[string]string{}
+	}
+
+	if pod.Annotations[model.RecommendationIDAnnotation] != autoscaler.ScalingValues.Vertical.ResourcesHash {
+		pod.Annotations[model.RecommendationIDAnnotation] = autoscaler.ScalingValues.Vertical.ResourcesHash
+		patched = true
+	}
+
+	// Even if annotation matches, we still verify the resources are correct, in case the POD was modified.
+	for _, reco := range autoscaler.ScalingValues.Vertical.ContainerResources {
+		for i := range pod.Spec.Containers {
+			cont := &pod.Spec.Containers[i]
+			if cont.Name != reco.Name {
+				continue
+			}
+			if cont.Resources.Limits == nil {
+				cont.Resources.Limits = corev1.ResourceList{}
+			}
+			if cont.Resources.Requests == nil {
+				cont.Resources.Requests = corev1.ResourceList{}
+			}
+			for resource, limit := range reco.Limits {
+				if limit != cont.Resources.Limits[resource] {
+					cont.Resources.Limits[resource] = limit
+					patched = true
+				}
+			}
+			for resource, request := range reco.Requests {
+				if request != cont.Resources.Requests[resource] {
+					cont.Resources.Requests[resource] = request
+					patched = true
+				}
+			}
+			break
+		}
+	}
+
+	return patched, nil
+}
+
+func (pa podPatcher) findAutoscaler(pod *corev1.Pod) (*model.PodAutoscalerInternal, error) {
+	// Pods without owner cannot be autoscaled, ignore it
+	if len(pod.OwnerReferences) == 0 {
+		return nil, nil
+	}
+
+	ownerRef := pod.OwnerReferences[0]
+	if ownerRef.Kind == kubernetes.ReplicaSetKind {
+		// Check if it's owned by a Deployment, otherwise ReplicaSet is direct owner
+		deploymentName := kubernetes.ParseDeploymentForReplicaSet(ownerRef.Name)
+		if deploymentName != "" {
+			ownerRef.Kind = kubernetes.DeploymentKind
+			ownerRef.Name = deploymentName
+		}
+	}
+
 	// TODO: Implementation is slow
 	podAutoscalers := pa.store.GetFiltered(func(podAutoscaler model.PodAutoscalerInternal) bool {
-		if podAutoscaler.Namespace == ns &&
+		if podAutoscaler.Namespace == pod.Namespace &&
 			podAutoscaler.Spec.TargetRef.Name == ownerRef.Name &&
 			podAutoscaler.Spec.TargetRef.Kind == ownerRef.Kind &&
 			podAutoscaler.Spec.TargetRef.APIVersion == ownerRef.APIVersion {
@@ -49,16 +123,12 @@ func (pa patcherAdapter) GetRecommendations(ns string, ownerRef metav1.OwnerRefe
 	})
 
 	if len(podAutoscalers) == 0 {
-		return "", nil, nil
+		return nil, nil
 	}
 
 	if len(podAutoscalers) > 1 {
-		return "", nil, fmt.Errorf("Multiple Pod Autoscalers found for %s/%s/%s", ns, ownerRef.Kind, ownerRef.Name)
+		return nil, log.Errorf("Multiple autoscaler found for POD %s/%s, ownerRef: %s/%s, cannot update POD", pod.Namespace, pod.Name, ownerRef.Kind, ownerRef.Name)
 	}
 
-	if podAutoscalers[0].ScalingValues.Vertical != nil {
-		return podAutoscalers[0].ScalingValues.Vertical.ResourcesHash, podAutoscalers[0].ScalingValues.Vertical.ContainerResources, nil
-	}
-
-	return "", nil, nil
+	return &podAutoscalers[0], nil
 }
