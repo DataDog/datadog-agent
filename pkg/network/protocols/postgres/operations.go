@@ -23,6 +23,8 @@ const (
 	CreateTableOP
 	// DropTableOP represents a DROP TABLE operation.
 	DropTableOP
+	// DeleteTableOP represents a DELETE TABLE operation.
+	DeleteTableOP
 	// TruncateTableOP represents a TRUNCATE operation.
 	TruncateTableOP
 )
@@ -42,6 +44,8 @@ func (op Operation) String() string {
 		return "DROP"
 	case TruncateTableOP:
 		return "TRUNCATE"
+	case DeleteTableOP:
+		return "DELETE"
 	default:
 		return "UNKNOWN"
 	}
@@ -62,6 +66,8 @@ func FromString(op string) Operation {
 		return DropTableOP
 	case "TRUNCATE":
 		return TruncateTableOP
+	case "DELETE":
+		return DeleteTableOP
 	default:
 		return UnknownOP
 	}

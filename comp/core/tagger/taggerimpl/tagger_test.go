@@ -52,17 +52,17 @@ func Test_taggerCardinality(t *testing.T) {
 		{
 			name:        "empty",
 			cardinality: "",
-			want:        tagger.DogstatsdCardinality,
+			want:        tagger.DogstatsdCardinality(),
 		},
 		{
 			name:        "unknown",
 			cardinality: "foo",
-			want:        tagger.DogstatsdCardinality,
+			want:        tagger.DogstatsdCardinality(),
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.want, taggerCardinality(tt.cardinality))
+			assert.Equal(t, tt.want, taggerCardinality(tt.cardinality, tagger.DogstatsdCardinality()))
 		})
 	}
 }

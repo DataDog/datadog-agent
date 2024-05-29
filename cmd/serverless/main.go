@@ -43,9 +43,12 @@ import (
 )
 
 var (
-	logLevelEnvVar         = "DD_LOG_LEVEL"
-	flushStrategyEnvVar    = "DD_SERVERLESS_FLUSH_STRATEGY"
-	logsLogsTypeSubscribed = "DD_LOGS_CONFIG_LAMBDA_LOGS_TYPE"
+	logLevelEnvVar             = "DD_LOG_LEVEL"
+	flushStrategyEnvVar        = "DD_SERVERLESS_FLUSH_STRATEGY"
+	logsLogsTypeSubscribed     = "DD_LOGS_CONFIG_LAMBDA_LOGS_TYPE"
+	logsLogsBufferingTimeoutMs = "DD_LOGS_CONFIG_LAMBDA_LOGS_BUFFERING_TIMEOUT_MS"
+	logsLogsBufferingMaxBytes  = "DD_LOGS_CONFIG_LAMBDA_LOGS_BUFFERING_MAX_BYTES"
+	logsLogsBufferingMaxItesm  = "DD_LOGS_CONFIG_LAMBDA_LOGS_BUFFERING_MAX_ITEMS"
 
 	// AWS Lambda is writing the Lambda function files in /var/task, we want the
 	// configuration file to be at the root of this directory.
@@ -233,9 +236,9 @@ func runAgent() {
 				LogsType:            os.Getenv(logsLogsTypeSubscribed),
 				Port:                logsAPIHttpServerPort,
 				CollectionRoute:     logsAPICollectionRoute,
-				Timeout:             logsAPITimeout,
-				MaxBytes:            logsAPIMaxBytes,
-				MaxItems:            logsAPIMaxItems,
+				Timeout:             envVarToInt(logsLogsBufferingTimeoutMs, logsAPITimeout),
+				MaxBytes:            envVarToInt(logsLogsBufferingMaxBytes, logsAPIMaxBytes),
+				MaxItems:            envVarToInt(logsLogsBufferingMaxItesm, logsAPIMaxItems),
 			})
 
 		if logRegistrationError != nil {
@@ -349,4 +352,15 @@ func handleTerminationSignals(serverlessDaemon *daemon.Daemon, stopCh chan struc
 	log.Infof("Received signal '%s', shutting down...", signo)
 	serverlessDaemon.Stop()
 	stopCh <- struct{}{}
+}
+
+func envVarToInt(envVar string, defaultValue int) int {
+	if value, ok := os.LookupEnv(envVar); ok {
+		intValue, err := strconv.Atoi(value)
+		if err == nil {
+			return intValue
+		}
+		log.Warnf("%s must be int type, got %s: %s", envVar, value, err)
+	}
+	return defaultValue
 }

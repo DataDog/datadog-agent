@@ -87,6 +87,14 @@ func (s *PostgresSuite) TestFormatPostgresStats() {
 		postgres.DropTableOP,
 		tableName,
 	)
+	deleteKey := postgres.NewKey(
+		localhost,
+		localhost,
+		postgresClientPort,
+		postgresServerPort,
+		postgres.DeleteTableOP,
+		tableName,
+	)
 	truncateKey := postgres.NewKey(
 		localhost,
 		localhost,
@@ -108,6 +116,10 @@ func (s *PostgresSuite) TestFormatPostgresStats() {
 				FirstLatencySample: 5,
 			},
 			insertKey: {
+				Count:              10,
+				FirstLatencySample: 5,
+			},
+			deleteKey: {
 				Count:              10,
 				FirstLatencySample: 5,
 			},
@@ -176,6 +188,16 @@ func (s *PostgresSuite) TestFormatPostgresStats() {
 					Postgres: &model.PostgresStats{
 						TableName:          tableName,
 						Operation:          model.PostgresOperation_PostgresDropOp,
+						FirstLatencySample: 5,
+						Count:              10,
+					},
+				},
+			},
+			{
+				DbStats: &model.DatabaseStats_Postgres{
+					Postgres: &model.PostgresStats{
+						TableName:          tableName,
+						Operation:          model.PostgresOperation_PostgresDeleteOp,
 						FirstLatencySample: 5,
 						Count:              10,
 					},
