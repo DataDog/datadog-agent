@@ -108,6 +108,8 @@ type ProcessMonitor struct {
 	netlinkDoneChannel   chan struct{}
 	netlinkErrorsChannel chan error
 
+	useEventStream bool
+
 	// callback registration and parallel execution management
 
 	hasExecCallbacks          atomic.Bool
@@ -260,6 +262,11 @@ func (pm *ProcessMonitor) initCallbackRunner() {
 	}
 }
 
+func (pm *ProcessMonitor) stopCallbackRunners() {
+	close(pm.callbackRunnerStopChannel)
+	pm.callbackRunnersWG.Wait()
+}
+
 // mainEventLoop is an event loop receiving events from netlink, or periodic events, and handles them.
 func (pm *ProcessMonitor) mainEventLoop() {
 	log.Info("process monitor main event loop is starting")
@@ -270,9 +277,7 @@ func (pm *ProcessMonitor) mainEventLoop() {
 		// Marking netlink to stop, so we won't get any new events.
 		close(pm.netlinkDoneChannel)
 
-		// waiting for the callbacks runners to finish
-		close(pm.callbackRunnerStopChannel)
-		pm.callbackRunnersWG.Wait()
+		pm.stopCallbackRunners()
 
 		// We intentionally don't close the callbackRunner channel,
 		// as we don't want to panic if we're trying to send to it in another goroutine.
@@ -362,6 +367,8 @@ func (pm *ProcessMonitor) Initialize(useEventStream bool) error {
 			log.Infof("initializing process monitor (%s)", method)
 			pm.tel = newProcessMonitorTelemetry()
 
+			pm.useEventStream = useEventStream
+			pm.done = make(chan struct{})
 			pm.initCallbackRunner()
 
 			if useEventStream {
@@ -369,7 +376,6 @@ func (pm *ProcessMonitor) Initialize(useEventStream bool) error {
 			}
 
 			pm.processMonitorWG.Add(1)
-			pm.done = make(chan struct{})
 			// Setting up the main loop
 			pm.netlinkDoneChannel = make(chan struct{})
 			pm.netlinkErrorsChannel = make(chan error, 10)
@@ -455,7 +461,17 @@ func (pm *ProcessMonitor) Stop() {
 	log.Info("process monitor stopping due to a refcount of 0")
 	if pm.done != nil {
 		close(pm.done)
-		pm.processMonitorWG.Wait()
+
+		if pm.useEventStream {
+			// For the netlink case, the callback runners are waited for by the
+			// main event loop which we wait for with `processMonitorWG` below.
+			// However, for the event stream case, we don't have that event
+			// loop, so wait here for the callback runners.
+			pm.stopCallbackRunners()
+		} else {
+			pm.processMonitorWG.Wait()
+		}
+
 		pm.done = nil
 	}
 
