@@ -45,7 +45,7 @@ func SetupInstaller(ctx context.Context) (err error) {
 	defer func() {
 		if err != nil {
 			log.Errorf("Failed to setup installer: %s, reverting", err)
-			RemoveInstaller(ctx)
+			err = RemoveInstaller(ctx)
 		}
 	}()
 
@@ -177,7 +177,7 @@ func startInstallerStable(ctx context.Context) (err error) {
 }
 
 // RemoveInstaller removes the installer systemd units
-func RemoveInstaller(ctx context.Context) {
+func RemoveInstaller(ctx context.Context) error {
 	for _, unit := range installerUnits {
 		if err := stopUnit(ctx, unit); err != nil {
 			exitErr, ok := err.(*exec.ExitError)
@@ -200,6 +200,9 @@ func RemoveInstaller(ctx context.Context) {
 	if err := os.Remove("/usr/bin/datadog-installer"); err != nil {
 		log.Warnf("Failed to remove /usr/bin/datadog-installer: %s", err)
 	}
+
+	// TODO: return error to caller?
+	return nil
 }
 
 // StartInstallerExperiment installs the experimental systemd units for the installer

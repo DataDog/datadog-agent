@@ -76,6 +76,9 @@ const (
 	// DefaultCompressorKind is the default compressor. Options available are 'zlib' and 'zstd'
 	DefaultCompressorKind = "zlib"
 
+	// DefaultZstdCompressionLevel should mirror the default compression level defined in https://github.com/DataDog/zstd/blob/1.x/zstd.go#L23
+	DefaultZstdCompressionLevel = 5
+
 	// DefaultLogsSenderBackoffFactor is the default logs sender backoff randomness factor
 	DefaultLogsSenderBackoffFactor = 2.0
 
@@ -100,11 +103,23 @@ const (
 	DefaultMaxMessageSizeBytes = 256 * 1000
 )
 
-// Datadog is the global configuration object
+// datadog is the global configuration object
 var (
-	Datadog     pkgconfigmodel.Config
+	datadog     pkgconfigmodel.Config
 	SystemProbe pkgconfigmodel.Config
 )
+
+// Datadog returns the current agent configuration
+func Datadog() pkgconfigmodel.Config {
+	return datadog
+}
+
+// SetDatadog sets the the reference to the agent configuration.
+// This is currently used by the legacy converter and config mocks and should not be user anywhere else. Once the
+// legacy converter and mock have been migrated we will remove this function.
+func SetDatadog(cfg pkgconfigmodel.Config) {
+	datadog = cfg
+}
 
 // Variables to initialize at build time
 var (
@@ -220,7 +235,7 @@ var serverlessConfigComponents = []func(pkgconfigmodel.Config){
 func init() {
 	osinit()
 	// Configure Datadog global configuration
-	Datadog = pkgconfigmodel.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
+	datadog = pkgconfigmodel.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
 	SystemProbe = pkgconfigmodel.NewConfig("system-probe", "DD", strings.NewReplacer(".", "_"))
 
 	// Configuration defaults
@@ -972,6 +987,7 @@ func agent(config pkgconfigmodel.Config) {
 
 	// Agent GUI access port
 	config.BindEnvAndSetDefault("GUI_port", defaultGuiPort)
+	config.BindEnvAndSetDefault("GUI_session_expiration", 0)
 
 	config.SetKnown("proxy.http")
 	config.SetKnown("proxy.https")
@@ -1135,6 +1151,7 @@ func serializer(config pkgconfigmodel.Config) {
 	config.BindEnvAndSetDefault("serializer_max_series_payload_size", 512000)
 	config.BindEnvAndSetDefault("serializer_max_series_uncompressed_payload_size", 5242880)
 	config.BindEnvAndSetDefault("serializer_compressor_kind", DefaultCompressorKind)
+	config.BindEnvAndSetDefault("serializer_zstd_compressor_level", DefaultZstdCompressionLevel)
 
 	config.BindEnvAndSetDefault("use_v2_api.series", true)
 	// Serializer: allow user to blacklist any kind of payload to be sent

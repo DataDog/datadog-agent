@@ -206,12 +206,8 @@
 /Dockerfiles/agent/windows/              @DataDog/container-integrations @DataDog/windows-agent
 
 /docs/                                  @DataDog/documentation @DataDog/agent-developer-tools
-/docs/agent/                            @DataDog/documentation @DataDog/agent-shared-components
-/docs/trace-agent/                      @DataDog/documentation @DataDog/agent-apm
-/docs/cluster-agent/                    @DataDog/documentation @DataDog/container-platform
 /docs/dev/checks/                       @DataDog/documentation @DataDog/agent-metrics-logs
 /docs/cloud-workload-security/          @DataDog/documentation @DataDog/agent-security
-/docs/serverless                        @DataDog/documentation @DataDog/serverless
 
 /docs/public/components/                                     @DataDog/documentation @DataDog/agent-shared-components
 /docs/public/architecture/dogstatsd/                         @DataDog/documentation @DataDog/agent-metrics-logs
@@ -318,6 +314,7 @@
 /pkg/cloudfoundry                       @Datadog/platform-integrations
 /pkg/clusteragent/                      @DataDog/container-platform
 /pkg/clusteragent/autoscaling/          @DataDog/container-integrations
+/pkg/clusteragent/admission/mutate/autoscaling          @DataDog/container-integrations
 /pkg/clusteragent/admission/mutate/autoinstrumentation/ @DataDog/container-platform @DataDog/apm-onboarding
 /pkg/clusteragent/orchestrator/         @DataDog/container-app
 /pkg/clusteragent/telemetry/            @DataDog/telemetry-and-analytics
@@ -416,6 +413,7 @@
 /pkg/util/pdhutil/                      @DataDog/windows-agent
 /pkg/util/winutil/                      @DataDog/windows-agent
 /pkg/util/testutil/flake                @DataDog/agent-developer-tools
+/pkg/util/trie                          @DataDog/container-integrations
 /pkg/languagedetection                  @DataDog/processes @DataDog/universal-service-monitoring
 /pkg/logs/                              @DataDog/agent-metrics-logs
 /pkg/logs/launchers/windowsevent        @DataDog/agent-metrics-logs @DataDog/windows-agent
@@ -462,8 +460,6 @@
 /pkg/network/ebpf/c/prebuilt/http*      @DataDog/universal-service-monitoring
 /pkg/network/ebpf/c/runtime/http*       @DataDog/universal-service-monitoring
 /pkg/network/ebpf/c/protocols/          @DataDog/universal-service-monitoring
-/pkg/network/encoding/marshal/http*     @DataDog/universal-service-monitoring
-/pkg/network/encoding/marshal/kafka*    @DataDog/universal-service-monitoring
 /pkg/network/encoding/marshal/*usm*     @DataDog/universal-service-monitoring
 /pkg/network/encoding/marshal/*_windows*.go  @DataDog/windows-kernel-integrations
 /pkg/network/etw/                       @DataDog/windows-kernel-integrations

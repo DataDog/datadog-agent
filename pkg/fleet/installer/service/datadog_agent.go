@@ -10,6 +10,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -51,12 +52,12 @@ var (
 )
 
 // SetupAgent installs and starts the agent
-func SetupAgent(ctx context.Context) (err error) {
+func SetupAgent(ctx context.Context, _ []string) (err error) {
 	span, ctx := tracer.StartSpanFromContext(ctx, "setup_agent")
 	defer func() {
 		if err != nil {
 			log.Errorf("Failed to setup agent: %s, reverting", err)
-			RemoveAgent(ctx)
+			err = errors.Join(err, RemoveAgent(ctx))
 		}
 		span.Finish(tracer.WithError(err))
 	}()
@@ -117,7 +118,7 @@ func SetupAgent(ctx context.Context) (err error) {
 }
 
 // RemoveAgent stops and removes the agent
-func RemoveAgent(ctx context.Context) {
+func RemoveAgent(ctx context.Context) error {
 	span, ctx := tracer.StartSpanFromContext(ctx, "remove_agent_units")
 	defer span.Finish()
 	// stop experiments, they can restart stable agent
@@ -154,6 +155,8 @@ func RemoveAgent(ctx context.Context) {
 		log.Warnf("Failed to remove agent symlink: %s", err)
 	}
 	installinfo.RmInstallInfo()
+	// TODO: Return error to caller?
+	return nil
 }
 
 // StartAgentExperiment starts the agent experiment
@@ -164,4 +167,9 @@ func StartAgentExperiment(ctx context.Context) error {
 // StopAgentExperiment stops the agent experiment
 func StopAgentExperiment(ctx context.Context) error {
 	return startUnit(ctx, agentUnit)
+}
+
+// PromoteAgentExperiment promotes the agent experiment
+func PromoteAgentExperiment(ctx context.Context) error {
+	return StopAgentExperiment(ctx)
 }

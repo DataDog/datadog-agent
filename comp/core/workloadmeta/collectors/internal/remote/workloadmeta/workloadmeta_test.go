@@ -60,6 +60,58 @@ func (s *serverSecure) WorkloadmetaStreamEntities(in *pbgo.WorkloadmetaStreamReq
 	return s.workloadmetaServer.StreamEntities(in, out)
 }
 
+func TestNewCollector(t *testing.T) {
+	tests := []struct {
+		name         string
+		filter       *workloadmeta.Filter
+		expectsError bool
+	}{
+		{
+			name:         "nil filter",
+			filter:       nil,
+			expectsError: false,
+		},
+		{
+			name: "filter with only supported kinds",
+			filter: workloadmeta.NewFilter(&workloadmeta.FilterParams{
+				Kinds: []workloadmeta.Kind{
+					workloadmeta.KindContainer,
+					workloadmeta.KindKubernetesPod,
+				},
+			}),
+			expectsError: false,
+		},
+		{
+			name: "filter with unsupported kinds",
+			filter: workloadmeta.NewFilter(&workloadmeta.FilterParams{
+				Kinds: []workloadmeta.Kind{
+					workloadmeta.KindContainer,
+					workloadmeta.KindContainerImageMetadata, // Not supported
+				},
+			}),
+			expectsError: true,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			deps := dependencies{
+				Params: Params{
+					Filter: test.filter,
+				},
+			}
+
+			_, err := NewCollector(deps)
+
+			if test.expectsError {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}
+
 func TestHandleWorkloadmetaStreamResponse(t *testing.T) {
 	protoWorkloadmetaEvent := &pbgo.WorkloadmetaEvent{
 		Type: pbgo.WorkloadmetaEventType_EVENT_TYPE_SET,
@@ -137,11 +189,11 @@ func TestHandleWorkloadmetaStreamResponse(t *testing.T) {
 
 func TestCollection(t *testing.T) {
 	// Create Auth Token for the client
-	if _, err := os.Stat(security.GetAuthTokenFilepath(pkgconfig.Datadog)); os.IsNotExist(err) {
-		security.CreateOrFetchToken(pkgconfig.Datadog)
+	if _, err := os.Stat(security.GetAuthTokenFilepath(pkgconfig.Datadog())); os.IsNotExist(err) {
+		security.CreateOrFetchToken(pkgconfig.Datadog())
 		defer func() {
 			// cleanup
-			os.Remove(security.GetAuthTokenFilepath(pkgconfig.Datadog))
+			os.Remove(security.GetAuthTokenFilepath(pkgconfig.Datadog()))
 		}()
 	}
 
