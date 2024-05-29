@@ -31,7 +31,10 @@ build do
   if heroku_target?
     bundled_agents = ["process-agent"]
   end
-
+  if linux_target?
+    bundled_agents = ["process-agent", "security-agent", "system-probe"]
+  end
+  
   # set GOPATH on the omnibus source dir for this software
   gopath = Pathname.new(project_dir) + '../../../..'
   etc_dir = "/etc/datadog-agent"
