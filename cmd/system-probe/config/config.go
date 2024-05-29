@@ -64,7 +64,7 @@ func newSysprobeConfig(configPath string) (*types.Config, error) {
 		aconfig.SystemProbe.AddConfigPath(defaultConfigDir)
 	}
 	// load the configuration
-	_, err := aconfig.LoadCustom(aconfig.SystemProbe, "system-probe", optional.NewNoneOption[secrets.Component](), aconfig.Datadog.GetEnvVars())
+	_, err := aconfig.LoadCustom(aconfig.SystemProbe, "system-probe", optional.NewNoneOption[secrets.Component](), aconfig.Datadog().GetEnvVars())
 	if err != nil {
 		if errors.Is(err, fs.ErrPermission) {
 			// special-case permission-denied with a clearer error message
@@ -106,8 +106,9 @@ func load() (*types.Config, error) {
 
 	npmEnabled := cfg.GetBool(netNS("enabled"))
 	usmEnabled := cfg.GetBool(smNS("enabled"))
+	ccmEnabled := cfg.GetBool(ccmNS("enabled"))
 
-	if npmEnabled || usmEnabled {
+	if npmEnabled || usmEnabled || ccmEnabled {
 		c.EnabledModules[NetworkTracerModule] = struct{}{}
 	}
 	if cfg.GetBool(spNS("enable_tcp_queue_length")) {
@@ -164,12 +165,12 @@ func load() (*types.Config, error) {
 
 // SetupOptionalDatadogConfigWithDir loads the datadog.yaml config file from a given config directory but will not fail on a missing file
 func SetupOptionalDatadogConfigWithDir(configDir, configFile string) error {
-	aconfig.Datadog.AddConfigPath(configDir)
+	aconfig.Datadog().AddConfigPath(configDir)
 	if configFile != "" {
-		aconfig.Datadog.SetConfigFile(configFile)
+		aconfig.Datadog().SetConfigFile(configFile)
 	}
 	// load the configuration
-	_, err := aconfig.LoadDatadogCustom(aconfig.Datadog, "datadog.yaml", optional.NewNoneOption[secrets.Component](), aconfig.SystemProbe.GetEnvVars())
+	_, err := aconfig.LoadDatadogCustom(aconfig.Datadog(), "datadog.yaml", optional.NewNoneOption[secrets.Component](), aconfig.SystemProbe.GetEnvVars())
 	// If `!failOnMissingFile`, do not issue an error if we cannot find the default config file.
 	var e viper.ConfigFileNotFoundError
 	if err != nil && !errors.As(err, &e) {

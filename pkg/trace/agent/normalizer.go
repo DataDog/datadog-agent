@@ -197,13 +197,14 @@ func setChunkAttributes(chunk *pb.TraceChunk, root *pb.Span) {
 	}
 
 	if _, ok := chunk.Tags[tagDecisionMaker]; !ok {
-		var set bool
 		for _, span := range chunk.Spans {
-			if dm, ok := span.Meta[tagDecisionMaker]; !set && ok {
+			// First span wins
+			if dm, ok := span.Meta[tagDecisionMaker]; ok {
 				chunk.Tags[tagDecisionMaker] = dm
-				set = true
+				break
 			}
-			delete(span.Meta, tagDecisionMaker)
+			// There are downstream systems that rely on this tag being on the span
+			// delete(span.Meta, tagDecisionMaker)
 		}
 	}
 }

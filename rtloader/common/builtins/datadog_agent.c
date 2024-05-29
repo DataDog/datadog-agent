@@ -23,6 +23,7 @@ static cb_read_persistent_cache_t cb_read_persistent_cache = NULL;
 static cb_obfuscate_sql_t cb_obfuscate_sql = NULL;
 static cb_obfuscate_sql_exec_plan_t cb_obfuscate_sql_exec_plan = NULL;
 static cb_get_process_start_time_t cb_get_process_start_time = NULL;
+static cb_obfuscate_mongodb_string_t cb_obfuscate_mongodb_string = NULL;
 
 // forward declarations
 static PyObject *get_clustername(PyObject *self, PyObject *args);
@@ -39,6 +40,7 @@ static PyObject *read_persistent_cache(PyObject *self, PyObject *args);
 static PyObject *obfuscate_sql(PyObject *self, PyObject *args, PyObject *kwargs);
 static PyObject *obfuscate_sql_exec_plan(PyObject *self, PyObject *args, PyObject *kwargs);
 static PyObject *get_process_start_time(PyObject *self, PyObject *args, PyObject *kwargs);
+static PyObject *obfuscate_mongodb_string(PyObject *self, PyObject *args, PyObject *kwargs);
 
 static PyMethodDef methods[] = {
     { "get_clustername", get_clustername, METH_NOARGS, "Get the cluster name." },
@@ -55,6 +57,7 @@ static PyMethodDef methods[] = {
     { "obfuscate_sql", (PyCFunction)obfuscate_sql, METH_VARARGS|METH_KEYWORDS, "Obfuscate & normalize a SQL string." },
     { "obfuscate_sql_exec_plan", (PyCFunction)obfuscate_sql_exec_plan, METH_VARARGS|METH_KEYWORDS, "Obfuscate & normalize a SQL Execution Plan." },
     { "get_process_start_time", (PyCFunction)get_process_start_time, METH_NOARGS, "Get agent process startup time, in seconds since the epoch." },
+    { "obfuscate_mongodb_string", (PyCFunction)obfuscate_mongodb_string, METH_VARARGS|METH_KEYWORDS, "Obfuscate & normalize a MongoDB command string." },
     { NULL, NULL } // guards
 };
 
@@ -137,6 +140,11 @@ void _set_obfuscate_sql_exec_plan_cb(cb_obfuscate_sql_exec_plan_t cb)
 
 void _set_get_process_start_time_cb(cb_get_process_start_time_t cb) {
     cb_get_process_start_time = cb;
+}
+
+void _set_obfuscate_mongodb_string_cb(cb_obfuscate_mongodb_string_t cb) {
+    cb_obfuscate_mongodb_string = cb;
+
 }
 
 
@@ -789,5 +797,52 @@ static PyObject *get_process_start_time(PyObject *self, PyObject *args, PyObject
 
     PyGILState_Release(gstate);
 
+    return retval;
+}
+
+/*! \fn PyObject *obfuscate_mongodb_string(PyObject *self, PyObject *args, PyObject *kwargs)
+    \brief This function implements the `datadog_agent.obfuscate_mongodb_string` method, obfuscating
+    the provided mongodb command string.
+    \param self A PyObject* pointer to the `datadog_agent` module.
+    \param args A PyObject* pointer to a tuple containing the key to retrieve.
+    \param kwargs A PyObject* pointer to a map of key value pairs.
+    \return A PyObject* pointer to the value.
+
+    This function is callable as the `datadog_agent.obfuscate_mongodb_string` Python method and
+    uses the `cb_obfuscate_mongodb_string()` callback to retrieve the value from the agent
+    with CGO. If the callback has not been set `None` will be returned.
+*/
+static PyObject *obfuscate_mongodb_string(PyObject *self, PyObject *args, PyObject *kwargs)
+{
+    // callback must be set
+    if (cb_obfuscate_mongodb_string == NULL) {
+        Py_RETURN_NONE;
+    }
+
+    PyGILState_STATE gstate = PyGILState_Ensure();
+
+    char *cmd = NULL;
+    if (!PyArg_ParseTuple(args, "s", &cmd)) {
+        PyGILState_Release(gstate);
+        return NULL;
+    }
+
+    char *obfCmd = NULL;
+    char *error_message = NULL;
+    obfCmd = cb_obfuscate_mongodb_string(cmd, &error_message);
+
+    PyObject *retval = NULL;
+    if (error_message != NULL) {
+        PyErr_SetString(PyExc_RuntimeError, error_message);
+    } else if (obfCmd == NULL) {
+        // no error message and a null response. this should never happen so the go code is misbehaving
+        PyErr_SetString(PyExc_RuntimeError, "internal error: empty cb_obfuscate_mongodb_string response");
+    } else {
+        retval = PyStringFromCString(obfCmd);
+    }
+
+    cgo_free(error_message);
+    cgo_free(obfCmd);
+    PyGILState_Release(gstate);
     return retval;
 }

@@ -64,7 +64,7 @@ receivers:
 processors:
   batch:
     timeout: 10s
-  tagenrichment:
+  infraattributes:
 
 exporters:
   logsagent:
@@ -76,6 +76,6 @@ service:
   pipelines:
     logs:
       receivers: [otlp]
-      processors: [tagenrichment, batch]
+      processors: [infraattributes, batch]
       exporters: [logsagent]
 `

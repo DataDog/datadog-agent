@@ -30,7 +30,7 @@ type ChangeChecker struct {
 // NewChangeChecker creates a new instance of ConfigChangeChecker
 func NewChangeChecker() *ChangeChecker {
 	return &ChangeChecker{
-		configSettings: Datadog.AllSettings(),
+		configSettings: Datadog().AllSettings(),
 	}
 }
 
@@ -38,7 +38,7 @@ func NewChangeChecker() *ChangeChecker {
 // `NewConfigChangeChecker`. If some changes are detected
 // this function displays on the standard error what keys changed.
 func (c *ChangeChecker) HasChanged() bool {
-	allSettingsAfter := Datadog.AllSettings()
+	allSettingsAfter := Datadog().AllSettings()
 	stateHasChanged := false
 	for k, before := range c.configSettings {
 		after := allSettingsAfter[k]

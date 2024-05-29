@@ -10,6 +10,8 @@ package failure
 
 import (
 	"sync"
+	"syscall"
+	"time"
 	"unsafe"
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
@@ -20,10 +22,16 @@ import (
 
 const failedConnConsumerModuleName = "network_tracer__ebpf"
 
+var allowListErrs = map[uint32]struct{}{
+	uint32(syscall.ECONNRESET):   {}, // Connection reset by peer
+	uint32(syscall.ETIMEDOUT):    {}, // Connection timed out
+	uint32(syscall.ECONNREFUSED): {}, // Connection refused
+}
+
 // Telemetry
 var failedConnConsumerTelemetry = struct {
-	perfReceived telemetry.Counter
-	perfLost     telemetry.Counter
+	eventsReceived telemetry.Counter
+	eventsLost     telemetry.Counter
 }{
 	telemetry.NewCounter(failedConnConsumerModuleName, "failed_conn_polling_received", []string{}, "Counter measuring the number of closed connections received"),
 	telemetry.NewCounter(failedConnConsumerModuleName, "failed_conn_polling_lost", []string{}, "Counter measuring the number of closed connection batches lost (were transmitted from ebpf but never received)"),
@@ -60,16 +68,23 @@ func (c *TCPFailedConnConsumer) Stop() {
 func (c *TCPFailedConnConsumer) extractConn(data []byte) {
 	c.FailedConns.Lock()
 	defer c.FailedConns.Unlock()
-	ct := (*netebpf.FailedConn)(unsafe.Pointer(&data[0]))
+	failedConn := (*netebpf.FailedConn)(unsafe.Pointer(&data[0]))
+	failedConnConsumerTelemetry.eventsReceived.Inc()
 
-	stats, ok := c.FailedConns.FailedConnMap[ct.Tup]
+	// Ignore failed connections that are not in the allow list
+	if _, exists := allowListErrs[failedConn.Reason]; !exists {
+		return
+	}
+	stats, ok := c.FailedConns.FailedConnMap[failedConn.Tup]
 	if !ok {
 		stats = &FailedConnStats{
 			CountByErrCode: make(map[uint32]uint32),
+			Expiry:         time.Now().Add(2 * time.Minute).Unix(),
 		}
-		c.FailedConns.FailedConnMap[ct.Tup] = stats
+		c.FailedConns.FailedConnMap[failedConn.Tup] = stats
 	}
-	stats.CountByErrCode[ct.Reason]++
+	stats.CountByErrCode[failedConn.Reason]++
+	stats.Expiry = time.Now().Add(2 * time.Minute).Unix()
 }
 
 // Start starts the consumer
@@ -77,10 +92,6 @@ func (c *TCPFailedConnConsumer) Start() {
 	if c == nil {
 		return
 	}
-
-	var (
-		lostSamplesCount uint64
-	)
 
 	go func() {
 		dataChannel := c.eventHandler.DataChannel()
@@ -103,15 +114,14 @@ func (c *TCPFailedConnConsumer) Start() {
 					log.Errorf("unknown type received from buffer, skipping. data size=%d, expecting %d", len(dataEvent.Data), netebpf.SizeofFailedConn)
 					continue
 				}
-				failedConnConsumerTelemetry.perfLost.Inc()
+				failedConnConsumerTelemetry.eventsLost.Inc()
 				dataEvent.Done()
 			// lost events only occur when using perf buffers
 			case lc, ok := <-lostChannel:
 				if !ok {
 					return
 				}
-				failedConnConsumerTelemetry.perfLost.Add(float64(lc))
-				lostSamplesCount += lc
+				failedConnConsumerTelemetry.eventsLost.Add(float64(lc))
 			}
 		}
 	}()

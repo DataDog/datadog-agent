@@ -10,6 +10,7 @@ package testing
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -185,7 +186,7 @@ func StorePopulatedFromFile(store workloadmeta.Mock, filename string, podUtils *
 
 			image, err := workloadmeta.NewContainerImage(container.ImageID, container.Image)
 			if err != nil {
-				if err == containers.ErrImageIsSha256 {
+				if errors.Is(err, containers.ErrImageIsSha256) {
 					// try the resolved image ID if the image name in the container
 					// status is a SHA256. this seems to happen sometimes when
 					// pinning the image to a SHA256

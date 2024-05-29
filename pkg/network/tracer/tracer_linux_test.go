@@ -29,6 +29,7 @@ import (
 	"testing"
 	"time"
 
+	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/features"
 	"github.com/cilium/ebpf/rlimit"
@@ -36,9 +37,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	vnetns "github.com/vishvananda/netns"
+	"go4.org/intern"
 	"golang.org/x/sys/unix"
-
-	manager "github.com/DataDog/ebpf-manager"
 
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
@@ -48,6 +48,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/config/sysctl"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
+	"github.com/DataDog/datadog-agent/pkg/network/events"
 	netlinktestutil "github.com/DataDog/datadog-agent/pkg/network/netlink/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection"
@@ -612,9 +613,9 @@ func (s *TracerSuite) TestGatewayLookupNotEnabled() {
 		m.EXPECT().IsAWS().Return(true)
 		network.Cloud = m
 
-		clouds := ddconfig.Datadog.Get("cloud_provider_metadata")
-		ddconfig.Datadog.SetWithoutSource("cloud_provider_metadata", []string{})
-		defer ddconfig.Datadog.SetWithoutSource("cloud_provider_metadata", clouds)
+		clouds := ddconfig.Datadog().Get("cloud_provider_metadata")
+		ddconfig.Datadog().SetWithoutSource("cloud_provider_metadata", []string{})
+		defer ddconfig.Datadog().SetWithoutSource("cloud_provider_metadata", clouds)
 
 		tr := setupTracer(t, cfg)
 		require.Nil(t, tr.gwLookup)
@@ -1676,8 +1677,8 @@ func (s *TracerSuite) TestShortWrite() {
 	toSend := sndBufSize / 2
 	for i := 0; i < 100; i++ {
 		written, err = unix.Write(sk, genPayload(toSend))
-		require.Greater(t, written, 0)
 		require.NoError(t, err)
+		require.Greater(t, written, 0)
 		sent += uint64(written)
 		t.Logf("sent: %v", sent)
 		if written < toSend {
@@ -2232,6 +2233,36 @@ func (s *TracerSuite) TestOffsetGuessIPv6DisabledCentOS() {
 	_ = setupTracer(t, cfg)
 }
 
+func BenchmarkAddProcessInfo(b *testing.B) {
+	cfg := testConfig()
+	cfg.EnableProcessEventMonitoring = true
+
+	tr := setupTracer(b, cfg)
+	var c network.ConnectionStats
+	c.Pid = 1
+	ts, err := ddebpf.NowNanoseconds()
+	require.NoError(b, err)
+	c.LastUpdateEpoch = uint64(ts)
+	tr.processCache.add(&events.Process{
+		Pid: 1,
+		Tags: []*intern.Value{
+			intern.GetByString("env:env"),
+			intern.GetByString("version:version"),
+			intern.GetByString("service:service"),
+		},
+		ContainerID: intern.GetByString("container"),
+		StartTime:   time.Now().Unix(),
+		Expiry:      time.Now().Add(5 * time.Minute).Unix(),
+	})
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		c.Tags = nil
+		tr.addProcessInfo(&c)
+	}
+}
+
 func (s *TracerSuite) TestConnectionDuration() {
 	t := s.T()
 	cfg := testConfig()
@@ -2305,4 +2336,183 @@ LOOP:
 	// updated to a value between 1s and 2s
 	assert.Greater(t, conn.Duration, time.Second, "connection duration should be between 1 and 2 seconds")
 	assert.Less(t, conn.Duration, 2*time.Second, "connection duration should be between 1 and 2 seconds")
+}
+
+var failedConnectionsBuildModes = map[ebpftest.BuildMode]struct{}{
+	ebpftest.CORE:            {},
+	ebpftest.RuntimeCompiled: {},
+}
+
+func (s *TracerSuite) TestTCPFailureConnectionTimeout() {
+	t := s.T()
+	if _, ok := failedConnectionsBuildModes[ebpftest.GetBuildMode()]; !ok {
+		t.Skip("Skipping test on unsupported build mode: ", ebpftest.GetBuildMode())
+	}
+	// TODO: remove this check when we fix this test on kernels < 4.15
+	if kernel.VersionCode(4, 15, 0) > kv {
+		t.Skip("Skipping test on kernels < 4.15")
+	}
+	setupDropTrafficRule(t)
+	cfg := testConfig()
+	cfg.TCPFailedConnectionsEnabled = true
+	tr := setupTracer(t, cfg)
+
+	srvAddr := "127.0.0.1:10000"
+	ipString, portString, err := net.SplitHostPort(srvAddr)
+	require.NoError(t, err)
+	ip := netip.MustParseAddr(ipString)
+	port, err := strconv.Atoi(portString)
+	require.NoError(t, err)
+
+	addr := syscall.SockaddrInet4{
+		Port: port,
+		Addr: ip.As4(),
+	}
+	sfd, err := syscall.Socket(syscall.AF_INET, syscall.SOCK_STREAM, syscall.IPPROTO_TCP)
+	require.NoError(t, err)
+	t.Cleanup(func() { syscall.Close(sfd) })
+
+	//syscall.TCP_USER_TIMEOUT is 18 but not defined in our linter. Set it to 500ms
+	err = syscall.SetsockoptInt(sfd, syscall.IPPROTO_TCP, 18, 500)
+	require.NoError(t, err)
+
+	err = syscall.Connect(sfd, &addr)
+	if err != nil {
+		var errno syscall.Errno
+		if errors.As(err, &errno) && errors.Is(err, syscall.ETIMEDOUT) {
+			t.Log("Connection timed out as expected")
+		} else {
+			require.NoError(t, err, "could not connect to server: ", err)
+		}
+	}
+
+	f := os.NewFile(uintptr(sfd), "")
+	defer f.Close()
+	c, err := net.FileConn(f)
+	require.NoError(t, err)
+	port = c.LocalAddr().(*net.TCPAddr).Port
+	// the addr here is 0.0.0.0, but the tracer sees it as 127.0.0.1
+	localAddr := fmt.Sprintf("127.0.0.1:%d", port)
+
+	// Check if the connection was recorded as failed due to timeout
+	require.Eventually(t, func() bool {
+		conns := getConnections(t, tr)
+		// 110 is the errno for ETIMEDOUT
+		return findFailedConnection(t, localAddr, srvAddr, conns, 110)
+	}, 3*time.Second, 1000*time.Millisecond, "Failed connection not recorded properly")
+}
+
+func (s *TracerSuite) TestTCPFailureConnectionRefused() {
+	t := s.T()
+	if _, ok := failedConnectionsBuildModes[ebpftest.GetBuildMode()]; !ok {
+		t.Skip("Skipping test on unsupported build mode: ", ebpftest.GetBuildMode())
+	}
+	cfg := testConfig()
+	cfg.TCPFailedConnectionsEnabled = true
+	tr := setupTracer(t, cfg)
+
+	// try to connect to a port where no server is accepting connections
+	srvAddr := "127.0.0.1:9998"
+	conn, err := net.Dial("tcp", srvAddr)
+	if err == nil {
+		conn.Close() // If the connection unexpectedly succeeds, close it immediately.
+		require.Fail(t, "expected connection to be refused, but it succeeded")
+	}
+	require.Error(t, err, "expected connection refused error but got none")
+
+	// Check if the connection was recorded as refused
+	require.Eventually(t, func() bool {
+		conns := getConnections(t, tr)
+		// Check for the refusal record
+		return findFailedConnectionByRemoteAddr(srvAddr, conns, 111)
+	}, 3*time.Second, 100*time.Millisecond, "Failed connection not recorded properly")
+}
+
+func (s *TracerSuite) TestTCPFailureConnectionReset() {
+	t := s.T()
+	if _, ok := failedConnectionsBuildModes[ebpftest.GetBuildMode()]; !ok {
+		t.Skip("Skipping test on unsupported build mode: ", ebpftest.GetBuildMode())
+	}
+	cfg := testConfig()
+	cfg.TCPFailedConnectionsEnabled = true
+	tr := setupTracer(t, cfg)
+
+	srv := NewTCPServer(func(c net.Conn) {
+		if tcpConn, ok := c.(*net.TCPConn); ok {
+			tcpConn.SetLinger(0)
+			buf := make([]byte, 10)
+			_, _ = c.Read(buf)
+			time.Sleep(10 * time.Millisecond)
+		}
+		c.Close()
+	})
+
+	require.NoError(t, srv.Run(), "error running server")
+	t.Cleanup(srv.Shutdown)
+
+	serverAddr := srv.ln.Addr()
+	c, err := net.Dial("tcp", serverAddr.String())
+	require.NoError(t, err, "could not connect to server: ", err)
+
+	// Write to the server and expect a reset
+	_, writeErr := c.Write([]byte("ping"))
+	if writeErr != nil {
+		t.Log("Write error:", writeErr)
+	}
+
+	// Read from server to ensure that the server has a chance to reset the connection
+	_, readErr := c.Read(make([]byte, 4))
+	require.Error(t, readErr, "expected connection reset error but got none")
+
+	// Check if the connection was recorded as reset
+	require.Eventually(t, func() bool {
+		conns := getConnections(t, tr)
+		// 104 is the errno for ECONNRESET
+		return findFailedConnection(t, c.LocalAddr().String(), serverAddr.String(), conns, 104)
+	}, 3*time.Second, 100*time.Millisecond, "Failed connection not recorded properly")
+
+	require.NoError(t, c.Close(), "error closing client connection")
+}
+
+// findFailedConnection is a utility function to find a failed connection based on specific TCP error codes
+func findFailedConnection(t *testing.T, local, remote string, conns *network.Connections, errorCode uint32) bool {
+	// Extract the address and port from the net.Addr types
+	localAddrPort, err := netip.ParseAddrPort(local)
+	if err != nil {
+		t.Logf("Failed to parse local address: %v", err)
+		return false
+	}
+	remoteAddrPort, err := netip.ParseAddrPort(remote)
+	if err != nil {
+		t.Logf("Failed to parse remote address: %v", err)
+		return false
+	}
+
+	failureFilter := func(cs network.ConnectionStats) bool {
+		localMatch := netip.AddrPortFrom(cs.Source.Addr, cs.SPort) == localAddrPort
+		remoteMatch := netip.AddrPortFrom(cs.Dest.Addr, cs.DPort) == remoteAddrPort
+		return localMatch && remoteMatch && cs.TCPFailures[errorCode] > 0
+	}
+
+	return network.FirstConnection(conns, failureFilter) != nil
+}
+
+// for some failed connections we don't know the local addr/port so we need to search by remote addr only
+func findFailedConnectionByRemoteAddr(remoteAddr string, conns *network.Connections, errorCode uint32) bool {
+	failureFilter := func(cs network.ConnectionStats) bool {
+		return netip.MustParseAddrPort(remoteAddr) == netip.AddrPortFrom(cs.Dest.Addr, cs.DPort) && cs.TCPFailures[errorCode] > 0
+	}
+	return network.FirstConnection(conns, failureFilter) != nil
+}
+
+func setupDropTrafficRule(tb testing.TB) (ns string) {
+	state := testutil.IptablesSave(tb)
+	tb.Cleanup(func() {
+		testutil.IptablesRestore(tb, state)
+	})
+	cmds := []string{
+		"iptables -A OUTPUT -p tcp -d 127.0.0.1 --dport 10000 -j DROP",
+	}
+	testutil.RunCommands(tb, cmds, false)
+	return
 }

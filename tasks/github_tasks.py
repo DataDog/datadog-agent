@@ -1,9 +1,10 @@
+from __future__ import annotations
+
 import os
 import re
 import time
 from collections import Counter
 from functools import lru_cache
-from typing import List
 
 from invoke import Exit, task
 
@@ -206,7 +207,7 @@ def get_token_from_app(_, app_id_env='GITHUB_APP_ID', pkey_env='GITHUB_KEY_B64')
     GithubAPI.get_token_from_app(app_id_env, pkey_env)
 
 
-def _get_teams(changed_files, owners_file='.github/CODEOWNERS') -> List[str]:
+def _get_teams(changed_files, owners_file='.github/CODEOWNERS') -> list[str]:
     codeowners = read_owners(owners_file)
 
     team_counter = Counter()

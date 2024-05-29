@@ -24,7 +24,7 @@ type ProfilingOpts struct {
 
 // ExecWithRuntimeProfilingSettings runs the callback func with the given runtime profiling settings
 func ExecWithRuntimeProfilingSettings(callback func(), opts ProfilingOpts, settingsClient Client) error {
-	if err := util.SetAuthToken(config.Datadog); err != nil {
+	if err := util.SetAuthToken(config.Datadog()); err != nil {
 		return fmt.Errorf("unable to set up authentication token: %v", err)
 	}
 

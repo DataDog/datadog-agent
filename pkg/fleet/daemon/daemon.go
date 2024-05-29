@@ -16,11 +16,12 @@ import (
 	"sync"
 	"time"
 
+	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace"
 	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/client"
-	"github.com/DataDog/datadog-agent/pkg/config/utils"
+	"github.com/DataDog/datadog-agent/pkg/fleet/env"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer"
 	installerErrors "github.com/DataDog/datadog-agent/pkg/fleet/installer/errors"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
@@ -39,7 +40,7 @@ type Daemon interface {
 	Start(ctx context.Context) error
 	Stop(ctx context.Context) error
 
-	Install(ctx context.Context, url string) error
+	Install(ctx context.Context, url string, args []string) error
 	StartExperiment(ctx context.Context, url string) error
 	StopExperiment(ctx context.Context, pkg string) error
 	PromoteExperiment(ctx context.Context, pkg string) error
@@ -60,12 +61,8 @@ type daemonImpl struct {
 	requestsWG    sync.WaitGroup
 }
 
-func newInstaller(config config.Reader, installerBin string) installer.Installer {
-	registry := config.GetString("updater.registry")
-	registryAuth := config.GetString("updater.registry_auth")
-	apiKey := utils.SanitizeAPIKey(config.GetString("api_key"))
-	site := config.GetString("site")
-	return exec.NewInstallerExec(installerBin, registry, registryAuth, apiKey, site)
+func newInstaller(env *env.Env, installerBin string) installer.Installer {
+	return exec.NewInstallerExec(env, installerBin)
 }
 
 // NewDaemon returns a new daemon.
@@ -82,9 +79,9 @@ func NewDaemon(rcFetcher client.ConfigFetcher, config config.Reader) (Daemon, er
 	if err != nil {
 		return nil, fmt.Errorf("could not create remote config client: %w", err)
 	}
-	installer := newInstaller(config, installerBin)
-	remoteUpdates := config.GetBool("updater.remote_updates")
-	return newDaemon(rc, installer, remoteUpdates), nil
+	env := env.FromConfig(config)
+	installer := newInstaller(env, installerBin)
+	return newDaemon(rc, installer, env.RemoteUpdates), nil
 }
 
 func newDaemon(rc *remoteConfig, installer installer.Installer, remoteUpdates bool) *daemonImpl {
@@ -163,20 +160,20 @@ func (d *daemonImpl) Stop(_ context.Context) error {
 }
 
 // Install installs the package from the given URL.
-func (d *daemonImpl) Install(ctx context.Context, url string) error {
+func (d *daemonImpl) Install(ctx context.Context, url string, args []string) error {
 	d.m.Lock()
 	defer d.m.Unlock()
-	return d.install(ctx, url)
+	return d.install(ctx, url, args)
 }
 
-func (d *daemonImpl) install(ctx context.Context, url string) (err error) {
+func (d *daemonImpl) install(ctx context.Context, url string, args []string) (err error) {
 	span, ctx := tracer.StartSpanFromContext(ctx, "install")
 	defer func() { span.Finish(tracer.WithError(err)) }()
 	d.refreshState(ctx)
 	defer d.refreshState(ctx)
 
 	log.Infof("Daemon: Installing package from %s", url)
-	err = d.installer.Install(ctx, url)
+	err = d.installer.Install(ctx, url, args)
 	if err != nil {
 		return fmt.Errorf("could not install: %w", err)
 	}
@@ -268,7 +265,8 @@ func (d *daemonImpl) handleRemoteAPIRequest(request remoteAPIRequest) (err error
 	d.m.Lock()
 	defer d.m.Unlock()
 	defer d.requestsWG.Done()
-	ctx := newRequestContext(request)
+	parentSpan, ctx := newRequestContext(request)
+	defer parentSpan.Finish(tracer.WithError(err))
 	d.refreshState(ctx)
 	defer d.refreshState(ctx)
 
@@ -320,12 +318,25 @@ type requestState struct {
 	Err     *installerErrors.InstallerError
 }
 
-func newRequestContext(request remoteAPIRequest) context.Context {
-	return context.WithValue(context.Background(), requestStateKey, &requestState{
+func newRequestContext(request remoteAPIRequest) (ddtrace.Span, context.Context) {
+	ctx := context.WithValue(context.Background(), requestStateKey, &requestState{
 		Package: request.Package,
 		ID:      request.ID,
 		State:   pbgo.TaskState_RUNNING,
 	})
+
+	ctxCarrier := tracer.TextMapCarrier{
+		tracer.DefaultTraceIDHeader:  request.TraceID,
+		tracer.DefaultParentIDHeader: request.ParentSpanID,
+		tracer.DefaultPriorityHeader: "2",
+	}
+	spanCtx, err := tracer.Extract(ctxCarrier)
+	if err != nil {
+		log.Debugf("failed to extract span context from install script params: %v", err)
+		return tracer.StartSpan("remote_request"), ctx
+	}
+
+	return tracer.StartSpanFromContext(ctx, "remote_request", tracer.ChildOf(spanCtx))
 }
 
 func setRequestInvalid(ctx context.Context) {

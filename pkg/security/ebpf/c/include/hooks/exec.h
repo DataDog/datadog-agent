@@ -7,7 +7,7 @@
 #include "helpers/syscalls.h"
 #include "constants/fentry_macro.h"
 
-int __attribute__((always_inline)) trace__sys_execveat(ctx_t *ctx, const char **argv, const char **env) {
+int __attribute__((always_inline)) trace__sys_execveat(ctx_t *ctx, const char *path, const char **argv, const char **env) {
     struct syscall_cache_t syscall = {
         .type = EVENT_EXEC,
         .exec = {
@@ -19,6 +19,7 @@ int __attribute__((always_inline)) trace__sys_execveat(ctx_t *ctx, const char **
             }
         }
     };
+    collect_syscall_ctx(&syscall, SYSCALL_CTX_ARG_STR(0), (void *)path, NULL, NULL);
     cache_syscall(&syscall);
 
     u64 pid_tgid = bpf_get_current_pid_tgid();
@@ -37,11 +38,11 @@ int __attribute__((always_inline)) trace__sys_execveat(ctx_t *ctx, const char **
 }
 
 HOOK_SYSCALL_ENTRY3(execve, const char *, filename, const char **, argv, const char **, env) {
-    return trace__sys_execveat(ctx, argv, env);
+    return trace__sys_execveat(ctx, filename, argv, env);
 }
 
 HOOK_SYSCALL_ENTRY4(execveat, int, fd, const char *, filename, const char **, argv, const char **, env) {
-    return trace__sys_execveat(ctx, argv, env);
+    return trace__sys_execveat(ctx, filename, argv, env);
 }
 
 int __attribute__((always_inline)) handle_execve_exit() {
@@ -460,7 +461,11 @@ void __attribute__((always_inline)) parse_args_envs(void *ctx, struct args_envs_
                     offset += bytes_read + 1; // count trailing 0
                 }
 
-                send_event(ctx, EVENT_ARGS_ENVS, event);
+                u64 size = offsetof(struct args_envs_event_t, value) + event.size;
+                if (size > sizeof(struct args_envs_event_t)) {
+                    size = sizeof(struct args_envs_event_t);
+                }
+                send_event_with_size_ptr(ctx, EVENT_ARGS_ENVS, &event, size);
                 event.size = 0;
             } else {
                 event.size += data_length;
@@ -727,6 +732,9 @@ int __attribute__((always_inline)) send_exec_event(ctx_t *ctx) {
 
     // add interpreter path info
     event->linux_binprm.interpreter = syscall->exec.linux_binprm.interpreter;
+
+    // syscall context
+    event->syscall_ctx.id = syscall->ctx_id;
 
     // send the entry to maintain userspace cache
     send_event_ptr(ctx, EVENT_EXEC, event);

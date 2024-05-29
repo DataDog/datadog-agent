@@ -783,8 +783,8 @@ var (
 
 func TestOTLPHelpers(t *testing.T) {
 	t.Run("byteArrayToUint64", func(t *testing.T) {
-		assert.Equal(t, uint64(0x240031ead750e5f3), traceIDToUint64([16]byte(otlpTestTraceID)))
-		assert.Equal(t, uint64(0x240031ead750e5f3), spanIDToUint64([8]byte(otlpTestSpanID)))
+		assert.Equal(t, uint64(0x240031ead750e5f3), traceutil.OTelTraceIDToUint64([16]byte(otlpTestTraceID)))
+		assert.Equal(t, uint64(0x240031ead750e5f3), traceutil.OTelSpanIDToUint64([8]byte(otlpTestSpanID)))
 	})
 
 	t.Run("spanKindNames", func(t *testing.T) {
@@ -795,9 +795,9 @@ func TestOTLPHelpers(t *testing.T) {
 			ptrace.SpanKindClient:      "client",
 			ptrace.SpanKindProducer:    "producer",
 			ptrace.SpanKindConsumer:    "consumer",
-			99:                         "unknown",
+			99:                         "unspecified",
 		} {
-			assert.Equal(t, out, spanKindName(in))
+			assert.Equal(t, out, traceutil.OTelSpanKindName(in))
 		}
 	})
 

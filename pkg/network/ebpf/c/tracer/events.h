@@ -12,7 +12,6 @@
 #include "cookie.h"
 #include "ip.h"
 #include "port_range.h"
-#include <asm-generic/errno.h>
 
 #ifdef COMPILE_CORE
 #define MSG_PEEK 2
@@ -138,11 +137,8 @@ static __always_inline void cleanup_conn(void *ctx, conn_tuple_t *tup, struct so
     }
 }
 
-
 // This function is used to flush the conn_close_batch to the perf or ring buffer.
 static __always_inline void flush_tcp_failure(void *ctx, conn_tuple_t *tup, int failure_reason) {
-    // Will hold the full connection data to send through the ring buffer
-    log_debug("flushing TCP failure for connection: %d", tup->pid);
     conn_failed_t failure = {};
     failure.tup = *tup;
     failure.failure_reason = failure_reason;
@@ -150,10 +146,10 @@ static __always_inline void flush_tcp_failure(void *ctx, conn_tuple_t *tup, int 
     __u64 ringbuffers_enabled = 0;
     LOAD_CONSTANT("ringbuffers_enabled", ringbuffers_enabled);
     if (ringbuffers_enabled > 0) {
-        bpf_ringbuf_output(&failed_conn_event, &failure, sizeof(conn_failed_t), 0);
+        bpf_ringbuf_output(&conn_fail_event, &failure, sizeof(conn_failed_t), 0);
     } else {
         u32 cpu = bpf_get_smp_processor_id();
-        bpf_perf_event_output(ctx, &conn_close_event, cpu, &failure, sizeof(conn_failed_t));
+        bpf_perf_event_output(ctx, &conn_fail_event, cpu, &failure, sizeof(conn_failed_t));
     }
 }
 

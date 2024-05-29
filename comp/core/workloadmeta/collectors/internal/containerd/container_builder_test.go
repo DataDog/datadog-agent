@@ -109,7 +109,9 @@ func TestBuildWorkloadMetaContainer(t *testing.T) {
 			}, nil
 		},
 		MockSpec: func(namespace string, ctn containers.Container) (*oci.Spec, error) {
-			return &oci.Spec{Hostname: hostName, Process: &specs.Process{Env: envVarStrs}}, nil
+			return &oci.Spec{Hostname: hostName, Process: &specs.Process{Env: envVarStrs}, Linux: &specs.Linux{
+				CgroupsPath: "kubelet-kubepods-burstable-pod99dcb84d2a34f7e338778606703258c4.slice:cri-containerd:ec9ea0ad54dd0d96142d5dbe11eb3f1509e12ba9af739620c7b5ad377ce94602",
+			}}, nil
 		},
 		MockStatus: func(namespace string, ctn containerd.Container) (containerd.ProcessStatus, error) {
 			return containerd.Running, nil
@@ -175,8 +177,47 @@ func TestBuildWorkloadMetaContainer(t *testing.T) {
 		NetworkIPs: make(map[string]string), // Not available
 		Hostname:   hostName,
 		PID:        0, // Not available
+		CgroupPath: "kubelet-kubepods-burstable-pod99dcb84d2a34f7e338778606703258c4.slice/cri-containerd-ec9ea0ad54dd0d96142d5dbe11eb3f1509e12ba9af739620c7b5ad377ce94602.scope",
 	}
 	assert.Equal(t, expected, result)
+}
+
+func TestExtractCgroupPath(t *testing.T) {
+	tests := []struct {
+		name     string
+		path     string
+		expected string
+	}{
+		// cgroupfs retrieved using minikube + qemu2 driver
+		{
+			name:     "cgroupfs + kubernetes pod",
+			path:     "/kubepods/burstable/pod84a7cac1-5690-4935-bffc-4b808e0240e4/0af39253daf5d1054519efdd054023e929785c2813c29f6a0ce887f652e1a997",
+			expected: "/kubepods/burstable/pod84a7cac1-5690-4935-bffc-4b808e0240e4/0af39253daf5d1054519efdd054023e929785c2813c29f6a0ce887f652e1a997",
+		},
+		// systemd retrieved using kind
+		{
+			name:     "systemd + kubernetes pod",
+			path:     "kubelet-kubepods-burstable-pod99dcb84d2a34f7e338778606703258c4.slice:cri-containerd:ec9ea0ad54dd0d96142d5dbe11eb3f1509e12ba9af739620c7b5ad377ce94602",
+			expected: "kubelet-kubepods-burstable-pod99dcb84d2a34f7e338778606703258c4.slice/cri-containerd-ec9ea0ad54dd0d96142d5dbe11eb3f1509e12ba9af739620c7b5ad377ce94602.scope",
+		},
+		// custom retrieved using ctr run
+		{
+			name:     "systemd/cgroupfs + container",
+			path:     "/default/redis",
+			expected: "/default/redis",
+		},
+		// garden
+		{
+			name:     "garden",
+			path:     "/garden/1a65c217-84b2-8d13-3d78-46b14b6c7ea1",
+			expected: "/garden/1a65c217-84b2-8d13-3d78-46b14b6c7ea1",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.expected, extractCgroupPath(tt.path))
+		})
+	}
 }
 
 func TestExtractRuntimeFlavor(t *testing.T) {

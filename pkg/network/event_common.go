@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/kafka"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/postgres"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
 
@@ -137,6 +138,7 @@ type Connections struct {
 	HTTP                        map[http.Key]*http.RequestStats
 	HTTP2                       map[http.Key]*http.RequestStats
 	Kafka                       map[kafka.Key]*kafka.RequestStat
+	Postgres                    map[postgres.Key]*postgres.RequestStat
 }
 
 // NewConnections create a new Connections object
@@ -272,7 +274,7 @@ type ConnectionStats struct {
 	Direction        ConnectionDirection
 	SPortIsEphemeral EphemeralPortType
 	StaticTags       uint64
-	Tags             map[string]struct{}
+	Tags             map[*intern.Value]struct{}
 
 	IntraHost bool
 	IsAssured bool

@@ -203,10 +203,10 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 // TODO(components): note how workloadmeta is passed anonymously, it is still required as it is used
 // as a global. This should eventually be fixed and all workloadmeta interactions should be via the
 // injected instance.
-func start(log log.Component, config config.Component, _ secrets.Component, _ statsd.Component, _ sysprobeconfig.Component, telemetry telemetry.Component, statusComponent status.Component, _ pid.Component, _ autoexit.Component, settings settings.Component) error {
+func start(log log.Component, config config.Component, _ secrets.Component, _ statsd.Component, _ sysprobeconfig.Component, telemetry telemetry.Component, statusComponent status.Component, _ pid.Component, _ autoexit.Component, settings settings.Component, wmeta workloadmeta.Component) error {
 	defer StopAgent(log)
 
-	err := RunAgent(log, config, telemetry, statusComponent, settings)
+	err := RunAgent(log, config, telemetry, statusComponent, settings, wmeta)
 	if errors.Is(err, errAllComponentsDisabled) || errors.Is(err, errNoAPIKeyConfigured) {
 		return nil
 	}
@@ -257,7 +257,7 @@ var errAllComponentsDisabled = errors.New("all security-agent component are disa
 var errNoAPIKeyConfigured = errors.New("no API key configured")
 
 // RunAgent initialized resources and starts API server
-func RunAgent(log log.Component, config config.Component, telemetry telemetry.Component, statusComponent status.Component, settings settings.Component) (err error) {
+func RunAgent(log log.Component, config config.Component, telemetry telemetry.Component, statusComponent status.Component, settings settings.Component, wmeta workloadmeta.Component) (err error) {
 	if err := util.SetupCoreDump(config); err != nil {
 		log.Warnf("Can't setup core dumps: %v, core dumps might not be available after a crash", err)
 	}
@@ -285,7 +285,7 @@ func RunAgent(log log.Component, config config.Component, telemetry telemetry.Co
 
 	// Setup expvar server
 	port := config.GetString("security_agent.expvar_port")
-	pkgconfig.Datadog.Set("expvar_port", port, model.SourceAgentRuntime)
+	pkgconfig.Datadog().Set("expvar_port", port, model.SourceAgentRuntime)
 	if config.GetBool("telemetry.enabled") {
 		http.Handle("/telemetry", telemetry.Handler())
 	}
@@ -300,7 +300,7 @@ func RunAgent(log log.Component, config config.Component, telemetry telemetry.Co
 		}
 	}()
 
-	srv, err = api.NewServer(statusComponent, settings)
+	srv, err = api.NewServer(statusComponent, settings, wmeta)
 	if err != nil {
 		return log.Errorf("Error while creating api server, exiting: %v", err)
 	}

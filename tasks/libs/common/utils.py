@@ -4,16 +4,22 @@ Miscellaneous functions, no tasks here
 
 import json
 import os
+import platform
 import re
 import sys
 import time
+import traceback
+from collections import Counter
 from contextlib import contextmanager
+from functools import wraps
+from pathlib import Path
 from subprocess import CalledProcessError, check_output
 from types import SimpleNamespace
 
 from invoke.exceptions import Exit
 
 from tasks.libs.common.color import color_message
+from tasks.libs.owners.parsing import search_owners
 
 # constants
 DEFAULT_BRANCH = "main"
@@ -63,6 +69,14 @@ def running_in_ci():
     return running_in_circleci() or running_in_github_actions() or running_in_gitlab_ci()
 
 
+def running_in_pyapp():
+    return os.environ.get("PYAPP") == "1"
+
+
+def running_in_pre_commit():
+    return os.environ.get("PRE_COMMIT") == "1"
+
+
 def bin_name(name):
     """
     Generate platform dependent names for binaries
@@ -70,6 +84,22 @@ def bin_name(name):
     if sys.platform == 'win32':
         return f"{name}.exe"
     return name
+
+
+def get_distro():
+    """
+    Get the distro name. Windows and Darwin stays the same.
+    Linux is the only one that needs to be determined using the /etc/os-release file.
+    """
+    system = platform.system()
+    arch = platform.machine()
+    if system == 'Linux' and os.path.isfile('/etc/os-release'):
+        with open('/etc/os-release', encoding="utf-8") as f:
+            for line in f:
+                if line.startswith('ID='):
+                    system = line.strip()[3:]
+                    break
+    return f"{system}_{arch}".lower()
 
 
 def get_goenv(ctx, var):
@@ -125,18 +155,17 @@ def get_win_py_runtime_var(python_runtimes):
 
 
 def get_embedded_path(ctx):
-    embedded_path = ""
     base = os.path.dirname(os.path.abspath(__file__))
-    task_repo_root = os.path.abspath(os.path.join(base, ".."))
+    task_repo_root = os.path.abspath(os.path.join(base, "..", ".."))
     git_repo_root = get_root()
     gopath_root = f"{get_gopath(ctx)}/src/github.com/DataDog/datadog-agent"
 
     for root_candidate in [task_repo_root, git_repo_root, gopath_root]:
         test_embedded_path = os.path.join(root_candidate, "dev")
         if os.path.exists(test_embedded_path):
-            embedded_path = test_embedded_path
+            return test_embedded_path
 
-    return embedded_path
+    return None
 
 
 def get_xcode_version(ctx):
@@ -164,6 +193,7 @@ def get_build_flags(
     static=False,
     prefix=None,
     install_path=None,
+    run_path=None,
     embedded_path=None,
     rtloader_root=None,
     python_home_2=None,
@@ -200,6 +230,10 @@ def get_build_flags(
     # setting the install path, allowing the agent to be installed in a custom location
     if sys.platform.startswith('linux') and install_path:
         ldflags += f"-X {REPO_PATH}/pkg/config/setup.InstallPath={install_path} "
+
+    # setting the run path
+    if sys.platform.startswith('linux') and run_path:
+        ldflags += f"-X {REPO_PATH}/pkg/config/setup.defaultRunPath={run_path} "
 
     # setting python homes in the code
     if python_home_2:
@@ -708,7 +742,7 @@ def is_pr_context(branch, pr_id, test_name):
 
 @contextmanager
 def collapsed_section(section_name):
-    section_id = section_name.replace(" ", "_")
+    section_id = section_name.replace(" ", "_").replace("/", "_")
     in_ci = running_in_gitlab_ci()
     try:
         if in_ci:
@@ -719,3 +753,152 @@ def collapsed_section(section_name):
     finally:
         if in_ci:
             print(f"\033[0Ksection_end:{int(time.time())}:{section_id}\r\033[0K")
+
+
+def retry_function(action_name_fmt, max_retries=2, retry_delay=1):
+    """
+    Decorator to retry a function in case of failure and print its traceback.
+    - action_name_fmt: String that will be formatted with the function arguments to describe the action (for example: "Running {0}" will display "Running arg1" if the function is called with arg1 and "Refresh {0.id}" will display "Refresh 123" if the function is called with an object with an id of 123)
+    """
+
+    def decorator(f):
+        @wraps(f)
+        def wrapper(*args, **kwargs):
+            action_name = action_name_fmt.format(*args)
+
+            for i in range(max_retries + 1):
+                try:
+                    res = f(*args, **kwargs)
+                    if i != 0:
+                        print(color_message(f'Note: {action_name} successful after {i} retries', 'green'))
+
+                    # Action ok
+                    return res
+                except KeyboardInterrupt:
+                    # Let the user interrupt without retries
+                    raise
+                except Exception:
+                    if i == max_retries:
+                        print(
+                            color_message(f'Error: {action_name} failed after {max_retries} retries', 'red'),
+                            file=sys.stderr,
+                        )
+                        # The stack trace is not printed here but the error is raised if we
+                        # want to catch it above
+                        raise
+                    else:
+                        print(
+                            color_message(
+                                f'Warning: {action_name} failed (retry {i + 1}/{max_retries}), retrying in {retry_delay}s',
+                                'orange',
+                            ),
+                            file=sys.stderr,
+                        )
+                        with collapsed_section(f"Retry {i + 1}/{max_retries} {action_name}"):
+                            traceback.print_exc()
+                        time.sleep(retry_delay)
+                        print(color_message(f'Retrying {action_name}', 'blue'))
+
+        return wrapper
+
+    return decorator
+
+
+def guess_from_labels(issue):
+    for label in issue.labels:
+        if label.name.startswith("team/") and "triage" not in label.name:
+            return label.name.split("/")[-1]
+    return 'triage'
+
+
+def guess_from_keywords(issue):
+    text = f"{issue.title} {issue.body}".casefold().split()
+    c = Counter(text)
+    for word in c.most_common():
+        team = simple_match(word[0])
+        if team:
+            return team
+        team = file_match(word[0])
+        if team:
+            return team
+    return "triage"
+
+
+def simple_match(word):
+    pattern_matching = {
+        "agent-apm": ['apm', 'java', 'dotnet', 'ruby', 'trace'],
+        "containers": [
+            'container',
+            'pod',
+            'kubernetes',
+            'orchestrator',
+            'docker',
+            'k8s',
+            'kube',
+            'cluster',
+            'kubelet',
+            'helm',
+        ],
+        "agent-metrics-logs": ['logs', 'metric', 'log-ag', 'statsd', 'tags', 'hostnam'],
+        "agent-build-and-releases": ['omnibus', 'packaging', 'script'],
+        "remote-config": ['installer', 'oci'],
+        "agent-cspm": ['cspm'],
+        "ebpf-platform": ['ebpf', 'system-prob', 'sys-prob'],
+        "agent-security": ['security', 'vuln', 'security-agent'],
+        "agent-shared-components": ['fips', 'inventory', 'payload', 'jmx', 'intak', 'gohai'],
+        "fleet": ['fleet', 'fleet-automation'],
+        "opentelemetry": ['otel', 'opentelemetry'],
+        "windows-agent": ['windows', 'sys32', 'powershell'],
+        "networks": ['tcp', 'udp', 'socket', 'network'],
+        "serverless": ['serverless'],
+        "integrations": ['integration', 'python', 'checks'],
+    }
+    for team, words in pattern_matching.items():
+        if any(w in word for w in words):
+            return team
+    return None
+
+
+def file_match(word):
+    dd_folders = [
+        'chocolatey',
+        'cmd',
+        'comp',
+        'dev',
+        'devenv',
+        'docs',
+        'internal',
+        'omnibus',
+        'pkg',
+        'pkg-config',
+        'rtloader',
+        'tasks',
+        'test',
+        'tools',
+    ]
+    p = Path(word)
+    if len(p.parts) > 1 and p.suffix:
+        path_folder = next((f for f in dd_folders if f in p.parts), None)
+        if path_folder:
+            file = '/'.join(p.parts[p.parts.index(path_folder) :])
+            return (
+                search_owners(file, ".github/CODEOWNERS")[0].casefold().replace("@datadog/", "")
+            )  # only return the first owner
+    return None
+
+
+def team_to_label(team):
+    dico = {
+        'apm-core-reliability-and-performance': "agent-apm",
+        'universal-service-monitoring': "usm",
+        'software-integrity-and-trust': "agent-security",
+        'agent-all': "triage",
+        'telemetry-and-analytics': "agent-apm",
+        'fleet': "fleet-automation",
+        'debugger': "dynamic-intrumentation",
+        'container-integrations': "containers",
+        'agent-e2e-testing': "agent-e2e-test",
+        'agent-integrations': "integrations",
+        'asm-go': "agent-security",
+    }
+    return dico.get(team, team)

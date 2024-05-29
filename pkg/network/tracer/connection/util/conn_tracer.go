@@ -83,7 +83,7 @@ func EnableRingbuffersViaMapEditor(mgrOpts *manager.Options) {
 func SetupHandler(eventHandler ebpf.EventHandler, mgr *ebpf.Manager, cfg *config.Config, ringSize int, perfSize int, mapName probes.BPFMapName) {
 	switch handler := eventHandler.(type) {
 	case *ebpf.RingBufferHandler:
-		log.Info("Setting up connection handler for map %v with ring buffer", mapName)
+		log.Infof("Setting up connection handler for map %v with ring buffer", mapName)
 		rb := &manager.RingBuffer{
 			Map: manager.Map{Name: mapName},
 			RingBufferOptions: manager.RingBufferOptions{
@@ -97,7 +97,7 @@ func SetupHandler(eventHandler ebpf.EventHandler, mgr *ebpf.Manager, cfg *config
 		mgr.RingBuffers = append(mgr.RingBuffers, rb)
 		ebpftelemetry.ReportRingBufferTelemetry(rb)
 	case *ebpf.PerfHandler:
-		log.Info("Setting up connection handler for map %v with perf buffer", mapName)
+		log.Infof("Setting up connection handler for map %v with perf buffer", mapName)
 		pm := &manager.PerfMap{
 			Map: manager.Map{Name: mapName},
 			PerfMapOptions: manager.PerfMapOptions{

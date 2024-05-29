@@ -112,7 +112,7 @@ func ClassificationSupported(config *config.Config) bool {
 
 // FailedConnectionsSupported returns true if thethe config & TCP v4 + v6 is enabled
 func FailedConnectionsSupported(c *config.Config) bool {
-	if !c.FailedConnectionsEnabled {
+	if !c.TCPFailedConnectionsEnabled {
 		return false
 	}
 	if !c.CollectTCPv4Conns && !c.CollectTCPv6Conns {
@@ -179,7 +179,7 @@ func LoadTracer(cfg *config.Config, mgrOpts manager.Options, connCloseEventHandl
 
 	mgrOpts.ConstantEditors = append(mgrOpts.ConstantEditors, offsets...)
 
-	m, closeFn, err := prebuiltTracerLoader(cfg, mgrOpts, connCloseEventHandler, failedConnsHandler)
+	m, closeFn, err := prebuiltTracerLoader(cfg, mgrOpts, connCloseEventHandler)
 	return m, closeFn, TracerTypePrebuilt, err
 }
 
@@ -310,7 +310,7 @@ func loadRuntimeCompiledTracer(config *config.Config, mgrOpts manager.Options, c
 	return tracerLoaderFromAsset(buf, true, false, config, mgrOpts, connCloseEventHandler, failedConnsHandler)
 }
 
-func loadPrebuiltTracer(config *config.Config, mgrOpts manager.Options, connCloseEventHandler ddebpf.EventHandler, failedConnsHandler ddebpf.EventHandler) (*manager.Manager, func(), error) {
+func loadPrebuiltTracer(config *config.Config, mgrOpts manager.Options, connCloseEventHandler ddebpf.EventHandler) (*manager.Manager, func(), error) {
 	buf, err := netebpf.ReadBPFModule(config.BPFDir, config.BPFDebug)
 	if err != nil {
 		return nil, nil, fmt.Errorf("could not read bpf module: %w", err)
@@ -326,7 +326,7 @@ func loadPrebuiltTracer(config *config.Config, mgrOpts manager.Options, connClos
 		config.CollectUDPv6Conns = false
 	}
 
-	return tracerLoaderFromAsset(buf, false, false, config, mgrOpts, connCloseEventHandler, failedConnsHandler)
+	return tracerLoaderFromAsset(buf, false, false, config, mgrOpts, connCloseEventHandler, nil)
 }
 
 func isCORETracerSupported() error {
