@@ -4,6 +4,7 @@ It logs the invoke task information to the DD_INVOKE_LOGS_PATH.
 This will then be uploaded to Datadog's backend with a correct Log Agent configuration.
 """
 
+import json
 import logging
 import os
 import sys
@@ -80,7 +81,7 @@ def log_invoke_task(
         "result": task_result,
         "python_version": f"{sys.version_info[0]}.{sys.version_info[1]}.{sys.version_info[2]}",
     }
-    logging.info(task_info)
+    logging.info(json.dumps(task_info, sort_keys=True))
 
 
 class InvokeLogger:

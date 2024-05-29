@@ -48,11 +48,11 @@ func CheckAndUpgradeConfig() error {
 		log.Debug("Previous config file not found, not upgrading")
 		return nil
 	}
-	config.Datadog.AddConfigPath(path.DefaultConfPath)
+	config.Datadog().AddConfigPath(path.DefaultConfPath)
 	_, err := config.LoadWithoutSecret()
 	if err == nil {
 		// was able to read config, check for api key
-		if config.Datadog.GetString("api_key") != "" {
+		if config.Datadog().GetString("api_key") != "" {
 			log.Debug("Datadog.yaml found, and API key present.  Not upgrading config")
 			return nil
 		}

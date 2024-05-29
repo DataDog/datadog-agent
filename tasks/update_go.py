@@ -6,7 +6,7 @@ from invoke import exceptions
 from invoke.context import Context
 from invoke.tasks import task
 
-from tasks.go import tidy_all
+from tasks.go import tidy
 from tasks.libs.common.color import color_message
 from tasks.modules import DEFAULT_MODULES
 from tasks.pipeline import update_circleci_config, update_gitlab_config
@@ -98,11 +98,11 @@ def update_go(
     # check the installed go version before running `tidy_all`
     res = ctx.run("go version")
     if res.stdout.startswith(f"go version go{version} "):
-        tidy_all(ctx)
+        tidy(ctx)
     else:
         print(
             color_message(
-                "WARNING: did not run `inv tidy-all` as the version of your `go` binary doesn't match the requested version",
+                "WARNING: did not run `inv tidy` as the version of your `go` binary doesn't match the requested version",
                 "orange",
             )
         )

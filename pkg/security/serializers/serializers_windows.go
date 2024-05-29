@@ -233,6 +233,11 @@ func NewEventSerializer(event *model.Event, opts *eval.Opts) *EventSerializer {
 		s.RegistryEventSerializer = &RegistryEventSerializer{
 			RegistrySerializer: *newRegistrySerializer(&event.DeleteRegistryKey.Registry, event),
 		}
+	case model.ExecEventType:
+		s.FileEventSerializer = &FileEventSerializer{
+			FileSerializer: *newFileSerializer(&event.ProcessContext.Process.FileEvent, event),
+		}
+		s.EventContextSerializer.Outcome = serializeOutcome(0)
 	}
 
 	return s

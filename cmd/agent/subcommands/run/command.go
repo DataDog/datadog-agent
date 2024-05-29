@@ -402,7 +402,7 @@ func getSharedFxOption() fx.Option {
 			lc.Append(fx.Hook{
 				OnStart: func(_ context.Context) error {
 					//  setup the AutoConfig instance
-					common.LoadComponents(secretResolver, wmeta, ac, pkgconfig.Datadog.GetString("confd_path"))
+					common.LoadComponents(secretResolver, wmeta, ac, pkgconfig.Datadog().GetString("confd_path"))
 					return nil
 				},
 			})
@@ -505,17 +505,17 @@ func startAgent(
 		log.Infof("Starting Datadog Agent v%v", version.AgentVersion)
 	}
 
-	if err := util.SetupCoreDump(pkgconfig.Datadog); err != nil {
+	if err := util.SetupCoreDump(pkgconfig.Datadog()); err != nil {
 		log.Warnf("Can't setup core dumps: %v, core dumps might not be available after a crash", err)
 	}
 
-	if v := pkgconfig.Datadog.GetBool("internal_profiling.capture_all_allocations"); v {
+	if v := pkgconfig.Datadog().GetBool("internal_profiling.capture_all_allocations"); v {
 		runtime.MemProfileRate = 1
 		log.Infof("MemProfileRate set to 1, capturing every single memory allocation!")
 	}
 
 	// Setup Internal Profiling
-	common.SetupInternalProfiling(settings, pkgconfig.Datadog, "")
+	common.SetupInternalProfiling(settings, pkgconfig.Datadog(), "")
 
 	// Setup expvar server
 	telemetryHandler := telemetry.Handler()
@@ -531,14 +531,14 @@ func startAgent(
 	log.Infof("Hostname is: %s", hostnameDetected)
 
 	// start remote configuration management
-	if pkgconfig.IsRemoteConfigEnabled(pkgconfig.Datadog) {
+	if pkgconfig.IsRemoteConfigEnabled(pkgconfig.Datadog()) {
 		// Subscribe to `AGENT_TASK` product
 		rcclient.SubscribeAgentTask()
 
 		// Subscribe to `APM_TRACING` product
 		rcclient.SubscribeApmTracing()
 
-		if pkgconfig.Datadog.GetBool("remote_configuration.agent_integrations.enabled") {
+		if pkgconfig.Datadog().GetBool("remote_configuration.agent_integrations.enabled") {
 			// Spin up the config provider to schedule integrations through remote-config
 			rcProvider := providers.NewRemoteConfigProvider()
 			rcclient.Subscribe(data.ProductAgentIntegrations, rcProvider.IntegrationScheduleCallback)
@@ -556,7 +556,7 @@ func startAgent(
 
 	// start clc runner server
 	// only start when the cluster agent is enabled and a cluster check runner host is enabled
-	if pkgconfig.Datadog.GetBool("cluster_agent.enabled") && pkgconfig.Datadog.GetBool("clc_runner_enabled") {
+	if pkgconfig.Datadog().GetBool("cluster_agent.enabled") && pkgconfig.Datadog().GetBool("clc_runner_enabled") {
 		if err = clcrunnerapi.StartCLCRunnerServer(map[string]http.Handler{
 			"/telemetry": telemetryHandler,
 		}, ac); err != nil {
@@ -565,7 +565,7 @@ func startAgent(
 	}
 
 	// Create the Leader election engine without initializing it
-	if pkgconfig.Datadog.GetBool("leader_election") {
+	if pkgconfig.Datadog().GetBool("leader_election") {
 		leaderelection.CreateGlobalLeaderEngine(ctx)
 	}
 

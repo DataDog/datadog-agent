@@ -16,7 +16,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
-	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -49,7 +48,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 }
 
 func launchGui(config config.Component, _ *cliParams) error {
-	guiPort := pkgconfig.Datadog.GetString("GUI_port")
+	guiPort := config.GetString("GUI_port")
 	if guiPort == "-1" {
 		return fmt.Errorf("GUI not enabled: to enable, please set an appropriate port in your datadog.yaml file")
 	}

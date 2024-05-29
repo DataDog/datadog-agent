@@ -1,3 +1,4 @@
+import json
 import sys
 import unittest
 import unittest.mock
@@ -60,7 +61,7 @@ class TestInvokeTaskCustomCall(unittest.TestCase):
             "python_version": "3.11.0",
         }
         test_task.__call__(ctx)
-        mock_logging.assert_called_once_with(expected_test_log)
+        mock_logging.assert_called_once_with(json.dumps(expected_test_log, sort_keys=True))
 
         # Testing the context manager with a failing task.
         expected_test_error_log = {
@@ -77,10 +78,11 @@ class TestInvokeTaskCustomCall(unittest.TestCase):
             test_task_with_error.__call__(ctx)
 
         ## Check that the logger was called with the expected arguments.
-        mock_logging.assert_called_with(expected_test_error_log)
+        actual_test_error_log = json.loads(mock_logging.call_args.args[0])
+        assert actual_test_error_log == expected_test_error_log
 
         ## Check that the traceback is returned in the log.
-        expected_test_error_result = mock_logging.call_args_list[1].args[0]['result']
+        expected_test_error_result = actual_test_error_log['result']
         self.assertIn('Traceback (most recent call last)', expected_test_error_result)
         self.assertIn('TypeError', expected_test_error_result)
         self.assertIn('Oh no this is not a good type !', expected_test_error_result)
@@ -109,14 +111,17 @@ class TestLogInvokeTask(unittest.TestCase):
             task_result="result",
         )
         mock_logging.assert_called_once_with(
-            {
-                "name": "tname",
-                "module": "mname",
-                "datetime": "2024-01-29 07:50:11",
-                'running_modes': ['ci'],
-                "duration": 3.1,
-                "user": "john.smith",
-                "result": "result",
-                "python_version": "3.11.0",
-            }
+            json.dumps(
+                {
+                    "name": "tname",
+                    "module": "mname",
+                    "datetime": "2024-01-29 07:50:11",
+                    'running_modes': ['ci'],
+                    "duration": 3.1,
+                    "user": "john.smith",
+                    "result": "result",
+                    "python_version": "3.11.0",
+                },
+                sort_keys=True,
+            )
         )

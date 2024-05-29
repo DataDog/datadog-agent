@@ -118,7 +118,7 @@ func (counter *pdhCounter) ShouldInit() bool {
 		// already initialized
 		return false
 	}
-	var initFailLimit = config.Datadog.GetInt("windows_counter_init_failure_limit")
+	var initFailLimit = config.Datadog().GetInt("windows_counter_init_failure_limit")
 	if initFailLimit > 0 && counter.initFailCount >= initFailLimit {
 		counter.initError = fmt.Errorf("counter exceeded the maximum number of failed initialization attempts. This error indicates that the Windows performance counter database may need to be rebuilt")
 		// attempts exceeded
@@ -134,7 +134,7 @@ func (counter *pdhCounter) SetInitError(err error) error {
 	}
 
 	counter.initFailCount++
-	var initFailLimit = config.Datadog.GetInt("windows_counter_init_failure_limit")
+	var initFailLimit = config.Datadog().GetInt("windows_counter_init_failure_limit")
 	if initFailLimit > 0 && counter.initFailCount >= initFailLimit {
 		err = fmt.Errorf("%v. Counter exceeded the maximum number of failed initialization attempts", err)
 	} else if initFailLimit > 0 {
