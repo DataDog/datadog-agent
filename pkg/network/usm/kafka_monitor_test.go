@@ -375,8 +375,8 @@ func (s *KafkaProtocolParsingSuite) testKafkaProtocolParsing(t *testing.T, tls b
 							}
 						}
 					}
-					assert.Equal(collect, expectedKafkaRequestCount, len(kafkaStats), "Unexpected number of HTTP requests")
-					assert.Equal(collect, httpRequestCount, httpOccurrences, "Unexpected number of Kafka requests")
+					assert.Equal(collect, expectedKafkaRequestCount, len(kafkaStats), "Unexpected number of Kafka requests")
+					assert.Equal(collect, httpRequestCount, httpOccurrences, "Unexpected number of HTTP requests")
 					validateProduceFetchCount(collect, kafkaStats, topicName,
 						kafkaParsingValidation{
 							expectedNumberOfProduceRequests: fixCount(1),
