@@ -1344,7 +1344,7 @@ def setup_runtime_clang(
     llc_bpf_path = target_dir / "llc-bpf"
     needs_clang_download, needs_llc_download = True, True
 
-    if not arch.is_cross_compiling():
+    if not arch.is_cross_compiling() and sys.platform == "linux":
         # We can check the version of clang and llc on the system, we have the same arch and can
         # execute the binaries. This way we can omit the download if the binaries exist and the version
         # matches the desired one
