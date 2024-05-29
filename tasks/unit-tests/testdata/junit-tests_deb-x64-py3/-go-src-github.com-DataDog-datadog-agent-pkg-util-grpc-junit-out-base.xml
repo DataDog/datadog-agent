@@ -1,9 +1,0 @@
-<testsuites tests="2" failures="0" errors="0" time="1.967804">
-	<testsuite tests="2" failures="0" time="1.037000" name="github.com/DataDog/datadog-agent/pkg/util/grpc" timestamp="2024-05-10T17:24:30Z">
-		<properties>
-			<property name="go.version" value="go1.21.9 linux/amd64" />
-		</properties>
-		<testcase classname="github.com/DataDog/datadog-agent/pkg/util/grpc" name="TestGetDDAgentClientTimeout" time="0.010000" />
-		<testcase classname="github.com/DataDog/datadog-agent/pkg/util/grpc" name="TestGetDDAgentClientWithCmdPort0" time="0.000000" />
-	</testsuite>
-<flavor>base</flavor></testsuites>

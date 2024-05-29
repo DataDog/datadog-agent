@@ -1,1 +1,0 @@
---tags os.platform:linux --tags os.architecture:x86_64 --tags ci.job.name:tests_deb-x64-py3 

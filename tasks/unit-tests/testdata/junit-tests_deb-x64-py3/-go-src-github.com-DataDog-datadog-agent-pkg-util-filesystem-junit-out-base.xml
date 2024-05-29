@@ -1,8 +1,0 @@
-<testsuites tests="1" failures="0" errors="0" time="1.578872">
-	<testsuite tests="1" failures="0" time="1.022000" name="github.com/DataDog/datadog-agent/pkg/util/filesystem" timestamp="2024-05-10T17:24:09Z">
-		<properties>
-			<property name="go.version" value="go1.21.9 linux/amd64" />
-		</properties>
-		<testcase classname="github.com/DataDog/datadog-agent/pkg/util/filesystem" name="TestRemoveAccessToOtherUsers" time="0.000000" />
-	</testsuite>
-<flavor>base</flavor></testsuites>

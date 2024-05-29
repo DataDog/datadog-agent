@@ -1,8 +1,0 @@
-<testsuites tests="1" failures="0" errors="0" time="2.007577">
-	<testsuite tests="1" failures="0" time="1.030000" name="github.com/DataDog/datadog-agent/pkg/logs/metrics" timestamp="2024-05-10T17:22:00Z">
-		<properties>
-			<property name="go.version" value="go1.21.9 linux/amd64" />
-		</properties>
-		<testcase classname="github.com/DataDog/datadog-agent/pkg/logs/metrics" name="TestMetrics" time="0.000000" />
-	</testsuite>
-<flavor>base</flavor></testsuites>
