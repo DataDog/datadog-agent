@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build !darwin && !linux
+//go:build windows
 
 package portlist
 
@@ -18,21 +18,21 @@ var ErrNotImplemented = errors.New("not implemented yet")
 
 // init initializes the Poller by ensuring it has an underlying
 func (p *Poller) init() {
-	p.os = newOtherOSImpl(p.IncludeLocalhost)
+	p.os = newWindowsOSImpl(p.IncludeLocalhost)
 }
 
-type otherOSImpl struct {
+type WindowsOSImpl struct {
 	includeLocalhost bool
 }
 
-func newOtherOSImpl(includeLocalhost bool) osImpl {
-	return &otherOSImpl{
+func newWindowsOSImpl(includeLocalhost bool) osImpl {
+	return &WindowsOSImpl{
 		includeLocalhost: includeLocalhost,
 	}
 }
 
-func (im *otherOSImpl) AppendListeningPorts(_ []Port) ([]Port, error) {
+func (im *WindowsOSImpl) AppendListeningPorts(_ []Port) ([]Port, error) {
 	return nil, ErrNotImplemented
 }
 
-func (*otherOSImpl) Close() error { return ErrNotImplemented }
+func (*WindowsOSImpl) Close() error { return ErrNotImplemented }

@@ -14,7 +14,6 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
-	"log"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -24,6 +23,8 @@ import (
 
 	"go4.org/mem"
 	"golang.org/x/sys/unix"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 func (p *Poller) init() {
@@ -69,7 +70,7 @@ func newLinuxImpl(includeLocalhost bool) osImpl {
 			if os.IsNotExist(err) {
 				continue
 			}
-			log.Printf("portlist warning; ignoring: %v", err)
+			log.Errorf("diagnose port-conflict poller warning; ignoring: %v", err)
 			continue
 		}
 		li.procNetFiles = append(li.procNetFiles, f)

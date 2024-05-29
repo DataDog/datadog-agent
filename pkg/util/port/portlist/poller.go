@@ -107,6 +107,8 @@ func (a *Port) lessThan(b *Port) bool {
 
 // sortAndDedup sorts ps in place (by Port.LessThan) and then returns
 // a subset of it with duplicate (Proto, Port) removed.
+// Multiple processes can't use the same port and protocol
+// on the same port so there's no need to check for that
 func sortAndDedup(ps List) List {
 	sort.Slice(ps, func(i, j int) bool {
 		return (&ps[i]).lessThan(&ps[j])

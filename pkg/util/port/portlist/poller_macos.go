@@ -11,12 +11,13 @@ import (
 	"bufio"
 	"bytes"
 	"fmt"
-	"log"
 	"os/exec"
 	"strings"
 
 	"go.uber.org/atomic"
 	"go4.org/mem"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // init initializes the Poller by ensuring it has an underlying
@@ -155,14 +156,14 @@ func (im *macOSImpl) addProcesses() error {
 		}
 		// fails when run in a macOS sandbox, so make this non-fatal.
 		if lsofFailed.CompareAndSwap(false, true) {
-			log.Printf("portlist: can't run lsof in Mac sandbox; omitting process names from service list. Error details: %v, %s", err, bytes.TrimSpace(stderr))
+			log.Errorf("diagnose port-conflict poller: can't run lsof in Mac sandbox; omitting process names from service list. Error details: %v, %s", err, bytes.TrimSpace(stderr))
 		}
 		return nil
 	}
 	defer func() {
 		ps, err := lsofCmd.Process.Wait()
 		if err != nil || ps.ExitCode() != 0 {
-			log.Printf("portlist: can't run lsof in Mac sandbox; omitting process names from service list. Error: %v, exit code %d", err, ps.ExitCode())
+			log.Errorf("diagnose port-conflict poller: can't run lsof in Mac sandbox; omitting process names from service list. Error: %v, exit code %d", err, ps.ExitCode())
 			lsofFailed.Store(true)
 		}
 	}()
