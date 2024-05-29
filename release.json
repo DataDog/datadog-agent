@@ -2,8 +2,8 @@
     "base_branch": "main",
     "current_milestone": "7.55.0",
     "last_stable": {
-        "6": "6.53.0",
-        "7": "7.53.0"
+        "6": "6.54.0",
+        "7": "7.54.0"
     },
     "nightly": {
         "INTEGRATIONS_CORE_VERSION": "master",
