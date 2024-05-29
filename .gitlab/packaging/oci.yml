@@ -39,13 +39,17 @@ packaging_oci:
         echo "Extracting to temporary input dir $INPUT_FILE -> $INPUT_DIR"
         tar xJf ${INPUT_FILE} -C ${INPUT_DIR}
         echo "Creating OCI layer -> ${OUTPUT_DIR}/${OUTPUT_FILE}"
+        if [ "${OCI_PRODUCT}" = "datadog-agent" ]; then
+          EXTRA_FLAGS="--configs ${INPUT_DIR}/etc/datadog-agent"
+        fi
         ./datadog-package create \
           --version ${PACKAGE_VERSION} \
           --package datadog-agent \
           --os linux \
           --arch ${ARCH} \
           --archive --archive-path "${OUTPUT_DIR}/${OUTPUT_FILE}" \
-          ${INPUT_DIR}/opt/datadog-packages/datadog-agent/${SIMPLE_VERSION}*/
+          ${EXTRA_FLAGS} \
+          ${INPUT_DIR}/${INSTALL_DIR}/
         rm -f ${INPUT_FILE}
       done
     - echo "Aggregating all layers into one package -> ${MERGED_FILE}"
