@@ -1,0 +1,19 @@
+grand-parent:
+  attribute: hello world
+
+father:
+  extends: grand-parent
+  some-attribute: 42
+
+mother:
+  say-hi: "Hi !"
+
+target:
+  extends: [father, mother]
+  say-hello: "Hello :wave:"
+
+expected:
+  attribute: hello world
+  some-attribute: 42
+  say-hi: "Hi !"
+  say-hello: "Hello :wave:"

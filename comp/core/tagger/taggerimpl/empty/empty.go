@@ -42,3 +42,14 @@ func (t *Tagger) ResetCaptureTagger() {}
 
 // EnrichTags extends a tag list with origin detection tags
 func (t *Tagger) EnrichTags(tagset.TagsAccumulator, taggertypes.OriginInfo) {}
+
+// ChecksCardinality defines the cardinality of tags we should send for check metrics
+func (t *Tagger) ChecksCardinality() types.TagCardinality {
+	return types.LowCardinality
+}
+
+// DogstatsdCardinality defines the cardinality of tags we should send for metrics from
+// dogstatsd.
+func (t *Tagger) DogstatsdCardinality() types.TagCardinality {
+	return types.LowCardinality
+}

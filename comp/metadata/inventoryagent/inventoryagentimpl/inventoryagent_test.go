@@ -267,7 +267,7 @@ func TestConfigRefresh(t *testing.T) {
 	ia := getTestInventoryPayload(t, nil, nil)
 
 	assert.False(t, ia.RefreshTriggered())
-	pkgconfig.Datadog.Set("inventories_max_interval", 10*60, pkgconfigmodel.SourceAgentRuntime)
+	pkgconfig.Datadog().Set("inventories_max_interval", 10*60, pkgconfigmodel.SourceAgentRuntime)
 	assert.True(t, ia.RefreshTriggered())
 }
 
@@ -651,4 +651,40 @@ dynamic_instrumentation:
 	assert.True(t, ia.data["system_probe_gateway_lookup_enabled"].(bool))
 	assert.True(t, ia.data["system_probe_root_namespace_enabled"].(bool))
 	assert.True(t, ia.data["feature_dynamic_instrumentation_enabled"].(bool))
+}
+
+func TestGetProvidedConfigurationDisable(t *testing.T) {
+	ia := getTestInventoryPayload(t, map[string]any{
+		"inventories_configuration_enabled": false,
+	}, nil)
+
+	payload := ia.getPayload().(*Payload)
+
+	// No configuration should be in the payload
+	assert.NotContains(t, payload.Metadata, "full_configuration")
+	assert.NotContains(t, payload.Metadata, "provided_configuration")
+	assert.NotContains(t, payload.Metadata, "file_configuration")
+	assert.NotContains(t, payload.Metadata, "environment_variable_configuration")
+	assert.NotContains(t, payload.Metadata, "agent_runtime_configuration")
+	assert.NotContains(t, payload.Metadata, "remote_configuration")
+	assert.NotContains(t, payload.Metadata, "cli_configuration")
+	assert.NotContains(t, payload.Metadata, "source_local_configuration")
+}
+
+func TestGetProvidedConfiguration(t *testing.T) {
+	ia := getTestInventoryPayload(t, map[string]any{
+		"inventories_configuration_enabled": true,
+	}, nil)
+
+	payload := ia.getPayload().(*Payload)
+
+	// All configuration level should be in the payload
+	assert.Contains(t, payload.Metadata, "full_configuration")
+	assert.Contains(t, payload.Metadata, "provided_configuration")
+	assert.Contains(t, payload.Metadata, "file_configuration")
+	assert.Contains(t, payload.Metadata, "environment_variable_configuration")
+	assert.Contains(t, payload.Metadata, "agent_runtime_configuration")
+	assert.Contains(t, payload.Metadata, "remote_configuration")
+	assert.Contains(t, payload.Metadata, "cli_configuration")
+	assert.Contains(t, payload.Metadata, "source_local_configuration")
 }

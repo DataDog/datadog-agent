@@ -182,7 +182,7 @@ func TestWorkerName(t *testing.T) {
 
 func TestWorker(t *testing.T) {
 	expvars.Reset()
-	config.Datadog.SetWithoutSource("hostname", "myhost")
+	config.Datadog().SetWithoutSource("hostname", "myhost")
 
 	var wg sync.WaitGroup
 
@@ -258,7 +258,7 @@ func TestWorker(t *testing.T) {
 
 func TestWorkerUtilizationExpvars(t *testing.T) {
 	expvars.Reset()
-	config.Datadog.SetWithoutSource("hostname", "myhost")
+	config.Datadog().SetWithoutSource("hostname", "myhost")
 
 	var wg sync.WaitGroup
 
@@ -328,7 +328,7 @@ func TestWorkerUtilizationExpvars(t *testing.T) {
 
 func TestWorkerErrorAndWarningHandling(t *testing.T) {
 	expvars.Reset()
-	config.Datadog.SetWithoutSource("hostname", "myhost")
+	config.Datadog().SetWithoutSource("hostname", "myhost")
 
 	var wg sync.WaitGroup
 
@@ -336,7 +336,7 @@ func TestWorkerErrorAndWarningHandling(t *testing.T) {
 	pendingChecksChan := make(chan check.Check, 10)
 	mockShouldAddStatsFunc := func(id checkid.ID) bool { return true }
 
-	config.Datadog.SetWithoutSource("hostname", "myhost")
+	config.Datadog().SetWithoutSource("hostname", "myhost")
 
 	testCheck1 := newCheck(t, "testing:123", true, nil)
 	testCheck2 := newCheck(t, "testing2:234", true, nil)
@@ -383,13 +383,13 @@ func TestWorkerErrorAndWarningHandling(t *testing.T) {
 
 func TestWorkerConcurrentCheckScheduling(t *testing.T) {
 	expvars.Reset()
-	config.Datadog.SetWithoutSource("hostname", "myhost")
+	config.Datadog().SetWithoutSource("hostname", "myhost")
 
 	checksTracker := tracker.NewRunningChecksTracker()
 	pendingChecksChan := make(chan check.Check, 10)
 	mockShouldAddStatsFunc := func(id checkid.ID) bool { return true }
 
-	config.Datadog.SetWithoutSource("hostname", "myhost")
+	config.Datadog().SetWithoutSource("hostname", "myhost")
 
 	testCheck := newCheck(t, "testing:123", true, nil)
 
@@ -412,7 +412,7 @@ func TestWorkerConcurrentCheckScheduling(t *testing.T) {
 
 func TestWorkerStatsAddition(t *testing.T) {
 	expvars.Reset()
-	config.Datadog.SetWithoutSource("hostname", "myhost")
+	config.Datadog().SetWithoutSource("hostname", "myhost")
 
 	checksTracker := tracker.NewRunningChecksTracker()
 	pendingChecksChan := make(chan check.Check, 10)
@@ -421,7 +421,7 @@ func TestWorkerStatsAddition(t *testing.T) {
 		return string(id) != "squelched:123"
 	}
 
-	config.Datadog.SetWithoutSource("hostname", "myhost")
+	config.Datadog().SetWithoutSource("hostname", "myhost")
 
 	longRunningCheckNoErrorNoWarning := &testCheck{
 		t:           t,
@@ -471,8 +471,8 @@ func TestWorkerStatsAddition(t *testing.T) {
 
 func TestWorkerServiceCheckSending(t *testing.T) {
 	expvars.Reset()
-	config.Datadog.SetWithoutSource("hostname", "myhost")
-	config.Datadog.SetWithoutSource("integration_check_status_enabled", "true")
+	config.Datadog().SetWithoutSource("hostname", "myhost")
+	config.Datadog().SetWithoutSource("integration_check_status_enabled", "true")
 
 	var wg sync.WaitGroup
 
@@ -557,7 +557,7 @@ func TestWorkerServiceCheckSending(t *testing.T) {
 
 func TestWorkerSenderNil(t *testing.T) {
 	expvars.Reset()
-	config.Datadog.SetWithoutSource("hostname", "myhost")
+	config.Datadog().SetWithoutSource("hostname", "myhost")
 
 	checksTracker := tracker.NewRunningChecksTracker()
 	pendingChecksChan := make(chan check.Check, 10)
@@ -588,7 +588,7 @@ func TestWorkerSenderNil(t *testing.T) {
 
 func TestWorkerServiceCheckSendingLongRunningTasks(t *testing.T) {
 	expvars.Reset()
-	config.Datadog.SetWithoutSource("hostname", "myhost")
+	config.Datadog().SetWithoutSource("hostname", "myhost")
 
 	checksTracker := tracker.NewRunningChecksTracker()
 	pendingChecksChan := make(chan check.Check, 10)

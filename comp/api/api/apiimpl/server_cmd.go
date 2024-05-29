@@ -20,14 +20,12 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 
-	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	"github.com/DataDog/datadog-agent/comp/api/api"
 	"github.com/DataDog/datadog-agent/comp/api/api/apiimpl/internal/agent"
 	"github.com/DataDog/datadog-agent/comp/api/api/apiimpl/internal/check"
 	apiutils "github.com/DataDog/datadog-agent/comp/api/api/apiimpl/utils"
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
-	"github.com/DataDog/datadog-agent/comp/core/gui"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
@@ -35,10 +33,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	workloadmetaServer "github.com/DataDog/datadog-agent/comp/core/workloadmeta/server"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/pidmap"
-	"github.com/DataDog/datadog-agent/comp/dogstatsd/replay"
+	replay "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/def"
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
-	dogstatsddebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
-	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver"
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcservice"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcservicemrf"
@@ -62,18 +58,14 @@ func startCMDServer(
 	dogstatsdServer dogstatsdServer.Component,
 	capture replay.Component,
 	pidMap pidmap.Component,
-	serverDebug dogstatsddebug.Component,
 	wmeta workloadmeta.Component,
 	taggerComp tagger.Component,
 	logsAgent optional.Option[logsAgent.Component],
 	senderManager sender.DiagnoseSenderManager,
-	demux demultiplexer.Component,
 	secretResolver secrets.Component,
 	statusComponent status.Component,
 	collector optional.Option[collector.Component],
-	eventPlatformReceiver eventplatformreceiver.Component,
 	ac autodiscovery.Component,
-	gui optional.Option[gui.Component],
 	providers []api.EndpointProvider,
 ) (err error) {
 	// get the transport we're going to use under HTTP
@@ -141,18 +133,13 @@ func startCMDServer(
 		http.StripPrefix("/agent",
 			agent.SetupHandlers(
 				agentMux,
-				dogstatsdServer,
-				serverDebug,
 				wmeta,
 				logsAgent,
 				senderManager,
-				demux,
 				secretResolver,
 				statusComponent,
 				collector,
-				eventPlatformReceiver,
 				ac,
-				gui,
 				providers,
 			)))
 	cmdMux.Handle("/check/", http.StripPrefix("/check", check.SetupHandlers(checkMux)))
@@ -165,7 +152,7 @@ func startCMDServer(
 		cmdAddr,
 		tlsConfig,
 		s,
-		grpcutil.TimeoutHandlerFunc(cmdMuxHandler, time.Duration(config.Datadog.GetInt64("server_timeout"))*time.Second),
+		grpcutil.TimeoutHandlerFunc(cmdMuxHandler, time.Duration(config.Datadog().GetInt64("server_timeout"))*time.Second),
 	)
 
 	startServer(cmdListener, srv, cmdServerName)

@@ -91,7 +91,7 @@ func refreshPdhObjectCache(forceRefresh bool) (didrefresh bool, err error) {
 	var len uint32
 	//revive:enable:redefines-builtin-id
 
-	refreshInterval := config.Datadog.GetInt("windows_counter_refresh_interval")
+	refreshInterval := config.Datadog().GetInt("windows_counter_refresh_interval")
 	if refreshInterval == 0 {
 		// refresh disabled
 		return false, nil

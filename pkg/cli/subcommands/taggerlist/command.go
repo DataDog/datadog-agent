@@ -89,9 +89,9 @@ func getTaggerURL(_ config.Component) (string, error) {
 
 	var urlstr string
 	if flavor.GetFlavor() == flavor.ClusterAgent {
-		urlstr = fmt.Sprintf("https://%v:%v/tagger-list", ipcAddress, pkgconfig.Datadog.GetInt("cluster_agent.cmd_port"))
+		urlstr = fmt.Sprintf("https://%v:%v/tagger-list", ipcAddress, pkgconfig.Datadog().GetInt("cluster_agent.cmd_port"))
 	} else {
-		urlstr = fmt.Sprintf("https://%v:%v/agent/tagger-list", ipcAddress, pkgconfig.Datadog.GetInt("cmd_port"))
+		urlstr = fmt.Sprintf("https://%v:%v/agent/tagger-list", ipcAddress, pkgconfig.Datadog().GetInt("cmd_port"))
 	}
 
 	return urlstr, nil
