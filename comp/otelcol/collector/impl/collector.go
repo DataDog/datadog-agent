@@ -16,6 +16,7 @@ import (
 
 	flarebuilder "github.com/DataDog/datadog-agent/comp/core/flare/builder"
 	corelog "github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	collectorcontrib "github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/def"
 	collector "github.com/DataDog/datadog-agent/comp/otelcol/collector/def"
@@ -51,6 +52,7 @@ type Requires struct {
 	Serializer       serializer.MetricSerializer
 	LogsAgent        optional.Option[logsagentpipeline.Component]
 	SourceProvider   serializerexporter.SourceProviderFunc
+	Tagger           tagger.Component
 }
 
 // Provides declares the output types from the constructor
@@ -86,7 +88,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 			} else {
 				factories.Exporters[datadogexporter.Type] = datadogexporter.NewFactory(reqs.Serializer, nil, reqs.SourceProvider)
 			}
-			factories.Processors[infraattributesprocessor.Type] = infraattributesprocessor.NewFactory()
+			factories.Processors[infraattributesprocessor.Type] = infraattributesprocessor.NewFactory(reqs.Tagger)
 			return factories, nil
 		},
 		ConfigProvider: reqs.Provider,

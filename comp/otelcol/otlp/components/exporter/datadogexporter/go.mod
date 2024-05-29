@@ -78,14 +78,13 @@ replace (
 )
 
 require (
-	github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface v0.54.0-rc.2
 	github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline v0.54.0-rc.2
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/logsagentexporter v0.54.0-rc.2
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/serializerexporter v0.54.0-rc.1
 	github.com/DataDog/datadog-agent/pkg/logs/message v0.54.0-rc.2
 	github.com/DataDog/datadog-agent/pkg/serializer v0.54.0-rc.2
 	github.com/DataDog/datadog-agent/pkg/util/hostname/validate v0.54.0-rc.2
-	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.16.0
+	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.16.1
 	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/metrics v0.16.0
 	github.com/stretchr/testify v1.9.0
 	go.opentelemetry.io/collector/component v0.100.0
@@ -106,6 +105,7 @@ require (
 require (
 	github.com/DataDog/agent-payload/v5 v5.0.114 // indirect
 	github.com/DataDog/datadog-agent/comp/core/config v0.54.0-rc.2 // indirect
+	github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface v0.54.0-rc.2 // indirect
 	github.com/DataDog/datadog-agent/comp/core/log v0.54.0-rc.2 // indirect
 	github.com/DataDog/datadog-agent/comp/core/secrets v0.54.0-rc.2 // indirect
 	github.com/DataDog/datadog-agent/comp/core/status v0.54.0-rc.2 // indirect
