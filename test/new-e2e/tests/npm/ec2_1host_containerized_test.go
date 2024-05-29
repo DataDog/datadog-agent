@@ -36,13 +36,12 @@ func dockerHostHttpbinEnvProvisioner() e2e.PulumiEnvRunFunc[dockerHostNginxEnv] 
 		if err != nil {
 			return err
 		}
-		env.DockerHost.AwsEnvironment = &awsEnv
 
 		opts := []awsdocker.ProvisionerOption{
 			awsdocker.WithAgentOptions(systemProbeConfigNPMEnv()...),
 		}
 		params := awsdocker.GetProvisionerParams(opts...)
-		awsdocker.Run(ctx, &env.DockerHost, params)
+		awsdocker.Run(ctx, &env.DockerHost, awsdocker.RunParams{Environment: &awsEnv, ProvisionerParams: params})
 
 		vmName := "httpbinvm"
 

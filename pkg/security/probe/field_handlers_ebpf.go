@@ -511,7 +511,7 @@ func (fh *EBPFFieldHandlers) ResolveProcessCreatedAt(_ *model.Event, e *model.Pr
 // ResolveUserSessionContext resolves and updates the provided user session context
 func (fh *EBPFFieldHandlers) ResolveUserSessionContext(evtCtx *model.UserSessionContext) {
 	if !evtCtx.Resolved {
-		ctx := fh.resolvers.UserSessions.ResolveUserSession(evtCtx.ID)
+		ctx := fh.resolvers.UserSessionsResolver.ResolveUserSession(evtCtx.ID)
 		if ctx != nil {
 			*evtCtx = *ctx
 		}
@@ -540,4 +540,53 @@ func (fh *EBPFFieldHandlers) ResolveK8SGroups(_ *model.Event, evtCtx *model.User
 func (fh *EBPFFieldHandlers) ResolveProcessCmdArgv(ev *model.Event, process *model.Process) []string {
 	cmdline := []string{fh.ResolveProcessArgv0(ev, process)}
 	return append(cmdline, fh.ResolveProcessArgv(ev, process)...)
+}
+
+// ResolveAWSSecurityCredentials resolves and updates the AWS security credentials of the input process entry
+func (fh *EBPFFieldHandlers) ResolveAWSSecurityCredentials(e *model.Event) []model.AWSSecurityCredentials {
+	return fh.resolvers.ProcessResolver.FetchAWSSecurityCredentials(e)
+}
+
+// ResolveSyscallCtxArgs resolve syscall ctx
+func (fh *EBPFFieldHandlers) ResolveSyscallCtxArgs(_ *model.Event, e *model.SyscallContext) {
+	if !e.Resolved {
+		_ = fh.resolvers.SyscallCtxResolver.Resolve(e.ID, e)
+		e.Resolved = true
+	}
+}
+
+// ResolveSyscallCtxArgsStr1 resolve syscall ctx
+func (fh *EBPFFieldHandlers) ResolveSyscallCtxArgsStr1(ev *model.Event, e *model.SyscallContext) string {
+	fh.ResolveSyscallCtxArgs(ev, e)
+	return e.StrArg1
+}
+
+// ResolveSyscallCtxArgsStr2 resolve syscall ctx
+func (fh *EBPFFieldHandlers) ResolveSyscallCtxArgsStr2(ev *model.Event, e *model.SyscallContext) string {
+	fh.ResolveSyscallCtxArgs(ev, e)
+	return e.StrArg2
+}
+
+// ResolveSyscallCtxArgsStr3 resolve syscall ctx
+func (fh *EBPFFieldHandlers) ResolveSyscallCtxArgsStr3(ev *model.Event, e *model.SyscallContext) string {
+	fh.ResolveSyscallCtxArgs(ev, e)
+	return e.StrArg3
+}
+
+// ResolveSyscallCtxArgsInt1 resolve syscall ctx
+func (fh *EBPFFieldHandlers) ResolveSyscallCtxArgsInt1(ev *model.Event, e *model.SyscallContext) int {
+	fh.ResolveSyscallCtxArgs(ev, e)
+	return int(e.IntArg1)
+}
+
+// ResolveSyscallCtxArgsInt2 resolve syscall ctx
+func (fh *EBPFFieldHandlers) ResolveSyscallCtxArgsInt2(ev *model.Event, e *model.SyscallContext) int {
+	fh.ResolveSyscallCtxArgs(ev, e)
+	return int(e.IntArg2)
+}
+
+// ResolveSyscallCtxArgsInt3 resolve syscall ctx
+func (fh *EBPFFieldHandlers) ResolveSyscallCtxArgsInt3(ev *model.Event, e *model.SyscallContext) int {
+	fh.ResolveSyscallCtxArgs(ev, e)
+	return int(e.IntArg3)
 }

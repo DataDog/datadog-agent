@@ -139,15 +139,15 @@ func initAgentDemultiplexer(
 	hostname string) *AgentDemultiplexer {
 	// prepare the multiple forwarders
 	// -------------------------------
-	if config.Datadog.GetBool("telemetry.enabled") && config.Datadog.GetBool("telemetry.dogstatsd_origin") && !config.Datadog.GetBool("aggregator_use_tags_store") {
+	if config.Datadog().GetBool("telemetry.enabled") && config.Datadog().GetBool("telemetry.dogstatsd_origin") && !config.Datadog().GetBool("aggregator_use_tags_store") {
 		log.Warn("DogStatsD origin telemetry is not supported when aggregator_use_tags_store is disabled.")
-		config.Datadog.Set("telemetry.dogstatsd_origin", false, model.SourceAgentRuntime)
+		config.Datadog().Set("telemetry.dogstatsd_origin", false, model.SourceAgentRuntime)
 	}
 
 	// prepare the serializer
 	// ----------------------
 
-	sharedSerializer := serializer.NewSerializer(sharedForwarder, orchestratorForwarder, compressor, config.Datadog, hostname)
+	sharedSerializer := serializer.NewSerializer(sharedForwarder, orchestratorForwarder, compressor, config.Datadog(), hostname)
 
 	// prepare the embedded aggregator
 	// --
@@ -157,8 +157,8 @@ func initAgentDemultiplexer(
 	// statsd samplers
 	// ---------------
 
-	bufferSize := config.Datadog.GetInt("aggregator_buffer_size")
-	metricSamplePool := metrics.NewMetricSamplePool(MetricSamplePoolBatchSize, utils.IsTelemetryEnabled(config.Datadog))
+	bufferSize := config.Datadog().GetInt("aggregator_buffer_size")
+	metricSamplePool := metrics.NewMetricSamplePool(MetricSamplePoolBatchSize, utils.IsTelemetryEnabled(config.Datadog()))
 
 	_, statsdPipelinesCount := GetDogStatsDWorkerAndPipelineCount()
 	log.Debug("the Demultiplexer will use", statsdPipelinesCount, "pipelines")
@@ -167,7 +167,7 @@ func initAgentDemultiplexer(
 
 	for i := 0; i < statsdPipelinesCount; i++ {
 		// the sampler
-		tagsStore := tags.NewStore(config.Datadog.GetBool("aggregator_use_tags_store"), fmt.Sprintf("timesampler #%d", i))
+		tagsStore := tags.NewStore(config.Datadog().GetBool("aggregator_use_tags_store"), fmt.Sprintf("timesampler #%d", i))
 
 		statsdSampler := NewTimeSampler(TimeSamplerID(i), bucketSize, tagsStore, agg.hostname)
 
@@ -180,9 +180,9 @@ func initAgentDemultiplexer(
 	var noAggWorker *noAggregationStreamWorker
 	var noAggSerializer serializer.MetricSerializer
 	if options.EnableNoAggregationPipeline {
-		noAggSerializer = serializer.NewSerializer(sharedForwarder, orchestratorForwarder, compressor, config.Datadog, hostname)
+		noAggSerializer = serializer.NewSerializer(sharedForwarder, orchestratorForwarder, compressor, config.Datadog(), hostname)
 		noAggWorker = newNoAggregationStreamWorker(
-			config.Datadog.GetInt("dogstatsd_no_aggregation_pipeline_batch_size"),
+			config.Datadog().GetInt("dogstatsd_no_aggregation_pipeline_batch_size"),
 			metricSamplePool,
 			noAggSerializer,
 			agg.flushAndSerializeInParallel,
@@ -312,7 +312,7 @@ func (d *AgentDemultiplexer) flushLoop() {
 // Stop stops the demultiplexer.
 // Resources are released, the instance should not be used after a call to `Stop()`.
 func (d *AgentDemultiplexer) Stop(flush bool) {
-	timeout := config.Datadog.GetDuration("aggregator_stop_timeout") * time.Second
+	timeout := config.Datadog().GetDuration("aggregator_stop_timeout") * time.Second
 
 	if d.noAggStreamWorker != nil {
 		d.noAggStreamWorker.stop(flush)
@@ -399,7 +399,7 @@ func (d *AgentDemultiplexer) flushToSerializer(start time.Time, waitForSerialize
 		return
 	}
 
-	logPayloads := config.Datadog.GetBool("log_payloads")
+	logPayloads := config.Datadog().GetBool("log_payloads")
 	series, sketches := createIterableMetrics(d.aggregator.flushAndSerializeInParallel, d.sharedSerializer, logPayloads, false)
 
 	metrics.Serialize(

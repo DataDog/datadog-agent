@@ -9,6 +9,7 @@ package rconfig
 import (
 	"bytes"
 	"fmt"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -39,12 +40,13 @@ type RCPolicyProvider struct {
 	lastDefaults         map[string]state.RawConfig
 	lastCustoms          map[string]state.RawConfig
 	debouncer            *debouncer.Debouncer
+	dumpPolicies         bool
 }
 
 var _ rules.PolicyProvider = (*RCPolicyProvider)(nil)
 
 // NewRCPolicyProvider returns a new Remote Config based policy provider
-func NewRCPolicyProvider() (*RCPolicyProvider, error) {
+func NewRCPolicyProvider(dumpPolicies bool) (*RCPolicyProvider, error) {
 	agentVersion, err := utils.GetAgentSemverVersion()
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse agent version: %w", err)
@@ -55,18 +57,19 @@ func NewRCPolicyProvider() (*RCPolicyProvider, error) {
 		return nil, fmt.Errorf("failed to get ipc address: %w", err)
 	}
 
-	c, err := client.NewGRPCClient(ipcAddress, config.GetIPCPort(), func() (string, error) { return security.FetchAuthToken(config.Datadog) },
+	c, err := client.NewGRPCClient(ipcAddress, config.GetIPCPort(), func() (string, error) { return security.FetchAuthToken(config.Datadog()) },
 		client.WithAgent(agentName, agentVersion.String()),
 		client.WithProducts(state.ProductCWSDD, state.ProductCWSCustom),
 		client.WithPollInterval(securityAgentRCPollInterval),
-		client.WithDirectorRootOverride(config.Datadog.GetString("site"), config.Datadog.GetString("remote_configuration.director_root")),
+		client.WithDirectorRootOverride(config.Datadog().GetString("site"), config.Datadog().GetString("remote_configuration.director_root")),
 	)
 	if err != nil {
 		return nil, err
 	}
 
 	r := &RCPolicyProvider{
-		client: c,
+		client:       c,
+		dumpPolicies: dumpPolicies,
 	}
 	r.debouncer = debouncer.New(debounceDelay, r.onNewPoliciesReady)
 
@@ -121,6 +124,17 @@ func normalize(policy *rules.Policy) {
 	}
 }
 
+func writePolicy(name string, data []byte) (string, error) {
+	file, err := os.CreateTemp("", name+"-")
+	if err != nil {
+		return "", err
+	}
+	defer file.Close()
+
+	_, err = file.Write(data)
+	return file.Name(), err
+}
+
 // LoadPolicies implements the PolicyProvider interface
 func (r *RCPolicyProvider) LoadPolicies(macroFilters []rules.MacroFilter, ruleFilters []rules.RuleFilter) ([]*rules.Policy, *multierror.Error) {
 	var policies []*rules.Policy
@@ -130,6 +144,15 @@ func (r *RCPolicyProvider) LoadPolicies(macroFilters []rules.MacroFilter, ruleFi
 	defer r.RUnlock()
 
 	load := func(id string, cfg []byte) error {
+		if r.dumpPolicies {
+			name, err := writePolicy(id, cfg)
+			if err != nil {
+				log.Errorf("unable to dump the policy: %s", err)
+			} else {
+				log.Infof("policy dumped : %s", name)
+			}
+		}
+
 		reader := bytes.NewReader(cfg)
 		policy, err := rules.LoadPolicy(id, rules.PolicyProviderTypeRC, reader, macroFilters, ruleFilters)
 		normalize(policy)

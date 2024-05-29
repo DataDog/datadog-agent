@@ -56,7 +56,7 @@ func newSystemCollector(cache *provider.Cache, wlm optional.Option[workloadmeta.
 	var hostPrefix string
 	var collectorMetadata provider.CollectorMetadata
 
-	procPath := config.Datadog.GetString("container_proc_root")
+	procPath := config.Datadog().GetString("container_proc_root")
 	if strings.HasPrefix(procPath, "/host") {
 		hostPrefix = "/host"
 	}

@@ -38,8 +38,8 @@ func pySetup(paths ...string) (pythonVersion, pythonHome, pythonPath string) {
 }
 
 func pyPrepareEnv() error {
-	if config.Datadog.IsSet("procfs_path") {
-		procfsPath := config.Datadog.GetString("procfs_path")
+	if config.Datadog().IsSet("procfs_path") {
+		procfsPath := config.Datadog().GetString("procfs_path")
 		return python.SetPythonPsutilProcPath(procfsPath)
 	}
 	return nil

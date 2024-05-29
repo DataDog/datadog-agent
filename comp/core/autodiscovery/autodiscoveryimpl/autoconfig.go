@@ -81,6 +81,7 @@ type AutoConfig struct {
 	providerCatalog          map[string]providers.ConfigProviderFactory
 	started                  bool
 	wmeta                    optional.Option[workloadmeta.Component]
+	taggerComp               tagger.Component
 
 	// m covers the `configPollers`, `listenerCandidates`, `listeners`, and `listenerRetryStop`, but
 	// not the values they point to.
@@ -133,7 +134,7 @@ func (l *listenerCandidate) try() (listeners.ServiceListener, error) {
 
 // newAutoConfig creates an AutoConfig instance and starts it.
 func newAutoConfig(deps dependencies) autodiscovery.Component {
-	ac := createNewAutoConfig(scheduler.NewMetaScheduler(), deps.Secrets, deps.WMeta)
+	ac := createNewAutoConfig(scheduler.NewMetaScheduler(), deps.Secrets, deps.WMeta, deps.TaggerComp)
 	deps.Lc.Append(fx.Hook{
 		OnStart: func(c context.Context) error {
 			ac.Start()
@@ -148,7 +149,7 @@ func newAutoConfig(deps dependencies) autodiscovery.Component {
 }
 
 // createNewAutoConfig creates an AutoConfig instance (without starting).
-func createNewAutoConfig(scheduler *scheduler.MetaScheduler, secretResolver secrets.Component, wmeta optional.Option[workloadmeta.Component]) *AutoConfig {
+func createNewAutoConfig(scheduler *scheduler.MetaScheduler, secretResolver secrets.Component, wmeta optional.Option[workloadmeta.Component], taggerComp tagger.Component) *AutoConfig {
 	cfgMgr := newReconcilingConfigManager(secretResolver)
 	ac := &AutoConfig{
 		configPollers:            make([]*configPoller, 0, 9),
@@ -166,6 +167,7 @@ func createNewAutoConfig(scheduler *scheduler.MetaScheduler, secretResolver secr
 		providerCatalog:          make(map[string]providers.ConfigProviderFactory),
 		started:                  false,
 		wmeta:                    wmeta,
+		taggerComp:               taggerComp,
 	}
 	return ac
 }
@@ -205,7 +207,7 @@ func (ac *AutoConfig) checkTagFreshness(ctx context.Context) {
 		previousHash := ac.store.getTagsHashForService(service.GetTaggerEntity())
 		// TODO(components) (tagger): GetEntityHash is still called via global taggerClient instance instead of tagger.Component
 		// because GetEntityHash is not part of the tagger.Component interface yet.
-		currentHash := tagger.GetEntityHash(service.GetTaggerEntity(), tagger.ChecksCardinality)
+		currentHash := tagger.GetEntityHash(service.GetTaggerEntity(), ac.taggerComp.ChecksCardinality())
 		// Since an empty hash is a valid value, and we are not able to differentiate
 		// an empty tagger or store with an empty value.
 		// So we only look at the difference between current and previous
@@ -605,7 +607,7 @@ func (ac *AutoConfig) processNewService(ctx context.Context, svc listeners.Servi
 	ac.store.setServiceForEntity(svc, svc.GetServiceID())
 	ac.store.setTagsHashForService(
 		svc.GetTaggerEntity(),
-		tagger.GetEntityHash(svc.GetTaggerEntity(), tagger.ChecksCardinality),
+		tagger.GetEntityHash(svc.GetTaggerEntity(), ac.taggerComp.ChecksCardinality()),
 	)
 
 	// get all the templates matching service identifiers
@@ -721,10 +723,10 @@ func OptionalModule() fxutil.Module {
 
 // newOptionalAutoConfig creates an optional AutoConfig instance if tagger is available
 func newOptionalAutoConfig(deps optionalModuleDeps) optional.Option[autodiscovery.Component] {
-	_, ok := deps.TaggerComp.Get()
+	taggerComp, ok := deps.TaggerComp.Get()
 	if !ok {
 		return optional.NewNoneOption[autodiscovery.Component]()
 	}
 	return optional.NewOption[autodiscovery.Component](
-		createNewAutoConfig(scheduler.NewMetaScheduler(), deps.Secrets, deps.WMeta))
+		createNewAutoConfig(scheduler.NewMetaScheduler(), deps.Secrets, deps.WMeta, taggerComp))
 }

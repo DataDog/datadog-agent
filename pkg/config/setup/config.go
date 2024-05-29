@@ -100,11 +100,23 @@ const (
 	DefaultMaxMessageSizeBytes = 256 * 1000
 )
 
-// Datadog is the global configuration object
+// datadog is the global configuration object
 var (
-	Datadog     pkgconfigmodel.Config
+	datadog     pkgconfigmodel.Config
 	SystemProbe pkgconfigmodel.Config
 )
+
+// Datadog returns the current agent configuration
+func Datadog() pkgconfigmodel.Config {
+	return datadog
+}
+
+// SetDatadog sets the the reference to the agent configuration.
+// This is currently used by the legacy converter and config mocks and should not be user anywhere else. Once the
+// legacy converter and mock have been migrated we will remove this function.
+func SetDatadog(cfg pkgconfigmodel.Config) {
+	datadog = cfg
+}
 
 // Variables to initialize at build time
 var (
@@ -220,7 +232,7 @@ var serverlessConfigComponents = []func(pkgconfigmodel.Config){
 func init() {
 	osinit()
 	// Configure Datadog global configuration
-	Datadog = pkgconfigmodel.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
+	datadog = pkgconfigmodel.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
 	SystemProbe = pkgconfigmodel.NewConfig("system-probe", "DD", strings.NewReplacer(".", "_"))
 
 	// Configuration defaults
@@ -584,6 +596,9 @@ func InitConfig(config pkgconfigmodel.Config) {
 	config.BindEnvAndSetDefault("checks_tag_cardinality", "low")
 	config.BindEnvAndSetDefault("dogstatsd_tag_cardinality", "low")
 
+	// Autoscaling product
+	config.BindEnvAndSetDefault("autoscaling.workload.enabled", false)
+
 	config.BindEnvAndSetDefault("hpa_watcher_polling_freq", 10)
 	config.BindEnvAndSetDefault("hpa_watcher_gc_period", 60*5) // 5 minutes
 	config.BindEnvAndSetDefault("hpa_configmap_name", "datadog-custom-metrics")
@@ -786,7 +801,7 @@ func InitConfig(config pkgconfigmodel.Config) {
 	config.BindEnvAndSetDefault("inventories_first_run_delay", 60)
 
 	// Datadog security agent (common)
-	config.BindEnvAndSetDefault("security_agent.cmd_port", 5010)
+	config.BindEnvAndSetDefault("security_agent.cmd_port", DefaultSecurityAgentCmdPort)
 	config.BindEnvAndSetDefault("security_agent.expvar_port", 5011)
 	config.BindEnvAndSetDefault("security_agent.log_file", DefaultSecurityAgentLogFile)
 	config.BindEnvAndSetDefault("security_agent.remote_tagger", true)
@@ -969,6 +984,7 @@ func agent(config pkgconfigmodel.Config) {
 
 	// Agent GUI access port
 	config.BindEnvAndSetDefault("GUI_port", defaultGuiPort)
+	config.BindEnvAndSetDefault("GUI_session_expiration", 0)
 
 	config.SetKnown("proxy.http")
 	config.SetKnown("proxy.https")

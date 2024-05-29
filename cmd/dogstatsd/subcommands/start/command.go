@@ -94,7 +94,7 @@ func MakeCommand(defaultLogFile string) *cobra.Command {
 
 	var socketPath string
 	startCmd.Flags().StringVarP(&socketPath, "socket", "s", "", "listen to this socket instead of UDP")
-	pkgconfig.Datadog.BindPFlag("dogstatsd_socket", startCmd.Flags().Lookup("socket")) //nolint:errcheck
+	pkgconfig.Datadog().BindPFlag("dogstatsd_socket", startCmd.Flags().Lookup("socket")) //nolint:errcheck
 
 	return startCmd
 }
