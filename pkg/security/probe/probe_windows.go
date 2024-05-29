@@ -105,6 +105,7 @@ type WindowsProbe struct {
 	blockonchannelsend bool
 
 	// approvers
+	disableApprovers  bool
 	currentEventTypes []string
 	approvers         map[eval.Field][]approver
 }
@@ -337,6 +338,10 @@ func (p *WindowsProbe) approveFimBasename(value string) bool {
 
 // currently support only string base approver for now
 func (p *WindowsProbe) approve(field eval.Field, eventType string, value string) bool {
+	if p.disableApprovers {
+		return true
+	}
+
 	approvers, exists := p.approvers[field]
 	if !exists {
 		// no approvers, so no filtering for this field, except if no rule for this event type
