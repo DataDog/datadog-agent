@@ -169,26 +169,28 @@ func StartCWSPtracer(args []string, envs []string, probeAddr string, opts Opts) 
 		wg          sync.WaitGroup
 	)
 
+	connectClient := func() error {
+		var err error
+		client, err = initConn(probeAddr, 600)
+		if err != nil {
+			clientReady <- false
+			logger.Errorf("connection to system-probe failed!")
+			return err
+		}
+		clientReady <- true
+		logger.Debugf("connection to system-probe initiated!")
+		return nil
+	}
+
 	if probeAddr != "" {
 		logger.Debugf("connection to system-probe...")
 		if opts.Async {
-			go func() {
-				// use a local err variable to avoid race condition
-				var err error
-				client, err = initConn(probeAddr, 600)
-				if err != nil {
-					return
-				}
-				clientReady <- true
-				logger.Debugf("connection to system-probe initiated!")
-			}()
+			go connectClient()
 		} else {
-			client, err = initConn(probeAddr, 120)
+			err = connectClient()
 			if err != nil {
 				return err
 			}
-			clientReady <- true
-			logger.Debugf("connection to system-probe initiated!")
 		}
 	}
 
@@ -231,7 +233,7 @@ func StartCWSPtracer(args []string, envs []string, probeAddr string, opts Opts) 
 	var (
 		msgDataChan    = make(chan []byte, 100000)
 		ctx, cancelFnc = context.WithCancel(context.Background())
-		seq            = atomic.NewUint64(0)
+		seq            = atomic.NewUint64(1) // 0 is only used for hello messages
 	)
 
 	send := func(msg *ebpfless.Message) {
@@ -263,44 +265,87 @@ func StartCWSPtracer(args []string, envs []string, probeAddr string, opts Opts) 
 	process := NewProcess(tracer.PID)
 	pc.Add(tracer.PID, process)
 
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
+	if probeAddr == "" {
+		send(&ebpfless.Message{
+			Type: ebpfless.MessageTypeHello,
+			Hello: &ebpfless.HelloMsg{
+				NSID:             getNSID(),
+				ContainerContext: containerCtx,
+				EntrypointArgs:   args,
+			},
+		})
+	} else /* probeAddr != "" */ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
 
-		if probeAddr != "" {
-		LOOP:
-			// wait for the client to be ready of stopped
 			for {
-				select {
-				case <-ctx.Done():
-					return
-				case <-clientReady:
-					break LOOP
-				}
-			}
-			defer client.Close()
-		}
+			LOOP: // wait for the client to be ready or stopped
+				for {
+					select {
+					case <-ctx.Done():
+						return
+					case ready := <-clientReady:
+						if !ready {
+							time.Sleep(time.Second)
+							// re-init connection
+							logger.Debugf("try to reconnect to system-probe...")
+							go connectClient()
+							continue
+						}
 
-		for {
-			select {
-			case data := <-msgDataChan:
-				if err := sendMsgData(client, data); err != nil {
-					logger.Debugf("%v", err)
-				}
-			case <-ctx.Done():
-				return
-			}
-		}
-	}()
+						defer client.Close()
 
-	send(&ebpfless.Message{
-		Type: ebpfless.MessageTypeHello,
-		Hello: &ebpfless.HelloMsg{
-			NSID:             getNSID(),
-			ContainerContext: containerCtx,
-			EntrypointArgs:   args,
-		},
-	})
+						// if ready, send an hello message
+						helloMsg := &ebpfless.Message{
+							SeqNum: 0,
+							Type:   ebpfless.MessageTypeHello,
+							Hello: &ebpfless.HelloMsg{
+								NSID:             getNSID(),
+								ContainerContext: containerCtx,
+								EntrypointArgs:   args,
+							},
+						}
+						logger.Debugf("sending message: %s", helloMsg)
+						data, err := msgpack.Marshal(helloMsg)
+						if err != nil {
+							logger.Errorf("unable to marshal message: %v", err)
+							return
+						}
+						if err = sendMsgData(client, data); err != nil {
+							logger.Debugf("error sending hallo msg: %v", err)
+							go connectClient()
+							continue
+						}
+						break LOOP
+					}
+				}
+
+			LOOP2: // unqueue and try to send messages or wait client to be stopped
+				for {
+					select {
+					case data := <-msgDataChan:
+						if err := sendMsgData(client, data); err != nil {
+							logger.Debugf("error sending msg: %v", err)
+							msgDataChan <- data
+							break LOOP2
+						}
+					case <-ctx.Done():
+						return
+					}
+				}
+
+				// re-init connection
+				logger.Debugf("try to reconnect to system-probe...")
+				go connectClient()
+				// After reconnection, we will send an hello message with the SeqNum of 0, then
+				// all the stored msg on the chan uppon here with their initial SeqNum.
+				// This way, we will only have a mismatch between sequence numbers for (at maximum)
+				// the number of already stored messages.
+				seq.Store(uint64(len(msgDataChan)) + 1)
+			}
+		}()
+	}
 
 	if !opts.ProcScanDisabled {
 		every := opts.ScanProcEvery

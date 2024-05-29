@@ -443,6 +443,7 @@ func (p *EBPFLessProbe) handleNewClient(conn net.Conn, ch chan clientMsg) {
 				p.Lock()
 				delete(p.clients, conn)
 				p.Unlock()
+				conn.Close()
 
 				msg.Type = ebpfless.MessageTypeGoodbye
 				ch <- msg
