@@ -358,11 +358,9 @@ func (pm *ProcessMonitor) Initialize(useEventStream bool) error {
 	var initErr error
 	pm.initOnce.Do(
 		func() {
-			var method string
+			method := "netlink"
 			if useEventStream {
 				method = "event stream"
-			} else {
-				method = "netlink"
 			}
 			log.Infof("initializing process monitor (%s)", method)
 			pm.tel = newProcessMonitorTelemetry()
