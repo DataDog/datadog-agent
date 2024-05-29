@@ -161,8 +161,13 @@ func (s *snmpDockerSuite) TestSnmp() {
 
 func (s *snmpDockerSuite) TestSnmpTagsAreStoredOnRestart() {
 	fakeintake := s.Env().FakeIntake.Client()
-	initialMetrics, err := fakeintake.FilterMetrics("snmp.device.reachable")
-	require.NoError(s.T(), err)
+	var initialMetrics []*aggregator.MetricSeries
+	var err error
+
+	require.EventuallyWithT(s.T(), func(t *assert.CollectT) {
+		initialMetrics, err = fakeintake.FilterMetrics("snmp.device.reachable")
+		assert.NoError(s.T(), err)
+	}, 5*time.Minute, 5*time.Second)
 
 	initialTags := initialMetrics[0].Tags
 	_, err = s.Env().RemoteHost.Execute("docker stop dd-snmp")
@@ -178,7 +183,7 @@ func (s *snmpDockerSuite) TestSnmpTagsAreStoredOnRestart() {
 
 	require.EventuallyWithT(s.T(), func(t *assert.CollectT) {
 		metrics, err = fakeintake.FilterMetrics("snmp.device.reachable")
-		require.NoError(t, err)
+		assert.NoError(t, err)
 		assert.NotEmpty(t, metrics)
 	}, 5*time.Minute, 5*time.Second)
 
