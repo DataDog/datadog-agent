@@ -984,6 +984,7 @@ func agent(config pkgconfigmodel.Config) {
 
 	// Agent GUI access port
 	config.BindEnvAndSetDefault("GUI_port", defaultGuiPort)
+	config.BindEnvAndSetDefault("GUI_session_expiration", 0)
 
 	config.SetKnown("proxy.http")
 	config.SetKnown("proxy.https")
