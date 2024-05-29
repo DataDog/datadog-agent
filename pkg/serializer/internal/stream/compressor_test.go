@@ -167,7 +167,7 @@ func TestMaxCompressedSizePayload(t *testing.T) {
 }
 
 func TestZstdCompressionLevel(t *testing.T) {
-	tests := []int{1,5,9}
+	tests := []int{1, 5, 9}
 
 	for _, level := range tests {
 		t.Run(fmt.Sprintf("zstd %d", level), func(t *testing.T) {
