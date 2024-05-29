@@ -40,7 +40,7 @@ S3_CI_BUCKET_URL = "s3://dd-ci-artefacts-build-stable/datadog-agent/failed_jobs"
 CONSECUTIVE_THRESHOLD = 3
 CUMULATIVE_THRESHOLD = 5
 CUMULATIVE_LENGTH = 10
-CI_VISIBILITY_JOB_URL = 'https://app.datadoghq.com/ci/pipeline-executions?query=ci_level%3Ajob%20%40ci.pipeline.name%3ADataDog%2Fdatadog-agent%20%40git.branch%3Amain%20%40ci.job.name%3A{}&agg_m=count'
+CI_VISIBILITY_JOB_URL = 'https://app.datadoghq.com/ci/pipeline-executions?query=ci_level%3Ajob%20%40ci.pipeline.name%3ADataDog%2Fdatadog-agent%20%40git.branch%3Amain%20%40ci.job.name%3A"{}"&agg_m=count'
 
 
 @dataclass
@@ -443,54 +443,6 @@ def send_notification(ctx: Context, alert_jobs):
         send_slack_message("#agent-platform-ops", message)
 
 
-# @task
-# def send_summary_notifications(_, n_failed_to_display=8):
-#     """
-#     Send a summary notification to each teams with the jobs that fail the most
-#     """
-
-#     from tasks.libs.ciproviders.gitlab_api import get_gitlab_repo
-
-#     agent = get_gitlab_repo()
-
-#     # Sorted by id by default (sorted by creation date)
-#     all_pipelines = []
-#     for pipeline in agent.pipelines.list(per_page=100, iterator=True):
-#         dt = datetime.fromisoformat(pipeline.created_at)
-
-#         # Stop if older than 24 hours
-#         if dt <= datetime.now() - timedelta(minutes=30):  # TODO : timedelta(days=1):
-#             break
-
-#         if pipeline.ref == 'main':
-#             all_pipelines.append(pipeline)
-
-#     if all_pipelines == []:
-#         print(color_message('WARNING: No pipeline found in the last 24 hours', color='yellow'), file=sys.stderr)
-#         return
-
-#     print([p.to_json() for p in all_pipelines])
-
-#     exit()
-
-#     # TODO : For each team
-#     # TODO : Use class ?
-#     # TODO : Civisibility link
-#     job = {"name": 'job1', "stage": 'stage1', "n_failed": 42, "n_total": 50, "link": 'https://path/to/job'}
-#     jobs = [job]
-#     jobs = sorted(jobs, key=lambda x: x["n_failed"], reverse=True)[:n_failed_to_display]
-
-#     # Create message
-#     # TODO : Only main ?
-#     message = 'These jobs you own have the most failures on main:\n'
-#     for job in jobs:
-#         message += f'- <{job["link"]}|{job["name"]}> ({job["n_failed"]}/{job["n_total"]})\n'
-
-#     # Send
-#     print('[NOTIFICATION]')
-#     print(message)
-
-
 @task
 def send_failure_summary_notification(_, list_max_len=10):
     # TODO
@@ -518,9 +470,9 @@ def send_failure_summary_notification(_, list_max_len=10):
     for name, (fail, total) in stats:
         link = CI_VISIBILITY_JOB_URL.format(name.replace(' ', '%20'))
         if total is None:
-            message += f"\n- <{link}|{name}>: **{fail}** failures"
+            message += f"\n- <{link}|{name}>: *{fail} failures*"
         else:
-            message += f"\n- <{link}|{name}>: **{fail}** failures / {total} runs"
+            message += f"\n- <{link}|{name}>: *{fail} failures* / {total} runs"
 
     message += '\nClick <https://app.datadoghq.com/ci/pipeline-executions?query=ci_level%3Ajob%20env%3Aprod%20%40git.repository.id%3A%22gitlab.ddbuild.io%2FDataDog%2Fdatadog-agent%22%20%40ci.pipeline.name%3A%22DataDog%2Fdatadog-agent%22%20%40ci.provider.instance%3Agitlab-ci%20%40git.branch%3Amain%20%40ci.status%3Aerror&agg_m=count&agg_m_source=base&agg_q=%40ci.job.name&agg_q_source=base&agg_t=count&fromUser=false&index=cipipeline&sort_m=count&sort_m_source=base&sort_t=count&top_n=25&top_o=top&viz=toplist&x_missing=true&paused=false|here> for more details.'
 
