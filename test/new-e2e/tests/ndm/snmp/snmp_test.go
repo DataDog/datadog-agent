@@ -33,7 +33,7 @@ import (
 //go:embed compose/snmpCompose.yaml
 var snmpCompose string
 
-//go:embed config/public.yaml
+//go:embed config/cisco-nexus.yaml
 var snmpConfig string
 
 const (
