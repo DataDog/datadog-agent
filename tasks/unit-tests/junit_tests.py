@@ -92,7 +92,7 @@ class TestSetTag(unittest.TestCase):
         mock_instance.pipelines.get.return_value = MagicMock()
         mock_gitlab.return_value = mock_instance
         tags = junit.set_tags("agent-ci-experience", "base", "", {}, "")
-        self.assertEqual(len(tags), 12)
+        self.assertEqual(len(tags), 14)
         self.assertIn("slack_channel:agent-developer-experience", tags)
 
     @patch.dict("os.environ", {"CI_PIPELINE_ID": "1664"})
@@ -108,7 +108,7 @@ class TestSetTag(unittest.TestCase):
             ["upload_option.os_version_from_name"],
             "kitchen-rspec-win2016-azure-x86_64.xml",
         )
-        self.assertEqual(len(tags), 16)
+        self.assertEqual(len(tags), 18)
         self.assertIn("e2e_internal_error:true", tags)
         self.assertIn("version:win2016", tags)
         self.assertNotIn("upload_option.os_version_from_name", tags)
@@ -120,7 +120,7 @@ class TestSetTag(unittest.TestCase):
         mock_instance.pipelines.get.return_value = MagicMock()
         mock_gitlab.return_value = mock_instance
         tags = junit.set_tags("agent-ci-experience", "base", "", ["--tags", "simple:basique"], "")
-        self.assertEqual(len(tags), 14)
+        self.assertEqual(len(tags), 16)
         self.assertIn("simple:basique", tags)
 
 
