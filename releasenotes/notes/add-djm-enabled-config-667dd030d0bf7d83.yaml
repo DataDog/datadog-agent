@@ -8,4 +8,4 @@
 ---
 features:
   - |
-    Add new parameter `djm_config.enabled` to enable Data Jobs Monitoring
+    Add new parameter ``djm_config.enabled`` to enable Data Jobs Monitoring
