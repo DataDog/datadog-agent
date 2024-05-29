@@ -19,6 +19,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/test-infra-definitions/common/utils"
 	"github.com/DataDog/test-infra-definitions/components/datadog/agent"
 	"github.com/DataDog/test-infra-definitions/components/datadog/dockeragentparams"
 	"github.com/DataDog/test-infra-definitions/components/docker"
@@ -101,7 +102,12 @@ func snmpDockerProvisioner() e2e.Provisioner {
 			return err
 		}
 
-		dockerManager, err := docker.NewManager(&awsEnv, host)
+		installEcrCredsHelperCmd, err := ec2.InstallECRCredentialsHelper(awsEnv, host)
+		if err != nil {
+			return err
+		}
+
+		dockerManager, err := docker.NewManager(&awsEnv, host, utils.PulumiDependsOn(installEcrCredsHelperCmd))
 		if err != nil {
 			return err
 		}
