@@ -111,7 +111,12 @@ func NewComponent(reqs Requires) (Provides, error) {
 	}, nil
 }
 
-func (c *collectorImpl) start(context.Context) error {
+func (c *collectorImpl) start(ctx context.Context) error {
+	// Dry run the collector pipeline to ensure it is configured correctly
+	err := c.col.DryRun(ctx)
+	if err != nil {
+		return err
+	}
 	go func() {
 		if err := c.col.Run(context.Background()); err != nil {
 			c.log.Errorf("Error running the collector pipeline: %v", err)
