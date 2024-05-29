@@ -40,12 +40,12 @@ var (
 func EnvVarFilterFromConfig() EnvFilter {
 	envFilterOnce.Do(func() {
 		configEnvVars := make([]string, 0)
-		dockerEnvs := config.Datadog.GetStringMapString("docker_env_as_tags")
+		dockerEnvs := config.Datadog().GetStringMapString("docker_env_as_tags")
 		for envName := range dockerEnvs {
 			configEnvVars = append(configEnvVars, envName)
 		}
 
-		containerEnvs := config.Datadog.GetStringMapString("container_env_as_tags")
+		containerEnvs := config.Datadog().GetStringMapString("container_env_as_tags")
 		for envName := range containerEnvs {
 			configEnvVars = append(configEnvVars, envName)
 		}

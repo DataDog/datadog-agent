@@ -40,7 +40,7 @@ func Apply(ctx *pulumi.Context) error {
 
 	// Deploy testing workload
 	if awsEnv.TestingWorkloadDeploy() {
-		if _, err := redis.K8sAppDefinition(awsEnv, kindKubeProvider, "workload-redis", agentDependency); err != nil {
+		if _, err := redis.K8sAppDefinition(awsEnv, kindKubeProvider, "workload-redis", true, agentDependency); err != nil {
 			return fmt.Errorf("failed to install redis: %w", err)
 		}
 	}

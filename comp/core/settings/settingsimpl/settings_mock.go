@@ -12,6 +12,7 @@ import (
 
 	"go.uber.org/fx"
 
+	"github.com/DataDog/datadog-agent/comp/api/api"
 	"github.com/DataDog/datadog-agent/comp/core/settings"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -24,10 +25,33 @@ func MockModule() fxutil.Module {
 	)
 }
 
+// MockProvides is the mock component output
+type MockProvides struct {
+	fx.Out
+
+	Comp         settings.Component
+	FullEndpoint api.AgentEndpointProvider
+	ListEndpoint api.AgentEndpointProvider
+	GetEndpoint  api.AgentEndpointProvider
+	SetEndpoint  api.AgentEndpointProvider
+}
+
 type mock struct{}
 
-func newMock() settings.Component {
-	return mock{}
+func newMock() MockProvides {
+	m := mock{}
+	return MockProvides{
+		Comp:         m,
+		FullEndpoint: api.NewAgentEndpointProvider(m.handlerFunc, "/config", "GET"),
+		ListEndpoint: api.NewAgentEndpointProvider(m.handlerFunc, "/config/list-runtime", "GET"),
+		GetEndpoint:  api.NewAgentEndpointProvider(m.handlerFunc, "/config/{setting}", "GET"),
+		SetEndpoint:  api.NewAgentEndpointProvider(m.handlerFunc, "/config/{setting}", "POST"),
+	}
+}
+
+// ServeHTTP is a simple mocked http.Handler function
+func (m mock) handlerFunc(w http.ResponseWriter, _ *http.Request) {
+	w.Write([]byte("OK"))
 }
 
 // RuntimeSettings returns all runtime configurable settings
@@ -51,10 +75,10 @@ func (m mock) GetFullConfig(...string) http.HandlerFunc {
 }
 
 // GetValue allows to retrieve the runtime setting
-func (m mock) GetValue(string, http.ResponseWriter, *http.Request) {}
+func (m mock) GetValue(http.ResponseWriter, *http.Request) {}
 
 // SetValue allows to modify the runtime setting
-func (m mock) SetValue(string, http.ResponseWriter, *http.Request) {}
+func (m mock) SetValue(http.ResponseWriter, *http.Request) {}
 
 // ListConfigurable returns the list of configurable setting at runtime
 func (m mock) ListConfigurable(http.ResponseWriter, *http.Request) {}

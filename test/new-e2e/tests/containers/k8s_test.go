@@ -1071,6 +1071,8 @@ func (suite *k8sSuite) TestContainerLifecycleEvents() {
 	suite.Require().EventuallyWithTf(func(c *assert.CollectT) {
 		pods, err := suite.K8sClient.CoreV1().Pods("workload-nginx").List(context.Background(), metav1.ListOptions{
 			LabelSelector: fields.OneTermEqualSelector("app", "nginx").String(),
+			FieldSelector: fields.OneTermEqualSelector("status.phase", "Running").String(),
+			Limit:         1,
 		})
 		// Can be replaced by require.NoErrorf(…) once https://github.com/stretchr/testify/pull/1481 is merged
 		if !assert.NoErrorf(c, err, "Failed to list nginx pods") {

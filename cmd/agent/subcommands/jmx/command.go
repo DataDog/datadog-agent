@@ -51,7 +51,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/pidmap"
-	"github.com/DataDog/datadog-agent/comp/dogstatsd/replay"
+	replay "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/def"
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
 	serverdebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver"
@@ -314,7 +314,7 @@ func runJmxCommandConsole(config config.Component,
 	// This prevents log-spam from "comp/core/workloadmeta/collectors/internal/remote/process_collector/process_collector.go"
 	// It appears that this collector creates some contention in AD.
 	// Disabling it is both more efficient and gets rid of this log spam
-	pkgconfig.Datadog.Set("language_detection.enabled", "false", model.SourceAgentRuntime)
+	pkgconfig.Datadog().Set("language_detection.enabled", "false", model.SourceAgentRuntime)
 
 	senderManager, err := diagnoseSendermanager.LazyGetSenderManager()
 	if err != nil {

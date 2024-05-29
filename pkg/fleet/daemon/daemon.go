@@ -21,7 +21,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/client"
-	"github.com/DataDog/datadog-agent/pkg/config/utils"
+	"github.com/DataDog/datadog-agent/pkg/fleet/env"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer"
 	installerErrors "github.com/DataDog/datadog-agent/pkg/fleet/installer/errors"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
@@ -61,12 +61,8 @@ type daemonImpl struct {
 	requestsWG    sync.WaitGroup
 }
 
-func newInstaller(config config.Reader, installerBin string) installer.Installer {
-	registry := config.GetString("updater.registry")
-	registryAuth := config.GetString("updater.registry_auth")
-	apiKey := utils.SanitizeAPIKey(config.GetString("api_key"))
-	site := config.GetString("site")
-	return exec.NewInstallerExec(installerBin, registry, registryAuth, apiKey, site)
+func newInstaller(env *env.Env, installerBin string) installer.Installer {
+	return exec.NewInstallerExec(env, installerBin)
 }
 
 // NewDaemon returns a new daemon.
@@ -83,9 +79,9 @@ func NewDaemon(rcFetcher client.ConfigFetcher, config config.Reader) (Daemon, er
 	if err != nil {
 		return nil, fmt.Errorf("could not create remote config client: %w", err)
 	}
-	installer := newInstaller(config, installerBin)
-	remoteUpdates := config.GetBool("updater.remote_updates")
-	return newDaemon(rc, installer, remoteUpdates), nil
+	env := env.FromConfig(config)
+	installer := newInstaller(env, installerBin)
+	return newDaemon(rc, installer, env.RemoteUpdates), nil
 }
 
 func newDaemon(rc *remoteConfig, installer installer.Installer, remoteUpdates bool) *daemonImpl {

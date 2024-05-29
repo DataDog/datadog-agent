@@ -8,6 +8,11 @@
 #include "events_context.h"
 #include "process.h"
 
+struct syscall_monitor_key_t {
+    u32 type;
+    u32 pid;
+};
+
 struct syscall_monitor_entry_t {
     char syscalls[SYSCALL_ENCODING_TABLE_SIZE];
     u64 last_sent;
@@ -29,6 +34,7 @@ struct syscall_cache_t {
     u64 type;
     u8 discarded;
     u8 async;
+    u32 ctx_id;
 
     struct dentry_resolver_input_t resolver;
 
