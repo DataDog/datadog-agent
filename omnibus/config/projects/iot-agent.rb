@@ -87,7 +87,7 @@ end
 # On armv7, dpkg is built as a 32bits application, which means
 # we can only address 32 bits of memory, which is likely to OOM
 # if we use too many compression threads or a too agressive level
-if ENV.has_key?("DEPLOY_AGENT") && ENV["DEPLOY_AGENT"] == "true" && (!ENV.has_key?("PACKAGE_ARCH") || ENV["PACKAGE_ARCH"] != "armhf")
+if ENV.has_key?("DEPLOY_AGENT") && ENV["DEPLOY_AGENT"] == "true" && !ENV.has_key?("FORCE_REDUCED_COMPRESSION")
   COMPRESSION_LEVEL = 9
 else
   COMPRESSION_LEVEL = 5
