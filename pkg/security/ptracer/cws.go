@@ -230,7 +230,6 @@ func StartCWSPtracer(args []string, envs []string, probeAddr string, opts Opts) 
 
 	var (
 		msgDataChan    = make(chan []byte, 100000)
-		traceChan      = make(chan bool)
 		ctx, cancelFnc = context.WithCancel(context.Background())
 		seq            = atomic.NewUint64(0)
 	)
@@ -267,9 +266,6 @@ func StartCWSPtracer(args []string, envs []string, probeAddr string, opts Opts) 
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-
-		// start tracing
-		traceChan <- true
 
 		if probeAddr != "" {
 		LOOP:
@@ -503,8 +499,6 @@ func StartCWSPtracer(args []string, envs []string, probeAddr string, opts Opts) 
 			pc.Remove(process)
 		}
 	}
-
-	<-traceChan
 
 	defer func() {
 		// stop client and msg chan reader
