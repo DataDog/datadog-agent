@@ -211,7 +211,6 @@ int kprobe__tcp_close(struct pt_regs *ctx) {
     // Get network namespace id
     log_debug("kprobe/tcp_close: tgid: %llu, pid: %llu", pid_tgid >> 32, pid_tgid & 0xFFFFFFFF);
     if (!read_conn_tuple(&t, sk, pid_tgid, CONN_TYPE_TCP)) {
-        log_debug("kprobe/tcp_close: err");
         return 0;
     }
     log_debug("kprobe/tcp_close: netns: %u, sport: %u, dport: %u", t.netns, t.sport, t.dport);
@@ -251,16 +250,12 @@ int kprobe__tcp_done(struct pt_regs *ctx) {
     }
 
     log_debug("kprobe/tcp_done: tgid: %llu, pid: %llu", pid_tgid >> 32, pid_tgid & 0xFFFFFFFF);
-
     if (!read_conn_tuple(&t, sk, pid_tgid, CONN_TYPE_TCP)) {
-        log_debug("kprobe/tcp_done: err");
         return 0;
     }
-
-    cleanup_conn(ctx, &t, sk);
-
     log_debug("kprobe/tcp_done: netns: %u, sport: %u, dport: %u", t.netns, t.sport, t.dport);
 
+    cleanup_conn(ctx, &t, sk);
     flush_tcp_failure(ctx, &t, err);
 
     return 0;
