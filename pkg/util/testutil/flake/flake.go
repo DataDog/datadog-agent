@@ -25,10 +25,10 @@ var skipFlake = flag.Bool("skip-flake", false, "skip tests labeled as flakes")
 // Otherwise test will be marked as known flake through a special message on tests output.
 func Mark(t testing.TB) {
 	t.Helper()
-	// if !shouldSkipFlake() {
-	// 	t.Skip("flakytest: skip known flaky test")
-	// 	return
-	// }
+	if shouldSkipFlake() {
+		t.Skip("flakytest: skip known flaky test")
+		return
+	}
 	t.Log(flakyTestMessage)
 }
 
