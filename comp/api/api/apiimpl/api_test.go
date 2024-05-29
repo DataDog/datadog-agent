@@ -46,12 +46,12 @@ import (
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcservicemrf"
 
 	// package dependencies
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
+
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 
 	// third-party dependencies
-	"github.com/stretchr/testify/assert"
+
 	"go.uber.org/fx"
 )
 
@@ -143,18 +143,4 @@ func getTestAPIServer(deps testdeps) api.Component {
 		EndpointProviders: deps.EndpointProviders,
 	}
 	return newAPIServer(apideps)
-}
-
-func TestStartServer(t *testing.T) {
-	deps := getComponentDependencies(t)
-
-	sender := aggregator.NewNoOpSenderManager()
-
-	srv := getTestAPIServer(deps)
-	err := srv.StartServer(
-		sender,
-	)
-	defer srv.StopServer()
-
-	assert.NoError(t, err, "could not start api component servers: %v", err)
 }

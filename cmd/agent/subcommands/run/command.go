@@ -488,7 +488,7 @@ func startAgent(
 	_ serializer.MetricSerializer,
 	_ otelcollector.Component,
 	demultiplexer demultiplexer.Component,
-	agentAPI internalAPI.Component,
+	_ internalAPI.Component,
 	invChecks inventorychecks.Component,
 	_ status.Component,
 	collector collector.Component,
