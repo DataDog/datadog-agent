@@ -46,10 +46,11 @@ repos:
     - id: copyright
       name: copyright
       description: copyright headers
-      entry: 'python3 -m tasks.git-hooks.copyright'
+      entry: 'inv linter.copyrights --only-modified-files'
       language: system
       require_serial: true
       files: \.go$
+      pass_filenames: false
     - id: win-clang-format
       name: win-clang-format
       description: clang-format
