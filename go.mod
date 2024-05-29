@@ -266,15 +266,15 @@ require (
 	go.etcd.io/bbolt v1.3.9
 	go.etcd.io/etcd/client/v2 v2.306.0-alpha.0
 	go.mongodb.org/mongo-driver v1.15.0
-	go.opentelemetry.io/collector v0.101.0 // indirect
-	go.opentelemetry.io/collector/component v0.101.0
-	go.opentelemetry.io/collector/confmap v0.101.0
-	go.opentelemetry.io/collector/exporter v0.101.0
+	go.opentelemetry.io/collector v0.100.0 // indirect
+	go.opentelemetry.io/collector/component v0.100.0
+	go.opentelemetry.io/collector/confmap v0.100.0
+	go.opentelemetry.io/collector/exporter v0.100.0
 	go.opentelemetry.io/collector/exporter/loggingexporter v0.100.0
 	go.opentelemetry.io/collector/exporter/otlpexporter v0.100.0
 	go.opentelemetry.io/collector/pdata v1.8.0
 	go.opentelemetry.io/collector/processor/batchprocessor v0.100.0
-	go.opentelemetry.io/collector/receiver v0.101.0
+	go.opentelemetry.io/collector/receiver v0.100.0
 	go.opentelemetry.io/collector/receiver/otlpreceiver v0.100.0
 	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.51.0 // indirect
 	go.uber.org/atomic v1.11.0
@@ -709,16 +709,16 @@ require (
 	github.com/swaggest/jsonschema-go v0.3.64
 	github.com/valyala/fastjson v1.6.4
 	github.com/vibrantbyte/go-antpath v1.1.1
-	go.opentelemetry.io/collector/confmap/converter/expandconverter v0.101.0
-	go.opentelemetry.io/collector/confmap/provider/envprovider v0.101.0
-	go.opentelemetry.io/collector/confmap/provider/fileprovider v0.101.0
-	go.opentelemetry.io/collector/confmap/provider/httpprovider v0.101.0
-	go.opentelemetry.io/collector/confmap/provider/httpsprovider v0.101.0
-	go.opentelemetry.io/collector/confmap/provider/yamlprovider v0.101.0
-	go.opentelemetry.io/collector/extension v0.101.0
+	go.opentelemetry.io/collector/confmap/converter/expandconverter v0.100.0
+	go.opentelemetry.io/collector/confmap/provider/envprovider v0.100.0
+	go.opentelemetry.io/collector/confmap/provider/fileprovider v0.100.0
+	go.opentelemetry.io/collector/confmap/provider/httpprovider v0.100.0
+	go.opentelemetry.io/collector/confmap/provider/httpsprovider v0.100.0
+	go.opentelemetry.io/collector/confmap/provider/yamlprovider v0.100.0
+	go.opentelemetry.io/collector/extension v0.100.0
 	go.opentelemetry.io/collector/otelcol v0.100.0
-	go.opentelemetry.io/collector/processor v0.101.0
-	go.opentelemetry.io/collector/service v0.101.0
+	go.opentelemetry.io/collector/processor v0.100.0
+	go.opentelemetry.io/collector/service v0.100.0
 	go.uber.org/goleak v1.3.0
 	go4.org/intern v0.0.0-20230525184215-6c62f75575cb
 	go4.org/mem v0.0.0-20220726221520-4f986261bf13
@@ -1137,13 +1137,13 @@ require (
 	go.opentelemetry.io/collector/config/configtelemetry v0.101.0 // indirect
 	go.opentelemetry.io/collector/config/configtls v0.100.0 // indirect
 	go.opentelemetry.io/collector/config/internal v0.100.0 // indirect
-	go.opentelemetry.io/collector/connector v0.101.0 // indirect
+	go.opentelemetry.io/collector/connector v0.100.0 // indirect
 	go.opentelemetry.io/collector/connector/forwardconnector v0.100.0 // indirect
 	go.opentelemetry.io/collector/exporter/debugexporter v0.100.0 // indirect
 	go.opentelemetry.io/collector/exporter/otlphttpexporter v0.100.0 // indirect
 	go.opentelemetry.io/collector/extension/auth v0.100.0 // indirect
 	go.opentelemetry.io/collector/extension/ballastextension v0.100.0 // indirect
-	go.opentelemetry.io/collector/extension/zpagesextension v0.101.0 // indirect
+	go.opentelemetry.io/collector/extension/zpagesextension v0.100.0 // indirect
 	go.opentelemetry.io/collector/filter v0.100.0 // indirect
 	go.opentelemetry.io/collector/pdata/testdata v0.101.0 // indirect
 	go.opentelemetry.io/collector/processor/memorylimiterprocessor v0.100.0 // indirect
