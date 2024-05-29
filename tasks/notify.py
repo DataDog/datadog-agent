@@ -465,8 +465,15 @@ def send_failure_summary_notification(_, list_max_len=10):
             stats[name][1] = stats[name][0] + success
 
     # List of (job_name, failure_count) ordered by failure_count
-    stats = sorted(stats.items(), key=lambda x: (x[1][0], x[1][1] if x[1][1] is not None else 0), reverse=True)[:list_max_len]
-    message = 'These jobs have the most failures in the last 24 hours:'
+    stats = sorted(((name, (fail, success)) for (name, (fail, success)) in stats.items() if fail > 0), key=lambda x: (x[1][0], x[1][1] if x[1][1] is not None else 0), reverse=True)[:list_max_len]
+
+    # Don't send message if no failure
+    if len(stats) == 0:
+        return
+
+    # Create message
+    message = '*Daily Job Failure Report*'
+    message += '\nThese jobs have the most failures in the last 24 hours:'
     for name, (fail, total) in stats:
         link = CI_VISIBILITY_JOB_URL.format(name.replace(' ', '%20'))
         if total is None:
