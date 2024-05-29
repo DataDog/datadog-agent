@@ -19,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
+	"github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
 	"github.com/DataDog/datadog-agent/comp/process/agent"
 	"github.com/DataDog/datadog-agent/comp/process/hostinfo/hostinfoimpl"
 	"github.com/DataDog/datadog-agent/comp/process/processcheck/processcheckimpl"
@@ -26,7 +27,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/process/submitter/submitterimpl"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
 	checkMocks "github.com/DataDog/datadog-agent/pkg/process/checks/mocks"
-	"github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
