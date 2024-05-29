@@ -265,7 +265,7 @@ class TestRetrieveJobExecutionsCreated(unittest.TestCase):
     def test_retrieved(self):
         ctx = MockContext(run=Result("test"))
         j = notify.retrieve_job_executions(ctx, "job_executions.json")
-        self.assertDictEqual(j.to_json(), self.job_executions.to_json())
+        self.assertDictEqual(j.to_dict(), self.job_executions.to_dict())
 
 
 class TestRetrieveJobExecutions(unittest.TestCase):
@@ -295,7 +295,7 @@ class TestUpdateStatistics(unittest.TestCase):
         ]
         os.environ["CI_COMMIT_SHA"] = "abcdef42"
         ok = {"id": None, "failing": False, 'commit': 'abcdef42'}
-        j = notify.PipelineRuns.from_json(
+        j = notify.PipelineRuns.from_dict(
             {
                 "jobs": {
                     "nafnaf": {
@@ -350,7 +350,7 @@ class TestUpdateStatistics(unittest.TestCase):
             ProjectJob(MagicMock(), attrs=a | {"id": 42, 'commit': 'abcdef42'})
             for a in [{"name": "poulidor"}, {"name": "virenque"}, {"name": "bardet"}]
         ]
-        j = notify.PipelineRuns.from_json(
+        j = notify.PipelineRuns.from_dict(
             {
                 "jobs": {
                     "poulidor": {

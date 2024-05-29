@@ -50,7 +50,7 @@ class ExecutionsJobInfo:
     def url(self):
         return f'{BASE_URL}/DataDog/datadog-agent/-/jobs/{self.job_id}'
 
-    def to_json(self):
+    def to_dict(self):
         return {"id": self.job_id, "failing": self.failing, "commit": self.commit}
 
     @staticmethod
@@ -58,8 +58,8 @@ class ExecutionsJobInfo:
         return f'https://app.datadoghq.com/ci/pipeline-executions?query=ci_level%3Ajob%20%40ci.pipeline.name%3ADataDog%2Fdatadog-agent%20%40git.branch%3Amain%20%40ci.job.name%3A{name}&agg_m=count'
 
     @staticmethod
-    def from_json(json):
-        return ExecutionsJobInfo(json["id"], json["failing"], json["commit"])
+    def from_dict(data):
+        return ExecutionsJobInfo(data["id"], data["failing"], data["commit"])
 
 
 class ExecutionsJobSummary:
@@ -67,17 +67,17 @@ class ExecutionsJobSummary:
         self.consecutive_failures = consecutive_failures
         self.jobs_info = jobs_info
 
-    def to_json(self):
+    def to_dict(self):
         return {
             "consecutive_failures": self.consecutive_failures,
-            "jobs_info": [info.to_json() for info in self.jobs_info],
+            "jobs_info": [info.to_dict() for info in self.jobs_info],
         }
 
     @staticmethod
-    def from_json(json):
+    def from_dict(data):
         return ExecutionsJobSummary(
-            json["consecutive_failures"],
-            [ExecutionsJobInfo.from_json(failure) for failure in json["jobs_info"]],
+            data["consecutive_failures"],
+            [ExecutionsJobInfo.from_dict(failure) for failure in data["jobs_info"]],
         )
 
 
@@ -89,19 +89,19 @@ class PipelineRuns:
     def add_execution(self, name: str, execution: ExecutionsJobSummary):
         self.jobs[name] = execution
 
-    def to_json(self):
-        return {"pipeline_id": self.pipeline_id, "jobs": {name: job.to_json() for name, job in self.jobs.items()}}
+    def to_dict(self):
+        return {"pipeline_id": self.pipeline_id, "jobs": {name: job.to_dict() for name, job in self.jobs.items()}}
 
     @staticmethod
-    def from_json(json):
+    def from_dict(data):
         job_executions = PipelineRuns()
-        job_executions.jobs = {name: ExecutionsJobSummary.from_json(job) for name, job in json["jobs"].items()}
-        job_executions.pipeline_id = json.get("pipeline_id", 0)
+        job_executions.jobs = {name: ExecutionsJobSummary.from_dict(job) for name, job in data["jobs"].items()}
+        job_executions.pipeline_id = data.get("pipeline_id", 0)
 
         return job_executions
 
     def __repr__(self) -> str:
-        return f"Executions({self.to_json()})"
+        return f"Executions({self.to_dict()})"
 
 
 class CumulativeJobAlert:
@@ -359,7 +359,7 @@ def check_consistent_failures(ctx, job_failures_file="job_executions.v2.json"):
 
     # Upload document
     with open(job_failures_file, "w") as f:
-        json.dump(job_executions.to_json(), f)
+        json.dump(job_executions.to_dict(), f)
     ctx.run(
         f"{AWS_S3_CP_CMD} {job_failures_file} {S3_CI_BUCKET_URL}/{job_failures_file} ",
         hide="stdout",
@@ -377,7 +377,7 @@ def retrieve_job_executions(ctx, job_failures_file):
         )
         with open(job_failures_file) as f:
             job_executions = json.load(f)
-        job_executions = PipelineRuns.from_json(job_executions)
+        job_executions = PipelineRuns.from_dict(job_executions)
     except UnexpectedExit as e:
         if "404" in e.result.stderr:
             job_executions = create_initial_job_executions(job_failures_file)
@@ -389,7 +389,7 @@ def retrieve_job_executions(ctx, job_failures_file):
 def create_initial_job_executions(job_failures_file):
     job_executions = PipelineRuns()
     with open(job_failures_file, "w") as f:
-        json.dump(job_executions.to_json(), f)
+        json.dump(job_executions.to_dict(), f)
     return job_executions
 
 
