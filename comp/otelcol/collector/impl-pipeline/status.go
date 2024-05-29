@@ -18,7 +18,7 @@ import (
 //go:embed status_templates
 var templatesFS embed.FS
 
-func (c *collector) getStatusInfo() map[string]interface{} {
+func (c *collectorImpl) getStatusInfo() map[string]interface{} {
 	stats := make(map[string]interface{})
 
 	c.populateStatus(stats)
@@ -26,9 +26,9 @@ func (c *collector) getStatusInfo() map[string]interface{} {
 	return stats
 }
 
-func (c *collector) populateStatus(stats map[string]interface{}) {
+func (c *collectorImpl) populateStatus(stats map[string]interface{}) {
 	otlpStatus := make(map[string]interface{})
-	otlpIsEnabled := otlp.IsEnabled(c.deps.Config)
+	otlpIsEnabled := otlp.IsEnabled(c.config)
 
 	var otlpCollectorStatus otlp.CollectorStatus
 
@@ -45,28 +45,28 @@ func (c *collector) populateStatus(stats map[string]interface{}) {
 }
 
 // Name returns the name
-func (c *collector) Name() string {
+func (c *collectorImpl) Name() string {
 	return "OTLP"
 }
 
 // Name returns the section
-func (c *collector) Section() string {
+func (c *collectorImpl) Section() string {
 	return "OTLP"
 }
 
 // JSON populates the status map
-func (c *collector) JSON(_ bool, stats map[string]interface{}) error {
+func (c *collectorImpl) JSON(_ bool, stats map[string]interface{}) error {
 	c.populateStatus(stats)
 
 	return nil
 }
 
 // Text renders the text output
-func (c *collector) Text(_ bool, buffer io.Writer) error {
+func (c *collectorImpl) Text(_ bool, buffer io.Writer) error {
 	return status.RenderText(templatesFS, "otlp.tmpl", buffer, c.getStatusInfo())
 }
 
 // HTML renders the html output
-func (c *collector) HTML(_ bool, _ io.Writer) error {
+func (c *collectorImpl) HTML(_ bool, _ io.Writer) error {
 	return nil
 }
