@@ -14,6 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	corelog "github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/status"
+	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
 	collector "github.com/DataDog/datadog-agent/comp/otelcol/collector/def"
@@ -51,6 +52,8 @@ type Requires struct {
 
 	// InventoryAgent require the inventory metadata payload, allowing otelcol to add data to it.
 	InventoryAgent inventoryagent.Component
+
+	Tagger tagger.Component
 }
 
 // Provides specifics the types returned by the constructor
@@ -68,6 +71,7 @@ type collectorImpl struct {
 	serializer     serializer.MetricSerializer
 	logsAgent      optional.Option[logsagentpipeline.Component]
 	inventoryAgent inventoryagent.Component
+	tagger         tagger.Component
 }
 
 func (c *collectorImpl) start(context.Context) error {
@@ -83,7 +87,7 @@ func (c *collectorImpl) start(context.Context) error {
 		}
 	}
 	var err error
-	col, err := otlp.NewPipelineFromAgentConfig(c.config, c.serializer, logch)
+	col, err := otlp.NewPipelineFromAgentConfig(c.config, c.serializer, logch, c.tagger)
 	if err != nil {
 		// failure to start the OTLP component shouldn't fail startup
 		c.log.Errorf("Error creating the OTLP ingest pipeline: %v", err)
@@ -121,6 +125,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 		serializer:     reqs.Serializer,
 		logsAgent:      reqs.LogsAgent,
 		inventoryAgent: reqs.InventoryAgent,
+		tagger:         reqs.Tagger,
 	}
 
 	reqs.Lc.Append(compdef.Hook{
