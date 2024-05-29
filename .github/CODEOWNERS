@@ -206,12 +206,8 @@
 /Dockerfiles/agent/windows/              @DataDog/container-integrations @DataDog/windows-agent
 
 /docs/                                  @DataDog/documentation @DataDog/agent-developer-tools
-/docs/agent/                            @DataDog/documentation @DataDog/agent-shared-components
-/docs/trace-agent/                      @DataDog/documentation @DataDog/agent-apm
-/docs/cluster-agent/                    @DataDog/documentation @DataDog/container-platform
 /docs/dev/checks/                       @DataDog/documentation @DataDog/agent-metrics-logs
 /docs/cloud-workload-security/          @DataDog/documentation @DataDog/agent-security
-/docs/serverless                        @DataDog/documentation @DataDog/serverless
 
 /docs/public/components/                                     @DataDog/documentation @DataDog/agent-shared-components
 /docs/public/architecture/dogstatsd/                         @DataDog/documentation @DataDog/agent-metrics-logs
@@ -417,6 +413,7 @@
 /pkg/util/pdhutil/                      @DataDog/windows-agent
 /pkg/util/winutil/                      @DataDog/windows-agent
 /pkg/util/testutil/flake                @DataDog/agent-developer-tools
+/pkg/util/trie                          @DataDog/container-integrations
 /pkg/languagedetection                  @DataDog/processes @DataDog/universal-service-monitoring
 /pkg/logs/                              @DataDog/agent-metrics-logs
 /pkg/logs/launchers/windowsevent        @DataDog/agent-metrics-logs @DataDog/windows-agent

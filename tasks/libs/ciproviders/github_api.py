@@ -1,9 +1,13 @@
 from __future__ import annotations
 
 import base64
+import json
 import os
 import platform
 import subprocess
+from functools import lru_cache
+
+import requests
 
 try:
     from github import Auth, Github, GithubException, GithubIntegration, GithubObject
@@ -28,6 +32,7 @@ class GithubAPI:
         self._github = Github(auth=self._auth)
         self._repository = self._github.get_repo(repository)
 
+    @property
     def repo(self):
         """
         Gets the repo info.
@@ -236,6 +241,10 @@ class GithubAPI:
 
         return [f.filename for f in pr.get_files()]
 
+    def is_organization_member(self, user):
+        organization = self._repository.organization
+        return (user.company and 'datadog' in user.company.casefold()) or organization.has_in_members(user)
+
     def _chose_auth(self, public_repo):
         """
         Attempt to find a working authentication, in order:
@@ -300,3 +309,32 @@ class GithubAPI:
         install_id = installations[0].id
         auth_token = integration.get_access_token(install_id)
         print(auth_token.token)
+
+
+def get_github_teams(users):
+    for user in users:
+        yield from query_teams(user.login)
+
+
+@lru_cache
+def query_teams(login):
+    query = get_user_query(login)
+    headers = {"Authorization": f"Bearer {os.environ['GITHUB_TOKEN']}", "Content-Type": "application/json"}
+    response = requests.post("https://api.github.com/graphql", headers=headers, data=query)
+    data = response.json()
+    teams = []
+    try:
+        if data["data"]["user"]["organization"] and data["data"]["user"]["organization"]["teams"]:
+            for team in data["data"]["user"]["organization"]["teams"]["nodes"]:
+                teams.append(team["slug"])
+    except KeyError:
+        print(f"Error for user {login}: {data}")
+        raise
+    return teams
+
+
+def get_user_query(login):
+    variables = {"login": login, "org": "datadog"}
+    query = '{"query": "query GetUserTeam($login: String!, $org: String!) { user(login: $login) {organization(login: $org) { teams(first:10, userLogins: [$login]){ nodes { slug } } } } }", '
+    string_var = f'"variables": {json.dumps(variables)}'
+    return query + string_var

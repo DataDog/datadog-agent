@@ -228,7 +228,7 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 				fx.Provide(func() packagesigning.Component { return nil }),
 				fx.Supply(optional.NewNoneOption[rcservice.Component]()),
 				fx.Supply(optional.NewNoneOption[rcservicemrf.Component]()),
-				fx.Provide(func() optional.Option[gui.Component] { return optional.NewNoneOption[gui.Component]() }),
+				fx.Supply(optional.NewNoneOption[gui.Component]()),
 				getPlatformModules(),
 				jmxloggerimpl.Module(),
 				fx.Supply(jmxloggerimpl.NewDisabledParams()),
