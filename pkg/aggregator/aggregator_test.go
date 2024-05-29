@@ -569,8 +569,8 @@ func TestTags(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			defer pkgconfig.Datadog.SetWithoutSource("basic_telemetry_add_container_tags", nil)
-			pkgconfig.Datadog.SetWithoutSource("basic_telemetry_add_container_tags", tt.tlmContainerTagsEnabled)
+			defer pkgconfig.Datadog().SetWithoutSource("basic_telemetry_add_container_tags", nil)
+			pkgconfig.Datadog().SetWithoutSource("basic_telemetry_add_container_tags", tt.tlmContainerTagsEnabled)
 			agg := NewBufferedAggregator(nil, nil, tt.hostname, time.Second)
 			agg.agentTags = tt.agentTags
 			agg.globalTags = tt.globalTags
@@ -580,9 +580,9 @@ func TestTags(t *testing.T) {
 }
 
 func TestTimeSamplerFlush(t *testing.T) {
-	pc := pkgconfig.Datadog.GetInt("dogstatsd_pipeline_count")
-	pkgconfig.Datadog.SetWithoutSource("dogstatsd_pipeline_count", 1)
-	defer pkgconfig.Datadog.SetWithoutSource("dogstatsd_pipeline_count", pc)
+	pc := pkgconfig.Datadog().GetInt("dogstatsd_pipeline_count")
+	pkgconfig.Datadog().SetWithoutSource("dogstatsd_pipeline_count", 1)
+	defer pkgconfig.Datadog().SetWithoutSource("dogstatsd_pipeline_count", pc)
 
 	s := &MockSerializerIterableSerie{}
 	s.On("SendServiceChecks", mock.Anything).Return(nil)

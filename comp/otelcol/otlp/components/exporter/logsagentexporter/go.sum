@@ -8,8 +8,8 @@ github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.14.0 h1:10TPq
 github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.14.0/go.mod h1:dvIWN9pA2zWNTw5rhDWZgzZnhcfpH++d+8d1SWW6xkY=
 github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/logs v0.14.0 h1:nma5ZICTbHZ0YoMu18ziWGSLK1ICzMm6rJTv+IatJ0U=
 github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/logs v0.14.0/go.mod h1:xUiGj13q5uHPboc0xZ754fyusiF5C2RxNzOFdTbdZFA=
-github.com/DataDog/viper v1.13.3 h1:0++798wZLEenL1JbF8dMmwFl6WMlAVxLtzVuws/LlVc=
-github.com/DataDog/viper v1.13.3/go.mod h1:wDdUVJ2SHaMaPrCZrlRCObwkubsX8j5sme3LaR/SGTc=
+github.com/DataDog/viper v1.13.4 h1:0SrZc3zvMAGgVKg96uP4DEJb13lK2Is9a4go7IIcFSE=
+github.com/DataDog/viper v1.13.4/go.mod h1:wDdUVJ2SHaMaPrCZrlRCObwkubsX8j5sme3LaR/SGTc=
 github.com/DataDog/zstd v1.5.5 h1:oWf5W7GtOLgp6bciQYDmhHHjdhYkALu6S/5Ni9ZgSvQ=
 github.com/DataDog/zstd v1.5.5/go.mod h1:g4AWEaM3yOg3HYfnJ3YIawPnVdXJh9QME85blwSAmyw=
 github.com/Microsoft/go-winio v0.6.1 h1:9/kr64B9VUZrLm5YYwbGtUJnMgqWVOdUAXu6Migciow=

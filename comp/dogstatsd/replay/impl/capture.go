@@ -85,7 +85,6 @@ func (tc *trafficCapture) StartCapture(p string, d time.Duration, compressed boo
 	go tc.writer.Capture(target, d, compressed)
 
 	return path, nil
-
 }
 
 // StopCapture stops an ongoing TrafficCapture.
@@ -126,7 +125,6 @@ func (tc *trafficCapture) defaultlocation() string {
 		location = path.Join(tc.config.GetString("run_path"), "dsd_capture")
 	}
 	return location
-
 }
 
 func (tc *trafficCapture) GetStartUpError() error {

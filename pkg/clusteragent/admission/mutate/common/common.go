@@ -179,16 +179,16 @@ func ShouldMutatePod(pod *corev1.Pod) bool {
 		}
 	}
 
-	return config.Datadog.GetBool("admission_controller.mutate_unlabelled")
+	return config.Datadog().GetBool("admission_controller.mutate_unlabelled")
 }
 
 // ContainerRegistry gets the container registry config using the specified
 // config option, and falls back to the default container registry if no webhook-
 // specific container registry is set.
 func ContainerRegistry(specificConfigOpt string) string {
-	if config.Datadog.IsSet(specificConfigOpt) {
-		return config.Datadog.GetString(specificConfigOpt)
+	if config.Datadog().IsSet(specificConfigOpt) {
+		return config.Datadog().GetString(specificConfigOpt)
 	}
 
-	return config.Datadog.GetString("admission_controller.container_registry")
+	return config.Datadog().GetString("admission_controller.container_registry")
 }

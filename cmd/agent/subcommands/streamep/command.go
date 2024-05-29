@@ -78,7 +78,7 @@ func streamRequest(url string, body []byte, onChunk func([]byte)) error {
 	c := util.GetClient(false)
 
 	// Set session token
-	e = util.SetAuthToken(pkgconfig.Datadog)
+	e = util.SetAuthToken(pkgconfig.Datadog())
 	if e != nil {
 		return e
 	}

@@ -62,16 +62,16 @@ func AssertFailedRun(t *testing.T, pcfg PipelineConfig, expected string) {
 }
 
 func TestStartPipeline(t *testing.T) {
-	config.Datadog.SetWithoutSource("hostname", "otlp-testhostname")
-	defer config.Datadog.SetWithoutSource("hostname", "")
+	config.Datadog().SetWithoutSource("hostname", "otlp-testhostname")
+	defer config.Datadog().SetWithoutSource("hostname", "")
 
 	pcfg := getTestPipelineConfig()
 	AssertSucessfulRun(t, pcfg)
 }
 
 func TestStartPipelineFromConfig(t *testing.T) {
-	config.Datadog.SetWithoutSource("hostname", "otlp-testhostname")
-	defer config.Datadog.SetWithoutSource("hostname", "")
+	config.Datadog().SetWithoutSource("hostname", "otlp-testhostname")
+	defer config.Datadog().SetWithoutSource("hostname", "")
 
 	// TODO (AP-1723): Disable changing the gRPC logger before re-enabling.
 	if runtime.GOOS == "windows" {
