@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"os"
 
+	providerdef "github.com/DataDog/datadog-agent/comp/otelcol/provider/def"
 	"go.opentelemetry.io/collector/confmap"
 	"go.opentelemetry.io/collector/confmap/converter/expandconverter"
 	"go.opentelemetry.io/collector/confmap/provider/envprovider"
@@ -20,14 +21,6 @@ import (
 	"go.opentelemetry.io/collector/otelcol"
 	"gopkg.in/yaml.v3"
 )
-
-// ExtendedConfigProvider implements the otelcol.ConfigProvider interface and
-// provides extra functions to expose the provided and enhanced configs.
-type ExtendedConfigProvider interface {
-	otelcol.ConfigProvider
-	GetProvidedConf() string
-	GetEnhancedConf() string
-}
 
 type configProvider struct {
 	base     otelcol.ConfigProvider
@@ -42,7 +35,7 @@ type confDump struct {
 var _ otelcol.ConfigProvider = (*configProvider)(nil)
 
 // currently only supports a single URI in the uris slice, and this URI needs to be a file path.
-func NewConfigProvider(uris []string) (ExtendedConfigProvider, error) {
+func NewConfigProvider(uris []string) (providerdef.ExtendedConfigProvider, error) {
 	ocp, err := otelcol.NewConfigProvider(newDefaultConfigProviderSettings(uris))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create configprovider: %w", err)
@@ -124,8 +117,8 @@ func (cp *configProvider) addEnhancedConf(conf *otelcol.Config) error {
 
 // GetProvidedConf returns a string representing the collector configuration passed
 // by the user. Should not be called concurrently with Get.
-// Note: the current implementation does not redact sensitive data (e.g. API Key). 
-// Once we are unblocked and are able to remove the hack, this will provide the config 
+// Note: the current implementation does not redact sensitive data (e.g. API Key).
+// Once we are unblocked and are able to remove the hack, this will provide the config
 // with any sensitive data redacted.
 func (cp *configProvider) GetProvidedConf() string {
 	return cp.confDump.provided
@@ -133,7 +126,7 @@ func (cp *configProvider) GetProvidedConf() string {
 
 // GetEnhancedConf returns a string representing the ehnhanced collector configuration.
 // Should not be called concurrently with Get.
-// Note: this is currently not supported. 
+// Note: this is currently not supported.
 func (cp *configProvider) GetEnhancedConf() string {
 	return cp.confDump.enhanced
 }

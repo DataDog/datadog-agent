@@ -3,9 +3,10 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
-package providerimpl
+package providerfx
 
 import (
+	providerimpl "github.com/DataDog/datadog-agent/comp/otelcol/provider/impl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 
 	"go.uber.org/fx"
@@ -14,5 +15,5 @@ import (
 // Module defines the fx options for this component.
 func Module() fxutil.Module {
 	return fxutil.Component(
-		fx.Provide(NewConfigProvider))
+		fx.Provide(providerimpl.NewConfigProvider))
 }
