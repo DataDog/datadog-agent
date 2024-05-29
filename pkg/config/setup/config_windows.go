@@ -25,7 +25,7 @@ var (
 	// DefaultProcessAgentLogFile is the default process-agent log file
 	DefaultProcessAgentLogFile = "C:\\ProgramData\\Datadog\\logs\\process-agent.log"
 	// DefaultOtelAgentLogFile is the default otel-agent log file
-	DefaultOtelAgentLogFile = "C:\\ProgramData\\Datadog\\logs\\otel-agent.log"
+	DefaultOTelAgentLogFile = "C:\\ProgramData\\Datadog\\logs\\otel-agent.log"
 
 	// defaultSystemProbeAddress is the default address to be used for connecting to the system probe
 	defaultSystemProbeAddress = "localhost:3333"
