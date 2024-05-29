@@ -448,7 +448,7 @@ def send_failure_summary_notification(_, list_max_len=10):
     jobs = os.environ["JOB_FAILURES"]
     jobs = json.loads(jobs)
 
-    # List of (job_name, failure_count) ordered by failure_count
+    # List of (job_name, (failure_count, total_count)) ordered by failure_count
     stats = sorted(
         ((name, (fail, success)) for (name, (fail, success)) in jobs.items() if fail > 0),
         key=lambda x: (x[1][0], x[1][1] if x[1][1] is not None else 0),
