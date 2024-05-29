@@ -364,12 +364,11 @@ func (pm *ProcessMonitor) Initialize(useEventStream bool) error {
 
 			pm.initCallbackRunner()
 
-			pm.processMonitorWG.Add(1)
-
 			if useEventStream {
 				return
 			}
 
+			pm.processMonitorWG.Add(1)
 			pm.done = make(chan struct{})
 			// Setting up the main loop
 			pm.netlinkDoneChannel = make(chan struct{})
