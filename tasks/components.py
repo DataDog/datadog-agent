@@ -467,10 +467,6 @@ def lint_fxutil_oneshot_test(_):
             if str(file).endswith("_test.go"):
                 continue
 
-            excluded_cmds = ["agentless-scanner"]
-            if file.parts[0] == "cmd" and file.parts[1] in excluded_cmds:
-                continue
-
             one_shot_count = file.read_text().count("fxutil.OneShot(")
             run_count = file.read_text().count("fxutil.Run(")
 
