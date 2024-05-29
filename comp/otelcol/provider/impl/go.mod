@@ -5,6 +5,7 @@ go 1.21.0
 replace github.com/DataDog/datadog-agent/comp/otelcol/provider/def => ../def
 
 require (
+	github.com/DataDog/datadog-agent/comp/otelcol/provider/def v0.0.0-00010101000000-000000000000
 	github.com/open-telemetry/opentelemetry-collector-contrib/exporter/datadogexporter v0.100.0
 	github.com/stretchr/testify v1.9.0
 	go.opentelemetry.io/collector/confmap v0.100.0

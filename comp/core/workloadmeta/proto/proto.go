@@ -146,6 +146,7 @@ func protoContainerFromWorkloadmetaContainer(container *workloadmeta.Container) 
 		Runtime:       protoRuntime,
 		State:         protoContainerState,
 		CollectorTags: container.CollectorTags,
+		CgroupPath:    container.CgroupPath,
 	}, nil
 }
 
@@ -611,6 +612,7 @@ func toWorkloadmetaContainer(protoContainer *pb.Container) (*workloadmeta.Contai
 		Runtime:       runtime,
 		State:         state,
 		CollectorTags: protoContainer.CollectorTags,
+		CgroupPath:    protoContainer.CgroupPath,
 	}, nil
 }
 
