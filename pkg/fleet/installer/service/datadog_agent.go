@@ -190,7 +190,7 @@ func stopOldAgentUnits(ctx context.Context) error {
 
 // removeOldAgentFiles removes old agent files
 func removeOldAgentFiles() error {
-	if oldAgentInstalled() {
+	if !oldAgentInstalled() {
 		return nil
 	}
 	return os.RemoveAll(pathOldAgent)
