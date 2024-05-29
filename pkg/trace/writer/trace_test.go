@@ -414,8 +414,6 @@ func BenchmarkSpanProto(b *testing.B) {
 }
 
 func BenchmarkSerialize(b *testing.B) {
-
-	//traceChunks := testutil.GetTestTraceChunks(10, 100, true)
 	for _, tt := range []struct {
 		name        string
 		traceChunks []*pb.TraceChunk
