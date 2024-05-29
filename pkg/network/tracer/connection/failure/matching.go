@@ -9,6 +9,7 @@ package failure
 
 import (
 	"fmt"
+	"strconv"
 	"sync"
 	"time"
 
@@ -25,7 +26,7 @@ var failureTelemetry = struct {
 	failedConnMatches telemetry.Counter
 }{
 	telemetry.NewCounter(telemetryModuleName, "failed_conn_orphans", []string{}, "Counter measuring the number of orphans after associating failed connections with a closed connection"),
-	telemetry.NewCounter(telemetryModuleName, "failed_conn_matches", []string{}, "Counter measuring the number of successful matches of failed connections with closed connections"),
+	telemetry.NewCounter(telemetryModuleName, "failed_conn_matches", []string{"type"}, "Counter measuring the number of successful matches of failed connections with closed connections"),
 }
 
 // FailedConnStats is a wrapper to help document the purpose of the underlying map
@@ -73,6 +74,7 @@ func (fc *FailedConns) MatchFailedConn(conn *network.ConnectionStats) {
 		conn.TCPFailures = make(map[uint32]uint32)
 
 		for errCode, count := range failedConn.CountByErrCode {
+			failureTelemetry.failedConnMatches.Add(1, strconv.Itoa(int(errCode)))
 			conn.TCPFailures[errCode] += count
 		}
 	}
