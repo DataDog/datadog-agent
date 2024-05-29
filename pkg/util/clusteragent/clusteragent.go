@@ -284,17 +284,19 @@ func GetClusterAgentEndpoint() (string, error) {
 // Version returns ClusterAgentVersion already stored in the DCAClient
 // It refreshes the cached version before returning it if withRefresh is true
 func (c *DCAClient) Version(withRefresh bool) version.Version {
-	c.clusterAgentClientLock.Lock()
-	defer c.clusterAgentClientLock.Unlock()
-
 	if withRefresh {
 		ver, err := c.getVersion()
 		if err != nil {
 			log.Errorf("failed to refresh cluster agent version")
 		} else {
+			c.clusterAgentClientLock.Lock()
 			c.clusterAgentVersion = ver
+			c.clusterAgentClientLock.Unlock()
 		}
 	}
+
+	c.clusterAgentClientLock.RLock()
+	defer c.clusterAgentClientLock.RUnlock()
 
 	return c.clusterAgentVersion
 }
