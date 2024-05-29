@@ -1,29 +1,93 @@
 ---
-.installer_package_deb_common:
-  before_script:
-    - source /root/.bashrc
-    - export RELEASE_VERSION=$RELEASE_VERSION_7
+.package_deb_common:
   stage: packaging
   script:
     - source /root/.bashrc
     - !reference [.setup_ruby_mirror_linux]
     - !reference [.cache_omnibus_ruby_deps, setup]
     - echo "About to package for $RELEASE_VERSION"
-    - export OMNIBUS_PACKAGE_ARTIFACT="$(ls ${OMNIBUS_PACKAGE_DIR}/*.tar.xz | head -n 1)"
-    - echo "Packaging artifact ${OMNIBUS_PACKAGE_ARTIFACT} to .deb"
     - !reference [.setup_deb_signing_key]
-    - inv -e omnibus.build --release-version "$RELEASE_VERSION" --base-dir $OMNIBUS_BASE_DIR --skip-deps --target-project installer
+    - inv -e omnibus.build --release-version "$RELEASE_VERSION" --major-version "$AGENT_MAJOR_VERSION" --base-dir $OMNIBUS_BASE_DIR --skip-deps --target-project ${DD_PROJECT} ${OMNIBUS_EXTRA_ARGS}
     - !reference [.lint_linux_packages]
-    - $S3_CP_CMD $OMNIBUS_PACKAGE_DIR/datadog-installer_*_${PACKAGE_ARCH}.deb $S3_ARTIFACTS_URI/$DESTINATION_DEB
+    - $S3_CP_CMD $OMNIBUS_PACKAGE_DIR/datadog-${DD_PROJECT}_*_${PACKAGE_ARCH}.deb $S3_ARTIFACTS_URI/$DESTINATION_DEB
   artifacts:
     expire_in: 2 weeks
     paths:
       - $OMNIBUS_PACKAGE_DIR
+  variables:
+    OMNIBUS_PACKAGE_ARTIFACT_DIR: $OMNIBUS_PACKAGE_DIR
+    KUBERNETES_CPU_REQUEST: 16
+    KUBERNETES_MEMORY_REQUEST: "32Gi"
+    KUBERNETES_MEMORY_LIMIT: "32Gi"
   cache:
     - !reference [.cache_omnibus_ruby_deps, cache]
 
+agent_deb-x64-a6:
+  extends: .package_deb_common
+  rules:
+    - !reference [.except_mergequeue]
+    - when: on_success
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  tags: ["arch:amd64"]
+  needs: ["datadog-agent-6-x64"]
+  variables:
+    PACKAGE_ARCH: amd64
+    DESTINATION_DEB: "datadog-agent_6_amd64.deb"
+    DD_PKG_ARCH: "x86_64"
+    DD_PROJECT: "agent"
+    RELEASE_VERSION: $RELEASE_VERSION_6
+    AGENT_MAJOR_VERSION: 6
+
+agent_deb-x64-a7:
+  extends: .package_deb_common
+  rules:
+    - !reference [.except_mergequeue]
+    - when: on_success
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  tags: ["arch:amd64"]
+  needs: ["datadog-agent-7-x64"]
+  variables:
+    PACKAGE_ARCH: amd64
+    DESTINATION_DEB: "datadog-agent_7_amd64.deb"
+    DD_PKG_ARCH: "x86_64"
+    DD_PROJECT: "agent"
+    RELEASE_VERSION: $RELEASE_VERSION_7
+    AGENT_MAJOR_VERSION: 7
+
+agent_deb-arm64-a6:
+  extends: .package_deb_common
+  rules:
+    - !reference [.except_mergequeue]
+    - when: on_success
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64$DATADOG_AGENT_ARMBUILDIMAGES_SUFFIX:$DATADOG_AGENT_ARMBUILDIMAGES
+  tags: ["arch:arm64"]
+  needs: ["datadog-agent-6-arm64"]
+  variables:
+    PACKAGE_ARCH: arm64
+    DESTINATION_DEB: "datadog-agent_6_arm64.deb"
+    DD_PKG_ARCH: "arm64"
+    DD_PROJECT: "agent"
+    RELEASE_VERSION: $RELEASE_VERSION_6
+    AGENT_MAJOR_VERSION: 6
+
+agent_deb-arm64-a7:
+  extends: .package_deb_common
+  rules:
+    - !reference [.except_mergequeue]
+    - when: on_success
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64$DATADOG_AGENT_ARMBUILDIMAGES_SUFFIX:$DATADOG_AGENT_ARMBUILDIMAGES
+  tags: ["arch:arm64"]
+  needs: ["datadog-agent-7-arm64"]
+  variables:
+    PACKAGE_ARCH: arm64
+    DESTINATION_DEB: "datadog-agent_7_arm64.deb"
+    DD_PKG_ARCH: "arm64"
+    DD_PROJECT: "agent"
+    RELEASE_VERSION: $RELEASE_VERSION_7
+    AGENT_MAJOR_VERSION: 7
+
 installer_deb-amd64:
-  extends: .installer_package_deb_common
+  extends: .package_deb_common
   rules:
     - !reference [.except_mergequeue]
     - when: on_success
@@ -34,9 +98,12 @@ installer_deb-amd64:
     PACKAGE_ARCH: amd64
     DESTINATION_DEB: "datadog-installer_7_amd64.deb"
     DD_PKG_ARCH: "x86_64"
+    DD_PROJECT: "installer"
+    RELEASE_VERSION: $RELEASE_VERSION_7
+    AGENT_MAJOR_VERSION: 7
 
 installer_deb-arm64:
-  extends: .installer_package_deb_common
+  extends: .package_deb_common
   rules:
     - !reference [.except_mergequeue]
     - when: on_success
@@ -47,4 +114,66 @@ installer_deb-arm64:
     PACKAGE_ARCH: arm64
     DESTINATION_DEB: "datadog-installer_7_arm64.deb"
     DD_PKG_ARCH: "arm64"
+    DD_PROJECT: "installer"
+    RELEASE_VERSION: $RELEASE_VERSION_7
+    AGENT_MAJOR_VERSION: 7
+
+.package_iot_deb_common:
+  rules:
+    - !reference [.except_mergequeue]
+    - when: on_success
+  before_script:
+    - export RELEASE_VERSION=$RELEASE_VERSION_7
+  stage: packaging
+  script:
+    - source /root/.bashrc
+    - !reference [.setup_ruby_mirror_linux]
+    - !reference [.cache_omnibus_ruby_deps, setup]
+    - echo "About to package for $RELEASE_VERSION"
+    - !reference [.setup_deb_signing_key]
+    - inv -e omnibus.build --release-version "$RELEASE_VERSION" --base-dir $OMNIBUS_BASE_DIR --skip-deps --flavor iot
+    - !reference [.lint_linux_packages]
+    - $S3_CP_CMD $OMNIBUS_PACKAGE_DIR/datadog-*_${PACKAGE_ARCH}.deb $S3_ARTIFACTS_URI/$DESTINATION_DEB
+  artifacts:
+    expire_in: 2 weeks
+    paths:
+      - $OMNIBUS_PACKAGE_DIR
+  variables:
+    KUBERNETES_CPU_REQUEST: 16
+    KUBERNETES_MEMORY_REQUEST: "32Gi"
+    KUBERNETES_MEMORY_LIMIT: "32Gi"
+    OMNIBUS_PACKAGE_ARTIFACT_DIR: $OMNIBUS_PACKAGE_DIR
+  cache:
+    - !reference [.cache_omnibus_ruby_deps, cache]
+
+iot_agent_deb-x64:
+  extends: .package_iot_deb_common
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  tags: ["arch:amd64"]
+  needs: ["iot-agent-x64"]
+  variables:
+    PACKAGE_ARCH: amd64
+    DD_PKG_ARCH: "x86_64"
+    DESTINATION_DEB: "datadog-iot-agent_7_amd64.deb"
+
+iot_agent_deb-arm64:
+  extends: .package_iot_deb_common
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64$DATADOG_AGENT_ARMBUILDIMAGES_SUFFIX:$DATADOG_AGENT_ARMBUILDIMAGES
+  tags: ["arch:arm64"]
+  needs: ["iot-agent-arm64"]
+  variables:
+    PACKAGE_ARCH: arm64
+    DD_PKG_ARCH: "arm64"
+    DESTINATION_DEB: "datadog-iot-agent_7_arm64.deb"
+
+iot_agent_deb-armhf:
+  extends: .package_iot_deb_common
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_armhf$DATADOG_AGENT_ARMBUILDIMAGES_SUFFIX:$DATADOG_AGENT_ARMBUILDIMAGES
+  tags: ["arch:arm64"]
+  needs: ["iot-agent-armhf"]
+  variables:
+    PACKAGE_ARCH: armhf
+    DESTINATION_DEB: "datadog-iot-agent_7_armhf.deb"
+    DD_PKG_ARCH: "arm64"
+
 

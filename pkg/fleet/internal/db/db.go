@@ -7,6 +7,7 @@
 package db
 
 import (
+	"encoding/json"
 	"fmt"
 	"time"
 
@@ -16,6 +17,19 @@ import (
 var (
 	bucketPackages = []byte("packages")
 )
+
+var (
+	// ErrPackageNotFound is returned when a package is not found
+	ErrPackageNotFound = fmt.Errorf("package not found")
+)
+
+// Package represents a package
+type Package struct {
+	Name    string
+	Version string
+
+	InstallerVersion string
+}
 
 // PackagesDB is a database that stores information about packages
 type PackagesDB struct {
@@ -66,14 +80,18 @@ func (p *PackagesDB) Close() error {
 	return p.db.Close()
 }
 
-// CreatePackage sets a package
-func (p *PackagesDB) CreatePackage(name string) error {
+// SetPackage sets a package
+func (p *PackagesDB) SetPackage(pkg Package) error {
 	err := p.db.Update(func(tx *bbolt.Tx) error {
 		b := tx.Bucket(bucketPackages)
 		if b == nil {
 			return fmt.Errorf("bucket not found")
 		}
-		return b.Put([]byte(name), []byte{})
+		rawPkg, err := json.Marshal(&pkg)
+		if err != nil {
+			return fmt.Errorf("could not marshal package: %w", err)
+		}
+		return b.Put([]byte(pkg.Name), rawPkg)
 	})
 	if err != nil {
 		return fmt.Errorf("could not set package: %w", err)
@@ -96,16 +114,68 @@ func (p *PackagesDB) DeletePackage(name string) error {
 	return nil
 }
 
+// HasPackage checks if a package exists
+func (p *PackagesDB) HasPackage(name string) (bool, error) {
+	var hasPackage bool
+	err := p.db.View(func(tx *bbolt.Tx) error {
+		b := tx.Bucket(bucketPackages)
+		if b == nil {
+			return fmt.Errorf("bucket not found")
+		}
+		v := b.Get([]byte(name))
+		hasPackage = len(v) > 0
+		return nil
+	})
+	if err != nil {
+		return false, fmt.Errorf("could not check if package exists: %w", err)
+	}
+	return hasPackage, nil
+}
+
+// GetPackage returns a package by name
+func (p *PackagesDB) GetPackage(name string) (Package, error) {
+	var pkg Package
+	err := p.db.View(func(tx *bbolt.Tx) error {
+		b := tx.Bucket(bucketPackages)
+		if b == nil {
+			return fmt.Errorf("bucket not found")
+		}
+		v := b.Get([]byte(name))
+		if len(v) == 0 {
+			return ErrPackageNotFound
+		}
+		err := json.Unmarshal(v, &pkg)
+		if err != nil {
+			return fmt.Errorf("could not unmarshal package: %w", err)
+		}
+		return nil
+	})
+	if err != nil {
+		return Package{}, fmt.Errorf("could not get package: %w", err)
+	}
+	return pkg, nil
+}
+
 // ListPackages returns a list of all packages
-func (p *PackagesDB) ListPackages() ([]string, error) {
-	var pkgs []string
+func (p *PackagesDB) ListPackages() ([]Package, error) {
+	var pkgs []Package
 	err := p.db.View(func(tx *bbolt.Tx) error {
 		b := tx.Bucket(bucketPackages)
 		if b == nil {
 			return fmt.Errorf("bucket not found")
 		}
 		return b.ForEach(func(k, v []byte) error {
-			pkgs = append(pkgs, string(k))
+			// support v0.0.7
+			if len(v) == 0 {
+				pkgs = append(pkgs, Package{Name: string(k)})
+				return nil
+			}
+			var pkg Package
+			err := json.Unmarshal(v, &pkg)
+			if err != nil {
+				return fmt.Errorf("could not unmarshal package: %w", err)
+			}
+			pkgs = append(pkgs, pkg)
 			return nil
 		})
 	})

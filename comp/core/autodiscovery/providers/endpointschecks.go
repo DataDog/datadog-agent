@@ -109,8 +109,8 @@ func (c *EndpointsChecksConfigProvider) Collect(ctx context.Context) ([]integrat
 // getNodename retrieves current node name from kubelet (if running on Kubernetes)
 // or bosh ID of current node (if running on Cloud Foundry).
 func getNodename(ctx context.Context) (string, error) {
-	if config.Datadog.GetBool("cloud_foundry") {
-		boshID := config.Datadog.GetString("bosh_id")
+	if config.Datadog().GetBool("cloud_foundry") {
+		boshID := config.Datadog().GetString("bosh_id")
 		if boshID == "" {
 			return "", fmt.Errorf("configuration variable cloud_foundry is set to true, but bosh_id is empty, can't retrieve node name")
 		}

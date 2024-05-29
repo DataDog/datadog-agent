@@ -101,7 +101,6 @@ class TestMergeKnownFlakes(unittest.TestCase):
         }
         test_washer.known_flaky_tests = {}
         merged_flakes = test_washer.merge_known_flakes(marked_flakes)
-        print(merged_flakes)
         self.assertEqual(
             merged_flakes,
             {"nintendo": {"mario", "luigi"}},

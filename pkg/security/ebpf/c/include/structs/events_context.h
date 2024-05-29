@@ -5,7 +5,6 @@
 #include "dentry_resolver.h"
 
 struct kevent_t {
-    u64 cpu;
     u64 timestamp;
     u32 type;
     u32 flags;
@@ -13,6 +12,11 @@ struct kevent_t {
 
 struct syscall_t {
     s64 retval;
+};
+
+struct syscall_context_t {
+    u32 id;
+    u32 padding;
 };
 
 struct span_context_t {

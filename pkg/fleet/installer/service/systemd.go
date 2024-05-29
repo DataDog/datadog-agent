@@ -38,35 +38,20 @@ func findSystemdPath() (systemdPath string) {
 	return debSystemdPath
 }
 
-// restartUnit restarts a systemd unit
-func restartUnit(ctx context.Context, unit string) error {
-	// check that the unit exists first
-	if _, err := os.Stat(path.Join(systemdPath, unit)); os.IsNotExist(err) {
-		log.Infof("Unit %s does not exist, skipping restart", unit)
-		return nil
-	}
-
-	if err := stopUnit(ctx, unit); err != nil {
-		return err
-	}
-	if err := startUnit(ctx, unit); err != nil {
-		return err
-	}
-	return nil
-}
-
-func stopUnit(ctx context.Context, unit string) error {
+func stopUnit(ctx context.Context, unit string, args ...string) error {
 	span, _ := tracer.StartSpanFromContext(ctx, "stop_unit")
 	defer span.Finish()
 	span.SetTag("unit", unit)
-	return exec.CommandContext(ctx, "systemctl", "stop", unit, "--no-block").Run()
+	args = append([]string{"stop", unit}, args...)
+	return exec.CommandContext(ctx, "systemctl", args...).Run()
 }
 
-func startUnit(ctx context.Context, unit string) error {
+func startUnit(ctx context.Context, unit string, args ...string) error {
 	span, _ := tracer.StartSpanFromContext(ctx, "start_unit")
 	defer span.Finish()
 	span.SetTag("unit", unit)
-	return exec.CommandContext(ctx, "systemctl", "start", unit, "--no-block").Run()
+	args = append([]string{"start", unit}, args...)
+	return exec.CommandContext(ctx, "systemctl", args...).Run()
 }
 
 func enableUnit(ctx context.Context, unit string) error {

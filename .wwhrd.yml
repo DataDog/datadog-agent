@@ -33,6 +33,8 @@ overrides:
   "bitbucket.org/atlassian/go-asap/v2": Apache-2.0
   # https://github.com/JohnCGriffin/overflow/blob/master/README.md
   "github.com/JohnCGriffin/overflow": MIT
+  # https://github.com/GoogleCloudPlatform/grpc-gcp-go/blob/main/LICENSE
+  "github.com/GoogleCloudPlatform/grpc-gcp-go": Apache-2.0
 
 exceptions:
   - "golang.org/x/mobile/..."
