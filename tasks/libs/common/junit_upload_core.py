@@ -180,6 +180,8 @@ def split_junitxml(xml_path: Path, codeowners, flaky_tests):
         # Flag the test as known flaky if gotestsum already knew it
         for test_case in suite.iter("testcase"):
             test_name = "/".join([test_case.attrib["classname"], test_case.attrib["name"]])
+            print("TESTNAME: ", test_name)
+            print("FLAKY TESTS: ", flaky_tests)
             test_case.attrib["agent_is_known_flaky"] = "true" if test_name in flaky_tests else "false"
 
         xml.getroot().append(suite)
