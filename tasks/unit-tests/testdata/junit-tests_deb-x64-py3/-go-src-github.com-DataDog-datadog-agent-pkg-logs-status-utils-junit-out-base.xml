@@ -1,0 +1,12 @@
+<testsuites tests="5" failures="0" errors="0" time="1.770319">
+	<testsuite tests="5" failures="0" time="1.026000" name="github.com/DataDog/datadog-agent/pkg/logs/status/utils" timestamp="2024-05-10T17:22:43Z">
+		<properties>
+			<property name="go.version" value="go1.21.9 linux/amd64" />
+		</properties>
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/logs/status/utils" name="TestInfoRegistryReplace" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/logs/status/utils" name="TestLogStatusSuite/TestError" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/logs/status/utils" name="TestLogStatusSuite/TestPending" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/logs/status/utils" name="TestLogStatusSuite/TestSuccess" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/logs/status/utils" name="TestLogStatusSuite" time="0.010000" />
+	</testsuite>
+<flavor>base</flavor></testsuites>

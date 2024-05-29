@@ -1,0 +1,89 @@
+<testsuites tests="72" failures="0" errors="0" time="5.643131">
+	<testsuite tests="72" failures="0" time="1.073000" name="github.com/DataDog/datadog-agent/pkg/metrics" timestamp="2024-05-10T17:18:30Z">
+		<properties>
+			<property name="go.version" value="go1.21.9 linux/amd64" />
+		</properties>
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/metrics" name="TestCheckMetrics" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/metrics" name="TestCheckMetricsNoExpiry" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/metrics" name="TestFlushAndClearSingleContextMetrics" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/metrics" name="TestFlushAndClear" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/metrics" name="TestContextMetricsGaugeSampling" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/metrics" name="TestContextMetricsGaugeSamplingNoSample" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/metrics" name="TestContextMetricsGaugeSamplingInvalidSamples" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/metrics" name="TestContextMetricsSingleRateSampling" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/metrics" name="TestContextMetricsNegativeRateSampling" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/metrics" name="TestContextMetricsCountSampling" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/metrics" name="TestContextMetricsMonotonicCountSampling" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/metrics" name="TestContextMetricsHistogramSampling" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/metrics" name="TestContextMetricsHistorateSampling" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/metrics" name="TestContextMetricsGaugeWithTimestampSampling" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/metrics" name="TestContextMetricsCountWithTimestampSampling" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/metrics" name="TestCountSampling" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/metrics" name="TestCounterEmptyFlush" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/metrics" name="TestCounterAddSample" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/metrics" name="TestGaugeSampling" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/metrics" name="TestHistogramConf" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/metrics" name="TestHistogramConfError" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/metrics" name="TestConfigureDefault" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/metrics" name="TestConfigure" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/metrics" name="TestDefaultHistogramSampling" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/metrics" name="TestCustomHistogramSampling" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/metrics" name="TestHistogramPercentiles" time="0.010000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/metrics" name="TestHistogramSampleRate" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/metrics" name="TestHistogramReset" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/metrics" name="TestHistorateEmptyFlush" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/metrics" name="TestHistorateAddSampleOnce" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/metrics" name="TestHistorateAddSample" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/metrics" name="TestIterableSeries" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/metrics" name="TestIterableSeriesCallback" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/metrics" name="TestIterableSeriesReceiverStopped" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/metrics" name="TestIterableSeriesSeveralValues" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/metrics" name="TestMetricSampleCopy" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/metrics" name="TestAPIMetricTypeMarshal/{&quot;type&quot;:&quot;gauge&quot;}" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/metrics" name="TestAPIMetricTypeMarshal/{&quot;type&quot;:&quot;count&quot;}" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/metrics" name="TestAPIMetricTypeMarshal/{&quot;type&quot;:&quot;rate&quot;}" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/metrics" name="TestAPIMetricTypeMarshal" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/metrics" name="TestMetricWithTimestampGauge" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/metrics" name="TestMetricWithTimestampCount" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/metrics" name="TestMonotonicCountSampling" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/metrics" name="TestMonotonicCount_FlushFirstValue/1:_Flush_after_first_sample_and_FlushFirstValue_enabled:_flush_value_as-is" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/metrics" name="TestMonotonicCount_FlushFirstValue/1:_Flush_after_another_sample_with_a_lower_value_and_FlushFirstValue_enabled:_flush_the_lower_value_as-is" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/metrics" name="TestMonotonicCount_FlushFirstValue/1:_Flush_after_another_sample_with_a_higher_value_and_FlushFirstValue_enabled:_flush_diff" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/metrics" name="TestMonotonicCount_FlushFirstValue/1:_Flush_after_another_sample_with_the_same_value_and_FlushFirstValue_enabled:_flush_0" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/metrics" name="TestMonotonicCount_FlushFirstValue/1:_Flush_after_another_sample_with_a_lower_value_and_FlushFirstValue_disabled:_flush_0" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/metrics" name="TestMonotonicCount_FlushFirstValue/1:_Flush_after_another_sample_with_a_higher_value_and_FlushFirstValue_disabled:_flush_diff" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/metrics" name="TestMonotonicCount_FlushFirstValue/2:_Flush_after_first_sample_and_FlushFirstValue_disabled:_error,_flush_nothing" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/metrics" name="TestMonotonicCount_FlushFirstValue/2:_Flush_after_another_sample_with_a_higher_value_and_FlushFirstValue_enabled:_flush_diff" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/metrics" name="TestMonotonicCount_FlushFirstValue/2:_Flush_after_another_sample_with_a_lower_value_and_FlushFirstValue_enabled:_flush_value_as-is" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/metrics" name="TestMonotonicCount_FlushFirstValue" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/metrics" name="TestRateSampling" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/metrics" name="TestRateSamplingMultipleSamplesInSameFlush" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/metrics" name="TestRateSamplingNoSampleForOneFlush" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/metrics" name="TestRateSamplingSamplesAtSameTimestamp" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/metrics" name="TestRateSamplingNegativeRate" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/metrics" name="TestSetEmptyFlush" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/metrics" name="TestSetAddSample" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/metrics" name="TestString" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/metrics" name="TestAssertSketchSeriesEqual/Name" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/metrics" name="TestAssertSketchSeriesEqual/Tags_same_len" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/metrics" name="TestAssertSketchSeriesEqual/Tags/diff_len" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/metrics" name="TestAssertSketchSeriesEqual/Tags/exp=nil" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/metrics" name="TestAssertSketchSeriesEqual/Tags/act=nil" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/metrics" name="TestAssertSketchSeriesEqual/Host" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/metrics" name="TestAssertSketchSeriesEqual/Points/same_len/diff_sketch" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/metrics" name="TestAssertSketchSeriesEqual/Points/same_len/diff_sketch#01" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/metrics" name="TestAssertSketchSeriesEqual/Points/equal" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/metrics" name="TestAssertSketchSeriesEqual/Points/equal/unsorted_ts" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/metrics" name="TestAssertSketchSeriesEqual" time="0.000000" />
+	</testsuite>
+	<testsuite tests="0" failures="0" time="0.000000" name="github.com/DataDog/datadog-agent/pkg/metrics/event" timestamp="2024-05-10T17:18:30Z">
+		<properties>
+			<property name="go.version" value="go1.21.9 linux/amd64" />
+		</properties>
+	</testsuite>
+	<testsuite tests="0" failures="0" time="0.000000" name="github.com/DataDog/datadog-agent/pkg/metrics/servicecheck" timestamp="2024-05-10T17:18:30Z">
+		<properties>
+			<property name="go.version" value="go1.21.9 linux/amd64" />
+		</properties>
+	</testsuite>
+<flavor>base</flavor></testsuites>

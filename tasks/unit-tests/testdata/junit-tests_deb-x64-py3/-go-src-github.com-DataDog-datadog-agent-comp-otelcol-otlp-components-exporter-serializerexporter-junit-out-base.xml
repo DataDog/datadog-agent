@@ -1,0 +1,32 @@
+<testsuites tests="25" failures="0" errors="0" time="6.122952">
+	<testsuite tests="25" failures="0" time="1.102000" name="github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/serializerexporter" timestamp="2024-05-10T17:19:34Z">
+		<properties>
+			<property name="go.version" value="go1.21.9 linux/amd64" />
+		</properties>
+		<testcase classname="github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/serializerexporter" name="TestUnmarshalSendCountSum/none_set" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/serializerexporter" name="TestUnmarshalSendCountSum/send_count_sum_metrics=false,_send_aggregation_metrics=unset" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/serializerexporter" name="TestUnmarshalSendCountSum/send_count_sum_metrics=true,_send_aggregation_metrics=unset" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/serializerexporter" name="TestUnmarshalSendCountSum/send_count_sum_metrics=unset,_send_aggregation_metrics=false" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/serializerexporter" name="TestUnmarshalSendCountSum/send_count_sum_metrics=unset,_send_aggregation_metrics=true" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/serializerexporter" name="TestUnmarshalSendCountSum/send_count_sum_metrics=false,_send_aggregation_metrics=false" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/serializerexporter" name="TestUnmarshalSendCountSum/send_count_sum_metrics=false,_send_aggregation_metrics=true" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/serializerexporter" name="TestUnmarshalSendCountSum/send_count_sum_metrics=true,_send_aggregation_metrics=false" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/serializerexporter" name="TestUnmarshalSendCountSum/send_count_sum_metrics=true,_send_aggregation_metrics=true" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/serializerexporter" name="TestUnmarshalSendCountSum" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/serializerexporter" name="TestConsumeAPMStats" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/serializerexporter" name="TestSendAPMStats/ok" time="0.010000" />
+		<testcase classname="github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/serializerexporter" name="TestSendAPMStats/error" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/serializerexporter" name="TestSendAPMStats/error-msg" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/serializerexporter" name="TestSendAPMStats" time="0.010000" />
+		<testcase classname="github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/serializerexporter" name="Test_ConsumeMetrics_Tags/no_tags" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/serializerexporter" name="Test_ConsumeMetrics_Tags/metric_tags_and_extra_tags" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/serializerexporter" name="Test_ConsumeMetrics_Tags/runtime_metrics,_no_tags" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/serializerexporter" name="Test_ConsumeMetrics_Tags/runtime_metrics,_metric_tags_and_extra_tags" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/serializerexporter" name="Test_ConsumeMetrics_Tags" time="0.010000" />
+		<testcase classname="github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/serializerexporter" name="TestNewFactory" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/serializerexporter" name="TestNewMetricsExporter" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/serializerexporter" name="TestNewMetricsExporterInvalid" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/serializerexporter" name="TestNewTracesExporter" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/serializerexporter" name="TestNewLogsExporter" time="0.000000" />
+	</testsuite>
+<flavor>base</flavor></testsuites>

@@ -1,0 +1,14 @@
+<testsuites tests="7" failures="0" errors="0" time="18.512553">
+	<testsuite tests="7" failures="0" time="1.066000" name="github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/logsagentexporter" timestamp="2024-05-10T17:19:40Z">
+		<properties>
+			<property name="go.version" value="go1.21.9 linux/amd64" />
+		</properties>
+		<testcase classname="github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/logsagentexporter" name="TestNewLogsExporter" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/logsagentexporter" name="TestLogsExporter/message" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/logsagentexporter" name="TestLogsExporter/message-attribute" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/logsagentexporter" name="TestLogsExporter/ddtags" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/logsagentexporter" name="TestLogsExporter/ddtags_submits_same_tags" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/logsagentexporter" name="TestLogsExporter/ddtags_submits_different_tags" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/logsagentexporter" name="TestLogsExporter" time="0.000000" />
+	</testsuite>
+<flavor>base</flavor></testsuites>

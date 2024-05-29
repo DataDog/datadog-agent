@@ -1,0 +1,10 @@
+<testsuites tests="3" failures="0" errors="0" time="3.693519">
+	<testsuite tests="3" failures="0" time="1.125000" name="github.com/DataDog/datadog-agent/comp/core/config" timestamp="2024-05-10T17:18:40Z">
+		<properties>
+			<property name="go.version" value="go1.21.9 linux/amd64" />
+		</properties>
+		<testcase classname="github.com/DataDog/datadog-agent/comp/core/config" name="TestRealConfig" time="0.040000" />
+		<testcase classname="github.com/DataDog/datadog-agent/comp/core/config" name="TestMockConfig" time="0.020000" />
+		<testcase classname="github.com/DataDog/datadog-agent/comp/core/config" name="TestNewSecurityAgentParams" time="0.000000" />
+	</testsuite>
+<flavor>base</flavor></testsuites>

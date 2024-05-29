@@ -1,0 +1,15 @@
+<testsuites tests="3" failures="0" errors="0" time="1.528994">
+	<testsuite tests="0" failures="0" time="0.000000" name="github.com/DataDog/datadog-agent/pkg/util/testutil" timestamp="2024-05-10T17:24:28Z">
+		<properties>
+			<property name="go.version" value="go1.21.9 linux/amd64" />
+		</properties>
+	</testsuite>
+	<testsuite tests="3" failures="0" time="1.027000" name="github.com/DataDog/datadog-agent/pkg/util/testutil/flake" timestamp="2024-05-10T17:24:28Z">
+		<properties>
+			<property name="go.version" value="go1.21.9 linux/amd64" />
+		</properties>
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/util/testutil/flake" name="TestFlake/skip_flake_test" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/util/testutil/flake" name="TestFlake/mark_flake_test" time="0.010000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/util/testutil/flake" name="TestFlake" time="0.010000" />
+	</testsuite>
+<flavor>base</flavor></testsuites>

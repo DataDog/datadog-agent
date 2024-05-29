@@ -1,0 +1,12 @@
+<testsuites tests="5" failures="0" errors="0" time="1.769801">
+	<testsuite tests="5" failures="0" time="1.285000" name="github.com/DataDog/datadog-agent/pkg/util/statstracker" timestamp="2024-05-10T17:24:25Z">
+		<properties>
+			<property name="go.version" value="go1.21.9 linux/amd64" />
+		</properties>
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/util/statstracker" name="TestMovingAvg" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/util/statstracker" name="TestMovingAvgBigWindow" time="0.270000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/util/statstracker" name="TestMovingPeak" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/util/statstracker" name="TestAllTimePeak" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/util/statstracker" name="TestAllTimeAvg" time="0.000000" />
+	</testsuite>
+<flavor>base</flavor></testsuites>

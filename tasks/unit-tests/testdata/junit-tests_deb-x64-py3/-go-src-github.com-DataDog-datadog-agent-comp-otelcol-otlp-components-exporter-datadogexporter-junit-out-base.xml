@@ -1,0 +1,49 @@
+<testsuites tests="42" failures="0" errors="0" time="7.808259">
+	<testsuite tests="42" failures="0" time="1.096000" name="github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/datadogexporter" timestamp="2024-05-10T17:19:59Z">
+		<properties>
+			<property name="go.version" value="go1.21.9 linux/amd64" />
+		</properties>
+		<testcase classname="github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/datadogexporter" name="TestValidate/no_api::key" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/datadogexporter" name="TestValidate/invalid_hostname" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/datadogexporter" name="TestValidate/no_metadata" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/datadogexporter" name="TestValidate/span_name_remapping_valid" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/datadogexporter" name="TestValidate/span_name_remapping_empty_val" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/datadogexporter" name="TestValidate/span_name_remapping_empty_key" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/datadogexporter" name="TestValidate/ignore_resources_valid" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/datadogexporter" name="TestValidate/ignore_resources_missing_bracket" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/datadogexporter" name="TestValidate/invalid_histogram_settings" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/datadogexporter" name="TestValidate/TLS_settings_are_valid" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/datadogexporter" name="TestValidate/With_trace_buffer" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/datadogexporter" name="TestValidate/With_peer_tags" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/datadogexporter" name="TestValidate/With_confighttp_client_configs" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/datadogexporter" name="TestValidate/unsupported_confighttp_client_configs" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/datadogexporter" name="TestValidate" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/datadogexporter" name="TestUnmarshal/invalid_cumulative_monotonic_mode" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/datadogexporter" name="TestUnmarshal/invalid_host_metadata_hostname_source" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/datadogexporter" name="TestUnmarshal/invalid_summary_mode" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/datadogexporter" name="TestUnmarshal/metrics::send_monotonic_counter_custom_error" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/datadogexporter" name="TestUnmarshal/tags_custom_error" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/datadogexporter" name="TestUnmarshal/send_metadata_custom_error" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/datadogexporter" name="TestUnmarshal/use_resource_metadata_custom_error" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/datadogexporter" name="TestUnmarshal/metrics::report_quantiles_custom_error" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/datadogexporter" name="TestUnmarshal/instrumentation_library_metadata_as_tags_custom_error" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/datadogexporter" name="TestUnmarshal/Empty_trace_endpoint" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/datadogexporter" name="TestUnmarshal/Empty_log_endpoint" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/datadogexporter" name="TestUnmarshal/invalid_initial_cumulative_monotonic_value_mode" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/datadogexporter" name="TestUnmarshal/initial_cumulative_monotonic_value_mode_set_with_raw_value" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/datadogexporter" name="TestUnmarshal/unmarshall_confighttp_client_configs" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/datadogexporter" name="TestUnmarshal" time="0.010000" />
+		<testcase classname="github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/datadogexporter" name="TestSendAggregations/both_metrics::histograms::send_count_sum_metrics_and_metrics::histograms::send_aggregation_metrics" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/datadogexporter" name="TestSendAggregations/metrics::histograms::send_count_sum_metrics_set_to_true" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/datadogexporter" name="TestSendAggregations/metrics::histograms::send_count_sum_metrics_set_to_false" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/datadogexporter" name="TestSendAggregations/metrics::histograms::send_count_sum_metrics_and_metrics::histograms::send_aggregation_metrics_unset" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/datadogexporter" name="TestSendAggregations/metrics::histograms::send_aggregation_metrics_set" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/datadogexporter" name="TestSendAggregations" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/datadogexporter" name="TestPeerTags/both_traces::peer_service_aggregation_and_traces::peer_tags_aggregation" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/datadogexporter" name="TestPeerTags/traces::peer_service_aggregation_set_to_true" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/datadogexporter" name="TestPeerTags/traces::peer_service_aggregation_set_to_false" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/datadogexporter" name="TestPeerTags/traces::peer_service_aggregation_and_traces::peer_tags_aggregation_unset" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/datadogexporter" name="TestPeerTags/traces::peer_tags_aggregation_set" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/datadogexporter" name="TestPeerTags" time="0.000000" />
+	</testsuite>
+<flavor>base</flavor></testsuites>

@@ -1,0 +1,29 @@
+<testsuites tests="22" failures="0" errors="0" time="2.259625">
+	<testsuite tests="22" failures="0" time="1.537000" name="github.com/DataDog/datadog-agent/pkg/config/utils" timestamp="2024-05-10T17:20:59Z">
+		<properties>
+			<property name="go.version" value="go1.21.9 linux/amd64" />
+		</properties>
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/config/utils" name="TestSecretBackendWithMultipleEndpoints" time="0.060000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/config/utils" name="TestGetMultipleEndpointsDefault" time="0.020000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/config/utils" name="TestGetMultipleEndpointsDDURL" time="0.020000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/config/utils" name="TestGetMultipleEndpointsEnvVar" time="0.020000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/config/utils" name="TestGetMultipleEndpointsSite" time="0.020000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/config/utils" name="TestGetMultipleEndpointsWithNoAdditionalEndpoints" time="0.020000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/config/utils" name="TestGetMultipleEndpointseIgnoresDomainWithoutApiKey" time="0.020000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/config/utils" name="TestGetMultipleEndpointsApiKeyDeduping" time="0.020000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/config/utils" name="TestSiteEnvVar" time="0.020000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/config/utils" name="TestDefaultSite" time="0.020000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/config/utils" name="TestSite" time="0.020000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/config/utils" name="TestDDURLEnvVar" time="0.020000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/config/utils" name="TestDDDDURLEnvVar" time="0.020000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/config/utils" name="TestDDURLAndDDDDURLEnvVar" time="0.020000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/config/utils" name="TestDDURLOverridesSite" time="0.020000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/config/utils" name="TestDDURLNoSite" time="0.020000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/config/utils" name="TestAddAgentVersionToDomain" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/config/utils" name="TestGetConfiguredaTags" time="0.020000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/config/utils" name="TestGetConfiguredaTagsExtraTags" time="0.020000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/config/utils" name="TestGetConfiguredaTagsDSD" time="0.020000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/config/utils" name="TestGetConfiguredaTagsCombined" time="0.020000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/config/utils" name="TestIsCheckTelemetryEnabled" time="0.020000" />
+	</testsuite>
+<flavor>base</flavor></testsuites>

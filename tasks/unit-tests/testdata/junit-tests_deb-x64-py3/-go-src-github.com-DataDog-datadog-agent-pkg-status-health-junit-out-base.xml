@@ -1,0 +1,15 @@
+<testsuites tests="8" failures="0" errors="0" time="1.528705">
+	<testsuite tests="8" failures="0" time="1.018000" name="github.com/DataDog/datadog-agent/pkg/status/health" timestamp="2024-05-10T17:23:38Z">
+		<properties>
+			<property name="go.version" value="go1.21.9 linux/amd64" />
+		</properties>
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/status/health" name="TestEmptyCatalog" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/status/health" name="TestCatalogStartsHealthy" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/status/health" name="TestCatalogGetsUnhealthyAndBack" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/status/health" name="TestRegisterAndUnhealthy" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/status/health" name="TestRegisterTriplets" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/status/health" name="TestDeregister" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/status/health" name="TestDeregisterBadToken" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/status/health" name="TestGetHealthy" time="0.000000" />
+	</testsuite>
+<flavor>base</flavor></testsuites>

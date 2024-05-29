@@ -1,0 +1,10 @@
+<testsuites tests="3" failures="0" errors="0" time="1.467953">
+	<testsuite tests="3" failures="0" time="1.018000" name="github.com/DataDog/datadog-agent/pkg/util/executable" timestamp="2024-05-10T17:24:06Z">
+		<properties>
+			<property name="go.version" value="go1.21.9 linux/amd64" />
+		</properties>
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/util/executable" name="TestResolvePath" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/util/executable" name="TestResolvePathIsAbsolute" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/util/executable" name="TestResolvePathFailure" time="0.000000" />
+	</testsuite>
+<flavor>base</flavor></testsuites>

@@ -1,0 +1,26 @@
+<testsuites tests="9" failures="0" errors="0" time="2.929577">
+	<testsuite tests="0" failures="0" time="0.000000" name="github.com/DataDog/datadog-agent/comp/core/telemetry" timestamp="2024-05-10T17:19:01Z">
+		<properties>
+			<property name="go.version" value="go1.21.9 linux/amd64" />
+		</properties>
+	</testsuite>
+	<testsuite tests="0" failures="0" time="0.000000" name="github.com/DataDog/datadog-agent/comp/core/telemetry/noopsimpl" timestamp="2024-05-10T17:19:01Z">
+		<properties>
+			<property name="go.version" value="go1.21.9 linux/amd64" />
+		</properties>
+	</testsuite>
+	<testsuite tests="9" failures="0" time="1.058000" name="github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl" timestamp="2024-05-10T17:19:01Z">
+		<properties>
+			<property name="go.version" value="go1.21.9 linux/amd64" />
+		</properties>
+		<testcase classname="github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl" name="TestPromCounterInitializer" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl" name="TestPromCounterAdd" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl" name="TestCounterInitializer" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl" name="TestGetCounterValue" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl" name="TestGetGaugeValue" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl" name="TestGetSimpleHistogramValue" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl" name="TestGetHistogramValue" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl" name="TestMeterProvider" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl" name="TestGoMetrics" time="0.010000" />
+	</testsuite>
+<flavor>base</flavor></testsuites>

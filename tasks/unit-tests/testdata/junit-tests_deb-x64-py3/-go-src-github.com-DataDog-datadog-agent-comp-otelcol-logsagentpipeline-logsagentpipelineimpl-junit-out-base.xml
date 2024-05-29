@@ -1,0 +1,13 @@
+<testsuites tests="6" failures="0" errors="0" time="4.560868">
+	<testsuite tests="6" failures="0" time="2.437000" name="github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline/logsagentpipelineimpl" timestamp="2024-05-10T17:19:30Z">
+		<properties>
+			<property name="go.version" value="go1.21.9 linux/amd64" />
+		</properties>
+		<testcase classname="github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline/logsagentpipelineimpl" name="TestAgentTestSuite/TestAgentHttp" time="0.040000" />
+		<testcase classname="github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline/logsagentpipelineimpl" name="TestAgentTestSuite/TestAgentStopsWithWrongBackendTcp" time="1.050000" />
+		<testcase classname="github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline/logsagentpipelineimpl" name="TestAgentTestSuite/TestAgentTcp" time="0.040000" />
+		<testcase classname="github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline/logsagentpipelineimpl" name="TestAgentTestSuite/TestGetPipelineProvider" time="0.170000" />
+		<testcase classname="github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline/logsagentpipelineimpl" name="TestAgentTestSuite" time="1.310000" />
+		<testcase classname="github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline/logsagentpipelineimpl" name="TestBuildEndpoints" time="0.060000" />
+	</testsuite>
+<flavor>base</flavor></testsuites>

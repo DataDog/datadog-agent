@@ -1,0 +1,9 @@
+<testsuites tests="2" failures="0" errors="0" time="2.943889">
+	<testsuite tests="2" failures="0" time="1.020000" name="github.com/DataDog/datadog-agent/comp/core/status" timestamp="2024-05-10T17:18:53Z">
+		<properties>
+			<property name="go.version" value="go1.21.9 linux/amd64" />
+		</properties>
+		<testcase classname="github.com/DataDog/datadog-agent/comp/core/status" name="TestNtpWarning" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/comp/core/status" name="TestMkHuman" time="0.000000" />
+	</testsuite>
+<flavor>base</flavor></testsuites>

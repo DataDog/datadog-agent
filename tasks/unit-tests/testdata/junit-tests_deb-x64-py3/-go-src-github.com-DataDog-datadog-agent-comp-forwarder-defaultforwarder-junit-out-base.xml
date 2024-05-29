@@ -1,0 +1,130 @@
+<testsuites tests="103" failures="0" errors="0" time="20.473164">
+	<testsuite tests="66" failures="0" time="15.566000" name="github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder" timestamp="2024-05-10T17:19:04Z">
+		<properties>
+			<property name="go.version" value="go1.21.9 linux/amd64" />
+		</properties>
+		<testcase classname="github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder" name="TestMinBackoffFactorValid" time="0.030000" />
+		<testcase classname="github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder" name="TestBaseBackoffTimeValid" time="0.020000" />
+		<testcase classname="github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder" name="TestMaxBackoffTimeValid" time="0.020000" />
+		<testcase classname="github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder" name="TestRecoveryIntervalValid" time="0.030000" />
+		<testcase classname="github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder" name="TestGetBackoffDurationIncrease" time="0.020000" />
+		<testcase classname="github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder" name="TestMaxGetBackoffDuration" time="0.020000" />
+		<testcase classname="github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder" name="TestMaxErrors" time="0.020000" />
+		<testcase classname="github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder" name="TestBlock" time="0.020000" />
+		<testcase classname="github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder" name="TestMaxBlock" time="0.020000" />
+		<testcase classname="github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder" name="TestUnblock" time="0.020000" />
+		<testcase classname="github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder" name="TestMaxUnblock" time="0.020000" />
+		<testcase classname="github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder" name="TestUnblockUnknown" time="0.020000" />
+		<testcase classname="github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder" name="TestIsBlock" time="0.020000" />
+		<testcase classname="github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder" name="TestIsBlockTiming" time="0.020000" />
+		<testcase classname="github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder" name="TestIsblockUnknown" time="0.020000" />
+		<testcase classname="github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder" name="TestDefaultForwarderUpdateAPIKey" time="0.020000" />
+		<testcase classname="github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder" name="TestNewDomainForwarder" time="0.020000" />
+		<testcase classname="github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder" name="TestDomainForwarderStart" time="0.020000" />
+		<testcase classname="github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder" name="TestDomainForwarderInit" time="0.020000" />
+		<testcase classname="github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder" name="TestDomainForwarderStop" time="0.020000" />
+		<testcase classname="github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder" name="TestDomainForwarderStop_WithConnectionReset" time="0.020000" />
+		<testcase classname="github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder" name="TestDomainForwarderSendHTTPTransactions" time="0.020000" />
+		<testcase classname="github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder" name="TestDomainForwarderHAPreFailover" time="1.030000" />
+		<testcase classname="github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder" name="TestDomainForwarderHAFailover" time="0.030000" />
+		<testcase classname="github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder" name="TestRequeueTransaction" time="0.020000" />
+		<testcase classname="github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder" name="TestRetryTransactions" time="0.020000" />
+		<testcase classname="github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder" name="TestForwarderRetry" time="0.020000" />
+		<testcase classname="github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder" name="TestForwarderRetryLifo" time="0.020000" />
+		<testcase classname="github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder" name="TestForwarderRetryLimitQueue" time="0.020000" />
+		<testcase classname="github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder" name="TestDomainForwarderRetryQueueAllPayloadsMaxSize" time="0.020000" />
+		<testcase classname="github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder" name="TestDomainForwarderInitConfigs" time="0.020000" />
+		<testcase classname="github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder" name="TestCheckValidAPIKey" time="0.030000" />
+		<testcase classname="github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder" name="TestComputeDomainsURL" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder" name="TestCheckValidAPIKeyErrors" time="0.030000" />
+		<testcase classname="github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder" name="TestUpdateAPIKey" time="0.030000" />
+		<testcase classname="github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder" name="TestNewDefaultForwarder" time="0.020000" />
+		<testcase classname="github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder" name="TestFeature" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder" name="TestStart" time="0.160000" />
+		<testcase classname="github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder" name="TestStopWithoutPurgingTransaction" time="0.080000" />
+		<testcase classname="github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder" name="TestStopWithPurgingTransaction" time="0.080000" />
+		<testcase classname="github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder" name="TestSubmitIfStopped" time="0.020000" />
+		<testcase classname="github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder" name="TestCreateHTTPTransactions" time="0.020000" />
+		<testcase classname="github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder" name="TestCreateHTTPTransactionsWithMultipleDomains" time="0.020000" />
+		<testcase classname="github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder" name="TestCreateHTTPTransactionsWithDifferentResolvers" time="0.020000" />
+		<testcase classname="github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder" name="TestCreateHTTPTransactionsWithOverrides" time="0.020000" />
+		<testcase classname="github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder" name="TestArbitraryTagsHTTPHeader" time="0.020000" />
+		<testcase classname="github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder" name="TestSendHTTPTransactions" time="0.110000" />
+		<testcase classname="github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder" name="TestSubmitV1Intake" time="0.050000" />
+		<testcase classname="github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder" name="TestForwarderEndtoEnd" time="1.030000" />
+		<testcase classname="github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder" name="TestTransactionEventHandlers" time="0.030000" />
+		<testcase classname="github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder" name="TestTransactionEventHandlersOnRetry" time="5.030000" />
+		<testcase classname="github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder" name="TestTransactionEventHandlersNotRetryable" time="0.030000" />
+		<testcase classname="github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder" name="TestProcessLikePayloadResponseTimeout" time="5.030000" />
+		<testcase classname="github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder" name="TestHighPriorityTransaction" time="0.530000" />
+		<testcase classname="github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder" name="TestCustomCompletionHandler" time="0.050000" />
+		<testcase classname="github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder" name="TestJSON" time="0.030000" />
+		<testcase classname="github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder" name="TestJSONWith_forwarder_storage_max_size_in_bytes" time="0.030000" />
+		<testcase classname="github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder" name="TestText" time="0.030000" />
+		<testcase classname="github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder" name="TestHTML" time="0.030000" />
+		<testcase classname="github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder" name="TestNewWorker" time="0.020000" />
+		<testcase classname="github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder" name="TestNewNoSSLWorker" time="0.020000" />
+		<testcase classname="github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder" name="TestWorkerStart" time="0.020000" />
+		<testcase classname="github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder" name="TestWorkerRetry" time="0.020000" />
+		<testcase classname="github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder" name="TestWorkerRetryBlockedTransaction" time="0.020000" />
+		<testcase classname="github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder" name="TestWorkerResetConnections" time="0.030000" />
+		<testcase classname="github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder" name="TestWorkerPurgeOnStop" time="0.020000" />
+	</testsuite>
+	<testsuite tests="0" failures="0" time="0.000000" name="github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/endpoints" timestamp="2024-05-10T17:19:04Z">
+		<properties>
+			<property name="go.version" value="go1.21.9 linux/amd64" />
+		</properties>
+	</testsuite>
+	<testsuite tests="24" failures="0" time="1.148000" name="github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/internal/retry" timestamp="2024-05-10T17:19:04Z">
+		<properties>
+			<property name="go.version" value="go1.21.9 linux/amd64" />
+		</properties>
+		<testcase classname="github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/internal/retry" name="TestComputeAvailableSpace" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/internal/retry" name="TestFileRemovalPolicyUnknownDomain" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/internal/retry" name="TestFileRemovalPolicyOutdatedFiles" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/internal/retry" name="TestFileRemovalPolicyExistingDomain" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/internal/retry" name="TestHTTPSerializeDeserialize" time="0.010000" />
+		<testcase classname="github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/internal/retry" name="TestHTTPSerializeDeserializeWithResolverOverride" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/internal/retry" name="TestPartialDeserialize" time="0.010000" />
+		<testcase classname="github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/internal/retry" name="TestHTTPTransactionSerializerMissingAPIKey" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/internal/retry" name="TestHTTPTransactionFieldsCount" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/internal/retry" name="TestOnDiskRetryQueue" time="0.010000" />
+		<testcase classname="github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/internal/retry" name="TestOnDiskRetryQueueMaxSize" time="0.010000" />
+		<testcase classname="github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/internal/retry" name="TestOnDiskRetryQueueReloadExistingRetryFiles" time="0.010000" />
+		<testcase classname="github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/internal/retry" name="TestQueueDurationCapacityMemOnly" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/internal/retry" name="TestQueueDurationCapacityMemAndDisk" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/internal/retry" name="TestQueueDurationCapacitySeveralDomains" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/internal/retry" name="TestQueueDurationCapacitEmptyTraffic" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/internal/retry" name="TestAccumulator" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/internal/retry" name="TestAccumulatorEmptyBucket" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/internal/retry" name="TestAccumulatorCompareToNaive" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/internal/retry" name="TestTransactionRetryQueueAdd" time="0.010000" />
+		<testcase classname="github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/internal/retry" name="TestTransactionRetryQueueSeveralFlushToDisk" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/internal/retry" name="TestTransactionRetryQueueFlushAllToDisk" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/internal/retry" name="TestTransactionRetryQueueNoTransactionStorage" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/internal/retry" name="TestTransactionRetryQueueZeroMaxMemSizeInBytes" time="0.000000" />
+	</testsuite>
+	<testsuite tests="0" failures="0" time="0.000000" name="github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/resolver" timestamp="2024-05-10T17:19:04Z">
+		<properties>
+			<property name="go.version" value="go1.21.9 linux/amd64" />
+		</properties>
+	</testsuite>
+	<testsuite tests="13" failures="0" time="1.097000" name="github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction" timestamp="2024-05-10T17:19:04Z">
+		<properties>
+			<property name="go.version" value="go1.21.9 linux/amd64" />
+		</properties>
+		<testcase classname="github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction" name="TestNewHTTPTransaction" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction" name="TestGetCreatedAt" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction" name="TestProcess" time="0.010000" />
+		<testcase classname="github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction" name="TestProcessInvalidDomain" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction" name="TestProcessNetworkError" time="0.010000" />
+		<testcase classname="github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction" name="TestProcessHTTPError" time="0.010000" />
+		<testcase classname="github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction" name="TestProcessCancel" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction" name="Test_truncateBodyForLog/body_is_datadog" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction" name="Test_truncateBodyForLog/body_is_1000_bytes" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction" name="Test_truncateBodyForLog/body_is_1001_bytes" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction" name="Test_truncateBodyForLog/body_is_empty" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction" name="Test_truncateBodyForLog/body_is_nil" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction" name="Test_truncateBodyForLog" time="0.000000" />
+	</testsuite>
+<flavor>base</flavor></testsuites>

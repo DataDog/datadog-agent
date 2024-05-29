@@ -1,0 +1,30 @@
+<testsuites tests="23" failures="0" errors="0" time="1.945440">
+	<testsuite tests="23" failures="0" time="1.060000" name="github.com/DataDog/datadog-agent/pkg/util/fxutil" timestamp="2024-05-10T17:24:10Z">
+		<properties>
+			<property name="go.version" value="go1.21.9 linux/amd64" />
+		</properties>
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/util/fxutil" name="TestDelayedFxInvocationNoReturn" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/util/fxutil" name="TestDelayedFxInvocationErrorReturn" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/util/fxutil" name="TestUnwrapIfErrArgumentsFailed" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/util/fxutil" name="TestGetAndFilterGroup" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/util/fxutil" name="TestValidArgumentAndReturnValue" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/util/fxutil" name="TestInvalidArgumentOrReturnValue" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/util/fxutil" name="TestConstructFxInAndOut" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/util/fxutil" name="TestMakeConstructorArgs" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/util/fxutil" name="TestMakeFxAwareProvides" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/util/fxutil" name="TestMakeFxAwareProvidesForCompoundResult" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/util/fxutil" name="TestConstructFxAwareStruct" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/util/fxutil" name="TestConstructFxAwareStructCompoundResult" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/util/fxutil" name="TestConstructFxAwareStructWithScalarField" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/util/fxutil" name="TestConstructFxAwareStructWithLifecycle" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/util/fxutil" name="TestFxNoRequirements" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/util/fxutil" name="TestFxOneDependency" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/util/fxutil" name="TestFxReqsAndProvides" time="0.010000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/util/fxutil" name="TestFxProvideEmbed" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/util/fxutil" name="TestFxCanUseTwice" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/util/fxutil" name="TestFxLifecycle" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/util/fxutil" name="TestFxReturnNoError" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/util/fxutil" name="TestFxReturnAnError" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/util/fxutil" name="TestTest" time="0.000000" />
+	</testsuite>
+<flavor>base</flavor></testsuites>

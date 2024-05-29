@@ -1,0 +1,38 @@
+<testsuites tests="31" failures="0" errors="0" time="1.744241">
+	<testsuite tests="31" failures="0" time="1.116000" name="github.com/DataDog/datadog-agent/pkg/util/scrubber" timestamp="2024-05-10T17:23:58Z">
+		<properties>
+			<property name="go.version" value="go1.21.9 linux/amd64" />
+		</properties>
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/util/scrubber" name="TestConfigScrubbedValidYaml" time="0.020000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/util/scrubber" name="TestConfigScrubbedYaml" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/util/scrubber" name="TestConfigScrubbedJson" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/util/scrubber" name="TestEmptyYaml" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/util/scrubber" name="TestEmptyYamlString" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/util/scrubber" name="TestConfigStripApiKey" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/util/scrubber" name="TestConfigAppKey" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/util/scrubber" name="TestConfigRCAppKey" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/util/scrubber" name="TestConfigStripURLPassword" time="0.010000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/util/scrubber" name="TestTextStripApiKey" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/util/scrubber" name="TestTextStripAppKey" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/util/scrubber" name="TestTextStripURLPassword" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/util/scrubber" name="TestDockerSelfInspectApiKey" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/util/scrubber" name="TestConfigPassword" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/util/scrubber" name="TestSNMPConfig" time="0.010000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/util/scrubber" name="TestAddStrippedKeys" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/util/scrubber" name="TestAddStrippedKeysExceptions/single_key" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/util/scrubber" name="TestAddStrippedKeysExceptions/multiple_keys" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/util/scrubber" name="TestAddStrippedKeysExceptions" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/util/scrubber" name="TestAddStrippedKeysNewReplacer" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/util/scrubber" name="TestCertConfig" time="0.010000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/util/scrubber" name="TestConfig" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/util/scrubber" name="TestConfigFile" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/util/scrubber" name="TestBearerToken" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/util/scrubber" name="TestAuthorization" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/util/scrubber" name="TestNewWithDefaults" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/util/scrubber" name="TestRepl" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/util/scrubber" name="TestReplFunc" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/util/scrubber" name="TestSkipComments" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/util/scrubber" name="TestCleanFile" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/util/scrubber" name="TestScrubLine" time="0.000000" />
+	</testsuite>
+<flavor>base</flavor></testsuites>

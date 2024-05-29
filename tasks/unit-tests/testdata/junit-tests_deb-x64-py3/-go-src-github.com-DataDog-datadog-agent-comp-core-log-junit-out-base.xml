@@ -1,0 +1,31 @@
+<testsuites tests="12" failures="0" errors="0" time="3.231526">
+	<testsuite tests="0" failures="0" time="0.000000" name="github.com/DataDog/datadog-agent/comp/core/log" timestamp="2024-05-10T17:18:44Z">
+		<properties>
+			<property name="go.version" value="go1.21.9 linux/amd64" />
+		</properties>
+	</testsuite>
+	<testsuite tests="12" failures="0" time="1.087000" name="github.com/DataDog/datadog-agent/comp/core/log/logimpl" timestamp="2024-05-10T17:18:44Z">
+		<properties>
+			<property name="go.version" value="go1.21.9 linux/amd64" />
+		</properties>
+		<testcase classname="github.com/DataDog/datadog-agent/comp/core/log/logimpl" name="TestForDaemon_windows" time="0.000000">
+			<skipped message="=== RUN   TestForDaemon_windows&#10;    params_test.go:58: &#10;--- SKIP: TestForDaemon_windows (0.00s)&#10;" />
+		</testcase>
+		<testcase classname="github.com/DataDog/datadog-agent/comp/core/log/logimpl" name="TestLogging" time="0.030000" />
+		<testcase classname="github.com/DataDog/datadog-agent/comp/core/log/logimpl" name="TestMockLogging" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/comp/core/log/logimpl" name="TestForOneShot_noOverride" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/comp/core/log/logimpl" name="TestForOneShot_override" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/comp/core/log/logimpl" name="TestForDaemon_linux/log_file_config" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/comp/core/log/logimpl" name="TestForDaemon_linux/log_file_default" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/comp/core/log/logimpl" name="TestForDaemon_linux/disable_file_logging" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/comp/core/log/logimpl" name="TestForDaemon_linux/log_to_syslog" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/comp/core/log/logimpl" name="TestForDaemon_linux/log_to_syslog_with_uri" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/comp/core/log/logimpl" name="TestForDaemon_linux" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/comp/core/log/logimpl" name="TestLogToFile" time="0.000000" />
+	</testsuite>
+	<testsuite tests="0" failures="0" time="0.000000" name="github.com/DataDog/datadog-agent/comp/core/log/tracelogimpl" timestamp="2024-05-10T17:18:44Z">
+		<properties>
+			<property name="go.version" value="go1.21.9 linux/amd64" />
+		</properties>
+	</testsuite>
+<flavor>base</flavor></testsuites>

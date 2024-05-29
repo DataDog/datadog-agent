@@ -108,17 +108,23 @@ def get_flaky_from_test_output():
     TEST_OUTPUT_FILE = "module_test_output.json"
     FLAKE_MESSAGE = "flakytest: this is a known flaky test"
     test_output = []
-    flaky_tests = []
+    flaky_tests = set()
     for module in DEFAULT_MODULES:
         if os.path.isfile(os.path.join(module, TEST_OUTPUT_FILE)):
-            with open(TEST_OUTPUT_FILE) as f:
+            print("READING FILE: ", os.path.join(module, TEST_OUTPUT_FILE))
+            with open(os.path.join(module, TEST_OUTPUT_FILE)) as f:
+                print("============Test output============d====")
                 for line in f.readlines():
+                    print(line)
                     test_output.append(json.loads(line))
-            flaky_tests += [
-                "/".join([test["Package"], test["Test"]])
-                for test in test_output
-                if FLAKE_MESSAGE in test.get("Output", "")
-            ]
+                print("=====================================")
+            flaky_tests.update(
+                [
+                    "/".join([test["Package"], test["Test"]])
+                    for test in test_output
+                    if FLAKE_MESSAGE in test.get("Output", "")
+                ]
+            )
     print(f"[INFO] Found {len(flaky_tests)} flaky tests.")
     return flaky_tests
 
@@ -271,6 +277,8 @@ def set_tags(owner, flavor, flag: str, additional_tags, file_name):
         f"jira_project:{jira_project}",
         "--tags",
         f"gitlab.pipeline_source:{pipeline.source}",
+        "--xpath-tag",
+        "test.agent_is_known_flaky=/testcase/@agent_is_known_flaky",
     ]
     if 'e2e' in flag:
         tags.extend(["--tags", "e2e_internal_error:true"])

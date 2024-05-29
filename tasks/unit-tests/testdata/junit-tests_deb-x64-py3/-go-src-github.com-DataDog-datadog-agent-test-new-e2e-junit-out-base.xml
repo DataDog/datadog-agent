@@ -1,0 +1,34 @@
+<testsuites tests="7" failures="0" errors="0" time="80.628062">
+	<testsuite tests="4" failures="0" time="1.083000" name="github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner" timestamp="2024-05-10T17:15:18Z">
+		<properties>
+			<property name="go.version" value="go1.21.9 linux/amd64" />
+		</properties>
+		<testcase classname="github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner" name="Test_BuildStackParameters" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner" name="TestGetWorkspacePath/default" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner" name="TestGetWorkspacePath/emojis_and_special_characters" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner" name="TestGetWorkspacePath" time="0.000000" />
+	</testsuite>
+	<testsuite tests="3" failures="0" time="1.024000" name="github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner/parameters" timestamp="2024-05-10T17:15:18Z">
+		<properties>
+			<property name="go.version" value="go1.21.9 linux/amd64" />
+		</properties>
+		<testcase classname="github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner/parameters" name="Test_parseConfigFileContent" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner/parameters" name="Test_NewConfigFileStore" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner/parameters" name="Test_NewConfigFileStoreNoAWSAccount" time="0.000000" />
+	</testsuite>
+	<testsuite tests="0" failures="0" time="0.000000" name="github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client" timestamp="2024-05-10T17:15:18Z">
+		<properties>
+			<property name="go.version" value="go1.21.9 linux/amd64" />
+		</properties>
+	</testsuite>
+	<testsuite tests="0" failures="0" time="0.000000" name="github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclient" timestamp="2024-05-10T17:15:18Z">
+		<properties>
+			<property name="go.version" value="go1.21.9 linux/amd64" />
+		</properties>
+	</testsuite>
+	<testsuite tests="0" failures="0" time="0.000000" name="github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclientparams" timestamp="2024-05-10T17:15:18Z">
+		<properties>
+			<property name="go.version" value="go1.21.9 linux/amd64" />
+		</properties>
+	</testsuite>
+<flavor>base</flavor></testsuites>

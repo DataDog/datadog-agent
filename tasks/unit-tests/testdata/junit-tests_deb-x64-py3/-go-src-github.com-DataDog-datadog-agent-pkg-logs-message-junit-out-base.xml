@@ -1,0 +1,16 @@
+<testsuites tests="9" failures="0" errors="0" time="1.755405">
+	<testsuite tests="9" failures="0" time="1.056000" name="github.com/DataDog/datadog-agent/pkg/logs/message" timestamp="2024-05-10T17:21:58Z">
+		<properties>
+			<property name="go.version" value="go1.21.9 linux/amd64" />
+		</properties>
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/logs/message" name="TestMessage" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/logs/message" name="TestSetTagsEmpty" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/logs/message" name="TestTagsWithConfigTagsOnly" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/logs/message" name="TestSetTagsWithNoConfigTags" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/logs/message" name="TestSetTagsWithConfigTags" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/logs/message" name="TestSetTagsWithConfigTagsAndProcessingTags" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/logs/message" name="TestDefaultSourceValueIsSourceFromConfig" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/logs/message" name="TestDefaultServiceValueIsServiceFromConfig" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/logs/message" name="TestStatusToSeverity" time="0.000000" />
+	</testsuite>
+<flavor>base</flavor></testsuites>

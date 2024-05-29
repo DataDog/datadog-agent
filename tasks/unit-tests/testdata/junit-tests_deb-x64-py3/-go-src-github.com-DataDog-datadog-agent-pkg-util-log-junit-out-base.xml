@@ -1,0 +1,112 @@
+<testsuites tests="100" failures="0" errors="0" time="2.584582">
+	<testsuite tests="39" failures="0" time="1.045000" name="github.com/DataDog/datadog-agent/pkg/util/log" timestamp="2024-05-10T17:23:55Z">
+		<properties>
+			<property name="go.version" value="go1.21.9 linux/amd64" />
+		</properties>
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/util/log" name="TestLogLimit" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/util/log" name="TestServerlessLoggingNotInServerlessContext" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/util/log" name="TestBasicLogging" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/util/log" name="TestLogBuffer" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/util/log" name="TestLogBufferWithContext" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/util/log" name="TestCredentialScrubbingLogging" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/util/log" name="TestExtraLogging" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/util/log" name="TestFormatErrorfScrubbing" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/util/log" name="TestFormatErrorScrubbing" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/util/log" name="TestFormatErrorcScrubbing" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/util/log" name="TestWarnNotNil" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/util/log" name="TestWarnfNotNil" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/util/log" name="TestWarncNotNil" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/util/log" name="TestErrorNotNil" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/util/log" name="TestErrorfNotNil" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/util/log" name="TestErrorcNotNil" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/util/log" name="TestCriticalNotNil" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/util/log" name="TestCriticalfNotNil" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/util/log" name="TestCriticalcNotNil" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/util/log" name="TestDebugFuncNoExecute" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/util/log" name="TestDebugFuncExecute" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/util/log" name="TestFuncVersions" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/util/log" name="TestStackDepthfLogging/critical" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/util/log" name="TestStackDepthfLogging/error" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/util/log" name="TestStackDepthfLogging/warn" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/util/log" name="TestStackDepthfLogging/info" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/util/log" name="TestStackDepthfLogging/debug" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/util/log" name="TestStackDepthfLogging/trace" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/util/log" name="TestStackDepthfLogging" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/util/log" name="TestLoggerScrubbingCount/scrub_count_public_functions_basic" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/util/log" name="TestLoggerScrubbingCount/scrub_count_public_functions_with_format" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/util/log" name="TestLoggerScrubbingCount/scrub_count_public_functions_with_format_and_stack_depth" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/util/log" name="TestLoggerScrubbingCount/scrub_count_public_functions_with_context" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/util/log" name="TestLoggerScrubbingCount/scrub_count_public_functions_with_context_and_stack_depth" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/util/log" name="TestLoggerScrubbingCount/scrub_count_public_functions_with_anonymous_function" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/util/log" name="TestLoggerScrubbingCount/scrub_count_loggerPointer_methods_basic" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/util/log" name="TestLoggerScrubbingCount/scrub_count_loggerPointer_methods_with_format" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/util/log" name="TestLoggerScrubbingCount/scrub_count_loggerPointer_methods_with_stack_depth" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/util/log" name="TestLoggerScrubbingCount" time="0.000000" />
+	</testsuite>
+	<testsuite tests="61" failures="0" time="1.031000" name="github.com/DataDog/datadog-agent/pkg/util/log/zap" timestamp="2024-05-10T17:23:55Z">
+		<properties>
+			<property name="go.version" value="go1.21.9 linux/amd64" />
+		</properties>
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/util/log/zap" name="TestZapBasicLogging/Debug_(no_fields,_debug_level)" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/util/log/zap" name="TestZapBasicLogging/Info_(no_fields,_debug_level)" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/util/log/zap" name="TestZapBasicLogging/Warn_(no_fields,_debug_level)" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/util/log/zap" name="TestZapBasicLogging/Error_(no_fields,_debug_level)" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/util/log/zap" name="TestZapBasicLogging/DPanic_(no_fields,_debug_level)" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/util/log/zap" name="TestZapBasicLogging/Error_level" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/util/log/zap" name="TestZapBasicLogging/Info_(fields)" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/util/log/zap" name="TestZapBasicLogging/Error_(fields)" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/util/log/zap" name="TestZapBasicLogging/With_(using_original)" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/util/log/zap" name="TestZapBasicLogging/With_(using_new)" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/util/log/zap" name="TestZapBasicLogging/Namespace" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/util/log/zap" name="TestZapBasicLogging" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/util/log/zap" name="TestClone" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/util/log/zap" name="TestArrayEncoder/AppendBool" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/util/log/zap" name="TestArrayEncoder/AppendByteString" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/util/log/zap" name="TestArrayEncoder/AppendComplex128" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/util/log/zap" name="TestArrayEncoder/AppendComplex64" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/util/log/zap" name="TestArrayEncoder/AppendDuration" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/util/log/zap" name="TestArrayEncoder/AppendFloat64" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/util/log/zap" name="TestArrayEncoder/AppendFloat32" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/util/log/zap" name="TestArrayEncoder/AppendInt" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/util/log/zap" name="TestArrayEncoder/AppendInt64" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/util/log/zap" name="TestArrayEncoder/AppendInt32" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/util/log/zap" name="TestArrayEncoder/AppendInt16" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/util/log/zap" name="TestArrayEncoder/AppendInt8" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/util/log/zap" name="TestArrayEncoder/AppendString" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/util/log/zap" name="TestArrayEncoder/AppendTime" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/util/log/zap" name="TestArrayEncoder/AppendUint" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/util/log/zap" name="TestArrayEncoder/AppendUint64" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/util/log/zap" name="TestArrayEncoder/AppendUint32" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/util/log/zap" name="TestArrayEncoder/AppendUint16" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/util/log/zap" name="TestArrayEncoder/AppendUint8" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/util/log/zap" name="TestArrayEncoder/AppendUintptr" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/util/log/zap" name="TestArrayEncoder/AppendReflected" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/util/log/zap" name="TestArrayEncoder/AppendArray_(arrays_of_arrays)" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/util/log/zap" name="TestArrayEncoder" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/util/log/zap" name="TestObjectEncoder/AddArray" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/util/log/zap" name="TestObjectEncoder/AddBinary" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/util/log/zap" name="TestObjectEncoder/AddByteString" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/util/log/zap" name="TestObjectEncoder/AddBool" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/util/log/zap" name="TestObjectEncoder/AddComplex128" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/util/log/zap" name="TestObjectEncoder/AddComplex64" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/util/log/zap" name="TestObjectEncoder/AddDuration" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/util/log/zap" name="TestObjectEncoder/AddFloat64" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/util/log/zap" name="TestObjectEncoder/AddFloat32" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/util/log/zap" name="TestObjectEncoder/AddInt" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/util/log/zap" name="TestObjectEncoder/AddInt64" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/util/log/zap" name="TestObjectEncoder/AddInt32" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/util/log/zap" name="TestObjectEncoder/AddInt16" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/util/log/zap" name="TestObjectEncoder/AddInt8" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/util/log/zap" name="TestObjectEncoder/AddString" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/util/log/zap" name="TestObjectEncoder/AddTime" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/util/log/zap" name="TestObjectEncoder/AddUint" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/util/log/zap" name="TestObjectEncoder/AddUint64" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/util/log/zap" name="TestObjectEncoder/AddUint32" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/util/log/zap" name="TestObjectEncoder/AddUint16" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/util/log/zap" name="TestObjectEncoder/AddUint8" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/util/log/zap" name="TestObjectEncoder/AddUintptr" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/util/log/zap" name="TestObjectEncoder/AddReflected" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/util/log/zap" name="TestObjectEncoder/OpenNamespace" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/util/log/zap" name="TestObjectEncoder" time="0.000000" />
+	</testsuite>
+<flavor>base</flavor></testsuites>

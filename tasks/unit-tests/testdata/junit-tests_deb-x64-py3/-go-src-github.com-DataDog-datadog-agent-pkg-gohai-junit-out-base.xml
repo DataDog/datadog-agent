@@ -1,0 +1,158 @@
+<testsuites tests="111" failures="0" errors="0" time="2.720857">
+	<testsuite tests="3" failures="0" time="1.075000" name="github.com/DataDog/datadog-agent/pkg/gohai" timestamp="2024-05-10T17:17:27Z">
+		<properties>
+			<property name="go.version" value="go1.21.9 linux/amd64" />
+		</properties>
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/gohai" name="TestGetPayload" time="0.020000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/gohai" name="TestGetPayloadContainerized" time="0.020000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/gohai" name="TestGetPayloadContainerizedWithDocker0" time="0.000000" />
+	</testsuite>
+	<testsuite tests="27" failures="0" time="1.061000" name="github.com/DataDog/datadog-agent/pkg/gohai/cpu" timestamp="2024-05-10T17:17:27Z">
+		<properties>
+			<property name="go.version" value="go1.21.9 linux/amd64" />
+		</properties>
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/gohai/cpu" name="TestGetCPUInfo" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/gohai/cpu" name="TestCollectCPU" time="0.030000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/gohai/cpu" name="TestCPUAsJSON" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/gohai/cpu" name="TestSysCPUInt/zero" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/gohai/cpu" name="TestSysCPUInt/dec" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/gohai/cpu" name="TestSysCPUInt/hex" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/gohai/cpu" name="TestSysCPUInt/invalid" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/gohai/cpu" name="TestSysCPUInt/missing" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/gohai/cpu" name="TestSysCPUInt" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/gohai/cpu" name="TestSysCPUSize/zero" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/gohai/cpu" name="TestSysCPUSize/no-suffix" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/gohai/cpu" name="TestSysCPUSize/K" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/gohai/cpu" name="TestSysCPUSize/M" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/gohai/cpu" name="TestSysCPUSize/G" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/gohai/cpu" name="TestSysCPUSize/invalid" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/gohai/cpu" name="TestSysCPUSize/missing" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/gohai/cpu" name="TestSysCPUSize" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/gohai/cpu" name="TestSysCPUList/empty" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/gohai/cpu" name="TestSysCPUList/single" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/gohai/cpu" name="TestSysCPUList/range" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/gohai/cpu" name="TestSysCPUList/combo" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/gohai/cpu" name="TestSysCPUList/invalid" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/gohai/cpu" name="TestSysCPUList/missing" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/gohai/cpu" name="TestSysCPUList" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/gohai/cpu" name="TestReadProcCPUInfo/simple" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/gohai/cpu" name="TestReadProcCPUInfo/bogus_stanza" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/gohai/cpu" name="TestReadProcCPUInfo" time="0.000000" />
+	</testsuite>
+	<testsuite tests="56" failures="0" time="1.031000" name="github.com/DataDog/datadog-agent/pkg/gohai/filesystem" timestamp="2024-05-10T17:17:27Z">
+		<properties>
+			<property name="go.version" value="go1.21.9 linux/amd64" />
+		</properties>
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/gohai/filesystem" name="TestNixFSTypeFiltering/TestIgnoringOfFSType/ext3" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/gohai/filesystem" name="TestNixFSTypeFiltering/TestIgnoringOfFSType/ext4" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/gohai/filesystem" name="TestNixFSTypeFiltering/TestIgnoringOfFSType/apfs" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/gohai/filesystem" name="TestNixFSTypeFiltering/TestIgnoringOfFSType/aufs" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/gohai/filesystem" name="TestNixFSTypeFiltering/TestIgnoringOfFSType/autofs" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/gohai/filesystem" name="TestNixFSTypeFiltering/TestIgnoringOfFSType/debugfs" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/gohai/filesystem" name="TestNixFSTypeFiltering/TestIgnoringOfFSType/devfs" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/gohai/filesystem" name="TestNixFSTypeFiltering/TestIgnoringOfFSType/devpts" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/gohai/filesystem" name="TestNixFSTypeFiltering/TestIgnoringOfFSType/devtmpfs" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/gohai/filesystem" name="TestNixFSTypeFiltering/TestIgnoringOfFSType/fuse.portal" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/gohai/filesystem" name="TestNixFSTypeFiltering/TestIgnoringOfFSType/fusectl" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/gohai/filesystem" name="TestNixFSTypeFiltering/TestIgnoringOfFSType/ignore" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/gohai/filesystem" name="TestNixFSTypeFiltering/TestIgnoringOfFSType/kernfs" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/gohai/filesystem" name="TestNixFSTypeFiltering/TestIgnoringOfFSType/none" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/gohai/filesystem" name="TestNixFSTypeFiltering/TestIgnoringOfFSType/proc" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/gohai/filesystem" name="TestNixFSTypeFiltering/TestIgnoringOfFSType/subfs" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/gohai/filesystem" name="TestNixFSTypeFiltering/TestIgnoringOfFSType/mqueue" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/gohai/filesystem" name="TestNixFSTypeFiltering/TestIgnoringOfFSType/rpc_pipefs" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/gohai/filesystem" name="TestNixFSTypeFiltering/TestIgnoringOfFSType/squashfs" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/gohai/filesystem" name="TestNixFSTypeFiltering/TestIgnoringOfFSType/sysfs" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/gohai/filesystem" name="TestNixFSTypeFiltering/TestIgnoringOfFSType/acfs" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/gohai/filesystem" name="TestNixFSTypeFiltering/TestIgnoringOfFSType/afs" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/gohai/filesystem" name="TestNixFSTypeFiltering/TestIgnoringOfFSType/auristorfs" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/gohai/filesystem" name="TestNixFSTypeFiltering/TestIgnoringOfFSType/coda" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/gohai/filesystem" name="TestNixFSTypeFiltering/TestIgnoringOfFSType/fhgfs" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/gohai/filesystem" name="TestNixFSTypeFiltering/TestIgnoringOfFSType/gpfs" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/gohai/filesystem" name="TestNixFSTypeFiltering/TestIgnoringOfFSType/ibrix" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/gohai/filesystem" name="TestNixFSTypeFiltering/TestIgnoringOfFSType/ocfs2" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/gohai/filesystem" name="TestNixFSTypeFiltering/TestIgnoringOfFSType/vxfs" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/gohai/filesystem" name="TestNixFSTypeFiltering/TestIgnoringOfFSType/dummyhosts1" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/gohai/filesystem" name="TestNixFSTypeFiltering/TestIgnoringOfFSType/dummyhosts2" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/gohai/filesystem" name="TestNixFSTypeFiltering/TestIgnoringOfFSType/dummyhosts3" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/gohai/filesystem" name="TestNixFSTypeFiltering/TestIgnoringOfFSType/dummycolons1" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/gohai/filesystem" name="TestNixFSTypeFiltering/TestIgnoringOfFSType/dummycolons2" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/gohai/filesystem" name="TestNixFSTypeFiltering/TestIgnoringOfFSType/dummycolons3" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/gohai/filesystem" name="TestNixFSTypeFiltering/TestIgnoringOfFSType/dummyfwdslashes1" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/gohai/filesystem" name="TestNixFSTypeFiltering/TestIgnoringOfFSType/dummyfwdslashes2" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/gohai/filesystem" name="TestNixFSTypeFiltering/TestIgnoringOfFSType/dummyfwdslashes3" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/gohai/filesystem" name="TestNixFSTypeFiltering/TestIgnoringOfFSType/cifs" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/gohai/filesystem" name="TestNixFSTypeFiltering/TestIgnoringOfFSType/smb3" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/gohai/filesystem" name="TestNixFSTypeFiltering/TestIgnoringOfFSType/smbfs" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/gohai/filesystem" name="TestNixFSTypeFiltering" time="0.010000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/gohai/filesystem" name="TestNixMissingMountValues/MissingSize" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/gohai/filesystem" name="TestNixMissingMountValues/MissingMountName" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/gohai/filesystem" name="TestNixMissingMountValues/MissingMountPoint" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/gohai/filesystem" name="TestNixMissingMountValues/MissingMountPointAndName" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/gohai/filesystem" name="TestNixMissingMountValues/MissingFSType" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/gohai/filesystem" name="TestNixMissingMountValues" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/gohai/filesystem" name="TestFilterEmptySize" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/gohai/filesystem" name="TestFilterDev/ReplaceDevNameSlash" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/gohai/filesystem" name="TestFilterDev/ReplaceDevMountLength" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/gohai/filesystem" name="TestFilterDev/ReplaceDevNewSource" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/gohai/filesystem" name="TestFilterDev" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/gohai/filesystem" name="TestGetTimeout" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/gohai/filesystem" name="TestAsJSON" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/gohai/filesystem" name="TestCollectInfo" time="0.000000" />
+	</testsuite>
+	<testsuite tests="4" failures="0" time="1.022000" name="github.com/DataDog/datadog-agent/pkg/gohai/memory" timestamp="2024-05-10T17:17:27Z">
+		<properties>
+			<property name="go.version" value="go1.21.9 linux/amd64" />
+		</properties>
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/gohai/memory" name="TestParseMemoryInfo" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/gohai/memory" name="TestParseMemoryInfoWeird" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/gohai/memory" name="TestCollectMemory" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/gohai/memory" name="TestMemoryAsJSON" time="0.000000" />
+	</testsuite>
+	<testsuite tests="2" failures="0" time="1.022000" name="github.com/DataDog/datadog-agent/pkg/gohai/network" timestamp="2024-05-10T17:17:27Z">
+		<properties>
+			<property name="go.version" value="go1.21.9 linux/amd64" />
+		</properties>
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/gohai/network" name="TestCollect" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/gohai/network" name="TestAsJSON" time="0.000000" />
+	</testsuite>
+	<testsuite tests="4" failures="0" time="1.020000" name="github.com/DataDog/datadog-agent/pkg/gohai/platform" timestamp="2024-05-10T17:17:27Z">
+		<properties>
+			<property name="go.version" value="go1.21.9 linux/amd64" />
+		</properties>
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/gohai/platform" name="TestIsVendorAMD" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/gohai/platform" name="TestUpdateUnameInfo" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/gohai/platform" name="TestCollectPlatform" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/gohai/platform" name="TestPlatformAsJSON" time="0.000000" />
+	</testsuite>
+	<testsuite tests="2" failures="0" time="1.081000" name="github.com/DataDog/datadog-agent/pkg/gohai/processes" timestamp="2024-05-10T17:17:27Z">
+		<properties>
+			<property name="go.version" value="go1.21.9 linux/amd64" />
+		</properties>
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/gohai/processes" name="TestCollectInfo" time="0.040000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/gohai/processes" name="TestAsJSON" time="0.020000" />
+	</testsuite>
+	<testsuite tests="1" failures="0" time="1.020000" name="github.com/DataDog/datadog-agent/pkg/gohai/processes/gops" timestamp="2024-05-10T17:17:27Z">
+		<properties>
+			<property name="go.version" value="go1.21.9 linux/amd64" />
+		</properties>
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/gohai/processes/gops" name="TestUsernames" time="0.000000" />
+	</testsuite>
+	<testsuite tests="12" failures="0" time="1.024000" name="github.com/DataDog/datadog-agent/pkg/gohai/utils" timestamp="2024-05-10T17:17:27Z">
+		<properties>
+			<property name="go.version" value="go1.21.9 linux/amd64" />
+		</properties>
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/gohai/utils" name="TestAsJSONTypes" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/gohai/utils" name="TestAsJSONEmpty" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/gohai/utils" name="TestAsJsonInvalidParam" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/gohai/utils" name="TestAsJsonFieldError" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/gohai/utils" name="TestAsJsonWarns" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/gohai/utils" name="TestAsJSONSuffix" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/gohai/utils" name="TestValueDefault" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/gohai/utils" name="TestNewValue" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/gohai/utils" name="TestNewErrorValue" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/gohai/utils" name="TestNewValueFrom" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/gohai/utils" name="TestError" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/gohai/utils" name="TestValueOrDefault" time="0.000000" />
+	</testsuite>
+<flavor>base</flavor></testsuites>

@@ -1,0 +1,21 @@
+<testsuites tests="9" failures="0" errors="0" time="2.297162">
+	<testsuite tests="9" failures="0" time="1.068000" name="github.com/DataDog/datadog-agent/pkg/logs/auditor" timestamp="2024-05-10T17:21:08Z">
+		<properties>
+			<property name="go.version" value="go1.21.9 linux/amd64" />
+		</properties>
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/logs/auditor" name="TestAuditorUnmarshalRegistryV0" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/logs/auditor" name="TestAuditorUnmarshalRegistryV1" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/logs/auditor" name="TestAuditorUnmarshalRegistryV2" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/logs/auditor" name="TestScannerTestSuite/TestAuditorCleansupRegistry" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/logs/auditor" name="TestScannerTestSuite/TestAuditorFlushesAndRecoversRegistry" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/logs/auditor" name="TestScannerTestSuite/TestAuditorRecoversRegistryForOffset" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/logs/auditor" name="TestScannerTestSuite/TestAuditorStartStop" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/logs/auditor" name="TestScannerTestSuite/TestAuditorUpdatesRegistry" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/logs/auditor" name="TestScannerTestSuite" time="0.010000" />
+	</testsuite>
+	<testsuite tests="0" failures="0" time="0.000000" name="github.com/DataDog/datadog-agent/pkg/logs/auditor/mock" timestamp="2024-05-10T17:21:08Z">
+		<properties>
+			<property name="go.version" value="go1.21.9 linux/amd64" />
+		</properties>
+	</testsuite>
+<flavor>base</flavor></testsuites>

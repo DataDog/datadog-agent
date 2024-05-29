@@ -1,0 +1,44 @@
+<testsuites tests="22" failures="0" errors="0" time="2.405100">
+	<testsuite tests="0" failures="0" time="0.000000" name="github.com/DataDog/datadog-agent/pkg/networkdevice/profile" timestamp="2024-05-10T17:24:33Z">
+		<properties>
+			<property name="go.version" value="go1.21.9 linux/amd64" />
+		</properties>
+	</testsuite>
+	<testsuite tests="9" failures="0" time="1.022000" name="github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition" timestamp="2024-05-10T17:24:33Z">
+		<properties>
+			<property name="go.version" value="go1.21.9 linux/amd64" />
+		</properties>
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition" name="TestListMap_MarshalJSON" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition" name="TestListMap_UnmarshalJSON" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition" name="TestListMap_JSONSchema" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition" name="Test_metricTagConfig_UnmarshalYAML" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition" name="Test_metricTagConfig_onlyTags" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition" name="TestStringArray_UnmarshalYAML_array" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition" name="TestStringArray_UnmarshalYAML_string" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition" name="TestSymbolConfig_UnmarshalYAML_symbolObject" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition" name="TestSymbolConfig_UnmarshalYAML_symbolString" time="0.000000" />
+	</testsuite>
+	<testsuite tests="13" failures="0" time="1.117000" name="github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition/schema" timestamp="2024-05-10T17:24:33Z">
+		<properties>
+			<property name="go.version" value="go1.21.9 linux/amd64" />
+		</properties>
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition/schema" name="TestGenerateJSONSchemaIsInSync" time="0.010000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition/schema" name="Test_DeviceProfileRcConfigJsonSchema" time="0.010000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition/schema" name="Test_Schema_TextCases/testcases/invalid_deprtd_forced_t.json" time="0.010000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition/schema" name="Test_Schema_TextCases/testcases/invalid_deprtd_oid_name.json" time="0.010000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition/schema" name="Test_Schema_TextCases/testcases/invalid_empty_profile.json" time="0.010000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition/schema" name="Test_Schema_TextCases/testcases/invalid_mult_errors.json" time="0.010000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition/schema" name="Test_Schema_TextCases/testcases/invalid_symbol_field.json" time="0.010000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition/schema" name="Test_Schema_TextCases/testcases/invalid_unknown_field.json" time="0.010000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition/schema" name="Test_Schema_TextCases/testcases/valid_device_vendor.json" time="0.010000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition/schema" name="Test_Schema_TextCases/testcases/valid_empty_profile.json" time="0.010000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition/schema" name="Test_Schema_TextCases/testcases/valid_metric_tag_mapping.json" time="0.010000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition/schema" name="Test_Schema_TextCases/testcases/valid_profile_apc_ups.json" time="0.010000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition/schema" name="Test_Schema_TextCases" time="0.070000" />
+	</testsuite>
+	<testsuite tests="0" failures="0" time="0.000000" name="github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition/schema_cmd" timestamp="2024-05-10T17:24:33Z">
+		<properties>
+			<property name="go.version" value="go1.21.9 linux/amd64" />
+		</properties>
+	</testsuite>
+<flavor>base</flavor></testsuites>

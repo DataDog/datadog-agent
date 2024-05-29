@@ -1,0 +1,51 @@
+<testsuites tests="39" failures="0" errors="0" time="2.039618">
+	<testsuite tests="39" failures="0" time="1.179000" name="github.com/DataDog/datadog-agent/pkg/remoteconfig/state" timestamp="2024-05-10T17:23:40Z">
+		<properties>
+			<property name="go.version" value="go1.21.9 linux/amd64" />
+		</properties>
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/remoteconfig/state" name="TestASMData/marshall-null" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/remoteconfig/state" name="TestASMData/unmarshall-null" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/remoteconfig/state" name="TestASMData/parse-null" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/remoteconfig/state" name="TestASMData/marshall-empty" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/remoteconfig/state" name="TestASMData/unmarshall-empty" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/remoteconfig/state" name="TestASMData/parse-empty" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/remoteconfig/state" name="TestASMData/marshall-single-entry" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/remoteconfig/state" name="TestASMData/unmarshall-single-entry" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/remoteconfig/state" name="TestASMData/parse-single-entry" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/remoteconfig/state" name="TestASMData/marshall-multiple-entries" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/remoteconfig/state" name="TestASMData/unmarshall-multiple-entries" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/remoteconfig/state" name="TestASMData/parse-multiple-entries" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/remoteconfig/state" name="TestASMData" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/remoteconfig/state" name="TestParseFilePath/datadog/2/APM_SAMPLING/fc18c18f-939a-4017-b428-af03678f6c1a/file1" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/remoteconfig/state" name="TestParseFilePath/employee/APM_SAMPLING/fc18c18f-939a-4017-b428-af03678f6c1a/file1" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/remoteconfig/state" name="TestParseFilePath/user/5343/TESTING1/static_id/f3045934w_dogfile" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/remoteconfig/state" name="TestParseFilePath/user/a/TESTING1/static_id/f3045934w_dogfile" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/remoteconfig/state" name="TestParseFilePath//5343/TESTING1/static_id/f3045934w_dogfile" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/remoteconfig/state" name="TestParseFilePath/user//TESTING1/static_id/f3045934w_dogfile" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/remoteconfig/state" name="TestParseFilePath/user/5343//static_id/f3045934w_dogfile" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/remoteconfig/state" name="TestParseFilePath/user/5343/TESTING1//f3045934w_dogfile" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/remoteconfig/state" name="TestParseFilePath/user/5343/TESTING1/static_id/" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/remoteconfig/state" name="TestParseFilePath" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/remoteconfig/state" name="TestNewRepositoryWithNilRoot" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/remoteconfig/state" name="TestNewRepositoryWithMalformedRoot" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/remoteconfig/state" name="TestNewUnverifiedRepository" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/remoteconfig/state" name="TestEmptyUpdateZeroTypes" time="0.010000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/remoteconfig/state" name="TestEmptyUpdateNilTypes" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/remoteconfig/state" name="TestUpdateNewConfig" time="0.010000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/remoteconfig/state" name="TestUpdateEmpty" time="0.010000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/remoteconfig/state" name="TestUpdateNewConfigThenRemove" time="0.010000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/remoteconfig/state" name="TestUpdateNewConfigThenModify" time="0.010000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/remoteconfig/state" name="TestUpdateWithIncorrectlySignedTargets" time="0.010000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/remoteconfig/state" name="TestUpdateWithMalformedTargets" time="0.010000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/remoteconfig/state" name="TestUpdateWithMalformedExtraRoot" time="0.010000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/remoteconfig/state" name="TestUpdateWithNewRoot" time="0.020000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/remoteconfig/state" name="TestClientOnlyTakesActionOnFilesInClientConfig" time="0.010000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/remoteconfig/state" name="TestUpdateWithTwoProducts" time="0.010000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/remoteconfig/state" name="TestPreGeneratedIntegrityChecks" time="0.030000" />
+	</testsuite>
+	<testsuite tests="0" failures="0" time="0.000000" name="github.com/DataDog/datadog-agent/pkg/remoteconfig/state/products/apmsampling" timestamp="2024-05-10T17:23:40Z">
+		<properties>
+			<property name="go.version" value="go1.21.9 linux/amd64" />
+		</properties>
+	</testsuite>
+<flavor>base</flavor></testsuites>

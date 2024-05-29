@@ -1,0 +1,14 @@
+<testsuites tests="2" failures="0" errors="0" time="2.581622">
+	<testsuite tests="2" failures="0" time="1.078000" name="github.com/DataDog/datadog-agent/pkg/logs/pipeline" timestamp="2024-05-10T17:22:02Z">
+		<properties>
+			<property name="go.version" value="go1.21.9 linux/amd64" />
+		</properties>
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/logs/pipeline" name="TestProviderTestSuite/TestProvider" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/logs/pipeline" name="TestProviderTestSuite" time="0.010000" />
+	</testsuite>
+	<testsuite tests="0" failures="0" time="0.000000" name="github.com/DataDog/datadog-agent/pkg/logs/pipeline/mock" timestamp="2024-05-10T17:22:02Z">
+		<properties>
+			<property name="go.version" value="go1.21.9 linux/amd64" />
+		</properties>
+	</testsuite>
+<flavor>base</flavor></testsuites>

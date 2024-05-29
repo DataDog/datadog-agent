@@ -1,0 +1,40 @@
+<testsuites tests="33" failures="0" errors="0" time="6.033901">
+	<testsuite tests="33" failures="0" time="1.100000" name="github.com/DataDog/datadog-agent/pkg/util/cgroups" timestamp="2024-05-10T17:23:42Z">
+		<properties>
+			<property name="go.version" value="go1.21.9 linux/amd64" />
+		</properties>
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/util/cgroups" name="TestCPUSetParsing" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/util/cgroups" name="TestCgroupV1CPUStats" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/util/cgroups" name="TestCgroupV1IOStats" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/util/cgroups" name="TestCgroupV1MemoryStats" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/util/cgroups" name="TestCgroupV1PIDStats" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/util/cgroups" name="TestCgroupV2CPUStats" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/util/cgroups" name="TestParseV2CPUStat/simple_test" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/util/cgroups" name="TestParseV2CPUStat/unknown_key" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/util/cgroups" name="TestParseV2CPUStat/impossible_to_parse_value" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/util/cgroups" name="TestParseV2CPUStat" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/util/cgroups" name="TestParseV2CPUMax/simple_test" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/util/cgroups" name="TestParseV2CPUMax/wrong_scheduler_period" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/util/cgroups" name="TestParseV2CPUMax/impossible_to_parse_quota" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/util/cgroups" name="TestParseV2CPUMax" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/util/cgroups" name="TestCgroupV2IOStats" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/util/cgroups" name="TestCgroupV2MemoryStats" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/util/cgroups" name="TestCgroupV2PIDStats" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/util/cgroups" name="TestCgroupProcsPidMapper" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/util/cgroups" name="TestProcPidMapperCgroupV1" time="0.010000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/util/cgroups" name="TestProcPidMapperCgroupV2" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/util/cgroups" name="TestIdentiferFromCgroupReferences/cgroup_v1" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/util/cgroups" name="TestIdentiferFromCgroupReferences/cgroup_v1_with_colons" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/util/cgroups" name="TestIdentiferFromCgroupReferences/docker_in_docker" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/util/cgroups" name="TestIdentiferFromCgroupReferences/ecs_fargate" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/util/cgroups" name="TestIdentiferFromCgroupReferences/ecs_fargate_shorter" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/util/cgroups" name="TestIdentiferFromCgroupReferences" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/util/cgroups" name="TestDiscoverCgroupMountPoints/cgroupv1_mounted_in_a_container" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/util/cgroups" name="TestDiscoverCgroupMountPoints/cgroupv2_mounted_in_a_container" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/util/cgroups" name="TestDiscoverCgroupMountPoints/dind_cgroupv1" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/util/cgroups" name="TestDiscoverCgroupMountPoints" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/util/cgroups" name="TestReaderV1" time="0.010000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/util/cgroups" name="TestReaderV2" time="0.010000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/util/cgroups" name="TestSelfReader" time="0.000000" />
+	</testsuite>
+<flavor>base</flavor></testsuites>

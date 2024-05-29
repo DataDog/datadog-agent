@@ -1,0 +1,129 @@
+<testsuites tests="92" failures="0" errors="0" time="4.533903">
+	<testsuite tests="0" failures="0" time="0.000000" name="github.com/DataDog/datadog-agent/pkg/config/remote" timestamp="2024-05-10T17:21:03Z">
+		<properties>
+			<property name="go.version" value="go1.21.9 linux/amd64" />
+		</properties>
+	</testsuite>
+	<testsuite tests="0" failures="0" time="0.000000" name="github.com/DataDog/datadog-agent/pkg/config/remote/api" timestamp="2024-05-10T17:21:03Z">
+		<properties>
+			<property name="go.version" value="go1.21.9 linux/amd64" />
+		</properties>
+	</testsuite>
+	<testsuite tests="0" failures="0" time="0.000000" name="github.com/DataDog/datadog-agent/pkg/config/remote/client" timestamp="2024-05-10T17:21:03Z">
+		<properties>
+			<property name="go.version" value="go1.21.9 linux/amd64" />
+		</properties>
+	</testsuite>
+	<testsuite tests="10" failures="0" time="1.018000" name="github.com/DataDog/datadog-agent/pkg/config/remote/data" timestamp="2024-05-10T17:21:03Z">
+		<properties>
+			<property name="go.version" value="go1.21.9 linux/amd64" />
+		</properties>
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/config/remote/data" name="TestParseFilePath/datadog/2/APM_SAMPLING/fc18c18f-939a-4017-b428-af03678f6c1a/file1" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/config/remote/data" name="TestParseFilePath/employee/APM_SAMPLING/fc18c18f-939a-4017-b428-af03678f6c1a/file1" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/config/remote/data" name="TestParseFilePath/user/5343/TESTING1/static_id/f3045934w_dogfile" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/config/remote/data" name="TestParseFilePath/user/a/TESTING1/static_id/f3045934w_dogfile" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/config/remote/data" name="TestParseFilePath//5343/TESTING1/static_id/f3045934w_dogfile" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/config/remote/data" name="TestParseFilePath/user//TESTING1/static_id/f3045934w_dogfile" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/config/remote/data" name="TestParseFilePath/user/5343//static_id/f3045934w_dogfile" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/config/remote/data" name="TestParseFilePath/user/5343/TESTING1//f3045934w_dogfile" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/config/remote/data" name="TestParseFilePath/user/5343/TESTING1/static_id/" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/config/remote/data" name="TestParseFilePath" time="0.000000" />
+	</testsuite>
+	<testsuite tests="0" failures="0" time="0.000000" name="github.com/DataDog/datadog-agent/pkg/config/remote/meta" timestamp="2024-05-10T17:21:03Z">
+		<properties>
+			<property name="go.version" value="go1.21.9 linux/amd64" />
+		</properties>
+	</testsuite>
+	<testsuite tests="44" failures="0" time="1.188000" name="github.com/DataDog/datadog-agent/pkg/config/remote/service" timestamp="2024-05-10T17:21:03Z">
+		<properties>
+			<property name="go.version" value="go1.21.9 linux/amd64" />
+		</properties>
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/config/remote/service" name="TestClients" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/config/remote/service" name="TestCacheBypassClientsRateLimit" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/config/remote/service" name="TestServiceBackoffFailure" time="0.010000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/config/remote/service" name="TestServiceBackoffFailureRecovery" time="0.010000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/config/remote/service" name="TestClientGetConfigsRequestMissingFields" time="0.010000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/config/remote/service" name="TestService" time="0.010000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/config/remote/service" name="TestServiceClientPredicates" time="0.010000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/config/remote/service" name="TestServiceGetRefreshIntervalNone" time="0.010000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/config/remote/service" name="TestServiceGetRefreshIntervalValid" time="0.010000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/config/remote/service" name="TestServiceGetRefreshIntervalTooSmall" time="0.010000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/config/remote/service" name="TestServiceGetRefreshIntervalTooBig" time="0.010000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/config/remote/service" name="TestServiceGetRefreshIntervalNoOverrideAllowed" time="0.010000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/config/remote/service" name="TestConfigExpiration" time="0.010000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/config/remote/service" name="TestOrgStatus" time="0.010000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/config/remote/service" name="TestWithTraceAgentEnv" time="0.010000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/config/remote/service" name="TestWithDatabaseFileName" time="0.010000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/config/remote/service" name="TestWithRefreshInterval/valid_interval" time="0.010000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/config/remote/service" name="TestWithRefreshInterval/interval_too_short" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/config/remote/service" name="TestWithRefreshInterval" time="0.010000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/config/remote/service" name="TestWithMaxBackoffInterval/valid_interval" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/config/remote/service" name="TestWithMaxBackoffInterval/interval_too_short" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/config/remote/service" name="TestWithMaxBackoffInterval/interval_too_long" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/config/remote/service" name="TestWithMaxBackoffInterval" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/config/remote/service" name="TestWithClientCacheBypassLimit/valid_limit" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/config/remote/service" name="TestWithClientCacheBypassLimit/limit_too_small" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/config/remote/service" name="TestWithClientCacheBypassLimit/limit_too_large" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/config/remote/service" name="TestWithClientCacheBypassLimit" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/config/remote/service" name="TestWithDirectorRootOverride" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/config/remote/service" name="TestWithClientTTL/valid_ttl" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/config/remote/service" name="TestWithClientTTL/ttl_too_short" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/config/remote/service" name="TestWithClientTTL/ttl_too_long" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/config/remote/service" name="TestWithClientTTL" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/config/remote/service" name="TestTracerPredicateBadTracerVersion" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/config/remote/service" name="TestTracerPredicates" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/config/remote/service" name="TestAuthKeys/37d58c60b8ac337293ce2ca6b28b19eb|QORWWZLZ3EQDKODEGU4GGNRQMI4GCYZTGM3TEOJTMNSTEY3BGZRDEODCGE4WKYVDN5ZGOAVCMRR22ZDBORQWI33HNBYS4Y3PNU" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/config/remote/service" name="TestAuthKeys/37d58c60b8ac337293ce2ca6b28b19eb|" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/config/remote/service" name="TestAuthKeys/|QORWWZLZUCRW64THAKRGIY5NMRQXIYLEN5TWQ4JOMNXW2" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/config/remote/service" name="TestAuthKeys/|QORWWZLZU5QXA4C7JNSXTI3POJTQFITEMOQA" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/config/remote/service" name="TestAuthKeys/|QORWWZLZU5QXA4C7JNSXTI3POJTQBITEMOWWIYLUMFSG6Z3IOEXGG33N" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/config/remote/service" name="TestAuthKeys" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/config/remote/service" name="TestRemoteConfigNewDB" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/config/remote/service" name="TestRemoteConfigChangedAPIKey" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/config/remote/service" name="TestRemoteConfigReopenNoVersionChange" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/config/remote/service" name="TestRemoteConfigOldDB" time="0.000000" />
+	</testsuite>
+	<testsuite tests="38" failures="0" time="1.530000" name="github.com/DataDog/datadog-agent/pkg/config/remote/uptane" timestamp="2024-05-10T17:21:03Z">
+		<properties>
+			<property name="go.version" value="go1.21.9 linux/amd64" />
+		</properties>
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/config/remote/uptane" name="TestClientState" time="0.060000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/config/remote/uptane" name="TestClientFullState" time="0.070000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/config/remote/uptane" name="TestClientVerifyTUF" time="0.050000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/config/remote/uptane" name="TestClientVerifyUptane" time="0.100000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/config/remote/uptane" name="TestClientVerifyOrgID" time="0.080000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/config/remote/uptane" name="TestClientVerifyOrgUUID" time="0.120000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/config/remote/uptane" name="TestOrgStore" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/config/remote/uptane" name="TestLocalStore" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/config/remote/uptane" name="TestRemoteStoreConfig" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/config/remote/uptane" name="TestRemoteStoreDirector" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/config/remote/uptane" name="TestTargetStore" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/config/remote/uptane" name="TestParseMetaPath/1.root.json" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/config/remote/uptane" name="TestParseMetaPath/5.timestamp.json" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/config/remote/uptane" name="TestParseMetaPath/timestamp.json" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/config/remote/uptane" name="TestParseMetaPath/.timestamp.json" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/config/remote/uptane" name="TestParseMetaPath/5.timestamp." time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/config/remote/uptane" name="TestParseMetaPath/5..json" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/config/remote/uptane" name="TestParseMetaPath/5.timestamp.ext" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/config/remote/uptane" name="TestParseMetaPath/.." time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/config/remote/uptane" name="TestParseMetaPath/#00" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/config/remote/uptane" name="TestParseMetaPath" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/config/remote/uptane" name="TestMetaVersion/root" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/config/remote/uptane" name="TestMetaVersion/timestamp" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/config/remote/uptane" name="TestMetaVersion/snapshot" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/config/remote/uptane" name="TestMetaVersion/targets" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/config/remote/uptane" name="TestMetaVersion/invalid" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/config/remote/uptane" name="TestMetaVersion/invalid2" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/config/remote/uptane" name="TestMetaVersion" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/config/remote/uptane" name="TestMetaCustom/root" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/config/remote/uptane" name="TestMetaCustom/timestamp" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/config/remote/uptane" name="TestMetaCustom/snapshot" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/config/remote/uptane" name="TestMetaCustom/targets" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/config/remote/uptane" name="TestMetaCustom/invalid" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/config/remote/uptane" name="TestMetaCustom/invalid2" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/config/remote/uptane" name="TestMetaCustom" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/config/remote/uptane" name="TestTrimHashTargetPath/2/APM_SAMPLING/479520024efb527de298760ad09b8d89561d81c31fcff476e9b034a110948b64.1" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/config/remote/uptane" name="TestTrimHashTargetPath/2/APM_SAMPLING/target2" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/config/remote/uptane" name="TestTrimHashTargetPath" time="0.000000" />
+	</testsuite>
+<flavor>base</flavor></testsuites>

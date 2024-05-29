@@ -1,0 +1,11 @@
+<testsuites tests="4" failures="0" errors="0" time="1.528816">
+	<testsuite tests="4" failures="0" time="1.018000" name="github.com/DataDog/datadog-agent/pkg/util/common" timestamp="2024-05-10T17:24:04Z">
+		<properties>
+			<property name="go.version" value="go1.21.9 linux/amd64" />
+		</properties>
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/util/common" name="TestNewStringSet" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/util/common" name="TestStringSetAdd" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/util/common" name="TestStringSetGetAll" time="0.000000" />
+		<testcase classname="github.com/DataDog/datadog-agent/pkg/util/common" name="TestStructToMap" time="0.000000" />
+	</testsuite>
+<flavor>base</flavor></testsuites>
