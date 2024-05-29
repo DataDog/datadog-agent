@@ -10,8 +10,8 @@ github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/logs v0.14.0 h1:nma5ZICTbHZ
 github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/logs v0.14.0/go.mod h1:xUiGj13q5uHPboc0xZ754fyusiF5C2RxNzOFdTbdZFA=
 github.com/DataDog/viper v1.13.4 h1:0SrZc3zvMAGgVKg96uP4DEJb13lK2Is9a4go7IIcFSE=
 github.com/DataDog/viper v1.13.4/go.mod h1:wDdUVJ2SHaMaPrCZrlRCObwkubsX8j5sme3LaR/SGTc=
-github.com/DataDog/zstd v1.5.5 h1:oWf5W7GtOLgp6bciQYDmhHHjdhYkALu6S/5Ni9ZgSvQ=
-github.com/DataDog/zstd v1.5.5/go.mod h1:g4AWEaM3yOg3HYfnJ3YIawPnVdXJh9QME85blwSAmyw=
+github.com/DataDog/zstd v1.5.2 h1:vUG4lAyuPCXO0TLbXvPv7EB7cNK1QV/luu55UHLrrn8=
+github.com/DataDog/zstd v1.5.2/go.mod h1:g4AWEaM3yOg3HYfnJ3YIawPnVdXJh9QME85blwSAmyw=
 github.com/Microsoft/go-winio v0.6.1 h1:9/kr64B9VUZrLm5YYwbGtUJnMgqWVOdUAXu6Migciow=
 github.com/Microsoft/go-winio v0.6.1/go.mod h1:LRdKpFKfdobln8UmuiYcKPot9D2v6svN5+sAH+4kjUM=
 github.com/OneOfOne/xxhash v1.2.2/go.mod h1:HSdplMjZKSmBqAxg5vPj2TmRDmfkzw+cTzAElWljhcU=
