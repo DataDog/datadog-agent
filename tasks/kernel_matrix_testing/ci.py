@@ -90,7 +90,10 @@ class KMTJob:
         try:
             res = self.gitlab.jobs.get(self.id, lazy=True).artifact(file)
 
-            return res.content
+            if not isinstance(res, bytes):
+                raise RuntimeError(f"Expected binary data, got {type(res)}")
+
+            return res
         except Exception as e:
             if ignore_not_found:
                 return None

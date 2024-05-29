@@ -14,9 +14,9 @@ import (
 )
 
 func TestDiscoverComponentsFromConfigForSnmp(t *testing.T) {
-	config.Datadog.SetConfigType("yaml")
+	config.Datadog().SetConfigType("yaml")
 
-	err := config.Datadog.ReadConfig(strings.NewReader(`
+	err := config.Datadog().ReadConfig(strings.NewReader(`
 network_devices:
   autodiscovery:
     configs:
@@ -27,7 +27,7 @@ network_devices:
 	assert.Len(t, configListeners, 1)
 	assert.Equal(t, "snmp", configListeners[0].Name)
 
-	err = config.Datadog.ReadConfig(strings.NewReader(`
+	err = config.Datadog().ReadConfig(strings.NewReader(`
 network_devices:
   autodiscovery:
     configs:
@@ -36,7 +36,7 @@ network_devices:
 	_, configListeners = DiscoverComponentsFromConfig()
 	assert.Empty(t, len(configListeners))
 
-	err = config.Datadog.ReadConfig(strings.NewReader(`
+	err = config.Datadog().ReadConfig(strings.NewReader(`
 snmp_listener:
   configs:
     - network: 127.0.0.1/30

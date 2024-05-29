@@ -45,7 +45,7 @@ func TestPythonDetect(t *testing.T) {
 		{
 			name:     "2nd level explicit script inside module",
 			cmd:      "python modules/m1/first/nice/something.py",
-			expected: "m1.first.nice",
+			expected: "m1.first.nice.something",
 		},
 		{
 			name:     "1st level module path",

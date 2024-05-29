@@ -1074,6 +1074,53 @@ func TestGetKubernetesPodByName(t *testing.T) {
 	}
 }
 
+func TestListKubernetesNodes(t *testing.T) {
+	node := &KubernetesNode{
+		EntityID: EntityID{
+			Kind: KindKubernetesNode,
+			ID:   "some-node",
+		},
+	}
+
+	tests := []struct {
+		name          string
+		preEvents     []CollectorEvent
+		expectedNodes []*KubernetesNode
+	}{
+		{
+			name: "some nodes stored",
+			preEvents: []CollectorEvent{
+				{
+					Type:   EventTypeSet,
+					Source: fooSource,
+					Entity: node,
+				},
+			},
+			expectedNodes: []*KubernetesNode{node},
+		},
+		{
+			name:          "no nodes stored",
+			preEvents:     nil,
+			expectedNodes: []*KubernetesNode{},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			deps := fxutil.Test[dependencies](t, fx.Options(
+				logimpl.MockModule(),
+				config.MockModule(),
+				fx.Supply(NewParams()),
+			))
+			s := newWorkloadmetaObject(deps)
+
+			s.handleEvents(test.preEvents)
+
+			tassert.Equal(t, test.expectedNodes, s.ListKubernetesNodes())
+		})
+	}
+}
+
 func TestListImages(t *testing.T) {
 	image := &ContainerImageMetadata{
 		EntityID: EntityID{

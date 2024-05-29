@@ -10,6 +10,7 @@ package tests
 
 import (
 	"fmt"
+	imdsutils "github.com/DataDog/datadog-agent/pkg/security/tests/imds_utils"
 	"os"
 	"path/filepath"
 	"strings"
@@ -44,7 +45,7 @@ func TestActivityDumps(t *testing.T) {
 	outputDir := t.TempDir()
 
 	expectedFormats := []string{"json", "protobuf"}
-	testActivityDumpTracedEventTypes := []string{"exec", "open", "syscalls", "dns", "bind"}
+	testActivityDumpTracedEventTypes := []string{"exec", "open", "syscalls", "dns", "bind", "imds"}
 	test, err := newTestModule(t, nil, []*rules.RuleDefinition{}, withStaticOpts(testOpts{
 		enableActivityDump:                  true,
 		activityDumpRateLimiter:             testActivityDumpRateLimiter,
@@ -55,6 +56,7 @@ func TestActivityDumps(t *testing.T) {
 		activityDumpLocalStorageFormats:     expectedFormats,
 		activityDumpTracedEventTypes:        testActivityDumpTracedEventTypes,
 		activityDumpCleanupPeriod:           testActivityDumpCleanupPeriod,
+		networkIngressEnabled:               true,
 	}))
 	if err != nil {
 		t.Fatal(err)
@@ -64,6 +66,57 @@ func TestActivityDumps(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
+	goSyscallTester, err := loadSyscallTester(t, test, "syscall_go_tester")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	t.Run("activity-dump-cgroup-imds", func(t *testing.T) {
+		checkKernelCompatibility(t, "RHEL, SLES and Oracle kernels", func(kv *kernel.Version) bool {
+			// TODO: Oracle because we are missing offsets. See dns_test.go
+			return kv.IsRH7Kernel() || kv.IsOracleUEKKernel() || kv.IsSLESKernel()
+		})
+
+		dockerInstance, dump, err := test.StartADockerGetDump()
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer dockerInstance.stop()
+
+		time.Sleep(time.Second * 1) // to ensure we did not get ratelimited
+		cmd := dockerInstance.Command(goSyscallTester, []string{"-setup-and-run-imds-test"}, []string{})
+		_, err = cmd.CombinedOutput()
+		if err != nil {
+			t.Fatal(err)
+		}
+		time.Sleep(1 * time.Second) // a quick sleep to let events to be added to the dump
+
+		err = test.StopActivityDump(dump.Name, "", "")
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		validateActivityDumpOutputs(t, test, expectedFormats, dump.OutputFiles, func(ad *activitydump.ActivityDump) bool {
+			nodes := ad.FindMatchingRootNodes(goSyscallTester)
+			if nodes == nil {
+				t.Fatal("Node not found in activity dump")
+			}
+
+			var requestFound, responseFound bool
+			for _, node := range nodes {
+				for evt := range node.IMDSEvents {
+					if evt.Type == "request" && evt.URL == imdsutils.IMDSSecurityCredentialsURL {
+						requestFound = true
+					}
+					if evt.Type == "response" && evt.AWS.SecurityCredentials.AccessKeyID == imdsutils.AWSSecurityCredentialsAccessKeyIDTestValue {
+						responseFound = true
+					}
+				}
+			}
+			return requestFound && responseFound
+		}, nil)
+	})
 
 	t.Run("activity-dump-cgroup-process", func(t *testing.T) {
 		dockerInstance, dump, err := test.StartADockerGetDump()

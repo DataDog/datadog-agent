@@ -6,9 +6,7 @@ extra packages that might not be available in runtime.
 from __future__ import annotations
 
 import os
-from typing import Literal, TypeVar
-
-from typing_extensions import Protocol, TypedDict
+from typing import Literal, Protocol, TypedDict, TypeVar
 
 Arch = Literal['x86_64', 'arm64']
 ArchOrLocal = Arch | Literal['local']

@@ -45,7 +45,6 @@ func (i *InstallerExec) newInstallerCmd(ctx context.Context, command string, arg
 	env := i.env.ToEnv()
 	span, ctx := tracer.StartSpanFromContext(ctx, fmt.Sprintf("installer.%s", command))
 	span.SetTag("args", args)
-	span.SetTag("env", env)
 	cmd := exec.CommandContext(ctx, i.installerBinPath, append([]string{command}, args...)...)
 	env = append(os.Environ(), env...)
 	cmd.Cancel = func() error {
@@ -63,7 +62,7 @@ func (i *InstallerExec) newInstallerCmd(ctx context.Context, command string, arg
 }
 
 // Install installs a package.
-func (i *InstallerExec) Install(ctx context.Context, url string) (err error) {
+func (i *InstallerExec) Install(ctx context.Context, url string, _ []string) (err error) {
 	cmd := i.newInstallerCmd(ctx, "install", url)
 	defer func() { cmd.span.Finish(tracer.WithError(err)) }()
 	return cmd.Run()
@@ -124,13 +123,14 @@ func (i *InstallerExec) IsInstalled(ctx context.Context, pkg string) (_ bool, er
 }
 
 // DefaultPackages returns the default packages to install.
-func (i *InstallerExec) DefaultPackages(ctx context.Context) ([]string, error) {
+func (i *InstallerExec) DefaultPackages(ctx context.Context) (_ []string, err error) {
 	cmd := i.newInstallerCmd(ctx, "default-packages")
+	defer func() { cmd.span.Finish(tracer.WithError(err)) }()
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
-	err := cmd.Run()
+	err = cmd.Run()
 	if err != nil {
 		return nil, fmt.Errorf("error running default-packages: %w\n%s", err, stderr.String())
 	}

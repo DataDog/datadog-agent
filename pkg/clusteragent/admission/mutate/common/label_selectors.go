@@ -18,9 +18,9 @@ import (
 func DefaultLabelSelectors(useNamespaceSelector bool) (namespaceSelector, objectSelector *metav1.LabelSelector) {
 	var labelSelector metav1.LabelSelector
 
-	if config.Datadog.GetBool("admission_controller.mutate_unlabelled") ||
-		config.Datadog.GetBool("apm_config.instrumentation.enabled") ||
-		len(config.Datadog.GetStringSlice("apm_config.instrumentation.enabled_namespaces")) > 0 {
+	if config.Datadog().GetBool("admission_controller.mutate_unlabelled") ||
+		config.Datadog().GetBool("apm_config.instrumentation.enabled") ||
+		len(config.Datadog().GetStringSlice("apm_config.instrumentation.enabled_namespaces")) > 0 {
 		// Accept all, ignore pods if they're explicitly filtered-out
 		labelSelector = metav1.LabelSelector{
 			MatchExpressions: []metav1.LabelSelectorRequirement{
@@ -40,7 +40,7 @@ func DefaultLabelSelectors(useNamespaceSelector bool) (namespaceSelector, object
 		}
 	}
 
-	if config.Datadog.GetBool("admission_controller.add_aks_selectors") {
+	if config.Datadog().GetBool("admission_controller.add_aks_selectors") {
 		return aksSelectors(useNamespaceSelector, labelSelector)
 	}
 

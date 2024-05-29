@@ -16,5 +16,5 @@ import (
 // SetTestRunPath sets run_path for testing
 func SetTestRunPath() {
 	path, _ := filepath.Abs(filepath.Join(".", "test", "run_path"))
-	config.Datadog.SetWithoutSource("run_path", path)
+	config.Datadog().SetWithoutSource("run_path", path)
 }

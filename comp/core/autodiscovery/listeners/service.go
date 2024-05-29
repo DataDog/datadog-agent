@@ -83,7 +83,7 @@ func (s *service) GetPorts(_ context.Context) ([]ContainerPort, error) {
 
 // GetTags returns the tags associated with the service.
 func (s *service) GetTags() ([]string, error) {
-	return tagger.Tag(s.GetTaggerEntity(), tagger.ChecksCardinality)
+	return tagger.Tag(s.GetTaggerEntity(), tagger.ChecksCardinality())
 }
 
 // GetPid returns the process ID of the service.
@@ -171,7 +171,7 @@ func (s *service) filterTemplatesOverriddenChecks(configs map[string]integration
 // added by the config provider (AddContainerCollectAllConfigs) if the service
 // has any other templates containing logs config.
 func (s *service) filterTemplatesContainerCollectAll(configs map[string]integration.Config) {
-	if !config.Datadog.GetBool("logs_config.container_collect_all") {
+	if !config.Datadog().GetBool("logs_config.container_collect_all") {
 		return
 	}
 

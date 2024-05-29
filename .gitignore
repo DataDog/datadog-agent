@@ -34,6 +34,9 @@ Dockerfiles/cluster-agent/nosys-seccomp
 # I explicitely include this file because it could be ignored globally in custom configurations
 !.python-version
 
+# specific pre-commit hooks
+.pre-commit-config-*.yaml
+
 # go-generated files
 datadog.yaml
 system-probe.yaml

@@ -38,7 +38,7 @@ var (
 type Data = hostnameinterface.Data
 
 func fromConfig(ctx context.Context, _ string) (string, error) {
-	configName := config.Datadog.GetString("hostname")
+	configName := config.Datadog().GetString("hostname")
 	err := validate.ValidHostname(configName)
 	if err != nil {
 		return "", err
@@ -49,7 +49,7 @@ func fromConfig(ctx context.Context, _ string) (string, error) {
 
 func fromHostnameFile(ctx context.Context, _ string) (string, error) {
 	// Try `hostname_file` config option next
-	hostnameFilepath := config.Datadog.GetString("hostname_file")
+	hostnameFilepath := config.Datadog().GetString("hostname_file")
 	if hostnameFilepath == "" {
 		return "", fmt.Errorf("'hostname_file' configuration is not enabled")
 	}
@@ -90,7 +90,7 @@ func fromFQDN(ctx context.Context, _ string) (string, error) {
 		return "", fmt.Errorf("FQDN hostname is not usable")
 	}
 
-	if config.Datadog.GetBool("hostname_fqdn") {
+	if config.Datadog().GetBool("hostname_fqdn") {
 		fqdn, err := fqdnHostname()
 		if err == nil {
 			return fqdn, nil
@@ -126,7 +126,7 @@ func fromEC2(ctx context.Context, currentHostname string) (string, error) {
 	// We use the instance id if we're on an ECS cluster or we're on EC2
 	// and the hostname is one of the default ones
 
-	prioritizeEC2Hostname := config.Datadog.GetBool("ec2_prioritize_instance_id_as_hostname")
+	prioritizeEC2Hostname := config.Datadog().GetBool("ec2_prioritize_instance_id_as_hostname")
 
 	log.Debugf("Detected a default EC2 hostname: %v", ec2.IsDefaultHostname(currentHostname))
 	log.Debugf("ec2_prioritize_instance_id_as_hostname is set to %v", prioritizeEC2Hostname)
