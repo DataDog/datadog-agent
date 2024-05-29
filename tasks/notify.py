@@ -39,6 +39,7 @@ S3_CI_BUCKET_URL = "s3://dd-ci-artefacts-build-stable/datadog-agent/failed_jobs"
 CONSECUTIVE_THRESHOLD = 3
 CUMULATIVE_THRESHOLD = 5
 CUMULATIVE_LENGTH = 10
+CI_VISIBILITY_JOB_URL = 'https://app.datadoghq.com/ci/pipeline-executions?query=ci_level%3Ajob%20%40ci.pipeline.name%3ADataDog%2Fdatadog-agent%20%40git.branch%3Amain%20%40ci.job.name%3A{}&agg_m=count'
 
 
 class ExecutionsJobInfo:
@@ -55,7 +56,7 @@ class ExecutionsJobInfo:
 
     @staticmethod
     def ci_visibility_url(name):
-        return f'https://app.datadoghq.com/ci/pipeline-executions?query=ci_level%3Ajob%20%40ci.pipeline.name%3ADataDog%2Fdatadog-agent%20%40git.branch%3Amain%20%40ci.job.name%3A{name}&agg_m=count'
+        return CI_VISIBILITY_JOB_URL.format(name)
 
     @staticmethod
     def from_dict(data):
