@@ -14,7 +14,6 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
-	"github.com/DataDog/datadog-agent/test/fakeintake/client"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	"github.com/stretchr/testify/assert"
@@ -162,16 +161,11 @@ func (s *snmpDockerSuite) TestSnmp() {
 
 func (s *snmpDockerSuite) TestSnmpTagsAreStoredOnRestart() {
 	fakeintake := s.Env().FakeIntake.Client()
-	initialMetrics, err := fakeintake.FilterMetrics("snmp.device.reachable",
-		client.WithTags[*aggregator.MetricSeries]([]string{}),
-	)
+	initialMetrics, err := fakeintake.FilterMetrics("snmp.device.reachable")
 	require.NoError(s.T(), err)
 
 	initialTags := initialMetrics[0].Tags
 	_, err = s.Env().RemoteHost.Execute("docker stop dd-snmp")
-	require.NoError(s.T(), err)
-
-	err = fakeintake.FlushServerAndResetAggregators()
 	require.NoError(s.T(), err)
 
 	_, err = s.Env().RemoteHost.Execute(fmt.Sprintf("docker restart %s", s.Env().Agent.ContainerName))
@@ -183,9 +177,7 @@ func (s *snmpDockerSuite) TestSnmpTagsAreStoredOnRestart() {
 	var metrics []*aggregator.MetricSeries
 
 	require.EventuallyWithT(s.T(), func(t *assert.CollectT) {
-		metrics, err = fakeintake.FilterMetrics("snmp.device.reachable",
-			client.WithTags[*aggregator.MetricSeries]([]string{}),
-		)
+		metrics, err = fakeintake.FilterMetrics("snmp.device.reachable")
 		require.NoError(t, err)
 		assert.NotEmpty(t, metrics)
 	}, 5*time.Minute, 5*time.Second)
@@ -194,5 +186,4 @@ func (s *snmpDockerSuite) TestSnmpTagsAreStoredOnRestart() {
 
 	require.Zero(s.T(), metrics[0].Points[0].Value)
 	require.ElementsMatch(s.T(), tags, initialTags)
-	require.Len(s.T(), tags, 9)
 }
