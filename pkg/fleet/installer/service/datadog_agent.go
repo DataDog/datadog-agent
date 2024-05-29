@@ -163,11 +163,11 @@ func RemoveAgent(ctx context.Context) {
 
 func oldAgentInstalled() bool {
 	_, err := os.Stat(pathOldAgent)
-	return !os.IsNotExist(err)
+	return err == nil
 }
 
 func stopOldAgentUnits(ctx context.Context) error {
-	if oldAgentInstalled() {
+	if !oldAgentInstalled() {
 		return nil
 	}
 	span, ctx := tracer.StartSpanFromContext(ctx, "remove_old_agent_units")
