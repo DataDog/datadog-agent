@@ -7,6 +7,7 @@ import re
 import tempfile
 import traceback
 from collections import defaultdict
+from dataclasses import dataclass
 from datetime import datetime, timezone
 
 from invoke import task
@@ -42,11 +43,11 @@ CUMULATIVE_LENGTH = 10
 CI_VISIBILITY_JOB_URL = 'https://app.datadoghq.com/ci/pipeline-executions?query=ci_level%3Ajob%20%40ci.pipeline.name%3ADataDog%2Fdatadog-agent%20%40git.branch%3Amain%20%40ci.job.name%3A{}&agg_m=count'
 
 
+@dataclass
 class ExecutionsJobInfo:
-    def __init__(self, job_id: int, failing: bool = True, commit: str = None):
-        self.job_id = job_id
-        self.failing = failing
-        self.commit = commit
+    job_id: int
+    failing: bool = True
+    commit: str | None = None
 
     def url(self):
         return f'{BASE_URL}/DataDog/datadog-agent/-/jobs/{self.job_id}'
@@ -63,10 +64,10 @@ class ExecutionsJobInfo:
         return ExecutionsJobInfo(data["id"], data["failing"], data["commit"])
 
 
+@dataclass
 class ExecutionsJobSummary:
-    def __init__(self, consecutive_failures: int, jobs_info: list[ExecutionsJobInfo]):
-        self.consecutive_failures = consecutive_failures
-        self.jobs_info = jobs_info
+    consecutive_failures: int
+    jobs_info: list[ExecutionsJobInfo]
 
     def to_dict(self):
         return {
@@ -105,15 +106,13 @@ class PipelineRuns:
         return f"Executions({self.to_dict()})"
 
 
+@dataclass
 class CumulativeJobAlert:
     """
     Test that both fails and passes multiple times in few executions
     """
 
-    def __init__(self, failures: dict[str, list[ExecutionsJobInfo]]):
-        super().__init__()
-
-        self.failures = failures
+    failures: dict[str, list[ExecutionsJobInfo]]
 
     def message(self) -> str:
         if len(self.failures) == 0:
@@ -125,15 +124,13 @@ class CumulativeJobAlert:
         return message
 
 
+@dataclass
 class ConsecutiveJobAlert:
     """
     Test that fails multiple times in a row
     """
 
-    def __init__(self, failures: dict[str, list[ExecutionsJobInfo]]):
-        super().__init__()
-
-        self.failures = failures
+    failures: dict[str, list[ExecutionsJobInfo]]
 
     def message(self, ctx: Context) -> str:
         if len(self.failures) == 0:
