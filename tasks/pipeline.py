@@ -991,3 +991,50 @@ def test_merge_queue(ctx):
     ctx.run(f"git push origin :{test_main}", hide=True)
     if not success:
         raise Exit(message="Merge queue test failed", code=1)
+
+
+@task
+def compare_to_itself(ctx):
+    """
+    Create a new branch with 'compare_to_itself' in gitlab-ci.yml and trigger a pipeline
+    """
+    agent = get_gitlab_repo()
+    current_branch = ctx.run("git rev-parse --abbrev-ref HEAD", hide=True).stdout.strip()
+    new_branch = f"compare/{current_branch}"
+    ctx.run(f"git checkout -b {new_branch}", hide=True)
+    ctx.run(f"git push origin {new_branch}", hide=True)
+    for file in ['.gitlab-ci.yml', '.gitlab/notify/notify.yml']:
+        with open(file) as f:
+            content = f.read()
+        with open(file, 'w') as f:
+            f.write(content.replace('compare_to: main', f'compare_to: {new_branch}'))
+    ctx.run("git commit -am 'Compare to itself'", hide=True)
+    ctx.run(f"git push origin {new_branch}", hide=True)
+    max_attempts = 5
+    for attempt in range(max_attempts):
+        time.sleep(30)
+        pipelines = agent.pipelines.list(per_page=20, get_all=False)
+        test_pipelines = [p for p in pipelines if p.ref.startswith(new_branch)]
+        if len(test_pipelines) == 2:
+            print(f"Pipelines found: {[pipeline.web_url for pipeline in test_pipelines]}")
+            break
+        else:
+            if attempt == max_attempts - 1:
+                raise RuntimeError(f"No pipeline found for {new_branch}")
+            continue
+    success = all(pipeline.status == "running" for pipeline in test_pipelines)
+    if success:
+        print("Pipeline correctly created, congrats")
+    else:
+        failed = next(pipeline for pipeline in test_pipelines if pipeline.status != "running")
+        print(f"[ERROR] Failed to generate a pipeline for {new_branch}, please check {failed.web_url}")
+    # Clean up
+    print("Cleaning up")
+    if success:
+        for pipeline in test_pipelines:
+            pipeline.cancel()
+    ctx.run(f"git checkout {current_branch}", hide=True)
+    ctx.run(f"git branch -D {new_branch}", hide=True)
+    ctx.run(f"git push origin :{new_branch}", hide=True)
+    if not success:
+        raise Exit(message="compare_to itself failed", code=1)
