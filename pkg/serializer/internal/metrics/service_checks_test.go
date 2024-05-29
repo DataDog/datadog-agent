@@ -97,6 +97,7 @@ func buildPayload(t *testing.T, m marshaler.StreamJSONMarshaler, cfg pkgconfigmo
 
 func assertEqualToMarshalJSON(t *testing.T, m marshaler.StreamJSONMarshaler, jsonMarshaler marshaler.JSONMarshaler) {
 	config := pkgconfigsetup.Conf()
+	config.SetWithoutSource("serializer_compressor_kind", "zlib")
 	payloads := buildPayload(t, m, config)
 	json, err := jsonMarshaler.MarshalJSON()
 	assert.NoError(t, err)
@@ -126,6 +127,7 @@ func TestPayloadsEmptyServiceCheck(t *testing.T) {
 
 func TestPayloadsServiceChecks(t *testing.T) {
 	config := pkgconfigsetup.Conf()
+	config.SetWithoutSource("serializer_compressor_kind", "zlib")
 	config.Set("serializer_max_payload_size", 200, pkgconfigmodel.SourceAgentRuntime)
 
 	serviceCheckCollection := []ServiceChecks{
@@ -158,7 +160,9 @@ func createServiceChecks(numberOfItem int) ServiceChecks {
 }
 
 func benchmarkJSONPayloadBuilderServiceCheck(b *testing.B, numberOfItem int) {
-	payloadBuilder := stream.NewJSONPayloadBuilder(true, pkgconfigsetup.Conf(), compressionimpl.NewCompressor(pkgconfigsetup.Conf()))
+	config := pkgconfigsetup.Conf()
+	config.SetWithoutSource("serializer_compressor_kind", "zlib")
+	payloadBuilder := stream.NewJSONPayloadBuilder(true, config, compressionimpl.NewCompressor(config))
 	serviceChecks := createServiceChecks(numberOfItem)
 
 	b.ResetTimer()
@@ -199,6 +203,7 @@ func benchmarkPayloadsServiceCheck(b *testing.B, numberOfItem int) {
 	b.ResetTimer()
 
 	mockConfig := pkgconfigsetup.Conf()
+	mockConfig.SetWithoutSource("serializer_compressor_kind", "zlib")
 	strategy := compressionimpl.NewCompressor(mockConfig)
 	for n := 0; n < b.N; n++ {
 		split.Payloads(serviceChecks, true, split.JSONMarshalFct, strategy)
