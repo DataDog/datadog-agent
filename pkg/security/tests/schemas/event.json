@@ -28,6 +28,9 @@
                 "outcome"
             ]
         },
+        "syscall": {
+            "type": "object"
+        },
         "date": {
             "$ref": "/schemas/datetime.json"
         }

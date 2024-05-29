@@ -108,7 +108,8 @@ def go_deps(ctx, baseline_ref=None, report_file=None):
                             flavor = details.get("flavor", AgentFlavor.base)
                             build = details.get("build", binary)
                             build_tags = get_default_build_tags(build=build, platform=platform, flavor=flavor)
-                            env = {"GOOS": goos, "GOARCH": goarch}
+                            # need to explicitly enable CGO to also include CGO-only deps when checking different platforms
+                            env = {"GOOS": goos, "GOARCH": goarch, "CGO_ENABLED": "1"}
                             ctx.run(f"{dep_cmd} -tags \"{' '.join(build_tags)}\" > {depsfile}", env=env)
         finally:
             ctx.run(f"git checkout -q {current_branch}")

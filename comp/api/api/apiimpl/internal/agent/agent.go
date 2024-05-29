@@ -59,11 +59,10 @@ func SetupHandlers(
 	gui optional.Option[gui.Component],
 	providers []api.EndpointProvider,
 ) *mux.Router {
-
 	// Register the handlers from the component providers
-	sort.Slice(providers, func(i, j int) bool { return providers[i].Route < providers[j].Route })
+	sort.Slice(providers, func(i, j int) bool { return providers[i].Route() < providers[j].Route() })
 	for _, p := range providers {
-		r.HandleFunc(p.Route, p.HandlerFunc).Methods(p.Methods...)
+		r.HandleFunc(p.Route(), p.HandlerFunc()).Methods(p.Methods()...)
 	}
 
 	// TODO: move these to a component that is registerable

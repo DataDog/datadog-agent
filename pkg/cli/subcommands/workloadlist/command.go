@@ -116,9 +116,9 @@ func workloadURL(verbose bool) (string, error) {
 
 	var prefix string
 	if flavor.GetFlavor() == flavor.ClusterAgent {
-		prefix = fmt.Sprintf("https://%v:%v/workload-list", ipcAddress, pkgconfig.Datadog.GetInt("cluster_agent.cmd_port"))
+		prefix = fmt.Sprintf("https://%v:%v/workload-list", ipcAddress, pkgconfig.Datadog().GetInt("cluster_agent.cmd_port"))
 	} else {
-		prefix = fmt.Sprintf("https://%v:%v/agent/workload-list", ipcAddress, pkgconfig.Datadog.GetInt("cmd_port"))
+		prefix = fmt.Sprintf("https://%v:%v/agent/workload-list", ipcAddress, pkgconfig.Datadog().GetInt("cmd_port"))
 	}
 
 	if verbose {
