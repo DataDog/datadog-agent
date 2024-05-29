@@ -448,26 +448,29 @@ def send_failure_summary_notification(_, list_max_len=10):
     # TODO
     jobs = os.environ["JOB_FAILURES"]
     jobs = json.loads(jobs)
-    print(jobs)
-    return
+    # print(jobs)
+    # return
     # with open('/tmp/failures.json') as fail, open('/tmp/success.json') as succ:
     #     jobs = {'failures': json.load(fail), 'success': json.load(succ)}
 
     # stats[i] = [#failures, #total]
-    stats = {}
-    for bucket in jobs['failures']['data']['buckets']:
-        name = bucket['by']['@ci.job.name']
-        fail = bucket['computes']['c0']
-        stats[name] = [fail, None]
+    # stats = {}
+    # for bucket in jobs['failures']['data']['buckets']:
+    #     name = bucket['by']['@ci.job.name']
+    #     fail = bucket['computes']['c0']
+    #     stats[name] = [fail, None]
 
-    for bucket in jobs['success']['data']['buckets']:
-        name = bucket['by']['@ci.job.name']
-        success = bucket['computes']['c0']
-        if name in stats:
-            stats[name][1] = stats[name][0] + success
+    # for bucket in jobs['success']['data']['buckets']:
+    #     name = bucket['by']['@ci.job.name']
+    #     success = bucket['computes']['c0']
+    #     if name in stats:
+    #         stats[name][1] = stats[name][0] + success
 
-    # List of (job_name, failure_count) ordered by failure_count
-    stats = sorted(((name, (fail, success)) for (name, (fail, success)) in stats.items() if fail > 0), key=lambda x: (x[1][0], x[1][1] if x[1][1] is not None else 0), reverse=True)[:list_max_len]
+    # # List of (job_name, failure_count) ordered by failure_count
+    # stats = sorted(((name, (fail, success)) for (name, (fail, success)) in stats.items() if fail > 0), key=lambda x: (x[1][0], x[1][1] if x[1][1] is not None else 0), reverse=True)[:list_max_len]
+
+    # TODO
+    stats = jobs
 
     # Don't send message if no failure
     if len(stats) == 0:
