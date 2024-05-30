@@ -20,7 +20,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
-	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/fetcher"
@@ -214,8 +213,8 @@ func getConfigValue(_ log.Component, _ config.Component, _ secrets.Component, pa
 	return nil
 }
 
-func showRuntimeConfigurationBySource(sysprobeconfig sysprobeconfig.Component, _ *cliParams) error {
-	c, err := getClient(sysprobeconfig)
+func showRuntimeConfigurationBySource(_ log.Component, _ config.Component, _ secrets.Component, params *cliParams) error {
+	c, err := params.getClient(params.command, params.args)
 	if err != nil {
 		return err
 	}
