@@ -21,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/remote"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
+	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/process"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	grpcutil "github.com/DataDog/datadog-agent/pkg/util/grpc"
@@ -28,7 +29,8 @@ import (
 )
 
 const (
-	collectorID = "process-collector"
+	collectorID       = "process-collector"
+	cacheValidityNoRT = 2 * time.Second
 )
 
 func toLanguage(proto *pbgo.Language) *languagemodels.Language {
@@ -38,44 +40,6 @@ func toLanguage(proto *pbgo.Language) *languagemodels.Language {
 	return &languagemodels.Language{
 		Name: languagemodels.LanguageName(proto.GetName()),
 	}
-}
-
-// WorkloadmetaEventFromProcessEventSet converts the given ProcessEventSet into a workloadmeta.Event
-func WorkloadmetaEventFromProcessEventSet(protoEvent *pbgo.ProcessEventSet) (workloadmeta.Event, error) {
-	if protoEvent == nil {
-		return workloadmeta.Event{}, nil
-	}
-
-	return workloadmeta.Event{
-		Type: workloadmeta.EventTypeSet,
-		Entity: &workloadmeta.Process{
-			EntityID: workloadmeta.EntityID{
-				Kind: workloadmeta.KindProcess,
-				ID:   strconv.Itoa(int(protoEvent.GetPid())),
-			},
-			NsPid:        protoEvent.GetNspid(),
-			ContainerID:  protoEvent.GetContainerID(),
-			CreationTime: time.UnixMilli(protoEvent.GetCreationTime()), // TODO: confirm what we receive as creation time here
-			Language:     toLanguage(protoEvent.GetLanguage()),
-		},
-	}, nil
-}
-
-// WorkloadmetaEventFromProcessEventUnset converts the given ProcessEventSet into a workloadmeta.Event
-func WorkloadmetaEventFromProcessEventUnset(protoEvent *pbgo.ProcessEventUnset) (workloadmeta.Event, error) {
-	if protoEvent == nil {
-		return workloadmeta.Event{}, nil
-	}
-
-	return workloadmeta.Event{
-		Type: workloadmeta.EventTypeUnset,
-		Entity: &workloadmeta.Process{
-			EntityID: workloadmeta.EntityID{
-				Kind: workloadmeta.KindProcess,
-				ID:   strconv.Itoa(int(protoEvent.GetPid())),
-			},
-		},
-	}, nil
 }
 
 type client struct {
@@ -107,6 +71,58 @@ func (s *stream) Recv() (interface{}, error) {
 type streamHandler struct {
 	port int
 	config.Reader
+	lastContainerRates map[string]*proccontainers.ContainerRateMetrics
+	pidToCid           map[int]string
+}
+
+// WorkloadmetaEventFromProcessEventSet converts the given ProcessEventSet into a workloadmeta.Event
+func (s *streamHandler) WorkloadmetaEventFromProcessEventSet(protoEvent *pbgo.ProcessEventSet) (workloadmeta.Event, error) {
+	if protoEvent == nil {
+		return workloadmeta.Event{}, nil
+	}
+
+	ctrID := protoEvent.GetContainerID()
+
+	if ctrID == "" && s.pidToCid != nil {
+		if cidFromMapping, found := s.pidToCid[int(protoEvent.GetPid())]; found {
+			ctrID = cidFromMapping
+		}
+	}
+
+	if ctrID == "" {
+		log.Debugf("failed to obtain container id for process with process id %d", protoEvent.GetPid())
+	}
+
+	return workloadmeta.Event{
+		Type: workloadmeta.EventTypeSet,
+		Entity: &workloadmeta.Process{
+			EntityID: workloadmeta.EntityID{
+				Kind: workloadmeta.KindProcess,
+				ID:   strconv.Itoa(int(protoEvent.GetPid())),
+			},
+			NsPid:        protoEvent.GetNspid(),
+			ContainerID:  ctrID,
+			CreationTime: time.UnixMilli(protoEvent.GetCreationTime()), // TODO: confirm what we receive as creation time here
+			Language:     toLanguage(protoEvent.GetLanguage()),
+		},
+	}, nil
+}
+
+// WorkloadmetaEventFromProcessEventUnset converts the given ProcessEventSet into a workloadmeta.Event
+func (s *streamHandler) WorkloadmetaEventFromProcessEventUnset(protoEvent *pbgo.ProcessEventUnset) (workloadmeta.Event, error) {
+	if protoEvent == nil {
+		return workloadmeta.Event{}, nil
+	}
+
+	return workloadmeta.Event{
+		Type: workloadmeta.EventTypeUnset,
+		Entity: &workloadmeta.Process{
+			EntityID: workloadmeta.EntityID{
+				Kind: workloadmeta.KindProcess,
+				ID:   strconv.Itoa(int(protoEvent.GetPid())),
+			},
+		},
+	}, nil
 }
 
 // NewCollector returns a remote process collector for workloadmeta if any
@@ -115,9 +131,12 @@ func NewCollector() (workloadmeta.CollectorProvider, error) {
 		Collector: &remote.GenericCollector{
 			CollectorID: collectorID,
 			// TODO(components): make sure StreamHandler uses the config component not pkg/config
-			StreamHandler: &streamHandler{Reader: config.Datadog()},
-			Catalog:       workloadmeta.NodeAgent,
-			Insecure:      true, // wlm extractor currently does not support TLS
+			StreamHandler: &streamHandler{
+				Reader:             config.Datadog(),
+				lastContainerRates: make(map[string]*proccontainers.ContainerRateMetrics),
+			},
+			Catalog:  workloadmeta.NodeAgent,
+			Insecure: true, // wlm extractor currently does not support TLS
 		},
 	}, nil
 }
@@ -152,17 +171,40 @@ func (s *streamHandler) NewClient(cc grpc.ClientConnInterface) remote.GrpcClient
 	return &client{cl: pbgo.NewProcessEntityStreamClient(cc), parentCollector: s}
 }
 
-func (s *streamHandler) HandleResponse(resp interface{}) ([]workloadmeta.CollectorEvent, error) {
+// fetchContainerID updates the PID to Container ID mapping if at least one event is missing container ID field
+func (s *streamHandler) fetchContainerID(setEvents []*pbgo.ProcessEventSet, store workloadmeta.Component) {
+	requireFetch := false
+
+	for _, event := range setEvents {
+		if event != nil && event.GetContainerID() == "" {
+			requireFetch = true
+		}
+	}
+
+	if requireFetch {
+		containerProvider := proccontainers.GetSharedContainerProvider(store)
+		_, _, pidToCid, err := containerProvider.GetContainers(cacheValidityNoRT, s.lastContainerRates)
+		if err != nil {
+			log.Warnf("error getting container id for process entity")
+		}
+
+		s.pidToCid = pidToCid
+	}
+
+}
+
+func (s *streamHandler) HandleResponse(store workloadmeta.Component, resp interface{}) ([]workloadmeta.CollectorEvent, error) {
 	log.Trace("handling response")
 	response, ok := resp.(*pbgo.ProcessStreamResponse)
 	if !ok {
 		return nil, fmt.Errorf("incorrect response type")
 	}
 
-	collectorEvents := make([]workloadmeta.CollectorEvent, 0, len(response.SetEvents)+len(response.UnsetEvents))
+	s.fetchContainerID(response.SetEvents, store)
 
-	collectorEvents = handleEvents(collectorEvents, response.UnsetEvents, WorkloadmetaEventFromProcessEventUnset)
-	collectorEvents = handleEvents(collectorEvents, response.SetEvents, WorkloadmetaEventFromProcessEventSet)
+	collectorEvents := make([]workloadmeta.CollectorEvent, 0, len(response.SetEvents)+len(response.UnsetEvents))
+	collectorEvents = handleEvents(collectorEvents, response.UnsetEvents, s.WorkloadmetaEventFromProcessEventUnset)
+	collectorEvents = handleEvents(collectorEvents, response.SetEvents, s.WorkloadmetaEventFromProcessEventSet)
 	log.Tracef("collected [%d] events", len(collectorEvents))
 	return collectorEvents, nil
 }
