@@ -1,0 +1,20 @@
+# Disallow [skip ci] in commit messages
+
+skip-ci-check:
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  needs: []
+  # rules:
+  #   - !reference [.except_mergequeue]
+  #   - when: on_success
+  script:
+    - commit_message="$(git log --format=%B -n 1 $CI_COMMIT_SHA)"
+    # https://docs.github.com/en/actions/managing-workflow-runs/skipping-workflow-runs
+    - |
+      case "$commit_message" in
+          *"[add-skip-ci-mq-check]"*|*"[ci skip]"*|*"[skip ci]"*|*"[actions skip]"*|*"[skip actions]"*|*"[no ci]"*|*"skip-checks: true"*|*"skip-checks:true"*)
+              echo "error: Do not skip checks when merging PRs" >& 2
+              exit 1
+          ;;
+      esac
+    - "echo 'success: No check skip found'"
+
