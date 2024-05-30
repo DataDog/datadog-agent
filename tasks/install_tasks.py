@@ -1,9 +1,8 @@
-import os
 import sys
 
 from invoke import Exit, task
 
-from tasks.libs.common.utils import collapsed_section, color_message, environ
+from tasks.libs.common.utils import collapsed_section, environ
 
 TOOL_LIST = [
     'github.com/frapposelli/wwhrd',
