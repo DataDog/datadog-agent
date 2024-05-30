@@ -15,6 +15,8 @@ namespace CustomActions.Tests.InstallState
         public Mock<IRegistryServices> RegistryServices { get; } = new();
         public Mock<IServiceController> ServiceController { get; } = new();
 
+        public Mock<INativeMethods> NativeMethods { get; } = new();
+
         public InstallStateTestSetup()
         {
             ServiceController.SetupGet(s => s.Services).Returns(new WindowsService[] { });
@@ -25,7 +27,8 @@ namespace CustomActions.Tests.InstallState
             return new InstallStateCustomActions(
                 Session.Object,
                 RegistryServices.Object,
-                ServiceController.Object);
+                ServiceController.Object,
+                NativeMethods.Object);
         }
 
         public InstallStateTestSetup WithRegistryKey(Registries registry, string path, Dictionary<string, object> keys)
