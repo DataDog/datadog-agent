@@ -1,7 +1,8 @@
 using System.Linq;
+using WixSetup.Datadog_Agent;
 using WixSharp;
 
-namespace WixSetup.Datadog_Agent
+namespace WixSetup
 {
     public static class AgentCustomActionsProjectExtensions
     {

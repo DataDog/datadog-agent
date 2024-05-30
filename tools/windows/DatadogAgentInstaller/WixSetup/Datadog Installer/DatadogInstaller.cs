@@ -2,7 +2,6 @@ using System;
 using System.IO;
 using System.Windows;
 using NineDigit.WixSharpExtensions;
-using WixSetup.Datadog_Agent;
 using WixSharp;
 using WixSharp.CommonTasks;
 using Condition = WixSharp.Condition;
