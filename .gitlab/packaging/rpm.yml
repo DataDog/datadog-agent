@@ -167,7 +167,7 @@ iot_agent_rpm-x64:
 
 iot_agent_rpm-arm64:
   extends: [.package_iot_rpm_common, .package_rpm_arm64]
-  tags: ["arch:arm64"]
+  needs: ["iot-agent-arm64"]
 
 iot_agent_rpm-armhf:
   extends: .package_iot_rpm_common
