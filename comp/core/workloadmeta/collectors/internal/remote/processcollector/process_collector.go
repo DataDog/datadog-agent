@@ -71,26 +71,12 @@ func (s *stream) Recv() (interface{}, error) {
 type streamHandler struct {
 	port int
 	config.Reader
-	lastContainerRates map[string]*proccontainers.ContainerRateMetrics
-	pidToCid           map[int]string
 }
 
 // WorkloadmetaEventFromProcessEventSet converts the given ProcessEventSet into a workloadmeta.Event
-func (s *streamHandler) WorkloadmetaEventFromProcessEventSet(protoEvent *pbgo.ProcessEventSet) (workloadmeta.Event, error) {
+func WorkloadmetaEventFromProcessEventSet(protoEvent *pbgo.ProcessEventSet) (workloadmeta.Event, error) {
 	if protoEvent == nil {
 		return workloadmeta.Event{}, nil
-	}
-
-	ctrID := protoEvent.GetContainerID()
-
-	if ctrID == "" && s.pidToCid != nil {
-		if cidFromMapping, found := s.pidToCid[int(protoEvent.GetPid())]; found {
-			ctrID = cidFromMapping
-		}
-	}
-
-	if ctrID == "" {
-		log.Debugf("failed to obtain container id for process with process id %d", protoEvent.GetPid())
 	}
 
 	return workloadmeta.Event{
@@ -101,7 +87,7 @@ func (s *streamHandler) WorkloadmetaEventFromProcessEventSet(protoEvent *pbgo.Pr
 				ID:   strconv.Itoa(int(protoEvent.GetPid())),
 			},
 			NsPid:        protoEvent.GetNspid(),
-			ContainerID:  ctrID,
+			ContainerID:  protoEvent.GetContainerID(),
 			CreationTime: time.UnixMilli(protoEvent.GetCreationTime()), // TODO: confirm what we receive as creation time here
 			Language:     toLanguage(protoEvent.GetLanguage()),
 		},
@@ -109,7 +95,7 @@ func (s *streamHandler) WorkloadmetaEventFromProcessEventSet(protoEvent *pbgo.Pr
 }
 
 // WorkloadmetaEventFromProcessEventUnset converts the given ProcessEventSet into a workloadmeta.Event
-func (s *streamHandler) WorkloadmetaEventFromProcessEventUnset(protoEvent *pbgo.ProcessEventUnset) (workloadmeta.Event, error) {
+func WorkloadmetaEventFromProcessEventUnset(protoEvent *pbgo.ProcessEventUnset) (workloadmeta.Event, error) {
 	if protoEvent == nil {
 		return workloadmeta.Event{}, nil
 	}
@@ -132,8 +118,7 @@ func NewCollector() (workloadmeta.CollectorProvider, error) {
 			CollectorID: collectorID,
 			// TODO(components): make sure StreamHandler uses the config component not pkg/config
 			StreamHandler: &streamHandler{
-				Reader:             config.Datadog(),
-				lastContainerRates: make(map[string]*proccontainers.ContainerRateMetrics),
+				Reader: config.Datadog(),
 			},
 			Catalog:  workloadmeta.NodeAgent,
 			Insecure: true, // wlm extractor currently does not support TLS
@@ -171,26 +156,43 @@ func (s *streamHandler) NewClient(cc grpc.ClientConnInterface) remote.GrpcClient
 	return &client{cl: pbgo.NewProcessEntityStreamClient(cc), parentCollector: s}
 }
 
-// fetchContainerID updates the PID to Container ID mapping if at least one event is missing container ID field
-func (s *streamHandler) fetchContainerID(setEvents []*pbgo.ProcessEventSet, store workloadmeta.Component) {
-	requireFetch := false
+// populateMissingContainerID populates any missing containerID field in the entities of Set events if it is possible to get the
+// container id from the shared container provider
+func (s *streamHandler) populateMissingContainerID(collectorEvents []workloadmeta.CollectorEvent, store workloadmeta.Component) {
+	var pidToCid map[int]string
 
-	for _, event := range setEvents {
-		if event != nil && event.GetContainerID() == "" {
-			requireFetch = true
-		}
-	}
-
-	if requireFetch {
-		containerProvider := proccontainers.GetSharedContainerProvider(store)
-		_, _, pidToCid, err := containerProvider.GetContainers(cacheValidityNoRT, s.lastContainerRates)
-		if err != nil {
-			log.Warnf("error getting container id for process entity")
+	for idx, event := range collectorEvents {
+		if event.Type != workloadmeta.EventTypeSet {
+			continue
 		}
 
-		s.pidToCid = pidToCid
-	}
+		processEntity := event.Entity.(*workloadmeta.Process)
+		pid := processEntity.GetID().ID
+		ctrID := processEntity.ContainerID
 
+		if ctrID == "" {
+			// Populate pidToCid if it is the first time containerId is empty
+			if pidToCid == nil {
+				containerProvider := proccontainers.GetSharedContainerProvider(store)
+				var err error
+				pidToCid, err = containerProvider.GetProcessToContainerMapping(cacheValidityNoRT)
+				if err != nil {
+					log.Warnf("error getting container id for process entity")
+				}
+			}
+
+			// Populate missing containerId field it is present in the mapping
+			pidAsInt, _ := strconv.Atoi(pid)
+			if ctrIDFromMapping, found := pidToCid[pidAsInt]; found {
+				processEntity.ContainerID = ctrIDFromMapping
+			} else {
+				log.Debugf("failed to get container id for process %s", pid)
+			}
+		}
+
+		event.Entity = processEntity
+		collectorEvents[idx] = event
+	}
 }
 
 func (s *streamHandler) HandleResponse(store workloadmeta.Component, resp interface{}) ([]workloadmeta.CollectorEvent, error) {
@@ -200,11 +202,10 @@ func (s *streamHandler) HandleResponse(store workloadmeta.Component, resp interf
 		return nil, fmt.Errorf("incorrect response type")
 	}
 
-	s.fetchContainerID(response.SetEvents, store)
-
 	collectorEvents := make([]workloadmeta.CollectorEvent, 0, len(response.SetEvents)+len(response.UnsetEvents))
-	collectorEvents = handleEvents(collectorEvents, response.UnsetEvents, s.WorkloadmetaEventFromProcessEventUnset)
-	collectorEvents = handleEvents(collectorEvents, response.SetEvents, s.WorkloadmetaEventFromProcessEventSet)
+	collectorEvents = handleEvents(collectorEvents, response.UnsetEvents, WorkloadmetaEventFromProcessEventUnset)
+	collectorEvents = handleEvents(collectorEvents, response.SetEvents, WorkloadmetaEventFromProcessEventSet)
+	s.populateMissingContainerID(collectorEvents, store)
 	log.Tracef("collected [%d] events", len(collectorEvents))
 	return collectorEvents, nil
 }
