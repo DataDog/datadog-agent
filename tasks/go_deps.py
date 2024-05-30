@@ -92,11 +92,6 @@ def compute_all_count_metrics(ctx: Context, extra_tags: Iterable[str] = ()):
     return series
 
 
-DEP_IGNORE_SET = {
-    "internal/chacha8rand": True, # added in go 1.22
-}
-
-
 def compute_binary_dependencies_list(
     ctx: Context,
     build: str,
@@ -121,7 +116,7 @@ def compute_binary_dependencies_list(
     )
     assert res
 
-    return [dep for dep in res.stdout.strip().splitlines() if dep not in DEP_IGNORE_SET]
+    return [dep for dep in res.stdout.strip().splitlines() if not dep.startswith("internal/")]
 
 
 @task
