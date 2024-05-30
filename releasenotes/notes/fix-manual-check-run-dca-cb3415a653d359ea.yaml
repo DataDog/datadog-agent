@@ -9,4 +9,4 @@
 fixes:
   - |
     Fix leader election error when running checks manually from the
-    cluster agent.
+    Cluster Agent.
