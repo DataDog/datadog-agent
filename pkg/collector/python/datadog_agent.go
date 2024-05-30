@@ -34,9 +34,7 @@ import (
 #include "datadog_agent_rtloader.h"
 #include "rtloader_mem.h"
 */
-import (
-	"C"
-)
+import "C"
 
 // GetVersion exposes the version of the agent to Python checks.
 //
@@ -74,7 +72,7 @@ func GetClusterName(clusterName **C.char) {
 //
 //export TracemallocEnabled
 func TracemallocEnabled() C.bool {
-	return C.bool(config.Datadog.GetBool("tracemalloc_debug"))
+	return C.bool(config.Datadog().GetBool("tracemalloc_debug"))
 }
 
 // Headers returns a basic set of HTTP headers that can be used by clients in Python checks.
@@ -99,12 +97,12 @@ func Headers(yamlPayload **C.char) {
 //export GetConfig
 func GetConfig(key *C.char, yamlPayload **C.char) {
 	goKey := C.GoString(key)
-	if !config.Datadog.IsSet(goKey) {
+	if !config.Datadog().IsSet(goKey) {
 		*yamlPayload = nil
 		return
 	}
 
-	value := config.Datadog.Get(goKey)
+	value := config.Datadog().Get(goKey)
 	data, err := yaml.Marshal(value)
 	if err != nil {
 		log.Errorf("could not convert configuration value '%v' to YAML: %s", value, err)
@@ -217,7 +215,7 @@ var (
 func lazyInitObfuscator() *obfuscate.Obfuscator {
 	obfuscatorLoader.Do(func() {
 		var cfg obfuscate.Config
-		if err := config.Datadog.UnmarshalKey("apm_config.obfuscation", &cfg); err != nil {
+		if err := config.Datadog().UnmarshalKey("apm_config.obfuscation", &cfg); err != nil {
 			log.Errorf("Failed to unmarshal apm_config.obfuscation: %s", err.Error())
 			cfg = obfuscate.Config{}
 		}
@@ -226,6 +224,9 @@ func lazyInitObfuscator() *obfuscate.Obfuscator {
 		}
 		if !cfg.SQLExecPlanNormalize.Enabled {
 			cfg.SQLExecPlanNormalize = defaultSQLPlanNormalizeSettings
+		}
+		if !cfg.Mongo.Enabled {
+			cfg.Mongo = defaultMongoObfuscateSettings
 		}
 		obfuscator = obfuscate.NewObfuscator(cfg)
 	})
@@ -526,7 +527,50 @@ var defaultSQLPlanObfuscateSettings = obfuscate.JSONConfig{
 	ObfuscateSQLValues: defaultSQLPlanNormalizeSettings.ObfuscateSQLValues,
 }
 
+// defaultMongoObfuscateSettings are the default JSON obfuscator settings for obfuscating mongodb commands
+var defaultMongoObfuscateSettings = obfuscate.JSONConfig{
+	Enabled: true,
+	KeepValues: []string{
+		"find",
+		"sort",
+		"projection",
+		"skip",
+		"batchSize",
+		"$db",
+		"getMore",
+		"collection",
+		"delete",
+		"findAndModify",
+		"insert",
+		"ordered",
+		"update",
+		"aggregate",
+		"comment",
+	},
+}
+
 //export getProcessStartTime
 func getProcessStartTime() float64 {
 	return float64(config.StartTime.Unix())
+}
+
+// ObfuscateMongoDBString obfuscates the MongoDB query
+//
+//export ObfuscateMongoDBString
+func ObfuscateMongoDBString(cmd *C.char, errResult **C.char) *C.char {
+	if C.GoString(cmd) == "" {
+		// memory will be freed by caller
+		*errResult = TrackedCString("Empty MongoDB command")
+		return nil
+	}
+	obfuscatedMongoDBString := lazyInitObfuscator().ObfuscateMongoDBString(
+		C.GoString(cmd),
+	)
+	if obfuscatedMongoDBString == "" {
+		// memory will be freed by caller
+		*errResult = TrackedCString("Failed to obfuscate MongoDB command")
+		return nil
+	}
+	// memory will be freed by caller
+	return TrackedCString(obfuscatedMongoDBString)
 }

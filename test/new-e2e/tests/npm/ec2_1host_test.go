@@ -36,8 +36,6 @@ func hostDockerHttpbinEnvProvisioner(opt ...awshost.ProvisionerOption) e2e.Pulum
 		if err != nil {
 			return err
 		}
-		env.Host.AwsEnvironment = &awsEnv
-
 		opts := []awshost.ProvisionerOption{
 			awshost.WithAgentOptions(agentparams.WithSystemProbeConfig(systemProbeConfigNPM)),
 		}
@@ -45,7 +43,7 @@ func hostDockerHttpbinEnvProvisioner(opt ...awshost.ProvisionerOption) e2e.Pulum
 			opts = append(opts, opt...)
 		}
 		params := awshost.GetProvisionerParams(opts...)
-		awshost.Run(ctx, &env.Host, params)
+		awshost.Run(ctx, &env.Host, awshost.RunParams{Environment: &awsEnv, ProvisionerParams: params})
 
 		vmName := "httpbinvm"
 
@@ -76,6 +74,7 @@ func hostDockerHttpbinEnvProvisioner(opt ...awshost.ProvisionerOption) e2e.Pulum
 
 // TestEC2VMSuite will validate running the agent on a single EC2 VM
 func TestEC2VMSuite(t *testing.T) {
+	t.Parallel()
 	s := &ec2VMSuite{}
 
 	e2eParams := []e2e.SuiteOption{e2e.WithProvisioner(e2e.NewTypedPulumiProvisioner("hostHttpbin", hostDockerHttpbinEnvProvisioner(), nil))}

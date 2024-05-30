@@ -1,0 +1,17 @@
+init_config:
+
+instances:
+  ## @param lighttpd_status_url - string - required
+  ## Status url of your Lighttpd server.
+  #
+  - lighttpd_status_url: http://127.0.0.1:9449/server-status?auto
+
+logs:
+  - type: file
+    path: LIGHTTPD_LOG_PATH/access.log
+    source: lighttpd
+    service: lighttpd
+  - type: file
+    path: LIGHTTPD_LOG_PATH/error.log
+    source: lighttpd
+    service: lighttpd

@@ -1,8 +1,10 @@
+from __future__ import annotations
+
 import json
 import os
 import subprocess
 import unittest
-from typing import Any, Dict, Set
+from typing import Any
 
 from tasks.modules import AGENT_MODULE_PATH_PREFIX, DEFAULT_MODULES
 
@@ -44,7 +46,7 @@ class TestModules(unittest.TestCase):
 
         return json.loads(res.stdout)
 
-    def get_agent_required(self, module: Dict) -> Set[str]:
+    def get_agent_required(self, module: dict) -> set[str]:
         """Returns the set of required datadog-agent modules"""
         if "Require" not in module:
             return set()
@@ -66,7 +68,7 @@ class TestModules(unittest.TestCase):
 
         return results
 
-    def get_agent_replaced(self, module: Dict) -> Set[str]:
+    def get_agent_replaced(self, module: dict) -> set[str]:
         """Returns the set of replaced datadog-agent modules"""
         if "Replace" not in module:
             return set()

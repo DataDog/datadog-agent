@@ -148,7 +148,7 @@ func (c *GenericCollector) startWorkloadmetaStream(maxElapsed time.Duration) err
 		default:
 		}
 
-		token, err := security.FetchAuthToken(pkgconfig.Datadog)
+		token, err := security.FetchAuthToken(pkgconfig.Datadog())
 		if err != nil {
 			err = fmt.Errorf("unable to fetch authentication token: %w", err)
 			log.Warnf("unable to establish entity stream between agents, will possibly retry: %s", err)
@@ -179,7 +179,7 @@ func (c *GenericCollector) startWorkloadmetaStream(maxElapsed time.Duration) err
 
 // Run will run the generic collector streaming loop
 func (c *GenericCollector) Run() {
-	recvWithoutTimeout := pkgconfig.Datadog.GetBool("workloadmeta.remote.recv_without_timeout")
+	recvWithoutTimeout := pkgconfig.Datadog().GetBool("workloadmeta.remote.recv_without_timeout")
 
 	for {
 		select {
@@ -210,7 +210,7 @@ func (c *GenericCollector) Run() {
 		}
 		if err != nil {
 			// at the end of stream, but its OK
-			if err == io.EOF {
+			if errors.Is(err, io.EOF) {
 				continue
 			}
 

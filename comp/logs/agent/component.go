@@ -9,13 +9,10 @@ package agent
 import (
 	"context"
 
-	"go.uber.org/fx"
-
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/schedulers"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 // team: agent-metrics-logs
@@ -43,24 +40,4 @@ type ServerlessLogsAgent interface {
 
 	// Flush flushes synchronously the pipelines managed by the Logs Agent.
 	Flush(ctx context.Context)
-}
-
-// Mock implements mock-specific methods.
-type Mock interface {
-	Component
-
-	SetSources(sources *sources.LogSources)
-}
-
-// Module defines the fx options for this component.
-func Module() fxutil.Module {
-	return fxutil.Component(
-		fx.Provide(newLogsAgent))
-}
-
-// MockModule defines the fx options for the mock component.
-func MockModule() fxutil.Module {
-	return fxutil.Component(
-		fx.Provide(newMock),
-		fx.Provide(func(m Mock) Component { return m }))
 }

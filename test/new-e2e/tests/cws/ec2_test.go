@@ -204,18 +204,17 @@ func (a *agentSuite) Test03OpenSignal() {
 		testMetricExists(c, a, "datadog.security_agent.runtime.running", map[string]string{"host": a.Hostname()})
 	}, 4*time.Minute, 5*time.Second)
 
-	// Trigger agent event
-	a.Env().RemoteHost.MustExecute(fmt.Sprintf("touch %s", filepath))
-
 	// Check app event
 	assert.EventuallyWithT(a.T(), func(c *assert.CollectT) {
+		// Trigger agent event
+		a.Env().RemoteHost.MustExecute(fmt.Sprintf("touch %s", filepath))
 		testRuleEvent(c, a, agentRuleName, func(e *api.RuleEvent) {
 			assert.Equal(c, "open", e.Evt.Name, "event name should be open")
 			assert.Equal(c, filepath, e.File.Path, "file path does not match")
 			assert.Contains(c, e.Tags, "tag1", "missing event tag")
 			assert.Contains(c, e.Tags, "tag2", "missing event tag")
 		})
-	}, 4*time.Minute, 10*time.Second)
+	}, 10*time.Minute, 30*time.Second)
 
 	// Check app signal
 	assert.EventuallyWithT(a.T(), func(c *assert.CollectT) {

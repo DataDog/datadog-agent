@@ -312,6 +312,20 @@ func (client *Client) GetBFDSessionsState() ([]BFDSession, error) {
 	return bfdSessions.Data, nil
 }
 
+// GetHardwareStates gets hardware states
+func (client *Client) GetHardwareStates() ([]HardwareEnvironment, error) {
+	params := map[string]string{
+		"count": client.maxCount,
+	}
+
+	hardwareStates, err := getAllEntries[HardwareEnvironment](client, "/dataservice/data/device/state/HardwareEnvironment", params)
+	if err != nil {
+		return nil, err
+	}
+
+	return hardwareStates.Data, nil
+}
+
 func (client *Client) statisticsTimeRange() (string, string) {
 	endDate := timeNow().UTC()
 	startDate := endDate.Add(-client.lookback)

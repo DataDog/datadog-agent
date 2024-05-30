@@ -10,12 +10,15 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"reflect"
 	"sync"
 	"time"
 
 	"go.uber.org/fx"
 
+	"github.com/DataDog/datadog-agent/comp/api/api"
+	"github.com/DataDog/datadog-agent/comp/api/api/utils"
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
@@ -103,6 +106,7 @@ type provides struct {
 	Comp          inventorychecks.Component
 	Provider      runnerimpl.Provider
 	FlareProvider flaretypes.Provider
+	Endpoint      api.AgentEndpointProvider
 }
 
 func newInventoryChecksProvider(deps dependencies) provides {
@@ -133,6 +137,7 @@ func newInventoryChecksProvider(deps dependencies) provides {
 		Comp:          ic,
 		Provider:      ic.MetadataProvider(),
 		FlareProvider: ic.FlareProvider(),
+		Endpoint:      api.NewAgentEndpointProvider(ic.writePayloadAsJSON, "/metadata/inventory-checks", "GET"),
 	}
 }
 
@@ -238,9 +243,10 @@ func (ic *inventorychecksImpl) getPayload() marshaler.JSONMarshaler {
 						"error":  logSource.Status.GetError(),
 						"status": logSource.Status.String(),
 					},
-					"service": logSource.Config.Service,
-					"source":  logSource.Config.Source,
-					"tags":    tags,
+					"service":          logSource.Config.Service,
+					"source":           logSource.Config.Source,
+					"integration_name": logSource.Config.IntegrationName,
+					"tags":             tags,
 				})
 			}
 		}
@@ -253,4 +259,14 @@ func (ic *inventorychecksImpl) getPayload() marshaler.JSONMarshaler {
 		LogsMetadata: logsMetadata,
 		UUID:         uuid.GetUUID(),
 	}
+}
+
+func (ic *inventorychecksImpl) writePayloadAsJSON(w http.ResponseWriter, _ *http.Request) {
+	// GetAsJSON already return scrubbed data
+	scrubbed, err := ic.GetAsJSON()
+	if err != nil {
+		utils.SetJSONError(w, err, 500)
+		return
+	}
+	w.Write(scrubbed)
 }

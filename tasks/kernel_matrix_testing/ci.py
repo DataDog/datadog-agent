@@ -13,7 +13,7 @@ from gitlab.v4.objects import Project, ProjectJob
 from tasks.libs.ciproviders.gitlab_api import get_gitlab_repo
 
 if TYPE_CHECKING:
-    from typing_extensions import Literal
+    from typing import Literal
 
     from tasks.kernel_matrix_testing.types import Arch, Component, StackOutput, VMConfig
 
@@ -90,7 +90,10 @@ class KMTJob:
         try:
             res = self.gitlab.jobs.get(self.id, lazy=True).artifact(file)
 
-            return res.content
+            if not isinstance(res, bytes):
+                raise RuntimeError(f"Expected binary data, got {type(res)}")
+
+            return res
         except Exception as e:
             if ignore_not_found:
                 return None
