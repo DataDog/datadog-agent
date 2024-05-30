@@ -41,6 +41,7 @@ type cliParams struct {
 	prettyPrintJSON bool
 	statusFilePath  string
 	verbose         bool
+	list            bool
 }
 
 // Commands returns a slice of subcommands for the 'agent' command.
@@ -49,9 +50,13 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		GlobalParams: globalParams,
 	}
 	cmd := &cobra.Command{
-		Use:   "status [name]",
-		Short: "Print the current status",
-		Long:  ``,
+		Use: "status [name]",
+		Short: `Display the current status
+		
+If no name is specified, this command will display all status sections. 
+If a specific name is provided, such as 'collector', it will only display the status of that section.
+The --list flag can be used to list all available status sections.`,
+		Long: ``,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cliParams.args = args
 
@@ -75,6 +80,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	cmd.PersistentFlags().BoolVarP(&cliParams.prettyPrintJSON, "pretty-json", "p", false, "pretty print JSON")
 	cmd.PersistentFlags().StringVarP(&cliParams.statusFilePath, "file", "o", "", "Output the status command to a file")
 	cmd.PersistentFlags().BoolVarP(&cliParams.verbose, "verbose", "v", false, "print out verbose status")
+	cmd.PersistentFlags().BoolVarP(&cliParams.list, "list", "l", false, "list all available status sections")
 
 	return []*cobra.Command{cmd}
 }
@@ -105,6 +111,11 @@ func redactError(unscrubbedError error) error {
 }
 
 func statusCmd(logger log.Component, config config.Component, _ sysprobeconfig.Component, cliParams *cliParams) error {
+
+	if cliParams.list == true {
+		return redactError(requestSections(config, cliParams))
+	}
+
 	if len(cliParams.args) < 1 {
 		return redactError(requestStatus(config, cliParams))
 	}
@@ -206,6 +217,23 @@ func componentStatus(config config.Component, cliParams *cliParams, component st
 	if err != nil {
 		return err
 	}
+
+	return nil
+}
+
+func requestSections(config config.Component, cliParams *cliParams) error {
+
+	endpoint, err := apiutil.NewIPCEndpoint(config, "/agent/status/sections")
+	if err != nil {
+		return err
+	}
+
+	res, err := endpoint.DoGet()
+	if err != nil {
+		return err
+	}
+
+	fmt.Println(string(res))
 
 	return nil
 }
