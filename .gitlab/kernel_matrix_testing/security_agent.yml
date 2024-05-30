@@ -216,6 +216,7 @@ kmt_secagent_cleanup_x64:
 # will not run if the dependencies are canceled
 kmt_secagent_cleanup_arm64_manual:
   when: manual
+  allow_failure: true  # Don't fail the full pipeline, these can fail if the instances are already cleaned up
   extends:
     - .kmt_secagent_cleanup
   +variables:
@@ -224,6 +225,7 @@ kmt_secagent_cleanup_arm64_manual:
 
 kmt_secagent_cleanup_x64_manual:
   when: manual
+  allow_failure: true  # Don't fail the full pipeline, these can fail if the instances are already cleaned up
   extends:
     - .kmt_secagent_cleanup
   variables:
