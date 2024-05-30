@@ -167,7 +167,7 @@ func readProfileData(seconds int) (flare.ProfileData, error) {
 	type pprofGetter func(path string) ([]byte, error)
 
 	tcpGet := func(portConfig string) pprofGetter {
-		pprofURL := fmt.Sprintf("http://127.0.0.1:%d/debug/pprof", pkgconfig.Datadog.GetInt(portConfig))
+		pprofURL := fmt.Sprintf("http://127.0.0.1:%d/debug/pprof", pkgconfig.Datadog().GetInt(portConfig))
 		return func(path string) ([]byte, error) {
 			return util.DoGet(c, pprofURL+path, util.LeaveConnectionOpen)
 		}
@@ -223,15 +223,15 @@ func readProfileData(seconds int) (flare.ProfileData, error) {
 		"security-agent": serviceProfileCollector(tcpGet("security_agent.expvar_port"), seconds),
 	}
 
-	if pkgconfig.Datadog.GetBool("process_config.enabled") ||
-		pkgconfig.Datadog.GetBool("process_config.container_collection.enabled") ||
-		pkgconfig.Datadog.GetBool("process_config.process_collection.enabled") {
+	if pkgconfig.Datadog().GetBool("process_config.enabled") ||
+		pkgconfig.Datadog().GetBool("process_config.container_collection.enabled") ||
+		pkgconfig.Datadog().GetBool("process_config.process_collection.enabled") {
 
 		agentCollectors["process"] = serviceProfileCollector(tcpGet("process_config.expvar_port"), seconds)
 	}
 
-	if pkgconfig.Datadog.GetBool("apm_config.enabled") {
-		traceCpusec := pkgconfig.Datadog.GetInt("apm_config.receiver_timeout")
+	if pkgconfig.Datadog().GetBool("apm_config.enabled") {
+		traceCpusec := pkgconfig.Datadog().GetInt("apm_config.receiver_timeout")
 		if traceCpusec > seconds {
 			// do not exceed requested duration
 			traceCpusec = seconds
@@ -391,10 +391,10 @@ func requestArchive(flareComp flare.Component, pdata flare.ProfileData) (string,
 		return createArchive(flareComp, pdata, err)
 	}
 
-	urlstr := fmt.Sprintf("https://%v:%v/agent/flare", ipcAddress, pkgconfig.Datadog.GetInt("cmd_port"))
+	urlstr := fmt.Sprintf("https://%v:%v/agent/flare", ipcAddress, pkgconfig.Datadog().GetInt("cmd_port"))
 
 	// Set session token
-	if err = util.SetAuthToken(pkgconfig.Datadog); err != nil {
+	if err = util.SetAuthToken(pkgconfig.Datadog()); err != nil {
 		fmt.Fprintln(color.Output, color.RedString(fmt.Sprintf("Error: %s", err)))
 		return createArchive(flareComp, pdata, err)
 	}

@@ -63,7 +63,7 @@ var (
 
 	agentHostServiceEnvVar = corev1.EnvVar{
 		Name:  agentHostEnvVarName,
-		Value: config.Datadog.GetString("admission_controller.inject_config.local_service_name") + "." + apiCommon.GetMyNamespace() + ".svc.cluster.local",
+		Value: config.Datadog().GetString("admission_controller.inject_config.local_service_name") + "." + apiCommon.GetMyNamespace() + ".svc.cluster.local",
 	}
 
 	defaultDdEntityIDEnvVar = corev1.EnvVar{
@@ -78,12 +78,12 @@ var (
 
 	traceURLSocketEnvVar = corev1.EnvVar{
 		Name:  traceURLEnvVarName,
-		Value: config.Datadog.GetString("admission_controller.inject_config.trace_agent_socket"),
+		Value: config.Datadog().GetString("admission_controller.inject_config.trace_agent_socket"),
 	}
 
 	dogstatsdURLSocketEnvVar = corev1.EnvVar{
 		Name:  dogstatsdURLEnvVarName,
-		Value: config.Datadog.GetString("admission_controller.inject_config.dogstatsd_socket"),
+		Value: config.Datadog().GetString("admission_controller.inject_config.dogstatsd_socket"),
 	}
 )
 
@@ -109,13 +109,13 @@ func NewWebhook(wmeta workloadmeta.Component) *Webhook {
 	return &Webhook{
 		name: webhookName,
 		config: conf{
-			injectContName: config.Datadog.GetBool("admission_controller.inject_config.inject_container_name"),
+			injectContName: config.Datadog().GetBool("admission_controller.inject_config.inject_container_name"),
 		},
-		isEnabled:  config.Datadog.GetBool("admission_controller.inject_config.enabled"),
-		endpoint:   config.Datadog.GetString("admission_controller.inject_config.endpoint"),
+		isEnabled:  config.Datadog().GetBool("admission_controller.inject_config.enabled"),
+		endpoint:   config.Datadog().GetString("admission_controller.inject_config.endpoint"),
 		resources:  []string{"pods"},
 		operations: []admiv1.OperationType{admiv1.Create},
-		mode:       config.Datadog.GetString("admission_controller.inject_config.mode"),
+		mode:       config.Datadog().GetString("admission_controller.inject_config.mode"),
 		wmeta:      wmeta,
 	}
 }
@@ -182,7 +182,7 @@ func (w *Webhook) inject(pod *corev1.Pod, _ string, _ dynamic.Interface) (bool, 
 	case service:
 		injectedConfig = common.InjectEnv(pod, agentHostServiceEnvVar)
 	case socket:
-		volume, volumeMount := buildVolume(DatadogVolumeName, config.Datadog.GetString("admission_controller.inject_config.socket_path"), true)
+		volume, volumeMount := buildVolume(DatadogVolumeName, config.Datadog().GetString("admission_controller.inject_config.socket_path"), true)
 		injectedVol := common.InjectVolume(pod, volume, volumeMount)
 		injectedEnv := common.InjectEnv(pod, traceURLSocketEnvVar)
 		injectedEnv = common.InjectEnv(pod, dogstatsdURLSocketEnvVar) || injectedEnv

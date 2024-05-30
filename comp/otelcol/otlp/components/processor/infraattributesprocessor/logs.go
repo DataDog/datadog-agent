@@ -29,7 +29,7 @@ func newInfraAttributesLogsProcessor(set processor.CreateSettings, cfg *Config, 
 		cardinality: cfg.Cardinality,
 	}
 
-	set.Logger.Info("Logs Infra Attributes configured")
+	set.Logger.Info("Logs Infra Attributes Processor configured")
 	return telp, nil
 }
 

@@ -102,7 +102,7 @@ func dogstatsdCapture(log log.Component, config config.Component, cliParams *cli
 
 	conn, err := grpc.DialContext(
 		ctx,
-		fmt.Sprintf(":%v", pkgconfig.Datadog.GetInt("cmd_port")),
+		fmt.Sprintf(":%v", pkgconfig.Datadog().GetInt("cmd_port")),
 		grpc.WithTransportCredentials(creds),
 	)
 	if err != nil {

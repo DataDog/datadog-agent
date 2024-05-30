@@ -18,6 +18,7 @@
     - >
       docker run --rm
       -m 16384M
+      --storage-opt "size=50GB"
       -v "$(Get-Location):c:\mnt"
       -e DD_ENV=prod
       -e GITLAB_CI=true

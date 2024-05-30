@@ -87,7 +87,7 @@ func validatePath(field eval.Field, fieldValue eval.FieldValue) error {
 
 // ValidateField validates the value of a field
 func (m *Model) ValidateField(field eval.Field, fieldValue eval.FieldValue) error {
-	if strings.HasSuffix(field, "path") {
+	if strings.HasSuffix(field, ".path") && !strings.HasSuffix(field, ".syscall.path") {
 		if err := validatePath(field, fieldValue); err != nil {
 			return err
 		}
@@ -400,6 +400,14 @@ func (dfh *FakeFieldHandlers) ResolveHashes(_ EventType, _ *Process, _ *FileEven
 // ResolveUserSessionContext resolves and updates the provided user session context
 func (dfh *FakeFieldHandlers) ResolveUserSessionContext(_ *UserSessionContext) {}
 
+// ResolveAWSSecurityCredentials resolves and updates the AWS security credentials of the input process entry
+func (dfh *FakeFieldHandlers) ResolveAWSSecurityCredentials(_ *Event) []AWSSecurityCredentials {
+	return nil
+}
+
+// ResolveSyscallCtxArgs resolves syscall context
+func (dfh *FakeFieldHandlers) ResolveSyscallCtxArgs(_ *Event, _ *SyscallContext) {}
+
 // SELinuxEventKind represents the event kind for SELinux events
 type SELinuxEventKind uint32
 
@@ -417,4 +425,6 @@ type ExtraFieldHandlers interface {
 	BaseExtraFieldHandlers
 	ResolveHashes(eventType EventType, process *Process, file *FileEvent) []string
 	ResolveUserSessionContext(evtCtx *UserSessionContext)
+	ResolveAWSSecurityCredentials(event *Event) []AWSSecurityCredentials
+	ResolveSyscallCtxArgs(ev *Event, e *SyscallContext)
 }
