@@ -199,8 +199,9 @@ func TestStatusProvider(t *testing.T) {
 					}
 				}),
 			))
-			provides := newProcessAgent(deps)
+			provides, err := newProcessAgent(deps)
 			assert.IsType(t, tc.expected, provides.StatusProvider.Provider)
+			assert.NoError(t, err)
 		})
 	}
 }
@@ -238,7 +239,8 @@ func TestTelemetryCoreAgent(t *testing.T) {
 			}
 		}),
 	))
-	_ = newProcessAgent(deps)
+	_, err := newProcessAgent(deps)
+	assert.NoError(t, err)
 
 	tel := fxutil.Test[telemetry.Mock](t, telemetryimpl.MockModule())
 	tel.Reset()
