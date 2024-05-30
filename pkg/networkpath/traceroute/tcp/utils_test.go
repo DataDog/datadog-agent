@@ -9,10 +9,12 @@ package tcp
 
 import (
 	"context"
+	"errors"
 	"net"
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/layers"
@@ -26,12 +28,30 @@ var (
 	dstIP = net.ParseIP("5.6.7.8")
 )
 
+type (
+	mockRawConn struct {
+		setReadDeadlineErr error
+		readDeadline       time.Time
+
+		readTimeoutCount int
+		readFromErr      error
+		header           *ipv4.Header
+		payload          []byte
+		cm               *ipv4.ControlMessage
+
+		writeDelay time.Duration
+		writeToErr error
+	}
+
+	mockTimeoutErr string
+)
+
 func Test_handlePackets(t *testing.T) {
 	tt := []struct {
 		description string
 		// input
-		ctx        context.Context
-		conn       *ipv4.RawConn
+		ctxTimeout time.Duration
+		conn       rawConnWrapper
 		listener   string
 		localIP    net.IP
 		localPort  uint16
@@ -43,11 +63,71 @@ func Test_handlePackets(t *testing.T) {
 		expectedPort     uint16
 		expectedTypeCode layers.ICMPv4TypeCode
 		errMsg           string
-	}{}
+	}{
+		{
+			description: "canceled context returns canceledErr",
+			ctxTimeout:  300 * time.Millisecond,
+			conn: &mockRawConn{
+				readTimeoutCount: 100,
+				readFromErr:      errors.New("bad test error"),
+			},
+			errMsg: "canceled",
+		},
+		{
+			description: "set timeout error returns an error",
+			ctxTimeout:  300 * time.Millisecond,
+			conn: &mockRawConn{
+				setReadDeadlineErr: errors.New("good test error"),
+				readTimeoutCount:   100,
+				readFromErr:        errors.New("bad error"),
+			},
+			errMsg: "good test error",
+		},
+		{
+			description: "non-timeout read error returns an error",
+			ctxTimeout:  1 * time.Second,
+			conn: &mockRawConn{
+				readFromErr: errors.New("test read error"),
+			},
+			errMsg: "test read error",
+		},
+		{
+			description: "invalid listener returns unsupported listener",
+			ctxTimeout:  1 * time.Second,
+			conn: &mockRawConn{
+				header:  &ipv4.Header{},
+				payload: nil,
+			},
+			listener: "invalid",
+			errMsg:   "unsupported",
+		},
+		{
+			description: "failed ICMP parsing eventuallly returns cancel timeout",
+			ctxTimeout:  500 * time.Millisecond,
+			conn: &mockRawConn{
+				header:  &ipv4.Header{},
+				payload: nil,
+			},
+			listener: "icmp",
+			errMsg:   "canceled",
+		},
+		{
+			description: "failed TCP parsing eventuallly returns cancel timeout",
+			ctxTimeout:  500 * time.Millisecond,
+			conn: &mockRawConn{
+				header:  &ipv4.Header{},
+				payload: nil,
+			},
+			listener: "tcp",
+			errMsg:   "canceled",
+		},
+	}
 
 	for _, test := range tt {
 		t.Run(test.description, func(t *testing.T) {
-			actualIP, actualPort, actualTypeCode, err := handlePackets(test.ctx, test.conn, test.listener, test.localIP, test.localPort, test.remoteIP, test.remotePort, test.seqNum)
+			ctx, cancel := context.WithTimeout(context.Background(), test.ctxTimeout)
+			defer cancel()
+			actualIP, actualPort, actualTypeCode, err := handlePackets(ctx, test.conn, test.listener, test.localIP, test.localPort, test.remoteIP, test.remotePort, test.seqNum)
 			if test.errMsg != "" {
 				require.Error(t, err)
 				assert.True(t, strings.Contains(err.Error(), test.errMsg))
@@ -212,7 +292,7 @@ func Test_parseTCPPacket(t *testing.T) {
 	missingTCPLayer := gopacket.NewPacket(buf.Bytes(), layers.LayerTypeIPv4, gopacket.Default)
 
 	// full packet
-	encodedTCPLayer, fullTCPPacket := createMockTCPPacket(t, ipv4Layer, tcpLayer)
+	encodedTCPLayer, fullTCPPacket := createMockTCPPacket(ipv4Layer, tcpLayer)
 
 	tt := []struct {
 		description string
@@ -264,6 +344,40 @@ func Test_parseTCPPacket(t *testing.T) {
 	}
 }
 
+func (m *mockRawConn) SetReadDeadline(t time.Time) error {
+	if m.setReadDeadlineErr != nil {
+		return m.setReadDeadlineErr
+	}
+	m.readDeadline = t
+
+	return nil
+}
+func (m *mockRawConn) ReadFrom(b []byte) (*ipv4.Header, []byte, *ipv4.ControlMessage, error) {
+	if m.readTimeoutCount > 0 {
+		m.readTimeoutCount -= 1
+		time.Sleep(time.Until(m.readDeadline))
+		return nil, nil, nil, &net.OpError{Err: mockTimeoutErr("test timeout error")}
+	}
+	if m.readFromErr != nil {
+		return nil, nil, nil, m.readFromErr
+	}
+
+	return m.header, m.payload, m.cm, nil
+}
+
+func (m *mockRawConn) WriteTo(h *ipv4.Header, p []byte, cm *ipv4.ControlMessage) error {
+	time.Sleep(m.writeDelay)
+	return m.writeToErr
+}
+
+func (me mockTimeoutErr) Error() string {
+	return string(me)
+}
+
+func (me mockTimeoutErr) Timeout() bool {
+	return true
+}
+
 func createMockICMPPacket(ipLayer *layers.IPv4, icmpLayer *layers.ICMPv4, innerIP *layers.IPv4, innerTCP *layers.TCP, partialTCPHeader bool) gopacket.Packet {
 	innerBuf := gopacket.NewSerializeBuffer()
 	opts := gopacket.SerializeOptions{FixLengths: true, ComputeChecksums: true}
@@ -303,7 +417,7 @@ func createMockICMPPacket(ipLayer *layers.IPv4, icmpLayer *layers.ICMPv4, innerI
 	return pkt
 }
 
-func createMockTCPPacket(t *testing.T, ipLayer *layers.IPv4, tcpLayer *layers.TCP) (*layers.TCP, gopacket.Packet) {
+func createMockTCPPacket(ipLayer *layers.IPv4, tcpLayer *layers.TCP) (*layers.TCP, gopacket.Packet) {
 	tcpLayer.SetNetworkLayerForChecksum(ipLayer)
 	buf := gopacket.NewSerializeBuffer()
 	opts := gopacket.SerializeOptions{FixLengths: true, ComputeChecksums: true}
@@ -313,9 +427,6 @@ func createMockTCPPacket(t *testing.T, ipLayer *layers.IPv4, tcpLayer *layers.TC
 	)
 
 	pkt := gopacket.NewPacket(buf.Bytes(), layers.LayerTypeIPv4, gopacket.Default)
-	for i, layer := range pkt.Layers() {
-		t.Logf("Layer %d %s: %+v\nPayload: %+v", i, layer.LayerType(), layer.LayerContents(), layer.LayerPayload())
-	}
 
 	// return encoded TCP layer here
 	return pkt.Layer(layers.LayerTypeTCP).(*layers.TCP), pkt

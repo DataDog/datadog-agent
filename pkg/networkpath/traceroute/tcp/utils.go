@@ -61,6 +61,12 @@ type (
 		DstIP       net.IP
 		TCPResponse *layers.TCP
 	}
+
+	rawConnWrapper interface {
+		SetReadDeadline(t time.Time) error
+		ReadFrom(b []byte) (*ipv4.Header, []byte, *ipv4.ControlMessage, error)
+		WriteTo(h *ipv4.Header, p []byte, cm *ipv4.ControlMessage) error
+	}
 )
 
 func localAddrForHost(destIP net.IP, destPort uint16) (*net.UDPAddr, error) {
@@ -138,7 +144,7 @@ func checksum(data []byte) uint16 {
 }
 
 // sendPacket sends a raw IPv4 packet using the passed connection
-func sendPacket(rawConn *ipv4.RawConn, header *ipv4.Header, payload []byte) error {
+func sendPacket(rawConn rawConnWrapper, header *ipv4.Header, payload []byte) error {
 	if err := rawConn.WriteTo(header, payload, nil); err != nil {
 		return err
 	}
@@ -151,7 +157,7 @@ func sendPacket(rawConn *ipv4.RawConn, header *ipv4.Header, payload []byte) erro
 // receives a matching packet within the timeout, a blank response is returned.
 // Once a matching packet is received by a listener, it will cause the other listener
 // to be canceled, and data from the matching packet will be returned to the caller
-func listenPackets(icmpConn *ipv4.RawConn, tcpConn *ipv4.RawConn, timeout time.Duration, localIP net.IP, localPort uint16, remoteIP net.IP, remotePort uint16, seqNum uint32) (net.IP, uint16, layers.ICMPv4TypeCode, time.Time, error) {
+func listenPackets(icmpConn rawConnWrapper, tcpConn rawConnWrapper, timeout time.Duration, localIP net.IP, localPort uint16, remoteIP net.IP, remotePort uint16, seqNum uint32) (net.IP, uint16, layers.ICMPv4TypeCode, time.Time, error) {
 	var tcpErr error
 	var icmpErr error
 	var wg sync.WaitGroup
@@ -207,7 +213,7 @@ func listenPackets(icmpConn *ipv4.RawConn, tcpConn *ipv4.RawConn, timeout time.D
 // handlePackets in its current implementation should listen for the first matching
 // packet on the connection and then return. If no packet is received within the
 // timeout or if the listener is canceled, it should return a canceledError
-func handlePackets(ctx context.Context, conn *ipv4.RawConn, listener string, localIP net.IP, localPort uint16, remoteIP net.IP, remotePort uint16, seqNum uint32) (net.IP, uint16, layers.ICMPv4TypeCode, error) {
+func handlePackets(ctx context.Context, conn rawConnWrapper, listener string, localIP net.IP, localPort uint16, remoteIP net.IP, remotePort uint16, seqNum uint32) (net.IP, uint16, layers.ICMPv4TypeCode, error) {
 	buf := make([]byte, 1024)
 	for {
 		select {
@@ -226,8 +232,8 @@ func handlePackets(ctx context.Context, conn *ipv4.RawConn, listener string, loc
 				if nerr.Timeout() {
 					continue
 				}
-				return net.IP{}, 0, 0, err
 			}
+			return net.IP{}, 0, 0, err
 		}
 		// TODO: remove listener constraint and parse all packets
 		// in the same function return a succinct struct here
