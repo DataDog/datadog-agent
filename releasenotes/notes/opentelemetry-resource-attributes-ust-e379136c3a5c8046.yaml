@@ -8,5 +8,5 @@
 ---
 features:
   - |
-    Implement OpenTelemetry SDK Resource Attributes as Unified Service Tags.
+    Implement OpenTelemetry SDK resource attributes as unified service rags.
 
