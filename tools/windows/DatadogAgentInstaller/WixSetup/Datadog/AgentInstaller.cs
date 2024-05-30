@@ -9,7 +9,7 @@ using WixSharp.CommonTasks;
 
 namespace WixSetup.Datadog
 {
-    public class AgentInstaller : IWixProjectEvents
+    public class AgentInstaller : IWixProjectEvents, IMsiInstallerProject
     {
         // Company
         private const string CompanyFullName = "Datadog, Inc.";
@@ -56,7 +56,7 @@ namespace WixSetup.Datadog
             _agentInstallerUi = new AgentInstallerUI(this, _agentCustomActions);
         }
 
-        public Project ConfigureProject()
+        public Project Configure()
         {
             var project = new ManagedProject("Datadog Agent",
                 // Use 2 LaunchConditions, one for server versions,
