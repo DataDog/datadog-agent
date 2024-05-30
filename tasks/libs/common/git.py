@@ -8,3 +8,7 @@ def get_staged_files(ctx, commit="HEAD") -> list[str]:
 def get_modified_files(ctx) -> list[str]:
     last_main_commit = ctx.run("git merge-base HEAD origin/main", hide=True).stdout
     return ctx.run(f"git diff --name-only --no-renames {last_main_commit}", hide=True).stdout.splitlines()
+
+
+def get_current_branch(ctx) -> str:
+    return ctx.run("git rev-parse --abbrev-ref HEAD", hide=True).stdout.strip()
