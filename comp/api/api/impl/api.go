@@ -32,7 +32,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
-type apiServer struct {
+type ApiServer struct {
 	dogstatsdServer   dogstatsdServer.Component
 	capture           replay.Component
 	pidMap            pidmap.Component
@@ -51,7 +51,9 @@ type apiServer struct {
 	endpointProviders []apidef.EndpointProvider
 }
 
-type dependencies struct {
+type Dependencies struct {
+	fx.In
+
 	Lc                fx.Lifecycle
 	DogstatsdServer   dogstatsdServer.Component
 	Capture           replay.Component
@@ -71,10 +73,10 @@ type dependencies struct {
 	EndpointProviders []apidef.EndpointProvider `group:"agent_endpoint"`
 }
 
-var _ apidef.Component = (*apiServer)(nil)
+var _ apidef.Component = (*ApiServer)(nil)
 
-func NewAPIServer(deps dependencies) apidef.Component {
-	server := apiServer{
+func NewAPIServer(deps Dependencies) apidef.Component {
+	server := ApiServer{
 		dogstatsdServer:   deps.DogstatsdServer,
 		capture:           deps.Capture,
 		pidMap:            deps.PidMap,
@@ -106,11 +108,11 @@ func NewAPIServer(deps dependencies) apidef.Component {
 
 // StopServer closes the connection and the server
 // stops listening to new commands.
-func (server *apiServer) StopServer() {
+func (server *ApiServer) StopServer() {
 	StopServers()
 }
 
 // ServerAddress returns the server address.
-func (server *apiServer) ServerAddress() *net.TCPAddr {
+func (server *ApiServer) ServerAddress() *net.TCPAddr {
 	return ServerAddress()
 }

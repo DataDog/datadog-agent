@@ -41,7 +41,7 @@ import (
 	comptraceconfig "github.com/DataDog/datadog-agent/comp/trace/config"
 
 	// core components
-	internalAPI "github.com/DataDog/datadog-agent/comp/api/api"
+	apidef "github.com/DataDog/datadog-agent/comp/api/api/def"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/agenttelemetry"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
@@ -117,7 +117,7 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 			invChecks inventorychecks.Component,
 			_ netflowServer.Component,
 			_ trapserver.Component,
-			agentAPI internalAPI.Component,
+			agentAPI apidef.Component,
 			pkgSigning packagesigning.Component,
 			statusComponent status.Component,
 			collector collector.Component,

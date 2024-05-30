@@ -15,7 +15,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/api/api"
+	"go.uber.org/fx"
+
+	apidef "github.com/DataDog/datadog-agent/comp/api/api/def"
 	"github.com/DataDog/datadog-agent/comp/api/api/utils"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
@@ -31,7 +33,6 @@ import (
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/installinfo"
 	"github.com/DataDog/datadog-agent/pkg/util/uuid"
-	"go.uber.org/fx"
 )
 
 // Module defines the fx options for this component.
@@ -89,7 +90,7 @@ type provides struct {
 	Comp          packagesigning.Component
 	Provider      runnerimpl.Provider
 	FlareProvider flaretypes.Provider
-	Endpoint      api.AgentEndpointProvider
+	Endpoint      apidef.AgentEndpointProvider
 }
 
 // Testing purpose
@@ -129,7 +130,7 @@ func newPackageSigningProvider(deps dependencies) provides {
 		Comp:          is,
 		Provider:      provider,
 		FlareProvider: is.FlareProvider(),
-		Endpoint:      api.NewAgentEndpointProvider(is.writePayloadAsJSON, "/metadata/package-signing", "GET"),
+		Endpoint:      apidef.NewAgentEndpointProvider(is.writePayloadAsJSON, "/metadata/package-signing", "GET"),
 	}
 }
 

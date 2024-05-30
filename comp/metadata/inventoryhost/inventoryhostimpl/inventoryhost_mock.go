@@ -10,10 +10,11 @@ package inventoryhostimpl
 import (
 	"net/http"
 
-	"github.com/DataDog/datadog-agent/comp/api/api"
+	"go.uber.org/fx"
+
+	apidef "github.com/DataDog/datadog-agent/comp/api/api/def"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryhost"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"go.uber.org/fx"
 )
 
 // MockModule defines the fx options for the mock component.
@@ -34,7 +35,7 @@ type MockProvides struct {
 	fx.Out
 
 	Comp     inventoryhost.Component
-	Endpoint api.AgentEndpointProvider
+	Endpoint apidef.AgentEndpointProvider
 }
 
 type inventoryhostMock struct{}
@@ -54,6 +55,6 @@ func newMock() MockProvides {
 	ih := &inventoryhostMock{}
 	return MockProvides{
 		Comp:     ih,
-		Endpoint: api.NewAgentEndpointProvider(ih.handlerFunc, "/metadata/inventory-host", "GET"),
+		Endpoint: apidef.NewAgentEndpointProvider(ih.handlerFunc, "/metadata/inventory-host", "GET"),
 	}
 }

@@ -8,10 +8,11 @@ package inventoryagentimpl
 import (
 	"net/http"
 
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/comp/api/api"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+
+	apidef "github.com/DataDog/datadog-agent/comp/api/api/def"
 	iainterface "github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
 )
 
@@ -33,7 +34,7 @@ type MockProvides struct {
 	fx.Out
 
 	Comp     iainterface.Component
-	Endpoint api.AgentEndpointProvider
+	Endpoint apidef.AgentEndpointProvider
 }
 
 type inventoryagentMock struct{}
@@ -47,7 +48,7 @@ func newMock() MockProvides {
 	ia := &inventoryagentMock{}
 	return MockProvides{
 		Comp:     ia,
-		Endpoint: api.NewAgentEndpointProvider(ia.handlerFunc, "/metadata/inventory-agent", "GET"),
+		Endpoint: apidef.NewAgentEndpointProvider(ia.handlerFunc, "/metadata/inventory-agent", "GET"),
 	}
 }
 

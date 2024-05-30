@@ -11,10 +11,11 @@ import (
 	"context"
 	"net/http"
 
-	"github.com/DataDog/datadog-agent/comp/api/api"
+	"go.uber.org/fx"
+
+	apidef "github.com/DataDog/datadog-agent/comp/api/api/def"
 	hostinterface "github.com/DataDog/datadog-agent/comp/metadata/host"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"go.uber.org/fx"
 )
 
 // MockModule defines the fx options for the mocked component
@@ -28,8 +29,8 @@ type MockProvides struct {
 	fx.Out
 
 	Comp          hostinterface.Component
-	Endpoint      api.AgentEndpointProvider
-	GohaiEndpoint api.AgentEndpointProvider
+	Endpoint      apidef.AgentEndpointProvider
+	GohaiEndpoint apidef.AgentEndpointProvider
 }
 
 // MockHost is a mocked struct that implements the host component interface
@@ -51,7 +52,7 @@ func newMock() MockProvides {
 	h := &MockHost{}
 	return MockProvides{
 		Comp:          h,
-		Endpoint:      api.NewAgentEndpointProvider(h.handlerFunc, "/metadata/v5", "GET"),
-		GohaiEndpoint: api.NewAgentEndpointProvider(h.handlerFunc, "/metadata/gohai", "GET"),
+		Endpoint:      apidef.NewAgentEndpointProvider(h.handlerFunc, "/metadata/v5", "GET"),
+		GohaiEndpoint: apidef.NewAgentEndpointProvider(h.handlerFunc, "/metadata/gohai", "GET"),
 	}
 }

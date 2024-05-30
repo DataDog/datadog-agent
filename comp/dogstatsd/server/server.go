@@ -17,7 +17,7 @@ import (
 
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/comp/api/api"
+	apidef "github.com/DataDog/datadog-agent/comp/api/api/def"
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
 	logComponent "github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
@@ -86,7 +86,7 @@ type provides struct {
 	fx.Out
 
 	Comp          Component
-	StatsEndpoint api.AgentEndpointProvider
+	StatsEndpoint apidef.AgentEndpointProvider
 }
 
 // When the internal telemetry is enabled, used to tag the origin
@@ -218,7 +218,7 @@ func newServer(deps dependencies) provides {
 
 	return provides{
 		Comp:          s,
-		StatsEndpoint: api.NewAgentEndpointProvider(s.writeStats, "/dogstatsd-stats", "GET"),
+		StatsEndpoint: apidef.NewAgentEndpointProvider(s.writeStats, "/dogstatsd-stats", "GET"),
 	}
 }
 

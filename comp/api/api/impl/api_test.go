@@ -5,57 +5,116 @@
 
 package impl
 
-// TODO impl tests
+import (
+	"testing"
 
-// import (
-// 	"context"
-// 	"testing"
+	"github.com/stretchr/testify/assert"
+	// "go.uber.org/fx"
 
-// 	// component dependencies
-// 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
-// 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
-// 	"github.com/DataDog/datadog-agent/comp/api/api"
-// 	"github.com/DataDog/datadog-agent/comp/api/authtoken"
-// 	"github.com/DataDog/datadog-agent/comp/api/authtoken/fetchonlyimpl"
-// 	"github.com/DataDog/datadog-agent/comp/collector/collector"
-// 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
-// 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/autodiscoveryimpl"
-// 	"github.com/DataDog/datadog-agent/comp/core/flare/flareimpl"
-// 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
-// 	"github.com/DataDog/datadog-agent/comp/core/secrets"
-// 	"github.com/DataDog/datadog-agent/comp/core/secrets/secretsimpl"
-// 	"github.com/DataDog/datadog-agent/comp/core/settings/settingsimpl"
-// 	"github.com/DataDog/datadog-agent/comp/core/status"
-// 	"github.com/DataDog/datadog-agent/comp/core/status/statusimpl"
-// 	"github.com/DataDog/datadog-agent/comp/core/tagger"
-// 	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
-// 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
-// 	replay "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/def"
-// 	replaymock "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/fx-mock"
-// 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
-// 	dogstatsddebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
-// 	"github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug/serverdebugimpl"
-// 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver"
-// 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/eventplatformreceiverimpl"
-// 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
-// 	"github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl"
-// 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent/inventoryagentimpl"
-// 	"github.com/DataDog/datadog-agent/comp/metadata/inventorychecks/inventorychecksimpl"
-// 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryhost/inventoryhostimpl"
-// 	"github.com/DataDog/datadog-agent/comp/metadata/packagesigning"
-// 	"github.com/DataDog/datadog-agent/comp/metadata/packagesigning/packagesigningimpl"
-// 	"github.com/DataDog/datadog-agent/comp/remote-config/rcservice"
-// 	"github.com/DataDog/datadog-agent/comp/remote-config/rcservicemrf"
+	// "github.com/DataDog/datadog-agent/comp/collector/collector"
+	// "github.com/DataDog/datadog-agent/comp/core/autodiscovery/autodiscoveryimpl"
+	// "github.com/DataDog/datadog-agent/comp/core/status/statusimpl"
+	// "github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
+	// dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
+	// logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
+	// "github.com/DataDog/datadog-agent/comp/remote-config/rcservice"
+	// "github.com/DataDog/datadog-agent/comp/remote-config/rcservicemrf"
 
-// 	// package dependencies
+	apidef "github.com/DataDog/datadog-agent/comp/api/api/def"
+	// "github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	// "github.com/DataDog/datadog-agent/pkg/util/optional"
 
-// 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-// 	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"context"
 
-// 	// third-party dependencies
+	// component dependencies
 
-// 	"go.uber.org/fx"
-// )
+	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
+	"github.com/DataDog/datadog-agent/comp/api/authtoken/fetchonlyimpl"
+	"github.com/DataDog/datadog-agent/comp/collector/collector"
+	"github.com/DataDog/datadog-agent/comp/core"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/autodiscoveryimpl"
+	"github.com/DataDog/datadog-agent/comp/core/flare/flareimpl"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
+	"github.com/DataDog/datadog-agent/comp/core/secrets"
+	"github.com/DataDog/datadog-agent/comp/core/secrets/secretsimpl"
+	"github.com/DataDog/datadog-agent/comp/core/settings/settingsimpl"
+	"github.com/DataDog/datadog-agent/comp/core/status/statusimpl"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
+	replaymock "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/fx-mock"
+	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
+	"github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug/serverdebugimpl"
+	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/eventplatformreceiverimpl"
+	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
+	"github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl"
+	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent/inventoryagentimpl"
+	"github.com/DataDog/datadog-agent/comp/metadata/inventorychecks/inventorychecksimpl"
+	"github.com/DataDog/datadog-agent/comp/metadata/inventoryhost/inventoryhostimpl"
+	"github.com/DataDog/datadog-agent/comp/metadata/packagesigning/packagesigningimpl"
+	"github.com/DataDog/datadog-agent/comp/remote-config/rcservice"
+	"github.com/DataDog/datadog-agent/comp/remote-config/rcservicemrf"
+
+	// package dependencies
+
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
+
+	// third-party dependencies
+
+	"go.uber.org/fx"
+)
+
+func TestServer(t *testing.T) {
+
+	err := fxutil.OneShot(func(api apidef.Component) {
+		t.Log(api.ServerAddress())
+	},
+		fx.Provide(NewAPIServer),
+		core.MockBundle(),
+		hostnameimpl.MockModule(),
+		flareimpl.MockModule(),
+		dogstatsdServer.MockModule(),
+		replaymock.MockModule(),
+		serverdebugimpl.MockModule(),
+		hostimpl.MockModule(),
+		inventoryagentimpl.MockModule(),
+		demultiplexerimpl.MockModule(),
+		inventoryhostimpl.MockModule(),
+		secretsimpl.MockModule(),
+		fx.Provide(func(secretMock secrets.Mock) secrets.Component {
+			component := secretMock.(secrets.Component)
+			return component
+		}),
+		inventorychecksimpl.MockModule(),
+		packagesigningimpl.MockModule(),
+		statusimpl.MockModule(),
+		eventplatformreceiverimpl.MockModule(),
+		fx.Supply(optional.NewNoneOption[rcservice.Component]()),
+		fx.Supply(optional.NewNoneOption[rcservicemrf.Component]()),
+		fetchonlyimpl.MockModule(),
+		fx.Supply(context.Background()),
+		taggerimpl.MockModule(),
+		fx.Supply(autodiscoveryimpl.MockParams{Scheduler: nil}),
+		autodiscoveryimpl.MockModule(),
+		fx.Supply(optional.NewNoneOption[logsAgent.Component]()),
+		fx.Supply(optional.NewNoneOption[collector.Component]()),
+		settingsimpl.MockModule(),
+		// Ensure we pass a nil endpoint to test that we always filter out nil endpoints
+		fx.Provide(func() apidef.AgentEndpointProvider {
+			return apidef.AgentEndpointProvider{
+				Provider: nil,
+			}
+		}),
+	)
+
+	assert.NoError(t, err)
+
+	// assert.NotNil(t, provides.Comp)
+
+	// ctx := context.Background()
+	// assert.NoError(t, lc.Start(ctx))
+
+	// assert.NoError(t, lc.Stop(ctx))
+}
 
 // type testdeps struct {
 // 	fx.In
@@ -83,9 +142,9 @@ package impl
 // 	EndpointProviders     []api.EndpointProvider `group:"agent_endpoint"`
 // }
 
-// func getComponentDependencies(t *testing.T) testdeps {
+// func getComponentDependencies(t *testing.T) Dependencies {
 // 	// TODO: this fxutil.Test[T] can take a component and return the component
-// 	return fxutil.Test[testdeps](
+// 	return fxutil.Test[Dependencies](
 // 		t,
 // 		hostnameimpl.MockModule(),
 // 		flareimpl.MockModule(),
@@ -120,29 +179,14 @@ package impl
 // 		}),
 // 		settingsimpl.MockModule(),
 // 		// Ensure we pass a nil endpoint to test that we always filter out nil endpoints
-// 		fx.Provide(func() api.AgentEndpointProvider {
-// 			return api.AgentEndpointProvider{
+// 		fx.Provide(func() apidef.AgentEndpointProvider {
+// 			return apidef.AgentEndpointProvider{
 // 				Provider: nil,
 // 			}
 // 		}),
 // 	)
 // }
 
-// func getTestAPIServer(deps testdeps) api.Component {
-// 	apideps := dependencies{
-// 		DogstatsdServer:   deps.DogstatsdServer,
-// 		Capture:           deps.Capture,
-// 		SecretResolver:    deps.SecretResolver,
-// 		PkgSigning:        deps.PkgSigning,
-// 		StatusComponent:   deps.StatusComponent,
-// 		RcService:         deps.RcService,
-// 		RcServiceMRF:      deps.RcServiceMRF,
-// 		AuthToken:         deps.AuthToken,
-// 		Tagger:            deps.Tagger,
-// 		LogsAgentComp:     deps.Logs,
-// 		WorkloadMeta:      deps.WorkloadMeta,
-// 		Collector:         deps.Collector,
-// 		EndpointProviders: deps.EndpointProviders,
-// 	}
-// 	return newAPIServer(apideps)
+// func getTestAPIServer(deps Dependencies) apidef.Component {
+// 	return NewAPIServer(deps)
 // }

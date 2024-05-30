@@ -141,7 +141,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				InitHelper: common.GetWorkloadmetaInit(),
 			}),
 			workloadmeta.Module(),
-			apiimpl.Module(),
+			apifx.Module(),
 			authtokenimpl.Module(),
 			// The jmx command do not have settings that change are runtime
 			// still, we need to pass it to ensure the API server is proprely initialized
@@ -306,7 +306,7 @@ func runJmxCommandConsole(config config.Component,
 	ac autodiscovery.Component,
 	diagnoseSendermanager diagnosesendermanager.Component,
 	secretResolver secrets.Component,
-	agentAPI internalAPI.Component,
+	agentAPI apidef.Component,
 	collector optional.Option[collector.Component],
 	jmxLogger jmxlogger.Component) error {
 	// This prevents log-spam from "comp/core/workloadmeta/collectors/internal/remote/process_collector/process_collector.go"

@@ -11,11 +11,12 @@ package flareimpl
 import (
 	"net/http"
 
-	"github.com/DataDog/datadog-agent/comp/api/api"
+	"go.uber.org/fx"
+
+	apidef "github.com/DataDog/datadog-agent/comp/api/api/def"
 	"github.com/DataDog/datadog-agent/comp/core/flare"
 	"github.com/DataDog/datadog-agent/comp/core/flare/helpers"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"go.uber.org/fx"
 )
 
 // MockModule defines the fx options for the mock component.
@@ -30,7 +31,7 @@ type MockProvides struct {
 	fx.Out
 
 	Comp     flare.Component
-	Endpoint api.AgentEndpointProvider
+	Endpoint apidef.AgentEndpointProvider
 }
 
 // MockFlare is a mock of the
@@ -57,6 +58,6 @@ func NewMock() MockProvides {
 
 	return MockProvides{
 		Comp:     m,
-		Endpoint: api.NewAgentEndpointProvider(m.handlerFunc, "/flare", "POST"),
+		Endpoint: apidef.NewAgentEndpointProvider(m.handlerFunc, "/flare", "POST"),
 	}
 }

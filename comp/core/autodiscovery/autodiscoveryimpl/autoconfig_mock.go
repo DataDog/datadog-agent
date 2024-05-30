@@ -11,7 +11,9 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/comp/api/api"
+	"go.uber.org/fx"
+
+	apidef "github.com/DataDog/datadog-agent/comp/api/api/def"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/scheduler"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
@@ -19,7 +21,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
-	"go.uber.org/fx"
 )
 
 // MockParams defines the parameters for the mock component.
@@ -43,14 +44,14 @@ type mockprovides struct {
 	fx.Out
 
 	Comp     autodiscovery.Mock
-	Endpoint api.AgentEndpointProvider
+	Endpoint apidef.AgentEndpointProvider
 }
 
 func newMockAutoConfig(deps mockdependencies) mockprovides {
 	ac := createNewAutoConfig(deps.Params.Scheduler, nil, deps.WMeta, deps.TaggerComp)
 	return mockprovides{
 		Comp:     ac,
-		Endpoint: api.NewAgentEndpointProvider(ac.mockHandleRequest, "/config-check", "GET"),
+		Endpoint: apidef.NewAgentEndpointProvider(ac.mockHandleRequest, "/config-check", "GET"),
 	}
 }
 

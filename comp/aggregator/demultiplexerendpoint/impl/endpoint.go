@@ -16,7 +16,7 @@ import (
 	"github.com/DataDog/zstd"
 
 	demultiplexerComp "github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
-	"github.com/DataDog/datadog-agent/comp/api/api"
+	apidef "github.com/DataDog/datadog-agent/comp/api/api/def"
 	"github.com/DataDog/datadog-agent/comp/api/api/utils"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
@@ -37,7 +37,7 @@ type demultiplexerEndpoint struct {
 
 // Provides defines the output of the demultiplexerendpoint component
 type Provides struct {
-	Endpoint api.AgentEndpointProvider
+	Endpoint apidef.AgentEndpointProvider
 }
 
 // NewComponent creates a new demultiplexerendpoint component
@@ -49,7 +49,7 @@ func NewComponent(reqs Requires) Provides {
 	}
 
 	return Provides{
-		Endpoint: api.NewAgentEndpointProvider(endpoint.dumpDogstatsdContexts, "/dogstatsd-contexts-dump", "POST"),
+		Endpoint: apidef.NewAgentEndpointProvider(endpoint.dumpDogstatsdContexts, "/dogstatsd-contexts-dump", "POST"),
 	}
 }
 

@@ -10,10 +10,11 @@ package packagesigningimpl
 import (
 	"net/http"
 
-	"github.com/DataDog/datadog-agent/comp/api/api"
+	"go.uber.org/fx"
+
+	apidef "github.com/DataDog/datadog-agent/comp/api/api/def"
 	psinterface "github.com/DataDog/datadog-agent/comp/metadata/packagesigning"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"go.uber.org/fx"
 )
 
 // MockModule defines the fx options for the mocked component
@@ -27,7 +28,7 @@ type MockProvides struct {
 	fx.Out
 
 	Comp     psinterface.Component
-	Endpoint api.AgentEndpointProvider
+	Endpoint apidef.AgentEndpointProvider
 }
 
 // MockPkgSigning is the mocked struct that implements the packagesigning component interface
@@ -49,6 +50,6 @@ func newMock() MockProvides {
 	ps := &MockPkgSigning{}
 	return MockProvides{
 		Comp:     ps,
-		Endpoint: api.NewAgentEndpointProvider(ps.handlerFunc, "/metadata/package-signing", "GET"),
+		Endpoint: apidef.NewAgentEndpointProvider(ps.handlerFunc, "/metadata/package-signing", "GET"),
 	}
 }

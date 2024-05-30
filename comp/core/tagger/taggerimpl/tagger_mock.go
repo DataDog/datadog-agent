@@ -12,7 +12,9 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/comp/api/api"
+	"go.uber.org/fx"
+
+	apidef "github.com/DataDog/datadog-agent/comp/api/api/def"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
@@ -20,7 +22,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl/local"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"go.uber.org/fx"
 )
 
 // MockTaggerClient is a mock of the tagger Component
@@ -38,7 +39,7 @@ type MockProvides struct {
 	fx.Out
 
 	Comp     tagger.Mock
-	Endpoint api.AgentEndpointProvider
+	Endpoint apidef.AgentEndpointProvider
 }
 
 var _ tagger.Component = (*MockTaggerClient)(nil)
@@ -51,7 +52,7 @@ func NewMock(deps dependencies) MockProvides {
 	}
 	return MockProvides{
 		Comp:     c,
-		Endpoint: api.NewAgentEndpointProvider(c.mockHandleRequest, "/tagger-list", "GET"),
+		Endpoint: apidef.NewAgentEndpointProvider(c.mockHandleRequest, "/tagger-list", "GET"),
 	}
 }
 

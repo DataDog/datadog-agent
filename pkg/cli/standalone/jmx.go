@@ -12,7 +12,7 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/comp/agent/jmxlogger"
-	internalAPI "github.com/DataDog/datadog-agent/comp/api/api"
+	apidef "github.com/DataDog/datadog-agent/comp/api/api/def"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/jmxfetch"
@@ -21,7 +21,7 @@ import (
 // ExecJMXCommandConsole runs the provided JMX command name on the selected checks, and
 // reports with the ConsoleReporter to the agent's `log.Info`.
 // The common utils, including AutoConfig, must have already been initialized.
-func ExecJMXCommandConsole(command string, selectedChecks []string, logLevel string, configs []integration.Config, agentAPI internalAPI.Component, jmxLogger jmxlogger.Component) error {
+func ExecJMXCommandConsole(command string, selectedChecks []string, logLevel string, configs []integration.Config, agentAPI apidef.Component, jmxLogger jmxlogger.Component) error {
 	return execJmxCommand(command, selectedChecks, jmxfetch.ReporterConsole, jmxLogger.JMXInfo, logLevel, configs, agentAPI, jmxLogger)
 }
 
@@ -29,7 +29,7 @@ func ExecJMXCommandConsole(command string, selectedChecks []string, logLevel str
 // the data as a JSON on the console. It is used by the `check jmx` cli command
 // of the Agent.
 // The common utils, including AutoConfig, must have already been initialized.
-func ExecJmxListWithMetricsJSON(selectedChecks []string, logLevel string, configs []integration.Config, agentAPI internalAPI.Component, jmxLogger jmxlogger.Component) error {
+func ExecJmxListWithMetricsJSON(selectedChecks []string, logLevel string, configs []integration.Config, agentAPI apidef.Component, jmxLogger jmxlogger.Component) error {
 	// don't pollute the JSON with the log pattern.
 	out := func(a ...interface{}) {
 		fmt.Println(a...)
@@ -41,7 +41,7 @@ func ExecJmxListWithMetricsJSON(selectedChecks []string, logLevel string, config
 // the data as a JSON on the console. It is used by the `check jmx --rate` cli command
 // of the Agent.
 // The common utils, including AutoConfig, must have already been initialized.
-func ExecJmxListWithRateMetricsJSON(selectedChecks []string, logLevel string, configs []integration.Config, agentAPI internalAPI.Component, jmxLogger jmxlogger.Component) error {
+func ExecJmxListWithRateMetricsJSON(selectedChecks []string, logLevel string, configs []integration.Config, agentAPI apidef.Component, jmxLogger jmxlogger.Component) error {
 	// don't pollute the JSON with the log pattern.
 	out := func(a ...interface{}) {
 		fmt.Println(a...)
@@ -57,7 +57,7 @@ func execJmxCommand(command string,
 	output func(...interface{}),
 	logLevel string,
 	configs []integration.Config,
-	agentAPI internalAPI.Component,
+	agentAPI apidef.Component,
 	logger jmxlogger.Component) error {
 
 	runner := jmxfetch.NewJMXFetch(logger)

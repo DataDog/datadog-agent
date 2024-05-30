@@ -9,9 +9,10 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/api/api"
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"go.uber.org/fx"
+
+	apidef "github.com/DataDog/datadog-agent/comp/api/api/def"
+	"github.com/DataDog/datadog-agent/pkg/aggregator"
 )
 
 type serverMock struct {
@@ -23,14 +24,14 @@ type MockProvides struct {
 	fx.Out
 
 	Comp     Component
-	Endpoint api.AgentEndpointProvider
+	Endpoint apidef.AgentEndpointProvider
 }
 
 func newMock() MockProvides {
 	m := &serverMock{}
 	return MockProvides{
 		Comp:     m,
-		Endpoint: api.NewAgentEndpointProvider(m.handlerFunc, "/dogstatsd-stats", "GET"),
+		Endpoint: apidef.NewAgentEndpointProvider(m.handlerFunc, "/dogstatsd-stats", "GET"),
 	}
 }
 

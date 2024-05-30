@@ -43,7 +43,7 @@ func stopServer(listener net.Listener, name string) {
 }
 
 // StartServers creates certificates and starts API + IPC servers
-func (a *apiServer) StartServers(_ context.Context) error {
+func (a *ApiServer) StartServers(_ context.Context) error {
 	apiAddr, err := getIPCAddressPort()
 	if err != nil {
 		return fmt.Errorf("unable to get IPC address and port: %v", err)
