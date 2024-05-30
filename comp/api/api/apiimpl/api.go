@@ -18,7 +18,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/gui"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
-	"github.com/DataDog/datadog-agent/comp/core/settings"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
@@ -69,7 +68,6 @@ type apiServer struct {
 	wmeta                 workloadmeta.Component
 	collector             optional.Option[collector.Component]
 	gui                   optional.Option[gui.Component]
-	settings              settings.Component
 	endpointProviders     []api.EndpointProvider
 }
 
@@ -98,7 +96,6 @@ type dependencies struct {
 	WorkloadMeta          workloadmeta.Component
 	Collector             optional.Option[collector.Component]
 	Gui                   optional.Option[gui.Component]
-	Settings              settings.Component
 	EndpointProviders     []api.EndpointProvider `group:"agent_endpoint"`
 }
 
@@ -128,7 +125,6 @@ func newAPIServer(deps dependencies) api.Component {
 		wmeta:                 deps.WorkloadMeta,
 		collector:             deps.Collector,
 		gui:                   deps.Gui,
-		settings:              deps.Settings,
 		endpointProviders:     deps.EndpointProviders,
 	}
 }
@@ -147,19 +143,13 @@ func (server *apiServer) StartServer(
 		server.taggerComp,
 		server.logsAgentComp,
 		senderManager,
-		server.hostMetadata,
-		server.invAgent,
 		server.demux,
-		server.invHost,
 		server.secretResolver,
-		server.invChecks,
-		server.pkgSigning,
 		server.statusComponent,
 		server.collector,
 		server.eventPlatformReceiver,
 		server.autoConfig,
 		server.gui,
-		server.settings,
 		server.endpointProviders,
 	)
 }

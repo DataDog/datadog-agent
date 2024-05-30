@@ -13,9 +13,11 @@ import (
 	"net"
 	"reflect"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgproto3"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 	"github.com/uptrace/bun"
@@ -23,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/postgres"
 )
 
@@ -261,6 +264,71 @@ func (s *postgresProtocolParsingSuite) TestDecoding() {
 			tt.validation(t, tt.context, monitor)
 		})
 	}
+}
+
+// getPostgresInFlightEntries returns the entries in the in-flight map.
+func getPostgresInFlightEntries(t *testing.T, monitor *Monitor) map[postgres.ConnTuple]postgres.EbpfTx {
+	postgresInFlightMap, _, err := monitor.ebpfProgram.GetMap(postgres.InFlightMap)
+	require.NoError(t, err)
+
+	var key postgres.ConnTuple
+	var value postgres.EbpfTx
+	entries := make(map[postgres.ConnTuple]postgres.EbpfTx)
+	iter := postgresInFlightMap.Iterate()
+	for iter.Next(&key, &value) {
+		entries[key] = value
+	}
+	return entries
+}
+
+// TestCleanupEBPFEntriesOnTermination tests that the cleanup of the eBPF entries is done when the connection
+// is closed. This is important to avoid leaking resources. The test creates a TCP server, which just reads the requests
+// without sending any response. The test will send a postgres request (and obviously will fail), we will verify the
+// request appear in the in_flight map and then we will close the connection and verify that the entry is removed.
+func (s *postgresProtocolParsingSuite) TestCleanupEBPFEntriesOnTermination() {
+	t := s.T()
+
+	// Creating the monitor
+	monitor := setupUSMTLSMonitor(t, getPostgresDefaultTestConfiguration())
+
+	wg := sync.WaitGroup{}
+
+	// Spinning the TCP server
+	const serverAddress = "127.0.0.1:5432"
+	srv := testutil.NewTCPServer(serverAddress, func(conn net.Conn) {
+		defer conn.Close()
+		defer wg.Done()
+		_, _ = conn.Read(make([]byte, 1024))
+		// Verifying the entry is present in the in-flight map
+		entries := getPostgresInFlightEntries(t, monitor)
+		require.Len(t, entries, 1)
+	}, false)
+	done := make(chan struct{})
+	require.NoError(t, srv.Run(done))
+	t.Cleanup(func() { close(done) })
+
+	// Encoding a dummy query.
+	output := make([]byte, 0)
+	query := pgproto3.Query{String: "SELECT * FROM dummy"}
+	var err error
+	output, err = query.Encode(output)
+	require.NoError(t, err)
+
+	// Connecting to the server
+	client, err := net.Dial("tcp", serverAddress)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = client.Close() })
+
+	// Sending the query and waiting for the server to finish processing it
+	wg.Add(1)
+	_, err = client.Write(output)
+	require.NoError(t, err)
+	wg.Wait()
+
+	// Closing the connection and verifying the entry is removed
+	require.NoError(t, client.Close())
+	entries := getPostgresInFlightEntries(t, monitor)
+	require.Len(t, entries, 0)
 }
 
 func getPostgresDefaultTestConfiguration() *config.Config {

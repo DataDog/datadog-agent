@@ -23,7 +23,6 @@ GOOS_MAPPING = {
 }
 GOARCH_MAPPING = {
     "x64": "amd64",
-    "x86": "386",
     "arm64": "arm64",
 }
 
@@ -35,7 +34,6 @@ def run_golangci_lint(
     rtloader_root=None,
     build_tags=None,
     build="test",
-    arch="x64",
     concurrency=None,
     timeout=None,
     verbose=False,
@@ -47,7 +45,7 @@ def run_golangci_lint(
         # as comma separated tokens in a string
         targets = targets.split(',')
 
-    tags = build_tags or get_default_build_tags(build=build, arch=arch)
+    tags = build_tags or get_default_build_tags(build=build)
     if not isinstance(tags, list):
         tags = [tags]
 

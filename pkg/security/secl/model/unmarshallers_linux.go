@@ -75,15 +75,15 @@ func (e *ChownEvent) UnmarshalBinary(data []byte) (int, error) {
 
 // UnmarshalBinary unmarshalls a binary representation of itself
 func (e *Event) UnmarshalBinary(data []byte) (int, error) {
-	if len(data) < 24 {
+	if len(data) < 16 {
 		return 0, ErrNotEnoughData
 	}
 
-	e.TimestampRaw = binary.NativeEndian.Uint64(data[8:16])
-	e.Type = binary.NativeEndian.Uint32(data[16:20])
-	e.Flags = binary.NativeEndian.Uint32(data[20:24])
+	e.TimestampRaw = binary.NativeEndian.Uint64(data[0:8])
+	e.Type = binary.NativeEndian.Uint32(data[8:12])
+	e.Flags = binary.NativeEndian.Uint32(data[12:16])
 
-	return 24, nil
+	return 16, nil
 }
 
 // UnmarshalBinary unmarshalls a binary representation of itself
@@ -304,7 +304,7 @@ func (e *InvalidateDentryEvent) UnmarshalBinary(data []byte) (int, error) {
 
 // UnmarshalBinary unmarshalls a binary representation of itself
 func (e *ArgsEnvsEvent) UnmarshalBinary(data []byte) (int, error) {
-	if len(data) < MaxArgEnvSize+8 {
+	if len(data) < 8 {
 		return 0, ErrNotEnoughData
 	}
 
@@ -313,9 +313,20 @@ func (e *ArgsEnvsEvent) UnmarshalBinary(data []byte) (int, error) {
 	if e.Size > MaxArgEnvSize {
 		e.Size = MaxArgEnvSize
 	}
-	SliceToArray(data[8:MaxArgEnvSize+8], e.ValuesRaw[:])
 
-	return MaxArgEnvSize + 8, nil
+	argsEnvSize := int(e.Size)
+	data = data[8:]
+	if len(data) < argsEnvSize {
+		return 8, ErrNotEnoughData
+	}
+
+	for i := range e.ValuesRaw {
+		e.ValuesRaw[i] = 0
+	}
+
+	SliceToArray(data[:argsEnvSize], e.ValuesRaw[:argsEnvSize])
+
+	return 8 + argsEnvSize, nil
 }
 
 // UnmarshalBinary unmarshals the given content
@@ -414,6 +425,7 @@ func (m *Mount) UnmarshalBinary(data []byte) (int, error) {
 	}
 
 	m.MountID = m.RootPathKey.MountID
+	m.Origin = MountOriginEvent
 
 	return 56, nil
 }
@@ -425,7 +437,13 @@ func (e *MountEvent) UnmarshalBinary(data []byte) (int, error) {
 
 // UnmarshalBinary unmarshalls a binary representation of itself
 func (e *UnshareMountNSEvent) UnmarshalBinary(data []byte) (int, error) {
-	return e.Mount.UnmarshalBinary(data)
+	n, err := e.Mount.UnmarshalBinary(data)
+	if err != nil {
+		return 0, err
+	}
+	e.Origin = MountOriginUnshare
+
+	return n, nil
 }
 
 // UnmarshalBinary unmarshalls a binary representation of itself

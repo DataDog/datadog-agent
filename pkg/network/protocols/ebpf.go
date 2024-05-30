@@ -130,10 +130,10 @@ const (
 	ProgramTLSHTTP2EOSParser TLSProgramType = C.TLS_HTTP2_EOS_PARSER
 	// ProgramTLSHTTP2Termination is tail call to process TLS HTTP2 termination.
 	ProgramTLSHTTP2Termination TLSProgramType = C.TLS_HTTP2_TERMINATION
-	// ProgramTLSKakfa is tail call to process Kafka TLS frames,
-	ProgramTLSKakfa TLSProgramType = C.TLS_KAFKA
-	// ProgramTLSKakfaResponseParser is tail call to process Kafka TLS responses,
-	ProgramTLSKakfaResponseParser TLSProgramType = C.TLS_KAFKA_RESPONSE_PARSER
+	// ProgramTLSKafka is tail call to process Kafka TLS frames,
+	ProgramTLSKafka TLSProgramType = C.TLS_KAFKA
+	// ProgramTLSKafkaResponseParser is tail call to process Kafka TLS responses,
+	ProgramTLSKafkaResponseParser TLSProgramType = C.TLS_KAFKA_RESPONSE_PARSER
 	// ProgramTLSKafkaTermination is tail call to process Kafka TLS termination.
 	ProgramTLSKafkaTermination TLSProgramType = C.TLS_KAFKA_TERMINATION
 )

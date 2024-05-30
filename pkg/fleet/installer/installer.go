@@ -8,20 +8,22 @@ package installer
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"os"
 	"path/filepath"
-	"slices"
 	"sync"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/fleet/env"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/service"
 	"github.com/DataDog/datadog-agent/pkg/fleet/internal/db"
 	"github.com/DataDog/datadog-agent/pkg/fleet/internal/oci"
 	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/version"
 	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
 )
 
@@ -73,41 +75,8 @@ type installerImpl struct {
 	tmpDirPath   string
 }
 
-// Option are the options for the package manager.
-type Option func(*options)
-
-type options struct {
-	registryAuth string
-	registry     string
-}
-
-func newOptions() *options {
-	return &options{
-		registryAuth: oci.RegistryAuthDefault,
-		registry:     "",
-	}
-}
-
-// WithRegistryAuth sets the registry authentication method.
-func WithRegistryAuth(registryAuth string) Option {
-	return func(o *options) {
-		o.registryAuth = registryAuth
-	}
-}
-
-// WithRegistry sets the registry URL.
-func WithRegistry(registry string) Option {
-	return func(o *options) {
-		o.registry = registry
-	}
-}
-
 // NewInstaller returns a new Package Manager.
-func NewInstaller(opts ...Option) (Installer, error) {
-	o := newOptions()
-	for _, opt := range opts {
-		opt(o)
-	}
+func NewInstaller(env *env.Env) (Installer, error) {
 	err := ensurePackageDirExists()
 	if err != nil {
 		return nil, fmt.Errorf("could not ensure packages directory exists: %w", err)
@@ -118,7 +87,7 @@ func NewInstaller(opts ...Option) (Installer, error) {
 	}
 	return &installerImpl{
 		db:           db,
-		downloader:   oci.NewDownloader(http.DefaultClient, o.registry, o.registryAuth),
+		downloader:   oci.NewDownloader(env, http.DefaultClient),
 		repositories: repository.NewRepositories(PackagesPath, LocksPack),
 		configsDir:   defaultConfigsDir,
 		tmpDirPath:   TmpDirPath,
@@ -138,11 +107,11 @@ func (i *installerImpl) States() (map[string]repository.State, error) {
 
 // IsInstalled checks if a package is installed.
 func (i *installerImpl) IsInstalled(_ context.Context, pkg string) (bool, error) {
-	packages, err := i.db.ListPackages()
+	hasPackage, err := i.db.HasPackage(pkg)
 	if err != nil {
 		return false, fmt.Errorf("could not list packages: %w", err)
 	}
-	return slices.Contains(packages, pkg), nil
+	return hasPackage, nil
 }
 
 // Install installs or updates a package.
@@ -152,6 +121,14 @@ func (i *installerImpl) Install(ctx context.Context, url string) error {
 	pkg, err := i.downloader.Download(ctx, url)
 	if err != nil {
 		return fmt.Errorf("could not download package: %w", err)
+	}
+	dbPkg, err := i.db.GetPackage(pkg.Name)
+	if err != nil && !errors.Is(err, db.ErrPackageNotFound) {
+		return fmt.Errorf("could not get package: %w", err)
+	}
+	if dbPkg.Name == pkg.Name && dbPkg.Version == pkg.Version {
+		log.Infof("package %s version %s is already installed", pkg.Name, pkg.Version)
+		return nil
 	}
 	err = checkAvailableDiskSpace(pkg, i.packagesDir)
 	if err != nil {
@@ -179,7 +156,11 @@ func (i *installerImpl) Install(ctx context.Context, url string) error {
 	if err != nil {
 		return fmt.Errorf("could not setup package: %w", err)
 	}
-	err = i.db.CreatePackage(pkg.Name)
+	err = i.db.SetPackage(db.Package{
+		Name:             pkg.Name,
+		Version:          pkg.Version,
+		InstallerVersion: version.AgentVersion,
+	})
 	if err != nil {
 		return fmt.Errorf("could not store package installation in db: %w", err)
 	}
@@ -258,10 +239,10 @@ func (i *installerImpl) Purge(ctx context.Context) {
 		log.Warnf("could not list packages: %v", err)
 	}
 	for _, pkg := range packages {
-		if pkg == packageDatadogInstaller {
+		if pkg.Name == packageDatadogInstaller {
 			continue
 		}
-		i.removePackage(ctx, pkg)
+		i.removePackage(ctx, pkg.Name)
 	}
 	i.removePackage(ctx, packageDatadogInstaller)
 

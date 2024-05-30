@@ -251,7 +251,7 @@
 /comp/metadata @DataDog/agent-shared-components
 /comp/ndmtmp @DataDog/network-device-monitoring
 /comp/netflow @DataDog/network-device-monitoring
-/comp/networkpath @DataDog/Networks
+/comp/networkpath @DataDog/Networks @DataDog/network-device-monitoring
 /comp/otelcol @DataDog/opentelemetry
 /comp/process @DataDog/processes
 /comp/remote-config @DataDog/remote-config
@@ -316,6 +316,7 @@
 /comp/core/autodiscovery/providers/remote_config*.go  @DataDog/remote-config
 /pkg/cloudfoundry                       @Datadog/platform-integrations
 /pkg/clusteragent/                      @DataDog/container-platform
+/pkg/clusteragent/autoscaling/          @DataDog/container-integrations
 /pkg/clusteragent/admission/mutate/autoinstrumentation/ @DataDog/container-platform @DataDog/apm-onboarding
 /pkg/clusteragent/orchestrator/         @DataDog/container-app
 /pkg/clusteragent/telemetry/            @DataDog/telemetry-and-analytics
@@ -384,6 +385,7 @@
 /pkg/proto/datadog/languagedetection    @DataDog/processes
 /pkg/proto/datadog/process              @DataDog/processes
 /pkg/proto/datadog/trace                @DataDog/agent-apm
+/pkg/proto/datadog/workloadmeta         @DataDog/container-platform
 /pkg/remoteconfig/                      @DataDog/remote-config
 /pkg/runtime/                           @DataDog/agent-shared-components
 /pkg/serializer/                        @DataDog/agent-processing-and-routing

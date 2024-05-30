@@ -64,14 +64,20 @@ func validateSchema(t *testing.T, schemaLoader gojsonschema.JSONLoader, document
 		return false
 	}
 
-	if !result.Valid() {
-		for _, desc := range result.Errors() {
-			t.Error(desc)
-		}
-		return false
-	}
+	success := true
 
-	return true
+	if !result.Valid() {
+		for _, err := range result.Errors() {
+			// allow addition properties
+			if err.Type() == "additional_property_not_allowed" {
+				continue
+			}
+
+			t.Error(err)
+			success = false
+		}
+	}
+	return success
 }
 
 //nolint:deadcode,unused

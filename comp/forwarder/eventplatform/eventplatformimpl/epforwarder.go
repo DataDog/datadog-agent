@@ -202,6 +202,18 @@ var passthroughPipelineDescs = []passthroughPipelineDesc{
 		defaultBatchMaxSize:           pkgconfig.DefaultBatchMaxSize,
 		defaultInputChanSize:          pkgconfig.DefaultInputChanSize,
 	},
+	{
+		eventType:                     eventplatform.EventTypeServiceDiscovery,
+		category:                      "Service Discovery",
+		contentType:                   logshttp.JSONContentType,
+		endpointsConfigPrefix:         "service_discovery.forwarder.",
+		hostnameEndpointPrefix:        "instrumentation-telemetry-intake.",
+		intakeTrackType:               "apmtelemetry",
+		defaultBatchMaxConcurrentSend: 10,
+		defaultBatchMaxContentSize:    pkgconfig.DefaultBatchMaxContentSize,
+		defaultBatchMaxSize:           pkgconfig.DefaultBatchMaxSize,
+		defaultInputChanSize:          pkgconfig.DefaultInputChanSize,
+	},
 }
 
 type defaultEventPlatformForwarder struct {

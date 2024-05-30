@@ -39,20 +39,6 @@
         "rule_id"
       ]
     },
-    "AnomalyDetectionSyscallEvent": {
-      "properties": {
-        "syscall": {
-          "type": "string",
-          "description": "Name of the syscall that triggered the anomaly detection event"
-        }
-      },
-      "additionalProperties": false,
-      "type": "object",
-      "required": [
-        "syscall"
-      ],
-      "description": "AnomalyDetectionSyscallEventSerializer serializes an anomaly detection for a syscall event"
-    },
     "BPFEvent": {
       "properties": {
         "cmd": {
@@ -373,6 +359,18 @@
         "hash_state": {
           "type": "string",
           "description": "State of the hashes or reason why they weren't computed"
+        },
+        "mount_path": {
+          "type": "string",
+          "description": "MountPath path of the mount"
+        },
+        "mount_source": {
+          "type": "string",
+          "description": "MountSource source of the mount"
+        },
+        "mount_origin": {
+          "type": "string",
+          "description": "MountOrigin origin of the mount"
         }
       },
       "additionalProperties": false,
@@ -481,6 +479,18 @@
         "hash_state": {
           "type": "string",
           "description": "State of the hashes or reason why they weren't computed"
+        },
+        "mount_path": {
+          "type": "string",
+          "description": "MountPath path of the mount"
+        },
+        "mount_source": {
+          "type": "string",
+          "description": "MountSource source of the mount"
+        },
+        "mount_origin": {
+          "type": "string",
+          "description": "MountOrigin origin of the mount"
         },
         "destination": {
           "$ref": "#/$defs/File",
@@ -930,6 +940,10 @@
         "source": {
           "type": "string",
           "description": "Process source"
+        },
+        "syscalls": {
+          "$ref": "#/$defs/SyscallsEvent",
+          "description": "List of syscalls captured to generate the event"
         }
       },
       "additionalProperties": false,
@@ -1058,6 +1072,10 @@
         "source": {
           "type": "string",
           "description": "Process source"
+        },
+        "syscalls": {
+          "$ref": "#/$defs/SyscallsEvent",
+          "description": "List of syscalls captured to generate the event"
         },
         "parent": {
           "$ref": "#/$defs/Process",
@@ -1295,6 +1313,32 @@
       ],
       "description": "SpliceEventSerializer serializes a splice event to JSON"
     },
+    "Syscall": {
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Name of the syscall"
+        },
+        "id": {
+          "type": "integer",
+          "description": "ID of the syscall in the host architecture"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "name",
+        "id"
+      ],
+      "description": "SyscallSerializer serializes a syscall"
+    },
+    "SyscallsEvent": {
+      "items": {
+        "$ref": "#/$defs/Syscall"
+      },
+      "type": "array",
+      "description": "SyscallsEventSerializer serializes the syscalls from a syscalls event"
+    },
     "UserContext": {
       "properties": {
         "id": {
@@ -1423,8 +1467,8 @@
     "mount": {
       "$ref": "#/$defs/MountEvent"
     },
-    "anomaly_detection_syscall": {
-      "$ref": "#/$defs/AnomalyDetectionSyscallEvent"
+    "syscalls": {
+      "$ref": "#/$defs/SyscallsEvent"
     },
     "usr": {
       "$ref": "#/$defs/UserContext"

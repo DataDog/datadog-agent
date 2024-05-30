@@ -60,12 +60,23 @@ static __always_inline void handle_command_complete(conn_tuple_t *conn_tuple, po
     bpf_map_delete_elem(&postgres_in_flight, conn_tuple);
 }
 
+static void __always_inline postgres_tcp_termination(conn_tuple_t *tup) {
+    bpf_map_delete_elem(&postgres_in_flight, tup);
+    flip_tuple(tup);
+    bpf_map_delete_elem(&postgres_in_flight, tup);
+}
+
 SEC("socket/postgres_process")
 int socket__postgres_process(struct __sk_buff* skb) {
     skb_info_t skb_info = {};
     conn_tuple_t conn_tuple = {};
 
     if (!fetch_dispatching_arguments(&conn_tuple, &skb_info)) {
+        return 0;
+    }
+
+    if (is_tcp_termination(&skb_info)) {
+        postgres_tcp_termination(&conn_tuple);
         return 0;
     }
 

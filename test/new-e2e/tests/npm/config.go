@@ -18,6 +18,11 @@ import (
 //go:embed config/npm.yaml
 var systemProbeConfigNPM string
 
+// systemProbeConfigNPMHelmValues define the embedded minimal configuration for NPM
+//
+//go:embed config/npm-helm-values.yaml
+var systemProbeConfigNPMHelmValues string
+
 // systemProbeConfigNPMEnv equivalent of config/npm.yaml
 func systemProbeConfigNPMEnv() []dockeragentparams.Option {
 	return []dockeragentparams.Option{
