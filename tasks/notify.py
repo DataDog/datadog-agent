@@ -41,7 +41,20 @@ S3_CI_BUCKET_URL = "s3://dd-ci-artefacts-build-stable/datadog-agent/failed_jobs"
 CONSECUTIVE_THRESHOLD = 3
 CUMULATIVE_THRESHOLD = 5
 CUMULATIVE_LENGTH = 10
-CI_VISIBILITY_JOB_URL = 'https://app.datadoghq.com/ci/pipeline-executions?query=ci_level%3Ajob%20%40ci.pipeline.name%3ADataDog%2Fdatadog-agent%20%40git.branch%3Amain%20%40ci.job.name%3A"{}"&agg_m=count'
+CI_VISIBILITY_JOB_URL = 'https://app.datadoghq.com/ci/pipeline-executions?query=ci_level%3Ajob%20%40ci.pipeline.name%3ADataDog%2Fdatadog-agent%20%40git.branch%3Amain%20%40ci.job.name%3A{}&agg_m=count'
+
+
+def get_ci_visibility_job_url(name: str, prefix=True) -> str:
+    # Escape (https://docs.datadoghq.com/logs/explorer/search_syntax/#escape-special-characters-and-spaces)
+    name = re.sub(r"([-+=&|><!(){}[\]^\"“”~*?:\\ ])", r"\\\1", name)
+
+    if prefix:
+        name += '*'
+
+    # URL Quote
+    name = quote(name)
+
+    return CI_VISIBILITY_JOB_URL.format(name)
 
 
 @dataclass
@@ -58,7 +71,7 @@ class ExecutionsJobInfo:
 
     @staticmethod
     def ci_visibility_url(name):
-        return CI_VISIBILITY_JOB_URL.format(quote(name))
+        return get_ci_visibility_job_url(name)
 
     @staticmethod
     def from_dict(data):
@@ -465,7 +478,7 @@ def send_failure_summary_notification(_, jobs: dict[str, any] | None = None, lis
     message = ['*Daily Job Failure Report*']
     message.append('These jobs had the most failures in the last 24 hours:')
     for name, (fail, total) in stats:
-        link = CI_VISIBILITY_JOB_URL.format(quote(name))
+        link = get_ci_visibility_job_url(name)
         message.append(f"- <{link}|{name}>: *{fail} failures*{f' / {total} runs' if total else ''}")
 
     message.append(
