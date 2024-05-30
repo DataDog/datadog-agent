@@ -9,11 +9,14 @@ package failure
 
 import (
 	"fmt"
+	"strconv"
 	"sync"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
 )
 
 var allowListErrs = map[uint32]struct{}{
@@ -22,15 +25,26 @@ var allowListErrs = map[uint32]struct{}{
 	111: {}, // Connection refused
 }
 
+var telemetryModuleName = "network_tracer__tcp_failure"
+
+var failureTelemetry = struct {
+	failedConnOrphans telemetry.Counter
+	failedConnMatches telemetry.Counter
+}{
+	telemetry.NewCounter(telemetryModuleName, "orphans", []string{}, "Counter measuring the number of orphans after associating failed connections with a closed connection"),
+	telemetry.NewCounter(telemetryModuleName, "matches", []string{"type"}, "Counter measuring the number of successful matches of failed connections with closed connections"),
+}
+
 // FailedConnStats is a wrapper to help document the purpose of the underlying map
 type FailedConnStats struct {
 	CountByErrCode map[uint32]uint32
+	Expiry         int64
 }
 
 // String returns a string representation of the failedConnStats
 func (t FailedConnStats) String() string {
 	return fmt.Sprintf(
-		"failedConns: {countByErrCode: %+v}", t.CountByErrCode,
+		"FailedConnStats{CountByErrCode: %v, Expiry: %d}", t.CountByErrCode, t.Expiry,
 	)
 }
 
@@ -51,18 +65,45 @@ func NewFailedConns() *FailedConns {
 }
 
 // MatchFailedConn increments the failed connection counters for a given connection based on the failed connection map
-func MatchFailedConn(conn *network.ConnectionStats, failedConnMap *FailedConns) {
+func (fc *FailedConns) MatchFailedConn(conn *network.ConnectionStats) {
+	if conn.Type != network.TCP {
+		return
+	}
 	connTuple := connStatsToTuple(conn)
-	failedConnMap.RLock()
-	defer failedConnMap.RUnlock()
-	if failedConn, ok := failedConnMap.FailedConnMap[connTuple]; ok {
+
+	fc.RLock()
+	defer fc.RUnlock()
+
+	if failedConn, ok := fc.FailedConnMap[connTuple]; ok {
+		// found matching failed connection
 		conn.TCPFailures = make(map[uint32]uint32)
+
 		for errCode, count := range failedConn.CountByErrCode {
-			if _, exists := allowListErrs[errCode]; exists {
-				conn.TCPFailures[errCode] += count
-			}
+			failureTelemetry.failedConnMatches.Add(1, strconv.Itoa(int(errCode)))
+			conn.TCPFailures[errCode] += count
 		}
 	}
+}
+
+// RemoveExpired removes expired failed connections from the map
+func (fc *FailedConns) RemoveExpired() {
+	if fc == nil {
+		return
+	}
+	fc.Lock()
+	defer fc.Unlock()
+
+	now := time.Now().Unix()
+	removed := 0
+
+	for connTuple, failedConn := range fc.FailedConnMap {
+		if failedConn.Expiry < now {
+			removed++
+			delete(fc.FailedConnMap, connTuple)
+		}
+	}
+
+	failureTelemetry.failedConnOrphans.Add(float64(removed))
 }
 
 // connStatsToTuple converts a ConnectionStats to a ConnTuple

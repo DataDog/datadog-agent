@@ -10,6 +10,7 @@ package failure
 
 import (
 	"sync"
+	"time"
 	"unsafe"
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
@@ -60,18 +61,23 @@ func (c *TCPFailedConnConsumer) Stop() {
 func (c *TCPFailedConnConsumer) extractConn(data []byte) {
 	c.FailedConns.Lock()
 	defer c.FailedConns.Unlock()
-	ct := (*netebpf.FailedConn)(unsafe.Pointer(&data[0]))
-
+	failedConn := (*netebpf.FailedConn)(unsafe.Pointer(&data[0]))
 	failedConnConsumerTelemetry.eventsReceived.Inc()
 
-	stats, ok := c.FailedConns.FailedConnMap[ct.Tup]
+	// Ignore failed connections that are not in the allow list
+	if _, exists := allowListErrs[failedConn.Reason]; !exists {
+		return
+	}
+	stats, ok := c.FailedConns.FailedConnMap[failedConn.Tup]
 	if !ok {
 		stats = &FailedConnStats{
 			CountByErrCode: make(map[uint32]uint32),
+			Expiry:         time.Now().Add(2 * time.Minute).Unix(),
 		}
-		c.FailedConns.FailedConnMap[ct.Tup] = stats
+		c.FailedConns.FailedConnMap[failedConn.Tup] = stats
 	}
-	stats.CountByErrCode[ct.Reason]++
+	stats.CountByErrCode[failedConn.Reason]++
+	stats.Expiry = time.Now().Add(2 * time.Minute).Unix()
 }
 
 // Start starts the consumer

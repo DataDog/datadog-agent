@@ -7,7 +7,7 @@
 #include "helpers/filesystem.h"
 #include "helpers/syscalls.h"
 
-long __attribute__((always_inline)) trace__sys_chdir() {
+long __attribute__((always_inline)) trace__sys_chdir(const char *path) {
     struct policy_t policy = fetch_policy(EVENT_CHDIR);
     if (is_discarded_by_process(policy.mode, EVENT_CHDIR)) {
         return 0;
@@ -19,6 +19,7 @@ long __attribute__((always_inline)) trace__sys_chdir() {
         .chdir = {}
     };
 
+    collect_syscall_ctx(&syscall, SYSCALL_CTX_ARG_STR(0), (void *)path, NULL, NULL);
     cache_syscall(&syscall);
 
     return 0;
@@ -26,7 +27,12 @@ long __attribute__((always_inline)) trace__sys_chdir() {
 
 HOOK_SYSCALL_ENTRY1(chdir, const char*, path)
 {
-    return trace__sys_chdir();
+    return trace__sys_chdir(path);
+}
+
+HOOK_SYSCALL_ENTRY1(fchdir, unsigned int, fd)
+{
+    return trace__sys_chdir(NULL);
 }
 
 HOOK_ENTRY("set_fs_pwd")
@@ -92,6 +98,11 @@ HOOK_SYSCALL_EXIT(chdir) {
     return sys_chdir_ret(ctx, retval, DR_KPROBE_OR_FENTRY);
 }
 
+HOOK_SYSCALL_EXIT(fchdir) {
+    int retval = SYSCALL_PARMRET(ctx);
+    return sys_chdir_ret(ctx, retval, DR_KPROBE_OR_FENTRY);
+}
+
 SEC("tracepoint/handle_sys_chdir_exit")
 int tracepoint_handle_sys_chdir_exit(struct tracepoint_raw_syscalls_sys_exit_t *args) {
     return sys_chdir_ret(args, args->ret, DR_TRACEPOINT);
@@ -116,6 +127,7 @@ int __attribute__((always_inline)) dr_chdir_callback(void *ctx) {
 
     struct chdir_event_t event = {
         .syscall.retval = retval,
+        .syscall_ctx.id = syscall->ctx_id,
         .file = syscall->chdir.file,
     };
 

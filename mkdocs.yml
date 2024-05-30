@@ -49,21 +49,26 @@ nav:
 - Guidelines:
   - Contributing: guidelines/contributing.md
   - Documentation: guidelines/docs.md
+- Components:
+  - Overview: components/overview.md
   - Components:
-    - Purpose: guidelines/components/purpose.md
-    - Defining Components: guidelines/components/defining-components.md
-    - Using Components: guidelines/components/using-components.md
-    - Defining Bundles: guidelines/components/defining-bundles.md
-    - Defining Apps: guidelines/components/defining-apps.md
-    - Registrations: guidelines/components/registrations.md
-    - Subscriptions: guidelines/components/subscriptions.md
-- How-to:
-  - Components:
-    - Migration: how-to/components/migration.md
+    - Creating components: components/creating-components.md
+    - Testing components: components/testing.md
+    # - Creating bundles: components/creating-bundles.md
+    - Using components: components/using-components.md
+    # - Common patterns: components/common-patterns.md
+  - Shared features from components:
+    # - Integrating with other components: components/migration.md
+    - Features:
+      - Flare: components/shared_features/flares.md
+  #     - TODO Status: components/shared_features/status.md
+  #     - TODO Remote Config: components/shared_features/remote_config.md
+  #     - TODO Metadata: components/shared_features/metadata.md
+  #     - TODO workloadmeta: components/shared_features/workloadmeta.md
+  #     - TODO more ?: TMP
+  # - Fx overview: components/fx.md
+  # - FAQ: components/faq.md
 - Architecture:
-  - Components:
-    - Overview: architecture/components/overview.md
-    - Fx: architecture/components/fx.md
   - DogStatsD:
     - Internals: architecture/dogstatsd/internals.md
 

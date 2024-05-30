@@ -65,7 +65,7 @@ func runFxWrapper(global *command.GlobalParams) error {
 		core.Bundle(),
 		fx.Supply(&rcservice.Params{
 			Options: []service.Option{
-				service.WithDatabaseFileName("remote-config-updater.db"),
+				service.WithDatabaseFileName("remote-config-installer.db"),
 			},
 		}),
 		rctelemetryreporterimpl.Module(),

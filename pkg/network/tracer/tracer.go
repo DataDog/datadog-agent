@@ -15,12 +15,12 @@ import (
 	"sync"
 	"time"
 
-	"github.com/prometheus/client_golang/prometheus"
-
 	"github.com/DataDog/ebpf-manager/tracefs"
 	"github.com/cihub/seelog"
 	"github.com/cilium/ebpf"
+	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/atomic"
+	"go4.org/intern"
 
 	coretelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
@@ -36,7 +36,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/netlink"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection"
-	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/failure"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/kprobe"
 	"github.com/DataDog/datadog-agent/pkg/network/usm"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
@@ -193,7 +192,7 @@ func newTracer(cfg *config.Config) (_ *Tracer, reterr error) {
 	tr.usmMonitor = newUSMMonitor(cfg, tr.ebpfTracer)
 
 	if cfg.EnableProcessEventMonitoring {
-		if tr.processCache, err = newProcessCache(cfg.MaxProcessesTracked, defaultFilteredEnvs); err != nil {
+		if tr.processCache, err = newProcessCache(cfg.MaxProcessesTracked); err != nil {
 			return nil, fmt.Errorf("could not create process cache; %w", err)
 		}
 		coretelemetry.GetCompatComponent().RegisterCollector(tr.processCache)
@@ -218,6 +217,7 @@ func newTracer(cfg *config.Config) (_ *Tracer, reterr error) {
 		cfg.MaxDNSStatsBuffered,
 		cfg.MaxHTTPStatsBuffered,
 		cfg.MaxKafkaStatsBuffered,
+		cfg.MaxPostgresStatsBuffered,
 		cfg.EnableNPMConnectionRollup,
 		cfg.EnableProcessEventMonitoring,
 	)
@@ -303,17 +303,6 @@ func newReverseDNS(c *config.Config) dns.ReverseDNS {
 // matching failed connections to closed connections
 func (t *Tracer) storeClosedConnections(connections []network.ConnectionStats) {
 	var rejected int
-	var failedConnMap *failure.FailedConns
-	failedConnsEnabled := kprobe.FailedConnectionsSupported(t.config)
-	if failedConnsEnabled {
-		failedConnMap = t.ebpfTracer.GetFailedConnections()
-		defer func() {
-			failedConnMap.Lock()
-			tracerTelemetry.failedConnOrphans.Add(float64(len(failedConnMap.FailedConnMap)))
-			clear(failedConnMap.FailedConnMap)
-			failedConnMap.Unlock()
-		}()
-	}
 	for i := range connections {
 		cs := &connections[i]
 		cs.IsClosed = true
@@ -333,8 +322,8 @@ func (t *Tracer) storeClosedConnections(connections []network.ConnectionStats) {
 		t.addProcessInfo(cs)
 
 		tracerTelemetry.closedConns.Inc(cs.Type.String())
-		if failedConnsEnabled {
-			failure.MatchFailedConn(cs, failedConnMap)
+		if kprobe.FailedConnectionsSupported(t.config) {
+			t.ebpfTracer.GetFailedConnections().MatchFailedConn(cs)
 		}
 	}
 
@@ -360,22 +349,16 @@ func (t *Tracer) addProcessInfo(c *network.ConnectionStats) {
 		log.Tracef("got process cache entry for pid %d: %+v", c.Pid, p)
 	}
 
-	if c.Tags == nil {
-		c.Tags = make(map[string]struct{}, 3)
-	}
-
-	addTag := func(k, v string) {
-		if v == "" {
-			return
+	if len(p.Tags) > 0 {
+		c.Tags = make(map[*intern.Value]struct{}, len(p.Tags))
+		for _, t := range p.Tags {
+			c.Tags[t] = struct{}{}
 		}
-		c.Tags[k+":"+v] = struct{}{}
 	}
 
-	addTag("env", p.Env("DD_ENV"))
-	addTag("version", p.Env("DD_VERSION"))
-	addTag("service", p.Env("DD_SERVICE"))
-
-	c.ContainerID.Source = p.ContainerID
+	if p.ContainerID != nil {
+		c.ContainerID.Source = p.ContainerID
+	}
 }
 
 // Stop stops the tracer
@@ -451,6 +434,7 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 	conns.HTTP = delta.HTTP
 	conns.HTTP2 = delta.HTTP2
 	conns.Kafka = delta.Kafka
+	conns.Postgres = delta.Postgres
 	conns.ConnTelemetry = t.state.GetTelemetryDelta(clientID, t.getConnTelemetry(len(active)))
 	conns.CompilationTelemetryByAsset = t.getRuntimeCompilationTelemetry()
 	conns.KernelHeaderFetchResult = int32(kernel.HeaderProvider.GetResult())
@@ -572,6 +556,11 @@ func (t *Tracer) getConnections(activeBuffer *network.ConnectionBuffer) (latestU
 
 	// get rid of stale process entries in the cache
 	t.processCache.Trim()
+
+	// remove stale failed connections from map
+	if kprobe.FailedConnectionsSupported(t.config) {
+		t.ebpfTracer.GetFailedConnections().RemoveExpired()
+	}
 
 	entryCount := len(activeConnections)
 	if entryCount >= int(t.config.MaxTrackedConnections) {

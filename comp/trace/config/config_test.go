@@ -922,9 +922,9 @@ func TestLoadEnv(t *testing.T) {
 
 			assert.NotNil(t, cfg)
 			if tt.envNew == "DD_APM_IGNORE_RESOURCES" {
-				assert.Equal(t, []string{"4", "5", "6"}, coreconfig.Datadog.GetStringSlice(tt.key))
+				assert.Equal(t, []string{"4", "5", "6"}, coreconfig.Datadog().GetStringSlice(tt.key))
 			} else {
-				assert.Equal(t, "4,5,6", coreconfig.Datadog.GetString(tt.key))
+				assert.Equal(t, "4,5,6", coreconfig.Datadog().GetString(tt.key))
 			}
 		}
 	})
@@ -1553,7 +1553,7 @@ func TestLoadEnv(t *testing.T) {
 
 		assert.NotNil(t, cfg)
 
-		assert.Equal(t, "my-site.com", coreconfig.Datadog.GetString("apm_config.profiling_dd_url"))
+		assert.Equal(t, "my-site.com", coreconfig.Datadog().GetString("apm_config.profiling_dd_url"))
 	})
 
 	env = "DD_APM_DEBUGGER_DD_URL"
@@ -1572,7 +1572,7 @@ func TestLoadEnv(t *testing.T) {
 
 		assert.NotNil(t, cfg)
 
-		assert.Equal(t, "my-site.com", coreconfig.Datadog.GetString("apm_config.debugger_dd_url"))
+		assert.Equal(t, "my-site.com", coreconfig.Datadog().GetString("apm_config.debugger_dd_url"))
 	})
 
 	env = "DD_APM_DEBUGGER_API_KEY"
@@ -1591,7 +1591,7 @@ func TestLoadEnv(t *testing.T) {
 
 		assert.NotNil(t, cfg)
 
-		assert.Equal(t, "my-key", coreconfig.Datadog.GetString("apm_config.debugger_api_key"))
+		assert.Equal(t, "my-key", coreconfig.Datadog().GetString("apm_config.debugger_api_key"))
 	})
 
 	env = "DD_APM_DEBUGGER_ADDITIONAL_ENDPOINTS"
@@ -1614,7 +1614,7 @@ func TestLoadEnv(t *testing.T) {
 			"url2": {"key3"},
 		}
 
-		actual := coreconfig.Datadog.GetStringMapStringSlice("apm_config.debugger_additional_endpoints")
+		actual := coreconfig.Datadog().GetStringMapStringSlice("apm_config.debugger_additional_endpoints")
 		if !reflect.DeepEqual(actual, expected) {
 			t.Fatalf("Failed to process env var %s, expected %v and got %v", env, expected, actual)
 		}
@@ -1636,7 +1636,7 @@ func TestLoadEnv(t *testing.T) {
 
 		assert.NotNil(t, cfg)
 
-		assert.Equal(t, "my-diagnostics-site.com", coreconfig.Datadog.GetString("apm_config.debugger_diagnostics_dd_url"))
+		assert.Equal(t, "my-diagnostics-site.com", coreconfig.Datadog().GetString("apm_config.debugger_diagnostics_dd_url"))
 	})
 
 	env = "DD_APM_DEBUGGER_DIAGNOSTICS_API_KEY"
@@ -1655,7 +1655,7 @@ func TestLoadEnv(t *testing.T) {
 
 		assert.NotNil(t, cfg)
 
-		assert.Equal(t, "my-diagnostics-key", coreconfig.Datadog.GetString("apm_config.debugger_diagnostics_api_key"))
+		assert.Equal(t, "my-diagnostics-key", coreconfig.Datadog().GetString("apm_config.debugger_diagnostics_api_key"))
 	})
 
 	env = "DD_APM_DEBUGGER_DIAGNOSTICS_ADDITIONAL_ENDPOINTS"
@@ -1678,7 +1678,7 @@ func TestLoadEnv(t *testing.T) {
 			"diagnostics-url2": {"diagnostics-key3"},
 		}
 
-		actual := coreconfig.Datadog.GetStringMapStringSlice("apm_config.debugger_diagnostics_additional_endpoints")
+		actual := coreconfig.Datadog().GetStringMapStringSlice("apm_config.debugger_diagnostics_additional_endpoints")
 		if !reflect.DeepEqual(actual, expected) {
 			t.Fatalf("Failed to process env var %s, expected %v and got %v", env, expected, actual)
 		}
@@ -1699,7 +1699,7 @@ func TestLoadEnv(t *testing.T) {
 		cfg := c.Object()
 
 		assert.NotNil(t, cfg)
-		assert.Equal(t, "my-site.com", coreconfig.Datadog.GetString("apm_config.symdb_dd_url"))
+		assert.Equal(t, "my-site.com", coreconfig.Datadog().GetString("apm_config.symdb_dd_url"))
 	})
 
 	env = "DD_APM_SYMDB_API_KEY"
@@ -1717,7 +1717,7 @@ func TestLoadEnv(t *testing.T) {
 		cfg := c.Object()
 
 		assert.NotNil(t, cfg)
-		assert.Equal(t, "my-key", coreconfig.Datadog.GetString("apm_config.symdb_api_key"))
+		assert.Equal(t, "my-key", coreconfig.Datadog().GetString("apm_config.symdb_api_key"))
 	})
 
 	env = "DD_APM_SYMDB_ADDITIONAL_ENDPOINTS"
@@ -1740,7 +1740,7 @@ func TestLoadEnv(t *testing.T) {
 			"url2": {"key3"},
 		}
 
-		actual := coreconfig.Datadog.GetStringMapStringSlice("apm_config.symdb_additional_endpoints")
+		actual := coreconfig.Datadog().GetStringMapStringSlice("apm_config.symdb_additional_endpoints")
 		if !reflect.DeepEqual(actual, expected) {
 			t.Fatalf("Failed to process env var %s, expected %v and got %v", env, expected, actual)
 		}
@@ -1762,7 +1762,7 @@ func TestLoadEnv(t *testing.T) {
 
 		assert.NotNil(t, cfg)
 
-		assert.False(t, coreconfig.Datadog.GetBool("apm_config.obfuscation.credit_cards.enabled"))
+		assert.False(t, coreconfig.Datadog().GetBool("apm_config.obfuscation.credit_cards.enabled"))
 		assert.False(t, cfg.Obfuscation.CreditCards.Enabled)
 	})
 
@@ -1781,7 +1781,7 @@ func TestLoadEnv(t *testing.T) {
 		cfg := c.Object()
 
 		assert.NotNil(t, cfg)
-		assert.False(t, coreconfig.Datadog.GetBool("apm_config.obfuscation.credit_cards.luhn"))
+		assert.False(t, coreconfig.Datadog().GetBool("apm_config.obfuscation.credit_cards.luhn"))
 	})
 
 	env = "DD_APM_OBFUSCATION_ELASTICSEARCH_ENABLED"
@@ -1799,7 +1799,7 @@ func TestLoadEnv(t *testing.T) {
 		cfg := c.Object()
 
 		assert.NotNil(t, cfg)
-		assert.True(t, coreconfig.Datadog.GetBool("apm_config.obfuscation.elasticsearch.enabled"))
+		assert.True(t, coreconfig.Datadog().GetBool("apm_config.obfuscation.elasticsearch.enabled"))
 		assert.True(t, cfg.Obfuscation.ES.Enabled)
 	})
 
@@ -1819,7 +1819,7 @@ func TestLoadEnv(t *testing.T) {
 
 		assert.NotNil(t, cfg)
 		expected := []string{"client_id", "product_id"}
-		actualConfig := coreconfig.Datadog.GetStringSlice("apm_config.obfuscation.elasticsearch.keep_values")
+		actualConfig := coreconfig.Datadog().GetStringSlice("apm_config.obfuscation.elasticsearch.keep_values")
 		actualParsed := cfg.Obfuscation.ES.KeepValues
 		assert.Equal(t, expected, actualConfig)
 		assert.Equal(t, expected, actualParsed)
@@ -1841,7 +1841,7 @@ func TestLoadEnv(t *testing.T) {
 
 		assert.NotNil(t, cfg)
 		expected := []string{"key1", "key2"}
-		actualConfig := coreconfig.Datadog.GetStringSlice("apm_config.obfuscation.elasticsearch.obfuscate_sql_values")
+		actualConfig := coreconfig.Datadog().GetStringSlice("apm_config.obfuscation.elasticsearch.obfuscate_sql_values")
 		actualParsed := cfg.Obfuscation.ES.ObfuscateSQLValues
 		assert.Equal(t, expected, actualConfig)
 		assert.Equal(t, expected, actualParsed)
@@ -1862,7 +1862,7 @@ func TestLoadEnv(t *testing.T) {
 		cfg := c.Object()
 
 		assert.NotNil(t, cfg)
-		assert.True(t, coreconfig.Datadog.GetBool("apm_config.obfuscation.http.remove_query_string"))
+		assert.True(t, coreconfig.Datadog().GetBool("apm_config.obfuscation.http.remove_query_string"))
 		assert.True(t, cfg.Obfuscation.HTTP.RemoveQueryString)
 	})
 
@@ -1881,7 +1881,7 @@ func TestLoadEnv(t *testing.T) {
 		cfg := c.Object()
 
 		assert.NotNil(t, cfg)
-		assert.True(t, coreconfig.Datadog.GetBool("apm_config.obfuscation.memcached.enabled"))
+		assert.True(t, coreconfig.Datadog().GetBool("apm_config.obfuscation.memcached.enabled"))
 		assert.True(t, cfg.Obfuscation.Memcached.Enabled)
 	})
 
@@ -1900,7 +1900,7 @@ func TestLoadEnv(t *testing.T) {
 		cfg := c.Object()
 
 		assert.NotNil(t, cfg)
-		assert.True(t, coreconfig.Datadog.GetBool("apm_config.obfuscation.memcached.enabled"))
+		assert.True(t, coreconfig.Datadog().GetBool("apm_config.obfuscation.memcached.enabled"))
 		assert.True(t, cfg.Obfuscation.Memcached.Enabled)
 	})
 
@@ -1919,9 +1919,9 @@ func TestLoadEnv(t *testing.T) {
 		cfg := c.Object()
 
 		assert.NotNil(t, cfg)
-		assert.True(t, coreconfig.Datadog.GetBool("apm_config.obfuscation.memcached.enabled"))
+		assert.True(t, coreconfig.Datadog().GetBool("apm_config.obfuscation.memcached.enabled"))
 		assert.True(t, cfg.Obfuscation.Memcached.Enabled)
-		assert.True(t, coreconfig.Datadog.GetBool("apm_config.obfuscation.memcached.keep_command"))
+		assert.True(t, coreconfig.Datadog().GetBool("apm_config.obfuscation.memcached.keep_command"))
 		assert.True(t, cfg.Obfuscation.Memcached.KeepCommand)
 	})
 
@@ -1940,7 +1940,7 @@ func TestLoadEnv(t *testing.T) {
 		cfg := c.Object()
 
 		assert.NotNil(t, cfg)
-		assert.True(t, coreconfig.Datadog.GetBool("apm_config.obfuscation.mongodb.enabled"))
+		assert.True(t, coreconfig.Datadog().GetBool("apm_config.obfuscation.mongodb.enabled"))
 		assert.True(t, cfg.Obfuscation.Mongo.Enabled)
 	})
 
@@ -1960,7 +1960,7 @@ func TestLoadEnv(t *testing.T) {
 
 		assert.NotNil(t, cfg)
 		expected := []string{"document_id", "template_id"}
-		actualConfig := coreconfig.Datadog.GetStringSlice("apm_config.obfuscation.mongodb.keep_values")
+		actualConfig := coreconfig.Datadog().GetStringSlice("apm_config.obfuscation.mongodb.keep_values")
 		actualParsed := cfg.Obfuscation.Mongo.KeepValues
 		assert.Equal(t, expected, actualConfig)
 		assert.Equal(t, expected, actualParsed)
@@ -1982,7 +1982,7 @@ func TestLoadEnv(t *testing.T) {
 
 		assert.NotNil(t, cfg)
 		expected := []string{"key1", "key2"}
-		actualConfig := coreconfig.Datadog.GetStringSlice("apm_config.obfuscation.mongodb.obfuscate_sql_values")
+		actualConfig := coreconfig.Datadog().GetStringSlice("apm_config.obfuscation.mongodb.obfuscate_sql_values")
 		actualParsed := cfg.Obfuscation.Mongo.ObfuscateSQLValues
 		assert.Equal(t, expected, actualConfig)
 		assert.Equal(t, expected, actualParsed)
@@ -2003,7 +2003,7 @@ func TestLoadEnv(t *testing.T) {
 		cfg := c.Object()
 
 		assert.NotNil(t, cfg)
-		assert.True(t, coreconfig.Datadog.GetBool("apm_config.obfuscation.redis.enabled"))
+		assert.True(t, coreconfig.Datadog().GetBool("apm_config.obfuscation.redis.enabled"))
 		assert.True(t, cfg.Obfuscation.Redis.Enabled)
 	})
 
@@ -2022,7 +2022,7 @@ func TestLoadEnv(t *testing.T) {
 		cfg := c.Object()
 
 		assert.NotNil(t, cfg)
-		assert.True(t, coreconfig.Datadog.GetBool("apm_config.obfuscation.redis.remove_all_args"))
+		assert.True(t, coreconfig.Datadog().GetBool("apm_config.obfuscation.redis.remove_all_args"))
 		assert.True(t, cfg.Obfuscation.Redis.RemoveAllArgs)
 	})
 
@@ -2041,7 +2041,7 @@ func TestLoadEnv(t *testing.T) {
 		cfg := c.Object()
 
 		assert.NotNil(t, cfg)
-		assert.True(t, coreconfig.Datadog.GetBool("apm_config.obfuscation.remove_stack_traces"))
+		assert.True(t, coreconfig.Datadog().GetBool("apm_config.obfuscation.remove_stack_traces"))
 		assert.True(t, cfg.Obfuscation.RemoveStackTraces)
 	})
 
@@ -2060,7 +2060,7 @@ func TestLoadEnv(t *testing.T) {
 		cfg := c.Object()
 
 		assert.NotNil(t, cfg)
-		assert.True(t, coreconfig.Datadog.GetBool("apm_config.obfuscation.sql_exec_plan.enabled"))
+		assert.True(t, coreconfig.Datadog().GetBool("apm_config.obfuscation.sql_exec_plan.enabled"))
 		assert.True(t, cfg.Obfuscation.SQLExecPlan.Enabled)
 	})
 
@@ -2080,7 +2080,7 @@ func TestLoadEnv(t *testing.T) {
 
 		assert.NotNil(t, cfg)
 		expected := []string{"id1", "id2"}
-		actualConfig := coreconfig.Datadog.GetStringSlice("apm_config.obfuscation.sql_exec_plan.keep_values")
+		actualConfig := coreconfig.Datadog().GetStringSlice("apm_config.obfuscation.sql_exec_plan.keep_values")
 		actualParsed := cfg.Obfuscation.SQLExecPlan.KeepValues
 		assert.Equal(t, expected, actualConfig)
 		assert.Equal(t, expected, actualParsed)
@@ -2102,7 +2102,7 @@ func TestLoadEnv(t *testing.T) {
 
 		assert.NotNil(t, cfg)
 		expected := []string{"key1", "key2"}
-		actualConfig := coreconfig.Datadog.GetStringSlice("apm_config.obfuscation.sql_exec_plan.obfuscate_sql_values")
+		actualConfig := coreconfig.Datadog().GetStringSlice("apm_config.obfuscation.sql_exec_plan.obfuscate_sql_values")
 		actualParsed := cfg.Obfuscation.SQLExecPlan.ObfuscateSQLValues
 		assert.Equal(t, expected, actualConfig)
 		assert.Equal(t, expected, actualParsed)
@@ -2123,7 +2123,7 @@ func TestLoadEnv(t *testing.T) {
 		cfg := c.Object()
 
 		assert.NotNil(t, cfg)
-		assert.True(t, coreconfig.Datadog.GetBool("apm_config.obfuscation.sql_exec_plan_normalize.enabled"))
+		assert.True(t, coreconfig.Datadog().GetBool("apm_config.obfuscation.sql_exec_plan_normalize.enabled"))
 		assert.True(t, cfg.Obfuscation.SQLExecPlanNormalize.Enabled)
 	})
 
@@ -2143,7 +2143,7 @@ func TestLoadEnv(t *testing.T) {
 
 		assert.NotNil(t, cfg)
 		expected := []string{"id1", "id2"}
-		actualConfig := coreconfig.Datadog.GetStringSlice("apm_config.obfuscation.sql_exec_plan_normalize.keep_values")
+		actualConfig := coreconfig.Datadog().GetStringSlice("apm_config.obfuscation.sql_exec_plan_normalize.keep_values")
 		actualParsed := cfg.Obfuscation.SQLExecPlanNormalize.KeepValues
 		assert.Equal(t, expected, actualConfig)
 		assert.Equal(t, expected, actualParsed)
@@ -2165,7 +2165,7 @@ func TestLoadEnv(t *testing.T) {
 
 		assert.NotNil(t, cfg)
 		expected := []string{"key1", "key2"}
-		actualConfig := coreconfig.Datadog.GetStringSlice("apm_config.obfuscation.sql_exec_plan_normalize.obfuscate_sql_values")
+		actualConfig := coreconfig.Datadog().GetStringSlice("apm_config.obfuscation.sql_exec_plan_normalize.obfuscate_sql_values")
 		actualParsed := cfg.Obfuscation.SQLExecPlanNormalize.ObfuscateSQLValues
 		assert.Equal(t, expected, actualConfig)
 		assert.Equal(t, expected, actualParsed)
@@ -2191,7 +2191,7 @@ func TestLoadEnv(t *testing.T) {
 			"url1": {"key1", "key2"},
 			"url2": {"key3"},
 		}
-		actual := coreconfig.Datadog.GetStringMapStringSlice("apm_config.profiling_additional_endpoints")
+		actual := coreconfig.Datadog().GetStringMapStringSlice("apm_config.profiling_additional_endpoints")
 		if !reflect.DeepEqual(actual, expected) {
 			t.Fatalf("Failed to process env var %s, expected %v and got %v", env, expected, actual)
 		}
@@ -2242,7 +2242,7 @@ func TestLoadEnv(t *testing.T) {
 		))
 		cfg := c.Object()
 		assert.NotNil(t, cfg)
-		assert.Equal(t, "install_id_foo_bar", coreconfig.Datadog.GetString("apm_config.install_id"))
+		assert.Equal(t, "install_id_foo_bar", coreconfig.Datadog().GetString("apm_config.install_id"))
 		assert.Equal(t, "install_id_foo_bar", cfg.InstallSignature.InstallID)
 		assert.True(t, cfg.InstallSignature.Found)
 	})
@@ -2261,7 +2261,7 @@ func TestLoadEnv(t *testing.T) {
 		))
 		cfg := c.Object()
 		assert.NotNil(t, cfg)
-		assert.Equal(t, "host_injection", coreconfig.Datadog.GetString("apm_config.install_type"))
+		assert.Equal(t, "host_injection", coreconfig.Datadog().GetString("apm_config.install_type"))
 		assert.Equal(t, "host_injection", cfg.InstallSignature.InstallType)
 		assert.True(t, cfg.InstallSignature.Found)
 	})
@@ -2280,7 +2280,7 @@ func TestLoadEnv(t *testing.T) {
 		))
 		cfg := c.Object()
 		assert.NotNil(t, cfg)
-		assert.Equal(t, int64(1699621675), coreconfig.Datadog.GetInt64("apm_config.install_time"))
+		assert.Equal(t, int64(1699621675), coreconfig.Datadog().GetInt64("apm_config.install_time"))
 		assert.Equal(t, int64(1699621675), cfg.InstallSignature.InstallTime)
 		assert.True(t, cfg.InstallSignature.Found)
 	})
@@ -2483,9 +2483,9 @@ func TestGenerateInstallSignature(t *testing.T) {
 	cfg := c.Object()
 	assert.NotNil(t, cfg)
 
-	assert.False(t, coreconfig.Datadog.IsSet("apm_config.install_id"))
-	assert.False(t, coreconfig.Datadog.IsSet("apm_config.install_type"))
-	assert.False(t, coreconfig.Datadog.IsSet("apm_config.install_time"))
+	assert.False(t, coreconfig.Datadog().IsSet("apm_config.install_id"))
+	assert.False(t, coreconfig.Datadog().IsSet("apm_config.install_type"))
+	assert.False(t, coreconfig.Datadog().IsSet("apm_config.install_time"))
 
 	assert.True(t, cfg.InstallSignature.Found)
 	installFilePath := filepath.Join(cfgDir, "install.json")

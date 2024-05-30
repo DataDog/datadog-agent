@@ -11,14 +11,15 @@ import (
 	"sort"
 	"testing"
 
+	"go.uber.org/fx"
+
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/taglist"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
-	"github.com/DataDog/datadog-agent/comp/core/tagger/utils"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
-	"go.uber.org/fx"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
@@ -94,13 +95,14 @@ func TestHandleKubePod(t *testing.T) {
 	})
 
 	tests := []struct {
-		name              string
-		staticTags        map[string]string
-		labelsAsTags      map[string]string
-		annotationsAsTags map[string]string
-		nsLabelsAsTags    map[string]string
-		pod               workloadmeta.KubernetesPod
-		expected          []*types.TagInfo
+		name                string
+		staticTags          map[string]string
+		labelsAsTags        map[string]string
+		annotationsAsTags   map[string]string
+		nsLabelsAsTags      map[string]string
+		nsAnnotationsAsTags map[string]string
+		pod                 workloadmeta.KubernetesPod
+		expected            []*types.TagInfo
 	}{
 		{
 			name: "fully formed pod (no containers)",
@@ -115,6 +117,10 @@ func TestHandleKubePod(t *testing.T) {
 			nsLabelsAsTags: map[string]string{
 				"ns_env":       "ns_env",
 				"ns-ownerteam": "ns-team",
+			},
+			nsAnnotationsAsTags: map[string]string{
+				"ns_tier":            "ns_tier",
+				"namespace_security": "ns_security",
 			},
 			pod: workloadmeta.KubernetesPod{
 				EntityID: podEntityID,
@@ -156,6 +162,12 @@ func TestHandleKubePod(t *testing.T) {
 					"ns_env":       "dev",
 					"ns-ownerteam": "containers",
 					"foo":          "bar",
+				},
+
+				// NS annotations as tags
+				NamespaceAnnotations: map[string]string{
+					"ns_tier":            "some_tier",
+					"namespace_security": "critical",
 				},
 
 				// kube_service tags
@@ -205,6 +217,8 @@ func TestHandleKubePod(t *testing.T) {
 						"kube_qos:guaranteed",
 						"ns-team:containers",
 						"ns_env:dev",
+						"ns_tier:some_tier",
+						"ns_security:critical",
 						"pod_phase:running",
 						"pod_template_version:1.0.0",
 						"team:container-integrations",
@@ -444,7 +458,7 @@ func TestHandleKubePod(t *testing.T) {
 				staticTags: tt.staticTags,
 			}
 
-			collector.initPodMetaAsTags(tt.labelsAsTags, tt.annotationsAsTags, tt.nsLabelsAsTags)
+			collector.initPodMetaAsTags(tt.labelsAsTags, tt.annotationsAsTags, tt.nsLabelsAsTags, tt.nsAnnotationsAsTags)
 
 			actual := collector.handleKubePod(workloadmeta.Event{
 				Type:   workloadmeta.EventTypeSet,
@@ -525,13 +539,14 @@ func TestHandleKubePodNoContainerName(t *testing.T) {
 	})
 
 	tests := []struct {
-		name              string
-		staticTags        map[string]string
-		labelsAsTags      map[string]string
-		annotationsAsTags map[string]string
-		nsLabelsAsTags    map[string]string
-		pod               workloadmeta.KubernetesPod
-		expected          []*types.TagInfo
+		name                string
+		staticTags          map[string]string
+		labelsAsTags        map[string]string
+		annotationsAsTags   map[string]string
+		nsLabelsAsTags      map[string]string
+		nsAnnotationsAsTags map[string]string
+		pod                 workloadmeta.KubernetesPod
+		expected            []*types.TagInfo
 	}{
 		{
 			name: "pod with no container name",
@@ -594,11 +609,110 @@ func TestHandleKubePodNoContainerName(t *testing.T) {
 				staticTags: tt.staticTags,
 			}
 
-			collector.initPodMetaAsTags(tt.labelsAsTags, tt.annotationsAsTags, tt.nsLabelsAsTags)
+			collector.initPodMetaAsTags(tt.labelsAsTags, tt.annotationsAsTags, tt.nsLabelsAsTags, tt.annotationsAsTags)
 
 			actual := collector.handleKubePod(workloadmeta.Event{
 				Type:   workloadmeta.EventTypeSet,
 				Entity: &tt.pod,
+			})
+
+			assertTagInfoListEqual(t, tt.expected, actual)
+		})
+	}
+}
+
+func TestHandleKubeNamespace(t *testing.T) {
+	const namespace = "foobar"
+
+	namespaceEntityID := workloadmeta.EntityID{
+		Kind: workloadmeta.KindKubernetesNamespace,
+		ID:   namespace,
+	}
+
+	namespaceTaggerEntityID := fmt.Sprintf("namespace://%s", namespaceEntityID.ID)
+
+	store := fxutil.Test[workloadmeta.Mock](t, fx.Options(
+		logimpl.MockModule(),
+		config.MockModule(),
+		fx.Supply(workloadmeta.NewParams()),
+		fx.Supply(context.Background()),
+		workloadmeta.MockModule(),
+	))
+
+	store.Set(&workloadmeta.Container{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindKubernetesNamespace,
+			ID:   namespace,
+		},
+		EntityMeta: workloadmeta.EntityMeta{
+			Name: namespace,
+		},
+	})
+
+	tests := []struct {
+		name                string
+		labelsAsTags        map[string]string
+		annotationsAsTags   map[string]string
+		nsLabelsAsTags      map[string]string
+		nsAnnotationsAsTags map[string]string
+		namespace           workloadmeta.KubernetesNamespace
+		expected            []*types.TagInfo
+	}{
+		{
+			name: "fully formed namespace",
+			nsLabelsAsTags: map[string]string{
+				"ns_env":       "ns_env",
+				"ns-ownerteam": "ns-team",
+			},
+			nsAnnotationsAsTags: map[string]string{
+				"ns_tier":            "ns_tier",
+				"namespace_security": "ns_security",
+			},
+			namespace: workloadmeta.KubernetesNamespace{
+				EntityID: namespaceEntityID,
+				EntityMeta: workloadmeta.EntityMeta{
+					Name: namespace,
+					Labels: map[string]string{
+						"ns_env":       "dev",
+						"ns-ownerteam": "containers",
+						"foo":          "bar",
+					},
+					Annotations: map[string]string{
+						"ns_tier":            "some_tier",
+						"namespace_security": "critical",
+					},
+				},
+			},
+			expected: []*types.TagInfo{
+				{
+					Source:               nodeSource,
+					Entity:               namespaceTaggerEntityID,
+					HighCardTags:         []string{},
+					OrchestratorCardTags: []string{},
+					LowCardTags: []string{
+						"ns_env:dev",
+						"ns-team:containers",
+						"ns_tier:some_tier",
+						"ns_security:critical",
+					},
+					StandardTags: []string{},
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			collector := &WorkloadMetaCollector{
+				store:    store,
+				children: make(map[string]map[string]struct{}),
+			}
+
+			collector.initPodMetaAsTags(tt.labelsAsTags, tt.annotationsAsTags, tt.nsLabelsAsTags, tt.nsAnnotationsAsTags)
+
+			actual := collector.handleKubeNamespace(workloadmeta.Event{
+				Type:   workloadmeta.EventTypeSet,
+				Entity: &tt.namespace,
 			})
 
 			assertTagInfoListEqual(t, tt.expected, actual)
@@ -1507,7 +1621,7 @@ func TestParseJSONValue(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			tags := utils.NewTagList()
+			tags := taglist.NewTagList()
 			err := parseJSONValue(tt.value, tags)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("parseJSONValue() error = %v, wantErr %v", err, tt.wantErr)

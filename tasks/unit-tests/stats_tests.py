@@ -159,3 +159,34 @@ class TestGetMaxDuration(unittest.TestCase):
         max_duration, status = get_max_duration("datadog-agent")
         self.assertEqual(max_duration, 0)
         self.assertEqual(status, "success")
+
+    @patch('tasks.libs.ciproviders.gitlab_api.get_gitlab_api')
+    def test_job_with_no_finished_at(self, api_mock):
+        job_list = [
+            {
+                "name": "go_mod_tidy_check",
+                "finished_at": "2024-03-12T10:10:00.000Z",
+                "status": "success",
+            },
+            {
+                "name": "tests_deb-x64-py3",
+                "finished_at": "2024-03-12T10:20:00.000Z",
+                "status": "failed",
+            },
+            {
+                "name": "tests_rpm-x64-py3",
+                "finished_at": None,
+                "status": "skipped",
+            },
+        ]
+        # We must use a ProjectJob (and not a simple Mock) because we cannot override a MagicMock().name attribute
+        pipeline = {
+            "jobs.list.return_value": [ProjectJob(MagicMock(), attrs=job) for job in job_list],
+            "created_at": "2024-03-12T10:00:00.000Z",
+        }
+        repo_mock = api_mock.return_value.projects.get.return_value
+        pipeline_mock = repo_mock.pipelines.get
+        pipeline_mock.return_value = MagicMock(**pipeline)
+        max_duration, status = get_max_duration("datadog-agent")
+        self.assertEqual(max_duration, 1200)
+        self.assertEqual(status, "failed")

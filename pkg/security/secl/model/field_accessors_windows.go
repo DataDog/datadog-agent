@@ -69,6 +69,22 @@ func (ev *Event) GetCreateFileNameLength() int {
 	return len(ev.FieldHandlers.ResolveFimFileBasename(ev, &ev.CreateNewFile.File))
 }
 
+// GetCreateFilePath returns the value of the field, resolving if necessary
+func (ev *Event) GetCreateFilePath() string {
+	if ev.GetEventType().String() != "create" {
+		return ""
+	}
+	return ev.FieldHandlers.ResolveFileUserPath(ev, &ev.CreateNewFile.File)
+}
+
+// GetCreateFilePathLength returns the value of the field, resolving if necessary
+func (ev *Event) GetCreateFilePathLength() int {
+	if ev.GetEventType().String() != "create" {
+		return 0
+	}
+	return len(ev.FieldHandlers.ResolveFileUserPath(ev, &ev.CreateNewFile.File))
+}
+
 // GetCreateRegistryKeyName returns the value of the field, resolving if necessary
 func (ev *Event) GetCreateRegistryKeyName() string {
 	if ev.GetEventType().String() != "create_key" {
@@ -163,6 +179,22 @@ func (ev *Event) GetDeleteFileNameLength() int {
 		return 0
 	}
 	return len(ev.FieldHandlers.ResolveFimFileBasename(ev, &ev.DeleteFile.File))
+}
+
+// GetDeleteFilePath returns the value of the field, resolving if necessary
+func (ev *Event) GetDeleteFilePath() string {
+	if ev.GetEventType().String() != "delete" {
+		return ""
+	}
+	return ev.FieldHandlers.ResolveFileUserPath(ev, &ev.DeleteFile.File)
+}
+
+// GetDeleteFilePathLength returns the value of the field, resolving if necessary
+func (ev *Event) GetDeleteFilePathLength() int {
+	if ev.GetEventType().String() != "delete" {
+		return 0
+	}
+	return len(ev.FieldHandlers.ResolveFileUserPath(ev, &ev.DeleteFile.File))
 }
 
 // GetDeleteRegistryKeyName returns the value of the field, resolving if necessary
@@ -1325,6 +1357,22 @@ func (ev *Event) GetRenameFileDestinationNameLength() int {
 	return len(ev.FieldHandlers.ResolveFimFileBasename(ev, &ev.RenameFile.New))
 }
 
+// GetRenameFileDestinationPath returns the value of the field, resolving if necessary
+func (ev *Event) GetRenameFileDestinationPath() string {
+	if ev.GetEventType().String() != "rename" {
+		return ""
+	}
+	return ev.FieldHandlers.ResolveFileUserPath(ev, &ev.RenameFile.New)
+}
+
+// GetRenameFileDestinationPathLength returns the value of the field, resolving if necessary
+func (ev *Event) GetRenameFileDestinationPathLength() int {
+	if ev.GetEventType().String() != "rename" {
+		return 0
+	}
+	return len(ev.FieldHandlers.ResolveFileUserPath(ev, &ev.RenameFile.New))
+}
+
 // GetRenameFileDevicePath returns the value of the field, resolving if necessary
 func (ev *Event) GetRenameFileDevicePath() string {
 	if ev.GetEventType().String() != "rename" {
@@ -1355,6 +1403,22 @@ func (ev *Event) GetRenameFileNameLength() int {
 		return 0
 	}
 	return len(ev.FieldHandlers.ResolveFimFileBasename(ev, &ev.RenameFile.Old))
+}
+
+// GetRenameFilePath returns the value of the field, resolving if necessary
+func (ev *Event) GetRenameFilePath() string {
+	if ev.GetEventType().String() != "rename" {
+		return ""
+	}
+	return ev.FieldHandlers.ResolveFileUserPath(ev, &ev.RenameFile.Old)
+}
+
+// GetRenameFilePathLength returns the value of the field, resolving if necessary
+func (ev *Event) GetRenameFilePathLength() int {
+	if ev.GetEventType().String() != "rename" {
+		return 0
+	}
+	return len(ev.FieldHandlers.ResolveFileUserPath(ev, &ev.RenameFile.Old))
 }
 
 // GetSetRegistryKeyName returns the value of the field, resolving if necessary
@@ -1504,4 +1568,20 @@ func (ev *Event) GetWriteFileNameLength() int {
 		return 0
 	}
 	return len(ev.FieldHandlers.ResolveFimFileBasename(ev, &ev.WriteFile.File))
+}
+
+// GetWriteFilePath returns the value of the field, resolving if necessary
+func (ev *Event) GetWriteFilePath() string {
+	if ev.GetEventType().String() != "write" {
+		return ""
+	}
+	return ev.FieldHandlers.ResolveFileUserPath(ev, &ev.WriteFile.File)
+}
+
+// GetWriteFilePathLength returns the value of the field, resolving if necessary
+func (ev *Event) GetWriteFilePathLength() int {
+	if ev.GetEventType().String() != "write" {
+		return 0
+	}
+	return len(ev.FieldHandlers.ResolveFileUserPath(ev, &ev.WriteFile.File))
 }

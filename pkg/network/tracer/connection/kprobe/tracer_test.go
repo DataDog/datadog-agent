@@ -194,8 +194,6 @@ func runFallbackTests(t *testing.T, desc string, coreErr, rcErr bool, tests []st
 		coreTracerLoader = loaderFunc(nil, assert.AnError)
 	}
 
-	prebuiltTracerLoader = loaderFunc(expectedCloseFn, nil)
-
 	offsetGuessingRun := 0
 	tracerOffsetGuesserRunner = func(cfg *config.Config) ([]manager.ConstantEditor, error) {
 		offsetGuessingRun++

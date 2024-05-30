@@ -33,7 +33,7 @@ BPF_PERF_EVENT_ARRAY_MAP(conn_close_event, __u32)
 
 /* Will hold TCP failed connections
  */
-BPF_PERF_EVENT_ARRAY_MAP(failed_conn_event, __u32)
+BPF_PERF_EVENT_ARRAY_MAP(conn_fail_event, __u32)
 /* We use this map as a container for batching closed tcp/udp connections
  * The key represents the CPU core. Ideally we should use a BPF_MAP_TYPE_PERCPU_HASH map
  * or BPF_MAP_TYPE_PERCPU_ARRAY, but they are not available in
