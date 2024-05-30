@@ -9,12 +9,11 @@ package providerfx
 import (
 	providerimpl "github.com/DataDog/datadog-agent/comp/otelcol/provider/impl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-
-	"go.uber.org/fx"
 )
 
 // Module defines the fx options for this component.
 func Module() fxutil.Module {
 	return fxutil.Component(
-		fx.Provide(providerimpl.NewConfigProvider))
+		fxutil.ProvideComponentConstructor(providerimpl.NewConfigProvider),
+	)
 }

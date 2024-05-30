@@ -10,7 +10,7 @@ import (
 	"fmt"
 	"os"
 
-	providerdef "github.com/DataDog/datadog-agent/comp/otelcol/provider/def"
+	provider "github.com/DataDog/datadog-agent/comp/otelcol/provider/def"
 	"go.opentelemetry.io/collector/confmap"
 	"go.opentelemetry.io/collector/confmap/converter/expandconverter"
 	"go.opentelemetry.io/collector/confmap/provider/envprovider"
@@ -35,14 +35,14 @@ type confDump struct {
 var _ otelcol.ConfigProvider = (*configProvider)(nil)
 
 // currently only supports a single URI in the uris slice, and this URI needs to be a file path.
-func NewConfigProvider(uris []string) (providerdef.ExtendedConfigProvider, error) {
-	ocp, err := otelcol.NewConfigProvider(newDefaultConfigProviderSettings(uris))
+func NewConfigProvider(reqs provider.Requires) (provider.Component, error) {
+	ocp, err := otelcol.NewConfigProvider(newDefaultConfigProviderSettings(reqs.URIs))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create configprovider: %w", err)
 	}
 
 	// this is a hack until we are unblocked from upstream to be able to use confToString.
-	yamlBytes, err := os.ReadFile(uris[0])
+	yamlBytes, err := os.ReadFile(reqs.URIs[0])
 	if err != nil {
 		return nil, fmt.Errorf("failed to read config: %w", err)
 	}

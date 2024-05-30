@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	provider "github.com/DataDog/datadog-agent/comp/otelcol/provider/def"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/exporter/datadogexporter"
 	"github.com/stretchr/testify/assert"
 	"go.opentelemetry.io/collector/connector"
@@ -34,12 +35,16 @@ func uriFromFile(filename string) string {
 }
 
 func TestNewConfigProvider(t *testing.T) {
-	_, err := NewConfigProvider([]string{uriFromFile("nop/config.yaml")})
+	_, err := NewConfigProvider(provider.Requires{
+		URIs: []string{uriFromFile("nop/config.yaml")},
+	})
 	assert.NoError(t, err)
 }
 
 func TestConfigProviderGet(t *testing.T) {
-	provider, err := NewConfigProvider([]string{uriFromFile("nop/config.yaml")})
+	provider, err := NewConfigProvider(provider.Requires{
+		URIs: []string{uriFromFile("nop/config.yaml")},
+	})
 	assert.NoError(t, err)
 
 	factories, err := nopFactories()
@@ -67,7 +72,9 @@ func upstreamConfigProvider(file string) (otelcol.ConfigProvider, error) {
 }
 
 func TestConfigProviderWatch(t *testing.T) {
-	provider, err := NewConfigProvider([]string{uriFromFile("nop/config.yaml")})
+	provider, err := NewConfigProvider(provider.Requires{
+		URIs: []string{uriFromFile("nop/config.yaml")},
+	})
 	assert.NoError(t, err)
 
 	var expected <-chan error
@@ -75,7 +82,9 @@ func TestConfigProviderWatch(t *testing.T) {
 }
 
 func TestConfigProviderShutdown(t *testing.T) {
-	provider, err := NewConfigProvider([]string{uriFromFile("nop/config.yaml")})
+	provider, err := NewConfigProvider(provider.Requires{
+		URIs: []string{uriFromFile("nop/config.yaml")},
+	})
 	assert.NoError(t, err)
 
 	err = provider.Shutdown(context.Background())
@@ -84,7 +93,9 @@ func TestConfigProviderShutdown(t *testing.T) {
 
 func TestGetConfDump(t *testing.T) {
 	t.Run("nop", func(t *testing.T) {
-		provider, err := NewConfigProvider([]string{uriFromFile("nop/config.yaml")})
+		provider, err := NewConfigProvider(provider.Requires{
+			URIs: []string{uriFromFile("nop/config.yaml")},
+		})
 		assert.NoError(t, err)
 
 		factories, err := nopFactories()
@@ -122,7 +133,9 @@ func TestGetConfDump(t *testing.T) {
 	})
 
 	t.Run("dd", func(t *testing.T) {
-		provider, err := NewConfigProvider([]string{uriFromFile("dd/config-dd.yaml")})
+		provider, err := NewConfigProvider(provider.Requires{
+			URIs: []string{uriFromFile("dd/config-dd.yaml")},
+		})
 		assert.NoError(t, err)
 
 		factories, err := nopFactories()

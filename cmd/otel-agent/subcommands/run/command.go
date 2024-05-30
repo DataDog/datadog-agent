@@ -32,7 +32,9 @@ import (
 	collectorfx "github.com/DataDog/datadog-agent/comp/otelcol/collector/fx"
 	"github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline"
 	"github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline/logsagentpipelineimpl"
-	providerdef "github.com/DataDog/datadog-agent/comp/otelcol/provider/def"
+	"go.opentelemetry.io/collector/otelcol"
+
+	provider "github.com/DataDog/datadog-agent/comp/otelcol/provider/def"
 	providerfx "github.com/DataDog/datadog-agent/comp/otelcol/provider/fx"
 	"github.com/DataDog/datadog-agent/comp/serializer/compression"
 	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl/strategy"
@@ -41,7 +43,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"github.com/spf13/cobra"
-	"go.opentelemetry.io/collector/otelcol"
 
 	"go.uber.org/fx"
 )
@@ -91,7 +92,7 @@ func runOTelAgentCommand(_ context.Context, params *subcommands.GlobalParams, op
 		collectorfx.Module(),
 		collectorcontribFx.Module(),
 		providerfx.Module(),
-		fx.Provide(func(cp providerdef.ExtendedConfigProvider) otelcol.ConfigProvider {
+		fx.Provide(func(cp provider.Component) otelcol.ConfigProvider {
 			return cp
 		}),
 		fx.Provide(func() (config.Component, error) {

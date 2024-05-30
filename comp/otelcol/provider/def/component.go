@@ -11,15 +11,14 @@ import (
 
 // team: opentelemetry
 
-// Component is the component type.
-type Component interface {
-	ExtendedConfigProvider
-}
-
-// ExtendedConfigProvider implements the otelcol.ConfigProvider interface and
+// Component implements the otelcol.ConfigProvider interface and
 // provides extra functions to expose the provided and enhanced configs.
-type ExtendedConfigProvider interface {
+type Component interface {
 	otelcol.ConfigProvider
 	GetProvidedConf() string
 	GetEnhancedConf() string
+}
+
+type Requires struct {
+	URIs []string
 }
