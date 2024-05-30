@@ -7,12 +7,12 @@ from tasks.libs.owners.parsing import most_frequent_agent_team, search_owners
 
 @task
 def find_jobowners(_, job, owners_file=".gitlab/JOBOWNERS"):
-    print(", ".join(search_owners(job, owners_file)))
+    print(", ".join(search_owners([job], owners_file)[job]))
 
 
 @task
 def find_codeowners(_, path, owners_file=".github/CODEOWNERS"):
-    print(", ".join(search_owners(path, owners_file)))
+    print(", ".join(search_owners([path], owners_file)[path]))
 
 
 @task
