@@ -726,8 +726,12 @@ def compute_package_dependencies(ctx: Context, packages: list[str]) -> dict[str,
         deps = [d.strip() for d in deps.split(" ")]
         dd_deps = [d[len(dd_pkg_name) :] for d in deps if d.startswith(dd_pkg_name)]
 
-        # Test packages might be named path/to/pkg [path/to/pkg.test] or
-        # path/to/pkg.test. Control for both cases and get the package name
+        # The import path printed by "go list" is usually path/to/pkg  (e.g., pkg/ebpf/verifier).
+        # However, for test packages it might be either:
+        # - path/to/pkg.test
+        # - path/to/pkg [path/to/pkg.test]
+        # In any case all variants refer to the same variant. This code controls for that
+        # so that we keep the usual package name.
         pkg = pkg.split(" ")[0].removeprefix(dd_pkg_name).removesuffix(".test")
         pkg_deps[pkg].update(dd_deps)
 
