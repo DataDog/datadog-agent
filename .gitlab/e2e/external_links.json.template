@@ -1,0 +1,16 @@
+{
+  "CI Visibility": [
+    {
+      "external_link": {
+        "label": "🔗 CI Visibility: This job instance",
+        "url": "https://app.datadoghq.com/ci/pipeline-executions?query=ci_level%3Ajob%20%40ci.job.id%3A{{CI_JOB_ID}}&agg_m=count&agg_m_source=base&agg_t=count&fromUser=false&index=cipipeline"
+      }
+    },
+    {
+      "external_link": {
+        "label": "🔗 CI Visibility: This job on main",
+        "url": "https://app.datadoghq.com/ci/pipeline-executions?query=ci_level%3Ajob%20%40ci.job.name%3A%22{{CI_JOB_NAME}}%22%20%40git.branch%3Amain"
+      }
+    }
+  ]
+}

@@ -174,7 +174,7 @@ func (s *subscriber) run(ctx context.Context) error {
 		return fmt.Errorf("subscriber is already running the event listener routine")
 	}
 
-	excludePauseContainers := config.Datadog.GetBool("exclude_pause_container")
+	excludePauseContainers := config.Datadog().GetBool("exclude_pause_container")
 
 	// Only used when excludePauseContainers is true
 	var pauseContainers setPauseContainers

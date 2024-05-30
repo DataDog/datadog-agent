@@ -114,6 +114,7 @@ github.com/DataDog/datadog-agent/comp/otelcol/otlp
 github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/logsagentexporter
 github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/serializerexporter
 github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/processor/infraattributesprocessor
+github.com/DataDog/datadog-agent/comp/otelcol/otlp/datatype
 github.com/DataDog/datadog-agent/comp/otelcol/otlp/internal/configutils
 github.com/DataDog/datadog-agent/comp/remote-config/rcclient/types
 github.com/DataDog/datadog-agent/comp/serializer/compression
@@ -407,14 +408,6 @@ github.com/go-logr/logr
 github.com/go-logr/logr/funcr
 github.com/go-logr/stdr
 github.com/go-viper/mapstructure/v2
-github.com/gobwas/glob
-github.com/gobwas/glob/compiler
-github.com/gobwas/glob/match
-github.com/gobwas/glob/syntax
-github.com/gobwas/glob/syntax/ast
-github.com/gobwas/glob/syntax/lexer
-github.com/gobwas/glob/util/runes
-github.com/gobwas/glob/util/strings
 github.com/godbus/dbus/v5
 github.com/gogo/protobuf/gogoproto
 github.com/gogo/protobuf/jsonpb
@@ -617,6 +610,7 @@ go.opentelemetry.io/collector/receiver/otlpreceiver/internal/trace
 go.opentelemetry.io/collector/receiver/receiverhelper
 go.opentelemetry.io/collector/semconv/v1.17.0
 go.opentelemetry.io/collector/semconv/v1.18.0
+go.opentelemetry.io/collector/semconv/v1.21.0
 go.opentelemetry.io/collector/semconv/v1.6.1
 go.opentelemetry.io/collector/service
 go.opentelemetry.io/collector/service/extensions
