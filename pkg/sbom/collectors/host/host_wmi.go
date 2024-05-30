@@ -14,8 +14,8 @@ import (
 	"fmt"
 	"reflect"
 
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
-	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/sbom"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
@@ -120,7 +120,7 @@ func (c *Collector) Init(cfg config.Component, wmeta optional.Option[workloadmet
 
 // Scan performs a scan
 func (c *Collector) Scan(_ context.Context, request sbom.ScanRequest, _ sbom.ScanOptions) sbom.ScanResult {
-	hostScanRequest, ok := request.(*ScanRequest)
+	hostScanRequest, ok := request.(*sbom.ScanRequest)
 	if !ok {
 		return sbom.ScanResult{Error: fmt.Errorf("invalid request type '%s' for collector 'host'", reflect.TypeOf(request))}
 	}
