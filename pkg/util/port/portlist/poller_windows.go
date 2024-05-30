@@ -3,11 +3,13 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build !darwin
+//go:build windows
 
 package portlist
 
-import "errors"
+import (
+	"errors"
+)
 
 // ErrNotImplemented is the "not implemented" error given by `gopsutil` when an
 // OS doesn't support and API. Unfortunately it's in an internal package so
@@ -16,21 +18,21 @@ var ErrNotImplemented = errors.New("not implemented yet")
 
 // init initializes the Poller by ensuring it has an underlying
 func (p *Poller) init() {
-	p.os = newOtherOSImpl(p.IncludeLocalhost)
+	p.os = newWindowsOSImpl(p.IncludeLocalhost)
 }
 
-type otherOSImpl struct {
+type windowsOSImpl struct {
 	includeLocalhost bool
 }
 
-func newOtherOSImpl(includeLocalhost bool) osImpl {
-	return &otherOSImpl{
+func newWindowsOSImpl(includeLocalhost bool) osImpl {
+	return &windowsOSImpl{
 		includeLocalhost: includeLocalhost,
 	}
 }
 
-func (im *otherOSImpl) AppendListeningPorts(_ []Port) ([]Port, error) {
+func (im *windowsOSImpl) AppendListeningPorts(_ []Port) ([]Port, error) {
 	return nil, ErrNotImplemented
 }
 
-func (*otherOSImpl) Close() error { return ErrNotImplemented }
+func (*windowsOSImpl) Close() error { return ErrNotImplemented }
