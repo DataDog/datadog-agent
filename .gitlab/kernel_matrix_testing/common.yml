@@ -157,6 +157,14 @@
         aws ec2 terminate-instances --instance-ids "${INSTANCE_ID}"
       fi
 
+# Manual cleanup jobs, these will be used to cleanup the instances after the tests
+# if the tests are canceled (e.g., by the auto-cancel-prev-pipelines job). The automatic jobs
+# will not run if the dependencies are canceled
+.kmt_cleanup_manual:
+  when: manual
+  allow_failure: true  # Don't fail the full pipeline, these can fail if the instances are already cleaned up
+  needs: []
+
 # -- Test runners
 .kmt_run_tests:
   retry:

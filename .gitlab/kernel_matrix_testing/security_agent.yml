@@ -215,19 +215,17 @@ kmt_secagent_cleanup_x64:
 # if the tests are canceled (e.g., by the auto-cancel-prev-pipelines job). The automatic jobs
 # will not run if the dependencies are canceled
 kmt_secagent_cleanup_arm64_manual:
-  when: manual
-  allow_failure: true  # Don't fail the full pipeline, these can fail if the instances are already cleaned up
   extends:
     - .kmt_secagent_cleanup
+    - .kmt_cleanup_manual
   variables:
     ARCH: arm64
     INSTANCE_TYPE: "m6gd.metal"
 
 kmt_secagent_cleanup_x64_manual:
-  when: manual
-  allow_failure: true  # Don't fail the full pipeline, these can fail if the instances are already cleaned up
   extends:
     - .kmt_secagent_cleanup
+    - .kmt_cleanup_manual
   variables:
     ARCH: x86_64
     INSTANCE_TYPE: "m5d.metal"
