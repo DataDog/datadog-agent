@@ -787,21 +787,13 @@ def go_package_dirs(packages, build_tags):
     """
 
     target_packages = []
-    for pkg in packages:
-        dirs = (
-            check_output(
-                f"go list -find -f \"{{{{ .Dir }}}}\" -mod=mod -tags \"{','.join(build_tags)}\" {pkg}",
-                shell=True,
-            )
-            .decode('utf-8')
-            .strip()
-            .split("\n")
-        )
-        # Some packages may not be available on all architectures, ignore them
-        # instead of reporting empty path names
-        target_packages += [dir for dir in dirs if len(dir) > 0]
+    format_arg = '{{ .Dir }}'
+    buildtags_arg = ",".join(build_tags)
+    packages_arg = " ".join(packages)
+    cmd = f"go list -find -f \"{format_arg}\" -mod=mod -tags \"{buildtags_arg}\" {packages_arg}"
 
-    return target_packages
+    target_packages = [p.strip() for p in check_output(cmd, shell=True, encoding='utf-8').split("\n")]
+    return [p for p in target_packages if len(p) > 0]
 
 
 BUILD_COMMIT = os.path.join(KITCHEN_ARTIFACT_DIR, "build.commit")
