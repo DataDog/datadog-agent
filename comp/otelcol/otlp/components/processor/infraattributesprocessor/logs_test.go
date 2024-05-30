@@ -131,23 +131,23 @@ func TestInfraAttributesLogProcessor(t *testing.T) {
 			fakeTagger.SetTags("deployment://namespace/deployment", "test", []string{"deployment:name"}, nil, nil, nil)
 			fakeTagger.SetTags(collectors.GlobalEntityID, "test", []string{"global:tag"}, nil, nil, nil)
 			factory := NewFactory(fakeTagger)
-			fmp, err := factory.CreateLogsProcessor(
+			flp, err := factory.CreateLogsProcessor(
 				context.Background(),
 				processortest.NewNopCreateSettings(),
 				cfg,
 				next,
 			)
-			assert.NotNil(t, fmp)
+			assert.NotNil(t, flp)
 			assert.NoError(t, err)
 
-			caps := fmp.Capabilities()
+			caps := flp.Capabilities()
 			assert.True(t, caps.MutatesData)
 			ctx := context.Background()
-			assert.NoError(t, fmp.Start(ctx, nil))
+			assert.NoError(t, flp.Start(ctx, nil))
 
-			cErr := fmp.ConsumeLogs(context.Background(), test.inLogs)
+			cErr := flp.ConsumeLogs(context.Background(), test.inLogs)
 			assert.Nil(t, cErr)
-			assert.NoError(t, fmp.Shutdown(ctx))
+			assert.NoError(t, flp.Shutdown(ctx))
 
 			assert.Len(t, next.AllLogs(), 1)
 			for i, out := range test.outResourceAttributes {

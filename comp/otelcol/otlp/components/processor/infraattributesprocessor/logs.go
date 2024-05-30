@@ -23,14 +23,14 @@ type infraAttributesLogProcessor struct {
 }
 
 func newInfraAttributesLogsProcessor(set processor.CreateSettings, cfg *Config, tagger tagger.Component) (*infraAttributesLogProcessor, error) {
-	telp := &infraAttributesLogProcessor{
+	ialp := &infraAttributesLogProcessor{
 		logger:      set.Logger,
 		tagger:      tagger,
 		cardinality: cfg.Cardinality,
 	}
 
 	set.Logger.Info("Logs Infra Attributes Processor configured")
-	return telp, nil
+	return ialp, nil
 }
 
 func (ialp *infraAttributesLogProcessor) processLogs(_ context.Context, ld plog.Logs) (plog.Logs, error) {
