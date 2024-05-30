@@ -811,7 +811,7 @@ def kmt_sysprobe_prepare(
                 variables["extra_arguments"] = extra_arguments
 
             go_files = set(glob(f"{pkg}/*.go"))
-            has_test_files = any(x.endswith("_test.go") for x in go_files)
+            has_test_files = any(x.lower().endswith("_test.go") for x in go_files)
 
             # skip packages without test files
             if has_test_files:
