@@ -198,11 +198,12 @@ int kprobe__tcp_close(struct pt_regs *ctx) {
     conn_tuple_t t = {};
     u64 pid_tgid = bpf_get_current_pid_tgid();
     sk = (struct sock *)PT_REGS_PARM1(ctx);
+    bool failure = false;
 
     // check if this connection was already flushed and bail if so
     if (bpf_map_delete_elem(&closed_conn_already_flushed, &sk) == 0) {
         increment_telemetry_count(double_flush_attempts_close);
-        return 0;
+        failure = true;
     }
 
     // increment telemetry for connections that were never established
@@ -217,7 +218,7 @@ int kprobe__tcp_close(struct pt_regs *ctx) {
     }
     log_debug("kprobe/tcp_close: netns: %u, sport: %u, dport: %u", t.netns, t.sport, t.dport);
 
-    cleanup_conn(ctx, &t, sk);
+    cleanup_conn(ctx, &t, sk, failure);
 
     // If protocol classification is disabled, then we don't have kretprobe__tcp_close_clean_protocols hook
     // so, there is no one to use the map and clean it.
@@ -276,7 +277,7 @@ int kprobe__tcp_done(struct pt_regs *ctx) {
         return 0;
     }
 
-    cleanup_conn(ctx, &t, sk);
+    cleanup_conn(ctx, &t, sk, true);
     flush_tcp_failure(ctx, &t, err);
 
     // mark this connection as already flushed
@@ -1048,7 +1049,7 @@ static __always_inline int handle_udp_destroy_sock(void *ctx, struct sock *skp) 
 
     __u16 lport = 0;
     if (valid_tuple) {
-        cleanup_conn(ctx, &tup, skp);
+        cleanup_conn(ctx, &tup, skp, false);
         lport = tup.sport;
     } else {
         lport = read_sport(skp);
