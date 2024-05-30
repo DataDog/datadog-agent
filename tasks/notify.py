@@ -447,7 +447,7 @@ def send_notification(ctx: Context, alert_jobs):
 
     if message:
         send_slack_message("#agent-platform-ops", message)
-        print('Sent message')
+        print('Slack message sent')
 
         # TODO : When these notifications will be sent to many teams, update the team tag (https://datadoghq.atlassian.net/browse/ACIX-255)
         owner = '@datadog/agent-all'
