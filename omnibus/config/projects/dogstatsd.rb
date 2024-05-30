@@ -81,9 +81,9 @@ description 'Datadog dogstatsd agent
 
 if ENV["OMNIBUS_PACKAGE_ARTIFACT_DIR"]
   dependency "package-artifact"
-  generate_distro_package = true
+  do_package = true
 else
-  generate_distro_package = false
+  do_package = false
   # ------------------------------------
   # Dependencies
   # ------------------------------------
@@ -110,7 +110,7 @@ end
 
 # .deb specific flags
 package :deb do
-  skip_packager !generate_distro_package
+  skip_packager !do_package
   vendor 'Datadog <package@datadoghq.com>'
   epoch 1
   license 'Apache License Version 2.0'
@@ -129,7 +129,7 @@ end
 
 # .rpm specific flags
 package :rpm do
-  skip_packager !generate_distro_package
+  skip_packager !do_package
   vendor 'Datadog <package@datadoghq.com>'
   epoch 1
   dist_tag ''
@@ -154,7 +154,7 @@ package :zip do
 end
 
 package :xz do
-  skip_packager generate_distro_package
+  skip_packager do_package
   compression_threads COMPRESSION_THREADS
   compression_level COMPRESSION_LEVEL
 end
@@ -202,7 +202,7 @@ end
 
 # package scripts
 if linux_target?
-  if !generate_distro_package
+  if !do_package
     extra_package_file "#{Omnibus::Config.project_root}/package-scripts/dogstatsd-deb"
     extra_package_file "#{Omnibus::Config.project_root}/package-scripts/dogstatsd-rpm"
   end
