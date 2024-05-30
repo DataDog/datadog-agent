@@ -11,7 +11,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 
-	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes"
 	"go.opentelemetry.io/collector/pdata/plog"
 	"go.opentelemetry.io/collector/processor"
 	"go.uber.org/zap"
@@ -37,32 +36,40 @@ func newInfraAttributesLogsProcessor(set processor.CreateSettings, cfg *Config, 
 func (ialp *infraAttributesLogProcessor) processLogs(_ context.Context, ld plog.Logs) (plog.Logs, error) {
 	rls := ld.ResourceLogs()
 	for i := 0; i < rls.Len(); i++ {
-		rl := rls.At(i)
-		rattrs := rl.Resource().Attributes()
-		originID := attributes.OriginIDFromAttributes(rattrs)
+		resourceAttributes := rls.At(i).Resource().Attributes()
+		entityIDs := entityIDsFromAttributes(resourceAttributes)
+		tagMap := make(map[string]string)
 
-		entityTags, err := ialp.tagger.Tag(originID, ialp.cardinality)
-		if err != nil {
-			ialp.logger.Error("Cannot get tags for entity", zap.String("originID", originID), zap.Error(err))
-			continue
+		// Get all unique tags from resource attributes and global tags
+		for _, entityID := range entityIDs {
+			entityTags, err := ialp.tagger.Tag(entityID, ialp.cardinality)
+			if err != nil {
+				ialp.logger.Error("Cannot get tags for entity", zap.String("entityID", entityID), zap.Error(err))
+				continue
+			}
+			for _, tag := range entityTags {
+				k, v := splitTag(tag)
+				_, hasTag := tagMap[k]
+				if k != "" && v != "" && !hasTag {
+					tagMap[k] = v
+				}
+			}
 		}
-
 		globalTags, err := ialp.tagger.GlobalTags(ialp.cardinality)
 		if err != nil {
 			ialp.logger.Error("Cannot get global tags", zap.Error(err))
-			continue
 		}
-
-		enrichedTags := make([]string, 0, len(entityTags)+len(globalTags))
-		enrichedTags = append(enrichedTags, entityTags...)
-		enrichedTags = append(enrichedTags, globalTags...)
-		for _, tag := range enrichedTags {
+		for _, tag := range globalTags {
 			k, v := splitTag(tag)
-			if k != "" && v != "" {
-				rattrs.PutStr(k, v)
+			_, hasTag := tagMap[k]
+			if k != "" && v != "" && !hasTag {
+				tagMap[k] = v
 			}
 		}
+		// Add all tags as resource attributes
+		for k, v := range tagMap {
+			resourceAttributes.PutStr(k, v)
+		}
 	}
-
 	return ld, nil
 }

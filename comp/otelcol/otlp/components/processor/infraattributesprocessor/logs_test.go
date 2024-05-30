@@ -66,8 +66,7 @@ var (
 				"k8s.namespace.name":  "namespace",
 				"k8s.deployment.name": "deployment",
 				"container":           "id",
-				// TODO: should this be in the result, if so why?
-				//"deployment":          "name",
+				"deployment":          "name",
 			}},
 		},
 		{
@@ -96,8 +95,7 @@ var (
 					"global":              "tag",
 					"k8s.namespace.name":  "namespace",
 					"k8s.deployment.name": "deployment",
-					// TODO: should this be in the result, if so why?
-					// "deployment":          "name",
+					"deployment":          "name",
 				},
 			},
 		},
