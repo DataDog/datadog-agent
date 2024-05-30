@@ -81,11 +81,11 @@ def gracefully_cancel_pipeline(repo: Project, pipeline: ProjectPipeline, force_c
 
     for job in jobs:
         if job.stage in force_cancel_stages or (
-            job.status not in ["running", "canceled"] and "cleanup" not in job.name
+            job.status not in ["running", "canceled", "success"] and "cleanup" not in job.name
         ):
             repo.jobs.get(job.id, lazy=True).cancel()
 
-            if job.name.startswith("kmt_"):
+            if job.name.startswith("kmt_setup_env") or job.name.startswith("kmt_run"):
                 component = "sysprobe" if "sysprobe" in job.name else "secagent"
                 arch = "x64" if "x64" in job.name else "arm64"
                 cleanup_job = f"kmt_{component}_cleanup_{arch}_manual"
