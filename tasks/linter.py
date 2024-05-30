@@ -21,6 +21,7 @@ from tasks.libs.ciproviders.gitlab_api import (
     read_includes,
 )
 from tasks.libs.common.check_tools_version import check_tools_version
+from tasks.libs.common.git import get_staged_files
 from tasks.libs.common.utils import DEFAULT_BRANCH, GITHUB_REPO_NAME, color_message, is_pr_context, running_in_ci
 from tasks.libs.types.copyright import CopyrightLinter, LintFailure
 from tasks.modules import GoModule
@@ -54,19 +55,17 @@ def python(ctx):
 
 
 @task
-def copyrights(ctx, fix=False, dry_run=False, debug=False, only_modified_files=False):
+def copyrights(ctx, fix=False, dry_run=False, debug=False, only_staged_files=False):
     """
     Checks that all Go files contain the appropriate copyright header. If '--fix'
     is provided as an option, it will try to fix problems as it finds them. If
     '--dry_run' is provided when fixing, no changes to the files will be applied.
     """
-
     files = None
 
-    if only_modified_files:
-        from tasks.gotest import get_modified_files
-
-        files = [path for path in get_modified_files(ctx) if path.endswith(".go")]
+    if only_staged_files:
+        staged_files = get_staged_files(ctx)
+        files = [path for path in staged_files if path.endswith(".go")]
 
     try:
         CopyrightLinter(debug=debug).assert_compliance(fix=fix, dry_run=dry_run, files=files)

@@ -46,7 +46,7 @@ repos:
     - id: copyright
       name: copyright
       description: copyright headers
-      entry: 'inv linter.copyrights --only-modified-files'
+      entry: 'inv linter.copyrights --only-staged-files'
       language: system
       require_serial: true
       files: \.go$
