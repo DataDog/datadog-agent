@@ -33,7 +33,7 @@ repos:
     - id: protected-branches
       name: protected-branches
       description: checks that the commit isn't created on a protected branch
-      entry: 'python3 -m tasks.git-hooks.protected-branches'
+      entry: 'inv git.check-protected-branch'
       language: system
       pass_filenames: false
     - id: govet

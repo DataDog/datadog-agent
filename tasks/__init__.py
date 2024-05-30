@@ -22,6 +22,7 @@ from tasks import (
     emacs,
     epforwarder,
     fakeintake,
+    git,
     github_tasks,
     go_deps,
     installer,
@@ -150,6 +151,7 @@ ns.add_collection(epforwarder)
 ns.add_collection(go_deps)
 ns.add_collection(linter)
 ns.add_collection(msi)
+ns.add_collection(git)
 ns.add_collection(github_tasks, "github")
 ns.add_collection(package)
 ns.add_collection(pipeline)
