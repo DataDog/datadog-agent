@@ -95,3 +95,11 @@ func SystemProbeConfig(config config.Reader) (string, error) {
 	c := settingshttp.NewClient(hc, "http://localhost/config", "system-probe", settingshttp.NewHTTPClientOptions(util.CloseConnection))
 	return c.FullConfig()
 }
+
+// SystemProbeConfigBySource fetch the all configuration layers from the system-probe process by querying its API
+func SystemProbeConfigBySource(config config.Reader) (string, error) {
+	hc := client.Get(config.GetString("system_probe_config.sysprobe_socket"))
+
+	c := settingshttp.NewClient(hc, "http://localhost/config", "system-probe", settingshttp.NewHTTPClientOptions(util.CloseConnection))
+	return c.FullConfigBySource()
+}
