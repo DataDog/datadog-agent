@@ -85,7 +85,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/logs/message v0.54.0-rc.2
 	github.com/DataDog/datadog-agent/pkg/serializer v0.54.0-rc.2
 	github.com/DataDog/datadog-agent/pkg/util/hostname/validate v0.54.0-rc.2
-	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.16.0
+	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.16.1
 	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/metrics v0.16.0
 	github.com/stretchr/testify v1.9.0
 	go.opentelemetry.io/collector/component v0.100.0
