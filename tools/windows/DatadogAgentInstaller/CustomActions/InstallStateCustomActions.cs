@@ -18,21 +18,26 @@ namespace Datadog.CustomActions
         private readonly IRegistryServices _registryServices;
         private readonly IServiceController _serviceController;
 
+        private readonly INativeMethods _nativeMethods;
+
         public InstallStateCustomActions(
             ISession session,
             IRegistryServices registryServices,
-            IServiceController serviceController)
+            IServiceController serviceController,
+            INativeMethods nativeMethods)
         {
             _session = session;
             _registryServices = registryServices;
             _serviceController = serviceController;
+            _nativeMethods = nativeMethods;
         }
 
         public InstallStateCustomActions(ISession session)
             : this(
                 session,
                 new RegistryServices(),
-                new ServiceController())
+                new ServiceController(),
+                new Win32NativeMethods())
         {
         }
 
@@ -122,6 +127,7 @@ namespace Datadog.CustomActions
                 }
 
                 GetWindowsBuildVersion();
+                SetDDDriverRollback();
             }
             catch (Exception e)
             {
@@ -152,6 +158,45 @@ namespace Datadog.CustomActions
             {
                 _session.Log("WindowsBuild not found");
             }
+        }
+
+        public void SetDDDriverRollback()
+        {
+            var upgradeDetected = _session["WIX_UPGRADE_DETECTED"];
+
+            if (!string.IsNullOrEmpty(upgradeDetected))
+            {
+                var versionString = _nativeMethods.GetVersionString(upgradeDetected);
+                // Using Version class 
+                // https://learn.microsoft.com/en-us/dotnet/api/system.version?view=net-8.0
+                Version currentVersion = new Version(versionString);
+                Version minimumVersion;
+
+                // Check major version
+                if (versionString[0] == '7')
+                {
+                    minimumVersion = new Version("7.56");
+                }
+                else
+                {
+                    minimumVersion = new Version("6.56");
+                }
+
+                var compareResult = currentVersion.CompareTo(minimumVersion);
+                if (compareResult < 0) // currentVersion is less than minimumVersion
+                {
+                    _session["DDDRIVERROLLBACK"] = "0";
+                }
+                else // currentVersion is not less than minimumVersion
+                {
+                    _session["DDDRIVERROLLBACK"] = "1";
+                }
+            }
+            else  // This is a fresh install
+            {
+                _session["DDDRIVERROLLBACK"] = "1";
+            }
+            _session.Log($"DDDriverRollback: {_session["DDDRIVERROLLBACK"]}");
         }
 
         [CustomAction]

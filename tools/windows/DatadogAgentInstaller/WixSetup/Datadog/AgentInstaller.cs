@@ -96,6 +96,9 @@ namespace WixSetup.Datadog
                 {
                     AttributesDefinition = "Secure=yes"
                 },
+                // set this property to anything to indicate to the merge module that on install rollback, it should
+                // execute the install custom action rollback; otherwise it won't.
+                new Property("DDDRIVERROLLBACK", "1"),
                 // Add a checkbox at the end of the setup to launch the Datadog Agent Manager
                 new LaunchCustomApplicationFromExitDialog(
                     _agentBinaries.TrayId,

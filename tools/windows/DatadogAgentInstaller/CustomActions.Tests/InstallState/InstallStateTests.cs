@@ -25,7 +25,8 @@ namespace CustomActions.Tests.InstallState
                     "DDAGENTUSER_NAME",
                     "PROJECTLOCATION",
                     "APPLICATIONDATADIRECTORY",
-                    "DDAGENT_WINDOWSBUILD");
+                    "DDAGENT_WINDOWSBUILD").And
+                .Contain("DDDRIVERROLLBACK", "1");
         }
 
         [Theory]
@@ -53,6 +54,40 @@ namespace CustomActions.Tests.InstallState
                 .Contain("PROJECTLOCATION", @"C:\datadog").And
                 .Contain("APPLICATIONDATADIRECTORY", @"D:\data").And
                 .Contain("DDAGENT_WINDOWSBUILD", "z_1234567890");
+        }
+
+        [Theory]
+        [AutoData]
+        public void ReadDD_Driver_Rollback_Upgrade()
+        {
+            string productCode = "{123-456-789}";
+            Test.Session.Setup(session => session["WIX_UPGRADE_DETECTED"]).Returns(productCode);
+            Test.NativeMethods.Setup(n => n.GetVersionString(productCode)).Returns("7.54");
+
+            Test.Create()
+                .ReadInstallState()
+                .Should()
+                .Be(ActionResult.Success);
+
+            Test.Properties.Should()
+                .Contain("DDDRIVERROLLBACK", "0");
+        }
+
+        [Theory]
+        [AutoData]
+        public void ReadDD_Driver_Rollback_Upgrade_v6()
+        {
+            string productCode = "{123-456-789}";
+            Test.Session.Setup(session => session["WIX_UPGRADE_DETECTED"]).Returns(productCode);
+            Test.NativeMethods.Setup(n => n.GetVersionString(productCode)).Returns("6.54");
+
+            Test.Create()
+                .ReadInstallState()
+                .Should()
+                .Be(ActionResult.Success);
+
+            Test.Properties.Should()
+                .Contain("DDDRIVERROLLBACK", "0");
         }
 
     }
