@@ -1085,6 +1085,104 @@ func TestSendDeviceStatusMetric(t *testing.T) {
 	}
 }
 
+func TestSendHardwareMetrics(t *testing.T) {
+	tests := []struct {
+		name           string
+		hardwareEnv    []client.HardwareEnvironment
+		tags           map[string][]string
+		expectedMetric []expectedMetric
+	}{
+		{
+			name: "Report device status",
+			hardwareEnv: []client.HardwareEnvironment{
+				{
+					VmanageSystemIP: "10.0.0.1",
+					HwDevIndex:      1,
+					HwItem:          "Tray 0 Fan",
+					HwClass:         "Fans",
+					Status:          "OK",
+				},
+				{
+					VmanageSystemIP: "10.0.0.2",
+					HwDevIndex:      2,
+					HwItem:          "Interface module",
+					HwClass:         "PIM",
+					Status:          "Down",
+				},
+			},
+			tags: map[string][]string{
+				"10.0.0.1": {
+					"device_name:10.0.0.1",
+					"device_namespace:cisco-sdwan",
+					"device_vendor:cisco",
+					"hostname:test-device",
+					"system_ip:10.0.0.1",
+					"site_id:100",
+				},
+				"10.0.0.2": {
+					"device_name:10.0.0.2",
+					"device_namespace:cisco-sdwan",
+					"device_vendor:cisco",
+					"hostname:test-vsmart",
+					"system_ip:10.0.0.2",
+					"site_id:102",
+				},
+			},
+			expectedMetric: []expectedMetric{
+				{
+					method: "Gauge",
+					value:  1,
+					name:   ciscoSDWANMetricPrefix + "hardware.status",
+					tags: []string{
+						"device_name:10.0.0.1",
+						"device_namespace:cisco-sdwan",
+						"device_vendor:cisco",
+						"hostname:test-device",
+						"system_ip:10.0.0.1",
+						"site_id:100",
+						"status:OK",
+						"class:Fans",
+						"item:Tray 0 Fan",
+						"dev_index:1",
+					},
+				},
+				{
+					method: "Gauge",
+					value:  0,
+					name:   ciscoSDWANMetricPrefix + "hardware.status",
+					tags: []string{
+						"device_name:10.0.0.2",
+						"device_namespace:cisco-sdwan",
+						"device_vendor:cisco",
+						"hostname:test-vsmart",
+						"system_ip:10.0.0.2",
+						"site_id:102",
+						"status:Down",
+						"class:PIM",
+						"item:Interface module",
+						"dev_index:2",
+					},
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockSender := mocksender.NewMockSender("foo")
+			mockSender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+
+			sender := NewSDWanSender(mockSender, "my-ns")
+			sender.SetDeviceTags(tt.tags)
+			sender.SendHardwareMetrics(tt.hardwareEnv)
+
+			for _, metric := range tt.expectedMetric {
+				mockSender.AssertMetric(t, metric.method, metric.name, metric.value, "", metric.tags)
+			}
+		})
+	}
+}
+
 func TestTimestampExpiration(t *testing.T) {
 	TimeNow = mockTimeNow
 	ms := NewSDWanSender(nil, "test-ns")
