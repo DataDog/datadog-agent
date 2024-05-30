@@ -4,6 +4,7 @@ go 1.21.0
 
 replace (
 	github.com/DataDog/datadog-agent/comp/core/config => ../../../../../../comp/core/config
+	github.com/DataDog/datadog-agent/comp/core/flare/builder => ../../../../../../comp/core/flare/builder
 	github.com/DataDog/datadog-agent/comp/core/flare/types => ../../../../../../comp/core/flare/types
 	github.com/DataDog/datadog-agent/comp/core/secrets => ../../../../../../comp/core/secrets
 	github.com/DataDog/datadog-agent/comp/core/telemetry => ../../../../../../comp/core/telemetry
@@ -41,7 +42,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/logs/message v0.54.0-rc.2
 	github.com/DataDog/datadog-agent/pkg/logs/sources v0.54.0-rc.2
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.54.0-rc.2
-	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.14.0
+	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.16.1
 	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/logs v0.14.0
 	github.com/stormcat24/protodep v0.1.8
 	github.com/stretchr/testify v1.9.0
@@ -70,7 +71,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.54.0-rc.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/version v0.54.0-rc.2 // indirect
 	github.com/DataDog/datadog-api-client-go/v2 v2.13.0 // indirect
-	github.com/DataDog/viper v1.13.3 // indirect
+	github.com/DataDog/viper v1.13.5 // indirect
 	github.com/DataDog/zstd v1.5.2 // indirect
 	github.com/Microsoft/go-winio v0.6.1 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect

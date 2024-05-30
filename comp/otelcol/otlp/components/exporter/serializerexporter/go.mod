@@ -5,6 +5,7 @@ go 1.21.0
 replace (
 	github.com/DataDog/datadog-agent/cmd/agent/common/path => ../../../../../../cmd/agent/common/path
 	github.com/DataDog/datadog-agent/comp/core/config => ../../../../../core/config
+	github.com/DataDog/datadog-agent/comp/core/flare/builder => ../../../../../core/flare/builder
 	github.com/DataDog/datadog-agent/comp/core/flare/types => ../../../../../core/flare/types
 	github.com/DataDog/datadog-agent/comp/core/log => ../../../../../core/log
 	github.com/DataDog/datadog-agent/comp/core/secrets => ../../../../../core/secrets
@@ -61,7 +62,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/serializer v0.54.0-rc.2
 	github.com/DataDog/datadog-agent/pkg/tagset v0.54.0-rc.2
 	github.com/DataDog/datadog-agent/pkg/util/log v0.54.0-rc.2
-	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.14.0
+	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.16.1
 	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/metrics v0.14.0
 	github.com/DataDog/opentelemetry-mapping-go/pkg/quantile v0.14.0
 	github.com/mitchellh/mapstructure v1.5.1-0.20231216201459-8508981c8b6c // indirect
@@ -88,7 +89,7 @@ require (
 	github.com/DataDog/datadog-agent/comp/core/secrets v0.54.0-rc.2 // indirect
 	github.com/DataDog/datadog-agent/comp/core/status v0.54.0-rc.2 // indirect
 	github.com/DataDog/datadog-agent/comp/core/telemetry v0.54.0-rc.2 // indirect
-	github.com/DataDog/datadog-agent/comp/def v0.54.0-rc.2 // indirect
+	github.com/DataDog/datadog-agent/comp/def v0.55.0-devel // indirect
 	github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder v0.54.0-rc.2 // indirect
 	github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorinterface v0.54.0-rc.2 // indirect
 	github.com/DataDog/datadog-agent/comp/serializer/compression v0.54.0-rc.2 // indirect
@@ -122,7 +123,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/version v0.54.0-rc.2 // indirect
 	github.com/DataDog/mmh3 v0.0.0-20210722141835-012dc69a9e49 // indirect
 	github.com/DataDog/sketches-go v1.4.4 // indirect
-	github.com/DataDog/viper v1.13.3 // indirect
+	github.com/DataDog/viper v1.13.5 // indirect
 	github.com/DataDog/zstd v1.5.5 // indirect
 	github.com/DataDog/zstd_0 v0.0.0-20210310093942-586c1286621f // indirect
 	github.com/Microsoft/go-winio v0.6.1 // indirect

@@ -45,7 +45,7 @@ func SetupInstaller(ctx context.Context) (err error) {
 	defer func() {
 		if err != nil {
 			log.Errorf("Failed to setup installer: %s, reverting", err)
-			RemoveInstaller(ctx)
+			err = RemoveInstaller(ctx)
 		}
 	}()
 
@@ -109,23 +109,6 @@ func SetupInstaller(ctx context.Context) (err error) {
 		return fmt.Errorf("error creating symlink to /usr/bin/datadog-installer: %w", err)
 	}
 
-	// Set up defaults for packages interacting with each other
-	if err = configureSocketsEnv(); err != nil {
-		return
-	}
-	if err = addSystemDEnvOverrides(agentUnit); err != nil {
-		return
-	}
-	if err = addSystemDEnvOverrides(agentExp); err != nil {
-		return
-	}
-	if err = addSystemDEnvOverrides(traceAgentUnit); err != nil {
-		return
-	}
-	if err = addSystemDEnvOverrides(traceAgentExp); err != nil {
-		return
-	}
-
 	// FIXME(Arthur): enable the daemon unit by default and use the same strategy as the system probe
 	if os.Getenv("DD_REMOTE_UPDATES") != "true" {
 		return nil
@@ -139,6 +122,11 @@ func SetupInstaller(ctx context.Context) (err error) {
 	if !systemdRunning {
 		log.Infof("Installer: systemd is not running, skipping unit setup")
 		return nil
+	}
+
+	err = os.MkdirAll(systemdPath, 0755)
+	if err != nil {
+		return fmt.Errorf("error creating %s: %w", systemdPath, err)
 	}
 
 	for _, unit := range installerUnits {
@@ -181,11 +169,20 @@ func getAgentIDs() (uid, gid int, err error) {
 
 // startInstallerStable starts the stable systemd units for the installer
 func startInstallerStable(ctx context.Context) (err error) {
+	_, err = os.Stat("/etc/datadog-agent/datadog.yaml")
+	if err != nil && !os.IsNotExist(err) {
+		return err
+	}
+	// this is expected during a fresh install with the install script / asible / chef / etc...
+	// the config is populated afterwards by the install method and the agent is restarted
+	if os.IsNotExist(err) {
+		return nil
+	}
 	return startUnit(ctx, installerUnit)
 }
 
 // RemoveInstaller removes the installer systemd units
-func RemoveInstaller(ctx context.Context) {
+func RemoveInstaller(ctx context.Context) error {
 	for _, unit := range installerUnits {
 		if err := stopUnit(ctx, unit); err != nil {
 			exitErr, ok := err.(*exec.ExitError)
@@ -208,11 +205,14 @@ func RemoveInstaller(ctx context.Context) {
 	if err := os.Remove("/usr/bin/datadog-installer"); err != nil {
 		log.Warnf("Failed to remove /usr/bin/datadog-installer: %s", err)
 	}
+
+	// TODO: return error to caller?
+	return nil
 }
 
 // StartInstallerExperiment installs the experimental systemd units for the installer
 func StartInstallerExperiment(ctx context.Context) error {
-	return startUnit(ctx, installerUnitExp)
+	return startUnit(ctx, installerUnitExp, "--no-block")
 }
 
 // StopInstallerExperiment starts the stable systemd units for the installer

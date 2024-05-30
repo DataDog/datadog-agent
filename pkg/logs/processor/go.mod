@@ -4,6 +4,7 @@ go 1.21.0
 
 replace (
 	github.com/DataDog/datadog-agent/comp/core/config => ../../../comp/core/config
+	github.com/DataDog/datadog-agent/comp/core/flare/builder => ../../../comp/core/flare/builder
 	github.com/DataDog/datadog-agent/comp/core/flare/types => ../../../comp/core/flare/types
 	github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface => ../../../comp/core/hostname/hostnameinterface
 	github.com/DataDog/datadog-agent/comp/core/secrets => ../../../comp/core/secrets
@@ -56,7 +57,7 @@ require (
 require (
 	github.com/DataDog/datadog-agent/comp/core/secrets v0.54.0-rc.2 // indirect
 	github.com/DataDog/datadog-agent/comp/core/telemetry v0.54.0-rc.2 // indirect
-	github.com/DataDog/datadog-agent/comp/def v0.54.0-rc.2 // indirect
+	github.com/DataDog/datadog-agent/comp/def v0.55.0-devel // indirect
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults v0.54.0-rc.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/env v0.54.0-rc.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/model v0.54.0-rc.2 // indirect
@@ -77,7 +78,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.54.0-rc.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/version v0.54.0-rc.2 // indirect
 	github.com/DataDog/dd-sensitive-data-scanner/sds-go/go v0.0.0-20240419161837-f1b2f553edfe // indirect
-	github.com/DataDog/viper v1.13.3 // indirect
+	github.com/DataDog/viper v1.13.5 // indirect
 	github.com/Microsoft/go-winio v0.6.1 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cespare/xxhash/v2 v2.2.0 // indirect

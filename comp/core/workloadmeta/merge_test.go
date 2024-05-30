@@ -86,7 +86,7 @@ func container2(testTime time.Time) Container { //nolint:revive // TODO fix revi
 			CreatedAt:  time.Time{},
 			StartedAt:  time.Time{},
 			FinishedAt: time.Time{},
-			ExitCode:   pointer.Ptr(uint32(100)),
+			ExitCode:   pointer.Ptr(int64(100)),
 		},
 		CollectorTags: []string{"tag3"},
 	}
@@ -109,7 +109,7 @@ func TestMerge(t *testing.T) {
 			CreatedAt:  testTime,
 			StartedAt:  testTime,
 			FinishedAt: time.Time{},
-			ExitCode:   pointer.Ptr(uint32(100)),
+			ExitCode:   pointer.Ptr(int64(100)),
 		},
 	}
 

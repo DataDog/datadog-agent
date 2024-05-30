@@ -7,12 +7,10 @@ package usm
 
 import (
 	"archive/zip"
-	"bytes"
 	"errors"
 	"io/fs"
 	"path"
 	"testing"
-	"testing/fstest"
 
 	"github.com/stretchr/testify/require"
 
@@ -28,23 +26,15 @@ const (
 	weblogicTestAppRoot = "../testdata/b"
 )
 
-func mockfs(t *testing.T) fs.SubFS {
-	writer := bytes.NewBuffer(nil)
-	createMockSpringBootApp(t, writer)
-	// use test data e mock data together
-	return &fstest.MapFS{
-		springBootApp: &fstest.MapFile{Data: writer.Bytes()},
-	}
-}
-
 func TestExtractServiceMetadata(t *testing.T) {
+	springBootAppFullPath := createMockSpringBootApp(t)
 	tests := []struct {
 		name                       string
 		cmdline                    []string
 		envs                       []string
-		fs                         fs.SubFS
 		expectedServiceTag         string
 		expectedAdditionalServices []string
+		fromDDService              bool
 	}{
 		{
 			name:               "empty",
@@ -70,6 +60,7 @@ func TestExtractServiceMetadata(t *testing.T) {
 			},
 			envs:               []string{"DD_SERVICE=my-service"},
 			expectedServiceTag: "my-service",
+			fromDDService:      true,
 		},
 		{
 			name: "single arg executable with DD_TAGS",
@@ -78,6 +69,7 @@ func TestExtractServiceMetadata(t *testing.T) {
 			},
 			envs:               []string{"DD_TAGS=service:my-service"},
 			expectedServiceTag: "my-service",
+			fromDDService:      true,
 		},
 		{
 			name: "single arg executable with special chars",
@@ -98,8 +90,8 @@ func TestExtractServiceMetadata(t *testing.T) {
 			cmdline: []string{
 				"/opt/python/2.7.11/bin/python2.7", "flask", "run", "--host=0.0.0.0",
 			},
-			envs:               []string{"PWD=testdata/python"},
 			expectedServiceTag: "flask",
+			envs:               []string{"PWD=testdata/python"},
 		},
 		{
 			name: "python - flask argument in path",
@@ -217,9 +209,8 @@ func TestExtractServiceMetadata(t *testing.T) {
 			cmdline: []string{
 				"java",
 				"-jar",
-				"app/app.jar",
+				springBootAppFullPath,
 			},
-			fs:                 mockfs(t),
 			expectedServiceTag: "default-app",
 		},
 		{
@@ -246,7 +237,6 @@ func TestExtractServiceMetadata(t *testing.T) {
 				"org.jboss.as.standalone",
 				"-Djboss.home.dir=" + jbossTestAppRoot,
 				"-Djboss.server.base.dir=" + jbossTestAppRoot + "/standalone"},
-			fs:                         RealFs{},
 			expectedServiceTag:         "jboss-modules",
 			expectedAdditionalServices: []string{"my-jboss-webapp", "some_context_root", "web3"},
 		},
@@ -305,6 +295,7 @@ func TestExtractServiceMetadata(t *testing.T) {
 				"/usr/bin/java", "-Ddd.service=custom", "-jar", "app.jar",
 			},
 			expectedServiceTag: "custom",
+			fromDDService:      true,
 		},
 		{
 			name: "Tomcat 10.X",
@@ -332,6 +323,26 @@ func TestExtractServiceMetadata(t *testing.T) {
 			expectedAdditionalServices: []string{"app2", "custom"},
 		},
 		{
+			name: "dotnet cmd with dll",
+			cmdline: []string{
+				"/usr/bin/dotnet", "./myservice.dll",
+			},
+			expectedServiceTag: "myservice",
+		},
+		{
+			name: "dotnet cmd with dll and options",
+			cmdline: []string{
+				"/usr/bin/dotnet", "-v", "--", "/app/lib/myservice.dll",
+			},
+			expectedServiceTag: "myservice",
+		},
+		{
+			name: "dotnet cmd with unrecognized options",
+			cmdline: []string{
+				"/usr/bin/dotnet", "run", "--project", "./projects/proj1/proj1.csproj",
+			},
+		},
+		{
 			name: "PHP Laravel",
 			cmdline: []string{
 				"php",
@@ -349,22 +360,149 @@ func TestExtractServiceMetadata(t *testing.T) {
 			},
 			expectedServiceTag: "foo",
 		},
+		{
+			name: "PHP with version number",
+			cmdline: []string{
+				"php8.3",
+				"artisan",
+				"migrate:fresh",
+			},
+			expectedServiceTag: "laravel",
+		},
+		{
+			name: "PHP with two-digit version number",
+			cmdline: []string{
+				"php8.10",
+				"artisan",
+				"migrate:fresh",
+			},
+			expectedServiceTag: "laravel",
+		},
+		{
+			name: "PHP-FPM shouldn't trigger php parsing",
+			cmdline: []string{
+				"php-fpm",
+				"artisan",
+			},
+			expectedServiceTag: "php-fpm",
+		},
+		{
+			name: "PHP-FPM with version number shouldn't trigger php parsing",
+			cmdline: []string{
+				"php8.1-fpm",
+				"artisan",
+			},
+			expectedServiceTag: "php8",
+		},
+		{
+			name:               "DD_SERVICE_set_manually",
+			cmdline:            []string{"java", "-jar", "Foo.jar"},
+			envs:               []string{"DD_SERVICE=howdy"},
+			expectedServiceTag: "howdy",
+			fromDDService:      true,
+		},
+		{
+			name:               "DD_SERVICE_set_manually_tags",
+			cmdline:            []string{"java", "-jar", "Foo.jar"},
+			envs:               []string{"DD_TAGS=service:howdy"},
+			expectedServiceTag: "howdy",
+			fromDDService:      true,
+		},
+		{
+			name:               "DD_SERVICE_set_manually_injection",
+			cmdline:            []string{"java", "-jar", "Foo.jar"},
+			envs:               []string{"DD_SERVICE=howdy", "DD_INJECTION_ENABLED=tracer,service_name"},
+			expectedServiceTag: "howdy",
+			fromDDService:      false,
+		},
+		{
+			name: "gunicorn simple",
+			cmdline: []string{
+				"gunicorn",
+				"--workers=2",
+				"test:app",
+			},
+			expectedServiceTag: "test",
+		},
+		{
+			name: "gunicorn from name",
+			cmdline: []string{
+				"gunicorn",
+				"--workers=2",
+				"-b",
+				"0.0.0.0",
+				"-n",
+				"dummy",
+				"test:app",
+			},
+			expectedServiceTag: "dummy",
+		},
+		{
+			name: "gunicorn from name (long arg)",
+			cmdline: []string{
+				"gunicorn",
+				"--workers=2",
+				"-b",
+				"0.0.0.0",
+				"--name=dummy",
+				"test:app",
+			},
+			expectedServiceTag: "dummy",
+		},
+		{
+			name: "gunicorn from name in env",
+			cmdline: []string{
+				"gunicorn",
+				"test:app",
+			},
+			envs:               []string{"GUNICORN_CMD_ARGS=--bind=127.0.0.1:8080 --workers=3 -n dummy"},
+			expectedServiceTag: "dummy",
+		},
+		{
+			name: "gunicorn without app found",
+			cmdline: []string{
+				"gunicorn",
+			},
+			envs:               []string{"GUNICORN_CMD_ARGS=--bind=127.0.0.1:8080 --workers=3"},
+			expectedServiceTag: "gunicorn",
+		},
+		{
+			name: "gunicorn with partial wsgi app",
+			cmdline: []string{
+				"gunicorn",
+				"my.package",
+			},
+			expectedServiceTag: "my.package",
+		},
+		{
+			name: "gunicorn with empty WSGI_APP env",
+			cmdline: []string{
+				"gunicorn",
+				"my.package",
+			},
+			envs:               []string{"WSGI_APP="},
+			expectedServiceTag: "my.package",
+		},
+		{
+			name: "gunicorn with WSGI_APP env",
+			cmdline: []string{
+				"gunicorn",
+			},
+			envs:               []string{"WSGI_APP=test:app"},
+			expectedServiceTag: "test",
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			testFs := tt.fs
-			if testFs == nil {
-				testFs = &RealFs{}
-			}
-
-			meta, ok := ExtractServiceMetadata(NewDetectionContext(zap.NewNop(), tt.cmdline, tt.envs, testFs))
+			meta, ok := ExtractServiceMetadata(zap.NewNop(), tt.cmdline, tt.envs)
 			if len(tt.expectedServiceTag) == 0 {
 				require.False(t, ok)
 			} else {
 				require.True(t, ok)
 				require.Equal(t, tt.expectedServiceTag, meta.Name)
 				require.Equal(t, tt.expectedAdditionalServices, meta.AdditionalNames)
+				require.Equal(t, tt.fromDDService, meta.FromDDService)
 			}
 		})
 	}

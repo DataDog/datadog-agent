@@ -101,7 +101,7 @@ func newRemoteConfigClient(deps dependencies) (rcclient.Component, error) {
 	c, err := client.NewUnverifiedGRPCClient(
 		ipcAddress,
 		config.GetIPCPort(),
-		func() (string, error) { return security.FetchAuthToken(config.Datadog) },
+		func() (string, error) { return security.FetchAuthToken(config.Datadog()) },
 		optsWithDefault...,
 	)
 	if err != nil {
@@ -109,11 +109,11 @@ func newRemoteConfigClient(deps dependencies) (rcclient.Component, error) {
 	}
 
 	var clientMRF *client.Client
-	if config.Datadog.GetBool("multi_region_failover.enabled") {
+	if config.Datadog().GetBool("multi_region_failover.enabled") {
 		clientMRF, err = client.NewUnverifiedMRFGRPCClient(
 			ipcAddress,
 			config.GetIPCPort(),
-			func() (string, error) { return security.FetchAuthToken(config.Datadog) },
+			func() (string, error) { return security.FetchAuthToken(config.Datadog()) },
 			optsWithDefault...,
 		)
 		if err != nil {
@@ -132,7 +132,7 @@ func newRemoteConfigClient(deps dependencies) (rcclient.Component, error) {
 		Config: deps.Config,
 	}
 
-	if config.IsRemoteConfigEnabled(config.Datadog) {
+	if config.IsRemoteConfigEnabled(config.Datadog()) {
 		deps.Lc.Append(fx.Hook{
 			OnStart: func(context.Context) error {
 				rc.start()
@@ -173,19 +173,19 @@ func (rc rcClient) start() {
 func (rc rcClient) mrfUpdateCallback(updates map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)) {
 	// If the updates map is empty, we should unset the failover settings if they were set via RC previously
 	if len(updates) == 0 {
-		mrfFailoverMetricsSource := config.Datadog.GetSource("multi_region_failover.failover_metrics")
-		mrfFailoverLogsSource := config.Datadog.GetSource("multi_region_failover.failover_logs")
+		mrfFailoverMetricsSource := config.Datadog().GetSource("multi_region_failover.failover_metrics")
+		mrfFailoverLogsSource := config.Datadog().GetSource("multi_region_failover.failover_logs")
 
 		// Unset the RC-sourced failover values regardless of what they are
-		config.Datadog.UnsetForSource("multi_region_failover.failover_metrics", model.SourceRC)
-		config.Datadog.UnsetForSource("multi_region_failover.failover_logs", model.SourceRC)
+		config.Datadog().UnsetForSource("multi_region_failover.failover_metrics", model.SourceRC)
+		config.Datadog().UnsetForSource("multi_region_failover.failover_logs", model.SourceRC)
 
 		// If either of the values were previously set via RC, log the current values now that we've unset them
 		if mrfFailoverMetricsSource == model.SourceRC {
-			pkglog.Infof("Falling back to `multi_region_failover.failover_metrics: %t`", config.Datadog.GetBool("multi_region_failover.failover_metrics"))
+			pkglog.Infof("Falling back to `multi_region_failover.failover_metrics: %t`", config.Datadog().GetBool("multi_region_failover.failover_metrics"))
 		}
 		if mrfFailoverLogsSource == model.SourceRC {
-			pkglog.Infof("Falling back to `multi_region_failover.failover_logs: %t`", config.Datadog.GetBool("multi_region_failover.failover_logs"))
+			pkglog.Infof("Falling back to `multi_region_failover.failover_logs: %t`", config.Datadog().GetBool("multi_region_failover.failover_logs"))
 		}
 		return
 	}
@@ -274,7 +274,7 @@ func (rc rcClient) agentConfigUpdateCallback(updates map[string]state.RawConfig,
 	}
 
 	// Checks who (the source) is responsible for the last logLevel change
-	source := config.Datadog.GetSource("log_level")
+	source := config.Datadog().GetSource("log_level")
 
 	switch source {
 	case model.SourceRC:
@@ -282,8 +282,8 @@ func (rc rcClient) agentConfigUpdateCallback(updates map[string]state.RawConfig,
 		//     - we want to change (once again) the log level through RC
 		//     - we want to fall back to the log level we had saved as fallback (in that case mergedConfig.LogLevel == "")
 		if len(mergedConfig.LogLevel) == 0 {
-			pkglog.Infof("Removing remote-config log level override, falling back to '%s'", config.Datadog.Get("log_level"))
-			config.Datadog.UnsetForSource("log_level", model.SourceRC)
+			pkglog.Infof("Removing remote-config log level override, falling back to '%s'", config.Datadog().Get("log_level"))
+			config.Datadog().UnsetForSource("log_level", model.SourceRC)
 		} else {
 			newLevel := mergedConfig.LogLevel
 			pkglog.Infof("Changing log level to '%s' through remote config", newLevel)

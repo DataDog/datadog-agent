@@ -367,7 +367,7 @@ func (e *RuleEngine) gatherDefaultPolicyProviders() []rules.PolicyProvider {
 
 	// add remote config as config provider if enabled.
 	if e.config.RemoteConfigurationEnabled {
-		rcPolicyProvider, err := rconfig.NewRCPolicyProvider()
+		rcPolicyProvider, err := rconfig.NewRCPolicyProvider(e.config.RemoteConfigurationDumpPolicies)
 		if err != nil {
 			seclog.Errorf("will be unable to load remote policies: %s", err)
 		} else {

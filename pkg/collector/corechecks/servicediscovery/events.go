@@ -46,13 +46,17 @@ type event struct {
 
 type telemetrySender struct {
 	sender   sender.Sender
-	time     timer
 	hostname hostname.Component
 }
 
 func (ts *telemetrySender) newEvent(t eventType, svc serviceInfo) *event {
 	host := ts.hostname.GetSafe(context.Background())
-	env := pkgconfig.Datadog.GetString("env")
+	env := pkgconfig.Datadog().GetString("env")
+
+	nameSource := "generated"
+	if svc.meta.FromDDService {
+		nameSource = "provided"
+	}
 
 	return &event{
 		RequestType: t,
@@ -65,10 +69,9 @@ func (ts *telemetrySender) newEvent(t eventType, svc serviceInfo) *event {
 			ServiceLanguage:     svc.meta.Language,
 			ServiceType:         svc.meta.Type,
 			StartTime:           int64(svc.process.Stat.StartTime),
-			LastSeen:            ts.time.Now().Unix(),
+			LastSeen:            svc.LastHeartbeat.Unix(),
 			APMInstrumentation:  svc.meta.APMInstrumentation,
-			// TODO: leaving empty for now
-			ServiceNameSource: "",
+			ServiceNameSource:   nameSource,
 		},
 	}
 }
@@ -76,7 +79,6 @@ func (ts *telemetrySender) newEvent(t eventType, svc serviceInfo) *event {
 func newTelemetrySender(sender sender.Sender) *telemetrySender {
 	return &telemetrySender{
 		sender:   sender,
-		time:     realTime{},
 		hostname: hostnameimpl.NewHostnameService(),
 	}
 }

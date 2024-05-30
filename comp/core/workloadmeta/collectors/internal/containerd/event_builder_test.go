@@ -52,7 +52,7 @@ func TestBuildCollectorEvent(t *testing.T) {
 		},
 	}
 
-	exitCode := uint32(137)
+	exitCode := int64(137)
 	exitTime := time.Now()
 	fakeExitInfo := &exitInfo{exitCode: &exitCode, exitTS: exitTime}
 
