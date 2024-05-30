@@ -667,12 +667,14 @@ def prepare(
         d.copy(ctx, f"{paths.arch_dir}/opt/*", "/opt/", exclude="*.ninja", verbose=verbose)
         d.run_cmd(
             ctx,
-            f"! [ -f {btf_dir}/minimized-btfs.tar.xz \
-                && [ -d /opt/btf ] \
+            f"[ -f /sys/kernel/btf/vmlinux ] \
+                || [ -f {btf_dir}/minimized-btfs.tar.xz ] \
+                || ([ -d /opt/btf ] \
                 && cd /opt/btf/ \
                 && tar cJf minimized-btfs.tar.xz * \
                 && mkdir -p {btf_dir} \
-                && mv /opt/btf/minimized-btfs.tar.xz {btf_dir}/",
+                && mv /opt/btf/minimized-btfs.tar.xz {btf_dir}/)",
+            verbose=verbose,
         )
         info(f"[+] Tests packages setup in target VM {d}")
 
