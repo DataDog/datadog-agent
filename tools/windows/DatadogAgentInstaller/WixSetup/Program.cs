@@ -2,7 +2,6 @@ using System;
 using System.IO;
 using Datadog.CustomActions;
 using WixSharp;
-using Microsoft.Deployment.WindowsInstaller;
 using WixSetup.Datadog_Agent;
 using WixSetup.Datadog_Installer;
 using Action = System.Action;
@@ -27,7 +26,7 @@ namespace WixSetup
             // Save a copy of the WXS for analysis since WixSharp deletes it after it's done generating the MSI.
             project.WixSourceSaved += path =>
             {
-                System.IO.File.Copy(path, $"wix/{typeof(TInstaller).GetType().Name}.g.wxs", overwrite: true);
+                System.IO.File.Copy(path, $"wix/{typeof(TInstaller).Name}.g.wxs", overwrite: true);
             };
 
             return project.BuildMsi();
