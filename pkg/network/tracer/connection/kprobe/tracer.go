@@ -179,7 +179,7 @@ func LoadTracer(cfg *config.Config, mgrOpts manager.Options, connCloseEventHandl
 
 	mgrOpts.ConstantEditors = append(mgrOpts.ConstantEditors, offsets...)
 
-	m, closeFn, err := prebuiltTracerLoader(cfg, mgrOpts, connCloseEventHandler, failedConnsHandler)
+	m, closeFn, err := prebuiltTracerLoader(cfg, mgrOpts, connCloseEventHandler)
 	return m, closeFn, TracerTypePrebuilt, err
 }
 
@@ -310,7 +310,7 @@ func loadRuntimeCompiledTracer(config *config.Config, mgrOpts manager.Options, c
 	return tracerLoaderFromAsset(buf, true, false, config, mgrOpts, connCloseEventHandler, failedConnsHandler)
 }
 
-func loadPrebuiltTracer(config *config.Config, mgrOpts manager.Options, connCloseEventHandler ddebpf.EventHandler, failedConnsHandler ddebpf.EventHandler) (*manager.Manager, func(), error) {
+func loadPrebuiltTracer(config *config.Config, mgrOpts manager.Options, connCloseEventHandler ddebpf.EventHandler) (*manager.Manager, func(), error) {
 	buf, err := netebpf.ReadBPFModule(config.BPFDir, config.BPFDebug)
 	if err != nil {
 		return nil, nil, fmt.Errorf("could not read bpf module: %w", err)

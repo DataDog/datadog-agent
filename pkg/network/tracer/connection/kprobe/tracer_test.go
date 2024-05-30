@@ -249,7 +249,7 @@ func TestCORETracerSupported(t *testing.T) {
 		return nil, nil, nil
 	}
 	prebuiltCalled := false
-	prebuiltTracerLoader = func(config *config.Config, mgrOpts manager.Options, closedConnEventHandler ddebpf.EventHandler, failedConnEventHandler ddebpf.EventHandler) (*manager.Manager, func(), error) {
+	prebuiltTracerLoader = func(config *config.Config, mgrOpts manager.Options, closedConnEventHandler ddebpf.EventHandler) (*manager.Manager, func(), error) {
 		prebuiltCalled = true
 		return nil, nil, nil
 	}
