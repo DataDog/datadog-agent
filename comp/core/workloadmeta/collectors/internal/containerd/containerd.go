@@ -276,10 +276,9 @@ func (c *collector) notifyInitialImageEvents(ctx context.Context, namespace stri
 	if err != nil {
 		return err
 	}
-
 	mergedImages := make(map[workloadmeta.EntityID]*workloadmeta.ContainerImageMetadata)
 	for _, image := range existingImages {
-		wlmImage, err := c.createOrUpdateImageMetadata(ctx, namespace, image, nil)
+		wlmImage, err := c.createOrUpdateImageMetadata(ctx, namespace, image, nil, true)
 		if err != nil {
 			log.Warnf("error getting information for image with name %q: %s", image.Name(), err.Error())
 			continue
