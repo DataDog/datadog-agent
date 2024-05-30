@@ -601,41 +601,6 @@ func TestActivityDumpsAutoSuppression(t *testing.T) {
 			}
 		}
 	})
-
-	err = test.StopActivityDump(dump.Name, "", "")
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	t.Run("auto-suppression-process-signal", func(t *testing.T) {
-		// check that we generate an event during profile learning phase
-		err = test.GetEventSent(t, func() error {
-			cmd := dockerInstance.Command("getconf", []string{"-a"}, []string{})
-			_, err = cmd.CombinedOutput()
-			return err
-		}, func(rule *rules.Rule, event *model.Event) bool {
-			return assertTriggeredRule(t, rule, "test_autosuppression_exec") &&
-				assert.Equal(t, "getconf", event.ProcessContext.FileEvent.BasenameStr, "wrong exec file")
-		}, time.Second*3, "test_autosuppression_exec")
-		if err != nil {
-			t.Fatal(err)
-		}
-	})
-
-	t.Run("auto-suppression-dns-signal", func(t *testing.T) {
-		// check that we generate an event during profile learning phase
-		err = test.GetEventSent(t, func() error {
-			cmd := dockerInstance.Command("nslookup", []string{"foo.bar"}, []string{})
-			_, err = cmd.CombinedOutput()
-			return err
-		}, func(rule *rules.Rule, event *model.Event) bool {
-			return assertTriggeredRule(t, rule, "test_autosuppression_dns") &&
-				assert.Equal(t, "nslookup", event.ProcessContext.Argv0, "wrong exec file")
-		}, time.Second*3, "test_autosuppression_dns")
-		if err != nil {
-			t.Fatal(err)
-		}
-	})
 }
 
 func TestActivityDumpsAutoSuppressionDriftOnly(t *testing.T) {
@@ -663,12 +628,12 @@ func TestActivityDumpsAutoSuppressionDriftOnly(t *testing.T) {
 		{
 			ID:         "test_autosuppression_exec",
 			Expression: `exec.file.name == "getconf"`,
-			Tags:       map[string]string{"allow_autosuppression": "true", "workload_drift_only": "true"},
+			Tags:       map[string]string{"allow_autosuppression": "true"},
 		},
 		{
 			ID:         "test_autosuppression_dns",
 			Expression: `dns.question.type == A && dns.question.name == "foo.bar"`,
-			Tags:       map[string]string{"allow_autosuppression": "true", "workload_drift_only": "true"},
+			Tags:       map[string]string{"allow_autosuppression": "true"},
 		},
 	}
 

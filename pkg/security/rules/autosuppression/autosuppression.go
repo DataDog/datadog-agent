@@ -30,10 +30,6 @@ func isAllowAutosuppressionRule(rule *rules.Rule) bool {
 	return booleanTagEquals(rule, "allow_autosuppression", true)
 }
 
-func isWorkloadDriftOnlyRule(rule *rules.Rule) bool {
-	return booleanTagEquals(rule, "workload_drift_only", true)
-}
-
 const (
 	securityProfileSuppressionType = "security_profile"
 	activityDumpSuppressionType    = "activity_dump"
@@ -76,7 +72,7 @@ func (as *AutoSuppression) Suppresses(rule *rules.Rule, event *model.Event) bool
 			if event.HasActiveActivityDump() {
 				as.count(rule.ID, activityDumpSuppressionType)
 				return true
-			} else if isWorkloadDriftOnlyRule(rule) && event.SecurityProfileContext.EventTypeState == model.NoProfile {
+			} else if event.SecurityProfileContext.EventTypeState == model.NoProfile {
 				as.count(rule.ID, noWorkloadDriftSuppressionType)
 				return true
 			}
