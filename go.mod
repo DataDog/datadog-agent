@@ -698,6 +698,7 @@ require (
 	github.com/godror/godror v0.37.0
 	github.com/jackc/pgx/v5 v5.5.5
 	github.com/jmoiron/sqlx v1.3.5
+	github.com/judwhite/go-svc v1.2.1
 	github.com/kr/pretty v0.3.1
 	github.com/moby/term v0.5.0
 	github.com/planetscale/vtprotobuf v0.6.0
