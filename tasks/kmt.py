@@ -757,7 +757,6 @@ def kmt_sysprobe_prepare(
     if packages:
         filter_pkgs = [os.path.relpath(p) for p in packages.split(",")]
 
-    target_packages = build_target_packages(filter_pkgs)
     kmt_paths = KMTPaths(stack, arch)
     nf_path = os.path.join(kmt_paths.arch_dir, "kmt-sysprobe.ninja")
 
@@ -772,6 +771,7 @@ def kmt_sysprobe_prepare(
     build_object_files(ctx, f"{kmt_paths.arch_dir}/kmt-object-files.ninja")
 
     info("[+] Computing Go dependencies for test packages...")
+    target_packages = build_target_packages(filter_pkgs)
     pkg_deps = compute_package_dependencies(ctx, target_packages)
 
     info("[+] Generating build instructions..")
