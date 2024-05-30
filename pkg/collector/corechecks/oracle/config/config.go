@@ -158,7 +158,7 @@ type InstanceConfig struct {
 	UseGlobalCustomQueries             string                 `yaml:"use_global_custom_queries"`
 	CustomQueries                      []CustomQuery          `yaml:"custom_queries"`
 	MetricCollectionInterval           int64                  `yaml:"metric_collection_interval"`
-	DatabaseInstanceCollectionInterval uint64                 `yaml:"database_instance_collection_interval"`
+	DatabaseInstanceCollectionInterval int64                  `yaml:"database_instance_collection_interval"`
 	Asm                                asmConfig              `yaml:"asm"`
 	ResourceManager                    resourceManagerConfig  `yaml:"resource_manager"`
 	Locks                              locksConfig            `yaml:"locks"`
