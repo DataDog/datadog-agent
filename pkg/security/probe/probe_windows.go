@@ -416,6 +416,7 @@ func (p *WindowsProbe) setupEtw(ecb etwCallback) error {
 					p.stats.fileProcessedNotifications[e.EventHeader.EventDescriptor.ID]++
 					ecb(ca, e.EventHeader.ProcessID)
 					// lru is thread safe, has its own locking
+					p.discardedFileHandles.Remove(ca.fileObject)
 					p.filePathResolver.Remove(ca.fileObject)
 				}
 			case idFlush:
