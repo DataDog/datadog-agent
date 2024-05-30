@@ -95,6 +95,7 @@ type TelemetryCollector interface {
 	SendStartupError(code int, err error)
 	SentFirstTrace() bool
 	SendFirstTrace()
+	SendLibInjectionAttempted(metadata LibInjectionMetadata)
 }
 
 type telemetryCollector struct {
@@ -137,11 +138,6 @@ func NewCollector(cfg *config.AgentConfig) TelemetryCollector {
 		collectedFirstTrace:   &atomic.Bool{},
 		firstTraceFailures:    &atomic.Int32{},
 	}
-}
-
-// NewNoopCollector returns a noop collector
-func NewNoopCollector() TelemetryCollector {
-	return &noopTelemetryCollector{}
 }
 
 func (f *telemetryCollector) sendEvent(event *OnboardingEvent) (err error) {
@@ -292,11 +288,16 @@ func (f *telemetryCollector) sendEventPayload(option ...onboardingEventOption) e
 	return f.sendEvent(&ev)
 }
 
+// NewNoopCollector returns a noop collector
+func NewNoopCollector() TelemetryCollector {
+	return &noopTelemetryCollector{}
+}
+
 type noopTelemetryCollector struct{}
 
-func (*noopTelemetryCollector) SendStartupSuccess() {}
-
 //nolint:revive // TODO(TEL) Fix revive linter
-func (*noopTelemetryCollector) SendStartupError(code int, err error) {}
-func (*noopTelemetryCollector) SendFirstTrace()                      {}
-func (*noopTelemetryCollector) SentFirstTrace() bool                 { return true }
+func (*noopTelemetryCollector) SendStartupSuccess()                                     {}
+func (*noopTelemetryCollector) SendStartupError(code int, err error)                    {}
+func (*noopTelemetryCollector) SendFirstTrace()                                         {}
+func (*noopTelemetryCollector) SentFirstTrace() bool                                    { return true }
+func (*noopTelemetryCollector) SendLibInjectionAttempted(metadata LibInjectionMetadata) {}
