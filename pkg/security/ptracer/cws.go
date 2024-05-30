@@ -22,8 +22,6 @@ import (
 	"syscall"
 	"time"
 
-	"go.uber.org/atomic"
-
 	"github.com/avast/retry-go/v4"
 	"github.com/vmihailenco/msgpack/v5"
 	"golang.org/x/sys/unix"
@@ -235,13 +233,9 @@ func StartCWSPtracer(args []string, envs []string, probeAddr string, opts Opts) 
 	var (
 		msgDataChan    = make(chan []byte, 100000)
 		ctx, cancelFnc = context.WithCancel(context.Background())
-		seq            = atomic.NewUint64(1) // 0 is only used for hello messages
 	)
 
 	send := func(msg *ebpfless.Message) {
-		msg.SeqNum = seq.Load()
-		seq.Inc()
-
 		logger.Debugf("sending message: %s", msg)
 
 		if probeAddr == "" {
@@ -302,8 +296,7 @@ func StartCWSPtracer(args []string, envs []string, probeAddr string, opts Opts) 
 
 						// if ready, send an hello message
 						helloMsg := &ebpfless.Message{
-							SeqNum: 0,
-							Type:   ebpfless.MessageTypeHello,
+							Type: ebpfless.MessageTypeHello,
 							Hello: &ebpfless.HelloMsg{
 								NSID:             getNSID(),
 								ContainerContext: containerCtx,
@@ -346,11 +339,6 @@ func StartCWSPtracer(args []string, envs []string, probeAddr string, opts Opts) 
 				go func() {
 					_ = connectClient()
 				}()
-				// After reconnection, we will send an hello message with the SeqNum of 0, then
-				// all the stored msg on the chan uppon here with their initial SeqNum.
-				// This way, we will only have a mismatch between sequence numbers for (at maximum)
-				// the number of already stored messages.
-				seq.Store(uint64(len(msgDataChan)) + 1)
 			}
 		}()
 	}
