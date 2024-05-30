@@ -8,23 +8,67 @@ package infraattributesprocessor
 import (
 	"context"
 
+	"github.com/DataDog/datadog-agent/comp/core/tagger"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
+
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	"go.opentelemetry.io/collector/processor"
 	"go.uber.org/zap"
 )
 
 type infraAttributesSpanProcessor struct {
-	logger *zap.Logger
+	logger      *zap.Logger
+	tagger      tagger.Component
+	cardinality types.TagCardinality
 }
 
-func newInfraAttributesSpanProcessor(set processor.CreateSettings, _ *Config) (*infraAttributesSpanProcessor, error) {
-	tesp := &infraAttributesSpanProcessor{
-		logger: set.Logger,
+func newInfraAttributesSpanProcessor(set processor.CreateSettings, cfg *Config, tagger tagger.Component) (*infraAttributesSpanProcessor, error) {
+	iatp := &infraAttributesSpanProcessor{
+		logger:      set.Logger,
+		tagger:      tagger,
+		cardinality: cfg.Cardinality,
 	}
 	set.Logger.Info("Span Infra Attributes Processor configured")
-	return tesp, nil
+	return iatp, nil
 }
 
-func (tesp *infraAttributesSpanProcessor) processTraces(_ context.Context, td ptrace.Traces) (ptrace.Traces, error) {
+func (iasp *infraAttributesSpanProcessor) processTraces(_ context.Context, td ptrace.Traces) (ptrace.Traces, error) {
+	rss := td.ResourceSpans()
+	for i := 0; i < rss.Len(); i++ {
+		resourceAttributes := rss.At(i).Resource().Attributes()
+		entityIDs := entityIDsFromAttributes(resourceAttributes)
+		tagMap := make(map[string]string)
+
+		// Get all unique tags from resource attributes and global tags
+		for _, entityID := range entityIDs {
+			entityTags, err := iasp.tagger.Tag(entityID, iasp.cardinality)
+			if err != nil {
+				iasp.logger.Error("Cannot get tags for entity", zap.String("entityID", entityID), zap.Error(err))
+				continue
+			}
+			for _, tag := range entityTags {
+				k, v := splitTag(tag)
+				_, hasTag := tagMap[k]
+				if k != "" && v != "" && !hasTag {
+					tagMap[k] = v
+				}
+			}
+		}
+		globalTags, err := iasp.tagger.GlobalTags(iasp.cardinality)
+		if err != nil {
+			iasp.logger.Error("Cannot get global tags", zap.Error(err))
+		}
+		for _, tag := range globalTags {
+			k, v := splitTag(tag)
+			_, hasTag := tagMap[k]
+			if k != "" && v != "" && !hasTag {
+				tagMap[k] = v
+			}
+		}
+		// Add all tags as resource attributes
+		for k, v := range tagMap {
+			resourceAttributes.PutStr(k, v)
+		}
+	}
 	return td, nil
 }
