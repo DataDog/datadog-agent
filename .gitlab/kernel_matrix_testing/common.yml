@@ -144,7 +144,6 @@
 .kmt_cleanup:
   stage: kernel_matrix_testing_cleanup
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/test-infra-definitions/runner$TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX:$TEST_INFRA_DEFINITIONS_BUILDIMAGES
-  when: always
   tags: ["arch:amd64"]
   before_script:
     - !reference [.kmt_new_profile]

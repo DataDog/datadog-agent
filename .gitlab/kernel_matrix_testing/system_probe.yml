@@ -268,6 +268,7 @@ kmt_run_sysprobe_tests_arm64:
     TEST_COMPONENT: system-probe
 
 kmt_sysprobe_cleanup_arm64:
+  when: always
   extends:
     - .kmt_sysprobe_cleanup
   needs:
@@ -278,11 +279,31 @@ kmt_sysprobe_cleanup_arm64:
     INSTANCE_TYPE: "m6gd.metal"
 
 kmt_sysprobe_cleanup_x64:
+  when: always
   extends:
     - .kmt_sysprobe_cleanup
   needs:
     - kmt_setup_env_sysprobe_x64
     - kmt_run_sysprobe_tests_x64
+  variables:
+    ARCH: x86_64
+    INSTANCE_TYPE: "m5d.metal"
+
+# Manual cleanup jobs, these will be used to cleanup the instances after the tests
+# if the tests are canceled (e.g., by the auto-cancel-prev-pipelines job). The automatic jobs
+# will not run if the dependencies are canceled
+kmt_sysprobe_cleanup_arm64_manual:
+  when: manual
+  extends:
+    - .kmt_sysprobe_cleanup
+  variables:
+    ARCH: arm64
+    INSTANCE_TYPE: "m6gd.metal"
+
+kmt_sysprobe_cleanup_x64_manual:
+  when: manual
+  extends:
+    - .kmt_sysprobe_cleanup
   variables:
     ARCH: x86_64
     INSTANCE_TYPE: "m5d.metal"
