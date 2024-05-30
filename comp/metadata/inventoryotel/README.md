@@ -1,22 +1,22 @@
 # Inventory Agent Payload
 
-This package populates some of the otel-agent-related fields in the `inventories` product in DataDog. More specifically the
+This package populates some of the otel-agent related fields in the `inventories` product in DataDog. More specifically the
 `datadog-otel-agent` table.
 
-This is enabled by default but can be turned off using `inventories_enabled` config.
+This is enabled by default if otel_enabled is set to true, and can be turned off using `inventories_enabled` config.
 
 The payload is sent every 10min (see `inventories_max_interval` in the config) or whenever it's updated with at most 1
 update every minute (see `inventories_min_interval`).
 
 # Content
 
-The `Set` method from the component allow the rest of the codebase to add any information to the payload.
-
 ## Agent Configuration
 
 The otel-agent configurations are scrubbed from any sensitive information (same logic than for the flare).
 This include the following:
-`otel_provided_configuration`
+`otel_customer_configuration`
+`otel_environment_configuration`
+`otel_runtime_override_configuration`
 `otel_runtime_configuration`
 
 Sending Agent configuration can be disabled using `inventories_configuration_enabled`.
@@ -29,23 +29,15 @@ The payload is a JSON dict with the following fields
 - `uuid` - **string**: a unique identifier of the otel-agent, used in case the hostname is empty.
 - `timestamp` - **int**: the timestamp when the payload was created.
 - `otel-agent_metadata` - **dict of string to JSON type**:
-  - `otel-agent_version` - **string**: the version of the Agent.
-  - `install_method_tool` - **string**: the name of the tool used to install the otel-agent (ie, Chef, Ansible, ...).
-  - `provided_configuration` - **string**: the current Agent configuration (scrubbed), without the defaults, as a YAML
-    string. This includes the settings configured by the user (throuh the configuration file, the environment or CLI),
-    as well as any settings explicitly set by the otel-agent (for example the number of workers is dynamically set by the
-    otel-agent itself based on the load).
-  - `file_configuration` - **string**: the Agent configuration specified by the configuration file (scrubbed), as a YAML string.
-    Only the settings written in the configuration file are included, and their value might not match what's applyed by the otel-agent because they can be overriden by other sources.
-  - `environment_variable_configuration` - **string**: the Agent configuration specified by the environment variables (scrubbed), as a YAML string.
-    Only the settings written in the environment variables are included, and their value might not match what's applyed by the otel-agent because they can be overriden by other sources.
-  - `otel-agent_runtime_configuration` - **string**: the Agent configuration set by the otel-agent itself (scrubbed), as a YAML string.
-    Only the settings set by the otel-agent itself are included, and their value might not match what's applyed by the otel-agent because they can be overriden by other sources.
-  - `remote_configuration` - **string**: the Agent configuration specified by the Remote Configuration (scrubbed), as a YAML string.
-    Only the settings currently used by Remote Configuration are included, and their value might not match what's applyed by the otel-agent because they can be overriden by other sources.
-  - `cli_configuration` - **string**: the Agent configuration specified by the CLI (scrubbed), as a YAML string.
-    Only the settings set in the CLI are included, they cannot be overriden by any other sources.
-  - `source_local_configuration` - **string**: the Agent configuration synchronized from the local Agent process, as a YAML string.
+  - `otel_agent_version` - **string**: the version of the OTel Agent in use.
+  - `otel_agent_command` - **string**: the command used to launch the OTel Agent.
+  - `otel_agent_description` - **string**: the internal description provided by the OTel Agent.
+  - `otel_enabled` - **boolean**: describes if the OTel Agent has been enabled in the Agent configuration.
+  - `otel_customer_configuration` - **string**: OTel Collector configuration provided by the customer.
+  - `otel_environment_configuration` - **string**: OTel Collector environment variables defined.
+  - `otel_runtime_override_configuration` - **string**: OTel Collector configuration overrides introduced by DD.
+  - `otel_runtime_configuration` - **string**: full compiled OTel Collector configuration executing at runtime.
+
 
 ("scrubbed" indicates that secrets are removed from the field value just as they are in logs)
 
@@ -55,41 +47,25 @@ Here an example of an inventory payload:
 
 ```
 {
-    "otel-agent_metadata": {
-        "otel-agent_version": "7.37.0-devel+git.198.68a5b69",
-        "config_apm_dd_url": "",
-        "config_dd_url": "",
-        "config_logs_dd_url": "",
-        "config_logs_socks5_proxy_address": "",
-        "config_no_proxy": [
-            "http://some-no-proxy"
-        ],
-        "config_process_dd_url": "",
-        "config_proxy_http": "",
-        "config_proxy_https": "http://localhost:9999",
-        "config_site": "",
-        "feature_imdsv2_enabled": false,
-        "feature_apm_enabled": true,
-        "feature_cspm_enabled": false,
-        "feature_cws_enabled": false,
-        "feature_logs_enabled": true,
-        "feature_networks_enabled": false,
-        "feature_process_enabled": false,
-        "feature_remote_configuration_enabled": false,
-        "flavor": "otel-agent",
-        "hostname_source": "os",
-        "install_method_installer_version": "",
-        "install_method_tool": "undefined",
-        "install_method_tool_version": "",
-        "logs_transport": "HTTP",
-        "full_configuration": "<entire yaml configuration for the otel-agent>",
-        "provided_configuration": "api_key: \"***************************aaaaa\"\ncheck_runners: 4\ncmd.check.fullsketches: false\ncontainerd_namespace: []\ncontainerd_namespaces: []\npython_version: \"3\"\ntracemalloc_debug: false\nlog_level: \"warn\"",
-        "file_configuration": "check_runners: 4\ncmd.check.fullsketches: false\ncontainerd_namespace: []\ncontainerd_namespaces: []\npython_version: \"3\"\ntracemalloc_debug: false",
-        "environment_variable_configuration": "api_key: \"***************************aaaaa\"",
-        "remote_configuration": "log_level: \"debug\"",
-        "cli_configuration": "log_level: \"warn\""
-    }
-    "hostname": "my-host",
-    "timestamp": 1631281754507358895
+    "hostname": "COMP-GQ7WQN6HYC",
+    "otel_metadata": {
+        "otel_agent_command": "otelcol",
+        "otel_agent_description": "foo bar",
+        "otel_agent_version": "1.0.0",
+        "otel_customer_configuration": "\nreceivers:\n  prometheus:\n    config:\n      scrape_configs:\n        - job_name: \"otelcol\"\n          scrape_interval: 10s\n          static_configs:\n            -
+targets: [\"0.0.0.0:8888\"]\n          metric_relabel_configs:\n            - source_labels: [__name__]\n              regex: \".*grpc_io.*\"\n              action: drop\n  otlp:\n    protocols:\n      grpc:\n
+http:\nexporters:\n  datadog:\n    api:\n      key: $DD_API_KEY\nservice:\n  pipelines:\n    traces:\n      receivers: [otlp]\n      exporters: [datadog]\n    metrics:\n      receivers: [otlp, prometheus]\n
+exporters: [datadog]\n    logs:\n      receivers: [otlp]\n      exporters: [datadog]\"",
+        "otel_enabled": true,
+        "otel_environment_configuration": "",
+        "otel_runtime_configuration": "\nreceivers:\n  prometheus:\n    config:\n      scrape_configs:\n        - job_name: \"otelcol\"\n          scrape_interval: 10s\n          static_configs:\n            -
+targets: [\"0.0.0.0:8888\"]\n          metric_relabel_configs:\n            - source_labels: [__name__]\n              regex: \".*grpc_io.*\"\n              action: drop\n  otlp:\n    protocols:\n      grpc:\n
+http:\nexporters:\n  datadog:\n    api:\n      key: $DD_API_KEY\nprocessors:\n  tagenrich:\n  batch:\n    timeout: 10s\nconnectors:\n  datadog/connector:\n\tcompute_stats_by_span_kind:
+true\n\tpeer_tags_aggregation: true\nservice:\n  pipelines:\n    traces:\n      receivers: [otlp]\n      processors: [batch,tagenrich]\n      exporters: [datadog/connector,datadog]\n    metrics:\n      receivers:
+[otlp, prometheus,datadog/connector]\n      processors: [batch,tagenrich]\n      exporters: [datadog]\n    logs:\n      receivers: [otlp]\n      processors: [batch,tagenrich]\n      exporters: [datadog]\"",
+        "otel_runtime_override_configuration": ""
+    },
+    "timestamp": 1716985696922603000,
+    "uuid": "eee7bdc9-93ce-5938-91c3-7643d7ba7674"
 }
 ```
