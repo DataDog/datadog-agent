@@ -169,14 +169,10 @@ installer_suse_rpm-arm64:
 iot_agent_rpm-x64:
   extends: [.package_iot_rpm_common, .package_rpm_x86]
   needs: ["iot-agent-x64"]
-  variables:
-    DD_PROJECT: agent
 
 iot_agent_rpm-arm64:
   extends: [.package_iot_rpm_common, .package_rpm_arm64]
   tags: ["arch:arm64"]
-  variables:
-    DD_PROJECT: agent
 
 iot_agent_rpm-armhf:
   extends: .package_iot_rpm_common
@@ -187,7 +183,6 @@ iot_agent_rpm-armhf:
   variables:
     PACKAGE_ARCH: armhf
     DD_PKG_ARCH: "arm64"
-    DD_PROJECT: agent
   before_script:
     # Ensures uname -m reports armv7l
     - export LD_PRELOAD="/usr/local/lib/libfakearmv7l.so"
@@ -206,7 +201,6 @@ iot_agent_suse-x64:
     paths:
       - $OMNIBUS_PACKAGE_DIR_SUSE
   variables:
-    DD_PROJECT: agent
     OMNIBUS_EXTRA_ARGS: "--host-distribution=suse"
   cache:
     - !reference [.cache_omnibus_ruby_deps, cache]
