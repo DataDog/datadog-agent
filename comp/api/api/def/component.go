@@ -10,15 +10,10 @@ import (
 	"net"
 	"net/http"
 
-	"go.uber.org/fx"
+	compdef "github.com/DataDog/datadog-agent/comp/def"
 )
 
 // team: agent-shared-components
-
-// TODO(components):
-// * Lifecycle can't be used atm because:
-//     - logsAgent and remoteconfig.Service are modified in `startAgent` in the run subcommand
-//     - Same for workloadmeta and senderManager in `execJmxCommand` in the jmx subcommand
 
 // Component is the component type.
 type Component interface {
@@ -63,7 +58,7 @@ func (p endpointProvider) HandlerFunc() http.HandlerFunc {
 
 // AgentEndpointProvider is the provider for registering endpoints to the internal agent api server
 type AgentEndpointProvider struct {
-	fx.Out
+	compdef.Out
 
 	Provider EndpointProvider `group:"agent_endpoint"`
 }

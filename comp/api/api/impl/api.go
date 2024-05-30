@@ -10,8 +10,6 @@ import (
 	"context"
 	"net"
 
-	"go.uber.org/fx"
-
 	apidef "github.com/DataDog/datadog-agent/comp/api/api/def"
 	"github.com/DataDog/datadog-agent/comp/api/authtoken"
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
@@ -20,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	compdef "github.com/DataDog/datadog-agent/comp/def"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/pidmap"
 	replay "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/def"
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
@@ -51,10 +50,8 @@ type ApiServer struct {
 	endpointProviders []apidef.EndpointProvider
 }
 
-type Dependencies struct {
-	fx.In
-
-	Lc                fx.Lifecycle
+type Requires struct {
+	Lc                compdef.Lifecycle
 	DogstatsdServer   dogstatsdServer.Component
 	Capture           replay.Component
 	PidMap            pidmap.Component
@@ -75,27 +72,27 @@ type Dependencies struct {
 
 var _ apidef.Component = (*ApiServer)(nil)
 
-func NewAPIServer(deps Dependencies) apidef.Component {
+func NewAPIServer(reqs Requires) apidef.Component {
 	server := ApiServer{
-		dogstatsdServer:   deps.DogstatsdServer,
-		capture:           deps.Capture,
-		pidMap:            deps.PidMap,
-		secretResolver:    deps.SecretResolver,
-		pkgSigning:        deps.PkgSigning,
-		statusComponent:   deps.StatusComponent,
-		rcService:         deps.RcService,
-		rcServiceMRF:      deps.RcServiceMRF,
-		authToken:         deps.AuthToken,
-		taggerComp:        deps.Tagger,
-		autoConfig:        deps.AutoConfig,
-		logsAgentComp:     deps.LogsAgentComp,
-		wmeta:             deps.WorkloadMeta,
-		collector:         deps.Collector,
-		senderManager:     deps.SenderManager,
-		endpointProviders: fxutil.GetAndFilterGroup(deps.EndpointProviders),
+		dogstatsdServer:   reqs.DogstatsdServer,
+		capture:           reqs.Capture,
+		pidMap:            reqs.PidMap,
+		secretResolver:    reqs.SecretResolver,
+		pkgSigning:        reqs.PkgSigning,
+		statusComponent:   reqs.StatusComponent,
+		rcService:         reqs.RcService,
+		rcServiceMRF:      reqs.RcServiceMRF,
+		authToken:         reqs.AuthToken,
+		taggerComp:        reqs.Tagger,
+		autoConfig:        reqs.AutoConfig,
+		logsAgentComp:     reqs.LogsAgentComp,
+		wmeta:             reqs.WorkloadMeta,
+		collector:         reqs.Collector,
+		senderManager:     reqs.SenderManager,
+		endpointProviders: fxutil.GetAndFilterGroup(reqs.EndpointProviders),
 	}
 
-	deps.Lc.Append(fx.Hook{
+	reqs.Lc.Append(compdef.Hook{
 		OnStart: server.StartServers,
 		OnStop: func(_ context.Context) error {
 			StopServers()
