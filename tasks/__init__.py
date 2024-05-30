@@ -23,6 +23,7 @@ from tasks import (
     fakeintake,
     git,
     github_tasks,
+    gitlab_helpers,
     go_deps,
     installer,
     kmt,
@@ -53,6 +54,8 @@ from tasks.build_tags import audit_tag_impact, print_default_build_tags
 from tasks.components import lint_components, lint_fxutil_oneshot_test
 from tasks.custom_task.custom_task import custom__call__
 from tasks.fuzz import fuzz
+
+# from tasks.gitlab_helpers import pippo
 from tasks.go import (
     check_go_mod_replaces,
     check_go_version,
@@ -79,7 +82,12 @@ from tasks.gotest import (
     send_unit_tests_stats,
     test,
 )
-from tasks.install_tasks import download_tools, install_devcontainer_cli, install_shellcheck, install_tools
+from tasks.install_tasks import (
+    download_tools,
+    install_devcontainer_cli,
+    install_shellcheck,
+    install_tools,
+)
 from tasks.junit_tasks import junit_upload
 from tasks.libs.common.go_workspaces import handle_go_work
 from tasks.show_linters_issues.show_linters_issues import show_linters_issues
@@ -129,6 +137,7 @@ ns.add_task(build_messagetable)
 ns.add_task(get_impacted_packages)
 ns.add_task(get_modified_packages)
 ns.add_task(send_unit_tests_stats)
+# ns.add_task(pippo)
 # To deprecate
 ns.add_task(lint_go)
 
@@ -151,6 +160,7 @@ ns.add_collection(linter)
 ns.add_collection(msi)
 ns.add_collection(git)
 ns.add_collection(github_tasks, "github")
+ns.add_collection(gitlab_helpers, "gitlab")
 ns.add_collection(package)
 ns.add_collection(pipeline)
 ns.add_collection(notify)
@@ -178,10 +188,10 @@ ns.add_collection(devcontainer)
 ns.add_collection(omnibus)
 ns.configure(
     {
-        'run': {
+        "run": {
             # this should stay, set the encoding explicitly so invoke doesn't
             # freak out if a command outputs unicode chars.
-            'encoding': 'utf-8',
+            "encoding": "utf-8",
         }
     }
 )
