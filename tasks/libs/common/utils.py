@@ -191,7 +191,6 @@ def get_xcode_version(ctx):
 def get_build_flags(
     ctx,
     static=False,
-    prefix=None,
     install_path=None,
     run_path=None,
     embedded_path=None,
@@ -209,7 +208,7 @@ def get_build_flags(
     Context object.
     """
     gcflags = ""
-    ldflags = get_version_ldflags(ctx, prefix, major_version=major_version, install_path=install_path)
+    ldflags = get_version_ldflags(ctx, major_version=major_version, install_path=install_path)
     # External linker flags; needs to be handled separately to avoid overrides
     extldflags = ""
     env = {"GO111MODULE": "on"}
@@ -346,7 +345,7 @@ def get_payload_version():
     raise Exception("Could not find valid version for agent-payload in go.mod file")
 
 
-def get_version_ldflags(ctx, prefix=None, major_version='7', install_path=None):
+def get_version_ldflags(ctx, major_version='7', install_path=None):
     """
     Compute the version from the git tags, and set the appropriate compiler
     flags
@@ -355,7 +354,9 @@ def get_version_ldflags(ctx, prefix=None, major_version='7', install_path=None):
     commit = get_git_commit()
 
     ldflags = f"-X {REPO_PATH}/pkg/version.Commit={commit} "
-    ldflags += f"-X {REPO_PATH}/pkg/version.AgentVersion={get_version(ctx, include_git=True, prefix=prefix, major_version=major_version)} "
+    ldflags += (
+        f"-X {REPO_PATH}/pkg/version.AgentVersion={get_version(ctx, include_git=True, major_version=major_version)} "
+    )
     ldflags += f"-X {REPO_PATH}/pkg/serializer.AgentPayloadVersion={payload_v} "
     if install_path:
         package_version = os.path.basename(install_path)
@@ -428,17 +429,10 @@ def get_git_pretty_ref():
         return current_branch
 
 
-def query_version(ctx, git_sha_length=7, prefix=None, major_version_hint=None):
+def query_version(ctx, major_version, git_sha_length=7):
     # The string that's passed in will look something like this: 6.0.0-beta.0-1-g4f19118
     # if the tag is 6.0.0-beta.0, it has been one commit since the tag and that commit hash is g4f19118
-    cmd = "git describe --tags --candidates=50"
-    if prefix and isinstance(prefix, str):
-        cmd += f" --match \"{prefix}-*\""
-    else:
-        if major_version_hint:
-            cmd += rf' --match "{major_version_hint}\.*"'  # noqa: FS002
-        else:
-            cmd += " --match \"[0-9]*\""
+    cmd = rf'git describe --tags --candidates=50 --match "{major_version}\.*"'
     if git_sha_length and isinstance(git_sha_length, int):
         cmd += f" --abbrev={git_sha_length}"
     described_version = ctx.run(cmd, hide=True).stdout.strip()
@@ -449,11 +443,7 @@ def query_version(ctx, git_sha_length=7, prefix=None, major_version_hint=None):
     if commit_number_match:
         commit_number = int(commit_number_match.group('commit_number'))
 
-    version_re = r"v?(?P<version>\d+\.\d+\.\d+)(?:(?:-|\.)(?P<pre>[0-9A-Za-z.-]+))?"
-    if prefix and isinstance(prefix, str):
-        version_re = rf"^(?:{prefix}-)?" + version_re  # noqa: FS002
-    else:
-        version_re = r"^" + version_re
+    version_re = r"^v?(?P<version>\d+\.\d+\.\d+)(?:(?:-|\.)(?P<pre>[0-9A-Za-z.-]+))?"
     if commit_number == 0:
         version_re += r"(?P<git_sha>)$"
     else:
@@ -484,14 +474,14 @@ def query_version(ctx, git_sha_length=7, prefix=None, major_version_hint=None):
     return version, pre, commit_number, git_sha, pipeline_id
 
 
-def cache_version(ctx, git_sha_length=7, prefix=None):
+def create_version_json(ctx, git_sha_length=7):
     """
     Generate a json cache file containing all needed variables used by get_version.
     """
     packed_data = {}
     for maj_version in ['6', '7']:
         version, pre, commits_since_version, git_sha, pipeline_id = query_version(
-            ctx, git_sha_length, prefix, major_version_hint=maj_version
+            ctx, maj_version, git_sha_length=git_sha_length
         )
         packed_data[maj_version] = [version, pre, commits_since_version, git_sha, pipeline_id]
     bucket_branch = os.getenv("BUCKET_BRANCH")
@@ -505,7 +495,6 @@ def get_version(
     ctx,
     url_safe=False,
     git_sha_length=7,
-    prefix=None,
     major_version='7',
     include_pipeline_id=False,
     pipeline_id=None,
@@ -548,7 +537,7 @@ def get_version(
             print("[WARN] Agent version cache file hasn't been loaded !", file=sys.stderr)
         # we only need the git info for the non omnibus builds, omnibus includes all this information by default
         version, pre, commits_since_version, git_sha, pipeline_id = query_version(
-            ctx, git_sha_length, prefix, major_version_hint=major_version
+            ctx, major_version, git_sha_length=git_sha_length
         )
         # Dev's versions behave the same as nightly
         bucket_branch = os.getenv("BUCKET_BRANCH")
@@ -597,7 +586,7 @@ def get_version_numeric_only(ctx, major_version='7'):
             print(f"Error while recovering the version from {AGENT_VERSION_CACHE_NAME}: {e}")
             version = ""
     if not version:
-        version, *_ = query_version(ctx, major_version_hint=major_version)
+        version, *_ = query_version(ctx, major_version)
     return version
 
 
