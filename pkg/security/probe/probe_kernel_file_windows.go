@@ -166,7 +166,7 @@ func (wp *WindowsProbe) parseCreateHandleArgs(e *etw.DDEventRecord) (*createHand
 	// not amazing to double compute the basename..
 	basename := filepath.Base(ca.fileName)
 
-	if !wp.approve("create.file.name", basename) {
+	if !wp.approveFimBasename(basename) {
 		wp.discardedFileHandles.Add(fileObjectPointer(ca.fileObject), struct{}{})
 		wp.stats.createFileApproverRejects++
 		return nil, errDiscardedPath
@@ -199,6 +199,9 @@ func (wp *WindowsProbe) parseCreateHandleArgs(e *etw.DDEventRecord) (*createHand
 	if wp.filePathResolver.Add(ca.fileObject, fc) {
 		wp.stats.fileNameCacheEvictions++
 	}
+	// if we get here, we have a new file handle.  Remove it from the discarder cache in case
+	// we missed the close notification
+	wp.discardedFileHandles.Remove(fileObjectPointer(ca.fileObject))
 
 	return ca, nil
 }

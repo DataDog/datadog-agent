@@ -19,24 +19,7 @@ import (
 	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
 )
 
-var (
-	systemdPath = findSystemdPath()
-)
-
-const (
-	debSystemdPath = "/lib/systemd/system" // todo load it at build time from omnibus
-	rpmSystemdPath = "/usr/lib/systemd/system"
-)
-
-// findSystemdPath todo: this is a hacky way to detect on which os family we are currently
-// running and finding the correct systemd path.
-// We should probably provide the correct path when we build the package
-func findSystemdPath() (systemdPath string) {
-	if _, err := os.Stat(rpmSystemdPath); err == nil {
-		return rpmSystemdPath
-	}
-	return debSystemdPath
-}
+const systemdPath = "/etc/systemd/system"
 
 func stopUnit(ctx context.Context, unit string, args ...string) error {
 	span, _ := tracer.StartSpanFromContext(ctx, "stop_unit")

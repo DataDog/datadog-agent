@@ -42,7 +42,7 @@ func NewPool(bufferSize int) *Pool {
 			},
 		},
 		// telemetry
-		tlmEnabled: utils.IsTelemetryEnabled(config.Datadog),
+		tlmEnabled: utils.IsTelemetryEnabled(config.Datadog()),
 	}
 }
 

@@ -15,7 +15,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/api/authtoken"
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
-	"github.com/DataDog/datadog-agent/comp/core/gui"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
@@ -53,7 +52,6 @@ type apiServer struct {
 	logsAgentComp     optional.Option[logsAgent.Component]
 	wmeta             workloadmeta.Component
 	collector         optional.Option[collector.Component]
-	gui               optional.Option[gui.Component]
 	endpointProviders []api.EndpointProvider
 }
 
@@ -74,7 +72,6 @@ type dependencies struct {
 	LogsAgentComp     optional.Option[logsAgent.Component]
 	WorkloadMeta      workloadmeta.Component
 	Collector         optional.Option[collector.Component]
-	Gui               optional.Option[gui.Component]
 	EndpointProviders []api.EndpointProvider `group:"agent_endpoint"`
 }
 
@@ -96,7 +93,6 @@ func newAPIServer(deps dependencies) api.Component {
 		logsAgentComp:     deps.LogsAgentComp,
 		wmeta:             deps.WorkloadMeta,
 		collector:         deps.Collector,
-		gui:               deps.Gui,
 		endpointProviders: fxutil.GetAndFilterGroup(deps.EndpointProviders),
 	}
 }
@@ -118,7 +114,6 @@ func (server *apiServer) StartServer(
 		server.statusComponent,
 		server.collector,
 		server.autoConfig,
-		server.gui,
 		server.endpointProviders,
 	)
 }

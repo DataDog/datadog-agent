@@ -33,7 +33,7 @@ repos:
     - id: protected-branches
       name: protected-branches
       description: checks that the commit isn't created on a protected branch
-      entry: 'python3 -m tasks.git-hooks.protected-branches'
+      entry: 'inv git.check-protected-branch'
       language: system
       pass_filenames: false
     - id: govet
@@ -46,10 +46,11 @@ repos:
     - id: copyright
       name: copyright
       description: copyright headers
-      entry: 'python3 -m tasks.git-hooks.copyright'
+      entry: 'inv linter.copyrights --only-staged-files'
       language: system
       require_serial: true
       files: \.go$
+      pass_filenames: false
     - id: win-clang-format
       name: win-clang-format
       description: clang-format
@@ -67,13 +68,11 @@ repos:
     - id: go-mod-tidy
       name: go-mod-tidy
       description: check that all go.mod files are tidy
-      entry: 'python3 -m tasks.git-hooks.go-mod-tidy'
+      entry: 'inv tidy'
       language: system
       require_serial: true
       files: (\.go|^go\.mod|^go\.sum)$
-      # no need to pass filenames, all go.mod have to be tidied anyway
       pass_filenames: false
-      # inv tidy-all takes several seconds so only run it on pre-push
       stages: [pre-push]
     - id: go-test
       name: go-test

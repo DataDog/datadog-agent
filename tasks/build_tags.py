@@ -99,9 +99,6 @@ AGENT_HEROKU_TAGS = AGENT_TAGS.difference(
     }
 )
 
-# AGENTLESS_SCANNER_TAGS lists the tags needed when building the agentless-scanner
-AGENTLESS_SCANNER_TAGS = {""}
-
 # CLUSTER_AGENT_TAGS lists the tags needed when building the cluster-agent
 CLUSTER_AGENT_TAGS = {"clusterchecks", "datadog.no_waf", "kubeapiserver", "orchestrator", "zlib", "zstd", "ec2", "gce"}
 
@@ -215,12 +212,6 @@ build_tags = {
         "system-tests": AGENT_TAGS,
         "lint": DOGSTATSD_TAGS.union(UNIT_TEST_TAGS).difference(UNIT_TEST_EXCLUDE_TAGS),
         "unit-tests": DOGSTATSD_TAGS.union(UNIT_TEST_TAGS).difference(UNIT_TEST_EXCLUDE_TAGS),
-    },
-    AgentFlavor.agentless_scanner: {
-        "dogstatsd": AGENTLESS_SCANNER_TAGS,
-        "system-tests": AGENT_TAGS,
-        "lint": AGENTLESS_SCANNER_TAGS.union(UNIT_TEST_TAGS).difference(UNIT_TEST_EXCLUDE_TAGS),
-        "unit-tests": AGENTLESS_SCANNER_TAGS.union(UNIT_TEST_TAGS).difference(UNIT_TEST_EXCLUDE_TAGS),
     },
 }
 

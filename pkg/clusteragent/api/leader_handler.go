@@ -61,7 +61,7 @@ func WithLeaderProxyHandler(handlerName string, preHandler RequestPreHandler, le
 	lph := LeaderProxyHandler{
 		handlerName:           handlerName,
 		leaderForwarder:       GetGlobalLeaderForwarder(),
-		leaderElectionEnabled: config.Datadog.GetBool("leader_election"),
+		leaderElectionEnabled: config.Datadog().GetBool("leader_election"),
 		preHandler:            preHandler,
 		leaderHandler:         leaderHandler,
 	}

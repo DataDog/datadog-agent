@@ -18,5 +18,5 @@ func newListener() (net.Listener, error) {
 	if err != nil {
 		return nil, err
 	}
-	return net.Listen("tcp", fmt.Sprintf("%v:%v", address, config.Datadog.GetInt("security_agent.cmd_port")))
+	return net.Listen("tcp", fmt.Sprintf("%v:%v", address, config.Datadog().GetInt("security_agent.cmd_port")))
 }

@@ -826,11 +826,11 @@ func Test_injectCWSPodInstrumentation(t *testing.T) {
 		},
 	}
 
-	// prepare the workload meta
-	wmeta := fxutil.Test[workloadmeta.Component](t, core.MockBundle(), workloadmeta.MockModule(), fx.Supply(workloadmeta.NewParams()))
-
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			// prepare the workload meta
+			wmeta := fxutil.Test[workloadmeta.Component](t, core.MockBundle(), workloadmeta.MockModule(), fx.Supply(workloadmeta.NewParams()))
+
 			mockConfig := config.Mock(t)
 			mockConfig.SetWithoutSource("admission_controller.cws_instrumentation.include", tt.args.include)
 			mockConfig.SetWithoutSource("admission_controller.cws_instrumentation.exclude", tt.args.exclude)

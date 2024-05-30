@@ -87,7 +87,7 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 	}
 
 	c.Tags = instance.Tags
-	c.Namespace = coreconfig.Datadog.GetString("network_devices.namespace")
+	c.Namespace = coreconfig.Datadog().GetString("network_devices.namespace")
 
 	return c, nil
 }

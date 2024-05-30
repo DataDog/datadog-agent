@@ -13,6 +13,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/autodiscoveryimpl"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/scheduler"
+	"github.com/DataDog/datadog-agent/comp/core/tagger"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"go.uber.org/fx"
@@ -26,7 +28,10 @@ func TestListenersGetScheduleCalls(t *testing.T) {
 		autodiscoveryimpl.MockModule(),
 		workloadmeta.MockModule(),
 		fx.Supply(workloadmeta.NewParams()),
-		core.MockBundle())
+		core.MockBundle(),
+		fx.Provide(taggerimpl.NewMock),
+		fx.Supply(tagger.NewFakeTaggerParams()),
+	)
 
 	got1 := make(chan struct{}, 1)
 	l1 := NewADListener("l1", ac, func(configs []integration.Config) {
