@@ -193,7 +193,7 @@ func NewRuntimeSecurityClient() (*RuntimeSecurityClient, error) {
 		return nil, fmt.Errorf("unix sockets are not supported on Windows")
 	}
 
-	conn, err := grpc.Dial(
+	conn, err := grpc.Dial( //nolint:staticcheck // TODO (ASC) fix grpc.Dial is deprecated
 		socketPath,
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 		grpc.WithDefaultCallOptions(grpc.CallContentSubtype(api.VTProtoCodecName)),
@@ -205,7 +205,7 @@ func NewRuntimeSecurityClient() (*RuntimeSecurityClient, error) {
 				BaseDelay: time.Second,
 				MaxDelay:  time.Second,
 			},
-		}))
+		})) //nolint:staticcheck // TODO (ASC) fix grpc.Dial is deprecated
 	if err != nil {
 		return nil, err
 	}

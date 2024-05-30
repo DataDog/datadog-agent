@@ -104,7 +104,7 @@ apm_config:
 		}
 		defer r.KillAgent()
 
-		conn, err := grpc.Dial(fmt.Sprintf("localhost:%d", port), grpc.WithBlock(), grpc.WithTransportCredentials(insecure.NewCredentials()))
+		conn, err := grpc.Dial(fmt.Sprintf("localhost:%d", port), grpc.WithBlock(), grpc.WithTransportCredentials(insecure.NewCredentials())) //nolint:staticcheck // TODO (ASC) fix grpc.DialContext is deprecated
 		if err != nil {
 			log.Fatal("Error dialing: ", err)
 		}
@@ -158,7 +158,7 @@ apm_config:
 		}
 		defer r.KillAgent()
 
-		conn, err := grpc.Dial(fmt.Sprintf("localhost:%d", port), grpc.WithBlock(), grpc.WithTransportCredentials(insecure.NewCredentials()))
+		conn, err := grpc.Dial(fmt.Sprintf("localhost:%d", port), grpc.WithBlock(), grpc.WithTransportCredentials(insecure.NewCredentials())) //nolint:staticcheck // TODO (ASC) fix grpc.DialContext is deprecated
 		if err != nil {
 			log.Fatal("Error dialing: ", err)
 		}
@@ -209,7 +209,7 @@ apm_config:
 	})
 
 	// topLevelSpansAgentFn checks that the given agent payload matches with the testSpans input
-	var topLevelSpansAgentFn = func(v *pb.AgentPayload) {
+	topLevelSpansAgentFn := func(v *pb.AgentPayload) {
 		var serverSpan, internalSpan, clientSpan, producerSpan *pb.Span
 		for _, chunk := range v.TracerPayloads[0].Chunks {
 			for _, span := range chunk.Spans {
@@ -253,7 +253,7 @@ apm_config:
 		}
 		defer r.KillAgent()
 
-		conn, err := grpc.Dial(fmt.Sprintf("localhost:%d", port), grpc.WithBlock(), grpc.WithTransportCredentials(insecure.NewCredentials()))
+		conn, err := grpc.Dial(fmt.Sprintf("localhost:%d", port), grpc.WithBlock(), grpc.WithTransportCredentials(insecure.NewCredentials())) //nolint:staticcheck // TODO (ASC) fix grpc.DialContext is deprecated
 		if err != nil {
 			log.Fatal("Error dialing: ", err)
 		}
@@ -319,7 +319,7 @@ apm_config:
 		}
 		defer r.KillAgent()
 
-		conn, err := grpc.Dial(fmt.Sprintf("localhost:%d", port), grpc.WithBlock(), grpc.WithTransportCredentials(insecure.NewCredentials()))
+		conn, err := grpc.Dial(fmt.Sprintf("localhost:%d", port), grpc.WithBlock(), grpc.WithTransportCredentials(insecure.NewCredentials())) //nolint:staticcheck // TODO (ASC) fix grpc.DialContext is deprecated
 		if err != nil {
 			log.Fatal("Error dialing: ", err)
 		}
