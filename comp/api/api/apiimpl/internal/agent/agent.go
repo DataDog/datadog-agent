@@ -178,7 +178,7 @@ func getStatus(w http.ResponseWriter, r *http.Request, statusComponent status.Co
 	w.Write(s)
 }
 
-func getSections(w http.ResponseWriter, r *http.Request, statusComponent status.Component) {
+func getSections(w http.ResponseWriter, _ *http.Request, statusComponent status.Component) {
 	log.Info("Got a request for the status sections.")
 
 	w.Header().Set("Content-Type", "application/json")

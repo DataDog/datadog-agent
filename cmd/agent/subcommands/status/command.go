@@ -112,8 +112,8 @@ func redactError(unscrubbedError error) error {
 
 func statusCmd(logger log.Component, config config.Component, _ sysprobeconfig.Component, cliParams *cliParams) error {
 
-	if cliParams.list == true {
-		return redactError(requestSections(config, cliParams))
+	if cliParams.list {
+		return redactError(requestSections(config))
 	}
 
 	if len(cliParams.args) < 1 {
@@ -221,7 +221,7 @@ func componentStatus(config config.Component, cliParams *cliParams, component st
 	return nil
 }
 
-func requestSections(config config.Component, cliParams *cliParams) error {
+func requestSections(config config.Component) error {
 
 	endpoint, err := apiutil.NewIPCEndpoint(config, "/agent/status/sections")
 	if err != nil {
