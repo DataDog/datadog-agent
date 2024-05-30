@@ -1155,7 +1155,8 @@ func testKafkaFetchRaw(t *testing.T, tls bool, apiVersion int) {
 			numFetchedRecords: 3,
 		},
 		{
-			name: "with error code",
+			name:  "with error code",
+			topic: defaultTopic,
 			buildResponse: func(topic string) kmsg.FetchResponse {
 				record := makeRecord()
 				var records []kmsg.Record
@@ -1170,8 +1171,12 @@ func testKafkaFetchRaw(t *testing.T, tls bool, apiVersion int) {
 				}
 
 				partition := makeFetchResponseTopicPartition(3, batches...)
+				var partitions []kmsg.FetchResponseTopicPartition
+				for i := 0; i < 3; i++ {
+					partitions = append(partitions, partition)
+				}
 
-				return makeFetchResponse(apiVersion, makeFetchResponseTopic(topic, partition))
+				return makeFetchResponse(apiVersion, makeFetchResponseTopic(topic, partitions...))
 			},
 			numFetchedRecords: 5 * 4 * 3,
 			errorCode:         3,
