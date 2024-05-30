@@ -893,7 +893,9 @@ func initializeWindowsProbe(config *config.Config, opts Opts) (*WindowsProbe, er
 	for i := 0; i < etwNotificationSize+4; i++ {
 		ev := &model.Event{}
 		ev.Zero()
-		eventcache.Put(ev)
+		if err := eventcache.Put(ev); err != nil {
+			return nil, err
+		}
 	}
 	ctx, cancelFnc := context.WithCancel(context.Background())
 

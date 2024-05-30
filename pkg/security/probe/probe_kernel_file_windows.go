@@ -270,11 +270,10 @@ func (wp *WindowsProbe) parseInformationArgs(e *etw.DDEventRecord) (fileObjectPo
 func (wp *WindowsProbe) onRenameArgs(e *etw.DDEventRecord) {
 	fo, fc, err := wp.parseInformationArgs(e)
 	if err != nil {
-		// couldn't parse/be found, nothing to do
+		return
 	}
 	// otherwise, add to the rename prArgs cache
 	wp.renamePreArgs.Add(uint64(fo), fc)
-	return
 }
 
 func (wp *WindowsProbe) onRenamePath(e *etw.DDEventRecord) *model.Event {
@@ -351,22 +350,6 @@ func (wp *WindowsProbe) onSetDelete(e *etw.DDEventRecord) *model.Event {
      </template>
 */
 
-type cleanupArgs struct {
-	etw.DDEventHeader
-	irp          uint64
-	threadID     uint64
-	fileObject   fileObjectPointer
-	fileKey      uint64
-	fileName     string
-	userFileName string
-}
-
-// nolint: unused
-type closeArgs cleanupArgs
-
-// nolint: unused
-type flushArgs cleanupArgs
-
 func (wp *WindowsProbe) parseCleanupArgs(e *etw.DDEventRecord) (fileObjectPointer, error) {
 	var fileObject fileObjectPointer
 
@@ -391,13 +374,10 @@ func (wp *WindowsProbe) parseCleanupArgs(e *etw.DDEventRecord) (fileObjectPointe
 }
 
 func (wp *WindowsProbe) onCloseArgs(e *etw.DDEventRecord) {
-	fo, err := wp.parseCleanupArgs(e)
-	if err != nil {
-		// couldn't parse/be found, nothing to do
-		return
-	}
+	fo, _ := wp.parseCleanupArgs(e)
 	// otherwise, add to the close prArgs cache
 	wp.filePathResolver.Remove(fo)
+	wp.discardedFileHandles.Remove(fo)
 }
 func (wp *WindowsProbe) parseReadWriteArgs(e *etw.DDEventRecord) (fileObjectPointer, fileCache, error) {
 	var fileObject fileObjectPointer
@@ -475,30 +455,29 @@ func (wp *WindowsProbe) parseDeletePathArgs(e *etw.DDEventRecord) (fileObjectPoi
 
 	data := etwimpl.GetUserData(e)
 	if e.EventHeader.EventDescriptor.Version == 0 {
-		
+
 		fileObject = fileObjectPointer(data.GetUint64(16))
-		
+
 		fileName, _, _, _ = data.ParseUnicodeString(44)
 
 	} else if e.EventHeader.EventDescriptor.Version == 1 {
-		
+
 		fileObject = fileObjectPointer(data.GetUint64(8))
 		fileName, _, _, _ = data.ParseUnicodeString(40)
 	}
-	
+
 	if _, ok := wp.discardedFileHandles.Get(fileObjectPointer(fileObject)); ok {
-		return fileObject, fc , errDiscardedPath
+		return fileObject, fc, errDiscardedPath
 	}
 	basename := filepath.Base(fileName)
 	userFileName := wp.mustConvertDrivePath(fileName)
-	fc = fileCache {
-		fileName: fileName,
+	fc = fileCache{
+		fileName:     fileName,
 		userFileName: userFileName,
-		baseName: basename,
+		baseName:     basename,
 	}
 	return fileObject, fc, nil
 }
-
 
 // nolint: unused
 func (wp *WindowsProbe) convertDrivePath(devicefilename string) (string, error) {

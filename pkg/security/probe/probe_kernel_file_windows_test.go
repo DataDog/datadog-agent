@@ -12,7 +12,6 @@ import (
 	"strings"
 	"sync"
 
-
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 
 	"golang.org/x/sys/windows"
@@ -112,4 +111,3 @@ func stopLoop(et *etwTester, wg *sync.WaitGroup) {
 	}
 
 }
-
