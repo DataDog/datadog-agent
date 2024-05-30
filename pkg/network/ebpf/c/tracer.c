@@ -201,7 +201,7 @@ int kprobe__tcp_close(struct pt_regs *ctx) {
 
     // check if this connection was already flushed and bail if so
     if (bpf_map_delete_elem(&closed_conn_already_flushed, &sk) == 0) {
-        increment_telemetry_count(double_flush_attempts);
+        increment_telemetry_count(double_flush_attempts_close);
         return 0;
     }
 
@@ -238,17 +238,22 @@ int kprobe__tcp_done(struct pt_regs *ctx) {
     conn_tuple_t t = {};
     u64 pid_tgid = bpf_get_current_pid_tgid();
     sk = (struct sock *)PT_REGS_PARM1(ctx);
-    __u64 *failed_conn_pid = 0;
+    __u64 *failed_conn_pid = NULL;
     int err = 0;
 
     // check if this connection was already flushed and bail if so
     if (bpf_map_delete_elem(&closed_conn_already_flushed, &sk) == 0) {
-        increment_telemetry_count(double_flush_attempts);
+        increment_telemetry_count(double_flush_attempts_done);
         return 0;
     }
 
     bpf_probe_read_kernel_with_telemetry(&err, sizeof(err), (&sk->sk_err));
     if (err == 0 || !tcp_failed_connections_enabled()) {
+        return 0;
+    }
+
+    if (err != 104 && err != 110 && err != 111) {
+        increment_telemetry_count(unsupported_tcp_failures);
         return 0;
     }
 
@@ -260,14 +265,16 @@ int kprobe__tcp_done(struct pt_regs *ctx) {
 
     // connection timeouts will have 0 pids as they are cleaned up by an idle process.
     // get the pid from the ongoing failure map in this case, as it should have been set in connect.
-    failed_conn_pid = bpf_map_lookup_elem(&tcp_ongoing_connect_pid, &sk);
-    if (failed_conn_pid && pid_tgid == 0) {
-        bpf_probe_read_kernel_with_telemetry(&pid_tgid, sizeof(pid_tgid), &failed_conn_pid);
-    }
     if (pid_tgid == 0) {
+        failed_conn_pid = bpf_map_lookup_elem(&tcp_ongoing_connect_pid, &sk);
+    }
+    if (failed_conn_pid) {
+        bpf_probe_read_kernel_with_telemetry(&pid_tgid, sizeof(pid_tgid), &failed_conn_pid);
+        t.pid = pid_tgid >> 32;
+    }
+    if (t.pid == 0) {
         return 0;
     }
-    t.pid = pid_tgid >> 32;
 
     cleanup_conn(ctx, &t, sk);
     flush_tcp_failure(ctx, &t, err);

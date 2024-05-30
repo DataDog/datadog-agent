@@ -55,14 +55,16 @@ type Batch struct {
 	Pad_cgo_0 [2]byte
 }
 type Telemetry struct {
-	Tcp_failed_connect    uint64
-	Tcp_sent_miscounts    uint64
-	Unbatched_tcp_close   uint64
-	Unbatched_udp_close   uint64
-	Udp_sends_processed   uint64
-	Udp_sends_missed      uint64
-	Udp_dropped_conns     uint64
-	Double_flush_attempts uint64
+	Tcp_failed_connect          uint64
+	Tcp_sent_miscounts          uint64
+	Unbatched_tcp_close         uint64
+	Unbatched_udp_close         uint64
+	Udp_sends_processed         uint64
+	Udp_sends_missed            uint64
+	Udp_dropped_conns           uint64
+	Double_flush_attempts_done  uint64
+	Double_flush_attempts_close uint64
+	Unsupported_tcp_failures    uint64
 }
 type PortBinding struct {
 	Netns     uint32

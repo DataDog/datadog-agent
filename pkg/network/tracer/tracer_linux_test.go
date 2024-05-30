@@ -2349,7 +2349,7 @@ func (s *TracerSuite) TestTCPFailureConnectionTimeout() {
 		t.Skip("Skipping test on unsupported build mode: ", ebpftest.GetBuildMode())
 	}
 	// TODO: remove this check when we fix this test on kernels < 4.15
-	if kernel.VersionCode(4, 15, 0) > kv {
+	if kv <= kernel.VersionCode(4, 18, 0) {
 		t.Skip("Skipping test on kernels < 4.15")
 	}
 	setupDropTrafficRule(t)
