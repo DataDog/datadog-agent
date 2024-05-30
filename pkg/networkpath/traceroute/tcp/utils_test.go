@@ -352,9 +352,9 @@ func (m *mockRawConn) SetReadDeadline(t time.Time) error {
 
 	return nil
 }
-func (m *mockRawConn) ReadFrom(b []byte) (*ipv4.Header, []byte, *ipv4.ControlMessage, error) {
+func (m *mockRawConn) ReadFrom(_ []byte) (*ipv4.Header, []byte, *ipv4.ControlMessage, error) {
 	if m.readTimeoutCount > 0 {
-		m.readTimeoutCount -= 1
+		m.readTimeoutCount--
 		time.Sleep(time.Until(m.readDeadline))
 		return nil, nil, nil, &net.OpError{Err: mockTimeoutErr("test timeout error")}
 	}
@@ -365,7 +365,7 @@ func (m *mockRawConn) ReadFrom(b []byte) (*ipv4.Header, []byte, *ipv4.ControlMes
 	return m.header, m.payload, m.cm, nil
 }
 
-func (m *mockRawConn) WriteTo(h *ipv4.Header, p []byte, cm *ipv4.ControlMessage) error {
+func (m *mockRawConn) WriteTo(_ *ipv4.Header, _ []byte, _ *ipv4.ControlMessage) error {
 	time.Sleep(m.writeDelay)
 	return m.writeToErr
 }
