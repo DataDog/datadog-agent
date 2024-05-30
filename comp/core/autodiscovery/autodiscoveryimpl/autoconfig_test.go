@@ -183,7 +183,7 @@ func (suite *AutoConfigTestSuite) SetupTest() {
 }
 
 func getAutoConfig(schedulerController *scheduler.Controller, secretResolver secrets.Component, wmeta optional.Option[workloadmeta.Component], taggerComp tagger.Component) *AutoConfig {
-	ac := createNewAutoConfig(schedulerController, secretResolver, wmeta)
+	ac := createNewAutoConfig(schedulerController, secretResolver, wmeta, taggerComp)
 	go ac.serviceListening()
 	return ac
 }
