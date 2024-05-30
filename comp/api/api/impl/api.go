@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2023-present Datadog, Inc.
 
-// Package apiimpl implements the internal Agent API which exposes endpoints such as config, flare or status
-package apiimpl
+// package impl implements the internal Agent API which exposes endpoints such as config, flare or status
+package impl
 
 import (
 	"context"
@@ -32,13 +32,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
-// Module defines the fx options for this component.
-func Module() fxutil.Module {
-	return fxutil.Component(
-		fx.Provide(newAPIServer),
-	)
-}
-
 type apiServer struct {
 	dogstatsdServer   dogstatsdServer.Component
 	capture           replay.Component
@@ -59,8 +52,6 @@ type apiServer struct {
 }
 
 type dependencies struct {
-	fx.In
-
 	Lc                fx.Lifecycle
 	DogstatsdServer   dogstatsdServer.Component
 	Capture           replay.Component

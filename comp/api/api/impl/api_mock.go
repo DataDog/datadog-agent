@@ -5,7 +5,7 @@
 
 //go:build test
 
-package apiimpl
+package impl
 
 import (
 	"net"

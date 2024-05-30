@@ -26,7 +26,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/agent/jmxlogger/jmxloggerimpl"
 	"github.com/DataDog/datadog-agent/comp/aggregator/diagnosesendermanager"
 	"github.com/DataDog/datadog-agent/comp/aggregator/diagnosesendermanager/diagnosesendermanagerimpl"
-	internalAPI "github.com/DataDog/datadog-agent/comp/api/api"
 	authtokenimpl "github.com/DataDog/datadog-agent/comp/api/authtoken/createandfetchimpl"
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/pidmap"
@@ -40,7 +39,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/metadata/packagesigning"
 	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl"
 
-	"github.com/DataDog/datadog-agent/comp/api/api/apiimpl"
+	apidef "github.com/DataDog/datadog-agent/comp/api/api/def"
+	apifx "github.com/DataDog/datadog-agent/comp/api/api/fx"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/autodiscoveryimpl"

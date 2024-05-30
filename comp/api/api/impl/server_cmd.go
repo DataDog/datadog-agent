@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package apiimpl
+package impl
 
 import (
 	"context"
@@ -21,9 +21,9 @@ import (
 	"google.golang.org/grpc/credentials"
 
 	"github.com/DataDog/datadog-agent/comp/api/api"
-	"github.com/DataDog/datadog-agent/comp/api/api/apiimpl/internal/agent"
-	"github.com/DataDog/datadog-agent/comp/api/api/apiimpl/internal/check"
-	apiutils "github.com/DataDog/datadog-agent/comp/api/api/apiimpl/utils"
+	"github.com/DataDog/datadog-agent/comp/api/api/impl/internal/agent"
+	"github.com/DataDog/datadog-agent/comp/api/api/impl/internal/check"
+	apiutils "github.com/DataDog/datadog-agent/comp/api/api/impl/utils"
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"

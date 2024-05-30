@@ -4,12 +4,14 @@ go 1.21.0
 
 replace (
 	github.com/DataDog/datadog-agent/pkg/proto => ../../proto
+	github.com/DataDog/datadog-agent/pkg/util/grpc/context => ./context
 	github.com/DataDog/datadog-agent/pkg/util/log => ../log
 	github.com/DataDog/datadog-agent/pkg/util/scrubber => ../scrubber
 )
 
 require (
 	github.com/DataDog/datadog-agent/pkg/proto v0.54.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/util/grpc/context v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/util/log v0.54.0-rc.2
 	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575
 	github.com/grpc-ecosystem/go-grpc-middleware v1.2.0

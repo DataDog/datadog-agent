@@ -8,7 +8,7 @@
 // we won't really ever use the tools build tag we use it to ignore this file
 // but track the dependencies in go.mod
 
-package apiimpl
+package impl
 
 import (
 	_ "github.com/golang/protobuf/protoc-gen-go"

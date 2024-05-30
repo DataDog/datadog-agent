@@ -4,7 +4,7 @@
 // Copyright 2023-present Datadog, Inc.
 
 // Package api implements the internal Agent API which exposes endpoints such as config, flare or status
-package api
+package def
 
 import (
 	"net"

@@ -7,7 +7,7 @@
 
 package api
 
-// Mock implements mock-specific methods.
-type Mock interface {
-	Component
-}
+// // Mock implements mock-specific methods.
+// type Mock interface {
+// 	Component
+// }

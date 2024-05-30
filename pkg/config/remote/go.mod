@@ -13,6 +13,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/util/cache => ../../util/cache
 	github.com/DataDog/datadog-agent/pkg/util/fxutil => ../../util/fxutil
 	github.com/DataDog/datadog-agent/pkg/util/grpc => ../../util/grpc
+	github.com/DataDog/datadog-agent/pkg/util/grpc/context => ../../util/grpc/context
 	github.com/DataDog/datadog-agent/pkg/util/http => ../../util/http
 	github.com/DataDog/datadog-agent/pkg/util/log => ../../util/log
 	github.com/DataDog/datadog-agent/pkg/util/scrubber => ../../util/scrubber
@@ -40,6 +41,7 @@ require (
 
 require (
 	github.com/DataDog/datadog-agent/pkg/util/cache v0.54.0-rc.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/grpc/context v0.0.0-00010101000000-000000000000 // indirect
 	github.com/go-ole/go-ole v1.2.6 // indirect
 	github.com/kr/pretty v0.3.1 // indirect
 	github.com/lufia/plan9stats v0.0.0-20211012122336-39d0f177ccd0 // indirect
