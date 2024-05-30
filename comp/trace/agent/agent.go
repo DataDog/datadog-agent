@@ -65,12 +65,9 @@ type agent struct {
 
 	cancel             context.CancelFunc
 	config             config.Component
-	ctx                context.Context
 	params             *Params
-	shutdowner         fx.Shutdowner
 	tagger             tagger.Component
 	telemetryCollector telemetry.TelemetryCollector
-	statsd             statsd.Component
 	workloadmeta       workloadmeta.Component
 	wg                 sync.WaitGroup
 }
@@ -89,22 +86,19 @@ func newAgent(deps dependencies) Component {
 	ag := &agent{
 		cancel:             cancel,
 		config:             deps.Config,
-		statsd:             deps.Statsd,
-		ctx:                ctx,
 		params:             deps.Params,
-		shutdowner:         deps.Shutdowner,
 		workloadmeta:       deps.Workloadmeta,
 		telemetryCollector: deps.TelemetryCollector,
 		tagger:             deps.Tagger,
 		wg:                 sync.WaitGroup{},
 	}
-	statsdCl, err := setupMetrics(ag.statsd, ag.config, ag.telemetryCollector)
+	statsdCl, err := setupMetrics(deps.Statsd, ag.config, ag.telemetryCollector)
 	if err != nil {
 		return err
 	}
-	setupShutdown(ag.ctx, ag.shutdowner, statsdCl)
+	setupShutdown(ctx, deps.Shutdowner, statsdCl)
 	ag.Agent = pkgagent.NewAgent(
-		ag.ctx,
+		ctx,
 		ag.config.Object(),
 		ag.telemetryCollector,
 		statsdCl,
