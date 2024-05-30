@@ -95,10 +95,11 @@ repos:
     - id: shell-check-no-set-x
       name: shell-check-no-set-x
       description: check that no `set -x` is set within github / gitlab workflows
-      entry: 'python3 -m tasks.git-hooks.set-x'
+      entry: 'inv pre-commit.check-set-x'
       language: system
       require_serial: true
       files: (\.yaml|\.yml|\.sh|Dockerfile)$
+      pass_filenames: false
     - id: gitlab-configuration
       name: gitlab-configuration
       description: test the gitlab configuration on main
