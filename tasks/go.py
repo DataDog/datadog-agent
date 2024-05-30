@@ -410,17 +410,26 @@ def tidy_all(ctx):
 
 
 @task
-def tidy(ctx, only_modified_packages=False):
-    # TODO: if only_modified_packages then use `go mod tidy -diff` with golang 1.23, probably in a separate check-mod-tidy task
-    # https://github.com/golang/go/issues/27005
-    from tasks import get_modified_packages
+def tidy(ctx):
+    if os.name != 'nt':  # not windows
+        import resource
 
-    # TODO: Also include packages that import them
-    modules = get_modified_packages(ctx) if only_modified_packages else DEFAULT_MODULES.values()
+        # Some people might face ulimit issues, so we bump it up if needed.
+        # It won't change it globally, only for this process and child processes.
+        # TODO: if this is working fine, let's do it during the init so all tasks can benefit from it if needed.
+        current_ulimit = resource.getrlimit(resource.RLIMIT_NOFILE)
+        if current_ulimit[0] < 1024:
+            resource.setrlimit(resource.RLIMIT_NOFILE, (1024, current_ulimit[1]))
 
-    for mod in modules:
+    # Note: It's currently faster to tidy everything than looking for exactly what we should tidy
+    promises = []
+    for mod in DEFAULT_MODULES.values():
         with ctx.cd(mod.full_path()):
-            ctx.run("go mod tidy")
+            # https://docs.pyinvoke.org/en/stable/api/runners.html#invoke.runners.Runner.run
+            promises.append(ctx.run("go mod tidy", asynchronous=True))
+
+    for promise in promises:
+        promise.join()
 
 
 @task

@@ -270,7 +270,7 @@ class TestRetrieveJobExecutionsCreated(unittest.TestCase):
     def test_retrieved(self):
         ctx = MockContext(run=Result("test"))
         j = notify.retrieve_job_executions(ctx, "job_executions.json")
-        self.assertEqual(j, self.job_executions)
+        self.assertDictEqual(j.to_dict(), self.job_executions.to_dict())
 
 
 class TestRetrieveJobExecutions(unittest.TestCase):
@@ -280,7 +280,8 @@ class TestRetrieveJobExecutions(unittest.TestCase):
         ctx = MagicMock()
         ctx.run.side_effect = UnexpectedExit(Result(stderr="This is a 404 not found"))
         j = notify.retrieve_job_executions(ctx, self.test_json)
-        self.assertEqual(j, {"pipeline_id": 0, "jobs": {}})
+        self.assertEqual(j.pipeline_id, 0)
+        self.assertEqual(j.jobs, {})
 
     def test_other_error(self):
         ctx = MagicMock()
@@ -294,93 +295,124 @@ class TestUpdateStatistics(unittest.TestCase):
     def test_nominal(self, mock_get_failed):
         failed_jobs = mock_get_failed.return_value
         failed_jobs.all_failures.return_value = [
-            ProjectJob(MagicMock(), attrs=a) for a in [{"name": "nifnif"}, {"name": "nafnaf"}]
+            ProjectJob(MagicMock(), attrs=a)
+            for a in [{"name": "nifnif", "id": 504685380}, {"name": "nafnaf", "id": 504685380}]
         ]
-        j = {
-            "jobs": {
-                "nafnaf": {
-                    "consecutive_failures": 2,
-                    "cumulative_failures": [0, 0, 0, 0, 0, 0, 0, 0, 1, 1],
-                },
-                "noufnouf": {
-                    "consecutive_failures": 2,
-                    "cumulative_failures": [1, 0, 1, 1],
-                },
+        os.environ["CI_COMMIT_SHA"] = "abcdef42"
+        ok = {"id": None, "failing": False, 'commit': 'abcdef42'}
+        j = notify.PipelineRuns.from_dict(
+            {
+                "jobs": {
+                    "nafnaf": {
+                        "consecutive_failures": 2,
+                        "jobs_info": [
+                            ok,
+                            ok,
+                            ok,
+                            ok,
+                            ok,
+                            ok,
+                            ok,
+                            ok,
+                            {"id": 422184420, "failing": True, 'commit': 'abcdef42'},
+                            {"id": 618314618, "failing": True, 'commit': 'abcdef42'},
+                        ],
+                    },
+                    "noufnouf": {
+                        "consecutive_failures": 2,
+                        "jobs_info": [
+                            {"id": 422184420, "failing": True, 'commit': 'abcdef42'},
+                            ok,
+                            {"id": 618314618, "failing": True, 'commit': 'abcdef42'},
+                            {"id": 314618314, "failing": True, 'commit': 'abcdef42'},
+                        ],
+                    },
+                }
             }
-        }
+        )
         a, j = notify.update_statistics(j)
-        self.assertEqual(j["jobs"]["nifnif"]["consecutive_failures"], 1)
-        self.assertEqual(j["jobs"]["nifnif"]["cumulative_failures"], [1])
-        self.assertEqual(j["jobs"]["nafnaf"]["consecutive_failures"], 3)
-        self.assertEqual(j["jobs"]["nafnaf"]["cumulative_failures"], [0, 0, 0, 0, 0, 0, 0, 1, 1, 1])
-        self.assertEqual(j["jobs"]["noufnouf"]["consecutive_failures"], 0)
-        self.assertEqual(j["jobs"]["noufnouf"]["cumulative_failures"], [1, 0, 1, 1, 0])
-        self.assertEqual(len(a["consecutive"]), 1)
-        self.assertEqual(len(a["cumulative"]), 0)
-        self.assertIn("nafnaf", a["consecutive"])
+        self.assertEqual(j.jobs["nifnif"].consecutive_failures, 1)
+        self.assertEqual(len(j.jobs["nifnif"].jobs_info), 1)
+        self.assertTrue(j.jobs["nifnif"].jobs_info[0].failing)
+        self.assertEqual(j.jobs["nafnaf"].consecutive_failures, 3)
+        self.assertEqual(
+            [job.failing for job in j.jobs["nafnaf"].jobs_info],
+            [False, False, False, False, False, False, False, True, True, True],
+        )
+        self.assertEqual(j.jobs["noufnouf"].consecutive_failures, 0)
+        self.assertEqual([job.failing for job in j.jobs["noufnouf"].jobs_info], [True, False, True, True, False])
+        self.assertEqual(len(a["consecutive"].failures), 1)
+        self.assertEqual(len(a["cumulative"].failures), 0)
+        self.assertIn("nafnaf", a["consecutive"].failures)
         mock_get_failed.assert_called()
 
     @patch("tasks.notify.get_failed_jobs")
     def test_multiple_failures(self, mock_get_failed):
         failed_jobs = mock_get_failed.return_value
+        fail = {"id": 42, "failing": True, 'commit': 'abcdef42'}
+        ok = {"id": None, "failing": False, 'commit': 'abcdef42'}
         failed_jobs.all_failures.return_value = [
-            ProjectJob(MagicMock(), attrs=a) for a in [{"name": "poulidor"}, {"name": "virenque"}, {"name": "bardet"}]
+            ProjectJob(MagicMock(), attrs=a | {"id": 42, 'commit': 'abcdef42'})
+            for a in [{"name": "poulidor"}, {"name": "virenque"}, {"name": "bardet"}]
         ]
-        j = {
-            "jobs": {
-                "poulidor": {
-                    "consecutive_failures": 8,
-                    "cumulative_failures": [0, 0, 1, 1, 1, 1, 1, 1, 1, 1],
-                },
-                "virenque": {
-                    "consecutive_failures": 2,
-                    "cumulative_failures": [0, 0, 0, 0, 1, 0, 1, 0, 1, 1],
-                },
-                "bardet": {"consecutive_failures": 2, "cumulative_failures": [1, 1]},
+        j = notify.PipelineRuns.from_dict(
+            {
+                "jobs": {
+                    "poulidor": {
+                        "consecutive_failures": 8,
+                        "jobs_info": [ok, ok, fail, fail, fail, fail, fail, fail, fail, fail],
+                    },
+                    "virenque": {
+                        "consecutive_failures": 2,
+                        "jobs_info": [ok, ok, ok, ok, fail, ok, fail, ok, fail, fail],
+                    },
+                    "bardet": {"consecutive_failures": 2, "jobs_info": [fail, fail]},
+                }
             }
-        }
+        )
         a, j = notify.update_statistics(j)
-        self.assertEqual(j["jobs"]["poulidor"]["consecutive_failures"], 9)
-        self.assertEqual(j["jobs"]["virenque"]["consecutive_failures"], 3)
-        self.assertEqual(j["jobs"]["bardet"]["consecutive_failures"], 3)
-        self.assertEqual(len(a["consecutive"]), 2)
-        self.assertEqual(len(a["cumulative"]), 1)
-        self.assertIn("virenque", a["consecutive"])
-        self.assertIn("bardet", a["consecutive"])
-        self.assertIn("virenque", a["cumulative"])
+        self.assertEqual(j.jobs["poulidor"].consecutive_failures, 9)
+        self.assertEqual(j.jobs["virenque"].consecutive_failures, 3)
+        self.assertEqual(j.jobs["bardet"].consecutive_failures, 3)
+        self.assertEqual(len(a["consecutive"].failures), 2)
+        self.assertEqual(len(a["cumulative"].failures), 1)
+        self.assertIn("virenque", a["consecutive"].failures)
+        self.assertIn("bardet", a["consecutive"].failures)
+        self.assertIn("virenque", a["cumulative"].failures)
         mock_get_failed.assert_called()
 
 
 class TestSendNotification(unittest.TestCase):
-    @patch("tasks.notify.send_slack_message")
-    def test_consecutive(self, mock_slack):
-        alert_jobs = {"consecutive": ["foo"], "cumulative": []}
-        notify.send_notification(alert_jobs)
-        mock_slack.assert_called_with(
-            "#agent-platform-ops",
-            f"Job(s) `foo` failed {notify.CONSECUTIVE_THRESHOLD} times in a row.\n",
-        )
+    def test_consecutive(self):
+        consecutive = notify.ConsecutiveJobAlert({'foo': [notify.ExecutionsJobInfo(1)] * notify.CONSECUTIVE_THRESHOLD})
+        message = consecutive.format_message('abcdef')
+        self.assertIn(f'{notify.CONSECUTIVE_THRESHOLD} times in a row', message)
 
-    @patch("tasks.notify.send_slack_message")
-    def test_cumulative(self, mock_slack):
-        alert_jobs = {"consecutive": [], "cumulative": ["bar", "baz"]}
-        notify.send_notification(alert_jobs)
-        mock_slack.assert_called_with(
-            "#agent-platform-ops",
-            f"Job(s) `bar`, `baz` failed {notify.CUMULATIVE_THRESHOLD} times in last {notify.CUMULATIVE_LENGTH} executions.\n",
+    def test_cumulative(self):
+        cumulative = notify.CumulativeJobAlert(
+            {'foo': [notify.ExecutionsJobInfo(i, failing=i % 3 != 0) for i in range(notify.CUMULATIVE_LENGTH)]}
         )
-
-    @patch("tasks.notify.send_slack_message")
-    def test_both(self, mock_slack):
-        alert_jobs = {"consecutive": ["foo"], "cumulative": ["bar", "baz"]}
-        notify.send_notification(alert_jobs)
-        mock_slack.assert_called_with(
-            "#agent-platform-ops",
-            f"Job(s) `foo` failed {notify.CONSECUTIVE_THRESHOLD} times in a row.\nJob(s) `bar`, `baz` failed {notify.CUMULATIVE_THRESHOLD} times in last {notify.CUMULATIVE_LENGTH} executions.\n",
-        )
+        message = cumulative.message()
+        self.assertIn(f'{notify.CUMULATIVE_THRESHOLD} times in last {notify.CUMULATIVE_LENGTH} executions', message)
 
     @patch("tasks.notify.send_slack_message")
     def test_none(self, mock_slack):
-        alert_jobs = {"consecutive": [], "cumulative": []}
-        notify.send_notification(alert_jobs)
+        alert_jobs = {"consecutive": notify.ConsecutiveJobAlert({}), "cumulative": notify.CumulativeJobAlert({})}
+        notify.send_notification(MagicMock(), alert_jobs)
         mock_slack.assert_not_called()
+
+
+class TestSendFailureSummaryNotification(unittest.TestCase):
+    @patch("slack_sdk.WebClient")
+    @patch("os.environ", new=MagicMock())
+    def test_nominal(self, mock_slack):
+        # jobname: [total_failures, total_runs]
+        jobs = {
+            "myjob1": [45, None],
+            "myjob2": [42, 45],
+            "myjob3": [21, None],
+            "myjob4": [16, 89],
+        }
+        notify.send_failure_summary_notification(MockContext(), jobs)
+        mock_slack.assert_called()
+        mock_slack.return_value.chat_postMessage.assert_called()

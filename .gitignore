@@ -37,6 +37,10 @@ Dockerfiles/cluster-agent/nosys-seccomp
 # specific pre-commit hooks
 .pre-commit-config-*.yaml
 
+# Utility tools
+devagent
+deva
+
 # go-generated files
 datadog.yaml
 system-probe.yaml
