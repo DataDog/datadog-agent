@@ -34,6 +34,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/serializers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 	"github.com/DataDog/datadog-agent/pkg/windowsdriver/procmon"
 
 	"golang.org/x/sys/windows"
@@ -218,9 +219,22 @@ func (p *WindowsProbe) initEtwFIM() error {
 	if err != nil {
 		return err
 	}
-	p.auditSession, err = etwcomp.NewWellKnownSession(auditSessionName, nil)
-	if err != nil {
-		return err
+	if ls, err := winutil.IsCurrentProcessLocalSystem(); err == nil && ls {
+		/* the well-known session requires being run as local system. It will initialize,
+		   but no events will be sent.
+		*/
+		p.auditSession, err = etwcomp.NewWellKnownSession(auditSessionName, nil)
+		if err != nil {
+			return err
+		}
+		log.Info("Enabling the ETW auditing session")
+	} else {
+		if err != nil {
+			log.Warnf("Unable to determine if we're running as local system %v", err)
+		} else if !ls {
+			log.Warnf("Not running as LOCAL_SYSTEM; audit events won't be captured")
+		}
+		log.Warnf("Not enabling the ETW auditing session")
 	}
 
 	// provider name="Microsoft-Windows-Kernel-File" guid="{edd08927-9cc4-4e65-b970-c2560fb5c289}"
@@ -324,6 +338,12 @@ func (p *WindowsProbe) reconfigureProvider() error {
 		cfg.MatchAnyKeyword = 0xF7E3
 	})
 
+	if p.auditSession != nil {
+		p.auditSession.ConfigureProvider(p.auditguid, func(cfg *etw.ProviderConfiguration) {
+			cfg.TraceLevel = etw.TRACE_LEVEL_VERBOSE
+		})
+	}
+
 	if err := p.fimSession.EnableProvider(p.fileguid); err != nil {
 		log.Warnf("Error enabling provider %v", err)
 		return err
@@ -349,6 +369,7 @@ func (p *WindowsProbe) Stop() {
 			_ = p.fimSession.StopTracing()
 		}
 		if p.auditSession != nil {
+			log.Info("Calling stoptracing on audit session")
 			_ = p.auditSession.StopTracing()
 		}
 		p.fimwg.Wait()

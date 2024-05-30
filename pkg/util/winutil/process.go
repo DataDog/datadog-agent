@@ -431,3 +431,21 @@ func KillProcess(pid int, returnCode uint32) error {
 	}
 	return nil
 }
+
+// IsCurrentProcessLocalSystem checks if the current process is running as Local System
+func IsCurrentProcessLocalSystem() (bool, error) {
+	currentUser, err := GetSidFromUser()
+	if err != nil {
+		return false, err
+	}
+
+	localSystem, err := GetLocalSystemSID()
+	if err != nil {
+		return false, err
+	}
+	defer windows.FreeSid(localSystem)
+
+	log.Infof("Comparing current:      %s ", currentUser.String())
+	log.Infof("Comparing local system: %s ", localSystem.String())
+	return currentUser.Equals(localSystem), nil
+}
