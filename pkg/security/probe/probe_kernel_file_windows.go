@@ -183,7 +183,7 @@ func (wp *WindowsProbe) parseCreateHandleArgs(e *etw.DDEventRecord) (fileObjectP
 	}
 	// if we get here, we have a new file handle.  Remove it from the discarder cache in case
 	// we missed the close notification
-	wp.discardedFileHandles.Remove(fileObjectPointer(ca.fileObject))
+	wp.discardedFileHandles.Remove(fileObjectPointer(fileObject))
 
 	return fileObject, fc, nil
 }
@@ -364,10 +364,6 @@ func (wp *WindowsProbe) parseCleanupArgs(e *etw.DDEventRecord) (fileObjectPointe
 
 	} else {
 		return fileObject, fmt.Errorf("unknown version number %v", e.EventHeader.EventDescriptor.Version)
-	}
-
-	if _, ok := wp.discardedFileHandles.Get(fileObjectPointer(fileObject)); ok {
-		return fileObject, errDiscardedPath
 	}
 
 	return fileObject, nil
