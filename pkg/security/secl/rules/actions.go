@@ -113,6 +113,7 @@ type SetDefinition struct {
 	Field  string        `yaml:"field"`
 	Append bool          `yaml:"append"`
 	Scope  Scope         `yaml:"scope"`
+	Size   int           `yaml:"size"`
 	TTL    time.Duration `yaml:"ttl"`
 }
 

@@ -384,7 +384,7 @@ func (rs *RuleSet) populateFieldsWithRuleActionsData(policyRules []*RuleDefiniti
 					variableProvider = &rs.globalVariables
 				}
 
-				opts := eval.VariableOpts{TTL: action.Set.TTL}
+				opts := eval.VariableOpts{TTL: action.Set.TTL, Size: action.Set.Size}
 
 				variable, err := variableProvider.GetVariable(action.Set.Name, variableValue, opts)
 				if err != nil {
