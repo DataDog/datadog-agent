@@ -8,7 +8,6 @@ import glob
 import os
 import posixpath
 import re
-import resource
 import shutil
 import sys
 import textwrap
@@ -412,12 +411,15 @@ def tidy_all(ctx):
 
 @task
 def tidy(ctx):
-    # Some people might face ulimit issues, so we bump it up if needed.
-    # It won't change it globally, only for this process and child processes.
-    # TODO: if this is working fine, let's do it during the init so all tasks can benefit from it if needed.
-    current_ulimit = resource.getrlimit(resource.RLIMIT_NOFILE)
-    if current_ulimit[0] < 1024:
-        resource.setrlimit(resource.RLIMIT_NOFILE, (1024, current_ulimit[1]))
+    if os.name != 'nt':
+        import resource
+
+        # Some people might face ulimit issues, so we bump it up if needed.
+        # It won't change it globally, only for this process and child processes.
+        # TODO: if this is working fine, let's do it during the init so all tasks can benefit from it if needed.
+        current_ulimit = resource.getrlimit(resource.RLIMIT_NOFILE)
+        if current_ulimit[0] < 1024:
+            resource.setrlimit(resource.RLIMIT_NOFILE, (1024, current_ulimit[1]))
 
     # Note: It's currently faster to tidy everything than looking for exactly what we should tidy
     promises = []
