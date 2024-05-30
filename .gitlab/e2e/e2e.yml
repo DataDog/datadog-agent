@@ -111,6 +111,10 @@ k8s-e2e-otlp-main:
     - touch $E2E_PRIVATE_KEY_PATH && chmod 600 $E2E_PRIVATE_KEY_PATH && $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $SSH_KEY_RSA_SSM_NAME > $E2E_PRIVATE_KEY_PATH
     # Use S3 backend
     - pulumi login "s3://dd-pulumi-state?region=us-east-1&awssdk=v2&profile=$AWS_PROFILE"
+    # Generate external links to CI VISIBILITY, used by artifacts:reports:annotations
+    - cp .gitlab/e2e/external_links.json.template external_links_$CI_JOB_ID.json
+    - sed -i "s|{{CI_JOB_ID}}|$CI_JOB_ID|g" external_links_$CI_JOB_ID.json
+    - sed -i "s|{{CI_JOB_NAME}}|$CI_JOB_NAME|g" external_links_$CI_JOB_ID.json
   variables:
     KUBERNETES_MEMORY_REQUEST: 12Gi
     KUBERNETES_MEMORY_LIMIT: 16Gi
@@ -133,6 +137,9 @@ k8s-e2e-otlp-main:
       - $E2E_OUTPUT_DIR
       # junit tarball, kept for investigations
       - junit-*.tgz
+    reports:
+      annotations:
+        - external_links_$CI_JOB_ID.json
 
 .new_e2e_template_needs_deb_x64:
   extends: .new_e2e_template
