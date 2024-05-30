@@ -111,7 +111,7 @@ func NewTraceWriter(
 	}
 	climit := cfg.TraceWriter.ConnectionLimit
 	if climit == 0 {
-		climit = 100
+		climit = 5
 	}
 	if cfg.TraceWriter.QueueSize > 0 {
 		log.Warnf("apm_config.trace_writer.queue_size is deprecated and will not be respected.")
@@ -125,10 +125,6 @@ func NewTraceWriter(
 	qsize := 1
 	log.Infof("Trace writer initialized (climit=%d qsize=%d)", climit, qsize)
 	tw.senders = newSenders(cfg, tw, pathTraces, climit, qsize, telemetryCollector, statsd)
-	//for i := 0; i < runtime.GOMAXPROCS(0); i++ {
-	//	tw.wg.Add(1)
-	//	go tw.serializer()
-	//}
 	tw.wg.Add(1)
 	go tw.timeFlush()
 	tw.wg.Add(1)
@@ -223,7 +219,6 @@ func (w *TraceWriter) WriteChunks(pkg *SampledChunks) {
 		w.flushPayloads(toflush)
 	}
 }
-
 func (w *TraceWriter) resetBuffer() {
 	w.bufferedSize = 0
 	w.tracerPayloads = make([]*pb.TracerPayload, 0, len(w.tracerPayloads))
