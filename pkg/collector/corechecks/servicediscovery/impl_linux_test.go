@@ -9,6 +9,7 @@ package servicediscovery
 
 import (
 	"cmp"
+	"errors"
 	"testing"
 	"time"
 
@@ -283,8 +284,6 @@ func Test_linuxImpl(t *testing.T) {
 			},
 		},
 		{
-			// TODO: ideally we would like to emit some sort of telemetry for this case.
-			//  For now, we just test we send the correct events to EvP.
 			name: "repeated_service_name",
 			checkRun: []*checkRun{
 				{
@@ -560,8 +559,8 @@ func Test_linuxImpl(t *testing.T) {
 				check.os.(*linuxImpl).procfs = mProcFS
 				check.os.(*linuxImpl).portPoller = mPortPoller
 				check.os.(*linuxImpl).time = mTimer
-				check.os.(*linuxImpl).sender.hostname = mHostname
 				check.os.(*linuxImpl).bootTime = bootTimeSeconds
+				check.sender.hostname = mHostname
 
 				err = check.Run()
 				require.NoError(t, err)
@@ -576,5 +575,63 @@ func Test_linuxImpl(t *testing.T) {
 				t.Errorf("event platform events mismatch (-want +got):\n%s", diff)
 			}
 		})
+	}
+}
+
+type errorProcFS struct{}
+
+func (errorProcFS) AllProcs() ([]proc, error) {
+	return nil, errors.New("procFS failure")
+}
+
+type emptyProcFS struct{}
+
+func (emptyProcFS) AllProcs() ([]proc, error) {
+	return []proc{}, nil
+}
+
+type errorPortPoller struct{}
+
+func (errorPortPoller) OpenPorts() (portlist.List, error) {
+	return nil, errors.New("portPoller failure")
+}
+
+func Test_linuxImpl_errors(t *testing.T) {
+	// bad procFS
+	{
+		li := linuxImpl{
+			procfs: errorProcFS{},
+		}
+		ds, err := li.DiscoverServices()
+		if ds != nil {
+			t.Error("expected nil discovery service")
+		}
+		var expected errWithCode
+		if errors.As(err, &expected) {
+			if expected.Code() != errorCodeProcfs {
+				t.Errorf("expected error code procfs: %#v", expected)
+			}
+		} else {
+			t.Error("expected errWithCode, got", err)
+		}
+	}
+	// bad portPoller
+	{
+		li := linuxImpl{
+			procfs:     emptyProcFS{},
+			portPoller: errorPortPoller{},
+		}
+		ds, err := li.DiscoverServices()
+		if ds != nil {
+			t.Error("expected nil discovery service")
+		}
+		var expected errWithCode
+		if errors.As(err, &expected) {
+			if expected.Code() != errorCodePortPoller {
+				t.Errorf("expected error code portPoller: %#v", expected)
+			}
+		} else {
+			t.Error("expected errWithCode, got", err)
+		}
 	}
 }

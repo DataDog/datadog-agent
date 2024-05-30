@@ -96,3 +96,41 @@ datadog-agent-7-arm64:
   before_script:
     - export RELEASE_VERSION=$RELEASE_VERSION_7
 
+.iot-agent-common:
+  extends: .agent_build_common
+  needs: ["go_mod_tidy_check", "go_deps"]
+  script:
+    - source /root/.bashrc
+    - echo "About to build for $RELEASE_VERSION"
+    - !reference [.setup_ruby_mirror_linux]
+    - !reference [.retrieve_linux_go_deps]
+    - !reference [.cache_omnibus_ruby_deps, setup]
+    # remove artifacts from previous pipelines that may come from the cache
+    - rm -rf $OMNIBUS_PACKAGE_DIR/*
+    - inv -e omnibus.build --release-version "$RELEASE_VERSION" --major-version 7 --base-dir $OMNIBUS_BASE_DIR ${USE_S3_CACHING} --skip-deps --go-mod-cache="$GOPATH/pkg/mod" --system-probe-bin=/tmp/system-probe --flavor iot
+    - ls -la $OMNIBUS_PACKAGE_DIR
+    - !reference [.upload_sbom_artifacts]
+  before_script:
+    - export RELEASE_VERSION=$RELEASE_VERSION_7
+
+iot-agent-x64:
+  extends: .iot-agent-common
+  tags: ["arch:amd64"]
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+
+iot-agent-arm64:
+  extends: .iot-agent-common
+  tags: ["arch:arm64"]
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64$DATADOG_AGENT_ARMBUILDIMAGES_SUFFIX:$DATADOG_AGENT_ARMBUILDIMAGES
+
+iot-agent-armhf:
+  extends: .iot-agent-common
+  # Run with platform:arm64 since no platform:armhf exists and arm64 should be backwards compatible
+  tags: ["arch:arm64"]
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_armhf$DATADOG_AGENT_ARMBUILDIMAGES_SUFFIX:$DATADOG_AGENT_ARMBUILDIMAGES
+  variables:
+    # On armv7, dpkg is built as a 32bits application, which means
+    # we can only address 32 bits of memory, which is likely to OOM
+    # if we use too many compression threads or a too agressive level
+    FORCED_PACKAGE_COMPRESSION_LEVEL: 5
+

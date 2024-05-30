@@ -97,7 +97,7 @@ func NewKubeEndpointsConfigProvider(*config.ConfigurationProviders) (ConfigProvi
 		return nil, fmt.Errorf("cannot add event handler to endpoint informer: %s", err)
 	}
 
-	if config.Datadog.GetBool("cluster_checks.support_hybrid_ignore_ad_tags") {
+	if config.Datadog().GetBool("cluster_checks.support_hybrid_ignore_ad_tags") {
 		log.Warnf("The `cluster_checks.support_hybrid_ignore_ad_tags` flag is" +
 			" deprecated and will be removed in a future version. Please replace " +
 			"`ad.datadoghq.com/endpoints.ignore_autodiscovery_tags` in your service annotations" +
@@ -121,7 +121,7 @@ func (k *kubeEndpointsConfigProvider) Collect(context.Context) ([]integration.Co
 	k.setUpToDate(true)
 
 	var generatedConfigs []integration.Config
-	parsedConfigsInfo := k.parseServiceAnnotationsForEndpoints(services, config.Datadog)
+	parsedConfigsInfo := k.parseServiceAnnotationsForEndpoints(services, config.Datadog())
 	for _, conf := range parsedConfigsInfo {
 		kep, err := k.endpointsLister.Endpoints(conf.namespace).Get(conf.name)
 		if err != nil {

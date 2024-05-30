@@ -109,7 +109,7 @@ func Test_getProfiles(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			SetGlobalProfileConfigMap(nil)
 			path, _ := filepath.Abs(filepath.Join("..", "test", tt.mockConfd))
-			coreconfig.Datadog.SetWithoutSource("confd_path", path)
+			coreconfig.Datadog().SetWithoutSource("confd_path", path)
 
 			actualProfiles, err := GetProfiles(tt.profiles)
 			if tt.expectedErr != "" {

@@ -19,7 +19,7 @@ func addResourceTags(t *taglist.TagList, m map[string]string) {
 			continue
 		}
 
-		if config.Datadog.GetBool("ecs_resource_tags_replace_colon") {
+		if config.Datadog().GetBool("ecs_resource_tags_replace_colon") {
 			k = strings.ReplaceAll(k, ":", "_")
 		}
 

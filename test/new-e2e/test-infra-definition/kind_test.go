@@ -31,7 +31,7 @@ func TestMyKindSuite(t *testing.T) {
 		awskubernetes.KindProvisioner(
 			awskubernetes.WithoutFakeIntake(),
 			awskubernetes.WithWorkloadApp(func(e config.Env, kubeProvider *kubernetes.Provider) (*compkube.Workload, error) {
-				return nginx.K8sAppDefinition(e, kubeProvider, "nginx", "", nil)
+				return nginx.K8sAppDefinition(e, kubeProvider, "nginx", "", false, nil)
 			}),
 		)))
 }
@@ -46,5 +46,5 @@ func (v *myKindSuite) TestClusterAgentInstalled() {
 		}
 	}
 	assert.True(v.T(), containsClusterAgent, "Cluster Agent not found")
-	assert.Equal(v.T(), v.Env().Agent.InstallNameLinux, "dda")
+	assert.Equal(v.T(), v.Env().Agent.InstallNameLinux, "dda-linux")
 }

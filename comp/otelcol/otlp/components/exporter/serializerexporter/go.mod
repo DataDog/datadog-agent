@@ -62,7 +62,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/serializer v0.54.0-rc.2
 	github.com/DataDog/datadog-agent/pkg/tagset v0.54.0-rc.2
 	github.com/DataDog/datadog-agent/pkg/util/log v0.54.0-rc.2
-	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.14.0
+	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.16.1
 	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/metrics v0.14.0
 	github.com/DataDog/opentelemetry-mapping-go/pkg/quantile v0.14.0
 	github.com/mitchellh/mapstructure v1.5.1-0.20231216201459-8508981c8b6c // indirect
@@ -123,7 +123,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/version v0.54.0-rc.2 // indirect
 	github.com/DataDog/mmh3 v0.0.0-20210722141835-012dc69a9e49 // indirect
 	github.com/DataDog/sketches-go v1.4.4 // indirect
-	github.com/DataDog/viper v1.13.3 // indirect
+	github.com/DataDog/viper v1.13.4 // indirect
 	github.com/DataDog/zstd v1.5.5 // indirect
 	github.com/DataDog/zstd_0 v0.0.0-20210310093942-586c1286621f // indirect
 	github.com/Microsoft/go-winio v0.6.1 // indirect

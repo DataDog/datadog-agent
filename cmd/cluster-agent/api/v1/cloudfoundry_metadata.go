@@ -23,7 +23,7 @@ import (
 func installCloudFoundryMetadataEndpoints(r *mux.Router) {
 	r.HandleFunc("/tags/cf/apps/{nodeName}", api.WithTelemetryWrapper("getCFAppsMetadataForNode", getCFAppsMetadataForNode)).Methods("GET")
 
-	if config.Datadog.GetBool("cluster_agent.serve_nozzle_data") {
+	if config.Datadog().GetBool("cluster_agent.serve_nozzle_data") {
 		r.HandleFunc("/cf/apps/{guid}", api.WithTelemetryWrapper("getCFApplication", getCFApplication)).Methods("GET")
 		r.HandleFunc("/cf/apps", api.WithTelemetryWrapper("getCFApplications", getCFApplications)).Methods("GET")
 		r.HandleFunc("/cf/org_quotas", api.WithTelemetryWrapper("getCFOrgQuotas", getCFOrgQuotas)).Methods("GET")

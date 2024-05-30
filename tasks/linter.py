@@ -21,8 +21,9 @@ from tasks.libs.ciproviders.gitlab_api import (
     read_includes,
 )
 from tasks.libs.common.check_tools_version import check_tools_version
+from tasks.libs.common.git import get_staged_files
 from tasks.libs.common.utils import DEFAULT_BRANCH, GITHUB_REPO_NAME, color_message, is_pr_context, running_in_ci
-from tasks.libs.types.copyright import CopyrightLinter
+from tasks.libs.types.copyright import CopyrightLinter, LintFailure
 from tasks.modules import GoModule
 from tasks.test_core import ModuleLintResult, process_input_args, process_module_results, test_core
 from tasks.update_go import _update_go_mods, _update_references
@@ -54,14 +55,23 @@ def python(ctx):
 
 
 @task
-def copyrights(_, fix=False, dry_run=False, debug=False):
+def copyrights(ctx, fix=False, dry_run=False, debug=False, only_staged_files=False):
     """
     Checks that all Go files contain the appropriate copyright header. If '--fix'
     is provided as an option, it will try to fix problems as it finds them. If
     '--dry_run' is provided when fixing, no changes to the files will be applied.
     """
+    files = None
 
-    CopyrightLinter(debug=debug).assert_compliance(fix=fix, dry_run=dry_run)
+    if only_staged_files:
+        staged_files = get_staged_files(ctx)
+        files = [path for path in staged_files if path.endswith(".go")]
+
+    try:
+        CopyrightLinter(debug=debug).assert_compliance(fix=fix, dry_run=dry_run, files=files)
+    except LintFailure:
+        # the linter prints useful messages on its own, so no need to print the exception
+        sys.exit(1)
 
 
 @task
@@ -349,7 +359,7 @@ def gitlab_ci(_, test="all", custom_context=None):
     for context in all_contexts:
         print("Test gitlab configuration with context: ", context)
         config = generate_gitlab_full_configuration(".gitlab-ci.yml", dict(context))
-        res = agent.ci_lint.create({"content": config})
+        res = agent.ci_lint.create({"content": config, "dry_run": True, "include_jobs": True})
         status = color_message("valid", "green") if res.valid else color_message("invalid", "red")
         print(f"Config is {status}")
         if len(res.warnings) > 0:
