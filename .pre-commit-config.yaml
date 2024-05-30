@@ -66,12 +66,13 @@ repos:
       exclude: '^pkg/ebpf/(c/bpf_endian|c/bpf_helpers|compiler/clang-stdarg).h$'
     - id: go-mod-tidy
       name: go-mod-tidy
-      description: check that go.mod files are tidy
-      entry: 'inv tidy --only-modified-packages'
+      description: check that all go.mod files are tidy
+      entry: 'inv tidy'
       language: system
       require_serial: true
       files: (\.go|^go\.mod|^go\.sum)$
       pass_filenames: false
+      stages: [pre-push]
     - id: go-test
       name: go-test
       description: run go test on modified packages
