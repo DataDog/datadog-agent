@@ -177,4 +177,35 @@ iot_agent_deb-armhf:
     DD_PKG_ARCH: "arm64"
     FORCED_PACKAGE_COMPRESSION_LEVEL: 5
 
+dogstatsd_deb-x64:
+  extends: .package_deb_common
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  rules:
+    - !reference [.except_mergequeue]
+    - when: on_success
+  tags: ["arch:amd64"]
+  needs: ["dogstatsd-x64"]
+  variables:
+    DD_PROJECT: dogstatsd
+    PACKAGE_ARCH: amd64
+    DD_PKG_ARCH: "x86_64"
+    DESTINATION_DEB: "datadog-dogstatsd_amd64.deb"
+    RELEASE_VERSION: $RELEASE_VERSION_7
+    AGENT_MAJOR_VERSION: 7
+
+dogstatsd_deb-arm64:
+  extends: .package_deb_common
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64$DATADOG_AGENT_ARMBUILDIMAGES_SUFFIX:$DATADOG_AGENT_ARMBUILDIMAGES
+  rules:
+    - !reference [.except_mergequeue]
+    - when: on_success
+  tags: ["arch:arm64"]
+  needs: ["dogstatsd-arm64"]
+  variables:
+    DD_PROJECT: dogstatsd
+    PACKAGE_ARCH: arm64
+    DD_PKG_ARCH: "arm64"
+    DESTINATION_DEB: "datadog-dogstatsd_arm64.deb"
+    RELEASE_VERSION: $RELEASE_VERSION_7
+    AGENT_MAJOR_VERSION: 7
 
