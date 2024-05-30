@@ -721,14 +721,13 @@ func makeRecordBatch(records ...kmsg.Record) kmsg.RecordBatch {
 	return recordBatch
 }
 
-func makeFetchResponseTopicPartition(errorCode int16, recordBatches ...kmsg.RecordBatch) kmsg.FetchResponseTopicPartition {
+func makeFetchResponseTopicPartition(recordBatches ...kmsg.RecordBatch) kmsg.FetchResponseTopicPartition {
 	respParition := kmsg.NewFetchResponseTopicPartition()
 
 	for _, recordBatch := range recordBatches {
 		respParition.RecordBatches = recordBatch.AppendTo(respParition.RecordBatches)
 	}
 
-	respParition.ErrorCode = errorCode
 	return respParition
 }
 
@@ -966,7 +965,7 @@ func testKafkaFetchRaw(t *testing.T, tls bool, apiVersion int) {
 					batches = append(batches, recordBatch)
 				}
 
-				partition := makeFetchResponseTopicPartition(kafkaSuccessErrorCode, batches...)
+				partition := makeFetchResponseTopicPartition(batches...)
 				var partitions []kmsg.FetchResponseTopicPartition
 				for i := 0; i < 3; i++ {
 					partitions = append(partitions, partition)
@@ -980,7 +979,7 @@ func testKafkaFetchRaw(t *testing.T, tls bool, apiVersion int) {
 			name:  "large topic name",
 			topic: strings.Repeat("a", 254) + "b",
 			buildResponse: func(topic string) kmsg.FetchResponse {
-				return makeFetchResponse(apiVersion, makeFetchResponseTopic(topic, makeFetchResponseTopicPartition(kafkaSuccessErrorCode, makeRecordBatch(makeRecord()))))
+				return makeFetchResponse(apiVersion, makeFetchResponseTopic(topic, makeFetchResponseTopicPartition(makeRecordBatch(makeRecord()))))
 			},
 			numFetchedRecords: 1,
 		},
@@ -1003,7 +1002,7 @@ func testKafkaFetchRaw(t *testing.T, tls bool, apiVersion int) {
 					batches = append(batches, recordBatch)
 				}
 
-				partition := makeFetchResponseTopicPartition(kafkaSuccessErrorCode, batches...)
+				partition := makeFetchResponseTopicPartition(batches...)
 				var partitions []kmsg.FetchResponseTopicPartition
 				for i := 0; i < 100; i++ {
 					partitions = append(partitions, partition)
@@ -1032,7 +1031,7 @@ func testKafkaFetchRaw(t *testing.T, tls bool, apiVersion int) {
 					batches = append(batches, recordBatch)
 				}
 
-				partition := makeFetchResponseTopicPartition(kafkaSuccessErrorCode, batches...)
+				partition := makeFetchResponseTopicPartition(batches...)
 				var partitions []kmsg.FetchResponseTopicPartition
 				for i := 0; i < 1; i++ {
 					partitions = append(partitions, partition)
@@ -1058,7 +1057,7 @@ func testKafkaFetchRaw(t *testing.T, tls bool, apiVersion int) {
 			topic:   defaultTopic,
 			buildResponse: func(topic string) kmsg.FetchResponse {
 				record := makeRecord()
-				partition := makeFetchResponseTopicPartition(kafkaSuccessErrorCode, makeRecordBatch(record))
+				partition := makeFetchResponseTopicPartition(makeRecordBatch(record))
 				return makeFetchResponse(apiVersion, makeFetchResponseTopic(topic, partition))
 			},
 			buildMessages: func(req kmsg.FetchRequest, resp kmsg.FetchResponse) []Message {
@@ -1081,7 +1080,7 @@ func testKafkaFetchRaw(t *testing.T, tls bool, apiVersion int) {
 			topic:   defaultTopic,
 			buildResponse: func(topic string) kmsg.FetchResponse {
 				record := makeRecord()
-				partition := makeFetchResponseTopicPartition(kafkaSuccessErrorCode, makeRecordBatch(record))
+				partition := makeFetchResponseTopicPartition(makeRecordBatch(record))
 				return makeFetchResponse(apiVersion, makeFetchResponseTopic(topic, partition))
 			},
 			buildMessages: func(req kmsg.FetchRequest, resp kmsg.FetchResponse) []Message {
@@ -1104,7 +1103,7 @@ func testKafkaFetchRaw(t *testing.T, tls bool, apiVersion int) {
 			topic:   defaultTopic,
 			buildResponse: func(topic string) kmsg.FetchResponse {
 				record := makeRecord()
-				partition := makeFetchResponseTopicPartition(kafkaSuccessErrorCode, makeRecordBatch(record))
+				partition := makeFetchResponseTopicPartition(makeRecordBatch(record))
 				return makeFetchResponse(apiVersion, makeFetchResponseTopic(topic, partition))
 			},
 			buildMessages: func(req kmsg.FetchRequest, resp kmsg.FetchResponse) []Message {
@@ -1126,7 +1125,7 @@ func testKafkaFetchRaw(t *testing.T, tls bool, apiVersion int) {
 			topic: defaultTopic,
 			buildResponse: func(topic string) kmsg.FetchResponse {
 				record := makeRecord()
-				partition := makeFetchResponseTopicPartition(kafkaSuccessErrorCode, makeRecordBatch(record, record))
+				partition := makeFetchResponseTopicPartition(makeRecordBatch(record, record))
 				aborted := kmsg.NewFetchResponseTopicPartitionAbortedTransaction()
 
 				for i := 0; i < 10; i++ {
@@ -1143,7 +1142,7 @@ func testKafkaFetchRaw(t *testing.T, tls bool, apiVersion int) {
 			buildResponse: func(topic string) kmsg.FetchResponse {
 				record := makeRecord()
 				recordBatch := makeRecordBatch(record, record, record)
-				partition := makeFetchResponseTopicPartition(kafkaSuccessErrorCode, recordBatch)
+				partition := makeFetchResponseTopicPartition(recordBatch)
 
 				// Partial record batch, aka "Truncated Content" in Wireshark.  See
 				// comment near FetchResponseTopicPartition.RecordBatch in kmsg.
@@ -1170,7 +1169,8 @@ func testKafkaFetchRaw(t *testing.T, tls bool, apiVersion int) {
 					batches = append(batches, recordBatch)
 				}
 
-				partition := makeFetchResponseTopicPartition(3, batches...)
+				partition := makeFetchResponseTopicPartition(batches...)
+				partition.ErrorCode = 3
 				var partitions []kmsg.FetchResponseTopicPartition
 				for i := 0; i < 3; i++ {
 					partitions = append(partitions, partition)
