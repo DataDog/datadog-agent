@@ -20,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
+	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/fetcher"
@@ -65,6 +66,25 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			)
 		},
 	}
+
+	cmd.AddCommand(
+		&cobra.Command{
+			Use:   "by-source",
+			Short: "Show the runtime configuration by source (ie: default, config file, env vars, ...)",
+			Long:  ``,
+			RunE: func(cmd *cobra.Command, args []string) error {
+				return fxutil.OneShot(
+					showRuntimeConfigurationBySource,
+					fx.Supply(cliParams),
+					fx.Supply(core.BundleParams{
+						ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths),
+						SecretParams: secrets.NewEnabledParams(),
+						LogParams:    logimpl.ForOneShot(command.LoggerName, "off", true)}),
+					core.Bundle(),
+				)
+			},
+		},
+	)
 
 	// listRuntime returns a cobra command to list the settings that can be changed at runtime.
 	cmd.AddCommand(
@@ -190,6 +210,22 @@ func getConfigValue(_ log.Component, _ config.Component, _ secrets.Component, pa
 	}
 
 	fmt.Printf("%s is set to: %v\n", params.args[0], value)
+
+	return nil
+}
+
+func showRuntimeConfigurationBySource(sysprobeconfig sysprobeconfig.Component, _ *cliParams) error {
+	c, err := getClient(sysprobeconfig)
+	if err != nil {
+		return err
+	}
+
+	config, err := c.FullConfigBySource()
+	if err != nil {
+		return err
+	}
+
+	fmt.Println(config)
 
 	return nil
 }
