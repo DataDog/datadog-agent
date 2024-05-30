@@ -20,6 +20,8 @@ import (
 	corelogimpl "github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
+	"github.com/DataDog/datadog-agent/comp/core/tagger"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/forwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
@@ -30,7 +32,10 @@ import (
 	collectorfx "github.com/DataDog/datadog-agent/comp/otelcol/collector/fx"
 	"github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline"
 	"github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline/logsagentpipelineimpl"
-	configprovider "github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/pipeline/provider"
+	"go.opentelemetry.io/collector/otelcol"
+
+	provider "github.com/DataDog/datadog-agent/comp/otelcol/provider/def"
+	providerfx "github.com/DataDog/datadog-agent/comp/otelcol/provider/fx"
 	"github.com/DataDog/datadog-agent/comp/serializer/compression"
 	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl/strategy"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
@@ -38,7 +43,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"github.com/spf13/cobra"
-	"go.opentelemetry.io/collector/otelcol"
 
 	"go.uber.org/fx"
 )
@@ -81,13 +85,14 @@ func runOTelAgentCommand(_ context.Context, params *subcommands.GlobalParams, op
 		inventoryagentimpl.Module(),
 		workloadmeta.Module(),
 		hostnameimpl.Module(),
+		fx.Provide(tagger.NewTaggerParams),
+		taggerimpl.Module(),
 		sysprobeconfig.NoneModule(),
 		fetchonlyimpl.Module(),
 		collectorfx.Module(),
 		collectorcontribFx.Module(),
-		fx.Provide(configprovider.NewConfigProvider),
-		// For FX to provide the otelcol.ConfigProvider from the configprovider.ExtendedConfigProvider
-		fx.Provide(func(cp configprovider.ExtendedConfigProvider) otelcol.ConfigProvider {
+		providerfx.Module(),
+		fx.Provide(func(cp provider.Component) otelcol.ConfigProvider {
 			return cp
 		}),
 		fx.Provide(func() (config.Component, error) {

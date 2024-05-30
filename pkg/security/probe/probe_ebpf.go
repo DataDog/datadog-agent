@@ -2051,6 +2051,9 @@ func (p *EBPFProbe) HandleActions(ctx *eval.Context, rule *rules.Rule) {
 
 				p.probe.DispatchCustomEvent(rule, event)
 			}
+		case action.Hash != nil:
+			// force the resolution as it will force the hash resolution as well
+			ev.ResolveFields()
 		}
 	}
 }

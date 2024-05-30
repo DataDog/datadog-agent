@@ -124,6 +124,11 @@ func SetupInstaller(ctx context.Context) (err error) {
 		return nil
 	}
 
+	err = os.MkdirAll(systemdPath, 0755)
+	if err != nil {
+		return fmt.Errorf("error creating %s: %w", systemdPath, err)
+	}
+
 	for _, unit := range installerUnits {
 		if err = loadUnit(ctx, unit); err != nil {
 			return err
