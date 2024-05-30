@@ -21,7 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
 
-	"github.com/DataDog/datadog-agent/comp/api/api"
+	apidef "github.com/DataDog/datadog-agent/comp/api/api/def"
 	"github.com/DataDog/datadog-agent/comp/api/api/utils"
 	streamutils "github.com/DataDog/datadog-agent/comp/api/api/utils/stream"
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
@@ -55,7 +55,7 @@ func SetupHandlers(
 	statusComponent status.Component,
 	collector optional.Option[collector.Component],
 	ac autodiscovery.Component,
-	providers []api.EndpointProvider,
+	providers []apidef.EndpointProvider,
 ) *mux.Router {
 	// Register the handlers from the component providers
 	sort.Slice(providers, func(i, j int) bool { return providers[i].Route() < providers[j].Route() })

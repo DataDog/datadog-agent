@@ -20,7 +20,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 
-	"github.com/DataDog/datadog-agent/comp/api/api"
+	apidef "github.com/DataDog/datadog-agent/comp/api/api/def"
 	"github.com/DataDog/datadog-agent/comp/api/api/impl/internal/agent"
 	"github.com/DataDog/datadog-agent/comp/api/api/impl/internal/check"
 	apiutils "github.com/DataDog/datadog-agent/comp/api/api/impl/utils"
@@ -66,7 +66,7 @@ func startCMDServer(
 	statusComponent status.Component,
 	collector optional.Option[collector.Component],
 	ac autodiscovery.Component,
-	providers []api.EndpointProvider,
+	providers []apidef.EndpointProvider,
 ) (err error) {
 	// get the transport we're going to use under HTTP
 	cmdListener, err = getListener(cmdAddr)

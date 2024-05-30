@@ -12,7 +12,7 @@ import (
 
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/comp/api/api"
+	apidef "github.com/DataDog/datadog-agent/comp/api/api/def"
 	"github.com/DataDog/datadog-agent/comp/api/authtoken"
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
@@ -48,7 +48,7 @@ type apiServer struct {
 	wmeta             workloadmeta.Component
 	collector         optional.Option[collector.Component]
 	senderManager     sender.DiagnoseSenderManager
-	endpointProviders []api.EndpointProvider
+	endpointProviders []apidef.EndpointProvider
 }
 
 type dependencies struct {
@@ -68,12 +68,12 @@ type dependencies struct {
 	WorkloadMeta      workloadmeta.Component
 	Collector         optional.Option[collector.Component]
 	SenderManager     sender.DiagnoseSenderManager
-	EndpointProviders []api.EndpointProvider `group:"agent_endpoint"`
+	EndpointProviders []apidef.EndpointProvider `group:"agent_endpoint"`
 }
 
-var _ api.Component = (*apiServer)(nil)
+var _ apidef.Component = (*apiServer)(nil)
 
-func newAPIServer(deps dependencies) api.Component {
+func NewAPIServer(deps dependencies) apidef.Component {
 	server := apiServer{
 		dogstatsdServer:   deps.DogstatsdServer,
 		capture:           deps.Capture,

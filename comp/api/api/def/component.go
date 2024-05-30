@@ -25,6 +25,11 @@ type Component interface {
 	ServerAddress() *net.TCPAddr
 }
 
+// Mock implements mock-specific methods.
+type Mock interface {
+	Component
+}
+
 // EndpointProvider is an interface to register api endpoints
 type EndpointProvider interface {
 	HandlerFunc() http.HandlerFunc

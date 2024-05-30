@@ -12,14 +12,14 @@ import (
 
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/comp/api/api"
+	apidef "github.com/DataDog/datadog-agent/comp/api/api/def"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 type mockAPIServer struct {
 }
 
-var _ api.Mock = (*mockAPIServer)(nil)
+var _ apidef.Mock = (*mockAPIServer)(nil)
 
 // MockModule defines the fx options for the mock component.
 func MockModule() fxutil.Module {
@@ -27,7 +27,7 @@ func MockModule() fxutil.Module {
 		fx.Provide(newMock))
 }
 
-func newMock() api.Mock {
+func newMock() apidef.Mock {
 	return &mockAPIServer{}
 }
 
