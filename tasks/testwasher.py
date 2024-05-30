@@ -91,17 +91,15 @@ class TestWasher:
         """
 
         should_succeed = True
-        failed_tests_string = ""
+        failed_tests = []
         for module_result in module_results:
-            non_flaky_failing_tests = self.get_non_flaky_failing_tests(module_result.path)
-            if non_flaky_failing_tests:
+            if non_flaky_failing_tests := self.get_non_flaky_failing_tests(module_result.path):
                 should_succeed = False
                 for package, tests in non_flaky_failing_tests.items():
-                    for test in tests:
-                        failed_tests_string += f"- {package} {test}\n"
-        if failed_tests_string:
+                    failed_tests.extend(f"- {package} {test}" for test in tests)
+        if failed_tests:
             print("The test command failed, the following tests failed and are not supposed to be flaky:")
-            print(failed_tests_string)
+            print("\n".join(sorted(failed_tests)))
 
         return should_succeed
 
