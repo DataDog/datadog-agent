@@ -22,6 +22,20 @@
   cache:
     - !reference [.cache_omnibus_ruby_deps, cache]
 
+.package_deb_x86:
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  tags: ["arch:amd64"]
+  variables:
+    DD_PKG_ARCH: "x86_64"
+    PACKAGE_ARCH: amd64
+
+.package_deb_arm64:
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64$DATADOG_AGENT_ARMBUILDIMAGES_SUFFIX:$DATADOG_AGENT_ARMBUILDIMAGES
+  tags: ["arch:arm64"]
+  variables:
+    PACKAGE_ARCH: arm64
+    DD_PKG_ARCH: "arm64"
+
 .package_deb_agent_6:
   variables:
     RELEASE_VERSION: $RELEASE_VERSION_6
@@ -33,87 +47,63 @@
     AGENT_MAJOR_VERSION: 7
 
 agent_deb-x64-a6:
-  extends: [.package_deb_common, .package_deb_agent_6]
+  extends: [.package_deb_common, .package_deb_x86, .package_deb_agent_6]
   rules:
     - !reference [.except_mergequeue]
     - when: on_success
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
-  tags: ["arch:amd64"]
   needs: ["datadog-agent-6-x64"]
   variables:
-    PACKAGE_ARCH: amd64
     DESTINATION_DEB: "datadog-agent_6_amd64.deb"
-    DD_PKG_ARCH: "x86_64"
     DD_PROJECT: "agent"
 
 agent_deb-x64-a7:
-  extends: [.package_deb_common, .package_deb_agent_7]
+  extends: [.package_deb_common, .package_deb_x86, .package_deb_agent_7]
   rules:
     - !reference [.except_mergequeue]
     - when: on_success
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
-  tags: ["arch:amd64"]
   needs: ["datadog-agent-7-x64"]
   variables:
-    PACKAGE_ARCH: amd64
     DESTINATION_DEB: "datadog-agent_7_amd64.deb"
-    DD_PKG_ARCH: "x86_64"
     DD_PROJECT: "agent"
 
 agent_deb-arm64-a6:
-  extends: [.package_deb_common, .package_deb_agent_6]
+  extends: [.package_deb_common, .package_deb_arm64, .package_deb_agent_6]
   rules:
     - !reference [.except_mergequeue]
     - when: on_success
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64$DATADOG_AGENT_ARMBUILDIMAGES_SUFFIX:$DATADOG_AGENT_ARMBUILDIMAGES
-  tags: ["arch:arm64"]
   needs: ["datadog-agent-6-arm64"]
   variables:
-    PACKAGE_ARCH: arm64
     DESTINATION_DEB: "datadog-agent_6_arm64.deb"
-    DD_PKG_ARCH: "arm64"
     DD_PROJECT: "agent"
 
 agent_deb-arm64-a7:
-  extends: [.package_deb_common, .package_deb_agent7]
+  extends: [.package_deb_common, .package_deb_arm64, .package_deb_agent7]
   rules:
     - !reference [.except_mergequeue]
     - when: on_success
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64$DATADOG_AGENT_ARMBUILDIMAGES_SUFFIX:$DATADOG_AGENT_ARMBUILDIMAGES
-  tags: ["arch:arm64"]
   needs: ["datadog-agent-7-arm64"]
   variables:
-    PACKAGE_ARCH: arm64
     DESTINATION_DEB: "datadog-agent_7_arm64.deb"
-    DD_PKG_ARCH: "arm64"
     DD_PROJECT: "agent"
 
 installer_deb-amd64:
-  extends: [.package_deb_common, .package_deb_agent_7]
+  extends: [.package_deb_common, .package_deb_x86, .package_deb_agent_7]
   rules:
     - !reference [.except_mergequeue]
     - when: on_success
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
-  tags: ["arch:amd64"]
   needs: ["installer-amd64"]
   variables:
-    PACKAGE_ARCH: amd64
     DESTINATION_DEB: "datadog-installer_7_amd64.deb"
-    DD_PKG_ARCH: "x86_64"
     DD_PROJECT: "installer"
 
 installer_deb-arm64:
-  extends: [.package_deb_common, .package_deb_agent_7]
+  extends: [.package_deb_common, .package_deb_arm64, .package_deb_agent_7]
   rules:
     - !reference [.except_mergequeue]
     - when: on_success
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64$DATADOG_AGENT_ARMBUILDIMAGES_SUFFIX:$DATADOG_AGENT_ARMBUILDIMAGES
-  tags: ["arch:arm64"]
   needs: ["installer-arm64"]
   variables:
-    PACKAGE_ARCH: arm64
     DESTINATION_DEB: "datadog-installer_7_arm64.deb"
-    DD_PKG_ARCH: "arm64"
     DD_PROJECT: "installer"
 
 .package_iot_deb_common:
@@ -144,23 +134,15 @@ installer_deb-arm64:
     - !reference [.cache_omnibus_ruby_deps, cache]
 
 iot_agent_deb-x64:
-  extends: .package_iot_deb_common
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
-  tags: ["arch:amd64"]
+  extends: [.package_iot_deb_common, .package_deb_x86]
   needs: ["iot-agent-x64"]
   variables:
-    PACKAGE_ARCH: amd64
-    DD_PKG_ARCH: "x86_64"
     DESTINATION_DEB: "datadog-iot-agent_7_amd64.deb"
 
 iot_agent_deb-arm64:
-  extends: .package_iot_deb_common
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64$DATADOG_AGENT_ARMBUILDIMAGES_SUFFIX:$DATADOG_AGENT_ARMBUILDIMAGES
-  tags: ["arch:arm64"]
+  extends: [.package_iot_deb_common, .package_deb_arm64]
   needs: ["iot-agent-arm64"]
   variables:
-    PACKAGE_ARCH: arm64
-    DD_PKG_ARCH: "arm64"
     DESTINATION_DEB: "datadog-iot-agent_7_arm64.deb"
 
 iot_agent_deb-armhf:
@@ -175,30 +157,22 @@ iot_agent_deb-armhf:
     FORCED_PACKAGE_COMPRESSION_LEVEL: 5
 
 dogstatsd_deb-x64:
-  extends: [.package_deb_common, .package_deb_agent_7]
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  extends: [.package_deb_common, .package_deb_x86, .package_deb_agent_7]
   rules:
     - !reference [.except_mergequeue]
     - when: on_success
-  tags: ["arch:amd64"]
   needs: ["dogstatsd-x64"]
   variables:
     DD_PROJECT: dogstatsd
-    PACKAGE_ARCH: amd64
-    DD_PKG_ARCH: "x86_64"
     DESTINATION_DEB: "datadog-dogstatsd_amd64.deb"
 
 dogstatsd_deb-arm64:
-  extends: [.package_deb_common, .package_deb_agent_7]
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64$DATADOG_AGENT_ARMBUILDIMAGES_SUFFIX:$DATADOG_AGENT_ARMBUILDIMAGES
+  extends: [.package_deb_common, .package_deb_arm64, .package_deb_agent_7]
   rules:
     - !reference [.except_mergequeue]
     - when: on_success
-  tags: ["arch:arm64"]
   needs: ["dogstatsd-arm64"]
   variables:
     DD_PROJECT: dogstatsd
-    PACKAGE_ARCH: arm64
-    DD_PKG_ARCH: "arm64"
     DESTINATION_DEB: "datadog-dogstatsd_arm64.deb"
 
