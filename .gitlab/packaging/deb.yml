@@ -77,7 +77,7 @@ agent_deb-arm64-a6:
     DD_PROJECT: "agent"
 
 agent_deb-arm64-a7:
-  extends: [.package_deb_common, .package_deb_arm64, .package_deb_agent7]
+  extends: [.package_deb_common, .package_deb_arm64, .package_deb_agent_7]
   rules:
     - !reference [.except_mergequeue]
     - when: on_success
@@ -107,7 +107,7 @@ installer_deb-arm64:
     DD_PROJECT: "installer"
 
 .package_iot_deb_common:
-  extends: [.package_deb_agent7]
+  extends: [.package_deb_agent_7]
   rules:
     - !reference [.except_mergequeue]
     - when: on_success
