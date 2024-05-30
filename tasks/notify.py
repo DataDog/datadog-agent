@@ -9,6 +9,7 @@ import traceback
 from collections import defaultdict
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from urllib.parse import quote
 
 from invoke import task
 from invoke.context import Context
@@ -57,7 +58,7 @@ class ExecutionsJobInfo:
 
     @staticmethod
     def ci_visibility_url(name):
-        return CI_VISIBILITY_JOB_URL.format(name)
+        return CI_VISIBILITY_JOB_URL.format(quote(name))
 
     @staticmethod
     def from_dict(data):
@@ -444,9 +445,10 @@ def send_notification(ctx: Context, alert_jobs):
 
 
 @task
-def send_failure_summary_notification(_, list_max_len=10):
-    jobs = os.environ["JOB_FAILURES"]
-    jobs = json.loads(jobs)
+def send_failure_summary_notification(_, jobs: dict[str, any] | None = None, list_max_len=10):
+    if jobs is None:
+        jobs = os.environ["JOB_FAILURES"]
+        jobs = json.loads(jobs)
 
     # List of (job_name, (failure_count, total_count)) ordered by failure_count
     stats = sorted(
@@ -463,7 +465,7 @@ def send_failure_summary_notification(_, list_max_len=10):
     message = ['*Daily Job Failure Report*']
     message.append('These jobs had the most failures in the last 24 hours:')
     for name, (fail, total) in stats:
-        link = CI_VISIBILITY_JOB_URL.format(name.replace(' ', '%20'))
+        link = CI_VISIBILITY_JOB_URL.format(quote(name))
         message.append(f"- <{link}|{name}>: *{fail} failures*{f' / {total} runs' if total else ''}")
 
     message.append(
