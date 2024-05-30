@@ -510,7 +510,7 @@ func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.
 	select {
 	// Wait for the semaphore to become available, allowing the handler to
 	// decode its payload.
-	// Afer the configured timeout, respond without ingesting the payload,
+	// After the configured timeout, respond without ingesting the payload,
 	// and sending the configured status.
 	case r.recvsem <- struct{}{}:
 	case <-time.After(time.Duration(r.conf.DecoderTimeout) * time.Millisecond):
