@@ -8,4 +8,4 @@
 ---
 fixes:
   - |
-    Fix metric reporting for process checks on the core agent.
+    Fix metric reporting for process checks on the core Agent.
