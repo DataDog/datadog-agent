@@ -16,7 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/updater/telemetry"
 )
 
-type windows_service struct {
+type windowsService struct {
 	shutdowner fx.Shutdowner
 }
 
@@ -29,15 +29,15 @@ func run(shutdowner fx.Shutdowner, _ pid.Component, _ localapi.Component, _ tele
 	return nil
 }
 
-func (s *windows_service) Init(env svc.Environment) error {
+func (s *windowsService) Init(_ svc.Environment) error {
 	return nil
 }
 
-func (s *windows_service) Start() error {
+func (s *windowsService) Start() error {
 	return nil
 }
 
-func (s *windows_service) Stop() error {
+func (s *windowsService) Stop() error {
 	_ = s.shutdowner.Shutdown()
 	return nil
 }
