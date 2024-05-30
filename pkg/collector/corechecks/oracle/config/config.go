@@ -229,7 +229,7 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 
 	instance.UseGlobalCustomQueries = "true"
 
-	instance.DatabaseInstanceCollectionInterval = 1800
+	instance.DatabaseInstanceCollectionInterval = 300
 
 	instance.Loader = defaultLoader
 	initCfg.Loader = defaultLoader
