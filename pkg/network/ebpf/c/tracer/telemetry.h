@@ -14,14 +14,14 @@
 #include "tracer/maps.h"
 #include "compiler.h"
 
-enum telemetry_counter
-{
+enum telemetry_counter {
     tcp_failed_connect,
     unbatched_tcp_close,
     unbatched_udp_close,
     udp_send_processed,
     udp_send_missed,
     udp_dropped_conns,
+    double_flush_attempts,
 };
 
 static __always_inline void increment_telemetry_count(enum telemetry_counter counter_name) {
@@ -50,6 +50,9 @@ static __always_inline void increment_telemetry_count(enum telemetry_counter cou
         break;
     case udp_dropped_conns:
         __sync_fetch_and_add(&val->udp_dropped_conns, 1);
+        break;
+    case double_flush_attempts:
+        __sync_fetch_and_add(&val->double_flush_attempts, 1);
         break;
     }
 }

@@ -106,6 +106,7 @@ typedef struct {
     __u64 udp_sends_processed;
     __u64 udp_sends_missed;
     __u64 udp_dropped_conns;
+    __u64 double_flush_attempts;
 } telemetry_t;
 
 typedef struct {

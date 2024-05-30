@@ -199,13 +199,15 @@ int kprobe__tcp_close(struct pt_regs *ctx) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
     sk = (struct sock *)PT_REGS_PARM1(ctx);
 
-    // Should actually delete something only if the connection never got established & increment counter
+    // check if this connection was already flushed and bail if so
+    if (bpf_map_delete_elem(&closed_conn_already_flushed, &sk) == 0) {
+        increment_telemetry_count(double_flush_attempts);
+        return 0;
+    }
+
+    // increment telemetry for connections that were never established
     if (bpf_map_delete_elem(&tcp_ongoing_connect_pid, &sk) == 0) {
         increment_telemetry_count(tcp_failed_connect);
-        // if failed connections are enabled, they were already flushed in tcp_done
-        if (tcp_failed_connections_enabled()) {
-            return 0;
-        }
     }
 
     // Get network namespace id
@@ -222,6 +224,11 @@ int kprobe__tcp_close(struct pt_regs *ctx) {
     if (is_protocol_classification_supported()) {
         bpf_map_update_with_telemetry(tcp_close_args, &pid_tgid, &t, BPF_ANY);
     }
+
+    // mark this connection as already flushed
+    __u32 zero = 0;
+    bpf_map_update_with_telemetry(closed_conn_already_flushed, &sk, &zero, BPF_ANY);
+
     return 0;
 }
 
@@ -234,19 +241,15 @@ int kprobe__tcp_done(struct pt_regs *ctx) {
     __u64 *failed_conn_pid = 0;
     int err = 0;
 
-    bpf_probe_read_kernel_with_telemetry(&err, sizeof(err), (&sk->sk_err));
-    if (err == 0 || !tcp_failed_connections_enabled()) {
+    // check if this connection was already flushed and bail if so
+    if (bpf_map_delete_elem(&closed_conn_already_flushed, &sk) == 0) {
+        increment_telemetry_count(double_flush_attempts);
         return 0;
     }
 
-    failed_conn_pid = bpf_map_lookup_elem(&tcp_ongoing_connect_pid, &sk);
-
-    if (failed_conn_pid && pid_tgid == 0) {
-        bpf_probe_read_kernel_with_telemetry(&pid_tgid, sizeof(pid_tgid), &failed_conn_pid);
-    }
-
-    if (!failed_conn_pid) {
-        bpf_map_update_with_telemetry(tcp_ongoing_connect_pid, &sk, &pid_tgid, BPF_ANY);
+    bpf_probe_read_kernel_with_telemetry(&err, sizeof(err), (&sk->sk_err));
+    if (err == 0 || !tcp_failed_connections_enabled()) {
+        return 0;
     }
 
     log_debug("kprobe/tcp_done: tgid: %llu, pid: %llu", pid_tgid >> 32, pid_tgid & 0xFFFFFFFF);
@@ -255,8 +258,23 @@ int kprobe__tcp_done(struct pt_regs *ctx) {
     }
     log_debug("kprobe/tcp_done: netns: %u, sport: %u, dport: %u", t.netns, t.sport, t.dport);
 
+    // connection timeouts will have 0 pids as they are cleaned up by an idle process.
+    // get the pid from the ongoing failure map in this case, as it should have been set in connect.
+    failed_conn_pid = bpf_map_lookup_elem(&tcp_ongoing_connect_pid, &sk);
+    if (failed_conn_pid && pid_tgid == 0) {
+        bpf_probe_read_kernel_with_telemetry(&pid_tgid, sizeof(pid_tgid), &failed_conn_pid);
+    }
+    if (pid_tgid == 0) {
+        return 0;
+    }
+    t.pid = pid_tgid >> 32;
+
     cleanup_conn(ctx, &t, sk);
     flush_tcp_failure(ctx, &t, err);
+
+    // mark this connection as already flushed
+    __u32 zero = 0;
+    bpf_map_update_with_telemetry(closed_conn_already_flushed, &sk, &zero, BPF_ANY);
 
     return 0;
 }
