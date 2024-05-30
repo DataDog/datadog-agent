@@ -14,6 +14,7 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 
@@ -61,6 +62,7 @@ type OnboardingEventPayload struct {
 
 // OnboardingEventTags ...
 type OnboardingEventTags struct {
+	// v1+
 	InstallID     string `json:"install_id,omitempty"`
 	InstallType   string `json:"install_type,omitempty"`
 	InstallTime   int64  `json:"install_time,omitempty"`
@@ -68,6 +70,13 @@ type OnboardingEventTags struct {
 	AgentVersion  string `json:"agent_version,omitempty"`
 	AgentHostname string `json:"agent_hostname,omitempty"`
 	Env           string `json:"env,omitempty"`
+
+	// v2+
+	Architecture  string `json:"architecture,omitempty"`
+	ServiceName   string `json:"service_name,omitempty"`
+	LibLanguage   string `json:"lib_language,omitempty"`
+	LibVersion    string `json:"lib_version,omitempty"`
+	InjectionTime int64  `json:"injection_time,omitempty"`
 }
 
 var errReceivedUnsuccessfulStatusCode = fmt.Errorf("received a 4XX or 5xx error code while submitting telemetry data")
@@ -168,10 +177,31 @@ func (f *telemetryCollector) sendEvent(event *OnboardingEvent) (err error) {
 	return err
 }
 
-func newOnboardingTelemetryPayload(config *config.AgentConfig) OnboardingEvent {
+type onboardingEventOption func(e *OnboardingEvent)
+
+func withVersion(version string) onboardingEventOption {
+	return func(e *OnboardingEvent) {
+		e.ApiVersion = version
+	}
+}
+
+func withEventName(name string) onboardingEventOption {
+	return func(e *OnboardingEvent) {
+		e.Payload.EventName = name
+	}
+}
+
+func withError(code int, err error) onboardingEventOption {
+	return func(e *OnboardingEvent) {
+		e.Payload.Error.Code = code
+		e.Payload.Error.Message = err.Error()
+	}
+}
+
+func newOnboardingTelemetryPayload(config *config.AgentConfig, options ...onboardingEventOption) OnboardingEvent {
 	ev := OnboardingEvent{
 		RequestType: "apm-onboarding-event",
-		ApiVersion:  "v1",
+		ApiVersion:  "v1", // default
 		Payload: OnboardingEventPayload{
 			Tags: OnboardingEventTags{
 				AgentVersion:  config.AgentVersion,
@@ -180,11 +210,17 @@ func newOnboardingTelemetryPayload(config *config.AgentConfig) OnboardingEvent {
 			},
 		},
 	}
+
 	if config.InstallSignature.Found {
 		ev.Payload.Tags.InstallID = config.InstallSignature.InstallID
 		ev.Payload.Tags.InstallType = config.InstallSignature.InstallType
 		ev.Payload.Tags.InstallTime = config.InstallSignature.InstallTime
 	}
+
+	for _, option := range options {
+		option(&ev)
+	}
+
 	return ev
 }
 
@@ -192,10 +228,10 @@ func (f *telemetryCollector) SendStartupSuccess() {
 	if f.collectedStartupError.Load() {
 		return
 	}
-	ev := newOnboardingTelemetryPayload(f.cfg)
-	ev.Payload.EventName = "agent.startup.success"
 	//nolint:errcheck // TODO(TEL) Fix errcheck linter
-	f.sendEvent(&ev)
+	f.sendEventPayload(
+		withEventName("agent.startup.success"),
+	)
 }
 
 func (f *telemetryCollector) SentFirstTrace() bool {
@@ -204,24 +240,56 @@ func (f *telemetryCollector) SentFirstTrace() bool {
 }
 
 func (f *telemetryCollector) SendFirstTrace() {
-	ev := newOnboardingTelemetryPayload(f.cfg)
-	ev.Payload.EventName = "agent.first_trace.sent"
-	err := f.sendEvent(&ev)
-	if err != nil {
+	if err := f.sendEventPayload(
+		withEventName("agent.first_trace.sent"),
+	); err != nil {
 		if f.firstTraceFailures.Inc() < maxFirstTraceFailures {
 			f.collectedFirstTrace.Store(false)
 		}
 	}
 }
 
+type LibInjectionMetadata struct {
+	ServiceName   string
+	LibLanguage   string
+	LibVersion    string
+	InjectionTime time.Time
+}
+
+func withLibInjectionMetadata(m LibInjectionMetadata) onboardingEventOption {
+	return func(e *OnboardingEvent) {
+		e.Payload.Tags.ServiceName = m.ServiceName
+		e.Payload.Tags.LibLanguage = m.LibLanguage
+		e.Payload.Tags.LibVersion = m.LibVersion
+		e.Payload.Tags.InjectionTime = m.InjectionTime.Unix()
+	}
+}
+
+func (f *telemetryCollector) SendLibInjectionAttempted(params LibInjectionMetadata) {
+	//nolint:errcheck // TODO(TEL) Fix errcheck linter
+	f.sendEventPayload(
+		withVersion("v2"),
+		withEventName("service.library_injection.attempted"),
+		withLibInjectionMetadata(params),
+	)
+}
+
 func (f *telemetryCollector) SendStartupError(code int, err error) {
 	f.collectedStartupError.Store(true)
-	ev := newOnboardingTelemetryPayload(f.cfg)
-	ev.Payload.EventName = "agent.startup.error"
-	ev.Payload.Error.Code = code
-	ev.Payload.Error.Message = err.Error()
 	//nolint:errcheck // TODO(TEL) Fix errcheck linter
-	f.sendEvent(&ev)
+	f.sendEventPayload(
+		withEventName("agent.startup.error"),
+		withError(code, err),
+	)
+}
+
+func (f *telemetryCollector) eventPayload(option ...onboardingEventOption) OnboardingEvent {
+	return newOnboardingTelemetryPayload(f.cfg, option...)
+}
+
+func (f *telemetryCollector) sendEventPayload(option ...onboardingEventOption) error {
+	ev := f.eventPayload(option...)
+	return f.sendEvent(&ev)
 }
 
 type noopTelemetryCollector struct{}
