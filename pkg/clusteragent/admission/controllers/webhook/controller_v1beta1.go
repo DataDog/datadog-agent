@@ -9,7 +9,6 @@ package webhook
 
 import (
 	"context"
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/telemetry"
 	"strings"
 	"time"
 
@@ -27,6 +26,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/certificate"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
