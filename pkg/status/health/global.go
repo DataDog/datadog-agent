@@ -12,6 +12,7 @@ import (
 
 var readinessAndLivenessCatalog = newCatalog()
 var readinessOnlyCatalog = newCatalog()
+var startupOnlyCatalog = newCatalog()
 
 // RegisterReadiness registers a component for readiness check with the default 30 seconds timeout, returns a token
 func RegisterReadiness(name string) *Handle {
@@ -23,12 +24,24 @@ func RegisterLiveness(name string) *Handle {
 	return readinessAndLivenessCatalog.register(name)
 }
 
+// RegisterStartup registers a component for startup check, returns a token
+func RegisterStartup(name string) *Handle {
+	startupOnlyCatalog.startup = true
+	return startupOnlyCatalog.register(name)
+}
+
 // Deregister a component from the healthcheck
 func Deregister(handle *Handle) error {
 	if readinessAndLivenessCatalog.deregister(handle) == nil {
 		return nil
 	}
-	return readinessOnlyCatalog.deregister(handle)
+	if readinessOnlyCatalog.deregister(handle) == nil {
+		return nil
+	}
+	if startupOnlyCatalog.deregister(handle) == nil {
+		return nil
+	}
+	return errors.New("component not registered")
 }
 
 // GetLive returns health of all components registered for liveness
@@ -43,6 +56,11 @@ func GetReady() (ret Status) {
 	ret.Healthy = append(liveStatus.Healthy, readyStatus.Healthy...)
 	ret.Unhealthy = append(liveStatus.Unhealthy, readyStatus.Unhealthy...)
 	return
+}
+
+// GetStartup returns health of all components registered for startup
+func GetStartup() Status {
+	return startupOnlyCatalog.getStatus()
 }
 
 // getStatusNonBlocking allows to query the health status of the agent
@@ -71,4 +89,9 @@ func GetLiveNonBlocking() (Status, error) {
 // GetReadyNonBlocking returns the health of all components registered for both readiness and liveness with a 500ms timeout
 func GetReadyNonBlocking() (Status, error) {
 	return getStatusNonBlocking(GetReady)
+}
+
+// GetStartupNonBlocking returns the health of all components registered for startup with a 500ms timeout
+func GetStartupNonBlocking() (Status, error) {
+	return getStatusNonBlocking(GetStartup)
 }
