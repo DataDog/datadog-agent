@@ -41,7 +41,9 @@ func (c *commandTestSuite) SetupSuite() {
 
 func (c *commandTestSuite) TearDownSuite() {
 	c.tcpServer.Close()
-	c.unixServer.Close()
+	if c.unixServer != nil {
+		c.unixServer.Close()
+	}
 }
 
 func (c *commandTestSuite) getPprofTestServer() (tcpServer *httptest.Server, unixServer *httptest.Server) {
