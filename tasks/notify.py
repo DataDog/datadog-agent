@@ -36,6 +36,7 @@ UNKNOWN_OWNER_TEMPLATE = """The owner `{owner}` is not mapped to any slack chann
 Please check for typos in the JOBOWNERS file and/or add them to the Github <-> Slack map.
 """
 PROJECT_NAME = "DataDog/datadog-agent"
+PROJECT_TITLE = PROJECT_NAME.removeprefix("DataDog/")
 AWS_S3_CP_CMD = "aws s3 cp --only-show-errors --region us-east-1 --sse AES256"
 S3_CI_BUCKET_URL = "s3://dd-ci-artefacts-build-stable/datadog-agent/failed_jobs"
 CONSECUTIVE_THRESHOLD = 3
@@ -153,10 +154,10 @@ class ConsecutiveJobAlert:
         # Find initial PR
         initial_pr_sha = next(iter(self.failures.values()))[0].commit
         initial_pr_title = ctx.run(f'git show -s --format=%s {initial_pr_sha}', hide=True).stdout.strip()
-        initial_pr_info = get_pr_from_commit(initial_pr_title, PROJECT_NAME)
+        initial_pr_info = get_pr_from_commit(initial_pr_title, PROJECT_TITLE)
         if initial_pr_info:
             pr_id, pr_url = initial_pr_info
-            initial_pr = f'<{pr_url}|{pr_id}>'
+            initial_pr = f'<{pr_url}|#{pr_id}>'
         else:
             # Cannot find PR, display the commit sha
             initial_pr = initial_pr_sha[:8]
