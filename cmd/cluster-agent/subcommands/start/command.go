@@ -61,6 +61,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcservice/rcserviceimpl"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rctelemetryreporter/rctelemetryreporterimpl"
 	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl"
+	comptraceconfig "github.com/DataDog/datadog-agent/comp/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent"
 	admissionpkg "github.com/DataDog/datadog-agent/pkg/clusteragent/admission"
 	admissionpatch "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/patch"
@@ -76,6 +77,8 @@ import (
 	hostnameStatus "github.com/DataDog/datadog-agent/pkg/status/clusteragent/hostname"
 	endpointsStatus "github.com/DataDog/datadog-agent/pkg/status/endpoints"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
+	traceconfig "github.com/DataDog/datadog-agent/pkg/trace/config"
+	tracetelemetry "github.com/DataDog/datadog-agent/pkg/trace/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
@@ -152,6 +155,14 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					AgentType:  workloadmeta.ClusterAgent,
 				}), // TODO(components): check what this must be for cluster-agent-cloudfoundry
 				fx.Supply(context.Background()),
+
+				fx.Provide(func(core config.Component) (*traceconfig.AgentConfig, error) {
+					return comptraceconfig.LoadConfigFile(core.ConfigFileUsed(), core)
+				}),
+				fx.Provide(func(cfg *traceconfig.AgentConfig) tracetelemetry.TelemetryCollector {
+					return tracetelemetry.NewCollector(cfg)
+				}),
+
 				workloadmeta.Module(),
 				fx.Provide(tagger.NewTaggerParams),
 				taggerimpl.Module(),
@@ -217,6 +228,7 @@ func start(log log.Component,
 	rcService optional.Option[rccomp.Component],
 	_ healthprobe.Component,
 	settings settings.Component,
+	telemetryCollector tracetelemetry.TelemetryCollector,
 ) error {
 	stopCh := make(chan struct{})
 
@@ -463,7 +475,7 @@ func start(log log.Component,
 			StopCh:              stopCh,
 		}
 
-		webhooks, err := admissionpkg.StartControllers(admissionCtx, wmeta, pa)
+		webhooks, err := admissionpkg.StartControllers(admissionCtx, wmeta, pa, telemetryCollector)
 		if err != nil {
 			pkglog.Errorf("Could not start admission controller: %v", err)
 		} else {

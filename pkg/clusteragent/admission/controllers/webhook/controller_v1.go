@@ -9,6 +9,7 @@ package webhook
 
 import (
 	"context"
+	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
 	"strings"
 	"time"
 
@@ -49,6 +50,7 @@ func NewControllerV1(
 	config Config,
 	wmeta workloadmeta.Component,
 	pa workload.PODPatcher,
+	telemetryCollector telemetry.TelemetryCollector,
 ) *ControllerV1 {
 	controller := &ControllerV1{}
 	controller.clientSet = client

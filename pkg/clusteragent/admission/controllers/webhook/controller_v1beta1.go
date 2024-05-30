@@ -9,6 +9,7 @@ package webhook
 
 import (
 	"context"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/telemetry"
 	"strings"
 	"time"
 
@@ -40,7 +41,7 @@ type ControllerV1beta1 struct {
 }
 
 // NewControllerV1beta1 returns a new Webhook Controller using admissionregistration/v1beta1.
-func NewControllerV1beta1(client kubernetes.Interface, secretInformer coreinformers.SecretInformer, webhookInformer admissioninformers.MutatingWebhookConfigurationInformer, isLeaderFunc func() bool, isLeaderNotif <-chan struct{}, config Config, wmeta workloadmeta.Component, pa workload.PODPatcher) *ControllerV1beta1 {
+func NewControllerV1beta1(client kubernetes.Interface, secretInformer coreinformers.SecretInformer, webhookInformer admissioninformers.MutatingWebhookConfigurationInformer, isLeaderFunc func() bool, isLeaderNotif <-chan struct{}, config Config, wmeta workloadmeta.Component, pa workload.PODPatcher, telemetryCollector telemetry.TelemetryCollector) *ControllerV1beta1 {
 	controller := &ControllerV1beta1{}
 	controller.clientSet = client
 	controller.config = config

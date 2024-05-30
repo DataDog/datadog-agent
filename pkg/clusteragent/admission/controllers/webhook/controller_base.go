@@ -31,6 +31,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/cwsinstrumentation"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/tagsfromlabels"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload"
+	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -50,12 +51,13 @@ func NewController(
 	config Config,
 	wmeta workloadmeta.Component,
 	pa workload.PODPatcher,
+	telemetryCollector telemetry.TelemetryCollector,
 ) Controller {
 	if config.useAdmissionV1() {
-		return NewControllerV1(client, secretInformer, admissionInterface.V1().MutatingWebhookConfigurations(), isLeaderFunc, isLeaderNotif, config, wmeta, pa)
+		return NewControllerV1(client, secretInformer, admissionInterface.V1().MutatingWebhookConfigurations(), isLeaderFunc, isLeaderNotif, config, wmeta, pa, telemetryCollector)
 	}
 
-	return NewControllerV1beta1(client, secretInformer, admissionInterface.V1beta1().MutatingWebhookConfigurations(), isLeaderFunc, isLeaderNotif, config, wmeta, pa)
+	return NewControllerV1beta1(client, secretInformer, admissionInterface.V1beta1().MutatingWebhookConfigurations(), isLeaderFunc, isLeaderNotif, config, wmeta, pa, telemetryCollector)
 }
 
 // MutatingWebhook represents a mutating webhook
@@ -85,7 +87,7 @@ type MutatingWebhook interface {
 // the config one. The reason is that the volume mount for the APM socket added
 // by the config webhook doesn't always work on Fargate (one of the envs where
 // we use an agent sidecar), and the agent sidecar webhook needs to remove it.
-func mutatingWebhooks(wmeta workloadmeta.Component, pa workload.PODPatcher) []MutatingWebhook {
+func mutatingWebhooks(wmeta workloadmeta.Component, pa workload.PODPatcher, tel telemetry.TelemetryCollector) []MutatingWebhook {
 	webhooks := []MutatingWebhook{
 		config.NewWebhook(wmeta),
 		tagsfromlabels.NewWebhook(wmeta),
@@ -93,7 +95,7 @@ func mutatingWebhooks(wmeta workloadmeta.Component, pa workload.PODPatcher) []Mu
 		autoscaling.NewWebhook(pa),
 	}
 
-	apm, err := autoinstrumentation.GetWebhook(wmeta)
+	apm, err := autoinstrumentation.GetWebhook(wmeta, tel)
 	if err == nil {
 		webhooks = append(webhooks, apm)
 	} else {
