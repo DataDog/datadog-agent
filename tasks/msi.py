@@ -285,6 +285,18 @@ def build(
         # And copy it to the final output path as a build artifact
         shutil.copy2(os.path.join(build_outdir, msi_name + '.msi'), OUTPUT_PATH)
 
+    with timed("Building MSI"):
+        msi_name = "datadog-installer-1-x86_64"
+        _build_msi(
+            ctx,
+            env,
+            build_outdir,
+            msi_name,
+        )
+
+        # And copy it to the final output path as a build artifact
+        shutil.copy2(os.path.join(build_outdir, msi_name + '.msi'), OUTPUT_PATH)
+
     # if the optional upgrade test helper exists then build that too
     optional_name = "datadog-agent-7.43.0~rc.3+git.485.14b9337-1-x86_64"
     if os.path.exists(os.path.join(build_outdir, optional_name + ".wxs")):

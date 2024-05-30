@@ -80,6 +80,9 @@ build do
          vars: { etc_dir: etc_dir, agent_dir: agent_dir }
     end
 
+  elsif windows_target?
+    command "invoke installer.build --rebuild", env: env
+    copy 'bin/installer.exe', "#{install_dir}/datadog-installer.exe"
   end
 
   # Remove empty/unneeded folders

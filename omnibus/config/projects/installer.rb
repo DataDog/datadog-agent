@@ -13,7 +13,11 @@ third_party_licenses "../LICENSE-3rdparty.csv"
 
 homepage 'http://www.datadoghq.com'
 
-INSTALL_DIR = ENV['INSTALL_DIR'] || '/opt/datadog-installer'
+if windows_target?
+  INSTALL_DIR = 'C:/opt/datadog-installer/'
+else
+  INSTALL_DIR = ENV['INSTALL_DIR'] || '/opt/datadog-installer'
+end
 
 install_dir INSTALL_DIR
 
