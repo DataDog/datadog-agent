@@ -32,7 +32,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline"
 	"github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline/logsagentpipelineimpl"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/serializerexporter"
-	configprovider "github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/pipeline/provider"
+	provider "github.com/DataDog/datadog-agent/comp/otelcol/provider/def"
+	providerfx "github.com/DataDog/datadog-agent/comp/otelcol/provider/fx"
 	"github.com/DataDog/datadog-agent/comp/serializer/compression"
 	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl/strategy"
 	pkgconfigenv "github.com/DataDog/datadog-agent/pkg/config/env"
@@ -108,9 +109,8 @@ func runOTelAgentCommand(_ context.Context, params *subcommands.GlobalParams, op
 		fetchonlyimpl.Module(),
 		collectorfx.Module(),
 		collectorcontribFx.Module(),
-		fx.Provide(configprovider.NewConfigProvider),
-		// For FX to provide the otelcol.ConfigProvider from the configprovider.ExtendedConfigProvider
-		fx.Provide(func(cp configprovider.ExtendedConfigProvider) otelcol.ConfigProvider {
+		providerfx.Module(),
+		fx.Provide(func(cp provider.Component) otelcol.ConfigProvider {
 			return cp
 		}),
 		fx.Provide(func() (config.Component, error) {

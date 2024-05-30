@@ -226,6 +226,14 @@ func (p *WindowsProbe) initEtwFIM() error {
 		return err
 	}
 
+	return p.reconfigureProvider()
+}
+
+func (p *WindowsProbe) reconfigureProvider() error {
+	if !p.config.RuntimeSecurity.FIMEnabled {
+		return nil
+	}
+
 	pidsList := make([]uint32, 0)
 
 	p.fimSession.ConfigureProvider(p.fileguid, func(cfg *etw.ProviderConfiguration) {
@@ -255,16 +263,21 @@ func (p *WindowsProbe) initEtwFIM() error {
 			idCreateNewFile,
 			idCleanup,
 			idClose,
-			idWrite,
-			idSetDelete,
-			idDeletePath,
-			idRename,
-			idRenamePath,
-			idRename29,
+		}
+
+		if p.isWriteEnabled {
+			fileIds = append(fileIds, idWrite)
+		}
+		if p.isRenameEnabled {
+			fileIds = append(fileIds, idRename, idRenamePath, idRename29)
+		}
+		if p.isDeleteEnabled {
+			fileIds = append(fileIds, idSetDelete, idDeletePath)
 		}
 
 		cfg.EnabledIDs = fileIds
 	})
+
 	p.fimSession.ConfigureProvider(p.regguid, func(cfg *etw.ProviderConfiguration) {
 		cfg.TraceLevel = etw.TRACE_LEVEL_VERBOSE
 		cfg.PIDs = pidsList
@@ -294,16 +307,16 @@ func (p *WindowsProbe) initEtwFIM() error {
 		cfg.MatchAnyKeyword = 0xF7E3
 	})
 
-	err = p.fimSession.EnableProvider(p.fileguid)
-	if err != nil {
+	if err := p.fimSession.EnableProvider(p.fileguid); err != nil {
 		log.Warnf("Error enabling provider %v", err)
 		return err
 	}
-	err = p.fimSession.EnableProvider(p.regguid)
-	if err != nil {
+
+	if err := p.fimSession.EnableProvider(p.regguid); err != nil {
 		log.Warnf("Error enabling provider %v", err)
 		return err
 	}
+
 	return nil
 }
 
@@ -403,6 +416,7 @@ func (p *WindowsProbe) setupEtw(ecb etwCallback) error {
 					p.stats.fileProcessedNotifications[e.EventHeader.EventDescriptor.ID]++
 					ecb(ca, e.EventHeader.ProcessID)
 					// lru is thread safe, has its own locking
+					p.discardedFileHandles.Remove(ca.fileObject)
 					p.filePathResolver.Remove(ca.fileObject)
 				}
 			case idFlush:
@@ -1052,6 +1066,10 @@ func (p *WindowsProbe) ApplyRuleSet(rs *rules.RuleSet) (*kfilters.ApplyRuleSetRe
 		if err := p.SetApprovers(eventType, report.Approvers); err != nil {
 			return nil, err
 		}
+	}
+
+	if err := p.reconfigureProvider(); err != nil {
+		return nil, err
 	}
 
 	return ars, nil
