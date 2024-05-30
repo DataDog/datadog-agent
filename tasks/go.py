@@ -411,7 +411,7 @@ def tidy_all(ctx):
 
 @task
 def tidy(ctx):
-    if os.name != 'nt':
+    if os.name != 'nt':  # not windows
         import resource
 
         # Some people might face ulimit issues, so we bump it up if needed.
