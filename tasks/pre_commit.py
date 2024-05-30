@@ -1,3 +1,4 @@
+import os
 import re
 import sys
 
@@ -19,6 +20,28 @@ def update_pyapp_file() -> str:
     with open(DEVA_PRE_COMMIT_CONFIG, 'w') as file:
         file.write(data)
     return DEVA_PRE_COMMIT_CONFIG
+
+
+@task
+def check_winclang_format(ctx):
+    if os.name != 'nt':  # Don't run on Linux
+        return
+
+    def find_clang_format(search_dirs):
+        for search_dir in search_dirs:
+            for root, _, files in os.walk(search_dir):
+                for basename in files:
+                    if basename == 'clang-format.exe':
+                        return os.path.join(root, basename)
+
+    clang_format_path = os.environ.get('CLANG_FORMAT_PATH')
+    if clang_format_path is None:
+        search_dirs = ['C:/Program Files/Microsoft Visual Studio', 'C:/Program Files (x86)/Microsoft Visual Studio']
+        clang_format_path = find_clang_format(search_dirs)
+
+    print(clang_format_path)
+
+    ctx.run(f'"{clang_format_path}" --dry-run --Werror {",".join(get_staged_files(ctx))}')
 
 
 @task
