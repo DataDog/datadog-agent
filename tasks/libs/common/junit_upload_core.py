@@ -112,7 +112,7 @@ def get_flaky_from_test_output():
     for module in DEFAULT_MODULES:
         test_file = Path(module, TEST_OUTPUT_FILE)
         if test_file.is_file():
-            with test_file.open() as f:
+            with test_file.open(encoding="utf8") as f:
                 for line in f.readlines():
                     test_output.append(json.loads(line))
             flaky_tests.update(
