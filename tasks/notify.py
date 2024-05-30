@@ -36,12 +36,26 @@ UNKNOWN_OWNER_TEMPLATE = """The owner `{owner}` is not mapped to any slack chann
 Please check for typos in the JOBOWNERS file and/or add them to the Github <-> Slack map.
 """
 PROJECT_NAME = "DataDog/datadog-agent"
+PROJECT_TITLE = PROJECT_NAME.removeprefix("DataDog/")
 AWS_S3_CP_CMD = "aws s3 cp --only-show-errors --region us-east-1 --sse AES256"
 S3_CI_BUCKET_URL = "s3://dd-ci-artefacts-build-stable/datadog-agent/failed_jobs"
 CONSECUTIVE_THRESHOLD = 3
 CUMULATIVE_THRESHOLD = 5
 CUMULATIVE_LENGTH = 10
-CI_VISIBILITY_JOB_URL = 'https://app.datadoghq.com/ci/pipeline-executions?query=ci_level%3Ajob%20%40ci.pipeline.name%3ADataDog%2Fdatadog-agent%20%40git.branch%3Amain%20%40ci.job.name%3A"{}"&agg_m=count'
+CI_VISIBILITY_JOB_URL = 'https://app.datadoghq.com/ci/pipeline-executions?query=ci_level%3Ajob%20%40ci.pipeline.name%3ADataDog%2Fdatadog-agent%20%40git.branch%3Amain%20%40ci.job.name%3A{}&agg_m=count'
+
+
+def get_ci_visibility_job_url(name: str, prefix=True) -> str:
+    # Escape (https://docs.datadoghq.com/logs/explorer/search_syntax/#escape-special-characters-and-spaces)
+    name = re.sub(r"([-+=&|><!(){}[\]^\"“”~*?:\\ ])", r"\\\1", name)
+
+    if prefix:
+        name += '*'
+
+    # URL Quote
+    name = quote(name)
+
+    return CI_VISIBILITY_JOB_URL.format(name)
 
 
 @dataclass
@@ -58,7 +72,7 @@ class ExecutionsJobInfo:
 
     @staticmethod
     def ci_visibility_url(name):
-        return CI_VISIBILITY_JOB_URL.format(quote(name))
+        return get_ci_visibility_job_url(name)
 
     @staticmethod
     def from_dict(data):
@@ -140,10 +154,10 @@ class ConsecutiveJobAlert:
         # Find initial PR
         initial_pr_sha = next(iter(self.failures.values()))[0].commit
         initial_pr_title = ctx.run(f'git show -s --format=%s {initial_pr_sha}', hide=True).stdout.strip()
-        initial_pr_info = get_pr_from_commit(initial_pr_title, PROJECT_NAME)
+        initial_pr_info = get_pr_from_commit(initial_pr_title, PROJECT_TITLE)
         if initial_pr_info:
             pr_id, pr_url = initial_pr_info
-            initial_pr = f'<{pr_url}|{pr_id}>'
+            initial_pr = f'<{pr_url}|#{pr_id}>'
         else:
             # Cannot find PR, display the commit sha
             initial_pr = initial_pr_sha[:8]
@@ -465,7 +479,7 @@ def send_failure_summary_notification(_, jobs: dict[str, any] | None = None, lis
     message = ['*Daily Job Failure Report*']
     message.append('These jobs had the most failures in the last 24 hours:')
     for name, (fail, total) in stats:
-        link = CI_VISIBILITY_JOB_URL.format(quote(name))
+        link = get_ci_visibility_job_url(name)
         message.append(f"- <{link}|{name}>: *{fail} failures*{f' / {total} runs' if total else ''}")
 
     message.append(
