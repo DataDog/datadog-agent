@@ -80,6 +80,8 @@ func (o *orchestratorinterfaceimpl) Reset() {
 	o.f = nil
 }
 
+// TODO create a alternative implementation for hostname.Component that uses the remote host
+// The logic is used by other agents, and so having it exposed as Component would be useful
 type remotehostimpl struct {
 	hostname string
 }
