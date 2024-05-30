@@ -5,6 +5,7 @@ import functools
 import platform
 import sys
 from time import sleep, time
+from typing import cast
 
 from gitlab import GitlabError
 from gitlab.v4.objects import Project, ProjectJob, ProjectPipeline
@@ -78,8 +79,11 @@ def gracefully_cancel_pipeline(repo: Project, pipeline: ProjectPipeline, force_c
 
     jobs = pipeline.jobs.list(per_page=100, all=True)
     kmt_cleanup_jobs_to_run: set[str] = set()
+    jobs_by_name: dict[str, ProjectJob] = {}
 
     for job in jobs:
+        jobs_by_name[job.name] = cast(ProjectJob, job)
+
         if job.stage in force_cancel_stages or (
             job.status not in ["running", "canceled", "success"] and "cleanup" not in job.name
         ):
@@ -94,11 +98,13 @@ def gracefully_cancel_pipeline(repo: Project, pipeline: ProjectPipeline, force_c
     # Run manual cleanup jobs for KMT. If we canceled the setup env or the tests job,
     # the cleanup job will not run automatically. We need to trigger the manual variants
     # to avoid leaving KMT instances running too much time.
-    for cleanup_job in kmt_cleanup_jobs_to_run:
-        for job in jobs:
-            if job.name == cleanup_job:
-                print(f"Triggering KMT {cleanup_job} job")
-                repo.jobs.get(job.id, lazy=True).play()
+    for cleanup_job_name in kmt_cleanup_jobs_to_run:
+        cleanup_job = jobs_by_name.get(cleanup_job_name, None)
+        if cleanup_job is not None:
+            print(f"Triggering KMT {cleanup_job_name} job")
+            repo.jobs.get(job.id, lazy=True).play()
+        else:
+            print(f"Cleanup job {cleanup_job_name} not found, skipping.")
 
 
 def trigger_agent_pipeline(
