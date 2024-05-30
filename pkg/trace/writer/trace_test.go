@@ -8,6 +8,8 @@ package writer
 import (
 	"compress/gzip"
 	"io"
+	"net/http"
+	"net/http/httptest"
 	"runtime"
 	"sync"
 	"testing"
@@ -408,5 +410,63 @@ func BenchmarkSpanProto(b *testing.B) {
 	for n := 0; n < b.N; n++ {
 		//proto.Marshal(&s)
 		s.MarshalVT()
+	}
+}
+
+func BenchmarkSerialize(b *testing.B) {
+	for _, tt := range []struct {
+		name        string
+		traceChunks []*pb.TraceChunk
+	}{
+		{
+			name:        "large",
+			traceChunks: testutil.GetTestTraceChunks(10, 100, true),
+		},
+		{
+			name:        "small",
+			traceChunks: testutil.GetTestTraceChunks(2, 2, true),
+		},
+	} {
+		b.Run(tt.name, func(b *testing.B) {
+			ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				io.Copy(io.Discard, r.Body)
+				r.Body.Close()
+			}))
+			defer ts.Close()
+			cfg := &config.AgentConfig{
+				Hostname:   testHostname,
+				DefaultEnv: testEnv,
+				Endpoints: []*config.Endpoint{{
+					APIKey: "123",
+					Host:   ts.URL,
+				}},
+				TraceWriter: &config.WriterConfig{},
+			}
+			tw := NewTraceWriter(cfg, mockSampler, mockSampler, mockSampler, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{})
+			defer tw.Stop()
+
+			// Avoid the overhead of the senders so we're just measuring serialization
+			stopSenders(tw.senders)
+			tw.senders = nil
+
+			payloads := []*pb.TracerPayload{
+				{Chunks: tt.traceChunks},
+			}
+			p := pb.AgentPayload{
+				AgentVersion:       tw.agentVersion,
+				HostName:           tw.hostname,
+				Env:                tw.env,
+				TargetTPS:          tw.prioritySampler.GetTargetTPS(),
+				ErrorTPS:           tw.errorsSampler.GetTargetTPS(),
+				RareSamplerEnabled: tw.rareSampler.IsEnabled(),
+				TracerPayloads:     payloads,
+			}
+
+			b.ResetTimer()
+			b.ReportAllocs()
+			for i := 0; i < b.N; i++ {
+				tw.serialize(&p)
+			}
+		})
 	}
 }
