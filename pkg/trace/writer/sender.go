@@ -238,7 +238,7 @@ func (s *sender) sendPayload(p *payload) {
 	}
 }
 
-// sendOnce attepmts to send the payload one time, returning
+// sendOnce attempts to send the payload one time, returning
 // whether or not the payload is "finished" either because it was
 // sent, or because sending encountered a non-retryable error.
 func (s *sender) sendOnce(p *payload) bool {
