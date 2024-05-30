@@ -96,10 +96,10 @@ func (as *AutoSuppression) Apply(ruleSet *rules.RuleSet) {
 	var enabledSuppressionTypes []string
 	if as.opts.SecurityProfileAutoSuppressionEnabled {
 		enabledSuppressionTypes = append(enabledSuppressionTypes, securityProfileSuppressionType)
-		enabledSuppressionTypes = append(enabledSuppressionTypes, noWorkloadDriftSuppressionType)
 	}
 	if as.opts.ActivityDumpAutoSuppressionEnabled {
 		enabledSuppressionTypes = append(enabledSuppressionTypes, activityDumpSuppressionType)
+		enabledSuppressionTypes = append(enabledSuppressionTypes, noWorkloadDriftSuppressionType)
 	}
 
 	tags := StatsTags{}
