@@ -15,7 +15,7 @@ import (
 	"sync"
 	"time"
 
-	apidef "github.com/DataDog/datadog-agent/comp/api/api/def"
+	apihelper "github.com/DataDog/datadog-agent/comp/api/api/helpers"
 	apiutils "github.com/DataDog/datadog-agent/comp/api/api/utils"
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
 	logComp "github.com/DataDog/datadog-agent/comp/core/log"
@@ -58,7 +58,7 @@ type provides struct {
 	fx.Out
 
 	Comp     taggerComp.Component
-	Endpoint apidef.AgentEndpointProvider
+	Endpoint apihelper.AgentEndpointProvider
 }
 
 // Module defines the fx options for this component.
@@ -190,7 +190,7 @@ func newTaggerClient(deps dependencies) provides {
 	}})
 	return provides{
 		Comp:     taggerClient,
-		Endpoint: apidef.NewAgentEndpointProvider(taggerClient.writeList, "/tagger-list", "GET"),
+		Endpoint: apihelper.NewAgentEndpointProvider(taggerClient.writeList, "/tagger-list", "GET"),
 	}
 }
 

@@ -10,6 +10,8 @@ import (
 	"context"
 	"net"
 
+	"go.uber.org/fx"
+
 	apidef "github.com/DataDog/datadog-agent/comp/api/api/def"
 	"github.com/DataDog/datadog-agent/comp/api/authtoken"
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
@@ -51,6 +53,7 @@ type ApiServer struct {
 }
 
 type Requires struct {
+	fx.In
 	Lc                compdef.Lifecycle
 	DogstatsdServer   dogstatsdServer.Component
 	Capture           replay.Component

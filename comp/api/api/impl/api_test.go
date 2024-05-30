@@ -99,8 +99,8 @@ package impl
 // 		fx.Supply(optional.NewNoneOption[collector.Component]()),
 // 		settingsimpl.MockModule(),
 // 		// Ensure we pass a nil endpoint to test that we always filter out nil endpoints
-// 		fx.Provide(func() apidef.AgentEndpointProvider {
-// 			return apidef.AgentEndpointProvider{
+// 		fx.Provide(func() apihelper.AgentEndpointProvider {
+// 			return apihelper.AgentEndpointProvider{
 // 				Provider: nil,
 // 			}
 // 		}),
@@ -179,8 +179,8 @@ package impl
 // 		}),
 // 		settingsimpl.MockModule(),
 // 		// Ensure we pass a nil endpoint to test that we always filter out nil endpoints
-// 		fx.Provide(func() apidef.AgentEndpointProvider {
-// 			return apidef.AgentEndpointProvider{
+// 		fx.Provide(func() apihelper.AgentEndpointProvider {
+// 			return apihelper.AgentEndpointProvider{
 // 				Provider: nil,
 // 			}
 // 		}),

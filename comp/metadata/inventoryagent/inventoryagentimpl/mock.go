@@ -10,10 +10,9 @@ import (
 
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-
-	apidef "github.com/DataDog/datadog-agent/comp/api/api/def"
+	apihelper "github.com/DataDog/datadog-agent/comp/api/api/helpers"
 	iainterface "github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 // MockModule defines the fx options for the mock component.
@@ -34,7 +33,7 @@ type MockProvides struct {
 	fx.Out
 
 	Comp     iainterface.Component
-	Endpoint apidef.AgentEndpointProvider
+	Endpoint apihelper.AgentEndpointProvider
 }
 
 type inventoryagentMock struct{}
@@ -48,7 +47,7 @@ func newMock() MockProvides {
 	ia := &inventoryagentMock{}
 	return MockProvides{
 		Comp:     ia,
-		Endpoint: apidef.NewAgentEndpointProvider(ia.handlerFunc, "/metadata/inventory-agent", "GET"),
+		Endpoint: apihelper.NewAgentEndpointProvider(ia.handlerFunc, "/metadata/inventory-agent", "GET"),
 	}
 }
 

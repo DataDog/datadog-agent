@@ -11,7 +11,7 @@ package demultiplexerendpointmock
 import (
 	"net/http"
 
-	apidef "github.com/DataDog/datadog-agent/comp/api/api/def"
+	apihelper "github.com/DataDog/datadog-agent/comp/api/api/helpers"
 )
 
 type mock struct {
@@ -24,13 +24,13 @@ func (m *mock) handlerFunc(w http.ResponseWriter, _ *http.Request) {
 
 // Provides is the mock component output
 type Provides struct {
-	Endpoint apidef.AgentEndpointProvider
+	Endpoint apihelper.AgentEndpointProvider
 }
 
 // NewMock creates a new mock component
 func NewMock() Provides {
 	instance := &mock{}
 	return Provides{
-		Endpoint: apidef.NewAgentEndpointProvider(instance.handlerFunc, "/dogstatsd-contexts-dump", "POST"),
+		Endpoint: apihelper.NewAgentEndpointProvider(instance.handlerFunc, "/dogstatsd-contexts-dump", "POST"),
 	}
 }

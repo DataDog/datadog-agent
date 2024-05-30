@@ -16,7 +16,7 @@ import (
 	"go.uber.org/fx"
 	"gopkg.in/yaml.v2"
 
-	apidef "github.com/DataDog/datadog-agent/comp/api/api/def"
+	apihelper "github.com/DataDog/datadog-agent/comp/api/api/helpers"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/settings"
@@ -37,10 +37,10 @@ type provides struct {
 	fx.Out
 
 	Comp         settings.Component
-	FullEndpoint apidef.AgentEndpointProvider
-	ListEndpoint apidef.AgentEndpointProvider
-	GetEndpoint  apidef.AgentEndpointProvider
-	SetEndpoint  apidef.AgentEndpointProvider
+	FullEndpoint apihelper.AgentEndpointProvider
+	ListEndpoint apihelper.AgentEndpointProvider
+	GetEndpoint  apihelper.AgentEndpointProvider
+	SetEndpoint  apihelper.AgentEndpointProvider
 }
 
 type dependencies struct {
@@ -223,9 +223,9 @@ func newSettings(deps dependencies) provides {
 	}
 	return provides{
 		Comp:         s,
-		FullEndpoint: apidef.NewAgentEndpointProvider(s.GetFullConfig(deps.Params.Namespaces...), "/config", "GET"),
-		ListEndpoint: apidef.NewAgentEndpointProvider(s.ListConfigurable, "/config/list-runtime", "GET"),
-		GetEndpoint:  apidef.NewAgentEndpointProvider(s.GetValue, "/config/{setting}", "GET"),
-		SetEndpoint:  apidef.NewAgentEndpointProvider(s.SetValue, "/config/{setting}", "POST"),
+		FullEndpoint: apihelper.NewAgentEndpointProvider(s.GetFullConfig(deps.Params.Namespaces...), "/config", "GET"),
+		ListEndpoint: apihelper.NewAgentEndpointProvider(s.ListConfigurable, "/config/list-runtime", "GET"),
+		GetEndpoint:  apihelper.NewAgentEndpointProvider(s.GetValue, "/config/{setting}", "GET"),
+		SetEndpoint:  apihelper.NewAgentEndpointProvider(s.SetValue, "/config/{setting}", "POST"),
 	}
 }

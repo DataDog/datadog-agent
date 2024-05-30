@@ -26,7 +26,7 @@ import (
 	"github.com/dvsekhvalnov/jose2go/base64url"
 	"github.com/gorilla/mux"
 
-	apidef "github.com/DataDog/datadog-agent/comp/api/api/def"
+	apihelper "github.com/DataDog/datadog-agent/comp/api/api/helpers"
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -87,7 +87,7 @@ type provides struct {
 	fx.Out
 
 	Comp     optional.Option[guicomp.Component]
-	Endpoint apidef.AgentEndpointProvider
+	Endpoint apihelper.AgentEndpointProvider
 }
 
 // GUI component implementation constructor
@@ -148,7 +148,7 @@ func newGui(deps dependencies) provides {
 		OnStop:  g.stop})
 
 	p.Comp = optional.NewOption[guicomp.Component](g)
-	p.Endpoint = apidef.NewAgentEndpointProvider(g.getIntentToken, "/gui/intent", "GET")
+	p.Endpoint = apihelper.NewAgentEndpointProvider(g.getIntentToken, "/gui/intent", "GET")
 
 	return p
 }

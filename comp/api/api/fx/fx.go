@@ -7,6 +7,8 @@
 package fx
 
 import (
+	"go.uber.org/fx"
+
 	"github.com/DataDog/datadog-agent/comp/api/api/impl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -14,8 +16,10 @@ import (
 // Module defines the fx options for this component
 func Module() fxutil.Module {
 	return fxutil.Component(
-		fxutil.ProvideComponentConstructor(
+		// fxutil.ProvideComponentConstructor(
+		fx.Provide(
 			impl.NewAPIServer,
 		),
+		// ),
 	)
 }

@@ -15,7 +15,7 @@ import (
 
 	"go.uber.org/fx"
 
-	apidef "github.com/DataDog/datadog-agent/comp/api/api/def"
+	apihelper "github.com/DataDog/datadog-agent/comp/api/api/helpers"
 	apiutils "github.com/DataDog/datadog-agent/comp/api/api/utils"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
@@ -75,8 +75,8 @@ type provides struct {
 	MetadataProvider     runnerimpl.Provider
 	FlareProvider        flaretypes.Provider
 	StatusHeaderProvider status.HeaderInformationProvider
-	Endpoint             apidef.AgentEndpointProvider
-	GohaiEndpoint        apidef.AgentEndpointProvider
+	Endpoint             apihelper.AgentEndpointProvider
+	GohaiEndpoint        apihelper.AgentEndpointProvider
 }
 
 func newHostProvider(deps dependencies) provides {
@@ -115,8 +115,8 @@ func newHostProvider(deps dependencies) provides {
 		StatusHeaderProvider: status.NewHeaderInformationProvider(StatusProvider{
 			Config: h.config,
 		}),
-		Endpoint:      apidef.NewAgentEndpointProvider(h.writePayloadAsJSON, "/metadata/v5", "GET"),
-		GohaiEndpoint: apidef.NewAgentEndpointProvider(h.writeGohaiPayload, "/metadata/gohai", "GET"),
+		Endpoint:      apihelper.NewAgentEndpointProvider(h.writePayloadAsJSON, "/metadata/v5", "GET"),
+		GohaiEndpoint: apihelper.NewAgentEndpointProvider(h.writeGohaiPayload, "/metadata/gohai", "GET"),
 	}
 }
 

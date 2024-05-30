@@ -10,7 +10,7 @@ import (
 
 	"go.uber.org/fx"
 
-	apidef "github.com/DataDog/datadog-agent/comp/api/api/def"
+	apihelper "github.com/DataDog/datadog-agent/comp/api/api/helpers"
 	icinterface "github.com/DataDog/datadog-agent/comp/metadata/inventorychecks"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -20,7 +20,7 @@ type MockProvides struct {
 	fx.Out
 
 	Comp     icinterface.Component
-	Endpoint apidef.AgentEndpointProvider
+	Endpoint apihelper.AgentEndpointProvider
 }
 
 // InventorychecksMock mocks methods for the inventorychecks components for testing
@@ -36,7 +36,7 @@ func NewMock() MockProvides {
 	}
 	return MockProvides{
 		Comp:     ic,
-		Endpoint: apidef.NewAgentEndpointProvider(ic.handlerFunc, "/metadata/inventory-checks", "GET"),
+		Endpoint: apihelper.NewAgentEndpointProvider(ic.handlerFunc, "/metadata/inventory-checks", "GET"),
 	}
 }
 

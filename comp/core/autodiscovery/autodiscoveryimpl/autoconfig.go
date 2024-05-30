@@ -21,7 +21,7 @@ import (
 
 	"github.com/fatih/color"
 
-	apidef "github.com/DataDog/datadog-agent/comp/api/api/def"
+	apihelper "github.com/DataDog/datadog-agent/comp/api/api/helpers"
 	"github.com/DataDog/datadog-agent/comp/api/api/utils"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
@@ -96,8 +96,8 @@ type provides struct {
 
 	Comp           autodiscovery.Component
 	StatusProvider status.InformationProvider
-	Endpoint       apidef.AgentEndpointProvider
-	EndpointRaw    apidef.AgentEndpointProvider
+	Endpoint       apihelper.AgentEndpointProvider
+	EndpointRaw    apihelper.AgentEndpointProvider
 	FlareProvider  flaretypes.Provider
 }
 
@@ -115,8 +115,8 @@ func newProvides(deps dependencies) provides {
 		Comp:           c,
 		StatusProvider: status.NewInformationProvider(autodiscoveryStatus.GetProvider(c)),
 
-		Endpoint:      apidef.NewAgentEndpointProvider(c.(*AutoConfig).writeConfigCheck, "/config-check", "GET"),
-		EndpointRaw:   apidef.NewAgentEndpointProvider(c.(*AutoConfig).writeConfigCheckRaw, "/config-check/raw", "GET"),
+		Endpoint:      apihelper.NewAgentEndpointProvider(c.(*AutoConfig).writeConfigCheck, "/config-check", "GET"),
+		EndpointRaw:   apihelper.NewAgentEndpointProvider(c.(*AutoConfig).writeConfigCheckRaw, "/config-check/raw", "GET"),
 		FlareProvider: flaretypes.NewProvider(c.(*AutoConfig).fillFlare),
 	}
 }

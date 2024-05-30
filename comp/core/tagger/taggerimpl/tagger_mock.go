@@ -14,7 +14,7 @@ import (
 
 	"go.uber.org/fx"
 
-	apidef "github.com/DataDog/datadog-agent/comp/api/api/def"
+	apihelper "github.com/DataDog/datadog-agent/comp/api/api/helpers"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
@@ -39,7 +39,7 @@ type MockProvides struct {
 	fx.Out
 
 	Comp     tagger.Mock
-	Endpoint apidef.AgentEndpointProvider
+	Endpoint apihelper.AgentEndpointProvider
 }
 
 var _ tagger.Component = (*MockTaggerClient)(nil)
@@ -52,7 +52,7 @@ func NewMock(deps dependencies) MockProvides {
 	}
 	return MockProvides{
 		Comp:     c,
-		Endpoint: apidef.NewAgentEndpointProvider(c.mockHandleRequest, "/tagger-list", "GET"),
+		Endpoint: apihelper.NewAgentEndpointProvider(c.mockHandleRequest, "/tagger-list", "GET"),
 	}
 }
 

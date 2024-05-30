@@ -15,7 +15,7 @@ import (
 
 	"go.uber.org/fx"
 
-	apidef "github.com/DataDog/datadog-agent/comp/api/api/def"
+	apihelper "github.com/DataDog/datadog-agent/comp/api/api/helpers"
 	apiutils "github.com/DataDog/datadog-agent/comp/api/api/utils"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
@@ -147,7 +147,7 @@ type provides struct {
 	Comp          inventoryhost.Component
 	Provider      runnerimpl.Provider
 	FlareProvider flaretypes.Provider
-	Endpoint      apidef.AgentEndpointProvider
+	Endpoint      apihelper.AgentEndpointProvider
 }
 
 func newInventoryHostProvider(deps dependencies) provides {
@@ -164,7 +164,7 @@ func newInventoryHostProvider(deps dependencies) provides {
 		Comp:          ih,
 		Provider:      ih.MetadataProvider(),
 		FlareProvider: ih.FlareProvider(),
-		Endpoint:      apidef.NewAgentEndpointProvider(ih.writePayloadAsJSON, "/metadata/inventory-host", "GET"),
+		Endpoint:      apihelper.NewAgentEndpointProvider(ih.writePayloadAsJSON, "/metadata/inventory-host", "GET"),
 	}
 }
 

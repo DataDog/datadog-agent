@@ -12,7 +12,7 @@ import (
 
 	"go.uber.org/fx"
 
-	apidef "github.com/DataDog/datadog-agent/comp/api/api/def"
+	apihelper "github.com/DataDog/datadog-agent/comp/api/api/helpers"
 	"github.com/DataDog/datadog-agent/comp/core/settings"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -30,10 +30,10 @@ type MockProvides struct {
 	fx.Out
 
 	Comp         settings.Component
-	FullEndpoint apidef.AgentEndpointProvider
-	ListEndpoint apidef.AgentEndpointProvider
-	GetEndpoint  apidef.AgentEndpointProvider
-	SetEndpoint  apidef.AgentEndpointProvider
+	FullEndpoint apihelper.AgentEndpointProvider
+	ListEndpoint apihelper.AgentEndpointProvider
+	GetEndpoint  apihelper.AgentEndpointProvider
+	SetEndpoint  apihelper.AgentEndpointProvider
 }
 
 type mock struct{}
@@ -42,10 +42,10 @@ func newMock() MockProvides {
 	m := mock{}
 	return MockProvides{
 		Comp:         m,
-		FullEndpoint: apidef.NewAgentEndpointProvider(m.handlerFunc, "/config", "GET"),
-		ListEndpoint: apidef.NewAgentEndpointProvider(m.handlerFunc, "/config/list-runtime", "GET"),
-		GetEndpoint:  apidef.NewAgentEndpointProvider(m.handlerFunc, "/config/{setting}", "GET"),
-		SetEndpoint:  apidef.NewAgentEndpointProvider(m.handlerFunc, "/config/{setting}", "POST"),
+		FullEndpoint: apihelper.NewAgentEndpointProvider(m.handlerFunc, "/config", "GET"),
+		ListEndpoint: apihelper.NewAgentEndpointProvider(m.handlerFunc, "/config/list-runtime", "GET"),
+		GetEndpoint:  apihelper.NewAgentEndpointProvider(m.handlerFunc, "/config/{setting}", "GET"),
+		SetEndpoint:  apihelper.NewAgentEndpointProvider(m.handlerFunc, "/config/{setting}", "POST"),
 	}
 }
 

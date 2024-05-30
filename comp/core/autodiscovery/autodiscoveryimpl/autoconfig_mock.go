@@ -13,7 +13,7 @@ import (
 
 	"go.uber.org/fx"
 
-	apidef "github.com/DataDog/datadog-agent/comp/api/api/def"
+	apihelper "github.com/DataDog/datadog-agent/comp/api/api/helpers"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/scheduler"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
@@ -44,14 +44,14 @@ type mockprovides struct {
 	fx.Out
 
 	Comp     autodiscovery.Mock
-	Endpoint apidef.AgentEndpointProvider
+	Endpoint apihelper.AgentEndpointProvider
 }
 
 func newMockAutoConfig(deps mockdependencies) mockprovides {
 	ac := createNewAutoConfig(deps.Params.Scheduler, nil, deps.WMeta, deps.TaggerComp)
 	return mockprovides{
 		Comp:     ac,
-		Endpoint: apidef.NewAgentEndpointProvider(ac.mockHandleRequest, "/config-check", "GET"),
+		Endpoint: apihelper.NewAgentEndpointProvider(ac.mockHandleRequest, "/config-check", "GET"),
 	}
 }
 

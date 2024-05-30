@@ -13,7 +13,7 @@ import (
 
 	"go.uber.org/fx"
 
-	apidef "github.com/DataDog/datadog-agent/comp/api/api/def"
+	apihelper "github.com/DataDog/datadog-agent/comp/api/api/helpers"
 	"github.com/DataDog/datadog-agent/comp/core/flare"
 	"github.com/DataDog/datadog-agent/comp/core/flare/helpers"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -31,7 +31,7 @@ type MockProvides struct {
 	fx.Out
 
 	Comp     flare.Component
-	Endpoint apidef.AgentEndpointProvider
+	Endpoint apihelper.AgentEndpointProvider
 }
 
 // MockFlare is a mock of the
@@ -58,6 +58,6 @@ func NewMock() MockProvides {
 
 	return MockProvides{
 		Comp:     m,
-		Endpoint: apidef.NewAgentEndpointProvider(m.handlerFunc, "/flare", "POST"),
+		Endpoint: apihelper.NewAgentEndpointProvider(m.handlerFunc, "/flare", "POST"),
 	}
 }

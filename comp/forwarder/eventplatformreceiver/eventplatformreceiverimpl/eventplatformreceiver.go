@@ -11,7 +11,7 @@ import (
 
 	"go.uber.org/fx"
 
-	apidef "github.com/DataDog/datadog-agent/comp/api/api/def"
+	apihelper "github.com/DataDog/datadog-agent/comp/api/api/helpers"
 	apiutils "github.com/DataDog/datadog-agent/comp/api/api/utils/stream"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver"
@@ -30,7 +30,7 @@ type provides struct {
 	fx.Out
 
 	Comp     eventplatformreceiver.Component
-	Endpoint apidef.AgentEndpointProvider
+	Endpoint apihelper.AgentEndpointProvider
 }
 
 func streamEventPlatform(eventPlatformReceiver eventplatformreceiver.Component) func(w http.ResponseWriter, r *http.Request) {
@@ -42,6 +42,6 @@ func NewReceiver(hostname hostnameinterface.Component) provides { // nolint:revi
 	epr := diagnostic.NewBufferedMessageReceiver(&epFormatter{}, hostname)
 	return provides{
 		Comp:     epr,
-		Endpoint: apidef.NewAgentEndpointProvider(streamEventPlatform(epr), "/stream-event-platform", "POST"),
+		Endpoint: apihelper.NewAgentEndpointProvider(streamEventPlatform(epr), "/stream-event-platform", "POST"),
 	}
 }

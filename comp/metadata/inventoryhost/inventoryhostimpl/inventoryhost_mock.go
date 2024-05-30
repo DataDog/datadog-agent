@@ -12,7 +12,7 @@ import (
 
 	"go.uber.org/fx"
 
-	apidef "github.com/DataDog/datadog-agent/comp/api/api/def"
+	apihelper "github.com/DataDog/datadog-agent/comp/api/api/helpers"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryhost"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -35,7 +35,7 @@ type MockProvides struct {
 	fx.Out
 
 	Comp     inventoryhost.Component
-	Endpoint apidef.AgentEndpointProvider
+	Endpoint apihelper.AgentEndpointProvider
 }
 
 type inventoryhostMock struct{}
@@ -55,6 +55,6 @@ func newMock() MockProvides {
 	ih := &inventoryhostMock{}
 	return MockProvides{
 		Comp:     ih,
-		Endpoint: apidef.NewAgentEndpointProvider(ih.handlerFunc, "/metadata/inventory-host", "GET"),
+		Endpoint: apihelper.NewAgentEndpointProvider(ih.handlerFunc, "/metadata/inventory-host", "GET"),
 	}
 }

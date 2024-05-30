@@ -18,7 +18,7 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/aggregator/diagnosesendermanager"
-	apidef "github.com/DataDog/datadog-agent/comp/api/api/def"
+	apihelper "github.com/DataDog/datadog-agent/comp/api/api/helpers"
 	apiutils "github.com/DataDog/datadog-agent/comp/api/api/utils"
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
@@ -57,7 +57,7 @@ type provides struct {
 	fx.Out
 
 	Comp     Component
-	Endpoint apidef.AgentEndpointProvider
+	Endpoint apihelper.AgentEndpointProvider
 }
 
 type flare struct {
@@ -80,7 +80,7 @@ func newFlare(deps dependencies) (provides, rcclienttypes.TaskListenerProvider) 
 
 	p := provides{
 		Comp:     f,
-		Endpoint: apidef.NewAgentEndpointProvider(f.createAndReturnFlarePath, "/flare", "POST"),
+		Endpoint: apihelper.NewAgentEndpointProvider(f.createAndReturnFlarePath, "/flare", "POST"),
 	}
 
 	return p, rcclienttypes.NewTaskListener(f.onAgentTaskEvent)
