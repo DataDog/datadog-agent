@@ -90,6 +90,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/tagset => ./pkg/tagset/
 	github.com/DataDog/datadog-agent/pkg/telemetry => ./pkg/telemetry/
 	github.com/DataDog/datadog-agent/pkg/trace => ./pkg/trace
+	github.com/DataDog/datadog-agent/pkg/trace/stats/oteltest => ./pkg/trace/stats/oteltest
 	github.com/DataDog/datadog-agent/pkg/util/backoff => ./pkg/util/backoff
 	github.com/DataDog/datadog-agent/pkg/util/buf => ./pkg/util/buf/
 	github.com/DataDog/datadog-agent/pkg/util/cache => ./pkg/util/cache
@@ -138,7 +139,7 @@ require (
 	github.com/DataDog/ebpf-manager v0.6.0
 	github.com/DataDog/gopsutil v1.2.2
 	github.com/DataDog/nikos v1.12.4
-	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.16.0
+	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.16.1
 	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/metrics v0.16.0
 	github.com/DataDog/opentelemetry-mapping-go/pkg/quantile v0.16.0
 	github.com/DataDog/sketches-go v1.4.4
@@ -552,7 +553,7 @@ require (
 	go.opencensus.io v0.24.0 // indirect
 	go.opentelemetry.io/collector/consumer v0.100.0
 	go.opentelemetry.io/collector/featuregate v1.7.0
-	go.opentelemetry.io/collector/semconv v0.100.0 // indirect
+	go.opentelemetry.io/collector/semconv v0.100.0
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.51.0 // indirect
 	go.opentelemetry.io/contrib/propagators/b3 v1.26.0 // indirect
 	go.opentelemetry.io/otel v1.26.0 // indirect
@@ -718,7 +719,6 @@ require (
 	go.opentelemetry.io/collector/otelcol v0.100.0
 	go.opentelemetry.io/collector/processor v0.100.0
 	go.opentelemetry.io/collector/service v0.100.0
-	go.uber.org/goleak v1.3.0
 	go4.org/intern v0.0.0-20230525184215-6c62f75575cb
 	go4.org/mem v0.0.0-20220726221520-4f986261bf13
 	gotest.tools v2.2.0+incompatible
