@@ -5,7 +5,7 @@
 
 /*
 Package scheduler is providing the `Scheduler` interface that should be implemented for any scheduler that would want to plug in `autodiscovery`.
-It also define the `Controller` which dispatchs all instructions from `autodiscovery` to all the registered schedulers.
+It also define the `Controller` which dispatches all instructions from `autodiscovery` to all the registered schedulers.
 
 Controller
 The goal of controller is to transform Autodiscovery to a reconciling controller. Basically the idea is to decouple entirely providers/listeners/resolvers
