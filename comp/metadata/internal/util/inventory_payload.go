@@ -56,6 +56,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -117,6 +118,14 @@ func CreateInventoryPayload(conf config.Component, l log.Component, s serializer
 		maxInterval = defaultMaxInterval
 	}
 
+	firstRunDelay := conf.GetDuration("inventories_first_run_delay") * time.Second
+
+	// First run delay override per payload config name
+	payloadFirstRunDelayConfigName := fmt.Sprintf("inventories_first_run_delay_%s", strings.TrimSuffix(flareFileName, ".json"))
+	if firstRunDelayOverride := conf.GetDuration(payloadFirstRunDelayConfigName); firstRunDelayOverride > 0 {
+		firstRunDelay = firstRunDelayOverride * time.Second
+	}
+
 	return InventoryPayload{
 		Enabled:       InventoryEnabled(conf),
 		conf:          conf,
@@ -124,7 +133,7 @@ func CreateInventoryPayload(conf config.Component, l log.Component, s serializer
 		serializer:    s,
 		getPayload:    getPayload,
 		createdAt:     time.Now(),
-		firstRunDelay: conf.GetDuration("inventories_first_run_delay") * time.Second,
+		firstRunDelay: firstRunDelay,
 		FlareFileName: flareFileName,
 		MinInterval:   minInterval,
 		MaxInterval:   maxInterval,
