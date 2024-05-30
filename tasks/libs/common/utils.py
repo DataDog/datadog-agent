@@ -430,9 +430,12 @@ def get_git_pretty_ref():
 
 
 def query_version(ctx, major_version, git_sha_length=7):
-    # The string that's passed in will look something like this: 6.0.0-beta.0-1-g4f19118
-    # if the tag is 6.0.0-beta.0, it has been one commit since the tag and that commit hash is g4f19118
-    cmd = rf'git describe --tags --candidates=50 --match "{major_version}\.*"'
+    # The describe string format is <tag>-<number of commits since the tag>-g<commit hash>
+    # e.g. 6.0.0-beta.0-1-g4f19118
+    #   - tag is 6.0.0-beta.0
+    #   - it has been one commit since the tag
+    #   - that commit hash is g4f19118
+    cmd = rf"git describe --tags --candidates=50 --match {get_matching_pattern(ctx, major_version)}"
     if git_sha_length and isinstance(git_sha_length, int):
         cmd += f" --abbrev={git_sha_length}"
     described_version = ctx.run(cmd, hide=True).stdout.strip()
@@ -472,6 +475,19 @@ def query_version(ctx, major_version, git_sha_length=7):
     pipeline_id = os.getenv("CI_PIPELINE_ID", None)
 
     return version, pre, commit_number, git_sha, pipeline_id
+
+
+def get_matching_pattern(ctx, major_version):
+    """
+    We need to used
+    """
+    pattern = rf"{major_version}\.*"
+    if is_allowed_repo_nightly_branch(os.getenv("BUCKET_BRANCH")):
+        pattern = ctx.run(
+            rf"git tag --list | grep -E '^{major_version}\.[0-9]+\.[0-9]+(-rc.*|-devel.*)?$' | sort -rV | head -1",
+            hide=True,
+        ).stdout.strip()
+    return f'"{pattern}"'
 
 
 def create_version_json(ctx, git_sha_length=7):
