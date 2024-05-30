@@ -21,11 +21,12 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/remote"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
-	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/process"
+	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	grpcutil "github.com/DataDog/datadog-agent/pkg/util/grpc"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 const (
@@ -117,11 +118,9 @@ func NewCollector() (workloadmeta.CollectorProvider, error) {
 		Collector: &remote.GenericCollector{
 			CollectorID: collectorID,
 			// TODO(components): make sure StreamHandler uses the config component not pkg/config
-			StreamHandler: &streamHandler{
-				Reader: config.Datadog(),
-			},
-			Catalog:  workloadmeta.NodeAgent,
-			Insecure: true, // wlm extractor currently does not support TLS
+			StreamHandler: &streamHandler{Reader: config.Datadog()},
+			Catalog:       workloadmeta.NodeAgent,
+			Insecure:      true, // wlm extractor currently does not support TLS
 		},
 	}, nil
 }
@@ -154,45 +153,6 @@ func (s *streamHandler) IsEnabled() bool {
 func (s *streamHandler) NewClient(cc grpc.ClientConnInterface) remote.GrpcClient {
 	log.Debug("creating grpc client")
 	return &client{cl: pbgo.NewProcessEntityStreamClient(cc), parentCollector: s}
-}
-
-// populateMissingContainerID populates any missing containerID field in the entities of Set events if it is possible to get the
-// container id from the shared container provider
-func (s *streamHandler) populateMissingContainerID(collectorEvents []workloadmeta.CollectorEvent, store workloadmeta.Component) {
-	var pidToCid map[int]string
-
-	for idx, event := range collectorEvents {
-		if event.Type != workloadmeta.EventTypeSet {
-			continue
-		}
-
-		processEntity := event.Entity.(*workloadmeta.Process)
-		pid := processEntity.GetID().ID
-		ctrID := processEntity.ContainerID
-
-		if ctrID == "" {
-			// Populate pidToCid if it is the first time containerId is empty
-			if pidToCid == nil {
-				containerProvider := proccontainers.GetSharedContainerProvider(store)
-				var err error
-				pidToCid, err = containerProvider.GetProcessToContainerMapping(cacheValidityNoRT)
-				if err != nil {
-					log.Warnf("error getting container id for process entity")
-				}
-			}
-
-			// Populate missing containerId field it is present in the mapping
-			pidAsInt, _ := strconv.Atoi(pid)
-			if ctrIDFromMapping, found := pidToCid[pidAsInt]; found {
-				processEntity.ContainerID = ctrIDFromMapping
-			} else {
-				log.Debugf("failed to get container id for process %s", pid)
-			}
-		}
-
-		event.Entity = processEntity
-		collectorEvents[idx] = event
-	}
 }
 
 func (s *streamHandler) HandleResponse(store workloadmeta.Component, resp interface{}) ([]workloadmeta.CollectorEvent, error) {
@@ -242,4 +202,32 @@ func (s *streamHandler) HandleResync(store workloadmeta.Component, events []work
 	// processes in the store.
 	log.Debugf("resync, handling [%d] events", len(processes))
 	store.ResetProcesses(processes, workloadmeta.SourceRemoteProcessCollector)
+}
+
+// populateMissingContainerID populates any missing containerID field in the entities of Set events if it is possible to get the
+// container id from the shared container provider
+func (s *streamHandler) populateMissingContainerID(collectorEvents []workloadmeta.CollectorEvent, store workloadmeta.Component) {
+	for idx, event := range collectorEvents {
+		if event.Type != workloadmeta.EventTypeSet {
+			continue
+		}
+
+		processEntity := event.Entity.(*workloadmeta.Process)
+		pid := processEntity.GetID().ID
+		ctrID := processEntity.ContainerID
+
+		if ctrID == "" {
+			pidAsInt, _ := strconv.Atoi(pid)
+			containerProvider := metrics.GetProvider(optional.NewOption(store))
+			ctrIDFromProvider, err := containerProvider.GetMetaCollector().GetContainerIDForPID(pidAsInt, cacheValidityNoRT)
+			if err != nil {
+				log.Debugf("failed to get container id for process %s: %v", pid, err)
+				continue
+			}
+			processEntity.ContainerID = ctrIDFromProvider
+		}
+
+		event.Entity = processEntity
+		collectorEvents[idx] = event
+	}
 }

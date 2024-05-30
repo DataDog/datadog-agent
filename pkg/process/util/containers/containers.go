@@ -59,7 +59,6 @@ var (
 // ContainerProvider defines the interface for a container metrics provider
 type ContainerProvider interface {
 	GetContainers(cacheValidity time.Duration, previousContainers map[string]*ContainerRateMetrics) ([]*model.Container, map[string]*ContainerRateMetrics, map[int]string, error)
-	GetProcessToContainerMapping(cacheValidity time.Duration) (map[int]string, error)
 }
 
 // GetSharedContainerProvider returns a shared ContainerProvider
@@ -97,24 +96,6 @@ func NewDefaultContainerProvider(wmeta workloadmeta.Component) ContainerProvider
 	return NewContainerProvider(metrics.GetProvider(optional.NewOption(wmeta)), wmeta, containerFilter)
 }
 
-func (p *containerProvider) shouldSkipContainer(container *workloadmeta.Container) bool {
-	var annotations map[string]string
-	if pod, err := p.metadataStore.GetKubernetesPodForContainer(container.ID); err == nil {
-		annotations = pod.Annotations
-	}
-
-	if p.filter != nil && p.filter.IsExcluded(annotations, container.Name, container.Image.Name, container.Labels[kubernetes.CriContainerNamespaceLabel]) {
-		return true
-	}
-
-	if container.Runtime == workloadmeta.ContainerRuntimeGarden && len(container.CollectorTags) == 0 {
-		log.Debugf("No tags found for garden container: %s, skipping", container.ID)
-		return true
-	}
-
-	return false
-}
-
 // GetContainers returns containers found on the machine
 func (p *containerProvider) GetContainers(cacheValidity time.Duration, previousContainers map[string]*ContainerRateMetrics) ([]*model.Container, map[string]*ContainerRateMetrics, map[int]string, error) {
 	containersMetadata := p.metadataStore.ListContainersWithFilter(workloadmeta.GetRunningContainers)
@@ -123,8 +104,17 @@ func (p *containerProvider) GetContainers(cacheValidity time.Duration, previousC
 	rateStats := make(map[string]*ContainerRateMetrics)
 	pidToCid := make(map[int]string)
 	for _, container := range containersMetadata {
+		var annotations map[string]string
+		if pod, err := p.metadataStore.GetKubernetesPodForContainer(container.ID); err == nil {
+			annotations = pod.Annotations
+		}
 
-		if p.shouldSkipContainer(container) {
+		if p.filter != nil && p.filter.IsExcluded(annotations, container.Name, container.Image.Name, container.Labels[kubernetes.CriContainerNamespaceLabel]) {
+			continue
+		}
+
+		if container.Runtime == workloadmeta.ContainerRuntimeGarden && len(container.CollectorTags) == 0 {
+			log.Debugf("No tags found for garden container: %s, skipping", container.ID)
 			continue
 		}
 
@@ -196,40 +186,6 @@ func (p *containerProvider) GetContainers(cacheValidity time.Duration, previousC
 	}
 
 	return processContainers, rateStats, pidToCid, nil
-}
-
-// GetProcessToContainerMapping returns a mapping from process ID to container ID
-func (p *containerProvider) GetProcessToContainerMapping(cacheValidity time.Duration) (map[int]string, error) {
-	containersMetadata := p.metadataStore.ListContainersWithFilter(workloadmeta.GetRunningContainers)
-
-	pidToCid := make(map[int]string)
-	for _, container := range containersMetadata {
-
-		if p.shouldSkipContainer(container) {
-			continue
-		}
-
-		collector := p.metricsProvider.GetCollector(provider.NewRuntimeMetadata(
-			string(container.Runtime),
-			string(container.RuntimeFlavor),
-		))
-		if collector == nil {
-			log.Infof("No metrics collector available for runtime: %s, skipping container: %s", container.Runtime, container.ID)
-			continue
-		}
-
-		// Building PID to CID mapping for NPM
-		pids, err := collector.GetPIDs(container.Namespace, container.ID, cacheValidity)
-		if err == nil && pids != nil {
-			for _, pid := range pids {
-				pidToCid[pid] = container.ID
-			}
-		} else {
-			log.Debugf("PIDs for: %+v not available, err: %v", container, err)
-		}
-	}
-
-	return pidToCid, nil
 }
 
 func computeContainerStats(container *workloadmeta.Container, inStats *metrics.ContainerStats, previousStats, outPreviousStats *ContainerRateMetrics, outStats *model.Container) {
