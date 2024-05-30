@@ -5,7 +5,6 @@ go 1.21.0
 require (
 	github.com/open-telemetry/opentelemetry-collector-contrib/exporter/datadogexporter v0.100.0
 	github.com/stretchr/testify v1.9.0
-	go.opentelemetry.io/collector/component v0.100.0
 	go.opentelemetry.io/collector/confmap v0.100.0
 	go.opentelemetry.io/collector/confmap/converter/expandconverter v0.100.0
 	go.opentelemetry.io/collector/confmap/provider/envprovider v0.100.0
@@ -190,6 +189,7 @@ require (
 	github.com/yusufpapurcu/wmi v1.2.4 // indirect
 	go.opencensus.io v0.24.0 // indirect
 	go.opentelemetry.io/collector v0.100.0 // indirect
+	go.opentelemetry.io/collector/component v0.100.0 // indirect
 	go.opentelemetry.io/collector/config/configauth v0.100.0 // indirect
 	go.opentelemetry.io/collector/config/configcompression v1.7.0 // indirect
 	go.opentelemetry.io/collector/config/confighttp v0.100.0 // indirect
