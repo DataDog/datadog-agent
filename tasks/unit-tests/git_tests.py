@@ -18,13 +18,13 @@ class TestGit(unittest.TestCase):
 
     @unittest.mock.patch('tasks.git.get_current_branch')
     def test_check_protected_branch_error(self, get_current_branch_mock):
-        protected_branched = (
+        protected_branches = (
             'main',
             '7.54.x',
             '6.54.x',
         )
 
-        for branch_name in protected_branched:
+        for branch_name in protected_branches:
             with self.subTest(branch=branch_name):
                 get_current_branch_mock.return_value = branch_name
                 self.assertRaises(Exit, check_protected_branch, self.ctx)
