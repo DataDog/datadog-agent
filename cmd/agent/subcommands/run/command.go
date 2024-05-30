@@ -244,7 +244,7 @@ func run(log log.Component,
 	_ agenttelemetry.Component,
 ) error {
 	defer func() {
-		stopAgent(agentAPI)
+		stopAgent()
 	}()
 
 	// Setup a channel to catch OS signals
@@ -597,12 +597,12 @@ func startAgent(
 }
 
 // StopAgentWithDefaults is a temporary way for other packages to use stopAgent.
-func StopAgentWithDefaults(agentAPI internalAPI.Component) {
-	stopAgent(agentAPI)
+func StopAgentWithDefaults() {
+	stopAgent()
 }
 
 // stopAgent Tears down the agent process
-func stopAgent(agentAPI internalAPI.Component) {
+func stopAgent() {
 	// retrieve the agent health before stopping the components
 	// GetReadyNonBlocking has a 100ms timeout to avoid blocking
 	health, err := health.GetReadyNonBlocking()
@@ -612,7 +612,6 @@ func stopAgent(agentAPI internalAPI.Component) {
 		pkglog.Warnf("Some components were unhealthy: %v", health.Unhealthy)
 	}
 
-	agentAPI.StopServer()
 	clcrunnerapi.StopCLCRunnerServer()
 	jmxfetch.StopJmxfetch()
 

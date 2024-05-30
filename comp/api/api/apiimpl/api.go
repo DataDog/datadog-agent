@@ -12,7 +12,6 @@ import (
 
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	"github.com/DataDog/datadog-agent/comp/api/api"
 	"github.com/DataDog/datadog-agent/comp/api/authtoken"
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
@@ -37,9 +36,6 @@ import (
 func Module() fxutil.Module {
 	return fxutil.Component(
 		fx.Provide(newAPIServer),
-		fx.Provide(func(sender demultiplexer.Component) sender.DiagnoseSenderManager {
-			return sender
-		}),
 	)
 }
 
