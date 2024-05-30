@@ -118,7 +118,7 @@ func (m *OOMKillCheck) Run() error {
 		entityID := containers.BuildTaggerEntityName(containerID)
 		var tags []string
 		if entityID != "" {
-			tags, err = tagger.Tag(entityID, tagger.ChecksCardinality)
+			tags, err = tagger.Tag(entityID, tagger.ChecksCardinality())
 			if err != nil {
 				log.Errorf("Error collecting tags for container %s: %s", containerID, err)
 			}

@@ -66,6 +66,7 @@ from tasks.go import (
     internal_deps_checker,
     lint_licenses,
     reset,
+    tidy,
     tidy_all,
 )
 from tasks.gotest import (
@@ -116,6 +117,7 @@ ns.add_task(install_tools)
 ns.add_task(invoke_unit_tests)
 ns.add_task(check_mod_tidy)
 ns.add_task(check_go_mod_replaces)
+ns.add_task(tidy)
 ns.add_task(tidy_all)
 ns.add_task(internal_deps_checker)
 ns.add_task(check_go_version)

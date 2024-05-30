@@ -10,8 +10,8 @@ github.com/DataDog/mmh3 v0.0.0-20210722141835-012dc69a9e49 h1:EbzDX8HPk5uE2FsJYx
 github.com/DataDog/mmh3 v0.0.0-20210722141835-012dc69a9e49/go.mod h1:SvsjzyJlSg0rKsqYgdcFxeEVflx3ZNAyFfkUHP0TxXg=
 github.com/DataDog/opentelemetry-mapping-go/pkg/internal/sketchtest v0.16.0 h1:VJT1Jjlz/ca999FEqaAS+He7S4eB14a+PJjczgRdgAY=
 github.com/DataDog/opentelemetry-mapping-go/pkg/internal/sketchtest v0.16.0/go.mod h1:66XlN7QpQKqIvw8e2UbCXV5X8wGnEw851nT9BjJ75dY=
-github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.16.0 h1:g/ztrLYZNfkpW6Bt8kMnLed5DaKRHEtiKE0opHXLHJk=
-github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.16.0/go.mod h1:dvIWN9pA2zWNTw5rhDWZgzZnhcfpH++d+8d1SWW6xkY=
+github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.16.1 h1:ZI8u3CgdMXpDplrf9/gIr13+/g/tUzUcBMk2ZhXgzLE=
+github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.16.1/go.mod h1:dvIWN9pA2zWNTw5rhDWZgzZnhcfpH++d+8d1SWW6xkY=
 github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/logs v0.16.0 h1:NbKlfbjR2joF52jEBLs3MEnT6l5zM3MCyhUFkqARZpk=
 github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/logs v0.16.0/go.mod h1:+LijQ2LdlocAQ4WB+7KsoIGe90bfogkRslubd9swVow=
 github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/metrics v0.16.0 h1:H5DzD3rwgQCX0VI3A16KgsdmC5grUCyDFflaZDpfgMc=
@@ -20,8 +20,8 @@ github.com/DataDog/opentelemetry-mapping-go/pkg/quantile v0.16.0 h1:BdfRSuCoHyKa
 github.com/DataDog/opentelemetry-mapping-go/pkg/quantile v0.16.0/go.mod h1:6eYyd+lJYH+uRuZqhyW/u+9ykaXBWetDGj44+txz6jU=
 github.com/DataDog/sketches-go v1.4.4 h1:dF52vzXRFSPOj2IjXSWLvXq3jubL4CI69kwYjJ1w5Z8=
 github.com/DataDog/sketches-go v1.4.4/go.mod h1:XR0ns2RtEEF09mDKXiKZiQg+nfZStrq1ZuL1eezeZe0=
-github.com/DataDog/viper v1.13.3 h1:0++798wZLEenL1JbF8dMmwFl6WMlAVxLtzVuws/LlVc=
-github.com/DataDog/viper v1.13.3/go.mod h1:wDdUVJ2SHaMaPrCZrlRCObwkubsX8j5sme3LaR/SGTc=
+github.com/DataDog/viper v1.13.4 h1:0SrZc3zvMAGgVKg96uP4DEJb13lK2Is9a4go7IIcFSE=
+github.com/DataDog/viper v1.13.4/go.mod h1:wDdUVJ2SHaMaPrCZrlRCObwkubsX8j5sme3LaR/SGTc=
 github.com/DataDog/zstd v1.5.5 h1:oWf5W7GtOLgp6bciQYDmhHHjdhYkALu6S/5Ni9ZgSvQ=
 github.com/DataDog/zstd v1.5.5/go.mod h1:g4AWEaM3yOg3HYfnJ3YIawPnVdXJh9QME85blwSAmyw=
 github.com/DataDog/zstd_0 v0.0.0-20210310093942-586c1286621f h1:5Vuo4niPKFkfwW55jV4vY0ih3VQ9RaQqeqY67fvRn8A=

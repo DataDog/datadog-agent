@@ -1453,6 +1453,17 @@ func (p *EBPFProbe) applyDefaultFilterPolicies() {
 	}
 }
 
+func isKillActionPresent(rs *rules.RuleSet) bool {
+	for _, rule := range rs.GetRules() {
+		for _, action := range rule.Definition.Actions {
+			if action.Kill != nil {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 // ApplyRuleSet apply the required update to handle the new ruleset
 func (p *EBPFProbe) ApplyRuleSet(rs *rules.RuleSet) (*kfilters.ApplyRuleSetReport, error) {
 	if p.opts.SyscallsMonitorEnabled {
@@ -1475,21 +1486,29 @@ func (p *EBPFProbe) ApplyRuleSet(rs *rules.RuleSet) (*kfilters.ApplyRuleSetRepor
 		}
 	}
 
+	eventTypes := rs.GetEventTypes()
+
+	// activity dump & security profiles
 	needRawSyscalls := p.isNeededForActivityDump(model.SyscallsEventType.String())
-	if !needRawSyscalls && p.config.RuntimeSecurity.EnforcementRawSyscallEnabled {
-		// Add syscall monitor probes if it's either activated or
-		// there is an 'kill' action in the ruleset
-		for _, rule := range rs.GetRules() {
-			for _, action := range rule.Definition.Actions {
-				if action.Kill != nil {
-					needRawSyscalls = true
-					break
+
+	// kill action
+	if p.config.RuntimeSecurity.EnforcementEnabled && isKillActionPresent(rs) {
+		if !p.config.RuntimeSecurity.EnforcementRawSyscallEnabled {
+			// force FIM and Process category so that we can catch most of the activity
+			categories := model.GetEventTypePerCategory(model.FIMCategory, model.ProcessCategory)
+			for _, list := range categories {
+				for _, eventType := range list {
+					if !slices.Contains(eventTypes, eventType) {
+						eventTypes = append(eventTypes, eventType)
+					}
 				}
 			}
+		} else {
+			needRawSyscalls = true
 		}
 	}
 
-	if err := p.updateProbes(rs.GetEventTypes(), needRawSyscalls); err != nil {
+	if err := p.updateProbes(eventTypes, needRawSyscalls); err != nil {
 		return nil, fmt.Errorf("failed to select probes: %w", err)
 	}
 
@@ -1616,22 +1635,6 @@ func NewEBPFProbe(probe *Probe, config *config.Config, opts Opts, wmeta optional
 		manager.ConstantEditor{
 			Name:  constantfetch.OffsetNameSchedProcessForkParentPid,
 			Value: constantfetch.ReadTracepointFieldOffsetWithFallback("sched/sched_process_fork", "parent_pid", 24),
-		},
-		manager.ConstantEditor{
-			Name:  constantfetch.OffsetNameSysMmapOff,
-			Value: constantfetch.ReadTracepointFieldOffsetWithFallback("syscalls/sys_enter_mmap", "off", 56) + constantfetch.GetRHEL93MMapDelta(p.kernelVersion),
-		},
-		manager.ConstantEditor{
-			Name:  constantfetch.OffsetNameSysMmapLen,
-			Value: constantfetch.ReadTracepointFieldOffsetWithFallback("syscalls/sys_enter_mmap", "len", 24) + constantfetch.GetRHEL93MMapDelta(p.kernelVersion),
-		},
-		manager.ConstantEditor{
-			Name:  constantfetch.OffsetNameSysMmapProt,
-			Value: constantfetch.ReadTracepointFieldOffsetWithFallback("syscalls/sys_enter_mmap", "prot", 32) + constantfetch.GetRHEL93MMapDelta(p.kernelVersion),
-		},
-		manager.ConstantEditor{
-			Name:  constantfetch.OffsetNameSysMmapFlags,
-			Value: constantfetch.ReadTracepointFieldOffsetWithFallback("syscalls/sys_enter_mmap", "flags", 40) + constantfetch.GetRHEL93MMapDelta(p.kernelVersion),
 		},
 	)
 
@@ -2048,6 +2051,9 @@ func (p *EBPFProbe) HandleActions(ctx *eval.Context, rule *rules.Rule) {
 
 				p.probe.DispatchCustomEvent(rule, event)
 			}
+		case action.Hash != nil:
+			// force the resolution as it will force the hash resolution as well
+			ev.ResolveFields()
 		}
 	}
 }
