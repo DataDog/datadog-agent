@@ -26,7 +26,7 @@
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
   variables:
-    DD_PKG_ARCH: "x86_64"
+    DD_PKG_ARCH: x86_64
     PACKAGE_ARCH: amd64
 
 .package_deb_arm64:
@@ -34,7 +34,7 @@
   tags: ["arch:arm64"]
   variables:
     PACKAGE_ARCH: arm64
-    DD_PKG_ARCH: "arm64"
+    DD_PKG_ARCH: arm64
 
 .package_deb_agent_6:
   variables:
