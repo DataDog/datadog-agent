@@ -22,8 +22,18 @@
   cache:
     - !reference [.cache_omnibus_ruby_deps, cache]
 
+.package_deb_agent_6:
+  variables:
+    RELEASE_VERSION: $RELEASE_VERSION_6
+    AGENT_MAJOR_VERSION: 6
+
+.package_deb_agent_7:
+  variables:
+    RELEASE_VERSION: $RELEASE_VERSION_7
+    AGENT_MAJOR_VERSION: 7
+
 agent_deb-x64-a6:
-  extends: .package_deb_common
+  extends: [.package_deb_common, .package_deb_agent_6]
   rules:
     - !reference [.except_mergequeue]
     - when: on_success
@@ -35,11 +45,9 @@ agent_deb-x64-a6:
     DESTINATION_DEB: "datadog-agent_6_amd64.deb"
     DD_PKG_ARCH: "x86_64"
     DD_PROJECT: "agent"
-    RELEASE_VERSION: $RELEASE_VERSION_6
-    AGENT_MAJOR_VERSION: 6
 
 agent_deb-x64-a7:
-  extends: .package_deb_common
+  extends: [.package_deb_common, .package_deb_agent_7]
   rules:
     - !reference [.except_mergequeue]
     - when: on_success
@@ -51,11 +59,9 @@ agent_deb-x64-a7:
     DESTINATION_DEB: "datadog-agent_7_amd64.deb"
     DD_PKG_ARCH: "x86_64"
     DD_PROJECT: "agent"
-    RELEASE_VERSION: $RELEASE_VERSION_7
-    AGENT_MAJOR_VERSION: 7
 
 agent_deb-arm64-a6:
-  extends: .package_deb_common
+  extends: [.package_deb_common, .package_deb_agent_6]
   rules:
     - !reference [.except_mergequeue]
     - when: on_success
@@ -67,11 +73,9 @@ agent_deb-arm64-a6:
     DESTINATION_DEB: "datadog-agent_6_arm64.deb"
     DD_PKG_ARCH: "arm64"
     DD_PROJECT: "agent"
-    RELEASE_VERSION: $RELEASE_VERSION_6
-    AGENT_MAJOR_VERSION: 6
 
 agent_deb-arm64-a7:
-  extends: .package_deb_common
+  extends: [.package_deb_common, .package_deb_agent7]
   rules:
     - !reference [.except_mergequeue]
     - when: on_success
@@ -83,11 +87,9 @@ agent_deb-arm64-a7:
     DESTINATION_DEB: "datadog-agent_7_arm64.deb"
     DD_PKG_ARCH: "arm64"
     DD_PROJECT: "agent"
-    RELEASE_VERSION: $RELEASE_VERSION_7
-    AGENT_MAJOR_VERSION: 7
 
 installer_deb-amd64:
-  extends: .package_deb_common
+  extends: [.package_deb_common, .package_deb_agent_7]
   rules:
     - !reference [.except_mergequeue]
     - when: on_success
@@ -99,11 +101,9 @@ installer_deb-amd64:
     DESTINATION_DEB: "datadog-installer_7_amd64.deb"
     DD_PKG_ARCH: "x86_64"
     DD_PROJECT: "installer"
-    RELEASE_VERSION: $RELEASE_VERSION_7
-    AGENT_MAJOR_VERSION: 7
 
 installer_deb-arm64:
-  extends: .package_deb_common
+  extends: [.package_deb_common, .package_deb_agent_7]
   rules:
     - !reference [.except_mergequeue]
     - when: on_success
@@ -115,15 +115,12 @@ installer_deb-arm64:
     DESTINATION_DEB: "datadog-installer_7_arm64.deb"
     DD_PKG_ARCH: "arm64"
     DD_PROJECT: "installer"
-    RELEASE_VERSION: $RELEASE_VERSION_7
-    AGENT_MAJOR_VERSION: 7
 
 .package_iot_deb_common:
+  extends: [.package_deb_agent7]
   rules:
     - !reference [.except_mergequeue]
     - when: on_success
-  before_script:
-    - export RELEASE_VERSION=$RELEASE_VERSION_7
   stage: packaging
   script:
     - source /root/.bashrc
@@ -178,7 +175,7 @@ iot_agent_deb-armhf:
     FORCED_PACKAGE_COMPRESSION_LEVEL: 5
 
 dogstatsd_deb-x64:
-  extends: .package_deb_common
+  extends: [.package_deb_common, .package_deb_agent_7]
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   rules:
     - !reference [.except_mergequeue]
@@ -190,11 +187,9 @@ dogstatsd_deb-x64:
     PACKAGE_ARCH: amd64
     DD_PKG_ARCH: "x86_64"
     DESTINATION_DEB: "datadog-dogstatsd_amd64.deb"
-    RELEASE_VERSION: $RELEASE_VERSION_7
-    AGENT_MAJOR_VERSION: 7
 
 dogstatsd_deb-arm64:
-  extends: .package_deb_common
+  extends: [.package_deb_common, .package_deb_agent_7]
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64$DATADOG_AGENT_ARMBUILDIMAGES_SUFFIX:$DATADOG_AGENT_ARMBUILDIMAGES
   rules:
     - !reference [.except_mergequeue]
@@ -206,6 +201,4 @@ dogstatsd_deb-arm64:
     PACKAGE_ARCH: arm64
     DD_PKG_ARCH: "arm64"
     DESTINATION_DEB: "datadog-dogstatsd_arm64.deb"
-    RELEASE_VERSION: $RELEASE_VERSION_7
-    AGENT_MAJOR_VERSION: 7
 
