@@ -49,11 +49,13 @@ const (
 
 // Telemetry
 var tracerouteRunnerTelemetry = struct {
-	runs       *telemetry.StatCounterWrapper
-	failedRuns *telemetry.StatCounterWrapper
+	runs                *telemetry.StatCounterWrapper
+	failedRuns          *telemetry.StatCounterWrapper
+	reverseDNSTimetouts *telemetry.StatCounterWrapper
 }{
 	telemetry.NewStatCounterWrapper(tracerouteRunnerModuleName, "runs", []string{}, "Counter measuring the number of traceroutes run"),
 	telemetry.NewStatCounterWrapper(tracerouteRunnerModuleName, "failed_runs", []string{}, "Counter measuring the number of traceroute run failures"),
+	telemetry.NewStatCounterWrapper(tracerouteRunnerModuleName, "reverse_dns_timeouts", []string{}, "Counter measuring the number of traceroute reverse DNS timeouts"),
 }
 
 // Runner executes traceroutes

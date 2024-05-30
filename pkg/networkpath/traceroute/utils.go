@@ -7,6 +7,7 @@ package traceroute
 
 import (
 	"context"
+	"errors"
 	"net"
 	"strings"
 	"time"
@@ -36,7 +37,10 @@ func getHostname(ipAddr string) string {
 	currHost := ""
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	currHostList, _ := lookupAddrFn(ctx, ipAddr)
+	currHostList, err := lookupAddrFn(ctx, ipAddr)
+	if errors.Is(err, context.Canceled) {
+		tracerouteRunnerTelemetry.reverseDNSTimetouts.Inc()
+	}
 	log.Debugf("Reverse DNS List: %+v", currHostList)
 
 	if len(currHostList) > 0 {
