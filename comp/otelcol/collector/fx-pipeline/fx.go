@@ -3,25 +3,18 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build otlp
-
-// Package collector implements the OpenTelemetry Collector component.
-package collector
+// Package fx creates the modules for fx
+package fx
 
 import (
-	"go.uber.org/fx"
-
-	collectordef "github.com/DataDog/datadog-agent/comp/otelcol/collector/def"
+	collectorimpl "github.com/DataDog/datadog-agent/comp/otelcol/collector/impl-pipeline"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 // team: opentelemetry
 
-// Component specifies the interface implemented by the collector module.
-type Component = collectordef.Component
-
-// Module specifies the Collector module bundle.
+// Module for OTel Agent
 func Module() fxutil.Module {
 	return fxutil.Component(
-		fx.Provide(newPipeline))
+		fxutil.ProvideComponentConstructor(collectorimpl.NewComponent))
 }

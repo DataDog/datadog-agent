@@ -20,6 +20,8 @@ import (
 	corelogimpl "github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
+	"github.com/DataDog/datadog-agent/comp/core/tagger"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/forwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
@@ -82,6 +84,8 @@ func runOTelAgentCommand(_ context.Context, params *subcommands.GlobalParams, op
 		inventoryagentimpl.Module(),
 		workloadmeta.Module(),
 		hostnameimpl.Module(),
+		fx.Provide(tagger.NewTaggerParams),
+		taggerimpl.Module(),
 		sysprobeconfig.NoneModule(),
 		fetchonlyimpl.Module(),
 		collectorfx.Module(),

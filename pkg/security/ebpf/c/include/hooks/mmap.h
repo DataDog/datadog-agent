@@ -7,8 +7,12 @@
 #include "helpers/filesystem.h"
 #include "helpers/syscalls.h"
 
-SEC("tracepoint/syscalls/sys_enter_mmap")
-int tracepoint_syscalls_sys_enter_mmap(void *args) {
+HOOK_ENTRY("vm_mmap_pgoff")
+int hook_vm_mmap_pgoff(ctx_t *ctx) {
+    u64 len = CTX_PARM3(ctx);
+    u64 prot = CTX_PARM4(ctx);
+    u64 flags = CTX_PARM5(ctx);
+
     struct policy_t policy = fetch_policy(EVENT_MMAP);
     if (is_discarded_by_process(policy.mode, EVENT_MMAP)) {
         return 0;
@@ -17,23 +21,27 @@ int tracepoint_syscalls_sys_enter_mmap(void *args) {
     struct syscall_cache_t syscall = {
         .type = EVENT_MMAP,
         .policy = policy,
+        .mmap.len = len,
+        .mmap.protection = prot,
+        .mmap.flags = flags,
     };
 
-    u64 sys_enter_mmap_off_offset;
-    LOAD_CONSTANT("sys_enter_mmap_off_offset", sys_enter_mmap_off_offset);
-    u64 sys_enter_mmap_len_offset;
-    LOAD_CONSTANT("sys_enter_mmap_len_offset", sys_enter_mmap_len_offset);
-    u64 sys_enter_mmap_prot_offset;
-    LOAD_CONSTANT("sys_enter_mmap_prot_offset", sys_enter_mmap_prot_offset);
-    u64 sys_enter_mmap_flags_offset;
-    LOAD_CONSTANT("sys_enter_mmap_flags_offset", sys_enter_mmap_flags_offset);
-
-    bpf_probe_read(&syscall.mmap.offset, sizeof(u64), args + sys_enter_mmap_off_offset);
-    bpf_probe_read(&syscall.mmap.len, sizeof(u64), args + sys_enter_mmap_len_offset);
-    bpf_probe_read(&syscall.mmap.protection, sizeof(u64), args + sys_enter_mmap_prot_offset);
-    bpf_probe_read(&syscall.mmap.flags, sizeof(u64), args + sys_enter_mmap_flags_offset);
-
     cache_syscall(&syscall);
+    return 0;
+}
+
+// we need this hook because it passes the `pgoff` argument in one of the first parameters
+// and not in position 5 or 6 where we cannot read it
+HOOK_ENTRY("get_unmapped_area")
+int hook_get_unmapped_area(ctx_t *ctx) {
+    struct syscall_cache_t *syscall = peek_syscall(EVENT_MMAP);
+    if (!syscall) {
+        return 0;
+    }
+
+    u64 offset = CTX_PARM4(ctx);
+    syscall->mmap.offset = offset;
+
     return 0;
 }
 
@@ -77,9 +85,10 @@ int __attribute__((always_inline)) sys_mmap_ret(void *ctx, int retval, u64 addr)
     return 0;
 }
 
-SEC("tracepoint/syscalls/sys_exit_mmap")
-int tracepoint_syscalls_sys_exit_mmap(struct tracepoint_syscalls_sys_exit_mmap_t *args) {
-    return sys_mmap_ret(args, (int)args->ret, (u64)args->ret);
+HOOK_EXIT("vm_mmap_pgoff")
+int rethook_vm_mmap_pgoff(ctx_t *ctx) {
+    u64 ret = CTX_PARMRET(ctx, 6);
+    return sys_mmap_ret(ctx, (int)ret, ret);
 }
 
 HOOK_ENTRY("security_mmap_file")
