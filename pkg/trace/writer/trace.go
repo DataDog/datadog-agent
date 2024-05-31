@@ -269,8 +269,25 @@ func (w *TraceWriter) flushPayloads(payloads []*pb.TracerPayload) {
 	w.serialize(&p)
 }
 
+var outPool = sync.Pool{}
+
+func getBS(size int) []byte {
+	b := outPool.Get()
+	if b == nil {
+		return make([]byte, size)
+	}
+	bs := b.([]byte)
+	if cap(bs) < size {
+		return make([]byte, size)
+	}
+	return bs[:size]
+}
+
 func (w *TraceWriter) serialize(pl *pb.AgentPayload) {
-	b, err := pl.MarshalVT()
+	b := getBS(pl.SizeVT())
+	defer outPool.Put(b)
+	n, err := pl.MarshalToSizedBufferVT(b)
+	b = b[:n]
 	if err != nil {
 		log.Errorf("Failed to serialize payload, data dropped: %v", err)
 		return
