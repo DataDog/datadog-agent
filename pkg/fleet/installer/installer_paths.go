@@ -13,7 +13,7 @@ const (
 	// TmpDirPath is the path to the temporary directory used for package installation.
 	TmpDirPath = "/opt/datadog-packages"
 	// LocksPack is the path to the locks directory.
-	LocksPack = "/var/run/datadog-packages"
+	LocksPack = "/var/run/datadog-installer/locks"
 	// DefaultConfigsDir is the default Agent configuration directory
 	DefaultConfigsDir = "/etc"
 )
