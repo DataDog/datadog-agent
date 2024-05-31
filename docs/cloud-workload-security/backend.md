@@ -1384,6 +1384,10 @@ CSM Threats logs have the following JSON schema:
                 "event_in_profile": {
                     "type": "boolean",
                     "description": "True if the corresponding event is part of this profile"
+                },
+                "event_type_state": {
+                    "type": "string",
+                    "description": "State of the event type in this profile"
                 }
             },
             "additionalProperties": false,
@@ -1392,7 +1396,8 @@ CSM Threats logs have the following JSON schema:
                 "name",
                 "version",
                 "tags",
-                "event_in_profile"
+                "event_in_profile",
+                "event_type_state"
             ],
             "description": "SecurityProfileContextSerializer serializes the security profile context in an event"
         },
@@ -1456,6 +1461,37 @@ CSM Threats logs have the following JSON schema:
                 "id"
             ],
             "description": "SyscallSerializer serializes a syscall"
+        },
+        "SyscallArgs": {
+            "properties": {
+                "path": {
+                    "type": "string",
+                    "description": "Path argument"
+                },
+                "mode": {
+                    "type": "integer",
+                    "description": "Mode argument"
+                }
+            },
+            "additionalProperties": false,
+            "type": "object",
+            "description": "SyscallArgsSerializer args serializer"
+        },
+        "SyscallContext": {
+            "properties": {
+                "chmod": {
+                    "$ref": "#/$defs/SyscallArgs"
+                },
+                "chdir": {
+                    "$ref": "#/$defs/SyscallArgs"
+                },
+                "exec": {
+                    "$ref": "#/$defs/SyscallArgs"
+                }
+            },
+            "additionalProperties": false,
+            "type": "object",
+            "description": "SyscallContextSerializer serializes syscall context"
         },
         "SyscallsEvent": {
             "items": {
@@ -1600,6 +1636,9 @@ CSM Threats logs have the following JSON schema:
         },
         "usr": {
             "$ref": "#/$defs/UserContext"
+        },
+        "syscall": {
+            "$ref": "#/$defs/SyscallContext"
         }
     },
     "additionalProperties": false,
@@ -1639,6 +1678,7 @@ CSM Threats logs have the following JSON schema:
 | `mount` | $ref | Please see [MountEvent](#mountevent) |
 | `syscalls` | $ref | Please see [SyscallsEvent](#syscallsevent) |
 | `usr` | $ref | Please see [UserContext](#usercontext) |
+| `syscall` | $ref | Please see [SyscallContext](#syscallcontext) |
 
 ## `AWSIMDSEvent`
 
@@ -3658,6 +3698,10 @@ CSM Threats logs have the following JSON schema:
         "event_in_profile": {
             "type": "boolean",
             "description": "True if the corresponding event is part of this profile"
+        },
+        "event_type_state": {
+            "type": "string",
+            "description": "State of the event type in this profile"
         }
     },
     "additionalProperties": false,
@@ -3666,7 +3710,8 @@ CSM Threats logs have the following JSON schema:
         "name",
         "version",
         "tags",
-        "event_in_profile"
+        "event_in_profile",
+        "event_type_state"
     ],
     "description": "SecurityProfileContextSerializer serializes the security profile context in an event"
 }
@@ -3679,6 +3724,7 @@ CSM Threats logs have the following JSON schema:
 | `version` | Version of the profile in use |
 | `tags` | List of tags associated to this profile |
 | `event_in_profile` | True if the corresponding event is part of this profile |
+| `event_type_state` | State of the event type in this profile |
 
 
 ## `SignalEvent`
@@ -3784,6 +3830,64 @@ CSM Threats logs have the following JSON schema:
 | `name` | Name of the syscall |
 | `id` | ID of the syscall in the host architecture |
 
+
+## `SyscallArgs`
+
+
+{{< code-block lang="json" collapsible="true" >}}
+{
+    "properties": {
+        "path": {
+            "type": "string",
+            "description": "Path argument"
+        },
+        "mode": {
+            "type": "integer",
+            "description": "Mode argument"
+        }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "description": "SyscallArgsSerializer args serializer"
+}
+
+{{< /code-block >}}
+
+| Field | Description |
+| ----- | ----------- |
+| `path` | Path argument |
+| `mode` | Mode argument |
+
+
+## `SyscallContext`
+
+
+{{< code-block lang="json" collapsible="true" >}}
+{
+    "properties": {
+        "chmod": {
+            "$ref": "#/$defs/SyscallArgs"
+        },
+        "chdir": {
+            "$ref": "#/$defs/SyscallArgs"
+        },
+        "exec": {
+            "$ref": "#/$defs/SyscallArgs"
+        }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "description": "SyscallContextSerializer serializes syscall context"
+}
+
+{{< /code-block >}}
+
+
+| References |
+| ---------- |
+| [SyscallArgs](#syscallargs) |
+| [SyscallArgs](#syscallargs) |
+| [SyscallArgs](#syscallargs) |
 
 ## `SyscallsEvent`
 

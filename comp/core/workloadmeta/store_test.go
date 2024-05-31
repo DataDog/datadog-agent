@@ -1420,6 +1420,49 @@ func TestResetProcesses(t *testing.T) {
 
 }
 
+func TestGetKubernetesMetadata(t *testing.T) {
+	deps := fxutil.Test[dependencies](t, fx.Options(
+		logimpl.MockModule(),
+		config.MockModule(),
+		fx.Supply(NewParams()),
+	))
+
+	s := newWorkloadmetaObject(deps)
+
+	kubemetadata := &KubernetesMetadata{
+		EntityID: EntityID{
+			Kind: KindKubernetesMetadata,
+			ID:   "deployments/default/app",
+		},
+	}
+
+	s.handleEvents([]CollectorEvent{
+		{
+			Type:   EventTypeSet,
+			Source: fooSource,
+			Entity: kubemetadata,
+		},
+	})
+
+	retrievedMetadata, err := s.GetKubernetesMetadata("deployments/default/app")
+	tassert.NoError(t, err)
+
+	if !reflect.DeepEqual(kubemetadata, retrievedMetadata) {
+		t.Errorf("expected metadata %q to match the one in the store", retrievedMetadata.ID)
+	}
+
+	s.handleEvents([]CollectorEvent{
+		{
+			Type:   EventTypeUnset,
+			Source: fooSource,
+			Entity: kubemetadata,
+		},
+	})
+
+	_, err = s.GetKubernetesMetadata("deployments/default/app")
+	tassert.True(t, errors.IsNotFound(err))
+}
+
 func TestReset(t *testing.T) {
 	fooContainer := &Container{
 		EntityID: EntityID{

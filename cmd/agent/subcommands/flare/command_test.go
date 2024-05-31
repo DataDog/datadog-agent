@@ -11,10 +11,12 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"path"
 	"runtime"
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"github.com/stretchr/testify/suite"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
 	"github.com/DataDog/datadog-agent/comp/core"
@@ -24,9 +26,28 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
-const sysprobeSockPath = "/tmp/sysprobe.sock"
+type commandTestSuite struct {
+	suite.Suite
+	sysprobeSocketPath string
+	tcpServer          *httptest.Server
+	unixServer         *httptest.Server
+}
 
-func getPprofTestServer(t *testing.T) (tcpServer *httptest.Server, unixServer *httptest.Server) {
+func (c *commandTestSuite) SetupSuite() {
+	t := c.T()
+	c.sysprobeSocketPath = path.Join(t.TempDir(), "sysprobe.sock")
+	c.tcpServer, c.unixServer = c.getPprofTestServer()
+}
+
+func (c *commandTestSuite) TearDownSuite() {
+	c.tcpServer.Close()
+	if c.unixServer != nil {
+		c.unixServer.Close()
+	}
+}
+
+func (c *commandTestSuite) getPprofTestServer() (tcpServer *httptest.Server, unixServer *httptest.Server) {
+	t := c.T()
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/debug/pprof/heap":
@@ -51,24 +72,21 @@ func getPprofTestServer(t *testing.T) (tcpServer *httptest.Server, unixServer *h
 	if runtime.GOOS == "linux" {
 		unixServer = httptest.NewUnstartedServer(handler)
 		var err error
-		unixServer.Listener, err = net.Listen("unix", sysprobeSockPath)
-		require.NoError(t, err, "could not create listener for unix socket /tmp/sysprobe.sock")
+		unixServer.Listener, err = net.Listen("unix", c.sysprobeSocketPath)
+		require.NoError(t, err, "could not create listener for unix socket on %s", c.sysprobeSocketPath)
 		unixServer.Start()
-
-		return tcpServer, unixServer
 	}
 
-	return tcpServer, tcpServer
+	return tcpServer, unixServer
 }
 
-func TestReadProfileData(t *testing.T) {
-	ts, uts := getPprofTestServer(t)
-	t.Cleanup(func() {
-		ts.Close()
-		uts.Close()
-	})
+func TestCommandTestSuite(t *testing.T) {
+	suite.Run(t, &commandTestSuite{})
+}
 
-	u, err := url.Parse(ts.URL)
+func (c *commandTestSuite) TestReadProfileData() {
+	t := c.T()
+	u, err := url.Parse(c.tcpServer.URL)
 	require.NoError(t, err)
 	port := u.Port()
 
@@ -85,7 +103,7 @@ func TestReadProfileData(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		mockSysProbeConfig.SetWithoutSource("system_probe_config.sysprobe_socket", u.Host)
 	} else {
-		mockSysProbeConfig.SetWithoutSource("system_probe_config.sysprobe_socket", sysprobeSockPath)
+		mockSysProbeConfig.SetWithoutSource("system_probe_config.sysprobe_socket", c.sysprobeSocketPath)
 	}
 
 	data, err := readProfileData(10)
@@ -134,14 +152,9 @@ func TestReadProfileData(t *testing.T) {
 	}
 }
 
-func TestReadProfileDataNoTraceAgent(t *testing.T) {
-	ts, uts := getPprofTestServer(t)
-	t.Cleanup(func() {
-		ts.Close()
-		uts.Close()
-	})
-
-	u, err := url.Parse(ts.URL)
+func (c *commandTestSuite) TestReadProfileDataNoTraceAgent() {
+	t := c.T()
+	u, err := url.Parse(c.tcpServer.URL)
 	require.NoError(t, err)
 	port := u.Port()
 
@@ -158,7 +171,7 @@ func TestReadProfileDataNoTraceAgent(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		mockSysProbeConfig.SetWithoutSource("system_probe_config.sysprobe_socket", u.Host)
 	} else {
-		mockSysProbeConfig.SetWithoutSource("system_probe_config.sysprobe_socket", sysprobeSockPath)
+		mockSysProbeConfig.SetWithoutSource("system_probe_config.sysprobe_socket", c.sysprobeSocketPath)
 	}
 
 	data, err := readProfileData(10)
@@ -202,7 +215,8 @@ func TestReadProfileDataNoTraceAgent(t *testing.T) {
 	}
 }
 
-func TestReadProfileDataErrors(t *testing.T) {
+func (c *commandTestSuite) TestReadProfileDataErrors() {
+	t := c.T()
 	mockConfig := config.Mock(t)
 	mockConfig.SetWithoutSource("apm_config.enabled", true)
 	mockConfig.SetWithoutSource("apm_config.debug.port", 0)
@@ -213,7 +227,8 @@ func TestReadProfileDataErrors(t *testing.T) {
 	require.Len(t, data, 0)
 }
 
-func TestCommand(t *testing.T) {
+func (c *commandTestSuite) TestCommand() {
+	t := c.T()
 	fxutil.TestOneShotSubcommand(t,
 		Commands(&command.GlobalParams{}),
 		[]string{"flare", "1234"},

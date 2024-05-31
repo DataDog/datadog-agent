@@ -27,9 +27,9 @@ enum MONITOR_KEYS {
 #define MAX_PERF_STR_BUFF_LEN 256
 #define MAX_STR_BUFF_LEN (1 << 15)
 #define MAX_ARRAY_ELEMENT_SIZE 4096
-#define MAX_ARRAY_ELEMENT_PER_TAIL 28
+#define MAX_ARRAY_ELEMENT_PER_TAIL 27
 #define MAX_ARGS_ELEMENTS (MAX_ARRAY_ELEMENT_PER_TAIL * (32 / 2)) // split tailcall limit
-#define MAX_ARGS_READ_PER_TAIL 208
+#define MAX_ARGS_READ_PER_TAIL 160
 
 #define EXEC_GET_ENVS_OFFSET 0
 #define EXEC_PARSE_ARGS_ENVS_SPLIT 1
@@ -121,6 +121,10 @@ enum TC_TAIL_CALL_KEYS {
          FASYNC | O_DIRECT | O_LARGEFILE | O_DIRECTORY | O_NOFOLLOW | \
          O_NOATIME | O_CLOEXEC | O_PATH | __O_TMPFILE)
 #endif
+
+#define MAX_SYSCALL_CTX_ENTRIES 1024
+#define MAX_SYSCALL_ARG_MAX_SIZE 128
+#define MAX_SYSCALL_CTX_SIZE MAX_SYSCALL_ARG_MAX_SIZE*3 + 4 + 1 // id + types octet + 3 args
 
 __attribute__((always_inline)) u64 is_cgroup_activity_dumps_enabled() {
     u64 cgroup_activity_dumps_enabled;

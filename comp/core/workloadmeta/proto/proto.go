@@ -72,7 +72,45 @@ func ProtobufEventFromWorkloadmetaEvent(event workloadmeta.Event) (*pb.Workloadm
 		}, nil
 	}
 
-	return nil, fmt.Errorf("unknown kind: %s", entityID.Kind)
+	// We have not defined a conversion for the workloadmeta type included in
+	// the given event.
+	// This is not considered to be an error because we only support some
+	// types. The list is defined in the remote workloadmeta collector.
+	return nil, nil
+}
+
+// ProtobufFilterFromWorkloadmetaFilter converts the given workloadmeta.Filter into protobuf
+func ProtobufFilterFromWorkloadmetaFilter(filter *workloadmeta.Filter) (*pb.WorkloadmetaFilter, error) {
+	if filter == nil {
+		return nil, nil
+	}
+
+	kinds := filter.Kinds()
+	protoKinds := make([]pb.WorkloadmetaKind, 0, len(kinds))
+	for _, kind := range kinds {
+		protoKind, err := toProtoKind(kind)
+		if err != nil {
+			return nil, err
+		}
+
+		protoKinds = append(protoKinds, protoKind)
+	}
+
+	protoSource, err := toProtoSource(filter.Source())
+	if err != nil {
+		return nil, err
+	}
+
+	protoEventType, err := toProtoEventType(filter.EventType())
+	if err != nil {
+		return nil, err
+	}
+
+	return &pb.WorkloadmetaFilter{
+		Kinds:     protoKinds,
+		Source:    protoSource,
+		EventType: protoEventType,
+	}, nil
 }
 
 func protoContainerFromWorkloadmetaContainer(container *workloadmeta.Container) (*pb.Container, error) {
@@ -108,6 +146,7 @@ func protoContainerFromWorkloadmetaContainer(container *workloadmeta.Container) 
 		Runtime:       protoRuntime,
 		State:         protoContainerState,
 		CollectorTags: container.CollectorTags,
+		CgroupPath:    container.CgroupPath,
 	}, nil
 }
 
@@ -122,6 +161,21 @@ func toProtoEventType(eventType workloadmeta.EventType) (pb.WorkloadmetaEventTyp
 	}
 
 	return pb.WorkloadmetaEventType_EVENT_TYPE_ALL, fmt.Errorf("unknown event type: %d", eventType)
+}
+
+func toProtoSource(source workloadmeta.Source) (pb.WorkloadmetaSource, error) {
+	switch source {
+	case workloadmeta.SourceAll:
+		return pb.WorkloadmetaSource_ALL, nil
+	case workloadmeta.SourceRuntime:
+		return pb.WorkloadmetaSource_RUNTIME, nil
+	case workloadmeta.SourceNodeOrchestrator:
+		return pb.WorkloadmetaSource_NODE_ORCHESTRATOR, nil
+	case workloadmeta.SourceClusterOrchestrator:
+		return pb.WorkloadmetaSource_CLUSTER_ORCHESTRATOR, nil
+	}
+
+	return pb.WorkloadmetaSource_ALL, fmt.Errorf("unknown source: %s", source)
 }
 
 func toProtoEntityIDFromContainer(container *workloadmeta.Container) (*pb.WorkloadmetaEntityId, error) {
@@ -558,6 +612,7 @@ func toWorkloadmetaContainer(protoContainer *pb.Container) (*workloadmeta.Contai
 		Runtime:       runtime,
 		State:         state,
 		CollectorTags: protoContainer.CollectorTags,
+		CgroupPath:    protoContainer.CgroupPath,
 	}, nil
 }
 

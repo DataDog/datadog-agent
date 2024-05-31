@@ -26,7 +26,6 @@ import (
 	streamutils "github.com/DataDog/datadog-agent/comp/api/api/utils/stream"
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
-	"github.com/DataDog/datadog-agent/comp/core/gui"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 
@@ -56,14 +55,12 @@ func SetupHandlers(
 	statusComponent status.Component,
 	collector optional.Option[collector.Component],
 	ac autodiscovery.Component,
-	gui optional.Option[gui.Component],
 	providers []api.EndpointProvider,
 ) *mux.Router {
-
 	// Register the handlers from the component providers
-	sort.Slice(providers, func(i, j int) bool { return providers[i].Route < providers[j].Route })
+	sort.Slice(providers, func(i, j int) bool { return providers[i].Route() < providers[j].Route() })
 	for _, p := range providers {
-		r.HandleFunc(p.Route, p.HandlerFunc).Methods(p.Methods...)
+		r.HandleFunc(p.Route(), p.HandlerFunc()).Methods(p.Methods()...)
 	}
 
 	// TODO: move these to a component that is registerable
@@ -77,7 +74,6 @@ func SetupHandlers(
 	r.HandleFunc("/{component}/status", func(w http.ResponseWriter, r *http.Request) { componentStatusGetterHandler(w, r, statusComponent) }).Methods("GET")
 	r.HandleFunc("/{component}/status", componentStatusHandler).Methods("POST")
 	r.HandleFunc("/{component}/configs", componentConfigHandler).Methods("GET")
-	r.HandleFunc("/gui/csrf-token", func(w http.ResponseWriter, _ *http.Request) { getCSRFToken(w, gui) }).Methods("GET")
 	r.HandleFunc("/secrets", func(w http.ResponseWriter, r *http.Request) { secretInfo(w, r, secretResolver) }).Methods("GET")
 	r.HandleFunc("/secret/refresh", func(w http.ResponseWriter, r *http.Request) { secretRefresh(w, r, secretResolver) }).Methods("GET")
 	r.HandleFunc("/diagnose", func(w http.ResponseWriter, r *http.Request) {
@@ -199,15 +195,6 @@ func getHealth(w http.ResponseWriter, _ *http.Request) {
 	}
 
 	w.Write(jsonHealth)
-}
-
-func getCSRFToken(w http.ResponseWriter, optGui optional.Option[gui.Component]) {
-	// WARNING: GUI comp currently not provided to JMX
-	gui, guiExist := optGui.Get()
-	if !guiExist {
-		return
-	}
-	w.Write([]byte(gui.GetCSRFToken()))
 }
 
 func secretInfo(w http.ResponseWriter, _ *http.Request, secretResolver secrets.Component) {

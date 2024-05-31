@@ -87,7 +87,7 @@ func FromAgentConfig(cfg config.Reader) (PipelineConfig, error) {
 	metricsConfigMap := metricsConfig.ToStringMap()
 
 	if _, ok := metricsConfigMap["apm_stats_receiver_addr"]; !ok {
-		metricsConfigMap["apm_stats_receiver_addr"] = fmt.Sprintf("http://localhost:%s/v0.6/stats", coreconfig.Datadog.GetString("apm_config.receiver_port"))
+		metricsConfigMap["apm_stats_receiver_addr"] = fmt.Sprintf("http://localhost:%s/v0.6/stats", coreconfig.Datadog().GetString("apm_config.receiver_port"))
 	}
 
 	tags := strings.Join(util.GetStaticTagsSlice(context.TODO()), ",")

@@ -36,14 +36,12 @@ func (s *packageInstallerSuite) TestInstall() {
 
 	state.AssertDirExists("/etc/datadog-agent", 0755, "dd-agent", "dd-agent")
 	state.AssertDirExists("/var/log/datadog", 0755, "dd-agent", "dd-agent")
-	state.AssertDirExists("/var/run/datadog", 0755, "dd-agent", "dd-agent")
-	state.AssertDirExists("/var/run/datadog/installer", 0755, "dd-agent", "dd-agent")
-	state.AssertDirExists("/var/run/datadog/installer/locks", 0777, "root", "root")
+	state.AssertDirExists("/var/run/datadog-installer", 0755, "dd-agent", "dd-agent")
+	state.AssertDirExists("/var/run/datadog-installer/locks", 0777, "root", "root")
 
 	state.AssertDirExists("/opt/datadog-installer", 0755, "root", "root")
 	state.AssertDirExists("/opt/datadog-packages", 0755, "root", "root")
 	state.AssertDirExists("/opt/datadog-packages/datadog-installer", 0755, "root", "root")
-	state.AssertDirExists("/opt/datadog-packages/datadog-installer/stable/run", 0755, "dd-agent", "dd-agent")
 
 	state.AssertSymlinkExists("/usr/bin/datadog-bootstrap", "/opt/datadog-installer/bin/installer/installer", "root", "root")
 	state.AssertSymlinkExists("/usr/bin/datadog-installer", "/opt/datadog-packages/datadog-installer/stable/bin/installer/installer", "root", "root")
@@ -75,11 +73,10 @@ func (s *packageInstallerSuite) TestUninstall() {
 	state.AssertUserHasGroup("dd-agent", "dd-agent")
 
 	state.AssertDirExists("/var/log/datadog", 0755, "dd-agent", "dd-agent")
-	state.AssertDirExists("/var/run/datadog", 0755, "dd-agent", "dd-agent")
 
 	// state that should get removed
 	state.AssertPathDoesNotExist("/opt/datadog-installer")
-	state.AssertPathDoesNotExist("/var/run/datadog/installer")
+	state.AssertPathDoesNotExist("/var/run/datadog-installer")
 	state.AssertPathDoesNotExist("/opt/datadog-packages")
 
 	state.AssertPathDoesNotExist("/usr/bin/datadog-bootstrap")

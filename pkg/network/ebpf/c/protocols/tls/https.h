@@ -18,6 +18,7 @@
 #include "port_range.h"
 #include "sock.h"
 
+#include "protocols/amqp/helpers.h"
 #include "protocols/classification/dispatcher-helpers.h"
 #include "protocols/classification/dispatcher-maps.h"
 #include "protocols/http/buffer.h"
@@ -47,10 +48,16 @@ static __always_inline void classify_decrypted_payload(protocol_stack_t *stack, 
 
     protocol_t proto = PROTOCOL_UNKNOWN;
     classify_protocol_for_dispatcher(&proto, t, buffer, len);
-    if (proto == PROTOCOL_UNKNOWN) {
-        return;
+    if (proto != PROTOCOL_UNKNOWN) {
+        goto update_stack;
     }
 
+    // Protocol is not HTTP/HTTP2/gRPC
+    if (is_amqp(buffer, len)) {
+        proto = PROTOCOL_AMQP;
+    }
+
+update_stack:
     set_protocol(stack, proto);
 }
 

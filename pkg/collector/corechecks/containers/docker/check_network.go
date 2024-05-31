@@ -37,7 +37,7 @@ func (d *DockerCheck) configureNetworkProcessor(processor *generic.Processor) {
 	switch runtime.GOOS {
 	case "linux":
 		if config.IsHostProcAvailable() {
-			d.networkProcessorExtension = &dockerNetworkExtension{procPath: config.Datadog.GetString("container_proc_root")}
+			d.networkProcessorExtension = &dockerNetworkExtension{procPath: config.Datadog().GetString("container_proc_root")}
 		}
 	case "windows":
 		d.networkProcessorExtension = &dockerNetworkExtension{}

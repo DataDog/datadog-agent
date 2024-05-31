@@ -9,13 +9,10 @@
 package autoscaling
 
 import (
-	"fmt"
-
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent/admission"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 
 	admiv1 "k8s.io/api/admissionregistration/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -24,34 +21,29 @@ import (
 )
 
 const (
-	recommendationIDAnotation = "autoscaling.datadoghq.com/rec-id"
-
 	webhookName     = "autoscaling"
 	webhookEndpoint = "/autoscaling"
-
-	requestType = "request"
-	limitType   = "limit"
 )
 
 // Webhook implements the MutatingWebhook interface
 type Webhook struct {
-	name        string
-	isEnabled   bool
-	endpoint    string
-	resources   []string
-	operations  []admiv1.OperationType
-	recommender workload.PatcherAdapter
+	name       string
+	isEnabled  bool
+	endpoint   string
+	resources  []string
+	operations []admiv1.OperationType
+	patcher    workload.PODPatcher
 }
 
 // NewWebhook returns a new Webhook
-func NewWebhook(recommender workload.PatcherAdapter) *Webhook {
+func NewWebhook(patcher workload.PODPatcher) *Webhook {
 	return &Webhook{
-		name:        webhookName,
-		isEnabled:   config.Datadog.GetBool("autoscaling.workload.enabled"),
-		endpoint:    webhookEndpoint,
-		resources:   []string{"pods"},
-		operations:  []admiv1.OperationType{admiv1.Create},
-		recommender: recommender,
+		name:       webhookName,
+		isEnabled:  config.Datadog().GetBool("autoscaling.workload.enabled"),
+		endpoint:   webhookEndpoint,
+		resources:  []string{"pods"},
+		operations: []admiv1.OperationType{admiv1.Create},
+		patcher:    patcher,
 	}
 }
 
@@ -102,61 +94,6 @@ func (w *Webhook) mutate(request *admission.MutateRequest) ([]byte, error) {
 
 // updateResource finds the owner of a pod, calls the recommender to retrieve the recommended CPU and Memory
 // requests
-func (w *Webhook) updateResources(pod *corev1.Pod, ns string, _ dynamic.Interface) (bool, error) {
-	if len(pod.OwnerReferences) == 0 {
-		return false, fmt.Errorf("no owner found for pod %s", pod.Name)
-	}
-	ownerRef := pod.OwnerReferences[0]
-	if ownerRef.Kind == kubernetes.ReplicaSetKind {
-		ownerRef.Kind = kubernetes.DeploymentKind
-		ownerRef.Name = kubernetes.ParseDeploymentForReplicaSet(ownerRef.Name)
-	}
-	// ParseDeploymentForReplicaSet returns "" when the parsing fails
-	if ownerRef.Name == "" {
-		return false, fmt.Errorf("no owner found for pod %s", pod.Name)
-	}
-
-	recommendationID, recommendations, err := w.recommender.GetRecommendations(pod.Namespace, ownerRef)
-	if err != nil || recommendationID == "" {
-		return false, err
-	}
-
-	// Patching the pod with the recommendations
-	injected := false
-	if pod.Annotations[recommendationIDAnotation] != recommendationID {
-		pod.Annotations[recommendationIDAnotation] = recommendationID
-		injected = true
-	}
-
-	for _, reco := range recommendations {
-		for i := range pod.Spec.Containers {
-			cont := &pod.Spec.Containers[i]
-			if cont.Name != reco.Name {
-				continue
-			}
-			if cont.Resources.Limits == nil {
-				cont.Resources.Limits = corev1.ResourceList{}
-			}
-			if cont.Resources.Requests == nil {
-				cont.Resources.Requests = corev1.ResourceList{}
-			}
-			for resource, limit := range reco.Limits {
-				if limit != cont.Resources.Limits[resource] {
-					cont.Resources.Limits[resource] = limit
-					injections.Set(limit.AsApproximateFloat64(), string(resource), ns, ownerRef.Name, cont.Name, limitType, recommendationID)
-					injected = true
-				}
-			}
-			for resource, request := range reco.Requests {
-				if request != cont.Resources.Requests[resource] {
-					cont.Resources.Requests[resource] = request
-					injections.Set(request.AsApproximateFloat64(), string(resource), ns, ownerRef.Name, cont.Name, requestType, recommendationID)
-					injected = true
-				}
-			}
-			break
-		}
-	}
-
-	return injected, nil
+func (w *Webhook) updateResources(pod *corev1.Pod, _ string, _ dynamic.Interface) (bool, error) {
+	return w.patcher.ApplyRecommendations(pod)
 }
