@@ -1,5 +1,6 @@
 #include "kconfig.h"
 #include <linux/version.h>
+#include "bpf_metadata.h"
 
 #include "bpf_helpers.h"
 #include "bpf_endian.h"

@@ -1,6 +1,7 @@
 #include "bpf_tracing.h"
 #include "bpf_builtins.h"
 #include "bpf_telemetry.h"
+#include "bpf_metadata.h"
 
 #include "ktypes.h"
 #ifdef COMPILE_RUNTIME
