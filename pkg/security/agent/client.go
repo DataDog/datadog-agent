@@ -205,7 +205,7 @@ func NewRuntimeSecurityClient() (*RuntimeSecurityClient, error) {
 				BaseDelay: time.Second,
 				MaxDelay:  time.Second,
 			},
-		})) //nolint:staticcheck // TODO (ASC) fix grpc.Dial is deprecated
+		}))
 	if err != nil {
 		return nil, err
 	}

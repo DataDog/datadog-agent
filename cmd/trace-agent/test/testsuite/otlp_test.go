@@ -104,7 +104,7 @@ apm_config:
 		}
 		defer r.KillAgent()
 
-		conn, err := grpc.Dial(fmt.Sprintf("localhost:%d", port), grpc.WithBlock(), grpc.WithTransportCredentials(insecure.NewCredentials())) //nolint:staticcheck // TODO (ASC) fix grpc.DialContext is deprecated
+		conn, err := grpc.Dial(fmt.Sprintf("localhost:%d", port), grpc.WithBlock(), grpc.WithTransportCredentials(insecure.NewCredentials())) //nolint:staticcheck // TODO (ASC) fix grpc.Dial is deprecated
 		if err != nil {
 			log.Fatal("Error dialing: ", err)
 		}
@@ -158,7 +158,7 @@ apm_config:
 		}
 		defer r.KillAgent()
 
-		conn, err := grpc.Dial(fmt.Sprintf("localhost:%d", port), grpc.WithBlock(), grpc.WithTransportCredentials(insecure.NewCredentials())) //nolint:staticcheck // TODO (ASC) fix grpc.DialContext is deprecated
+		conn, err := grpc.Dial(fmt.Sprintf("localhost:%d", port), grpc.WithBlock(), grpc.WithTransportCredentials(insecure.NewCredentials())) //nolint:staticcheck // TODO (ASC) fix grpc.Dial is deprecated
 		if err != nil {
 			log.Fatal("Error dialing: ", err)
 		}
@@ -253,7 +253,7 @@ apm_config:
 		}
 		defer r.KillAgent()
 
-		conn, err := grpc.Dial(fmt.Sprintf("localhost:%d", port), grpc.WithBlock(), grpc.WithTransportCredentials(insecure.NewCredentials())) //nolint:staticcheck // TODO (ASC) fix grpc.DialContext is deprecated
+		conn, err := grpc.Dial(fmt.Sprintf("localhost:%d", port), grpc.WithBlock(), grpc.WithTransportCredentials(insecure.NewCredentials())) //nolint:staticcheck // TODO (ASC) fix grpc.Dial is deprecated
 		if err != nil {
 			log.Fatal("Error dialing: ", err)
 		}
@@ -319,7 +319,7 @@ apm_config:
 		}
 		defer r.KillAgent()
 
-		conn, err := grpc.Dial(fmt.Sprintf("localhost:%d", port), grpc.WithBlock(), grpc.WithTransportCredentials(insecure.NewCredentials())) //nolint:staticcheck // TODO (ASC) fix grpc.DialContext is deprecated
+		conn, err := grpc.Dial(fmt.Sprintf("localhost:%d", port), grpc.WithBlock(), grpc.WithTransportCredentials(insecure.NewCredentials())) //nolint:staticcheck // TODO (ASC) fix grpc.Dial is deprecated
 		if err != nil {
 			log.Fatal("Error dialing: ", err)
 		}

@@ -531,7 +531,7 @@ func RegisterAgentSecureHandlerServer(ctx context.Context, mux *runtime.ServeMux
 // RegisterAgentHandlerFromEndpoint is same as RegisterAgentHandler but
 // automatically dials to "endpoint" and closes the connection when "ctx" gets done.
 func RegisterAgentHandlerFromEndpoint(ctx context.Context, mux *runtime.ServeMux, endpoint string, opts []grpc.DialOption) (err error) {
-	conn, err := grpc.Dial(endpoint, opts...) //nolint:staticcheck // TODO (ASC) fix grpc.DialContext is deprecated
+	conn, err := grpc.Dial(endpoint, opts...)
 	if err != nil {
 		return err
 	}
@@ -600,7 +600,7 @@ var (
 // RegisterAgentSecureHandlerFromEndpoint is same as RegisterAgentSecureHandler but
 // automatically dials to "endpoint" and closes the connection when "ctx" gets done.
 func RegisterAgentSecureHandlerFromEndpoint(ctx context.Context, mux *runtime.ServeMux, endpoint string, opts []grpc.DialOption) (err error) {
-	conn, err := grpc.Dial(endpoint, opts...) //nolint:staticcheck // TODO (ASC) fix grpc.DialContext is deprecated
+	conn, err := grpc.Dial(endpoint, opts...)
 	if err != nil {
 		return err
 	}

@@ -150,7 +150,7 @@ type Options struct {
 
 // NewClient returns a new gRPC client
 func NewClient(addr string, options Options, withTLS bool) (Client, error) {
-	gRPCOptions := []grpc.DialOption{grpc.WithBlock()} //nolint:staticcheck // TODO (ASC) fix grpc.DialContext is deprecated
+	gRPCOptions := []grpc.DialOption{grpc.WithBlock()} //nolint:staticcheck // TODO (ASC) fix grpc.WithBlock is deprecated
 	creds := grpc.WithTransportCredentials(insecure.NewCredentials())
 	if withTLS {
 		creds = grpc.WithTransportCredentials(credentials.NewTLS(&tls.Config{InsecureSkipVerify: true}))

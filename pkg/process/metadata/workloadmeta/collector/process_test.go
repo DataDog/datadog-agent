@@ -46,7 +46,7 @@ type collectorTest struct {
 func acquireStream(t *testing.T, port int) pbgo.ProcessEntityStream_StreamEntitiesClient {
 	t.Helper()
 
-	cc, err := grpc.Dial(fmt.Sprintf("localhost:%v", port), grpc.WithTransportCredentials(insecure.NewCredentials())) //nolint:staticcheck // TODO (ASC) fix grpc.DialContext is deprecated
+	cc, err := grpc.Dial(fmt.Sprintf("localhost:%v", port), grpc.WithTransportCredentials(insecure.NewCredentials())) //nolint:staticcheck // TODO (ASC) fix grpc.Dial is deprecated
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		_ = cc.Close()

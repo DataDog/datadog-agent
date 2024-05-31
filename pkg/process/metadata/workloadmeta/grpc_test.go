@@ -179,7 +179,7 @@ func TestStreamServerDropRedundantCacheDiff(t *testing.T) {
 		Pid2: proc2,
 	})
 
-	cc, err := grpc.Dial(srv.addr.String(), grpc.WithTransportCredentials(insecure.NewCredentials())) //nolint:staticcheck // TODO (ASC) fix grpc.DialContext is deprecated
+	cc, err := grpc.Dial(srv.addr.String(), grpc.WithTransportCredentials(insecure.NewCredentials())) //nolint:staticcheck // TODO (ASC) fix grpc.Dial is deprecated
 	require.NoError(t, err)
 	defer cc.Close()
 	streamClient := pbgo.NewProcessEntityStreamClient(cc)
@@ -377,7 +377,7 @@ func setupGRPCTest(t *testing.T) (*WorkloadMetaExtractor, *GRPCServer, *grpc.Cli
 	require.NoError(t, err)
 	t.Cleanup(grpcServer.Stop)
 
-	cc, err := grpc.Dial(grpcServer.addr.String(), grpc.WithTransportCredentials(insecure.NewCredentials())) //nolint:staticcheck // TODO (ASC) fix grpc.DialContext is deprecated
+	cc, err := grpc.Dial(grpcServer.addr.String(), grpc.WithTransportCredentials(insecure.NewCredentials())) //nolint:staticcheck // TODO (ASC) fix grpc.Dial is deprecated
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		_ = cc.Close()
