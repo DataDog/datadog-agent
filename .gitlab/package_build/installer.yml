@@ -190,6 +190,7 @@ windows-installer-amd64:
       -e SIGN_WINDOWS_DD_WCS=true
       -e S3_OMNIBUS_CACHE_BUCKET="$S3_OMNIBUS_CACHE_BUCKET"
       -e USE_S3_CACHING="$USE_S3_CACHING"
+      -e API_KEY_ORG2_SSM_NAME=${API_KEY_ORG2_SSM_NAME}
       486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/windows_1809_${ARCH}${Env:DATADOG_AGENT_WINBUILDIMAGES_SUFFIX}:${Env:DATADOG_AGENT_WINBUILDIMAGES}
       c:\mnt\tasks\winbuildscripts\buildinstaller.bat
   after_script:
