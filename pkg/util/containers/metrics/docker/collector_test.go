@@ -19,7 +19,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetaimpl "github.com/DataDog/datadog-agent/comp/core/workloadmeta/impl"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics/provider"
@@ -88,7 +87,6 @@ func TestGetContainerIDForPID(t *testing.T) {
 	mockStore := fxutil.Test[workloadmetaimpl.Mock](t, fx.Options(
 		config.MockModule(),
 		logimpl.MockModule(),
-		collectors.GetCatalog(),
 		fx.Supply(workloadmeta.NewParams()),
 		workloadmetaimpl.MockModuleV2(),
 	))

@@ -49,6 +49,12 @@ const (
 	envVarVersion = "DD_VERSION"
 	envVarService = "DD_SERVICE"
 
+	// OpenTelemetry SDK - Environment variables
+	// https://opentelemetry.io/docs/languages/sdk-configuration/general
+	// https://opentelemetry.io/docs/specs/semconv/resource/
+	envVarOtelService            = "OTEL_SERVICE_NAME"
+	envVarOtelResourceAttributes = "OTEL_RESOURCE_ATTRIBUTES"
+
 	// Docker label keys
 	dockerLabelEnv     = "com.datadoghq.tags.env"
 	dockerLabelVersion = "com.datadoghq.tags.version"
@@ -64,6 +70,16 @@ var (
 		envVarEnv:     tagKeyEnv,
 		envVarVersion: tagKeyVersion,
 		envVarService: tagKeyService,
+	}
+
+	otelStandardEnvKeys = map[string]string{
+		envVarOtelService: tagKeyService,
+	}
+
+	otelResourceAttributesMapping = map[string]string{
+		"service.name":           tagKeyService,
+		"service.version":        tagKeyVersion,
+		"deployment.environment": tagKeyEnv,
 	}
 
 	lowCardOrchestratorEnvKeys = map[string]string{
@@ -211,6 +227,9 @@ func (c *WorkloadMetaCollector) handleContainer(ev workloadmeta.Event) []*types.
 
 	// standard tags from environment
 	c.extractFromMapWithFn(container.EnvVars, standardEnvKeys, tags.AddStandard)
+
+	// standard tags in OpenTelemetry SDK format from environment
+	c.addOpenTelemetryStandardTags(container, tags)
 
 	// orchestrator tags from environment
 	c.extractFromMapWithFn(container.EnvVars, lowCardOrchestratorEnvKeys, tags.AddLow)
@@ -650,6 +669,9 @@ func (c *WorkloadMetaCollector) extractTagsFromPodContainer(pod *workloadmeta.Ku
 	// enrich with standard tags from environment variables
 	c.extractFromMapWithFn(container.EnvVars, standardEnvKeys, tags.AddStandard)
 
+	// standard tags in OpenTelemetry SDK format from environment
+	c.addOpenTelemetryStandardTags(container, tags)
+
 	// container-specific tags provided through pod annotation
 	annotation := fmt.Sprintf(podContainerTagsAnnotationFormat, containerName)
 	c.extractTagsFromJSONInMap(annotation, pod.Annotations, tags)
@@ -741,6 +763,18 @@ func (c *WorkloadMetaCollector) extractTagsFromJSONInMap(key string, input map[s
 	if err != nil {
 		log.Errorf("can't parse value for annotation %s: %s", key, err)
 	}
+}
+
+func (c *WorkloadMetaCollector) addOpenTelemetryStandardTags(container *workloadmeta.Container, tags *taglist.TagList) {
+	if otelResourceAttributes, ok := container.EnvVars[envVarOtelResourceAttributes]; ok {
+		for _, pair := range strings.Split(otelResourceAttributes, ",") {
+			fields := strings.SplitN(pair, "=", 2)
+			if tag, ok := otelResourceAttributesMapping[fields[0]]; ok {
+				tags.AddStandard(tag, fields[1])
+			}
+		}
+	}
+	c.extractFromMapWithFn(container.EnvVars, otelStandardEnvKeys, tags.AddStandard)
 }
 
 func buildTaggerEntityID(entityID workloadmeta.EntityID) string {

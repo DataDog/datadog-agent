@@ -182,7 +182,7 @@ func (c *Check) Run() error {
 		c.connection = conn
 	}
 
-	dbInstanceIntervalExpired := checkIntervalExpired(&c.dbInstanceLastRun, 1800)
+	dbInstanceIntervalExpired := checkIntervalExpired(&c.dbInstanceLastRun, c.config.DatabaseInstanceCollectionInterval)
 
 	if dbInstanceIntervalExpired && !c.legacyIntegrationCompatibilityMode && !c.config.OnlyCustomQueries {
 		err := sendDbInstanceMetadata(c)

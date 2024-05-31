@@ -13,6 +13,7 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor"
 	emconfig "github.com/DataDog/datadog-agent/pkg/eventmonitor/config"
+	netconfig "github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/events"
 	procconsumer "github.com/DataDog/datadog-agent/pkg/process/events/consumer"
 	secconfig "github.com/DataDog/datadog-agent/pkg/security/config"
@@ -77,6 +78,18 @@ func createEventMonitorModule(_ *sysconfigtypes.Config, wmeta optional.Option[wo
 		}
 		evm.RegisterEventConsumer(process)
 		log.Info("event monitoring process-agent consumer initialized")
+	}
+
+	netconfig := netconfig.New()
+	if netconfig.EnableUSMEventStream {
+		procmonconsumer, err := createProcessMonitorConsumer(evm)
+		if err != nil {
+			return nil, err
+		}
+		if procmonconsumer != nil {
+			evm.RegisterEventConsumer(procmonconsumer)
+			log.Info("USM process monitoring consumer initialized")
+		}
 	}
 
 	return evm, err

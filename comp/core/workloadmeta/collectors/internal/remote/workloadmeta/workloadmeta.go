@@ -139,7 +139,7 @@ func (s *streamHandler) IsEnabled() bool {
 	return true
 }
 
-func (s *streamHandler) HandleResponse(resp interface{}) ([]workloadmeta.CollectorEvent, error) {
+func (s *streamHandler) HandleResponse(_ workloadmeta.Component, resp interface{}) ([]workloadmeta.CollectorEvent, error) {
 	response, ok := resp.(*pb.WorkloadmetaStreamResponse)
 	if !ok {
 		return nil, fmt.Errorf("incorrect response type")

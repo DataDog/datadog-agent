@@ -25,7 +25,7 @@ import (
 
 // MockParams defines the parameters for the mock component.
 type MockParams struct {
-	Scheduler *scheduler.MetaScheduler
+	Scheduler *scheduler.Controller
 }
 
 // mockHandleRequest is a simple mocked http.Handler function to test the route registers with the api component correctly
@@ -63,7 +63,7 @@ func MockModule() fxutil.Module {
 }
 
 // CreateMockAutoConfig creates a mock AutoConfig for testing
-func CreateMockAutoConfig(t *testing.T, scheduler *scheduler.MetaScheduler) autodiscovery.Mock {
+func CreateMockAutoConfig(t *testing.T, scheduler *scheduler.Controller) autodiscovery.Mock {
 	return fxutil.Test[autodiscovery.Mock](t, fx.Options(
 		fx.Supply(MockParams{Scheduler: scheduler}),
 		taggerimpl.MockModule(),

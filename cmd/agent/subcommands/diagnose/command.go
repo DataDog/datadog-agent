@@ -91,7 +91,8 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewAgentParams(globalParams.ConfFilePath),
-					LogParams:    logimpl.ForOneShot("CORE", "off", true)}),
+					LogParams:    logimpl.ForOneShot("CORE", "off", true),
+				}),
 				core.Bundle(),
 				// workloadmeta setup
 				collectors.GetCatalog(),
@@ -143,7 +144,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 
 	payloadV5Cmd := &cobra.Command{
 		Use:   "v5",
-		Short: "Print the metadata payload for the agent.",
+		Short: "[internal] Print the metadata payload for the agent.",
 		Long: `
 This command print the V5 metadata payload for the Agent. This payload is used to populate the infra list and host map in Datadog. It's called 'V5' because it's the same payload sent since Agent V5. This payload is mandatory in order to create a new host in Datadog.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -157,7 +158,7 @@ This command print the V5 metadata payload for the Agent. This payload is used t
 
 	payloadGohaiCmd := &cobra.Command{
 		Use:   "gohai",
-		Short: "Print the gohai payload for the agent.",
+		Short: "[internal] Print the gohai payload for the agent.",
 		Long: `
 This command prints the gohai data sent by the Agent, including current processes running on the machine.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -171,7 +172,7 @@ This command prints the gohai data sent by the Agent, including current processe
 
 	payloadInventoriesAgentCmd := &cobra.Command{
 		Use:   "inventory-agent",
-		Short: "Print the Inventory agent metadata payload.",
+		Short: "[internal] Print the Inventory agent metadata payload.",
 		Long: `
 This command print the inventory-agent metadata payload. This payload is used by the 'inventories/sql' product.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -185,7 +186,7 @@ This command print the inventory-agent metadata payload. This payload is used by
 
 	payloadInventoriesHostCmd := &cobra.Command{
 		Use:   "inventory-host",
-		Short: "Print the Inventory host metadata payload.",
+		Short: "[internal] Print the Inventory host metadata payload.",
 		Long: `
 This command print the inventory-host metadata payload. This payload is used by the 'inventories/sql' product.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -199,7 +200,7 @@ This command print the inventory-host metadata payload. This payload is used by 
 
 	payloadInventoriesChecksCmd := &cobra.Command{
 		Use:   "inventory-checks",
-		Short: "Print the Inventory checks metadata payload.",
+		Short: "[internal] Print the Inventory checks metadata payload.",
 		Long: `
 This command print the inventory-checks metadata payload. This payload is used by the 'inventories/sql' product.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -213,12 +214,26 @@ This command print the inventory-checks metadata payload. This payload is used b
 
 	payloadInventoriesPkgSigningCmd := &cobra.Command{
 		Use:   "package-signing",
-		Short: "Print the Inventory package signing payload.",
+		Short: "[internal] Print the Inventory package signing payload.",
 		Long: `
 This command print the package-signing metadata payload. This payload is used by the 'fleet automation' product.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return fxutil.OneShot(printPayload,
 				fx.Supply(payloadName("package-signing")),
+				fx.Supply(command.GetDefaultCoreBundleParams(cliParams.GlobalParams)),
+				core.Bundle(),
+			)
+		},
+	}
+
+	payloadSystemProbeCmd := &cobra.Command{
+		Use:   "system-probe",
+		Short: "[internal] Print the inventory systemprobe metadata payload.",
+		Long: `
+This command print the system-probe metadata payload. This payload is used by the 'fleet automation' product.`,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return fxutil.OneShot(printPayload,
+				fx.Supply(payloadName("system-probe")),
 				fx.Supply(command.GetDefaultCoreBundleParams(cliParams.GlobalParams)),
 				core.Bundle(),
 			)
@@ -231,6 +246,7 @@ This command print the package-signing metadata payload. This payload is used by
 	showPayloadCommand.AddCommand(payloadInventoriesHostCmd)
 	showPayloadCommand.AddCommand(payloadInventoriesChecksCmd)
 	showPayloadCommand.AddCommand(payloadInventoriesPkgSigningCmd)
+	showPayloadCommand.AddCommand(payloadSystemProbeCmd)
 	diagnoseCommand.AddCommand(showPayloadCommand)
 
 	return []*cobra.Command{diagnoseCommand}
@@ -240,7 +256,8 @@ func cmdDiagnose(cliParams *cliParams,
 	senderManager diagnosesendermanager.Component,
 	wmeta optional.Option[workloadmeta.Component],
 	ac autodiscovery.Component,
-	secretResolver secrets.Component) error {
+	secretResolver secrets.Component,
+) error {
 	diagCfg := diagnosis.Config{
 		Verbose:  cliParams.verbose,
 		RunLocal: cliParams.runLocal,

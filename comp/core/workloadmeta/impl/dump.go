@@ -37,6 +37,8 @@ func (w *workloadmeta) Dump(verbose bool) wmdef.WorkloadDumpResponse {
 			info = e.String(verbose)
 		case *wmdef.KubernetesNamespace:
 			info = e.String(verbose)
+		case *wmdef.KubernetesMetadata:
+			info = e.String(verbose)
 		default:
 			return "", fmt.Errorf("unsupported type %T", e)
 		}

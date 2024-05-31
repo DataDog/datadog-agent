@@ -432,15 +432,15 @@ func (ia *inventoryagent) getPayload() marshaler.JSONMarshaler {
 		}
 
 		for source, conf := range layers {
-			if json, err := ia.marshalAndScrub(conf); err == nil {
-				data[layersName[source]] = json
+			if yaml, err := ia.marshalAndScrub(conf); err == nil {
+				data[layersName[source]] = yaml
 			}
 		}
-		if json, err := ia.marshalAndScrub(ia.conf.AllSettings()); err == nil {
-			data["full_configuration"] = json
+		if yaml, err := ia.marshalAndScrub(ia.conf.AllSettings()); err == nil {
+			data["full_configuration"] = yaml
 		}
-		if json, err := ia.marshalAndScrub(ia.conf.AllSettingsWithoutDefault()); err == nil {
-			data["provided_configuration"] = json
+		if yaml, err := ia.marshalAndScrub(ia.conf.AllSettingsWithoutDefault()); err == nil {
+			data["provided_configuration"] = yaml
 		}
 	}
 

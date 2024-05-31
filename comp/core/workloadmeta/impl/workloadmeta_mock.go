@@ -57,6 +57,16 @@ func (w *workloadMetaMock) GetContainer(id string) (*wmdef.Container, error) {
 	return entity.(*wmdef.Container), nil
 }
 
+// GetKubernetesMetadata implements workloadMetaMock#GetKubernetesMetadata.
+func (w *workloadMetaMock) GetKubernetesMetadata(id string) (*wmdef.KubernetesMetadata, error) {
+	entity, err := w.getEntityByKind(wmdef.KindKubernetesMetadata, id)
+	if err != nil {
+		return nil, err
+	}
+
+	return entity.(*wmdef.KubernetesMetadata), nil
+}
+
 // ListContainers returns metadata about all known containers.
 func (w *workloadMetaMock) ListContainers() []*wmdef.Container {
 	entities := w.listEntitiesByKind(wmdef.KindContainer)

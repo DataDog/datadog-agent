@@ -118,9 +118,6 @@ func SetupAgent(ctx context.Context, _ []string) (err error) {
 			return err
 		}
 	}
-	if err = removeOldAgentFiles(); err != nil {
-		return fmt.Errorf("failed to remove old agent files: %v", err)
-	}
 	return nil
 }
 
@@ -189,14 +186,6 @@ func stopOldAgentUnits(ctx context.Context) error {
 		}
 	}
 	return nil
-}
-
-// removeOldAgentFiles removes old agent files
-func removeOldAgentFiles() error {
-	if !oldAgentInstalled() {
-		return nil
-	}
-	return os.RemoveAll(pathOldAgent)
 }
 
 // StartAgentExperiment starts the agent experiment

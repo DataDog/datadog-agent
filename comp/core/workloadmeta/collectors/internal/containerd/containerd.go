@@ -75,7 +75,7 @@ var containerdTopics = []string{
 }
 
 type exitInfo struct {
-	exitCode *uint32
+	exitCode *int64
 	exitTS   time.Time
 }
 
@@ -420,7 +420,7 @@ func (c *collector) deleteExitInfo(id string) {
 	delete(c.contToExitInfo, id)
 }
 
-func (c *collector) cacheExitInfo(id string, exitCode *uint32, exitTS time.Time) {
+func (c *collector) cacheExitInfo(id string, exitCode *int64, exitTS time.Time) {
 	c.contToExitInfo[id] = &exitInfo{
 		exitTS:   exitTS,
 		exitCode: exitCode,
