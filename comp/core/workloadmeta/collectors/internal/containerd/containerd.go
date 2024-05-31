@@ -276,6 +276,7 @@ func (c *collector) notifyInitialImageEvents(ctx context.Context, namespace stri
 	if err != nil {
 		return err
 	}
+
 	mergedImages := make(map[workloadmeta.EntityID]*workloadmeta.ContainerImageMetadata)
 	for _, image := range existingImages {
 		wlmImage, err := c.createOrUpdateImageMetadata(ctx, namespace, image, nil, true)
@@ -298,6 +299,7 @@ func (c *collector) notifyInitialImageEvents(ctx context.Context, namespace stri
 			},
 		})
 	}
+	log.Debugf("%d initial image events sent for namespace %s. total number of images reference is %d", len(mergedImages), namespace, len(existingImages))
 	return nil
 }
 
