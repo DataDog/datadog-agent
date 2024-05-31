@@ -498,7 +498,7 @@ func (bs *BaseSuite[Env]) TearDownSuite() {
 		return
 	}
 
-	if fmt.Sprintf("%v", reflect.TypeOf(bs.env)) == "*environment.Kubernetes" { // Use the reflect.TypeOf(environments.Kubernetes{}) instead but we first need to solve import cycle
+	if fmt.Sprintf("%v", reflect.TypeOf(bs.env)) == "*environments.Kubernetes" { // Use the reflect.TypeOf(environments.Kubernetes{}) instead but we first need to solve import cycle
 		bs.T().Logf("Kubernetes Environment detected, trying to dump Kubernetes cluster state")
 		name, err := infra.GetStackManager().GetPulumiStackName(bs.params.stackName)
 		if err != nil {
