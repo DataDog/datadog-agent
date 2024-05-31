@@ -1,8 +1,6 @@
 #ifndef __KTYPES_H__
 #define __KTYPES_H__
 
-#include "bpf_metadata.h"
-
 #ifdef COMPILE_CORE
 #include "vmlinux.h"
 #else

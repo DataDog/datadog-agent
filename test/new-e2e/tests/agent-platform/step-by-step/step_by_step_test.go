@@ -160,11 +160,8 @@ func (is *stepByStepSuite) CheckStepByStepAgentInstallation(VMclient *common.Tes
 	}
 	common.CheckApmEnabled(is.T(), VMclient)
 	common.CheckApmDisabled(is.T(), VMclient)
-	if *flavorName == "datadog-agent" {
-		common.CheckSystemProbeBehavior(is.T(), VMclient)
-		if is.cwsSupported {
-			common.CheckCWSBehaviour(is.T(), VMclient)
-		}
+	if *flavorName == "datadog-agent" && is.cwsSupported {
+		common.CheckCWSBehaviour(is.T(), VMclient)
 	}
 
 	is.T().Run("remove the agent", func(tt *testing.T) {

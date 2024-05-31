@@ -445,7 +445,5 @@ func IsCurrentProcessLocalSystem() (bool, error) {
 	}
 	defer windows.FreeSid(localSystem)
 
-	log.Infof("Comparing current:      %s ", currentUser.String())
-	log.Infof("Comparing local system: %s ", localSystem.String())
 	return currentUser.Equals(localSystem), nil
 }
