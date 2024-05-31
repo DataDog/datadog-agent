@@ -8,9 +8,9 @@ JobTimeoutSec=3000 #50 minutes
 [Service]
 Type=oneshot
 PIDFile=/var/run/datadog/installer/installer.pid
-ExecStart=/opt/datadog-packages/datadog-installer/stable/bin/installer/installer run -p /var/run/datadog/installer/installer.pid
-ExecStart=/opt/datadog-packages/datadog-installer/stable/bin/installer/installer run -p /var/run/datadog/installer/installer.pid
-ExecStart=/opt/datadog-packages/datadog-installer/stable/bin/installer/installer run -p /var/run/datadog/installer/installer.pid
+ExecStart=/opt/datadog-packages/datadog-installer/experiment/bin/installer/installer run -p /var/run/datadog/installer/installer.pid
+ExecStart=/opt/datadog-packages/datadog-installer/experiment/bin/installer/installer run -p /var/run/datadog/installer/installer.pid
+ExecStart=/opt/datadog-packages/datadog-installer/experiment/bin/installer/installer run -p /var/run/datadog/installer/installer.pid
 ExecStart=/bin/false
 ExecStop=/bin/false
 
