@@ -85,7 +85,7 @@ func (a *apmInjectorInstaller) Setup(ctx context.Context) (err error) {
 		return err
 	}
 	defer func() {
-		if err != nil {
+		if err != nil && rollbackLDPreload != nil {
 			if err := rollbackLDPreload(); err != nil {
 				log.Warnf("Failed to rollback agent config: %v", err)
 			}
@@ -98,7 +98,7 @@ func (a *apmInjectorInstaller) Setup(ctx context.Context) (err error) {
 		return err
 	}
 	defer func() {
-		if err != nil {
+		if err != nil && rollbackDockerConfig != nil {
 			if err := rollbackDockerConfig(); err != nil {
 				log.Warnf("Failed to rollback agent config: %v", err)
 			}
