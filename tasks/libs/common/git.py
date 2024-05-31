@@ -12,3 +12,23 @@ def get_modified_files(ctx) -> list[str]:
 
 def get_current_branch(ctx) -> str:
     return ctx.run("git rev-parse --abbrev-ref HEAD", hide=True).stdout.strip()
+
+
+def check_uncommitted_changes(ctx):
+    """
+    Checks if there are uncommitted changes in the local git repository.
+    """
+    modified_files = ctx.run("git --no-pager diff --name-only HEAD | wc -l", hide=True).stdout.strip()
+
+    # Return True if at least one file has uncommitted changes.
+    return modified_files != "0"
+
+
+def check_local_branch(ctx, branch):
+    """
+    Checks if the given branch exists locally
+    """
+    matching_branch = ctx.run(f"git --no-pager branch --list {branch} | wc -l", hide=True).stdout.strip()
+
+    # Return True if a branch is returned by git branch --list
+    return matching_branch != "0"
