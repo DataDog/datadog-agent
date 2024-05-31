@@ -143,6 +143,7 @@ package e2e
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"reflect"
@@ -156,9 +157,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	awss3 "github.com/aws/aws-sdk-go-v2/service/s3"
-	"github.com/pulumi/pulumi/pkg/v3/resource/stack"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/apitype"
-	"github.com/pulumi/pulumi/sdk/v3/go/common/encoding"
 
 	"github.com/stretchr/testify/suite"
 )
@@ -541,7 +540,15 @@ func Run[Env any, T Suite[Env]](t *testing.T, s T, options ...SuiteOption) {
 	suite.Run(t, s)
 }
 
+type State struct {
+	// Version is the version of the checkpoint
+	Version string `json:"version"`
+	// Checkpoint is the checkpoint of the stack
+	Checkpoint apitype.CheckpointV3 `json:"checkpoint"`
+}
+
 func (bs *BaseSuite[Env]) GetPulumiCheckPoint() (*apitype.CheckpointV3, error) {
+	state := State{}
 	awsConfig, err := awsconfig.LoadDefaultConfig(context.TODO())
 	s3Client := awss3.NewFromConfig(awsConfig)
 	checkpoint, err := s3Client.GetObject(context.TODO(), &awss3.GetObjectInput{
@@ -555,6 +562,9 @@ func (bs *BaseSuite[Env]) GetPulumiCheckPoint() (*apitype.CheckpointV3, error) {
 	buf := new(bytes.Buffer)
 	buf.ReadFrom(checkpoint.Body)
 	fmt.Printf("Found checkpoint with length: %d\n", len(buf.String()))
-
-	return stack.UnmarshalVersionedCheckpointToLatestCheckpoint(encoding.JSON, buf.Bytes())
+	err = json.Unmarshal(buf.Bytes(), &state)
+	if err != nil {
+		return &apitype.CheckpointV3{}, err
+	}
+	return &state.Checkpoint, nil
 }

@@ -263,6 +263,7 @@ new-e2e-unit-tests:
     KUBERNETES_CPU_REQUEST: 6
 
 new-e2e-test-kind:
+  
   extends:
     - .new_e2e_template
   # TODO once images are deployed to ECR for dev branches, update
