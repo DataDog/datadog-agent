@@ -431,59 +431,6 @@ func (p *WindowsProbe) auditEtw(ecb etwCallback) error {
 	})
 	return err
 }
-func (p *WindowsProbe) approveFimBasename(value string) bool {
-	fields := []string{"create.file.name", "rename.file.name", "delete.file.name", "write.file.name"}
-	eventTypes := []string{"create", "rename", "delete", "write"}
-
-	for i, field := range fields {
-		eventType := eventTypes[i]
-		if p.approve(field, eventType, value) {
-			return true
-		}
-	}
-	return false
-}
-
-// currently support only string base approver for now
-func (p *WindowsProbe) approve(field eval.Field, eventType string, value string) bool {
-	if p.disableApprovers {
-		return true
-	}
-
-	approvers, exists := p.approvers[field]
-	if !exists {
-		// no approvers, so no filtering for this field, except if no rule for this event type
-		return slices.Contains(p.currentEventTypes, eventType)
-	}
-
-	for _, approver := range approvers {
-		if approver.Approve(value) {
-			return true
-		}
-	}
-
-	return false
-}
-
-func (p *WindowsProbe) auditEtw(ecb etwCallback) error {
-	log.Info("Starting tracing...")
-	err := p.auditSession.StartTracing(func(e *etw.DDEventRecord) {
-
-		switch e.EventHeader.ProviderID {
-
-		case etw.DDGUID(p.auditguid):
-			switch e.EventHeader.EventDescriptor.ID {
-			case idObjectPermsChange:
-				if pc, err := p.parseObjectPermsChange(e); err == nil {
-					log.Infof("Received objectPermsChange event %d %s\n", e.EventHeader.EventDescriptor.ID, pc)
-					//ecb(pc, e.EventHeader.ProcessID)
-					ecb(pc, e.EventHeader.ProcessID)
-				}
-			}
-		}
-	})
-	return err
-}
 
 func (p *WindowsProbe) auditEtw(ecb etwCallback) error {
 	log.Info("Starting tracing...")
