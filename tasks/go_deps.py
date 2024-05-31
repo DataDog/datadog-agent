@@ -116,7 +116,7 @@ def compute_binary_dependencies_list(
     )
     assert res
 
-    return res.stdout.strip()
+    return [dep for dep in res.stdout.strip().splitlines() if not dep.startswith("internal/")]
 
 
 @task
@@ -185,14 +185,14 @@ def test_list(
                     continue
 
                 deps_file = open(filename)
-                deps = deps_file.read()
+                deps = deps_file.read().strip().splitlines()
                 deps_file.close()
 
                 list = compute_binary_dependencies_list(ctx, build, flavor, platform, arch)
 
                 if list != deps:
-                    new_dependencies_lines = len(list.splitlines())
-                    recorded_dependencies_lines = len(deps.splitlines())
+                    new_dependencies_lines = len(list)
+                    recorded_dependencies_lines = len(deps)
 
                     mismatch_binaries.add(
                         MisMacthBinary(binary, goos, goarch, new_dependencies_lines - recorded_dependencies_lines)
@@ -252,5 +252,5 @@ def generate(
                 list = compute_binary_dependencies_list(ctx, build, flavor, platform, arch)
 
                 f = open(filename, "w")
-                f.write(list)
+                f.write('\n'.join(list))
                 f.close()

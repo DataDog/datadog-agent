@@ -1,9 +1,8 @@
-import os
 import sys
 
 from invoke import Exit, task
 
-from tasks.libs.common.utils import collapsed_section, color_message, environ
+from tasks.libs.common.utils import collapsed_section, environ
 
 TOOL_LIST = [
     'github.com/frapposelli/wwhrd',
@@ -43,21 +42,6 @@ def download_tools(ctx):
 @task
 def install_tools(ctx):
     """Install all Go tools for testing."""
-    if os.path.isfile("go.work") or os.path.isfile("go.work.sum"):
-        # Someone reported issues with this command when using a go.work but other people
-        # use a go.work and don't have any issue, so the root cause is unclear.
-        # Printing a warning because it might help someone but not enforcing anything.
-
-        # The issue which was reported was that `go install` would fail with the following error:
-        ### no required module provides package <package>; to add it:
-        ### go get <package>
-        print(
-            color_message(
-                "WARNING: In case of issue, you might want to try disabling go workspaces by setting the environment variable GOWORK=off, or even deleting go.work and go.work.sum",
-                "orange",
-            )
-        )
-
     with collapsed_section("Installing Go tools"):
         with environ({'GO111MODULE': 'on'}):
             for path, tools in TOOLS.items():
