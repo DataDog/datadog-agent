@@ -158,7 +158,7 @@ func (s *KafkaProtocolParsingSuite) testKafkaProtocolParsing(t *testing.T, tls b
 
 	kafkaTeardown := func(t *testing.T, ctx testContext) {
 		for _, client := range ctx.clients {
-			defer client.Client.Close()
+			client.Client.Close()
 		}
 	}
 
