@@ -109,7 +109,7 @@ func (c *Collector) CleanCache() error {
 }
 
 // Init initialize the host collector
-func (c *Collector) Init(cfg config.Component, wmeta optional.Option[workloadmeta.Component]) (err error) {
+func (c *Collector) Init(cfg config.Component, _ optional.Option[workloadmeta.Component]) (err error) {
 	if c.version, err = winutil.GetWindowsBuildString(); err != nil {
 		return err
 	}
