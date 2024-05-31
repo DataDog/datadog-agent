@@ -1795,12 +1795,14 @@ def tag_ci_job(ctx: Context):
 
         if test_jobs_executed and not tests_failed:
             tags["failure_reason"] = "none"
-        elif tests_failed:
+        elif test_jobs_executed and tests_failed:  # The first condition is redundant but makes the logic clearer
             tags["failure_reason"] = "test"
         elif setup_ddvm_status_file.is_file() and "active" not in setup_ddvm_status_file.read_text():
             tags["failure_reason"] = "infra_setup-ddvm"
         elif not ssh_config_path.is_file():
             tags["failure_reason"] = "infra_ssh-config"
+        else:
+            tags["failure_reason"] = "infra-unknown"
 
     tag_prefix = "kmt."
     tags_str = ",".join(f"{tag_prefix}{k}:{v}" for k, v in tags.items())
