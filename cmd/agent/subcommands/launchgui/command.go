@@ -7,7 +7,6 @@
 package launchgui
 
 import (
-	"encoding/json"
 	"fmt"
 
 	"github.com/spf13/cobra"
@@ -16,9 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/pkg/api/security"
-	"github.com/DataDog/datadog-agent/pkg/api/util"
-	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
+	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -51,42 +48,23 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 }
 
 func launchGui(config config.Component, _ *cliParams) error {
-	guiPort := pkgconfig.Datadog.GetString("GUI_port")
+	guiPort := config.GetString("GUI_port")
 	if guiPort == "-1" {
 		return fmt.Errorf("GUI not enabled: to enable, please set an appropriate port in your datadog.yaml file")
 	}
 
-	// Read the authentication token: can only be done if user can read from datadog.yaml
-	authToken, err := security.FetchAuthToken(config)
+	endpoint, err := apiutil.NewIPCEndpoint(config, "/agent/gui/intent")
 	if err != nil {
 		return err
 	}
 
-	// Get the CSRF token from the agent
-	c := util.GetClient(false) // FIX: get certificates right then make this true
-	ipcAddress, err := pkgconfig.GetIPCAddress()
+	intentToken, err := endpoint.DoGet()
 	if err != nil {
-		return err
-	}
-	urlstr := fmt.Sprintf("https://%v:%v/agent/gui/csrf-token", ipcAddress, pkgconfig.Datadog.GetInt("cmd_port"))
-	err = util.SetAuthToken(config)
-	if err != nil {
-		return err
-	}
-
-	csrfToken, err := util.DoGet(c, urlstr, util.LeaveConnectionOpen)
-	if err != nil {
-		var errMap = make(map[string]string)
-		json.Unmarshal(csrfToken, &errMap) //nolint:errcheck
-		if e, found := errMap["error"]; found {
-			err = fmt.Errorf(e)
-		}
-		fmt.Printf("Could not reach agent: %v \nMake sure the agent is running before attempting to open the GUI.\n", err)
 		return err
 	}
 
 	// Open the GUI in a browser, passing the authorization tokens as parameters
-	err = open("http://127.0.0.1:" + guiPort + "/authenticate?authToken=" + authToken + "&csrf=" + string(csrfToken))
+	err = open("http://127.0.0.1:" + guiPort + "/auth?intent=" + string(intentToken))
 	if err != nil {
 		return fmt.Errorf("error opening GUI: " + err.Error())
 	}

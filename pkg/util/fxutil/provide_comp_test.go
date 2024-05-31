@@ -94,6 +94,96 @@ func TestConstructFxInAndOut(t *testing.T) {
 	require.Equal(t, expect, outType.String())
 }
 
+func TestConstructCompdefIn(t *testing.T) {
+	// the required type `requires3` contains an embedded compdef.In, which doesn't have any
+	// effect and works just as well as if it weren't there
+	inType, outType, _, err := constructFxInAndOut(reflect.TypeOf(func(reqs requires3) provides1 {
+		return provides1{
+			First: &firstImpl{},
+		}
+	}))
+	require.NoError(t, err)
+
+	expect := `struct { In dig.In; Second fxutil.SecondComp }`
+	require.Equal(t, expect, inType.String())
+
+	expect = `struct { Out dig.Out; First fxutil.FirstComp }`
+	require.Equal(t, expect, outType.String())
+}
+
+func TestConstructCompdefOut(t *testing.T) {
+	// the provided type `provides5` contains an embedded compdef.Out, which is optional at
+	// the top-level
+	inType, outType, _, err := constructFxInAndOut(reflect.TypeOf(func() provides5 {
+		return provides5{
+			First: &firstImpl{},
+		}
+	}))
+	require.NoError(t, err)
+
+	expect := `struct { In dig.In }`
+	require.Equal(t, expect, inType.String())
+
+	expect = `struct { Out dig.Out; First fxutil.FirstComp }`
+	require.Equal(t, expect, outType.String())
+}
+
+func TestConstructorErrors(t *testing.T) {
+	testCases := []struct {
+		name   string
+		ctor   reflect.Type
+		errMsg string
+	}{
+		{
+			// it is an error to have provides5 (with compdef.Out) as an input parameter
+			name: "input has embed Out",
+			ctor: reflect.TypeOf(func(p provides5) FirstComp {
+				return &firstImpl{}
+			}),
+			errMsg: "invalid embedded field: compdef.Out",
+		},
+		{
+			// it is an error to have requires1 (with compdef.In) as a return value
+			name: "output has embed In",
+			ctor: reflect.TypeOf(func(reqs requires1) requires3 {
+				return requires3{Second: &secondImpl{}}
+			}),
+			errMsg: "invalid embedded field: compdef.In",
+		},
+		{
+			// it is an error to have requiresLc (with compdef.Lifecycle) as a return value
+			name: "output has Lifecycle",
+			ctor: reflect.TypeOf(func(reqs requires1) requiresLc {
+				return requiresLc{}
+			}),
+			errMsg: "invalid embedded field: compdef.Lifecycle",
+		},
+		{
+			name: "output is fx-aware",
+			ctor: reflect.TypeOf(func(reqs requires1) fxAwareProvides {
+				return fxAwareProvides{B: &bananaImpl{}}
+			}),
+		},
+		{
+			name: "input is fx-aware",
+			ctor: reflect.TypeOf(func(reqs fxAwareReqs) provides1 {
+				return provides1{First: &firstImpl{}}
+			}),
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			_, _, _, err := constructFxInAndOut(tc.ctor)
+			if tc.errMsg == "" {
+				require.Error(t, err)
+			} else {
+				require.EqualError(t, err, tc.errMsg)
+			}
+		})
+	}
+}
+
 func TestMakeConstructorArgs(t *testing.T) {
 	fxReqs := fxAwareReqs{
 		In: fx.In{},
@@ -452,6 +542,13 @@ type FruitProvider struct {
 	Z int
 }
 
+// provides5 is just like provides1 but also embeds compdef.Out (no difference in functionality)
+
+type provides5 struct {
+	compdef.Out
+	First FirstComp
+}
+
 // requires1 requires 1 component using a composite struct
 
 type requires1 struct {
@@ -461,6 +558,13 @@ type requires1 struct {
 // requires2 requires a different component
 
 type requires2 struct {
+	Second SecondComp
+}
+
+// requires3 embeds a compdef.In (optional, for convenience)
+
+type requires3 struct {
+	compdef.In
 	Second SecondComp
 }
 
@@ -479,4 +583,11 @@ type providesService struct {
 type fxAwareReqs struct {
 	fx.In
 	A Apple
+}
+
+// fxAwareProvides is an fx-aware provides struct
+
+type fxAwareProvides struct {
+	fx.Out
+	B Banana
 }

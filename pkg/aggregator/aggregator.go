@@ -267,21 +267,29 @@ func NewFlushAndSerializeInParallel(config config.Config) FlushAndSerializeInPar
 
 // NewBufferedAggregator instantiates a BufferedAggregator
 func NewBufferedAggregator(s serializer.MetricSerializer, eventPlatformForwarder eventplatform.Component, hostname string, flushInterval time.Duration) *BufferedAggregator {
-	bufferSize := config.Datadog.GetInt("aggregator_buffer_size")
+	bufferSize := config.Datadog().GetInt("aggregator_buffer_size")
 
 	agentName := flavor.GetFlavor()
-	if agentName == flavor.IotAgent && !config.Datadog.GetBool("iot_host") {
+	if agentName == flavor.IotAgent && !config.Datadog().GetBool("iot_host") {
 		agentName = flavor.DefaultAgent
-	} else if config.Datadog.GetBool("iot_host") {
+	} else if config.Datadog().GetBool("iot_host") {
 		// Override the agentName if this Agent is configured to report as IotAgent
 		agentName = flavor.IotAgent
 	}
-	if config.Datadog.GetBool("heroku_dyno") {
+	if config.Datadog().GetBool("heroku_dyno") {
 		// Override the agentName if this Agent is configured to report as Heroku Dyno
 		agentName = flavor.HerokuAgent
 	}
 
-	tagsStore := tags.NewStore(config.Datadog.GetBool("aggregator_use_tags_store"), "aggregator")
+	if config.Datadog().GetBool("djm_config.enabled") {
+		AddRecurrentSeries(&metrics.Serie{
+			Name:   "datadog.djm.agent_host",
+			Points: []metrics.Point{{Value: 1.0}},
+			MType:  metrics.APIGaugeType,
+		})
+	}
+
+	tagsStore := tags.NewStore(config.Datadog().GetBool("aggregator_use_tags_store"), "aggregator")
 
 	aggregator := &BufferedAggregator{
 		bufferedServiceCheckIn: make(chan []*servicecheck.ServiceCheck, bufferSize),
@@ -308,10 +316,10 @@ func NewBufferedAggregator(s serializer.MetricSerializer, eventPlatformForwarder
 		stopChan:                    make(chan struct{}),
 		health:                      health.RegisterLiveness("aggregator"),
 		agentName:                   agentName,
-		tlmContainerTagsEnabled:     config.Datadog.GetBool("basic_telemetry_add_container_tags"),
+		tlmContainerTagsEnabled:     config.Datadog().GetBool("basic_telemetry_add_container_tags"),
 		agentTags:                   tagger.AgentTags,
 		globalTags:                  tagger.GlobalTags,
-		flushAndSerializeInParallel: NewFlushAndSerializeInParallel(config.Datadog),
+		flushAndSerializeInParallel: NewFlushAndSerializeInParallel(config.Datadog()),
 	}
 
 	return aggregator
@@ -634,7 +642,7 @@ func (agg *BufferedAggregator) flushServiceChecks(start time.Time, waitForSerial
 	addFlushCount("ServiceChecks", int64(len(serviceChecks)))
 
 	// For debug purposes print out all serviceCheck/tag combinations
-	if config.Datadog.GetBool("log_payloads") {
+	if config.Datadog().GetBool("log_payloads") {
 		log.Debug("Flushing the following Service Checks:")
 		for _, sc := range serviceChecks {
 			log.Debugf("%s", sc)
@@ -691,7 +699,7 @@ func (agg *BufferedAggregator) flushEvents(start time.Time, waitForSerializer bo
 	addFlushCount("Events", int64(len(events)))
 
 	// For debug purposes print out all Event/tag combinations
-	if config.Datadog.GetBool("log_payloads") {
+	if config.Datadog().GetBool("log_payloads") {
 		log.Debug("Flushing the following Events:")
 		for _, event := range events {
 			log.Debugf("%s", event)
@@ -812,13 +820,13 @@ func (agg *BufferedAggregator) tags(withVersion bool) []string {
 	var tags []string
 
 	var err error
-	tags, err = agg.globalTags(tagger.ChecksCardinality)
+	tags, err = agg.globalTags(tagger.ChecksCardinality())
 	if err != nil {
 		log.Debugf("Couldn't get Global tags: %v", err)
 	}
 
 	if agg.tlmContainerTagsEnabled {
-		agentTags, err := agg.agentTags(tagger.ChecksCardinality)
+		agentTags, err := agg.agentTags(tagger.ChecksCardinality())
 		if err == nil {
 			if tags == nil {
 				tags = agentTags
@@ -924,10 +932,10 @@ func (agg *BufferedAggregator) handleRegisterSampler(id checkid.ID) {
 		return
 	}
 	agg.checkSamplers[id] = newCheckSampler(
-		config.Datadog.GetInt("check_sampler_bucket_commits_count_expiry"),
-		config.Datadog.GetBool("check_sampler_expire_metrics"),
-		config.Datadog.GetBool("check_sampler_context_metrics"),
-		config.Datadog.GetDuration("check_sampler_stateful_metric_expiration_time"),
+		config.Datadog().GetInt("check_sampler_bucket_commits_count_expiry"),
+		config.Datadog().GetBool("check_sampler_expire_metrics"),
+		config.Datadog().GetBool("check_sampler_context_metrics"),
+		config.Datadog().GetDuration("check_sampler_stateful_metric_expiration_time"),
 		agg.tagsStore,
 		id,
 	)

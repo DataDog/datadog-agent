@@ -65,7 +65,7 @@ func isaffirmative(o optional.Option[bool]) bool {
 	return isSet && val
 }
 
-func getEventPriorityFromOption(o optional.Option[string]) (agentEvent.EventPriority, error) {
+func getEventPriorityFromOption(o optional.Option[string]) (agentEvent.Priority, error) {
 	val, isSet := o.Get()
 	if !isSet {
 		return "", fmt.Errorf("option is not set")

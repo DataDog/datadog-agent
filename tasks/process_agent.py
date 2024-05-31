@@ -27,7 +27,6 @@ def build(
     incremental_build=False,
     major_version='7',
     python_runtimes='3',
-    arch="x64",
     go_mod="mod",
     bundle=True,
 ):
@@ -43,7 +42,6 @@ def build(
             flavor=flavor,
             major_version=major_version,
             python_runtimes=python_runtimes,
-            arch=arch,
             go_mod=go_mod,
         )
 
@@ -57,15 +55,11 @@ def build(
 
     # generate windows resources
     if sys.platform == 'win32':
-        if arch == "x86":
-            env["GOARCH"] = "386"
-
-        build_messagetable(ctx, arch=arch)
-        vars = versioninfo_vars(ctx, major_version=major_version, python_runtimes=python_runtimes, arch=arch)
+        build_messagetable(ctx)
+        vars = versioninfo_vars(ctx, major_version=major_version, python_runtimes=python_runtimes)
         build_rc(
             ctx,
             "cmd/process-agent/windows_resources/process-agent.rc",
-            arch=arch,
             vars=vars,
             out="cmd/process-agent/rsrc.syso",
         )
@@ -77,9 +71,9 @@ def build(
     env.update(goenv)
 
     build_include = (
-        get_default_build_tags(build="process-agent", arch=arch, flavor=flavor)
+        get_default_build_tags(build="process-agent", flavor=flavor)
         if build_include is None
-        else filter_incompatible_tags(build_include.split(","), arch=arch)
+        else filter_incompatible_tags(build_include.split(","))
     )
     build_exclude = [] if build_exclude is None else build_exclude.split(",")
 

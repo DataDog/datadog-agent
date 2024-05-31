@@ -9,14 +9,18 @@ import re
 import sys
 import time
 import traceback
+from collections import Counter
 from contextlib import contextmanager
 from functools import wraps
+from pathlib import Path
 from subprocess import CalledProcessError, check_output
 from types import SimpleNamespace
 
 from invoke.exceptions import Exit
 
 from tasks.libs.common.color import color_message
+from tasks.libs.common.git import check_local_branch, check_uncommitted_changes
+from tasks.libs.owners.parsing import search_owners
 
 # constants
 DEFAULT_BRANCH = "main"
@@ -64,6 +68,14 @@ def running_in_circleci():
 
 def running_in_ci():
     return running_in_circleci() or running_in_github_actions() or running_in_gitlab_ci()
+
+
+def running_in_pyapp():
+    return os.environ.get("PYAPP") == "1"
+
+
+def running_in_pre_commit():
+    return os.environ.get("PRE_COMMIT") == "1"
 
 
 def bin_name(name):
@@ -647,26 +659,6 @@ def check_clean_branch_state(ctx, github, branch):
         )
 
 
-def check_uncommitted_changes(ctx):
-    """
-    Checks if there are uncommitted changes in the local git repository.
-    """
-    modified_files = ctx.run("git --no-pager diff --name-only HEAD | wc -l", hide=True).stdout.strip()
-
-    # Return True if at least one file has uncommitted changes.
-    return modified_files != "0"
-
-
-def check_local_branch(ctx, branch):
-    """
-    Checks if the given branch exists locally
-    """
-    matching_branch = ctx.run(f"git --no-pager branch --list {branch} | wc -l", hide=True).stdout.strip()
-
-    # Return True if a branch is returned by git branch --list
-    return matching_branch != "0"
-
-
 @contextmanager
 def timed(name="", quiet=False):
     """Context manager that prints how long it took"""
@@ -731,7 +723,7 @@ def is_pr_context(branch, pr_id, test_name):
 
 @contextmanager
 def collapsed_section(section_name):
-    section_id = section_name.replace(" ", "_")
+    section_id = section_name.replace(" ", "_").replace("/", "_")
     in_ci = running_in_gitlab_ci()
     try:
         if in_ci:
@@ -791,3 +783,103 @@ def retry_function(action_name_fmt, max_retries=2, retry_delay=1):
         return wrapper
 
     return decorator
+
+
+def guess_from_labels(issue):
+    for label in issue.labels:
+        if label.name.startswith("team/") and "triage" not in label.name:
+            return label.name.split("/")[-1]
+    return 'triage'
+
+
+def guess_from_keywords(issue):
+    text = f"{issue.title} {issue.body}".casefold().split()
+    c = Counter(text)
+    for word in c.most_common():
+        team = simple_match(word[0])
+        if team:
+            return team
+        team = file_match(word[0])
+        if team:
+            return team
+    return "triage"
+
+
+def simple_match(word):
+    pattern_matching = {
+        "agent-apm": ['apm', 'java', 'dotnet', 'ruby', 'trace'],
+        "containers": [
+            'container',
+            'pod',
+            'kubernetes',
+            'orchestrator',
+            'docker',
+            'k8s',
+            'kube',
+            'cluster',
+            'kubelet',
+            'helm',
+        ],
+        "agent-metrics-logs": ['logs', 'metric', 'log-ag', 'statsd', 'tags', 'hostnam'],
+        "agent-build-and-releases": ['omnibus', 'packaging', 'script'],
+        "remote-config": ['installer', 'oci'],
+        "agent-cspm": ['cspm'],
+        "ebpf-platform": ['ebpf', 'system-prob', 'sys-prob'],
+        "agent-security": ['security', 'vuln', 'security-agent'],
+        "agent-shared-components": ['fips', 'inventory', 'payload', 'jmx', 'intak', 'gohai'],
+        "fleet": ['fleet', 'fleet-automation'],
+        "opentelemetry": ['otel', 'opentelemetry'],
+        "windows-agent": ['windows', 'sys32', 'powershell'],
+        "networks": ['tcp', 'udp', 'socket', 'network'],
+        "serverless": ['serverless'],
+        "integrations": ['integration', 'python', 'checks'],
+    }
+    for team, words in pattern_matching.items():
+        if any(w in word for w in words):
+            return team
+    return None
+
+
+def file_match(word):
+    dd_folders = [
+        'chocolatey',
+        'cmd',
+        'comp',
+        'dev',
+        'devenv',
+        'docs',
+        'internal',
+        'omnibus',
+        'pkg',
+        'pkg-config',
+        'rtloader',
+        'tasks',
+        'test',
+        'tools',
+    ]
+    p = Path(word)
+    if len(p.parts) > 1 and p.suffix:
+        path_folder = next((f for f in dd_folders if f in p.parts), None)
+        if path_folder:
+            file = '/'.join(p.parts[p.parts.index(path_folder) :])
+            return (
+                search_owners(file, ".github/CODEOWNERS")[0].casefold().replace("@datadog/", "")
+            )  # only return the first owner
+    return None
+
+
+def team_to_label(team):
+    dico = {
+        'apm-core-reliability-and-performance': "agent-apm",
+        'universal-service-monitoring': "usm",
+        'software-integrity-and-trust': "agent-security",
+        'agent-all': "triage",
+        'telemetry-and-analytics': "agent-apm",
+        'fleet': "fleet-automation",
+        'debugger': "dynamic-intrumentation",
+        'container-integrations': "containers",
+        'agent-e2e-testing': "agent-e2e-test",
+        'agent-integrations': "integrations",
+        'asm-go': "agent-security",
+    }
+    return dico.get(team, team)

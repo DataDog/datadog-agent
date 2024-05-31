@@ -170,7 +170,7 @@ func (suite *AgentTestSuite) TestAgentTcp() {
 }
 
 func (suite *AgentTestSuite) TestAgentHttp() {
-	server := http.NewTestServer(200, coreConfig.Datadog)
+	server := http.NewTestServer(200, coreConfig.Datadog())
 	defer server.Stop()
 	endpoints := config.NewEndpoints(server.Endpoint, nil, false, true)
 
@@ -374,9 +374,9 @@ func (suite *AgentTestSuite) TestFlareProvider() {
 
 			assert.IsType(suite.T(), test.expected, provides.FlareProvider)
 			if test.enabled {
-				assert.NotNil(suite.T(), provides.FlareProvider.Provider)
+				assert.NotNil(suite.T(), provides.FlareProvider.Callback)
 			} else {
-				assert.Nil(suite.T(), provides.FlareProvider.Provider)
+				assert.Nil(suite.T(), provides.FlareProvider.Callback)
 			}
 		})
 	}

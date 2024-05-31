@@ -21,14 +21,17 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
 	e2eos "github.com/DataDog/test-infra-definitions/components/os"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // Host is a remote host environment.
 type Host struct {
-	t      *testing.T
-	remote *components.RemoteHost
-	os     e2eos.Descriptor
-	arch   e2eos.Architecture
+	t              *testing.T
+	remote         *components.RemoteHost
+	os             e2eos.Descriptor
+	arch           e2eos.Architecture
+	systemdVersion int
+	pkgManager     string
 }
 
 // Option is an option to configure a Host.
@@ -46,17 +49,53 @@ func New(t *testing.T, remote *components.RemoteHost, os e2eos.Descriptor, arch 
 		opt(t, host)
 	}
 	host.uploadFixtures()
+	host.setSystemdVersion()
+	if _, err := host.remote.Execute("command -v dpkg-query"); err == nil {
+		host.pkgManager = "dpkg"
+	} else if _, err := host.remote.Execute("command -v rpm"); err == nil {
+		host.pkgManager = "rpm"
+	} else {
+		t.Fatal("no package manager found")
+	}
 	return host
 }
 
-// InstallDocker installs Docker on the host.
+// GetPkgManager returns the package manager of the host.
+func (h *Host) GetPkgManager() string {
+	return h.pkgManager
+}
+
+func (h *Host) setSystemdVersion() {
+	strVersion := strings.TrimSpace(h.remote.MustExecute("systemctl --version | head -n1 | awk '{print $2}'"))
+	version, err := strconv.Atoi(strVersion)
+	require.NoError(h.t, err)
+	h.systemdVersion = version
+}
+
+// InstallDocker installs Docker on the host if it is not already installed.
 func (h *Host) InstallDocker() {
+	if _, err := h.remote.Execute("command -v docker"); err == nil {
+		return
+	}
+
 	switch h.os.Flavor {
 	case e2eos.AmazonLinux:
 		h.remote.MustExecute(`sudo sh -c "yum -y install docker && systemctl start docker"`)
 	default:
 		h.remote.MustExecute("curl -fsSL https://get.docker.com | sudo sh")
 	}
+}
+
+// GetDockerRuntimePath returns the runtime path of a docker runtime
+func (h *Host) GetDockerRuntimePath(runtime string) string {
+	var cmd string
+	switch h.os.Flavor {
+	case e2eos.AmazonLinux:
+		cmd = "sudo docker system info --format '{{ (index .Runtimes \"%s\").Path }}'"
+	default:
+		cmd = "sudo docker system info --format '{{ (index .Runtimes \"%s\").Runtime.Path }}'"
+	}
+	return strings.TrimSpace(h.remote.MustExecute(fmt.Sprintf(cmd, runtime)))
 }
 
 // Run executes a command on the host.
@@ -77,6 +116,65 @@ func (h *Host) FileExists(path string) (bool, error) {
 // ReadFile reads a file from the host.
 func (h *Host) ReadFile(path string) ([]byte, error) {
 	return h.remote.ReadFile(path)
+}
+
+// DeletePath deletes a path on the host.
+func (h *Host) DeletePath(path string) {
+	h.remote.MustExecute(fmt.Sprintf("sudo ls %s", path))
+	h.remote.MustExecute(fmt.Sprintf("sudo rm -rf %s", path))
+}
+
+// WaitForUnitActive waits for a systemd unit to be active
+func (h *Host) WaitForUnitActive(units ...string) {
+	for _, unit := range units {
+		_, err := h.remote.Execute(fmt.Sprintf("timeout=30; unit=%s; while ! systemctl is-active --quiet $unit && [ $timeout -gt 0 ]; do sleep 1; ((timeout--)); done; [ $timeout -ne 0 ]", unit))
+		require.NoError(h.t, err, "unit %s did not become active", unit)
+	}
+}
+
+// BootstraperVersion returns the version of the bootstraper on the host.
+func (h *Host) BootstraperVersion() string {
+	return strings.TrimSpace(h.remote.MustExecute("sudo datadog-bootstrap version"))
+}
+
+// InstallerVersion returns the version of the installer on the host.
+func (h *Host) InstallerVersion() string {
+	return strings.TrimSpace(h.remote.MustExecute("sudo datadog-installer version"))
+}
+
+// AssertPackageInstalledByInstaller checks if a package is installed by the installer on the host.
+func (h *Host) AssertPackageInstalledByInstaller(pkgs ...string) {
+	for _, pkg := range pkgs {
+		h.remote.MustExecute("sudo datadog-installer is-installed " + pkg)
+	}
+}
+
+// AssertPackageInstalledByPackageManager checks if a package is installed by the package manager on the host.
+func (h *Host) AssertPackageInstalledByPackageManager(pkgs ...string) {
+	for _, pkg := range pkgs {
+		switch h.pkgManager {
+		case "dpkg":
+			h.remote.MustExecute("dpkg-query -l " + pkg)
+		case "rpm":
+			h.remote.MustExecute("rpm -q " + pkg)
+		default:
+			h.t.Fatal("unsupported package manager")
+		}
+	}
+}
+
+// AssertPackageNotInstalledByPackageManager checks if a package is not installed by the package manager on the host.
+func (h *Host) AssertPackageNotInstalledByPackageManager(pkgs ...string) {
+	for _, pkg := range pkgs {
+		switch h.pkgManager {
+		case "dpkg":
+			h.remote.MustExecute("! dpkg-query -l " + pkg)
+		case "rpm":
+			h.remote.MustExecute("! rpm -q " + pkg)
+		default:
+			h.t.Fatal("unsupported package manager")
+		}
+	}
 }
 
 // State returns the state of the host.
@@ -418,7 +516,7 @@ func (s *State) AssertUnitsEnabled(names ...string) {
 	for _, name := range names {
 		unit, ok := s.Units[name]
 		assert.True(s.t, ok, "unit %v is not enabled", name)
-		assert.NotEqual(s.t, "unknown", unit.Enabled, "unit %v is not enabled", name)
+		assert.Equal(s.t, "enabled", unit.Enabled, "unit %v is not enabled", name)
 	}
 }
 
@@ -436,6 +534,15 @@ func (s *State) AssertUnitsNotLoaded(names ...string) {
 	for _, name := range names {
 		_, ok := s.Units[name]
 		assert.True(s.t, !ok, "unit %v is loaded", name)
+	}
+}
+
+// AssertUnitsNotEnabled asserts that a systemd unit is not enabled
+func (s *State) AssertUnitsNotEnabled(names ...string) {
+	for _, name := range names {
+		unit, ok := s.Units[name]
+		assert.True(s.t, ok, "unit %v is enabled", name)
+		assert.Equal(s.t, "disabled", unit.Enabled, "unit %v is enabled", name)
 	}
 }
 

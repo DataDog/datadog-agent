@@ -7,9 +7,15 @@
 package model
 
 import (
+	"bufio"
+	"bytes"
 	"encoding/binary"
+	"encoding/json"
 	"fmt"
+	"io"
 	"math/bits"
+	"net/http"
+	"slices"
 	"strings"
 	"time"
 
@@ -41,7 +47,7 @@ func (e *ContainerContext) UnmarshalBinary(data []byte) (int, error) {
 
 // UnmarshalBinary unmarshalls a binary representation of itself
 func (e *ChmodEvent) UnmarshalBinary(data []byte) (int, error) {
-	n, err := UnmarshalBinary(data, &e.SyscallEvent, &e.File)
+	n, err := UnmarshalBinary(data, &e.SyscallEvent, &e.SyscallContext, &e.File)
 	if err != nil {
 		return n, err
 	}
@@ -75,15 +81,15 @@ func (e *ChownEvent) UnmarshalBinary(data []byte) (int, error) {
 
 // UnmarshalBinary unmarshalls a binary representation of itself
 func (e *Event) UnmarshalBinary(data []byte) (int, error) {
-	if len(data) < 24 {
+	if len(data) < 16 {
 		return 0, ErrNotEnoughData
 	}
 
-	e.TimestampRaw = binary.NativeEndian.Uint64(data[8:16])
-	e.Type = binary.NativeEndian.Uint32(data[16:20])
-	e.Flags = binary.NativeEndian.Uint32(data[20:24])
+	e.TimestampRaw = binary.NativeEndian.Uint64(data[0:8])
+	e.Type = binary.NativeEndian.Uint32(data[8:12])
+	e.Flags = binary.NativeEndian.Uint32(data[12:16])
 
-	return 24, nil
+	return 16, nil
 }
 
 // UnmarshalBinary unmarshalls a binary representation of itself
@@ -304,7 +310,7 @@ func (e *InvalidateDentryEvent) UnmarshalBinary(data []byte) (int, error) {
 
 // UnmarshalBinary unmarshalls a binary representation of itself
 func (e *ArgsEnvsEvent) UnmarshalBinary(data []byte) (int, error) {
-	if len(data) < MaxArgEnvSize+8 {
+	if len(data) < 8 {
 		return 0, ErrNotEnoughData
 	}
 
@@ -313,9 +319,20 @@ func (e *ArgsEnvsEvent) UnmarshalBinary(data []byte) (int, error) {
 	if e.Size > MaxArgEnvSize {
 		e.Size = MaxArgEnvSize
 	}
-	SliceToArray(data[8:MaxArgEnvSize+8], e.ValuesRaw[:])
 
-	return MaxArgEnvSize + 8, nil
+	argsEnvSize := int(e.Size)
+	data = data[8:]
+	if len(data) < argsEnvSize {
+		return 8, ErrNotEnoughData
+	}
+
+	for i := range e.ValuesRaw {
+		e.ValuesRaw[i] = 0
+	}
+
+	SliceToArray(data[:argsEnvSize], e.ValuesRaw[:argsEnvSize])
+
+	return 8 + argsEnvSize, nil
 }
 
 // UnmarshalBinary unmarshals the given content
@@ -414,6 +431,7 @@ func (m *Mount) UnmarshalBinary(data []byte) (int, error) {
 	}
 
 	m.MountID = m.RootPathKey.MountID
+	m.Origin = MountOriginEvent
 
 	return 56, nil
 }
@@ -425,12 +443,18 @@ func (e *MountEvent) UnmarshalBinary(data []byte) (int, error) {
 
 // UnmarshalBinary unmarshalls a binary representation of itself
 func (e *UnshareMountNSEvent) UnmarshalBinary(data []byte) (int, error) {
-	return e.Mount.UnmarshalBinary(data)
+	n, err := e.Mount.UnmarshalBinary(data)
+	if err != nil {
+		return 0, err
+	}
+	e.Origin = MountOriginUnshare
+
+	return n, nil
 }
 
 // UnmarshalBinary unmarshalls a binary representation of itself
 func (e *ChdirEvent) UnmarshalBinary(data []byte) (int, error) {
-	return UnmarshalBinary(data, &e.SyscallEvent, &e.File)
+	return UnmarshalBinary(data, &e.SyscallEvent, &e.SyscallContext, &e.File)
 }
 
 // UnmarshalBinary unmarshalls a binary representation of itself
@@ -551,6 +575,19 @@ func (e *SyscallEvent) UnmarshalBinary(data []byte) (int, error) {
 		return 0, ErrNotEnoughData
 	}
 	e.Retval = int64(binary.NativeEndian.Uint64(data[0:8]))
+
+	return 8, nil
+}
+
+// UnmarshalBinary unmarshalls a binary representation of itself
+func (e *SyscallContext) UnmarshalBinary(data []byte) (int, error) {
+	if len(data) < 8 {
+		return 0, ErrNotEnoughData
+	}
+	e.ID = uint32(binary.NativeEndian.Uint32(data))
+
+	// padding
+
 	return 8, nil
 }
 
@@ -1003,6 +1040,93 @@ func (e *DNSEvent) UnmarshalBinary(data []byte) (int, error) {
 		return 0, err
 	}
 	return len(data), nil
+}
+
+// UnmarshalBinary unmarshalls a binary representation of itself
+func (e *IMDSEvent) UnmarshalBinary(data []byte) (int, error) {
+	if len(data) < 10 {
+		return 0, ErrNotEnoughData
+	}
+
+	firstWord := strings.SplitN(string(data[0:10]), " ", 2)
+	switch {
+	case strings.HasPrefix(firstWord[0], "HTTP"):
+		// this is an IMDS response
+		e.Type = IMDSResponseType
+		resp, err := http.ReadResponse(bufio.NewReader(bytes.NewBuffer(data)), nil)
+		if err != nil {
+			return 0, fmt.Errorf("failed to parse IMDS response: %v", err)
+		}
+		e.fillFromIMDSHeader(resp.Header, "")
+
+		// try to parse cloud provider specific data
+		if e.CloudProvider == IMDSAWSCloudProvider {
+			b := new(bytes.Buffer)
+			_, err = io.Copy(b, resp.Body)
+			if err == nil {
+				_ = resp.Body.Close()
+				// we don't care about errors, this unmarshalling will only work for token responses
+				_ = e.AWS.SecurityCredentials.UnmarshalBinary(b.Bytes())
+				if len(e.AWS.SecurityCredentials.ExpirationRaw) > 0 {
+					e.AWS.SecurityCredentials.Expiration, _ = time.Parse(time.RFC3339, e.AWS.SecurityCredentials.ExpirationRaw)
+				}
+			}
+		}
+	case slices.Contains([]string{
+		http.MethodGet,
+		http.MethodHead,
+		http.MethodPost,
+		http.MethodPut,
+		http.MethodPatch,
+		http.MethodDelete,
+		http.MethodConnect,
+		http.MethodOptions,
+		http.MethodTrace,
+	}, firstWord[0]):
+		// this is an IMDS request
+		e.Type = IMDSRequestType
+		req, err := http.ReadRequest(bufio.NewReader(bytes.NewBuffer(data)))
+		if err != nil {
+			return 0, fmt.Errorf("failed to parse IMDS request: %v", err)
+		}
+		e.URL = req.URL.String()
+		e.fillFromIMDSHeader(req.Header, e.URL)
+		e.Host = req.Host
+		e.UserAgent = req.UserAgent()
+	default:
+		return 0, fmt.Errorf("invalid HTTP packet: unknown first word %s", firstWord[0])
+	}
+
+	return len(data), nil
+}
+
+func (e *IMDSEvent) fillFromIMDSHeader(header http.Header, url string) {
+	if header != nil {
+		e.Server = header.Get("Server")
+
+		// guess the cloud provider from headers and the URL (this is a best effort resolution since some cloud provider
+		// don't require any particular headers).
+		if flavor := header.Get("Metadata-Flavor"); flavor == "Google" {
+			e.CloudProvider = IMDSGCPCloudProvider
+		} else if flavor == "ibm" {
+			e.CloudProvider = IMDSIBMCloudProvider
+		} else if authorization := header.Get("Authorization"); authorization == "Bearer Oracle" || strings.HasPrefix(url, "/opc") {
+			e.CloudProvider = IMDSOracleCloudProvider
+		} else if metadata := header.Get("Metadata"); metadata == "true" {
+			e.CloudProvider = IMDSAzureCloudProvider
+		} else {
+			e.CloudProvider = IMDSAWSCloudProvider
+
+			// check if this is an IMDSv2 request
+			e.AWS.IsIMDSv2 = len(header.Get("x-aws-ec2-metadata-token-ttl-seconds")) > 0 ||
+				len(header.Get("x-aws-ec2-metadata-token")) > 0
+		}
+	}
+}
+
+// UnmarshalBinary extract scrubbed data from an AWS IMDS security credentials response body
+func (creds *AWSSecurityCredentials) UnmarshalBinary(body []byte) error {
+	return json.Unmarshal(body, creds)
 }
 
 // UnmarshalBinary unmarshalls a binary representation of itself

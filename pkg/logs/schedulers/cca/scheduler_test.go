@@ -15,6 +15,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/autodiscoveryimpl"
+	"github.com/DataDog/datadog-agent/comp/core/tagger"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	logsConfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
@@ -28,7 +30,10 @@ func setup(t *testing.T) (scheduler *Scheduler, ac autodiscovery.Component, spy 
 		autodiscoveryimpl.MockModule(),
 		workloadmeta.MockModule(),
 		fx.Supply(workloadmeta.NewParams()),
-		core.MockBundle())
+		core.MockBundle(),
+		fx.Supply(tagger.NewFakeTaggerParams()),
+		fx.Provide(taggerimpl.NewMock),
+	)
 	scheduler = New(ac).(*Scheduler)
 	spy = &schedulers.MockSourceManager{}
 	return

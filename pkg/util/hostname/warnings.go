@@ -26,7 +26,7 @@ func isHostnameCanonicalForIntake(ctx context.Context, hostname string) bool {
 }
 
 func warnIfNotCanonicalHostname(ctx context.Context, hostname string) {
-	if !isHostnameCanonicalForIntake(ctx, hostname) && !config.Datadog.GetBool("hostname_force_config_as_canonical") {
+	if !isHostnameCanonicalForIntake(ctx, hostname) && !config.Datadog().GetBool("hostname_force_config_as_canonical") {
 		log.Warnf(
 			"Hostname '%s' defined in configuration will not be used as the in-app hostname. "+
 				"For more information: https://dtdg.co/agent-hostname-force-config-as-canonical",
@@ -49,7 +49,7 @@ func warnAboutFQDN(ctx context.Context, hostname string) {
 	// We have a FQDN that does not match to the resolved hostname, and the configuration
 	// field `hostname_fqdn` isn't set -> we display a warning message about
 	// the future behavior
-	if !config.Datadog.GetBool("hostname_fqdn") && hostname == h && h != fqdn {
+	if !config.Datadog().GetBool("hostname_fqdn") && hostname == h && h != fqdn {
 		if runtime.GOOS != "windows" {
 			// REMOVEME: This should be removed when the default `hostname_fqdn` is set to true
 			log.Warnf("DEPRECATION NOTICE: The agent resolved your hostname as '%s'. However in a future version, it will be resolved as '%s' by default. To enable the future behavior, please enable the `hostname_fqdn` flag in the configuration. For more information: https://dtdg.co/flag-hostname-fqdn", h, fqdn)

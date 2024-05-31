@@ -97,7 +97,7 @@ func TestGetNTPHosts(t *testing.T) {
 	defer ts.Close()
 
 	metadataURL = ts.URL
-	config.Datadog.SetWithoutSource("cloud_provider_metadata", []string{"azure"})
+	config.Datadog().SetWithoutSource("cloud_provider_metadata", []string{"azure"})
 	actualHosts := GetNTPHosts(ctx)
 
 	assert.Equal(t, expectedHosts, actualHosts)

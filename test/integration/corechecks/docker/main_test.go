@@ -112,8 +112,8 @@ type testDeps struct {
 // Called before for first test run: compose up
 func setup() (workloadmeta.Component, error) {
 	// Setup global conf
-	config.Datadog.SetConfigType("yaml")
-	err := config.Datadog.ReadConfig(strings.NewReader(datadogCfgString))
+	config.Datadog().SetConfigType("yaml")
+	err := config.Datadog().ReadConfig(strings.NewReader(datadogCfgString))
 	if err != nil {
 		return nil, err
 	}

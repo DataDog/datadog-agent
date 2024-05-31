@@ -29,7 +29,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	config.Datadog.SetConfigFile(*cfgpath)
+	config.Datadog().SetConfigFile(*cfgpath)
 	if _, err := config.LoadWithoutSecret(); err != nil {
 		fmt.Fprintf(os.Stderr, "%s\n", err)
 		os.Exit(1)
