@@ -22,7 +22,7 @@ import (
 
 //nolint:revive // TODO(AML) Fix revive linter
 func TestListenersGetScheduleCalls(t *testing.T) {
-	adsched := scheduler.NewMetaScheduler()
+	adsched := scheduler.NewController()
 	ac := fxutil.Test[autodiscovery.Mock](t,
 		fx.Supply(autodiscoveryimpl.MockParams{Scheduler: adsched}),
 		autodiscoveryimpl.MockModule(),
@@ -49,7 +49,7 @@ func TestListenersGetScheduleCalls(t *testing.T) {
 	}, nil)
 	l2.StartListener()
 
-	adsched.Schedule([]integration.Config{{}})
+	adsched.ApplyChanges(integration.ConfigChanges{Schedule: []integration.Config{{}}})
 
 	// wait for each of the two listeners to get notified
 	<-got1
