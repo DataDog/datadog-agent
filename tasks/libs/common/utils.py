@@ -433,9 +433,9 @@ def query_version(ctx, major_version, git_sha_length=7):
     # The describe string format is <tag>-<number of commits since the tag>-g<commit hash>
     # e.g. 6.0.0-beta.0-1-g4f19118
     #   - tag is 6.0.0-beta.0
-    #   - it has been one commit since the tag
+    #   - it has been one commit since the tag creation
     #   - that commit hash is g4f19118
-    cmd = rf"git describe --tags --candidates=50 --match {get_matching_pattern(ctx, major_version)}"
+    cmd = rf'git describe --tags --candidates=50 --match "{get_matching_pattern(ctx, major_version)}"'
     if git_sha_length and isinstance(git_sha_length, int):
         cmd += f" --abbrev={git_sha_length}"
     described_version = ctx.run(cmd, hide=True).stdout.strip()
@@ -479,7 +479,7 @@ def query_version(ctx, major_version, git_sha_length=7):
 
 def get_matching_pattern(ctx, major_version):
     """
-    We need to used
+    We need to used specific patterns (official release tags) for nightly builds as they are used to install agent versions.
     """
     pattern = rf"{major_version}\.*"
     if is_allowed_repo_nightly_branch(os.getenv("BUCKET_BRANCH")):
@@ -487,7 +487,7 @@ def get_matching_pattern(ctx, major_version):
             rf"git tag --list | grep -E '^{major_version}\.[0-9]+\.[0-9]+(-rc.*|-devel.*)?$' | sort -rV | head -1",
             hide=True,
         ).stdout.strip()
-    return f'"{pattern}"'
+    return pattern
 
 
 def create_version_json(ctx, git_sha_length=7):
