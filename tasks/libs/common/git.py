@@ -1,8 +1,25 @@
-def get_staged_files(ctx, commit="HEAD") -> list[str]:
+from __future__ import annotations
+
+import os.path
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from collections.abc import Iterable
+
+
+def get_staged_files(ctx, commit="HEAD", include_deleted_files=False) -> Iterable[str]:
     """
     Get the list of staged (to be committed) files in the repository compared to the `commit` commit.
     """
-    return ctx.run(f"git diff --name-only --staged {commit}", hide=True).stdout.strip().splitlines()
+
+    files = ctx.run(f"git diff --name-only --staged {commit}", hide=True).stdout.strip().splitlines()
+
+    if include_deleted_files:
+        yield from files
+    else:
+        for file in files:
+            if os.path.isfile(file):
+                yield file
 
 
 def get_modified_files(ctx) -> list[str]:

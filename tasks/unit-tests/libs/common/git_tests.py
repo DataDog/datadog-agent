@@ -11,7 +11,7 @@ class TestGit(unittest.TestCase):
 
     def test_get_staged_files(self):
         self.ctx_mock.run.return_value.stdout = "file1\nfile2\nfile3"
-        files = get_staged_files(self.ctx_mock)
+        files = list(get_staged_files(self.ctx_mock, include_deleted_files=True))
 
         self.assertEqual(files, ["file1", "file2", "file3"])
         self.ctx_mock.run.assert_called_once_with("git diff --name-only --staged HEAD", hide=True)
