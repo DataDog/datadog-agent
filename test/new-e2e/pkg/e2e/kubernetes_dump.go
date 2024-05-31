@@ -63,12 +63,12 @@ func tryDumpEKSClusterState(ctx context.Context, cfg aws.Config, name string) (r
 		Name: &name,
 	})
 	if err != nil {
-		return "", fmt.Errorf("Failed to describe cluster %s: %v\n", name, err)
+		return "", fmt.Errorf("Failed to describe cluster %s: %v", name, err)
 	}
 
 	cluster := clusterDescription.Cluster
 	if cluster.Status != awsekstypes.ClusterStatusActive {
-		return "", fmt.Errorf("EKS cluster %s is not in active state. Current status: %s\n", name, cluster.Status)
+		return "", fmt.Errorf("EKS cluster %s is not in active state. Current status: %s", name, cluster.Status)
 	}
 
 	kubeconfig := clientcmdapi.NewConfig()
@@ -76,7 +76,7 @@ func tryDumpEKSClusterState(ctx context.Context, cfg aws.Config, name string) (r
 		Server: *cluster.Endpoint,
 	}
 	if kubeconfig.Clusters[name].CertificateAuthorityData, err = base64.StdEncoding.DecodeString(*cluster.CertificateAuthority.Data); err != nil {
-		return "", fmt.Errorf("Failed to decode certificate authority: %v\n", err)
+		return "", fmt.Errorf("failed to decode certificate authority: %v", err)
 	}
 	kubeconfig.AuthInfos[name] = &clientcmdapi.AuthInfo{
 		Exec: &clientcmdapi.ExecConfig{
@@ -129,11 +129,11 @@ func tryDumpKindClusterState(ctx context.Context, cfg aws.Config, name string) (
 		},
 	})
 	if err != nil {
-		return ret, fmt.Errorf("Failed to describe instances: %v\n", err)
+		return ret, fmt.Errorf("Failed to describe instances: %v", err)
 	}
 
 	if instancesDescription == nil || (len(instancesDescription.Reservations) != 1 && len(instancesDescription.Reservations[0].Instances) != 1) {
-		return ret, fmt.Errorf("Didn’t find exactly one instance for cluster %s", name)
+		return ret, fmt.Errorf("Did not find exactly one instance for cluster %s", name)
 	}
 
 	instanceIP := instancesDescription.Reservations[0].Instances[0].PrivateIpAddress
@@ -143,7 +143,7 @@ func tryDumpKindClusterState(ctx context.Context, cfg aws.Config, name string) (
 	if sshAgentSocket, found := os.LookupEnv("SSH_AUTH_SOCK"); found {
 		sshAgent, err := net.Dial("unix", sshAgentSocket)
 		if err != nil {
-			return "", fmt.Errorf("Failed to dial SSH agent: %v\n", err)
+			return "", fmt.Errorf("Failed to dial SSH agent: %v", err)
 		}
 		defer sshAgent.Close()
 
@@ -153,47 +153,46 @@ func tryDumpKindClusterState(ctx context.Context, cfg aws.Config, name string) (
 	if sshKeyPath, found := os.LookupEnv("E2E_PRIVATE_KEY_PATH"); found {
 		sshKey, err := os.ReadFile(sshKeyPath)
 		if err != nil {
-			return ret, fmt.Errorf("Failed to read SSH key: %v\n", err)
+			return ret, fmt.Errorf("failed to read SSH key: %v", err)
 		}
 
 		signer, err := ssh.ParsePrivateKey(sshKey)
 		if err != nil {
-			fmt.Fprintf(&out, "Failed to parse SSH key: %v\n", err)
-			return ret, fmt.Errorf("Failed to parse SSH key: %v\n", err)
+			return ret, fmt.Errorf("failed to parse SSH key: %v", err)
 		}
 
 		auth = append(auth, ssh.PublicKeys(signer))
 	}
 
 	sshClient, err := ssh.Dial("tcp", *instanceIP+":22", &ssh.ClientConfig{
-		User:            "ec2-user",
+		User:            "ubuntu",
 		Auth:            auth,
 		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
 	})
 	if err != nil {
-		return ret, fmt.Errorf("Failed to dial SSH server %s: %v\n", *instanceIP, err)
+		return ret, fmt.Errorf("failed to dial SSH server %s: %v", *instanceIP, err)
 	}
 	defer sshClient.Close()
 
 	sshSession, err := sshClient.NewSession()
 	if err != nil {
-		return ret, fmt.Errorf("Failed to create SSH session: %v\n", err)
+		return ret, fmt.Errorf("failed to create SSH session: %v", err)
 	}
 	defer sshSession.Close()
 
 	stdout, err := sshSession.StdoutPipe()
 	if err != nil {
-		return ret, fmt.Errorf("Failed to create stdout pipe: %v\n", err)
+		return ret, fmt.Errorf("failed to create stdout pipe: %v", err)
 	}
 
 	stderr, err := sshSession.StderrPipe()
 	if err != nil {
-		return ret, fmt.Errorf("Failed to create stderr pipe: %v\n", err)
+		return ret, fmt.Errorf("failed to create stderr pipe: %v", err)
 	}
 
 	err = sshSession.Start("kind get kubeconfig --name \"$(kind get clusters | head -n 1)\"")
 	if err != nil {
-		return ret, fmt.Errorf("Failed to start remote command: %v\n", err)
+		return ret, fmt.Errorf("failed to start remote command: %v", err)
 	}
 
 	var stdoutBuf bytes.Buffer
@@ -204,14 +203,14 @@ func tryDumpKindClusterState(ctx context.Context, cfg aws.Config, name string) (
 
 	go func() {
 		if _, err := io.Copy(&stdoutBuf, stdout); err != nil {
-			errChannel <- fmt.Errorf("Failed to read stdout: %v\n", err)
+			errChannel <- fmt.Errorf("failed to read stdout: %v", err)
 		}
 		wg.Done()
 	}()
 
 	go func() {
 		if _, err := io.Copy(&out, stderr); err != nil {
-			errChannel <- fmt.Errorf("Failed to read stderr: %v\n", err)
+			errChannel <- fmt.Errorf("failed to read stderr: %v", err)
 		}
 		wg.Done()
 	}()
@@ -226,7 +225,7 @@ func tryDumpKindClusterState(ctx context.Context, cfg aws.Config, name string) (
 	}
 
 	if err != nil {
-		return ret, fmt.Errorf("Remote command exited with error: %v\n", err)
+		return ret, fmt.Errorf("remote command exited with error: %v", err)
 	}
 
 	kubeconfig, err := clientcmd.Load(stdoutBuf.Bytes())
@@ -242,7 +241,7 @@ func tryDumpKindClusterState(ctx context.Context, cfg aws.Config, name string) (
 
 	err = dumpK8sClusterState(ctx, kubeconfig, &out)
 	if err != nil {
-		return ret, fmt.Errorf("Failed to dump cluster state: %v", err)
+		return ret, fmt.Errorf("failed to dump cluster state: %v", err)
 	}
 
 	return ret, nil
@@ -251,16 +250,16 @@ func tryDumpKindClusterState(ctx context.Context, cfg aws.Config, name string) (
 func dumpK8sClusterState(ctx context.Context, kubeconfig *clientcmdapi.Config, out *strings.Builder) error {
 	kubeconfigFile, err := os.CreateTemp("", "kubeconfig")
 	if err != nil {
-		return fmt.Errorf("Failed to create kubeconfig temporary file: %v", err)
+		return fmt.Errorf("failed to create kubeconfig temporary file: %v", err)
 	}
 	defer os.Remove(kubeconfigFile.Name())
 
 	if err := clientcmd.WriteToFile(*kubeconfig, kubeconfigFile.Name()); err != nil {
-		return fmt.Errorf("Failed to write kubeconfig file: %v", err)
+		return fmt.Errorf("failed to write kubeconfig file: %v", err)
 	}
 
 	if err := kubeconfigFile.Close(); err != nil {
-		return fmt.Errorf("Failed to close kubeconfig file: %v", err)
+		return fmt.Errorf("failed to close kubeconfig file: %v", err)
 	}
 
 	fmt.Fprintf(out, "\n")
@@ -287,7 +286,7 @@ func dumpK8sClusterState(ctx context.Context, kubeconfig *clientcmdapi.Config, o
 		"wide",
 	})
 	if err := getCmd.ExecuteContext(ctx); err != nil {
-		return fmt.Errorf("Failed to execute kubectl get: %v", err)
+		return fmt.Errorf("failed to execute kubectl get: %v", err)
 	}
 	return nil
 }
