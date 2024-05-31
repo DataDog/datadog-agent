@@ -7,12 +7,14 @@
 
 #include "bpf_core_read.h"
 #include "bpf_tracing.h"
+#include "bpf_builtins.h"
 
 static __always_inline int get_cgroup_name(char *buf, size_t sz) {
     if (!bpf_helper_exists(BPF_FUNC_get_current_task)) {
         return 0;
     }
-    __builtin_memset(buf, 0, sz);
+    bpf_memset(buf, 0, sz);
+
     struct task_struct *cur_tsk = (struct task_struct *)bpf_get_current_task();
 
 #ifdef COMPILE_CORE
@@ -24,7 +26,7 @@ static __always_inline int get_cgroup_name(char *buf, size_t sz) {
     int cgrp_id = memory_cgrp_id;
 #endif
     const char *name = BPF_CORE_READ(cur_tsk, cgroups, subsys[cgrp_id], cgroup, kn, name);
-    if (bpf_probe_read_kernel_str(buf, sz, name) < 0) {
+    if (bpf_probe_read_kernel(buf, sz, name) < 0) {
         return 0;
     }
 

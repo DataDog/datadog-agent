@@ -429,6 +429,7 @@ func (ia *inventoryagent) getPayload() marshaler.JSONMarshaler {
 			model.SourceLocalConfigProcess: "source_local_configuration",
 			model.SourceRC:                 "remote_configuration",
 			model.SourceCLI:                "cli_configuration",
+			model.SourceProvided:           "provided_configuration",
 		}
 
 		for source, conf := range layers {
@@ -438,9 +439,6 @@ func (ia *inventoryagent) getPayload() marshaler.JSONMarshaler {
 		}
 		if yaml, err := ia.marshalAndScrub(ia.conf.AllSettings()); err == nil {
 			data["full_configuration"] = yaml
-		}
-		if yaml, err := ia.marshalAndScrub(ia.conf.AllSettingsWithoutDefault()); err == nil {
-			data["provided_configuration"] = yaml
 		}
 	}
 

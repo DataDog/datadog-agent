@@ -20,7 +20,8 @@ from invoke.exceptions import Exit
 import tasks.modules
 from tasks.build_tags import ALL_TAGS, UNIT_TEST_TAGS, get_default_build_tags
 from tasks.libs.common.color import color_message
-from tasks.libs.common.utils import check_uncommitted_changes, get_build_flags, timed
+from tasks.libs.common.git import check_uncommitted_changes
+from tasks.libs.common.utils import get_build_flags, timed
 from tasks.licenses import get_licenses_list
 from tasks.modules import DEFAULT_MODULES, generate_dummy_package
 
