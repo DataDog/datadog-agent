@@ -418,13 +418,14 @@ func decodeTracerPayload(v Version, req *http.Request, cIDProvider IDProvider, l
 		if _, err = copyRequestBody(buf, req); err != nil {
 			return nil, false, err
 		}
-		var traces pb.Traces
+		traces := getTraces()
+		defer putTraces(traces)
 		err = traces.UnmarshalMsgDictionary(buf.Bytes())
 		return &pb.TracerPayload{
 			LanguageName:    lang,
 			LanguageVersion: langVersion,
 			ContainerID:     cIDProvider.GetContainerID(req.Context(), req.Header),
-			Chunks:          traceChunksFromTraces(traces),
+			Chunks:          traceChunksFromTraces(*traces),
 			TracerVersion:   tracerVersion,
 		}, true, err
 	case V07:
@@ -437,18 +438,36 @@ func decodeTracerPayload(v Version, req *http.Request, cIDProvider IDProvider, l
 		_, err = tracerPayload.UnmarshalMsg(buf.Bytes())
 		return &tracerPayload, true, err
 	default:
-		var traces pb.Traces
-		if ranHook, err = decodeRequest(req, &traces); err != nil {
+		traces := getTraces()
+		defer putTraces(traces)
+		if ranHook, err = decodeRequest(req, traces); err != nil {
 			return nil, false, err
 		}
 		return &pb.TracerPayload{
 			LanguageName:    lang,
 			LanguageVersion: langVersion,
 			ContainerID:     cIDProvider.GetContainerID(req.Context(), req.Header),
-			Chunks:          traceChunksFromTraces(traces),
+			Chunks:          traceChunksFromTraces(*traces),
 			TracerVersion:   tracerVersion,
 		}, ranHook, nil
 	}
+}
+
+var tracesPool = sync.Pool{}
+
+func getTraces() *pb.Traces {
+	t := tracesPool.Get()
+	if t == nil {
+		return &pb.Traces{}
+	}
+	return t.(*pb.Traces)
+}
+
+func putTraces(t *pb.Traces) {
+	for i := range *t {
+		(*t)[i] = pb.Trace{}
+	}
+	tracesPool.Put(t)
 }
 
 // replyOK replies to the given http.ResponseWriter w based on the endpoint version, with either status 200/OK
