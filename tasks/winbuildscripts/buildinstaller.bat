@@ -6,12 +6,13 @@ if not exist c:\mnt\ goto nomntdir
 
 set BUILD_ROOT=c:\mnt
 cd %BUILD_ROOT%
-call %BUILD_ROOT%\datadog-agent\tasks\winbuildscripts\extract-modcache.bat %BUILD_ROOT%\datadog-agent modcache
+call %BUILD_ROOT%\tasks\winbuildscripts\extract-modcache.bat %BUILD_ROOT%\datadog-agent modcache
 
 if NOT DEFINED RELEASE_VERSION set RELEASE_VERSION=%~1
 
 set OMNIBUS_BUILD=omnibus.build
 set OMNIBUS_ARGS=%OMNIBUS_ARGS% --target-project installer
+set CI_PROJECT_DIR=%BUILD_ROOT%
 
 if DEFINED GOMODCACHE set OMNIBUS_ARGS=%OMNIBUS_ARGS% --go-mod-cache %GOMODCACHE%
 if DEFINED USE_S3_CACHING set OMNIBUS_ARGS=%OMNIBUS_ARGS% %USE_S3_CACHING%
