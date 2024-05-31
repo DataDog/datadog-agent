@@ -290,6 +290,7 @@ func (r *Runner) processUDPResults(res *results.Results, hname string, destinati
 
 	traceroutePath := payload.NetworkPath{
 		PathID:    pathID,
+		Protocol:  payload.ProtocolUDP,
 		Timestamp: time.Now().UnixMilli(),
 		Source: payload.NetworkPathSource{
 			Hostname:  hname,

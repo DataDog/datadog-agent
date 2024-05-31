@@ -135,7 +135,7 @@ func (suite *ProviderTestSuite) TestFilesToTailReturnsAllFilesFromDirectory() {
 	path := fmt.Sprintf("%s/1/*.log", suite.testDir)
 	fileProvider := NewFileProvider(suite.filesLimit, WildcardUseFileName)
 	logSources := suite.newLogSources(path)
-	status.InitStatus(pkgConfig.Datadog, util.CreateSources(logSources))
+	status.InitStatus(pkgConfig.Datadog(), util.CreateSources(logSources))
 	files := fileProvider.FilesToTail(true, logSources)
 
 	suite.Equal(3, len(files))
@@ -197,7 +197,7 @@ func (suite *ProviderTestSuite) TestFilesToTailReturnsSpecificFileWithWildcard()
 	path := fmt.Sprintf("%s/1/?.log", suite.testDir)
 	fileProvider := NewFileProvider(suite.filesLimit, WildcardUseFileName)
 	logSources := suite.newLogSources(path)
-	status.InitStatus(pkgConfig.Datadog, util.CreateSources(logSources))
+	status.InitStatus(pkgConfig.Datadog(), util.CreateSources(logSources))
 	files := fileProvider.FilesToTail(true, logSources)
 
 	suite.Equal(3, len(files))
@@ -237,7 +237,7 @@ func (suite *ProviderTestSuite) TestNumberOfFilesToTailDoesNotExceedLimit() {
 	path := fmt.Sprintf("%s/*/*.log", suite.testDir)
 	fileProvider := NewFileProvider(suite.filesLimit, WildcardUseFileName)
 	logSources := suite.newLogSources(path)
-	status.InitStatus(pkgConfig.Datadog, util.CreateSources(logSources))
+	status.InitStatus(pkgConfig.Datadog(), util.CreateSources(logSources))
 	files := fileProvider.FilesToTail(true, logSources)
 	suite.Equal(suite.filesLimit, len(files))
 	suite.Equal([]string{"3 files tailed out of 5 files matching"}, logSources[0].Messages.GetMessages())
@@ -256,7 +256,7 @@ func (suite *ProviderTestSuite) TestAllWildcardPathsAreUpdated() {
 		sources.NewLogSource("", &config.LogsConfig{Type: config.FileType, Path: fmt.Sprintf("%s/1/*.log", suite.testDir)}),
 		sources.NewLogSource("", &config.LogsConfig{Type: config.FileType, Path: fmt.Sprintf("%s/2/*.log", suite.testDir)}),
 	}
-	status.InitStatus(pkgConfig.Datadog, util.CreateSources(logSources))
+	status.InitStatus(pkgConfig.Datadog(), util.CreateSources(logSources))
 	files := fileProvider.FilesToTail(true, logSources)
 	suite.Equal(2, len(files))
 	suite.Equal([]string{"2 files tailed out of 3 files matching"}, logSources[0].Messages.GetMessages())

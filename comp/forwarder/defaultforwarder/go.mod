@@ -5,6 +5,7 @@ go 1.21.0
 replace (
 	github.com/DataDog/datadog-agent/cmd/agent/common/path => ../../../cmd/agent/common/path
 	github.com/DataDog/datadog-agent/comp/core/config => ../../core/config
+	github.com/DataDog/datadog-agent/comp/core/flare/builder => ../../core/flare/builder
 	github.com/DataDog/datadog-agent/comp/core/flare/types => ../../core/flare/types
 	github.com/DataDog/datadog-agent/comp/core/log => ../../core/log
 	github.com/DataDog/datadog-agent/comp/core/secrets => ../../core/secrets
@@ -72,7 +73,7 @@ require (
 require (
 	github.com/DataDog/datadog-agent/comp/core/secrets v0.54.0-rc.2 // indirect
 	github.com/DataDog/datadog-agent/comp/core/telemetry v0.54.0-rc.2 // indirect
-	github.com/DataDog/datadog-agent/comp/def v0.54.0-rc.2 // indirect
+	github.com/DataDog/datadog-agent/comp/def v0.55.0-devel // indirect
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults v0.54.0-rc.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/env v0.54.0-rc.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/config/logs v0.54.0-rc.2 // indirect
@@ -84,7 +85,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/system v0.54.0-rc.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/system/socket v0.54.0-rc.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.54.0-rc.2 // indirect
-	github.com/DataDog/viper v1.13.3 // indirect
+	github.com/DataDog/viper v1.13.5 // indirect
 	github.com/Microsoft/go-winio v0.6.1 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect

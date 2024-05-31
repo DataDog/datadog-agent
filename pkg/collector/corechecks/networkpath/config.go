@@ -29,6 +29,9 @@ type InstanceConfig struct {
 
 	Protocol string `yaml:"protocol"`
 
+	SourceService      string `yaml:"source_service"`
+	DestinationService string `yaml:"destination_service"`
+
 	MaxTTL uint8 `yaml:"max_ttl"`
 
 	TimeoutMs uint `yaml:"timeout"` // millisecond
@@ -43,6 +46,8 @@ type InstanceConfig struct {
 type CheckConfig struct {
 	DestHostname          string
 	DestPort              uint16
+	SourceService         string
+	DestinationService    string
 	MaxTTL                uint8
 	Protocol              string
 	TimeoutMs             uint
@@ -70,6 +75,8 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 
 	c.DestHostname = instance.DestHostname
 	c.DestPort = instance.DestPort
+	c.SourceService = instance.SourceService
+	c.DestinationService = instance.DestinationService
 	c.MaxTTL = instance.MaxTTL
 	c.TimeoutMs = instance.TimeoutMs
 	c.Protocol = instance.Protocol
@@ -84,7 +91,7 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 	}
 
 	c.Tags = instance.Tags
-	c.Namespace = coreconfig.Datadog.GetString("network_devices.namespace")
+	c.Namespace = coreconfig.Datadog().GetString("network_devices.namespace")
 
 	return c, nil
 }

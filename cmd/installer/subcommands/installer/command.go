@@ -10,6 +10,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/cmd/installer/command"
@@ -45,7 +46,12 @@ const (
 
 // Commands returns the installer subcommands.
 func Commands(_ *command.GlobalParams) []*cobra.Command {
-	return []*cobra.Command{versionCommand(), bootstrapCommand(), installCommand(), removeCommand(), installExperimentCommand(), removeExperimentCommand(), promoteExperimentCommand(), garbageCollectCommand(), purgeCommand(), isInstalledCommand()}
+	return []*cobra.Command{bootstrapCommand(), installCommand(), removeCommand(), installExperimentCommand(), removeExperimentCommand(), promoteExperimentCommand(), garbageCollectCommand(), purgeCommand(), isInstalledCommand()}
+}
+
+// UnprivilegedCommands returns the unprivileged installer subcommands.
+func UnprivilegedCommands(_ *command.GlobalParams) []*cobra.Command {
+	return []*cobra.Command{versionCommand(), defaultPackagesCommand()}
 }
 
 type cmd struct {
@@ -164,6 +170,19 @@ func versionCommand() *cobra.Command {
 	}
 }
 
+func defaultPackagesCommand() *cobra.Command {
+	return &cobra.Command{
+		Use:     "default-packages",
+		Short:   "Print the list of default packages to install",
+		GroupID: "installer",
+		RunE: func(_ *cobra.Command, _ []string) error {
+			defaultPackages := installer.DefaultPackages(env.FromEnv())
+			fmt.Fprintf(os.Stdout, "%s\n", strings.Join(defaultPackages, "\n"))
+			return nil
+		},
+	}
+}
+
 func bootstrapCommand() *cobra.Command {
 	var timeout time.Duration
 	cmd := &cobra.Command{
@@ -183,6 +202,7 @@ func bootstrapCommand() *cobra.Command {
 }
 
 func installCommand() *cobra.Command {
+	var installArgs []string
 	cmd := &cobra.Command{
 		Use:     "install <url>",
 		Short:   "Install a package",
@@ -195,9 +215,10 @@ func installCommand() *cobra.Command {
 			}
 			defer func() { i.Stop(err) }()
 			i.span.SetTag("params.url", args[0])
-			return i.Install(i.ctx, args[0])
+			return i.Install(i.ctx, args[0], installArgs)
 		},
 	}
+	cmd.Flags().StringArrayVarP(&installArgs, "install_args", "A", nil, "Arguments to pass to the package")
 	return cmd
 }
 

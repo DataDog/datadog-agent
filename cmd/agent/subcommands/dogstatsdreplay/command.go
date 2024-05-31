@@ -24,7 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
-	"github.com/DataDog/datadog-agent/comp/dogstatsd/replay"
+	replay "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/impl"
 	"github.com/DataDog/datadog-agent/pkg/api/security"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
@@ -113,7 +113,7 @@ func dogstatsdReplay(log log.Component, config config.Component, cliParams *cliP
 
 	apiconn, err := grpc.DialContext(
 		ctx,
-		fmt.Sprintf(":%v", pkgconfig.Datadog.GetInt("cmd_port")),
+		fmt.Sprintf(":%v", pkgconfig.Datadog().GetInt("cmd_port")),
 		grpc.WithTransportCredentials(creds),
 	)
 	if err != nil {
@@ -133,7 +133,7 @@ func dogstatsdReplay(log log.Component, config config.Component, cliParams *cliP
 		return err
 	}
 
-	s := pkgconfig.Datadog.GetString("dogstatsd_socket")
+	s := pkgconfig.Datadog().GetString("dogstatsd_socket")
 	if s == "" {
 		return fmt.Errorf("Dogstatsd UNIX socket disabled")
 	}
@@ -150,7 +150,7 @@ func dogstatsdReplay(log log.Component, config config.Component, cliParams *cliP
 	defer syscall.Close(sk)
 
 	err = syscall.SetsockoptInt(sk, syscall.SOL_SOCKET, syscall.SO_SNDBUF,
-		pkgconfig.Datadog.GetInt("dogstatsd_buffer_size"))
+		pkgconfig.Datadog().GetInt("dogstatsd_buffer_size"))
 	if err != nil {
 		return err
 	}

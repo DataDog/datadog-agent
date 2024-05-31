@@ -29,18 +29,41 @@ type Source string
 
 // Declare every known Source
 const (
-	SourceDefault            Source = "default"
-	SourceUnknown            Source = "unknown"
-	SourceFile               Source = "file"
-	SourceEnvVar             Source = "environment-variable"
-	SourceAgentRuntime       Source = "agent-runtime"
+	// SourceDefault are the values from defaults.
+	SourceDefault Source = "default"
+	// SourceUnknown are the values from unknown source. This should only be used in tests when calling
+	// SetWithoutSource.
+	SourceUnknown Source = "unknown"
+	// SourceFile are the values loaded from configuration file.
+	SourceFile Source = "file"
+	// SourceEnvVar are the values loaded from the environment variables.
+	SourceEnvVar Source = "environment-variable"
+	// SourceAgentRuntime are the values configured by the agent itself. The agent can dynamically compute the best
+	// value for some settings when not set by the user.
+	SourceAgentRuntime Source = "agent-runtime"
+	// SourceLocalConfigProcess are the values mirrored from the config process. The config process is the
+	// core-agent. This is used when side process like security-agent or trace-agent pull their configuration from
+	// the core-agent.
 	SourceLocalConfigProcess Source = "local-config-process"
-	SourceRC                 Source = "remote-config"
-	SourceCLI                Source = "cli"
+	// SourceRC are the values loaded from remote-config (aka Datadog backend)
+	SourceRC Source = "remote-config"
+	// SourceCLI are the values set by the user at runtime through the CLI.
+	SourceCLI Source = "cli"
+	// SourceProvided are all values set by any source but default.
+	SourceProvided Source = "provided" // everything but defaults
 )
 
 // sources list the known sources, following the order of hierarchy between them
-var sources = []Source{SourceDefault, SourceUnknown, SourceFile, SourceEnvVar, SourceAgentRuntime, SourceLocalConfigProcess, SourceRC, SourceCLI}
+var sources = []Source{
+	SourceDefault,
+	SourceUnknown,
+	SourceFile,
+	SourceEnvVar,
+	SourceAgentRuntime,
+	SourceLocalConfigProcess,
+	SourceRC,
+	SourceCLI,
+}
 
 // ValueWithSource is a tuple for a source and a value, not necessarily the applied value in the main config
 type ValueWithSource struct {
@@ -606,7 +629,7 @@ func (c *safeConfig) AllSettings() map[string]interface{} {
 	return c.Viper.AllSettings()
 }
 
-// AllSettingsWithoutDefault wraps Viper for concurrent access
+// AllSettingsWithoutDefault returns a copy of the all the settings in the configuration without defaults
 func (c *safeConfig) AllSettingsWithoutDefault() map[string]interface{} {
 	c.RLock()
 	defer c.RUnlock()
@@ -616,14 +639,27 @@ func (c *safeConfig) AllSettingsWithoutDefault() map[string]interface{} {
 	return c.Viper.AllSettingsWithoutDefault()
 }
 
-// AllSourceSettingsWithoutDefault wraps Viper for concurrent access
-func (c *safeConfig) AllSourceSettingsWithoutDefault(source Source) map[string]interface{} {
+// AllSettingsBySource returns the settings from each source (file, env vars, ...)
+func (c *safeConfig) AllSettingsBySource() map[Source]interface{} {
 	c.RLock()
 	defer c.RUnlock()
 
-	// AllSourceSettingsWithoutDefault returns a fresh map, so the caller may do with it
-	// as they please without holding the lock.
-	return c.configSources[source].AllSettingsWithoutDefault()
+	sources := []Source{
+		SourceDefault,
+		SourceUnknown,
+		SourceFile,
+		SourceEnvVar,
+		SourceAgentRuntime,
+		SourceRC,
+		SourceCLI,
+		SourceLocalConfigProcess,
+	}
+	res := map[Source]interface{}{}
+	for _, source := range sources {
+		res[source] = c.configSources[source].AllSettingsWithoutDefault()
+	}
+	res[SourceProvided] = c.AllSettingsWithoutDefault()
+	return res
 }
 
 // AddConfigPath wraps Viper for concurrent access
@@ -742,6 +778,7 @@ func (c *safeConfig) CopyConfig(cfg Config) {
 		c.proxies = cfg.proxies
 		c.configEnvVars = cfg.configEnvVars
 		c.unknownKeys = cfg.unknownKeys
+		c.notificationReceivers = cfg.notificationReceivers
 		return
 	}
 	panic("Replacement config must be an instance of safeConfig")

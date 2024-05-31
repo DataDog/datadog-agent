@@ -1052,7 +1052,7 @@ func (m mockCollector) GetChecks() []check.Check {
 }
 
 func TestGetVersion(t *testing.T) {
-	invChecks := inventorychecksimpl.NewMock()
+	invChecks := inventorychecksimpl.NewMock().Comp
 	check.InitializeInventoryChecksContext(invChecks)
 	defer check.ReleaseContext()
 

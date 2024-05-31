@@ -189,7 +189,7 @@ func TestJavaInjection(t *testing.T) {
 			t.Cleanup(func() {
 				javaTLSProg.Stop(nil)
 			})
-			require.NoError(t, javaTLSProg.(*javaTLSProgram).processMonitor.Initialize())
+			require.NoError(t, javaTLSProg.(*javaTLSProgram).processMonitor.Initialize(true))
 
 			tt.postTracerSetup(t, tt.context)
 			tt.validation(t, tt.context)

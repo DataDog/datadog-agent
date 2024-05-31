@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import platform
+import sys
 from typing import TYPE_CHECKING
 
 import invoke.exceptions as ie
@@ -10,7 +11,7 @@ from invoke.context import Context
 from tasks.kernel_matrix_testing.vars import arch_mapping
 
 if TYPE_CHECKING:
-    from tasks.kernel_matrix_testing.types import Arch
+    from tasks.kernel_matrix_testing.types import Arch, PathOrStr
 
 try:
     from termcolor import colored
@@ -20,24 +21,28 @@ except ImportError:
         return text
 
 
+def _logprint(msg: str):
+    print(msg, flush=True, file=sys.stderr)
+
+
 def ask(question: str) -> str:
     return input(colored(question, "blue"))
 
 
 def debug(msg: str):
-    print(colored(msg, "white"))
+    _logprint(colored(msg, "white"))
 
 
 def info(msg: str):
-    print(colored(msg, "green"))
+    _logprint(colored(msg, "green"))
 
 
 def warn(msg: str):
-    print(colored(msg, "yellow"))
+    _logprint(colored(msg, "yellow"))
 
 
 def error(msg: str):
-    print(colored(msg, "red"))
+    _logprint(colored(msg, "red"))
 
 
 def Exit(msg: str):
@@ -60,7 +65,7 @@ def full_arch(arch: str):
     return arch_mapping[arch]
 
 
-def get_binary_target_arch(ctx: Context, file: str) -> Arch | None:
+def get_binary_target_arch(ctx: Context, file: PathOrStr) -> Arch | None:
     res = ctx.run(f"file {file}")
     if res is None or not res.ok:
         return None

@@ -7,7 +7,7 @@
 #include "helpers/syscalls.h"
 #include "constants/fentry_macro.h"
 
-int __attribute__((always_inline)) trace__sys_execveat(ctx_t *ctx, const char **argv, const char **env) {
+int __attribute__((always_inline)) trace__sys_execveat(ctx_t *ctx, const char *path, const char **argv, const char **env) {
     struct syscall_cache_t syscall = {
         .type = EVENT_EXEC,
         .exec = {
@@ -19,6 +19,7 @@ int __attribute__((always_inline)) trace__sys_execveat(ctx_t *ctx, const char **
             }
         }
     };
+    collect_syscall_ctx(&syscall, SYSCALL_CTX_ARG_STR(0), (void *)path, NULL, NULL);
     cache_syscall(&syscall);
 
     u64 pid_tgid = bpf_get_current_pid_tgid();
@@ -37,11 +38,11 @@ int __attribute__((always_inline)) trace__sys_execveat(ctx_t *ctx, const char **
 }
 
 HOOK_SYSCALL_ENTRY3(execve, const char *, filename, const char **, argv, const char **, env) {
-    return trace__sys_execveat(ctx, argv, env);
+    return trace__sys_execveat(ctx, filename, argv, env);
 }
 
 HOOK_SYSCALL_ENTRY4(execveat, int, fd, const char *, filename, const char **, argv, const char **, env) {
-    return trace__sys_execveat(ctx, argv, env);
+    return trace__sys_execveat(ctx, filename, argv, env);
 }
 
 int __attribute__((always_inline)) handle_execve_exit() {
@@ -391,9 +392,14 @@ int tail_call_target_get_envs_offset(void *ctx) {
 #pragma unroll
     for (i = 0; i < MAX_ARGS_READ_PER_TAIL && args_count < syscall->exec.args.count; i++) {
         bytes_read = bpf_probe_read_str(&buff->value[0], MAX_ARRAY_ELEMENT_SIZE, (void *)(args_start + offset));
-        if (bytes_read <= 0 || bytes_read == MAX_ARRAY_ELEMENT_SIZE) {
+        if (bytes_read < 0 || bytes_read == MAX_ARRAY_ELEMENT_SIZE) {
             syscall->exec.args_envs_ctx.envs_offset = 0;
             return 0;
+        } else if (buff->value[0] == '\0') {
+            // skip empty strings
+            // directly check the first character instead of bytes_read because bpf_probe_read_str()
+            // may return 0 or 1 depending on the kernel version when reading empty strings
+            bytes_read = 1;
         }
         offset += bytes_read;
         args_count++;
@@ -439,10 +445,19 @@ void __attribute__((always_inline)) parse_args_envs(void *ctx, struct args_envs_
 
 #pragma unroll
     for (i = 0; i < MAX_ARRAY_ELEMENT_PER_TAIL; i++) {
-        void *string_array_ptr = &(buff->value[(event.size + sizeof(bytes_read)) & (MAX_STR_BUFF_LEN - MAX_ARRAY_ELEMENT_SIZE - 1)]);
+        if (args_envs->counter == args_envs->count) {
+            break;
+        }
 
-        bytes_read = bpf_probe_read_str(string_array_ptr, MAX_ARRAY_ELEMENT_SIZE, (void *)(args_start + offset));
-        if (bytes_read > 0) {
+        char *string_array_ptr = &(buff->value[(event.size + sizeof(bytes_read)) & (MAX_STR_BUFF_LEN - MAX_ARRAY_ELEMENT_SIZE - 1)]);
+
+        bytes_read = bpf_probe_read_str((void *)string_array_ptr, MAX_ARRAY_ELEMENT_SIZE, (void *)(args_start + offset));
+        // skip empty strings
+        // depending on the kernel version, bpf_probe_read_str() may return 0 or 1 when reading empty strings
+        if (bytes_read == 0 || (bytes_read == 1 && *string_array_ptr == '\0')) {
+            offset += 1;
+            args_envs->counter++;
+        } else if (bytes_read > 0) {
             bytes_read--; // remove trailing 0
 
             // insert size before the string
@@ -469,11 +484,7 @@ void __attribute__((always_inline)) parse_args_envs(void *ctx, struct args_envs_
             } else {
                 event.size += data_length;
                 args_envs->counter++;
-                offset += bytes_read + 1;
-            }
-
-            if (args_envs->counter == args_envs->count) {
-                break;
+                offset += bytes_read + 1; // count trailing 0
             }
         } else {
             break;
@@ -731,6 +742,9 @@ int __attribute__((always_inline)) send_exec_event(ctx_t *ctx) {
 
     // add interpreter path info
     event->linux_binprm.interpreter = syscall->exec.linux_binprm.interpreter;
+
+    // syscall context
+    event->syscall_ctx.id = syscall->ctx_id;
 
     // send the entry to maintain userspace cache
     send_event_ptr(ctx, EVENT_EXEC, event);

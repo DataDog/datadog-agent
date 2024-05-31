@@ -49,7 +49,7 @@ func NewActivityDumpRemoteStorage() (ActivityDumpStorage, error) {
 	storage := &ActivityDumpRemoteStorage{
 		tooLargeEntities: make(map[tooLargeEntityStatsEntry]*atomic.Uint64),
 		client: &http.Client{
-			Transport: ddhttputil.CreateHTTPTransport(pkgconfig.Datadog),
+			Transport: ddhttputil.CreateHTTPTransport(pkgconfig.Datadog()),
 		},
 	}
 

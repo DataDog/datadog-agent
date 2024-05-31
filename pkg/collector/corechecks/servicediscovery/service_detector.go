@@ -6,6 +6,9 @@
 package servicediscovery
 
 import (
+	"slices"
+	"strings"
+
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/apm"
 	"go.uber.org/zap"
 
@@ -33,18 +36,38 @@ type serviceMetadata struct {
 	Language           string
 	Type               string
 	APMInstrumentation string
+	FromDDService      bool
+}
+
+func fixAdditionalNames(additionalNames []string) []string {
+	out := make([]string, 0, len(additionalNames))
+	for _, v := range additionalNames {
+		if len(strings.TrimSpace(v)) > 0 {
+			out = append(out, v)
+		}
+	}
+	slices.Sort(out)
+	return out
 }
 
 func (sd *serviceDetector) Detect(p processInfo) serviceMetadata {
-	meta, _ := usm.ExtractServiceMetadata(usm.NewDetectionContext(sd.logger, p.CmdLine, p.Env, usm.RealFs{}))
+	meta, _ := usm.ExtractServiceMetadata(sd.logger, p.CmdLine, p.Env)
 	lang, _ := sd.langFinder.Detect(p.CmdLine, p.Env)
 	svcType := servicetype.Detect(meta.Name, p.Ports)
 	apmInstr := apm.Detect(sd.logger, p.CmdLine, p.Env, lang)
 
+	sd.logger.Debug("name info", zap.String("name", meta.Name), zap.Strings("additional names", meta.AdditionalNames))
+
+	name := meta.Name
+	if len(meta.AdditionalNames) > 0 {
+		name = name + "-" + strings.Join(fixAdditionalNames(meta.AdditionalNames), "-")
+	}
+
 	return serviceMetadata{
-		Name:               meta.Name,
+		Name:               name,
 		Language:           string(lang),
 		Type:               string(svcType),
 		APMInstrumentation: string(apmInstr),
+		FromDDService:      meta.FromDDService,
 	}
 }
