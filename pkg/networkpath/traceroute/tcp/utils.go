@@ -82,7 +82,7 @@ func localAddrForHost(destIP net.IP, destPort uint16) (*net.UDPAddr, error) {
 }
 
 // createRawTCPSyn creates a TCP packet with the specified parameters
-func createRawTCPSyn(sourceIP net.IP, sourcePort uint16, destIP net.IP, destPort uint16, seqNum uint32, ttl int, flags byte) (*ipv4.Header, []byte, error) {
+func createRawTCPSyn(sourceIP net.IP, sourcePort uint16, destIP net.IP, destPort uint16, seqNum uint32, ttl int) (*ipv4.Header, []byte, error) {
 	ipLayer := &layers.IPv4{
 		Version:  4,
 		Length:   20,
@@ -102,10 +102,13 @@ func createRawTCPSyn(sourceIP net.IP, sourcePort uint16, destIP net.IP, destPort
 		Window:  1024,
 	}
 
-	tcpLayer.SetNetworkLayerForChecksum(ipLayer)
+	err := tcpLayer.SetNetworkLayerForChecksum(ipLayer)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to create packet checksum: %w", err)
+	}
 	buf := gopacket.NewSerializeBuffer()
 	opts := gopacket.SerializeOptions{FixLengths: true, ComputeChecksums: true}
-	err := gopacket.SerializeLayers(buf, opts,
+	err = gopacket.SerializeLayers(buf, opts,
 		ipLayer,
 		tcpLayer,
 	)
