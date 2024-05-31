@@ -101,7 +101,7 @@ func TestStreamServer(t *testing.T) {
 	// Drop first cache diff before gRPC connection is created
 	<-extractor.ProcessCacheDiff()
 
-	cc, err := grpc.Dial(srv.addr.String(), grpc.WithTransportCredentials(insecure.NewCredentials())) //nolint:staticcheck // TODO (ASC) fix grpc.DialContext is deprecated
+	cc, err := grpc.Dial(srv.addr.String(), grpc.WithTransportCredentials(insecure.NewCredentials())) //nolint:staticcheck // TODO (ASC) fix grpc.Dial is deprecated
 	require.NoError(t, err)
 	defer cc.Close()
 	streamClient := pbgo.NewProcessEntityStreamClient(cc)
