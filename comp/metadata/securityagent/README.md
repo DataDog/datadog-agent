@@ -28,7 +28,7 @@ The payload is a JSON dict with the following fields
 
 - `hostname` - **string**: the hostname of the agent as shown on the status page.
 - `timestamp` - **int**: the timestamp when the payload was created.
-- `system_probe_metadata` - **dict of string to JSON type**:
+- `security_agent_metadata` - **dict of string to JSON type**:
   - `agent_version` - **string**: the version of the Agent sending this payload.
   - `full_configuration` - **string**: the current Security-Agent configuration scrubbed, including all the defaults, as a YAML
     string.
@@ -54,11 +54,11 @@ Here an example of an inventory payload:
 
 ```
 {
-    "system_probe_metadata": {
+    "security_agent_metadata": {
         "agent_version": "7.55.0",
         "full_configuration": "<entire yaml configuration for security-agent>",
-        "provided_configuration": "system_probe_config:\n  sysprobe_socket: /tmp/sysprobe.sock",
-        "file_configuration": "system_probe_config:\n  sysprobe_socket: /tmp/sysprobe.sock",
+        "provided_configuration": "runtime_security_config:\n  socket: /opt/datadog-agent/run/runtime-security.sock",
+        "file_configuration": "runtime_security_config:\n  socket: /opt/datadog-agent/run/runtime-security.sock",
         "environment_variable_configuration": "{}",
         "remote_configuration": "{}",
         "cli_configuration": "{}"
