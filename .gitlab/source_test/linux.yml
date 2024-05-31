@@ -263,7 +263,7 @@ new-e2e-unit-tests:
     KUBERNETES_CPU_REQUEST: 6
 
 new-e2e-test-kind:
-  
+
   extends:
     - .new_e2e_template
   # TODO once images are deployed to ECR for dev branches, update
@@ -271,9 +271,9 @@ new-e2e-test-kind:
   # and move rules to template
   needs: []
   variables:
-    TARGETS: ./tests/containers
-    TEAM: container-integrations
+    TARGETS: ./examples
+    TEAM: agent-developer-tools
   parallel:
     matrix:
-      - EXTRA_PARAMS: --run TestKindSuite
+      - EXTRA_PARAMS: --run TestMyKindSuite
 
