@@ -472,7 +472,7 @@ func (fh *EBPFFieldHandlers) ResolveHashesFromEvent(ev *model.Event, f *model.Fi
 
 // ResolveHashes resolves the hashes of the requested file event
 func (fh *EBPFFieldHandlers) ResolveHashes(eventType model.EventType, process *model.Process, file *model.FileEvent) []string {
-	return fh.resolvers.HashResolver.ComputeHashes(eventType, process, file)
+	return fh.resolvers.HashResolver.ComputeHashes(eventType, process.Pid, process.ContainerID, file)
 }
 
 // ResolveContainerID resolves the container ID of the event
@@ -497,6 +497,7 @@ func (fh *EBPFFieldHandlers) ResolveContainerCreatedAt(ev *model.Event, e *model
 
 // ResolveContainerTags resolves the container tags of the event
 func (fh *EBPFFieldHandlers) ResolveContainerTags(_ *model.Event, e *model.ContainerContext) []string {
+	// TODO(lebauce): rename image_name, image_tag here ?
 	if len(e.Tags) == 0 && e.ID != "" {
 		e.Tags = fh.resolvers.TagsResolver.Resolve(e.ID)
 	}

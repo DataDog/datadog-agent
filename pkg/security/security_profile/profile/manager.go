@@ -174,7 +174,7 @@ type SecurityProfileManager struct {
 	securityProfileSyscallsMap *ebpf.Map
 
 	profilesLock        sync.Mutex
-	profiles            map[cgroupModel.WorkloadSelector]*SecurityProfile
+	profiles            map[cgroupModel.WorkloadKey]*SecurityProfile
 	evictedVersions     []cgroupModel.WorkloadSelector
 	evictedVersionsLock sync.Mutex
 
@@ -224,7 +224,7 @@ func NewSecurityProfileManager(config *config.Config, statsdClient statsd.Client
 		securityProfileMap:         securityProfileMap,
 		securityProfileSyscallsMap: securityProfileSyscallsMap,
 		resolvers:                  resolvers,
-		profiles:                   make(map[cgroupModel.WorkloadSelector]*SecurityProfile),
+		profiles:                   make(map[cgroupModel.WorkloadKey]*SecurityProfile),
 		pendingCache:               profileCache,
 		cacheHit:                   atomic.NewUint64(0),
 		cacheMiss:                  atomic.NewUint64(0),
@@ -308,7 +308,7 @@ func (m *SecurityProfileManager) Start(ctx context.Context) {
 // propagateWorkloadSelectorsToProviders (thread unsafe) propagates the list of workload selectors to the Security
 // Profiles providers.
 func (m *SecurityProfileManager) propagateWorkloadSelectorsToProviders() {
-	var selectors []cgroupModel.WorkloadSelector
+	var selectors []cgroupModel.WorkloadKey
 	for selector := range m.profiles {
 		selectors = append(selectors, selector)
 	}
@@ -330,11 +330,13 @@ func (m *SecurityProfileManager) OnWorkloadSelectorResolvedEvent(workload *cgrou
 		return
 	}
 
-	selector := workload.WorkloadSelector
-	selector.Tag = "*"
+	selector, err := cgroupModel.NewWorkloadSelector(workload.WorkloadSelector.Name(), "*")
+	if err != nil {
+		return
+	}
 
 	// check if the workload of this selector already exists
-	profile, ok := m.profiles[selector]
+	profile, ok := m.profiles[workload.WorkloadSelector.Key()]
 	if !ok {
 		// check the cache
 		m.pendingCacheLock.Lock()
@@ -358,13 +360,13 @@ func (m *SecurityProfileManager) OnWorkloadSelectorResolvedEvent(workload *cgrou
 			}
 
 			// insert the profile in the list of active profiles
-			m.profiles[selector] = profile
+			m.profiles[selector.Key()] = profile
 		} else {
 			m.cacheMiss.Inc()
 
 			// create a new entry
 			profile = NewSecurityProfile(selector, m.eventTypes, m.pathsReducer)
-			m.profiles[selector] = profile
+			m.profiles[selector.Key()] = profile
 
 			// notify the providers that we're interested in a new workload selector
 			m.propagateWorkloadSelectorsToProviders()
@@ -420,7 +422,7 @@ func (m *SecurityProfileManager) GetProfile(selector cgroupModel.WorkloadSelecto
 	defer m.profilesLock.Unlock()
 
 	// check if this workload had a Security Profile
-	return m.profiles[selector]
+	return m.profiles[selector.Key()]
 }
 
 // FillProfileContextFromContainerID populates a SecurityProfileContext for the given container ID
@@ -465,10 +467,14 @@ func FillProfileContextFromProfile(ctx *model.SecurityProfileContext, profile *S
 // OnCGroupDeletedEvent is used to handle a CGroupDeleted event
 func (m *SecurityProfileManager) OnCGroupDeletedEvent(workload *cgroupModel.CacheEntry) {
 	// lookup the profile
-	selector := cgroupModel.WorkloadSelector{
-		Image: workload.WorkloadSelector.Image,
-		Tag:   "*",
+	selector, err := cgroupModel.NewWorkloadSelector(
+		workload.WorkloadSelector.Name(),
+		"*",
+	)
+	if err != nil {
+		return
 	}
+
 	profile := m.GetProfile(selector)
 	if profile == nil {
 		// nothing to do, leave
@@ -498,7 +504,7 @@ func (m *SecurityProfileManager) ShouldDeleteProfile(profile *SecurityProfile) {
 	}
 
 	// remove the profile from the list of profiles
-	delete(m.profiles, profile.selector)
+	delete(m.profiles, profile.selector.Key())
 
 	// propagate the workload selectors
 	m.propagateWorkloadSelectorsToProviders()
@@ -537,10 +543,12 @@ func (m *SecurityProfileManager) OnNewProfileEvent(selector cgroupModel.Workload
 	//    the selector image_name + image_tag.
 	// 2. a profile coming from the security profile manager, providing an activity tree corresponding to
 	//    the selector image_name, containing multiple image tag versions. Not yet the case, but it will be.
-	profileManagerSelector := selector
-	if selector.Tag != "*" {
-		profileManagerSelector.Tag = "*"
+	profileManagerSelectorVersion := selector.Version()
+	if selector.Version() != "*" {
+		profileManagerSelectorVersion = "*"
 	}
+
+	profileManagerSelector, _ := cgroupModel.NewWorkloadSelector(selector.Name(), profileManagerSelectorVersion)
 
 	loadOpts := LoadOpts{
 		DNSMatchMaxDepth:  m.config.RuntimeSecurity.SecurityProfileDNSMatchMaxDepth,
@@ -548,7 +556,7 @@ func (m *SecurityProfileManager) OnNewProfileEvent(selector cgroupModel.Workload
 	}
 
 	// Update the Security Profile content
-	profile, ok := m.profiles[profileManagerSelector]
+	profile, ok := m.profiles[profileManagerSelector.Key()]
 	if !ok {
 		// this was likely a short-lived workload, cache the profile in case this workload comes back
 		profile = NewSecurityProfile(selector, m.eventTypes, m.pathsReducer)
@@ -613,10 +621,10 @@ func (m *SecurityProfileManager) SendStats() error {
 	defer m.pendingCacheLock.Unlock()
 
 	profilesLoadedInKernel := 0
-	profileVersions := make(map[string]int)
+	profileVersions := make(map[cgroupModel.WorkloadKey]int)
 	for selector, profile := range m.profiles {
 		if profile.loadedInKernel { // make sure the profile is loaded
-			profileVersions[selector.Image] = len(profile.versionContexts)
+			profileVersions[selector] = len(profile.versionContexts)
 			if err := profile.SendStats(m.statsdClient); err != nil {
 				return fmt.Errorf("couldn't send metrics for [%s]: %w", profile.selector.String(), err)
 			}
@@ -625,7 +633,7 @@ func (m *SecurityProfileManager) SendStats() error {
 	}
 
 	for imageName, nbVersions := range profileVersions {
-		if err := m.statsdClient.Gauge(metrics.MetricSecurityProfileVersions, float64(nbVersions), []string{"security_profile_image_name:" + imageName}, 1.0); err != nil {
+		if err := m.statsdClient.Gauge(metrics.MetricSecurityProfileVersions, float64(nbVersions), []string{string("security_profile_image_name:" + imageName)}, 1.0); err != nil {
 			return fmt.Errorf("couldn't send MetricSecurityProfileVersions: %w", err)
 		}
 	}
@@ -709,7 +717,9 @@ func (m *SecurityProfileManager) unloadProfile(profile *SecurityProfile) {
 
 // linkProfile (thread unsafe) updates the kernel space mapping between a workload and its profile
 func (m *SecurityProfileManager) linkProfile(profile *SecurityProfile, workload *cgroupModel.CacheEntry) {
-	if err := m.securityProfileMap.Put([]byte(workload.ID), profile.profileCookie); err != nil {
+	var containerID [64]byte
+	copy(containerID[:], []byte(workload.ID))
+	if err := m.securityProfileMap.Put(containerID, profile.profileCookie); err != nil {
 		seclog.Errorf("couldn't link workload %s (selector: %s) with profile %s (check map size limit ?): %v", workload.ID, workload.WorkloadSelector.String(), profile.Metadata.Name, err)
 		return
 	}
@@ -783,18 +793,19 @@ func (m *SecurityProfileManager) LookupEventInProfiles(event *model.Event) {
 	if len(event.ContainerContext.Tags) == 0 {
 		return
 	}
-	selector, err := cgroupModel.NewWorkloadSelector(utils.GetTagValue("image_name", event.ContainerContext.Tags), "*")
+	imageName := utils.GetTagValue("image_name", event.ContainerContext.Tags)
+	selector, err := cgroupModel.NewWorkloadSelector(imageName, "*")
 	if err != nil {
 		return
 	}
 
 	// lookup profile
 	profile := m.GetProfile(selector)
-	if profile == nil || profile.ActivityTree == nil {
+	if profile == nil { // || profile.ActivityTree == nil {
 		m.incrementEventFilteringStat(event.GetEventType(), NoProfile, NA)
 		return
 	}
-	if !profile.IsEventTypeValid(event.GetEventType()) || !profile.loadedInKernel {
+	if !profile.IsEventTypeValid(event.GetEventType()) /* || !profile.loadedInKernel */ {
 		m.incrementEventFilteringStat(event.GetEventType(), NoProfile, NA)
 		return
 	}
@@ -802,7 +813,7 @@ func (m *SecurityProfileManager) LookupEventInProfiles(event *model.Event) {
 	_ = event.FieldHandlers.ResolveContainerCreatedAt(event, event.ContainerContext)
 
 	// check if the event should be injected in the profile automatically
-	imageTag := utils.GetTagValue("image_tag", event.ContainerContext.Tags)
+	imageTag := utils.GetVersionFromTags(event.ContainerContext.Tags)
 	if imageTag == "" {
 		imageTag = "latest" // not sure about this one
 	}
@@ -930,8 +941,9 @@ func (m *SecurityProfileManager) ListSecurityProfiles(params *api.SecurityProfil
 	m.profilesLock.Lock()
 	defer m.profilesLock.Unlock()
 
-	for _, p := range m.profiles {
+	for selector, p := range m.profiles {
 		msg := p.ToSecurityProfileMessage()
+		msg.Metadata.Name = string(selector)
 		out.Profiles = append(out.Profiles, msg)
 	}
 
@@ -962,7 +974,7 @@ func (m *SecurityProfileManager) SaveSecurityProfile(params *api.SecurityProfile
 	p := m.GetProfile(selector)
 	if p == nil || p.ActivityTree == nil {
 		return &api.SecurityProfileSaveMessage{
-			Error: "security profile not found",
+			Error: "security profile has not activity tree",
 		}, nil
 	}
 
@@ -996,11 +1008,11 @@ func (m *SecurityProfileManager) SaveSecurityProfile(params *api.SecurityProfile
 }
 
 // FetchSilentWorkloads returns the list of workloads for which we haven't received any profile
-func (m *SecurityProfileManager) FetchSilentWorkloads() map[cgroupModel.WorkloadSelector][]*cgroupModel.CacheEntry {
+func (m *SecurityProfileManager) FetchSilentWorkloads() map[cgroupModel.WorkloadKey][]*cgroupModel.CacheEntry {
 	m.profilesLock.Lock()
 	defer m.profilesLock.Unlock()
 
-	out := make(map[cgroupModel.WorkloadSelector][]*cgroupModel.CacheEntry)
+	out := make(map[cgroupModel.WorkloadKey][]*cgroupModel.CacheEntry)
 
 	for selector, profile := range m.profiles {
 		profile.Lock()
@@ -1048,8 +1060,7 @@ func (m *SecurityProfileManager) getEventTypeState(profile *SecurityProfile, pct
 				eventState.state = StableEventType
 				// call the activity dump manager to stop dumping workloads from the current profile selector
 				if m.activityDumpManager != nil {
-					uniqueImageTagSeclector := profile.selector
-					uniqueImageTagSeclector.Tag = imageTag
+					uniqueImageTagSeclector, _ := cgroupModel.NewWorkloadSelector(profile.selector.Name(), imageTag)
 					m.activityDumpManager.StopDumpsWithSelector(uniqueImageTagSeclector)
 				}
 				return StableEventType
@@ -1103,8 +1114,8 @@ func (m *SecurityProfileManager) ListAllProfileStates() {
 func (m *SecurityProfileManager) CountEvictedVersion(imageName, imageTag string) {
 	m.evictedVersionsLock.Lock()
 	defer m.evictedVersionsLock.Unlock()
-	m.evictedVersions = append(m.evictedVersions, cgroupModel.WorkloadSelector{
-		Image: imageName,
-		Tag:   imageTag,
-	})
+
+	if workloadSelector, err := cgroupModel.NewWorkloadSelector(imageName, imageTag); err == nil {
+		m.evictedVersions = append(m.evictedVersions, workloadSelector)
+	}
 }

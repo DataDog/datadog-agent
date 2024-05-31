@@ -485,7 +485,6 @@ func (v *ScopedVariables) Len() int {
 	return len(v.vars)
 }
 
-// GetVariable returns new variable of the type of the specified value
 func (v *ScopedVariables) GetVariable(name string, value interface{}) (VariableValue, error) {
 	getVariables := func(ctx *Context) *Variables {
 		v := v.vars[v.scoper(ctx)]

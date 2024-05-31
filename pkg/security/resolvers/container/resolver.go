@@ -15,8 +15,8 @@ import (
 // Resolver is used to resolve the container context of the events
 type Resolver struct{}
 
-// GetContainerID returns the container id of the given pid
-func (cr *Resolver) GetContainerID(pid uint32) (utils.ContainerID, error) {
+// GetContainerContext returns the container id of the given pid along with its flags
+func (cr *Resolver) GetContainerContext(pid uint32) (utils.ContainerID, utils.ContainerFlags, error) {
 	// Parse /proc/[pid]/task/[pid]/cgroup
-	return utils.GetProcContainerID(pid, pid)
+	return utils.GetProcContainerContext(pid, pid)
 }

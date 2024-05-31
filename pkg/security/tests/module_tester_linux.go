@@ -1795,7 +1795,12 @@ func (tm *testModule) GetProfileVersions(imageName string) ([]string, error) {
 		return []string{}, errors.New("no security profile managers")
 	}
 
-	profile := spm.GetProfile(cgroupModel.WorkloadSelector{Image: imageName, Tag: "*"})
+	selector, err := cgroupModel.NewWorkloadSelector(imageName, "*")
+	if err != nil {
+		return nil, err
+	}
+
+	profile := spm.GetProfile(selector)
 	if profile == nil {
 		return []string{}, errors.New("no profile")
 	}

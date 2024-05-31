@@ -40,6 +40,7 @@ void __attribute__((always_inline)) copy_proc_entry(struct process_entry_t* src,
 
 void __attribute__((always_inline)) copy_proc_cache(struct proc_cache_t *src, struct proc_cache_t *dst) {
     copy_container_id(src->container.container_id, dst->container.container_id);
+    dst->container.flags = src->container.flags;
     copy_proc_entry(&src->entry, &dst->entry);
 }
 

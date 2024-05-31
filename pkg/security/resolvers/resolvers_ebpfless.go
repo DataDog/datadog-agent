@@ -13,13 +13,16 @@ import (
 
 	"github.com/DataDog/datadog-go/v5/statsd"
 
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/container"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/hash"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/process"
+	"github.com/DataDog/datadog-agent/pkg/security/resolvers/sbom"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/tags"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 // EBPFLessResolvers holds the list of the event attribute resolvers
@@ -28,10 +31,11 @@ type EBPFLessResolvers struct {
 	TagsResolver      tags.Resolver
 	ProcessResolver   *process.EBPFLessResolver
 	HashResolver      *hash.Resolver
+	SBOMResolver      *sbom.Resolver
 }
 
 // NewEBPFLessResolvers creates a new instance of EBPFLessResolvers
-func NewEBPFLessResolvers(config *config.Config, statsdClient statsd.ClientInterface, scrubber *procutil.DataScrubber, opts Opts) (*EBPFLessResolvers, error) {
+func NewEBPFLessResolvers(config *config.Config, statsdClient statsd.ClientInterface, scrubber *procutil.DataScrubber, opts Opts, wmeta optional.Option[workloadmeta.Component]) (*EBPFLessResolvers, error) {
 	var tagsResolver tags.Resolver
 	if opts.TagsResolver != nil {
 		tagsResolver = opts.TagsResolver
@@ -47,7 +51,15 @@ func NewEBPFLessResolvers(config *config.Config, statsdClient statsd.ClientInter
 		return nil, err
 	}
 
-	cgroupsResolver, err := cgroup.NewResolver(tagsResolver)
+	var sbomResolver *sbom.Resolver
+	if config.RuntimeSecurity.SBOMResolverEnabled {
+		sbomResolver, err = sbom.NewSBOMResolver(config.RuntimeSecurity, statsdClient, wmeta)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	cgroupsResolver, err := cgroup.NewResolver(tagsResolver, sbomResolver)
 	if err != nil {
 		return nil, err
 	}
@@ -60,6 +72,7 @@ func NewEBPFLessResolvers(config *config.Config, statsdClient statsd.ClientInter
 		TagsResolver:    tagsResolver,
 		ProcessResolver: processResolver,
 		HashResolver:    hashResolver,
+		SBOMResolver:    sbomResolver,
 	}
 
 	return resolvers, nil

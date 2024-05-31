@@ -32,8 +32,11 @@ struct process_context_t {
     u64 inode;
 };
 
+typedef char container_id_t[CONTAINER_ID_LEN];
+
 struct container_context_t {
     char container_id[CONTAINER_ID_LEN];
+    u64 flags;
 };
 
 struct ktimeval {

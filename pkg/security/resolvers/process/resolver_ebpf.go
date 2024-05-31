@@ -338,7 +338,7 @@ func (p *EBPFResolver) enrichEventFromProc(entry *model.ProcessCacheEntry, proc 
 	}
 
 	// Retrieve the container ID of the process from /proc
-	containerID, err := p.containerResolver.GetContainerID(pid)
+	containerID, containerFlags, err := p.containerResolver.GetContainerContext(pid)
 	if err != nil {
 		return fmt.Errorf("snapshot failed for %d: couldn't parse container ID: %w", proc.Pid, err)
 	}
@@ -351,6 +351,7 @@ func (p *EBPFResolver) enrichEventFromProc(entry *model.ProcessCacheEntry, proc 
 	entry.FileEvent.MountSource = model.MountSourceSnapshot
 
 	entry.Process.ContainerID = string(containerID)
+	entry.Process.ContainerFlags = uint32(containerFlags)
 
 	if entry.FileEvent.IsFileless() {
 		entry.FileEvent.Filesystem = model.TmpFS
@@ -833,9 +834,10 @@ func (p *EBPFResolver) resolveFromKernelMaps(pid, tid uint32, inode uint64) *mod
 	// the parent is in a container. In other words, we have to fall back to /proc to query the container ID of the
 	// process.
 	if entry.ContainerID == "" {
-		containerID, err := p.containerResolver.GetContainerID(pid)
+		containerID, containerFlags, err := p.containerResolver.GetContainerContext(pid)
 		if err == nil {
 			entry.ContainerID = string(containerID)
+			entry.ContainerFlags = uint32(containerFlags)
 		}
 	}
 
@@ -1221,7 +1223,7 @@ func (p *EBPFResolver) syncCache(proc *process.Process, filledProc *utils.Filled
 	bootTime := p.timeResolver.GetBootTime()
 
 	// insert new entry in kernel maps
-	procCacheEntryB := make([]byte, 224)
+	procCacheEntryB := make([]byte, 232)
 	_, err := entry.Process.MarshalProcCache(procCacheEntryB, bootTime)
 	if err != nil {
 		seclog.Errorf("couldn't marshal proc_cache entry: %s", err)

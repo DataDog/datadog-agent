@@ -41,8 +41,9 @@ func (e *ContainerContext) UnmarshalBinary(data []byte) (int, error) {
 		return 0, err
 	}
 	e.ID = id
+	e.Flags = binary.NativeEndian.Uint64(data[ContainerIDLen : ContainerIDLen+8])
 
-	return ContainerIDLen, nil
+	return ContainerIDLen + 8, nil
 }
 
 // UnmarshalBinary unmarshalls a binary representation of itself

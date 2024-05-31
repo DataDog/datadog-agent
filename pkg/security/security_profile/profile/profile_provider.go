@@ -27,7 +27,7 @@ type Provider interface {
 	SendStats(statsdClient statsd.ClientInterface) error
 
 	// UpdateWorkloadSelectors updates the selectors used to query profiles
-	UpdateWorkloadSelectors(selectors []cgroupModel.WorkloadSelector)
+	UpdateWorkloadSelectors(selectors []cgroupModel.WorkloadKey)
 	// SetOnNewProfileCallback sets the onNewProfileCallback function
 	SetOnNewProfileCallback(onNewProfileCallback func(selector cgroupModel.WorkloadSelector, profile *proto.SecurityProfile))
 }

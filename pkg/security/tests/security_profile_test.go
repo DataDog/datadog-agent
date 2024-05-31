@@ -1128,10 +1128,14 @@ func TestSecurityProfileLifeCycleExecs(t *testing.T) {
 	})
 
 	selector := fakeManualResolver.GetContainerSelector(dockerInstanceV1.containerID)
-	if err := test.SetProfileVersionState(&cgroupModel.WorkloadSelector{
-		Image: selector.Image,
-		Tag:   "*",
-	}, selector.Tag, profile.StableEventType); err != nil {
+	workloadStarSelector, err := cgroupModel.NewWorkloadSelector(
+		selector.Name(),
+		"*",
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := test.SetProfileVersionState(&workloadStarSelector, selector.Version(), profile.StableEventType); err != nil {
 		t.Fatal(err)
 	}
 
@@ -1151,10 +1155,15 @@ func TestSecurityProfileLifeCycleExecs(t *testing.T) {
 		}
 	})
 
-	fakeManualResolver.SpecifyNextSelector(&cgroupModel.WorkloadSelector{
-		Image: selector.Image,
-		Tag:   selector.Tag + "+",
-	})
+	workloadPlusSelector, err := cgroupModel.NewWorkloadSelector(
+		selector.Name(),
+		selector.Version()+"+",
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	fakeManualResolver.SpecifyNextSelector(&workloadPlusSelector)
 	dockerInstanceV2, err := test.StartADocker()
 	if err != nil {
 		t.Fatal(err)
@@ -1199,10 +1208,7 @@ func TestSecurityProfileLifeCycleExecs(t *testing.T) {
 		}, time.Second*2, model.ExecEventType)
 	})
 
-	if err := test.SetProfileVersionState(&cgroupModel.WorkloadSelector{
-		Image: selector.Image,
-		Tag:   "*",
-	}, selector.Tag, profile.UnstableEventType); err != nil {
+	if err := test.SetProfileVersionState(&workloadStarSelector, selector.Version(), profile.UnstableEventType); err != nil {
 		t.Fatal(err)
 	}
 
@@ -1322,10 +1328,14 @@ func TestSecurityProfileLifeCycleDNS(t *testing.T) {
 	})
 
 	selector := fakeManualResolver.GetContainerSelector(dockerInstanceV1.containerID)
-	fakeManualResolver.SpecifyNextSelector(&cgroupModel.WorkloadSelector{
-		Image: selector.Image,
-		Tag:   selector.Tag + "+",
-	})
+	workloadSelector, err := cgroupModel.NewWorkloadSelector(
+		selector.Name(),
+		selector.Version()+"+",
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	fakeManualResolver.SpecifyNextSelector(&workloadSelector)
 	dockerInstanceV2, err := test.StartADocker()
 	if err != nil {
 		t.Fatal(err)
@@ -1373,10 +1383,14 @@ func TestSecurityProfileLifeCycleDNS(t *testing.T) {
 		}, time.Second*2, model.DNSEventType)
 	})
 
-	if err := test.SetProfileVersionState(&cgroupModel.WorkloadSelector{
-		Image: selector.Image,
-		Tag:   "*",
-	}, selector.Tag, profile.UnstableEventType); err != nil {
+	if workloadSelector, err = cgroupModel.NewWorkloadSelector(
+		selector.Name(),
+		"*",
+	); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := test.SetProfileVersionState(&workloadSelector, selector.Version(), profile.UnstableEventType); err != nil {
 		t.Fatal(err)
 	}
 
@@ -1479,10 +1493,14 @@ func TestSecurityProfileLifeCycleEvictitonProcess(t *testing.T) {
 	})
 
 	selector := fakeManualResolver.GetContainerSelector(dockerInstanceV1.containerID)
-	if err := test.SetProfileVersionState(&cgroupModel.WorkloadSelector{
-		Image: selector.Image,
-		Tag:   "*",
-	}, selector.Tag, profile.StableEventType); err != nil {
+	workloadSelector, err := cgroupModel.NewWorkloadSelector(
+		selector.Name(),
+		"*",
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := test.SetProfileVersionState(&workloadSelector, selector.Version(), profile.StableEventType); err != nil {
 		t.Fatal(err)
 	}
 
@@ -1502,10 +1520,14 @@ func TestSecurityProfileLifeCycleEvictitonProcess(t *testing.T) {
 		}
 	})
 
-	fakeManualResolver.SpecifyNextSelector(&cgroupModel.WorkloadSelector{
-		Image: selector.Image,
-		Tag:   selector.Tag + "v2",
-	})
+	v2WorkloadSelector, err := cgroupModel.NewWorkloadSelector(
+		selector.Name(),
+		selector.Version()+"v2",
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	fakeManualResolver.SpecifyNextSelector(&v2WorkloadSelector)
 	dockerInstanceV2, err := test.StartADocker()
 	if err != nil {
 		t.Fatal(err)
@@ -1528,10 +1550,14 @@ func TestSecurityProfileLifeCycleEvictitonProcess(t *testing.T) {
 		}
 	})
 
-	fakeManualResolver.SpecifyNextSelector(&cgroupModel.WorkloadSelector{
-		Image: selector.Image,
-		Tag:   selector.Tag + "v3",
-	})
+	v3WorkloadSelector, err := cgroupModel.NewWorkloadSelector(
+		selector.Name(),
+		selector.Version()+"v3",
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	fakeManualResolver.SpecifyNextSelector(&v3WorkloadSelector)
 	dockerInstanceV3, err := test.StartADocker()
 	if err != nil {
 		t.Fatal(err)
@@ -1541,20 +1567,24 @@ func TestSecurityProfileLifeCycleEvictitonProcess(t *testing.T) {
 	// HERE: V1 is deleted, V2 is learning and V3 is learning
 
 	t.Run("life-cycle-eviction-process-check-v1-evicted", func(t *testing.T) {
-		versions, err := test.GetProfileVersions(selector.Image)
+		versions, err := test.GetProfileVersions(selector.Name())
 		if err != nil {
 			t.Fatal(err)
 		}
 		assert.Equal(t, 2, len(versions))
-		assert.True(t, slices.Contains(versions, selector.Tag+"v2"))
-		assert.True(t, slices.Contains(versions, selector.Tag+"v3"))
-		assert.False(t, slices.Contains(versions, selector.Tag))
+		assert.True(t, slices.Contains(versions, selector.Version()+"v2"))
+		assert.True(t, slices.Contains(versions, selector.Version()+"v3"))
+		assert.False(t, slices.Contains(versions, selector.Version()))
 	})
 
-	if err := test.SetProfileVersionState(&cgroupModel.WorkloadSelector{
-		Image: selector.Image,
-		Tag:   "*",
-	}, selector.Tag+"v3", profile.StableEventType); err != nil {
+	workloadSelector, err = cgroupModel.NewWorkloadSelector(
+		selector.Name(),
+		"*",
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := test.SetProfileVersionState(&workloadSelector, selector.Version()+"v3", profile.StableEventType); err != nil {
 		t.Fatal(err)
 	}
 
@@ -1660,10 +1690,14 @@ func TestSecurityProfileLifeCycleEvictitonDNS(t *testing.T) {
 	})
 
 	selector := fakeManualResolver.GetContainerSelector(dockerInstanceV1.containerID)
-	if err := test.SetProfileVersionState(&cgroupModel.WorkloadSelector{
-		Image: selector.Image,
-		Tag:   "*",
-	}, selector.Tag, profile.StableEventType); err != nil {
+	workloadSelector, err := cgroupModel.NewWorkloadSelector(
+		selector.Name(),
+		"*",
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := test.SetProfileVersionState(&workloadSelector, selector.Version(), profile.StableEventType); err != nil {
 		t.Fatal(err)
 	}
 
@@ -1683,10 +1717,14 @@ func TestSecurityProfileLifeCycleEvictitonDNS(t *testing.T) {
 		}
 	})
 
-	fakeManualResolver.SpecifyNextSelector(&cgroupModel.WorkloadSelector{
-		Image: selector.Image,
-		Tag:   selector.Tag + "v2",
-	})
+	if workloadSelector, err = cgroupModel.NewWorkloadSelector(
+		selector.Name(),
+		selector.Version()+"v2",
+	); err != nil {
+		t.Fatal(err)
+	}
+
+	fakeManualResolver.SpecifyNextSelector(&workloadSelector)
 	dockerInstanceV2, err := test.StartADocker()
 	if err != nil {
 		t.Fatal(err)
@@ -1709,10 +1747,14 @@ func TestSecurityProfileLifeCycleEvictitonDNS(t *testing.T) {
 		}
 	})
 
-	fakeManualResolver.SpecifyNextSelector(&cgroupModel.WorkloadSelector{
-		Image: selector.Image,
-		Tag:   selector.Tag + "v3",
-	})
+	if workloadSelector, err = cgroupModel.NewWorkloadSelector(
+		selector.Name(),
+		selector.Version()+"v3",
+	); err != nil {
+		t.Fatal(err)
+	}
+
+	fakeManualResolver.SpecifyNextSelector(&workloadSelector)
 	dockerInstanceV3, err := test.StartADocker()
 	if err != nil {
 		t.Fatal(err)
@@ -1722,20 +1764,23 @@ func TestSecurityProfileLifeCycleEvictitonDNS(t *testing.T) {
 	// HERE: V1 is deleted, V2 is learning and V3 is learning
 
 	t.Run("life-cycle-eviction-dns-check-v1-evicted", func(t *testing.T) {
-		versions, err := test.GetProfileVersions(selector.Image)
+		versions, err := test.GetProfileVersions(selector.Name())
 		if err != nil {
 			t.Fatal(err)
 		}
 		assert.Equal(t, 2, len(versions))
-		assert.True(t, slices.Contains(versions, selector.Tag+"v2"))
-		assert.True(t, slices.Contains(versions, selector.Tag+"v3"))
-		assert.False(t, slices.Contains(versions, selector.Tag))
+		assert.True(t, slices.Contains(versions, selector.Version()+"v2"))
+		assert.True(t, slices.Contains(versions, selector.Version()+"v3"))
+		assert.False(t, slices.Contains(versions, selector.Version()))
 	})
 
-	if err := test.SetProfileVersionState(&cgroupModel.WorkloadSelector{
-		Image: selector.Image,
-		Tag:   "*",
-	}, selector.Tag+"v3", profile.StableEventType); err != nil {
+	if workloadSelector, err = cgroupModel.NewWorkloadSelector(
+		selector.Name(),
+		"*",
+	); err != nil {
+		t.Fatal(err)
+	}
+	if err := test.SetProfileVersionState(&workloadSelector, selector.Version()+"v3", profile.StableEventType); err != nil {
 		t.Fatal(err)
 	}
 
@@ -1841,10 +1886,15 @@ func TestSecurityProfileLifeCycleEvictitonProcessUnstable(t *testing.T) {
 	})
 
 	selector := fakeManualResolver.GetContainerSelector(dockerInstanceV1.containerID)
-	if err := test.SetProfileVersionState(&cgroupModel.WorkloadSelector{
-		Image: selector.Image,
-		Tag:   "*",
-	}, selector.Tag, profile.UnstableEventType); err != nil {
+	workloadSelector, err := cgroupModel.NewWorkloadSelector(
+		selector.Name(),
+		"*",
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err := test.SetProfileVersionState(&workloadSelector, selector.Version(), profile.UnstableEventType); err != nil {
 		t.Fatal(err)
 	}
 
@@ -1861,10 +1911,14 @@ func TestSecurityProfileLifeCycleEvictitonProcessUnstable(t *testing.T) {
 		}, time.Second*2, model.ExecEventType)
 	})
 
-	fakeManualResolver.SpecifyNextSelector(&cgroupModel.WorkloadSelector{
-		Image: selector.Image,
-		Tag:   selector.Tag + "v2",
-	})
+	if workloadSelector, err = cgroupModel.NewWorkloadSelector(
+		selector.Name(),
+		selector.Version()+"v2",
+	); err != nil {
+		t.Fatal(err)
+	}
+
+	fakeManualResolver.SpecifyNextSelector(&workloadSelector)
 	dockerInstanceV2, err := test.StartADocker()
 	if err != nil {
 		t.Fatal(err)
@@ -1884,10 +1938,14 @@ func TestSecurityProfileLifeCycleEvictitonProcessUnstable(t *testing.T) {
 		}, time.Second*2, model.ExecEventType)
 	})
 
-	fakeManualResolver.SpecifyNextSelector(&cgroupModel.WorkloadSelector{
-		Image: selector.Image,
-		Tag:   selector.Tag + "v3",
-	})
+	if workloadSelector, err = cgroupModel.NewWorkloadSelector(
+		selector.Name(),
+		selector.Version()+"v3",
+	); err != nil {
+		t.Fatal(err)
+	}
+
+	fakeManualResolver.SpecifyNextSelector(&workloadSelector)
 	dockerInstanceV3, err := test.StartADocker()
 	if err != nil {
 		t.Fatal(err)
@@ -1907,10 +1965,14 @@ func TestSecurityProfileLifeCycleEvictitonProcessUnstable(t *testing.T) {
 		}, time.Second*2, model.ExecEventType)
 	})
 
-	if err := test.SetProfileVersionState(&cgroupModel.WorkloadSelector{
-		Image: selector.Image,
-		Tag:   "*",
-	}, selector.Tag+"v3", profile.StableEventType); err != nil {
+	if workloadSelector, err = cgroupModel.NewWorkloadSelector(
+		selector.Name(),
+		"*",
+	); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := test.SetProfileVersionState(&workloadSelector, selector.Version()+"v3", profile.StableEventType); err != nil {
 		t.Fatal(err)
 	}
 

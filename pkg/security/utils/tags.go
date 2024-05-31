@@ -34,3 +34,21 @@ func GetTagName(tag string) string {
 
 	return key
 }
+
+// GetNameFromTags returns the name inferred from the specified tags
+func GetNameFromTags(tags []string) string {
+	name := GetTagValue("image_name", tags)
+	if name == "" {
+		name = GetTagValue("service", tags)
+	}
+	return name
+}
+
+// GetVersionFromTags returns the version inferred from the specified tags
+func GetVersionFromTags(tags []string) string {
+	tag := GetTagValue("image_tag", tags)
+	if tag == "" {
+		tag = GetTagValue("version", tags)
+	}
+	return tag
+}

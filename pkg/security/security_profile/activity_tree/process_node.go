@@ -51,9 +51,9 @@ type ProcessNode struct {
 func NewProcessNode(entry *model.ProcessCacheEntry, generationType NodeGenerationType, resolvers *resolvers.EBPFResolvers) *ProcessNode {
 	// call the callback to resolve additional fields before copying them
 	if resolvers != nil {
-		resolvers.HashResolver.ComputeHashes(model.ExecEventType, &entry.ProcessContext.Process, &entry.ProcessContext.FileEvent)
+		resolvers.HashResolver.ComputeHashes(model.ExecEventType, entry.ProcessContext.Process.Pid, entry.ProcessContext.ContainerID, &entry.ProcessContext.FileEvent)
 		if entry.ProcessContext.HasInterpreter() {
-			resolvers.HashResolver.ComputeHashes(model.ExecEventType, &entry.ProcessContext.Process, &entry.ProcessContext.LinuxBinprm.FileEvent)
+			resolvers.HashResolver.ComputeHashes(model.ExecEventType, entry.ProcessContext.Process.Pid, entry.ProcessContext.ContainerID, &entry.ProcessContext.LinuxBinprm.FileEvent)
 		}
 	}
 	return &ProcessNode{
