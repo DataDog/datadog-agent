@@ -199,5 +199,5 @@ windows-installer-amd64:
     paths:
       - omnibus/pkg
   variables:
-    PACKAGE_ARCH: amd64
+    ARCH: "x64"
     RELEASE_VERSION: "$RELEASE_VERSION_7"
