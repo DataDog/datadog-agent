@@ -53,24 +53,24 @@ lint_macos:
     - inv -e github.trigger-macos --workflow-type "lint" --datadog-agent-ref "$CI_COMMIT_SHA" --python-runtimes "$PYTHON_RUNTIMES" --version-cache "$VERSION_CACHE_CONTENT"
 
 .macos_gitlab_amd64:
-  # This is temporary until we do this in the macOS runner definition
+  variables:
+    PYTHON_RUNTIMES: "3"
   before_script:
     - pyenv virtualenv 3.11.8 datadog-agent
+    - pyenv activate datadog-agent
+    - python3 -m pip install -r requirements.txt -r tasks/libs/requirements-github.txt
+    - pyenv rehash
+    - inv -e rtloader.make --python-runtimes $PYTHON_RUNTIMES
+    - inv -e rtloader.install
+    - inv -e install-tools
+    - inv -e deps
 
 lint_macos_gitlab_amd64:
   stage: source_test
   extends: .macos_gitlab_amd64
   tags: ["macos:monterey-amd64", "specific:true"]
   needs: ["setup_agent_version"]
-  variables:
-    PYTHON_RUNTIMES: "3"
   script:
-    - pyenv shell datadog-agent
-    - python3 -m pip install -r requirements.txt
-    - inv -e rtloader.make --install-prefix=$CI_PROJECT_DIR/dev --python-runtimes $PYTHON_RUNTIMES
-    - inv -e rtloader.install
-    - inv -e install-tools
-    - inv -e deps
     - inv -e linter.go --cpus 12 --timeout 60
 
 tests_macos_gitlab_amd64:
@@ -78,15 +78,7 @@ tests_macos_gitlab_amd64:
   extends: .macos_gitlab_amd64
   tags: ["macos:monterey-amd64", "specific:true"]
   needs: ["setup_agent_version"]
-  variables:
-    PYTHON_RUNTIMES: "3"
   script:
-    - pyenv shell datadog-agent
-    - python3 -m pip install -r requirements.txt -r tasks/libs/requirements-github.txt
-    - inv -e install-tools
-    - inv -e deps
-    - inv -e rtloader.make --python-runtimes $PYTHON_RUNTIMES
-    - inv -e rtloader.install
     - FAST_TESTS_FLAG=""
     - if [[ "$FAST_TESTS" == "true" ]]; then FAST_TESTS_FLAG="--only-impacted-packages"; fi
     - inv -e test --rerun-fails=2 --python-runtimes $PYTHON_RUNTIMES --race --profile --cpus 12 --save-result-json "test_output.json" --junit-tar "junit-tests_macos.tgz" $FAST_TESTS_FLAG
