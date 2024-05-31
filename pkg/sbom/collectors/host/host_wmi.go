@@ -11,13 +11,11 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
-	"fmt"
-	"reflect"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/sbom"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
+
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 	"github.com/DataDog/gopsutil/host"
@@ -119,12 +117,7 @@ func (c *Collector) Init(cfg config.Component, _ optional.Option[workloadmeta.Co
 }
 
 // Scan performs a scan
-func (c *Collector) Scan(_ context.Context, request sbom.ScanRequest, _ sbom.ScanOptions) sbom.ScanResult {
-	hostScanRequest, ok := request.(*sbom.ScanRequest)
-	if !ok {
-		return sbom.ScanResult{Error: fmt.Errorf("invalid request type '%s' for collector 'host'", reflect.TypeOf(request))}
-	}
-	log.Infof("host scan request [%v]", hostScanRequest.ID())
+func (c *Collector) Scan(_ context.Context, hostScanRequest sbom.ScanRequest) sbom.ScanResult {
 
 	report := Report{version: c.version, platform: c.platform, family: c.family, build: c.build}
 	q := wmi.CreateQuery(&report.KBS, "")
