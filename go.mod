@@ -170,10 +170,10 @@ require (
 	github.com/cilium/ebpf v0.15.0
 	github.com/clbanning/mxj v1.8.4
 	github.com/containerd/containerd v1.7.14
-	github.com/containernetworking/cni v1.1.2
+	github.com/containernetworking/cni v1.2.0
 	github.com/coreos/go-semver v0.3.1
 	github.com/coreos/go-systemd v22.5.0+incompatible
-	github.com/cri-o/ocicni v0.4.0
+	github.com/cri-o/ocicni v0.4.3
 	github.com/cyphar/filepath-securejoin v0.2.4
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc
 	github.com/docker/docker v25.0.5+incompatible
@@ -198,7 +198,7 @@ require (
 	github.com/google/go-containerregistry v0.19.0
 	github.com/google/gofuzz v1.2.0
 	github.com/google/gopacket v1.1.19
-	github.com/google/pprof v0.0.0-20240227163752-401108e1b7e7
+	github.com/google/pprof v0.0.0-20240424215950-a892ee059fd6
 	github.com/gorilla/mux v1.8.1
 	github.com/gosnmp/gosnmp v1.37.1-0.20240115134726-db0c09337869
 	github.com/grpc-ecosystem/go-grpc-middleware v1.4.0
@@ -385,7 +385,7 @@ require (
 	github.com/containerd/fifo v1.1.0 // indirect
 	github.com/containerd/stargz-snapshotter/estargz v0.15.1 // indirect
 	github.com/containerd/ttrpc v1.2.3 // indirect
-	github.com/containernetworking/plugins v1.4.0 // indirect
+	github.com/containernetworking/plugins v1.4.1 // indirect
 	github.com/coreos/go-systemd/v22 v22.5.0
 	github.com/coreos/pkg v0.0.0-20180928190104-399ea9e2e55f // indirect
 	github.com/dgryski/go-jump v0.0.0-20211018200510-ba001c3ffce0 // indirect
@@ -435,7 +435,7 @@ require (
 	github.com/hashicorp/hcl v1.0.1-vault-5 // indirect
 	github.com/hashicorp/serf v0.10.1 // indirect
 	github.com/huandu/xstrings v1.4.0 // indirect
-	github.com/ianlancetaylor/demangle v0.0.0-20230524184225-eabc099b10ab // indirect
+	github.com/ianlancetaylor/demangle v0.0.0-20240312041847-bd984b5ce465 // indirect
 	github.com/in-toto/in-toto-golang v0.9.0 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/itchyny/timefmt-go v0.1.5 // indirect
