@@ -549,6 +549,7 @@ type State struct {
 
 func (bs *BaseSuite[Env]) GetPulumiCheckPoint() (*apitype.CheckpointV3, error) {
 	state := State{}
+	fmt.Println("USINNG:", fmt.Sprintf(".pulumi/stacks/e2eci/%s.json", bs.params.stackName))
 	awsConfig, err := awsconfig.LoadDefaultConfig(context.TODO())
 	s3Client := awss3.NewFromConfig(awsConfig)
 	checkpoint, err := s3Client.GetObject(context.TODO(), &awss3.GetObjectInput{
