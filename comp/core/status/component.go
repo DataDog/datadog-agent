@@ -22,7 +22,7 @@ type Component interface {
 	// Returns all the agent status information for the format type
 	GetStatus(format string, verbose bool, excludeSection ...string) ([]byte, error)
 	//
-	GetSections() []byte
+	GetSections() []string
 	// Returns only the agent status for the specified sections and format type
 	GetStatusBySections(sections []string, format string, verbose bool) ([]byte, error)
 }

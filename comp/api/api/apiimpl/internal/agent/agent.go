@@ -182,7 +182,8 @@ func getSections(w http.ResponseWriter, _ *http.Request, statusComponent status.
 	log.Info("Got a request for the status sections.")
 
 	w.Header().Set("Content-Type", "application/json")
-	w.Write(statusComponent.GetSections())
+	res, _ := json.Marshal(statusComponent.GetSections())
+	w.Write(res)
 }
 
 // TODO: logsAgent is a module so have to make the api component a module too

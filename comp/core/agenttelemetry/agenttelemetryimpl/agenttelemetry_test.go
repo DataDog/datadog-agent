@@ -22,9 +22,6 @@ import (
 	"go.uber.org/fx"
 	"gopkg.in/yaml.v2"
 
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
-
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
@@ -33,6 +30,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
 	telemetrypkg "github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 )
 
 // HTTP client mock
@@ -107,9 +106,6 @@ func (s statusMock) GetStatus(string, bool, ...string) ([]byte, error) {
 }
 func (s statusMock) GetStatusBySections([]string, string, bool) ([]byte, error) {
 	return []byte{}, nil
-}
-func (s statusMock) GetSections() []byte {
-	return []byte{}
 }
 func newStatusMock() statusMock {
 	return statusMock{}
