@@ -10,7 +10,7 @@ Type=simple
 PIDFile=/opt/datadog-packages/datadog-agent/stable/run/agent.pid
 User=dd-agent
 Restart=on-failure
-EnvironmentFile=-<%= etc_dir %>/environment
+EnvironmentFile=-/etc/datadog-agent/environment
 ExecStart=/opt/datadog-packages/datadog-agent/stable/bin/agent/agent run -p /opt/datadog-packages/datadog-agent/stable/run/agent.pid
 # Since systemd 229, should be in [Unit] but in order to support systemd <229,
 # it is also supported to have it here.

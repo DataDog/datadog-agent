@@ -3,13 +3,13 @@ Description=Datadog System Probe Experiment
 Requires=sys-kernel-debug.mount
 After=network.target sys-kernel-debug.mount
 BindsTo=datadog-agent-exp.service
-ConditionPathExists=<%= etc_dir %>/system-probe.yaml
+ConditionPathExists=/etc/datadog-agent/system-probe.yaml
 
 [Service]
 Type=simple
 PIDFile=/opt/datadog-packages/datadog-agent/experiment/run/system-probe.pid
 Restart=on-failure
-ExecStart=/opt/datadog-packages/datadog-agent/experiment/embedded/bin/system-probe run --config=<%= etc_dir %>/system-probe.yaml --pid=/opt/datadog-packages/datadog-agent/experiment/run/system-probe.pid
+ExecStart=/opt/datadog-packages/datadog-agent/experiment/embedded/bin/system-probe run --config=/etc/datadog-agent/system-probe.yaml --pid=/opt/datadog-packages/datadog-agent/experiment/run/system-probe.pid
 # Since systemd 229, should be in [Unit] but in order to support systemd <229,
 # it is also supported to have it here.
 StartLimitInterval=10

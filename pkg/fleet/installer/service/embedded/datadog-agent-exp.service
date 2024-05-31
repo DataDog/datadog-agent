@@ -11,7 +11,7 @@ Wants=datadog-agent-trace-exp.service datadog-agent-process-exp.service datadog-
 Type=oneshot
 PIDFile=/opt/datadog-packages/datadog-agent/experiment/run/agent.pid
 User=dd-agent
-EnvironmentFile=-<%= etc_dir %>/environment
+EnvironmentFile=-/etc/datadog-agent/environment
 ExecStart=/opt/datadog-packages/datadog-agent/experiment/bin/agent/agent run -p /opt/datadog-packages/datadog-agent/experiment/run/agent.pid
 ExecStart=/opt/datadog-packages/datadog-agent/experiment/bin/agent/agent run -p /opt/datadog-packages/datadog-agent/experiment/run/agent.pid
 ExecStart=/opt/datadog-packages/datadog-agent/experiment/bin/agent/agent run -p /opt/datadog-packages/datadog-agent/experiment/run/agent.pid
