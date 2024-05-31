@@ -34,15 +34,19 @@ func CheckAgentBehaviour(t *testing.T, client *TestClient) {
 		result := false
 		for try := 0; try < 5 && !result; try++ {
 			err = json.Unmarshal([]byte(client.AgentClient.Status(agentclient.WithArgs([]string{"-j"})).Content), &statusOutputJSON)
-			if err == nil {
-				if runnerStats, ok := statusOutputJSON["runnerStats"]; ok {
-					runnerStatsMap := runnerStats.(map[string]any)
-					if checks, ok := runnerStatsMap["Checks"]; ok {
-						checksMap := checks.(map[string]any)
-						result = len(checksMap) > 0
-					}
+			if err != nil {
+				time.Sleep(1 * time.Second)
+				continue
+			}
+
+			if runnerStats, ok := statusOutputJSON["runnerStats"]; ok {
+				runnerStatsMap := runnerStats.(map[string]any)
+				if checks, ok := runnerStatsMap["Checks"]; ok {
+					checksMap := checks.(map[string]any)
+					result = len(checksMap) > 0
 				}
 			}
+
 			if !result {
 				time.Sleep(1 * time.Second)
 			}
