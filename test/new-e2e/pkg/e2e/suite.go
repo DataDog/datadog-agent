@@ -150,6 +150,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner/parameters"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/infra"
 	"github.com/DataDog/test-infra-definitions/common/utils"
 	"github.com/DataDog/test-infra-definitions/components"
 
@@ -495,6 +496,17 @@ func (bs *BaseSuite[Env]) AfterTest(suiteName, testName string) {
 func (bs *BaseSuite[Env]) TearDownSuite() {
 	if bs.params.devMode {
 		return
+	}
+
+	if fmt.Sprintf("%v", reflect.TypeOf(bs.env)) == "*environment.Kubernetes" { // Use the reflect.TypeOf(environments.Kubernetes{}) instead but we first need to solve import cycle
+		bs.T().Logf("Kubernetes Environment detected, trying to dump Kubernetes cluster state")
+		name, err := infra.GetStackManager().GetPulumiStackName(bs.params.stackName)
+		if err != nil {
+			bs.T().Errorf("unable to get pulumi stack name, err: %v", err)
+		} else {
+			dump := dumpKubernetesClusterState(context.Background(), name)
+			bs.T().Logf("Kubernetes cluster state dump: %s", dump)
+		}
 	}
 
 	if bs.firstFailTest != "" && bs.params.skipDeleteOnFailure {
