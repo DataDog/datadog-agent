@@ -32,7 +32,9 @@ else
   COMPRESSION_LEVEL = 5
 end
 
-if redhat_target? || suse_target?
+if windows_target?
+  maintainer 'Datadog Inc.'
+elsif redhat_target? || suse_target?
   maintainer 'Datadog, Inc <package@datadoghq.com>'
 
   # NOTE: with script dependencies, we only care about preinst/postinst/posttrans,
@@ -131,6 +133,10 @@ package :rpm do
   end
 end
 
+package :msi do
+  skip_packager true
+end
+
 package :xz do
   skip_packager generate_distro_package
   compression_threads COMPRESSION_THREADS
@@ -159,7 +165,19 @@ end
 exclude '\.git*'
 exclude 'bundler\/git'
 
-if linux_target?
+if windows_target?
+  BINARIES = [
+    "#{install_dir}\\datadog-installer.exe"
+  ]
+  BINARIES.each do |bin|
+    windows_symbol_stripping_file bin
+    if ENV['SIGN_WINDOWS_DD_WCS']
+      sign_file bin
+    end
+  end
+end
+
+if linux_target? or windows_target?
   # the stripper will drop the symbols in a `.debug` folder in the installdir
   # we want to make sure that directory is not in the main build, while present
   # in the debug package.

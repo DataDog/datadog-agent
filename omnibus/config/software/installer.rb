@@ -81,8 +81,9 @@ build do
     end
 
   elsif windows_target?
-    command "invoke installer.build --rebuild", env: env
-    copy 'bin/installer.exe', "#{install_dir}/datadog-installer.exe"
+    command "inv -e installer.build --rebuild", env: env
+    copy 'bin/installer/installer.exe', "#{install_dir}/datadog-installer.exe"
+    command "inv -e msi.build-installer", env: env
   end
 
   # Remove empty/unneeded folders

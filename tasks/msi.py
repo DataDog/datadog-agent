@@ -285,18 +285,6 @@ def build(
         # And copy it to the final output path as a build artifact
         shutil.copy2(os.path.join(build_outdir, msi_name + '.msi'), OUTPUT_PATH)
 
-    with timed("Building MSI"):
-        msi_name = "datadog-installer-1-x86_64"
-        _build_msi(
-            ctx,
-            env,
-            build_outdir,
-            msi_name,
-        )
-
-        # And copy it to the final output path as a build artifact
-        shutil.copy2(os.path.join(build_outdir, msi_name + '.msi'), OUTPUT_PATH)
-
     # if the optional upgrade test helper exists then build that too
     optional_name = "datadog-agent-7.43.0~rc.3+git.485.14b9337-1-x86_64"
     if os.path.exists(os.path.join(build_outdir, optional_name + ".wxs")):
@@ -308,6 +296,49 @@ def build(
                 optional_name,
             )
             shutil.copy2(os.path.join(build_outdir, optional_name + '.msi'), OUTPUT_PATH)
+
+
+@task
+def build_installer(ctx, vstudio_root=None, arch="x64", debug=False):
+    """
+    Build the MSI installer for the agent
+    """
+    env = {}
+    env['NUGET_PACKAGES_DIR'] = f'{NUGET_PACKAGES_DIR}'
+    env['AGENT_INSTALLER_OUTPUT_DIR'] = f'{BUILD_OUTPUT_DIR}'
+    configuration = _msbuild_configuration(debug=debug)
+    build_outdir = build_out_dir(arch, configuration)
+
+    # Build the builder executable (WixSetup.exe)
+    _build(
+        ctx,
+        env,
+        configuration=configuration,
+        vstudio_root=vstudio_root,
+    )
+
+    # sign build output that will be included in the installer MSI
+    sign_file(ctx, os.path.join(build_outdir, 'CustomActions.dll'))
+
+    # Run WixSetup.exe to generate the WXS and other input files
+    with timed("Building WXS"):
+        _build_wxs(
+            ctx,
+            env,
+            build_outdir,
+        )
+
+    with timed("Building MSI"):
+        msi_name = "datadog-installer-1-x86_64"
+        _build_msi(
+            ctx,
+            env,
+            build_outdir,
+            msi_name,
+        )
+
+        # And copy it to the final output path as a build artifact
+        shutil.copy2(os.path.join(build_outdir, msi_name + '.msi'), OUTPUT_PATH)
 
 
 @task

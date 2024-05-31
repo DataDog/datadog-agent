@@ -21,7 +21,7 @@ type windowsService struct {
 }
 
 func run(shutdowner fx.Shutdowner, _ pid.Component, _ localapi.Component, _ telemetry.Component) error {
-	if err := svc.Run(&windows_service{
+	if err := svc.Run(&windowsService{
 		shutdowner: shutdowner,
 	}); err != nil {
 		_ = shutdowner.Shutdown()
