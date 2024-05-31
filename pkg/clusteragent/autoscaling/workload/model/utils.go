@@ -15,12 +15,11 @@ import (
 func ApplyModeAllowSource(mode datadoghq.DatadogPodAutoscalerApplyMode, source datadoghq.DatadogPodAutoscalerValueSource) bool {
 	switch mode {
 	case datadoghq.DatadogPodAutoscalerAllApplyNone:
-		return false
 	case datadoghq.DatadogPodAutoscalerManualApplyMode:
 		return source == datadoghq.DatadogPodAutoscalerManualValueSource
 	case datadoghq.DatadogPodAutoscalerAllApplyMode:
 		return true
 	default:
-		return false
 	}
+	return false
 }
