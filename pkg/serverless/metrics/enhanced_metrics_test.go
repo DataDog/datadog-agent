@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/serverless/proc"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
@@ -508,6 +509,20 @@ func TestGenerateCPUEnhancedMetrics(t *testing.T) {
 	assert.Len(t, timedMetrics, 0)
 }
 
+func TestDisableCPUEnhancedMetrics(t *testing.T) {
+	os.Setenv("DD_ENHANCED_METRICS", "false")
+	defer os.Setenv("DD_ENHANCED_METRICS", "true")
+	demux := createDemultiplexer(t)
+	tags := []string{"functionname:test-function"}
+
+	go SendCPUEnhancedMetrics(proc.CPUData{}, 0, tags, demux)
+
+	generatedMetrics, timedMetrics := demux.WaitForNumberOfSamples(1, 0, 100*time.Millisecond)
+
+	assert.Len(t, generatedMetrics, 0)
+	assert.Len(t, timedMetrics, 0)
+}
+
 func TestGenerateCPUUtilizationEnhancedMetrics(t *testing.T) {
 	demux := createDemultiplexer(t)
 	tags := []string{"functionname:test-function"}
@@ -521,11 +536,13 @@ func TestGenerateCPUUtilizationEnhancedMetrics(t *testing.T) {
 			"cpu0": 30,
 			"cpu1": 80,
 		},
-		TotalIdleTime: 80,
-		UptimeMs:      100,
-		Tags:          tags,
-		Demux:         demux,
-		Time:          now,
+		IdleTimeMs:       100,
+		IdleTimeOffsetMs: 20,
+		UptimeMs:         150,
+		UptimeOffsetMs:   50,
+		Tags:             tags,
+		Demux:            demux,
+		Time:             now,
 	}
 	go GenerateCPUUtilizationEnhancedMetrics(args)
 	generatedMetrics, timedMetrics := demux.WaitForNumberOfSamples(4, 0, 100*time.Millisecond)

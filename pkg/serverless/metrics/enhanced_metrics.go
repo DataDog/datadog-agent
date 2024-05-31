@@ -260,8 +260,10 @@ type GenerateCPUEnhancedMetricsArgs struct {
 type GenerateCPUUtilizationEnhancedMetricArgs struct {
 	IndividualCPUIdleOffsetTimes map[string]float64
 	IndividualCPUIdleTimes       map[string]float64
-	TotalIdleTime                float64
+	IdleTimeMs                   float64
+	IdleTimeOffsetMs             float64
 	UptimeMs                     float64
+	UptimeOffsetMs               float64
 	Tags                         []string
 	Demux                        aggregator.Demultiplexer
 	Time                         float64
@@ -323,9 +325,17 @@ func SendCPUEnhancedMetrics(cpuOffsetData proc.CPUData, uptimeOffset float64, ta
 			log.Debug("Could not emit CPU enhanced metrics")
 			return
 		}
-		uptimeMs = uptimeMs - uptimeOffset
-		totalIdleTime := cpuData.TotalIdleTimeMs - cpuOffsetData.TotalIdleTimeMs
-		GenerateCPUUtilizationEnhancedMetrics(GenerateCPUUtilizationEnhancedMetricArgs{cpuOffsetData.IndividualCPUIdleTimes, cpuData.IndividualCPUIdleTimes, totalIdleTime, uptimeMs, tags, demux, now})
+		GenerateCPUUtilizationEnhancedMetrics(GenerateCPUUtilizationEnhancedMetricArgs{
+			cpuOffsetData.IndividualCPUIdleTimes,
+			cpuData.IndividualCPUIdleTimes,
+			cpuData.TotalIdleTimeMs,
+			cpuOffsetData.TotalIdleTimeMs,
+			uptimeMs,
+			uptimeOffset,
+			tags,
+			demux,
+			now,
+		})
 	}
 
 }
@@ -350,11 +360,14 @@ func GenerateCPUUtilizationEnhancedMetrics(args GenerateCPUUtilizationEnhancedMe
 	maxIdleTime = args.IndividualCPUIdleTimes[maxUtilizedCPUName] - args.IndividualCPUIdleOffsetTimes[maxUtilizedCPUName]
 	minIdleTime = args.IndividualCPUIdleTimes[minUtilizedCPUName] - args.IndividualCPUIdleOffsetTimes[minUtilizedCPUName]
 
-	maxUtilizedPercent := 100 * (args.UptimeMs - maxIdleTime) / args.UptimeMs
-	minUtilizedPercent := 100 * (args.UptimeMs - minIdleTime) / args.UptimeMs
+	adjustedUptime := args.UptimeMs - args.UptimeOffsetMs
+
+	maxUtilizedPercent := 100 * (adjustedUptime - maxIdleTime) / adjustedUptime
+	minUtilizedPercent := 100 * (adjustedUptime - minIdleTime) / adjustedUptime
 
 	numberCPUs := float64(len(args.IndividualCPUIdleTimes))
-	totalUtilizedPercent := 100 * (args.UptimeMs*numberCPUs - args.TotalIdleTime) / (args.UptimeMs * numberCPUs)
+	adjustedIdleTime := args.IdleTimeMs - args.IdleTimeOffsetMs
+	totalUtilizedPercent := 100 * (adjustedUptime*numberCPUs - adjustedIdleTime) / (adjustedUptime * numberCPUs)
 
 	args.Demux.AggregateSample(metrics.MetricSample{
 		Name:       cpuTotalUtilizationMetric,
