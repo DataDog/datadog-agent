@@ -9,3 +9,6 @@
 enhancements:
   - |
     Added a new ``-l`` flag to the ``datadog-agent status`` command. This flag allows users to print all available sections.
+deprecations:
+  - |
+    Deprecated ``datadog-agent status component [section]`` in favor of ``datadog-agent status [section]``.

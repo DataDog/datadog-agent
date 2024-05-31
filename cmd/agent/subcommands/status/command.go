@@ -111,7 +111,6 @@ func redactError(unscrubbedError error) error {
 }
 
 func statusCmd(logger log.Component, config config.Component, _ sysprobeconfig.Component, cliParams *cliParams) error {
-
 	if cliParams.list {
 		return redactError(requestSections(config))
 	}
@@ -120,11 +119,6 @@ func statusCmd(logger log.Component, config config.Component, _ sysprobeconfig.C
 		return redactError(requestStatus(config, cliParams))
 	}
 
-	// TODO: remove in 7.54 release
-	if cliParams.args[0] == "component" {
-		fmt.Fprintf(os.Stderr, "[DEPRECATION WARNING] 'datadog-agent status component [section]' syntax will be replaced by 'datadog-agent status [section]' in a future Agent version\n")
-		cliParams.args = cliParams.args[1:]
-	}
 	return componentStatusCmd(logger, config, cliParams)
 }
 
@@ -192,8 +186,8 @@ func requestStatus(config config.Component, cliParams *cliParams) error {
 }
 
 func componentStatusCmd(_ log.Component, config config.Component, cliParams *cliParams) error {
-	if len(cliParams.args) != 1 {
-		return fmt.Errorf("a component section must be specified")
+	if len(cliParams.args) > 1 {
+		return fmt.Errorf("only one section must be specified")
 	}
 
 	return redactError(componentStatus(config, cliParams, cliParams.args[0]))
