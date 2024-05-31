@@ -1416,6 +1416,8 @@ func logsagent(config pkgconfigmodel.Config) {
 	// Time in seconds
 	config.BindEnvAndSetDefault("logs_config.file_scan_period", 10.0)
 
+	config.BindEnvAndSetDefault("logs_config.sds.wait_for_configuration", false)
+
 	// Controls how wildcard file log source are prioritized when there are more files
 	// that match wildcard log configurations than the `logs_config.open_files_limit`
 	//

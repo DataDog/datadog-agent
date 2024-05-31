@@ -44,6 +44,9 @@ func (s *Scanner) GetRuleByIdx(_ uint32) (RuleConfig, error) {
 // IsReady mocks the IsReady function.
 func (s *Scanner) IsReady() bool { return false }
 
+// IsConfigured mocks the IsConfigured function.
+func (s *Scanner) IsConfigured() bool { return true }
+
 // Scan mocks the Scan function.
 func (s *Scanner) Scan(_ []byte, _ *message.Message) (bool, []byte, error) {
 	return false, nil, nil

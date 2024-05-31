@@ -11,6 +11,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
@@ -39,12 +40,20 @@ type Processor struct {
 	hostname                  hostnameinterface.Component
 
 	sds *sds.Scanner // configured through RC
+	// waitForSDSConfiguration is true when we don't want to send logs until
+	// they're processed with SDS.
+	waitForSDSConfiguration bool
 }
 
 // New returns an initialized Processor.
-func New(inputChan, outputChan chan *message.Message, processingRules []*config.ProcessingRule, encoder Encoder,
+func New(coreConfig pkgconfigmodel.Reader, inputChan, outputChan chan *message.Message, processingRules []*config.ProcessingRule, encoder Encoder,
 	diagnosticMessageReceiver diagnostic.MessageReceiver, hostname hostnameinterface.Component, pipelineID int) *Processor {
 	sdsScanner := sds.CreateScanner(pipelineID)
+
+	var waitForSDSConfiguration bool
+	if coreConfig != nil {
+		waitForSDSConfiguration = coreConfig.GetBool("logs_config.sds.wait_for_configuration")
+	}
 
 	return &Processor{
 		pipelineID:                pipelineID,
@@ -57,6 +66,7 @@ func New(inputChan, outputChan chan *message.Message, processingRules []*config.
 		sds:                       sdsScanner,
 		diagnosticMessageReceiver: diagnosticMessageReceiver,
 		hostname:                  hostname,
+		waitForSDSConfiguration:   waitForSDSConfiguration,
 	}
 }
 
@@ -128,6 +138,14 @@ func (p *Processor) run() {
 func (p *Processor) processMessage(msg *message.Message) {
 	metrics.LogsDecoded.Add(1)
 	metrics.TlmLogsDecoded.Inc()
+
+	// We have a mode where we want to make sure we've received an SDS configuration
+	// to send the logs to the intake. In this mode, we drop the message if we didn't
+	// receive a valid SDS configuration yet.
+	if p.waitForSDSConfiguration && !p.sds.IsConfigured() {
+		// TODO(remy): telemetry
+		return
+	}
 
 	if toSend := p.applyRedactingRules(msg); toSend {
 		metrics.LogsProcessed.Add(1)

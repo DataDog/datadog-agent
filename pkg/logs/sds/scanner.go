@@ -56,12 +56,17 @@ type Scanner struct {
 	// pipelineID is the logs pipeline ID for which we've created this scanner,
 	// stored as string as it is only used in the telemetry.
 	pipelineID string
+	// hasReceivedValidConfiguration is `true` when a valid configuration
+	// has ben received, even if it was an empty one.
+	hasReceivedValidConfiguration bool
 }
 
 // CreateScanner creates an SDS scanner.
 // Use `Reconfigure` to configure it manually.
 func CreateScanner(pipelineID int) *Scanner {
-	scanner := &Scanner{pipelineID: strconv.Itoa(pipelineID)}
+	scanner := &Scanner{
+		pipelineID: strconv.Itoa(pipelineID),
+	}
 	log.Debugf("creating a new SDS scanner (internal id: %p)", scanner)
 	return scanner
 }
@@ -194,6 +199,7 @@ func (s *Scanner) reconfigureRules(rawConfig []byte) error {
 			s.Scanner.Delete()
 			s.Scanner = nil
 			s.rawConfig = rawConfig
+			s.hasReceivedValidConfiguration = true
 			s.configuredRules = nil
 			tlmSDSReconfigSuccess.Inc(s.pipelineID, "shutdown")
 		}
@@ -250,6 +256,7 @@ func (s *Scanner) reconfigureRules(rawConfig []byte) error {
 		log.Debug("Configured rule:", rule.Name)
 	}
 	s.Scanner = scanner
+	s.hasReceivedValidConfiguration = true
 
 	tlmSDSRulesState.Set(float64(len(sdsRules)), s.pipelineID, "configured")
 	tlmSDSRulesState.Set(float64(totalRulesReceived-len(config.Rules)), s.pipelineID, "disabled")
@@ -402,6 +409,13 @@ func (s *Scanner) Delete() {
 	s.Scanner = nil
 }
 
+// IsConfigured returns true if the scanner has been configured (with rules or destroyed)
+// by receiving an SDS configuration, meaning we had a contact with the RC delivery.
+// This method is NOT thread safe, caller has to ensure the thread safety.
+func (s *Scanner) IsConfigured() bool {
+	return s.hasReceivedValidConfiguration
+}
+
 // IsReady returns true if this Scanner can be used
 // to scan events and that at least one rule would be applied.
 // This method is NOT thread safe, caller has to ensure the thread safety.
@@ -415,6 +429,5 @@ func (s *Scanner) IsReady() bool {
 	if len(s.Scanner.Rules) == 0 {
 		return false
 	}
-
 	return true
 }
