@@ -215,7 +215,6 @@ func componentStatus(config config.Component, cliParams *cliParams, component st
 }
 
 func requestSections(config config.Component) error {
-
 	endpoint, err := apiutil.NewIPCEndpoint(config, "/agent/status/sections")
 	if err != nil {
 		return err
@@ -226,7 +225,15 @@ func requestSections(config config.Component) error {
 		return err
 	}
 
-	fmt.Println(string(res))
+	var sections []string
+	err = json.Unmarshal(res, &sections)
+	if err != nil {
+		return err
+	}
+
+	for _, section := range sections {
+		fmt.Printf("- \"%s\"\n", section)
+	}
 
 	return nil
 }
