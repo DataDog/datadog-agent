@@ -327,3 +327,12 @@ new-e2e-ndm-netflow:
   variables:
     TARGETS: ./tests/ndm/netflow
     TEAM: network-device-monitoring
+
+new-e2e-ndm-snmp:
+  extends: .new_e2e_template
+  rules: !reference [.on_ndm_snmp_or_e2e_changes_or_manual]
+  needs:
+    - qa_agent
+  variables:
+    TARGETS: ./tests/ndm/snmp
+    TEAM: network-device-monitoring

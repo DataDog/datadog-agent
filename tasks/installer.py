@@ -23,6 +23,7 @@ def build(
     build_include=None,
     build_exclude=None,
     go_mod="mod",
+    no_strip_binary=True,
 ):
     """
     Build the updater.
@@ -43,11 +44,12 @@ def build(
 
     build_tags = get_build_tags(build_include, build_exclude)
 
+    strip_flags = "" if no_strip_binary else "-s -w"
     race_opt = "-race" if race else ""
     build_type = "-a" if rebuild else ""
     go_build_tags = " ".join(build_tags)
     updater_bin = os.path.join(BIN_PATH, bin_name("installer"))
     cmd = f"go build -mod={go_mod} {race_opt} {build_type} -tags \"{go_build_tags}\" "
-    cmd += f"-o {updater_bin} -gcflags=\"{gcflags}\" -ldflags=\"{ldflags} -w -s\" {REPO_PATH}/cmd/installer"
+    cmd += f"-o {updater_bin} -gcflags=\"{gcflags}\" -ldflags=\"{ldflags} {strip_flags}\" {REPO_PATH}/cmd/installer"
 
     ctx.run(cmd, env=env)

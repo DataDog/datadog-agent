@@ -53,6 +53,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/flare"
+	"github.com/DataDog/datadog-agent/comp/core/gui"
 	"github.com/DataDog/datadog-agent/comp/core/gui/guiimpl"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
@@ -82,6 +83,7 @@ import (
 	replay "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/def"
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
 	dogstatsddebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
+	"github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
 	dogstatsdStatusimpl "github.com/DataDog/datadog-agent/comp/dogstatsd/status/statusimpl"
 	"github.com/DataDog/datadog-agent/comp/forwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
@@ -100,12 +102,13 @@ import (
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryhost"
 	"github.com/DataDog/datadog-agent/comp/metadata/packagesigning"
 	"github.com/DataDog/datadog-agent/comp/metadata/runner"
+	systemprobemetadata "github.com/DataDog/datadog-agent/comp/metadata/systemprobe/def"
 	"github.com/DataDog/datadog-agent/comp/ndmtmp"
 	"github.com/DataDog/datadog-agent/comp/netflow"
 	netflowServer "github.com/DataDog/datadog-agent/comp/netflow/server"
 	"github.com/DataDog/datadog-agent/comp/networkpath"
 	"github.com/DataDog/datadog-agent/comp/otelcol"
-	otelcollector "github.com/DataDog/datadog-agent/comp/otelcol/collector"
+	otelcollector "github.com/DataDog/datadog-agent/comp/otelcol/collector/def"
 	"github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline"
 	processAgent "github.com/DataDog/datadog-agent/comp/process/agent"
 	processagentStatusImpl "github.com/DataDog/datadog-agent/comp/process/status/statusimpl"
@@ -218,6 +221,7 @@ func run(log log.Component,
 	demultiplexer demultiplexer.Component,
 	sharedSerializer serializer.MetricSerializer,
 	logsAgent optional.Option[logsAgent.Component],
+	_ statsd.Component,
 	processAgent processAgent.Component,
 	otelcollector otelcollector.Component,
 	_ host.Component,
@@ -230,6 +234,7 @@ func run(log log.Component,
 	_ langDetectionCl.Component,
 	agentAPI internalAPI.Component,
 	_ packagesigning.Component,
+	_ systemprobemetadata.Component,
 	statusComponent status.Component,
 	collector collector.Component,
 	cloudfoundrycontainer cloudfoundrycontainer.Component,
@@ -239,6 +244,7 @@ func run(log log.Component,
 	_ healthprobe.Component,
 	_ autoexit.Component,
 	settings settings.Component,
+	_ optional.Option[gui.Component],
 	_ agenttelemetry.Component,
 ) error {
 	defer func() {
@@ -364,6 +370,7 @@ func getSharedFxOption() fx.Option {
 		traceagentStatusImpl.Module(),
 		processagentStatusImpl.Module(),
 		dogstatsdStatusimpl.Module(),
+		statsd.Module(),
 		statusimpl.Module(),
 		authtokenimpl.Module(),
 		apiimpl.Module(),

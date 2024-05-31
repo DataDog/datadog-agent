@@ -172,7 +172,8 @@ type expectedState struct {
 }
 
 type taskWithVersionParams struct {
-	Version string `json:"version"`
+	Version     string   `json:"version"`
+	InstallArgs []string `json:"install_args"`
 }
 
 type handleRemoteAPIRequest func(request remoteAPIRequest) error

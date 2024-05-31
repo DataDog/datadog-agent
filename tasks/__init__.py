@@ -6,7 +6,6 @@ from invoke import Collection, Task
 
 from tasks import (
     agent,
-    agentless_scanner,
     bench,
     buildimages,
     cluster_agent,
@@ -22,6 +21,7 @@ from tasks import (
     emacs,
     epforwarder,
     fakeintake,
+    git,
     github_tasks,
     go_deps,
     installer,
@@ -134,7 +134,6 @@ ns.add_task(lint_go)
 
 # add namespaced tasks to the root
 ns.add_collection(agent)
-ns.add_collection(agentless_scanner)
 ns.add_collection(buildimages)
 ns.add_collection(cluster_agent)
 ns.add_collection(cluster_agent_cloudfoundry)
@@ -150,6 +149,7 @@ ns.add_collection(epforwarder)
 ns.add_collection(go_deps)
 ns.add_collection(linter)
 ns.add_collection(msi)
+ns.add_collection(git)
 ns.add_collection(github_tasks, "github")
 ns.add_collection(package)
 ns.add_collection(pipeline)
