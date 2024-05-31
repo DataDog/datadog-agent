@@ -81,7 +81,7 @@ func translateAceType(aceType string) string {
 func accessMaskToString(mask string) string {
 	var rights []string
 
-	for i := 0; i < len(mask); i += 2 {
+	for i := 0; i < len(mask) + 1; i += 2 {
 		combined := mask[i : i+2]
 		if right, ok := accessMaskMap[combined]; ok {
 			rights = append(rights, right)
