@@ -33,10 +33,6 @@ const (
 	// tracepoints
 	OffsetNameSchedProcessForkParentPid = "sched_process_fork_parent_pid_offset"
 	OffsetNameSchedProcessForkChildPid  = "sched_process_fork_child_pid_offset"
-	OffsetNameSysMmapOff                = "sys_enter_mmap_off_offset"
-	OffsetNameSysMmapLen                = "sys_enter_mmap_len_offset"
-	OffsetNameSysMmapProt               = "sys_enter_mmap_prot_offset"
-	OffsetNameSysMmapFlags              = "sys_enter_mmap_flags_offset"
 
 	// bpf offsets
 	OffsetNameBPFMapStructID                  = "bpf_map_id_offset"

@@ -29,7 +29,7 @@ import (
 )
 
 func getLogsHTTPEndpoints() (*logsConfig.Endpoints, error) {
-	datadogConfig := config.Datadog
+	datadogConfig := config.Datadog()
 	logsConfigKey := logsConfig.NewLogsConfigKeys("logs_config", datadogConfig)
 	return logsConfig.BuildHTTPEndpointsWithConfig(datadogConfig, logsConfigKey, "agent-http-intake.logs.", "logs", logsConfig.AgentJSONIntakeProtocol, logsConfig.DefaultIntakeOrigin)
 }
@@ -38,7 +38,7 @@ func getLogsHTTPEndpoints() (*logsConfig.Endpoints, error) {
 func Diagnose(diagCfg diagnosis.Config) []diagnosis.Diagnosis {
 
 	// Create domain resolvers
-	keysPerDomain, err := utils.GetMultipleEndpoints(config.Datadog)
+	keysPerDomain, err := utils.GetMultipleEndpoints(config.Datadog())
 	if err != nil {
 		return []diagnosis.Diagnosis{
 			{
@@ -53,10 +53,10 @@ func Diagnose(diagCfg diagnosis.Config) []diagnosis.Diagnosis {
 
 	var diagnoses []diagnosis.Diagnosis
 	domainResolvers := resolver.NewSingleDomainResolvers(keysPerDomain)
-	client := forwarder.NewHTTPClient(config.Datadog)
+	client := forwarder.NewHTTPClient(config.Datadog())
 
 	// Create diagnosis for logs
-	if config.Datadog.GetBool("logs_enabled") {
+	if config.Datadog().GetBool("logs_enabled") {
 		endpoints, err := getLogsHTTPEndpoints()
 
 		if err != nil {
@@ -68,7 +68,7 @@ func Diagnose(diagCfg diagnosis.Config) []diagnosis.Diagnosis {
 				RawError:    err.Error(),
 			})
 		} else {
-			url, err := logshttp.CheckConnectivityDiagnose(endpoints.Main, config.Datadog)
+			url, err := logshttp.CheckConnectivityDiagnose(endpoints.Main, config.Datadog())
 
 			name := fmt.Sprintf("Connectivity to %s", url)
 			diag := createDiagnosis(name, url, "", err)
@@ -78,7 +78,7 @@ func Diagnose(diagCfg diagnosis.Config) []diagnosis.Diagnosis {
 
 	}
 
-	endpointsInfo := getEndpointsInfo(config.Datadog)
+	endpointsInfo := getEndpointsInfo(config.Datadog())
 
 	// Send requests to all endpoints for all domains
 	for _, domainResolver := range domainResolvers {
@@ -222,7 +222,7 @@ func verifyEndpointResponse(diagCfg diagnosis.Config, statusCode int, responseBo
 // the endpoint send an empty response. As the error 'EOF' is not very informative, it can
 // be interesting to 'wrap' this error to display more context.
 func noResponseHints(err error) string {
-	endpoint := utils.GetInfraEndpoint(config.Datadog)
+	endpoint := utils.GetInfraEndpoint(config.Datadog())
 	parsedURL, parseErr := url.Parse(endpoint)
 	if parseErr != nil {
 		return fmt.Sprintf("Could not parse url '%v' : %v", scrubber.ScrubLine(endpoint), scrubber.ScrubLine(parseErr.Error()))

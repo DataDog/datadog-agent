@@ -14,11 +14,14 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"go.uber.org/fx"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/cache"
 )
@@ -32,10 +35,10 @@ const (
 // storeGenerator returns a new store specific to a given resource
 type storeGenerator func(context.Context, workloadmeta.Component, kubernetes.Interface) (*cache.Reflector, *reflectorStore)
 
-func storeGenerators(cfg config.Reader) []storeGenerator {
+func storeGenerators(cfg model.Reader) []storeGenerator {
 	generators := []storeGenerator{newNodeStore}
 
-	if cfg.GetBool("cluster_agent.collect_kubernetes_tags") {
+	if cfg.GetBool("cluster_agent.collect_kubernetes_tags") || cfg.GetBool("autoscaling.workload.enabled") {
 		generators = append(generators, newPodStore)
 	}
 
@@ -48,6 +51,17 @@ func storeGenerators(cfg config.Reader) []storeGenerator {
 	}
 
 	return generators
+}
+
+func metadataCollectionGVRs(cfg model.Reader, discoveryClient discovery.DiscoveryInterface) ([]schema.GroupVersionResource, error) {
+	if !cfg.GetBool("cluster_agent.kube_metadata_collection.enabled") {
+		return []schema.GroupVersionResource{}, nil
+	}
+
+	requestedResources := cfg.GetStringSlice("cluster_agent.kube_metadata_collection.resources")
+
+	discoveredResourcesGVs, err := discoverGVRs(discoveryClient, requestedResources)
+	return discoveredResourcesGVs, err
 }
 
 type collector struct {
@@ -79,8 +93,27 @@ func (c *collector) Start(ctx context.Context, wlmetaStore workloadmeta.Componen
 	}
 	client := apiserverClient.InformerCl
 
+	metadataclient, err := apiserverClient.MetadataClient()
+	if err != nil {
+		return err
+	}
+
+	// Initialize metadata collection informers
 	// TODO(components): do not use the config.Datadog reference, use a component instead
-	for _, storeBuilder := range storeGenerators(config.Datadog) {
+	gvrs, err := metadataCollectionGVRs(config.Datadog(), client.Discovery())
+
+	if err != nil {
+		log.Errorf("failed to discover Group and Version of requested resources: %v", err)
+	} else {
+		for _, gvr := range gvrs {
+			reflector, store := newMetadataStore(ctx, wlmetaStore, metadataclient, gvr)
+			objectStores = append(objectStores, store)
+			go reflector.Run(ctx.Done())
+		}
+	}
+
+	// TODO(components): do not use the config.Datadog reference, use a component instead
+	for _, storeBuilder := range storeGenerators(config.Datadog()) {
 		reflector, store := storeBuilder(ctx, wlmetaStore, client)
 		objectStores = append(objectStores, store)
 		go reflector.Run(ctx.Done())

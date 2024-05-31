@@ -20,7 +20,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/loaders"
-	"github.com/DataDog/datadog-agent/pkg/config"
 
 	//nolint:revive // TODO(AML) Fix revive linter
 	agentConfig "github.com/DataDog/datadog-agent/pkg/config"
@@ -125,7 +124,7 @@ func (cl *PythonCheckLoader) Load(senderManager sender.SenderManager, config int
 	defer glock.unlock()
 
 	// Platform-specific preparation
-	if !agentConfig.Datadog.GetBool("win_skip_com_init") {
+	if !agentConfig.Datadog().GetBool("win_skip_com_init") {
 		log.Debugf("Performing platform loading prep")
 		err = platformLoaderPrep()
 		if err != nil {
@@ -182,7 +181,7 @@ func (cl *PythonCheckLoader) Load(senderManager sender.SenderManager, config int
 		log.Debugf("python check '%s' doesn't have a '__version__' attribute: %s", config.Name, getRtLoaderError())
 	}
 
-	if !agentConfig.Datadog.GetBool("disable_py3_validation") && !loadedAsWheel {
+	if !agentConfig.Datadog().GetBool("disable_py3_validation") && !loadedAsWheel {
 		// Customers, though unlikely might version their custom checks.
 		// Let's use the module namespace to try to decide if this was a
 		// custom check, check for py3 compatibility
@@ -294,7 +293,7 @@ func reportPy3Warnings(checkName string, checkFilePath string) {
 			checkFilePath = checkFilePath[:len(checkFilePath)-1]
 		}
 
-		if strings.TrimSpace(config.Datadog.GetString("python_version")) == "3" {
+		if strings.TrimSpace(agentConfig.Datadog().GetString("python_version")) == "3" {
 			// the linter used by validatePython3 doesn't work when run from python3
 			status = a7TagPython3
 			metricValue = 1.0

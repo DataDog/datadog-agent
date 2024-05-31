@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import unittest
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 from invoke.context import Context
 
@@ -28,6 +28,7 @@ class GithubAPIMock:
 class TestAssignTeamLabelMock(unittest.TestCase):
     CODEOWNERS_FILE = './tasks/unit-tests/testdata/codeowners.txt'
 
+    @patch("builtins.print", new=MagicMock())
     def make_test(self, changed_files, expected_labels, pr_labels=None, possible_labels=None):
         from tasks.libs.owners.parsing import read_owners
 

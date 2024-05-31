@@ -15,6 +15,7 @@ import (
 
 	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 )
 
 func TestExtractECSTask(t *testing.T) {
@@ -74,11 +75,9 @@ func TestExtractECSTask(t *testing.T) {
 				ECSContainer: &workloadmeta.ECSContainer{
 					DisplayName: "log_router_container",
 					Health: &workloadmeta.ContainerHealthStatus{
-						Status: "HEALTHY",
-						Since:  &now,
-						ExitCode: func(i uint32) *uint32 {
-							return &i
-						}(2),
+						Status:   "HEALTHY",
+						Since:    &now,
+						ExitCode: pointer.Ptr(int64(2)),
 					},
 					Type: "NORMAL",
 				},

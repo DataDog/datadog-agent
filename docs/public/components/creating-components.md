@@ -53,7 +53,7 @@ This file hierarchy aims to solve a few problems:
 
 ## Bootstrapping components
 
-You can use the [invoke](../setup.md#invoke) task `inv components.new-component comp/<component>` to generate a scaffold for your new component.
+You can use the [invoke](../setup.md#preface) task `deva components.new-component comp/<component>` to generate a scaffold for your new component.
 
 Every public variable, function, struct, and interface of your component **must** be documented. Refer to the [Documentation](#documentation) section below for details.
 

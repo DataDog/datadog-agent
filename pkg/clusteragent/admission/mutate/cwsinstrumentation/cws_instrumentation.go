@@ -14,10 +14,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"k8s.io/kubectl/pkg/cmd/util/podcmd"
-	"k8s.io/utils/strings/slices"
 	"path/filepath"
 	"strconv"
+
+	"k8s.io/kubectl/pkg/cmd/util/podcmd"
+	"k8s.io/utils/strings/slices"
 
 	"github.com/wI2L/jsondiff"
 	admiv1 "k8s.io/api/admissionregistration/v1"
@@ -91,9 +92,9 @@ type WebhookForPods struct {
 func newWebhookForPods(admissionFunc admission.WebhookFunc) *WebhookForPods {
 	return &WebhookForPods{
 		name: webhookForPodsName,
-		isEnabled: config.Datadog.GetBool("admission_controller.cws_instrumentation.enabled") &&
-			len(config.Datadog.GetString("admission_controller.cws_instrumentation.image_name")) > 0,
-		endpoint:      config.Datadog.GetString("admission_controller.cws_instrumentation.pod_endpoint"),
+		isEnabled: config.Datadog().GetBool("admission_controller.cws_instrumentation.enabled") &&
+			len(config.Datadog().GetString("admission_controller.cws_instrumentation.image_name")) > 0,
+		endpoint:      config.Datadog().GetString("admission_controller.cws_instrumentation.pod_endpoint"),
 		resources:     []string{"pods"},
 		operations:    []admiv1.OperationType{admiv1.Create},
 		admissionFunc: admissionFunc,
@@ -151,9 +152,9 @@ type WebhookForCommands struct {
 func newWebhookForCommands(admissionFunc admission.WebhookFunc) *WebhookForCommands {
 	return &WebhookForCommands{
 		name: webhookForCommandsName,
-		isEnabled: config.Datadog.GetBool("admission_controller.cws_instrumentation.enabled") &&
-			len(config.Datadog.GetString("admission_controller.cws_instrumentation.image_name")) > 0,
-		endpoint:      config.Datadog.GetString("admission_controller.cws_instrumentation.command_endpoint"),
+		isEnabled: config.Datadog().GetBool("admission_controller.cws_instrumentation.enabled") &&
+			len(config.Datadog().GetString("admission_controller.cws_instrumentation.image_name")) > 0,
+		endpoint:      config.Datadog().GetString("admission_controller.cws_instrumentation.command_endpoint"),
 		resources:     []string{"pods/exec"},
 		operations:    []admiv1.OperationType{admiv1.Connect},
 		admissionFunc: admissionFunc,
@@ -200,7 +201,7 @@ func (w *WebhookForCommands) MutateFunc() admission.WebhookFunc {
 
 func parseCWSInitContainerResources() (*corev1.ResourceRequirements, error) {
 	var resources = &corev1.ResourceRequirements{Limits: corev1.ResourceList{}, Requests: corev1.ResourceList{}}
-	if cpu := config.Datadog.GetString("admission_controller.cws_instrumentation.init_resources.cpu"); len(cpu) > 0 {
+	if cpu := config.Datadog().GetString("admission_controller.cws_instrumentation.init_resources.cpu"); len(cpu) > 0 {
 		quantity, err := resource.ParseQuantity(cpu)
 		if err != nil {
 			return nil, err
@@ -209,7 +210,7 @@ func parseCWSInitContainerResources() (*corev1.ResourceRequirements, error) {
 		resources.Limits[corev1.ResourceCPU] = quantity
 	}
 
-	if mem := config.Datadog.GetString("admission_controller.cws_instrumentation.init_resources.memory"); len(mem) > 0 {
+	if mem := config.Datadog().GetString("admission_controller.cws_instrumentation.init_resources.memory"); len(mem) > 0 {
 		quantity, err := resource.ParseQuantity(mem)
 		if err != nil {
 			return nil, err
@@ -284,16 +285,16 @@ func NewCWSInstrumentation(wmeta workloadmeta.Component) (*CWSInstrumentation, e
 	// Parse filters
 	ci.filter, err = containers.NewFilter(
 		containers.GlobalFilter,
-		config.Datadog.GetStringSlice("admission_controller.cws_instrumentation.include"),
-		config.Datadog.GetStringSlice("admission_controller.cws_instrumentation.exclude"),
+		config.Datadog().GetStringSlice("admission_controller.cws_instrumentation.include"),
+		config.Datadog().GetStringSlice("admission_controller.cws_instrumentation.exclude"),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't initialize filter: %w", err)
 	}
 
 	// Parse init container image
-	cwsInjectorImageName := config.Datadog.GetString("admission_controller.cws_instrumentation.image_name")
-	cwsInjectorImageTag := config.Datadog.GetString("admission_controller.cws_instrumentation.image_tag")
+	cwsInjectorImageName := config.Datadog().GetString("admission_controller.cws_instrumentation.image_name")
+	cwsInjectorImageTag := config.Datadog().GetString("admission_controller.cws_instrumentation.image_tag")
 
 	cwsInjectorContainerRegistry := common.ContainerRegistry("admission_controller.cws_instrumentation.container_registry")
 
@@ -310,15 +311,15 @@ func NewCWSInstrumentation(wmeta workloadmeta.Component) (*CWSInstrumentation, e
 	}
 
 	// parse mode
-	ci.mode, err = ParseInstrumentationMode(config.Datadog.GetString("admission_controller.cws_instrumentation.mode"))
+	ci.mode, err = ParseInstrumentationMode(config.Datadog().GetString("admission_controller.cws_instrumentation.mode"))
 	if err != nil {
 		return nil, fmt.Errorf("can't initiatilize CWS Instrumentation: %v", err)
 	}
-	ci.mountVolumeForRemoteCopy = config.Datadog.GetBool("admission_controller.cws_instrumentation.remote_copy.mount_volume")
+	ci.mountVolumeForRemoteCopy = config.Datadog().GetBool("admission_controller.cws_instrumentation.remote_copy.mount_volume")
 
 	if ci.mode == RemoteCopy {
 		// build the cluster agent service account
-		serviceAccountName := config.Datadog.GetString("cluster_agent.service_account_name")
+		serviceAccountName := config.Datadog().GetString("cluster_agent.service_account_name")
 		if len(serviceAccountName) == 0 {
 			return nil, fmt.Errorf("can't initialize CWS Instrumentation in %s mode without providing a service account name in config (cluster_agent.service_account_name)", RemoteCopy)
 		}
@@ -731,8 +732,8 @@ func injectCWSInitContainer(pod *corev1.Pod, resources *corev1.ResourceRequireme
 func labelSelectors(useNamespaceSelector bool) (namespaceSelector, objectSelector *metav1.LabelSelector) {
 	var labelSelector metav1.LabelSelector
 
-	if config.Datadog.GetBool("admission_controller.cws_instrumentation.mutate_unlabelled") ||
-		config.Datadog.GetBool("admission_controller.mutate_unlabelled") {
+	if config.Datadog().GetBool("admission_controller.cws_instrumentation.mutate_unlabelled") ||
+		config.Datadog().GetBool("admission_controller.mutate_unlabelled") {
 		// Accept all, ignore pods if they're explicitly filtered-out
 		labelSelector = metav1.LabelSelector{
 			MatchExpressions: []metav1.LabelSelectorRequirement{

@@ -11,10 +11,12 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"path"
 	"runtime"
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"github.com/stretchr/testify/suite"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
 	"github.com/DataDog/datadog-agent/comp/core"
@@ -24,9 +26,17 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
-const sysprobeSockPath = "/tmp/sysprobe.sock"
+type commandTestSuite struct {
+	suite.Suite
+	sysprobeSocketPath string
+}
 
-func getPprofTestServer(t *testing.T) (tcpServer *httptest.Server, unixServer *httptest.Server) {
+func (c *commandTestSuite) SetupSuite() {
+	t := c.T()
+	c.sysprobeSocketPath = path.Join(t.TempDir(), "sysprobe.sock")
+}
+
+func getPprofTestServer(t *testing.T, utsPath string) (tcpServer *httptest.Server, unixServer *httptest.Server) {
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/debug/pprof/heap":
@@ -51,8 +61,8 @@ func getPprofTestServer(t *testing.T) (tcpServer *httptest.Server, unixServer *h
 	if runtime.GOOS == "linux" {
 		unixServer = httptest.NewUnstartedServer(handler)
 		var err error
-		unixServer.Listener, err = net.Listen("unix", sysprobeSockPath)
-		require.NoError(t, err, "could not create listener for unix socket /tmp/sysprobe.sock")
+		unixServer.Listener, err = net.Listen("unix", utsPath)
+		require.NoError(t, err, "could not create listener for unix socket on %s", utsPath)
 		unixServer.Start()
 
 		return tcpServer, unixServer
@@ -61,8 +71,13 @@ func getPprofTestServer(t *testing.T) (tcpServer *httptest.Server, unixServer *h
 	return tcpServer, tcpServer
 }
 
-func TestReadProfileData(t *testing.T) {
-	ts, uts := getPprofTestServer(t)
+func TestCommandTestSuite(t *testing.T) {
+	suite.Run(t, &commandTestSuite{})
+}
+
+func (c *commandTestSuite) TestReadProfileData() {
+	t := c.T()
+	ts, uts := getPprofTestServer(t, c.sysprobeSocketPath)
 	t.Cleanup(func() {
 		ts.Close()
 		uts.Close()
@@ -85,7 +100,7 @@ func TestReadProfileData(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		mockSysProbeConfig.SetWithoutSource("system_probe_config.sysprobe_socket", u.Host)
 	} else {
-		mockSysProbeConfig.SetWithoutSource("system_probe_config.sysprobe_socket", sysprobeSockPath)
+		mockSysProbeConfig.SetWithoutSource("system_probe_config.sysprobe_socket", c.sysprobeSocketPath)
 	}
 
 	data, err := readProfileData(10)
@@ -134,8 +149,9 @@ func TestReadProfileData(t *testing.T) {
 	}
 }
 
-func TestReadProfileDataNoTraceAgent(t *testing.T) {
-	ts, uts := getPprofTestServer(t)
+func (c *commandTestSuite) TestReadProfileDataNoTraceAgent() {
+	t := c.T()
+	ts, uts := getPprofTestServer(t, c.sysprobeSocketPath)
 	t.Cleanup(func() {
 		ts.Close()
 		uts.Close()
@@ -158,7 +174,7 @@ func TestReadProfileDataNoTraceAgent(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		mockSysProbeConfig.SetWithoutSource("system_probe_config.sysprobe_socket", u.Host)
 	} else {
-		mockSysProbeConfig.SetWithoutSource("system_probe_config.sysprobe_socket", sysprobeSockPath)
+		mockSysProbeConfig.SetWithoutSource("system_probe_config.sysprobe_socket", c.sysprobeSocketPath)
 	}
 
 	data, err := readProfileData(10)
@@ -202,7 +218,8 @@ func TestReadProfileDataNoTraceAgent(t *testing.T) {
 	}
 }
 
-func TestReadProfileDataErrors(t *testing.T) {
+func (c *commandTestSuite) TestReadProfileDataErrors() {
+	t := c.T()
 	mockConfig := config.Mock(t)
 	mockConfig.SetWithoutSource("apm_config.enabled", true)
 	mockConfig.SetWithoutSource("apm_config.debug.port", 0)
@@ -213,7 +230,8 @@ func TestReadProfileDataErrors(t *testing.T) {
 	require.Len(t, data, 0)
 }
 
-func TestCommand(t *testing.T) {
+func (c *commandTestSuite) TestCommand() {
+	t := c.T()
 	fxutil.TestOneShotSubcommand(t,
 		Commands(&command.GlobalParams{}),
 		[]string{"flare", "1234"},

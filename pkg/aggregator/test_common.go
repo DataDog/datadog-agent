@@ -34,5 +34,5 @@ func (d *AgentDemultiplexer) PeekSender(cid checkid.ID) (sender.Sender, error) {
 
 //nolint:revive // TODO(AML) Fix revive linter
 func NewForwarderTest(log log.Component) defaultforwarder.Forwarder {
-	return defaultforwarder.NewDefaultForwarder(config.Datadog, log, defaultforwarder.NewOptions(config.Datadog, log, nil))
+	return defaultforwarder.NewDefaultForwarder(config.Datadog(), log, defaultforwarder.NewOptions(config.Datadog(), log, nil))
 }

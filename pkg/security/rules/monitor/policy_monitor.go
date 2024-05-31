@@ -188,6 +188,13 @@ type RuleAction struct {
 	Filter *string         `json:"filter,omitempty"`
 	Set    *RuleSetAction  `json:"set,omitempty"`
 	Kill   *RuleKillAction `json:"kill,omitempty"`
+	Hash   *HashAction     `json:"hash,omitempty"`
+}
+
+// HashAction is used to report 'hash' action
+// easyjson:json
+type HashAction struct {
+	Enabled bool `json:"enabled,omitempty"`
 }
 
 // RuleSetAction is used to report 'set' action
@@ -266,6 +273,10 @@ func RuleStateFromDefinition(def *rules.RuleDefinition, status string, message s
 				Field:  action.Set.Field,
 				Append: action.Set.Append,
 				Scope:  string(action.Set.Scope),
+			}
+		case action.Hash != nil:
+			ruleAction.Hash = &HashAction{
+				Enabled: true,
 			}
 		}
 		ruleState.Actions = append(ruleState.Actions, ruleAction)

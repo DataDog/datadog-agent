@@ -103,7 +103,7 @@ func diagnoseChecksInCLIProcess(_ diagnosis.Config, senderManager diagnosesender
 		}
 	}
 	// Initializing the aggregator with a flush interval of 0 (to disable the flush goroutines)
-	common.LoadComponents(secretResolver, wmetaInstance, ac, pkgconfig.Datadog.GetString("confd_path"))
+	common.LoadComponents(secretResolver, wmetaInstance, ac, pkgconfig.Datadog().GetString("confd_path"))
 	ac.LoadAndRun(context.Background())
 
 	// Create the CheckScheduler, but do not attach it to
