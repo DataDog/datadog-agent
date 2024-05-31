@@ -22,7 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/comp/metadata/internal/util"
 	"github.com/DataDog/datadog-agent/comp/metadata/runner/runnerimpl"
-	"github.com/DataDog/datadog-agent/comp/metadata/systemprobe/def"
+	systemprobemetadata "github.com/DataDog/datadog-agent/comp/metadata/systemprobe/def"
 	configFetcher "github.com/DataDog/datadog-agent/pkg/config/fetcher"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
@@ -56,7 +56,7 @@ func (p *Payload) MarshalJSON() ([]byte, error) {
 //
 // In this case, the payload can't be split any further.
 func (p *Payload) SplitPayload(_ int) ([]marshaler.AbstractMarshaler, error) {
-	return nil, fmt.Errorf("could not split inventories agent payload any more, payload is too big for intake")
+	return nil, fmt.Errorf("could not split system-probe process payload any more, payload is too big for intake")
 }
 
 type systemprobe struct {
@@ -80,7 +80,7 @@ type Requires struct {
 
 // Provides defines the output of the systemprobe metadatacomponent
 type Provides struct {
-	Comp             def.Component
+	Comp             systemprobemetadata.Component
 	MetadataProvider runnerimpl.Provider
 	FlareProvider    flaretypes.Provider
 	Endpoint         api.AgentEndpointProvider
