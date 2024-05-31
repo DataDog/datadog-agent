@@ -14,6 +14,7 @@ from invoke.exceptions import Exit
 from tasks.libs.ciproviders.github_api import GithubAPI
 from tasks.libs.ciproviders.gitlab_api import get_gitlab_bot_token, get_gitlab_repo, refresh_pipeline
 from tasks.libs.common.color import color_message
+from tasks.libs.common.git import get_current_branch
 from tasks.libs.common.utils import (
     DEFAULT_BRANCH,
     GITHUB_REPO_NAME,
@@ -115,7 +116,7 @@ def clean_running_pipelines(ctx, git_ref=DEFAULT_BRANCH, here=False, use_latest_
     agent = get_gitlab_repo()
 
     if here:
-        git_ref = ctx.run("git rev-parse --abbrev-ref HEAD", hide=True).stdout.strip()
+        git_ref = get_current_branch(ctx)
 
     print(f"Fetching running pipelines on {git_ref}")
 
@@ -282,7 +283,7 @@ def run(
         )
 
     if here:
-        git_ref = ctx.run("git rev-parse --abbrev-ref HEAD", hide=True).stdout.strip()
+        git_ref = get_current_branch(ctx)
 
     if deploy:
         # Check the validity of the deploy pipeline
@@ -373,7 +374,7 @@ def follow(ctx, id=None, git_ref=None, here=False, project_name="DataDog/datadog
     elif git_ref is not None:
         wait_for_pipeline_from_ref(repo, git_ref)
     elif here:
-        git_ref = ctx.run("git rev-parse --abbrev-ref HEAD", hide=True).stdout.strip()
+        git_ref = get_current_branch(ctx)
         wait_for_pipeline_from_ref(repo, git_ref)
 
 
@@ -915,7 +916,7 @@ def test_merge_queue(ctx):
     print("Creating a new main branch")
     timestamp = int(datetime.now(timezone.utc).timestamp())
     test_main = f"mq/test_{timestamp}"
-    current_branch = ctx.run("git rev-parse --abbrev-ref HEAD", hide=True).stdout.strip()
+    current_branch = get_current_branch(ctx)
     ctx.run("git checkout main", hide=True)
     ctx.run("git pull", hide=True)
     ctx.run(f"git checkout -b {test_main}", hide=True)
