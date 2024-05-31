@@ -323,7 +323,7 @@ def ssm_parameters(ctx, mode="all", folders=None):
     error_files = []
     for filename in repo_files.stdout.split("\n"):
         if any(filename.startswith(f) for f in lint_folders):
-            calls = list_get_parameter_calls(file)
+            calls = list_get_parameter_calls(filename)
             if calls:
                 error_files.extend(calls)
     if mode == "env":
