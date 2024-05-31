@@ -13,8 +13,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
-// team: container-platform
-
 // Mock implements mock-specific methods.
 type Mock interface {
 	wmdef.Component
