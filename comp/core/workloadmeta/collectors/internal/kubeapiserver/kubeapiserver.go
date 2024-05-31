@@ -67,7 +67,11 @@ func metadataCollectionGVRs(cfg model.Reader, discoveryClient discovery.Discover
 
 	requestedResources := cfg.GetStringSlice("cluster_agent.kube_metadata_collection.resources")
 
-	discoveredResourcesGVs, err := discoverGVRs(discoveryClient, requestedResources)
+	// TODO: Remove this after implementing collector factory which specifies which collector should be registered for each specific resource type
+	// Adding this now as a quick work around to avoid having 2 collectors collecting the same data
+	excludedResources := []string{"namespaces"}
+
+	discoveredResourcesGVs, err := discoverGVRs(discoveryClient, requestedResources, excludedResources)
 	return discoveredResourcesGVs, err
 }
 
