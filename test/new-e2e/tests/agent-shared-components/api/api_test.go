@@ -382,6 +382,45 @@ func (v *apiSuite) TestDefaultAgentAPIEndpoints() {
 				assert.NotEmpty(ct, have.Host, "%s %s returned: %s, expected \"host_metadata\" fields to be present", e.method, e.endpoint, resp)
 			},
 		},
+		{
+			name: "metadata system-probe",
+			agentEndpointInfo: agentEndpointInfo{
+				scheme:   "https",
+				port:     agentCmdPort,
+				endpoint: "/agent/metadata/system-probe",
+				method:   "GET",
+				data:     "{}",
+			},
+			assert: func(ct *assert.CollectT, e agentEndpointInfo, resp string) {
+				type Metadata struct {
+					SystemProbe interface{} `json:"system_probe_metadata"`
+				}
+				var have Metadata
+				err := json.Unmarshal([]byte(resp), &have)
+				assert.NoError(ct, err)
+				assert.NotEmpty(ct, have.SystemProbe, "%s %s returned: %s, expected \"system_probe_metadata\" fields to be present", e.method, e.endpoint, resp)
+			},
+		},
+		{
+			name: "metadata security-agent",
+			agentEndpointInfo: agentEndpointInfo{
+				scheme:   "https",
+				port:     agentCmdPort,
+				endpoint: "/agent/metadata/security-agent",
+				method:   "GET",
+				data:     "{}",
+			},
+			assert: func(ct *assert.CollectT, e agentEndpointInfo, resp string) {
+				type Metadata struct {
+					SecurityAgent interface{} `json:"security_agent_metadata"`
+				}
+				var have Metadata
+				err := json.Unmarshal([]byte(resp), &have)
+				assert.NoError(ct, err)
+				assert.NotEmpty(ct, have.SecurityAgent, "%s %s returned: %s, expected \"security_agent_metadata\" fields to be present", e.method, e.endpoint, resp)
+
+			},
+		},
 		// TODO: figure out how to make this work
 		// {
 		// 	name: "dogstatsd context dump",
