@@ -12,8 +12,6 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/sys/unix"
-
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
@@ -21,10 +19,13 @@ const (
 	maxErrnoStr = "other"
 )
 
+// A singleton instance of the ebpf telemetry struct. Used by the collector and the ebpf managers (via ErrorsTelemetryModifier).
+var errorsTelemetry ebpfErrorsTelemetry
+
 // EBPFErrorsCollector implements the prometheus Collector interface
 // for collecting statistics about errors of ebpf helpers and ebpf maps operations.
 type EBPFErrorsCollector struct {
-	T                *EBPFTelemetry
+	T                ebpfErrorsTelemetry
 	ebpfMapOpsErrors *prometheus.Desc
 	ebpfHelperErrors *prometheus.Desc
 	lastValues       map[metricKey]uint64
@@ -58,61 +59,51 @@ func (e *EBPFErrorsCollector) Describe(ch chan<- *prometheus.Desc) {
 
 // Collect returns the current state of all metrics of the collector
 func (e *EBPFErrorsCollector) Collect(ch chan<- prometheus.Metric) {
-	e.T.mtx.Lock()
-	defer e.T.mtx.Unlock()
+	e.T.Lock()
+	defer e.T.Unlock()
 
-	if e.T.helperErrMap != nil {
-		var hval HelperErrTelemetry
-		for probeName, k := range e.T.probeKeys {
-			err := e.T.helperErrMap.Lookup(&k, &hval)
-			if err != nil {
-				log.Debugf("failed to get telemetry for probe:key %s:%d\n", probeName, k)
-				continue
-			}
-			for index, helperName := range helperNames {
-				base := maxErrno * index
-				if count := getErrCount(hval.Count[base : base+maxErrno]); len(count) > 0 {
-					for errStr, errCount := range count {
-						key := metricKey{
-							hash: k,
-							id:   index,
-							err:  errStr,
-						}
-						delta := float64(errCount - e.lastValues[key])
-						if delta > 0 {
-							ch <- prometheus.MustNewConstMetric(e.ebpfHelperErrors, prometheus.CounterValue, delta, helperName, probeName, errStr)
-						}
-						e.lastValues[key] = errCount
-					}
-				}
-			}
-		}
+	if !e.T.isInitialized() {
+		return // no telemetry to collect
 	}
 
-	if e.T.mapErrMap != nil {
-		var val MapErrTelemetry
-		for m, k := range e.T.mapKeys {
-			err := e.T.mapErrMap.Lookup(&k, &val)
-			if err != nil {
-				log.Debugf("failed to get telemetry for map:key %s:%d\n", m, k)
-				continue
+	e.T.forEachMapEntry(func(index telemetryIndex, val MapErrTelemetry) bool {
+		if count := getErrCount(val.Count[:]); len(count) > 0 {
+			for errStr, errCount := range count {
+				key := metricKey{
+					hash: index.key,
+					id:   mapErr,
+					err:  errStr,
+				}
+				delta := float64(errCount - e.lastValues[key])
+				if delta > 0 {
+					ch <- prometheus.MustNewConstMetric(e.ebpfMapOpsErrors, prometheus.CounterValue, delta, index.value, errStr)
+				}
+				e.lastValues[key] = errCount
 			}
-			if count := getErrCount(val.Count[:]); len(count) > 0 {
+		}
+		return true
+	})
+
+	e.T.forEachHelperEntry(func(index telemetryIndex, val HelperErrTelemetry) bool {
+		for i, helperName := range helperNames {
+			base := maxErrno * i
+			if count := getErrCount(val.Count[base : base+maxErrno]); len(count) > 0 {
 				for errStr, errCount := range count {
 					key := metricKey{
-						hash: k,
-						id:   mapErr,
+						hash: index.key,
+						id:   i,
 						err:  errStr,
 					}
 					delta := float64(errCount - e.lastValues[key])
 					if delta > 0 {
-						ch <- prometheus.MustNewConstMetric(e.ebpfMapOpsErrors, prometheus.CounterValue, delta, m, errStr)
+						ch <- prometheus.MustNewConstMetric(e.ebpfHelperErrors, prometheus.CounterValue, delta, helperName, index.value, errStr)
 					}
 					e.lastValues[key] = errCount
 				}
 			}
 		}
-	}
+		return true
+	})
 }
 
 func getErrCount(v []uint64) map[string]uint64 {
