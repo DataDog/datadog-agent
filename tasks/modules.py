@@ -260,7 +260,7 @@ DEFAULT_MODULES = {
         "test/new-e2e",
         independent=True,
         targets=["./pkg/runner", "./pkg/utils/e2e/client"],
-        lint_targets=["."],
+        lint_targets=[".", "./examples"],  # need to explictly list "examples", otherwise it is skipped
     ),
 }
 
