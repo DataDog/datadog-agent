@@ -24,7 +24,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	workloadmetaimpl "github.com/DataDog/datadog-agent/comp/core/workloadmeta/impl"
+	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
+	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -44,12 +45,12 @@ func testCollectEvent(t *testing.T, createResource func(*fake.Clientset) error, 
 		"language_detection.reporting.enabled":  true,
 	}
 
-	wlm := fxutil.Test[workloadmetaimpl.Mock](t, fx.Options(
+	wlm := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		core.MockBundle(),
 		fx.Replace(config.MockParams{Overrides: overrides}),
 		fx.Supply(context.Background()),
 		fx.Supply(workloadmeta.NewParams()),
-		workloadmetaimpl.MockModuleV2(),
+		workloadmetafxmock.MockModuleV2(),
 	))
 	ctx := context.TODO()
 
@@ -110,11 +111,11 @@ func testCollectMetadataEvent(t *testing.T, createObjects func() []runtime.Objec
 
 	metadataclient := metafake.NewSimpleMetadataClient(testScheme, objects...)
 
-	wlm := fxutil.Test[workloadmetaimpl.Mock](t, fx.Options(
+	wlm := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		core.MockBundle(),
 		fx.Supply(context.Background()),
 		fx.Supply(workloadmeta.NewParams()),
-		workloadmetaimpl.MockModuleV2(),
+		workloadmetafxmock.MockModuleV2(),
 	))
 	ctx := context.TODO()
 

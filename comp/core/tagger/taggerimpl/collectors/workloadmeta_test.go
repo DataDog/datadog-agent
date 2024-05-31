@@ -18,7 +18,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taglist"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	workloadmetaimpl "github.com/DataDog/datadog-agent/comp/core/workloadmeta/impl"
+	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
+	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 
@@ -63,12 +64,12 @@ func TestHandleKubePod(t *testing.T) {
 		Tag:       "latest",
 	}
 
-	store := fxutil.Test[workloadmetaimpl.Mock](t, fx.Options(
+	store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		logimpl.MockModule(),
 		config.MockModule(),
 		fx.Supply(workloadmeta.NewParams()),
 		fx.Supply(context.Background()),
-		workloadmetaimpl.MockModule(),
+		workloadmetafxmock.MockModule(),
 	))
 
 	store.Set(&workloadmeta.Container{
@@ -572,12 +573,12 @@ func TestHandleKubePodNoContainerName(t *testing.T) {
 		Tag:       "latest",
 	}
 
-	store := fxutil.Test[workloadmetaimpl.Mock](t, fx.Options(
+	store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		logimpl.MockModule(),
 		config.MockModule(),
 		fx.Supply(workloadmeta.NewParams()),
 		fx.Supply(context.Background()),
-		workloadmetaimpl.MockModule(),
+		workloadmetafxmock.MockModule(),
 	))
 
 	store.Set(&workloadmeta.Container{
@@ -698,12 +699,12 @@ func TestHandleKubeNamespace(t *testing.T) {
 
 	namespaceTaggerEntityID := fmt.Sprintf("namespace://%s", namespaceEntityID.ID)
 
-	store := fxutil.Test[workloadmetaimpl.Mock](t, fx.Options(
+	store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		logimpl.MockModule(),
 		config.MockModule(),
 		fx.Supply(workloadmeta.NewParams()),
 		fx.Supply(context.Background()),
-		workloadmetaimpl.MockModule(),
+		workloadmetafxmock.MockModule(),
 	))
 
 	store.Set(&workloadmeta.Container{
@@ -800,11 +801,11 @@ func TestHandleECSTask(t *testing.T) {
 
 	taggerEntityID := fmt.Sprintf("container_id://%s", containerID)
 
-	store := fxutil.Test[workloadmetaimpl.Mock](t, fx.Options(
+	store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		logimpl.MockModule(),
 		config.MockModule(),
 		fx.Supply(workloadmeta.NewParams()),
-		workloadmetaimpl.MockModule(),
+		workloadmetafxmock.MockModule(),
 	))
 
 	store.Set(&workloadmeta.Container{
@@ -1533,11 +1534,11 @@ func TestHandleDelete(t *testing.T) {
 	podTaggerEntityID := fmt.Sprintf("kubernetes_pod_uid://%s", podEntityID.ID)
 	containerTaggerEntityID := fmt.Sprintf("container_id://%s", containerID)
 
-	store := fxutil.Test[workloadmetaimpl.Mock](t, fx.Options(
+	store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		logimpl.MockModule(),
 		config.MockModule(),
 		fx.Supply(workloadmeta.NewParams()),
-		workloadmetaimpl.MockModule(),
+		workloadmetafxmock.MockModule(),
 	))
 
 	store.Set(&workloadmeta.Container{
@@ -1613,11 +1614,11 @@ func TestHandlePodWithDeletedContainer(t *testing.T) {
 	collectorCh := make(chan []*types.TagInfo, 10)
 
 	collector := &WorkloadMetaCollector{
-		store: fxutil.Test[workloadmetaimpl.Mock](t, fx.Options(
+		store: fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 			logimpl.MockModule(),
 			config.MockModule(),
 			fx.Supply(workloadmeta.NewParams()),
-			workloadmetaimpl.MockModule(),
+			workloadmetafxmock.MockModule(),
 		)),
 		children: map[string]map[string]struct{}{
 			// Notice that here we set the container that belonged to the pod

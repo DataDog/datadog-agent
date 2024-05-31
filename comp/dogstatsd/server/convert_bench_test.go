@@ -14,7 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	workloadmetaimpl "github.com/DataDog/datadog-agent/comp/core/workloadmeta/impl"
+	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
@@ -80,5 +80,5 @@ type ServerDeps struct {
 }
 
 func newServerDeps(t testing.TB, options ...fx.Option) ServerDeps {
-	return fxutil.Test[ServerDeps](t, core.MockBundle(), workloadmetaimpl.MockModuleV2(), fx.Supply(workloadmeta.NewParams()), fx.Options(options...))
+	return fxutil.Test[ServerDeps](t, core.MockBundle(), workloadmetafxmock.MockModuleV2(), fx.Supply(workloadmeta.NewParams()), fx.Options(options...))
 }

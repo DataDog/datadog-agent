@@ -27,7 +27,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/remote"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	workloadmetaimpl "github.com/DataDog/datadog-agent/comp/core/workloadmeta/impl"
+	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
+	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
 	"github.com/DataDog/datadog-agent/pkg/api/security"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
@@ -245,13 +246,13 @@ func TestCollection(t *testing.T) {
 
 			// We do not inject any collectors here; we instantiate
 			// and initialize it out-of-band below. That's OK.
-			mockStore := fxutil.Test[workloadmetaimpl.Mock](t, fx.Options(
+			mockStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 				core.MockBundle(),
 				fx.Replace(config.MockParams{Overrides: overrides}),
 				fx.Supply(workloadmeta.Params{
 					AgentType: workloadmeta.Remote,
 				}),
-				workloadmetaimpl.MockModuleV2(),
+				workloadmetafxmock.MockModuleV2(),
 			))
 
 			time.Sleep(time.Second)

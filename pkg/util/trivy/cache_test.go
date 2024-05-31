@@ -18,7 +18,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	workloadmetaimpl "github.com/DataDog/datadog-agent/comp/core/workloadmeta/impl"
+	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
+	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 
@@ -233,12 +234,12 @@ func TestCustomBoltCache_DiskSizeLimit(t *testing.T) {
 
 func TestCustomBoltCache_GarbageCollector(t *testing.T) {
 	// Create a workload meta global store containing two images with a distinct artifactID/blobs and a shared blob
-	workloadmetaStore := fxutil.Test[workloadmetaimpl.Mock](t, fx.Options(
+	workloadmetaStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		logimpl.MockModule(),
 		config.MockModule(),
 		fx.Supply(context.Background()),
 		fx.Supply(workloadmeta.NewParams()),
-		workloadmetaimpl.MockModuleV2(),
+		workloadmetafxmock.MockModuleV2(),
 	))
 
 	image1 := &workloadmeta.ContainerImageMetadata{
@@ -397,6 +398,6 @@ func createCacheDeps(t *testing.T) cacheDeps {
 	return fxutil.Test[cacheDeps](t, fx.Options(
 		core.MockBundle(),
 		fx.Supply(workloadmeta.NewParams()),
-		workloadmetaimpl.MockModule(),
+		workloadmetafxmock.MockModule(),
 	))
 }

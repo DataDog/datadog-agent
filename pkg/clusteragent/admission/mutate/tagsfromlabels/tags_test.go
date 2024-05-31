@@ -22,7 +22,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	workloadmetaimpl "github.com/DataDog/datadog-agent/comp/core/workloadmeta/impl"
+	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -170,7 +170,7 @@ func Test_injectTags(t *testing.T) {
 			},
 		},
 	}
-	wmeta := fxutil.Test[workloadmeta.Component](t, core.MockBundle(), workloadmetaimpl.MockModule(), fx.Supply(workloadmeta.NewParams()))
+	wmeta := fxutil.Test[workloadmeta.Component](t, core.MockBundle(), workloadmetafxmock.MockModule(), fx.Supply(workloadmeta.NewParams()))
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			webhook := NewWebhook(wmeta)
@@ -272,7 +272,7 @@ func TestGetAndCacheOwner(t *testing.T) {
 	ownerInfo := dummyInfo()
 	kubeObj := newUnstructuredWithSpec(map[string]interface{}{"foo": "bar"})
 	owner := newOwner(kubeObj)
-	wmeta := fxutil.Test[workloadmeta.Component](t, core.MockBundle(), workloadmetaimpl.MockModule(), fx.Supply(workloadmeta.NewParams()))
+	wmeta := fxutil.Test[workloadmeta.Component](t, core.MockBundle(), workloadmetafxmock.MockModule(), fx.Supply(workloadmeta.NewParams()))
 	webhook := NewWebhook(wmeta)
 
 	// Cache hit

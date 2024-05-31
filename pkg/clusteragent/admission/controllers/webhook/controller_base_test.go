@@ -18,13 +18,13 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	workloadmetaimpl "github.com/DataDog/datadog-agent/comp/core/workloadmeta/impl"
+	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 func TestNewController(t *testing.T) {
 	client := fake.NewSimpleClientset()
-	wmeta := fxutil.Test[workloadmeta.Component](t, core.MockBundle(), workloadmetaimpl.MockModule(), fx.Supply(workloadmeta.NewParams()))
+	wmeta := fxutil.Test[workloadmeta.Component](t, core.MockBundle(), workloadmetafxmock.MockModule(), fx.Supply(workloadmeta.NewParams()))
 	factory := informers.NewSharedInformerFactory(client, time.Duration(0))
 
 	// V1

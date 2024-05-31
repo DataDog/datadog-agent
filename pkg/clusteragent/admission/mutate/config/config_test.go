@@ -24,7 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	workloadmetaimpl "github.com/DataDog/datadog-agent/comp/core/workloadmeta/impl"
+	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	admCommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
 	mutatecommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -74,7 +74,7 @@ func Test_injectionMode(t *testing.T) {
 func TestInjectHostIP(t *testing.T) {
 	pod := mutatecommon.FakePodWithContainer("foo-pod", corev1.Container{})
 	pod = mutatecommon.WithLabels(pod, map[string]string{"admission.datadoghq.com/enabled": "true"})
-	wmeta := fxutil.Test[workloadmeta.Component](t, core.MockBundle(), workloadmetaimpl.MockModule(), fx.Supply(workloadmeta.NewParams()))
+	wmeta := fxutil.Test[workloadmeta.Component](t, core.MockBundle(), workloadmetafxmock.MockModule(), fx.Supply(workloadmeta.NewParams()))
 	webhook := NewWebhook(wmeta)
 	injected, err := webhook.inject(pod, "", nil)
 	assert.Nil(t, err)
@@ -85,7 +85,7 @@ func TestInjectHostIP(t *testing.T) {
 func TestInjectService(t *testing.T) {
 	pod := mutatecommon.FakePodWithContainer("foo-pod", corev1.Container{})
 	pod = mutatecommon.WithLabels(pod, map[string]string{"admission.datadoghq.com/enabled": "true", "admission.datadoghq.com/config.mode": "service"})
-	wmeta := fxutil.Test[workloadmeta.Component](t, core.MockBundle(), workloadmetaimpl.MockModule(), fx.Supply(workloadmeta.NewParams()))
+	wmeta := fxutil.Test[workloadmeta.Component](t, core.MockBundle(), workloadmetafxmock.MockModule(), fx.Supply(workloadmeta.NewParams()))
 	webhook := NewWebhook(wmeta)
 	injected, err := webhook.inject(pod, "", nil)
 	assert.Nil(t, err)
@@ -119,7 +119,7 @@ func TestInjectEntityID(t *testing.T) {
 			wmeta := fxutil.Test[workloadmeta.Component](
 				t,
 				core.MockBundle(),
-				workloadmetaimpl.MockModule(),
+				workloadmetafxmock.MockModule(),
 				fx.Supply(workloadmeta.NewParams()),
 				fx.Replace(config.MockParams{Overrides: tt.configOverrides}),
 			)
@@ -229,7 +229,7 @@ func TestInjectIdentity(t *testing.T) {
 func TestInjectSocket(t *testing.T) {
 	pod := mutatecommon.FakePodWithContainer("foo-pod", corev1.Container{})
 	pod = mutatecommon.WithLabels(pod, map[string]string{"admission.datadoghq.com/enabled": "true", "admission.datadoghq.com/config.mode": "socket"})
-	wmeta := fxutil.Test[workloadmeta.Component](t, core.MockBundle(), workloadmetaimpl.MockModule(), fx.Supply(workloadmeta.NewParams()))
+	wmeta := fxutil.Test[workloadmeta.Component](t, core.MockBundle(), workloadmetafxmock.MockModule(), fx.Supply(workloadmeta.NewParams()))
 	webhook := NewWebhook(wmeta)
 	injected, err := webhook.inject(pod, "", nil)
 	assert.Nil(t, err)
@@ -284,7 +284,7 @@ func TestInjectSocketWithConflictingVolumeAndInitContainer(t *testing.T) {
 		},
 	}
 
-	wmeta := fxutil.Test[workloadmeta.Component](t, core.MockBundle(), workloadmetaimpl.MockModule(), fx.Supply(workloadmeta.NewParams()))
+	wmeta := fxutil.Test[workloadmeta.Component](t, core.MockBundle(), workloadmetafxmock.MockModule(), fx.Supply(workloadmeta.NewParams()))
 	webhook := NewWebhook(wmeta)
 	injected, err := webhook.inject(pod, "", nil)
 	assert.True(t, injected)
@@ -324,7 +324,7 @@ func TestJSONPatchCorrectness(t *testing.T) {
 			assert.NoError(t, err)
 			wmeta := fxutil.Test[workloadmeta.Component](t,
 				core.MockBundle(),
-				workloadmetaimpl.MockModule(),
+				workloadmetafxmock.MockModule(),
 				fx.Supply(workloadmeta.NewParams()),
 				fx.Replace(config.MockParams{Overrides: tt.overrides}),
 			)

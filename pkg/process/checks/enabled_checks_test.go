@@ -16,7 +16,7 @@ import (
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/comp/core"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	workloadmetaimpl "github.com/DataDog/datadog-agent/comp/core/workloadmeta/impl"
+	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector"
 	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/npcollectorimpl"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -130,7 +130,7 @@ type ProcessCheckDeps struct {
 
 func createProcessCheckDeps(t *testing.T) ProcessCheckDeps {
 	return fxutil.Test[ProcessCheckDeps](t,
-		workloadmetaimpl.MockModule(),
+		workloadmetafxmock.MockModule(),
 		core.MockBundle(),
 		fx.Supply(workloadmeta.NewParams()),
 		npcollectorimpl.MockModule(),

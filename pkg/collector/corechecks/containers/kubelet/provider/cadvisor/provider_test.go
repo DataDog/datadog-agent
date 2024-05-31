@@ -21,7 +21,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	workloadmetaimpl "github.com/DataDog/datadog-agent/comp/core/workloadmeta/impl"
+	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
+	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/kubelet/common"
@@ -95,11 +96,11 @@ type ProviderTestSuite struct {
 func (suite *ProviderTestSuite) SetupTest() {
 	var err error
 
-	store := fxutil.Test[workloadmetaimpl.Mock](suite.T(), fx.Options(
+	store := fxutil.Test[workloadmetamock.Mock](suite.T(), fx.Options(
 		core.MockBundle(),
 		collectors.GetCatalog(),
 		fx.Supply(workloadmeta.NewParams()),
-		workloadmetaimpl.MockModuleV2(),
+		workloadmetafxmock.MockModuleV2(),
 	))
 
 	mockSender := mocksender.NewMockSender(checkid.ID(suite.T().Name()))

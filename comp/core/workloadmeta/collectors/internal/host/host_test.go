@@ -17,7 +17,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	workloadmetaimpl "github.com/DataDog/datadog-agent/comp/core/workloadmeta/impl"
+	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
+	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 
 	"go.uber.org/fx"
@@ -27,7 +28,7 @@ type testDeps struct {
 	fx.In
 
 	Config config.Component
-	Wml    workloadmetaimpl.Mock
+	Wml    workloadmetamock.Mock
 }
 
 func TestHostCollector(t *testing.T) {
@@ -44,7 +45,7 @@ func TestHostCollector(t *testing.T) {
 		core.MockBundle(),
 		fx.Supply(workloadmeta.NewParams()),
 		fx.Supply(context.Background()),
-		workloadmetaimpl.MockModule(),
+		workloadmetafxmock.MockModule(),
 	))
 
 	eventChan := deps.Wml.SubscribeToEvents()

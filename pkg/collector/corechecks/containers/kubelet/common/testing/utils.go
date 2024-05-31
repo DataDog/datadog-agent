@@ -19,7 +19,7 @@ import (
 	tmock "github.com/stretchr/testify/mock"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	workloadmetaimpl "github.com/DataDog/datadog-agent/comp/core/workloadmeta/impl"
+	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/kubelet/common"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
@@ -159,7 +159,7 @@ func CreateKubeletMock(response EndpointResponse, endpoint string) (*mock.Kubele
 }
 
 // StorePopulatedFromFile populates a workloadmeta.Store based on pod data from a given file.
-func StorePopulatedFromFile(store workloadmetaimpl.Mock, filename string, podUtils *common.PodUtils) error {
+func StorePopulatedFromFile(store workloadmetamock.Mock, filename string, podUtils *common.PodUtils) error {
 	if filename == "" {
 		return nil
 	}

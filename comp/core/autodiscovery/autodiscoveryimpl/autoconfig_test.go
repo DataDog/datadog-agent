@@ -28,7 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	workloadmetaimpl "github.com/DataDog/datadog-agent/comp/core/workloadmeta/impl"
+	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -538,5 +538,5 @@ type Deps struct {
 }
 
 func createDeps(t *testing.T) Deps {
-	return fxutil.Test[Deps](t, core.MockBundle(), workloadmetaimpl.MockModule(), fx.Supply(workloadmeta.NewParams()), fx.Supply(tagger.NewFakeTaggerParams()), taggerimpl.Module())
+	return fxutil.Test[Deps](t, core.MockBundle(), workloadmetafxmock.MockModule(), fx.Supply(workloadmeta.NewParams()), fx.Supply(tagger.NewFakeTaggerParams()), taggerimpl.Module())
 }

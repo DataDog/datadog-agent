@@ -26,7 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core"
 	configComp "github.com/DataDog/datadog-agent/comp/core/config"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	workloadmetaimpl "github.com/DataDog/datadog-agent/comp/core/workloadmeta/impl"
+	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/util"
@@ -241,7 +241,7 @@ func TestInjectAutoInstruConfig(t *testing.T) {
 			wantErr: true,
 		},
 	}
-	wmeta := fxutil.Test[workloadmeta.Component](t, core.MockBundle(), workloadmetaimpl.MockModule(), fx.Supply(workloadmeta.NewParams()))
+	wmeta := fxutil.Test[workloadmeta.Component](t, core.MockBundle(), workloadmetafxmock.MockModule(), fx.Supply(workloadmeta.NewParams()))
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			webhook, err := GetWebhook(wmeta)
@@ -602,7 +602,7 @@ func TestExtractLibInfo(t *testing.T) {
 			wmeta := fxutil.Test[workloadmeta.Component](t,
 				core.MockBundle(),
 				fx.Replace(configComp.MockParams{Overrides: overrides}),
-				workloadmetaimpl.MockModule(),
+				workloadmetafxmock.MockModule(),
 				fx.Supply(workloadmeta.NewParams()),
 			)
 			mockConfig = config.Mock(t)
@@ -2238,7 +2238,7 @@ func TestShouldInject(t *testing.T) {
 			want:        false,
 		},
 	}
-	wmeta := fxutil.Test[workloadmeta.Component](t, core.MockBundle(), workloadmetaimpl.MockModule(), fx.Supply(workloadmeta.NewParams()))
+	wmeta := fxutil.Test[workloadmeta.Component](t, core.MockBundle(), workloadmetafxmock.MockModule(), fx.Supply(workloadmeta.NewParams()))
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			mockConfig = config.Mock(nil)

@@ -18,7 +18,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	workloadmetaimpl "github.com/DataDog/datadog-agent/comp/core/workloadmeta/impl"
+	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
+	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
 	langUtil "github.com/DataDog/datadog-agent/pkg/languagedetection/util"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/process"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -297,10 +298,10 @@ func TestOwnersLanguagesFlush(t *testing.T) {
 		},
 	}
 
-	mockStore := fxutil.Test[workloadmetaimpl.Mock](t, fx.Options(
+	mockStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		core.MockBundle(),
 		fx.Supply(workloadmeta.NewParams()),
-		workloadmetaimpl.MockModuleV2(),
+		workloadmetafxmock.MockModuleV2(),
 	))
 
 	err := ownersLanguages.flush(mockStore)
@@ -398,10 +399,10 @@ func TestOwnersLanguagesMergeAndFlush(t *testing.T) {
 		},
 	}
 
-	mockStore := fxutil.Test[workloadmetaimpl.Mock](t, fx.Options(
+	mockStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		core.MockBundle(),
 		fx.Supply(workloadmeta.NewParams()),
-		workloadmetaimpl.MockModuleV2(),
+		workloadmetafxmock.MockModuleV2(),
 	))
 
 	err := ownersLanguages.flush(mockStore)
@@ -480,10 +481,10 @@ func TestCleanExpiredLanguages(t *testing.T) {
 	mockSupportedOwnerA := langUtil.NewNamespacedOwnerReference("api-version", langUtil.KindDeployment, "deploymentA", "ns")
 	mockSupportedOwnerB := langUtil.NewNamespacedOwnerReference("api-version", langUtil.KindDeployment, "deploymentB", "ns")
 
-	mockStore := fxutil.Test[workloadmetaimpl.Mock](t, fx.Options(
+	mockStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		core.MockBundle(),
 		fx.Supply(workloadmeta.NewParams()),
-		workloadmetaimpl.MockModuleV2(),
+		workloadmetafxmock.MockModuleV2(),
 	))
 
 	mockStore.Push(workloadmeta.SourceLanguageDetectionServer, workloadmeta.Event{
@@ -575,10 +576,10 @@ func TestCleanExpiredLanguages(t *testing.T) {
 func TestHandleKubeAPIServerUnsetEvents(t *testing.T) {
 	mockSupportedOwnerA := langUtil.NewNamespacedOwnerReference("api-version", langUtil.KindDeployment, "deploymentA", "ns")
 
-	mockStore := fxutil.Test[workloadmetaimpl.Mock](t, fx.Options(
+	mockStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		core.MockBundle(),
 		fx.Supply(workloadmeta.NewParams()),
-		workloadmetaimpl.MockModuleV2(),
+		workloadmetafxmock.MockModuleV2(),
 	))
 
 	ownersLanguages := OwnersLanguages{

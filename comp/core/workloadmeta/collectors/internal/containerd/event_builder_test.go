@@ -27,7 +27,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	workloadmetaimpl "github.com/DataDog/datadog-agent/comp/core/workloadmeta/impl"
+	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
+	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/containerd/fake"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -58,12 +59,12 @@ func TestBuildCollectorEvent(t *testing.T) {
 	fakeExitInfo := &exitInfo{exitCode: &exitCode, exitTS: exitTime}
 
 	client := containerdClient(&container)
-	workloadmetaStore := fxutil.Test[workloadmetaimpl.Mock](t, fx.Options(
+	workloadmetaStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		logimpl.MockModule(),
 		config.MockModule(),
 		fx.Supply(context.Background()),
 		fx.Supply(workloadmeta.NewParams()),
-		workloadmetaimpl.MockModuleV2(),
+		workloadmetafxmock.MockModuleV2(),
 	))
 	workloadMetaContainer, err := buildWorkloadMetaContainer(namespace, &container, &client, workloadmetaStore)
 	workloadMetaContainer.Namespace = namespace

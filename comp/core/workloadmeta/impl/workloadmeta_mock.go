@@ -16,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	wmdef "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	wmmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/errors"
 )
@@ -37,7 +38,8 @@ type workloadMetaMock struct {
 	eventsChan     chan wmdef.CollectorEvent
 }
 
-func newWorkloadMetaMock(deps dependencies) Mock {
+// NewWorkloadMetaMock returns a new workloadMetaMock.
+func NewWorkloadMetaMock(deps dependencies) wmmock.Mock {
 
 	mock := &workloadMetaMock{
 		log:    deps.Log,
@@ -424,8 +426,8 @@ type workloadMetaMockV2 struct {
 	*workloadmeta
 }
 
-// newWorkloadMetaMockV2 returns a Mock
-func newWorkloadMetaMockV2(deps dependencies) Mock {
+// NewWorkloadMetaMockV2 returns a Mock
+func NewWorkloadMetaMockV2(deps dependencies) wmmock.Mock {
 	w := &workloadMetaMockV2{
 		workloadmeta: NewWorkloadMeta(deps).Comp.(*workloadmeta),
 	}

@@ -16,20 +16,21 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	workloadmetaimpl "github.com/DataDog/datadog-agent/comp/core/workloadmeta/impl"
+	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
+	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 func TestTagBuilder(t *testing.T) {
 
-	store := fxutil.Test[workloadmetaimpl.Mock](t, fx.Options(
+	store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		fx.Supply(config.Params{}),
 		fx.Supply(logimpl.Params{}),
 		logimpl.MockModule(),
 		config.MockModule(),
 		fx.Supply(workloadmeta.NewParams()),
-		workloadmetaimpl.MockModuleV2(),
+		workloadmetafxmock.MockModuleV2(),
 	))
 	tagger := NewTagger(store)
 	tagger.Start(context.Background())

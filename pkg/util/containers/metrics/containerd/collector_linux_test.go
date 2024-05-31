@@ -27,7 +27,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
-	workloadmetaimpl "github.com/DataDog/datadog-agent/comp/core/workloadmeta/impl"
+	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
+	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics/provider"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
@@ -281,12 +282,12 @@ func TestGetContainerStats_Containerd(t *testing.T) {
 
 			// The container needs to exist in the workloadmeta store and have a
 			// namespace.
-			workloadmetaStore := fxutil.Test[workloadmetaimpl.Mock](t, fx.Options(
+			workloadmetaStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 				logimpl.MockModule(),
 				config.MockModule(),
 				fx.Supply(context.Background()),
 				fx.Supply(workloadmeta.NewParams()),
-				workloadmetaimpl.MockModuleV2(),
+				workloadmetafxmock.MockModuleV2(),
 			))
 
 			workloadmetaStore.Set(&workloadmeta.Container{
@@ -380,12 +381,12 @@ func TestGetContainerNetworkStats_Containerd(t *testing.T) {
 
 			// The container needs to exist in the workloadmeta store and have a
 			// namespace.
-			workloadmetaStore := fxutil.Test[workloadmetaimpl.Mock](t, fx.Options(
+			workloadmetaStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 				logimpl.MockModule(),
 				config.MockModule(),
 				fx.Supply(context.Background()),
 				fx.Supply(workloadmeta.NewParams()),
-				workloadmetaimpl.MockModuleV2(),
+				workloadmetafxmock.MockModuleV2(),
 			))
 
 			workloadmetaStore.Set(&workloadmeta.Container{
