@@ -12,6 +12,8 @@ import (
 	"sync"
 	"time"
 
+	"go.opentelemetry.io/collector/pdata/ptrace"
+
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/agent"
 	"github.com/DataDog/datadog-agent/pkg/trace/api"
@@ -20,7 +22,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/trace/timing"
 	"github.com/DataDog/datadog-go/v5/statsd"
-	"go.opentelemetry.io/collector/pdata/ptrace"
 )
 
 // This is a copy of https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/internal/datadog/agent.go and
@@ -42,8 +43,16 @@ type traceAgent struct {
 	exit chan struct{}
 }
 
+type mockStatsAdder struct {
+	out chan *pb.StatsPayload
+}
+
+func (msa *mockStatsAdder) Add(payload *pb.StatsPayload) {
+	msa.out <- payload
+}
+
 // newAgentWithConfig creates a new traceagent with the given config cfg. Used in tests; use newAgent instead.
-func newAgentWithConfig(ctx context.Context, cfg *traceconfig.AgentConfig, out chan *pb.StatsPayload, now time.Time) *traceAgent {
+func newAgentWithConfig(ctx context.Context, cfg *traceconfig.AgentConfig, out *mockStatsAdder, now time.Time) *traceAgent {
 	// disable the HTTP receiver
 	cfg.ReceiverPort = 0
 	// set the API key to succeed startup; it is never used nor needed
@@ -92,7 +101,6 @@ func (p *traceAgent) Start() {
 		starter.Start()
 	}
 
-	p.goDrain()
 	p.goProcess()
 }
 
@@ -110,23 +118,6 @@ func (p *traceAgent) Stop() {
 	}
 	close(p.exit)
 	p.wg.Wait()
-}
-
-// goDrain drains the TraceWriter channel, ensuring it won't block. We don't need the traces,
-// nor do we have a running TraceWrite. We just want the outgoing stats.
-func (p *traceAgent) goDrain() {
-	p.wg.Add(1)
-	go func() {
-		defer p.wg.Done()
-		for {
-			select {
-			case <-p.TraceWriter.In:
-				// we don't write these traces anywhere; drain the channel
-			case <-p.exit:
-				return
-			}
-		}
-	}()
 }
 
 // Ingest processes the given spans within the traceagent and outputs stats through the output channel
