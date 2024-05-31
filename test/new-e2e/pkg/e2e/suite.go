@@ -141,6 +141,7 @@
 package e2e
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -152,6 +153,12 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner/parameters"
 	"github.com/DataDog/test-infra-definitions/common/utils"
 	"github.com/DataDog/test-infra-definitions/components"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	awsconfig "github.com/aws/aws-sdk-go-v2/config"
+	awss3 "github.com/aws/aws-sdk-go-v2/service/s3"
+	"github.com/pulumi/pulumi/pkg/v3/resource/stack"
+	"github.com/pulumi/pulumi/sdk/v3/go/common/apitype"
+	"github.com/pulumi/pulumi/sdk/v3/go/common/encoding"
 
 	"github.com/stretchr/testify/suite"
 )
@@ -497,6 +504,12 @@ func (bs *BaseSuite[Env]) TearDownSuite() {
 		return
 	}
 
+	fmt.Printf("TEARING DOWN STACK: %v", reflect.TypeOf(bs.env))
+	_, err := bs.GetPulumiCheckPoint()
+	if err != nil {
+		bs.T().Logf("Failed to get checkpoint: %v", err)
+	}
+
 	if bs.firstFailTest != "" && bs.params.skipDeleteOnFailure {
 		bs.Require().FailNow(fmt.Sprintf("%v failed. As SkipDeleteOnFailure feature is enabled the tests after %v were skipped. "+
 			"The environment of %v was kept.", bs.firstFailTest, bs.firstFailTest, bs.firstFailTest))
@@ -526,4 +539,22 @@ func Run[Env any, T Suite[Env]](t *testing.T, s T, options ...SuiteOption) {
 
 	s.init(options, s)
 	suite.Run(t, s)
+}
+
+func (bs *BaseSuite[Env]) GetPulumiCheckPoint() (*apitype.CheckpointV3, error) {
+	awsConfig, err := awsconfig.LoadDefaultConfig(context.TODO())
+	s3Client := awss3.NewFromConfig(awsConfig)
+	checkpoint, err := s3Client.GetObject(context.TODO(), &awss3.GetObjectInput{
+		Bucket: aws.String("dd-pulumi-state"),
+		Key:    aws.String(fmt.Sprintf(".pulumi/e2eci/%s.json", bs.params.stackName)),
+	})
+	if err != nil {
+		bs.T().Logf("Failed to get checkpoint: %v", err)
+		return &apitype.CheckpointV3{}, err
+	}
+	buf := new(bytes.Buffer)
+	buf.ReadFrom(checkpoint.Body)
+	fmt.Printf("Found checkpoint with length: %d\n", len(buf.String()))
+
+	return stack.UnmarshalVersionedCheckpointToLatestCheckpoint(encoding.JSON, buf.Bytes())
 }

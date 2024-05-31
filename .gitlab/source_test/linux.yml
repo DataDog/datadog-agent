@@ -261,3 +261,18 @@ new-e2e-unit-tests:
     KUBERNETES_MEMORY_REQUEST: 12Gi
     KUBERNETES_MEMORY_LIMIT: 16Gi
     KUBERNETES_CPU_REQUEST: 6
+
+new-e2e-test-kind:
+  extends:
+    - .new_e2e_template
+  # TODO once images are deployed to ECR for dev branches, update
+  #.on_main_or_rc_and_no_skip_e2e adding on_dev_branch_manual rules
+  # and move rules to template
+  needs: []
+  variables:
+    TARGETS: ./tests/containers
+    TEAM: container-integrations
+  parallel:
+    matrix:
+      - EXTRA_PARAMS: --run TestKindSuite
+
