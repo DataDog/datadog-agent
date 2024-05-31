@@ -30,19 +30,28 @@ func CheckAgentBehaviour(t *testing.T, client *TestClient) {
 
 	t.Run("datadog-agent checks running", func(tt *testing.T) {
 		var statusOutputJSON map[string]any
+		var err error
 		result := false
 		for try := 0; try < 5 && !result; try++ {
-			err := json.Unmarshal([]byte(client.AgentClient.Status(agentclient.WithArgs([]string{"-j"})).Content), &statusOutputJSON)
-			require.NoError(tt, err)
-			if runnerStats, ok := statusOutputJSON["runnerStats"]; ok {
-				runnerStatsMap := runnerStats.(map[string]any)
-				if checks, ok := runnerStatsMap["Checks"]; ok {
-					checksMap := checks.(map[string]any)
-					result = len(checksMap) > 0
+			err = json.Unmarshal([]byte(client.AgentClient.Status(agentclient.WithArgs([]string{"-j"})).Content), &statusOutputJSON)
+			if err == nil {
+				if runnerStats, ok := statusOutputJSON["runnerStats"]; ok {
+					runnerStatsMap := runnerStats.(map[string]any)
+					if checks, ok := runnerStatsMap["Checks"]; ok {
+						checksMap := checks.(map[string]any)
+						result = len(checksMap) > 0
+					}
 				}
 			}
-			time.Sleep(1 * time.Second)
+			if !result {
+				time.Sleep(1 * time.Second)
+			}
 		}
+
+		if !result {
+			require.NoError(tt, err)
+		}
+
 		require.True(tt, result, "status output should contain running checks")
 	})
 
