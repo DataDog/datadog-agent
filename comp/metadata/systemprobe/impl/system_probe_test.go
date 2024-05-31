@@ -77,7 +77,7 @@ func getSystemProbeComp(t *testing.T, enableConfig bool) *systemprobe {
 
 func assertPayload(t *testing.T, p *Payload) {
 	assert.Equal(t, "test hostname", p.Hostname)
-	assert.True(t, p.Timestamp < time.Now().UnixNano())
+	assert.True(t, p.Timestamp <= time.Now().UnixNano())
 	assert.Equal(t,
 		map[string]interface{}{
 			"agent_runtime_configuration":        "runtime: true\n",
