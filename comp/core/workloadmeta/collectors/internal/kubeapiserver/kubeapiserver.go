@@ -10,6 +10,7 @@ package kubeapiserver
 
 import (
 	"context"
+	"slices"
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
@@ -49,11 +50,8 @@ func storeGenerators(cfg model.Reader) []storeGenerator {
 	// TODO: Remove this once we migrate references to the namespace store to use generic collection
 	if cfg.GetBool("cluster_agent.kube_metadata_collection.enabled") {
 		resources := cfg.GetStringSlice("cluster_agent.kube_metadata_collection.resources")
-		for _, resource := range resources {
-			if resource == "namespaces" {
-				generators = append(generators, newNamespaceStore)
-				break
-			}
+		if slices.Contains(resources, "namespaces") {
+			generators = append(generators, newNamespaceStore)
 		}
 	}
 
