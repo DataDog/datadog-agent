@@ -62,9 +62,10 @@ repos:
     - id: clang-format
       name: clang-format
       description: clang-format
-      entry: 'python3 -m tasks.git-hooks.clang-format'
+      entry: 'inv pre-commit.check-clang-format'
       language: system
       require_serial: true
+      pass_filenames: false
       files: '^pkg/(ebpf|network|security)/.*\.(c|h)$'
       exclude: '^pkg/ebpf/(c/bpf_endian|c/bpf_helpers|compiler/clang-stdarg).h$'
     - id: go-mod-tidy
