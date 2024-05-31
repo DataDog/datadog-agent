@@ -239,6 +239,20 @@ This command print the system-probe metadata payload. This payload is used by th
 		},
 	}
 
+	payloadSecurityAgentCmd := &cobra.Command{
+		Use:   "security-agent",
+		Short: "[internal] Print the security-agent process metadata payload.",
+		Long: `
+This command print the security-agent metadata payload. This payload is used by the 'fleet automation' product.`,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return fxutil.OneShot(printPayload,
+				fx.Supply(payloadName("security-agent")),
+				fx.Supply(command.GetDefaultCoreBundleParams(cliParams.GlobalParams)),
+				core.Bundle(),
+			)
+		},
+	}
+
 	showPayloadCommand.AddCommand(payloadV5Cmd)
 	showPayloadCommand.AddCommand(payloadGohaiCmd)
 	showPayloadCommand.AddCommand(payloadInventoriesAgentCmd)
@@ -246,6 +260,7 @@ This command print the system-probe metadata payload. This payload is used by th
 	showPayloadCommand.AddCommand(payloadInventoriesChecksCmd)
 	showPayloadCommand.AddCommand(payloadInventoriesPkgSigningCmd)
 	showPayloadCommand.AddCommand(payloadSystemProbeCmd)
+	showPayloadCommand.AddCommand(payloadSecurityAgentCmd)
 	diagnoseCommand.AddCommand(showPayloadCommand)
 
 	return []*cobra.Command{diagnoseCommand}

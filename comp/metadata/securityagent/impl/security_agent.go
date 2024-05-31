@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package impl implements the systemprobe metadata providers interface
+// Package impl implements the securityagent metadata providers interface
 package impl
 
 import (
@@ -19,31 +19,29 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	"github.com/DataDog/datadog-agent/comp/core/log"
-	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/comp/metadata/internal/util"
 	"github.com/DataDog/datadog-agent/comp/metadata/runner/runnerimpl"
-	systemprobemetadata "github.com/DataDog/datadog-agent/comp/metadata/systemprobe/def"
+	"github.com/DataDog/datadog-agent/comp/metadata/securityagent/def"
 	configFetcher "github.com/DataDog/datadog-agent/pkg/config/fetcher"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"github.com/DataDog/datadog-agent/pkg/version"
 	"gopkg.in/yaml.v2"
 )
 
 var (
 	// for testing
-	fetchSystemProbeConfig         = configFetcher.SystemProbeConfig
-	fetchSystemProbeConfigBySource = configFetcher.SystemProbeConfigBySource
+	fetchSecurityAgentConfig         = configFetcher.SecurityAgentConfig
+	fetchSecurityAgentConfigBySource = configFetcher.SecurityAgentConfigBySource
 )
 
 // Payload handles the JSON unmarshalling of the metadata payload
 type Payload struct {
 	Hostname  string                 `json:"hostname"`
 	Timestamp int64                  `json:"timestamp"`
-	Metadata  map[string]interface{} `json:"system_probe_metadata"`
+	Metadata  map[string]interface{} `json:"security_agent_metadata"`
 }
 
 // MarshalJSON serialization a Payload to JSON
@@ -56,58 +54,55 @@ func (p *Payload) MarshalJSON() ([]byte, error) {
 //
 // In this case, the payload can't be split any further.
 func (p *Payload) SplitPayload(_ int) ([]marshaler.AbstractMarshaler, error) {
-	return nil, fmt.Errorf("could not split system-probe process payload any more, payload is too big for intake")
+	return nil, fmt.Errorf("could not split security-agent process payload any more, payload is too big for intake")
 }
 
-type systemprobe struct {
+type securityagent struct {
 	util.InventoryPayload
 
-	log          log.Component
-	conf         config.Component
-	sysprobeConf optional.Option[sysprobeconfig.Component]
-	hostname     string
+	log      log.Component
+	conf     config.Component
+	hostname string
 }
 
-// Requires defines the dependencies for the systemprobe metadata component
+// Requires defines the dependencies for the securityagent metadata component
 type Requires struct {
 	Log        log.Component
 	Config     config.Component
 	Serializer serializer.MetricSerializer
 	// We need the authtoken to be created so we requires the comp. It will be used by configFetcher.
-	AuthToken      authtoken.Component
-	SysProbeConfig optional.Option[sysprobeconfig.Component]
+	AuthToken authtoken.Component
 }
 
-// Provides defines the output of the systemprobe metadatacomponent
+// Provides defines the output of the securityagent metadata component
 type Provides struct {
-	Comp             systemprobemetadata.Component
+	Comp             def.Component
 	MetadataProvider runnerimpl.Provider
 	FlareProvider    flaretypes.Provider
 	Endpoint         api.AgentEndpointProvider
 }
 
-// NewComponent creates a new systemprobe metadata Component
+// NewComponent creates a new securityagent metadata Component
 func NewComponent(deps Requires) Provides {
 	hname, _ := hostname.Get(context.Background())
-	sb := &systemprobe{
-		log:          deps.Log,
-		conf:         deps.Config,
-		hostname:     hname,
-		sysprobeConf: deps.SysProbeConfig,
+	sa := &securityagent{
+		log:      deps.Log,
+		conf:     deps.Config,
+		hostname: hname,
 	}
-	sb.InventoryPayload = util.CreateInventoryPayload(deps.Config, deps.Log, deps.Serializer, sb.getPayload, "system-probe.json")
+	sa.InventoryPayload = util.CreateInventoryPayload(deps.Config, deps.Log, deps.Serializer, sa.getPayload, "security-agent.json")
 
 	return Provides{
-		Comp:             sb,
-		MetadataProvider: sb.MetadataProvider(),
-		FlareProvider:    sb.FlareProvider(),
-		Endpoint:         api.NewAgentEndpointProvider(sb.writePayloadAsJSON, "/metadata/system-probe", "GET"),
+		Comp:             sa,
+		MetadataProvider: sa.MetadataProvider(),
+		FlareProvider:    sa.FlareProvider(),
+		Endpoint:         api.NewAgentEndpointProvider(sa.writePayloadAsJSON, "/metadata/security-agent", "GET"),
 	}
 }
 
-func (sb *systemprobe) writePayloadAsJSON(w http.ResponseWriter, _ *http.Request) {
+func (sa *securityagent) writePayloadAsJSON(w http.ResponseWriter, _ *http.Request) {
 	// GetAsJSON calls getPayload which already scrub the data
-	scrubbed, err := sb.GetAsJSON()
+	scrubbed, err := sa.GetAsJSON()
 	if err != nil {
 		utils.SetJSONError(w, err, 500)
 		return
@@ -115,30 +110,24 @@ func (sb *systemprobe) writePayloadAsJSON(w http.ResponseWriter, _ *http.Request
 	w.Write(scrubbed)
 }
 
-func (sb *systemprobe) getConfigLayers() map[string]interface{} {
+func (sa *securityagent) getConfigLayers() map[string]interface{} {
 	metadata := map[string]interface{}{
 		"agent_version": version.AgentVersion,
 	}
 
-	if !sb.conf.GetBool("inventories_configuration_enabled") {
+	if !sa.conf.GetBool("inventories_configuration_enabled") {
 		return metadata
 	}
 
-	sysprobeConf, isSet := sb.sysprobeConf.Get()
-	if !isSet {
-		sb.log.Debugf("system-probe config not available: disabling systemprobe metadata")
-		return metadata
-	}
-
-	rawLayers, err := fetchSystemProbeConfigBySource(sysprobeConf)
+	rawLayers, err := fetchSecurityAgentConfigBySource(sa.conf)
 	if err != nil {
-		sb.log.Debugf("error fetching system-probe config layers: %s", err)
+		sa.log.Debugf("error fetching security-agent config layers: %s", err)
 		return metadata
 	}
 
 	configBySources := map[string]interface{}{}
 	if err := json.Unmarshal([]byte(rawLayers), &configBySources); err != nil {
-		sb.log.Debugf("error unmarshalling systemprobe config by source: %s", err)
+		sa.log.Debugf("error unmarshalling securityagent config by source: %s", err)
 		return metadata
 	}
 
@@ -156,26 +145,26 @@ func (sb *systemprobe) getConfigLayers() map[string]interface{} {
 			if yamlStr, err := yaml.Marshal(conf); err == nil {
 				metadata[layer] = string(yamlStr)
 			} else {
-				sb.log.Debugf("error serializing systemprobe '%s' config layer: %s", source, err)
+				sa.log.Debugf("error serializing securityagent '%s' config layer: %s", source, err)
 			}
 		} else {
-			sb.log.Debugf("error unknown config layer from system-probe '%s'", source)
+			sa.log.Debugf("error unknown config layer from security-agent '%s'", source)
 		}
 	}
 
-	if str, err := fetchSystemProbeConfig(sysprobeConf); err == nil {
+	if str, err := fetchSecurityAgentConfig(sa.conf); err == nil {
 		metadata["full_configuration"] = str
 	} else {
-		sb.log.Debugf("error fetching system-probe config: %s", err)
+		sa.log.Debugf("error fetching security-agent config: %s", err)
 	}
 
 	return metadata
 }
 
-func (sb *systemprobe) getPayload() marshaler.JSONMarshaler {
+func (sa *securityagent) getPayload() marshaler.JSONMarshaler {
 	return &Payload{
-		Hostname:  sb.hostname,
+		Hostname:  sa.hostname,
 		Timestamp: time.Now().UnixNano(),
-		Metadata:  sb.getConfigLayers(),
+		Metadata:  sa.getConfigLayers(),
 	}
 }
