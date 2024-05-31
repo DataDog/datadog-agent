@@ -85,3 +85,13 @@ func TestShowMetadataPkgSigningCommand(t *testing.T) {
 			require.Equal(t, false, secretParams.Enabled)
 		})
 }
+
+func TestShowMetadataSystemProbeCommand(t *testing.T) {
+	fxutil.TestOneShotSubcommand(t,
+		Commands(&command.GlobalParams{}),
+		[]string{"diagnose", "show-metadata", "system-probe"},
+		printPayload,
+		func(coreParams core.BundleParams, secretParams secrets.Params) {
+			require.Equal(t, false, secretParams.Enabled)
+		})
+}

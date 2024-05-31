@@ -45,11 +45,11 @@ func (s *packageApmInjectSuite) TestInstall() {
 	s.host.AssertPackageInstalledByInstaller("datadog-agent", "datadog-apm-inject", "datadog-apm-library-python")
 	s.host.AssertPackageNotInstalledByPackageManager("datadog-agent", "datadog-apm-inject", "datadog-apm-library-python")
 	state := s.host.State()
-	state.AssertFileExists("/var/run/datadog/installer/environment", 0644, "root", "root")
+	state.AssertFileExists("/var/run/datadog-installer/environment", 0644, "root", "root")
 	state.AssertDirExists("/var/log/datadog/dotnet", 0777, "root", "root")
 	state.AssertFileExists("/etc/ld.so.preload", 0644, "root", "root")
 	s.assertLDPreloadInstrumented(injectOCIPath)
-	s.assertSocketPath("/var/run/datadog/installer/apm.socket")
+	s.assertSocketPath("/var/run/datadog-installer/apm.socket")
 	s.assertDockerdInstrumented(injectOCIPath)
 
 	traceID := rand.Uint64()
@@ -155,7 +155,7 @@ func (s *packageApmInjectSuite) TestUpgrade_InjectorOCI_To_InjectorDeb() {
 	assert.NoError(s.T(), err)
 
 	s.assertLDPreloadInstrumented(injectOCIPath)
-	s.assertSocketPath("/var/run/datadog/installer/apm.socket")
+	s.assertSocketPath("/var/run/datadog-installer/apm.socket")
 	s.assertDockerdInstrumented(injectOCIPath)
 
 	// Deb install using today's defaults
@@ -176,7 +176,7 @@ func (s *packageApmInjectSuite) TestUpgrade_InjectorOCI_To_InjectorDeb() {
 
 	// OCI musn't be overridden
 	s.assertLDPreloadInstrumented(injectOCIPath)
-	s.assertSocketPath("/var/run/datadog/installer/apm.socket")
+	s.assertSocketPath("/var/run/datadog-installer/apm.socket")
 	s.assertDockerdInstrumented(injectOCIPath)
 }
 
@@ -252,7 +252,7 @@ func (s *packageApmInjectSuite) assertDockerdNotInstrumented() {
 }
 
 func (s *packageApmInjectSuite) purgeInjectorDebInstall() {
-	s.Env().RemoteHost.MustExecute("sudo rm -f /var/run/datadog/installer/environment")
+	s.Env().RemoteHost.MustExecute("sudo rm -f /var/run/datadog-installer/environment")
 	s.Env().RemoteHost.MustExecute("sudo rm -f /etc/datadog-agent/datadog.yaml")
 
 	packageList := []string{

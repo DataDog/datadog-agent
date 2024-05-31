@@ -71,18 +71,18 @@ func SetupInstaller(ctx context.Context) (err error) {
 	if err != nil {
 		return fmt.Errorf("error creating /var/log/datadog: %w", err)
 	}
-	err = os.MkdirAll("/var/run/datadog/installer", 0755)
+	err = os.MkdirAll("/var/run/datadog-installer", 0755)
 	if err != nil {
-		return fmt.Errorf("error creating /var/run/datadog/installer: %w", err)
+		return fmt.Errorf("error creating /var/run/datadog-installer: %w", err)
 	}
-	err = os.MkdirAll("/var/run/datadog/installer/locks", 0777)
+	err = os.MkdirAll("/var/run/datadog-installer/locks", 0777)
 	if err != nil {
-		return fmt.Errorf("error creating /var/run/datadog/installer/locks: %w", err)
+		return fmt.Errorf("error creating /var/run/datadog-installer/locks: %w", err)
 	}
 	// Locks directory can already be created by a package install
-	err = os.Chmod("/var/run/datadog/installer/locks", 0777)
+	err = os.Chmod("/var/run/datadog-installer/locks", 0777)
 	if err != nil {
-		return fmt.Errorf("error changing permissions of /var/run/datadog/installer/locks: %w", err)
+		return fmt.Errorf("error changing permissions of /var/run/datadog-installer/locks: %w", err)
 	}
 	err = os.Chown("/etc/datadog-agent", ddAgentUID, ddAgentGID)
 	if err != nil {
@@ -92,13 +92,9 @@ func SetupInstaller(ctx context.Context) (err error) {
 	if err != nil {
 		return fmt.Errorf("error changing owner of /var/log/datadog: %w", err)
 	}
-	err = os.Chown("/var/run/datadog", ddAgentUID, ddAgentGID)
+	err = os.Chown("/var/run/datadog-installer", ddAgentUID, ddAgentGID)
 	if err != nil {
-		return fmt.Errorf("error changing owner of /var/run/datadog: %w", err)
-	}
-	err = os.Chown("/var/run/datadog/installer", ddAgentUID, ddAgentGID)
-	if err != nil {
-		return fmt.Errorf("error changing owner of /var/run/datadog/installer: %w", err)
+		return fmt.Errorf("error changing owner of /var/run/datadog-installer: %w", err)
 	}
 
 	// Create installer path symlink

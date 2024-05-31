@@ -19,6 +19,7 @@ from types import SimpleNamespace
 from invoke.exceptions import Exit
 
 from tasks.libs.common.color import color_message
+from tasks.libs.common.git import check_local_branch, check_uncommitted_changes
 from tasks.libs.owners.parsing import search_owners
 
 # constants
@@ -261,7 +262,6 @@ def get_build_flags(
         env['CGO_LDFLAGS'] = os.environ.get('CGO_LDFLAGS', '') + ' -Wl,--allow-multiple-definition'
 
     extra_cgo_flags = " -Werror -Wno-deprecated-declarations"
-    extra_cgo_flags += " -D__CGO__"  # Some C files include definitions that can cause duplicate symbols if included in CGo code (bpf_metadata.h) mainly
     if rtloader_headers:
         extra_cgo_flags += f" -I{rtloader_headers}"
     if rtloader_common_headers:
@@ -657,26 +657,6 @@ def check_clean_branch_state(ctx, github, branch):
             ),
             code=1,
         )
-
-
-def check_uncommitted_changes(ctx):
-    """
-    Checks if there are uncommitted changes in the local git repository.
-    """
-    modified_files = ctx.run("git --no-pager diff --name-only HEAD | wc -l", hide=True).stdout.strip()
-
-    # Return True if at least one file has uncommitted changes.
-    return modified_files != "0"
-
-
-def check_local_branch(ctx, branch):
-    """
-    Checks if the given branch exists locally
-    """
-    matching_branch = ctx.run(f"git --no-pager branch --list {branch} | wc -l", hide=True).stdout.strip()
-
-    # Return True if a branch is returned by git branch --list
-    return matching_branch != "0"
 
 
 @contextmanager

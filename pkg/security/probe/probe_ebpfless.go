@@ -45,7 +45,6 @@ const (
 type client struct {
 	conn          net.Conn
 	probe         *EBPFLessProbe
-	seqNum        uint64
 	nsID          uint64
 	containerID   string
 	containerName string
@@ -81,11 +80,6 @@ type EBPFLessProbe struct {
 }
 
 func (p *EBPFLessProbe) handleClientMsg(cl *client, msg *ebpfless.Message) {
-	if cl.seqNum != msg.SeqNum {
-		seclog.Errorf("communication out of sync %d vs %d", cl.seqNum, msg.SeqNum)
-	}
-	cl.seqNum++
-
 	switch msg.Type {
 	case ebpfless.MessageTypeHello:
 		if cl.nsID == 0 {
@@ -443,6 +437,7 @@ func (p *EBPFLessProbe) handleNewClient(conn net.Conn, ch chan clientMsg) {
 				p.Lock()
 				delete(p.clients, conn)
 				p.Unlock()
+				conn.Close()
 
 				msg.Type = ebpfless.MessageTypeGoodbye
 				ch <- msg

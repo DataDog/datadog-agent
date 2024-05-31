@@ -309,6 +309,10 @@ Package resources implements a component to generate the 'resources' metadata pa
 
 Package runner implements a component to generate metadata payload at the right interval.
 
+### [comp/metadata/systemprobe](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/metadata/systemprobe)
+
+Package def is the metadata provider for system-probe process
+
 ## [comp/ndmtmp](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/ndmtmp) (Component Bundle)
 
 *Datadog Team*: network-device-monitoring

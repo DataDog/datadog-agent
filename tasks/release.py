@@ -18,6 +18,7 @@ from invoke.exceptions import Exit
 from tasks.libs.ciproviders.github_api import GithubAPI
 from tasks.libs.ciproviders.gitlab_api import get_gitlab_repo
 from tasks.libs.common.color import color_message
+from tasks.libs.common.git import get_current_branch
 from tasks.libs.common.user_interactions import yes_no_question
 from tasks.libs.common.utils import (
     DEFAULT_BRANCH,
@@ -170,7 +171,7 @@ def update_changelog(ctx, new_version=None, target="all", upstream="origin"):
     # Step 2 - commit changes
 
     update_branch = f"changelog-update-{new_version}"
-    base_branch = ctx.run("git rev-parse --abbrev-ref HEAD", hide=True).stdout.strip()
+    base_branch = get_current_branch(ctx)
 
     print(color_message(f"Branching out to {update_branch}", "bold"))
     ctx.run(f"git checkout -b {update_branch}")
@@ -1065,7 +1066,7 @@ def finish(ctx, major_versions="6,7", upstream="origin"):
         new_version = next_final_version(ctx, major_version, False)
         update_release_json(new_version, new_version)
 
-    current_branch = ctx.run("git rev-parse --abbrev-ref HEAD", hide=True).stdout.strip()
+    current_branch = get_current_branch(ctx)
 
     # Step 2: Update internal module dependencies
 
@@ -1200,7 +1201,7 @@ def create_rc(ctx, major_versions="6,7", patch_version=False, upstream="origin",
     ctx.run("git fetch")
 
     # Check that the current and update branches are valid
-    current_branch = ctx.run("git rev-parse --abbrev-ref HEAD", hide=True).stdout.strip()
+    current_branch = get_current_branch(ctx)
     update_branch = f"release/{new_highest_version}"
 
     check_clean_branch_state(ctx, github, update_branch)
@@ -1367,7 +1368,7 @@ def build_rc(ctx, major_versions="6,7", patch_version=False, k8s_deployments=Fal
 
     print(color_message("Checking repository state", "bold"))
     # Check that the base branch is valid
-    current_branch = ctx.run("git rev-parse --abbrev-ref HEAD", hide=True).stdout.strip()
+    current_branch = get_current_branch(ctx)
 
     if not check_base_branch(current_branch, new_version):
         raise Exit(
