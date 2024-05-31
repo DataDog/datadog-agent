@@ -1132,7 +1132,7 @@ func TestSendHardwareMetrics(t *testing.T) {
 				{
 					method: "Gauge",
 					value:  1,
-					name:   ciscoSDWANMetricPrefix + "hardware.status",
+					name:   ciscoSDWANMetricPrefix + "hardware.status_ok",
 					tags: []string{
 						"device_name:10.0.0.1",
 						"device_namespace:cisco-sdwan",
@@ -1149,7 +1149,7 @@ func TestSendHardwareMetrics(t *testing.T) {
 				{
 					method: "Gauge",
 					value:  0,
-					name:   ciscoSDWANMetricPrefix + "hardware.status",
+					name:   ciscoSDWANMetricPrefix + "hardware.status_ok",
 					tags: []string{
 						"device_name:10.0.0.2",
 						"device_namespace:cisco-sdwan",

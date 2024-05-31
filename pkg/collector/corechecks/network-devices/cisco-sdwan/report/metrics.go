@@ -246,7 +246,7 @@ func (ms *SDWanSender) SendHardwareMetrics(hardwareEnvironments []client.Hardwar
 		if entry.Status == "OK" {
 			status = 1
 		}
-		ms.sender.Gauge(ciscoSDWANMetricPrefix+"hardware.status", float64(status), "", tags)
+		ms.sender.Gauge(ciscoSDWANMetricPrefix+"hardware.status_ok", float64(status), "", tags)
 	}
 }
 

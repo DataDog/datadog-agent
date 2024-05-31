@@ -169,7 +169,7 @@ collect_hardware_status: true
 	sender.AssertMetric(t, "Gauge", "cisco_sdwan.device.reachable", 1, "", []string{"device_vendor:cisco", "device_namespace:test", "hostname:Manager", "system_ip:10.10.1.1", "site_id:101", "type:vmanage"})
 
 	// Assert hardware status metrics
-	sender.AssertMetric(t, "Gauge", "cisco_sdwan.hardware.status", 1, "", []string{"system_ip:10.10.1.11", "status:OK", "class:Fans", "item:Tray 0 fan", "dev_index:1"})
+	sender.AssertMetric(t, "Gauge", "cisco_sdwan.hardware.status_ok", 1, "", []string{"system_ip:10.10.1.11", "status:OK", "class:Fans", "item:Tray 0 fan", "dev_index:1"})
 
 	// Assert metadata
 	// language=json
