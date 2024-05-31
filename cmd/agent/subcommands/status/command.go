@@ -50,11 +50,11 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		GlobalParams: globalParams,
 	}
 	cmd := &cobra.Command{
-		Use: "status [name]",
+		Use: "status [section]",
 		Short: `Display the current status
 		
-If no name is specified, this command will display all status sections. 
-If a specific name is provided, such as 'collector', it will only display the status of that section.
+If no section is specified, this command will display all status sections. 
+If a specific section is provided, such as 'collector', it will only display the status of that section.
 The --list flag can be used to list all available status sections.`,
 		Long: ``,
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -122,7 +122,7 @@ func statusCmd(logger log.Component, config config.Component, _ sysprobeconfig.C
 
 	// TODO: remove in 7.54 release
 	if cliParams.args[0] == "component" {
-		fmt.Fprintf(os.Stderr, "[DEPRECATION WARNING] 'datadog-agent status component [name]' syntax will be replaced by 'datadog-agent status [name]' in a future Agent version\n")
+		fmt.Fprintf(os.Stderr, "[DEPRECATION WARNING] 'datadog-agent status component [section]' syntax will be replaced by 'datadog-agent status [section]' in a future Agent version\n")
 		cliParams.args = cliParams.args[1:]
 	}
 	return componentStatusCmd(logger, config, cliParams)
@@ -193,7 +193,7 @@ func requestStatus(config config.Component, cliParams *cliParams) error {
 
 func componentStatusCmd(_ log.Component, config config.Component, cliParams *cliParams) error {
 	if len(cliParams.args) != 1 {
-		return fmt.Errorf("a component name must be specified")
+		return fmt.Errorf("a component section must be specified")
 	}
 
 	return redactError(componentStatus(config, cliParams, cliParams.args[0]))
