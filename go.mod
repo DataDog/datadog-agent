@@ -229,7 +229,7 @@ require (
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/resourcetotelemetry v0.100.0 // indirect
 	github.com/opencontainers/go-digest v1.0.0
 	github.com/opencontainers/image-spec v1.1.0
-	github.com/opencontainers/runtime-spec v1.1.0
+	github.com/opencontainers/runtime-spec v1.2.0
 	github.com/openshift/api v3.9.0+incompatible
 	github.com/pahanini/go-grpc-bidirectional-streaming-example v0.0.0-20211027164128-cc6111af44be
 	github.com/patrickmn/go-cache v2.1.0+incompatible
