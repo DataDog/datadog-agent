@@ -24,6 +24,7 @@
     KUBERNETES_MEMORY_REQUEST: 16Gi
     KUBERNETES_MEMORY_LIMIT: 16Gi
     TEST_OUTPUT_FILE: test_output.json
+    EXTERNAL_LINKS_PATH: external_links_$CI_JOB_ID.json
   script:
     - !reference [.retrieve_linux_go_tools_deps]
     - inv -e install-tools
@@ -42,6 +43,8 @@
       - junit-*.tgz
     reports:
       junit: "**/junit-out-*.xml"
+      annotations:
+        - $EXTERNAL_LINKS_PATH
 
 .upload_junit_source:
   - $CI_PROJECT_DIR/tools/ci/junit_upload.sh
@@ -50,6 +53,13 @@
   extends: .linux_tests
   after_script:
     - !reference [.upload_junit_source]
+    - inv -e gitlab.generate-ci-visibility-links --output=$EXTERNAL_LINKS_PATH
+  artifacts:
+    reports:
+      annotations:
+        - $EXTERNAL_LINKS_PATH
+  variables:
+    EXTERNAL_LINKS_PATH: external_links_$CI_JOB_ID.json
 
 .linux_lint:
   stage: source_test
@@ -67,6 +77,7 @@
     - inv -e rtloader.install
     - inv -e install-tools
     - inv -e linter.go --cpus $KUBERNETES_CPU_REQUEST $FLAVORS $EXTRA_OPTS
+
 
 .linux_x64:
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
