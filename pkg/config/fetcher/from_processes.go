@@ -37,6 +37,26 @@ func SecurityAgentConfig(config config.Reader) (string, error) {
 	return client.FullConfig()
 }
 
+// SecurityAgentConfigBySource fetch all configuration layers from the security-agent process by querying its HTTPS API
+func SecurityAgentConfigBySource(config config.Reader) (string, error) {
+	err := util.SetAuthToken(config)
+	if err != nil {
+		return "", err
+	}
+
+	port := config.GetInt("security_agent.cmd_port")
+	if port <= 0 {
+		return "", fmt.Errorf("invalid security_agent.cmd_port -- %d", port)
+	}
+
+	c := util.GetClient(false)
+	c.Timeout = config.GetDuration("server_timeout") * time.Second
+
+	apiConfigURL := fmt.Sprintf("https://localhost:%v/agent/config", port)
+	client := settingshttp.NewClient(c, apiConfigURL, "security-agent", settingshttp.NewHTTPClientOptions(util.CloseConnection))
+	return client.FullConfigBySource()
+}
+
 // TraceAgentConfig fetch the configuration from the trace-agent process by querying its HTTPS API
 func TraceAgentConfig(config config.Reader) (string, error) {
 	err := util.SetAuthToken(config)

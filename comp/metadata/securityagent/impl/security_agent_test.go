@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package impl implements the systemprobe metadata providers interface
+// Package impl implements the securityagent metadata providers interface
 package impl
 
 import (
@@ -22,24 +22,21 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
-	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
-	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	configFetcher "github.com/DataDog/datadog-agent/pkg/config/fetcher"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 func setupFetcher(t *testing.T) {
 	t.Cleanup(func() {
-		fetchSystemProbeConfig = configFetcher.SystemProbeConfig
-		fetchSystemProbeConfigBySource = configFetcher.SystemProbeConfigBySource
+		fetchSecurityAgentConfig = configFetcher.SecurityAgentConfig
+		fetchSecurityAgentConfigBySource = configFetcher.SecurityAgentConfigBySource
 	})
 
-	fetchSystemProbeConfig = func(_ model.Reader) (string, error) { return "full config", nil }
-	fetchSystemProbeConfigBySource = func(_ model.Reader) (string, error) {
+	fetchSecurityAgentConfig = func(_ model.Reader) (string, error) { return "full config", nil }
+	fetchSecurityAgentConfigBySource = func(_ model.Reader) (string, error) {
 		data, err := json.Marshal(map[string]interface{}{
 			string(model.SourceFile):               map[string]bool{"file": true},
 			string(model.SourceEnvVar):             map[string]bool{"env": true},
@@ -53,7 +50,7 @@ func setupFetcher(t *testing.T) {
 	}
 }
 
-func getSystemProbeComp(t *testing.T, enableConfig bool) *systemprobe {
+func getSecurityAgentComp(t *testing.T, enableConfig bool) *securityagent {
 	l := fxutil.Test[log.Component](t, logimpl.MockModule())
 
 	cfg := fxutil.Test[config.Component](t, config.MockModule())
@@ -68,11 +65,10 @@ func getSystemProbeComp(t *testing.T, enableConfig bool) *systemprobe {
 			fx.Provide(func() log.Component { return l }),
 			fx.Provide(func() config.Component { return cfg }),
 		),
-		SysProbeConfig: fxutil.Test[optional.Option[sysprobeconfig.Component]](t, sysprobeconfigimpl.MockModule()),
 	}
 
 	comp := NewComponent(r).Comp
-	return comp.(*systemprobe)
+	return comp.(*securityagent)
 }
 
 func assertPayload(t *testing.T, p *Payload) {
@@ -95,21 +91,21 @@ func assertPayload(t *testing.T, p *Payload) {
 
 func TestGetPayload(t *testing.T) {
 	setupFetcher(t)
-	sb := getSystemProbeComp(t, true)
+	sa := getSecurityAgentComp(t, true)
 
-	sb.hostname = "test hostname"
+	sa.hostname = "test hostname"
 
-	p := sb.getPayload().(*Payload)
+	p := sa.getPayload().(*Payload)
 	assertPayload(t, p)
 }
 
 func TestGetPayloadNoConfig(t *testing.T) {
 	setupFetcher(t)
-	sb := getSystemProbeComp(t, false)
+	sa := getSecurityAgentComp(t, false)
 
-	sb.hostname = "test hostname"
+	sa.hostname = "test hostname"
 
-	p := sb.getPayload().(*Payload)
+	p := sa.getPayload().(*Payload)
 	assert.Equal(t, "test hostname", p.Hostname)
 	assert.True(t, p.Timestamp <= time.Now().UnixNano())
 	assert.Equal(t,
@@ -121,14 +117,14 @@ func TestGetPayloadNoConfig(t *testing.T) {
 
 func TestWritePayload(t *testing.T) {
 	setupFetcher(t)
-	sb := getSystemProbeComp(t, true)
+	sa := getSecurityAgentComp(t, true)
 
-	sb.hostname = "test hostname"
+	sa.hostname = "test hostname"
 
 	req := httptest.NewRequest("GET", "http://fake_url.com", nil)
 	w := httptest.NewRecorder()
 
-	sb.writePayloadAsJSON(w, req)
+	sa.writePayloadAsJSON(w, req)
 
 	resp := w.Result()
 	body, err := io.ReadAll(resp.Body)
