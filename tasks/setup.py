@@ -136,7 +136,7 @@ def check_python_version(_ctx) -> SetupResult:
         status = Status.FAIL
         message = (
             f"Python version is {sys.version_info[0]}.{sys.version_info[1]}.{sys.version_info[2]}. "
-            "Please use update your environment: https://datadoghq.dev/datadog-agent/setup/#python-dependencies",
+            "Please update your environment: https://datadoghq.dev/datadog-agent/setup/#python-dependencies",
         )
 
     return SetupResult("Check Python version", status, message)
