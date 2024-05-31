@@ -28,6 +28,7 @@ from tasks.libs.common.utils import (
     nightly_entry_for,
     release_entry_for,
 )
+from tasks.libs.releasing.documentation import create_release_page
 from tasks.libs.types.version import Version
 from tasks.modules import DEFAULT_MODULES
 from tasks.pipeline import edit_schedule, run
@@ -1801,3 +1802,16 @@ def generate_release_metrics(ctx, milestone, freeze_date, release_date):
     print("Code changes")
     print("------------")
     print(code_stats)
+
+
+@task
+def create_schedule(_, version, freeze_date):
+    """
+    Create confluence pages for the release schedule.
+    freeze_date - date when the code freeze was started. Expected format YYYY-MM-DD, like '2022-02-01'
+    """
+    required_environment_variables = ["ATLASSIAN_USERNAME", "ATLASSIAN_PASSWORD"]
+    if not all(key in os.environ for key in required_environment_variables):
+        raise Exit(f"You must set {required_environment_variables} environment variables to use this task.", code=1)
+    release_page = create_release_page(version, date.fromisoformat(freeze_date))
+    print(f"Release schedule pages {release_page['url']} {color_message('successfully created', 'green')}")
