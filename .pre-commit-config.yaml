@@ -39,10 +39,11 @@ repos:
     - id: govet
       name: govet
       description: go vet
-      entry: 'python3 -m tasks.git-hooks.govet'
+      entry: 'inv linter.go-vet'
       language: system
       require_serial: true
       files: \.go$
+      pass_filenames: false
     - id: copyright
       name: copyright
       description: copyright headers
