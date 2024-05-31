@@ -24,6 +24,8 @@ BPF_ARRAY_MAP(splice_entry_flags_approvers, u32, 1)
 BPF_ARRAY_MAP(splice_exit_flags_approvers, u32, 1)
 BPF_ARRAY_MAP(bpf_cmd_approvers, u64, 1)
 BPF_ARRAY_MAP(syscalls_stats_enabled, u32, 1)
+BPF_ARRAY_MAP(syscall_ctx_gen_id, u32, 1)
+BPF_ARRAY_MAP(syscall_ctx, char[MAX_SYSCALL_CTX_SIZE], MAX_SYSCALL_CTX_ENTRIES)
 
 BPF_HASH_MAP(activity_dumps_config, u64, struct activity_dump_config, 1) // max entries will be overridden at runtime
 BPF_HASH_MAP(activity_dump_config_defaults, u32, struct activity_dump_config, 1)

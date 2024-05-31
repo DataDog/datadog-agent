@@ -1368,6 +1368,10 @@
         "event_in_profile": {
           "type": "boolean",
           "description": "True if the corresponding event is part of this profile"
+        },
+        "event_type_state": {
+          "type": "string",
+          "description": "State of the event type in this profile"
         }
       },
       "additionalProperties": false,
@@ -1376,7 +1380,8 @@
         "name",
         "version",
         "tags",
-        "event_in_profile"
+        "event_in_profile",
+        "event_type_state"
       ],
       "description": "SecurityProfileContextSerializer serializes the security profile context in an event"
     },
@@ -1440,6 +1445,37 @@
         "id"
       ],
       "description": "SyscallSerializer serializes a syscall"
+    },
+    "SyscallArgs": {
+      "properties": {
+        "path": {
+          "type": "string",
+          "description": "Path argument"
+        },
+        "mode": {
+          "type": "integer",
+          "description": "Mode argument"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "description": "SyscallArgsSerializer args serializer"
+    },
+    "SyscallContext": {
+      "properties": {
+        "chmod": {
+          "$ref": "#/$defs/SyscallArgs"
+        },
+        "chdir": {
+          "$ref": "#/$defs/SyscallArgs"
+        },
+        "exec": {
+          "$ref": "#/$defs/SyscallArgs"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "description": "SyscallContextSerializer serializes syscall context"
     },
     "SyscallsEvent": {
       "items": {
@@ -1584,6 +1620,9 @@
     },
     "usr": {
       "$ref": "#/$defs/UserContext"
+    },
+    "syscall": {
+      "$ref": "#/$defs/SyscallContext"
     }
   },
   "additionalProperties": false,

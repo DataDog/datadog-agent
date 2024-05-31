@@ -13,16 +13,7 @@ int sys_enter(struct _tracepoint_raw_syscalls_sys_enter *args) {
     u32 pid = pid_tgid >> 32;
     u64 now = bpf_ktime_get_ns();
 
-    if (is_send_signal_available()) {
-        u32 *sig = bpf_map_lookup_elem(&kill_list, &pid);
-        if ((sig != NULL && *sig != 0)) {
-#ifdef DEBUG
-            bpf_printk("Sending signal %d to pid %d\n", *sig, pid);
-#endif
-            bpf_send_signal(*sig);
-            bpf_map_delete_elem(&kill_list, &pid);
-        }
-    }
+    send_signal(pid);
 
     struct syscall_monitor_event_t event = {};
     struct proc_cache_t *proc_cache_entry = fill_process_context(&event.process);
@@ -88,11 +79,7 @@ int __attribute__((always_inline)) handle_sys_exit(struct tracepoint_raw_syscall
 
 SEC("tracepoint/raw_syscalls/sys_exit")
 int sys_exit(struct tracepoint_raw_syscalls_sys_exit_t *args) {
-    u64 fallback;
-    LOAD_CONSTANT("tracepoint_raw_syscall_fallback", fallback);
-    if (fallback) {
-        handle_sys_exit(args);
-    }
+    handle_sys_exit(args);
     return 0;
 }
 

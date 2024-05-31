@@ -106,7 +106,7 @@ func (suite *ProviderTestSuite) SetupTest() {
 
 	jsoniter.RegisterTypeDecoder("kubelet.PodList", nil)
 
-	mockConfig := config.Mock(nil)
+	mockConfig := config.Mock(suite.T())
 
 	mockSender := mocksender.NewMockSender(checkid.ID(suite.T().Name()))
 	mockSender.SetupAcceptAll()

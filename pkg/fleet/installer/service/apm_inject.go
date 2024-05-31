@@ -37,11 +37,11 @@ func SetupAPMInjector(ctx context.Context) error {
 }
 
 // RemoveAPMInjector removes the APM injector
-func RemoveAPMInjector(ctx context.Context) {
+func RemoveAPMInjector(ctx context.Context) error {
 	span, ctx := tracer.StartSpanFromContext(ctx, "remove_injector")
 	defer span.Finish()
 	installer := newAPMInjectorInstaller(injectorPath)
-	installer.Remove(ctx)
+	return installer.Remove(ctx)
 }
 
 func newAPMInjectorInstaller(path string) *apmInjectorInstaller {
@@ -65,6 +65,16 @@ type apmInjectorInstaller struct {
 
 // Setup sets up the APM injector
 func (a *apmInjectorInstaller) Setup(ctx context.Context) (err error) {
+	// /var/log/datadog is created by default with datadog-installer install
+	err = os.Mkdir("/var/log/datadog/dotnet", 0777)
+	if err != nil && !os.IsExist(err) {
+		return fmt.Errorf("error creating /var/log/datadog/dotnet: %w", err)
+	}
+	// a umask 0022 is frequently set by default, so we need to change the permissions by hand
+	err = os.Chmod("/var/log/datadog/dotnet", 0777)
+	if err != nil {
+		return fmt.Errorf("error changing permissions on /var/log/datadog/dotnet: %w", err)
+	}
 	// Check if the shared library is working before adding it to the preload
 	if err := a.verifySharedLib(path.Join(a.installPath, "inject", "launcher.preload.so")); err != nil {
 		return err
@@ -99,10 +109,28 @@ func (a *apmInjectorInstaller) Setup(ctx context.Context) (err error) {
 	if err := a.verifyDockerRuntime(); err != nil {
 		return err
 	}
+
+	// Set up defaults for agent sockets
+	if err = configureSocketsEnv(); err != nil {
+		return
+	}
+	if err = addSystemDEnvOverrides(agentUnit); err != nil {
+		return
+	}
+	if err = addSystemDEnvOverrides(agentExp); err != nil {
+		return
+	}
+	if err = addSystemDEnvOverrides(traceAgentUnit); err != nil {
+		return
+	}
+	if err = addSystemDEnvOverrides(traceAgentExp); err != nil {
+		return
+	}
+
 	return nil
 }
 
-func (a *apmInjectorInstaller) Remove(ctx context.Context) {
+func (a *apmInjectorInstaller) Remove(ctx context.Context) error {
 	if _, err := a.ldPreloadFileUninstrument.mutate(); err != nil {
 		log.Warnf("Failed to remove ld preload config: %v", err)
 	}
@@ -110,6 +138,8 @@ func (a *apmInjectorInstaller) Remove(ctx context.Context) {
 	if err := a.uninstallDocker(ctx); err != nil {
 		log.Warnf("Failed to remove docker config: %v", err)
 	}
+	// TODO: return error to caller?
+	return nil
 }
 
 // setLDPreloadConfigContent sets the content of the LD preload configuration

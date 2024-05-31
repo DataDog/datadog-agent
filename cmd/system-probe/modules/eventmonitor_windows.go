@@ -10,6 +10,7 @@ package modules
 import (
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/config"
+	"github.com/DataDog/datadog-agent/pkg/eventmonitor"
 )
 
 // EventMonitor - Event monitor Factory
@@ -17,4 +18,8 @@ var EventMonitor = module.Factory{
 	Name:             config.EventMonitorModule,
 	ConfigNamespaces: eventMonitorModuleConfigNamespaces,
 	Fn:               createEventMonitorModule,
+}
+
+func createProcessMonitorConsumer(_ *eventmonitor.EventMonitor) (eventmonitor.EventConsumerInterface, error) {
+	return nil, nil
 }
