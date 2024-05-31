@@ -1,15 +1,15 @@
 [Unit]
-Description=Datadog Process Agent
-After=network.target datadog-agent.service
+Description=Datadog Trace Agent (APM)
+After=datadog-agent.service
 BindsTo=datadog-agent.service
 
 [Service]
 Type=simple
-PIDFile=<%= agent_dir %>/run/process-agent.pid
+PIDFile=/opt/datadog-packages/datadog-agent/stable/run/trace-agent.pid
 User=dd-agent
 Restart=on-failure
 EnvironmentFile=-<%= etc_dir %>/environment
-ExecStart=<%= agent_dir %>/embedded/bin/process-agent --cfgpath=<%= etc_dir %>/datadog.yaml --sysprobe-config=<%= etc_dir %>/system-probe.yaml --pid=<%= agent_dir %>/run/process-agent.pid
+ExecStart=/opt/datadog-packages/datadog-agent/stable/embedded/bin/trace-agent --config <%= etc_dir %>/datadog.yaml --pidfile /opt/datadog-packages/datadog-agent/stable/run/trace-agent.pid
 # Since systemd 229, should be in [Unit] but in order to support systemd <229,
 # it is also supported to have it here.
 StartLimitInterval=10
