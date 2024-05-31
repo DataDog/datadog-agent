@@ -9,6 +9,7 @@ package health
 import (
 	"errors"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -35,15 +36,16 @@ type catalog struct {
 	sync.RWMutex
 	components map[*Handle]*component
 	latestRun  time.Time
-	startup    bool
+	startup    atomic.Bool
 }
 
 func newCatalog() *catalog {
-	return &catalog{
+	c := &catalog{
 		components: make(map[*Handle]*component),
 		latestRun:  time.Now(), // Start healthy
-		startup:    false,
 	}
+	c.startup.Store(false)
+	return c
 }
 
 // register a component with the default 30 seconds timeout, returns a token
@@ -100,7 +102,7 @@ func (c *catalog) pingComponents(healthDeadline time.Time) bool {
 	defer c.Unlock()
 	for _, component := range c.components {
 		// In startup mode, we skip already healthy components.
-		if c.startup && component.healthy {
+		if c.startup.Load() && component.healthy {
 			continue
 		}
 		select {
