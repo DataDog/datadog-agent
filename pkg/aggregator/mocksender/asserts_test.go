@@ -128,7 +128,7 @@ func TestMockedEvent(t *testing.T) {
 		Tags:           tags,
 		AggregationKey: "docker:busybox",
 		SourceTypeName: "docker",
-		Priority:       event.EventPriorityNormal,
+		Priority:       event.PriorityNormal,
 	}
 	sender.Event(eventOne)
 	sender.AssertEvent(t, eventOne, time.Second)
@@ -139,7 +139,7 @@ func TestMockedEvent(t *testing.T) {
 		Tags:           tags,
 		AggregationKey: "docker:redis",
 		SourceTypeName: "docker",
-		Priority:       event.EventPriorityNormal,
+		Priority:       event.PriorityNormal,
 	}
 	sender.AssertEventMissing(t, eventTwo, 0)
 

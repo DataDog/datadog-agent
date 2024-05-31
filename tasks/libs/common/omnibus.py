@@ -5,6 +5,7 @@ import sys
 from datetime import datetime
 
 import requests
+
 from tasks.release import _get_release_json_value
 
 
@@ -357,8 +358,6 @@ def install_dir_for_project(project):
         folder = 'datadog-agent'
     elif project == 'dogstatsd':
         folder = 'datadog-dogstatsd'
-    elif project == 'agentless-scanner':
-        folder = os.path.join('datadog', 'agentless-scanner')
     elif project == 'installer':
         folder = 'datadog-installer'
     else:

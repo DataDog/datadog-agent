@@ -8,6 +8,7 @@
 package modules
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -25,7 +26,9 @@ import (
 	"google.golang.org/grpc"
 )
 
-type traceroute struct{}
+type traceroute struct {
+	runner *tracerouteutil.Runner
+}
 
 var (
 	_ module.Module = &traceroute{}
@@ -34,7 +37,14 @@ var (
 )
 
 func createTracerouteModule(_ *sysconfigtypes.Config, _ optional.Option[workloadmeta.Component]) (module.Module, error) {
-	return &traceroute{}, nil
+	runner, err := tracerouteutil.NewRunner()
+	if err != nil {
+		return &traceroute{}, err
+	}
+
+	return &traceroute{
+		runner: runner,
+	}, nil
 }
 
 func (t *traceroute) GetStats() map[string]interface{} {
@@ -56,7 +66,7 @@ func (t *traceroute) Register(httpMux *module.Router) error {
 		}
 
 		// Run traceroute
-		path, err := tracerouteutil.RunTraceroute(cfg)
+		path, err := t.runner.RunTraceroute(context.Background(), cfg)
 		if err != nil {
 			log.Errorf("unable to run traceroute for host: %s: %s", cfg.DestHostname, err.Error())
 			w.WriteHeader(http.StatusInternalServerError)

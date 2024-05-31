@@ -10,6 +10,9 @@ package types
 type ProductOrigin int
 
 const (
+	// ProductOriginDogStatsDLegacy is the ProductOrigin for DogStatsD in Legacy mode.
+	// TODO: remove this when dogstatsd_origin_detection_unified is enabled by default
+	ProductOriginDogStatsDLegacy ProductOrigin = iota
 	// ProductOriginDogStatsD is the ProductOrigin for DogStatsD.
 	ProductOriginDogStatsD ProductOrigin = iota
 	// ProductOriginAPM is the ProductOrigin for APM.

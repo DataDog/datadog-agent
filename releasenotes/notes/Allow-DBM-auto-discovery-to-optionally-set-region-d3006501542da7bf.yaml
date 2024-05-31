@@ -1,0 +1,7 @@
+---
+enhancements:
+  - |
+    This change allows DBM Autodiscovery users to optionally set the region for where their aurora clusters are running.
+    This can be used in lieu of relying on IMDS to discover the region through instance metadata. This is a nicer experience for users
+    running in Docker, who would be required to complete extra steps in their instance metadata configuration to allow the Docker container
+    access to the instance metadata.

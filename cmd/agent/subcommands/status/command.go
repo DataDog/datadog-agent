@@ -49,7 +49,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		GlobalParams: globalParams,
 	}
 	cmd := &cobra.Command{
-		Use:   "status [component [name]]",
+		Use:   "status [name]",
 		Short: "Print the current status",
 		Long:  ``,
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -75,28 +75,6 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	cmd.PersistentFlags().BoolVarP(&cliParams.prettyPrintJSON, "pretty-json", "p", false, "pretty print JSON")
 	cmd.PersistentFlags().StringVarP(&cliParams.statusFilePath, "file", "o", "", "Output the status command to a file")
 	cmd.PersistentFlags().BoolVarP(&cliParams.verbose, "verbose", "v", false, "print out verbose status")
-
-	componentCmd := &cobra.Command{
-		Use:   "component",
-		Short: "Print the component status",
-		Long:  ``,
-		RunE: func(cmd *cobra.Command, args []string) error {
-			cliParams.args = args
-
-			// Prevent autoconfig to run when running status as it logs before logger
-			// is setup.  Cannot rely on config.Override as env detection is run before
-			// overrides are set.  TODO: This should eventually be handled with a
-			// BundleParams field for AD.
-			os.Setenv("DD_AUTOCONFIG_FROM_ENVIRONMENT", "false")
-
-			return fxutil.OneShot(componentStatusCmd,
-				fx.Supply(cliParams),
-				fx.Supply(command.GetDefaultCoreBundleParams(cliParams.GlobalParams)),
-				core.Bundle(),
-			)
-		},
-	}
-	cmd.AddCommand(componentCmd)
 
 	return []*cobra.Command{cmd}
 }
@@ -126,8 +104,17 @@ func redactError(unscrubbedError error) error {
 	return scrubbedError
 }
 
-func statusCmd(_ log.Component, config config.Component, _ sysprobeconfig.Component, cliParams *cliParams) error {
-	return redactError(requestStatus(config, cliParams))
+func statusCmd(logger log.Component, config config.Component, _ sysprobeconfig.Component, cliParams *cliParams) error {
+	if len(cliParams.args) < 1 {
+		return redactError(requestStatus(config, cliParams))
+	}
+
+	// TODO: remove in 7.54 release
+	if cliParams.args[0] == "component" {
+		fmt.Fprintf(os.Stderr, "[DEPRECATION WARNING] 'datadog-agent status component [name]' syntax will be replaced by 'datadog-agent status [name]' in a future Agent version\n")
+		cliParams.args = cliParams.args[1:]
+	}
+	return componentStatusCmd(logger, config, cliParams)
 }
 
 func setIpcURL(cliParams *cliParams) url.Values {

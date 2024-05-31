@@ -9,6 +9,7 @@
     - !reference [.setup_ruby_mirror_linux]
     - !reference [.setup_python_mirror_linux]
     - !reference [.retrieve_linux_go_deps]
+    - !reference [.cache_omnibus_ruby_deps, setup]
     # remove artifacts from previous pipelines that may come from the cache
     - rm -rf $OMNIBUS_PACKAGE_DIR/*
     # Artifacts and cache must live within project directory but we run omnibus in a neutral directory.
@@ -32,6 +33,8 @@
     expire_in: 2 weeks
     paths:
       - $OMNIBUS_PACKAGE_DIR
+  cache:
+    - !reference [.cache_omnibus_ruby_deps, cache]
 
 datadog-agent-oci-x64-a7:
   extends: .common_build_oci
@@ -89,6 +92,7 @@ datadog-agent-oci-arm64-a7:
     - source /root/.bashrc
     - !reference [.setup_ruby_mirror_linux]
     - !reference [.retrieve_linux_go_deps]
+    - !reference [.cache_omnibus_ruby_deps, setup]
     - echo "About to build for $RELEASE_VERSION"
     # remove artifacts from previous pipelines that may come from the cache
     - rm -rf $OMNIBUS_PACKAGE_DIR/*
@@ -96,7 +100,6 @@ datadog-agent-oci-arm64-a7:
     # Thus, we move the artifacts at the end in a gitlab-friendly dir.
     - inv -e omnibus.build --release-version "$RELEASE_VERSION" --base-dir $OMNIBUS_BASE_DIR ${USE_S3_CACHING} --skip-deps --go-mod-cache="$GOPATH/pkg/mod" --target-project="installer" ${INSTALL_DIR_PARAM}
     - ls -la $OMNIBUS_PACKAGE_DIR
-    - $S3_CP_CMD $OMNIBUS_PACKAGE_DIR/datadog-installer-*-${PACKAGE_ARCH}.tar.xz $S3_ARTIFACTS_URI/$DESTINATION_FILE
     - !reference [.upload_sbom_artifacts]
   variables:
     AGENT_MAJOR_VERSION: 7
@@ -104,6 +107,8 @@ datadog-agent-oci-arm64-a7:
     expire_in: 2 weeks
     paths:
       - $OMNIBUS_PACKAGE_DIR
+  cache:
+    - !reference [.cache_omnibus_ruby_deps, cache]
 
 # We build a "regular" installer, meant to be packaged as deb/rpm, without a custom install path
 # and an artifact intended for OCI packaging, which has a custom install path

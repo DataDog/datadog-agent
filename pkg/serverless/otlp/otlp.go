@@ -29,7 +29,7 @@ type ServerlessOTLPAgent struct {
 // NewServerlessOTLPAgent creates a new ServerlessOTLPAgent with the correct
 // otel pipeline.
 func NewServerlessOTLPAgent(serializer serializer.MetricSerializer) *ServerlessOTLPAgent {
-	pipeline, err := coreOtlp.NewPipelineFromAgentConfig(config.Datadog, serializer, nil)
+	pipeline, err := coreOtlp.NewPipelineFromAgentConfig(config.Datadog(), serializer, nil, nil)
 	if err != nil {
 		log.Error("Error creating new otlp pipeline:", err)
 		return nil
@@ -61,7 +61,7 @@ func (o *ServerlessOTLPAgent) Stop() {
 
 // IsEnabled returns true if the OTLP endpoint should be enabled.
 func IsEnabled() bool {
-	return coreOtlp.IsEnabled(config.Datadog)
+	return coreOtlp.IsEnabled(config.Datadog())
 }
 
 var (

@@ -31,7 +31,7 @@ from tasks.libs.common.utils import (
     get_gobin,
     get_version_numeric_only,
 )
-from tasks.windows_resources import MESSAGESTRINGS_MC_PATH, arch_to_windres_target
+from tasks.windows_resources import MESSAGESTRINGS_MC_PATH
 
 BIN_DIR = os.path.join(".", "bin", "system-probe")
 BIN_PATH = os.path.join(BIN_DIR, bin_name("system-probe"))
@@ -42,7 +42,12 @@ NPM_TAG = "npm"
 
 KITCHEN_DIR = os.getenv('DD_AGENT_TESTING_DIR') or os.path.normpath(os.path.join(os.getcwd(), "test", "kitchen"))
 KITCHEN_ARTIFACT_DIR = os.path.join(KITCHEN_DIR, "site-cookbooks", "dd-system-probe-check", "files", "default", "tests")
-TEST_PACKAGES_LIST = ["./pkg/ebpf/...", "./pkg/network/...", "./pkg/collector/corechecks/ebpf/..."]
+TEST_PACKAGES_LIST = [
+    "./pkg/ebpf/...",
+    "./pkg/network/...",
+    "./pkg/collector/corechecks/ebpf/...",
+    "./pkg/process/monitor/...",
+]
 TEST_PACKAGES = " ".join(TEST_PACKAGES_LIST)
 TEST_TIMEOUTS = {
     "pkg/network/tracer$": "0",
@@ -72,12 +77,12 @@ CLANG_VERSION_SYSTEM_PREFIX = "12.0"
 extra_cflags = []
 
 
-def ninja_define_windows_resources(ctx, nw, major_version, arch=CURRENT_ARCH):
+def ninja_define_windows_resources(ctx, nw, major_version):
     maj_ver, min_ver, patch_ver = get_version_numeric_only(ctx, major_version=major_version).split(".")
     nw.variable("maj_ver", maj_ver)
     nw.variable("min_ver", min_ver)
     nw.variable("patch_ver", patch_ver)
-    nw.variable("windrestarget", arch_to_windres_target(arch))
+    nw.variable("windrestarget", "pe-x86-64")
     nw.rule(name="windmc", command="windmc --target $windrestarget -r $rcdir -h $rcdir $in")
     nw.rule(
         name="windres",
@@ -414,6 +419,9 @@ def ninja_cgo_type_files(nw):
                 "pkg/network/ebpf/c/tracer/tracer.h",
                 "pkg/network/ebpf/c/protocols/kafka/types.h",
             ],
+            "pkg/network/protocols/postgres/types.go": [
+                "pkg/network/ebpf/c/protocols/postgres/types.h",
+            ],
             "pkg/ebpf/telemetry/types.go": [
                 "pkg/ebpf/c/telemetry_types.h",
             ],
@@ -466,7 +474,6 @@ def ninja_generate(
     ctx,
     ninja_path,
     major_version='7',
-    arch=CURRENT_ARCH,
     debug=False,
     strip_object_files=False,
     kernel_release=None,
@@ -479,10 +486,7 @@ def ninja_generate(
         nw = NinjaWriter(ninja_file, width=120)
 
         if is_windows:
-            if arch == "x86":
-                raise Exit(message="system probe not supported on x86")
-
-            ninja_define_windows_resources(ctx, nw, major_version, arch=arch)
+            ninja_define_windows_resources(ctx, nw, major_version)
             # messagestrings
             in_path = MESSAGESTRINGS_MC_PATH
             in_name = os.path.splitext(os.path.basename(in_path))[0]
@@ -522,7 +526,6 @@ def build(
     major_version='7',
     python_runtimes='3',
     go_mod="mod",
-    arch=CURRENT_ARCH,
     bundle_ebpf=False,
     kernel_release=None,
     debug=False,
@@ -539,7 +542,6 @@ def build(
         build_object_files(
             ctx,
             major_version=major_version,
-            arch=arch,
             kernel_release=kernel_release,
             debug=debug,
             strip_object_files=strip_object_files,
@@ -552,7 +554,6 @@ def build(
         major_version=major_version,
         python_runtimes=python_runtimes,
         bundle_ebpf=bundle_ebpf,
-        arch=arch,
         go_mod=go_mod,
         race=race,
         incremental_build=incremental_build,
@@ -564,11 +565,9 @@ def build(
 @task
 def clean(
     ctx,
-    arch=CURRENT_ARCH,
 ):
     clean_object_files(
         ctx,
-        arch=arch,
     )
     ctx.run("go clean -cache")
 
@@ -581,7 +580,6 @@ def build_sysprobe_binary(
     major_version='7',
     python_runtimes='3',
     go_mod="mod",
-    arch=CURRENT_ARCH,
     binary=BIN_PATH,
     install_path=None,
     bundle_ebpf=False,
@@ -594,7 +592,6 @@ def build_sysprobe_binary(
             race=race,
             major_version=major_version,
             python_runtimes=python_runtimes,
-            arch=arch,
             go_mod=go_mod,
             bundle_ebpf=bundle_ebpf,
             bundle=BUNDLED_AGENTS[AgentFlavor.base] + ["system-probe"],
@@ -607,7 +604,7 @@ def build_sysprobe_binary(
         python_runtimes=python_runtimes,
     )
 
-    build_tags = get_default_build_tags(build="system-probe", arch=arch)
+    build_tags = get_default_build_tags(build="system-probe")
     if bundle_ebpf:
         build_tags.append(BUNDLE_TAG)
     if strip_binary:
@@ -631,6 +628,16 @@ def build_sysprobe_binary(
     }
 
     ctx.run(cmd.format(**args), env=env)
+
+
+def get_sysprobe_buildtags(is_windows, bundle_ebpf):
+    build_tags = [NPM_TAG]
+    build_tags.extend(UNIT_TEST_TAGS)
+    if not is_windows:
+        build_tags.append(BPF_TAG)
+        if bundle_ebpf:
+            build_tags.append(BUNDLE_TAG)
+    return build_tags
 
 
 @task
@@ -666,12 +673,7 @@ def test(
             instrument_trampoline=False,
         )
 
-    build_tags = [NPM_TAG]
-    build_tags.extend(UNIT_TEST_TAGS)
-    if not is_windows:
-        build_tags.append(BPF_TAG)
-        if bundle_ebpf:
-            build_tags.append(BUNDLE_TAG)
+    build_tags = get_sysprobe_buildtags(is_windows, bundle_ebpf)
 
     args = get_common_test_args(build_tags, failfast)
     args["output_params"] = f"-c -o {output_path}" if output_path else ""
@@ -785,18 +787,13 @@ def go_package_dirs(packages, build_tags):
     """
 
     target_packages = []
-    for pkg in packages:
-        target_packages += (
-            check_output(
-                f"go list -find -f \"{{{{ .Dir }}}}\" -mod=mod -tags \"{','.join(build_tags)}\" {pkg}",
-                shell=True,
-            )
-            .decode('utf-8')
-            .strip()
-            .split("\n")
-        )
+    format_arg = '{{ .Dir }}'
+    buildtags_arg = ",".join(build_tags)
+    packages_arg = " ".join(packages)
+    cmd = f"go list -find -f \"{format_arg}\" -mod=mod -tags \"{buildtags_arg}\" {packages_arg}"
 
-    return target_packages
+    target_packages = [p.strip() for p in check_output(cmd, shell=True, encoding='utf-8').split("\n")]
+    return [p for p in target_packages if len(p) > 0]
 
 
 BUILD_COMMIT = os.path.join(KITCHEN_ARTIFACT_DIR, "build.commit")
@@ -1191,7 +1188,6 @@ def run_ninja(
     target="",
     explain=False,
     major_version='7',
-    arch=CURRENT_ARCH,
     kernel_release=None,
     debug=False,
     strip_object_files=False,
@@ -1199,7 +1195,7 @@ def run_ninja(
 ):
     check_for_ninja(ctx)
     nf_path = os.path.join(ctx.cwd, 'system-probe.ninja')
-    ninja_generate(ctx, nf_path, major_version, arch, debug, strip_object_files, kernel_release, with_unit_test)
+    ninja_generate(ctx, nf_path, major_version, debug, strip_object_files, kernel_release, with_unit_test)
     explain_opt = "-d explain" if explain else ""
     if task:
         ctx.run(f"ninja {explain_opt} -f {nf_path} -t {task}")
@@ -1256,7 +1252,6 @@ def verify_system_clang_version(ctx):
 def build_object_files(
     ctx,
     major_version='7',
-    arch=CURRENT_ARCH,
     kernel_release=None,
     debug=False,
     strip_object_files=False,
@@ -1286,7 +1281,6 @@ def build_object_files(
         ctx,
         explain=True,
         major_version=major_version,
-        arch=arch,
         kernel_release=kernel_release,
         debug=debug,
         strip_object_files=strip_object_files,
@@ -1329,7 +1323,6 @@ def build_object_files(
 def build_cws_object_files(
     ctx,
     major_version='7',
-    arch=CURRENT_ARCH,
     kernel_release=None,
     debug=False,
     strip_object_files=False,
@@ -1339,7 +1332,6 @@ def build_cws_object_files(
         ctx,
         target="cws",
         major_version=major_version,
-        arch=arch,
         debug=debug,
         strip_object_files=strip_object_files,
         kernel_release=kernel_release,
@@ -1352,14 +1344,11 @@ def object_files(ctx, kernel_release=None, with_unit_test=False):
     build_object_files(ctx, kernel_release=kernel_release, with_unit_test=with_unit_test, instrument_trampoline=False)
 
 
-def clean_object_files(
-    ctx, major_version='7', arch=CURRENT_ARCH, kernel_release=None, debug=False, strip_object_files=False
-):
+def clean_object_files(ctx, major_version='7', kernel_release=None, debug=False, strip_object_files=False):
     run_ninja(
         ctx,
         task="clean",
         major_version=major_version,
-        arch=arch,
         debug=debug,
         strip_object_files=strip_object_files,
         kernel_release=kernel_release,
@@ -1517,7 +1506,7 @@ def generate_minimized_btfs(ctx, source_dir, output_dir, bpf_programs):
                     },
                 )
 
-    ctx.run(f"ninja -f {ninja_file_path}")
+    ctx.run(f"ninja -f {ninja_file_path}", env={"NINJA_STATUS": "(%r running) (%c/s) (%es) [%f/%t] "})
 
 
 @task
@@ -1530,9 +1519,23 @@ def process_btfhub_archive(ctx, branch="main"):
     output_dir = os.getcwd()
     with tempfile.TemporaryDirectory() as temp_dir:
         with ctx.cd(temp_dir):
-            ctx.run(
+            clone_cmd = (
                 f"git clone --depth=1 --single-branch --branch={branch} https://github.com/DataDog/btfhub-archive.git"
             )
+            retries = 2
+            downloaded = False
+
+            while not downloaded and retries > 0:
+                res = ctx.run(clone_cmd, warn=True)
+                downloaded = res is not None and res.ok
+
+                if not downloaded:
+                    retries -= 1
+                    print(f"Failed to clone btfhub-archive. Remaining retries: {retries}")
+
+            if not downloaded:
+                raise Exit("Failed to clone btfhub-archive")
+
             with ctx.cd("btfhub-archive"):
                 # iterate over all top-level directories, which are platforms (amzn, ubuntu, etc.)
                 with os.scandir(ctx.cwd) as pit:
@@ -1577,13 +1580,12 @@ def process_btfhub_archive(ctx, branch="main"):
         # generate both tarballs
         for arch in ["x86_64", "arm64"]:
             btfs_dir = os.path.join(temp_dir, f"btfs-{arch}")
-            output_path = os.path.join(output_dir, f"btfs-{arch}.tar.gz")
+            output_path = os.path.join(output_dir, f"btfs-{arch}.tar")
             # at least one file needs to be moved for directory to exist
             if os.path.exists(btfs_dir):
                 with ctx.cd(temp_dir):
-                    # gzip ends up being much faster than xz, for roughly the same output file size
                     # include btfs-$ARCH as prefix for all paths
-                    ctx.run(f"tar -czf {output_path} btfs-{arch}")
+                    ctx.run(f"tar -cf {output_path} btfs-{arch}")
 
 
 @task
@@ -1760,9 +1762,10 @@ def start_microvms(
     ]
 
     go_args = ' '.join(filter(lambda x: x != "", args))
-    ctx.run(
-        f"cd ./test/new-e2e && go run ./scenarios/system-probe/main.go {go_args}",
-    )
+
+    # building the binary improves start up time for local usage where we invoke this multiple times.
+    ctx.run("cd ./test/new-e2e && go build -o start-microvms ./scenarios/system-probe/main.go")
+    ctx.run(f"./test/new-e2e/start-microvms {go_args}")
 
 
 @task
@@ -1775,6 +1778,7 @@ def save_build_outputs(ctx, destfile):
 
     absdest = os.path.abspath(destfile)
     count = 0
+    outfiles = []
     with tempfile.TemporaryDirectory() as stagedir:
         with open("compile_commands.json") as compiledb:
             for outputitem in json.load(compiledb):
@@ -1789,8 +1793,13 @@ def save_build_outputs(ctx, destfile):
                 outdir = os.path.join(stagedir, filedir)
                 ctx.run(f"mkdir -p {outdir}")
                 ctx.run(f"cp {outputitem['output']} {outdir}/")
+                outfiles.append(outputitem['output'])
                 count += 1
 
         if count == 0:
             raise Exit(message="no build outputs captured")
         ctx.run(f"tar -C {stagedir} -cJf {absdest} .")
+
+    outfiles.sort()
+    for outfile in outfiles:
+        ctx.run(f"sha256sum {outfile} >> {absdest}.sum")

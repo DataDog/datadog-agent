@@ -32,13 +32,14 @@ func (suite *kindSuite) SetupSuite() {
 	ctx := context.Background()
 
 	stackConfig := runner.ConfigMap{
-		"ddagent:deploy":        auto.ConfigValue{Value: "true"},
-		"ddagent:fakeintake":    auto.ConfigValue{Value: "true"},
-		"ddtestworkload:deploy": auto.ConfigValue{Value: "true"},
-		"dddogstatsd:deploy":    auto.ConfigValue{Value: "true"},
+		"ddinfra:aws/defaultInstanceType": auto.ConfigValue{Value: "t3.xlarge"},
+		"ddagent:deploy":                  auto.ConfigValue{Value: "true"},
+		"ddagent:fakeintake":              auto.ConfigValue{Value: "true"},
+		"ddtestworkload:deploy":           auto.ConfigValue{Value: "true"},
+		"dddogstatsd:deploy":              auto.ConfigValue{Value: "true"},
 	}
 
-	_, stackOutput, err := infra.GetStackManager().GetStackNoDeleteOnFailure(ctx, "kind-cluster", stackConfig, kindvm.Run, false, nil)
+	_, stackOutput, err := infra.GetStackManager().GetStackNoDeleteOnFailure(ctx, "kind-cluster", stackConfig, kindvm.Run, false, nil, nil)
 	if !suite.Assert().NoError(err) {
 		stackName, err := infra.GetStackManager().GetPulumiStackName("kind-cluster")
 		suite.Require().NoError(err)

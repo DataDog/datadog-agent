@@ -10,10 +10,13 @@ tests_*                              @DataDog/multiple
 tests_ebpf*                          @DataDog/ebpf-platform
 tests_windows_sysprobe*              @DataDog/windows-kernel-integrations
 security_go_generate_check           @DataDog/agent-security
-prepare_ebpf_functional_tests*       @DataDog/ebpf-platform
+prepare_sysprobe_ebpf_functional_tests* @DataDog/ebpf-platform
+prepare_secagent_ebpf_functional_tests* @DataDog/agent-security
 
-# Golang dependency list generation (currently disabled)
-golang_deps_generate                 @DataDog/agent-shared-components
+# Send count metrics about Golang dependencies
+golang_deps_send_count_metrics       @DataDog/agent-shared-components
+# Golang test dependecies diff
+golang_deps_test                     @DataDog/agent-shared-components
 # Golang dependency diff generation
 golang_deps_diff                     @DataDog/ebpf-platform
 golang_deps_commenter                @DataDog/ebpf-platform
@@ -41,12 +44,11 @@ agent_suse*                          @DataDog/agent-build-and-releases
 iot_agent_suse*                      @DataDog/agent-build-and-releases
 dogstatsd_suse*                      @DataDog/agent-build-and-releases
 agent_dmg*                           @DataDog/agent-build-and-releases
-windows_msi*                         @DataDog/windows-agent
+*oci*                                @DataDog/agent-build-and-releases
+windows_*                            @DataDog/windows-agent
 
 # Packaging
-agent_oci                            @DataDog/agent-build-and-releases
-updater_deb-*                        @DataDog/agent-build-and-releases
-updater_rpm-*                        @DataDog/agent-build-and-releases
+installer_*                          @DataDog/agent-build-and-releases
 
 # Testing package deploy
 deploy_deb_testing*                  @DataDog/agent-build-and-releases

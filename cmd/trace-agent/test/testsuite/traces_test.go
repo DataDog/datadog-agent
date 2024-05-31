@@ -183,6 +183,24 @@ func TestTraces(t *testing.T) {
 			}
 		})
 	})
+
+	t.Run("probabilistic", func(t *testing.T) {
+		if err := r.RunAgent([]byte("apm_config:\r\n  probabilistic_sampler:\r\n    enabled: true\r\n    sampling_percentage: 100\r\n")); err != nil {
+			t.Fatal(err)
+		}
+		defer r.KillAgent()
+
+		p := testutil.GeneratePayload(10, &testutil.TraceConfig{
+			MinSpans: 10,
+			Keep:     true,
+		}, nil)
+		if err := r.Post(p); err != nil {
+			t.Fatal(err)
+		}
+		waitForTrace(t, &r, func(v *pb.AgentPayload) {
+			payloadsEqual(t, p, v)
+		})
+	})
 }
 
 // payloadsEqual validates that the traces in from are the same as the ones in to.

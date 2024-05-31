@@ -15,6 +15,7 @@ from invoke import task
 from invoke.exceptions import Exit, ParseError
 
 from tasks.build_tags import filter_incompatible_tags, get_build_tags, get_default_build_tags
+from tasks.devcontainer import run_on_devcontainer
 from tasks.flavor import AgentFlavor
 from tasks.go import deps
 from tasks.libs.common.utils import (
@@ -72,6 +73,8 @@ AGENT_CORECHECKS = [
     "telemetry",
     "orchestrator_pod",
     "orchestrator_ecs",
+    "cisco_sdwan",
+    "service_discovery",
 ]
 
 WINDOWS_CORECHECKS = [
@@ -79,6 +82,7 @@ WINDOWS_CORECHECKS = [
     "windows_registry",
     "winkmem",
     "wincrashdetect",
+    "win32_event_log",
 ]
 
 IOT_AGENT_CORECHECKS = [
@@ -101,6 +105,7 @@ LAST_DIRECTORY_COMMIT_PATTERN = "git -C {integrations_dir} rev-list -1 HEAD {int
 
 
 @task(iterable=['bundle'])
+@run_on_devcontainer
 def build(
     ctx,
     rebuild=False,
@@ -117,7 +122,6 @@ def build(
     python_home_3=None,
     major_version='7',
     python_runtimes='3',
-    arch='x64',
     exclude_rtloader=False,
     include_sds=False,
     go_mod="mod",
@@ -126,6 +130,7 @@ def build(
     bundle=None,
     bundle_ebpf=False,
     agent_bin=None,
+    run_on=None,  # noqa: U100, F841. Used by the run_on_devcontainer decorator
 ):
     """
     Build the agent. If the bits to include in the build are not specified,
@@ -158,15 +163,11 @@ def build(
         # Important for x-compiling
         env["CGO_ENABLED"] = "1"
 
-        if arch == "x86":
-            env["GOARCH"] = "386"
-
-        build_messagetable(ctx, arch=arch)
-        vars = versioninfo_vars(ctx, major_version=major_version, python_runtimes=python_runtimes, arch=arch)
+        build_messagetable(ctx)
+        vars = versioninfo_vars(ctx, major_version=major_version, python_runtimes=python_runtimes)
         build_rc(
             ctx,
             "cmd/agent/windows_resources/agent.rc",
-            arch=arch,
             vars=vars,
             out="cmd/agent/rsrc.syso",
         )
@@ -175,7 +176,7 @@ def build(
 
     if flavor.is_iot():
         # Iot mode overrides whatever passed through `--build-exclude` and `--build-include`
-        build_tags = get_default_build_tags(build="agent", arch=arch, flavor=flavor)
+        build_tags = get_default_build_tags(build="agent", flavor=flavor)
     else:
         all_tags = set()
         if bundle_ebpf and "system-probe" in bundled_agents:
@@ -184,9 +185,9 @@ def build(
         for build in bundled_agents:
             all_tags.add("bundle_" + build.replace("-", "_"))
             include_tags = (
-                get_default_build_tags(build=build, arch=arch, flavor=flavor)
+                get_default_build_tags(build=build, flavor=flavor)
                 if build_include is None
-                else filter_incompatible_tags(build_include.split(","), arch=arch)
+                else filter_incompatible_tags(build_include.split(","))
             )
 
             exclude_tags = [] if build_exclude is None else build_exclude.split(",")
@@ -440,7 +441,6 @@ def hacky_dev_image_build(
     ctx,
     base_image=None,
     target_image="agent",
-    target_tag="latest",
     push=False,
     signed_pull=False,
 ):
@@ -531,18 +531,17 @@ ENV DD_SSLKEYLOGFILE=/tmp/sslkeylog.txt
         )
         dockerfile.flush()
 
-        target_image_name = f'{target_image}:{target_tag}'
         pull_env = {}
         if signed_pull:
             pull_env['DOCKER_CONTENT_TRUST'] = '1'
-        ctx.run(f'docker build -t {target_image_name} -f {dockerfile.name} .', env=pull_env)
+        ctx.run(f'docker build -t {target_image} -f {dockerfile.name} .', env=pull_env)
 
         if push:
-            ctx.run(f'docker push {target_image_name}')
+            ctx.run(f'docker push {target_image}')
 
 
 @task
-def integration_tests(ctx, install_deps=False, race=False, remote_docker=False, go_mod="mod", arch="x64"):
+def integration_tests(ctx, install_deps=False, race=False, remote_docker=False, go_mod="mod"):
     """
     Run integration tests for the Agent
     """
@@ -550,16 +549,16 @@ def integration_tests(ctx, install_deps=False, race=False, remote_docker=False, 
         deps(ctx)
 
     if sys.platform == 'win32':
-        return _windows_integration_tests(ctx, race=race, go_mod=go_mod, arch=arch)
+        return _windows_integration_tests(ctx, race=race, go_mod=go_mod)
     else:
         # TODO: See if these will function on Windows
-        return _linux_integration_tests(ctx, race=race, remote_docker=remote_docker, go_mod=go_mod, arch=arch)
+        return _linux_integration_tests(ctx, race=race, remote_docker=remote_docker, go_mod=go_mod)
 
 
-def _windows_integration_tests(ctx, race=False, go_mod="mod", arch="x64"):
+def _windows_integration_tests(ctx, race=False, go_mod="mod"):
     test_args = {
         "go_mod": go_mod,
-        "go_build_tags": " ".join(get_default_build_tags(build="test", arch=arch)),
+        "go_build_tags": " ".join(get_default_build_tags(build="test")),
         "race_opt": "-race" if race else "",
         "exec_opts": "",
     }
@@ -582,7 +581,8 @@ def _windows_integration_tests(ctx, race=False, go_mod="mod", arch="x64"):
         {
             # Run eventlog check tests with the Windows API, which depend on the EventLog service
             "dir": ".",
-            'prefix': './comp/checks/windowseventlog/windowseventlogimpl/check/...',
+            # Don't include submodules, since the `-evtapi` flag is not defined in them
+            'prefix': './comp/checks/windowseventlog/windowseventlogimpl/check',
             'extra_args': '-evtapi Windows',
         },
     ]
@@ -592,10 +592,10 @@ def _windows_integration_tests(ctx, race=False, go_mod="mod", arch="x64"):
             ctx.run(f"{go_cmd} {test['prefix']} {test['extra_args']}")
 
 
-def _linux_integration_tests(ctx, race=False, remote_docker=False, go_mod="mod", arch="x64"):
+def _linux_integration_tests(ctx, race=False, remote_docker=False, go_mod="mod"):
     test_args = {
         "go_mod": go_mod,
-        "go_build_tags": " ".join(get_default_build_tags(build="test", arch=arch)),
+        "go_build_tags": " ".join(get_default_build_tags(build="test")),
         "race_opt": "-race" if race else "",
         "exec_opts": "",
     }
@@ -620,8 +620,7 @@ def _linux_integration_tests(ctx, race=False, remote_docker=False, go_mod="mod",
         ctx.run(f"{go_cmd} {prefix}")
 
 
-@task
-def check_supports_python_version(_, check_dir, python):
+def check_supports_python_version(check_dir, python):
     """
     Check if a Python project states support for a given major Python version.
     """
@@ -639,17 +638,15 @@ def check_supports_python_version(_, check_dir, python):
 
         project_metadata = data['project']
         if 'requires-python' not in project_metadata:
-            print('True', end='')
-            return
+            return True
 
         specifier = SpecifierSet(project_metadata['requires-python'])
         # It might be e.g. `>=3.8` which would not immediatelly contain `3`
         for minor_version in range(100):
             if specifier.contains(f'{python}.{minor_version}'):
-                print('True', end='')
-                return
+                return True
         else:
-            print('False', end='')
+            return False
     elif os.path.isfile(setup_file):
         with open(setup_file) as f:
             tree = ast.parse(f.read(), filename=setup_file)
@@ -658,12 +655,55 @@ def check_supports_python_version(_, check_dir, python):
         for node in ast.walk(tree):
             if isinstance(node, ast.keyword) and node.arg == 'classifiers':
                 classifiers = ast.literal_eval(node.value)
-                print(any(cls.startswith(prefix) for cls in classifiers), end='')
-                return
+                return any(cls.startswith(prefix) for cls in classifiers)
         else:
-            print('False', end='')
+            return False
     else:
-        raise Exit('not a Python project', code=1)
+        return False
+
+
+@task
+def collect_integrations(_, integrations_dir, python_version, target_os, excluded):
+    """
+    Collect and print the list of integrations to install.
+
+    `excluded` is a comma-separated list of directories that don't contain an actual integration
+    """
+    import json
+
+    excluded = excluded.split(',')
+    integrations = []
+
+    for entry in os.listdir(integrations_dir):
+        int_path = os.path.join(integrations_dir, entry)
+        if not os.path.isdir(int_path) or entry in excluded:
+            continue
+
+        manifest_file_path = os.path.join(int_path, "manifest.json")
+
+        # If there is no manifest file, then we should assume the folder does not
+        # contain a working check and move onto the next
+        if not os.path.exists(manifest_file_path):
+            continue
+
+        with open(manifest_file_path) as f:
+            manifest = json.load(f)
+
+        # Figure out whether the integration is supported on the target OS
+        if target_os == 'mac_os':
+            tag = 'Supported OS::macOS'
+        else:
+            tag = f'Supported OS::{target_os.capitalize()}'
+
+        if tag not in manifest['tile']['classifier_tags']:
+            continue
+
+        if not check_supports_python_version(int_path, python_version):
+            continue
+
+        integrations.append(entry)
+
+    print(' '.join(sorted(integrations)))
 
 
 @task

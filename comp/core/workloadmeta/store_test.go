@@ -679,6 +679,41 @@ func TestGetKubernetesDeployment(t *testing.T) {
 	tassert.True(t, errors.IsNotFound(err))
 }
 
+func TestGetKubernetesNamespace(t *testing.T) {
+	deps := fxutil.Test[dependencies](t, fx.Options(
+		logimpl.MockModule(),
+		config.MockModule(),
+		fx.Supply(NewParams()),
+	))
+
+	s := newWorkloadmetaObject(deps)
+
+	namespace := &KubernetesNamespace{
+		EntityID: EntityID{
+			Kind: KindKubernetesNamespace,
+			ID:   "default",
+		},
+	}
+
+	s.handleEvents([]CollectorEvent{
+		{
+			Type:   EventTypeSet,
+			Source: fooSource,
+			Entity: namespace,
+		},
+	})
+
+	retrievedNamespace, err := s.GetKubernetesNamespace("default")
+	tassert.NoError(t, err)
+
+	if !reflect.DeepEqual(namespace, retrievedNamespace) {
+		t.Errorf("expected namespace %q to match the one in the store", retrievedNamespace.ID)
+	}
+
+	_, err = s.GetKubernetesNamespace("datadog-cluster-agent")
+	tassert.True(t, errors.IsNotFound(err))
+}
+
 func TestGetProcess(t *testing.T) {
 	deps := fxutil.Test[dependencies](t, fx.Options(
 		logimpl.MockModule(),
@@ -1039,6 +1074,53 @@ func TestGetKubernetesPodByName(t *testing.T) {
 	}
 }
 
+func TestListKubernetesNodes(t *testing.T) {
+	node := &KubernetesNode{
+		EntityID: EntityID{
+			Kind: KindKubernetesNode,
+			ID:   "some-node",
+		},
+	}
+
+	tests := []struct {
+		name          string
+		preEvents     []CollectorEvent
+		expectedNodes []*KubernetesNode
+	}{
+		{
+			name: "some nodes stored",
+			preEvents: []CollectorEvent{
+				{
+					Type:   EventTypeSet,
+					Source: fooSource,
+					Entity: node,
+				},
+			},
+			expectedNodes: []*KubernetesNode{node},
+		},
+		{
+			name:          "no nodes stored",
+			preEvents:     nil,
+			expectedNodes: []*KubernetesNode{},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			deps := fxutil.Test[dependencies](t, fx.Options(
+				logimpl.MockModule(),
+				config.MockModule(),
+				fx.Supply(NewParams()),
+			))
+			s := newWorkloadmetaObject(deps)
+
+			s.handleEvents(test.preEvents)
+
+			tassert.Equal(t, test.expectedNodes, s.ListKubernetesNodes())
+		})
+	}
+}
+
 func TestListImages(t *testing.T) {
 	image := &ContainerImageMetadata{
 		EntityID: EntityID{
@@ -1336,6 +1418,49 @@ func TestResetProcesses(t *testing.T) {
 		})
 	}
 
+}
+
+func TestGetKubernetesMetadata(t *testing.T) {
+	deps := fxutil.Test[dependencies](t, fx.Options(
+		logimpl.MockModule(),
+		config.MockModule(),
+		fx.Supply(NewParams()),
+	))
+
+	s := newWorkloadmetaObject(deps)
+
+	kubemetadata := &KubernetesMetadata{
+		EntityID: EntityID{
+			Kind: KindKubernetesMetadata,
+			ID:   "deployments/default/app",
+		},
+	}
+
+	s.handleEvents([]CollectorEvent{
+		{
+			Type:   EventTypeSet,
+			Source: fooSource,
+			Entity: kubemetadata,
+		},
+	})
+
+	retrievedMetadata, err := s.GetKubernetesMetadata("deployments/default/app")
+	tassert.NoError(t, err)
+
+	if !reflect.DeepEqual(kubemetadata, retrievedMetadata) {
+		t.Errorf("expected metadata %q to match the one in the store", retrievedMetadata.ID)
+	}
+
+	s.handleEvents([]CollectorEvent{
+		{
+			Type:   EventTypeUnset,
+			Source: fooSource,
+			Entity: kubemetadata,
+		},
+	})
+
+	_, err = s.GetKubernetesMetadata("deployments/default/app")
+	tassert.True(t, errors.IsNotFound(err))
 }
 
 func TestReset(t *testing.T) {

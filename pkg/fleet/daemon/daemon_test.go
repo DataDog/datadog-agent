@@ -27,6 +27,11 @@ type testPackageManager struct {
 	mock.Mock
 }
 
+func (m *testPackageManager) IsInstalled(ctx context.Context, pkg string) (bool, error) {
+	args := m.Called(ctx, pkg)
+	return args.Bool(0), args.Error(1)
+}
+
 func (m *testPackageManager) State(pkg string) (repository.State, error) {
 	args := m.Called(pkg)
 	return args.Get(0).(repository.State), args.Error(1)
@@ -37,14 +42,18 @@ func (m *testPackageManager) States() (map[string]repository.State, error) {
 	return args.Get(0).(map[string]repository.State), args.Error(1)
 }
 
-func (m *testPackageManager) Install(ctx context.Context, url string) error {
-	args := m.Called(ctx, url)
+func (m *testPackageManager) Install(ctx context.Context, url string, installArgs []string) error {
+	args := m.Called(ctx, url, installArgs)
 	return args.Error(0)
 }
 
 func (m *testPackageManager) Remove(ctx context.Context, pkg string) error {
 	args := m.Called(ctx, pkg)
 	return args.Error(0)
+}
+
+func (m *testPackageManager) Purge(_ context.Context) {
+	panic("not implemented")
 }
 
 func (m *testPackageManager) InstallExperiment(ctx context.Context, url string) error {
@@ -147,9 +156,9 @@ func TestInstall(t *testing.T) {
 	defer i.Stop()
 
 	testURL := "oci://example.com/test-package:1.0.0"
-	i.pm.On("Install", mock.Anything, testURL).Return(nil).Once()
+	i.pm.On("Install", mock.Anything, testURL, []string(nil)).Return(nil).Once()
 
-	err := i.Install(context.Background(), testURL)
+	err := i.Install(context.Background(), testURL, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

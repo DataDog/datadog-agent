@@ -1,9 +1,10 @@
+from __future__ import annotations
+
 import os
 import re
 import time
 from collections import Counter
 from functools import lru_cache
-from typing import List
 
 from invoke import Exit, task
 
@@ -19,7 +20,10 @@ from tasks.libs.common.datadog_api import create_gauge, send_metrics
 from tasks.libs.common.junit_upload_core import repack_macos_junit_tar
 from tasks.libs.common.utils import DEFAULT_BRANCH, DEFAULT_INTEGRATIONS_CORE_BRANCH, get_git_pretty_ref
 from tasks.libs.owners.parsing import read_owners
+from tasks.libs.pipeline.notifications import GITHUB_SLACK_MAP
 from tasks.release import _get_release_json_value
+
+ALL_TEAMS = '@datadog/agent-all'
 
 
 @lru_cache(maxsize=None)
@@ -68,6 +72,7 @@ def trigger_macos(
     retry_download=3,
     retry_interval=10,
     fast_tests=None,
+    test_washer=False,
     integrations_core_ref=DEFAULT_INTEGRATIONS_CORE_BRANCH,
 ):
     if workflow_type == "build":
@@ -102,6 +107,7 @@ def trigger_macos(
             python_runtimes=python_runtimes,
             version_cache_file_content=version_cache,
             fast_tests=fast_tests,
+            test_washer=test_washer,
         )
         repack_macos_junit_tar(conclusion, "junit-tests_macos.tgz", "junit-tests_macos-repacked.tgz")
     elif workflow_type == "lint":
@@ -201,7 +207,7 @@ def get_token_from_app(_, app_id_env='GITHUB_APP_ID', pkey_env='GITHUB_KEY_B64')
     GithubAPI.get_token_from_app(app_id_env, pkey_env)
 
 
-def _get_teams(changed_files, owners_file='.github/CODEOWNERS') -> List[str]:
+def _get_teams(changed_files, owners_file='.github/CODEOWNERS') -> list[str]:
     codeowners = read_owners(owners_file)
 
     team_counter = Counter()
@@ -237,8 +243,6 @@ def assign_team_label(_, pr_id=-1):
     Assigns the github team label name if teams can
     be deduced from the changed files
     """
-    import github
-
     from tasks.libs.ciproviders.github_api import GithubAPI
 
     gh = GithubAPI('DataDog/datadog-agent')
@@ -260,6 +264,15 @@ def assign_team_label(_, pr_id=-1):
         print('No team found')
         return
 
+    _assign_pr_team_labels(gh, pr_id, teams)
+
+
+def _assign_pr_team_labels(gh, pr_id, teams):
+    """
+    Assign team labels (team/team-name) for each team (@datadog/team-name)
+    """
+    import github
+
     # Get labels
     all_team_labels = _get_team_labels()
     team_labels = [f"team{team.removeprefix('@datadog')}" for team in teams]
@@ -274,3 +287,38 @@ def assign_team_label(_, pr_id=-1):
                 print(label_name, 'label assigned to the pull request')
             except github.GithubException.GithubException:
                 print(f'Failed to assign label {label_name}')
+
+
+@task
+def handle_community_pr(_, repo='', pr_id=-1, labels=''):
+    """
+    Will set labels and notify teams about a newly opened community PR
+    """
+    from slack_sdk import WebClient
+
+    from tasks.libs.ciproviders.github_api import GithubAPI
+
+    # Get review teams / channels
+    gh = GithubAPI()
+
+    # Find teams corresponding to file changes
+    teams = _get_teams(gh.get_pr_files(pr_id)) or [ALL_TEAMS]
+    channels = [GITHUB_SLACK_MAP[team.lower()] for team in teams if team if team.lower() in GITHUB_SLACK_MAP]
+
+    # Update labels
+    for label in labels.split(','):
+        if label:
+            gh.add_pr_label(pr_id, label)
+
+    if teams != [ALL_TEAMS]:
+        _assign_pr_team_labels(gh, pr_id, teams)
+
+    # Create message
+    pr = gh.get_pr(pr_id)
+    title = pr.title.strip()
+    message = f':pr: *New Community PR*\n{title} <{pr.html_url}|{repo}#{pr_id}>'
+
+    # Post message
+    client = WebClient(os.environ['SLACK_API_TOKEN'])
+    for channel in channels:
+        client.chat_postMessage(channel=channel, text=message)

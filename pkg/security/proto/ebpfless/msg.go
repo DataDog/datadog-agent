@@ -70,6 +70,12 @@ const (
 	SyscallTypeLoadModule
 	// SyscallTypeUnloadModule delete_module type
 	SyscallTypeUnloadModule
+	// SyscallTypeChdir chdir/fchdir type
+	SyscallTypeChdir
+	// SyscallTypeMount mount type
+	SyscallTypeMount
+	// SyscallTypeUmount umount/umount2 type
+	SyscallTypeUmount
 )
 
 // ContainerContext defines a container context
@@ -144,9 +150,9 @@ type DupSyscallFakeMsg struct {
 	OldFd int32
 }
 
-// ChdirSyscallFakeMsg defines a chdir message
-type ChdirSyscallFakeMsg struct {
-	Path string
+// ChdirSyscallMsg defines a chdir message
+type ChdirSyscallMsg struct {
+	Dir FileSyscallMsg
 }
 
 // SetUIDSyscallMsg defines a setreuid message
@@ -263,6 +269,18 @@ type SpanContext struct {
 	TraceID uint64
 }
 
+// MountSyscallMsg defines a mount message
+type MountSyscallMsg struct {
+	Source string
+	Target string
+	FSType string
+}
+
+// UmountSyscallMsg defines a mount message
+type UmountSyscallMsg struct {
+	Path string
+}
+
 // SyscallMsg defines a syscall message
 type SyscallMsg struct {
 	Type         SyscallType
@@ -291,10 +309,12 @@ type SyscallMsg struct {
 	Chown        *ChownSyscallMsg        `json:",omitempty"`
 	LoadModule   *LoadModuleSyscallMsg   `json:",omitempty"`
 	UnloadModule *UnloadModuleSyscallMsg `json:",omitempty"`
+	Chdir        *ChdirSyscallMsg        `json:",omitempty"`
+	Mount        *MountSyscallMsg        `json:",omitempty"`
+	Umount       *UmountSyscallMsg       `json:",omitempty"`
 
 	// internals
-	Dup   *DupSyscallFakeMsg   `json:",omitempty"`
-	Chdir *ChdirSyscallFakeMsg `json:",omitempty"`
+	Dup *DupSyscallFakeMsg `json:",omitempty"`
 }
 
 // String returns string representation
@@ -312,7 +332,6 @@ type HelloMsg struct {
 
 // Message defines a message
 type Message struct {
-	SeqNum  uint64
 	Type    MessageType
 	Hello   *HelloMsg   `json:",omitempty"`
 	Syscall *SyscallMsg `json:",omitempty"`
@@ -326,7 +345,6 @@ func (m Message) String() string {
 
 // Reset resets a message
 func (m *Message) Reset() {
-	m.SeqNum = 0
 	m.Type = MessageTypeUnknown
 	m.Hello = nil
 	m.Syscall = nil

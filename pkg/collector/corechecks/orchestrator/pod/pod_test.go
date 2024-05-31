@@ -22,7 +22,7 @@ import (
 	"github.com/stretchr/testify/suite"
 
 	"github.com/DataDog/agent-payload/v5/process"
-	"github.com/DataDog/datadog-agent/comp/core/tagger"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	k8sProcessors "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/k8s"
@@ -155,7 +155,7 @@ func (suite *PodTestSuite) TestPodCheck() {
 		cache.Cache.Set(cacheKey, strings.Repeat("1", 36), cache.NoExpiration)
 	}
 
-	fakeTagger := tagger.SetupFakeTagger(suite.T())
+	fakeTagger := taggerimpl.SetupFakeTagger(suite.T())
 
 	defer func() {
 		cache.Cache.Set(cacheKey, cachedClusterID, cache.NoExpiration)

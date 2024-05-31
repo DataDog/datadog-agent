@@ -8,6 +8,8 @@
 package kafka
 
 import (
+	"os"
+	"path/filepath"
 	"regexp"
 	"testing"
 	"time"
@@ -25,5 +27,19 @@ func RunServer(t testing.TB, serverAddr, serverPort string) error {
 
 	t.Helper()
 	dir, _ := testutil.CurDir()
+
+	// The JKS files need to be readable by others for the Kafka in the Docker
+	// container to be able to use them. git doesn't save others' permissions
+	// in the repo, so fix it up here.
+	err := os.Chmod(filepath.Join(dir, "testdata/kafka.keystore.jks"), 0664)
+	if err != nil {
+		return err
+	}
+
+	err = os.Chmod(filepath.Join(dir, "testdata/kafka.truststore.jks"), 0664)
+	if err != nil {
+		return err
+	}
+
 	return protocolsUtils.RunDockerServer(t, "kafka", dir+"/testdata/docker-compose.yml", env, regexp.MustCompile(`.*started \(kafka.server.KafkaServer\).*`), 1*time.Minute, 3)
 }

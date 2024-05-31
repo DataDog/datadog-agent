@@ -3,11 +3,14 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build otlp
+
 package run
 
 import (
 	"context"
 
+	agentConfig "github.com/DataDog/datadog-agent/cmd/otel-agent/config"
 	"github.com/DataDog/datadog-agent/cmd/otel-agent/subcommands"
 	"github.com/DataDog/datadog-agent/comp/api/authtoken/fetchonlyimpl"
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -17,17 +20,25 @@ import (
 	corelogimpl "github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
+	"github.com/DataDog/datadog-agent/comp/core/tagger"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/forwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorinterface"
-	"github.com/DataDog/datadog-agent/comp/logs"
-	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent/inventoryagentimpl"
-	"github.com/DataDog/datadog-agent/comp/otelcol"
-	"github.com/DataDog/datadog-agent/comp/otelcol/collector"
+	collectorcontribFx "github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/fx"
+	collectordef "github.com/DataDog/datadog-agent/comp/otelcol/collector/def"
+	collectorfx "github.com/DataDog/datadog-agent/comp/otelcol/collector/fx"
+	"github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline"
+	"github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline/logsagentpipelineimpl"
+	"go.opentelemetry.io/collector/otelcol"
+
+	provider "github.com/DataDog/datadog-agent/comp/otelcol/provider/def"
+	providerfx "github.com/DataDog/datadog-agent/comp/otelcol/provider/fx"
 	"github.com/DataDog/datadog-agent/comp/serializer/compression"
 	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl/strategy"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
@@ -67,34 +78,44 @@ func (o *orchestratorinterfaceimpl) Reset() {
 	o.f = nil
 }
 
-func runOTelAgentCommand(_ context.Context, params *subcommands.GlobalParams) error {
+func runOTelAgentCommand(_ context.Context, params *subcommands.GlobalParams, opts ...fx.Option) error {
 	err := fxutil.Run(
 		forwarder.Bundle(),
-		otelcol.Bundle(),
-		// TODO: remove this once we start reading the collector config
-		// We need to create a new config module from the collector config
-		config.Module(),
 		corelogimpl.Module(),
 		inventoryagentimpl.Module(),
 		workloadmeta.Module(),
 		hostnameimpl.Module(),
+		fx.Provide(tagger.NewTaggerParams),
+		taggerimpl.Module(),
 		sysprobeconfig.NoneModule(),
 		fetchonlyimpl.Module(),
+		collectorfx.Module(),
+		collectorcontribFx.Module(),
+		providerfx.Module(),
+		fx.Provide(func(cp provider.Component) otelcol.ConfigProvider {
+			return cp
+		}),
+		fx.Provide(func() (config.Component, error) {
+			c, err := agentConfig.NewConfigComponent(context.Background(), params.ConfPaths)
+			if err != nil {
+				return nil, err
+			}
+			env.DetectFeatures(c)
+			return c, nil
+		}),
 
 		fx.Provide(func() workloadmeta.Params {
 			return workloadmeta.NewParams()
 		}),
+		fx.Provide(func() []string {
+			return append(params.ConfPaths, params.Sets...)
+		}),
 
-		// TODO: remove this once we start reading the collector config
-		fx.Provide(func() config.Params {
-			return config.NewAgentParams(params.ConfPath)
-		}),
 		fx.Supply(optional.NewNoneOption[secrets.Component]()),
-		fx.Provide(func() corelogimpl.Params {
-			// TODO configure the log level from collector config
-			return corelogimpl.ForOneShot(params.LoggerName, "debug", true)
+		fx.Provide(func(c config.Component) corelogimpl.Params {
+			return corelogimpl.ForOneShot(params.LoggerName, c.GetString("log_level"), true)
 		}),
-		logs.Bundle(),
+		logsagentpipelineimpl.Module(),
 		// We create strategy.ZlibStrategy directly to avoid build tags
 		fx.Provide(strategy.NewZlibStrategy),
 		fx.Provide(func(s *strategy.ZlibStrategy) compression.Component {
@@ -115,7 +136,8 @@ func runOTelAgentCommand(_ context.Context, params *subcommands.GlobalParams) er
 			return defaultforwarder.Forwarder(c), nil
 		}),
 		fx.Provide(newOrchestratorinterfaceimpl),
-		fx.Invoke(func(_ collector.Component, _ defaultforwarder.Forwarder, _ optional.Option[logsAgent.Component]) {
+		fx.Options(opts...),
+		fx.Invoke(func(_ collectordef.Component, _ defaultforwarder.Forwarder, _ optional.Option[logsagentpipeline.Component]) {
 		}),
 	)
 	if err != nil {

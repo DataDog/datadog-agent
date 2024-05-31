@@ -13,7 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
-// team: container-integrations
+// team: container-platform
 
 // Component is the component type.
 type Component interface {
@@ -32,7 +32,7 @@ type Component interface {
 	// evolves or as information about the entity is reported from multiple
 	// sources (such as a container runtime and an orchestrator).
 	//
-	// See the documentation for EventBundle regarding appropropriate handling
+	// See the documentation for EventBundle regarding appropriate handling
 	// for messages on this channel.
 	Subscribe(name string, priority SubscriberPriority, filter *Filter) chan EventBundle
 
@@ -67,6 +67,9 @@ type Component interface {
 	// to this function.
 	GetKubernetesPodByName(podName, podNamespace string) (*KubernetesPod, error)
 
+	// ListKubernetesNodes returns metadata about all known Kubernetes nodes
+	ListKubernetesNodes() []*KubernetesNode
+
 	// GetKubernetesNode returns metadata about a Kubernetes node. It fetches
 	// the entity with kind KindKubernetesNode and the given ID.
 	GetKubernetesNode(id string) (*KubernetesNode, error)
@@ -74,6 +77,14 @@ type Component interface {
 	// GetKubernetesDeployment returns metadata about a Kubernetes deployment. It fetches
 	// the entity with kind KindKubernetesDeployment and the given ID.
 	GetKubernetesDeployment(id string) (*KubernetesDeployment, error)
+
+	// GetKubernetesNamespace returns metadata about a Kubernetes namespace. It fetches
+	// the entity with kind KindKubernetesNamespace and the given ID.
+	GetKubernetesNamespace(id string) (*KubernetesNamespace, error)
+
+	// GetKubernetesMetadata returns metadata about a Kubernetes resource. It fetches
+	// the entity with kind KubernetesMetadata and the given ID.
+	GetKubernetesMetadata(id string) (*KubernetesMetadata, error)
 
 	// ListECSTasks returns metadata about all ECS tasks, equivalent to all
 	// entities with kind KindECSTask.

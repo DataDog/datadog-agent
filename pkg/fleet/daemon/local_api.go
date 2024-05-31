@@ -10,20 +10,18 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"net"
-	"net/http"
-	"os"
-
-	"github.com/gorilla/mux"
-
-	"github.com/DataDog/datadog-agent/pkg/fleet/installer"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
+	"github.com/gorilla/mux"
+	"net"
+	"net/http"
+	"os"
+	"path/filepath"
 )
 
 const (
-	defaultSocketPath = installer.PackagesPath + "/daemon.sock"
+	socketName = "installer.sock"
 )
 
 // StatusResponse is the response to the status endpoint.
@@ -57,8 +55,8 @@ type localAPIImpl struct {
 }
 
 // NewLocalAPI returns a new LocalAPI.
-func NewLocalAPI(daemon Daemon) (LocalAPI, error) {
-	socketPath := defaultSocketPath
+func NewLocalAPI(daemon Daemon, runPath string) (LocalAPI, error) {
+	socketPath := filepath.Join(runPath, socketName)
 	err := os.RemoveAll(socketPath)
 	if err != nil {
 		return nil, fmt.Errorf("could not remove socket: %w", err)
@@ -213,7 +211,7 @@ func (l *localAPIImpl) install(w http.ResponseWriter, r *http.Request) {
 	}
 
 	log.Infof("Received local request to install package %s version %s", pkg, request.Version)
-	err = l.daemon.Install(r.Context(), catalogPkg.URL)
+	err = l.daemon.Install(r.Context(), catalogPkg.URL, request.InstallArgs)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		response.Error = &APIError{Message: err.Error()}
@@ -238,13 +236,13 @@ type localAPIClientImpl struct {
 }
 
 // NewLocalAPIClient returns a new LocalAPIClient.
-func NewLocalAPIClient() LocalAPIClient {
+func NewLocalAPIClient(runPath string) LocalAPIClient {
 	return &localAPIClientImpl{
 		addr: "daemon", // this has no meaning when using a unix socket
 		client: &http.Client{
 			Transport: &http.Transport{
 				Dial: func(_, _ string) (net.Conn, error) {
-					return net.Dial("unix", defaultSocketPath)
+					return net.Dial("unix", filepath.Join(runPath, socketName))
 				},
 			},
 		},

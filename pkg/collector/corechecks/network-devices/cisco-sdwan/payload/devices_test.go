@@ -61,8 +61,8 @@ func TestProcessDevicesMetadata(t *testing.T) {
 			IPAddress:    "10.0.0.1",
 			Vendor:       "cisco",
 			Name:         "test-1",
-			Tags:         []string{"source:cisco-sdwan", "device_namespace:test-ns", "site_id:100"},
-			IDTags:       []string{"system_ip:10.0.0.1"},
+			Tags:         []string{"device_vendor:cisco", "device_namespace:test-ns", "hostname:test-1", "system_ip:10.0.0.1", "site_id:100", "type:vmanage", "device_ip:10.0.0.1", "device_hostname:test-1", "device_id:test-ns:10.0.0.1", "source:cisco-sdwan"},
+			IDTags:       []string{"device_namespace:test-ns", "system_ip:10.0.0.1"},
 			Status:       devicemetadata.DeviceStatusReachable,
 			Model:        "vmanage",
 			OsName:       "vmanage-os",
@@ -78,8 +78,8 @@ func TestProcessDevicesMetadata(t *testing.T) {
 			IPAddress:    "10.0.0.2",
 			Vendor:       "cisco",
 			Name:         "test-2",
-			Tags:         []string{"source:cisco-sdwan", "device_namespace:test-ns", "site_id:102"},
-			IDTags:       []string{"system_ip:10.0.0.2"},
+			Tags:         []string{"device_vendor:cisco", "device_namespace:test-ns", "hostname:test-2", "system_ip:10.0.0.2", "site_id:102", "type:vbond", "device_ip:10.0.0.2", "device_hostname:test-2", "device_id:test-ns:10.0.0.2", "source:cisco-sdwan"},
+			IDTags:       []string{"device_namespace:test-ns", "system_ip:10.0.0.2"},
 			Status:       devicemetadata.DeviceStatusReachable,
 			Model:        "vbond",
 			OsName:       "vbond-os",
@@ -104,6 +104,9 @@ func TestProcessDevicesTags(t *testing.T) {
 			"system_ip:10.0.0.1",
 			"site_id:100",
 			"type:vmanage",
+			"device_ip:10.0.0.1",
+			"device_hostname:test-1",
+			"device_id:test-ns:10.0.0.1",
 		},
 		"10.0.0.2": {
 			"device_vendor:cisco",
@@ -112,6 +115,9 @@ func TestProcessDevicesTags(t *testing.T) {
 			"system_ip:10.0.0.2",
 			"site_id:102",
 			"type:vbond",
+			"device_ip:10.0.0.2",
+			"device_hostname:test-2",
+			"device_id:test-ns:10.0.0.2",
 		},
 	}, tags)
 }
@@ -156,8 +162,8 @@ func TestBuildDeviceMetadata(t *testing.T) {
 				IPAddress:    "10.0.0.1",
 				Vendor:       "cisco",
 				Name:         "test-1",
-				Tags:         []string{"source:cisco-sdwan", "device_namespace:test-ns", "site_id:100"},
-				IDTags:       []string{"system_ip:10.0.0.1"},
+				Tags:         []string{"device_vendor:cisco", "device_namespace:test-ns", "hostname:test-1", "system_ip:10.0.0.1", "site_id:100", "type:vmanage", "device_ip:10.0.0.1", "device_hostname:test-1", "device_id:test-ns:10.0.0.1", "source:cisco-sdwan"},
+				IDTags:       []string{"device_namespace:test-ns", "system_ip:10.0.0.1"},
 				Status:       devicemetadata.DeviceStatusReachable,
 				Model:        "vmanage",
 				OsName:       "vmanage-os",
@@ -188,8 +194,8 @@ func TestBuildDeviceMetadata(t *testing.T) {
 				IPAddress:    "10.0.0.1",
 				Vendor:       "cisco",
 				Name:         "test-1",
-				Tags:         []string{"source:cisco-sdwan", "device_namespace:test-ns", "site_id:100"},
-				IDTags:       []string{"system_ip:10.0.0.1"},
+				Tags:         []string{"device_vendor:cisco", "device_namespace:test-ns", "hostname:test-1", "system_ip:10.0.0.1", "site_id:100", "type:vmanage", "device_ip:10.0.0.1", "device_hostname:test-1", "device_id:test-ns:10.0.0.1", "source:cisco-sdwan"},
+				IDTags:       []string{"device_namespace:test-ns", "system_ip:10.0.0.1"},
 				Status:       devicemetadata.DeviceStatusUnreachable,
 				Model:        "vmanage",
 				OsName:       "vmanage-os",
@@ -220,8 +226,8 @@ func TestBuildDeviceMetadata(t *testing.T) {
 				IPAddress:    "10.0.0.1",
 				Vendor:       "cisco",
 				Name:         "test-1",
-				Tags:         []string{"source:cisco-sdwan", "device_namespace:test-ns", "site_id:100"},
-				IDTags:       []string{"system_ip:10.0.0.1"},
+				Tags:         []string{"device_vendor:cisco", "device_namespace:test-ns", "hostname:test-1", "system_ip:10.0.0.1", "site_id:100", "type:", "device_ip:10.0.0.1", "device_hostname:test-1", "device_id:test-ns:10.0.0.1", "source:cisco-sdwan"},
+				IDTags:       []string{"device_namespace:test-ns", "system_ip:10.0.0.1"},
 				Status:       devicemetadata.DeviceStatusReachable,
 				Model:        "vmanage",
 				OsName:       "vmanage-os",
@@ -326,6 +332,9 @@ func TestBuildDeviceTags(t *testing.T) {
 				"system_ip:10.0.0.1",
 				"site_id:1000",
 				"type:vmanage",
+				"device_ip:10.0.0.1",
+				"device_hostname:test-1",
+				"device_id:test-ns:10.0.0.1",
 			},
 		},
 		{
@@ -343,6 +352,9 @@ func TestBuildDeviceTags(t *testing.T) {
 				"system_ip:10.0.0.1",
 				"site_id:1000",
 				"type:vmanage",
+				"device_ip:10.0.0.1",
+				"device_hostname:",
+				"device_id:test-ns-2:10.0.0.1",
 			},
 		},
 	}
@@ -462,6 +474,31 @@ func TestGetDeviceStatus(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			uptimes := GetDevicesStatus(tt.devices)
 			require.Equal(t, tt.expectedStatus, uptimes)
+		})
+	}
+}
+
+func TestBuildDeviceID(t *testing.T) {
+	tests := []struct {
+		namespace  string
+		device     client.Device
+		expectedID string
+	}{
+		{
+			namespace:  "test",
+			device:     client.Device{SystemIP: "10.1.1.1"},
+			expectedID: "test:10.1.1.1",
+		},
+		{
+			namespace:  "test:with:colon",
+			device:     client.Device{SystemIP: "10.1.1.1"},
+			expectedID: "test:with:colon:10.1.1.1",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.expectedID, func(t *testing.T) {
+			require.Equal(t, tt.expectedID, buildDeviceID(tt.namespace, tt.device))
 		})
 	}
 }

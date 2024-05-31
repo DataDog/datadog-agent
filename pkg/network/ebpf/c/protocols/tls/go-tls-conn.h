@@ -8,30 +8,37 @@
 #include "protocols/http/maps.h"
 #include "protocols/tls/go-tls-types.h"
 
-// get_conn_fd returns the poll.FD field offset in the nested conn struct.
-static __always_inline int get_conn_fd(tls_conn_layout_t* cl, void* tls_conn_ptr, int32_t* dest) {
-    void* tls_conn_inner_conn_ptr = tls_conn_ptr + cl->tls_conn_inner_conn_offset;
-
-    interface_t inner_conn_iface;
-    if (bpf_probe_read_user(&inner_conn_iface, sizeof(inner_conn_iface), tls_conn_inner_conn_ptr)) {
-        return 1;
-    }
-
-    void* tcp_conn_inner_conn_ptr = ((void*) inner_conn_iface.ptr) + cl->tcp_conn_inner_conn_offset;
+static __always_inline conn_tuple_t* __tuple_via_tcp_conn(tls_conn_layout_t* cl, void* tcp_conn_ptr, pid_fd_t* pid_fd) {
+    void* tcp_conn_inner_conn_ptr = tcp_conn_ptr + cl->tcp_conn_inner_conn_offset;
     // the net.conn struct is embedded in net.TCPConn, so just add the offset again
     void* conn_fd_ptr_ptr = tcp_conn_inner_conn_ptr + cl->conn_fd_offset;
 
     void* conn_fd_ptr;
     if (bpf_probe_read_user(&conn_fd_ptr, sizeof(conn_fd_ptr), conn_fd_ptr_ptr)) {
-        return 1;
+        return NULL;
     }
 
     void* net_fd_pfd_ptr = conn_fd_ptr + cl->net_fd_pfd_offset;
     // the internal/poll.FD struct is embedded in net.netFD, so just add the offset again
     void* fd_sysfd_ptr = net_fd_pfd_ptr + cl->fd_sysfd_offset;
 
-    // Finally, dereference the pointer to get the file descriptor
-    return bpf_probe_read_user(dest, sizeof(*dest), fd_sysfd_ptr);
+    // dereference the pointer to get the file descriptor
+    if (bpf_probe_read_user(&pid_fd->fd, sizeof(pid_fd->fd), fd_sysfd_ptr)) {
+        return NULL;
+    }
+
+    return bpf_map_lookup_elem(&tuple_by_pid_fd, pid_fd);
+}
+
+static __always_inline conn_tuple_t* __tuple_via_limited_conn(tls_conn_layout_t* cl, void* limited_conn_ptr, pid_fd_t* pid_fd) {
+    void *net_conn_ptr = limited_conn_ptr + cl->limited_conn_inner_conn_offset;
+
+    interface_t inner_conn_iface;
+    if (bpf_probe_read_user(&inner_conn_iface, sizeof(inner_conn_iface), net_conn_ptr)) {
+        return NULL;
+    }
+
+    return __tuple_via_tcp_conn(cl, (void *)inner_conn_iface.ptr, pid_fd);
 }
 
 static __always_inline conn_tuple_t* conn_tup_from_tls_conn(tls_offsets_data_t* pd, void* conn, uint64_t pid_tgid) {
@@ -41,21 +48,34 @@ static __always_inline conn_tuple_t* conn_tup_from_tls_conn(tls_offsets_data_t* 
     }
 
     // The code path below should be executed only once during the lifecycle of a TLS connection
-    int32_t fd = 0;
-    if (get_conn_fd(&pd->conn_layout, conn, &fd)) {
-        return NULL;
-    }
     pid_fd_t pid_fd = {
         .pid = pid_tgid >> 32,
-        .fd = fd,
+        // fd is populated by the code downstream
+        .fd = 0,
     };
 
-    conn_tuple_t *conn_tuple = bpf_map_lookup_elem(&tuple_by_pid_fd, &pid_fd);
-    if (conn_tuple == NULL)  {
+    // The tls.Conn struct has a `conn` field of type `net.Conn` (interface)
+    // Here we obtain the pointer to the concrete type behind this interface.
+    void* tls_conn_inner_conn_ptr = conn + pd->conn_layout.tls_conn_inner_conn_offset;
+    interface_t inner_conn_iface;
+    if (bpf_probe_read_user(&inner_conn_iface, sizeof(inner_conn_iface), tls_conn_inner_conn_ptr)) {
         return NULL;
     }
 
-    bpf_map_update_elem(&conn_tup_by_go_tls_conn, &conn, conn_tuple, BPF_ANY);
+    conn_tuple_t *tuple = __tuple_via_tcp_conn(&pd->conn_layout, (void *)inner_conn_iface.ptr, &pid_fd);
+    if (!tuple) {
+        tuple = __tuple_via_limited_conn(&pd->conn_layout, (void *)inner_conn_iface.ptr, &pid_fd);
+    }
+
+    if (!tuple) {
+        return NULL;
+    }
+
+    // Copy tuple to stack before inserting it in another map (necessary for older Kernels)
+    conn_tuple_t tuple_copy;
+    bpf_memcpy(&tuple_copy, tuple, sizeof(conn_tuple_t));
+
+    bpf_map_update_elem(&conn_tup_by_go_tls_conn, &conn, &tuple_copy, BPF_ANY);
     return bpf_map_lookup_elem(&conn_tup_by_go_tls_conn, &conn);
 }
 

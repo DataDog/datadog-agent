@@ -118,7 +118,7 @@ func TestStepByStepScript(t *testing.T) {
 func (is *stepByStepSuite) TestStepByStep() {
 	fileManager := filemanager.NewUnix(is.Env().RemoteHost)
 	unixHelper := helpers.NewUnix()
-	agentClient, err := client.NewHostAgentClient(is.T(), is.Env().RemoteHost, false)
+	agentClient, err := client.NewHostAgentClient(is, is.Env().RemoteHost.HostOutput, false)
 	require.NoError(is.T(), err)
 	VMclient := common.NewTestClient(is.Env().RemoteHost, agentClient, fileManager, unixHelper)
 
@@ -160,8 +160,11 @@ func (is *stepByStepSuite) CheckStepByStepAgentInstallation(VMclient *common.Tes
 	}
 	common.CheckApmEnabled(is.T(), VMclient)
 	common.CheckApmDisabled(is.T(), VMclient)
-	if *flavorName == "datadog-agent" && is.cwsSupported {
-		common.CheckCWSBehaviour(is.T(), VMclient)
+	if *flavorName == "datadog-agent" {
+		common.CheckSystemProbeBehavior(is.T(), VMclient)
+		if is.cwsSupported {
+			common.CheckCWSBehaviour(is.T(), VMclient)
+		}
 	}
 
 	is.T().Run("remove the agent", func(tt *testing.T) {
@@ -282,6 +285,6 @@ func (is *stepByStepSuite) StepByStepSuseTest(VMclient *common.TestClient) {
 		ExecuteWithoutError(t, VMclient, "sudo curl -o /tmp/DATADOG_RPM_KEY_E09422B3.public https://keys.datadoghq.com/DATADOG_RPM_KEY_E09422B3.public")
 		ExecuteWithoutError(t, VMclient, "sudo rpm --import /tmp/DATADOG_RPM_KEY_E09422B3.public")
 		ExecuteWithoutError(t, VMclient, "sudo zypper --non-interactive --no-gpg-checks refresh datadog")
-		ExecuteWithoutError(t, VMclient, "sudo zypper --non-interactive install %s", *flavorName)
+		ExecuteWithoutError(t, VMclient, "sudo zypper --non-interactive --no-refresh install %s", *flavorName)
 	})
 }

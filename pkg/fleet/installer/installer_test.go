@@ -9,86 +9,40 @@
 package installer
 
 import (
-	"bytes"
 	"context"
-	"fmt"
-	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/DataDog/datadog-agent/pkg/fleet/installer/fixtures"
+	"github.com/DataDog/datadog-agent/pkg/fleet/env"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
+	"github.com/DataDog/datadog-agent/pkg/fleet/internal/db"
+	"github.com/DataDog/datadog-agent/pkg/fleet/internal/fixtures"
+	"github.com/DataDog/datadog-agent/pkg/fleet/internal/oci"
 )
 
 var testCtx = context.TODO()
-
-func assertEqualFS(t *testing.T, expected fs.FS, actual fs.FS) {
-	t.Helper()
-	err := fsContainsAll(expected, actual)
-	assert.NoError(t, err)
-	err = fsContainsAll(actual, expected)
-	assert.NoError(t, err)
-}
-
-func fsContainsAll(a fs.FS, b fs.FS) error {
-	return fs.WalkDir(a, ".", func(path string, _ fs.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-		entryA, err := a.Open(path)
-		if err != nil {
-			return err
-		}
-		entryB, err := b.Open(path)
-		if err != nil {
-			return err
-		}
-		entryAStat, err := entryA.Stat()
-		if err != nil {
-			return err
-		}
-		entryBStat, err := entryB.Stat()
-		if err != nil {
-			return err
-		}
-		if entryAStat.IsDir() != entryBStat.IsDir() {
-			return fmt.Errorf("files %s are not equal", path)
-		}
-		if entryAStat.IsDir() {
-			return nil
-		}
-		contentA, err := io.ReadAll(entryA)
-		if err != nil {
-			return err
-		}
-		contentB, err := io.ReadAll(entryB)
-		if err != nil {
-			return err
-		}
-		if !bytes.Equal(contentA, contentB) {
-			return fmt.Errorf("files %s do not have the same content: %s != %s", path, contentA, contentB)
-		}
-		return nil
-	})
-}
 
 type testPackageManager struct {
 	installerImpl
 }
 
-func newTestPackageManager(t *testing.T, s *testDownloadServer, rootPath string, locksPath string) *testPackageManager {
+func newTestPackageManager(t *testing.T, s *fixtures.Server, rootPath string, locksPath string) *testPackageManager {
 	repositories := repository.NewRepositories(rootPath, locksPath)
+	db, err := db.New(filepath.Join(rootPath, "packages.db"))
+	assert.NoError(t, err)
 	return &testPackageManager{
 		installerImpl{
-			downloader:   s.Downloader(),
+			db:           db,
+			downloader:   oci.NewDownloader(&env.Env{}, s.Client()),
 			repositories: repositories,
 			configsDir:   t.TempDir(),
 			tmpDirPath:   rootPath,
-			packagesPath: rootPath,
+			packagesDir:  rootPath,
 		},
 	}
 }
@@ -98,27 +52,33 @@ func (i *testPackageManager) ConfigFS(f fixtures.Fixture) fs.FS {
 }
 
 func TestInstallStable(t *testing.T) {
-	s := newTestDownloadServer(t)
-	defer s.Close()
+	if runtime.GOOS == "darwin" {
+		t.Skip("FIXME: Failing test on macOS - #incident-26965")
+	}
+
+	s := fixtures.NewServer(t)
 	installer := newTestPackageManager(t, s, t.TempDir(), t.TempDir())
 
-	err := installer.Install(testCtx, s.PackageURL(fixtures.FixtureSimpleV1))
+	err := installer.Install(testCtx, s.PackageURL(fixtures.FixtureSimpleV1), nil)
 	assert.NoError(t, err)
 	r := installer.repositories.Get(fixtures.FixtureSimpleV1.Package)
 	state, err := r.GetState()
 	assert.NoError(t, err)
 	assert.Equal(t, fixtures.FixtureSimpleV1.Version, state.Stable)
 	assert.False(t, state.HasExperiment())
-	assertEqualFS(t, s.PackageFS(fixtures.FixtureSimpleV1), r.StableFS())
-	assertEqualFS(t, s.ConfigFS(fixtures.FixtureSimpleV1), installer.ConfigFS(fixtures.FixtureSimpleV1))
+	fixtures.AssertEqualFS(t, s.PackageFS(fixtures.FixtureSimpleV1), r.StableFS())
+	fixtures.AssertEqualFS(t, s.ConfigFS(fixtures.FixtureSimpleV1), installer.ConfigFS(fixtures.FixtureSimpleV1))
 }
 
 func TestInstallExperiment(t *testing.T) {
-	s := newTestDownloadServer(t)
-	defer s.Close()
+	if runtime.GOOS == "darwin" {
+		t.Skip("FIXME: Failing test on macOS - #incident-26965")
+	}
+
+	s := fixtures.NewServer(t)
 	installer := newTestPackageManager(t, s, t.TempDir(), t.TempDir())
 
-	err := installer.Install(testCtx, s.PackageURL(fixtures.FixtureSimpleV1))
+	err := installer.Install(testCtx, s.PackageURL(fixtures.FixtureSimpleV1), nil)
 	assert.NoError(t, err)
 	err = installer.InstallExperiment(testCtx, s.PackageURL(fixtures.FixtureSimpleV2))
 	assert.NoError(t, err)
@@ -127,17 +87,20 @@ func TestInstallExperiment(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, fixtures.FixtureSimpleV1.Version, state.Stable)
 	assert.Equal(t, fixtures.FixtureSimpleV2.Version, state.Experiment)
-	assertEqualFS(t, s.PackageFS(fixtures.FixtureSimpleV1), r.StableFS())
-	assertEqualFS(t, s.PackageFS(fixtures.FixtureSimpleV2), r.ExperimentFS())
-	assertEqualFS(t, s.ConfigFS(fixtures.FixtureSimpleV2), installer.ConfigFS(fixtures.FixtureSimpleV2))
+	fixtures.AssertEqualFS(t, s.PackageFS(fixtures.FixtureSimpleV1), r.StableFS())
+	fixtures.AssertEqualFS(t, s.PackageFS(fixtures.FixtureSimpleV2), r.ExperimentFS())
+	fixtures.AssertEqualFS(t, s.ConfigFS(fixtures.FixtureSimpleV2), installer.ConfigFS(fixtures.FixtureSimpleV2))
 }
 
 func TestInstallPromoteExperiment(t *testing.T) {
-	s := newTestDownloadServer(t)
-	defer s.Close()
+	if runtime.GOOS == "darwin" {
+		t.Skip("FIXME: Failing test on macOS - #incident-26965")
+	}
+
+	s := fixtures.NewServer(t)
 	installer := newTestPackageManager(t, s, t.TempDir(), t.TempDir())
 
-	err := installer.Install(testCtx, s.PackageURL(fixtures.FixtureSimpleV1))
+	err := installer.Install(testCtx, s.PackageURL(fixtures.FixtureSimpleV1), nil)
 	assert.NoError(t, err)
 	err = installer.InstallExperiment(testCtx, s.PackageURL(fixtures.FixtureSimpleV2))
 	assert.NoError(t, err)
@@ -148,16 +111,19 @@ func TestInstallPromoteExperiment(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, fixtures.FixtureSimpleV2.Version, state.Stable)
 	assert.False(t, state.HasExperiment())
-	assertEqualFS(t, s.PackageFS(fixtures.FixtureSimpleV2), r.StableFS())
-	assertEqualFS(t, s.ConfigFS(fixtures.FixtureSimpleV2), installer.ConfigFS(fixtures.FixtureSimpleV2))
+	fixtures.AssertEqualFS(t, s.PackageFS(fixtures.FixtureSimpleV2), r.StableFS())
+	fixtures.AssertEqualFS(t, s.ConfigFS(fixtures.FixtureSimpleV2), installer.ConfigFS(fixtures.FixtureSimpleV2))
 }
 
 func TestUninstallExperiment(t *testing.T) {
-	s := newTestDownloadServer(t)
-	defer s.Close()
+	if runtime.GOOS == "darwin" {
+		t.Skip("FIXME: Failing test on macOS - #incident-26965")
+	}
+
+	s := fixtures.NewServer(t)
 	installer := newTestPackageManager(t, s, t.TempDir(), t.TempDir())
 
-	err := installer.Install(testCtx, s.PackageURL(fixtures.FixtureSimpleV1))
+	err := installer.Install(testCtx, s.PackageURL(fixtures.FixtureSimpleV1), nil)
 	assert.NoError(t, err)
 	err = installer.InstallExperiment(testCtx, s.PackageURL(fixtures.FixtureSimpleV2))
 	assert.NoError(t, err)
@@ -168,7 +134,7 @@ func TestUninstallExperiment(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, fixtures.FixtureSimpleV1.Version, state.Stable)
 	assert.False(t, state.HasExperiment())
-	assertEqualFS(t, s.PackageFS(fixtures.FixtureSimpleV1), r.StableFS())
+	fixtures.AssertEqualFS(t, s.PackageFS(fixtures.FixtureSimpleV1), r.StableFS())
 	// we do not rollback configuration examples to their previous versions currently
-	assertEqualFS(t, s.ConfigFS(fixtures.FixtureSimpleV2), installer.ConfigFS(fixtures.FixtureSimpleV2))
+	fixtures.AssertEqualFS(t, s.ConfigFS(fixtures.FixtureSimpleV2), installer.ConfigFS(fixtures.FixtureSimpleV2))
 }

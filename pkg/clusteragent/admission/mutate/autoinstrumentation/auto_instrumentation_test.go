@@ -9,7 +9,6 @@ package autoinstrumentation
 
 import (
 	"fmt"
-	"os"
 	"strconv"
 	"strings"
 	"testing"
@@ -25,6 +24,7 @@ import (
 	"k8s.io/client-go/kubernetes/scheme"
 
 	"github.com/DataDog/datadog-agent/comp/core"
+	configComp "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -53,7 +53,7 @@ func TestInjectAutoInstruConfig(t *testing.T) {
 				},
 			},
 			expectedEnvKey: "JAVA_TOOL_OPTIONS",
-			expectedEnvVal: " -javaagent:/datadog-lib/dd-java-agent.jar -XX:OnError=/datadog-lib/continuousprofiler/tmp/dd_crash_uploader.sh -XX:ErrorFile=/datadog-lib/continuousprofiler/tmp/hs_err_pid_%p.log",
+			expectedEnvVal: " -javaagent:/datadog-lib/dd-java-agent.jar -XX:OnError=/datadog-lib/java/continuousprofiler/tmp/dd_crash_uploader.sh -XX:ErrorFile=/datadog-lib/java/continuousprofiler/tmp/hs_err_pid_%p.log",
 			wantErr:        false,
 		},
 		{
@@ -66,7 +66,7 @@ func TestInjectAutoInstruConfig(t *testing.T) {
 				},
 			},
 			expectedEnvKey: "JAVA_TOOL_OPTIONS",
-			expectedEnvVal: "predefined -javaagent:/datadog-lib/dd-java-agent.jar -XX:OnError=/datadog-lib/continuousprofiler/tmp/dd_crash_uploader.sh -XX:ErrorFile=/datadog-lib/continuousprofiler/tmp/hs_err_pid_%p.log",
+			expectedEnvVal: "predefined -javaagent:/datadog-lib/dd-java-agent.jar -XX:OnError=/datadog-lib/java/continuousprofiler/tmp/dd_crash_uploader.sh -XX:ErrorFile=/datadog-lib/java/continuousprofiler/tmp/hs_err_pid_%p.log",
 			wantErr:        false,
 		},
 		{
@@ -586,14 +586,27 @@ func TestExtractLibInfo(t *testing.T) {
 			},
 		},
 	}
-	wmeta := fxutil.Test[workloadmeta.Component](t, core.MockBundle(), workloadmeta.MockModule(), fx.Supply(workloadmeta.NewParams()))
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			mockConfig = config.Mock(t)
-			mockConfig.SetWithoutSource("admission_controller.mutate_unlabelled", true)
-			mockConfig.SetWithoutSource("admission_controller.container_registry", commonRegistry)
+			// Fix me: since comp-config and pkg-config don't work together yet we have to set settings
+			// twice
+			overrides := map[string]interface{}{
+				"admission_controller.mutate_unlabelled":  true,
+				"admission_controller.container_registry": commonRegistry,
+			}
 			if tt.containerRegistry != "" {
-				mockConfig.SetWithoutSource("admission_controller.auto_instrumentation.container_registry", tt.containerRegistry)
+				overrides["admission_controller.auto_instrumentation.container_registry"] = tt.containerRegistry
+			}
+
+			wmeta := fxutil.Test[workloadmeta.Component](t,
+				core.MockBundle(),
+				fx.Replace(configComp.MockParams{Overrides: overrides}),
+				workloadmeta.MockModule(),
+				fx.Supply(workloadmeta.NewParams()),
+			)
+			mockConfig = config.Mock(t)
+			for k, v := range overrides {
+				mockConfig.SetWithoutSource(k, v)
 			}
 
 			if tt.setupConfig != nil {
@@ -815,7 +828,7 @@ func injectAllEnvs() []corev1.EnvVar {
 		},
 		{
 			Name:  "JAVA_TOOL_OPTIONS",
-			Value: " -javaagent:/datadog-lib/dd-java-agent.jar -XX:OnError=/datadog-lib/continuousprofiler/tmp/dd_crash_uploader.sh -XX:ErrorFile=/datadog-lib/continuousprofiler/tmp/hs_err_pid_%p.log",
+			Value: " -javaagent:/datadog-lib/dd-java-agent.jar -XX:OnError=/datadog-lib/java/continuousprofiler/tmp/dd_crash_uploader.sh -XX:ErrorFile=/datadog-lib/java/continuousprofiler/tmp/hs_err_pid_%p.log",
 		},
 		{
 			Name:  "DD_DOTNET_TRACER_HOME",
@@ -848,8 +861,7 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 	var mockConfig *config.MockConfig
 	uuid := uuid.New().String()
 	installTime := strconv.FormatInt(time.Now().Unix(), 10)
-	t.Setenv("DD_INSTRUMENTATION_INSTALL_ID", uuid)
-	t.Setenv("DD_INSTRUMENTATION_INSTALL_TIME", installTime)
+
 	tests := []struct {
 		name                      string
 		pod                       *corev1.Pod
@@ -913,7 +925,7 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 				},
 				{
 					Name:  "JAVA_TOOL_OPTIONS",
-					Value: " -javaagent:/datadog-lib/dd-java-agent.jar -XX:OnError=/datadog-lib/continuousprofiler/tmp/dd_crash_uploader.sh -XX:ErrorFile=/datadog-lib/continuousprofiler/tmp/hs_err_pid_%p.log",
+					Value: " -javaagent:/datadog-lib/dd-java-agent.jar -XX:OnError=/datadog-lib/java/continuousprofiler/tmp/dd_crash_uploader.sh -XX:ErrorFile=/datadog-lib/java/continuousprofiler/tmp/hs_err_pid_%p.log",
 				},
 				{
 					Name:  "DD_DOTNET_TRACER_HOME",
@@ -1051,7 +1063,7 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 				},
 				{
 					Name:  "JAVA_TOOL_OPTIONS",
-					Value: " -javaagent:/datadog-lib/dd-java-agent.jar -XX:OnError=/datadog-lib/continuousprofiler/tmp/dd_crash_uploader.sh -XX:ErrorFile=/datadog-lib/continuousprofiler/tmp/hs_err_pid_%p.log",
+					Value: " -javaagent:/datadog-lib/dd-java-agent.jar -XX:OnError=/datadog-lib/java/continuousprofiler/tmp/dd_crash_uploader.sh -XX:ErrorFile=/datadog-lib/java/continuousprofiler/tmp/hs_err_pid_%p.log",
 				},
 				{
 					Name:  "DD_DOTNET_TRACER_HOME",
@@ -1134,7 +1146,7 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 				},
 				{
 					Name:  "JAVA_TOOL_OPTIONS",
-					Value: " -javaagent:/datadog-lib/dd-java-agent.jar -XX:OnError=/datadog-lib/continuousprofiler/tmp/dd_crash_uploader.sh -XX:ErrorFile=/datadog-lib/continuousprofiler/tmp/hs_err_pid_%p.log",
+					Value: " -javaagent:/datadog-lib/dd-java-agent.jar -XX:OnError=/datadog-lib/java/continuousprofiler/tmp/dd_crash_uploader.sh -XX:ErrorFile=/datadog-lib/java/continuousprofiler/tmp/hs_err_pid_%p.log",
 				},
 				{
 					Name:  "DD_DOTNET_TRACER_HOME",
@@ -1204,7 +1216,7 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 				},
 				{
 					Name:  "JAVA_TOOL_OPTIONS",
-					Value: " -javaagent:/datadog-lib/dd-java-agent.jar -XX:OnError=/datadog-lib/continuousprofiler/tmp/dd_crash_uploader.sh -XX:ErrorFile=/datadog-lib/continuousprofiler/tmp/hs_err_pid_%p.log",
+					Value: " -javaagent:/datadog-lib/dd-java-agent.jar -XX:OnError=/datadog-lib/java/continuousprofiler/tmp/dd_crash_uploader.sh -XX:ErrorFile=/datadog-lib/java/continuousprofiler/tmp/hs_err_pid_%p.log",
 				},
 			},
 			expectedInjectedLibraries: map[string]string{"java": "latest"},
@@ -1300,7 +1312,7 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 				},
 				{
 					Name:  "JAVA_TOOL_OPTIONS",
-					Value: " -javaagent:/datadog-lib/dd-java-agent.jar -XX:OnError=/datadog-lib/continuousprofiler/tmp/dd_crash_uploader.sh -XX:ErrorFile=/datadog-lib/continuousprofiler/tmp/hs_err_pid_%p.log",
+					Value: " -javaagent:/datadog-lib/dd-java-agent.jar -XX:OnError=/datadog-lib/java/continuousprofiler/tmp/dd_crash_uploader.sh -XX:ErrorFile=/datadog-lib/java/continuousprofiler/tmp/hs_err_pid_%p.log",
 				},
 			},
 			expectedInjectedLibraries: map[string]string{"java": "latest"},
@@ -1651,7 +1663,7 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 				},
 				{
 					Name:  "JAVA_TOOL_OPTIONS",
-					Value: " -javaagent:/datadog-lib/dd-java-agent.jar -XX:OnError=/datadog-lib/continuousprofiler/tmp/dd_crash_uploader.sh -XX:ErrorFile=/datadog-lib/continuousprofiler/tmp/hs_err_pid_%p.log",
+					Value: " -javaagent:/datadog-lib/dd-java-agent.jar -XX:OnError=/datadog-lib/java/continuousprofiler/tmp/dd_crash_uploader.sh -XX:ErrorFile=/datadog-lib/java/continuousprofiler/tmp/hs_err_pid_%p.log",
 				},
 				{
 					Name:  "PYTHONPATH",
@@ -1763,7 +1775,7 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 				},
 				{
 					Name:  "JAVA_TOOL_OPTIONS",
-					Value: " -javaagent:/datadog-lib/dd-java-agent.jar -XX:OnError=/datadog-lib/continuousprofiler/tmp/dd_crash_uploader.sh -XX:ErrorFile=/datadog-lib/continuousprofiler/tmp/hs_err_pid_%p.log",
+					Value: " -javaagent:/datadog-lib/dd-java-agent.jar -XX:OnError=/datadog-lib/java/continuousprofiler/tmp/dd_crash_uploader.sh -XX:ErrorFile=/datadog-lib/java/continuousprofiler/tmp/hs_err_pid_%p.log",
 				},
 				{
 					Name:  "PYTHONPATH",
@@ -1979,12 +1991,15 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Setenv("DD_INSTRUMENTATION_INSTALL_ID", uuid)
+			t.Setenv("DD_INSTRUMENTATION_INSTALL_TIME", installTime)
+
+			wmeta := common.FakeStoreWithDeployment(t, tt.langDetectionDeployments)
+
 			mockConfig = config.Mock(t)
 			if tt.setupConfig != nil {
 				tt.setupConfig()
 			}
-
-			wmeta := common.FakeStoreWithDeployment(t, tt.langDetectionDeployments)
 
 			// Need to create a new instance of the webhook to take into account
 			// the config changes.
@@ -2041,10 +2056,6 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 			require.Equal(t, tt.expectedInjectedLibraries[language], strings.Split(c.Image, ":")[1])
 		}
 
-		t.Cleanup(func() {
-			os.Unsetenv("DD_INSTRUMENTATION_INSTALL_ID")
-			os.Unsetenv("DD_INSTRUMENTATION_INSTALL_TIME")
-		})
 	}
 }
 

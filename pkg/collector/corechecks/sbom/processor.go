@@ -10,12 +10,14 @@ package sbom
 import (
 	"context"
 	"errors"
+	"io/fs"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
-	"github.com/DataDog/datadog-agent/comp/core/tagger/collectors"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
@@ -35,7 +37,7 @@ import (
 )
 
 var /* const */ (
-	envVarEnv   = ddConfig.Datadog.GetString("env")
+	envVarEnv   = ddConfig.Datadog().GetString("env")
 	sourceAgent = "agent"
 )
 
@@ -219,16 +221,39 @@ func (p *processor) processHostScanResult(result sbom.ScanResult) {
 	p.queue <- sbom
 }
 
+type relFS struct {
+	root string
+	fs   fs.FS
+}
+
+func newFS(root string) fs.FS {
+	fs := os.DirFS(root)
+	return &relFS{root: "/", fs: fs}
+}
+
+func (f *relFS) Open(name string) (fs.File, error) {
+	if filepath.IsAbs(name) {
+		var err error
+		name, err = filepath.Rel(f.root, name)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return f.fs.Open(name)
+}
+
 func (p *processor) triggerHostScan() {
 	if !p.hostSBOM {
 		return
 	}
 	log.Debugf("Triggering host SBOM refresh")
 
-	scanRequest := host.NewScanRequest("/")
+	scanPath := "/"
 	if hostRoot := os.Getenv("HOST_ROOT"); ddConfig.IsContainerized() && hostRoot != "" {
-		scanRequest = host.NewScanRequest(hostRoot)
+		scanPath = hostRoot
 	}
+	scanRequest := host.NewScanRequest(scanPath, newFS("/"))
 
 	if err := p.sbomScanner.Scan(scanRequest); err != nil {
 		log.Errorf("Failed to trigger SBOM generation for host: %s", err)
@@ -246,7 +271,7 @@ func (p *processor) processImageSBOM(img *workloadmeta.ContainerImageMetadata) {
 		return
 	}
 
-	ddTags, err := tagger.Tag("container_image_metadata://"+img.ID, collectors.HighCardinality)
+	ddTags, err := tagger.Tag("container_image_metadata://"+img.ID, types.HighCardinality)
 	if err != nil {
 		log.Errorf("Could not retrieve tags for container image %s: %v", img.ID, err)
 	}

@@ -20,6 +20,7 @@ import (
 	apiv1 "github.com/DataDog/datadog-agent/pkg/clusteragent/api/v1"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/process"
+	"github.com/DataDog/datadog-agent/pkg/util/clusteragent"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
@@ -147,15 +148,11 @@ type FakeDCAClient struct {
 	ClusterIDErr error
 }
 
-func (f *FakeDCAClient) Version() version.Version {
+func (f *FakeDCAClient) Version(_ bool) version.Version {
 	panic("implement me")
 }
 
 func (f *FakeDCAClient) ClusterAgentAPIEndpoint() string {
-	panic("implement me")
-}
-
-func (f *FakeDCAClient) GetVersion() (version.Version, error) {
 	panic("implement me")
 }
 
@@ -168,6 +165,10 @@ func (f *FakeDCAClient) GetNodeAnnotations(_ string) (map[string]string, error) 
 }
 
 func (f *FakeDCAClient) GetNamespaceLabels(_ string) (map[string]string, error) {
+	panic("implement me")
+}
+
+func (f *FakeDCAClient) GetNamespaceMetadata(_ string) (*clusteragent.Metadata, error) {
 	panic("implement me")
 }
 
@@ -203,6 +204,10 @@ func (f *FakeDCAClient) GetCFAppsMetadataForNode(_ string) (map[string][]string,
 }
 
 func (f *FakeDCAClient) PostLanguageMetadata(_ context.Context, _ *pbgo.ParentLanguageAnnotationRequest) error {
+	panic("implement me")
+}
+
+func (f *FakeDCAClient) SupportsNamespaceMetadataCollection() bool {
 	panic("implement me")
 }
 

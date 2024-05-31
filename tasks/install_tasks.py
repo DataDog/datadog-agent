@@ -3,7 +3,7 @@ import sys
 
 from invoke import Exit, task
 
-from tasks.libs.common.utils import color_message, environ
+from tasks.libs.common.utils import collapsed_section, color_message, environ
 
 TOOL_LIST = [
     'github.com/frapposelli/wwhrd',
@@ -58,11 +58,12 @@ def install_tools(ctx):
             )
         )
 
-    with environ({'GO111MODULE': 'on'}):
-        for path, tools in TOOLS.items():
-            with ctx.cd(path):
-                for tool in tools:
-                    ctx.run(f"go install {tool}")
+    with collapsed_section("Installing Go tools"):
+        with environ({'GO111MODULE': 'on'}):
+            for path, tools in TOOLS.items():
+                with ctx.cd(path):
+                    for tool in tools:
+                        ctx.run(f"go install {tool}")
 
 
 @task

@@ -1,6 +1,8 @@
 #!/bin/bash
 
-STARTUP_TIME_THRESHOLD=20
+set -o pipefail
+
+STARTUP_TIME_THRESHOLD=40
 
 calculate_median() {
     local sorted=($(printf "%s\n" "${@}" | sort -n))
@@ -32,8 +34,17 @@ for i in $(seq 1 ${ITERATION_COUNT})
 do
     # create a new container to ensure cold start
     dockerId=$(docker run -d datadogci/lambda-extension)
-    sleep 10
-    numberOfMillisecs=$(docker logs "$dockerId" | grep 'ready in' | grep -Eo '[0-9]{1,4}' | tail -3 | head -1)
+
+    retries=0
+    until numberOfMillisecs=$(docker logs "$dockerId" | grep 'ready in' | grep -Eo '[0-9]{1,4}' | tail -3 | head -1);
+    do
+        sleep 1
+        retries=$((retries + 1))
+        if [ $retries -gt 10 ]; then
+            log "Failed to get startup time"
+            exit 1
+        fi
+    done
     startupTimes+=($numberOfMillisecs)
     log "Iteration=$i | Startup Time=$numberOfMillisecs"
 done

@@ -57,11 +57,13 @@ func (handler *languageDetectionHandler) startCleanupInBackground(ctx context.Co
 	go func() {
 		cleanupTicker := time.NewTicker(handler.cfg.cleanupPeriod)
 		defer cleanupTicker.Stop()
-		select {
-		case <-cleanupTicker.C:
-			handler.ownersLanguages.cleanExpiredLanguages(handler.wlm)
-		case <-ctx.Done():
-			break
+		for {
+			select {
+			case <-cleanupTicker.C:
+				handler.ownersLanguages.cleanExpiredLanguages(handler.wlm)
+			case <-ctx.Done():
+				break
+			}
 		}
 	}()
 

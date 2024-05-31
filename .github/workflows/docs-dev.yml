@@ -6,11 +6,13 @@ on:
     - main
     paths:
     - docs/**
+    - .github/workflows/docs-dev.yml
   pull_request:
     branches:
     - main
     paths:
     - docs/**
+    - .github/workflows/docs-dev.yml
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
@@ -21,13 +23,13 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@0ad4b8fadaa221de15dcec353f45205ec38ea70b # v4.1.4
       with:
         # Fetch all history for applying timestamps to every page
         fetch-depth: 0
 
     - name: Set up Python
-      uses: actions/setup-python@v5
+      uses: actions/setup-python@82c7e631bb3cdc910f68e0081d67478d79c6982d # v5.1.0
       with:
         python-version: '3.12'
 
@@ -45,7 +47,7 @@ jobs:
     - name: Build documentation
       run: invoke docs.build
 
-    - uses: actions/upload-artifact@v4
+    - uses: actions/upload-artifact@65462800fd760344b1a7b4382951275a0abb4808 # v4.3.3
       with:
         name: documentation
         path: site
@@ -58,12 +60,12 @@ jobs:
     - build
 
     steps:
-    - uses: actions/download-artifact@v4
+    - uses: actions/download-artifact@65a9edc5881444af0b9093a5e628f2fe47ea3b2e # v4.1.7
       with:
         name: documentation
         path: site
 
-    - uses: peaceiris/actions-gh-pages@v3
+    - uses: peaceiris/actions-gh-pages@4f9cc6602d3f66b9c108549d475ec49e8ef4d45e # v4.0.0
       with:
         github_token: ${{ secrets.GITHUB_TOKEN }}
         publish_dir: site

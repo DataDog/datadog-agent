@@ -70,6 +70,20 @@ var (
 	LibInjectionErrors = telemetry.NewCounterWithOpts("admission_webhooks", "library_injection_errors",
 		[]string{"language", "auto_detected", "injection_type"}, "Number of library injection failures by language and injection type",
 		telemetry.Options{NoDoubleUnderscoreSep: true})
+	CWSExecInstrumentationAttempts = telemetry.NewHistogramWithOpts(
+		"admission_webhooks",
+		"cws_exec_instrumentation_attempts",
+		[]string{"mode", "injected", "reason"},
+		"Distribution of exec requests instrumentation attempts by CWS Instrumentation mode",
+		prometheus.LinearBuckets(0, 1, 1),
+		telemetry.Options{NoDoubleUnderscoreSep: true})
+	CWSPodInstrumentationAttempts = telemetry.NewHistogramWithOpts(
+		"admission_webhooks",
+		"cws_pod_instrumentation_attempts",
+		[]string{"mode", "injected", "reason"},
+		"Distribution of pod requests instrumentation attempts by CWS Instrumentation mode",
+		prometheus.LinearBuckets(0, 1, 1),
+		telemetry.Options{NoDoubleUnderscoreSep: true})
 	RemoteConfigs = telemetry.NewGaugeWithOpts("admission_webhooks", "rc_provider_configs",
 		[]string{}, "Number of valid remote configurations.",
 		telemetry.Options{NoDoubleUnderscoreSep: true})

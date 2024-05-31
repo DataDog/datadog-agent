@@ -45,7 +45,7 @@ const (
 
 	// Java config
 	javaToolOptionsKey   = "JAVA_TOOL_OPTIONS"
-	javaToolOptionsValue = " -javaagent:/datadog-lib/dd-java-agent.jar -XX:OnError=/datadog-lib/continuousprofiler/tmp/dd_crash_uploader.sh -XX:ErrorFile=/datadog-lib/continuousprofiler/tmp/hs_err_pid_%p.log"
+	javaToolOptionsValue = " -javaagent:/datadog-lib/dd-java-agent.jar -XX:OnError=/datadog-lib/java/continuousprofiler/tmp/dd_crash_uploader.sh -XX:ErrorFile=/datadog-lib/java/continuousprofiler/tmp/hs_err_pid_%p.log"
 
 	// Node config
 	nodeOptionsKey   = "NODE_OPTIONS"
@@ -158,8 +158,8 @@ func NewWebhook(wmeta workloadmeta.Component) (*Webhook, error) {
 
 	return &Webhook{
 		name:              webhookName,
-		isEnabled:         config.Datadog.GetBool("admission_controller.auto_instrumentation.enabled"),
-		endpoint:          config.Datadog.GetString("admission_controller.auto_instrumentation.endpoint"),
+		isEnabled:         config.Datadog().GetBool("admission_controller.auto_instrumentation.enabled"),
+		endpoint:          config.Datadog().GetString("admission_controller.auto_instrumentation.endpoint"),
 		resources:         []string{"pods"},
 		operations:        []admiv1.OperationType{admiv1.Create},
 		filter:            filter,
@@ -201,8 +201,8 @@ func UnsetWebhook() {
 // are not one of the ones disabled by default.
 // - Enabled and disabled namespaces: return error.
 func apmSSINamespaceFilter() (*containers.Filter, error) {
-	apmEnabledNamespaces := config.Datadog.GetStringSlice("apm_config.instrumentation.enabled_namespaces")
-	apmDisabledNamespaces := config.Datadog.GetStringSlice("apm_config.instrumentation.disabled_namespaces")
+	apmEnabledNamespaces := config.Datadog().GetStringSlice("apm_config.instrumentation.enabled_namespaces")
+	apmDisabledNamespaces := config.Datadog().GetStringSlice("apm_config.instrumentation.disabled_namespaces")
 
 	if len(apmEnabledNamespaces) > 0 && len(apmDisabledNamespaces) > 0 {
 		return nil, fmt.Errorf("apm.instrumentation.enabled_namespaces and apm.instrumentation.disabled_namespaces configuration cannot be set together")
@@ -352,8 +352,8 @@ func injectSecurityClientLibraryConfig(pod *corev1.Pod) {
 }
 
 func injectEnvVarIfConfigKeySet(pod *corev1.Pod, configKey string, envVarKey string) {
-	if config.Datadog.IsSet(configKey) {
-		enabledValue := config.Datadog.GetBool(configKey)
+	if config.Datadog().IsSet(configKey) {
+		enabledValue := config.Datadog().GetBool(configKey)
 		_ = mutatecommon.InjectEnv(pod, corev1.EnvVar{
 			Name:  envVarKey,
 			Value: strconv.FormatBool(enabledValue),
@@ -412,7 +412,7 @@ func getPinnedLibraries(registry string) []libInfo {
 	var res []libInfo
 
 	var libVersion string
-	singleStepLibraryVersions := config.Datadog.GetStringMapString("apm_config.instrumentation.lib_versions")
+	singleStepLibraryVersions := config.Datadog().GetStringMapString("apm_config.instrumentation.lib_versions")
 
 	// If APM Instrumentation is enabled and configuration apm_config.instrumentation.lib_versions specified, inject only the libraries from the configuration
 	for lang, version := range singleStepLibraryVersions {
@@ -431,7 +431,7 @@ func getPinnedLibraries(registry string) []libInfo {
 // getLibrariesLanguageDetection runs process language auto-detection and returns languages to inject for APM Instrumentation.
 // The langages information is available in workloadmeta-store and attached on the pod's owner.
 func (w *Webhook) getLibrariesLanguageDetection(pod *corev1.Pod) []libInfo {
-	if config.Datadog.GetBool("admission_controller.auto_instrumentation.inject_auto_detected_libraries") {
+	if config.Datadog().GetBool("admission_controller.auto_instrumentation.inject_auto_detected_libraries") {
 		// Use libraries returned by language detection for APM Instrumentation
 		return w.getAutoDetectedLibraries(pod)
 	}
@@ -584,16 +584,16 @@ func ShouldInject(pod *corev1.Pod, wmeta workloadmeta.Component) bool {
 
 	apmWebhook, err := GetWebhook(wmeta)
 	if err != nil {
-		return config.Datadog.GetBool("admission_controller.mutate_unlabelled")
+		return config.Datadog().GetBool("admission_controller.mutate_unlabelled")
 	}
 
-	return apmWebhook.isEnabledInNamespace(pod.Namespace) || config.Datadog.GetBool("admission_controller.mutate_unlabelled")
+	return apmWebhook.isEnabledInNamespace(pod.Namespace) || config.Datadog().GetBool("admission_controller.mutate_unlabelled")
 }
 
 // isEnabledInNamespace indicates if Single Step Instrumentation is enabled for
 // the namespace in the cluster
 func (w *Webhook) isEnabledInNamespace(namespace string) bool {
-	apmInstrumentationEnabled := config.Datadog.GetBool("apm_config.instrumentation.enabled")
+	apmInstrumentationEnabled := config.Datadog().GetBool("apm_config.instrumentation.enabled")
 
 	if !apmInstrumentationEnabled {
 		log.Debugf("APM Instrumentation is disabled")
@@ -753,8 +753,8 @@ func initResources() (corev1.ResourceRequirements, error) {
 
 	var resources = corev1.ResourceRequirements{Limits: corev1.ResourceList{}, Requests: corev1.ResourceList{}}
 
-	if config.Datadog.IsSet("admission_controller.auto_instrumentation.init_resources.cpu") {
-		quantity, err := resource.ParseQuantity(config.Datadog.GetString("admission_controller.auto_instrumentation.init_resources.cpu"))
+	if config.Datadog().IsSet("admission_controller.auto_instrumentation.init_resources.cpu") {
+		quantity, err := resource.ParseQuantity(config.Datadog().GetString("admission_controller.auto_instrumentation.init_resources.cpu"))
 		if err != nil {
 			return resources, err
 		}
@@ -765,8 +765,8 @@ func initResources() (corev1.ResourceRequirements, error) {
 		resources.Limits[corev1.ResourceCPU] = *resource.NewMilliQuantity(defaultMilliCPURequest, resource.DecimalSI)
 	}
 
-	if config.Datadog.IsSet("admission_controller.auto_instrumentation.init_resources.memory") {
-		quantity, err := resource.ParseQuantity(config.Datadog.GetString("admission_controller.auto_instrumentation.init_resources.memory"))
+	if config.Datadog().IsSet("admission_controller.auto_instrumentation.init_resources.memory") {
+		quantity, err := resource.ParseQuantity(config.Datadog().GetString("admission_controller.auto_instrumentation.init_resources.memory"))
 		if err != nil {
 			return resources, err
 		}

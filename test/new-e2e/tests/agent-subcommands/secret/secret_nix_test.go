@@ -7,20 +7,24 @@ package secret
 
 import (
 	"testing"
+	"time"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclient"
+	secrets "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-shared-components/secretsutils"
 
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 type linuxSecretSuite struct {
 	baseSecretSuite
 }
 
-func TestAgentSecretSuite(t *testing.T) {
+func TestLinuxSecretSuite(t *testing.T) {
 	e2e.Run(t, &linuxSecretSuite{}, e2e.WithProvisioner(awshost.ProvisionerNoFakeIntake()))
 }
 
@@ -54,15 +58,7 @@ host_aliases:
 	v.UpdateEnv(
 		awshost.ProvisionerNoFakeIntake(
 			awshost.WithAgentOptions(
-				agentparams.WithFile("/tmp/bin/secret.sh", secretScript, false),
-			),
-		),
-	)
-	v.Env().RemoteHost.MustExecute(`sudo sh -c "chown dd-agent:dd-agent /tmp/bin/secret.sh && chmod 700 /tmp/bin/secret.sh"`)
-	v.UpdateEnv(
-		awshost.ProvisionerNoFakeIntake(
-			awshost.WithAgentOptions(
-				agentparams.WithFile("/tmp/bin/secret.sh", secretScript, false),
+				agentparams.WithFileWithPermissions("/tmp/bin/secret.sh", secretScript, false, secrets.WithUnixSecretPermissions(false)),
 				agentparams.WithAgentConfig(config),
 			),
 		),
@@ -80,4 +76,38 @@ host_aliases:
 	assert.Contains(v.T(), output, "- 'alias_secret':\n\tused in 'datadog.yaml' configuration in entry 'host_aliases/0'")
 	// assert we don't output the resolved secret
 	assert.NotContains(v.T(), output, "a_super_secret_string")
+}
+
+func (v *linuxSecretSuite) TestAgentConfigRefresh() {
+	config := `secret_backend_command: /tmp/secret.py
+secret_backend_arguments:
+  - /tmp
+api_key: ENC[api_key]
+`
+
+	secretClient := secrets.NewSecretClient(v.T(), v.Env().RemoteHost, "/tmp")
+	secretClient.SetSecret("api_key", "abcdefghijklmnopqrstuvwxyz123456")
+
+	v.UpdateEnv(
+		awshost.ProvisionerNoFakeIntake(
+			awshost.WithAgentOptions(
+				secrets.WithUnixSecretSetupScript("/tmp/secret.py", false),
+				agentparams.WithSkipAPIKeyInConfig(),
+				agentparams.WithAgentConfig(config),
+			),
+		),
+	)
+
+	status := v.Env().Agent.Client.Status()
+	assert.Contains(v.T(), status.Content, "API key ending with 23456")
+
+	secretClient.SetSecret("api_key", "123456abcdefghijklmnopqrstuvwxyz")
+
+	secretRefreshOutput := v.Env().Agent.Client.Secret(agentclient.WithArgs([]string{"refresh"}))
+	require.Contains(v.T(), secretRefreshOutput, "api_key")
+
+	status = v.Env().Agent.Client.Status()
+	assert.EventuallyWithT(v.T(), func(t *assert.CollectT) {
+		assert.Contains(t, status.Content, "API key ending with vwxyz")
+	}, 1*time.Minute, 10*time.Second)
 }

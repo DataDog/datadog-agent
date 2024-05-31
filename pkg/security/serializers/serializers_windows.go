@@ -81,6 +81,8 @@ type ProcessSerializer struct {
 // FileEventSerializer serializes a file event to JSON
 type FileEventSerializer struct {
 	FileSerializer
+	// Target file information
+	Destination *FileSerializer `json:"destination,omitempty"`
 }
 
 // RegistryEventSerializer serializes a registry event to JSON
@@ -107,6 +109,13 @@ func newFileSerializer(fe *model.FileEvent, e *model.Event, _ ...uint64) *FileSe
 	return &FileSerializer{
 		Path: e.FieldHandlers.ResolveFilePath(e, fe),
 		Name: e.FieldHandlers.ResolveFileBasename(e, fe),
+	}
+}
+
+func newFimFileSerializer(fe *model.FimFileEvent, e *model.Event, _ ...uint64) *FileSerializer {
+	return &FileSerializer{
+		Path: e.FieldHandlers.ResolveFimFilePath(e, fe),
+		Name: e.FieldHandlers.ResolveFimFileBasename(e, fe),
 	}
 }
 
@@ -215,7 +224,20 @@ func NewEventSerializer(event *model.Event, opts *eval.Opts) *EventSerializer {
 	switch eventType {
 	case model.CreateNewFileEventType:
 		s.FileEventSerializer = &FileEventSerializer{
-			FileSerializer: *newFileSerializer(&event.CreateNewFile.File, event),
+			FileSerializer: *newFimFileSerializer(&event.CreateNewFile.File, event),
+		}
+	case model.FileRenameEventType:
+		s.FileEventSerializer = &FileEventSerializer{
+			FileSerializer: *newFimFileSerializer(&event.RenameFile.Old, event),
+			Destination:    newFimFileSerializer(&event.RenameFile.New, event),
+		}
+	case model.DeleteFileEventType:
+		s.FileEventSerializer = &FileEventSerializer{
+			FileSerializer: *newFimFileSerializer(&event.DeleteFile.File, event),
+		}
+	case model.WriteFileEventType:
+		s.FileEventSerializer = &FileEventSerializer{
+			FileSerializer: *newFimFileSerializer(&event.WriteFile.File, event),
 		}
 	case model.CreateRegistryKeyEventType:
 		s.RegistryEventSerializer = &RegistryEventSerializer{
@@ -244,6 +266,11 @@ func NewEventSerializer(event *model.Event, opts *eval.Opts) *EventSerializer {
 				NewSd:      event.FieldHandlers.ResolveNewSecurityDescriptor(event, &event.ChangePermission),
 			},
 		}
+	case model.ExecEventType:
+		s.FileEventSerializer = &FileEventSerializer{
+			FileSerializer: *newFileSerializer(&event.ProcessContext.Process.FileEvent, event),
+		}
+		s.EventContextSerializer.Outcome = serializeOutcome(0)
 	}
 
 	return s

@@ -19,7 +19,7 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
-	"github.com/DataDog/datadog-agent/comp/core/tagger/collectors"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
@@ -49,10 +49,10 @@ func computeEvents(events []containerdEvent, sender sender.Sender, fil *containe
 			}
 		}
 
-		alertType := event.EventAlertTypeInfo
+		alertType := event.AlertTypeInfo
 		if split[1] == "containers" || split[1] == "tasks" {
 			// For task events, we use the container ID in order to query the Tagger's API
-			t, err := tagger.Tag(containers.BuildTaggerEntityName(e.ID), collectors.HighCardinality)
+			t, err := tagger.Tag(containers.BuildTaggerEntityName(e.ID), types.HighCardinality)
 			if err != nil {
 				// If there is an error retrieving tags from the Tagger, we can still submit the event as is.
 				log.Errorf("Could not retrieve tags for the container %s: %v", e.ID, err)
@@ -65,13 +65,13 @@ func computeEvents(events []containerdEvent, sender sender.Sender, fil *containe
 			}
 
 			if split[2] == "oom" {
-				alertType = event.EventAlertTypeError
+				alertType = event.AlertTypeError
 			}
 		}
 
 		output := event.Event{
 			Title:          fmt.Sprintf("Event on %s from Containerd", split[1]),
-			Priority:       event.EventPriorityNormal,
+			Priority:       event.PriorityNormal,
 			SourceTypeName: CheckName,
 			EventType:      CheckName,
 			AlertType:      alertType,
@@ -174,7 +174,7 @@ func (s *subscriber) run(ctx context.Context) error {
 		return fmt.Errorf("subscriber is already running the event listener routine")
 	}
 
-	excludePauseContainers := config.Datadog.GetBool("exclude_pause_container")
+	excludePauseContainers := config.Datadog().GetBool("exclude_pause_container")
 
 	// Only used when excludePauseContainers is true
 	var pauseContainers setPauseContainers

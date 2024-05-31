@@ -10,14 +10,17 @@ package service
 import "context"
 
 // SetupInstaller noop
-func SetupInstaller(_ context.Context, _ bool) error {
+func SetupInstaller(_ context.Context) error {
+	return nil
+}
+
+// PreSetupInstaller noop
+func PreSetupInstaller() error {
 	return nil
 }
 
 // RemoveInstaller noop
-func RemoveInstaller(_ context.Context) error {
-	return nil
-}
+func RemoveInstaller(_ context.Context) error { return nil }
 
 // StartInstallerExperiment noop
 func StartInstallerExperiment(_ context.Context) error {

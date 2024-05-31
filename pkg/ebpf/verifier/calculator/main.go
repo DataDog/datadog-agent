@@ -20,8 +20,9 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/pkg/ebpf/verifier"
 	"github.com/cilium/ebpf/rlimit"
+
+	"github.com/DataDog/datadog-agent/pkg/ebpf/verifier"
 )
 
 type filters []string
@@ -41,6 +42,10 @@ func main() {
 	var filterPrograms filters
 
 	debug := flag.Bool("debug", false, "Calculate statistics of debug builds")
+	lineComplexity := flag.Bool("line-complexity", false, "Calculate line complexity, extracting data from the verifier logs")
+	verifierLogsDir := flag.String("verifier-logs", "", "Directory containing verifier logs. If not set, no logs will be saved.")
+	summaryOutput := flag.String("summary-output", "ebpf-calculator/summary.json", "File where JSON with the summary will be written")
+	complexityDataDir := flag.String("complexity-data-dir", "ebpf-calculator/complexity-data", "Directory where the complexity data will be written")
 	flag.Var(&filterFiles, "filter-file", "Files to load ebpf programs from")
 	flag.Var(&filterPrograms, "filter-prog", "Only return statistics for programs matching one of these regex pattern")
 	flag.Parse()
@@ -134,14 +139,65 @@ func main() {
 		filterRegexp = append(filterRegexp, regexp.MustCompile(filter))
 	}
 
-	stats, _, err := verifier.BuildVerifierStats(files, filterRegexp)
+	statsOpts := verifier.StatsOptions{
+		ObjectFiles:        files,
+		VerifierLogsDir:    *verifierLogsDir,
+		DetailedComplexity: *lineComplexity,
+		FilterPrograms:     filterRegexp,
+	}
+
+	results, _, err := verifier.BuildVerifierStats(&statsOpts)
 	if err != nil {
 		log.Fatalf("failed to build verifier stats: %v", err)
 	}
 
-	j, err := json.Marshal(stats)
+	j, err := json.Marshal(results.Stats)
 	if err != nil {
 		log.Fatalf("failed to marshal json %v", err)
 	}
-	fmt.Println(string(j))
+
+	if *summaryOutput != "" {
+		log.Printf("Writing summary to %s", *summaryOutput)
+		if err := os.MkdirAll(filepath.Dir(*summaryOutput), 0755); err != nil {
+			log.Fatalf("failed to create directory %s: %v", filepath.Dir(*summaryOutput), err)
+		}
+		if err := os.WriteFile(*summaryOutput, j, 0666); err != nil {
+			log.Fatalf("failed to write summary file %s: %v", *summaryOutput, err)
+		}
+	}
+
+	if *lineComplexity {
+		log.Printf("Writing complexity data to %s", *complexityDataDir)
+
+		for objectFile, funcsPerSect := range results.FuncsPerSection {
+			mappings, err := json.Marshal(funcsPerSect)
+			if err != nil {
+				log.Fatalf("failed to marshal funcs per section JSON: %v", err)
+			}
+			destPath := filepath.Join(*complexityDataDir, objectFile, "mappings.json")
+			if err := os.MkdirAll(filepath.Dir(destPath), 0755); err != nil {
+				log.Fatalf("failed to create directory %s: %v", filepath.Dir(destPath), err)
+			}
+			if err := os.WriteFile(destPath, mappings, 0644); err != nil {
+				log.Fatalf("failed to write mappings data: %v", err)
+			}
+		}
+
+		for progName, data := range results.Complexity {
+			contents, err := json.Marshal(data)
+			if err != nil {
+				log.Fatalf("failed to marshal json for %s: %v", progName, err)
+			}
+
+			// The format of progName is "objectName/programName" so we need to make the
+			// directory structure to ensure we can save the file in the correct place.
+			destPath := filepath.Join(*complexityDataDir, fmt.Sprintf("%s.json", progName))
+			if err := os.MkdirAll(filepath.Dir(destPath), 0755); err != nil {
+				log.Fatalf("failed to create directory %s: %v", filepath.Dir(destPath), err)
+			}
+			if err := os.WriteFile(destPath, contents, 0644); err != nil {
+				log.Fatalf("failed to write complexity data for %s: %v", progName, err)
+			}
+		}
+	}
 }

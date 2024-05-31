@@ -765,12 +765,12 @@ func (rs *RuleSet) EvaluateDiscarders(event eval.Event) {
 	for _, check := range mdiscsToCheck {
 		isMultiDiscarder := true
 		for _, entry := range check.mdisc.Entries {
-			bucket := rs.eventRuleBuckets[entry.EventType]
-			if bucket == nil {
+			bucket := rs.eventRuleBuckets[entry.EventType.String()]
+			if bucket == nil || len(bucket.rules) == 0 {
 				continue
 			}
 
-			dctx, err := buildDiscarderCtx(entry.Field, check.value)
+			dctx, err := buildDiscarderCtx(entry.EventType, entry.Field, check.value)
 			if err != nil {
 				rs.logger.Errorf("failed to build discarder context: %v", err)
 				isMultiDiscarder = false
@@ -784,7 +784,7 @@ func (rs *RuleSet) EvaluateDiscarders(event eval.Event) {
 		}
 
 		if isMultiDiscarder {
-			rs.NotifyDiscarderFound(event, check.mdisc.FinalField, check.mdisc.FinalEventType)
+			rs.NotifyDiscarderFound(event, check.mdisc.FinalField, check.mdisc.FinalEventType.String())
 		}
 	}
 }
@@ -808,8 +808,9 @@ type multiDiscarderCheck struct {
 	value string
 }
 
-func buildDiscarderCtx(field string, value interface{}) (*eval.Context, error) {
+func buildDiscarderCtx(eventType model.EventType, field string, value interface{}) (*eval.Context, error) {
 	ev := model.NewFakeEvent()
+	ev.BaseEvent.Type = uint32(eventType)
 	if err := ev.SetFieldValue(field, value); err != nil {
 		return nil, err
 	}

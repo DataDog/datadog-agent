@@ -257,7 +257,7 @@ func NewTestEnv(name, x86InstanceType, armInstanceType string, opts *EnvOpts) (*
 				return fmt.Errorf("setup micro-vms in remote instance: %w", err)
 			}
 			return nil
-		}, opts.FailOnMissing, nil)
+		}, opts.FailOnMissing, nil, nil)
 		if err != nil {
 			return handleScenarioFailure(err, func(possibleError handledError) {
 				// handle the following errors by trying in a different availability zone

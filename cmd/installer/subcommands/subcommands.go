@@ -10,7 +10,6 @@ import (
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/cmd/installer/command"
-	"github.com/DataDog/datadog-agent/cmd/installer/subcommands/bootstrap"
 	"github.com/DataDog/datadog-agent/cmd/installer/subcommands/daemon"
 	"github.com/DataDog/datadog-agent/cmd/installer/subcommands/installer"
 	"github.com/DataDog/datadog-agent/cmd/installer/user"
@@ -22,8 +21,8 @@ import (
 func InstallerSubcommands() []command.SubcommandFactory {
 	return []command.SubcommandFactory{
 		withDatadogAgent(daemon.Commands),
-		withRoot(bootstrap.Commands),
 		withRoot(installer.Commands),
+		installer.UnprivilegedCommands,
 	}
 }
 

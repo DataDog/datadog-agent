@@ -19,33 +19,31 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/autodiscoveryimpl"
 	"github.com/DataDog/datadog-agent/comp/core/flare/flareimpl"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/secrets/secretsimpl"
-	"github.com/DataDog/datadog-agent/comp/core/settings"
 	"github.com/DataDog/datadog-agent/comp/core/settings/settingsimpl"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/status/statusimpl"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
-	"github.com/DataDog/datadog-agent/comp/dogstatsd/replay"
+	replay "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/def"
+	replaymock "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/fx-mock"
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
 	dogstatsddebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug/serverdebugimpl"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/eventplatformreceiverimpl"
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
-	"github.com/DataDog/datadog-agent/comp/metadata/host"
 	"github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl"
-	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent/inventoryagentimpl"
-	"github.com/DataDog/datadog-agent/comp/metadata/inventorychecks"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventorychecks/inventorychecksimpl"
-	"github.com/DataDog/datadog-agent/comp/metadata/inventoryhost"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryhost/inventoryhostimpl"
 	"github.com/DataDog/datadog-agent/comp/metadata/packagesigning"
 	"github.com/DataDog/datadog-agent/comp/metadata/packagesigning/packagesigningimpl"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcservice"
-	"github.com/DataDog/datadog-agent/comp/remote-config/rcserviceha"
+	"github.com/DataDog/datadog-agent/comp/remote-config/rcservicemrf"
 
 	// package dependencies
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
@@ -67,24 +65,19 @@ type testdeps struct {
 	DogstatsdServer       dogstatsdServer.Component
 	Capture               replay.Component
 	ServerDebug           dogstatsddebug.Component
-	HostMetadata          host.Component
-	InvAgent              inventoryagent.Component
 	Demux                 demultiplexer.Component
-	InvHost               inventoryhost.Component
 	SecretResolver        secrets.Component
-	InvChecks             inventorychecks.Component
 	PkgSigning            packagesigning.Component
 	StatusComponent       status.Mock
 	EventPlatformReceiver eventplatformreceiver.Component
 	RcService             optional.Option[rcservice.Component]
-	RcServiceHA           optional.Option[rcserviceha.Component]
+	RcServiceMRF          optional.Option[rcservicemrf.Component]
 	AuthToken             authtoken.Component
 	WorkloadMeta          workloadmeta.Component
 	Tagger                tagger.Mock
 	Autodiscovery         autodiscovery.Mock
 	Logs                  optional.Option[logsAgent.Component]
 	Collector             optional.Option[collector.Component]
-	Settings              settings.Component
 	EndpointProviders     []api.EndpointProvider `group:"agent_endpoint"`
 }
 
@@ -92,9 +85,10 @@ func getComponentDependencies(t *testing.T) testdeps {
 	// TODO: this fxutil.Test[T] can take a component and return the component
 	return fxutil.Test[testdeps](
 		t,
+		hostnameimpl.MockModule(),
 		flareimpl.MockModule(),
 		dogstatsdServer.MockModule(),
-		replay.MockModule(),
+		replaymock.MockModule(),
 		serverdebugimpl.MockModule(),
 		hostimpl.MockModule(),
 		inventoryagentimpl.MockModule(),
@@ -109,15 +103,11 @@ func getComponentDependencies(t *testing.T) testdeps {
 		packagesigningimpl.MockModule(),
 		statusimpl.MockModule(),
 		eventplatformreceiverimpl.MockModule(),
-		fx.Provide(func() optional.Option[rcservice.Component] {
-			return optional.NewNoneOption[rcservice.Component]()
-		}),
-		fx.Provide(func() optional.Option[rcserviceha.Component] {
-			return optional.NewNoneOption[rcserviceha.Component]()
-		}),
+		fx.Supply(optional.NewNoneOption[rcservice.Component]()),
+		fx.Supply(optional.NewNoneOption[rcservicemrf.Component]()),
 		fetchonlyimpl.MockModule(),
 		fx.Supply(context.Background()),
-		tagger.MockModule(),
+		taggerimpl.MockModule(),
 		fx.Supply(autodiscoveryimpl.MockParams{Scheduler: nil}),
 		autodiscoveryimpl.MockModule(),
 		fx.Provide(func() optional.Option[logsAgent.Component] {
@@ -127,28 +117,30 @@ func getComponentDependencies(t *testing.T) testdeps {
 			return optional.NewNoneOption[collector.Component]()
 		}),
 		settingsimpl.MockModule(),
+		// Ensure we pass a nil endpoint to test that we always filter out nil endpoints
+		fx.Provide(func() api.AgentEndpointProvider {
+			return api.AgentEndpointProvider{
+				Provider: nil,
+			}
+		}),
 	)
 }
 
 func getTestAPIServer(deps testdeps) api.Component {
 	apideps := dependencies{
-		DogstatsdServer:       deps.DogstatsdServer,
-		Capture:               deps.Capture,
-		ServerDebug:           deps.ServerDebug,
-		HostMetadata:          deps.HostMetadata,
-		InvAgent:              deps.InvAgent,
-		Demux:                 deps.Demux,
-		InvHost:               deps.InvHost,
-		SecretResolver:        deps.SecretResolver,
-		InvChecks:             deps.InvChecks,
-		PkgSigning:            deps.PkgSigning,
-		StatusComponent:       deps.StatusComponent,
-		EventPlatformReceiver: deps.EventPlatformReceiver,
-		RcService:             deps.RcService,
-		RcServiceHA:           deps.RcServiceHA,
-		AuthToken:             deps.AuthToken,
-		Settings:              deps.Settings,
-		EndpointProviders:     deps.EndpointProviders,
+		DogstatsdServer:   deps.DogstatsdServer,
+		Capture:           deps.Capture,
+		SecretResolver:    deps.SecretResolver,
+		PkgSigning:        deps.PkgSigning,
+		StatusComponent:   deps.StatusComponent,
+		RcService:         deps.RcService,
+		RcServiceMRF:      deps.RcServiceMRF,
+		AuthToken:         deps.AuthToken,
+		Tagger:            deps.Tagger,
+		LogsAgentComp:     deps.Logs,
+		WorkloadMeta:      deps.WorkloadMeta,
+		Collector:         deps.Collector,
+		EndpointProviders: deps.EndpointProviders,
 	}
 	return newAPIServer(apideps)
 }
@@ -156,21 +148,11 @@ func getTestAPIServer(deps testdeps) api.Component {
 func TestStartServer(t *testing.T) {
 	deps := getComponentDependencies(t)
 
-	store := deps.WorkloadMeta
-	tags := deps.Tagger
-	ac := deps.Autodiscovery
 	sender := aggregator.NewNoOpSenderManager()
-	log := deps.Logs
-	col := deps.Collector
 
 	srv := getTestAPIServer(deps)
 	err := srv.StartServer(
-		store,
-		tags,
-		ac,
-		log,
 		sender,
-		col,
 	)
 	defer srv.StopServer()
 

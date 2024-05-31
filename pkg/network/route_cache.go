@@ -16,9 +16,9 @@ import (
 
 	"github.com/golang/groupcache/lru"
 	"github.com/vishvananda/netlink"
+	"github.com/vishvananda/netns"
 	"golang.org/x/sys/unix"
 
-	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
@@ -197,13 +197,7 @@ type netlinkRouter struct {
 }
 
 // NewNetlinkRouter create a Router that queries routes via netlink
-func NewNetlinkRouter(cfg *config.Config) (Router, error) {
-	rootNs, err := cfg.GetRootNetNs()
-	if err != nil {
-		return nil, err
-	}
-	defer rootNs.Close()
-
+func NewNetlinkRouter(rootNs netns.NsHandle) (Router, error) {
 	rootNsIno, err := kernel.GetInoForNs(rootNs)
 	if err != nil {
 		return nil, fmt.Errorf("netlink gw cache backing: could not get root net ns: %w", err)

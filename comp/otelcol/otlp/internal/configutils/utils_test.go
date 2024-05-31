@@ -60,10 +60,10 @@ func TestNewConfigProviderFromMap(t *testing.T) {
 		ResolverSettings: confmap.ResolverSettings{
 			URIs: []string{fmt.Sprintf("file:%s", testPath)},
 			Providers: makeConfigMapProviderMap(
-				fileprovider.NewWithSettings(confmap.ProviderSettings{}),
-				envprovider.NewWithSettings(confmap.ProviderSettings{}),
-				yamlprovider.NewWithSettings(confmap.ProviderSettings{})),
-			Converters: []confmap.Converter{expandconverter.New(confmap.ConverterSettings{})},
+				fileprovider.NewFactory().Create(confmap.ProviderSettings{}),
+				envprovider.NewFactory().Create(confmap.ProviderSettings{}),
+				yamlprovider.NewFactory().Create(confmap.ProviderSettings{})),
+			Converters: []confmap.Converter{expandconverter.NewFactory().Create(confmap.ConverterSettings{})},
 		},
 	}
 	defaultProvider, err := otelcol.NewConfigProvider(settings)

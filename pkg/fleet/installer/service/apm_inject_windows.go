@@ -16,6 +16,4 @@ func SetupAPMInjector(_ context.Context) error {
 }
 
 // RemoveAPMInjector noop
-func RemoveAPMInjector(_ context.Context) error {
-	return nil
-}
+func RemoveAPMInjector(_ context.Context) error { return nil }

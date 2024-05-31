@@ -29,6 +29,7 @@ import (
 	"testing"
 	"time"
 
+	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/features"
 	"github.com/cilium/ebpf/rlimit"
@@ -36,9 +37,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	vnetns "github.com/vishvananda/netns"
+	"go4.org/intern"
 	"golang.org/x/sys/unix"
-
-	manager "github.com/DataDog/ebpf-manager"
 
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
@@ -48,6 +48,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/config/sysctl"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
+	"github.com/DataDog/datadog-agent/pkg/network/events"
 	netlinktestutil "github.com/DataDog/datadog-agent/pkg/network/netlink/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection"
@@ -588,14 +589,14 @@ func (s *TracerSuite) TestGatewayLookupNotEnabled() {
 	t.Run("gateway lookup enabled, not on aws", func(t *testing.T) {
 		cfg := testConfig()
 		cfg.EnableGatewayLookup = true
-		oldCloud := cloud
+		oldCloud := network.Cloud
 		defer func() {
-			cloud = oldCloud
+			network.Cloud = oldCloud
 		}()
 		ctrl := gomock.NewController(t)
 		m := NewMockcloudProvider(ctrl)
 		m.EXPECT().IsAWS().Return(false)
-		cloud = m
+		network.Cloud = m
 		tr := setupTracer(t, cfg)
 		require.Nil(t, tr.gwLookup)
 	})
@@ -603,18 +604,18 @@ func (s *TracerSuite) TestGatewayLookupNotEnabled() {
 	t.Run("gateway lookup enabled, aws metadata endpoint not enabled", func(t *testing.T) {
 		cfg := testConfig()
 		cfg.EnableGatewayLookup = true
-		oldCloud := cloud
+		oldCloud := network.Cloud
 		defer func() {
-			cloud = oldCloud
+			network.Cloud = oldCloud
 		}()
 		ctrl := gomock.NewController(t)
 		m := NewMockcloudProvider(ctrl)
 		m.EXPECT().IsAWS().Return(true)
-		cloud = m
+		network.Cloud = m
 
-		clouds := ddconfig.Datadog.Get("cloud_provider_metadata")
-		ddconfig.Datadog.SetWithoutSource("cloud_provider_metadata", []string{})
-		defer ddconfig.Datadog.SetWithoutSource("cloud_provider_metadata", clouds)
+		clouds := ddconfig.Datadog().Get("cloud_provider_metadata")
+		ddconfig.Datadog().SetWithoutSource("cloud_provider_metadata", []string{})
+		defer ddconfig.Datadog().SetWithoutSource("cloud_provider_metadata", clouds)
 
 		tr := setupTracer(t, cfg)
 		require.Nil(t, tr.gwLookup)
@@ -625,13 +626,13 @@ func (s *TracerSuite) TestGatewayLookupEnabled() {
 	t := s.T()
 	ctrl := gomock.NewController(t)
 	m := NewMockcloudProvider(ctrl)
-	oldCloud := cloud
+	oldCloud := network.Cloud
 	defer func() {
-		cloud = oldCloud
+		network.Cloud = oldCloud
 	}()
 
 	m.EXPECT().IsAWS().Return(true)
-	cloud = m
+	network.Cloud = m
 
 	dnsAddr := net.ParseIP("8.8.8.8")
 	ifi := ipRouteGet(t, "", dnsAddr.String(), nil)
@@ -646,7 +647,7 @@ func (s *TracerSuite) TestGatewayLookupEnabled() {
 	t.Cleanup(tr.Stop)
 	require.NotNil(t, tr.gwLookup)
 
-	tr.gwLookup.subnetForHwAddrFunc = func(hwAddr net.HardwareAddr) (network.Subnet, error) {
+	network.SubnetForHwAddrFunc = func(hwAddr net.HardwareAddr) (network.Subnet, error) {
 		t.Logf("subnet lookup: %s", hwAddr)
 		for _, i := range ifs {
 			if hwAddr.String() == i.HardwareAddr.String() {
@@ -686,13 +687,13 @@ func (s *TracerSuite) TestGatewayLookupSubnetLookupError() {
 	t := s.T()
 	ctrl := gomock.NewController(t)
 	m := NewMockcloudProvider(ctrl)
-	oldCloud := cloud
+	oldCloud := network.Cloud
 	defer func() {
-		cloud = oldCloud
+		network.Cloud = oldCloud
 	}()
 
 	m.EXPECT().IsAWS().Return(true)
-	cloud = m
+	network.Cloud = m
 
 	destAddr := net.ParseIP("8.8.8.8")
 	destDomain := "google.com"
@@ -707,14 +708,13 @@ func (s *TracerSuite) TestGatewayLookupSubnetLookupError() {
 
 	ifi := ipRouteGet(t, "", destAddr.String(), nil)
 	calls := 0
-	tr.gwLookup.subnetForHwAddrFunc = func(hwAddr net.HardwareAddr) (network.Subnet, error) {
+	network.SubnetForHwAddrFunc = func(hwAddr net.HardwareAddr) (network.Subnet, error) {
 		if hwAddr.String() == ifi.HardwareAddr.String() {
 			calls++
 		}
 		return network.Subnet{}, assert.AnError
 	}
 
-	tr.gwLookup.purge()
 	require.NoError(t, tr.start(), "failed to start tracer")
 
 	initTracerState(t, tr)
@@ -756,13 +756,13 @@ func (s *TracerSuite) TestGatewayLookupCrossNamespace() {
 	t := s.T()
 	ctrl := gomock.NewController(t)
 	m := NewMockcloudProvider(ctrl)
-	oldCloud := cloud
+	oldCloud := network.Cloud
 	defer func() {
-		cloud = oldCloud
+		network.Cloud = oldCloud
 	}()
 
 	m.EXPECT().IsAWS().Return(true)
-	cloud = m
+	network.Cloud = m
 
 	cfg := testConfig()
 	cfg.EnableGatewayLookup = true
@@ -811,7 +811,7 @@ func (s *TracerSuite) TestGatewayLookupCrossNamespace() {
 
 	ifs, err := net.Interfaces()
 	require.NoError(t, err)
-	tr.gwLookup.subnetForHwAddrFunc = func(hwAddr net.HardwareAddr) (network.Subnet, error) {
+	network.SubnetForHwAddrFunc = func(hwAddr net.HardwareAddr) (network.Subnet, error) {
 		for _, i := range ifs {
 			if hwAddr.String() == i.HardwareAddr.String() {
 				return network.Subnet{Alias: fmt.Sprintf("subnet-%s", i.Name)}, nil
@@ -1677,8 +1677,8 @@ func (s *TracerSuite) TestShortWrite() {
 	toSend := sndBufSize / 2
 	for i := 0; i < 100; i++ {
 		written, err = unix.Write(sk, genPayload(toSend))
-		require.Greater(t, written, 0)
 		require.NoError(t, err)
+		require.Greater(t, written, 0)
 		sent += uint64(written)
 		t.Logf("sent: %v", sent)
 		if written < toSend {
@@ -2231,6 +2231,36 @@ func (s *TracerSuite) TestOffsetGuessIPv6DisabledCentOS() {
 	}
 	// fail if tracer cannot start
 	_ = setupTracer(t, cfg)
+}
+
+func BenchmarkAddProcessInfo(b *testing.B) {
+	cfg := testConfig()
+	cfg.EnableProcessEventMonitoring = true
+
+	tr := setupTracer(b, cfg)
+	var c network.ConnectionStats
+	c.Pid = 1
+	ts, err := ddebpf.NowNanoseconds()
+	require.NoError(b, err)
+	c.LastUpdateEpoch = uint64(ts)
+	tr.processCache.add(&events.Process{
+		Pid: 1,
+		Tags: []*intern.Value{
+			intern.GetByString("env:env"),
+			intern.GetByString("version:version"),
+			intern.GetByString("service:service"),
+		},
+		ContainerID: intern.GetByString("container"),
+		StartTime:   time.Now().Unix(),
+		Expiry:      time.Now().Add(5 * time.Minute).Unix(),
+	})
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		c.Tags = nil
+		tr.addProcessInfo(&c)
+	}
 }
 
 func (s *TracerSuite) TestConnectionDuration() {

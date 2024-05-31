@@ -172,10 +172,11 @@ func (a *Agent) normalize(ts *info.TagStats, s *pb.Span) error {
 	return nil
 }
 
-// setChunkAttributesFromRoot takes a trace chunk and from the root span
+// setChunkAttributes takes a trace chunk and from the root span
 // * populates Origin field if it wasn't populated
 // * populates Priority field if it wasn't populated
-func setChunkAttributesFromRoot(chunk *pb.TraceChunk, root *pb.Span) {
+// * promotes the decision maker found in any internal span to a chunk tag
+func setChunkAttributes(chunk *pb.TraceChunk, root *pb.Span) {
 	// check if priority is already populated
 	if chunk.Priority == int32(sampler.PriorityNone) {
 		// Older tracers set sampling priority in the root span.
@@ -193,6 +194,18 @@ func setChunkAttributesFromRoot(chunk *pb.TraceChunk, root *pb.Span) {
 	if chunk.Origin == "" && root.Meta != nil {
 		// Older tracers set origin in the root span.
 		chunk.Origin = root.Meta[tagOrigin]
+	}
+
+	if _, ok := chunk.Tags[tagDecisionMaker]; !ok {
+		for _, span := range chunk.Spans {
+			// First span wins
+			if dm, ok := span.Meta[tagDecisionMaker]; ok {
+				chunk.Tags[tagDecisionMaker] = dm
+				break
+			}
+			// There are downstream systems that rely on this tag being on the span
+			// delete(span.Meta, tagDecisionMaker)
+		}
 	}
 }
 

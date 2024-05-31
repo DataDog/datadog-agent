@@ -34,6 +34,9 @@ type Event struct {
 
 	// FIM
 	CreateNewFile CreateNewFileEvent `field:"create" event:"create"` // [7.52] [File] A file was created
+	RenameFile    RenameFileEvent    `field:"rename" event:"rename"` // [7.54] [File] A file was renamed
+	DeleteFile    DeleteFileEvent    `field:"delete" event:"delete"` // [7.54] [File] A file was deleted
+	WriteFile     WriteFileEvent     `field:"write" event:"write"`   // [7.54] [File] A file was written
 
 	// Registries
 	CreateRegistryKey   CreateRegistryKeyEvent   `field:"create_key;create" event:"create_key" `   // [7.52] [Registry] A registry key was created
@@ -49,6 +52,14 @@ type FileEvent struct {
 	FileObject  uint64 `field:"-"`                                                                                  // handle numeric value
 	PathnameStr string `field:"path,handler:ResolveFilePath,opts:length" op_override:"eval.WindowsPathCmp"`         // SECLDoc[path] Definition:`File's path` Example:`exec.file.path == "c:\cmd.bat"` Description:`Matches the execution of the file located at c:\cmd.bat`
 	BasenameStr string `field:"name,handler:ResolveFileBasename,opts:length" op_override:"eval.CaseInsensitiveCmp"` // SECLDoc[name] Definition:`File's basename` Example:`exec.file.name == "cmd.bat"` Description:`Matches the execution of any file named cmd.bat.`
+}
+
+// FimFileEvent is the common file event type
+type FimFileEvent struct {
+	FileObject      uint64 `field:"-"`                                                                                     // handle numeric value
+	PathnameStr     string `field:"device_path,handler:ResolveFimFilePath,opts:length" op_override:"eval.WindowsPathCmp"`  // SECLDoc[device_path] Definition:`File's path` Example:`create.file.device_path == "\device\harddisk1\cmd.bat"` Description:`Matches the creation of the file located at c:\cmd.bat`
+	UserPathnameStr string `field:"path,handler:ResolveFileUserPath,opts:length" op_override:"eval.WindowsPathCmp"`        // SECLDoc[path] Definition:`File's path` Example:`create.file.path == "c:\cmd.bat"` Description:`Matches the creation of the file located at c:\cmd.bat`
+	BasenameStr     string `field:"name,handler:ResolveFimFileBasename,opts:length" op_override:"eval.CaseInsensitiveCmp"` // SECLDoc[name] Definition:`File's basename` Example:`create.file.name == "cmd.bat"` Description:`Matches the creation of any file named cmd.bat.`
 }
 
 // RegistryEvent is the common registry event type
@@ -111,7 +122,23 @@ type ExtraFieldHandlers interface {
 
 // CreateNewFileEvent defines file creation
 type CreateNewFileEvent struct {
-	File FileEvent `field:"file"` // SECLDoc[file] Definition:`File Event`
+	File FimFileEvent `field:"file"` // SECLDoc[file] Definition:`File Event`
+}
+
+// RenameFileEvent defines file renaming
+type RenameFileEvent struct {
+	Old FimFileEvent `field:"file"`             // SECLDoc[file] Definition:`File Event`
+	New FimFileEvent `field:"file.destination"` // SECLDoc[file] Definition:`File Event`
+}
+
+// DeleteFileEvent represents an unlink event
+type DeleteFileEvent struct {
+	File FimFileEvent `field:"file"` // SECLDoc[file] Definition:`File Event`
+}
+
+// WriteFileEvent represents a write event
+type WriteFileEvent struct {
+	File FimFileEvent `field:"file"` // SECLDoc[file] Definition:`File Event`
 }
 
 // Registries

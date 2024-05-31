@@ -222,11 +222,6 @@ func (e *Event) IsAnomalyDetectionEvent() bool {
 	return e.Flags&EventFlagsAnomalyDetectionEvent > 0
 }
 
-// IsKernelSpaceAnomalyDetectionEvent returns true if the event is a kernel space anomaly detection event
-func (e *Event) IsKernelSpaceAnomalyDetectionEvent() bool {
-	return AnomalyDetectionSyscallEventType == e.GetEventType()
-}
-
 // AddToFlags adds a flag to the event
 func (e *Event) AddToFlags(flag uint32) {
 	e.Flags |= flag
@@ -537,6 +532,11 @@ type DNSEvent struct {
 	Class uint16 `field:"question.class"`                                                  // SECLDoc[question.class] Definition:`the class looked up by the DNS question` Constants:`DNS qclasses`
 	Size  uint16 `field:"question.length"`                                                 // SECLDoc[question.length] Definition:`the total DNS request size in bytes`
 	Count uint16 `field:"question.count"`                                                  // SECLDoc[question.count] Definition:`the total count of questions in the DNS request`
+}
+
+// Matches returns true if the two DNS events matches
+func (de *DNSEvent) Matches(new *DNSEvent) bool {
+	return de.Name == new.Name && de.Type == new.Type && de.Class == new.Class
 }
 
 // BaseExtraFieldHandlers handlers not hold by any field

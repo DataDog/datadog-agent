@@ -7,4 +7,6 @@
 # Each section note must be formatted as reStructuredText.
 ---
 enhancements:
-  - Add `agent status component [name]` subcommand to fetch only given section status (for example, `datadog-agent status component forwarder` to get forwarder status).
+  - Add ``agent status [name]`` subcommand to fetch only a given section status (for example, ``datadog-agent status forwarder``` to get forwarder status).  
+deprecations:
+  - The ``datadog-agent status component [name]`` syntax will be replaced by ``datadog-agent status [name]`` in Datadog Agent 7.55 

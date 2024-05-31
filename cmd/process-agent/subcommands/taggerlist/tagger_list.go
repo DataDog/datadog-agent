@@ -17,7 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
-	tagger_api "github.com/DataDog/datadog-agent/comp/core/tagger/api"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl/api"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -58,7 +58,7 @@ func taggerList(deps dependencies) error {
 		return err
 	}
 
-	return tagger_api.GetTaggerList(color.Output, taggerURL)
+	return api.GetTaggerList(color.Output, taggerURL)
 }
 
 func getTaggerURL() (string, error) {

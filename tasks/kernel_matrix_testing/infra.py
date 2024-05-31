@@ -48,18 +48,6 @@ class LocalCommandRunner:
             print_failed(res.stderr)
         raise Exit("command failed")
 
-    @staticmethod
-    def move_to_shared_directory(ctx: Context, _: HostInstance, source: PathOrStr, subdir: PathOrStr | None = None):
-        recursive = ""
-        if os.path.isdir(source):
-            recursive = "-R"
-
-        full_target = get_kmt_os().shared_dir
-        if subdir is not None:
-            full_target = os.path.join(get_kmt_os().shared_dir, subdir)
-            ctx.run(f"mkdir -p {full_target}")
-        ctx.run(f"cp {recursive} {source} {full_target}")
-
 
 class RemoteCommandRunner:
     @staticmethod
@@ -81,20 +69,6 @@ class RemoteCommandRunner:
         if res is not None:
             print_failed(res.stderr)
         raise Exit("command failed")
-
-    @staticmethod
-    def move_to_shared_directory(
-        ctx: Context, instance: HostInstance, source: PathOrStr, subdir: PathOrStr | None = None
-    ):
-        full_target = get_kmt_os().shared_dir
-        if subdir is not None:
-            full_target = os.path.join(get_kmt_os().shared_dir, subdir)
-            RemoteCommandRunner.run_cmd(ctx, instance, f"mkdir -p {full_target}", False, False)
-
-        ssh_key_arg = f"-o IdentitiesOnly=yes -i {instance.ssh_key_path}" if instance.ssh_key_path is not None else ""
-        ctx.run(
-            f"rsync -e \"ssh {ssh_options_command()} {ssh_key_arg}\" -p -rt --exclude='.git*' --filter=':- .gitignore' {source} ubuntu@{instance.ip}:{full_target}"
-        )
 
 
 def get_instance_runner(arch: ArchOrLocal):
@@ -137,9 +111,34 @@ class LibvirtDomain:
         run = f"ssh {ssh_options_command(extra_opts)} -o IdentitiesOnly=yes -i {self.ssh_key} root@{self.ip} {{proxy_cmd}} '{cmd}'"
         return self.instance.runner.run_cmd(ctx, self.instance, run, allow_fail, verbose)
 
-    def copy(self, ctx: Context, source: PathOrStr, target: PathOrStr):
-        run = f"rsync -e \"ssh {ssh_options_command()} {{proxy_cmd}} -i {self.ssh_key}\" -p -rt --exclude='.git*' --filter=':- .gitignore' {source} root@{self.ip}:{target}"
-        return self.instance.runner.run_cmd(ctx, self.instance, run, False, False)
+    def _get_rsync_base(self, exclude: PathOrStr | None) -> str:
+        exclude_arg = ""
+        if exclude is not None:
+            exclude_arg = f"--exclude '{exclude}'"
+
+        return f"rsync -e \"ssh {ssh_options_command({'IdentitiesOnly': 'yes'})} {{proxy_cmd}} -i {self.ssh_key}\" -p -rt --exclude='.git*' {exclude_arg} --filter=':- .gitignore'"
+
+    def copy(
+        self,
+        ctx: Context,
+        source: PathOrStr,
+        target: PathOrStr,
+        exclude: PathOrStr | None = None,
+        verbose: bool = False,
+    ):
+        run = self._get_rsync_base(exclude) + f" {source} root@{self.ip}:{target}"
+        return self.instance.runner.run_cmd(ctx, self.instance, run, False, verbose)
+
+    def download(
+        self,
+        ctx: Context,
+        source: PathOrStr,
+        target: PathOrStr,
+        exclude: PathOrStr | None = None,
+        verbose: bool = False,
+    ):
+        run = self._get_rsync_base(exclude) + f" root@{self.ip}:{source} {target}"
+        return self.instance.runner.run_cmd(ctx, self.instance, run, False, verbose)
 
     def __repr__(self):
         return f"<LibvirtDomain> {self.name} {self.ip}"
@@ -158,9 +157,6 @@ class HostInstance:
 
     def add_microvm(self, domain: LibvirtDomain):
         self.microvms.append(domain)
-
-    def copy_to_all_vms(self, ctx: Context, path: PathOrStr, subdir: PathOrStr | None = None):
-        self.runner.move_to_shared_directory(ctx, self, path, subdir)
 
     def __repr__(self):
         return f"<HostInstance> {self.ip} {self.arch}"
@@ -229,7 +225,8 @@ def try_get_ssh_key(ctx: Context, key_hint: str | None) -> SSHKey | None:
     """
     if key_hint is not None:
         checked_paths: list[str] = []
-        possible_paths = map(Path, [key_hint, f"~/.ssh/{key_hint}", f"~/.ssh/{key_hint}.pem"])
+        home = Path.home()
+        possible_paths = map(Path, [key_hint, f"{home}/.ssh/{key_hint}", f"{home}/.ssh/{key_hint}.pem"])
         for path in possible_paths:
             checked_paths.append(os.fspath(path))
             if not path.is_file():
@@ -264,7 +261,7 @@ def try_get_ssh_key(ctx: Context, key_hint: str | None) -> SSHKey | None:
             return {'path': None, 'name': key_hint, 'aws_key_name': key_hint}
 
         raise Exit(
-            f"Could not find file for ssh key {key_hint}. Looked in {possible_paths}, it's not a path, not a file name nor a key name"
+            f"Could not find file for ssh key {key_hint}. Looked in {list(possible_paths)}, it's not a path, not a file name nor a key name"
         )
 
     cm = ConfigManager()
@@ -273,7 +270,7 @@ def try_get_ssh_key(ctx: Context, key_hint: str | None) -> SSHKey | None:
 
 def ensure_key_in_agent(ctx: Context, key: SSHKey):
     info(f"[+] Checking that key {key} is in the SSH agent...")
-    res = ctx.run(f"ssh-add -l | grep {key['name']}")
+    res = ctx.run(f"ssh-add -l | grep {key['name']}", warn=True)
     if res is None or not res.ok:
         if key['path'] is None:
             raise Exit(f"Key {key} not found in the agent and no path provided to add it")

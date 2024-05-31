@@ -4,20 +4,22 @@ go 1.21.0
 
 replace (
 	github.com/DataDog/datadog-agent/comp/core/telemetry => ../../../../comp/core/telemetry/
+	github.com/DataDog/datadog-agent/comp/def => ../../../../comp/def
 	github.com/DataDog/datadog-agent/pkg/telemetry => ../../../telemetry/
 	github.com/DataDog/datadog-agent/pkg/util/fxutil => ../../../util/fxutil/
 )
 
 require (
-	github.com/DataDog/agent-payload/v5 v5.0.106
-	github.com/DataDog/datadog-agent/pkg/telemetry v0.53.0-rc.2
+	github.com/DataDog/agent-payload/v5 v5.0.114
+	github.com/DataDog/datadog-agent/pkg/telemetry v0.54.0-rc.2
 	github.com/gogo/protobuf v1.3.2
 	github.com/stretchr/testify v1.9.0
 )
 
 require (
-	github.com/DataDog/datadog-agent/comp/core/telemetry v0.53.0-rc.2 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.53.0-rc.2 // indirect
+	github.com/DataDog/datadog-agent/comp/core/telemetry v0.54.0-rc.2 // indirect
+	github.com/DataDog/datadog-agent/comp/def v0.54.0-rc.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.54.0-rc.2 // indirect
 	github.com/DataDog/mmh3 v0.0.0-20200805151601-30884ca2197a // indirect
 	github.com/DataDog/zstd v1.4.8 // indirect
 	github.com/DataDog/zstd_0 v0.0.0-20210310093942-586c1286621f // indirect

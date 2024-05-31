@@ -7,9 +7,11 @@ package networkpath
 
 import (
 	"fmt"
-	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
-	"gopkg.in/yaml.v2"
 	"time"
+
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
+	"gopkg.in/yaml.v2"
 )
 
 const defaultCheckInterval time.Duration = 1 * time.Minute
@@ -25,6 +27,9 @@ type InstanceConfig struct {
 
 	DestPort uint16 `yaml:"port"`
 
+	SourceService      string `yaml:"source_service"`
+	DestinationService string `yaml:"destination_service"`
+
 	MaxTTL uint8 `yaml:"max_ttl"`
 
 	TimeoutMs uint `yaml:"timeout"` // millisecond
@@ -39,10 +44,13 @@ type InstanceConfig struct {
 type CheckConfig struct {
 	DestHostname          string
 	DestPort              uint16
+	SourceService         string
+	DestinationService    string
 	MaxTTL                uint8
 	TimeoutMs             uint
 	MinCollectionInterval time.Duration
 	Tags                  []string
+	Namespace             string
 }
 
 // NewCheckConfig builds a new check config
@@ -64,6 +72,8 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 
 	c.DestHostname = instance.DestHostname
 	c.DestPort = instance.DestPort
+	c.SourceService = instance.SourceService
+	c.DestinationService = instance.DestinationService
 	c.MaxTTL = instance.MaxTTL
 	c.TimeoutMs = instance.TimeoutMs
 
@@ -77,6 +87,7 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 	}
 
 	c.Tags = instance.Tags
+	c.Namespace = coreconfig.Datadog().GetString("network_devices.namespace")
 
 	return c, nil
 }

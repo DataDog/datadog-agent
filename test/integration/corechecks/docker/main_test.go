@@ -21,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
@@ -111,8 +112,8 @@ type testDeps struct {
 // Called before for first test run: compose up
 func setup() (workloadmeta.Component, error) {
 	// Setup global conf
-	config.Datadog.SetConfigType("yaml")
-	err := config.Datadog.ReadConfig(strings.NewReader(datadogCfgString))
+	config.Datadog().SetConfigType("yaml")
+	err := config.Datadog().ReadConfig(strings.NewReader(datadogCfgString))
 	if err != nil {
 		return nil, err
 	}
@@ -130,7 +131,7 @@ func setup() (workloadmeta.Component, error) {
 		fx.Supply(workloadmeta.NewParams()),
 		collectors.GetCatalog(),
 		workloadmeta.Module(),
-		tagger.Module(),
+		taggerimpl.Module(),
 		fx.Supply(tagger.NewTaggerParams()),
 	))
 	store := deps.Store

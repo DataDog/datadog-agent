@@ -175,7 +175,7 @@ func (r *Resolver) prepareContextTags() {
 	r.contextTags = append(r.contextTags, fmt.Sprintf("host:%s", r.hostname))
 
 	// merge tags from config
-	for _, tag := range configUtils.GetConfiguredTags(coreconfig.Datadog, true) {
+	for _, tag := range configUtils.GetConfiguredTags(coreconfig.Datadog(), true) {
 		if strings.HasPrefix(tag, "host") {
 			continue
 		}
@@ -218,7 +218,7 @@ func (r *Resolver) generateSBOM(root string, sbom *SBOM) error {
 	seclog.Infof("Generating SBOM for %s", root)
 	r.sbomGenerations.Inc()
 
-	scanRequest := host.NewScanRequest(root)
+	scanRequest := host.NewScanRequest(root, os.DirFS("/"))
 	ch := collectors.GetHostScanner().Channel()
 	if ch == nil {
 		return fmt.Errorf("couldn't retrieve global host scanner result channel")

@@ -92,7 +92,7 @@ func state(_ *cliParams, config config.Component) error {
 	}
 
 	var stateHA *pbgo.GetStateConfigResponse
-	if pkgconfig.Datadog.GetBool("ha.enabled") {
+	if pkgconfig.Datadog().GetBool("multi_region_failover.enabled") {
 		stateHA, err = cli.GetConfigStateHA(ctx, in)
 		if err != nil {
 			return fmt.Errorf("couldn't get the HA repositories state: %w", err)

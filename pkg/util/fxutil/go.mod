@@ -3,10 +3,13 @@ module github.com/DataDog/datadog-agent/pkg/util/fxutil
 go 1.21.0
 
 require (
+	github.com/DataDog/datadog-agent/comp/def v0.54.0-rc.2
 	github.com/spf13/cobra v1.7.0
 	github.com/stretchr/testify v1.9.0
 	go.uber.org/fx v1.18.2
 )
+
+replace github.com/DataDog/datadog-agent/comp/def => ../../../comp/def
 
 require (
 	github.com/davecgh/go-spew v1.1.1 // indirect

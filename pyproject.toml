@@ -4,8 +4,7 @@
 # character.
 
 [tool.ruff]
-# TODO: Some images still use python3.8 in the CI, such as datadog-agent-buildimages/docker_x64 or circleci
-target-version = "py38"
+target-version = "py311"
 exclude = [
     ".git",
     ".github",
@@ -32,6 +31,7 @@ select = [
     "E",
     "F",
     "G",
+    "I",
     "U",
     "W",
     "B003",
@@ -62,10 +62,12 @@ ignore = [
     "C408",
     "C901",
     "B904",
+    "UP033", # Ignore the lru_cache for now
+    "UP017", # Ignore datetime.UTC for now
 ]
 unfixable = [
-    # Don't touch unused imports
-    "F401",
+    "UP033", # Don't fix the lru_cache yet
+    "UP017", # Don't fix datetime.UTC yet
 ]
 
 [tool.ruff.lint.flake8-tidy-imports]

@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Fix a Windows process handle leak in the Process Agent, which was introduced in 7.52.0 when `process_collection` is enabled.
