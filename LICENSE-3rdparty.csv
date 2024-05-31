@@ -3073,6 +3073,7 @@ core,github.com/tg123/go-htpasswd,MIT,Copyright (c) 2015 tgic
 core,github.com/tidwall/gjson,MIT,Copyright (c) 2016 Josh Baker
 core,github.com/tidwall/match,MIT,Copyright (c) 2016 Josh Baker
 core,github.com/tidwall/pretty,MIT,Copyright (c) 2017 Josh Baker
+core,github.com/tidwall/sjson,MIT,Copyright (c) 2016 Josh Baker
 core,github.com/tidwall/tinylru,MIT,Copyright (c) 2020 Josh Baker
 core,github.com/tidwall/wal,MIT,Copyright (c) 2019 Joshua J Baker
 core,github.com/tilinna/clock,MIT,Copyright (c) 2018 Timo Linna
