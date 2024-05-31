@@ -432,25 +432,6 @@ func (p *WindowsProbe) auditEtw(ecb etwCallback) error {
 	return err
 }
 
-func (p *WindowsProbe) auditEtw(ecb etwCallback) error {
-	log.Info("Starting tracing...")
-	err := p.auditSession.StartTracing(func(e *etw.DDEventRecord) {
-
-		switch e.EventHeader.ProviderID {
-
-		case etw.DDGUID(p.auditguid):
-			switch e.EventHeader.EventDescriptor.ID {
-			case idObjectPermsChange:
-				if pc, err := p.parseObjectPermsChange(e); err == nil {
-					log.Infof("Received objectPermsChange event %d %s\n", e.EventHeader.EventDescriptor.ID, pc)
-					//ecb(pc, e.EventHeader.ProcessID)
-					ecb(pc, e.EventHeader.ProcessID)
-				}
-			}
-		}
-	})
-	return err
-}
 func (p *WindowsProbe) setupEtw(ecb etwCallback) error {
 
 	log.Info("Starting tracing...")
