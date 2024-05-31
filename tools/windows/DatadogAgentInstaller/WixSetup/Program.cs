@@ -49,7 +49,7 @@ namespace WixSetup
             // Useful to produce multiple versions of the installer for testing.
             BuildMsi("7.43.0~rc.3+git.485.14b9337");
 #endif
-            if (!string.IsNullOrEmpty(Environment.GetEnvironmentVariable("OMNIBUS_TARGET")) && Environment.GetEnvironmentVariable("OMNIBUS_TARGET") == "main")
+            if (Environment.GetEnvironmentVariable("OMNIBUS_TARGET") == "main")
             {
                 BuildMsi<AgentInstaller>(() =>
                 {
