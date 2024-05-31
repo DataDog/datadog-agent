@@ -7,7 +7,6 @@ package tcp
 
 import (
 	"context"
-	"encoding/binary"
 	"fmt"
 	"net"
 	"strconv"
@@ -22,18 +21,12 @@ import (
 )
 
 const (
-	// URG is the urgent TCP flag
-	URG = 1 << 5
 	// ACK is the acknowledge TCP flag
 	ACK = 1 << 4
-	// PSH is the push TCP flag
-	PSH = 1 << 3
 	// RST is the reset TCP flag
 	RST = 1 << 2
 	// SYN is the synchronization TCP flag
 	SYN = 1 << 1
-	// FIN is the final TCP flag
-	FIN = 1 << 0
 )
 
 type (
@@ -88,59 +81,45 @@ func localAddrForHost(destIP net.IP, destPort uint16) (*net.UDPAddr, error) {
 	return localUDPAddr, nil
 }
 
-// createRawTCPPacket creates a TCP packet with the specified parameters
-func createRawTCPPacket(sourceIP net.IP, sourcePort uint16, destIP net.IP, destPort uint16, seqNum uint32, ttl int, flags byte) (*ipv4.Header, []byte, error) {
-	ipHdr := ipv4.Header{
+// createRawTCPSyn creates a TCP packet with the specified parameters
+func createRawTCPSyn(sourceIP net.IP, sourcePort uint16, destIP net.IP, destPort uint16, seqNum uint32, ttl int, flags byte) (*ipv4.Header, []byte, error) {
+	ipLayer := &layers.IPv4{
 		Version:  4,
-		Len:      20,
-		TTL:      ttl,
-		ID:       418218,
-		Protocol: 6, // TCP
-		Dst:      destIP,
-		Src:      sourceIP,
+		Length:   20,
+		TTL:      uint8(ttl),
+		Id:       uint16(41821),
+		Protocol: 6,
+		DstIP:    destIP,
+		SrcIP:    sourceIP,
 	}
 
-	// Create TCP packet with the specified flags
-	// and sequence number
-	tcpPacket := make([]byte, 20)
-	binary.BigEndian.PutUint16(tcpPacket[0:2], sourcePort) // source port
-	binary.BigEndian.PutUint16(tcpPacket[2:4], destPort)   // destination port
-	binary.BigEndian.PutUint32(tcpPacket[4:8], seqNum)     // sequence number
-	binary.BigEndian.PutUint32(tcpPacket[8:12], 0)         // ack number
-	tcpPacket[12] = 5 << 4                                 // header length
-	tcpPacket[13] = flags
-	binary.BigEndian.PutUint16(tcpPacket[14:16], 1024) // window size
-
-	cs := tcpChecksum(&ipHdr, tcpPacket)
-	binary.BigEndian.PutUint16(tcpPacket[16:18], cs) // checksum
-
-	return &ipHdr, tcpPacket, nil
-}
-
-func tcpChecksum(ipHdr *ipv4.Header, tcpHeader []byte) uint16 {
-	pseudoHeader := []byte{}
-	pseudoHeader = append(pseudoHeader, ipHdr.Src.To4()...)
-	pseudoHeader = append(pseudoHeader, ipHdr.Dst.To4()...)
-	pseudoHeader = append(pseudoHeader, 0) // reserved
-	pseudoHeader = append(pseudoHeader, byte(ipHdr.Protocol))
-	pseudoHeader = append(pseudoHeader, 0, byte(len(tcpHeader))) // tcp length
-
-	return checksum(append(pseudoHeader, tcpHeader...))
-}
-
-func checksum(data []byte) uint16 {
-	var sum uint32
-	for i := 0; i < len(data)-1; i += 2 {
-		sum += uint32(binary.BigEndian.Uint16(data[i : i+2]))
-	}
-	if len(data)%2 != 0 {
-		sum += uint32(data[len(data)-1]) << 8
-	}
-	for (sum >> 16) > 0 {
-		sum = (sum & 0xFFFF) + (sum >> 16)
+	tcpLayer := &layers.TCP{
+		SrcPort: layers.TCPPort(sourcePort),
+		DstPort: layers.TCPPort(destPort),
+		Seq:     seqNum,
+		Ack:     0,
+		SYN:     true,
+		Window:  1024,
 	}
 
-	return uint16(^sum)
+	tcpLayer.SetNetworkLayerForChecksum(ipLayer)
+	buf := gopacket.NewSerializeBuffer()
+	opts := gopacket.SerializeOptions{FixLengths: true, ComputeChecksums: true}
+	err := gopacket.SerializeLayers(buf, opts,
+		ipLayer,
+		tcpLayer,
+	)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to serialize packet: %w", err)
+	}
+	packet := buf.Bytes()
+
+	var ipHdr ipv4.Header
+	if err := ipHdr.Parse(packet[:20]); err != nil {
+		return nil, nil, fmt.Errorf("failed to parse IP header: %w", err)
+	}
+
+	return &ipHdr, packet[20:], nil
 }
 
 // sendPacket sends a raw IPv4 packet using the passed connection
