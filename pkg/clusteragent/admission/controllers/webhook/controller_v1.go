@@ -26,6 +26,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload"
+	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/certificate"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -49,6 +50,7 @@ func NewControllerV1(
 	config Config,
 	wmeta workloadmeta.Component,
 	pa workload.PODPatcher,
+	telemetryCollector telemetry.TelemetryCollector,
 ) *ControllerV1 {
 	controller := &ControllerV1{}
 	controller.clientSet = client
@@ -60,7 +62,7 @@ func NewControllerV1(
 	controller.queue = workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "webhooks")
 	controller.isLeaderFunc = isLeaderFunc
 	controller.isLeaderNotif = isLeaderNotif
-	controller.mutatingWebhooks = mutatingWebhooks(wmeta, pa)
+	controller.mutatingWebhooks = mutatingWebhooks(wmeta, pa, telemetryCollector)
 	controller.generateTemplates()
 
 	if _, err := secretInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{

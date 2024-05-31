@@ -31,6 +31,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/metrics"
 	mutatecommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	apiServerCommon "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
@@ -136,19 +137,20 @@ var (
 
 // Webhook is the auto instrumentation webhook
 type Webhook struct {
-	name              string
-	isEnabled         bool
-	endpoint          string
-	resources         []string
-	operations        []admiv1.OperationType
-	filter            *containers.Filter
-	containerRegistry string
-	pinnedLibraries   []libInfo
-	wmeta             workloadmeta.Component
+	name               string
+	isEnabled          bool
+	endpoint           string
+	resources          []string
+	operations         []admiv1.OperationType
+	filter             *containers.Filter
+	containerRegistry  string
+	pinnedLibraries    []libInfo
+	wmeta              workloadmeta.Component
+	telemetryCollector telemetry.TelemetryCollector
 }
 
 // NewWebhook returns a new Webhook
-func NewWebhook(wmeta workloadmeta.Component) (*Webhook, error) {
+func NewWebhook(wmeta workloadmeta.Component, collector telemetry.TelemetryCollector) (*Webhook, error) {
 	filter, err := apmSSINamespaceFilter()
 	if err != nil {
 		return nil, err
@@ -157,23 +159,24 @@ func NewWebhook(wmeta workloadmeta.Component) (*Webhook, error) {
 	containerRegistry := mutatecommon.ContainerRegistry("admission_controller.auto_instrumentation.container_registry")
 
 	return &Webhook{
-		name:              webhookName,
-		isEnabled:         config.Datadog().GetBool("admission_controller.auto_instrumentation.enabled"),
-		endpoint:          config.Datadog().GetString("admission_controller.auto_instrumentation.endpoint"),
-		resources:         []string{"pods"},
-		operations:        []admiv1.OperationType{admiv1.Create},
-		filter:            filter,
-		containerRegistry: containerRegistry,
-		pinnedLibraries:   getPinnedLibraries(containerRegistry),
-		wmeta:             wmeta,
+		name:               webhookName,
+		isEnabled:          config.Datadog().GetBool("admission_controller.auto_instrumentation.enabled"),
+		endpoint:           config.Datadog().GetString("admission_controller.auto_instrumentation.endpoint"),
+		resources:          []string{"pods"},
+		operations:         []admiv1.OperationType{admiv1.Create},
+		filter:             filter,
+		containerRegistry:  containerRegistry,
+		pinnedLibraries:    getPinnedLibraries(containerRegistry),
+		wmeta:              wmeta,
+		telemetryCollector: collector,
 	}, nil
 }
 
 // GetWebhook returns the Webhook instance, creating it if it doesn't exist
-func GetWebhook(wmeta workloadmeta.Component) (*Webhook, error) {
+func GetWebhook(wmeta workloadmeta.Component, telemetryCollector telemetry.TelemetryCollector) (*Webhook, error) {
 	initOnce.Do(func() {
 		if apmInstrumentationWebhook == nil {
-			apmInstrumentationWebhook, errInitAPMInstrumentation = NewWebhook(wmeta)
+			apmInstrumentationWebhook, errInitAPMInstrumentation = NewWebhook(wmeta, telemetryCollector)
 		}
 	})
 
@@ -463,7 +466,7 @@ func (w *Webhook) extractLibInfo(pod *corev1.Pod) ([]libInfo, bool) {
 	var autoDetected = false
 
 	// The library version specified via annotation on the Pod takes precedence over libraries injected with Single Step Instrumentation
-	if ShouldInject(pod, w.wmeta) {
+	if ShouldInject(pod, w.wmeta, w.telemetryCollector) {
 		libInfoList = w.extractLibrariesFromAnnotations(pod)
 		if len(libInfoList) > 0 {
 			return libInfoList, autoDetected
@@ -569,7 +572,7 @@ func (w *Webhook) extractLibrariesFromAnnotations(pod *corev1.Pod) []libInfo {
 }
 
 // ShouldInject returns true if Admission Controller should inject standard tags, APM configs and APM libraries
-func ShouldInject(pod *corev1.Pod, wmeta workloadmeta.Component) bool {
+func ShouldInject(pod *corev1.Pod, wmeta workloadmeta.Component, telemetryCollector telemetry.TelemetryCollector) bool {
 	// If a pod explicitly sets the label admission.datadoghq.com/enabled, make a decision based on its value
 	if val, found := pod.GetLabels()[common.EnabledLabelKey]; found {
 		switch val {
@@ -582,7 +585,7 @@ func ShouldInject(pod *corev1.Pod, wmeta workloadmeta.Component) bool {
 		}
 	}
 
-	apmWebhook, err := GetWebhook(wmeta)
+	apmWebhook, err := GetWebhook(wmeta, telemetryCollector)
 	if err != nil {
 		return config.Datadog().GetBool("admission_controller.mutate_unlabelled")
 	}
@@ -613,6 +616,7 @@ func (w *Webhook) injectAutoInstruConfig(pod *corev1.Pod, libsToInject []libInfo
 		langStr := string(lib.lang)
 		defer func() {
 			metrics.LibInjectionAttempts.Inc(langStr, strconv.FormatBool(injected), strconv.FormatBool(autoDetected), injectionType)
+			// w.telemetryCollector.SendLibInjectionAttempted(telemetry.LibInjectionMetadata{ })
 		}()
 
 		_ = mutatecommon.InjectEnv(pod, localLibraryInstrumentationInstallTypeEnvVar)
