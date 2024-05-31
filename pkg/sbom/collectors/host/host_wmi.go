@@ -107,7 +107,7 @@ func (c *Collector) CleanCache() error {
 }
 
 // Init initialize the host collector
-func (c *Collector) Init(cfg config.Component, _ optional.Option[workloadmeta.Component]) (err error) {
+func (c *Collector) Init(cfg config.Component, _ optional.Option[workloadmeta.Component]) (err error) { //nolint:revive // TODO fix revive unused-parameter
 	if c.version, err = winutil.GetWindowsBuildString(); err != nil {
 		return err
 	}
@@ -117,7 +117,7 @@ func (c *Collector) Init(cfg config.Component, _ optional.Option[workloadmeta.Co
 }
 
 // Scan performs a scan
-func (c *Collector) Scan(_ context.Context, hostScanRequest sbom.ScanRequest) sbom.ScanResult {
+func (c *Collector) Scan(_ context.Context, hostScanRequest sbom.ScanRequest) sbom.ScanResult { //nolint:revive // TODO fix revive unused-parameter
 
 	report := Report{version: c.version, platform: c.platform, family: c.family, build: c.build}
 	q := wmi.CreateQuery(&report.KBS, "")
