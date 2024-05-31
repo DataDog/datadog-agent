@@ -543,7 +543,7 @@ func Run[Env any, T Suite[Env]](t *testing.T, s T, options ...SuiteOption) {
 
 type State struct {
 	// Version is the version of the checkpoint
-	Version string `json:"version"`
+	Version int `json:"version"`
 	// Checkpoint is the checkpoint of the stack
 	Checkpoint apitype.CheckpointV3 `json:"checkpoint"`
 }
