@@ -60,9 +60,8 @@ func (p *Payload) SplitPayload(_ int) ([]marshaler.AbstractMarshaler, error) {
 type securityagent struct {
 	util.InventoryPayload
 
-	log  log.Component
-	conf config.Component
-	// sysprobeConf optional.Option[sysprobeconfig.Component]
+	log      log.Component
+	conf     config.Component
 	hostname string
 }
 
@@ -73,7 +72,6 @@ type Requires struct {
 	Serializer serializer.MetricSerializer
 	// We need the authtoken to be created so we requires the comp. It will be used by configFetcher.
 	AuthToken authtoken.Component
-	// SysProbeConfig optional.Option[sysprobeconfig.Component]
 }
 
 // Provides defines the output of the securityagent metadata component
@@ -117,18 +115,10 @@ func (sa *securityagent) getConfigLayers() map[string]interface{} {
 		"agent_version": version.AgentVersion,
 	}
 
-	// TODO: ??? do we use this
 	if !sa.conf.GetBool("inventories_configuration_enabled") {
 		return metadata
 	}
 
-	// FIXME: we should use a subset of the config from the security-agent
-	if sa.conf == nil {
-		sa.log.Debugf("security-agent config not available: disabling securityagent metadata")
-		return metadata
-	}
-
-	// FIXME: we should use a subset of the config from the security-agent
 	rawLayers, err := fetchSecurityAgentConfigBySource(sa.conf)
 	if err != nil {
 		sa.log.Debugf("error fetching security-agent config layers: %s", err)
@@ -136,7 +126,6 @@ func (sa *securityagent) getConfigLayers() map[string]interface{} {
 	}
 
 	configBySources := map[string]interface{}{}
-	fmt.Println("rawLayers")
 	if err := json.Unmarshal([]byte(rawLayers), &configBySources); err != nil {
 		sa.log.Debugf("error unmarshalling securityagent config by source: %s", err)
 		return metadata
@@ -163,7 +152,6 @@ func (sa *securityagent) getConfigLayers() map[string]interface{} {
 		}
 	}
 
-	// FIXME: we should use a subset of the config from the security-agent
 	if str, err := fetchSecurityAgentConfig(sa.conf); err == nil {
 		metadata["full_configuration"] = str
 	} else {

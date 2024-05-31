@@ -9,6 +9,4 @@ package def
 // team: agent-shared-components
 
 // Component is the component type.
-type Component interface {
-	GetAsJSON() ([]byte, error)
-}
+type Component interface{}
