@@ -10,7 +10,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"path/filepath"
 	"slices"
 	"sync"
 	"time"
@@ -146,7 +145,7 @@ type fileCache struct {
 }
 
 type etwNotification struct {
-	arg any
+	ev  *model.Event
 	pid uint32
 }
 
@@ -186,7 +185,7 @@ type stats struct {
  * pid is provided for testing purposes, to allow filtering on pid.  it is
  * not expected to be used at runtime
  */
-type etwCallback func(n interface{}, pid uint32)
+type etwCallback func(ev *model.Event, pid uint32)
 
 // Init initializes the probe
 func (p *WindowsProbe) Init() error {
@@ -447,50 +446,27 @@ func (p *WindowsProbe) setupEtw(ecb etwCallback) error {
 			p.stats.regNotifications[e.EventHeader.EventDescriptor.ID]++
 			switch e.EventHeader.EventDescriptor.ID {
 			case idRegCreateKey:
-				if cka, err := p.parseCreateRegistryKey(e); err == nil {
-					log.Tracef("Got idRegCreateKey %s", cka)
-					ecb(cka, e.EventHeader.ProcessID)
+				if ev := p.onRegCreateKey(e); ev != nil {
+					ecb(ev, e.EventHeader.ProcessID)
 					p.stats.regProcessedNotifications[e.EventHeader.EventDescriptor.ID]++
 				}
 			case idRegOpenKey:
-				if cka, err := p.parseOpenRegistryKey(e); err == nil {
-					log.Tracef("Got idRegOpenKey %s", cka)
-					ecb(cka, e.EventHeader.ProcessID)
+				if ev := p.onRegOpenKey(e); ev != nil {
+					ecb(ev, e.EventHeader.ProcessID)
 					p.stats.regProcessedNotifications[e.EventHeader.EventDescriptor.ID]++
 				}
 			case idRegDeleteKey:
-				if dka, err := p.parseDeleteRegistryKey(e); err == nil {
-					log.Tracef("Got idRegDeleteKey %v", dka)
-					ecb(dka, e.EventHeader.ProcessID)
-					p.stats.regProcessedNotifications[e.EventHeader.EventDescriptor.ID]++
-
-				}
-			case idRegFlushKey:
-				if dka, err := p.parseFlushKey(e); err == nil {
-					log.Tracef("Got idRegFlushKey %v", dka)
+				if ev := p.onRegDeleteKey(e); ev != nil {
+					ecb(ev, e.EventHeader.ProcessID)
 					p.stats.regProcessedNotifications[e.EventHeader.EventDescriptor.ID]++
 				}
 			case idRegCloseKey:
-				if dka, err := p.parseCloseKeyArgs(e); err == nil {
-					log.Tracef("Got idRegCloseKey %s", dka)
-					p.regPathResolver.Remove(dka.keyObject)
-					p.stats.regProcessedNotifications[e.EventHeader.EventDescriptor.ID]++
+				p.onRegCloseKey(e)
+				p.stats.regProcessedNotifications[e.EventHeader.EventDescriptor.ID]++
 
-				}
-			case idQuerySecurityKey:
-				if dka, err := p.parseQuerySecurityKeyArgs(e); err == nil {
-					log.Tracef("Got idQuerySecurityKey %v", dka.keyName)
-					p.stats.regProcessedNotifications[e.EventHeader.EventDescriptor.ID]++
-				}
-			case idSetSecurityKey:
-				if dka, err := p.parseSetSecurityKeyArgs(e); err == nil {
-					log.Tracef("Got idSetSecurityKey %v", dka.keyName)
-					p.stats.regProcessedNotifications[e.EventHeader.EventDescriptor.ID]++
-				}
 			case idRegSetValueKey:
-				if svk, err := p.parseSetValueKey(e); err == nil {
-					log.Tracef("Got idRegSetValueKey %s", svk)
-					ecb(svk, e.EventHeader.ProcessID)
+				if ev := p.onRegSetValueKey(e); ev != nil {
+					ecb(ev, e.EventHeader.ProcessID)
 					p.stats.regProcessedNotifications[e.EventHeader.EventDescriptor.ID]++
 				}
 			}
@@ -511,14 +487,19 @@ func (p *WindowsProbe) Start() error {
 
 		go func() {
 			defer p.fimwg.Done()
-			err := p.setupEtw(func(n interface{}, pid uint32) {
+			err := p.setupEtw(func(ev *model.Event, pid uint32) {
 				if p.blockonchannelsend {
-					p.onETWNotification <- etwNotification{n, pid}
+					p.onETWNotification <- etwNotification{ev, pid}
 				} else {
 					select {
-					case p.onETWNotification <- etwNotification{n, pid}:
+					case p.onETWNotification <- etwNotification{ev, pid}:
 					default:
 						p.stats.etwChannelBlocked++
+						ev.Zero()
+						err := p.eventCache.Put(ev)
+						if err != nil {
+							p.stats.eventCacheOverflow++
+						}
 					}
 				}
 			})
@@ -552,25 +533,18 @@ func (p *WindowsProbe) Start() error {
 					continue
 				}
 			case notif := <-p.onETWNotification:
-				switch arg := notif.arg.(type) {
-				case *model.Event:
-					lev := arg
-					if lev.Type != uint32(model.UnknownEventType) {
-						lev.FieldHandlers = p.fieldHandlers
-						_ = p.setProcessContext(notif.pid, lev)
-						p.DispatchEvent(lev)
-						p.processKiller.FlushPendingReports()
-					}
-					lev.Zero()
-					err := p.eventCache.Put(lev)
-					if err != nil {
-						p.stats.eventCacheOverflow++
-					}
-					continue
-
+				if notif.ev.Type != uint32(model.UnknownEventType) {
+					notif.ev.FieldHandlers = p.fieldHandlers
+					_ = p.setProcessContext(notif.pid, notif.ev)
+					p.DispatchEvent(notif.ev)
+					p.processKiller.FlushPendingReports()
 				}
-
-				p.handleETWNotification(ev, notif)
+				notif.ev.Zero()
+				err := p.eventCache.Put(notif.ev)
+				if err != nil {
+					p.stats.eventCacheOverflow++
+				}
+				continue
 			}
 
 			p.DispatchEvent(ev)
@@ -649,55 +623,6 @@ func (p *WindowsProbe) handleProcessStop(ev *model.Event, stop *procmon.ProcessS
 
 	p.Resolvers.ProcessResolver.DequeueExited()
 	return true
-}
-
-func (p *WindowsProbe) handleETWNotification(ev *model.Event, notif etwNotification) {
-	// handle incoming events here
-	// each event will come in as a different type
-	// parse it with
-	switch arg := notif.arg.(type) {
-
-	case *createKeyArgs:
-		ev.Type = uint32(model.CreateRegistryKeyEventType)
-		ev.CreateRegistryKey = model.CreateRegistryKeyEvent{
-			Registry: model.RegistryEvent{
-				KeyPath: arg.computedFullPath,
-				KeyName: filepath.Base(arg.computedFullPath),
-			},
-		}
-	case *openKeyArgs:
-		ev.Type = uint32(model.OpenRegistryKeyEventType)
-		ev.OpenRegistryKey = model.OpenRegistryKeyEvent{
-			Registry: model.RegistryEvent{
-				KeyPath: arg.computedFullPath,
-				KeyName: filepath.Base(arg.computedFullPath),
-			},
-		}
-	case *deleteKeyArgs:
-		ev.Type = uint32(model.DeleteRegistryKeyEventType)
-		ev.DeleteRegistryKey = model.DeleteRegistryKeyEvent{
-			Registry: model.RegistryEvent{
-				KeyName: filepath.Base(arg.computedFullPath),
-				KeyPath: arg.computedFullPath,
-			},
-		}
-	case *setValueKeyArgs:
-		ev.Type = uint32(model.SetRegistryKeyValueEventType)
-		ev.SetRegistryKeyValue = model.SetRegistryKeyValueEvent{
-			Registry: model.RegistryEvent{
-				KeyName: filepath.Base(arg.computedFullPath),
-				KeyPath: arg.computedFullPath,
-			},
-			ValueName: arg.valueName,
-		}
-	}
-
-	if ev.Type != uint32(model.UnknownEventType) {
-		errRes := p.setProcessContext(notif.pid, ev)
-		if errRes != nil {
-			log.Debugf("%v", errRes)
-		}
-	}
 }
 
 func (p *WindowsProbe) setProcessContext(pid uint32, event *model.Event) error {

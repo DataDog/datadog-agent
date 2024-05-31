@@ -7,11 +7,13 @@
 package probe
 
 import (
-	"strconv"
+	"path/filepath"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/comp/etw"
 	etwimpl "github.com/DataDog/datadog-agent/comp/etw/impl"
+
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
 
 const (
@@ -32,109 +34,70 @@ var (
 	regprefix = `\REGISTRY`
 )
 
-/*
-<template tid="task_0CreateKeyArgs">
-      <data name="BaseObject" inType="win:Pointer"/>
-      <data name="KeyObject" inType="win:Pointer"/>
-      <data name="Status" inType="win:UInt32"/>
-      <data name="Disposition" inType="win:UInt32"/>
-      <data name="BaseName" inType="win:UnicodeString"/>
-      <data name="RelativeName" inType="win:UnicodeString"/>
-     </template>
-*/
+func (wp *WindowsProbe) parseCreateRegistryKey(e *etw.DDEventRecord) string {
 
-type createKeyArgs struct {
-	etw.DDEventHeader
-	baseObject       regObjectPointer // pointer
-	keyObject        regObjectPointer //pointer
-	status           uint32
-	disposition      uint32
-	baseName         string
-	relativeName     string
-	computedFullPath string
-}
-type openKeyArgs createKeyArgs
+	/*
+		<template tid="task_0CreateKeyArgs">
+		      <data name="BaseObject" inType="win:Pointer"/>
+		      <data name="KeyObject" inType="win:Pointer"/>
+		      <data name="Status" inType="win:UInt32"/>
+		      <data name="Disposition" inType="win:UInt32"/>
+		      <data name="BaseName" inType="win:UnicodeString"/>
+		      <data name="RelativeName" inType="win:UnicodeString"/>
+		     </template>
+	*/
 
-/*
-		<template tid="task_0DeleteKeyArgs">
-	      <data name="KeyObject" inType="win:Pointer"/>
-	      <data name="Status" inType="win:UInt32"/>
-	      <data name="KeyName" inType="win:UnicodeString"/>
-	     </template>
-*/
-type deleteKeyArgs struct {
-	etw.DDEventHeader
-	keyObject        regObjectPointer
-	status           uint32
-	keyName          string
-	computedFullPath string
-}
-type flushKeyArgs deleteKeyArgs
-type closeKeyArgs deleteKeyArgs
-type querySecurityKeyArgs deleteKeyArgs
-type setSecurityKeyArgs deleteKeyArgs
-
-/*
-<template tid="task_0SetValueKeyArgs">
-
-	<data name="KeyObject" inType="win:Pointer"/>
-	<data name="Status" inType="win:UInt32"/>
-	<data name="Type" inType="win:UInt32"/>
-	<data name="DataSize" inType="win:UInt32"/>
-	<data name="KeyName" inType="win:UnicodeString"/>
-	<data name="ValueName" inType="win:UnicodeString"/>
-	<data name="CapturedDataSize" inType="win:UInt16"/>
-	<data name="CapturedData" inType="win:Binary" length="CapturedDataSize"/>
-	<data name="PreviousDataType" inType="win:UInt32"/>
-	<data name="PreviousDataSize" inType="win:UInt32"/>
-	<data name="PreviousDataCapturedSize" inType="win:UInt16"/>
-	<data name="PreviousData" inType="win:Binary" length="PreviousDataCapturedSize"/>
-
-</template>
-*/
-type setValueKeyArgs struct {
-	etw.DDEventHeader
-	keyObject                regObjectPointer
-	status                   uint32
-	dataType                 uint32
-	dataSize                 uint32
-	keyName                  string
-	valueName                string
-	capturedDataSize         uint16
-	capturedData             []byte
-	previousDataType         uint32
-	previousDataSize         uint32
-	capturedPreviousDataSize uint16 //nolint:golint,unused
-	previousData             []byte
-	computedFullPath         string
-}
-
-func (wp *WindowsProbe) parseCreateRegistryKey(e *etw.DDEventRecord) (*createKeyArgs, error) {
-
-	crc := &createKeyArgs{
-		DDEventHeader: e.EventHeader,
-	}
 	data := etwimpl.GetUserData(e)
 
-	crc.baseObject = regObjectPointer(data.GetUint64(0))
-	crc.keyObject = regObjectPointer(data.GetUint64(8))
-	crc.status = data.GetUint32(16)
-	crc.disposition = data.GetUint32(20)
-
-	//var nextOffset int
-	//var nulltermidx int
+	baseObject := regObjectPointer(data.GetUint64(0))
+	keyObject := regObjectPointer(data.GetUint64(8))
 	var nextOffset int
-	crc.baseName, nextOffset, _, _ = data.ParseUnicodeString(24)
+	var baseName string
+	baseName, nextOffset, _, _ = data.ParseUnicodeString(24)
 	if nextOffset == -1 {
 		nextOffset = 26
 	}
-	crc.relativeName, _, _, _ = data.ParseUnicodeString(nextOffset)
+	relativeName, _, _, _ := data.ParseUnicodeString(nextOffset)
 
-	wp.computeFullPath(crc)
-	return crc, nil
+	return wp.computeFullPath(baseObject, keyObject, baseName, relativeName)
 }
 
-func (cka *createKeyArgs) translateBasePaths() {
+func (wp *WindowsProbe) onRegCreateKey(e *etw.DDEventRecord) *model.Event {
+	fullPath := wp.parseCreateRegistryKey(e)
+
+	ev, err := wp.eventCache.Get()
+	if err != nil {
+		wp.stats.eventCacheUnderflow++
+		return nil
+	}
+	ev.Type = uint32(model.CreateRegistryKeyEventType)
+	ev.CreateRegistryKey = model.CreateRegistryKeyEvent{
+		Registry: model.RegistryEvent{
+			KeyPath: fullPath,
+			KeyName: filepath.Base(fullPath),
+		},
+	}
+	return ev
+}
+
+func (wp *WindowsProbe) onRegOpenKey(e *etw.DDEventRecord) *model.Event {
+	fullPath := wp.parseCreateRegistryKey(e)
+
+	ev, err := wp.eventCache.Get()
+	if err != nil {
+		wp.stats.eventCacheUnderflow++
+		return nil
+	}
+	ev.Type = uint32(model.OpenRegistryKeyEventType)
+	ev.OpenRegistryKey = model.OpenRegistryKeyEvent{
+		Registry: model.RegistryEvent{
+			KeyPath: fullPath,
+			KeyName: filepath.Base(fullPath),
+		},
+	}
+	return ev
+}
+func translateBasePaths(relname string) string {
 
 	table := map[string]string{
 		"\\\\REGISTRY\\MACHINE": "HKEY_LOCAL_MACHINE",
@@ -144,214 +107,141 @@ func (cka *createKeyArgs) translateBasePaths() {
 	}
 
 	for k, v := range table {
-		if strings.HasPrefix(strings.ToUpper(cka.relativeName), k) {
-			cka.relativeName = v + cka.relativeName[len(k):]
+		if strings.HasPrefix(strings.ToUpper(relname), k) {
+			return v + relname[len(k):]
 		}
 	}
-}
-func (wp *WindowsProbe) parseOpenRegistryKey(e *etw.DDEventRecord) (*openKeyArgs, error) {
-	cka, err := wp.parseCreateRegistryKey(e)
-	if err != nil {
-		return nil, err
-	}
-	return (*openKeyArgs)(cka), nil
+	return relname
 }
 
-func (wp *WindowsProbe) computeFullPath(cka *createKeyArgs) {
-	if strings.HasPrefix(cka.relativeName, regprefix) {
-		cka.translateBasePaths()
-		cka.computedFullPath = cka.relativeName
-		if wp.regPathResolver.Add(cka.keyObject, cka.relativeName) {
+func (wp *WindowsProbe) computeFullPath(baseObject, keyObject regObjectPointer, baseName, relativeName string) string {
+	var computedFullPath string
+	if strings.HasPrefix(relativeName, regprefix) {
+		relativeName = translateBasePaths(relativeName)
+		computedFullPath = relativeName
+		if wp.regPathResolver.Add(keyObject, relativeName) {
 			wp.stats.registryCacheEvictions++
 		}
-		return
-	}
-	if s, ok := wp.regPathResolver.Get(cka.keyObject); ok {
-		cka.computedFullPath = s
+		return computedFullPath
 	}
 	var outstr string
-	if cka.baseObject == 0 {
-		if len(cka.baseName) > 0 {
-			outstr = cka.baseName + "\\"
+	if baseObject == 0 {
+		if len(baseName) > 0 {
+			outstr = baseName + "\\"
 		}
-		outstr += cka.relativeName
+		outstr += relativeName
 	} else {
 
-		if s, ok := wp.regPathResolver.Get(cka.baseObject); ok {
-			outstr = s + "\\" + cka.relativeName
+		if s, ok := wp.regPathResolver.Get(baseObject); ok {
+			outstr = s + "\\" + relativeName
 		} else {
-			outstr = cka.relativeName
+			outstr = relativeName
 		}
 	}
-	if wp.regPathResolver.Add(cka.keyObject, outstr) {
+	if wp.regPathResolver.Add(keyObject, outstr) {
 		wp.stats.registryCacheEvictions++
 	}
-	cka.computedFullPath = outstr
-
-}
-func (cka *createKeyArgs) String() string {
-
-	var output strings.Builder
-
-	output.WriteString("  PID: " + strconv.Itoa(int(cka.ProcessID)) + "\n")
-	output.WriteString("  Status: " + strconv.Itoa(int(cka.status)) + " Disposition: " + strconv.Itoa(int(cka.disposition)) + "\n")
-	output.WriteString("  baseObject: " + strconv.FormatUint(uint64(cka.baseObject), 16) + "\n")
-	output.WriteString("  keyObject: " + strconv.FormatUint(uint64(cka.keyObject), 16) + "\n")
-	output.WriteString("  basename: " + cka.baseName + "\n")
-	output.WriteString("  relativename: " + cka.relativeName + "\n")
-	output.WriteString("  computedfullpath: " + cka.computedFullPath + "\n")
-	return output.String()
+	// leaving this here for now; original algorithm doesn't quite make sense yet.
+	computedFullPath = outstr
+	return computedFullPath
 }
 
-func (cka *openKeyArgs) String() string {
-	return (*createKeyArgs)(cka).String()
-}
-
-func (wp *WindowsProbe) parseDeleteRegistryKey(e *etw.DDEventRecord) (*deleteKeyArgs, error) {
-
-	dka := &deleteKeyArgs{
-		DDEventHeader: e.EventHeader,
-	}
-
-	data := etwimpl.GetUserData(e)
-
-	dka.keyObject = regObjectPointer(data.GetUint64(0))
-	dka.status = data.GetUint32(8)
-	dka.keyName, _, _, _ = data.ParseUnicodeString(12)
-	if s, ok := wp.regPathResolver.Get(dka.keyObject); ok {
-		dka.computedFullPath = s
-	}
-
-	return dka, nil
-}
-
-func (wp *WindowsProbe) parseFlushKey(e *etw.DDEventRecord) (*flushKeyArgs, error) {
-	dka, err := wp.parseDeleteRegistryKey(e)
-	if err != nil {
-		return nil, err
-	}
-	return (*flushKeyArgs)(dka), nil
-}
-
-func (wp *WindowsProbe) parseCloseKeyArgs(e *etw.DDEventRecord) (*closeKeyArgs, error) {
-	dka, err := wp.parseDeleteRegistryKey(e)
-	if err != nil {
-		return nil, err
-	}
-	return (*closeKeyArgs)(dka), nil
-}
-func (wp *WindowsProbe) parseQuerySecurityKeyArgs(e *etw.DDEventRecord) (*querySecurityKeyArgs, error) {
-	dka, err := wp.parseDeleteRegistryKey(e)
-	if err != nil {
-		return nil, err
-	}
-	return (*querySecurityKeyArgs)(dka), nil
-}
-func (wp *WindowsProbe) parseSetSecurityKeyArgs(e *etw.DDEventRecord) (*setSecurityKeyArgs, error) {
-	dka, err := wp.parseDeleteRegistryKey(e)
-	if err != nil {
-		return nil, err
-	}
-	return (*setSecurityKeyArgs)(dka), nil
-}
-
-func (dka *deleteKeyArgs) String() string {
-	var output strings.Builder
-
-	output.WriteString("  PID: " + strconv.Itoa(int(dka.ProcessID)) + "\n")
-	output.WriteString("  Status: " + strconv.Itoa(int(dka.status)) + "\n")
-	output.WriteString("  keyName: " + dka.keyName + "\n")
-	output.WriteString("  resolved path: " + dka.computedFullPath + "\n")
-
-	//output.WriteString("  CapturedSize: " + strconv.Itoa(int(sv.capturedPreviousDataSize)) + " pvssize: " + strconv.Itoa(int(sv.previousDataSize)) + " capturedpvssize " + strconv.Itoa(int(sv.capturedPreviousDataSize)) + "\n")
-	return output.String()
-
-}
-
-func (fka *flushKeyArgs) String() string {
-	return (*deleteKeyArgs)(fka).String()
-}
-func (cka *closeKeyArgs) String() string {
-	return (*deleteKeyArgs)(cka).String()
-}
-
-//nolint:unused
-func (qka *querySecurityKeyArgs) String() string {
-	return (*deleteKeyArgs)(qka).String()
-}
-
-//nolint:unused
-func (ska *setSecurityKeyArgs) String() string {
-	return (*deleteKeyArgs)(ska).String()
-}
-
-func (wp *WindowsProbe) parseSetValueKey(e *etw.DDEventRecord) (*setValueKeyArgs, error) {
-
-	sv := &setValueKeyArgs{
-		DDEventHeader: e.EventHeader,
-	}
-
-	data := etwimpl.GetUserData(e)
+func (wp *WindowsProbe) parseDeleteKeyArgs(e *etw.DDEventRecord) (keyObject regObjectPointer, fullPath string) {
 
 	/*
-		for i := 0; i < int(e.UserDataLength); i++ {
-			fmt.Printf(" %2x", data[i])
-			if (i+1)%16 == 0 {
-				fmt.Printf("\n")
-			}
-		}
-		fmt.Printf("\n")
+			<template tid="task_0DeleteKeyArgs">
+		      <data name="KeyObject" inType="win:Pointer"/>
+		      <data name="Status" inType="win:UInt32"/>
+		      <data name="KeyName" inType="win:UnicodeString"/>
+		     </template>
 	*/
-	sv.keyObject = regObjectPointer(data.GetUint64(0))
-	sv.status = data.GetUint32(8)
-	sv.dataType = data.GetUint32(12)
-	sv.dataSize = data.GetUint32(16)
+	data := etwimpl.GetUserData(e)
+
+	keyObject = regObjectPointer(data.GetUint64(0))
+	//dka.status = data.GetUint32(8)
+	//keyName, _, _, _ = data.ParseUnicodeString(12)
+	if s, ok := wp.regPathResolver.Get(keyObject); ok {
+		fullPath = s
+	}
+	return
+}
+
+func (wp *WindowsProbe) onRegDeleteKey(e *etw.DDEventRecord) *model.Event {
+	_, fullPath := wp.parseDeleteKeyArgs(e)
+
+	ev, err := wp.eventCache.Get()
+	if err != nil {
+		wp.stats.eventCacheUnderflow++
+		return nil
+	}
+	ev.Type = uint32(model.DeleteRegistryKeyEventType)
+	ev.DeleteRegistryKey = model.DeleteRegistryKeyEvent{
+		Registry: model.RegistryEvent{
+			KeyPath: fullPath,
+			KeyName: filepath.Base(fullPath),
+		},
+	}
+	return ev
+}
+
+func (wp *WindowsProbe) onRegCloseKey(e *etw.DDEventRecord) {
+	keyObject, _ := wp.parseDeleteKeyArgs(e)
+	wp.regPathResolver.Remove(keyObject)
+}
+
+func (wp *WindowsProbe) parseSetValueKey(e *etw.DDEventRecord) (fullPath, valueName string) {
+	/*
+	   <template tid="task_0SetValueKeyArgs">
+
+	   	<data name="KeyObject" inType="win:Pointer"/>
+	   	<data name="Status" inType="win:UInt32"/>
+	   	<data name="Type" inType="win:UInt32"/>
+	   	<data name="DataSize" inType="win:UInt32"/>
+	   	<data name="KeyName" inType="win:UnicodeString"/>
+	   	<data name="ValueName" inType="win:UnicodeString"/>
+	   	<data name="CapturedDataSize" inType="win:UInt16"/>
+	   	<data name="CapturedData" inType="win:Binary" length="CapturedDataSize"/>
+	   	<data name="PreviousDataType" inType="win:UInt32"/>
+	   	<data name="PreviousDataSize" inType="win:UInt32"/>
+	   	<data name="PreviousDataCapturedSize" inType="win:UInt16"/>
+	   	<data name="PreviousData" inType="win:Binary" length="PreviousDataCapturedSize"/>
+
+	   </template>
+	*/
+
+	data := etwimpl.GetUserData(e)
+
+	keyObject := regObjectPointer(data.GetUint64(0))
 	var nextOffset int
-	var thisNextOffset int
-	sv.keyName, nextOffset, _, _ = data.ParseUnicodeString(20)
+
+	_, nextOffset, _, _ = data.ParseUnicodeString(20)
 	if nextOffset == -1 {
 		nextOffset = 22
 	}
-	sv.valueName, thisNextOffset, _, _ = data.ParseUnicodeString(nextOffset)
-	if thisNextOffset == -1 {
-		nextOffset += 2
-	} else {
-		nextOffset = thisNextOffset
+	valueName, _, _, _ = data.ParseUnicodeString(nextOffset)
+
+	if s, ok := wp.regPathResolver.Get(keyObject); ok {
+		fullPath = s
 	}
 
-	sv.capturedDataSize = data.GetUint16(nextOffset)
-	nextOffset += 2
-
-	// make a copy of the data because the underlying buffer here belongs to etw
-	sv.capturedData = data.Bytes(nextOffset, int(sv.capturedDataSize))
-	nextOffset += int(sv.capturedDataSize)
-
-	sv.previousDataType = data.GetUint32(nextOffset)
-	nextOffset += 4
-
-	sv.previousDataSize = data.GetUint32(nextOffset)
-	nextOffset += 4
-
-	sv.previousData = data.Bytes(nextOffset, int(sv.previousDataSize))
-
-	if s, ok := wp.regPathResolver.Get(sv.keyObject); ok {
-		sv.computedFullPath = s
-	}
-
-	return sv, nil
+	return
 }
 
-func (sv *setValueKeyArgs) String() string {
-	var output strings.Builder
+func (wp *WindowsProbe) onRegSetValueKey(e *etw.DDEventRecord) *model.Event {
+	fullPath, valueName := wp.parseSetValueKey(e)
 
-	output.WriteString("  PID: " + strconv.Itoa(int(sv.ProcessID)) + "\n")
-	output.WriteString("  Status: " + strconv.Itoa(int(sv.status)) + " dataType: " + strconv.Itoa(int(sv.dataType)) + " dataSize " + strconv.Itoa(int(sv.dataSize)) + "\n")
-	output.WriteString("  keyObject: " + strconv.FormatUint(uint64(sv.keyObject), 16) + "\n")
-	output.WriteString("  keyName: " + sv.keyName + "\n")
-	output.WriteString("  valueName: " + sv.valueName + "\n")
-	output.WriteString("  computed path: " + sv.computedFullPath + "\n")
-
-	//output.WriteString("  CapturedSize: " + strconv.Itoa(int(sv.capturedPreviousDataSize)) + " pvssize: " + strconv.Itoa(int(sv.previousDataSize)) + " capturedpvssize " + strconv.Itoa(int(sv.capturedPreviousDataSize)) + "\n")
-	return output.String()
-
+	ev, err := wp.eventCache.Get()
+	if err != nil {
+		wp.stats.eventCacheUnderflow++
+		return nil
+	}
+	ev.Type = uint32(model.SetRegistryKeyValueEventType)
+	ev.SetRegistryKeyValue = model.SetRegistryKeyValueEvent{
+		Registry: model.RegistryEvent{
+			KeyName: filepath.Base(fullPath),
+			KeyPath: fullPath,
+		},
+		ValueName: valueName,
+	}
+	return ev
 }

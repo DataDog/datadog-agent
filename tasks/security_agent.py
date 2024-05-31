@@ -820,19 +820,6 @@ def kitchen_prepare(ctx, skip_linters=False):
         skip_linters=skip_linters,
     )
     if is_windows:
-        # build the ETW tests binary also
-        testsuite_out_path = os.path.join(KITCHEN_ARTIFACT_DIR, "tests", "etw", out_binary)
-        srcpath = 'pkg/security/probe'
-        build_functional_tests(
-            ctx,
-            output=testsuite_out_path,
-            srcpath=srcpath,
-            bundle_ebpf=False,
-            race=race,
-            debug=True,
-            skip_linters=skip_linters,
-        )
-
         return
 
     stresssuite_out_path = os.path.join(KITCHEN_ARTIFACT_DIR, "tests", STRESS_TEST_SUITE)
