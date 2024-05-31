@@ -1811,12 +1811,6 @@ def create_schedule(_, version, freeze_date):
     """
     required_environment_variables = ["ATLASSIAN_USERNAME", "ATLASSIAN_PASSWORD"]
     if not all(key in os.environ for key in required_environment_variables):
-        raise Exit(
-            color_message(
-                f"You must set {required_environment_variables} environment variables to use this task.",
-                "red",
-            ),
-            code=1,
-        )
+        raise Exit(f"You must set {required_environment_variables} environment variables to use this task.", code=1)
     release_page = create_release_page(version, date.fromisoformat(freeze_date))
     print(f"Release schedule pages {release_page['url']} {color_message('successfully created', 'green')}")

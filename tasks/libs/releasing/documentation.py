@@ -1,32 +1,35 @@
 import os
 from datetime import timedelta
 
-import requests
-
 from tasks.libs.owners.parsing import list_owners
 
 
 def create_release_page(version, freeze_date):
     username = os.environ['ATLASSIAN_USERNAME']
     password = os.environ['ATLASSIAN_PASSWORD']
-    auth = requests.auth.HTTPBasicAuth(username, password)
     space_key = "agent"
     parent_page_id = "2244936127"
     # Make the POST request to create the page
     domain = "https://datadoghq.atlassian.net/wiki"
-    url = f"{domain}/rest/api/content"
-    headers = {"Content-Type": "application/json"}
+    from atlassian import Confluence
+
+    confluence = Confluence(url=domain, username=username, password=password)
     page_title = f"Agent {version}"
     teams = get_releasing_teams()
-    data = get_page_data(page_title, parent_page_id, space_key, create_release_table(version, freeze_date, teams))
-    response = requests.post(url=url, headers=headers, auth=auth, json=data)
-    response.raise_for_status()
-    release_page = {"id": response.json()["id"], "url": f"{domain}{response.json()['_links']['webui']}"}
-    note_data = get_page_data(
-        f"{page_title} Notes", release_page["id"], space_key, create_release_notes(freeze_date, teams)
+    page = confluence.create_page(
+        space=space_key,
+        title=page_title,
+        body=create_release_table(version, freeze_date, teams),
+        parent_id=parent_page_id,
+        editor="v2",
     )
-    response = requests.post(url=url, headers=headers, auth=auth, json=note_data)
-    response.raise_for_status()
+    release_page = {"id": page["id"], "url": f"{domain}{page['_links']['webui']}"}
+    confluence.create_page(
+        space=space_key,
+        title=f"{page_title} Notes",
+        body=create_release_notes(freeze_date, teams),
+        parent_id=release_page["id"],
+    )
     return release_page
 
 
@@ -47,25 +50,7 @@ def get_releasing_teams():
         'container-ecosystems',
     }
     owners = set(list_owners())
-    return list(owners - non_releasing_teams)
-
-
-def get_page_data(title, parent_page_id, space_key, body):
-    return {
-        'type': 'page',
-        'title': title,
-        'ancestors': [{'id': parent_page_id}],
-        'space': {'key': space_key},
-        'status': 'current',
-        'body': {
-            'storage': {
-                'representation': 'storage',
-                'value': body,
-            }
-        },
-        # The following metadata is required to view the page properly, see https://jira.atlassian.com/browse/CONFCLOUD-68057
-        "metadata": {"properties": {"editor": {"key": "editor", "value": "v2"}}},
-    }
+    return sorted(owners - non_releasing_teams)
 
 
 def create_release_table(version, freeze_date, teams):

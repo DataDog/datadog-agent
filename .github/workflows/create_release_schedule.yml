@@ -1,0 +1,38 @@
+name: "Create release schedule on confluence"
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Full version of the release to schedule (e.g. 7.31.0)'
+        required: true
+        type: string
+      freeze_date:
+        description: 'Isoformat date when we freeze CI (e.g. 2023-12-31)'
+        required: true
+        type: string
+
+
+jobs:
+  create_release_schedule:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@0ad4b8fadaa221de15dcec353f45205ec38ea70b # v4.1.4
+      with:
+        ref: ${{ github.head_ref }}
+    - name: Install python
+      uses: actions/setup-python@82c7e631bb3cdc910f68e0081d67478d79c6982d # v5.1.0
+      with:
+        python-version: 3.11
+        cache: "pip"
+    - name: Install Python dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt -r tasks/libs/requirements-github.txt -r tasks/requirements-release-tasks.txt
+    - name: Create release schedule
+      env:
+        ATLASSIAN_USERNAME : ${{ secrets.ATLASSIAN_USERNAME }}
+        ATLASSIAN_PASSWORD : ${{ secrets.ATLASSIAN_PASSWORD }}
+      run: |
+        inv -e release.create-schedule --version ${{ github.event.inputs.version }} --freeze-date ${{ github.event.inputs.freeze_date }}
