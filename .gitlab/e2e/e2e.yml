@@ -346,8 +346,8 @@ new-e2e-test-kind:
   # and move rules to template
   needs: []
   variables:
-    TARGETS: ./tests/containers
+    TARGETS: ./examples
     TEAM: container-integrations
   parallel:
     matrix:
-      - EXTRA_PARAMS: --run TestKindSuite
+      - EXTRA_PARAMS: --run TestMyKindSuite
