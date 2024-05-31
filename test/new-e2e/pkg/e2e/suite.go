@@ -553,7 +553,7 @@ func (bs *BaseSuite[Env]) GetPulumiCheckPoint() (*apitype.CheckpointV3, error) {
 	s3Client := awss3.NewFromConfig(awsConfig)
 	checkpoint, err := s3Client.GetObject(context.TODO(), &awss3.GetObjectInput{
 		Bucket: aws.String("dd-pulumi-state"),
-		Key:    aws.String(fmt.Sprintf(".pulumi/e2eci/%s.json", bs.params.stackName)),
+		Key:    aws.String(fmt.Sprintf(".pulumi/stacks/e2eci/%s.json", bs.params.stackName)),
 	})
 	if err != nil {
 		bs.T().Logf("Failed to get checkpoint: %v", err)
