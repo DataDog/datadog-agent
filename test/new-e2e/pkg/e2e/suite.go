@@ -147,6 +147,7 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 
@@ -549,12 +550,13 @@ type State struct {
 
 func (bs *BaseSuite[Env]) GetPulumiCheckPoint() (*apitype.CheckpointV3, error) {
 	state := State{}
-	fmt.Println("USINNG:", fmt.Sprintf(".pulumi/stacks/e2eci/%s.json", bs.params.stackName))
+	stackName := fmt.Sprintf("%s-%s", runner.GetProfile().NamePrefix(), strings.ToLower(strings.ReplaceAll(bs.params.stackName, "_", "-")))
+	fmt.Println("USINNG:", fmt.Sprintf(".pulumi/stacks/e2eci/%s.json", stackName))
 	awsConfig, err := awsconfig.LoadDefaultConfig(context.TODO())
 	s3Client := awss3.NewFromConfig(awsConfig)
 	checkpoint, err := s3Client.GetObject(context.TODO(), &awss3.GetObjectInput{
 		Bucket: aws.String("dd-pulumi-state"),
-		Key:    aws.String(fmt.Sprintf(".pulumi/stacks/e2eci/%s.json", bs.params.stackName)),
+		Key:    aws.String(fmt.Sprintf(".pulumi/stacks/e2eci/%s.json", stackName)),
 	})
 	if err != nil {
 		bs.T().Logf("Failed to get checkpoint: %v", err)
