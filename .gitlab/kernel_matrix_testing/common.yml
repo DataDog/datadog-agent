@@ -49,19 +49,27 @@
   - export AWS_PROFILE=agent-qa-ci
 
 .collect_outcomes_kmt:
-  - MICRO_VM_IP=$(jq --exit-status --arg TAG $TAG --arg ARCH $ARCH --arg TEST_SET $TEST_SET -r '.[$ARCH].microvms | map(select(."vmset-tags"| index($TEST_SET))) | map(select(.tag==$TAG)) | .[].ip' $CI_PROJECT_DIR/stack.output)
+  - export MICRO_VM_IP=$(jq --exit-status --arg TAG $TAG --arg ARCH $ARCH --arg TEST_SET $TEST_SET -r '.[$ARCH].microvms | map(select(."vmset-tags"| index($TEST_SET))) | map(select(.tag==$TAG)) | .[].ip' $CI_PROJECT_DIR/stack.output)
   # Collect setup-ddvm systemd service logs
   - mkdir -p $CI_PROJECT_DIR/logs
   - ssh metal_instance "ssh ${MICRO_VM_IP} \"journalctl -u setup-ddvm.service\"" > $CI_PROJECT_DIR/logs/setup-ddvm.log || true
   - cat $CI_PROJECT_DIR/logs/setup-ddvm.log || true
+  - ssh metal_instance "ssh ${MICRO_VM_IP} \"systemctl is-active setup-ddvm.service\"" | tee $CI_PROJECT_DIR/logs/setup-ddvm.status || true
   # Retrieve the junit generated
-  - ssh metal_instance "scp ${MICRO_VM_IP}:/ci-visibility/junit.tar.gz /home/ubuntu/junit-${ARCH}-${TAG}-${TEST_SET}.tar.gz"
-  - scp "metal_instance:/home/ubuntu/junit-${ARCH}-${TAG}-${TEST_SET}.tar.gz" $DD_AGENT_TESTING_DIR/
-  - ssh metal_instance "scp ${MICRO_VM_IP}:/ci-visibility/testjson.tar.gz /home/ubuntu/testjson-${ARCH}-${TAG}-${TEST_SET}.tar.gz"
-  - scp "metal_instance:/home/ubuntu/testjson-${ARCH}-${TAG}-${TEST_SET}.tar.gz" $DD_AGENT_TESTING_DIR/
+  - ssh metal_instance "scp ${MICRO_VM_IP}:/ci-visibility/junit.tar.gz /home/ubuntu/junit-${ARCH}-${TAG}-${TEST_SET}.tar.gz" || true
+  - scp "metal_instance:/home/ubuntu/junit-${ARCH}-${TAG}-${TEST_SET}.tar.gz" $DD_AGENT_TESTING_DIR/ || true
+  - ssh metal_instance "scp ${MICRO_VM_IP}:/ci-visibility/testjson.tar.gz /home/ubuntu/testjson-${ARCH}-${TAG}-${TEST_SET}.tar.gz" || true
+  - scp "metal_instance:/home/ubuntu/testjson-${ARCH}-${TAG}-${TEST_SET}.tar.gz" $DD_AGENT_TESTING_DIR/ || true
 
 .upload_junit_kmt:
   - $CI_PROJECT_DIR/tools/ci/junit_upload.sh "$DD_AGENT_TESTING_DIR/junit-*.tar.gz"
+
+.tag_kmt_ci_job:
+  - GITLAB_TOKEN="$("$CI_PROJECT_DIR"/tools/ci/aws_ssm_get_wrapper.sh "$GITLAB_READ_API_TOKEN_SSM_NAME")"
+  - DATADOG_API_KEY="$("$CI_PROJECT_DIR"/tools/ci/aws_ssm_get_wrapper.sh "$API_KEY_ORG2_SSM_NAME")"
+  - export DATADOG_API_KEY
+  - export GITLAB_TOKEN
+  - inv kmt.tag-ci-job
 
 # -- Test dependencies
 
@@ -134,6 +142,7 @@
     - scp -o StrictHostKeyChecking=no -i $AWS_EC2_SSH_KEY_FILE "ubuntu@$INSTANCE_IP:/tmp/ddvm-xml-*" $CI_PROJECT_DIR/libvirt/xml
     - scp -o StrictHostKeyChecking=no -i $AWS_EC2_SSH_KEY_FILE "ubuntu@$INSTANCE_IP:/tmp/qemu-ddvm-*.log" $CI_PROJECT_DIR/libvirt/qemu
     - scp -o StrictHostKeyChecking=no -i $AWS_EC2_SSH_KEY_FILE "ubuntu@$INSTANCE_IP:/tmp/dnsmasq/*" $CI_PROJECT_DIR/libvirt/dnsmasq
+    - !reference [.tag_kmt_ci_job]
   artifacts:
     when: always
     paths:
@@ -156,6 +165,8 @@
       if [[ "${INSTANCE_ID}" != "" ]] && [[ "${INSTANCE_ID}" != "null" ]]; then
         aws ec2 terminate-instances --instance-ids "${INSTANCE_ID}"
       fi
+  after_script:
+    - !reference [.tag_kmt_ci_job]
 
 # Manual cleanup jobs, these will be used to cleanup the instances after the tests
 # if the tests are canceled (e.g., by the auto-cancel-prev-pipelines job). The automatic jobs
@@ -208,6 +219,7 @@
     - NESTED_VM_CMD="/home/ubuntu/connector -host ${MICRO_VM_IP} -user root -ssh-file /home/kernel-version-testing/ddvm_rsa -vm-cmd 'CI=true /root/fetch_dependencies.sh ${ARCH} && /opt/micro-vm-init.sh -test-tools /opt/testing-tools -retry ${RETRY} -test-root /opt/${TEST_COMPONENT}-tests -packages-run-config /opt/${TEST_SET}.json'"
     - $CI_PROJECT_DIR/connector-$ARCH -host $INSTANCE_IP -user ubuntu -ssh-file $AWS_EC2_SSH_KEY_FILE -vm-cmd "${NESTED_VM_CMD}"
     - ssh metal_instance "ssh ${MICRO_VM_IP} '/opt/testing-tools/test-json-review'"
+    - !reference [.tag_kmt_ci_job]
   artifacts:
     expire_in: 2 weeks
     when: always
