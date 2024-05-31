@@ -55,9 +55,10 @@ repos:
     - id: win-clang-format
       name: win-clang-format
       description: clang-format
-      entry: './tasks/git-hooks/wincpplang.py'
+      entry: 'inv pre-commit.check-winclang-format'
       language: system
       types_or: [c, c++, c#]
+      pass_filenames: false
     - id: clang-format
       name: clang-format
       description: clang-format
