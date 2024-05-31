@@ -70,7 +70,7 @@ namespace CustomActions.Tests.ProcessUserCustomActions
             Test.WithDomainUser(ddAgentUserName);
 
             Test.Session
-                .Setup(session => session["DDAGENTUSER_NAME"]).Returns($"{Domain}@{ddAgentUserName}");
+                .Setup(session => session["DDAGENTUSER_NAME"]).Returns($"{Domain}\\{ddAgentUserName}");
             Test.Session
                 .Setup(session => session["DDAGENTUSER_PASSWORD"]).Returns(ddAgentUserPassword);
 
