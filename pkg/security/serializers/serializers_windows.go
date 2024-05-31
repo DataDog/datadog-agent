@@ -90,6 +90,7 @@ type RegistryEventSerializer struct {
 	RegistrySerializer
 }
 
+// ChangePermissionEventSerializer serializes a permission change event to JSON
 type ChangePermissionEventSerializer struct {
 	ChangePermissionSerializer
 }

@@ -113,11 +113,11 @@ type FieldHandlers interface {
 	ResolveEventTimestamp(ev *Event, e *BaseEvent) int
 	ResolveFileBasename(ev *Event, e *FileEvent) string
 	ResolveFilePath(ev *Event, e *FileEvent) string
-	ResolveNewSecurityDescriptor(ev *Event, e *ChangePermissionEvent) string
-	ResolveOldSecurityDescriptor(ev *Event, e *ChangePermissionEvent) string
 	ResolveFileUserPath(ev *Event, e *FimFileEvent) string
 	ResolveFimFileBasename(ev *Event, e *FimFileEvent) string
 	ResolveFimFilePath(ev *Event, e *FimFileEvent) string
+	ResolveNewSecurityDescriptor(ev *Event, e *ChangePermissionEvent) string
+	ResolveOldSecurityDescriptor(ev *Event, e *ChangePermissionEvent) string
 	ResolveProcessCmdLine(ev *Event, e *Process) string
 	ResolveProcessCmdLineScrubbed(ev *Event, e *Process) string
 	ResolveProcessCreatedAt(ev *Event, e *Process) int
