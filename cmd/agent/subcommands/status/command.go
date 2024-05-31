@@ -50,13 +50,12 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		GlobalParams: globalParams,
 	}
 	cmd := &cobra.Command{
-		Use: "status [section]",
-		Short: `Display the current status
-		
+		Use:   "status [section]",
+		Short: "Display the current status",
+		Long: `Display the current status.
 If no section is specified, this command will display all status sections. 
 If a specific section is provided, such as 'collector', it will only display the status of that section.
 The --list flag can be used to list all available status sections.`,
-		Long: ``,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cliParams.args = args
 
