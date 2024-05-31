@@ -8,6 +8,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/component/componenttest"
+	"go.opentelemetry.io/otel/sdk/metric"
+
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/metricsclient"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	traceconfig "github.com/DataDog/datadog-agent/pkg/trace/config"
@@ -15,9 +19,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/timing"
 	"github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes"
-	"github.com/stretchr/testify/require"
-	"go.opentelemetry.io/collector/component/componenttest"
-	"go.opentelemetry.io/otel/sdk/metric"
 )
 
 func setupMetricClient() (*metric.ManualReader, statsd.ClientInterface, timing.Reporter) {
@@ -28,17 +29,27 @@ func setupMetricClient() (*metric.ManualReader, statsd.ClientInterface, timing.R
 	return reader, metricClient, timingReporter
 }
 
+type noopStatsAdder struct{}
+
+func (nsa noopStatsAdder) Add(_ *pb.StatsPayload) {}
+
 func TestTraceAgentConfig(t *testing.T) {
 	cfg := traceconfig.New()
 	require.NotZero(t, cfg.ReceiverPort)
 
-	out := make(chan *pb.StatsPayload)
 	_, metricClient, timingReporter := setupMetricClient()
-	agnt := NewAgentWithConfig(context.Background(), cfg, out, metricClient, timingReporter)
+	_ = NewAgentWithConfig(context.Background(), cfg, noopStatsAdder{}, metricClient, timingReporter)
 	require.Zero(t, cfg.ReceiverPort)
 	require.NotEmpty(t, cfg.Endpoints[0].APIKey)
 	require.Equal(t, "__unset__", cfg.Hostname)
-	require.Equal(t, out, agnt.Concentrator.Out)
+}
+
+type mockStatsAdder struct {
+	out chan *pb.StatsPayload
+}
+
+func (msa *mockStatsAdder) Add(payload *pb.StatsPayload) {
+	msa.out <- payload
 }
 
 func TestTraceAgent(t *testing.T) {
@@ -47,10 +58,10 @@ func TestTraceAgent(t *testing.T) {
 	require.NoError(t, err)
 	cfg.OTLPReceiver.AttributesTranslator = attributesTranslator
 	cfg.BucketInterval = 50 * time.Millisecond
-	out := make(chan *pb.StatsPayload, 10)
 	ctx := context.Background()
 	_, metricClient, timingReporter := setupMetricClient()
-	a := NewAgentWithConfig(ctx, cfg, out, metricClient, timingReporter)
+	msa := &mockStatsAdder{out: make(chan *pb.StatsPayload, 1)}
+	a := NewAgentWithConfig(ctx, cfg, msa, metricClient, timingReporter)
 	a.Start()
 	defer a.Stop()
 
@@ -82,7 +93,7 @@ func TestTraceAgent(t *testing.T) {
 loop:
 	for {
 		select {
-		case stats = <-out:
+		case stats = <-msa.out:
 			if len(stats.Stats) != 0 {
 				break loop
 			}
@@ -90,10 +101,10 @@ loop:
 			t.Fatal("timed out")
 		}
 	}
+
 	require.Len(t, stats.Stats, 1)
 	require.Len(t, stats.Stats[0].Stats, 1)
 	// considering all spans in rspans have distinct aggregations, we should have an equal amount
 	// of groups
 	require.Len(t, stats.Stats[0].Stats[0].Stats, traces.SpanCount())
-	require.Len(t, a.TraceWriter.In, 0) // the trace writer channel should've been drained
 }

@@ -10,6 +10,8 @@ import (
 	"sync"
 	"time"
 
+	"go.opentelemetry.io/collector/pdata/ptrace"
+
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/agent"
 	"github.com/DataDog/datadog-agent/pkg/trace/api"
@@ -17,8 +19,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/stats"
 	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/trace/timing"
+	"github.com/DataDog/datadog-agent/pkg/trace/writer"
 	"github.com/DataDog/datadog-go/v5/statsd"
-	"go.opentelemetry.io/collector/pdata/ptrace"
 )
 
 // TraceAgent specifies a minimal trace agent instance that is able to process traces and output stats.
@@ -36,14 +38,26 @@ type TraceAgent struct {
 	exit chan struct{}
 }
 
+type statsAdder interface {
+	Add(*pb.StatsPayload)
+}
+
+type noopTraceWriter struct{}
+
+func (n *noopTraceWriter) Stop() {}
+
+func (n *noopTraceWriter) WriteChunks(_ *writer.SampledChunks) {}
+
+func (n *noopTraceWriter) FlushSync() error { return nil }
+
 // NewAgent creates a new unstarted traceagent using the given context. Call Start to start the traceagent.
 // The out channel will receive outoing stats payloads resulting from spans ingested using the Ingest method.
-func NewAgent(ctx context.Context, out chan *pb.StatsPayload, metricsClient statsd.ClientInterface, timingReporter timing.Reporter) *TraceAgent {
+func NewAgent(ctx context.Context, out statsAdder, metricsClient statsd.ClientInterface, timingReporter timing.Reporter) *TraceAgent {
 	return NewAgentWithConfig(ctx, traceconfig.New(), out, metricsClient, timingReporter)
 }
 
 // NewAgentWithConfig creates a new traceagent with the given config cfg. Used in tests; use newAgent instead.
-func NewAgentWithConfig(ctx context.Context, cfg *traceconfig.AgentConfig, out chan *pb.StatsPayload, metricsClient statsd.ClientInterface, timingReporter timing.Reporter) *TraceAgent {
+func NewAgentWithConfig(ctx context.Context, cfg *traceconfig.AgentConfig, out statsAdder, metricsClient statsd.ClientInterface, timingReporter timing.Reporter) *TraceAgent {
 	// disable the HTTP receiver
 	cfg.ReceiverPort = 0
 	// set the API key to succeed startup; it is never used nor needed
@@ -65,6 +79,9 @@ func NewAgentWithConfig(ctx context.Context, cfg *traceconfig.AgentConfig, out c
 	// lastly, start the OTLP receiver, which will be used to introduce ResourceSpans into the traceagent,
 	// so that we can transform them to Datadog spans and receive stats.
 	a.OTLPReceiver = api.NewOTLPReceiver(pchan, cfg, metricsClient, timingReporter)
+	// we want to discard all traces that would be written out so replace traceWriter with noop
+	a.TraceWriter = &noopTraceWriter{}
+
 	return &TraceAgent{
 		Agent: a,
 		exit:  make(chan struct{}),
@@ -89,8 +106,6 @@ func (p *TraceAgent) Start() {
 	} {
 		starter.Start()
 	}
-
-	p.goDrain()
 	p.goProcess()
 }
 
@@ -108,23 +123,6 @@ func (p *TraceAgent) Stop() {
 	}
 	close(p.exit)
 	p.wg.Wait()
-}
-
-// goDrain drains the TraceWriter channel, ensuring it won't block. We don't need the traces,
-// nor do we have a running TraceWrite. We just want the outgoing stats.
-func (p *TraceAgent) goDrain() {
-	p.wg.Add(1)
-	go func() {
-		defer p.wg.Done()
-		for {
-			select {
-			case <-p.TraceWriter.In:
-				// we don't write these traces anywhere; drain the channel
-			case <-p.exit:
-				return
-			}
-		}
-	}()
 }
 
 // Ingest processes the given spans within the traceagent and outputs stats through the output channel
