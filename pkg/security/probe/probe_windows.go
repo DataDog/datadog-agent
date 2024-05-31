@@ -11,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
+	"slices"
 	"sync"
 	"time"
 
@@ -102,8 +103,11 @@ type WindowsProbe struct {
 	// channel handling.  Currently configurable, but should probably be set
 	// to false with a configurable size value
 	blockonchannelsend bool
+
 	// approvers
-	approvers map[eval.Field][]approver
+	disableApprovers  bool
+	currentEventTypes []string
+	approvers         map[eval.Field][]approver
 }
 
 type approver interface {
@@ -222,6 +226,14 @@ func (p *WindowsProbe) initEtwFIM() error {
 		return err
 	}
 
+	return p.reconfigureProvider()
+}
+
+func (p *WindowsProbe) reconfigureProvider() error {
+	if !p.config.RuntimeSecurity.FIMEnabled {
+		return nil
+	}
+
 	pidsList := make([]uint32, 0)
 
 	p.fimSession.ConfigureProvider(p.fileguid, func(cfg *etw.ProviderConfiguration) {
@@ -251,16 +263,21 @@ func (p *WindowsProbe) initEtwFIM() error {
 			idCreateNewFile,
 			idCleanup,
 			idClose,
-			idWrite,
-			idSetDelete,
-			idDeletePath,
-			idRename,
-			idRenamePath,
-			idRename29,
+		}
+
+		if p.isWriteEnabled {
+			fileIds = append(fileIds, idWrite)
+		}
+		if p.isRenameEnabled {
+			fileIds = append(fileIds, idRename, idRenamePath, idRename29)
+		}
+		if p.isDeleteEnabled {
+			fileIds = append(fileIds, idSetDelete, idDeletePath)
 		}
 
 		cfg.EnabledIDs = fileIds
 	})
+
 	p.fimSession.ConfigureProvider(p.regguid, func(cfg *etw.ProviderConfiguration) {
 		cfg.TraceLevel = etw.TRACE_LEVEL_VERBOSE
 		cfg.PIDs = pidsList
@@ -290,16 +307,16 @@ func (p *WindowsProbe) initEtwFIM() error {
 		cfg.MatchAnyKeyword = 0xF7E3
 	})
 
-	err = p.fimSession.EnableProvider(p.fileguid)
-	if err != nil {
+	if err := p.fimSession.EnableProvider(p.fileguid); err != nil {
 		log.Warnf("Error enabling provider %v", err)
 		return err
 	}
-	err = p.fimSession.EnableProvider(p.regguid)
-	if err != nil {
+
+	if err := p.fimSession.EnableProvider(p.regguid); err != nil {
 		log.Warnf("Error enabling provider %v", err)
 		return err
 	}
+
 	return nil
 }
 
@@ -319,12 +336,29 @@ func (p *WindowsProbe) Stop() {
 	}
 }
 
+func (p *WindowsProbe) approveFimBasename(value string) bool {
+	fields := []string{"create.file.name", "rename.file.name", "delete.file.name", "write.file.name"}
+	eventTypes := []string{"create", "rename", "delete", "write"}
+
+	for i, field := range fields {
+		eventType := eventTypes[i]
+		if p.approve(field, eventType, value) {
+			return true
+		}
+	}
+	return false
+}
+
 // currently support only string base approver for now
-func (p *WindowsProbe) approve(field eval.Field, value string) bool {
+func (p *WindowsProbe) approve(field eval.Field, eventType string, value string) bool {
+	if p.disableApprovers {
+		return true
+	}
+
 	approvers, exists := p.approvers[field]
 	if !exists {
-		// no approvers, so no filtering for this field
-		return true
+		// no approvers, so no filtering for this field, except if no rule for this event type
+		return slices.Contains(p.currentEventTypes, eventType)
 	}
 
 	for _, approver := range approvers {
@@ -382,6 +416,7 @@ func (p *WindowsProbe) setupEtw(ecb etwCallback) error {
 					p.stats.fileProcessedNotifications[e.EventHeader.EventDescriptor.ID]++
 					ecb(ca, e.EventHeader.ProcessID)
 					// lru is thread safe, has its own locking
+					p.discardedFileHandles.Remove(ca.fileObject)
 					p.filePathResolver.Remove(ca.fileObject)
 				}
 			case idFlush:
@@ -1006,7 +1041,9 @@ func (p *WindowsProbe) ApplyRuleSet(rs *rules.RuleSet) (*kfilters.ApplyRuleSetRe
 	p.isRenameEnabled = false
 	p.isDeleteEnabled = false
 
-	for _, eventType := range rs.GetEventTypes() {
+	p.currentEventTypes = rs.GetEventTypes()
+
+	for _, eventType := range p.currentEventTypes {
 		switch eventType {
 		case model.FileRenameEventType.String():
 			p.isRenameEnabled = true
@@ -1022,10 +1059,17 @@ func (p *WindowsProbe) ApplyRuleSet(rs *rules.RuleSet) (*kfilters.ApplyRuleSetRe
 		return nil, err
 	}
 
+	// remove old approvers
+	clear(p.approvers)
+
 	for eventType, report := range ars.Policies {
 		if err := p.SetApprovers(eventType, report.Approvers); err != nil {
 			return nil, err
 		}
+	}
+
+	if err := p.reconfigureProvider(); err != nil {
+		return nil, err
 	}
 
 	return ars, nil

@@ -74,7 +74,7 @@ func Bootstrap(ctx context.Context, env *env.Env) error {
 	// 4. Run the installer from the extract layer with `install file://<layout-path>`.
 	installerBinPath := filepath.Join(binTmpDir, installerBinPath)
 	cmd := exec.NewInstallerExec(env, installerBinPath)
-	err = cmd.Install(ctx, fmt.Sprintf("file://%s", layoutTmpDir))
+	err = cmd.Install(ctx, fmt.Sprintf("file://%s", layoutTmpDir), nil)
 	if err != nil {
 		return fmt.Errorf("failed to run installer: %w", err)
 	}
@@ -85,7 +85,7 @@ func Bootstrap(ctx context.Context, env *env.Env) error {
 		return fmt.Errorf("failed to get default packages: %w", err)
 	}
 	for _, url := range defaultPackages {
-		err = cmd.Install(ctx, url)
+		err = cmd.Install(ctx, url, nil)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "failed to install package %s: %v\n", url, err)
 		}

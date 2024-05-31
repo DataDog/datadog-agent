@@ -12,28 +12,12 @@ if (!String.prototype.endsWith) {
 	};
 }
 
-// Attempts to fetch the API key from the browsers cookies
-function getAuthToken() {
-  var cookies = document.cookie.split(';');
-  for (var i = 0; i < cookies.length; i++) {
-      var c = cookies[i];
-      while (c.charAt(0) == ' ') c = c.substring(1, c.length);
-      if (c.indexOf("authToken=") == 0) {
-        return c.substring(10, c.length);
-      }
-  }
-  return null;
-}
-
 // Sends a message to the GUI server with the correct authorization/format
 function sendMessage(endpoint, data, method, callback, callbackErr){
   $.ajax({
     url: window.location.href + endpoint,
     type: method,
     data: data,
-    headers: {
-        Authorization: 'Bearer ' + getAuthToken()
-    },
     success: callback,
     error: callbackErr
   })
@@ -153,8 +137,8 @@ function loadStatus(page) {
   sendMessage("agent/status/" + page, "", "post",
   function(data, status, xhr){
       $("#" + page + "_status").html(DOMPurify.sanitize(data));
-  },function(){
-      $("#" + page + "_status").html("<span class='center'>An error occurred.</span>");
+  },function(requestObject, error, errorThrown){
+      $("#" + page + "_status").html("<span class='center'>An error occurred: " + DOMPurify.sanitize(errorThrown) + "</span>");
   });
 }
 
@@ -186,8 +170,8 @@ function loadLog(){
                     '</select></div>' +
                     '<div class="log_data">' + DOMPurify.sanitize(data) + ' </div>');
     $("#log_view_type").change(changeLogView);
-  }, function(){
-    $('#logs').html("<span class='center'>An error occurred.</span>");
+  }, function(requestObject, error, errorThrown){
+    $('#logs').html("<span class='center'>An error occurred: " + DOMPurify.sanitize(errorThrown) + "</span>");
   });
 }
 
@@ -258,8 +242,8 @@ function loadSettings() {
     var editor = attachEditor("settings_input", data);
 
     $("#submit_settings").click(function() { submitSettings(editor); });
-  }, function(){
-    $('#settings').html("<span class='center'>An error occurred.</span>");
+  }, function(requestObject, error, errorThrown){
+    $('#settings').html("<span class='center'>An error occurred: " + DOMPurify.sanitize(errorThrown) + "</span>");
   });
 }
 
@@ -323,8 +307,8 @@ function loadCheckConfigFiles() {
       $(".active_check").removeClass("active_check");
       $(this).addClass("active_check");
     })
-  }, function() {
-    $("#checks_description").html("An error occurred.");
+  }, function(requestObject, error, errorThrown) {
+    $("#checks_description").html("An error occurred: " + DOMPurify.sanitize(errorThrown) + "");
   });
 }
 
@@ -376,12 +360,12 @@ function loadNewChecks() {
         $(".active_check").removeClass("active_check");
         $(this).addClass("active_check");
       })
-    }, function() {
-      $("#checks_description").html("An error occurred.");
+    }, function(requestObject, error, errorThrown) {
+      $("#checks_description").html("An error occurred: " + DOMPurify.sanitize(errorThrown) + "");
     });
 
-  }, function() {
-    $("#checks_description").html("An error occurred.");
+  }, function(requestObject, error, errorThrown) {
+    $("#checks_description").html("An error occurred: " + DOMPurify.sanitize(errorThrown) + "");
   });
 }
 
@@ -420,8 +404,8 @@ function showCheckConfig(fileName) {
     var editor = attachEditor("check_input", data);
     $("#save_check").click(function() { saveCheckSettings(editor); });
     $("#disable_check").click(function() { disableCheckSettings(editor); });
-  }, function() {
-    $("#checks_description").html("An error occurred.");
+  }, function(requestObject, error, errorThrown) {
+    $("#checks_description").html("An error occurred: " + DOMPurify.sanitize(errorThrown) + "");
     $(".right").html("");
   });
 }
@@ -454,8 +438,8 @@ function saveCheckSettings(editor) {
       $(".unsuccessful").delay(3000).fadeOut("slow");
       $("#checks_description").html(DOMPurify.sanitize(data));
     }
-  }, function() {
-    $("#checks_description").html("An error occurred.");
+  }, function(requestObject, error, errorThrown) {
+    $("#checks_description").html("An error occurred: " + DOMPurify.sanitize(errorThrown) + "");
     $(".right").html("");
   });
 }
@@ -488,8 +472,8 @@ function disableCheckSettings(editor) {
       $(".unsuccessful").delay(3000).fadeOut("slow");
       $("#checks_description").html(DOMPurify.sanitize(data));
     }
-  }, function() {
-    $("#checks_description").html("An error occurred.");
+  }, function(requestObject, error, errorThrown) {
+    $("#checks_description").html("An error occurred: " + DOMPurify.sanitize(errorThrown) + "");
     $(".right").html("");
   });
 }
@@ -519,8 +503,8 @@ function reloadCheck() {
     } else {
       $("#check_run_results").prepend('<div id="summary"> Check reloaded: <i class="fa fa-times red"></i></div>');
     }
-  }, function() {
-    $("#checks_description").html("An error occurred.");
+  }, function(requestObject, error, errorThrown) {
+    $("#checks_description").html("An error occurred: " + DOMPurify.sanitize(errorThrown) + "");
     $(".right").html("");
   });
 }
@@ -549,24 +533,24 @@ function addCheck(checkToAdd) {
       sendMessage("checks/getConfig/" + disabledFile, "", "post",
       function(data, status, xhr){
         createNewConfigFile(checkToAdd, data);
-      }, function() {
+      }, function(requestObject, error, errorThrown) {
         $(".right").html("");
-        $("#checks_description").html("An error occurred.");
+        $("#checks_description").html("An error occurred: " + DOMPurify.sanitize(errorThrown) + "");
       });
     } else if (exampleFile != "") {
       sendMessage("checks/getConfig/" + exampleFile, "", "post",
       function(data, status, xhr){
         createNewConfigFile(checkToAdd, data);
-      }, function() {
+      }, function(requestObject, error, errorThrown) {
         $(".right").html("");
-        $("#checks_description").html("An error occurred.");
+        $("#checks_description").html("An error occurred: " + DOMPurify.sanitize(errorThrown) + "");
       });
     } else {
       createNewConfigFile(checkToAdd, "# Add your configuration here");
     }
-  }, function() {
+  }, function(requestObject, error, errorThrown) {
     $(".right").html("");
-    $("#checks_description").html("An error occurred.");
+    $("#checks_description").html("An error occurred: " + DOMPurify.sanitize(errorThrown) + "");
   });
 }
 
@@ -600,8 +584,8 @@ function createNewConfigFile(checkName, data) {
       // Reload the display (once the config file is saved this check is now enabled,
       // so it gets moved to the 'Edit Running Checks' section)
       checkDropdown();
-    }, function() {
-      $("#checks_description").html("An error occurred.");
+    }, function(requestObject, error, errorThrown) {
+      $("#checks_description").html("An error occurred: " + DOMPurify.sanitize(errorThrown) + "");
       $(".right").html("");
     });
   });
@@ -657,8 +641,8 @@ function addNewCheck(editor, name) {
           '</div>');
       }
     });
-  }, function() {
-    $("#checks_description").html("An error occurred.");
+  }, function(requestObject, error, errorThrown) {
+    $("#checks_description").html("An error occurred: " + DOMPurify.sanitize(errorThrown) + "");
     $(".right").html("");
   });
 }
@@ -676,8 +660,8 @@ function seeRunningChecks() {
   sendMessage("checks/running", "", "post",
   function(data, status, xhr){
     $("#running_checks").html(DOMPurify.sanitize(data));
-  }, function() {
-    $("#running_checks").html("An error occurred.");
+  }, function(requestObject, error, errorThrown) {
+    $("#running_checks").html("An error occurred: " + DOMPurify.sanitize(errorThrown) + "");
   });
 }
 
@@ -712,8 +696,8 @@ function submitFlare() {
     $("#email").val("");
     $(".flare_input").css("display", "none");
     $("#flare_description").html(DOMPurify.sanitize(data));
-  }, function(){
-    $('#flare_response').html("<span class='center'>An error occurred.</span>");
+  }, function(requestObject, error, errorThrown){
+    $('#flare_response').html("<span class='center'>An error occurred: " + DOMPurify.sanitize(errorThrown) + "</span>");
   });
 }
 
@@ -752,10 +736,10 @@ function restartAgent() {
         $('#general_status').html("<span class='center'>Error restarting agent: " + DOMPurify.sanitize(data) + "</span>");
       } else loadStatus("general");
     }, 10000);
-  }, function() {
+  }, function(requestObject, error, errorThrown) {
     $(".loading_spinner").remove();
     $("#general_status").css("display", "block");
-    $('#general_status').html("<span class='center'>An error occurred.</span>");
+    $('#general_status').html("<span class='center'>An error occurred: " + DOMPurify.sanitize(errorThrown) + "</span>");
     $("#restart_button").css("pointer-events", "auto");
   });
 }
