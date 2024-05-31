@@ -66,10 +66,8 @@
   - $CI_PROJECT_DIR/tools/ci/junit_upload.sh "$DD_AGENT_TESTING_DIR/junit-*.tar.gz"
 
 .tag_kmt_ci_job:
-  - GITLAB_TOKEN="$("$CI_PROJECT_DIR"/tools/ci/aws_ssm_get_wrapper.sh "$GITLAB_READ_API_TOKEN_SSM_NAME")"
   - DATADOG_API_KEY="$("$CI_PROJECT_DIR"/tools/ci/aws_ssm_get_wrapper.sh "$API_KEY_ORG2_SSM_NAME")"
   - export DATADOG_API_KEY
-  - export GITLAB_TOKEN
   - inv kmt.tag-ci-job
 
 # -- Test dependencies
