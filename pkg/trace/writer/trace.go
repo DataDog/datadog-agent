@@ -6,6 +6,7 @@
 package writer
 
 import (
+	"bytes"
 	"compress/gzip"
 	"errors"
 	"io"
@@ -38,12 +39,48 @@ type samplerEnabledReader interface {
 	IsEnabled() bool
 }
 
+type ARC[T any] struct {
+	elem  T
+	count int
+	free  func()
+	m     sync.Mutex
+}
+
+func NewARC[T any](e T, free func()) *ARC[T] {
+	return &ARC[T]{
+		elem:  e,
+		count: 1,
+		free:  free,
+	}
+}
+
+func (a *ARC[T]) Get() T {
+	return a.elem
+}
+
+func (a *ARC[T]) Release() {
+	a.m.Lock()
+	a.count--
+	if a.count <= 0 {
+		//fmt.Printf("FREEING\n")
+		a.free()
+	}
+	a.m.Unlock()
+}
+
+func (a *ARC[T]) Retain() {
+	a.m.Lock()
+	a.count++
+	a.m.Unlock()
+}
+
 // SampledChunks represents the result of a trace sampling operation.
 type SampledChunks struct {
 	// TracerPayload contains all the chunks that were sampled as part of processing a payload.
 	TracerPayload *pb.TracerPayload
+	BackingBuffer *ARC[*bytes.Buffer]
 	// Size represents the approximated message size in bytes.
-	Size int
+	Size int // TODO: We should get rid of this. It's inaccurate and there are better methods.
 	// SpanCount specifies the number of spans that were sampled as part of a trace inside the TracerPayload.
 	SpanCount int64
 	// EventCount specifies the total number of events found in Traces.
@@ -67,8 +104,8 @@ type TraceWriter struct {
 	tick         time.Duration  // flush frequency
 	agentVersion string
 
-	tracerPayloads []*pb.TracerPayload // tracer payloads buffered
-	bufferedSize   int                 // estimated buffer size
+	tracerPayloads []*SampledChunks // tracer payloads buffered
+	bufferedSize   int              // estimated buffer size
 
 	// syncMode reports whether the writer should flush on its own or only when FlushSync is called
 	syncMode  bool
@@ -189,8 +226,8 @@ func (w *TraceWriter) FlushSync() error {
 
 // appendChunks adds sampled chunks to the current payload, and in the case the payload
 // is full, returns a finished payload which needs to be written out.
-func (w *TraceWriter) appendChunks(pkg *SampledChunks) []*pb.TracerPayload {
-	var toflush []*pb.TracerPayload
+func (w *TraceWriter) appendChunks(pkg *SampledChunks) []*SampledChunks {
+	var toflush []*SampledChunks
 	w.mu.Lock()
 	defer w.mu.Unlock()
 	size := pkg.Size
@@ -202,7 +239,7 @@ func (w *TraceWriter) appendChunks(pkg *SampledChunks) []*pb.TracerPayload {
 	}
 	if len(pkg.TracerPayload.Chunks) > 0 {
 		log.Tracef("Writer: handling new tracer payload with %d spans: %v", pkg.SpanCount, pkg.TracerPayload)
-		w.tracerPayloads = append(w.tracerPayloads, pkg.TracerPayload)
+		w.tracerPayloads = append(w.tracerPayloads, pkg)
 	}
 	w.bufferedSize += size
 	return toflush
@@ -221,7 +258,7 @@ func (w *TraceWriter) WriteChunks(pkg *SampledChunks) {
 }
 func (w *TraceWriter) resetBuffer() {
 	w.bufferedSize = 0
-	w.tracerPayloads = make([]*pb.TracerPayload, 0, len(w.tracerPayloads))
+	w.tracerPayloads = make([]*SampledChunks, 0, len(w.tracerPayloads))
 }
 
 const headerLanguages = "X-Datadog-Reported-Languages"
@@ -245,11 +282,16 @@ func getGZW(w io.Writer) (*gzip.Writer, error) {
 }
 
 // w does not need to be locked during flushPayloads.
-func (w *TraceWriter) flushPayloads(payloads []*pb.TracerPayload) {
+func (w *TraceWriter) flushPayloads(payloads []*SampledChunks) {
 	w.flushTicker.Reset(w.tick) // reset the flush timer whenever we flush
 	if len(payloads) == 0 {
 		// nothing to do
 		return
+	}
+
+	tps := make([]*pb.TracerPayload, len(payloads))
+	for i := range payloads {
+		tps[i] = payloads[i].TracerPayload
 	}
 
 	defer w.timing.Since("datadog.trace_agent.trace_writer.encode_ms", time.Now())
@@ -262,11 +304,14 @@ func (w *TraceWriter) flushPayloads(payloads []*pb.TracerPayload) {
 		TargetTPS:          w.prioritySampler.GetTargetTPS(),
 		ErrorTPS:           w.errorsSampler.GetTargetTPS(),
 		RareSamplerEnabled: w.rareSampler.IsEnabled(),
-		TracerPayloads:     payloads,
+		TracerPayloads:     tps,
 	}
 	log.Debugf("Reported agent rates: target_tps=%v errors_tps=%v rare_sampling=%v", p.TargetTPS, p.ErrorTPS, p.RareSamplerEnabled)
 
 	w.serialize(&p)
+	for i := range payloads {
+		payloads[i].BackingBuffer.Release()
+	}
 }
 
 var outPool = sync.Pool{}

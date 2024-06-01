@@ -6,8 +6,11 @@
 package api
 
 import (
+	"bytes"
+
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
+	"github.com/DataDog/datadog-agent/pkg/trace/writer"
 )
 
 // Payload specifies information about a set of traces received by the API.
@@ -18,6 +21,7 @@ type Payload struct {
 
 	// TracerPayload holds the incoming payload from the tracer.
 	TracerPayload *pb.TracerPayload
+	BackingBuffer *writer.ARC[*bytes.Buffer]
 
 	// ClientComputedTopLevel specifies that the client has already marked top-level
 	// spans.

@@ -62,7 +62,7 @@ func parseStringBytes(bts []byte) (string, []byte, error) {
 		return "", bts, err
 	}
 	if utf8.Valid(i) {
-		return string(i), bts, nil
+		return msgp.UnsafeString(i), bts, nil
 	}
 	return repairUTF8(msgp.UnsafeString(i)), bts, nil
 }

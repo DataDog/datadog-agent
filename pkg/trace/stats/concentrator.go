@@ -177,7 +177,8 @@ func computeStatsForSpanKind(s *pb.Span) bool {
 
 // Input specifies a set of traces originating from a certain payload.
 type Input struct {
-	Traces        []traceutil.ProcessedTrace
+	Traces []traceutil.ProcessedTrace
+	//BackingBuffer *writer.ARC[*bytes.Buffer]
 	ContainerID   string
 	ContainerTags []string
 }
@@ -211,11 +212,11 @@ func (c *Concentrator) Add(t Input) {
 // addNow adds the given input into the concentrator.
 // Callers must guard!
 func (c *Concentrator) addNow(pt *traceutil.ProcessedTrace, containerID string, containerTags []string) {
-	hostname := pt.TracerHostname
+	hostname := strings.Clone(pt.TracerHostname)
 	if hostname == "" {
 		hostname = c.agentHostname
 	}
-	env := pt.TracerEnv
+	env := strings.Clone(pt.TracerEnv)
 	if env == "" {
 		env = c.agentEnv
 	}
@@ -223,10 +224,10 @@ func (c *Concentrator) addNow(pt *traceutil.ProcessedTrace, containerID string, 
 	aggKey := PayloadAggregationKey{
 		Env:          env,
 		Hostname:     hostname,
-		Version:      pt.AppVersion,
+		Version:      strings.Clone(pt.AppVersion),
 		ContainerID:  containerID,
-		GitCommitSha: pt.GitCommitSha,
-		ImageTag:     pt.ImageTag,
+		GitCommitSha: strings.Clone(pt.GitCommitSha),
+		ImageTag:     strings.Clone(pt.ImageTag),
 	}
 	for _, s := range pt.TraceChunk.Spans {
 		isTop := traceutil.HasTopLevel(s)
@@ -253,7 +254,7 @@ func (c *Concentrator) addNow(pt *traceutil.ProcessedTrace, containerID string, 
 			}
 			c.buckets[btime] = b
 		}
-		b.HandleSpan(s, weight, isTop, pt.TraceChunk.Origin, aggKey, c.peerTagsAggregation, c.peerTagKeys)
+		b.HandleSpan(s, weight, isTop, strings.Clone(pt.TraceChunk.Origin), aggKey, c.peerTagsAggregation, c.peerTagKeys)
 	}
 }
 

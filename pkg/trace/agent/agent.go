@@ -287,7 +287,9 @@ func (a *Agent) Process(p *api.Payload) {
 	defer a.Timing.Since("datadog.trace_agent.internal.process_payload_ms", now)
 	ts := p.Source
 	sampledChunks := new(writer.SampledChunks)
+	sampledChunks.BackingBuffer = p.BackingBuffer
 	statsInput := stats.NewStatsInput(len(p.TracerPayload.Chunks), p.TracerPayload.ContainerID, p.ClientComputedStats, a.conf)
+	//statsInput.BackingBuffer = p.BackingBuffer
 
 	p.TracerPayload.Env = traceutil.NormalizeTag(p.TracerPayload.Env)
 
@@ -389,18 +391,23 @@ func (a *Agent) Process(p *api.Payload) {
 			sampledChunks.TracerPayload = p.TracerPayload.Cut(i)
 			i = 0
 			sampledChunks.TracerPayload.Chunks = newChunksArray(sampledChunks.TracerPayload.Chunks)
+			p.BackingBuffer.Retain()
 			a.TraceWriter.WriteChunks(sampledChunks)
 			sampledChunks = new(writer.SampledChunks)
+			sampledChunks.BackingBuffer = p.BackingBuffer
 		}
 	}
 	sampledChunks.TracerPayload = p.TracerPayload
 	sampledChunks.TracerPayload.Chunks = newChunksArray(p.TracerPayload.Chunks)
-	if sampledChunks.Size > 0 {
-		a.TraceWriter.WriteChunks(sampledChunks)
-	}
 	if len(statsInput.Traces) > 0 {
+		//p.BackingBuffer.Retain()
 		a.Concentrator.Add(statsInput)
 	}
+	if sampledChunks.Size > 0 {
+		p.BackingBuffer.Retain()
+		a.TraceWriter.WriteChunks(sampledChunks)
+	}
+	p.BackingBuffer.Release()
 }
 
 func (a *Agent) setPayloadAttributes(p *api.Payload, root *pb.Span, chunk *pb.TraceChunk) {
