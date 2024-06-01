@@ -103,10 +103,10 @@ type WindowsProbe struct {
 	processKiller *ProcessKiller
 
 	// enabled probes
-	isRenameEnabled bool
-	isWriteEnabled  bool
-	isDeleteEnabled bool
-
+	isRenameEnabled           bool
+	isWriteEnabled            bool
+	isDeleteEnabled           bool
+	isChangePermissionEnabled bool
 	// channel handling.  Currently configurable, but should probably be set
 	// to false with a configurable size value
 	blockonchannelsend bool
@@ -305,6 +305,9 @@ func (p *WindowsProbe) reconfigureProvider() error {
 		if p.isDeleteEnabled {
 			fileIds = append(fileIds, idSetDelete, idDeletePath)
 		}
+		if p.isChangePermissionEnabled {
+			fileIds = append(fileIds, idObjectPermsChange)
+		}
 
 		cfg.EnabledIDs = fileIds
 	})
@@ -421,10 +424,11 @@ func (p *WindowsProbe) auditEtw(ecb etwCallback) error {
 		case etw.DDGUID(p.auditguid):
 			switch e.EventHeader.EventDescriptor.ID {
 			case idObjectPermsChange:
-				if pc, err := p.parseObjectPermsChange(e); err == nil {
-					log.Infof("Received objectPermsChange event %d %s\n", e.EventHeader.EventDescriptor.ID, pc)
-					//ecb(pc, e.EventHeader.ProcessID)
-					ecb(pc, e.EventHeader.ProcessID)
+				if p.isChangePermissionEnabled {
+					if pc, err := p.parseObjectPermsChange(e); err == nil {
+						log.Infof("Received objectPermsChange event %d %s\n", e.EventHeader.EventDescriptor.ID, pc)
+						ecb(pc, e.EventHeader.ProcessID)
+					}
 				}
 			}
 		}
@@ -858,6 +862,16 @@ func (p *WindowsProbe) handleETWNotification(ev *model.Event, notif etwNotificat
 			},
 			ValueName: arg.valueName,
 		}
+	case *objectPermsChange:
+		ev.Type = uint32(model.ChangePermissionEventType)
+		ev.ChangePermission = model.ChangePermissionEvent{
+			UserName:   arg.subjectUserName,
+			UserDomain: arg.subjectDomainName,
+			ObjectName: arg.objectName,
+			ObjectType: arg.objectType,
+			OldSd:      arg.oldSd,
+			NewSd:      arg.newSd,
+		}
 	}
 
 	if ev.Type != uint32(model.UnknownEventType) {
@@ -1114,7 +1128,7 @@ func (p *WindowsProbe) ApplyRuleSet(rs *rules.RuleSet) (*kfilters.ApplyRuleSetRe
 	p.isWriteEnabled = false
 	p.isRenameEnabled = false
 	p.isDeleteEnabled = false
-
+	p.isChangePermissionEnabled = false
 	p.currentEventTypes = rs.GetEventTypes()
 
 	for _, eventType := range p.currentEventTypes {
@@ -1125,6 +1139,8 @@ func (p *WindowsProbe) ApplyRuleSet(rs *rules.RuleSet) (*kfilters.ApplyRuleSetRe
 			p.isWriteEnabled = true
 		case model.DeleteFileEventType.String():
 			p.isDeleteEnabled = true
+		case model.ChangePermissionEventType.String():
+			p.isChangePermissionEnabled = true
 		}
 	}
 
