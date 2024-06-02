@@ -263,7 +263,7 @@ int uprobe__postgres_tls_process(struct pt_regs *ctx) {
     // Copying the tuple to the stack to handle verifier issues on kernel 4.14.
     conn_tuple_t tup = args->tup;
 
-    pktbuf_t pkt = pktbuf_from_tls(args);
+    pktbuf_t pkt = pktbuf_from_tls(ctx, args);
     struct pg_message_header header;
     if (!read_message_header(pkt, &header)) {
         return 0;
@@ -292,7 +292,7 @@ int uprobe__postgres_tls_process_parse_message(struct pt_regs *ctx) {
     // Copying the tuple to the stack to handle verifier issues on kernel 4.14.
     conn_tuple_t tup = args->tup;
 
-    pktbuf_t pkt = pktbuf_from_tls(args);
+    pktbuf_t pkt = pktbuf_from_tls(ctx, args);
     postgres_handle_parse_message(pkt, &tup);
     return 0;
 }
