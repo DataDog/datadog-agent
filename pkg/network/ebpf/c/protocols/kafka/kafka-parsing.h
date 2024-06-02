@@ -643,9 +643,8 @@ static __always_inline enum parse_result kafka_continue_parse_response_partition
                 kafka_batch_enqueue_wrapper(kafka, tup, &response->transaction);
                 // Reset records count for the next partition, so we won't be double counting.
                 response->transaction.records_count = 0;
+                response->transaction.error_code = (s8)error_code;
             }
-
-            response->transaction.error_code = (s8)error_code;
 
             offset += sizeof(s64); // Skip high_watermark
 
