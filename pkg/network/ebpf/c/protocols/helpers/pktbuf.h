@@ -108,6 +108,24 @@ static __always_inline __maybe_unused long pktbuf_load_bytes(pktbuf_t pkt, u32 o
     return 0;
 }
 
+typedef struct {
+    void *prog_array_map;
+    __u32 index;
+} pktbuf_tail_call_option_t;
+
+static __always_inline __maybe_unused long pktbuf_tail_call_compact(pktbuf_t pkt, pktbuf_tail_call_option_t *options)
+{
+    switch (pkt.type) {
+    case PKTBUF_SKB:
+        return bpf_tail_call_compat(pkt.skb, options[PKTBUF_SKB].prog_array_map, options[PKTBUF_SKB].index);
+    case PKTBUF_TLS:
+        return bpf_tail_call_compat(pkt.ctx, options[PKTBUF_TLS].prog_array_map, options[PKTBUF_TLS].index);
+    }
+
+    pktbuf_invalid_operation();
+    return 0;
+}
+
 static __always_inline pktbuf_t pktbuf_from_skb(struct __sk_buff* skb, skb_info_t *skb_info)
 {
     return (pktbuf_t) {
