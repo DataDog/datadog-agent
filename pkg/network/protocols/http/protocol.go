@@ -44,7 +44,7 @@ const (
 	eventStream            = "http"
 )
 
-// Spec is the protocol spec for the HTTP protocol.
+// Spec is the protocol spec for the HTTP protocol - .
 var Spec = &protocols.ProtocolSpec{
 	Factory: newHTTPProtocol,
 	Maps: []*manager.Map{
