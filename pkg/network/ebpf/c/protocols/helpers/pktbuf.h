@@ -126,6 +126,59 @@ static __always_inline __maybe_unused long pktbuf_tail_call_compact(pktbuf_t pkt
     return 0;
 }
 
+typedef struct {
+    void *map;
+    void *key;
+} pktbuf_map_lookup_option_t;
+
+static __always_inline __maybe_unused long pktbuf_map_lookup(pktbuf_t pkt, pktbuf_map_lookup_option_t *options)
+{
+    switch (pkt.type) {
+    case PKTBUF_SKB:
+        return bpf_map_lookup_elem(options[PKTBUF_SKB].map, options[PKTBUF_SKB].key);
+    case PKTBUF_TLS:
+        return bpf_map_lookup_elem(options[PKTBUF_TLS].map, options[PKTBUF_TLS].key);
+    }
+
+    pktbuf_invalid_operation();
+    return 0;
+}
+
+typedef struct {
+    void *map;
+    const void *key;
+    const void *value;
+    __u64 flags;
+} pktbuf_map_update_option_t;
+
+static __always_inline __maybe_unused long pktbuf_map_update(pktbuf_t pkt, pktbuf_map_update_option_t *options)
+{
+    switch (pkt.type) {
+    case PKTBUF_SKB:
+        return bpf_map_update_elem(options[PKTBUF_SKB].map, options[PKTBUF_SKB].key, options[PKTBUF_SKB].value, , options[PKTBUF_SKB].flags);
+    case PKTBUF_TLS:
+        return bpf_map_update_elem(options[PKTBUF_TLS].map, options[PKTBUF_TLS].key, options[PKTBUF_TLS].value, , options[PKTBUF_TLS].flags);
+    }
+
+    pktbuf_invalid_operation();
+    return 0;
+}
+
+typedef pktbuf_map_lookup_option_t pktbuf_map_delete_option_t;
+
+static __always_inline __maybe_unused long pktbuf_map_delete(pktbuf_t pkt, pktbuf_map_delete_option_t *options)
+{
+    switch (pkt.type) {
+    case PKTBUF_SKB:
+        return bpf_map_delete_elem(options[PKTBUF_SKB].map, options[PKTBUF_SKB].key);
+    case PKTBUF_TLS:
+        return bpf_map_delete_elem(options[PKTBUF_TLS].map, options[PKTBUF_TLS].key);
+    }
+
+    pktbuf_invalid_operation();
+    return 0;
+}
+
 static __always_inline pktbuf_t pktbuf_from_skb(struct __sk_buff* skb, skb_info_t *skb_info)
 {
     return (pktbuf_t) {
