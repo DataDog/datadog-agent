@@ -126,6 +126,35 @@ static __always_inline __maybe_unused long pktbuf_tail_call_compact(pktbuf_t pkt
     return 0;
 }
 
+typedef struct {
+    void *map;
+    void *key;
+} pktbuf_map_lookup_option_t;
+
+static __always_inline __maybe_unused void* pktbuf_map_lookup(pktbuf_t pkt, pktbuf_map_lookup_option_t *options)
+{
+    return bpf_map_lookup_elem(options[pkt.type].map, options[pkt.type].key);
+}
+
+typedef struct {
+    void *map;
+    const void *key;
+    const void *value;
+    __u64 flags;
+} pktbuf_map_update_option_t;
+
+static __always_inline __maybe_unused long pktbuf_map_update(pktbuf_t pkt, pktbuf_map_update_option_t *options)
+{
+    return bpf_map_update_elem(options[pkt.type].map, options[pkt.type].key, options[pkt.type].value, options[pkt.type].flags);
+}
+
+typedef pktbuf_map_lookup_option_t pktbuf_map_delete_option_t;
+
+static __always_inline __maybe_unused long pktbuf_map_delete(pktbuf_t pkt, pktbuf_map_delete_option_t *options)
+{
+    return bpf_map_delete_elem(options[pkt.type].map, options[pkt.type].key);
+}
+
 static __always_inline pktbuf_t pktbuf_from_skb(struct __sk_buff* skb, skb_info_t *skb_info)
 {
     return (pktbuf_t) {
