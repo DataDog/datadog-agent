@@ -17,6 +17,7 @@ struct pktbuf {
             skb_info_t *skb_info;
         };
         struct {
+            struct pt_regs *ctx;
             tls_dispatcher_arguments_t *tls;
         };
     };
@@ -102,11 +103,12 @@ static __always_inline pktbuf_t pktbuf_from_skb(struct __sk_buff* skb, skb_info_
     };
 }
 
-static __always_inline __maybe_unused pktbuf_t pktbuf_from_tls(tls_dispatcher_arguments_t *tls)
+static __always_inline __maybe_unused pktbuf_t pktbuf_from_tls(struct pt_regs *ctx, tls_dispatcher_arguments_t *tls)
 {
     return (pktbuf_t) {
         .type = PKTBUF_TLS,
         .tls = tls,
+        .ctx = ctx,
     };
 }
 
