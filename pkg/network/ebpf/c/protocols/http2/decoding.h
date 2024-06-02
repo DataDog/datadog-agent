@@ -1,6 +1,7 @@
 #ifndef __HTTP2_DECODING_H
 #define __HTTP2_DECODING_H
 
+#include "protocols/helpers/pktbuf.h"
 #include "protocols/http2/decoding-common.h"
 #include "protocols/http2/usm-events.h"
 #include "protocols/http2/skb-common.h"
@@ -585,7 +586,18 @@ int socket__http2_handle_first_frame(struct __sk_buff *skb) {
     // frame.
     args->skb_info.data_off = dispatcher_args_copy.skb_info.data_off;
 
-    bpf_tail_call_compat(skb, &protocols_progs, PROG_HTTP2_FRAME_FILTER);
+    pktbuf_t pkt = pktbuf_from_skb(skb, &dispatcher_args_copy.skb_info);
+    pktbuf_tail_call_option_t arr[] = {
+        [PKTBUF_SKB] = {
+            .prog_array_map = &protocols_progs,
+            .index = PROG_HTTP2_FRAME_FILTER,
+        },
+        [PKTBUF_TLS] = {
+            .prog_array_map = &protocols_progs,
+            .index = PROG_HTTP2_FRAME_FILTER,
+        },
+    };
+    pktbuf_tail_call_compact(pkt, arr);
     return 0;
 }
 
