@@ -166,4 +166,19 @@ static __always_inline void reset_frame(http2_frame_t *out) {
     *out = (http2_frame_t){ 0 };
 }
 
+static __always_inline long get_telemetry(pktbuf_t pkt) {
+    const __u32 zero = 0;
+
+    return pktbuf_map_lookup(pkt, pktbuf_map_lookup_option_t[]{
+        {
+            .map = &http2_telemetry,
+            .key = &zero,
+        },
+        {
+            .map = &protocols_progs,
+            .key = &zero,
+        },
+    });
+}
+
 #endif

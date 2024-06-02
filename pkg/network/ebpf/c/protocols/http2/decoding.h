@@ -542,7 +542,7 @@ int socket__http2_handle_first_frame(struct __sk_buff *skb) {
 
     frame_header_remainder_t *frame_state = bpf_map_lookup_elem(&http2_remainder, &dispatcher_args_copy.tup);
 
-    http2_telemetry_t *http2_tel = bpf_map_lookup_elem(&http2_telemetry, &zero);
+    http2_telemetry_t *http2_tel = get_telemetry(pktbuf);
     if (http2_tel == NULL) {
         return 0;
     }
@@ -635,7 +635,7 @@ int socket__http2_filter(struct __sk_buff *skb) {
         return 0;
     }
 
-    http2_telemetry_t *http2_tel = bpf_map_lookup_elem(&http2_telemetry, &zero);
+    http2_telemetry_t *http2_tel = get_telemetry(pktbuf);
     if (http2_tel == NULL) {
         return 0;
     }
@@ -725,7 +725,7 @@ int socket__http2_headers_parser(struct __sk_buff *skb) {
         goto delete_iteration;
     }
 
-    http2_telemetry_t *http2_tel = bpf_map_lookup_elem(&http2_telemetry, &zero);
+    http2_telemetry_t *http2_tel = get_telemetry(pktbuf);
     if (http2_tel == NULL) {
         goto delete_iteration;
     }
@@ -858,7 +858,7 @@ int socket__http2_eos_parser(struct __sk_buff *skb) {
     }
 
     const __u32 zero = 0;
-    http2_telemetry_t *http2_tel = bpf_map_lookup_elem(&http2_telemetry, &zero);
+    http2_telemetry_t *http2_tel = get_telemetry(pktbuf);
     if (http2_tel == NULL) {
         goto delete_iteration;
     }
