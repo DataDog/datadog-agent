@@ -109,6 +109,11 @@ static __always_inline long pktbuf_load_bytes_with_telemetry(pktbuf_t pkt, u32 o
     return 0;
 }
 
+static __always_inline __maybe_unused long pktbuf_load_bytes_with_telemetry_from_current_offset(pktbuf_t pkt, void *to, u32 len)
+{
+    return pktbuf_load_bytes_with_telemetry(pkt, pktbuf_data_offset(pkt), to, len);
+}
+
 static __always_inline __maybe_unused long pktbuf_load_bytes(pktbuf_t pkt, u32 offset, void *to, u32 len)
 {
     switch (pkt.type) {
@@ -120,6 +125,11 @@ static __always_inline __maybe_unused long pktbuf_load_bytes(pktbuf_t pkt, u32 o
 
     pktbuf_invalid_operation();
     return 0;
+}
+
+static __always_inline __maybe_unused long pktbuf_load_bytes_from_current_offset(pktbuf_t pkt, void *to, u32 len)
+{
+    return pktbuf_load_bytes(pkt, pktbuf_data_offset(pkt), to, len);
 }
 
 typedef struct {
