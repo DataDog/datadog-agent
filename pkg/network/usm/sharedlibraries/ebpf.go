@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"math"
 	"os"
+	"runtime"
 
 	manager "github.com/DataDog/ebpf-manager"
 	"golang.org/x/sys/unix"
@@ -30,6 +31,7 @@ const (
 	probeUID               = "so"
 
 	// probe used for streaming shared library events
+	openSysCall    = "open"
 	openatSysCall  = "openat"
 	openat2SysCall = "openat2"
 )
@@ -177,11 +179,16 @@ func sysOpenAt2Supported() bool {
 	return kversion >= kernel.VersionCode(5, 6, 0)
 }
 
-// getSysOpenHooksIdentifiers returns the enter and exit tracepoints for openat and openat2 (if supported).
+// getSysOpenHooksIdentifiers returns the enter and exit tracepoints for supported open*
+// system calls.
 func getSysOpenHooksIdentifiers() []manager.ProbeIdentificationPair {
 	openatProbes := []string{openatSysCall}
 	if sysOpenAt2Supported() {
 		openatProbes = append(openatProbes, openat2SysCall)
+	}
+	// arm64 doesn't have open(2)
+	if runtime.GOARCH == "amd64" {
+		openatProbes = append(openatProbes, openSysCall)
 	}
 
 	res := make([]manager.ProbeIdentificationPair, 0, len(traceTypes)*len(openatProbes))
