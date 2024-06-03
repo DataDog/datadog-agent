@@ -19,6 +19,7 @@ import (
 	nethttp "net/http"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -85,6 +86,13 @@ type kafkaParsingTestAttributes struct {
 type kafkaParsingValidation struct {
 	expectedNumberOfProduceRequests int
 	expectedNumberOfFetchRequests   int
+	expectedAPIVersionProduce       int
+	expectedAPIVersionFetch         int
+}
+
+type kafkaParsingValidationWithErrorCodes struct {
+	expectedNumberOfProduceRequests map[int8]int
+	expectedNumberOfFetchRequests   map[int8]int
 	expectedAPIVersionProduce       int
 	expectedAPIVersionFetch         int
 }
@@ -941,13 +949,14 @@ func testKafkaFetchRaw(t *testing.T, tls bool, apiVersion int) {
 	defaultTopic := "test-topic"
 
 	tests := []struct {
-		name              string
-		topic             string
-		buildResponse     func(string) kmsg.FetchResponse
-		buildMessages     func(kmsg.FetchRequest, kmsg.FetchResponse) []Message
-		onlyTLS           bool
-		numFetchedRecords int
-		errorCode         int8
+		name                                string
+		topic                               string
+		buildResponse                       func(string) kmsg.FetchResponse
+		buildMessages                       func(kmsg.FetchRequest, kmsg.FetchResponse) []Message
+		onlyTLS                             bool
+		numFetchedRecords                   int
+		errorCode                           int8
+		produceFetchValidationWithErrorCode *kafkaParsingValidationWithErrorCodes
 	}{
 		{
 			name:  "basic",
@@ -1181,6 +1190,45 @@ func testKafkaFetchRaw(t *testing.T, tls bool, apiVersion int) {
 			numFetchedRecords: 5 * 4 * 3,
 			errorCode:         3,
 		},
+		{
+			name:  "with different error codes",
+			topic: defaultTopic,
+			produceFetchValidationWithErrorCode: &kafkaParsingValidationWithErrorCodes{
+				expectedNumberOfFetchRequests: map[int8]int{
+					0: 5 * 4 * 2,
+					1: 5 * 4 * 1,
+					3: 5 * 4 * 1,
+				},
+				expectedAPIVersionFetch: apiVersion,
+			},
+			buildResponse: func(topic string) kmsg.FetchResponse {
+				record := makeRecord()
+				var records []kmsg.Record
+				for i := 0; i < 5; i++ {
+					records = append(records, record)
+				}
+
+				recordBatch := makeRecordBatch(records...)
+				var batches []kmsg.RecordBatch
+				for i := 0; i < 4; i++ {
+					batches = append(batches, recordBatch)
+				}
+
+				var partitions []kmsg.FetchResponseTopicPartition
+				partition := makeFetchResponseTopicPartition(batches...)
+				partition.ErrorCode = 0
+
+				partitions = append(partitions, partition)
+				partition.ErrorCode = 3
+				partitions = append(partitions, partition)
+				partition.ErrorCode = 0
+				partitions = append(partitions, partition)
+				partition.ErrorCode = 1
+				partitions = append(partitions, partition)
+
+				return makeFetchResponse(apiVersion, makeFetchResponseTopic(topic, partitions...))
+			},
+		},
 	}
 
 	can := newCannedClientServer(t, tls)
@@ -1210,10 +1258,14 @@ func testKafkaFetchRaw(t *testing.T, tls bool, apiVersion int) {
 
 			can.runClient(msgs)
 
-			getAndValidateKafkaStats(t, monitor, 1, tt.topic, kafkaParsingValidation{
-				expectedNumberOfFetchRequests: tt.numFetchedRecords,
-				expectedAPIVersionFetch:       int(apiVersion),
-			}, tt.errorCode)
+			if tt.produceFetchValidationWithErrorCode != nil {
+				getAndValidateKafkaStatsWithErrorCodes(t, monitor, 1, tt.topic, *tt.produceFetchValidationWithErrorCode)
+			} else {
+				getAndValidateKafkaStats(t, monitor, 1, tt.topic, kafkaParsingValidation{
+					expectedNumberOfFetchRequests: tt.numFetchedRecords,
+					expectedAPIVersionFetch:       apiVersion,
+				}, tt.errorCode)
+			}
 		})
 
 		// Test with buildMessages have custom splitters
@@ -1262,10 +1314,20 @@ func testKafkaFetchRaw(t *testing.T, tls bool, apiVersion int) {
 				utils.WaitForProgramsToBeTraced(t, "go-tls", proxyPid)
 			}
 			can.runClient(msgs)
-			getAndValidateKafkaStats(t, monitor, 1, tt.topic, kafkaParsingValidation{
-				expectedNumberOfFetchRequests: tt.numFetchedRecords * splitIdx,
-				expectedAPIVersionFetch:       apiVersion,
-			}, tt.errorCode)
+
+			if tt.produceFetchValidationWithErrorCode != nil {
+				tempFetchValidation := make(map[int8]int, len(tt.produceFetchValidationWithErrorCode.expectedNumberOfFetchRequests))
+				for k, v := range tt.produceFetchValidationWithErrorCode.expectedNumberOfFetchRequests {
+					tempFetchValidation[k] = v * splitIdx
+				}
+				tt.produceFetchValidationWithErrorCode.expectedNumberOfFetchRequests = tempFetchValidation
+				getAndValidateKafkaStatsWithErrorCodes(t, monitor, 1, tt.topic, *tt.produceFetchValidationWithErrorCode)
+			} else {
+				getAndValidateKafkaStats(t, monitor, 1, tt.topic, kafkaParsingValidation{
+					expectedNumberOfFetchRequests: tt.numFetchedRecords * splitIdx,
+					expectedAPIVersionFetch:       apiVersion,
+				}, tt.errorCode)
+			}
 		})
 	}
 }
@@ -1370,6 +1432,42 @@ func getAndValidateKafkaStats(t *testing.T, monitor *Monitor, expectedStatsCount
 	return kafkaStats
 }
 
+func getAndValidateKafkaStatsWithErrorCodes(t *testing.T, monitor *Monitor, expectedStatsCount int, topicName string, validation kafkaParsingValidationWithErrorCodes) map[kafka.Key]*kafka.RequestStats {
+	kafkaStats := make(map[kafka.Key]*kafka.RequestStats)
+	require.EventuallyWithT(t, func(collect *assert.CollectT) {
+		protocolStats := monitor.GetProtocolStats()
+		kafkaProtocolStats, exists := protocolStats[protocols.Kafka]
+		// We might not have kafka stats, and it might be the expected case (to capture 0).
+		if exists {
+			currentStats := kafkaProtocolStats.(map[kafka.Key]*kafka.RequestStats)
+			for key, stats := range currentStats {
+				prevStats, ok := kafkaStats[key]
+				if ok && prevStats != nil {
+					prevStats.CombineWith(stats)
+				} else {
+					kafkaStats[key] = currentStats[key]
+				}
+			}
+		}
+		assert.Equal(collect, expectedStatsCount, len(kafkaStats), "Did not find expected number of stats")
+		if expectedStatsCount != 0 {
+			validateProduceFetchCountWithErrorCodes(collect, kafkaStats, topicName, validation)
+		}
+	}, time.Second*5, time.Millisecond*100)
+	return kafkaStats
+}
+
+func getDefaultTestConfiguration(tls bool) *config.Config {
+	cfg := config.New()
+	cfg.EnableKafkaMonitoring = true
+	cfg.MaxTrackedConnections = 1000
+	if tls {
+		cfg.EnableGoTLSSupport = true
+		cfg.GoTLSExcludeSelf = true
+	}
+	return cfg
+}
+
 func validateProduceFetchCount(t *assert.CollectT, kafkaStats map[kafka.Key]*kafka.RequestStats, topicName string, validation kafkaParsingValidation, errorCode int8) {
 	numberOfProduceRequests := 0
 	numberOfFetchRequests := 0
@@ -1392,15 +1490,32 @@ func validateProduceFetchCount(t *assert.CollectT, kafkaStats map[kafka.Key]*kaf
 		"Expected %d fetch requests but got %d", validation.expectedNumberOfFetchRequests, numberOfFetchRequests)
 }
 
-func getDefaultTestConfiguration(tls bool) *config.Config {
-	cfg := config.New()
-	cfg.EnableKafkaMonitoring = true
-	cfg.MaxTrackedConnections = 1000
-	if tls {
-		cfg.EnableGoTLSSupport = true
-		cfg.GoTLSExcludeSelf = true
+func validateProduceFetchCountWithErrorCodes(t *assert.CollectT, kafkaStats map[kafka.Key]*kafka.RequestStats, topicName string, validation kafkaParsingValidationWithErrorCodes) {
+	produceRequests := make(map[int8]int, len(validation.expectedNumberOfProduceRequests))
+	fetchRequests := make(map[int8]int, len(validation.expectedNumberOfFetchRequests))
+	for kafkaKey, kafkaStat := range kafkaStats {
+		assert.Equal(t, topicName[:min(len(topicName), 80)], kafkaKey.TopicName)
+		switch kafkaKey.RequestAPIKey {
+		case kafka.ProduceAPIKey:
+			assert.Equal(t, uint16(validation.expectedAPIVersionProduce), kafkaKey.RequestVersion)
+			for errorCode, count := range kafkaStat.ErrorCodeToStat {
+				produceRequests[errorCode] += count.Count
+			}
+		case kafka.FetchAPIKey:
+			assert.Equal(t, uint16(validation.expectedAPIVersionFetch), kafkaKey.RequestVersion)
+			for errorCode, count := range kafkaStat.ErrorCodeToStat {
+				fetchRequests[errorCode] += count.Count
+			}
+		default:
+			assert.FailNow(t, "Expecting only produce or fetch kafka requests")
+		}
 	}
-	return cfg
+	if validation.expectedNumberOfProduceRequests != nil {
+		assert.True(t, reflect.DeepEqual(produceRequests, validation.expectedNumberOfProduceRequests))
+	}
+	if validation.expectedNumberOfFetchRequests != nil {
+		assert.True(t, reflect.DeepEqual(fetchRequests, validation.expectedNumberOfFetchRequests))
+	}
 }
 
 func newKafkaMonitor(t *testing.T, cfg *config.Config) *Monitor {
