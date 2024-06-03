@@ -39,7 +39,7 @@ class TestReadAdditionalTags(unittest.TestCase):
 
     def test_without_tags(self):
         invalid_tags = Path("./tasks/unit-tests/testdata")
-        self.assertIsNone(junit.read_additional_tags(invalid_tags))
+        self.assertEqual(len(junit.read_additional_tags(invalid_tags)), 0)
 
 
 class TestSplitJUnitXML(unittest.TestCase):
@@ -122,6 +122,17 @@ class TestSetTag(unittest.TestCase):
         tags = junit.set_tags("agent-ci-experience", "base", "", ["--tags", "simple:basique"], "")
         self.assertEqual(len(tags), 16)
         self.assertIn("simple:basique", tags)
+
+    @patch.dict("os.environ", {"CI_PIPELINE_ID": "1789"})
+    @patch("tasks.libs.common.junit_upload_core.get_gitlab_repo")
+    def test_additional_tags_from_method(self, mock_gitlab):
+        mock_instance = MagicMock()
+        mock_instance.pipelines.get.return_value = MagicMock()
+        mock_gitlab.return_value = mock_instance
+        tags = junit.set_tags(
+            "agent-ci-experience", "base", "", junit.read_additional_tags(Path("tasks/unit-tests/testdata")), ""
+        )
+        self.assertEqual(len(tags), 14)
 
 
 class TestJUnitUploadFromTGZ(unittest.TestCase):
