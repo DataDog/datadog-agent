@@ -1,12 +1,26 @@
 #ifndef __HTTP2_DECODING_H
 #define __HTTP2_DECODING_H
 
+#include "protocols/helpers/pktbuf.h"
 #include "protocols/http2/decoding-common.h"
 #include "protocols/http2/usm-events.h"
 #include "protocols/http2/skb-common.h"
 #include "protocols/http/types.h"
 
+PKTBUF_READ_INTO_BUFFER(http2_preface, HTTP2_MARKER_SIZE, HTTP2_MARKER_SIZE)
+
 READ_INTO_BUFFER(path, HTTP2_MAX_PATH_LEN, BLK_SIZE)
+
+// A helper function to check for the HTTP2 magic sent at the beginning
+// of an HTTP2 connection, and skip it if present.
+static __always_inline void pktbuf_skip_preface(pktbuf_t pkt) {
+    char preface[HTTP2_MARKER_SIZE];
+    bpf_memset((char *)preface, 0, HTTP2_MARKER_SIZE);
+    pktbuf_read_into_buffer_http2_preface(preface, pkt, pktbuf_data_offset(pkt));
+    if (is_http2_preface(preface, HTTP2_MARKER_SIZE)) {
+        pktbuf_advance(pkt, HTTP2_MARKER_SIZE);
+    }
+}
 
 // parse_field_literal parses a header with a literal value.
 //
@@ -502,6 +516,8 @@ int socket__http2_handle_first_frame(struct __sk_buff *skb) {
         return 0;
     }
 
+    pktbuf_t pkt = pktbuf_from_skb(skb, &dispatcher_args_copy.skb_info);
+
     // A single packet can contain multiple HTTP/2 frames, due to instruction limitations we have divided the
     // processing into multiple tail calls, where each tail call process a single frame. We must have context when
     // we are processing the frames, for example, to know how many bytes have we read in the packet, or it we reached
@@ -517,7 +533,7 @@ int socket__http2_handle_first_frame(struct __sk_buff *skb) {
     iteration_value->data_off = 0;
 
     // skip HTTP2 magic, if present
-    skip_preface(skb, &dispatcher_args_copy.skb_info);
+    pktbuf_skip_preface(pkt);
     if (dispatcher_args_copy.skb_info.data_off == dispatcher_args_copy.skb_info.data_end) {
         // Abort early if we reached to the end of the frame (a.k.a having only the HTTP2 magic in the packet).
         return 0;

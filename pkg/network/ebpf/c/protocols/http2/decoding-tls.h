@@ -5,7 +5,6 @@
 #include "protocols/http2/usm-events.h"
 #include "protocols/http/types.h"
 
-READ_INTO_USER_BUFFER_WITHOUT_TELEMETRY(http2_preface, HTTP2_MARKER_SIZE)
 READ_INTO_USER_BUFFER_WITHOUT_TELEMETRY(http2_frame_header, HTTP2_FRAME_HEADER_SIZE)
 READ_INTO_USER_BUFFER_WITHOUT_TELEMETRY(http2_path, HTTP2_MAX_PATH_LEN)
 
@@ -389,16 +388,6 @@ static __always_inline void tls_process_headers_frame(tls_dispatcher_arguments_t
     tls_process_headers(info, dynamic_index, current_stream, headers_to_process, interesting_headers, http2_tel);
 }
 
-// tls_skip_preface is a helper function to check for the HTTP2 magic sent at the beginning
-// of an HTTP2 connection, and skip it if present.
-static __always_inline void tls_skip_preface(tls_dispatcher_arguments_t *info) {
-    char preface[HTTP2_MARKER_SIZE];
-    bpf_memset((char *)preface, 0, HTTP2_MARKER_SIZE);
-    read_into_user_buffer_http2_preface(preface, info->buffer_ptr + info->data_off);
-    if (is_http2_preface(preface, HTTP2_MARKER_SIZE)) {
-        info->data_off += HTTP2_MARKER_SIZE;
-    }
-}
 // The function is trying to read the remaining of a split frame header. We have the first part in
 // `frame_state->buf` (from the previous packet), and now we're trying to read the remaining (`frame_state->remainder`
 // bytes from the current packet).
@@ -603,6 +592,8 @@ int uprobe__http2_tls_handle_first_frame(struct pt_regs *ctx) {
     }
     dispatcher_args_copy = *args;
 
+    pktbuf_t pkt = pktbuf_from_tls(ctx, &dispatcher_args_copy);
+
     // A single packet can contain multiple HTTP/2 frames, due to instruction limitations we have divided the
     // processing into multiple tail calls, where each tail call process a single frame. We must have context when
     // we are processing the frames, for example, to know how many bytes have we read in the packet, or it we reached
@@ -618,7 +609,7 @@ int uprobe__http2_tls_handle_first_frame(struct pt_regs *ctx) {
     iteration_value->data_off = 0;
 
     // skip HTTP2 magic, if present
-    tls_skip_preface(&dispatcher_args_copy);
+    pktbuf_skip_preface(pkt);
     if (dispatcher_args_copy.data_off == dispatcher_args_copy.data_end) {
         // Abort early if we reached to the end of the frame (a.k.a having only the HTTP2 magic in the packet).
         return 0;
