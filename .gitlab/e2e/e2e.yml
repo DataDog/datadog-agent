@@ -20,8 +20,6 @@
   - export DATADOG_AGENT_API_KEY=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $E2E_TESTS_API_KEY_SSM_NAME)
   - export DATADOG_AGENT_APP_KEY=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $E2E_TESTS_APP_KEY_SSM_NAME)
   - export DATADOG_AGENT_RC_KEY=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $E2E_TESTS_RC_KEY_SSM_NAME)
-  # workaround until CWS is able to support 6.8 kernel correctly
-  - export AMI=ami-04003e644492ae5e8
 
 .k8s_e2e_template_needs_dev:
   extends: .k8s_e2e_template
@@ -56,21 +54,6 @@
   extends: .k8s_e2e_template_needs_main
   script:
     - inv -e e2e-tests --agent-image=datadog/agent-dev:master-py3 --dca-image=datadog/cluster-agent-dev:master --argo-workflow=$ARGO_WORKFLOW
-
-k8s-e2e-cws-dev:
-  extends: .k8s_e2e_template_dev_with_cws_cspm_init
-  rules: !reference [.on_dev_branch_manual]
-  variables:
-    ARGO_WORKFLOW: cws
-  allow_failure: true
-
-k8s-e2e-cws-main:
-  extends: .k8s_e2e_template_main_with_cws_cspm_init
-  rules: !reference [.on_main]
-  retry: 1
-  variables:
-    ARGO_WORKFLOW: cws
-  allow_failure: true
 
 k8s-e2e-cspm-dev:
   extends: .k8s_e2e_template_dev_with_cws_cspm_init
