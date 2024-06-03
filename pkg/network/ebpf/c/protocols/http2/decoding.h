@@ -480,15 +480,13 @@ int socket__http2_handle_first_frame(struct __sk_buff *skb) {
     http2_frame_t current_frame = {};
 
     dispatcher_arguments_t dispatcher_args_copy;
-    bpf_memset(&dispatcher_args_copy, 0, sizeof(dispatcher_arguments_t));
     // We're not calling fetch_dispatching_arguments as, we need to modify the `data_off` field of skb_info, so
     // the next prog will start to read from the next valid frame.
     dispatcher_arguments_t *args = bpf_map_lookup_elem(&dispatcher_arguments, &zero);
     if (args == NULL) {
         return false;
     }
-    bpf_memcpy(&dispatcher_args_copy.tup, &args->tup, sizeof(conn_tuple_t));
-    bpf_memcpy(&dispatcher_args_copy.skb_info, &args->skb_info, sizeof(skb_info_t));
+    dispatcher_args_copy = *args;
 
     // If we detected a tcp termination we should stop processing the packet, and clear its dynamic table by deleting the counter.
     if (is_tcp_termination(&dispatcher_args_copy.skb_info)) {

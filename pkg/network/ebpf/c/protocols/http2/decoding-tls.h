@@ -614,6 +614,8 @@ int uprobe__http2_tls_handle_first_frame(struct pt_regs *ctx) {
     }
     iteration_value->frames_count = 0;
     iteration_value->iteration = 0;
+    iteration_value->filter_iterations = 0;
+    iteration_value->data_off = 0;
 
     // skip HTTP2 magic, if present
     tls_skip_preface(&dispatcher_args_copy);
@@ -634,6 +636,7 @@ int uprobe__http2_tls_handle_first_frame(struct pt_regs *ctx) {
     if (frame_state != NULL && frame_state->remainder == 0) {
         bpf_map_delete_elem(&http2_remainder, &dispatcher_args_copy.tup);
     }
+
     if (!has_valid_first_frame) {
         // Handling the case where we have a frame header remainder, and we couldn't read the frame header.
         if (dispatcher_args_copy.data_off < dispatcher_args_copy.data_end && dispatcher_args_copy.data_off + HTTP2_FRAME_HEADER_SIZE > dispatcher_args_copy.data_end) {
