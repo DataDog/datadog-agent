@@ -1,6 +1,7 @@
 module github.com/DataDog/datadog-agent
 
 go 1.21.0
+toolchain go1.22.3
 
 // v0.8.0 was tagged long ago, and appared on pkg.go.dev.  We do not want any tagged version
 // to appear there.  The trick to accomplish this is to make a new version (in this case v0.9.0)
@@ -302,22 +303,22 @@ require (
 	gopkg.in/yaml.v2 v2.4.0
 	gopkg.in/yaml.v3 v3.0.1
 	gopkg.in/zorkian/go-datadog-api.v2 v2.30.0
-	k8s.io/api v0.29.3
+	k8s.io/api v0.30.0
 	k8s.io/apiextensions-apiserver v0.29.0
-	k8s.io/apimachinery v0.29.3
-	k8s.io/apiserver v0.29.3
+	k8s.io/apimachinery v0.30.0
+	k8s.io/apiserver v0.30.0
 	k8s.io/autoscaler/vertical-pod-autoscaler v0.13.0
-	k8s.io/client-go v0.29.3
+	k8s.io/client-go v0.30.0
 	k8s.io/cri-api v0.29.3
 	k8s.io/klog v1.0.1-0.20200310124935-4ad0115ba9e4 // Min version that includes fix for Windows Nano
 	k8s.io/klog/v2 v2.120.1
 	k8s.io/kube-aggregator v0.28.6
-	k8s.io/kube-openapi v0.0.0-20231010175941-2dd684a91f00
+	k8s.io/kube-openapi v0.0.0-20240430033511-f0e62f92d13f
 	k8s.io/kube-state-metrics/v2 v2.8.2
 	k8s.io/kubelet v0.29.3
-	k8s.io/metrics v0.28.6
-	k8s.io/utils v0.0.0-20231127182322-b307cd553661
-	sigs.k8s.io/custom-metrics-apiserver v1.28.0
+	k8s.io/metrics v0.30.0
+	k8s.io/utils v0.0.0-20240423183400-0849a56e8f22
+	sigs.k8s.io/custom-metrics-apiserver v1.30.0
 
 )
 
@@ -580,7 +581,7 @@ require (
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1 // indirect
 	gopkg.in/warnings.v0 v0.1.2 // indirect
-	k8s.io/component-base v0.29.3
+	k8s.io/component-base v0.30.0
 	k8s.io/gengo v0.0.0-20230829151522-9cce18d56c01 // indirect
 	lukechampine.com/uint128 v1.3.0 // indirect
 	mellium.im/sasl v0.3.1 // indirect
@@ -593,7 +594,7 @@ require (
 	modernc.org/sqlite v1.28.0
 	modernc.org/strutil v1.1.3 // indirect
 	modernc.org/token v1.1.0 // indirect
-	sigs.k8s.io/apiserver-network-proxy/konnectivity-client v0.28.0 // indirect
+	sigs.k8s.io/apiserver-network-proxy/konnectivity-client v0.29.0 // indirect
 	sigs.k8s.io/controller-runtime v0.12.2 // indirect
 	sigs.k8s.io/json v0.0.0-20221116044647-bc3834ca7abd // indirect
 	sigs.k8s.io/structured-merge-diff/v4 v4.4.1 // indirect
@@ -830,7 +831,7 @@ require (
 	github.com/eapache/queue v1.1.0 // indirect
 	github.com/ebitengine/purego v0.6.0-alpha.5 // indirect
 	github.com/elastic/go-licenser v0.4.1 // indirect
-	github.com/emicklei/go-restful/v3 v3.11.0 // indirect
+	github.com/emicklei/go-restful/v3 v3.12.0 // indirect
 	github.com/envoyproxy/go-control-plane v0.12.0 // indirect
 	github.com/envoyproxy/protoc-gen-validate v1.0.4 // indirect
 	github.com/evanphx/json-patch/v5 v5.6.0 // indirect
@@ -853,7 +854,7 @@ require (
 	github.com/golang-jwt/jwt/v5 v5.2.1 // indirect
 	github.com/golang-sql/civil v0.0.0-20220223132316-b832511892a9 // indirect
 	github.com/golang-sql/sqlexp v0.1.0 // indirect
-	github.com/google/cel-go v0.17.7 // indirect
+	github.com/google/cel-go v0.17.8 // indirect
 	github.com/google/flatbuffers v23.5.26+incompatible // indirect
 	github.com/google/gnostic-models v0.6.8 // indirect
 	github.com/google/go-querystring v1.1.0 // indirect
@@ -1169,7 +1170,7 @@ require (
 	gopkg.in/ini.v1 v1.67.0 // indirect
 	gotest.tools/v3 v3.5.1 // indirect
 	honnef.co/go/tools v0.4.5 // indirect
-	k8s.io/kms v0.29.0 // indirect
+	k8s.io/kms v0.30.0 // indirect
 	skywalking.apache.org/repo/goapi v0.0.0-20240104145220-ba7202308dd4 // indirect
 )
 
