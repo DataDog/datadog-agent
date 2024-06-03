@@ -429,18 +429,16 @@ func (ia *inventoryagent) getPayload() marshaler.JSONMarshaler {
 			model.SourceLocalConfigProcess: "source_local_configuration",
 			model.SourceRC:                 "remote_configuration",
 			model.SourceCLI:                "cli_configuration",
+			model.SourceProvided:           "provided_configuration",
 		}
 
 		for source, conf := range layers {
-			if json, err := ia.marshalAndScrub(conf); err == nil {
-				data[layersName[source]] = json
+			if yaml, err := ia.marshalAndScrub(conf); err == nil {
+				data[layersName[source]] = yaml
 			}
 		}
-		if json, err := ia.marshalAndScrub(ia.conf.AllSettings()); err == nil {
-			data["full_configuration"] = json
-		}
-		if json, err := ia.marshalAndScrub(ia.conf.AllSettingsWithoutDefault()); err == nil {
-			data["provided_configuration"] = json
+		if yaml, err := ia.marshalAndScrub(ia.conf.AllSettings()); err == nil {
+			data["full_configuration"] = yaml
 		}
 	}
 

@@ -117,6 +117,23 @@ func TestRuntimeSettings(t *testing.T) {
 			},
 		},
 		{
+			"GetFullConfigBySource",
+			func(t *testing.T, comp settings.Component) {
+				responseRecorder := httptest.NewRecorder()
+				request := httptest.NewRequest("GET", "http://agent.host/test/", nil)
+
+				comp.GetFullConfigBySource()(responseRecorder, request)
+				resp := responseRecorder.Result()
+				defer resp.Body.Close()
+				body, _ := io.ReadAll(resp.Body)
+
+				assert.Equal(t, 200, responseRecorder.Code)
+				// The full config is too big to assert against
+				// Ensure the response body is not empty to validate we wrote something
+				assert.NotEqual(t, "", string(body))
+			},
+		},
+		{
 			"ListConfigurable",
 			func(t *testing.T, comp settings.Component) {
 				responseRecorder := httptest.NewRecorder()

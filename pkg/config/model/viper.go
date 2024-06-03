@@ -29,14 +29,28 @@ type Source string
 
 // Declare every known Source
 const (
-	SourceDefault            Source = "default"
-	SourceUnknown            Source = "unknown"
-	SourceFile               Source = "file"
-	SourceEnvVar             Source = "environment-variable"
-	SourceAgentRuntime       Source = "agent-runtime"
+	// SourceDefault are the values from defaults.
+	SourceDefault Source = "default"
+	// SourceUnknown are the values from unknown source. This should only be used in tests when calling
+	// SetWithoutSource.
+	SourceUnknown Source = "unknown"
+	// SourceFile are the values loaded from configuration file.
+	SourceFile Source = "file"
+	// SourceEnvVar are the values loaded from the environment variables.
+	SourceEnvVar Source = "environment-variable"
+	// SourceAgentRuntime are the values configured by the agent itself. The agent can dynamically compute the best
+	// value for some settings when not set by the user.
+	SourceAgentRuntime Source = "agent-runtime"
+	// SourceLocalConfigProcess are the values mirrored from the config process. The config process is the
+	// core-agent. This is used when side process like security-agent or trace-agent pull their configuration from
+	// the core-agent.
 	SourceLocalConfigProcess Source = "local-config-process"
-	SourceRC                 Source = "remote-config"
-	SourceCLI                Source = "cli"
+	// SourceRC are the values loaded from remote-config (aka Datadog backend)
+	SourceRC Source = "remote-config"
+	// SourceCLI are the values set by the user at runtime through the CLI.
+	SourceCLI Source = "cli"
+	// SourceProvided are all values set by any source but default.
+	SourceProvided Source = "provided" // everything but defaults
 )
 
 // sources list the known sources, following the order of hierarchy between them
@@ -644,6 +658,7 @@ func (c *safeConfig) AllSettingsBySource() map[Source]interface{} {
 	for _, source := range sources {
 		res[source] = c.configSources[source].AllSettingsWithoutDefault()
 	}
+	res[SourceProvided] = c.AllSettingsWithoutDefault()
 	return res
 }
 

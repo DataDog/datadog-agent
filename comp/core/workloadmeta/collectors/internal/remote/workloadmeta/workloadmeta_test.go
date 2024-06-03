@@ -167,6 +167,14 @@ func TestHandleWorkloadmetaStreamResponse(t *testing.T) {
 			},
 		},
 	}
+	// workloadmeta client store
+	mockClientStore := fxutil.Test[workloadmeta.Mock](t, fx.Options(
+		core.MockBundle(),
+		fx.Supply(workloadmeta.Params{
+			AgentType: workloadmeta.Remote,
+		}),
+		workloadmeta.MockModuleV2(),
+	))
 
 	expectedEvent, err := proto.WorkloadmetaEventFromProtoEvent(protoWorkloadmetaEvent)
 	require.NoError(t, err)
@@ -176,7 +184,7 @@ func TestHandleWorkloadmetaStreamResponse(t *testing.T) {
 	}
 
 	streamhandler := &streamHandler{}
-	collectorEvents, err := streamhandler.HandleResponse(mockResponse)
+	collectorEvents, err := streamhandler.HandleResponse(mockClientStore, mockResponse)
 
 	require.NoError(t, err)
 	assert.Len(t, collectorEvents, 1)

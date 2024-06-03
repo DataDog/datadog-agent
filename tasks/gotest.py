@@ -28,6 +28,7 @@ from tasks.dogstatsd import integration_tests as dsd_integration_tests
 from tasks.flavor import AgentFlavor
 from tasks.libs.common.color import color_message
 from tasks.libs.common.datadog_api import create_count, send_metrics
+from tasks.libs.common.git import get_modified_files
 from tasks.libs.common.junit_upload_core import enrich_junitxml, produce_junit_tar
 from tasks.libs.common.utils import clean_nested_paths, collapsed_section, get_build_flags, get_distro
 from tasks.modules import DEFAULT_MODULES, GoModule
@@ -578,7 +579,7 @@ def get_modified_packages(ctx, build_tags=None, lint=False) -> list[GoModule]:
 
         # If there are go file matching the build tags in the folder we do not try to run tests
         res = ctx.run(
-            f"go list -tags '{' '.join(build_tags)}' ./{os.path.dirname(modified_file)}/...", hide=True, warn=True
+            f'go list -tags "{" ".join(build_tags)}" ./{os.path.dirname(modified_file)}/...', hide=True, warn=True
         )
         if res.stderr is not None and "matched no packages" in res.stderr:
             continue
@@ -607,14 +608,6 @@ def get_modified_packages(ctx, build_tags=None, lint=False) -> list[GoModule]:
         print(f"- {module}: {modules_to_test[module].targets}")
 
     return modules_to_test.values()
-
-
-def get_modified_files(ctx):
-    last_main_commit = ctx.run("git merge-base HEAD origin/main", hide=True).stdout
-    print(f"Checking diff from {last_main_commit} commit on main branch")
-
-    modified_files = ctx.run(f"git diff --name-only --no-renames {last_main_commit}", hide=True).stdout.splitlines()
-    return modified_files
 
 
 @task(iterable=["extra_tag"])
@@ -885,7 +878,7 @@ def format_packages(ctx: Context, impacted_packages: set[str], build_tags: list[
     for module in modules_to_test:
         with ctx.cd(module):
             res = ctx.run(
-                f"go list -tags '{' '.join(build_tags)}' {' '.join([normpath(os.path.join('github.com/DataDog/datadog-agent', module, target)) for target in modules_to_test[module].targets])}",
+                f'go list -tags "{" ".join(build_tags)}" {" ".join([normpath(os.path.join("github.com/DataDog/datadog-agent", module, target)) for target in modules_to_test[module].targets])}',
                 hide=True,
                 warn=True,
             )

@@ -91,7 +91,7 @@ message ContainerState {
   int64 createdAt = 4;
   int64 startedAt = 5;
   int64 finishedAt = 6;
-  uint32 exitCode = 7;
+  int64 exitCode = 7;
 }
 
 message Container {
