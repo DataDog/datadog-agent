@@ -10,7 +10,7 @@ include:
   rules:
     - !reference [.on_deploy]
     - !reference [.on_installer_or_e2e_changes]
-    - !reference [.on_manual]
+    - !reference [.manual]
   before_script:
     - ls $OMNIBUS_PACKAGE_DIR
   script:
@@ -47,7 +47,7 @@ qa_agent_oci:
   stage: deploy_packages
   rules:
     - !reference [.on_installer_or_e2e_changes]
-    - !reference [.on_manual]
+    - !reference [.manual]
   needs:
     - deploy_agent_oci
   variables:
@@ -60,7 +60,7 @@ qa_installer_oci:
   stage: deploy_packages
   rules:
     - !reference [.on_installer_or_e2e_changes]
-    - !reference [.on_manual]
+    - !reference [.manual]
   needs:
     - deploy_installer_oci
   variables:
