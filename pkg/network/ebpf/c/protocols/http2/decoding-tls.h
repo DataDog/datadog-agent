@@ -610,7 +610,7 @@ int uprobe__http2_tls_handle_first_frame(struct pt_regs *ctx) {
 
     // skip HTTP2 magic, if present
     pktbuf_skip_preface(pkt);
-    if (dispatcher_args_copy.data_off == dispatcher_args_copy.data_end) {
+    if (pktbuf_data_offset(pkt) == pktbuf_data_end(pkt)) {
         // Abort early if we reached to the end of the frame (a.k.a having only the HTTP2 magic in the packet).
         return 0;
     }
@@ -630,13 +630,13 @@ int uprobe__http2_tls_handle_first_frame(struct pt_regs *ctx) {
 
     if (!has_valid_first_frame) {
         // Handling the case where we have a frame header remainder, and we couldn't read the frame header.
-        if (dispatcher_args_copy.data_off < dispatcher_args_copy.data_end && dispatcher_args_copy.data_off + HTTP2_FRAME_HEADER_SIZE > dispatcher_args_copy.data_end) {
+        if (pktbuf_data_offset(pkt) < pktbuf_data_end(pkt) && pktbuf_data_offset(pkt) + HTTP2_FRAME_HEADER_SIZE > pktbuf_data_end(pkt)) {
             frame_header_remainder_t new_frame_state = { 0 };
-            new_frame_state.remainder = HTTP2_FRAME_HEADER_SIZE - (dispatcher_args_copy.data_end - dispatcher_args_copy.data_off);
+            new_frame_state.remainder = HTTP2_FRAME_HEADER_SIZE - (pktbuf_data_end(pkt) - pktbuf_data_offset(pkt));
             bpf_memset(new_frame_state.buf, 0, HTTP2_FRAME_HEADER_SIZE);
         #pragma unroll(HTTP2_FRAME_HEADER_SIZE)
             for (__u32 iteration = 0; iteration < HTTP2_FRAME_HEADER_SIZE && new_frame_state.remainder + iteration < HTTP2_FRAME_HEADER_SIZE; ++iteration) {
-                bpf_probe_read_user(new_frame_state.buf + iteration, 1, dispatcher_args_copy.buffer_ptr + dispatcher_args_copy.data_off + iteration);
+                bpf_probe_read_user(new_frame_state.buf + iteration, 1, dispatcher_args_copy.buffer_ptr + pktbuf_data_offset(pkt) + iteration);
             }
             new_frame_state.header_length = HTTP2_FRAME_HEADER_SIZE - new_frame_state.remainder;
             bpf_map_update_elem(&http2_remainder, &dispatcher_args_copy.tup, &new_frame_state, BPF_ANY);
@@ -648,17 +648,17 @@ int uprobe__http2_tls_handle_first_frame(struct pt_regs *ctx) {
     bool is_data_end_of_stream = ((current_frame.flags & HTTP2_END_OF_STREAM) == HTTP2_END_OF_STREAM) && (current_frame.type == kDataFrame);
     if (is_headers_or_rst_frame || is_data_end_of_stream) {
         iteration_value->frames_array[0].frame = current_frame;
-        iteration_value->frames_array[0].offset = dispatcher_args_copy.data_off;
+        iteration_value->frames_array[0].offset = pktbuf_data_offset(pkt);
         iteration_value->frames_count = 1;
     }
 
-    dispatcher_args_copy.data_off += current_frame.length;
+    pktbuf_advance(pkt, current_frame.length);
     // We're exceeding the packet boundaries, so we have a remainder.
-    if (dispatcher_args_copy.data_off > dispatcher_args_copy.data_end) {
+    if (pktbuf_data_offset(pkt) > pktbuf_data_end(pkt)) {
         frame_header_remainder_t new_frame_state = { 0 };
 
         // Saving the remainder.
-        new_frame_state.remainder = dispatcher_args_copy.data_off - dispatcher_args_copy.data_end;
+        new_frame_state.remainder = pktbuf_data_offset(pkt) - pktbuf_data_end(pkt);
         // We did find an interesting frame (as frames_count == 1), so we cache the current frame and waiting for the
         // next call.
         if (iteration_value->frames_count == 1) {
@@ -673,7 +673,7 @@ int uprobe__http2_tls_handle_first_frame(struct pt_regs *ctx) {
     }
     // Overriding the off field of the cached args. The next prog will start from the offset of the next valid
     // frame.
-    args->data_off = dispatcher_args_copy.data_off;
+    args->data_off = pktbuf_data_offset(pkt);
     bpf_tail_call_compat(ctx, &tls_process_progs, TLS_HTTP2_FILTER);
     return 0;
 }
