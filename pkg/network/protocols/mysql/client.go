@@ -22,6 +22,7 @@ type Options struct {
 	Password      string
 	DatabaseName  string
 	Dialer        *net.Dialer
+	WithTLS       TLSSetting
 }
 
 // Client is a MySQL client.
@@ -32,6 +33,8 @@ type Client struct {
 
 // NewClient returns a new MySQL client.
 func NewClient(opts Options) (*Client, error) {
+	var err error
+
 	user := opts.Username
 	if user == "" {
 		user = User
@@ -52,7 +55,12 @@ func NewClient(opts Options) (*Client, error) {
 		})
 	}
 
-	db, err := sql.Open("mysql", fmt.Sprintf("%s:%s@custom-tcp(%s)/", pass, user, opts.ServerAddress))
+	dsnOpts := ""
+	if opts.WithTLS {
+		dsnOpts += "?tls=skip-verify"
+	}
+
+	db, err := sql.Open("mysql", fmt.Sprintf("%s:%s@custom-tcp(%s)/%s", pass, user, opts.ServerAddress, dsnOpts))
 	if err != nil {
 		return nil, err
 	}
