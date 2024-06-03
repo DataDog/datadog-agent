@@ -36,8 +36,8 @@ __attribute__((always_inline)) void flip(struct flow_t *flow) {
 }
 
 __attribute__((always_inline)) void tc_cursor_init(struct cursor *c, struct __sk_buff *skb) {
-	c->end = (void *)(long)skb->data_end;
-	c->pos = (void *)(long)skb->data;
+    c->end = (void *)(long)skb->data_end;
+    c->pos = (void *)(long)skb->data;
 }
 
 PARSE_FUNC(ethhdr)
