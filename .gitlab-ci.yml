@@ -754,15 +754,13 @@ workflow:
   - tasks/kmt.py
   - tasks/kernel_matrix_testing/*
 
-.on_system_probe_or_e2e_changes_or_manual:
+.on_system_probe_or_e2e_changes:
   - <<: *if_main_branch
   - !reference [.except_mergequeue]
   - <<: *if_run_all_kmt_tests
   - changes:
       paths: *system_probe_change_paths
       compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
-  - when: manual
-    allow_failure: true
 
 .on_e2e_changes_or_manual:
   - <<: *if_main_branch
@@ -815,7 +813,7 @@ workflow:
         - test/new-e2e/go.mod
       compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
 
-.on_container_or_e2e_changes_or_manual:
+.on_container_or_e2e_changes:
   - !reference [.on_e2e_main_release_or_rc]
   - changes:
       paths:
@@ -843,10 +841,8 @@ workflow:
         - test/new-e2e/go.mod
       compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
     when: on_success
-  - when: manual
-    allow_failure: true
 
-.on_rc_or_e2e_changes_or_manual:
+.on_rc_or_e2e_changes:
   - !reference [.on_e2e_main_release_or_rc]
   - changes:
       paths:
@@ -854,20 +850,16 @@ workflow:
         - comp/remote-config/**/*
         - test/new-e2e/tests/remote-config/**/*
       compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
-  - when: manual
-    allow_failure: true
 
-.on_asc_or_e2e_changes_or_manual:
+.on_asc_or_e2e_changes:
   - !reference [.on_e2e_main_release_or_rc]
   - changes:
       paths:
         # TODO: Add paths that should trigger tests for ASC
         - test/new-e2e/tests/agent-shared-components/**/*
       compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
-  - when: manual
-    allow_failure: true
 
-.on_subcommands_or_e2e_changes_or_manual:
+.on_subcommands_or_e2e_changes:
   - !reference [.on_e2e_main_release_or_rc]
   - changes:
       paths:
@@ -876,50 +868,40 @@ workflow:
         - comp/**/*
         - test/new-e2e/tests/agent-subcommands/**/*
       compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
-  - when: manual
-    allow_failure: true
 
-.on_language-detection_or_e2e_changes_or_manual:
+.on_language-detection_or_e2e_changes:
   - !reference [.on_e2e_main_release_or_rc]
   - changes:
       paths:
         # TODO: Add paths that should trigger tests for language detection
         - test/new-e2e/tests/language-detection/**/*
       compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
-  - when: manual
-    allow_failure: true
 
-.on_npm_or_e2e_changes_or_manual:
+.on_npm_or_e2e_changes:
   - !reference [.on_e2e_main_release_or_rc]
   - changes:
       paths:
         # TODO: Add paths that should trigger tests for npm
         - test/new-e2e/tests/npm/**/*
       compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
-  - when: manual
-    allow_failure: true
 
-.on_aml_or_e2e_changes_or_manual:
+.on_aml_or_e2e_changes:
   - !reference [.on_e2e_main_release_or_rc]
   - changes:
       paths:
         # TODO: Add paths that should trigger tests for AML
         - test/new-e2e/tests/agent-metrics-logs/**/*
       compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
-  - when: manual
-    allow_failure: true
 
-.on_cws_or_e2e_changes_or_manual:
+.on_cws_or_e2e_changes:
   - !reference [.on_e2e_main_release_or_rc]
   - changes:
       paths:
         # TODO: Add paths that should trigger tests for CWS
         - test/new-e2e/tests/cws/**/*
       compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
-  - when: manual
-    allow_failure: true
 
-.on_process_or_e2e_changes_or_manual:
+.on_process_or_e2e_changes:
   - !reference [.on_e2e_main_release_or_rc]
   - changes:
       paths:
@@ -929,20 +911,16 @@ workflow:
         - pkg/process/**/*
         - pkg/config/setup/process.go
       compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
-  - when: manual
-    allow_failure: true
 
-.on_orchestrator_or_e2e_changes_or_manual:
+.on_orchestrator_or_e2e_changes:
   - !reference [.on_e2e_main_release_or_rc]
   - changes:
       paths:
         # TODO: Add paths that should trigger tests for orchestrator
         - test/new-e2e/tests/orchestrator/**/*
       compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
-  - when: manual
-    allow_failure: true
 
-.on_apm_or_e2e_changes_or_manual:
+.on_apm_or_e2e_changes:
   - !reference [.on_e2e_main_release_or_rc]
   - changes:
       paths:
@@ -953,10 +931,8 @@ workflow:
         - test/new-e2e/go.mod
       compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
     when: on_success
-  - when: manual
-    allow_failure: true
 
-.on_installer_or_e2e_changes_or_manual:
+.on_installer_or_e2e_changes:
   - <<: *if_disable_e2e_tests
     when: never
   - !reference [.except_mergequeue]
@@ -977,10 +953,8 @@ workflow:
         - test/new-e2e/go.mod
       compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
     when: on_success
-  - when: manual
-    allow_failure: true
 
-.on_ndm_netflow_or_e2e_changes_or_manual:
+.on_ndm_netflow_or_e2e_changes:
   - !reference [.on_e2e_main_release_or_rc]
   - changes:
       paths:
@@ -989,10 +963,8 @@ workflow:
         - test/new-e2e/go.mod
       compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
     when: on_success
-  - when: manual
-    allow_failure: true
 
-.on_ndm_snmp_or_e2e_changes_or_manual:
+.on_ndm_snmp_or_e2e_changes:
   - !reference [.on_e2e_main_release_or_rc]
   - changes:
       paths:
@@ -1004,7 +976,7 @@ workflow:
   - when: manual
     allow_failure: true
 
-.on_trace_agent_changes_or_manual:
+.on_trace_agent_changes:
   - !reference [.except_mergequeue]
   - changes:
       paths:
@@ -1012,8 +984,6 @@ workflow:
         - .gitlab/benchmarks/*
       compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
     when: on_success
-  - when: manual
-    allow_failure: true
 
 .on_scheduled_main:
   - <<: *if_scheduled_main
