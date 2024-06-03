@@ -25,9 +25,11 @@ const (
 
 // ActionDefinition describes a rule action section
 type ActionDefinition struct {
-	Filter *string         `yaml:"filter"`
-	Set    *SetDefinition  `yaml:"set"`
-	Kill   *KillDefinition `yaml:"kill"`
+	Filter   *string             `yaml:"filter"`
+	Set      *SetDefinition      `yaml:"set"`
+	Kill     *KillDefinition     `yaml:"kill"`
+	CoreDump *CoreDumpDefinition `yaml:"coredump"`
+	Hash     *HashDefinition     `yaml:"hash"`
 
 	// internal
 	InternalCallback *InternalCallbackDefinition
@@ -120,3 +122,14 @@ type KillDefinition struct {
 	Signal string `yaml:"signal"`
 	Scope  string `yaml:"scope"`
 }
+
+// CoreDumpDefinition describes the 'coredump' action
+type CoreDumpDefinition struct {
+	Process       bool `yaml:"process"`
+	Mount         bool `yaml:"mount"`
+	Dentry        bool `yaml:"dentry"`
+	NoCompression bool `yaml:"no_compression"`
+}
+
+// HashDefinition describes the 'hash' section of a rule action
+type HashDefinition struct{}

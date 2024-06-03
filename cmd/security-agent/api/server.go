@@ -26,6 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/security-agent/api/agent"
 	"github.com/DataDog/datadog-agent/comp/core/settings"
 	"github.com/DataDog/datadog-agent/comp/core/status"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/api/security"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -38,14 +39,14 @@ type Server struct {
 }
 
 // NewServer creates a new Server instance
-func NewServer(statusComponent status.Component, settings settings.Component) (*Server, error) {
+func NewServer(statusComponent status.Component, settings settings.Component, wmeta workloadmeta.Component) (*Server, error) {
 	listener, err := newListener()
 	if err != nil {
 		return nil, err
 	}
 	return &Server{
 		listener: listener,
-		agent:    agent.NewAgent(statusComponent, settings),
+		agent:    agent.NewAgent(statusComponent, settings, wmeta),
 	}, nil
 }
 
@@ -60,7 +61,7 @@ func (s *Server) Start() error {
 	// Validate token for every request
 	r.Use(validateToken)
 
-	err := util.CreateAndSetAuthToken(config.Datadog)
+	err := util.CreateAndSetAuthToken(config.Datadog())
 	if err != nil {
 		return err
 	}
@@ -94,7 +95,7 @@ func (s *Server) Start() error {
 		Handler:      r,
 		ErrorLog:     stdLog.New(logWriter, "Error from the agent http API server: ", 0), // log errors to seelog,
 		TLSConfig:    &tlsConfig,
-		WriteTimeout: config.Datadog.GetDuration("server_timeout") * time.Second,
+		WriteTimeout: config.Datadog().GetDuration("server_timeout") * time.Second,
 	}
 	tlsListener := tls.NewListener(s.listener, &tlsConfig)
 

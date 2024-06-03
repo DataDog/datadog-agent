@@ -8,33 +8,26 @@ package installer
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"os"
 	"path/filepath"
-	"slices"
 	"sync"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/fleet/env"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/service"
 	"github.com/DataDog/datadog-agent/pkg/fleet/internal/db"
 	"github.com/DataDog/datadog-agent/pkg/fleet/internal/oci"
 	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/version"
 	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
 )
 
 const (
-	// PackagesPath is the path to the packages directory.
-	PackagesPath = "/opt/datadog-packages"
-	// TmpDirPath is the path to the temporary directory used for package installation.
-	TmpDirPath = "/opt/datadog-packages"
-	// LocksPack is the path to the locks directory.
-	LocksPack = "/var/run/datadog/installer/locks"
-
-	defaultConfigsDir = "/etc"
-
 	packageDatadogAgent     = "datadog-agent"
 	packageAPMInjector      = "datadog-apm-inject"
 	packageDatadogInstaller = "datadog-installer"
@@ -50,7 +43,7 @@ type Installer interface {
 	State(pkg string) (repository.State, error)
 	States() (map[string]repository.State, error)
 
-	Install(ctx context.Context, url string) error
+	Install(ctx context.Context, url string, args []string) error
 	Remove(ctx context.Context, pkg string) error
 	Purge(ctx context.Context)
 
@@ -73,41 +66,8 @@ type installerImpl struct {
 	tmpDirPath   string
 }
 
-// Option are the options for the package manager.
-type Option func(*options)
-
-type options struct {
-	registryAuth string
-	registry     string
-}
-
-func newOptions() *options {
-	return &options{
-		registryAuth: oci.RegistryAuthDefault,
-		registry:     "",
-	}
-}
-
-// WithRegistryAuth sets the registry authentication method.
-func WithRegistryAuth(registryAuth string) Option {
-	return func(o *options) {
-		o.registryAuth = registryAuth
-	}
-}
-
-// WithRegistry sets the registry URL.
-func WithRegistry(registry string) Option {
-	return func(o *options) {
-		o.registry = registry
-	}
-}
-
 // NewInstaller returns a new Package Manager.
-func NewInstaller(opts ...Option) (Installer, error) {
-	o := newOptions()
-	for _, opt := range opts {
-		opt(o)
-	}
+func NewInstaller(env *env.Env) (Installer, error) {
 	err := ensurePackageDirExists()
 	if err != nil {
 		return nil, fmt.Errorf("could not ensure packages directory exists: %w", err)
@@ -118,9 +78,9 @@ func NewInstaller(opts ...Option) (Installer, error) {
 	}
 	return &installerImpl{
 		db:           db,
-		downloader:   oci.NewDownloader(http.DefaultClient, o.registry, o.registryAuth),
+		downloader:   oci.NewDownloader(env, http.DefaultClient),
 		repositories: repository.NewRepositories(PackagesPath, LocksPack),
-		configsDir:   defaultConfigsDir,
+		configsDir:   DefaultConfigsDir,
 		tmpDirPath:   TmpDirPath,
 		packagesDir:  PackagesPath,
 	}, nil
@@ -138,26 +98,34 @@ func (i *installerImpl) States() (map[string]repository.State, error) {
 
 // IsInstalled checks if a package is installed.
 func (i *installerImpl) IsInstalled(_ context.Context, pkg string) (bool, error) {
-	packages, err := i.db.ListPackages()
+	hasPackage, err := i.db.HasPackage(pkg)
 	if err != nil {
 		return false, fmt.Errorf("could not list packages: %w", err)
 	}
-	return slices.Contains(packages, pkg), nil
+	return hasPackage, nil
 }
 
 // Install installs or updates a package.
-func (i *installerImpl) Install(ctx context.Context, url string) error {
+func (i *installerImpl) Install(ctx context.Context, url string, args []string) error {
 	i.m.Lock()
 	defer i.m.Unlock()
 	pkg, err := i.downloader.Download(ctx, url)
 	if err != nil {
 		return fmt.Errorf("could not download package: %w", err)
 	}
+	dbPkg, err := i.db.GetPackage(pkg.Name)
+	if err != nil && !errors.Is(err, db.ErrPackageNotFound) {
+		return fmt.Errorf("could not get package: %w", err)
+	}
+	if dbPkg.Name == pkg.Name && dbPkg.Version == pkg.Version {
+		log.Infof("package %s version %s is already installed", pkg.Name, pkg.Version)
+		return nil
+	}
 	err = checkAvailableDiskSpace(pkg, i.packagesDir)
 	if err != nil {
 		return fmt.Errorf("not enough disk space: %w", err)
 	}
-	tmpDir, err := os.MkdirTemp(i.tmpDirPath, fmt.Sprintf("install-stable-%s-*", pkg.Name)) // * is replaced by a random string
+	tmpDir, err := os.MkdirTemp(i.tmpDirPath, fmt.Sprintf("tmp-install-stable-%s-*", pkg.Name)) // * is replaced by a random string
 	if err != nil {
 		return fmt.Errorf("could not create temporary directory: %w", err)
 	}
@@ -175,11 +143,15 @@ func (i *installerImpl) Install(ctx context.Context, url string) error {
 	if err != nil {
 		return fmt.Errorf("could not create repository: %w", err)
 	}
-	err = i.setupPackage(ctx, pkg.Name)
+	err = i.setupPackage(ctx, pkg.Name, args)
 	if err != nil {
 		return fmt.Errorf("could not setup package: %w", err)
 	}
-	err = i.db.CreatePackage(pkg.Name)
+	err = i.db.SetPackage(db.Package{
+		Name:             pkg.Name,
+		Version:          pkg.Version,
+		InstallerVersion: version.AgentVersion,
+	})
 	if err != nil {
 		return fmt.Errorf("could not store package installation in db: %w", err)
 	}
@@ -198,7 +170,7 @@ func (i *installerImpl) InstallExperiment(ctx context.Context, url string) error
 	if err != nil {
 		return fmt.Errorf("not enough disk space: %w", err)
 	}
-	tmpDir, err := os.MkdirTemp(i.tmpDirPath, fmt.Sprintf("install-experiment-%s-*", pkg.Name)) // * is replaced by a random string
+	tmpDir, err := os.MkdirTemp(i.tmpDirPath, fmt.Sprintf("tmp-install-experiment-%s-*", pkg.Name)) // * is replaced by a random string
 	if err != nil {
 		return fmt.Errorf("could not create temporary directory: %w", err)
 	}
@@ -225,12 +197,17 @@ func (i *installerImpl) RemoveExperiment(ctx context.Context, pkg string) error 
 	i.m.Lock()
 	defer i.m.Unlock()
 
-	repository := i.repositories.Get(pkg)
-	err := repository.DeleteExperiment(ctx)
+	err := i.stopExperiment(ctx, pkg)
 	if err != nil {
 		return fmt.Errorf("could not delete experiment: %w", err)
 	}
-	return i.stopExperiment(ctx, pkg)
+
+	repository := i.repositories.Get(pkg)
+	err = repository.DeleteExperiment(ctx)
+	if err != nil {
+		return fmt.Errorf("could not delete experiment: %w", err)
+	}
+	return nil
 }
 
 // PromoteExperiment promotes an experiment to stable.
@@ -243,7 +220,7 @@ func (i *installerImpl) PromoteExperiment(ctx context.Context, pkg string) error
 	if err != nil {
 		return fmt.Errorf("could not promote experiment: %w", err)
 	}
-	return i.stopExperiment(ctx, pkg)
+	return i.promoteExperiment(ctx, pkg)
 }
 
 // Purge removes all packages.
@@ -258,12 +235,18 @@ func (i *installerImpl) Purge(ctx context.Context) {
 		log.Warnf("could not list packages: %v", err)
 	}
 	for _, pkg := range packages {
-		if pkg == packageDatadogInstaller {
+		if pkg.Name == packageDatadogInstaller {
 			continue
 		}
-		i.removePackage(ctx, pkg)
+		err := i.removePackage(ctx, pkg.Name)
+		if err != nil {
+			log.Warnf("could not remove package %s: %v", pkg.Name, err)
+		}
 	}
-	i.removePackage(ctx, packageDatadogInstaller)
+	err = i.removePackage(ctx, packageDatadogInstaller)
+	if err != nil {
+		log.Warnf("could not remove installer: %v", err)
+	}
 
 	// remove all from disk
 	span, _ := tracer.StartSpanFromContext(ctx, "remove_all")
@@ -278,8 +261,11 @@ func (i *installerImpl) Purge(ctx context.Context) {
 func (i *installerImpl) Remove(ctx context.Context, pkg string) error {
 	i.m.Lock()
 	defer i.m.Unlock()
-	i.removePackage(ctx, pkg)
-	err := i.repositories.Delete(ctx, pkg)
+	err := i.removePackage(ctx, pkg)
+	if err != nil {
+		return fmt.Errorf("could not remove package: %w", err)
+	}
+	err = i.repositories.Delete(ctx, pkg)
 	if err != nil {
 		return fmt.Errorf("could not delete repository: %w", err)
 	}
@@ -320,12 +306,23 @@ func (i *installerImpl) stopExperiment(ctx context.Context, pkg string) error {
 	}
 }
 
-func (i *installerImpl) setupPackage(ctx context.Context, pkg string) error {
+func (i *installerImpl) promoteExperiment(ctx context.Context, pkg string) error {
+	switch pkg {
+	case packageDatadogAgent:
+		return service.PromoteAgentExperiment(ctx)
+	case packageDatadogInstaller:
+		return service.StopInstallerExperiment(ctx)
+	default:
+		return nil
+	}
+}
+
+func (i *installerImpl) setupPackage(ctx context.Context, pkg string, args []string) error {
 	switch pkg {
 	case packageDatadogInstaller:
 		return service.SetupInstaller(ctx)
 	case packageDatadogAgent:
-		return service.SetupAgent(ctx)
+		return service.SetupAgent(ctx, args)
 	case packageAPMInjector:
 		return service.SetupAPMInjector(ctx)
 	default:
@@ -333,19 +330,16 @@ func (i *installerImpl) setupPackage(ctx context.Context, pkg string) error {
 	}
 }
 
-func (i *installerImpl) removePackage(ctx context.Context, pkg string) {
+func (i *installerImpl) removePackage(ctx context.Context, pkg string) error {
 	switch pkg {
 	case packageDatadogAgent:
-		service.RemoveAgent(ctx)
-		return
+		return service.RemoveAgent(ctx)
 	case packageAPMInjector:
-		service.RemoveAPMInjector(ctx)
-		return
+		return service.RemoveAPMInjector(ctx)
 	case packageDatadogInstaller:
-		service.RemoveInstaller(ctx)
-		return
+		return service.RemoveInstaller(ctx)
 	default:
-		return
+		return nil
 	}
 }
 

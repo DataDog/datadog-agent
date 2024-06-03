@@ -17,7 +17,7 @@ import (
 func initializePlatform() error {
 	// On Windows, it's not uncommon to have a system-wide PYTHONPATH env var set.
 	// Unset it, so our embedded python doesn't try to load things from the system.
-	if !config.Datadog.GetBool("windows_use_pythonpath") {
+	if !config.Datadog().GetBool("windows_use_pythonpath") {
 		os.Unsetenv("PYTHONPATH")
 	}
 

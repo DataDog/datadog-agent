@@ -12,12 +12,15 @@ import (
 	"net/http"
 	"sync"
 
+	"github.com/gorilla/mux"
 	"go.uber.org/fx"
 	"gopkg.in/yaml.v2"
 
+	"github.com/DataDog/datadog-agent/comp/api/api"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/settings"
+
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
@@ -33,7 +36,11 @@ func Module() fxutil.Module {
 type provides struct {
 	fx.Out
 
-	Comp settings.Component
+	Comp         settings.Component
+	FullEndpoint api.AgentEndpointProvider
+	ListEndpoint api.AgentEndpointProvider
+	GetEndpoint  api.AgentEndpointProvider
+	SetEndpoint  api.AgentEndpointProvider
 }
 
 type dependencies struct {
@@ -135,6 +142,32 @@ func (s *settingsRegistry) GetFullConfig(namespaces ...string) http.HandlerFunc 
 	}
 }
 
+func (s *settingsRegistry) GetFullConfigBySource() http.HandlerFunc {
+	return func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+
+		settings := s.config.AllSettingsBySource()
+
+		jsonData, err := json.Marshal(settings)
+		if err != nil {
+			s.log.Errorf("Unable to marshal config by layer: %s", err)
+			body, _ := json.Marshal(map[string]string{"error": err.Error()})
+			http.Error(w, string(body), http.StatusInternalServerError)
+			return
+		}
+
+		scrubbed, err := scrubber.ScrubJSON(jsonData)
+		if err != nil {
+			s.log.Errorf("Unable to scrub sensitive data from config by layer: %s", err)
+			body, _ := json.Marshal(map[string]string{"error": err.Error()})
+			http.Error(w, string(body), http.StatusInternalServerError)
+			return
+		}
+
+		_, _ = w.Write(scrubbed)
+	}
+}
+
 func (s *settingsRegistry) ListConfigurable(w http.ResponseWriter, _ *http.Request) {
 	configurableSettings := make(map[string]settings.RuntimeSettingResponse)
 	for name, setting := range s.RuntimeSettings() {
@@ -153,7 +186,10 @@ func (s *settingsRegistry) ListConfigurable(w http.ResponseWriter, _ *http.Reque
 	_, _ = w.Write(body)
 }
 
-func (s *settingsRegistry) GetValue(setting string, w http.ResponseWriter, r *http.Request) {
+func (s *settingsRegistry) GetValue(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	setting := vars["setting"]
+
 	s.log.Infof("Got a request to read a setting value: %s", setting)
 
 	val, err := s.GetRuntimeSetting(setting)
@@ -183,7 +219,10 @@ func (s *settingsRegistry) GetValue(setting string, w http.ResponseWriter, r *ht
 	_, _ = w.Write(body)
 }
 
-func (s *settingsRegistry) SetValue(setting string, w http.ResponseWriter, r *http.Request) {
+func (s *settingsRegistry) SetValue(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	setting := vars["setting"]
+
 	s.log.Infof("Got a request to change a setting: %s", setting)
 	_ = r.ParseForm()
 	value := html.UnescapeString(r.Form.Get("value"))
@@ -203,11 +242,16 @@ func (s *settingsRegistry) SetValue(setting string, w http.ResponseWriter, r *ht
 }
 
 func newSettings(deps dependencies) provides {
+	s := &settingsRegistry{
+		settings: deps.Params.Settings,
+		log:      deps.Log,
+		config:   deps.Params.Config,
+	}
 	return provides{
-		Comp: &settingsRegistry{
-			settings: deps.Params.Settings,
-			log:      deps.Log,
-			config:   deps.Params.Config,
-		},
+		Comp:         s,
+		FullEndpoint: api.NewAgentEndpointProvider(s.GetFullConfig(deps.Params.Namespaces...), "/config", "GET"),
+		ListEndpoint: api.NewAgentEndpointProvider(s.ListConfigurable, "/config/list-runtime", "GET"),
+		GetEndpoint:  api.NewAgentEndpointProvider(s.GetValue, "/config/{setting}", "GET"),
+		SetEndpoint:  api.NewAgentEndpointProvider(s.SetValue, "/config/{setting}", "POST"),
 	}
 }

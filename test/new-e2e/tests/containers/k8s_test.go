@@ -907,7 +907,7 @@ func (suite *k8sSuite) TestContainerImage() {
 			regexp.MustCompile(`^os_name:linux$`),
 			regexp.MustCompile(`^short_image:apps-nginx-server$`),
 		}
-		err = assertTags(images[len(images)-1].GetTags(), expectedTags, false)
+		err = assertTags(images[len(images)-1].GetTags(), expectedTags, []*regexp.Regexp{}, false)
 		assert.NoErrorf(c, err, "Tags mismatch")
 	}, 2*time.Minute, 10*time.Second, "Failed finding the container image payload")
 }
@@ -1019,7 +1019,7 @@ func (suite *k8sSuite) TestSBOM() {
 				regexp.MustCompile(`^os_name:linux$`),
 				regexp.MustCompile(`^short_image:apps-nginx-server$`),
 			}
-			err = assertTags(image.GetTags(), expectedTags, false)
+			err = assertTags(image.GetTags(), expectedTags, []*regexp.Regexp{}, false)
 			assert.NoErrorf(c, err, "Tags mismatch")
 
 			properties := lo.Associate(image.GetCyclonedx().Metadata.Component.Properties, func(property *cyclonedx_v1_4.Property) (string, string) {
@@ -1071,6 +1071,8 @@ func (suite *k8sSuite) TestContainerLifecycleEvents() {
 	suite.Require().EventuallyWithTf(func(c *assert.CollectT) {
 		pods, err := suite.K8sClient.CoreV1().Pods("workload-nginx").List(context.Background(), metav1.ListOptions{
 			LabelSelector: fields.OneTermEqualSelector("app", "nginx").String(),
+			FieldSelector: fields.OneTermEqualSelector("status.phase", "Running").String(),
+			Limit:         1,
 		})
 		// Can be replaced by require.NoErrorf(…) once https://github.com/stretchr/testify/pull/1481 is merged
 		if !assert.NoErrorf(c, err, "Failed to list nginx pods") {
@@ -1287,7 +1289,7 @@ func (suite *k8sSuite) testTrace(kubeDeployment string) {
 				regexp.MustCompile(`^pod_name:` + kubeDeployment + `-[[:alnum:]]+-[[:alnum:]]+$`),
 				regexp.MustCompile(`^pod_phase:running$`),
 				regexp.MustCompile(`^short_image:apps-tracegen$`),
-			}, false)
+			}, []*regexp.Regexp{}, false)
 			if err == nil {
 				break
 			}

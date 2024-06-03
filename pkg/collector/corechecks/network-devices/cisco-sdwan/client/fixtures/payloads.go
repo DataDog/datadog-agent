@@ -379,3 +379,24 @@ const GetBFDSessionsState = `
 	}
 ]
 `
+
+// GetHardwareStates /dataservice/data/device/state/HardwareEnvironment
+const GetHardwareStates = `
+[
+	{
+      "recordId": "0:HardwareEnvironmentNode:1707919131595:267",
+      "vdevice-name": "10.10.1.11",
+      "hw-dev-index": 1,
+      "createTimeStamp": 1707919131595,
+      "vdevice-host-name": "DC-cEdge01",
+      "measurement": "Spinning at 1000 RPM",
+      "vdevice-dataKey": "10.10.1.11-Tray 0 fan-1",
+      "@rid": 3692,
+      "vmanage-system-ip": "10.10.1.11",
+      "hw-item": "Tray 0 fan",
+      "hw-class": "Fans",
+      "lastupdated": 1708940180703,
+      "status": "OK"
+    }
+]
+`

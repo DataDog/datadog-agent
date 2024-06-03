@@ -87,8 +87,6 @@ func newNpCollectorImpl(epForwarder eventplatform.Forwarder, collectorConfigs *c
 		flushInterval:          collectorConfigs.flushInterval,
 		workers:                collectorConfigs.workers,
 
-		metricSender: metricsender.NewMetricSenderStatsd(statsd.Client),
-
 		receivedPathtestCount:    atomic.NewUint64(0),
 		processedTracerouteCount: atomic.NewUint64(0),
 		TimeNowFn:                time.Now,
@@ -96,8 +94,6 @@ func newNpCollectorImpl(epForwarder eventplatform.Forwarder, collectorConfigs *c
 		stopChan:      make(chan struct{}),
 		runDone:       make(chan struct{}),
 		flushLoopDone: make(chan struct{}),
-
-		statsdClient: statsd.Client,
 
 		runTraceroute: runTraceroute,
 	}
@@ -114,7 +110,8 @@ func (s *npCollectorImpl) ScheduleConns(conns []*model.Connection) {
 		}
 		remoteAddr := conn.Raddr
 		remotePort := uint16(conn.Raddr.Port)
-		err := s.scheduleOne(remoteAddr.Ip, remotePort)
+		protocol := conn.Type.String()
+		err := s.scheduleOne(remoteAddr.Ip, remotePort, protocol)
 		if err != nil {
 			s.logger.Errorf("Error scheduling pathtests: %s", err)
 		}
@@ -126,7 +123,7 @@ func (s *npCollectorImpl) ScheduleConns(conns []*model.Connection) {
 
 // scheduleOne schedules pathtests.
 // It shouldn't block, if the input channel is full, an error is returned.
-func (s *npCollectorImpl) scheduleOne(hostname string, port uint16) error {
+func (s *npCollectorImpl) scheduleOne(hostname string, port uint16, protocol string) error {
 	if s.pathtestInputChan == nil {
 		return errors.New("no input channel, please check that network path is enabled")
 	}
@@ -135,6 +132,7 @@ func (s *npCollectorImpl) scheduleOne(hostname string, port uint16) error {
 	ptest := &common.Pathtest{
 		Hostname: hostname,
 		Port:     port,
+		Protocol: protocol,
 	}
 	select {
 	case s.pathtestInputChan <- ptest:
@@ -148,10 +146,18 @@ func (s *npCollectorImpl) start() error {
 		return errors.New("server already started")
 	}
 	s.running = true
+
 	s.logger.Info("Start NpCollector")
+
+	// Assigning statsd.Client in start() stage since we can't do it in newNpCollectorImpl
+	// due to statsd.Client not being configured yet.
+	s.metricSender = metricsender.NewMetricSenderStatsd(statsd.Client)
+	s.statsdClient = statsd.Client
+
 	go s.listenPathtests()
 	go s.flushLoop()
 	s.startWorkers()
+
 	return nil
 }
 
@@ -191,6 +197,7 @@ func (s *npCollectorImpl) runTracerouteForPath(ptest *pathteststore.PathtestCont
 		DestPort:     ptest.Pathtest.Port,
 		MaxTTL:       0, // TODO: make it configurable, setting 0 to use default value for now
 		TimeoutMs:    0, // TODO: make it configurable, setting 0 to use default value for now
+		Protocol:     ptest.Pathtest.Protocol,
 	}
 
 	path, err := s.runTraceroute(cfg)
@@ -228,7 +235,6 @@ func runTraceroute(cfg traceroute.Config) (payload.NetworkPath, error) {
 
 func (s *npCollectorImpl) flushLoop() {
 	s.logger.Debugf("Starting flush loop")
-	defer s.logger.Debugf("Stopped flush loop")
 
 	flushTicker := time.NewTicker(s.flushInterval)
 
@@ -237,7 +243,7 @@ func (s *npCollectorImpl) flushLoop() {
 		select {
 		// stop sequence
 		case <-s.stopChan:
-			s.logger.Info("Stop flush loop")
+			s.logger.Info("Stopped flush loop")
 			s.flushLoopDone <- struct{}{}
 			flushTicker.Stop()
 			return

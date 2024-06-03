@@ -10,15 +10,19 @@ package kubeapiserver
 
 import (
 	"context"
+	"slices"
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"go.uber.org/fx"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/cache"
 )
@@ -32,10 +36,10 @@ const (
 // storeGenerator returns a new store specific to a given resource
 type storeGenerator func(context.Context, workloadmeta.Component, kubernetes.Interface) (*cache.Reflector, *reflectorStore)
 
-func storeGenerators(cfg config.Reader) []storeGenerator {
+func storeGenerators(cfg model.Reader) []storeGenerator {
 	generators := []storeGenerator{newNodeStore}
 
-	if cfg.GetBool("cluster_agent.collect_kubernetes_tags") {
+	if cfg.GetBool("cluster_agent.collect_kubernetes_tags") || cfg.GetBool("autoscaling.workload.enabled") {
 		generators = append(generators, newPodStore)
 	}
 
@@ -43,11 +47,30 @@ func storeGenerators(cfg config.Reader) []storeGenerator {
 		generators = append(generators, newDeploymentStore)
 	}
 
-	if cfg.GetBool("kubernetes_namespace_collection_enabled") {
-		generators = append(generators, newNamespaceStore)
+	// TODO: Remove this once we migrate references to the namespace store to use generic collection
+	if cfg.GetBool("cluster_agent.kube_metadata_collection.enabled") {
+		resources := cfg.GetStringSlice("cluster_agent.kube_metadata_collection.resources")
+		if slices.Contains(resources, "namespaces") {
+			generators = append(generators, newNamespaceStore)
+		}
 	}
 
 	return generators
+}
+
+func metadataCollectionGVRs(cfg model.Reader, discoveryClient discovery.DiscoveryInterface) ([]schema.GroupVersionResource, error) {
+	if !cfg.GetBool("cluster_agent.kube_metadata_collection.enabled") {
+		return []schema.GroupVersionResource{}, nil
+	}
+
+	requestedResources := cfg.GetStringSlice("cluster_agent.kube_metadata_collection.resources")
+
+	// TODO: Remove this after implementing collector factory which specifies which collector should be registered for each specific resource type
+	// Adding this now as a quick work around to avoid having 2 collectors collecting the same data
+	excludedResources := []string{"namespaces"}
+
+	discoveredResourcesGVs, err := discoverGVRs(discoveryClient, requestedResources, excludedResources)
+	return discoveredResourcesGVs, err
 }
 
 type collector struct {
@@ -77,10 +100,29 @@ func (c *collector) Start(ctx context.Context, wlmetaStore workloadmeta.Componen
 	if err != nil {
 		return err
 	}
-	client := apiserverClient.Cl
+	client := apiserverClient.InformerCl
+
+	metadataclient, err := apiserverClient.MetadataClient()
+	if err != nil {
+		return err
+	}
+
+	// Initialize metadata collection informers
+	// TODO(components): do not use the config.Datadog reference, use a component instead
+	gvrs, err := metadataCollectionGVRs(config.Datadog(), client.Discovery())
+
+	if err != nil {
+		log.Errorf("failed to discover Group and Version of requested resources: %v", err)
+	} else {
+		for _, gvr := range gvrs {
+			reflector, store := newMetadataStore(ctx, wlmetaStore, metadataclient, gvr)
+			objectStores = append(objectStores, store)
+			go reflector.Run(ctx.Done())
+		}
+	}
 
 	// TODO(components): do not use the config.Datadog reference, use a component instead
-	for _, storeBuilder := range storeGenerators(config.Datadog) {
+	for _, storeBuilder := range storeGenerators(config.Datadog()) {
 		reflector, store := storeBuilder(ctx, wlmetaStore, client)
 		objectStores = append(objectStores, store)
 		go reflector.Run(ctx.Done())

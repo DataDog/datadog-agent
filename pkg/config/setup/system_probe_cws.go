@@ -34,12 +34,17 @@ func initCWSSystemProbeConfig(cfg pkgconfigmodel.Config) {
 	cfg.BindEnvAndSetDefault("runtime_security_config.self_test.enabled", true)
 	cfg.BindEnvAndSetDefault("runtime_security_config.self_test.send_report", true)
 	cfg.BindEnvAndSetDefault("runtime_security_config.remote_configuration.enabled", true)
+	cfg.BindEnvAndSetDefault("runtime_security_config.remote_configuration.dump_policies", false)
 	cfg.BindEnvAndSetDefault("runtime_security_config.direct_send_from_system_probe", false)
 	cfg.BindEnvAndSetDefault("runtime_security_config.use_secruntime_track", false)
 	cfg.BindEnvAndSetDefault("runtime_security_config.compliance_module.enabled", false)
 
 	cfg.SetDefault("runtime_security_config.windows_filename_cache_max", 16384)
 	cfg.SetDefault("runtime_security_config.windows_registry_cache_max", 4096)
+	// windows specific channel size for etw events
+	cfg.SetDefault("runtime_security_config.etw_events_channel_size", 128)
+	cfg.SetDefault("runtime_security_config.etw_events_max_buffers", 0)
+	cfg.SetDefault("runtime_security_config.windows_probe_block_on_channel_send", false)
 
 	// CWS - activity dump
 	cfg.BindEnvAndSetDefault("runtime_security_config.activity_dump.enabled", true)
@@ -49,7 +54,7 @@ func initCWSSystemProbeConfig(cfg pkgconfigmodel.Config) {
 	cfg.BindEnvAndSetDefault("runtime_security_config.activity_dump.min_timeout", "10m")
 	cfg.BindEnvAndSetDefault("runtime_security_config.activity_dump.max_dump_size", 1750)
 	cfg.BindEnvAndSetDefault("runtime_security_config.activity_dump.traced_cgroups_count", 5)
-	cfg.BindEnvAndSetDefault("runtime_security_config.activity_dump.traced_event_types", []string{"exec", "open", "dns"})
+	cfg.BindEnvAndSetDefault("runtime_security_config.activity_dump.traced_event_types", []string{"exec", "open", "dns", "imds"})
 	cfg.BindEnv("runtime_security_config.activity_dump.cgroup_dump_timeout") // deprecated in favor of dump_duration
 	cfg.BindEnvAndSetDefault("runtime_security_config.activity_dump.dump_duration", "900s")
 	cfg.BindEnvAndSetDefault("runtime_security_config.activity_dump.rate_limiter", 500)
@@ -65,7 +70,7 @@ func initCWSSystemProbeConfig(cfg pkgconfigmodel.Config) {
 	cfg.BindEnvAndSetDefault("runtime_security_config.activity_dump.silent_workloads.delay", "10s")
 	cfg.BindEnvAndSetDefault("runtime_security_config.activity_dump.silent_workloads.ticker", "10s")
 	cfg.BindEnvAndSetDefault("runtime_security_config.activity_dump.workload_deny_list", []string{})
-	cfg.BindEnvAndSetDefault("runtime_security_config.activity_dump.auto_suppression.enabled", false)
+	cfg.BindEnvAndSetDefault("runtime_security_config.activity_dump.auto_suppression.enabled", true)
 
 	// CWS - SBOM
 	cfg.BindEnvAndSetDefault("runtime_security_config.sbom.enabled", false)
@@ -117,6 +122,10 @@ func initCWSSystemProbeConfig(cfg pkgconfigmodel.Config) {
 	cfg.BindEnvAndSetDefault("runtime_security_config.ebpfless.enabled", false)
 	cfg.BindEnvAndSetDefault("runtime_security_config.ebpfless.socket", constants.DefaultEBPFLessProbeAddr)
 
+	// CWS - IMDS
+	cfg.BindEnvAndSetDefault("runtime_security_config.imds_ipv4", "169.254.169.254")
+
 	// CWS enforcement capabilities
 	cfg.BindEnvAndSetDefault("runtime_security_config.enforcement.enabled", true)
+	cfg.BindEnvAndSetDefault("runtime_security_config.enforcement.raw_syscall.enabled", false)
 }

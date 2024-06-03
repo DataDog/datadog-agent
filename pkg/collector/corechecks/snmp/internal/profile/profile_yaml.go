@@ -109,7 +109,7 @@ func resolveProfileDefinitionPath(definitionFile string) string {
 }
 
 func getProfileConfdRoot(profileFolderName string) string {
-	confdPath := config.Datadog.GetString("confd_path")
+	confdPath := config.Datadog().GetString("confd_path")
 	return filepath.Join(confdPath, "snmp.d", profileFolderName)
 }
 

@@ -27,6 +27,20 @@ typedef const struct pktbuf pktbuf_t;
 // Never defined, intended to catch some implementation/usage errors at build-time.
 extern void pktbuf_invalid_operation(void);
 
+static __always_inline __maybe_unused void pktbuf_advance(pktbuf_t pkt, u32 offset)
+{
+    switch (pkt.type) {
+    case PKTBUF_SKB:
+        pkt.skb_info->data_off += offset;
+        return;
+    case PKTBUF_TLS:
+        pkt.tls->data_off += offset;
+        return;
+    }
+
+    pktbuf_invalid_operation();
+}
+
 static __always_inline __maybe_unused u32 pktbuf_data_offset(pktbuf_t pkt)
 {
     switch (pkt.type) {
@@ -121,7 +135,7 @@ PKTBUF_READ_BIG_ENDIAN(s8)
             read_into_buffer_##name(buffer, pkt.skb, offset);                                            \
             return;                                                                                      \
         case PKTBUF_TLS:                                                                                 \
-            read_into_user_buffer_##name(buffer, pkt.tls->buffer_ptr + pkt.tls->data_off + offset);      \
+            read_into_user_buffer_##name(buffer, pkt.tls->buffer_ptr + offset);                          \
             return;                                                                                      \
         }                                                                                                \
         pktbuf_invalid_operation();                                                                      \

@@ -29,7 +29,10 @@ func (a *Agent) obfuscateSpan(span *pb.Span) {
 
 	if a.conf.Obfuscation != nil && a.conf.Obfuscation.CreditCards.Enabled {
 		for k, v := range span.Meta {
-			span.Meta[k] = o.ObfuscateCreditCardNumber(k, v)
+			newV := o.ObfuscateCreditCardNumber(k, v)
+			if v != newV {
+				span.Meta[k] = newV
+			}
 		}
 	}
 

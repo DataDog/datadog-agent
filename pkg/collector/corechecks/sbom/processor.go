@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2022-present Datadog, Inc.
 
-//go:build trivy
+//go:build trivy || (windows && wmi)
 
 package sbom
 
@@ -37,7 +37,7 @@ import (
 )
 
 var /* const */ (
-	envVarEnv   = ddConfig.Datadog.GetString("env")
+	envVarEnv   = ddConfig.Datadog().GetString("env")
 	sourceAgent = "agent"
 )
 

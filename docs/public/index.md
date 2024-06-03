@@ -18,7 +18,7 @@ First, you'll want to [set up](setup.md) your development environment.
 
 ## Agent development guidelines
 
-To know more about the general design of the Agent and how to add code and feature read our section on [Components]().
+To know more about the general design of the Agent and how to add code and feature read our section on [Components](https://datadoghq.dev/datadog-agent/components/overview/).
 
 ## Navigation
 

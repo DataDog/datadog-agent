@@ -4,6 +4,7 @@ Helpers for setting up your environment
 
 from __future__ import annotations
 
+import os
 import re
 import sys
 from collections.abc import Iterable
@@ -15,6 +16,7 @@ from invoke.exceptions import Exit
 
 from tasks.libs.common.color import color_message
 from tasks.libs.common.status import Status
+from tasks.libs.common.utils import running_in_pyapp
 
 if TYPE_CHECKING:
     from collections.abc import Generator
@@ -35,9 +37,9 @@ def setup(ctx):
     Set up your environment
     """
     setup_functions = [
+        check_git_repo,
         check_python_version,
         check_go_version,
-        check_git_repo,
         update_python_dependencies,
         download_go_tools,
         install_go_tools,
@@ -114,7 +116,9 @@ def check_go_version(ctx) -> SetupResult:
 
     if version.group(1) != expected_version:
         return SetupResult(
-            "Check Go version", Status.FAIL, f"Go version is {version.group(1)}. Please install Go {expected_version}."
+            "Check Go version",
+            Status.WARN,
+            f"The Go version is {version.group(1)}. Please install Go {expected_version}.",
         )
 
     return SetupResult("Check Go version", Status.OK)
@@ -128,12 +132,11 @@ def check_python_version(_ctx) -> SetupResult:
 
     message = ""
     status = Status.OK
-    if tuple(sys.version_info)[:3] != tuple(int(d) for d in expected_version.split(".")):
+    if tuple(sys.version_info)[:2] != tuple(int(d) for d in expected_version.split(".")):
         status = Status.FAIL
         message = (
             f"Python version is {sys.version_info[0]}.{sys.version_info[1]}.{sys.version_info[2]}. "
-            f"Please install Python {expected_version}.\n"
-            f"We recommend using pyenv to manage your Python versions: https://github.com/pyenv/pyenv#installation"
+            "Please update your environment: https://datadoghq.dev/datadog-agent/setup/#python-dependencies",
         )
 
     return SetupResult("Check Python version", status, message)
@@ -152,6 +155,9 @@ def update_python_dependencies(ctx) -> Generator[SetupResult]:
 def enable_pre_commit(ctx) -> SetupResult:
     print(color_message("Enabling pre-commit...", "blue"))
 
+    status = Status.OK
+    message = ""
+
     if not ctx.run("pre-commit --version", hide=True, warn=True).ok:
         return SetupResult(
             "Enable pre-commit", Status.FAIL, "Please install pre-commit first: https://pre-commit.com/#installation."
@@ -164,12 +170,35 @@ def enable_pre_commit(ctx) -> SetupResult:
     except Exception:
         hooks_path = ""
 
-    ctx.run("pre-commit install", hide=True)
+    if running_in_pyapp():
+        import shutil
+
+        # TODO Remove in a couple of weeks
+        # Remove the old devagent file if it exists
+        if os.path.isfile(".pre-commit-config-devagent.yaml"):
+            os.remove(".pre-commit-config-devagent.yaml")
+
+        # We use a custom version that use deva instead of inv directly, that requires the venv to be loaded
+        from pre_commit import update_pyapp_file
+
+        config_file = update_pyapp_file()
+        if not shutil.which("deva"):
+            status = Status.WARN
+            if shutil.which("devagent"):
+                message = "`devagent` has been renamed `deva`. Please, rename your binary, no need to download the new version."
+            else:
+                message = "`deva` is not in your PATH"
+    else:
+        config_file = ".pre-commit-config.yaml"
+
+    # Uninstall in case someone switch from one config to the other
+    ctx.run("pre-commit uninstall", hide=True)
+    ctx.run(f"pre-commit install --config {config_file}", hide=True)
 
     if hooks_path:
         ctx.run(f"git config --global core.hooksPath {hooks_path}", hide=True)
 
-    return SetupResult("Enable pre-commit", Status.OK)
+    return SetupResult("Enable pre-commit", status, message)
 
 
 def install_go_tools(ctx) -> SetupResult:

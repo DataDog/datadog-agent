@@ -76,6 +76,9 @@ const (
 	// DefaultCompressorKind is the default compressor. Options available are 'zlib' and 'zstd'
 	DefaultCompressorKind = "zlib"
 
+	// DefaultZstdCompressionLevel should mirror the default compression level defined in https://github.com/DataDog/zstd/blob/1.x/zstd.go#L23
+	DefaultZstdCompressionLevel = 5
+
 	// DefaultLogsSenderBackoffFactor is the default logs sender backoff randomness factor
 	DefaultLogsSenderBackoffFactor = 2.0
 
@@ -100,11 +103,23 @@ const (
 	DefaultMaxMessageSizeBytes = 256 * 1000
 )
 
-// Datadog is the global configuration object
+// datadog is the global configuration object
 var (
-	Datadog     pkgconfigmodel.Config
+	datadog     pkgconfigmodel.Config
 	SystemProbe pkgconfigmodel.Config
 )
+
+// Datadog returns the current agent configuration
+func Datadog() pkgconfigmodel.Config {
+	return datadog
+}
+
+// SetDatadog sets the the reference to the agent configuration.
+// This is currently used by the legacy converter and config mocks and should not be user anywhere else. Once the
+// legacy converter and mock have been migrated we will remove this function.
+func SetDatadog(cfg pkgconfigmodel.Config) {
+	datadog = cfg
+}
 
 // Variables to initialize at build time
 var (
@@ -220,7 +235,7 @@ var serverlessConfigComponents = []func(pkgconfigmodel.Config){
 func init() {
 	osinit()
 	// Configure Datadog global configuration
-	Datadog = pkgconfigmodel.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
+	datadog = pkgconfigmodel.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
 	SystemProbe = pkgconfigmodel.NewConfig("system-probe", "DD", strings.NewReplacer(".", "_"))
 
 	// Configuration defaults
@@ -329,8 +344,8 @@ func InitConfig(config pkgconfigmodel.Config) {
 	config.BindEnvAndSetDefault("kubernetes_node_annotations_as_host_aliases", []string{"cluster.k8s.io/machine"})
 	config.BindEnvAndSetDefault("kubernetes_node_label_as_cluster_name", "")
 	config.BindEnvAndSetDefault("kubernetes_namespace_labels_as_tags", map[string]string{})
+	config.BindEnvAndSetDefault("kubernetes_namespace_annotations_as_tags", map[string]string{})
 	config.BindEnvAndSetDefault("container_cgroup_prefix", "")
-	config.BindEnvAndSetDefault("kubernetes_namespace_collection_enabled", false) // Enables collection of kubernetes namespace information
 
 	config.BindEnvAndSetDefault("prometheus_scrape.enabled", false)           // Enables the prometheus config provider
 	config.BindEnvAndSetDefault("prometheus_scrape.service_endpoints", false) // Enables Service Endpoints checks in the prometheus config provider
@@ -454,6 +469,8 @@ func InitConfig(config pkgconfigmodel.Config) {
 	config.BindEnvAndSetDefault("cluster_agent.language_detection.cleanup.language_ttl", "30m")
 	// language annotation cleanup period
 	config.BindEnvAndSetDefault("cluster_agent.language_detection.cleanup.period", "10m")
+	config.BindEnvAndSetDefault("cluster_agent.kube_metadata_collection.enabled", false)
+	config.BindEnvAndSetDefault("cluster_agent.kube_metadata_collection.resources", []string{})
 
 	// Metadata endpoints
 
@@ -582,6 +599,9 @@ func InitConfig(config pkgconfigmodel.Config) {
 	// Changing this setting may impact your custom metrics billing.
 	config.BindEnvAndSetDefault("checks_tag_cardinality", "low")
 	config.BindEnvAndSetDefault("dogstatsd_tag_cardinality", "low")
+
+	// Autoscaling product
+	config.BindEnvAndSetDefault("autoscaling.workload.enabled", false)
 
 	config.BindEnvAndSetDefault("hpa_watcher_polling_freq", 10)
 	config.BindEnvAndSetDefault("hpa_watcher_gc_period", 60*5) // 5 minutes
@@ -758,6 +778,10 @@ func InitConfig(config pkgconfigmodel.Config) {
 	config.BindEnvAndSetDefault("sbom.host.enabled", false)
 	config.BindEnvAndSetDefault("sbom.host.analyzers", []string{"os"})
 
+	// Service discovery configuration
+	config.BindEnvAndSetDefault("service_discovery.enabled", true)
+	bindEnvAndSetLogsConfigKeys(config, "service_discovery.forwarder.")
+
 	// Orchestrator Explorer - process agent
 	// DEPRECATED in favor of `orchestrator_explorer.orchestrator_dd_url` setting. If both are set `orchestrator_explorer.orchestrator_dd_url` will take precedence.
 	config.BindEnv("process_config.orchestrator_dd_url", "DD_PROCESS_CONFIG_ORCHESTRATOR_DD_URL", "DD_PROCESS_AGENT_ORCHESTRATOR_DD_URL")
@@ -781,7 +805,7 @@ func InitConfig(config pkgconfigmodel.Config) {
 	config.BindEnvAndSetDefault("inventories_first_run_delay", 60)
 
 	// Datadog security agent (common)
-	config.BindEnvAndSetDefault("security_agent.cmd_port", 5010)
+	config.BindEnvAndSetDefault("security_agent.cmd_port", DefaultSecurityAgentCmdPort)
 	config.BindEnvAndSetDefault("security_agent.expvar_port", 5011)
 	config.BindEnvAndSetDefault("security_agent.log_file", DefaultSecurityAgentLogFile)
 	config.BindEnvAndSetDefault("security_agent.remote_tagger", true)
@@ -828,7 +852,7 @@ func InitConfig(config pkgconfigmodel.Config) {
 	}
 	config.BindEnvAndSetDefault("runtime_security_config.log_profiled_workloads", false)
 	config.BindEnvAndSetDefault("runtime_security_config.telemetry.ignore_dd_agent_containers", true)
-	config.BindEnvAndSetDefault("runtime_security_config.use_secruntime_track", false)
+	config.BindEnvAndSetDefault("runtime_security_config.use_secruntime_track", true)
 	bindEnvAndSetLogsConfigKeys(config, "runtime_security_config.endpoints.")
 	bindEnvAndSetLogsConfigKeys(config, "runtime_security_config.activity_dump.remote_storage.endpoints.")
 
@@ -881,10 +905,13 @@ func InitConfig(config pkgconfigmodel.Config) {
 
 	setupProcesses(config)
 
-	// Updater configuration
-	config.BindEnvAndSetDefault("updater.remote_updates", false)
-	config.BindEnv("updater.registry")
-	config.BindEnvAndSetDefault("updater.registry_auth", "")
+	// Installer configuration
+	config.BindEnvAndSetDefault("remote_updates", false)
+	config.BindEnvAndSetDefault("installer.registry.url", "")
+	config.BindEnvAndSetDefault("installer.registry.auth", "")
+
+	// Data Jobs Monitoring config
+	config.BindEnvAndSetDefault("djm_config.enabled", false)
 }
 
 func agent(config pkgconfigmodel.Config) {
@@ -964,6 +991,7 @@ func agent(config pkgconfigmodel.Config) {
 
 	// Agent GUI access port
 	config.BindEnvAndSetDefault("GUI_port", defaultGuiPort)
+	config.BindEnvAndSetDefault("GUI_session_expiration", 0)
 
 	config.SetKnown("proxy.http")
 	config.SetKnown("proxy.https")
@@ -1127,6 +1155,7 @@ func serializer(config pkgconfigmodel.Config) {
 	config.BindEnvAndSetDefault("serializer_max_series_payload_size", 512000)
 	config.BindEnvAndSetDefault("serializer_max_series_uncompressed_payload_size", 5242880)
 	config.BindEnvAndSetDefault("serializer_compressor_kind", DefaultCompressorKind)
+	config.BindEnvAndSetDefault("serializer_zstd_compressor_level", DefaultZstdCompressionLevel)
 
 	config.BindEnvAndSetDefault("use_v2_api.series", true)
 	// Serializer: allow user to blacklist any kind of payload to be sent
