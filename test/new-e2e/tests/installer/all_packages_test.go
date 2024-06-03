@@ -161,7 +161,7 @@ func (s *packageBaseSuite) RunInstallScript(params ...string) {
 		s.Env().RemoteHost.MustExecute("sudo systemctl daemon-reexec")
 	}
 	err := s.RunInstallScriptWithError(params...)
-	require.NoErrorf(s.T(), err, "installer not properly installed. logs: \n%s\n%s", s.Env().RemoteHost.MustExecute("cat /tmp/datadog-installer-stderr.log"), s.Env().RemoteHost.MustExecute("cat /tmp/datadog-installer-stdout.log"))
+	require.NoErrorf(s.T(), err, "installer not properly installed. logs: \n%s\n%s", s.Env().RemoteHost.MustExecute("cat /tmp/datadog-installer-stdout.log"), s.Env().RemoteHost.MustExecute("cat /tmp/datadog-installer-stderr.log"))
 }
 
 func envForceInstall(pkg string) string {
