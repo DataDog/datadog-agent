@@ -2,7 +2,6 @@ package impl
 
 import (
 	"errors"
-	"strings"
 
 	"go.opentelemetry.io/collector/config/confighttp"
 	"go.opentelemetry.io/collector/confmap"
@@ -28,16 +27,8 @@ type Config struct {
 // Validate checks if the extension configuration is valid
 func (c *Config) Validate() error {
 
-	if c.HTTPConfig != nil {
-		if c.HTTPConfig.Endpoint == "" {
-			return errHTTPEndpointRequired
-		}
-		if c.HTTPConfig.Status.Enabled && !strings.HasPrefix(c.HTTPConfig.Status.Path, "/") {
-			return errInvalidPath
-		}
-		if c.HTTPConfig.Config.Enabled && !strings.HasPrefix(c.HTTPConfig.Config.Path, "/") {
-			return errInvalidPath
-		}
+	if c.HTTPConfig == nil || c.HTTPConfig.Endpoint == "" {
+		return errHTTPEndpointRequired
 	}
 
 	return nil
@@ -52,10 +43,6 @@ func (c *Config) Unmarshal(conf *confmap.Conf) error {
 
 	if !conf.IsSet(httpConfigKey) {
 		c.HTTPConfig = nil
-	}
-
-	if !conf.IsSet(grpcConfigKey) {
-		c.GRPCConfig = nil
 	}
 
 	return nil
