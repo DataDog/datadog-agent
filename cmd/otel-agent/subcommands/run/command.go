@@ -14,7 +14,6 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/otel-agent/subcommands"
 	"github.com/DataDog/datadog-agent/comp/api/authtoken/fetchonlyimpl"
 	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/hostname"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	corelog "github.com/DataDog/datadog-agent/comp/core/log"
 	corelogimpl "github.com/DataDog/datadog-agent/comp/core/log/logimpl"
@@ -142,7 +141,7 @@ func runOTelAgentCommand(ctx context.Context, params *subcommands.GlobalParams, 
 
 		fx.Supply(optional.NewNoneOption[secrets.Component]()),
 
-		fx.Provide(func(c config.Component) corelogimpl.Params {
+		fx.Provide(func(c coreconfig.Component) corelogimpl.Params {
 			return corelogimpl.ForDaemon(params.LoggerName, "log_file", pkgconfigsetup.DefaultOTelAgentLogFile)
 		}),
 		logsagentpipelineimpl.Module(),
