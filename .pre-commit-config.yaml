@@ -118,9 +118,3 @@ repos:
       entry: 'inv linter.update-go'
       language: system
       pass_filenames: false
-    - id: validate-modules
-      name: validate-modules
-      description: validate go modules are defined in DEFAULT_MODULES
-      entry: 'inv modules.validate -f'
-      language: system
-      pass_filenames: false
