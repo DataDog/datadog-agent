@@ -33,7 +33,7 @@ REM show output package directories (for debugging)
 dir \omnibus-ruby\pkg\
 
 REM show output binary directories (for debugging)
-dir C:\opt\datadog-agent\bin\agent\
+dir C:\opt\datadog-installer\
 
 goto :EOF
 
