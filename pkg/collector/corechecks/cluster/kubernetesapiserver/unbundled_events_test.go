@@ -373,7 +373,7 @@ func TestUnbundledEventsTransform(t *testing.T) {
 func TestGetTagsFromTagger(t *testing.T) {
 	taggerInstance := local.NewFakeTagger()
 	taggerInstance.SetTags("kubernetes_pod_uid://nginx", "workloadmeta-kubernetes_pod", nil, []string{"pod_name:nginx"}, nil, nil)
-	taggerInstance.SetTags("namespace://foobar", "workloadmeta-kubernetes_node", []string{"team:container-int"}, nil, nil, nil)
+	taggerInstance.SetGlobalTags([]string{"global:here"}, nil, nil, nil)
 
 	tests := []struct {
 		name         string
@@ -388,7 +388,7 @@ func TestGetTagsFromTagger(t *testing.T) {
 				Namespace: "default",
 				Name:      "redis",
 			},
-			expectedTags: tagset.NewHashlessTagsAccumulator(),
+			expectedTags: tagset.NewHashlessTagsAccumulatorFromSlice([]string{"global:here"}),
 		},
 		{
 			name: "add tagger pod tags",
@@ -398,17 +398,7 @@ func TestGetTagsFromTagger(t *testing.T) {
 				Namespace: "default",
 				Name:      "nginx",
 			},
-			expectedTags: tagset.NewHashlessTagsAccumulatorFromSlice([]string{"pod_name:nginx"}),
-		},
-		{
-			name: "add tagger namespace tags",
-			obj: v1.ObjectReference{
-				UID:       "nginx",
-				Kind:      "Pod",
-				Namespace: "foobar",
-				Name:      "nginx",
-			},
-			expectedTags: tagset.NewHashlessTagsAccumulatorFromSlice([]string{"pod_name:nginx", "team:container-int"}),
+			expectedTags: tagset.NewHashlessTagsAccumulatorFromSlice([]string{"global:here", "pod_name:nginx"}),
 		},
 	}
 

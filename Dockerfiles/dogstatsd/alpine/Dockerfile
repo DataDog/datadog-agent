@@ -1,12 +1,13 @@
 ARG BASE_IMAGE_ALPINE_VERSION=3.18
 FROM alpine:$BASE_IMAGE_ALPINE_VERSION
 ARG TARGETARCH
+ARG BASE_IMAGE_ALPINE_VERSION
 
 LABEL baseimage.os "alpine"
 LABEL baseimage.name "alpine:${BASE_IMAGE_ALPINE_VERSION}"
 LABEL maintainer "Datadog <package@datadoghq.com>"
-# Can be used by Dependabot
-LABEL org.opencontainers.image.source "https://github.com/DataDog/datadog-agent"
+LABEL org.opencontainers.image.base.name "alpine:${BASE_IMAGE_ALPINE_VERSION}"
+LABEL org.opencontainers.image.title "Datadog Dogstatsd Agent"
 
 ENV DOCKER_DD_AGENT=true
 

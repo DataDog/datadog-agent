@@ -156,6 +156,10 @@ func (s *packageBaseSuite) RunInstallScriptWithError(params ...string) error {
 }
 
 func (s *packageBaseSuite) RunInstallScript(params ...string) {
+	// bugfix for https://major.io/p/systemd-in-fedora-22-failed-to-restart-service-access-denied/
+	if s.os.Flavor == e2eos.CentOS && s.os.Version == e2eos.CentOS7.Version {
+		s.Env().RemoteHost.MustExecute("sudo systemctl daemon-reexec")
+	}
 	err := s.RunInstallScriptWithError(params...)
 	require.NoErrorf(s.T(), err, "installer not properly installed. logs: \n%s\n%s", s.Env().RemoteHost.MustExecute("cat /tmp/datadog-installer-stdout.log"), s.Env().RemoteHost.MustExecute("cat /tmp/datadog-installer-stderr.log"))
 }

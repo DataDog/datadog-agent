@@ -53,7 +53,9 @@ type Controller struct {
 	clock clock.Clock
 	store *store
 
+	podWatcher           podWatcher
 	horizontalController *horizontalController
+	verticalController   *verticalController
 }
 
 // newController returns a new workload autoscaling controller
@@ -65,6 +67,7 @@ func newController(
 	dynamicInformer dynamicinformer.DynamicSharedInformerFactory,
 	isLeader func() bool,
 	store *store,
+	podWatcher podWatcher,
 ) (*Controller, error) {
 	c := &Controller{
 		eventRecorder: eventRecorder,
@@ -78,7 +81,11 @@ func newController(
 
 	c.Controller = baseController
 	c.store = store
+	c.podWatcher = podWatcher
+
+	// TODO: Ensure that controllers do not take action before the podwatcher is synced
 	c.horizontalController = newHorizontalReconciler(c.clock, eventRecorder, restMapper, scaleClient)
+	c.verticalController = newVerticalController(c.clock, eventRecorder, dynamicClient, c.podWatcher)
 
 	return c, nil
 }
@@ -224,7 +231,6 @@ func (c *Controller) syncPodAutoscaler(ctx context.Context, key, ns, name string
 			}
 
 			podAutoscalerInternal.Generation = podAutoscaler.Generation
-			c.store.Set(key, podAutoscalerInternal, c.ID)
 		}
 	}
 
@@ -232,15 +238,14 @@ func (c *Controller) syncPodAutoscaler(ctx context.Context, key, ns, name string
 	if podAutoscalerInternal.Spec.Owner == datadoghq.DatadogPodAutoscalerLocalOwner {
 		if podAutoscalerInternal.Generation != podAutoscaler.Generation {
 			podAutoscalerInternal.UpdateFromPodAutoscaler(podAutoscaler)
-			c.store.Set(key, podAutoscalerInternal, c.ID)
 		}
 	}
 
+	// Reaching this point, we had an error in processing, clearing up global error
+	podAutoscalerInternal.Error = nil
+
 	// Now that everything is synced, we can perform the actual processing
 	result, err := c.handleScaling(ctx, podAutoscaler, &podAutoscalerInternal)
-	if err != nil {
-		podAutoscalerInternal.Error = err
-	}
 
 	// Update status based on latest state
 	statusErr := c.updatePodAutoscalerStatus(ctx, podAutoscalerInternal, podAutoscaler)
@@ -258,8 +263,14 @@ func (c *Controller) syncPodAutoscaler(ctx context.Context, key, ns, name string
 }
 
 func (c *Controller) handleScaling(ctx context.Context, podAutoscaler *datadoghq.DatadogPodAutoscaler, podAutoscalerInternal *model.PodAutoscalerInternal) (autoscaling.ProcessResult, error) {
-	// Handle horizontal scaling
-	return c.horizontalController.sync(ctx, podAutoscaler, podAutoscalerInternal)
+	// TODO: While horizontal scaling is in progress we should not start vertical scaling
+	// While vertical scaling is in progress we should only allow horizontal upscale
+	horizontalRes, err := c.horizontalController.sync(ctx, podAutoscaler, podAutoscalerInternal)
+	if err != nil {
+		return horizontalRes, err
+	}
+
+	return c.verticalController.sync(ctx, podAutoscaler, podAutoscalerInternal)
 }
 
 func (c *Controller) createPodAutoscaler(ctx context.Context, podAutoscalerInternal model.PodAutoscalerInternal) error {
@@ -309,11 +320,16 @@ func (c *Controller) updatePodAutoscalerSpec(ctx context.Context, podAutoscalerI
 }
 
 func (c *Controller) updatePodAutoscalerStatus(ctx context.Context, podAutoscalerInternal model.PodAutoscalerInternal, podAutoscaler *datadoghq.DatadogPodAutoscaler) error {
+	newStatus := podAutoscalerInternal.BuildStatus(metav1.NewTime(c.clock.Now()), &podAutoscaler.Status)
+	if autoscaling.Semantic.DeepEqual(podAutoscaler.Status, newStatus) {
+		return nil
+	}
+
 	log.Debugf("Updating PodAutoscaler Status: %s/%s", podAutoscalerInternal.Namespace, podAutoscalerInternal.Name)
 	autoscalerObj := &datadoghq.DatadogPodAutoscaler{
 		TypeMeta:   podAutoscalerMeta,
 		ObjectMeta: podAutoscaler.ObjectMeta,
-		Status:     podAutoscalerInternal.BuildStatus(metav1.NewTime(c.clock.Now()), &podAutoscaler.Status),
+		Status:     newStatus,
 	}
 
 	obj, err := autoscaling.ToUnstructured(autoscalerObj)

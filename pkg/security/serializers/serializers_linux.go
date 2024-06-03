@@ -466,6 +466,8 @@ type SecurityProfileContextSerializer struct {
 	Tags []string `json:"tags"`
 	// True if the corresponding event is part of this profile
 	EventInProfile bool `json:"event_in_profile"`
+	// State of the event type in this profile
+	EventTypeState string `json:"event_type_state"`
 }
 
 // SyscallSerializer serializes a syscall
@@ -1020,6 +1022,7 @@ func newSecurityProfileContextSerializer(event *model.Event, e *model.SecurityPr
 		Version:        e.Version,
 		Tags:           tags,
 		EventInProfile: event.IsInProfile(),
+		EventTypeState: e.EventTypeState.String(),
 	}
 }
 

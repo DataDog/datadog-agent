@@ -11,6 +11,8 @@ import (
 	"strings"
 	"time"
 
+	"k8s.io/apimachinery/pkg/runtime/schema"
+
 	langUtil "github.com/DataDog/datadog-agent/pkg/languagedetection/util"
 
 	"github.com/CycloneDX/cyclonedx-go"
@@ -41,6 +43,7 @@ const (
 	KindContainer              Kind = "container"
 	KindKubernetesPod          Kind = "kubernetes_pod"
 	KindKubernetesNode         Kind = "kubernetes_node"
+	KindKubernetesMetadata     Kind = "kubernetes_metadata"
 	KindKubernetesDeployment   Kind = "kubernetes_deployment"
 	KindKubernetesNamespace    Kind = "kubernetes_namespace"
 	KindECSTask                Kind = "ecs_task"
@@ -313,7 +316,7 @@ type ContainerState struct {
 	CreatedAt  time.Time
 	StartedAt  time.Time
 	FinishedAt time.Time
-	ExitCode   *uint32
+	ExitCode   *int64
 }
 
 // String returns a string representation of ContainerState.
@@ -395,7 +398,7 @@ func (c ContainerVolume) String(_ bool) string {
 type ContainerHealthStatus struct {
 	Status   string
 	Since    *time.Time
-	ExitCode *uint32
+	ExitCode *int64
 	Output   string
 }
 
@@ -522,6 +525,10 @@ type Container struct {
 	Owner           *EntityID
 	SecurityContext *ContainerSecurityContext
 	Resources       ContainerResources
+	// CgroupPath is a path to the cgroup of the container.
+	// It can be relative to the cgroup parent.
+	// Linux only.
+	CgroupPath string
 }
 
 // GetID implements Entity#GetID.
@@ -575,6 +582,7 @@ func (c Container) String(verbose bool) string {
 		_, _ = fmt.Fprintln(&sb, "Hostname:", c.Hostname)
 		_, _ = fmt.Fprintln(&sb, "Network IPs:", mapToString(c.NetworkIPs))
 		_, _ = fmt.Fprintln(&sb, "PID:", c.PID)
+		_, _ = fmt.Fprintln(&sb, "Cgroup path:", c.CgroupPath)
 	}
 
 	if len(c.Ports) > 0 && verbose {
@@ -779,6 +787,53 @@ func (o KubernetesPodOwner) String(verbose bool) string {
 
 	return sb.String()
 }
+
+// KubernetesMetadata is an Entity representing kubernetes resource metadata
+type KubernetesMetadata struct {
+	EntityID
+	EntityMeta
+	GVR schema.GroupVersionResource
+}
+
+// GetID implements Entity#GetID.
+func (m *KubernetesMetadata) GetID() EntityID {
+	return m.EntityID
+}
+
+// Merge implements Entity#Merge.
+func (m *KubernetesMetadata) Merge(e Entity) error {
+	mm, ok := e.(*KubernetesMetadata)
+	if !ok {
+		return fmt.Errorf("cannot merge KubernetesMetadata with different kind %T", e)
+	}
+
+	return merge(m, mm)
+}
+
+// DeepCopy implements Entity#DeepCopy.
+func (m KubernetesMetadata) DeepCopy() Entity {
+	cm := deepcopy.Copy(m).(KubernetesMetadata)
+	return &cm
+}
+
+// String implements Entity#String
+func (m *KubernetesMetadata) String(verbose bool) string {
+	var sb strings.Builder
+	_, _ = fmt.Fprintln(&sb, "----------- Entity ID -----------")
+	_, _ = fmt.Fprintln(&sb, m.EntityID.String(verbose))
+
+	_, _ = fmt.Fprintln(&sb, "----------- Entity Meta -----------")
+	_, _ = fmt.Fprint(&sb, m.EntityMeta.String(verbose))
+
+	if verbose {
+		_, _ = fmt.Fprintln(&sb, "----------- Resource -----------")
+		_, _ = fmt.Fprint(&sb, m.GVR.String())
+	}
+
+	return sb.String()
+}
+
+var _ Entity = &KubernetesMetadata{}
 
 // KubernetesNode is an Entity representing a Kubernetes Node.
 type KubernetesNode struct {
