@@ -6,8 +6,7 @@ skip-ci-check:
   stage: setup
   tags: ["arch:amd64"]
   rules:
-    - !reference [.except_mergequeue]
-    - when: on_success
+    - !reference [.on_mergequeue]
   script:
     - commit_message="$(git log --format=%B -n 1 $CI_COMMIT_SHA)"
     # https://docs.github.com/en/actions/managing-workflow-runs/skipping-workflow-runs
@@ -17,4 +16,3 @@ skip-ci-check:
             exit 1
       fi
     - "echo 'success: No check skip found'"
-
