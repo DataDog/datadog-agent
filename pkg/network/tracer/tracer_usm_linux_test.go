@@ -1537,13 +1537,20 @@ func testMongoProtocolClassification(t *testing.T, tr *Tracer, clientHost, targe
 }
 
 func testRedisProtocolClassification(t *testing.T, tr *Tracer, clientHost, targetHost, serverHost string) {
-	skipFunc := composeSkips(skipIfUsingNAT)
-	skipFunc(t, testContext{
+	testRedisProtocolClassificationInner(t, tr, clientHost, targetHost, serverHost, redis.Plaintext)
+}
+
+func testRedisProtocolClassificationInner(t *testing.T, tr *Tracer, clientHost, targetHost, serverHost string, withTLS redis.TLSSetting) {
+	skipFuncs := []func(*testing.T, testContext){
+		skipIfUsingNAT,
+	}
+	composeSkips(skipFuncs...)(t, testContext{
 		serverAddress: serverHost,
 		serverPort:    redisPort,
 		targetAddress: targetHost,
 	})
 
+	expectedStack := &protocols.Stack{Application: protocols.Redis}
 	defaultDialer := &net.Dialer{
 		LocalAddr: &net.TCPAddr{
 			IP: net.ParseIP(clientHost),
@@ -1561,7 +1568,7 @@ func testRedisProtocolClassification(t *testing.T, tr *Tracer, clientHost, targe
 	// Setting one instance of redis server for all tests.
 	serverAddress := net.JoinHostPort(serverHost, redisPort)
 	targetAddress := net.JoinHostPort(targetHost, redisPort)
-	require.NoError(t, redis.RunServer(t, serverHost, redisPort, redis.Plaintext))
+	require.NoError(t, redis.RunServer(t, serverHost, redisPort, withTLS))
 
 	tests := []protocolClassificationAttributes{
 		{
@@ -1586,7 +1593,7 @@ func testRedisProtocolClassification(t *testing.T, tr *Tracer, clientHost, targe
 				client.Set(timedContext, "key", "value", time.Minute)
 			},
 			teardown:   redisTeardown,
-			validation: validateProtocolConnection(&protocols.Stack{Application: protocols.Redis}),
+			validation: validateProtocolConnection(expectedStack),
 		},
 		{
 			name: "get",
@@ -1613,7 +1620,7 @@ func testRedisProtocolClassification(t *testing.T, tr *Tracer, clientHost, targe
 				require.Equal(t, "value", val)
 			},
 			teardown:   redisTeardown,
-			validation: validateProtocolConnection(&protocols.Stack{Application: protocols.Redis}),
+			validation: validateProtocolConnection(expectedStack),
 		},
 		{
 			name: "get unknown key",
@@ -1638,7 +1645,7 @@ func testRedisProtocolClassification(t *testing.T, tr *Tracer, clientHost, targe
 				require.Error(t, res.Err())
 			},
 			teardown:   redisTeardown,
-			validation: validateProtocolConnection(&protocols.Stack{Application: protocols.Redis}),
+			validation: validateProtocolConnection(expectedStack),
 		},
 		{
 			name: "err response",
@@ -1656,7 +1663,7 @@ func testRedisProtocolClassification(t *testing.T, tr *Tracer, clientHost, targe
 				_, err = conn.Write([]byte("+dummy\r\n"))
 				require.NoError(t, err)
 			},
-			validation: validateProtocolConnection(&protocols.Stack{Application: protocols.Redis}),
+			validation: validateProtocolConnection(expectedStack),
 		},
 		{
 			name: "client id",
@@ -1681,7 +1688,7 @@ func testRedisProtocolClassification(t *testing.T, tr *Tracer, clientHost, targe
 				require.NoError(t, res.Err())
 			},
 			teardown:   redisTeardown,
-			validation: validateProtocolConnection(&protocols.Stack{Application: protocols.Redis}),
+			validation: validateProtocolConnection(expectedStack),
 		},
 	}
 	for _, tt := range tests {
