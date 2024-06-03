@@ -795,8 +795,6 @@ github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/metrics v0.16.0 h1:H5DzD3rw
 github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/metrics v0.16.0/go.mod h1:HPwVoMccTFfyV94bE29ffwAYnsPykAH7Iso8/5ucLSs=
 github.com/DataDog/opentelemetry-mapping-go/pkg/quantile v0.16.0 h1:BdfRSuCoHyKaRe/ft1Ebf2pZASWD2f4dlLExeVZw2bI=
 github.com/DataDog/opentelemetry-mapping-go/pkg/quantile v0.16.0/go.mod h1:6eYyd+lJYH+uRuZqhyW/u+9ykaXBWetDGj44+txz6jU=
-github.com/DataDog/sketches-go v1.4.4 h1:dF52vzXRFSPOj2IjXSWLvXq3jubL4CI69kwYjJ1w5Z8=
-github.com/DataDog/sketches-go v1.4.4/go.mod h1:XR0ns2RtEEF09mDKXiKZiQg+nfZStrq1ZuL1eezeZe0=
 github.com/DataDog/sketches-go v1.4.5 h1:ki7VfeNz7IcNafq7yI/j5U/YCkO3LJiMDtXz9OMQbyE=
 github.com/DataDog/sketches-go v1.4.5/go.mod h1:7Y8GN8Jf66DLyDhc94zuWA3uHEt/7ttt8jHOBWWrSOg=
 github.com/DataDog/trivy v0.0.0-20240524155722-0c355f8e174c h1:Xsdjt6y5ajENVAasDmdl0d6jbFkSYwhi5HD9CXke9Rc=
