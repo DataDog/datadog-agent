@@ -31,8 +31,6 @@ import (
 	replay "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/def"
 	replaymock "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/fx-mock"
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
-	dogstatsddebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
-	"github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug/serverdebugimpl"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/eventplatformreceiverimpl"
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
@@ -62,7 +60,6 @@ type testdeps struct {
 	//       are part of the api component dependency struct
 	DogstatsdServer       dogstatsdServer.Component
 	Capture               replay.Component
-	ServerDebug           dogstatsddebug.Component
 	Demux                 demultiplexer.Component
 	SecretResolver        secrets.Component
 	StatusComponent       status.Mock
@@ -86,7 +83,6 @@ func getComponentDependencies(t *testing.T) testdeps {
 		flareimpl.MockModule(),
 		dogstatsdServer.MockModule(),
 		replaymock.MockModule(),
-		serverdebugimpl.MockModule(),
 		hostimpl.MockModule(),
 		inventoryagentimpl.MockModule(),
 		demultiplexerimpl.MockModule(),

@@ -50,7 +50,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/pidmap"
 	replay "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/def"
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
-	serverdebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcservice"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcservicemrf"
 	"github.com/DataDog/datadog-agent/pkg/cli/standalone"
@@ -150,7 +149,6 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			fx.Provide(func() dogstatsdServer.Component { return nil }),
 			fx.Provide(func() pidmap.Component { return nil }),
 			fx.Provide(func() replay.Component { return nil }),
-			fx.Provide(func() serverdebug.Component { return nil }),
 			fx.Provide(func() status.Component { return nil }),
 
 			fx.Provide(tagger.NewTaggerParamsForCoreAgent),
