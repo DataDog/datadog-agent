@@ -3163,6 +3163,8 @@ go.opentelemetry.io/collector/config/internal v0.100.0 h1:XSbedIpdXOxIEGnnzCZnul
 go.opentelemetry.io/collector/config/internal v0.100.0/go.mod h1:QiG0fNuQ3GxNcF8stKHRUpHRKgyaKjM3G9re9f+dV70=
 go.opentelemetry.io/collector/confmap v0.100.0 h1:r70znwLWUMFRWL4LRcWLhdFfzmTvehXgbnlHFCDm0Tc=
 go.opentelemetry.io/collector/confmap v0.100.0/go.mod h1:BWKPIpYeUzSG6ZgCJMjF7xsLvyrvJCfYURl57E5vhiQ=
+go.opentelemetry.io/collector/confmap v0.101.0 h1:pGXZRBKnZqys1HgNECGSi8Pec5RBGa9vVCfrpcvW+kA=
+go.opentelemetry.io/collector/confmap v0.101.0/go.mod h1:BWKPIpYeUzSG6ZgCJMjF7xsLvyrvJCfYURl57E5vhiQ=
 go.opentelemetry.io/collector/confmap/converter/expandconverter v0.100.0 h1:xXPI9QzvwhefmVHNlSuq3WqmgXOrAVdaQAAdkAoMaEU=
 go.opentelemetry.io/collector/confmap/converter/expandconverter v0.100.0/go.mod h1:zkADuTzmkmbsr281Xxw1jTy+YFrWr28pPIStt4nTZpo=
 go.opentelemetry.io/collector/confmap/provider/envprovider v0.100.0 h1:ORj/EN7HCuTl5MD8GoirShtz7ieIbAdseGroeRdgNDM=
@@ -3171,6 +3173,8 @@ go.opentelemetry.io/collector/confmap/provider/fileprovider v0.100.0 h1:H2YtC6mO
 go.opentelemetry.io/collector/confmap/provider/fileprovider v0.100.0/go.mod h1:JEYr74rqYYsgKc5bDtsqy8TFHmmhHnEc0Hm5ekZSj/8=
 go.opentelemetry.io/collector/confmap/provider/httpprovider v0.100.0 h1:GPFfS9BmuF0bzeW/lUElvI2NzHjAKq5U1E/lXLy/7pc=
 go.opentelemetry.io/collector/confmap/provider/httpprovider v0.100.0/go.mod h1:s8YCUcFOOnY4NKeQjVTup6XiA3Oj3yqs8NB10kbwuAU=
+go.opentelemetry.io/collector/confmap/provider/httpprovider v0.101.0 h1:U+/Mmd1+DHl94R/i+LxTjReEtFh3qV4QJ8XxqhCdezk=
+go.opentelemetry.io/collector/confmap/provider/httpprovider v0.101.0/go.mod h1:EJ5t47HWbDGxUjVax+BBJ3ySpHBHQz/Ys689+R6OXis=
 go.opentelemetry.io/collector/confmap/provider/httpsprovider v0.100.0 h1:vcOsDXQRdf/TUcD0vYTGkzvaPmoplG8Fkv8IoJ5cB58=
 go.opentelemetry.io/collector/confmap/provider/httpsprovider v0.100.0/go.mod h1:GQ7LqkJKOcUFm8nxdV0P7eHPjLzVtNoBgqnwBGL4RCc=
 go.opentelemetry.io/collector/confmap/provider/yamlprovider v0.100.0 h1:a7qqKfczlB8wGQNeiGiSMiwCYRwTVdlIIUG98Jn5ydY=
