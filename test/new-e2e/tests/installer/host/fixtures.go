@@ -10,8 +10,10 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -79,11 +81,17 @@ func (h *Host) StopExamplePythonAppInDocker() {
 
 // CallExamplePythonAppInDocker calls the example Python app in Docker
 func (h *Host) CallExamplePythonAppInDocker(traceID string) {
-	h.remote.MustExecute(fmt.Sprintf(`curl -X GET "http://localhost:8081/" \
+	success := assert.Eventually(h.t, func() bool {
+		_, err := h.remote.Execute(fmt.Sprintf(`curl -X GET "http://localhost:8081/" \
 		-H "X-Datadog-Trace-Id: %s" \
 		-H "X-Datadog-Parent-Id: %s" \
 		-H "X-Datadog-Sampling-Priority: 2"`,
-		traceID, traceID))
+			traceID, traceID))
+		return err == nil
+	}, time.Second*3, time.Second*1)
+	if !success {
+		h.t.Log("Error calling example Python app in Docker")
+	}
 }
 
 // SetBrokenDockerConfig injects a broken JSON in the Docker daemon configuration

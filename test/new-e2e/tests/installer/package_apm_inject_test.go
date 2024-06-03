@@ -180,6 +180,58 @@ func (s *packageApmInjectSuite) TestUpgrade_InjectorOCI_To_InjectorDeb() {
 	s.assertDockerdInstrumented(injectOCIPath)
 }
 
+func (s *packageApmInjectSuite) TestTracerVersionBump() {
+	s.host.InstallDocker()
+	s.RunInstallScript(
+		"DD_APM_INSTRUMENTATION_ENABLED=all",
+		"DD_APM_INSTRUMENTATION_LIBRARIES=python",
+		envForceInstall("datadog-agent"),
+		envForceInstall("datadog-apm-inject"),
+		envForceInstall("datadog-apm-library-python"),
+		envForceVersion("datadog-apm-library-python", "2.8.2-dev-1"),
+	)
+	defer s.Purge()
+	s.host.WaitForUnitActive("datadog-agent.service", "datadog-agent-trace.service")
+
+	state := s.host.State()
+	state.AssertDirExists("/opt/datadog-packages/datadog-apm-library-python/2.8.2-dev", 0755, "root", "root")
+	state.AssertSymlinkExists("/opt/datadog-packages/datadog-apm-library-python/stable", "/opt/datadog-packages/datadog-apm-library-python/2.8.2-dev", "root", "root")
+
+	s.host.StartExamplePythonApp()
+	defer s.host.StopExamplePythonApp()
+
+	traceID := rand.Uint64()
+	s.host.CallExamplePythonApp(fmt.Sprint(traceID))
+	s.assertTraceReceived(traceID)
+
+	// Re-run the install script with the latest tracer version
+	s.RunInstallScript(
+		"DD_APM_INSTRUMENTATION_ENABLED=all",
+		"DD_APM_INSTRUMENTATION_LIBRARIES=python",
+		envForceInstall("datadog-agent"),
+		envForceInstall("datadog-apm-inject"),
+		envForceInstall("datadog-apm-library-python"),
+		envForceVersion("datadog-apm-library-python", "2.8.5-1"),
+	)
+
+	// Today we expect the previous dir to be fully removed and the new one to be symlinked
+	state = s.host.State()
+	state.AssertPathDoesNotExist("/opt/datadog-packages/datadog-apm-library-python/2.8.2-dev")
+	state.AssertDirExists("/opt/datadog-packages/datadog-apm-library-python/2.8.5", 0755, "root", "root")
+	state.AssertSymlinkExists("/opt/datadog-packages/datadog-apm-library-python/stable", "/opt/datadog-packages/datadog-apm-library-python/2.8.5", "root", "root")
+
+	s.host.StartExamplePythonAppInDocker()
+	defer s.host.StopExamplePythonAppInDocker()
+
+	traceID = rand.Uint64()
+	s.host.CallExamplePythonApp(fmt.Sprint(traceID))
+	traceIDDocker := rand.Uint64()
+	s.host.CallExamplePythonAppInDocker(fmt.Sprint(traceIDDocker))
+
+	s.assertTraceReceived(traceID)
+	s.assertTraceReceived(traceIDDocker)
+}
+
 func (s *packageApmInjectSuite) assertTraceReceived(traceID uint64) {
 	found := assert.Eventually(s.T(), func() bool {
 		tracePayloads, err := s.Env().FakeIntake.Client().GetTraces()

@@ -172,6 +172,10 @@ func envForceNoInstall(pkg string) string {
 	return "DD_INSTALLER_DEFAULT_PKG_INSTALL_" + strings.ToUpper(strings.ReplaceAll(pkg, "-", "_")) + "=false"
 }
 
+func envForceVersion(pkg, version string) string {
+	return "DD_INSTALLER_DEFAULT_PKG_VERSION_" + strings.ToUpper(strings.ReplaceAll(pkg, "-", "_")) + "=" + version
+}
+
 func (s *packageBaseSuite) Purge() {
 	s.Env().RemoteHost.MustExecute("sudo apt-get remove -y --purge datadog-installer || sudo yum remove -y datadog-installer")
 }
