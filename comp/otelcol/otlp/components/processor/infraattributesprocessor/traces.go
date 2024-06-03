@@ -23,13 +23,13 @@ type infraAttributesSpanProcessor struct {
 }
 
 func newInfraAttributesSpanProcessor(set processor.CreateSettings, cfg *Config, tagger tagger.Component) (*infraAttributesSpanProcessor, error) {
-	iatp := &infraAttributesSpanProcessor{
+	iasp := &infraAttributesSpanProcessor{
 		logger:      set.Logger,
 		tagger:      tagger,
 		cardinality: cfg.Cardinality,
 	}
 	set.Logger.Info("Span Infra Attributes Processor configured")
-	return iatp, nil
+	return iasp, nil
 }
 
 func (iasp *infraAttributesSpanProcessor) processTraces(_ context.Context, td ptrace.Traces) (ptrace.Traces, error) {
