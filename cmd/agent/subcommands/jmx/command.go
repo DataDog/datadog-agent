@@ -27,13 +27,13 @@ import (
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	"github.com/DataDog/datadog-agent/comp/aggregator/diagnosesendermanager"
 	"github.com/DataDog/datadog-agent/comp/aggregator/diagnosesendermanager/diagnosesendermanagerimpl"
-	internalAPI "github.com/DataDog/datadog-agent/comp/api/api"
 	authtokenimpl "github.com/DataDog/datadog-agent/comp/api/authtoken/createandfetchimpl"
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
 	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl"
 
 	"github.com/DataDog/datadog-agent/comp/api/api/apiimpl"
+	internalAPI "github.com/DataDog/datadog-agent/comp/api/api/def"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/autodiscoveryimpl"
@@ -61,6 +61,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/metadata/packagesigning"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcservice"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcservicemrf"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/cli/standalone"
 	pkgcollector "github.com/DataDog/datadog-agent/pkg/collector"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
@@ -135,7 +136,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			core.Bundle(),
 			compressionimpl.Module(),
 			diagnosesendermanagerimpl.Module(),
-			fx.Supply(func(diagnoseSenderManager DiagnoseSenderManager) (SenderManager, error) {
+			fx.Supply(func(diagnoseSenderManager diagnosesendermanager.Component) (sender.SenderManager, error) {
 				return diagnoseSenderManager.LazyGetSenderManager()
 			}),
 			// workloadmeta setup
@@ -307,7 +308,7 @@ func runJmxCommandConsole(config config.Component,
 	cliParams *cliParams,
 	wmeta workloadmeta.Component,
 	ac autodiscovery.Component,
-	_ diagnosesendermanager.Component,
+	diagnoseSendermanager diagnosesendermanager.Component,
 	secretResolver secrets.Component,
 	agentAPI internalAPI.Component,
 	collector optional.Option[collector.Component],
@@ -317,6 +318,10 @@ func runJmxCommandConsole(config config.Component,
 	// Disabling it is both more efficient and gets rid of this log spam
 	pkgconfig.Datadog().Set("language_detection.enabled", "false", model.SourceAgentRuntime)
 
+	senderManager, err := diagnoseSendermanager.LazyGetSenderManager()
+	if err != nil {
+		return err
+	}
 	// The Autoconfig instance setup happens in the workloadmeta start hook
 	// create and setup the Collector and others.
 	common.LoadComponents(secretResolver, wmeta, ac, config.GetString("confd_path"))

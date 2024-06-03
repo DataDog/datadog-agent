@@ -11,7 +11,7 @@ import (
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/comp/agent/jmxlogger"
-	internalAPI "github.com/DataDog/datadog-agent/comp/api/api"
+	internalAPI "github.com/DataDog/datadog-agent/comp/api/api/def"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 )

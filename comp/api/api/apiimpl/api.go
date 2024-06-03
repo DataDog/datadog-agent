@@ -11,7 +11,8 @@ import (
 
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/comp/api/api"
+	"github.com/DataDog/datadog-agent/comp/aggregator/diagnosesendermanager"
+	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	"github.com/DataDog/datadog-agent/comp/api/authtoken"
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
@@ -26,7 +27,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/metadata/packagesigning"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcservice"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcservicemrf"
-	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
@@ -52,7 +52,7 @@ type apiServer struct {
 	logsAgentComp     optional.Option[logsAgent.Component]
 	wmeta             workloadmeta.Component
 	collector         optional.Option[collector.Component]
-	senderManager     sender.DiagnoseSenderManager
+	senderManager     diagnosesendermanager.Component
 	endpointProviders []api.EndpointProvider
 }
 
@@ -73,7 +73,7 @@ type dependencies struct {
 	LogsAgentComp         optional.Option[logsAgent.Component]
 	WorkloadMeta          workloadmeta.Component
 	Collector             optional.Option[collector.Component]
-	DiagnoseSenderManager sender.DiagnoseSenderManager
+	DiagnoseSenderManager diagnosesendermanager.Component
 	EndpointProviders     []api.EndpointProvider `group:"agent_endpoint"`
 }
 

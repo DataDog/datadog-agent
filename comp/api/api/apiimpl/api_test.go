@@ -12,7 +12,8 @@ import (
 	// component dependencies
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
-	"github.com/DataDog/datadog-agent/comp/api/api"
+	"github.com/DataDog/datadog-agent/comp/aggregator/diagnosesendermanager"
+	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	"github.com/DataDog/datadog-agent/comp/api/authtoken"
 	"github.com/DataDog/datadog-agent/comp/api/authtoken/fetchonlyimpl"
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
@@ -46,7 +47,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcservicemrf"
 
 	// package dependencies
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
+
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 
@@ -78,6 +79,7 @@ type testdeps struct {
 	Autodiscovery         autodiscovery.Mock
 	Logs                  optional.Option[logsAgent.Component]
 	Collector             optional.Option[collector.Component]
+	DiagnoseSenderManager diagnosesendermanager.Component
 	EndpointProviders     []api.EndpointProvider `group:"agent_endpoint"`
 }
 
@@ -148,12 +150,8 @@ func getTestAPIServer(deps testdeps) api.Component {
 func TestStartServer(t *testing.T) {
 	deps := getComponentDependencies(t)
 
-	sender := aggregator.NewNoOpSenderManager()
-
 	srv := getTestAPIServer(deps)
-	err := srv.StartServer(
-		sender,
-	)
+	err := srv.StartServer()
 	defer srv.StopServer()
 
 	assert.NoError(t, err, "could not start api component servers: %v", err)
