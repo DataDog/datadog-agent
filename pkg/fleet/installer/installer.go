@@ -108,7 +108,6 @@ func (i *installerImpl) IsInstalled(_ context.Context, pkg string) (bool, error)
 
 // Install installs or updates a package.
 func (i *installerImpl) Install(ctx context.Context, url string, args []string) error {
-	span, _ := tracer.SpanFromContext(ctx)
 	i.m.Lock()
 	defer i.m.Unlock()
 	pkg, err := i.downloader.Download(ctx, url)
@@ -118,13 +117,12 @@ func (i *installerImpl) Install(ctx context.Context, url string, args []string) 
 	span, ok := tracer.SpanFromContext(ctx)
 	if ok {
 		span.SetTag(ext.ResourceName, pkg.Name)
+		span.SetTag("package_version", pkg.Version)
 	}
 	dbPkg, err := i.db.GetPackage(pkg.Name)
 	if err != nil && !errors.Is(err, db.ErrPackageNotFound) {
 		return fmt.Errorf("could not get package: %w", err)
 	}
-	span.SetTag("package.name", pkg.Name)
-	span.SetTag("package.version", pkg.Version)
 	if dbPkg.Name == pkg.Name && dbPkg.Version == pkg.Version {
 		log.Infof("package %s version %s is already installed", pkg.Name, pkg.Version)
 		return nil
