@@ -336,17 +336,3 @@ new-e2e-ndm-snmp:
   variables:
     TARGETS: ./tests/ndm/snmp
     TEAM: network-device-monitoring
-
-new-e2e-test-kind:
-  extends:
-    - .new_e2e_template
-  # TODO once images are deployed to ECR for dev branches, update
-  #.on_main_or_rc_and_no_skip_e2e adding on_dev_branch_manual rules
-  # and move rules to template
-  needs: []
-  variables:
-    TARGETS: ./examples
-    TEAM: container-integrations
-  parallel:
-    matrix:
-      - EXTRA_PARAMS: --run TestMyKindSuite
