@@ -558,7 +558,18 @@ int uprobe__http2_tls_handle_first_frame(struct pt_regs *ctx) {
     // Overriding the off field of the cached args. The next prog will start from the offset of the next valid
     // frame.
     args->data_off = pktbuf_data_offset(pkt);
-    bpf_tail_call_compat(ctx, &tls_process_progs, TLS_HTTP2_FILTER);
+
+    pktbuf_tail_call_option_t arr[] = {
+        [PKTBUF_SKB] = {
+            .prog_array_map = &protocols_progs,
+            .index = PROG_HTTP2_FRAME_FILTER,
+        },
+        [PKTBUF_TLS] = {
+            .prog_array_map = &tls_process_progs,
+            .index = TLS_HTTP2_FILTER,
+        },
+    };
+    pktbuf_tail_call_compact(pkt, arr);
     return 0;
 }
 

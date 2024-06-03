@@ -616,7 +616,17 @@ int socket__http2_handle_first_frame(struct __sk_buff *skb) {
     // frame.
     args->skb_info.data_off = pktbuf_data_offset(pkt);
 
-    bpf_tail_call_compat(skb, &protocols_progs, PROG_HTTP2_FRAME_FILTER);
+    pktbuf_tail_call_option_t arr[] = {
+        [PKTBUF_SKB] = {
+            .prog_array_map = &protocols_progs,
+            .index = PROG_HTTP2_FRAME_FILTER,
+        },
+        [PKTBUF_TLS] = {
+            .prog_array_map = &tls_process_progs,
+            .index = TLS_HTTP2_FILTER,
+        },
+    };
+    pktbuf_tail_call_compact(pkt, arr);
     return 0;
 }
 
