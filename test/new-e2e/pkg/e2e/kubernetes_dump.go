@@ -35,7 +35,6 @@ import (
 )
 
 func dumpKubernetesClusterState(ctx context.Context, name string) string {
-
 	cfg, err := awsconfig.LoadDefaultConfig(ctx)
 	if err != nil {
 		return "WARNING: Failed to dump cluster state: failed to load AWS config"
@@ -63,7 +62,7 @@ func tryDumpEKSClusterState(ctx context.Context, cfg aws.Config, name string) (r
 		Name: &name,
 	})
 	if err != nil {
-		return "", fmt.Errorf("Failed to describe cluster %s: %v", name, err)
+		return "", fmt.Errorf("failed to describe cluster %s: %v", name, err)
 	}
 
 	cluster := clusterDescription.Cluster
@@ -129,11 +128,11 @@ func tryDumpKindClusterState(ctx context.Context, cfg aws.Config, name string) (
 		},
 	})
 	if err != nil {
-		return ret, fmt.Errorf("Failed to describe instances: %v", err)
+		return ret, fmt.Errorf("failed to describe instances: %v", err)
 	}
 
 	if instancesDescription == nil || (len(instancesDescription.Reservations) != 1 && len(instancesDescription.Reservations[0].Instances) != 1) {
-		return ret, fmt.Errorf("Did not find exactly one instance for cluster %s", name)
+		return ret, fmt.Errorf("did not find exactly one instance for cluster %s", name)
 	}
 
 	instanceIP := instancesDescription.Reservations[0].Instances[0].PrivateIpAddress
@@ -143,7 +142,7 @@ func tryDumpKindClusterState(ctx context.Context, cfg aws.Config, name string) (
 	if sshAgentSocket, found := os.LookupEnv("SSH_AUTH_SOCK"); found {
 		sshAgent, err := net.Dial("unix", sshAgentSocket)
 		if err != nil {
-			return "", fmt.Errorf("Failed to dial SSH agent: %v", err)
+			return "", fmt.Errorf("failed to dial SSH agent: %v", err)
 		}
 		defer sshAgent.Close()
 
@@ -230,7 +229,7 @@ func tryDumpKindClusterState(ctx context.Context, cfg aws.Config, name string) (
 
 	kubeconfig, err := clientcmd.Load(stdoutBuf.Bytes())
 	if err != nil {
-		return ret, fmt.Errorf("Failed to parse kubeconfig: %v\n", err)
+		return ret, fmt.Errorf("failed to parse kubeconfig: %v", err)
 	}
 
 	for _, cluster := range kubeconfig.Clusters {

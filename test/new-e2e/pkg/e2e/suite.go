@@ -497,12 +497,13 @@ func (bs *BaseSuite[Env]) TearDownSuite() {
 	if bs.params.devMode {
 		return
 	}
-
-	if fmt.Sprintf("%v", reflect.TypeOf(bs.env)) == "*environments.Kubernetes" { // Use the reflect.TypeOf(environments.Kubernetes{}) instead but we first need to solve import cycle
+	// If a Kubernetes environment is detected, we dump the cluster state when tearing down the suite
+	//TODO: *environments.Kubernetes string should be replaces by reflect.TypeOf(&environments.Kubernetes{}) once we move types.go to its own package to avoid import cycles
+	if fmt.Sprintf("%v", reflect.TypeOf(bs.env)) == "*environments.Kubernetes" {
 		bs.T().Logf("Kubernetes Environment detected, trying to dump Kubernetes cluster state")
 		name, err := infra.GetStackManager().GetPulumiStackName(bs.params.stackName)
 		if err != nil {
-			bs.T().Errorf("unable to get pulumi stack name, err: %v", err)
+			bs.T().Logf("unable to get pulumi stack name, err: %v", err)
 		} else {
 			dump := dumpKubernetesClusterState(context.Background(), name)
 			bs.T().Logf("Kubernetes cluster state dump: %s", dump)
