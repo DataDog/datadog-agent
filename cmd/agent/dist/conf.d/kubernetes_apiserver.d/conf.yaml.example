@@ -18,6 +18,12 @@ instances:
     #
     # unbundle_events: true
 
+    ## @param unbundle_events - boolean - optional - default: false
+    ## Collect bundled events that are not specified events in collected_event_types.
+    ## Only effective when `unbundle_events: true`.
+    #
+    # bundle_unspecifed_events: true
+
     ## @param collected_event_types - map of array of strings - optional
     ## Specify which events to be collected by kind, source, and reasons.
     ## Either kind or source are required, reasons is optional. Only effective

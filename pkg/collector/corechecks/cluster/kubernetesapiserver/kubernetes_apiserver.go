@@ -78,6 +78,7 @@ type KubeASConfig struct {
 	EventCollectionTimeoutMs int  `yaml:"kubernetes_event_read_timeout_ms"`
 	ResyncPeriodEvents       int  `yaml:"kubernetes_event_resync_period_s"`
 	UnbundleEvents           bool `yaml:"unbundle_events"`
+	BundleUnspecifedEvents   bool `yaml:"bundle_unspecifed_events"`
 
 	// FilteredEventTypes is a slice of kubernetes field selectors that
 	// works as a deny list of events to filter out. Only effective when
@@ -97,6 +98,12 @@ type collectedEventType struct {
 
 type eventTransformer interface {
 	Transform([]*v1.Event) ([]event.Event, []error)
+}
+
+type noopEventTransformer struct{}
+
+func (noopEventTransformer) Transform(_ []*v1.Event) ([]event.Event, []error) {
+	return nil, nil
 }
 
 type eventCollection struct {
@@ -174,7 +181,7 @@ func (k *KubeASCheck) Configure(senderManager sender.SenderManager, _ uint64, co
 	}
 
 	if k.instance.UnbundleEvents {
-		k.eventCollection.Transformer = newUnbundledTransformer(clusterName, tagger.GetTaggerInstance(), k.instance.CollectedEventTypes)
+		k.eventCollection.Transformer = newUnbundledTransformer(clusterName, tagger.GetTaggerInstance(), k.instance.CollectedEventTypes, k.instance.BundleUnspecifedEvents)
 	} else {
 		k.eventCollection.Filter = convertFilters(k.instance.FilteredEventTypes)
 		k.eventCollection.Transformer = newBundledTransformer(clusterName, tagger.GetTaggerInstance())

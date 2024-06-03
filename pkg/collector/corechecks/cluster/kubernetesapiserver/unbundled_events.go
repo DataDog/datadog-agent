@@ -19,7 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-func newUnbundledTransformer(clusterName string, taggerInstance tagger.Component, types []collectedEventType) eventTransformer {
+func newUnbundledTransformer(clusterName string, taggerInstance tagger.Component, types []collectedEventType, bundleUnspecifedEvents bool) eventTransformer {
 	collectedTypes := make([]collectedEventType, 0, len(types))
 	for _, f := range types {
 		if f.Kind == "" && f.Source == "" {
@@ -30,19 +30,26 @@ func newUnbundledTransformer(clusterName string, taggerInstance tagger.Component
 		collectedTypes = append(collectedTypes, f)
 	}
 
+	var t eventTransformer = noopEventTransformer{}
+	if bundleUnspecifedEvents {
+		t = newBundledTransformer(clusterName, taggerInstance)
+	}
+
 	return &unbundledTransformer{
-		clusterName:        clusterName,
-		collectedTypes:     collectedTypes,
-		taggerInstance:     taggerInstance,
-		bundledTransformer: newBundledTransformer(clusterName, taggerInstance),
+		clusterName:            clusterName,
+		collectedTypes:         collectedTypes,
+		taggerInstance:         taggerInstance,
+		bundledTransformer:     t,
+		bundleUnspecifedEvents: bundleUnspecifedEvents,
 	}
 }
 
 type unbundledTransformer struct {
-	clusterName        string
-	collectedTypes     []collectedEventType
-	taggerInstance     tagger.Component
-	bundledTransformer eventTransformer
+	clusterName            string
+	collectedTypes         []collectedEventType
+	taggerInstance         tagger.Component
+	bundledTransformer     eventTransformer
+	bundleUnspecifedEvents bool
 }
 
 func (c *unbundledTransformer) Transform(events []*v1.Event) ([]event.Event, []error) {
@@ -61,7 +68,9 @@ func (c *unbundledTransformer) Transform(events []*v1.Event) ([]event.Event, []e
 		)
 
 		if !c.shouldCollect(ev) {
-			eventsToBundle = append(eventsToBundle, ev)
+			if c.bundleUnspecifedEvents {
+				eventsToBundle = append(eventsToBundle, ev)
+			}
 			continue
 		}
 

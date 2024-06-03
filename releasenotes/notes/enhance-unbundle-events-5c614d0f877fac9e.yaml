@@ -8,6 +8,7 @@
 ---
 enhancements:
   - |
-    Send bundled and unbundled events when ``unbundle_events: true``
-    is set. Unbundle events based on ``collected_event_types`` and
-    bundle the rest of events.
+    Introduces an ``bundle_unspecifed_events`` config to the ``kubernetes_apiserver``
+    integration. When ``bundle_unspecifed_events`` and ``unbundle_events`` are true,
+    Kubernetes events are unbundled according to ``collected_event_types`` and
+    the remaining events are bundled.

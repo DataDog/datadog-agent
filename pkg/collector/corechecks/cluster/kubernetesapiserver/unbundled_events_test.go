@@ -118,15 +118,17 @@ func TestUnbundledEventsTransform(t *testing.T) {
 	}
 
 	tests := []struct {
-		name                string
-		collectedEventTypes []collectedEventType
-		expected            []event.Event
+		name                   string
+		collectedEventTypes    []collectedEventType
+		bundleUnspecifedEvents bool
+		expected               []event.Event
 	}{
 		{
 			name: "unbundled events by Kind:Pod",
 			collectedEventTypes: []collectedEventType{
 				{Kind: "Pod", Source: "", Reasons: []string{}},
 			},
+			bundleUnspecifedEvents: true,
 			expected: []event.Event{
 				{
 					Title: "Events from the PodDisruptionBudget default/otel-demo-opensearch-pdb",
@@ -227,10 +229,65 @@ func TestUnbundledEventsTransform(t *testing.T) {
 		},
 
 		{
+			name: "unbundled events by Kind:Pod, don't bundle unspecified events",
+			collectedEventTypes: []collectedEventType{
+				{Kind: "Pod", Source: "", Reasons: []string{}},
+			},
+			bundleUnspecifedEvents: false,
+			expected: []event.Event{
+				{
+					Title:    "Pod default/squirtle-8fff95dbb-tsc7v: Pulled",
+					Text:     "Successfully pulled image \"pokemon/squirtle:latest\" in 1.263s (1.263s including waiting)",
+					Ts:       ts.Time.Unix(),
+					Priority: event.PriorityNormal,
+					Host:     "test-host-test-cluster",
+					Tags: []string{
+						"event_reason:Pulled",
+						"kube_kind:Pod",
+						"kube_name:squirtle-8fff95dbb-tsc7v",
+						"kube_namespace:default",
+						"kubernetes_kind:Pod",
+						"name:squirtle-8fff95dbb-tsc7v",
+						"namespace:default",
+						"pod_name:squirtle-8fff95dbb-tsc7v",
+						"source_component:kubelet",
+					},
+					AlertType:      event.AlertTypeInfo,
+					AggregationKey: "kubernetes_apiserver:43b7e0d3-9212-4355-a957-4ac15ce3a7f7",
+					SourceTypeName: "kubernetes",
+					EventType:      "kubernetes_apiserver",
+				},
+				{
+					Title:    "Pod default/wartortle-8fff95dbb-tsc7v: Failed",
+					Text:     "All containers terminated",
+					Ts:       ts.Time.Unix(),
+					Priority: event.PriorityNormal,
+					Host:     "test-host-test-cluster",
+					Tags: []string{
+						"event_reason:Failed",
+						"kube_kind:Pod",
+						"kube_name:wartortle-8fff95dbb-tsc7v",
+						"kube_namespace:default",
+						"kubernetes_kind:Pod",
+						"name:wartortle-8fff95dbb-tsc7v",
+						"namespace:default",
+						"pod_name:wartortle-8fff95dbb-tsc7v",
+						"source_component:kubelet",
+					},
+					AlertType:      event.AlertTypeWarning,
+					AggregationKey: "kubernetes_apiserver:17f2bab8-d051-4861-bc87-db3ba75dd6f6",
+					SourceTypeName: "kubernetes",
+					EventType:      "kubernetes_apiserver",
+				},
+			},
+		},
+
+		{
 			name: "unbundled events by Kind:ReplicaSet and Reason:Killing,SuccessfulDelete",
 			collectedEventTypes: []collectedEventType{
 				{Kind: "ReplicaSet", Source: "", Reasons: []string{"Killing", "SuccessfulDelete"}},
 			},
+			bundleUnspecifedEvents: true,
 			expected: []event.Event{
 				{
 					Title: "Events from the Pod default/squirtle-8fff95dbb-tsc7v",
@@ -355,7 +412,7 @@ func TestUnbundledEventsTransform(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			transformer := newUnbundledTransformer("test-cluster", local.NewFakeTagger(), tt.collectedEventTypes)
+			transformer := newUnbundledTransformer("test-cluster", local.NewFakeTagger(), tt.collectedEventTypes, tt.bundleUnspecifedEvents)
 
 			events, errors := transformer.Transform(incomingEvents)
 
@@ -407,7 +464,7 @@ func TestGetTagsFromTagger(t *testing.T) {
 			collectedTypes := []collectedEventType{
 				{Kind: "Pod", Reasons: []string{}},
 			}
-			transformer := newUnbundledTransformer("test-cluster", taggerInstance, collectedTypes)
+			transformer := newUnbundledTransformer("test-cluster", taggerInstance, collectedTypes, false)
 			accumulator := tagset.NewHashlessTagsAccumulator()
 			transformer.(*unbundledTransformer).getTagsFromTagger(tt.obj, accumulator)
 			assert.Equal(t, tt.expectedTags, accumulator)
@@ -487,7 +544,7 @@ func TestUnbundledEventsShouldCollect(t *testing.T) {
 				},
 			}
 
-			transformer := newUnbundledTransformer("test-cluster", local.NewFakeTagger(), collectedTypes)
+			transformer := newUnbundledTransformer("test-cluster", local.NewFakeTagger(), collectedTypes, false)
 			got := transformer.(*unbundledTransformer).shouldCollect(tt.event)
 			assert.Equal(t, tt.expected, got)
 		})
