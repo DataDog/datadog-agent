@@ -10,12 +10,14 @@ package service
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
 	"gopkg.in/yaml.v2"
 )
 
@@ -72,14 +74,16 @@ func getSocketsPath() (string, string, error) {
 }
 
 // configureSocketsEnv configures the sockets for the agent & injector
-func configureSocketsEnv() error {
+func configureSocketsEnv(ctx context.Context) error {
 	envFile := newFileMutator(envFilePath, setSocketEnvs, nil, nil)
 	defer envFile.cleanup()
-	rollback, err := envFile.mutate()
+	rollback, err := envFile.mutate(ctx)
 	if err != nil {
-		rollbackErr := rollback()
-		if rollbackErr != nil {
-			log.Warnf("Failed to rollback environment file: %v", rollbackErr)
+		if rollback != nil {
+			rollbackErr := rollback()
+			if rollbackErr != nil {
+				log.Warnf("Failed to rollback environment file: %v", rollbackErr)
+			}
 		}
 		return fmt.Errorf("error configuring sockets: %w", err)
 	}
@@ -91,11 +95,18 @@ func configureSocketsEnv() error {
 }
 
 // setSocketEnvs sets the socket environment variables
-func setSocketEnvs(envFile []byte) ([]byte, error) {
+func setSocketEnvs(ctx context.Context, envFile []byte) ([]byte, error) {
+	span, _ := tracer.StartSpanFromContext(ctx, "set_socket_envs")
+	defer span.Finish()
+
 	apmSocket, statsdSocket, err := getSocketsPath()
 	if err != nil {
 		return nil, fmt.Errorf("error getting sockets path: %w", err)
 	}
+
+	span.SetTag("socket_path.apm", apmSocket)
+	span.SetTag("socket_path.dogstatsd", statsdSocket)
+
 	envs := map[string]string{
 		"DD_APM_RECEIVER_SOCKET": apmSocket,
 		"DD_DOGSTATSD_SOCKET":    statsdSocket,
@@ -133,7 +144,11 @@ func addEnvsIfNotSet(envs map[string]string, envFile []byte) ([]byte, error) {
 // The unit should contain the .service suffix (e.g. datadog-agent-exp.service)
 //
 // Reloading systemd & restarting the unit has to be done separately by the caller
-func addSystemDEnvOverrides(unit string) error {
+func addSystemDEnvOverrides(ctx context.Context, unit string) (err error) {
+	span, _ := tracer.StartSpanFromContext(ctx, "add_systemd_env_overrides")
+	defer span.Finish(tracer.WithError(err))
+	span.SetTag("unit", unit)
+
 	// The - is important as it lets the unit start even if the file is missing.
 	content := []byte(fmt.Sprintf("[Service]\nEnvironmentFile=-%s\n", envFilePath))
 
@@ -141,13 +156,15 @@ func addSystemDEnvOverrides(unit string) error {
 	// We don't really need to remove the file either as it'll just be ignored once the
 	// unit is removed.
 	path := filepath.Join(systemdPath, unit+".d", "datadog_environment.conf")
-	err := os.Mkdir(filepath.Dir(path), 0755)
+	err = os.Mkdir(filepath.Dir(path), 0755)
 	if err != nil && !os.IsExist(err) {
-		return fmt.Errorf("error creating systemd environment override directory: %w", err)
+		err = fmt.Errorf("error creating systemd environment override directory: %w", err)
+		return err
 	}
 	err = os.WriteFile(path, content, 0644)
 	if err != nil {
-		return fmt.Errorf("error writing systemd environment override: %w", err)
+		err = fmt.Errorf("error writing systemd environment override: %w", err)
+		return err
 	}
 	return nil
 }

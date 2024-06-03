@@ -117,6 +117,7 @@ func (i *installerImpl) Install(ctx context.Context, url string, args []string) 
 	span, ok := tracer.SpanFromContext(ctx)
 	if ok {
 		span.SetTag(ext.ResourceName, pkg.Name)
+		span.SetTag("package_version", pkg.Version)
 	}
 	dbPkg, err := i.db.GetPackage(pkg.Name)
 	if err != nil && !errors.Is(err, db.ErrPackageNotFound) {

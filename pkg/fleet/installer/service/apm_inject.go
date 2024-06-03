@@ -76,11 +76,11 @@ func (a *apmInjectorInstaller) Setup(ctx context.Context) (err error) {
 		return fmt.Errorf("error changing permissions on /var/log/datadog/dotnet: %w", err)
 	}
 	// Check if the shared library is working before adding it to the preload
-	if err := a.verifySharedLib(path.Join(a.installPath, "inject", "launcher.preload.so")); err != nil {
+	if err := a.verifySharedLib(ctx, path.Join(a.installPath, "inject", "launcher.preload.so")); err != nil {
 		return err
 	}
 
-	rollbackLDPreload, err := a.ldPreloadFileInstrument.mutate()
+	rollbackLDPreload, err := a.ldPreloadFileInstrument.mutate(ctx)
 	if err != nil {
 		return err
 	}
@@ -106,24 +106,24 @@ func (a *apmInjectorInstaller) Setup(ctx context.Context) (err error) {
 	}()
 
 	// Verify that the docker runtime is as expected
-	if err := a.verifyDockerRuntime(); err != nil {
+	if err := a.verifyDockerRuntime(ctx); err != nil {
 		return err
 	}
 
 	// Set up defaults for agent sockets
-	if err = configureSocketsEnv(); err != nil {
+	if err = configureSocketsEnv(ctx); err != nil {
 		return
 	}
-	if err = addSystemDEnvOverrides(agentUnit); err != nil {
+	if err = addSystemDEnvOverrides(ctx, agentUnit); err != nil {
 		return
 	}
-	if err = addSystemDEnvOverrides(agentExp); err != nil {
+	if err = addSystemDEnvOverrides(ctx, agentExp); err != nil {
 		return
 	}
-	if err = addSystemDEnvOverrides(traceAgentUnit); err != nil {
+	if err = addSystemDEnvOverrides(ctx, traceAgentUnit); err != nil {
 		return
 	}
-	if err = addSystemDEnvOverrides(traceAgentExp); err != nil {
+	if err = addSystemDEnvOverrides(ctx, traceAgentExp); err != nil {
 		return
 	}
 
@@ -131,7 +131,7 @@ func (a *apmInjectorInstaller) Setup(ctx context.Context) (err error) {
 }
 
 func (a *apmInjectorInstaller) Remove(ctx context.Context) error {
-	if _, err := a.ldPreloadFileUninstrument.mutate(); err != nil {
+	if _, err := a.ldPreloadFileUninstrument.mutate(ctx); err != nil {
 		log.Warnf("Failed to remove ld preload config: %v", err)
 	}
 	// TODO docker only on DD_APM_INSTRUMENTATION_ENABLED=docker
@@ -143,7 +143,7 @@ func (a *apmInjectorInstaller) Remove(ctx context.Context) error {
 }
 
 // setLDPreloadConfigContent sets the content of the LD preload configuration
-func (a *apmInjectorInstaller) setLDPreloadConfigContent(ldSoPreload []byte) ([]byte, error) {
+func (a *apmInjectorInstaller) setLDPreloadConfigContent(_ context.Context, ldSoPreload []byte) ([]byte, error) {
 	launcherPreloadPath := path.Join(a.installPath, "inject", "launcher.preload.so")
 
 	if strings.Contains(string(ldSoPreload), launcherPreloadPath) {
@@ -167,7 +167,7 @@ func (a *apmInjectorInstaller) setLDPreloadConfigContent(ldSoPreload []byte) ([]
 }
 
 // deleteLDPreloadConfigContent deletes the content of the LD preload configuration
-func (a *apmInjectorInstaller) deleteLDPreloadConfigContent(ldSoPreload []byte) ([]byte, error) {
+func (a *apmInjectorInstaller) deleteLDPreloadConfigContent(_ context.Context, ldSoPreload []byte) ([]byte, error) {
 	launcherPreloadPath := path.Join(a.installPath, "inject", "launcher.preload.so")
 
 	if !strings.Contains(string(ldSoPreload), launcherPreloadPath) {
@@ -196,7 +196,9 @@ func (a *apmInjectorInstaller) deleteLDPreloadConfigContent(ldSoPreload []byte) 
 	return nil, fmt.Errorf("failed to remove %s from %s", launcherPreloadPath, ldSoPreloadPath)
 }
 
-func (a *apmInjectorInstaller) verifySharedLib(libPath string) error {
+func (a *apmInjectorInstaller) verifySharedLib(ctx context.Context, libPath string) (err error) {
+	span, _ := tracer.StartSpanFromContext(ctx, "verify_shared_lib")
+	defer span.Finish(tracer.WithError(err))
 	echoPath, err := exec.LookPath("echo")
 	if err != nil {
 		return fmt.Errorf("failed to find echo: %w", err)
