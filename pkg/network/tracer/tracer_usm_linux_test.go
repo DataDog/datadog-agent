@@ -447,6 +447,7 @@ func testTLSClassification(t *testing.T, tr *Tracer, clientHost, targetHost, ser
 			{"amqp", testTLSAMQPProtocolClassification},
 			{"HTTP", testHTTPSClassification},
 			{"postgres", testPostgresProtocolClassificationWrapper(pgutils.TLSEnabled)},
+			{"redis", testTLSRedisProtocolClassification},
 		}
 
 		for _, tt := range tests {
@@ -1540,10 +1541,18 @@ func testRedisProtocolClassification(t *testing.T, tr *Tracer, clientHost, targe
 	testRedisProtocolClassificationInner(t, tr, clientHost, targetHost, serverHost, redis.Plaintext)
 }
 
+func testTLSRedisProtocolClassification(t *testing.T, tr *Tracer, clientHost, targetHost, serverHost string) {
+	testRedisProtocolClassificationInner(t, tr, clientHost, targetHost, serverHost, redis.TLS)
+}
+
 func testRedisProtocolClassificationInner(t *testing.T, tr *Tracer, clientHost, targetHost, serverHost string, withTLS redis.TLSSetting) {
 	skipFuncs := []func(*testing.T, testContext){
 		skipIfUsingNAT,
 	}
+	if withTLS {
+		skipFuncs = append(skipFuncs, skipIfGoTLSNotSupported)
+	}
+
 	composeSkips(skipFuncs...)(t, testContext{
 		serverAddress: serverHost,
 		serverPort:    redisPort,
@@ -1551,6 +1560,18 @@ func testRedisProtocolClassificationInner(t *testing.T, tr *Tracer, clientHost, 
 	})
 
 	expectedStack := &protocols.Stack{Application: protocols.Redis}
+	if withTLS {
+		expectedStack.Encryption = protocols.TLS
+
+		// Our client runs in this binary. By default, USM will exclude the current process from tracing. But,
+		// we need to include it in this case. So we allowing it by setting GoTLSExcludeSelf to false and resetting it
+		// after the test.
+		require.NoError(t, usm.SetGoTLSExcludeSelf(false))
+		t.Cleanup(func() {
+			require.NoError(t, usm.SetGoTLSExcludeSelf(true))
+		})
+	}
+
 	defaultDialer := &net.Dialer{
 		LocalAddr: &net.TCPAddr{
 			IP: net.ParseIP(clientHost),
@@ -1692,6 +1713,11 @@ func testRedisProtocolClassificationInner(t *testing.T, tr *Tracer, clientHost, 
 		},
 	}
 	for _, tt := range tests {
+		if withTLS {
+			tt.preTracerSetup = goTLSDetacherWrapper(os.Getpid(), tt.preTracerSetup)
+			tt.postTracerSetup = goTLSAttacherWrapper(os.Getpid(), tt.postTracerSetup)
+		}
+
 		t.Run(tt.name, func(t *testing.T) {
 			testProtocolClassificationInner(t, tt, tr)
 		})
