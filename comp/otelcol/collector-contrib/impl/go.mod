@@ -16,6 +16,7 @@ replace (
 
 require (
 	github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/def v0.55.0-rc.2
+	github.com/DataDog/datadog-agent/comp/otelcol/extension/impl v0.0.0-20240603125546-a93ec10591df
 	github.com/open-telemetry/opentelemetry-collector-contrib/connector/countconnector v0.100.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/connector/exceptionsconnector v0.100.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/connector/grafanacloudconnector v0.100.0
@@ -258,7 +259,6 @@ require (
 	github.com/ClickHouse/ch-go v0.61.5 // indirect
 	github.com/ClickHouse/clickhouse-go/v2 v2.23.0 // indirect
 	github.com/Code-Hex/go-generics-cache v1.3.1 // indirect
-	github.com/DataDog/datadog-agent/comp/otelcol/extension/impl v0.0.0-20240603125546-a93ec10591df // indirect
 	github.com/DataDog/zstd v1.5.2 // indirect
 	github.com/GehirnInc/crypt v0.0.0-20200316065508-bb7000b8a962 // indirect
 	github.com/GoogleCloudPlatform/grpc-gcp-go/grpcgcp v1.5.0 // indirect

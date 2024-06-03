@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent
 
-go 1.21.0
+go 1.21.7
 
 // v0.8.0 was tagged long ago, and appared on pkg.go.dev.  We do not want any tagged version
 // to appear there.  The trick to accomplish this is to make a new version (in this case v0.9.0)
@@ -267,9 +267,9 @@ require (
 	go.etcd.io/bbolt v1.3.9
 	go.etcd.io/etcd/client/v2 v2.306.0-alpha.0
 	go.mongodb.org/mongo-driver v1.15.0
-	go.opentelemetry.io/collector v0.100.0 // indirect
-	go.opentelemetry.io/collector/component v0.100.0
-	go.opentelemetry.io/collector/confmap v0.100.0
+	go.opentelemetry.io/collector v0.101.0 // indirect
+	go.opentelemetry.io/collector/component v0.101.0
+	go.opentelemetry.io/collector/confmap v0.101.0
 	go.opentelemetry.io/collector/exporter v0.100.0
 	go.opentelemetry.io/collector/exporter/loggingexporter v0.100.0
 	go.opentelemetry.io/collector/exporter/otlpexporter v0.100.0
@@ -717,7 +717,7 @@ require (
 	go.opentelemetry.io/collector/confmap/provider/httpprovider v0.100.0
 	go.opentelemetry.io/collector/confmap/provider/httpsprovider v0.100.0
 	go.opentelemetry.io/collector/confmap/provider/yamlprovider v0.100.0
-	go.opentelemetry.io/collector/extension v0.100.0
+	go.opentelemetry.io/collector/extension v0.101.0
 	go.opentelemetry.io/collector/otelcol v0.100.0
 	go.opentelemetry.io/collector/processor v0.100.0
 	go.opentelemetry.io/collector/service v0.100.0
@@ -773,6 +773,7 @@ require (
 	github.com/ClickHouse/ch-go v0.61.5 // indirect
 	github.com/ClickHouse/clickhouse-go/v2 v2.23.0 // indirect
 	github.com/Code-Hex/go-generics-cache v1.3.1 // indirect
+	github.com/DataDog/datadog-agent/comp/otelcol/extension/impl v0.0.0-20240603132256-facb52fb471b // indirect
 	github.com/DataDog/datadog-agent/pkg/logs/status/statusinterface v0.55.0-rc.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/buf v0.55.0-rc.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/statstracker v0.55.0-rc.2 // indirect
@@ -1031,7 +1032,7 @@ require (
 	github.com/open-telemetry/opentelemetry-collector-contrib/internal/aws/proxy v0.100.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/internal/aws/xray v0.100.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/internal/collectd v0.100.0 // indirect
-	github.com/open-telemetry/opentelemetry-collector-contrib/internal/common v0.100.0 // indirect
+	github.com/open-telemetry/opentelemetry-collector-contrib/internal/common v0.101.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/internal/coreinternal v0.100.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/internal/docker v0.100.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/internal/filter v0.100.0 // indirect
@@ -1221,7 +1222,7 @@ require (
 	github.com/zeebo/xxh3 v1.0.2 // indirect
 	github.com/ztrue/tracerr v0.4.0 // indirect
 	go.mongodb.org/atlas v0.36.0 // indirect
-	go.opentelemetry.io/collector/config/configauth v0.100.0 // indirect
+	go.opentelemetry.io/collector/config/configauth v0.101.0 // indirect
 	go.opentelemetry.io/collector/config/configcompression v1.8.0 // indirect
 	go.opentelemetry.io/collector/config/configgrpc v0.100.0 // indirect
 	go.opentelemetry.io/collector/config/confighttp v0.100.0 // indirect
@@ -1235,7 +1236,7 @@ require (
 	go.opentelemetry.io/collector/connector/forwardconnector v0.100.0 // indirect
 	go.opentelemetry.io/collector/exporter/debugexporter v0.100.0 // indirect
 	go.opentelemetry.io/collector/exporter/otlphttpexporter v0.100.0 // indirect
-	go.opentelemetry.io/collector/extension/auth v0.100.0 // indirect
+	go.opentelemetry.io/collector/extension/auth v0.101.0 // indirect
 	go.opentelemetry.io/collector/extension/ballastextension v0.100.0 // indirect
 	go.opentelemetry.io/collector/extension/zpagesextension v0.100.0 // indirect
 	go.opentelemetry.io/collector/filter v0.100.0 // indirect

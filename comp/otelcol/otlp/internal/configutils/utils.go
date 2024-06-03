@@ -45,6 +45,10 @@ type mapProvider struct {
 	cfg *confmap.Conf
 }
 
+func newMapProvider(_ confmap.ProviderSettings) confmap.Provider {
+	return &mapProvider{}
+}
+
 func (m *mapProvider) Retrieve(_ context.Context, uri string, _ confmap.WatcherFunc) (*confmap.Retrieved, error) {
 	// We only support the constant location 'map:hardcoded'
 	if uri != mapLocation {
@@ -67,11 +71,9 @@ func NewConfigProviderFromMap(cfg *confmap.Conf) otelcol.ConfigProvider {
 	provider := &mapProvider{cfg}
 	settings := otelcol.ConfigProviderSettings{
 		ResolverSettings: confmap.ResolverSettings{
-			URIs: []string{mapLocation},
-			Providers: map[string]confmap.Provider{
-				"map": provider,
-			},
-			Converters: []confmap.Converter{},
+			URIs:               []string{mapLocation},
+			ProviderFactories:  []confmap.ProviderFactory{confmap.NewProviderFactory(newMapProvider)},
+			ConverterFactories: []confmap.ConverterFactory{},
 		}}
 	cp, err := otelcol.NewConfigProvider(settings)
 	if err != nil {
