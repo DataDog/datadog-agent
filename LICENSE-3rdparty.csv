@@ -3074,6 +3074,7 @@ core,go.opentelemetry.io/collector/processor/batchprocessor/internal/metadata,Ap
 core,go.opentelemetry.io/collector/processor/memorylimiterprocessor,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/processor/memorylimiterprocessor/internal/metadata,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/processor/processorhelper,Apache-2.0,Copyright The OpenTelemetry Authors
+core,go.opentelemetry.io/collector/processor/processorhelper/internal/metadata,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/receiver,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/receiver/nopreceiver,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/receiver/nopreceiver/internal/metadata,Apache-2.0,Copyright The OpenTelemetry Authors
