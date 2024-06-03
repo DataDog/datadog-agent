@@ -35,6 +35,7 @@ const (
 	e2eWorkspaceDirectory = "dd-e2e-workspace"
 
 	stackUpTimeout      = 60 * time.Minute
+	stackCancelTimeout  = 10 * time.Minute
 	stackDestroyTimeout = 60 * time.Minute
 	stackDeleteTimeout  = 20 * time.Minute
 	stackUpMaxRetry     = 2
@@ -291,6 +292,19 @@ func (sm *StackManager) deleteStack(ctx context.Context, stackID string, stack *
 			sendEventToDatadog(ddEventSender, fmt.Sprintf("[E2E] Stack %s : success on Pulumi stack destroy", stackID), "", []string{"operation:destroy", "result:ok", fmt.Sprintf("stack:%s", stack.Name()), fmt.Sprintf("retries:%d", downCount)})
 			break
 		}
+
+		// handle timeout
+		contextCauseErr := context.Cause(destroyContext)
+		if errors.Is(contextCauseErr, context.DeadlineExceeded) {
+			sendEventToDatadog(ddEventSender, fmt.Sprintf("[E2E] Stack %s : timeout on Pulumi stack destroy", stackID), "", []string{"operation:destroy", fmt.Sprintf("stack:%s", stack.Name())})
+			fmt.Fprint(logger, "Timeout during stack destroy, trying to cancel stack's operation\n")
+			err := cancelStack(stack)
+			if err != nil {
+				fmt.Fprintf(logger, "Giving up on error during attempt to cancel stack operation: %v\n", err)
+				return err
+			}
+		}
+
 		sendEventToDatadog(ddEventSender, fmt.Sprintf("[E2E] Stack %s : error on Pulumi stack destroy", stackID), destroyErr.Error(), []string{"operation:destroy", "result:fail", fmt.Sprintf("stack:%s", stack.Name()), fmt.Sprintf("retries:%d", downCount)})
 
 		if downCount > stackUpMaxRetry {
@@ -373,9 +387,22 @@ func (sm *StackManager) getStack(ctx context.Context, name string, config runner
 		upResult, upError = stack.Up(upCtx, progressStreamsUpOption, optup.DebugLogging(loggingOptions))
 		cancel()
 
+		// early return on success
 		if upError == nil {
 			sendEventToDatadog(ddEventSender, fmt.Sprintf("[E2E] Stack %s : success on Pulumi stack up", name), "", []string{"operation:up", "result:ok", fmt.Sprintf("stack:%s", stack.Name()), fmt.Sprintf("retries:%d", upCount)})
 			break
+		}
+
+		// handle timeout
+		contextCauseErr := context.Cause(upCtx)
+		if errors.Is(contextCauseErr, context.DeadlineExceeded) {
+			sendEventToDatadog(ddEventSender, fmt.Sprintf("[E2E] Stack %s : timeout on Pulumi stack up", name), "", []string{"operation:up", fmt.Sprintf("stack:%s", stack.Name())})
+			fmt.Fprint(logger, "Timeout during stack up, trying to cancel stack's operation\n")
+			err = cancelStack(stack)
+			if err != nil {
+				fmt.Fprintf(logger, "Giving up on error during attempt to cancel stack operation: %v\n", err)
+				return stack, upResult, err
+			}
 		}
 
 		retryStrategy := sm.getRetryStrategyFrom(upError, upCount)
@@ -491,4 +518,22 @@ func (sm *StackManager) GetPulumiStackName(name string) (_ string, err error) {
 	}
 
 	return stack.Name(), nil
+}
+
+func cancelStack(stack *auto.Stack) error {
+	cancelCtx, cancel := context.WithTimeout(context.Background(), stackCancelTimeout)
+	err := stack.Cancel(cancelCtx)
+	cancel()
+
+	if err == nil {
+		return nil
+	}
+
+	// handle timeout
+	ctxCauseErr := context.Cause(cancelCtx)
+	if errors.Is(ctxCauseErr, context.DeadlineExceeded) {
+		return fmt.Errorf("timeout during stack cancel: %v", ctxCauseErr)
+	}
+
+	return err
 }
