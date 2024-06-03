@@ -12,6 +12,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
 )
 
+const (
+	// UDP represents the UDP protocol
+	UDP = "UDP"
+	// TCP represents the TCP protocol
+	TCP = "TCP"
+)
+
 type (
 	// Config specifies the configuration of an instance
 	// of Traceroute
@@ -25,6 +32,9 @@ type (
 		MaxTTL uint8
 		// TODO: do we want to expose this?
 		TimeoutMs uint
+		// Protocol is the protocol to use
+		// for traceroute, default is UDP
+		Protocol string
 	}
 
 	// Traceroute defines an interface for running

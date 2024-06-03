@@ -29,6 +29,7 @@ BPF_HASH_MAP(oom_stats, u32, struct oom_stats, 10240)
 SEC("kprobe/oom_kill_process")
 int BPF_KPROBE(kprobe__oom_kill_process, struct oom_control *oc) {
     struct oom_stats zero = {};
+    struct oom_stats new = {};
     u32 pid = bpf_get_current_pid_tgid() >> 32;
 
     bpf_map_update_elem(&oom_stats, &pid, &zero, BPF_NOEXIST);
@@ -37,39 +38,44 @@ int BPF_KPROBE(kprobe__oom_kill_process, struct oom_control *oc) {
         return 0;
     }
 
-    s->pid = pid;
-    get_cgroup_name(s->cgroup_name, sizeof(s->cgroup_name));
+    // for kernel before 4.11 the prototype for bpf_probe_read helpers
+    // expected a pointer to stack memory. Therefore, we work on stack
+    // variable and update the map value at the end
+    bpf_memcpy(&new, s, sizeof(struct oom_stats));
+
+    new.pid = pid;
+    get_cgroup_name(new.cgroup_name, sizeof(new.cgroup_name));
 
     struct task_struct *p = (struct task_struct *)BPF_CORE_READ(oc, chosen);
     if (!p) {
         return 0;
     }
-    BPF_CORE_READ_INTO(&s->tpid, p, pid);
+    BPF_CORE_READ_INTO(&new.tpid, p, pid);
 
     if (bpf_helper_exists(BPF_FUNC_get_current_comm)) {
-        bpf_get_current_comm(&s->fcomm, sizeof(s->fcomm));
+        bpf_get_current_comm(new.fcomm, sizeof(new.fcomm));
     }
-    if (bpf_helper_exists(BPF_FUNC_probe_read_str)) {
-        BPF_CORE_READ_STR_INTO(&s->tcomm, p, comm);
-    } else {
-        BPF_CORE_READ_INTO(&s->tcomm, p, comm);
-        s->tcomm[TASK_COMM_LEN - 1] = 0;
-    }
+
+    BPF_CORE_READ_INTO(&new.tcomm, p, comm);
+    new.tcomm[TASK_COMM_LEN - 1] = 0;
 
     struct mem_cgroup *memcg = NULL;
 #ifdef COMPILE_CORE
     if (bpf_core_field_exists(oc->totalpages)) {
-        BPF_CORE_READ_INTO(&s->pages, oc, totalpages);
+        BPF_CORE_READ_INTO(&new.pages, oc, totalpages);
     }
     if (bpf_core_field_exists(oc->memcg)) {
         BPF_CORE_READ_INTO(&memcg, oc, memcg);
     }
 #else
-    bpf_probe_read_kernel(&s->pages, sizeof(s->pages), &oc->totalpages);
+    bpf_probe_read_kernel(&new.pages, sizeof(new.pages), &oc->totalpages);
     bpf_probe_read_kernel(&memcg, sizeof(memcg), &oc->memcg);
 #endif
 
-    s->memcg_oom = memcg != NULL ? 1 : 0;
+    new.memcg_oom = memcg != NULL ? 1 : 0;
+
+    bpf_memcpy(s, &new, sizeof(struct oom_stats));
+
     return 0;
 }
 

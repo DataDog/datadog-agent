@@ -1362,7 +1362,12 @@ func (p *EBPFProbe) startSetupNewTCClassifierLoop() {
 			}
 
 			if err := p.setupNewTCClassifier(netDevice); err != nil {
-				seclog.Errorf("error setting up new tc classifier: %v", err)
+				var qnde QueuedNetworkDeviceError
+				if errors.As(err, &qnde) {
+					seclog.Debugf("%v", err)
+				} else {
+					seclog.Errorf("error setting up new tc classifier: %v", err)
+				}
 			}
 		}
 	}
@@ -2051,6 +2056,9 @@ func (p *EBPFProbe) HandleActions(ctx *eval.Context, rule *rules.Rule) {
 
 				p.probe.DispatchCustomEvent(rule, event)
 			}
+		case action.Hash != nil:
+			// force the resolution as it will force the hash resolution as well
+			ev.ResolveFields()
 		}
 	}
 }

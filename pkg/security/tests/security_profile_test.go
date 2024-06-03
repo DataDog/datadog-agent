@@ -1131,7 +1131,7 @@ func TestSecurityProfileLifeCycleExecs(t *testing.T) {
 	if err := test.SetProfileVersionState(&cgroupModel.WorkloadSelector{
 		Image: selector.Image,
 		Tag:   "*",
-	}, selector.Tag, profile.StableEventType); err != nil {
+	}, selector.Tag, model.StableEventType); err != nil {
 		t.Fatal(err)
 	}
 
@@ -1202,7 +1202,7 @@ func TestSecurityProfileLifeCycleExecs(t *testing.T) {
 	if err := test.SetProfileVersionState(&cgroupModel.WorkloadSelector{
 		Image: selector.Image,
 		Tag:   "*",
-	}, selector.Tag, profile.UnstableEventType); err != nil {
+	}, selector.Tag, model.UnstableEventType); err != nil {
 		t.Fatal(err)
 	}
 
@@ -1376,7 +1376,7 @@ func TestSecurityProfileLifeCycleDNS(t *testing.T) {
 	if err := test.SetProfileVersionState(&cgroupModel.WorkloadSelector{
 		Image: selector.Image,
 		Tag:   "*",
-	}, selector.Tag, profile.UnstableEventType); err != nil {
+	}, selector.Tag, model.UnstableEventType); err != nil {
 		t.Fatal(err)
 	}
 
@@ -1482,7 +1482,7 @@ func TestSecurityProfileLifeCycleEvictitonProcess(t *testing.T) {
 	if err := test.SetProfileVersionState(&cgroupModel.WorkloadSelector{
 		Image: selector.Image,
 		Tag:   "*",
-	}, selector.Tag, profile.StableEventType); err != nil {
+	}, selector.Tag, model.StableEventType); err != nil {
 		t.Fatal(err)
 	}
 
@@ -1554,7 +1554,7 @@ func TestSecurityProfileLifeCycleEvictitonProcess(t *testing.T) {
 	if err := test.SetProfileVersionState(&cgroupModel.WorkloadSelector{
 		Image: selector.Image,
 		Tag:   "*",
-	}, selector.Tag+"v3", profile.StableEventType); err != nil {
+	}, selector.Tag+"v3", model.StableEventType); err != nil {
 		t.Fatal(err)
 	}
 
@@ -1663,7 +1663,7 @@ func TestSecurityProfileLifeCycleEvictitonDNS(t *testing.T) {
 	if err := test.SetProfileVersionState(&cgroupModel.WorkloadSelector{
 		Image: selector.Image,
 		Tag:   "*",
-	}, selector.Tag, profile.StableEventType); err != nil {
+	}, selector.Tag, model.StableEventType); err != nil {
 		t.Fatal(err)
 	}
 
@@ -1735,7 +1735,7 @@ func TestSecurityProfileLifeCycleEvictitonDNS(t *testing.T) {
 	if err := test.SetProfileVersionState(&cgroupModel.WorkloadSelector{
 		Image: selector.Image,
 		Tag:   "*",
-	}, selector.Tag+"v3", profile.StableEventType); err != nil {
+	}, selector.Tag+"v3", model.StableEventType); err != nil {
 		t.Fatal(err)
 	}
 
@@ -1844,7 +1844,7 @@ func TestSecurityProfileLifeCycleEvictitonProcessUnstable(t *testing.T) {
 	if err := test.SetProfileVersionState(&cgroupModel.WorkloadSelector{
 		Image: selector.Image,
 		Tag:   "*",
-	}, selector.Tag, profile.UnstableEventType); err != nil {
+	}, selector.Tag, model.UnstableEventType); err != nil {
 		t.Fatal(err)
 	}
 
@@ -1910,7 +1910,7 @@ func TestSecurityProfileLifeCycleEvictitonProcessUnstable(t *testing.T) {
 	if err := test.SetProfileVersionState(&cgroupModel.WorkloadSelector{
 		Image: selector.Image,
 		Tag:   "*",
-	}, selector.Tag+"v3", profile.StableEventType); err != nil {
+	}, selector.Tag+"v3", model.StableEventType); err != nil {
 		t.Fatal(err)
 	}
 

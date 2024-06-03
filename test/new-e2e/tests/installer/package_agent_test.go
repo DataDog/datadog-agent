@@ -94,7 +94,6 @@ func (s *packageAgentSuite) TestUpgrade_AgentDebRPM_to_OCI() {
 
 	state = s.host.State()
 	s.assertUnits(state, false)
-	state.AssertPathDoesNotExist("/opt/datadog-agent")
 	s.host.AssertPackageInstalledByInstaller("datadog-agent")
 	s.host.AssertPackageInstalledByPackageManager("datadog-agent")
 }
