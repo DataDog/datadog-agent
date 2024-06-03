@@ -22,6 +22,23 @@ static __always_inline void pktbuf_skip_preface(pktbuf_t pkt) {
     }
 }
 
+// Returns the telemetry pointer from the relevant map.
+static __always_inline void* get_telemetry(pktbuf_t pkt) {
+    const __u32 zero = 0;
+
+    pktbuf_map_lookup_option_t arr[] = {
+        [PKTBUF_SKB] = {
+            .map = &http2_telemetry,
+            .key = (void*)&zero,
+        },
+        [PKTBUF_TLS] = {
+            .map = &tls_http2_telemetry,
+            .key = (void*)&zero,
+        },
+    };
+    return pktbuf_map_lookup(pkt, arr);
+}
+
 // parse_field_literal parses a header with a literal value.
 //
 // We are only interested in path headers, that we will store in our internal
@@ -541,7 +558,7 @@ int socket__http2_handle_first_frame(struct __sk_buff *skb) {
 
     frame_header_remainder_t *frame_state = bpf_map_lookup_elem(&http2_remainder, &dispatcher_args_copy.tup);
 
-    http2_telemetry_t *http2_tel = bpf_map_lookup_elem(&http2_telemetry, &zero);
+    http2_telemetry_t *http2_tel = get_telemetry(pkt);
     if (http2_tel == NULL) {
         return 0;
     }
