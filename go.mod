@@ -604,7 +604,7 @@ require github.com/lorenzosaino/go-sysctl v0.3.1
 
 require (
 	github.com/DATA-DOG/go-sqlmock v1.5.2
-	github.com/DataDog/agent-payload/v5 v5.0.118
+	github.com/DataDog/agent-payload/v5 v5.0.120
 	github.com/DataDog/datadog-agent/cmd/agent/common/path v0.55.0-rc.1
 	github.com/DataDog/datadog-agent/comp/core/config v0.55.0-rc.1
 	github.com/DataDog/datadog-agent/comp/core/flare/builder v0.55.0-rc.1
