@@ -152,7 +152,6 @@ func (a *apmInjectorInstaller) verifyDockerRuntime(ctx context.Context) (err err
 			}
 		}
 		if strings.TrimSpace(outb.String()) == "dd-shim" {
-			span.SetTag("success", true)
 			return nil
 		}
 	}
