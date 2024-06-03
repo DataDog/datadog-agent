@@ -1,6 +1,6 @@
 module github.com/datadog-agent/DataDog/comp/otelcol/collector-contrib/impl
 
-go 1.21.0
+go 1.21.7
 
 replace (
 	github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/def => ../def
@@ -197,7 +197,7 @@ require (
 	go.opentelemetry.io/collector/exporter/debugexporter v0.100.0
 	go.opentelemetry.io/collector/exporter/otlpexporter v0.100.0
 	go.opentelemetry.io/collector/exporter/otlphttpexporter v0.100.0
-	go.opentelemetry.io/collector/extension v0.100.0
+	go.opentelemetry.io/collector/extension v0.101.0
 	go.opentelemetry.io/collector/extension/ballastextension v0.100.0
 	go.opentelemetry.io/collector/extension/zpagesextension v0.100.0
 	go.opentelemetry.io/collector/otelcol v0.100.0
@@ -258,6 +258,7 @@ require (
 	github.com/ClickHouse/ch-go v0.61.5 // indirect
 	github.com/ClickHouse/clickhouse-go/v2 v2.23.0 // indirect
 	github.com/Code-Hex/go-generics-cache v1.3.1 // indirect
+	github.com/DataDog/datadog-agent/comp/otelcol/extension/impl v0.0.0-20240603125546-a93ec10591df // indirect
 	github.com/DataDog/zstd v1.5.2 // indirect
 	github.com/GehirnInc/crypt v0.0.0-20200316065508-bb7000b8a962 // indirect
 	github.com/GoogleCloudPlatform/grpc-gcp-go/grpcgcp v1.5.0 // indirect
@@ -493,7 +494,7 @@ require (
 	github.com/open-telemetry/opentelemetry-collector-contrib/internal/aws/proxy v0.100.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/internal/aws/xray v0.100.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/internal/collectd v0.100.0 // indirect
-	github.com/open-telemetry/opentelemetry-collector-contrib/internal/common v0.100.0 // indirect
+	github.com/open-telemetry/opentelemetry-collector-contrib/internal/common v0.101.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/internal/coreinternal v0.100.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/internal/docker v0.100.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/internal/filter v0.100.0 // indirect
@@ -606,27 +607,27 @@ require (
 	go.mongodb.org/atlas v0.36.0 // indirect
 	go.mongodb.org/mongo-driver v1.15.0 // indirect
 	go.opencensus.io v0.24.0 // indirect
-	go.opentelemetry.io/collector v0.100.0 // indirect
-	go.opentelemetry.io/collector/component v0.100.0 // indirect
-	go.opentelemetry.io/collector/config/configauth v0.100.0 // indirect
+	go.opentelemetry.io/collector v0.101.0 // indirect
+	go.opentelemetry.io/collector/component v0.101.0 // indirect
+	go.opentelemetry.io/collector/config/configauth v0.101.0 // indirect
 	go.opentelemetry.io/collector/config/configcompression v1.8.0 // indirect
 	go.opentelemetry.io/collector/config/configgrpc v0.100.0 // indirect
-	go.opentelemetry.io/collector/config/confighttp v0.100.0 // indirect
+	go.opentelemetry.io/collector/config/confighttp v0.101.0 // indirect
 	go.opentelemetry.io/collector/config/confignet v0.100.0 // indirect
-	go.opentelemetry.io/collector/config/configopaque v1.7.0 // indirect
+	go.opentelemetry.io/collector/config/configopaque v1.8.0 // indirect
 	go.opentelemetry.io/collector/config/configretry v0.100.0 // indirect
-	go.opentelemetry.io/collector/config/configtelemetry v0.100.0 // indirect
-	go.opentelemetry.io/collector/config/configtls v0.100.0 // indirect
-	go.opentelemetry.io/collector/config/internal v0.100.0 // indirect
-	go.opentelemetry.io/collector/confmap v0.100.0 // indirect
+	go.opentelemetry.io/collector/config/configtelemetry v0.101.0 // indirect
+	go.opentelemetry.io/collector/config/configtls v0.101.0 // indirect
+	go.opentelemetry.io/collector/config/internal v0.101.0 // indirect
+	go.opentelemetry.io/collector/confmap v0.101.0 // indirect
 	go.opentelemetry.io/collector/confmap/converter/expandconverter v0.100.0 // indirect
 	go.opentelemetry.io/collector/confmap/provider/envprovider v0.100.0 // indirect
 	go.opentelemetry.io/collector/confmap/provider/fileprovider v0.100.0 // indirect
 	go.opentelemetry.io/collector/confmap/provider/httpprovider v0.100.0 // indirect
 	go.opentelemetry.io/collector/confmap/provider/httpsprovider v0.100.0 // indirect
 	go.opentelemetry.io/collector/confmap/provider/yamlprovider v0.100.0 // indirect
-	go.opentelemetry.io/collector/consumer v0.100.0 // indirect
-	go.opentelemetry.io/collector/extension/auth v0.100.0 // indirect
+	go.opentelemetry.io/collector/consumer v0.101.0 // indirect
+	go.opentelemetry.io/collector/extension/auth v0.101.0 // indirect
 	go.opentelemetry.io/collector/featuregate v1.8.0 // indirect
 	go.opentelemetry.io/collector/filter v0.100.0 // indirect
 	go.opentelemetry.io/collector/pdata v1.8.0 // indirect
