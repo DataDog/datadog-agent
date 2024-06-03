@@ -18,12 +18,12 @@ if debian_target?
     # Debian ARM64 build
     package_name = "#{base_package_name}_arm64.deb"
     source sha256: "37e692b1517f1229042c743d0f2a7191e0dcb956bbc3785a895aaa6dc328467e"
-    source url: "#{source_url_base}/debian/12/prod/pool/main/m/msodbcsql18/#{package_name}"
+    source url: "#{source_url_base}/debian/10/prod/pool/main/m/msodbcsql18/#{package_name}"
   else
     # Debian AMD64 build
     package_name = "#{base_package_name}_amd64.deb"
     source sha256: "f91004ce72fcd92e686154f90e2a80f4f86469e7cb5f42ef79cba79dc6727890"
-    source url: "#{source_url_base}/debian/12/prod/pool/main/m/msodbcsql18/#{package_name}"
+    source url: "#{source_url_base}/debian/11/prod/pool/main/m/msodbcsql18/#{package_name}"
   end
 elsif redhat_target?
   base_package_name = "#{name}-#{version}"
@@ -31,18 +31,18 @@ elsif redhat_target?
     # RHEL aarch64 build
     package_name = "#{base_package_name}.aarch64.rpm"
     source sha256: "ffbdede1d6af1245ce02cb77d3d5d37648b9121900632d3c6de56fe60d436b12"
-    source url: "#{source_url_base}/rhel/8/prod/Packages/m/#{package_name}"
+    source url: "#{source_url_base}/rhel/7/prod/Packages/m/#{package_name}"
   else
     # RHEL x86_64 build
     package_name = "#{base_package_name}.x86_64.rpm"
     source sha256: "8914b1e64c37f3740dff96f7e5db57f40f9564979617ad38acf3d38b958b7cb7"
-    source url: "#{source_url_base}/rhel/8/prod/Packages/m/#{package_name}"
+    source url: "#{source_url_base}/rhel/7/prod/Packages/m/#{package_name}"
   end
 else
   # SLES x86_64 build
   package_name = "#{name}-#{version}.x86_64.rpm"
   source sha256: "fc25b9f52aef7a8814667045185103ab967f02301d875d4236e9a6c1493b298a"
-  source url: "#{source_url_base}/sles/15/prod/Packages/m/#{package_name}"
+  source url: "#{source_url_base}/sles/12/prod/Packages/m/#{package_name}"
 end
 
 relative_path "msodbcsql18-#{version}"
