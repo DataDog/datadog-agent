@@ -40,8 +40,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent/inventoryagentimpl"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventorychecks/inventorychecksimpl"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryhost/inventoryhostimpl"
-	"github.com/DataDog/datadog-agent/comp/metadata/packagesigning"
-	"github.com/DataDog/datadog-agent/comp/metadata/packagesigning/packagesigningimpl"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcservice"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcservicemrf"
 
@@ -67,7 +65,6 @@ type testdeps struct {
 	ServerDebug           dogstatsddebug.Component
 	Demux                 demultiplexer.Component
 	SecretResolver        secrets.Component
-	PkgSigning            packagesigning.Component
 	StatusComponent       status.Mock
 	EventPlatformReceiver eventplatformreceiver.Component
 	RcService             optional.Option[rcservice.Component]
@@ -100,7 +97,6 @@ func getComponentDependencies(t *testing.T) testdeps {
 			return component
 		}),
 		inventorychecksimpl.MockModule(),
-		packagesigningimpl.MockModule(),
 		statusimpl.MockModule(),
 		eventplatformreceiverimpl.MockModule(),
 		fx.Supply(optional.NewNoneOption[rcservice.Component]()),
@@ -131,7 +127,6 @@ func getTestAPIServer(deps testdeps) api.Component {
 		DogstatsdServer:   deps.DogstatsdServer,
 		Capture:           deps.Capture,
 		SecretResolver:    deps.SecretResolver,
-		PkgSigning:        deps.PkgSigning,
 		StatusComponent:   deps.StatusComponent,
 		RcService:         deps.RcService,
 		RcServiceMRF:      deps.RcServiceMRF,
