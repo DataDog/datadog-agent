@@ -388,122 +388,6 @@ static __always_inline void tls_process_headers_frame(tls_dispatcher_arguments_t
     tls_process_headers(info, dynamic_index, current_stream, headers_to_process, interesting_headers, http2_tel);
 }
 
-// The function is trying to read the remaining of a split frame header. We have the first part in
-// `frame_state->buf` (from the previous packet), and now we're trying to read the remaining (`frame_state->remainder`
-// bytes from the current packet).
-static __always_inline void tls_fix_header_frame(tls_dispatcher_arguments_t *info, char *out, frame_header_remainder_t *frame_state) {
-    bpf_memcpy(out, frame_state->buf, HTTP2_FRAME_HEADER_SIZE);
-    // Verifier is unhappy with a single call to `bpf_skb_load_bytes` with a variable length (although checking boundaries)
-    switch (frame_state->remainder) {
-    case 1:
-        bpf_probe_read_user(out + HTTP2_FRAME_HEADER_SIZE - 1, 1, info->buffer_ptr + info->data_off);
-        break;
-    case 2:
-        bpf_probe_read_user(out + HTTP2_FRAME_HEADER_SIZE - 2, 2, info->buffer_ptr + info->data_off);
-        break;
-    case 3:
-        bpf_probe_read_user(out + HTTP2_FRAME_HEADER_SIZE - 3, 3, info->buffer_ptr + info->data_off);
-        break;
-    case 4:
-        bpf_probe_read_user(out + HTTP2_FRAME_HEADER_SIZE - 4, 4, info->buffer_ptr + info->data_off);
-        break;
-    case 5:
-        bpf_probe_read_user(out + HTTP2_FRAME_HEADER_SIZE - 5, 5, info->buffer_ptr + info->data_off);
-        break;
-    case 6:
-        bpf_probe_read_user(out + HTTP2_FRAME_HEADER_SIZE - 6, 6, info->buffer_ptr + info->data_off);
-        break;
-    case 7:
-        bpf_probe_read_user(out + HTTP2_FRAME_HEADER_SIZE - 7, 7, info->buffer_ptr + info->data_off);
-        break;
-    case 8:
-        bpf_probe_read_user(out + HTTP2_FRAME_HEADER_SIZE - 8, 8, info->buffer_ptr + info->data_off);
-        break;
-    }
-    return;
-}
-
-static __always_inline bool tls_get_first_frame(tls_dispatcher_arguments_t *info, frame_header_remainder_t *frame_state, http2_frame_t *current_frame, http2_telemetry_t *http2_tel) {
-    // Attempting to read the initial frame in the packet, or handling a state where there is no remainder and finishing reading the current frame.
-    if (frame_state == NULL) {
-        // Checking we have enough bytes in the packet to read a frame header.
-        if (info->data_off + HTTP2_FRAME_HEADER_SIZE > info->data_end) {
-            // Not enough bytes, cannot read frame, so we have 0 interesting frames in that packet.
-            return false;
-        }
-
-        // Reading frame, and ensuring the frame is valid.
-        read_into_user_buffer_http2_frame_header((char *)current_frame, info->buffer_ptr + info->data_off);
-        info->data_off += HTTP2_FRAME_HEADER_SIZE;
-        if (!format_http2_frame_header(current_frame)) {
-            // Frame is not valid, so we have 0 interesting frames in that packet.
-            return false;
-        }
-        return true;
-    }
-
-    // Getting here means we have a frame state from the previous packets.
-    // Scenarios in order:
-    //  1. Check if we have a frame-header remainder - if so, we must try and read the rest of the frame header.
-    //     In case of a failure, we abort.
-    //  2. If we don't have a frame-header remainder, then we're trying to read a valid frame.
-    //     HTTP2 can send valid frames (like SETTINGS and PING) during a split DATA frame. If such a frame exists,
-    //     then we won't have the rest of the split frame in the same packet.
-    //  3. If we reached here, and we have a remainder, then we're consuming the remainder and checking we can read the
-    //     next frame header.
-    //  4. We failed reading any frame. Aborting.
-
-    // Frame-header-remainder.
-    if (frame_state != NULL && frame_state->header_length == HTTP2_FRAME_HEADER_SIZE) {
-        // A case where we read an interesting valid frame header in the previous call, and now we're trying to read the
-        // rest of the frame payload. But, since we already read a valid frame, we just fill it as an interesting frame,
-        // and continue to the next tail call.
-        // Copy the cached frame header to the current frame.
-        bpf_memcpy((char *)current_frame, frame_state->buf, HTTP2_FRAME_HEADER_SIZE);
-        frame_state->remainder = 0;
-        return true;
-    }
-    if (frame_state->header_length > 0) {
-        tls_fix_header_frame(info, (char *)current_frame, frame_state);
-        if (format_http2_frame_header(current_frame)) {
-            info->data_off += frame_state->remainder;
-            frame_state->remainder = 0;
-            return true;
-        }
-        frame_state->remainder = 0;
-        // We couldn't read frame header using the remainder.
-        return false;
-    }
-
-    // We failed to read a frame, if we have a remainder trying to consume it and read the following frame.
-    if (frame_state->remainder > 0) {
-        // To make a "best effort," if we are in a state where we are left with a remainder, and the length of it from
-        // our current position is larger than the data end, we will attempt to handle the remaining buffer as much as possible.
-        if (info->data_off + frame_state->remainder > info->data_end) {
-            frame_state->remainder -= info->data_end - info->data_off;
-            info->data_off = info->data_end;
-            return false;
-        }
-        info->data_off += frame_state->remainder;
-        // The remainders "ends" the current packet. No interesting frames were found.
-        frame_state->remainder = 0;
-        if (info->data_off == info->data_end) {
-            return false;
-        }
-        if (info->data_off + HTTP2_FRAME_HEADER_SIZE > info->data_end) {
-            return false;
-        }
-        reset_frame(current_frame);
-        read_into_user_buffer_http2_frame_header((char *)current_frame, info->buffer_ptr + info->data_off);
-        if (format_http2_frame_header(current_frame)) {
-            info->data_off += HTTP2_FRAME_HEADER_SIZE;
-            return true;
-        }
-    }
-    // still not valid / does not have a remainder - abort.
-    return false;
-}
-
 // tls_find_relevant_frames iterates over the packet and finds frames that are
 // relevant for us. The frames info and location are stored in the `iteration_value->frames_array` array,
 // and the number of frames found is being stored at iteration_value->frames_count.
@@ -622,7 +506,7 @@ int uprobe__http2_tls_handle_first_frame(struct pt_regs *ctx) {
         return 0;
     }
 
-    bool has_valid_first_frame = tls_get_first_frame(&dispatcher_args_copy, frame_state, &current_frame, http2_tel);
+    bool has_valid_first_frame = pktbuf_get_first_frame(pkt, frame_state, &current_frame, http2_tel);
     // If we have a state and we consumed it, then delete it.
     if (frame_state != NULL && frame_state->remainder == 0) {
         bpf_map_delete_elem(&http2_remainder, &dispatcher_args_copy.tup);
