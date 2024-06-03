@@ -860,7 +860,7 @@ func testMySQLProtocolClassification(t *testing.T, tr *Tracer, clientHost, targe
 
 	serverAddress := net.JoinHostPort(serverHost, mysqlPort)
 	targetAddress := net.JoinHostPort(targetHost, mysqlPort)
-	require.NoError(t, mysql.RunServer(t, serverHost, mysqlPort))
+	require.NoError(t, mysql.RunServer(t, serverHost, mysqlPort, mysql.Plaintext))
 
 	tests := []protocolClassificationAttributes{
 		{

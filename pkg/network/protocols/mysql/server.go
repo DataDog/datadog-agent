@@ -7,8 +7,11 @@ package mysql
 
 import (
 	"fmt"
+	"path/filepath"
 	"regexp"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
 	protocolsUtils "github.com/DataDog/datadog-agent/pkg/network/protocols/testutil"
@@ -22,11 +25,20 @@ const (
 )
 
 // RunServer runs a MySQL server in a docker container
-func RunServer(t testing.TB, serverAddr, serverPort string) error {
+func RunServer(t testing.TB, serverAddr, serverPort string, withTLS TLSSetting) error {
+	cert, _, err := testutil.GetCertsPaths()
+	require.NoError(t, err)
+	certsDir := filepath.Dir(cert)
+
 	env := []string{
 		"MYSQL_ADDR=" + serverAddr,
 		"MYSQL_PORT=" + serverPort,
 		"MYSQL_ROOT_PASS=" + Pass,
+		"CERTS_PATH=" + certsDir,
+	}
+
+	if withTLS {
+		env = append(env, "MYSQL_TLS_ARGS=--require-secure-transport --ssl-cert=/certs/cert.pem.0 --ssl-key=/certs/server.key")
 	}
 
 	t.Helper()
