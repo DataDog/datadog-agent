@@ -10,12 +10,12 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/containerinspection"
+	"github.com/DataDog/datadog-agent/comp/containerinspection/api"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/avast/retry-go/v4"
 )
 
-type endpointOutput = containerinspection.MetadataResponse
+type endpointOutput = api.MetadataResponse
 
 func main() {
 	endpoint := os.Args[1]
@@ -71,7 +71,7 @@ func main() {
 	}
 }
 
-func writeContainerData(root string, name string, c containerinspection.ContainerMetadata) error {
+func writeContainerData(root string, name string, c api.ContainerMetadata) error {
 	encoded, err := json.Marshal(c)
 	if err != nil {
 		return fmt.Errorf("error encoding data for container %s: %w", name, err)
@@ -79,6 +79,7 @@ func writeContainerData(root string, name string, c containerinspection.Containe
 
 	containerDir := filepath.Join(root, name)
 	if err := os.Mkdir(containerDir, 0750); err != nil {
+		if err
 		return fmt.Errorf("could not create directory for %s: %w", name, err)
 	}
 
@@ -100,6 +101,8 @@ func writeContainerData(root string, name string, c containerinspection.Containe
 	cmd := exec.Command("cp", "/dd-source/entry", runPath)
 	return cmd.Run()
 }
+
+func ens
 
 func baseURL(host, port, endpoint string) (string, error) {
 	if host == "" {

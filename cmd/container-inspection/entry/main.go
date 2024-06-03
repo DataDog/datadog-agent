@@ -8,7 +8,7 @@ import (
 	"os/exec"
 	"syscall"
 
-	"github.com/DataDog/datadog-agent/comp/containerinspection"
+	"github.com/DataDog/datadog-agent/comp/containerinspection/api"
 )
 
 func main() {
@@ -34,7 +34,7 @@ func command(fromPath string, env []string) (string, []string, []string, error) 
 		return "", nil, nil, fmt.Errorf("failed to read file %s: %w", fromPath, err)
 	}
 
-	var e containerinspection.ContainerMetadata
+	var e api.ContainerMetadata
 	err = json.Unmarshal(data, &e)
 	if err != nil {
 		return "", nil, nil, fmt.Errorf("failed decoding entrypoint data: %w", err)

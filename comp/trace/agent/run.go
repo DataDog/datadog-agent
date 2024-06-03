@@ -15,7 +15,6 @@ import (
 	"time"
 
 	remotecfg "github.com/DataDog/datadog-agent/cmd/trace-agent/config/remote"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/api/security"
 	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
@@ -79,7 +78,7 @@ func runAgentSidekicks(ag *agent) error {
 	api.AttachEndpoint(api.Endpoint{
 		Pattern: "/alpha/instrumentation/pod-container-metadata",
 		Handler: func(r *api.HTTPReceiver) http.Handler {
-			return workloadmeta.PodContainerMetadataHandler(ag.workloadmeta, ag.log)
+			return ag.containerinpsector.PodContainerMetadataHandlerFunc()
 		},
 	})
 
