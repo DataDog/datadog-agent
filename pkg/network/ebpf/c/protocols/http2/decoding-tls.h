@@ -102,39 +102,8 @@ int uprobe__http2_dynamic_table_cleaner(struct pt_regs *ctx) {
     }
     dispatcher_args_copy = *args;
 
-    dynamic_counter_t *dynamic_counter = bpf_map_lookup_elem(&http2_dynamic_counter_table, &dispatcher_args_copy.tup);
-    if (dynamic_counter == NULL) {
-        goto next;
-    }
-
-    // We're checking if the difference between the current value of the dynamic global table, to the previous index we
-    // cleaned, is bigger than our threshold. If so, we need to clean the table.
-    if (dynamic_counter->value - dynamic_counter->previous <= HTTP2_DYNAMIC_TABLE_CLEANUP_THRESHOLD) {
-        goto next;
-    }
-
-    dynamic_table_index_t dynamic_index = {
-        .tup = dispatcher_args_copy.tup,
-    };
-
-    #pragma unroll(HTTP2_DYNAMIC_TABLE_CLEANUP_ITERATIONS)
-    for (__u16 index = 0; index < HTTP2_DYNAMIC_TABLE_CLEANUP_ITERATIONS; index++) {
-        // We should reserve the last HTTP2_DYNAMIC_TABLE_CLEANUP_THRESHOLD entries in the dynamic table.
-        // So if we're about to delete an entry that is in the last HTTP2_DYNAMIC_TABLE_CLEANUP_THRESHOLD entries,
-        // we should stop the cleanup.
-        if (dynamic_counter->previous + HTTP2_DYNAMIC_TABLE_CLEANUP_THRESHOLD >= dynamic_counter->value) {
-            break;
-        }
-        // Setting the current index.
-        dynamic_index.index = dynamic_counter->previous;
-        // Trying to delete the entry, it might not exist, so we're ignoring the return value.
-        bpf_map_delete_elem(&http2_dynamic_table, &dynamic_index);
-        // Incrementing the previous index.
-        dynamic_counter->previous++;
-    }
-
-next:
-    bpf_tail_call_compat(ctx, &tls_process_progs, TLS_HTTP2_EOS_PARSER);
+    pktbuf_t pkt = pktbuf_from_tls(ctx, &dispatcher_args_copy);
+    dynamic_table_cleaner(pkt, &dispatcher_args_copy.tup);
 
     return 0;
 }

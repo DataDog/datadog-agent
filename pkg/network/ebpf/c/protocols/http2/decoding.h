@@ -973,17 +973,19 @@ int socket__http2_headers_parser(struct __sk_buff *skb) {
     return 0;
 }
 
-// The program is responsible for cleaning the dynamic table.
-// The program calls socket__http2_eos_parser to finalize the streams and enqueue them to be sent to the user mode.
-SEC("socket/http2_dynamic_table_cleaner")
-int socket__http2_dynamic_table_cleaner(struct __sk_buff *skb) {
-    dispatcher_arguments_t dispatcher_args_copy;
-    bpf_memset(&dispatcher_args_copy, 0, sizeof(dispatcher_arguments_t));
-    if (!fetch_dispatching_arguments(&dispatcher_args_copy.tup, &dispatcher_args_copy.skb_info)) {
-        return 0;
-    }
+static __always_inline void dynamic_table_cleaner(pktbuf_t pkt, conn_tuple_t *tup) {
+    pktbuf_tail_call_option_t arr[] = {
+        [PKTBUF_SKB] = {
+            .prog_array_map = &protocols_progs,
+            .index = PROG_HTTP2_EOS_PARSER,
+        },
+        [PKTBUF_TLS] = {
+            .prog_array_map = &tls_process_progs,
+            .index = TLS_HTTP2_EOS_PARSER,
+        },
+    };
 
-    dynamic_counter_t *dynamic_counter = bpf_map_lookup_elem(&http2_dynamic_counter_table, &dispatcher_args_copy.tup);
+    dynamic_counter_t *dynamic_counter = bpf_map_lookup_elem(&http2_dynamic_counter_table, tup);
     if (dynamic_counter == NULL) {
         goto next;
     }
@@ -995,7 +997,7 @@ int socket__http2_dynamic_table_cleaner(struct __sk_buff *skb) {
     }
 
     dynamic_table_index_t dynamic_index = {
-        .tup = dispatcher_args_copy.tup,
+        .tup = *tup,
     };
 
     #pragma unroll(HTTP2_DYNAMIC_TABLE_CLEANUP_ITERATIONS)
@@ -1015,7 +1017,21 @@ int socket__http2_dynamic_table_cleaner(struct __sk_buff *skb) {
     }
 
 next:
-    bpf_tail_call_compat(skb, &protocols_progs, PROG_HTTP2_EOS_PARSER);
+    pktbuf_tail_call_compact(pkt, arr);
+}
+
+// The program is responsible for cleaning the dynamic table.
+// The program calls socket__http2_eos_parser to finalize the streams and enqueue them to be sent to the user mode.
+SEC("socket/http2_dynamic_table_cleaner")
+int socket__http2_dynamic_table_cleaner(struct __sk_buff *skb) {
+    dispatcher_arguments_t dispatcher_args_copy;
+    bpf_memset(&dispatcher_args_copy, 0, sizeof(dispatcher_arguments_t));
+    if (!fetch_dispatching_arguments(&dispatcher_args_copy.tup, &dispatcher_args_copy.skb_info)) {
+        return 0;
+    }
+
+    pktbuf_t pkt = pktbuf_from_skb(skb, &dispatcher_args_copy.skb_info);
+    dynamic_table_cleaner(pkt, &dispatcher_args_copy.tup);
 
     return 0;
 }
