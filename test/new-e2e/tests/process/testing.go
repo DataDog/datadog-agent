@@ -16,7 +16,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclient"
 )
 
 //go:embed config/process_check.yaml
@@ -35,9 +35,10 @@ var systemProbeConfigStr string
 var systemProbeNPMConfigStr string
 
 // assertRunningChecks asserts that the given process agent checks are running on the given VM
-func assertRunningChecks(t *assert.CollectT, vm *components.RemoteHost, checks []string, withSystemProbe bool, command string) {
+func assertRunningChecks(t *assert.CollectT, client agentclient.Agent, checks []string, withSystemProbe bool) {
+	status := client.Status(agentclient.WithArgs([]string{"--json"}))
+	assert.NotNil(t, status, "failed to get agent status")
 
-	status := vm.MustExecute(command)
 	var statusMap struct {
 		ProcessAgentStatus struct {
 			Expvars struct {
@@ -48,7 +49,7 @@ func assertRunningChecks(t *assert.CollectT, vm *components.RemoteHost, checks [
 			} `json:"expvars"`
 		} `json:"processAgentStatus"`
 	}
-	err := json.Unmarshal([]byte(status), &statusMap)
+	err := json.Unmarshal([]byte(status.Content), &statusMap)
 	assert.NoError(t, err, "failed to unmarshal agent status")
 
 	assert.ElementsMatch(t, checks, statusMap.ProcessAgentStatus.Expvars.Map.EnabledChecks)
