@@ -14,7 +14,11 @@ import (
 	"time"
 
 	model "github.com/DataDog/agent-payload/v5/process"
+	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
+	"go.uber.org/atomic"
+
 	"github.com/DataDog/datadog-agent/comp/core/log"
+	telemetryComp "github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/npcollectorimpl/common"
 	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/npcollectorimpl/pathteststore"
@@ -24,8 +28,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/networkpath/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute"
 	"github.com/DataDog/datadog-agent/pkg/process/statsd"
-	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
-	"go.uber.org/atomic"
 )
 
 type npCollectorImpl struct {
@@ -54,11 +56,14 @@ type npCollectorImpl struct {
 	runDone       chan struct{}
 	flushInterval time.Duration
 
+	// Telemetry component
+	telemetrycomp telemetryComp.Component
+
 	// structures needed to ease mocking/testing
 	TimeNowFn func() time.Time
 	// TODO: instead of mocking traceroute via function replacement like this
 	//       we should ideally create a fake/mock traceroute instance that can be passed/injected in NpCollector
-	runTraceroute func(cfg traceroute.Config) (payload.NetworkPath, error)
+	runTraceroute func(cfg traceroute.Config, telemetrycomp telemetryComp.Component) (payload.NetworkPath, error)
 }
 
 func newNoopNpCollectorImpl() *npCollectorImpl {
@@ -67,7 +72,7 @@ func newNoopNpCollectorImpl() *npCollectorImpl {
 	}
 }
 
-func newNpCollectorImpl(epForwarder eventplatform.Forwarder, collectorConfigs *collectorConfigs, logger log.Component) *npCollectorImpl {
+func newNpCollectorImpl(epForwarder eventplatform.Forwarder, collectorConfigs *collectorConfigs, logger log.Component, telemetrycomp telemetryComp.Component) *npCollectorImpl {
 	logger.Infof("New NpCollector (workers=%d input_chan_size=%d processing_chan_size=%d pathtest_ttl=%s pathtest_interval=%s flush_interval=%s)",
 		collectorConfigs.workers,
 		collectorConfigs.pathtestInputChanSize,
@@ -90,6 +95,8 @@ func newNpCollectorImpl(epForwarder eventplatform.Forwarder, collectorConfigs *c
 		receivedPathtestCount:    atomic.NewUint64(0),
 		processedTracerouteCount: atomic.NewUint64(0),
 		TimeNowFn:                time.Now,
+
+		telemetrycomp: telemetrycomp,
 
 		stopChan:      make(chan struct{}),
 		runDone:       make(chan struct{}),
@@ -200,7 +207,7 @@ func (s *npCollectorImpl) runTracerouteForPath(ptest *pathteststore.PathtestCont
 		Protocol:     ptest.Pathtest.Protocol,
 	}
 
-	path, err := s.runTraceroute(cfg)
+	path, err := s.runTraceroute(cfg, s.telemetrycomp)
 	if err != nil {
 		s.logger.Errorf("%s", err)
 		return
@@ -221,8 +228,8 @@ func (s *npCollectorImpl) runTracerouteForPath(ptest *pathteststore.PathtestCont
 	}
 }
 
-func runTraceroute(cfg traceroute.Config) (payload.NetworkPath, error) {
-	tr, err := traceroute.New(cfg)
+func runTraceroute(cfg traceroute.Config, telemetry telemetryComp.Component) (payload.NetworkPath, error) {
+	tr, err := traceroute.New(cfg, telemetry)
 	if err != nil {
 		return payload.NetworkPath{}, fmt.Errorf("new traceroute error: %s", err)
 	}

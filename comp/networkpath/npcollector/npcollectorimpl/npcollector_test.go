@@ -15,6 +15,11 @@ import (
 	"time"
 
 	model "github.com/DataDog/agent-payload/v5/process"
+	"github.com/cihub/seelog"
+	"github.com/golang/mock/gomock"
+	"github.com/stretchr/testify/assert"
+
+	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
 	"github.com/DataDog/datadog-agent/comp/networkpath/npcollector/npcollectorimpl/common"
@@ -25,9 +30,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute"
 	"github.com/DataDog/datadog-agent/pkg/trace/teststatsd"
 	utillog "github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/cihub/seelog"
-	"github.com/golang/mock/gomock"
-	"github.com/stretchr/testify/assert"
 )
 
 func Test_NpCollector_StartAndStop(t *testing.T) {
@@ -92,7 +94,7 @@ func Test_NpCollector_runningAndProcessing(t *testing.T) {
 
 	assert.True(t, npCollector.running)
 
-	npCollector.runTraceroute = func(cfg traceroute.Config) (payload.NetworkPath, error) {
+	npCollector.runTraceroute = func(cfg traceroute.Config, _ telemetry.Component) (payload.NetworkPath, error) {
 		var p payload.NetworkPath
 		if cfg.DestHostname == "127.0.0.2" {
 			p = payload.NetworkPath{
