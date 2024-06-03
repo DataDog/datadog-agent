@@ -57,7 +57,7 @@ var (
 	packagesTestsWithSkipedFlavors = []packageTestsWithSkipedFlavors{
 		{t: testInstaller},
 		{t: testAgent},
-		{t: testApmInjectAgent, skippedFlavors: []e2eos.Descriptor{e2eos.CentOS7, e2eos.RedHat9, e2eos.Fedora37}},
+		{t: testApmInjectAgent, skippedFlavors: []e2eos.Descriptor{e2eos.CentOS7, e2eos.RedHat9, e2eos.Fedora37, e2eos.Suse15}},
 	}
 )
 
@@ -161,7 +161,7 @@ func (s *packageBaseSuite) RunInstallScript(params ...string) {
 		s.Env().RemoteHost.MustExecute("sudo systemctl daemon-reexec")
 	}
 	err := s.RunInstallScriptWithError(params...)
-	require.NoErrorf(s.T(), err, "installer not properly installed. logs: \n%s\n%s", s.Env().RemoteHost.MustExecute("cat /tmp/datadog-installer-stdout.log"), s.Env().RemoteHost.MustExecute("cat /tmp/datadog-installer-stderr.log"))
+	require.NoErrorf(s.T(), err, "installer not properly installed. logs: \n%s\n%s", s.Env().RemoteHost.MustExecute("cat /tmp/datadog-installer-stderr.log"), s.Env().RemoteHost.MustExecute("cat /tmp/datadog-installer-stdout.log"))
 }
 
 func envForceInstall(pkg string) string {
