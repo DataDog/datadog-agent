@@ -29,7 +29,7 @@ type PulumiProvisioner[Env any] struct {
 	id           string
 	runFunc      PulumiEnvRunFunc[Env]
 	configMap    runner.ConfigMap
-	diagnoseFunc func(ctx context.Context) (string, error)
+	diagnoseFunc func(ctx context.Context, stackName string) (string, error)
 }
 
 var (
@@ -104,14 +104,14 @@ func (pp *PulumiProvisioner[Env]) ProvisionEnv(ctx context.Context, stackName st
 }
 
 // Diagnose runs the diagnose function if it is set diagnoseFunc
-func (pp *PulumiProvisioner[Env]) Diagnose(ctx context.Context) (string, error) {
+func (pp *PulumiProvisioner[Env]) Diagnose(ctx context.Context, stackName string) (string, error) {
 	if pp.diagnoseFunc != nil {
-		return pp.diagnoseFunc(ctx)
+		return pp.diagnoseFunc(ctx, stackName)
 	}
 	return "", nil
 }
 
-func (pp *PulumiProvisioner[Env]) SetDiagnoseFunc(diagnoseFunc func(ctx context.Context) (string, error)) {
+func (pp *PulumiProvisioner[Env]) SetDiagnoseFunc(diagnoseFunc func(ctx context.Context, stackName string) (string, error)) {
 	pp.diagnoseFunc = diagnoseFunc
 }
 

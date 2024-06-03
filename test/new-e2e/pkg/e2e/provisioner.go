@@ -12,7 +12,7 @@ import (
 
 // Diagnosable defines the interface for a diagnosable provider.
 type Diagnosable interface {
-	Diagnose(context.Context) (string, error)
+	Diagnose(ctx context.Context, stackName string) (string, error)
 }
 
 // Provisioner defines the interface for a provisioner.

@@ -32,8 +32,8 @@ const (
 	defaultVMName     = "kind"
 )
 
-func kindDiagnoseFunc(ctx context.Context) (string, error) {
-	dumpResult, err := dumpKindClusterState(ctx, "kind")
+func kindDiagnoseFunc(ctx context.Context, stackName string) (string, error) {
+	dumpResult, err := dumpKindClusterState(ctx, stackName)
 	if err != nil {
 		return "", err
 	}

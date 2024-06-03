@@ -150,6 +150,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner/parameters"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/infra"
 	"github.com/DataDog/test-infra-definitions/common/utils"
 	"github.com/DataDog/test-infra-definitions/components"
 
@@ -285,12 +286,18 @@ func (bs *BaseSuite[Env]) reconcileEnv(targetProvisioners ProvisionerMap) error 
 
 		if err != nil {
 			if diagnosableProvisioner, ok := provisioner.(Diagnosable); ok {
-				diagnoseResult, diagnoseErr := diagnosableProvisioner.Diagnose(ctx)
-				if diagnoseErr != nil {
-					bs.T().Logf("WARNING: Diagnose failed: %v", diagnoseErr)
-				} else if diagnoseResult != "" {
-					bs.T().Logf("Diagnose result: %s", diagnoseResult)
+				stackName, err := infra.GetStackManager().GetPulumiStackName(bs.params.stackName)
+				if err != nil {
+					bs.T().Logf("unable to get stack name for diagnose, err: %v", err)
+				} else {
+					diagnoseResult, diagnoseErr := diagnosableProvisioner.Diagnose(ctx, stackName)
+					if diagnoseErr != nil {
+						bs.T().Logf("WARNING: Diagnose failed: %v", diagnoseErr)
+					} else if diagnoseResult != "" {
+						bs.T().Logf("Diagnose result: %s", diagnoseResult)
+					}
 				}
+
 			}
 			return fmt.Errorf("your stack '%s' provisioning failed, check logs above. Provisioner was %s, failed with err: %v", bs.params.stackName, id, err)
 		}

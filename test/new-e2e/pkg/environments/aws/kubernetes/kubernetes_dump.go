@@ -121,7 +121,8 @@ func dumpKindClusterState(ctx context.Context, name string) (ret string, err err
 		return ret, fmt.Errorf("failed to describe instances: %v", err)
 	}
 
-	if instancesDescription == nil || (len(instancesDescription.Reservations) != 1 && len(instancesDescription.Reservations[0].Instances) != 1) {
+	// instancesDescription.Reservations = []
+	if instancesDescription == nil || (len(instancesDescription.Reservations) > 0 && len(instancesDescription.Reservations[0].Instances) != 1) {
 		return ret, fmt.Errorf("did not find exactly one instance for cluster %s", name)
 	}
 

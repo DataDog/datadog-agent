@@ -37,8 +37,8 @@ import (
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 )
 
-func eksDiagnoseFunc(ctx context.Context) (string, error) {
-	dumpResult, err := dumpEKSClusterState(ctx, "kind")
+func eksDiagnoseFunc(ctx context.Context, stackName string) (string, error) {
+	dumpResult, err := dumpEKSClusterState(ctx, stackName)
 	if err != nil {
 		return "", err
 	}
