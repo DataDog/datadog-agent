@@ -5,6 +5,7 @@ import re
 import sys
 from collections import defaultdict
 from glob import glob
+from os.path import dirname, exists, join, relpath
 
 from invoke import Exit, task
 
@@ -317,7 +318,7 @@ class SSMParameterCall:
             message += "Please use the dedicated `aws_ssm_get_wrapper.(sh|ps1)`."
         if not self.with_env_var:
             message += " Save your parameter name as environment variable in .gitlab-ci.yml file."
-        return f"{self.file}:{self.line_nb+1}. {message}"
+        return f"{self.file}:{self.line_nb + 1}. {message}"
 
     def __repr__(self):
         return str(self)
@@ -442,3 +443,87 @@ def test_change_path(_, job_files=None):
         )
     else:
         print(color_message("success: All tests contain a change paths rule", "green"))
+
+
+# modules -> packages that should not be vetted, each with a reason
+EXCLUDED_PACKAGES = {
+    '.': {
+        './pkg/ebpf/compiler': "requires C libraries not available everywhere",
+        './cmd/py-launcher': "requires building rtloader",
+        './pkg/collector/python': "requires building rtloader",
+    },
+}
+
+GO_TAGS = ["test"]
+
+
+@task
+def go_vet(ctx):
+    def go_module_for_package(package_path):
+        """
+        Finds the go module containing the given package, and the package's path
+        relative to that module.  This only works for `./`-relative package paths,
+        in the current repository.  The returned module does not contain a trailing
+        `/` character.  If the package path does not exist, the return value is
+        `.`.
+        """
+        assert package_path.startswith('./')
+        module_path = package_path
+        while module_path != '.' and not exists(join(module_path, 'go.mod')):
+            module_path = dirname(module_path)
+        relative_package = relpath(package_path, start=module_path)
+        if relative_package != '.' and not relative_package[0].startswith('./'):
+            relative_package = f"./{relative_package}"
+        return module_path, relative_package
+
+    def is_go_file(path):
+        """Checks if file is a go file from the Agent code."""
+        return (path.startswith("pkg") or path.startswith("cmd")) and path.endswith(".go")
+
+    # Exclude non go files
+    go_files = (path for path in get_staged_files(ctx) if is_go_file(path))
+
+    # Get the package for each file
+    packages = {f'./{dirname(f)}' for f in go_files}
+
+    if not packages:
+        return
+
+    # separate those by module
+    by_mod = {}
+    for package_path in packages:
+        module, package = go_module_for_package(package_path)
+        reason = EXCLUDED_PACKAGES.get(module, {}).get(package, None)
+        if reason:
+            print(f"Skipping {package} in {module}: {reason}")
+            continue
+        by_mod.setdefault(module, set()).add(package)
+
+    # now, for each module, we use 'go list' to list all of the *valid* packages
+    # (those with at least one .go file included by the current build tags), and
+    # use that to skip packages that do not have any files included, which will
+    # otherwise cause go vet to fail.
+    for module, packages in by_mod.items():
+        with ctx.cd(module):
+            # -find skips listing package dependencies
+            # -f {{.Dir}} outputs the absolute dir containing the package
+            res = ctx.run("go list -find -f '{{.Dir}}' ./...", hide=True)
+
+        valid_packages = set()
+        for line in res.stdout.splitlines():
+            if line:
+                relative = relpath(line, module)
+                if relative != '.':
+                    relative = f'./{relative}'
+            valid_packages.add(relative)
+        for package in packages - valid_packages:
+            print(f"Skipping {package} in {module}: not a valid package or all files are excluded by build tags")
+            packages.remove(package)
+
+    go_tags_arg = '-tags ' + ','.join(GO_TAGS) if GO_TAGS else ''
+    for module, packages in by_mod.items():
+        if not packages:
+            continue
+
+        with ctx.cd(module):
+            ctx.run(f"go vet {go_tags_arg} {' '.join(packages)}")
