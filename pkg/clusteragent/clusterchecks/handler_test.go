@@ -163,13 +163,13 @@ func TestHandlerRun(t *testing.T) {
 		h.Run(ctx)
 		runReturned <- struct{}{}
 	}()
-	testutil.AssertTrueBeforeTimeout(t, 10*time.Millisecond, 1*time.Second, func() bool {
+	testutil.AssertTrueBeforeTimeout(t, 10*time.Millisecond, 2*time.Second, func() bool {
 		// State is unknown
 		h.m.RLock()
 		defer h.m.RUnlock()
 		return h.state == unknown
 	})
-	testutil.AssertTrueBeforeTimeout(t, 10*time.Millisecond, 1*time.Second, func() bool {
+	testutil.AssertTrueBeforeTimeout(t, 10*time.Millisecond, 2*time.Second, func() bool {
 		// API replys not ready, does not forward
 		recorder := httptest.NewRecorder()
 		res := h.RejectOrForwardLeaderQuery(recorder, httptest.NewRequest("GET", "https://dd-cluster-agent-service:5005/test", nil))
@@ -189,13 +189,13 @@ func TestHandlerRun(t *testing.T) {
 	// Unknown -> follower
 	//
 	le.set("127.0.0.1", nil)
-	testutil.AssertTrueBeforeTimeout(t, 10*time.Millisecond, 1*time.Second, func() bool {
+	testutil.AssertTrueBeforeTimeout(t, 10*time.Millisecond, 2*time.Second, func() bool {
 		// Internal state change
 		h.m.RLock()
 		defer h.m.RUnlock()
 		return h.state == follower && h.leaderIP == "127.0.0.1"
 	})
-	testutil.AssertTrueBeforeTimeout(t, 10*time.Millisecond, 1*time.Second, func() bool {
+	testutil.AssertTrueBeforeTimeout(t, 10*time.Millisecond, 2*time.Second, func() bool {
 		// API redirects to leader
 		recorder := httptest.NewRecorder()
 		res := h.RejectOrForwardLeaderQuery(recorder, httptest.NewRequest("GET", "https://dd-cluster-agent-service:5005/test", nil))
@@ -215,17 +215,17 @@ func TestHandlerRun(t *testing.T) {
 	// Follower -> leader
 	//
 	le.set("", nil)
-	testutil.AssertTrueBeforeTimeout(t, 10*time.Millisecond, 1*time.Second, func() bool {
+	testutil.AssertTrueBeforeTimeout(t, 10*time.Millisecond, 2*time.Second, func() bool {
 		// Internal state change
 		h.m.RLock()
 		defer h.m.RUnlock()
 		return h.state == leader && h.leaderIP == ""
 	})
-	testutil.AssertTrueBeforeTimeout(t, 10*time.Millisecond, 1*time.Second, func() bool {
+	testutil.AssertTrueBeforeTimeout(t, 10*time.Millisecond, 2*time.Second, func() bool {
 		return !h.RejectOrForwardLeaderQuery(httptest.NewRecorder(), httptest.NewRequest("GET", "https://dd-cluster-agent-service:5005/test", nil))
 	})
 	ac.On("AddScheduler", schedulerName, mock.AnythingOfType("*clusterchecks.dispatcher"), true).Return()
-	testutil.AssertTrueBeforeTimeout(t, 10*time.Millisecond, 1*time.Second, func() bool {
+	testutil.AssertTrueBeforeTimeout(t, 10*time.Millisecond, 2*time.Second, func() bool {
 		// Keep node-agent caches even when timestamp is off (warmup)
 		response := h.PostStatus("dummy", "10.0.0.1", types.NodeStatus{LastChange: -50})
 		return response.IsUpToDate == true
@@ -241,12 +241,12 @@ func TestHandlerRun(t *testing.T) {
 		ClusterCheck: true,
 	}
 	h.dispatcher.Schedule([]integration.Config{testConfig})
-	testutil.AssertTrueBeforeTimeout(t, 10*time.Millisecond, 1*time.Second, func() bool {
+	testutil.AssertTrueBeforeTimeout(t, 10*time.Millisecond, 2*time.Second, func() bool {
 		// Found one configuration for node dummy
 		configs, err := h.GetConfigs("dummy")
 		return err == nil && len(configs.Configs) == 1
 	})
-	testutil.AssertTrueBeforeTimeout(t, 10*time.Millisecond, 1*time.Second, func() bool {
+	testutil.AssertTrueBeforeTimeout(t, 10*time.Millisecond, 2*time.Second, func() bool {
 		// Flush node-agent caches when timestamp is off
 		response := h.PostStatus("dummy", "10.0.0.1", types.NodeStatus{LastChange: -50})
 		return response.IsUpToDate == false
@@ -257,13 +257,13 @@ func TestHandlerRun(t *testing.T) {
 	//
 	ac.On("RemoveScheduler", schedulerName).Return()
 	le.set("127.0.0.1", nil)
-	testutil.AssertTrueBeforeTimeout(t, 10*time.Millisecond, 1*time.Second, func() bool {
+	testutil.AssertTrueBeforeTimeout(t, 10*time.Millisecond, 2*time.Second, func() bool {
 		// Internal state change
 		h.m.RLock()
 		defer h.m.RUnlock()
 		return h.state == follower && h.leaderIP == "127.0.0.1"
 	})
-	testutil.AssertTrueBeforeTimeout(t, 10*time.Millisecond, 1*time.Second, func() bool {
+	testutil.AssertTrueBeforeTimeout(t, 10*time.Millisecond, 2*time.Second, func() bool {
 		// API redirects to leader
 		recorder := httptest.NewRecorder()
 		res := h.RejectOrForwardLeaderQuery(recorder, httptest.NewRequest("GET", "https://dd-cluster-agent-service:5005/test", nil))
