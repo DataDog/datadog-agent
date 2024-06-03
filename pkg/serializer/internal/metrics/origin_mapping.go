@@ -220,12 +220,16 @@ func metricSourceToOriginService(ms metrics.MetricSource) int32 {
 		return 0
 	case metrics.MetricSourceActiveDirectory:
 		return 10
+	case metrics.MetricSourceActivemqXML:
+		return 11
 	case metrics.MetricSourceActivemq:
 		return 12
 	case metrics.MetricSourceAerospike:
 		return 13
 	case metrics.MetricSourceAirflow:
 		return 14
+	case metrics.MetricSourceAmazonMsk:
+		return 15
 	case metrics.MetricSourceAmbari:
 		return 16
 	case metrics.MetricSourceApache:
