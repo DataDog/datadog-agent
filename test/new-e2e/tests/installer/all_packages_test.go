@@ -47,12 +47,12 @@ var (
 		e2eos.RedHat9,
 		e2eos.Fedora37,
 		e2eos.CentOS7,
-		// e2eos.Suse15,
+		e2eos.Suse15,
 	}
 	arm64Flavors = []e2eos.Descriptor{
 		e2eos.Ubuntu2204,
 		e2eos.AmazonLinux2,
-		// e2eos.Suse15,
+		e2eos.Suse15,
 	}
 	packagesTestsWithSkipedFlavors = []packageTestsWithSkipedFlavors{
 		{t: testInstaller},
