@@ -1233,6 +1233,8 @@ require (
 	go.opentelemetry.io/collector/config/internal v0.100.0 // indirect
 	go.opentelemetry.io/collector/connector v0.100.0 // indirect
 	go.opentelemetry.io/collector/connector/forwardconnector v0.100.0 // indirect
+	go.opentelemetry.io/collector/exporter/debugexporter v0.100.0 // indirect
+	go.opentelemetry.io/collector/exporter/otlphttpexporter v0.100.0 // indirect
 	go.opentelemetry.io/collector/extension/auth v0.100.0 // indirect
 	go.opentelemetry.io/collector/extension/ballastextension v0.100.0 // indirect
 	go.opentelemetry.io/collector/extension/zpagesextension v0.100.0 // indirect

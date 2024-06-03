@@ -3509,10 +3509,14 @@ go.opentelemetry.io/collector/consumer v0.101.0 h1:9tDxaeHe1+Uovf3fhdx7T4pV5mo/D
 go.opentelemetry.io/collector/consumer v0.101.0/go.mod h1:ud5k64on9m7hHTrhjEeLhWbLkd8+Gp06rDt3p86TKNs=
 go.opentelemetry.io/collector/exporter v0.100.0 h1:eyPb93tQwdft5Eboo8O5LDdaM1eXAQbtbXKBEYQlwh4=
 go.opentelemetry.io/collector/exporter v0.100.0/go.mod h1:5UrDewyFp5yIQHyV7HUFAPdhHKJGbz1/uaTunm7X54I=
+go.opentelemetry.io/collector/exporter/debugexporter v0.100.0 h1:9y+6FxuwbjQA7osZ1ywNJ7baV+PXOBges2RPmv2Xs20=
+go.opentelemetry.io/collector/exporter/debugexporter v0.100.0/go.mod h1:/BG6XIU3qHHZKQXJygJXtSPpF03IKnU0j+PudmTea8I=
 go.opentelemetry.io/collector/exporter/loggingexporter v0.100.0 h1:7yfOHgXyduf8sTynpCFUxoQNF9ZCh/PccpFULcCtN0I=
 go.opentelemetry.io/collector/exporter/loggingexporter v0.100.0/go.mod h1:yb71wqRRrLo2WFAdeihOcIIlsvrOVt4SvlEf3xRCeUs=
 go.opentelemetry.io/collector/exporter/otlpexporter v0.100.0 h1:mafUk/1VLhPyGgCeGHDNNbpSOqE14ijy4S3oYL8vDMA=
 go.opentelemetry.io/collector/exporter/otlpexporter v0.100.0/go.mod h1:j9b9/HTwRR4VEPEnhoV9hiXf4tyUekz8d0KOlY2XqzE=
+go.opentelemetry.io/collector/exporter/otlphttpexporter v0.100.0 h1:QowvKoakvgoTL5zrjvWTK/fJv20Cvy7N4otno3QfYNw=
+go.opentelemetry.io/collector/exporter/otlphttpexporter v0.100.0/go.mod h1:mh0ku74zDKTMtaOH+wXbnVAtArn0MD+Q/NDdaFI8uAg=
 go.opentelemetry.io/collector/extension v0.100.0 h1:HT3h5JE+5xK3CCwF7VJKCOuZkLBMaUtm4T/BnEMpdWc=
 go.opentelemetry.io/collector/extension v0.100.0/go.mod h1:B7jsEl6HAZB79NU41AdoMwLgXn4yTTO5NTlxRrsORoo=
 go.opentelemetry.io/collector/extension/auth v0.100.0 h1:Z8QVtntWiORnbVSCQfOxtnOOv9baqTlL8mTOaKi/9nc=

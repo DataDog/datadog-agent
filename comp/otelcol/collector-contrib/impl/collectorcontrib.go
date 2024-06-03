@@ -186,6 +186,9 @@ import (
 	"go.opentelemetry.io/collector/connector"
 	"go.opentelemetry.io/collector/connector/forwardconnector"
 	"go.opentelemetry.io/collector/exporter"
+	"go.opentelemetry.io/collector/exporter/debugexporter"
+	"go.opentelemetry.io/collector/exporter/otlpexporter"
+	"go.opentelemetry.io/collector/exporter/otlphttpexporter"
 	"go.opentelemetry.io/collector/extension"
 	"go.opentelemetry.io/collector/extension/ballastextension"
 	"go.opentelemetry.io/collector/extension/zpagesextension"
@@ -395,6 +398,7 @@ func (c *collectorcontribImpl) OTelComponentFactories() (otelcol.Factories, erro
 		clickhouseexporter.NewFactory(),
 		coralogixexporter.NewFactory(),
 		datasetexporter.NewFactory(),
+		debugexporter.NewFactory(),
 		elasticsearchexporter.NewFactory(),
 		fileexporter.NewFactory(),
 		googlecloudexporter.NewFactory(),
@@ -413,6 +417,8 @@ func (c *collectorcontribImpl) OTelComponentFactories() (otelcol.Factories, erro
 		opencensusexporter.NewFactory(),
 		opensearchexporter.NewFactory(),
 		otelarrowexporter.NewFactory(),
+		otlpexporter.NewFactory(),
+		otlphttpexporter.NewFactory(),
 		prometheusexporter.NewFactory(),
 		prometheusremotewriteexporter.NewFactory(),
 		pulsarexporter.NewFactory(),
