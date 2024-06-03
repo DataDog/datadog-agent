@@ -407,6 +407,7 @@ type Scoper func(ctx *Context) ScopedVariable
 // GlobalVariables holds a set of global variables
 type GlobalVariables struct{}
 
+// VariableOpts holds the options of a variable set
 type VariableOpts struct {
 	Size int
 	TTL  time.Duration
