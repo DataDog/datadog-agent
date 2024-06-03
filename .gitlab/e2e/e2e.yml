@@ -268,8 +268,6 @@ new-e2e-cws:
       - EXTRA_PARAMS: --run TestAgentSuite
       - EXTRA_PARAMS: --run TestECSFargate
       - EXTRA_PARAMS: --run TestKindSuite
-  # Temporary, remove once we made sure the recent changes have no impact on the stability of these tests
-  allow_failure: true
 
 new-e2e-process:
   extends: .new_e2e_template_needs_deb_windows_x64
