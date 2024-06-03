@@ -72,7 +72,7 @@ type agent struct {
 	wg                 sync.WaitGroup
 }
 
-func newAgent(deps dependencies) Component {
+func newAgent(deps dependencies) (Component, error) {
 	c := component{}
 	tracecfg := deps.Config.Object()
 	if !tracecfg.Enabled {
@@ -80,7 +80,7 @@ func newAgent(deps dependencies) Component {
 		deps.TelemetryCollector.SendStartupError(telemetry.TraceAgentNotEnabled, fmt.Errorf(""))
 		// Required to signal that the whole app must stop.
 		_ = deps.Shutdowner.Shutdown()
-		return c
+		return c, nil
 	}
 	ctx, cancel := context.WithCancel(deps.Context) // Several related non-components require a shared context to gracefully stop.
 	ag := &agent{
@@ -94,7 +94,7 @@ func newAgent(deps dependencies) Component {
 	}
 	statsdCl, err := setupMetrics(deps.Statsd, ag.config, ag.telemetryCollector)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	setupShutdown(ctx, deps.Shutdowner, statsdCl)
 	ag.Agent = pkgagent.NewAgent(
@@ -109,7 +109,7 @@ func newAgent(deps dependencies) Component {
 		// These contexts are cancelled on a deadline, so they would have side effects on the agent.
 		OnStart: func(_ context.Context) error { return start(ag) },
 		OnStop:  func(_ context.Context) error { return stop(ag) }})
-	return c
+	return c, nil
 }
 
 func start(ag *agent) error {
