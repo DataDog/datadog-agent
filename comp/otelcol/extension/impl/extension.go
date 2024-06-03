@@ -2,36 +2,73 @@ package impl
 
 import (
 	"context"
+	"fmt"
+	"net/http"
 
 	"go.opentelemetry.io/collector/component"
-	"go.opentelemetry.io/collector/config"
+	"go.opentelemetry.io/collector/extension"
+	"go.uber.org/zap"
 )
 
-// DDExtension is a basic OpenTelemetry Collector extension.
-type DDExtension struct {
-	// Configuration options for your extension
+const extensionName = "dd_extension"
+
+// ddExtension is a basic OpenTelemetry Collector extension.
+type ddExtension struct {
+	extension.Extension // Embed base Extension for common functionality.
+
+	cfg *Config // Extension configuration.
+
+	telemetry component.TelemetrySettings
+	server    *http.Server
 }
 
-// Factory creates a new MyExtension instance.
-func Factory() component.Extension {
-	return &DDExtension{}
+// Create the extension instance
+func createExtension(_ context.Context, set extension.CreateSettings, cfg component.Config) (extension.Extension, error) {
+	return newMyHTTPExtension(cfg.(*Config), set.Logger, set.TelemetrySettings)
+}
+
+// newMyHTTPExtension creates a new instance of the extension.
+func newMyHTTPExtension(cfg *Config, telemetry component.TelemetrySettings) (extension.Extension, error) {
+	return &ddExtension{
+		cfg:       cfg,
+		telemetry: telemetry,
+		server: &http.Server{
+			Addr: fmt.Sprintf(":%d", cfg.Port),
+		},
+	}, nil
 }
 
 // Start is called when the extension is started.
-func (ext *DDExtension) Start(ctx context.Context, params component.StartParams) error {
+func (ext *ddExtension) Start(ctx context.Context, params component.StartParams) error {
 	// Implement your extension logic here
-	// This could involve starting background tasks, registering for callbacks, etc.
+	ext.logger.Info("Starting HTTP server", zap.Int("port", ext.cfg.Port))
+
+	// Define your HTTP server handlers (e.g., /metrics, /health).
+	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprintf(w, "Hello from my OpenTelemetry extension!")
+	})
+
+	// Start the server in a goroutine.
+	go func() {
+		if err := ext.server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			ext.settings.telemetrySettings.ReportStatus(component.NewFatalErrorEvent(err))
+		}
+	}()
+
 	return nil
 }
 
 // Shutdown is called when the extension is shut down.
-func (ext *DDExtension) Shutdown(ctx context.Context) error {
+func (ext *ddExtension) Shutdown(ctx context.Context) error {
 	// Clean up any resources used by the extension
-	return nil
+	ext.logger.Info("Shutting down HTTP server")
+
+	// Give the server a grace period to finish handling requests.
+	return ext.server.Shutdown(ctx)
 }
 
 // Capabilities describes the capabilities of the extension.
-func (ext *DDExtension) Capabilities() config.ComponentCapabilities {
+func (ext *ddExtension) Capabilities() config.ComponentCapabilities {
 	return config.ComponentCapabilities{
 		SupportedDataType: []string{ // List of supported data types (e.g., traces, metrics)
 		},
