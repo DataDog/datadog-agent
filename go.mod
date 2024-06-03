@@ -1,6 +1,7 @@
 module github.com/DataDog/datadog-agent
 
-go 1.21.0
+go 1.22.1
+
 toolchain go1.22.3
 
 // v0.8.0 was tagged long ago, and appared on pkg.go.dev.  We do not want any tagged version
