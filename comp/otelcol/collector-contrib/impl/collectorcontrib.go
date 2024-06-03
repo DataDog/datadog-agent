@@ -8,6 +8,7 @@ package collectorcontrib
 
 import (
 	collectorcontrib "github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/def"
+	ddextension "github.com/DataDog/datadog-agent/comp/otelcol/extension/impl"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/connector/countconnector"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/connector/exceptionsconnector"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/connector/grafanacloudconnector"
@@ -254,6 +255,7 @@ func (c *collectorcontribImpl) OTelComponentFactories() (otelcol.Factories, erro
 		pprofextension.NewFactory(),
 		sigv4authextension.NewFactory(),
 		zpagesextension.NewFactory(),
+		ddextension.NewFactory(),
 	}
 	extensions, err := extension.MakeFactoryMap(extensionsList...)
 	if err != nil {
