@@ -173,7 +173,7 @@ func envForceNoInstall(pkg string) string {
 }
 
 func (s *packageBaseSuite) Purge() {
-	s.Env().RemoteHost.MustExecute("sudo apt-get remove -y --purge datadog-installer || sudo yum remove -y datadog-installer")
+	s.Env().RemoteHost.MustExecute("sudo apt-get remove -y --purge datadog-installer || sudo yum remove -y datadog-installer || sudo zypper remove -y datadog-installer")
 }
 
 // setupFakeIntake sets up the fake intake for the agent and trace agent.
