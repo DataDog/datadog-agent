@@ -227,6 +227,7 @@ func (r *Runner) processTCPResults(res *tcp.Results, hname string, destinationHo
 	pathID := uuid.New().String()
 	traceroutePath := payload.NetworkPath{
 		PathID:    pathID,
+		Protocol:  payload.ProtocolTCP,
 		Timestamp: time.Now().UnixMilli(),
 		Source: payload.NetworkPathSource{
 			Hostname:  hname,
