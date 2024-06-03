@@ -267,15 +267,15 @@ require (
 	go.etcd.io/bbolt v1.3.9
 	go.etcd.io/etcd/client/v2 v2.306.0-alpha.0
 	go.mongodb.org/mongo-driver v1.15.0
-	go.opentelemetry.io/collector v0.100.0 // indirect
-	go.opentelemetry.io/collector/component v0.100.0
-	go.opentelemetry.io/collector/confmap v0.100.0
+	go.opentelemetry.io/collector v0.101.0 // indirect
+	go.opentelemetry.io/collector/component v0.101.0
+	go.opentelemetry.io/collector/confmap v0.101.0
 	go.opentelemetry.io/collector/exporter v0.100.0
 	go.opentelemetry.io/collector/exporter/loggingexporter v0.100.0
 	go.opentelemetry.io/collector/exporter/otlpexporter v0.100.0
 	go.opentelemetry.io/collector/pdata v1.8.0
 	go.opentelemetry.io/collector/processor/batchprocessor v0.100.0
-	go.opentelemetry.io/collector/receiver v0.100.0
+	go.opentelemetry.io/collector/receiver v0.101.0
 	go.opentelemetry.io/collector/receiver/otlpreceiver v0.100.0
 	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.51.0 // indirect
 	go.uber.org/atomic v1.11.0
