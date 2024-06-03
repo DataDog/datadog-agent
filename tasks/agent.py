@@ -21,7 +21,7 @@ from tasks.go import deps
 from tasks.libs.common.utils import (
     REPO_PATH,
     bin_name,
-    cache_version,
+    create_version_json,
     get_build_flags,
     get_embedded_path,
     get_goenv,
@@ -79,6 +79,7 @@ AGENT_CORECHECKS = [
 
 WINDOWS_CORECHECKS = [
     "agentcrashdetect",
+    "sbom",
     "windows_registry",
     "winkmem",
     "wincrashdetect",
@@ -730,7 +731,7 @@ def version(
     omnibus_format=False,
     git_sha_length=7,
     major_version='7',
-    version_cached=False,
+    cache_version=False,
     pipeline_id=None,
     include_git=True,
     include_pre=True,
@@ -746,8 +747,8 @@ def version(
     version_cached: save the version inside a "agent-version.cache" that will be reused
                     by each next call of version.
     """
-    if version_cached:
-        cache_version(ctx, git_sha_length=git_sha_length)
+    if cache_version:
+        create_version_json(ctx, git_sha_length=git_sha_length)
 
     version = get_version(
         ctx,
