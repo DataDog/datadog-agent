@@ -66,7 +66,7 @@ def get_gitlab_api(token=None) -> gitlab.Gitlab:
     """
     token = token or get_gitlab_token()
 
-    return gitlab.Gitlab(BASE_URL, private_token=token)
+    return gitlab.Gitlab(BASE_URL, private_token=token, retry_transient_errors=True)
 
 
 def get_gitlab_repo(repo='DataDog/datadog-agent', token=None) -> Project:
