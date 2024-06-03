@@ -7,14 +7,23 @@ package redis
 
 import (
 	"net"
+	"crypto/tls"
 
 	"github.com/go-redis/redis/v9"
 )
 
 // NewClient returns a new redis client.
-func NewClient(serverAddress string, dialer *net.Dialer) *redis.Client {
-	return redis.NewClient(&redis.Options{
+func NewClient(serverAddress string, dialer *net.Dialer, withTLS TLSSetting) *redis.Client {
+	opts := &redis.Options{
 		Addr:   serverAddress,
-		Dialer: dialer.DialContext,
-	})
+	}
+	if withTLS {
+		opts.TLSConfig = &tls.Config{
+			InsecureSkipVerify: true,
+		}
+	} else {
+		opts.Dialer = dialer.DialContext
+	}
+
+	return redis.NewClient(opts)
 }
