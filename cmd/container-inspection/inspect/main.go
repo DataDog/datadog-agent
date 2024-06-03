@@ -10,14 +10,12 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	"github.com/DataDog/datadog-agent/comp/containerinspection"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/avast/retry-go/v4"
 )
 
-type endpointOutput = workloadmeta.PodContainerMetadataResponse
-
-// const endpointPath = "/alpha/instrumentation/pod-container-metadata"
+type endpointOutput = containerinspection.MetadataResponse
 
 func main() {
 	endpoint := os.Args[1]
@@ -73,7 +71,7 @@ func main() {
 	}
 }
 
-func writeContainerData(root string, name string, c workloadmeta.PodContainerMetadata) error {
+func writeContainerData(root string, name string, c containerinspection.ContainerMetadata) error {
 	encoded, err := json.Marshal(c)
 	if err != nil {
 		return fmt.Errorf("error encoding data for container %s: %w", name, err)

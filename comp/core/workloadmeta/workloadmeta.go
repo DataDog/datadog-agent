@@ -7,9 +7,7 @@ package workloadmeta
 
 import (
 	"context"
-	"encoding/base64"
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"sync"
 	"time"
@@ -72,7 +70,6 @@ type provider struct {
 	Comp                         Component
 	FlareProvider                flaretypes.Provider
 	WorkloadListEndpoint         api.AgentEndpointProvider
-	PodContainerMetadataEndpoint api.AgentEndpointProvider
 }
 
 type optionalProvider struct {
@@ -81,7 +78,6 @@ type optionalProvider struct {
 	Comp                         optional.Option[Component]
 	FlareProvider                flaretypes.Provider
 	WorkloadListEndpoint         api.AgentEndpointProvider
-	PodContainerMetadataEndpoint api.AgentEndpointProvider
 }
 
 func newWorkloadMeta(deps dependencies) provider {
@@ -130,12 +126,6 @@ func newWorkloadMeta(deps dependencies) provider {
 		Comp:                 wm,
 		FlareProvider:        flaretypes.NewProvider(wm.sbomFlareProvider),
 		WorkloadListEndpoint: api.NewAgentEndpointProvider(wm.writeResponse, "/workload-list", "GET"),
-
-		PodContainerMetadataEndpoint: api.NewAgentEndpointProvider(
-			PodContainerMetadataHandler(wm, wm.log),
-			"/pod-container-metadata",
-			"GET",
-		),
 	}
 }
 
@@ -151,161 +141,6 @@ func newWorkloadMetaOptional(deps dependencies) optionalProvider {
 		Comp:                         optional.NewOption(c.Comp),
 		FlareProvider:                c.FlareProvider,
 		WorkloadListEndpoint:         c.WorkloadListEndpoint,
-		PodContainerMetadataEndpoint: c.PodContainerMetadataEndpoint,
-	}
-}
-
-type PodContainerMetadataResponse struct {
-	Containers map[string]PodContainerMetadata `json:"containers"`
-}
-
-type PodContainerMetadata struct {
-	Name              string   `json:"name"`
-	InitContainerName string   `json:"initContainerName"`
-	Cmd               []string `json:"cmd"`
-}
-
-type ContainerSpec struct {
-	ContainerName string   `json:"containerName"`
-	Command       []string `json:"command"`
-	Args          []string `json:"args"`
-}
-
-func (c ContainerSpec) determineCmd(i *ContainerImageMetadata) []string {
-	var out []string
-	if len(c.Command) != 0 {
-		out = c.Command
-	} else if len(i.Entrypoint) > 0 {
-		out = i.Entrypoint
-	}
-
-	if len(c.Args) > 0 {
-		out = append(out, c.Args...)
-	} else if len(i.Cmd) > 0 {
-		out = append(out, i.Cmd...)
-	}
-
-	return out
-}
-
-type PodContainerMetadataRequest struct {
-	PodName        string
-	PodNamespace   string
-	InitContainers map[string]ContainerSpec `json:"initContainers"`
-}
-
-func GetPodContainerMetadata(wm Component, log log.Component, r PodContainerMetadataRequest) (PodContainerMetadataResponse, error) {
-	if r.PodName == "" || r.PodNamespace == "" {
-		return PodContainerMetadataResponse{}, fmt.Errorf("missing pod name or namespaces")
-	}
-
-	pod, err := wm.GetKubernetesPodByName(r.PodName, r.PodNamespace)
-	if err != nil {
-		return PodContainerMetadataResponse{}, err
-	}
-
-	allImages := wm.ListImages()
-	findImage := func(name string) *ContainerImageMetadata {
-		for _, i := range allImages {
-			if i.ID == name {
-				return i
-			}
-			for _, digest := range i.RepoDigests {
-				if digest == name {
-					return i
-				}
-			}
-		}
-
-		return nil
-	}
-
-	out := PodContainerMetadataResponse{
-		Containers: map[string]PodContainerMetadata{},
-	}
-
-	for _, c := range pod.InitContainers {
-		spec, ok := r.InitContainers[c.Name]
-		if !ok {
-			continue // we don't care about this
-		}
-
-		image := findImage(c.Image.ImageMetadataID())
-		if image != nil {
-			cmd := spec.determineCmd(image)
-			if len(cmd) == 0 {
-				return out, fmt.Errorf("could not determine command for container %s", c.Name)
-			}
-
-			out.Containers[spec.ContainerName] = PodContainerMetadata{
-				InitContainerName: c.Name,
-				Name:              spec.ContainerName,
-				Cmd:               cmd,
-			}
-			continue
-		}
-
-		return out, fmt.Errorf("could not get image for container %s", c.Name)
-	}
-
-	if len(r.InitContainers) != len(out.Containers) {
-		return out, fmt.Errorf("missing container metadata, try again, expected %v", mapKeys(r.InitContainers))
-	}
-
-	return out, nil
-}
-
-func mapKeys[T map[K]V, K comparable, V any](in T) []K {
-	keys := make([]K, len(in))
-
-	i := 0
-	for k := range in{
-		keys[i] = k
-		i++
-	}
-
-	return keys
-}
-
-func PodContainerMetadataHandler(wm Component, log log.Component) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		var (
-			q    = r.URL.Query()
-			name = q.Get("name")
-			ns   = q.Get("ns")
-			rb64 = q.Get("request")
-		)
-
-		rbytes, err := base64.StdEncoding.DecodeString(rb64)
-		if err != nil {
-			utils.SetJSONError(w, log.Errorf("error decoding request payload"), 400)
-			return
-		}
-
-		var initContainers map[string]ContainerSpec
-		err = json.Unmarshal(rbytes, &initContainers)
-		if err != nil {
-			utils.SetJSONError(w, log.Errorf("invalid encoding"), 400)
-			return
-		}
-
-		output, err := GetPodContainerMetadata(wm, log, PodContainerMetadataRequest{
-			PodName:        name,
-			PodNamespace:   ns,
-			InitContainers: initContainers,
-		})
-		if err != nil {
-			utils.SetJSONError(w, log.Errorf("error fetching pod container metadata for pod=%s/%s: %v", ns, name, err), 500)
-			return
-		}
-
-		jsonDump, err := json.Marshal(output)
-		if err != nil {
-			utils.SetJSONError(w, log.Errorf("unable to marshal pod-container-metadata: %v", err), 500)
-			return
-		}
-
-		_, _ = w.Write(jsonDump)
 	}
 }
 

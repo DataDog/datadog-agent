@@ -279,7 +279,7 @@ type ContainerImage struct {
 // TODO: Unsure of the implication of the RepoDigest field on this
 //       and whether or not we should return a list of candidate IDs
 //       given the way we are setting ContainerImage from different
-//      runtimes or this is just fine.
+//       runtimes or this is just fine.
 func (c ContainerImage) ImageMetadataID() string {
 	_, after, found := strings.Cut(c.ID, "://")
 	if !found {
