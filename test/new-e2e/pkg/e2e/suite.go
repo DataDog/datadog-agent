@@ -505,7 +505,9 @@ func (bs *BaseSuite[Env]) TearDownSuite() {
 		if err != nil {
 			bs.T().Logf("unable to get pulumi stack name, err: %v", err)
 		} else {
-			dump := dumpKubernetesClusterState(context.Background(), name)
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+			dump := dumpKubernetesClusterState(ctx, name)
+			cancel()
 			bs.T().Logf("Kubernetes cluster state dump: %s", dump)
 		}
 	}
