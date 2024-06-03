@@ -33,6 +33,34 @@ def create_release_page(version, freeze_date):
     return release_page
 
 
+def get_release_page_info(version):
+    username = os.environ['ATLASSIAN_USERNAME']
+    password = os.environ['ATLASSIAN_PASSWORD']
+    space_key = "agent"
+    domain = "https://datadoghq.atlassian.net/wiki"
+    from atlassian import Confluence
+
+    c = Confluence(url=domain, username=username, password=password)
+    page = c.get_page_by_title(space_key, f"Agent {version}", expand="body.storage")
+    return f"{domain}{page['_links']['webui']}", parse_table(page['body']['storage']['value'])
+
+
+def parse_table(data):
+    from bs4 import BeautifulSoup
+
+    soup = BeautifulSoup(data, 'lxml')
+
+    # Find the table containing "Release managers"
+    table = soup.find('table')
+    rows = table.find_all('tr')
+    rm_start_row = next(row for row in rows if row.find_all('td')[0].text == 'Release managers')
+    start = rows.index(rm_start_row)
+    for row in rows[start:]:
+        cells = row.find_all('td')
+        if len(cells) > 1 and len(cells[-1].find_all('ri:user')) == 0:
+            yield cells[-2].text
+
+
 def get_releasing_teams():
     non_releasing_teams = {
         'telemetry-and-analytics',

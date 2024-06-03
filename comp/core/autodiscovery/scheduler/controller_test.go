@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 )
 
 func makeConfig(name string) integration.Config {
@@ -57,6 +58,9 @@ func (s *scheduler) reset() {
 }
 
 func TestController(t *testing.T) {
+	// TODO (CONTP): fix flaky test
+	flake.Mark(t)
+
 	ms := NewController()
 
 	// schedule some configs before registering

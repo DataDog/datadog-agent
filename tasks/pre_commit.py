@@ -7,6 +7,8 @@ from invoke.exceptions import Exit
 
 from tasks.libs.common.color import color_message
 from tasks.libs.common.git import get_staged_files
+from tasks.tools import clang_format
+from tasks.tools.clang_format import ExitStatus
 
 DEFAULT_PRE_COMMIT_CONFIG = ".pre-commit-config.yaml"
 DEVA_PRE_COMMIT_CONFIG = ".pre-commit-config-deva.yaml"
@@ -70,3 +72,23 @@ def check_set_x(ctx):
             print(error, file=sys.stderr)
         print(color_message('error:', 'red'), 'No shell script should use "set -x"', file=sys.stderr)
         raise Exit(code=1)
+
+
+@task
+def check_clang_format(ctx):
+    files = [
+        file
+        for file in get_staged_files(ctx)
+        if (
+            re.match(r"^pkg/(ebpf|network|security)/.*\.(c|h)$", file)
+            and not re.match(
+                "^pkg/ebpf/(c/bpf_endian|c/bpf_helpers|compiler/clang-stdarg).h$",
+                file,
+            )
+        )
+    ]
+
+    if files:
+        res = clang_format.run(files)
+        if res != ExitStatus.SUCCESS:
+            raise Exit(code=res)
