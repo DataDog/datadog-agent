@@ -1036,35 +1036,31 @@ int socket__http2_dynamic_table_cleaner(struct __sk_buff *skb) {
     return 0;
 }
 
-// The program is responsible for parsing all frames that mark the end of a stream.
-// We consider a frame as marking the end of a stream if it is either:
-//  - An headers or data frame with END_STREAM flag set.
-//  - An RST_STREAM frame.
-// The program is being called after http2_dynamic_table_cleaner, and it finalizes the streams and enqueue them
-// to be sent to the user mode.
-// The program is ready to be called multiple times (via "self call" of tail calls) in case we have more frames to
-// process than the maximum number of frames we can process in a single tail call.
-SEC("socket/http2_eos_parser")
-int socket__http2_eos_parser(struct __sk_buff *skb) {
-    dispatcher_arguments_t dispatcher_args_copy;
-    bpf_memset(&dispatcher_args_copy, 0, sizeof(dispatcher_arguments_t));
-    if (!fetch_dispatching_arguments(&dispatcher_args_copy.tup, &dispatcher_args_copy.skb_info)) {
-        return 0;
-    }
+static __always_inline void eos_parser(pktbuf_t pkt, void *map_key, conn_tuple_t *tup) {
+    const __u32 zero = 0;
 
+    pktbuf_map_lookup_option_t arr[] = {
+        [PKTBUF_SKB] = {
+            .map = &http2_iterations,
+            .key = map_key,
+        },
+        [PKTBUF_TLS] = {
+            .map = &tls_http2_iterations,
+            .key = map_key,
+        },
+    };
     // A single packet can contain multiple HTTP/2 frames, due to instruction limitations we have divided the
     // processing into multiple tail calls, where each tail call process a single frame. We must have context when
     // we are processing the frames, for example, to know how many bytes have we read in the packet, or it we reached
     // to the maximum number of frames we can process. For that we are checking if the iteration context already exists.
     // If not, creating a new one to be used for further processing
-    http2_tail_call_state_t *tail_call_state = bpf_map_lookup_elem(&http2_iterations, &dispatcher_args_copy);
+    http2_tail_call_state_t *tail_call_state = pktbuf_map_lookup(pkt, arr);
     if (tail_call_state == NULL) {
         // We didn't find the cached context, aborting.
-        return 0;
+        return;
     }
 
-    const __u32 zero = 0;
-    http2_telemetry_t *http2_tel = bpf_map_lookup_elem(&http2_telemetry, &zero);
+    http2_telemetry_t *http2_tel = get_telemetry(pkt);
     if (http2_tel == NULL) {
         goto delete_iteration;
     }
@@ -1077,7 +1073,7 @@ int socket__http2_eos_parser(struct __sk_buff *skb) {
         goto delete_iteration;
     }
     bpf_memset(http2_ctx, 0, sizeof(http2_ctx_t));
-    http2_ctx->http2_stream_key.tup = dispatcher_args_copy.tup;
+    http2_ctx->http2_stream_key.tup = *tup;
     normalize_tuple(&http2_ctx->http2_stream_key.tup);
 
     bool is_rst = false, is_end_of_stream = false;
@@ -1135,12 +1131,43 @@ int socket__http2_eos_parser(struct __sk_buff *skb) {
     if (tail_call_state->iteration < HTTP2_MAX_FRAMES_ITERATIONS &&
         tail_call_state->iteration < tail_call_state->frames_count &&
         tail_call_state->iteration < HTTP2_MAX_FRAMES_FOR_EOS_PARSER) {
-        bpf_tail_call_compat(skb, &protocols_progs, PROG_HTTP2_EOS_PARSER);
+
+        pktbuf_tail_call_option_t arr[] = {
+            [PKTBUF_SKB] = {
+                .prog_array_map = &protocols_progs,
+                .index = PROG_HTTP2_EOS_PARSER,
+            },
+            [PKTBUF_TLS] = {
+                .prog_array_map = &tls_process_progs,
+                .index = TLS_HTTP2_EOS_PARSER,
+            },
+        };
+        pktbuf_tail_call_compact(pkt, arr);
     }
 
 delete_iteration:
-    bpf_map_delete_elem(&http2_iterations, &dispatcher_args_copy);
+    pktbuf_map_delete(pkt, arr);
+}
 
+// The program is responsible for parsing all frames that mark the end of a stream.
+// We consider a frame as marking the end of a stream if it is either:
+//  - An headers or data frame with END_STREAM flag set.
+//  - An RST_STREAM frame.
+// The program is being called after http2_dynamic_table_cleaner, and it finalizes the streams and enqueue them
+// to be sent to the user mode.
+// The program is ready to be called multiple times (via "self call" of tail calls) in case we have more frames to
+// process than the maximum number of frames we can process in a single tail call.
+SEC("socket/http2_eos_parser")
+int socket__http2_eos_parser(struct __sk_buff *skb) {
+    dispatcher_arguments_t dispatcher_args_copy;
+    bpf_memset(&dispatcher_args_copy, 0, sizeof(dispatcher_arguments_t));
+    if (!fetch_dispatching_arguments(&dispatcher_args_copy.tup, &dispatcher_args_copy.skb_info)) {
+        return 0;
+    }
+
+    pktbuf_t pkt = pktbuf_from_skb(skb, &dispatcher_args_copy.skb_info);
+
+    eos_parser(pkt, &dispatcher_args_copy, &dispatcher_args_copy.tup);
     return 0;
 }
 #endif
