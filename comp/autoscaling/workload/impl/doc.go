@@ -3,9 +3,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package workload implements the DatadogPodAutoscaler controller and
+// Package impl implements the DatadogPodAutoscaler controller and
 // related components to implement horizontal and vertical pod autoscaling.
-package workload
+package impl
 
 // The main controller can perform both horizontal and vertical scaling with the logic in
 // the horizontal and vertical controllers.

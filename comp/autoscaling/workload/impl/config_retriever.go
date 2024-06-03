@@ -5,7 +5,7 @@
 
 //go:build kubeapiserver
 
-package workload
+package impl
 
 import (
 	"time"
@@ -21,7 +21,7 @@ const (
 	configRetrieverStoreID string = "cr"
 )
 
-// Subinterface of rcclient.Component to allow mocking
+// rcClient is a subinterface of rcclient.Component to allow mocking
 type rcClient interface {
 	Subscribe(product string, fn func(update map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)))
 }

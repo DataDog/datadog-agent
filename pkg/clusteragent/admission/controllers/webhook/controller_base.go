@@ -22,6 +22,7 @@ import (
 	"k8s.io/client-go/util/workqueue"
 
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent/admission"
+	autoscalingComp "github.com/DataDog/datadog-agent/comp/autoscaling/workload/def"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/metrics"
 	agentsidecar "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/agent_sidecar"
@@ -30,8 +31,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/config"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/cwsinstrumentation"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/tagsfromlabels"
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 // Controller is an interface implemented by ControllerV1 and ControllerV1beta1.
@@ -49,13 +50,13 @@ func NewController(
 	isLeaderNotif <-chan struct{},
 	config Config,
 	wmeta workloadmeta.Component,
-	pa workload.PodPatcher,
+	recommender optional.Option[autoscalingComp.Component],
 ) Controller {
 	if config.useAdmissionV1() {
-		return NewControllerV1(client, secretInformer, admissionInterface.V1().MutatingWebhookConfigurations(), isLeaderFunc, isLeaderNotif, config, wmeta, pa)
+		return NewControllerV1(client, secretInformer, admissionInterface.V1().MutatingWebhookConfigurations(), isLeaderFunc, isLeaderNotif, config, wmeta, recommender)
 	}
 
-	return NewControllerV1beta1(client, secretInformer, admissionInterface.V1beta1().MutatingWebhookConfigurations(), isLeaderFunc, isLeaderNotif, config, wmeta, pa)
+	return NewControllerV1beta1(client, secretInformer, admissionInterface.V1beta1().MutatingWebhookConfigurations(), isLeaderFunc, isLeaderNotif, config, wmeta, recommender)
 }
 
 // MutatingWebhook represents a mutating webhook
@@ -85,12 +86,14 @@ type MutatingWebhook interface {
 // the config one. The reason is that the volume mount for the APM socket added
 // by the config webhook doesn't always work on Fargate (one of the envs where
 // we use an agent sidecar), and the agent sidecar webhook needs to remove it.
-func mutatingWebhooks(wmeta workloadmeta.Component, pa workload.PodPatcher) []MutatingWebhook {
+func mutatingWebhooks(wmeta workloadmeta.Component, recommender optional.Option[autoscalingComp.Component]) []MutatingWebhook {
 	webhooks := []MutatingWebhook{
 		config.NewWebhook(wmeta),
 		tagsfromlabels.NewWebhook(wmeta),
 		agentsidecar.NewWebhook(),
-		autoscaling.NewWebhook(pa),
+	}
+	if reco, ok := recommender.Get(); ok {
+		webhooks = append(webhooks, autoscaling.NewWebhook(reco))
 	}
 
 	apm, err := autoinstrumentation.GetWebhook(wmeta)

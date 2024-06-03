@@ -268,6 +268,7 @@
 /comp/core/workloadmeta @DataDog/container-platform
 /comp/metadata/packagesigning @DataDog/agent-build-and-releases
 /comp/trace/etwtracer @DataDog/windows-agent
+/comp/autoscaling/workload @DataDog/container-integrations
 /comp/etw @DataDog/windows-agent
 /comp/serializer/compression @DataDog/agent-metrics-logs
 # END COMPONENTS

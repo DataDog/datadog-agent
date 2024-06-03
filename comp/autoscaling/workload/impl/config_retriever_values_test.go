@@ -5,7 +5,7 @@
 
 //go:build kubeapiserver
 
-package workload
+package impl
 
 import (
 	"encoding/json"
@@ -20,7 +20,7 @@ import (
 	kubeAutoscaling "github.com/DataDog/agent-payload/v5/autoscaling/kubernetes"
 	datadoghq "github.com/DataDog/datadog-operator/apis/datadoghq/v1alpha1"
 
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/model"
+	"github.com/DataDog/datadog-agent/comp/autoscaling/workload/impl/model"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"

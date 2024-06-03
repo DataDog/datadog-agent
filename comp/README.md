@@ -571,6 +571,12 @@ Package telemetry provides the installer telemetry component.
 
 Package updater is the updater component.
 
+### [comp/autoscaling/workload](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/autoscaling/workload)
+
+*Datadog Team*: container-integrations
+
+Package autoscaling implements the autoscaling controller
+
 ### [comp/etw](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/etw)
 
 *Datadog Team*: windows-agent

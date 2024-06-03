@@ -10,8 +10,8 @@ package autoscaling
 
 import (
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent/admission"
+	"github.com/DataDog/datadog-agent/comp/autoscaling/workload/def"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload"
 	"github.com/DataDog/datadog-agent/pkg/config"
 
 	admiv1 "k8s.io/api/admissionregistration/v1"
@@ -32,11 +32,11 @@ type Webhook struct {
 	endpoint   string
 	resources  []string
 	operations []admiv1.OperationType
-	patcher    workload.PodPatcher
+	patcher    autoscaling.Component
 }
 
 // NewWebhook returns a new Webhook
-func NewWebhook(patcher workload.PodPatcher) *Webhook {
+func NewWebhook(patcher autoscaling.Component) *Webhook {
 	return &Webhook{
 		name:       webhookName,
 		isEnabled:  config.Datadog().GetBool("autoscaling.workload.enabled"),

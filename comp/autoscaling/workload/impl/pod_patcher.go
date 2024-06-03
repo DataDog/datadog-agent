@@ -5,7 +5,7 @@
 
 //go:build kubeapiserver
 
-package workload
+package impl
 
 import (
 	"context"
@@ -18,8 +18,8 @@ import (
 
 	datadoghq "github.com/DataDog/datadog-operator/apis/datadoghq/v1alpha1"
 
+	"github.com/DataDog/datadog-agent/comp/autoscaling/workload/impl/model"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/model"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -48,7 +48,8 @@ type podPatcher struct {
 
 var _ PodPatcher = podPatcher{}
 
-func newPODPatcher(store *store, isLeader func() bool, client dynamic.Interface, eventRecorder record.EventRecorder) PodPatcher {
+// newPodPatcher creates a new PodPatcher
+func newPodPatcher(store *store, isLeader func() bool, client dynamic.Interface, eventRecorder record.EventRecorder) PodPatcher {
 	return podPatcher{
 		store:         store,
 		isLeader:      isLeader,
@@ -57,6 +58,7 @@ func newPODPatcher(store *store, isLeader func() bool, client dynamic.Interface,
 	}
 }
 
+// ApplyRecommendations applies the recommendations from the autoscaler to the pod
 func (pa podPatcher) ApplyRecommendations(pod *corev1.Pod) (bool, error) {
 	autoscaler, err := pa.findAutoscaler(pod)
 	if err != nil {

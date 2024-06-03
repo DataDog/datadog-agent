@@ -11,9 +11,12 @@ import (
 	"testing"
 	"time"
 
+	autoscaling "github.com/DataDog/datadog-agent/comp/autoscaling/workload/def"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
+
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/fx"
 	"k8s.io/client-go/informers"
@@ -34,7 +37,7 @@ func TestNewController(t *testing.T) {
 		make(chan struct{}),
 		v1Cfg,
 		wmeta,
-		nil,
+		optional.NewNoneOption[autoscaling.Component](),
 	)
 
 	assert.IsType(t, &ControllerV1{}, controller)
@@ -48,7 +51,7 @@ func TestNewController(t *testing.T) {
 		make(chan struct{}),
 		v1beta1Cfg,
 		wmeta,
-		nil,
+		optional.NewNoneOption[autoscaling.Component](),
 	)
 
 	assert.IsType(t, &ControllerV1beta1{}, controller)

@@ -24,10 +24,11 @@ import (
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
 
+	autoscalingComp "github.com/DataDog/datadog-agent/comp/autoscaling/workload/def"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/certificate"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 // ControllerV1 is responsible for watching the TLS certificate stored
@@ -48,7 +49,7 @@ func NewControllerV1(
 	isLeaderNotif <-chan struct{},
 	config Config,
 	wmeta workloadmeta.Component,
-	pa workload.PodPatcher,
+	pa optional.Option[autoscalingComp.Component],
 ) *ControllerV1 {
 	controller := &ControllerV1{}
 	controller.clientSet = client

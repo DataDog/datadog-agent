@@ -11,14 +11,15 @@ package admission
 import (
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/autoscaling/workload/def"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/controllers/secret"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/controllers/webhook"
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
@@ -36,7 +37,7 @@ type ControllerContext struct {
 }
 
 // StartControllers starts the secret and webhook controllers
-func StartControllers(ctx ControllerContext, wmeta workloadmeta.Component, pa workload.PodPatcher) ([]webhook.MutatingWebhook, error) {
+func StartControllers(ctx ControllerContext, wmeta workloadmeta.Component, recommender optional.Option[autoscaling.Component]) ([]webhook.MutatingWebhook, error) {
 	if !config.Datadog().GetBool("admission_controller.enabled") {
 		log.Info("Admission controller is disabled")
 		return nil, nil
@@ -77,7 +78,7 @@ func StartControllers(ctx ControllerContext, wmeta workloadmeta.Component, pa wo
 		ctx.LeaderSubscribeFunc(),
 		webhookConfig,
 		wmeta,
-		pa,
+		recommender,
 	)
 
 	go secretController.Run(ctx.StopCh)

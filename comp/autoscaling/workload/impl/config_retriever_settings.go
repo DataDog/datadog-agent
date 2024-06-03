@@ -5,7 +5,7 @@
 
 //go:build kubeapiserver
 
-package workload
+package impl
 
 import (
 	"encoding/json"
@@ -14,8 +14,8 @@ import (
 
 	"github.com/hashicorp/go-multierror"
 
+	"github.com/DataDog/datadog-agent/comp/autoscaling/workload/impl/model"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling"
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/model"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 )
 

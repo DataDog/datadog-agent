@@ -5,7 +5,7 @@
 
 //go:build kubeapiserver
 
-package workload
+package impl
 
 import (
 	"testing"
@@ -13,8 +13,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"k8s.io/utils/clock"
 
+	"github.com/DataDog/datadog-agent/comp/autoscaling/workload/impl/model"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling"
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/model"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 )
 

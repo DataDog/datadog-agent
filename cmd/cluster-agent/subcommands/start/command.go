@@ -18,11 +18,6 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
-	"github.com/DataDog/datadog-agent/pkg/serializer"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/controllers"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
-
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/cmd/agent/common/path"
 	admissioncmd "github.com/DataDog/datadog-agent/cmd/cluster-agent/admission"
@@ -32,6 +27,8 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent/custommetrics"
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
+	"github.com/DataDog/datadog-agent/comp/autoscaling/workload/def"
+	autoscalingfx "github.com/DataDog/datadog-agent/comp/autoscaling/workload/fx"
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/collector/collector/collectorimpl"
 	"github.com/DataDog/datadog-agent/comp/core"
@@ -40,6 +37,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	healthprobe "github.com/DataDog/datadog-agent/comp/core/healthprobe/def"
 	healthprobefx "github.com/DataDog/datadog-agent/comp/core/healthprobe/fx"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
@@ -65,14 +63,16 @@ import (
 	admissionpkg "github.com/DataDog/datadog-agent/pkg/clusteragent/admission"
 	admissionpatch "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/patch"
 	apidca "github.com/DataDog/datadog-agent/pkg/clusteragent/api"
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/languagedetection"
 	clusteragentMetricsStatus "github.com/DataDog/datadog-agent/pkg/clusteragent/metricsstatus"
 	orchestratorStatus "github.com/DataDog/datadog-agent/pkg/clusteragent/orchestrator"
 	pkgcollector "github.com/DataDog/datadog-agent/pkg/collector"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	rcclient "github.com/DataDog/datadog-agent/pkg/config/remote/client"
 	commonsettings "github.com/DataDog/datadog-agent/pkg/config/settings"
+	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
+	"github.com/DataDog/datadog-agent/pkg/serializer"
 	hostnameStatus "github.com/DataDog/datadog-agent/pkg/status/clusteragent/hostname"
 	endpointsStatus "github.com/DataDog/datadog-agent/pkg/status/endpoints"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
@@ -81,9 +81,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	apicommon "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/controllers"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"github.com/DataDog/datadog-agent/pkg/version"
 
 	"github.com/gorilla/mux"
@@ -93,8 +95,6 @@ import (
 	"k8s.io/client-go/kubernetes/scheme"
 	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
 	"k8s.io/client-go/tools/record"
-
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/languagedetection"
 
 	// Core checks
 
@@ -112,6 +112,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/winproc"
 	"github.com/DataDog/datadog-agent/pkg/collector/python"
 )
+
+// This hack allows us to retrieve these fields with `fx.Provide()`
+// TODO(Components): Create mini-components to retrieve the following fields
+type clusterName string
+type clusterID string
+type hostName string
 
 // Commands returns a slice of subcommands for the 'cluster-agent' command.
 func Commands(globalParams *command.GlobalParams) []*cobra.Command {
@@ -184,6 +190,95 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					}
 				}),
 				healthprobefx.Module(),
+				// Initialize mainCtx
+				fx.Provide(func() (context.Context, context.CancelFunc) {
+					return context.WithCancel(context.Background())
+				}),
+				// Initialize apiServer client
+				fx.Provide(func(ctx context.Context, logComp log.Component) (*apiserver.APIClient, error) {
+					logComp.Info("Waiting to obtain APIClient connection")
+					apiCl, err := apiserver.WaitForAPIClient(ctx) // make sure we can connect to the apiserver
+					if err != nil {
+						return nil, fmt.Errorf("Fatal error: Cannot connect to the apiserver: %v", err)
+					}
+					logComp.Infof("Got APIClient connection")
+					return apiCl, nil
+				}),
+				// Initialize hostname
+				fx.Provide(func(
+					ctx context.Context,
+					h hostnameinterface.Component,
+					logComp log.Component,
+					_ *apiserver.APIClient, // Called by hostname.Get
+				) (hostName, error) {
+					// Get hostname as aggregator requires hostname
+					hname, err := hostname.Get(ctx)
+					if err != nil {
+						return "", fmt.Errorf("Error while getting hostname, exiting: %v", err)
+					}
+					logComp.Infof("Hostname is: %s", hname)
+					return hostName(hname), nil
+				}),
+				// Initialize clusterID and clusterName
+				fx.Provide(func(
+					logComp log.Component,
+					hName hostName,
+					apiCl *apiserver.APIClient,
+				) (clusterName, clusterID, error) {
+					cName := clustername.GetRFC1123CompliantClusterName(context.TODO(), string(hName))
+					// Generate and persist a cluster ID
+					// this must be a UUID, and ideally be stable for the lifetime of a cluster,
+					// so we store it in a configmap that we try and read before generating a new one.
+					cID, err := apicommon.GetOrCreateClusterID(apiCl.Cl.CoreV1())
+					if err != nil {
+						logComp.Errorf("Failed to generate or retrieve the cluster ID, err: %v", err)
+					}
+					if cName == "" {
+						logComp.Warn("Failed to auto-detect a Kubernetes cluster name. We recommend you set it manually via the cluster_name config option")
+					}
+					logComp.Infof("Cluster ID: %s, Cluster Name: %s", cID, cName)
+					return clusterName(cName), clusterID(cID), nil
+				}),
+				// Create the global leader engine, pass the API client to the leader engine
+				// so that the leaderEngine is created after the APIClient is ready
+				fx.Provide(func(mainCtx context.Context, _ *apiserver.APIClient) *leaderelection.LeaderEngine {
+					return leaderelection.CreateGlobalLeaderEngine(mainCtx)
+				}),
+				// TODO(Components): Initialize properly the rc client component
+				// Initialize and start remote configuration client
+				fx.Provide(func(
+					logComp log.Component,
+					cgc config.Component,
+					rcService optional.Option[rccomp.Component],
+					cName clusterName,
+					cid clusterID,
+				) optional.Option[*rcclient.Client] {
+					var rcClient *rcclient.Client
+					rcserv, isSet := rcService.Get()
+					// TODO(components): move helper function IsRemoteConfigEnabled
+					if pkgconfig.IsRemoteConfigEnabled(cgc) && isSet {
+						// TODO: Is APM Tracing always required? I am not sure
+						products := []string{state.ProductAPMTracing}
+
+						if cgc.GetBool("autoscaling.workload.enabled") {
+							products = append(products, state.ProductContainerAutoscalingSettings, state.ProductContainerAutoscalingValues)
+						}
+
+						var err error
+						rcClient, err = initializeRemoteConfigClient(rcserv, cgc, string(cName), string(cid), products...)
+						if err != nil {
+							logComp.Errorf("Failed to start remote-configuration: %v", err)
+						} else {
+							rcClient.Start()
+							defer func() {
+								rcClient.Close()
+							}()
+							return optional.NewOption[*rcclient.Client](rcClient)
+						}
+					}
+					return optional.NewNoneOption[*rcclient.Client]()
+				}),
+				autoscalingfx.Module(),
 				fx.Provide(func(c config.Component) settings.Params {
 					return settings.Params{
 						Settings: map[string]settings.RuntimeSetting{
@@ -204,7 +299,10 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	return []*cobra.Command{startCmd}
 }
 
-func start(log log.Component,
+func start(
+	mainCtx context.Context,
+	mainCtxCancel context.CancelFunc,
+	log log.Component,
 	config config.Component,
 	taggerComp tagger.Component,
 	telemetry telemetry.Component,
@@ -214,14 +312,16 @@ func start(log log.Component,
 	secretResolver secrets.Component,
 	statusComponent status.Component,
 	collector collector.Component,
-	rcService optional.Option[rccomp.Component],
 	_ healthprobe.Component,
 	settings settings.Component,
+	recommender optional.Option[autoscaling.Component],
+	rcCl optional.Option[*rcclient.Client],
+	apiCl *apiserver.APIClient,
+	cName clusterName,
+	cid clusterID,
+	le *leaderelection.LeaderEngine,
 ) error {
 	stopCh := make(chan struct{})
-
-	mainCtx, mainCtxCancel := context.WithCancel(context.Background())
-	defer mainCtxCancel()
 
 	signalCh := make(chan os.Signal, 1)
 	signal.Notify(signalCh, os.Interrupt, syscall.SIGTERM)
@@ -268,34 +368,11 @@ func start(log log.Component,
 		return fmt.Errorf("Error while starting agent API, exiting: %v", err)
 	}
 
-	// Getting connection to APIServer, it's done before Hostname resolution
-	// as hostname resolution may call APIServer
-	pkglog.Info("Waiting to obtain APIClient connection")
-	apiCl, err := apiserver.WaitForAPIClient(context.Background()) // make sure we can connect to the apiserver
-	if err != nil {
-		return fmt.Errorf("Fatal error: Cannot connect to the apiserver: %v", err)
-	}
-	pkglog.Infof("Got APIClient connection")
-
-	// Get hostname as aggregator requires hostname
-	hname, err := hostname.Get(mainCtx)
-	if err != nil {
-		return fmt.Errorf("Error while getting hostname, exiting: %v", err)
-	}
-	pkglog.Infof("Hostname is: %s", hname)
-
 	// If a cluster-agent looses the connectivity to DataDog, we still want it to remain ready so that its endpoint remains in the service because:
 	// * It is still able to serve metrics to the WPA controller and
 	// * The metrics reported are reported as stale so that there is no "lie" about the accuracy of the reported metrics.
 	// Serving stale data is better than serving no data at all.
 	demultiplexer.AddAgentStartupTelemetry(fmt.Sprintf("%s - Datadog Cluster Agent", version.AgentVersion))
-
-	// Create the Leader election engine and initialize it
-	leaderelection.CreateGlobalLeaderEngine(mainCtx)
-	le, err := leaderelection.GetLeaderEngine()
-	if err != nil {
-		return err
-	}
 
 	// Create event recorder
 	eventBroadcaster := record.NewBroadcaster()
@@ -320,40 +397,13 @@ func start(log log.Component,
 		}
 	}
 
-	clusterName := clustername.GetRFC1123CompliantClusterName(context.TODO(), hname)
-	// Generate and persist a cluster ID
-	// this must be a UUID, and ideally be stable for the lifetime of a cluster,
-	// so we store it in a configmap that we try and read before generating a new one.
-	clusterID, err := apicommon.GetOrCreateClusterID(apiCl.Cl.CoreV1())
-	if err != nil {
-		pkglog.Errorf("Failed to generate or retrieve the cluster ID, err: %v", err)
-	}
-	if clusterName == "" {
-		pkglog.Warn("Failed to auto-detect a Kubernetes cluster name. We recommend you set it manually via the cluster_name config option")
-	}
-	pkglog.Infof("Cluster ID: %s, Cluster Name: %s", clusterID, clusterName)
+	clusterName, clusterID := string(cName), string(cid)
 
-	// Initialize and start remote configuration client
+	// Retrieve rc client
 	var rcClient *rcclient.Client
-	rcserv, isSet := rcService.Get()
+	rc, isSet := rcCl.Get()
 	if pkgconfig.IsRemoteConfigEnabled(config) && isSet {
-		// TODO: Is APM Tracing always required? I am not sure
-		products := []string{state.ProductAPMTracing}
-
-		if config.GetBool("autoscaling.workload.enabled") {
-			products = append(products, state.ProductContainerAutoscalingSettings, state.ProductContainerAutoscalingValues)
-		}
-
-		var err error
-		rcClient, err = initializeRemoteConfigClient(rcserv, config, clusterName, clusterID, products...)
-		if err != nil {
-			log.Errorf("Failed to start remote-configuration: %v", err)
-		} else {
-			rcClient.Start()
-			defer func() {
-				rcClient.Close()
-			}()
-		}
+		rcClient = rc
 	}
 
 	// FIXME: move LoadComponents and AC.LoadAndRun in their own package so we
@@ -400,24 +450,6 @@ func start(log log.Component,
 		}()
 	}
 
-	// Autoscaling Product
-	var pa workload.PodPatcher
-	if config.GetBool("autoscaling.workload.enabled") {
-		if rcClient == nil {
-			return fmt.Errorf("Remote config is disabled or failed to initialize, remote config is a required dependency for autoscaling")
-		}
-
-		if !config.GetBool("admission_controller.enabled") {
-			log.Error("Admission controller is disabled, vertical autoscaling requires the admission controller to be enabled. Vertical scaling will be disabled.")
-		}
-
-		if adapter, err := workload.StartWorkloadAutoscaling(mainCtx, apiCl, rcClient, wmeta); err != nil {
-			pkglog.Errorf("Error while starting workload autoscaling: %v", err)
-		} else {
-			pa = adapter
-		}
-	}
-
 	// Compliance
 	if config.GetBool("compliance_config.enabled") {
 		wg.Add(1)
@@ -431,7 +463,7 @@ func start(log log.Component,
 	}
 
 	if config.GetBool("language_detection.enabled") && config.GetBool("cluster_agent.language_detection.patcher.enabled") {
-		if err = languagedetection.Start(mainCtx, wmeta, log); err != nil {
+		if err := languagedetection.Start(mainCtx, wmeta, log); err != nil {
 			log.Errorf("Cannot start language detection patcher: %v", err)
 		}
 	}
@@ -463,7 +495,8 @@ func start(log log.Component,
 			StopCh:              stopCh,
 		}
 
-		webhooks, err := admissionpkg.StartControllers(admissionCtx, wmeta, pa)
+		// TODO(Components): Initialize and provide the recommender component
+		webhooks, err := admissionpkg.StartControllers(admissionCtx, wmeta, recommender)
 		if err != nil {
 			pkglog.Errorf("Could not start admission controller: %v", err)
 		} else {

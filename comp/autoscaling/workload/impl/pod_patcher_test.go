@@ -5,7 +5,7 @@
 
 //go:build kubeapiserver
 
-package workload
+package impl
 
 import (
 	"errors"
@@ -21,8 +21,8 @@ import (
 
 	datadoghq "github.com/DataDog/datadog-operator/apis/datadoghq/v1alpha1"
 
+	"github.com/DataDog/datadog-agent/comp/autoscaling/workload/impl/model"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling"
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/model"
 )
 
 func patcherTestStoreWithData() *store {
@@ -298,7 +298,7 @@ func TestPatcherApplyRecommendations(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			store := patcherTestStoreWithData()
-			patcherAdapter := newPODPatcher(store, nil, nil, nil)
+			patcherAdapter := newPodPatcher(store, nil, nil, nil)
 
 			injected, err := patcherAdapter.ApplyRecommendations(&tt.pod)
 			if (err != nil) != tt.wantErr {
