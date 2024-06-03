@@ -135,6 +135,9 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			core.Bundle(),
 			compressionimpl.Module(),
 			diagnosesendermanagerimpl.Module(),
+			fx.Supply(func(diagnoseSenderManager DiagnoseSenderManager) (SenderManager, error) {
+				return diagnoseSenderManager.LazyGetSenderManager()
+			}),
 			// workloadmeta setup
 			collectors.GetCatalog(),
 			fx.Supply(workloadmeta.Params{
@@ -304,7 +307,7 @@ func runJmxCommandConsole(config config.Component,
 	cliParams *cliParams,
 	wmeta workloadmeta.Component,
 	ac autodiscovery.Component,
-	diagnoseSendermanager diagnosesendermanager.Component,
+	_ diagnosesendermanager.Component,
 	secretResolver secrets.Component,
 	agentAPI internalAPI.Component,
 	collector optional.Option[collector.Component],
@@ -314,10 +317,6 @@ func runJmxCommandConsole(config config.Component,
 	// Disabling it is both more efficient and gets rid of this log spam
 	pkgconfig.Datadog().Set("language_detection.enabled", "false", model.SourceAgentRuntime)
 
-	senderManager, err := diagnoseSendermanager.LazyGetSenderManager()
-	if err != nil {
-		return err
-	}
 	// The Autoconfig instance setup happens in the workloadmeta start hook
 	// create and setup the Collector and others.
 	common.LoadComponents(secretResolver, wmeta, ac, config.GetString("confd_path"))
@@ -342,7 +341,7 @@ func runJmxCommandConsole(config config.Component,
 		return err
 	}
 
-	err = standalone.ExecJMXCommandConsole(cliParams.command, cliParams.cliSelectedChecks, cliParams.jmxLogLevel, allConfigs, diagnoseSendermanager, agentAPI, jmxLogger)
+	err = standalone.ExecJMXCommandConsole(cliParams.command, cliParams.cliSelectedChecks, cliParams.jmxLogLevel, allConfigs, agentAPI, jmxLogger)
 
 	if runtime.GOOS == "windows" {
 		standalone.PrintWindowsUserWarning("jmx")

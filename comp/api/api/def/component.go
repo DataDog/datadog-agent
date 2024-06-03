@@ -10,8 +10,6 @@ import (
 	"net"
 	"net/http"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
-
 	"go.uber.org/fx"
 )
 
@@ -24,9 +22,7 @@ import (
 
 // Component is the component type.
 type Component interface {
-	StartServer(
-		senderManager sender.DiagnoseSenderManager,
-	) error
+	StartServer() error
 	StopServer()
 	ServerAddress() *net.TCPAddr
 }

@@ -52,27 +52,29 @@ type apiServer struct {
 	logsAgentComp     optional.Option[logsAgent.Component]
 	wmeta             workloadmeta.Component
 	collector         optional.Option[collector.Component]
+	senderManager     sender.DiagnoseSenderManager
 	endpointProviders []api.EndpointProvider
 }
 
 type dependencies struct {
 	fx.In
 
-	DogstatsdServer   dogstatsdServer.Component
-	Capture           replay.Component
-	PidMap            pidmap.Component
-	SecretResolver    secrets.Component
-	PkgSigning        packagesigning.Component
-	StatusComponent   status.Component
-	RcService         optional.Option[rcservice.Component]
-	RcServiceMRF      optional.Option[rcservicemrf.Component]
-	AuthToken         authtoken.Component
-	Tagger            tagger.Component
-	AutoConfig        autodiscovery.Component
-	LogsAgentComp     optional.Option[logsAgent.Component]
-	WorkloadMeta      workloadmeta.Component
-	Collector         optional.Option[collector.Component]
-	EndpointProviders []api.EndpointProvider `group:"agent_endpoint"`
+	DogstatsdServer       dogstatsdServer.Component
+	Capture               replay.Component
+	PidMap                pidmap.Component
+	SecretResolver        secrets.Component
+	PkgSigning            packagesigning.Component
+	StatusComponent       status.Component
+	RcService             optional.Option[rcservice.Component]
+	RcServiceMRF          optional.Option[rcservicemrf.Component]
+	AuthToken             authtoken.Component
+	Tagger                tagger.Component
+	AutoConfig            autodiscovery.Component
+	LogsAgentComp         optional.Option[logsAgent.Component]
+	WorkloadMeta          workloadmeta.Component
+	Collector             optional.Option[collector.Component]
+	DiagnoseSenderManager sender.DiagnoseSenderManager
+	EndpointProviders     []api.EndpointProvider `group:"agent_endpoint"`
 }
 
 var _ api.Component = (*apiServer)(nil)
@@ -93,15 +95,15 @@ func newAPIServer(deps dependencies) api.Component {
 		logsAgentComp:     deps.LogsAgentComp,
 		wmeta:             deps.WorkloadMeta,
 		collector:         deps.Collector,
+		senderManager:     deps.DiagnoseSenderManager,
 		endpointProviders: fxutil.GetAndFilterGroup(deps.EndpointProviders),
 	}
 }
 
 // StartServer creates the router and starts the HTTP server
-func (server *apiServer) StartServer(
-	senderManager sender.DiagnoseSenderManager,
-) error {
-	return StartServers(server.rcService,
+func (server *apiServer) StartServer() error {
+	return StartServers(
+		server.rcService,
 		server.rcServiceMRF,
 		server.dogstatsdServer,
 		server.capture,
@@ -109,7 +111,7 @@ func (server *apiServer) StartServer(
 		server.wmeta,
 		server.taggerComp,
 		server.logsAgentComp,
-		senderManager,
+		server.senderManager,
 		server.secretResolver,
 		server.statusComponent,
 		server.collector,
