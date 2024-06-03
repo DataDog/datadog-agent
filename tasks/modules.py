@@ -356,3 +356,23 @@ def for_each(ctx: Context, cmd: str, skip_untagged: bool = False):
             continue
         with ctx.cd(mod.full_path()):
             ctx.run(cmd)
+
+
+@task
+def validate(_: Context, fail_fast: bool = False):
+    """
+    Test if every module was properly added in the DEFAULT_MODULES list.
+    """
+    missing_modules = []
+    for module in DEFAULT_MODULES.values():
+        for dependency in module.dependencies:
+            if dependency not in DEFAULT_MODULES:
+                if fail_fast:
+                    print(f"Error: {module.path} depends on missing {dependency}", file=sys.stderr)
+                    sys.exit(1)
+                missing_modules.append((module, dependency))
+    if missing_modules:
+        print("Error: some modules are missing from DEFAULT_MODULES", file=sys.stderr)
+        for module, dependency in missing_modules:
+            print(f"  {module.path} depends on missing {dependency}", file=sys.stderr)
+        sys.exit(1)
