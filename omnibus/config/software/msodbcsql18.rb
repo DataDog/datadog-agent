@@ -31,7 +31,7 @@ elsif redhat_target?
     # RHEL aarch64 build
     package_name = "#{base_package_name}.aarch64.rpm"
     source sha256: "ffbdede1d6af1245ce02cb77d3d5d37648b9121900632d3c6de56fe60d436b12"
-    source url: "#{source_url_base}/rhel/7/prod/Packages/m/#{package_name}"
+    source url: "#{source_url_base}/rhel/8/prod/Packages/m/#{package_name}"
   else
     # RHEL x86_64 build
     package_name = "#{base_package_name}.x86_64.rpm"
