@@ -26,9 +26,10 @@ type PulumiEnvRunFunc[Env any] func(ctx *pulumi.Context, env *Env) error
 
 // PulumiProvisioner is a provisioner based on Pulumi with binding to an environment.
 type PulumiProvisioner[Env any] struct {
-	id        string
-	runFunc   PulumiEnvRunFunc[Env]
-	configMap runner.ConfigMap
+	id           string
+	runFunc      PulumiEnvRunFunc[Env]
+	configMap    runner.ConfigMap
+	diagnoseFunc func(ctx context.Context) (string, error)
 }
 
 var (
@@ -100,6 +101,18 @@ func (pp *PulumiProvisioner[Env]) ProvisionEnv(ctx context.Context, stackName st
 	}
 
 	return resources, nil
+}
+
+// Diagnose runs the diagnose function if it is set diagnoseFunc
+func (pp *PulumiProvisioner[Env]) Diagnose(ctx context.Context) (string, error) {
+	if pp.diagnoseFunc != nil {
+		return pp.diagnoseFunc(ctx)
+	}
+	return "", nil
+}
+
+func (pp *PulumiProvisioner[Env]) SetDiagnoseFunc(diagnoseFunc func(ctx context.Context) (string, error)) {
+	pp.diagnoseFunc = diagnoseFunc
 }
 
 // Destroy deletes the Pulumi stack.

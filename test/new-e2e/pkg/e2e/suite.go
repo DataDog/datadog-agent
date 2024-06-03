@@ -150,7 +150,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner/parameters"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/infra"
 	"github.com/DataDog/test-infra-definitions/common/utils"
 	"github.com/DataDog/test-infra-definitions/components"
 
@@ -285,6 +284,14 @@ func (bs *BaseSuite[Env]) reconcileEnv(targetProvisioners ProvisionerMap) error 
 		}
 
 		if err != nil {
+			if diagnosableProvisioner, ok := provisioner.(Diagnosable); ok {
+				diagnoseResult, diagnoseErr := diagnosableProvisioner.Diagnose(ctx)
+				if diagnoseErr != nil {
+					bs.T().Logf("WARNING: Diagnose failed: %v", diagnoseErr)
+				} else if diagnoseResult != "" {
+					bs.T().Logf("Diagnose result: %s", diagnoseResult)
+				}
+			}
 			return fmt.Errorf("your stack '%s' provisioning failed, check logs above. Provisioner was %s, failed with err: %v", bs.params.stackName, id, err)
 		}
 
@@ -496,20 +503,6 @@ func (bs *BaseSuite[Env]) AfterTest(suiteName, testName string) {
 func (bs *BaseSuite[Env]) TearDownSuite() {
 	if bs.params.devMode {
 		return
-	}
-	// If a Kubernetes environment is detected, we dump the cluster state when tearing down the suite
-	//TODO: *environments.Kubernetes string should be replaces by reflect.TypeOf(&environments.Kubernetes{}) once we move types.go to its own package to avoid import cycles
-	if fmt.Sprintf("%v", reflect.TypeOf(bs.env)) == "*environments.Kubernetes" {
-		bs.T().Logf("Kubernetes Environment detected, trying to dump Kubernetes cluster state")
-		name, err := infra.GetStackManager().GetPulumiStackName(bs.params.stackName)
-		if err != nil {
-			bs.T().Logf("unable to get pulumi stack name, err: %v", err)
-		} else {
-			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
-			dump := dumpKubernetesClusterState(ctx, name)
-			cancel()
-			bs.T().Logf("Kubernetes cluster state dump: %s", dump)
-		}
 	}
 
 	if bs.firstFailTest != "" && bs.params.skipDeleteOnFailure {

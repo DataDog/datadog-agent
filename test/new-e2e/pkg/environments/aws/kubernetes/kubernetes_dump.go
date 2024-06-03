@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2023-present Datadog, Inc.
 
-package e2e
+package awskubernetes
 
 import (
 	"bytes"
@@ -18,7 +18,6 @@ import (
 	"sync"
 
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
-	"github.com/aws/aws-sdk-go-v2/aws"
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	awsec2 "github.com/aws/aws-sdk-go-v2/service/ec2"
 	awsec2types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
@@ -34,27 +33,14 @@ import (
 	kubectlutil "k8s.io/kubectl/pkg/cmd/util"
 )
 
-func dumpKubernetesClusterState(ctx context.Context, name string) string {
-	cfg, err := awsconfig.LoadDefaultConfig(ctx)
-	if err != nil {
-		return "WARNING: Failed to dump cluster state: failed to load AWS config"
-	}
-
-	dumpEKS, errEKS := tryDumpEKSClusterState(ctx, cfg, name)
-	if errEKS == nil {
-		return dumpEKS
-	}
-
-	dumpKind, errKind := tryDumpKindClusterState(ctx, cfg, name)
-	if errKind == nil {
-		return dumpKind
-	}
-
-	return fmt.Sprintf("WARNING: Failed to dump cluster state, tried EKS and Kind dump:\n EKS error: %v\n Kind error: %v", errEKS, errKind)
-}
-func tryDumpEKSClusterState(ctx context.Context, cfg aws.Config, name string) (ret string, err error) {
+func dumpEKSClusterState(ctx context.Context, name string) (ret string, err error) {
 	var out strings.Builder
 	defer func() { ret = out.String() }()
+
+	cfg, err := awsconfig.LoadDefaultConfig(ctx)
+	if err != nil {
+		return "", fmt.Errorf("failed to load AWS config: %v", err)
+	}
 
 	client := awseks.NewFromConfig(cfg)
 
@@ -104,10 +90,14 @@ func tryDumpEKSClusterState(ctx context.Context, cfg aws.Config, name string) (r
 	return
 }
 
-func tryDumpKindClusterState(ctx context.Context, cfg aws.Config, name string) (ret string, err error) {
+func dumpKindClusterState(ctx context.Context, name string) (ret string, err error) {
 	var out strings.Builder
 	defer func() { ret = out.String() }()
 
+	cfg, err := awsconfig.LoadDefaultConfig(ctx)
+	if err != nil {
+		return "", fmt.Errorf("failed to load AWS config: %v", err)
+	}
 	ec2Client := awsec2.NewFromConfig(cfg)
 
 	user, _ := user.Current()
