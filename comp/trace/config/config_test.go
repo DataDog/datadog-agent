@@ -903,7 +903,8 @@ func TestLoadEnv(t *testing.T) {
 			{"DD_CONNECTION_LIMIT", "DD_APM_CONNECTION_LIMIT", "apm_config.connection_limit"},
 			{"DD_RECEIVER_PORT", "DD_APM_RECEIVER_PORT", "apm_config.receiver_port"},
 			{"DD_MAX_EPS", "DD_MAX_EPS", "apm_config.max_events_per_second"},
-			{"DD_MAX_TPS", "DD_APM_MAX_TPS", "apm_config.max_traces_per_second"},
+			{"DD_MAX_TPS", "DD_APM_TARGET_TPS", "apm_config.target_traces_per_second"},
+			{"DD_APM_MAX_TPS", "DD_APM_TARGET_TPS", "apm_config.target_traces_per_second"},
 			{"DD_IGNORE_RESOURCE", "DD_APM_IGNORE_RESOURCES", "apm_config.ignore_resources"},
 		} {
 			t.Setenv(tt.envOld, "1,2,3")
@@ -1414,8 +1415,9 @@ func TestLoadEnv(t *testing.T) {
 	}
 
 	for _, envKey := range []string{
-		"DD_MAX_TPS", // deprecated
-		"DD_APM_MAX_TPS",
+		"DD_MAX_TPS",     // deprecated
+		"DD_APM_MAX_TPS", // deprecated
+		"DD_APM_TARGET_TPS",
 	} {
 		t.Run(envKey, func(t *testing.T) {
 			t.Setenv(envKey, "6")

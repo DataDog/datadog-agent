@@ -231,8 +231,8 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 	if core.IsSet("apm_config.max_events_per_second") {
 		c.MaxEPS = core.GetFloat64("apm_config.max_events_per_second")
 	}
-	if core.IsSet("apm_config.max_traces_per_second") {
-		c.TargetTPS = core.GetFloat64("apm_config.max_traces_per_second")
+	if core.IsSet("apm_config.target_traces_per_second") {
+		c.TargetTPS = core.GetFloat64("apm_config.target_traces_per_second")
 	}
 	if core.IsSet("apm_config.errors_per_second") {
 		c.ErrorTPS = core.GetFloat64("apm_config.errors_per_second")
