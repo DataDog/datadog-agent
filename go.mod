@@ -707,7 +707,7 @@ require (
 	github.com/planetscale/vtprotobuf v0.6.0
 	github.com/prometheus-community/pro-bing v0.3.0
 	github.com/rickar/props v1.0.0
-	github.com/sijms/go-ora/v2 v2.8.14
+	github.com/sijms/go-ora/v2 v2.8.19
 	github.com/swaggest/jsonschema-go v0.3.64
 	github.com/valyala/fastjson v1.6.4
 	github.com/vibrantbyte/go-antpath v1.1.1
