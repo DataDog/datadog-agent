@@ -9,8 +9,84 @@
 
 PKTBUF_READ_INTO_BUFFER(http2_preface, HTTP2_MARKER_SIZE, HTTP2_MARKER_SIZE)
 PKTBUF_READ_INTO_BUFFER(http2_frame_header, HTTP2_FRAME_HEADER_SIZE, HTTP2_FRAME_HEADER_SIZE)
+PKTBUF_READ_INTO_BUFFER(path, HTTP2_MAX_PATH_LEN, BLK_SIZE)
 
-READ_INTO_BUFFER(path, HTTP2_MAX_PATH_LEN, BLK_SIZE)
+// Handles the dynamic table size update.
+static __always_inline void pktbuf_handle_dynamic_table_update(pktbuf_t pkt) {
+    // To determine the size of the dynamic table update, we read an integer representation byte by byte.
+    // We continue reading bytes until we encounter a byte without the Most Significant Bit (MSB) set,
+    // indicating that we've consumed the complete integer. While in the context of the dynamic table
+    // update, we set the state as true if the MSB is set, and false otherwise. Then, we proceed to the next byte.
+    // More on the feature - https://httpwg.org/specs/rfc7541.html#rfc.section.6.3.
+    __u8 current_ch;
+    pktbuf_load_bytes_from_current_offset(pkt, &current_ch, sizeof(current_ch));
+    // If the top 3 bits are 001, then we have a dynamic table size update.
+    if ((current_ch & 224) == 32) {
+        pktbuf_advance(pkt, sizeof(current_ch));
+    #pragma unroll(HTTP2_MAX_DYNAMIC_TABLE_UPDATE_ITERATIONS)
+        for (__u8 iter = 0; iter < HTTP2_MAX_DYNAMIC_TABLE_UPDATE_ITERATIONS; ++iter) {
+            pktbuf_load_bytes_from_current_offset(pkt, &current_ch, sizeof(current_ch));
+            pktbuf_advance(pkt, sizeof(current_ch));
+            if ((current_ch & 128) == 0) {
+                return;
+            }
+        }
+    }
+}
+
+// Similar to read_hpack_int, but with a small optimization of getting the
+// current character as input argument.
+static __always_inline bool pktbuf_read_hpack_int_with_given_current_char(pktbuf_t pkt, __u64 current_char_as_number, __u64 max_number_for_bits, __u64 *out) {
+    current_char_as_number &= max_number_for_bits;
+
+    // In HPACK, if the number is too big to be stored in max_number_for_bits
+    // bits, then those bits are all set to one, and the rest of the number must
+    // be read from subsequent bytes.
+    if (current_char_as_number < max_number_for_bits) {
+        *out = current_char_as_number;
+        return true;
+    }
+
+    // Read the next byte, and check if it is the last byte of the number.
+    // While HPACK does support arbitrary sized numbers, we are limited by the
+    // number of instructions we can use in a single eBPF program, so we only
+    // parse one additional byte. The max value that can be parsed is
+    // `(2^max_number_for_bits - 1) + 127`.
+    __u64 next_char = 0;
+    if (pktbuf_load_bytes_from_current_offset(pkt, &next_char, 1) >= 0 && (next_char & 128) == 0) {
+        pktbuf_advance(pkt, 1);
+        *out = current_char_as_number + (next_char & 127);
+        return true;
+    }
+
+    return false;
+}
+
+// Reads an unsigned variable length integer as specified in the
+// HPACK specification, from an skb.
+//
+// See https://httpwg.org/specs/rfc7541.html#rfc.section.5.1 for more details on
+// how numbers are represented in HPACK.
+//
+// max_number_for_bits represents the number of bits in the first byte that are
+// used to represent the MSB of number. It must always be between 1 and 8.
+//
+// The parsed number is stored in out.
+//
+// read_hpack_int returns true if the integer was successfully parsed, and false
+// otherwise.
+static __always_inline bool pktbuf_read_hpack_int(pktbuf_t pkt, __u64 max_number_for_bits, __u64 *out, bool *is_huffman_encoded) {
+    __u64 current_char_as_number = 0;
+    if (pktbuf_load_bytes_from_current_offset(pkt, &current_char_as_number, sizeof(__u8)) < 0) {
+        return false;
+    }
+    pktbuf_advance(pkt, sizeof(__u8));
+    // We are only interested in the first bit of the first byte, which indicates if it is huffman encoded or not.
+    // See: https://datatracker.ietf.org/doc/html/rfc7541#appendix-B for more details on huffman code.
+    *is_huffman_encoded = (current_char_as_number & 128) > 0;
+
+    return pktbuf_read_hpack_int_with_given_current_char(pkt, current_char_as_number, max_number_for_bits, out);
+}
 
 // A helper function to check for the HTTP2 magic sent at the beginning
 // of an HTTP2 connection, and skip it if present.
@@ -40,26 +116,26 @@ static __always_inline void* get_telemetry(pktbuf_t pkt) {
     return pktbuf_map_lookup(pkt, arr);
 }
 
-// parse_field_literal parses a header with a literal value.
+// Parses a header with a literal value.
 //
 // We are only interested in path headers, that we will store in our internal
 // dynamic table, and will skip headers that are not path headers.
-static __always_inline bool parse_field_literal(struct __sk_buff *skb, skb_info_t *skb_info, http2_header_t *headers_to_process, __u64 index, __u64 global_dynamic_counter, __u8 *interesting_headers_counter, http2_telemetry_t *http2_tel, bool save_header) {
+static __always_inline bool pktbuf_parse_field_literal(pktbuf_t pkt, http2_header_t *headers_to_process, __u64 index, __u64 global_dynamic_counter, __u8 *interesting_headers_counter, http2_telemetry_t *http2_tel, bool save_header) {
     __u64 str_len = 0;
     bool is_huffman_encoded = false;
     // String length supposed to be represented with at least 7 bits representation -https://datatracker.ietf.org/doc/html/rfc7541#section-5.2
-    if (!read_hpack_int(skb, skb_info, MAX_7_BITS, &str_len, &is_huffman_encoded)) {
+    if (!pktbuf_read_hpack_int(pkt, MAX_7_BITS, &str_len, &is_huffman_encoded)) {
         return false;
     }
 
     // The header name is new and inserted in the dynamic table - we skip the new value.
     if (index == 0) {
-        skb_info->data_off += str_len;
+        pktbuf_advance(pkt, str_len);
         str_len = 0;
         // String length supposed to be represented with at least 7 bits representation -https://datatracker.ietf.org/doc/html/rfc7541#section-5.2
         // At this point the huffman code is not interesting due to the fact that we already read the string length,
         // We are reading the current size in order to skip it.
-        if (!read_hpack_int(skb, skb_info, MAX_7_BITS, &str_len, &is_huffman_encoded)) {
+        if (!pktbuf_read_hpack_int(pkt, MAX_7_BITS, &str_len, &is_huffman_encoded)) {
             return false;
         }
         goto end;
@@ -83,7 +159,7 @@ static __always_inline bool parse_field_literal(struct __sk_buff *skb, skb_info_
         goto end;
     }
 
-    if (skb_info->data_off + str_len > skb_info->data_end) {
+    if (pktbuf_data_offset(pkt) + str_len > pktbuf_data_end(pkt)) {
         __sync_fetch_and_add(&http2_tel->literal_value_exceeds_frame, 1);
         goto end;
     }
@@ -95,7 +171,7 @@ static __always_inline bool parse_field_literal(struct __sk_buff *skb, skb_info_
         headers_to_process->type = kNewDynamicHeaderNotIndexed;
     }
     headers_to_process->original_index = index;
-    headers_to_process->new_dynamic_value_offset = skb_info->data_off;
+    headers_to_process->new_dynamic_value_offset = pktbuf_data_offset(pkt);
     headers_to_process->new_dynamic_value_size = str_len;
     headers_to_process->is_huffman_encoded = is_huffman_encoded;
     // If the string len (`str_len`) is in the range of [0, HTTP2_MAX_PATH_LEN], and we don't exceed packet boundaries
@@ -103,20 +179,44 @@ static __always_inline bool parse_field_literal(struct __sk_buff *skb, skb_info_
     // and we're increasing the counter. In any other case, we're not increasing the counter.
     *interesting_headers_counter += (str_len > 0 && str_len <= HTTP2_MAX_PATH_LEN);
 end:
-    skb_info->data_off += str_len;
+    pktbuf_advance(pkt, str_len);
     return true;
 }
 
-// filter_relevant_headers parses the http2 headers frame, and filters headers
+// Handles a literal header, and updates the offset. This function is meant to run on not interesting literal headers.
+static __always_inline bool pktbuf_process_and_skip_literal_headers(pktbuf_t pkt, __u64 index) {
+    __u64 str_len = 0;
+    bool is_huffman_encoded = false;
+    // String length supposed to be represented with at least 7 bits representation -https://datatracker.ietf.org/doc/html/rfc7541#section-5.2
+    if (!pktbuf_read_hpack_int(pkt, MAX_7_BITS, &str_len, &is_huffman_encoded)) {
+        return false;
+    }
+
+    // The header name is new and inserted in the dynamic table - we skip the new value.
+    if (index == 0) {
+        pktbuf_advance(pkt, str_len);
+        str_len = 0;
+        // String length supposed to be represented with at least 7 bits representation -https://datatracker.ietf.org/doc/html/rfc7541#section-5.2
+        // At this point the huffman code is not interesting due to the fact that we already read the string length,
+        // We are reading the current size in order to skip it.
+        if (!pktbuf_read_hpack_int(pkt, MAX_7_BITS, &str_len, &is_huffman_encoded)) {
+            return false;
+        }
+    }
+    pktbuf_advance(pkt, str_len);
+    return true;
+}
+
+// Parses the http2 headers frame, and filters headers
 // that are relevant for us, to be processed later on.
 // The return value is the number of relevant headers that were found and inserted
 // in the `headers_to_process` table.
-static __always_inline __u8 filter_relevant_headers(struct __sk_buff *skb, skb_info_t *restrict skb_info, conn_tuple_t *tup, dynamic_table_index_t *dynamic_index, http2_header_t *headers_to_process, __u32 frame_length, http2_telemetry_t *http2_tel) {
+static __always_inline __u8 pktbuf_filter_relevant_headers(pktbuf_t pkt, conn_tuple_t *tup, dynamic_table_index_t *dynamic_index, http2_header_t *headers_to_process, __u32 frame_length, http2_telemetry_t *http2_tel) {
     __u8 current_ch;
     __u8 interesting_headers = 0;
     http2_header_t *current_header;
-    const __u32 frame_end = skb_info->data_off + frame_length;
-    const __u32 end = frame_end < skb_info->data_end + 1 ? frame_end : skb_info->data_end + 1;
+    const __u32 frame_end = pktbuf_data_offset(pkt) + frame_length;
+    const __u32 end = frame_end < pktbuf_data_end(pkt) + 1 ? frame_end : pktbuf_data_end(pkt) + 1;
     bool is_indexed = false;
     bool is_literal = false;
     __u64 max_bits = 0;
@@ -127,15 +227,15 @@ static __always_inline __u8 filter_relevant_headers(struct __sk_buff *skb, skb_i
         return 0;
     }
 
-    handle_dynamic_table_update(skb, skb_info);
+    pktbuf_handle_dynamic_table_update(pkt);
 
 #pragma unroll(HTTP2_MAX_PSEUDO_HEADERS_COUNT_FOR_FILTERING)
     for (__u8 headers_index = 0; headers_index < HTTP2_MAX_PSEUDO_HEADERS_COUNT_FOR_FILTERING; ++headers_index) {
-        if (skb_info->data_off >= end) {
+        if (pktbuf_data_offset(pkt) >= end) {
             break;
         }
-        bpf_skb_load_bytes(skb, skb_info->data_off, &current_ch, sizeof(current_ch));
-        skb_info->data_off++;
+        pktbuf_load_bytes_from_current_offset(pkt, &current_ch, sizeof(current_ch));
+        pktbuf_advance(pkt, sizeof(current_ch));
 
         is_indexed = (current_ch & 128) != 0;
         is_literal = (current_ch & 192) == 64;
@@ -151,7 +251,7 @@ static __always_inline __u8 filter_relevant_headers(struct __sk_buff *skb, skb_i
         // max bits are 4.
 
         index = 0;
-        if (!read_hpack_int_with_given_current_char(skb, skb_info, current_ch, max_bits, &index)) {
+        if (!pktbuf_read_hpack_int_with_given_current_char(pkt, current_ch, max_bits, &index)) {
             break;
         }
 
@@ -173,19 +273,19 @@ static __always_inline __u8 filter_relevant_headers(struct __sk_buff *skb, skb_i
         // 6.2.1 Literal Header Field with Incremental Indexing
         // top two bits are 11
         // https://httpwg.org/specs/rfc7541.html#rfc.section.6.2.1
-        if (!parse_field_literal(skb, skb_info, current_header, index, *global_dynamic_counter, &interesting_headers, http2_tel, is_literal)) {
+        if (!pktbuf_parse_field_literal(pkt, current_header, index, *global_dynamic_counter, &interesting_headers, http2_tel, is_literal)) {
             break;
         }
     }
 
 #pragma unroll(HTTP2_MAX_HEADERS_COUNT_FOR_FILTERING)
     for (__u8 headers_index = 0; headers_index < HTTP2_MAX_HEADERS_COUNT_FOR_FILTERING; ++headers_index) {
-        if (skb_info->data_off >= end) {
+        if (pktbuf_data_offset(pkt) >= end) {
             break;
         }
 
-        bpf_skb_load_bytes(skb, skb_info->data_off, &current_ch, sizeof(current_ch));
-        skb_info->data_off++;
+        pktbuf_load_bytes_from_current_offset(pkt, &current_ch, sizeof(current_ch));
+        pktbuf_advance(pkt, sizeof(current_ch));
 
         is_indexed = (current_ch & 128) != 0;
         is_literal = (current_ch & 192) == 64;
@@ -201,7 +301,7 @@ static __always_inline __u8 filter_relevant_headers(struct __sk_buff *skb, skb_i
         // max bits are 4.
 
         index = 0;
-        if (!read_hpack_int_with_given_current_char(skb, skb_info, current_ch, max_bits, &index)) {
+        if (!pktbuf_read_hpack_int_with_given_current_char(pkt, current_ch, max_bits, &index)) {
             break;
         }
 
@@ -215,7 +315,7 @@ static __always_inline __u8 filter_relevant_headers(struct __sk_buff *skb, skb_i
         // We're not increasing the counter for literal without indexing or literal never indexed.
         __sync_fetch_and_add(global_dynamic_counter, is_literal);
         // Handle frame headers which are not pseudo headers fields.
-        if (!process_and_skip_literal_headers(skb, skb_info, index)){
+        if (!pktbuf_process_and_skip_literal_headers(pkt, index)){
             break;
         }
     }
@@ -223,9 +323,9 @@ static __always_inline __u8 filter_relevant_headers(struct __sk_buff *skb, skb_i
     return interesting_headers;
 }
 
-// process_headers processes the headers that were filtered in filter_relevant_headers,
+// Processes the headers that were filtered in filter_relevant_headers,
 // looking for requests path, status code, and method.
-static __always_inline void process_headers(struct __sk_buff *skb, dynamic_table_index_t *dynamic_index, http2_stream_t *current_stream, http2_header_t *headers_to_process, __u8 interesting_headers,  http2_telemetry_t *http2_tel) {
+static __always_inline void pktbuf_process_headers(pktbuf_t pkt, dynamic_table_index_t *dynamic_index, http2_stream_t *current_stream, http2_header_t *headers_to_process, __u8 interesting_headers,  http2_telemetry_t *http2_tel) {
     http2_header_t *current_header;
     dynamic_table_entry_t dynamic_value = {};
 
@@ -240,8 +340,8 @@ static __always_inline void process_headers(struct __sk_buff *skb, dynamic_table
         if (current_header->type == kStaticHeader) {
             if (is_method_index(current_header->index)) {
                 // TODO: mark request
-               current_stream->request_method.static_table_entry = current_header->index;
-               current_stream->request_method.finalized = true;
+                current_stream->request_method.static_table_entry = current_header->index;
+                current_stream->request_method.finalized = true;
                 __sync_fetch_and_add(&http2_tel->request_seen, 1);
             } else if (is_status_index(current_header->index)) {
                 current_stream->status_code.static_table_entry = current_header->index;
@@ -269,7 +369,7 @@ static __always_inline void process_headers(struct __sk_buff *skb, dynamic_table
                 bpf_memcpy(current_stream->status_code.raw_buffer, dynamic_value->buffer, HTTP2_STATUS_CODE_MAX_LEN);
                 current_stream->status_code.is_huffman_encoded = dynamic_value->is_huffman_encoded;
                 current_stream->status_code.finalized = true;
-            }  else if (is_method_index(dynamic_value->original_index)) {
+            } else if (is_method_index(dynamic_value->original_index)) {
                 bpf_memcpy(current_stream->request_method.raw_buffer, dynamic_value->buffer, HTTP2_METHOD_MAX_LEN);
                 current_stream->request_method.is_huffman_encoded = dynamic_value->is_huffman_encoded;
                 current_stream->request_method.length = dynamic_value->string_len;
@@ -277,7 +377,7 @@ static __always_inline void process_headers(struct __sk_buff *skb, dynamic_table
             }
         } else {
             // create the new dynamic value which will be added to the internal table.
-            read_into_buffer_path(dynamic_value.buffer, skb, current_header->new_dynamic_value_offset);
+            pktbuf_read_into_buffer_path(dynamic_value.buffer, pkt, current_header->new_dynamic_value_offset);
             // If the value is indexed - add it to the dynamic table.
             if (current_header->type == kNewDynamicHeader) {
                 dynamic_value.string_len = current_header->new_dynamic_value_size;
@@ -302,20 +402,6 @@ static __always_inline void process_headers(struct __sk_buff *skb, dynamic_table
             }
         }
     }
-}
-
-static __always_inline void process_headers_frame(struct __sk_buff *skb, http2_stream_t *current_stream, skb_info_t *restrict skb_info, conn_tuple_t *tup, dynamic_table_index_t *dynamic_index, http2_frame_t *current_frame_header, http2_telemetry_t *http2_tel) {
-    const __u32 zero = 0;
-
-    // Allocating an array of headers, to hold all interesting headers from the frame.
-    http2_header_t *headers_to_process = bpf_map_lookup_elem(&http2_headers_to_process, &zero);
-    if (headers_to_process == NULL) {
-        return;
-    }
-    bpf_memset(headers_to_process, 0, HTTP2_MAX_HEADERS_COUNT_FOR_PROCESSING * sizeof(http2_header_t));
-
-    __u8 interesting_headers = filter_relevant_headers(skb, skb_info, tup, dynamic_index, headers_to_process, current_frame_header->length, http2_tel);
-    process_headers(skb, dynamic_index, current_stream, headers_to_process, interesting_headers, http2_tel);
 }
 
 // The function is trying to read the remaining of a split frame header. We have the first part in
@@ -812,6 +898,11 @@ int socket__http2_headers_parser(struct __sk_buff *skb) {
 
     http2_stream_t *current_stream = NULL;
 
+    // Allocating an array of headers, to hold all interesting headers from the frame.
+    http2_header_t *headers_to_process = bpf_map_lookup_elem(&http2_headers_to_process, &zero);
+    if (headers_to_process == NULL) {
+        goto delete_iteration;
+    }
     #pragma unroll(HTTP2_MAX_FRAMES_FOR_HEADERS_PARSER_PER_TAIL_CALL)
     for (__u16 index = 0; index < HTTP2_MAX_FRAMES_FOR_HEADERS_PARSER_PER_TAIL_CALL; index++) {
         if (tail_call_state->iteration >= tail_call_state->frames_count) {
@@ -834,7 +925,10 @@ int socket__http2_headers_parser(struct __sk_buff *skb) {
             continue;
         }
         pktbuf_set_offset(pkt, current_frame.offset);
-        process_headers_frame(skb, current_stream, &dispatcher_args_copy.skb_info, &dispatcher_args_copy.tup, &http2_ctx->dynamic_index, &current_frame.frame, http2_tel);
+
+        bpf_memset(headers_to_process, 0, HTTP2_MAX_HEADERS_COUNT_FOR_PROCESSING * sizeof(http2_header_t));
+        __u8 interesting_headers = pktbuf_filter_relevant_headers(pkt, &dispatcher_args_copy.tup, &http2_ctx->dynamic_index, headers_to_process, current_frame.frame.length, http2_tel);
+        pktbuf_process_headers(pkt, &http2_ctx->dynamic_index, current_stream, headers_to_process, interesting_headers, http2_tel);
     }
 
     if (tail_call_state->iteration < HTTP2_MAX_FRAMES_ITERATIONS &&
