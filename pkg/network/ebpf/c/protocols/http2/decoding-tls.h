@@ -513,6 +513,10 @@ int uprobe__http2_tls_filter(struct pt_regs *ctx) {
         return 0;
     }
 
+    // Some functions might change and override data_off field in dispatcher_args_copy.skb_info. Since it is used as a key
+    // in a map, we cannot allow it to be modified. Thus, storing the original value of the offset.
+    __u32 original_off = dispatcher_args_copy.data_off;
+
     tls_find_relevant_frames(&dispatcher_args_copy, iteration_value, http2_tel);
 
     frame_header_remainder_t new_frame_state = { 0 };
@@ -538,7 +542,7 @@ int uprobe__http2_tls_filter(struct pt_regs *ctx) {
 
     // We have found interesting headers, we hand them over to the headers
     // parser.
-    dispatcher_args_copy.data_off = args->data_off;
+    dispatcher_args_copy.data_off = original_off;
     if (bpf_map_update_elem(&tls_http2_iterations, &dispatcher_args_copy, iteration_value, BPF_NOEXIST) >= 0) {
         // We managed to cache the iteration_value in the tls_http2_iterations map.
         bpf_tail_call_compat(ctx, &tls_process_progs, TLS_HTTP2_HEADERS_PARSER);
