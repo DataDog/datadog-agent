@@ -462,6 +462,8 @@ int uprobe__http2_tls_headers_parser(struct pt_regs *ctx) {
     }
     dispatcher_args_copy = *args;
 
+    pktbuf_t pkt = pktbuf_from_tls(ctx, &dispatcher_args_copy);
+
     // Some functions might change and override data_off field in dispatcher_args_copy.skb_info. Since it is used as a key
     // in a map, we cannot allow it to be modified. Thus, storing the original value of the offset.
     __u32 original_off = dispatcher_args_copy.data_off;
@@ -482,7 +484,7 @@ int uprobe__http2_tls_headers_parser(struct pt_regs *ctx) {
         goto delete_iteration;
     }
 
-    http2_telemetry_t *http2_tel = bpf_map_lookup_elem(&tls_http2_telemetry, &zero);
+    http2_telemetry_t *http2_tel = get_telemetry(pkt);
     if (http2_tel == NULL) {
         goto delete_iteration;
     }
