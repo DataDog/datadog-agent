@@ -1,0 +1,13 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+deprecations:
+  - |
+    APM: DD_APM_MAX_TPS config setting is deprecated in favor of the more
+    accurate DD_APM_TARGET_TPS. Accordingly, when configured via yaml,
+    max_traces_per_second is deprecated in favor of target_traces_per_second.
