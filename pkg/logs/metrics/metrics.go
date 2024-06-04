@@ -41,6 +41,9 @@ var (
 	// TlmLogsDropped is the total number of logs dropped per Destination
 	TlmLogsDropped = telemetry.NewCounter("logs", "dropped",
 		[]string{"destination"}, "Total number of logs dropped per Destination")
+	// TlmLogsBlocked is the total number of logs blocked in the pipeline (to not send them).
+	TlmLogsBlocked = telemetry.NewCounter("logs", "blocked",
+		[]string{"reason"}, "Total number of logs blocked and dropped in the pipeline.")
 	// BytesSent is the total number of sent bytes before encoding if any
 	BytesSent = expvar.Int{}
 	// TlmBytesSent is the total number of sent bytes before encoding if any

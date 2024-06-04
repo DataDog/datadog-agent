@@ -340,6 +340,74 @@ func TestIsReady(t *testing.T) {
 	require.True(s.IsReady(), "at this stage, the scanner should be considered ready")
 }
 
+func TestIsConfigured(t *testing.T) {
+	require := require.New(t)
+
+	standardRules := []byte(`
+        {"priority":1,"rules":[
+            {
+                "id":"zero-0",
+                "description":"zero desc",
+                "name":"zero",
+                "definitions": [{"version":1, "pattern":"zero"}]
+            }
+        ]}
+    `)
+	agentConfig := []byte(`
+        {"is_enabled":true,"rules":[
+            {
+                "id":"random-00000",
+                "definition":{"standard_rule_id":"zero-0"},
+                "name":"zero",
+                "match_action":{"type":"Redact","placeholder":"[redacted]"},
+                "is_enabled":true
+            }
+         ]}
+    `)
+
+	// scanner creation
+	// -----
+
+	s := CreateScanner(0)
+
+	require.NotNil(s, "the scanner should not be nil after a creation")
+	require.False(s.IsReady(), "at this stage, the scanner should not be considered ready, no definitions received")
+
+	err := s.Reconfigure(ReconfigureOrder{
+		Type:   StandardRules,
+		Config: standardRules,
+	})
+
+	// testing the states
+	// -
+
+	require.NoError(err, "configuring with the user config should not fail")
+	require.False(s.IsReady(), "at this stage, the scanner should not be considered ready, no user config received")
+	require.False(s.IsConfigured(), "we did not receive user configuration, the scanner isn't fully configured")
+
+	// now that we have some definitions, we can configure the scanner
+	err = s.Reconfigure(ReconfigureOrder{
+		Type:   AgentConfig,
+		Config: agentConfig,
+	})
+
+	require.NoError(err, "configuring with the user config should not fail")
+	require.True(s.IsReady(), "the scanner is ready")
+	require.True(s.IsConfigured(), "the scanner is configured")
+
+	// this reconfiguration should destroy the scanner
+
+	agentConfig = []byte(`{"is_enabled":true,"rules":[]}`)
+	err = s.Reconfigure(ReconfigureOrder{
+		Type:   AgentConfig,
+		Config: agentConfig,
+	})
+
+	require.NoError(err, "configuring with the user config should not fail")
+	require.False(s.IsReady(), "the scanner is NOT ready as there is no rules configured")
+	require.True(s.IsConfigured(), "the scanner is configured, we received an order to not use any rule but it is configured")
+}
+
 // TestScan validates that everything fits and works. It's not validating
 // the scanning feature itself, which is done in the library.
 func TestScan(t *testing.T) {

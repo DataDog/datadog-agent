@@ -143,7 +143,7 @@ func (p *Processor) processMessage(msg *message.Message) {
 	// to send the logs to the intake. In this mode, we drop the message if we didn't
 	// receive a valid SDS configuration yet.
 	if p.waitForSDSConfiguration && !p.sds.IsConfigured() {
-		// TODO(remy): telemetry
+		metrics.TlmLogsBlocked.Inc("sds_unconfigured")
 		return
 	}
 
