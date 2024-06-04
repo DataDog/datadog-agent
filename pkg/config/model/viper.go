@@ -806,3 +806,7 @@ func (c *safeConfig) GetProxies() *Proxy {
 	c.proxies = p
 	return c.proxies
 }
+
+func (c *safeConfig) ExtraConfigFilesUsed() []string {
+	return []string{}
+}

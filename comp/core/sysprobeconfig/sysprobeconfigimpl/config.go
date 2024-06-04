@@ -81,3 +81,7 @@ func (c *cfg) Object() config.Reader {
 func (c *cfg) SysProbeObject() *sysconfigtypes.Config {
 	return c.syscfg
 }
+
+func (c *cfg) ExtraConfigFilesUsed() []string {
+	return []string{}
+}

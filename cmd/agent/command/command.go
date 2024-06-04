@@ -34,6 +34,9 @@ type GlobalParams struct {
 	// file, to allow overrides from the command line
 	ConfFilePath string
 
+	// ExtraConfFilePath represents the paths to additional configuration files.
+	ExtraConfFilePath []string
+
 	// SysProbeConfFilePath holds the path to the folder containing the system-probe
 	// configuration file, to allow overrides from the command line
 	SysProbeConfFilePath string
@@ -74,6 +77,7 @@ monitoring and performance data.`,
 	}
 
 	agentCmd.PersistentFlags().StringVarP(&globalParams.ConfFilePath, "cfgpath", "c", "", "path to directory containing datadog.yaml")
+	agentCmd.PersistentFlags().StringArrayVarP(&globalParams.ExtraConfFilePath, "extracfgpath", "e", []string{}, "path for additional configuration files (this flag can be used multiple times)")
 	agentCmd.PersistentFlags().StringVarP(&globalParams.SysProbeConfFilePath, "sysprobecfgpath", "", "", "path to directory containing system-probe.yaml")
 
 	// github.com/fatih/color sets its global color.NoColor to a default value based on

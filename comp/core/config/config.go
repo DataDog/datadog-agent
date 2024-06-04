@@ -6,6 +6,7 @@
 package config
 
 import (
+	"errors"
 	"os"
 	"strings"
 
@@ -28,6 +29,8 @@ type cfg struct {
 
 	// warnings are the warnings generated during setup
 	warnings *pkgconfigmodel.Warnings
+
+	extraConfFiles []string
 }
 
 // configDependencies is an interface that mimics the fx-oriented dependencies struct
@@ -70,6 +73,7 @@ func NewServerlessConfig(path string) (Component, error) {
 }
 
 func newConfig(deps dependencies) (Component, error) {
+	var errs []error
 	config := pkgconfigsetup.Datadog()
 	warnings, err := setupConfig(config, deps)
 	returnErrFct := func(e error) (Component, error) {
@@ -87,15 +91,31 @@ func newConfig(deps dependencies) (Component, error) {
 		return returnErrFct(err)
 	}
 
-	if deps.Params.configLoadSecurityAgent {
-		if err := pkgconfigsetup.Merge(deps.Params.securityAgentConfigFilePaths, config); err != nil {
-			return returnErrFct(err)
+	// Merging main config with extra config files
+	var extraConfFiles []string
+	for _, path := range deps.Params.ExtraConfFilePath {
+		if err := pkgconfigsetup.Merge(path, config); err != nil {
+			errs = append(errs, err)
+		} else {
+			extraConfFiles = append(extraConfFiles, path)
 		}
 	}
 
-	return &cfg{Config: config, warnings: warnings}, nil
+	for _, path := range deps.Params.securityAgentConfigFilePaths {
+		errs = append(errs, pkgconfigsetup.Merge(path, config))
+	}
+
+	if err := errors.Join(errs...); err != nil {
+		return returnErrFct(err)
+	}
+
+	return &cfg{Config: config, warnings: warnings, extraConfFiles: extraConfFiles}, nil
 }
 
 func (c *cfg) Warnings() *pkgconfigmodel.Warnings {
 	return c.warnings
+}
+
+func (c *cfg) ExtraConfigFilesUsed() []string {
+	return c.extraConfFiles
 }

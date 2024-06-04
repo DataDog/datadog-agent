@@ -40,6 +40,10 @@ func (c *MockConfig) SetKnown(key string) {
 	c.Config.SetKnown(key)
 }
 
+func (c *MockConfig) ExtraConfigFilesUsed() []string {
+	return []string{}
+}
+
 // Mock is creating and returning a mock config
 func Mock(t testing.TB) *MockConfig {
 	// We only check isConfigMocked when registering a cleanup function. 'isConfigMocked' avoids nested calls to

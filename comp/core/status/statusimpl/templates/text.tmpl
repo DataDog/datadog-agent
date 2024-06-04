@@ -15,6 +15,9 @@
   Paths
   =====
     Config File: {{if .conf_file}}{{.conf_file}}{{else}}There is no config file{{end}}
+    {{- if .extra_conf_file}}
+    Extra Config Files: {{.extra_conf_file}}
+    {{- end}}
     conf.d: {{.config.confd_path}}
     {{- if .config.additional_checksd }}
     checks.d: {{.config.additional_checksd}}

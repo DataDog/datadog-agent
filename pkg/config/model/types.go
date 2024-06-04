@@ -50,6 +50,7 @@ type Reader interface {
 	GetAllSources(key string) []ValueWithSource
 
 	ConfigFileUsed() string
+	ExtraConfigFilesUsed() []string
 
 	AllSettings() map[string]interface{}
 	AllSettingsWithoutDefault() map[string]interface{}

@@ -10,6 +10,9 @@
     {{end}}
     <br>Log Level: {{.config.log_level}}
     <br>Config File: {{if .conf_file}}{{.conf_file}}{{else}}There is no config file{{end}}
+    {{- if .extra_conf_file}}
+    <br>Extra Config Files: {{.extra_conf_file}}
+    {{- end}}
     <br>Conf.d Path: {{.config.confd_path}}
     <br>Checks.d Path: {{.config.additional_checksd}}
   </span>

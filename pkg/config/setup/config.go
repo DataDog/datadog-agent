@@ -1604,17 +1604,15 @@ func LoadWithSecret(config pkgconfigmodel.Config, secretResolver secrets.Compone
 }
 
 // Merge will merge additional configuration into an existing configuration
-func Merge(configPaths []string, config pkgconfigmodel.Config) error {
-	for _, configPath := range configPaths {
-		if f, err := os.Open(configPath); err == nil {
-			err = config.MergeConfig(f)
-			_ = f.Close()
-			if err != nil {
-				return fmt.Errorf("error merging %s config file: %w", configPath, err)
-			}
-		} else {
-			log.Infof("no config exists at %s, ignoring...", configPath)
+func Merge(configPath string, config pkgconfigmodel.Config) error {
+	if f, err := os.Open(configPath); err == nil {
+		err = config.MergeConfig(f)
+		_ = f.Close()
+		if err != nil {
+			return fmt.Errorf("error merging %s config file: %w", configPath, err)
 		}
+	} else {
+		return fmt.Errorf("no config exists at %s", configPath)
 	}
 
 	return nil

@@ -33,6 +33,8 @@ type Component interface {
 
 	// Warnings returns config warnings collected during setup.
 	Warnings() *pkgconfigmodel.Warnings
+
+	ExtraConfigFilesUsed() []string
 }
 
 // Module defines the fx options for this component.

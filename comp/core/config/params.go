@@ -11,6 +11,10 @@ type Params struct {
 	// given by the --cfgpath command-line flag.
 	ConfFilePath string
 
+	// ExtraConfFilePath represents the paths to additional configuration files.
+	// Usualy given by the --extracfgpath command-line flag.
+	ExtraConfFilePath []string
+
 	// configName is the root of the name of the configuration file.  The
 	// comp/core/config component will search for a file with this name
 	// in ConfFilePath, using a variety of extensions.  The default is
@@ -117,6 +121,13 @@ func WithConfigLoadSecurityAgent(configLoadSecurityAgent bool) func(*Params) {
 func WithConfFilePath(confFilePath string) func(*Params) {
 	return func(b *Params) {
 		b.ConfFilePath = confFilePath
+	}
+}
+
+// WithConfFilePath returns an option which sets ConfFilePath
+func WithExtraConfFiles(extraConfFilePath []string) func(*Params) {
+	return func(b *Params) {
+		b.ExtraConfFilePath = extraConfFilePath
 	}
 }
 

@@ -179,6 +179,10 @@ func (s *streamHandler) HandleResync(store workloadmeta.Component, events []work
 	store.Reset(entities, workloadmeta.SourceRemoteWorkloadmeta)
 }
 
+func (c *streamHandler) ExtraConfigFilesUsed() []string {
+	return []string{}
+}
+
 func filterHasUnsupportedKind(filter *workloadmeta.Filter) bool {
 	for _, kind := range filter.Kinds() {
 		if !slices.Contains(supportedKinds, kind) {
