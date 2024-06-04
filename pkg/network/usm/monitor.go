@@ -40,7 +40,6 @@ const (
 var (
 	state        = disabled
 	startupError error
-	tlsPrograms  = []string{"go-tls", "native-tls", "java-tls", "istio-tls", "shared_libraries"}
 )
 
 // Monitor is responsible for:
@@ -158,11 +157,9 @@ func (m *Monitor) GetUSMStats() map[string]interface{} {
 		response["error"] = startupError.Error()
 	}
 
-	for _, tlsProgram := range tlsPrograms {
-		tracedPrograms := utils.GetTracedPrograms(tlsProgram)
-		if len(tracedPrograms) > 0 {
-			response[tlsProgram] = tracedPrograms
-		}
+	tracedPrograms := utils.GetTracedProgramList()
+	if len(tracedPrograms) > 0 {
+		response["traced_programs"] = tracedPrograms
 	}
 
 	if m != nil {
