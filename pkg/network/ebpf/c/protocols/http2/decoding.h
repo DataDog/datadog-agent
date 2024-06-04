@@ -665,7 +665,7 @@ int socket__http2_filter(struct __sk_buff *skb) {
 
     // Some functions might change and override data_off field in dispatcher_args_copy.skb_info. Since it is used as a key
     // in a map, we cannot allow it to be modified. Thus, storing the original value of the offset.
-    __u32 original_off = dispatcher_args_copy.skb_info.data_off;
+    __u32 original_off = pktbuf_data_offset(pkt);
 
     bool have_more_frames_to_process = find_relevant_frames(skb, &dispatcher_args_copy.skb_info, iteration_value, http2_tel);
     // We have found there are more frames to filter, so we will call frame_filter again.
@@ -674,7 +674,7 @@ int socket__http2_filter(struct __sk_buff *skb) {
     iteration_value->filter_iterations++;
     if (have_more_frames_to_process && iteration_value->filter_iterations < HTTP2_MAX_TAIL_CALLS_FOR_FRAMES_FILTER) {
         // save local copy of the skb_info, so the next prog will start from the offset of the next valid frame.
-        iteration_value->data_off = dispatcher_args_copy.skb_info.data_off;
+        iteration_value->data_off = pktbuf_data_offset(pkt);
         bpf_tail_call_compat(skb, &protocols_progs, PROG_HTTP2_FRAME_FILTER);
     }
 
@@ -684,17 +684,17 @@ int socket__http2_filter(struct __sk_buff *skb) {
     }
 
     frame_header_remainder_t new_frame_state = { 0 };
-    if (dispatcher_args_copy.skb_info.data_off > dispatcher_args_copy.skb_info.data_end) {
+    if (pktbuf_data_offset(pkt) > pktbuf_data_end(pkt)) {
         // We have a remainder
-        new_frame_state.remainder = dispatcher_args_copy.skb_info.data_off - dispatcher_args_copy.skb_info.data_end;
+        new_frame_state.remainder = pktbuf_data_offset(pkt) - pktbuf_data_end(pkt);
         bpf_map_update_elem(&http2_remainder, &dispatcher_args_copy.tup, &new_frame_state, BPF_ANY);
-    } else if (dispatcher_args_copy.skb_info.data_off < dispatcher_args_copy.skb_info.data_end && dispatcher_args_copy.skb_info.data_off + HTTP2_FRAME_HEADER_SIZE > dispatcher_args_copy.skb_info.data_end) {
+    } else if (pktbuf_data_offset(pkt) < pktbuf_data_end(pkt) && pktbuf_data_offset(pkt) + HTTP2_FRAME_HEADER_SIZE > pktbuf_data_end(pkt)) {
         // We have a frame header remainder
-        new_frame_state.remainder = HTTP2_FRAME_HEADER_SIZE - (dispatcher_args_copy.skb_info.data_end - dispatcher_args_copy.skb_info.data_off);
+        new_frame_state.remainder = HTTP2_FRAME_HEADER_SIZE - (pktbuf_data_end(pkt) - pktbuf_data_offset(pkt));
         bpf_memset(new_frame_state.buf, 0, HTTP2_FRAME_HEADER_SIZE);
     #pragma unroll(HTTP2_FRAME_HEADER_SIZE)
         for (__u32 iteration = 0; iteration < HTTP2_FRAME_HEADER_SIZE && new_frame_state.remainder + iteration < HTTP2_FRAME_HEADER_SIZE; ++iteration) {
-            bpf_skb_load_bytes(skb, dispatcher_args_copy.skb_info.data_off + iteration, new_frame_state.buf + iteration, 1);
+            bpf_skb_load_bytes(skb, pktbuf_data_offset(pkt) + iteration, new_frame_state.buf + iteration, 1);
         }
         new_frame_state.header_length = HTTP2_FRAME_HEADER_SIZE - new_frame_state.remainder;
         bpf_map_update_elem(&http2_remainder, &dispatcher_args_copy.tup, &new_frame_state, BPF_ANY);
@@ -705,7 +705,7 @@ int socket__http2_filter(struct __sk_buff *skb) {
     }
 
     // restoring the original value.
-    dispatcher_args_copy.skb_info.data_off = original_off;
+    pktbuf_set_offset(pkt, original_off);
     // We have couple of interesting headers, launching tail calls to handle them.
     if (bpf_map_update_elem(&http2_iterations, &dispatcher_args_copy, iteration_value, BPF_NOEXIST) >= 0) {
         // We managed to cache the iteration_value in the http2_iterations map.
