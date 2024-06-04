@@ -85,7 +85,10 @@ func dumpEKSClusterState(ctx context.Context, name string) (ret string, err erro
 	}
 	kubeconfig.CurrentContext = name
 
-	dumpK8sClusterState(ctx, kubeconfig, &out)
+	err = dumpK8sClusterState(ctx, kubeconfig, &out)
+	if err != nil {
+		return ret, fmt.Errorf("failed to dump cluster state: %v", err)
+	}
 
 	return
 }
