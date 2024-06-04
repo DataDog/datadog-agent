@@ -34,6 +34,9 @@ var systemProbeConfigStr string
 //go:embed config/npm.yaml
 var systemProbeNPMConfigStr string
 
+//go:embed compose/stress-compose.yaml
+var stressCompose string
+
 // assertRunningChecks asserts that the given process agent checks are running on the given VM
 func assertRunningChecks(t *assert.CollectT, client agentclient.Agent, checks []string, withSystemProbe bool) {
 	status := client.Status(agentclient.WithArgs([]string{"--json"}))
