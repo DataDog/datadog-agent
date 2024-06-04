@@ -352,7 +352,7 @@ func TestActionSetVariableTTL(t *testing.T) {
 	assert.True(t, ok)
 
 	assert.True(t, stringArrayVar.Contains("foo"))
-	time.Sleep(time.Second)
+	time.Sleep(time.Second + 100*time.Millisecond)
 	assert.False(t, stringArrayVar.Contains("foo"))
 }
 
