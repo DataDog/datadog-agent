@@ -498,6 +498,8 @@ int uprobe__http2_tls_filter(struct pt_regs *ctx) {
     }
     dispatcher_args_copy = *args;
 
+    pktbuf_t pkt = pktbuf_from_tls(ctx, &dispatcher_args_copy);
+
     // A single packet can contain multiple HTTP/2 frames, due to instruction limitations we have divided the
     // processing into multiple tail calls, where each tail call process a single frame. We must have context when
     // we are processing the frames, for example, to know how many bytes have we read in the packet, or it we reached
@@ -508,7 +510,7 @@ int uprobe__http2_tls_filter(struct pt_regs *ctx) {
         return 0;
     }
 
-    http2_telemetry_t *http2_tel = bpf_map_lookup_elem(&tls_http2_telemetry, &zero);
+    http2_telemetry_t *http2_tel = get_telemetry(pkt);
     if (http2_tel == NULL) {
         return 0;
     }

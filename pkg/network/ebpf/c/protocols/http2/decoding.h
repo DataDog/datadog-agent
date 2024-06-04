@@ -646,6 +646,8 @@ int socket__http2_filter(struct __sk_buff *skb) {
 
     const __u32 zero = 0;
 
+    pktbuf_t pkt = pktbuf_from_skb(skb, &dispatcher_args_copy.skb_info);
+
     // A single packet can contain multiple HTTP/2 frames, due to instruction limitations we have divided the
     // processing into multiple tail calls, where each tail call process a single frame. We must have context when
     // we are processing the frames, for example, to know how many bytes have we read in the packet, or it we reached
@@ -656,7 +658,7 @@ int socket__http2_filter(struct __sk_buff *skb) {
         return 0;
     }
 
-    http2_telemetry_t *http2_tel = bpf_map_lookup_elem(&http2_telemetry, &zero);
+    http2_telemetry_t *http2_tel = get_telemetry(pkt);
     if (http2_tel == NULL) {
         return 0;
     }
