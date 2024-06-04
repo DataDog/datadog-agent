@@ -54,12 +54,8 @@ static __always_inline void classify_decrypted_payload(protocol_stack_t *stack, 
     // Protocol is not HTTP/HTTP2/gRPC
     if (is_amqp(buffer, len)) {
         proto = PROTOCOL_AMQP;
-        goto update_stack;
-    }
-
-    if (is_redis(buffer, len)) {
+    } else if (is_redis(buffer, len)) {
         proto = PROTOCOL_REDIS;
-        goto update_stack;
     }
 
 update_stack:
