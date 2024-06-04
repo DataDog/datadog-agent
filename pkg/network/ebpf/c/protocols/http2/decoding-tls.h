@@ -462,6 +462,10 @@ int uprobe__http2_tls_headers_parser(struct pt_regs *ctx) {
     }
     dispatcher_args_copy = *args;
 
+    // Some functions might change and override data_off field in dispatcher_args_copy.skb_info. Since it is used as a key
+    // in a map, we cannot allow it to be modified. Thus, storing the original value of the offset.
+    __u32 original_off = dispatcher_args_copy.data_off;
+
     // A single packet can contain multiple HTTP/2 frames, due to instruction limitations we have divided the
     // processing into multiple tail calls, where each tail call process a single frame. We must have context when
     // we are processing the frames, for example, to know how many bytes have we read in the packet, or it we reached
@@ -531,7 +535,7 @@ int uprobe__http2_tls_headers_parser(struct pt_regs *ctx) {
 
 delete_iteration:
     // restoring the original value.
-    dispatcher_args_copy.data_off = args->data_off;
+    dispatcher_args_copy.data_off = original_off;
     bpf_map_delete_elem(&tls_http2_iterations, &dispatcher_args_copy);
 
     return 0;
