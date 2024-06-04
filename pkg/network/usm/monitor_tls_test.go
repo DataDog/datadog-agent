@@ -81,10 +81,8 @@ func (s *tlsSuite) TestHTTPSViaLibraryIntegration() {
 		regexp.MustCompile(`/[^ ]+libgnutls.so[^ ]*`),
 	}
 	tests := []struct {
-		name         string
-		fetchCmd     []string
-		prefetchLibs []string
-		commandFound bool
+		name     string
+		fetchCmd []string
 	}{
 		{
 			name:     "wget",
@@ -94,24 +92,6 @@ func (s *tlsSuite) TestHTTPSViaLibraryIntegration() {
 			name:     "curl",
 			fetchCmd: []string{"curl", "--http1.1", "-k", "-o/dev/null", "-d", tempFile},
 		},
-	}
-
-	if lddFound {
-		for index := range tests {
-			fetch, err := exec.LookPath(tests[index].fetchCmd[0])
-			tests[index].commandFound = err == nil
-			if !tests[index].commandFound {
-				continue
-			}
-			linked, _ := exec.Command(ldd, fetch).Output()
-
-			for _, lib := range tlsLibs {
-				libSSLPath := lib.FindString(string(linked))
-				if _, err := os.Stat(libSSLPath); err == nil {
-					tests[index].prefetchLibs = append(tests[index].prefetchLibs, libSSLPath)
-				}
-			}
-		}
 	}
 
 	// Spin-up HTTPS server
@@ -130,13 +110,27 @@ func (s *tlsSuite) TestHTTPSViaLibraryIntegration() {
 			if !lddFound {
 				t.Skip("ldd not found; skipping test.")
 			}
-			if !test.commandFound {
+
+			fetch, err := exec.LookPath(test.fetchCmd[0])
+			commandFound := err == nil
+			if !commandFound {
 				t.Skipf("%s not found; skipping test.", test.fetchCmd)
 			}
-			if len(test.prefetchLibs) == 0 {
+			linked, _ := exec.Command(ldd, fetch).Output()
+
+			var prefetchLibs []string
+			for _, lib := range tlsLibs {
+				libSSLPath := lib.FindString(string(linked))
+				if _, err := os.Stat(libSSLPath); err == nil {
+					prefetchLibs = append(prefetchLibs, libSSLPath)
+				}
+
+			}
+
+			if len(prefetchLibs) == 0 {
 				t.Fatalf("%s not linked with any of these libs %v", test.name, tlsLibs)
 			}
-			testHTTPSLibrary(t, cfg, test.fetchCmd, test.prefetchLibs)
+			testHTTPSLibrary(t, cfg, test.fetchCmd, prefetchLibs)
 		})
 	}
 }
