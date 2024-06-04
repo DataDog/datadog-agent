@@ -1456,7 +1456,7 @@ func TestLoadEnv(t *testing.T) {
 			if envKey == "DD_APM_TARGET_TPS" {
 				assert.Equal(t, 6., cfg.TargetTPS)
 			} else {
-				// target_traces_per_second from yaml config takes precendence over deprecated env vars.
+				// target_traces_per_second from yaml config takes precedence over deprecated env vars.
 				assert.Equal(t, 5., cfg.TargetTPS)
 			}
 		})
