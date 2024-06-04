@@ -18,7 +18,7 @@ from invoke.tasks import task
 
 from tasks.flavor import AgentFlavor
 from tasks.gotest import process_test_result, test_flavor
-from tasks.libs.common.utils import REPO_PATH, get_git_commit
+from tasks.libs.common.utils import REPO_PATH, get_git_commit, running_in_ci
 from tasks.modules import DEFAULT_MODULES
 
 
@@ -133,6 +133,12 @@ def run(
     )
 
     success = process_test_result(test_res, junit_tar, AgentFlavor.base, test_washer)
+
+    if running_in_ci():
+        # Do not print all the params, they could contain secrets needed only in the CI
+        targets_params = [f'--targets {t}' for t in targets]
+        print(f"To run this command locally, use: `inv -e new-e2e-tests.run {' '.join(targets_params)}`")
+
     if not success:
         raise Exit(code=1)
 
