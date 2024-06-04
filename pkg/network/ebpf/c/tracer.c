@@ -244,6 +244,8 @@ int kprobe__tcp_done(struct pt_regs *ctx) {
     __u64 *failed_conn_pid = NULL;
     int err = 0;
 
+    increment_telemetry_count(double_flush_attempts_done);
+
     bpf_probe_read_kernel_with_telemetry(&err, sizeof(err), (&sk->sk_err));
     if (err == 0 || !tcp_failed_connections_enabled()) {
         return 0;
