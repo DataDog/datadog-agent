@@ -25,7 +25,7 @@ const (
 )
 
 // RunServer runs a MySQL server in a docker container
-func RunServer(t testing.TB, serverAddr, serverPort string, withTLS TLSSetting) error {
+func RunServer(t testing.TB, serverAddr, serverPort string, withTLS bool) error {
 	cert, _, err := testutil.GetCertsPaths()
 	require.NoError(t, err)
 	certsDir := filepath.Dir(cert)

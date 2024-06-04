@@ -840,11 +840,11 @@ func testKafkaProtocolClassification(t *testing.T, tr *Tracer, clientHost, targe
 }
 
 func testMySQLProtocolClassification(t *testing.T, tr *Tracer, clientHost, targetHost, serverHost string) {
-	testMySQLProtocolClassificationInner(t, tr, clientHost, targetHost, serverHost, mysql.Plaintext)
+	testMySQLProtocolClassificationInner(t, tr, clientHost, targetHost, serverHost, protocolsUtils.TLSDisabled)
 }
 
 func testMySQLProtocolClassificationTLS(t *testing.T, tr *Tracer, clientHost, targetHost, serverHost string) {
-	testMySQLProtocolClassificationInner(t, tr, clientHost, targetHost, serverHost, mysql.TLS)
+	testMySQLProtocolClassificationInner(t, tr, clientHost, targetHost, serverHost, protocolsUtils.TLSEnabled)
 }
 
 func testMySQLProtocolClassificationInner(t *testing.T, tr *Tracer, clientHost, targetHost, serverHost string, withTLS bool) {

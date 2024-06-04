@@ -22,7 +22,7 @@ type Options struct {
 	Password      string
 	DatabaseName  string
 	Dialer        *net.Dialer
-	WithTLS       TLSSetting
+	WithTLS       bool
 }
 
 // Client is a MySQL client.
