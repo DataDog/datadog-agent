@@ -219,11 +219,14 @@ func (d *Destination) sendConcurrent(payload *message.Payload, output chan *mess
 			<-d.climit
 			d.wg.Done()
 		}()
-		// In serverless we sync when a payload is sent with on-demand flushes
-		if serverlessWg, ok := <-d.serverlessFlushChan; ok {
+		select {
+		case serverlessWg := <-d.serverlessFlushChan:
+			// In serverless we sync when a payload is sent with on-demand flushes
 			defer serverlessWg.Done()
+			d.sendAndRetry(payload, output, isRetrying)
+		default:
+			d.sendAndRetry(payload, output, isRetrying)
 		}
-		d.sendAndRetry(payload, output, isRetrying)
 	}()
 }
 
