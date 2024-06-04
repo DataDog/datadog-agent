@@ -1229,6 +1229,41 @@ func testKafkaFetchRaw(t *testing.T, tls bool, apiVersion int) {
 				return makeFetchResponse(apiVersion, makeFetchResponseTopic(topic, partitions...))
 			},
 		},
+		{
+			name:  "error code limits",
+			topic: defaultTopic,
+			produceFetchValidationWithErrorCode: &kafkaParsingValidationWithErrorCodes{
+				expectedNumberOfFetchRequests: map[int8]int{
+					-1:  5 * 4 * 1,
+					119: 5 * 4 * 1,
+				},
+				expectedAPIVersionFetch: apiVersion,
+			},
+			buildResponse: func(topic string) kmsg.FetchResponse {
+				record := makeRecord()
+				var records []kmsg.Record
+				for i := 0; i < 5; i++ {
+					records = append(records, record)
+				}
+
+				recordBatch := makeRecordBatch(records...)
+				var batches []kmsg.RecordBatch
+				for i := 0; i < 4; i++ {
+					batches = append(batches, recordBatch)
+				}
+
+				var partitions []kmsg.FetchResponseTopicPartition
+				partition := makeFetchResponseTopicPartition(batches...)
+
+				partition.ErrorCode = 119
+				partitions = append(partitions, partition)
+
+				partition.ErrorCode = -1
+				partitions = append(partitions, partition)
+
+				return makeFetchResponse(apiVersion, makeFetchResponseTopic(topic, partitions...))
+			},
+		},
 	}
 
 	can := newCannedClientServer(t, tls)
