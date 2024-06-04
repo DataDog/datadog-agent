@@ -716,8 +716,16 @@ int socket__http2_filter(struct __sk_buff *skb) {
 
     // restoring the original value.
     pktbuf_set_offset(pkt, original_off);
+    pktbuf_map_update_option_t arr[] = {
+        [PKTBUF_SKB] = {
+            .map = &http2_iterations,
+            .key = &dispatcher_args_copy,
+            .value = iteration_value,
+            .flags = BPF_NOEXIST,
+        },
+    };
     // We have couple of interesting headers, launching tail calls to handle them.
-    if (bpf_map_update_elem(&http2_iterations, &dispatcher_args_copy, iteration_value, BPF_NOEXIST) >= 0) {
+    if (pktbuf_map_update(pkt, arr) >= 0) {
         // We managed to cache the iteration_value in the http2_iterations map.
         pktbuf_tail_call_option_t arr[] = {
             [PKTBUF_SKB] = {

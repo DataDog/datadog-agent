@@ -545,7 +545,16 @@ int uprobe__http2_tls_filter(struct pt_regs *ctx) {
     // We have found interesting headers, we hand them over to the headers
     // parser.
     pktbuf_set_offset(pkt, original_off);
-    if (bpf_map_update_elem(&tls_http2_iterations, &dispatcher_args_copy, iteration_value, BPF_NOEXIST) >= 0) {
+    pktbuf_map_update_option_t arr[] = {
+        [PKTBUF_TLS] = {
+            .map = &http2_iterations,
+            .key = &dispatcher_args_copy,
+            .value = iteration_value,
+            .flags = BPF_NOEXIST,
+        },
+    };
+    // We have couple of interesting headers, launching tail calls to handle them.
+    if (pktbuf_map_update(pkt, arr) >= 0) {
         // We managed to cache the iteration_value in the tls_http2_iterations map.
         pktbuf_tail_call_option_t arr[] = {
             [PKTBUF_SKB] = {
