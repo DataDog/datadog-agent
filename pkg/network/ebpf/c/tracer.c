@@ -204,13 +204,13 @@ int kprobe__tcp_close(struct pt_regs *ctx) {
     if (bpf_map_delete_elem(&tcp_ongoing_connect_pid, &sk) == 0) {
         increment_telemetry_count(tcp_failed_connect);
         if (!tcp_failed_connections_enabled()) {
+            increment_telemetry_count(double_flush_attempts_done);
             return 0;
         }
-        log_debug("adamk kprobe/tcp_close entry found in failure map");
     }
 
     // check if this connection was already flushed and ensure we don't flush again
-    if (tcp_failed_connections_enabled() && bpf_map_delete_elem(&conn_close_flushed, &sk) == 0) {
+    if (bpf_map_delete_elem(&conn_close_flushed, &sk) == 0) {
         increment_telemetry_count(double_flush_attempts_close);
         log_debug("adamk kprobe/tcp_close double flush attempt");
         skip_new_conn_create = true;
@@ -243,8 +243,6 @@ int kprobe__tcp_done(struct pt_regs *ctx) {
     sk = (struct sock *)PT_REGS_PARM1(ctx);
     __u64 *failed_conn_pid = NULL;
     int err = 0;
-
-    increment_telemetry_count(double_flush_attempts_done);
 
     bpf_probe_read_kernel_with_telemetry(&err, sizeof(err), (&sk->sk_err));
     if (err == 0 || !tcp_failed_connections_enabled()) {
