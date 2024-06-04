@@ -14,6 +14,7 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	forwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
@@ -350,7 +351,27 @@ func (s *Serializer) SendIterableSeries(serieSource metrics.SerieSource) error {
 	} else if useV1API && !s.enableJSONStream {
 		seriesBytesPayloads, extraHeaders, err = s.serializePayloadJSON(seriesSerializer, true)
 	} else {
-		seriesBytesPayloads, err = seriesSerializer.MarshalSplitCompress(marshaler.NewBufferContext(), s.config, s.Strategy)
+		// TODO: replace with something that looks for filter configuration AND failover being active
+		shouldMakeFilteredPayload := s.config.GetBool("multi_region_failover.enabled") && s.config.GetBool("multi_region_failover.failover_metrics")
+
+		if shouldMakeFilteredPayload {
+			var filtered transaction.BytesPayloads
+			seriesBytesPayloads, filtered, err = seriesSerializer.MarshalSplitCompressMultiple(s.config, s.Strategy, func(s *metrics.Serie) bool {
+				return strings.Contains(s.Name, "agent")
+			})
+			for _, seriesBytesPayload := range seriesBytesPayloads {
+				seriesBytesPayload.Destination = transaction.PrimaryOnly
+			}
+			for _, seriesBytesPayload := range filtered {
+				seriesBytesPayload.Destination = transaction.SecondaryOnly
+			}
+			seriesBytesPayloads = append(seriesBytesPayloads, filtered...)
+		} else {
+			seriesBytesPayloads, err = seriesSerializer.MarshalSplitCompress(marshaler.NewBufferContext(), s.config, s.Strategy)
+			for _, seriesBytesPayload := range seriesBytesPayloads {
+				seriesBytesPayload.Destination = transaction.AllRegions
+			}
+		}
 		extraHeaders = s.protobufExtraHeadersWithCompression
 	}
 
