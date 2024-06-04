@@ -158,9 +158,7 @@ func (m *Monitor) GetUSMStats() map[string]interface{} {
 	}
 
 	tracedPrograms := utils.GetTracedProgramList()
-	if len(tracedPrograms) > 0 {
-		response["traced_programs"] = tracedPrograms
-	}
+	response["traced_programs"] = tracedPrograms
 
 	if m != nil {
 		response["last_check"] = m.lastUpdateTime
