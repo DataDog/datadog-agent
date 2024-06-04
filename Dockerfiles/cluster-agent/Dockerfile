@@ -1,8 +1,8 @@
 ########################################
 # Preparation stage: layout and chmods #
 ########################################
-ARG BASE_IMAGE_UBUNTU_VERSION=23.10
-ARG BASE_IMAGE_UBUNTU_NAME=mantic
+ARG BASE_IMAGE_UBUNTU_VERSION=24.04
+ARG BASE_IMAGE_UBUNTU_NAME=noble
 FROM ubuntu:$BASE_IMAGE_UBUNTU_VERSION as builder
 ARG TARGETARCH
 ARG BASE_IMAGE_UBUNTU_VERSION
