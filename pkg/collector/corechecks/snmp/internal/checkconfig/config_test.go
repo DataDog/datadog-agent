@@ -1982,14 +1982,45 @@ ping:
     use_raw_socket: true
   timeout: 8
   interval: 7
-  count: 2
+  count: 7
 `),
 			expectedPingEnabled: true,
 			expectedPingConfig: pinger.Config{
 				UseRawSocket: true,
 				Timeout:      8 * time.Millisecond,
 				Interval:     7 * time.Millisecond,
-				Count:        2,
+				Count:        7,
+			},
+		},
+		{
+			name: "ping instance config overrides init config",
+			// language=yaml
+			rawInstanceConfig: []byte(`
+ip_address: 1.2.3.4
+ping:
+  enabled: true
+  linux:
+    use_raw_socket: true
+  timeout: 4
+  interval: 5
+  count: 80
+`),
+			// language=yaml
+			rawInitConfig: []byte(`
+ping:
+  enabled: false
+  linux:
+    use_raw_socket: false
+  timeout: 8
+  interval: 7
+  count: 6
+`),
+			expectedPingEnabled: true,
+			expectedPingConfig: pinger.Config{
+				UseRawSocket: true,
+				Timeout:      4 * time.Millisecond,
+				Interval:     5 * time.Millisecond,
+				Count:        80,
 			},
 		},
 		{
@@ -2025,6 +2056,25 @@ ping: '{"linux":{"use_raw_socket":true},"enabled":true,"interval":344,"timeout":
 				Timeout:      963 * time.Millisecond,
 				Interval:     344 * time.Millisecond,
 				Count:        976,
+			},
+		},
+		{
+			name: "ping config as instance level json string overrides init level json string",
+			// language=yaml
+			rawInstanceConfig: []byte(`
+ip_address: 1.2.3.4
+ping: '{"linux":{"use_raw_socket":true},"enabled":true,"interval":443,"timeout":369,"count":679}'
+`),
+			// language=yaml
+			rawInitConfig: []byte(`
+ping: '{"linux":{"use_raw_socket":false},"enabled":false,"interval":344,"timeout":963,"count":976}'
+`),
+			expectedPingEnabled: true,
+			expectedPingConfig: pinger.Config{
+				UseRawSocket: true,
+				Timeout:      369 * time.Millisecond,
+				Interval:     443 * time.Millisecond,
+				Count:        679,
 			},
 		},
 		{
