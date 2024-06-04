@@ -89,7 +89,16 @@ func TestStoreGenerators(t *testing.T) {
 					"env": "env",
 				},
 			},
-			expectedStoresGenerator: []storeGenerator{newNodeStore, ginewNamespaceStore},
+			expectedStoresGenerator: []storeGenerator{newNodeStore, newNamespaceStore},
+		},
+		{
+			name: "Namespace from ns annotations as tags",
+			cfg: map[string]interface{}{
+				"kubernetes_namespace_annotations_as_tags": map[string]string{
+					"env": "env",
+				},
+			},
+			expectedStoresGenerator: []storeGenerator{newNodeStore, newNamespaceStore},
 		},
 		{
 			name: "All configurations enabled",
