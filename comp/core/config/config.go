@@ -57,8 +57,7 @@ func (d dependencies) getSecretResolver() (secrets.Component, bool) {
 	return d.Secret.Get()
 }
 
-// Provides is the component output
-type Provides struct {
+type provides struct {
 	fx.Out
 
 	Comp          Component
@@ -67,7 +66,7 @@ type Provides struct {
 
 // NewServerlessConfig initializes a config component from the given config file
 // TODO: serverless must be eventually migrated to fx, this workaround will then become obsolete - ts should not be created directly in this fashion.
-func NewServerlessConfig(path string) (Provides, error) {
+func NewServerlessConfig(path string) (Component, error) {
 	options := []func(*Params){WithConfigName("serverless")}
 
 	_, err := os.Stat(path)
@@ -82,11 +81,19 @@ func NewServerlessConfig(path string) (Provides, error) {
 	return newConfig(d)
 }
 
-func newConfig(deps dependencies) (Provides, error) {
+func newConfigProvide(deps dependencies) (provides, error) {
+	c, err := newConfig(deps)
+	return provides{
+		Comp:          c,
+		FlareProvider: flaretypes.NewProvider(c.fillFlare),
+	}, err
+}
+
+func newConfig(deps dependencies) (*cfg, error) {
 	var errs []error
 	config := pkgconfigsetup.Datadog()
 	warnings, err := setupConfig(config, deps)
-	returnErrFct := func(e error) (Provides, error) {
+	returnErrFct := func(e error) (*cfg, error) {
 		if e != nil && deps.Params.ignoreErrors {
 			if warnings == nil {
 				warnings = &pkgconfigmodel.Warnings{}
@@ -94,9 +101,7 @@ func newConfig(deps dependencies) (Provides, error) {
 			warnings.Err = e
 			e = nil
 		}
-		return Provides{
-			Comp: &cfg{Config: config, warnings: warnings},
-		}, e
+		return &cfg{Config: config, warnings: warnings}, e
 	}
 
 	if err != nil {
@@ -120,12 +125,7 @@ func newConfig(deps dependencies) (Provides, error) {
 	if err := errors.Join(errs...); err != nil {
 		return returnErrFct(err)
 	}
-	c := &cfg{Config: config, warnings: warnings, extraConfFiles: extraConfFiles}
-
-	return Provides{
-		Comp:          c,
-		FlareProvider: flaretypes.NewProvider(c.fillFlare),
-	}, nil
+	return &cfg{Config: config, warnings: warnings, extraConfFiles: extraConfFiles}, nil
 }
 
 func (c *cfg) Warnings() *pkgconfigmodel.Warnings {
