@@ -26,6 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/postgres"
+	protocolsUtils "github.com/DataDog/datadog-agent/pkg/network/protocols/testutil"
 	gotlstestutil "github.com/DataDog/datadog-agent/pkg/network/protocols/tls/gotls/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 )
@@ -86,7 +87,7 @@ func (s *postgresProtocolParsingSuite) TestLoadPostgresBinary() {
 	t := s.T()
 	for name, debug := range map[string]bool{"enabled": true, "disabled": false} {
 		t.Run(name, func(t *testing.T) {
-			cfg := getPostgresDefaultTestConfiguration(postgres.TLSDisabled)
+			cfg := getPostgresDefaultTestConfiguration(protocolsUtils.TLSDisabled)
 			cfg.BPFDebug = debug
 			setupUSMTLSMonitor(t, cfg)
 		})
@@ -486,7 +487,7 @@ func (s *postgresProtocolParsingSuite) TestCleanupEBPFEntriesOnTermination() {
 	t := s.T()
 
 	// Creating the monitor
-	monitor := setupUSMTLSMonitor(t, getPostgresDefaultTestConfiguration(postgres.TLSDisabled))
+	monitor := setupUSMTLSMonitor(t, getPostgresDefaultTestConfiguration(protocolsUtils.TLSDisabled))
 
 	wg := sync.WaitGroup{}
 
