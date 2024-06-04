@@ -28,6 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/fleet/internal/exec"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 const (
@@ -274,7 +275,8 @@ func (d *daemonImpl) handleRemoteAPIRequest(request remoteAPIRequest) (err error
 	if err != nil {
 		return fmt.Errorf("could not get installer state: %w", err)
 	}
-	if s.Stable != request.ExpectedState.Stable || s.Experiment != request.ExpectedState.Experiment {
+	versionEqual := request.ExpectedState.InstallerVersion == "" || version.AgentVersion == request.ExpectedState.InstallerVersion
+	if versionEqual && s.Stable != request.ExpectedState.Stable || s.Experiment != request.ExpectedState.Experiment {
 		log.Infof("remote request %s not executed as state does not match: expected %v, got %v", request.ID, request.ExpectedState, s)
 		setRequestInvalid(ctx)
 		d.refreshState(ctx)
