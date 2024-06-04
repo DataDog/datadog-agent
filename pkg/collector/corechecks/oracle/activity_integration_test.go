@@ -12,7 +12,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/sijms/go-ora/v2/converters"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -29,7 +28,6 @@ query_samples:
 	err = c.Run()
 	assert.NoError(t, err, "check run activity")
 
-	_ = converters.NewStringConverter(846)
 	largeMultibyteString := strings.Repeat("안녕하세요", 200)
 	filter := fmt.Sprintf("user='%s'", largeMultibyteString)
 	andClause := strings.Repeat(fmt.Sprintf(" and %s", filter), 100)
