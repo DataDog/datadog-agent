@@ -17,6 +17,7 @@ import (
 	nethttp "net/http"
 	"os"
 	"os/exec"
+	"path"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -36,6 +37,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http2"
+	protocolsUtils "github.com/DataDog/datadog-agent/pkg/network/protocols/testutil"
 	gotlstestutil "github.com/DataDog/datadog-agent/pkg/network/protocols/tls/gotls/testutil"
 	javatestutil "github.com/DataDog/datadog-agent/pkg/network/protocols/tls/java/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/tls/nodejs"
@@ -81,8 +83,9 @@ func (s *tlsSuite) TestHTTPSViaLibraryIntegration() {
 		regexp.MustCompile(`/[^ ]+libgnutls.so[^ ]*`),
 	}
 	tests := []struct {
-		name     string
-		fetchCmd []string
+		name                string
+		fetchCmd            []string
+		getBinaryAndCommand func(*testing.T) (string, []string)
 	}{
 		{
 			name:     "wget",
@@ -91,6 +94,30 @@ func (s *tlsSuite) TestHTTPSViaLibraryIntegration() {
 		{
 			name:     "curl",
 			fetchCmd: []string{"curl", "--http1.1", "-k", "-o/dev/null", "-d", tempFile},
+		},
+		{
+			name:     "curl (musl)",
+			fetchCmd: []string{"chroot"},
+			getBinaryAndCommand: func(t *testing.T) (string, []string) {
+				dir, err := testutil.CurDir()
+				require.NoError(t, err)
+
+				dir = path.Join(dir, "..", "protocols", "tls", "openssl", "testdata", "musl")
+				protocolsUtils.RunDockerServer(t, "musl-alpine", path.Join(dir, "/docker-compose.yml"),
+					nil, regexp.MustCompile("started"), protocolsUtils.DefaultTimeout, 3)
+
+				rawout, err := exec.Command("docker", "inspect", "-f", "{{.State.Pid}}", "musl-alpine-1").Output()
+				require.NoError(t, err)
+				containerPid := strings.TrimSpace(string(rawout))
+				containerRoot := fmt.Sprintf("/proc/%s/root", containerPid)
+
+				// We start curl with chroot instead of via docker run since
+				// docker run forks and so `testHTTPSLibrary` woudn't have the
+				// PID of curl which it needs to wait for the shared library
+				// monitoring to happen.
+				return path.Join(containerRoot, "usr", "bin", "curl"), []string{"chroot", containerRoot,
+					"curl", "--http1.1", "-k", "-o/dev/null", "-d", tempFile}
+			},
 		},
 	}
 
@@ -116,7 +143,14 @@ func (s *tlsSuite) TestHTTPSViaLibraryIntegration() {
 			if !commandFound {
 				t.Skipf("%s not found; skipping test.", test.fetchCmd)
 			}
-			linked, _ := exec.Command(ldd, fetch).Output()
+
+			binpath := fetch
+			command := test.fetchCmd
+			if test.getBinaryAndCommand != nil {
+				binpath, command = test.getBinaryAndCommand(t)
+			}
+
+			linked, _ := exec.Command(ldd, binpath).Output()
 
 			var prefetchLibs []string
 			for _, lib := range tlsLibs {
@@ -130,7 +164,7 @@ func (s *tlsSuite) TestHTTPSViaLibraryIntegration() {
 			if len(prefetchLibs) == 0 {
 				t.Fatalf("%s not linked with any of these libs %v", test.name, tlsLibs)
 			}
-			testHTTPSLibrary(t, cfg, test.fetchCmd, prefetchLibs)
+			testHTTPSLibrary(t, cfg, command, prefetchLibs)
 		})
 	}
 }
