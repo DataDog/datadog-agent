@@ -211,7 +211,6 @@ func (d *Destination) run(input chan *message.Payload, output chan *message.Payl
 	d.updateRetryState(nil, isRetrying)
 	stopChan <- struct{}{}
 }
-
 func (d *Destination) sendConcurrent(payload *message.Payload, output chan *message.Payload, isRetrying chan bool) {
 	d.wg.Add(1)
 	d.climit <- struct{}{}
@@ -220,9 +219,8 @@ func (d *Destination) sendConcurrent(payload *message.Payload, output chan *mess
 			<-d.climit
 			d.wg.Done()
 		}()
-		if !d.shouldRetry {
-			// We do not retry for serverless so we sync when a payload is sent with on-demand flushes
-			serverlessWg := <-d.serverlessFlushChan
+		// In serverless we sync when a payload is sent with on-demand flushes
+		if serverlessWg, ok := <-d.serverlessFlushChan; ok {
 			defer serverlessWg.Done()
 		}
 		d.sendAndRetry(payload, output, isRetrying)
