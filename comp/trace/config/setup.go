@@ -233,6 +233,9 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 	}
 	if core.IsSet("apm_config.target_traces_per_second") {
 		c.TargetTPS = core.GetFloat64("apm_config.target_traces_per_second")
+	} else if core.IsSet("apm_config.max_traces_per_second") {
+		log.Warn("`apm_config.max_traces_per_second` is deprecated, please use `apm_config.target_traces_per_second` instead")
+		c.TargetTPS = core.GetFloat64("apm_config.max_traces_per_second")
 	}
 	if core.IsSet("apm_config.errors_per_second") {
 		c.ErrorTPS = core.GetFloat64("apm_config.errors_per_second")
