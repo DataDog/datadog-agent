@@ -96,10 +96,6 @@ func (a *apmInjectorInstaller) Setup(ctx context.Context) (retErr error) {
 		}()
 	}
 
-	// Verify that the docker runtime is as expected
-	if err := a.verifyDockerRuntime(ctx); err != nil {
-		return err
-	}
 	dockerIsInstalled := isDockerInstalled(ctx)
 	if mustInstrumentDocker(envs) && !dockerIsInstalled {
 		return fmt.Errorf("DD_APM_INSTRUMENTATION_ENABLED is set to docker but docker is not installed")
@@ -125,7 +121,7 @@ func (a *apmInjectorInstaller) Setup(ctx context.Context) (retErr error) {
 
 	// Set up defaults for agent sockets
 	if err = configureSocketsEnv(ctx); err != nil {
-		return
+		return err
 	}
 	if err = addSystemDEnvOverrides(ctx, agentUnit); err != nil {
 		return err
