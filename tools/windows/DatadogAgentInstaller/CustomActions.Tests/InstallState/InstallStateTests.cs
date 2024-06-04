@@ -57,12 +57,14 @@ namespace CustomActions.Tests.InstallState
         }
 
         [Theory]
-        [AutoData]
-        public void ReadDD_Driver_Rollback_Upgrade()
+        //[AutoData]
+        [InlineData("7.54", "")]
+        [InlineData("6.54", "")]
+        public void ReadDD_Driver_Rollback_Upgrade(string version, string expectedrollback)
         {
             string productCode = "{123-456-789}";
             Test.Session.Setup(session => session["WIX_UPGRADE_DETECTED"]).Returns(productCode);
-            Test.NativeMethods.Setup(n => n.GetVersionString(productCode)).Returns("7.54");
+            Test.NativeMethods.Setup(n => n.GetVersionString(productCode)).Returns(version);
 
             Test.Create()
                 .ReadInstallState()
@@ -70,24 +72,7 @@ namespace CustomActions.Tests.InstallState
                 .Be(ActionResult.Success);
 
             Test.Properties.Should()
-                .Contain("DDDRIVERROLLBACK", "0");
-        }
-
-        [Theory]
-        [AutoData]
-        public void ReadDD_Driver_Rollback_Upgrade_v6()
-        {
-            string productCode = "{123-456-789}";
-            Test.Session.Setup(session => session["WIX_UPGRADE_DETECTED"]).Returns(productCode);
-            Test.NativeMethods.Setup(n => n.GetVersionString(productCode)).Returns("6.54");
-
-            Test.Create()
-                .ReadInstallState()
-                .Should()
-                .Be(ActionResult.Success);
-
-            Test.Properties.Should()
-                .Contain("DDDRIVERROLLBACK", "0");
+                .Contain("DDDRIVERROLLBACK", expectedrollback);
         }
 
     }
