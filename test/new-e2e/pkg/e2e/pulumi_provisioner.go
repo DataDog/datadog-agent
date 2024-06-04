@@ -111,6 +111,7 @@ func (pp *PulumiProvisioner[Env]) Diagnose(ctx context.Context, stackName string
 	return "", nil
 }
 
+// SetDiagnoseFunc sets the diagnose function.
 func (pp *PulumiProvisioner[Env]) SetDiagnoseFunc(diagnoseFunc func(ctx context.Context, stackName string) (string, error)) {
 	pp.diagnoseFunc = diagnoseFunc
 }
