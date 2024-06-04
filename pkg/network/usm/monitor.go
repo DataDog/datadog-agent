@@ -40,7 +40,7 @@ const (
 var (
 	state        = disabled
 	startupError error
-	tlsPrograms  = []string{"go-tls", "native-tls", "java-tls", "istio-tls", "nodejs-tls", "shared_libraries"}
+	tlsPrograms  = []string{"go-tls", "native-tls", "java-tls", "istio-tls", "shared_libraries"}
 )
 
 // Monitor is responsible for:
