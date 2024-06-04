@@ -61,8 +61,8 @@ func defaultPackages(env *env.Env, defaultPackages []defaultPackage) []string {
 		version := "latest"
 
 		// Respect pinned version of APM packages if we don't define any overwrite
-		if apmLibVersion, ok := env.ApmLibraries[languageToPackage[p.name]]; ok && apmLibVersion != "" {
-			version = string(apmLibVersion)
+		if apmLibVersion, ok := env.ApmLibraries[languageToPackage[p.name]]; ok {
+			version = apmLibVersion.AsVersionTag()
 		}
 
 		if v, ok := env.DefaultPackagesVersionOverride[p.name]; ok {

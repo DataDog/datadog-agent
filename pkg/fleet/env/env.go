@@ -44,8 +44,20 @@ var defaultEnv = Env{
 	},
 }
 
+// ApmLibLanguage is a language defined in DD_APM_INSTRUMENTATION_LIBRARIES en var
 type ApmLibLanguage string
+
+// ApmLibVersion is the version of the library defined in DD_APM_INSTRUMENTATION_LIBRARIES en var
 type ApmLibVersion string
+
+// AsVersionTag returns the version tag associated with the version of the library defined in DD_APM_INSTRUMENTATION_LIBRARIES
+// if the value is empty we return latest
+func (v ApmLibVersion) AsVersionTag() string {
+	if v == "" {
+		return "latest"
+	}
+	return string(v) + "-1"
+}
 
 // Env contains the configuration for the installer.
 type Env struct {
