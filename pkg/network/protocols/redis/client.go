@@ -17,10 +17,15 @@ func NewClient(serverAddress string, dialer *net.Dialer, enableTLS bool) *redis.
 	opts := &redis.Options{
 		Addr: serverAddress,
 	}
+
 	if enableTLS {
-		opts.TLSConfig = &tls.Config{
-			InsecureSkipVerify: true,
+		tlsDialer := &tls.Dialer{
+			NetDialer: dialer,
+			Config: &tls.Config{
+				InsecureSkipVerify: true,
+			},
 		}
+		opts.Dialer = tlsDialer.DialContext
 	} else {
 		opts.Dialer = dialer.DialContext
 	}
