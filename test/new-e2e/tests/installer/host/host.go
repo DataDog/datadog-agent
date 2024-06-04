@@ -51,9 +51,11 @@ func New(t *testing.T, remote *components.RemoteHost, os e2eos.Descriptor, arch 
 	host.uploadFixtures()
 	host.setSystemdVersion()
 	if _, err := host.remote.Execute("command -v dpkg-query"); err == nil {
-		host.pkgManager = "dpkg"
-	} else if _, err := host.remote.Execute("command -v rpm"); err == nil {
-		host.pkgManager = "rpm"
+		host.pkgManager = "apt"
+	} else if _, err := host.remote.Execute("command -v zypper"); err == nil {
+		host.pkgManager = "zypper"
+	} else if _, err := host.remote.Execute("command -v yum"); err == nil {
+		host.pkgManager = "yum"
 	} else {
 		t.Fatal("no package manager found")
 	}
@@ -153,9 +155,9 @@ func (h *Host) AssertPackageInstalledByInstaller(pkgs ...string) {
 func (h *Host) AssertPackageInstalledByPackageManager(pkgs ...string) {
 	for _, pkg := range pkgs {
 		switch h.pkgManager {
-		case "dpkg":
+		case "apt":
 			h.remote.MustExecute("dpkg-query -l " + pkg)
-		case "rpm":
+		case "yum", "zypper":
 			h.remote.MustExecute("rpm -q " + pkg)
 		default:
 			h.t.Fatal("unsupported package manager")
@@ -167,9 +169,9 @@ func (h *Host) AssertPackageInstalledByPackageManager(pkgs ...string) {
 func (h *Host) AssertPackageNotInstalledByPackageManager(pkgs ...string) {
 	for _, pkg := range pkgs {
 		switch h.pkgManager {
-		case "dpkg":
+		case "apt":
 			h.remote.MustExecute("! dpkg-query -l " + pkg)
-		case "rpm":
+		case "yum", "zypper":
 			h.remote.MustExecute("! rpm -q " + pkg)
 		default:
 			h.t.Fatal("unsupported package manager")
