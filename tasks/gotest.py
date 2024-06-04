@@ -985,4 +985,6 @@ def check_otel_module_versions(ctx):
                 if len(matches) != 1:
                     raise Exit(f"{mod_file} does not match expected go directive format")
                 if matches[0] != f"go {OTEL_UPSTREAM_GO_VERSION}":
-                    raise Exit(f"{mod_file} version {matches[0]} does not match upstream version: {OTEL_UPSTREAM_GO_VERSION}")
+                    raise Exit(
+                        f"{mod_file} version {matches[0]} does not match upstream version: {OTEL_UPSTREAM_GO_VERSION}"
+                    )

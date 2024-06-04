@@ -135,7 +135,9 @@ DEFAULT_MODULES = {
     "comp/core/config": GoModule("comp/core/config", independent=True, used_by_otel=True),
     "comp/core/flare/builder": GoModule("comp/core/flare/builder", independent=True),
     "comp/core/flare/types": GoModule("comp/core/flare/types", independent=True),
-    "comp/core/hostname/hostnameinterface": GoModule("comp/core/hostname/hostnameinterface", independent=True, used_by_otel=True),
+    "comp/core/hostname/hostnameinterface": GoModule(
+        "comp/core/hostname/hostnameinterface", independent=True, used_by_otel=True
+    ),
     "comp/core/log": GoModule("comp/core/log", independent=True, used_by_otel=True),
     "comp/core/secrets": GoModule("comp/core/secrets", independent=True, used_by_otel=True),
     "comp/core/status": GoModule("comp/core/status", independent=True),
