@@ -10,12 +10,12 @@ from tasks.libs.pipeline.notifications import GITHUB_SLACK_MAP
 
 @task
 def find_jobowners(_, job, owners_file=".gitlab/JOBOWNERS"):
-    print(", ".join(search_owners([job], owners_file)[job]))
+    print(", ".join(search_owners(job, owners_file)))
 
 
 @task
 def find_codeowners(_, path, owners_file=".github/CODEOWNERS"):
-    print(", ".join(search_owners([path], owners_file)[path]))
+    print(", ".join(search_owners(path, owners_file)))
 
 
 @task

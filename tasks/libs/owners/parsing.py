@@ -11,10 +11,10 @@ def read_owners(owners_file: str) -> Any:
         return CodeOwners(f.read())
 
 
-def search_owners(search: list[str], owners_file: str) -> dict[str, list[str]]:
+def search_owners(search: str, owners_file: str) -> list[str]:
     parsed_owners = read_owners(owners_file)
     # owners.of returns a list in the form: [('TEAM', '@DataDog/agent-build-and-releases')]
-    return {search_item: [owner[1] for owner in parsed_owners.of(search_item)] for search_item in search}
+    return [owner[1] for owner in parsed_owners.of(search)]
 
 
 def list_owners(owners_file=".github/CODEOWNERS"):
