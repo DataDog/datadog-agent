@@ -3,7 +3,7 @@ import subprocess
 import sys
 from contextlib import contextmanager
 
-from invoke import Context, task
+from invoke import Context, Exit, task
 
 from tasks.libs.common.color import color_message
 
@@ -370,11 +370,10 @@ def validate(_: Context, fail_fast: bool = False):
         for dependency in module.dependencies:
             if dependency not in DEFAULT_MODULES:
                 if fail_fast:
-                    print(f"Error: {module.path} depends on missing {dependency}", file=sys.stderr)
-                    sys.exit(1)
+                    raise Exit(f"{color_message('ERROR', 'red')}: {module.path} depends on missing {dependency}")
                 missing_modules.append((module, dependency))
     if missing_modules:
-        print("Error: some modules are missing from DEFAULT_MODULES", file=sys.stderr)
+        message = f"{color_message('ERROR', 'red')}: some modules are missing from DEFAULT_MODULES\n"
         for module, dependency in missing_modules:
-            print(f"  {module.path} depends on missing {dependency}", file=sys.stderr)
-        sys.exit(1)
+            message += f"  {module.path} depends on missing {dependency}\n"
+        raise Exit(message)
