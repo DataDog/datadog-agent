@@ -62,5 +62,5 @@ func (ext *ddExtension) Shutdown(ctx context.Context) error {
 
 // Start is called when the extension is started.
 func (ext *ddExtension) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	fmt.Fprintf(w, "Hello from my OpenTelemetry extension!")
+	fmt.Fprintf(w, "Hello from my OpenTelemetry extension!\n")
 }
