@@ -83,13 +83,27 @@ func TestStoreGenerators(t *testing.T) {
 			expectedStoresGenerator: []storeGenerator{newNodeStore, newNamespaceStore},
 		},
 		{
+			name: "Namespace from ns label as tags",
+			cfg: map[string]interface{}{
+				"kubernetes_namespace_labels_as_tags": map[string]string{
+					"env": "env",
+				},
+			},
+			expectedStoresGenerator: []storeGenerator{newNodeStore, ginewNamespaceStore},
+		},
+		{
 			name: "All configurations enabled",
 			cfg: map[string]interface{}{
-				"cluster_agent.collect_kubernetes_tags": true,
-				"language_detection.reporting.enabled":  true,
-				"language_detection.enabled":            true,
+				"cluster_agent.collect_kubernetes_tags":            true,
+				"language_detection.reporting.enabled":             true,
+				"language_detection.enabled":                       true,
+				"cluster_agent.kube_metadata_collection.enabled":   true,
+				"cluster_agent.kube_metadata_collection.resources": "namespaces",
+				"kubernetes_namespace_labels_as_tags": map[string]string{
+					"env": "env",
+				},
 			},
-			expectedStoresGenerator: []storeGenerator{newNodeStore, newPodStore, newDeploymentStore},
+			expectedStoresGenerator: []storeGenerator{newNodeStore, newPodStore, newDeploymentStore, newNamespaceStore},
 		},
 	}
 
