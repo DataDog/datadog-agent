@@ -36,18 +36,14 @@ type Store struct {
 	UpdatedEntities telemetry.Counter
 
 	// PrunedEntities tracks the number of pruned tagger entities.
-	// Remote
 	PrunedEntities telemetry.Gauge
-	// queries tracks the number of queries made against the tagger.
-	queries telemetry.Counter
 
 	// ClientStreamErrors tracks how many errors were received when streaming
 	// tagger events.
-	// Remote
 	ClientStreamErrors telemetry.Counter
+
 	// ServerStreamErrors tracks how many errors happened when streaming
 	// out tagger events.
-	// Server
 	ServerStreamErrors telemetry.Counter
 
 	// Subscribers tracks how many subscribers the tagger has.
@@ -61,7 +57,6 @@ type Store struct {
 
 	// Receives tracks the number of times the tagger has received a
 	// notification with a group of events.
-	// Remote
 	Receives telemetry.Counter
 
 	LowCardinalityQueries          CardinalityTelemetry

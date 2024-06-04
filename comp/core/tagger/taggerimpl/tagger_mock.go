@@ -12,15 +12,17 @@ import (
 	"net/http"
 	"testing"
 
+	"go.uber.org/fx"
+
 	"github.com/DataDog/datadog-agent/comp/api/api"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl/local"
+	nooptelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/noopsimpl"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"go.uber.org/fx"
 )
 
 // MockTaggerClient is a mock of the tagger Component
@@ -67,6 +69,7 @@ func MockModule() fxutil.Module {
 		fx.Supply(tagger.NewFakeTaggerParams()),
 		fx.Supply(workloadmeta.NewParams()),
 		workloadmeta.Module(),
+		nooptelemetry.Module(),
 	)
 }
 
