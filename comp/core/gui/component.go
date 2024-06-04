@@ -10,5 +10,4 @@ package gui
 
 // Component is the component type.
 type Component interface {
-	GetCSRFToken() string
 }

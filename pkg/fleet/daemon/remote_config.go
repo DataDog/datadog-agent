@@ -159,6 +159,8 @@ const (
 type remoteAPIRequest struct {
 	ID            string          `json:"id"`
 	Package       string          `json:"package_name"`
+	TraceID       string          `json:"trace_id"`
+	ParentSpanID  string          `json:"parent_span_id"`
 	ExpectedState expectedState   `json:"expected_state"`
 	Method        string          `json:"method"`
 	Params        json.RawMessage `json:"params"`
@@ -170,7 +172,8 @@ type expectedState struct {
 }
 
 type taskWithVersionParams struct {
-	Version string `json:"version"`
+	Version     string   `json:"version"`
+	InstallArgs []string `json:"install_args"`
 }
 
 type handleRemoteAPIRequest func(request remoteAPIRequest) error

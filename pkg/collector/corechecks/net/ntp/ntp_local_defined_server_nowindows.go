@@ -28,7 +28,7 @@ func getNTPServersFromFiles(files []string) ([]string, error) {
 			for _, line := range lines {
 				line = strings.TrimSpace(line)
 				fields := strings.Fields(line)
-				if len(fields) >= 2 && fields[0] == "server" {
+				if len(fields) >= 2 && (fields[0] == "server" || fields[0] == "pool" || fields[0] == "peer") {
 					serversMap[fields[1]] = true
 				}
 			}

@@ -14,6 +14,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strconv"
 
 	"github.com/DataDog/gopsutil/process"
@@ -366,7 +367,7 @@ func movePackageFromSource(ctx context.Context, packageName string, rootPath str
 	if err := os.Chmod(targetPath, 0755); err != nil {
 		return "", fmt.Errorf("could not set permissions on package: %w", err)
 	}
-	if filepath.Base(rootPath) == "datadog-agent" {
+	if filepath.Base(rootPath) == "datadog-agent" && runtime.GOOS != "windows" {
 		if err := exec.CommandContext(ctx, "chown", "-R", "dd-agent:dd-agent", targetPath).Run(); err != nil {
 			return "", err
 		}

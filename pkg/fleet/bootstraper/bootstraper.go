@@ -13,6 +13,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/DataDog/datadog-agent/pkg/fleet/env"
 	"github.com/DataDog/datadog-agent/pkg/fleet/internal/exec"
 	"github.com/DataDog/datadog-agent/pkg/fleet/internal/oci"
 )
@@ -20,63 +21,9 @@ import (
 const (
 	installerPackage = "datadog-installer"
 	installerBinPath = "bin/installer/installer"
+
+	rootTmpDir = "/opt/datadog-installer/run"
 )
-
-// Option are the options for the bootstraper.
-type Option func(*options)
-
-type options struct {
-	installerVersion string
-	registryAuth     string
-	registry         string
-	apiKey           string
-	site             string
-}
-
-func newOptions() *options {
-	return &options{
-		installerVersion: "latest",
-		registryAuth:     oci.RegistryAuthDefault,
-		registry:         "",
-		apiKey:           "",
-		site:             "datadoghq.com",
-	}
-}
-
-// WithInstallerVersion sets the installer version.
-func WithInstallerVersion(installerVersion string) Option {
-	return func(o *options) {
-		o.installerVersion = installerVersion
-	}
-}
-
-// WithRegistryAuth sets the registry authentication method.
-func WithRegistryAuth(registryAuth string) Option {
-	return func(o *options) {
-		o.registryAuth = registryAuth
-	}
-}
-
-// WithRegistry sets the registry URL.
-func WithRegistry(registry string) Option {
-	return func(o *options) {
-		o.registry = registry
-	}
-}
-
-// WithAPIKey sets the API key.
-func WithAPIKey(apiKey string) Option {
-	return func(o *options) {
-		o.apiKey = apiKey
-	}
-}
-
-// WithSite sets the site.
-func WithSite(site string) Option {
-	return func(o *options) {
-		o.site = site
-	}
-}
 
 // Bootstrap installs a first version of the installer on the disk.
 //
@@ -85,15 +32,15 @@ func WithSite(site string) Option {
 // 2. Export the installer image as an OCI layout on the disk.
 // 3. Extract the installer image layers on the disk.
 // 4. Run the installer from the extract layer with `install file://<layout-path>`.
-func Bootstrap(ctx context.Context, opts ...Option) error {
-	o := newOptions()
-	for _, opt := range opts {
-		opt(o)
-	}
-
+// 5. Get the list of default packages to install and install them.
+func Bootstrap(ctx context.Context, env *env.Env) error {
 	// 1. Download the installer package from the registry.
-	downloader := oci.NewDownloader(http.DefaultClient, o.registry, o.registryAuth)
-	installerURL := oci.PackageURL(o.site, installerPackage, o.installerVersion)
+	downloader := oci.NewDownloader(env, http.DefaultClient)
+	version := "latest"
+	if env.DefaultPackagesVersionOverride[installerPackage] != "" {
+		version = env.DefaultPackagesVersionOverride[installerPackage]
+	}
+	installerURL := oci.PackageURL(env, installerPackage, version)
 	downloadedPackage, err := downloader.Download(ctx, installerURL)
 	if err != nil {
 		return fmt.Errorf("failed to download installer package: %w", err)
@@ -103,7 +50,7 @@ func Bootstrap(ctx context.Context, opts ...Option) error {
 	}
 
 	// 2. Export the installer image as an OCI layout on the disk.
-	layoutTmpDir, err := os.MkdirTemp("", "")
+	layoutTmpDir, err := os.MkdirTemp(rootTmpDir, "")
 	if err != nil {
 		return fmt.Errorf("failed to create temporary directory: %w", err)
 	}
@@ -114,7 +61,7 @@ func Bootstrap(ctx context.Context, opts ...Option) error {
 	}
 
 	// 3. Extract the installer image layers on the disk.
-	binTmpDir, err := os.MkdirTemp("", "")
+	binTmpDir, err := os.MkdirTemp(rootTmpDir, "")
 	if err != nil {
 		return fmt.Errorf("failed to create temporary directory: %w", err)
 	}
@@ -126,10 +73,22 @@ func Bootstrap(ctx context.Context, opts ...Option) error {
 
 	// 4. Run the installer from the extract layer with `install file://<layout-path>`.
 	installerBinPath := filepath.Join(binTmpDir, installerBinPath)
-	cmd := exec.NewInstallerExec(installerBinPath, o.registry, o.registryAuth, o.apiKey, o.site)
-	err = cmd.Install(ctx, fmt.Sprintf("file://%s", layoutTmpDir))
+	cmd := exec.NewInstallerExec(env, installerBinPath)
+	err = cmd.Install(ctx, fmt.Sprintf("file://%s", layoutTmpDir), nil)
 	if err != nil {
 		return fmt.Errorf("failed to run installer: %w", err)
+	}
+
+	// 6. Get the list of default packages to install and install them.
+	defaultPackages, err := cmd.DefaultPackages(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to get default packages: %w", err)
+	}
+	for _, url := range defaultPackages {
+		err = cmd.Install(ctx, url, nil)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "failed to install package %s: %v\n", url, err)
+		}
 	}
 	return nil
 }

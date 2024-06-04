@@ -198,6 +198,7 @@
             "meta": {
               "_dd.compute_stats": "1",
               "_dd.origin": "lambda",
+              "_dd.p.dm": "null",
               "account_id": "############",
               "architecture": "XXX",
               "aws_account": "############",
@@ -268,6 +269,7 @@
             "meta": {
               "_dd.compute_stats": "1",
               "_dd.origin": "lambda",
+              "_dd.p.dm": "null",
               "account_id": "############",
               "architecture": "XXX",
               "aws_account": "############",

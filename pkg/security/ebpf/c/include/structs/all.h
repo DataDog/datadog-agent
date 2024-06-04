@@ -12,7 +12,6 @@
 #include "network.h"
 #include "open.h"
 #include "process.h"
-#include "security_profile.h"
 #include "selinux.h"
 #include "syscalls.h"
 #include "tracepoints.h"

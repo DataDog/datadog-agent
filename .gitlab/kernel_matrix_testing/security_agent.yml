@@ -105,6 +105,7 @@ upload_secagent_tests_arm64:
   allow_failure: true
   stage: kernel_matrix_testing_security_agent
   rules: !reference [.on_security_agent_changes_or_manual]
+  timeout: 1h 30m
   variables:
     TEST_COMPONENT: security-agent
 
@@ -117,7 +118,6 @@ kmt_run_secagent_tests_x64:
     - kmt_setup_env_secagent_x64
     - upload_dependencies_secagent_x64
     - upload_secagent_tests_x64
-  timeout: 3h
   variables:
     ARCH: "x86_64"
   parallel:
@@ -135,6 +135,7 @@ kmt_run_secagent_tests_x64:
           - "debian_10"
           - "debian_11"
           - "debian_12"
+          - "centos_7.9"
           - "oracle_8.9"
           - "oracle_9.3"
           - "rocky_8.5"
@@ -157,7 +158,6 @@ kmt_run_secagent_tests_arm64:
     - kmt_setup_env_secagent_arm64
     - upload_dependencies_secagent_arm64
     - upload_secagent_tests_arm64
-  timeout: 3h
   variables:
     ARCH: "arm64"
   parallel:
@@ -178,7 +178,6 @@ kmt_run_secagent_tests_arm64:
           - "rocky_9.3"
           - "opensuse_15.3"
           - "opensuse_15.5"
-          - "suse_12.5"
         TEST_SET: ["all_tests"]
   after_script:
     - !reference [.collect_outcomes_kmt]
@@ -191,6 +190,7 @@ kmt_run_secagent_tests_arm64:
     TEST_COMPONENT: security-agent
 
 kmt_secagent_cleanup_arm64:
+  when: always
   extends:
     - .kmt_secagent_cleanup
   needs:
@@ -201,11 +201,31 @@ kmt_secagent_cleanup_arm64:
     INSTANCE_TYPE: "m6gd.metal"
 
 kmt_secagent_cleanup_x64:
+  when: always
   extends:
     - .kmt_secagent_cleanup
   needs:
     - kmt_setup_env_secagent_x64
     - kmt_run_secagent_tests_x64
+  variables:
+    ARCH: x86_64
+    INSTANCE_TYPE: "m5d.metal"
+
+# Manual cleanup jobs, these will be used to cleanup the instances after the tests
+# if the tests are canceled (e.g., by the auto-cancel-prev-pipelines job). The automatic jobs
+# will not run if the dependencies are canceled
+kmt_secagent_cleanup_arm64_manual:
+  extends:
+    - .kmt_secagent_cleanup
+    - .kmt_cleanup_manual
+  variables:
+    ARCH: arm64
+    INSTANCE_TYPE: "m6gd.metal"
+
+kmt_secagent_cleanup_x64_manual:
+  extends:
+    - .kmt_secagent_cleanup
+    - .kmt_cleanup_manual
   variables:
     ARCH: x86_64
     INSTANCE_TYPE: "m5d.metal"

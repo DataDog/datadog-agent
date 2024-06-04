@@ -159,7 +159,7 @@ def get_max_duration(project_name: str):
     status = "success"
     jobs = pipeline.jobs.list(per_page=100, all=True)
     for job in jobs:
-        if job.name in REQUIRED_JOBS:
+        if job.name in REQUIRED_JOBS and job.finished_at is not None:
             finished = datetime.fromisoformat(job.finished_at[:-1])
             if finished > max:
                 max = finished

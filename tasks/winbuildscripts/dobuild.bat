@@ -14,7 +14,7 @@ set OMNIBUS_ARGS=--python-runtimes "%PY_RUNTIMES%"
 
 if "%OMNIBUS_TARGET%" == "iot" set OMNIBUS_ARGS=--flavor iot
 if "%OMNIBUS_TARGET%" == "dogstatsd" set OMNIBUS_ARGS=--target-project dogstatsd
-if "%OMNIBUS_TARGET%" == "agent_binaries" set OMNIBUS_ARGS=%OMNIBUS_ARGS% --agent-binaries
+if "%OMNIBUS_TARGET%" == "agent_binaries" set OMNIBUS_ARGS=%OMNIBUS_ARGS% --target-project agent-binaries
 if DEFINED GOMODCACHE set OMNIBUS_ARGS=%OMNIBUS_ARGS% --go-mod-cache %GOMODCACHE%
 if DEFINED USE_S3_CACHING set OMNIBUS_ARGS=%OMNIBUS_ARGS% %USE_S3_CACHING%
 
@@ -23,7 +23,6 @@ SET PATH=%PATH%;%GOPATH%/bin
 @echo GOPATH %GOPATH%
 @echo PATH %PATH%
 @echo VSTUDIO_ROOT %VSTUDIO_ROOT%
-@echo TARGET_ARCH %TARGET_ARCH%
 
 REM Section to pre-install libyajl2 gem with fix for gcc10 compatibility
 Powershell -C "ridk enable; ./tasks/winbuildscripts/libyajl2_install.ps1"
@@ -34,11 +33,6 @@ if "%TARGET_ARCH%" == "x64" (
     call ridk enable
 )
 
-if "%TARGET_ARCH%" == "x86" (
-    @echo IN x86 BRANCH
-    REM Use 64-bit toolchain to build gems
-    Powershell -C "ridk enable; cd omnibus; bundle install"
-)
 set REPO_ROOT=%~p0\..\..
 pushd .
 cd %REPO_ROOT% || exit /b 101
@@ -59,4 +53,10 @@ if "%OMNIBUS_TARGET%" == "main" (
     @echo "inv -e msi.build --major-version %MAJOR_VERSION% --python-runtimes "%PY_RUNTIMES%" --release-version %RELEASE_VERSION%
     inv -e msi.build --major-version %MAJOR_VERSION% --python-runtimes "%PY_RUNTIMES%" --release-version %RELEASE_VERSION% || exit /b 106
 )
+
+REM Build the OCI package for the Agent 7 only.
+if %MAJOR_VERSION% == 7 (
+    Powershell -C "./tasks/winbuildscripts/Generate-OCIPackage.ps1"
+)
+
 popd

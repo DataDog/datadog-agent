@@ -14,6 +14,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/api/api"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/scheduler"
+	"github.com/DataDog/datadog-agent/comp/core/tagger"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
@@ -22,7 +24,7 @@ import (
 
 // MockParams defines the parameters for the mock component.
 type MockParams struct {
-	Scheduler *scheduler.MetaScheduler
+	Scheduler *scheduler.Controller
 }
 
 // mockHandleRequest is a simple mocked http.Handler function to test the route registers with the api component correctly
@@ -32,8 +34,9 @@ func (ac *AutoConfig) mockHandleRequest(w http.ResponseWriter, _ *http.Request) 
 
 type mockdependencies struct {
 	fx.In
-	WMeta  optional.Option[workloadmeta.Component]
-	Params MockParams
+	WMeta      optional.Option[workloadmeta.Component]
+	Params     MockParams
+	TaggerComp tagger.Mock
 }
 
 type mockprovides struct {
@@ -44,7 +47,7 @@ type mockprovides struct {
 }
 
 func newMockAutoConfig(deps mockdependencies) mockprovides {
-	ac := createNewAutoConfig(deps.Params.Scheduler, nil, deps.WMeta)
+	ac := createNewAutoConfig(deps.Params.Scheduler, nil, deps.WMeta, deps.TaggerComp)
 	return mockprovides{
 		Comp:     ac,
 		Endpoint: api.NewAgentEndpointProvider(ac.mockHandleRequest, "/config-check", "GET"),
@@ -59,8 +62,9 @@ func MockModule() fxutil.Module {
 }
 
 // CreateMockAutoConfig creates a mock AutoConfig for testing
-func CreateMockAutoConfig(t *testing.T, scheduler *scheduler.MetaScheduler) autodiscovery.Mock {
+func CreateMockAutoConfig(t *testing.T, scheduler *scheduler.Controller) autodiscovery.Mock {
 	return fxutil.Test[autodiscovery.Mock](t, fx.Options(
 		fx.Supply(MockParams{Scheduler: scheduler}),
+		taggerimpl.MockModule(),
 		MockModule()))
 }

@@ -58,7 +58,7 @@ type StreamHandler interface {
 	// NewClient returns a client to connect to a remote gRPC server.
 	NewClient(cc grpc.ClientConnInterface) GrpcClient
 	// HandleResponse handles a response from the remote gRPC server.
-	HandleResponse(response interface{}) ([]workloadmeta.CollectorEvent, error)
+	HandleResponse(store workloadmeta.Component, response interface{}) ([]workloadmeta.CollectorEvent, error)
 	// HandleResync is called on resynchronization.
 	HandleResync(store workloadmeta.Component, events []workloadmeta.CollectorEvent)
 }
@@ -148,7 +148,7 @@ func (c *GenericCollector) startWorkloadmetaStream(maxElapsed time.Duration) err
 		default:
 		}
 
-		token, err := security.FetchAuthToken(pkgconfig.Datadog)
+		token, err := security.FetchAuthToken(pkgconfig.Datadog())
 		if err != nil {
 			err = fmt.Errorf("unable to fetch authentication token: %w", err)
 			log.Warnf("unable to establish entity stream between agents, will possibly retry: %s", err)
@@ -179,7 +179,7 @@ func (c *GenericCollector) startWorkloadmetaStream(maxElapsed time.Duration) err
 
 // Run will run the generic collector streaming loop
 func (c *GenericCollector) Run() {
-	recvWithoutTimeout := pkgconfig.Datadog.GetBool("workloadmeta.remote.recv_without_timeout")
+	recvWithoutTimeout := pkgconfig.Datadog().GetBool("workloadmeta.remote.recv_without_timeout")
 
 	for {
 		select {
@@ -210,7 +210,7 @@ func (c *GenericCollector) Run() {
 		}
 		if err != nil {
 			// at the end of stream, but its OK
-			if err == io.EOF {
+			if errors.Is(err, io.EOF) {
 				continue
 			}
 
@@ -230,7 +230,7 @@ func (c *GenericCollector) Run() {
 			continue
 		}
 
-		collectorEvents, err := c.StreamHandler.HandleResponse(response)
+		collectorEvents, err := c.StreamHandler.HandleResponse(c.store, response)
 		if err != nil {
 			log.Warnf("error processing event received from remote workloadmeta: %s", err)
 			continue

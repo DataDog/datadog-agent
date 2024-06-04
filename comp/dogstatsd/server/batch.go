@@ -157,7 +157,7 @@ func newBatcher(demux aggregator.DemultiplexerWithAggregator) *batcher {
 }
 
 func getShardGenerator() shardKeyGenerator {
-	isolated := config.Datadog.GetString("dogstatsd_pipeline_autoadjust_strategy") == aggregator.AutoAdjustStrategyPerOrigin
+	isolated := config.Datadog().GetString("dogstatsd_pipeline_autoadjust_strategy") == aggregator.AutoAdjustStrategyPerOrigin
 
 	base := shardKeyGeneratorBase{
 		keyGenerator: ckey.NewKeyGenerator(),

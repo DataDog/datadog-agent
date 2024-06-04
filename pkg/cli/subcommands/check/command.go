@@ -54,7 +54,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/defaults"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/pidmap"
-	"github.com/DataDog/datadog-agent/comp/dogstatsd/replay"
+	replay "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/def"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/server"
 	serverdebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
 	"github.com/DataDog/datadog-agent/comp/forwarder"
@@ -228,7 +228,7 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 				fx.Provide(func() packagesigning.Component { return nil }),
 				fx.Supply(optional.NewNoneOption[rcservice.Component]()),
 				fx.Supply(optional.NewNoneOption[rcservicemrf.Component]()),
-				fx.Provide(func() optional.Option[gui.Component] { return optional.NewNoneOption[gui.Component]() }),
+				fx.Supply(optional.NewNoneOption[gui.Component]()),
 				getPlatformModules(),
 				jmxloggerimpl.Module(),
 				fx.Supply(jmxloggerimpl.NewDisabledParams()),
@@ -252,7 +252,7 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 	cmd.Flags().UintVarP(&cliParams.discoveryRetryInterval, "discovery-retry-interval", "", 1, "(unused)")
 	cmd.Flags().UintVarP(&cliParams.discoveryMinInstances, "discovery-min-instances", "", 1, "minimum number of config instances to be discovered before running the check(s)")
 
-	pkgconfig.Datadog.BindPFlag("cmd.check.fullsketches", cmd.Flags().Lookup("full-sketches")) //nolint:errcheck
+	pkgconfig.Datadog().BindPFlag("cmd.check.fullsketches", cmd.Flags().Lookup("full-sketches")) //nolint:errcheck
 
 	// Power user flags - mark as hidden
 	createHiddenStringFlag(cmd, &cliParams.profileMemoryDir, "m-dir", "", "an existing directory in which to store memory profiling data, ignoring clean-up")
@@ -289,15 +289,15 @@ func run(
 	previousIntegrationTracing := false
 	previousIntegrationTracingExhaustive := false
 	if cliParams.generateIntegrationTraces {
-		if pkgconfig.Datadog.IsSet("integration_tracing") {
-			previousIntegrationTracing = pkgconfig.Datadog.GetBool("integration_tracing")
+		if pkgconfig.Datadog().IsSet("integration_tracing") {
+			previousIntegrationTracing = pkgconfig.Datadog().GetBool("integration_tracing")
 
 		}
-		if pkgconfig.Datadog.IsSet("integration_tracing_exhaustive") {
-			previousIntegrationTracingExhaustive = pkgconfig.Datadog.GetBool("integration_tracing_exhaustive")
+		if pkgconfig.Datadog().IsSet("integration_tracing_exhaustive") {
+			previousIntegrationTracingExhaustive = pkgconfig.Datadog().GetBool("integration_tracing_exhaustive")
 		}
-		pkgconfig.Datadog.Set("integration_tracing", true, model.SourceAgentRuntime)
-		pkgconfig.Datadog.Set("integration_tracing_exhaustive", true, model.SourceAgentRuntime)
+		pkgconfig.Datadog().Set("integration_tracing", true, model.SourceAgentRuntime)
+		pkgconfig.Datadog().Set("integration_tracing_exhaustive", true, model.SourceAgentRuntime)
 	}
 
 	if len(cliParams.args) != 0 {
@@ -312,7 +312,7 @@ func run(
 	pkgcollector.InitPython(common.GetPythonPaths()...)
 	commonchecks.RegisterChecks(wmeta, config)
 
-	common.LoadComponents(secretResolver, wmeta, ac, pkgconfig.Datadog.GetString("confd_path"))
+	common.LoadComponents(secretResolver, wmeta, ac, pkgconfig.Datadog().GetString("confd_path"))
 	ac.LoadAndRun(context.Background())
 
 	// Create the CheckScheduler, but do not attach it to
@@ -638,8 +638,8 @@ func run(
 	}
 
 	if cliParams.generateIntegrationTraces {
-		pkgconfig.Datadog.Set("integration_tracing", previousIntegrationTracing, model.SourceAgentRuntime)
-		pkgconfig.Datadog.Set("integration_tracing_exhaustive", previousIntegrationTracingExhaustive, model.SourceAgentRuntime)
+		pkgconfig.Datadog().Set("integration_tracing", previousIntegrationTracing, model.SourceAgentRuntime)
+		pkgconfig.Datadog().Set("integration_tracing_exhaustive", previousIntegrationTracingExhaustive, model.SourceAgentRuntime)
 	}
 
 	return nil

@@ -14,6 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/controllers/secret"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/controllers/webhook"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
@@ -35,19 +36,19 @@ type ControllerContext struct {
 }
 
 // StartControllers starts the secret and webhook controllers
-func StartControllers(ctx ControllerContext, wmeta workloadmeta.Component) ([]webhook.MutatingWebhook, error) {
-	if !config.Datadog.GetBool("admission_controller.enabled") {
+func StartControllers(ctx ControllerContext, wmeta workloadmeta.Component, pa workload.PodPatcher) ([]webhook.MutatingWebhook, error) {
+	if !config.Datadog().GetBool("admission_controller.enabled") {
 		log.Info("Admission controller is disabled")
 		return nil, nil
 	}
 
 	certConfig := secret.NewCertConfig(
-		config.Datadog.GetDuration("admission_controller.certificate.expiration_threshold")*time.Hour,
-		config.Datadog.GetDuration("admission_controller.certificate.validity_bound")*time.Hour)
+		config.Datadog().GetDuration("admission_controller.certificate.expiration_threshold")*time.Hour,
+		config.Datadog().GetDuration("admission_controller.certificate.validity_bound")*time.Hour)
 	secretConfig := secret.NewConfig(
 		common.GetResourcesNamespace(),
-		config.Datadog.GetString("admission_controller.certificate.secret_name"),
-		config.Datadog.GetString("admission_controller.service_name"),
+		config.Datadog().GetString("admission_controller.certificate.secret_name"),
+		config.Datadog().GetString("admission_controller.service_name"),
 		certConfig)
 	secretController := secret.NewController(
 		ctx.Client,
@@ -76,6 +77,7 @@ func StartControllers(ctx ControllerContext, wmeta workloadmeta.Component) ([]we
 		ctx.LeaderSubscribeFunc(),
 		webhookConfig,
 		wmeta,
+		pa,
 	)
 
 	go secretController.Run(ctx.StopCh)

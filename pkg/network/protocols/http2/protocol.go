@@ -106,6 +106,24 @@ var Spec = &protocols.ProtocolSpec{
 		{
 			Name: "http2_ctx_heap",
 		},
+		{
+			Name: "http2_batch_events",
+		},
+		{
+			Name: "http2_batch_state",
+		},
+		{
+			Name: "http2_batches",
+		},
+		{
+			Name: "terminated_http2_batch_events",
+		},
+		{
+			Name: "terminated_http2_batch_state",
+		},
+		{
+			Name: "terminated_http2_batches",
+		},
 	},
 	TailCalls: []manager.TailCallRoute{
 		{

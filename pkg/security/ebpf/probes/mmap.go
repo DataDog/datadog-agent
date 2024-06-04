@@ -10,27 +10,31 @@ package probes
 
 import manager "github.com/DataDog/ebpf-manager"
 
-func getMMapProbes(fentry bool) []*manager.Probe {
-	var mmapProbes = []*manager.Probe{
+func getMMapProbes() []*manager.Probe {
+	return []*manager.Probe{
 		{
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				UID:          SecurityAgentUID,
-				EBPFFuncName: "rethook_fget",
+				EBPFFuncName: "hook_security_mmap_file",
 			},
 		},
 		{
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				UID:          SecurityAgentUID,
-				EBPFFuncName: "tracepoint_syscalls_sys_enter_mmap",
+				EBPFFuncName: "hook_vm_mmap_pgoff",
+			},
+		},
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				UID:          SecurityAgentUID,
+				EBPFFuncName: "rethook_vm_mmap_pgoff",
+			},
+		},
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				UID:          SecurityAgentUID,
+				EBPFFuncName: "hook_get_unmapped_area",
 			},
 		},
 	}
-
-	mmapProbes = append(mmapProbes, ExpandSyscallProbes(&manager.Probe{
-		ProbeIdentificationPair: manager.ProbeIdentificationPair{
-			UID: SecurityAgentUID,
-		},
-		SyscallFuncName: "mmap",
-	}, fentry, Exit)...)
-	return mmapProbes
 }

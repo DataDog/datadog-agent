@@ -57,6 +57,16 @@ func (w *workloadMetaMock) GetContainer(id string) (*Container, error) {
 	return entity.(*Container), nil
 }
 
+// GetKubernetesMetadata implements workloadMetaMock#GetKubernetesMetadata.
+func (w *workloadMetaMock) GetKubernetesMetadata(id string) (*KubernetesMetadata, error) {
+	entity, err := w.getEntityByKind(KindKubernetesMetadata, id)
+	if err != nil {
+		return nil, err
+	}
+
+	return entity.(*KubernetesMetadata), nil
+}
+
 // ListContainers returns metadata about all known containers.
 func (w *workloadMetaMock) ListContainers() []*Container {
 	entities := w.listEntitiesByKind(KindContainer)
@@ -176,6 +186,17 @@ func (w *workloadMetaMock) GetKubernetesPodByName(podName, podNamespace string) 
 	}
 
 	return nil, errors.NewNotFound(podName)
+}
+
+func (w *workloadMetaMock) ListKubernetesNodes() []*KubernetesNode {
+	entities := w.listEntitiesByKind(KindKubernetesNode)
+
+	nodes := make([]*KubernetesNode, 0, len(entities))
+	for i := range entities {
+		nodes = append(nodes, entities[i].(*KubernetesNode))
+	}
+
+	return nodes
 }
 
 // GetKubernetesNode returns metadata about a Kubernetes node.

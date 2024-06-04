@@ -78,8 +78,8 @@ type GardenUtil struct {
 func GetGardenUtil() (*GardenUtil, error) {
 	globalGardenUtilLock.Lock()
 	defer globalGardenUtilLock.Unlock()
-	network := config.Datadog.GetString("cloud_foundry_garden.listen_network")
-	address := config.Datadog.GetString("cloud_foundry_garden.listen_address")
+	network := config.Datadog().GetString("cloud_foundry_garden.listen_network")
+	address := config.Datadog().GetString("cloud_foundry_garden.listen_address")
 	if globalGardenUtil == nil {
 		globalGardenUtil = &GardenUtil{
 			cli: client.New(connection.New(network, address)),
