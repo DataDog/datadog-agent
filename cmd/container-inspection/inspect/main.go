@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -14,8 +15,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/avast/retry-go/v4"
 )
-
-type endpointOutput = api.MetadataResponse
 
 func main() {
 	endpoint := os.Args[1]
@@ -35,15 +34,16 @@ func main() {
 		panic(err)
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
 	client := util.GetClient(false)
 	url := basePath + "?" + queryParams + "&request=" + request
 
 	data, err := retry.DoWithData(
-		func() (endpointOutput, error) {
-			var data endpointOutput
+		func() (api.MetadataResponse, error) {
+			log.Printf("request:: %s", url)
+			var data api.MetadataResponse
 			body, err := util.DoGet(client, url, util.LeaveConnectionOpen)
 			if err != nil {
 				return data, err
@@ -64,6 +64,8 @@ func main() {
 	}
 
 	rootPath := "/dd-entry-data"
+	fmt.Printf("got data! %+v", data)
+
 	for name, containerData := range data.Containers {
 		if err := writeContainerData(rootPath, name, containerData); err != nil {
 			panic(err)
@@ -72,6 +74,7 @@ func main() {
 }
 
 func writeContainerData(root string, name string, c api.ContainerMetadata) error {
+	log.Printf("writeContainrData(%s, %s)", root, name)
 	encoded, err := json.Marshal(c)
 	if err != nil {
 		return fmt.Errorf("error encoding data for container %s: %w", name, err)
@@ -79,7 +82,6 @@ func writeContainerData(root string, name string, c api.ContainerMetadata) error
 
 	containerDir := filepath.Join(root, name)
 	if err := os.Mkdir(containerDir, 0750); err != nil {
-		if err
 		return fmt.Errorf("could not create directory for %s: %w", name, err)
 	}
 
@@ -101,8 +103,6 @@ func writeContainerData(root string, name string, c api.ContainerMetadata) error
 	cmd := exec.Command("cp", "/dd-source/entry", runPath)
 	return cmd.Run()
 }
-
-func ens
 
 func baseURL(host, port, endpoint string) (string, error) {
 	if host == "" {

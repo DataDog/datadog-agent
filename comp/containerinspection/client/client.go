@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"sync"
 	"time"
 
 	"go.uber.org/fx"
@@ -28,7 +29,7 @@ type dependencies struct {
 
 	Lc fx.Lifecycle
 
-	Log   log.Component
+	Log          log.Component
 	WorkloadMeta workloadmeta.Component
 }
 
@@ -41,8 +42,10 @@ type provider struct {
 
 func newProvider(deps dependencies) provider {
 	c := &client{
-		wmeta: deps.WorkloadMeta,
-		log:   deps.Log,
+		wmeta:  deps.WorkloadMeta,
+		log:    deps.Log,
+		images: map[string]*knownWorkload{},
+		pods:   map[string]map[string]*workloadmeta.KubernetesPod{},
 	}
 
 	deps.Lc.Append(fx.Hook{
@@ -86,8 +89,11 @@ type client struct {
 	wmeta workloadmeta.Component
 	log   log.Component
 
-	images map[string]*knownWorkload
-	pods   map[string]map[string]*workloadmeta.KubernetesPod
+	imagesLock sync.RWMutex
+	images     map[string]*knownWorkload
+
+	podsLock sync.RWMutex
+	pods     map[string]map[string]*workloadmeta.KubernetesPod
 
 	workloadEvents chan workloadmeta.EventBundle
 }
@@ -97,6 +103,7 @@ type knownWorkload struct {
 }
 
 func (c *client) addImageForKey(key string, i *workloadmeta.ContainerImageMetadata) {
+	c.log.Debugf("adding image workload [%v] %s", i.RepoTags, key)
 	w, ok := c.images[key]
 	if !ok {
 		w = &knownWorkload{}
@@ -107,6 +114,9 @@ func (c *client) addImageForKey(key string, i *workloadmeta.ContainerImageMetada
 }
 
 func (c *client) findImageMetadata(i workloadmeta.ContainerImage) (*workloadmeta.ContainerImageMetadata, bool) {
+	c.imagesLock.RLock()
+	defer c.imagesLock.RUnlock()
+
 	meta, found := c.images[i.ImageMetadataID()]
 	if found {
 		return meta.image, true
@@ -127,45 +137,75 @@ func (c *client) findImageMetadata(i workloadmeta.ContainerImage) (*workloadmeta
 	return nil, false
 }
 
+func (c *client) findImageByName(name string) (*workloadmeta.ContainerImageMetadata, bool) {
+	c.imagesLock.RLock()
+	defer c.imagesLock.RUnlock()
+
+	meta, found := c.images[name]
+	if found {
+		return meta.image, found
+	}
+
+	return nil, false
+}
+
+func (c *client) addImageMetadata(i *workloadmeta.ContainerImageMetadata) {
+	c.imagesLock.Lock()
+	defer c.imagesLock.Unlock()
+	// store image metadata lookups to have candidate lists for
+	// images as they come in... We need to be able to look stuff
+	// up _super quickly_ for any containers, as we query for them.
+	//
+	// digests and ids should be 1:1, so that's a pretty cool lookup.
+	// but there could be more than one image for a specific _tag_.
+	c.addImageForKey(i.ID, i)
+	for _, digest := range i.RepoDigests {
+		c.addImageForKey(digest, i)
+	}
+	for _, tag := range i.RepoTags {
+		c.addImageForKey(tag, i)
+	}
+}
+
+func (c *client) addPodMetadata(p *workloadmeta.KubernetesPod) {
+	c.podsLock.Lock()
+	defer c.podsLock.Unlock()
+	// when we get info about a pod...
+	// the thing that's important is that we're going to be querying for
+	// container data by pod (and container names) later on
+	// so that we can start to add some pod data as it comes in.
+	//
+	// we can store these by namespace and name.
+	// not sure if we want to process any of the pods here because
+	// we might end up processing _all_ of the pods instead of just
+	// the ones we need.
+	//
+	// this is where we might want to put an annotation on the pod
+	// that it's being used with injection so that we can do a nice filter
+	// on only the ones we care about and get rid of the other ones.
+	nsData, ok := c.pods[p.Namespace]
+	if !ok {
+		nsData = map[string]*workloadmeta.KubernetesPod{}
+	}
+	nsData[p.Name] = p
+	c.pods[p.Namespace] = nsData
+}
+
 func (c *client) handleEvent(bundle workloadmeta.EventBundle) {
 	for _, e := range bundle.Events {
 		switch v := e.Entity.(type) {
 		case *workloadmeta.ContainerImageMetadata:
-			// store image metadata lookups to have candidate lists for
-			// images as they come in... We need to be able to look stuff
-			// up _super quickly_ for any containers, as we query for them.
-			//
-			// digests and ids should be 1:1, so that's a pretty cool lookup.
-			// but there could be more than one image for a specific _tag_.
-			c.addImageForKey(v.ID, v)
-			for _, digest := range v.RepoDigests {
-				c.addImageForKey(digest, v)
-			}
+			c.addImageMetadata(v)
 		case *workloadmeta.KubernetesPod:
-			// when we get info about a pod...
-			// the thing that's important is that we're going to be querying for
-			// container data by pod (and container names) later on
-			// so that we can start to add some pod data as it comes in.
-			//
-			// we can store these by namespace and name.
-			nsData, ok := c.pods[v.Namespace]
-			if !ok {
-				nsData = map[string]*workloadmeta.KubernetesPod{}
-			}
-
-			nsData[v.Name] = v
-			// not sure if we want to process any of the pods here because
-			// we might end up processing _all_ of the pods instead of just
-			// the ones we need.
-			//
-			// this is where we might want to put an annotation on the pod
-			// that it's being used with injection so that we can do a nice filter
-			// on only the ones we care about and get rid of the other ones.
+			c.addPodMetadata(v)
 		}
 	}
 }
 
 func (c *client) findPod(name, namespace string) (*workloadmeta.KubernetesPod, bool) {
+	c.podsLock.RLock()
+	defer c.podsLock.RUnlock()
+
 	pods, foundNs := c.pods[namespace]
 	if !foundNs {
 		return nil, false
@@ -173,6 +213,34 @@ func (c *client) findPod(name, namespace string) (*workloadmeta.KubernetesPod, b
 
 	pod, found := pods[name]
 	return pod, found
+}
+
+func (c *client) processContainersForSpec(containerSpecs map[string]api.ContainerSpec, out *api.MetadataResponse) error {
+	for _, spec := range containerSpecs {
+		if _, alreadyDone := out.Containers[spec.Name]; alreadyDone {
+			continue
+		}
+
+		image, imageFound := c.findImageByName(spec.Image)
+		if !imageFound {
+			return fmt.Errorf("could not find image for container %s", spec.Image)
+		}
+
+		cmd := determineCmd(spec, image)
+		if len(cmd) == 0 {
+			// N.B. This might be a "missing info kind of thing" or this might be a fatal error
+			// we'll find out when we run out of time.
+			return fmt.Errorf("could not determine entry command for container %s", spec.Name)
+		}
+
+		out.Containers[spec.Name] = api.ContainerMetadata{
+			Name:       spec.Name,
+			Cmd:        cmd,
+			WorkingDir: spec.WorkingDir,
+		}
+	}
+
+	return nil
 }
 
 func (c *client) processPodInitContainers(
@@ -218,22 +286,41 @@ func (c *client) PodContainerMetadata(ctx context.Context, r api.MetadataRequest
 		lastErr error
 	)
 
-	ticker := time.NewTicker(100 * time.Millisecond)
+	c.log.Debugf("request -> %+v", r)
+
+	ctx, cancel := context.WithTimeout(ctx, 8*time.Second)
+	defer cancel()
+
+	ticker := time.NewTicker(1 * time.Second)
 	defer ticker.Stop()
 
 	for {
 
 		select {
 		case <-ctx.Done():
+			c.log.Debugf("deadline exceeded: %v", lastErr)
 			return out, fmt.Errorf("last error: %w context finished: %w", lastErr, ctx.Err())
 
 		case <-ticker.C:
-			pod, podFound := c.findPod(r.PodName, r.PodNamespace)
-			if !podFound {
-				lastErr = errors.New("could not find pod")
+			err := c.processContainersForSpec(r.InitContainers, &out)
+			if err != nil {
+				c.log.Debugf("got error processing spec = %v", err)
+				lastErr = err
 				continue
 			}
 
+			return out, nil
+
+			/*
+			c.log.Debugf("pod - %s/%s", r.PodNamespace, r.PodName)
+			pod, podFound := c.findPod(r.PodName, r.PodNamespace)
+			if !podFound {
+				lastErr = errors.New("could not find pod")
+				c.log.Infof("pod not found")
+				continue
+			}
+
+			c.log.Info("processing init containers")
 			err := c.processPodInitContainers(r.InitContainers, pod, &out)
 			if err != nil {
 				lastErr = err
@@ -242,9 +329,12 @@ func (c *client) PodContainerMetadata(ctx context.Context, r api.MetadataRequest
 
 			if len(out.Containers) != len(r.InitContainers) {
 				lastErr = fmt.Errorf("missing container metadata, expected %v", mapKeys(r.InitContainers))
+				continue
 			}
 
+			c.log.Infof("success! %+v", out)
 			return out, nil
+			 */
 		}
 	}
 
@@ -276,20 +366,6 @@ func (c *client) PodContainerMetadata(ctx context.Context, r api.MetadataRequest
 	// Basically, to summarize, this is a horrible way of _actually_ doing this, and we should
 	// make it better before we go live. _But_ it is fine for the prototype.
 	/*
-		allImages := c.wmeta.ListImages()
-		findImageMetadata := func(name string) *workloadmeta.ContainerImageMetadata {
-			for _, i := range allImages {
-				if i.ID == name {
-					return i
-				}
-				for _, digest := range i.RepoDigests {
-					if digest == name {
-						return i
-					}
-				}
-			}
-			return nil
-		}
 
 		out := MetadataResponse{
 			Containers: map[string]ContainerMetadata{},
