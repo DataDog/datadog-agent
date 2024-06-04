@@ -8,10 +8,12 @@ package config
 import (
 	"errors"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"go.uber.org/fx"
 
+	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -55,9 +57,16 @@ func (d dependencies) getSecretResolver() (secrets.Component, bool) {
 	return d.Secret.Get()
 }
 
+type provides struct {
+	fx.Out
+
+	Comp          Component
+	FlareProvider flaretypes.Provider
+}
+
 // NewServerlessConfig initializes a config component from the given config file
 // TODO: serverless must be eventually migrated to fx, this workaround will then become obsolete - ts should not be created directly in this fashion.
-func NewServerlessConfig(path string) (Component, error) {
+func NewServerlessConfig(path string) (provides, error) {
 	options := []func(*Params){WithConfigName("serverless")}
 
 	_, err := os.Stat(path)
@@ -72,11 +81,11 @@ func NewServerlessConfig(path string) (Component, error) {
 	return newConfig(d)
 }
 
-func newConfig(deps dependencies) (Component, error) {
+func newConfig(deps dependencies) (provides, error) {
 	var errs []error
 	config := pkgconfigsetup.Datadog()
 	warnings, err := setupConfig(config, deps)
-	returnErrFct := func(e error) (Component, error) {
+	returnErrFct := func(e error) (provides, error) {
 		if e != nil && deps.Params.ignoreErrors {
 			if warnings == nil {
 				warnings = &pkgconfigmodel.Warnings{}
@@ -84,7 +93,9 @@ func newConfig(deps dependencies) (Component, error) {
 			warnings.Err = e
 			e = nil
 		}
-		return &cfg{Config: config, warnings: warnings}, e
+		return provides{
+			Comp: &cfg{Config: config, warnings: warnings},
+		}, e
 	}
 
 	if err != nil {
@@ -108,8 +119,12 @@ func newConfig(deps dependencies) (Component, error) {
 	if err := errors.Join(errs...); err != nil {
 		return returnErrFct(err)
 	}
+	c := &cfg{Config: config, warnings: warnings, extraConfFiles: extraConfFiles}
 
-	return &cfg{Config: config, warnings: warnings, extraConfFiles: extraConfFiles}, nil
+	return provides{
+		Comp:          c,
+		FlareProvider: flaretypes.NewProvider(c.fillFlare),
+	}, nil
 }
 
 func (c *cfg) Warnings() *pkgconfigmodel.Warnings {
@@ -118,4 +133,27 @@ func (c *cfg) Warnings() *pkgconfigmodel.Warnings {
 
 func (c *cfg) ExtraConfigFilesUsed() []string {
 	return c.extraConfFiles
+}
+
+// fillFlare add the Configuration files to flares.
+func (c *cfg) fillFlare(fb flaretypes.FlareBuilder) error {
+	if mainConfpath := c.ConfigFileUsed(); mainConfpath != "" {
+		confDir := filepath.Dir(mainConfpath)
+
+		// zip up the config file that was actually used, if one exists
+		fb.CopyFileTo(mainConfpath, filepath.Join("etc", "datadog.yaml")) //nolint:errcheck
+
+		// figure out system-probe file path based on main config path, and use best effort to include
+		// system-probe.yaml to the flare
+		fb.CopyFileTo(filepath.Join(confDir, "system-probe.yaml"), filepath.Join("etc", "system-probe.yaml")) //nolint:errcheck
+
+		// use best effort to include security-agent.yaml to the flare
+		fb.CopyFileTo(filepath.Join(confDir, "security-agent.yaml"), filepath.Join("etc", "security-agent.yaml")) //nolint:errcheck
+	}
+
+	for _, path := range c.extraConfFiles {
+		fb.CopyFileTo(path, filepath.Join("etc/extra_conf/", path))
+	}
+
+	return nil
 }
