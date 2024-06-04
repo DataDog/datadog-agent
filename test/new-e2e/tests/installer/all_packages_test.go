@@ -10,7 +10,6 @@ import (
 	"fmt"
 	"os"
 	"regexp"
-	"slices"
 	"strings"
 	"testing"
 
@@ -47,17 +46,17 @@ var (
 		e2eos.RedHat9,
 		e2eos.Fedora37,
 		e2eos.CentOS7,
-		// e2eos.Suse15,
+		e2eos.Suse15,
 	}
 	arm64Flavors = []e2eos.Descriptor{
 		e2eos.Ubuntu2204,
 		e2eos.AmazonLinux2,
-		// e2eos.Suse15,
+		e2eos.Suse15,
 	}
 	packagesTestsWithSkipedFlavors = []packageTestsWithSkipedFlavors{
 		{t: testInstaller},
 		{t: testAgent},
-		{t: testApmInjectAgent, skippedFlavors: []e2eos.Descriptor{e2eos.CentOS7, e2eos.RedHat9, e2eos.Fedora37}},
+		{t: testApmInjectAgent, skippedFlavors: []e2eos.Descriptor{e2eos.CentOS7, e2eos.RedHat9, e2eos.Fedora37, e2eos.Suse15}},
 	}
 )
 
@@ -70,6 +69,15 @@ var packagesConfig = []testPackageConfig{
 	{name: "datadog-apm-library-js", defaultVersion: "latest"},
 	{name: "datadog-apm-library-dotnet", defaultVersion: "latest"},
 	{name: "datadog-apm-library-python", defaultVersion: "latest"},
+}
+
+func shouldSkip(flavors []e2eos.Descriptor, flavor e2eos.Descriptor) bool {
+	for _, f := range flavors {
+		if f.Flavor == flavor.Flavor && f.Version == flavor.Version {
+			return true
+		}
+	}
+	return false
 }
 
 func TestPackages(t *testing.T) {
@@ -85,7 +93,7 @@ func TestPackages(t *testing.T) {
 	for _, f := range flavors {
 		for _, test := range packagesTestsWithSkipedFlavors {
 			flavor := f // capture range variable for parallel tests closure
-			if slices.Contains(test.skippedFlavors, flavor) {
+			if shouldSkip(test.skippedFlavors, flavor) {
 				continue
 			}
 			suite := test.t(flavor, flavor.Architecture)
@@ -173,7 +181,7 @@ func envForceNoInstall(pkg string) string {
 }
 
 func (s *packageBaseSuite) Purge() {
-	s.Env().RemoteHost.MustExecute("sudo apt-get remove -y --purge datadog-installer || sudo yum remove -y datadog-installer")
+	s.Env().RemoteHost.MustExecute("sudo apt-get remove -y --purge datadog-installer || sudo yum remove -y datadog-installer || sudo zypper remove -y datadog-installer")
 }
 
 // setupFakeIntake sets up the fake intake for the agent and trace agent.
