@@ -7,6 +7,7 @@ package pipeline
 
 import (
 	"context"
+	"sync"
 
 	"github.com/hashicorp/go-multierror"
 	"go.uber.org/atomic"
@@ -48,7 +49,9 @@ type provider struct {
 	currentPipelineIndex *atomic.Uint32
 	destinationsContext  *client.DestinationsContext
 
-	serverless bool
+	serverless          bool
+	serverlessFlushChan chan *sync.WaitGroup
+	serverlessFlushWg   *sync.WaitGroup
 
 	status   statusinterface.Status
 	hostname hostnameinterface.Component
@@ -92,8 +95,13 @@ func (p *provider) Start() {
 	// This requires the auditor to be started before.
 	p.outputChan = p.auditor.Channel()
 
+	if p.serverless {
+		p.serverlessFlushChan = make(chan *sync.WaitGroup)
+		p.serverlessFlushWg = &sync.WaitGroup{}
+	}
+
 	for i := 0; i < p.numberOfPipelines; i++ {
-		pipeline := NewPipeline(p.outputChan, p.processingRules, p.endpoints, p.destinationsContext, p.diagnosticMessageReceiver, p.serverless, i, p.status, p.hostname, p.cfg)
+		pipeline := NewPipeline(p.outputChan, p.processingRules, p.endpoints, p.destinationsContext, p.diagnosticMessageReceiver, p.serverless, p.serverlessFlushChan, i, p.status, p.hostname, p.cfg)
 		pipeline.Start()
 		p.pipelines = append(p.pipelines, pipeline)
 	}
@@ -166,6 +174,12 @@ func (p *provider) NextPipelineChan() chan *message.Message {
 
 // Flush flushes synchronously all the contained pipeline of this provider.
 func (p *provider) Flush(ctx context.Context) {
+	if p.serverless {
+		p.serverlessFlushWg.Add(1)
+		defer p.serverlessFlushWg.Wait()
+		go func() { p.serverlessFlushChan <- p.serverlessFlushWg }()
+	}
+
 	for _, p := range p.pipelines {
 		select {
 		case <-ctx.Done():

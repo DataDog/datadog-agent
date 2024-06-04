@@ -83,6 +83,9 @@ type Destination struct {
 	// Telemetry
 	expVars       *expvar.Map
 	telemetryName string
+
+	// Serverless
+	serverlessFlushChan chan *sync.WaitGroup
 }
 
 // NewDestination returns a new Destination.
@@ -94,6 +97,7 @@ func NewDestination(endpoint config.Endpoint,
 	destinationsContext *client.DestinationsContext,
 	maxConcurrentBackgroundSends int,
 	shouldRetry bool,
+	serverlessFlushChan chan *sync.WaitGroup,
 	telemetryName string,
 	cfg pkgconfigmodel.Reader) *Destination {
 
@@ -103,6 +107,7 @@ func NewDestination(endpoint config.Endpoint,
 		time.Second*10,
 		maxConcurrentBackgroundSends,
 		shouldRetry,
+		serverlessFlushChan,
 		telemetryName,
 		cfg)
 }
@@ -113,6 +118,7 @@ func newDestination(endpoint config.Endpoint,
 	timeout time.Duration,
 	maxConcurrentBackgroundSends int,
 	shouldRetry bool,
+	serverlessFlushChan chan *sync.WaitGroup,
 	telemetryName string,
 	cfg pkgconfigmodel.Reader) *Destination {
 
@@ -143,6 +149,7 @@ func newDestination(endpoint config.Endpoint,
 		destinationsContext: destinationsContext,
 		climit:              make(chan struct{}, maxConcurrentBackgroundSends),
 		wg:                  sync.WaitGroup{},
+		serverlessFlushChan: serverlessFlushChan,
 		backoff:             policy,
 		protocol:            endpoint.Protocol,
 		origin:              endpoint.Origin,
@@ -213,6 +220,11 @@ func (d *Destination) sendConcurrent(payload *message.Payload, output chan *mess
 			<-d.climit
 			d.wg.Done()
 		}()
+		if !d.shouldRetry {
+			// We do not retry for serverless so we sync when a payload is sent with on-demand flushes
+			serverlessWg := <-d.serverlessFlushChan
+			defer serverlessWg.Done()
+		}
 		d.sendAndRetry(payload, output, isRetrying)
 	}()
 }
@@ -422,7 +434,7 @@ func getMessageTimestamp(messages []*message.Message) int64 {
 func prepareCheckConnectivity(endpoint config.Endpoint, cfg pkgconfigmodel.Reader) (*client.DestinationsContext, *Destination) {
 	ctx := client.NewDestinationsContext()
 	// Lower the timeout to 5s because HTTP connectivity test is done synchronously during the agent bootstrap sequence
-	destination := newDestination(endpoint, JSONContentType, ctx, time.Second*5, 0, false, "", cfg)
+	destination := newDestination(endpoint, JSONContentType, ctx, time.Second*5, 0, false, make(chan *sync.WaitGroup), "", cfg)
 	return ctx, destination
 }
 
