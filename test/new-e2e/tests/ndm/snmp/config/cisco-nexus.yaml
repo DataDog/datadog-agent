@@ -4,4 +4,4 @@ init_config:
 instances:
   - ip_address: dd-snmp
     port: 1161
-    community_string: "public"
+    community_string: "cisco-nexus"

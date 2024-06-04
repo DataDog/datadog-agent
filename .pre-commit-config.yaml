@@ -39,10 +39,11 @@ repos:
     - id: govet
       name: govet
       description: go vet
-      entry: 'python3 -m tasks.git-hooks.govet'
+      entry: 'inv linter.go-vet'
       language: system
       require_serial: true
       files: \.go$
+      pass_filenames: false
     - id: copyright
       name: copyright
       description: copyright headers
@@ -54,15 +55,17 @@ repos:
     - id: win-clang-format
       name: win-clang-format
       description: clang-format
-      entry: './tasks/git-hooks/wincpplang.py'
+      entry: 'inv pre-commit.check-winclang-format'
       language: system
       types_or: [c, c++, c#]
+      pass_filenames: false
     - id: clang-format
       name: clang-format
       description: clang-format
-      entry: 'python3 -m tasks.git-hooks.clang-format'
+      entry: 'inv pre-commit.check-clang-format'
       language: system
       require_serial: true
+      pass_filenames: false
       files: '^pkg/(ebpf|network|security)/.*\.(c|h)$'
       exclude: '^pkg/ebpf/(c/bpf_endian|c/bpf_helpers|compiler/clang-stdarg).h$'
     - id: go-mod-tidy
@@ -95,10 +98,11 @@ repos:
     - id: shell-check-no-set-x
       name: shell-check-no-set-x
       description: check that no `set -x` is set within github / gitlab workflows
-      entry: 'python3 -m tasks.git-hooks.set-x'
+      entry: 'inv pre-commit.check-set-x'
       language: system
       require_serial: true
       files: (\.yaml|\.yml|\.sh|Dockerfile)$
+      pass_filenames: false
     - id: gitlab-configuration
       name: gitlab-configuration
       description: test the gitlab configuration on main

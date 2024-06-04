@@ -11817,6 +11817,13 @@
 			"distrib": "amzn",
 			"version": "2",
 			"arch": "arm64",
+			"uname_release": "4.14.344-262.563.amzn2.aarch64",
+			"cindex": 3
+		},
+		{
+			"distrib": "amzn",
+			"version": "2",
+			"arch": "arm64",
 			"uname_release": "4.14.77-80.57.amzn2.aarch64",
 			"cindex": 4
 		},
@@ -12567,6 +12574,13 @@
 			"version": "2",
 			"arch": "x86_64",
 			"uname_release": "4.14.343-261.564.amzn2.x86_64",
+			"cindex": 8
+		},
+		{
+			"distrib": "amzn",
+			"version": "2",
+			"arch": "x86_64",
+			"uname_release": "4.14.344-262.563.amzn2.x86_64",
 			"cindex": 8
 		},
 		{
