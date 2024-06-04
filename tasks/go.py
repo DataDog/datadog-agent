@@ -346,7 +346,7 @@ def reset(ctx):
 
 
 @task
-def check_go_mod_replaces(_ctx):
+def check_go_mod_replaces(_):
     errors_found = set()
     for mod in DEFAULT_MODULES.values():
         go_sum = os.path.join(mod.full_path(), "go.sum")
