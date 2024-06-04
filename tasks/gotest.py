@@ -35,6 +35,7 @@ from tasks.modules import DEFAULT_MODULES, GoModule
 from tasks.test_core import ModuleTestResult, process_input_args, process_module_results, test_core
 from tasks.testwasher import TestWasher
 from tasks.trace_agent import integration_tests as trace_integration_tests
+from tasks.update_go import PATTERN_MAJOR_MINOR_BUGFIX
 
 PROFILE_COV = "coverage.out"
 TMP_PROFILE_COV_PREFIX = "coverage.out.rerun"
@@ -42,6 +43,7 @@ GO_COV_TEST_PATH = "test_with_coverage"
 GO_TEST_RESULT_TMP_JSON = 'module_test_output.json'
 WINDOWS_MAX_PACKAGES_NUMBER = 150
 TRIGGER_ALL_TESTS_PATHS = ["tasks/gotest.py", "tasks/build_tags.py", ".gitlab/source_test/*"]
+OTEL_UPSTREAM_GO_VERSION = "1.21.0"
 
 
 class TestProfiler:
@@ -948,18 +950,39 @@ def lint_go(
 @task
 def check_otel_dependencies(ctx):
     with ctx.cd("test/otel"):
+        # Rename fixtures
+        ctx.run("mv dependencies.go.fake dependencies.go")
+        ctx.run("mv go.mod.fake go.mod")
+        ctx.run("mv go.sum.fake go.sum")
+
         # Update dependencies to latest local version
         ctx.run("go mod tidy")
 
         # Build test/otel/dependencies.go with same settings as `make otelcontribcol`
         res = ctx.run("GO111MODULE=on CGO_ENABLED=0 go build -trimpath -o . .", warn=True)
         if res is None or not res.ok:
+            ctx.run("mv dependencies.go dependencies.go.fake")
+            ctx.run("mv go.mod go.mod.fake")
+            ctx.run("mv go.sum go.sum.fake")
             raise Exit(f"Error building otel components with datadog-agent dependencies: {res.stderr}")
 
-        # Verify go version matches upstream (go 1.21.0)
-        res = ctx.run("go version ./otel")
-        if not res.stdout.startswith("./otel: go1.21.0"):
-            raise Exit(f"Go version does not match upstream (go 1.21.0): {res.stdout}")
-
-        # Remove built executable
+        # Remove built executable and rename fixtures
         ctx.run("rm ./otel")
+        ctx.run("mv dependencies.go dependencies.go.fake")
+        ctx.run("mv go.mod go.mod.fake")
+        ctx.run("mv go.sum go.sum.fake")
+
+
+@task
+def check_otel_module_versions(ctx):
+    for path, module in DEFAULT_MODULES.items():
+        if module.used_by_otel:
+            mod_file = f"./{path}/go.mod"
+            pattern = f"^go {PATTERN_MAJOR_MINOR_BUGFIX}\r?$"
+            with open(mod_file, newline='', encoding='utf-8') as reader:
+                content = reader.read()
+                matches = re.findall(pattern, content, flags=re.MULTILINE)
+                if len(matches) != 1:
+                    raise Exit(f"{mod_file} does not match expected go directive format")
+                if matches[0] != f"go {OTEL_UPSTREAM_GO_VERSION}":
+                    raise Exit(f"{mod_file} version {matches[0]} does not match upstream version: {OTEL_UPSTREAM_GO_VERSION}")
