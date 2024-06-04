@@ -10,7 +10,6 @@ import (
 	"fmt"
 	"os"
 	"regexp"
-	"slices"
 	"strings"
 	"testing"
 
@@ -54,15 +53,10 @@ var (
 		e2eos.AmazonLinux2,
 		e2eos.Suse15,
 	}
-	suse15Arm = e2eos.Descriptor{
-		Flavor:       e2eos.Suse,
-		Version:      e2eos.Suse15.Version,
-		Architecture: e2eos.ARM64Arch,
-	}
 	packagesTestsWithSkipedFlavors = []packageTestsWithSkipedFlavors{
 		{t: testInstaller},
 		{t: testAgent},
-		{t: testApmInjectAgent, skippedFlavors: []e2eos.Descriptor{e2eos.CentOS7, e2eos.RedHat9, e2eos.Fedora37, e2eos.Suse15, suse15Arm}},
+		{t: testApmInjectAgent, skippedFlavors: []e2eos.Descriptor{e2eos.CentOS7, e2eos.RedHat9, e2eos.Fedora37, e2eos.Suse15}},
 	}
 )
 
@@ -75,6 +69,15 @@ var packagesConfig = []testPackageConfig{
 	{name: "datadog-apm-library-js", defaultVersion: "latest"},
 	{name: "datadog-apm-library-dotnet", defaultVersion: "latest"},
 	{name: "datadog-apm-library-python", defaultVersion: "latest"},
+}
+
+func shouldSkip(flavors []e2eos.Descriptor, flavor e2eos.Descriptor) bool {
+	for _, f := range flavors {
+		if f.Flavor == flavor.Flavor && f.Version == flavor.Version {
+			return true
+		}
+	}
+	return false
 }
 
 func TestPackages(t *testing.T) {
@@ -90,7 +93,7 @@ func TestPackages(t *testing.T) {
 	for _, f := range flavors {
 		for _, test := range packagesTestsWithSkipedFlavors {
 			flavor := f // capture range variable for parallel tests closure
-			if slices.Contains(test.skippedFlavors, flavor) {
+			if shouldSkip(test.skippedFlavors, flavor) {
 				continue
 			}
 			suite := test.t(flavor, flavor.Architecture)
