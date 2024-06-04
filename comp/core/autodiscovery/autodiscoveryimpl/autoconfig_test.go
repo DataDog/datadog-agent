@@ -12,7 +12,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/benbjohnson/clock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
@@ -33,6 +32,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
+	"github.com/DataDog/datadog-agent/pkg/util/testutil"
 )
 
 type MockProvider struct {
@@ -384,9 +384,9 @@ func TestResolveTemplate(t *testing.T) {
 	}
 	// there are no template vars but it's ok
 	ac.processNewService(ctx, &service) // processNewService applies changes
-	clk := clock.NewMock()
-	clk.Add(2000 * time.Millisecond)
-	assert.Equal(t, sch.scheduledSize(), 1)
+	testutil.AssertTrueBeforeTimeout(t, 10*time.Millisecond, 4*time.Second, func() bool {
+		return sch.scheduledSize() == 1
+	})
 }
 
 func countLoadedConfigs(ac *AutoConfig) int {
