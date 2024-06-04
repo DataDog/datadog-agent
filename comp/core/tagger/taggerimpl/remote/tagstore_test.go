@@ -10,7 +10,11 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	taggerTelemetry "github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	nooptelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/noopsimpl"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 const (
@@ -43,8 +47,9 @@ func TestProcessEvent_AddAndModify(t *testing.T) {
 			},
 		},
 	}
-
-	store := newTagStore()
+	tel := fxutil.Test[telemetry.Component](t, nooptelemetry.Module())
+	telemetryStore := taggerTelemetry.NewStore(tel)
+	store := newTagStore(telemetryStore)
 	store.processEvents(events, false)
 
 	entity := store.getEntity(entityID)
@@ -79,7 +84,9 @@ func TestProcessEvent_AddAndDelete(t *testing.T) {
 		},
 	}
 
-	store := newTagStore()
+	tel := fxutil.Test[telemetry.Component](t, nooptelemetry.Module())
+	telemetryStore := taggerTelemetry.NewStore(tel)
+	store := newTagStore(telemetryStore)
 	store.processEvents(events, false)
 
 	entity := store.getEntity(entityID)
@@ -92,7 +99,9 @@ func TestProcessEvent_AddAndDelete(t *testing.T) {
 }
 
 func TestProcessEvent_Replace(t *testing.T) {
-	store := newTagStore()
+	tel := fxutil.Test[telemetry.Component](t, nooptelemetry.Module())
+	telemetryStore := taggerTelemetry.NewStore(tel)
+	store := newTagStore(telemetryStore)
 
 	store.processEvents([]types.EntityEvent{
 		{

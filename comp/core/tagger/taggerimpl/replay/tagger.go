@@ -13,7 +13,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/tagger/proto"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl/empty"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl/tagstore"
-	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
@@ -35,7 +34,7 @@ type Tagger struct {
 // once the config package is ready.
 func NewTagger() *Tagger {
 	return &Tagger{
-		store: tagstore.NewTagStore(),
+		// store: tagstore.NewTagStore(),
 	}
 }
 
@@ -71,11 +70,11 @@ func (t *Tagger) AccumulateTagsFor(entityID string, cardinality types.TagCardina
 	tags := t.store.LookupHashed(entityID, cardinality)
 
 	if tags.Len() == 0 {
-		telemetry.QueriesByCardinality(cardinality).EmptyTags.Inc()
+		// telemetry.QueriesByCardinality(cardinality).EmptyTags.Inc()
 		return nil
 	}
 
-	telemetry.QueriesByCardinality(cardinality).Success.Inc()
+	// telemetry.QueriesByCardinality(cardinality).Success.Inc()
 	tb.AppendHashed(tags)
 
 	return nil

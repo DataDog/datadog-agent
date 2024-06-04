@@ -16,7 +16,11 @@ import (
 	"github.com/stretchr/testify/suite"
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl/collectors"
+	taggerTelemetry "github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	nooptelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/noopsimpl"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 type StoreTestSuite struct {
@@ -26,10 +30,12 @@ type StoreTestSuite struct {
 }
 
 func (s *StoreTestSuite) SetupTest() {
+	tel := fxutil.Test[telemetry.Component](s.T(), nooptelemetry.Module())
+	telemetryStore := taggerTelemetry.NewStore(tel)
 	s.clock = clock.NewMock()
 	// set the mock clock to the current time
 	s.clock.Add(time.Since(time.Unix(0, 0)))
-	s.store = newTagStoreWithClock(s.clock)
+	s.store = newTagStoreWithClock(s.clock, telemetryStore)
 }
 
 func (s *StoreTestSuite) TestIngest() {
@@ -421,8 +427,10 @@ type entityEventExpectation struct {
 }
 
 func TestSubscribe(t *testing.T) {
+	tel := fxutil.Test[telemetry.Component](t, nooptelemetry.Module())
+	telemetryStore := taggerTelemetry.NewStore(tel)
 	clock := clock.NewMock()
-	store := newTagStoreWithClock(clock)
+	store := newTagStoreWithClock(clock, telemetryStore)
 
 	collectors.CollectorPriorities["source2"] = types.ClusterOrchestrator
 	collectors.CollectorPriorities["source"] = types.NodeRuntime

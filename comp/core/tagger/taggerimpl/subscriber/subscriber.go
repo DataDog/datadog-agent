@@ -21,13 +21,15 @@ const bufferSize = 1000
 // tagger.
 type Subscriber struct {
 	sync.RWMutex
-	subscribers map[chan []types.EntityEvent]types.TagCardinality
+	subscribers    map[chan []types.EntityEvent]types.TagCardinality
+	telemetryStore *telemetry.Store
 }
 
 // NewSubscriber returns a new subscriber.
-func NewSubscriber() *Subscriber {
+func NewSubscriber(telemetryStore *telemetry.Store) *Subscriber {
 	return &Subscriber{
-		subscribers: make(map[chan []types.EntityEvent]types.TagCardinality),
+		subscribers:    make(map[chan []types.EntityEvent]types.TagCardinality),
+		telemetryStore: telemetryStore,
 	}
 }
 
@@ -43,11 +45,11 @@ func (s *Subscriber) Subscribe(cardinality types.TagCardinality, events []types.
 
 	s.Lock()
 	s.subscribers[ch] = cardinality
-	telemetry.Subscribers.Inc()
+	s.telemetryStore.Subscribers.Inc()
 	s.Unlock()
 
 	if len(events) > 0 {
-		notify(ch, events, cardinality)
+		s.notify(ch, events, cardinality)
 	}
 
 	return ch
@@ -65,7 +67,7 @@ func (s *Subscriber) Unsubscribe(ch chan []types.EntityEvent) {
 // is not thread-safe, and callers should take care of synchronization.
 func (s *Subscriber) unsubscribe(ch chan []types.EntityEvent) {
 	if _, ok := s.subscribers[ch]; ok {
-		telemetry.Subscribers.Dec()
+		s.telemetryStore.Subscribers.Dec()
 		delete(s.subscribers, ch)
 		close(ch)
 	}
@@ -88,12 +90,12 @@ func (s *Subscriber) Notify(events []types.EntityEvent) {
 			continue
 		}
 
-		notify(ch, events, cardinality)
+		s.notify(ch, events, cardinality)
 	}
 }
 
 // notify sends a slice of EntityEvents to a channel at a chosen cardinality.
-func notify(ch chan []types.EntityEvent, events []types.EntityEvent, cardinality types.TagCardinality) {
+func (s *Subscriber) notify(ch chan []types.EntityEvent, events []types.EntityEvent, cardinality types.TagCardinality) {
 	subscriberEvents := make([]types.EntityEvent, 0, len(events))
 
 	for _, event := range events {
@@ -111,8 +113,8 @@ func notify(ch chan []types.EntityEvent, events []types.EntityEvent, cardinality
 		})
 	}
 
-	telemetry.Sends.Inc()
-	telemetry.Events.Add(float64(len(events)), types.TagCardinalityToString(cardinality))
+	s.telemetryStore.Sends.Inc()
+	s.telemetryStore.Events.Add(float64(len(events)), types.TagCardinalityToString(cardinality))
 
 	ch <- subscriberEvents
 }

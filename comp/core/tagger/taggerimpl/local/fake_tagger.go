@@ -13,6 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl/collectors"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl/empty"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl/tagstore"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 )
@@ -26,10 +27,10 @@ type FakeTagger struct {
 }
 
 // NewFakeTagger returns a new fake Tagger
-func NewFakeTagger() *FakeTagger {
+func NewFakeTagger(telemetryStore *telemetry.Store) *FakeTagger {
 	return &FakeTagger{
 		errors: make(map[string]error),
-		store:  tagstore.NewTagStore(),
+		store:  tagstore.NewTagStore(telemetryStore),
 	}
 }
 

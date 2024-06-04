@@ -10,7 +10,11 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	taggerTelemetry "github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	nooptelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/noopsimpl"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 const (
@@ -32,8 +36,9 @@ func TestSubscriber(t *testing.T) {
 			EventType: types.EventTypeDeleted,
 		},
 	}
-
-	s := NewSubscriber()
+	tel := fxutil.Test[telemetry.Component](t, nooptelemetry.Module())
+	telemetryStore := taggerTelemetry.NewStore(tel)
+	s := NewSubscriber(telemetryStore)
 
 	prevCh := s.Subscribe(types.LowCardinality, nil)
 

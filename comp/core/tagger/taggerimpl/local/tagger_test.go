@@ -14,7 +14,10 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	taggerTelemetry "github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	nooptelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/noopsimpl"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -30,7 +33,10 @@ func TestTagBuilder(t *testing.T) {
 		fx.Supply(workloadmeta.NewParams()),
 		workloadmeta.MockModuleV2(),
 	))
-	tagger := NewTagger(store)
+
+	tel := fxutil.Test[telemetry.Component](t, nooptelemetry.Module())
+	telemetryStore := taggerTelemetry.NewStore(tel)
+	tagger := NewTagger(store, telemetryStore)
 	tagger.Start(context.Background())
 	defer tagger.Stop()
 

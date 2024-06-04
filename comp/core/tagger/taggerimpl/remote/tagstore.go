@@ -21,14 +21,16 @@ type tagStore struct {
 	store     map[string]*types.Entity
 	telemetry map[string]float64
 
-	subscriber *subscriber.Subscriber
+	subscriber     *subscriber.Subscriber
+	telemetryStore *telemetry.Store
 }
 
-func newTagStore() *tagStore {
+func newTagStore(telemetryStore *telemetry.Store) *tagStore {
 	return &tagStore{
-		store:      make(map[string]*types.Entity),
-		telemetry:  make(map[string]float64),
-		subscriber: subscriber.NewSubscriber(),
+		store:          make(map[string]*types.Entity),
+		telemetry:      make(map[string]float64),
+		subscriber:     subscriber.NewSubscriber(telemetryStore),
+		telemetryStore: telemetryStore,
 	}
 }
 
@@ -45,11 +47,11 @@ func (s *tagStore) processEvents(events []types.EntityEvent, replace bool) error
 
 		switch event.EventType {
 		case types.EventTypeAdded:
-			telemetry.UpdatedEntities.Inc()
+			s.telemetryStore.UpdatedEntities.Inc()
 			s.store[event.Entity.ID] = &entity
 
 		case types.EventTypeModified:
-			telemetry.UpdatedEntities.Inc()
+			s.telemetryStore.UpdatedEntities.Inc()
 			s.store[event.Entity.ID] = &entity
 
 		case types.EventTypeDeleted:
@@ -96,7 +98,7 @@ func (s *tagStore) collectTelemetry() {
 	}
 
 	for prefix, storedEntities := range s.telemetry {
-		telemetry.StoredEntities.Set(storedEntities, remoteSource, prefix)
+		s.telemetryStore.StoredEntities.Set(storedEntities, remoteSource, prefix)
 		s.telemetry[prefix] = 0
 	}
 }

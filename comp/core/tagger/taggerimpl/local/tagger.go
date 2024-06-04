@@ -31,17 +31,19 @@ type Tagger struct {
 	workloadStore workloadmeta.Component
 	collector     *collectors.WorkloadMetaCollector
 
-	ctx    context.Context
-	cancel context.CancelFunc
+	ctx            context.Context
+	cancel         context.CancelFunc
+	telemetryStore *telemetry.Store
 	empty.Tagger
 }
 
 // NewTagger returns an allocated tagger. You are probably looking for
 // tagger.Tag() using the global instance instead of creating your own.
-func NewTagger(workloadStore workloadmeta.Component) *Tagger {
+func NewTagger(workloadStore workloadmeta.Component, telemetryStore *telemetry.Store) *Tagger {
 	return &Tagger{
-		tagStore:      tagstore.NewTagStore(),
-		workloadStore: workloadStore,
+		tagStore:       tagstore.NewTagStore(telemetryStore),
+		workloadStore:  workloadStore,
+		telemetryStore: telemetryStore,
 	}
 }
 
@@ -70,13 +72,13 @@ func (t *Tagger) Stop() error {
 // getTags returns a read only list of tags for a given entity.
 func (t *Tagger) getTags(entity string, cardinality types.TagCardinality) (tagset.HashedTags, error) {
 	if entity == "" {
-		telemetry.QueriesByCardinality(cardinality).EmptyEntityID.Inc()
+		t.telemetryStore.QueriesByCardinality(cardinality).EmptyEntityID.Inc()
 		return tagset.HashedTags{}, fmt.Errorf("empty entity ID")
 	}
 
 	cachedTags := t.tagStore.LookupHashed(entity, cardinality)
 
-	telemetry.QueriesByCardinality(cardinality).Success.Inc()
+	t.telemetryStore.QueriesByCardinality(cardinality).Success.Inc()
 	return cachedTags, nil
 }
 

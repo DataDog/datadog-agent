@@ -14,7 +14,11 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl/tagstore"
+	taggerTelemetry "github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	nooptelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/noopsimpl"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 const (
@@ -42,7 +46,9 @@ func init() {
 }
 
 func BenchmarkTagStoreThroughput(b *testing.B) {
-	store := tagstore.NewTagStore()
+	tel := fxutil.Test[telemetry.Component](b, nooptelemetry.Module())
+	telemetryStore := taggerTelemetry.NewStore(tel)
+	store := tagstore.NewTagStore(telemetryStore)
 
 	doneCh := make(chan struct{})
 	pruneTicker := time.NewTicker(time.Second)
@@ -86,7 +92,9 @@ func BenchmarkTagStoreThroughput(b *testing.B) {
 // store is thread-safe, processTagInfo is always used synchronously by the
 // tagger at the moment.
 func BenchmarkTagStore_processTagInfo(b *testing.B) {
-	store := tagstore.NewTagStore()
+	tel := fxutil.Test[telemetry.Component](b, nooptelemetry.Module())
+	telemetryStore := taggerTelemetry.NewStore(tel)
+	store := tagstore.NewTagStore(telemetryStore)
 
 	for i := 0; i < b.N; i++ {
 		processRandomTagInfoBatch(store)

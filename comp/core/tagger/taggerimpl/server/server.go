@@ -16,7 +16,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/proto"
-	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl/telemetry"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/util/grpc"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -87,7 +86,8 @@ func (s *Server) TaggerStreamEntities(in *pb.StreamTagsRequest, out pb.AgentSecu
 
 			if err != nil {
 				log.Warnf("error sending tagger event: %s", err)
-				telemetry.ServerStreamErrors.Inc()
+				// TODO:
+				// telemetry.ServerStreamErrors.Inc()
 				return err
 			}
 
@@ -111,7 +111,8 @@ func (s *Server) TaggerStreamEntities(in *pb.StreamTagsRequest, out pb.AgentSecu
 
 			if err != nil {
 				log.Warnf("error sending tagger keep-alive: %s", err)
-				telemetry.ServerStreamErrors.Inc()
+				// TODO:
+				// telemetry.ServerStreamErrors.Inc()
 				return err
 			}
 		}

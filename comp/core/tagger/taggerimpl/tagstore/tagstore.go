@@ -43,19 +43,22 @@ type TagStore struct {
 	subscriber *subscriber.Subscriber
 
 	clock clock.Clock
+
+	telemetryStore *telemetry.Store
 }
 
 // NewTagStore creates new TagStore.
-func NewTagStore() *TagStore {
-	return newTagStoreWithClock(clock.New())
+func NewTagStore(telemetryStore *telemetry.Store) *TagStore {
+	return newTagStoreWithClock(clock.New(), telemetryStore)
 }
 
-func newTagStoreWithClock(clock clock.Clock) *TagStore {
+func newTagStoreWithClock(clock clock.Clock, telemetryStore *telemetry.Store) *TagStore {
 	return &TagStore{
-		telemetry:  make(map[string]map[string]float64),
-		store:      make(map[string]EntityTags),
-		subscriber: subscriber.NewSubscriber(),
-		clock:      clock,
+		telemetry:      make(map[string]map[string]float64),
+		store:          make(map[string]EntityTags),
+		subscriber:     subscriber.NewSubscriber(telemetryStore),
+		clock:          clock,
+		telemetryStore: telemetryStore,
 	}
 }
 
@@ -134,7 +137,7 @@ func (s *TagStore) ProcessTagInfo(tagInfos []*types.TagInfo) {
 			s.store[info.Entity] = storedTags
 		}
 
-		telemetry.UpdatedEntities.Inc()
+		s.telemetryStore.UpdatedEntities.Inc()
 		storedTags.setTagsForSource(info.Source, newSt)
 
 		events = append(events, types.EntityEvent{
@@ -171,7 +174,7 @@ func (s *TagStore) collectTelemetry() {
 
 	for prefix, sources := range s.telemetry {
 		for source, storedEntities := range sources {
-			telemetry.StoredEntities.Set(storedEntities, source, prefix)
+			s.telemetryStore.StoredEntities.Set(storedEntities, source, prefix)
 			s.telemetry[prefix][source] = 0
 		}
 	}
@@ -221,7 +224,7 @@ func (s *TagStore) Prune() {
 		}
 
 		if storedTags.shouldRemove() {
-			telemetry.PrunedEntities.Inc()
+			s.telemetryStore.PrunedEntities.Inc()
 			delete(s.store, entity)
 			events = append(events, types.EntityEvent{
 				EventType: types.EventTypeDeleted,
