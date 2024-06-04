@@ -854,8 +854,11 @@ func (can *CannedClientServer) runServer() {
 	})
 
 	go func() {
-		defer f.Close()
-		defer listener.Close()
+		defer func() {
+			listener.Close()
+			f.Close()
+			can.done <- true
+		}()
 
 		conn, err := listener.Accept()
 		require.NoError(can.t, err)
@@ -891,8 +894,6 @@ func (can *CannedClientServer) runServer() {
 		if prevconn != nil {
 			prevconn.Close()
 		}
-
-		can.done <- true
 	}()
 }
 

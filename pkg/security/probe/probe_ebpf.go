@@ -1362,7 +1362,12 @@ func (p *EBPFProbe) startSetupNewTCClassifierLoop() {
 			}
 
 			if err := p.setupNewTCClassifier(netDevice); err != nil {
-				seclog.Errorf("error setting up new tc classifier: %v", err)
+				var qnde QueuedNetworkDeviceError
+				if errors.As(err, &qnde) {
+					seclog.Debugf("%v", err)
+				} else {
+					seclog.Errorf("error setting up new tc classifier: %v", err)
+				}
 			}
 		}
 	}
