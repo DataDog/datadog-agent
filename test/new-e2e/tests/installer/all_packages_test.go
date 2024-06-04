@@ -39,12 +39,6 @@ type testPackageConfig struct {
 	auth           string
 }
 
-const suse15Arm = e2eos.Descriptor{
-	Flavor:       e2eos.Suse,
-	Version:      e2eos.Suse15.Version,
-	Architecture: e2eos.ARM64Arch,
-}
-
 var (
 	amd64Flavors = []e2eos.Descriptor{
 		e2eos.Ubuntu2204,
@@ -59,6 +53,11 @@ var (
 		e2eos.Ubuntu2204,
 		e2eos.AmazonLinux2,
 		e2eos.Suse15,
+	}
+	suse15Arm = e2eos.Descriptor{
+		Flavor:       e2eos.Suse,
+		Version:      e2eos.Suse15.Version,
+		Architecture: e2eos.ARM64Arch,
 	}
 	packagesTestsWithSkipedFlavors = []packageTestsWithSkipedFlavors{
 		{t: testInstaller},
