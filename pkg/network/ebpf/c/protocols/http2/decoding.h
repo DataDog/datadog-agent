@@ -8,6 +8,7 @@
 #include "protocols/http/types.h"
 
 PKTBUF_READ_INTO_BUFFER(http2_preface, HTTP2_MARKER_SIZE, HTTP2_MARKER_SIZE)
+PKTBUF_READ_INTO_BUFFER(http2_frame_header, HTTP2_FRAME_HEADER_SIZE, HTTP2_FRAME_HEADER_SIZE)
 
 READ_INTO_BUFFER(path, HTTP2_MAX_PATH_LEN, BLK_SIZE)
 
@@ -434,7 +435,7 @@ static __always_inline bool pktbuf_get_first_frame(pktbuf_t pkt, frame_header_re
     return false;
 }
 
-// find_relevant_frames iterates over the packet and finds frames that are
+// Iterates over the packet and finds frames that are
 // relevant for us. The frames info and location are stored in the `iteration_value->frames_array` array,
 // and the number of frames found is being stored at iteration_value->frames_count.
 // This function returns true if there are more frames to filter and if the number of frames found is less than
@@ -445,13 +446,13 @@ static __always_inline bool pktbuf_get_first_frame(pktbuf_t pkt, frame_header_re
 // - HEADERS frames
 // - RST_STREAM frames
 // - DATA frames with the END_STREAM flag set
-static __always_inline bool find_relevant_frames(struct __sk_buff *skb, skb_info_t *restrict skb_info, http2_tail_call_state_t *iteration_value, http2_telemetry_t *http2_tel) {
+static __always_inline bool pktubf_find_relevant_frames(pktbuf_t pkt, http2_tail_call_state_t *iteration_value, http2_telemetry_t *http2_tel) {
     bool is_headers_or_rst_frame, is_data_end_of_stream;
     http2_frame_t current_frame = {};
 
     // if we already processed part of the packet, we should start from the last offset we processed.
     if (iteration_value->filter_iterations != 0) {
-        skb_info->data_off = iteration_value->data_off;
+        pktbuf_set_offset(pkt, iteration_value->data_off);
     }
 
    // If we have found enough interesting frames, we should not process any new frame.
@@ -465,12 +466,12 @@ static __always_inline bool find_relevant_frames(struct __sk_buff *skb, skb_info
 #pragma unroll(HTTP2_MAX_FRAMES_TO_FILTER)
     for (; iteration < HTTP2_MAX_FRAMES_TO_FILTER; ++iteration) {
         // Checking we can read HTTP2_FRAME_HEADER_SIZE from the skb.
-        if (skb_info->data_off + HTTP2_FRAME_HEADER_SIZE > skb_info->data_end) {
+        if (pktbuf_data_offset(pkt) + HTTP2_FRAME_HEADER_SIZE > pktbuf_data_end(pkt)) {
             break;
         }
 
-        bpf_skb_load_bytes(skb, skb_info->data_off, (char *)&current_frame, HTTP2_FRAME_HEADER_SIZE);
-        skb_info->data_off += HTTP2_FRAME_HEADER_SIZE;
+        pktbuf_read_into_buffer_http2_frame_header((char *)&current_frame, pkt, pktbuf_data_offset(pkt));
+        pktbuf_advance(pkt, HTTP2_FRAME_HEADER_SIZE);
         if (!format_http2_frame_header(&current_frame)) {
             break;
         }
@@ -482,11 +483,11 @@ static __always_inline bool find_relevant_frames(struct __sk_buff *skb, skb_info
         is_data_end_of_stream = ((current_frame.flags & HTTP2_END_OF_STREAM) == HTTP2_END_OF_STREAM) && (current_frame.type == kDataFrame);
         if (iteration_value->frames_count < HTTP2_MAX_FRAMES_ITERATIONS && (is_headers_or_rst_frame || is_data_end_of_stream)) {
             iteration_value->frames_array[iteration_value->frames_count].frame = current_frame;
-            iteration_value->frames_array[iteration_value->frames_count].offset = skb_info->data_off;
+            iteration_value->frames_array[iteration_value->frames_count].offset = pktbuf_data_offset(pkt);
             iteration_value->frames_count++;
         }
 
-        skb_info->data_off += current_frame.length;
+        pktbuf_advance(pkt, current_frame.length);
 
         // If we have found enough interesting frames, we can stop iterating.
         if (iteration_value->frames_count >= HTTP2_MAX_FRAMES_ITERATIONS) {
@@ -501,7 +502,7 @@ static __always_inline bool find_relevant_frames(struct __sk_buff *skb, skb_info
     // This function returns true if there are more frames to filter, which will be parsed by the next tail call,
     // and if we have not yet reached the maximum number of frames we can process.
     return (((iteration == HTTP2_MAX_FRAMES_TO_FILTER) &&
-            (skb_info->data_off + HTTP2_FRAME_HEADER_SIZE <= skb_info->data_end))&&
+            (pktbuf_data_offset(pkt) + HTTP2_FRAME_HEADER_SIZE <= pktbuf_data_end(pkt)))&&
             iteration_value->frames_count < HTTP2_MAX_FRAMES_ITERATIONS);
 }
 
@@ -667,7 +668,7 @@ int socket__http2_filter(struct __sk_buff *skb) {
     // in a map, we cannot allow it to be modified. Thus, storing the original value of the offset.
     __u32 original_off = pktbuf_data_offset(pkt);
 
-    bool have_more_frames_to_process = find_relevant_frames(skb, &dispatcher_args_copy.skb_info, iteration_value, http2_tel);
+    bool have_more_frames_to_process = pktubf_find_relevant_frames(pkt, iteration_value, http2_tel);
     // We have found there are more frames to filter, so we will call frame_filter again.
     // Max current amount of tail calls would be 2, which will allow us to currently parse
     // HTTP2_MAX_TAIL_CALLS_FOR_FRAMES_FILTER*HTTP2_MAX_FRAMES_ITERATIONS.

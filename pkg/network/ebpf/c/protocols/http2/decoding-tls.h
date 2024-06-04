@@ -5,7 +5,6 @@
 #include "protocols/http2/usm-events.h"
 #include "protocols/http/types.h"
 
-READ_INTO_USER_BUFFER_WITHOUT_TELEMETRY(http2_frame_header, HTTP2_FRAME_HEADER_SIZE)
 READ_INTO_USER_BUFFER_WITHOUT_TELEMETRY(http2_path, HTTP2_MAX_PATH_LEN)
 
 // Similar to tls_read_hpack_int, but with a small optimization of getting the
@@ -388,68 +387,6 @@ static __always_inline void tls_process_headers_frame(tls_dispatcher_arguments_t
     tls_process_headers(info, dynamic_index, current_stream, headers_to_process, interesting_headers, http2_tel);
 }
 
-// tls_find_relevant_frames iterates over the packet and finds frames that are
-// relevant for us. The frames info and location are stored in the `iteration_value->frames_array` array,
-// and the number of frames found is being stored at iteration_value->frames_count.
-//
-// We consider frames as relevant if they are either:
-// - HEADERS frames
-// - RST_STREAM frames
-// - DATA frames with the END_STREAM flag set
-static __always_inline void tls_find_relevant_frames(tls_dispatcher_arguments_t *info, http2_tail_call_state_t *iteration_value, http2_telemetry_t *http2_tel) {
-    bool is_headers_or_rst_frame, is_data_end_of_stream;
-    http2_frame_t current_frame = {};
-
-    // If we have found enough interesting frames, we should not process any new frame.
-    // This check accounts for a future change where the value of iteration_value->frames_count may potentially be greater than 0.
-    // It's essential to validate that this increase doesn't surpass the maximum number of frames we can process.
-    if (iteration_value->frames_count >= HTTP2_MAX_FRAMES_ITERATIONS) {
-        return;
-    }
-
-    __u32 iteration = 0;
-#pragma unroll(HTTP2_MAX_FRAMES_TO_FILTER)
-    for (; iteration < HTTP2_MAX_FRAMES_TO_FILTER; ++iteration) {
-        // Checking we can read HTTP2_FRAME_HEADER_SIZE from the skb.
-        if (info->data_off + HTTP2_FRAME_HEADER_SIZE > info->data_end) {
-            break;
-        }
-
-        read_into_user_buffer_http2_frame_header((char *)&current_frame, info->buffer_ptr + info->data_off);
-        info->data_off += HTTP2_FRAME_HEADER_SIZE;
-        if (!format_http2_frame_header(&current_frame)) {
-            break;
-        }
-
-        // END_STREAM can appear only in Headers and Data frames.
-        // Check out https://datatracker.ietf.org/doc/html/rfc7540#section-6.1 for data frame, and
-        // https://datatracker.ietf.org/doc/html/rfc7540#section-6.2 for headers frame.
-        is_headers_or_rst_frame = current_frame.type == kHeadersFrame || current_frame.type == kRSTStreamFrame;
-        is_data_end_of_stream = ((current_frame.flags & HTTP2_END_OF_STREAM) == HTTP2_END_OF_STREAM) && (current_frame.type == kDataFrame);
-        if (iteration_value->frames_count < HTTP2_MAX_FRAMES_ITERATIONS && (is_headers_or_rst_frame || is_data_end_of_stream)) {
-            iteration_value->frames_array[iteration_value->frames_count].frame = current_frame;
-            iteration_value->frames_array[iteration_value->frames_count].offset = info->data_off;
-            iteration_value->frames_count++;
-        }
-
-        info->data_off += current_frame.length;
-
-        // If we have found enough interesting frames, we can stop iterating.
-        if (iteration_value->frames_count >= HTTP2_MAX_FRAMES_ITERATIONS) {
-            break;
-        }
-    }
-
-    // Checking we can read HTTP2_FRAME_HEADER_SIZE from the skb - if we can, update telemetry to indicate we have
-    if ((iteration == HTTP2_MAX_FRAMES_TO_FILTER) && (info->data_off + HTTP2_FRAME_HEADER_SIZE <= info->data_end)) {
-        __sync_fetch_and_add(&http2_tel->exceeding_max_frames_to_filter, 1);
-    }
-
-    if (iteration_value->frames_count == HTTP2_MAX_FRAMES_ITERATIONS) {
-        __sync_fetch_and_add(&http2_tel->exceeding_max_interesting_frames, 1);
-    }
-}
-
 // http2_tls_handle_first_frame is the entry point of our HTTP2+TLS processing.
 // It is responsible for getting and filtering the first frame present in the
 // buffer we get from the TLS uprobes.
@@ -519,7 +456,31 @@ int uprobe__http2_tls_filter(struct pt_regs *ctx) {
     // in a map, we cannot allow it to be modified. Thus, storing the original value of the offset.
     __u32 original_off = pktbuf_data_offset(pkt);
 
-    tls_find_relevant_frames(&dispatcher_args_copy, iteration_value, http2_tel);
+    bool have_more_frames_to_process = pktubf_find_relevant_frames(pkt, iteration_value, http2_tel);
+    // We have found there are more frames to filter, so we will call frame_filter again.
+    // Max current amount of tail calls would be 2, which will allow us to currently parse
+    // HTTP2_MAX_TAIL_CALLS_FOR_FRAMES_FILTER*HTTP2_MAX_FRAMES_ITERATIONS.
+    iteration_value->filter_iterations++;
+    if (have_more_frames_to_process && iteration_value->filter_iterations < HTTP2_MAX_TAIL_CALLS_FOR_FRAMES_FILTER) {
+        // save local copy of the skb_info, so the next prog will start from the offset of the next valid frame.
+        iteration_value->data_off = pktbuf_data_offset(pkt);
+        pktbuf_tail_call_option_t arr[] = {
+            [PKTBUF_SKB] = {
+                .prog_array_map = &protocols_progs,
+                .index = PROG_HTTP2_FRAME_FILTER,
+            },
+            [PKTBUF_TLS] = {
+                .prog_array_map = &tls_process_progs,
+                .index = TLS_HTTP2_FILTER,
+            },
+        };
+        pktbuf_tail_call_compact(pkt, arr);
+    }
+
+    // if we left with more headers to process and we reached the max amount of tail calls we should update the telemetry.
+    if (have_more_frames_to_process && iteration_value->filter_iterations >= HTTP2_MAX_TAIL_CALLS_FOR_FRAMES_FILTER) {
+        __sync_fetch_and_add(&http2_tel->exceeding_max_frames_to_filter, 1);
+    }
 
     frame_header_remainder_t new_frame_state = { 0 };
     if (pktbuf_data_offset(pkt) > pktbuf_data_end(pkt)) {
