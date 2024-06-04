@@ -10,8 +10,6 @@ import (
 	"go.uber.org/zap"
 )
 
-const extensionName = "dd_extension"
-
 // ddExtension is a basic OpenTelemetry Collector extension.
 type ddExtension struct {
 	extension.Extension // Embed base Extension for common functionality.
