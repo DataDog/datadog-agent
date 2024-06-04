@@ -32,7 +32,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
-	"github.com/DataDog/datadog-agent/pkg/util/testutil"
 )
 
 type MockProvider struct {
@@ -384,9 +383,9 @@ func TestResolveTemplate(t *testing.T) {
 	}
 	// there are no template vars but it's ok
 	ac.processNewService(ctx, &service) // processNewService applies changes
-	testutil.AssertTrueBeforeTimeout(t, 10*time.Millisecond, 4*time.Second, func() bool {
+	assert.Eventually(t, func() bool {
 		return sch.scheduledSize() == 1
-	})
+	}, 5*time.Second, 10*time.Millisecond)
 }
 
 func countLoadedConfigs(ac *AutoConfig) int {
