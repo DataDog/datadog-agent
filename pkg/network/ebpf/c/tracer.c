@@ -200,20 +200,23 @@ int kprobe__tcp_close(struct pt_regs *ctx) {
     sk = (struct sock *)PT_REGS_PARM1(ctx);
     bool failure = false;
 
-    // check if this connection was already flushed and bail if so
-    if (bpf_map_delete_elem(&closed_conn_already_flushed, &sk) == 0) {
-        increment_telemetry_count(double_flush_attempts_close);
-        failure = true;
-    }
-
     // increment telemetry for connections that were never established
     if (bpf_map_delete_elem(&tcp_ongoing_connect_pid, &sk) == 0) {
         increment_telemetry_count(tcp_failed_connect);
+        log_debug("adamk kprobe/tcp_close entry found in failure map");
+    }
+
+    // check if this connection was already flushed and bail if so
+    if (bpf_map_delete_elem(&closed_conn_already_flushed, &sk) == 0) {
+        increment_telemetry_count(double_flush_attempts_close);
+        log_debug("adamk kprobe/tcp_close double flush attempt");
+        failure = true;
     }
 
     // Get network namespace id
-    log_debug("kprobe/tcp_close: tgid: %llu, pid: %llu", pid_tgid >> 32, pid_tgid & 0xFFFFFFFF);
+    log_debug("adamk kprobe/tcp_close: tgid: %llu, pid: %llu", pid_tgid >> 32, pid_tgid & 0xFFFFFFFF);
     if (!read_conn_tuple(&t, sk, pid_tgid, CONN_TYPE_TCP)) {
+        log_debug("adamk kprobe/tcp_close failed to read tuple");
         return 0;
     }
     log_debug("kprobe/tcp_close: netns: %u, sport: %u, dport: %u", t.netns, t.sport, t.dport);
@@ -227,8 +230,8 @@ int kprobe__tcp_close(struct pt_regs *ctx) {
     }
 
     // mark this connection as already flushed
-    __u32 zero = 0;
-    bpf_map_update_with_telemetry(closed_conn_already_flushed, &sk, &zero, BPF_ANY);
+    // __u32 zero = 0;
+    // bpf_map_update_with_telemetry(closed_conn_already_flushed, &sk, &zero, BPF_ANY);
 
     return 0;
 }
@@ -243,10 +246,10 @@ int kprobe__tcp_done(struct pt_regs *ctx) {
     int err = 0;
 
     // check if this connection was already flushed and bail if so
-    if (bpf_map_delete_elem(&closed_conn_already_flushed, &sk) == 0) {
-        increment_telemetry_count(double_flush_attempts_done);
-        return 0;
-    }
+    // if (bpf_map_delete_elem(&closed_conn_already_flushed, &sk) == 0) {
+    //     increment_telemetry_count(double_flush_attempts_done);
+    //     return 0;
+    // }
 
     bpf_probe_read_kernel_with_telemetry(&err, sizeof(err), (&sk->sk_err));
     if (err == 0 || !tcp_failed_connections_enabled()) {
@@ -254,15 +257,17 @@ int kprobe__tcp_done(struct pt_regs *ctx) {
     }
 
     if (err != 104 && err != 110 && err != 111) {
+        log_debug("adamk kprobe/tcp_done: unsupported error code: %d", err);
         increment_telemetry_count(unsupported_tcp_failures);
         return 0;
     }
 
-    log_debug("kprobe/tcp_done: tgid: %llu, pid: %llu", pid_tgid >> 32, pid_tgid & 0xFFFFFFFF);
+    log_debug("adamk kprobe/tcp_done: tgid: %llu, pid: %llu", pid_tgid >> 32, pid_tgid & 0xFFFFFFFF);
     if (!read_conn_tuple(&t, sk, pid_tgid, CONN_TYPE_TCP)) {
+        log_debug("adamk kprobe/tcp_done failed to read tuple");
         return 0;
     }
-    log_debug("kprobe/tcp_done: netns: %u, sport: %u, dport: %u", t.netns, t.sport, t.dport);
+    log_debug("adamk kprobe/tcp_done: netns: %u, sport: %u, dport: %u", t.netns, t.sport, t.dport);
 
     // connection timeouts will have 0 pids as they are cleaned up by an idle process.
     // get the pid from the ongoing failure map in this case, as it should have been set in connect.
@@ -277,7 +282,7 @@ int kprobe__tcp_done(struct pt_regs *ctx) {
         return 0;
     }
 
-    cleanup_conn(ctx, &t, sk, true);
+    cleanup_conn(ctx, &t, sk, false);
     flush_tcp_failure(ctx, &t, err);
 
     // mark this connection as already flushed
