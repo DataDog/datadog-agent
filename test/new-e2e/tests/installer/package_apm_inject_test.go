@@ -180,13 +180,14 @@ func (s *packageApmInjectSuite) TestUpgrade_InjectorOCI_To_InjectorDeb() {
 	s.assertDockerdInstrumented(injectOCIPath)
 }
 
-func (s *packageApmInjectSuite) TestTracerVersionBump() {
+func (s *packageApmInjectSuite) TestVersionBump() {
 	s.host.InstallDocker()
 	s.RunInstallScript(
 		"DD_APM_INSTRUMENTATION_ENABLED=all",
 		"DD_APM_INSTRUMENTATION_LIBRARIES=python",
 		envForceInstall("datadog-agent"),
 		envForceInstall("datadog-apm-inject"),
+		envForceVersion("datadog-apm-inject", "0.14.0-beta1-dev.b0d6e40.glci528580195.g068abe2b-1"),
 		envForceInstall("datadog-apm-library-python"),
 		envForceVersion("datadog-apm-library-python", "2.8.2-dev-1"),
 	)
@@ -196,6 +197,9 @@ func (s *packageApmInjectSuite) TestTracerVersionBump() {
 	state := s.host.State()
 	state.AssertDirExists("/opt/datadog-packages/datadog-apm-library-python/2.8.2-dev", 0755, "root", "root")
 	state.AssertSymlinkExists("/opt/datadog-packages/datadog-apm-library-python/stable", "/opt/datadog-packages/datadog-apm-library-python/2.8.2-dev", "root", "root")
+
+	state.AssertDirExists("/opt/datadog-packages/datadog-apm-inject/0.14.0-beta1-dev.b0d6e40.glci528580195.g068abe2b-1", 0755, "root", "root")
+	state.AssertSymlinkExists("/opt/datadog-packages/datadog-apm-inject/stable", "/opt/datadog-packages/datadog-apm-inject/0.14.0-beta1-dev.b0d6e40.glci528580195.g068abe2b-1", "root", "root")
 
 	s.host.StartExamplePythonApp()
 	defer s.host.StopExamplePythonApp()
@@ -210,6 +214,7 @@ func (s *packageApmInjectSuite) TestTracerVersionBump() {
 		"DD_APM_INSTRUMENTATION_LIBRARIES=python",
 		envForceInstall("datadog-agent"),
 		envForceInstall("datadog-apm-inject"),
+		envForceVersion("datadog-apm-inject", "0.13.2-beta1-dev.b0d6e40.glci530444874.g6d8b7576-1"),
 		envForceInstall("datadog-apm-library-python"),
 		envForceVersion("datadog-apm-library-python", "2.8.5-1"),
 	)
@@ -219,6 +224,10 @@ func (s *packageApmInjectSuite) TestTracerVersionBump() {
 	state.AssertPathDoesNotExist("/opt/datadog-packages/datadog-apm-library-python/2.8.2-dev")
 	state.AssertDirExists("/opt/datadog-packages/datadog-apm-library-python/2.8.5", 0755, "root", "root")
 	state.AssertSymlinkExists("/opt/datadog-packages/datadog-apm-library-python/stable", "/opt/datadog-packages/datadog-apm-library-python/2.8.5", "root", "root")
+
+	state.AssertPathDoesNotExist("/opt/datadog-packages/datadog-apm-inject/0.14.0-beta1-dev.b0d6e40.glci528580195.g068abe2b-1")
+	state.AssertDirExists("/opt/datadog-packages/datadog-apm-inject/0.13.2-beta1-dev.b0d6e40.glci530444874.g6d8b7576-1", 0755, "root", "root")
+	state.AssertSymlinkExists("/opt/datadog-packages/datadog-apm-inject/stable", "/opt/datadog-packages/datadog-apm-inject/0.13.2-beta1-dev.b0d6e40.glci530444874.g6d8b7576-1", "root", "root")
 
 	s.host.StartExamplePythonAppInDocker()
 	defer s.host.StopExamplePythonAppInDocker()

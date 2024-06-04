@@ -88,7 +88,7 @@ func (h *Host) CallExamplePythonAppInDocker(traceID string) {
 		-H "X-Datadog-Sampling-Priority: 2"`,
 			traceID, traceID))
 		return err == nil
-	}, time.Second*3, time.Second*1)
+	}, time.Second*10, time.Second*1)
 	if !success {
 		h.t.Log("Error calling example Python app in Docker")
 	}
