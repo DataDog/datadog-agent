@@ -175,6 +175,12 @@ func loaderFunc(closeFn func(), err error) func(_ *config.Config, _ manager.Opti
 	}
 }
 
+func prebuiltLoaderFunc(closeFn func(), err error) func(_ *config.Config, _ manager.Options, _ ddebpf.EventHandler) (*manager.Manager, func(), error) {
+	return func(_ *config.Config, _ manager.Options, _ ddebpf.EventHandler) (*manager.Manager, func(), error) {
+		return nil, closeFn, err
+	}
+}
+
 func runFallbackTests(t *testing.T, desc string, coreErr, rcErr bool, tests []struct {
 	enableCORE            bool
 	allowRCFallback       bool
@@ -187,6 +193,7 @@ func runFallbackTests(t *testing.T, desc string, coreErr, rcErr bool, tests []st
 	expectedCloseFn := func() {}
 	rcTracerLoader = loaderFunc(expectedCloseFn, nil)
 	coreTracerLoader = loaderFunc(expectedCloseFn, nil)
+	prebuiltTracerLoader = prebuiltLoaderFunc(expectedCloseFn, nil)
 	if rcErr {
 		rcTracerLoader = loaderFunc(nil, assert.AnError)
 	}
@@ -199,8 +206,6 @@ func runFallbackTests(t *testing.T, desc string, coreErr, rcErr bool, tests []st
 		offsetGuessingRun++
 		return nil, nil
 	}
-
-	//closeConnHandler := ddebpf.NewPerfHandler(1)
 
 	cfg := config.New()
 	for _, te := range tests {

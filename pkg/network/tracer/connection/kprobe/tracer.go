@@ -123,7 +123,6 @@ func FailedConnectionsSupported(c *config.Config) bool {
 
 // LoadTracer loads the co-re/prebuilt/runtime compiled network tracer, depending on config
 func LoadTracer(cfg *config.Config, mgrOpts manager.Options, connCloseEventHandler ddebpf.EventHandler, failedConnsHandler ddebpf.EventHandler) (*manager.Manager, func(), TracerType, error) {
-	log.Errorf("adamk LoadTracer connCloseEventHandler: %v", connCloseEventHandler)
 	kprobeAttachMethod := manager.AttachKprobeWithPerfEventOpen
 	if cfg.AttachKprobesWithKprobeEventsABI {
 		kprobeAttachMethod = manager.AttachKprobeWithKprobeEvents
