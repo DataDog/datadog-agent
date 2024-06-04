@@ -12,7 +12,7 @@ type Params struct {
 	ConfFilePath string
 
 	// ExtraConfFilePath represents the paths to additional configuration files.
-	// Usualy given by the --extracfgpath command-line flag.
+	// Usually given by the --extracfgpath command-line flag.
 	ExtraConfFilePath []string
 
 	// configName is the root of the name of the configuration file.  The
@@ -124,7 +124,7 @@ func WithConfFilePath(confFilePath string) func(*Params) {
 	}
 }
 
-// WithConfFilePath returns an option which sets ConfFilePath
+// WithExtraConfFiles returns an option which sets ConfFilePath
 func WithExtraConfFiles(extraConfFilePath []string) func(*Params) {
 	return func(b *Params) {
 		b.ExtraConfFilePath = extraConfFilePath

@@ -40,6 +40,7 @@ func (c *MockConfig) SetKnown(key string) {
 	c.Config.SetKnown(key)
 }
 
+// ExtraConfigFilesUsed returns paths of extra configuration files
 func (c *MockConfig) ExtraConfigFilesUsed() []string {
 	return []string{}
 }

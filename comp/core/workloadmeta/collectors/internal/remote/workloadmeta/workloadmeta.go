@@ -179,7 +179,7 @@ func (s *streamHandler) HandleResync(store workloadmeta.Component, events []work
 	store.Reset(entities, workloadmeta.SourceRemoteWorkloadmeta)
 }
 
-func (c *streamHandler) ExtraConfigFilesUsed() []string {
+func (*streamHandler) ExtraConfigFilesUsed() []string {
 	return []string{}
 }
 
