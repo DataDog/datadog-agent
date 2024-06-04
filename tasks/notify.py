@@ -44,6 +44,7 @@ CONSECUTIVE_THRESHOLD = 3
 CUMULATIVE_THRESHOLD = 5
 CUMULATIVE_LENGTH = 10
 CI_VISIBILITY_JOB_URL = 'https://app.datadoghq.com/ci/pipeline-executions?query=ci_level%3Ajob%20%40ci.pipeline.name%3ADataDog%2Fdatadog-agent%20%40git.branch%3Amain%20%40ci.job.name%3A{}&agg_m=count'
+NOTIFICATION_DISCLAIMER = "If there is something wrong with the notification please contact #agent-developer-experience"
 
 
 def get_ci_visibility_job_url(name: str, prefix=True) -> str:
@@ -225,7 +226,7 @@ def send_message(ctx, notification_type="merge", print_to_stdout=False):
     if failed_jobs.all_mandatory_failures():  # At least one mandatory job failed
         header_icon = ":host-red:"
         state = "failed"
-        coda = "If there is something wrong with the notification please contact #agent-developer-experience"
+        coda = NOTIFICATION_DISCLAIMER
     else:
         header_icon = ":host-green:"
         state = "succeeded"
@@ -500,6 +501,7 @@ def send_failure_summary_notification(
         message.append(
             'Click <https://app.datadoghq.com/ci/pipeline-executions?query=ci_level%3Ajob%20env%3Aprod%20%40git.repository.id%3A%22gitlab.ddbuild.io%2FDataDog%2Fdatadog-agent%22%20%40ci.pipeline.name%3A%22DataDog%2Fdatadog-agent%22%20%40ci.provider.instance%3Agitlab-ci%20%40git.branch%3Amain%20%40ci.status%3Aerror&agg_m=count&agg_m_source=base&agg_q=%40ci.job.name&agg_q_source=base&agg_t=count&fromUser=false&index=cipipeline&sort_m=count&sort_m_source=base&sort_t=count&top_n=25&top_o=top&viz=toplist&x_missing=true&paused=false|here> for more details.'
         )
+        message.append(NOTIFICATION_DISCLAIMER)
 
         # Send message
         client = WebClient(os.environ["SLACK_API_TOKEN"])
