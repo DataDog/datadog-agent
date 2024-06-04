@@ -28,15 +28,13 @@ static __attribute__((always_inline)) u32 get_path_id(u32 mount_id, int invalida
         return 0;
     }
 
-    u32 id = *prev_id;
-
     // need to invalidate the current path id for event which may change the association inode/name like
     // unlink, rename, rmdir.
     if (invalidate) {
         __sync_fetch_and_add(prev_id, 1);
     }
 
-    return id;
+    return *prev_id;
 }
 
 static __attribute__((always_inline)) void update_path_id(struct path_key_t *path_key, int invalidate) {
