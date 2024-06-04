@@ -24,6 +24,7 @@ import (
 	filterpkg "github.com/DataDog/datadog-agent/pkg/network/filter"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 	"github.com/DataDog/datadog-agent/pkg/process/monitor"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -39,6 +40,7 @@ const (
 var (
 	state        = disabled
 	startupError error
+	tlsPrograms  = []string{"go-tls", "native-tls", "java-tls", "istio-tls", "nodejs-tls", "shared_libraries"}
 )
 
 // Monitor is responsible for:
@@ -154,6 +156,13 @@ func (m *Monitor) GetUSMStats() map[string]interface{} {
 
 	if startupError != nil {
 		response["error"] = startupError.Error()
+	}
+
+	for _, tlsProgram := range tlsPrograms {
+		tracedPrograms := utils.GetTracedPrograms(tlsProgram)
+		if len(tracedPrograms) > 0 {
+			response[tlsProgram] = tracedPrograms
+		}
 	}
 
 	if m != nil {
