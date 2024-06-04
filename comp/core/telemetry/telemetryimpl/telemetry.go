@@ -7,13 +7,15 @@
 package telemetryimpl
 
 import (
+	"context"
 	"net/http"
 	"sync"
 
-	"github.com/DataDog/datadog-agent/comp/core/telemetry"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	promOtel "go.opentelemetry.io/otel/exporters/prometheus"
 	"go.uber.org/fx"
+
+	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/collectors"
@@ -25,7 +27,7 @@ import (
 // Module defines the fx options for this component.
 func Module() fxutil.Module {
 	return fxutil.Component(
-		fx.Provide(newTelemetry))
+		fx.Provide(newTelemetryComponent))
 }
 
 // TODO (components): Remove the globals and move this into `newTelemetry` after all telemetry is migrated to the component
@@ -45,6 +47,12 @@ type telemetryImpl struct {
 	defaultRegistry *prometheus.Registry
 }
 
+type dependencies struct {
+	fx.In
+
+	Lyfecycle fx.Lifecycle
+}
+
 func newRegistry() *prometheus.Registry {
 	reg := prometheus.NewRegistry()
 	reg.MustRegister(collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}))
@@ -60,6 +68,21 @@ func newProvider(reg *prometheus.Registry) *sdk.MeterProvider {
 	}
 
 	return sdk.NewMeterProvider(sdk.WithReader(exporter))
+}
+
+func newTelemetryComponent(deps dependencies) telemetry.Component {
+	comp := newTelemetry()
+
+	// Since we are in the middle of a migration to components, we need to ensure that the global variables are reset
+	// when the component is stopped.
+	deps.Lyfecycle.Append(fx.Hook{
+		OnStop: func(_ context.Context) error {
+			comp.Reset()
+
+			return nil
+		},
+	})
+	return comp
 }
 
 func newTelemetry() telemetry.Component {
@@ -85,8 +108,7 @@ func (t *telemetryImpl) Handler() http.Handler {
 func (t *telemetryImpl) Reset() {
 	mutex.Lock()
 	defer mutex.Unlock()
-	registry = prometheus.NewRegistry()
-	t.registry = registry
+	t.registry = newRegistry()
 }
 
 // RegisterCollector Registers a Collector with the prometheus registry

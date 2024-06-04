@@ -7,7 +7,6 @@ replace (
 	github.com/DataDog/datadog-agent/comp/core/flare/types => ../flare/types
 	github.com/DataDog/datadog-agent/comp/core/telemetry => ../telemetry
 	github.com/DataDog/datadog-agent/comp/def => ../../def
-	github.com/DataDog/datadog-agent/pkg/telemetry => ../../../pkg/telemetry
 	github.com/DataDog/datadog-agent/pkg/util/fxutil => ../../../pkg/util/fxutil
 	github.com/DataDog/datadog-agent/pkg/util/log => ../../../pkg/util/log
 	github.com/DataDog/datadog-agent/pkg/util/scrubber => ../../../pkg/util/scrubber
@@ -17,7 +16,7 @@ replace (
 
 require (
 	github.com/DataDog/datadog-agent/comp/core/flare/types v0.55.0-rc.2
-	github.com/DataDog/datadog-agent/pkg/telemetry v0.55.0-rc.2
+	github.com/DataDog/datadog-agent/comp/core/telemetry v0.55.0-rc.2
 	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.55.0-rc.2
 	github.com/DataDog/datadog-agent/pkg/util/log v0.55.0-rc.2
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.55.0-rc.2
@@ -32,7 +31,6 @@ require (
 
 require (
 	github.com/DataDog/datadog-agent/comp/core/flare/builder v0.55.0-rc.2 // indirect
-	github.com/DataDog/datadog-agent/comp/core/telemetry v0.55.0-rc.2 // indirect
 	github.com/DataDog/datadog-agent/comp/def v0.55.0-rc.2 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cespare/xxhash/v2 v2.2.0 // indirect
@@ -43,6 +41,7 @@ require (
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/golang/protobuf v1.5.3 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
+	github.com/kr/text v0.2.0 // indirect
 	github.com/matttproud/golang_protobuf_extensions v1.0.4 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/prometheus/client_golang v1.17.0 // indirect
@@ -52,7 +51,6 @@ require (
 	github.com/spf13/cobra v1.7.0 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
 	go.opentelemetry.io/otel v1.20.0 // indirect
-	go.opentelemetry.io/otel/exporters/prometheus v0.42.0 // indirect
 	go.opentelemetry.io/otel/metric v1.20.0 // indirect
 	go.opentelemetry.io/otel/sdk v1.20.0 // indirect
 	go.opentelemetry.io/otel/sdk/metric v1.20.0 // indirect

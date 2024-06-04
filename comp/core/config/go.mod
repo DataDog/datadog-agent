@@ -31,6 +31,7 @@ replace (
 require (
 	github.com/DataDog/datadog-agent/cmd/agent/common/path v0.55.0-rc.2
 	github.com/DataDog/datadog-agent/comp/core/secrets v0.55.0-rc.2
+	github.com/DataDog/datadog-agent/comp/core/telemetry v0.55.0-rc.2
 	github.com/DataDog/datadog-agent/pkg/config/env v0.55.0-rc.2
 	github.com/DataDog/datadog-agent/pkg/config/model v0.55.0-rc.2
 	github.com/DataDog/datadog-agent/pkg/config/setup v0.55.0-rc.2
@@ -45,10 +46,8 @@ require (
 require (
 	github.com/DataDog/datadog-agent/comp/core/flare/builder v0.55.0-rc.2 // indirect
 	github.com/DataDog/datadog-agent/comp/core/flare/types v0.55.0-rc.2 // indirect
-	github.com/DataDog/datadog-agent/comp/core/telemetry v0.55.0-rc.2 // indirect
 	github.com/DataDog/datadog-agent/comp/def v0.55.0-rc.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults v0.55.0-rc.2 // indirect
-	github.com/DataDog/datadog-agent/pkg/telemetry v0.55.0-rc.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/executable v0.55.0-rc.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.55.0-rc.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/hostname/validate v0.55.0-rc.2 // indirect
@@ -94,7 +93,6 @@ require (
 	github.com/tklauser/numcpus v0.6.1 // indirect
 	github.com/yusufpapurcu/wmi v1.2.3 // indirect
 	go.opentelemetry.io/otel v1.20.0 // indirect
-	go.opentelemetry.io/otel/exporters/prometheus v0.42.0 // indirect
 	go.opentelemetry.io/otel/metric v1.20.0 // indirect
 	go.opentelemetry.io/otel/sdk v1.20.0 // indirect
 	go.opentelemetry.io/otel/sdk/metric v1.20.0 // indirect

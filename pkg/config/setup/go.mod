@@ -31,27 +31,27 @@ replace (
 
 require (
 	github.com/DataDog/datadog-agent/comp/core/secrets v0.55.0-rc.2
+	github.com/DataDog/datadog-agent/comp/core/telemetry v0.55.0-rc.2
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults v0.55.0-rc.2
 	github.com/DataDog/datadog-agent/pkg/config/env v0.55.0-rc.2
 	github.com/DataDog/datadog-agent/pkg/config/model v0.55.0-rc.2
 	github.com/DataDog/datadog-agent/pkg/util/executable v0.55.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.55.0-rc.2
 	github.com/DataDog/datadog-agent/pkg/util/hostname/validate v0.55.0-rc.2
 	github.com/DataDog/datadog-agent/pkg/util/log v0.55.0-rc.2
 	github.com/DataDog/datadog-agent/pkg/util/optional v0.55.0-rc.2
 	github.com/DataDog/datadog-agent/pkg/util/system v0.55.0-rc.2
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.55.0-rc.2
 	github.com/stretchr/testify v1.9.0
+	go.uber.org/fx v1.18.2
 	gopkg.in/yaml.v2 v2.4.0
 )
 
 require (
 	github.com/DataDog/datadog-agent/comp/core/flare/builder v0.55.0-rc.2 // indirect
 	github.com/DataDog/datadog-agent/comp/core/flare/types v0.55.0-rc.2 // indirect
-	github.com/DataDog/datadog-agent/comp/core/telemetry v0.55.0-rc.2 // indirect
 	github.com/DataDog/datadog-agent/comp/def v0.55.0-rc.2 // indirect
-	github.com/DataDog/datadog-agent/pkg/telemetry v0.55.0-rc.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.55.0-rc.2 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.55.0-rc.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/pointer v0.55.0-rc.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.55.0-rc.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/system/socket v0.55.0-rc.2 // indirect
@@ -93,14 +93,12 @@ require (
 	github.com/tklauser/numcpus v0.6.1 // indirect
 	github.com/yusufpapurcu/wmi v1.2.3 // indirect
 	go.opentelemetry.io/otel v1.20.0 // indirect
-	go.opentelemetry.io/otel/exporters/prometheus v0.42.0 // indirect
 	go.opentelemetry.io/otel/metric v1.20.0 // indirect
 	go.opentelemetry.io/otel/sdk v1.20.0 // indirect
 	go.opentelemetry.io/otel/sdk/metric v1.20.0 // indirect
 	go.opentelemetry.io/otel/trace v1.20.0 // indirect
 	go.uber.org/atomic v1.11.0 // indirect
 	go.uber.org/dig v1.17.0 // indirect
-	go.uber.org/fx v1.18.2 // indirect
 	go.uber.org/multierr v1.6.0 // indirect
 	go.uber.org/zap v1.23.0 // indirect
 	golang.org/x/exp v0.0.0-20240222234643-814bf88cf225 // indirect
