@@ -637,17 +637,8 @@ int socket__http2_handle_first_frame(struct __sk_buff *skb) {
     return 0;
 }
 
-SEC("socket/http2_filter")
-int socket__http2_filter(struct __sk_buff *skb) {
-    dispatcher_arguments_t dispatcher_args_copy;
-    bpf_memset(&dispatcher_args_copy, 0, sizeof(dispatcher_arguments_t));
-    if (!fetch_dispatching_arguments(&dispatcher_args_copy.tup, &dispatcher_args_copy.skb_info)) {
-        return 0;
-    }
-
+static __always_inline void filter_frame(pktbuf_t pkt, void *map_key, conn_tuple_t *tup) {
     const __u32 zero = 0;
-
-    pktbuf_t pkt = pktbuf_from_skb(skb, &dispatcher_args_copy.skb_info);
 
     // A single packet can contain multiple HTTP/2 frames, due to instruction limitations we have divided the
     // processing into multiple tail calls, where each tail call process a single frame. We must have context when
@@ -656,12 +647,12 @@ int socket__http2_filter(struct __sk_buff *skb) {
     // If not, creating a new one to be used for further processing
     http2_tail_call_state_t *iteration_value = bpf_map_lookup_elem(&http2_frames_to_process, &zero);
     if (iteration_value == NULL) {
-        return 0;
+        return;
     }
 
     http2_telemetry_t *http2_tel = get_telemetry(pkt);
     if (http2_tel == NULL) {
-        return 0;
+        return;
     }
 
     // Some functions might change and override data_off field in dispatcher_args_copy.skb_info. Since it is used as a key
@@ -698,7 +689,7 @@ int socket__http2_filter(struct __sk_buff *skb) {
     if (pktbuf_data_offset(pkt) > pktbuf_data_end(pkt)) {
         // We have a remainder
         new_frame_state.remainder = pktbuf_data_offset(pkt) - pktbuf_data_end(pkt);
-        bpf_map_update_elem(&http2_remainder, &dispatcher_args_copy.tup, &new_frame_state, BPF_ANY);
+        bpf_map_update_elem(&http2_remainder, tup, &new_frame_state, BPF_ANY);
     } else if (pktbuf_data_offset(pkt) < pktbuf_data_end(pkt) && pktbuf_data_offset(pkt) + HTTP2_FRAME_HEADER_SIZE > pktbuf_data_end(pkt)) {
         // We have a frame header remainder
         new_frame_state.remainder = HTTP2_FRAME_HEADER_SIZE - (pktbuf_data_end(pkt) - pktbuf_data_offset(pkt));
@@ -708,11 +699,11 @@ int socket__http2_filter(struct __sk_buff *skb) {
             pktbuf_load_bytes(pkt, pktbuf_data_offset(pkt) + iteration, new_frame_state.buf + iteration, 1);
         }
         new_frame_state.header_length = HTTP2_FRAME_HEADER_SIZE - new_frame_state.remainder;
-        bpf_map_update_elem(&http2_remainder, &dispatcher_args_copy.tup, &new_frame_state, BPF_ANY);
+        bpf_map_update_elem(&http2_remainder, tup, &new_frame_state, BPF_ANY);
     }
 
     if (iteration_value->frames_count == 0) {
-        return 0;
+        return;
     }
 
     // restoring the original value.
@@ -720,7 +711,13 @@ int socket__http2_filter(struct __sk_buff *skb) {
     pktbuf_map_update_option_t arr[] = {
         [PKTBUF_SKB] = {
             .map = &http2_iterations,
-            .key = &dispatcher_args_copy,
+            .key = map_key,
+            .value = iteration_value,
+            .flags = BPF_NOEXIST,
+        },
+        [PKTBUF_TLS] = {
+            .map = &http2_iterations,
+            .key = map_key,
             .value = iteration_value,
             .flags = BPF_NOEXIST,
         },
@@ -740,7 +737,19 @@ int socket__http2_filter(struct __sk_buff *skb) {
         };
         pktbuf_tail_call_compact(pkt, arr);
     }
+}
 
+SEC("socket/http2_filter")
+int socket__http2_filter(struct __sk_buff *skb) {
+    dispatcher_arguments_t dispatcher_args_copy;
+    bpf_memset(&dispatcher_args_copy, 0, sizeof(dispatcher_arguments_t));
+    if (!fetch_dispatching_arguments(&dispatcher_args_copy.tup, &dispatcher_args_copy.skb_info)) {
+        return 0;
+    }
+
+    pktbuf_t pkt = pktbuf_from_skb(skb, &dispatcher_args_copy.skb_info);
+
+    filter_frame(pkt, &dispatcher_args_copy, &dispatcher_args_copy.tup);
     return 0;
 }
 
