@@ -210,7 +210,7 @@ int kprobe__tcp_close(struct pt_regs *ctx) {
     }
 
     // check if this connection was already flushed and ensure we don't flush again
-    if (bpf_map_delete_elem(&closed_conn_already_flushed, &sk) == 0) {
+    if (bpf_map_delete_elem(&conn_close_flushed, &sk) == 0) {
         increment_telemetry_count(double_flush_attempts_close);
         log_debug("adamk kprobe/tcp_close double flush attempt");
         skip_new_conn_create = true;
@@ -280,7 +280,7 @@ int kprobe__tcp_done(struct pt_regs *ctx) {
 
     // mark this connection as already flushed
     __u32 zero = 0;
-    bpf_map_update_with_telemetry(closed_conn_already_flushed, &sk, &zero, BPF_ANY);
+    bpf_map_update_with_telemetry(conn_close_flushed, &sk, &zero, BPF_ANY);
 
     return 0;
 }
