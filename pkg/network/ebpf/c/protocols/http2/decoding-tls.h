@@ -547,7 +547,17 @@ int uprobe__http2_tls_filter(struct pt_regs *ctx) {
     pktbuf_set_offset(pkt, original_off);
     if (bpf_map_update_elem(&tls_http2_iterations, &dispatcher_args_copy, iteration_value, BPF_NOEXIST) >= 0) {
         // We managed to cache the iteration_value in the tls_http2_iterations map.
-        bpf_tail_call_compat(ctx, &tls_process_progs, TLS_HTTP2_HEADERS_PARSER);
+        pktbuf_tail_call_option_t arr[] = {
+            [PKTBUF_SKB] = {
+                .prog_array_map = &protocols_progs,
+                .index = PROG_HTTP2_HEADERS_PARSER,
+            },
+            [PKTBUF_TLS] = {
+                .prog_array_map = &tls_process_progs,
+                .index = TLS_HTTP2_HEADERS_PARSER,
+            },
+        };
+        pktbuf_tail_call_compact(pkt, arr);
     }
 
     return 0;
