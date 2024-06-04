@@ -23,6 +23,7 @@ const (
 	envRegistryAuth          = "DD_INSTALLER_REGISTRY_AUTH"
 	envDefaultPackageVersion = "DD_INSTALLER_DEFAULT_PKG_VERSION"
 	envDefaultPackageInstall = "DD_INSTALLER_DEFAULT_PKG_INSTALL"
+	envApmLibraries          = "DD_APM_INSTRUMENTATION_LIBRARIES"
 )
 
 var defaultEnv = Env{
@@ -43,6 +44,9 @@ var defaultEnv = Env{
 	},
 }
 
+type ApmLibLanguage string
+type ApmLibVersion string
+
 // Env contains the configuration for the installer.
 type Env struct {
 	APIKey        string
@@ -56,6 +60,8 @@ type Env struct {
 
 	DefaultPackagesInstallOverride map[string]bool
 	DefaultPackagesVersionOverride map[string]string
+
+	ApmLibraries map[ApmLibLanguage]ApmLibVersion
 
 	InstallScript InstallScriptEnv
 }
@@ -74,6 +80,8 @@ func FromEnv() *Env {
 
 		DefaultPackagesInstallOverride: overridesByNameFromEnv(envDefaultPackageInstall, func(s string) bool { return s == "true" }),
 		DefaultPackagesVersionOverride: overridesByNameFromEnv(envDefaultPackageVersion, func(s string) string { return s }),
+
+		ApmLibraries: parseApmLibrariesEnv(),
 
 		InstallScript: installScriptEnvFromEnv(),
 	}
@@ -108,11 +116,49 @@ func (e *Env) ToEnv() []string {
 	if e.RegistryAuthOverride != "" {
 		env = append(env, envRegistryAuth+"="+e.RegistryAuthOverride)
 	}
+	if len(e.ApmLibraries) > 0 {
+		b := strings.Builder{}
+		b.WriteString(envApmLibraries)
+		b.WriteString("=")
+		for l, v := range e.ApmLibraries {
+			b.WriteString(string(l))
+			if v != "" {
+				b.WriteString(":")
+				b.WriteString(string(v))
+			}
+			b.WriteString(",")
+		}
+		envVar := b.String()
+		env = append(env, envVar[:len(envVar)-1])
+	}
 	env = append(env, overridesByNameToEnv(envRegistryURL, e.RegistryOverrideByImage)...)
 	env = append(env, overridesByNameToEnv(envRegistryAuth, e.RegistryAuthOverrideByImage)...)
 	env = append(env, overridesByNameToEnv(envDefaultPackageInstall, e.DefaultPackagesInstallOverride)...)
 	env = append(env, overridesByNameToEnv(envDefaultPackageVersion, e.DefaultPackagesVersionOverride)...)
 	return env
+}
+
+func parseApmLibrariesEnv() map[ApmLibLanguage]ApmLibVersion {
+	apmLibraries := os.Getenv(envApmLibraries)
+	if apmLibraries == "all" {
+		return map[ApmLibLanguage]ApmLibVersion{
+			"java":   "latest",
+			"ruby":   "latest",
+			"js":     "latest",
+			"dotnet": "latest",
+			"python": "latest",
+		}
+	}
+	apmLibrariesVersion := map[ApmLibLanguage]ApmLibVersion{}
+	rest := apmLibraries
+	for rest != "" {
+		fmt.Println(rest)
+		var library string
+		library, rest, _ = strings.Cut(rest, ",")
+		libraryName, libraryVersion, _ := strings.Cut(library, ":")
+		apmLibrariesVersion[ApmLibLanguage(libraryName)] = ApmLibVersion(libraryVersion)
+	}
+	return apmLibrariesVersion
 }
 
 func overridesByNameFromEnv[T any](envPrefix string, convert func(string) T) map[string]T {

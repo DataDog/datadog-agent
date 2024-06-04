@@ -30,6 +30,14 @@ var defaultPackagesList = []defaultPackage{
 	{name: "datadog-agent", released: false, releasedWithRemoteUpdates: true},
 }
 
+var languageToPackage = map[string]env.ApmLibLanguage{
+	"datadog-apm-library-java":   "java",
+	"datadog-apm-library-ruby":   "ruby",
+	"datadog-apm-library-js":     "js",
+	"datadog-apm-library-dotnet": "dotnet",
+	"datadog-apm-library-python": "python",
+}
+
 // DefaultPackages resolves the default packages URLs to install based on the environment.
 func DefaultPackages(env *env.Env) []string {
 	return defaultPackages(env, defaultPackagesList)
@@ -46,15 +54,22 @@ func defaultPackages(env *env.Env, defaultPackages []defaultPackage) []string {
 		if isOverridden {
 			shouldInstall = installOverride
 		}
-
-		if shouldInstall {
-			version := "latest"
-			if v, ok := env.DefaultPackagesVersionOverride[p.name]; ok {
-				version = v
-			}
-			url := oci.PackageURL(env, p.name, version)
-			packages = append(packages, url)
+		if !shouldInstall {
+			continue
 		}
+
+		version := "latest"
+
+		// Respect pinned version of APM packages if we don't define any overwrite
+		if apmLibVersion, ok := env.ApmLibraries[languageToPackage[p.name]]; ok && apmLibVersion != "" {
+			version = string(apmLibVersion)
+		}
+
+		if v, ok := env.DefaultPackagesVersionOverride[p.name]; ok {
+			version = v
+		}
+		url := oci.PackageURL(env, p.name, version)
+		packages = append(packages, url)
 	}
 	return packages
 }
