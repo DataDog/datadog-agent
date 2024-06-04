@@ -473,7 +473,13 @@ int uprobe__http2_tls_headers_parser(struct pt_regs *ctx) {
     // we are processing the frames, for example, to know how many bytes have we read in the packet, or it we reached
     // to the maximum number of frames we can process. For that we are checking if the iteration context already exists.
     // If not, creating a new one to be used for further processing
-    http2_tail_call_state_t *tail_call_state = bpf_map_lookup_elem(&tls_http2_iterations, &dispatcher_args_copy);
+    pktbuf_map_lookup_option_t arr[] = {
+        [PKTBUF_TLS] = {
+            .map = &tls_http2_iterations,
+            .key = &dispatcher_args_copy,
+        },
+    };
+    http2_tail_call_state_t *tail_call_state = pktbuf_map_lookup(pkt, arr);
     if (tail_call_state == NULL) {
         // We didn't find the cached context, aborting.
         return 0;
@@ -538,7 +544,7 @@ int uprobe__http2_tls_headers_parser(struct pt_regs *ctx) {
 delete_iteration:
     // restoring the original value.
     dispatcher_args_copy.data_off = original_off;
-    bpf_map_delete_elem(&tls_http2_iterations, &dispatcher_args_copy);
+    pktbuf_map_delete(pkt, arr);
 
     return 0;
 }
