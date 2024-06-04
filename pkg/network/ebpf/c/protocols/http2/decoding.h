@@ -771,7 +771,7 @@ int socket__http2_headers_parser(struct __sk_buff *skb) {
 
     // Some functions might change and override data_off field in dispatcher_args_copy.skb_info. Since it is used as a key
     // in a map, we cannot allow it to be modified. Thus, storing the original value of the offset.
-    __u32 original_off = dispatcher_args_copy.skb_info.data_off;
+    __u32 original_off = pktbuf_data_offset(pkt);
 
     // A single packet can contain multiple HTTP/2 frames, due to instruction limitations we have divided the
     // processing into multiple tail calls, where each tail call process a single frame. We must have context when
@@ -833,7 +833,7 @@ int socket__http2_headers_parser(struct __sk_buff *skb) {
         if (current_stream == NULL) {
             continue;
         }
-        dispatcher_args_copy.skb_info.data_off = current_frame.offset;
+        pktbuf_set_offset(pkt, current_frame.offset);
         process_headers_frame(skb, current_stream, &dispatcher_args_copy.skb_info, &dispatcher_args_copy.tup, &http2_ctx->dynamic_index, &current_frame.frame, http2_tel);
     }
 
@@ -848,7 +848,7 @@ int socket__http2_headers_parser(struct __sk_buff *skb) {
 
 delete_iteration:
     // restoring the original value.
-    dispatcher_args_copy.skb_info.data_off = original_off;
+    pktbuf_set_offset(pkt, original_off);
     pktbuf_map_delete(pkt, arr);
 
     return 0;
