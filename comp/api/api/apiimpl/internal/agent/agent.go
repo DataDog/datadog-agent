@@ -26,7 +26,6 @@ import (
 	streamutils "github.com/DataDog/datadog-agent/comp/api/api/utils/stream"
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
-	"github.com/DataDog/datadog-agent/comp/core/gui"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 
@@ -56,7 +55,6 @@ func SetupHandlers(
 	statusComponent status.Component,
 	collector optional.Option[collector.Component],
 	ac autodiscovery.Component,
-	gui optional.Option[gui.Component],
 	providers []api.EndpointProvider,
 ) *mux.Router {
 	// Register the handlers from the component providers
@@ -72,11 +70,13 @@ func SetupHandlers(
 	r.HandleFunc("/status", func(w http.ResponseWriter, r *http.Request) {
 		getStatus(w, r, statusComponent, "")
 	}).Methods("GET")
+	r.HandleFunc("/status/sections", func(w http.ResponseWriter, r *http.Request) {
+		getSections(w, r, statusComponent)
+	}).Methods("GET")
 	r.HandleFunc("/status/health", getHealth).Methods("GET")
 	r.HandleFunc("/{component}/status", func(w http.ResponseWriter, r *http.Request) { componentStatusGetterHandler(w, r, statusComponent) }).Methods("GET")
 	r.HandleFunc("/{component}/status", componentStatusHandler).Methods("POST")
 	r.HandleFunc("/{component}/configs", componentConfigHandler).Methods("GET")
-	r.HandleFunc("/gui/csrf-token", func(w http.ResponseWriter, _ *http.Request) { getCSRFToken(w, gui) }).Methods("GET")
 	r.HandleFunc("/secrets", func(w http.ResponseWriter, r *http.Request) { secretInfo(w, r, secretResolver) }).Methods("GET")
 	r.HandleFunc("/secret/refresh", func(w http.ResponseWriter, r *http.Request) { secretRefresh(w, r, secretResolver) }).Methods("GET")
 	r.HandleFunc("/diagnose", func(w http.ResponseWriter, r *http.Request) {
@@ -178,6 +178,14 @@ func getStatus(w http.ResponseWriter, r *http.Request, statusComponent status.Co
 	w.Write(s)
 }
 
+func getSections(w http.ResponseWriter, _ *http.Request, statusComponent status.Component) {
+	log.Info("Got a request for the status sections.")
+
+	w.Header().Set("Content-Type", "application/json")
+	res, _ := json.Marshal(statusComponent.GetSections())
+	w.Write(res)
+}
+
 // TODO: logsAgent is a module so have to make the api component a module too
 func streamLogs(logsAgent logsAgent.Component) func(w http.ResponseWriter, r *http.Request) {
 	return streamutils.GetStreamFunc(func() streamutils.MessageReceiver { return logsAgent.GetMessageReceiver() }, "logs", "logs agent")
@@ -198,15 +206,6 @@ func getHealth(w http.ResponseWriter, _ *http.Request) {
 	}
 
 	w.Write(jsonHealth)
-}
-
-func getCSRFToken(w http.ResponseWriter, optGui optional.Option[gui.Component]) {
-	// WARNING: GUI comp currently not provided to JMX
-	gui, guiExist := optGui.Get()
-	if !guiExist {
-		return
-	}
-	w.Write([]byte(gui.GetCSRFToken()))
 }
 
 func secretInfo(w http.ResponseWriter, _ *http.Request, secretResolver secrets.Component) {

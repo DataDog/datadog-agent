@@ -223,6 +223,7 @@ DEFAULT_MODULES = {
     "pkg/tagset": GoModule("pkg/tagset", independent=True),
     "pkg/telemetry": GoModule("pkg/telemetry", independent=True),
     "pkg/trace": GoModule("pkg/trace", independent=True, used_by_otel=True),
+    "pkg/trace/stats/oteltest": GoModule("pkg/trace/stats/oteltest", independent=True, used_by_otel=True),
     "pkg/util/backoff": GoModule("pkg/util/backoff", independent=True),
     "pkg/util/buf": GoModule("pkg/util/buf", independent=True),
     "pkg/util/cache": GoModule("pkg/util/cache", independent=True),

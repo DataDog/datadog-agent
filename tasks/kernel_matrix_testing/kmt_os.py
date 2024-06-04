@@ -100,7 +100,7 @@ class Linux:
         ctx.run(f"sudo apt install -y {' '.join(Linux.packages)}")
 
         if platform.machine() == "aarch64":
-            ctx.rin("sudo apt install -y qemu-efi-aarch64")
+            ctx.run("sudo apt install -y qemu-efi-aarch64")
 
         ctx.run("sudo systemctl start nfs-kernel-server.service")
 

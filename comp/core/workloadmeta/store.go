@@ -406,6 +406,16 @@ func (w *workloadmeta) GetImage(id string) (*ContainerImageMetadata, error) {
 	return entity.(*ContainerImageMetadata), nil
 }
 
+// GetKubernetesMetadata implements Store#GetKubernetesMetadata.
+func (w *workloadmeta) GetKubernetesMetadata(id string) (*KubernetesMetadata, error) {
+	entity, err := w.getEntityByKind(KindKubernetesMetadata, id)
+	if err != nil {
+		return nil, err
+	}
+
+	return entity.(*KubernetesMetadata), nil
+}
+
 // Notify implements Store#Notify
 func (w *workloadmeta) Notify(events []CollectorEvent) {
 	if len(events) > 0 {

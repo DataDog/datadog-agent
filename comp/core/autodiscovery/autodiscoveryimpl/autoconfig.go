@@ -70,7 +70,7 @@ type AutoConfig struct {
 	listeners                []listeners.ServiceListener
 	listenerCandidates       map[string]*listenerCandidate
 	listenerRetryStop        chan struct{}
-	scheduler                *scheduler.MetaScheduler
+	schedulerController      *scheduler.Controller
 	listenerStop             chan struct{}
 	healthListening          *health.Handle
 	newService               chan listeners.Service
@@ -134,7 +134,7 @@ func (l *listenerCandidate) try() (listeners.ServiceListener, error) {
 
 // newAutoConfig creates an AutoConfig instance and starts it.
 func newAutoConfig(deps dependencies) autodiscovery.Component {
-	ac := createNewAutoConfig(scheduler.NewMetaScheduler(), deps.Secrets, deps.WMeta, deps.TaggerComp)
+	ac := createNewAutoConfig(scheduler.NewController(), deps.Secrets, deps.WMeta, deps.TaggerComp)
 	deps.Lc.Append(fx.Hook{
 		OnStart: func(c context.Context) error {
 			ac.Start()
@@ -149,7 +149,7 @@ func newAutoConfig(deps dependencies) autodiscovery.Component {
 }
 
 // createNewAutoConfig creates an AutoConfig instance (without starting).
-func createNewAutoConfig(scheduler *scheduler.MetaScheduler, secretResolver secrets.Component, wmeta optional.Option[workloadmeta.Component], taggerComp tagger.Component) *AutoConfig {
+func createNewAutoConfig(schedulerController *scheduler.Controller, secretResolver secrets.Component, wmeta optional.Option[workloadmeta.Component], taggerComp tagger.Component) *AutoConfig {
 	cfgMgr := newReconcilingConfigManager(secretResolver)
 	ac := &AutoConfig{
 		configPollers:            make([]*configPoller, 0, 9),
@@ -161,7 +161,7 @@ func createNewAutoConfig(scheduler *scheduler.MetaScheduler, secretResolver secr
 		delService:               make(chan listeners.Service),
 		store:                    newStore(),
 		cfgMgr:                   cfgMgr,
-		scheduler:                scheduler,
+		schedulerController:      schedulerController,
 		ranOnce:                  atomic.NewBool(false),
 		serviceListenerFactories: make(map[string]listeners.ServiceListenerFactory),
 		providerCatalog:          make(map[string]providers.ConfigProviderFactory),
@@ -339,7 +339,7 @@ func (ac *AutoConfig) Stop() {
 	ac.listenerStop <- struct{}{}
 
 	// stop the meta scheduler
-	ac.scheduler.Stop()
+	ac.schedulerController.Stop()
 
 	ac.m.RLock()
 	defer ac.m.RUnlock()
@@ -537,12 +537,12 @@ func (ac *AutoConfig) retryListenerCandidates() {
 // unscheduled can be replayed with the replayConfigs flag.  This replay occurs
 // immediately, before the AddScheduler call returns.
 func (ac *AutoConfig) AddScheduler(name string, s scheduler.Scheduler, replayConfigs bool) {
-	ac.scheduler.Register(name, s, replayConfigs)
+	ac.schedulerController.Register(name, s, replayConfigs)
 }
 
 // RemoveScheduler allows to remove a scheduler from the AD system.
 func (ac *AutoConfig) RemoveScheduler(name string) {
-	ac.scheduler.Deregister(name)
+	ac.schedulerController.Deregister(name)
 }
 
 func (ac *AutoConfig) processRemovedConfigs(configs []integration.Config) {
@@ -648,19 +648,18 @@ func (ac *AutoConfig) GetAutodiscoveryErrors() map[string]map[string]providers.E
 func (ac *AutoConfig) applyChanges(changes integration.ConfigChanges) {
 	if len(changes.Unschedule) > 0 {
 		for _, conf := range changes.Unschedule {
+			log.Tracef("Unscheduling %s\n", conf.Dump(false))
 			telemetry.ScheduledConfigs.Dec(conf.Provider, configType(conf))
 		}
-
-		ac.scheduler.Unschedule(changes.Unschedule)
 	}
 
 	if len(changes.Schedule) > 0 {
 		for _, conf := range changes.Schedule {
+			log.Tracef("Scheduling %s\n", conf.Dump(false))
 			telemetry.ScheduledConfigs.Inc(conf.Provider, configType(conf))
 		}
-
-		ac.scheduler.Schedule(changes.Schedule)
 	}
+	ac.schedulerController.ApplyChanges(changes)
 }
 
 func (ac *AutoConfig) deleteMappingsOfCheckIDsWithSecrets(configs []integration.Config) {
@@ -728,5 +727,5 @@ func newOptionalAutoConfig(deps optionalModuleDeps) optional.Option[autodiscover
 		return optional.NewNoneOption[autodiscovery.Component]()
 	}
 	return optional.NewOption[autodiscovery.Component](
-		createNewAutoConfig(scheduler.NewMetaScheduler(), deps.Secrets, deps.WMeta, taggerComp))
+		createNewAutoConfig(scheduler.NewController(), deps.Secrets, deps.WMeta, taggerComp))
 }

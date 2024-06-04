@@ -281,6 +281,14 @@ func NewBufferedAggregator(s serializer.MetricSerializer, eventPlatformForwarder
 		agentName = flavor.HerokuAgent
 	}
 
+	if config.Datadog().GetBool("djm_config.enabled") {
+		AddRecurrentSeries(&metrics.Serie{
+			Name:   "datadog.djm.agent_host",
+			Points: []metrics.Point{{Value: 1.0}},
+			MType:  metrics.APIGaugeType,
+		})
+	}
+
 	tagsStore := tags.NewStore(config.Datadog().GetBool("aggregator_use_tags_store"), "aggregator")
 
 	aggregator := &BufferedAggregator{
