@@ -78,12 +78,10 @@ func configureSocketsEnv(ctx context.Context) error {
 	envFile := newFileMutator(envFilePath, setSocketEnvs, nil, nil)
 	defer envFile.cleanup()
 	rollback, err := envFile.mutate(ctx)
-	if err != nil {
-		if rollback != nil {
-			rollbackErr := rollback()
-			if rollbackErr != nil {
-				log.Warnf("Failed to rollback environment file: %v", rollbackErr)
-			}
+	if err != nil && rollback != nil {
+		rollbackErr := rollback()
+		if rollbackErr != nil {
+			log.Warnf("Failed to rollback environment file: %v", rollbackErr)
 		}
 		return fmt.Errorf("error configuring sockets: %w", err)
 	}

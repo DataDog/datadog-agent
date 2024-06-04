@@ -12,6 +12,7 @@ import (
 	"context"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/fleet/env"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -101,4 +102,60 @@ func TestRemoveLDPreloadConfig(t *testing.T) {
 	assert.NotNil(t, err)
 	assert.Equal(t, "", string(output))
 	assert.NotEqual(t, input, string(output))
+}
+
+func TestShouldInstrumentHost(t *testing.T) {
+	tests := []struct {
+		name     string
+		envValue string
+		expected bool
+	}{
+		{"Instrument all", "all", true},
+		{"Instrument host", "host", true},
+		{"Instrument docker", "docker", false},
+		{"Invalid value", "unknown", false},
+		{"not set", "not_set", true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			execEnvs := &env.Env{
+				InstallScript: env.InstallScriptEnv{
+					APMInstrumentationEnabled: tt.envValue,
+				},
+			}
+			result := shouldInstrumentHost(execEnvs)
+			if result != tt.expected {
+				t.Errorf("shouldInstrumentHost() with envValue %s; got %t, want %t", tt.envValue, result, tt.expected)
+			}
+		})
+	}
+}
+
+func TestShouldInstrumentDocker(t *testing.T) {
+	tests := []struct {
+		name     string
+		envValue string
+		expected bool
+	}{
+		{"Instrument all", "all", true},
+		{"Instrument host", "host", false},
+		{"Instrument docker", "docker", true},
+		{"Invalid value", "unknown", false},
+		{"not set", "not_set", true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			execEnvs := &env.Env{
+				InstallScript: env.InstallScriptEnv{
+					APMInstrumentationEnabled: tt.envValue,
+				},
+			}
+			result := shouldInstrumentDocker(execEnvs)
+			if result != tt.expected {
+				t.Errorf("shouldInstrumentDocker() with envValue %s; got %t, want %t", tt.envValue, result, tt.expected)
+			}
+		})
+	}
 }

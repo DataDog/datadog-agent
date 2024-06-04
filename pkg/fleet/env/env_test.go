@@ -29,6 +29,9 @@ func TestFromEnv(t *testing.T) {
 				RegistryAuthOverrideByImage:    map[string]string{},
 				DefaultPackagesInstallOverride: map[string]bool{},
 				DefaultPackagesVersionOverride: map[string]string{},
+				InstallScript: InstallScriptEnv{
+					APMInstrumentationEnabled: APMInstrumentationNotSet,
+				},
 			},
 		},
 		{
@@ -47,6 +50,7 @@ func TestFromEnv(t *testing.T) {
 				envDefaultPackageInstall + "_ANOTHER_PACKAGE": "false",
 				envDefaultPackageVersion + "_PACKAGE":         "1.2.3",
 				envDefaultPackageVersion + "_ANOTHER_PACKAGE": "4.5.6",
+				envApmInstrumentationEnabled:                  "all",
 			},
 			expected: &Env{
 				APIKey:               "123456",
@@ -70,6 +74,9 @@ func TestFromEnv(t *testing.T) {
 					"package":         "1.2.3",
 					"another-package": "4.5.6",
 				},
+				InstallScript: InstallScriptEnv{
+					APMInstrumentationEnabled: APMInstrumentationEnabledAll,
+				},
 			},
 		},
 	}
@@ -82,68 +89,6 @@ func TestFromEnv(t *testing.T) {
 			}
 			result := FromEnv()
 			assert.Equal(t, tt.expected, result)
-		})
-	}
-}
-
-func TestToEnv(t *testing.T) {
-	tests := []struct {
-		name     string
-		env      *Env
-		expected []string
-	}{
-		{
-			name:     "Empty configuration",
-			env:      &Env{},
-			expected: nil,
-		},
-		{
-			name: "All configuration set",
-			env: &Env{
-				APIKey:               "123456",
-				Site:                 "datadoghq.eu",
-				RemoteUpdates:        true,
-				RegistryOverride:     "registry.example.com",
-				RegistryAuthOverride: "auth",
-				RegistryOverrideByImage: map[string]string{
-					"image":         "another.registry.example.com",
-					"another-image": "yet.another.registry.example.com",
-				},
-				RegistryAuthOverrideByImage: map[string]string{
-					"image":         "another.auth",
-					"another-image": "yet.another.auth",
-				},
-				DefaultPackagesInstallOverride: map[string]bool{
-					"package":         true,
-					"another-package": false,
-				},
-				DefaultPackagesVersionOverride: map[string]string{
-					"package":         "1.2.3",
-					"another-package": "4.5.6",
-				},
-			},
-			expected: []string{
-				"DD_API_KEY=123456",
-				"DD_SITE=datadoghq.eu",
-				"DD_REMOTE_UPDATES=true",
-				"DD_INSTALLER_REGISTRY_URL=registry.example.com",
-				"DD_INSTALLER_REGISTRY_AUTH=auth",
-				"DD_INSTALLER_REGISTRY_URL_IMAGE=another.registry.example.com",
-				"DD_INSTALLER_REGISTRY_URL_ANOTHER_IMAGE=yet.another.registry.example.com",
-				"DD_INSTALLER_REGISTRY_AUTH_IMAGE=another.auth",
-				"DD_INSTALLER_REGISTRY_AUTH_ANOTHER_IMAGE=yet.another.auth",
-				"DD_INSTALLER_DEFAULT_PKG_INSTALL_PACKAGE=true",
-				"DD_INSTALLER_DEFAULT_PKG_INSTALL_ANOTHER_PACKAGE=false",
-				"DD_INSTALLER_DEFAULT_PKG_VERSION_PACKAGE=1.2.3",
-				"DD_INSTALLER_DEFAULT_PKG_VERSION_ANOTHER_PACKAGE=4.5.6",
-			},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result := tt.env.ToEnv()
-			assert.ElementsMatch(t, tt.expected, result)
 		})
 	}
 }
