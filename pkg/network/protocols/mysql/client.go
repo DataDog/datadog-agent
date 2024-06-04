@@ -33,8 +33,6 @@ type Client struct {
 
 // NewClient returns a new MySQL client.
 func NewClient(opts Options) (*Client, error) {
-	var err error
-
 	user := opts.Username
 	if user == "" {
 		user = User
