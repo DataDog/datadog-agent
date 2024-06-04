@@ -68,11 +68,17 @@ func (m *mapProvider) Shutdown(context.Context) error {
 
 // NewConfigProviderFromMap creates a service.ConfigProvider with a single constant provider `map`, built from a given *confmap.Conf.
 func NewConfigProviderFromMap(cfg *confmap.Conf) otelcol.ConfigProvider {
-	provider := &mapProvider{cfg}
+
 	settings := otelcol.ConfigProviderSettings{
 		ResolverSettings: confmap.ResolverSettings{
-			URIs:               []string{mapLocation},
-			ProviderFactories:  []confmap.ProviderFactory{confmap.NewProviderFactory(newMapProvider)},
+			URIs: []string{mapLocation},
+			ProviderFactories: []confmap.ProviderFactory{
+				confmap.NewProviderFactory(
+					func(_ confmap.ProviderSettings) confmap.Provider {
+						return &mapProvider{cfg: cfg}
+					},
+				),
+			},
 			ConverterFactories: []confmap.ConverterFactory{},
 		}}
 	cp, err := otelcol.NewConfigProvider(settings)
