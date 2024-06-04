@@ -535,11 +535,31 @@ int uprobe__http2_tls_headers_parser(struct pt_regs *ctx) {
     if (tail_call_state->iteration < HTTP2_MAX_FRAMES_ITERATIONS &&
         tail_call_state->iteration < tail_call_state->frames_count &&
         tail_call_state->iteration < HTTP2_TLS_MAX_FRAMES_FOR_HEADERS_PARSER) {
-        bpf_tail_call_compat(ctx, &tls_process_progs, TLS_HTTP2_HEADERS_PARSER);
+        pktbuf_tail_call_option_t tail_call_arr[] = {
+            [PKTBUF_SKB] = {
+                .prog_array_map = &protocols_progs,
+                .index = PROG_HTTP2_HEADERS_PARSER,
+            },
+            [PKTBUF_TLS] = {
+                .prog_array_map = &tls_process_progs,
+                .index = TLS_HTTP2_HEADERS_PARSER,
+            },
+        };
+        pktbuf_tail_call_compact(pkt, tail_call_arr);
     }
     // Zeroing the iteration index to call EOS parser
     tail_call_state->iteration = 0;
-    bpf_tail_call_compat(ctx, &tls_process_progs, TLS_HTTP2_DYNAMIC_TABLE_CLEANER);
+    pktbuf_tail_call_option_t tail_call_arr[] = {
+        [PKTBUF_SKB] = {
+            .prog_array_map = &protocols_progs,
+            .index = PROG_HTTP2_DYNAMIC_TABLE_CLEANER,
+        },
+        [PKTBUF_TLS] = {
+            .prog_array_map = &tls_process_progs,
+            .index = TLS_HTTP2_DYNAMIC_TABLE_CLEANER,
+        },
+    };
+    pktbuf_tail_call_compact(pkt, tail_call_arr);
 
 delete_iteration:
     // restoring the original value.
