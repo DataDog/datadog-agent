@@ -3,14 +3,10 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package redis
+package testutil
 
-// TLSSetting is an alias for bool to represent whether the connection should be
-// encrypted with TLS.
-type TLSSetting = bool
-
-// Constants to represent the different connection types.
+// Constants to represent whether the connection should be encrypted with TLSEnabled.
 const (
-	Plaintext = false
-	TLS       = true
+	TLSDisabled = false
+	TLSEnabled  = true
 )

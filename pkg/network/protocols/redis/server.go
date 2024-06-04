@@ -19,7 +19,7 @@ import (
 )
 
 // RunServer runs a Redis server in a docker container
-func RunServer(t testing.TB, serverAddr, serverPort string, withTLS TLSSetting) error {
+func RunServer(t testing.TB, serverAddr, serverPort string, enableTLS bool) error {
 	cert, _, err := testutil.GetCertsPaths()
 	require.NoError(t, err)
 	certsDir := filepath.Dir(cert)
@@ -30,7 +30,7 @@ func RunServer(t testing.TB, serverAddr, serverPort string, withTLS TLSSetting) 
 		"CERTS_PATH=" + certsDir,
 	}
 
-	if withTLS {
+	if enableTLS {
 		args := fmt.Sprintf("REDIS_ARGS=--tls-port %v --port 0 --tls-cert-file /certs/cert.pem.0 --tls-key-file /certs/server.key --tls-auth-clients no", serverPort)
 		env = append(env, args)
 	}
