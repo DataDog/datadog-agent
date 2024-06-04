@@ -930,7 +930,7 @@ namespace Datadog.CustomActions.Native
 
             MsiGetProductInfo(product, "VersionString", builder , ref len);
 
-            return builder.ToString(0, len);
+            return builder.ToString();
         }
 
         #endregion

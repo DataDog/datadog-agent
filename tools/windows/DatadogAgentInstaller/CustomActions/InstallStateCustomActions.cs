@@ -185,7 +185,7 @@ namespace Datadog.CustomActions
                 var compareResult = currentVersion.CompareTo(minimumVersion);
                 if (compareResult < 0) // currentVersion is less than minimumVersion
                 {
-                    _session["DDDRIVERROLLBACK"] = "0";
+                    _session["DDDRIVERROLLBACK"] = "";
                 }
                 else // currentVersion is not less than minimumVersion
                 {
