@@ -198,19 +198,22 @@ int kprobe__tcp_close(struct pt_regs *ctx) {
     conn_tuple_t t = {};
     u64 pid_tgid = bpf_get_current_pid_tgid();
     sk = (struct sock *)PT_REGS_PARM1(ctx);
-    bool failure = false;
+    bool skip_new_conn_create = false;
 
     // increment telemetry for connections that were never established
     if (bpf_map_delete_elem(&tcp_ongoing_connect_pid, &sk) == 0) {
         increment_telemetry_count(tcp_failed_connect);
+        if (!tcp_failed_connections_enabled()) {
+            return 0;
+        }
         log_debug("adamk kprobe/tcp_close entry found in failure map");
     }
 
-    // check if this connection was already flushed and bail if so
+    // check if this connection was already flushed and ensure we don't flush again
     if (bpf_map_delete_elem(&closed_conn_already_flushed, &sk) == 0) {
         increment_telemetry_count(double_flush_attempts_close);
         log_debug("adamk kprobe/tcp_close double flush attempt");
-        failure = true;
+        skip_new_conn_create = true;
     }
 
     // Get network namespace id
@@ -221,17 +224,13 @@ int kprobe__tcp_close(struct pt_regs *ctx) {
     }
     log_debug("kprobe/tcp_close: netns: %u, sport: %u, dport: %u", t.netns, t.sport, t.dport);
 
-    cleanup_conn(ctx, &t, sk, failure);
+    cleanup_conn(ctx, &t, sk, skip_new_conn_create);
 
     // If protocol classification is disabled, then we don't have kretprobe__tcp_close_clean_protocols hook
     // so, there is no one to use the map and clean it.
     if (is_protocol_classification_supported()) {
         bpf_map_update_with_telemetry(tcp_close_args, &pid_tgid, &t, BPF_ANY);
     }
-
-    // mark this connection as already flushed
-    // __u32 zero = 0;
-    // bpf_map_update_with_telemetry(closed_conn_already_flushed, &sk, &zero, BPF_ANY);
 
     return 0;
 }
@@ -244,12 +243,6 @@ int kprobe__tcp_done(struct pt_regs *ctx) {
     sk = (struct sock *)PT_REGS_PARM1(ctx);
     __u64 *failed_conn_pid = NULL;
     int err = 0;
-
-    // check if this connection was already flushed and bail if so
-    // if (bpf_map_delete_elem(&closed_conn_already_flushed, &sk) == 0) {
-    //     increment_telemetry_count(double_flush_attempts_done);
-    //     return 0;
-    // }
 
     bpf_probe_read_kernel_with_telemetry(&err, sizeof(err), (&sk->sk_err));
     if (err == 0 || !tcp_failed_connections_enabled()) {
@@ -270,7 +263,7 @@ int kprobe__tcp_done(struct pt_regs *ctx) {
     log_debug("adamk kprobe/tcp_done: netns: %u, sport: %u, dport: %u", t.netns, t.sport, t.dport);
 
     // connection timeouts will have 0 pids as they are cleaned up by an idle process.
-    // get the pid from the ongoing failure map in this case, as it should have been set in connect.
+    // get the pid from the ongoing failure map in this case, as it should have been set in connect().
     if (pid_tgid == 0) {
         failed_conn_pid = bpf_map_lookup_elem(&tcp_ongoing_connect_pid, &sk);
     }

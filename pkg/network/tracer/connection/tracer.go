@@ -246,9 +246,11 @@ func NewTracer(config *config.Config) (Tracer, error) {
 	var connCloseEventHandler ddebpf.EventHandler
 	var failedConnsHandler ddebpf.EventHandler
 	if config.RingBufferSupportedNPM() {
+		log.Errorf("Ringbuffer supported")
 		connCloseEventHandler = ddebpf.NewRingBufferHandler(closedChannelSize)
 		failedConnsHandler = ddebpf.NewRingBufferHandler(defaultFailedChannelSize)
 	} else {
+		log.Errorf("Ringbuffer not supported")
 		connCloseEventHandler = ddebpf.NewPerfHandler(closedChannelSize)
 		failedConnsHandler = ddebpf.NewPerfHandler(defaultFailedChannelSize)
 	}

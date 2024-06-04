@@ -200,6 +200,8 @@ func runFallbackTests(t *testing.T, desc string, coreErr, rcErr bool, tests []st
 		return nil, nil
 	}
 
+	//closeConnHandler := ddebpf.NewPerfHandler(1)
+
 	cfg := config.New()
 	for _, te := range tests {
 		t.Run(desc, func(t *testing.T) {
