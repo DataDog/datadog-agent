@@ -5,7 +5,7 @@
 
 //go:build !windows
 
-package installer
+package paths
 
 const (
 	// PackagesPath is the path to the packages directory.

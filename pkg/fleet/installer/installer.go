@@ -10,6 +10,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/fleet/internal/paths"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -72,17 +73,17 @@ func NewInstaller(env *env.Env) (Installer, error) {
 	if err != nil {
 		return nil, fmt.Errorf("could not ensure packages directory exists: %w", err)
 	}
-	db, err := db.New(filepath.Join(PackagesPath, "packages.db"), db.WithTimeout(10*time.Second))
+	db, err := db.New(filepath.Join(paths.PackagesPath, "packages.db"), db.WithTimeout(10*time.Second))
 	if err != nil {
 		return nil, fmt.Errorf("could not create packages db: %w", err)
 	}
 	return &installerImpl{
 		db:           db,
 		downloader:   oci.NewDownloader(env, http.DefaultClient),
-		repositories: repository.NewRepositories(PackagesPath, LocksPack),
-		configsDir:   DefaultConfigsDir,
-		tmpDirPath:   TmpDirPath,
-		packagesDir:  PackagesPath,
+		repositories: repository.NewRepositories(paths.PackagesPath, paths.LocksPack),
+		configsDir:   paths.DefaultConfigsDir,
+		tmpDirPath:   paths.TmpDirPath,
+		packagesDir:  paths.PackagesPath,
 	}, nil
 }
 
@@ -250,7 +251,7 @@ func (i *installerImpl) Purge(ctx context.Context) {
 
 	// remove all from disk
 	span, _ := tracer.StartSpanFromContext(ctx, "remove_all")
-	err = os.RemoveAll(PackagesPath)
+	err = os.RemoveAll(paths.PackagesPath)
 	defer span.Finish(tracer.WithError(err))
 	if err != nil {
 		log.Warnf("could not remove path: %v", err)
@@ -377,7 +378,7 @@ func checkAvailableDiskSpace(pkg *oci.DownloadedPackage, path string) error {
 }
 
 func ensurePackageDirExists() error {
-	err := os.MkdirAll(PackagesPath, 0755)
+	err := os.MkdirAll(paths.PackagesPath, 0755)
 	if err != nil {
 		return fmt.Errorf("error creating packages directory: %w", err)
 	}

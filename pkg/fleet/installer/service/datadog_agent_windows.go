@@ -11,7 +11,7 @@ package service
 import (
 	"context"
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/fleet/internal/winregistry"
+	"github.com/DataDog/datadog-agent/pkg/fleet/internal/paths"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
 	"os"
@@ -20,11 +20,7 @@ import (
 )
 
 func msiexec(target, operation string, args []string) (err error) {
-	programData, err := winregistry.GetProgramDataDirForProduct("Datadog Installer")
-	if err != nil {
-		return nil
-	}
-	updaterPath := filepath.Join(programData, "datadog-agent", target)
+	updaterPath := filepath.Join(paths.PackagesPath, "datadog-agent", target)
 	msis, err := filepath.Glob(filepath.Join(updaterPath, "datadog-agent-*-1-x86_64.msi"))
 	if err != nil {
 		return nil
@@ -35,7 +31,7 @@ func msiexec(target, operation string, args []string) (err error) {
 		return fmt.Errorf("no MSIs in package")
 	}
 
-	tmpDir, err := os.MkdirTemp(os.TempDir(), fmt.Sprintf("install-%s-*", filepath.Base(msis[0])))
+	tmpDir, err := os.MkdirTemp(paths.TmpDirPath, fmt.Sprintf("install-%s-*", filepath.Base(msis[0])))
 	if err != nil {
 		return fmt.Errorf("could not create temporary directory: %w", err)
 	}

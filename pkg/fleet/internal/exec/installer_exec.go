@@ -10,12 +10,13 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/fleet/internal/paths"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"os"
 	"os/exec"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/env"
-	"github.com/DataDog/datadog-agent/pkg/fleet/installer"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
 	"github.com/DataDog/datadog-agent/pkg/fleet/telemetry"
 	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
@@ -146,12 +147,14 @@ func (i *InstallerExec) DefaultPackages(ctx context.Context) (_ []string, err er
 
 // State returns the state of a package.
 func (i *InstallerExec) State(pkg string) (repository.State, error) {
-	repositories := repository.NewRepositories(installer.PackagesPath, installer.LocksPack)
+	repositories := repository.NewRepositories(paths.PackagesPath, paths.LocksPack)
 	return repositories.Get(pkg).GetState()
 }
 
 // States returns the states of all packages.
 func (i *InstallerExec) States() (map[string]repository.State, error) {
-	repositories := repository.NewRepositories(installer.PackagesPath, installer.LocksPack)
-	return repositories.GetState()
+	repositories := repository.NewRepositories(paths.PackagesPath, paths.LocksPack)
+	states, err := repositories.GetState()
+	log.Debugf("repositories states: %v", states)
+	return states, err
 }

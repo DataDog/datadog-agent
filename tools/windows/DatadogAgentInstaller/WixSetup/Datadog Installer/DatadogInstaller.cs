@@ -74,8 +74,13 @@ namespace WixSetup.Datadog_Installer
                             Vital = true
                         })
                 ),
-                // This is where the installer will store the packages
-                new Dir(new Id("DatadogInstallerData"), @"%CommonAppDataFolder%\Datadog Installer"));
+                // This is where the installer will store its data
+                new Dir(new Id("DatadogInstallerData"), @"%CommonAppDataFolder%\Datadog Installer",
+                    new Dir("packages"),
+                    new Dir("temp"),
+                    new Dir("locks")
+                    )
+                );
 
             // Always generate a new GUID otherwise WixSharp will generate one based on
             // the version
