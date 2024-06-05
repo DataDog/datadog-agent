@@ -14,7 +14,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
-	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/sbom"
 
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
