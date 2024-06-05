@@ -5,6 +5,7 @@
 
 //go:build !windows
 
+// Package paths defines commonly used paths throughout the installer
 package paths
 
 const (
