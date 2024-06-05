@@ -189,7 +189,9 @@ def auto_cancel_previous_pipelines(ctx):
         is_ancestor = ctx.run(f'git merge-base --is-ancestor {pipeline.sha} {git_sha}', warn=True, hide="both")
         if is_ancestor.exited == 0:
             print(f'Gracefully canceling jobs that are not canceled on pipeline {pipeline.id} ({pipeline.web_url})')
-            gracefully_cancel_pipeline(repo, pipeline, force_cancel_stages=["package_build"])
+            gracefully_cancel_pipeline(
+                repo, pipeline, force_cancel_stages=["package_build", "kernel_matrix_testing_prepare"]
+            )
         elif is_ancestor.exited == 1:
             print(f'{pipeline.sha} is not an ancestor of {git_sha}, not cancelling pipeline {pipeline.id}')
         elif is_ancestor.exited == 128:
@@ -203,7 +205,9 @@ def auto_cancel_previous_pipelines(ctx):
                 print(
                     f'Pipeline started earlier than {min_time_before_cancel} minutes ago, gracefully canceling pipeline {pipeline.id}'
                 )
-                gracefully_cancel_pipeline(repo, pipeline, force_cancel_stages=["package_build"])
+                gracefully_cancel_pipeline(
+                    repo, pipeline, force_cancel_stages=["package_build", "kernel_matrix_testing_prepare"]
+                )
         else:
             print(is_ancestor.stderr)
             raise Exit(1)
