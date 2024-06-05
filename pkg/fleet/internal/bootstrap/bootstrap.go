@@ -22,11 +22,15 @@ const (
 	installerPackage = "datadog-installer"
 	installerBinPath = "bin/installer/installer"
 
-	rootTmpDir = "/opt/datadog-installer/run"
+	rootTmpDir = "/opt/datadog-installer/tmp"
 )
 
 // Install self-installs the installer package from the given URL.
 func Install(ctx context.Context, env *env.Env, url string) error {
+	err := os.MkdirAll(rootTmpDir, 0755)
+	if err != nil {
+		return fmt.Errorf("failed to create temporary directory: %w", err)
+	}
 	tmpDir, err := os.MkdirTemp(rootTmpDir, "")
 	if err != nil {
 		return fmt.Errorf("failed to create temporary directory: %w", err)
@@ -41,6 +45,10 @@ func Install(ctx context.Context, env *env.Env, url string) error {
 
 // InstallExperiment self-installs the installer package from the given URL as an experiment.
 func InstallExperiment(ctx context.Context, env *env.Env, url string) error {
+	err := os.MkdirAll(rootTmpDir, 0755)
+	if err != nil {
+		return fmt.Errorf("failed to create temporary directory: %w", err)
+	}
 	tmpDir, err := os.MkdirTemp(rootTmpDir, "")
 	if err != nil {
 		return fmt.Errorf("failed to create temporary directory: %w", err)
