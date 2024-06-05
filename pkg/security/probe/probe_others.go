@@ -85,6 +85,11 @@ func (p *Probe) IsNetworkEnabled() bool {
 	return p.Config.Probe.NetworkEnabled
 }
 
+// IsNetworkIngressEnabled returns whether network is enabled
+func (p *Probe) IsNetworkIngressEnabled() bool {
+	return p.Config.Probe.NetworkIngressEnabled
+}
+
 // IsActivityDumpEnabled returns whether activity dump is enabled
 func (p *Probe) IsActivityDumpEnabled() bool {
 	return p.Config.RuntimeSecurity.ActivityDumpEnabled

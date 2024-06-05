@@ -483,7 +483,10 @@ func (e *RuleEngine) getEventTypeEnabled() map[eval.EventType]bool {
 	if e.probe.IsNetworkEnabled() {
 		if eventTypes, exists := categories[model.NetworkCategory]; exists {
 			for _, eventType := range eventTypes {
-				enabled[eventType] = true
+				// imds is a special event type in that it requires network ingress
+				if eventType != "imds" || e.probe.IsNetworkIngressEnabled() {
+					enabled[eventType] = true
+				}
 			}
 		}
 	}
