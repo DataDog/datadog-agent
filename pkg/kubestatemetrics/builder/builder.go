@@ -12,10 +12,10 @@ import (
 	"reflect"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/kubestatemetrics/store"
-
 	"github.com/prometheus/client_golang/prometheus"
 	corev1 "k8s.io/api/core/v1"
+	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	vpaclientset "k8s.io/autoscaler/vertical-pod-autoscaler/pkg/client/clientset/versioned"
 	clientset "k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/cache"
@@ -26,6 +26,9 @@ import (
 	metricsstore "k8s.io/kube-state-metrics/v2/pkg/metrics_store"
 	"k8s.io/kube-state-metrics/v2/pkg/options"
 	"k8s.io/kube-state-metrics/v2/pkg/watch"
+
+	"github.com/DataDog/datadog-agent/pkg/kubestatemetrics/store"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // Builder struct represents the metric store generator
@@ -41,8 +44,6 @@ type Builder struct {
 	ctx                   context.Context
 	allowDenyList         generator.FamilyGeneratorFilter
 	metrics               *watch.ListWatchMetrics
-	shard                 int32
-	totalShards           int
 
 	resync time.Duration
 }
@@ -71,13 +72,6 @@ func (b *Builder) WithFamilyGeneratorFilter(l generator.FamilyGeneratorFilter) {
 func (b *Builder) WithFieldSelectorFilter(fieldSelectors string) {
 	b.fieldSelectorFilter = fieldSelectors
 	b.ksmBuilder.WithFieldSelectorFilter(fieldSelectors)
-}
-
-// WithSharding sets the shard and totalShards property of a Builder.
-func (b *Builder) WithSharding(shard int32, totalShards int) {
-	b.shard = shard
-	b.totalShards = totalShards
-	b.ksmBuilder.WithSharding(shard, totalShards)
 }
 
 // WithKubeClient sets the kubeClient property of a Builder.
@@ -157,6 +151,12 @@ func (b *Builder) WithResync(r time.Duration) {
 	b.resync = r
 }
 
+// WithUsingAPIServerCache sets the API server cache usage
+func (b *Builder) WithUsingAPIServerCache(u bool) {
+	log.Debug("Using API server cache")
+	b.ksmBuilder.WithUsingAPIServerCache(u)
+}
+
 // GenerateStores is used to generate new Metrics Store for Metrics Families
 func GenerateStores[T any](
 	b *Builder,
@@ -164,7 +164,7 @@ func GenerateStores[T any](
 	expectedType interface{},
 	client T,
 	listWatchFunc func(kubeClient T, ns string, fieldSelector string) cache.ListerWatcher,
-	useAPIServerCache bool, //nolint:revive // TODO fix revive unused-parameter
+	useAPIServerCache bool,
 ) []cache.Store {
 	filteredMetricFamilies := generator.FilterFamilyGenerators(b.allowDenyList, metricFamilies)
 	composedMetricGenFuncs := generator.ComposeMetricGenFuncs(filteredMetricFamilies)
@@ -172,7 +172,7 @@ func GenerateStores[T any](
 	if b.namespaces.IsAllNamespaces() {
 		store := store.NewMetricsStore(composedMetricGenFuncs, reflect.TypeOf(expectedType).String())
 		listWatcher := listWatchFunc(client, corev1.NamespaceAll, b.fieldSelectorFilter)
-		b.startReflector(expectedType, store, listWatcher)
+		b.startReflector(expectedType, store, listWatcher, useAPIServerCache)
 		return []cache.Store{store}
 
 	}
@@ -181,7 +181,7 @@ func GenerateStores[T any](
 	for _, ns := range b.namespaces {
 		store := store.NewMetricsStore(composedMetricGenFuncs, reflect.TypeOf(expectedType).String())
 		listWatcher := listWatchFunc(client, ns, b.fieldSelectorFilter)
-		b.startReflector(expectedType, store, listWatcher)
+		b.startReflector(expectedType, store, listWatcher, useAPIServerCache)
 		stores = append(stores, store)
 	}
 
@@ -228,7 +228,25 @@ func (b *Builder) startReflector(
 	expectedType interface{},
 	store cache.Store,
 	listWatcher cache.ListerWatcher,
+	useApiServerCache bool,
 ) {
+	if useApiServerCache {
+		listWatcher = &cacheEnabledListerWatcher{ListerWatcher: listWatcher}
+	}
 	reflector := cache.NewReflector(listWatcher, expectedType, store, b.resync*time.Second)
 	go reflector.Run(b.ctx.Done())
+}
+
+type cacheEnabledListerWatcher struct {
+	cache.ListerWatcher
+}
+
+// List uses a resource version of "0" to list all resources.
+// The implementation is required to avoid a quorum from ETCD.
+// https://github.com/kubernetes/kubernetes/blob/dae37c21645c0fc04bbb0202ad1eba6ba4438d23/staging/src/k8s.io/apiserver/pkg/storage/cacher/cacher.go#L526-L527
+// Refer to https://github.com/kubernetes/kube-state-metrics/blob/7995d5fd23bcff7ae24ab6849f7c393d262fb025/pkg/watch/watch.go#L77
+func (c *cacheEnabledListerWatcher) List(options v1.ListOptions) (runtime.Object, error) {
+	log.Infof("debug ok")
+	options.ResourceVersion = "0"
+	return c.ListerWatcher.List(options)
 }
