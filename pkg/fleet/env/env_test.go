@@ -140,7 +140,7 @@ func TestToEnv(t *testing.T) {
 				"DD_REMOTE_UPDATES=true",
 				"DD_INSTALLER_REGISTRY_URL=registry.example.com",
 				"DD_INSTALLER_REGISTRY_AUTH=auth",
-				"DD_APM_INSTRUMENTATION_LIBRARIES=java,dotnet:latest,ruby:1.2",
+				"DD_APM_INSTRUMENTATION_LIBRARIES=dotnet:latest,java,ruby:1.2",
 				"DD_INSTALLER_REGISTRY_URL_IMAGE=another.registry.example.com",
 				"DD_INSTALLER_REGISTRY_URL_ANOTHER_IMAGE=yet.another.registry.example.com",
 				"DD_INSTALLER_REGISTRY_AUTH_IMAGE=another.auth",

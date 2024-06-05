@@ -90,7 +90,7 @@ func TestDefaultPackages(t *testing.T) {
 		},
 		{
 			name:     "Package released but condition not met",
-			packages: []defaultPackage{{name: "datadog-agent", released: true, condition: func(e *env.Env) bool { return false }}},
+			packages: []defaultPackage{{name: "datadog-agent", released: true, condition: func(defaultPackage, *env.Env) bool { return false }}},
 			env:      &env.Env{},
 			expected: nil,
 		},
@@ -111,6 +111,45 @@ func TestDefaultPackages(t *testing.T) {
 			packages: []defaultPackage{{name: "datadog-agent", released: true}},
 			env:      &env.Env{DefaultPackagesInstallOverride: map[string]bool{"datadog-agent": false}},
 			expected: nil,
+		},
+		{
+			name: "Package is a language with a pinned version",
+			packages: []defaultPackage{
+				{name: "datadog-apm-library-java", released: true, condition: apmLanguageEnabled},
+				{name: "datadog-apm-library-ruby", released: true, condition: apmLanguageEnabled},
+				{name: "datadog-apm-library-js", released: true, condition: apmLanguageEnabled},
+			},
+			env: &env.Env{
+				ApmLibraries: map[env.ApmLibLanguage]env.ApmLibVersion{
+					"java": "1.0",
+					"ruby": "",
+				},
+				InstallScript: env.InstallScriptEnv{
+					APMInstrumentationEnabled: "all",
+				},
+			},
+			expected: []pkg{{n: "datadog-apm-library-java", v: "1.0-1"}, {n: "datadog-apm-library-ruby", v: "latest"}},
+		},
+		{
+			name: "Package is a language with a pinned version",
+			packages: []defaultPackage{
+				{name: "datadog-apm-library-java", released: true, condition: apmLanguageEnabled},
+				{name: "datadog-apm-library-ruby", released: true, condition: apmLanguageEnabled},
+				{name: "datadog-apm-library-js", released: true, condition: apmLanguageEnabled},
+			},
+			env: &env.Env{
+				ApmLibraries: map[env.ApmLibLanguage]env.ApmLibVersion{
+					"all": "",
+				},
+				InstallScript: env.InstallScriptEnv{
+					APMInstrumentationEnabled: "all",
+				},
+			},
+			expected: []pkg{
+				{n: "datadog-apm-library-java", v: "latest"},
+				{n: "datadog-apm-library-ruby", v: "latest"},
+				{n: "datadog-apm-library-js", v: "latest"},
+			},
 		},
 	}
 

@@ -7,6 +7,7 @@ package installer
 
 import (
 	"slices"
+	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/env"
 	"github.com/DataDog/datadog-agent/pkg/fleet/internal/oci"
@@ -17,25 +18,17 @@ type defaultPackage struct {
 	released                  bool
 	releasedBySite            []string
 	releasedWithRemoteUpdates bool
-	condition                 func(*env.Env) bool
+	condition                 func(defaultPackage, *env.Env) bool
 }
 
 var defaultPackagesList = []defaultPackage{
 	{name: "datadog-apm-inject", released: false, condition: apmInjectEnabled},
-	{name: "datadog-apm-library-java", released: false, condition: apmInjectEnabled},
-	{name: "datadog-apm-library-ruby", released: false, condition: apmInjectEnabled},
-	{name: "datadog-apm-library-js", released: false, condition: apmInjectEnabled},
-	{name: "datadog-apm-library-dotnet", released: false, condition: apmInjectEnabled},
-	{name: "datadog-apm-library-python", released: false, condition: apmInjectEnabled},
+	{name: "datadog-apm-library-java", released: false, condition: apmLanguageEnabled},
+	{name: "datadog-apm-library-ruby", released: false, condition: apmLanguageEnabled},
+	{name: "datadog-apm-library-js", released: false, condition: apmLanguageEnabled},
+	{name: "datadog-apm-library-dotnet", released: false, condition: apmLanguageEnabled},
+	{name: "datadog-apm-library-python", released: false, condition: apmLanguageEnabled},
 	{name: "datadog-agent", released: false, releasedWithRemoteUpdates: true},
-}
-
-var languageToPackage = map[string]env.ApmLibLanguage{
-	"datadog-apm-library-java":   "java",
-	"datadog-apm-library-ruby":   "ruby",
-	"datadog-apm-library-js":     "js",
-	"datadog-apm-library-dotnet": "dotnet",
-	"datadog-apm-library-python": "python",
 }
 
 // DefaultPackages resolves the default packages URLs to install based on the environment.
@@ -48,7 +41,7 @@ func defaultPackages(env *env.Env, defaultPackages []defaultPackage) []string {
 	for _, p := range defaultPackages {
 		released := p.released || slices.Contains(p.releasedBySite, env.Site) || (p.releasedWithRemoteUpdates && env.RemoteUpdates)
 		installOverride, isOverridden := env.DefaultPackagesInstallOverride[p.name]
-		condition := p.condition == nil || p.condition(env)
+		condition := p.condition == nil || p.condition(p, env)
 
 		shouldInstall := released && condition
 		if isOverridden {
@@ -61,8 +54,9 @@ func defaultPackages(env *env.Env, defaultPackages []defaultPackage) []string {
 		version := "latest"
 
 		// Respect pinned version of APM packages if we don't define any overwrite
-		if apmLibVersion, ok := env.ApmLibraries[languageToPackage[p.name]]; ok {
+		if apmLibVersion, ok := env.ApmLibraries[packageToLanguage(p.name)]; ok {
 			version = apmLibVersion.AsVersionTag()
+			// TODO(paullgdc): Emit a warning here if APM packages are not pinned to at least a major
 		}
 
 		if v, ok := env.DefaultPackagesVersionOverride[p.name]; ok {
@@ -74,10 +68,31 @@ func defaultPackages(env *env.Env, defaultPackages []defaultPackage) []string {
 	return packages
 }
 
-func apmInjectEnabled(e *env.Env) bool {
+func apmInjectEnabled(p defaultPackage, e *env.Env) bool {
 	switch e.InstallScript.APMInstrumentationEnabled {
 	case env.APMInstrumentationEnabledAll, env.APMInstrumentationEnabledDocker, env.APMInstrumentationEnabledHost:
 		return true
 	}
 	return false
+}
+
+func apmLanguageEnabled(p defaultPackage, e *env.Env) bool {
+	if !apmInjectEnabled(p, e) {
+		return false
+	}
+	if _, ok := e.ApmLibraries[packageToLanguage(p.name)]; ok {
+		return true
+	}
+	if _, ok := e.ApmLibraries["all"]; ok {
+		return true
+	}
+	return false
+}
+
+func packageToLanguage(packageName string) env.ApmLibLanguage {
+	lang, found := strings.CutPrefix(packageName, "datadog-apm-library-")
+	if !found {
+		return ""
+	}
+	return env.ApmLibLanguage(lang)
 }

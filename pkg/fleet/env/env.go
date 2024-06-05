@@ -9,6 +9,7 @@ package env
 import (
 	"fmt"
 	"os"
+	"slices"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -44,10 +45,10 @@ var defaultEnv = Env{
 	},
 }
 
-// ApmLibLanguage is a language defined in DD_APM_INSTRUMENTATION_LIBRARIES en var
+// ApmLibLanguage is a language defined in DD_APM_INSTRUMENTATION_LIBRARIES env var
 type ApmLibLanguage string
 
-// ApmLibVersion is the version of the library defined in DD_APM_INSTRUMENTATION_LIBRARIES en var
+// ApmLibVersion is the version of the library defined in DD_APM_INSTRUMENTATION_LIBRARIES env var
 type ApmLibVersion string
 
 // AsVersionTag returns the version tag associated with the version of the library defined in DD_APM_INSTRUMENTATION_LIBRARIES
@@ -129,19 +130,16 @@ func (e *Env) ToEnv() []string {
 		env = append(env, envRegistryAuth+"="+e.RegistryAuthOverride)
 	}
 	if len(e.ApmLibraries) > 0 {
-		b := strings.Builder{}
-		b.WriteString(envApmLibraries)
-		b.WriteString("=")
+		libraries := []string{}
 		for l, v := range e.ApmLibraries {
-			b.WriteString(string(l))
+			l := string(l)
 			if v != "" {
-				b.WriteString(":")
-				b.WriteString(string(v))
+				l = l + ":" + string(v)
 			}
-			b.WriteString(",")
+			libraries = append(libraries, l)
 		}
-		envVar := b.String()
-		env = append(env, envVar[:len(envVar)-1])
+		slices.Sort(libraries)
+		env = append(env, envApmLibraries+"="+strings.Join(libraries, ","))
 	}
 	env = append(env, overridesByNameToEnv(envRegistryURL, e.RegistryOverrideByImage)...)
 	env = append(env, overridesByNameToEnv(envRegistryAuth, e.RegistryAuthOverrideByImage)...)
@@ -152,15 +150,6 @@ func (e *Env) ToEnv() []string {
 
 func parseApmLibrariesEnv() map[ApmLibLanguage]ApmLibVersion {
 	apmLibraries := os.Getenv(envApmLibraries)
-	if apmLibraries == "all" {
-		return map[ApmLibLanguage]ApmLibVersion{
-			"java":   "latest",
-			"ruby":   "latest",
-			"js":     "latest",
-			"dotnet": "latest",
-			"python": "latest",
-		}
-	}
 	apmLibrariesVersion := map[ApmLibLanguage]ApmLibVersion{}
 	rest := apmLibraries
 	for rest != "" {
