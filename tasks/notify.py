@@ -513,11 +513,12 @@ def send_failure_summary_notification(
         period = 'Daily' if not allowed_to_fail else 'Weekly'
         duration = '24 hours' if not allowed_to_fail else 'week'
         delta = timedelta(days=1) if not allowed_to_fail else timedelta(weeks=1)
+        you_own = ' you own' if channel != '#agent-platform-ops' else ''
 
         message = [f'*{period} Job Failure Report*']
         # TODO
         message.append(f'TO: *{channel}*')
-        message.append(f'These {not_allowed_word}allowed to fail jobs you own had the most failures in the last {duration}:')
+        message.append(f'These {not_allowed_word}allowed to fail jobs{you_own} had the most failures in the last {duration}:')
 
         for name, fail in stats:
             link = CI_VISIBILITY_JOB_URL.format(quote(name))
@@ -540,8 +541,6 @@ def send_failure_summary_notification(
 
     # Send full message to #agent-platform-ops
     send_summary('#agent-platform-ops', stats[:list_max_len])
-    # TODO
-    # send_summary('#celian-tests', stats[:list_max_len])
 
     print('Messages sent')
 
