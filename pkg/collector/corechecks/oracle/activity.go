@@ -179,13 +179,12 @@ func (c *Check) SampleSession() error {
 	} else {
 		activityQuery = activityQueryDirect
 	}
-	activityQuery = strings.ReplaceAll(activityQuery, "{sql_substr_length}", fmt.Sprintf("%d", maxSQLTextLength))
 
 	if c.config.QuerySamples.IncludeAllSessions {
 		activityQuery = fmt.Sprintf("%s %s", activityQuery, " OR 1=1")
 	}
 
-	err := selectWrapper(c, &sessionSamples, activityQuery)
+	err := selectWrapper(c, &sessionSamples, activityQuery, maxSQLTextLength, maxSQLTextLength)
 
 	if err != nil {
 		if strings.Contains(fmt.Sprintf("%s", err), "character string buffer too small") {
