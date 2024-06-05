@@ -56,16 +56,15 @@ func TestStackManager(t *testing.T) {
 			events: []datadogV1.EventCreateRequest{},
 		}
 		stackName := "test-successful"
-		stack, result, err := stackManager.GetStackNoDeleteOnFailure(GetStackArgs{
-			Context: ctx,
-			Name:    stackName,
-			DeployFunc: func(ctx *pulumi.Context) error {
+		stack, result, err := stackManager.GetStackNoDeleteOnFailure(
+			ctx,
+			stackName,
+			func(ctx *pulumi.Context) error {
 				return nil
 			},
-			FailOnMissing:      false,
-			LogWriter:          mockWriter,
-			DatadogEventSender: mockDatadogEventSender,
-		})
+			WithLogWriter(mockWriter),
+			WithDatadogEventSender(mockDatadogEventSender),
+		)
 		require.NoError(t, err)
 		require.NotNil(t, stack)
 		defer func() {
@@ -93,20 +92,19 @@ func TestStackManager(t *testing.T) {
 				}
 				stackUpCounter := 0
 				stackName := fmt.Sprintf("test-retry-%d", errCount)
-				stack, result, err := stackManager.GetStackNoDeleteOnFailure(GetStackArgs{
-					Context: ctx,
-					Name:    stackName,
-					DeployFunc: func(ctx *pulumi.Context) error {
+				stack, result, err := stackManager.GetStackNoDeleteOnFailure(
+					ctx,
+					stackName,
+					func(ctx *pulumi.Context) error {
 						stackUpCounter++
 						if stackUpCounter > errCount {
 							return nil
 						}
 						return fmt.Errorf("error %d", stackUpCounter)
 					},
-					FailOnMissing:      false,
-					LogWriter:          mockWriter,
-					DatadogEventSender: mockDatadogEventSender,
-				})
+					WithLogWriter(mockWriter),
+					WithDatadogEventSender(mockDatadogEventSender),
+				)
 				require.NoError(t, err)
 				require.NotNil(t, stack)
 				defer func() {
@@ -140,17 +138,16 @@ func TestStackManager(t *testing.T) {
 		}
 		stackUpCounter := 0
 		stackName := "test-retry-failure"
-		stack, result, err := stackManager.GetStackNoDeleteOnFailure(GetStackArgs{
-			Context: ctx,
-			Name:    stackName,
-			DeployFunc: func(ctx *pulumi.Context) error {
+		stack, result, err := stackManager.GetStackNoDeleteOnFailure(
+			ctx,
+			stackName,
+			func(ctx *pulumi.Context) error {
 				stackUpCounter++
 				return fmt.Errorf("error %d", stackUpCounter)
 			},
-			FailOnMissing:      false,
-			LogWriter:          mockWriter,
-			DatadogEventSender: mockDatadogEventSender,
-		})
+			WithLogWriter(mockWriter),
+			WithDatadogEventSender(mockDatadogEventSender),
+		)
 		assert.Error(t, err)
 		assert.ErrorIs(t, err, internalError{}, "should be an internal error")
 		require.NotNil(t, stack)
@@ -187,11 +184,10 @@ func TestStackManager(t *testing.T) {
 		// override stackUpTimeout to 10s
 		// average up time with an dummy run function is 5s
 		stackUpTimeout := 10 * time.Second
-		stack, result, err := stackManager.GetStackNoDeleteOnFailure(GetStackArgs{
-			Context:   ctx,
-			Name:      stackName,
-			UpTimeout: stackUpTimeout,
-			DeployFunc: func(ctx *pulumi.Context) error {
+		stack, result, err := stackManager.GetStackNoDeleteOnFailure(
+			ctx,
+			stackName,
+			func(ctx *pulumi.Context) error {
 				if stackUpCounter == 0 {
 					// sleep only first time to ensure context is cancelled
 					// on timeout
@@ -201,10 +197,10 @@ func TestStackManager(t *testing.T) {
 				stackUpCounter++
 				return nil
 			},
-			FailOnMissing:      false,
-			LogWriter:          mockWriter,
-			DatadogEventSender: mockDatadogEventSender,
-		})
+			WithLogWriter(mockWriter),
+			WithDatadogEventSender(mockDatadogEventSender),
+			WithUpTimeout(stackUpTimeout),
+		)
 
 		assert.NoError(t, err)
 		require.NotNil(t, stack)

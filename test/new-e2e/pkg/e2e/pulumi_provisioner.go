@@ -68,16 +68,15 @@ func (pp *PulumiProvisioner[Env]) Provision(ctx context.Context, stackName strin
 
 // ProvisionEnv runs the Pulumi program with a given environment and returns the raw resources.
 func (pp *PulumiProvisioner[Env]) ProvisionEnv(ctx context.Context, stackName string, logger io.Writer, env *Env) (RawResources, error) {
-	_, stackOutput, err := infra.GetStackManager().GetStackNoDeleteOnFailure(infra.GetStackArgs{
-		Context: ctx,
-		Name:    stackName,
-		Config:  pp.configMap,
-		DeployFunc: func(ctx *pulumi.Context) error {
+	_, stackOutput, err := infra.GetStackManager().GetStackNoDeleteOnFailure(
+		ctx,
+		stackName,
+		func(ctx *pulumi.Context) error {
 			return pp.runFunc(ctx, env)
 		},
-		FailOnMissing: false,
-		LogWriter:     logger,
-	})
+		infra.WithConfigMap(pp.configMap),
+		infra.WithLogWriter(logger),
+	)
 
 	if err != nil {
 		return nil, err

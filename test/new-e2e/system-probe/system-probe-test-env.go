@@ -252,18 +252,18 @@ func NewTestEnv(name, x86InstanceType, armInstanceType string, opts *EnvOpts) (*
 			config["ddinfra:aws/defaultSubnets"] = auto.ConfigValue{Value: az}
 		}
 
-		pulumiStack, upResult, err = stackManager.GetStackNoDeleteOnFailure(infra.GetStackArgs{
-			Context: systemProbeTestEnv.context,
-			Name:    systemProbeTestEnv.name,
-			Config:  config,
-			DeployFunc: func(ctx *pulumi.Context) error {
+		pulumiStack, upResult, err = stackManager.GetStackNoDeleteOnFailure(
+			systemProbeTestEnv.context,
+			systemProbeTestEnv.name,
+			func(ctx *pulumi.Context) error {
 				if err := microvms.Run(ctx); err != nil {
 					return fmt.Errorf("setup micro-vms in remote instance: %w", err)
 				}
 				return nil
 			},
-			FailOnMissing: opts.FailOnMissing,
-		})
+			infra.WithFailOnMissing(opts.FailOnMissing),
+			infra.WithConfigMap(config),
+		)
 
 		if err != nil {
 			return handleScenarioFailure(err, func(possibleError handledError) {

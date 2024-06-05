@@ -78,13 +78,12 @@ func (suite *k8sSuite) SetupSuite() {
 			fmt.Fprint(os.Stderr, err.Error())
 		}
 	}
-	_, stackOutput, err := infra.GetStackManager().GetStackNoDeleteOnFailure(infra.GetStackArgs{
-		Context:       ctx,
-		Name:          "orch-kind-cluster",
-		Config:        stackConfig,
-		DeployFunc:    Apply,
-		FailOnMissing: false,
-	})
+	_, stackOutput, err := infra.GetStackManager().GetStackNoDeleteOnFailure(
+		ctx,
+		"orch-kind-cluster",
+		Apply,
+		infra.WithConfigMap(stackConfig),
+	)
 
 	suite.printKubeConfig(stackOutput)
 
