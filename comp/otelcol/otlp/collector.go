@@ -223,7 +223,7 @@ func NewPipeline(cfg PipelineConfig, s serializer.MetricSerializer, logsAgentCha
 		DisableGracefulShutdown: true,
 		ConfigProviderSettings: otelcol.ConfigProviderSettings{
 			ResolverSettings: confmap.ResolverSettings{
-				URIs: []string{fmt.Sprintf("map:%s", "hardcoded")},
+				URIs: []string{"map:hardcoded"},
 				ProviderFactories: []confmap.ProviderFactory{
 					configutils.NewProviderFactory(cfgMap),
 				},

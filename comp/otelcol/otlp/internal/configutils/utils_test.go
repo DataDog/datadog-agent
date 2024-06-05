@@ -56,7 +56,7 @@ func TestNewConfigProviderFromMap(t *testing.T) {
 
 	mapSettings := otelcol.ConfigProviderSettings{
 		ResolverSettings: confmap.ResolverSettings{
-			URIs: []string{fmt.Sprintf("map:%s", "hardcoded")},
+			URIs: []string{mapLocation},
 			ProviderFactories: []confmap.ProviderFactory{
 				NewProviderFactory(cfgMap),
 			},

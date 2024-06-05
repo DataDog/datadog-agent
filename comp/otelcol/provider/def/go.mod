@@ -2,7 +2,7 @@ module github.com/DataDog/datadog-agent/comp/otelcol/provider/def
 
 go 1.21.0
 
-require go.opentelemetry.io/collector/confmap v0.102.0
+require go.opentelemetry.io/collector/confmap v0.102.1
 
 require (
 	github.com/go-viper/mapstructure/v2 v2.0.0-alpha.1 // indirect
