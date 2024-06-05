@@ -18,6 +18,7 @@ if DEFINED GOMODCACHE set OMNIBUS_ARGS=%OMNIBUS_ARGS% --go-mod-cache %GOMODCACHE
 if DEFINED USE_S3_CACHING set OMNIBUS_ARGS=%OMNIBUS_ARGS% %USE_S3_CACHING%
 
 SET PATH=%PATH%;%GOPATH%/bin
+set AGENT_MSI_OUTDIR=\omnibus-ruby\pkg\
 
 @echo GOPATH %GOPATH%
 @echo PATH %PATH%
@@ -29,9 +30,6 @@ pip3 install -r requirements.txt
 @echo "inv -e %OMNIBUS_BUILD% %OMNIBUS_ARGS% --skip-deps --release-version %RELEASE_VERSION%"
 inv -e %OMNIBUS_BUILD% %OMNIBUS_ARGS% --skip-deps --release-version %RELEASE_VERSION% || exit /b 1
 inv -e msi.build-installer || exit /b 2
-
-dir %BUILD_ROOT%\tools\windows\DatadogAgentInstaller\WixSetup\
-copy %BUILD_ROOT%\tools\windows\DatadogAgentInstaller\WixSetup\datadog-installer-1-x86_64.msi \omnibus-ruby\pkg\ || exit /b 3
 
 REM show output package directories (for debugging)
 dir \omnibus-ruby\pkg\
