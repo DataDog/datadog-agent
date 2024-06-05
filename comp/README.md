@@ -372,13 +372,13 @@ Package collector defines the OpenTelemetry Collector component.
 
 Package collectorcontrib defines the OTel collector-contrib component
 
+### [comp/otelcol/converter](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/otelcol/converter)
+
+
+
 ### [comp/otelcol/logsagentpipeline](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline)
 
 Package logsagentpipeline contains logs agent pipeline component
-
-### [comp/otelcol/provider](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/otelcol/provider)
-
-
 
 ## [comp/process](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/process) (Component Bundle)
 
