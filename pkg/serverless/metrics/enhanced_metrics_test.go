@@ -528,13 +528,13 @@ func TestGenerateCPUUtilizationEnhancedMetrics(t *testing.T) {
 	tags := []string{"functionname:test-function"}
 	now := float64(time.Now().UnixNano()) / float64(time.Second)
 	args := GenerateCPUUtilizationEnhancedMetricArgs{
-		IndividualCPUIdleOffsetTimes: map[string]float64{
-			"cpu0": 10,
-			"cpu1": 20,
-		},
 		IndividualCPUIdleTimes: map[string]float64{
 			"cpu0": 30,
 			"cpu1": 80,
+		},
+		IndividualCPUIdleOffsetTimes: map[string]float64{
+			"cpu0": 10,
+			"cpu1": 20,
 		},
 		IdleTimeMs:       100,
 		IdleTimeOffsetMs: 20,
@@ -550,6 +550,14 @@ func TestGenerateCPUUtilizationEnhancedMetrics(t *testing.T) {
 		{
 			Name:       cpuTotalUtilizationMetric,
 			Value:      60,
+			Mtype:      metrics.DistributionType,
+			Tags:       tags,
+			SampleRate: 1,
+			Timestamp:  now,
+		},
+		{
+			Name:       numCoresMetric,
+			Value:      2,
 			Mtype:      metrics.DistributionType,
 			Tags:       tags,
 			SampleRate: 1,

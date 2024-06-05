@@ -50,6 +50,7 @@ const (
 	cpuUserTimeMetric         = "aws.lambda.enhanced.cpu_user_time"
 	cpuTotalTimeMetric        = "aws.lambda.enhanced.cpu_total_time"
 	cpuTotalUtilizationMetric = "aws.lambda.enhanced.cpu_total_utilization"
+	numCoresMetric            = "aws.lambda.enhanced.num_cores"
 	cpuMaxUtilizationMetric   = "aws.lambda.enhanced.cpu_max_utilization"
 	cpuMinUtilizationMetric   = "aws.lambda.enhanced.cpu_min_utilization"
 	enhancedMetricsEnvVar     = "DD_ENHANCED_METRICS"
@@ -258,8 +259,8 @@ type GenerateCPUEnhancedMetricsArgs struct {
 }
 
 type GenerateCPUUtilizationEnhancedMetricArgs struct {
-	IndividualCPUIdleOffsetTimes map[string]float64
 	IndividualCPUIdleTimes       map[string]float64
+	IndividualCPUIdleOffsetTimes map[string]float64
 	IdleTimeMs                   float64
 	IdleTimeOffsetMs             float64
 	UptimeMs                     float64
@@ -326,8 +327,8 @@ func SendCPUEnhancedMetrics(cpuOffsetData proc.CPUData, uptimeOffset float64, ta
 			return
 		}
 		GenerateCPUUtilizationEnhancedMetrics(GenerateCPUUtilizationEnhancedMetricArgs{
-			cpuOffsetData.IndividualCPUIdleTimes,
 			cpuData.IndividualCPUIdleTimes,
+			cpuOffsetData.IndividualCPUIdleTimes,
 			cpuData.TotalIdleTimeMs,
 			cpuOffsetData.TotalIdleTimeMs,
 			uptimeMs,
@@ -345,25 +346,23 @@ func GenerateCPUUtilizationEnhancedMetrics(args GenerateCPUUtilizationEnhancedMe
 	maxIdleTime := 0.0
 	minIdleTime := math.MaxFloat64
 	for cpuName, cpuIdleTime := range args.IndividualCPUIdleTimes {
+		adjustedIdleTime := cpuIdleTime - args.IndividualCPUIdleOffsetTimes[cpuName]
 		// Maximally utilized CPU is the one with the least time spent in the idle process
-		if cpuIdleTime < minIdleTime {
+		if adjustedIdleTime < minIdleTime {
 			maxUtilizedCPUName = cpuName
-			minIdleTime = cpuIdleTime
+			minIdleTime = adjustedIdleTime
 		}
 		// Minimally utilized CPU is the one with the most time spent in the idle process
-		if cpuIdleTime >= maxIdleTime {
+		if adjustedIdleTime >= maxIdleTime {
 			minUtilizedCPUName = cpuName
-			maxIdleTime = cpuIdleTime
+			maxIdleTime = adjustedIdleTime
 		}
 	}
 
-	maxIdleTime = args.IndividualCPUIdleTimes[maxUtilizedCPUName] - args.IndividualCPUIdleOffsetTimes[maxUtilizedCPUName]
-	minIdleTime = args.IndividualCPUIdleTimes[minUtilizedCPUName] - args.IndividualCPUIdleOffsetTimes[minUtilizedCPUName]
-
 	adjustedUptime := args.UptimeMs - args.UptimeOffsetMs
 
-	maxUtilizedPercent := 100 * (adjustedUptime - maxIdleTime) / adjustedUptime
-	minUtilizedPercent := 100 * (adjustedUptime - minIdleTime) / adjustedUptime
+	maxUtilizedPercent := 100 * (adjustedUptime - minIdleTime) / adjustedUptime
+	minUtilizedPercent := 100 * (adjustedUptime - maxIdleTime) / adjustedUptime
 
 	numberCPUs := float64(len(args.IndividualCPUIdleTimes))
 	adjustedIdleTime := args.IdleTimeMs - args.IdleTimeOffsetMs
@@ -372,6 +371,14 @@ func GenerateCPUUtilizationEnhancedMetrics(args GenerateCPUUtilizationEnhancedMe
 	args.Demux.AggregateSample(metrics.MetricSample{
 		Name:       cpuTotalUtilizationMetric,
 		Value:      totalUtilizedPercent,
+		Mtype:      metrics.DistributionType,
+		Tags:       args.Tags,
+		SampleRate: 1,
+		Timestamp:  args.Time,
+	})
+	args.Demux.AggregateSample(metrics.MetricSample{
+		Name:       numCoresMetric,
+		Value:      float64(len(args.IndividualCPUIdleTimes)),
 		Mtype:      metrics.DistributionType,
 		Tags:       args.Tags,
 		SampleRate: 1,
