@@ -181,6 +181,17 @@ function installAgent($params, $uniqueID)
         $exception = [Exception]::new("Agent installation failed. For more information, check the installation log file at $logFile.")
         $PSCmdlet.ThrowTerminatingError([System.Management.Automation.ErrorRecord]::new($exception, "FatalError", [Management.Automation.ErrorCategory]::InvalidOperation, $null))
     }
+    ## write the install info file
+    $installInfo = @"
+---
+install_method:
+  tool: powershell-Datadog
+  tool_version: $($MyInvocation.MyCommand.Module.Version)
+  installer_version: Datadog_powershell_module
+"@
+
+    $appDataDir = (Get-ItemProperty -Path "HKLM:\SOFTWARE\Datadog\Datadog Agent").ConfigRoot
+    Out-File -FilePath $appDataDir\install_info -InputObject $installInfo
 }
 
 function installDotnetTracer($uniqueID)
