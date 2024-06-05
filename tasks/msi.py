@@ -403,7 +403,7 @@ def validate_msi_createfolder_table(db):
         "DatadogInstallerData",
         "locks",
         "packages",
-        "temp"
+        "temp",
     ]
 
     with MsiClosing(db.OpenView("Select Directory_ FROM CreateFolder")) as view:
