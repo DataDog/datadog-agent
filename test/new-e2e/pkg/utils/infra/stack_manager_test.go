@@ -10,7 +10,9 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/DataDog/datadog-api-client-go/v2/api/datadogV1"
 	"github.com/pulumi/pulumi/sdk/v3/go/auto"
@@ -54,9 +56,16 @@ func TestStackManager(t *testing.T) {
 			events: []datadogV1.EventCreateRequest{},
 		}
 		stackName := "test-successful"
-		stack, result, err := stackManager.GetStackNoDeleteOnFailure(ctx, stackName, nil, func(ctx *pulumi.Context) error {
-			return nil
-		}, false, mockWriter, mockDatadogEventSender)
+		stack, result, err := stackManager.GetStackNoDeleteOnFailure(GetStackArgs{
+			Context: ctx,
+			Name:    stackName,
+			DeployFunc: func(ctx *pulumi.Context) error {
+				return nil
+			},
+			FailOnMissing:      false,
+			LogWriter:          mockWriter,
+			DatadogEventSender: mockDatadogEventSender,
+		})
 		require.NoError(t, err)
 		require.NotNil(t, stack)
 		defer func() {
@@ -64,50 +73,61 @@ func TestStackManager(t *testing.T) {
 			require.NoError(t, err)
 		}()
 		require.NotNil(t, result)
-		assert.Len(t, mockWriter.logs, 0)
+		retryOnErrorLogs := filterRetryOnErrorLogs(mockWriter.logs)
+		assert.Len(t, retryOnErrorLogs, 0)
 		assert.Len(t, mockDatadogEventSender.events, 1)
 		assert.Contains(t, mockDatadogEventSender.events[0].Title, fmt.Sprintf("[E2E] Stack %s : success on Pulumi stack up", stackName))
 	})
 
-	for errCount := 0; errCount < stackUpMaxRetry; errCount++ {
-		errCount := errCount
-		t.Run(fmt.Sprintf("should-retry-and-succeed-%d", errCount), func(t *testing.T) {
-			t.Parallel()
-			t.Log("Should retry on failing run function and eventually succeed")
-			mockWriter := &mockWriter{
-				logs: []string{},
-			}
-			mockDatadogEventSender := &mockDatadogEventSender{
-				events: []datadogV1.EventCreateRequest{},
-			}
-			stackUpCounter := 0
-			stackName := fmt.Sprintf("test-retry-%d", errCount)
-			stack, result, err := stackManager.GetStackNoDeleteOnFailure(ctx, stackName, nil, func(ctx *pulumi.Context) error {
-				stackUpCounter++
-				if stackUpCounter > errCount {
-					return nil
+	t.Run("should-retry-and-succeed", func(t *testing.T) {
+		for errCount := 0; errCount < stackUpMaxRetry; errCount++ {
+			errCount := errCount
+			t.Run(fmt.Sprintf("should-retry-and-succeed-%d", errCount), func(t *testing.T) {
+				t.Parallel()
+				t.Log("Should retry on failing run function and eventually succeed")
+				mockWriter := &mockWriter{
+					logs: []string{},
 				}
-				return fmt.Errorf("error %d", stackUpCounter)
-			}, false, mockWriter, mockDatadogEventSender)
-			require.NoError(t, err)
-			require.NotNil(t, stack)
-			defer func() {
-				err := stackManager.DeleteStack(ctx, stackName, mockWriter)
+				mockDatadogEventSender := &mockDatadogEventSender{
+					events: []datadogV1.EventCreateRequest{},
+				}
+				stackUpCounter := 0
+				stackName := fmt.Sprintf("test-retry-%d", errCount)
+				stack, result, err := stackManager.GetStackNoDeleteOnFailure(GetStackArgs{
+					Context: ctx,
+					Name:    stackName,
+					DeployFunc: func(ctx *pulumi.Context) error {
+						stackUpCounter++
+						if stackUpCounter > errCount {
+							return nil
+						}
+						return fmt.Errorf("error %d", stackUpCounter)
+					},
+					FailOnMissing:      false,
+					LogWriter:          mockWriter,
+					DatadogEventSender: mockDatadogEventSender,
+				})
 				require.NoError(t, err)
-			}()
-			require.NotNil(t, result)
-			assert.Len(t, mockWriter.logs, errCount)
-			for i := 0; i < errCount; i++ {
-				assert.Contains(t, mockWriter.logs[i], "Retrying stack on error during stack up")
-				assert.Contains(t, mockWriter.logs[i], fmt.Sprintf("error %d", i+1))
-			}
-			assert.Len(t, mockDatadogEventSender.events, errCount+1)
-			for i := 0; i < errCount; i++ {
-				assert.Contains(t, mockDatadogEventSender.events[i].Title, fmt.Sprintf("[E2E] Stack %s : error on Pulumi stack up", stackName))
-			}
-			assert.Contains(t, mockDatadogEventSender.events[len(mockDatadogEventSender.events)-1].Title, fmt.Sprintf("[E2E] Stack %s : success on Pulumi stack up", stackName))
-		})
-	}
+				require.NotNil(t, stack)
+				defer func() {
+					err := stackManager.DeleteStack(ctx, stackName, mockWriter)
+					require.NoError(t, err)
+				}()
+				require.NotNil(t, result)
+				retryOnErrorLogs := filterRetryOnErrorLogs(mockWriter.logs)
+				assert.Len(t, retryOnErrorLogs, errCount, fmt.Sprintf("should have %d error logs", errCount))
+				for i := 0; i < errCount; i++ {
+					assert.Contains(t, retryOnErrorLogs[i], "Retrying stack on error during stack up")
+					assert.Contains(t, retryOnErrorLogs[i], fmt.Sprintf("error %d", i+1))
+				}
+				assert.Len(t, mockDatadogEventSender.events, errCount+1)
+				for i := 0; i < errCount; i++ {
+					assert.Contains(t, mockDatadogEventSender.events[i].Title, fmt.Sprintf("[E2E] Stack %s : error on Pulumi stack up", stackName))
+				}
+				assert.Contains(t, mockDatadogEventSender.events[len(mockDatadogEventSender.events)-1].Title, fmt.Sprintf("[E2E] Stack %s : success on Pulumi stack up", stackName))
+			})
+		}
+	})
 
 	t.Run("should-eventually-fail", func(t *testing.T) {
 		t.Parallel()
@@ -120,10 +140,17 @@ func TestStackManager(t *testing.T) {
 		}
 		stackUpCounter := 0
 		stackName := "test-retry-failure"
-		stack, result, err := stackManager.GetStackNoDeleteOnFailure(ctx, stackName, nil, func(ctx *pulumi.Context) error {
-			stackUpCounter++
-			return fmt.Errorf("error %d", stackUpCounter)
-		}, false, mockWriter, mockDatadogEventSender)
+		stack, result, err := stackManager.GetStackNoDeleteOnFailure(GetStackArgs{
+			Context: ctx,
+			Name:    stackName,
+			DeployFunc: func(ctx *pulumi.Context) error {
+				stackUpCounter++
+				return fmt.Errorf("error %d", stackUpCounter)
+			},
+			FailOnMissing:      false,
+			LogWriter:          mockWriter,
+			DatadogEventSender: mockDatadogEventSender,
+		})
 		assert.Error(t, err)
 		assert.ErrorIs(t, err, internalError{}, "should be an internal error")
 		require.NotNil(t, stack)
@@ -132,10 +159,12 @@ func TestStackManager(t *testing.T) {
 			require.NoError(t, err)
 		}()
 		assert.Equal(t, auto.UpResult{}, result)
-		assert.Len(t, mockWriter.logs, stackUpMaxRetry+1, fmt.Sprintf("should have %d logs", stackUpMaxRetry+1))
+
+		retryOnErrorLogs := filterRetryOnErrorLogs(mockWriter.logs)
+		assert.Len(t, retryOnErrorLogs, stackUpMaxRetry, fmt.Sprintf("should have %d logs", stackUpMaxRetry+1))
 		for i := 0; i < stackUpMaxRetry; i++ {
-			assert.Contains(t, mockWriter.logs[i], "Retrying stack on error during stack up")
-			assert.Contains(t, mockWriter.logs[i], fmt.Sprintf("error %d", i+1))
+			assert.Contains(t, retryOnErrorLogs[i], "Retrying stack on error during stack up")
+			assert.Contains(t, retryOnErrorLogs[i], fmt.Sprintf("error %d", i+1))
 		}
 		assert.Len(t, mockDatadogEventSender.events, stackUpMaxRetry+1, fmt.Sprintf("should have %d events", stackUpMaxRetry+1))
 		for i := 0; i < stackUpMaxRetry+1; i++ {
@@ -143,4 +172,70 @@ func TestStackManager(t *testing.T) {
 		}
 		assert.Contains(t, mockDatadogEventSender.events[len(mockDatadogEventSender.events)-1].Tags, "retry:NoRetry")
 	})
+
+	t.Run("should-cancel-and-retry-on-timeout", func(t *testing.T) {
+		t.Parallel()
+
+		mockWriter := &mockWriter{
+			logs: []string{},
+		}
+		mockDatadogEventSender := &mockDatadogEventSender{
+			events: []datadogV1.EventCreateRequest{},
+		}
+		stackUpCounter := 0
+		stackName := "test-cancel-retry-timeout"
+		// override stackUpTimeout to 2s
+		// average up time with an dummy run function is 900ms
+		stackUpTimeout := 2 * time.Second
+		stack, result, err := stackManager.GetStackNoDeleteOnFailure(GetStackArgs{
+			Context:   ctx,
+			Name:      stackName,
+			UpTimeout: stackUpTimeout,
+			DeployFunc: func(ctx *pulumi.Context) error {
+				if stackUpCounter == 0 {
+					// sleep only first time to ensure context is cancelled
+					// on timeout
+					t.Log("Sleeping for 2x stackUpTimeout")
+					time.Sleep(2 * stackUpTimeout)
+				}
+				stackUpCounter++
+				return nil
+			},
+			FailOnMissing:      false,
+			LogWriter:          mockWriter,
+			DatadogEventSender: mockDatadogEventSender,
+		})
+
+		assert.NoError(t, err)
+		require.NotNil(t, stack)
+		assert.NotNil(t, result)
+		defer func() {
+			err := stackManager.DeleteStack(ctx, stackName, mockWriter)
+			require.NoError(t, err)
+		}()
+		// filter timeout logs
+		timeoutLogs := []string{}
+		for _, log := range mockWriter.logs {
+			if strings.Contains(log, "Timeout during stack up, trying to cancel stack's operation") {
+				timeoutLogs = append(timeoutLogs, log)
+			}
+		}
+		assert.Len(t, timeoutLogs, 1)
+		retryOnErrorLogs := filterRetryOnErrorLogs(mockWriter.logs)
+		assert.Len(t, retryOnErrorLogs, 1)
+		assert.Len(t, mockDatadogEventSender.events, 3)
+		assert.Contains(t, mockDatadogEventSender.events[0].Title, fmt.Sprintf("[E2E] Stack %s : timeout on Pulumi stack up", stackName))
+		assert.Contains(t, mockDatadogEventSender.events[1].Title, fmt.Sprintf("[E2E] Stack %s : error on Pulumi stack up", stackName))
+		assert.Contains(t, mockDatadogEventSender.events[2].Title, fmt.Sprintf("[E2E] Stack %s : success on Pulumi stack up", stackName))
+	})
+}
+
+func filterRetryOnErrorLogs(logs []string) []string {
+	retryOnErrorLogs := []string{}
+	for _, log := range logs {
+		if strings.Contains(log, "Retrying stack on error during stack up") {
+			retryOnErrorLogs = append(retryOnErrorLogs, log)
+		}
+	}
+	return retryOnErrorLogs
 }

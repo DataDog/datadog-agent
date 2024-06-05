@@ -34,11 +34,11 @@ const (
 	nameSep               = "-"
 	e2eWorkspaceDirectory = "dd-e2e-workspace"
 
-	stackUpTimeout      = 60 * time.Minute
-	stackCancelTimeout  = 10 * time.Minute
-	stackDestroyTimeout = 60 * time.Minute
-	stackDeleteTimeout  = 20 * time.Minute
-	stackUpMaxRetry     = 2
+	defaultStackUpTimeout      time.Duration = 60 * time.Minute
+	defaultStackCancelTimeout  time.Duration = 10 * time.Minute
+	defaultStackDestroyTimeout time.Duration = 60 * time.Minute
+	stackDeleteTimeout         time.Duration = 20 * time.Minute
+	stackUpMaxRetry                          = 2
 )
 
 var (
@@ -132,7 +132,13 @@ func (sm *StackManager) GetStack(ctx context.Context, name string, config runner
 		}
 	}()
 
-	stack, upResult, err := sm.getStack(ctx, name, config, deployFunc, failOnMissing, nil, nil)
+	stack, upResult, err := sm.getStack(GetStackArgs{
+		Context:       ctx,
+		Name:          name,
+		Config:        config,
+		DeployFunc:    deployFunc,
+		FailOnMissing: failOnMissing,
+	})
 	if err != nil {
 		errDestroy := sm.deleteStack(ctx, name, stack, nil, nil)
 		if errDestroy != nil {
@@ -143,15 +149,29 @@ func (sm *StackManager) GetStack(ctx context.Context, name string, config runner
 	return stack, upResult, err
 }
 
+// GetStackArgs are the arguments for GetStack function
+type GetStackArgs struct {
+	Context            context.Context
+	Name               string
+	Config             runner.ConfigMap
+	DeployFunc         pulumi.RunFunc
+	FailOnMissing      bool
+	LogWriter          io.Writer
+	DatadogEventSender datadogEventSender
+	UpTimeout          time.Duration
+	DestroyTimeout     time.Duration
+	CancelTimeout      time.Duration
+}
+
 // GetStackNoDeleteOnFailure creates or return a stack based on stack name and config, if error occurs during stack creation, it will not destroy the created resources. Using this can lead to resource leaks.
-func (sm *StackManager) GetStackNoDeleteOnFailure(ctx context.Context, name string, config runner.ConfigMap, deployFunc pulumi.RunFunc, failOnMissing bool, logWriter io.Writer, datadodatadogEventSender datadogEventSender) (_ *auto.Stack, _ auto.UpResult, err error) {
+func (sm *StackManager) GetStackNoDeleteOnFailure(args GetStackArgs) (_ *auto.Stack, _ auto.UpResult, err error) {
 	defer func() {
 		if err != nil {
 			err = internalError{err}
 		}
 	}()
 
-	return sm.getStack(ctx, name, config, deployFunc, failOnMissing, logWriter, datadodatadogEventSender)
+	return sm.getStack(args)
 }
 
 // DeleteStack safely deletes a stack
@@ -285,7 +305,7 @@ func (sm *StackManager) deleteStack(ctx context.Context, stackID string, stack *
 	var destroyErr error
 	for {
 		downCount++
-		destroyContext, cancel := context.WithTimeout(ctx, stackDestroyTimeout)
+		destroyContext, cancel := context.WithTimeout(ctx, defaultStackDestroyTimeout)
 		_, destroyErr = stack.Destroy(destroyContext, progressStreamsDestroyOption, optdestroy.DebugLogging(loggingOptions))
 		cancel()
 		if destroyErr == nil {
@@ -298,7 +318,7 @@ func (sm *StackManager) deleteStack(ctx context.Context, stackID string, stack *
 		if errors.Is(contextCauseErr, context.DeadlineExceeded) {
 			sendEventToDatadog(ddEventSender, fmt.Sprintf("[E2E] Stack %s : timeout on Pulumi stack destroy", stackID), "", []string{"operation:destroy", fmt.Sprintf("stack:%s", stack.Name())})
 			fmt.Fprint(logger, "Timeout during stack destroy, trying to cancel stack's operation\n")
-			err := cancelStack(stack)
+			err := cancelStack(stack, defaultStackCancelTimeout)
 			if err != nil {
 				fmt.Fprintf(logger, "Giving up on error during attempt to cancel stack operation: %v\n", err)
 				return err
@@ -320,39 +340,39 @@ func (sm *StackManager) deleteStack(ctx context.Context, stackID string, stack *
 	return err
 }
 
-func (sm *StackManager) getStack(ctx context.Context, name string, config runner.ConfigMap, deployFunc pulumi.RunFunc, failOnMissing bool, logWriter io.Writer, ddEventSender datadogEventSender) (*auto.Stack, auto.UpResult, error) {
+func (sm *StackManager) getStack(args GetStackArgs) (*auto.Stack, auto.UpResult, error) {
 	// Build configuration from profile
 	profile := runner.GetProfile()
-	stackName := buildStackName(profile.NamePrefix(), name)
-	deployFunc = runFuncWithRecover(deployFunc)
+	stackName := buildStackName(profile.NamePrefix(), args.Name)
+	deployFunc := runFuncWithRecover(args.DeployFunc)
 
 	// Inject common/managed parameters
-	cm, err := runner.BuildStackParameters(profile, config)
+	cm, err := runner.BuildStackParameters(profile, args.Config)
 	if err != nil {
 		return nil, auto.UpResult{}, err
 	}
-	stack, _ := sm.stacks.Get(name)
+	stack, _ := sm.stacks.Get(args.Name)
 	if stack == nil {
-		workspace, err := buildWorkspace(ctx, profile, stackName, deployFunc)
+		workspace, err := buildWorkspace(args.Context, profile, stackName, deployFunc)
 		if err != nil {
 			return nil, auto.UpResult{}, err
 		}
 
-		newStack, err := auto.SelectStack(ctx, stackName, workspace)
-		if auto.IsSelectStack404Error(err) && !failOnMissing {
-			newStack, err = auto.NewStack(ctx, stackName, workspace)
+		newStack, err := auto.SelectStack(args.Context, stackName, workspace)
+		if auto.IsSelectStack404Error(err) && !args.FailOnMissing {
+			newStack, err = auto.NewStack(args.Context, stackName, workspace)
 		}
 		if err != nil {
 			return nil, auto.UpResult{}, err
 		}
 
 		stack = &newStack
-		sm.stacks.Set(name, stack)
+		sm.stacks.Set(args.Name, stack)
 	} else {
 		stack.Workspace().SetProgram(deployFunc)
 	}
 
-	err = stack.SetAllConfig(ctx, cm.ToPulumi())
+	err = stack.SetAllConfig(args.Context, cm.ToPulumi())
 	if err != nil {
 		return nil, auto.UpResult{}, err
 	}
@@ -363,42 +383,52 @@ func (sm *StackManager) getStack(ctx context.Context, name string, config runner
 	}
 	var logger io.Writer
 
-	if logWriter == nil {
+	if args.LogWriter == nil {
 		logger = os.Stderr
 	} else {
-		logger = logWriter
+		logger = args.LogWriter
 	}
 
 	progressStreamsUpOption := sm.getProgressStreamsOnUp(logger)
 	progressStreamsDestroyOption := sm.getProgressStreamsOnDestroy(logger)
 
 	//initialize datadog event sender
-	if ddEventSender == nil {
-		ddEventSender = newDatadogEventSender(logger)
+	if args.DatadogEventSender == nil {
+		args.DatadogEventSender = newDatadogEventSender(logger)
 	}
 
 	var upResult auto.UpResult
 	var upError error
 	upCount := 0
+	stackUpTimeout := args.UpTimeout
+	if stackUpTimeout.Nanoseconds() == 0 {
+		stackUpTimeout = defaultStackUpTimeout
+	}
+	stackDestroyTimeout := args.DestroyTimeout
+	if stackDestroyTimeout.Nanoseconds() == 0 {
+		stackDestroyTimeout = defaultStackDestroyTimeout
+	}
 
 	for {
 		upCount++
-		upCtx, cancel := context.WithTimeout(ctx, stackUpTimeout)
+		upCtx, cancel := context.WithTimeout(args.Context, stackUpTimeout)
+		now := time.Now()
 		upResult, upError = stack.Up(upCtx, progressStreamsUpOption, optup.DebugLogging(loggingOptions))
+		fmt.Fprintf(logger, "Stack up took %v\n", time.Since(now))
 		cancel()
 
 		// early return on success
 		if upError == nil {
-			sendEventToDatadog(ddEventSender, fmt.Sprintf("[E2E] Stack %s : success on Pulumi stack up", name), "", []string{"operation:up", "result:ok", fmt.Sprintf("stack:%s", stack.Name()), fmt.Sprintf("retries:%d", upCount)})
+			sendEventToDatadog(args.DatadogEventSender, fmt.Sprintf("[E2E] Stack %s : success on Pulumi stack up", args.Name), "", []string{"operation:up", "result:ok", fmt.Sprintf("stack:%s", stack.Name()), fmt.Sprintf("retries:%d", upCount)})
 			break
 		}
 
 		// handle timeout
 		contextCauseErr := context.Cause(upCtx)
 		if errors.Is(contextCauseErr, context.DeadlineExceeded) {
-			sendEventToDatadog(ddEventSender, fmt.Sprintf("[E2E] Stack %s : timeout on Pulumi stack up", name), "", []string{"operation:up", fmt.Sprintf("stack:%s", stack.Name())})
+			sendEventToDatadog(args.DatadogEventSender, fmt.Sprintf("[E2E] Stack %s : timeout on Pulumi stack up", args.Name), "", []string{"operation:up", fmt.Sprintf("stack:%s", stack.Name())})
 			fmt.Fprint(logger, "Timeout during stack up, trying to cancel stack's operation\n")
-			err = cancelStack(stack)
+			err = cancelStack(stack, args.CancelTimeout)
 			if err != nil {
 				fmt.Fprintf(logger, "Giving up on error during attempt to cancel stack operation: %v\n", err)
 				return stack, upResult, err
@@ -406,14 +436,14 @@ func (sm *StackManager) getStack(ctx context.Context, name string, config runner
 		}
 
 		retryStrategy := sm.getRetryStrategyFrom(upError, upCount)
-		sendEventToDatadog(ddEventSender, fmt.Sprintf("[E2E] Stack %s : error on Pulumi stack up", name), upError.Error(), []string{"operation:up", "result:fail", fmt.Sprintf("retry:%s", retryStrategy), fmt.Sprintf("stack:%s", stack.Name()), fmt.Sprintf("retries:%d", upCount)})
+		sendEventToDatadog(args.DatadogEventSender, fmt.Sprintf("[E2E] Stack %s : error on Pulumi stack up", args.Name), upError.Error(), []string{"operation:up", "result:fail", fmt.Sprintf("retry:%s", retryStrategy), fmt.Sprintf("stack:%s", stack.Name()), fmt.Sprintf("retries:%d", upCount)})
 
 		switch retryStrategy {
 		case reUp:
 			fmt.Fprintf(logger, "Retrying stack on error during stack up: %v\n", upError)
 		case reCreate:
 			fmt.Fprintf(logger, "Recreating stack on error during stack up: %v\n", upError)
-			destroyCtx, cancel := context.WithTimeout(ctx, stackDestroyTimeout)
+			destroyCtx, cancel := context.WithTimeout(args.Context, stackDestroyTimeout)
 			_, err = stack.Destroy(destroyCtx, progressStreamsDestroyOption, optdestroy.DebugLogging(loggingOptions))
 			cancel()
 			if err != nil {
@@ -520,8 +550,11 @@ func (sm *StackManager) GetPulumiStackName(name string) (_ string, err error) {
 	return stack.Name(), nil
 }
 
-func cancelStack(stack *auto.Stack) error {
-	cancelCtx, cancel := context.WithTimeout(context.Background(), stackCancelTimeout)
+func cancelStack(stack *auto.Stack, cancelTimeout time.Duration) error {
+	if cancelTimeout.Nanoseconds() == 0 {
+		cancelTimeout = defaultStackCancelTimeout
+	}
+	cancelCtx, cancel := context.WithTimeout(context.Background(), cancelTimeout)
 	err := stack.Cancel(cancelCtx)
 	cancel()
 

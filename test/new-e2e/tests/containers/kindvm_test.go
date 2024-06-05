@@ -39,7 +39,13 @@ func (suite *kindSuite) SetupSuite() {
 		"dddogstatsd:deploy":              auto.ConfigValue{Value: "true"},
 	}
 
-	_, stackOutput, err := infra.GetStackManager().GetStackNoDeleteOnFailure(ctx, "kind-cluster", stackConfig, kindvm.Run, false, nil, nil)
+	_, stackOutput, err := infra.GetStackManager().GetStackNoDeleteOnFailure(infra.GetStackArgs{
+		Context:       ctx,
+		Name:          "kind-cluster",
+		Config:        stackConfig,
+		DeployFunc:    kindvm.Run,
+		FailOnMissing: false,
+	})
 	if !suite.Assert().NoError(err) {
 		stackName, err := infra.GetStackManager().GetPulumiStackName("kind-cluster")
 		suite.Require().NoError(err)
