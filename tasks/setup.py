@@ -107,7 +107,7 @@ def check_go_version(ctx) -> SetupResult:
 
     try:
         output = ctx.run("go version", hide=True)
-    except:
+    except Exception:
         return SetupResult(
             "Check Go version", Status.FAIL, f"Go is not installed. Please install Go {expected_version}."
         )
@@ -209,7 +209,7 @@ def install_go_tools(ctx) -> SetupResult:
         from tasks import install_tools
 
         install_tools(ctx)
-    except:
+    except Exception:
         status = Status.FAIL
 
     return SetupResult("Install Go tools", status)
@@ -223,7 +223,7 @@ def download_go_tools(ctx) -> SetupResult:
         from tasks import download_tools
 
         download_tools(ctx)
-    except:
+    except Exception:
         status = Status.FAIL
 
     return SetupResult("Download Go tools", status)
