@@ -422,9 +422,10 @@ func (a *etwtracerimpl) doTrace() {
 func (a *etwtracerimpl) stop(_ context.Context) error {
 	a.log.Infof("Stopping Datadog APM ETW tracer component")
 
-	// NOTE: since start can fail but doesn't return an error, stop will be called in cases
-	//       where start exits before fully intializing the object, so we need to check
-	// 	     that each resource is not nil before closing it.
+	// NOTE: since start can fail but doesn't return an error, stop will be
+	//       called in casee where start exits before fully intializing the
+	//       object, so we need to check that each resource is not nil before
+	//       closing it.
 	var err error
 
 	if a.session != nil {
