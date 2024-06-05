@@ -301,7 +301,7 @@ def get_build_flags(
                 extldflags += ",-no_warn_duplicate_libraries "
         except ValueError:
             print(
-                "Could not determine XCode version, not adding -no_warn_duplicate_libraries to extldflags",
+                "Warning: Could not determine XCode version, not adding -no_warn_duplicate_libraries to extldflags",
                 file=sys.stderr,
             )
 

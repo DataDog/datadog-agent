@@ -57,17 +57,14 @@ lint_macos:
     PYTHON_RUNTIMES: "3"
   # The Gitlab macOS runners are currently long runners, so we need to clean them beforehand.
   before_script:
-    - echo $XCODE_ACTIVE_VERSION
-    - xcode-select -p
-    - xcodebuild -version
-    - xcodebuild -version | grep -Eo 'Xcode [0-9.]+'
-    - xcodebuild -version | grep -Eo 'Xcode [0-9.]+' | awk '{print $2}'
     # Removing the previous Python environment if it exists
     - pyenv uninstall -f datadog-agent
     # Removing the previous Go environment
     - rm -rf $HOME/go/bin
     - eval $(gimme --force $(cat .go-version))
     - export PATH="$HOME/go/bin:$PATH"
+    # TODO: Remove the Go cache if the Go version changed
+    # TODO: Remove the Python cache if the Python version changed
     # Installing the job dependencies
     - pyenv virtualenv 3.11.8 datadog-agent
     - pyenv activate datadog-agent
@@ -77,7 +74,6 @@ lint_macos:
     - inv -e rtloader.install
     - inv -e install-tools
     - inv -e deps
-    - echo $PATH
 
 lint_macos_gitlab_amd64:
   stage: source_test
@@ -89,6 +85,10 @@ lint_macos_gitlab_amd64:
 
 tests_macos_gitlab_amd64:
   stage: source_test
+  # TODO: Uncomment those rules when we want to run the tests on the dev branches as well.
+  # rules:
+  #   - !reference [.except_disable_unit_tests]
+  #   - !reference [.fast_on_dev_branch_only]
   extends: .macos_gitlab_amd64
   tags: ["macos:monterey-amd64", "specific:true"]
   needs: ["setup_agent_version"]
