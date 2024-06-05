@@ -58,6 +58,7 @@ lint_macos:
   # The Gitlab macOS runners are currently long runners, so we need to clean them beforehand.
   before_script:
     - echo $XCODE_ACTIVE_VERSION
+    - xcode-select -p
     - xcodebuild -version
     - xcodebuild -version | grep -Eo 'Xcode [0-9.]+'
     - xcodebuild -version | grep -Eo 'Xcode [0-9.]+' | awk '{print $2}'
