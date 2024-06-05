@@ -55,12 +55,20 @@ lint_macos:
 .macos_gitlab_amd64:
   variables:
     PYTHON_RUNTIMES: "3"
+  # The Gitlab macOS runners are currently long runners, so we need to clean them beforehand.
   before_script:
-    - pyenv virtualenv -f 3.11.8 datadog-agent
+    # Removing the previous Python environment if it exists
+    - pyenv uninstall -f datadog-agent
+    # Removing the previous Go environment
+    - rm -rf $HOME/go/bin
+    - eval $(gimme --force $(cat .go-version))
+    - export PATH="$HOME/go/bin:$PATH"
+  # Installing the job dependencies
+  script:
+    - pyenv virtualenv 3.11.8 datadog-agent
     - pyenv activate datadog-agent
     - python3 -m pip install -r requirements.txt -r tasks/libs/requirements-github.txt
     - pyenv rehash
-    - eval $(gimme $(cat .go-version))
     - inv -e rtloader.make --python-runtimes $PYTHON_RUNTIMES
     - inv -e rtloader.install
     - inv -e install-tools
