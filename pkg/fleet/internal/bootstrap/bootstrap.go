@@ -27,24 +27,15 @@ const (
 
 // Install self-installs the installer package from the given URL.
 func Install(ctx context.Context, env *env.Env, url string) error {
-	err := os.MkdirAll(rootTmpDir, 0755)
-	if err != nil {
-		return fmt.Errorf("failed to create temporary directory: %w", err)
-	}
-	tmpDir, err := os.MkdirTemp(rootTmpDir, "")
-	if err != nil {
-		return fmt.Errorf("failed to create temporary directory: %w", err)
-	}
-	defer os.RemoveAll(tmpDir)
-	cmd, err := downloadInstaller(ctx, env, url, tmpDir)
-	if err != nil {
-		return fmt.Errorf("failed to download installer: %w", err)
-	}
-	return cmd.Install(ctx, url, nil)
+	return install(ctx, env, url, false)
 }
 
 // InstallExperiment self-installs the installer package from the given URL as an experiment.
 func InstallExperiment(ctx context.Context, env *env.Env, url string) error {
+	return install(ctx, env, url, true)
+}
+
+func install(ctx context.Context, env *env.Env, url string, experiment bool) error {
 	err := os.MkdirAll(rootTmpDir, 0755)
 	if err != nil {
 		return fmt.Errorf("failed to create temporary directory: %w", err)
@@ -58,7 +49,10 @@ func InstallExperiment(ctx context.Context, env *env.Env, url string) error {
 	if err != nil {
 		return fmt.Errorf("failed to download installer: %w", err)
 	}
-	return cmd.InstallExperiment(ctx, url)
+	if experiment {
+		return cmd.InstallExperiment(ctx, url)
+	}
+	return cmd.Install(ctx, url, nil)
 }
 
 // downloadInstaller downloads the installer package from the registry and returns an installer executor.
