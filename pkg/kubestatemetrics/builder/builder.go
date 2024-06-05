@@ -246,7 +246,6 @@ type cacheEnabledListerWatcher struct {
 // https://github.com/kubernetes/kubernetes/blob/dae37c21645c0fc04bbb0202ad1eba6ba4438d23/staging/src/k8s.io/apiserver/pkg/storage/cacher/cacher.go#L526-L527
 // Refer to https://github.com/kubernetes/kube-state-metrics/blob/7995d5fd23bcff7ae24ab6849f7c393d262fb025/pkg/watch/watch.go#L77
 func (c *cacheEnabledListerWatcher) List(options v1.ListOptions) (runtime.Object, error) {
-	log.Infof("debug ok")
 	options.ResourceVersion = "0"
 	return c.ListerWatcher.List(options)
 }
