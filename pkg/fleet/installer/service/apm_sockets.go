@@ -74,19 +74,21 @@ func getSocketsPath() (string, string, error) {
 }
 
 // configureSocketsEnv configures the sockets for the agent & injector
-func configureSocketsEnv(ctx context.Context) error {
+func configureSocketsEnv(ctx context.Context) (retErr error) {
 	envFile := newFileMutator(envFilePath, setSocketEnvs, nil, nil)
 	defer envFile.cleanup()
 	rollback, err := envFile.mutate(ctx)
 	if err != nil {
-		if rollback != nil {
+		return err
+	}
+	defer func() {
+		if retErr != nil && rollback != nil {
 			rollbackErr := rollback()
-			if rollbackErr != nil {
+			if err := rollback(); err != nil {
 				log.Warnf("Failed to rollback environment file: %v", rollbackErr)
 			}
 		}
-		return fmt.Errorf("error configuring sockets: %w", err)
-	}
+	}()
 	// Make sure the file is word readable
 	if err := os.Chmod(envFilePath, 0644); err != nil {
 		return fmt.Errorf("error changing permissions of %s: %w", envFilePath, err)

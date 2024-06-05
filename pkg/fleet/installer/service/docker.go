@@ -30,9 +30,6 @@ var (
 )
 
 func (a *apmInjectorInstaller) setupDocker(ctx context.Context) (rollback func() error, err error) {
-	if !isDockerInstalled(ctx) {
-		return nil, nil
-	}
 	err = os.MkdirAll("/etc/docker", 0755)
 	if err != nil {
 		return nil, err
@@ -178,5 +175,9 @@ func isDockerInstalled(ctx context.Context) bool {
 		log.Warn("installer: failed to check if docker is installed, assuming it isn't: ", err)
 		return false
 	}
-	return len(outb.String()) != 0
+	if len(outb.String()) == 0 {
+		log.Warn("installer: docker is not installed on the systemd, skipping docker configuration")
+		return false
+	}
+	return true
 }
