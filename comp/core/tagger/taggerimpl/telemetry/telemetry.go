@@ -96,13 +96,6 @@ func NewStore(telemetryComp telemetry.Component) *Store {
 			[]string{}, "Errors received when streaming tagger events",
 			telemetry.Options{NoDoubleUnderscoreSep: true}),
 
-		// ServerStreamErrors tracks how many errors happened when streaming
-		// out tagger events.
-		// Server
-		ServerStreamErrors: telemetryComp.NewCounterWithOpts(subsystem, "server_stream_errors",
-			[]string{}, "Errors when streaming out tagger events",
-			telemetry.Options{NoDoubleUnderscoreSep: true}),
-
 		// Subscribers tracks how many subscribers the tagger has.
 		Subscribers: telemetryComp.NewGaugeWithOpts(subsystem, "subscribers",
 			[]string{}, "Number of channels subscribing to tagger events",

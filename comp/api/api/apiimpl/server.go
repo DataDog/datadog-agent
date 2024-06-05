@@ -20,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/pidmap"
 	replay "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/def"
@@ -72,6 +73,7 @@ func StartServers(
 	collector optional.Option[collector.Component],
 	ac autodiscovery.Component,
 	providers []api.EndpointProvider,
+	telemetry telemetry.Component,
 ) error {
 	apiAddr, err := getIPCAddressPort()
 	if err != nil {
@@ -115,6 +117,7 @@ func StartServers(
 		collector,
 		ac,
 		providers,
+		telemetry,
 	); err != nil {
 		return fmt.Errorf("unable to start CMD API server: %v", err)
 	}

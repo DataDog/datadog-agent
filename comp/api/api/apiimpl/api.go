@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/pidmap"
 	replay "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/def"
@@ -52,6 +53,7 @@ type apiServer struct {
 	logsAgentComp     optional.Option[logsAgent.Component]
 	wmeta             workloadmeta.Component
 	collector         optional.Option[collector.Component]
+	telemetry         telemetry.Component
 	endpointProviders []api.EndpointProvider
 }
 
@@ -72,6 +74,7 @@ type dependencies struct {
 	LogsAgentComp     optional.Option[logsAgent.Component]
 	WorkloadMeta      workloadmeta.Component
 	Collector         optional.Option[collector.Component]
+	Telemetry         telemetry.Component
 	EndpointProviders []api.EndpointProvider `group:"agent_endpoint"`
 }
 
@@ -89,6 +92,7 @@ func newAPIServer(deps dependencies) api.Component {
 		rcServiceMRF:      deps.RcServiceMRF,
 		authToken:         deps.AuthToken,
 		taggerComp:        deps.Tagger,
+		telemetry:         deps.Telemetry,
 		autoConfig:        deps.AutoConfig,
 		logsAgentComp:     deps.LogsAgentComp,
 		wmeta:             deps.WorkloadMeta,
@@ -115,6 +119,7 @@ func (server *apiServer) StartServer(
 		server.collector,
 		server.autoConfig,
 		server.endpointProviders,
+		server.telemetry,
 	)
 }
 

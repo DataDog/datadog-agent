@@ -38,6 +38,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	taggerserver "github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl/server"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/api/security"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
@@ -53,7 +54,7 @@ var (
 )
 
 // StartServer creates the router and starts the HTTP server
-func StartServer(ctx context.Context, w workloadmeta.Component, taggerComp tagger.Component, ac autodiscovery.Component, statusComponent status.Component, settings settings.Component, cfg config.Component) error {
+func StartServer(ctx context.Context, w workloadmeta.Component, taggerComp tagger.Component, ac autodiscovery.Component, statusComponent status.Component, settings settings.Component, cfg config.Component, telemetry telemetry.Component) error {
 	// create the root HTTP router
 	router = mux.NewRouter()
 	apiRouter = router.PathPrefix("/api/v1").Subrouter()
@@ -129,7 +130,7 @@ func StartServer(ctx context.Context, w workloadmeta.Component, taggerComp tagge
 
 	grpcSrv := grpc.NewServer(opts...)
 	pb.RegisterAgentSecureServer(grpcSrv, &serverSecure{
-		taggerServer: taggerserver.NewServer(taggerComp),
+		taggerServer: taggerserver.NewServer(taggerComp, telemetry),
 	})
 
 	timeout := pkgconfig.Datadog().GetDuration("cluster_agent.server.idle_timeout_seconds") * time.Second
