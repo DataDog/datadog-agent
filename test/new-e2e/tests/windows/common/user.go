@@ -29,10 +29,36 @@ func (i Identity) GetSID() string {
 	return i.SID
 }
 
+// Equal returns true if the SIDs are equal. Names can be localized, ambiguous, or just be in different formats.
+func (i Identity) Equal(other SecurityIdentifier) bool {
+	return SecurityIdentifierEqual(i, other)
+}
+
+// UnmarshalJSON unmarshals an Identity from JSON
+func (i *Identity) UnmarshalJSON(data []byte) error {
+	var v map[string]string
+	err := json.Unmarshal(data, &v)
+	if err != nil {
+		return err
+	}
+	i.Name = v["Name"]
+	i.SID = v["SID"]
+	return nil
+}
+
 // SecurityIdentifier is an interface for objects that have a name and SID
 type SecurityIdentifier interface {
 	GetName() string
 	GetSID() string
+}
+
+// SecurityIdentifierEqual returns true if the SIDs are equal. Names can be localized, ambiguous, or just be in different formats.
+func SecurityIdentifierEqual(a SecurityIdentifier, b SecurityIdentifier) bool {
+	if a.GetSID() == "" || b.GetSID() == "" {
+		// return false if either is empty
+		return false
+	}
+	return a.GetSID() == b.GetSID()
 }
 
 // MakeDownLevelLogonName joins a user and domain into a single string, e.g. DOMAIN\user
@@ -48,6 +74,45 @@ func MakeDownLevelLogonName(domain string, user string) string {
 	}
 	domain = NameToNetBIOSName(domain)
 	return domain + "\\" + user
+}
+
+// GetIdentityForUser returns the Identity for the given user.
+func GetIdentityForUser(host *components.RemoteHost, user string) (Identity, error) {
+	sid, err := GetSIDForUser(host, user)
+	if err != nil {
+		return Identity{}, err
+	}
+	return Identity{Name: user, SID: sid}, nil
+}
+
+// GetIdentityForSID returns the Identity for the given SID.
+func GetIdentityForSID(host *components.RemoteHost, sid string) (Identity, error) {
+	name, err := GetUserForSID(host, sid)
+	if err != nil {
+		return Identity{}, err
+	}
+	return Identity{Name: name, SID: sid}, nil
+}
+
+// GetSystemIdentity returns the Identity for the SYSTEM account
+//
+// A lookup by SID is performed because the name may be localized.
+func GetSystemIdentity(host *components.RemoteHost) (Identity, error) {
+	return GetIdentityForSID(host, "S-1-5-18")
+}
+
+// GetAdministratorsIdentity returns the Identity for the Administrators group
+//
+// A lookup by SID is performed because the name may be localized.
+func GetAdministratorsIdentity(host *components.RemoteHost) (Identity, error) {
+	return GetIdentityForSID(host, "S-1-5-32-544")
+}
+
+// GetUserForSID returns the username for the given SID.
+func GetUserForSID(host *components.RemoteHost, sid string) (string, error) {
+	cmd := fmt.Sprintf(`(New-Object System.Security.Principal.SecurityIdentifier('%s')).Translate([System.Security.Principal.NTAccount]).Value`, sid)
+	out, err := host.Execute(cmd)
+	return strings.TrimSpace(out), err
 }
 
 // GetSIDForUser returns the SID for the given user.
