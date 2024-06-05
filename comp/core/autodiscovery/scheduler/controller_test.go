@@ -74,8 +74,8 @@ func TestController(t *testing.T) {
 	assert.Neverf(t, func() bool {
 		s1.mutex.Lock()
 		defer s1.mutex.Unlock()
-		return !assert.ElementsMatch(t, []event{{true, "one"}, {true, "two"}}, s1.events)
-	}, 2*time.Second, 100*time.Millisecond, "Unexpected event received")
+		return len(s1.events) != 2 // no more sch or unsch events should be received
+	}, 2*time.Second, 100*time.Millisecond, "Unexpected event received, s1 events = %v", s1.events)
 	s1.reset()
 
 	// remove one of those configs and add another
@@ -96,8 +96,9 @@ func TestController(t *testing.T) {
 	assert.Neverf(t, func() bool {
 		s2.mutex.Lock()
 		defer s2.mutex.Unlock()
-		return !assert.ElementsMatch(t, []event{{true, "two"}, {true, "three"}}, s2.events)
-	}, 2*time.Second, 100*time.Millisecond, "Unexpected event received")
+		return len(s2.events) != 2
+	}, 2*time.Second, 100*time.Millisecond, "Unexpected event received, s2 events = %v", s2.events)
+	assert.ElementsMatch(t, []event{{true, "two"}, {true, "three"}}, s2.events)
 	s2.reset()
 
 	// unsubscribe s1 and see that it no longer gets events
