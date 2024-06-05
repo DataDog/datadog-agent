@@ -435,6 +435,18 @@ func New() *Config {
 	return c
 }
 
+// RingBufferSupportedNPM returns true if the kernel supports ring buffers and the config enables them
 func (c *Config) RingBufferSupportedNPM() bool {
 	return (features.HaveMapType(cebpf.RingBuf) == nil) && c.NPMRingbuffersEnabled
+}
+
+// FailedConnectionsSupported returns true if the config & TCP v4 || v6 is enabled
+func (c *Config) FailedConnectionsSupported() bool {
+	if !c.TCPFailedConnectionsEnabled {
+		return false
+	}
+	if !c.CollectTCPv4Conns && !c.CollectTCPv6Conns {
+		return false
+	}
+	return true
 }

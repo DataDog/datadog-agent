@@ -20,9 +20,9 @@ import (
 )
 
 var allowListErrs = map[uint32]struct{}{
-	104: {}, // Connection reset by peer
-	110: {}, // Connection timed out
-	111: {}, // Connection refused
+	ebpf.TCPFailureConnReset:   {}, // Connection reset by peer
+	ebpf.TCPFailureConnTimeout: {}, // Connection timed out
+	ebpf.TCPFailureConnRefused: {}, // Connection refused
 }
 
 var telemetryModuleName = "network_tracer__tcp_failure"
@@ -64,8 +64,33 @@ func NewFailedConns() *FailedConns {
 	}
 }
 
+// UpsertConn adds or updates the failed connection in the failed connection map
+func (fc *FailedConns) UpsertConn(failedConn *ebpf.FailedConn) {
+	if _, exists := allowListErrs[failedConn.Reason]; !exists {
+		return
+	}
+	connTuple := failedConn.Tup
+
+	fc.Lock()
+	defer fc.Unlock()
+
+	stats, ok := fc.FailedConnMap[connTuple]
+	if !ok {
+		stats = &FailedConnStats{
+			CountByErrCode: make(map[uint32]uint32),
+		}
+		fc.FailedConnMap[connTuple] = stats
+	}
+
+	stats.CountByErrCode[failedConn.Reason]++
+	stats.Expiry = time.Now().Add(2 * time.Minute).Unix()
+}
+
 // MatchFailedConn increments the failed connection counters for a given connection based on the failed connection map
 func (fc *FailedConns) MatchFailedConn(conn *network.ConnectionStats) {
+	if fc == nil {
+		return
+	}
 	if conn.Type != network.TCP {
 		return
 	}
@@ -123,14 +148,10 @@ func connStatsToTuple(c *network.ConnectionStats) ebpf.ConnTuple {
 	} else {
 		tup.SetType(ebpf.UDP)
 	}
-	if c.Source.IsZero() {
-		tup.Saddr_l, tup.Saddr_h = 0, 0
-	} else {
+	if !c.Source.IsZero() {
 		tup.Saddr_l, tup.Saddr_h = util.ToLowHigh(c.Source)
 	}
-	if c.Dest.IsZero() {
-		tup.Daddr_l, tup.Daddr_h = 0, 0
-	} else {
+	if !c.Dest.IsZero() {
 		tup.Daddr_l, tup.Daddr_h = util.ToLowHigh(c.Dest)
 	}
 	return tup

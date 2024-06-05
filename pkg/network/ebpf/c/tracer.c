@@ -235,14 +235,18 @@ int kprobe__tcp_done(struct pt_regs *ctx) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
     sk = (struct sock *)PT_REGS_PARM1(ctx);
     __u64 *failed_conn_pid = NULL;
-    int err = 0;
 
-    bpf_probe_read_kernel_with_telemetry(&err, sizeof(err), (&sk->sk_err));
-    if (err == 0 || !tcp_failed_connections_enabled()) {
+    if (!tcp_failed_connections_enabled()) {
         return 0;
     }
 
-    if (err != 104 && err != 110 && err != 111) {
+    int err = 0;
+    bpf_probe_read_kernel_with_telemetry(&err, sizeof(err), (&sk->sk_err));
+    if (err == 0) {
+        return 0; // no failure
+    }
+
+    if (err != TCP_CONN_FAILED_RESET && err != TCP_CONN_FAILED_TIMEOUT && err != TCP_CONN_FAILED_REFUSED) {
         log_debug("kprobe/tcp_done: unsupported error code: %d", err);
         increment_telemetry_count(unsupported_tcp_failures);
         return 0;

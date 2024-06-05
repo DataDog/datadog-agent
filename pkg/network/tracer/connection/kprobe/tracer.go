@@ -111,17 +111,6 @@ func ClassificationSupported(config *config.Config) bool {
 	return currentKernelVersion >= classificationMinimumKernel
 }
 
-// FailedConnectionsSupported returns true if the config & TCP v4 || v6 is enabled
-func FailedConnectionsSupported(c *config.Config) bool {
-	if !c.TCPFailedConnectionsEnabled {
-		return false
-	}
-	if !c.CollectTCPv4Conns && !c.CollectTCPv6Conns {
-		return false
-	}
-	return true
-}
-
 // LoadTracer loads the co-re/prebuilt/runtime compiled network tracer, depending on config
 func LoadTracer(cfg *config.Config, mgrOpts manager.Options, connCloseEventHandler ddebpf.EventHandler, failedConnsHandler ddebpf.EventHandler) (*manager.Manager, func(), TracerType, error) {
 	kprobeAttachMethod := manager.AttachKprobeWithPerfEventOpen
@@ -241,7 +230,7 @@ func loadTracerFromAsset(buf bytecode.AssetReader, runtimeTracer, coreTracer boo
 		}
 	}
 
-	if FailedConnectionsSupported(config) {
+	if config.FailedConnectionsSupported() {
 		util.AddBoolConst(&mgrOpts, "tcp_failed_connections_enabled", true)
 	}
 

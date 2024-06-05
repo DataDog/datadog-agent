@@ -10,6 +10,11 @@
 #define true 1
 #define false 0
 
+// TCP Failures
+#define TCP_CONN_FAILED_RESET 104
+#define TCP_CONN_FAILED_TIMEOUT 110
+#define TCP_CONN_FAILED_REFUSED 111
+
 typedef enum {
     CONN_DIRECTION_UNKNOWN = 0b00,
     CONN_DIRECTION_INCOMING = 0b01,

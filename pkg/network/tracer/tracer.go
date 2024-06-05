@@ -36,7 +36,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/netlink"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection"
-	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/kprobe"
 	"github.com/DataDog/datadog-agent/pkg/network/usm"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
@@ -320,9 +319,7 @@ func (t *Tracer) storeClosedConnections(connections []network.ConnectionStats) {
 		t.addProcessInfo(cs)
 
 		tracerTelemetry.closedConns.Inc(cs.Type.String())
-		if kprobe.FailedConnectionsSupported(t.config) {
-			t.ebpfTracer.GetFailedConnections().MatchFailedConn(cs)
-		}
+		t.ebpfTracer.GetFailedConnections().MatchFailedConn(cs)
 	}
 
 	connections = connections[rejected:]
@@ -556,9 +553,7 @@ func (t *Tracer) getConnections(activeBuffer *network.ConnectionBuffer) (latestU
 	t.processCache.Trim()
 
 	// remove stale failed connections from map
-	if kprobe.FailedConnectionsSupported(t.config) {
-		t.ebpfTracer.GetFailedConnections().RemoveExpired()
-	}
+	t.ebpfTracer.GetFailedConnections().RemoveExpired()
 
 	entryCount := len(activeConnections)
 	if entryCount >= int(t.config.MaxTrackedConnections) {

@@ -282,7 +282,7 @@ func NewTracer(config *config.Config) (Tracer, error) {
 	if tracerType == TracerTypeKProbePrebuilt {
 		config.TCPFailedConnectionsEnabled = false
 	}
-	if kprobe.FailedConnectionsSupported(config) {
+	if config.FailedConnectionsSupported() {
 		failedConnConsumer = failure.NewFailedConnConsumer(failedConnsHandler)
 	}
 
@@ -369,6 +369,9 @@ func (t *tracer) FlushPending() {
 }
 
 func (t *tracer) GetFailedConnections() *failure.FailedConns {
+	if t.failedConnConsumer == nil {
+		return nil
+	}
 	return t.failedConnConsumer.FailedConns
 }
 
