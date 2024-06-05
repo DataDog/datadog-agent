@@ -203,10 +203,7 @@ int kprobe__tcp_close(struct pt_regs *ctx) {
     // increment telemetry for connections that were never established
     if (bpf_map_delete_elem(&tcp_ongoing_connect_pid, &sk) == 0) {
         increment_telemetry_count(tcp_failed_connect);
-        if (!tcp_failed_connections_enabled()) {
-            increment_telemetry_count(double_flush_attempts_done);
-            return 0;
-        }
+        return 0;
     }
 
     // check if this connection was already flushed and ensure we don't flush again
@@ -257,6 +254,7 @@ int kprobe__tcp_done(struct pt_regs *ctx) {
 
     log_debug("adamk kprobe/tcp_done: tgid: %llu, pid: %llu", pid_tgid >> 32, pid_tgid & 0xFFFFFFFF);
     if (!read_conn_tuple(&t, sk, pid_tgid, CONN_TYPE_TCP)) {
+        increment_telemetry_count(double_flush_attempts_done);
         log_debug("adamk kprobe/tcp_done failed to read tuple");
         return 0;
     }
