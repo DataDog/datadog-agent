@@ -83,6 +83,16 @@ func (m *MockTaggerClient) SetTags(entity, source string, low, orch, high, std [
 	}
 }
 
+// SetGlobalTags calls faketagger SetGlobalTags which sets the tags for the global entity
+func (m *MockTaggerClient) SetGlobalTags(low, orch, high, std []string) {
+	if m.TaggerClient == nil {
+		panic("Tagger must be initialized before calling SetTags")
+	}
+	if v, ok := m.TaggerClient.defaultTagger.(*local.FakeTagger); ok {
+		v.SetGlobalTags(low, orch, high, std)
+	}
+}
+
 // SetupFakeTagger calls fxutil.Test to create a mock tagger for testing
 func SetupFakeTagger(t *testing.T) tagger.Mock {
 	return fxutil.Test[tagger.Mock](t, MockModule())

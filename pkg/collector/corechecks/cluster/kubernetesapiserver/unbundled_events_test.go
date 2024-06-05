@@ -15,7 +15,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl/local"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 )
@@ -98,7 +98,7 @@ func TestUnbundledEventsTransform(t *testing.T) {
 			collectedTypes := []collectedEventType{
 				{Kind: "Pod", Reasons: []string{"Failed"}},
 			}
-			transformer := newUnbundledTransformer("test-cluster", local.NewFakeTagger(), collectedTypes)
+			transformer := newUnbundledTransformer("test-cluster", taggerimpl.SetupFakeTagger(t), collectedTypes)
 
 			events, errors := transformer.Transform([]*v1.Event{tt.event})
 
@@ -109,7 +109,7 @@ func TestUnbundledEventsTransform(t *testing.T) {
 }
 
 func TestGetTagsFromTagger(t *testing.T) {
-	taggerInstance := local.NewFakeTagger()
+	taggerInstance := taggerimpl.SetupFakeTagger(t)
 	taggerInstance.SetTags("kubernetes_pod_uid://nginx", "workloadmeta-kubernetes_pod", nil, []string{"pod_name:nginx"}, nil, nil)
 	taggerInstance.SetGlobalTags([]string{"global:here"}, nil, nil, nil)
 
@@ -225,7 +225,7 @@ func TestUnbundledEventsShouldCollect(t *testing.T) {
 				},
 			}
 
-			transformer := newUnbundledTransformer("test-cluster", local.NewFakeTagger(), collectedTypes)
+			transformer := newUnbundledTransformer("test-cluster", taggerimpl.SetupFakeTagger(t), collectedTypes)
 			got := transformer.(*unbundledTransformer).shouldCollect(tt.event)
 			assert.Equal(t, tt.expected, got)
 		})

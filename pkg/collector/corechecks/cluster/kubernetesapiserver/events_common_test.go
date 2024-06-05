@@ -15,7 +15,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"
 
-	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl/local"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 )
 
@@ -50,7 +50,7 @@ func TestGetDDAlertType(t *testing.T) {
 }
 
 func Test_getInvolvedObjectTags(t *testing.T) {
-	taggerInstance := local.NewFakeTagger()
+	taggerInstance := taggerimpl.SetupFakeTagger(t)
 	taggerInstance.SetTags("namespace://default", "workloadmeta-kubernetes_node", []string{"team:container-int"}, nil, nil, nil)
 	tests := []struct {
 		name           string
