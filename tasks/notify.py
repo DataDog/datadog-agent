@@ -460,39 +460,52 @@ def send_notification(ctx: Context, alert_jobs):
 
 @task
 def send_failure_summary_notification(_, jobs: dict[str, any] | None = None, list_max_len=10):
-    if jobs is None:
-        jobs = os.environ["JOB_FAILURES"]
-        jobs = json.loads(jobs)
-
-    # List of (job_name, (failure_count, total_count)) ordered by failure_count
-    stats = sorted(
-        ((name, (fail, success)) for (name, (fail, success)) in jobs.items() if fail > 0),
-        key=lambda x: (x[1][0], x[1][1] if x[1][1] is not None else 0),
-        reverse=True,
-    )[:list_max_len]
-
-    # Don't send message if no failure
-    if len(stats) == 0:
-        return
-
-    # Create message
-    message = ['*Daily Job Failure Report*']
-    message.append('These jobs had the most failures in the last 24 hours:')
-    for name, (fail, total) in stats:
-        link = get_ci_visibility_job_url(name)
-        message.append(f"- <{link}|{name}>: *{fail} failures*{f' / {total} runs' if total else ''}")
-
-    message.append(
-        'Click <https://app.datadoghq.com/ci/pipeline-executions?query=ci_level%3Ajob%20env%3Aprod%20%40git.repository.id%3A%22gitlab.ddbuild.io%2FDataDog%2Fdatadog-agent%22%20%40ci.pipeline.name%3A%22DataDog%2Fdatadog-agent%22%20%40ci.provider.instance%3Agitlab-ci%20%40git.branch%3Amain%20%40ci.status%3Aerror&agg_m=count&agg_m_source=base&agg_q=%40ci.job.name&agg_q_source=base&agg_t=count&fromUser=false&index=cipipeline&sort_m=count&sort_m_source=base&sort_t=count&top_n=25&top_o=top&viz=toplist&x_missing=true&paused=false|here> for more details.'
-    )
-
-    # Send message
     from slack_sdk import WebClient
 
     client = WebClient(os.environ["SLACK_API_TOKEN"])
-    client.chat_postMessage(channel='#agent-platform-ops', text='\n'.join(message))
 
-    print('Message sent')
+    try:
+        if jobs is None:
+            jobs = os.environ["JOB_FAILURES"]
+            jobs = json.loads(jobs)
+
+        # List of (job_name, {failures, allowedToFail}) ordered by failure_count
+        stats = sorted(
+            ((name, data) for name, data in jobs.items() if data['failures'] > 0),
+            key=lambda x: x[1]['failures'],
+            reverse=True,
+        )[:list_max_len]
+
+        # Don't send message if no failure
+        if len(stats) == 0:
+            return
+
+        # Create message
+        message = ['*Daily Job Failure Report*']
+        message.append('These jobs had the most failures in the last 24 hours:')
+        for name, data in stats:
+            link = get_ci_visibility_job_url(name)
+            bullet = ':large_orange_circle:' if data['allowedToFail'] else ':red_circle:'
+            message.append(f"{bullet} <{link}|{name}>: *{data['failures']}* failures")
+
+        message.append(
+            'Click <https://app.datadoghq.com/ci/pipeline-executions?query=ci_level%3Ajob%20env%3Aprod%20%40git.repository.id%3A%22gitlab.ddbuild.io%2FDataDog%2Fdatadog-agent%22%20%40ci.pipeline.name%3A%22DataDog%2Fdatadog-agent%22%20%40ci.provider.instance%3Agitlab-ci%20%40git.branch%3Amain%20%40ci.status%3Aerror&agg_m=count&agg_m_source=base&agg_q=%40ci.job.name&agg_q_source=base&agg_t=count&fromUser=false&index=cipipeline&sort_m=count&sort_m_source=base&sort_t=count&top_n=25&top_o=top&viz=toplist&x_missing=true&paused=false|here> for more details.'
+        )
+
+        # Send message
+        # client.chat_postMessage(channel='#agent-platform-ops', text='\n'.join(message))
+        client.chat_postMessage(channel='#celian-tests', text='\n'.join(message))
+        # TODO
+        print()
+        print('\n'.join(message))
+        print()
+
+        print('Message sent')
+    except:
+        # error_msg = 'Warning: Github Action notify.send_failure_summary_notification has failed'
+        # client.chat_postMessage(channel='#agent-platform-ops', text=error_msg)
+
+        raise
 
 
 @task

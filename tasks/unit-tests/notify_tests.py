@@ -408,10 +408,10 @@ class TestSendFailureSummaryNotification(unittest.TestCase):
     def test_nominal(self, mock_slack):
         # jobname: [total_failures, total_runs]
         jobs = {
-            "myjob1": [45, None],
-            "myjob2": [42, 45],
-            "myjob3": [21, None],
-            "myjob4": [16, 89],
+            "myjob1": {"failures": 45, "allowedToFail": False},
+            "myjob2": {"failures": 42, "allowedToFail": True},
+            "myjob3": {"failures": 21, "allowedToFail": False},
+            "myjob4": {"failures": 16, "allowedToFail": False},
         }
         notify.send_failure_summary_notification(MockContext(), jobs)
         mock_slack.assert_called()
