@@ -86,13 +86,15 @@ func (s *packageInstallerSuite) TestUninstall() {
 func (s *packageInstallerSuite) TestReInstall() {
 	s.RunInstallScript("DD_NO_AGENT_INSTALL=true")
 	defer s.Purge()
+	stateBefre := s.host.State()
+	installerBinBefore, ok := stateBefre.Stat("/usr/bin/datadog-installer")
+	assert.True(s.T(), ok)
 
-	// remove an installer directory and re-install it. Given that the installer is already installed,
-	// it should not be re-installed and the directory should not be re-created.
-	s.host.DeletePath("/opt/datadog-packages/datadog-installer/stable/systemd")
 	s.RunInstallScript("DD_NO_AGENT_INSTALL=true")
+	stateAfter := s.host.State()
+	installerBinAfter, ok := stateAfter.Stat("/usr/bin/datadog-installer")
+	assert.True(s.T(), ok)
 
-	state := s.host.State()
-	state.AssertPathDoesNotExist("/opt/datadog-packages/datadog-installer/stable/systemd")
+	assert.Equal(s.T(), installerBinBefore.ModTime, installerBinAfter.ModTime)
 	s.host.AssertPackageInstalledByInstaller("datadog-installer")
 }

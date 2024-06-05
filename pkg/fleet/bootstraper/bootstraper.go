@@ -22,7 +22,7 @@ const (
 	installerPackage = "datadog-installer"
 	installerBinPath = "bin/installer/installer"
 
-	rootTmpDir = "/opt/datadog-installer/run"
+	rootTmpDir = "/opt/datadog-installer/tmp"
 )
 
 // Bootstrap installs a first version of the installer on the disk.
@@ -50,6 +50,10 @@ func Bootstrap(ctx context.Context, env *env.Env) error {
 	}
 
 	// 2. Export the installer image as an OCI layout on the disk.
+	err = os.MkdirAll(rootTmpDir, 0755)
+	if err != nil {
+		return fmt.Errorf("failed to create temporary directory: %w", err)
+	}
 	layoutTmpDir, err := os.MkdirTemp(rootTmpDir, "")
 	if err != nil {
 		return fmt.Errorf("failed to create temporary directory: %w", err)
