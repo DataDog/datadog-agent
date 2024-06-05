@@ -8,7 +8,7 @@ import tempfile
 import traceback
 from collections import defaultdict
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from urllib.parse import quote
 
 from invoke import task
@@ -459,7 +459,7 @@ def send_notification(ctx: Context, alert_jobs):
 
 
 @task
-def send_failure_summary_notification(_, jobs: dict[str, any] | None = None, list_max_len=10):
+def send_failure_summary_notification(_, jobs: dict[str, any] | None = None, list_max_len=5):
     from slack_sdk import WebClient
 
     client = WebClient(os.environ["SLACK_API_TOKEN"])
@@ -469,37 +469,56 @@ def send_failure_summary_notification(_, jobs: dict[str, any] | None = None, lis
             jobs = os.environ["JOB_FAILURES"]
             jobs = json.loads(jobs)
 
-        # List of (job_name, {failures, allowedToFail}) ordered by failure_count
-        stats = sorted(
-            ((name, data) for name, data in jobs.items() if data['failures'] > 0),
+        allowed = [(name, data) for name, data in jobs.items() if data['failures'] > 0 and data['allowedToFail']]
+        not_allowed = [(name, data) for name, data in jobs.items() if data['failures'] > 0 and not data['allowedToFail']]
+
+        # List of (job_name, {failures, allowedToFail}) ordered by failures
+        stats_allowed_to_fail = sorted(
+            allowed,
+            key=lambda x: x[1]['failures'],
+            reverse=True,
+        )[:list_max_len]
+        stats_not_allowed_to_fail = sorted(
+            not_allowed,
             key=lambda x: x[1]['failures'],
             reverse=True,
         )[:list_max_len]
 
+        # Create message
+        message = []
+        if stats_not_allowed_to_fail != []:
+            message.append('Not allowed to fail jobs:')
+            for name, data in stats_not_allowed_to_fail:
+                link = get_ci_visibility_job_url(name)
+                message.append(f"- <{link}|{name}>: *{data['failures']}* failures")
+
+        if stats_allowed_to_fail != []:
+            message.append('Allowed to fail jobs:')
+            for name, data in stats_not_allowed_to_fail:
+                link = get_ci_visibility_job_url(name)
+                message.append(f"- <{link}|{name}>: *{data['failures']}* failures")
+
         # Don't send message if no failure
-        if len(stats) == 0:
+        if message == []:
             return
 
-        # Create message
-        message = ['*Daily Job Failure Report*']
-        message.append('These jobs had the most failures in the last 24 hours:')
-        for name, data in stats:
-            link = get_ci_visibility_job_url(name)
-            bullet = ':large_orange_circle:' if data['allowedToFail'] else ':red_circle:'
-            message.append(f"{bullet} <{link}|{name}>: *{data['failures']}* failures")
+        timestamp_start = int((datetime.now() - timedelta(days=1)).timestamp() * 1000)
+        timestamp_end = int(datetime.now().timestamp() * 1000)
 
-        message.append(
-            'Click <https://app.datadoghq.com/ci/pipeline-executions?query=ci_level%3Ajob%20env%3Aprod%20%40git.repository.id%3A%22gitlab.ddbuild.io%2FDataDog%2Fdatadog-agent%22%20%40ci.pipeline.name%3A%22DataDog%2Fdatadog-agent%22%20%40ci.provider.instance%3Agitlab-ci%20%40git.branch%3Amain%20%40ci.status%3Aerror&agg_m=count&agg_m_source=base&agg_q=%40ci.job.name&agg_q_source=base&agg_t=count&fromUser=false&index=cipipeline&sort_m=count&sort_m_source=base&sort_t=count&top_n=25&top_o=top&viz=toplist&x_missing=true&paused=false|here> for more details.'
-        )
+        message = '\n'.join([
+            '*Daily Job Failure Report*',
+            'These jobs on datadog-agent had the most failures in the last 24 hours.',
+            *message,
+            f'Click <https://app.datadoghq.com/ci/pipeline-executions?query=ci_level%3Ajob%20env%3Aprod%20%40git.repository.id%3A%22gitlab.ddbuild.io%2FDataDog%2Fdatadog-agent%22%20%40ci.pipeline.name%3A%22DataDog%2Fdatadog-agent%22%20%40ci.provider.instance%3Agitlab-ci%20%40git.branch%3Amain%20%40ci.status%3Aerror&agg_m=count&agg_m_source=base&agg_q=%40ci.job.name&%40gitlab.pipeline_source%3A%28push%20OR%20schedule%29&agg_q_source=base&agg_t=count&fromUser=false&start={timestamp_start}&end={timestamp_end}&index=cipipeline&sort_m=count&sort_m_source=base&sort_t=count&top_n=25&top_o=top&viz=toplist&x_missing=true&paused=false|here> for more details.'
+        ])
 
-        message.append('Jobs with :large_orange_circle: are allowed to fail while :red_circle: jobs are not')
 
         # Send message
         # client.chat_postMessage(channel='#agent-platform-ops', text='\n'.join(message))
-        client.chat_postMessage(channel='#celian-tests', text='\n'.join(message))
+        client.chat_postMessage(channel='#celian-tests', text=message)
         # TODO
         print()
-        print('\n'.join(message))
+        print(message)
         print()
 
         print('Message sent')
