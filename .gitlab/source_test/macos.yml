@@ -63,8 +63,7 @@ lint_macos:
     - rm -rf $HOME/go/bin
     - eval $(gimme --force $(cat .go-version))
     - export PATH="$HOME/go/bin:$PATH"
-  # Installing the job dependencies
-  script:
+    # Installing the job dependencies
     - pyenv virtualenv 3.11.8 datadog-agent
     - pyenv activate datadog-agent
     - python3 -m pip install -r requirements.txt -r tasks/libs/requirements-github.txt
