@@ -46,9 +46,28 @@ func RemoveAPMInjector(ctx context.Context) error {
 	return installer.Uninstrument(ctx)
 }
 
+// InstrumentAPMInjector instruments the APM injector
+func InstrumentAPMInjector(ctx context.Context, method string) error {
+	span, ctx := tracer.StartSpanFromContext(ctx, "instrument_injector")
+	defer span.Finish()
+	installer := newAPMInjectorInstaller(injectorPath)
+	installer.envs.InstallScript.APMInstrumentationEnabled = method
+	return installer.Instrument(ctx)
+}
+
+// UninstrumentAPMInjector uninstruments the APM injector
+func UninstrumentAPMInjector(ctx context.Context, method string) error {
+	span, ctx := tracer.StartSpanFromContext(ctx, "uninstrument_injector")
+	defer span.Finish()
+	installer := newAPMInjectorInstaller(injectorPath)
+	installer.envs.InstallScript.APMInstrumentationEnabled = method
+	return installer.Uninstrument(ctx)
+}
+
 func newAPMInjectorInstaller(path string) *apmInjectorInstaller {
 	a := &apmInjectorInstaller{
 		installPath: path,
+		envs:        env.FromEnv(),
 	}
 	a.ldPreloadFileInstrument = newFileMutator(ldSoPreloadPath, a.setLDPreloadConfigContent, nil, nil)
 	a.ldPreloadFileUninstrument = newFileMutator(ldSoPreloadPath, a.deleteLDPreloadConfigContent, nil, nil)
@@ -63,6 +82,7 @@ type apmInjectorInstaller struct {
 	ldPreloadFileUninstrument *fileMutator
 	dockerConfigInstrument    *fileMutator
 	dockerConfigUninstrument  *fileMutator
+	envs                      *env.Env
 }
 
 // Setup sets up the APM injector
@@ -110,8 +130,7 @@ func (a *apmInjectorInstaller) Instrument(ctx context.Context) (retErr error) {
 		return err
 	}
 
-	envs := env.FromEnv()
-	if shouldInstrumentHost(envs) {
+	if shouldInstrumentHost(a.envs) {
 		rollbackLDPreload, err := a.ldPreloadFileInstrument.mutate(ctx)
 		if err != nil {
 			return err
@@ -126,10 +145,10 @@ func (a *apmInjectorInstaller) Instrument(ctx context.Context) (retErr error) {
 	}
 
 	dockerIsInstalled := isDockerInstalled(ctx)
-	if mustInstrumentDocker(envs) && !dockerIsInstalled {
+	if mustInstrumentDocker(a.envs) && !dockerIsInstalled {
 		return fmt.Errorf("DD_APM_INSTRUMENTATION_ENABLED is set to docker but docker is not installed")
 	}
-	if shouldInstrumentDocker(envs) && dockerIsInstalled {
+	if shouldInstrumentDocker(a.envs) && dockerIsInstalled {
 		rollbackDocker, err := a.instrumentDocker(ctx)
 		if err != nil {
 			return err
@@ -153,9 +172,19 @@ func (a *apmInjectorInstaller) Instrument(ctx context.Context) (retErr error) {
 
 // Uninstrument uninstruments the APM injector
 func (a *apmInjectorInstaller) Uninstrument(ctx context.Context) error {
-	dockerErr := a.uninstrumentDocker(ctx)
-	_, hostErr := a.ldPreloadFileUninstrument.mutate(ctx)
-	return multierr.Combine(dockerErr, hostErr)
+	errs := []error{}
+
+	if shouldInstrumentHost(a.envs) {
+		_, hostErr := a.ldPreloadFileUninstrument.mutate(ctx)
+		errs = append(errs, hostErr)
+	}
+
+	if shouldInstrumentDocker(a.envs) {
+		dockerErr := a.uninstrumentDocker(ctx)
+		errs = append(errs, dockerErr)
+	}
+
+	return multierr.Combine(errs...)
 }
 
 // setLDPreloadConfigContent sets the content of the LD preload configuration

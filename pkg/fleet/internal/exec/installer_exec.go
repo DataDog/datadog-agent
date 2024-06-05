@@ -108,6 +108,20 @@ func (i *InstallerExec) GarbageCollect(ctx context.Context) (err error) {
 	return cmd.Run()
 }
 
+// InstrumentAPMInjector instruments the APM auto-injector.
+func (i *InstallerExec) InstrumentAPMInjector(ctx context.Context, method string) (err error) {
+	cmd := i.newInstallerCmd(ctx, "apm instrument", method)
+	defer func() { cmd.span.Finish(tracer.WithError(err)) }()
+	return cmd.Run()
+}
+
+// UninstrumentAPMInjector uninstruments the APM auto-injector.
+func (i *InstallerExec) UninstrumentAPMInjector(ctx context.Context, method string) (err error) {
+	cmd := i.newInstallerCmd(ctx, "apm uninstrument", method)
+	defer func() { cmd.span.Finish(tracer.WithError(err)) }()
+	return cmd.Run()
+}
+
 // IsInstalled checks if a package is installed.
 func (i *InstallerExec) IsInstalled(ctx context.Context, pkg string) (_ bool, err error) {
 	cmd := i.newInstallerCmd(ctx, "is-installed", pkg)
