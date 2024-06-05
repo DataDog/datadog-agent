@@ -119,8 +119,6 @@ var ConnTracerTelemetry = struct {
 	//nolint:revive // TODO(NET) Fix revive linter
 	UdpDroppedConns *prometheus.Desc
 	//nolint:revive // TODO(NET) Fix revive linter
-	doubleFlushAttemptsDone *prometheus.Desc
-	//nolint:revive // TODO(NET) Fix revive linter
 	doubleFlushAttemptsClose *prometheus.Desc
 	//nolint:revive // TODO(NET) Fix revive linter
 	unsupportedTcpFailures *prometheus.Desc
@@ -143,8 +141,6 @@ var ConnTracerTelemetry = struct {
 	//nolint:revive // TODO(NET) Fix revive linter
 	lastUdpDroppedConns *atomic.Int64
 	//nolint:revive // TODO(NET) Fix revive linter
-	lastDoubleFlushAttemptsDone *atomic.Int64
-	//nolint:revive // TODO(NET) Fix revive linter
 	lastDoubleFlushAttemptsClose *atomic.Int64
 	//nolint:revive // TODO(NET) Fix revive linter
 	lastUnsupportedTcpFailures *atomic.Int64
@@ -157,13 +153,11 @@ var ConnTracerTelemetry = struct {
 	prometheus.NewDesc(connTracerModuleName+"__udp_sends_processed", "Counter measuring the number of processed UDP sends in EBPF", nil, nil),
 	prometheus.NewDesc(connTracerModuleName+"__udp_sends_missed", "Counter measuring failures to process UDP sends in EBPF", nil, nil),
 	prometheus.NewDesc(connTracerModuleName+"__udp_dropped_conns", "Counter measuring the number of dropped UDP connections in the EBPF map", nil, nil),
-	prometheus.NewDesc(connTracerModuleName+"__double_flush_attempts_done", "Counter measuring the number of attempts to flush a closed connection twice from tcp_done", nil, nil),
 	prometheus.NewDesc(connTracerModuleName+"__double_flush_attempts_close", "Counter measuring the number of attempts to flush a closed connection twice from tcp_done", nil, nil),
 	prometheus.NewDesc(connTracerModuleName+"__unsupported_tcp_failures", "Counter measuring the number of attempts to flush a TCP failure that is not supported", nil, nil),
 	telemetry.NewStatCounterWrapper(connTracerModuleName, "pid_collisions", []string{}, "Counter measuring number of process collisions"),
 	telemetry.NewCounter(connTracerModuleName, "iteration_dups", []string{}, "Counter measuring the number of connections iterated more than once"),
 	telemetry.NewCounter(connTracerModuleName, "iteration_aborts", []string{}, "Counter measuring how many times ebpf iteration of connection map was aborted"),
-	atomic.NewInt64(0),
 	atomic.NewInt64(0),
 	atomic.NewInt64(0),
 	atomic.NewInt64(0),
@@ -570,7 +564,6 @@ func (t *tracer) Describe(ch chan<- *prometheus.Desc) {
 	ch <- ConnTracerTelemetry.UdpSendsProcessed
 	ch <- ConnTracerTelemetry.UdpSendsMissed
 	ch <- ConnTracerTelemetry.UdpDroppedConns
-	ch <- ConnTracerTelemetry.doubleFlushAttemptsDone
 	ch <- ConnTracerTelemetry.doubleFlushAttemptsClose
 	ch <- ConnTracerTelemetry.unsupportedTcpFailures
 }
@@ -608,10 +601,6 @@ func (t *tracer) Collect(ch chan<- prometheus.Metric) {
 	delta = int64(ebpfTelemetry.Udp_dropped_conns) - ConnTracerTelemetry.lastUdpDroppedConns.Load()
 	ConnTracerTelemetry.lastUdpDroppedConns.Store(int64(ebpfTelemetry.Udp_dropped_conns))
 	ch <- prometheus.MustNewConstMetric(ConnTracerTelemetry.UdpDroppedConns, prometheus.CounterValue, float64(delta))
-
-	delta = int64(ebpfTelemetry.Double_flush_attempts_done) - ConnTracerTelemetry.lastDoubleFlushAttemptsDone.Load()
-	ConnTracerTelemetry.lastDoubleFlushAttemptsDone.Store(int64(ebpfTelemetry.Double_flush_attempts_done))
-	ch <- prometheus.MustNewConstMetric(ConnTracerTelemetry.doubleFlushAttemptsDone, prometheus.CounterValue, float64(delta))
 
 	delta = int64(ebpfTelemetry.Double_flush_attempts_close) - ConnTracerTelemetry.lastDoubleFlushAttemptsClose.Load()
 	ConnTracerTelemetry.lastDoubleFlushAttemptsClose.Store(int64(ebpfTelemetry.Double_flush_attempts_close))
