@@ -11,6 +11,7 @@ import operator
 import os
 import platform
 import re
+import shutil
 import sys
 from collections import defaultdict
 from datetime import datetime
@@ -951,26 +952,19 @@ def lint_go(
 def check_otel_build(ctx):
     with ctx.cd("test/otel"):
         # Rename fixtures
-        ctx.run("mv dependencies.go.fake dependencies.go")
-        ctx.run("mv go.mod.fake go.mod")
-        ctx.run("mv go.sum.fake go.sum")
+        shutil.copy("test/otel/dependencies.go.fake", "test/otel/dependencies.go")
+        shutil.copy("test/otel/go.mod.fake", "test/otel/go.mod")
+        shutil.copy("test/otel/go.sum.fake", "test/otel/go.sum")
 
         # Update dependencies to latest local version
-        ctx.run("go mod tidy")
+        res = ctx.run("go mod tidy")
+        if not res.ok:
+            raise Exit(f"Error running `go mod tidy`: {res.stderr}")
 
         # Build test/otel/dependencies.go with same settings as `make otelcontribcol`
         res = ctx.run("GO111MODULE=on CGO_ENABLED=0 go build -trimpath -o . .", warn=True)
         if res is None or not res.ok:
-            ctx.run("mv dependencies.go dependencies.go.fake")
-            ctx.run("mv go.mod go.mod.fake")
-            ctx.run("mv go.sum go.sum.fake")
             raise Exit(f"Error building otel components with datadog-agent dependencies: {res.stderr}")
-
-        # Remove built executable and rename fixtures
-        ctx.run("rm ./otel")
-        ctx.run("mv dependencies.go dependencies.go.fake")
-        ctx.run("mv go.mod go.mod.fake")
-        ctx.run("mv go.sum go.sum.fake")
 
 
 @task
