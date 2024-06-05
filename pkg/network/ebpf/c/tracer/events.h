@@ -44,7 +44,7 @@ __maybe_unused static __always_inline void submit_closed_conn_event(void *ctx, i
     }
 }
 
-static __always_inline void cleanup_conn(void *ctx, conn_tuple_t *tup, struct sock *sk, bool skip_new_conn_create) {
+static __always_inline void cleanup_conn(void *ctx, conn_tuple_t *tup, struct sock *sk) {
     u32 cpu = bpf_get_smp_processor_id();
     // Will hold the full connection data to send through the perf or ring buffer
     conn_t conn = { .tup = *tup };
@@ -75,13 +75,10 @@ static __always_inline void cleanup_conn(void *ctx, conn_tuple_t *tup, struct so
     cst = bpf_map_lookup_elem(&conn_stats, &(conn.tup));
 
     if (cst) {
-        log_debug("adamk cleanup_conn found cst entry");
         conn.conn_stats = *cst;
         bpf_map_delete_elem(&conn_stats, &(conn.tup));
     } else {
-        log_debug("adamk cleanup_conn no cst entry");
-        if (is_udp || skip_new_conn_create) {
-            log_debug("adamk cleanup_conn skipping flush");
+        if (is_udp) {
             increment_telemetry_count(udp_dropped_conns);
             return; // nothing to report
         }
@@ -104,8 +101,6 @@ static __always_inline void cleanup_conn(void *ctx, conn_tuple_t *tup, struct so
     if (batch_ptr == NULL) {
         return;
     }
-
-    log_debug("adamk cleanup_conn flushing conn");
 
     // TODO: Can we turn this into a macro based on TCP_CLOSED_BATCH_SIZE?
     switch (batch_ptr->len) {
