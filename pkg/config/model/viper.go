@@ -7,8 +7,10 @@ package model
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"io"
+	"os"
 	"reflect"
 	"strconv"
 	"strings"
@@ -102,6 +104,8 @@ type safeConfig struct {
 	// keys that have been used but are unknown
 	// used to warn (a single time) on use
 	unknownKeys map[string]struct{}
+
+	extraConfigFilePaths []string
 }
 
 // OnUpdate adds a callback to the list receivers to be called each time a value is changed in the configuration
@@ -582,11 +586,29 @@ func (c *safeConfig) UnmarshalExact(rawVal interface{}) error {
 func (c *safeConfig) ReadInConfig() error {
 	c.Lock()
 	defer c.Unlock()
-	err := c.Viper.ReadInConfig()
+	err := errors.Join(c.Viper.ReadInConfig(), c.configSources[SourceFile].ReadInConfig())
 	if err != nil {
 		return err
 	}
-	return c.configSources[SourceFile].ReadInConfig()
+
+	// merge with extra config files
+	var errs []error
+	var successfulExtraConfigPaths []string
+	for _, path := range c.extraConfigFilePaths {
+		b, err := os.ReadFile(path)
+		if err != nil {
+			errs = append(errs, fmt.Errorf("no config exists at %s", path))
+		}
+
+		err = errors.Join(c.Viper.MergeConfig(bytes.NewReader(b)), c.configSources[SourceFile].MergeConfig(bytes.NewReader(b)))
+		if err != nil {
+			errs = append(errs, fmt.Errorf("error merging %s config file: %w", path, err))
+			continue
+		}
+		successfulExtraConfigPaths = append(successfulExtraConfigPaths, path)
+	}
+	c.extraConfigFilePaths = successfulExtraConfigPaths
+	return errors.Join(errs...)
 }
 
 // ReadConfig wraps Viper for concurrent access
@@ -668,6 +690,12 @@ func (c *safeConfig) AddConfigPath(in string) {
 	defer c.Unlock()
 	c.configSources[SourceFile].AddConfigPath(in)
 	c.Viper.AddConfigPath(in)
+}
+
+func (c *safeConfig) AddExtraConfigPaths(in []string) {
+	c.Lock()
+	defer c.Unlock()
+	c.extraConfigFilePaths = append(c.extraConfigFilePaths, in...)
 }
 
 // SetConfigName wraps Viper for concurrent access
@@ -808,5 +836,5 @@ func (c *safeConfig) GetProxies() *Proxy {
 }
 
 func (c *safeConfig) ExtraConfigFilesUsed() []string {
-	return []string{}
+	return c.extraConfigFilePaths
 }

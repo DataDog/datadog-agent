@@ -1839,6 +1839,8 @@ func LoadCustom(config pkgconfigmodel.Config, origin string, secretResolver opti
 		return &warnings, err
 	}
 
+	// Implement here additional confs
+
 	for _, key := range findUnknownKeys(config) {
 		log.Warnf("Unknown key in config file: %v", key)
 	}

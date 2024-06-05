@@ -31,8 +31,6 @@ type cfg struct {
 
 	// warnings are the warnings generated during setup
 	warnings *pkgconfigmodel.Warnings
-
-	extraConfFiles []string
 }
 
 // configDependencies is an interface that mimics the fx-oriented dependencies struct
@@ -108,16 +106,6 @@ func newConfig(deps dependencies) (*cfg, error) {
 		return returnErrFct(err)
 	}
 
-	// Merging main config with extra config files
-	var extraConfFiles []string
-	for _, path := range deps.Params.ExtraConfFilePath {
-		if err := pkgconfigsetup.Merge(path, config); err != nil {
-			errs = append(errs, err)
-		} else {
-			extraConfFiles = append(extraConfFiles, path)
-		}
-	}
-
 	for _, path := range deps.Params.securityAgentConfigFilePaths {
 		errs = append(errs, pkgconfigsetup.Merge(path, config))
 	}
@@ -125,15 +113,11 @@ func newConfig(deps dependencies) (*cfg, error) {
 	if err := errors.Join(errs...); err != nil {
 		return returnErrFct(err)
 	}
-	return &cfg{Config: config, warnings: warnings, extraConfFiles: extraConfFiles}, nil
+	return &cfg{Config: config, warnings: warnings}, nil
 }
 
 func (c *cfg) Warnings() *pkgconfigmodel.Warnings {
 	return c.warnings
-}
-
-func (c *cfg) ExtraConfigFilesUsed() []string {
-	return c.extraConfFiles
 }
 
 // fillFlare add the Configuration files to flares.
@@ -152,7 +136,7 @@ func (c *cfg) fillFlare(fb flaretypes.FlareBuilder) error {
 		fb.CopyFileTo(filepath.Join(confDir, "security-agent.yaml"), filepath.Join("etc", "security-agent.yaml")) //nolint:errcheck
 	}
 
-	for _, path := range c.extraConfFiles {
+	for _, path := range c.ExtraConfigFilesUsed() {
 		fb.CopyFileTo(path, filepath.Join("etc/extra_conf/", path)) //nolint:errcheck
 	}
 
