@@ -3297,6 +3297,8 @@ core,go.opentelemetry.io/collector/consumer,Apache-2.0,Copyright The OpenTelemet
 core,go.opentelemetry.io/collector/consumer/consumererror,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/consumer/consumertest,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/exporter,Apache-2.0,Copyright The OpenTelemetry Authors
+core,go.opentelemetry.io/collector/exporter/debugexporter,Apache-2.0,Copyright The OpenTelemetry Authors
+core,go.opentelemetry.io/collector/exporter/debugexporter/internal/metadata,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/exporter/exporterbatcher,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/exporter/exporterhelper,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/exporter/exporterqueue,Apache-2.0,Copyright The OpenTelemetry Authors
@@ -3308,6 +3310,8 @@ core,go.opentelemetry.io/collector/exporter/loggingexporter,Apache-2.0,Copyright
 core,go.opentelemetry.io/collector/exporter/loggingexporter/internal/metadata,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/exporter/otlpexporter,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/exporter/otlpexporter/internal/metadata,Apache-2.0,Copyright The OpenTelemetry Authors
+core,go.opentelemetry.io/collector/exporter/otlphttpexporter,Apache-2.0,Copyright The OpenTelemetry Authors
+core,go.opentelemetry.io/collector/exporter/otlphttpexporter/internal/metadata,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/extension,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/extension/auth,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/collector/extension/ballastextension,Apache-2.0,Copyright The OpenTelemetry Authors
