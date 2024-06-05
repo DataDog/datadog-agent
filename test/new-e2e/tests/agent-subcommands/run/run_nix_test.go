@@ -24,7 +24,6 @@ func TestLinuxRunSuite(t *testing.T) {
 
 func (s *linuxRunSuite) TestRunWhenAgentAlreadyRunning() {
 	host := s.Env().RemoteHost
-	s.T().Log(host.HostOutput)
 
 	// Ensure agent is running
 	s.Require().True(s.Env().Agent.Client.IsReady(), "agent should be running")
