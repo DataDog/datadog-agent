@@ -240,7 +240,7 @@ static __always_inline void process_headers(struct __sk_buff *skb, dynamic_table
             }  else if (is_method_index(dynamic_value->original_index)) {
                 bpf_memcpy(current_stream->request_method.raw_buffer, dynamic_value->buffer, HTTP2_METHOD_MAX_LEN);
                 current_stream->request_method.is_huffman_encoded = dynamic_value->is_huffman_encoded;
-                current_stream->request_method.length = current_header->new_dynamic_value_size;
+                current_stream->request_method.length = dynamic_value->string_len;
                 current_stream->request_method.finalized = true;
             }
         } else {
