@@ -187,7 +187,7 @@ func (c *Check) SampleSession() error {
 	err := selectWrapper(c, &sessionSamples, activityQuery, maxSQLTextLength, maxSQLTextLength)
 
 	if err != nil {
-		if strings.Contains(fmt.Sprintf("%s", err), "character string buffer too small") {
+		if strings.Contains(err.Error(), "ORA-06502") {
 			if c.sqlSubstringLength > 1000 {
 				c.sqlSubstringLength = max(c.sqlSubstringLength-500, 1000)
 				sendMetricWithDefaultTags(c, count, "dd.oracle.activity.decrease_sql_substring_length", float64(c.sqlSubstringLength))
