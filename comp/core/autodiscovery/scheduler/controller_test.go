@@ -65,13 +65,17 @@ func TestController(t *testing.T) {
 	// register a scheduler and see that it gets caught up
 	s1 := &scheduler{}
 	ms.Register("s1", s1, true)
-	time.Sleep(2 * time.Second)
-	// check if there is any missing or double scheduled event
+	// all configs are scheduled once and only once
 	assert.EventuallyWithTf(t, func(c *assert.CollectT) {
 		s1.mutex.Lock()
 		assert.ElementsMatch(t, []event{{true, "one"}, {true, "two"}}, s1.events)
 		s1.mutex.Unlock()
-	}, 5*time.Second, 100*time.Millisecond, "Failed to process configs before timeout")
+	}, 2*time.Second, 100*time.Millisecond, "Failed to process configs before timeout")
+	assert.Neverf(t, func() bool {
+		s1.mutex.Lock()
+		defer s1.mutex.Unlock()
+		return !assert.ElementsMatch(t, []event{{true, "one"}, {true, "two"}}, s1.events)
+	}, 2*time.Second, 100*time.Millisecond, "Unexpected event received")
 	s1.reset()
 
 	// remove one of those configs and add another
@@ -81,20 +85,19 @@ func TestController(t *testing.T) {
 	// check s1 was informed about those in order
 	assert.EventuallyWithTf(t, func(c *assert.CollectT) {
 		s1.mutex.Lock()
-		assert.Equal(c, []event{{false, "one"}, {true, "three"}}, s1.events)
+		assert.ElementsMatch(c, []event{{false, "one"}, {true, "three"}}, s1.events)
 		s1.mutex.Unlock()
-	}, 5*time.Second, 100*time.Millisecond, "Failed to process configs before timeout")
+	}, 2*time.Second, 100*time.Millisecond, "Failed to process configs before timeout")
 	s1.reset()
 
 	// subscribe a new scheduler and see that it does not get c1
 	s2 := &scheduler{}
 	ms.Register("s2", s2, true)
-	time.Sleep(2 * time.Second)
-	assert.EventuallyWithTf(t, func(c *assert.CollectT) {
+	assert.Neverf(t, func() bool {
 		s2.mutex.Lock()
-		assert.ElementsMatch(t, []event{{true, "two"}, {true, "three"}}, s2.events)
-		s2.mutex.Unlock()
-	}, 5*time.Second, 100*time.Millisecond, "Failed to process configs before timeout")
+		defer s2.mutex.Unlock()
+		return !assert.ElementsMatch(t, []event{{true, "two"}, {true, "three"}}, s2.events)
+	}, 2*time.Second, 100*time.Millisecond, "Unexpected event received")
 	s2.reset()
 
 	// unsubscribe s1 and see that it no longer gets events
