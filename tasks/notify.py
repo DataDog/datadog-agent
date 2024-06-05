@@ -510,16 +510,20 @@ def send_failure_summary_notification(
         # Create message
         not_allowed_word = 'not ' if not allowed_to_fail else ''
         not_allowed_query = '-' if not allowed_to_fail else ''
+        period = 'Daily' if not allowed_to_fail else 'Weekly'
+        duration = '24 hours' if not allowed_to_fail else 'week'
+        delta = timedelta(days=1) if not allowed_to_fail else timedelta(weeks=1)
 
-        # message = ['*Daily Job Failure Report*']
-        message = [f'*{channel}*']
-        message.append(f'These {not_allowed_word}allowed to fail jobs you own had the most failures in the last 24 hours:')
+        message = [f'*{period} Job Failure Report*']
+        # TODO
+        message.append(f'TO: *{channel}*')
+        message.append(f'These {not_allowed_word}allowed to fail jobs you own had the most failures in the last {duration}:')
 
         for name, fail in stats:
             link = CI_VISIBILITY_JOB_URL.format(quote(name))
             message.append(f"- <{link}|{name}>: *{fail} failures*")
 
-        timestamp_start = int((datetime.now() - timedelta(days=1)).timestamp() * 1000)
+        timestamp_start = int((datetime.now() - delta).timestamp() * 1000)
         timestamp_end = int(datetime.now().timestamp() * 1000)
 
         message.append(
