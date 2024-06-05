@@ -198,17 +198,16 @@ int kprobe__tcp_close(struct pt_regs *ctx) {
     conn_tuple_t t = {};
     u64 pid_tgid = bpf_get_current_pid_tgid();
     sk = (struct sock *)PT_REGS_PARM1(ctx);
-    bool failure = false;
-
-    // check if this connection was already flushed and bail if so
-    if (bpf_map_delete_elem(&closed_conn_already_flushed, &sk) == 0) {
-        increment_telemetry_count(double_flush_attempts_close);
-        failure = true;
-    }
 
     // increment telemetry for connections that were never established
     if (bpf_map_delete_elem(&tcp_ongoing_connect_pid, &sk) == 0) {
         increment_telemetry_count(tcp_failed_connect);
+    }
+
+    // check if this connection was already flushed and ensure we don't flush again
+    if (bpf_map_delete_elem(&conn_close_flushed, &sk) == 0) {
+        increment_telemetry_count(double_flush_attempts_close);
+        return 0;
     }
 
     // Get network namespace id
@@ -218,17 +217,13 @@ int kprobe__tcp_close(struct pt_regs *ctx) {
     }
     log_debug("kprobe/tcp_close: netns: %u, sport: %u, dport: %u", t.netns, t.sport, t.dport);
 
-    cleanup_conn(ctx, &t, sk, failure);
+    cleanup_conn(ctx, &t, sk);
 
     // If protocol classification is disabled, then we don't have kretprobe__tcp_close_clean_protocols hook
     // so, there is no one to use the map and clean it.
     if (is_protocol_classification_supported()) {
         bpf_map_update_with_telemetry(tcp_close_args, &pid_tgid, &t, BPF_ANY);
     }
-
-    // mark this connection as already flushed
-    __u32 zero = 0;
-    bpf_map_update_with_telemetry(closed_conn_already_flushed, &sk, &zero, BPF_ANY);
 
     return 0;
 }
@@ -242,18 +237,13 @@ int kprobe__tcp_done(struct pt_regs *ctx) {
     __u64 *failed_conn_pid = NULL;
     int err = 0;
 
-    // check if this connection was already flushed and bail if so
-    if (bpf_map_delete_elem(&closed_conn_already_flushed, &sk) == 0) {
-        increment_telemetry_count(double_flush_attempts_done);
-        return 0;
-    }
-
     bpf_probe_read_kernel_with_telemetry(&err, sizeof(err), (&sk->sk_err));
     if (err == 0 || !tcp_failed_connections_enabled()) {
         return 0;
     }
 
     if (err != 104 && err != 110 && err != 111) {
+        log_debug("kprobe/tcp_done: unsupported error code: %d", err);
         increment_telemetry_count(unsupported_tcp_failures);
         return 0;
     }
@@ -265,7 +255,7 @@ int kprobe__tcp_done(struct pt_regs *ctx) {
     log_debug("kprobe/tcp_done: netns: %u, sport: %u, dport: %u", t.netns, t.sport, t.dport);
 
     // connection timeouts will have 0 pids as they are cleaned up by an idle process.
-    // get the pid from the ongoing failure map in this case, as it should have been set in connect.
+    // get the pid from the ongoing failure map in this case, as it should have been set in connect().
     if (pid_tgid == 0) {
         failed_conn_pid = bpf_map_lookup_elem(&tcp_ongoing_connect_pid, &sk);
     }
@@ -277,12 +267,12 @@ int kprobe__tcp_done(struct pt_regs *ctx) {
         return 0;
     }
 
-    cleanup_conn(ctx, &t, sk, true);
+    cleanup_conn(ctx, &t, sk);
     flush_tcp_failure(ctx, &t, err);
 
     // mark this connection as already flushed
-    __u32 zero = 0;
-    bpf_map_update_with_telemetry(closed_conn_already_flushed, &sk, &zero, BPF_ANY);
+    __u32 one = 1;
+    bpf_map_update_with_telemetry(conn_close_flushed, &sk, &one, BPF_ANY);
 
     return 0;
 }
@@ -1049,7 +1039,7 @@ static __always_inline int handle_udp_destroy_sock(void *ctx, struct sock *skp) 
 
     __u16 lport = 0;
     if (valid_tuple) {
-        cleanup_conn(ctx, &tup, skp, false);
+        cleanup_conn(ctx, &tup, skp);
         lport = tup.sport;
     } else {
         lport = read_sport(skp);

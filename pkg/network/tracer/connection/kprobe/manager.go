@@ -65,6 +65,7 @@ func initManager(mgr *ddebpf.Manager, connCloseEventHandler ddebpf.EventHandler,
 		{Name: probes.ConnMap},
 		{Name: probes.TCPStatsMap},
 		{Name: probes.TCPConnectSockPidMap},
+		{Name: probes.ClosedConnFlushed},
 		{Name: probes.ConnCloseBatchMap},
 		{Name: "udp_recv_sock"},
 		{Name: "udpv6_recv_sock"},
@@ -84,7 +85,7 @@ func initManager(mgr *ddebpf.Manager, connCloseEventHandler ddebpf.EventHandler,
 		{Name: probes.TCPCloseProgsMap},
 	}
 	util.SetupClosedConnHandler(connCloseEventHandler, mgr, cfg)
-	if FailedConnectionsSupported(cfg) {
+	if FailedConnectionsSupported(cfg) && failedConnsHandler != nil {
 		util.SetupFailedConnHandler(failedConnsHandler, mgr, cfg)
 	}
 
