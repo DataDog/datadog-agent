@@ -476,7 +476,7 @@ def send_notification(ctx: Context, alert_jobs, jobowners=".gitlab/JOBOWNERS"):
 
 @task
 def send_failure_summary_notification(
-    _, jobs: dict[str, any] | None = None, list_max_len=6, jobowners=".gitlab/JOBOWNERS"
+    _, jobs: dict[str, any] | None = None, allowed_to_fail=True, list_max_len=6, jobowners=".gitlab/JOBOWNERS"
 ):
     from slack_sdk import WebClient
 
@@ -555,7 +555,7 @@ def send_failure_summary_notification(
             # )
 
             # Send message
-            client.chat_postMessage(channel=channel, text='\n'.join(message))
+            client.chat_postMessage(channel=channel, text=message)
 
         # TODO
         # for channel, stat in team_stats.items():

@@ -4,8 +4,8 @@ on:
   workflow_dispatch:
     inputs:
       # See notify_tests.py to see the format
-      job_failures:
-        description: 'Job failures'
+      args:
+        description: 'Arguments'
         required: true
         type: string
 
@@ -30,6 +30,6 @@ jobs:
         id: send_failure_summary_team_notification
         env:
           # Too much data to be passed by arguments
-          JOB_FAILURES: ${{ inputs.job_failures }}
+          ARGS: ${{ inputs.args }}
           SLACK_API_TOKEN: ${{ secrets.SLACK_DATADOG_AGENT_BOT_TOKEN }}
         run: inv -e notify.send-failure-summary-notification
