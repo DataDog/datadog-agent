@@ -236,9 +236,10 @@ def send_build_metrics(ctx, overall_duration):
     # We only want to generate those metrics from the CI
     src_dir = os.environ.get('CI_PROJECT_DIR')
     aws_cmd = "aws"
-    if sys.platform == 'win32' and src_dir is None:
-        src_dir = "C:/buildroot/datadog-agent"
+    if sys.platform == 'win32':
         aws_cmd = "aws.cmd"
+        if src_dir is None:
+            src_dir = "C:/buildroot/datadog-agent"
 
     job_name = os.environ.get('CI_JOB_NAME_SLUG')
     branch = os.environ.get('CI_COMMIT_REF_NAME')
