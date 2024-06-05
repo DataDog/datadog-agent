@@ -14,7 +14,6 @@ import (
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/otelcol"
 
-	flarebuilder "github.com/DataDog/datadog-agent/comp/core/flare/builder"
 	"github.com/DataDog/datadog-agent/comp/core/hostname"
 	corelog "github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
@@ -30,10 +29,9 @@ import (
 )
 
 type collectorImpl struct {
-	log          corelog.Component
-	set          otelcol.CollectorSettings
-	col          *otelcol.Collector
-	flareEnabled bool
+	log corelog.Component
+	set otelcol.CollectorSettings
+	col *otelcol.Collector
 }
 
 // Requires declares the input types to the constructor
@@ -56,8 +54,7 @@ type Requires struct {
 type Provides struct {
 	compdef.Out
 
-	Comp          collector.Component
-	FlareProvider flarebuilder.Provider
+	Comp collector.Component
 }
 
 // NewComponent returns a new instance of the collector component.
@@ -114,14 +111,6 @@ func (c *collectorImpl) start(context.Context) error {
 
 func (c *collectorImpl) stop(context.Context) error {
 	c.col.Shutdown()
-	return nil
-}
-
-func (c *collectorImpl) fillFlare(fb flarebuilder.FlareBuilder) error {
-	if c.flareEnabled {
-		// TODO: placeholder for now, until OTel extension exists to provide data
-		fb.AddFile("otel-agent.log", []byte("otel-agent flare")) //nolint:errcheck
-	}
 	return nil
 }
 
