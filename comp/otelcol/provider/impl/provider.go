@@ -135,6 +135,15 @@ func confToString(conf *otelcol.Config) (string, error) {
 	return string(bytesConf), nil
 }
 
+func (cp *configProvider) Get(ctx context.Context, factories otelcol.Factories) (*otelcol.Config, error) {
+	conf, err := cp.base.Get(ctx, factories)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get config: %w", err)
+	}
+
+	return conf, nil
+}
+
 // Watch is a no-op which returns a nil chan.
 func (cp *configProvider) Watch() <-chan error {
 	return nil
