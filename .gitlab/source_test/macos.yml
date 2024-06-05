@@ -56,8 +56,7 @@ lint_macos:
   variables:
     PYTHON_RUNTIMES: "3"
   before_script:
-    - pyenv uninstall 3.11.8/envs/datadog-agent
-    - pyenv virtualenv 3.11.8 datadog-agent
+    - pyenv virtualenv -f 3.11.8 datadog-agent
     - pyenv activate datadog-agent
     - python3 -m pip install -r requirements.txt -r tasks/libs/requirements-github.txt
     - pyenv rehash
