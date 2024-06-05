@@ -53,20 +53,32 @@ func TestNewConfigProviderFromMap(t *testing.T) {
 	require.NoError(t, err)
 	cfgMap, err := NewMapFromYAMLString(string(content))
 	require.NoError(t, err)
-	mapProvider := NewConfigProviderFromMap(cfgMap)
 
+	mapSettings := otelcol.ConfigProviderSettings{
+		ResolverSettings: confmap.ResolverSettings{
+			URIs: []string{fmt.Sprintf("map:%s", "hardcoded")},
+			ProviderFactories: []confmap.ProviderFactory{
+				NewProviderFactory(cfgMap),
+			},
+			ConverterFactories: []confmap.ConverterFactory{expandconverter.NewFactory()},
+		},
+	}
 	// build default provider from same data
 	settings := otelcol.ConfigProviderSettings{
 		ResolverSettings: confmap.ResolverSettings{
 			URIs: []string{fmt.Sprintf("file:%s", testPath)},
-			Providers: makeConfigMapProviderMap(
-				fileprovider.NewFactory().Create(confmap.ProviderSettings{}),
-				envprovider.NewFactory().Create(confmap.ProviderSettings{}),
-				yamlprovider.NewFactory().Create(confmap.ProviderSettings{})),
-			Converters: []confmap.Converter{expandconverter.NewFactory().Create(confmap.ConverterSettings{})},
+			ProviderFactories: []confmap.ProviderFactory{
+				fileprovider.NewFactory(),
+				envprovider.NewFactory(),
+				yamlprovider.NewFactory(),
+			},
+			ConverterFactories: []confmap.ConverterFactory{expandconverter.NewFactory()},
 		},
 	}
+
 	defaultProvider, err := otelcol.NewConfigProvider(settings)
+	require.NoError(t, err)
+	mapProvider, err := otelcol.NewConfigProvider(mapSettings)
 	require.NoError(t, err)
 
 	// Get config.Config from both
@@ -77,12 +89,4 @@ func TestNewConfigProviderFromMap(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Equal(t, cfg, defaultCfg, "Custom constant provider does not provide same config as default provider.")
-}
-
-func makeConfigMapProviderMap(providers ...confmap.Provider) map[string]confmap.Provider {
-	ret := make(map[string]confmap.Provider, len(providers))
-	for _, provider := range providers {
-		ret[provider.Scheme()] = provider
-	}
-	return ret
 }

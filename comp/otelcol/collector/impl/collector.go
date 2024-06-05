@@ -12,6 +12,13 @@ import (
 	"context"
 
 	"go.opentelemetry.io/collector/component"
+	"go.opentelemetry.io/collector/confmap"
+	"go.opentelemetry.io/collector/confmap/converter/expandconverter"
+	"go.opentelemetry.io/collector/confmap/provider/envprovider"
+	"go.opentelemetry.io/collector/confmap/provider/fileprovider"
+	"go.opentelemetry.io/collector/confmap/provider/httpprovider"
+	"go.opentelemetry.io/collector/confmap/provider/httpsprovider"
+	"go.opentelemetry.io/collector/confmap/provider/yamlprovider"
 	"go.opentelemetry.io/collector/otelcol"
 
 	flarebuilder "github.com/DataDog/datadog-agent/comp/core/flare/builder"
@@ -44,7 +51,7 @@ type Requires struct {
 
 	// Log specifies the logging component.
 	Log              corelog.Component
-	Provider         otelcol.ConfigProvider
+	Provider         confmap.Converter
 	CollectorContrib collectorcontrib.Component
 	Serializer       serializer.MetricSerializer
 	LogsAgent        optional.Option[logsagentpipeline.Component]
@@ -58,6 +65,14 @@ type Provides struct {
 
 	Comp          collector.Component
 	FlareProvider flarebuilder.Provider
+}
+
+type converterFactory struct {
+	converter confmap.Converter
+}
+
+func (c *converterFactory) Create(_ confmap.ConverterSettings) confmap.Converter {
+	return c.converter
 }
 
 // NewComponent returns a new instance of the collector component.
@@ -81,7 +96,21 @@ func NewComponent(reqs Requires) (Provides, error) {
 			factories.Processors[infraattributesprocessor.Type] = infraattributesprocessor.NewFactory(reqs.Tagger)
 			return factories, nil
 		},
-		ConfigProvider: reqs.Provider,
+		ConfigProviderSettings: otelcol.ConfigProviderSettings{
+			ResolverSettings: confmap.ResolverSettings{
+				ProviderFactories: []confmap.ProviderFactory{
+					fileprovider.NewFactory(),
+					envprovider.NewFactory(),
+					yamlprovider.NewFactory(),
+					httpprovider.NewFactory(),
+					httpsprovider.NewFactory(),
+				},
+				ConverterFactories: []confmap.ConverterFactory{
+					expandconverter.NewFactory(),
+					&converterFactory{converter: reqs.Provider},
+				},
+			},
+		},
 	}
 	col, err := otelcol.NewCollector(set)
 	if err != nil {

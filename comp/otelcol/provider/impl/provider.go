@@ -32,8 +32,6 @@ type confDump struct {
 	enhanced string
 }
 
-var _ otelcol.ConfigProvider = (*configProvider)(nil)
-
 // currently only supports a single URI in the uris slice, and this URI needs to be a file path.
 func NewConfigProvider(reqs provider.Requires) (provider.Component, error) {
 	ocp, err := otelcol.NewConfigProvider(newDefaultConfigProviderSettings(reqs.URIs))
@@ -72,27 +70,9 @@ func newDefaultConfigProviderSettings(uris []string) otelcol.ConfigProviderSetti
 	}
 }
 
-func (cp *configProvider) Get(ctx context.Context, factories otelcol.Factories) (*otelcol.Config, error) {
-	conf, err := cp.base.Get(ctx, factories)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get config: %w", err)
-	}
-
-	// err = cp.addProvidedConf(conf)
-	// if err != nil {
-	// 	return nil, fmt.Errorf("failed to add provided conf: %w", err)
-	// }
-
-	//
-	// TODO: modify conf (add datadogconnector if not present ...etc)
-	//
-
-	// err = cp.addEnhancedConf(conf)
-	// if err != nil {
-	// 	return nil, fmt.Errorf("failed to add enhanced conf: %w", err)
-	// }
-
-	return conf, nil
+func (cp *configProvider) Convert(ctx context.Context, conf *confmap.Conf) error {
+	// TODO: implement
+	return nil
 }
 
 func (cp *configProvider) addProvidedConf(conf *otelcol.Config) error {
