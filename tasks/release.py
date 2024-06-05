@@ -1184,6 +1184,8 @@ def create_rc(ctx, major_versions="6,7", patch_version=False, upstream="origin",
 
     list_major_versions = parse_major_versions(major_versions)
 
+    # Set this env variable to filter out the custom tags that could interfere with version computation
+    os.environ["RELEASE_CONTEXT"] = "true"
     # Get the version of the highest major: useful for some logging & to get
     # the version to use for Go submodules updates
     new_highest_version = next_rc_version(ctx, max(list_major_versions), patch_version)
@@ -1191,9 +1193,6 @@ def create_rc(ctx, major_versions="6,7", patch_version=False, upstream="origin",
     # milestone to target, as well as decide which tags from dependency repositories
     # can be used.
     new_final_version = next_final_version(ctx, max(list_major_versions), patch_version)
-
-    # Get a string representation of the RC, eg. "6/7.32.0-rc.1"
-    versions_string = f"{'/'.join([str(n) for n in list_major_versions[:-1]] + [str(new_highest_version)])}"
 
     print(color_message(f"Preparing RC for agent version(s) {list_major_versions}", "bold"))
 
@@ -1242,7 +1241,7 @@ def create_rc(ctx, major_versions="6,7", patch_version=False, upstream="origin",
     ctx.run("git add release.json")
     ctx.run("git ls-files . | grep 'go.mod$' | xargs git add")
 
-    ok = try_git_command(ctx, f"git commit -m 'Update release.json and Go modules for {versions_string}'")
+    ok = try_git_command(ctx, f"git commit -m 'Update release.json and Go modules for {new_highest_version}'")
     if not ok:
         raise Exit(
             color_message(
@@ -1264,7 +1263,7 @@ def create_rc(ctx, major_versions="6,7", patch_version=False, upstream="origin",
         )
 
     pr_url = create_pr(
-        f"[release] Update release.json and Go modules for {versions_string}",
+        f"[release] Update release.json and Go modules for {new_highest_version}",
         current_branch,
         update_branch,
         new_final_version,
@@ -1359,6 +1358,8 @@ def build_rc(ctx, major_versions="6,7", patch_version=False, k8s_deployments=Fal
     datadog_agent = get_gitlab_repo()
     list_major_versions = parse_major_versions(major_versions)
 
+    # Set this env variable to filter out the custom tags that could interfere with version computation
+    os.environ["RELEASE_CONTEXT"] = "true"
     # Get the version of the highest major: needed for tag_version and to know
     # which tag to target when creating the pipeline.
     new_version = next_rc_version(ctx, max(list_major_versions), patch_version)

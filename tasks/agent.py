@@ -735,6 +735,7 @@ def version(
     pipeline_id=None,
     include_git=True,
     include_pre=True,
+    release=False,
 ):
     """
     Get the agent version.
@@ -749,6 +750,10 @@ def version(
     """
     if cache_version:
         create_version_json(ctx, git_sha_length=git_sha_length)
+
+    if release:
+        # Set this environment variable to filter out custom tags that could interfere with the version computation
+        os.environ['RELEASE_CONTEXT'] = 'true'
 
     version = get_version(
         ctx,

@@ -54,6 +54,13 @@ def is_allowed_repo_nightly_branch(branch):
     return branch in ALLOWED_REPO_NIGHTLY_BRANCHES
 
 
+def on_release_context(bucket):
+    """
+    Util for specific computation of the last valid tag, to prevent interference with custom tags.
+    """
+    return os.getenv("RELEASE_CONTEXT") == "true" or is_allowed_repo_nightly_branch(bucket)
+
+
 def running_in_github_actions():
     return os.environ.get("GITHUB_ACTIONS") == "true"
 
@@ -483,7 +490,7 @@ def get_matching_pattern(ctx, major_version):
     We need to used specific patterns (official release tags) for nightly builds as they are used to install agent versions.
     """
     pattern = rf"{major_version}\.*"
-    if is_allowed_repo_nightly_branch(os.getenv("BUCKET_BRANCH")):
+    if on_release_context(os.getenv("BUCKET_BRANCH")):
         pattern = ctx.run(
             rf"git tag --list | grep -E '^{major_version}\.[0-9]+\.[0-9]+(-rc.*|-devel.*)?$' | sort -rV | head -1",
             hide=True,
