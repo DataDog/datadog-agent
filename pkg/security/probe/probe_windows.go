@@ -112,7 +112,6 @@ type WindowsProbe struct {
 	blockonchannelsend bool
 
 	// approvers
-	disableApprovers  bool
 	currentEventTypes []string
 	approvers         map[eval.Field][]approver
 }
@@ -403,7 +402,7 @@ func (p *WindowsProbe) approveFimBasename(value string) bool {
 
 // currently support only string base approver for now
 func (p *WindowsProbe) approve(field eval.Field, eventType string, value string) bool {
-	if p.disableApprovers {
+	if !p.config.Probe.EnableApprovers {
 		return true
 	}
 
@@ -1265,6 +1264,10 @@ func (p *WindowsProbe) FlushDiscarders() error {
 
 // OnNewDiscarder handles discarders
 func (p *WindowsProbe) OnNewDiscarder(_ *rules.RuleSet, ev *model.Event, field eval.Field, evalType eval.EventType) {
+	if !p.config.Probe.EnableDiscarders {
+		return
+	}
+
 	if evalType != "create" {
 		return
 	}
