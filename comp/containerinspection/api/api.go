@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"net/http"
+	"time"
 )
 
 type Component interface {
@@ -11,9 +12,23 @@ type Component interface {
 }
 
 type MetadataRequest struct {
+	// PodName is the name of the pod we are looking for.
 	PodName        string
+
+	// PodNamespace is the namespace of the given pod.
 	PodNamespace   string
+
+	// InitContainers are the containers we are looking for.
 	InitContainers map[string]ContainerSpec
+
+	// StaleImageDuration refers to how old image Metadata can be in
+	// our client/collector.
+	//
+	// If the image data is older than StaleImageDuration,
+	// we can assume we haven't gotten the data yet since we pull
+	// run a _new_ container for the image we care about _right before_
+	// we get the request.
+	StaleImageDuration *time.Duration
 }
 
 type ContainerMetadata struct {
