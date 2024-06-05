@@ -184,9 +184,9 @@ func TestStackManager(t *testing.T) {
 		}
 		stackUpCounter := 0
 		stackName := "test-cancel-retry-timeout"
-		// override stackUpTimeout to 2s
-		// average up time with an dummy run function is 900ms
-		stackUpTimeout := 2 * time.Second
+		// override stackUpTimeout to 10s
+		// average up time with an dummy run function is 5s
+		stackUpTimeout := 10 * time.Second
 		stack, result, err := stackManager.GetStackNoDeleteOnFailure(GetStackArgs{
 			Context:   ctx,
 			Name:      stackName,
@@ -195,7 +195,7 @@ func TestStackManager(t *testing.T) {
 				if stackUpCounter == 0 {
 					// sleep only first time to ensure context is cancelled
 					// on timeout
-					t.Log("Sleeping for 2x stackUpTimeout")
+					t.Logf("Sleeping for %f", 2*stackUpTimeout.Seconds())
 					time.Sleep(2 * stackUpTimeout)
 				}
 				stackUpCounter++
