@@ -144,7 +144,7 @@ func runOTelAgentCommand(ctx context.Context, params *subcommands.GlobalParams, 
 		fx.Invoke(func(_ collectordef.Component, _ defaultforwarder.Forwarder, _ optional.Option[logsagentpipeline.Component]) {
 		}),
 
-		fx.Provide(func() tagger.Params { return tagger.NewTaggerParams() }),
+		fx.Provide(tagger.NewTaggerParams()),
 		taggerimpl.Module(),
 		fx.Provide(func(cfg traceconfig.Component) telemetry.TelemetryCollector {
 			return telemetry.NewCollector(cfg.Object())
