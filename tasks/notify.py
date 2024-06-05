@@ -494,7 +494,7 @@ def send_failure_summary_notification(_, jobs: dict[str, any] | None = None, lis
 
         if stats_allowed_to_fail != []:
             message.append('Allowed to fail jobs:')
-            for name, data in stats_not_allowed_to_fail:
+            for name, data in stats_allowed_to_fail:
                 link = get_ci_visibility_job_url(name)
                 message.append(f"- <{link}|{name}>: *{data['failures']}* failures")
 
