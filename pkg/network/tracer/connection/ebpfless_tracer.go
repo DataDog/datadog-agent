@@ -39,8 +39,8 @@ const (
 )
 
 var (
-	// ErrEbpflessNotEnabled is the error returned when the ebpfless tracer is not supported
-	ErrEbpflessNotEnabled = errors.New("ebpf-less tracer not enabled")
+	// ErrEbpflessNotSupportedOrEnabled is the error returned when the ebpfless tracer is not supported
+	ErrEbpflessNotSupportedOrEnabled = errors.New("ebpf-less tracer not supported or enabled")
 
 	ebpfLessTracerTelemetry = struct {
 		skippedPackets telemetry.Counter
@@ -76,8 +76,8 @@ func NewEbpfLessTracer(cfg *config.Config) (Tracer, error) {
 }
 
 func newEbpfLessTracer(cfg *config.Config) (*ebpfLessTracer, error) {
-	if !cfg.EnableEbpflessTracer {
-		return nil, ErrEbpflessNotEnabled
+	if !cfg.EbpflessSupported() {
+		return nil, ErrEbpflessNotSupportedOrEnabled
 	}
 
 	packetSrc, err := filter.NewPacketSource(8, filter.OptSnapLen(segmentLen))

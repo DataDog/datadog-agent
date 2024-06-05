@@ -71,7 +71,8 @@ type Tracer interface {
 }
 
 func NewTracer(cfg *config.Config) (Tracer, error) {
-	if tr, err := NewEbpfLessTracer(cfg); err != ErrEbpflessNotEnabled {
+	tr, err := newEbpfLessTracer(cfg)
+	if err == nil || err != ErrEbpflessNotSupportedOrEnabled {
 		return tr, err
 	}
 

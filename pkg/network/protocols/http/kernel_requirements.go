@@ -30,7 +30,7 @@ func runningOnARM() bool {
 // TLSSupported returns true if HTTPs monitoring is supported on the current OS.
 // We only support ARM with kernel >= 5.5.0 and with runtime compilation enabled
 func TLSSupported(c *config.Config) bool {
-	if c.EnableEbpflessTracer {
+	if !kernel.IsEbpfSupported() {
 		return false
 	}
 

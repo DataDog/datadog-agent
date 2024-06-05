@@ -16,6 +16,7 @@ import (
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/util/fargate"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -282,7 +283,7 @@ type Config struct {
 	// buffers (>=5.8) will result in forcing the use of Perf Maps instead.
 	EnableUSMRingBuffers bool
 
-	EnableEbpflessTracer bool
+	EnableEbpfless bool
 }
 
 func join(pieces ...string) string {
@@ -374,7 +375,7 @@ func New() *Config {
 
 		EnableNPMConnectionRollup: cfg.GetBool(join(netNS, "enable_connection_rollup")),
 
-		EnableEbpflessTracer: cfg.GetBool(join(netNS, "enable_ebpf_less")),
+		EnableEbpfless: cfg.GetBool(join(netNS, "enable_ebpf_less")),
 
 		// Service Monitoring
 		EnableJavaTLSSupport:        cfg.GetBool(join(smjtNS, "enabled")),
@@ -423,4 +424,9 @@ func New() *Config {
 
 func (c *Config) RingBufferSupportedNPM() bool {
 	return (features.HaveMapType(cebpf.RingBuf) == nil) && c.NPMRingbuffersEnabled
+}
+
+func (c *Config) EbpflessSupported() bool {
+	return c.EnableEbpfless &&
+		fargate.IsFargateInstance()
 }

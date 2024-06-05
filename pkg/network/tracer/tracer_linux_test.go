@@ -1855,7 +1855,7 @@ func (s *TracerSuite) TestPreexistingConnectionDirection() {
 	m := outgoing.Monotonic
 	assert.Equal(t, clientMessageSize, int(m.SentBytes))
 	assert.Equal(t, serverMessageSize, int(m.RecvBytes))
-	if !tr.config.EnableEbpflessTracer {
+	if !tr.config.EbpflessSupported() {
 		assert.Equal(t, os.Getpid(), int(outgoing.Pid))
 	}
 	assert.Equal(t, addrPort(server.address), int(outgoing.DPort))
@@ -1865,7 +1865,7 @@ func (s *TracerSuite) TestPreexistingConnectionDirection() {
 	m = incoming.Monotonic
 	assert.Equal(t, clientMessageSize, int(m.RecvBytes))
 	assert.Equal(t, serverMessageSize, int(m.SentBytes))
-	if !tr.config.EnableEbpflessTracer {
+	if !tr.config.EbpflessSupported() {
 		assert.Equal(t, os.Getpid(), int(incoming.Pid))
 	}
 	assert.Equal(t, addrPort(server.address), int(incoming.SPort))
