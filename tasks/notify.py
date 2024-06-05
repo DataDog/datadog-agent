@@ -506,7 +506,8 @@ def send_failure_summary_notification(
 
     def send_summary(channel, stats):
         # Create message
-        message = ['*Daily Job Failure Report*']
+        # message = ['*Daily Job Failure Report*']
+        message = [f'*{channel}*']
         message.append('These jobs you own had the most failures in the last 24 hours:')
         for name, (fail, total) in stats:
             link = CI_VISIBILITY_JOB_URL.format(quote(name))
@@ -518,15 +519,16 @@ def send_failure_summary_notification(
 
         # Send message
         client = WebClient(os.environ["SLACK_API_TOKEN"])
-        client.chat_postMessage(channel=channel, text='\n'.join(message))
+        # client.chat_postMessage(channel=channel, text='\n'.join(message))
+        client.chat_postMessage(channel="#celian-tests", text='\n'.join(message))
 
-    # for channel, stat in team_stats.items():
-    #     send_summary(channel, stat)
+    for channel, stat in team_stats.items():
+        send_summary(channel, stat)
 
     # Send full message to #agent-platform-ops
-    # send_summary('#agent-platform-ops', stats[:list_max_len])
+    send_summary('#agent-platform-ops', stats[:list_max_len])
     # TODO
-    send_summary('#celian-tests', stats[:list_max_len])
+    # send_summary('#celian-tests', stats[:list_max_len])
 
     print('Messages sent')
 
