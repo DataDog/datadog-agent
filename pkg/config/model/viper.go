@@ -598,6 +598,7 @@ func (c *safeConfig) ReadInConfig() error {
 		b, err := os.ReadFile(path)
 		if err != nil {
 			errs = append(errs, fmt.Errorf("no config exists at %s", path))
+			continue
 		}
 
 		err = errors.Join(c.Viper.MergeConfig(bytes.NewReader(b)), c.configSources[SourceFile].MergeConfig(bytes.NewReader(b)))

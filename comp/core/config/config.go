@@ -6,7 +6,6 @@
 package config
 
 import (
-	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -88,7 +87,6 @@ func newConfigProvide(deps dependencies) (provides, error) {
 }
 
 func newConfig(deps dependencies) (*cfg, error) {
-	var errs []error
 	config := pkgconfigsetup.Datadog()
 	warnings, err := setupConfig(config, deps)
 	returnErrFct := func(e error) (*cfg, error) {
@@ -106,13 +104,12 @@ func newConfig(deps dependencies) (*cfg, error) {
 		return returnErrFct(err)
 	}
 
-	for _, path := range deps.Params.securityAgentConfigFilePaths {
-		errs = append(errs, pkgconfigsetup.Merge(path, config))
+	if deps.Params.configLoadSecurityAgent {
+		if err := pkgconfigsetup.Merge(deps.Params.securityAgentConfigFilePaths, config); err != nil {
+			return returnErrFct(err)
+		}
 	}
 
-	if err := errors.Join(errs...); err != nil {
-		return returnErrFct(err)
-	}
 	return &cfg{Config: config, warnings: warnings}, nil
 }
 
