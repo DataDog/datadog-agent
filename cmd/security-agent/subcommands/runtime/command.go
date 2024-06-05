@@ -492,17 +492,15 @@ func checkPoliciesLocal(args *checkPoliciesCliParams, writer io.Writer) error {
 		return err
 	}
 
-	if !args.windowsModel {
-		report, err := kfilters.NewApplyRuleSetReport(cfg, ruleSet)
-		if err != nil {
-			return err
-		}
+	report, err := kfilters.NewApplyRuleSetReport(cfg, ruleSet)
+	if err != nil {
+		return err
+	}
 
-		content, _ := json.MarshalIndent(report, "", "\t")
-		_, err = fmt.Fprintf(writer, "%s\n", string(content))
-		if err != nil {
-			return fmt.Errorf("unable to write out report: %w", err)
-		}
+	content, _ := json.MarshalIndent(report, "", "\t")
+	_, err = fmt.Fprintf(writer, "%s\n", string(content))
+	if err != nil {
+		return fmt.Errorf("unable to write out report: %w", err)
 	}
 
 	return nil
