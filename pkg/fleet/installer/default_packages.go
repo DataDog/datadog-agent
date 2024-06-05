@@ -68,7 +68,7 @@ func defaultPackages(env *env.Env, defaultPackages []defaultPackage) []string {
 	return packages
 }
 
-func apmInjectEnabled(p defaultPackage, e *env.Env) bool {
+func apmInjectEnabled(_ defaultPackage, e *env.Env) bool {
 	switch e.InstallScript.APMInstrumentationEnabled {
 	case env.APMInstrumentationEnabledAll, env.APMInstrumentationEnabledDocker, env.APMInstrumentationEnabledHost:
 		return true
