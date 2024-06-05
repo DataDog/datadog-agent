@@ -446,17 +446,32 @@ def update_statistics(job_executions: PipelineRuns):
             cumulative_alerts[job_name] = [job for job in job_executions.jobs[job_name].jobs_info if job.failing]
 
     return {
-        'consecutive': ConsecutiveJobAlert(consecutive_alerts),
-        'cumulative': CumulativeJobAlert(cumulative_alerts),
+        'consecutive': consecutive_alerts,
+        'cumulative': cumulative_alerts,
     }, job_executions
 
 
-def send_notification(ctx: Context, alert_jobs):
-    message = alert_jobs["consecutive"].message(ctx) + alert_jobs["cumulative"].message()
-    message = message.strip()
+def send_notification(ctx: Context, alert_jobs, jobowners=".gitlab/JOBOWNERS"):
+    # TODO : Update tests
+    def send_alert(channel, consecutive: ConsecutiveJobAlert, cumulative: CumulativeJobAlert):
+        message = consecutive.message(ctx) + cumulative.message()
+        message = message.strip()
 
-    if message:
-        send_slack_message("#agent-platform-ops", message)
+        if message:
+            send_slack_message(channel, message)
+
+    all_alerts = set(alert_jobs["consecutive"]) | set(alert_jobs["cumulative"])
+    partition = partitionate(all_alerts, jobowners, get_channels=True)
+
+    for channel in partition:
+        consecutive = ConsecutiveJobAlert({name: jobs for (name, jobs) in alert_jobs["consecutive"].items() if name in partition[channel]})
+        cumulative = CumulativeJobAlert({name: jobs for (name, jobs) in alert_jobs["cumulative"].items() if name in partition[channel]})
+        send_alert(channel, consecutive, cumulative)
+
+    # Send all alerts to #agent-platform-ops
+    consecutive = ConsecutiveJobAlert(alert_jobs["consecutive"])
+    cumulative = CumulativeJobAlert(alert_jobs["cumulative"])
+    send_alert('#agent-platform-ops', consecutive, cumulative)
 
 
 @task
