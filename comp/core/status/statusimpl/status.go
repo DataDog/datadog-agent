@@ -326,7 +326,7 @@ func (s *statusImplementation) GetStatusBySections(sections []string, format str
 	for _, section := range sections {
 		providersForSection, ok := s.sortedProvidersBySection[strings.ToLower(section)]
 		if !ok {
-			res, _ := json.Marshal(append([]string{"header"}, s.sortedSectionNames...))
+			res, _ := json.Marshal(s.GetSections())
 			errorMsg := fmt.Sprintf("unknown status section '%s', available sections are: %s", section, string(res))
 			return nil, errors.New(errorMsg)
 		}
@@ -388,6 +388,10 @@ func (s *statusImplementation) GetStatusBySections(sections []string, format str
 	default:
 		return []byte{}, nil
 	}
+}
+
+func (s *statusImplementation) GetSections() []string {
+	return append([]string{"header"}, s.sortedSectionNames...)
 }
 
 // fillFlare add the status.log to flares.

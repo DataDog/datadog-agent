@@ -15,9 +15,9 @@ replace (
 )
 
 require (
-	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/metricsclient v0.0.0-00010101000000-000000000000
-	github.com/DataDog/datadog-agent/pkg/proto v0.54.0-rc.2
-	github.com/DataDog/datadog-agent/pkg/trace v0.52.1
+	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/metricsclient v0.55.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/proto v0.55.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/trace v0.55.0-rc.2
 	github.com/DataDog/datadog-go/v5 v5.5.0
 	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.16.1
 	github.com/stretchr/testify v1.9.0
@@ -27,13 +27,13 @@ require (
 )
 
 require (
-	github.com/DataDog/datadog-agent/pkg/obfuscate v0.54.0-rc.2 // indirect
-	github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.54.0-rc.2 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/cgroups v0.54.0-rc.2 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/log v0.54.0-rc.2 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/pointer v0.54.0-rc.2 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.54.0-rc.2 // indirect
-	github.com/DataDog/go-sqllexer v0.0.9 // indirect
+	github.com/DataDog/datadog-agent/pkg/obfuscate v0.55.0-rc.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.55.0-rc.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/cgroups v0.55.0-rc.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/log v0.55.0-rc.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/pointer v0.55.0-rc.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.55.0-rc.2 // indirect
+	github.com/DataDog/go-sqllexer v0.0.12 // indirect
 	github.com/DataDog/go-tuf v1.1.0-0.5.2 // indirect
 	github.com/DataDog/sketches-go v1.4.2 // indirect
 	github.com/Microsoft/go-winio v0.6.1 // indirect
@@ -101,6 +101,7 @@ require (
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20240401170217-c3f982113cda // indirect
 	google.golang.org/grpc v1.63.2 // indirect
 	google.golang.org/protobuf v1.34.1 // indirect
+	gopkg.in/ini.v1 v1.67.0 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )

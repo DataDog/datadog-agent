@@ -400,3 +400,19 @@ class TestSendNotification(unittest.TestCase):
         alert_jobs = {"consecutive": notify.ConsecutiveJobAlert({}), "cumulative": notify.CumulativeJobAlert({})}
         notify.send_notification(MagicMock(), alert_jobs)
         mock_slack.assert_not_called()
+
+
+class TestSendFailureSummaryNotification(unittest.TestCase):
+    @patch("slack_sdk.WebClient")
+    @patch("os.environ", new=MagicMock())
+    def test_nominal(self, mock_slack):
+        # jobname: [total_failures, total_runs]
+        jobs = {
+            "myjob1": [45, None],
+            "myjob2": [42, 45],
+            "myjob3": [21, None],
+            "myjob4": [16, 89],
+        }
+        notify.send_failure_summary_notification(MockContext(), jobs)
+        mock_slack.assert_called()
+        mock_slack.return_value.chat_postMessage.assert_called()

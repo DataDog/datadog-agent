@@ -146,8 +146,6 @@ func newTracer(cfg *config.Config) (_ *Tracer, reterr error) {
 				return nil, fmt.Errorf(errStr)
 			}
 			log.Warnf("%s. NPM is explicitly enabled, so system-probe will continue with only NPM features enabled.", errStr)
-			cfg.EnableHTTPMonitoring = false
-			cfg.EnableNativeTLSMonitoring = false
 		}
 	}
 
@@ -858,6 +856,12 @@ func (t *Tracer) DebugDumpProcessCache(ctx context.Context) (interface{}, error)
 }
 
 func newUSMMonitor(c *config.Config, tracer connection.Tracer) *usm.Monitor {
+	if !http.Supported() || !c.ServiceMonitoringEnabled {
+		// http.Supported is misleading, it should be named usm.Supported.
+		// If USM is not supported, or if USM is not enabled, we should not start the USM monitor.
+		return nil
+	}
+
 	// Shared with the USM program
 	connectionProtocolMap := tracer.GetMap(probes.ConnectionProtocolMap)
 
