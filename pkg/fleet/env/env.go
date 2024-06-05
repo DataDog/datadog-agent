@@ -7,6 +7,7 @@
 package env
 
 import (
+	"fmt"
 	"os"
 	"strings"
 
@@ -89,6 +90,31 @@ func FromConfig(config config.Reader) *Env {
 	}
 }
 
+// ToEnv returns a slice of environment variables from the Env struct.
+func (e *Env) ToEnv() []string {
+	var env []string
+	if e.APIKey != "" {
+		env = append(env, envAPIKey+"="+e.APIKey)
+	}
+	if e.Site != "" {
+		env = append(env, envSite+"="+e.Site)
+	}
+	if e.RemoteUpdates {
+		env = append(env, envRemoteUpdates+"=true")
+	}
+	if e.RegistryOverride != "" {
+		env = append(env, envRegistryURL+"="+e.RegistryOverride)
+	}
+	if e.RegistryAuthOverride != "" {
+		env = append(env, envRegistryAuth+"="+e.RegistryAuthOverride)
+	}
+	env = append(env, overridesByNameToEnv(envRegistryURL, e.RegistryOverrideByImage)...)
+	env = append(env, overridesByNameToEnv(envRegistryAuth, e.RegistryAuthOverrideByImage)...)
+	env = append(env, overridesByNameToEnv(envDefaultPackageInstall, e.DefaultPackagesInstallOverride)...)
+	env = append(env, overridesByNameToEnv(envDefaultPackageVersion, e.DefaultPackagesVersionOverride)...)
+	return env
+}
+
 func overridesByNameFromEnv[T any](envPrefix string, convert func(string) T) map[string]T {
 	env := os.Environ()
 	overridesByPackage := map[string]T{}
@@ -105,6 +131,16 @@ func overridesByNameFromEnv[T any](envPrefix string, convert func(string) T) map
 		}
 	}
 	return overridesByPackage
+}
+
+func overridesByNameToEnv[T any](envPrefix string, overridesByPackage map[string]T) []string {
+	env := []string{}
+	for pkg, override := range overridesByPackage {
+		pkg = strings.ReplaceAll(pkg, "-", "_")
+		pkg = strings.ToUpper(pkg)
+		env = append(env, envPrefix+"_"+pkg+"="+fmt.Sprint(override))
+	}
+	return env
 }
 
 func getEnvOrDefault(env string, defaultValue string) string {
