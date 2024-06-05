@@ -378,7 +378,7 @@ Package logsagentpipeline contains logs agent pipeline component
 
 ### [comp/otelcol/provider](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/otelcol/provider)
 
-
+Package provider TBD
 
 ## [comp/process](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/process) (Component Bundle)
 
