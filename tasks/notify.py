@@ -509,7 +509,7 @@ def send_failure_summary_notification(
     def send_summary(channel, stats):
         # Create message
         not_allowed_word = 'not ' if not allowed_to_fail else ''
-        not_allowed_query = '' if not allowed_to_fail else '-'
+        not_allowed_query = '-' if not allowed_to_fail else ''
 
         # message = ['*Daily Job Failure Report*']
         message = [f'*{channel}*']
