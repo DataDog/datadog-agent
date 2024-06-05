@@ -59,6 +59,8 @@ lint_macos:
   before_script:
     - echo $XCODE_ACTIVE_VERSION
     - xcodebuild -version
+    - xcodebuild -version | grep -Eo 'Xcode [0-9.]+'
+    - xcodebuild -version | grep -Eo 'Xcode [0-9.]+' | awk '{print $2}'
     # Removing the previous Python environment if it exists
     - pyenv uninstall -f datadog-agent
     # Removing the previous Go environment
