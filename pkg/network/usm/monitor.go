@@ -157,8 +157,7 @@ func (m *Monitor) GetUSMStats() map[string]interface{} {
 		response["error"] = startupError.Error()
 	}
 
-	blockedPIDs := utils.GetBlockedPathIDsList()
-	response["blocked_pids"] = blockedPIDs
+	response["blocked_process"] = utils.GetBlockedPathIDsList()
 
 	if m != nil {
 		response["last_check"] = m.lastUpdateTime

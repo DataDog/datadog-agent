@@ -264,10 +264,8 @@ func (nt *networkTracer) Register(httpMux *module.Router) error {
 		utils.WriteAsJSON(w, cache)
 	})
 
-	httpMux.HandleFunc("/debug/blocked_process", func(w http.ResponseWriter, r *http.Request) {
-		blockedProcesses := usm.GetBlockedPathIDsList()
-
-		utils.WriteAsJSON(w, blockedProcesses)
+	httpMux.HandleFunc("/debug/usm/blocked_process", func(w http.ResponseWriter, r *http.Request) {
+		utils.WriteAsJSON(w, usm.GetBlockedPathIDsList())
 	})
 
 	httpMux.HandleFunc("/debug/usm_telemetry", telemetry.Handler)
