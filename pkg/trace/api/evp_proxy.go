@@ -176,7 +176,7 @@ func (t *evpProxyTransport) RoundTrip(req *http.Request) (rresp *http.Response, 
 	}
 
 	// Timeout: Our outbound request(s) can't take longer than the WriteTimeout of the server
-	timeout := getConfiguredRequestTimeoutDuration(t.conf)
+	timeout := getConfiguredEVPRequestTimeoutDuration(t.conf)
 	deadline := time.Now().Add(timeout)
 	ctx, ctxCancel := context.WithDeadline(req.Context(), deadline)
 	req = req.WithContext(ctx)

@@ -170,15 +170,32 @@ func NewHTTPReceiver(
 	}
 }
 
+// timeoutMiddleware sets a timeout for a handler. This lets us have different
+// timeout values for each handler
+func timeoutMiddleware(timeout time.Duration, h http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(r.Context(), timeout)
+		defer cancel()
+		r = r.WithContext(ctx)
+		h.ServeHTTP(w, r)
+	})
+}
+
 func (r *HTTPReceiver) buildMux() *http.ServeMux {
 	mux := http.NewServeMux()
+
+	defaultTimeout := getConfiguredRequestTimeoutDuration(r.conf)
 
 	hash, infoHandler := r.makeInfoHandler()
 	for _, e := range endpoints {
 		if e.IsEnabled != nil && !e.IsEnabled(r.conf) {
 			continue
 		}
-		mux.Handle(e.Pattern, replyWithVersion(hash, r.conf.AgentVersion, e.Handler(r)))
+		timeout := defaultTimeout
+		if e.TimeoutOverride != nil {
+			timeout = e.TimeoutOverride(r.conf)
+		}
+		mux.Handle(e.Pattern, replyWithVersion(hash, r.conf.AgentVersion, timeoutMiddleware(timeout, e.Handler(r))))
 	}
 	mux.HandleFunc("/info", infoHandler)
 
@@ -203,6 +220,14 @@ func getConfiguredRequestTimeoutDuration(conf *config.AgentConfig) time.Duration
 	return timeout
 }
 
+func getConfiguredEVPRequestTimeoutDuration(conf *config.AgentConfig) time.Duration {
+	timeout := 30 * time.Second
+	if conf.EVPProxy.ReceiverTimeout > 0 {
+		timeout = time.Duration(conf.EVPProxy.ReceiverTimeout) * time.Second
+	}
+	return timeout
+}
+
 // Start starts doing the HTTP server and is ready to receive traces
 func (r *HTTPReceiver) Start() {
 	if r.conf.ReceiverPort == 0 &&
@@ -213,14 +238,13 @@ func (r *HTTPReceiver) Start() {
 		return
 	}
 
-	timeout := getConfiguredRequestTimeoutDuration(r.conf)
 	httpLogger := log.NewThrottled(5, 10*time.Second) // limit to 5 messages every 10 seconds
 	r.server = &http.Server{
-		ReadTimeout:  timeout,
-		WriteTimeout: timeout,
-		ErrorLog:     stdlog.New(httpLogger, "http.Server: ", 0),
-		Handler:      r.buildMux(),
-		ConnContext:  connContext,
+		// Note: We don't set WriteTimeout since we want to have different timeouts per-handler
+		ReadTimeout: getConfiguredRequestTimeoutDuration(r.conf),
+		ErrorLog:    stdlog.New(httpLogger, "http.Server: ", 0),
+		Handler:     r.buildMux(),
+		ConnContext: connContext,
 	}
 
 	if r.conf.ReceiverPort > 0 {
