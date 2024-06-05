@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
-package provider
+package converter
 
 import (
 	"go.opentelemetry.io/collector/confmap"
@@ -11,14 +11,10 @@ import (
 
 // team: opentelemetry
 
-// Component implements the otelcol.ConfigProvider interface and
+// Component implements the confmap.Converter interface and
 // provides extra functions to expose the provided and enhanced configs.
 type Component interface {
 	confmap.Converter
 	GetProvidedConf() string
 	GetEnhancedConf() string
-}
-
-type Requires struct {
-	URIs []string
 }

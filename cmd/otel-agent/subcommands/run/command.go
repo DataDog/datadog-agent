@@ -36,8 +36,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline/logsagentpipelineimpl"
 	"go.opentelemetry.io/collector/confmap"
 
-	provider "github.com/DataDog/datadog-agent/comp/otelcol/provider/def"
-	providerfx "github.com/DataDog/datadog-agent/comp/otelcol/provider/fx"
+	converter "github.com/DataDog/datadog-agent/comp/otelcol/converter/def"
+	converterfx "github.com/DataDog/datadog-agent/comp/otelcol/converter/fx"
 	"github.com/DataDog/datadog-agent/comp/serializer/compression"
 	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl/strategy"
 	tracecomp "github.com/DataDog/datadog-agent/comp/trace"
@@ -96,8 +96,8 @@ func runOTelAgentCommand(ctx context.Context, params *subcommands.GlobalParams, 
 		fetchonlyimpl.Module(),
 		collectorfx.Module(),
 		collectorcontribFx.Module(),
-		providerfx.Module(),
-		fx.Provide(func(cp provider.Component) confmap.Converter {
+		converterfx.Module(),
+		fx.Provide(func(cp converter.Component) confmap.Converter {
 			return cp
 		}),
 		fx.Provide(func() (coreconfig.Component, error) {
