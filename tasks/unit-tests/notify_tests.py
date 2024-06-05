@@ -383,12 +383,12 @@ from tasks.libs.types.types import FailedJobReason, FailedJobs, FailedJobType
 
 
 # class TestJobOwners(unittest.TestCase):
-#     def test_partitionate(self):
-#         from tasks.owners import partitionate
+#     def test_partition(self):
+#         from tasks.owners import make_partition
 
 #         jobs = ['tests_hello', 'tests_ebpf', 'security_go_generate_check', 'hello_world', 'tests_hello_world']
 
-#         partition = partitionate(jobs, "tasks/unit-tests/testdata/jobowners.txt")
+#         partition = make_partition(jobs, "tasks/unit-tests/testdata/jobowners.txt")
 #         partition = sorted(partition.items())
 
 #         self.assertEqual(

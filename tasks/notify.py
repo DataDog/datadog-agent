@@ -31,7 +31,7 @@ from tasks.libs.pipeline.notifications import (
 )
 from tasks.libs.pipeline.stats import compute_failed_jobs_series, compute_required_jobs_max_duration
 from tasks.libs.types.types import FailedJobs, SlackMessage, TeamMessage
-from tasks.owners import partitionate
+from tasks.owners import make_partition
 
 UNKNOWN_OWNER_TEMPLATE = """The owner `{owner}` is not mapped to any slack channel.
 Please check for typos in the JOBOWNERS file and/or add them to the Github <-> Slack map.
@@ -461,7 +461,7 @@ def send_notification(ctx: Context, alert_jobs, jobowners=".gitlab/JOBOWNERS"):
             send_slack_message(channel, message)
 
     all_alerts = set(alert_jobs["consecutive"]) | set(alert_jobs["cumulative"])
-    partition = partitionate(all_alerts, jobowners, get_channels=True)
+    partition = make_partition(all_alerts, jobowners, get_channels=True)
 
     for channel in partition:
         consecutive = ConsecutiveJobAlert({name: jobs for (name, jobs) in alert_jobs["consecutive"].items() if name in partition[channel]})
@@ -497,8 +497,8 @@ def send_failure_summary_notification(
     if len(stats) == 0:
         return
 
-    # Partitionate by channels as some teams share the same slack channel (avoid duplicate messages)
-    partition = partitionate([name for name, _ in stats], jobowners, get_channels=True)
+    # Partition by channels as some teams share the same slack channel (avoid duplicate messages)
+    partition = make_partition([name for name, _ in stats], jobowners, get_channels=True)
 
     # team_stats[team] = [(job_name, failure_count), ...]
     team_stats = {}
