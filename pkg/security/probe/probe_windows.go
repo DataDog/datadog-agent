@@ -1092,7 +1092,7 @@ func (p *WindowsProbe) SendStats() error {
 	if err != nil {
 		return err
 	}
-	p.stats.rpnLock.Unlock()
+	p.stats.rpnLock.Lock()
 	err = p.sendMapStats(&p.stats.regProcessedNotifications, metrics.MetricWindowsRegistryNotificationsProcessed)
 	p.stats.rpnLock.Unlock()
 	if err != nil {
