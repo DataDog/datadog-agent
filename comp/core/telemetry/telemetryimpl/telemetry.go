@@ -108,7 +108,8 @@ func (t *telemetryImpl) Handler() http.Handler {
 func (t *telemetryImpl) Reset() {
 	mutex.Lock()
 	defer mutex.Unlock()
-	t.registry = newRegistry()
+	registry = newRegistry()
+	t.registry = registry
 }
 
 // RegisterCollector Registers a Collector with the prometheus registry
