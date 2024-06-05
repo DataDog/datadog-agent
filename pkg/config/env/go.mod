@@ -11,15 +11,15 @@ replace (
 )
 
 require (
-	github.com/DataDog/datadog-agent/pkg/config/model v0.55.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.55.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/util/log v0.55.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/util/system/socket v0.55.0-rc.1
+	github.com/DataDog/datadog-agent/pkg/config/model v0.55.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.55.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/util/log v0.55.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/util/system/socket v0.55.0-rc.2
 	github.com/stretchr/testify v1.9.0
 )
 
 require (
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.55.0-rc.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.55.0-rc.2 // indirect
 	github.com/DataDog/viper v1.13.5 // indirect
 	github.com/Microsoft/go-winio v0.6.1 // indirect
 	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575 // indirect
