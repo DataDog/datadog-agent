@@ -148,6 +148,9 @@ DEFAULT_MODULES = {
     ),
     "comp/logs/agent/config": GoModule("comp/logs/agent/config", independent=True),
     "comp/netflow/payload": GoModule("comp/netflow/payload", independent=True),
+    "comp/otelcol/extension/impl": GoModule(
+        "comp/otelcol/extension/impl", independent=True, used_by_otel=True
+    ),
     "comp/otelcol/collector-contrib/def": GoModule(
         "comp/otelcol/collector-contrib/def", independent=True, used_by_otel=True
     ),

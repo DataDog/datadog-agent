@@ -692,3 +692,5 @@ require (
 	sigs.k8s.io/yaml v1.4.0 // indirect
 	skywalking.apache.org/repo/goapi v0.0.0-20240104145220-ba7202308dd4 // indirect
 )
+
+replace github.com/DataDog/datadog-agent/comp/otelcol/extension/impl => /Users/jaime.fullaondo/dd/datadog-agent/comp/otelcol/extension/impl
