@@ -486,7 +486,7 @@ def send_failure_summary_notification(
 
     # List of (job_name, (failure_count, total_count)) ordered by failure_count
     stats = sorted(
-        ((name, (fail, total)) for (name, (fail, total)) in jobs.items() if fail > 0),
+        ((name, (data['failures'], None)) for (name, data) in jobs.items() if data['failures'] > 0),
         key=lambda x: (x[1][0], x[1][1] if x[1][1] is not None else 0),
         reverse=True,
     )
@@ -520,11 +520,13 @@ def send_failure_summary_notification(
         client = WebClient(os.environ["SLACK_API_TOKEN"])
         client.chat_postMessage(channel=channel, text='\n'.join(message))
 
-    for channel, stat in team_stats.items():
-        send_summary(channel, stat)
+    # for channel, stat in team_stats.items():
+    #     send_summary(channel, stat)
 
     # Send full message to #agent-platform-ops
-    send_summary('#agent-platform-ops', stats[:list_max_len])
+    # send_summary('#agent-platform-ops', stats[:list_max_len])
+    # TODO
+    send_summary('#celian-tests', stats[:list_max_len])
 
     print('Messages sent')
 
