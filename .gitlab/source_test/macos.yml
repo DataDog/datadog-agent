@@ -73,9 +73,7 @@ lint_macos:
     - inv -e install-tools
     - inv -e deps
     - echo $PATH
-    - ls /Users/ec2-user/.gimme/versions/go1.21.10.darwin.amd64/bin
-    - ls /Users/ec2-user/.gimme/versions/go1.21.9.darwin.amd64/bin
-    - ls /Users/ec2-user/go/bin || true
+    - echo $XCODE_ACTIVE_VERSION
 
 lint_macos_gitlab_amd64:
   stage: source_test
