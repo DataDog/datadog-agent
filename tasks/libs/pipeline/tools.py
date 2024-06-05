@@ -102,9 +102,7 @@ def gracefully_cancel_pipeline(repo: Project, pipeline: ProjectPipeline, force_c
         cleanup_job = jobs_by_name.get(cleanup_job_name, None)
         if cleanup_job is not None:
             print(f"Triggering KMT {cleanup_job_name} job")
-            j = repo.jobs.get(job.id, lazy=True)
-            print(j)
-            j.play()
+            repo.jobs.get(cleanup_job.id, lazy=True).play()
         else:
             print(f"Cleanup job {cleanup_job_name} not found, skipping.")
 
