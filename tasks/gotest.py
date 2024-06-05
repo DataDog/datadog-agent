@@ -948,7 +948,7 @@ def lint_go(
 
 
 @task
-def check_otel_dependencies(ctx):
+def check_otel_build(ctx):
     with ctx.cd("test/otel"):
         # Rename fixtures
         ctx.run("mv dependencies.go.fake dependencies.go")
