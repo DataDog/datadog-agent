@@ -51,9 +51,11 @@ func New(t *testing.T, remote *components.RemoteHost, os e2eos.Descriptor, arch 
 	host.uploadFixtures()
 	host.setSystemdVersion()
 	if _, err := host.remote.Execute("command -v dpkg-query"); err == nil {
-		host.pkgManager = "dpkg"
-	} else if _, err := host.remote.Execute("command -v rpm"); err == nil {
-		host.pkgManager = "rpm"
+		host.pkgManager = "apt"
+	} else if _, err := host.remote.Execute("command -v zypper"); err == nil {
+		host.pkgManager = "zypper"
+	} else if _, err := host.remote.Execute("command -v yum"); err == nil {
+		host.pkgManager = "yum"
 	} else {
 		t.Fatal("no package manager found")
 	}
@@ -118,6 +120,12 @@ func (h *Host) ReadFile(path string) ([]byte, error) {
 	return h.remote.ReadFile(path)
 }
 
+// WriteFile writes a file to the host.
+func (h *Host) WriteFile(path string, content []byte) error {
+	_, err := h.remote.WriteFile(path, content)
+	return err
+}
+
 // DeletePath deletes a path on the host.
 func (h *Host) DeletePath(path string) {
 	h.remote.MustExecute(fmt.Sprintf("sudo ls %s", path))
@@ -153,9 +161,9 @@ func (h *Host) AssertPackageInstalledByInstaller(pkgs ...string) {
 func (h *Host) AssertPackageInstalledByPackageManager(pkgs ...string) {
 	for _, pkg := range pkgs {
 		switch h.pkgManager {
-		case "dpkg":
+		case "apt":
 			h.remote.MustExecute("dpkg-query -l " + pkg)
-		case "rpm":
+		case "yum", "zypper":
 			h.remote.MustExecute("rpm -q " + pkg)
 		default:
 			h.t.Fatal("unsupported package manager")
@@ -167,9 +175,9 @@ func (h *Host) AssertPackageInstalledByPackageManager(pkgs ...string) {
 func (h *Host) AssertPackageNotInstalledByPackageManager(pkgs ...string) {
 	for _, pkg := range pkgs {
 		switch h.pkgManager {
-		case "dpkg":
+		case "apt":
 			h.remote.MustExecute("! dpkg-query -l " + pkg)
-		case "rpm":
+		case "yum", "zypper":
 			h.remote.MustExecute("! rpm -q " + pkg)
 		default:
 			h.t.Fatal("unsupported package manager")
@@ -270,15 +278,15 @@ func (h *Host) fs() map[string]FileInfo {
 		link := parts[8]
 
 		fileInfos[path] = FileInfo{
-			name:      name,
-			size:      size,
-			perms:     fs.FileMode(mode).Perm(),
-			modTime:   modTime,
-			isDir:     isDir,
-			isSymlink: isSymlink,
-			link:      link,
-			user:      user,
-			group:     group,
+			Name:      name,
+			Size:      size,
+			Perms:     fs.FileMode(mode).Perm(),
+			ModTime:   modTime,
+			IsDir:     isDir,
+			IsSymlink: isSymlink,
+			Link:      link,
+			User:      user,
+			Group:     group,
 		}
 	}
 	return fileInfos
@@ -366,15 +374,15 @@ type SystemdUnitInfo struct {
 
 // FileInfo struct mimics os.FileInfo
 type FileInfo struct {
-	name      string
-	size      int64
-	perms     fs.FileMode
-	modTime   time.Time
-	isDir     bool
-	isSymlink bool
-	link      string
-	user      string
-	group     string
+	Name      string
+	Size      int64
+	Perms     fs.FileMode
+	ModTime   time.Time
+	IsDir     bool
+	IsSymlink bool
+	Link      string
+	User      string
+	Group     string
 }
 
 // State is the state of a remote host.
@@ -384,6 +392,13 @@ type State struct {
 	Groups []user.Group
 	FS     map[string]FileInfo
 	Units  map[string]SystemdUnitInfo
+}
+
+// Stat returns the FileInfo of a path on the host.
+func (s *State) Stat(path string) (FileInfo, bool) {
+	path = evalSymlinkPath(path, s.FS)
+	fileInfo, ok := s.FS[path]
+	return fileInfo, ok
 }
 
 // AssertUserExists asserts that a user exists on the host.
@@ -442,9 +457,9 @@ func evalSymlinkPath(path string, fs map[string]FileInfo) string {
 		nextPath = filepath.Clean(nextPath) // Clean to ensure no trailing slashes
 
 		// Check if the current path component is a symlink
-		if fileInfo, exists := fs[nextPath]; exists && fileInfo.isSymlink {
+		if fileInfo, exists := fs[nextPath]; exists && fileInfo.IsSymlink {
 			// Resolve the symlink
-			symlinkTarget := fileInfo.link
+			symlinkTarget := fileInfo.Link
 			// Handle recursive symlink resolution
 			symlinkTarget = evalSymlinkPath(symlinkTarget, fs)
 			// Update the resolvedPath to be the target of the symlink
@@ -468,10 +483,10 @@ func (s *State) AssertDirExists(path string, perms fs.FileMode, user string, gro
 	path = evalSymlinkPath(path, s.FS)
 	fileInfo, ok := s.FS[path]
 	assert.True(s.t, ok, "dir %v does not exist", path)
-	assert.True(s.t, fileInfo.isDir, "%v is not a directory", path)
-	assert.Equal(s.t, perms, fileInfo.perms, "%v has unexpected perms", path)
-	assert.Equal(s.t, user, fileInfo.user, "%v has unexpected user", path)
-	assert.Equal(s.t, group, fileInfo.group, "%v has unexpected group", path)
+	assert.True(s.t, fileInfo.IsDir, "%v is not a directory", path)
+	assert.Equal(s.t, perms, fileInfo.Perms, "%v has unexpected perms", path)
+	assert.Equal(s.t, user, fileInfo.User, "%v has unexpected user", path)
+	assert.Equal(s.t, group, fileInfo.Group, "%v has unexpected group", path)
 }
 
 // AssertPathDoesNotExist asserts that a path does not exist on the host.
@@ -486,20 +501,20 @@ func (s *State) AssertFileExists(path string, perms fs.FileMode, user string, gr
 	path = evalSymlinkPath(path, s.FS)
 	fileInfo, ok := s.FS[path]
 	assert.True(s.t, ok, "file %v does not exist", path)
-	assert.False(s.t, fileInfo.isDir, "%v is not a file", path)
-	assert.Equal(s.t, perms, fileInfo.perms, "%v has unexpected perms", path)
-	assert.Equal(s.t, user, fileInfo.user, "%v has unexpected user", path)
-	assert.Equal(s.t, group, fileInfo.group, "%v has unexpected group", path)
+	assert.False(s.t, fileInfo.IsDir, "%v is not a file", path)
+	assert.Equal(s.t, perms, fileInfo.Perms, "%v has unexpected perms", path)
+	assert.Equal(s.t, user, fileInfo.User, "%v has unexpected user", path)
+	assert.Equal(s.t, group, fileInfo.Group, "%v has unexpected group", path)
 }
 
 // AssertSymlinkExists asserts that a symlink exists on the host with the given target, user, and group.
 func (s *State) AssertSymlinkExists(path string, target string, user string, group string) {
 	fileInfo, ok := s.FS[path]
 	assert.True(s.t, ok, "syminlk %v does not exist", path)
-	assert.True(s.t, fileInfo.isSymlink, "%v is not a symlink", path)
-	assert.Equal(s.t, target, fileInfo.link, "%v has unexpected target", path)
-	assert.Equal(s.t, user, fileInfo.user, "%v has unexpected user", path)
-	assert.Equal(s.t, group, fileInfo.group, "%v has unexpected group", path)
+	assert.True(s.t, fileInfo.IsSymlink, "%v is not a symlink", path)
+	assert.Equal(s.t, target, fileInfo.Link, "%v has unexpected target", path)
+	assert.Equal(s.t, user, fileInfo.User, "%v has unexpected user", path)
+	assert.Equal(s.t, group, fileInfo.Group, "%v has unexpected group", path)
 }
 
 // AssertUnitsLoaded asserts that units are enabled on the host.
