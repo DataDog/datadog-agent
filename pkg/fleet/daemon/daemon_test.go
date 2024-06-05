@@ -77,12 +77,12 @@ func (m *testPackageManager) GarbageCollect(ctx context.Context) error {
 }
 
 func (m *testPackageManager) InstrumentAPMInjector(ctx context.Context, method string) error {
-	args := m.Called(ctx)
+	args := m.Called(ctx, method)
 	return args.Error(0)
 }
 
 func (m *testPackageManager) UninstrumentAPMInjector(ctx context.Context, method string) error {
-	args := m.Called(ctx)
+	args := m.Called(ctx, method)
 	return args.Error(0)
 }
 

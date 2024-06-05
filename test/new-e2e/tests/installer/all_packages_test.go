@@ -53,7 +53,7 @@ var (
 		e2eos.AmazonLinux2,
 		e2eos.Suse15,
 	}
-	packagesTestsWithSkipedFlavors = []packageTestsWithSkipedFlavors{
+	packagesTestsWithSkippedFlavors = []packageTestsWithSkipedFlavors{
 		{t: testInstaller},
 		{t: testAgent},
 		{t: testApmInjectAgent, skippedFlavors: []e2eos.Descriptor{e2eos.CentOS7, e2eos.RedHat9, e2eos.Fedora37, e2eos.Suse15}},
@@ -91,7 +91,7 @@ func TestPackages(t *testing.T) {
 		flavors = append(flavors, flavor)
 	}
 	for _, f := range flavors {
-		for _, test := range packagesTestsWithSkipedFlavors {
+		for _, test := range packagesTestsWithSkippedFlavors {
 			flavor := f // capture range variable for parallel tests closure
 			if shouldSkip(test.skippedFlavors, flavor) {
 				continue

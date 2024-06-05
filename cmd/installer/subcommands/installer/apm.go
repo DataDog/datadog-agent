@@ -21,8 +21,8 @@ func apmCommands() *cobra.Command {
 
 func apmInstrumentCommand() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "instrument [all|host|container]",
-		Short: "Instrument APM auto-injection for a host or container. Defaults to both.",
+		Use:   "instrument [all|host|docker]",
+		Short: "Instrument APM auto-injection for a host or docker. Defaults to both.",
 		Args:  cobra.MaximumNArgs(1),
 		RunE: func(_ *cobra.Command, args []string) (err error) {
 			i, err := newInstallerCmd("apm_instrument")
@@ -42,8 +42,8 @@ func apmInstrumentCommand() *cobra.Command {
 
 func apmUninstrumentCommand() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "uninstrument [all|host|container]",
-		Short: "Uninstrument APM auto-injection for a host or container. Defaults to both.",
+		Use:   "uninstrument [all|host|docker]",
+		Short: "Uninstrument APM auto-injection for a host or docker. Defaults to both.",
 		Args:  cobra.MaximumNArgs(1),
 		RunE: func(_ *cobra.Command, args []string) (err error) {
 			i, err := newInstallerCmd("apm_uninstrument")
