@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
+// Package providerimpl TBD
 package providerimpl
 
 import (
@@ -75,6 +76,7 @@ func (cp *configProvider) Convert(ctx context.Context, conf *confmap.Conf) error
 	return nil
 }
 
+// nolint: deadcode, unused
 func (cp *configProvider) addProvidedConf(conf *otelcol.Config) error {
 	bytesConf, err := confToString(conf)
 	if err != nil {
@@ -85,6 +87,7 @@ func (cp *configProvider) addProvidedConf(conf *otelcol.Config) error {
 	return nil
 }
 
+// nolint: deadcode, unused
 func (cp *configProvider) addEnhancedConf(conf *otelcol.Config) error {
 	bytesConf, err := confToString(conf)
 	if err != nil {
@@ -116,6 +119,7 @@ func (cp *configProvider) GetEnhancedConf() string {
 // sensitive fields.
 // Note: Currently not supported until the following upstream PR:
 // https://github.com/open-telemetry/opentelemetry-collector/pull/10139 is merged.
+// nolint: deadcode, unused
 func confToString(conf *otelcol.Config) (string, error) {
 	cfg := confmap.New()
 	err := cfg.Marshal(conf)

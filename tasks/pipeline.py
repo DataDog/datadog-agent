@@ -57,7 +57,7 @@ def GitlabYamlLoader():
 # Tasks to trigger pipelines
 
 
-def check_deploy_pipeline(repo: Project, git_ref, release_version_6, release_version_7, repo_branch):
+def check_deploy_pipeline(repo: Project, git_ref: str, release_version_6, release_version_7, repo_branch):
     """
     Run checks to verify a deploy pipeline is valid:
     - it targets a valid repo branch
@@ -212,7 +212,7 @@ def auto_cancel_previous_pipelines(ctx):
 @task
 def run(
     ctx,
-    git_ref=None,
+    git_ref="",
     here=False,
     use_release_entries=False,
     major_versions=None,
@@ -266,7 +266,7 @@ def run(
 
     repo = get_gitlab_repo()
 
-    if (not git_ref and not here) or (git_ref and here):
+    if (git_ref == "" and not here) or (git_ref != "" and here):
         raise Exit("ERROR: Exactly one of --here or --git-ref <git ref> must be specified.", code=1)
 
     if use_release_entries:

@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
+// Package provider TBD
 package provider
 
 import (
@@ -19,6 +20,7 @@ type Component interface {
 	GetEnhancedConf() string
 }
 
+// Requires TBD
 type Requires struct {
 	URIs []string
 }
