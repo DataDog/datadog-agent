@@ -28,6 +28,7 @@ pip3 install -r requirements.txt
 
 @echo "inv -e %OMNIBUS_BUILD% %OMNIBUS_ARGS% --skip-deps --release-version %RELEASE_VERSION%"
 inv -e %OMNIBUS_BUILD% %OMNIBUS_ARGS% --skip-deps --release-version %RELEASE_VERSION% || exit /b 1
+copy %BUILD_ROOT%\tools\windows\DatadogAgentInstaller\WixSetup\datadog-installer-1-x86_64.msi \omnibus-ruby\pkg\
 
 REM show output package directories (for debugging)
 dir \omnibus-ruby\pkg\
