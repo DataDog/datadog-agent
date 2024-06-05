@@ -117,6 +117,19 @@ func TestHTTP2Scenarios(t *testing.T) {
 	})
 }
 
+func (s *usmHTTP2Suite) TestLoadHTTP2Binary() {
+	t := s.T()
+
+	cfg := s.getCfg()
+
+	for _, debug := range map[string]bool{"enabled": true, "disabled": false} {
+		t.Run(fmt.Sprintf("debug %v", debug), func(t *testing.T) {
+			cfg.BPFDebug = debug
+			setupUSMTLSMonitor(t, cfg)
+		})
+	}
+}
+
 func (s *usmHTTP2Suite) TestHTTP2DynamicTableCleanup() {
 	t := s.T()
 	cfg := s.getCfg()
