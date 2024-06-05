@@ -34,6 +34,14 @@ type eventHostInfo struct {
 	providerID string
 }
 
+var CONTROLLER_TO_INTEGRATION = map[string]string{
+	"kubelet":               "kubernetes",
+	"replicaset-controller": "kubernetes",
+	"deployment-controller": "kubernetes",
+	"node-controller":       "kubernetes",
+	"karpenter":             "karpenter",
+}
+
 // getDDAlertType converts kubernetes event types into datadog alert types
 func getDDAlertType(k8sType string) event.AlertType {
 	switch k8sType {
@@ -182,4 +190,14 @@ func buildReadableKey(obj v1.ObjectReference) string {
 
 func init() {
 	hostProviderIDCache = cache.New(time.Hour, time.Hour)
+}
+
+func getEventSource(controllerName string, sourceComponent string) string {
+	if v, ok := CONTROLLER_TO_INTEGRATION[controllerName]; ok {
+		return v
+	}
+	if v, ok := CONTROLLER_TO_INTEGRATION[sourceComponent]; ok {
+		return v
+	}
+	return "kubernetes"
 }

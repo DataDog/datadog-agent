@@ -22,22 +22,24 @@ import (
 )
 
 type kubernetesEventBundle struct {
-	involvedObject v1.ObjectReference // Parent object for this event bundle
-	component      string             // Used to identify the Kubernetes component which generated the event
-	timeStamp      float64            // Used for the new events in the bundle to specify when they first occurred
-	lastTimestamp  float64            // Used for the modified events in the bundle to specify when they last occurred
-	countByAction  map[string]int     // Map of count per action to aggregate several events from the same ObjUid in one event
-	alertType      event.AlertType    // The Datadog event type
-	hostInfo       eventHostInfo      // Host information extracted from the event, where applicable
+	involvedObject      v1.ObjectReference // Parent object for this event bundle
+	component           string             // Used to identify the Kubernetes component which generated the event
+	reportingController string             // Used to identify the Kubernetes controller which generated the event
+	timeStamp           float64            // Used for the new events in the bundle to specify when they first occurred
+	lastTimestamp       float64            // Used for the modified events in the bundle to specify when they last occurred
+	countByAction       map[string]int     // Map of count per action to aggregate several events from the same ObjUid in one event
+	alertType           event.AlertType    // The Datadog event type
+	hostInfo            eventHostInfo      // Host information extracted from the event, where applicable
 }
 
 func newKubernetesEventBundler(clusterName string, event *v1.Event) *kubernetesEventBundle {
 	return &kubernetesEventBundle{
-		involvedObject: event.InvolvedObject,
-		component:      event.Source.Component,
-		countByAction:  make(map[string]int),
-		alertType:      getDDAlertType(event.Type),
-		hostInfo:       getEventHostInfo(clusterName, event),
+		involvedObject:      event.InvolvedObject,
+		component:           event.Source.Component,
+		reportingController: event.ReportingController,
+		countByAction:       make(map[string]int),
+		alertType:           getDDAlertType(event.Type),
+		hostInfo:            getEventHostInfo(clusterName, event),
 	}
 }
 
@@ -64,6 +66,7 @@ func (b *kubernetesEventBundle) formatEvents(taggerInstance tagger.Component) (e
 	readableKey := buildReadableKey(b.involvedObject)
 	tags := getInvolvedObjectTags(b.involvedObject, taggerInstance)
 	tags = append(tags, fmt.Sprintf("source_component:%s", b.component))
+	tags = append(tags, fmt.Sprintf("reporting_controller:%s", b.reportingController))
 
 	if b.hostInfo.providerID != "" {
 		tags = append(tags, fmt.Sprintf("host_provider_id:%s", b.hostInfo.providerID))
@@ -74,7 +77,7 @@ func (b *kubernetesEventBundle) formatEvents(taggerInstance tagger.Component) (e
 		Title:          fmt.Sprintf("Events from the %s", readableKey),
 		Priority:       event.PriorityNormal,
 		Host:           b.hostInfo.hostname,
-		SourceTypeName: "kubernetes",
+		SourceTypeName: getEventSource(b.reportingController, b.component),
 		EventType:      CheckName,
 		Ts:             int64(b.lastTimestamp),
 		Tags:           tags,

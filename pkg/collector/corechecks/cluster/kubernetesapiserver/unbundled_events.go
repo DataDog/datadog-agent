@@ -85,7 +85,7 @@ func (c *unbundledTransformer) Transform(events []*v1.Event) ([]event.Event, []e
 			Title:          fmt.Sprintf("%s: %s", readableKey, ev.Reason),
 			Priority:       event.PriorityNormal,
 			Host:           hostInfo.hostname,
-			SourceTypeName: "kubernetes",
+			SourceTypeName: getEventSource(ev.ReportingController, ev.Source.Component),
 			EventType:      CheckName,
 			Ts:             int64(ev.LastTimestamp.Unix()),
 			Tags:           tags,
@@ -108,6 +108,7 @@ func (c *unbundledTransformer) buildEventTags(ev *v1.Event, involvedObject v1.Ob
 	// Hardcoded tags
 	tagsAccumulator.Append(
 		fmt.Sprintf("source_component:%s", ev.Source.Component),
+		fmt.Sprintf("reporting_controller:%s", ev.ReportingController),
 		fmt.Sprintf("event_reason:%s", ev.Reason),
 	)
 
