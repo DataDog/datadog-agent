@@ -1569,14 +1569,13 @@ core,github.com/itchyny/timefmt-go,MIT,Copyright (c) 2020-2022 itchyny
 core,github.com/jackc/pgpassfile,MIT,Copyright (c) 2019 Jack Christensen
 core,github.com/jackc/pgservicefile,MIT,Copyright (c) 2020 Jack Christensen
 core,github.com/jackc/pgx/v5,MIT,Copyright (c) 2013-2021 Jack Christensen
-core,github.com/jackc/pgx/v5/internal/anynil,MIT,Copyright (c) 2013-2021 Jack Christensen
 core,github.com/jackc/pgx/v5/internal/iobufpool,MIT,Copyright (c) 2013-2021 Jack Christensen
 core,github.com/jackc/pgx/v5/internal/pgio,MIT,Copyright (c) 2013-2021 Jack Christensen
 core,github.com/jackc/pgx/v5/internal/sanitize,MIT,Copyright (c) 2013-2021 Jack Christensen
 core,github.com/jackc/pgx/v5/internal/stmtcache,MIT,Copyright (c) 2013-2021 Jack Christensen
 core,github.com/jackc/pgx/v5/pgconn,MIT,Copyright (c) 2013-2021 Jack Christensen
+core,github.com/jackc/pgx/v5/pgconn/ctxwatch,MIT,Copyright (c) 2013-2021 Jack Christensen
 core,github.com/jackc/pgx/v5/pgconn/internal/bgreader,MIT,Copyright (c) 2013-2021 Jack Christensen
-core,github.com/jackc/pgx/v5/pgconn/internal/ctxwatch,MIT,Copyright (c) 2013-2021 Jack Christensen
 core,github.com/jackc/pgx/v5/pgproto3,MIT,Copyright (c) 2013-2021 Jack Christensen
 core,github.com/jackc/pgx/v5/pgtype,MIT,Copyright (c) 2013-2021 Jack Christensen
 core,github.com/jackc/pgx/v5/pgxpool,MIT,Copyright (c) 2013-2021 Jack Christensen
