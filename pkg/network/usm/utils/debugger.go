@@ -34,6 +34,12 @@ type TracedProgram struct {
 	PIDs        []uint32
 }
 
+// BlockedProcess represents an active uprobe-based program and its blocked PIDs.
+type BlockedProcess struct {
+	ProgramType string
+	PIDs        []PathIdentifier
+}
+
 // TracedProgramsEndpoint generates a summary of all active uprobe-based
 // programs along with their file paths and PIDs.
 // This is used for debugging purposes only.
@@ -99,6 +105,24 @@ func (d *tlsDebugger) GetTracedPrograms() []TracedProgram {
 		for _, program := range tracedProgramsByID {
 			all = append(all, *program)
 		}
+	}
+
+	return all
+}
+
+func (d *tlsDebugger) GetAllBlockedPathIDs() []BlockedProcess {
+	var all []BlockedProcess
+
+	// Iterate over each `FileRegistry` instance:
+	// Examples of this would be: "shared_libraries", "istio", "goTLS" etc
+	for _, registry := range d.registries {
+		programType := registry.telemetry.programName
+		var blockedProgramsByID BlockedProcess
+
+		blockedProgramsByID.ProgramType = programType
+		blockedProgramsByID.PIDs = d.GetBlockedPathIDs(programType)
+
+		all = append(all, blockedProgramsByID)
 	}
 
 	return all
@@ -215,4 +239,13 @@ func init() {
 	debugger = &tlsDebugger{
 		attachers: make(map[string]Attacher),
 	}
+}
+
+// GetBlockedPathIDsList returns a list of PathIdentifiers blocked in the
+// registry for the all programs type.
+func GetBlockedPathIDsList() []BlockedProcess {
+	if debugger == nil {
+		return nil
+	}
+	return debugger.GetAllBlockedPathIDs()
 }
