@@ -489,7 +489,7 @@ def send_failure_summary_notification(
     # List of (job_name, failure_count) ordered by failure_count
     stats = sorted(
         ((name, data['failures']) for name, data in jobs.items() if data['failures'] > 0),
-        key=lambda x: x[1]['failures'],
+        key=lambda x: x[1],
         reverse=True,
     )
 
