@@ -11,19 +11,23 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline"
 	"github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline/logsagentpipelineimpl"
+	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/datadogexporter"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/logsagentexporter"
+	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/metricsclient"
+	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/statsprocessor"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/api"
+)
 
-	"github.com/open-telemetry/opentelemetry-collector-contrib/connector/datadogconnector"
-	"github.com/open-telemetry/opentelemetry-collector-contrib/exporter/datadogexporter"
+const (
+	_ = metricsclient.ExporterSourceTag
 )
 
 func _(
-	_ datadogconnector.Config,
 	_ datadogexporter.Config,
+	_ statsprocessor.TraceAgent,
 	_ config.Component,
 	_ hostnameinterface.Component,
 	_ log.Component,
