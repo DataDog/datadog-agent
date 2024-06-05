@@ -399,7 +399,11 @@ def validate_msi_createfolder_table(db):
         "run",
         "logs",
         "ProgramMenuDatadog",
+        # Datadog Installer specific folders
         "DatadogInstallerData",
+        "locks",
+        "packages",
+        "temp"
     ]
 
     with MsiClosing(db.OpenView("Select Directory_ FROM CreateFolder")) as view:
