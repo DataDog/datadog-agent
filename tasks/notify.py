@@ -476,18 +476,20 @@ def send_notification(ctx: Context, alert_jobs, jobowners=".gitlab/JOBOWNERS"):
 
 @task
 def send_failure_summary_notification(
-    _, jobs: dict[str, any] | None = None, list_max_len=10, jobowners=".gitlab/JOBOWNERS"
+    _, jobs: dict[str, any] | None = None, allowed_to_fail: bool = False, list_max_len=10, jobowners=".gitlab/JOBOWNERS"
 ):
     from slack_sdk import WebClient
 
     if jobs is None:
-        jobs = os.environ["JOB_FAILURES"]
-        jobs = json.loads(jobs)
+        args = os.environ["ARGS"]
+        args = json.loads(args)
+        jobs = args['jobs']
+        allowed_to_fail = args['allowedToFail']
 
-    # List of (job_name, (failure_count, total_count)) ordered by failure_count
+    # List of (job_name, failure_count) ordered by failure_count
     stats = sorted(
-        ((name, (data['failures'], None)) for (name, data) in jobs.items() if data['failures'] > 0),
-        key=lambda x: (x[1][0], x[1][1] if x[1][1] is not None else 0),
+        ((name, data['failures']) for name, data in jobs.items() if data['failures'] > 0),
+        key=lambda x: x[1]['failures'],
         reverse=True,
     )
 
@@ -506,15 +508,20 @@ def send_failure_summary_notification(
 
     def send_summary(channel, stats):
         # Create message
+        not_allowed_word = 'not ' if not allowed_to_fail else ''
+        not_allowed_query = '' if not allowed_to_fail else '-'
+
         # message = ['*Daily Job Failure Report*']
         message = [f'*{channel}*']
-        message.append('These jobs you own had the most failures in the last 24 hours:')
+        message.append(f'These {not_allowed_word}allowed to fail jobs you own had the most failures in the last 24 hours:')
+
         for name, (fail, total) in stats:
             link = CI_VISIBILITY_JOB_URL.format(quote(name))
             message.append(f"- <{link}|{name}>: *{fail} failures*{f' / {total} runs' if total else ''}")
 
+        # TODO : Timestamp
         message.append(
-            'Click <https://app.datadoghq.com/ci/pipeline-executions?query=ci_level%3Ajob%20env%3Aprod%20%40git.repository.id%3A%22gitlab.ddbuild.io%2FDataDog%2Fdatadog-agent%22%20%40ci.pipeline.name%3A%22DataDog%2Fdatadog-agent%22%20%40ci.provider.instance%3Agitlab-ci%20%40git.branch%3Amain%20%40ci.status%3Aerror&agg_m=count&agg_m_source=base&agg_q=%40ci.job.name&agg_q_source=base&agg_t=count&fromUser=false&index=cipipeline&sort_m=count&sort_m_source=base&sort_t=count&top_n=25&top_o=top&viz=toplist&x_missing=true&paused=false|here> for more details.'
+            f'Click <https://app.datadoghq.com/ci/pipeline-executions?query=ci_level%3Ajob%20env%3Aprod%20%40git.repository.id%3A%22gitlab.ddbuild.io%2FDataDog%2Fdatadog-agent%22%20%40ci.pipeline.name%3A%22DataDog%2Fdatadog-agent%22%20%40ci.provider.instance%3Agitlab-ci%20%40git.branch%3Amain%20%40ci.status%20%40gitlab.pipeline_source%3A%28push%20OR%20schedule%29%20%40ci.allowed_to_fail%3A{not_allowed_query}true%3Aerror&agg_m=count&agg_m_source=base&agg_q=%40ci.job.name&agg_q_source=base&agg_t=count&fromUser=false&index=cipipeline&sort_m=count&sort_m_source=base&sort_t=count&top_n=25&top_o=top&viz=toplist&x_missing=true&paused=false|here> for more details.'
         )
 
         # Send message
