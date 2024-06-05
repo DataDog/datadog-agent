@@ -108,7 +108,8 @@ type Check struct {
 	logPrompt                               string
 	initialized                             bool
 	multitenant                             bool
-	lastOracleRows                          []OracleRow // added for tests
+	lastOracleRows                          []OracleRow         // added for tests
+	lastOracleActivityRows                  []OracleActivityRow //added for tests
 	databaseRole                            string
 	openMode                                string
 	legacyIntegrationCompatibilityMode      bool

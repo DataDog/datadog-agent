@@ -164,6 +164,7 @@ func (c *Check) getSQLRow(SQLID sql.NullString, forceMatchingSignature *string, 
 //nolint:revive // TODO(DBM) Fix revive linter
 func (c *Check) SampleSession() error {
 	start := time.Now()
+	copy(c.lastOracleActivityRows, []OracleActivityRow{})
 
 	var sessionRows []OracleActivityRow
 	sessionSamples := []OracleActivityRowDB{}
@@ -390,6 +391,9 @@ func (c *Check) SampleSession() error {
 		Tags:               c.tags,
 		OracleActivityRows: sessionRows,
 	}
+
+	c.lastOracleActivityRows = make([]OracleActivityRow, len(sessionRows))
+	copy(c.lastOracleActivityRows, sessionRows)
 
 	payloadBytes, err := json.Marshal(payload)
 	if err != nil {
