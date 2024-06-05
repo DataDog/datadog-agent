@@ -839,22 +839,7 @@ int socket__http2_filter(struct __sk_buff *skb) {
     return 0;
 }
 
-// The program is responsible for parsing all headers frames. For each headers frame we parse the headers,
-// fill the dynamic table with the new interesting literal headers, and modifying the streams accordingly.
-// The program can be called multiple times (via "self call" of tail calls) in case we have more frames to parse
-// than the maximum number of frames we can process in a single tail call.
-// The program is being called after socket__http2_filter, and it is being called only if we have interesting frames.
-// The program calls socket__http2_dynamic_table_cleaner to clean the dynamic table if needed.
-SEC("socket/http2_headers_parser")
-int socket__http2_headers_parser(struct __sk_buff *skb) {
-    dispatcher_arguments_t dispatcher_args_copy;
-    bpf_memset(&dispatcher_args_copy, 0, sizeof(dispatcher_arguments_t));
-    if (!fetch_dispatching_arguments(&dispatcher_args_copy.tup, &dispatcher_args_copy.skb_info)) {
-        return 0;
-    }
-
-    pktbuf_t pkt = pktbuf_from_skb(skb, &dispatcher_args_copy.skb_info);
-
+static __always_inline void headers_parser(pktbuf_t pkt, void *map_key, conn_tuple_t *tup) {
     // Some functions might change and override data_off field in dispatcher_args_copy.skb_info. Since it is used as a key
     // in a map, we cannot allow it to be modified. Thus, storing the original value of the offset.
     __u32 original_off = pktbuf_data_offset(pkt);
@@ -867,13 +852,13 @@ int socket__http2_headers_parser(struct __sk_buff *skb) {
     pktbuf_map_lookup_option_t arr[] = {
         [PKTBUF_SKB] = {
             .map = &http2_iterations,
-            .key = &dispatcher_args_copy,
+            .key = map_key,
         },
     };
     http2_tail_call_state_t *tail_call_state = pktbuf_map_lookup(pkt, arr);
     if (tail_call_state == NULL) {
         // We didn't find the cached context, aborting.
-        return 0;
+        return;
     }
 
     const __u32 zero = 0;
@@ -892,9 +877,9 @@ int socket__http2_headers_parser(struct __sk_buff *skb) {
 
     // create the http2 ctx for the current http2 frame.
     bpf_memset(http2_ctx, 0, sizeof(http2_ctx_t));
-    http2_ctx->http2_stream_key.tup = dispatcher_args_copy.tup;
+    http2_ctx->http2_stream_key.tup = *tup;
     normalize_tuple(&http2_ctx->http2_stream_key.tup);
-    http2_ctx->dynamic_index.tup = dispatcher_args_copy.tup;
+    http2_ctx->dynamic_index.tup = *tup;
 
     http2_stream_t *current_stream = NULL;
 
@@ -903,6 +888,8 @@ int socket__http2_headers_parser(struct __sk_buff *skb) {
     if (headers_to_process == NULL) {
         goto delete_iteration;
     }
+    bpf_memset(headers_to_process, 0, HTTP2_MAX_HEADERS_COUNT_FOR_PROCESSING * sizeof(http2_header_t));
+
     #pragma unroll(HTTP2_MAX_FRAMES_FOR_HEADERS_PARSER_PER_TAIL_CALL)
     for (__u16 index = 0; index < HTTP2_MAX_FRAMES_FOR_HEADERS_PARSER_PER_TAIL_CALL; index++) {
         if (tail_call_state->iteration >= tail_call_state->frames_count) {
@@ -926,8 +913,7 @@ int socket__http2_headers_parser(struct __sk_buff *skb) {
         }
         pktbuf_set_offset(pkt, current_frame.offset);
 
-        bpf_memset(headers_to_process, 0, HTTP2_MAX_HEADERS_COUNT_FOR_PROCESSING * sizeof(http2_header_t));
-        __u8 interesting_headers = pktbuf_filter_relevant_headers(pkt, &dispatcher_args_copy.tup, &http2_ctx->dynamic_index, headers_to_process, current_frame.frame.length, http2_tel);
+        __u8 interesting_headers = pktbuf_filter_relevant_headers(pkt, tup, &http2_ctx->dynamic_index, headers_to_process, current_frame.frame.length, http2_tel);
         pktbuf_process_headers(pkt, &http2_ctx->dynamic_index, current_stream, headers_to_process, interesting_headers, http2_tel);
     }
 
@@ -964,6 +950,25 @@ delete_iteration:
     // restoring the original value.
     pktbuf_set_offset(pkt, original_off);
     pktbuf_map_delete(pkt, arr);
+}
+
+// The program is responsible for parsing all headers frames. For each headers frame we parse the headers,
+// fill the dynamic table with the new interesting literal headers, and modifying the streams accordingly.
+// The program can be called multiple times (via "self call" of tail calls) in case we have more frames to parse
+// than the maximum number of frames we can process in a single tail call.
+// The program is being called after socket__http2_filter, and it is being called only if we have interesting frames.
+// The program calls socket__http2_dynamic_table_cleaner to clean the dynamic table if needed.
+SEC("socket/http2_headers_parser")
+int socket__http2_headers_parser(struct __sk_buff *skb) {
+    dispatcher_arguments_t dispatcher_args_copy;
+    bpf_memset(&dispatcher_args_copy, 0, sizeof(dispatcher_arguments_t));
+    if (!fetch_dispatching_arguments(&dispatcher_args_copy.tup, &dispatcher_args_copy.skb_info)) {
+        return 0;
+    }
+
+    pktbuf_t pkt = pktbuf_from_skb(skb, &dispatcher_args_copy.skb_info);
+
+    headers_parser(pkt, &dispatcher_args_copy, &dispatcher_args_copy.tup);
 
     return 0;
 }
