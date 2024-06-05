@@ -19,6 +19,8 @@ struct oom_stats {
     char tcomm[TASK_COMM_LEN];
     // OOM score of killed process
     __s64 score;
+    // OOM score adjustment of killed process
+    __s16 score_adj;
     // Total number of pages
     __u64 pages;
     // Tracks if the OOM kill was triggered by a cgroup

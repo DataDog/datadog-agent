@@ -172,6 +172,7 @@ func convertStats(in C.struct_oom_stats) (out model.OOMKillStats) {
 	out.Pid = uint32(in.pid)
 	out.TPid = uint32(in.tpid)
 	out.Score = int64(in.score)
+	out.ScoreAdj = int16(in.score_adj)
 	out.FComm = C.GoString(&in.fcomm[0])
 	out.TComm = C.GoString(&in.tcomm[0])
 	out.Pages = uint64(in.pages)

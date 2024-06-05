@@ -8,4 +8,4 @@
 ---
 enhancements:
   - |
-    Make the `oom_kill` check capture the OOM score of the process being killed.
+    Make the `oom_kill` check capture the OOM score and the OOM score adjustment of the process being killed.
