@@ -13,6 +13,7 @@ type OOMKillStats struct {
 	TPid       uint32 `json:"tpid"`
 	FComm      string `json:"fcomm"`
 	TComm      string `json:"tcomm"`
+	Score      int64  `json:"score"`
 	Pages      uint64 `json:"pages"`
 	MemCgOOM   uint32 `json:"memcgoom"`
 }

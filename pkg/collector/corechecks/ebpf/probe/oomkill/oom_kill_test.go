@@ -99,6 +99,7 @@ func TestOOMKillProbe(t *testing.T) {
 
 		assert.Regexp(t, regexp.MustCompile("run-([0-9|a-z]*).scope"), result.CgroupName, "cgroup name")
 		assert.Equal(t, result.TPid, result.Pid, "tpid == pid")
+		assert.NotZero(t, result.Score, "score")
 		assert.Equal(t, "dd", result.FComm, "fcomm")
 		assert.Equal(t, "dd", result.TComm, "tcomm")
 		assert.NotZero(t, result.Pages, "pages")

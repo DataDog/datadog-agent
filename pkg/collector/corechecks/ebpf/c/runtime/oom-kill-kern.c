@@ -51,6 +51,7 @@ int BPF_KPROBE(kprobe__oom_kill_process, struct oom_control *oc) {
         return 0;
     }
     BPF_CORE_READ_INTO(&new.tpid, p, pid);
+    BPF_CORE_READ_INTO(&new.score, oc, chosen_points);
 
     if (bpf_helper_exists(BPF_FUNC_get_current_comm)) {
         bpf_get_current_comm(new.fcomm, sizeof(new.fcomm));

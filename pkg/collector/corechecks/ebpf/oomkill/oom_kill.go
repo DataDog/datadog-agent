@@ -152,9 +152,9 @@ func (m *OOMKillCheck) Run() error {
 		var b strings.Builder
 		b.WriteString("%%% \n")
 		if line.Pid == line.TPid {
-			fmt.Fprintf(&b, "Process `%s` (pid: %d) triggered an OOM kill on itself.", line.FComm, line.Pid)
+			fmt.Fprintf(&b, "Process `%s` (pid: %d, oom_score: %d) triggered an OOM kill on itself.", line.FComm, line.Pid, line.Score)
 		} else {
-			fmt.Fprintf(&b, "Process `%s` (pid: %d) triggered an OOM kill on process `%s` (pid: %d).", line.FComm, line.Pid, line.TComm, line.TPid)
+			fmt.Fprintf(&b, "Process `%s` (pid: %d) triggered an OOM kill on process `%s` (pid: %d, oom_score: %d).", line.FComm, line.Pid, line.TComm, line.TPid, line.Score)
 		}
 		fmt.Fprintf(&b, "\n The process had reached %d pages in size. \n\n", line.Pages)
 		b.WriteString(triggerTypeText)
