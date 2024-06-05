@@ -61,7 +61,7 @@ func (c *TCPFailedConnConsumer) extractConn(data []byte) {
 	failedConn := (*netebpf.FailedConn)(unsafe.Pointer(&data[0]))
 	failedConnConsumerTelemetry.eventsReceived.Inc()
 
-	c.FailedConns.UpsertConn(failedConn)
+	c.FailedConns.upsertConn(failedConn)
 }
 
 // Start starts the consumer

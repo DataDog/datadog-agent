@@ -64,8 +64,8 @@ func NewFailedConns() *FailedConns {
 	}
 }
 
-// UpsertConn adds or updates the failed connection in the failed connection map
-func (fc *FailedConns) UpsertConn(failedConn *ebpf.FailedConn) {
+// upsertConn adds or updates the failed connection in the failed connection map
+func (fc *FailedConns) upsertConn(failedConn *ebpf.FailedConn) {
 	if _, exists := allowListErrs[failedConn.Reason]; !exists {
 		return
 	}
