@@ -18,7 +18,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/tools/record"
 
 	datadoghq "github.com/DataDog/datadog-operator/apis/datadoghq/v1alpha1"
 
@@ -26,7 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/model"
 )
 
-func testStoreWithData() *store {
+func patcherTestStoreWithData() *store {
 	store := autoscaling.NewStore[model.PodAutoscalerInternal]()
 
 	// ns1/autoscaler1 targets "test-deployment" and has vertical recommendations for 2 containers and from automatic source
@@ -92,7 +91,7 @@ func testStoreWithData() *store {
 	return store
 }
 
-func TestApplyRecommendations(t *testing.T) {
+func TestPatcherApplyRecommendations(t *testing.T) {
 	tests := []struct {
 		name         string
 		pod          corev1.Pod
@@ -111,7 +110,10 @@ func TestApplyRecommendations(t *testing.T) {
 						Name:       "test-deployment-968f49d86",
 						APIVersion: "apps/v1",
 					}},
-					Annotations: map[string]string{model.RecommendationIDAnnotation: "version0"},
+					Annotations: map[string]string{
+						model.RecommendationIDAnnotation: "version0",
+						model.AutoscalerIDAnnotation:     "ns1/autoscaler1",
+					},
 				},
 				Spec: corev1.PodSpec{
 					Containers: []corev1.Container{{
@@ -133,7 +135,10 @@ func TestApplyRecommendations(t *testing.T) {
 						Name:       "test-deployment-968f49d86",
 						APIVersion: "apps/v1",
 					}},
-					Annotations: map[string]string{model.RecommendationIDAnnotation: "version1"},
+					Annotations: map[string]string{
+						model.RecommendationIDAnnotation: "version1",
+						model.AutoscalerIDAnnotation:     "ns1/autoscaler1",
+					},
 				},
 				Spec: corev1.PodSpec{
 					Containers: []corev1.Container{
@@ -176,7 +181,10 @@ func TestApplyRecommendations(t *testing.T) {
 						Name:       "test-deployment-968f49d86",
 						APIVersion: "apps/v1",
 					}},
-					Annotations: map[string]string{model.RecommendationIDAnnotation: "version1"},
+					Annotations: map[string]string{
+						model.RecommendationIDAnnotation: "version1",
+						model.AutoscalerIDAnnotation:     "ns1/autoscaler1",
+					},
 				},
 				Spec: corev1.PodSpec{
 					Containers: []corev1.Container{{
@@ -200,7 +208,10 @@ func TestApplyRecommendations(t *testing.T) {
 						Name:       "test-deployment-968f49d86",
 						APIVersion: "apps/v1",
 					}},
-					Annotations: map[string]string{model.RecommendationIDAnnotation: "version1"},
+					Annotations: map[string]string{
+						model.RecommendationIDAnnotation: "version1",
+						model.AutoscalerIDAnnotation:     "ns1/autoscaler1",
+					},
 				},
 				Spec: corev1.PodSpec{
 					Containers: []corev1.Container{{
@@ -222,7 +233,10 @@ func TestApplyRecommendations(t *testing.T) {
 						Name:       "test-deployment-968f49d86",
 						APIVersion: "apps/v1",
 					}},
-					Annotations: map[string]string{model.RecommendationIDAnnotation: "version1"},
+					Annotations: map[string]string{
+						model.RecommendationIDAnnotation: "version1",
+						model.AutoscalerIDAnnotation:     "ns1/autoscaler1",
+					},
 				},
 				Spec: corev1.PodSpec{
 					Containers: []corev1.Container{{
@@ -283,9 +297,8 @@ func TestApplyRecommendations(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			store := testStoreWithData()
-			recorder := record.NewFakeRecorder(100)
-			patcherAdapter := newPODPatcher(store, recorder)
+			store := patcherTestStoreWithData()
+			patcherAdapter := newPODPatcher(store, nil, nil, nil)
 
 			injected, err := patcherAdapter.ApplyRecommendations(&tt.pod)
 			if (err != nil) != tt.wantErr {
@@ -380,7 +393,7 @@ func TestFindAutoscaler(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			store := testStoreWithData()
+			store := patcherTestStoreWithData()
 			patcherAdapter := podPatcher{store: store}
 
 			result, err := patcherAdapter.findAutoscaler(tt.pod)

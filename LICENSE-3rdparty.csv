@@ -2788,6 +2788,10 @@ core,github.com/tetratelabs/wazero/internal/wasmruntime,Apache-2.0,Copyright 202
 core,github.com/tetratelabs/wazero/internal/wazeroir,Apache-2.0,Copyright 2020-2023 wazero authors
 core,github.com/tetratelabs/wazero/sys,Apache-2.0,Copyright 2020-2023 wazero authors
 core,github.com/tg123/go-htpasswd,MIT,Copyright (c) 2015 tgic
+core,github.com/tidwall/gjson,MIT,Copyright (c) 2016 Josh Baker
+core,github.com/tidwall/match,MIT,Copyright (c) 2016 Josh Baker
+core,github.com/tidwall/pretty,MIT,Copyright (c) 2017 Josh Baker
+core,github.com/tidwall/sjson,MIT,Copyright (c) 2016 Josh Baker
 core,github.com/tilinna/clock,MIT,Copyright (c) 2018 Timo Linna
 core,github.com/tinylib/msgp,MIT,Copyright (c) 2009 The Go Authors (license at http://golang.org) where indicated | Copyright (c) 2014 Philip Hofer
 core,github.com/tinylib/msgp/gen,MIT,Copyright (c) 2009 The Go Authors (license at http://golang.org) where indicated | Copyright (c) 2014 Philip Hofer

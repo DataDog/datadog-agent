@@ -56,7 +56,7 @@ func (p *Payload) MarshalJSON() ([]byte, error) {
 //
 // In this case, the payload can't be split any further.
 func (p *Payload) SplitPayload(_ int) ([]marshaler.AbstractMarshaler, error) {
-	return nil, fmt.Errorf("could not split inventories agent payload any more, payload is too big for intake")
+	return nil, fmt.Errorf("could not split system-probe process payload any more, payload is too big for intake")
 }
 
 type systemprobe struct {

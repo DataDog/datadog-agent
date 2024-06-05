@@ -197,8 +197,8 @@ func (r *RemoteSysProbeUtil) GetPing(clientID string, host string, count int, in
 }
 
 // GetTraceroute returns the results of a traceroute to a host
-func (r *RemoteSysProbeUtil) GetTraceroute(clientID string, host string, port uint16, maxTTL uint8, timeout uint) ([]byte, error) {
-	req, err := http.NewRequest("GET", fmt.Sprintf("%s/%s?client_id=%s&port=%d&max_ttl=%d&timeout=%d", tracerouteURL, host, clientID, port, maxTTL, timeout), nil)
+func (r *RemoteSysProbeUtil) GetTraceroute(clientID string, host string, port uint16, protocol string, maxTTL uint8, timeout uint) ([]byte, error) {
+	req, err := http.NewRequest("GET", fmt.Sprintf("%s/%s?client_id=%s&port=%d&max_ttl=%d&timeout=%d&protocol=%s", tracerouteURL, host, clientID, port, maxTTL, timeout, protocol), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -302,7 +302,7 @@ func newSystemProbe(path string) *RemoteSysProbeUtil {
 			},
 		},
 		extendedTimeoutClient: http.Client{
-			Timeout: 25 * time.Second,
+			Timeout: 60 * time.Second,
 			Transport: &http.Transport{
 				MaxIdleConns:    2,
 				IdleConnTimeout: 30 * time.Second,
@@ -310,7 +310,7 @@ func newSystemProbe(path string) *RemoteSysProbeUtil {
 					return net.Dial(netType, path)
 				},
 				TLSHandshakeTimeout:   1 * time.Second,
-				ResponseHeaderTimeout: 20 * time.Second,
+				ResponseHeaderTimeout: 50 * time.Second,
 				ExpectContinueTimeout: 50 * time.Millisecond,
 			},
 		},
