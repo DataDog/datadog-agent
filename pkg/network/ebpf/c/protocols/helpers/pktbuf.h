@@ -60,7 +60,7 @@ static __always_inline __maybe_unused u32 pktbuf_data_offset(pktbuf_t pkt)
 {
     switch (pkt.type) {
     case PKTBUF_SKB:
-        return pkt.skb_info ? pkt.skb_info->data_off : 0;
+        return pkt.skb_info->data_off;
     case PKTBUF_TLS:
         return pkt.tls->data_off;
     }
@@ -73,7 +73,7 @@ static __always_inline __maybe_unused u32 pktbuf_data_end(pktbuf_t pkt)
 {
     switch (pkt.type) {
     case PKTBUF_SKB:
-        return pkt.skb_info ? pkt.skb_info->data_end : pkt.skb->len;
+        return pkt.skb_info->data_end;
     case PKTBUF_TLS:
         return pkt.tls->data_end;
     }
