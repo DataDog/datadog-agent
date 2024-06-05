@@ -57,6 +57,8 @@ lint_macos:
     PYTHON_RUNTIMES: "3"
   # The Gitlab macOS runners are currently long runners, so we need to clean them beforehand.
   before_script:
+    - echo $XCODE_ACTIVE_VERSION
+    - xcodebuild -version
     # Removing the previous Python environment if it exists
     - pyenv uninstall -f datadog-agent
     # Removing the previous Go environment
@@ -73,7 +75,6 @@ lint_macos:
     - inv -e install-tools
     - inv -e deps
     - echo $PATH
-    - echo $XCODE_ACTIVE_VERSION
 
 lint_macos_gitlab_amd64:
   stage: source_test
