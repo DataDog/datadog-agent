@@ -13,7 +13,9 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/tagger/proto"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl/empty"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl/tagstore"
+	taggerTelemetry "github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -32,9 +34,9 @@ type Tagger struct {
 
 // NewTagger returns an allocated tagger. You still have to run Init()
 // once the config package is ready.
-func NewTagger() *Tagger {
+func NewTagger(telemetry telemetry.Component) *Tagger {
 	return &Tagger{
-		// store: tagstore.NewTagStore(),
+		store: tagstore.NewTagStore(taggerTelemetry.NewStore(telemetry)),
 	}
 }
 

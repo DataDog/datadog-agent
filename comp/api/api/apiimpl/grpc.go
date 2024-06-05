@@ -19,6 +19,7 @@ import (
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/emptypb"
 
+	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	workloadmetaServer "github.com/DataDog/datadog-agent/comp/core/workloadmeta/server"
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
@@ -46,6 +47,7 @@ type serverSecure struct {
 	dogstatsdServer    dogstatsdServer.Component
 	capture            dsdReplay.Component
 	pidMap             pidmap.Component
+	telemetry          telemetry.Component
 }
 
 func (s *server) GetHostname(ctx context.Context, _ *pb.HostnameRequest) (*pb.HostnameReply, error) {
@@ -103,7 +105,7 @@ func (s *serverSecure) DogstatsdSetTaggerState(_ context.Context, req *pb.Tagger
 	}
 
 	// FiXME: we should perhaps lock the capture processing while doing this...
-	t := replay.NewTagger()
+	t := replay.NewTagger(s.telemetry)
 	if t == nil {
 		return &pb.TaggerStateResponse{Loaded: false}, fmt.Errorf("unable to instantiate state")
 	}

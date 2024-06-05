@@ -97,6 +97,7 @@ func startCMDServer(
 		dogstatsdServer:    dogstatsdServer,
 		capture:            capture,
 		pidMap:             pidMap,
+		telemetry:          telemetry,
 	})
 
 	dcreds := credentials.NewTLS(&tls.Config{
