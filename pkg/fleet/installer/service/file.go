@@ -20,6 +20,8 @@ import (
 	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
 )
 
+var rollbackNoop = func() error { return nil }
+
 // fileMutator is a struct used to transform a file
 // creating backups, replacing original files and setting permissions
 // default permissions are root:root 0644
@@ -80,7 +82,7 @@ func (ft *fileMutator) mutate(ctx context.Context) (rollback func() error, err e
 
 	// no changes needed
 	if bytes.Equal(data, res) {
-		return nil, nil
+		return rollbackNoop, nil
 	}
 
 	if err := writeFile(ft.pathTmp, res); err != nil {

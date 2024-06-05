@@ -29,8 +29,9 @@ var (
 	dockerDaemonPath = "/etc/docker/daemon.json"
 )
 
-func (a *apmInjectorInstaller) setupDocker(ctx context.Context) (rollback func() error, err error) {
-	err = os.MkdirAll("/etc/docker", 0755)
+// instrumentDocker instruments the docker runtime to use the APM injector.
+func (a *apmInjectorInstaller) instrumentDocker(ctx context.Context) (func() error, error) {
+	err := os.MkdirAll("/etc/docker", 0755)
 	if err != nil {
 		return nil, err
 	}
@@ -40,20 +41,26 @@ func (a *apmInjectorInstaller) setupDocker(ctx context.Context) (rollback func()
 		return nil, err
 	}
 
-	rollback = func() error {
-		if rollbackDockerConfig == nil {
-			return nil
+	err = reloadDockerConfig(ctx)
+	if err != nil {
+		if rollbackErr := rollbackDockerConfig(); rollbackErr != nil {
+			log.Warn("failed to rollback docker configuration: ", rollbackErr)
 		}
+		return nil, err
+	}
+
+	rollbackWithReload := func() error {
 		if err := rollbackDockerConfig(); err != nil {
 			return err
 		}
 		return reloadDockerConfig(ctx)
 	}
 
-	return rollback, reloadDockerConfig(ctx)
+	return rollbackWithReload, nil
 }
 
-func (a *apmInjectorInstaller) uninstallDocker(ctx context.Context) error {
+// uninstrumentDocker removes the APM injector from the Docker runtime.
+func (a *apmInjectorInstaller) uninstrumentDocker(ctx context.Context) error {
 	if !isDockerInstalled(ctx) {
 		return nil
 	}
