@@ -247,6 +247,10 @@ func (t *Tester) TestUninstallExpectations(tt *testing.T) {
 	registryKeyExists, err := windows.RegistryKeyExists(t.host, windowsAgent.RegistryKeyPath)
 	assert.NoError(tt, err, "should check registry key exists")
 	assert.False(tt, registryKeyExists, "uninstall should remove registry key")
+
+	tt.Run("file permissions", func(tt *testing.T) {
+		t.testUninstalledFilePermissions(tt)
+	})
 }
 
 // Only do some basic checks on the agent since it's a previous version
@@ -333,9 +337,137 @@ func (t *Tester) testCurrentVersionExpectations(tt *testing.T) {
 		)
 	})
 
+	tt.Run("file permissions", func(tt *testing.T) {
+		t.testInstalledFilePermissions(tt)
+	})
+
 	RequireAgentRunningWithNoErrors(tt, t.InstallTestClient)
 
-	t.runTestsForKitchenCompat(tt)
+	if !testing.Short() {
+		t.runTestsForKitchenCompat(tt)
+	}
+}
+
+func (t *Tester) testUninstalledFilePermissions(tt *testing.T) {
+	// uninstall should remove the agent user from the ACLs
+	tc := []struct {
+		name             string
+		path             string
+		expectedSecurity func(t *testing.T) windows.ObjectSecurity
+	}{
+		{
+			name: "ConfigRoot",
+			path: t.expectedConfigRoot,
+			expectedSecurity: func(tt *testing.T) windows.ObjectSecurity {
+				s, err := getBaseConfigRootSecurity(t.host)
+				require.NoError(tt, err)
+				return s
+			},
+		},
+		{
+			name: "datadog.yaml",
+			path: filepath.Join(t.expectedConfigRoot, "datadog.yaml"),
+			expectedSecurity: func(tt *testing.T) windows.ObjectSecurity {
+				s, err := getBaseInheritedConfigFileSecurity(t.host)
+				require.NoError(tt, err)
+				return s
+			},
+		},
+		{
+			name: "conf.d",
+			path: filepath.Join(t.expectedConfigRoot, "conf.d"),
+			expectedSecurity: func(tt *testing.T) windows.ObjectSecurity {
+				s, err := getBaseInheritedConfigDirSecurity(t.host)
+				require.NoError(tt, err)
+				return s
+			},
+		},
+	}
+	for _, tc := range tc {
+		tt.Run(tc.name, func(tt *testing.T) {
+			out, err := windows.GetFileSystemSecurityInfo(t.host, tc.path)
+			require.NoError(tt, err)
+			windows.AssertEqualAccessSecurity(tt, tc.path, tc.expectedSecurity(tt), out)
+		})
+	}
+
+	// C:\Program Files\Datadog\Datadog Agent (InstallPath)
+	// doesn't exist after uninstall so don't need to test
+}
+
+func (t *Tester) testInstalledFilePermissions(tt *testing.T) {
+	ddagentUserIdentity, err := windows.GetIdentityForUser(t.host, windowsAgent.DefaultAgentUserName)
+	require.NoError(tt, err)
+
+	tc := []struct {
+		name             string
+		path             string
+		expectedSecurity func(t *testing.T) windows.ObjectSecurity
+	}{
+		{
+			name: "ConfigRoot",
+			path: t.expectedConfigRoot,
+			expectedSecurity: func(tt *testing.T) windows.ObjectSecurity {
+				s, err := getExpectedConfigRootSecurityWithAgent(t.host,
+					windows.MakeDownLevelLogonName(t.expectedUserDomain, t.expectedUserName),
+				)
+				require.NoError(tt, err)
+				return s
+			},
+		},
+		{
+			name: "datadog.yaml",
+			path: filepath.Join(t.expectedConfigRoot, "datadog.yaml"),
+			expectedSecurity: func(tt *testing.T) windows.ObjectSecurity {
+				s, err := getExpectedInheritedConfigFileSecurityWithAgent(t.host,
+					windows.MakeDownLevelLogonName(t.expectedUserDomain, t.expectedUserName),
+				)
+				require.NoError(tt, err)
+				return s
+			},
+		},
+		{
+			name: "conf.d",
+			path: filepath.Join(t.expectedConfigRoot, "conf.d"),
+			expectedSecurity: func(tt *testing.T) windows.ObjectSecurity {
+				s, err := getExpectedInheritedConfigDirSecurityWithAgent(t.host,
+					windows.MakeDownLevelLogonName(t.expectedUserDomain, t.expectedUserName),
+				)
+				require.NoError(tt, err)
+				return s
+			},
+		},
+	}
+	for _, tc := range tc {
+		tt.Run(tc.name, func(tt *testing.T) {
+			out, err := windows.GetFileSystemSecurityInfo(t.host, tc.path)
+			require.NoError(tt, err)
+			windows.AssertEqualAccessSecurity(tt, tc.path, tc.expectedSecurity(tt), out)
+		})
+	}
+
+	// expect to have standard inherited permissions, plus an explciit ACE for ddagentuser
+	embeddedPaths := []string{
+		filepath.Join(t.expectedInstallPath, "embedded3"),
+	}
+	if t.ExpectPython2Installed() {
+		embeddedPaths = append(embeddedPaths,
+			filepath.Join(t.expectedInstallPath, "embedded2"),
+		)
+	}
+	agentUserFullAccessDirRule := windows.NewExplicitAccessRuleWithFlags(
+		ddagentUserIdentity,
+		windows.FileFullControl,
+		windows.AccessControlTypeAllow,
+		windows.InheritanceFlagsContainer|windows.InheritanceFlagsObject,
+		windows.PropagationFlagsNone,
+	)
+	for _, path := range embeddedPaths {
+		out, err := windows.GetFileSystemSecurityInfo(t.host, path)
+		require.NoError(tt, err)
+		windows.AssertContainsEqualable(tt, out.Access, agentUserFullAccessDirRule, "%s should have full access rule for %s", path, ddagentUserIdentity)
+		assert.False(tt, out.AreAccessRulesProtected, "%s should inherit access rules", path)
+	}
 }
 
 // TestInstallExpectations tests the current agent installation meets the expectations provided to the Tester
