@@ -500,7 +500,7 @@ def send_failure_summary_notification(
     # Partitionate by channels as some teams share the same slack channel (avoid duplicate messages)
     partition = partitionate([name for name, _ in stats], jobowners, get_channels=True)
 
-    # team_stats[team] = [(job_name, (failure_count, total_count)), ...]
+    # team_stats[team] = [(job_name, failure_count), ...]
     team_stats = {}
     for channel in partition:
         team_stats[channel] = [(name, stat) for (name, stat) in stats if name in partition[channel]]
@@ -515,9 +515,9 @@ def send_failure_summary_notification(
         message = [f'*{channel}*']
         message.append(f'These {not_allowed_word}allowed to fail jobs you own had the most failures in the last 24 hours:')
 
-        for name, (fail, total) in stats:
+        for name, fail in stats:
             link = CI_VISIBILITY_JOB_URL.format(quote(name))
-            message.append(f"- <{link}|{name}>: *{fail} failures*{f' / {total} runs' if total else ''}")
+            message.append(f"- <{link}|{name}>: *{fail} failures*")
 
         # TODO : Timestamp
         message.append(
