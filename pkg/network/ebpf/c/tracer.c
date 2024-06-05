@@ -203,7 +203,6 @@ int kprobe__tcp_close(struct pt_regs *ctx) {
     // increment telemetry for connections that were never established
     if (bpf_map_delete_elem(&tcp_ongoing_connect_pid, &sk) == 0) {
         increment_telemetry_count(tcp_failed_connect);
-        return 0;
     }
 
     // check if this connection was already flushed and ensure we don't flush again
