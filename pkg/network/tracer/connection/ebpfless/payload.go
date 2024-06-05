@@ -5,6 +5,7 @@
 
 //go:build linux
 
+// Package ebpfless contains supporting code for the ebpfless tracer
 package ebpfless
 
 import (
@@ -16,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network"
 )
 
+// Layers holds a set of network layers for a packet
 type Layers struct {
 	IP4 *layers.IPv4
 	IP6 *layers.IPv6
@@ -23,6 +25,7 @@ type Layers struct {
 	TCP *layers.TCP
 }
 
+// NewLayers returns a new instance of `Layers`
 func NewLayers(family network.ConnectionFamily,
 	proto network.ConnectionType,
 	ip4 *layers.IPv4,
@@ -47,6 +50,8 @@ func NewLayers(family network.ConnectionFamily,
 	return Layers{ip4, ip6, udp, tcp}
 }
 
+// PayloadLen returns the length of the application
+// payload given the set of layers in `Layers`
 func (l Layers) PayloadLen() (uint16, error) {
 	if l.UDP != nil {
 		if l.UDP.Length == 0 {

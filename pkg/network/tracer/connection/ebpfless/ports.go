@@ -5,6 +5,7 @@
 
 //go:build linux
 
+// Package ebpfless contains supporting code for the ebpfless tracer
 package ebpfless
 
 import (
@@ -23,6 +24,8 @@ type boundPortsKey struct {
 	port  uint16
 }
 
+// BoundPorts is a collection of bound ports on the host
+// that is periodically updated from procfs
 type BoundPorts struct {
 	mu sync.RWMutex
 
@@ -33,6 +36,7 @@ type BoundPorts struct {
 	ino  uint32
 }
 
+// NewBoundPorts returns a new BoundPorts instance
 func NewBoundPorts(cfg *config.Config) *BoundPorts {
 	ino, _ := kernel.GetCurrentIno()
 	return &BoundPorts{
@@ -43,6 +47,7 @@ func NewBoundPorts(cfg *config.Config) *BoundPorts {
 	}
 }
 
+// Start starts a BoundPorts instance
 func (b *BoundPorts) Start() error {
 	if err := b.update(); err != nil {
 		return err
@@ -67,6 +72,7 @@ func (b *BoundPorts) Start() error {
 	return nil
 }
 
+// Stop stops a BoundPorts instance
 func (b *BoundPorts) Stop() {
 	close(b.stop)
 }
@@ -113,6 +119,8 @@ func (b *BoundPorts) update() error {
 
 }
 
+// Find returns `true` if the given `(proto, port)` exists in
+// the BoundPorts collection
 func (b *BoundPorts) Find(proto network.ConnectionType, port uint16) bool {
 	b.mu.RLock()
 	defer b.mu.RUnlock()

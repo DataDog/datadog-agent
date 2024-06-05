@@ -39,6 +39,7 @@ const (
 )
 
 var (
+	// ErrEbpflessNotEnabled is the error returned when the ebpfless tracer is not supported
 	ErrEbpflessNotEnabled = errors.New("ebpf-less tracer not enabled")
 
 	ebpfLessTracerTelemetry = struct {
@@ -69,7 +70,12 @@ type ebpfLessTracer struct {
 	ns netns.NsHandle
 }
 
-func NewEbpfLessTracer(cfg *config.Config) (*ebpfLessTracer, error) {
+// NewEbpfLessTracer creates a new ebpfLessTracer instance
+func NewEbpfLessTracer(cfg *config.Config) (Tracer, error) {
+	return newEbpfLessTracer(cfg)
+}
+
+func newEbpfLessTracer(cfg *config.Config) (*ebpfLessTracer, error) {
 	if !cfg.EnableEbpflessTracer {
 		return nil, ErrEbpflessNotEnabled
 	}
@@ -310,7 +316,7 @@ func (t *ebpfLessTracer) Remove(conn *network.ConnectionStats) error {
 func (t *ebpfLessTracer) GetMap(string) *ebpf.Map { return nil }
 
 // DumpMaps (for debugging purpose) returns all maps content by default or selected maps from maps parameter.
-func (t *ebpfLessTracer) DumpMaps(w io.Writer, maps ...string) error { return nil }
+func (t *ebpfLessTracer) DumpMaps(_ io.Writer, _ ...string) error { return nil }
 
 // Type returns the type of the underlying ebpf ebpfLessTracer that is currently loaded
 func (t *ebpfLessTracer) Type() TracerType {
@@ -326,10 +332,10 @@ func (t *ebpfLessTracer) Resume() error {
 }
 
 // Describe returns all descriptions of the collector
-func (t *ebpfLessTracer) Describe(descs chan<- *prometheus.Desc) {}
+func (t *ebpfLessTracer) Describe(_ chan<- *prometheus.Desc) {}
 
 // Collect returns the current state of all metrics of the collector
-func (t *ebpfLessTracer) Collect(metrics chan<- prometheus.Metric) {}
+func (t *ebpfLessTracer) Collect(_ chan<- prometheus.Metric) {}
 
 var _ Tracer = &ebpfLessTracer{}
 

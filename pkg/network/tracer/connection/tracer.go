@@ -8,17 +8,13 @@
 package connection
 
 import (
-	"encoding/binary"
-	"hash"
 	"io"
 
 	"github.com/cilium/ebpf"
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/twmb/murmur3"
 
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // TracerType is the type of the underlying tracer
@@ -80,30 +76,4 @@ func NewTracer(cfg *config.Config) (Tracer, error) {
 	}
 
 	return newEbpfTracer(cfg)
-}
-
-type cookieHasher struct {
-	hash hash.Hash64
-	buf  []byte
-}
-
-func newCookieHasher() *cookieHasher {
-	return &cookieHasher{
-		hash: murmur3.New64(),
-		buf:  make([]byte, network.ConnectionByteKeyMaxLen),
-	}
-}
-
-func (h *cookieHasher) Hash(stats *network.ConnectionStats) {
-	h.hash.Reset()
-	if err := binary.Write(h.hash, binary.BigEndian, stats.Cookie); err != nil {
-		log.Errorf("error writing cookie to hash: %s", err)
-		return
-	}
-	key := stats.ByteKey(h.buf)
-	if _, err := h.hash.Write(key); err != nil {
-		log.Errorf("error writing byte key to hash: %s", err)
-		return
-	}
-	stats.Cookie = h.hash.Sum64()
 }

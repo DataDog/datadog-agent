@@ -336,6 +336,8 @@ func (c ConnectionStats) ByteKeyNAT(buf []byte) []byte {
 	return generateConnectionKey(c, buf, true)
 }
 
+// IsValid returns `true` if the connection has a valid source and dest
+// ports and IPs
 func (c ConnectionStats) IsValid() bool {
 	return c.Source.IsValid() &&
 		c.Dest.IsValid() &&
