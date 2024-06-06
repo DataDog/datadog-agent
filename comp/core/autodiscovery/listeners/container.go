@@ -88,7 +88,7 @@ func (l *ContainerListener) createContainerService(entity workloadmeta.Entity) {
 	// stopped.
 	if !container.State.Running && !container.State.FinishedAt.IsZero() {
 		finishedAt := container.State.FinishedAt
-		excludeAge := time.Duration(config.Datadog.GetInt("container_exclude_stopped_age")) * time.Hour
+		excludeAge := time.Duration(config.Datadog().GetInt("container_exclude_stopped_age")) * time.Hour
 		if time.Since(finishedAt) > excludeAge {
 			log.Debugf("container %q not running for too long, skipping", container.ID)
 			return

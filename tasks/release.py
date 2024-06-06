@@ -18,6 +18,7 @@ from invoke.exceptions import Exit
 from tasks.libs.ciproviders.github_api import GithubAPI
 from tasks.libs.ciproviders.gitlab_api import get_gitlab_repo
 from tasks.libs.common.color import color_message
+from tasks.libs.common.git import get_current_branch
 from tasks.libs.common.user_interactions import yes_no_question
 from tasks.libs.common.utils import (
     DEFAULT_BRANCH,
@@ -27,9 +28,12 @@ from tasks.libs.common.utils import (
     nightly_entry_for,
     release_entry_for,
 )
+from tasks.libs.pipeline.notifications import DEFAULT_SLACK_CHANNEL, load_and_validate
+from tasks.libs.releasing.documentation import create_release_page, get_release_page_info
 from tasks.libs.types.version import Version
 from tasks.modules import DEFAULT_MODULES
 from tasks.pipeline import edit_schedule, run
+from tasks.release_metrics.metrics import get_prs_metrics, get_release_lead_time
 
 # Generic version regex. Aims to match:
 # - X.Y.Z
@@ -169,7 +173,7 @@ def update_changelog(ctx, new_version=None, target="all", upstream="origin"):
     # Step 2 - commit changes
 
     update_branch = f"changelog-update-{new_version}"
-    base_branch = ctx.run("git rev-parse --abbrev-ref HEAD", hide=True).stdout.strip()
+    base_branch = get_current_branch(ctx)
 
     print(color_message(f"Branching out to {update_branch}", "bold"))
     ctx.run(f"git checkout -b {update_branch}")
@@ -1064,7 +1068,7 @@ def finish(ctx, major_versions="6,7", upstream="origin"):
         new_version = next_final_version(ctx, major_version, False)
         update_release_json(new_version, new_version)
 
-    current_branch = ctx.run("git rev-parse --abbrev-ref HEAD", hide=True).stdout.strip()
+    current_branch = get_current_branch(ctx)
 
     # Step 2: Update internal module dependencies
 
@@ -1199,7 +1203,7 @@ def create_rc(ctx, major_versions="6,7", patch_version=False, upstream="origin",
     ctx.run("git fetch")
 
     # Check that the current and update branches are valid
-    current_branch = ctx.run("git rev-parse --abbrev-ref HEAD", hide=True).stdout.strip()
+    current_branch = get_current_branch(ctx)
     update_branch = f"release/{new_highest_version}"
 
     check_clean_branch_state(ctx, github, update_branch)
@@ -1366,7 +1370,7 @@ def build_rc(ctx, major_versions="6,7", patch_version=False, k8s_deployments=Fal
 
     print(color_message("Checking repository state", "bold"))
     # Check that the base branch is valid
-    current_branch = ctx.run("git rev-parse --abbrev-ref HEAD", hide=True).stdout.strip()
+    current_branch = get_current_branch(ctx)
 
     if not check_base_branch(current_branch, new_version):
         raise Exit(
@@ -1414,7 +1418,7 @@ def build_rc(ctx, major_versions="6,7", patch_version=False, k8s_deployments=Fal
 
     run(
         ctx,
-        git_ref=gitlab_tag,
+        git_ref=gitlab_tag.name,
         use_release_entries=True,
         major_versions=major_versions,
         repo_branch="beta",
@@ -1762,3 +1766,67 @@ def get_active_release_branch(_ctx):
         print(f"{release_branch.name}")
     else:
         print("main")
+
+
+@task
+def generate_release_metrics(ctx, milestone, freeze_date, release_date):
+    """
+    Task to run after the release is done to generate release metrics.
+
+    milestone - github milestone number for the release. Expected format like '7.54.0'
+    freeze_date - date when the code freeze was started. Expected format YYYY-MM-DD, like '2022-02-01'
+    release_date - date when the release was done. Expected format YYYY-MM-DD, like '2022-09-15'
+
+    Results are formatted in a way that can be easily copied to https://docs.google.com/spreadsheets/d/1r39CtyuvoznIDx1JhhLHQeAzmJB182n7ln8nToiWQ8s/edit#gid=1490566519
+    Copy paste numbers to the respective sheets and select 'Split text to columns'.
+    """
+
+    # Step 1: Lead Time for Changes data
+    lead_time = get_release_lead_time(freeze_date, release_date)
+    print("Lead Time for Changes data")
+    print("--------------------------")
+    print(lead_time)
+
+    # Step 2: Agent stability data
+    prs = get_prs_metrics(milestone, freeze_date)
+    print("\n")
+    print("Agent stability data")
+    print("--------------------")
+    print(f"{prs['total']}, {prs['before_freeze']}, {prs['on_freeze']}, {prs['after_freeze']}")
+
+    # Step 3: Code changes
+    code_stats = ctx.run(
+        f"git log --shortstat {milestone}-devel..{milestone} | grep \"files changed\" | awk '{{files+=$1; inserted+=$4; deleted+=$6}} END {{print files,\",\", inserted,\",\", deleted}}'",
+        hide=True,
+    ).stdout.strip()
+    print("\n")
+    print("Code changes")
+    print("------------")
+    print(code_stats)
+
+
+@task
+def create_schedule(_, version, freeze_date):
+    """
+    Create confluence pages for the release schedule.
+    freeze_date - date when the code freeze was started. Expected format YYYY-MM-DD, like '2022-02-01'
+    """
+    required_environment_variables = ["ATLASSIAN_USERNAME", "ATLASSIAN_PASSWORD"]
+    if not all(key in os.environ for key in required_environment_variables):
+        raise Exit(f"You must set {required_environment_variables} environment variables to use this task.", code=1)
+    release_page = create_release_page(version, date.fromisoformat(freeze_date))
+    print(f"Release schedule pages {release_page['url']} {color_message('successfully created', 'green')}")
+
+
+@task
+def chase_release_managers(_, version):
+    url, missing_teams = get_release_page_info(version)
+    GITHUB_SLACK_MAP = load_and_validate("github_slack_map.yaml", "DEFAULT_SLACK_CHANNEL", DEFAULT_SLACK_CHANNEL)
+    channels = [GITHUB_SLACK_MAP[f"@datadog/{team}"] for team in missing_teams]
+    message = f"Hello :wave:\n Could you please update the `datadog-agent` [release coordination page]({url}) with the RM for your team?\nThanks in advance"
+
+    from slack_sdk import WebClient
+
+    client = WebClient(os.environ["SLACK_API_TOKEN"])
+    for channel in channels:
+        client.chat_postMessage(channel=channel, text=message)

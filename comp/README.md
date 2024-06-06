@@ -40,6 +40,10 @@ Package aggregator implements the "aggregator" bundle,
 
 Package demultiplexer defines the aggregator demultiplexer
 
+### [comp/aggregator/demultiplexerendpoint](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/aggregator/demultiplexerendpoint)
+
+Package demultiplexerendpoint component provides the /dogstatsd-contexts-dump API endpoint that can register via Fx value groups.
+
 ### [comp/aggregator/diagnosesendermanager](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/aggregator/diagnosesendermanager)
 
 *Datadog Team*: agent-shared-components
@@ -200,7 +204,7 @@ Package pidmap implements a component for tracking pid and containerID relations
 
 ### [comp/dogstatsd/replay](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/dogstatsd/replay)
 
-Package server implements a component to run the dogstatsd capture/replay
+Package replay is a component to run the dogstatsd capture/replay
 
 ### [comp/dogstatsd/server](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/dogstatsd/server)
 
@@ -305,6 +309,14 @@ Package resources implements a component to generate the 'resources' metadata pa
 
 Package runner implements a component to generate metadata payload at the right interval.
 
+### [comp/metadata/securityagent](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/metadata/securityagent)
+
+Package def is the metadata provider for security-agent process
+
+### [comp/metadata/systemprobe](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/metadata/systemprobe)
+
+Package def is the metadata provider for system-probe process
+
 ## [comp/ndmtmp](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/ndmtmp) (Component Bundle)
 
 *Datadog Team*: network-device-monitoring
@@ -335,6 +347,16 @@ When running, it listens for network traffic according to configured
 listeners and aggregates traffic data to send to the backend.
 It does not expose any public methods.
 
+## [comp/networkpath](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/networkpath) (Component Bundle)
+
+*Datadog Team*: Networks network-device-monitoring
+
+Package networkpath implements the "networkpath" bundle,
+
+### [comp/networkpath/npcollector](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/networkpath/npcollector)
+
+Package npcollector used to manage network paths
+
 ## [comp/otelcol](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/otelcol) (Component Bundle)
 
 *Datadog Team*: opentelemetry
@@ -353,6 +375,10 @@ Package collectorcontrib defines the OTel collector-contrib component
 ### [comp/otelcol/logsagentpipeline](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline)
 
 Package logsagentpipeline contains logs agent pipeline component
+
+### [comp/otelcol/provider](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/otelcol/provider)
+
+Package provider TBD
 
 ## [comp/process](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/process) (Component Bundle)
 

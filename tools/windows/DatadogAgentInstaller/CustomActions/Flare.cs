@@ -68,7 +68,8 @@ namespace Datadog.CustomActions
                 { "version", agentVersion },
                 { "log", log },
                 { "email", email },
-                { "apikey", apikey }
+                { "apikey", apikey },
+                { "variant", "windows_installer" }
             };
 
             _client.Post(uri, payload, new Dictionary<string, string>());

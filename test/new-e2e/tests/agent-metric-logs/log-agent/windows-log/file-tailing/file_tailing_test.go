@@ -130,7 +130,7 @@ func (s *WindowsFakeintakeSuite) testLogCollection() {
 		fmt.Sprintf("dirname:%s", utils.WindowsLogsFolderPath),
 	}
 	// Check intake for new logs
-	utils.CheckLogsExpected(s, "hello", "hello-world", expectedTags)
+	utils.CheckLogsExpected(s.T(), s.Env().FakeIntake, "hello", "hello-world", expectedTags)
 
 }
 
@@ -150,7 +150,7 @@ func (s *WindowsFakeintakeSuite) testLogNoPermission() {
 			// Generate log
 			utils.AppendLog(s, logFileName, "access-denied", 1)
 			// Check intake for new logs
-			utils.CheckLogsNotExpected(s, "hello", "access-denied")
+			utils.CheckLogsNotExpected(s.T(), s.Env().FakeIntake, "hello", "access-denied")
 		}
 	}, 2*time.Minute, 5*time.Second)
 
@@ -169,7 +169,7 @@ func (s *WindowsFakeintakeSuite) testLogCollectionAfterPermission() {
 	t.Logf("Permissions granted for log file.")
 
 	// Check intake for new logs
-	utils.CheckLogsExpected(s, "hello", "hello-after-permission-world", []string{})
+	utils.CheckLogsExpected(s.T(), s.Env().FakeIntake, "hello", "hello-after-permission-world", []string{})
 }
 
 func (s *WindowsFakeintakeSuite) testLogCollectionBeforePermission() {
@@ -192,7 +192,7 @@ func (s *WindowsFakeintakeSuite) testLogCollectionBeforePermission() {
 	utils.AppendLog(s, logFileName, "access-granted", 1)
 
 	// Check intake for new logs
-	utils.CheckLogsExpected(s, "hello", "access-granted", []string{})
+	utils.CheckLogsExpected(s.T(), s.Env().FakeIntake, "hello", "access-granted", []string{})
 }
 
 func (s *WindowsFakeintakeSuite) testLogRecreateRotation() {
@@ -217,6 +217,6 @@ func (s *WindowsFakeintakeSuite) testLogRecreateRotation() {
 	utils.AppendLog(s, logFileName, "hello-world-new-content", 1)
 
 	// Check intake for new logs
-	utils.CheckLogsExpected(s, "hello", "hello-world-new-content", []string{})
+	utils.CheckLogsExpected(s.T(), s.Env().FakeIntake, "hello", "hello-world-new-content", []string{})
 
 }

@@ -182,7 +182,7 @@ func (c *Check) Run() error {
 		c.connection = conn
 	}
 
-	dbInstanceIntervalExpired := checkIntervalExpired(&c.dbInstanceLastRun, 1800)
+	dbInstanceIntervalExpired := checkIntervalExpired(&c.dbInstanceLastRun, c.config.DatabaseInstanceCollectionInterval)
 
 	if dbInstanceIntervalExpired && !c.legacyIntegrationCompatibilityMode && !c.config.OnlyCustomQueries {
 		err := sendDbInstanceMetadata(c)
@@ -366,7 +366,7 @@ func (c *Check) Configure(senderManager sender.SenderManager, integrationConfigD
 	// Must be called before c.CommonConfigure because this integration supports multiple instances
 	c.BuildID(integrationConfigDigest, rawInstance, rawInitConfig)
 
-	if err := c.CommonConfigure(senderManager, integrationConfigDigest, rawInitConfig, rawInstance, source); err != nil {
+	if err := c.CommonConfigure(senderManager, rawInitConfig, rawInstance, source); err != nil {
 		return fmt.Errorf("common configure failed: %s", err)
 	}
 

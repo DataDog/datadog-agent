@@ -96,7 +96,7 @@ func (rc *RemoteConfigProvider) IntegrationScheduleCallback(updates map[string]s
 	defer rc.mu.Unlock()
 	var err error
 
-	allowedIntegration := config.GetRemoteConfigurationAllowedIntegrations(config.Datadog)
+	allowedIntegration := config.GetRemoteConfigurationAllowedIntegrations(config.Datadog())
 
 	newCache := make(map[string]integration.Config, 0)
 	// Now schedule everything

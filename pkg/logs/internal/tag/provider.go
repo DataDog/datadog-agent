@@ -41,7 +41,7 @@ func NewProvider(entityID string) Provider {
 func newProviderWithClock(entityID string, clock clock.Clock) Provider {
 	p := &provider{
 		entityID:             entityID,
-		taggerWarmupDuration: config.TaggerWarmupDuration(pkgConfig.Datadog),
+		taggerWarmupDuration: config.TaggerWarmupDuration(pkgConfig.Datadog()),
 		localTagProvider:     newLocalProviderWithClock([]string{}, clock),
 		clock:                clock,
 	}

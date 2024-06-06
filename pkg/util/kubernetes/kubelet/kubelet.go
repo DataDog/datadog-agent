@@ -89,11 +89,11 @@ func (ku *KubeUtil) init() error {
 func NewKubeUtil() *KubeUtil {
 	ku := &KubeUtil{
 		rawConnectionInfo:    make(map[string]string),
-		podListCacheDuration: config.Datadog.GetDuration("kubelet_cache_pods_duration") * time.Second,
+		podListCacheDuration: config.Datadog().GetDuration("kubelet_cache_pods_duration") * time.Second,
 		podUnmarshaller:      newPodUnmarshaller(),
 	}
 
-	waitOnMissingContainer := config.Datadog.GetDuration("kubelet_wait_on_missing_container")
+	waitOnMissingContainer := config.Datadog().GetDuration("kubelet_wait_on_missing_container")
 	if waitOnMissingContainer > 0 {
 		ku.waitOnMissingContainer = waitOnMissingContainer * time.Second
 	}

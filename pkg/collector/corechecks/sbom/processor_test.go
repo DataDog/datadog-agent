@@ -3,13 +3,12 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2022-present Datadog, Inc.
 
-//go:build trivy
+//go:build trivy || windows
 
 package sbom
 
 import (
 	"context"
-	"os"
 	"testing"
 	"time"
 
@@ -591,23 +590,26 @@ func TestProcessEvents(t *testing.T) {
 		},
 	}
 
-	cfg := config.Mock(nil)
-	cacheDir, err := os.MkdirTemp("", "sbom-cache")
-	assert.Nil(t, err)
-	defer os.RemoveAll(cacheDir)
-	cfg.SetWithoutSource("sbom.cache_directory", cacheDir)
-	cfg.SetWithoutSource("sbom.container_image.enabled", true)
+	cacheDir := t.TempDir()
+
+	cfg := config.Mock(t)
 	wmeta := fxutil.Test[optional.Option[workloadmeta.Component]](t, fx.Options(
 		core.MockBundle(),
 		fx.Supply(workloadmeta.NewParams()),
 		workloadmeta.MockModule(),
+		fx.Replace(configcomp.MockParams{
+			Overrides: map[string]interface{}{
+				"sbom.cache_directory":         cacheDir,
+				"sbom.container_image.enabled": true,
+			},
+		}),
 	))
-	_, err = sbomscanner.CreateGlobalScanner(cfg, wmeta)
+	_, err := sbomscanner.CreateGlobalScanner(cfg, wmeta)
 	assert.Nil(t, err)
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			var SBOMsSent = atomic.NewInt32(0)
+			SBOMsSent := atomic.NewInt32(0)
 
 			workloadmetaStore := fxutil.Test[workloadmeta.Mock](t, fx.Options(
 				logimpl.MockModule(),

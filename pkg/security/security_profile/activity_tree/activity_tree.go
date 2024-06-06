@@ -272,6 +272,15 @@ func (at *ActivityTree) isEventValid(event *model.Event, dryRun bool) (bool, err
 			}
 			return false, errors.New("invalid event: invalid bind family")
 		}
+	case model.IMDSEventType:
+		// ignore IMDS answers without AccessKeyIDS
+		if event.IMDS.Type == model.IMDSResponseType && len(event.IMDS.AWS.SecurityCredentials.AccessKeyID) == 0 {
+			return false, fmt.Errorf("untraced event: IMDS response without credentials")
+		}
+		// ignore IMDS requests without URLs
+		if event.IMDS.Type == model.IMDSRequestType && len(event.IMDS.URL) == 0 {
+			return false, fmt.Errorf("invalid event: IMDS request without any URL")
+		}
 	}
 	return true, nil
 }
@@ -340,6 +349,8 @@ func (at *ActivityTree) insertEvent(event *model.Event, dryRun bool, insertMissi
 		return node.InsertFileEvent(&event.Open.File, event, imageTag, generationType, at.Stats, dryRun, at.pathsReducer, resolvers), nil
 	case model.DNSEventType:
 		return node.InsertDNSEvent(event, imageTag, generationType, at.Stats, at.DNSNames, dryRun, at.DNSMatchMaxDepth), nil
+	case model.IMDSEventType:
+		return node.InsertIMDSEvent(event, imageTag, generationType, at.Stats, dryRun), nil
 	case model.BindEventType:
 		return node.InsertBindEvent(event, imageTag, generationType, at.Stats, dryRun), nil
 	case model.SyscallsEventType:

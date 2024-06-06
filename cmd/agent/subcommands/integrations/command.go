@@ -553,7 +553,7 @@ func downloadWheel(cliParams *cliParams, integration, version, rootLayoutType st
 	downloaderCmd.Env = environ
 
 	// Proxy support
-	proxies := pkgconfig.Datadog.GetProxies()
+	proxies := pkgconfig.Datadog().GetProxies()
 	if proxies != nil {
 		downloaderCmd.Env = append(downloaderCmd.Env,
 			fmt.Sprintf("HTTP_PROXY=%s", proxies.HTTP),
@@ -795,7 +795,7 @@ func getVersionFromReqLine(integration string, lines string) (*semver.Version, b
 }
 
 func moveConfigurationFilesOf(cliParams *cliParams, integration string) error {
-	confFolder := pkgconfig.Datadog.GetString("confd_path")
+	confFolder := pkgconfig.Datadog().GetString("confd_path")
 	check := getIntegrationName(integration)
 	confFileDest := filepath.Join(confFolder, fmt.Sprintf("%s.d", check))
 	if err := os.MkdirAll(confFileDest, os.ModeDir|0755); err != nil {

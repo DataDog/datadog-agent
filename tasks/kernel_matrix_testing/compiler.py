@@ -4,17 +4,28 @@ import sys
 from pathlib import Path
 from typing import TYPE_CHECKING, cast
 
+import yaml
 from invoke.context import Context
 from invoke.runners import Result
 
-from tasks.kernel_matrix_testing.tool import full_arch, info, warn
+from tasks.kernel_matrix_testing.tool import Exit, full_arch, info, warn
 from tasks.kernel_matrix_testing.vars import arch_mapping
+from tasks.pipeline import GitlabYamlLoader
 
 if TYPE_CHECKING:
     from tasks.kernel_matrix_testing.types import Arch, ArchOrLocal, PathOrStr
 
 
 CONTAINER_AGENT_PATH = "/tmp/datadog-agent"
+
+
+def get_build_image_suffix_and_version() -> tuple[str, str]:
+    gitlab_ci_file = Path(__file__).parent.parent.parent / ".gitlab-ci.yml"
+    with open(gitlab_ci_file) as f:
+        ci_config = yaml.load(f, Loader=GitlabYamlLoader())
+
+    ci_vars = ci_config['variables']
+    return ci_vars['DATADOG_AGENT_BUILDIMAGES_SUFFIX'], ci_vars['DATADOG_AGENT_BUILDIMAGES']
 
 
 class CompilerImage:
@@ -28,17 +39,11 @@ class CompilerImage:
 
     @property
     def image(self):
-        return f"kmt:compile-{self.arch}"
+        suffix, version = get_build_image_suffix_and_version()
+        image_base = "486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe"
+        image_arch = "x64" if self.arch == "x86_64" else "arm64"
 
-    @property
-    def is_built(self):
-        res = self.ctx.run(f"docker images {self.image} | grep -v REPOSITORY | grep kmt", warn=True)
-        return res is not None and res.ok
-
-    def ensure_built(self):
-        if not self.is_built:
-            info(f"[*] Compiler image for {self.arch} not built, building it...")
-            self.build()
+        return f"{image_base}_{image_arch}{suffix}:{version}"
 
     @property
     def is_running(self):
@@ -54,7 +59,10 @@ class CompilerImage:
     def ensure_running(self):
         if not self.is_running:
             info(f"[*] Compiler for {self.arch} not running, starting it...")
-            self.start()
+            try:
+                self.start()
+            except Exception as e:
+                raise Exit(f"Failed to start compiler for {self.arch}: {e}") from e
 
     def exec(self, cmd: str, user="compiler", verbose=True, run_dir: PathOrStr | None = None):
         if run_dir:
@@ -63,54 +71,41 @@ class CompilerImage:
         self.ensure_running()
         return self.ctx.run(f"docker exec -u {user} -i {self.name} bash -c \"{cmd}\"", hide=(not verbose))
 
-    def build(self) -> Result:
-        self.ctx.run(f"docker rm -f $(docker ps -aqf \"name={self.name}\")", warn=True, hide=True)
-        self.ctx.run(f"docker image rm {self.image}", warn=True, hide=True)
-
-        if self.arch == "x86_64":
-            docker_platform = "linux/amd64"
-            buildimages_arch = "x64"
-        else:
-            docker_platform = "linux/arm64"
-            buildimages_arch = "arm64"
-
-        docker_build_args = ["--platform", docker_platform]
-
-        agent_path = Path(__file__).parent.parent.parent
-        buildimages_path = (agent_path.parent / "datadog-agent-buildimages").resolve()
-
-        if not buildimages_path.is_dir():
-            raise FileNotFoundError(
-                f"datadog-agent-buildimages not found at {buildimages_path}. Please clone the repository there to access compiler images"
-            )
-
-        # Add build arguments (such as go version) from go.env
-        with open(buildimages_path / "go.env") as f:
-            for line in f:
-                docker_build_args += ["--build-arg", line.strip()]
-
-        docker_build_args_s = " ".join(docker_build_args)
-        res = self.ctx.run(
-            f"cd {buildimages_path} && docker build {docker_build_args_s} -f system-probe_{buildimages_arch}/Dockerfile -t {self.image} ."
-        )
-        return cast('Result', res)  # Avoid mypy error about res being None
-
     def stop(self) -> Result:
         res = self.ctx.run(f"docker rm -f $(docker ps -aqf \"name={self.name}\")")
         return cast('Result', res)  # Avoid mypy error about res being None
 
     def start(self) -> None:
-        self.ensure_built()
-
         if self.is_running:
             self.stop()
 
-        self.ctx.run(
-            f"docker run -d --restart always --name {self.name} --mount type=bind,source=./,target={CONTAINER_AGENT_PATH} {self.image} sleep \"infinity\""
-        )
+        # Check if the image exists
+        res = self.ctx.run(f"docker image inspect {self.image}", hide=True, warn=True)
+        if res is None or not res.ok:
+            info(f"[!] Image {self.image} not found, logging in and pulling...")
+            self.ctx.run(
+                "aws-vault exec sso-build-stable-developer -- aws ecr --region us-east-1 get-login-password | docker login --username AWS --password-stdin 486234852809.dkr.ecr.us-east-1.amazonaws.com"
+            )
+            self.ctx.run(f"docker pull {self.image}")
 
+        res = self.ctx.run(
+            f"docker run -d --restart always --name {self.name} --mount type=bind,source=./,target={CONTAINER_AGENT_PATH} {self.image} sleep \"infinity\"",
+            warn=True,
+        )
+        if res is None or not res.ok:
+            raise ValueError(f"Failed to start compiler container {self.name}")
+
+        # Due to permissions issues, we do not want to compile with the root user in the Docker image. We create a user
+        # inside there with the same UID and GID as the current user
         uid = cast('Result', self.ctx.run("id -u")).stdout.rstrip()
         gid = cast('Result', self.ctx.run("id -g")).stdout.rstrip()
+
+        if uid == 0:
+            # If we're starting the compiler as root, we won't be able to create the compiler user
+            # and we will get weird failures later on, as the user 'compiler' won't exist in the container
+            raise ValueError("Cannot start compiler as root, we need to run as a non-root user")
+
+        # Now create the compiler user with same UID and GID as the current user
         self.exec(f"getent group {gid} || groupadd -f -g {gid} compiler", user="root")
         self.exec(f"getent passwd {uid} || useradd -m -u {uid} -g {gid} compiler", user="root")
 

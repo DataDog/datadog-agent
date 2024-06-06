@@ -18,5 +18,5 @@ import (
 // Module for OTel Agent
 func Module() fxutil.Module {
 	return fxutil.Component(
-		fxutil.ProvideComponentConstructor(collectorimpl.New))
+		fxutil.ProvideComponentConstructor(collectorimpl.NewComponent))
 }

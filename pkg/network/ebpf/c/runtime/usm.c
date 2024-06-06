@@ -18,6 +18,7 @@
 #include "protocols/http2/decoding.h"
 #include "protocols/http2/decoding-tls.h"
 #include "protocols/kafka/kafka-parsing.h"
+#include "protocols/postgres/decoding.h"
 #include "protocols/sockfd-probes.h"
 #include "protocols/tls/java/erpc_dispatcher.h"
 #include "protocols/tls/java/erpc_handlers.h"
@@ -44,6 +45,14 @@ int socket__protocol_dispatcher_kafka(struct __sk_buff *skb) {
     return 0;
 }
 
+// This entry point is needed to bypass stack limit errors if `is_kafka()` is called
+// from the regular TLS dispatch entrypoint.
+SEC("uprobe/tls_protocol_dispatcher_kafka")
+int uprobe__tls_protocol_dispatcher_kafka(struct pt_regs *ctx) {
+    tls_dispatch_kafka(ctx);
+    return 0;
+};
+
 SEC("kprobe/tcp_sendmsg")
 int BPF_KPROBE(kprobe__tcp_sendmsg, struct sock *sk) {
     log_debug("kprobe/tcp_sendmsg: sk=%p", sk);
@@ -62,6 +71,7 @@ int tracepoint__net__netif_receive_skb(struct pt_regs* ctx) {
     http2_batch_flush(ctx);
     terminated_http2_batch_flush(ctx);
     kafka_batch_flush(ctx);
+    postgres_batch_flush(ctx);
     return 0;
 }
 

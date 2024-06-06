@@ -69,6 +69,23 @@ const (
 	EventFlagsHasActiveActivityDump
 )
 
+const (
+	// IMDSRequestType is used to specify that the event is an IDMS request event
+	IMDSRequestType = "request"
+	// IMDSResponseType is used to specify that the event is an IMDS response event
+	IMDSResponseType = "response"
+	// IMDSAWSCloudProvider is used to report that the IMDS event is for AWS
+	IMDSAWSCloudProvider = "aws"
+	// IMDSGCPCloudProvider is used to report that the IMDS event is for GCP
+	IMDSGCPCloudProvider = "gcp"
+	// IMDSAzureCloudProvider is used to report that the IMDS event is for Azure
+	IMDSAzureCloudProvider = "azure"
+	// IMDSIBMCloudProvider is used to report that the IMDS event is for ibm
+	IMDSIBMCloudProvider = "ibm"
+	// IMDSOracleCloudProvider is used to report that the IMDS event is for Oracle
+	IMDSOracleCloudProvider = "oracle"
+)
+
 var (
 	// vmConstants is the list of protection flags for a virtual memory segment
 	// generate_constants:Virtual Memory flags,Virtual Memory flags define the protection of a virtual memory segment.
@@ -706,7 +723,7 @@ var (
 	bpfAttachTypeStrings      = map[uint32]string{}
 	ptraceFlagsStrings        = map[uint32]string{}
 	vmStrings                 = map[uint64]string{}
-	protStrings               = map[int]string{}
+	protStrings               = map[uint64]string{}
 	mmapFlagStrings           = map[uint64]string{}
 	signalStrings             = map[int]string{}
 	pipeBufFlagStrings        = map[int]string{}
@@ -831,7 +848,7 @@ func initVMConstants() {
 
 func initProtConstansts() {
 	for k, v := range protConstants {
-		seclConstants[k] = &eval.IntEvaluator{Value: v}
+		seclConstants[k] = &eval.IntEvaluator{Value: int(v)}
 	}
 
 	for k, v := range protConstants {
@@ -1796,10 +1813,10 @@ func (vmf VMFlag) String() string {
 }
 
 // Protection represents a virtual memory protection bitmask value
-type Protection int
+type Protection uint64
 
 func (p Protection) String() string {
-	return bitmaskToString(int(p), protStrings)
+	return bitmaskU64ToString(uint64(p), protStrings)
 }
 
 // MMapFlag represents a mmap flag value

@@ -8,6 +8,9 @@
 package eventplatformreceiverimpl
 
 import (
+	"net/http"
+
+	"github.com/DataDog/datadog-agent/comp/api/api"
 	eprinterface "github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver"
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
@@ -19,6 +22,14 @@ import (
 func MockModule() fxutil.Module {
 	return fxutil.Component(
 		fx.Provide(newMock))
+}
+
+// MockProvides is the mock component output
+type MockProvides struct {
+	fx.Out
+
+	Comp     eprinterface.Component
+	Endpoint api.AgentEndpointProvider
 }
 
 // MockEventPlatformReceiver is the mocked struct that implements the eventplatformreceiver interface
@@ -44,7 +55,16 @@ func (epr *MockEventPlatformReceiver) Filter(_ *diagnostic.Filters, _ <-chan str
 	return c
 }
 
+// handlerFunc is a simple mocked http.Handler function
+func (epr *MockEventPlatformReceiver) handlerFunc(w http.ResponseWriter, _ *http.Request) {
+	w.Write([]byte("OK"))
+}
+
 // newMock returns the mocked eventplatformreceiver struct
-func newMock() eprinterface.Component {
-	return &MockEventPlatformReceiver{}
+func newMock() MockProvides {
+	epr := &MockEventPlatformReceiver{}
+	return MockProvides{
+		Comp:     epr,
+		Endpoint: api.NewAgentEndpointProvider(epr.handlerFunc, "/stream-event-platform", "POST"),
+	}
 }

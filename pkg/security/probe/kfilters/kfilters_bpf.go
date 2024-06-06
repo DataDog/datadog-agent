@@ -25,7 +25,9 @@ type activeKFilters map[interface{}]activeKFilter
 func newActiveKFilters(kfilters ...activeKFilter) (ak activeKFilters) {
 	ak = make(map[interface{}]activeKFilter)
 	for _, kfilter := range kfilters {
-		ak.Add(kfilter)
+		if kfilter != nil {
+			ak.Add(kfilter)
+		}
 	}
 	return
 }

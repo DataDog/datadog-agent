@@ -17,6 +17,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl/local"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
+	"github.com/DataDog/datadog-agent/pkg/tagset"
 )
 
 func TestUnbundledEventsTransform(t *testing.T) {
@@ -70,7 +71,7 @@ func TestUnbundledEventsTransform(t *testing.T) {
 					Title:    "Pod default/redis: Failed",
 					Text:     "All containers terminated",
 					Ts:       ts.Time.Unix(),
-					Priority: event.EventPriorityNormal,
+					Priority: event.PriorityNormal,
 					Host:     "test-host-test-cluster",
 					Tags: []string{
 						"event_reason:Failed",
@@ -83,7 +84,7 @@ func TestUnbundledEventsTransform(t *testing.T) {
 						"pod_name:redis",
 						"source_component:kubelet",
 					},
-					AlertType:      event.EventAlertTypeWarning,
+					AlertType:      event.AlertTypeWarning,
 					AggregationKey: "kubernetes_apiserver:foobar",
 					SourceTypeName: "kubernetes",
 					EventType:      "kubernetes_apiserver",
@@ -103,6 +104,51 @@ func TestUnbundledEventsTransform(t *testing.T) {
 
 			assert.Empty(t, errors)
 			assert.Equal(t, tt.expected, events)
+		})
+	}
+}
+
+func TestGetTagsFromTagger(t *testing.T) {
+	taggerInstance := local.NewFakeTagger()
+	taggerInstance.SetTags("kubernetes_pod_uid://nginx", "workloadmeta-kubernetes_pod", nil, []string{"pod_name:nginx"}, nil, nil)
+	taggerInstance.SetGlobalTags([]string{"global:here"}, nil, nil, nil)
+
+	tests := []struct {
+		name         string
+		obj          v1.ObjectReference
+		expectedTags *tagset.HashlessTagsAccumulator
+	}{
+		{
+			name: "accumulates basic pod tags",
+			obj: v1.ObjectReference{
+				UID:       "redis",
+				Kind:      "Pod",
+				Namespace: "default",
+				Name:      "redis",
+			},
+			expectedTags: tagset.NewHashlessTagsAccumulatorFromSlice([]string{"global:here"}),
+		},
+		{
+			name: "add tagger pod tags",
+			obj: v1.ObjectReference{
+				UID:       "nginx",
+				Kind:      "Pod",
+				Namespace: "default",
+				Name:      "nginx",
+			},
+			expectedTags: tagset.NewHashlessTagsAccumulatorFromSlice([]string{"global:here", "pod_name:nginx"}),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			collectedTypes := []collectedEventType{
+				{Kind: "Pod", Reasons: []string{}},
+			}
+			transformer := newUnbundledTransformer("test-cluster", taggerInstance, collectedTypes)
+			accumulator := tagset.NewHashlessTagsAccumulator()
+			transformer.(*unbundledTransformer).getTagsFromTagger(tt.obj, accumulator)
+			assert.Equal(t, tt.expectedTags, accumulator)
 		})
 	}
 }

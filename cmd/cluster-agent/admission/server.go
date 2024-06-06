@@ -101,19 +101,19 @@ func (s *Server) Register(uri string, webhookName string, f WebhookFunc, dc dyna
 // Run starts the kubernetes admission webhook server.
 func (s *Server) Run(mainCtx context.Context, client kubernetes.Interface) error {
 	var tlsMinVersion uint16 = tls.VersionTLS13
-	if config.Datadog.GetBool("cluster_agent.allow_legacy_tls") {
+	if config.Datadog().GetBool("cluster_agent.allow_legacy_tls") {
 		tlsMinVersion = tls.VersionTLS10
 	}
 
 	logWriter, _ := config.NewTLSHandshakeErrorWriter(4, seelog.WarnLvl)
 	server := &http.Server{
-		Addr:     fmt.Sprintf(":%d", config.Datadog.GetInt("admission_controller.port")),
+		Addr:     fmt.Sprintf(":%d", config.Datadog().GetInt("admission_controller.port")),
 		Handler:  s.mux,
 		ErrorLog: stdLog.New(logWriter, "Error from the admission controller http API server: ", 0),
 		TLSConfig: &tls.Config{
 			GetCertificate: func(info *tls.ClientHelloInfo) (*tls.Certificate, error) {
 				secretNs := common.GetResourcesNamespace()
-				secretName := config.Datadog.GetString("admission_controller.certificate.secret_name")
+				secretName := config.Datadog().GetString("admission_controller.certificate.secret_name")
 				cert, err := certificate.GetCertificateFromSecret(secretNs, secretName, client)
 				if err != nil {
 					log.Errorf("Couldn't fetch certificate: %v", err)
