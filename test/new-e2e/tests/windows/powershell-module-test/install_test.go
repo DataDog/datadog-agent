@@ -121,7 +121,7 @@ func (v *vmSuite) testInstallAgent751(t *testing.T) {
 	}
 
 	// Validate that the correct agent version is running
-	testClient := common.NewWindowsTestClient(t, vm)
+	testClient := common.NewWindowsTestClient(v, vm)
 	installedVersion, err := testClient.GetAgentVersion()
 	v.Assert().NoError(err)
 	windowsAgent.TestAgentVersion(t, params["AgentVersion"], installedVersion)
@@ -156,7 +156,7 @@ func (v *vmSuite) testAgentUpgradeWithDotnetTracer(t *testing.T) {
 	v.Assert().NotEqual(newAPIKey, configuredAPIKey)
 
 	// Validate that the correct agent version is running
-	testClient := common.NewWindowsTestClient(t, vm)
+	testClient := common.NewWindowsTestClient(v, vm)
 	installedVersion, err := testClient.GetAgentVersion()
 	v.Assert().NoError(err)
 	windowsAgent.TestAgentVersion(t, agentVersion, installedVersion)
