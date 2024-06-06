@@ -97,7 +97,8 @@ def junit_upload_from_tgz(junit_tgz, codeowners_path=".github/CODEOWNERS"):
         # Upload junit on a per-team basis
         team_folders = [item for item in working_dir.iterdir() if item.is_dir()]
         with ThreadPoolExecutor() as executor:
-            executor.map(upload_junitxmls, team_folders)
+            for log in executor.map(upload_junitxmls, team_folders):
+                print(log)
 
 
 def get_flaky_from_test_output():
@@ -112,7 +113,7 @@ def get_flaky_from_test_output():
     for module in DEFAULT_MODULES:
         test_file = Path(module, TEST_OUTPUT_FILE)
         if test_file.is_file():
-            with test_file.open() as f:
+            with test_file.open(encoding="utf8") as f:
                 for line in f.readlines():
                     test_output.append(json.loads(line))
             flaky_tests.update(
@@ -142,7 +143,7 @@ def read_additional_tags(folder: Path):
     """
     Read tags from a tags.txt file in the given folder
     """
-    tags = None
+    tags = []
     tagsfile = folder / TAGS_FILE_NAME
     if tagsfile.exists():
         with tagsfile.open() as tf:

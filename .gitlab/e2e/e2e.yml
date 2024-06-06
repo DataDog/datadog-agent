@@ -171,7 +171,12 @@ new-e2e-containers:
     TEAM: container-integrations
   parallel:
     matrix:
-      - EXTRA_PARAMS: --run TestKindSuite
+      - EXTRA_PARAMS: "--run TestKindSuite -c ddinfra:kubernetesVersion=1.19"
+      - EXTRA_PARAMS: "--run TestKindSuite -c ddinfra:kubernetesVersion=1.22"
+      - EXTRA_PARAMS: "--run TestKindSuite -c ddinfra:kubernetesVersion=1.27"
+      - EXTRA_PARAMS: "--run TestKindSuite -c ddinfra:kubernetesVersion=1.29"
+      - EXTRA_PARAMS: "--run TestKindSuite -c ddinfra:osDescriptor=ubuntu:20.04"
+      - EXTRA_PARAMS: "--run TestKindSuite -c ddinfra:osDescriptor=ubuntu:22.04"
       - EXTRA_PARAMS: --run TestEKSSuite
       - EXTRA_PARAMS: --run TestECSSuite
       - EXTRA_PARAMS: --run TestDockerSuite
@@ -247,7 +252,11 @@ new-e2e-npm-docker:
     EXTRA_PARAMS: --run "Test(ECSVM|EC2VMContainerized|EKSVM)Suite"
 
 new-e2e-aml:
-  extends: .new_e2e_template_needs_deb_windows_x64
+  extends: .new_e2e_template
+  needs:
+    - deploy_deb_testing-a7_x64
+    - deploy_windows_testing-a7
+    - qa_agent
   rules: !reference [.on_aml_or_e2e_changes_or_manual]
   variables:
     TARGETS: ./tests/agent-metric-logs
@@ -328,4 +337,13 @@ new-e2e-ndm-netflow:
     - qa_agent
   variables:
     TARGETS: ./tests/ndm/netflow
+    TEAM: network-device-monitoring
+
+new-e2e-ndm-snmp:
+  extends: .new_e2e_template
+  rules: !reference [.on_ndm_snmp_or_e2e_changes_or_manual]
+  needs:
+    - qa_agent
+  variables:
+    TARGETS: ./tests/ndm/snmp
     TEAM: network-device-monitoring

@@ -229,7 +229,7 @@ def print_trouble(prog, message, use_colors):
     print(f"{prog}: {error_text} {message}", file=sys.stderr)
 
 
-def main():
+def run(raw_args=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         '--clang-format-executable',
@@ -267,7 +267,7 @@ def main():
     )
     parser.add_argument('--style', help='formatting style to apply (LLVM, Google, Chromium, Mozilla, WebKit)')
 
-    args = parser.parse_args()
+    args = parser.parse_args(raw_args)
 
     # use default signal handling, like diff return SIGINT value on ^C
     # https://bugs.python.org/issue14229#msg156446
@@ -360,4 +360,4 @@ def main():
 
 
 if __name__ == '__main__':
-    sys.exit(main())
+    sys.exit(run())

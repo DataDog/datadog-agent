@@ -58,7 +58,7 @@ type StreamHandler interface {
 	// NewClient returns a client to connect to a remote gRPC server.
 	NewClient(cc grpc.ClientConnInterface) GrpcClient
 	// HandleResponse handles a response from the remote gRPC server.
-	HandleResponse(response interface{}) ([]workloadmeta.CollectorEvent, error)
+	HandleResponse(store workloadmeta.Component, response interface{}) ([]workloadmeta.CollectorEvent, error)
 	// HandleResync is called on resynchronization.
 	HandleResync(store workloadmeta.Component, events []workloadmeta.CollectorEvent)
 }
@@ -113,7 +113,7 @@ func (c *GenericCollector) Start(ctx context.Context, store workloadmeta.Compone
 		opts = append(opts, grpc.WithTransportCredentials(creds))
 	}
 
-	conn, err := grpc.DialContext(
+	conn, err := grpc.DialContext( //nolint:staticcheck // TODO (ASC) fix grpc.DialContext is deprecated
 		c.ctx,
 		fmt.Sprintf(":%v", c.StreamHandler.Port()),
 		opts...,
@@ -230,7 +230,7 @@ func (c *GenericCollector) Run() {
 			continue
 		}
 
-		collectorEvents, err := c.StreamHandler.HandleResponse(response)
+		collectorEvents, err := c.StreamHandler.HandleResponse(c.store, response)
 		if err != nil {
 			log.Warnf("error processing event received from remote workloadmeta: %s", err)
 			continue

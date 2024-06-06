@@ -709,6 +709,37 @@ def build_object_files(ctx, fp):
     ctx.run(f"ninja -d explain -f {fp}")
 
 
+def compute_package_dependencies(ctx: Context, packages: list[str]) -> dict[str, set[str]]:
+    dd_pkg_name = "github.com/DataDog/datadog-agent/"
+    build_tags = get_sysprobe_buildtags(False, False)
+    pkg_deps: dict[str, set[str]] = defaultdict(set)
+
+    packages_list = " ".join(packages)
+    list_format = "{{ .ImportPath }}: {{ join .Deps \" \" }}"
+    res = ctx.run(f"go list -test -f '{list_format}' -tags \"{build_tags}\" {packages_list}", hide=True)
+    if res is None or not res.ok:
+        raise Exit("Failed to get dependencies for system-probe")
+
+    for line in res.stdout.split("\n"):
+        if ":" not in line:
+            continue
+
+        pkg, deps = line.split(":", 1)
+        deps = [d.strip() for d in deps.split(" ")]
+        dd_deps = [d[len(dd_pkg_name) :] for d in deps if d.startswith(dd_pkg_name)]
+
+        # The import path printed by "go list" is usually path/to/pkg  (e.g., pkg/ebpf/verifier).
+        # However, for test packages it might be either:
+        # - path/to/pkg.test
+        # - path/to/pkg [path/to/pkg.test]
+        # In any case all variants refer to the same variant. This code controls for that
+        # so that we keep the usual package name.
+        pkg = pkg.split(" ")[0].removeprefix(dd_pkg_name).removesuffix(".test")
+        pkg_deps[pkg].update(dd_deps)
+
+    return pkg_deps
+
+
 @task
 def kmt_sysprobe_prepare(
     ctx: Context,
@@ -732,7 +763,6 @@ def kmt_sysprobe_prepare(
     if packages:
         filter_pkgs = [os.path.relpath(p) for p in packages.split(",")]
 
-    target_packages = build_target_packages(filter_pkgs)
     kmt_paths = KMTPaths(stack, arch)
     nf_path = os.path.join(kmt_paths.arch_dir, "kmt-sysprobe.ninja")
 
@@ -745,6 +775,12 @@ def kmt_sysprobe_prepare(
         go_path = os.path.join(go_root, "bin", "go")
 
     build_object_files(ctx, f"{kmt_paths.arch_dir}/kmt-object-files.ninja")
+
+    info("[+] Computing Go dependencies for test packages...")
+    target_packages = build_target_packages(filter_pkgs)
+    pkg_deps = compute_package_dependencies(ctx, target_packages)
+
+    info("[+] Generating build instructions..")
     with open(nf_path, 'w') as ninja_file:
         nw = NinjaWriter(ninja_file)
 
@@ -762,7 +798,8 @@ def kmt_sysprobe_prepare(
         ninja_copy_ebpf_files(nw, "system-probe", kmt_paths)
 
         for pkg in target_packages:
-            target_path = os.path.join(kmt_paths.sysprobe_tests, os.path.relpath(pkg, os.getcwd()))
+            pkg_name = os.path.relpath(pkg, os.getcwd())
+            target_path = os.path.join(kmt_paths.sysprobe_tests, pkg_name)
             output_path = os.path.join(target_path, "testsuite")
             variables = {
                 "env": env_str,
@@ -775,19 +812,22 @@ def kmt_sysprobe_prepare(
             if extra_arguments:
                 variables["extra_arguments"] = extra_arguments
 
-            go_files = [os.path.abspath(i) for i in glob(f"{pkg}/*.go")]
+            go_files = set(glob(f"{pkg}/*.go"))
+            has_test_files = any(x.lower().endswith("_test.go") for x in go_files)
 
-            # We delete the output file to force ninja to rebuild the testsuite everytime
-            # because it cannot track go dependencies correctly.
-            ctx.run(f"rm -f {output_path}")
-            nw.build(
-                inputs=[pkg],
-                outputs=[output_path],
-                implicit=go_files,
-                rule="gotestsuite",
-                pool="gobuild",
-                variables=variables,
-            )
+            # skip packages without test files
+            if has_test_files:
+                for deps in pkg_deps[pkg_name]:
+                    go_files.update(os.path.abspath(p) for p in glob(f"{deps}/*.go"))
+
+                nw.build(
+                    inputs=[pkg],
+                    outputs=[output_path],
+                    implicit=list(go_files),
+                    rule="gotestsuite",
+                    pool="gobuild",
+                    variables=variables,
+                )
 
             if pkg.endswith("java"):
                 nw.build(
@@ -829,6 +869,7 @@ def kmt_sysprobe_prepare(
                         },
                     )
 
+    info("[+] Compiling tests...")
     ctx.run(f"ninja -d explain -v -f {nf_path}")
 
 

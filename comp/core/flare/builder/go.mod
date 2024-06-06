@@ -4,4 +4,4 @@ go 1.21.0
 
 replace github.com/DataDog/datadog-agent/comp/def => ../../../def
 
-require github.com/DataDog/datadog-agent/comp/def v0.55.0-devel
+require github.com/DataDog/datadog-agent/comp/def v0.55.0-rc.2

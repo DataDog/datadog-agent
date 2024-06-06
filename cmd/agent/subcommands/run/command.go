@@ -102,6 +102,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryhost"
 	"github.com/DataDog/datadog-agent/comp/metadata/packagesigning"
 	"github.com/DataDog/datadog-agent/comp/metadata/runner"
+	securityagentmetadata "github.com/DataDog/datadog-agent/comp/metadata/securityagent/def"
+	systemprobemetadata "github.com/DataDog/datadog-agent/comp/metadata/systemprobe/def"
 	"github.com/DataDog/datadog-agent/comp/ndmtmp"
 	"github.com/DataDog/datadog-agent/comp/netflow"
 	netflowServer "github.com/DataDog/datadog-agent/comp/netflow/server"
@@ -233,6 +235,8 @@ func run(log log.Component,
 	_ langDetectionCl.Component,
 	agentAPI internalAPI.Component,
 	_ packagesigning.Component,
+	_ systemprobemetadata.Component,
+	_ securityagentmetadata.Component,
 	statusComponent status.Component,
 	collector collector.Component,
 	cloudfoundrycontainer cloudfoundrycontainer.Component,
