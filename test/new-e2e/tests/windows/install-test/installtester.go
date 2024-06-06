@@ -247,6 +247,7 @@ func (t *Tester) TestUninstallExpectations(tt *testing.T) {
 	registryKeyExists, err := windows.RegistryKeyExists(t.host, windowsAgent.RegistryKeyPath)
 	assert.NoError(tt, err, "should check registry key exists")
 	assert.False(tt, registryKeyExists, "uninstall should remove registry key")
+	// don't need to check registry key permissions because the key is removed
 
 	tt.Run("file permissions", func(tt *testing.T) {
 		t.testUninstalledFilePermissions(tt)
@@ -339,6 +340,25 @@ func (t *Tester) testCurrentVersionExpectations(tt *testing.T) {
 
 	tt.Run("file permissions", func(tt *testing.T) {
 		t.testInstalledFilePermissions(tt)
+	})
+
+	tt.Run("registry permissions", func(tt *testing.T) {
+		// ensure registry key has normal inherited permissions and an explicit
+		// full access rule for ddagentuser
+		ddagentUserIdentity, err := windows.GetIdentityForUser(t.host,
+			windows.MakeDownLevelLogonName(t.expectedUserDomain, t.expectedUserName),
+		)
+		require.NoError(tt, err)
+		agentUserFullAccessDirRule := windows.NewExplicitAccessRule(
+			ddagentUserIdentity,
+			windows.RegistryFullControl,
+			windows.AccessControlTypeAllow,
+		)
+		path := windowsAgent.RegistryKeyPath
+		out, err := windows.GetSecurityInfoForPath(t.host, path)
+		require.NoError(tt, err)
+		windows.AssertContainsEqualable(tt, out.Access, agentUserFullAccessDirRule, "%s should have full access rule for %s", path, ddagentUserIdentity)
+		assert.False(tt, out.AreAccessRulesProtected, "%s should inherit access rules", path)
 	})
 
 	RequireAgentRunningWithNoErrors(tt, t.InstallTestClient)
