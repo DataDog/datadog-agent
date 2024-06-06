@@ -528,12 +528,17 @@ def send_failure_summary_notification(
         description = f'TO: *{channel}*\nThese jobs{you_own} had the most failures in the last {duration}:'
         footer = f'{expected_to_fail}. Click <https://app.datadoghq.com/ci/pipeline-executions?query=ci_level%3Ajob%20env%3Aprod%20%40git.repository.id%3A%22gitlab.ddbuild.io%2FDataDog%2Fdatadog-agent%22%20%40ci.pipeline.name%3A%22DataDog%2Fdatadog-agent%22%20%40ci.provider.instance%3Agitlab-ci%20%40git.branch%3Amain%20%40ci.status%3Aerror%20%40gitlab.pipeline_source%3A%28push%20OR%20schedule%29%20{not_allowed_query}%40ci.allowed_to_fail%3Atrue&agg_m=count&agg_m_source=base&agg_q=%40ci.job.name&start={timestamp_start}&end={timestamp_end}&agg_q_source=base&agg_t=count&fromUser=false&index=cipipeline&sort_m=count&sort_m_source=base&sort_t=count&top_n=25&top_o=top&viz=toplist&x_missing=true&paused=false|here> for more details.{flaky_tests}'
 
-        print('total message length:', len('\n'.join(message)))
+        body = '\n'.join(message)
+        # Rarely the body may be bigger than 3K characters, split into two messages in this case
+        if len(body) >= 3000:
+            body = ['\n'.join(message[:len(message) // 2]), '\n'.join(message[len(message) // 2:])]
+        else:
+            body = [body]
+
         blocks = [
             {'type': 'header', 'text': {'type': 'plain_text', 'text': header}},
-            {'type': 'section', 'text': {'type': 'mrkdwn', 'text': description}},] + [
-            {'type': 'section', 'text': {'type': 'mrkdwn', 'text': msg}} for msg in message
-            ] + [
+            {'type': 'section', 'text': {'type': 'mrkdwn', 'text': description}},
+            *body,
             {'type': 'context', 'elements': [{'type': 'mrkdwn', 'text': ':information_source: ' + footer}]},
         ]
 
