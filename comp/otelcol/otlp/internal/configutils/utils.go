@@ -45,6 +45,21 @@ type mapProvider struct {
 	cfg *confmap.Conf
 }
 
+// providerFactory is implementation of confmap.ProviderFactory.
+type providerFactory struct {
+	cfg *confmap.Conf
+}
+
+// NewProviderFactory creates a new confmap.ProviderFactory.
+func NewProviderFactory(cfg *confmap.Conf) confmap.ProviderFactory {
+	return &providerFactory{cfg: cfg}
+}
+
+// Create creates a new confmap.Provider.
+func (p *providerFactory) Create(_ confmap.ProviderSettings) confmap.Provider {
+	return &mapProvider{cfg: p.cfg}
+}
+
 func (m *mapProvider) Retrieve(_ context.Context, uri string, _ confmap.WatcherFunc) (*confmap.Retrieved, error) {
 	// We only support the constant location 'map:hardcoded'
 	if uri != mapLocation {
@@ -64,15 +79,12 @@ func (m *mapProvider) Shutdown(context.Context) error {
 
 // NewConfigProviderFromMap creates a service.ConfigProvider with a single constant provider `map`, built from a given *confmap.Conf.
 func NewConfigProviderFromMap(cfg *confmap.Conf) otelcol.ConfigProvider {
-	provider := &mapProvider{cfg}
 	settings := otelcol.ConfigProviderSettings{
 		ResolverSettings: confmap.ResolverSettings{
-			URIs: []string{mapLocation},
-			Providers: map[string]confmap.Provider{
-				"map": provider,
-			},
-			Converters: []confmap.Converter{},
-		}}
+			URIs:              []string{mapLocation},
+			ProviderFactories: []confmap.ProviderFactory{NewProviderFactory(cfg)},
+		},
+	}
 	cp, err := otelcol.NewConfigProvider(settings)
 	if err != nil {
 		panic(err)
