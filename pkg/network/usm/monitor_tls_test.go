@@ -85,7 +85,7 @@ func (s *tlsSuite) TestHTTPSViaLibraryIntegration() {
 	tests := []struct {
 		name                string
 		fetchCmd            []string
-		getBinaryAndCommand func(*testing.T) (string, []string)
+		getBinaryAndCommand func(*testing.T) (string, []string, []string)
 	}{
 		{
 			name:     "wget",
@@ -101,7 +101,7 @@ func (s *tlsSuite) TestHTTPSViaLibraryIntegration() {
 			// other distributions) which uses openat(2) or openat2(2).
 			name:     "curl (musl)",
 			fetchCmd: []string{"chroot"},
-			getBinaryAndCommand: func(t *testing.T) (string, []string) {
+			getBinaryAndCommand: func(t *testing.T) (string, []string, []string) {
 				dir, err := testutil.CurDir()
 				require.NoError(t, err)
 
@@ -118,7 +118,7 @@ func (s *tlsSuite) TestHTTPSViaLibraryIntegration() {
 				// docker run forks and so `testHTTPSLibrary` woudn't have the
 				// PID of curl which it needs to wait for the shared library
 				// monitoring to happen.
-				return path.Join(containerRoot, "usr", "bin", "curl"), []string{"chroot", containerRoot,
+				return containerRoot, []string{"chroot", containerRoot, "ldd", "/usr/bin/curl"}, []string{"chroot", containerRoot,
 					"curl", "--http1.1", "-k", "-o/dev/null", "-d", tempFile}
 			},
 		},
@@ -147,17 +147,22 @@ func (s *tlsSuite) TestHTTPSViaLibraryIntegration() {
 				t.Skipf("%s not found; skipping test.", test.fetchCmd)
 			}
 
-			binpath := fetch
+			root := ""
+			lddCommand := []string{ldd, fetch}
 			command := test.fetchCmd
 			if test.getBinaryAndCommand != nil {
-				binpath, command = test.getBinaryAndCommand(t)
+				root, lddCommand, command = test.getBinaryAndCommand(t)
 			}
 
-			linked, _ := exec.Command(ldd, binpath).Output()
+			linked, _ := exec.Command(lddCommand[0], lddCommand[1:]...).Output()
 
 			var prefetchLibs []string
 			for _, lib := range tlsLibs {
 				libSSLPath := lib.FindString(string(linked))
+				if libSSLPath == "" {
+					continue
+				}
+				libSSLPath = path.Join(root, libSSLPath)
 				if _, err := os.Stat(libSSLPath); err == nil {
 					prefetchLibs = append(prefetchLibs, libSSLPath)
 				}
