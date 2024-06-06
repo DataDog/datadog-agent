@@ -18,9 +18,11 @@ import (
 	"github.com/stretchr/testify/mock"
 
 	"github.com/DataDog/datadog-agent/pkg/config/remote/client"
+	"github.com/DataDog/datadog-agent/pkg/fleet/env"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
+	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 type testPackageManager struct {
@@ -149,7 +151,7 @@ func newTestInstaller() *testInstaller {
 	rcc := newTestRemoteConfigClient()
 	rc := &remoteConfig{client: rcc}
 	i := &testInstaller{
-		daemonImpl: newDaemon(rc, pm, true),
+		daemonImpl: newDaemon(rc, pm, &env.Env{RemoteUpdates: true}),
 		rcc:        rcc,
 		pm:         pm,
 	}
@@ -275,7 +277,7 @@ func TestRemoteRequest(t *testing.T) {
 		ID:            "test-request-1",
 		Method:        methodStartExperiment,
 		Package:       testExperimentPackage.Name,
-		ExpectedState: expectedState{Stable: testStablePackage.Version},
+		ExpectedState: expectedState{InstallerVersion: version.AgentVersion, Stable: testStablePackage.Version},
 		Params:        versionParamsJSON,
 	}
 	i.pm.On("State", testStablePackage.Name).Return(repository.State{Stable: testStablePackage.Version}, nil).Once()
@@ -287,7 +289,7 @@ func TestRemoteRequest(t *testing.T) {
 		ID:            "test-request-2",
 		Method:        methodStopExperiment,
 		Package:       testExperimentPackage.Name,
-		ExpectedState: expectedState{Stable: testStablePackage.Version, Experiment: testExperimentPackage.Version},
+		ExpectedState: expectedState{InstallerVersion: version.AgentVersion, Stable: testStablePackage.Version, Experiment: testExperimentPackage.Version},
 	}
 	i.pm.On("State", testStablePackage.Name).Return(repository.State{Stable: testStablePackage.Version, Experiment: testExperimentPackage.Version}, nil).Once()
 	i.pm.On("RemoveExperiment", mock.Anything, testExperimentPackage.Name).Return(nil).Once()
@@ -298,7 +300,7 @@ func TestRemoteRequest(t *testing.T) {
 		ID:            "test-request-3",
 		Method:        methodPromoteExperiment,
 		Package:       testExperimentPackage.Name,
-		ExpectedState: expectedState{Stable: testStablePackage.Version, Experiment: testExperimentPackage.Version},
+		ExpectedState: expectedState{InstallerVersion: version.AgentVersion, Stable: testStablePackage.Version, Experiment: testExperimentPackage.Version},
 	}
 	i.pm.On("State", testStablePackage.Name).Return(repository.State{Stable: testStablePackage.Version, Experiment: testExperimentPackage.Version}, nil).Once()
 	i.pm.On("PromoteExperiment", mock.Anything, testExperimentPackage.Name).Return(nil).Once()

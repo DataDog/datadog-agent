@@ -21,6 +21,13 @@ import (
 	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
 )
 
+const (
+	// StableInstallerPath is the path to the stable installer binary.
+	StableInstallerPath = "/opt/datadog-packages/datadog-installer/stable/bin/installer/installer"
+	// ExperimentInstallerPath is the path to the experiment installer binary.
+	ExperimentInstallerPath = "/opt/datadog-packages/datadog-installer/experiment/bin/installer/installer"
+)
+
 // InstallerExec is an implementation of the Installer interface that uses the installer binary.
 type InstallerExec struct {
 	env              *env.Env
