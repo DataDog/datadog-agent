@@ -71,7 +71,7 @@ func newDefaultConfigProviderSettings(uris []string) otelcol.ConfigProviderSetti
 	}
 }
 
-func (cp *configProvider) Convert(ctx context.Context, conf *confmap.Conf) error {
+func (cp *configProvider) Convert(_ context.Context, _ *confmap.Conf) error {
 	// TODO: implement
 	return nil
 }
