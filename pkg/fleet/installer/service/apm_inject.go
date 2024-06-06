@@ -93,12 +93,12 @@ type apmInjectorInstaller struct {
 
 // Finish cleans up the APM injector
 // Runs rollbacks if an error is passed and always runs cleanups
-func (a *apmInjectorInstaller) Finish(err error) error {
+func (a *apmInjectorInstaller) Finish(err error) {
 	if err != nil {
 		// Run rollbacks in reverse order
 		for i := len(a.rollbacks) - 1; i >= 0; i-- {
 			if rollbackErr := a.rollbacks[i](); rollbackErr != nil {
-				log.Warnf("rollback failed: %w", rollbackErr)
+				log.Warnf("rollback failed: %v", rollbackErr)
 			}
 		}
 	}
@@ -107,8 +107,6 @@ func (a *apmInjectorInstaller) Finish(err error) error {
 	for i := len(a.cleanups) - 1; i >= 0; i-- {
 		a.cleanups[i]()
 	}
-
-	return err
 }
 
 // Setup sets up the APM injector
