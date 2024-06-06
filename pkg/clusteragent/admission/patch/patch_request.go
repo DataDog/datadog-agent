@@ -42,6 +42,16 @@ type K8sClusterTarget struct {
 	EnabledNamespaces *[]string `json:"enabled_namespaces,omitempty"`
 }
 
+func (k *K8sClusterTarget) isEnabled() bool {
+	f := false
+	return k.Enabled != nil && k.Enabled != &f
+}
+
+func (k *K8sClusterTarget) matchesCluster(name string) bool {
+	return k.ClusterName == name
+}
+
+
 // K8sTarget represent the targetet k8s scope
 type K8sTarget struct {
 	ClusterTargets []K8sClusterTarget `json:"cluster_targets"`
@@ -106,20 +116,18 @@ func (pr Request) getApmRemoteConfigEvent(err error, errorCode int) telemetry.Ap
 	}
 }
 
-// String returns a string representation of the targeted k8s object
-// func (k K8sTarget) String() string {
-// 	return fmt.Sprintf("Obj %s/%s of kind %s", k.Namespace, k.Name, k.Kind)
-// }
-
 func (k K8sTarget) validate(clusterName string) error {
 	if len(k.ClusterTargets) != 1 {
-		return fmt.Errorf("does not target exactly one k8s cluster")
+		return errors.New("does not target exactly one k8s cluster")
 	}
-	if k.ClusterTargets[0].ClusterName != clusterName {
-		return fmt.Errorf("target cluster name %q is different from the local one %q", k.ClusterTargets[0].ClusterName, clusterName)
+
+	target := k.ClusterTargets[0]
+
+	if !target.matchesCluster(clusterName) {
+		return fmt.Errorf("target cluster name %q is different from the local one %q", target.ClusterName, clusterName)
 	}
-	f := false
-	if k.ClusterTargets[0].Enabled == nil || k.ClusterTargets[0].Enabled == &f {
+
+	if !target.isEnabled() {
 		return errors.New("instrumentation is unset or disabled on the scope")
 	}
 

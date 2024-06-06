@@ -36,11 +36,6 @@ func getTestApmRemoteConfigEvent() ApmRemoteConfigEvent {
 				RcClientId: testRcClientId,
 				RcRevision: 1685457769594355579,
 				RcVersion:  1,
-				// KubernetesClusterId: testKubernetesClusterId,
-				// KubernetesCluster:   "mcclusterson",
-				// KubernetesNamespace: "default",
-				// KubernetesKind:      "deployment",
-				// KubernetesName:      "test-app-deployment",
 			},
 			Error: ApmRemoteConfigEventError{
 				Code:    0,

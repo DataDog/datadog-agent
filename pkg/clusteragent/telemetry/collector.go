@@ -60,10 +60,9 @@ type ApmRemoteConfigEventTags struct {
 	//nolint:revive // TODO(TEL) Fix revive linter
 	RcId string `json:"rc_id"`
 	//nolint:revive // TODO(TEL) Fix revive linter
-	RcClientId string `json:"rc_client_id"`
-	RcRevision int64  `json:"rc_revision"`
-	RcVersion  uint64 `json:"rc_version"`
-	//nolint:revive // TODO(TEL) Fix revive linter
+	RcClientId     string             `json:"rc_client_id"`
+	RcRevision     int64              `json:"rc_revision"`
+	RcVersion      uint64             `json:"rc_version"`
 	ClusterTargets []K8sClusterTarget `json:"cluster_targets"`
 }
 
@@ -143,7 +142,6 @@ func (tc *telemetryCollector) SendRemoteConfigMutateEvent(event ApmRemoteConfigE
 // to indicate that a remote config has been successfully patched
 func (tc *telemetryCollector) sendRemoteConfigEvent(eventName string, event ApmRemoteConfigEvent) {
 	event.Payload.Tags.RcClientId = tc.rcClientId
-	//event.Payload.Tags.ClusterTargets = tc.
 	event.Payload.EventName = eventName
 	body, err := json.Marshal(event)
 	if err != nil {

@@ -14,13 +14,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func truePtr() *bool {
-	t := true
-	return &t
-}
-
-func stringPtr(s string) *string {
-	return &s
+func ptrTo[T any](v T) *T {
+	return &v
 }
 
 func TestPatchRequestValidate(t *testing.T) {
@@ -33,10 +28,10 @@ func TestPatchRequestValidate(t *testing.T) {
 	}{
 		{
 			name:      "valid",
-			LibConfig: common.LibConfig{Env: stringPtr("dev")},
+			LibConfig: common.LibConfig{Env: ptrTo("dev")},
 			K8sTarget: K8sTarget{
 				ClusterTargets: []K8sClusterTarget{
-					{ClusterName: "cluster", Enabled: truePtr(), EnabledNamespaces: &([]string{"ns"})},
+					{ClusterName: "cluster", Enabled: ptrTo(true), EnabledNamespaces: &([]string{"ns"})},
 				},
 			},
 			clusterName: "cluster",
@@ -47,7 +42,7 @@ func TestPatchRequestValidate(t *testing.T) {
 			LibConfig: common.LibConfig{},
 			K8sTarget: K8sTarget{
 				ClusterTargets: []K8sClusterTarget{
-					{ClusterName: "cluster", Enabled: truePtr(), EnabledNamespaces: &([]string{"ns"})},
+					{ClusterName: "cluster", Enabled: ptrTo(true), EnabledNamespaces: &([]string{"ns"})},
 				},
 			},
 			clusterName: "cluster",
@@ -55,7 +50,7 @@ func TestPatchRequestValidate(t *testing.T) {
 		},
 		{
 			name:        "no cluster targets",
-			LibConfig:   common.LibConfig{Env: stringPtr("dev")},
+			LibConfig:   common.LibConfig{Env: ptrTo("dev")},
 			K8sTarget:   K8sTarget{ClusterTargets: []K8sClusterTarget{}},
 			clusterName: "cluster",
 			valid:       false,

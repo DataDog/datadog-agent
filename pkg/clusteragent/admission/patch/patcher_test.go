@@ -45,7 +45,7 @@ func TestPatchNamespace(t *testing.T) {
 		ID: "id",
 		K8sTarget: &K8sTarget{
 			ClusterTargets: []K8sClusterTarget{
-				{ClusterName: "test-cluster", Enabled: truePtr(), EnabledNamespaces: &[]string{name}},
+				{ClusterName: "test-cluster", Enabled: ptrTo(true), EnabledNamespaces: &[]string{name}},
 			},
 		},
 		LibConfig: common.LibConfig{Env: &env},
