@@ -63,7 +63,7 @@ func TestNoChangesNeeded(t *testing.T) {
 	}, nil, nil)
 
 	rollback, err := mutator.mutate(context.TODO())
-	require.Nil(t, rollback)
+	require.Nil(t, rollback())
 	require.NoError(t, err)
 	assertFile(t, originalPath, originalContent, mode)
 }

@@ -53,6 +53,9 @@ type Installer interface {
 	PromoteExperiment(ctx context.Context, pkg string) error
 
 	GarbageCollect(ctx context.Context) error
+
+	InstrumentAPMInjector(ctx context.Context, method string) error
+	UninstrumentAPMInjector(ctx context.Context, method string) error
 }
 
 // installerImpl is the implementation of the package manager.
@@ -288,6 +291,46 @@ func (i *installerImpl) GarbageCollect(ctx context.Context) error {
 	defer i.m.Unlock()
 
 	return i.repositories.Cleanup(ctx)
+}
+
+// InstrumentAPMInjector instruments the APM injector.
+func (i *installerImpl) InstrumentAPMInjector(ctx context.Context, method string) error {
+	i.m.Lock()
+	defer i.m.Unlock()
+
+	injectorInstalled, err := i.IsInstalled(ctx, packageAPMInjector)
+	if err != nil {
+		return fmt.Errorf("could not check if APM injector is installed: %w", err)
+	}
+	if !injectorInstalled {
+		return fmt.Errorf("APM injector is not installed")
+	}
+
+	err = service.InstrumentAPMInjector(ctx, method)
+	if err != nil {
+		return fmt.Errorf("could not instrument APM: %w", err)
+	}
+	return nil
+}
+
+// UninstrumentAPMInjector instruments the APM injector.
+func (i *installerImpl) UninstrumentAPMInjector(ctx context.Context, method string) error {
+	i.m.Lock()
+	defer i.m.Unlock()
+
+	injectorInstalled, err := i.IsInstalled(ctx, packageAPMInjector)
+	if err != nil {
+		return fmt.Errorf("could not check if APM injector is installed: %w", err)
+	}
+	if !injectorInstalled {
+		return fmt.Errorf("APM injector is not installed")
+	}
+
+	err = service.UninstrumentAPMInjector(ctx, method)
+	if err != nil {
+		return fmt.Errorf("could not instrument APM: %w", err)
+	}
+	return nil
 }
 
 func (i *installerImpl) startExperiment(ctx context.Context, pkg string) error {
