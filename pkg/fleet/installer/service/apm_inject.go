@@ -87,10 +87,7 @@ type apmInjectorInstaller struct {
 
 // Setup sets up the APM injector
 func (a *apmInjectorInstaller) Setup(ctx context.Context) error {
-	err := a.Instrument(ctx)
-	if err != nil {
-		return err
-	}
+	var err error
 
 	// Set up defaults for agent sockets
 	if err := configureSocketsEnv(ctx); err != nil {
@@ -120,7 +117,7 @@ func (a *apmInjectorInstaller) Setup(ctx context.Context) error {
 		return fmt.Errorf("error changing permissions on /var/log/datadog/dotnet: %w", err)
 	}
 
-	return nil
+	return a.Instrument(ctx)
 }
 
 // Instrument instruments the APM injector
