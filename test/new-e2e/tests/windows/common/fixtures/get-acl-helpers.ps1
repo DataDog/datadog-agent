@@ -46,7 +46,7 @@ function Get-RuleRights($rule) {
     } elseif ($rule.RegistryRights) {
         $rights = $rule.RegistryRights
     } else {
-        throw "Could not determine rights for rule"
+        throw "Could not determine rights for rule: $rule"
     }
     # Make sure to cast to int to get the real value from the Enum
     # https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_enum
@@ -81,38 +81,34 @@ function ConvertTo-ACLDTO {
 
         # Modify Access IdentityReferences and add to new ACL object
         foreach ($access in $aclObject.Access) {
-            $accessSid = Format-IdentityAsSID($access.IdentityReference)
-            $accessName = Format-IdentityAsName($access.IdentityReference)
-            $modifiedAccess = @{
+            $modifiedRule = @{
                 Rights = Get-RuleRights($access)
                 AccessControlType = $access.AccessControlType
                 Identity = @{
-                    Name = $accessName
-                    SID = $accessSid
+                    Name = Format-IdentityAsName($access.IdentityReference)
+                    SID = Format-IdentityAsSID($access.IdentityReference)
                 }
                 IsInherited = $access.IsInherited
                 InheritanceFlags = $access.InheritanceFlags
                 PropagationFlags = $access.PropagationFlags
             }
-            $newAclObject.Access += $modifiedAccess
+            $newAclObject.Access += $modifiedRule
         }
 
         # Modify Audit IdentityReferences and add to new ACL object
         foreach ($audit in $aclObject.Audit) {
-            $auditSid = Format-IdentityAsSID($audit.IdentityReference.Value)
-            $auditName = Format-IdentityAsName($audit.IdentityReference.Value)
-            $modifiedAccess = @{
+            $modifiedRule = @{
                 Rights = Get-RuleRights($audit)
                 AuditFlags = $audit.AuditFlags
                 Identity = @{
-                    Name = $auditName
-                    SID = $auditSid
+                    Name = Format-IdentityAsName($audit.IdentityReference)
+                    SID = Format-IdentityAsSID($audit.IdentityReference)
                 }
                 IsInherited = $audit.IsInherited
                 InheritanceFlags = $audit.InheritanceFlags
                 PropagationFlags = $audit.PropagationFlags
             }
-            $newAclObject.Audit += $modifiedAccess
+            $newAclObject.Audit += $modifiedRule
         }
 
         # Convert new ACL object to JSON

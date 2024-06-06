@@ -139,6 +139,15 @@ const (
 	AccessControlTypeDeny  = 1
 )
 
+// Audit flags
+//
+// https://learn.microsoft.com/en-us/dotnet/api/system.security.accesscontrol.auditflags?view=net-8.0
+const (
+	AuditFlagsNone    = 0
+	AuditFlagsSuccess = 1
+	AuditFlagsFailure = 2
+)
+
 //revive:enable:var-naming
 
 // AuthorizationRuleWithRights is an interface for an authorization rule with rights
@@ -210,14 +219,14 @@ func (r AuditRule) Equal(other AuditRule) bool {
 		r.AuthorizationRule.Equal(other.AuthorizationRule)
 }
 
-// IsSuccess returns true if the audit rule is a success rule
-func (r AuditRule) IsSuccess() bool {
-	return r.AuditFlags == 0
+// AuditSuccess returns true if successful access attempts are audited
+func (r AuditRule) AuditSuccess() bool {
+	return (r.AuditFlags & AuditFlagsSuccess) == AuditFlagsSuccess
 }
 
-// IsFailure returns true if the audit rule is a failure rule
-func (r AuditRule) IsFailure() bool {
-	return r.AuditFlags == 1
+// IsFailure returns true if failed access attempts are audited
+func (r AuditRule) AuditFailure() bool {
+	return (r.AuditFlags & AuditFlagsFailure) == AuditFlagsFailure
 }
 
 // GetRights returns the rights for the audit rule
