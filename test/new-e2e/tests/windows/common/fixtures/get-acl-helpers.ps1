@@ -118,3 +118,52 @@ function ConvertTo-ACLDTO {
         Write-Output $newAclJson
     }
 }
+
+function ConvertTo-ServiceSecurityDTO {
+    # process block to support pipeline input
+    process {
+        $sddl = $_
+        $security = (ConvertFrom-SDDLString -Sddl $sddl).RawDescriptor
+        $newObject = @{
+            Access = @()
+            Audit = @()
+            Sddl = $sddl
+        }
+
+        # Modify Access IdentityReferences and add to new ACL object
+        foreach ($access in $security.DiscretionaryAcl) {
+            $modifiedRule = @{
+                Rights = $access.AccessMask
+                AccessControlType = $access.AceType
+                Identity = @{
+                    Name = Format-IdentityAsName($access.SecurityIdentifier)
+                    SID = Format-IdentityAsSID($access.SecurityIdentifier)
+                }
+            }
+            $newObject.Access += $modifiedRule
+        }
+
+        # Modify Audit IdentityReferences and add to new ACL object
+        foreach ($audit in $security.SystemAcl) {
+            $modifiedRule = @{
+                Rights = $audit.AccessMask
+                AuditFlags = $audit.AuditFlags
+                Identity = @{
+                    Name = Format-IdentityAsName($audit.SecurityIdentifier)
+                    SID = Format-IdentityAsSID($audit.SecurityIdentifier)
+                }
+            }
+            $newObject.Audit += $modifiedRule
+        }
+
+        # Convert new ACL object to JSON
+        $newAclJson = $newObject | ConvertTo-Json -Depth 5
+
+        # Output modified JSON
+        Write-Output $newAclJson
+    }
+}
+
+function GetServiceSDDL($serviceName) {
+    Write-Output ((sc.exe sdshow $serviceName) -join "").Trim()
+}

@@ -263,6 +263,13 @@ func (t *Tester) testPreviousVersionExpectations(tt *testing.T) {
 func (t *Tester) testCurrentVersionExpectations(tt *testing.T) {
 	common.CheckInstallation(tt, t.InstallTestClient)
 
+	ddagentUserIdentity, err := windows.GetIdentityForUser(t.host,
+		windows.MakeDownLevelLogonName(t.expectedUserDomain, t.expectedUserName),
+	)
+	require.NoError(tt, err)
+	everyoneIdentity, err := windows.GetIdentityForSID(t.host, "S-1-1-0")
+	require.NoError(tt, err)
+
 	// If install paths differ from default ensure the defaults don't exist
 	if t.expectedInstallPath != windowsAgent.DefaultInstallPath {
 		_, err := t.host.Lstat(windowsAgent.DefaultInstallPath)
@@ -324,6 +331,30 @@ func (t *Tester) testCurrentVersionExpectations(tt *testing.T) {
 		expected, err := serviceTester.ExpectedServiceConfig()
 		require.NoError(tt, err)
 		servicetest.AssertEqualServiceConfigValues(tt, expected, actual)
+		// permissions
+		for _, serviceName := range servicetest.ExpectedInstalledServices() {
+			conf := actual[serviceName]
+			if windows.IsKernelModeServiceType(conf.ServiceType) {
+				// we don't modify kernel mode services
+				continue
+			}
+			// ddagentuser should have start/stop/read permissions
+			security, err := windows.GetServiceSecurityInfo(t.host, serviceName)
+			require.NoError(tt, err)
+			expected := windows.NewExplicitAccessRule(
+				ddagentUserIdentity,
+				windows.SERVICE_START|windows.SERVICE_STOP|windows.SERVICE_GENERIC_READ,
+				windows.AccessControlTypeAllow,
+			)
+			windows.AssertContainsEqualable(tt, security.Access, expected, "%s should have access rule for %s", serviceName, ddagentUserIdentity)
+			// [7.47 - 7.50) added an ACE for Everyone, make sure it isn't there
+			expected = windows.NewExplicitAccessRule(
+				everyoneIdentity,
+				windows.SERVICE_ALL_ACCESS,
+				windows.AccessControlTypeAllow,
+			)
+			windows.AssertNotContainsEqualable(tt, security.Access, expected, "%s should not have access rule for %s", serviceName, everyoneIdentity)
+		}
 	})
 
 	tt.Run("user is a member of expected groups", func(tt *testing.T) {
@@ -345,10 +376,6 @@ func (t *Tester) testCurrentVersionExpectations(tt *testing.T) {
 	tt.Run("registry permissions", func(tt *testing.T) {
 		// ensure registry key has normal inherited permissions and an explicit
 		// full access rule for ddagentuser
-		ddagentUserIdentity, err := windows.GetIdentityForUser(t.host,
-			windows.MakeDownLevelLogonName(t.expectedUserDomain, t.expectedUserName),
-		)
-		require.NoError(tt, err)
 		agentUserFullAccessDirRule := windows.NewExplicitAccessRule(
 			ddagentUserIdentity,
 			windows.RegistryFullControl,

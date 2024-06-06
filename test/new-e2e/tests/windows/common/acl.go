@@ -113,6 +113,27 @@ const (
 	RegistryFullControl = TakeOwnership | ChangePermissions | ReadPermissions | DELETE | KEY_CREATE_LINK | KEY_NOTIFY | KEY_ENUMERATE_SUB_KEYS | KEY_CREATE_SUB_KEY | KEY_SET_VALUE | KEY_QUERY_VALUE
 )
 
+// Service access rights
+//
+// https://learn.microsoft.com/en-us/windows/win32/services/service-security-and-access-rights
+const (
+	// specific access rights
+	SERVICE_CHANGE_CONFIG        = 0x0002
+	SERVICE_ENUMERATE_DEPENDENTS = 0x0008
+	SERVICE_INTERROGATE          = 0x0080
+	SERVICE_PAUSE_CONTINUE       = 0x0040
+	SERVICE_QUERY_CONFIG         = 0x0001
+	SERVICE_QUERY_STATUS         = 0x0004
+	SERVICE_START                = 0x0010
+	SERVICE_STOP                 = 0x0020
+	SERVICE_USER_DEFINED_CONTROL = 0x0100
+
+	SERVICE_GENERIC_READ = STANDARD_RIGHTS_READ | SERVICE_QUERY_CONFIG | SERVICE_QUERY_STATUS | SERVICE_INTERROGATE | SERVICE_ENUMERATE_DEPENDENTS
+
+	// SERVICE_ALL_ACCESS = 0xF01FF
+	SERVICE_ALL_ACCESS = STANDARD_RIGHTS_REQUIRED | SERVICE_QUERY_CONFIG | SERVICE_CHANGE_CONFIG | SERVICE_QUERY_STATUS | SERVICE_ENUMERATE_DEPENDENTS | SERVICE_START | SERVICE_STOP | SERVICE_PAUSE_CONTINUE | SERVICE_INTERROGATE | SERVICE_USER_DEFINED_CONTROL
+)
+
 // Inheritance flags
 //
 // https://learn.microsoft.com/en-us/dotnet/api/system.security.accesscontrol.inheritanceflags
@@ -318,6 +339,30 @@ func GetSecurityInfoForPath(host *components.RemoteHost, path string) (ObjectSec
 
 	// Get the ACL information
 	cmd := fmt.Sprintf(`$ErrorActionPreference = 'Stop'; . %s; Get-Acl -Audit -Path '%s' | ConvertTo-ACLDTO`, aclHelpersPath, path)
+	output, err := host.Execute(cmd)
+	if err != nil {
+		return s, err
+	}
+
+	err = json.Unmarshal([]byte(output), &s)
+	if err != nil {
+		return s, fmt.Errorf("failed to unmarshal ACL information: %w\n%s", err, output)
+	}
+
+	return s, nil
+}
+
+// GetServiceSecurityInfo returns the security information for the given service
+func GetServiceSecurityInfo(host *components.RemoteHost, serviceName string) (ObjectSecurity, error) {
+	var s ObjectSecurity
+
+	err := placeACLHelpers(host)
+	if err != nil {
+		return s, err
+	}
+
+	// Get the ACL information
+	cmd := fmt.Sprintf(`$ErrorActionPreference = 'Stop'; . %s; GetServiceSDDL('%s') | ConvertTo-ServiceSecurityDTO`, aclHelpersPath, serviceName)
 	output, err := host.Execute(cmd)
 	if err != nil {
 		return s, err

@@ -87,6 +87,19 @@ func formatElementNotFound[T any](elem T, list []T) string {
 	return msg.String()
 }
 
+func formatUnexpectedElementFound[T any](elem, matched T) string {
+	var msg bytes.Buffer
+
+	msg.WriteString("unexpected element found")
+	msg.WriteString("\n\nunexpected element:\n")
+	spewConfig.Fdump(&msg, elem)
+	msg.WriteString("\n\nmatched to provided:\n")
+	spewConfig.Fdump(&msg, matched)
+
+	return msg.String()
+
+}
+
 // AssertElementsMatchFunc is similar to the assert.ElementsMatch function, but it allows for a custom comparison function
 func AssertElementsMatchFunc[T any](t *testing.T, expected, actual []T, comp func(a, b T) bool, msgAndArgs ...any) bool {
 	t.Helper()
@@ -112,6 +125,23 @@ func AssertContainsFunc[T any](t *testing.T, list []T, elem T, comp func(a, b T)
 	return assert.Fail(t, formatElementNotFound(elem, list), msgAndArgs...)
 }
 
+// AssertNotContainsFunc is the opposite of AssertContainsFunc. It checks that the element is not in the list.
+func AssertNotContainsFunc[T any](t *testing.T, list []T, elem T, comp func(a, b T) bool, msgAndArgs ...any) bool {
+	t.Helper()
+	var found T
+	if slices.ContainsFunc(list, func(e T) bool {
+		if comp(e, elem) {
+			found = e
+			return true
+		}
+		return false
+	}) {
+		return assert.Fail(t, formatUnexpectedElementFound(found, elem), msgAndArgs...)
+	}
+	// not found
+	return true
+}
+
 type equalable[T any] interface {
 	Equal(other T) bool
 }
@@ -128,6 +158,14 @@ func AssertEqualableElementsMatch[T equalable[T]](t *testing.T, expected, actual
 func AssertContainsEqualable[T equalable[T]](t *testing.T, list []T, elem T, msgAndArgs ...any) bool {
 	t.Helper()
 	return AssertContainsFunc(t, list, elem, func(a, b T) bool {
+		return a.Equal(b)
+	}, msgAndArgs...)
+}
+
+// AssertNotContainsEqualable is a helper for AssertNotContainsFunc that works with types that implement the Equal method
+func AssertNotContainsEqualable[T equalable[T]](t *testing.T, list []T, elem T, msgAndArgs ...any) bool {
+	t.Helper()
+	return AssertNotContainsFunc(t, list, elem, func(a, b T) bool {
 		return a.Equal(b)
 	}, msgAndArgs...)
 }
