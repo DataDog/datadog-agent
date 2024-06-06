@@ -274,6 +274,7 @@ func readProfileData(seconds int) (flare.ProfileData, error) {
 
 func makeFlare(flareComp flare.Component,
 	lc log.Component,
+	rcsetting rcsetting.Component,
 	config config.Component,
 	_ sysprobeconfig.Component,
 	cliParams *cliParams,
@@ -373,7 +374,7 @@ func makeFlare(flareComp flare.Component,
 		}
 	}
 
-	enableStreamLog, settningErr := rcsetting.Component.GetRuntimeSetting("enable_stream_logs")
+	enableStreamLog, settningErr := rcsetting.GetRuntimeSetting("enable_stream_logs")
 
 	if settningErr != nil {
 		fmt.Fprintln(color.Output, color.RedString(fmt.Sprintf("Error getting runtime setting: %s", settningErr)))
