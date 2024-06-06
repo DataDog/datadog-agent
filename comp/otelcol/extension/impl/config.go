@@ -6,6 +6,7 @@ import (
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/config/confighttp"
 	"go.opentelemetry.io/collector/confmap"
+	"go.opentelemetry.io/collector/otelcol"
 )
 
 var (
@@ -16,6 +17,8 @@ var (
 // extension, used to report the health status of the service.
 type Config struct {
 	HTTPConfig *confighttp.ServerConfig `mapstructure:",squash"`
+
+	Provider otelcol.ConfigProvider
 }
 
 var _ component.Config = (*Config)(nil)

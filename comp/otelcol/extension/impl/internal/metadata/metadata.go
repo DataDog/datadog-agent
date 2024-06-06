@@ -5,7 +5,7 @@ import (
 )
 
 var (
-	Type = component.MustNewType("ddextension")
+	Type = component.MustNewType("datadog")
 )
 
 const (

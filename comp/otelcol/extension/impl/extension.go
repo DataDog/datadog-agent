@@ -5,10 +5,13 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/DataDog/datadog-agent/comp/otelcol/extension/impl/internal/metadata"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/extension"
 	"go.uber.org/zap"
 )
+
+var Type = metadata.Type
 
 // ddExtension is a basic OpenTelemetry Collector extension.
 type ddExtension struct {
@@ -18,13 +21,15 @@ type ddExtension struct {
 
 	telemetry component.TelemetrySettings
 	server    *http.Server
+	info      component.BuildInfo
 }
 
 // newDDHTTPExtension creates a new instance of the extension.
-func newDDHTTPExtension(ctx context.Context, cfg *Config, telemetry component.TelemetrySettings) (extension.Extension, error) {
+func newDDHTTPExtension(ctx context.Context, cfg *Config, telemetry component.TelemetrySettings, info component.BuildInfo) (extension.Extension, error) {
 	ext := &ddExtension{
 		cfg:       cfg,
 		telemetry: telemetry,
+		info:      info,
 		server: &http.Server{
 			Addr: cfg.HTTPConfig.Endpoint,
 		},
@@ -47,6 +52,12 @@ func (ext *ddExtension) Start(ctx context.Context, host component.Host) error {
 			ext.telemetry.Logger.Info("DD Extension HTTP server started successfully at", zap.String("url", ext.cfg.HTTPConfig.Endpoint))
 		}
 	}()
+
+	// List configured Extensions
+	extensions := host.GetExtensions()
+	for extension, _ := range extensions {
+		ext.telemetry.Logger.Info("Extension available", zap.String("extension", extension.String()))
+	}
 
 	return nil
 }
