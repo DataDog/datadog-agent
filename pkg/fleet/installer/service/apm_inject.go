@@ -15,9 +15,11 @@ import (
 	"os"
 	"os/exec"
 	"path"
+	"path/filepath"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/env"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/service/embedded"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"go.uber.org/multierr"
 	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
@@ -115,6 +117,11 @@ func (a *apmInjectorInstaller) Setup(ctx context.Context) error {
 	err = os.Chmod("/var/log/datadog/dotnet", 0777)
 	if err != nil {
 		return fmt.Errorf("error changing permissions on /var/log/datadog/dotnet: %w", err)
+	}
+
+	err = a.overrideOldInstallScripts(ctx)
+	if err != nil {
+		return fmt.Errorf("error overriding old install scripts: %w", err)
 	}
 
 	return a.Instrument(ctx)
@@ -252,6 +259,45 @@ func (a *apmInjectorInstaller) verifySharedLib(ctx context.Context, libPath stri
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("failed to verify injected lib %s (%w): %s", libPath, err, buf.String())
 	}
+	return nil
+}
+
+// overrideOldInstallScripts overrides the old install scripts that are installed
+// with the deb/rpm version of the installer
+// These scripts are either:
+// - Referenced in our public documentation, so we override them to use installer commands for consistency
+// - Used on deb/rpm removal and may break the OCI in the process
+func (a *apmInjectorInstaller) overrideOldInstallScripts(ctx context.Context) (err error) {
+	span, _ := tracer.StartSpanFromContext(ctx, "override_deb_install_scripts")
+	defer span.Finish(tracer.WithError(err))
+
+	oldInstallScripts := []string{
+		"dd-host-install",
+		"dd-container-install",
+		"dd-cleanup",
+	}
+
+	for _, script := range oldInstallScripts {
+		path := filepath.Join("/usr/bin", script)
+		_, err = os.Stat(path)
+		if err == nil {
+			var content []byte
+			content, err = embedded.FS.ReadFile(script)
+			if err != nil {
+				err = fmt.Errorf("failed to read embedded %s: %w", script, err)
+				return err
+			}
+			err = os.WriteFile(path, content, 0755)
+			if err != nil {
+				err = fmt.Errorf("failed to write %s: %w", script, err)
+				return err
+			}
+		} else if err != nil && !os.IsNotExist(err) {
+			err = fmt.Errorf("failed to check if %s exists on disk: %w", script, err)
+			return err
+		}
+	}
+
 	return nil
 }
 
