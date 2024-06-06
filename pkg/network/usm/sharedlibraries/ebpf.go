@@ -186,7 +186,7 @@ func getSysOpenHooksIdentifiers() []manager.ProbeIdentificationPair {
 	if sysOpenAt2Supported() {
 		openatProbes = append(openatProbes, openat2SysCall)
 	}
-	// arm64 doesn't have open(2)
+	// amd64 has open(2), arm64 doesn't
 	if runtime.GOARCH == "amd64" {
 		openatProbes = append(openatProbes, openSysCall)
 	}
