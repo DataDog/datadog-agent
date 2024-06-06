@@ -13,7 +13,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"net/url"
 	"strings"
@@ -132,12 +131,12 @@ func (c *collectorImpl) fillFlare(fb flarebuilder.FlareBuilder) error {
 	// request config from Otel-Agent
 	responseBytes, err := c.requestOtelConfigInfo(otelFlarePort)
 	if err != nil {
-		fb.AddFile("otel/otel-agent.log", []byte(fmt.Sprintf("did not get otel-agent configuration: %v", err)))
+		fb.AddFile("otel/otel-agent.log", []byte(fmt.Sprintf("did not get otel-agent configuration: %v", err))) //nolint:errcheck
 		return nil
 	}
 
 	// add raw response to flare, and unmarshal it
-	fb.AddFile("otel/otel-response.json", responseBytes)
+	fb.AddFile("otel/otel-response.json", responseBytes) //nolint:errcheck
 	var responseInfo map[string]interface{}
 	if err := json.Unmarshal(responseBytes, &responseInfo); err != nil {
 		return err
@@ -146,7 +145,7 @@ func (c *collectorImpl) fillFlare(fb flarebuilder.FlareBuilder) error {
 	// get list of additional sources to grab data from
 	sources, ok := responseInfo["additionalSources"].([]map[string]string)
 	if !ok {
-		fb.AddFile("otel/otel-agent.log", []byte("could not read additional sources from otel-agent response"))
+		fb.AddFile("otel/otel-agent.log", []byte("could not read additional sources from otel-agent response")) //nolint:errcheck
 		return nil
 	}
 
@@ -158,15 +157,17 @@ func (c *collectorImpl) fillFlare(fb flarebuilder.FlareBuilder) error {
 		if sourceCrawl != "true" {
 			response, err := http.Get(sourceURL)
 			if err != nil {
-				fb.AddFile(fmt.Sprintf("otel/otel-flare/%s.err", sourceName), []byte(err.Error()))
+				fb.AddFile(fmt.Sprintf("otel/otel-flare/%s.err", sourceName), []byte(err.Error())) //nolint:errcheck
 				continue
 			}
+			defer response.Body.Close()
+
 			data, err := io.ReadAll(response.Body)
 			if err != nil {
-				fb.AddFile(fmt.Sprintf("otel/otel-flare/%s.err", sourceName), []byte(err.Error()))
+				fb.AddFile(fmt.Sprintf("otel/otel-flare/%s.err", sourceName), []byte(err.Error())) //nolint:errcheck
 				continue
 			}
-			fb.AddFile(fmt.Sprintf("otel/otel-flare/%s.dat", sourceName), data)
+			fb.AddFile(fmt.Sprintf("otel/otel-flare/%s.dat", sourceName), data) //nolint:errcheck
 			continue
 		}
 
@@ -175,19 +176,21 @@ func (c *collectorImpl) fillFlare(fb flarebuilder.FlareBuilder) error {
 		col.OnHTML("a", func(e *colly.HTMLElement) {
 			// visit all links
 			link := e.Attr("href")
-			e.Request.Visit(e.Request.AbsoluteURL(link))
+			e.Request.Visit(e.Request.AbsoluteURL(link)) //nolint:errcheck
 		})
 		col.OnRequest(func(r *colly.Request) {
 			// save all visited pages in the flare
 			filename := strings.ReplaceAll(url.PathEscape(r.URL.String()), ":", "_")
-			data, err := ioutil.ReadAll(r.Body)
+			data, err := io.ReadAll(r.Body)
 			if err != nil {
-				fb.AddFile(fmt.Sprintf("otel/otel-flare/%s.err", filename), []byte(err.Error()))
+				fb.AddFile(fmt.Sprintf("otel/otel-flare/%s.err", filename), []byte(err.Error())) //nolint:errcheck
 				return
 			}
-			fb.AddFile(fmt.Sprintf("otel/otel-flare/%s", filename), data)
+			fb.AddFile(fmt.Sprintf("otel/otel-flare/%s", filename), data) //nolint:errcheck
 		})
-		col.Visit(sourceURL)
+		if err := col.Visit(sourceURL); err != nil {
+			fb.AddFile("otel/otel-flare/crawl.err", []byte(err.Error())) //nolint:errcheck
+		}
 	}
 	return nil
 }
@@ -234,7 +237,7 @@ const hardCodedConfigResponse = `{
 }
 `
 
-func (c *collectorImpl) requestOtelConfigInfo(port int) ([]byte, error) {
+func (c *collectorImpl) requestOtelConfigInfo(_ int) ([]byte, error) {
 	// TODO: (components) In the future, contact the otel-agent flare extension on its configured port
 	// it will respond with a JSON response that resembles this format. For now just use this
 	// hard-coded response value

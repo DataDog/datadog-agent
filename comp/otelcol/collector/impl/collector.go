@@ -95,8 +95,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 		OnStop:  c.stop,
 	})
 	return Provides{
-		Comp:          c,
-		FlareProvider: flarebuilder.NewProvider(c.fillFlare),
+		Comp: c,
 	}, nil
 }
 
