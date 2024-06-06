@@ -538,7 +538,7 @@ def send_failure_summary_notification(
         blocks = [
             {'type': 'header', 'text': {'type': 'plain_text', 'text': header}},
             {'type': 'section', 'text': {'type': 'mrkdwn', 'text': description}},
-            *body,
+            *[{'type': 'section', 'text': {'type': 'mrkdwn', 'text': text}} for text in body],
             {'type': 'context', 'elements': [{'type': 'mrkdwn', 'text': ':information_source: ' + footer}]},
         ]
 
