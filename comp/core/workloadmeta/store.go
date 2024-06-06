@@ -318,6 +318,18 @@ func (w *workloadmeta) GetKubernetesPodForContainer(containerID string) (*Kubern
 	return pod.cached.(*KubernetesPod), nil
 }
 
+// ListKubernetesNodes implements Store#ListKubernetesNodes
+func (w *workloadmeta) ListKubernetesNodes() []*KubernetesNode {
+	entities := w.listEntitiesByKind(KindKubernetesNode)
+
+	nodes := make([]*KubernetesNode, 0, len(entities))
+	for i := range entities {
+		nodes = append(nodes, entities[i].(*KubernetesNode))
+	}
+
+	return nodes
+}
+
 // GetKubernetesNode implements Store#GetKubernetesNode
 func (w *workloadmeta) GetKubernetesNode(id string) (*KubernetesNode, error) {
 	entity, err := w.getEntityByKind(KindKubernetesNode, id)
@@ -392,6 +404,16 @@ func (w *workloadmeta) GetImage(id string) (*ContainerImageMetadata, error) {
 	}
 
 	return entity.(*ContainerImageMetadata), nil
+}
+
+// GetKubernetesMetadata implements Store#GetKubernetesMetadata.
+func (w *workloadmeta) GetKubernetesMetadata(id string) (*KubernetesMetadata, error) {
+	entity, err := w.getEntityByKind(KindKubernetesMetadata, id)
+	if err != nil {
+		return nil, err
+	}
+
+	return entity.(*KubernetesMetadata), nil
 }
 
 // Notify implements Store#Notify

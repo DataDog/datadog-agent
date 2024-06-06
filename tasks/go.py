@@ -2,16 +2,25 @@
 Golang related tasks go here
 """
 
+from __future__ import annotations
+
 import glob
 import os
+import posixpath
+import re
 import shutil
+import sys
 import textwrap
+import traceback
 from pathlib import Path
 
 from invoke import task
 from invoke.exceptions import Exit
 
+import tasks.modules
 from tasks.build_tags import ALL_TAGS, UNIT_TEST_TAGS, get_default_build_tags
+from tasks.libs.common.color import color_message
+from tasks.libs.common.git import check_uncommitted_changes
 from tasks.libs.common.utils import get_build_flags, timed
 from tasks.licenses import get_licenses_list
 from tasks.modules import DEFAULT_MODULES, generate_dummy_package
@@ -337,7 +346,7 @@ def reset(ctx):
 
 
 @task
-def check_go_mod_replaces(_ctx):
+def check_go_mod_replaces(_):
     errors_found = set()
     for mod in DEFAULT_MODULES.values():
         go_sum = os.path.join(mod.full_path(), "go.sum")
@@ -353,7 +362,7 @@ def check_go_mod_replaces(_ctx):
         message = "\nErrors found:\n"
         message += "\n".join("  - " + error for error in sorted(errors_found))
         message += (
-            "\n\nThis task operates on go.sum files, so make sure to run `inv -e tidy-all` before re-running this task."
+            "\n\nThis task operates on go.sum files, so make sure to run `inv -e tidy` before re-running this task."
         )
         raise Exit(message=message)
 
@@ -390,15 +399,38 @@ def check_mod_tidy(ctx, test_folder="testmodule"):
 
         if errors_found:
             message = "\nErrors found:\n" + "\n".join("  - " + error for error in errors_found)
-            message += "\n\nRun 'inv tidy-all' to fix 'out of sync' errors."
+            message += "\n\nRun 'inv tidy' to fix 'out of sync' errors."
             raise Exit(message=message)
 
 
 @task
 def tidy_all(ctx):
+    sys.stderr.write(color_message('This command is deprecated, please use `tidy` instead\n', "orange"))
+    sys.stderr.write("Running `tidy`...\n")
+    tidy(ctx)
+
+
+@task
+def tidy(ctx):
+    if os.name != 'nt':  # not windows
+        import resource
+
+        # Some people might face ulimit issues, so we bump it up if needed.
+        # It won't change it globally, only for this process and child processes.
+        # TODO: if this is working fine, let's do it during the init so all tasks can benefit from it if needed.
+        current_ulimit = resource.getrlimit(resource.RLIMIT_NOFILE)
+        if current_ulimit[0] < 1024:
+            resource.setrlimit(resource.RLIMIT_NOFILE, (1024, current_ulimit[1]))
+
+    # Note: It's currently faster to tidy everything than looking for exactly what we should tidy
+    promises = []
     for mod in DEFAULT_MODULES.values():
         with ctx.cd(mod.full_path()):
-            ctx.run("go mod tidy")
+            # https://docs.pyinvoke.org/en/stable/api/runners.html#invoke.runners.Runner.run
+            promises.append(ctx.run("go mod tidy", asynchronous=True))
+
+    for promise in promises:
+        promise.join()
 
 
 @task
@@ -428,3 +460,183 @@ def go_fix(ctx, fix=None):
             for osname in oslist:
                 tags = set(ALL_TAGS).union({osname, "ebpf_bindata"})
                 ctx.run(f"go fix{fixarg} -tags {','.join(tags)} ./...")
+
+
+def get_deps(ctx, path):
+    with ctx.cd(path):
+        # Might fail if no mod tidy
+        deps: list[str] = ctx.run("go list -deps ./...", hide=True, warn=True).stdout.strip().splitlines()
+        prefix = 'github.com/DataDog/datadog-agent/'
+        deps = [
+            dep.removeprefix(prefix)
+            for dep in deps
+            if dep.startswith(prefix) and dep != f'github.com/DataDog/datadog-agent/{path}'
+        ]
+
+        return deps
+
+
+def add_replaces(ctx, path, replaces: list[str]):
+    repo_path = posixpath.abspath('.')
+    with ctx.cd(path):
+        for repo_local_path in replaces:
+            if repo_local_path != path:
+                # Example for pkg/util/log with path=pkg/util/cachedfetch
+                # - repo_local_path: pkg/util/log
+                # - online_path: github.com/DataDog/datadog-agent/pkg/util/log
+                # - module_local_path: ../../../pkg/util/log
+                level = os.path.abspath(path).count('/') - repo_path.count('/')
+                module_local_path = ('./' if level == 0 else '../' * level) + repo_local_path
+                online_path = f'github.com/DataDog/datadog-agent/{repo_local_path}'
+
+                ctx.run(f"go mod edit -replace={online_path}={module_local_path}")
+
+
+def add_go_module(path):
+    """
+    Add go module to modules.py
+    """
+    print(color_message("Updating DEFAULT_MODULES within modules.py", "blue"))
+    modules_path = tasks.modules.__file__
+    with open(modules_path) as f:
+        modulespy = f.read()
+
+    modulespy_regex = re.compile(r"DEFAULT_MODULES = {\n(.+?)\n}", re.DOTALL | re.MULTILINE)
+
+    all_modules_match = modulespy_regex.search(modulespy)
+    all_modules = all_modules_match.group(1)
+    all_modules = all_modules.split('\n')
+    indent = ' ' * 4
+
+    new_module = f'{indent}"{path}": GoModule("{path}", independent=True),'
+
+    # Insert in order
+    insert_line = 0
+    for i, line in enumerate(all_modules):
+        # This line is the start of a module (not a comment / middle of a module declaration)
+        if line.startswith(f'{indent}"'):
+            module = re.search(rf'{indent}"([^"]*)"', line).group(1)
+            if module < path:
+                insert_line = i
+            else:
+                assert module != path, f"Module {path} already exists within {modules_path}"
+
+    all_modules.insert(insert_line, new_module)
+    all_modules = '\n'.join(all_modules)
+    with open(modules_path, 'w') as f:
+        f.write(modulespy.replace(all_modules_match.group(1), all_modules))
+
+
+@task
+def create_module(ctx, path: str, no_verify: bool = False):
+    """
+    Create new go module following steps within <docs/dev/modules.md>
+    - packages: Comma separated list of packages the will use the new module
+    """
+
+    path = path.rstrip('/').rstrip('\\')
+
+    if check_uncommitted_changes(ctx):
+        raise RuntimeError("There are uncomitted changes, all changes must be committed to run this command.")
+
+    # Perform checks + save current state to restore it in case of failure
+    assert not posixpath.exists(path + '/go.mod'), f"Path {path + '/go.mod'} already exists"
+    is_empty = not posixpath.exists(path)
+
+    # Get info
+    with open('go.mod') as f:
+        mainmod = f.read()
+
+    goversion_regex = re.compile(r'^go +([.0-9]+)$', re.MULTILINE)
+    goversion = next(goversion_regex.finditer(mainmod)).group(1)
+
+    # Module content
+    gomod = f"""
+    module github.com/DataDog/datadog-agent/{path}
+
+    go {goversion}
+    """.replace('    ', '')
+
+    try:
+        # Create package
+        print(color_message(f"Creating package {path}", "blue"))
+
+        ctx.run(f"mkdir -p {path}")
+        with open(f"{path}/go.mod", 'w') as f:
+            f.write(gomod)
+
+        if not is_empty:
+            # 1. Update current module
+            deps = get_deps(ctx, path)
+            add_replaces(ctx, path, deps)
+            with ctx.cd(path):
+                ctx.run('go mod tidy')
+
+            # Find and update indirect replaces within go.mod
+            with open(path + '/go.mod') as f:
+                mod_content = f.read()
+                replaces = {
+                    replace
+                    for replace in re.findall(r'github.com/DataDog/datadog-agent/([^\n ]*)', mod_content)
+                    if replace != path
+                }
+            with open(f"{path}/go.mod", 'w') as f:
+                # Cancel mod tidy since it can update the go version
+                f.write(gomod)
+            add_replaces(ctx, path, replaces)
+            with ctx.cd(path):
+                ctx.run('go mod tidy')
+
+            # 2. Update dependencies
+            # Find module that must include the new module
+            dependent_modules = []
+            for gomod in glob.glob('./**/go.mod', recursive=True):
+                gomod = Path(gomod).as_posix()
+                mod_path = posixpath.dirname(gomod)
+                if posixpath.abspath(mod_path) != posixpath.abspath(path):
+                    deps = get_deps(ctx, mod_path)
+                    if path in deps:
+                        dependent_modules.append(mod_path)
+
+            for mod in dependent_modules:
+                add_replaces(ctx, mod, [path])
+
+        # Update modules.py
+        add_go_module(path)
+
+        if not is_empty:
+            # Tidy all
+            print(color_message("Running tidy-all task", "bold"))
+            tidy(ctx)
+
+        if not no_verify:
+            # Stage updated files since some linting tasks will require it
+            print(color_message("Staging new module files", "bold"))
+            ctx.run("git add --all")
+
+            print(color_message("Linting repo", "blue"))
+            print(color_message("Running internal-deps-checker task", "bold"))
+            internal_deps_checker(ctx)
+            print(color_message("Running check-mod-tidy task", "bold"))
+            check_mod_tidy(ctx)
+            print(color_message("Running check-go-mod-replaces task", "bold"))
+            check_go_mod_replaces(ctx)
+
+        print(color_message(f"Created package {path}", "green"))
+    except Exception:
+        traceback.print_exc()
+
+        # Restore files if user wants to
+        if sys.stdin.isatty():
+            print(color_message("Failed to create module", "red"))
+            if input('Do you want to restore all files ? [N/y]').strip() in 'yY':
+                print(color_message("Restoring files", "blue"))
+
+                ctx.run('git clean -f')
+                ctx.run('git checkout HEAD -- .')
+
+                raise Exit(1)
+
+        print(color_message("Not removing changed files", "red"))
+
+        raise Exit(1)

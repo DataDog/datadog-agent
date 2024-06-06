@@ -40,7 +40,7 @@ type Daemon interface {
 	Start(ctx context.Context) error
 	Stop(ctx context.Context) error
 
-	Install(ctx context.Context, url string) error
+	Install(ctx context.Context, url string, args []string) error
 	StartExperiment(ctx context.Context, url string) error
 	StopExperiment(ctx context.Context, pkg string) error
 	PromoteExperiment(ctx context.Context, pkg string) error
@@ -61,8 +61,8 @@ type daemonImpl struct {
 	requestsWG    sync.WaitGroup
 }
 
-func newInstaller(config config.Reader, installerBin string) installer.Installer {
-	return exec.NewInstallerExec(env.FromConfig(config), installerBin)
+func newInstaller(env *env.Env, installerBin string) installer.Installer {
+	return exec.NewInstallerExec(env, installerBin)
 }
 
 // NewDaemon returns a new daemon.
@@ -79,9 +79,9 @@ func NewDaemon(rcFetcher client.ConfigFetcher, config config.Reader) (Daemon, er
 	if err != nil {
 		return nil, fmt.Errorf("could not create remote config client: %w", err)
 	}
-	installer := newInstaller(config, installerBin)
-	remoteUpdates := config.GetBool("updater.remote_updates")
-	return newDaemon(rc, installer, remoteUpdates), nil
+	env := env.FromConfig(config)
+	installer := newInstaller(env, installerBin)
+	return newDaemon(rc, installer, env.RemoteUpdates), nil
 }
 
 func newDaemon(rc *remoteConfig, installer installer.Installer, remoteUpdates bool) *daemonImpl {
@@ -160,20 +160,20 @@ func (d *daemonImpl) Stop(_ context.Context) error {
 }
 
 // Install installs the package from the given URL.
-func (d *daemonImpl) Install(ctx context.Context, url string) error {
+func (d *daemonImpl) Install(ctx context.Context, url string, args []string) error {
 	d.m.Lock()
 	defer d.m.Unlock()
-	return d.install(ctx, url)
+	return d.install(ctx, url, args)
 }
 
-func (d *daemonImpl) install(ctx context.Context, url string) (err error) {
+func (d *daemonImpl) install(ctx context.Context, url string, args []string) (err error) {
 	span, ctx := tracer.StartSpanFromContext(ctx, "install")
 	defer func() { span.Finish(tracer.WithError(err)) }()
 	d.refreshState(ctx)
 	defer d.refreshState(ctx)
 
 	log.Infof("Daemon: Installing package from %s", url)
-	err = d.installer.Install(ctx, url)
+	err = d.installer.Install(ctx, url, args)
 	if err != nil {
 		return fmt.Errorf("could not install: %w", err)
 	}

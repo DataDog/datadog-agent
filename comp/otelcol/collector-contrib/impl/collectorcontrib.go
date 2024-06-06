@@ -14,9 +14,51 @@ import (
 	"github.com/open-telemetry/opentelemetry-collector-contrib/connector/routingconnector"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/connector/servicegraphconnector"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/connector/spanmetricsconnector"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/exporter/alertmanagerexporter"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/exporter/alibabacloudlogserviceexporter"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/exporter/awscloudwatchlogsexporter"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/exporter/awsemfexporter"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/exporter/awskinesisexporter"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/exporter/awss3exporter"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/exporter/awsxrayexporter"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/exporter/azuredataexplorerexporter"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/exporter/azuremonitorexporter"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/exporter/carbonexporter"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/exporter/cassandraexporter"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/exporter/clickhouseexporter"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/exporter/coralogixexporter"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/exporter/datasetexporter"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/exporter/elasticsearchexporter"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/exporter/fileexporter"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/exporter/googlecloudexporter"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/exporter/googlecloudpubsubexporter"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/exporter/googlemanagedprometheusexporter"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/exporter/honeycombmarkerexporter"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/exporter/influxdbexporter"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/exporter/instanaexporter"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/exporter/kafkaexporter"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/exporter/kineticaexporter"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/exporter/loadbalancingexporter"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/exporter/logicmonitorexporter"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/exporter/logzioexporter"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/exporter/lokiexporter"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/exporter/mezmoexporter"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/exporter/opencensusexporter"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/exporter/opensearchexporter"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/exporter/otelarrowexporter"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/exporter/prometheusexporter"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/exporter/prometheusremotewriteexporter"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/exporter/pulsarexporter"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/exporter/rabbitmqexporter"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/exporter/sapmexporter"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/exporter/sentryexporter"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/exporter/signalfxexporter"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/exporter/skywalkingexporter"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/exporter/splunkhecexporter"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/exporter/sumologicexporter"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/exporter/syslogexporter"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/exporter/tencentcloudlogserviceexporter"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/exporter/zipkinexporter"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/extension/ackextension"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/extension/asapauthextension"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/extension/awsproxy"
@@ -159,7 +201,6 @@ import (
 	"go.opentelemetry.io/collector/receiver/otlpreceiver"
 	"go.uber.org/multierr"
 	// temporarily disabled
-	//"github.com/open-telemetry/opentelemetry-collector-contrib/exporter/datadogexporter"
 	//"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/awscontainerinsightreceiver"
 	//"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/datadogreceiver"
 )
@@ -343,13 +384,54 @@ func (c *collectorcontribImpl) OTelComponentFactories() (otelcol.Factories, erro
 	}
 
 	exporterList := []exporter.Factory{
-		// datadogexporter.NewFactory(),
+		alertmanagerexporter.NewFactory(),
+		alibabacloudlogserviceexporter.NewFactory(),
+		awscloudwatchlogsexporter.NewFactory(),
+		awsemfexporter.NewFactory(),
+		awskinesisexporter.NewFactory(),
+		awss3exporter.NewFactory(),
+		awsxrayexporter.NewFactory(),
+		azuredataexplorerexporter.NewFactory(),
+		azuremonitorexporter.NewFactory(),
+		carbonexporter.NewFactory(),
+		cassandraexporter.NewFactory(),
+		clickhouseexporter.NewFactory(),
+		coralogixexporter.NewFactory(),
+		datasetexporter.NewFactory(),
 		debugexporter.NewFactory(),
+		elasticsearchexporter.NewFactory(),
 		fileexporter.NewFactory(),
+		googlecloudexporter.NewFactory(),
+		googlecloudpubsubexporter.NewFactory(),
+		googlemanagedprometheusexporter.NewFactory(),
+		honeycombmarkerexporter.NewFactory(),
+		influxdbexporter.NewFactory(),
+		instanaexporter.NewFactory(),
+		kafkaexporter.NewFactory(),
+		kineticaexporter.NewFactory(),
+		loadbalancingexporter.NewFactory(),
+		logicmonitorexporter.NewFactory(),
+		logzioexporter.NewFactory(),
+		lokiexporter.NewFactory(),
+		mezmoexporter.NewFactory(),
+		opencensusexporter.NewFactory(),
+		opensearchexporter.NewFactory(),
+		otelarrowexporter.NewFactory(),
 		otlpexporter.NewFactory(),
 		otlphttpexporter.NewFactory(),
+		prometheusexporter.NewFactory(),
+		prometheusremotewriteexporter.NewFactory(),
+		pulsarexporter.NewFactory(),
+		rabbitmqexporter.NewFactory(),
+		sapmexporter.NewFactory(),
+		sentryexporter.NewFactory(),
 		signalfxexporter.NewFactory(),
+		skywalkingexporter.NewFactory(),
 		splunkhecexporter.NewFactory(),
+		sumologicexporter.NewFactory(),
+		syslogexporter.NewFactory(),
+		tencentcloudlogserviceexporter.NewFactory(),
+		zipkinexporter.NewFactory(),
 	}
 	exporters, err := exporter.MakeFactoryMap(exporterList...)
 	if err != nil {

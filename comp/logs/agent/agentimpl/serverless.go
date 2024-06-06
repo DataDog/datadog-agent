@@ -21,7 +21,7 @@ import (
 func NewServerlessLogsAgent() agent.ServerlessLogsAgent {
 	logsAgent := &logAgent{
 		log:     logComponent.NewTemporaryLoggerWithoutInit(),
-		config:  pkgConfig.Datadog,
+		config:  pkgConfig.Datadog(),
 		started: atomic.NewBool(false),
 
 		sources:  sources.NewLogSources(),

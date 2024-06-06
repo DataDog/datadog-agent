@@ -53,7 +53,7 @@ type DockerUtil struct {
 // init makes an empty DockerUtil bootstrap itself.
 // This is not exposed as public API but is called by the retrier embed.
 func (d *DockerUtil) init() error {
-	d.queryTimeout = config.Datadog.GetDuration("docker_query_timeout") * time.Second
+	d.queryTimeout = config.Datadog().GetDuration("docker_query_timeout") * time.Second
 
 	// Major failure risk is here, do that first
 	ctx, cancel := context.WithTimeout(context.Background(), d.queryTimeout)

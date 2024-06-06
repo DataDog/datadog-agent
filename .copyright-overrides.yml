@@ -109,6 +109,12 @@ github.com/golang-sql/civil: Copyright 2016 Google LLC
 # https://github.com/grafana/loki/blob/main/clients/cmd/fluentd/README.md
 github.com/grafana/loki: Copyright 2018- Grafana Labs
 
+# https://github.com/hamba/avro/blob/109ccdab2a7032d09b1d6a04aeb6ea214217fbd5/LICENCE
+github.com/hamba/avro/v2: Copyright (c) 2024 Nicholas Wiersma
+
+# https://github.com/scalyr/dataset-go/blob/main/README.md
+github.com/scalyr/dataset-go: Copyright 2023 SentinelOne, Inc.
+
 # For Apache projects, copyright is typically in individual source files and
 # not scanned automatically.
 github.com/tklauser/numcpus: Copyright 2018 Tobias Klauser
@@ -237,7 +243,7 @@ github.com/anchore/go-struct-converter: Copyright (c) 2022-2023 Anchore, Inc.
 github.com/bitnami/go-version/pkg/version: Copyright (c) 2023-2024 Carlos Rodríguez Hernández
 github.com/kylelemons/godebug: Copyright (c) 2013-2020 Kyle Lemons
 github.com/santhosh-tekuri/jsonschema: Copyright (c) 2017-2024 Santhosh Kumar Tekuri
-
+github.com/chrusty/protoc-gen-jsonschema: Copyright (c) 2017 The Authors
 
 # The Copyright information is not contained in the LICENSE file, but it can be found in other
 # files in the package, such as:

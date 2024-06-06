@@ -38,6 +38,7 @@
 
 #ifndef DO_NOT_USE_TC
 #include "network/dns.h"
+#include "network/imds.h"
 #include "network/flow.h"
 #include "network/net_device.h"
 #include "network/router.h"

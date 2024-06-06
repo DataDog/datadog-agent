@@ -144,7 +144,6 @@
 .kmt_cleanup:
   stage: kernel_matrix_testing_cleanup
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/test-infra-definitions/runner$TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX:$TEST_INFRA_DEFINITIONS_BUILDIMAGES
-  when: always
   tags: ["arch:amd64"]
   before_script:
     - !reference [.kmt_new_profile]
@@ -158,8 +157,27 @@
         aws ec2 terminate-instances --instance-ids "${INSTANCE_ID}"
       fi
 
+# Manual cleanup jobs, these will be used to cleanup the instances after the tests
+# if the tests are canceled (e.g., by the auto-cancel-prev-pipelines job). The automatic jobs
+# will not run if the dependencies are canceled
+.kmt_cleanup_manual:
+  when: manual
+  allow_failure: true  # Don't fail the full pipeline, these can fail if the instances are already cleaned up
+  needs: []
+
 # -- Test runners
 .kmt_run_tests:
+  retry:
+    max: 2
+    when:
+      - job_execution_timeout
+      - runner_system_failure
+      - stuck_or_timeout_failure
+      - unknown_failure
+      - api_failure
+      - scheduler_failure
+      - stale_schedule
+      - data_integrity_failure
   variables:
     AWS_EC2_SSH_KEY_FILE: $CI_PROJECT_DIR/ssh_key
     RETRY: 2

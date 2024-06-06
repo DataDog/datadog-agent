@@ -98,13 +98,13 @@ func TestSingleDollarIdentifier(t *testing.T) {
 	MERGE INTO Employees AS target
 	USING EmployeeUpdates AS source
 	ON (target.EmployeeID = source.EmployeeID)
-	WHEN MATCHED THEN 
-		UPDATE SET 
+	WHEN MATCHED THEN
+		UPDATE SET
 			target.Name = source.Name
-	WHEN NOT MATCHED BY TARGET THEN 
+	WHEN NOT MATCHED BY TARGET THEN
 		INSERT (EmployeeID, Name)
 		VALUES (source.EmployeeID, source.Name)
-	WHEN NOT MATCHED BY SOURCE THEN 
+	WHEN NOT MATCHED BY SOURCE THEN
 		DELETE
 	OUTPUT $action, inserted.*, deleted.*;
 	`
@@ -2370,6 +2370,20 @@ func TestSQLLexerObfuscationAndNormalization(t *testing.T) {
 				TablesCSV: "users",
 				Commands: []string{
 					"SELECT",
+				},
+				Comments:   []string{},
+				Procedures: []string{},
+			},
+		},
+		{
+			name:     "normalization with CREATE TABLE",
+			query:    `CREATE TABLE IF NOT EXISTS users (id INT, name VARCHAR(255))`,
+			expected: `CREATE TABLE IF NOT EXISTS users ( id INT, name VARCHAR ( ? ) )`,
+			metadata: SQLMetadata{
+				Size:      11,
+				TablesCSV: "users",
+				Commands: []string{
+					"CREATE",
 				},
 				Comments:   []string{},
 				Procedures: []string{},

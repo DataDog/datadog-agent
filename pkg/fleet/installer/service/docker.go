@@ -44,6 +44,9 @@ func (a *apmInjectorInstaller) setupDocker(ctx context.Context) (rollback func()
 	}
 
 	rollback = func() error {
+		if rollbackDockerConfig == nil {
+			return nil
+		}
 		if err := rollbackDockerConfig(); err != nil {
 			return err
 		}

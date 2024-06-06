@@ -51,7 +51,6 @@ func (s *testDownloadServer) Image(f fixtures.Fixture) oci.Image {
 
 func TestDownload(t *testing.T) {
 	s := newTestDownloadServer(t)
-	defer s.Close()
 	d := s.Downloader()
 
 	downloadedPackage, err := d.Download(context.Background(), s.PackageURL(fixtures.FixtureSimpleV1))
@@ -67,7 +66,6 @@ func TestDownload(t *testing.T) {
 
 func TestDownloadLayout(t *testing.T) {
 	s := newTestDownloadServer(t)
-	defer s.Close()
 	d := s.Downloader()
 
 	downloadedPackage, err := d.Download(context.Background(), s.PackageLayoutURL(fixtures.FixtureSimpleV1))
@@ -83,7 +81,6 @@ func TestDownloadLayout(t *testing.T) {
 
 func TestDownloadInvalidHash(t *testing.T) {
 	s := newTestDownloadServer(t)
-	defer s.Close()
 	d := s.Downloader()
 
 	pkgURL := s.PackageURL(fixtures.FixtureSimpleV1)
@@ -94,7 +91,6 @@ func TestDownloadInvalidHash(t *testing.T) {
 
 func TestDownloadPlatformNotAvailable(t *testing.T) {
 	s := newTestDownloadServer(t)
-	defer s.Close()
 	d := s.Downloader()
 
 	pkg := s.PackageURL(fixtures.FixtureSimpleV1Linux2Amd128)

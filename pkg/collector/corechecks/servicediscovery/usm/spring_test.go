@@ -8,7 +8,6 @@ package usm
 import (
 	"archive/zip"
 	"bytes"
-	"io"
 	"os"
 	"strings"
 	"testing"
@@ -273,8 +272,16 @@ func TestNewPropertySourceFromStream(t *testing.T) {
 	}
 }
 
-func createMockSpringBootApp(t *testing.T, destination io.Writer) {
-	writer := zip.NewWriter(destination)
+func createMockSpringBootApp(t *testing.T) string {
+	tempDir := t.TempDir()
+	sprintBootAppFullPath := tempDir + "/" + springBootApp
+	os.MkdirAll(tempDir+"/app", 0700)
+	f, err := os.Create(sprintBootAppFullPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	writer := zip.NewWriter(f)
+	defer f.Close()
 	require.NoError(t, writeFile(writer, "BOOT-INF/classes/application.properties", "spring.application.name=default-app"))
 	require.NoError(t, writeFile(writer, "BOOT-INF/classes/config/prod/application-prod.properties", "spring.application.name=prod-app"))
 	require.NoError(t, writeFile(writer, "BOOT-INF/classes/some/nested/location/application-yaml.yaml",
@@ -283,15 +290,11 @@ func createMockSpringBootApp(t *testing.T, destination io.Writer) {
     name: yaml-app`))
 	require.NoError(t, writeFile(writer, "BOOT-INF/classes/custom.properties", "spring.application.name=custom-app"))
 	require.NoError(t, writer.Close())
+	return sprintBootAppFullPath
 }
 
 func TestExtractServiceMetadataSpringBoot(t *testing.T) {
-	filename := "app/app.jar"
-	writer := bytes.NewBuffer(nil)
-	createMockSpringBootApp(t, writer)
-	fs := fstest.MapFS{
-		filename: &fstest.MapFile{Data: writer.Bytes()},
-	}
+	spFullPath := createMockSpringBootApp(t)
 	tests := []struct {
 		name     string
 		jarname  string
@@ -311,33 +314,33 @@ func TestExtractServiceMetadataSpringBoot(t *testing.T) {
 		},
 		{
 			name:    "spring boot with app name as arg",
-			jarname: filename,
+			jarname: spFullPath,
 			cmdline: []string{
 				"java",
 				"-jar",
-				filename,
+				spFullPath,
 				"--spring.application.name=found",
 			},
 			expected: "found",
 		},
 		{
 			name:    "spring boot with app name as system property",
-			jarname: filename,
+			jarname: spFullPath,
 			cmdline: []string{
 				"java",
 				"-Dspring.application.name=found",
 				"-jar",
-				filename,
+				spFullPath,
 			},
 			expected: "found",
 		},
 		{
 			name:    "spring boot with app name as env",
-			jarname: filename,
+			jarname: spFullPath,
 			cmdline: []string{
 				"java",
 				"-jar",
-				filename,
+				spFullPath,
 			},
 			envs: []string{
 				"SPRING_APPLICATION_NAME=found",
@@ -346,45 +349,45 @@ func TestExtractServiceMetadataSpringBoot(t *testing.T) {
 		},
 		{
 			name:    "spring boot default options",
-			jarname: filename,
+			jarname: spFullPath,
 			cmdline: []string{
 				"java",
 				"-jar",
-				filename,
+				spFullPath,
 			},
 			expected: "default-app",
 		},
 		{
 			name:    "spring boot prod profile",
-			jarname: filename,
+			jarname: spFullPath,
 			cmdline: []string{
 				"java",
 				"-Dspring.profiles.active=prod",
 				"-jar",
-				filename,
+				spFullPath,
 			},
 			expected: "default-app",
 		},
 		{
 			name:    "spring boot custom location",
-			jarname: filename,
+			jarname: spFullPath,
 			cmdline: []string{
 				"java",
 				"-Dspring.config.locations=classpath:/**/location/",
 				"-jar",
-				filename,
+				spFullPath,
 				"--spring.profiles.active=yaml",
 			},
 			expected: "yaml-app",
 		},
 		{
 			name:    "spring boot custom config name and non-matching profiles",
-			jarname: filename,
+			jarname: spFullPath,
 			cmdline: []string{
 				"java",
 				"-Dspring.config.name=custom",
 				"-jar",
-				filename,
+				spFullPath,
 				"--spring.profiles.active=prod,yaml",
 			},
 			expected: "custom-app",
@@ -392,7 +395,7 @@ func TestExtractServiceMetadataSpringBoot(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			app, ok := newSpringBootParser(NewDetectionContext(zap.NewNop(), tt.cmdline, tt.envs, fs)).GetSpringBootAppName(tt.jarname)
+			app, ok := newSpringBootParser(NewDetectionContext(zap.NewNop(), tt.cmdline, tt.envs, RealFs{})).GetSpringBootAppName(tt.jarname)
 			require.Equal(t, tt.expected, app)
 			require.Equal(t, len(app) > 0, ok)
 		})
