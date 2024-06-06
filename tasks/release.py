@@ -1418,7 +1418,7 @@ def build_rc(ctx, major_versions="6,7", patch_version=False, k8s_deployments=Fal
 
     run(
         ctx,
-        git_ref=gitlab_tag,
+        git_ref=gitlab_tag.name,
         use_release_entries=True,
         major_versions=major_versions,
         repo_branch="beta",
