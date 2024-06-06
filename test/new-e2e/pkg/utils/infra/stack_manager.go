@@ -599,7 +599,7 @@ func cancelStack(stack *auto.Stack, cancelTimeout time.Duration) error {
 	// handle timeout
 	ctxCauseErr := context.Cause(cancelCtx)
 	if errors.Is(ctxCauseErr, context.DeadlineExceeded) {
-		return fmt.Errorf("timeout during stack cancel: %v", ctxCauseErr)
+		return fmt.Errorf("timeout during stack cancel: %w", ctxCauseErr)
 	}
 
 	return err
