@@ -95,17 +95,17 @@ type apmInjectorInstaller struct {
 // Runs rollbacks if an error is passed and always runs cleanups
 func (a *apmInjectorInstaller) Finish(err error) error {
 	if err != nil {
-		// Run rollbacks
-		for _, rollback := range a.rollbacks {
-			if rollbackErr := rollback(); rollbackErr != nil {
+		// Run rollbacks in reverse order
+		for i := len(a.rollbacks) - 1; i >= 0; i-- {
+			if rollbackErr := a.rollbacks[i](); rollbackErr != nil {
 				log.Warnf("rollback failed: %w", rollbackErr)
 			}
 		}
 	}
 
-	// Run cleanups
-	for _, cleanup := range a.cleanups {
-		cleanup()
+	// Run cleanups in reverse order
+	for i := len(a.cleanups) - 1; i >= 0; i-- {
+		a.cleanups[i]()
 	}
 
 	return err
