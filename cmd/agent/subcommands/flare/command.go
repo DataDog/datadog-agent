@@ -36,6 +36,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
+	rcsetting "github.com/DataDog/datadog-agent/comp/core/settings"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
@@ -289,6 +290,13 @@ func makeFlare(flareComp flare.Component,
 		Quiet:    true,
 	}
 
+	defaultRCDuration := 60 * time.Second
+	rcStreamLogParams := streamlogs.CliParams{
+		FilePath: commonpath.DefaultStreamlogsLogFile,
+		Duration: defaultRCDuration,
+		Quiet:    true,
+	}
+
 	if streamLogParams.Duration < 0 {
 		fmt.Fprintln(color.Output, color.YellowString("Invalid duration provided for streaming logs, please provide a positive value"))
 	}
@@ -360,6 +368,20 @@ func makeFlare(flareComp flare.Component,
 	if streamLogParams.Duration > 0 {
 		fmt.Fprintln(color.Output, color.GreenString((fmt.Sprintf("Asking the agent to stream logs for %s", streamLogParams.Duration))))
 		err := streamlogs.StreamLogs(lc, config, &streamLogParams)
+		if err != nil {
+			fmt.Fprintln(color.Output, color.RedString(fmt.Sprintf("Error streaming logs: %s", err)))
+		}
+	}
+
+	enableStreamLog, settningErr := rcsetting.Component.GetRuntimeSetting("enable_stream_logs")
+
+	if settningErr != nil {
+		fmt.Fprintln(color.Output, color.RedString(fmt.Sprintf("Error getting runtime setting: %s", settningErr)))
+	}
+
+	if enableStreamLog.(bool) {
+		fmt.Fprintln(color.Output, color.GreenString((fmt.Sprintf("Asking the agent to stream logs for %s", defaultRCDuration))))
+		err := streamlogs.StreamLogs(lc, config, &rcStreamLogParams)
 		if err != nil {
 			fmt.Fprintln(color.Output, color.RedString(fmt.Sprintf("Error streaming logs: %s", err)))
 		}

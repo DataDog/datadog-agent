@@ -286,6 +286,12 @@ func (rc rcClient) agentConfigUpdateCallback(updates map[string]state.RawConfig,
 			newLevel := mergedConfig.LogLevel
 			pkglog.Infof("Changing log level to '%s' through remote config", newLevel)
 			err = rc.settingsComponent.SetRuntimeSetting("log_level", newLevel, model.SourceRC)
+
+			if mergedConfig.EnableStreamLogs {
+				err = rc.settingsComponent.SetRuntimeSetting("enable_stream_logs", true, model.SourceRC)
+			} else if !mergedConfig.EnableStreamLogs && config.Datadog().GetSource("streamLogs") == model.SourceRC {
+				err = rc.settingsComponent.SetRuntimeSetting("enable_stream_logs", false, model.SourceRC)
+			}
 		}
 
 	case model.SourceCLI:
@@ -387,11 +393,6 @@ func (rc rcClient) agentTaskUpdateCallback(updates map[string]state.RawConfig, a
 		}(originalConfigPath, originalConfig)
 	}
 
-	err := streamlogs.StreamLogs(rc.Log, rc.Config, getDefaultStreamLogParams())
-	if err != nil {
-		pkglog.Errorf("Error streaming logs: %v", err)
-	}
-
 	// Check if one of the task reaches timeout
 	c := make(chan struct{})
 	go func() {
@@ -410,7 +411,7 @@ func (rc rcClient) agentTaskUpdateCallback(updates map[string]state.RawConfig, a
 }
 
 func getDefaultStreamLogParams() *streamlogs.CliParams {
-	var defaultRemoteConfigDuration = 60 * time.Second
+	defaultRemoteConfigDuration := 60 * time.Second
 	return &streamlogs.CliParams{
 		FilePath: commonpath.DefaultStreamlogsLogFile,
 		Duration: defaultRemoteConfigDuration,
