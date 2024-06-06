@@ -39,6 +39,22 @@ function Format-IdentityAsName($identity) {
     }
 }
 
+function Get-RuleRights($rule) {
+    $rights = 0
+    if ($rule.FileSystemRights) {
+        $rights = $rule.FileSystemRights
+    } elseif ($rule.RegistryRights) {
+        $rights = $rule.RegistryRights
+    } else {
+        throw "Could not determine rights for rule"
+    }
+    # convert to unsigned int 32
+    if ($rights -lt 0) {
+        $rights = [uint32]::MaxValue + 1 + $rights
+    }
+    return $rights
+}
+
 # Retrieves the ACL for $path and returns it as a JSON object that can be unmarshalled by the test
 function ConvertTo-ACLDTO {
     # process block to support pipeline input
@@ -66,7 +82,7 @@ function ConvertTo-ACLDTO {
             $accessSid = Format-IdentityAsSID($access.IdentityReference)
             $accessName = Format-IdentityAsName($access.IdentityReference)
             $modifiedAccess = @{
-                Rights = $access.FileSystemRights
+                Rights = Get-RuleRights($access)
                 AccessControlType = $access.AccessControlType
                 IdentityReference = @{
                     Name = $accessName
@@ -84,7 +100,7 @@ function ConvertTo-ACLDTO {
             $auditSid = Format-IdentityAsSID($audit.IdentityReference.Value)
             $auditName = Format-IdentityAsName($audit.IdentityReference.Value)
             $modifiedAccess = @{
-                Rights = $audit.FileSystemRights
+                Rights = Get-RuleRights($audit)
                 AuditFlags = $audit.AuditFlags
                 IdentityReference = @{
                     Name = $auditName

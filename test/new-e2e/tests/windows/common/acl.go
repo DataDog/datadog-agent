@@ -89,6 +89,30 @@ const (
 	FileModify = FileWrite | FileReadAndExecute | DELETE
 )
 
+// Registry access rights
+//
+// https://learn.microsoft.com/en-us/windows/win32/sysinfo/registry-key-security-and-access-rights
+const (
+	KEY_CREATE_LINK        = 0x0020
+	KEY_CREATE_SUB_KEY     = 0x0004
+	KEY_ENUMERATE_SUB_KEYS = 0x0008
+	KEY_EXECUTE            = KEY_READ
+	KEY_NOTIFY             = 0x0010
+	KEY_QUERY_VALUE        = 0x0001
+	KEY_READ               = STANDARD_RIGHTS_READ | KEY_QUERY_VALUE | KEY_ENUMERATE_SUB_KEYS | KEY_NOTIFY
+	KEY_SET_VALUE          = 0x0002
+	KEY_WRITE              = STANDARD_RIGHTS_WRITE | KEY_SET_VALUE | KEY_CREATE_SUB_KEY
+	KEY_ALL_ACCESS         = STANDARD_RIGHTS_REQUIRED | KEY_QUERY_VALUE | KEY_SET_VALUE | KEY_CREATE_SUB_KEY | KEY_ENUMERATE_SUB_KEYS | KEY_NOTIFY | KEY_CREATE_LINK
+)
+
+// Registry access rights
+//
+// https://learn.microsoft.com/en-us/dotnet/api/system.security.accesscontrol.registryrights
+const (
+	// RegistryFullControl = 0xF003F
+	RegistryFullControl = TakeOwnership | ChangePermissions | ReadPermissions | DELETE | KEY_CREATE_LINK | KEY_NOTIFY | KEY_ENUMERATE_SUB_KEYS | KEY_CREATE_SUB_KEY | KEY_SET_VALUE | KEY_QUERY_VALUE
+)
+
 // Inheritance flags
 //
 // https://learn.microsoft.com/en-us/dotnet/api/system.security.accesscontrol.inheritanceflags
@@ -285,7 +309,31 @@ func GetFileSystemSecurityInfo(host *components.RemoteHost, path string) (Object
 
 	err = json.Unmarshal([]byte(output), &s)
 	if err != nil {
+		return s, fmt.Errorf("failed to unmarshal ACL information: %w\n%s", err, output)
+	}
+
+	return s, nil
+}
+
+// GetRegistrySecurityInfo returns the security information for the given registry key path using Get-ACL
+func GetRegistrySecurityInfo(host *components.RemoteHost, path string) (ObjectSecurity, error) {
+	var s ObjectSecurity
+
+	err := placeACLHelpers(host)
+	if err != nil {
 		return s, err
+	}
+
+	// Get the ACL information
+	cmd := fmt.Sprintf(`. %s; Get-Acl -Audit -Path '%s' | ConvertTo-ACLDTO`, aclHelpersPath, path)
+	output, err := host.Execute(cmd)
+	if err != nil {
+		return s, err
+	}
+
+	err = json.Unmarshal([]byte(output), &s)
+	if err != nil {
+		return s, fmt.Errorf("failed to unmarshal ACL information: %w\n%s", err, output)
 	}
 
 	return s, nil
