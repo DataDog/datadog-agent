@@ -35,6 +35,7 @@
     # Upload coverage files to Codecov. Never fail on coverage upload.
     - export CODECOV_TOKEN=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $CODECOV_TOKEN_SSM_NAME)
     - inv -e codecov || true
+    - inv -e gitlab.generate-ci-visibility-links --output=$EXTERNAL_LINKS_PATH
   artifacts:
     expire_in: 2 weeks
     when: always
@@ -53,13 +54,6 @@
   extends: .linux_tests
   after_script:
     - !reference [.upload_junit_source]
-    - inv -e gitlab.generate-ci-visibility-links --output=$EXTERNAL_LINKS_PATH
-  artifacts:
-    reports:
-      annotations:
-        - $EXTERNAL_LINKS_PATH
-  variables:
-    EXTERNAL_LINKS_PATH: external_links_$CI_JOB_ID.json
 
 .linux_lint:
   stage: source_test
