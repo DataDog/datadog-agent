@@ -530,9 +530,11 @@ def send_failure_summary_notification(
 
         blocks = [
             {'type': 'header', 'text': {'type': 'plain_text', 'text': header}},
-            {'type': 'section', 'text': {'type': 'mrkdwn', 'text': description}},
-            {'type': 'section', 'text': {'type': 'mrkdwn', 'text': '\n'.join(message)}},
-            {'type': 'context', 'elements': [{'type': 'mrkdwn', 'text': ':info: ' + footer}]},
+            {'type': 'section', 'text': {'type': 'mrkdwn', 'text': description}},] + [
+            {'type': 'section', 'text': {'type': 'mrkdwn', 'text': msg}} for msg in message
+            ] + [
+            {"type": "context", "elements": [{"type": "mrkdwn", "text": "Hello world"}]},
+            {'type': 'context', 'elements': [{'type': 'mrkdwn', 'text': ':information_source: ' + footer}]},
         ]
 
         # Send message
