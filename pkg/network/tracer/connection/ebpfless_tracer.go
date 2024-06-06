@@ -27,7 +27,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/ebpfless"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
-	"github.com/DataDog/datadog-agent/pkg/util/fargate"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -77,11 +76,6 @@ func NewEbpfLessTracer(cfg *config.Config) (Tracer, error) {
 }
 
 func newEbpfLessTracer(cfg *config.Config) (*ebpfLessTracer, error) {
-	// ebpfless only supported on fargate currently
-	if !fargate.IsFargateInstance() {
-		return nil, ErrEbpflessNotSupported
-	}
-
 	packetSrc, err := filter.NewPacketSource(8, filter.OptSnapLen(segmentLen))
 	if err != nil {
 		return nil, fmt.Errorf("error creating packet source: %w", err)
