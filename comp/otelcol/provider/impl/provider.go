@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
+// Package providerimpl TBD
 package providerimpl
 
 import (
@@ -34,7 +35,7 @@ type confDump struct {
 
 var _ otelcol.ConfigProvider = (*configProvider)(nil)
 
-// currently only supports a single URI in the uris slice, and this URI needs to be a file path.
+// NewConfigProvider currently only supports a single URI in the uris slice, and this URI needs to be a file path.
 func NewConfigProvider(reqs provider.Requires) (provider.Component, error) {
 	ocp, err := otelcol.NewConfigProvider(newDefaultConfigProviderSettings(reqs.URIs))
 	if err != nil {
@@ -95,6 +96,7 @@ func (cp *configProvider) Get(ctx context.Context, factories otelcol.Factories) 
 	return conf, nil
 }
 
+// nolint: deadcode, unused
 func (cp *configProvider) addProvidedConf(conf *otelcol.Config) error {
 	bytesConf, err := confToString(conf)
 	if err != nil {
@@ -105,6 +107,7 @@ func (cp *configProvider) addProvidedConf(conf *otelcol.Config) error {
 	return nil
 }
 
+// nolint: deadcode, unused
 func (cp *configProvider) addEnhancedConf(conf *otelcol.Config) error {
 	bytesConf, err := confToString(conf)
 	if err != nil {
@@ -136,6 +139,7 @@ func (cp *configProvider) GetEnhancedConf() string {
 // sensitive fields.
 // Note: Currently not supported until the following upstream PR:
 // https://github.com/open-telemetry/opentelemetry-collector/pull/10139 is merged.
+// nolint: deadcode, unused
 func confToString(conf *otelcol.Config) (string, error) {
 	cfg := confmap.New()
 	err := cfg.Marshal(conf)

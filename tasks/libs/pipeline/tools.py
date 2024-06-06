@@ -22,7 +22,7 @@ class FilteredOutException(Exception):
     pass
 
 
-def get_running_pipelines_on_same_ref(repo: Project, ref, sha=None) -> list[ProjectPipeline]:
+def get_running_pipelines_on_same_ref(repo: Project, ref: str, sha=None) -> list[ProjectPipeline]:
     pipelines = repo.pipelines.list(ref=ref, sha=sha, per_page=100, all=True)
 
     RUNNING_STATUSES = ["created", "pending", "running"]
