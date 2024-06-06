@@ -161,3 +161,11 @@ func TestIsStateSaved(t *testing.T) {
 	assert.Nil(t, err)
 	assert.Equal(t, ec.isStateSaved, ec.IsStateSaved())
 }
+
+func TestUpdatePersistedStateFilePath(t *testing.T) {
+	ec := ExecutionContext{}
+	assert.Equal(t, "", ec.persistedStateFilePath)
+
+	ec.UpdatePersistedStateFilePath("test-file-path")
+	assert.Equal(t, "test-file-path", ec.persistedStateFilePath)
+}
