@@ -67,8 +67,6 @@ func TestPatchNamespace(t *testing.T) {
 	expectedAnnotations := map[string]string{k8sutil.RcIDAnnotKey: "12345", k8sutil.RcRevisionAnnotKey: "12"}
 	requireMapHas(t, expectedLabels, got.ObjectMeta.Labels)
 	requireMapHas(t, expectedAnnotations, got.ObjectMeta.Annotations)
-	requireMapHas(t, expectedLabels, got.Labels)
-	requireMapHas(t, expectedAnnotations, got.Annotations)
 
 	// Enable the configuration on the same namespace
 	req.ID = "123456"
@@ -81,8 +79,6 @@ func TestPatchNamespace(t *testing.T) {
 	require.NoError(t, err)
 	requireMapHas(t, expectedLabels, got.ObjectMeta.Labels)
 	requireMapHas(t, expectedAnnotations, got.ObjectMeta.Annotations)
-	requireMapHas(t, expectedLabels, got.Labels)
-	requireMapHas(t, expectedAnnotations, got.Annotations)
 
 	// Disable the configuration
 	req.ID = "12345"
@@ -96,8 +92,6 @@ func TestPatchNamespace(t *testing.T) {
 	expectedLabels = map[string]string{k8sutil.RcLabelKey: "false"}
 	requireMapHas(t, expectedLabels, got.ObjectMeta.Labels)
 	requireMapHas(t, expectedAnnotations, got.ObjectMeta.Annotations)
-	requireMapHas(t, expectedLabels, got.Labels)
-	requireMapHas(t, expectedAnnotations, got.Annotations)
 
 	// Delete configuration
 	req.Action = DeleteConfig
@@ -110,9 +104,6 @@ func TestPatchNamespace(t *testing.T) {
 	require.NotContains(t, got.ObjectMeta.Labels, k8sutil.RcLabelKey)
 	require.NotContains(t, got.ObjectMeta.Annotations, k8sutil.RcIDAnnotKey)
 	require.NotContains(t, got.ObjectMeta.Annotations, k8sutil.RcRevisionAnnotKey)
-	require.NotContains(t, got.Labels, k8sutil.RcLabelKey)
-	require.NotContains(t, got.Annotations, k8sutil.RcIDAnnotKey)
-	require.NotContains(t, got.Annotations, k8sutil.RcRevisionAnnotKey)
 }
 
 func requireMapHas(t *testing.T, expected map[string]string, actual map[string]string) {
