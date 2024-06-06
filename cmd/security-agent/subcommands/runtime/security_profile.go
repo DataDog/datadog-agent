@@ -279,6 +279,7 @@ type securityProfileToWorloadPolicyCliParams struct {
 	service   string
 	imageName string
 	imageTag  string
+	fim       bool
 }
 
 func securityProfileToWorloadPolicyCommands(globalParams *command.GlobalParams) []*cobra.Command {
@@ -320,6 +321,13 @@ func securityProfileToWorloadPolicyCommands(globalParams *command.GlobalParams) 
 		"kill",
 		false,
 		"generate kill action with the workload policy",
+	)
+
+	securityProfileWorkloadPolicyCmd.Flags().BoolVar(
+		&cliParams.fim,
+		"fim",
+		false,
+		"generate fim rules with the workload policy",
 	)
 
 	securityProfileWorkloadPolicyCmd.Flags().BoolVar(
@@ -376,6 +384,7 @@ func securityProfileToWorkloadPolicy(_ log.Component, _ config.Component, _ secr
 		Service:    args.service,
 		ImageName:  args.imageName,
 		ImageTag:   args.imageTag,
+		FIM:        args.fim,
 	}
 
 	rules, err := sp.ToSECLRules(opts)

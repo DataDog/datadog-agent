@@ -107,6 +107,7 @@ type SECLRuleOpts struct {
 	ImageName  string
 	ImageTag   string
 	Service    string
+	FIM        bool
 }
 
 func (genType NodeGenerationType) String() string {
@@ -954,22 +955,41 @@ func processToSECLExecRules(processNode *ProcessNode, opts SECLRuleOpts) *rules.
 // ToSECL return SECL rules matching the activity of the given tree
 func (at *ActivityTree) ToSECLRules(opts SECLRuleOpts) ([]*rules.RuleDefinition, error) {
 	var (
-		path        []string
+		execPath    []string
 		ruleDefs    []*rules.RuleDefinition
 		execRuleExp []string
+		fimPath     []string
 	)
 
 	at.visit(func(processNode *ProcessNode) {
 		execRuleExp = append(execRuleExp, "("+processToSECLExecRules(processNode, opts).Expression+")")
-		path = append(path, processNode.Process.FileEvent.PathnameStr)
+		execPath = append(execPath, processNode.Process.FileEvent.PathnameStr)
 
 		for _, file := range processNode.Files {
 			at.visitFileNode(file, func(fileNode *FileNode) {
-
-				fmt.Print(">>>>>: %+v\n", fileNode.File.PathnameStr)
+				fimPath = append(fimPath, fileNode.File.PathnameStr)
 			})
 		}
 	})
+
+	if opts.FIM {
+		if len(fimPath) > 0 {
+			var els []string
+			for _, path := range fimPath {
+				if strings.Contains(path, "*") {
+					els = append(els, `~"`+path+`"`)
+				} else {
+					els = append(els, `"`+path+`"`)
+				}
+			}
+
+			ruleDef := &rules.RuleDefinition{
+				Expression: fmt.Sprintf(`open.file.path not in [%s]`, strings.Join(els, ", ")),
+			}
+			applyContext(ruleDef, opts)
+			ruleDefs = append(ruleDefs, ruleDef)
+		}
+	}
 
 	if opts.Lineage {
 		execRuleDef := &rules.RuleDefinition{
@@ -984,7 +1004,7 @@ func (at *ActivityTree) ToSECLRules(opts SECLRuleOpts) ([]*rules.RuleDefinition,
 
 	if opts.AllowList {
 		denyDef := &rules.RuleDefinition{
-			Expression: fmt.Sprintf(`exec.file.path not in ["%s"]`, strings.Join(path, `","`)),
+			Expression: fmt.Sprintf(`exec.file.path not in ["%s"]`, strings.Join(execPath, `","`)),
 		}
 		applyContext(denyDef, opts)
 		if opts.EnableKill {
