@@ -18,6 +18,7 @@ import (
 // see https://github.com/iovisor/bcc/blob/master/docs/kernel-versions.md
 var minKernelVersionKprobeSupported = VersionCode(4, 1, 0)
 
+// IsEbpfSupported returns `true` if eBPF is supported on this platform
 var IsEbpfSupported = funcs.MemoizeNoError(func() bool {
 	if fargate.IsFargateInstance() {
 		return false

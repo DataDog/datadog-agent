@@ -29,7 +29,7 @@ func newWindowsPacketSource() (packetSource, error) {
 	return &windowsPacketSource{di: di}, nil
 }
 
-func (p *windowsPacketSource) VisitPackets(exit <-chan struct{}, visit func([]byte, time.Time) error) error {
+func (p *windowsPacketSource) VisitPackets(exit <-chan struct{}, visit func([]byte, _uint8, time.Time) error) error {
 	for {
 		didReadPacket, err := p.di.ReadDNSPacket(visit)
 		if err != nil {

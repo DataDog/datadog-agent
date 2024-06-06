@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux
+//go:build linux && npm
 
 package connection
 
@@ -356,16 +356,11 @@ func (u *udpProcessor) process(conn *network.ConnectionStats, pktType uint8, ls 
 	return nil
 }
 
-type tcpAckSeq struct {
-	ack, seq uint32
-}
-
 type tcpProcessor struct {
 	buf   []byte
 	conns map[string]struct {
 		established bool
 		closed      bool
-		tx, rx      tcpAckSeq
 	}
 }
 
@@ -375,7 +370,6 @@ func newTCPProcessor() *tcpProcessor {
 		conns: map[string]struct {
 			established bool
 			closed      bool
-			tx, rx      tcpAckSeq
 		}{},
 	}
 }

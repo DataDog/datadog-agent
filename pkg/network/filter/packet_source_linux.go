@@ -44,7 +44,6 @@ var packetSourceTelemetry = struct {
 // AFPacketSource provides a RAW_SOCKET attached to an eBPF SOCKET_FILTER
 type AFPacketSource struct {
 	*afpacket.TPacket
-	socketFilter *manager.Probe
 
 	exit chan struct{}
 }
