@@ -17,6 +17,8 @@ type ddConverter struct {
 	confDump confDump
 }
 
+var _ confmap.Converter = (*ddConverter)(nil)
+
 type confDump struct {
 	provided string
 	enhanced string
