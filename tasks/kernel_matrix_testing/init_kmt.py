@@ -98,7 +98,7 @@ def init_kernel_matrix_testing_system(ctx: Context, lite: bool, images):
     # download dependencies
     if not lite:
         info("[+] Downloading VM images")
-        download_rootfs(ctx, kmt_os.rootfs_dir, "system-probe", images)
+        download_rootfs(ctx, kmt_os.rootfs_dir, "system-probe", arch=None, images=images)
 
     # Copy the SSH key we use to connect
     gen_ssh_key(ctx, kmt_os.kmt_dir)
