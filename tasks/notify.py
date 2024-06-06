@@ -515,25 +515,24 @@ def send_failure_summary_notification(
         flaky_tests = '' if allowed_to_fail else ' In case of tests, you can <https://datadoghq.atlassian.net/wiki/spaces/ADX/pages/3405611398/Flaky+tests+in+go+introducing+flake.Mark|mark them as flaky>.'
         expected_to_fail = 'They are allowed to fail' if allowed_to_fail else 'They are not expected to fail'
 
-        message = [f'*{period} Job Failure Report*']
-        # TODO
-        message.append(f'TO: *{channel}*')
-        message.append(f'These jobs{you_own} had the most failures in the last {duration}:')
-
+        message = []
         for name, fail in stats:
             link = CI_VISIBILITY_JOB_URL.format(quote(name))
             message.append(f"- <{link}|{name}>: *{fail} failures*")
 
         timestamp_start = int((datetime.now() - delta).timestamp() * 1000)
         timestamp_end = int(datetime.now().timestamp() * 1000)
-        message.append(
-            f'{expected_to_fail}. Click <https://app.datadoghq.com/ci/pipeline-executions?query=ci_level%3Ajob%20env%3Aprod%20%40git.repository.id%3A%22gitlab.ddbuild.io%2FDataDog%2Fdatadog-agent%22%20%40ci.pipeline.name%3A%22DataDog%2Fdatadog-agent%22%20%40ci.provider.instance%3Agitlab-ci%20%40git.branch%3Amain%20%40ci.status%3Aerror%20%40gitlab.pipeline_source%3A%28push%20OR%20schedule%29%20{not_allowed_query}%40ci.allowed_to_fail%3Atrue&agg_m=count&agg_m_source=base&agg_q=%40ci.job.name&start={timestamp_start}&end={timestamp_end}&agg_q_source=base&agg_t=count&fromUser=false&index=cipipeline&sort_m=count&sort_m_source=base&sort_t=count&top_n=25&top_o=top&viz=toplist&x_missing=true&paused=false|here> for more details.{flaky_tests}'
-        )
+
+        header = f'*{period} Job Failure Report*\nTO: *{channel}*\nThese jobs{you_own} had the most failures in the last {duration}:'
+        footer = f'{expected_to_fail}. Click <https://app.datadoghq.com/ci/pipeline-executions?query=ci_level%3Ajob%20env%3Aprod%20%40git.repository.id%3A%22gitlab.ddbuild.io%2FDataDog%2Fdatadog-agent%22%20%40ci.pipeline.name%3A%22DataDog%2Fdatadog-agent%22%20%40ci.provider.instance%3Agitlab-ci%20%40git.branch%3Amain%20%40ci.status%3Aerror%20%40gitlab.pipeline_source%3A%28push%20OR%20schedule%29%20{not_allowed_query}%40ci.allowed_to_fail%3Atrue&agg_m=count&agg_m_source=base&agg_q=%40ci.job.name&start={timestamp_start}&end={timestamp_end}&agg_q_source=base&agg_t=count&fromUser=false&index=cipipeline&sort_m=count&sort_m_source=base&sort_t=count&top_n=25&top_o=top&viz=toplist&x_missing=true&paused=false|here> for more details.{flaky_tests}'
+        messages = [header, '\n'.join(message), footer]
 
         # Send message
         client = WebClient(os.environ["SLACK_API_TOKEN"])
-        # client.chat_postMessage(channel=channel, text='\n'.join(message))
-        client.chat_postMessage(channel="#celian-tests", text='\n'.join(message))
+        # TODO : Updated tests
+        for message in messages:
+            # client.chat_postMessage(channel=channel, text=message)
+            client.chat_postMessage(channel="#celian-tests", text=message)
 
     for channel, stat in team_stats.items():
         send_summary(channel, stat)
