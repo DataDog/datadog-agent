@@ -7,6 +7,9 @@
 package dcaconfigcheck
 
 import (
+	"bytes"
+	"fmt"
+
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
@@ -60,5 +63,14 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 }
 
 func run(_ log.Component, _ config.Component, cliParams *cliParams) error {
-	return flare.GetClusterAgentConfigCheck(color.Output, cliParams.verbose)
+	var b bytes.Buffer
+	color.Output = &b
+
+	err := flare.GetClusterAgentConfigCheck(color.Output, cliParams.verbose)
+	if err != nil {
+		return fmt.Errorf("the agent ran into an error while checking config: %v", err)
+	}
+
+	fmt.Println(b.String())
+	return nil
 }

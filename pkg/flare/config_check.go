@@ -50,5 +50,7 @@ func GetClusterAgentConfigCheck(w io.Writer, withDebug bool) error {
 		return fmt.Errorf("failed to query the agent (running?): %s", err)
 	}
 
-	return nil
+	_, err = w.Write(r)
+
+	return err
 }
