@@ -151,7 +151,7 @@ type AuthorizationRuleWithRights interface {
 //
 // https://learn.microsoft.com/en-us/dotnet/api/system.security.accesscontrol.authorizationrule
 type AuthorizationRule struct {
-	Identity         Identity `json:"IdentityReference"`
+	Identity         Identity
 	InheritanceFlags int
 	PropagationFlags int
 	IsInherited      bool

@@ -84,7 +84,7 @@ function ConvertTo-ACLDTO {
             $modifiedAccess = @{
                 Rights = Get-RuleRights($access)
                 AccessControlType = $access.AccessControlType
-                IdentityReference = @{
+                Identity = @{
                     Name = $accessName
                     SID = $accessSid
                 }
@@ -102,7 +102,7 @@ function ConvertTo-ACLDTO {
             $modifiedAccess = @{
                 Rights = Get-RuleRights($audit)
                 AuditFlags = $audit.AuditFlags
-                IdentityReference = @{
+                Identity = @{
                     Name = $auditName
                     SID = $auditSid
                 }
