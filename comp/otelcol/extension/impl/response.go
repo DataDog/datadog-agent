@@ -1,16 +1,16 @@
 package impl
 
 type BuildInfoResponse struct {
-	otelAgentVersion string `json:"otel_agent_version"`
-	otelAgentCommand string `json:"otel_agent_command"`
-	otelAgentDesc    string `json:"otel_agent_description"`
+	agentVersion string `json:"version"`
+	agentCommand string `json:"command"`
+	agentDesc    string `json:"description"`
 }
 
 type ConfigResponse struct {
-	otelCustomerConfig        string `json:"otel_customer_configuration"`
-	otelEnvConfig             string `json:"otel_environment_configuration,omitempty"`
-	otelRuntimeOverrideConfig string `json:"otel_runtime_override_configuration"`
-	otelRuntimeConfig         string `json:"otel_runtime_configuration"`
+	customerConfig        string `json:"customer_configuration,omitempty"`
+	envConfig             string `json:"environment_configuration,omitempty,omitempty"`
+	runtimeOverrideConfig string `json:"runtime_override_configuration,omitempty"`
+	runtimeConfig         string `json:"runtime_configuration,omitempty"`
 }
 
 type OTelFlareSource struct {
@@ -25,6 +25,5 @@ type DebugSourceResponse struct {
 type Response struct {
 	BuildInfoResponse
 	ConfigResponse
-	OTelFlareSource
 	DebugSourceResponse
 }

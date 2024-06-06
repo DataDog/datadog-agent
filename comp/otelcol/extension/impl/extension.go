@@ -2,13 +2,16 @@ package impl
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 
-	"github.com/DataDog/datadog-agent/comp/otelcol/extension/impl/internal/metadata"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/extension"
 	"go.uber.org/zap"
+
+	"github.com/DataDog/datadog-agent/comp/otelcol/extension/impl/internal/metadata"
+	provider "github.com/DataDog/datadog-agent/comp/otelcol/provider/def"
 )
 
 var Type = metadata.Type
@@ -73,5 +76,35 @@ func (ext *ddExtension) Shutdown(ctx context.Context) error {
 
 // Start is called when the extension is started.
 func (ext *ddExtension) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	fmt.Fprintf(w, "Hello from my OpenTelemetry extension!\n")
+	provider, ok := ext.cfg.Provider.(provider.Component)
+	if !ok {
+		w.WriteHeader(http.StatusInternalServerError)
+		fmt.Fprintf(w, "Unable to get config provider\n")
+		return
+	}
+	resp := Response{
+		BuildInfoResponse: BuildInfoResponse{
+			agentVersion: ext.info.Version,
+			agentCommand: ext.info.Command,
+			agentDesc:    ext.info.Description,
+		},
+		ConfigResponse: ConfigResponse{
+			customerConfig: provider.GetProvidedConf(),
+			runtimeConfig:  provider.GetEnhancedConf(),
+		},
+		DebugSourceResponse: DebugSourceResponse{},
+	}
+	ext.telemetry.Logger.Info("Logging response", zap.String("response", fmt.Sprintf("%v", resp)))
+
+	j, err := json.MarshalIndent(resp, "", "  ")
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		fmt.Fprintf(w, "Unable to marshal output: %v\n", err)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	fmt.Fprintf(w, string(j))
+
 }
