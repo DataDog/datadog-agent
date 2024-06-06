@@ -287,6 +287,9 @@ var aclHelpersPs1Fixture []byte
 var aclHelpersPath = `C:\Windows\Temp\acl_helpers.ps1`
 
 func placeACLHelpers(host *components.RemoteHost) error {
+	if exists, _ := host.FileExists(aclHelpersPath); exists {
+		return nil
+	}
 	_, err := host.WriteFile(aclHelpersPath, aclHelpersPs1Fixture)
 	return err
 }
