@@ -247,24 +247,24 @@ func (r AccessRule) GetRights() int {
 	return r.Rights
 }
 
-// NewExplicitAccessRule creates a new explicit AccessRule for a file or directory
+// NewExplicitAccessRule creates a new explicit AccessRule
 //
 // Flags default to no inheritance, no no propagation
 func NewExplicitAccessRule(identity Identity, rights int, accessControlType int) AccessRule {
 	return NewExplicitAccessRuleWithFlags(identity, rights, accessControlType, InheritanceFlagsNone, PropagationFlagsNone)
 }
 
-// NewInheritedAccessRule creates a new inherited AccessRule for a file or directory
+// NewInheritedAccessRule creates a new inherited AccessRule
 func NewInheritedAccessRule(identity Identity, rights int, accessControlType int) AccessRule {
 	return NewInheritedAccessRuleWithFlags(identity, rights, accessControlType, InheritanceFlagsNone, PropagationFlagsNone)
 }
 
-// NewExplicitAccessRuleWithFlags creates a new AccessRule for a file or directory with the given flags
+// NewExplicitAccessRuleWithFlags creates a new AccessRule with the given flags
 func NewExplicitAccessRuleWithFlags(identity Identity, rights int, accessControlType int, inheritanceFlags int, propagationFlags int) AccessRule {
 	return newAccessRuleWithFlags(identity, rights, accessControlType, inheritanceFlags, propagationFlags, false)
 }
 
-// NewInheritedAccessRuleWithFlags creates a new inherited AccessRule for a file or directory with the given flags
+// NewInheritedAccessRuleWithFlags creates a new inherited AccessRule with the given flags
 func NewInheritedAccessRuleWithFlags(identity Identity, rights int, accessControlType int, inheritanceFlags int, propagationFlags int) AccessRule {
 	return newAccessRuleWithFlags(identity, rights, accessControlType, inheritanceFlags, propagationFlags, true)
 }
@@ -291,8 +291,12 @@ func placeACLHelpers(host *components.RemoteHost) error {
 	return err
 }
 
-// GetFileSystemSecurityInfo returns the security information for the given file or directory path using Get-ACL
-func GetFileSystemSecurityInfo(host *components.RemoteHost, path string) (ObjectSecurity, error) {
+// GetSecurityInfoForPath returns the security information for the given path using Get-ACL
+//   - Example file path: C:\Windows\Temp\file.txt
+//   - Example registry path: HKLM:\SOFTWARE\Datadog
+//
+// https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.security/get-acl
+func GetSecurityInfoForPath(host *components.RemoteHost, path string) (ObjectSecurity, error) {
 	var s ObjectSecurity
 
 	err := placeACLHelpers(host)
@@ -315,32 +319,8 @@ func GetFileSystemSecurityInfo(host *components.RemoteHost, path string) (Object
 	return s, nil
 }
 
-// GetRegistrySecurityInfo returns the security information for the given registry key path using Get-ACL
-func GetRegistrySecurityInfo(host *components.RemoteHost, path string) (ObjectSecurity, error) {
-	var s ObjectSecurity
-
-	err := placeACLHelpers(host)
-	if err != nil {
-		return s, err
-	}
-
-	// Get the ACL information
-	cmd := fmt.Sprintf(`. %s; Get-Acl -Audit -Path '%s' | ConvertTo-ACLDTO`, aclHelpersPath, path)
-	output, err := host.Execute(cmd)
-	if err != nil {
-		return s, err
-	}
-
-	err = json.Unmarshal([]byte(output), &s)
-	if err != nil {
-		return s, fmt.Errorf("failed to unmarshal ACL information: %w\n%s", err, output)
-	}
-
-	return s, nil
-}
-
-// NewProtectedFileSystemSecurityInfo creates a new ObjectSecurity with protected access rules (i.e. inheritance is disabled)
-func NewProtectedFileSystemSecurityInfo(owner Identity, group Identity, access []AccessRule) ObjectSecurity {
+// NewProtectedSecurityInfo creates a new ObjectSecurity with protected access rules (i.e. inheritance is disabled)
+func NewProtectedSecurityInfo(owner Identity, group Identity, access []AccessRule) ObjectSecurity {
 	return ObjectSecurity{
 		Owner:                   owner,
 		Group:                   group,
@@ -349,8 +329,8 @@ func NewProtectedFileSystemSecurityInfo(owner Identity, group Identity, access [
 	}
 }
 
-// NewInheritFileSystemSecurityInfo creates a new ObjectSecurity that can inherit access rules
-func NewInheritFileSystemSecurityInfo(owner Identity, group Identity, access []AccessRule) ObjectSecurity {
+// NewInheritSecurityInfo creates a new ObjectSecurity that can inherit access rules
+func NewInheritSecurityInfo(owner Identity, group Identity, access []AccessRule) ObjectSecurity {
 	return ObjectSecurity{
 		Owner:                   owner,
 		Group:                   group,

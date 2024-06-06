@@ -214,7 +214,7 @@ func getBaseConfigRootSecurity(host *components.RemoteHost) (windows.ObjectSecur
 		return expected, err
 	}
 	// SYSTEM and Administrators have full control
-	return windows.NewProtectedFileSystemSecurityInfo(
+	return windows.NewProtectedSecurityInfo(
 		systemIdentity,
 		systemIdentity,
 		[]windows.AccessRule{
@@ -275,7 +275,7 @@ func getBaseInheritedConfigFileSecurity(host *components.RemoteHost) (windows.Ob
 		return expected, err
 	}
 	// SYSTEM and Administrators have full control
-	return windows.NewInheritFileSystemSecurityInfo(
+	return windows.NewInheritSecurityInfo(
 		systemIdentity,
 		systemIdentity,
 		[]windows.AccessRule{
@@ -329,7 +329,7 @@ func getBaseInheritedConfigDirSecurity(host *components.RemoteHost) (windows.Obj
 		return expected, err
 	}
 	// SYSTEM and Administrators have full control
-	return windows.NewInheritFileSystemSecurityInfo(
+	return windows.NewInheritSecurityInfo(
 		systemIdentity,
 		systemIdentity,
 		[]windows.AccessRule{

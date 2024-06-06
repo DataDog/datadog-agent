@@ -385,7 +385,7 @@ func (t *Tester) testUninstalledFilePermissions(tt *testing.T) {
 	}
 	for _, tc := range tc {
 		tt.Run(tc.name, func(tt *testing.T) {
-			out, err := windows.GetFileSystemSecurityInfo(t.host, tc.path)
+			out, err := windows.GetSecurityInfoForPath(t.host, tc.path)
 			require.NoError(tt, err)
 			windows.AssertEqualAccessSecurity(tt, tc.path, tc.expectedSecurity(tt), out)
 		})
@@ -396,7 +396,9 @@ func (t *Tester) testUninstalledFilePermissions(tt *testing.T) {
 }
 
 func (t *Tester) testInstalledFilePermissions(tt *testing.T) {
-	ddagentUserIdentity, err := windows.GetIdentityForUser(t.host, windowsAgent.DefaultAgentUserName)
+	ddagentUserIdentity, err := windows.GetIdentityForUser(t.host,
+		windows.MakeDownLevelLogonName(t.expectedUserDomain, t.expectedUserName),
+	)
 	require.NoError(tt, err)
 
 	tc := []struct {
@@ -440,7 +442,7 @@ func (t *Tester) testInstalledFilePermissions(tt *testing.T) {
 	}
 	for _, tc := range tc {
 		tt.Run(tc.name, func(tt *testing.T) {
-			out, err := windows.GetFileSystemSecurityInfo(t.host, tc.path)
+			out, err := windows.GetSecurityInfoForPath(t.host, tc.path)
 			require.NoError(tt, err)
 			windows.AssertEqualAccessSecurity(tt, tc.path, tc.expectedSecurity(tt), out)
 		})
@@ -463,7 +465,7 @@ func (t *Tester) testInstalledFilePermissions(tt *testing.T) {
 		windows.PropagationFlagsNone,
 	)
 	for _, path := range embeddedPaths {
-		out, err := windows.GetFileSystemSecurityInfo(t.host, path)
+		out, err := windows.GetSecurityInfoForPath(t.host, path)
 		require.NoError(tt, err)
 		windows.AssertContainsEqualable(tt, out.Access, agentUserFullAccessDirRule, "%s should have full access rule for %s", path, ddagentUserIdentity)
 		assert.False(tt, out.AreAccessRulesProtected, "%s should inherit access rules", path)
