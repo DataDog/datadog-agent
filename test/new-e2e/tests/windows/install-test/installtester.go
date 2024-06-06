@@ -252,6 +252,20 @@ func (t *Tester) TestUninstallExpectations(tt *testing.T) {
 // Only do some basic checks on the agent since it's a previous version
 func (t *Tester) testPreviousVersionExpectations(tt *testing.T) {
 	RequireAgentRunningWithNoErrors(tt, t.InstallTestClient)
+
+	serviceTester, err := servicetest.NewTester(t.host,
+		servicetest.WithExpectedAgentUser(t.expectedUserDomain, t.expectedUserName),
+		servicetest.WithExpectedInstallPath(t.expectedInstallPath),
+		servicetest.WithExpectedConfigRoot(t.expectedConfigRoot),
+	)
+	require.NoError(tt, err)
+	tt.Run("service config", func(tt *testing.T) {
+		actual, err := windows.GetServiceConfigMap(t.host, servicetest.ExpectedInstalledServices())
+		require.NoError(tt, err)
+		expected, err := serviceTester.ExpectedServiceConfig()
+		require.NoError(tt, err)
+		servicetest.AssertEqualServiceConfigValues(tt, expected, actual)
+	})
 }
 
 // More in depth checks on current version
