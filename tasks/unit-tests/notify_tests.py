@@ -425,8 +425,18 @@ class TestSendNotification(unittest.TestCase):
     @patch.object(notify.ConsecutiveJobAlert, 'message', lambda self, ctx: '\n'.join(self.failures) + '\n')
     @patch.object(notify.CumulativeJobAlert, 'message', lambda self: '\n'.join(self.failures))
     def test_jobowners(self, mock_slack: MagicMock):
-        consecutive = {'tests_hello': [notify.ExecutionsJobInfo(1)] * notify.CONSECUTIVE_THRESHOLD, 'security_go_generate_check': [notify.ExecutionsJobInfo(1)] * notify.CONSECUTIVE_THRESHOLD}
-        cumulative = {'tests_release1': [notify.ExecutionsJobInfo(i, failing=i % 3 != 0) for i in range(notify.CUMULATIVE_LENGTH)], 'tests_release2': [notify.ExecutionsJobInfo(i, failing=i % 3 != 0) for i in range(notify.CUMULATIVE_LENGTH)]}
+        consecutive = {
+            'tests_hello': [notify.ExecutionsJobInfo(1)] * notify.CONSECUTIVE_THRESHOLD,
+            'security_go_generate_check': [notify.ExecutionsJobInfo(1)] * notify.CONSECUTIVE_THRESHOLD,
+        }
+        cumulative = {
+            'tests_release1': [
+                notify.ExecutionsJobInfo(i, failing=i % 3 != 0) for i in range(notify.CUMULATIVE_LENGTH)
+            ],
+            'tests_release2': [
+                notify.ExecutionsJobInfo(i, failing=i % 3 != 0) for i in range(notify.CUMULATIVE_LENGTH)
+            ],
+        }
 
         alert_jobs = {"consecutive": consecutive, "cumulative": cumulative}
         notify.send_notification(MagicMock(), alert_jobs, jobowners='tasks/unit-tests/testdata/jobowners.txt')
@@ -479,6 +489,6 @@ class TestSendFailureSummaryNotification(unittest.TestCase):
 
         for call_args in mock_slack.return_value.chat_postMessage.call_args_list:
             channel = call_args.kwargs['channel']
-            message = call_args.kwargs['text']
-            njobs = message.count("\n-")
+            message = json.dumps(call_args.kwargs['blocks'])
+            njobs = message.count("- ")
             self.assertEqual(expected_team_njobs.get(channel, None), njobs, 'Failure for channel: ' + channel)
