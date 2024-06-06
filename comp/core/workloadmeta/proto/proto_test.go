@@ -381,13 +381,12 @@ func TestConversions(t *testing.T) {
 }
 
 func TestProtobufFilterFromWorkloadmetaFilter(t *testing.T) {
-	filter := workloadmeta.NewFilter(
-		&workloadmeta.FilterParams{
-			Kinds:     []workloadmeta.Kind{workloadmeta.KindContainer},
-			Source:    workloadmeta.SourceRuntime,
-			EventType: workloadmeta.EventTypeSet,
-		},
-	)
+
+	filter := workloadmeta.NewFilterBuilder().
+		SetSource(workloadmeta.SourceRuntime).
+		SetEventType(workloadmeta.EventTypeSet).
+		AddKind(workloadmeta.KindContainer).
+		Build()
 
 	protoFilter, err := ProtobufFilterFromWorkloadmetaFilter(filter)
 	require.NoError(t, err)
