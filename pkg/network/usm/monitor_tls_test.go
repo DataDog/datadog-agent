@@ -96,6 +96,9 @@ func (s *tlsSuite) TestHTTPSViaLibraryIntegration() {
 			fetchCmd: []string{"curl", "--http1.1", "-k", "-o/dev/null", "-d", tempFile},
 		},
 		{
+			// musl (used in, for example, Alpine Linux) uses the open(2) system
+			// call to open shared libraries, unlike glibc (default in most
+			// other distributions) which uses openat(2) or openat2(2).
 			name:     "curl (musl)",
 			fetchCmd: []string{"chroot"},
 			getBinaryAndCommand: func(t *testing.T) (string, []string) {
