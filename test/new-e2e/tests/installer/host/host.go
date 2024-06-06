@@ -90,6 +90,10 @@ func (h *Host) InstallDocker() {
 
 // GetDockerRuntimePath returns the runtime path of a docker runtime
 func (h *Host) GetDockerRuntimePath(runtime string) string {
+	if _, err := h.remote.Execute("command -v docker"); err != nil {
+		return ""
+	}
+
 	var cmd string
 	switch h.os.Flavor {
 	case e2eos.AmazonLinux:
