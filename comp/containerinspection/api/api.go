@@ -6,8 +6,14 @@ import (
 	"time"
 )
 
+// Component defines the containerinspection component interface.
 type Component interface {
+	// PodContainerMetadata attempts to get metadata about the pod containers specified
+	// in the MetadataRequest.
 	PodContainerMetadata(context.Context, MetadataRequest) (MetadataResponse, error)
+
+	// PodContainerMetadataHandlerFunc produces a http.HandlerFunc to execute
+	// PodContainerMetadata and writes the output as JSON.
 	PodContainerMetadataHandlerFunc() http.HandlerFunc
 }
 
@@ -31,18 +37,6 @@ type MetadataRequest struct {
 	StaleImageDuration *time.Duration
 }
 
-type ContainerMetadata struct {
-	Name       string   `json:"name,omitempty"`
-	Cmd        []string `json:"cmd,omitempty"`
-	WorkingDir string   `json:"workingDir,omitempty"`
-
-	// N.B. We can add language and process data here as well.
-}
-
-type MetadataResponse struct {
-	Containers map[string]ContainerMetadata `json:"containers"`
-}
-
 // ContainerSpec refers to the data we are passing from the _original_
 // kubernetes container spec to our container inspection code.
 //
@@ -59,4 +53,17 @@ type ContainerSpec struct {
 	Args       []string `json:"args,omitempty"`
 	WorkingDir string   `json:"workingDir,omitempty"`
 	Image      string   `json:"image,omitempty"`
+}
+
+type MetadataResponse struct {
+	Containers map[string]ContainerMetadata `json:"containers"`
+}
+
+// ContainerMetadata is the data we determine about a given container.
+type ContainerMetadata struct {
+	Name       string   `json:"name,omitempty"`
+	Cmd        []string `json:"cmd,omitempty"`
+	WorkingDir string   `json:"workingDir,omitempty"`
+
+	// N.B. We can add language and process data here as well.
 }
