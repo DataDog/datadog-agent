@@ -257,15 +257,12 @@ func (suite *k8sSuite) TestClusterAgentConfigCheck() {
 			LabelSelector: fields.OneTermEqualSelector("app", appSelector).String(),
 			Limit:         1,
 		})
-		if suite.NoError(err) && len(linuxPods.Items) >= 1 {
-			stdout, stderr, err := suite.podExec("datadog", linuxPods.Items[0].Name, "cluster-agent", []string{"agent", "configcheck"})
-			if suite.NoError(err) {
-				suite.Empty(stderr, "Standard error of `agent configcheck` should be empty")
-				suite.Contains(stdout, "=== kubernetes_apiserver check ===")
-			} else {
-				suite.T().Errorf("No cluster agent pod found. %v\n", err)
-			}
-		}
+		suite.Require().NoError(err)
+		suite.Require().Len(linuxPods.Items, 1)
+		stdout, stderr, err := suite.podExec("datadog", linuxPods.Items[0].Name, "cluster-agent", []string{"agent", "configcheck"})
+		suite.Require().NoError(err)
+		suite.Empty(stderr, "Standard error of `agent configcheck` should be empty")
+		suite.Contains(stdout, "=== kubernetes_apiserver check ===")
 	})
 }
 

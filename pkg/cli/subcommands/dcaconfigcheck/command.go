@@ -66,9 +66,8 @@ func run(_ log.Component, _ config.Component, cliParams *cliParams) error {
 	var b bytes.Buffer
 	color.Output = &b
 
-	err := flare.GetClusterAgentConfigCheck(color.Output, cliParams.verbose)
-	if err != nil {
-		return fmt.Errorf("the agent ran into an error while checking config: %v", err)
+	if err := flare.GetClusterAgentConfigCheck(color.Output, cliParams.verbose); err != nil {
+		return fmt.Errorf("the agent ran into an error while checking config: %w", err)
 	}
 
 	fmt.Println(b.String())
