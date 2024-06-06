@@ -26,18 +26,21 @@ func TestPatchNamespace(t *testing.T) {
 	env := "dev"
 
 	// Create target namespace
-	ns := v1.Namespace{}
-	ns.ObjectMeta.Name = name
-	ns.ObjectMeta.Labels = make(map[string]string)
-	ns.ObjectMeta.Annotations = make(map[string]string)
-	client.CoreV1().Namespaces().Create(context.TODO(), &ns, metav1.CreateOptions{})
+	ns := v1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:        name,
+			Labels:      make(map[string]string),
+			Annotations: make(map[string]string),
+		},
+	}
+	_, _ = client.CoreV1().Namespaces().Create(context.TODO(), &ns, metav1.CreateOptions{})
 
 	// Create patcher
 	p := patcher{
 		k8sClient:            client,
 		isLeader:             func() bool { return true },
 		telemetryCollector:   telemetry.NewNoopCollector(),
-		configIDToNamespaces: make(map[string]*[]string),
+		configIDToNamespaces: make(map[string][]string),
 	}
 
 	// Create request skeleton
@@ -60,12 +63,12 @@ func TestPatchNamespace(t *testing.T) {
 	// Check the patch
 	got, err := client.CoreV1().Namespaces().Get(context.TODO(), name, metav1.GetOptions{})
 	require.NoError(t, err)
-	require.Equal(t, got.ObjectMeta.Labels[k8sutil.RcLabelKey], "true")
-	require.Equal(t, got.ObjectMeta.Annotations[k8sutil.RcIDAnnotKey], "12345")
-	require.Equal(t, got.ObjectMeta.Annotations[k8sutil.RcRevisionAnnotKey], "12")
-	require.Equal(t, got.Labels[k8sutil.RcLabelKey], "true")
-	require.Equal(t, got.Annotations[k8sutil.RcIDAnnotKey], "12345")
-	require.Equal(t, got.Annotations[k8sutil.RcRevisionAnnotKey], "12")
+	expectedLabels := map[string]string{k8sutil.RcLabelKey: "true"}
+	expectedAnnotations := map[string]string{k8sutil.RcIDAnnotKey: "12345", k8sutil.RcRevisionAnnotKey: "12"}
+	requireMapHas(t, expectedLabels, got.ObjectMeta.Labels)
+	requireMapHas(t, expectedAnnotations, got.ObjectMeta.Annotations)
+	requireMapHas(t, expectedLabels, got.Labels)
+	requireMapHas(t, expectedAnnotations, got.Annotations)
 
 	// Enable the configuration on the same namespace
 	req.ID = "123456"
@@ -76,12 +79,10 @@ func TestPatchNamespace(t *testing.T) {
 	// Check the patch
 	got, err = client.CoreV1().Namespaces().Get(context.TODO(), name, metav1.GetOptions{})
 	require.NoError(t, err)
-	require.Equal(t, got.ObjectMeta.Labels[k8sutil.RcLabelKey], "true")
-	require.Equal(t, got.ObjectMeta.Annotations[k8sutil.RcIDAnnotKey], "12345")
-	require.Equal(t, got.ObjectMeta.Annotations[k8sutil.RcRevisionAnnotKey], "12")
-	require.Equal(t, got.Labels[k8sutil.RcLabelKey], "true")
-	require.Equal(t, got.Annotations[k8sutil.RcIDAnnotKey], "12345")
-	require.Equal(t, got.Annotations[k8sutil.RcRevisionAnnotKey], "12")
+	requireMapHas(t, expectedLabels, got.ObjectMeta.Labels)
+	requireMapHas(t, expectedAnnotations, got.ObjectMeta.Annotations)
+	requireMapHas(t, expectedLabels, got.Labels)
+	requireMapHas(t, expectedAnnotations, got.Annotations)
 
 	// Disable the configuration
 	req.ID = "12345"
@@ -92,12 +93,11 @@ func TestPatchNamespace(t *testing.T) {
 	// Check the patch
 	got, err = client.CoreV1().Namespaces().Get(context.TODO(), name, metav1.GetOptions{})
 	require.NoError(t, err)
-	require.Equal(t, got.ObjectMeta.Labels[k8sutil.RcLabelKey], "false")
-	require.Equal(t, got.ObjectMeta.Annotations[k8sutil.RcIDAnnotKey], "12345")
-	require.Equal(t, got.ObjectMeta.Annotations[k8sutil.RcRevisionAnnotKey], "12")
-	require.Equal(t, got.Labels[k8sutil.RcLabelKey], "false")
-	require.Equal(t, got.Annotations[k8sutil.RcIDAnnotKey], "12345")
-	require.Equal(t, got.Annotations[k8sutil.RcRevisionAnnotKey], "12")
+	expectedLabels = map[string]string{k8sutil.RcLabelKey: "false"}
+	requireMapHas(t, expectedLabels, got.ObjectMeta.Labels)
+	requireMapHas(t, expectedAnnotations, got.ObjectMeta.Annotations)
+	requireMapHas(t, expectedLabels, got.Labels)
+	requireMapHas(t, expectedAnnotations, got.Annotations)
 
 	// Delete configuration
 	req.Action = DeleteConfig
@@ -113,4 +113,11 @@ func TestPatchNamespace(t *testing.T) {
 	require.NotContains(t, got.Labels, k8sutil.RcLabelKey)
 	require.NotContains(t, got.Annotations, k8sutil.RcIDAnnotKey)
 	require.NotContains(t, got.Annotations, k8sutil.RcRevisionAnnotKey)
+}
+
+func requireMapHas(t *testing.T, expected map[string]string, actual map[string]string) {
+	t.Helper()
+	for k, v := range expected {
+		require.Equal(t, v, actual[k])
+	}
 }
