@@ -7,6 +7,7 @@ function Install-DDAgent
         [String] $AgentVersion,
         [String] $AgentInstallLogPath,
         [Parameter()][ValidateSet('DotNet')][String[]]$WithAPMTracers,
+        [switch] $RestartIIS,
 
         # Parameters that are only valid on first install
         [String]$ApiKey,
@@ -32,6 +33,12 @@ function Install-DDAgent
         if ($WithAPMTracers -contains "DotNet") # note that -contains is a case insensitive operator
         {
             installDotnetTracer -uniqueID $uniqueID
+            if ($RestartIIS)
+            {
+                Write-Host "Restarting IIS"
+                stop-service -force was
+                Restart-Service -Name W3SVC -Force
+            }
         }
     }
 
