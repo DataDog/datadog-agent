@@ -62,7 +62,7 @@ func (b *BoundPorts) Start() error {
 				return
 			case <-ticker.C:
 				if err := b.update(); err != nil {
-					log.Errorf("error updating bound ports, exiting loop: %w", err)
+					log.Errorf("error updating bound ports, exiting loop: %s", err)
 					return
 				}
 			}
