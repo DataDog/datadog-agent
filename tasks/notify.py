@@ -452,7 +452,6 @@ def update_statistics(job_executions: PipelineRuns):
 
 
 def send_notification(ctx: Context, alert_jobs, jobowners=".gitlab/JOBOWNERS"):
-    # TODO : Update tests
     def send_alert(channel, consecutive: ConsecutiveJobAlert, cumulative: CumulativeJobAlert):
         message = consecutive.message(ctx) + cumulative.message()
         message = message.strip()
