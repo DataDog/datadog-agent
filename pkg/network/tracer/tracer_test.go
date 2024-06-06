@@ -211,7 +211,7 @@ func (s *TracerSuite) TestTCPSendAndReceive() {
 	assert.Equal(t, addrPort(server.address), int(conn.DPort))
 	assert.Equal(t, network.OUTGOING, conn.Direction)
 	assert.True(t, conn.IntraHost)
-	if !cfg.EbpflessSupported() {
+	if !cfg.EnableEbpfless {
 		assert.Equal(t, os.Getpid(), int(conn.Pid))
 	}
 }
@@ -1040,7 +1040,7 @@ func testDNSStats(t *testing.T, tr *Tracer, domain string, success, failure, tim
 	}, 3*time.Second, 100*time.Millisecond, "failed to find connection")
 
 	assert.Equal(t, queryMsg.Len(), int(conn.Monotonic.SentBytes))
-	if !tr.config.EbpflessSupported() {
+	if !tr.config.EnableEbpfless {
 		assert.Equal(t, os.Getpid(), int(conn.Pid))
 	}
 	assert.Equal(t, dnsServerAddr.Port, int(conn.DPort))
@@ -1270,13 +1270,13 @@ func (s *TracerSuite) TestTCPDirection() {
 }
 
 func skipOnEbpflessNotSupported(t *testing.T, cfg *config.Config) {
-	if cfg.EbpflessSupported() {
+	if cfg.EnableEbpfless {
 		t.Skip("not supported on ebpf-less")
 	}
 }
 
 func skipEbpflessTodo(t *testing.T, cfg *config.Config) {
-	if cfg.EbpflessSupported() {
+	if cfg.EnableEbpfless {
 		t.Skip("TODO: ebpf-less")
 	}
 }

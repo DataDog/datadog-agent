@@ -27,6 +27,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/ebpfless"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/util/fargate"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -39,8 +40,8 @@ const (
 )
 
 var (
-	// ErrEbpflessNotSupportedOrEnabled is the error returned when the ebpfless tracer is not supported
-	ErrEbpflessNotSupportedOrEnabled = errors.New("ebpf-less tracer not supported or enabled")
+	// ErrEbpflessNotSupported is the error returned when the ebpfless tracer is not supported
+	ErrEbpflessNotSupported = errors.New("ebpf-less tracer not supported")
 
 	ebpfLessTracerTelemetry = struct {
 		skippedPackets telemetry.Counter
@@ -76,8 +77,9 @@ func NewEbpfLessTracer(cfg *config.Config) (Tracer, error) {
 }
 
 func newEbpfLessTracer(cfg *config.Config) (*ebpfLessTracer, error) {
-	if !cfg.EbpflessSupported() {
-		return nil, ErrEbpflessNotSupportedOrEnabled
+	// ebpfless only supported on fargate currently
+	if !fargate.IsFargateInstance() {
+		return nil, ErrEbpflessNotSupported
 	}
 
 	packetSrc, err := filter.NewPacketSource(8, filter.OptSnapLen(segmentLen))

@@ -29,6 +29,7 @@ import (
 	"testing"
 	"time"
 
+	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/features"
 	"github.com/cilium/ebpf/rlimit"
@@ -37,8 +38,6 @@ import (
 	"github.com/stretchr/testify/require"
 	vnetns "github.com/vishvananda/netns"
 	"golang.org/x/sys/unix"
-
-	manager "github.com/DataDog/ebpf-manager"
 
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
@@ -1855,7 +1854,7 @@ func (s *TracerSuite) TestPreexistingConnectionDirection() {
 	m := outgoing.Monotonic
 	assert.Equal(t, clientMessageSize, int(m.SentBytes))
 	assert.Equal(t, serverMessageSize, int(m.RecvBytes))
-	if !tr.config.EbpflessSupported() {
+	if !tr.config.EnableEbpfless {
 		assert.Equal(t, os.Getpid(), int(outgoing.Pid))
 	}
 	assert.Equal(t, addrPort(server.address), int(outgoing.DPort))
@@ -1865,7 +1864,7 @@ func (s *TracerSuite) TestPreexistingConnectionDirection() {
 	m = incoming.Monotonic
 	assert.Equal(t, clientMessageSize, int(m.RecvBytes))
 	assert.Equal(t, serverMessageSize, int(m.SentBytes))
-	if !tr.config.EbpflessSupported() {
+	if !tr.config.EnableEbpfless {
 		assert.Equal(t, os.Getpid(), int(incoming.Pid))
 	}
 	assert.Equal(t, addrPort(server.address), int(incoming.SPort))

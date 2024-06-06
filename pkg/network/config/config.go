@@ -16,7 +16,6 @@ import (
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
-	"github.com/DataDog/datadog-agent/pkg/util/fargate"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -424,9 +423,4 @@ func New() *Config {
 
 func (c *Config) RingBufferSupportedNPM() bool {
 	return (features.HaveMapType(cebpf.RingBuf) == nil) && c.NPMRingbuffersEnabled
-}
-
-func (c *Config) EbpflessSupported() bool {
-	return c.EnableEbpfless &&
-		fargate.IsFargateInstance()
 }
