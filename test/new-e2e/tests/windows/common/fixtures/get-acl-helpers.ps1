@@ -48,11 +48,13 @@ function Get-RuleRights($rule) {
     } else {
         throw "Could not determine rights for rule"
     }
-    # convert to unsigned int 32
+    # Make sure to cast to int to get the real value from the Enum
+    # https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_enum
+    $rights = [int]$rights
     if ($rights -lt 0) {
         $rights = [uint32]::MaxValue + 1 + $rights
     }
-    return $rights
+    return [uint32]($rights -band 0xffffffffL)
 }
 
 # Retrieves the ACL for $path and returns it as a JSON object that can be unmarshalled by the test
