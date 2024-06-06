@@ -33,7 +33,7 @@ type patcher struct {
 	clusterName        string
 	// Map of RC IDs to the list of namespaces in scope for the remote config;
 	// to be used for removing APM Instrumentation for hard deleted RC configurations
-	configIDToNamespaces map[string]*[]string
+	configIDToNamespaces map[string][]string
 }
 
 func newPatcher(k8sClient kubernetes.Interface, isLeaderFunc func() bool, telemetryCollector telemetry.TelemetryCollector, pp patchProvider, clusterName string) *patcher {
@@ -43,7 +43,7 @@ func newPatcher(k8sClient kubernetes.Interface, isLeaderFunc func() bool, teleme
 		deploymentsQueue:     pp.subscribe(KindCluster),
 		telemetryCollector:   telemetryCollector,
 		clusterName:          clusterName,
-		configIDToNamespaces: make(map[string]*[]string),
+		configIDToNamespaces: make(map[string][]string),
 	}
 }
 
@@ -63,25 +63,45 @@ func (p *patcher) start(stopCh <-chan struct{}) {
 	}
 }
 
+type mutateNamespaceFunc func(*v1.Namespace, Request)
+
 func (p *patcher) patchNamespaces(req Request) error {
 	if !p.isLeader() {
 		log.Debug("Not leader, skipping")
 		return nil
 	}
 
-	var namespaces []string
-	if req.Action == DeleteConfig {
-		// If the action is to hard delete existing RC configuration, get the list of namespaces that were instrumented by the RC configuration
-		namespaces = *p.configIDToNamespaces[req.ID]
-		defer delete(p.configIDToNamespaces, req.ID)
-	} else {
-		// If the action is to enable/disable RC configuration, get the list of namespaces from K8sTarget
+	var (
+		namespaces      []string
+		mutateNamespace mutateNamespaceFunc
+	)
+
+	// If our action is to enable, or disable the configuration,
+	// we get the list of namespaces from the target clusters provided.
+	//
+	// When deleting, we get the full list of namespaces and clear it.
+	switch req.Action {
+	case EnableConfig:
+		mutateNamespace = enableConfig
 		namespaces = p.getNamespacesToInstrument(req.K8sTarget.ClusterTargets)
-		p.configIDToNamespaces[req.ID] = &namespaces
+		p.configIDToNamespaces[req.ID] = namespaces
+	case DisableConfig:
+		mutateNamespace = disableConfig
+		namespaces = p.getNamespacesToInstrument(req.K8sTarget.ClusterTargets)
+		p.configIDToNamespaces[req.ID] = namespaces
+	case DeleteConfig:
+		mutateNamespace = deleteConfig
+		namespaces = p.configIDToNamespaces[req.ID]
+		defer delete(p.configIDToNamespaces, req.ID)
+	default:
+		return fmt.Errorf("unkown action %q", req.Action)
 	}
 
+	nsClient := p.k8sClient.CoreV1().Namespaces()
+	ctx := context.TODO()
+
 	for _, ns := range namespaces {
-		namespace, err := p.k8sClient.CoreV1().Namespaces().Get(context.TODO(), ns, metav1.GetOptions{})
+		namespace, err := nsClient.Get(ctx, ns, metav1.GetOptions{})
 		if err != nil {
 			return err
 		}
@@ -93,16 +113,8 @@ func (p *patcher) patchNamespaces(req Request) error {
 			namespace.ObjectMeta.Labels = make(map[string]string)
 		}
 
-		switch req.Action {
-		case EnableConfig:
-			enableConfig(namespace, req)
-		case DisableConfig:
-			disableConfig(namespace)
-		case DeleteConfig:
-			deleteConfig(namespace, req.ID)
-		default:
-			return fmt.Errorf("unknown action %q", req.Action)
-		}
+		// mutate the namespace
+		mutateNamespace(namespace, req)
 
 		newObj, err := json.Marshal(namespace)
 		if err != nil {
@@ -113,7 +125,7 @@ func (p *patcher) patchNamespaces(req Request) error {
 			return fmt.Errorf("failed to build the JSON patch: %v", err)
 		}
 
-		if _, err = p.k8sClient.CoreV1().Namespaces().Patch(context.TODO(), ns, types.StrategicMergePatchType, patch, metav1.PatchOptions{}); err != nil {
+		if _, err = nsClient.Patch(ctx, ns, types.StrategicMergePatchType, patch, metav1.PatchOptions{}); err != nil {
 			p.telemetryCollector.SendRemoteConfigPatchEvent(req.getApmRemoteConfigEvent(err, telemetry.FailedToMutateConfig))
 			return err
 		}
@@ -149,10 +161,11 @@ func (p *patcher) getNamespacesToInstrument(targets []K8sClusterTarget) []string
 			continue
 		}
 	}
+
 	return enabledNamespaces
 }
 
-// enableConfig adds APM Instrumention label and annotations to the namespace
+// enableConfig adds APM Instrumentation label and annotations to the namespace
 func enableConfig(ns *v1.Namespace, req Request) {
 	oldLabel, labelOk := ns.ObjectMeta.Labels[k8sutil.RcLabelKey]
 	oldID, annotationOk := ns.ObjectMeta.Annotations[k8sutil.RcIDAnnotKey]
@@ -180,8 +193,8 @@ func enableConfig(ns *v1.Namespace, req Request) {
 	ns.ObjectMeta.Annotations[k8sutil.RcRevisionAnnotKey] = fmt.Sprint(req.Revision)
 }
 
-// disableConfig removes APM Instrumention label from the namespace
-func disableConfig(ns *v1.Namespace) {
+// disableConfig removes APM Instrumentation label from the namespace
+func disableConfig(ns *v1.Namespace, _ Request) {
 	rcIDLabelVal, ok := ns.ObjectMeta.Labels[k8sutil.RcLabelKey]
 	if !ok {
 		log.Errorf("APM Instrumentation cannot be disabled in namespace %s because the namespace is missing RC label", ns.Name)
@@ -191,15 +204,15 @@ func disableConfig(ns *v1.Namespace) {
 	}
 }
 
-// deleteConfig removes APM Instrumention label and annotations from the namespace
-func deleteConfig(ns *v1.Namespace, reqID string) {
+// deleteConfig removes APM Instrumentation label and annotations from the namespace
+func deleteConfig(ns *v1.Namespace, req Request) {
 	delete(ns.ObjectMeta.Labels, k8sutil.RcLabelKey)
 	if len(ns.ObjectMeta.Labels) == 0 {
 		ns.Labels = nil
 	}
 
 	if id, ok := ns.ObjectMeta.Annotations[k8sutil.RcIDAnnotKey]; ok {
-		if id != reqID {
+		if id != req.ID {
 			log.Errorf("APM Instrumentation cannot be deleted for provided RC ID")
 			return
 		}
