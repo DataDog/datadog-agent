@@ -211,6 +211,7 @@ func (d *Destination) run(input chan *message.Payload, output chan *message.Payl
 	d.updateRetryState(nil, isRetrying)
 	stopChan <- struct{}{}
 }
+
 func (d *Destination) sendConcurrent(payload *message.Payload, output chan *message.Payload, isRetrying chan bool) {
 	d.wg.Add(1)
 	d.climit <- struct{}{}
@@ -219,11 +220,6 @@ func (d *Destination) sendConcurrent(payload *message.Payload, output chan *mess
 			<-d.climit
 			d.wg.Done()
 		}()
-		if d.serverlessFlushChan != nil {
-			// In serverless we sync when a payload is sent with on-demand flushes
-			serverlessWg := <-d.serverlessFlushChan
-			defer serverlessWg.Done()
-		}
 		d.sendAndRetry(payload, output, isRetrying)
 	}()
 }
@@ -243,6 +239,16 @@ func (d *Destination) sendAndRetry(payload *message.Payload, output chan *messag
 			metrics.RetryTimeSpent.Add(int64(backoffDuration))
 			metrics.RetryCount.Add(1)
 			metrics.TlmRetryCount.Add(1)
+		}
+
+		if d.serverlessFlushChan != nil {
+			// In serverless we attempt to sync an on-demand flush with when a payload is sent
+			select {
+			case serverlessWg := <-d.serverlessFlushChan:
+				defer serverlessWg.Done()
+			case <-time.After(1 * time.Second):
+				log.Debug("Timed out waiting for serverless logs flush.")
+			}
 		}
 
 		err := d.unconditionalSend(payload)
@@ -317,7 +323,6 @@ func (d *Destination) unconditionalSend(payload *message.Payload) (err error) {
 	req.Header.Set("dd-current-timestamp", strconv.FormatInt(then.UnixMilli(), 10))
 
 	req = req.WithContext(ctx)
-	fmt.Println("==================== unconditionalSend")
 	resp, err := d.client.Do(req)
 
 	latency := time.Since(then).Milliseconds()
@@ -340,7 +345,6 @@ func (d *Destination) unconditionalSend(payload *message.Payload) (err error) {
 		log.Debugf("Server closed or terminated the connection after serving the request with err %v", err)
 		return err
 	}
-	fmt.Printf("======================= response: %+v\n", resp)
 
 	metrics.DestinationHttpRespByStatusAndUrl.Add(strconv.Itoa(resp.StatusCode), 1)
 	metrics.TlmDestinationHttpRespByStatusAndUrl.Inc(strconv.Itoa(resp.StatusCode), d.url)
