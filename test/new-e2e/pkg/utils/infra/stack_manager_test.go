@@ -73,7 +73,7 @@ func TestStackManager(t *testing.T) {
 		}()
 		require.NotNil(t, result)
 		retryOnErrorLogs := filterRetryOnErrorLogs(mockWriter.logs)
-		assert.Len(t, retryOnErrorLogs, 0)
+		assert.Empty(t, retryOnErrorLogs)
 		assert.Len(t, mockDatadogEventSender.events, 1)
 		assert.Contains(t, mockDatadogEventSender.events[0].Title, fmt.Sprintf("[E2E] Stack %s : success on Pulumi stack up", stackName))
 	})
