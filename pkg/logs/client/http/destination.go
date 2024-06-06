@@ -219,14 +219,12 @@ func (d *Destination) sendConcurrent(payload *message.Payload, output chan *mess
 			<-d.climit
 			d.wg.Done()
 		}()
-		select {
-		case serverlessWg := <-d.serverlessFlushChan:
+		if d.serverlessFlushChan != nil {
 			// In serverless we sync when a payload is sent with on-demand flushes
+			serverlessWg := <-d.serverlessFlushChan
 			defer serverlessWg.Done()
-			d.sendAndRetry(payload, output, isRetrying)
-		default:
-			d.sendAndRetry(payload, output, isRetrying)
 		}
+		d.sendAndRetry(payload, output, isRetrying)
 	}()
 }
 
@@ -319,6 +317,7 @@ func (d *Destination) unconditionalSend(payload *message.Payload) (err error) {
 	req.Header.Set("dd-current-timestamp", strconv.FormatInt(then.UnixMilli(), 10))
 
 	req = req.WithContext(ctx)
+	fmt.Println("==================== unconditionalSend")
 	resp, err := d.client.Do(req)
 
 	latency := time.Since(then).Milliseconds()
@@ -341,6 +340,7 @@ func (d *Destination) unconditionalSend(payload *message.Payload) (err error) {
 		log.Debugf("Server closed or terminated the connection after serving the request with err %v", err)
 		return err
 	}
+	fmt.Printf("======================= response: %+v\n", resp)
 
 	metrics.DestinationHttpRespByStatusAndUrl.Add(strconv.Itoa(resp.StatusCode), 1)
 	metrics.TlmDestinationHttpRespByStatusAndUrl.Inc(strconv.Itoa(resp.StatusCode), d.url)
