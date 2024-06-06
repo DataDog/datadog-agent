@@ -11,3 +11,6 @@ test/new-e2e/tests/containers:
   - TestECSSuite/TestCPU/metric___container.cpu.usage{^ecs_container_name:stress-ng$}
   - TestEKSSuite/TestCPU/metric___container.cpu.usage{^kube_deployment:stress-ng$,^kube_namespace:workload-cpustress$}
   - TestKindSuite/TestCPU/metric___container.cpu.usage{^kube_deployment:stress-ng$,^kube_namespace:workload-cpustress$}
+
+pkg/network/usm:
+  - TestGRPCScenarios/runtime_compiled/with_TLS/TestSimpleGRPCScenarios/validate_HTTP2_MAX_HEADERS_COUNT_FOR_FILTERING_limit_without_missmatch-different_clients_-_2
