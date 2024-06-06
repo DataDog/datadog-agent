@@ -16,9 +16,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@0ad4b8fadaa221de15dcec353f45205ec38ea70b # v4.1.4
         with:
-          # TODO
-          # ref: main
-          ref: celian/rfc-team-notifications-4-acix-255
+          ref: main
       - name: Setup python
         uses: actions/setup-python@82c7e631bb3cdc910f68e0081d67478d79c6982d # v5.1.0
         with:
