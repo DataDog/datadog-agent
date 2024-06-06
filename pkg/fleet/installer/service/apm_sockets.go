@@ -74,21 +74,14 @@ func getSocketsPath() (string, string, error) {
 }
 
 // configureSocketsEnv configures the sockets for the agent & injector
-func configureSocketsEnv(ctx context.Context) (retErr error) {
+func (a *apmInjectorInstaller) configureSocketsEnv(ctx context.Context) (retErr error) {
 	envFile := newFileMutator(envFilePath, setSocketEnvs, nil, nil)
-	defer envFile.cleanup()
+	a.cleanups = append(a.cleanups, envFile.cleanup)
 	rollback, err := envFile.mutate(ctx)
 	if err != nil {
 		return err
 	}
-	defer func() {
-		if retErr != nil && rollback != nil {
-			rollbackErr := rollback()
-			if err := rollback(); err != nil {
-				log.Warnf("Failed to rollback environment file: %v", rollbackErr)
-			}
-		}
-	}()
+	a.rollbacks = append(a.rollbacks, rollback)
 	// Make sure the file is word readable
 	if err := os.Chmod(envFilePath, 0644); err != nil {
 		return fmt.Errorf("error changing permissions of %s: %w", envFilePath, err)
@@ -148,7 +141,7 @@ func addEnvsIfNotSet(envs map[string]string, envFile []byte) ([]byte, error) {
 // Reloading systemd & restarting the unit has to be done separately by the caller
 func addSystemDEnvOverrides(ctx context.Context, unit string) (err error) {
 	span, _ := tracer.StartSpanFromContext(ctx, "add_systemd_env_overrides")
-	defer span.Finish(tracer.WithError(err))
+	defer func() { span.Finish(tracer.WithError(err)) }()
 	span.SetTag("unit", unit)
 
 	// The - is important as it lets the unit start even if the file is missing.
