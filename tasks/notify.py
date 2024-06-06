@@ -483,7 +483,7 @@ def send_failure_summary_notification(
         args = os.environ["ARGS"]
         args = json.loads(args)
         jobs = args['jobs']
-        allowed_to_fail = args['allowedToFail']
+        allowed_to_fail = not args['allowedToFail']
 
     # List of (job_name, failure_count) ordered by failure_count
     stats = sorted(
