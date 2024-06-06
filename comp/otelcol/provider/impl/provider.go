@@ -33,7 +33,7 @@ type confDump struct {
 	enhanced string
 }
 
-// currently only supports a single URI in the uris slice, and this URI needs to be a file path.
+// NewConfigProvider currently only supports a single URI in the uris slice, and this URI needs to be a file path.
 func NewConfigProvider(reqs provider.Requires) (provider.Component, error) {
 	ocp, err := otelcol.NewConfigProvider(newDefaultConfigProviderSettings(reqs.URIs))
 	if err != nil {
