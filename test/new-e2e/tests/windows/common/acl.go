@@ -245,7 +245,7 @@ func (r AuditRule) AuditSuccess() bool {
 	return (r.AuditFlags & AuditFlagsSuccess) == AuditFlagsSuccess
 }
 
-// IsFailure returns true if failed access attempts are audited
+// AuditFailure returns true if failed access attempts are audited
 func (r AuditRule) AuditFailure() bool {
 	return (r.AuditFlags & AuditFlagsFailure) == AuditFlagsFailure
 }
