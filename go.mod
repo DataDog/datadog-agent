@@ -622,14 +622,14 @@ require (
 	github.com/DataDog/datadog-agent/comp/netflow/payload v0.55.0-rc.2
 	github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/def v0.55.0-rc.2
 	github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/impl v0.55.0-rc.2
+	github.com/DataDog/datadog-agent/comp/otelcol/converter/def v0.55.0-rc.1
+	github.com/DataDog/datadog-agent/comp/otelcol/converter/impl v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline v0.55.0-rc.2
 	github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline/logsagentpipelineimpl v0.55.0-rc.2
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/datadogexporter v0.55.0-rc.2
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/logsagentexporter v0.55.0-rc.2
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/serializerexporter v0.55.0-rc.2
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/testutil v0.55.0-rc.2
-	github.com/DataDog/datadog-agent/comp/otelcol/provider/def v0.55.0-rc.2
-	github.com/DataDog/datadog-agent/comp/otelcol/provider/impl v0.55.0-rc.2
 	github.com/DataDog/datadog-agent/comp/serializer/compression v0.55.0-rc.2
 	github.com/DataDog/datadog-agent/pkg/aggregator/ckey v0.55.0-rc.2
 	github.com/DataDog/datadog-agent/pkg/api v0.55.0-rc.2

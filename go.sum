@@ -2461,8 +2461,6 @@ github.com/open-telemetry/opentelemetry-collector-contrib/exporter/clickhouseexp
 github.com/open-telemetry/opentelemetry-collector-contrib/exporter/clickhouseexporter v0.102.0/go.mod h1:GYissqEY7xreb42IRH65tm6xoAKXYggPcTGir/17l7k=
 github.com/open-telemetry/opentelemetry-collector-contrib/exporter/coralogixexporter v0.102.0 h1:0oKcoHCNp3NRNKZyz0OzraVNMFCa/xr2MC1foKI4jl0=
 github.com/open-telemetry/opentelemetry-collector-contrib/exporter/coralogixexporter v0.102.0/go.mod h1:pZpOiHOh6PkwhjUQnynFw9RSceSQAg1j0lx2DKDzyKU=
-github.com/open-telemetry/opentelemetry-collector-contrib/exporter/datadogexporter v0.102.0 h1:ibVjZzsJ+a0Ak5QhIYqAfjxpt4RKeN7QS/dFkQHwyV0=
-github.com/open-telemetry/opentelemetry-collector-contrib/exporter/datadogexporter v0.102.0/go.mod h1:qGz/lAZL7DCqVE+kqMvnrBaad4r9iIZwBjzkbaDmAok=
 github.com/open-telemetry/opentelemetry-collector-contrib/exporter/datasetexporter v0.102.0 h1:iWXaRwauk1qm7MsQwa1vfQyR9nPL6sewcTp+Lx0cCQw=
 github.com/open-telemetry/opentelemetry-collector-contrib/exporter/datasetexporter v0.102.0/go.mod h1:Nfb0m9Y7obvWRXXxrmKpeMZIQskkYylYpaBOwHSOsUY=
 github.com/open-telemetry/opentelemetry-collector-contrib/exporter/elasticsearchexporter v0.102.0 h1:/116gAaHquf3n6qEwpdaY4z3whxgpo5eL9aXZEKnmzY=
