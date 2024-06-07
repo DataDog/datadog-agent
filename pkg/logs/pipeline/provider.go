@@ -51,6 +51,7 @@ type provider struct {
 
 	serverless          bool
 	serverlessFlushChan chan *sync.WaitGroup
+	serverlessFlushWg   *sync.WaitGroup
 
 	status   statusinterface.Status
 	hostname hostnameinterface.Component
@@ -96,6 +97,7 @@ func (p *provider) Start() {
 
 	if p.serverless {
 		p.serverlessFlushChan = make(chan *sync.WaitGroup)
+		p.serverlessFlushWg = &sync.WaitGroup{}
 	}
 
 	for i := 0; i < p.numberOfPipelines; i++ {
@@ -173,10 +175,9 @@ func (p *provider) NextPipelineChan() chan *message.Message {
 // Flush flushes synchronously all the contained pipeline of this provider.
 func (p *provider) Flush(ctx context.Context) {
 	if p.serverless {
-		wg := &sync.WaitGroup{}
-		wg.Add(1)
-		defer wg.Wait()
-		go func() { p.serverlessFlushChan <- wg }()
+		p.serverlessFlushWg.Add(1)
+		defer p.serverlessFlushWg.Wait()
+		go func() { p.serverlessFlushChan <- p.serverlessFlushWg }()
 	}
 
 	for _, p := range p.pipelines {
