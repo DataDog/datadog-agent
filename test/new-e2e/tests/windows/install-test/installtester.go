@@ -263,7 +263,7 @@ func (t *Tester) testPreviousVersionExpectations(tt *testing.T) {
 func (t *Tester) testCurrentVersionExpectations(tt *testing.T) {
 	common.CheckInstallation(tt, t.InstallTestClient)
 
-	ddagentUserIdentity, err := windows.GetIdentityForUser(t.host,
+	ddAgentUserIdentity, err := windows.GetIdentityForUser(t.host,
 		windows.MakeDownLevelLogonName(t.expectedUserDomain, t.expectedUserName),
 	)
 	require.NoError(tt, err)
@@ -339,13 +339,13 @@ func (t *Tester) testCurrentVersionExpectations(tt *testing.T) {
 			security, err := windows.GetServiceSecurityInfo(t.host, serviceName)
 			require.NoError(tt, err)
 			// ddagentuser should have start/stop/read permissions
-			if !windows.IsIdentityLocalSystem(ddagentUserIdentity) {
+			if !windows.IsIdentityLocalSystem(ddAgentUserIdentity) {
 				expected := windows.NewExplicitAccessRule(
-					ddagentUserIdentity,
+					ddAgentUserIdentity,
 					windows.SERVICE_START|windows.SERVICE_STOP|windows.SERVICE_GENERIC_READ,
 					windows.AccessControlTypeAllow,
 				)
-				windows.AssertContainsEqualable(tt, security.Access, expected, "%s should have access rule for %s", serviceName, ddagentUserIdentity)
+				windows.AssertContainsEqualable(tt, security.Access, expected, "%s should have access rule for %s", serviceName, ddAgentUserIdentity)
 			}
 			// [7.47 - 7.50) added an ACE for Everyone, make sure it isn't there
 			expected := windows.NewExplicitAccessRule(
@@ -370,7 +370,7 @@ func (t *Tester) testCurrentVersionExpectations(tt *testing.T) {
 	})
 
 	tt.Run("file permissions", func(tt *testing.T) {
-		t.testInstalledFilePermissions(tt)
+		t.testInstalledFilePermissions(tt, ddAgentUserIdentity)
 	})
 
 	tt.Run("registry permissions", func(tt *testing.T) {
@@ -379,13 +379,13 @@ func (t *Tester) testCurrentVersionExpectations(tt *testing.T) {
 		path := windowsAgent.RegistryKeyPath
 		out, err := windows.GetSecurityInfoForPath(t.host, path)
 		require.NoError(tt, err)
-		if !windows.IsIdentityLocalSystem(ddagentUserIdentity) {
+		if !windows.IsIdentityLocalSystem(ddAgentUserIdentity) {
 			agentUserFullAccessDirRule := windows.NewExplicitAccessRule(
-				ddagentUserIdentity,
+				ddAgentUserIdentity,
 				windows.RegistryFullControl,
 				windows.AccessControlTypeAllow,
 			)
-			windows.AssertContainsEqualable(tt, out.Access, agentUserFullAccessDirRule, "%s should have full access rule for %s", path, ddagentUserIdentity)
+			windows.AssertContainsEqualable(tt, out.Access, agentUserFullAccessDirRule, "%s should have full access rule for %s", path, ddAgentUserIdentity)
 		}
 		assert.False(tt, out.AreAccessRulesProtected, "%s should inherit access rules", path)
 	})
@@ -444,12 +444,7 @@ func (t *Tester) testUninstalledFilePermissions(tt *testing.T) {
 	// doesn't exist after uninstall so don't need to test
 }
 
-func (t *Tester) testInstalledFilePermissions(tt *testing.T) {
-	ddagentUserIdentity, err := windows.GetIdentityForUser(t.host,
-		windows.MakeDownLevelLogonName(t.expectedUserDomain, t.expectedUserName),
-	)
-	require.NoError(tt, err)
-
+func (t *Tester) testInstalledFilePermissions(tt *testing.T, ddAgentUserIdentity windows.Identity) {
 	tc := []struct {
 		name             string
 		path             string
@@ -459,7 +454,7 @@ func (t *Tester) testInstalledFilePermissions(tt *testing.T) {
 			name: "ConfigRoot",
 			path: t.expectedConfigRoot,
 			expectedSecurity: func(tt *testing.T) windows.ObjectSecurity {
-				s, err := getExpectedConfigRootSecurityWithAgent(ddagentUserIdentity)
+				s, err := getExpectedConfigRootSecurityWithAgent(ddAgentUserIdentity)
 				require.NoError(tt, err)
 				return s
 			},
@@ -468,7 +463,7 @@ func (t *Tester) testInstalledFilePermissions(tt *testing.T) {
 			name: "datadog.yaml",
 			path: filepath.Join(t.expectedConfigRoot, "datadog.yaml"),
 			expectedSecurity: func(tt *testing.T) windows.ObjectSecurity {
-				s, err := getExpectedInheritedConfigFileSecurityWithAgent(ddagentUserIdentity)
+				s, err := getExpectedInheritedConfigFileSecurityWithAgent(ddAgentUserIdentity)
 				require.NoError(tt, err)
 				return s
 			},
@@ -477,7 +472,7 @@ func (t *Tester) testInstalledFilePermissions(tt *testing.T) {
 			name: "conf.d",
 			path: filepath.Join(t.expectedConfigRoot, "conf.d"),
 			expectedSecurity: func(tt *testing.T) windows.ObjectSecurity {
-				s, err := getExpectedInheritedConfigDirSecurityWithAgent(ddagentUserIdentity)
+				s, err := getExpectedInheritedConfigDirSecurityWithAgent(ddAgentUserIdentity)
 				require.NoError(tt, err)
 				return s
 			},
@@ -501,7 +496,7 @@ func (t *Tester) testInstalledFilePermissions(tt *testing.T) {
 		)
 	}
 	agentUserFullAccessDirRule := windows.NewExplicitAccessRuleWithFlags(
-		ddagentUserIdentity,
+		ddAgentUserIdentity,
 		windows.FileFullControl,
 		windows.AccessControlTypeAllow,
 		windows.InheritanceFlagsContainer|windows.InheritanceFlagsObject,
@@ -510,8 +505,8 @@ func (t *Tester) testInstalledFilePermissions(tt *testing.T) {
 	for _, path := range embeddedPaths {
 		out, err := windows.GetSecurityInfoForPath(t.host, path)
 		require.NoError(tt, err)
-		if !windows.IsIdentityLocalSystem(ddagentUserIdentity) {
-			windows.AssertContainsEqualable(tt, out.Access, agentUserFullAccessDirRule, "%s should have full access rule for %s", path, ddagentUserIdentity)
+		if !windows.IsIdentityLocalSystem(ddAgentUserIdentity) {
+			windows.AssertContainsEqualable(tt, out.Access, agentUserFullAccessDirRule, "%s should have full access rule for %s", path, ddAgentUserIdentity)
 		}
 		assert.False(tt, out.AreAccessRulesProtected, "%s should inherit access rules", path)
 	}
