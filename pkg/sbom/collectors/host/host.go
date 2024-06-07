@@ -10,7 +10,6 @@ package host
 import (
 	"context"
 	"fmt"
-	"io/fs"
 	"reflect"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -22,38 +21,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"github.com/DataDog/datadog-agent/pkg/util/trivy"
 )
-
-// channelSize defines the result channel size
-// It doesn't need more than 1 because the host collector should
-// not trigger multiple scans at the same time unlike for container-images.
-const channelSize = 1
-
-// scanRequest defines a scan request. This struct should be
-// hashable to be pushed in the work queue for processing.
-type scanRequest struct {
-	Path string
-	FS   fs.FS
-}
-
-// NewScanRequest creates a new scan request
-func NewScanRequest(path string, fs fs.FS) sbom.ScanRequest {
-	return scanRequest{Path: path, FS: fs}
-}
-
-// Collector returns the collector name
-func (r scanRequest) Collector() string {
-	return collectors.HostCollector
-}
-
-// Type returns the scan request type
-func (r scanRequest) Type(sbom.ScanOptions) string {
-	return sbom.ScanFilesystemType
-}
-
-// ID returns the scan request ID
-func (r scanRequest) ID() string {
-	return r.Path
-}
 
 // Collector defines a host collector
 type Collector struct {
@@ -97,33 +64,4 @@ func (c *Collector) Scan(ctx context.Context, request sbom.ScanRequest) sbom.Sca
 		Error:  err,
 		Report: report,
 	}
-}
-
-// Type returns the container image scan type
-func (c *Collector) Type() collectors.ScanType {
-	return collectors.HostScanType
-}
-
-// Channel returns the channel to send scan results
-func (c *Collector) Channel() chan sbom.ScanResult {
-	return c.resChan
-}
-
-// Options returns the collector options
-func (c *Collector) Options() sbom.ScanOptions {
-	return c.opts
-}
-
-// Shutdown shuts down the collector
-func (c *Collector) Shutdown() {
-	if c.resChan != nil && !c.closed {
-		close(c.resChan)
-	}
-	c.closed = true
-}
-
-func init() {
-	collectors.RegisterCollector(collectors.HostCollector, &Collector{
-		resChan: make(chan sbom.ScanResult, channelSize),
-	})
 }

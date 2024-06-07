@@ -16,6 +16,7 @@ import (
 // setupConfigHandlers adds the specific handlers for /config endpoints
 func setupConfigHandlers(r *mux.Router, settings settings.Component) {
 	r.HandleFunc("/config", settings.GetFullConfig(getAggregatedNamespaces()...)).Methods("GET")
+	r.HandleFunc("/config/by-source", settings.GetFullConfigBySource()).Methods("GET")
 	r.HandleFunc("/config/list-runtime", settings.ListConfigurable).Methods("GET")
 	r.HandleFunc("/config/{setting}", settings.GetValue).Methods("GET")
 	r.HandleFunc("/config/{setting}", settings.SetValue).Methods("POST")

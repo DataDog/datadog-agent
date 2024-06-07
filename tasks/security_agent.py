@@ -16,12 +16,12 @@ from tasks.agent import generate_config
 from tasks.build_tags import get_default_build_tags
 from tasks.go import run_golangci_lint
 from tasks.libs.build.ninja import NinjaWriter
+from tasks.libs.common.git import get_current_branch
 from tasks.libs.common.utils import (
     REPO_PATH,
     bin_name,
     environ,
     get_build_flags,
-    get_git_branch_name,
     get_git_commit,
     get_go_version,
     get_gopath,
@@ -77,7 +77,7 @@ def build(
     ld_vars = {
         "Version": get_version(ctx, major_version=major_version),
         "GoVersion": get_go_version(),
-        "GitBranch": get_git_branch_name(),
+        "GitBranch": get_current_branch(ctx),
         "GitCommit": get_git_commit(),
         "BuildDate": datetime.datetime.now().strftime("%Y-%m-%dT%H:%M:%S"),
     }
@@ -899,6 +899,7 @@ def sync_secl_win_pkg(ctx):
         ("field_handlers_windows.go", "field_handlers_win.go"),
         ("accessors_windows.go", "accessors_win.go"),
         ("legacy_secl.go", None),
+        ("security_profile.go", None),
     ]
 
     ctx.run("rm -r pkg/security/seclwin/model")

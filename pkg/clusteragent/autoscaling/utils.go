@@ -9,12 +9,44 @@ package autoscaling
 
 import (
 	"encoding/hex"
-	"encoding/json"
 	"fmt"
+	"time"
 
 	"github.com/twmb/murmur3"
+	"k8s.io/apimachinery/pkg/api/resource"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/conversion"
+	"k8s.io/apimachinery/pkg/fields"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/util/dump"
+)
+
+// Semantic can do semantic deep equality checks for api objects.
+// Customized from https://github.com/kubernetes/apimachinery/blob/master/pkg/api/equality/semantic.go
+// - Change time comparison to remove sub-second precision as serialized time in k8s objects are truncated to seconds.
+// Copyright 2014 The Kubernetes Authors.
+var Semantic = conversion.EqualitiesOrDie(
+	func(a, b resource.Quantity) bool {
+		// Ignore formatting, only care that numeric value stayed the same.
+		// TODO: if we decide it's important, it should be safe to start comparing the format.
+		//
+		// Uninitialized quantities are equivalent to 0 quantities.
+		return a.Cmp(b) == 0
+	},
+	func(a, b metav1.MicroTime) bool {
+		return a.Truncate(time.Second).UTC() == b.Truncate(time.Second).UTC()
+	},
+	func(a, b metav1.Time) bool {
+		return a.Truncate(time.Second).UTC() == b.Truncate(time.Second).UTC()
+	},
+	func(a, b labels.Selector) bool {
+		return a.String() == b.String()
+	},
+	func(a, b fields.Selector) bool {
+		return a.String() == b.String()
+	},
 )
 
 // BuildObjectID returns a string that uniquely identifies an object
@@ -49,14 +81,9 @@ func ToUnstructured(structIn any) (*unstructured.Unstructured, error) {
 }
 
 // ObjectHash returns a hash of the object
-func ObjectHash(spec interface{}) (string, error) {
-	b, err := json.Marshal(spec)
-	if err != nil {
-		return "", err
-	}
-
-	hasher := murmur3.New128()
-	_, err = hasher.Write(b)
+func ObjectHash(obj interface{}) (string, error) {
+	hasher := murmur3.New64()
+	_, err := hasher.Write([]byte(dump.ForHash(obj)))
 	if err != nil {
 		return "", err
 	}

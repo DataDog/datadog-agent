@@ -116,7 +116,7 @@ func (c *Controller) enqueue(obj interface{}) {
 func (c *Controller) enqueueID(id, sender string) {
 	// Do not enqueue our own updates (avoid infinite loops)
 	if sender != c.ID {
-		log.Tracef("Enqueueing from store update id: %s from sender: %s", id, sender)
+		log.Tracef("Enqueueing from observer update id: %s from sender: %s", id, sender)
 		c.Workqueue.AddRateLimited(id)
 	}
 }
