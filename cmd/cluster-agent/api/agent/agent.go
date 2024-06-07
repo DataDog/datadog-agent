@@ -163,7 +163,8 @@ func makeFlare(w http.ResponseWriter, r *http.Request, statusComponent status.Co
 //nolint:revive // TODO(CINT) Fix revive linter
 func getConfigCheck(w http.ResponseWriter, r *http.Request, ac autodiscovery.Component) {
 	verbose := r.URL.Query().Get("verbose") == "true"
-	bytes := ac.GetConfigCheck(verbose)
+	noColor := r.URL.Query().Get("nocolor") == "true"
+	bytes := ac.GetConfigCheck(verbose, noColor)
 
 	w.Write(bytes)
 }
