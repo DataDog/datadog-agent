@@ -29,8 +29,9 @@ type configProvider struct {
 }
 
 type confDump struct {
-	provided string
-	enhanced string
+	source   []byte
+	provided *confmap.Conf
+	enhanced *confmap.Conf
 }
 
 var _ otelcol.ConfigProvider = (*configProvider)(nil)
@@ -51,8 +52,7 @@ func NewConfigProvider(reqs provider.Requires) (provider.Component, error) {
 	return &configProvider{
 		base: ocp,
 		confDump: confDump{
-			provided: string(yamlBytes),
-			enhanced: "not supported",
+			source: yamlBytes,
 		},
 	}, nil
 }
@@ -79,10 +79,10 @@ func (cp *configProvider) Get(ctx context.Context, factories otelcol.Factories) 
 		return nil, fmt.Errorf("failed to get config: %w", err)
 	}
 
-	// err = cp.addProvidedConf(conf)
-	// if err != nil {
-	// 	return nil, fmt.Errorf("failed to add provided conf: %w", err)
-	// }
+	err = cp.addProvidedConf(conf)
+	if err != nil {
+		return nil, fmt.Errorf("failed to add provided conf: %w", err)
+	}
 
 	//
 	// TODO: modify conf (add datadogconnector if not present ...etc)
@@ -98,23 +98,25 @@ func (cp *configProvider) Get(ctx context.Context, factories otelcol.Factories) 
 
 // nolint: deadcode, unused
 func (cp *configProvider) addProvidedConf(conf *otelcol.Config) error {
-	bytesConf, err := confToString(conf)
+
+	cfg, err := confToConfMap(conf)
 	if err != nil {
 		return err
 	}
 
-	cp.confDump.provided = bytesConf
+	cp.confDump.provided = cfg
 	return nil
 }
 
 // nolint: deadcode, unused
 func (cp *configProvider) addEnhancedConf(conf *otelcol.Config) error {
-	bytesConf, err := confToString(conf)
+
+	cfg, err := confToConfMap(conf)
 	if err != nil {
 		return err
 	}
 
-	cp.confDump.enhanced = bytesConf
+	cp.confDump.enhanced = cfg
 	return nil
 }
 
@@ -123,15 +125,64 @@ func (cp *configProvider) addEnhancedConf(conf *otelcol.Config) error {
 // Note: the current implementation does not redact sensitive data (e.g. API Key).
 // Once we are unblocked and are able to remove the hack, this will provide the config
 // with any sensitive data redacted.
-func (cp *configProvider) GetProvidedConf() string {
+func (cp *configProvider) GetProvidedConf() *confmap.Conf {
 	return cp.confDump.provided
 }
 
 // GetEnhancedConf returns a string representing the ehnhanced collector configuration.
 // Should not be called concurrently with Get.
 // Note: this is currently not supported.
-func (cp *configProvider) GetEnhancedConf() string {
+func (cp *configProvider) GetEnhancedConf() *confmap.Conf {
 	return cp.confDump.enhanced
+}
+
+// GetProvidedConf returns a string representing the collector configuration passed
+// by the user. Should not be called concurrently with Get.
+// Note: the current implementation does not redact sensitive data (e.g. API Key).
+// Once we are unblocked and are able to remove the hack, this will provide the config
+// with any sensitive data redacted.
+func (cp *configProvider) GetProvidedConfAsString() (string, error) {
+	// if cp.confDump.provided == nil {
+	// 	return "", fmt.Errorf("No customer config provided")
+	// }
+
+	// bytesConf, err := yaml.Marshal(cp.confDump.provided.ToStringMap())
+	// if err != nil {
+	// 	return "", err
+	// }
+
+	// return string(bytesConf), nil
+
+	return string(cp.confDump.source), nil
+}
+
+// GetEnhancedConf returns a string representing the ehnhanced collector configuration.
+// Should not be called concurrently with Get.
+// Note: this is currently not supported.
+func (cp *configProvider) GetEnhancedConfAsString() (string, error) {
+	// if cp.confDump.enhanced == nil {
+	// 	return "", fmt.Errorf("No enhanced config provided")
+	// }
+
+	// bytesConf, err := yaml.Marshal(cp.confDump.enhanced.ToStringMap())
+	// if err != nil {
+	// 	return "", err
+	// }
+
+	// return string(bytesConf), nil
+
+	return "", fmt.Errorf("currently unsupported")
+}
+
+// confToConfMap takes in an otelcol.Config and returns a confmap.
+func confToConfMap(conf *otelcol.Config) (*confmap.Conf, error) {
+	cfg := confmap.New()
+	err := cfg.Marshal(conf)
+	if err != nil {
+		return nil, err
+	}
+
+	return cfg, nil
 }
 
 // confToString takes in an otelcol.Config and returns a string with the yaml
@@ -141,8 +192,7 @@ func (cp *configProvider) GetEnhancedConf() string {
 // https://github.com/open-telemetry/opentelemetry-collector/pull/10139 is merged.
 // nolint: deadcode, unused
 func confToString(conf *otelcol.Config) (string, error) {
-	cfg := confmap.New()
-	err := cfg.Marshal(conf)
+	cfg, err := confToConfMap(conf)
 	if err != nil {
 		return "", err
 	}

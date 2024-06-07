@@ -3,6 +3,7 @@ module github.com/DataDog/datadog-agent/comp/otelcol/extension/impl
 go 1.21.7
 
 require (
+	github.com/DataDog/datadog-agent/comp/otelcol/provider/def v0.55.0-rc.2
 	go.opentelemetry.io/collector/component v0.101.0
 	go.opentelemetry.io/collector/config/confighttp v0.101.0
 	go.opentelemetry.io/collector/confmap v0.101.0

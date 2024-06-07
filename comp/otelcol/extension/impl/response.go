@@ -32,4 +32,5 @@ type Response struct {
 	BuildInfoResponse
 	ConfigResponse
 	DebugSourceResponse
+	Environment map[string]string `json:"environment,omitempty"`
 }

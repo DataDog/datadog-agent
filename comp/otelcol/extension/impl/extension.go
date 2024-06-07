@@ -82,6 +82,10 @@ func (ext *ddExtension) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintf(w, "Unable to get config provider\n")
 		return
 	}
+
+	customer, _ := provider.GetProvidedConfAsString()
+	enhanced, _ := provider.GetEnhancedConfAsString()
+
 	resp := Response{
 		BuildInfoResponse{
 			AgentVersion: ext.info.Version,
@@ -89,10 +93,11 @@ func (ext *ddExtension) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			AgentDesc:    ext.info.Description,
 		},
 		ConfigResponse{
-			CustomerConfig: provider.GetProvidedConf(),
-			RuntimeConfig:  provider.GetEnhancedConf(),
+			CustomerConfig: customer,
+			RuntimeConfig:  enhanced,
 		},
 		DebugSourceResponse{},
+		getEnvironmentAsMap(),
 	}
 	ext.telemetry.Logger.Info("Logging response", zap.String("response", fmt.Sprintf("%v", resp)))
 

@@ -7,6 +7,7 @@
 package provider
 
 import (
+	"go.opentelemetry.io/collector/confmap"
 	"go.opentelemetry.io/collector/otelcol"
 )
 
@@ -16,8 +17,10 @@ import (
 // provides extra functions to expose the provided and enhanced configs.
 type Component interface {
 	otelcol.ConfigProvider
-	GetProvidedConf() string
-	GetEnhancedConf() string
+	GetProvidedConf() *confmap.Conf
+	GetEnhancedConf() *confmap.Conf
+	GetProvidedConfAsString() (string, error)
+	GetEnhancedConfAsString() (string, error)
 }
 
 // Requires TBD
