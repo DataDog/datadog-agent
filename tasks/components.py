@@ -368,7 +368,7 @@ def new_component(_, comp_path, overwrite=False, team="/* TODO: add team name */
             ("def/component.go", "def/component.go"),
             ("fx/fx.go", "fx/fx.go"),
             (os.path.join("impl", f"{component_name}.go"), "impl/component.go"),
-            (os.path.join("impl", f"{component_name}_mock.go"), "impl/component_mock.go"),
+            ("mock/mock.go", "mock/mock.go"),
         ],
         template_var_mapping,
         overwrite,
