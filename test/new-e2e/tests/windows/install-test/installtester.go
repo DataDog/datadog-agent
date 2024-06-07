@@ -349,7 +349,7 @@ func (t *Tester) testCurrentVersionExpectations(tt *testing.T) {
 			}
 			// [7.47 - 7.50) added an ACE for Everyone, make sure it isn't there
 			expected := windows.NewExplicitAccessRule(
-				windows.Identity{SID: windows.EveryoneSID},
+				windows.GetIdentityForSID(windows.EveryoneSID),
 				windows.SERVICE_ALL_ACCESS,
 				windows.AccessControlTypeAllow,
 			)

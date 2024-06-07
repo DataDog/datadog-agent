@@ -204,18 +204,18 @@ func ExpectPython2Installed(majorVersion string) bool {
 func getBaseConfigRootSecurity() (windows.ObjectSecurity, error) {
 	// SYSTEM and Administrators have full control
 	return windows.NewProtectedSecurityInfo(
-		windows.Identity{SID: windows.LocalSystemSID},
-		windows.Identity{SID: windows.LocalSystemSID},
+		windows.GetIdentityForSID(windows.LocalSystemSID),
+		windows.GetIdentityForSID(windows.LocalSystemSID),
 		[]windows.AccessRule{
 			windows.NewExplicitAccessRuleWithFlags(
-				windows.Identity{SID: windows.LocalSystemSID},
+				windows.GetIdentityForSID(windows.LocalSystemSID),
 				windows.FileFullControl,
 				windows.AccessControlTypeAllow,
 				windows.InheritanceFlagsContainer|windows.InheritanceFlagsObject,
 				windows.PropagationFlagsNone,
 			),
 			windows.NewExplicitAccessRuleWithFlags(
-				windows.Identity{SID: windows.AdministratorsSID},
+				windows.GetIdentityForSID(windows.AdministratorsSID),
 				windows.FileFullControl,
 				windows.AccessControlTypeAllow,
 				windows.InheritanceFlagsContainer|windows.InheritanceFlagsObject,
@@ -254,16 +254,16 @@ func getExpectedConfigRootSecurityWithAgent(ddAgentUserIdentity windows.Identity
 func getBaseInheritedConfigFileSecurity() (windows.ObjectSecurity, error) {
 	// SYSTEM and Administrators have full control
 	return windows.NewInheritSecurityInfo(
-		windows.Identity{SID: windows.LocalSystemSID},
-		windows.Identity{SID: windows.LocalSystemSID},
+		windows.GetIdentityForSID(windows.LocalSystemSID),
+		windows.GetIdentityForSID(windows.LocalSystemSID),
 		[]windows.AccessRule{
 			windows.NewInheritedAccessRule(
-				windows.Identity{SID: windows.LocalSystemSID},
+				windows.GetIdentityForSID(windows.LocalSystemSID),
 				windows.FileFullControl,
 				windows.AccessControlTypeAllow,
 			),
 			windows.NewInheritedAccessRule(
-				windows.Identity{SID: windows.AdministratorsSID},
+				windows.GetIdentityForSID(windows.AdministratorsSID),
 				windows.FileFullControl,
 				windows.AccessControlTypeAllow,
 			),
@@ -297,18 +297,18 @@ func getExpectedInheritedConfigFileSecurityWithAgent(ddAgentUserIdentity windows
 func getBaseInheritedConfigDirSecurity() (windows.ObjectSecurity, error) {
 	// SYSTEM and Administrators have full control
 	return windows.NewInheritSecurityInfo(
-		windows.Identity{SID: windows.LocalSystemSID},
-		windows.Identity{SID: windows.LocalSystemSID},
+		windows.GetIdentityForSID(windows.LocalSystemSID),
+		windows.GetIdentityForSID(windows.LocalSystemSID),
 		[]windows.AccessRule{
 			windows.NewInheritedAccessRuleWithFlags(
-				windows.Identity{SID: windows.LocalSystemSID},
+				windows.GetIdentityForSID(windows.LocalSystemSID),
 				windows.FileFullControl,
 				windows.AccessControlTypeAllow,
 				windows.InheritanceFlagsContainer|windows.InheritanceFlagsObject,
 				windows.PropagationFlagsNone,
 			),
 			windows.NewInheritedAccessRuleWithFlags(
-				windows.Identity{SID: windows.AdministratorsSID},
+				windows.GetIdentityForSID(windows.AdministratorsSID),
 				windows.FileFullControl,
 				windows.AccessControlTypeAllow,
 				windows.InheritanceFlagsContainer|windows.InheritanceFlagsObject,

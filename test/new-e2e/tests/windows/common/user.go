@@ -94,8 +94,15 @@ func GetIdentityForUser(host *components.RemoteHost, user string) (Identity, err
 	return Identity{Name: user, SID: sid}, nil
 }
 
-// GetIdentityForSID returns the Identity for the given SID.
-func GetIdentityForSID(host *components.RemoteHost, sid string) (Identity, error) {
+// GetIdentityForSID returns an Identity for the given SID. Does not fetch the name, see GetIdentityForSIDWithName.
+func GetIdentityForSID(sid string) Identity {
+	return Identity{SID: sid}
+}
+
+// GetIdentityForSIDWithName returns an Identity for the given SID with the name fetched from the host.
+//
+// This is useful when the name is needed for display purposes. The name may be localized or ambiguous, and may not be unique.
+func GetIdentityForSIDWithName(host *components.RemoteHost, sid string) (Identity, error) {
 	name, err := GetUserForSID(host, sid)
 	if err != nil {
 		return Identity{}, err
@@ -294,5 +301,5 @@ func RemoveLocalUser(host *components.RemoteHost, user string) error {
 // IsIdentityLocalSystem Returns true if the identity is the local SYSTEM account
 func IsIdentityLocalSystem(i Identity) bool {
 	// We don't need to fetch a full identity with name from the host, we can just compare the SIDs
-	return SecurityIdentifierEqual(i, Identity{SID: LocalSystemSID})
+	return SecurityIdentifierEqual(i, GetIdentityForSID(LocalSystemSID))
 }
