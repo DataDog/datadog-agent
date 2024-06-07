@@ -152,7 +152,7 @@ require (
 	github.com/DataDog/opentelemetry-mapping-go/pkg/quantile v0.16.1 // indirect
 	github.com/DataDog/sketches-go v1.4.5 // indirect
 	github.com/DataDog/viper v1.13.5 // indirect
-	github.com/DataDog/zstd v1.5.2 // indirect
+	github.com/DataDog/zstd v1.5.5 // indirect
 	github.com/GoogleCloudPlatform/opentelemetry-operations-go/detectors/gcp v1.23.0 // indirect
 	github.com/Microsoft/go-winio v0.6.1 // indirect
 	github.com/aws/aws-sdk-go v1.53.11 // indirect
