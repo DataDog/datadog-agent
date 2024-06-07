@@ -23,7 +23,6 @@ func setupConfig(config pkgconfigmodel.Config, deps configDependencies) (*pkgcon
 	p := deps.getParams()
 
 	confFilePath := p.ConfFilePath
-	extraConfFilePaths := p.ExtraConfFilePath
 	configName := p.configName
 	failOnMissingFile := !p.configMissingOK
 	defaultConfPath := p.defaultConfPath
@@ -47,8 +46,8 @@ func setupConfig(config pkgconfigmodel.Config, deps configDependencies) (*pkgcon
 	}
 
 	// load extra config file paths
-	if len(extraConfFilePaths) > 0 {
-		config.AddExtraConfigPaths(extraConfFilePaths)
+	if err := config.AddExtraConfigPaths(p.ExtraConfFilePath); err != nil {
+		return nil, err
 	}
 
 	// load the configuration

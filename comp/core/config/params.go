@@ -11,7 +11,7 @@ type Params struct {
 	// given by the --cfgpath command-line flag.
 	ConfFilePath string
 
-	// ExtraConfFilePath represents the paths to additional configuration files.
+	// ExtraConfFilePath represents the paths to additional configuration files to be merged over the main datadog.yaml.
 	// Usually given by the --extracfgpath command-line flag.
 	ExtraConfFilePath []string
 

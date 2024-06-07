@@ -78,7 +78,7 @@ func NewServerlessConfig(path string) (Component, error) {
 	return newConfig(d)
 }
 
-func newConfigProvide(deps dependencies) (provides, error) {
+func newComponent(deps dependencies) (provides, error) {
 	c, err := newConfig(deps)
 	return provides{
 		Comp:          c,
