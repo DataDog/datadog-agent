@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
+// package converterimpl provides the implementation of the otel-agent converter.
 package converterimpl
 
 import (
@@ -24,7 +25,7 @@ type confDump struct {
 	enhanced string
 }
 
-// currently only supports a single URI in the uris slice, and this URI needs to be a file path.
+// NewConverter currently only supports a single URI in the uris slice, and this URI needs to be a file path.
 func NewConverter() (converter.Component, error) {
 	return &ddConverter{
 		confDump: confDump{
@@ -43,6 +44,7 @@ func (c *ddConverter) Convert(ctx context.Context, conf *confmap.Conf) error {
 	return nil
 }
 
+// nolint: deadcode, unused
 func (c *ddConverter) addProvidedConf(conf *confmap.Conf) error {
 	bytesConf, err := confToString(conf)
 	if err != nil {
@@ -53,6 +55,7 @@ func (c *ddConverter) addProvidedConf(conf *confmap.Conf) error {
 	return nil
 }
 
+// nolint: deadcode, unused
 func (c *ddConverter) addEnhancedConf(conf *confmap.Conf) error {
 	bytesConf, err := confToString(conf)
 	if err != nil {
@@ -81,6 +84,7 @@ func (c *ddConverter) GetEnhancedConf() string {
 // sensitive fields.
 // Note: Currently not supported until the following upstream PR:
 // https://github.com/open-telemetry/opentelemetry-collector/pull/10139 is merged.
+// nolint: deadcode, unused
 func confToString(conf *confmap.Conf) (string, error) {
 	bytesConf, err := yaml.Marshal(conf.ToStringMap())
 	if err != nil {

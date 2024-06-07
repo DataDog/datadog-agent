@@ -374,7 +374,7 @@ Package collectorcontrib defines the OTel collector-contrib component
 
 ### [comp/otelcol/converter](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/otelcol/converter)
 
-
+Package converter defines the otel agent converter component.
 
 ### [comp/otelcol/logsagentpipeline](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline)
 
