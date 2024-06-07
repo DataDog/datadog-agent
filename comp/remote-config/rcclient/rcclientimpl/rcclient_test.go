@@ -64,7 +64,6 @@ func TestRCClientCreate(t *testing.T) {
 		fxutil.Test[dependencies](
 			t,
 			logimpl.MockModule(),
-			coreConfig.MockModule(),
 			settingsimpl.MockModule(),
 		),
 	)
@@ -75,7 +74,6 @@ func TestRCClientCreate(t *testing.T) {
 		fxutil.Test[dependencies](
 			t,
 			logimpl.MockModule(),
-			coreConfig.MockModule(),
 			fx.Supply(
 				rcclient.Params{
 					AgentName:    "test-agent",
@@ -97,7 +95,6 @@ func TestAgentConfigCallback(t *testing.T) {
 	rc := fxutil.Test[rcclient.Component](t,
 		fx.Options(
 			Module(),
-			coreConfig.MockModule(),
 			logimpl.MockModule(),
 			fx.Supply(
 				rcclient.Params{
