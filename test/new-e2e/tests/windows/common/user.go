@@ -43,18 +43,6 @@ func (i Identity) Equal(other SecurityIdentifier) bool {
 	return SecurityIdentifierEqual(i, other)
 }
 
-// UnmarshalJSON unmarshals an Identity from JSON
-func (i *Identity) UnmarshalJSON(data []byte) error {
-	var v map[string]string
-	err := json.Unmarshal(data, &v)
-	if err != nil {
-		return err
-	}
-	i.Name = v["Name"]
-	i.SID = v["SID"]
-	return nil
-}
-
 // SecurityIdentifier is an interface for objects that have a name and SID
 type SecurityIdentifier interface {
 	GetName() string
