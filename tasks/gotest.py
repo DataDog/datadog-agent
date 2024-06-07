@@ -986,28 +986,21 @@ def check_otel_module_versions(ctx):
 @task
 def otel_integration_test(ctx):
     failed = False
-    ctx.run('messagefile="$(mktemp)"')
+    message = ""
     try:
         check_otel_build(ctx)
     except Exit as err:
         failed = True
-        ctx.run('echo "OpenTelemetry build failed:" >> "$messagefile"')
-        ctx.run('echo "```sh" >> "$messagefile"')
-        ctx.run(f'echo {err} >> "$messagefile"')
-        ctx.run('echo "```\n" >> "$messagefile"')
+        message += f'\nOpenTelemetry build failed:\n{err}'
     try:
         check_otel_module_versions(ctx)
     except Exit as err:
         failed = True
-        ctx.run('echo "OpenTelemetry version check failed:" >> "$messagefile"')
-        ctx.run('echo "```sh" >> "$messagefile"')
-        ctx.run(f'echo {err} >> "$messagefile"')
-        ctx.run('echo "```" >> "$messagefile"')
+        message += f'\nOpenTelemetry version check failed:\n{err}'
 
     if failed:
         ctx.run(
-            'cat "$messagefile" | /usr/local/bin/pr-commenter --for-pr="$CI_COMMIT_REF_NAME" --header="OpenTelemetry integration test results"'
+            f'echo "{message}" | /usr/local/bin/pr-commenter --for-pr="$CI_COMMIT_REF_NAME" --header="OpenTelemetry integration test results"'
         )
-        ctx.run('cat "$messagefile"')
-        ctx.run('rm "$messagefile"')
+        ctx.run(f'echo "{message}"')
         raise Exit
