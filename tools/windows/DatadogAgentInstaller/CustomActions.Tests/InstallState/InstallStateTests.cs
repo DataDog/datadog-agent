@@ -26,7 +26,8 @@ namespace CustomActions.Tests.InstallState
                     "PROJECTLOCATION",
                     "APPLICATIONDATADIRECTORY",
                     "DDAGENT_WINDOWSBUILD").And
-                .Contain("DDDRIVERROLLBACK", "1");
+                .Contain("DDDRIVERROLLBACK_NPM", "1").And
+                .Contain("DDDRIVERROLLBACK_PROCMON", "1");
         }
 
         [Theory]
@@ -57,10 +58,12 @@ namespace CustomActions.Tests.InstallState
         }
 
         [Theory]
-        //[AutoData]
-        [InlineData("7.54", "")]
-        [InlineData("6.54", "")]
-        public void ReadDD_Driver_Rollback_Upgrade(string version, string expectedrollback)
+        [InlineData("7.54", "", "")]
+        [InlineData("6.53", "", "")]
+        [InlineData("7.50", "", "1")]
+        [InlineData("6.58", "1", "1")]
+        [InlineData("7.56", "1", "1")]
+        public void ReadDD_Driver_Rollback_Upgrade(string version, string NPMExpectedRollback, string procmonExopectedRollback)
         {
             string productCode = "{123-456-789}";
             Test.Session.Setup(session => session["WIX_UPGRADE_DETECTED"]).Returns(productCode);
@@ -72,7 +75,8 @@ namespace CustomActions.Tests.InstallState
                 .Be(ActionResult.Success);
 
             Test.Properties.Should()
-                .Contain("DDDRIVERROLLBACK", expectedrollback);
+                .Contain("DDDRIVERROLLBACK_NPM", NPMExpectedRollback).And
+                .Contain("DDDRIVERROLLBACK_PROCMON", procmonExopectedRollback);
         }
 
     }
