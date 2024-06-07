@@ -257,12 +257,6 @@ def send_message(ctx, notification_type="merge", print_to_stdout=False):
 
             if all_teams:
                 recipient = channel
-                print('MSG', recipient)
-                print(str(message))
-                print()
-                # TODO
-                recipient = '#celian-tests'
-
                 send_slack_message(recipient, str(message))
                 metrics.append(
                     create_count(
@@ -282,13 +276,10 @@ def send_message(ctx, notification_type="merge", print_to_stdout=False):
             if send_dm:
                 author_email = get_git_author(email=True)
                 recipient = email_to_slackid(ctx, author_email)
-                # send_slack_message(recipient, str(message))
-                print('MSG u', recipient)
-                print(str(message))
-                print()
+                send_slack_message(recipient, str(message))
 
-    # if metrics:
-    #     send_metrics(metrics)
+    if metrics:
+        send_metrics(metrics)
 
 
 def _should_send_message_to_channel(git_ref: str, default_branch: str) -> bool:
