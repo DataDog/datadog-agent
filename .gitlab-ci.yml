@@ -272,7 +272,7 @@ variables:
   if: $RELEASE_VERSION_7 == ""
 
 .if_deploy: &if_deploy
-  if: $DEPLOY_AGENT == "true"
+  if: $DEPLOY_AGENT == "true" || $DDR_WORKFLOW_ID != null
 
 .if_not_deploy: &if_not_deploy
   if: $DEPLOY_AGENT != "true"
@@ -399,9 +399,6 @@ workflow:
       variables:
         USE_CACHING_PROXY_PYTHON: "false"
         USE_CACHING_PROXY_RUBY: "false"
-    - if: $DDR_WORKFLOW_ID != null
-      variables:
-        DEPLOY_AGENT: "true"
 
 #
 # List of rule blocks used in the pipeline
