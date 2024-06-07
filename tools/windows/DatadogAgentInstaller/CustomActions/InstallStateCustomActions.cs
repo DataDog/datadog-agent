@@ -170,33 +170,49 @@ namespace Datadog.CustomActions
                 // Using Version class 
                 // https://learn.microsoft.com/en-us/dotnet/api/system.version?view=net-8.0
                 Version currentVersion = new Version(versionString);
+                Version version_53;
                 Version minimumVersion;
 
                 // Check major version
                 if (versionString[0] == '7')
                 {
+                    version_53 = new Version("7.53");
                     minimumVersion = new Version("7.56");
                 }
                 else
                 {
+                    version_53 = new Version("6.53");
                     minimumVersion = new Version("6.56");
                 }
 
                 var compareResult = currentVersion.CompareTo(minimumVersion);
                 if (compareResult < 0) // currentVersion is less than minimumVersion
                 {
-                    _session["DDDRIVERROLLBACK"] = "";
+                    _session["DDDRIVERROLLBACK_NPM"] = "";
+
+                    var compare_53 = currentVersion.CompareTo(version_53);
+                    if (compare_53 < 0) //currentVersion is less than 6.53/7.53
+                    {
+                        _session["DDDRIVERROLLBACK_PROCMON"] = "1";
+                    }
+                    else
+                    {
+                        _session["DDDRIVERROLLBACK_PROCMON"] = "";
+                    }
                 }
                 else // currentVersion is not less than minimumVersion
                 {
-                    _session["DDDRIVERROLLBACK"] = "1";
+                    _session["DDDRIVERROLLBACK_NPM"] = "1";
+                    _session["DDDRIVERROLLBACK_PROCMON"] = "1";
                 }
             }
             else  // This is a fresh install
             {
-                _session["DDDRIVERROLLBACK"] = "1";
+                _session["DDDRIVERROLLBACK_NPM"] = "1";
+                _session["DDDRIVERROLLBACK_PROCMON"] = "1";
             }
-            _session.Log($"DDDriverRollback: {_session["DDDRIVERROLLBACK"]}");
+            _session.Log($"DDDriverRollback_NPM: {_session["DDDRIVERROLLBACK_NPM"]}");
+            _session.Log($"DDDriverRollback_Procmon: {_session["DDDRIVERROLLBACK_PROCMON"]}");
         }
 
         [CustomAction]
