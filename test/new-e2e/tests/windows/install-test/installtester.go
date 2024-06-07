@@ -410,7 +410,7 @@ func (t *Tester) testUninstalledFilePermissions(tt *testing.T) {
 			name: "ConfigRoot",
 			path: t.expectedConfigRoot,
 			expectedSecurity: func(tt *testing.T) windows.ObjectSecurity {
-				s, err := getBaseConfigRootSecurity(t.host)
+				s, err := getBaseConfigRootSecurity()
 				require.NoError(tt, err)
 				return s
 			},
@@ -419,7 +419,7 @@ func (t *Tester) testUninstalledFilePermissions(tt *testing.T) {
 			name: "datadog.yaml",
 			path: filepath.Join(t.expectedConfigRoot, "datadog.yaml"),
 			expectedSecurity: func(tt *testing.T) windows.ObjectSecurity {
-				s, err := getBaseInheritedConfigFileSecurity(t.host)
+				s, err := getBaseInheritedConfigFileSecurity()
 				require.NoError(tt, err)
 				return s
 			},
@@ -428,7 +428,7 @@ func (t *Tester) testUninstalledFilePermissions(tt *testing.T) {
 			name: "conf.d",
 			path: filepath.Join(t.expectedConfigRoot, "conf.d"),
 			expectedSecurity: func(tt *testing.T) windows.ObjectSecurity {
-				s, err := getBaseInheritedConfigDirSecurity(t.host)
+				s, err := getBaseInheritedConfigDirSecurity()
 				require.NoError(tt, err)
 				return s
 			},
@@ -461,9 +461,7 @@ func (t *Tester) testInstalledFilePermissions(tt *testing.T) {
 			name: "ConfigRoot",
 			path: t.expectedConfigRoot,
 			expectedSecurity: func(tt *testing.T) windows.ObjectSecurity {
-				s, err := getExpectedConfigRootSecurityWithAgent(t.host,
-					windows.MakeDownLevelLogonName(t.expectedUserDomain, t.expectedUserName),
-				)
+				s, err := getExpectedConfigRootSecurityWithAgent(ddagentUserIdentity)
 				require.NoError(tt, err)
 				return s
 			},
@@ -472,9 +470,7 @@ func (t *Tester) testInstalledFilePermissions(tt *testing.T) {
 			name: "datadog.yaml",
 			path: filepath.Join(t.expectedConfigRoot, "datadog.yaml"),
 			expectedSecurity: func(tt *testing.T) windows.ObjectSecurity {
-				s, err := getExpectedInheritedConfigFileSecurityWithAgent(t.host,
-					windows.MakeDownLevelLogonName(t.expectedUserDomain, t.expectedUserName),
-				)
+				s, err := getExpectedInheritedConfigFileSecurityWithAgent(ddagentUserIdentity)
 				require.NoError(tt, err)
 				return s
 			},
@@ -483,9 +479,7 @@ func (t *Tester) testInstalledFilePermissions(tt *testing.T) {
 			name: "conf.d",
 			path: filepath.Join(t.expectedConfigRoot, "conf.d"),
 			expectedSecurity: func(tt *testing.T) windows.ObjectSecurity {
-				s, err := getExpectedInheritedConfigDirSecurityWithAgent(t.host,
-					windows.MakeDownLevelLogonName(t.expectedUserDomain, t.expectedUserName),
-				)
+				s, err := getExpectedInheritedConfigDirSecurityWithAgent(ddagentUserIdentity)
 				require.NoError(tt, err)
 				return s
 			},

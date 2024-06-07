@@ -102,20 +102,6 @@ func GetIdentityForSID(host *components.RemoteHost, sid string) (Identity, error
 	return Identity{Name: name, SID: sid}, nil
 }
 
-// GetSystemIdentity returns the Identity for the SYSTEM account
-//
-// A lookup by SID is performed because the name may be localized.
-func GetSystemIdentity(host *components.RemoteHost) (Identity, error) {
-	return GetIdentityForSID(host, LocalSystemSID)
-}
-
-// GetAdministratorsIdentity returns the Identity for the Administrators group
-//
-// A lookup by SID is performed because the name may be localized.
-func GetAdministratorsIdentity(host *components.RemoteHost) (Identity, error) {
-	return GetIdentityForSID(host, AdministratorsSID)
-}
-
 // GetUserForSID returns the username for the given SID.
 func GetUserForSID(host *components.RemoteHost, sid string) (string, error) {
 	cmd := fmt.Sprintf(`(New-Object System.Security.Principal.SecurityIdentifier('%s')).Translate([System.Security.Principal.NTAccount]).Value`, sid)

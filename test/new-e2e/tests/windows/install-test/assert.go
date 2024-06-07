@@ -201,32 +201,21 @@ func ExpectPython2Installed(majorVersion string) bool {
 //   - SYSTEM full control, owner and group
 //   - Administrators full control
 //   - protected (inheritance disabled)
-func getBaseConfigRootSecurity(host *components.RemoteHost) (windows.ObjectSecurity, error) {
-	var expected windows.ObjectSecurity
-
-	// Get identities from host
-	systemIdentity, err := windows.GetSystemIdentity(host)
-	if err != nil {
-		return expected, err
-	}
-	administratorsIdentity, err := windows.GetAdministratorsIdentity(host)
-	if err != nil {
-		return expected, err
-	}
+func getBaseConfigRootSecurity() (windows.ObjectSecurity, error) {
 	// SYSTEM and Administrators have full control
 	return windows.NewProtectedSecurityInfo(
-		systemIdentity,
-		systemIdentity,
+		windows.Identity{SID: windows.LocalSystemSID},
+		windows.Identity{SID: windows.LocalSystemSID},
 		[]windows.AccessRule{
 			windows.NewExplicitAccessRuleWithFlags(
-				systemIdentity,
+				windows.Identity{SID: windows.LocalSystemSID},
 				windows.FileFullControl,
 				windows.AccessControlTypeAllow,
 				windows.InheritanceFlagsContainer|windows.InheritanceFlagsObject,
 				windows.PropagationFlagsNone,
 			),
 			windows.NewExplicitAccessRuleWithFlags(
-				administratorsIdentity,
+				windows.Identity{SID: windows.AdministratorsSID},
 				windows.FileFullControl,
 				windows.AccessControlTypeAllow,
 				windows.InheritanceFlagsContainer|windows.InheritanceFlagsObject,
@@ -238,13 +227,13 @@ func getBaseConfigRootSecurity(host *components.RemoteHost) (windows.ObjectSecur
 
 // getExpectedConfigRootSecurityWithAgent adds a rule for the agent user to getBaseConfigRootSecurity
 //   - ddagentuser full control
-func getExpectedConfigRootSecurityWithAgent(host *components.RemoteHost, agentUserName string) (windows.ObjectSecurity, error) {
-	expected, err := getBaseConfigRootSecurity(host)
+func getExpectedConfigRootSecurityWithAgent(ddAgentUserIdentity windows.Identity) (windows.ObjectSecurity, error) {
+	expected, err := getBaseConfigRootSecurity()
 	if err != nil {
 		return expected, err
 	}
 
-	err = addAgentUserAccessRule(host, &expected, agentUserName, func(agentUserIdentity windows.Identity) windows.AccessRule {
+	err = addAgentUserAccessRule(&expected, ddAgentUserIdentity, func(agentUserIdentity windows.Identity) windows.AccessRule {
 		return windows.NewExplicitAccessRuleWithFlags(
 			agentUserIdentity,
 			windows.FileFullControl,
@@ -262,30 +251,19 @@ func getExpectedConfigRootSecurityWithAgent(host *components.RemoteHost, agentUs
 // getBaseConfigFileSecurity returns the base security settings for a config file that inherits permissions from the config root
 //   - (inherited) SYSTEM full control, owner and group
 //   - (inherited) Administrators full control
-func getBaseInheritedConfigFileSecurity(host *components.RemoteHost) (windows.ObjectSecurity, error) {
-	var expected windows.ObjectSecurity
-
-	// Get identities from host
-	systemIdentity, err := windows.GetSystemIdentity(host)
-	if err != nil {
-		return expected, err
-	}
-	administratorsIdentity, err := windows.GetAdministratorsIdentity(host)
-	if err != nil {
-		return expected, err
-	}
+func getBaseInheritedConfigFileSecurity() (windows.ObjectSecurity, error) {
 	// SYSTEM and Administrators have full control
 	return windows.NewInheritSecurityInfo(
-		systemIdentity,
-		systemIdentity,
+		windows.Identity{SID: windows.LocalSystemSID},
+		windows.Identity{SID: windows.LocalSystemSID},
 		[]windows.AccessRule{
 			windows.NewInheritedAccessRule(
-				systemIdentity,
+				windows.Identity{SID: windows.LocalSystemSID},
 				windows.FileFullControl,
 				windows.AccessControlTypeAllow,
 			),
 			windows.NewInheritedAccessRule(
-				administratorsIdentity,
+				windows.Identity{SID: windows.AdministratorsSID},
 				windows.FileFullControl,
 				windows.AccessControlTypeAllow,
 			),
@@ -295,12 +273,12 @@ func getBaseInheritedConfigFileSecurity(host *components.RemoteHost) (windows.Ob
 
 // getExpectedConfigFileSecurityWithAgent adds a rule for the agent user to getBaseConfigFileSecurity
 //   - (inherited) ddagentuser full control
-func getExpectedInheritedConfigFileSecurityWithAgent(host *components.RemoteHost, agentUserName string) (windows.ObjectSecurity, error) {
-	expected, err := getBaseInheritedConfigFileSecurity(host)
+func getExpectedInheritedConfigFileSecurityWithAgent(ddAgentUserIdentity windows.Identity) (windows.ObjectSecurity, error) {
+	expected, err := getBaseInheritedConfigFileSecurity()
 	if err != nil {
 		return expected, err
 	}
-	err = addAgentUserAccessRule(host, &expected, agentUserName, func(agentUserIdentity windows.Identity) windows.AccessRule {
+	err = addAgentUserAccessRule(&expected, ddAgentUserIdentity, func(agentUserIdentity windows.Identity) windows.AccessRule {
 		return windows.NewInheritedAccessRule(
 			agentUserIdentity,
 			windows.FileFullControl,
@@ -316,32 +294,21 @@ func getExpectedInheritedConfigFileSecurityWithAgent(host *components.RemoteHost
 // getBaseConfigDirSecurity returns the base security settings for a config dir that inherits permissions from the config root
 //   - (inherited) SYSTEM full control, owner and group
 //   - (inherited) Administrators full control
-func getBaseInheritedConfigDirSecurity(host *components.RemoteHost) (windows.ObjectSecurity, error) {
-	var expected windows.ObjectSecurity
-
-	// Get identities from host
-	systemIdentity, err := windows.GetSystemIdentity(host)
-	if err != nil {
-		return expected, err
-	}
-	administratorsIdentity, err := windows.GetAdministratorsIdentity(host)
-	if err != nil {
-		return expected, err
-	}
+func getBaseInheritedConfigDirSecurity() (windows.ObjectSecurity, error) {
 	// SYSTEM and Administrators have full control
 	return windows.NewInheritSecurityInfo(
-		systemIdentity,
-		systemIdentity,
+		windows.Identity{SID: windows.LocalSystemSID},
+		windows.Identity{SID: windows.LocalSystemSID},
 		[]windows.AccessRule{
 			windows.NewInheritedAccessRuleWithFlags(
-				systemIdentity,
+				windows.Identity{SID: windows.LocalSystemSID},
 				windows.FileFullControl,
 				windows.AccessControlTypeAllow,
 				windows.InheritanceFlagsContainer|windows.InheritanceFlagsObject,
 				windows.PropagationFlagsNone,
 			),
 			windows.NewInheritedAccessRuleWithFlags(
-				administratorsIdentity,
+				windows.Identity{SID: windows.AdministratorsSID},
 				windows.FileFullControl,
 				windows.AccessControlTypeAllow,
 				windows.InheritanceFlagsContainer|windows.InheritanceFlagsObject,
@@ -353,12 +320,12 @@ func getBaseInheritedConfigDirSecurity(host *components.RemoteHost) (windows.Obj
 
 // getExpectedConfigDirSecurityWithAgent adds a rule for the agent user to getBaseConfigDirSecurity
 //   - (inherited) ddagentuser full control
-func getExpectedInheritedConfigDirSecurityWithAgent(host *components.RemoteHost, agentUserName string) (windows.ObjectSecurity, error) {
-	expected, err := getBaseInheritedConfigDirSecurity(host)
+func getExpectedInheritedConfigDirSecurityWithAgent(ddAgentUserIdentity windows.Identity) (windows.ObjectSecurity, error) {
+	expected, err := getBaseInheritedConfigDirSecurity()
 	if err != nil {
 		return expected, err
 	}
-	err = addAgentUserAccessRule(host, &expected, agentUserName, func(agentUserIdentity windows.Identity) windows.AccessRule {
+	err = addAgentUserAccessRule(&expected, ddAgentUserIdentity, func(agentUserIdentity windows.Identity) windows.AccessRule {
 		return windows.NewInheritedAccessRuleWithFlags(
 			agentUserIdentity,
 			windows.FileFullControl,
@@ -375,13 +342,7 @@ func getExpectedInheritedConfigDirSecurityWithAgent(host *components.RemoteHost,
 
 // addAgentUserAccessRule is a helper to add an access rule for the agent user to the security settings
 // except when the agent user is SYSTEM, in which case no additional ACE is needed.
-func addAgentUserAccessRule(host *components.RemoteHost, security *windows.ObjectSecurity, agentUserName string, ruleProvider func(agentUser windows.Identity) windows.AccessRule) error {
-	// Get agent user identity from host
-	ddagentUserIdentity, err := windows.GetIdentityForUser(host, agentUserName)
-	if err != nil {
-		return err
-	}
-
+func addAgentUserAccessRule(security *windows.ObjectSecurity, ddagentUserIdentity windows.Identity, ruleProvider func(agentUser windows.Identity) windows.AccessRule) error {
 	if windows.IsIdentityLocalSystem(ddagentUserIdentity) {
 		return nil
 	}
