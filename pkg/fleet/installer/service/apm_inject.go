@@ -30,37 +30,40 @@ const (
 )
 
 // SetupAPMInjector sets up the injector at bootstrap
-func SetupAPMInjector(ctx context.Context) error {
-	var err error
+func SetupAPMInjector(ctx context.Context) (err error) {
 	span, ctx := tracer.StartSpanFromContext(ctx, "setup_injector")
-	defer span.Finish(tracer.WithError(err))
+	defer func() { span.Finish(tracer.WithError(err)) }()
 	installer := newAPMInjectorInstaller(injectorPath)
+	defer func() { installer.Finish(err) }()
 	return installer.Setup(ctx)
 }
 
 // RemoveAPMInjector removes the APM injector
-func RemoveAPMInjector(ctx context.Context) error {
+func RemoveAPMInjector(ctx context.Context) (err error) {
 	span, ctx := tracer.StartSpanFromContext(ctx, "remove_injector")
-	defer span.Finish()
+	defer func() { span.Finish(tracer.WithError(err)) }()
 	installer := newAPMInjectorInstaller(injectorPath)
+	defer func() { installer.Finish(err) }()
 	return installer.Uninstrument(ctx)
 }
 
 // InstrumentAPMInjector instruments the APM injector
-func InstrumentAPMInjector(ctx context.Context, method string) error {
+func InstrumentAPMInjector(ctx context.Context, method string) (err error) {
 	span, ctx := tracer.StartSpanFromContext(ctx, "instrument_injector")
-	defer span.Finish()
+	defer func() { span.Finish(tracer.WithError(err)) }()
 	installer := newAPMInjectorInstaller(injectorPath)
 	installer.envs.InstallScript.APMInstrumentationEnabled = method
+	defer func() { installer.Finish(err) }()
 	return installer.Instrument(ctx)
 }
 
 // UninstrumentAPMInjector uninstruments the APM injector
-func UninstrumentAPMInjector(ctx context.Context, method string) error {
+func UninstrumentAPMInjector(ctx context.Context, method string) (err error) {
 	span, ctx := tracer.StartSpanFromContext(ctx, "uninstrument_injector")
-	defer span.Finish()
+	defer func() { span.Finish(tracer.WithError(err)) }()
 	installer := newAPMInjectorInstaller(injectorPath)
 	installer.envs.InstallScript.APMInstrumentationEnabled = method
+	defer func() { installer.Finish(err) }()
 	return installer.Uninstrument(ctx)
 }
 
@@ -83,6 +86,27 @@ type apmInjectorInstaller struct {
 	dockerConfigInstrument    *fileMutator
 	dockerConfigUninstrument  *fileMutator
 	envs                      *env.Env
+
+	rollbacks []func() error
+	cleanups  []func()
+}
+
+// Finish cleans up the APM injector
+// Runs rollbacks if an error is passed and always runs cleanups
+func (a *apmInjectorInstaller) Finish(err error) {
+	if err != nil {
+		// Run rollbacks in reverse order
+		for i := len(a.rollbacks) - 1; i >= 0; i-- {
+			if rollbackErr := a.rollbacks[i](); rollbackErr != nil {
+				log.Warnf("rollback failed: %v", rollbackErr)
+			}
+		}
+	}
+
+	// Run cleanups in reverse order
+	for i := len(a.cleanups) - 1; i >= 0; i-- {
+		a.cleanups[i]()
+	}
 }
 
 // Setup sets up the APM injector
@@ -90,7 +114,7 @@ func (a *apmInjectorInstaller) Setup(ctx context.Context) error {
 	var err error
 
 	// Set up defaults for agent sockets
-	if err := configureSocketsEnv(ctx); err != nil {
+	if err := a.configureSocketsEnv(ctx); err != nil {
 		return err
 	}
 	if err := addSystemDEnvOverrides(ctx, agentUnit); err != nil {
@@ -128,17 +152,12 @@ func (a *apmInjectorInstaller) Instrument(ctx context.Context) (retErr error) {
 	}
 
 	if shouldInstrumentHost(a.envs) {
+		a.cleanups = append(a.cleanups, a.ldPreloadFileInstrument.cleanup)
 		rollbackLDPreload, err := a.ldPreloadFileInstrument.mutate(ctx)
 		if err != nil {
 			return err
 		}
-		defer func() {
-			if retErr != nil {
-				if err := rollbackLDPreload(); err != nil {
-					log.Warnf("Failed to rollback host instrumentation: %v", err)
-				}
-			}
-		}()
+		a.rollbacks = append(a.rollbacks, rollbackLDPreload)
 	}
 
 	dockerIsInstalled := isDockerInstalled(ctx)
@@ -146,17 +165,12 @@ func (a *apmInjectorInstaller) Instrument(ctx context.Context) (retErr error) {
 		return fmt.Errorf("DD_APM_INSTRUMENTATION_ENABLED is set to docker but docker is not installed")
 	}
 	if shouldInstrumentDocker(a.envs) && dockerIsInstalled {
+		a.cleanups = append(a.cleanups, a.dockerConfigInstrument.cleanup)
 		rollbackDocker, err := a.instrumentDocker(ctx)
 		if err != nil {
 			return err
 		}
-		defer func() {
-			if retErr != nil {
-				if err := rollbackDocker(); err != nil {
-					log.Warnf("Failed to rollback docker instrumentation: %v", err)
-				}
-			}
-		}()
+		a.rollbacks = append(a.rollbacks, rollbackDocker)
 
 		// Verify that the docker runtime is as expected
 		if err := a.verifyDockerRuntime(ctx); err != nil {
@@ -240,7 +254,7 @@ func (a *apmInjectorInstaller) deleteLDPreloadConfigContent(_ context.Context, l
 
 func (a *apmInjectorInstaller) verifySharedLib(ctx context.Context, libPath string) (err error) {
 	span, _ := tracer.StartSpanFromContext(ctx, "verify_shared_lib")
-	defer span.Finish(tracer.WithError(err))
+	defer func() { span.Finish(tracer.WithError(err)) }()
 	echoPath, err := exec.LookPath("echo")
 	if err != nil {
 		return fmt.Errorf("failed to find echo: %w", err)

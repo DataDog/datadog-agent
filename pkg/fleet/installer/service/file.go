@@ -48,7 +48,7 @@ func newFileMutator(path string, transform func(ctx context.Context, existing []
 
 func (ft *fileMutator) mutate(ctx context.Context) (rollback func() error, err error) {
 	span, ctx := tracer.StartSpanFromContext(ctx, "mutate_file")
-	defer span.Finish(tracer.WithError(err))
+	defer func() { span.Finish(tracer.WithError(err)) }()
 	span.SetTag("file", ft.path)
 
 	defer os.Remove(ft.pathTmp)
