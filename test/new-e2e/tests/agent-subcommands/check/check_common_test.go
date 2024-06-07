@@ -8,12 +8,14 @@ package check
 
 import (
 	"fmt"
+	"time"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclient"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 type baseCheckSuite struct {
@@ -21,11 +23,16 @@ type baseCheckSuite struct {
 }
 
 func (v *baseCheckSuite) TestCheckDisk() {
-	check := v.Env().Agent.Client.Check(agentclient.WithArgs([]string{"disk"}))
+	require.EventuallyWithT(v.T(), func(t *assert.CollectT) {
+		check, err := v.Env().Agent.Client.CheckWithError(agentclient.WithArgs([]string{"disk"}))
+		if !assert.NoError(t, err) {
+			return
+		}
 
-	assert.Contains(v.T(), check, `"metric": "system.disk.total"`)
-	assert.Contains(v.T(), check, `"metric": "system.disk.used"`)
-	assert.Contains(v.T(), check, `"metric": "system.disk.free"`)
+		assert.Contains(t, check, `"metric": "system.disk.total"`)
+		assert.Contains(t, check, `"metric": "system.disk.used"`)
+		assert.Contains(t, check, `"metric": "system.disk.free"`)
+	}, 30*time.Second, 1*time.Second)
 }
 
 func (v *baseCheckSuite) TestUnknownCheck() {
