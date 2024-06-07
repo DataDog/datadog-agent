@@ -297,6 +297,10 @@ func (a *apmInjectorInstaller) overridePreviousInstallScripts(ctx context.Contex
 		return fmt.Errorf("failed to override dd-host-install: %w", err)
 	}
 	a.rollbacks = append(a.rollbacks, rollbackHost)
+	err = os.Chmod("/usr/bin/dd-host-install", 0755)
+	if err != nil {
+		return fmt.Errorf("failed to change permissions of dd-host-install: %w", err)
+	}
 
 	containerMutator := newFileMutator(
 		"/usr/bin/dd-container-install",
@@ -306,11 +310,15 @@ func (a *apmInjectorInstaller) overridePreviousInstallScripts(ctx context.Contex
 		nil, nil,
 	)
 	a.cleanups = append(a.cleanups, containerMutator.cleanup)
-	rollbackContainer, err := hostMutator.mutate(ctx)
+	rollbackContainer, err := containerMutator.mutate(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to override dd-host-install: %w", err)
 	}
 	a.rollbacks = append(a.rollbacks, rollbackContainer)
+	err = os.Chmod("/usr/bin/dd-container-install", 0755)
+	if err != nil {
+		return fmt.Errorf("failed to change permissions of dd-container-install: %w", err)
+	}
 
 	// Only override dd-cleanup if it exists
 	_, err = os.Stat("/usr/bin/dd-cleanup")
@@ -328,6 +336,10 @@ func (a *apmInjectorInstaller) overridePreviousInstallScripts(ctx context.Contex
 			return fmt.Errorf("failed to override dd-cleanup: %w", err)
 		}
 		a.rollbacks = append(a.rollbacks, rollbackCleanup)
+		err = os.Chmod("/usr/bin/dd-cleanup", 0755)
+		if err != nil {
+			return fmt.Errorf("failed to change permissions of dd-cleanup: %w", err)
+		}
 	} else if err != nil && !os.IsNotExist(err) {
 		return fmt.Errorf("failed to check if dd-cleanup exists on disk: %w", err)
 	}

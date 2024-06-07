@@ -365,7 +365,7 @@ func (s *packageApmInjectSuite) TestReplacePreviousCommands() {
 
 	// Remove the deb injector, we should still be instrumented
 	s.Env().RemoteHost.MustExecute("sudo datadog-installer apm instrument")
-	s.purgeInjectorDebInstall()
+	s.Env().RemoteHost.MustExecute("sudo apt-get remove -y --purge datadog-apm-inject || sudo yum remove -y datadog-apm-inject")
 	s.assertLDPreloadInstrumented(injectOCIPath)
 	s.assertSocketPath("/opt/datadog/apm/inject/run/apm.socket")
 	s.assertDockerdInstrumented(injectOCIPath)

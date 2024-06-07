@@ -26,7 +26,10 @@ while [ $# -gt 0 ]; do
     case $1 in
         -h|--help)
             usage
-            exit 0
+            exit_success
+            ;;
+        --dry-run|--no-config-change|--no-agent-restart|--no-agent-config-change|--no-docker-reload)
+            shift
             ;;
         --uninstall)
             uninstall_flag="true"
@@ -35,7 +38,7 @@ while [ $# -gt 0 ]; do
         *)
             echo -e "ERROR: An unknown flag was passed: ${1}\n"
             usage
-            exit 2
+            exit_error
             ;;
     esac
 done
