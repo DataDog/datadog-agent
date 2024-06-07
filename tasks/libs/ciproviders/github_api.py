@@ -32,8 +32,8 @@ class GithubAPI:
     def __init__(self, repository="DataDog/datadog-agent", public_repo=False):
         self._auth = self._chose_auth(public_repo)
         self._github = Github(auth=self._auth)
-        org, _ = repository.split("/")
-        self._organization = org
+        org = repository.split("/")
+        self._organization = org[0] if len(org) > 1 else None
         self._repository = self._github.get_repo(repository)
 
     @property
@@ -249,6 +249,7 @@ class GithubAPI:
         """
         Get the members of a team.
         """
+        assert self._organization
         org = self._github.get_organization(self._organization)
         team = org.get_team_by_slug(team_slug)
         return team.get_members()
