@@ -214,6 +214,8 @@ new-e2e-agent-subcommands:
       - EXTRA_PARAMS: --run TestLinuxSecretSuite
       - EXTRA_PARAMS: --run TestWindowsSecretSuite
       - EXTRA_PARAMS: --run TestLinuxCheckSuite
+      - EXTRA_PARAMS: --run TestLinuxRunSuite
+      - EXTRA_PARAMS: --run TestWindowsRunSuite
 
 new-e2e-language-detection:
   extends: .new_e2e_template_needs_deb_x64

@@ -34,7 +34,7 @@ import (
 	collectorfx "github.com/DataDog/datadog-agent/comp/otelcol/collector/fx"
 	"github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline"
 	"github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline/logsagentpipelineimpl"
-	"go.opentelemetry.io/collector/otelcol"
+	"go.opentelemetry.io/collector/confmap"
 
 	provider "github.com/DataDog/datadog-agent/comp/otelcol/provider/def"
 	providerfx "github.com/DataDog/datadog-agent/comp/otelcol/provider/fx"
@@ -97,7 +97,7 @@ func runOTelAgentCommand(ctx context.Context, params *subcommands.GlobalParams, 
 		collectorfx.Module(),
 		collectorcontribFx.Module(),
 		providerfx.Module(),
-		fx.Provide(func(cp provider.Component) otelcol.ConfigProvider {
+		fx.Provide(func(cp provider.Component) confmap.Converter {
 			return cp
 		}),
 		fx.Provide(func() (coreconfig.Component, error) {
