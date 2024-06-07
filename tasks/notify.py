@@ -253,11 +253,16 @@ def send_message(ctx, notification_type="merge", print_to_stdout=False):
             print(f"Would send to {channel}:\n{str(message)}")
         else:
             all_teams = channel == "#datadog-agent-pipelines"
-            post_channel = _should_send_message_to_channel(git_ref, default_branch) or all_teams
             send_dm = not _should_send_message_to_channel(git_ref, default_branch) and all_teams
 
-            if post_channel:
+            if all_teams:
                 recipient = channel
+                print('MSG', recipient)
+                print(str(message))
+                print()
+                # TODO
+                recipient = '#celian-tests'
+
                 send_slack_message(recipient, str(message))
                 metrics.append(
                     create_count(
@@ -277,10 +282,13 @@ def send_message(ctx, notification_type="merge", print_to_stdout=False):
             if send_dm:
                 author_email = get_git_author(email=True)
                 recipient = email_to_slackid(ctx, author_email)
-                send_slack_message(recipient, str(message))
+                # send_slack_message(recipient, str(message))
+                print('MSG u', recipient)
+                print(str(message))
+                print()
 
-    if metrics:
-        send_metrics(metrics)
+    # if metrics:
+    #     send_metrics(metrics)
 
 
 def _should_send_message_to_channel(git_ref: str, default_branch: str) -> bool:

@@ -19,7 +19,9 @@ notify-on-tagged-success:
 notify:
   extends: .slack-notifier-base
   stage: notify
-  rules: !reference [.on_main_or_release_branch_or_deploy_always]
+  # rules: !reference [.on_main_or_release_branch_or_deploy_always]
+  # TODO
+  needs: []
   dependencies: []
   tags: ["arch:amd64"]
   resource_group: notification
@@ -38,7 +40,7 @@ notify:
         else
           invoke -e notify.send-message --notification-type "merge"
         fi
-        invoke notify.check-consistent-failures
+        # invoke notify.check-consistent-failures
       else
         echo "This pipeline was triggered by another repository, skipping notification."
       fi
