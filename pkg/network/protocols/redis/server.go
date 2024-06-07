@@ -20,6 +20,9 @@ import (
 
 // RunServer runs a Redis server in a docker container
 func RunServer(t testing.TB, serverAddr, serverPort string, enableTLS bool) error {
+	t.Helper()
+	dir, _ := testutil.CurDir()
+
 	cert, _, err := testutil.GetCertsPaths()
 	require.NoError(t, err)
 	certsDir := filepath.Dir(cert)
@@ -28,14 +31,13 @@ func RunServer(t testing.TB, serverAddr, serverPort string, enableTLS bool) erro
 		"REDIS_ADDR=" + serverAddr,
 		"REDIS_PORT=" + serverPort,
 		"CERTS_PATH=" + certsDir,
+		"TESTDIR=" + dir,
 	}
 
 	if enableTLS {
-		args := fmt.Sprintf("REDIS_ARGS=--tls-port %v --port 0 --tls-cert-file /certs/cert.pem.0 --tls-key-file /certs/server.key --tls-auth-clients no", serverPort)
+		args := fmt.Sprintf("REDIS_ARGS=--tls-port %v --port 0 --tls-cert-file /redis-test/cert.pem.0 --tls-key-file /redis-test/server.key --tls-auth-clients no", serverPort)
 		env = append(env, args)
 	}
 
-	t.Helper()
-	dir, _ := testutil.CurDir()
 	return protocolsUtils.RunDockerServer(t, "redis", dir+"/testdata/docker-compose.yml", env, regexp.MustCompile(".*Ready to accept connections"), protocolsUtils.DefaultTimeout, 3)
 }
