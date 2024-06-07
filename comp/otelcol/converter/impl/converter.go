@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
-// package converterimpl provides the implementation of the otel-agent converter.
+// Package converterimpl provides the implementation of the otel-agent converter.
 package converterimpl
 
 import (
@@ -35,7 +35,7 @@ func NewConverter() (converter.Component, error) {
 	}, nil
 }
 
-func (c *ddConverter) Convert(ctx context.Context, conf *confmap.Conf) error {
+func (c *ddConverter) Convert(_ context.Context, _ *confmap.Conf) error {
 	// c.addProvidedConf(conf)
 
 	// TODO: enhance config (e.g. add dd connector)
