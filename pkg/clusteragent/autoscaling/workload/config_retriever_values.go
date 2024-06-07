@@ -22,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/model"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 type autoscalingValuesProcessor struct {
@@ -86,12 +87,14 @@ func (p autoscalingValuesProcessor) processValues(values *kubeAutoscaling.Worklo
 func (p autoscalingValuesProcessor) postProcess(errors []error) {
 	// We don't want to delete configs if we received incorrect data
 	if len(errors) > 0 {
+		log.Debugf("Skipping autoscaling values clean up due to errors while processing new data: %v", errors)
 		return
 	}
 
 	// Clear values for all configs that were removed
 	p.store.Update(func(podAutoscaler model.PodAutoscalerInternal) (model.PodAutoscalerInternal, bool) {
-		if _, found := p.processed[autoscaling.BuildObjectID(podAutoscaler.Namespace, podAutoscaler.Name)]; !found {
+		if _, found := p.processed[podAutoscaler.ID()]; !found {
+			log.Infof("Autoscaling not present from remote values, removing values for PodAutoscaler %s", podAutoscaler.ID())
 			podAutoscaler.RemoveValues()
 			return podAutoscaler, true
 		}
@@ -126,8 +129,8 @@ func parseAutoscalingValues(timestamp time.Time, values *kubeAutoscaling.Workloa
 	}
 
 	if values.Vertical != nil {
-		if values.Horizontal.Error != nil {
-			scalingValues.HorizontalError = (*model.ReccomendationError)(values.Horizontal.Error)
+		if values.Vertical.Error != nil {
+			scalingValues.VerticalError = (*model.ReccomendationError)(values.Vertical.Error)
 		}
 
 		var err error
@@ -198,6 +201,13 @@ func parseAutoscalingVerticalData(timestamp time.Time, data *kubeAutoscaling.Wor
 				convertedResources.Requests = requests
 			} else {
 				return nil, err
+			}
+
+			// Validating that requests are <= limits
+			for resourceName, requestQty := range convertedResources.Requests {
+				if limitQty, found := convertedResources.Limits[resourceName]; found && limitQty.Cmp(requestQty) < 0 {
+					return nil, fmt.Errorf("resource: %s, request %s is greater than limit %s", resourceName, requestQty.String(), limitQty.String())
+				}
 			}
 
 			verticalValues.ContainerResources = append(verticalValues.ContainerResources, convertedResources)

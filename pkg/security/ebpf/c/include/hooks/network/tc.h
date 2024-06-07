@@ -5,13 +5,7 @@
 
 #include "router.h"
 
-SEC("classifier/ingress")
-int classifier_ingress(struct __sk_buff *skb) {
-    return ACT_OK;
-};
-
-SEC("classifier/egress")
-int classifier_egress(struct __sk_buff *skb) {
+__attribute__((always_inline)) int parse_packet(struct __sk_buff *skb, int network_direction) {
     struct cursor c = {};
     tc_cursor_init(&c, skb);
 
@@ -99,7 +93,17 @@ int classifier_egress(struct __sk_buff *skb) {
             return ACT_OK;
     }
 
-    return route_pkt(skb, pkt, EGRESS);
+    return route_pkt(skb, pkt, network_direction);
+};
+
+SEC("classifier/ingress")
+int classifier_ingress(struct __sk_buff *skb) {
+    return parse_packet(skb, INGRESS);
+};
+
+SEC("classifier/egress")
+int classifier_egress(struct __sk_buff *skb) {
+    return parse_packet(skb, EGRESS);
 };
 
 #endif

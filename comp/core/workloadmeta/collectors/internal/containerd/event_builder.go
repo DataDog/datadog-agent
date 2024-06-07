@@ -18,6 +18,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	cutil "github.com/DataDog/datadog-agent/pkg/util/containerd"
+	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 )
 
 var errNoContainer = errors.New("no container")
@@ -45,7 +46,7 @@ func (c *collector) buildCollectorEvent(
 			return workloadmeta.CollectorEvent{}, err
 		}
 
-		c.cacheExitInfo(containerID, &exited.ExitStatus, exited.ExitedAt.AsTime())
+		c.cacheExitInfo(containerID, pointer.Ptr(int64(exited.ExitStatus)), exited.ExitedAt.AsTime())
 		return createSetEvent(container, containerdEvent.Namespace, c.containerdClient, store)
 
 	case TaskDeleteTopic:
@@ -54,7 +55,7 @@ func (c *collector) buildCollectorEvent(
 			return workloadmeta.CollectorEvent{}, err
 		}
 
-		c.cacheExitInfo(containerID, &deleted.ExitStatus, deleted.ExitedAt.AsTime())
+		c.cacheExitInfo(containerID, pointer.Ptr(int64(deleted.ExitStatus)), deleted.ExitedAt.AsTime())
 		return createSetEvent(container, containerdEvent.Namespace, c.containerdClient, store)
 
 	case TaskStartTopic, TaskOOMTopic, TaskPausedTopic, TaskResumedTopic:

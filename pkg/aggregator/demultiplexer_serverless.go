@@ -42,16 +42,16 @@ type ServerlessDemultiplexer struct {
 
 // InitAndStartServerlessDemultiplexer creates and starts new Demultiplexer for the serverless agent.
 func InitAndStartServerlessDemultiplexer(keysPerDomain map[string][]string, forwarderTimeout time.Duration) *ServerlessDemultiplexer {
-	bufferSize := config.Datadog.GetInt("aggregator_buffer_size")
+	bufferSize := config.Datadog().GetInt("aggregator_buffer_size")
 	log := logimpl.NewTemporaryLoggerWithoutInit()
-	forwarder := forwarder.NewSyncForwarder(config.Datadog, log, keysPerDomain, forwarderTimeout)
+	forwarder := forwarder.NewSyncForwarder(config.Datadog(), log, keysPerDomain, forwarderTimeout)
 	h, _ := hostname.Get(context.Background())
-	serializer := serializer.NewSerializer(forwarder, nil, compressionimpl.NewCompressor(config.Datadog), config.Datadog, h)
-	metricSamplePool := metrics.NewMetricSamplePool(MetricSamplePoolBatchSize, utils.IsTelemetryEnabled(config.Datadog))
-	tagsStore := tags.NewStore(config.Datadog.GetBool("aggregator_use_tags_store"), "timesampler")
+	serializer := serializer.NewSerializer(forwarder, nil, compressionimpl.NewCompressor(config.Datadog()), config.Datadog(), h)
+	metricSamplePool := metrics.NewMetricSamplePool(MetricSamplePoolBatchSize, utils.IsTelemetryEnabled(config.Datadog()))
+	tagsStore := tags.NewStore(config.Datadog().GetBool("aggregator_use_tags_store"), "timesampler")
 
 	statsdSampler := NewTimeSampler(TimeSamplerID(0), bucketSize, tagsStore, "")
-	flushAndSerializeInParallel := NewFlushAndSerializeInParallel(config.Datadog)
+	flushAndSerializeInParallel := NewFlushAndSerializeInParallel(config.Datadog())
 	statsdWorker := newTimeSamplerWorker(statsdSampler, DefaultFlushInterval, bufferSize, metricSamplePool, flushAndSerializeInParallel, tagsStore)
 
 	demux := &ServerlessDemultiplexer{
@@ -104,7 +104,7 @@ func (d *ServerlessDemultiplexer) ForceFlushToSerializer(start time.Time, waitFo
 	d.flushLock.Lock()
 	defer d.flushLock.Unlock()
 
-	logPayloads := config.Datadog.GetBool("log_payloads")
+	logPayloads := config.Datadog().GetBool("log_payloads")
 	series, sketches := createIterableMetrics(d.flushAndSerializeInParallel, d.serializer, logPayloads, true)
 
 	metrics.Serialize(

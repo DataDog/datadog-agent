@@ -503,3 +503,38 @@ func TestGetBFDSessionsState(t *testing.T) {
 	// Ensure endpoint has been called 1 times
 	require.Equal(t, 1, handler.numberOfCalls())
 }
+
+func TestGetHardwareStates(t *testing.T) {
+	mux := setupCommonServerMux()
+
+	handler := newHandler(func(w http.ResponseWriter, r *http.Request, calls int32) {
+		query := r.URL.Query()
+		count := query.Get("count")
+
+		require.Equal(t, "2000", count)
+
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(fixtures.FakePayload(fixtures.GetHardwareStates)))
+	})
+
+	mux.HandleFunc("/dataservice/data/device/state/HardwareEnvironment", handler.Func)
+
+	server := httptest.NewServer(mux)
+	defer server.Close()
+
+	client, err := testClient(server)
+	require.NoError(t, err)
+
+	devices, err := client.GetHardwareStates()
+	require.NoError(t, err)
+
+	require.Equal(t, "10.10.1.11", devices[0].VmanageSystemIP)
+	require.Equal(t, 1, devices[0].HwDevIndex)
+	require.Equal(t, "Tray 0 fan", devices[0].HwItem)
+	require.Equal(t, "Fans", devices[0].HwClass)
+	require.Equal(t, "Spinning at 1000 RPM", devices[0].Measurement)
+	require.Equal(t, "OK", devices[0].Status)
+
+	// Ensure endpoint has been called 1 times
+	require.Equal(t, 1, handler.numberOfCalls())
+}

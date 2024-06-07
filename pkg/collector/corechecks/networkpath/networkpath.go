@@ -53,6 +53,7 @@ func (c *Check) Run() error {
 		DestPort:     c.config.DestPort,
 		MaxTTL:       c.config.MaxTTL,
 		TimeoutMs:    c.config.TimeoutMs,
+		Protocol:     c.config.Protocol,
 	}
 
 	tr, err := traceroute.New(cfg)
@@ -67,6 +68,8 @@ func (c *Check) Run() error {
 
 	// Add tags to path
 	commonTags := append(utils.GetCommonAgentTags(), c.config.Tags...)
+	path.Source.Service = c.config.SourceService
+	path.Destination.Service = c.config.DestinationService
 	path.Tags = commonTags
 
 	// send to EP

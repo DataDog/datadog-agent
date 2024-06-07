@@ -29,7 +29,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/listeners"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/pidmap"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/pidmap/pidmapimpl"
-	"github.com/DataDog/datadog-agent/comp/dogstatsd/replay"
+	replay "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/def"
+	replaymock "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/fx-mock"
 	serverdebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug/serverdebugimpl"
 	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl"
@@ -65,7 +66,7 @@ func fulfillDepsWithConfigOverrideAndFeatures(t testing.TB, overrides map[string
 			Features:  features,
 		}),
 		fx.Supply(Params{Serverless: false}),
-		replay.MockModule(),
+		replaymock.MockModule(),
 		compressionimpl.MockModule(),
 		pidmapimpl.Module(),
 		demultiplexerimpl.FakeSamplerMockModule(),
@@ -87,7 +88,7 @@ func fulfillDepsWithConfigYaml(t testing.TB, yaml string) serverDeps {
 			Params: configComponent.Params{ConfFilePath: yaml},
 		}),
 		fx.Supply(Params{Serverless: false}),
-		replay.MockModule(),
+		replaymock.MockModule(),
 		compressionimpl.MockModule(),
 		pidmapimpl.Module(),
 		demultiplexerimpl.FakeSamplerMockModule(),

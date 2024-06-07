@@ -175,7 +175,7 @@ func (r *Resolver) prepareContextTags() {
 	r.contextTags = append(r.contextTags, fmt.Sprintf("host:%s", r.hostname))
 
 	// merge tags from config
-	for _, tag := range configUtils.GetConfiguredTags(coreconfig.Datadog, true) {
+	for _, tag := range configUtils.GetConfiguredTags(coreconfig.Datadog(), true) {
 		if strings.HasPrefix(tag, "host") {
 			continue
 		}

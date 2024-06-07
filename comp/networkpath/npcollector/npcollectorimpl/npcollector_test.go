@@ -96,6 +96,7 @@ func Test_NpCollector_runningAndProcessing(t *testing.T) {
 		var p payload.NetworkPath
 		if cfg.DestHostname == "127.0.0.2" {
 			p = payload.NetworkPath{
+				Protocol:    payload.ProtocolUDP,
 				Source:      payload.NetworkPathSource{Hostname: "abc"},
 				Destination: payload.NetworkPathDestination{Hostname: "abc", IPAddress: "127.0.0.2", Port: 80},
 				Hops: []payload.NetworkPathHop{
@@ -106,6 +107,7 @@ func Test_NpCollector_runningAndProcessing(t *testing.T) {
 		}
 		if cfg.DestHostname == "127.0.0.4" {
 			p = payload.NetworkPath{
+				Protocol:    payload.ProtocolUDP,
 				Source:      payload.NetworkPathSource{Hostname: "abc"},
 				Destination: payload.NetworkPathDestination{Hostname: "abc", IPAddress: "127.0.0.4", Port: 80},
 				Hops: []payload.NetworkPathHop{
@@ -124,10 +126,9 @@ func Test_NpCollector_runningAndProcessing(t *testing.T) {
     "timestamp": 0,
     "namespace": "",
     "path_id": "",
+    "protocol": "UDP",
     "source": {
-        "hostname": "abc",
-        "via": null,
-        "network_id": ""
+        "hostname": "abc"
     },
     "destination": {
         "hostname": "abc",
@@ -139,18 +140,15 @@ func Test_NpCollector_runningAndProcessing(t *testing.T) {
             "ttl": 0,
             "ip_address": "1.1.1.1",
             "hostname": "hop_1",
-            "rtt": 0,
             "success": false
         },
         {
             "ttl": 0,
             "ip_address": "1.1.1.2",
             "hostname": "hop_2",
-            "rtt": 0,
             "success": false
         }
-    ],
-    "tags": null
+    ]
 }
 `)
 	// language=json
@@ -159,10 +157,9 @@ func Test_NpCollector_runningAndProcessing(t *testing.T) {
     "timestamp": 0,
     "namespace": "",
     "path_id": "",
+    "protocol": "UDP",
     "source": {
-        "hostname": "abc",
-        "via": null,
-        "network_id": ""
+        "hostname": "abc"
     },
     "destination": {
         "hostname": "abc",
@@ -174,18 +171,15 @@ func Test_NpCollector_runningAndProcessing(t *testing.T) {
             "ttl": 0,
             "ip_address": "1.1.1.3",
             "hostname": "hop_1",
-            "rtt": 0,
             "success": false
         },
         {
             "ttl": 0,
             "ip_address": "1.1.1.4",
             "hostname": "hop_2",
-            "rtt": 0,
             "success": false
         }
-    ],
-    "tags": null
+    ]
 }
 `)
 	mockEpForwarder.EXPECT().SendEventPlatformEventBlocking(
@@ -204,11 +198,13 @@ func Test_NpCollector_runningAndProcessing(t *testing.T) {
 			Laddr:     &model.Addr{Ip: "127.0.0.1", Port: int32(30000)},
 			Raddr:     &model.Addr{Ip: "127.0.0.2", Port: int32(80)},
 			Direction: model.ConnectionDirection_outgoing,
+			Type:      model.ConnectionType_tcp,
 		},
 		{
 			Laddr:     &model.Addr{Ip: "127.0.0.3", Port: int32(30000)},
 			Raddr:     &model.Addr{Ip: "127.0.0.4", Port: int32(80)},
 			Direction: model.ConnectionDirection_outgoing,
+			Type:      model.ConnectionType_udp,
 		},
 	}
 	npCollector.ScheduleConns(conns)
@@ -247,11 +243,13 @@ func Test_NpCollector_ScheduleConns_ScheduleDurationMetric(t *testing.T) {
 			Laddr:     &model.Addr{Ip: "127.0.0.1", Port: int32(30000)},
 			Raddr:     &model.Addr{Ip: "127.0.0.2", Port: int32(80)},
 			Direction: model.ConnectionDirection_outgoing,
+			Type:      model.ConnectionType_tcp,
 		},
 		{
 			Laddr:     &model.Addr{Ip: "127.0.0.3", Port: int32(30000)},
 			Raddr:     &model.Addr{Ip: "127.0.0.4", Port: int32(80)},
 			Direction: model.ConnectionDirection_outgoing,
+			Type:      model.ConnectionType_udp,
 		},
 	}
 	timeNowCounter := 0
@@ -327,17 +325,33 @@ func Test_npCollectorImpl_ScheduleConns(t *testing.T) {
 			expectedPathtests: []*common.Pathtest{},
 		},
 		{
-			name:         "one outgoing conn",
+			name:         "one outgoing TCP conn",
 			agentConfigs: defaultagentConfigs,
 			conns: []*model.Connection{
 				{
 					Laddr:     &model.Addr{Ip: "127.0.0.3", Port: int32(30000)},
 					Raddr:     &model.Addr{Ip: "127.0.0.4", Port: int32(80)},
 					Direction: model.ConnectionDirection_outgoing,
+					Type:      model.ConnectionType_tcp,
 				},
 			},
 			expectedPathtests: []*common.Pathtest{
-				{Hostname: "127.0.0.4", Port: uint16(80)},
+				{Hostname: "127.0.0.4", Port: uint16(80), Protocol: "tcp"},
+			},
+		},
+		{
+			name:         "one outgoing UDP conn",
+			agentConfigs: defaultagentConfigs,
+			conns: []*model.Connection{
+				{
+					Laddr:     &model.Addr{Ip: "127.0.0.5", Port: int32(30000)},
+					Raddr:     &model.Addr{Ip: "127.0.0.6", Port: int32(161)},
+					Direction: model.ConnectionDirection_outgoing,
+					Type:      model.ConnectionType_udp,
+				},
+			},
+			expectedPathtests: []*common.Pathtest{
+				{Hostname: "127.0.0.6", Port: uint16(161), Protocol: "udp"},
 			},
 		},
 		{
@@ -348,11 +362,13 @@ func Test_npCollectorImpl_ScheduleConns(t *testing.T) {
 					Laddr:     &model.Addr{Ip: "127.0.0.1", Port: int32(30000)},
 					Raddr:     &model.Addr{Ip: "127.0.0.2", Port: int32(80)},
 					Direction: model.ConnectionDirection_incoming,
+					Type:      model.ConnectionType_tcp,
 				},
 				{
 					Laddr:     &model.Addr{Ip: "127.0.0.3", Port: int32(30000)},
 					Raddr:     &model.Addr{Ip: "127.0.0.4", Port: int32(80)},
 					Direction: model.ConnectionDirection_incoming,
+					Type:      model.ConnectionType_tcp,
 				},
 			},
 			expectedPathtests: []*common.Pathtest{},
@@ -365,15 +381,17 @@ func Test_npCollectorImpl_ScheduleConns(t *testing.T) {
 					Laddr:     &model.Addr{Ip: "127.0.0.1", Port: int32(30000)},
 					Raddr:     &model.Addr{Ip: "127.0.0.2", Port: int32(80)},
 					Direction: model.ConnectionDirection_incoming,
+					Type:      model.ConnectionType_tcp,
 				},
 				{
 					Laddr:     &model.Addr{Ip: "127.0.0.3", Port: int32(30000)},
 					Raddr:     &model.Addr{Ip: "127.0.0.4", Port: int32(80)},
 					Direction: model.ConnectionDirection_outgoing,
+					Type:      model.ConnectionType_tcp,
 				},
 			},
 			expectedPathtests: []*common.Pathtest{
-				{Hostname: "127.0.0.4", Port: uint16(80)},
+				{Hostname: "127.0.0.4", Port: uint16(80), Protocol: "tcp"},
 			},
 		},
 		{
@@ -385,6 +403,7 @@ func Test_npCollectorImpl_ScheduleConns(t *testing.T) {
 					Laddr:     &model.Addr{Ip: "127.0.0.3", Port: int32(30000)},
 					Raddr:     &model.Addr{Ip: "127.0.0.4", Port: int32(80)},
 					Direction: model.ConnectionDirection_outgoing,
+					Type:      model.ConnectionType_tcp,
 				},
 			},
 			expectedPathtests: []*common.Pathtest{},
@@ -413,21 +432,24 @@ func Test_npCollectorImpl_ScheduleConns(t *testing.T) {
 					Raddr:     &model.Addr{Ip: "::1", Port: int32(80)},
 					Direction: model.ConnectionDirection_outgoing,
 					Family:    model.ConnectionFamily_v6,
+					Type:      model.ConnectionType_tcp,
 				},
 				{
 					Laddr:     &model.Addr{Ip: "::1", Port: int32(30000)},
 					Raddr:     &model.Addr{Ip: "::1", Port: int32(80)},
 					Direction: model.ConnectionDirection_outgoing,
 					Family:    model.ConnectionFamily_v6,
+					Type:      model.ConnectionType_tcp,
 				},
 				{
 					Laddr:     &model.Addr{Ip: "127.0.0.3", Port: int32(30000)},
 					Raddr:     &model.Addr{Ip: "127.0.0.4", Port: int32(80)},
 					Direction: model.ConnectionDirection_outgoing,
+					Type:      model.ConnectionType_tcp,
 				},
 			},
 			expectedPathtests: []*common.Pathtest{
-				{Hostname: "127.0.0.4", Port: uint16(80)},
+				{Hostname: "127.0.0.4", Port: uint16(80), Protocol: "tcp"},
 			},
 			expectedLogs: []logCount{},
 		},

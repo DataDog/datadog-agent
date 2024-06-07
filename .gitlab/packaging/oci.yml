@@ -14,6 +14,8 @@
     KUBERNETES_MEMORY_REQUEST: "32Gi"
     KUBERNETES_MEMORY_LIMIT: "32Gi"
   script:
+    - rm -f $OMNIBUS_PACKAGE_DIR/*-dbg-*.tar.xz
+    - ls -l $OMNIBUS_PACKAGE_DIR
     - python3 -m pip install -r tasks/libs/requirements-github.txt
     - export GITHUB_KEY_B64=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh ci.datadog-agent.platform-github-app-key)
     - export GITHUB_APP_ID=682216
@@ -35,7 +37,7 @@
       fi
     - |
       for ARCH in "amd64" "arm64"; do
-        INPUT_FILE="$OMNIBUS_PACKAGE_DIR/${OCI_PRODUCT}-*${ARCH}.tar.xz"
+        INPUT_FILE="${OMNIBUS_PACKAGE_DIR}${OCI_PRODUCT}-*${ARCH}.tar.xz"
         OUTPUT_FILE="$(basename -a -s .xz ${INPUT_FILE})"
         MERGED_FILE=$(basename -a $OMNIBUS_PACKAGE_DIR/*.tar.xz | head -n 1 | sed "s/-${ARCH}.tar.xz//").oci.tar
         export MERGED_FILE
