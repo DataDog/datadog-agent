@@ -83,16 +83,16 @@ func (ext *ddExtension) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	resp := Response{
-		BuildInfoResponse: BuildInfoResponse{
-			agentVersion: ext.info.Version,
-			agentCommand: ext.info.Command,
-			agentDesc:    ext.info.Description,
+		BuildInfoResponse{
+			AgentVersion: ext.info.Version,
+			AgentCommand: ext.info.Command,
+			AgentDesc:    ext.info.Description,
 		},
-		ConfigResponse: ConfigResponse{
-			customerConfig: provider.GetProvidedConf(),
-			runtimeConfig:  provider.GetEnhancedConf(),
+		ConfigResponse{
+			CustomerConfig: provider.GetProvidedConf(),
+			RuntimeConfig:  provider.GetEnhancedConf(),
 		},
-		DebugSourceResponse: DebugSourceResponse{},
+		DebugSourceResponse{},
 	}
 	ext.telemetry.Logger.Info("Logging response", zap.String("response", fmt.Sprintf("%v", resp)))
 

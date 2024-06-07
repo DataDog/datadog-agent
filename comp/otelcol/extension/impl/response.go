@@ -1,26 +1,32 @@
 package impl
 
 type BuildInfoResponse struct {
-	agentVersion string `json:"version"`
-	agentCommand string `json:"command"`
-	agentDesc    string `json:"description"`
+	AgentVersion string `json:"version"`
+	AgentCommand string `json:"command"`
+	AgentDesc    string `json:"description"`
 }
 
 type ConfigResponse struct {
-	customerConfig        string `json:"customer_configuration,omitempty"`
-	envConfig             string `json:"environment_configuration,omitempty,omitempty"`
-	runtimeOverrideConfig string `json:"runtime_override_configuration,omitempty"`
-	runtimeConfig         string `json:"runtime_configuration,omitempty"`
+	CustomerConfig        string `json:"customer_configuration"`
+	EnvConfig             string `json:"environment_configuration"`
+	RuntimeOverrideConfig string `json:"runtime_override_configuration"`
+	RuntimeConfig         string `json:"runtime_configuration"`
 }
 
 type OTelFlareSource struct {
-	url   string `json:"url"`
-	crawl bool   `json:"crawl"`
+	Url   string `json:"url"`
+	Crawl bool   `json:"crawl"`
 }
 
 type DebugSourceResponse struct {
-	sources map[string]OTelFlareSource `json:sources,omitempty`
+	Sources map[string]OTelFlareSource `json:"sources,omitempty"`
 }
+
+// type Response struct {
+// 	BuildInfoResponse   `json:"build_info"`
+// 	ConfigResponse      `json:"config"`
+// 	DebugSourceResponse `json:"debug,omitempty"`
+// }
 
 type Response struct {
 	BuildInfoResponse
