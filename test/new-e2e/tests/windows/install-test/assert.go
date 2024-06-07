@@ -376,17 +376,13 @@ func getExpectedInheritedConfigDirSecurityWithAgent(host *components.RemoteHost,
 // addAgentUserAccessRule is a helper to add an access rule for the agent user to the security settings
 // except when the agent user is SYSTEM, in which case no additional ACE is needed.
 func addAgentUserAccessRule(host *components.RemoteHost, security *windows.ObjectSecurity, agentUserName string, ruleProvider func(agentUser windows.Identity) windows.AccessRule) error {
-	// Get identities from host
-	systemIdentity, err := windows.GetSystemIdentity(host)
-	if err != nil {
-		return err
-	}
+	// Get agent user identity from host
 	ddagentUserIdentity, err := windows.GetIdentityForUser(host, agentUserName)
 	if err != nil {
 		return err
 	}
 
-	if ddagentUserIdentity.Equal(systemIdentity) {
+	if windows.IsIdentityLocalSystem(ddagentUserIdentity) {
 		return nil
 	}
 

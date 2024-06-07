@@ -13,6 +13,14 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 )
 
+// Well Known SIDs
+//
+// https://learn.microsoft.com/en-us/windows/win32/secauthz/well-known-sids
+const (
+	LocalSystemSID    = "S-1-5-18"
+	AdministratorsSID = "S-1-5-32-544"
+)
+
 // Identity contains the name and SID of an identity (user or group)
 type Identity struct {
 	Name string
@@ -98,14 +106,14 @@ func GetIdentityForSID(host *components.RemoteHost, sid string) (Identity, error
 //
 // A lookup by SID is performed because the name may be localized.
 func GetSystemIdentity(host *components.RemoteHost) (Identity, error) {
-	return GetIdentityForSID(host, "S-1-5-18")
+	return GetIdentityForSID(host, LocalSystemSID)
 }
 
 // GetAdministratorsIdentity returns the Identity for the Administrators group
 //
 // A lookup by SID is performed because the name may be localized.
 func GetAdministratorsIdentity(host *components.RemoteHost) (Identity, error) {
-	return GetIdentityForSID(host, "S-1-5-32-544")
+	return GetIdentityForSID(host, AdministratorsSID)
 }
 
 // GetUserForSID returns the username for the given SID.
@@ -294,4 +302,10 @@ func RemoveLocalUser(host *components.RemoteHost, user string) error {
 	cmd := fmt.Sprintf(`Remove-LocalUser -Name "%s"`, user)
 	_, err := host.Execute(cmd)
 	return err
+}
+
+// IsIdentityLocalSystem Returns true if the identity is the local SYSTEM account
+func IsIdentityLocalSystem(i Identity) bool {
+	// We don't need to fetch a full identity with name from the host, we can just compare the SIDs
+	return SecurityIdentifierEqual(i, Identity{SID: LocalSystemSID})
 }

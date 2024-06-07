@@ -338,17 +338,19 @@ func (t *Tester) testCurrentVersionExpectations(tt *testing.T) {
 				// we don't modify kernel mode services
 				continue
 			}
-			// ddagentuser should have start/stop/read permissions
 			security, err := windows.GetServiceSecurityInfo(t.host, serviceName)
 			require.NoError(tt, err)
-			expected := windows.NewExplicitAccessRule(
-				ddagentUserIdentity,
-				windows.SERVICE_START|windows.SERVICE_STOP|windows.SERVICE_GENERIC_READ,
-				windows.AccessControlTypeAllow,
-			)
-			windows.AssertContainsEqualable(tt, security.Access, expected, "%s should have access rule for %s", serviceName, ddagentUserIdentity)
+			// ddagentuser should have start/stop/read permissions
+			if !windows.IsIdentityLocalSystem(ddagentUserIdentity) {
+				expected := windows.NewExplicitAccessRule(
+					ddagentUserIdentity,
+					windows.SERVICE_START|windows.SERVICE_STOP|windows.SERVICE_GENERIC_READ,
+					windows.AccessControlTypeAllow,
+				)
+				windows.AssertContainsEqualable(tt, security.Access, expected, "%s should have access rule for %s", serviceName, ddagentUserIdentity)
+			}
 			// [7.47 - 7.50) added an ACE for Everyone, make sure it isn't there
-			expected = windows.NewExplicitAccessRule(
+			expected := windows.NewExplicitAccessRule(
 				everyoneIdentity,
 				windows.SERVICE_ALL_ACCESS,
 				windows.AccessControlTypeAllow,
@@ -376,15 +378,17 @@ func (t *Tester) testCurrentVersionExpectations(tt *testing.T) {
 	tt.Run("registry permissions", func(tt *testing.T) {
 		// ensure registry key has normal inherited permissions and an explicit
 		// full access rule for ddagentuser
-		agentUserFullAccessDirRule := windows.NewExplicitAccessRule(
-			ddagentUserIdentity,
-			windows.RegistryFullControl,
-			windows.AccessControlTypeAllow,
-		)
 		path := windowsAgent.RegistryKeyPath
 		out, err := windows.GetSecurityInfoForPath(t.host, path)
 		require.NoError(tt, err)
-		windows.AssertContainsEqualable(tt, out.Access, agentUserFullAccessDirRule, "%s should have full access rule for %s", path, ddagentUserIdentity)
+		if !windows.IsIdentityLocalSystem(ddagentUserIdentity) {
+			agentUserFullAccessDirRule := windows.NewExplicitAccessRule(
+				ddagentUserIdentity,
+				windows.RegistryFullControl,
+				windows.AccessControlTypeAllow,
+			)
+			windows.AssertContainsEqualable(tt, out.Access, agentUserFullAccessDirRule, "%s should have full access rule for %s", path, ddagentUserIdentity)
+		}
 		assert.False(tt, out.AreAccessRulesProtected, "%s should inherit access rules", path)
 	})
 
@@ -514,7 +518,9 @@ func (t *Tester) testInstalledFilePermissions(tt *testing.T) {
 	for _, path := range embeddedPaths {
 		out, err := windows.GetSecurityInfoForPath(t.host, path)
 		require.NoError(tt, err)
-		windows.AssertContainsEqualable(tt, out.Access, agentUserFullAccessDirRule, "%s should have full access rule for %s", path, ddagentUserIdentity)
+		if !windows.IsIdentityLocalSystem(ddagentUserIdentity) {
+			windows.AssertContainsEqualable(tt, out.Access, agentUserFullAccessDirRule, "%s should have full access rule for %s", path, ddagentUserIdentity)
+		}
 		assert.False(tt, out.AreAccessRulesProtected, "%s should inherit access rules", path)
 	}
 }
