@@ -284,12 +284,9 @@ func (s *Launcher) launchTailers(source *sources.LogSource) {
 			continue
 		}
 
-		mode, _ := config.TailingModeFromString(source.Config.TailingMode)
+		mode, isSet := config.TailingModeFromString(source.Config.TailingMode)
 
-		if source.Config.Identifier != "" {
-			// only sources generated from a service discovery will contain a config identifier,
-			// in which case we want to collect all logs.
-			// FIXME: better detect a source that has been generated from a service discovery.
+		if !isSet {
 			mode = config.Beginning
 		}
 
