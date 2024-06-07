@@ -13,6 +13,7 @@ import (
 	stdlog "log"
 	"net/http"
 	"net/http/httputil"
+	"strconv"
 	"strings"
 	"time"
 
@@ -177,6 +178,7 @@ func (t *evpProxyTransport) RoundTrip(req *http.Request) (rresp *http.Response, 
 
 	// Timeout: Our outbound request(s) can't take longer than the WriteTimeout of the server
 	timeout := getConfiguredEVPRequestTimeoutDuration(t.conf)
+	req.Header.Set("X-Datadog-Timeout", strconv.Itoa((int(timeout.Seconds()))))
 	deadline := time.Now().Add(timeout)
 	ctx, ctxCancel := context.WithDeadline(req.Context(), deadline)
 	req = req.WithContext(ctx)
