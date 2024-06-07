@@ -182,7 +182,7 @@ func TestObfuscateConfig(t *testing.T) {
 		&config.ObfuscationConfig{},
 	))
 
-	t.Run("json/enabled", testConfig(
+	t.Run("elasticsearch/enabled", testConfig(
 		"elasticsearch",
 		"elasticsearch.body",
 		`{"role": "database"}`,
@@ -192,9 +192,27 @@ func TestObfuscateConfig(t *testing.T) {
 		},
 	))
 
-	t.Run("json/disabled", testConfig(
+	t.Run("elasticsearch/disabled", testConfig(
 		"elasticsearch",
 		"elasticsearch.body",
+		`{"role": "database"}`,
+		`{"role": "database"}`,
+		&config.ObfuscationConfig{},
+	))
+
+	t.Run("opensearch/enabled", testConfig(
+		"elasticsearch",
+		"opensearch.body",
+		`{"role": "database"}`,
+		`{"role":"?"}`,
+		&config.ObfuscationConfig{
+			OpenSearch: obfuscate.JSONConfig{Enabled: true},
+		},
+	))
+
+	t.Run("opensearch/disabled", testConfig(
+		"elasticsearch",
+		"opensearch.body",
 		`{"role": "database"}`,
 		`{"role": "database"}`,
 		&config.ObfuscationConfig{},
