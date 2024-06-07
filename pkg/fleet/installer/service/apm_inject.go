@@ -15,7 +15,6 @@ import (
 	"os"
 	"os/exec"
 	"path"
-	"path/filepath"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/env"
@@ -285,33 +284,52 @@ func (a *apmInjectorInstaller) overridePreviousInstallScripts(ctx context.Contex
 	span, _ := tracer.StartSpanFromContext(ctx, "override_previous_install_scripts")
 	defer func() { span.Finish(tracer.WithError(err)) }()
 
-	oldInstallScripts := []string{
-		"dd-host-install",
-		"dd-container-install",
-		"dd-cleanup",
+	hostMutator := newFileMutator(
+		"/usr/bin/dd-host-install",
+		func(_ context.Context, _ []byte) ([]byte, error) {
+			return embedded.FS.ReadFile("dd-host-install")
+		},
+		nil, nil,
+	)
+	a.cleanups = append(a.cleanups, hostMutator.cleanup)
+	rollbackHost, err := hostMutator.mutate(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to override dd-host-install: %w", err)
 	}
+	a.rollbacks = append(a.rollbacks, rollbackHost)
 
-	for _, script := range oldInstallScripts {
-		path := filepath.Join("/usr/bin", script)
-		mutator := newFileMutator(
-			path,
+	containerMutator := newFileMutator(
+		"/usr/bin/dd-container-install",
+		func(_ context.Context, _ []byte) ([]byte, error) {
+			return embedded.FS.ReadFile("dd-container-install")
+		},
+		nil, nil,
+	)
+	a.cleanups = append(a.cleanups, containerMutator.cleanup)
+	rollbackContainer, err := hostMutator.mutate(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to override dd-host-install: %w", err)
+	}
+	a.rollbacks = append(a.rollbacks, rollbackContainer)
+
+	// Only override dd-cleanup if it exists
+	_, err = os.Stat("/usr/bin/dd-cleanup")
+	if err == nil {
+		cleanupMutator := newFileMutator(
+			"/usr/bin/dd-cleanup",
 			func(_ context.Context, _ []byte) ([]byte, error) {
-				return embedded.FS.ReadFile(script)
+				return embedded.FS.ReadFile("dd-cleanup")
 			},
 			nil, nil,
 		)
-		_, err = os.Stat(path)
-		if err == nil {
-			a.cleanups = append(a.cleanups, mutator.cleanup)
-			rollback, err := mutator.mutate(ctx)
-			if err != nil {
-				return fmt.Errorf("failed to override %s: %w", script, err)
-			}
-			a.rollbacks = append(a.rollbacks, rollback)
-		} else if err != nil && !os.IsNotExist(err) {
-			err = fmt.Errorf("failed to check if %s exists on disk: %w", script, err)
-			return err
+		a.cleanups = append(a.cleanups, cleanupMutator.cleanup)
+		rollbackCleanup, err := cleanupMutator.mutate(ctx)
+		if err != nil {
+			return fmt.Errorf("failed to override dd-cleanup: %w", err)
 		}
+		a.rollbacks = append(a.rollbacks, rollbackCleanup)
+	} else if err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("failed to check if dd-cleanup exists on disk: %w", err)
 	}
 	return nil
 }

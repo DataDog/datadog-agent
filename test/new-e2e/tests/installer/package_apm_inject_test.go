@@ -48,6 +48,8 @@ func (s *packageApmInjectSuite) TestInstall() {
 	state.AssertFileExists("/var/run/datadog-installer/environment", 0644, "root", "root")
 	state.AssertDirExists("/var/log/datadog/dotnet", 0777, "root", "root")
 	state.AssertFileExists("/etc/ld.so.preload", 0644, "root", "root")
+	state.AssertFileExists("/usr/bin/dd-host-install", 0755, "root", "root")
+	state.AssertFileExists("/usr/bin/dd-container-install", 0755, "root", "root")
 	s.assertLDPreloadInstrumented(injectOCIPath)
 	s.assertSocketPath("/var/run/datadog-installer/apm.socket")
 	s.assertDockerdInstrumented(injectOCIPath)
