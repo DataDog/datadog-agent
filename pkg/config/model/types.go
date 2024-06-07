@@ -128,7 +128,7 @@ type Loader interface {
 	MergeConfigMap(cfg map[string]any) error
 
 	AddConfigPath(in string)
-	AddExtraConfigPaths(in []string)
+	AddExtraConfigPaths(in []string) error
 	SetConfigName(in string)
 	SetConfigFile(in string)
 	SetConfigType(in string)

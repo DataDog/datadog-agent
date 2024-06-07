@@ -17,6 +17,8 @@ import (
 	"sync"
 	"time"
 
+	"path/filepath"
+
 	"github.com/DataDog/viper"
 	"github.com/mohae/deepcopy"
 	"github.com/spf13/afero"
@@ -105,7 +107,10 @@ type safeConfig struct {
 	// used to warn (a single time) on use
 	unknownKeys map[string]struct{}
 
+	// extraConfigFilePaths represents additional configuration file paths that will be merged into the main configuration when ReadInConfig() is called.
 	extraConfigFilePaths []string
+	// extraConfigFilePaths are additional config file paths merged into the configuration during the ReadInConfig() call.
+	loadedExtraConfigFilePaths []string
 }
 
 // OnUpdate adds a callback to the list receivers to be called each time a value is changed in the configuration
@@ -586,29 +591,33 @@ func (c *safeConfig) UnmarshalExact(rawVal interface{}) error {
 func (c *safeConfig) ReadInConfig() error {
 	c.Lock()
 	defer c.Unlock()
+	// ReadInConfig reset configuration with the main config file
 	err := errors.Join(c.Viper.ReadInConfig(), c.configSources[SourceFile].ReadInConfig())
 	if err != nil {
 		return err
 	}
 
 	// merge with extra config files
+	c.loadedExtraConfigFilePaths = c.loadedExtraConfigFilePaths[:0]
 	var errs []error
-	var successfulExtraConfigPaths []string
 	for _, path := range c.extraConfigFilePaths {
+		// Read config file
 		b, err := os.ReadFile(path)
 		if err != nil {
-			errs = append(errs, fmt.Errorf("no config exists at %s", path))
+			errs = append(errs, fmt.Errorf("could not read extra config file '%s': %s", path, err))
 			continue
 		}
 
+		// Merge with base config and 'file' config
 		err = errors.Join(c.Viper.MergeConfig(bytes.NewReader(b)), c.configSources[SourceFile].MergeConfig(bytes.NewReader(b)))
 		if err != nil {
 			errs = append(errs, fmt.Errorf("error merging %s config file: %w", path, err))
 			continue
 		}
-		successfulExtraConfigPaths = append(successfulExtraConfigPaths, path)
+
+		// set config file to loaded
+		c.loadedExtraConfigFilePaths = append(c.loadedExtraConfigFilePaths, path)
 	}
-	c.extraConfigFilePaths = successfulExtraConfigPaths
 	return errors.Join(errs...)
 }
 
@@ -693,10 +702,58 @@ func (c *safeConfig) AddConfigPath(in string) {
 	c.Viper.AddConfigPath(in)
 }
 
-func (c *safeConfig) AddExtraConfigPaths(in []string) {
+// AddExtraConfigPaths allows adding additional configuration files
+// which will be merged into the main configuration during the ReadInConfig call.
+// The algorithm used to merge the source configuration into the target configuration is as follows:
+// The function iterates over every key in the source (src):
+// - If the key does not exist in the target (tgt), it is added.
+// - If the key exists in the target and its value is a map, the function is called recursively.
+// - If the key exists in the target and its value is not a map, it is not merged.
+// Note: A special case occurs if a key is set but its value is nil; it will not be overwritten.
+//
+// --- Example 1 ---
+// === SRC ===
+// api_key: abcdef
+// site: datadoghq.eu
+// proxy:
+//
+//	https: http:proxyserver1
+//
+// === TGT ===
+// api_key:
+// proxy:
+//
+//	http: http:proxyserver2
+//
+// === MERGED ===
+// api_key:
+// site: datadoghq.eu
+// proxy:
+//
+//	https: http:proxyserver1
+//	http: http:proxyserver2
+func (c *safeConfig) AddExtraConfigPaths(ins []string) error {
+	if len(ins) == 0 {
+		return nil
+	}
 	c.Lock()
 	defer c.Unlock()
-	c.extraConfigFilePaths = append(c.extraConfigFilePaths, in...)
+	var errs []error
+outerLoop:
+	for _, in := range ins {
+		in, err := filepath.Abs(in)
+		if err != nil {
+			errs = append(errs, fmt.Errorf("could not get absolute path of extra config file '%s': %s", in, err))
+			continue
+		}
+		for _, path := range c.extraConfigFilePaths {
+			if path == in {
+				continue outerLoop
+			}
+		}
+		c.extraConfigFilePaths = append(c.extraConfigFilePaths, in)
+	}
+	return errors.Join(errs...)
 }
 
 // SetConfigName wraps Viper for concurrent access
@@ -837,5 +894,7 @@ func (c *safeConfig) GetProxies() *Proxy {
 }
 
 func (c *safeConfig) ExtraConfigFilesUsed() []string {
-	return c.extraConfigFilePaths
+	c.Lock()
+	defer c.Unlock()
+	return c.loadedExtraConfigFilePaths
 }
