@@ -75,19 +75,23 @@ func (ms *Controller) start() {
 // immediately, before the Register call returns.
 func (ms *Controller) Register(name string, s Scheduler, replayConfigs bool) {
 	ms.m.Lock()
-	defer ms.m.Unlock()
 	if _, ok := ms.activeSchedulers[name]; ok {
 		log.Warnf("Scheduler %s already registered, overriding it", name)
 	}
 	ms.activeSchedulers[name] = s
+	ms.m.Unlock()
 
 	// if replaying configs, replay the currently-scheduled configs; note that
 	// this occurs under the protection of `ms.m`, so no config may be double-
 	// scheduled or missed in this process.
 	if replayConfigs {
-		configs := make([]integration.Config, 0, len(ms.scheduledConfigs))
-		for _, config := range ms.scheduledConfigs {
-			configs = append(configs, *config)
+		configStates := ms.configStateStore.List()
+
+		configs := make([]integration.Config, 0, len(configStates))
+		for _, config := range configStates {
+			if config.desiredState == Scheduled {
+				configs = append(configs, *config.config)
+			}
 		}
 		s.Schedule(configs)
 	}
