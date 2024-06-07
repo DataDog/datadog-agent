@@ -74,7 +74,7 @@ function ConvertTo-ACLDTO {
             }
             Access = @()
             Audit = @()
-            Sddl = $aclObject.Sddl
+            SDDL = $aclObject.Sddl
             AreAccessRulesProtected = $aclObject.AreAccessRulesProtected
             AreAuditRulesProtected = $aclObject.AreAuditRulesProtected
         }
@@ -127,7 +127,7 @@ function ConvertTo-ServiceSecurityDTO {
         $newObject = @{
             Access = @()
             Audit = @()
-            Sddl = $sddl
+            SDDL = $sddl
         }
 
         # Modify Access IdentityReferences and add to new ACL object

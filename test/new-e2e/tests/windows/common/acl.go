@@ -213,7 +213,7 @@ type ObjectSecurity struct {
 	Group                   Identity
 	Access                  []AccessRule
 	Audit                   []AuditRule
-	SDDL                    string `json:"Sddl"`
+	SDDL                    string
 	AreAccessRulesProtected bool
 	AreAuditRulesProtected  bool
 }
