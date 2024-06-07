@@ -3,6 +3,7 @@ name: mysql
 services:
   mysql:
     image: mysql:8.0.32
+    entrypoint: /runner.sh
     command: --default-authentication-plugin=mysql_native_password ${MYSQL_TLS_ARGS}
     restart: always
     environment:
@@ -15,3 +16,6 @@ services:
       - type: bind
         source: ${CERTS_PATH}
         target: /certs
+      - type: bind
+        source: ${TESTDIR}/testdata/runner.sh
+        target: /runner.sh
