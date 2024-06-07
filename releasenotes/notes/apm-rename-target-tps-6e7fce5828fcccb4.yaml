@@ -9,7 +9,7 @@
 deprecations:
   - |
     APM: DD_APM_MAX_TPS config setting is deprecated in favor of the more
-    accurate DD_APM_TARGET_TPS. Accordingly, when configured via yaml,
+    accurate DD_APM_TARGET_TPS. Accordingly, when configured through YAML,
     max_traces_per_second is deprecated in favor of target_traces_per_second.
     The setting behavior remains the same, only the name is changed to more
     accurately reflect the existing logic.
