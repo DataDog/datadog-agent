@@ -175,9 +175,9 @@ DEFAULT_MODULES = {
     "comp/otelcol/otlp/components/statsprocessor": GoModule(
         "comp/otelcol/otlp/components/statsprocessor", independent=True, used_by_otel=True
     ),
-    "comp/otelcol/otlp/testutil": GoModule("comp/otelcol/otlp/testutil", independent=True),
-    "comp/otelcol/provider/def": GoModule("comp/otelcol/provider/def", independent=True),
-    "comp/otelcol/provider/impl": GoModule("comp/otelcol/provider/impl", independent=True),
+    "comp/otelcol/otlp/testutil": GoModule("comp/otelcol/otlp/testutil", independent=True, used_by_otel=True),
+    "comp/otelcol/provider/def": GoModule("comp/otelcol/provider/def", independent=True, used_by_otel=True),
+    "comp/otelcol/provider/impl": GoModule("comp/otelcol/provider/impl", independent=True, used_by_otel=True),
     "comp/serializer/compression": GoModule("comp/serializer/compression", independent=True, used_by_otel=True),
     "internal/tools": GoModule("internal/tools", condition=lambda: False, should_tag=False),
     "internal/tools/independent-lint": GoModule(
