@@ -57,6 +57,7 @@ type Requires struct {
 	LogsAgent        optional.Option[logsagentpipeline.Component]
 	HostName         hostname.Component
 	Tagger           tagger.Component
+	URIs             []string
 }
 
 // Provides declares the output types from the constructor
@@ -98,6 +99,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 		},
 		ConfigProviderSettings: otelcol.ConfigProviderSettings{
 			ResolverSettings: confmap.ResolverSettings{
+				URIs: reqs.URIs,
 				ProviderFactories: []confmap.ProviderFactory{
 					fileprovider.NewFactory(),
 					envprovider.NewFactory(),

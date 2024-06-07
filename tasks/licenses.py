@@ -285,7 +285,7 @@ def find_copyright_for(package, overrides, ctx):
 
     for filename in AUTHORS_LOCATIONS:
         filename = os.path.join(pkgdir, filename)
-        if os.path.exists(filename):
+        if os.path.isfile(filename):
             lines = open(filename, encoding="utf-8")
             if package in CONTRIBUTORS_WITH_UNCOMMENTED_HEADER:
                 lines = skipheader(lines)

@@ -3,7 +3,7 @@ import subprocess
 import sys
 from contextlib import contextmanager
 
-from invoke import Context, task
+from invoke import Context, Exit, task
 
 from tasks.libs.common.color import color_message
 
@@ -174,6 +174,8 @@ DEFAULT_MODULES = {
         "comp/otelcol/otlp/components/statsprocessor", independent=True
     ),
     "comp/otelcol/otlp/testutil": GoModule("comp/otelcol/otlp/testutil", independent=True),
+    "comp/otelcol/provider/def": GoModule("comp/otelcol/provider/def", independent=True),
+    "comp/otelcol/provider/impl": GoModule("comp/otelcol/provider/impl", independent=True),
     "comp/serializer/compression": GoModule("comp/serializer/compression", independent=True),
     "internal/tools": GoModule("internal/tools", condition=lambda: False, should_tag=False),
     "internal/tools/independent-lint": GoModule(
@@ -356,3 +358,22 @@ def for_each(ctx: Context, cmd: str, skip_untagged: bool = False):
             continue
         with ctx.cd(mod.full_path()):
             ctx.run(cmd)
+
+
+@task
+def validate(_: Context, fail_fast: bool = False):
+    """
+    Test if every module was properly added in the DEFAULT_MODULES list.
+    """
+    missing_modules = []
+    for module in DEFAULT_MODULES.values():
+        for dependency in module.dependencies:
+            if dependency not in DEFAULT_MODULES:
+                if fail_fast:
+                    raise Exit(f"{color_message('ERROR', 'red')}: {module.path} depends on missing {dependency}")
+                missing_modules.append((module, dependency))
+    if missing_modules:
+        message = f"{color_message('ERROR', 'red')}: some modules are missing from DEFAULT_MODULES\n"
+        for module, dependency in missing_modules:
+            message += f"  {module.path} depends on missing {dependency}\n"
+        raise Exit(message)

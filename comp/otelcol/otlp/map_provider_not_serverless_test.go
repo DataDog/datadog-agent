@@ -10,7 +10,6 @@ package otlp
 
 import (
 	"context"
-	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -1119,7 +1118,7 @@ func TestUnmarshal(t *testing.T) {
 
 	mapSettings := otelcol.ConfigProviderSettings{
 		ResolverSettings: confmap.ResolverSettings{
-			URIs: []string{fmt.Sprintf("map:%s", "hardcoded")},
+			URIs: []string{"map:hardcoded"},
 			ProviderFactories: []confmap.ProviderFactory{
 				configutils.NewProviderFactory(cfgMap),
 			},
