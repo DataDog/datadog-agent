@@ -468,7 +468,7 @@ def send_notification(ctx: Context, alert_jobs):
 
     if metrics:
         send_metrics(metrics)
-        print('Sent metrics')
+        print('Metrics sent')
 
 
 @task
