@@ -1005,4 +1005,6 @@ def otel_integration_test(ctx):
 
     if failed:
         ctx.run('cat "$messagefile" | /usr/local/bin/pr-commenter --for-pr="$CI_COMMIT_REF_NAME" --header="OpenTelemetry integration test results"')
+        ctx.run('cat "$messagefile"')
         ctx.run('rm "$messagefile"')
+        raise Exit
