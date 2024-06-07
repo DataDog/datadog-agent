@@ -42,7 +42,7 @@ func NewContainerListener(Config) (ServiceListener, error) {
 	l := &ContainerListener{}
 	filterParams := workloadmeta.FilterParams{
 		Kinds:     []workloadmeta.Kind{workloadmeta.KindContainer},
-		Source:    workloadmeta.SourceRuntime,
+		Source:    workloadmeta.SourceAll,
 		EventType: workloadmeta.EventTypeAll,
 	}
 	f := workloadmeta.NewFilter(&filterParams)
