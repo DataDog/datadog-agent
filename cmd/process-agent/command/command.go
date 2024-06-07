@@ -72,7 +72,7 @@ func MakeCommand(subcommandFactories []SubcommandFactory, winParams bool, rootCm
 	globalParams := GlobalParams{}
 
 	rootCmd := &cobra.Command{
-		Run: func(cmd *cobra.Command, args []string) {
+		Run: func(_ *cobra.Command, _ []string) {
 			rootCmdRun(&globalParams)
 		},
 		SilenceUsage: true,
@@ -149,6 +149,6 @@ func GetCoreBundleParamsForOneShot(globalParams *GlobalParams) core.BundleParams
 		ConfigParams:         configComponent.NewAgentParams(globalParams.ConfFilePath),
 		SecretParams:         secrets.NewEnabledParams(),
 		SysprobeConfigParams: sysprobeconfigimpl.NewParams(sysprobeconfigimpl.WithSysProbeConfFilePath(globalParams.SysProbeConfFilePath)),
-		LogParams:            logComponentimpl.ForOneShot(string(LoggerName), "info", true),
+		LogParams:            OneShotLogParams,
 	}
 }

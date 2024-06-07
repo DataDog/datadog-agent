@@ -43,10 +43,15 @@ int hook_rtnl_create_link(ctx_t *ctx) {
 
 HOOK_ENTRY("register_netdevice")
 int hook_register_netdevice(ctx_t *ctx) {
+    struct net_device *net_dev = (struct net_device *)CTX_PARM1(ctx);
+
     u64 id = bpf_get_current_pid_tgid();
     struct register_netdevice_cache_t entry = {
-        .device = (struct net_device *)CTX_PARM1(ctx),
+        .device = net_dev,
     };
+
+    entry.ifindex.netns = get_netns_from_net_device(net_dev);
+
     bpf_map_update_elem(&register_netdevice_cache, &id, &entry, BPF_ANY);
     return 0;
 };
@@ -159,7 +164,8 @@ int rethook_register_netdevice(ctx_t *ctx) {
         .netns = entry->ifindex.netns,
     };
     // populate interface name directly from the net_device structure
-    bpf_probe_read(&device.name[0], sizeof(device.name), entry->device);
+    char *name = get_net_device_name(entry->device);
+    bpf_probe_read(&device.name, sizeof(device.name), name);
 
     // check where we're at in the veth state machine
     struct veth_state_t *state = bpf_map_lookup_elem(&veth_state_machine, &id);

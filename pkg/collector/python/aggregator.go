@@ -46,7 +46,6 @@ func SubmitMetric(checkID *C.char, metricType C.metric_type_t, metricName *C.cha
 	_name := C.GoString(metricName)
 	_value := float64(value)
 	_hostname := C.GoString(hostname)
-	// TODO: use an interner here ?
 	_tags := cStringArrayToSlice(tags)
 	_flushFirstValue := bool(flushFirstValue)
 
@@ -124,10 +123,10 @@ func SubmitEvent(checkID *C.char, event *C.event_t) {
 	_event := metricsevent.Event{
 		Title:          eventParseString(event.title, "msg_title"),
 		Text:           eventParseString(event.text, "msg_text"),
-		Priority:       metricsevent.EventPriority(eventParseString(event.priority, "priority")),
+		Priority:       metricsevent.Priority(eventParseString(event.priority, "priority")),
 		Host:           eventParseString(event.host, "host"),
 		Tags:           cStringArrayToSlice(event.tags),
-		AlertType:      metricsevent.EventAlertType(eventParseString(event.alert_type, "alert_type")),
+		AlertType:      metricsevent.AlertType(eventParseString(event.alert_type, "alert_type")),
 		AggregationKey: eventParseString(event.aggregation_key, "aggregation_key"),
 		SourceTypeName: eventParseString(event.source_type_name, "source_type_name"),
 		Ts:             int64(event.ts),

@@ -3,24 +3,24 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2022-present Datadog, Inc.
 
-//go:build trivy
+//go:build trivy || (windows && wmi)
 
 package sbom
 
 import (
 	"context"
 	"errors"
+	"io/fs"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
-	"github.com/DataDog/datadog-agent/comp/core/tagger/collectors"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
-
-	//nolint:revive // TODO(CINT) Fix revive linter
 
 	ddConfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/sbom"
@@ -37,7 +37,7 @@ import (
 )
 
 var /* const */ (
-	envVarEnv   = ddConfig.Datadog.GetString("env")
+	envVarEnv   = ddConfig.Datadog().GetString("env")
 	sourceAgent = "agent"
 )
 
@@ -48,7 +48,6 @@ type processor struct {
 	imageUsers            map[string]map[string]struct{} // Map where keys are image repo digest and values are set of container IDs
 	sbomScanner           *sbomscanner.Scanner
 	hostSBOM              bool
-	hostScanOpts          sbom.ScanOptions
 	hostname              string
 	hostCache             string
 	hostLastFullSBOM      time.Time
@@ -56,8 +55,6 @@ type processor struct {
 }
 
 func newProcessor(workloadmetaStore workloadmeta.Component, sender sender.Sender, maxNbItem int, maxRetentionTime time.Duration, hostSBOM bool, hostHeartbeatValidity time.Duration) (*processor, error) {
-	hostScanOpts := sbom.ScanOptionsFromConfig(ddConfig.Datadog, false)
-	hostScanOpts.NoCache = true
 	sbomScanner := sbomscanner.GetGlobalScanner()
 	if sbomScanner == nil {
 		return nil, errors.New("failed to get global SBOM scanner")
@@ -88,7 +85,6 @@ func newProcessor(workloadmetaStore workloadmeta.Component, sender sender.Sender
 		imageUsers:            make(map[string]map[string]struct{}),
 		sbomScanner:           sbomScanner,
 		hostSBOM:              hostSBOM,
-		hostScanOpts:          hostScanOpts,
 		hostname:              hname,
 		hostHeartbeatValidity: hostHeartbeatValidity,
 	}, nil
@@ -192,6 +188,7 @@ func (p *processor) processHostScanResult(result sbom.ScanResult) {
 	}
 
 	if result.Error != nil {
+		log.Errorf("Scan error: %v", result.Error)
 		sbom.Sbom = &model.SBOMEntity_Error{
 			Error: result.Error.Error(),
 		}
@@ -224,24 +221,41 @@ func (p *processor) processHostScanResult(result sbom.ScanResult) {
 	p.queue <- sbom
 }
 
-func (p *processor) triggerHostScan(ch chan sbom.ScanResult) {
+type relFS struct {
+	root string
+	fs   fs.FS
+}
+
+func newFS(root string) fs.FS {
+	fs := os.DirFS(root)
+	return &relFS{root: "/", fs: fs}
+}
+
+func (f *relFS) Open(name string) (fs.File, error) {
+	if filepath.IsAbs(name) {
+		var err error
+		name, err = filepath.Rel(f.root, name)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return f.fs.Open(name)
+}
+
+func (p *processor) triggerHostScan() {
 	if !p.hostSBOM {
 		return
 	}
-
-	if ch == nil {
-		log.Errorf("scan result channel is nil")
-		return
-	}
-
 	log.Debugf("Triggering host SBOM refresh")
 
-	scanRequest := &host.ScanRequest{Path: "/"}
+	scanPath := "/"
 	if hostRoot := os.Getenv("HOST_ROOT"); ddConfig.IsContainerized() && hostRoot != "" {
-		scanRequest.Path = hostRoot
+		scanPath = hostRoot
 	}
+	scanRequest := host.NewScanRequest(scanPath, newFS("/"))
 
-	if err := p.sbomScanner.Scan(scanRequest, p.hostScanOpts, ch); err != nil {
+	if err := p.sbomScanner.Scan(scanRequest); err != nil {
 		log.Errorf("Failed to trigger SBOM generation for host: %s", err)
 		return
 	}
@@ -257,7 +271,7 @@ func (p *processor) processImageSBOM(img *workloadmeta.ContainerImageMetadata) {
 		return
 	}
 
-	ddTags, err := tagger.Tag("container_image_metadata://"+img.ID, collectors.HighCardinality)
+	ddTags, err := tagger.Tag("container_image_metadata://"+img.ID, types.HighCardinality)
 	if err != nil {
 		log.Errorf("Could not retrieve tags for container image %s: %v", img.ID, err)
 	}

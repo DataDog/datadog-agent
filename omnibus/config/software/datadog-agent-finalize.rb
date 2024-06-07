@@ -14,6 +14,8 @@ default_version "1.0.0"
 
 skip_transitive_dependency_licensing true
 
+always_build true
+
 build do
     license :project_license
 
@@ -23,6 +25,9 @@ build do
         if windows_target?
             conf_dir_root = "#{Omnibus::Config.source_dir()}/etc/datadog-agent"
             conf_dir = "#{conf_dir_root}/extra_package_files/EXAMPLECONFSLOCATION"
+            # delete the directory if it exists, then recreate it, because
+            # move will skip/silently fail if the destination directory exists
+            delete conf_dir
             mkdir conf_dir
             move "#{install_dir}/etc/datadog-agent/datadog.yaml.example", conf_dir_root, :force=>true
             if ENV['WINDOWS_DDNPM_DRIVER'] and not ENV['WINDOWS_DDNPM_DRIVER'].empty? and not windows_arch_i386?
@@ -45,6 +50,9 @@ build do
 
             # load isn't supported by windows
             delete "#{conf_dir}/load.d"
+
+            # service_discovery isn't supported by windows
+            delete "#{conf_dir}/service_discovery.d"
 
             # Remove .pyc files from embedded Python
             command "del /q /s #{windows_safe_path(install_dir)}\\*.pyc"
@@ -85,43 +93,6 @@ build do
         end
 
         if linux_target?
-            # Fix pip after building on extended toolchain in CentOS builder
-            if redhat? && ohai["platform_version"].to_i == 6
-              unless arm_target?
-                rhel_toolchain_root = "/opt/rh/devtoolset-1.1/root"
-                # lets be cautious - we first search for the expected toolchain path, if its not there, bail out
-                command "find #{install_dir} -type f -iname '*_sysconfigdata*.py' -exec grep -inH '#{rhel_toolchain_root}' {} \\; |  egrep '.*'"
-                # replace paths with expected target toolchain location
-                command "find #{install_dir} -type f -iname '*_sysconfigdata*.py' -exec sed -i 's##{rhel_toolchain_root}##g' {} \\;"
-              end
-            end
-
-            # Move system service files
-            mkdir "/etc/init"
-            move "#{install_dir}/scripts/datadog-agent.conf", "/etc/init"
-            move "#{install_dir}/scripts/datadog-agent-trace.conf", "/etc/init"
-            move "#{install_dir}/scripts/datadog-agent-process.conf", "/etc/init"
-            move "#{install_dir}/scripts/datadog-agent-sysprobe.conf", "/etc/init"
-            move "#{install_dir}/scripts/datadog-agent-security.conf", "/etc/init"
-            systemd_directory = "/usr/lib/systemd/system"
-            if debian_target?
-                # debian recommends using a different directory for systemd unit files
-                systemd_directory = "/lib/systemd/system"
-
-                # sysvinit support for debian only for now
-                mkdir "/etc/init.d"
-                move "#{install_dir}/scripts/datadog-agent", "/etc/init.d"
-                move "#{install_dir}/scripts/datadog-agent-trace", "/etc/init.d"
-                move "#{install_dir}/scripts/datadog-agent-process", "/etc/init.d"
-                move "#{install_dir}/scripts/datadog-agent-security", "/etc/init.d"
-            end
-            mkdir systemd_directory
-            move "#{install_dir}/scripts/datadog-agent.service", systemd_directory
-            move "#{install_dir}/scripts/datadog-agent-trace.service", systemd_directory
-            move "#{install_dir}/scripts/datadog-agent-process.service", systemd_directory
-            move "#{install_dir}/scripts/datadog-agent-sysprobe.service", systemd_directory
-            move "#{install_dir}/scripts/datadog-agent-security.service", systemd_directory
-
             # Move configuration files
             mkdir "/etc/datadog-agent"
             move "#{install_dir}/bin/agent/dd-agent", "/usr/bin/dd-agent"

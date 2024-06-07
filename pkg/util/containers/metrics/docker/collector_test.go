@@ -20,9 +20,9 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics/provider"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 )
 
@@ -86,14 +86,13 @@ func TestGetContainerIDForPID(t *testing.T) {
 	mockStore := fxutil.Test[workloadmeta.Mock](t, fx.Options(
 		config.MockModule(),
 		logimpl.MockModule(),
-		collectors.GetCatalog(),
 		fx.Supply(workloadmeta.NewParams()),
 		workloadmeta.MockModuleV2(),
 	))
 
 	collector := dockerCollector{
 		pidCache:      provider.NewCache(pidCacheGCInterval),
-		metadataStore: mockStore,
+		metadataStore: optional.NewOption[workloadmeta.Component](mockStore),
 	}
 
 	mockStore.Set(&workloadmeta.Container{

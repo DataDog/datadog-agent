@@ -36,7 +36,14 @@ func TestConntrackers(t *testing.T) {
 		runConntrackerTest(t, "netlink", setupNetlinkConntracker)
 	})
 	t.Run("eBPF", func(t *testing.T) {
-		ebpftest.TestBuildModes(t, []ebpftest.BuildMode{ebpftest.Prebuilt, ebpftest.RuntimeCompiled}, "", func(t *testing.T) {
+		modes := []ebpftest.BuildMode{ebpftest.RuntimeCompiled}
+		if ebpfCOREConntrackerSupportedOnKernelT(t) {
+			modes = append([]ebpftest.BuildMode{ebpftest.CORE}, modes...)
+		}
+		if ebpfPrebuiltConntrackerSupportedOnKernelT(t) {
+			modes = append([]ebpftest.BuildMode{ebpftest.Prebuilt}, modes...)
+		}
+		ebpftest.TestBuildModes(t, modes, "", func(t *testing.T) {
 			runConntrackerTest(t, "eBPF", setupEBPFConntracker)
 		})
 	})
@@ -90,13 +97,11 @@ func runConntrackerTest(t *testing.T, name string, createFn func(*testing.T, *co
 	})
 }
 
-//nolint:revive // TODO(NET) Fix revive linter
-func setupEBPFConntracker(t *testing.T, cfg *config.Config) (netlink.Conntracker, error) {
-	return NewEBPFConntracker(cfg, nil)
+func setupEBPFConntracker(_ *testing.T, cfg *config.Config) (netlink.Conntracker, error) {
+	return NewEBPFConntracker(cfg)
 }
 
-//nolint:revive // TODO(NET) Fix revive linter
-func setupNetlinkConntracker(t *testing.T, cfg *config.Config) (netlink.Conntracker, error) {
+func setupNetlinkConntracker(_ *testing.T, cfg *config.Config) (netlink.Conntracker, error) {
 	cfg.ConntrackMaxStateSize = 100
 	cfg.ConntrackRateLimit = 500
 	ct, err := netlink.NewConntracker(cfg)
@@ -239,8 +244,10 @@ func testConntrackerCrossNamespaceNATonRoot(t *testing.T, ct netlink.Conntracker
 	netlinktestutil.SetupDNAT(t)
 
 	// Setup TCP server on root namespace
-	srv := nettestutil.StartServerTCP(t, net.ParseIP("1.1.1.1"), 80)
+	srv := nettestutil.StartServerTCP(t, net.ParseIP("1.1.1.1"), 0)
 	defer srv.Close()
+
+	port := srv.(net.Listener).Addr().(*net.TCPAddr).Port
 
 	// Now switch to the test namespace and make a request to the root namespace server
 	var laddr *net.TCPAddr
@@ -263,7 +270,7 @@ func testConntrackerCrossNamespaceNATonRoot(t *testing.T, ct netlink.Conntracker
 		defer netns.Set(originalNS)
 		defer close(done)
 		netns.Set(testNS)
-		laddr = nettestutil.MustPingTCP(t, net.ParseIP("3.3.3.3"), 80).LocalAddr().(*net.TCPAddr)
+		laddr = nettestutil.MustPingTCP(t, net.ParseIP("3.3.3.3"), port).LocalAddr().(*net.TCPAddr)
 	}()
 	<-done
 
@@ -274,7 +281,7 @@ func testConntrackerCrossNamespaceNATonRoot(t *testing.T, ct netlink.Conntracker
 		Source: util.AddressFromNetIP(laddr.IP),
 		SPort:  uint16(laddr.Port),
 		Dest:   util.AddressFromString("3.3.3.3"),
-		DPort:  uint16(80),
+		DPort:  uint16(port),
 		Type:   network.TCP,
 		NetNS:  testIno,
 	}

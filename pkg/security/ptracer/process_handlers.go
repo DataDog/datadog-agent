@@ -9,6 +9,7 @@
 package ptracer
 
 import (
+	"bytes"
 	"encoding/binary"
 	"errors"
 	"syscall"
@@ -21,25 +22,25 @@ func registerProcessHandlers(handlers map[int]syscallHandler) []string {
 		{
 			IDs:        []syscallID{{ID: ExecveNr, Name: "execve"}},
 			Func:       handleExecve,
-			ShouldSend: shouldSendAlways,
+			ShouldSend: shouldSendExec,
 			RetFunc:    nil,
 		},
 		{
 			IDs:        []syscallID{{ID: ExecveatNr, Name: "execveat"}},
 			Func:       handleExecveAt,
-			ShouldSend: shouldSendAlways,
+			ShouldSend: shouldSendExec,
 			RetFunc:    nil,
 		},
 		{
 			IDs:        []syscallID{{ID: ChdirNr, Name: "chdir"}},
 			Func:       handleChdir,
-			ShouldSend: nil,
+			ShouldSend: isAcceptedRetval,
 			RetFunc:    handleChdirRet,
 		},
 		{
 			IDs:        []syscallID{{ID: FchdirNr, Name: "fchdir"}},
 			Func:       handleFchdir,
-			ShouldSend: nil,
+			ShouldSend: isAcceptedRetval,
 			RetFunc:    handleChdirRet,
 		},
 		{
@@ -84,6 +85,24 @@ func registerProcessHandlers(handlers map[int]syscallHandler) []string {
 			ShouldSend: isAcceptedRetval,
 			RetFunc:    nil,
 		},
+		{
+			IDs:        []syscallID{{ID: InitModuleNr, Name: "init_module"}},
+			Func:       handleInitModule,
+			ShouldSend: isAcceptedRetval,
+			RetFunc:    nil,
+		},
+		{
+			IDs:        []syscallID{{ID: FInitModuleNr, Name: "finit_module"}},
+			Func:       handleFInitModule,
+			ShouldSend: isAcceptedRetval,
+			RetFunc:    nil,
+		},
+		{
+			IDs:        []syscallID{{ID: DeleteModuleNr, Name: "delete_module"}},
+			Func:       handleDeleteModule,
+			ShouldSend: isAcceptedRetval,
+			RetFunc:    nil,
+		},
 	}
 
 	syscallList := []string{}
@@ -96,6 +115,13 @@ func registerProcessHandlers(handlers map[int]syscallHandler) []string {
 		}
 	}
 	return syscallList
+}
+
+func shouldSendExec(msg *ebpfless.SyscallMsg) bool {
+	if msg.Retval == -int64(syscall.ENOSYS) {
+		msg.Retval = 0
+	}
+	return isAcceptedRetval(msg)
 }
 
 //
@@ -132,11 +158,13 @@ func handleExecveAt(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg, 
 	if err != nil {
 		return err
 	}
-	envs, envsTruncated := truncateEnvs(envs)
+
+	it := NewStringArrayIterator(envs)
+	envs, envsTruncated := truncateEnvs(it)
 
 	msg.Type = ebpfless.SyscallTypeExec
 	msg.Exec = &ebpfless.ExecSyscallMsg{
-		File: ebpfless.OpenSyscallMsg{
+		File: ebpfless.FileSyscallMsg{
 			Filename: filename,
 		},
 		Args:          args,
@@ -147,7 +175,7 @@ func handleExecveAt(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg, 
 	}
 	// special case for execveat: we store ALSO the msg in execve bucket (see cws.go)
 	process.Nr[ExecveNr] = msg
-	return fillFileMetadata(filename, &msg.Exec.File, disableStats)
+	return fillFileMetadata(tracer, filename, &msg.Exec.File, disableStats)
 }
 
 func handleExecve(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg, regs syscall.PtraceRegs, disableStats bool) error {
@@ -171,11 +199,13 @@ func handleExecve(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg, re
 	if err != nil {
 		return err
 	}
-	envs, envsTruncated := truncateEnvs(envs)
+
+	it := NewStringArrayIterator(envs)
+	envs, envsTruncated := truncateEnvs(it)
 
 	msg.Type = ebpfless.SyscallTypeExec
 	msg.Exec = &ebpfless.ExecSyscallMsg{
-		File: ebpfless.OpenSyscallMsg{
+		File: ebpfless.FileSyscallMsg{
 			Filename: filename,
 		},
 		Args:          args,
@@ -184,11 +214,10 @@ func handleExecve(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg, re
 		EnvsTruncated: envsTruncated,
 		TTY:           getPidTTY(process.Pid),
 	}
-	return fillFileMetadata(filename, &msg.Exec.File, disableStats)
+	return fillFileMetadata(tracer, filename, &msg.Exec.File, disableStats)
 }
 
-func handleChdir(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg, regs syscall.PtraceRegs, _ bool) error {
-	// using msg to temporary store arg0, as it will be erased by the return value on ARM64
+func handleChdir(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg, regs syscall.PtraceRegs, disableStats bool) error {
 	dirname, err := tracer.ReadArgString(process.Pid, regs, 0)
 	if err != nil {
 		return err
@@ -200,13 +229,16 @@ func handleChdir(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg, reg
 		return err
 	}
 
-	msg.Chdir = &ebpfless.ChdirSyscallFakeMsg{
-		Path: dirname,
+	msg.Type = ebpfless.SyscallTypeChdir
+	msg.Chdir = &ebpfless.ChdirSyscallMsg{
+		Dir: ebpfless.FileSyscallMsg{
+			Filename: dirname,
+		},
 	}
-	return nil
+	return fillFileMetadata(tracer, dirname, &msg.Chdir.Dir, disableStats)
 }
 
-func handleFchdir(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg, regs syscall.PtraceRegs, _ bool) error {
+func handleFchdir(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg, regs syscall.PtraceRegs, disableStats bool) error {
 	fd := tracer.ReadArgInt32(regs, 0)
 	dirname, ok := process.Res.Fd[fd]
 	if !ok {
@@ -214,61 +246,83 @@ func handleFchdir(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg, re
 		return nil
 	}
 
-	// using msg to temporary store arg0, as it will be erased by the return value on ARM64
-	msg.Chdir = &ebpfless.ChdirSyscallFakeMsg{
-		Path: dirname,
+	msg.Type = ebpfless.SyscallTypeChdir
+	msg.Chdir = &ebpfless.ChdirSyscallMsg{
+		Dir: ebpfless.FileSyscallMsg{
+			Filename: dirname,
+		},
 	}
-	return nil
+	return fillFileMetadata(tracer, dirname, &msg.Chdir.Dir, disableStats)
 }
 
-func handleSetuid(tracer *Tracer, _ *Process, msg *ebpfless.SyscallMsg, regs syscall.PtraceRegs, _ bool) error {
+func handleSetuid(tracer *Tracer, _ *Process, msg *ebpfless.SyscallMsg, regs syscall.PtraceRegs, disableStats bool) error {
 	msg.Type = ebpfless.SyscallTypeSetUID
 	msg.SetUID = &ebpfless.SetUIDSyscallMsg{
 		UID:  tracer.ReadArgInt32(regs, 0),
 		EUID: -1,
 	}
+	if !disableStats {
+		msg.SetUID.User = getUserFromUID(tracer, msg.SetUID.UID)
+	}
 	return nil
 }
 
-func handleSetgid(tracer *Tracer, _ *Process, msg *ebpfless.SyscallMsg, regs syscall.PtraceRegs, _ bool) error {
+func handleSetgid(tracer *Tracer, _ *Process, msg *ebpfless.SyscallMsg, regs syscall.PtraceRegs, disableStats bool) error {
 	msg.Type = ebpfless.SyscallTypeSetGID
 	msg.SetGID = &ebpfless.SetGIDSyscallMsg{
 		GID:  tracer.ReadArgInt32(regs, 0),
 		EGID: -1,
 	}
+	if !disableStats {
+		msg.SetGID.Group = getGroupFromGID(tracer, msg.SetGID.GID)
+	}
 	return nil
 }
 
-func handleSetreuid(tracer *Tracer, _ *Process, msg *ebpfless.SyscallMsg, regs syscall.PtraceRegs, _ bool) error {
+func handleSetreuid(tracer *Tracer, _ *Process, msg *ebpfless.SyscallMsg, regs syscall.PtraceRegs, disableStats bool) error {
 	msg.Type = ebpfless.SyscallTypeSetUID
 	msg.SetUID = &ebpfless.SetUIDSyscallMsg{
 		UID:  tracer.ReadArgInt32(regs, 0),
 		EUID: tracer.ReadArgInt32(regs, 1),
 	}
+	if !disableStats {
+		msg.SetUID.User = getUserFromUID(tracer, msg.SetUID.UID)
+		msg.SetUID.EUser = getUserFromUID(tracer, msg.SetUID.EUID)
+	}
 	return nil
 }
 
-func handleSetregid(tracer *Tracer, _ *Process, msg *ebpfless.SyscallMsg, regs syscall.PtraceRegs, _ bool) error {
+func handleSetregid(tracer *Tracer, _ *Process, msg *ebpfless.SyscallMsg, regs syscall.PtraceRegs, disableStats bool) error {
 	msg.Type = ebpfless.SyscallTypeSetGID
 	msg.SetGID = &ebpfless.SetGIDSyscallMsg{
 		GID:  tracer.ReadArgInt32(regs, 0),
 		EGID: tracer.ReadArgInt32(regs, 1),
 	}
-	return nil
-}
-
-func handleSetfsuid(tracer *Tracer, _ *Process, msg *ebpfless.SyscallMsg, regs syscall.PtraceRegs, _ bool) error {
-	msg.Type = ebpfless.SyscallTypeSetFSUID
-	msg.SetFSUID = &ebpfless.SetFSUIDSyscallMsg{
-		FSUID: tracer.ReadArgInt32(regs, 0),
+	if !disableStats {
+		msg.SetGID.Group = getGroupFromGID(tracer, msg.SetGID.GID)
+		msg.SetGID.EGroup = getGroupFromGID(tracer, msg.SetGID.EGID)
 	}
 	return nil
 }
 
-func handleSetfsgid(tracer *Tracer, _ *Process, msg *ebpfless.SyscallMsg, regs syscall.PtraceRegs, _ bool) error {
+func handleSetfsuid(tracer *Tracer, _ *Process, msg *ebpfless.SyscallMsg, regs syscall.PtraceRegs, disableStats bool) error {
+	msg.Type = ebpfless.SyscallTypeSetFSUID
+	msg.SetFSUID = &ebpfless.SetFSUIDSyscallMsg{
+		FSUID: tracer.ReadArgInt32(regs, 0),
+	}
+	if !disableStats {
+		msg.SetFSUID.FSUser = getUserFromUID(tracer, msg.SetFSUID.FSUID)
+	}
+	return nil
+}
+
+func handleSetfsgid(tracer *Tracer, _ *Process, msg *ebpfless.SyscallMsg, regs syscall.PtraceRegs, disableStats bool) error {
 	msg.Type = ebpfless.SyscallTypeSetFSGID
 	msg.SetFSGID = &ebpfless.SetFSGIDSyscallMsg{
 		FSGID: tracer.ReadArgInt32(regs, 0),
+	}
+	if !disableStats {
+		msg.SetFSGID.FSGroup = getGroupFromGID(tracer, msg.SetFSGID.FSGID)
 	}
 	return nil
 }
@@ -297,13 +351,90 @@ func handleCapset(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg, re
 	return nil
 }
 
+func handleInitModule(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg, regs syscall.PtraceRegs, disableStats bool) error {
+	name := ""
+	if !disableStats {
+		dataLen := tracer.ReadArgUint64(regs, 1)
+		data, err := tracer.ReadArgData(process.Pid, regs, 0, uint(dataLen))
+		if err != nil {
+			return err
+		}
+		name, err = getModuleName(bytes.NewReader(data))
+		if err != nil {
+			return err
+		}
+	}
+
+	args, err := tracer.ReadArgString(process.Pid, regs, 2)
+	if err != nil {
+		return err
+	}
+
+	msg.Type = ebpfless.SyscallTypeLoadModule
+	msg.LoadModule = &ebpfless.LoadModuleSyscallMsg{
+		LoadedFromMemory: true,
+		Args:             args,
+		Name:             name,
+	}
+	return nil
+}
+
+func handleFInitModule(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg, regs syscall.PtraceRegs, disableStats bool) error {
+	fd := tracer.ReadArgInt32(regs, 0)
+
+	filename, exists := process.Res.Fd[fd]
+	if !exists {
+		return errors.New("FD cache incomplete")
+	}
+
+	args, err := tracer.ReadArgString(process.Pid, regs, 1)
+	if err != nil {
+		return err
+	}
+
+	name := ""
+	if !disableStats {
+		name, err = getModuleNameFromFile(filename)
+		if err != nil {
+			return err
+		}
+	}
+
+	msg.Type = ebpfless.SyscallTypeLoadModule
+	msg.LoadModule = &ebpfless.LoadModuleSyscallMsg{
+		LoadedFromMemory: false,
+		File: ebpfless.FileSyscallMsg{
+			Filename: filename,
+		},
+		Args: args,
+		Name: name,
+	}
+	if filename != "" {
+		return fillFileMetadata(tracer, filename, &msg.LoadModule.File, disableStats)
+	}
+	return nil
+}
+
+func handleDeleteModule(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg, regs syscall.PtraceRegs, _ bool) error {
+	name, err := tracer.ReadArgString(process.Pid, regs, 0)
+	if err != nil {
+		return err
+	}
+
+	msg.Type = ebpfless.SyscallTypeUnloadModule
+	msg.UnloadModule = &ebpfless.UnloadModuleSyscallMsg{
+		Name: name,
+	}
+	return nil
+}
+
 //
 // handlers called on syscall return
 //
 
 func handleChdirRet(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg, regs syscall.PtraceRegs, _ bool) error {
 	if ret := tracer.ReadRet(regs); msg.Chdir != nil && ret >= 0 {
-		process.Res.Cwd = msg.Chdir.Path
+		process.Res.Cwd = msg.Chdir.Dir.Filename
 	}
 	return nil
 }

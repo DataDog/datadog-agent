@@ -54,6 +54,10 @@ static __always_inline struct inet_sock *inet_sk(const struct sock *sk)
 static __always_inline u64 offset_socket_sk();
 #endif
 
+#ifndef MSG_SPLICE_PAGES
+#define MSG_SPLICE_PAGES 0x8000000
+#endif
+
 static __always_inline struct sock * socket_sk(struct socket *sock) {
     struct sock * sk = NULL;
 #ifdef COMPILE_PREBUILT
@@ -83,7 +87,12 @@ static __always_inline u16 read_sport(struct sock* skp) {
     // try skc_num, then inet_sport
     u16 sport = 0;
 #ifdef COMPILE_PREBUILT
-    bpf_probe_read_kernel_with_telemetry(&sport, sizeof(sport), ((char*)skp) + offset_sport());
+    // try skc_num, then inet_sport
+    bpf_probe_read_kernel_with_telemetry(&sport, sizeof(sport), ((char*)skp) + offset_dport() + sizeof(sport));
+    if (sport == 0) {
+        bpf_probe_read_kernel_with_telemetry(&sport, sizeof(sport), ((char*)skp) + offset_sport());
+        sport = bpf_ntohs(sport);
+    }
 #elif defined(COMPILE_CORE) || defined(COMPILE_RUNTIME)
     BPF_CORE_READ_INTO(&sport, skp, sk_num);
     if (sport == 0) {
@@ -192,7 +201,7 @@ static __always_inline int read_conn_tuple_partial(conn_tuple_t* t, struct sock*
         }
 
         if (t->saddr_l == 0 || t->daddr_l == 0) {
-            log_debug("ERR(read_conn_tuple.v4): src or dst addr not set src=%d, dst=%d", t->saddr_l, t->daddr_l);
+            log_debug("ERR(read_conn_tuple.v4): src or dst addr not set src=%llu, dst=%llu", t->saddr_l, t->daddr_l);
             err = 1;
         }
     } else if (family == AF_INET6) {
@@ -210,13 +219,13 @@ static __always_inline int read_conn_tuple_partial(conn_tuple_t* t, struct sock*
         /* We can only pass 4 args to bpf_trace_printk */
         /* so split those 2 statements to be able to log everything */
         if (!(t->saddr_h || t->saddr_l)) {
-            log_debug("ERR(read_conn_tuple.v6): src addr not set: src_l:%d,src_h:%d",
+            log_debug("ERR(read_conn_tuple.v6): src addr not set: src_l:%llu,src_h:%llu",
                 t->saddr_l, t->saddr_h);
             err = 1;
         }
 
         if (!(t->daddr_h || t->daddr_l)) {
-            log_debug("ERR(read_conn_tuple.v6): dst addr not set: dst_l:%d,dst_h:%d",
+            log_debug("ERR(read_conn_tuple.v6): dst addr not set: dst_l:%llu,dst_h:%llu",
                 t->daddr_l, t->daddr_h);
             err = 1;
         }

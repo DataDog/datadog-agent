@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 )
@@ -17,9 +18,10 @@ import (
 func Test_loadBundleJSONProfiles(t *testing.T) {
 	defaultTestConfdPath, _ := filepath.Abs(filepath.Join("..", "test", "zipprofiles.d"))
 	SetGlobalProfileConfigMap(nil)
-	config.Datadog.SetWithoutSource("confd_path", defaultTestConfdPath)
-
-	resolvedProfiles, err := loadBundleJSONProfiles()
+	config.Datadog().SetWithoutSource("confd_path", defaultTestConfdPath)
+	pth := findProfileBundleFilePath()
+	require.FileExists(t, pth)
+	resolvedProfiles, err := loadBundleJSONProfiles(pth)
 	assert.Nil(t, err)
 
 	var actualProfiles []string

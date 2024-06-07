@@ -30,11 +30,13 @@ func (m *Model) GetEventTypes() []eval.EventType {
 		eval.EventType("bind"),
 		eval.EventType("bpf"),
 		eval.EventType("capset"),
+		eval.EventType("chdir"),
 		eval.EventType("chmod"),
 		eval.EventType("chown"),
 		eval.EventType("dns"),
 		eval.EventType("exec"),
 		eval.EventType("exit"),
+		eval.EventType("imds"),
 		eval.EventType("link"),
 		eval.EventType("load_module"),
 		eval.EventType("mkdir"),
@@ -197,6 +199,208 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+		}, nil
+	case "chdir.file.change_time":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ev := ctx.Event.(*Event)
+				return int(ev.Chdir.File.FileFields.CTime)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+	case "chdir.file.filesystem":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveFileFilesystem(ev, &ev.Chdir.File)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+	case "chdir.file.gid":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ev := ctx.Event.(*Event)
+				return int(ev.Chdir.File.FileFields.GID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+	case "chdir.file.group":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveFileFieldsGroup(ev, &ev.Chdir.File.FileFields)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+	case "chdir.file.hashes":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Chdir.File)
+			},
+			Field:  field,
+			Weight: 999 * eval.HandlerWeight,
+		}, nil
+	case "chdir.file.in_upper_layer":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveFileFieldsInUpperLayer(ev, &ev.Chdir.File.FileFields)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+	case "chdir.file.inode":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ev := ctx.Event.(*Event)
+				return int(ev.Chdir.File.FileFields.PathKey.Inode)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+	case "chdir.file.mode":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ev := ctx.Event.(*Event)
+				return int(ev.Chdir.File.FileFields.Mode)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+	case "chdir.file.modification_time":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ev := ctx.Event.(*Event)
+				return int(ev.Chdir.File.FileFields.MTime)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+	case "chdir.file.mount_id":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ev := ctx.Event.(*Event)
+				return int(ev.Chdir.File.FileFields.PathKey.MountID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+	case "chdir.file.name":
+		return &eval.StringEvaluator{
+			OpOverrides: ProcessSymlinkBasename,
+			EvalFnc: func(ctx *eval.Context) string {
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveFileBasename(ev, &ev.Chdir.File)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+	case "chdir.file.name.length":
+		return &eval.IntEvaluator{
+			OpOverrides: ProcessSymlinkBasename,
+			EvalFnc: func(ctx *eval.Context) int {
+				ev := ctx.Event.(*Event)
+				return len(ev.FieldHandlers.ResolveFileBasename(ev, &ev.Chdir.File))
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+	case "chdir.file.package.name":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolvePackageName(ev, &ev.Chdir.File)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+	case "chdir.file.package.source_version":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolvePackageSourceVersion(ev, &ev.Chdir.File)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+	case "chdir.file.package.version":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolvePackageVersion(ev, &ev.Chdir.File)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+	case "chdir.file.path":
+		return &eval.StringEvaluator{
+			OpOverrides: ProcessSymlinkPathname,
+			EvalFnc: func(ctx *eval.Context) string {
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveFilePath(ev, &ev.Chdir.File)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+	case "chdir.file.path.length":
+		return &eval.IntEvaluator{
+			OpOverrides: ProcessSymlinkPathname,
+			EvalFnc: func(ctx *eval.Context) int {
+				ev := ctx.Event.(*Event)
+				return len(ev.FieldHandlers.ResolveFilePath(ev, &ev.Chdir.File))
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+	case "chdir.file.rights":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ev := ctx.Event.(*Event)
+				return int(ev.FieldHandlers.ResolveRights(ev, &ev.Chdir.File.FileFields))
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+	case "chdir.file.uid":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ev := ctx.Event.(*Event)
+				return int(ev.Chdir.File.FileFields.UID)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+	case "chdir.file.user":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveFileFieldsUser(ev, &ev.Chdir.File.FileFields)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+	case "chdir.retval":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ev := ctx.Event.(*Event)
+				return int(ev.Chdir.SyscallEvent.Retval)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+	case "chdir.syscall.path":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveSyscallCtxArgsStr1(ev, &ev.Chdir.SyscallContext)
+			},
+			Field:  field,
+			Weight: 900 * eval.HandlerWeight,
 		}, nil
 	case "chmod.file.change_time":
 		return &eval.IntEvaluator{
@@ -408,6 +612,24 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+		}, nil
+	case "chmod.syscall.mode":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ev := ctx.Event.(*Event)
+				return int(ev.FieldHandlers.ResolveSyscallCtxArgsInt2(ev, &ev.Chmod.SyscallContext))
+			},
+			Field:  field,
+			Weight: 900 * eval.HandlerWeight,
+		}, nil
+	case "chmod.syscall.path":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveSyscallCtxArgsStr1(ev, &ev.Chmod.SyscallContext)
+			},
+			Field:  field,
+			Weight: 900 * eval.HandlerWeight,
 		}, nil
 	case "chown.file.change_time":
 		return &eval.IntEvaluator{
@@ -735,6 +957,33 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) bool {
 				ev := ctx.Event.(*Event)
 				return ev.FieldHandlers.ResolveAsync(ev)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+	case "event.origin":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ev := ctx.Event.(*Event)
+				return ev.BaseEvent.Origin
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+	case "event.os":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ev := ctx.Event.(*Event)
+				return ev.BaseEvent.Os
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+	case "event.service":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveService(ev, &ev.BaseEvent)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -1475,6 +1724,15 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+		}, nil
+	case "exec.syscall.path":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveSyscallCtxArgsStr1(ev, &ev.Exec.SyscallContext)
+			},
+			Field:  field,
+			Weight: 900 * eval.HandlerWeight,
 		}, nil
 	case "exec.tid":
 		return &eval.IntEvaluator{
@@ -2347,6 +2605,78 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
+		}, nil
+	case "imds.aws.is_imds_v2":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				ev := ctx.Event.(*Event)
+				return ev.IMDS.AWS.IsIMDSv2
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+	case "imds.aws.security_credentials.type":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ev := ctx.Event.(*Event)
+				return ev.IMDS.AWS.SecurityCredentials.Type
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+	case "imds.cloud_provider":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ev := ctx.Event.(*Event)
+				return ev.IMDS.CloudProvider
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+	case "imds.host":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ev := ctx.Event.(*Event)
+				return ev.IMDS.Host
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+	case "imds.server":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ev := ctx.Event.(*Event)
+				return ev.IMDS.Server
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+	case "imds.type":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ev := ctx.Event.(*Event)
+				return ev.IMDS.Type
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+	case "imds.url":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ev := ctx.Event.(*Event)
+				return ev.IMDS.URL
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+	case "imds.user_agent":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ev := ctx.Event.(*Event)
+				return ev.IMDS.UserAgent
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
 		}, nil
 	case "link.file.change_time":
 		return &eval.IntEvaluator{
@@ -3362,7 +3692,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 				ev := ctx.Event.(*Event)
-				return ev.MMap.Flags
+				return int(ev.MMap.Flags)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -3371,7 +3701,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 				ev := ctx.Event.(*Event)
-				return ev.MMap.Protection
+				return int(ev.MMap.Protection)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -16140,6 +16470,28 @@ func (ev *Event) GetFields() []eval.Field {
 		"bpf.retval",
 		"capset.cap_effective",
 		"capset.cap_permitted",
+		"chdir.file.change_time",
+		"chdir.file.filesystem",
+		"chdir.file.gid",
+		"chdir.file.group",
+		"chdir.file.hashes",
+		"chdir.file.in_upper_layer",
+		"chdir.file.inode",
+		"chdir.file.mode",
+		"chdir.file.modification_time",
+		"chdir.file.mount_id",
+		"chdir.file.name",
+		"chdir.file.name.length",
+		"chdir.file.package.name",
+		"chdir.file.package.source_version",
+		"chdir.file.package.version",
+		"chdir.file.path",
+		"chdir.file.path.length",
+		"chdir.file.rights",
+		"chdir.file.uid",
+		"chdir.file.user",
+		"chdir.retval",
+		"chdir.syscall.path",
 		"chmod.file.change_time",
 		"chmod.file.destination.mode",
 		"chmod.file.destination.rights",
@@ -16163,6 +16515,8 @@ func (ev *Event) GetFields() []eval.Field {
 		"chmod.file.uid",
 		"chmod.file.user",
 		"chmod.retval",
+		"chmod.syscall.mode",
+		"chmod.syscall.path",
 		"chown.file.change_time",
 		"chown.file.destination.gid",
 		"chown.file.destination.group",
@@ -16199,6 +16553,9 @@ func (ev *Event) GetFields() []eval.Field {
 		"dns.question.name.length",
 		"dns.question.type",
 		"event.async",
+		"event.origin",
+		"event.os",
+		"event.service",
 		"event.timestamp",
 		"exec.args",
 		"exec.args_flags",
@@ -16268,6 +16625,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"exec.is_thread",
 		"exec.pid",
 		"exec.ppid",
+		"exec.syscall.path",
 		"exec.tid",
 		"exec.tty_name",
 		"exec.uid",
@@ -16352,6 +16710,14 @@ func (ev *Event) GetFields() []eval.Field {
 		"exit.user_session.k8s_groups",
 		"exit.user_session.k8s_uid",
 		"exit.user_session.k8s_username",
+		"imds.aws.is_imds_v2",
+		"imds.aws.security_credentials.type",
+		"imds.cloud_provider",
+		"imds.host",
+		"imds.server",
+		"imds.type",
+		"imds.url",
+		"imds.user_agent",
 		"link.file.change_time",
 		"link.file.destination.change_time",
 		"link.file.destination.filesystem",
@@ -17415,6 +17781,50 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return int(ev.Capset.CapEffective), nil
 	case "capset.cap_permitted":
 		return int(ev.Capset.CapPermitted), nil
+	case "chdir.file.change_time":
+		return int(ev.Chdir.File.FileFields.CTime), nil
+	case "chdir.file.filesystem":
+		return ev.FieldHandlers.ResolveFileFilesystem(ev, &ev.Chdir.File), nil
+	case "chdir.file.gid":
+		return int(ev.Chdir.File.FileFields.GID), nil
+	case "chdir.file.group":
+		return ev.FieldHandlers.ResolveFileFieldsGroup(ev, &ev.Chdir.File.FileFields), nil
+	case "chdir.file.hashes":
+		return ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Chdir.File), nil
+	case "chdir.file.in_upper_layer":
+		return ev.FieldHandlers.ResolveFileFieldsInUpperLayer(ev, &ev.Chdir.File.FileFields), nil
+	case "chdir.file.inode":
+		return int(ev.Chdir.File.FileFields.PathKey.Inode), nil
+	case "chdir.file.mode":
+		return int(ev.Chdir.File.FileFields.Mode), nil
+	case "chdir.file.modification_time":
+		return int(ev.Chdir.File.FileFields.MTime), nil
+	case "chdir.file.mount_id":
+		return int(ev.Chdir.File.FileFields.PathKey.MountID), nil
+	case "chdir.file.name":
+		return ev.FieldHandlers.ResolveFileBasename(ev, &ev.Chdir.File), nil
+	case "chdir.file.name.length":
+		return ev.FieldHandlers.ResolveFileBasename(ev, &ev.Chdir.File), nil
+	case "chdir.file.package.name":
+		return ev.FieldHandlers.ResolvePackageName(ev, &ev.Chdir.File), nil
+	case "chdir.file.package.source_version":
+		return ev.FieldHandlers.ResolvePackageSourceVersion(ev, &ev.Chdir.File), nil
+	case "chdir.file.package.version":
+		return ev.FieldHandlers.ResolvePackageVersion(ev, &ev.Chdir.File), nil
+	case "chdir.file.path":
+		return ev.FieldHandlers.ResolveFilePath(ev, &ev.Chdir.File), nil
+	case "chdir.file.path.length":
+		return ev.FieldHandlers.ResolveFilePath(ev, &ev.Chdir.File), nil
+	case "chdir.file.rights":
+		return int(ev.FieldHandlers.ResolveRights(ev, &ev.Chdir.File.FileFields)), nil
+	case "chdir.file.uid":
+		return int(ev.Chdir.File.FileFields.UID), nil
+	case "chdir.file.user":
+		return ev.FieldHandlers.ResolveFileFieldsUser(ev, &ev.Chdir.File.FileFields), nil
+	case "chdir.retval":
+		return int(ev.Chdir.SyscallEvent.Retval), nil
+	case "chdir.syscall.path":
+		return ev.FieldHandlers.ResolveSyscallCtxArgsStr1(ev, &ev.Chdir.SyscallContext), nil
 	case "chmod.file.change_time":
 		return int(ev.Chmod.File.FileFields.CTime), nil
 	case "chmod.file.destination.mode":
@@ -17461,6 +17871,10 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return ev.FieldHandlers.ResolveFileFieldsUser(ev, &ev.Chmod.File.FileFields), nil
 	case "chmod.retval":
 		return int(ev.Chmod.SyscallEvent.Retval), nil
+	case "chmod.syscall.mode":
+		return int(ev.FieldHandlers.ResolveSyscallCtxArgsInt2(ev, &ev.Chmod.SyscallContext)), nil
+	case "chmod.syscall.path":
+		return ev.FieldHandlers.ResolveSyscallCtxArgsStr1(ev, &ev.Chmod.SyscallContext), nil
 	case "chown.file.change_time":
 		return int(ev.Chown.File.FileFields.CTime), nil
 	case "chown.file.destination.gid":
@@ -17533,6 +17947,12 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return int(ev.DNS.Type), nil
 	case "event.async":
 		return ev.FieldHandlers.ResolveAsync(ev), nil
+	case "event.origin":
+		return ev.BaseEvent.Origin, nil
+	case "event.os":
+		return ev.BaseEvent.Os, nil
+	case "event.service":
+		return ev.FieldHandlers.ResolveService(ev, &ev.BaseEvent), nil
 	case "event.timestamp":
 		return int(ev.FieldHandlers.ResolveEventTimestamp(ev, &ev.BaseEvent)), nil
 	case "exec.args":
@@ -17779,6 +18199,8 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return int(ev.Exec.Process.PIDContext.Pid), nil
 	case "exec.ppid":
 		return int(ev.Exec.Process.PPid), nil
+	case "exec.syscall.path":
+		return ev.FieldHandlers.ResolveSyscallCtxArgsStr1(ev, &ev.Exec.SyscallContext), nil
 	case "exec.tid":
 		return int(ev.Exec.Process.PIDContext.Tid), nil
 	case "exec.tty_name":
@@ -18055,6 +18477,22 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return ev.FieldHandlers.ResolveK8SUID(ev, &ev.Exit.Process.UserSession), nil
 	case "exit.user_session.k8s_username":
 		return ev.FieldHandlers.ResolveK8SUsername(ev, &ev.Exit.Process.UserSession), nil
+	case "imds.aws.is_imds_v2":
+		return ev.IMDS.AWS.IsIMDSv2, nil
+	case "imds.aws.security_credentials.type":
+		return ev.IMDS.AWS.SecurityCredentials.Type, nil
+	case "imds.cloud_provider":
+		return ev.IMDS.CloudProvider, nil
+	case "imds.host":
+		return ev.IMDS.Host, nil
+	case "imds.server":
+		return ev.IMDS.Server, nil
+	case "imds.type":
+		return ev.IMDS.Type, nil
+	case "imds.url":
+		return ev.IMDS.URL, nil
+	case "imds.user_agent":
+		return ev.IMDS.UserAgent, nil
 	case "link.file.change_time":
 		return int(ev.Link.Source.FileFields.CTime), nil
 	case "link.file.destination.change_time":
@@ -18276,9 +18714,9 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 	case "mmap.file.user":
 		return ev.FieldHandlers.ResolveFileFieldsUser(ev, &ev.MMap.File.FileFields), nil
 	case "mmap.flags":
-		return ev.MMap.Flags, nil
+		return int(ev.MMap.Flags), nil
 	case "mmap.protection":
-		return ev.MMap.Protection, nil
+		return int(ev.MMap.Protection), nil
 	case "mmap.retval":
 		return int(ev.MMap.SyscallEvent.Retval), nil
 	case "mount.fs_type":
@@ -23677,6 +24115,50 @@ func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "capset", nil
 	case "capset.cap_permitted":
 		return "capset", nil
+	case "chdir.file.change_time":
+		return "chdir", nil
+	case "chdir.file.filesystem":
+		return "chdir", nil
+	case "chdir.file.gid":
+		return "chdir", nil
+	case "chdir.file.group":
+		return "chdir", nil
+	case "chdir.file.hashes":
+		return "chdir", nil
+	case "chdir.file.in_upper_layer":
+		return "chdir", nil
+	case "chdir.file.inode":
+		return "chdir", nil
+	case "chdir.file.mode":
+		return "chdir", nil
+	case "chdir.file.modification_time":
+		return "chdir", nil
+	case "chdir.file.mount_id":
+		return "chdir", nil
+	case "chdir.file.name":
+		return "chdir", nil
+	case "chdir.file.name.length":
+		return "chdir", nil
+	case "chdir.file.package.name":
+		return "chdir", nil
+	case "chdir.file.package.source_version":
+		return "chdir", nil
+	case "chdir.file.package.version":
+		return "chdir", nil
+	case "chdir.file.path":
+		return "chdir", nil
+	case "chdir.file.path.length":
+		return "chdir", nil
+	case "chdir.file.rights":
+		return "chdir", nil
+	case "chdir.file.uid":
+		return "chdir", nil
+	case "chdir.file.user":
+		return "chdir", nil
+	case "chdir.retval":
+		return "chdir", nil
+	case "chdir.syscall.path":
+		return "chdir", nil
 	case "chmod.file.change_time":
 		return "chmod", nil
 	case "chmod.file.destination.mode":
@@ -23722,6 +24204,10 @@ func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 	case "chmod.file.user":
 		return "chmod", nil
 	case "chmod.retval":
+		return "chmod", nil
+	case "chmod.syscall.mode":
+		return "chmod", nil
+	case "chmod.syscall.path":
 		return "chmod", nil
 	case "chown.file.change_time":
 		return "chown", nil
@@ -23794,6 +24280,12 @@ func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 	case "dns.question.type":
 		return "dns", nil
 	case "event.async":
+		return "*", nil
+	case "event.origin":
+		return "*", nil
+	case "event.os":
+		return "*", nil
+	case "event.service":
 		return "*", nil
 	case "event.timestamp":
 		return "*", nil
@@ -23932,6 +24424,8 @@ func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 	case "exec.pid":
 		return "exec", nil
 	case "exec.ppid":
+		return "exec", nil
+	case "exec.syscall.path":
 		return "exec", nil
 	case "exec.tid":
 		return "exec", nil
@@ -24101,6 +24595,22 @@ func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "exit", nil
 	case "exit.user_session.k8s_username":
 		return "exit", nil
+	case "imds.aws.is_imds_v2":
+		return "imds", nil
+	case "imds.aws.security_credentials.type":
+		return "imds", nil
+	case "imds.cloud_provider":
+		return "imds", nil
+	case "imds.host":
+		return "imds", nil
+	case "imds.server":
+		return "imds", nil
+	case "imds.type":
+		return "imds", nil
+	case "imds.url":
+		return "imds", nil
+	case "imds.user_agent":
+		return "imds", nil
 	case "link.file.change_time":
 		return "link", nil
 	case "link.file.destination.change_time":
@@ -26186,6 +26696,50 @@ func (ev *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 	case "capset.cap_permitted":
 		return reflect.Int, nil
+	case "chdir.file.change_time":
+		return reflect.Int, nil
+	case "chdir.file.filesystem":
+		return reflect.String, nil
+	case "chdir.file.gid":
+		return reflect.Int, nil
+	case "chdir.file.group":
+		return reflect.String, nil
+	case "chdir.file.hashes":
+		return reflect.String, nil
+	case "chdir.file.in_upper_layer":
+		return reflect.Bool, nil
+	case "chdir.file.inode":
+		return reflect.Int, nil
+	case "chdir.file.mode":
+		return reflect.Int, nil
+	case "chdir.file.modification_time":
+		return reflect.Int, nil
+	case "chdir.file.mount_id":
+		return reflect.Int, nil
+	case "chdir.file.name":
+		return reflect.String, nil
+	case "chdir.file.name.length":
+		return reflect.Int, nil
+	case "chdir.file.package.name":
+		return reflect.String, nil
+	case "chdir.file.package.source_version":
+		return reflect.String, nil
+	case "chdir.file.package.version":
+		return reflect.String, nil
+	case "chdir.file.path":
+		return reflect.String, nil
+	case "chdir.file.path.length":
+		return reflect.Int, nil
+	case "chdir.file.rights":
+		return reflect.Int, nil
+	case "chdir.file.uid":
+		return reflect.Int, nil
+	case "chdir.file.user":
+		return reflect.String, nil
+	case "chdir.retval":
+		return reflect.Int, nil
+	case "chdir.syscall.path":
+		return reflect.String, nil
 	case "chmod.file.change_time":
 		return reflect.Int, nil
 	case "chmod.file.destination.mode":
@@ -26232,6 +26786,10 @@ func (ev *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.String, nil
 	case "chmod.retval":
 		return reflect.Int, nil
+	case "chmod.syscall.mode":
+		return reflect.Int, nil
+	case "chmod.syscall.path":
+		return reflect.String, nil
 	case "chown.file.change_time":
 		return reflect.Int, nil
 	case "chown.file.destination.gid":
@@ -26304,6 +26862,12 @@ func (ev *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 	case "event.async":
 		return reflect.Bool, nil
+	case "event.origin":
+		return reflect.String, nil
+	case "event.os":
+		return reflect.String, nil
+	case "event.service":
+		return reflect.String, nil
 	case "event.timestamp":
 		return reflect.Int, nil
 	case "exec.args":
@@ -26442,6 +27006,8 @@ func (ev *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 	case "exec.ppid":
 		return reflect.Int, nil
+	case "exec.syscall.path":
+		return reflect.String, nil
 	case "exec.tid":
 		return reflect.Int, nil
 	case "exec.tty_name":
@@ -26609,6 +27175,22 @@ func (ev *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 	case "exit.user_session.k8s_uid":
 		return reflect.String, nil
 	case "exit.user_session.k8s_username":
+		return reflect.String, nil
+	case "imds.aws.is_imds_v2":
+		return reflect.Bool, nil
+	case "imds.aws.security_credentials.type":
+		return reflect.String, nil
+	case "imds.cloud_provider":
+		return reflect.String, nil
+	case "imds.host":
+		return reflect.String, nil
+	case "imds.server":
+		return reflect.String, nil
+	case "imds.type":
+		return reflect.String, nil
+	case "imds.url":
+		return reflect.String, nil
+	case "imds.user_agent":
 		return reflect.String, nil
 	case "link.file.change_time":
 		return reflect.Int, nil
@@ -28775,6 +29357,153 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		ev.Capset.CapPermitted = uint64(rv)
 		return nil
+	case "chdir.file.change_time":
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Chdir.File.FileFields.CTime"}
+		}
+		ev.Chdir.File.FileFields.CTime = uint64(rv)
+		return nil
+	case "chdir.file.filesystem":
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Chdir.File.Filesystem"}
+		}
+		ev.Chdir.File.Filesystem = rv
+		return nil
+	case "chdir.file.gid":
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Chdir.File.FileFields.GID"}
+		}
+		ev.Chdir.File.FileFields.GID = uint32(rv)
+		return nil
+	case "chdir.file.group":
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Chdir.File.FileFields.Group"}
+		}
+		ev.Chdir.File.FileFields.Group = rv
+		return nil
+	case "chdir.file.hashes":
+		switch rv := value.(type) {
+		case string:
+			ev.Chdir.File.Hashes = append(ev.Chdir.File.Hashes, rv)
+		case []string:
+			ev.Chdir.File.Hashes = append(ev.Chdir.File.Hashes, rv...)
+		default:
+			return &eval.ErrValueTypeMismatch{Field: "Chdir.File.Hashes"}
+		}
+		return nil
+	case "chdir.file.in_upper_layer":
+		rv, ok := value.(bool)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Chdir.File.FileFields.InUpperLayer"}
+		}
+		ev.Chdir.File.FileFields.InUpperLayer = rv
+		return nil
+	case "chdir.file.inode":
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Chdir.File.FileFields.PathKey.Inode"}
+		}
+		ev.Chdir.File.FileFields.PathKey.Inode = uint64(rv)
+		return nil
+	case "chdir.file.mode":
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Chdir.File.FileFields.Mode"}
+		}
+		ev.Chdir.File.FileFields.Mode = uint16(rv)
+		return nil
+	case "chdir.file.modification_time":
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Chdir.File.FileFields.MTime"}
+		}
+		ev.Chdir.File.FileFields.MTime = uint64(rv)
+		return nil
+	case "chdir.file.mount_id":
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Chdir.File.FileFields.PathKey.MountID"}
+		}
+		ev.Chdir.File.FileFields.PathKey.MountID = uint32(rv)
+		return nil
+	case "chdir.file.name":
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Chdir.File.BasenameStr"}
+		}
+		ev.Chdir.File.BasenameStr = rv
+		return nil
+	case "chdir.file.name.length":
+		return &eval.ErrFieldReadOnly{Field: "chdir.file.name.length"}
+	case "chdir.file.package.name":
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Chdir.File.PkgName"}
+		}
+		ev.Chdir.File.PkgName = rv
+		return nil
+	case "chdir.file.package.source_version":
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Chdir.File.PkgSrcVersion"}
+		}
+		ev.Chdir.File.PkgSrcVersion = rv
+		return nil
+	case "chdir.file.package.version":
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Chdir.File.PkgVersion"}
+		}
+		ev.Chdir.File.PkgVersion = rv
+		return nil
+	case "chdir.file.path":
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Chdir.File.PathnameStr"}
+		}
+		ev.Chdir.File.PathnameStr = rv
+		return nil
+	case "chdir.file.path.length":
+		return &eval.ErrFieldReadOnly{Field: "chdir.file.path.length"}
+	case "chdir.file.rights":
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Chdir.File.FileFields.Mode"}
+		}
+		ev.Chdir.File.FileFields.Mode = uint16(rv)
+		return nil
+	case "chdir.file.uid":
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Chdir.File.FileFields.UID"}
+		}
+		ev.Chdir.File.FileFields.UID = uint32(rv)
+		return nil
+	case "chdir.file.user":
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Chdir.File.FileFields.User"}
+		}
+		ev.Chdir.File.FileFields.User = rv
+		return nil
+	case "chdir.retval":
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Chdir.SyscallEvent.Retval"}
+		}
+		ev.Chdir.SyscallEvent.Retval = int64(rv)
+		return nil
+	case "chdir.syscall.path":
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Chdir.SyscallContext.StrArg1"}
+		}
+		ev.Chdir.SyscallContext.StrArg1 = rv
+		return nil
 	case "chmod.file.change_time":
 		rv, ok := value.(int)
 		if !ok {
@@ -28928,6 +29657,20 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueTypeMismatch{Field: "Chmod.SyscallEvent.Retval"}
 		}
 		ev.Chmod.SyscallEvent.Retval = int64(rv)
+		return nil
+	case "chmod.syscall.mode":
+		rv, ok := value.(int)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Chmod.SyscallContext.IntArg2"}
+		}
+		ev.Chmod.SyscallContext.IntArg2 = int64(rv)
+		return nil
+	case "chmod.syscall.path":
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Chmod.SyscallContext.StrArg1"}
+		}
+		ev.Chmod.SyscallContext.StrArg1 = rv
 		return nil
 	case "chown.file.change_time":
 		rv, ok := value.(int)
@@ -29180,6 +29923,27 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueTypeMismatch{Field: "Async"}
 		}
 		ev.Async = rv
+		return nil
+	case "event.origin":
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.Origin"}
+		}
+		ev.BaseEvent.Origin = rv
+		return nil
+	case "event.os":
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.Os"}
+		}
+		ev.BaseEvent.Os = rv
+		return nil
+	case "event.service":
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.Service"}
+		}
+		ev.BaseEvent.Service = rv
 		return nil
 	case "event.timestamp":
 		rv, ok := value.(int)
@@ -29868,6 +30632,13 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.PPid"}
 		}
 		ev.Exec.Process.PPid = uint32(rv)
+		return nil
+	case "exec.syscall.path":
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Exec.SyscallContext.StrArg1"}
+		}
+		ev.Exec.SyscallContext.StrArg1 = rv
 		return nil
 	case "exec.tid":
 		if ev.Exec.Process == nil {
@@ -30710,6 +31481,62 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		ev.Exit.Process.UserSession.K8SUsername = rv
 		return nil
+	case "imds.aws.is_imds_v2":
+		rv, ok := value.(bool)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "IMDS.AWS.IsIMDSv2"}
+		}
+		ev.IMDS.AWS.IsIMDSv2 = rv
+		return nil
+	case "imds.aws.security_credentials.type":
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "IMDS.AWS.SecurityCredentials.Type"}
+		}
+		ev.IMDS.AWS.SecurityCredentials.Type = rv
+		return nil
+	case "imds.cloud_provider":
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "IMDS.CloudProvider"}
+		}
+		ev.IMDS.CloudProvider = rv
+		return nil
+	case "imds.host":
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "IMDS.Host"}
+		}
+		ev.IMDS.Host = rv
+		return nil
+	case "imds.server":
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "IMDS.Server"}
+		}
+		ev.IMDS.Server = rv
+		return nil
+	case "imds.type":
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "IMDS.Type"}
+		}
+		ev.IMDS.Type = rv
+		return nil
+	case "imds.url":
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "IMDS.URL"}
+		}
+		ev.IMDS.URL = rv
+		return nil
+	case "imds.user_agent":
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "IMDS.UserAgent"}
+		}
+		ev.IMDS.UserAgent = rv
+		return nil
 	case "link.file.change_time":
 		rv, ok := value.(int)
 		if !ok {
@@ -31453,14 +32280,14 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "MMap.Flags"}
 		}
-		ev.MMap.Flags = int(rv)
+		ev.MMap.Flags = uint64(rv)
 		return nil
 	case "mmap.protection":
 		rv, ok := value.(int)
 		if !ok {
 			return &eval.ErrValueTypeMismatch{Field: "MMap.Protection"}
 		}
-		ev.MMap.Protection = int(rv)
+		ev.MMap.Protection = uint64(rv)
 		return nil
 	case "mmap.retval":
 		rv, ok := value.(int)

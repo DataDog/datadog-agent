@@ -9,7 +9,7 @@
 // Should be removed once `github.com/DataDog/agent-payload/v5/process` can be imported with CGO disabled.
 //go:build cgo && linux
 
-//nolint:revive // TODO(PLINT) Fix revive linter
+// Package oomkill contains the OOMKill check.
 package oomkill
 
 import (
@@ -19,9 +19,9 @@ import (
 	yaml "gopkg.in/yaml.v2"
 
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/oomkill/model"
@@ -71,8 +71,8 @@ func (c *OOMKillConfig) Parse(data []byte) error {
 }
 
 // Configure parses the check configuration and init the check
-func (m *OOMKillCheck) Configure(senderManager sender.SenderManager, integrationConfigDigest uint64, config, initConfig integration.Data, source string) error {
-	err := m.CommonConfigure(senderManager, integrationConfigDigest, initConfig, config, source)
+func (m *OOMKillCheck) Configure(senderManager sender.SenderManager, _ uint64, config, initConfig integration.Data, source string) error {
+	err := m.CommonConfigure(senderManager, initConfig, config, source)
 	if err != nil {
 		return err
 	}
@@ -118,7 +118,7 @@ func (m *OOMKillCheck) Run() error {
 		entityID := containers.BuildTaggerEntityName(containerID)
 		var tags []string
 		if entityID != "" {
-			tags, err = tagger.Tag(entityID, tagger.ChecksCardinality)
+			tags, err = tagger.Tag(entityID, tagger.ChecksCardinality())
 			if err != nil {
 				log.Errorf("Error collecting tags for container %s: %s", containerID, err)
 			}
@@ -132,7 +132,6 @@ func (m *OOMKillCheck) Run() error {
 			triggerTypeText = "This OOM kill was invoked by the system."
 		}
 		tags = append(tags, "trigger_type:"+triggerType)
-
 		tags = append(tags, "trigger_process_name:"+line.FComm)
 		tags = append(tags, "process_name:"+line.TComm)
 
@@ -141,7 +140,8 @@ func (m *OOMKillCheck) Run() error {
 
 		// submit event with a few more details
 		event := event.Event{
-			Priority:       event.EventPriorityNormal,
+			AlertType:      event.AlertTypeError,
+			Priority:       event.PriorityNormal,
 			SourceTypeName: CheckName,
 			EventType:      CheckName,
 			AggregationKey: containerID,

@@ -7,17 +7,24 @@ package v3or4
 
 // Task represents a task as returned by the ECS metadata API v3 or v4.
 type Task struct {
-	ClusterName           string             `json:"Cluster"`
-	Containers            []Container        `json:"Containers"`
-	KnownStatus           string             `json:"KnownStatus"`
-	TaskARN               string             `json:"TaskARN"`
-	Family                string             `json:"Family"`
-	Version               string             `json:"Revision"`
-	Limits                map[string]float64 `json:"Limits,omitempty"`
-	DesiredStatus         string             `json:"DesiredStatus"`
-	LaunchType            string             `json:"LaunchType,omitempty"` // present only in v4
-	ContainerInstanceTags map[string]string  `json:"ContainerInstanceTags,omitempty"`
-	TaskTags              map[string]string  `json:"TaskTags,omitempty"`
+	ClusterName             string             `json:"Cluster"`
+	Containers              []Container        `json:"Containers"`
+	KnownStatus             string             `json:"KnownStatus"`
+	TaskARN                 string             `json:"TaskARN"`
+	Family                  string             `json:"Family"`
+	Version                 string             `json:"Revision"`
+	Limits                  map[string]float64 `json:"Limits,omitempty"`
+	DesiredStatus           string             `json:"DesiredStatus"`
+	LaunchType              string             `json:"LaunchType,omitempty"` // present only in v4
+	ContainerInstanceTags   map[string]string  `json:"ContainerInstanceTags,omitempty"`
+	TaskTags                map[string]string  `json:"TaskTags,omitempty"`
+	EphemeralStorageMetrics map[string]int64   `json:"EphemeralStorageMetrics,omitempty"`
+	ServiceName             string             `json:"ServiceName,omitempty"`
+	VPCID                   string             `json:"VPCID,omitempty"`
+	PullStartedAt           string             `json:"PullStartedAt,omitempty"`
+	PullStoppedAt           string             `json:"PullStoppedAt,omitempty"`
+	ExecutionStoppedAt      string             `json:"ExecutionStoppedAt,omitempty"`
+	AvailabilityZone        string             `json:"AvailabilityZone,omitempty"`
 }
 
 // Container represents a container within a task.
@@ -39,12 +46,25 @@ type Container struct {
 	LogDriver     string            `json:"LogDriver,omitempty"`    // present only in v4
 	LogOptions    map[string]string `json:"LogOptions,omitempty"`   // present only in v4
 	ContainerARN  string            `json:"ContainerARN,omitempty"` // present only in v4
+	Health        *HealthStatus     `json:"Health,omitempty"`
+	Volumes       []Volume          `json:"Volumes,omitempty"`
+	ExitCode      *int64            `json:"ExitCode,omitempty"`
+	Snapshotter   string            `json:"Snapshotter,omitempty"`
+}
+
+// HealthStatus represents the health status of a container
+type HealthStatus struct {
+	Status   string `json:"status,omitempty"`
+	Since    string `json:"statusSince,omitempty"`
+	ExitCode *int64 `json:"exitCode,omitempty"`
+	Output   string `json:"output,omitempty"`
 }
 
 // Network represents the network of a container
 type Network struct {
 	NetworkMode   string   `json:"NetworkMode"`   // supports awsvpc and bridge
 	IPv4Addresses []string `json:"IPv4Addresses"` // one-element list
+	IPv6Addresses []string `json:"IPv6Addresses,omitempty"`
 }
 
 // Port represents the ports of a container
@@ -52,4 +72,12 @@ type Port struct {
 	ContainerPort uint16 `json:"ContainerPort,omitempty"`
 	Protocol      string `json:"Protocol,omitempty"`
 	HostPort      uint16 `json:"HostPort,omitempty"`
+	HostIP        string `json:"HostIP,omitempty"`
+}
+
+// Volume represents the volumes of a container
+type Volume struct {
+	DockerName  string `json:"DockerName,omitempty"`
+	Source      string `json:"Source,omitempty"`
+	Destination string `json:"Destination,omitempty"`
 }

@@ -18,58 +18,14 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
 
-// ResolverInterface defines the resolver interface
-type ResolverInterface interface {
-	ResolveBasename(e *model.FileFields) string
-	ResolveFileFieldsPath(e *model.FileFields, pidCtx *model.PIDContext, ctrCtx *model.ContainerContext) (string, error)
-	SetMountRoot(ev *model.Event, e *model.Mount) error
-	ResolveMountRoot(ev *model.Event, e *model.Mount) (string, error)
-	SetMountPoint(ev *model.Event, e *model.Mount) error
-	ResolveMountPoint(ev *model.Event, e *model.Mount) (string, error)
-}
-
-// NoResolver returns an empty resolver
-type NoResolver struct {
-}
-
-// ResolveBasename resolves an inode/mount ID pair to a file basename
-func (n *NoResolver) ResolveBasename(_ *model.FileFields) string {
-	return ""
-}
-
-// ResolveFileFieldsPath resolves an inode/mount ID pair to a full path
-func (n *NoResolver) ResolveFileFieldsPath(_ *model.FileFields, _ *model.PIDContext, _ *model.ContainerContext) (string, error) {
-	return "", nil
-}
-
-// SetMountRoot set the mount point information
-func (n *NoResolver) SetMountRoot(_ *model.Event, _ *model.Mount) error {
-	return nil
-}
-
-// ResolveMountRoot resolves the mountpoint to a full path
-func (n *NoResolver) ResolveMountRoot(_ *model.Event, _ *model.Mount) (string, error) {
-	return "", nil
-}
-
-// SetMountPoint set the mount point information
-func (n *NoResolver) SetMountPoint(_ *model.Event, _ *model.Mount) error {
-	return nil
-}
-
-// ResolveMountPoint resolves the mountpoint to a full path
-func (n *NoResolver) ResolveMountPoint(_ *model.Event, _ *model.Mount) (string, error) {
-	return "", nil
-}
-
 // Resolver describes a resolvers for path and file names
 type Resolver struct {
 	dentryResolver *dentry.Resolver
-	mountResolver  *mount.Resolver
+	mountResolver  mount.ResolverInterface
 }
 
 // NewResolver returns a new path resolver
-func NewResolver(dentryResolver *dentry.Resolver, mountResolver *mount.Resolver) *Resolver {
+func NewResolver(dentryResolver *dentry.Resolver, mountResolver mount.ResolverInterface) *Resolver {
 	return &Resolver{dentryResolver: dentryResolver, mountResolver: mountResolver}
 }
 
@@ -79,45 +35,49 @@ func (r *Resolver) ResolveBasename(e *model.FileFields) string {
 }
 
 // ResolveFileFieldsPath resolves an inode/mount ID pair to a full path
-func (r *Resolver) ResolveFileFieldsPath(e *model.FileFields, pidCtx *model.PIDContext, ctrCtx *model.ContainerContext) (string, error) {
+func (r *Resolver) ResolveFileFieldsPath(e *model.FileFields, pidCtx *model.PIDContext, ctrCtx *model.ContainerContext) (string, string, model.MountSource, model.MountOrigin, error) {
 	pathStr, err := r.dentryResolver.Resolve(e.PathKey, !e.HasHardLinks())
 	if err != nil {
 		if _, err := r.mountResolver.IsMountIDValid(e.MountID); errors.Is(err, mount.ErrMountKernelID) {
-			return pathStr, &ErrPathResolutionNotCritical{Err: err}
+			return pathStr, "", model.MountSourceUnknown, model.MountOriginUnknown, &ErrPathResolutionNotCritical{Err: err}
 		}
-		return pathStr, &ErrPathResolution{Err: err}
+		return pathStr, "", model.MountSourceUnknown, model.MountOriginUnknown, &ErrPathResolution{Err: err}
 	}
 
 	if e.IsFileless() {
-		return pathStr, nil
+		return pathStr, "", model.MountSourceUnknown, model.MountOriginUnknown, nil
 	}
 
-	mountPath, err := r.mountResolver.ResolveMountPath(e.MountID, e.Device, pidCtx.Pid, ctrCtx.ID)
+	mountPath, source, origin, err := r.mountResolver.ResolveMountPath(e.MountID, e.Device, pidCtx.Pid, ctrCtx.ID)
 	if err != nil {
 		if _, err := r.mountResolver.IsMountIDValid(e.MountID); errors.Is(err, mount.ErrMountKernelID) {
-			return pathStr, &ErrPathResolutionNotCritical{Err: fmt.Errorf("mount ID(%d) invalid: %w", e.MountID, err)}
+			return pathStr, "", origin, source, &ErrPathResolutionNotCritical{Err: fmt.Errorf("mount ID(%d) invalid: %w", e.MountID, err)}
 		}
-		return pathStr, &ErrPathResolution{Err: err}
+		return pathStr, "", source, origin, &ErrPathResolution{Err: err}
 	}
 
-	rootPath, err := r.mountResolver.ResolveMountRoot(e.MountID, e.Device, pidCtx.Pid, ctrCtx.ID)
+	rootPath, source, origin, err := r.mountResolver.ResolveMountRoot(e.MountID, e.Device, pidCtx.Pid, ctrCtx.ID)
 	if err != nil {
 		if _, err := r.mountResolver.IsMountIDValid(e.MountID); errors.Is(err, mount.ErrMountKernelID) {
-			return pathStr, &ErrPathResolutionNotCritical{Err: fmt.Errorf("mount ID(%d) invalid: %w", e.MountID, err)}
+			return pathStr, "", source, origin, &ErrPathResolutionNotCritical{Err: fmt.Errorf("mount ID(%d) invalid: %w", e.MountID, err)}
 		}
-		return pathStr, &ErrPathResolution{Err: err}
+		return pathStr, "", source, origin, &ErrPathResolution{Err: err}
 	}
 
 	// This aims to handle bind mounts
-	if strings.HasPrefix(pathStr, rootPath) && rootPath != "/" {
-		pathStr = strings.Replace(pathStr, rootPath, "", 1)
+	if rootPath != "/" {
+		pathStr = strings.TrimPrefix(pathStr, rootPath)
 	}
 
 	if mountPath != "/" {
-		pathStr = mountPath + pathStr
+		if pathStr != "/" {
+			pathStr = mountPath + pathStr
+		} else {
+			pathStr = mountPath
+		}
 	}
 
-	return pathStr, nil
+	return pathStr, mountPath, source, origin, nil
 }
 
 // SetMountRoot set the mount point information

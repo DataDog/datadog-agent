@@ -46,7 +46,7 @@ type collectorTest struct {
 func acquireStream(t *testing.T, port int) pbgo.ProcessEntityStream_StreamEntitiesClient {
 	t.Helper()
 
-	cc, err := grpc.Dial(fmt.Sprintf("localhost:%v", port), grpc.WithTransportCredentials(insecure.NewCredentials()))
+	cc, err := grpc.Dial(fmt.Sprintf("localhost:%v", port), grpc.WithTransportCredentials(insecure.NewCredentials())) //nolint:staticcheck // TODO (ASC) fix grpc.Dial is deprecated
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		_ = cc.Close()
@@ -87,8 +87,6 @@ func setUpCollectorTest(t *testing.T) *collectorTest {
 		fx.Supply(workloadmeta.NewParams()),
 		workloadmeta.MockModuleV2(),
 	))
-	workloadmeta.SetGlobalStore(store)
-	defer workloadmeta.SetGlobalStore(nil)
 
 	// pass actual config component
 	wlmExtractor := workloadmetaExtractor.NewWorkloadMetaExtractor(store.GetConfig())
@@ -118,7 +116,6 @@ func setUpCollectorTest(t *testing.T) *collectorTest {
 		store:     store,
 		stream:    acquireStream(t, port),
 	}
-
 }
 
 func (c *collectorTest) setupProcs() {

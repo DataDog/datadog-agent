@@ -13,8 +13,9 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/core/settings"
+	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
-	settingshttp "github.com/DataDog/datadog-agent/pkg/config/settings/http"
 )
 
 //nolint:revive // TODO(PROC) Fix revive linter
@@ -24,6 +25,8 @@ type APIServerDeps struct {
 	Config       config.Component
 	Log          log.Component
 	WorkloadMeta workloadmeta.Component
+	Status       status.Component
+	Settings     settings.Component
 }
 
 func injectDeps(deps APIServerDeps, handler func(APIServerDeps, http.ResponseWriter, *http.Request)) http.HandlerFunc {
@@ -34,11 +37,12 @@ func injectDeps(deps APIServerDeps, handler func(APIServerDeps, http.ResponseWri
 
 //nolint:revive // TODO(PROC) Fix revive linter
 func SetupAPIServerHandlers(deps APIServerDeps, r *mux.Router) {
-	r.HandleFunc("/config", settingshttp.Server.GetFullDatadogConfig("process_config")).Methods("GET") // Get only settings in the process_config namespace
-	r.HandleFunc("/config/all", settingshttp.Server.GetFullDatadogConfig("")).Methods("GET")           // Get all fields from process-agent Config object
-	r.HandleFunc("/config/list-runtime", settingshttp.Server.ListConfigurable).Methods("GET")
-	r.HandleFunc("/config/{setting}", settingshttp.Server.GetValue).Methods("GET")
-	r.HandleFunc("/config/{setting}", settingshttp.Server.SetValue).Methods("POST")
+	r.HandleFunc("/config", deps.Settings.GetFullConfig("process_config")).Methods("GET")
+	r.HandleFunc("/config/all", deps.Settings.GetFullConfig("")).Methods("GET") // Get all fields from process-agent Config object
+	r.HandleFunc("/config/list-runtime", deps.Settings.ListConfigurable).Methods("GET")
+	r.HandleFunc("/config/{setting}", deps.Settings.GetValue).Methods("GET")
+	r.HandleFunc("/config/{setting}", deps.Settings.SetValue).Methods("POST")
+
 	r.HandleFunc("/agent/status", injectDeps(deps, statusHandler)).Methods("GET")
 	r.HandleFunc("/agent/tagger-list", injectDeps(deps, getTaggerList)).Methods("GET")
 	r.HandleFunc("/agent/workload-list/short", func(w http.ResponseWriter, r *http.Request) {

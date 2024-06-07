@@ -8,15 +8,30 @@ package adlistener
 import (
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery"
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/scheduler"
+	"github.com/DataDog/datadog-agent/comp/core"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/autodiscoveryimpl"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/scheduler"
+	"github.com/DataDog/datadog-agent/comp/core/tagger"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"go.uber.org/fx"
 )
 
 //nolint:revive // TODO(AML) Fix revive linter
 func TestListenersGetScheduleCalls(t *testing.T) {
-	adsched := scheduler.NewMetaScheduler()
-	ac := autodiscovery.NewAutoConfigNoStart(adsched, nil)
+	adsched := scheduler.NewController()
+	ac := fxutil.Test[autodiscovery.Mock](t,
+		fx.Supply(autodiscoveryimpl.MockParams{Scheduler: adsched}),
+		autodiscoveryimpl.MockModule(),
+		workloadmeta.MockModule(),
+		fx.Supply(workloadmeta.NewParams()),
+		core.MockBundle(),
+		fx.Provide(taggerimpl.NewMock),
+		fx.Supply(tagger.NewFakeTaggerParams()),
+	)
 
 	got1 := make(chan struct{}, 1)
 	l1 := NewADListener("l1", ac, func(configs []integration.Config) {
@@ -34,7 +49,7 @@ func TestListenersGetScheduleCalls(t *testing.T) {
 	}, nil)
 	l2.StartListener()
 
-	adsched.Schedule([]integration.Config{{}})
+	adsched.ApplyChanges(integration.ConfigChanges{Schedule: []integration.Config{{}}})
 
 	// wait for each of the two listeners to get notified
 	<-got1

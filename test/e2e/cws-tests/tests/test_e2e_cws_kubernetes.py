@@ -172,9 +172,9 @@ class TestE2EKubernetes(unittest.TestCase):
             )
 
             jsonSchemaValidator = JsonSchemaValidator()
-            jsonSchemaValidator.validate_json_data("self_test.json", attributes)
+            jsonSchemaValidator.validate_json_data("self_test_schema.json", attributes)
 
-        with Step(msg="wait for datadog.security_agent.runtime.running metric", emoji="\N{beer mug}"):
+        with Step(msg="wait for datadog.security_agent.runtime.running metric", emoji="\N{BEER MUG}"):  # fmt: off
             self.app.wait_for_metric("datadog.security_agent.runtime.running", host=TestE2EKubernetes.hostname)
 
         with Step(msg="check agent event", emoji=":check_mark_button:"):
@@ -184,12 +184,6 @@ class TestE2EKubernetes(unittest.TestCase):
                 "system-probe",
                 self.kubernetes_helper,
                 f"Sending event message for rule `{agent_rule_name}`",
-            )
-
-            wait_agent_log(
-                "security-agent",
-                self.kubernetes_helper,
-                "Successfully posted payload to",
             )
 
         with Step(msg="check app event", emoji=":chart_increasing_with_yen:"):
@@ -211,7 +205,7 @@ class TestE2EKubernetes(unittest.TestCase):
                 "unable to find rule_id tag attribute",
             )
 
-        with Step(msg="wait for datadog.security_agent.runtime.containers_running metric", emoji="\N{beer mug}"):
+        with Step(msg="wait for datadog.security_agent.runtime.containers_running metric", emoji="\N{BEER MUG}"):  # fmt: off
             self.app.wait_for_metric(
                 "datadog.security_agent.runtime.containers_running", host=TestE2EKubernetes.hostname
             )

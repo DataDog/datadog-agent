@@ -51,19 +51,24 @@ static __always_inline http2_stream_t *http2_fetch_stream(const http2_stream_key
         return NULL;
     }
     bpf_memset(http2_stream_ptr, 0, sizeof(http2_stream_t));
+    http2_stream_ptr->request_started = bpf_ktime_get_ns();
     bpf_map_update_elem(&http2_in_flight, http2_stream_key, http2_stream_ptr, BPF_NOEXIST);
     return bpf_map_lookup_elem(&http2_in_flight, http2_stream_key);
 }
 
 // get_dynamic_counter returns the current dynamic counter by the conn tuple.
 static __always_inline __u64 *get_dynamic_counter(conn_tuple_t *tup) {
-    __u64 counter = 0;
-    bpf_map_update_elem(&http2_dynamic_counter_table, tup, &counter, BPF_NOEXIST);
-    return bpf_map_lookup_elem(&http2_dynamic_counter_table, tup);
+    dynamic_counter_t empty = {0};
+    bpf_map_update_elem(&http2_dynamic_counter_table, tup, &empty, BPF_NOEXIST);
+    dynamic_counter_t *ptr = bpf_map_lookup_elem(&http2_dynamic_counter_table, tup);
+    if (ptr == NULL) {
+        return NULL;
+    }
+    return &ptr->value;
 }
 
 // parse_field_indexed parses fully-indexed headers.
-static __always_inline void parse_field_indexed(dynamic_table_index_t *dynamic_index, http2_header_t *headers_to_process, __u8 index, __u64 global_dynamic_counter, __u8 *interesting_headers_counter) {
+static __always_inline void parse_field_indexed(dynamic_table_index_t *dynamic_index, http2_header_t *restrict headers_to_process, __u8 index, __u64 global_dynamic_counter, __u8 *interesting_headers_counter) {
     if (headers_to_process == NULL) {
         return;
     }
@@ -121,8 +126,8 @@ static __always_inline void update_path_size_telemetry(http2_telemetry_t *http2_
 // See RFC 7540 section 5.1: https://datatracker.ietf.org/doc/html/rfc7540#section-5.1
 static __always_inline void handle_end_of_stream(http2_stream_t *current_stream, http2_stream_key_t *http2_stream_key_template, http2_telemetry_t *http2_tel) {
     // We want to see the EOS twice for a given stream: one for the client, one for the server.
-    if (!current_stream->request_end_of_stream) {
-        current_stream->request_end_of_stream = true;
+    if (!current_stream->end_of_stream_seen) {
+        current_stream->end_of_stream_seen = true;
         return;
     }
 

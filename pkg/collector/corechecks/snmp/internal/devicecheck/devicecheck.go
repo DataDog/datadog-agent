@@ -7,8 +7,10 @@
 package devicecheck
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
+	"reflect"
 	"runtime"
 	"strings"
 	"time"
@@ -16,9 +18,9 @@ import (
 	"github.com/cihub/seelog"
 	"go.uber.org/atomic"
 
+	"github.com/DataDog/datadog-agent/pkg/collector/externalhost"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
-	"github.com/DataDog/datadog-agent/pkg/metadata/externalhost"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname/validate"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -26,6 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/metadata"
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/pinger"
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition"
+	"github.com/DataDog/datadog-agent/pkg/networkdevice/utils"
 	coresnmp "github.com/DataDog/datadog-agent/pkg/snmp"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/checkconfig"
@@ -37,6 +40,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/valuestore"
 	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/diagnoses"
+	"github.com/DataDog/datadog-agent/pkg/persistentcache"
 	"github.com/DataDog/datadog-agent/pkg/snmp/gosnmplib"
 )
 
@@ -67,7 +71,10 @@ type DeviceCheck struct {
 	nextAutodetectMetrics   time.Time
 	diagnoses               *diagnoses.Diagnoses
 	interfaceBandwidthState report.InterfaceBandwidthState
+	cacheKey                string
 }
+
+const cacheKeyPrefix = "snmp-tags"
 
 // NewDeviceCheck returns a new DeviceCheck
 func NewDeviceCheck(config *checkconfig.CheckConfig, ipAddress string, sessionFactory session.Factory) (*DeviceCheck, error) {
@@ -86,7 +93,10 @@ func NewDeviceCheck(config *checkconfig.CheckConfig, ipAddress string, sessionFa
 		}
 	}
 
-	return &DeviceCheck{
+	configHash := newConfig.DeviceDigest(newConfig.IPAddress)
+	cacheKey := fmt.Sprintf("%s:%s", cacheKeyPrefix, configHash)
+
+	d := DeviceCheck{
 		config:                  newConfig,
 		session:                 sess,
 		devicePinger:            devicePinger,
@@ -94,7 +104,12 @@ func NewDeviceCheck(config *checkconfig.CheckConfig, ipAddress string, sessionFa
 		nextAutodetectMetrics:   timeNow(),
 		diagnoses:               diagnoses.NewDeviceDiagnoses(newConfig.DeviceID),
 		interfaceBandwidthState: report.MakeInterfaceBandwidthState(),
-	}, nil
+		cacheKey:                cacheKey,
+	}
+
+	d.readTagsFromCache()
+
+	return &d, nil
 }
 
 // SetSender sets the current sender
@@ -151,17 +166,23 @@ func (d *DeviceCheck) Run(collectionTime time.Time) error {
 	var pingStatus metadata.DeviceStatus
 
 	deviceReachable, dynamicTags, values, checkErr := d.getValuesAndTags()
-	tags := common.CopyStrings(staticTags)
+
+	tags := utils.CopyStrings(staticTags)
 	if checkErr != nil {
 		tags = append(tags, d.savedDynamicTags...)
 		d.sender.ServiceCheck(serviceCheckName, servicecheck.ServiceCheckCritical, tags, checkErr.Error())
 	} else {
-		d.savedDynamicTags = dynamicTags
+		if !reflect.DeepEqual(d.savedDynamicTags, dynamicTags) {
+			d.savedDynamicTags = dynamicTags
+			d.writeTagsInCache()
+		}
+
 		tags = append(tags, dynamicTags...)
 		d.sender.ServiceCheck(serviceCheckName, servicecheck.ServiceCheckOK, tags, "")
 	}
-	d.sender.Gauge(deviceReachableMetric, common.BoolToFloat64(deviceReachable), tags)
-	d.sender.Gauge(deviceUnreachableMetric, common.BoolToFloat64(!deviceReachable), tags)
+
+	d.sender.Gauge(deviceReachableMetric, utils.BoolToFloat64(deviceReachable), tags)
+	d.sender.Gauge(deviceUnreachableMetric, utils.BoolToFloat64(!deviceReachable), tags)
 
 	if values != nil {
 		d.sender.ReportMetrics(d.config.Metrics, values, tags)
@@ -174,7 +195,10 @@ func (d *DeviceCheck) Run(collectionTime time.Time) error {
 		if err != nil {
 			// if the ping fails, send no metrics/metadata, log and add diagnosis
 			log.Errorf("%s: failed to ping device: %s", d.config.IPAddress, err.Error())
+			pingStatus = metadata.DeviceStatusUnreachable
 			d.diagnoses.Add("error", "SNMP_FAILED_TO_PING_DEVICE", "Agent encountered an error when pinging this network device. Check agent logs for more details.")
+			d.sender.Gauge(pingReachableMetric, utils.BoolToFloat64(false), tags)
+			d.sender.Gauge(pingUnreachableMetric, utils.BoolToFloat64(true), tags)
 		} else {
 			// if ping succeeds, set pingCanConnect for use in metadata and send metrics
 			log.Debugf("%s: ping returned: %+v", d.config.IPAddress, pingResult)
@@ -205,8 +229,8 @@ func (d *DeviceCheck) Run(collectionTime time.Time) error {
 		// We include instance tags to `deviceMetadataTags` since device metadata tags are not enriched with `checkSender.checkTags`.
 		// `checkSender.checkTags` are added for metrics, service checks, events only.
 		// Note that we don't add some extra tags like `service` tag that might be present in `checkSender.checkTags`.
-		deviceMetadataTags := append(common.CopyStrings(tags), d.config.InstanceTags...)
-		deviceMetadataTags = append(deviceMetadataTags, common.GetAgentVersionTag())
+		deviceMetadataTags := append(utils.CopyStrings(tags), d.config.InstanceTags...)
+		deviceMetadataTags = append(deviceMetadataTags, utils.GetAgentVersionTag())
 
 		deviceDiagnosis := d.diagnoses.Report()
 
@@ -225,7 +249,7 @@ func (d *DeviceCheck) setDeviceHostExternalTags() {
 	if deviceHostname == "" || err != nil {
 		return
 	}
-	agentTags := configUtils.GetConfiguredTags(config.Datadog, false)
+	agentTags := configUtils.GetConfiguredTags(config.Datadog(), false)
 	log.Debugf("Set external tags for device host, host=`%s`, agentTags=`%v`", deviceHostname, agentTags)
 	externalhost.SetExternalTags(deviceHostname, common.SnmpExternalTagsSourceType, agentTags)
 }
@@ -392,7 +416,7 @@ func (d *DeviceCheck) detectAvailableMetrics() ([]profiledefinition.MetricsConfi
 }
 
 func (d *DeviceCheck) submitTelemetryMetrics(startTime time.Time, tags []string) {
-	newTags := append(common.CopyStrings(tags), snmpLoaderTag, common.GetAgentVersionTag())
+	newTags := append(utils.CopyStrings(tags), snmpLoaderTag, utils.GetAgentVersionTag())
 
 	d.sender.Gauge("snmp.devices_monitored", float64(1), newTags)
 
@@ -420,7 +444,36 @@ func createPinger(cfg pinger.Config) (pinger.Pinger, error) {
 
 func (d *DeviceCheck) submitPingMetrics(pingResult *pinger.Result, tags []string) {
 	d.sender.Gauge(pingAvgRttMetric, float64(pingResult.AvgRtt/time.Millisecond), tags)
-	d.sender.Gauge(pingReachableMetric, common.BoolToFloat64(pingResult.CanConnect), tags)
-	d.sender.Gauge(pingUnreachableMetric, common.BoolToFloat64(!pingResult.CanConnect), tags)
+	d.sender.Gauge(pingReachableMetric, utils.BoolToFloat64(pingResult.CanConnect), tags)
+	d.sender.Gauge(pingUnreachableMetric, utils.BoolToFloat64(!pingResult.CanConnect), tags)
 	d.sender.Gauge(pingPacketLoss, pingResult.PacketLoss, tags)
+}
+
+func (d *DeviceCheck) readTagsFromCache() {
+	cacheValue, err := persistentcache.Read(d.cacheKey)
+	if err != nil {
+		log.Errorf("couldn't read cache for %s: %s", d.cacheKey, err)
+	}
+	if cacheValue == "" {
+		d.savedDynamicTags = []string{}
+		return
+	}
+	var tags []string
+	if err = json.Unmarshal([]byte(cacheValue), &tags); err != nil {
+		log.Errorf("couldn't unmarshal cache for %s: %s", d.cacheKey, err)
+		return
+	}
+	d.savedDynamicTags = tags
+}
+
+func (d *DeviceCheck) writeTagsInCache() {
+	cacheValue, err := json.Marshal(d.savedDynamicTags)
+	if err != nil {
+		log.Errorf("SNMP tags %s: Couldn't marshal cache: %s", d.config.Network, err)
+		return
+	}
+
+	if err = persistentcache.Write(d.cacheKey, string(cacheValue)); err != nil {
+		log.Errorf("SNMP tags %s: Couldn't write cache: %s", d.config.Network, err)
+	}
 }

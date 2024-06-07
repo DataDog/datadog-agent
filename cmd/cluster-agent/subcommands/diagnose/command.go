@@ -14,14 +14,12 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent/command"
-	"github.com/DataDog/datadog-agent/comp/aggregator/diagnosesendermanager"
-	"github.com/DataDog/datadog-agent/comp/aggregator/diagnosesendermanager/diagnosesendermanagerimpl"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
+	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl"
 	"github.com/DataDog/datadog-agent/pkg/diagnose"
-	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -39,7 +37,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					LogParams:    logimpl.ForOneShot(command.LoggerName, "off", true), // no need to show regular logs
 				}),
 				core.Bundle(),
-				diagnosesendermanagerimpl.Module(),
+				compressionimpl.Module(),
 			)
 		},
 	}
@@ -47,7 +45,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	return []*cobra.Command{cmd}
 }
 
-func run(diagnoseSenderManager diagnosesendermanager.Component) error {
+func run(_ config.Component) error {
 	// Verbose:  true - to show details like if was done a while ago
 	// RunLocal: true - do not attept to run in actual running agent but
 	//                  may need to implement it in future
@@ -55,10 +53,5 @@ func run(diagnoseSenderManager diagnosesendermanager.Component) error {
 	//                  diagnose suite as it was done in this agent for
 	//                  a while. Most likely need to relax or add more
 	//                  diagnose suites in the future
-	diagCfg := diagnosis.Config{
-		Verbose:  true, // show details
-		RunLocal: true, // do not attept to run in actual runnin agent (may need to implement it in future)
-		Include:  []string{"connectivity-datadog-autodiscovery"},
-	}
-	return diagnose.RunStdOut(color.Output, diagCfg, diagnoseSenderManager)
+	return diagnose.RunStdOutLocalCheck(color.Output, true, diagnose.RegisterConnectivityAutodiscovery)
 }

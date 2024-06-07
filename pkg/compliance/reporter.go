@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
+	"github.com/DataDog/datadog-agent/comp/logs/agent/agentimpl"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
@@ -22,7 +23,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/security/common"
-	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -30,7 +30,7 @@ import (
 type LogReporter struct {
 	hostname         string
 	pipelineProvider pipeline.Provider
-	auditor          *auditor.RegistryAuditor
+	auditor          auditor.Auditor
 	logSource        *sources.LogSource
 	logChan          chan *message.Message
 	endpoints        *config.Endpoints
@@ -38,15 +38,13 @@ type LogReporter struct {
 }
 
 // NewLogReporter instantiates a new log LogReporter
-func NewLogReporter(hostname string, sourceName, sourceType, runPath string, endpoints *config.Endpoints, dstcontext *client.DestinationsContext) *LogReporter {
-	health := health.RegisterLiveness(sourceType)
-
+func NewLogReporter(hostname string, sourceName, sourceType string, endpoints *config.Endpoints, dstcontext *client.DestinationsContext) *LogReporter {
 	// setup the auditor
-	auditor := auditor.New(runPath, sourceType+"-registry.json", coreconfig.DefaultAuditorTTL, health)
+	auditor := auditor.NewNullAuditor()
 	auditor.Start()
 
 	// setup the pipeline provider that provides pairs of processor and sender
-	pipelineProvider := pipeline.NewProvider(config.NumberOfPipelines, auditor, &diagnostic.NoopMessageReceiver{}, nil, endpoints, dstcontext, hostnameimpl.NewHostnameService())
+	pipelineProvider := pipeline.NewProvider(config.NumberOfPipelines, auditor, &diagnostic.NoopMessageReceiver{}, nil, endpoints, dstcontext, agentimpl.NewStatusProvider(), hostnameimpl.NewHostnameService(), coreconfig.Datadog())
 	pipelineProvider.Start()
 
 	logSource := sources.NewLogSource(
@@ -65,7 +63,7 @@ func NewLogReporter(hostname string, sourceName, sourceType, runPath string, end
 	}
 
 	// merge tags from config
-	for _, tag := range configUtils.GetConfiguredTags(coreconfig.Datadog, true) {
+	for _, tag := range configUtils.GetConfiguredTags(coreconfig.Datadog(), true) {
 		if strings.HasPrefix(tag, "host") {
 			continue
 		}

@@ -36,8 +36,10 @@ func protoDecodeProcessActivityNode(parent ProcessNodeParent, pan *adproto.Proce
 		Children:       make([]*ProcessNode, 0, len(pan.Children)),
 		Files:          make(map[string]*FileNode, len(pan.Files)),
 		DNSNames:       make(map[string]*DNSNode, len(pan.DnsNames)),
+		IMDSEvents:     make(map[model.IMDSEvent]*IMDSNode, len(pan.ImdsEvents)),
 		Sockets:        make([]*SocketNode, 0, len(pan.Sockets)),
 		Syscalls:       make([]int, 0, len(pan.Syscalls)),
+		ImageTags:      pan.ImageTags,
 	}
 
 	for _, rule := range pan.MatchedRules {
@@ -59,6 +61,11 @@ func protoDecodeProcessActivityNode(parent ProcessNodeParent, pan *adproto.Proce
 			name := protoDecodedDNS.Requests[0].Name
 			ppan.DNSNames[name] = protoDecodedDNS
 		}
+	}
+
+	for _, imds := range pan.ImdsEvents {
+		node := protoDecodeIMDSNode(imds)
+		ppan.IMDSEvents[node.Event] = node
 	}
 
 	for _, socket := range pan.Sockets {
@@ -85,7 +92,7 @@ func protoDecodeProcessNode(p *adproto.ProcessInfo) model.Process {
 		PPid:        p.Ppid,
 		Cookie:      p.Cookie64,
 		IsThread:    p.IsThread,
-		IsExecChild: p.IsExecChild,
+		IsExecExec:  p.IsExecChild,
 		FileEvent:   *protoDecodeFileEvent(p.File),
 		ContainerID: p.ContainerId,
 		SpanID:      p.SpanId,
@@ -182,6 +189,7 @@ func protoDecodeFileActivityNode(fan *adproto.FileActivityNode) *FileNode {
 		FirstSeen:      ProtoDecodeTimestamp(fan.FirstSeen),
 		Open:           protoDecodeOpenNode(fan.Open),
 		Children:       make(map[string]*FileNode, len(fan.Children)),
+		ImageTags:      fan.ImageTags,
 	}
 
 	for _, rule := range fan.MatchedRules {
@@ -220,6 +228,7 @@ func protoDecodeDNSNode(dn *adproto.DNSNode) *DNSNode {
 	pdn := &DNSNode{
 		MatchedRules: make([]*model.MatchedRule, 0, len(dn.MatchedRules)),
 		Requests:     make([]model.DNSEvent, 0, len(dn.Requests)),
+		ImageTags:    dn.ImageTags,
 	}
 
 	for _, rule := range dn.MatchedRules {
@@ -233,6 +242,24 @@ func protoDecodeDNSNode(dn *adproto.DNSNode) *DNSNode {
 	return pdn
 }
 
+func protoDecodeIMDSNode(in *adproto.IMDSNode) *IMDSNode {
+	if in == nil {
+		return nil
+	}
+
+	node := &IMDSNode{
+		MatchedRules: make([]*model.MatchedRule, 0, len(in.MatchedRules)),
+		ImageTags:    in.ImageTags,
+		Event:        protoDecodeIMDSEvent(in.Event),
+	}
+
+	for _, rule := range in.MatchedRules {
+		node.MatchedRules = append(node.MatchedRules, protoDecodeProtoMatchedRule(rule))
+	}
+
+	return node
+}
+
 func protoDecodeDNSInfo(ev *adproto.DNSInfo) model.DNSEvent {
 	if ev == nil {
 		return model.DNSEvent{}
@@ -244,6 +271,50 @@ func protoDecodeDNSInfo(ev *adproto.DNSInfo) model.DNSEvent {
 		Class: uint16(ev.Class),
 		Size:  uint16(ev.Size),
 		Count: uint16(ev.Count),
+	}
+}
+
+func protoDecodeIMDSEvent(ie *adproto.IMDSEvent) model.IMDSEvent {
+	if ie == nil {
+		return model.IMDSEvent{}
+	}
+
+	return model.IMDSEvent{
+		Type:          ie.Type,
+		CloudProvider: ie.CloudProvider,
+		URL:           ie.Url,
+		Host:          ie.Host,
+		Server:        ie.Server,
+		UserAgent:     ie.UserAgent,
+		AWS:           protoDecodeAWSIMDSEvent(ie.Aws),
+	}
+}
+
+func protoDecodeAWSIMDSEvent(aie *adproto.AWSIMDSEvent) model.AWSIMDSEvent {
+	if aie == nil {
+		return model.AWSIMDSEvent{}
+	}
+
+	return model.AWSIMDSEvent{
+		IsIMDSv2:            aie.IsImdsV2,
+		SecurityCredentials: protoDecodeAWSSecurityCredentials(aie.SecurityCredentials),
+	}
+}
+
+func protoDecodeAWSSecurityCredentials(creds *adproto.AWSSecurityCredentials) model.AWSSecurityCredentials {
+	if creds == nil {
+		return model.AWSSecurityCredentials{}
+	}
+
+	expiration, _ := time.Parse(time.RFC3339, creds.ExpirationRaw)
+
+	return model.AWSSecurityCredentials{
+		Code:          creds.Code,
+		Type:          creds.Type,
+		AccessKeyID:   creds.AccessKeyId,
+		LastUpdated:   creds.LastUpdated,
+		ExpirationRaw: creds.ExpirationRaw,
+		Expiration:    expiration,
 	}
 }
 
@@ -261,6 +332,7 @@ func protoDecodeProtoSocket(sn *adproto.SocketNode) *SocketNode {
 			MatchedRules: make([]*model.MatchedRule, 0, len(bindNode.MatchedRules)),
 			Port:         uint16(bindNode.Port),
 			IP:           bindNode.Ip,
+			ImageTags:    bindNode.ImageTags,
 		}
 
 		for _, rule := range bindNode.MatchedRules {

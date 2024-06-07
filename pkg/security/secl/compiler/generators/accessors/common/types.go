@@ -67,6 +67,7 @@ type StructField struct {
 	Alias            string
 	AliasPrefix      string
 	GettersOnly      bool
+	Ref              string
 }
 
 // GetEvaluatorType returns the evaluator type name
@@ -113,12 +114,10 @@ func (sf *StructField) GetDefaultReturnValue() string {
 			return "&eval.CIDRValues{}"
 		}
 		return "net.IPNet{}"
-	} else {
-		if sf.Iterator != nil || sf.IsArray {
-			return "[]string{}"
-		}
-		return `""`
+	} else if sf.Iterator != nil || sf.IsArray {
+		return "[]string{}"
 	}
+	return `""`
 }
 
 // GetDefaultScalarReturnValue returns default scalar value for the given return type
@@ -129,9 +128,8 @@ func (sf *StructField) GetDefaultScalarReturnValue() string {
 		return "false"
 	} else if sf.ReturnType == "net.IPNet" {
 		return "net.IPNet{}"
-	} else {
-		return `""`
 	}
+	return `""`
 }
 
 // GetArrayPrefix returns the array prefix of this field

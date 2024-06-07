@@ -28,6 +28,21 @@
           "property_doc_link": "event-async-doc"
         },
         {
+          "name": "event.origin",
+          "definition": "Origin of the event",
+          "property_doc_link": "event-origin-doc"
+        },
+        {
+          "name": "event.os",
+          "definition": "Operating system of the event",
+          "property_doc_link": "event-os-doc"
+        },
+        {
+          "name": "event.service",
+          "definition": "Service associated with the event",
+          "property_doc_link": "event-service-doc"
+        },
+        {
           "name": "event.timestamp",
           "definition": "Timestamp of the event",
           "property_doc_link": "event-timestamp-doc"
@@ -1262,6 +1277,125 @@
       ]
     },
     {
+      "name": "chdir",
+      "definition": "A process changed the current directory",
+      "type": "File",
+      "from_agent_version": "7.52",
+      "experimental": true,
+      "properties": [
+        {
+          "name": "chdir.file.change_time",
+          "definition": "Change time (ctime) of the file",
+          "property_doc_link": "common-filefields-change_time-doc"
+        },
+        {
+          "name": "chdir.file.filesystem",
+          "definition": "File's filesystem",
+          "property_doc_link": "common-fileevent-filesystem-doc"
+        },
+        {
+          "name": "chdir.file.gid",
+          "definition": "GID of the file's owner",
+          "property_doc_link": "common-filefields-gid-doc"
+        },
+        {
+          "name": "chdir.file.group",
+          "definition": "Group of the file's owner",
+          "property_doc_link": "common-filefields-group-doc"
+        },
+        {
+          "name": "chdir.file.hashes",
+          "definition": "[Experimental] List of cryptographic hashes computed for this file",
+          "property_doc_link": "common-fileevent-hashes-doc"
+        },
+        {
+          "name": "chdir.file.in_upper_layer",
+          "definition": "Indicator of the file layer, for example, in an OverlayFS",
+          "property_doc_link": "common-filefields-in_upper_layer-doc"
+        },
+        {
+          "name": "chdir.file.inode",
+          "definition": "Inode of the file",
+          "property_doc_link": "common-pathkey-inode-doc"
+        },
+        {
+          "name": "chdir.file.mode",
+          "definition": "Mode of the file",
+          "property_doc_link": "common-filefields-mode-doc"
+        },
+        {
+          "name": "chdir.file.modification_time",
+          "definition": "Modification time (mtime) of the file",
+          "property_doc_link": "common-filefields-modification_time-doc"
+        },
+        {
+          "name": "chdir.file.mount_id",
+          "definition": "Mount ID of the file",
+          "property_doc_link": "common-pathkey-mount_id-doc"
+        },
+        {
+          "name": "chdir.file.name",
+          "definition": "File's basename",
+          "property_doc_link": "common-fileevent-name-doc"
+        },
+        {
+          "name": "chdir.file.name.length",
+          "definition": "Length of the corresponding string",
+          "property_doc_link": "common-string-length-doc"
+        },
+        {
+          "name": "chdir.file.package.name",
+          "definition": "[Experimental] Name of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-name-doc"
+        },
+        {
+          "name": "chdir.file.package.source_version",
+          "definition": "[Experimental] Full version of the source package of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-source_version-doc"
+        },
+        {
+          "name": "chdir.file.package.version",
+          "definition": "[Experimental] Full version of the package that provided this file",
+          "property_doc_link": "common-fileevent-package-version-doc"
+        },
+        {
+          "name": "chdir.file.path",
+          "definition": "File's path",
+          "property_doc_link": "common-fileevent-path-doc"
+        },
+        {
+          "name": "chdir.file.path.length",
+          "definition": "Length of the corresponding string",
+          "property_doc_link": "common-string-length-doc"
+        },
+        {
+          "name": "chdir.file.rights",
+          "definition": "Rights of the file",
+          "property_doc_link": "common-filefields-rights-doc"
+        },
+        {
+          "name": "chdir.file.uid",
+          "definition": "UID of the file's owner",
+          "property_doc_link": "common-filefields-uid-doc"
+        },
+        {
+          "name": "chdir.file.user",
+          "definition": "User of the file's owner",
+          "property_doc_link": "common-filefields-user-doc"
+        },
+        {
+          "name": "chdir.retval",
+          "definition": "Return value of the syscall",
+          "property_doc_link": "common-syscallevent-retval-doc"
+        },
+        {
+          "name": "chdir.syscall.path",
+          "definition": "path argument of the syscall",
+          "property_doc_link": "chdir-syscall-path-doc"
+        }
+      ]
+    },
+    {
       "name": "chmod",
       "definition": "A file’s permissions were changed",
       "type": "File",
@@ -1382,6 +1516,16 @@
           "name": "chmod.retval",
           "definition": "Return value of the syscall",
           "property_doc_link": "common-syscallevent-retval-doc"
+        },
+        {
+          "name": "chmod.syscall.mode",
+          "definition": "mode argument of the syscall",
+          "property_doc_link": "chmod-syscall-mode-doc"
+        },
+        {
+          "name": "chmod.syscall.path",
+          "definition": "path argument of the syscall",
+          "property_doc_link": "chmod-syscall-path-doc"
         }
       ]
     },
@@ -1956,6 +2100,11 @@
           "property_doc_link": "common-process-ppid-doc"
         },
         {
+          "name": "exec.syscall.path",
+          "definition": "path argument of the syscall",
+          "property_doc_link": "exec-syscall-path-doc"
+        },
+        {
           "name": "exec.tid",
           "definition": "Thread ID of the thread",
           "property_doc_link": "common-pidcontext-tid-doc"
@@ -2383,6 +2532,55 @@
           "name": "exit.user_session.k8s_username",
           "definition": "Kubernetes username of the user that executed the process",
           "property_doc_link": "common-usersessioncontext-k8s_username-doc"
+        }
+      ]
+    },
+    {
+      "name": "imds",
+      "definition": "An IMDS event was captured",
+      "type": "Network",
+      "from_agent_version": "7.55",
+      "experimental": false,
+      "properties": [
+        {
+          "name": "imds.aws.is_imds_v2",
+          "definition": "a boolean which specifies if the IMDS event follows IMDSv1 or IMDSv2 conventions",
+          "property_doc_link": "imds-aws-is_imds_v2-doc"
+        },
+        {
+          "name": "imds.aws.security_credentials.type",
+          "definition": "the security credentials type",
+          "property_doc_link": "imds-aws-security_credentials-type-doc"
+        },
+        {
+          "name": "imds.cloud_provider",
+          "definition": "the intended cloud provider of the IMDS event",
+          "property_doc_link": "imds-cloud_provider-doc"
+        },
+        {
+          "name": "imds.host",
+          "definition": "the host of the HTTP protocol",
+          "property_doc_link": "imds-host-doc"
+        },
+        {
+          "name": "imds.server",
+          "definition": "the server header of a response",
+          "property_doc_link": "imds-server-doc"
+        },
+        {
+          "name": "imds.type",
+          "definition": "the type of IMDS event",
+          "property_doc_link": "imds-type-doc"
+        },
+        {
+          "name": "imds.url",
+          "definition": "the queried IMDS URL",
+          "property_doc_link": "imds-url-doc"
+        },
+        {
+          "name": "imds.user_agent",
+          "definition": "the user agent of the HTTP client",
+          "property_doc_link": "imds-user_agent-doc"
         }
       ]
     },
@@ -6729,6 +6927,7 @@
       "type": "int",
       "definition": "Change time (ctime) of the file",
       "prefixes": [
+        "chdir.file",
         "chmod.file",
         "chown.file",
         "exec.file",
@@ -7024,6 +7223,7 @@
       "type": "string",
       "definition": "File's filesystem",
       "prefixes": [
+        "chdir.file",
         "chmod.file",
         "chown.file",
         "exec.file",
@@ -7183,6 +7383,7 @@
       "type": "int",
       "definition": "GID of the file's owner",
       "prefixes": [
+        "chdir.file",
         "chmod.file",
         "chown.file",
         "exec.file",
@@ -7254,6 +7455,7 @@
       "type": "string",
       "definition": "Group of the file's owner",
       "prefixes": [
+        "chdir.file",
         "chmod.file",
         "chown.file",
         "exec.file",
@@ -7303,6 +7505,7 @@
       "type": "string",
       "definition": "[Experimental] List of cryptographic hashes computed for this file",
       "prefixes": [
+        "chdir.file",
         "chmod.file",
         "chown.file",
         "exec.file",
@@ -7352,6 +7555,7 @@
       "type": "bool",
       "definition": "Indicator of the file layer, for example, in an OverlayFS",
       "prefixes": [
+        "chdir.file",
         "chmod.file",
         "chown.file",
         "exec.file",
@@ -7401,6 +7605,7 @@
       "type": "int",
       "definition": "Inode of the file",
       "prefixes": [
+        "chdir.file",
         "chmod.file",
         "chown.file",
         "exec.file",
@@ -7574,6 +7779,8 @@
       "type": "int",
       "definition": "Length of the corresponding string",
       "prefixes": [
+        "chdir.file.name",
+        "chdir.file.path",
         "chmod.file.name",
         "chmod.file.path",
         "chown.file.name",
@@ -7662,6 +7869,7 @@
       "type": "int",
       "definition": "Mode of the file",
       "prefixes": [
+        "chdir.file",
         "chmod.file",
         "chown.file",
         "exec.file",
@@ -7711,6 +7919,7 @@
       "type": "int",
       "definition": "Modification time (mtime) of the file",
       "prefixes": [
+        "chdir.file",
         "chmod.file",
         "chown.file",
         "exec.file",
@@ -7760,6 +7969,7 @@
       "type": "int",
       "definition": "Mount ID of the file",
       "prefixes": [
+        "chdir.file",
         "chmod.file",
         "chown.file",
         "exec.file",
@@ -7809,6 +8019,7 @@
       "type": "string",
       "definition": "File's basename",
       "prefixes": [
+        "chdir.file",
         "chmod.file",
         "chown.file",
         "exec.file",
@@ -7863,6 +8074,7 @@
       "type": "string",
       "definition": "[Experimental] Name of the package that provided this file",
       "prefixes": [
+        "chdir.file",
         "chmod.file",
         "chown.file",
         "exec.file",
@@ -7912,6 +8124,7 @@
       "type": "string",
       "definition": "[Experimental] Full version of the source package of the package that provided this file",
       "prefixes": [
+        "chdir.file",
         "chmod.file",
         "chown.file",
         "exec.file",
@@ -7961,6 +8174,7 @@
       "type": "string",
       "definition": "[Experimental] Full version of the package that provided this file",
       "prefixes": [
+        "chdir.file",
         "chmod.file",
         "chown.file",
         "exec.file",
@@ -8010,6 +8224,7 @@
       "type": "string",
       "definition": "File's path",
       "prefixes": [
+        "chdir.file",
         "chmod.file",
         "chown.file",
         "exec.file",
@@ -8128,6 +8343,7 @@
       "prefixes": [
         "bind",
         "bpf",
+        "chdir",
         "chmod",
         "chown",
         "link",
@@ -8158,6 +8374,7 @@
       "type": "int",
       "definition": "Rights of the file",
       "prefixes": [
+        "chdir.file",
         "chmod.file",
         "chown.file",
         "exec.file",
@@ -8273,6 +8490,7 @@
       "type": "int",
       "definition": "UID of the file's owner",
       "prefixes": [
+        "chdir.file",
         "chmod.file",
         "chown.file",
         "exec.file",
@@ -8349,6 +8567,7 @@
       "type": "string",
       "definition": "User of the file's owner",
       "prefixes": [
+        "chdir.file",
         "chmod.file",
         "chown.file",
         "exec.file",
@@ -8525,6 +8744,18 @@
       "examples": []
     },
     {
+      "name": "chdir.syscall.path",
+      "link": "chdir-syscall-path-doc",
+      "type": "string",
+      "definition": "path argument of the syscall",
+      "prefixes": [
+        "chdir"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
       "name": "chmod.file.destination.mode",
       "link": "chmod-file-destination-mode-doc",
       "type": "int",
@@ -8546,6 +8777,30 @@
       ],
       "constants": "File mode constants",
       "constants_link": "file-mode-constants",
+      "examples": []
+    },
+    {
+      "name": "chmod.syscall.mode",
+      "link": "chmod-syscall-mode-doc",
+      "type": "int",
+      "definition": "mode argument of the syscall",
+      "prefixes": [
+        "chmod"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "chmod.syscall.path",
+      "link": "chmod-syscall-path-doc",
+      "type": "string",
+      "definition": "path argument of the syscall",
+      "prefixes": [
+        "chmod"
+      ],
+      "constants": "",
+      "constants_link": "",
       "examples": []
     },
     {
@@ -8717,12 +8972,60 @@
       "examples": []
     },
     {
+      "name": "event.origin",
+      "link": "event-origin-doc",
+      "type": "string",
+      "definition": "Origin of the event",
+      "prefixes": [
+        ""
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "event.os",
+      "link": "event-os-doc",
+      "type": "string",
+      "definition": "Operating system of the event",
+      "prefixes": [
+        ""
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "event.service",
+      "link": "event-service-doc",
+      "type": "string",
+      "definition": "Service associated with the event",
+      "prefixes": [
+        ""
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
       "name": "event.timestamp",
       "link": "event-timestamp-doc",
       "type": "int",
       "definition": "Timestamp of the event",
       "prefixes": [
         ""
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "exec.syscall.path",
+      "link": "exec-syscall-path-doc",
+      "type": "string",
+      "definition": "path argument of the syscall",
+      "prefixes": [
+        "exec"
       ],
       "constants": "",
       "constants_link": "",
@@ -8747,6 +9050,102 @@
       "definition": "Exit code of the process or number of the signal that caused the process to terminate",
       "prefixes": [
         "exit"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "imds.aws.is_imds_v2",
+      "link": "imds-aws-is_imds_v2-doc",
+      "type": "bool",
+      "definition": "a boolean which specifies if the IMDS event follows IMDSv1 or IMDSv2 conventions",
+      "prefixes": [
+        "imds.aws"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "imds.aws.security_credentials.type",
+      "link": "imds-aws-security_credentials-type-doc",
+      "type": "string",
+      "definition": "the security credentials type",
+      "prefixes": [
+        "imds.aws.security_credentials"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "imds.cloud_provider",
+      "link": "imds-cloud_provider-doc",
+      "type": "string",
+      "definition": "the intended cloud provider of the IMDS event",
+      "prefixes": [
+        "imds"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "imds.host",
+      "link": "imds-host-doc",
+      "type": "string",
+      "definition": "the host of the HTTP protocol",
+      "prefixes": [
+        "imds"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "imds.server",
+      "link": "imds-server-doc",
+      "type": "string",
+      "definition": "the server header of a response",
+      "prefixes": [
+        "imds"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "imds.type",
+      "link": "imds-type-doc",
+      "type": "string",
+      "definition": "the type of IMDS event",
+      "prefixes": [
+        "imds"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "imds.url",
+      "link": "imds-url-doc",
+      "type": "string",
+      "definition": "the queried IMDS URL",
+      "prefixes": [
+        "imds"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "imds.user_agent",
+      "link": "imds-user_agent-doc",
+      "type": "string",
+      "definition": "the user agent of the HTTP client",
+      "prefixes": [
+        "imds"
       ],
       "constants": "",
       "constants_link": "",

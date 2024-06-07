@@ -21,7 +21,14 @@ func NewWindowsModel(_ *WindowsProbe) *model.Model {
 			// TODO(safchain) remove this check when multiple model per platform will be supported in the SECL package
 			if !strings.HasPrefix(field, "exec.") &&
 				!strings.HasPrefix(field, "exit.") &&
-				!strings.HasPrefix(field, "process.") {
+				!strings.HasPrefix(field, "create.") &&
+				!strings.HasPrefix(field, "open.") &&
+				!strings.HasPrefix(field, "rename.") &&
+				!strings.HasPrefix(field, "set.") &&
+				!strings.HasPrefix(field, "delete.") &&
+				!strings.HasPrefix(field, "write.") &&
+				!strings.HasPrefix(field, "process.") &&
+				!strings.HasPrefix(field, "change_permission") {
 				return fmt.Errorf("%s is not available with the Windows version", field)
 			}
 			return nil
@@ -31,7 +38,7 @@ func NewWindowsModel(_ *WindowsProbe) *model.Model {
 
 // NewWindowsEvent returns a new event
 func NewWindowsEvent(fh *FieldHandlers) *model.Event {
-	event := model.NewDefaultEvent()
+	event := model.NewFakeEvent()
 	event.FieldHandlers = fh
 	return event
 }

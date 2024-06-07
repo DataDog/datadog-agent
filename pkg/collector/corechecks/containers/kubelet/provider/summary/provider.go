@@ -16,7 +16,7 @@ import (
 	kubeletv1alpha1 "k8s.io/kubelet/pkg/apis/stats/v1alpha1"
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
-	"github.com/DataDog/datadog-agent/comp/core/tagger/collectors"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/utils"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
@@ -106,10 +106,10 @@ func (p *Provider) Provide(kc kubelet.KubeUtilInterface, sender sender.Sender) e
 
 		podData, err := p.store.GetKubernetesPod(podStats.PodRef.UID) //from workloadmeta store
 		if err != nil || podData == nil {
-			log.Warnf("Couldn't get pod data from workloadmeta store, error = %v ", err)
+			log.Infof("Couldn't get pod data from workloadmeta store, error = %v ", err)
 			continue
 		}
-		if podData.Phase == "Running" {
+		if podData.Phase == "Running" || podData.Phase == "Pending" {
 			p.processPodStats(sender, podStats, useStatsAsSource, rateFilterList)
 		}
 		p.processContainerStats(sender, podStats, podData, useStatsAsSource)
@@ -150,7 +150,7 @@ func (p *Provider) processPodStats(sender sender.Sender,
 	}
 
 	podTags, _ := tagger.Tag(kubelet.PodUIDToTaggerEntityName(podStats.PodRef.UID),
-		collectors.OrchestratorCardinality)
+		types.OrchestratorCardinality)
 
 	if len(podTags) == 0 {
 		log.Infof("Tags not found for pod: %s/%s - no metrics will be sent",
@@ -220,7 +220,7 @@ func (p *Provider) processContainerStats(sender sender.Sender,
 			podStats.PodRef.Namespace) {
 			continue
 		}
-		tags, err := tagger.Tag(containers.BuildTaggerEntityName(ctr.ID), collectors.HighCardinality)
+		tags, err := tagger.Tag(containers.BuildTaggerEntityName(ctr.ID), types.HighCardinality)
 		if err != nil || len(tags) == 0 {
 			log.Debugf("Tags not found for container: %s/%s/%s:%s - no metrics will be sent",
 				podStats.PodRef.Namespace, podStats.PodRef.Name, containerName, ctr.ID)

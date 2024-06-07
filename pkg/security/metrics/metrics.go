@@ -35,7 +35,7 @@ var (
 
 	// Rule Suppression metrics
 
-	// MetricRulesSuppressed is the name of the metric used to count the number of events marked as suppressed
+	// MetricRulesSuppressed is the name of the metric used to count the number of auto suppressed events
 	// Tags: rule_id
 	MetricRulesSuppressed = newRuntimeMetric(".rules.suppressed")
 
@@ -120,6 +120,13 @@ var (
 	// MetricPerfBufferSortingAvgOp is the name of the metric used to report average sorting operations.
 	// Tags: -
 	MetricPerfBufferSortingAvgOp = newRuntimeMetric(".perf_buffer.sorting_avg_op")
+
+	// MetricPerfBufferInvalidEventsCount is the name of the metric used to count the number of invalid events retrieved from the event stream
+	// Tags: map, cause
+	MetricPerfBufferInvalidEventsCount = newRuntimeMetric(".perf_buffer.invalid_events.count")
+	// MetricPerfBufferInvalidEventsBytes is the name of the metric used to count the number of bytes of invalid events retrieved from the event stream
+	// Tags: map, cause
+	MetricPerfBufferInvalidEventsBytes = newRuntimeMetric(".perf_buffer.invalid_events.bytes")
 
 	// Process Resolver metrics
 
@@ -274,6 +281,12 @@ var (
 	// of the Profile directory provider
 	// Tags: -
 	MetricSecurityProfileDirectoryProviderCount = newAgentMetric(".activity_dump.directory_provider.count")
+	// MetricSecurityProfileEvictedVersions is the name of the metric used to track the evicted profile versions
+	// Tags: image_name, image_tag
+	MetricSecurityProfileEvictedVersions = newAgentMetric(".security_profile.evicted_versions")
+	// MetricSecurityProfileVersions is the name of the metric used to track the number of versions a profile can have
+	// Tags: security_profile_image_name
+	MetricSecurityProfileVersions = newAgentMetric(".security_profile.versions")
 
 	// Hash resolver metrics
 
@@ -348,6 +361,9 @@ var (
 
 	// MetricEventMonitoringRunning is reported when the runtime-security module is running with event monitoring enabled
 	MetricEventMonitoringRunning = newAgentMetric(".event_monitoring.running")
+	// MetricEventMonitoringEventsDropped is the name of the metric used to count the number of bytes of event dropped
+	// Tags: consumer_id
+	MetricEventMonitoringEventsDropped = newRuntimeMetric(".event_monitoring.events.dropped")
 
 	// RuntimeMonitor metrics
 

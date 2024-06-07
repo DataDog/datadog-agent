@@ -18,6 +18,7 @@
 #include "port_range.h"
 #include "sock.h"
 
+#include "protocols/amqp/helpers.h"
 #include "protocols/classification/dispatcher-helpers.h"
 #include "protocols/classification/dispatcher-maps.h"
 #include "protocols/http/buffer.h"
@@ -47,10 +48,16 @@ static __always_inline void classify_decrypted_payload(protocol_stack_t *stack, 
 
     protocol_t proto = PROTOCOL_UNKNOWN;
     classify_protocol_for_dispatcher(&proto, t, buffer, len);
-    if (proto == PROTOCOL_UNKNOWN) {
-        return;
+    if (proto != PROTOCOL_UNKNOWN) {
+        goto update_stack;
     }
 
+    // Protocol is not HTTP/HTTP2/gRPC
+    if (is_amqp(buffer, len)) {
+        proto = PROTOCOL_AMQP;
+    }
+
+update_stack:
     set_protocol(stack, proto);
 }
 
@@ -77,6 +84,22 @@ static __always_inline void tls_process(struct pt_regs *ctx, conn_tuple_t *t, vo
 
         classify_decrypted_payload(stack, &normalized_tuple, request_fragment, len);
         protocol = get_protocol_from_stack(stack, LAYER_APPLICATION);
+        // Could have a maybe_is_kafka() function to do an initial check here based on the
+        // fragment buffer without the tail call.
+        if (is_kafka_monitoring_enabled() && protocol == PROTOCOL_UNKNOWN) {
+            tls_dispatcher_arguments_t *args = bpf_map_lookup_elem(&tls_dispatcher_arguments, &zero);
+            if (args == NULL) {
+                return;
+            }
+            *args = (tls_dispatcher_arguments_t){
+                .tup = *t,
+                .tags = tags,
+                .buffer_ptr = buffer_ptr,
+                .data_end = len,
+                .data_off = 0,
+            };
+            bpf_tail_call_compat(ctx, &tls_dispatcher_classification_progs, TLS_DISPATCHER_KAFKA_PROG);
+        }
     }
     tls_prog_t prog;
     switch (protocol) {
@@ -87,6 +110,14 @@ static __always_inline void tls_process(struct pt_regs *ctx, conn_tuple_t *t, vo
     case PROTOCOL_HTTP2:
         prog = TLS_HTTP2_FIRST_FRAME;
         final_tuple = *t;
+        break;
+    case PROTOCOL_KAFKA:
+        prog = TLS_KAFKA;
+        final_tuple = *t;
+        break;
+    case PROTOCOL_POSTGRES:
+        prog = TLS_POSTGRES;
+        final_tuple = normalized_tuple;
         break;
     default:
         return;
@@ -107,7 +138,40 @@ static __always_inline void tls_process(struct pt_regs *ctx, conn_tuple_t *t, vo
     bpf_tail_call_compat(ctx, &tls_process_progs, prog);
 }
 
-static __always_inline void tls_finish(struct pt_regs *ctx, conn_tuple_t *t) {
+static __always_inline void tls_dispatch_kafka(struct pt_regs *ctx)
+{
+    const __u32 zero = 0;
+    tls_dispatcher_arguments_t *args = bpf_map_lookup_elem(&tls_dispatcher_arguments, &zero);
+    if (args == NULL) {
+        return;
+    }
+
+    char *request_fragment = bpf_map_lookup_elem(&tls_classification_heap, &zero);
+    if (request_fragment == NULL) {
+        return;
+    }
+
+    conn_tuple_t normalized_tuple = args->tup;
+    normalize_tuple(&normalized_tuple);
+    normalized_tuple.pid = 0;
+    normalized_tuple.netns = 0;
+
+    read_into_user_buffer_classification(request_fragment, args->buffer_ptr);
+    bool is_kafka = tls_is_kafka(args, request_fragment, CLASSIFICATION_MAX_BUFFER);
+    if (!is_kafka) {
+        return;
+    }
+
+    protocol_stack_t *stack = get_protocol_stack(&normalized_tuple);
+    if (!stack) {
+        return;
+    }
+
+    set_protocol(stack, PROTOCOL_KAFKA);
+    bpf_tail_call_compat(ctx, &tls_process_progs, TLS_KAFKA);
+}
+
+static __always_inline void tls_finish(struct pt_regs *ctx, conn_tuple_t *t, bool skip_http) {
     conn_tuple_t final_tuple = {0};
     conn_tuple_t normalized_tuple = *t;
     normalize_tuple(&normalized_tuple);
@@ -123,12 +187,25 @@ static __always_inline void tls_finish(struct pt_regs *ctx, conn_tuple_t *t) {
     protocol_t protocol = get_protocol_from_stack(stack, LAYER_APPLICATION);
     switch (protocol) {
     case PROTOCOL_HTTP:
+        // HTTP is a special case. As of today, regardless of TLS or plaintext traffic, we ignore the PID and NETNS while processing it.
+        // The termination, both for TLS and plaintext, for HTTP traffic is taken care of in the socket filter.
+        // Until we split the TLS and plaintext management for HTTP traffic, there are flows (such as those being called from tcp_close)
+        // in which we don't want to terminate HTTP traffic, but instead leave it to the socket filter.
+        if (skip_http) {return;}
         prog = TLS_HTTP_TERMINATION;
         final_tuple = normalized_tuple;
         break;
     case PROTOCOL_HTTP2:
         prog = TLS_HTTP2_TERMINATION;
         final_tuple = *t;
+        break;
+    case PROTOCOL_KAFKA:
+        prog = TLS_KAFKA_TERMINATION;
+        final_tuple = *t;
+        break;
+    case PROTOCOL_POSTGRES:
+        prog = TLS_POSTGRES_TERMINATION;
+        final_tuple = normalized_tuple;
         break;
     default:
         return;
@@ -173,17 +250,12 @@ static __always_inline conn_tuple_t* tup_from_ssl_ctx(void *ssl_ctx, u64 pid_tgi
         .fd = ssl_sock->fd,
     };
 
-    struct sock **sock = bpf_map_lookup_elem(&sock_by_pid_fd, &pid_fd);
-    if (sock == NULL)  {
+    conn_tuple_t *t = bpf_map_lookup_elem(&tuple_by_pid_fd, &pid_fd);
+    if (t == NULL)  {
         return NULL;
     }
 
-    conn_tuple_t t;
-    if (!read_conn_tuple(&t, *sock, pid_tgid, CONN_TYPE_TCP)) {
-        return NULL;
-    }
-
-    bpf_memcpy(&ssl_sock->tup, &t, sizeof(conn_tuple_t));
+    bpf_memcpy(&ssl_sock->tup, t, sizeof(conn_tuple_t));
     return &ssl_sock->tup;
 }
 
@@ -243,7 +315,7 @@ static __always_inline tls_offsets_data_t* get_offsets_data() {
     key.device_id_major = MAJOR(dev_id);
     key.device_id_minor = MINOR(dev_id);
 
-    log_debug("get_offsets_data: task binary inode number: %ld; device ID %x:%x", key.ino, key.device_id_major, key.device_id_minor);
+    log_debug("get_offsets_data: task binary inode number: %llu; device ID %x:%x", key.ino, key.device_id_major, key.device_id_minor);
 
     return bpf_map_lookup_elem(&offsets_data, &key);
 }

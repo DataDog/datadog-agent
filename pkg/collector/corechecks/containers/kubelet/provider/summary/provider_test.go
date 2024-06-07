@@ -17,12 +17,12 @@ import (
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/fx"
 
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/common/types"
 	configcomp "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
-	"github.com/DataDog/datadog-agent/comp/core/tagger"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/common/types"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/kubelet/common"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
@@ -36,6 +36,9 @@ var (
 		//pod name in summary: datadog-agent-linux-hn9f2
 		"kubernetes_pod_uid://foobar": {
 			"app:datadog-agent",
+		},
+		"kubernetes_pod_uid://d2dfd16e-e829-4f66-91d5-f9233ca7332b": {
+			"app:pending-pod",
 		},
 		"container_id://agent-01": {
 			"kube_namespace:datadog-agent-helm",
@@ -56,6 +59,16 @@ var (
 			"kube_namespace:datadog-agent-helm",
 			"pod_name:datadog-agent-linux-hn9f2",
 			"kube_container_name:non-existing-in-summary",
+		},
+		"container_id://80bd9ebe296615341c68d571e843d800fb4a75bef696d858065572ab4e49920b": {
+			"kube_namespace:default",
+			"pod_name:long-running-init",
+			"kube_container_name:init",
+		},
+		"container_id://not-yet-running-so-empty": {
+			"kube_namespace:default",
+			"pod_name:long-running-init",
+			"kube_container_name:main-app",
 		},
 	}
 )
@@ -194,6 +207,23 @@ func TestProvider_Provide(t *testing.T) {
 						tags: []string{"instance_tag:something", "kube_namespace:datadog-agent-helm",
 							"pod_name:datadog-agent-linux-hn9f2", "kube_container_name:process-agent"},
 					},
+					{
+						name:  common.KubeletMetricsPrefix + "ephemeral_storage.usage",
+						value: 32768,
+						tags:  []string{"instance_tag:something", "app:pending-pod"},
+					},
+					{
+						name:  common.KubeletMetricsPrefix + "filesystem.usage",
+						value: 28672,
+						tags: []string{"instance_tag:something", "kube_namespace:default",
+							"pod_name:long-running-init", "kube_container_name:init"},
+					},
+					{
+						name:  common.KubeletMetricsPrefix + "filesystem.usage_pct",
+						value: 1.4589260524364285e-07,
+						tags: []string{"instance_tag:something", "kube_namespace:default",
+							"pod_name:long-running-init", "kube_container_name:init"},
+					},
 				},
 				rateMetrics: []metrics{
 					{
@@ -260,6 +290,34 @@ func TestProvider_Provide(t *testing.T) {
 						tags: []string{"instance_tag:something", "kube_namespace:datadog-agent-helm",
 							"pod_name:datadog-agent-linux-hn9f2", "kube_container_name:process-agent"},
 					},
+					{
+						name:  common.KubeletMetricsPrefix + "network.tx_bytes",
+						value: 1146,
+						tags:  []string{"instance_tag:something", "app:pending-pod"},
+					},
+					{
+						name:  common.KubeletMetricsPrefix + "network.rx_bytes",
+						value: 0,
+						tags:  []string{"instance_tag:something", "app:pending-pod"},
+					},
+					{
+						name:  common.KubeletMetricsPrefix + "cpu.usage.total",
+						value: 9927000,
+						tags: []string{"instance_tag:something", "kube_namespace:default",
+							"pod_name:long-running-init", "kube_container_name:init"},
+					},
+					{
+						name:  common.KubeletMetricsPrefix + "memory.working_set",
+						value: 229376,
+						tags: []string{"instance_tag:something", "kube_namespace:default",
+							"pod_name:long-running-init", "kube_container_name:init"},
+					},
+					{
+						name:  common.KubeletMetricsPrefix + "memory.usage",
+						value: 229376,
+						tags: []string{"instance_tag:something", "kube_namespace:default",
+							"pod_name:long-running-init", "kube_container_name:init"},
+					},
 				},
 				err: nil,
 			},
@@ -272,7 +330,7 @@ func TestProvider_Provide(t *testing.T) {
 			mockSender := mocksender.NewMockSender(checkid.ID(t.Name()))
 			mockSender.SetupAcceptAll()
 
-			fakeTagger := tagger.SetupFakeTagger(t)
+			fakeTagger := taggerimpl.SetupFakeTagger(t)
 			defer fakeTagger.ResetTagger()
 			for entity, tags := range entityTags {
 				fakeTagger.SetTags(entity, "foo", tags, nil, nil, nil)
@@ -364,6 +422,34 @@ func creatFakeStore(t *testing.T) workloadmeta.Mock {
 		QOSClass:      "guaranteed",
 	}
 	store.Set(pod)
+
+	pendingPodEntityID := workloadmeta.EntityID{
+		Kind: workloadmeta.KindKubernetesPod,
+		ID:   "d2dfd16e-e829-4f66-91d5-f9233ca7332b",
+	}
+	pendingPod := &workloadmeta.KubernetesPod{
+		EntityID: pendingPodEntityID,
+		EntityMeta: workloadmeta.EntityMeta{
+			Name:      "long-running-init",
+			Namespace: "default",
+		},
+		Containers: []workloadmeta.OrchestratorContainer{
+			{
+				ID:   "80bd9ebe296615341c68d571e843d800fb4a75bef696d858065572ab4e49920b",
+				Name: "init",
+			},
+			{
+				ID:   "not-yet-running-so-empty",
+				Name: "main-app",
+			},
+		},
+		Ready:         false,
+		Phase:         "Pending",
+		IP:            "10.244.0.122",
+		PriorityClass: "some_priority",
+		QOSClass:      "BestEffort",
+	}
+	store.Set(pendingPod)
 	return store
 }
 

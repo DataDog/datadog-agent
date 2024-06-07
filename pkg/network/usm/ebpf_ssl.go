@@ -15,6 +15,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"strconv"
 	"strings"
 	"sync"
@@ -26,9 +27,7 @@ import (
 	"github.com/davecgh/go-spew/spew"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/ebpfcheck"
-	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
-	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/network/go/bininspect"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
@@ -45,8 +44,8 @@ const (
 	sslReadExRetprobe           = "uretprobe__SSL_read_ex"
 	sslWriteExProbe             = "uprobe__SSL_write_ex"
 	sslWriteExRetprobe          = "uretprobe__SSL_write_ex"
-	ssDoHandshakeProbe          = "uprobe__SSL_do_handshake"
-	ssDoHandshakeRetprobe       = "uretprobe__SSL_do_handshake"
+	sslDoHandshakeProbe         = "uprobe__SSL_do_handshake"
+	sslDoHandshakeRetprobe      = "uretprobe__SSL_do_handshake"
 	sslConnectProbe             = "uprobe__SSL_connect"
 	sslConnectRetprobe          = "uretprobe__SSL_connect"
 	sslSetBioProbe              = "uprobe__SSL_set_bio"
@@ -100,12 +99,12 @@ var openSSLProbes = []manager.ProbesSelector{
 		Selectors: []manager.ProbesSelector{
 			&manager.ProbeSelector{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFFuncName: ssDoHandshakeProbe,
+					EBPFFuncName: sslDoHandshakeProbe,
 				},
 			},
 			&manager.ProbeSelector{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFFuncName: ssDoHandshakeRetprobe,
+					EBPFFuncName: sslDoHandshakeRetprobe,
 				},
 			},
 			&manager.ProbeSelector{
@@ -297,12 +296,12 @@ var opensslSpec = &protocols.ProtocolSpec{
 		},
 		{
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFFuncName: ssDoHandshakeProbe,
+				EBPFFuncName: sslDoHandshakeProbe,
 			},
 		},
 		{
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFFuncName: ssDoHandshakeRetprobe,
+				EBPFFuncName: sslDoHandshakeRetprobe,
 			},
 		},
 		{
@@ -419,15 +418,15 @@ var opensslSpec = &protocols.ProtocolSpec{
 }
 
 type sslProgram struct {
-	cfg          *config.Config
-	sockFDMap    *ebpf.Map
-	watcher      *sharedlibraries.Watcher
-	istioMonitor *istioMonitor
+	cfg           *config.Config
+	watcher       *sharedlibraries.Watcher
+	istioMonitor  *istioMonitor
+	nodeJSMonitor *nodeJSMonitor
 }
 
-func newSSLProgramProtocolFactory(m *manager.Manager, sockFDMap *ebpf.Map, bpfTelemetry *ebpftelemetry.EBPFTelemetry) protocols.ProtocolFactory {
+func newSSLProgramProtocolFactory(m *manager.Manager) protocols.ProtocolFactory {
 	return func(c *config.Config) (protocols.Protocol, error) {
-		if (!c.EnableNativeTLSMonitoring || !http.TLSSupported(c)) && !c.EnableIstioMonitoring {
+		if (!c.EnableNativeTLSMonitoring || !http.TLSSupported(c)) && !c.EnableIstioMonitoring && !c.EnableNodeJSMonitoring {
 			return nil, nil
 		}
 
@@ -439,7 +438,7 @@ func newSSLProgramProtocolFactory(m *manager.Manager, sockFDMap *ebpf.Map, bpfTe
 		procRoot := kernel.ProcFSRoot()
 
 		if c.EnableNativeTLSMonitoring && http.TLSSupported(c) {
-			watcher, err = sharedlibraries.NewWatcher(c, bpfTelemetry,
+			watcher, err = sharedlibraries.NewWatcher(c,
 				sharedlibraries.Rule{
 					Re:           regexp.MustCompile(`libssl.so`),
 					RegisterCB:   addHooks(m, procRoot, openSSLProbes),
@@ -462,51 +461,48 @@ func newSSLProgramProtocolFactory(m *manager.Manager, sockFDMap *ebpf.Map, bpfTe
 		}
 
 		return &sslProgram{
-			cfg:          c,
-			watcher:      watcher,
-			sockFDMap:    sockFDMap,
-			istioMonitor: newIstioMonitor(c, m),
+			cfg:           c,
+			watcher:       watcher,
+			istioMonitor:  newIstioMonitor(c, m),
+			nodeJSMonitor: newNodeJSMonitor(c, m),
 		}, nil
 	}
 }
 
+// Name return the program's name.
 func (o *sslProgram) Name() string {
 	return "openssl"
 }
 
+// ConfigureOptions changes map attributes to the given options.
 func (o *sslProgram) ConfigureOptions(_ *manager.Manager, options *manager.Options) {
 	options.MapSpecEditors[sslSockByCtxMap] = manager.MapSpecEditor{
 		MaxEntries: o.cfg.MaxTrackedConnections,
 		EditorFlag: manager.EditMaxEntries,
 	}
-
-	options.MapSpecEditors[probes.SockByPidFDMap] = manager.MapSpecEditor{
-		MaxEntries: o.cfg.MaxTrackedConnections,
-		EditorFlag: manager.EditMaxEntries,
-	}
-	if o.sockFDMap != nil {
-		if options.MapEditors == nil {
-			options.MapEditors = make(map[string]*ebpf.Map)
-		}
-		options.MapEditors[probes.SockByPidFDMap] = o.sockFDMap
-	}
 }
 
+// PreStart is called before the start of the provided eBPF manager.
 func (o *sslProgram) PreStart(*manager.Manager) error {
 	o.watcher.Start()
 	o.istioMonitor.Start()
+	o.nodeJSMonitor.Start()
 	return nil
 }
 
+// PostStart is a no-op.
 func (o *sslProgram) PostStart(*manager.Manager) error {
 	return nil
 }
 
+// Stop stops the program.
 func (o *sslProgram) Stop(*manager.Manager) {
 	o.watcher.Stop()
 	o.istioMonitor.Stop()
+	o.nodeJSMonitor.Stop()
 }
 
+// DumpMaps dumps the content of the map represented by mapName & currentMap, if it used by the eBPF program, to output.
 func (o *sslProgram) DumpMaps(w io.Writer, mapName string, currentMap *ebpf.Map) {
 	switch mapName {
 	case sslSockByCtxMap: // maps/ssl_sock_by_ctx (BPF_MAP_TYPE_HASH), key uintptr // C.void *, value C.ssl_sock_t
@@ -557,6 +553,7 @@ func (o *sslProgram) DumpMaps(w io.Writer, mapName string, currentMap *ebpf.Map)
 
 }
 
+// GetStats returns the latest monitoring stats from a protocol implementation.
 func (o *sslProgram) GetStats() *protocols.ProtocolStats {
 	return nil
 }
@@ -574,6 +571,10 @@ var (
 		},
 	}
 )
+
+func isContainerdTmpMount(path string) bool {
+	return strings.Contains(path, "tmpmounts/containerd-mount")
+}
 
 func isBuildKit(procRoot string, pid uint32) bool {
 	filePath := filepath.Join(procRoot, strconv.Itoa(int(pid)), "comm")
@@ -605,6 +606,8 @@ func addHooks(m *manager.Manager, procRoot string, probes []manager.ProbesSelect
 	return func(fpath utils.FilePath) error {
 		if isBuildKit(procRoot, fpath.PID) {
 			return fmt.Errorf("process %d is buildkitd, skipping", fpath.PID)
+		} else if isContainerdTmpMount(fpath.HostPath) {
+			return fmt.Errorf("path %s from process %d is tempmount of containerd, skipping", fpath.HostPath, fpath.PID)
 		}
 
 		uid := getUID(fpath.ID)
@@ -614,6 +617,25 @@ func addHooks(m *manager.Manager, procRoot string, probes []manager.ProbesSelect
 			return err
 		}
 		defer elfFile.Close()
+
+		// This only allows amd64 and arm64 and not the 32-bit variants, but that
+		// is fine since we don't monitor 32-bit applications at all in the shared
+		// library watcher since compat syscalls aren't supported by the syscall
+		// trace points.  We do actually monitor 32-bit applications for istio and
+		// nodejs monitoring, but our uprobe hooks only properly support 64-bit
+		// applications, so there's no harm in rejecting 32-bit applications here.
+		arch, err := bininspect.GetArchitecture(elfFile)
+		if err != nil {
+			return err
+		}
+
+		// Ignore foreign architectures.  This can happen when running stuff under
+		// qemu-user, for example, and installing a uprobe will lead to segfaults
+		// since the foreign instructions will be patched with the native break
+		// instruction.
+		if string(arch) != runtime.GOARCH {
+			return fmt.Errorf("unspported architecture: %s", arch)
+		}
 
 		symbolsSet := make(common.StringSet)
 		symbolsSetBestEffort := make(common.StringSet)

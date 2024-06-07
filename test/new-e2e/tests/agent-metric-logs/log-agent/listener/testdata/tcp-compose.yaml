@@ -1,0 +1,23 @@
+---
+services:
+
+  logger-app:
+    environment:
+      TCP: true
+      TARGET: "agent:10518"
+    labels:
+      com.datadoghq.ad.logs: |
+        [
+          {
+            "type": "tcp",
+            "port": 10518,
+            "source": "logger",
+            "service": "test-app"
+          }
+        ]
+
+  agent:
+    environment:
+      DD_LOGS_ENABLED: true
+      DD_LOGS_CONFIG_CONTAINER_COLLECT_ALL: false
+      DD_LOG_LEVEL: info

@@ -1,0 +1,37 @@
+---
+.docker_variables: &docker_variables
+  SRC_AGENT: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/agent
+  SRC_DSD: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/dogstatsd
+  SRC_DCA: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/cluster-agent
+  SRC_CWS_INSTRUMENTATION: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent/cws-instrumentation
+
+.docker_publish_job_definition:
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  tags: ["arch:amd64"]
+  variables:
+    <<: *docker_variables
+    IMG_VARIABLES: ""
+    IMG_SIGNING: ""
+  script: # We can't use the 'trigger' keyword on manual jobs, otherwise they can't be run if the pipeline fails and is retried
+    - source /root/.bashrc
+    - export GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $GITLAB_SCHEDULER_TOKEN_SSM_NAME)
+    - |
+      if [[ "$BUCKET_BRANCH" == "nightly" && ( "$IMG_SOURCES" =~ "$SRC_AGENT" || "$IMG_SOURCES" =~ "$SRC_DCA" || "$IMG_SOURCES" =~ "$SRC_CWS_INSTRUMENTATION" || "$IMG_VARIABLES" =~ "$SRC_AGENT" || "$IMG_VARIABLES" =~ "$SRC_DCA" || "$IMG_VARIABLES" =~ "$SRC_CWS_INSTRUMENTATION" ) ]]; then
+        export ECR_RELEASE_SUFFIX="-nightly"
+      else
+        export ECR_RELEASE_SUFFIX="${CI_COMMIT_TAG+-release}"
+      fi
+    - IMG_VARIABLES="$(sed -E "s#(${SRC_AGENT}|${SRC_DSD}|${SRC_DCA}|${SRC_CWS_INSTRUMENTATION})#\1${ECR_RELEASE_SUFFIX}#g" <<<"$IMG_VARIABLES")"
+    - IMG_SOURCES="$(sed -E "s#(${SRC_AGENT}|${SRC_DSD}|${SRC_DCA}|${SRC_CWS_INSTRUMENTATION})#\1${ECR_RELEASE_SUFFIX}#g" <<<"$IMG_SOURCES")"
+    - "inv pipeline.trigger-child-pipeline --project-name DataDog/public-images --git-ref main
+      --variable IMG_VARIABLES
+      --variable IMG_REGISTRIES
+      --variable IMG_SOURCES
+      --variable IMG_DESTINATIONS
+      --variable IMG_SIGNING
+      --variable APPS
+      --variable BAZEL_TARGET
+      --variable DDR
+      --variable DDR_WORKFLOW_ID
+      --variable TARGET_ENV
+      --variable DYNAMIC_BUILD_RENDER_TARGET_FORWARD_PARAMETERS"

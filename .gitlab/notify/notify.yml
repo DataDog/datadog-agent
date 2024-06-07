@@ -1,0 +1,88 @@
+---
+# notify stage
+# Contains jobs which send notifications depending on pipeline status.
+
+include:
+  - https://gitlab-templates.ddbuild.io/slack-notifier/v3-sdm/template.yml
+
+notify-on-tagged-success:
+  extends: .slack-notifier-base
+  stage: notify
+  rules: !reference [.on_deploy_stable_or_beta_repo_branch]
+  dependencies: []
+  tags: ["arch:amd64"]
+  script: |
+    MESSAGE_TEXT=":host-green: Tagged build <$CI_PIPELINE_URL|$CI_PIPELINE_ID> succeeded.
+    *$CI_COMMIT_REF_NAME* is available in the staging repositories."
+    postmessage "#agent-release-sync" "$MESSAGE_TEXT"
+
+notify:
+  extends: .slack-notifier-base
+  stage: notify
+  rules: !reference [.on_main_or_release_branch_or_deploy_always]
+  dependencies: []
+  tags: ["arch:amd64"]
+  resource_group: notification
+  timeout: 15 minutes # Added to prevent a stuck job blocking the resource_group defined above
+  script:
+    - export GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $GITLAB_READ_API_TOKEN_SSM_NAME)
+    - export DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $API_KEY_ORG2_SSM_NAME)
+    - !reference [.setup_python_mirror_linux]
+    - python3 -m pip install -r requirements.txt -r tasks/libs/requirements-notifications.txt
+    - |
+      # Do not send notifications if this is a child pipeline of another repo
+      # The triggering repo should already have its own notification system
+      if [ "$CI_PIPELINE_SOURCE" != "pipeline" ]; then
+        if [ "$DEPLOY_AGENT" = "true" ]; then
+          invoke -e notify.send-message --notification-type "deploy"
+        else
+          invoke -e notify.send-message --notification-type "merge"
+        fi
+        invoke notify.check-consistent-failures
+      else
+        echo "This pipeline was triggered by another repository, skipping notification."
+      fi
+
+send_pipeline_stats:
+  stage: notify
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  tags: ["arch:amd64"]
+  when: always
+  dependencies: []
+  script:
+    - source /root/.bashrc
+    - export GITLAB_TOKEN=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $GITLAB_READ_API_TOKEN_SSM_NAME)
+    - export DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $API_KEY_ORG2_SSM_NAME)
+    - !reference [.setup_python_mirror_linux]
+    - invoke -e notify.send-stats
+
+notify_github:
+  stage: notify
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/docker_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  tags: ["arch:amd64"]
+  rules:
+    - !reference [.except_mergequeue]
+    - !reference [.except_main_or_release_branch]
+    - !reference [.except_no_tests_no_deploy]
+    - if: $RELEASE_VERSION_7 != ""
+      changes:
+        paths:
+          - '**/*.go'
+        compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
+      when: on_success
+    - when: never
+  needs:
+    - job: "deploy_deb_testing-a7_x64"
+      optional: true
+  dependencies: []
+  allow_failure: true
+  script:
+    - source /root/.bashrc
+    - !reference [.install_pr_commenter]
+    - messagefile="$(mktemp)"
+    - echo "Use this command from [test-infra-definitions](https://github.com/DataDog/test-infra-definitions) to manually test this PR changes on a VM:" >> "$messagefile"
+    - echo '```sh' >> "$messagefile"
+    - echo "inv create-vm --pipeline-id=$CI_PIPELINE_ID --os-family=ubuntu" >> "$messagefile"
+    - echo '```' >> "$messagefile"
+    - cat "$messagefile" | /usr/local/bin/pr-commenter --for-pr="$CI_COMMIT_REF_NAME" --header="Test changes on VM"
+    - rm "$messagefile"

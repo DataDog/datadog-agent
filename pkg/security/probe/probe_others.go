@@ -17,6 +17,15 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
 
+// EventConsumerInterface represents a handler for events sent by the probe. This handler makes a copy of the event upon receipt
+type EventConsumerInterface interface {
+	ID() string
+	ChanSize() int
+	HandleEvent(_ any)
+	Copy(_ *model.Event) any
+	EventTypes() []model.EventType
+}
+
 // EventHandler represents an handler for the events sent by the probe
 type EventHandler interface{}
 
@@ -32,13 +41,13 @@ type Probe struct {
 	Config *config.Config
 }
 
-// AddEventHandler set the probe event handler
-func (p *Probe) AddEventHandler(_ model.EventType, _ EventHandler) error {
-	return nil
+// Origin returns origin
+func (p *Probe) Origin() string {
+	return ""
 }
 
-// AddFullAccessEventHandler sets a probe event handler for the UnknownEventType which requires access to all the struct fields
-func (p *Probe) AddFullAccessEventHandler(_ EventHandler) error {
+// AddEventHandler set the probe event handler
+func (p *Probe) AddEventHandler(_ EventHandler) error {
 	return nil
 }
 

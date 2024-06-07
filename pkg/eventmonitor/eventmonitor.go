@@ -10,17 +10,17 @@ package eventmonitor
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"net"
+	"slices"
 	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
-	"golang.org/x/exp/slices"
 	"google.golang.org/grpc"
 
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor/config"
 	procstatsd "github.com/DataDog/datadog-agent/pkg/process/statsd"
 	secconfig "github.com/DataDog/datadog-agent/pkg/security/config"
@@ -28,10 +28,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 var (
-	// allowedEventTypes defines allowed event type for subscribers
+	// allowedEventTypes defines allowed event type for consumers
 	allowedEventTypes = []model.EventType{model.ForkEventType, model.ExecEventType, model.ExitEventType}
 )
 
@@ -54,33 +55,12 @@ type EventMonitor struct {
 	ctx            context.Context
 	cancelFnc      context.CancelFunc
 	sendStatsChan  chan chan bool
-	eventConsumers []EventConsumer
+	eventConsumers []EventConsumerInterface
 	netListener    net.Listener
 	wg             sync.WaitGroup
 }
 
 var _ module.Module = &EventMonitor{}
-
-// EventConsumer defines an event consumer
-type EventConsumer interface {
-	// ID returns the ID of the event consumer
-	ID() string
-	// Start starts the event consumer
-	Start() error
-	// Stop stops the event consumer
-	Stop()
-}
-
-// EventConsumerPostProbeStartHandler defines an event consumer that can respond to PostProbeStart events
-type EventConsumerPostProbeStartHandler interface {
-	// PostProbeStart is called after the event stream (the probe) is started
-	PostProbeStart() error
-}
-
-// EventTypeHandler event type based handler
-type EventTypeHandler interface {
-	probe.EventHandler
-}
 
 // Register the event monitoring module
 func (m *EventMonitor) Register(_ *module.Router) error {
@@ -91,22 +71,19 @@ func (m *EventMonitor) Register(_ *module.Router) error {
 	return m.Start()
 }
 
-// RegisterGRPC register to system probe gRPC server
-func (m *EventMonitor) RegisterGRPC(_ grpc.ServiceRegistrar) error {
-	return nil
-}
-
-// AddEventTypeHandler registers an event handler
-func (m *EventMonitor) AddEventTypeHandler(eventType model.EventType, handler EventTypeHandler) error {
-	if !slices.Contains(allowedEventTypes, eventType) {
-		return errors.New("event type not allowed")
+// AddEventConsumer registers an event handler
+func (m *EventMonitor) AddEventConsumer(consumer EventConsumer) error {
+	for _, eventType := range consumer.EventTypes() {
+		if !slices.Contains(allowedEventTypes, eventType) {
+			return fmt.Errorf("event type (%s) not allowed", eventType)
+		}
 	}
 
-	return m.Probe.AddEventHandler(eventType, handler)
+	return m.Probe.AddEventConsumer(consumer)
 }
 
 // RegisterEventConsumer registers an event consumer
-func (m *EventMonitor) RegisterEventConsumer(consumer EventConsumer) {
+func (m *EventMonitor) RegisterEventConsumer(consumer EventConsumerInterface) {
 	m.eventConsumers = append(m.eventConsumers, consumer)
 }
 
@@ -252,7 +229,7 @@ func (m *EventMonitor) GetStats() map[string]interface{} {
 }
 
 // NewEventMonitor instantiates an event monitoring system-probe module
-func NewEventMonitor(config *config.Config, secconfig *secconfig.Config, opts Opts) (*EventMonitor, error) {
+func NewEventMonitor(config *config.Config, secconfig *secconfig.Config, opts Opts, wmeta optional.Option[workloadmeta.Component]) (*EventMonitor, error) {
 	if opts.StatsdClient == nil {
 		opts.StatsdClient = procstatsd.Client
 	}
@@ -261,7 +238,7 @@ func NewEventMonitor(config *config.Config, secconfig *secconfig.Config, opts Op
 		opts.ProbeOpts.StatsdClient = opts.StatsdClient
 	}
 
-	probe, err := probe.NewProbe(secconfig, opts.ProbeOpts)
+	probe, err := probe.NewProbe(secconfig, opts.ProbeOpts, wmeta)
 	if err != nil {
 		return nil, err
 	}

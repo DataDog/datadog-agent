@@ -13,6 +13,54 @@ import (
 	"time"
 )
 
+// GetChangePermissionNewSd returns the value of the field, resolving if necessary
+func (ev *Event) GetChangePermissionNewSd() string {
+	if ev.GetEventType().String() != "change_permission" {
+		return ""
+	}
+	return ev.FieldHandlers.ResolveNewSecurityDescriptor(ev, &ev.ChangePermission)
+}
+
+// GetChangePermissionOldSd returns the value of the field, resolving if necessary
+func (ev *Event) GetChangePermissionOldSd() string {
+	if ev.GetEventType().String() != "change_permission" {
+		return ""
+	}
+	return ev.FieldHandlers.ResolveOldSecurityDescriptor(ev, &ev.ChangePermission)
+}
+
+// GetChangePermissionPath returns the value of the field, resolving if necessary
+func (ev *Event) GetChangePermissionPath() string {
+	if ev.GetEventType().String() != "change_permission" {
+		return ""
+	}
+	return ev.ChangePermission.ObjectName
+}
+
+// GetChangePermissionType returns the value of the field, resolving if necessary
+func (ev *Event) GetChangePermissionType() string {
+	if ev.GetEventType().String() != "change_permission" {
+		return ""
+	}
+	return ev.ChangePermission.ObjectType
+}
+
+// GetChangePermissionUserDomain returns the value of the field, resolving if necessary
+func (ev *Event) GetChangePermissionUserDomain() string {
+	if ev.GetEventType().String() != "change_permission" {
+		return ""
+	}
+	return ev.ChangePermission.UserDomain
+}
+
+// GetChangePermissionUsername returns the value of the field, resolving if necessary
+func (ev *Event) GetChangePermissionUsername() string {
+	if ev.GetEventType().String() != "change_permission" {
+		return ""
+	}
+	return ev.ChangePermission.UserName
+}
+
 // GetContainerCreatedAt returns the value of the field, resolving if necessary
 func (ev *Event) GetContainerCreatedAt() int {
 	if ev.BaseEvent.ContainerContext == nil {
@@ -35,6 +83,245 @@ func (ev *Event) GetContainerTags() []string {
 		return []string{}
 	}
 	return ev.FieldHandlers.ResolveContainerTags(ev, ev.BaseEvent.ContainerContext)
+}
+
+// GetCreateFileDevicePath returns the value of the field, resolving if necessary
+func (ev *Event) GetCreateFileDevicePath() string {
+	if ev.GetEventType().String() != "create" {
+		return ""
+	}
+	return ev.FieldHandlers.ResolveFimFilePath(ev, &ev.CreateNewFile.File)
+}
+
+// GetCreateFileDevicePathLength returns the value of the field, resolving if necessary
+func (ev *Event) GetCreateFileDevicePathLength() int {
+	if ev.GetEventType().String() != "create" {
+		return 0
+	}
+	return len(ev.FieldHandlers.ResolveFimFilePath(ev, &ev.CreateNewFile.File))
+}
+
+// GetCreateFileName returns the value of the field, resolving if necessary
+func (ev *Event) GetCreateFileName() string {
+	if ev.GetEventType().String() != "create" {
+		return ""
+	}
+	return ev.FieldHandlers.ResolveFimFileBasename(ev, &ev.CreateNewFile.File)
+}
+
+// GetCreateFileNameLength returns the value of the field, resolving if necessary
+func (ev *Event) GetCreateFileNameLength() int {
+	if ev.GetEventType().String() != "create" {
+		return 0
+	}
+	return len(ev.FieldHandlers.ResolveFimFileBasename(ev, &ev.CreateNewFile.File))
+}
+
+// GetCreateFilePath returns the value of the field, resolving if necessary
+func (ev *Event) GetCreateFilePath() string {
+	if ev.GetEventType().String() != "create" {
+		return ""
+	}
+	return ev.FieldHandlers.ResolveFileUserPath(ev, &ev.CreateNewFile.File)
+}
+
+// GetCreateFilePathLength returns the value of the field, resolving if necessary
+func (ev *Event) GetCreateFilePathLength() int {
+	if ev.GetEventType().String() != "create" {
+		return 0
+	}
+	return len(ev.FieldHandlers.ResolveFileUserPath(ev, &ev.CreateNewFile.File))
+}
+
+// GetCreateRegistryKeyName returns the value of the field, resolving if necessary
+func (ev *Event) GetCreateRegistryKeyName() string {
+	if ev.GetEventType().String() != "create_key" {
+		return ""
+	}
+	return ev.CreateRegistryKey.Registry.KeyName
+}
+
+// GetCreateRegistryKeyNameLength returns the value of the field, resolving if necessary
+func (ev *Event) GetCreateRegistryKeyNameLength() int {
+	if ev.GetEventType().String() != "create_key" {
+		return 0
+	}
+	return len(ev.CreateRegistryKey.Registry.KeyName)
+}
+
+// GetCreateRegistryKeyPath returns the value of the field, resolving if necessary
+func (ev *Event) GetCreateRegistryKeyPath() string {
+	if ev.GetEventType().String() != "create_key" {
+		return ""
+	}
+	return ev.CreateRegistryKey.Registry.KeyPath
+}
+
+// GetCreateRegistryKeyPathLength returns the value of the field, resolving if necessary
+func (ev *Event) GetCreateRegistryKeyPathLength() int {
+	if ev.GetEventType().String() != "create_key" {
+		return 0
+	}
+	return len(ev.CreateRegistryKey.Registry.KeyPath)
+}
+
+// GetCreateKeyRegistryKeyName returns the value of the field, resolving if necessary
+func (ev *Event) GetCreateKeyRegistryKeyName() string {
+	if ev.GetEventType().String() != "create_key" {
+		return ""
+	}
+	return ev.CreateRegistryKey.Registry.KeyName
+}
+
+// GetCreateKeyRegistryKeyNameLength returns the value of the field, resolving if necessary
+func (ev *Event) GetCreateKeyRegistryKeyNameLength() int {
+	if ev.GetEventType().String() != "create_key" {
+		return 0
+	}
+	return len(ev.CreateRegistryKey.Registry.KeyName)
+}
+
+// GetCreateKeyRegistryKeyPath returns the value of the field, resolving if necessary
+func (ev *Event) GetCreateKeyRegistryKeyPath() string {
+	if ev.GetEventType().String() != "create_key" {
+		return ""
+	}
+	return ev.CreateRegistryKey.Registry.KeyPath
+}
+
+// GetCreateKeyRegistryKeyPathLength returns the value of the field, resolving if necessary
+func (ev *Event) GetCreateKeyRegistryKeyPathLength() int {
+	if ev.GetEventType().String() != "create_key" {
+		return 0
+	}
+	return len(ev.CreateRegistryKey.Registry.KeyPath)
+}
+
+// GetDeleteFileDevicePath returns the value of the field, resolving if necessary
+func (ev *Event) GetDeleteFileDevicePath() string {
+	if ev.GetEventType().String() != "delete" {
+		return ""
+	}
+	return ev.FieldHandlers.ResolveFimFilePath(ev, &ev.DeleteFile.File)
+}
+
+// GetDeleteFileDevicePathLength returns the value of the field, resolving if necessary
+func (ev *Event) GetDeleteFileDevicePathLength() int {
+	if ev.GetEventType().String() != "delete" {
+		return 0
+	}
+	return len(ev.FieldHandlers.ResolveFimFilePath(ev, &ev.DeleteFile.File))
+}
+
+// GetDeleteFileName returns the value of the field, resolving if necessary
+func (ev *Event) GetDeleteFileName() string {
+	if ev.GetEventType().String() != "delete" {
+		return ""
+	}
+	return ev.FieldHandlers.ResolveFimFileBasename(ev, &ev.DeleteFile.File)
+}
+
+// GetDeleteFileNameLength returns the value of the field, resolving if necessary
+func (ev *Event) GetDeleteFileNameLength() int {
+	if ev.GetEventType().String() != "delete" {
+		return 0
+	}
+	return len(ev.FieldHandlers.ResolveFimFileBasename(ev, &ev.DeleteFile.File))
+}
+
+// GetDeleteFilePath returns the value of the field, resolving if necessary
+func (ev *Event) GetDeleteFilePath() string {
+	if ev.GetEventType().String() != "delete" {
+		return ""
+	}
+	return ev.FieldHandlers.ResolveFileUserPath(ev, &ev.DeleteFile.File)
+}
+
+// GetDeleteFilePathLength returns the value of the field, resolving if necessary
+func (ev *Event) GetDeleteFilePathLength() int {
+	if ev.GetEventType().String() != "delete" {
+		return 0
+	}
+	return len(ev.FieldHandlers.ResolveFileUserPath(ev, &ev.DeleteFile.File))
+}
+
+// GetDeleteRegistryKeyName returns the value of the field, resolving if necessary
+func (ev *Event) GetDeleteRegistryKeyName() string {
+	if ev.GetEventType().String() != "delete_key" {
+		return ""
+	}
+	return ev.DeleteRegistryKey.Registry.KeyName
+}
+
+// GetDeleteRegistryKeyNameLength returns the value of the field, resolving if necessary
+func (ev *Event) GetDeleteRegistryKeyNameLength() int {
+	if ev.GetEventType().String() != "delete_key" {
+		return 0
+	}
+	return len(ev.DeleteRegistryKey.Registry.KeyName)
+}
+
+// GetDeleteRegistryKeyPath returns the value of the field, resolving if necessary
+func (ev *Event) GetDeleteRegistryKeyPath() string {
+	if ev.GetEventType().String() != "delete_key" {
+		return ""
+	}
+	return ev.DeleteRegistryKey.Registry.KeyPath
+}
+
+// GetDeleteRegistryKeyPathLength returns the value of the field, resolving if necessary
+func (ev *Event) GetDeleteRegistryKeyPathLength() int {
+	if ev.GetEventType().String() != "delete_key" {
+		return 0
+	}
+	return len(ev.DeleteRegistryKey.Registry.KeyPath)
+}
+
+// GetDeleteKeyRegistryKeyName returns the value of the field, resolving if necessary
+func (ev *Event) GetDeleteKeyRegistryKeyName() string {
+	if ev.GetEventType().String() != "delete_key" {
+		return ""
+	}
+	return ev.DeleteRegistryKey.Registry.KeyName
+}
+
+// GetDeleteKeyRegistryKeyNameLength returns the value of the field, resolving if necessary
+func (ev *Event) GetDeleteKeyRegistryKeyNameLength() int {
+	if ev.GetEventType().String() != "delete_key" {
+		return 0
+	}
+	return len(ev.DeleteRegistryKey.Registry.KeyName)
+}
+
+// GetDeleteKeyRegistryKeyPath returns the value of the field, resolving if necessary
+func (ev *Event) GetDeleteKeyRegistryKeyPath() string {
+	if ev.GetEventType().String() != "delete_key" {
+		return ""
+	}
+	return ev.DeleteRegistryKey.Registry.KeyPath
+}
+
+// GetDeleteKeyRegistryKeyPathLength returns the value of the field, resolving if necessary
+func (ev *Event) GetDeleteKeyRegistryKeyPathLength() int {
+	if ev.GetEventType().String() != "delete_key" {
+		return 0
+	}
+	return len(ev.DeleteRegistryKey.Registry.KeyPath)
+}
+
+// GetEventOrigin returns the value of the field, resolving if necessary
+func (ev *Event) GetEventOrigin() string {
+	return ev.BaseEvent.Origin
+}
+
+// GetEventOs returns the value of the field, resolving if necessary
+func (ev *Event) GetEventOs() string {
+	return ev.BaseEvent.Os
+}
+
+// GetEventService returns the value of the field, resolving if necessary
+func (ev *Event) GetEventService() string {
+	return ev.FieldHandlers.ResolveService(ev, &ev.BaseEvent)
 }
 
 // GetEventTimestamp returns the value of the field, resolving if necessary
@@ -408,6 +695,70 @@ func (ev *Event) GetExitUserSid() string {
 		return ""
 	}
 	return ev.Exit.Process.OwnerSidString
+}
+
+// GetOpenRegistryKeyName returns the value of the field, resolving if necessary
+func (ev *Event) GetOpenRegistryKeyName() string {
+	if ev.GetEventType().String() != "open_key" {
+		return ""
+	}
+	return ev.OpenRegistryKey.Registry.KeyName
+}
+
+// GetOpenRegistryKeyNameLength returns the value of the field, resolving if necessary
+func (ev *Event) GetOpenRegistryKeyNameLength() int {
+	if ev.GetEventType().String() != "open_key" {
+		return 0
+	}
+	return len(ev.OpenRegistryKey.Registry.KeyName)
+}
+
+// GetOpenRegistryKeyPath returns the value of the field, resolving if necessary
+func (ev *Event) GetOpenRegistryKeyPath() string {
+	if ev.GetEventType().String() != "open_key" {
+		return ""
+	}
+	return ev.OpenRegistryKey.Registry.KeyPath
+}
+
+// GetOpenRegistryKeyPathLength returns the value of the field, resolving if necessary
+func (ev *Event) GetOpenRegistryKeyPathLength() int {
+	if ev.GetEventType().String() != "open_key" {
+		return 0
+	}
+	return len(ev.OpenRegistryKey.Registry.KeyPath)
+}
+
+// GetOpenKeyRegistryKeyName returns the value of the field, resolving if necessary
+func (ev *Event) GetOpenKeyRegistryKeyName() string {
+	if ev.GetEventType().String() != "open_key" {
+		return ""
+	}
+	return ev.OpenRegistryKey.Registry.KeyName
+}
+
+// GetOpenKeyRegistryKeyNameLength returns the value of the field, resolving if necessary
+func (ev *Event) GetOpenKeyRegistryKeyNameLength() int {
+	if ev.GetEventType().String() != "open_key" {
+		return 0
+	}
+	return len(ev.OpenRegistryKey.Registry.KeyName)
+}
+
+// GetOpenKeyRegistryKeyPath returns the value of the field, resolving if necessary
+func (ev *Event) GetOpenKeyRegistryKeyPath() string {
+	if ev.GetEventType().String() != "open_key" {
+		return ""
+	}
+	return ev.OpenRegistryKey.Registry.KeyPath
+}
+
+// GetOpenKeyRegistryKeyPathLength returns the value of the field, resolving if necessary
+func (ev *Event) GetOpenKeyRegistryKeyPathLength() int {
+	if ev.GetEventType().String() != "open_key" {
+		return 0
+	}
+	return len(ev.OpenRegistryKey.Registry.KeyPath)
 }
 
 // GetProcessAncestorsCmdline returns the value of the field, resolving if necessary
@@ -1022,7 +1373,263 @@ func (ev *Event) GetProcessUserSid() string {
 	return ev.BaseEvent.ProcessContext.Process.OwnerSidString
 }
 
+// GetRenameFileDestinationDevicePath returns the value of the field, resolving if necessary
+func (ev *Event) GetRenameFileDestinationDevicePath() string {
+	if ev.GetEventType().String() != "rename" {
+		return ""
+	}
+	return ev.FieldHandlers.ResolveFimFilePath(ev, &ev.RenameFile.New)
+}
+
+// GetRenameFileDestinationDevicePathLength returns the value of the field, resolving if necessary
+func (ev *Event) GetRenameFileDestinationDevicePathLength() int {
+	if ev.GetEventType().String() != "rename" {
+		return 0
+	}
+	return len(ev.FieldHandlers.ResolveFimFilePath(ev, &ev.RenameFile.New))
+}
+
+// GetRenameFileDestinationName returns the value of the field, resolving if necessary
+func (ev *Event) GetRenameFileDestinationName() string {
+	if ev.GetEventType().String() != "rename" {
+		return ""
+	}
+	return ev.FieldHandlers.ResolveFimFileBasename(ev, &ev.RenameFile.New)
+}
+
+// GetRenameFileDestinationNameLength returns the value of the field, resolving if necessary
+func (ev *Event) GetRenameFileDestinationNameLength() int {
+	if ev.GetEventType().String() != "rename" {
+		return 0
+	}
+	return len(ev.FieldHandlers.ResolveFimFileBasename(ev, &ev.RenameFile.New))
+}
+
+// GetRenameFileDestinationPath returns the value of the field, resolving if necessary
+func (ev *Event) GetRenameFileDestinationPath() string {
+	if ev.GetEventType().String() != "rename" {
+		return ""
+	}
+	return ev.FieldHandlers.ResolveFileUserPath(ev, &ev.RenameFile.New)
+}
+
+// GetRenameFileDestinationPathLength returns the value of the field, resolving if necessary
+func (ev *Event) GetRenameFileDestinationPathLength() int {
+	if ev.GetEventType().String() != "rename" {
+		return 0
+	}
+	return len(ev.FieldHandlers.ResolveFileUserPath(ev, &ev.RenameFile.New))
+}
+
+// GetRenameFileDevicePath returns the value of the field, resolving if necessary
+func (ev *Event) GetRenameFileDevicePath() string {
+	if ev.GetEventType().String() != "rename" {
+		return ""
+	}
+	return ev.FieldHandlers.ResolveFimFilePath(ev, &ev.RenameFile.Old)
+}
+
+// GetRenameFileDevicePathLength returns the value of the field, resolving if necessary
+func (ev *Event) GetRenameFileDevicePathLength() int {
+	if ev.GetEventType().String() != "rename" {
+		return 0
+	}
+	return len(ev.FieldHandlers.ResolveFimFilePath(ev, &ev.RenameFile.Old))
+}
+
+// GetRenameFileName returns the value of the field, resolving if necessary
+func (ev *Event) GetRenameFileName() string {
+	if ev.GetEventType().String() != "rename" {
+		return ""
+	}
+	return ev.FieldHandlers.ResolveFimFileBasename(ev, &ev.RenameFile.Old)
+}
+
+// GetRenameFileNameLength returns the value of the field, resolving if necessary
+func (ev *Event) GetRenameFileNameLength() int {
+	if ev.GetEventType().String() != "rename" {
+		return 0
+	}
+	return len(ev.FieldHandlers.ResolveFimFileBasename(ev, &ev.RenameFile.Old))
+}
+
+// GetRenameFilePath returns the value of the field, resolving if necessary
+func (ev *Event) GetRenameFilePath() string {
+	if ev.GetEventType().String() != "rename" {
+		return ""
+	}
+	return ev.FieldHandlers.ResolveFileUserPath(ev, &ev.RenameFile.Old)
+}
+
+// GetRenameFilePathLength returns the value of the field, resolving if necessary
+func (ev *Event) GetRenameFilePathLength() int {
+	if ev.GetEventType().String() != "rename" {
+		return 0
+	}
+	return len(ev.FieldHandlers.ResolveFileUserPath(ev, &ev.RenameFile.Old))
+}
+
+// GetSetRegistryKeyName returns the value of the field, resolving if necessary
+func (ev *Event) GetSetRegistryKeyName() string {
+	if ev.GetEventType().String() != "set_key_value" {
+		return ""
+	}
+	return ev.SetRegistryKeyValue.Registry.KeyName
+}
+
+// GetSetRegistryKeyNameLength returns the value of the field, resolving if necessary
+func (ev *Event) GetSetRegistryKeyNameLength() int {
+	if ev.GetEventType().String() != "set_key_value" {
+		return 0
+	}
+	return len(ev.SetRegistryKeyValue.Registry.KeyName)
+}
+
+// GetSetRegistryKeyPath returns the value of the field, resolving if necessary
+func (ev *Event) GetSetRegistryKeyPath() string {
+	if ev.GetEventType().String() != "set_key_value" {
+		return ""
+	}
+	return ev.SetRegistryKeyValue.Registry.KeyPath
+}
+
+// GetSetRegistryKeyPathLength returns the value of the field, resolving if necessary
+func (ev *Event) GetSetRegistryKeyPathLength() int {
+	if ev.GetEventType().String() != "set_key_value" {
+		return 0
+	}
+	return len(ev.SetRegistryKeyValue.Registry.KeyPath)
+}
+
+// GetSetRegistryValueName returns the value of the field, resolving if necessary
+func (ev *Event) GetSetRegistryValueName() string {
+	if ev.GetEventType().String() != "set_key_value" {
+		return ""
+	}
+	return ev.SetRegistryKeyValue.ValueName
+}
+
+// GetSetRegistryValueNameLength returns the value of the field, resolving if necessary
+func (ev *Event) GetSetRegistryValueNameLength() int {
+	if ev.GetEventType().String() != "set_key_value" {
+		return 0
+	}
+	return len(ev.SetRegistryKeyValue.ValueName)
+}
+
+// GetSetValueName returns the value of the field, resolving if necessary
+func (ev *Event) GetSetValueName() string {
+	if ev.GetEventType().String() != "set_key_value" {
+		return ""
+	}
+	return ev.SetRegistryKeyValue.ValueName
+}
+
+// GetSetKeyValueRegistryKeyName returns the value of the field, resolving if necessary
+func (ev *Event) GetSetKeyValueRegistryKeyName() string {
+	if ev.GetEventType().String() != "set_key_value" {
+		return ""
+	}
+	return ev.SetRegistryKeyValue.Registry.KeyName
+}
+
+// GetSetKeyValueRegistryKeyNameLength returns the value of the field, resolving if necessary
+func (ev *Event) GetSetKeyValueRegistryKeyNameLength() int {
+	if ev.GetEventType().String() != "set_key_value" {
+		return 0
+	}
+	return len(ev.SetRegistryKeyValue.Registry.KeyName)
+}
+
+// GetSetKeyValueRegistryKeyPath returns the value of the field, resolving if necessary
+func (ev *Event) GetSetKeyValueRegistryKeyPath() string {
+	if ev.GetEventType().String() != "set_key_value" {
+		return ""
+	}
+	return ev.SetRegistryKeyValue.Registry.KeyPath
+}
+
+// GetSetKeyValueRegistryKeyPathLength returns the value of the field, resolving if necessary
+func (ev *Event) GetSetKeyValueRegistryKeyPathLength() int {
+	if ev.GetEventType().String() != "set_key_value" {
+		return 0
+	}
+	return len(ev.SetRegistryKeyValue.Registry.KeyPath)
+}
+
+// GetSetKeyValueRegistryValueName returns the value of the field, resolving if necessary
+func (ev *Event) GetSetKeyValueRegistryValueName() string {
+	if ev.GetEventType().String() != "set_key_value" {
+		return ""
+	}
+	return ev.SetRegistryKeyValue.ValueName
+}
+
+// GetSetKeyValueRegistryValueNameLength returns the value of the field, resolving if necessary
+func (ev *Event) GetSetKeyValueRegistryValueNameLength() int {
+	if ev.GetEventType().String() != "set_key_value" {
+		return 0
+	}
+	return len(ev.SetRegistryKeyValue.ValueName)
+}
+
+// GetSetKeyValueValueName returns the value of the field, resolving if necessary
+func (ev *Event) GetSetKeyValueValueName() string {
+	if ev.GetEventType().String() != "set_key_value" {
+		return ""
+	}
+	return ev.SetRegistryKeyValue.ValueName
+}
+
 // GetTimestamp returns the value of the field, resolving if necessary
 func (ev *Event) GetTimestamp() time.Time {
 	return ev.FieldHandlers.ResolveEventTime(ev, &ev.BaseEvent)
+}
+
+// GetWriteFileDevicePath returns the value of the field, resolving if necessary
+func (ev *Event) GetWriteFileDevicePath() string {
+	if ev.GetEventType().String() != "write" {
+		return ""
+	}
+	return ev.FieldHandlers.ResolveFimFilePath(ev, &ev.WriteFile.File)
+}
+
+// GetWriteFileDevicePathLength returns the value of the field, resolving if necessary
+func (ev *Event) GetWriteFileDevicePathLength() int {
+	if ev.GetEventType().String() != "write" {
+		return 0
+	}
+	return len(ev.FieldHandlers.ResolveFimFilePath(ev, &ev.WriteFile.File))
+}
+
+// GetWriteFileName returns the value of the field, resolving if necessary
+func (ev *Event) GetWriteFileName() string {
+	if ev.GetEventType().String() != "write" {
+		return ""
+	}
+	return ev.FieldHandlers.ResolveFimFileBasename(ev, &ev.WriteFile.File)
+}
+
+// GetWriteFileNameLength returns the value of the field, resolving if necessary
+func (ev *Event) GetWriteFileNameLength() int {
+	if ev.GetEventType().String() != "write" {
+		return 0
+	}
+	return len(ev.FieldHandlers.ResolveFimFileBasename(ev, &ev.WriteFile.File))
+}
+
+// GetWriteFilePath returns the value of the field, resolving if necessary
+func (ev *Event) GetWriteFilePath() string {
+	if ev.GetEventType().String() != "write" {
+		return ""
+	}
+	return ev.FieldHandlers.ResolveFileUserPath(ev, &ev.WriteFile.File)
+}
+
+// GetWriteFilePathLength returns the value of the field, resolving if necessary
+func (ev *Event) GetWriteFilePathLength() int {
+	if ev.GetEventType().String() != "write" {
+		return 0
+	}
+	return len(ev.FieldHandlers.ResolveFileUserPath(ev, &ev.WriteFile.File))
 }

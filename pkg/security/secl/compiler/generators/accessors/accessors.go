@@ -18,6 +18,7 @@ import (
 	"os/exec"
 	"path"
 	"reflect"
+	"slices"
 	"strconv"
 	"strings"
 	"text/template"
@@ -26,7 +27,6 @@ import (
 	"github.com/Masterminds/sprig/v3"
 	"github.com/davecgh/go-spew/spew"
 	"github.com/fatih/structtag"
-	"golang.org/x/exp/slices"
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
 	"golang.org/x/tools/go/packages"
@@ -166,6 +166,7 @@ func handleBasic(module *common.Module, field seclField, name, alias, aliasPrefi
 		Alias:       alias,
 		AliasPrefix: aliasPrefix,
 		GettersOnly: field.gettersOnly,
+		Ref:         field.ref,
 	}
 
 	module.Fields[alias] = newStructField
@@ -194,9 +195,16 @@ func handleBasic(module *common.Module, field seclField, name, alias, aliasPrefi
 			Alias:       alias,
 			AliasPrefix: aliasPrefix,
 			GettersOnly: field.gettersOnly,
+			Ref:         field.ref,
 		}
 
 		module.Fields[alias] = newStructField
+	}
+
+	if _, ok := module.EventTypes[event]; !ok {
+		module.EventTypes[event] = common.NewEventTypeMetada(alias)
+	} else {
+		module.EventTypes[event].Fields = append(module.EventTypes[event].Fields, alias)
 	}
 }
 
@@ -254,6 +262,7 @@ func handleIterator(module *common.Module, field seclField, fieldType, iterator,
 		Helper:           field.helper,
 		SkipADResolution: field.skipADResolution,
 		Check:            field.check,
+		Ref:              field.ref,
 	}
 
 	return module.Iterators[alias]
@@ -292,6 +301,7 @@ func handleFieldWithHandler(module *common.Module, field seclField, aliasPrefix,
 		Alias:            alias,
 		AliasPrefix:      aliasPrefix,
 		GettersOnly:      field.gettersOnly,
+		Ref:              field.ref,
 	}
 
 	module.Fields[alias] = newStructField
@@ -356,6 +366,7 @@ type seclField struct {
 	exposedAtEventRootOnly bool // fields that should only be exposed at the root of an event, i.e. `parent` should not be exposed for an `ancestor` of a process
 	containerStructName    string
 	gettersOnly            bool //  a field that is not exposed via SECL, but still has an accessor generated
+	ref                    string
 }
 
 func parseFieldDef(def string) (seclField, error) {
@@ -384,6 +395,8 @@ func parseFieldDef(def string) (seclField, error) {
 					return field, err
 				}
 				field.weight = weight
+			case "ref":
+				field.ref = value
 			case "iterator":
 				field.iterator = value
 			case "check":
@@ -512,7 +525,6 @@ func handleSpecRecursive(module *common.Module, astFiles *AstFiles, spec interfa
 				}
 
 				if handler := seclField.handler; handler != "" {
-
 					handleFieldWithHandler(module, seclField, aliasPrefix, prefix, prefixedFieldName, fieldType, seclField.containerStructName, event, fieldCommentText, opOverrides, handler, isPointer, isArray, fieldIterator)
 
 					delete(dejavu, fieldBasename)
@@ -776,12 +788,7 @@ func pascalCaseFieldName(fieldName string) string {
 }
 
 func getDefaultValueOfType(returnType string) string {
-	isArray := false
-
-	baseType, found := strings.CutPrefix(returnType, "[]")
-	if found {
-		isArray = true
-	}
+	baseType, isArray := strings.CutPrefix(returnType, "[]")
 
 	if baseType == "int" {
 		if isArray {
@@ -823,12 +830,10 @@ func getDefaultValueOfType(returnType string) string {
 			return "[]time.Time{}"
 		}
 		return "time.Time{}"
-	} else {
-		if isArray {
-			return "[]string{}"
-		}
-		return `""`
+	} else if isArray {
+		return "[]string{}"
 	}
+	return `""`
 }
 
 func needScrubbed(fieldName string) bool {
@@ -860,7 +865,10 @@ func getFieldHandler(allFields map[string]*common.StructField, field *common.Str
 		ptr = ""
 	}
 
-	return fmt.Sprintf("ev.FieldHandlers.%s(ev, %sev.%s)", field.Handler, ptr, field.Prefix)
+	if field.Ref == "" {
+		return fmt.Sprintf("ev.FieldHandlers.%s(ev, %sev.%s)", field.Handler, ptr, field.Prefix)
+	}
+	return fmt.Sprintf("ev.FieldHandlers.%s(ev, %sev.%s.%s)", field.Handler, ptr, field.Prefix, field.Ref)
 }
 
 func fieldADPrint(field *common.StructField, handler string) string {
@@ -920,6 +928,9 @@ func getHandlers(allFields map[string]*common.StructField) map[string]string {
 			if field.Prefix == "" {
 				handler = fmt.Sprintf("%s(ev *Event) %s", field.Handler, returnType)
 			} else {
+				if field.Ref != "" {
+					continue
+				}
 				handler = fmt.Sprintf("%s(ev *Event, e *%s) %s", field.Handler, field.Struct, returnType)
 			}
 

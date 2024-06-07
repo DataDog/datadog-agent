@@ -3,47 +3,41 @@
 # This can happen when a kitchen test fails and is never retried, since that pipeline's cleanup job won't run
 periodic_kitchen_cleanup_s3:
   stage: maintenance_jobs
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/gitlab_agent_deploy$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
   rules: !reference [.on_testing_cleanup]
   script:
-    - MAX_AGE_HOURS=24 BUCKET_NAME=$DEB_TESTING_S3_BUCKET BUCKET_PREFIX=pool python3 /deploy_scripts/cleanup_s3.py
-    - MAX_AGE_HOURS=24 BUCKET_NAME=$DEB_TESTING_S3_BUCKET BUCKET_PREFIX=dists python3 /deploy_scripts/cleanup_s3.py
-    - MAX_AGE_HOURS=24 BUCKET_NAME=$RPM_TESTING_S3_BUCKET BUCKET_PREFIX=testing/ python3 /deploy_scripts/cleanup_s3.py
-    - MAX_AGE_HOURS=24 BUCKET_NAME=$RPM_TESTING_S3_BUCKET BUCKET_PREFIX=suse/testing/ python3 /deploy_scripts/cleanup_s3.py
-    - MAX_AGE_HOURS=24 BUCKET_NAME=$WIN_S3_BUCKET BUCKET_PREFIX=pipelines/A6/ python3 /deploy_scripts/cleanup_s3.py
-    - MAX_AGE_HOURS=24 BUCKET_NAME=$WIN_S3_BUCKET BUCKET_PREFIX=pipelines/A7/ python3 /deploy_scripts/cleanup_s3.py
+    - MAX_AGE_HOURS=72 BUCKET_NAME=$DEB_TESTING_S3_BUCKET BUCKET_PREFIX=pool python3 /deploy_scripts/cleanup_s3.py
+    - MAX_AGE_HOURS=72 BUCKET_NAME=$DEB_TESTING_S3_BUCKET BUCKET_PREFIX=dists python3 /deploy_scripts/cleanup_s3.py
+    - MAX_AGE_HOURS=72 BUCKET_NAME=$RPM_TESTING_S3_BUCKET BUCKET_PREFIX=testing/ python3 /deploy_scripts/cleanup_s3.py
+    - MAX_AGE_HOURS=72 BUCKET_NAME=$RPM_TESTING_S3_BUCKET BUCKET_PREFIX=suse/testing/ python3 /deploy_scripts/cleanup_s3.py
+    - MAX_AGE_HOURS=72 BUCKET_NAME=$WIN_S3_BUCKET BUCKET_PREFIX=pipelines/A6/ python3 /deploy_scripts/cleanup_s3.py
+    - MAX_AGE_HOURS=72 BUCKET_NAME=$WIN_S3_BUCKET BUCKET_PREFIX=pipelines/A7/ python3 /deploy_scripts/cleanup_s3.py
 
 # Kills any VMs that might have been left over by kitchen
 # The script only deletes VMs that have been there for >= 4 hours, which is more than the time limit
 # for Gitlab jobs (2 hours), so this should never remove a live kitchen test.
 periodic_kitchen_cleanup_azure:
   stage: maintenance_jobs
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/gitlab_agent_deploy$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
   rules: !reference [.on_main_or_testing_cleanup]
   # Note: We're not sure if the cleanup script is safe if run multiple times concurrently, so we limit
   # the job to be run one at a time.
   resource_group: azure_cleanup
   script:
-    - export ARM_SUBSCRIPTION_ID=`aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.azure_kitchen_subscription_id --with-decryption --query "Parameter.Value" --out text`
-    - export ARM_CLIENT_ID=`aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.azure_kitchen_client_id --with-decryption --query "Parameter.Value" --out text`
-    - export ARM_CLIENT_SECRET=`aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.azure_kitchen_client_secret --with-decryption --query "Parameter.Value" --out text`
-    - export ARM_TENANT_ID=`aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.azure_kitchen_tenant_id --with-decryption --query "Parameter.Value" --out text`
+    - export ARM_SUBSCRIPTION_ID=`$CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $KITCHEN_AZURE_SUBSCRIPTION_ID_SSM_NAME`
+    - export ARM_CLIENT_ID=`$CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $KITCHEN_AZURE_CLIENT_ID_SSM_NAME`
+    - export ARM_CLIENT_SECRET=`$CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $KITCHEN_AZURE_CLIENT_SECRET_SSM_NAME`
+    - export ARM_TENANT_ID=`$CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $KITCHEN_AZURE_TENANT_ID_SSM_NAME`
     # Remove kitchen resources for all existing test suite prefixes
     - RESOURCE_GROUP_PREFIX=kitchen-chef python3 /deploy_scripts/cleanup_azure.py
-    - RESOURCE_GROUP_PREFIX=kitchen-install-script python3 /deploy_scripts/cleanup_azure.py
-    - RESOURCE_GROUP_PREFIX=kitchen-upgrade python3 /deploy_scripts/cleanup_azure.py
-    - RESOURCE_GROUP_PREFIX=kitchen-step-by-step python3 /deploy_scripts/cleanup_azure.py
     - RESOURCE_GROUP_PREFIX=kitchen-win python3 /deploy_scripts/cleanup_azure.py
     - RESOURCE_GROUP_PREFIX=kitchen-security-agent python3 /deploy_scripts/cleanup_azure.py
-    - RESOURCE_GROUP_PREFIX=kitchen-system-probe python3 /deploy_scripts/cleanup_azure.py
-    - RESOURCE_GROUP_PREFIX=kitchen-process-collection python3 /deploy_scripts/cleanup_azure.py
-    - RESOURCE_GROUP_PREFIX=kitchen-container-collection python3 /deploy_scripts/cleanup_azure.py
 
 periodic_kitchen_cleanup_ec2:
   stage: maintenance_jobs
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-builders/gitlab_agent_deploy:$DATADOG_AGENT_BUILDERS
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/gitlab_agent_deploy$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
   rules: !reference [.on_main_or_testing_cleanup]
   script:

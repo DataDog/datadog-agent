@@ -60,6 +60,15 @@ const (
 
 	// RefreshUserCacheRuleID is the rule ID used to refresh users and groups cache
 	RefreshUserCacheRuleID = "refresh_user_cache"
+
+	// EBPFLessHelloMessageRuleID is the rule ID used when a hello message is received
+	EBPFLessHelloMessageRuleID = "ebpfless_hello_msg"
+	// EBPFLessHelloMessageRuleDesc is the rule description for the hello msg event
+	EBPFLessHelloMessageRuleDesc = "Hello message received"
+	// InternalCoreDumpRuleID internal core dump
+	InternalCoreDumpRuleID = "internal_core_dump"
+	// InternalCoreDumpRuleDesc internal core dump
+	InternalCoreDumpRuleDesc = "Internal Core Dump"
 )
 
 // CustomEventCommonFields represents the fields common to all custom events
@@ -92,6 +101,7 @@ func AllCustomRuleIDs() []string {
 		AnomalyDetectionRuleID,
 		NoProcessContextErrorRuleID,
 		BrokenProcessLineageErrorRuleID,
+		InternalCoreDumpRuleID,
 	}
 }
 
@@ -137,14 +147,9 @@ func (ce *CustomEvent) GetType() string {
 	return ce.eventType.String()
 }
 
-// GetActions returns the triggred actions
-func (ce *CustomEvent) GetActions() []*model.ActionTriggered {
+// GetActionReports returns reports of the action triggered
+func (ce *CustomEvent) GetActionReports() []model.ActionReport {
 	return nil
-}
-
-// IsSuppressed returns true if the event is suppressed
-func (ce *CustomEvent) IsSuppressed() bool {
-	return false
 }
 
 // GetWorkloadID returns the workload id

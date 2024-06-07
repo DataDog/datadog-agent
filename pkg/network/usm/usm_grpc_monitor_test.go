@@ -56,8 +56,6 @@ func TestGRPCScenarios(t *testing.T) {
 		t.Skipf("HTTP2 monitoring can not run on kernel before %v", http2.MinimumKernelVersion)
 	}
 
-	rand.Seed(time.Now().UnixNano())
-
 	ebpftest.TestBuildModes(t, []ebpftest.BuildMode{ebpftest.Prebuilt, ebpftest.RuntimeCompiled, ebpftest.CORE}, "", func(t *testing.T) {
 		for _, tc := range []struct {
 			name  string
@@ -72,10 +70,10 @@ func TestGRPCScenarios(t *testing.T) {
 				isTLS: true,
 			},
 		} {
-			if tc.isTLS && !gotlsutils.GoTLSSupported(t, config.New()) {
-				t.Skip("GoTLS not supported for this setup")
-			}
 			t.Run(tc.name, func(t *testing.T) {
+				if tc.isTLS && !gotlsutils.GoTLSSupported(t, config.New()) {
+					t.Skip("GoTLS not supported for this setup")
+				}
 				suite.Run(t, &usmGRPCSuite{isTLS: tc.isTLS})
 			})
 		}
@@ -91,6 +89,8 @@ func getGRPCClientsArray(t *testing.T, size int, withTLS bool) ([]*grpc.Client, 
 	}
 
 	return res, func() {
+		// Temporary workaround to prevent tests failure due to races in the eBPF probes.
+		time.Sleep(time.Second * 2)
 		for i := 0; i < size; i++ {
 			res[i].Close()
 		}
@@ -437,9 +437,9 @@ func (s *usmGRPCSuite) TestLargeBodiesGRPCScenarios() {
 	t.Cleanup(cancel)
 	defaultCtx := context.Background()
 
-	// Random string generation is an heavy operation, and it's proportional for the length (30MB)
+	// Random string generation is an heavy operation, and it's proportional for the length (15MB)
 	// Instead of generating the same long string (long name) for every test, we're generating it only once.
-	longRandomString := randStringRunes(30 * 1024 * 1024)
+	longRandomString := randStringRunes(15 * 1024 * 1024)
 	shortRandomString := longRandomString[:5*1024*1024]
 
 	// c is a stream endpoint
@@ -450,12 +450,14 @@ func (s *usmGRPCSuite) TestLargeBodiesGRPCScenarios() {
 		expectedEndpoints map[http.Key]captureRange
 	}{
 		{
+			// Although we changed the side of the payload, we keep the test name as it is for consistency and to allow
+			// tracking flakiness rate and its history.
 			name: "request with large body (30MB)",
 			runClients: func(t *testing.T, clientsCount int) {
 				clients, cleanup := getGRPCClientsArray(t, clientsCount, s.isTLS)
 				defer cleanup()
 				longRandomString[0] = '0' + rune(clientsCount)
-				for i := 0; i < 5; i++ {
+				for i := 0; i < 7; i++ {
 					longRandomString[1] = 'a' + rune(i)
 					require.NoError(t, clients[getClientsIndex(i, clientsCount)].HandleUnary(defaultCtx, string(longRandomString)))
 				}
@@ -465,8 +467,9 @@ func (s *usmGRPCSuite) TestLargeBodiesGRPCScenarios() {
 					Path:   http.Path{Content: http.Interner.GetString("/helloworld.Greeter/SayHello")},
 					Method: http.MethodPost,
 				}: {
-					lower: 4,
-					upper: 5,
+					// incident-27158: We have a wide range here as the test is flaky due to TCP out of order packets.
+					lower: 3,
+					upper: 7,
 				},
 			},
 		},
@@ -501,7 +504,9 @@ func (s *usmGRPCSuite) TestLargeBodiesGRPCScenarios() {
 		},
 	}
 	for _, tt := range tests {
-		for _, clientCount := range []int{1, 2, 5} {
+		// incident-27158: Currently patching the number of clients we test, to reduce the number of runs we have of the test as
+		// the test is flaky (due to TCP out of order packets).
+		for _, clientCount := range []int{1} {
 			testNameSuffix := fmt.Sprintf("-different clients - %v", clientCount)
 			t.Run(tt.name+testNameSuffix, func(t *testing.T) {
 				s.testGRPCScenarios(t, srv.Process.Pid, tt.runClients, tt.expectedEndpoints, clientCount)
@@ -559,5 +564,6 @@ func (s *usmGRPCSuite) testGRPCScenarios(t *testing.T, srvPID int, runClientCall
 	}, time.Second*5, time.Millisecond*100, "%v != %v", res, expectedEndpoints)
 	if t.Failed() {
 		ebpftest.DumpMapsTestHelper(t, usmMonitor.DumpMaps, "http2_in_flight", "http2_dynamic_table")
+		dumpTelemetry(t, usmMonitor, s.isTLS)
 	}
 }

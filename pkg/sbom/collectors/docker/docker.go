@@ -12,49 +12,58 @@ import (
 	"fmt"
 	"reflect"
 
-	"github.com/docker/docker/client"
-
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
-	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/sbom"
 	"github.com/DataDog/datadog-agent/pkg/sbom/collectors"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/docker"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"github.com/DataDog/datadog-agent/pkg/util/trivy"
+
+	"github.com/docker/docker/client"
 )
 
-const (
-	collectorName = "docker"
-)
+// resultChanSize defines the result channel size
+// 1000 is already a very large default value
+const resultChanSize = 1000
 
-// ScanRequest defines a scan request
-type ScanRequest struct {
-	ImageMeta    *workloadmeta.ContainerImageMetadata
-	DockerClient client.ImageAPIClient
+type scannerFunc func(ctx context.Context, imgMeta *workloadmeta.ContainerImageMetadata, client client.ImageAPIClient, scanOptions sbom.ScanOptions) (sbom.Report, error)
+
+// scanRequest defines a scan request. This struct should be
+// hashable to be pushed in the work queue for processing.
+type scanRequest struct {
+	imageID string
 }
 
-// GetImgMetadata returns the image metadata
-func (r *ScanRequest) GetImgMetadata() *workloadmeta.ContainerImageMetadata {
-	return r.ImageMeta
+// NewScanRequest creates a new scan request
+func NewScanRequest(imageID string) sbom.ScanRequest {
+	return scanRequest{imageID: imageID}
 }
 
 // Collector returns the collector name
-func (r *ScanRequest) Collector() string {
-	return collectorName
+func (r scanRequest) Collector() string {
+	return collectors.DockerCollector
 }
 
 // Type returns the scan request type
-func (r *ScanRequest) Type() string {
-	return "daemon"
+func (r scanRequest) Type(sbom.ScanOptions) string {
+	return sbom.ScanDaemonType
 }
 
 // ID returns the scan request ID
-func (r *ScanRequest) ID() string {
-	return r.ImageMeta.ID
+func (r scanRequest) ID() string {
+	return r.imageID
 }
 
 // Collector defines a collector
 type Collector struct {
 	trivyCollector *trivy.Collector
+	resChan        chan sbom.ScanResult
+	opts           sbom.ScanOptions
+	cl             client.ImageAPIClient
+	wmeta          optional.Option[workloadmeta.Component]
+
+	closed bool
 }
 
 // CleanCache cleans the cache
@@ -63,40 +72,87 @@ func (c *Collector) CleanCache() error {
 }
 
 // Init initializes the collector
-func (c *Collector) Init(cfg config.Config) error {
-	trivyCollector, err := trivy.GetGlobalCollector(cfg)
+func (c *Collector) Init(cfg config.Component, wmeta optional.Option[workloadmeta.Component]) error {
+	trivyCollector, err := trivy.GetGlobalCollector(cfg, wmeta)
 	if err != nil {
 		return err
 	}
+	c.wmeta = wmeta
 	c.trivyCollector = trivyCollector
+	c.opts = sbom.ScanOptionsFromConfig(cfg, true)
 	return nil
 }
 
 // Scan performs a scan
-func (c *Collector) Scan(ctx context.Context, request sbom.ScanRequest, opts sbom.ScanOptions) sbom.ScanResult {
-	dockerScanRequest, ok := request.(*ScanRequest)
+func (c *Collector) Scan(ctx context.Context, request sbom.ScanRequest) sbom.ScanResult {
+	dockerScanRequest, ok := request.(scanRequest)
 	if !ok {
-		return sbom.ScanResult{Error: fmt.Errorf("invalid request type '%s' for collector '%s'", reflect.TypeOf(request), collectorName)}
+		return sbom.ScanResult{Error: fmt.Errorf("invalid request type '%s' for collector '%s'", reflect.TypeOf(request), collectors.DockerCollector)}
 	}
 
-	if dockerScanRequest.ImageMeta != nil {
-		log.Infof("docker scan request [%v]: scanning image %v", dockerScanRequest.ID(), dockerScanRequest.ImageMeta.Name)
+	if c.cl == nil {
+		cl, err := docker.GetDockerUtil()
+		if err != nil {
+			return sbom.ScanResult{Error: fmt.Errorf("error creating docker client: %s", err)}
+		}
+		c.cl = cl.RawClient()
 	}
 
-	report, err := c.trivyCollector.ScanDockerImage(
+	wmeta, ok := c.wmeta.Get()
+	if !ok {
+		return sbom.ScanResult{Error: fmt.Errorf("workloadmeta store is not initialized")}
+	}
+
+	imageMeta, err := wmeta.GetImage(dockerScanRequest.ID())
+	if err != nil {
+		return sbom.ScanResult{Error: fmt.Errorf("image metadata not found for image id %s: %s", dockerScanRequest.ID(), err)}
+	}
+
+	var scanner scannerFunc
+	if c.opts.OverlayFsScan {
+		scanner = c.trivyCollector.ScanDockerImageFromGraphDriver
+	} else {
+		scanner = c.trivyCollector.ScanDockerImage
+	}
+	report, err := scanner(
 		ctx,
-		dockerScanRequest.ImageMeta,
-		dockerScanRequest.DockerClient,
-		opts,
+		imageMeta,
+		c.cl,
+		c.opts,
 	)
 
 	return sbom.ScanResult{
 		Error:   err,
 		Report:  report,
-		ImgMeta: dockerScanRequest.ImageMeta,
+		ImgMeta: imageMeta,
 	}
 }
 
+// Type returns the container image scan type
+func (c *Collector) Type() collectors.ScanType {
+	return collectors.ContainerImageScanType
+}
+
+// Channel returns the channel to send scan results
+func (c *Collector) Channel() chan sbom.ScanResult {
+	return c.resChan
+}
+
+// Options returns the collector options
+func (c *Collector) Options() sbom.ScanOptions {
+	return c.opts
+}
+
+// Shutdown shuts down the collector
+func (c *Collector) Shutdown() {
+	if c.resChan != nil && !c.closed {
+		close(c.resChan)
+	}
+	c.closed = true
+}
+
 func init() {
-	collectors.RegisterCollector(collectorName, &Collector{})
+	collectors.RegisterCollector(collectors.DockerCollector, &Collector{
+		resChan: make(chan sbom.ScanResult, resultChanSize),
+	})
 }

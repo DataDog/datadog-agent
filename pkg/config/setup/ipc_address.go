@@ -15,28 +15,24 @@ import (
 
 // GetIPCAddress returns the IPC address or an error if the address is not local
 func GetIPCAddress(config pkgconfigmodel.Reader) (string, error) {
-	return getIPCAddress(config)
-}
-
-// GetIPCPort returns the IPC port
-func GetIPCPort() string {
-	return Datadog.GetString("cmd_port")
-}
-
-func getIPCAddress(cfg pkgconfigmodel.Reader) (string, error) {
 	var key string
 	// ipc_address is deprecated in favor of cmd_host, but we still need to support it
 	// if it is set, use it, otherwise use cmd_host
-	if cfg.IsSet("ipc_address") {
+	if config.IsSet("ipc_address") {
 		log.Warn("ipc_address is deprecated, use cmd_host instead")
 		key = "ipc_address"
 	} else {
 		key = "cmd_host"
 	}
 
-	address, err := system.IsLocalAddress(cfg.GetString(key))
+	address, err := system.IsLocalAddress(config.GetString(key))
 	if err != nil {
 		return "", fmt.Errorf("%s: %s", key, err)
 	}
 	return address, nil
+}
+
+// GetIPCPort returns the IPC port
+func GetIPCPort() string {
+	return Datadog().GetString("cmd_port")
 }

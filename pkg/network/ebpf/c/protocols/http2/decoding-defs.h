@@ -13,10 +13,10 @@
 #define HTTP2_MAX_FRAMES_FOR_EOS_PARSER (HTTP2_MAX_FRAMES_FOR_EOS_PARSER_PER_TAIL_CALL * HTTP2_MAX_TAIL_CALLS_FOR_EOS_PARSER)
 
 // Represents the maximum number of frames we'll process in a single tail call in `handle_headers_frames` program.
-#define HTTP2_MAX_FRAMES_FOR_HEADERS_PARSER_PER_TAIL_CALL 19
+#define HTTP2_MAX_FRAMES_FOR_HEADERS_PARSER_PER_TAIL_CALL 18
 // Represents the maximum number of tail calls to process headers frames.
-// Currently we have up to 240 frames in a packet, thus 13 (13*19 = 247) tail calls is enough.
-#define HTTP2_MAX_TAIL_CALLS_FOR_HEADERS_PARSER 13
+// Currently we have up to 240 frames in a packet, thus 14 (14*18 = 252) tail calls is enough.
+#define HTTP2_MAX_TAIL_CALLS_FOR_HEADERS_PARSER 14
 #define HTTP2_MAX_FRAMES_FOR_HEADERS_PARSER (HTTP2_MAX_FRAMES_FOR_HEADERS_PARSER_PER_TAIL_CALL * HTTP2_MAX_TAIL_CALLS_FOR_HEADERS_PARSER)
 // Maximum number of frames to be processed in a single tail call.
 #define HTTP2_MAX_FRAMES_ITERATIONS 240
@@ -45,6 +45,14 @@
 
 // A limit of max pseudo headers which we process in the request/response.
 #define HTTP2_MAX_PSEUDO_HEADERS_COUNT_FOR_FILTERING 4
+
+// Threshold to to trigger the dynamic table cleanup.
+#define HTTP2_DYNAMIC_TABLE_CLEANUP_THRESHOLD 200
+// Represents the maximum number of dynamic_table entries to clean up in a single tail call.
+// This number is above the HTTP2_DYNAMIC_TABLE_CLEANUP_THRESHOLD to ensure that we clean up all entries, and not missing
+// anything.
+#define HTTP2_DYNAMIC_TABLE_CLEANUP_ITERATIONS 300
+
 
 // Per request or response we have fewer headers than HTTP2_MAX_HEADERS_COUNT_FOR_FILTERING that are interesting us.
 // For request - those are method, path. For response - status code.
@@ -91,13 +99,6 @@
 #define HTTP2_CONTENT_TYPE_IDX 31
 
 #define MAX_FRAME_SIZE 16384
-
-// Definitions representing empty and /index.html paths. These types are sent using the static table.
-// We include these to eliminate the necessity of copying the specified encoded path to the buffer.
-#define HTTP2_ROOT_PATH      "/"
-#define HTTP2_ROOT_PATH_LEN  (sizeof(HTTP2_ROOT_PATH) - 1)
-#define HTTP2_INDEX_PATH     "/index.html"
-#define HTTP2_INDEX_PATH_LEN (sizeof(HTTP2_INDEX_PATH) - 1)
 
 typedef enum {
     kGET = 2,
@@ -156,16 +157,23 @@ typedef struct {
 } method_t;
 
 typedef struct {
+    __u8 raw_buffer[HTTP2_MAX_PATH_LEN];
+    bool is_huffman_encoded;
+
+    __u8 static_table_entry;
+    __u8 length;
+    bool finalized;
+} path_t;
+
+typedef struct {
     __u64 response_last_seen;
     __u64 request_started;
+    __u8 tags;
 
     status_code_t status_code;
     method_t request_method;
-    __u8 path_size;
-    bool request_end_of_stream;
-    bool is_huffman_encoded;
-
-    __u8 request_path[HTTP2_MAX_PATH_LEN] __attribute__((aligned(8)));
+    path_t path;
+    bool end_of_stream_seen;
 } http2_stream_t;
 
 typedef struct {
@@ -222,19 +230,25 @@ typedef struct {
 // response_seen                        Count of HTTP/2 responses seen
 // end_of_stream                        Count of END STREAM flag seen
 // end_of_stream_rst                    Count of RST flags seen
-// path_exceeds_frame                   Count of times we couldn't retrieve the path due to reaching the end of the frame.
+// literal_value_exceeds_frame          Count of times we couldn't retrieve the literal value due to reaching the end of the frame.
 // exceeding_max_interesting_frames		Count of times we reached the max number of frames per iteration.
 // exceeding_max_frames_to_filter		Count of times we have left with more frames to filter than the max number of frames to filter.
 // path_size_bucket                     Count of path sizes and divided into buckets.
+// frames_split_count                   Count of times we tried to read more data than the end of the data end.
 typedef struct {
     __u64 request_seen;
     __u64 response_seen;
     __u64 end_of_stream;
     __u64 end_of_stream_rst;
-    __u64 path_exceeds_frame;
+    __u64 literal_value_exceeds_frame;
     __u64 exceeding_max_interesting_frames;
     __u64 exceeding_max_frames_to_filter;
     __u64 path_size_bucket[HTTP2_TELEMETRY_PATH_BUCKETS+1];
 } http2_telemetry_t;
+
+typedef struct {
+    __u64 value;
+    __u64 previous;
+} dynamic_counter_t;
 
 #endif

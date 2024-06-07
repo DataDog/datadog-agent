@@ -18,9 +18,10 @@ import (
 	"github.com/vishvananda/netlink"
 	"go.uber.org/atomic"
 
+	"github.com/DataDog/datadog-agent/pkg/eventmonitor"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
-	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/runtime"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -37,7 +38,7 @@ var (
 		// Must initialize the sets, as we can register callbacks prior to calling Initialize.
 		processExecCallbacks: make(map[*ProcessCallback]struct{}, 0),
 		processExitCallbacks: make(map[*ProcessCallback]struct{}, 0),
-		oversizedLogLimit:    util.NewLogLimit(10, 10*time.Minute),
+		oversizedLogLimit:    log.NewLogLimit(10, 10*time.Minute),
 	}
 )
 
@@ -107,6 +108,8 @@ type ProcessMonitor struct {
 	netlinkDoneChannel   chan struct{}
 	netlinkErrorsChannel chan error
 
+	useEventStream bool
+
 	// callback registration and parallel execution management
 
 	hasExecCallbacks          atomic.Bool
@@ -124,7 +127,7 @@ type ProcessMonitor struct {
 
 	tel processMonitorTelemetry
 
-	oversizedLogLimit *util.LogLimit
+	oversizedLogLimit *log.Limit
 }
 
 // ProcessCallback is a callback function that is called on a given pid that represents a new process.
@@ -259,6 +262,11 @@ func (pm *ProcessMonitor) initCallbackRunner() {
 	}
 }
 
+func (pm *ProcessMonitor) stopCallbackRunners() {
+	close(pm.callbackRunnerStopChannel)
+	pm.callbackRunnersWG.Wait()
+}
+
 // mainEventLoop is an event loop receiving events from netlink, or periodic events, and handles them.
 func (pm *ProcessMonitor) mainEventLoop() {
 	log.Info("process monitor main event loop is starting")
@@ -269,9 +277,7 @@ func (pm *ProcessMonitor) mainEventLoop() {
 		// Marking netlink to stop, so we won't get any new events.
 		close(pm.netlinkDoneChannel)
 
-		// waiting for the callbacks runners to finish
-		close(pm.callbackRunnerStopChannel)
-		pm.callbackRunnersWG.Wait()
+		pm.stopCallbackRunners()
 
 		// We intentionally don't close the callbackRunner channel,
 		// as we don't want to panic if we're trying to send to it in another goroutine.
@@ -348,14 +354,24 @@ func (pm *ProcessMonitor) mainEventLoop() {
 //  2. Initializes the netlink process monitor.
 //  2. Run the main event loop in a goroutine.
 //  4. Scans already running processes and call the Exec callbacks on them.
-func (pm *ProcessMonitor) Initialize() error {
+func (pm *ProcessMonitor) Initialize(useEventStream bool) error {
 	var initErr error
 	pm.initOnce.Do(
 		func() {
-			log.Info("initializing process monitor")
+			method := "netlink"
+			if useEventStream {
+				method = "event stream"
+			}
+			log.Infof("initializing process monitor (%s)", method)
 			pm.tel = newProcessMonitorTelemetry()
+
+			pm.useEventStream = useEventStream
 			pm.done = make(chan struct{})
 			pm.initCallbackRunner()
+
+			if useEventStream {
+				return
+			}
 
 			pm.processMonitorWG.Add(1)
 			// Setting up the main loop
@@ -443,7 +459,17 @@ func (pm *ProcessMonitor) Stop() {
 	log.Info("process monitor stopping due to a refcount of 0")
 	if pm.done != nil {
 		close(pm.done)
-		pm.processMonitorWG.Wait()
+
+		if pm.useEventStream {
+			// For the netlink case, the callback runners are waited for by the
+			// main event loop which we wait for with `processMonitorWG` below.
+			// However, for the event stream case, we don't have that event
+			// loop, so wait here for the callback runners.
+			pm.stopCallbackRunners()
+		} else {
+			pm.processMonitorWG.Wait()
+		}
+
 		pm.done = nil
 	}
 
@@ -485,4 +511,78 @@ func FindDeletedProcesses[V any](pids map[uint32]V) map[uint32]struct{} {
 	}
 
 	return res
+}
+
+// Event defines the event used by the process monitor
+type Event struct {
+	Type model.EventType
+	Pid  uint32
+}
+
+// EventConsumer defines an event consumer to handle event monitor events in the
+// process monitor
+type EventConsumer struct{}
+
+// NewProcessMonitorEventConsumer returns a new process monitor event consumer
+func NewProcessMonitorEventConsumer(em *eventmonitor.EventMonitor) (*EventConsumer, error) {
+	consumer := &EventConsumer{}
+	err := em.AddEventConsumer(consumer)
+	return consumer, err
+}
+
+// ChanSize returns the channel size used by this consumer
+func (ec *EventConsumer) ChanSize() int {
+	return 100
+}
+
+// ID returns the ID of this consumer
+func (ec *EventConsumer) ID() string {
+	return "PROCESS_MONITOR"
+}
+
+// Start the consumer
+func (ec *EventConsumer) Start() error {
+	return nil
+}
+
+// Stop the consumer
+func (ec *EventConsumer) Stop() {
+}
+
+// EventTypes returns the event types handled by this consumer
+func (ec *EventConsumer) EventTypes() []model.EventType {
+	return []model.EventType{
+		model.ExecEventType,
+		model.ExitEventType,
+	}
+}
+
+// HandleEvent handles events received from the event monitor
+func (ec *EventConsumer) HandleEvent(event any) {
+	sevent, ok := event.(*Event)
+	if !ok {
+		return
+	}
+
+	processMonitor.tel.events.Add(1)
+	switch sevent.Type {
+	case model.ExecEventType:
+		processMonitor.tel.exec.Add(1)
+		if processMonitor.hasExecCallbacks.Load() {
+			processMonitor.handleProcessExec(sevent.Pid)
+		}
+	case model.ExitEventType:
+		processMonitor.tel.exit.Add(1)
+		if processMonitor.hasExitCallbacks.Load() {
+			processMonitor.handleProcessExit(sevent.Pid)
+		}
+	}
+}
+
+// Copy should copy the given event or return nil to discard it
+func (ec *EventConsumer) Copy(event *model.Event) any {
+	return &Event{
+		Type: event.GetEventType(),
+		Pid:  event.GetProcessPid(),
+	}
 }

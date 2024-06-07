@@ -21,13 +21,13 @@ import (
 	"go.uber.org/atomic"
 
 	logsconfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
-	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	ddhttputil "github.com/DataDog/datadog-agent/pkg/util/http"
+	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
 type tooLargeEntityStatsEntry struct {
@@ -49,7 +49,7 @@ func NewActivityDumpRemoteStorage() (ActivityDumpStorage, error) {
 	storage := &ActivityDumpRemoteStorage{
 		tooLargeEntities: make(map[tooLargeEntityStatsEntry]*atomic.Uint64),
 		client: &http.Client{
-			Transport: ddhttputil.CreateHTTPTransport(pkgconfig.Datadog),
+			Transport: ddhttputil.CreateHTTPTransport(pkgconfig.Datadog()),
 		},
 	}
 
@@ -69,7 +69,9 @@ func NewActivityDumpRemoteStorage() (ActivityDumpStorage, error) {
 	}
 	for _, endpoint := range endpoints.GetReliableEndpoints() {
 		storage.urls = append(storage.urls, utils.GetEndpointURL(endpoint, "api/v2/secdump"))
-		storage.apiKeys = append(storage.apiKeys, endpoint.APIKey)
+		// TODO - runtime API key refresh: Storing the API key like this will no longer be valid once the
+		// security agent support API key refresh at runtime.
+		storage.apiKeys = append(storage.apiKeys, endpoint.GetAPIKey())
 	}
 
 	return storage, nil
@@ -200,12 +202,12 @@ func (storage *ActivityDumpRemoteStorage) Persist(request config.StorageRequest,
 }
 
 // SendTelemetry sends telemetry for the current storage
-func (storage *ActivityDumpRemoteStorage) SendTelemetry(sender sender.Sender) {
+func (storage *ActivityDumpRemoteStorage) SendTelemetry(sender statsd.ClientInterface) {
 	// send too large entity metric
 	for entry, count := range storage.tooLargeEntities {
 		if entityCount := count.Swap(0); entityCount > 0 {
 			tags := []string{fmt.Sprintf("format:%s", entry.storageFormat.String()), fmt.Sprintf("compression:%v", entry.compression)}
-			sender.Count(metrics.MetricActivityDumpEntityTooLarge, float64(entityCount), "", tags)
+			_ = sender.Count(metrics.MetricActivityDumpEntityTooLarge, int64(entityCount), tags, 1.0)
 		}
 	}
 }

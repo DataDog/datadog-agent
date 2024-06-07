@@ -14,8 +14,8 @@ import (
 	"math/rand"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster"
@@ -114,7 +114,7 @@ func (o *OrchestratorCheck) Interval() time.Duration {
 func (o *OrchestratorCheck) Configure(senderManager sender.SenderManager, integrationConfigDigest uint64, config, initConfig integration.Data, source string) error {
 	o.BuildID(integrationConfigDigest, config, initConfig)
 
-	err := o.CommonConfigure(senderManager, integrationConfigDigest, initConfig, config, source)
+	err := o.CommonConfigure(senderManager, initConfig, config, source)
 	if err != nil {
 		return err
 	}
@@ -176,7 +176,7 @@ func (o *OrchestratorCheck) Run() error {
 	// we also do a safety check for dedicated runners to avoid trying the leader election
 	if !o.isCLCRunner || !o.instance.LeaderSkip {
 		// Only run if Leader Election is enabled.
-		if !config.Datadog.GetBool("leader_election") {
+		if !config.Datadog().GetBool("leader_election") {
 			return log.Errorc("Leader Election not enabled. The cluster-agent will not run the check.", orchestrator.ExtraLogContext...)
 		}
 

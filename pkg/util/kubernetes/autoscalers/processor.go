@@ -22,7 +22,7 @@ import (
 
 	"github.com/DataDog/watermarkpodautoscaler/api/v1alpha1"
 
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/custommetrics"
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/custommetrics"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -61,7 +61,7 @@ type queryResponse struct {
 
 // NewProcessor returns a new Processor
 func NewProcessor(datadogCl DatadogClient) *Processor {
-	externalMaxAge := math.Max(config.Datadog.GetFloat64("external_metrics_provider.max_age"), 3*config.Datadog.GetFloat64("external_metrics_provider.rollup"))
+	externalMaxAge := math.Max(config.Datadog().GetFloat64("external_metrics_provider.max_age"), 3*config.Datadog().GetFloat64("external_metrics_provider.rollup"))
 	return &Processor{
 		externalMaxAge: time.Duration(externalMaxAge) * time.Second,
 		datadogClient:  datadogCl,
@@ -114,24 +114,24 @@ func (p *Processor) ProcessWPAs(wpa *v1alpha1.WatermarkPodAutoscaler) map[string
 
 // GetDefaultMaxAge returns the configured default max age.
 func GetDefaultMaxAge() time.Duration {
-	return time.Duration(config.Datadog.GetInt64("external_metrics_provider.max_age")) * time.Second
+	return time.Duration(config.Datadog().GetInt64("external_metrics_provider.max_age")) * time.Second
 }
 
 // GetDefaultTimeWindow returns the configured default time window
 func GetDefaultTimeWindow() time.Duration {
-	return time.Duration(config.Datadog.GetInt64("external_metrics_provider.bucket_size")) * time.Second
+	return time.Duration(config.Datadog().GetInt64("external_metrics_provider.bucket_size")) * time.Second
 }
 
 // GetDefaultMaxTimeWindow returns the configured max time window
 func GetDefaultMaxTimeWindow() time.Duration {
-	return time.Duration(config.Datadog.GetInt64("external_metrics_provider.max_time_window")) * time.Second
+	return time.Duration(config.Datadog().GetInt64("external_metrics_provider.max_time_window")) * time.Second
 }
 
 // UpdateExternalMetrics does the validation and processing of the ExternalMetrics
 // TODO if a metric's ts in emList is too recent, no need to add it to the batchUpdate.
 func (p *Processor) UpdateExternalMetrics(emList map[string]custommetrics.ExternalMetricValue) (updated map[string]custommetrics.ExternalMetricValue) {
-	aggregator := config.Datadog.GetString("external_metrics.aggregator")
-	rollup := config.Datadog.GetInt("external_metrics_provider.rollup")
+	aggregator := config.Datadog().GetString("external_metrics.aggregator")
+	rollup := config.Datadog().GetInt("external_metrics_provider.rollup")
 	maxAge := int64(p.externalMaxAge.Seconds())
 	var err error
 	updated = make(map[string]custommetrics.ExternalMetricValue)
@@ -227,7 +227,7 @@ func isURLBeyondLimits(uriLength, numBuckets int) (bool, error) {
 		return true, fmt.Errorf("Query is too long, could yield a server side error. Dropping")
 	}
 
-	chunkSize := config.Datadog.GetInt("external_metrics_provider.chunk_size")
+	chunkSize := config.Datadog().GetInt("external_metrics_provider.chunk_size")
 
 	return uriLength >= maxCharactersPerChunk || numBuckets >= chunkSize, nil
 }

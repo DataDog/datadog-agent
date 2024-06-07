@@ -225,7 +225,6 @@ spec:
         command: [sh]
         source: |
           set -euo pipefail
-          set -x
 
           kubectl delete pods -l app=busybox --namespace {{inputs.parameters.namespace}}
 
@@ -254,7 +253,6 @@ spec:
         command: [sh]
         source: |
           set -euo pipefail
-          set -x
 
           until kubectl get pods -o json --namespace {{inputs.parameters.namespace}} | jq '.items[] | select(.spec.containers[].env[]? | .name == "{{inputs.parameters.envKey}}" and .valueFrom.fieldRef.fieldPath == "{{inputs.parameters.envFieldPath}}") | .metadata.name' | grep {{inputs.parameters.target}}; do
             sleep 2
@@ -273,7 +271,6 @@ spec:
         command: [sh]
         source: |
           set -euo pipefail
-          set -x
 
           until kubectl get pods -o json --namespace {{inputs.parameters.namespace}} | jq '.items[] | select(.spec.containers[].env[]? | .name == "{{inputs.parameters.envKey}}" and .value == "{{inputs.parameters.envValue}}") | .metadata.name' | grep {{inputs.parameters.target}}; do
             sleep 2
@@ -292,7 +289,6 @@ spec:
         command: [sh]
         source: |
           set -euo pipefail
-          set -x
 
           until kubectl get pods -o json --namespace {{inputs.parameters.namespace}} | jq '.items[] | select(.spec.containers[].volumeMounts[]? | .name == "{{inputs.parameters.volumeName}}" and .mountPath == "{{inputs.parameters.volumePath}}") | .metadata.name' | grep {{inputs.parameters.target}}; do
             sleep 2
@@ -316,7 +312,6 @@ spec:
         command: [sh]
         source: |
           set -euo pipefail
-          set -x
 
           until kubectl get pods -o json --namespace {{inputs.parameters.namespace}} | jq '.items[] | select(.spec.volumes[]? | .name == "{{inputs.parameters.volumeName}}" and .hostPath.path == "{{inputs.parameters.volumePath}}") | .metadata.name' | grep {{inputs.parameters.target}}; do
             sleep 2
@@ -334,7 +329,6 @@ spec:
         command: [sh]
         source: |
           set -euo pipefail
-          set -x
 
           until kubectl get pods -o json --namespace {{inputs.parameters.namespace}} | jq '.items[] | select(.spec.volumes[]? | .name == "{{inputs.parameters.volumeName}}" and .emptyDir == {} ) | .metadata.name' | grep {{inputs.parameters.target}}; do
             sleep 2
@@ -486,7 +480,7 @@ spec:
                 - name: namespace
                   value: "{{inputs.parameters.namespace}}"
                 - name: envValue
-                  value: " -javaagent:/datadog-lib/dd-java-agent.jar -XX:OnError=/datadog-lib/continuousprofiler/tmp/dd_crash_uploader.sh -XX:ErrorFile=/datadog-lib/continuousprofiler/tmp/hs_err_pid_%p.log"
+                  value: " -javaagent:/datadog-lib/dd-java-agent.jar -XX:OnError=/datadog-lib/java/continuousprofiler/tmp/dd_crash_uploader.sh -XX:ErrorFile=/datadog-lib/java/continuousprofiler/tmp/hs_err_pid_%p.log"
                 - name: envKey
                   value: JAVA_TOOL_OPTIONS
                 - name: target
@@ -654,6 +648,5 @@ spec:
         command: [sh]
         source: |
           set -euo pipefail
-          set -x
 
           kubectl describe pods -l app=busybox --namespace {{inputs.parameters.namespace}}

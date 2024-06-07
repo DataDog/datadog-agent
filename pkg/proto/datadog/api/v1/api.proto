@@ -108,6 +108,20 @@ service AgentSecure {
         };
     };
 
+    rpc ClientGetConfigsHA(datadog.config.ClientGetConfigsRequest) returns (datadog.config.ClientGetConfigsResponse) {
+        option (google.api.http) = {
+            post: "/v1/grpc/remoteconfig/configs_ha"
+            body: "*"
+        };
+    };
+
+    rpc GetConfigStateHA(google.protobuf.Empty) returns (datadog.config.GetStateConfigResponse) {
+        option (google.api.http) = {
+            post: "/v1/grpc/remoteconfig/state_ha"
+            body: "*"
+        };
+    };
+
     // Subscribes to added, removed, or changed entities in the Workloadmeta and
     // streams them to clients as events.
     // Can be called through the HTTP gateway, and events will be streamed as JSON.

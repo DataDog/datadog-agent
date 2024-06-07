@@ -14,7 +14,7 @@ import (
 	"github.com/prometheus/common/model"
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
-	"github.com/DataDog/datadog-agent/comp/core/tagger/collectors"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
@@ -77,7 +77,7 @@ func (p *PodUtils) PopulateForPod(pod *kubelet.Pod) {
 // volume name.
 func (p *PodUtils) computePodTagsByPVC(pod *kubelet.Pod) {
 	podUID := kubelet.PodUIDToTaggerEntityName(pod.Metadata.UID)
-	tags, _ := tagger.Tag(podUID, collectors.OrchestratorCardinality)
+	tags, _ := tagger.Tag(podUID, types.OrchestratorCardinality)
 	if len(tags) == 0 {
 		return
 	}

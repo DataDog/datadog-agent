@@ -11,7 +11,7 @@ import (
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
-	"github.com/DataDog/datadog-agent/comp/core/tagger/collectors"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
@@ -42,20 +42,20 @@ func (t *unbundledTransformer) Transform(events []*docker.ContainerEvent) ([]eve
 	)
 
 	for _, ev := range events {
-		if _, ok := t.collectedEventTypes[ev.Action]; !ok {
+		if _, ok := t.collectedEventTypes[string(ev.Action)]; !ok {
 			continue
 		}
 
-		alertType := event.EventAlertTypeInfo
+		alertType := event.AlertTypeInfo
 		if isAlertTypeError(ev.Action) {
-			alertType = event.EventAlertTypeError
+			alertType = event.AlertTypeError
 		}
 
 		emittedEvents.Inc(string(alertType))
 
 		tags, err := tagger.Tag(
 			containers.BuildTaggerEntityName(ev.ContainerID),
-			collectors.HighCardinality,
+			types.HighCardinality,
 		)
 		if err != nil {
 			log.Debugf("no tags for container %q: %s", ev.ContainerID, err)
@@ -67,7 +67,7 @@ func (t *unbundledTransformer) Transform(events []*docker.ContainerEvent) ([]eve
 			Title:          fmt.Sprintf("Container %s: %s", ev.ContainerID, ev.Action),
 			Text:           fmt.Sprintf("Container %s (running image %q): %s", ev.ContainerID, ev.ImageName, ev.Action),
 			Tags:           tags,
-			Priority:       event.EventPriorityNormal,
+			Priority:       event.PriorityNormal,
 			Host:           t.hostname,
 			SourceTypeName: CheckName,
 			EventType:      CheckName,

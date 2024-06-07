@@ -8,51 +8,111 @@
 package kubeapiserver
 
 import (
+	"reflect"
 	"strings"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	fakediscovery "k8s.io/client-go/discovery/fake"
+	fakeclientset "k8s.io/client-go/kubernetes/fake"
+
+	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
 func TestStoreGenerators(t *testing.T) {
 	// Define tests
 	tests := []struct {
 		name                    string
-		cfg                     map[string]bool
+		cfg                     map[string]interface{}
 		expectedStoresGenerator []storeGenerator
 	}{
 		{
 			name: "All configurations disabled",
-			cfg: map[string]bool{
+			cfg: map[string]interface{}{
 				"cluster_agent.collect_kubernetes_tags": false,
+				"language_detection.reporting.enabled":  false,
 				"language_detection.enabled":            false,
 			},
 			expectedStoresGenerator: []storeGenerator{newNodeStore},
 		},
 		{
+			name: "All configurations disabled",
+			cfg: map[string]interface{}{
+				"cluster_agent.collect_kubernetes_tags": false,
+				"language_detection.reporting.enabled":  false,
+				"language_detection.enabled":            true,
+			},
+			expectedStoresGenerator: []storeGenerator{newNodeStore},
+		},
+		{
 			name: "Kubernetes tags enabled",
-			cfg: map[string]bool{
+			cfg: map[string]interface{}{
 				"cluster_agent.collect_kubernetes_tags": true,
-				"language_detection.enabled":            false,
+				"language_detection.reporting.enabled":  false,
+				"language_detection.enabled":            true,
 			},
 			expectedStoresGenerator: []storeGenerator{newNodeStore, newPodStore},
 		},
 		{
 			name: "Language detection enabled",
-			cfg: map[string]bool{
+			cfg: map[string]interface{}{
 				"cluster_agent.collect_kubernetes_tags": false,
+				"language_detection.reporting.enabled":  true,
 				"language_detection.enabled":            true,
 			},
 			expectedStoresGenerator: []storeGenerator{newNodeStore, newDeploymentStore},
 		},
 		{
-			name: "All configurations enabled",
-			cfg: map[string]bool{
-				"cluster_agent.collect_kubernetes_tags": true,
-				"language_detection.enabled":            true,
+			name: "Language detection enabled",
+			cfg: map[string]interface{}{
+				"cluster_agent.collect_kubernetes_tags": false,
+				"language_detection.reporting.enabled":  true,
+				"language_detection.enabled":            false,
 			},
-			expectedStoresGenerator: []storeGenerator{newNodeStore, newPodStore, newDeploymentStore},
+			expectedStoresGenerator: []storeGenerator{newNodeStore},
+		},
+		{
+			name: "Kube namespace collection enabled",
+			cfg: map[string]interface{}{
+				"cluster_agent.kube_metadata_collection.enabled":   true,
+				"cluster_agent.kube_metadata_collection.resources": "namespaces",
+			},
+			expectedStoresGenerator: []storeGenerator{newNodeStore, newNamespaceStore},
+		},
+		{
+			name: "Namespace from ns label as tags",
+			cfg: map[string]interface{}{
+				"kubernetes_namespace_labels_as_tags": map[string]string{
+					"env": "env",
+				},
+			},
+			expectedStoresGenerator: []storeGenerator{newNodeStore, newNamespaceStore},
+		},
+		{
+			name: "Namespace from ns annotations as tags",
+			cfg: map[string]interface{}{
+				"kubernetes_namespace_annotations_as_tags": map[string]string{
+					"env": "env",
+				},
+			},
+			expectedStoresGenerator: []storeGenerator{newNodeStore, newNamespaceStore},
+		},
+		{
+			name: "All configurations enabled",
+			cfg: map[string]interface{}{
+				"cluster_agent.collect_kubernetes_tags":            true,
+				"language_detection.reporting.enabled":             true,
+				"language_detection.enabled":                       true,
+				"cluster_agent.kube_metadata_collection.enabled":   true,
+				"cluster_agent.kube_metadata_collection.resources": "namespaces",
+				"kubernetes_namespace_labels_as_tags": map[string]string{
+					"env": "env",
+				},
+			},
+			expectedStoresGenerator: []storeGenerator{newNodeStore, newPodStore, newDeploymentStore, newNamespaceStore},
 		},
 	}
 
@@ -78,4 +138,247 @@ func collectResultStoreGenerator(funcs []storeGenerator) []*reflectorStore {
 		stores = append(stores, s)
 	}
 	return stores
+}
+
+func Test_metadataCollectionGVRs_WithFunctionalDiscovery(t *testing.T) {
+	tests := []struct {
+		name                  string
+		apiServerResourceList []*metav1.APIResourceList
+		expectedGVRs          []schema.GroupVersionResource
+		cfg                   map[string]interface{}
+	}{
+		{
+			name:                  "no requested resources, no resources at all!",
+			apiServerResourceList: []*metav1.APIResourceList{},
+			expectedGVRs:          []schema.GroupVersionResource{},
+			cfg: map[string]interface{}{
+				"cluster_agent.kube_metadata_collection.enabled":   true,
+				"cluster_agent.kube_metadata_collection.resources": "",
+			},
+		},
+		{
+			name:                  "requested resources, but no resources at all!",
+			apiServerResourceList: []*metav1.APIResourceList{},
+			expectedGVRs:          []schema.GroupVersionResource{},
+			cfg: map[string]interface{}{
+				"cluster_agent.kube_metadata_collection.enabled":   true,
+				"cluster_agent.kube_metadata_collection.resources": "deployments",
+			},
+		},
+		{
+			name: "only one resource (deployments), only one version, correct resource requested",
+			apiServerResourceList: []*metav1.APIResourceList{
+				{
+					GroupVersion: "apps/v1",
+					APIResources: []metav1.APIResource{
+						{
+							Name:       "deployments",
+							Kind:       "Deployment",
+							Namespaced: true,
+						},
+					},
+				},
+			},
+			expectedGVRs: []schema.GroupVersionResource{{Resource: "deployments", Group: "apps", Version: "v1"}},
+			cfg: map[string]interface{}{
+				"cluster_agent.kube_metadata_collection.enabled":   true,
+				"cluster_agent.kube_metadata_collection.resources": "deployments",
+			},
+		},
+		{
+			name: "only one resource (deployments), only one version, wrong resource requested",
+			apiServerResourceList: []*metav1.APIResourceList{
+				{
+					GroupVersion: "apps/v1",
+					APIResources: []metav1.APIResource{
+						{
+							Name:       "deployments",
+							Kind:       "Deployment",
+							Namespaced: true,
+						},
+					},
+				},
+			},
+			expectedGVRs: []schema.GroupVersionResource{},
+			cfg: map[string]interface{}{
+				"cluster_agent.kube_metadata_collection.enabled":   true,
+				"cluster_agent.kube_metadata_collection.resources": "daemonsets",
+			},
+		},
+		{
+			name: "multiple resources (deployments, statefulsets), multiple versions, all resources requested",
+			apiServerResourceList: []*metav1.APIResourceList{
+				{
+					GroupVersion: "apps/v1",
+					APIResources: []metav1.APIResource{
+						{
+							Name:       "deployments",
+							Kind:       "Deployment",
+							Namespaced: true,
+						},
+					},
+				},
+				{
+					GroupVersion: "apps/v1beta1",
+					APIResources: []metav1.APIResource{
+						{
+							Name:       "deployments",
+							Kind:       "Deployment",
+							Namespaced: true,
+						},
+					},
+				},
+				{
+					GroupVersion: "apps/v1",
+					APIResources: []metav1.APIResource{
+						{
+							Name:       "statefulsets",
+							Kind:       "StatefulSet",
+							Namespaced: true,
+						},
+					},
+				},
+				{
+					GroupVersion: "apps/v1beta1",
+					APIResources: []metav1.APIResource{
+						{
+							Name:       "statefulsets",
+							Kind:       "StatefulSet",
+							Namespaced: true,
+						},
+					},
+				},
+			},
+			expectedGVRs: []schema.GroupVersionResource{
+				{Resource: "deployments", Group: "apps", Version: "v1"},
+				{Resource: "statefulsets", Group: "apps", Version: "v1"},
+			},
+			cfg: map[string]interface{}{
+				"cluster_agent.kube_metadata_collection.enabled":   true,
+				"cluster_agent.kube_metadata_collection.resources": "deployments statefulsets",
+			},
+		},
+		{
+			name: "multiple resources (deployments, statefulsets), multiple versions, only one resource requested",
+			apiServerResourceList: []*metav1.APIResourceList{
+				{
+					GroupVersion: "apps/v1",
+					APIResources: []metav1.APIResource{
+						{
+							Name:       "deployments",
+							Kind:       "Deployment",
+							Namespaced: true,
+						},
+					},
+				},
+				{
+					GroupVersion: "apps/v1beta1",
+					APIResources: []metav1.APIResource{
+						{
+							Name:       "deployments",
+							Kind:       "Deployment",
+							Namespaced: true,
+						},
+					},
+				},
+				{
+					GroupVersion: "apps/v1",
+					APIResources: []metav1.APIResource{
+						{
+							Name:       "statefulsets",
+							Kind:       "StatefulSet",
+							Namespaced: true,
+						},
+					},
+				},
+				{
+					GroupVersion: "apps/v1beta1",
+					APIResources: []metav1.APIResource{
+						{
+							Name:       "statefulsets",
+							Kind:       "StatefulSet",
+							Namespaced: true,
+						},
+					},
+				},
+			},
+			expectedGVRs: []schema.GroupVersionResource{{Resource: "deployments", Group: "apps", Version: "v1"}},
+			cfg: map[string]interface{}{
+				"cluster_agent.kube_metadata_collection.enabled":   true,
+				"cluster_agent.kube_metadata_collection.resources": "deployments",
+			},
+		},
+		{
+			name: "multiple resources (deployments, statefulsets), multiple versions, two resources requested (one with a typo)",
+			apiServerResourceList: []*metav1.APIResourceList{
+				{
+					GroupVersion: "apps/v1",
+					APIResources: []metav1.APIResource{
+						{
+							Name:       "deployments",
+							Kind:       "Deployment",
+							Namespaced: true,
+						},
+					},
+				},
+				{
+					GroupVersion: "apps/v1beta1",
+					APIResources: []metav1.APIResource{
+						{
+							Name:       "deployments",
+							Kind:       "Deployment",
+							Namespaced: true,
+						},
+					},
+				},
+				{
+					GroupVersion: "apps/v1",
+					APIResources: []metav1.APIResource{
+						{
+							Name:       "statefulsets",
+							Kind:       "StatefulSet",
+							Namespaced: true,
+						},
+					},
+				},
+				{
+					GroupVersion: "apps/v1beta1",
+					APIResources: []metav1.APIResource{
+						{
+							Name:       "statefulsets",
+							Kind:       "StatefulSet",
+							Namespaced: true,
+						},
+					},
+				},
+			},
+			expectedGVRs: []schema.GroupVersionResource{
+				{Resource: "deployments", Group: "apps", Version: "v1"},
+			},
+			cfg: map[string]interface{}{
+				"cluster_agent.kube_metadata_collection.enabled":   true,
+				"cluster_agent.kube_metadata_collection.resources": "deployments statefulsetsy",
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(tt *testing.T) {
+			cfg := config.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
+			for k, v := range test.cfg {
+				cfg.SetWithoutSource(k, v)
+			}
+
+			client := fakeclientset.NewSimpleClientset()
+			fakeDiscoveryClient, ok := client.Discovery().(*fakediscovery.FakeDiscovery)
+			assert.Truef(t, ok, "Failed to initialise fake discovery client")
+
+			fakeDiscoveryClient.Resources = test.apiServerResourceList
+
+			discoveredGVRs, err := metadataCollectionGVRs(cfg, fakeDiscoveryClient)
+			require.NoErrorf(t, err, "Function should not have returned an error")
+
+			assert.Truef(t, reflect.DeepEqual(discoveredGVRs, test.expectedGVRs), "Expected %v but got %v.", test.expectedGVRs, discoveredGVRs)
+		})
+	}
 }

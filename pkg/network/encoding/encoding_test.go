@@ -19,6 +19,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	model "github.com/DataDog/agent-payload/v5/process"
+
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/dns"
@@ -108,7 +109,7 @@ func getExpectedConnections(encodedWithQueryType bool, httpOutBlob []byte) *mode
 					ReplDstPort: int32(80),
 				},
 
-				Type:      model.ConnectionType_udp,
+				Type:      model.ConnectionType_tcp,
 				Family:    model.ConnectionFamily_v6,
 				Direction: model.ConnectionDirection_local,
 
@@ -235,7 +236,7 @@ func testSerialization(t *testing.T, aggregateByStatusCode bool) {
 						ReplDstPort: 80,
 					},
 
-					Type:      network.UDP,
+					Type:      network.TCP,
 					Family:    network.AFINET6,
 					Direction: network.LOCAL,
 					Via: &network.Via{

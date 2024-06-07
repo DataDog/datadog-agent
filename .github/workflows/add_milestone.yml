@@ -17,6 +17,9 @@ jobs:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       GH_REPO: ${{ github.repository }}
     steps:
+      - name: Checkout datadog-agent repository
+        uses: actions/checkout@0ad4b8fadaa221de15dcec353f45205ec38ea70b # v4.1.4
+
       - name: Get repo current milestone
         id: current-milestone
         run: |
@@ -29,13 +32,13 @@ jobs:
             fi
           else
             # Else use the current_milestone field in the release.json file.
-            MILESTONE=$(cat release.json | jq -r .current_milestone)" >> "$GITHUB_OUTPUT"
+            MILESTONE=$(cat release.json | jq -r .current_milestone)
             if [ -z "$MILESTONE" ]; then
               echo "Error: Couldn't find the current_milestone field in the release.json file."
               exit 1
             fi
           fi
-          if [[ $MILESTONE !~ ^7\.[0-9]+\.[0-9]+$ ]]; then
+          if [[ ! $MILESTONE =~ ^7\.[0-9]+\.[0-9]+$ ]]; then
             echo "Error: Malformed milestone $MILESTONE. It should be of the form '7.x.y'."
             exit 1
           fi

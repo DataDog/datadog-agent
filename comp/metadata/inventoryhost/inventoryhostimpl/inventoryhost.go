@@ -10,8 +10,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/api/api"
+	apiutils "github.com/DataDog/datadog-agent/comp/api/api/utils"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	"github.com/DataDog/datadog-agent/comp/core/log"
@@ -30,6 +33,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/dmi"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
+	"github.com/DataDog/datadog-agent/pkg/util/uuid"
 	"github.com/DataDog/datadog-agent/pkg/version"
 	"go.uber.org/fx"
 )
@@ -103,6 +107,7 @@ type Payload struct {
 	Hostname  string        `json:"hostname"`
 	Timestamp int64         `json:"timestamp"`
 	Metadata  *hostMetadata `json:"host_metadata"`
+	UUID      string        `json:"uuid"`
 }
 
 // MarshalJSON serialization a Payload to JSON
@@ -141,6 +146,7 @@ type provides struct {
 	Comp          inventoryhost.Component
 	Provider      runnerimpl.Provider
 	FlareProvider flaretypes.Provider
+	Endpoint      api.AgentEndpointProvider
 }
 
 func newInventoryHostProvider(deps dependencies) provides {
@@ -157,6 +163,7 @@ func newInventoryHostProvider(deps dependencies) provides {
 		Comp:          ih,
 		Provider:      ih.MetadataProvider(),
 		FlareProvider: ih.FlareProvider(),
+		Endpoint:      api.NewAgentEndpointProvider(ih.writePayloadAsJSON, "/metadata/inventory-host", "GET"),
 	}
 }
 
@@ -250,5 +257,16 @@ func (ih *invHost) getPayload() marshaler.JSONMarshaler {
 		Hostname:  ih.hostname,
 		Timestamp: time.Now().UnixNano(),
 		Metadata:  ih.data,
+		UUID:      uuid.GetUUID(),
 	}
+}
+
+func (ih *invHost) writePayloadAsJSON(w http.ResponseWriter, _ *http.Request) {
+	// GetAsJSON already return scrubbed data
+	scrubbed, err := ih.GetAsJSON()
+	if err != nil {
+		apiutils.SetJSONError(w, err, 500)
+		return
+	}
+	w.Write(scrubbed)
 }

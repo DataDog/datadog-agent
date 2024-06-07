@@ -58,6 +58,7 @@ func (agent *agentCommandRunner) executeCommandWithError(command string, command
 
 	arguments := []string{command}
 	arguments = append(arguments, args.Args...)
+	agent.t.Logf("Running agent command: %+q", arguments)
 	output, err := agent.executor.execute(arguments)
 	return output, err
 }
@@ -71,6 +72,20 @@ func (agent *agentCommandRunner) Version(commandArgs ...agentclient.AgentArgsOpt
 func (agent *agentCommandRunner) Hostname(commandArgs ...agentclient.AgentArgsOption) string {
 	output := agent.executeCommand("hostname", commandArgs...)
 	return strings.Trim(output, "\n")
+}
+
+// Check runs check command and returns the runtime Agent check
+func (agent *agentCommandRunner) Check(commandArgs ...agentclient.AgentArgsOption) string {
+	return agent.executeCommand("check", commandArgs...)
+}
+
+// Check runs check command and returns the runtime Agent check or an error
+func (agent *agentCommandRunner) CheckWithError(commandArgs ...agentclient.AgentArgsOption) (string, error) {
+	args, err := optional.MakeParams(commandArgs...)
+	require.NoError(agent.t, err)
+
+	arguments := append([]string{"check"}, args.Args...)
+	return agent.executor.execute(arguments)
 }
 
 // Config runs config command and returns the runtime agent config
@@ -131,6 +146,11 @@ func (agent *agentCommandRunner) IsReady() bool {
 	return err == nil
 }
 
+// RemoteConfig runs remote-config command and returns the output
+func (agent *agentCommandRunner) RemoteConfig(commandArgs ...agentclient.AgentArgsOption) string {
+	return agent.executeCommand("remote-config", commandArgs...)
+}
+
 // Status runs status command and returns a Status struct
 func (agent *agentCommandRunner) Status(commandArgs ...agentclient.AgentArgsOption) *agentclient.Status {
 	return &agentclient.Status{
@@ -153,6 +173,7 @@ func (agent *agentCommandRunner) StatusWithError(commandArgs ...agentclient.Agen
 func (agent *agentCommandRunner) waitForReadyTimeout(timeout time.Duration) error {
 	interval := 100 * time.Millisecond
 	maxRetries := timeout.Milliseconds() / interval.Milliseconds()
+	agent.t.Log("Waiting for the agent to be ready")
 	err := backoff.Retry(func() error {
 		_, err := agent.executor.execute([]string{"status"})
 		if err != nil {

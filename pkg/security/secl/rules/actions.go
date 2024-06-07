@@ -25,9 +25,11 @@ const (
 
 // ActionDefinition describes a rule action section
 type ActionDefinition struct {
-	Filter *string         `yaml:"filter"`
-	Set    *SetDefinition  `yaml:"set"`
-	Kill   *KillDefinition `yaml:"kill"`
+	Filter   *string             `yaml:"filter"`
+	Set      *SetDefinition      `yaml:"set"`
+	Kill     *KillDefinition     `yaml:"kill"`
+	CoreDump *CoreDumpDefinition `yaml:"coredump"`
+	Hash     *HashDefinition     `yaml:"hash"`
 
 	// internal
 	InternalCallback *InternalCallbackDefinition
@@ -35,9 +37,9 @@ type ActionDefinition struct {
 }
 
 // Check returns an error if the action in invalid
-func (a *ActionDefinition) Check() error {
-	if a.Set == nil && a.InternalCallback == nil && a.Kill == nil {
-		return errors.New("either 'set' or 'kill' section of an action must be specified")
+func (a *ActionDefinition) Check(opts PolicyLoaderOpts) error {
+	if a.Set == nil && a.InternalCallback == nil && a.Kill == nil && a.Hash == nil {
+		return errors.New("either 'set', 'kill' or 'hash' section of an action must be specified")
 	}
 
 	if a.Set != nil {
@@ -53,8 +55,13 @@ func (a *ActionDefinition) Check() error {
 			return errors.New("either 'value' or 'field' must be specified")
 		}
 	} else if a.Kill != nil {
+		if opts.DisableEnforcement {
+			a.Kill = nil
+			return errors.New("'kill' action is disabled globally")
+		}
+
 		if a.Kill.Signal == "" {
-			return fmt.Errorf("a valid signal has to be specified to the 'kill' action")
+			return errors.New("a valid signal has to be specified to the 'kill' action")
 		}
 
 		if _, found := model.SignalConstants[a.Kill.Signal]; !found {
@@ -115,3 +122,14 @@ type KillDefinition struct {
 	Signal string `yaml:"signal"`
 	Scope  string `yaml:"scope"`
 }
+
+// CoreDumpDefinition describes the 'coredump' action
+type CoreDumpDefinition struct {
+	Process       bool `yaml:"process"`
+	Mount         bool `yaml:"mount"`
+	Dentry        bool `yaml:"dentry"`
+	NoCompression bool `yaml:"no_compression"`
+}
+
+// HashDefinition describes the 'hash' section of a rule action
+type HashDefinition struct{}

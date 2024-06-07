@@ -15,7 +15,8 @@ enum event_type {
     EVENT_UTIME,
     EVENT_SETXATTR,
     EVENT_REMOVEXATTR,
-    EVENT_LAST_DISCARDER = EVENT_REMOVEXATTR,
+    EVENT_CHDIR,
+    EVENT_LAST_DISCARDER = EVENT_CHDIR,
 
     EVENT_MOUNT,
     EVENT_UMOUNT,
@@ -44,7 +45,7 @@ enum event_type {
     EVENT_BIND,
     EVENT_UNSHARE_MNTNS,
     EVENT_SYSCALLS,
-    EVENT_ANOMALY_DETECTION_SYSCALL,
+    EVENT_IMDS,
     EVENT_MAX, // has to be the last one
 
     EVENT_ALL = 0xffffffff // used as a mask for all the events
@@ -56,6 +57,8 @@ enum {
     EVENT_FLAGS_ASYNC = 1<<0, // async, mostly io_uring
     EVENT_FLAGS_SAVED_BY_AD = 1<<1, // event send because of activity dump
     EVENT_FLAGS_ACTIVITY_DUMP_SAMPLE = 1<<2, // event is a AD sample
+    // EventFlagsSecurityProfileInProfile = 1<<3 isn't used in kernel space
+    EVENT_FLAGS_ANOMALY_DETECTION_EVENT = 1<<4, // event is an anomaly detection event
 };
 
 enum file_flags {
@@ -147,6 +150,7 @@ enum dr_kprobe_progs {
     DR_LINK_DST_CALLBACK_KPROBE_KEY,
     DR_RENAME_CALLBACK_KPROBE_KEY,
     DR_SELINUX_CALLBACK_KPROBE_KEY,
+    DR_CHDIR_CALLBACK_KPROBE_KEY,
 };
 
 enum dr_tracepoint_progs {
@@ -156,6 +160,7 @@ enum dr_tracepoint_progs {
     DR_MOUNT_STAGE_TWO_CALLBACK_TRACEPOINT_KEY,
     DR_LINK_DST_CALLBACK_TRACEPOINT_KEY,
     DR_RENAME_CALLBACK_TRACEPOINT_KEY,
+    DR_CHDIR_CALLBACK_TRACEPOINT_KEY,
 };
 
 enum erpc_op {

@@ -3,20 +3,75 @@ name: "Label analysis"
 
 on:
   pull_request:
-    types: [opened, synchronize, reopened]
+    types: [opened, synchronize, reopened, labeled, unlabeled]
     branches:
       - main
       - "[0-9]+.[0-9]+.x"
 
+env:
+  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  GH_REPO: ${{ github.repository }}
+
 jobs:
-  team-label:
+  assign-team-label:
+    if: github.triggering_actor != 'dd-devflow[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@0ad4b8fadaa221de15dcec353f45205ec38ea70b # v4.1.4
+      - name: Setup python
+        uses: actions/setup-python@82c7e631bb3cdc910f68e0081d67478d79c6982d # v5.1.0
+        with:
+          python-version: 3.11
+          cache: 'pip'
+          cache-dependency-path: '**/requirements*.txt'
+      - name: Install dependencies
+        run: pip install -r requirements.txt -r tasks/requirements.txt
+      - name: Auto assign team label
+        run: inv -e github.assign-team-label --pr-id='${{ github.event.pull_request.number }}'
+  release-note-check:
+    if: github.triggering_actor != 'dd-devflow[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@0ad4b8fadaa221de15dcec353f45205ec38ea70b # v4.1.4
+        with:
+          fetch-depth: 0
+      - name: Setup python
+        uses: actions/setup-python@82c7e631bb3cdc910f68e0081d67478d79c6982d # v5.1.0
+        with:
+          python-version: 3.11
+          cache: 'pip'
+          cache-dependency-path: '**/requirements*.txt'
+      - name: Install dependencies
+        run: pip install -r requirements.txt -r tasks/requirements.txt
+      - name: Check release note
+        env:
+          BRANCH_NAME: ${{ github.head_ref }}
+          PR_ID: ${{ github.event.pull_request.number }}
+        run: inv -e linter.releasenote
+  fetch-labels:
+    needs: assign-team-label
+    if: github.triggering_actor != 'dd-devflow[bot]'
+    runs-on: ubuntu-latest
+    outputs:
+      LABELS: ${{ steps.pr-labels.outputs.LABELS }}
+    steps:
+      - name: Get PR labels
+        id: pr-labels
+        run: |
+          labels="$(gh pr view '${{ github.event.pull_request.number }}' --json labels --jq '[.labels[].name] | (join(" "))')"
+          echo "Fetched labels for PR ${{github.event.number}}: $labels"
+          echo "LABELS=$labels" >> "$GITHUB_OUTPUT"
+  team-label-check:
+    needs: fetch-labels
     if: github.triggering_actor != 'dd-devflow[bot]'
     runs-on: ubuntu-latest
     steps:
       - name: Check team assignment
         run: |
-          labels="${{join(github.event.pull_request.labels.*.name, ' ')}}"
-          for label in $labels; do
+          for label in $LABELS; do
             if [[ "$label" =~ ^qa/ ]]; then
               echo "A label to skip QA is set -- no need for team assignment"
               exit 0
@@ -28,30 +83,29 @@ jobs:
           done
           echo "PR ${{github.event.number}} requires at least one non-triage team assignment label (label starting by 'team/')"
           exit 1
-  skip-qa:
+        env:
+          LABELS: ${{ needs.fetch-labels.outputs.LABELS}}
+  skip-qa-check:
+    needs: fetch-labels
     if: github.triggering_actor != 'dd-devflow[bot]'
     runs-on: ubuntu-latest
     steps:
-      - name: Check ability to skip qa
+      - name: Check qa/[done|no-code-change] labels are not set together
         run: |
-          skip=0
-          done=0
-          noChange=0
-          labels="${{join(github.event.pull_request.labels.*.name, ' ')}}"
-          for label in $labels; do
-            if [[ "$label" == "qa/skip-qa" ]]; then
-              skip=1
-            fi
+          is_qa_done=1
+          is_qa_no_code_change=1
+          for label in $LABELS; do
             if [[ "$label" == "qa/done" ]]; then
-              done=1
+              is_qa_done=0
             fi
             if [[ "$label" == "qa/no-code-change" ]]; then
-              noChange=1
+              is_qa_no_code_change=0
             fi
           done
-          if [[ ($skip -eq 0 && $done -eq 0 && $noChange -eq 0) || ($skip -eq 1 && $done -ne $noChange) ]]; then
-            exit 0
-          else
-            echo "Skip QA labels are not correct on PR ${{github.event.number}}. You must set 'qa/skip-qa' with exacly 1 justification, 'qa/done' or 'qa/no-code-change'"
+          if [ $is_qa_done -eq 0 ] && [ $is_qa_no_code_change -eq 0 ]; then
+            echo "Both 'qa/done' and 'qa/no-code-change' labels are set -- only one of them should be set"
             exit 1
           fi
+          echo "No issue with 'qa/done' and 'qa/no-code-change' labels"
+        env:
+          LABELS: ${{ needs.fetch-labels.outputs.LABELS}}

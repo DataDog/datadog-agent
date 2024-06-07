@@ -96,7 +96,7 @@ func newDummyClusterAgent() (*dummyClusterAgent, error) {
 			"/version":           `{"Major":0, "Minor":0, "Patch":0, "Pre":"test", "Meta":"test", "Commit":"1337"}`,
 			"/api/v1/cluster/id": `"94e43011-177b-11ea-a4fe-42010a8401d2"`,
 		},
-		token:    config.Datadog.GetString("cluster_agent.auth_token"),
+		token:    config.Datadog().GetString("cluster_agent.auth_token"),
 		requests: make(chan *http.Request, 100),
 	}
 	return dca, nil
@@ -112,7 +112,7 @@ func newDummyClusterAgentWithCFMetadata() (*dummyClusterAgent, error) {
 			"/version":                   `{"Major":0, "Minor":0, "Patch":0, "Pre":"test", "Meta":"test", "Commit":"1337"}`,
 		},
 		requests: make(chan *http.Request, 100),
-		token:    config.Datadog.GetString("cluster_agent.auth_token"),
+		token:    config.Datadog().GetString("cluster_agent.auth_token"),
 	}
 
 	return dca, nil
@@ -307,7 +307,7 @@ func (suite *clusterAgentSuite) TestGetClusterAgentEndpointEmpty() {
 func (suite *clusterAgentSuite) TestGetClusterAgentAuthTokenEmpty() {
 	mockConfig.SetWithoutSource("cluster_agent.auth_token", "")
 
-	_, err := security.CreateOrGetClusterAgentAuthToken()
+	_, err := security.CreateOrGetClusterAgentAuthToken(mockConfig)
 	require.Nil(suite.T(), err, fmt.Sprintf("%v", err))
 }
 
@@ -315,7 +315,7 @@ func (suite *clusterAgentSuite) TestGetClusterAgentAuthTokenEmptyFile() {
 	mockConfig.SetWithoutSource("cluster_agent.auth_token", "")
 	err := os.WriteFile(suite.authTokenPath, []byte(""), os.ModePerm)
 	require.Nil(suite.T(), err, fmt.Sprintf("%v", err))
-	_, err = security.GetClusterAgentAuthToken()
+	_, err = security.GetClusterAgentAuthToken(mockConfig)
 	require.NotNil(suite.T(), err, fmt.Sprintf("%v", err))
 }
 
@@ -324,7 +324,7 @@ func (suite *clusterAgentSuite) TestGetClusterAgentAuthTokenFileInvalid() {
 	err := os.WriteFile(suite.authTokenPath, []byte("tooshort"), os.ModePerm)
 	require.Nil(suite.T(), err, fmt.Sprintf("%v", err))
 
-	_, err = security.GetClusterAgentAuthToken()
+	_, err = security.GetClusterAgentAuthToken(mockConfig)
 	require.NotNil(suite.T(), err, fmt.Sprintf("%v", err))
 }
 
@@ -334,7 +334,7 @@ func (suite *clusterAgentSuite) TestGetClusterAgentAuthToken() {
 	err := os.WriteFile(suite.authTokenPath, []byte(tokenFileValue), os.ModePerm)
 	require.Nil(suite.T(), err, fmt.Sprintf("%v", err))
 
-	t, err := security.GetClusterAgentAuthToken()
+	t, err := security.GetClusterAgentAuthToken(mockConfig)
 	require.Nil(suite.T(), err, fmt.Sprintf("%v", err))
 	assert.Equal(suite.T(), tokenFileValue, t)
 }
@@ -346,7 +346,7 @@ func (suite *clusterAgentSuite) TestGetClusterAgentAuthTokenConfigPriority() {
 	require.Nil(suite.T(), err, fmt.Sprintf("%v", err))
 
 	// load config token value instead of filesystem
-	t, err := security.GetClusterAgentAuthToken()
+	t, err := security.GetClusterAgentAuthToken(mockConfig)
 	require.Nil(suite.T(), err, fmt.Sprintf("%v", err))
 	assert.Equal(suite.T(), clusterAgentTokenValue, t)
 }
@@ -357,7 +357,7 @@ func (suite *clusterAgentSuite) TestGetClusterAgentAuthTokenTooShort() {
 	err := os.WriteFile(suite.authTokenPath, []byte(tokenValue), os.ModePerm)
 	require.Nil(suite.T(), err, fmt.Sprintf("%v", err))
 
-	_, err = security.GetClusterAgentAuthToken()
+	_, err = security.GetClusterAgentAuthToken(mockConfig)
 	require.NotNil(suite.T(), err, fmt.Sprintf("%v", err))
 }
 
@@ -729,7 +729,7 @@ func TestClusterAgentSuite(t *testing.T) {
 	defer os.Remove(f.Name())
 
 	s := &clusterAgentSuite{}
-	config.Datadog.SetConfigFile(f.Name())
+	config.Datadog().SetConfigFile(f.Name())
 	s.authTokenPath = filepath.Join(fakeDir, clusterAgentAuthTokenFilename)
 	_, err = os.Stat(s.authTokenPath)
 	require.NotNil(t, err, fmt.Sprintf("%v", err))

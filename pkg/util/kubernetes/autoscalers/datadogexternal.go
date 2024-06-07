@@ -32,6 +32,9 @@ var (
 	metricsEval = telemetry.NewGaugeWithOpts("", "external_metrics_processed_value",
 		[]string{"metric", le.JoinLeaderLabel}, "value processed from querying Datadog",
 		telemetry.Options{NoDoubleUnderscoreSep: true})
+	metricsUpdated = telemetry.NewCounterWithOpts("", "external_metrics_updated",
+		[]string{"metric", le.JoinLeaderLabel}, "increased by 1 everytime a metric value is updated",
+		telemetry.Options{NoDoubleUnderscoreSep: true})
 	metricsDelay = telemetry.NewGaugeWithOpts("", "external_metrics_delay_seconds",
 		[]string{"metric", le.JoinLeaderLabel}, "freshness of the metric evaluated from querying Datadog",
 		telemetry.Options{NoDoubleUnderscoreSep: true})
@@ -73,7 +76,7 @@ var (
 
 func getMinRemainingRequestsTracker() *minTracker {
 	once.Do(func() {
-		refreshPeriod := config.Datadog.GetInt("external_metrics_provider.refresh_period")
+		refreshPeriod := config.Datadog().GetInt("external_metrics_provider.refresh_period")
 		expiryDuration := 2 * refreshPeriod
 		minRemainingRequestsTracker = newMinTracker(time.Duration(time.Duration(expiryDuration) * time.Second))
 	})
@@ -103,10 +106,10 @@ func (p *Processor) queryDatadogExternal(ddQueries []string, timeWindow time.Dur
 	currentTimeUnix := time.Now().Unix()
 	seriesSlice, err := p.datadogClient.QueryMetrics(currentTime.Add(-timeWindow).Unix(), currentTimeUnix, query)
 	if err != nil {
-		ddRequests.Inc("error", le.JoinLeaderValue)
-
 		if isRateLimitError(err) {
 			ddRequests.Inc("rate_limit_error", le.JoinLeaderValue)
+		} else {
+			ddRequests.Inc("error", le.JoinLeaderValue)
 		}
 
 		return nil, fmt.Errorf("error while executing metric query %s: %w", query, err)
@@ -177,6 +180,7 @@ func (p *Processor) queryDatadogExternal(ddQueries []string, timeWindow time.Dur
 		// Prometheus submissions on the processed external metrics
 		metricTag := fmt.Sprintf("%s{%s}", *serie.Metric, *serie.Scope)
 		metricsEval.Set(processedPoint.Value, metricTag, le.JoinLeaderValue)
+		metricsUpdated.Inc(metricTag, le.JoinLeaderValue)
 		delay := currentTimeUnix - processedPoint.Timestamp
 		metricsDelay.Set(float64(delay), metricTag, le.JoinLeaderValue)
 	}

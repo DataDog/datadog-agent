@@ -9,10 +9,12 @@ import (
 	"os"
 	"strings"
 
+	"go.uber.org/fx"
+
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
-	"go.uber.org/fx"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 // Reader is a subset of Config that only allows reading of configuration
@@ -32,23 +34,22 @@ type cfg struct {
 // TODO: (components) investigate whether this interface is worth keeping, otherwise delete it and just use dependencies
 type configDependencies interface {
 	getParams() *Params
-	getSecretResolver() secrets.Component
+	getSecretResolver() (secrets.Component, bool)
 }
 
 type dependencies struct {
 	fx.In
 
 	Params Params
-	// secrets Component is optional, if not provided, the config will not decrypt secrets
-	Secret secrets.Component `optional:"true"`
+	Secret optional.Option[secrets.Component]
 }
 
 func (d dependencies) getParams() *Params {
 	return &d.Params
 }
 
-func (d dependencies) getSecretResolver() secrets.Component {
-	return d.Secret
+func (d dependencies) getSecretResolver() (secrets.Component, bool) {
+	return d.Secret.Get()
 }
 
 // NewServerlessConfig initializes a config component from the given config file
@@ -69,7 +70,7 @@ func NewServerlessConfig(path string) (Component, error) {
 }
 
 func newConfig(deps dependencies) (Component, error) {
-	config := pkgconfigsetup.Datadog
+	config := pkgconfigsetup.Datadog()
 	warnings, err := setupConfig(config, deps)
 	returnErrFct := func(e error) (Component, error) {
 		if e != nil && deps.Params.ignoreErrors {
@@ -97,8 +98,4 @@ func newConfig(deps dependencies) (Component, error) {
 
 func (c *cfg) Warnings() *pkgconfigmodel.Warnings {
 	return c.warnings
-}
-
-func (c *cfg) Object() pkgconfigmodel.Reader {
-	return c.Config
 }

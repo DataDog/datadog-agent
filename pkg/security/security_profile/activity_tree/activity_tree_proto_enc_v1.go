@@ -40,8 +40,10 @@ func processActivityNodeToProto(pan *ProcessNode) *adproto.ProcessActivityNode {
 		Children:       make([]*adproto.ProcessActivityNode, 0, len(pan.Children)),
 		Files:          make([]*adproto.FileActivityNode, 0, len(pan.Files)),
 		DnsNames:       make([]*adproto.DNSNode, 0, len(pan.DNSNames)),
+		ImdsEvents:     make([]*adproto.IMDSNode, 0, len(pan.IMDSEvents)),
 		Sockets:        make([]*adproto.SocketNode, 0, len(pan.Sockets)),
 		Syscalls:       make([]uint32, 0, len(pan.Syscalls)),
+		ImageTags:      pan.ImageTags,
 	}
 
 	for _, rule := range pan.MatchedRules {
@@ -58,6 +60,10 @@ func processActivityNodeToProto(pan *ProcessNode) *adproto.ProcessActivityNode {
 
 	for _, dns := range pan.DNSNames {
 		ppan.DnsNames = append(ppan.DnsNames, dnsNodeToProto(dns))
+	}
+
+	for _, imds := range pan.IMDSEvents {
+		ppan.ImdsEvents = append(ppan.ImdsEvents, imdsNodeToProto(imds))
 	}
 
 	for _, socket := range pan.Sockets {
@@ -83,7 +89,7 @@ func processNodeToProto(p *model.Process) *adproto.ProcessInfo {
 		Ppid:        p.PPid,
 		Cookie64:    p.Cookie,
 		IsThread:    p.IsThread,
-		IsExecChild: p.IsExecChild,
+		IsExecChild: p.IsExecExec,
 		File:        fileEventToProto(&p.FileEvent),
 		ContainerId: p.ContainerID,
 		SpanId:      p.SpanID,
@@ -178,6 +184,7 @@ func fileActivityNodeToProto(fan *FileNode) *adproto.FileActivityNode {
 		FirstSeen:      TimestampToProto(&fan.FirstSeen),
 		Open:           openNodeToProto(fan.Open),
 		Children:       make([]*adproto.FileActivityNode, 0, len(fan.Children)),
+		ImageTags:      fan.ImageTags,
 	}
 
 	for _, rule := range fan.MatchedRules {
@@ -213,6 +220,7 @@ func dnsNodeToProto(dn *DNSNode) *adproto.DNSNode {
 	pdn := &adproto.DNSNode{
 		MatchedRules: make([]*adproto.MatchedRule, 0, len(dn.MatchedRules)),
 		Requests:     make([]*adproto.DNSInfo, 0, len(dn.Requests)),
+		ImageTags:    dn.ImageTags,
 	}
 
 	for _, rule := range dn.MatchedRules {
@@ -240,6 +248,48 @@ func dnsEventToProto(ev *model.DNSEvent) *adproto.DNSInfo {
 	}
 }
 
+func imdsNodeToProto(in *IMDSNode) *adproto.IMDSNode {
+	if in == nil {
+		return nil
+	}
+
+	pin := &adproto.IMDSNode{
+		MatchedRules: make([]*adproto.MatchedRule, 0, len(in.MatchedRules)),
+		ImageTags:    in.ImageTags,
+		Event:        imdsEventToProto(in.Event),
+	}
+
+	return pin
+}
+
+func imdsEventToProto(event model.IMDSEvent) *adproto.IMDSEvent {
+	return &adproto.IMDSEvent{
+		Type:          event.Type,
+		CloudProvider: event.CloudProvider,
+		Url:           event.URL,
+		Host:          event.Host,
+		UserAgent:     event.UserAgent,
+		Server:        event.Server,
+		Aws:           awsIMDSEventToProto(event),
+	}
+}
+
+func awsIMDSEventToProto(event model.IMDSEvent) *adproto.AWSIMDSEvent {
+	if event.CloudProvider != model.IMDSAWSCloudProvider {
+		return nil
+	}
+	return &adproto.AWSIMDSEvent{
+		IsImdsV2: event.AWS.IsIMDSv2,
+		SecurityCredentials: &adproto.AWSSecurityCredentials{
+			Type:          event.AWS.SecurityCredentials.Type,
+			Code:          event.AWS.SecurityCredentials.Code,
+			AccessKeyId:   event.AWS.SecurityCredentials.AccessKeyID,
+			LastUpdated:   event.AWS.SecurityCredentials.LastUpdated,
+			ExpirationRaw: event.AWS.SecurityCredentials.ExpirationRaw,
+		},
+	}
+}
+
 func socketNodeToProto(sn *SocketNode) *adproto.SocketNode {
 	if sn == nil {
 		return nil
@@ -255,6 +305,7 @@ func socketNodeToProto(sn *SocketNode) *adproto.SocketNode {
 			MatchedRules: make([]*adproto.MatchedRule, 0, len(bn.MatchedRules)),
 			Port:         uint32(bn.Port),
 			Ip:           bn.IP,
+			ImageTags:    bn.ImageTags,
 		}
 
 		for _, rule := range bn.MatchedRules {

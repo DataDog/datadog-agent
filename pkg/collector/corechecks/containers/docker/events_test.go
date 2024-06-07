@@ -10,6 +10,7 @@ package docker
 import (
 	"testing"
 
+	"github.com/docker/docker/api/types/events"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
@@ -145,10 +146,10 @@ func TestAggregateEvents(t *testing.T) {
 			output: map[string]*dockerEventBundle{
 				"test_image": {
 					imageName: "test_image",
-					countByAction: map[string]int{
+					countByAction: map[events.Action]int{
 						"unfiltered_action": 1,
 					},
-					alertType: event.EventAlertTypeInfo,
+					alertType: event.AlertTypeInfo,
 				},
 			},
 		},
@@ -183,11 +184,11 @@ func TestAggregateEvents(t *testing.T) {
 			output: map[string]*dockerEventBundle{
 				"test_image": {
 					imageName: "test_image",
-					countByAction: map[string]int{
+					countByAction: map[events.Action]int{
 						"unfiltered_action": 2,
 						"other_action":      1,
 					},
-					alertType: event.EventAlertTypeInfo,
+					alertType: event.AlertTypeInfo,
 				},
 			},
 		},
@@ -215,18 +216,18 @@ func TestAggregateEvents(t *testing.T) {
 			output: map[string]*dockerEventBundle{
 				"test_image": {
 					imageName: "test_image",
-					countByAction: map[string]int{
+					countByAction: map[events.Action]int{
 						"unfiltered_action": 2,
 						"other_action":      1,
 					},
-					alertType: event.EventAlertTypeInfo,
+					alertType: event.AlertTypeInfo,
 				},
 				"other_image": {
 					imageName: "other_image",
-					countByAction: map[string]int{
+					countByAction: map[events.Action]int{
 						"other_action": 1,
 					},
-					alertType: event.EventAlertTypeInfo,
+					alertType: event.AlertTypeInfo,
 				},
 			},
 		},

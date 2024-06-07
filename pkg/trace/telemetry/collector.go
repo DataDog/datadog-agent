@@ -23,11 +23,13 @@ import (
 // Error codes associated with each startup error
 // The full list, and associated description is contained in the Tracking APM Onboarding RFC
 const (
-	GenericError           = 1
-	CantCreateLogger       = 8
-	TraceAgentNotEnabled   = 9
-	CantWritePIDFile       = 10
-	CantSetupAutoExit      = 11
+	GenericError         = 1
+	CantCreateLogger     = 8
+	TraceAgentNotEnabled = 9
+	CantWritePIDFile     = 10
+	// CantSetupAutoExit is no longer used. To avoid conflicting issues in the future
+	// rather than removing from the codebase we will keep it here so no one use 11 for a new error code.
+	// CantSetupAutoExit      = 11
 	CantConfigureDogstatsd = 12
 	CantCreateRCCLient     = 13
 	//nolint:revive // TODO(TEL) Fix revive linter

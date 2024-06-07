@@ -76,6 +76,7 @@ func (s *groupedStats) export(a Aggregation) (*pb.ClientGroupedStats, error) {
 		Synthetics:     a.Synthetics,
 		SpanKind:       a.SpanKind,
 		PeerTags:       s.peerTags,
+		IsTraceRoot:    a.IsTraceRoot,
 	}, nil
 }
 
@@ -105,15 +106,18 @@ type RawBucket struct {
 
 	// this should really remain private as it's subject to refactoring
 	data map[Aggregation]*groupedStats
+
+	containerTagsByID map[string][]string // a map from container ID to container tags
 }
 
 // NewRawBucket opens a new calculation bucket for time ts and initializes it properly
 func NewRawBucket(ts, d uint64) *RawBucket {
 	// The only non-initialized value is the Duration which should be set by whoever closes that bucket
 	return &RawBucket{
-		start:    ts,
-		duration: d,
-		data:     make(map[Aggregation]*groupedStats),
+		start:             ts,
+		duration:          d,
+		data:              make(map[Aggregation]*groupedStats),
+		containerTagsByID: make(map[string][]string),
 	}
 }
 
@@ -129,10 +133,12 @@ func (sb *RawBucket) Export() map[PayloadAggregationKey]*pb.ClientStatsBucket {
 			continue
 		}
 		key := PayloadAggregationKey{
-			Hostname:    k.Hostname,
-			Version:     k.Version,
-			Env:         k.Env,
-			ContainerID: k.ContainerID,
+			Hostname:     k.Hostname,
+			Version:      k.Version,
+			Env:          k.Env,
+			ContainerID:  k.ContainerID,
+			GitCommitSha: k.GitCommitSha,
+			ImageTag:     k.ImageTag,
 		}
 		s, ok := m[key]
 		if !ok {

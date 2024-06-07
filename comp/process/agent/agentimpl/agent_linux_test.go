@@ -8,6 +8,7 @@
 package agentimpl
 
 import (
+	"net/http"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -15,7 +16,10 @@ import (
 	"go.uber.org/fx"
 
 	configComp "github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/tagger"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
+	"github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
 	"github.com/DataDog/datadog-agent/comp/process/agent"
 	"github.com/DataDog/datadog-agent/comp/process/hostinfo/hostinfoimpl"
 	"github.com/DataDog/datadog-agent/comp/process/processcheck/processcheckimpl"
@@ -25,7 +29,6 @@ import (
 	checkMocks "github.com/DataDog/datadog-agent/pkg/process/checks/mocks"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 func TestProcessAgentComponentOnLinux(t *testing.T) {
@@ -97,19 +100,25 @@ func TestProcessAgentComponentOnLinux(t *testing.T) {
 			checksEnabled:        true,
 			checkName:            checks.ConnectionsCheckName,
 			runInCoreAgentConfig: true,
-			expected:             false,
+			expected:             true,
 		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
+			originalFlavor := flavor.GetFlavor()
 			flavor.SetFlavor(tc.agentFlavor)
+			defer func() {
+				flavor.SetFlavor(originalFlavor)
+			}()
 
 			opts := []fx.Option{
 				runnerimpl.Module(),
 				hostinfoimpl.MockModule(),
 				submitterimpl.MockModule(),
-				tagger.MockModule(),
+				taggerimpl.MockModule(),
+				telemetryimpl.Module(),
+				statsd.MockModule(),
 				Module(),
 
 				fx.Replace(configComp.MockParams{Overrides: map[string]interface{}{
@@ -133,9 +142,110 @@ func TestProcessAgentComponentOnLinux(t *testing.T) {
 				}))
 			}
 
-			agt := fxutil.Test[optional.Option[agent.Component]](t, fx.Options(opts...))
-
-			assert.Equal(t, tc.expected, agt.IsSet())
+			agentComponent := fxutil.Test[agent.Component](t, fx.Options(opts...))
+			assert.Equal(t, tc.expected, agentComponent.Enabled())
 		})
 	}
+}
+
+func TestStatusProvider(t *testing.T) {
+	tests := []struct {
+		name        string
+		agentFlavor string
+		expected    interface{}
+	}{
+		{
+			"process agent",
+			flavor.ProcessAgent,
+			nil,
+		},
+		{
+			"core agent",
+			flavor.DefaultAgent,
+			&agent.StatusProvider{},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(*testing.T) {
+			originalFlavor := flavor.GetFlavor()
+			flavor.SetFlavor(tc.agentFlavor)
+			defer func() {
+				flavor.SetFlavor(originalFlavor)
+			}()
+
+			deps := fxutil.Test[dependencies](t, fx.Options(
+				runnerimpl.Module(),
+				hostinfoimpl.MockModule(),
+				submitterimpl.MockModule(),
+				taggerimpl.MockModule(),
+				telemetryimpl.Module(),
+				statsd.MockModule(),
+				Module(),
+				fx.Replace(configComp.MockParams{Overrides: map[string]interface{}{
+					"process_config.run_in_core_agent.enabled": true,
+				}}),
+				processcheckimpl.MockModule(),
+				fx.Provide(func() func(c *checkMocks.Check) {
+					return func(c *checkMocks.Check) {
+						c.On("Init", mock.Anything, mock.Anything, mock.AnythingOfType("bool")).Return(nil).Maybe()
+						c.On("Name").Return(checks.ProcessCheckName).Maybe()
+						c.On("SupportsRunOptions").Return(false).Maybe()
+						c.On("Realtime").Return(false).Maybe()
+						c.On("Cleanup").Maybe()
+						c.On("Run", mock.Anything, mock.Anything).Return(&checks.StandardRunResult{}, nil).Maybe()
+						c.On("ShouldSaveLastRun").Return(false).Maybe()
+						c.On("IsEnabled").Return(true).Maybe()
+					}
+				}),
+			))
+			provides, err := newProcessAgent(deps)
+			assert.IsType(t, tc.expected, provides.StatusProvider.Provider)
+			assert.NoError(t, err)
+		})
+	}
+}
+
+func TestTelemetryCoreAgent(t *testing.T) {
+	// This test catches if there are multiple handlers for "/telemetry" endpoint
+	// registered to help avoid introducing panics.
+
+	originalFlavor := flavor.GetFlavor()
+	defer flavor.SetFlavor(originalFlavor)
+	flavor.SetFlavor("agent")
+
+	deps := fxutil.Test[dependencies](t, fx.Options(
+		runnerimpl.Module(),
+		hostinfoimpl.MockModule(),
+		submitterimpl.MockModule(),
+		taggerimpl.MockModule(),
+		statsd.MockModule(),
+		Module(),
+		fx.Replace(configComp.MockParams{Overrides: map[string]interface{}{
+			"process_config.run_in_core_agent.enabled": true,
+			"telemetry.enabled":                        true,
+		}}),
+		processcheckimpl.MockModule(),
+		fx.Provide(func() func(c *checkMocks.Check) {
+			return func(c *checkMocks.Check) {
+				c.On("Init", mock.Anything, mock.Anything, mock.AnythingOfType("bool")).Return(nil).Maybe()
+				c.On("Name").Return(checks.ProcessCheckName).Maybe()
+				c.On("SupportsRunOptions").Return(false).Maybe()
+				c.On("Realtime").Return(false).Maybe()
+				c.On("Cleanup").Maybe()
+				c.On("Run", mock.Anything, mock.Anything).Return(&checks.StandardRunResult{}, nil).Maybe()
+				c.On("ShouldSaveLastRun").Return(false).Maybe()
+				c.On("IsEnabled").Return(true).Maybe()
+			}
+		}),
+	))
+	_, err := newProcessAgent(deps)
+	assert.NoError(t, err)
+
+	tel := fxutil.Test[telemetry.Mock](t, telemetryimpl.MockModule())
+	tel.Reset()
+	// Setup expvar server
+	telemetryHandler := tel.Handler()
+
+	http.Handle("/telemetry", telemetryHandler)
 }

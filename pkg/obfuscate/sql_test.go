@@ -98,13 +98,13 @@ func TestSingleDollarIdentifier(t *testing.T) {
 	MERGE INTO Employees AS target
 	USING EmployeeUpdates AS source
 	ON (target.EmployeeID = source.EmployeeID)
-	WHEN MATCHED THEN 
-		UPDATE SET 
+	WHEN MATCHED THEN
+		UPDATE SET
 			target.Name = source.Name
-	WHEN NOT MATCHED BY TARGET THEN 
+	WHEN NOT MATCHED BY TARGET THEN
 		INSERT (EmployeeID, Name)
 		VALUES (source.EmployeeID, source.Name)
-	WHEN NOT MATCHED BY SOURCE THEN 
+	WHEN NOT MATCHED BY SOURCE THEN
 		DELETE
 	OUTPUT $action, inserted.*, deleted.*;
 	`
@@ -1982,8 +1982,7 @@ func TestCassQuantizer(t *testing.T) {
 	}
 }
 
-//nolint:revive // TODO(APM) Fix revive linter
-func TestUnicodeDigit(t *testing.T) {
+func TestUnicodeDigit(_ *testing.T) {
 	hangStr := "٩"
 	o := NewObfuscator(Config{})
 	o.ObfuscateSQLString(hangStr)
@@ -2376,6 +2375,20 @@ func TestSQLLexerObfuscationAndNormalization(t *testing.T) {
 				Procedures: []string{},
 			},
 		},
+		{
+			name:     "normalization with CREATE TABLE",
+			query:    `CREATE TABLE IF NOT EXISTS users (id INT, name VARCHAR(255))`,
+			expected: `CREATE TABLE IF NOT EXISTS users ( id INT, name VARCHAR ( ? ) )`,
+			metadata: SQLMetadata{
+				Size:      11,
+				TablesCSV: "users",
+				Commands: []string{
+					"CREATE",
+				},
+				Comments:   []string{},
+				Procedures: []string{},
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -2393,6 +2406,187 @@ func TestSQLLexerObfuscationAndNormalization(t *testing.T) {
 					KeepNull:                      tt.keepNull,
 					KeepBoolean:                   tt.keepBoolean,
 					KeepPositionalParameter:       tt.keepPositionalParameter,
+					RemoveSpaceBetweenParentheses: tt.removeSpaceBetweenParentheses,
+					KeepTrailingSemicolon:         tt.keepTrailingSemicolon,
+					KeepIdentifierQuotation:       tt.keepIdentifierQuotation,
+				},
+			}).ObfuscateSQLString(tt.query)
+			require.NoError(t, err)
+			require.NotNil(t, oq)
+			assert.Equal(t, tt.expected, oq.Query)
+			assert.Equal(t, tt.metadata, oq.Metadata)
+		})
+	}
+}
+
+func TestSQLLexerNormalization(t *testing.T) {
+	tests := []struct {
+		name                          string
+		query                         string
+		expected                      string
+		collectProcedures             bool
+		removeSpaceBetweenParentheses bool
+		keepTrailingSemicolon         bool
+		keepIdentifierQuotation       bool
+		keepSQLAlias                  bool
+		metadata                      SQLMetadata
+	}{
+		{
+			name:     "simple query normalization",
+			query:    "SELECT * FROM users WHERE id = 1",
+			expected: "SELECT * FROM users WHERE id = 1",
+			metadata: SQLMetadata{
+				Size:      11,
+				TablesCSV: "users",
+				Commands: []string{
+					"SELECT",
+				},
+				Comments:   []string{},
+				Procedures: []string{},
+			},
+		},
+		{
+			name: "normalizaton with comments and keepSQLAlias",
+			query: `
+			-- comment
+			/* comment */
+			SELECT id as id, name as n FROM users123 WHERE id in (1,2,3)`,
+			expected:     "SELECT id as id, name as n FROM users123 WHERE id in ( 1, 2, 3 )",
+			keepSQLAlias: true,
+			metadata: SQLMetadata{
+				Size:      37,
+				TablesCSV: "users123",
+				Commands: []string{
+					"SELECT",
+				},
+				Comments: []string{
+					"-- comment",
+					"/* comment */",
+				},
+				Procedures: []string{},
+			},
+		},
+		{
+			name:     "normalizaton with dollar quoted function",
+			query:    "SELECT $func$INSERT INTO table VALUES ('a', 1, 2)$func$ FROM users",
+			expected: "SELECT $func$INSERT INTO table VALUES ( 'a', 1, 2 )$func$ FROM users",
+			metadata: SQLMetadata{
+				Size:      11,
+				TablesCSV: "users",
+				Commands: []string{
+					"SELECT",
+				},
+				Comments:   []string{},
+				Procedures: []string{},
+			},
+		},
+		{
+			name:              "normalization with stored procedure enabled",
+			query:             "CREATE PROCEDURE TestProc AS BEGIN SELECT * FROM users WHERE id = 1 END",
+			expected:          "CREATE PROCEDURE TestProc AS BEGIN SELECT * FROM users WHERE id = 1 END",
+			collectProcedures: true,
+			metadata: SQLMetadata{
+				Size:      30,
+				TablesCSV: "users",
+				Commands: []string{
+					"CREATE",
+					"BEGIN",
+					"SELECT",
+				},
+				Comments: []string{},
+				Procedures: []string{
+					"TestProc",
+				},
+			},
+		},
+		{
+			name:              "normalization with stored procedure disabled",
+			query:             "CREATE PROCEDURE TestProc AS BEGIN UPDATE users SET name = 'test' WHERE id = 1 END",
+			expected:          "CREATE PROCEDURE TestProc AS BEGIN UPDATE users SET name = 'test' WHERE id = 1 END",
+			collectProcedures: false,
+			metadata: SQLMetadata{
+				Size:      22,
+				TablesCSV: "users",
+				Commands: []string{
+					"CREATE",
+					"BEGIN",
+					"UPDATE",
+				},
+				Comments:   []string{},
+				Procedures: []string{},
+			},
+		},
+		{
+			name:     "normalization with query with null boolean and positional parameter",
+			query:    "SELECT * FROM users WHERE id = 1 AND address = $1 and id = $2 AND deleted IS NULL AND active is TRUE",
+			expected: "SELECT * FROM users WHERE id = 1 AND address = $1 and id = $2 AND deleted IS NULL AND active is TRUE",
+			metadata: SQLMetadata{
+				Size:      11,
+				TablesCSV: "users",
+				Commands: []string{
+					"SELECT",
+				},
+				Comments:   []string{},
+				Procedures: []string{},
+			},
+		},
+		{
+			name:                          "normalization with remove space between parentheses",
+			query:                         "SELECT * FROM users WHERE id = 1 AND (name = 'test' OR name = 'test2')",
+			expected:                      "SELECT * FROM users WHERE id = 1 AND (name = 'test' OR name = 'test2')",
+			removeSpaceBetweenParentheses: true,
+			metadata: SQLMetadata{
+				Size:      11,
+				TablesCSV: "users",
+				Commands: []string{
+					"SELECT",
+				},
+				Comments:   []string{},
+				Procedures: []string{},
+			},
+		},
+		{
+			name:                  "normalization with keep trailing semicolon",
+			query:                 "SELECT * FROM users WHERE id = 1 AND name = 'test';",
+			expected:              "SELECT * FROM users WHERE id = 1 AND name = 'test';",
+			keepTrailingSemicolon: true,
+			metadata: SQLMetadata{
+				Size:      11,
+				TablesCSV: "users",
+				Commands: []string{
+					"SELECT",
+				},
+				Comments:   []string{},
+				Procedures: []string{},
+			},
+		},
+		{
+			name:                    "normalization with keep identifier quotation",
+			query:                   `SELECT * FROM "users" WHERE id = 1 AND name = 'test'`,
+			expected:                `SELECT * FROM "users" WHERE id = 1 AND name = 'test'`,
+			keepIdentifierQuotation: true,
+			metadata: SQLMetadata{
+				Size:      11,
+				TablesCSV: "users",
+				Commands: []string{
+					"SELECT",
+				},
+				Comments:   []string{},
+				Procedures: []string{},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			oq, err := NewObfuscator(Config{
+				SQL: SQLConfig{
+					ObfuscationMode:               "normalize_only",
+					KeepSQLAlias:                  tt.keepSQLAlias,
+					TableNames:                    true,
+					CollectCommands:               true,
+					CollectComments:               true,
+					CollectProcedures:             tt.collectProcedures,
 					RemoveSpaceBetweenParentheses: tt.removeSpaceBetweenParentheses,
 					KeepTrailingSemicolon:         tt.keepTrailingSemicolon,
 					KeepIdentifierQuotation:       tt.keepIdentifierQuotation,

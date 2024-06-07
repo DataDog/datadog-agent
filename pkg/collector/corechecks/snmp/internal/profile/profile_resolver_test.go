@@ -26,18 +26,18 @@ import (
 func Test_resolveProfiles(t *testing.T) {
 
 	defaultTestConfdPath, _ := filepath.Abs(filepath.Join("..", "test", "conf.d"))
-	config.Datadog.SetWithoutSource("confd_path", defaultTestConfdPath)
+	config.Datadog().SetWithoutSource("confd_path", defaultTestConfdPath)
 	defaultTestConfdProfiles := ProfileConfigMap{}
 	userTestConfdProfiles, err := getProfileDefinitions(userProfilesFolder, true)
 	require.NoError(t, err)
 
 	profilesWithInvalidExtendConfdPath, _ := filepath.Abs(filepath.Join("..", "test", "invalid_ext.d"))
-	config.Datadog.SetWithoutSource("confd_path", profilesWithInvalidExtendConfdPath)
+	config.Datadog().SetWithoutSource("confd_path", profilesWithInvalidExtendConfdPath)
 	profilesWithInvalidExtendProfiles, err := getProfileDefinitions(userProfilesFolder, true)
 	require.NoError(t, err)
 
 	invalidCyclicConfdPath, _ := filepath.Abs(filepath.Join("..", "test", "invalid_cyclic.d"))
-	config.Datadog.SetWithoutSource("confd_path", invalidCyclicConfdPath)
+	config.Datadog().SetWithoutSource("confd_path", invalidCyclicConfdPath)
 	invalidCyclicProfiles, err := getProfileDefinitions(userProfilesFolder, true)
 	require.NoError(t, err)
 
@@ -50,7 +50,7 @@ func Test_resolveProfiles(t *testing.T) {
 	require.NoError(t, err)
 
 	userProfilesCaseConfdPath, _ := filepath.Abs(filepath.Join("..", "test", "user_profiles.d"))
-	config.Datadog.SetWithoutSource("confd_path", userProfilesCaseConfdPath)
+	config.Datadog().SetWithoutSource("confd_path", userProfilesCaseConfdPath)
 	userProfilesCaseUserProfiles, err := getProfileDefinitions(userProfilesFolder, true)
 	require.NoError(t, err)
 	userProfilesCaseDefaultProfiles, err := getProfileDefinitions(defaultProfilesFolder, true)
@@ -110,7 +110,7 @@ func Test_resolveProfiles(t *testing.T) {
 			},
 			expectedProfileDefMap: ProfileConfigMap{},
 			expectedLogs: []logCount{
-				{"[WARN] loadResolveProfiles: failed to expand profile `f5-big-ip`: extend does not exist: `does_not_exist`", 1},
+				{"[WARN] loadResolveProfiles: failed to expand profile \"f5-big-ip\": extend does not exist: `does_not_exist`", 1},
 			},
 		},
 		{
@@ -118,7 +118,7 @@ func Test_resolveProfiles(t *testing.T) {
 			userProfiles:          profilesWithInvalidExtendProfiles,
 			expectedProfileDefMap: ProfileConfigMap{},
 			expectedLogs: []logCount{
-				{"loadResolveProfiles: failed to expand profile `generic-if`: extend does not exist: `invalid`", 1},
+				{"loadResolveProfiles: failed to expand profile \"generic-if\": extend does not exist: `invalid`", 1},
 			},
 		},
 		{
@@ -126,7 +126,7 @@ func Test_resolveProfiles(t *testing.T) {
 			userProfiles:          invalidCyclicProfiles,
 			expectedProfileDefMap: ProfileConfigMap{},
 			expectedLogs: []logCount{
-				{"[WARN] loadResolveProfiles: failed to expand profile `f5-big-ip`: cyclic profile extend detected", 1},
+				{"[WARN] loadResolveProfiles: failed to expand profile \"f5-big-ip\": cyclic profile extend detected", 1},
 			},
 		},
 		{

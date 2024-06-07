@@ -13,9 +13,9 @@ import (
 
 	"gopkg.in/yaml.v2"
 
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	ddConfig "github.com/DataDog/datadog-agent/pkg/config"
@@ -51,14 +51,14 @@ type Check struct {
 }
 
 // Configure parses the check configuration and initializes the container_lifecycle check
-func (c *Check) Configure(senderManager sender.SenderManager, integrationConfigDigest uint64, config, initConfig integration.Data, source string) error {
-	if !ddConfig.Datadog.GetBool("container_lifecycle.enabled") {
+func (c *Check) Configure(senderManager sender.SenderManager, _ uint64, config, initConfig integration.Data, source string) error {
+	if !ddConfig.Datadog().GetBool("container_lifecycle.enabled") {
 		return errors.New("collection of container lifecycle events is disabled")
 	}
 
 	var err error
 
-	err = c.CommonConfigure(senderManager, integrationConfigDigest, initConfig, config, source)
+	err = c.CommonConfigure(senderManager, initConfig, config, source)
 	if err != nil {
 		return err
 	}
@@ -113,12 +113,29 @@ func (c *Check) Run() error {
 		workloadmeta.NewFilter(&podFilterParams),
 	)
 
+	var taskEventsCh chan workloadmeta.EventBundle
+	if ddConfig.Datadog().GetBool("container_lifecycle.ecs_task_event.enabled") {
+		taskFilterParams := workloadmeta.FilterParams{
+			Kinds:     []workloadmeta.Kind{workloadmeta.KindECSTask},
+			Source:    workloadmeta.SourceNodeOrchestrator,
+			EventType: workloadmeta.EventTypeUnset,
+		}
+		taskEventsCh = c.workloadmetaStore.Subscribe(
+			CheckName+"-task",
+			workloadmeta.NormalPriority,
+			workloadmeta.NewFilter(&taskFilterParams),
+		)
+	}
+
 	pollInterval := time.Duration(c.instance.PollInterval) * time.Second
 
 	processorCtx, stopProcessor := context.WithCancel(context.Background())
 	c.processor.start(processorCtx, pollInterval)
 
-	defer stopProcessor()
+	defer func() {
+		c.sendFargateTaskEvent()
+		stopProcessor()
+	}()
 	for {
 		select {
 		case eventBundle, ok := <-contEventsCh:
@@ -132,14 +149,20 @@ func (c *Check) Run() error {
 				return nil
 			}
 			c.processor.processEvents(eventBundle)
+		case eventBundle, ok := <-taskEventsCh:
+			if !ok {
+				stopProcessor()
+				return nil
+			}
+			c.processor.processEvents(eventBundle)
 		case <-c.stopCh:
 			return nil
 		}
 	}
 }
 
-// Stop stops the container_lifecycle check
-func (c *Check) Stop() { close(c.stopCh) }
+// Cancel stops the container_lifecycle check
+func (c *Check) Cancel() { close(c.stopCh) }
 
 // Interval returns 0, it makes container_lifecycle a long-running check
 func (c *Check) Interval() time.Duration { return 0 }
@@ -147,11 +170,36 @@ func (c *Check) Interval() time.Duration { return 0 }
 // Factory returns a new check factory
 func Factory(store workloadmeta.Component) optional.Option[func() check.Check] {
 	return optional.NewOption(func() check.Check {
-		return &Check{
+		return core.NewLongRunningCheckWrapper(&Check{
 			CheckBase:         core.NewCheckBase(CheckName),
 			workloadmetaStore: store,
 			instance:          &Config{},
 			stopCh:            make(chan struct{}),
-		}
+		})
+	})
+}
+
+// sendFargateTaskEvent sends Fargate task lifecycle event at the end of the check
+func (c *Check) sendFargateTaskEvent() {
+	if !ddConfig.Datadog().GetBool("container_lifecycle.ecs_task_event.enabled") ||
+		!ddConfig.IsECSFargate() {
+		return
+	}
+
+	tasks := c.workloadmetaStore.ListECSTasks()
+	if len(tasks) != 1 {
+		log.Infof("Unable to send Fargate task lifecycle event, expected 1 task, got %d", len(tasks))
+		return
+	}
+
+	log.Infof("Send fargate task lifecycle event, task arn:%s", tasks[0].EntityID.ID)
+	c.processor.processEvents(workloadmeta.EventBundle{
+		Events: []workloadmeta.Event{
+			{
+				Type:   workloadmeta.EventTypeUnset,
+				Entity: tasks[0],
+			},
+		},
+		Ch: make(chan struct{}),
 	})
 }

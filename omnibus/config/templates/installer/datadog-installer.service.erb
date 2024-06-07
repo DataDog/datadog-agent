@@ -1,0 +1,18 @@
+[Unit]
+Description=Datadog Installer
+After=network.target
+Conflicts=datadog-installer-exp.service
+
+[Service]
+Type=simple
+PIDFile=/var/run/datadog-installer/installer.pid
+Restart=on-failure
+EnvironmentFile=-<%= etc_dir %>/environment
+ExecStart=<%= installer_dir %>/bin/installer/installer run -p /var/run/datadog-installer/installer.pid
+# Since systemd 229, should be in [Unit] but in order to support systemd <229,
+# it is also supported to have it here.
+StartLimitInterval=10
+StartLimitBurst=5
+
+[Install]
+WantedBy=multi-user.target

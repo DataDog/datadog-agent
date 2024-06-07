@@ -40,6 +40,7 @@ const (
 	WindowsCrashDetectModule     types.ModuleName = "windows_crash_detection"
 	ComplianceModule             types.ModuleName = "compliance"
 	PingModule                   types.ModuleName = "ping"
+	TracerouteModule             types.ModuleName = "traceroute"
 )
 
 // New creates a config object for system-probe. It assumes no configuration has been loaded as this point.
@@ -48,11 +49,6 @@ func New(configPath string) (*types.Config, error) {
 }
 
 func newSysprobeConfig(configPath string) (*types.Config, error) {
-	// System probe is not supported on darwin, so we should fail gracefully in this case.
-	if runtime.GOOS == "darwin" {
-		return &types.Config{}, nil
-	}
-
 	aconfig.SystemProbe.SetConfigName("system-probe")
 	// set the paths where a config file is expected
 	if len(configPath) != 0 {
@@ -68,7 +64,7 @@ func newSysprobeConfig(configPath string) (*types.Config, error) {
 		aconfig.SystemProbe.AddConfigPath(defaultConfigDir)
 	}
 	// load the configuration
-	_, err := aconfig.LoadCustom(aconfig.SystemProbe, "system-probe", optional.NewNoneOption[secrets.Component](), aconfig.Datadog.GetEnvVars())
+	_, err := aconfig.LoadCustom(aconfig.SystemProbe, "system-probe", optional.NewNoneOption[secrets.Component](), aconfig.Datadog().GetEnvVars())
 	if err != nil {
 		if errors.Is(err, fs.ErrPermission) {
 			// special-case permission-denied with a clearer error message
@@ -96,7 +92,6 @@ func load() (*types.Config, error) {
 		ExternalSystemProbe: cfg.GetBool(spNS("external")),
 
 		SocketAddress:      cfg.GetString(spNS("sysprobe_socket")),
-		GRPCServerEnabled:  cfg.GetBool(spNS("grpc_enabled")),
 		MaxConnsPerMessage: cfg.GetInt(spNS("max_conns_per_message")),
 
 		LogFile:          cfg.GetString("log_file"),
@@ -111,8 +106,9 @@ func load() (*types.Config, error) {
 
 	npmEnabled := cfg.GetBool(netNS("enabled"))
 	usmEnabled := cfg.GetBool(smNS("enabled"))
+	ccmEnabled := cfg.GetBool(ccmNS("enabled"))
 
-	if npmEnabled || usmEnabled {
+	if npmEnabled || usmEnabled || ccmEnabled {
 		c.EnabledModules[NetworkTracerModule] = struct{}{}
 	}
 	if cfg.GetBool(spNS("enable_tcp_queue_length")) {
@@ -145,12 +141,15 @@ func load() (*types.Config, error) {
 	if cfg.GetBool(pngNS("enabled")) {
 		c.EnabledModules[PingModule] = struct{}{}
 	}
+	if cfg.GetBool(tracerouteNS("enabled")) {
+		c.EnabledModules[TracerouteModule] = struct{}{}
+	}
 
 	if cfg.GetBool(wcdNS("enabled")) {
 		c.EnabledModules[WindowsCrashDetectModule] = struct{}{}
 	}
 	if runtime.GOOS == "windows" {
-		if c.ModuleIsEnabled(NetworkTracerModule) {
+		if c.ModuleIsEnabled(NetworkTracerModule) || c.ModuleIsEnabled(EventMonitorModule) {
 			// enable the windows crash detection module if the network tracer
 			// module is enabled, to allow the core agent to detect our own crash
 			c.EnabledModules[WindowsCrashDetectModule] = struct{}{}
@@ -166,12 +165,12 @@ func load() (*types.Config, error) {
 
 // SetupOptionalDatadogConfigWithDir loads the datadog.yaml config file from a given config directory but will not fail on a missing file
 func SetupOptionalDatadogConfigWithDir(configDir, configFile string) error {
-	aconfig.Datadog.AddConfigPath(configDir)
+	aconfig.Datadog().AddConfigPath(configDir)
 	if configFile != "" {
-		aconfig.Datadog.SetConfigFile(configFile)
+		aconfig.Datadog().SetConfigFile(configFile)
 	}
 	// load the configuration
-	_, err := aconfig.LoadDatadogCustom(aconfig.Datadog, "datadog.yaml", optional.NewNoneOption[secrets.Component](), aconfig.SystemProbe.GetEnvVars())
+	_, err := aconfig.LoadDatadogCustom(aconfig.Datadog(), "datadog.yaml", optional.NewNoneOption[secrets.Component](), aconfig.SystemProbe.GetEnvVars())
 	// If `!failOnMissingFile`, do not issue an error if we cannot find the default config file.
 	var e viper.ConfigFileNotFoundError
 	if err != nil && !errors.As(err, &e) {

@@ -12,9 +12,9 @@ import (
 
 	"gopkg.in/yaml.v2"
 
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	ddConfig "github.com/DataDog/datadog-agent/pkg/config"
@@ -95,22 +95,22 @@ type Check struct {
 // Factory returns a new check factory
 func Factory(store workloadmeta.Component) optional.Option[func() check.Check] {
 	return optional.NewOption(func() check.Check {
-		return &Check{
+		return core.NewLongRunningCheckWrapper(&Check{
 			CheckBase:         core.NewCheckBase(CheckName),
 			workloadmetaStore: store,
 			instance:          &Config{},
 			stopCh:            make(chan struct{}),
-		}
+		})
 	})
 }
 
 // Configure parses the check configuration and initializes the container_image check
-func (c *Check) Configure(senderManager sender.SenderManager, integrationConfigDigest uint64, config, initConfig integration.Data, source string) error {
-	if !ddConfig.Datadog.GetBool("container_image.enabled") {
+func (c *Check) Configure(senderManager sender.SenderManager, _ uint64, config, initConfig integration.Data, source string) error {
+	if !ddConfig.Datadog().GetBool("container_image.enabled") {
 		return errors.New("collection of container images is disabled")
 	}
 
-	if err := c.CommonConfigure(senderManager, integrationConfigDigest, initConfig, config, source); err != nil {
+	if err := c.CommonConfigure(senderManager, initConfig, config, source); err != nil {
 		return err
 	}
 

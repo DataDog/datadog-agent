@@ -14,12 +14,17 @@ var (
 	// InstallPath is the default install path for the agent
 	// It might be overridden at build time
 	InstallPath = "/opt/datadog-agent"
+
+	// defaultRunPath is the default path for the agent's runtime files
+	// It might be overridden at build time
+	defaultRunPath = "/opt/datadog-agent/run"
 )
 
 var (
-	defaultRunPath = filepath.Join(InstallPath, "run")
 	// defaultSystemProbeAddress is the default unix socket path to be used for connecting to the system probe
 	defaultSystemProbeAddress = filepath.Join(InstallPath, "run/sysprobe.sock")
+	// defaultEventMonitorAddress is the default unix socket path to be used for connecting to the event monitor
+	defaultEventMonitorAddress = filepath.Join(InstallPath, "run/event-monitor.sock")
 	// DefaultDDAgentBin the process agent's binary
 	DefaultDDAgentBin = filepath.Join(InstallPath, "bin/agent/agent")
 )
@@ -28,6 +33,8 @@ const (
 	defaultConfdPath            = "/etc/datadog-agent/conf.d"
 	defaultAdditionalChecksPath = "/etc/datadog-agent/checks.d"
 	defaultGuiPort              = -1
+	// DefaultUpdaterLogFile is the default updater log file
+	DefaultUpdaterLogFile = "/var/log/datadog/updater.log"
 	// DefaultSecurityAgentLogFile points to the log file that will be used by the security-agent if not configured
 	DefaultSecurityAgentLogFile = "/var/log/datadog/security-agent.log"
 	// DefaultProcessAgentLogFile is the default process-agent log file

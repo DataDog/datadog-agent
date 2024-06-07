@@ -8,15 +8,17 @@
 package systemd
 
 import (
+	"context"
 	"fmt"
+	"math"
 	"strings"
 	"time"
 
-	"github.com/coreos/go-systemd/dbus"
+	"github.com/coreos/go-systemd/v22/dbus"
 	"gopkg.in/yaml.v2"
 
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
@@ -180,7 +182,7 @@ func (s *defaultSystemdStats) PrivateSocketConnection(privateSocket string) (*db
 }
 
 func (s *defaultSystemdStats) SystemBusSocketConnection() (*dbus.Conn, error) {
-	return dbus.NewSystemConnection()
+	return dbus.NewSystemConnectionContext(context.Background())
 }
 
 func (s *defaultSystemdStats) CloseConn(c *dbus.Conn) {
@@ -188,15 +190,15 @@ func (s *defaultSystemdStats) CloseConn(c *dbus.Conn) {
 }
 
 func (s *defaultSystemdStats) SystemState(c *dbus.Conn) (*dbus.Property, error) {
-	return c.SystemState()
+	return c.SystemStateContext(context.Background())
 }
 
 func (s *defaultSystemdStats) ListUnits(conn *dbus.Conn) ([]dbus.UnitStatus, error) {
-	return conn.ListUnits()
+	return conn.ListUnitsContext(context.Background())
 }
 
 func (s *defaultSystemdStats) GetUnitTypeProperties(c *dbus.Conn, unitName string, unitType string) (map[string]interface{}, error) {
-	return c.GetUnitTypeProperties(unitName, unitType)
+	return c.GetUnitTypePropertiesContext(context.Background(), unitName, unitType)
 }
 
 func (s *defaultSystemdStats) GetVersion(c *dbus.Conn) (string, error) {
@@ -433,7 +435,12 @@ func sendServicePropertyAsGauge(sender sender.Sender, properties map[string]inte
 	if err != nil {
 		return fmt.Errorf("error getting property %s: %v", service.propertyName, err)
 	}
-	sender.Gauge(service.metricName, float64(value), "", tags)
+
+	// When the value is `[Not set]`, dbus returns MaxUint64
+	if value != math.MaxUint64 {
+		sender.Gauge(service.metricName, float64(value), "", tags)
+	}
+
 	return nil
 }
 
@@ -527,7 +534,7 @@ func (c *SystemdCheck) Configure(senderManager sender.SenderManager, integration
 	// Must be called before CommonConfigure that uses checkID
 	c.BuildID(integrationConfigDigest, rawInstance, rawInitConfig)
 
-	err := c.CommonConfigure(senderManager, integrationConfigDigest, rawInitConfig, rawInstance, source)
+	err := c.CommonConfigure(senderManager, rawInitConfig, rawInstance, source)
 	if err != nil {
 		return err
 	}

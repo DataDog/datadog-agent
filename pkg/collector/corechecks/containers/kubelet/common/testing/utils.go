@@ -10,6 +10,7 @@ package testing
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -35,21 +36,46 @@ var (
 		"container_id://5741ed2471c0e458b6b95db40ba05d1a5ee168256638a0264f08703e48d76561": {
 			"kube_container_name:fluentd-gcp",
 			"kube_deployment:fluentd-gcp-v2.0.10",
+			"kube_namespace:default",
+		},
+		"container_id://1d1f139dc1c9d49010512744df34740abcfaadf9930d3afd85afbf5fccfadbd6": {
+			"kube_container_name:init",
+			"kube_deployment:fluentd-gcp-v2.0.10",
+			"kube_namespace:default",
 		},
 		"container_id://580cb469826a10317fd63cc780441920f49913ae63918d4c7b19a72347645b05": {
 			"kube_container_name:prometheus-to-sd-exporter",
 			"kube_deployment:fluentd-gcp-v2.0.10",
+			"kube_namespace:default",
 		},
 		"container_id://6941ed2471c0e458b6b95db40ba05d1a5ee168256638a0264f08703e48d76561": {
 			"kube_container_name:fluentd-gcp",
 			"kube_deployment:fluentd-gcp-v2.0.10",
+			"kube_namespace:default",
 		},
 		"container_id://690cb469826a10317fd63cc780441920f49913ae63918d4c7b19a72347645b05": {
 			"kube_container_name:prometheus-to-sd-exporter",
 			"kube_deployment:fluentd-gcp-v2.0.10",
+			"kube_namespace:default",
 		},
 		"container_id://5f93d91c7aee0230f77fbe9ec642dd60958f5098e76de270a933285c24dfdc6f": {
 			"pod_name:demo-app-success-c485bc67b-klj45",
+			"kube_namespace:default",
+		},
+		"container_id://580cb469826a10317fd63cc780441920f49913ae63918d4c7b19a72347645b06": {
+			"kube_container_name:prometheus-to-sd-exporter-no-namespace",
+			"kube_deployment:fluentd-gcp-v2.0.10",
+		},
+		"container_id://6941ed2471c0e458b6b95db40ba05d1a5ee168256638a0264f08703e48d76562": {
+			"kube_container_name:fluentd-gcp-no-namespace",
+			"kube_deployment:fluentd-gcp-v2.0.10",
+		},
+		"container_id://690cb469826a10317fd63cc780441920f49913ae63918d4c7b19a72347645b06": {
+			"kube_container_name:prometheus-to-sd-exporter-no-namespace",
+			"kube_deployment:fluentd-gcp-v2.0.10",
+		},
+		"container_id://5f93d91c7aee0230f77fbe9ec642dd60958f5098e76de270a933285c24dfdc6g": {
+			"pod_name:demo-app-success-c485bc67b-klj45-no-namespace",
 		},
 		"kubernetes_pod_uid://d2e71e36-10d0-11e8-bd5a-42010af00137": {"pod_name:dd-agent-q6hpw"},
 		"kubernetes_pod_uid://260c2b1d43b094af6d6b4ccba082c2db": {
@@ -58,14 +84,20 @@ var (
 		"kubernetes_pod_uid://24d6daa3-10d8-11e8-bd5a-42010af00137":                       {"pod_name:demo-app-success-c485bc67b-klj45"},
 		"container_id://f69aa93ce78ee11e78e7c75dc71f535567961740a308422dafebdb4030b04903": {"pod_name:pi-kff76"},
 		"kubernetes_pod_uid://12ceeaa9-33ca-11e6-ac8f-42010af00003":                       {"pod_name:dd-agent-ntepl"},
-		"container_id://32fc50ecfe24df055f6d56037acb966337eef7282ad5c203a1be58f2dd2fe743": {"pod_name:dd-agent-ntepl"},
+		"container_id://32fc50ecfe24df055f6d56037acb966337eef7282ad5c203a1be58f2dd2fe743": {"pod_name:dd-agent-ntepl", "kube_namespace:default"},
 		"container_id://a335589109ce5506aa69ba7481fc3e6c943abd23c5277016c92dac15d0f40479": {
 			"kube_container_name:datadog-agent",
+			"kube_namespace:default",
+		},
+		"container_id://80bd9ebe296615341c68d571e843d800fb4a75bef696d858065572ab4e49920b": {
+			"kube_container_name:running-init",
+			"kube_namespace:default",
 		},
 		"container_id://326b384481ca95204018e3e837c61e522b64a3b86c3804142a22b2d1db9dbd7b": {
 			"kube_container_name:datadog-agent",
+			"kube_namespace:default",
 		},
-		"container_id://6d8c6a05731b52195998c438fdca271b967b171f6c894f11ba59aa2f4deff10c": {"pod_name:cassandra-0"},
+		"container_id://6d8c6a05731b52195998c438fdca271b967b171f6c894f11ba59aa2f4deff10c": {"pod_name:cassandra-0", "kube_namespace:default"},
 		"kubernetes_pod_uid://639980e5-2e6c-11ea-8bb1-42010a800074": {
 			"kube_namespace:default",
 			"kube_service:nginx",
@@ -154,7 +186,7 @@ func StorePopulatedFromFile(store workloadmeta.Mock, filename string, podUtils *
 
 			image, err := workloadmeta.NewContainerImage(container.ImageID, container.Image)
 			if err != nil {
-				if err == containers.ErrImageIsSha256 {
+				if errors.Is(err, containers.ErrImageIsSha256) {
 					// try the resolved image ID if the image name in the container
 					// status is a SHA256. this seems to happen sometimes when
 					// pinning the image to a SHA256

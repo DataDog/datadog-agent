@@ -21,7 +21,7 @@ import (
 func TestValidateTokenMiddleware(t *testing.T) {
 	mockConfig := config.Mock(t)
 	mockConfig.SetWithoutSource("cluster_agent.auth_token", "abc123")
-	util.InitDCAAuthToken()
+	util.InitDCAAuthToken(config.Datadog())
 
 	tests := []struct {
 		path, authToken    string

@@ -14,8 +14,8 @@ import (
 
 	"go.uber.org/atomic"
 
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
@@ -72,7 +72,7 @@ func (c *Check) Configure(
 ) error {
 	c.BuildID(integrationConfigDigest, data, initConfig)
 
-	err := c.CommonConfigure(senderManager, integrationConfigDigest, initConfig, data, source)
+	err := c.CommonConfigure(senderManager, initConfig, data, source)
 	if err != nil {
 		return err
 	}
@@ -80,10 +80,6 @@ func (c *Check) Configure(
 	err = c.config.Load()
 	if err != nil {
 		return err
-	}
-	if !c.config.CoreCheck {
-		log.Warn("The Node Agent version for pods is currently disabled. See the changelog.")
-		return nil
 	}
 	if !c.config.OrchestrationCollectionEnabled {
 		log.Warn("orchestrator pod check is configured but the feature is disabled")
@@ -115,11 +111,6 @@ func (c *Check) Configure(
 
 // Run executes the check
 func (c *Check) Run() error {
-
-	if !c.config.CoreCheck {
-		return nil
-	}
-
 	if c.clusterID == "" {
 		clusterID, err := clustername.GetClusterID()
 		if err != nil {
@@ -139,12 +130,15 @@ func (c *Check) Run() error {
 	}
 
 	groupID := nextGroupID()
-	ctx := &processors.ProcessorContext{
-		ClusterID:          c.clusterID,
-		Cfg:                c.config,
+	ctx := &processors.K8sProcessorContext{
+		BaseProcessorContext: processors.BaseProcessorContext{
+			Cfg:              c.config,
+			MsgGroupID:       groupID,
+			NodeType:         orchestrator.K8sPod,
+			ClusterID:        c.clusterID,
+			ManifestProducer: true,
+		},
 		HostName:           c.hostName,
-		MsgGroupID:         groupID,
-		NodeType:           orchestrator.K8sPod,
 		ApiGroupVersionTag: "kube_api_version:v1",
 	}
 

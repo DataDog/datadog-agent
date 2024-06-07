@@ -301,13 +301,13 @@ func validateArgs(args []string, local bool) error {
 		}
 	} else {
 		// Validate the wheel we try to install exists
-		if _, err := os.Stat(args[0]); err == nil {
+		var err error
+		if _, err = os.Stat(args[0]); err == nil {
 			return nil
 		} else if os.IsNotExist(err) {
 			return fmt.Errorf("local wheel %s does not exist", args[0])
-		} else {
-			return fmt.Errorf("cannot read local wheel %s: %v", args[0], err)
 		}
+		return fmt.Errorf("cannot read local wheel %s: %v", args[0], err)
 	}
 
 	return nil
@@ -553,7 +553,7 @@ func downloadWheel(cliParams *cliParams, integration, version, rootLayoutType st
 	downloaderCmd.Env = environ
 
 	// Proxy support
-	proxies := pkgconfig.Datadog.GetProxies()
+	proxies := pkgconfig.Datadog().GetProxies()
 	if proxies != nil {
 		downloaderCmd.Env = append(downloaderCmd.Env,
 			fmt.Sprintf("HTTP_PROXY=%s", proxies.HTTP),
@@ -795,7 +795,7 @@ func getVersionFromReqLine(integration string, lines string) (*semver.Version, b
 }
 
 func moveConfigurationFilesOf(cliParams *cliParams, integration string) error {
-	confFolder := pkgconfig.Datadog.GetString("confd_path")
+	confFolder := pkgconfig.Datadog().GetString("confd_path")
 	check := getIntegrationName(integration)
 	confFileDest := filepath.Join(confFolder, fmt.Sprintf("%s.d", check))
 	if err := os.MkdirAll(confFileDest, os.ModeDir|0755); err != nil {

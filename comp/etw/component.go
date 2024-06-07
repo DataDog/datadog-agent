@@ -54,16 +54,45 @@ type DDEventHeader struct {
 	ActivityID      DDGUID
 }
 
+// DDEtwBufferContext defines the go definition of the C structure ETW_BUFFER_CONTEXT
+type DDEtwBufferContext struct {
+	/*
+			the actual struct is defined as
+			 union {
+		    struct {
+		      UCHAR ProcessorNumber;
+		      UCHAR Alignment;
+		    } DUMMYSTRUCTNAME;
+		    USHORT ProcessorIndex;
+		  } DUMMYUNIONNAME;
+		  USHORT LoggerId;
+		  but go doesn't really do unions.  So for now, just put in ProcessorIndex
+	*/
+	ProcessorIndex uint16
+	LoggerID       uint16
+}
+
+// DDEventHeaderExtendedDataItem defines the layout of the extended data for an event that Event Tracing for Windows (ETW) delivers.
+// see https://learn.microsoft.com/en-us/windows/win32/api/evntcons/ns-evntcons-event_header_extended_data_item
+type DDEventHeaderExtendedDataItem struct {
+	Reserved1 uint16
+	ExtType   uint16
+	Reserved2 uint16 // is actually 1 bit of linkage and 15 bits of reserved
+	DataSize  uint16
+	DataPtr   *uint8
+}
+
 // DDEventRecord defines the layout of an event that Event Tracing for Windows (ETW) delivers.
 // see https://learn.microsoft.com/en-us/windows/win32/api/evntcons/ns-evntcons-event_record
 // 104
 type DDEventRecord struct {
-	EventHeader    DDEventHeader
-	Pad1           [6]uint8 // sizeof(ETW_BUFFER_CONTEXT) + sizeof(USHORT) = 6
-	UserDataLength uint16
-	Pad2           [8]uint8 // sizeof(PEVENT_HEADER_EXTENDED_DATA_ITEM) = 8
-	UserData       *uint8
-	// UserDataContext is left out
+	EventHeader       DDEventHeader
+	BufferContext     DDEtwBufferContext
+	ExtendedDataCount uint16
+	UserDataLength    uint16
+	ExtendedData      *DDEventHeaderExtendedDataItem // this is actually a pointer to the extended data.
+	UserData          *uint8
+	UserContext       *uint8
 }
 
 // EventCallback is a function that will be called when an ETW event is received
@@ -84,6 +113,28 @@ const (
 	TRACE_LEVEL_VERBOSE     = TraceLevel(5)
 )
 
+//revive:disable:exported
+const (
+	EVENT_HEADER_EXT_TYPE_RELATED_ACTIVITYID = 0x0001
+	EVENT_HEADER_EXT_TYPE_SID                = 0x0002
+	EVENT_HEADER_EXT_TYPE_TS_ID              = 0x0003
+	EVENT_HEADER_EXT_TYPE_INSTANCE_INFO      = 0x0004
+	EVENT_HEADER_EXT_TYPE_STACK_TRACE32      = 0x0005
+	EVENT_HEADER_EXT_TYPE_STACK_TRACE64      = 0x0006
+	EVENT_HEADER_EXT_TYPE_PEBS_INDEX         = 0x0007
+	EVENT_HEADER_EXT_TYPE_PMC_COUNTERS       = 0x0008
+	EVENT_HEADER_EXT_TYPE_PSM_KEY            = 0x0009
+	EVENT_HEADER_EXT_TYPE_EVENT_KEY          = 0x000A
+	EVENT_HEADER_EXT_TYPE_EVENT_SCHEMA_TL    = 0x000B
+	EVENT_HEADER_EXT_TYPE_PROV_TRAITS        = 0x000C
+	EVENT_HEADER_EXT_TYPE_PROCESS_START_KEY  = 0x000D
+	EVENT_HEADER_EXT_TYPE_CONTROL_GUID       = 0x000E
+	EVENT_HEADER_EXT_TYPE_QPC_DELTA          = 0x000F
+	EVENT_HEADER_EXT_TYPE_CONTAINER_ID       = 0x0010
+	EVENT_HEADER_EXT_TYPE_MAX                = 0x0011
+)
+
+//revive:enable:exported
 //revive:enable:var-naming
 
 // ProviderConfiguration is a structure containing all the configuration options for an ETW provider
@@ -104,10 +155,48 @@ type ProviderConfiguration struct {
 
 	// PIDs allow filtering by PIDs if non-empty
 	PIDs []uint32
+
+	// The EnabledIDs and DisabledIDs fields are mutually exclusive; the API allows you to send one or the other but not both.
+	//
+	// Setting the list of EnabledIDs will enable only listed events.
+	// Setting the list of DisabledIDs will disable only listed events, and allow all others
+
+	// EventIDs for enableTrace = TRUE
+	EnabledIDs []uint16
+
+	// eventIds for enabletrace = FALSE
+	DisabledIDs []uint16
 }
 
 // ProviderConfigurationFunc is a function used to configure a provider
 type ProviderConfigurationFunc func(cfg *ProviderConfiguration)
+
+// SessionConfiguration is a structure containing all the configuration options for an ETW session
+type SessionConfiguration struct {
+	//MinBuffers is the minimum number of trace buffers for ETW to allocate for a session.  The default is 0
+	MinBuffers uint32
+	//MaxBuffers is the maximum number of buffers for ETW to allocate.  The default is 0
+	MaxBuffers uint32
+}
+
+// SessionStatistics contains statistics about the session
+type SessionStatistics struct {
+	// NumberOfBuffers is the number of buffers allocated for the session
+	NumberOfBuffers uint32
+	// FreeBuffers is the number of buffers that are free
+	FreeBuffers uint32
+	// EventsLost is the number of events not recorded
+	EventsLost uint32
+	// BuffersWritten is the number of buffers written
+	BuffersWritten uint32
+	// LogBuffersLost is the number of log buffers lost
+	LogBuffersLost uint32
+	// RealTimeBuffersLost is the number of real-time buffers lost
+	RealTimeBuffersLost uint32
+}
+
+// SessionConfigurationFunc is a function used to configure a session
+type SessionConfigurationFunc func(cfg *SessionConfiguration)
 
 // Session represents an ETW session. A session can have multiple tracing providers enabled.
 type Session interface {
@@ -129,9 +218,35 @@ type Session interface {
 	// StopTracing stops all tracing activities.
 	// It's not possible to use the session anymore after a call to StopTracing.
 	StopTracing() error
+
+	// GetSessionStatistics returns statistics about the session
+	GetSessionStatistics() (SessionStatistics, error)
 }
 
 // Component offers a way to create ETW tracing sessions with a given name.
 type Component interface {
-	NewSession(sessionName string) (Session, error)
+	NewSession(sessionName string, f SessionConfigurationFunc) (Session, error)
+	NewWellKnownSession(sessionName string, f SessionConfigurationFunc) (Session, error)
+}
+
+// UserData offers a wrapper around the UserData field of an ETW event.
+type UserData interface {
+	// ParseUnicodeString reads from the userdata field, and returns the string
+	// the next offset in the buffer of the next field, whether the value was found,
+	// and if a terminating null was found, the index of that
+	ParseUnicodeString(offset int) (string, int, bool, int)
+
+	// GetUint64 reads a uint64 from the userdata field
+	GetUint64(offset int) uint64
+
+	// GetUint32 reads a uint32 from the userdata field
+	GetUint32(offset int) uint32
+
+	// GetUint16 reads a uint16 from the userdata field
+	GetUint16(offset int) uint16
+
+	// Bytes returns the selected slice of bytes
+	Bytes(offset int, length int) []byte
+	// Length returns the length of the userdata field
+	Length() int
 }

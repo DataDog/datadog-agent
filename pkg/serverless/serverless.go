@@ -14,10 +14,12 @@ import (
 	"strings"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/serverless/proc"
 	json "github.com/json-iterator/go"
 
 	"github.com/DataDog/datadog-agent/pkg/serverless/daemon"
 	"github.com/DataDog/datadog-agent/pkg/serverless/flush"
+	"github.com/DataDog/datadog-agent/pkg/serverless/invocationlifecycle"
 	"github.com/DataDog/datadog-agent/pkg/serverless/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serverless/registration"
 	"github.com/DataDog/datadog-agent/pkg/serverless/tags"
@@ -139,6 +141,10 @@ func WaitForNextInvocation(stopCh chan struct{}, daemon *daemon.Daemon, id regis
 			metricTags = tags.AddInitTypeTag(metricTags)
 			metrics.SendTimeoutEnhancedMetric(metricTags, daemon.MetricAgent.Demux)
 			metrics.SendErrorsEnhancedMetric(metricTags, time.Now(), daemon.MetricAgent.Demux)
+
+			if daemon.IsExecutionSpanIncomplete() {
+				finishTimeoutExecutionSpan(daemon, coldStartTags.IsColdStart, coldStartTags.IsProactiveInit)
+			}
 		}
 		err := daemon.ExecutionContext.SaveCurrentExecutionContext()
 		if err != nil {
@@ -152,6 +158,7 @@ func WaitForNextInvocation(stopCh chan struct{}, daemon *daemon.Daemon, id regis
 }
 
 func callInvocationHandler(daemon *daemon.Daemon, arn string, deadlineMs int64, safetyBufferTimeout time.Duration, requestID string, invocationHandler InvocationHandler) {
+	userCPUTimeMsOffset, systemCPUTimeMsOffset, cpuOffsetErr := proc.GetCPUData("/proc/stat")
 	timeout := computeTimeout(time.Now(), deadlineMs, safetyBufferTimeout)
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
@@ -163,9 +170,14 @@ func callInvocationHandler(daemon *daemon.Daemon, arn string, deadlineMs int64, 
 		log.Debug("Timeout detected, finishing the current invocation now to allow receiving the SHUTDOWN event")
 		// Tell the Daemon that the runtime is done (even though it isn't, because it's timing out) so that we can receive the SHUTDOWN event
 		daemon.TellDaemonRuntimeDone()
-		return
+		break
 	case <-doneChannel:
-		return
+		break
+	}
+	if cpuOffsetErr == nil && daemon.MetricAgent != nil {
+		metrics.SendCPUEnhancedMetrics(userCPUTimeMsOffset, systemCPUTimeMsOffset, daemon.ExtraTags.Tags, daemon.MetricAgent.Demux)
+	} else {
+		log.Debug("Could not send CPU enhanced metrics")
 	}
 }
 
@@ -213,4 +225,21 @@ func removeQualifierFromArn(functionArn string) string {
 		return strings.Join(functionArnTokens, ":")
 	}
 	return functionArn
+}
+
+func finishTimeoutExecutionSpan(daemon *daemon.Daemon, isColdStart bool, isProactiveInit bool) {
+	ecs := daemon.ExecutionContext.GetCurrentState()
+	timeoutDetails := &invocationlifecycle.InvocationEndDetails{
+		RequestID:          ecs.LastRequestID,
+		Runtime:            ecs.Runtime,
+		ColdStart:          isColdStart,
+		ProactiveInit:      isProactiveInit,
+		EndTime:            time.Now(),
+		IsError:            true,
+		IsTimeout:          true,
+		ResponseRawPayload: nil,
+	}
+	log.Debug("Could not complete the execution span due to a timeout. Attempting to finish the span without details from the tracer.")
+	daemon.InvocationProcessor.OnInvokeEnd(timeoutDetails)
+	daemon.SetExecutionSpanIncomplete(false)
 }

@@ -50,6 +50,8 @@ const (
 	DentryResolverRenameCallbackKprobeKey
 	// DentryResolverSELinuxCallbackKprobeKey is the key to the callback program to execute after resolving the destination dentry of a selinux event
 	DentryResolverSELinuxCallbackKprobeKey
+	// DentryResolverChdirCallbackKprobeKey is the key to the callback program to execute after resolving the dentry of an chdir event
+	DentryResolverChdirCallbackKprobeKey
 )
 
 const (
@@ -65,13 +67,17 @@ const (
 	DentryResolverLinkDstCallbackTracepointKey
 	// DentryResolverRenameCallbackTracepointKey is the key to the callback program to execute after resolving the destination dentry of a rename event
 	DentryResolverRenameCallbackTracepointKey
+	// DentryResolverChdirCallbackTracepointKey is the key to the callback program to execute after resolving the dentry of an chdir event
+	DentryResolverChdirCallbackTracepointKey
 )
 
 const (
-	// TCDNSRequestKey is the key to DNS request program
+	// TCDNSRequestKey is the key to the DNS request program
 	TCDNSRequestKey uint32 = iota + 1
-	// TCDNSRequestParserKey is the key to DNS request parser program
+	// TCDNSRequestParserKey is the key to the DNS request parser program
 	TCDNSRequestParserKey
+	// TCIMDSRequestParserKey is the key to the IMDS request program
+	TCIMDSRequestParserKey
 )
 
 const (

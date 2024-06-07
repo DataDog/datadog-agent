@@ -16,17 +16,17 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
 
-func newDefaultEvent() eval.Event {
-	return model.NewDefaultEvent()
+func newFakeEvent() eval.Event {
+	return model.NewFakeEvent()
 }
 
 func TestApproverAncestors1(t *testing.T) {
 	enabled := map[eval.EventType]bool{"*": true}
 
-	ruleOpts, evalOpts := rules.NewEvalOpts(enabled)
+	ruleOpts, evalOpts := rules.NewBothOpts(enabled)
 
-	rs := rules.NewRuleSet(&model.Model{}, newDefaultEvent, ruleOpts, evalOpts)
-	AddRuleExpr(t, rs, `open.file.path == "/etc/passwd" && process.ancestors.file.name == "vipw"`, `open.file.path == "/etc/shadow" && process.ancestors.file.name == "vipw"`)
+	rs := rules.NewRuleSet(&model.Model{}, newFakeEvent, ruleOpts, evalOpts)
+	rules.AddTestRuleExpr(t, rs, `open.file.path == "/etc/passwd" && process.ancestors.file.name == "vipw"`, `open.file.path == "/etc/shadow" && process.ancestors.file.name == "vipw"`)
 
 	capabilities, exists := allCapabilities["open"]
 	if !exists {
@@ -46,10 +46,10 @@ func TestApproverAncestors1(t *testing.T) {
 func TestApproverAncestors2(t *testing.T) {
 	enabled := map[eval.EventType]bool{"*": true}
 
-	ruleOpts, evalOpts := rules.NewEvalOpts(enabled)
+	ruleOpts, evalOpts := rules.NewBothOpts(enabled)
 
-	rs := rules.NewRuleSet(&model.Model{}, newDefaultEvent, ruleOpts, evalOpts)
-	AddRuleExpr(t, rs, `(open.file.path == "/etc/shadow" || open.file.path == "/etc/gshadow") && process.ancestors.file.path not in ["/usr/bin/dpkg"]`)
+	rs := rules.NewRuleSet(&model.Model{}, newFakeEvent, ruleOpts, evalOpts)
+	rules.AddTestRuleExpr(t, rs, `(open.file.path == "/etc/shadow" || open.file.path == "/etc/gshadow") && process.ancestors.file.path not in ["/usr/bin/dpkg"]`)
 	capabilities, exists := allCapabilities["open"]
 	if !exists {
 		t.Fatal("no capabilities for open")
@@ -66,10 +66,10 @@ func TestApproverAncestors2(t *testing.T) {
 func TestApproverAncestors3(t *testing.T) {
 	enabled := map[eval.EventType]bool{"*": true}
 
-	ruleOpts, evalOpts := rules.NewEvalOpts(enabled)
+	ruleOpts, evalOpts := rules.NewBothOpts(enabled)
 
-	rs := rules.NewRuleSet(&model.Model{}, newDefaultEvent, ruleOpts, evalOpts)
-	AddRuleExpr(t, rs, `open.file.path =~ "/var/run/secrets/eks.amazonaws.com/serviceaccount/*/token" && process.file.path not in ["/bin/kubectl"]`)
+	rs := rules.NewRuleSet(&model.Model{}, newFakeEvent, ruleOpts, evalOpts)
+	rules.AddTestRuleExpr(t, rs, `open.file.path =~ "/var/run/secrets/eks.amazonaws.com/serviceaccount/*/token" && process.file.path not in ["/bin/kubectl"]`)
 	capabilities, exists := allCapabilities["open"]
 	if !exists {
 		t.Fatal("no capabilities for open")

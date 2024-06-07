@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	orchestratorforwarder "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator"
+	"github.com/DataDog/datadog-agent/comp/serializer/compression"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -37,6 +38,7 @@ type dependencies struct {
 	SharedForwarder        defaultforwarder.Component
 	OrchestratorForwarder  orchestratorforwarder.Component
 	EventPlatformForwarder eventplatform.Component
+	Compressor             compression.Component
 
 	Params Params
 }
@@ -56,8 +58,10 @@ type provides struct {
 	// implements diagnosesendermanager.Component). This has the nice consequence of preventing having
 	// demultiplexerimpl.Module and diagnosesendermanagerimpl.Module in the same fx.App because there would
 	// be two ways to create diagnosesendermanager.Component.
-	SenderManager  diagnosesendermanager.Component
-	StatusProvider status.InformationProvider
+	DiagnosticSenderManager diagnosesendermanager.Component
+	SenderManager           sender.SenderManager
+	StatusProvider          status.InformationProvider
+	AggregatorDemultiplexer aggregator.Demultiplexer
 }
 
 func newDemultiplexer(deps dependencies) (provides, error) {
@@ -77,6 +81,7 @@ func newDemultiplexer(deps dependencies) (provides, error) {
 		deps.OrchestratorForwarder,
 		deps.Params.AgentDemultiplexerOptions,
 		deps.EventPlatformForwarder,
+		deps.Compressor,
 		hostnameDetected)
 	demultiplexer := demultiplexer{
 		AgentDemultiplexer: agentDemultiplexer,
@@ -87,11 +92,13 @@ func newDemultiplexer(deps dependencies) (provides, error) {
 	}})
 
 	return provides{
-		Comp:          demultiplexer,
-		SenderManager: demultiplexer,
+		Comp:                    demultiplexer,
+		DiagnosticSenderManager: demultiplexer,
+		SenderManager:           demultiplexer,
 		StatusProvider: status.NewInformationProvider(demultiplexerStatus{
 			Log: deps.Log,
 		}),
+		AggregatorDemultiplexer: demultiplexer,
 	}, nil
 }
 

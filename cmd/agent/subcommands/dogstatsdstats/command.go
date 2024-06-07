@@ -74,10 +74,10 @@ func requestDogstatsdStats(log log.Component, config config.Component, cliParams
 	if err != nil {
 		return err
 	}
-	urlstr := fmt.Sprintf("https://%v:%v/agent/dogstatsd-stats", ipcAddress, pkgconfig.Datadog.GetInt("cmd_port"))
+	urlstr := fmt.Sprintf("https://%v:%v/agent/dogstatsd-stats", ipcAddress, pkgconfig.Datadog().GetInt("cmd_port"))
 
 	// Set session token
-	e = util.SetAuthToken()
+	e = util.SetAuthToken(config)
 	if e != nil {
 		return e
 	}

@@ -8,7 +8,6 @@
 package profile
 
 import (
-	"os"
 	"path/filepath"
 	"regexp"
 
@@ -34,13 +33,7 @@ func SetConfdPathAndCleanProfiles() {
 	if !pathExists(file) {
 		file, _ = filepath.Abs(filepath.Join(".", "internal", "test", "conf.d"))
 	}
-	config.Datadog.SetWithoutSource("confd_path", file)
-}
-
-// pathExists returns true if the given path exists
-func pathExists(path string) bool {
-	_, err := os.Stat(path)
-	return !os.IsNotExist(err)
+	config.Datadog().SetWithoutSource("confd_path", file)
 }
 
 // FixtureProfileDefinitionMap returns a fixture of ProfileConfigMap with `f5-big-ip` profile

@@ -1,20 +1,95 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://github.com/DataDog/datadog-agent/pkg/security/serializers/event",
+  "$id": "https://github.com/DataDog/datadog-agent/tree/main/pkg/security/serializers",
   "$defs": {
-    "AnomalyDetectionSyscallEvent": {
+    "AWSIMDSEvent": {
       "properties": {
-        "syscall": {
-          "type": "string",
-          "description": "Name of the syscall that triggered the anomaly detection event"
+        "is_imds_v2": {
+          "type": "boolean",
+          "description": "is_imds_v2 reports if the IMDS event follows IMDSv1 or IMDSv2 conventions"
+        },
+        "security_credentials": {
+          "$ref": "#/$defs/AWSSecurityCredentials",
+          "description": "SecurityCredentials holds the scrubbed data collected on the security credentials"
         }
       },
       "additionalProperties": false,
       "type": "object",
       "required": [
-        "syscall"
+        "is_imds_v2"
       ],
-      "description": "AnomalyDetectionSyscallEventSerializer serializes an anomaly detection for a syscall event"
+      "description": "AWSIMDSEventSerializer serializes an AWS IMDS event to JSON"
+    },
+    "AWSSecurityCredentials": {
+      "properties": {
+        "code": {
+          "type": "string",
+          "description": "code is the IMDS server code response"
+        },
+        "type": {
+          "type": "string",
+          "description": "type is the security credentials type"
+        },
+        "access_key_id": {
+          "type": "string",
+          "description": "access_key_id is the unique access key ID of the credentials"
+        },
+        "last_updated": {
+          "type": "string",
+          "description": "last_updated is the last time the credentials were updated"
+        },
+        "expiration": {
+          "type": "string",
+          "description": "expiration is the expiration date of the credentials"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "code",
+        "type",
+        "access_key_id",
+        "last_updated",
+        "expiration"
+      ],
+      "description": "AWSSecurityCredentialsSerializer serializes the security credentials from an AWS IMDS request"
+    },
+    "AgentContext": {
+      "properties": {
+        "rule_id": {
+          "type": "string"
+        },
+        "rule_version": {
+          "type": "string"
+        },
+        "rule_actions": {
+          "items": true,
+          "type": "array"
+        },
+        "policy_name": {
+          "type": "string"
+        },
+        "policy_version": {
+          "type": "string"
+        },
+        "version": {
+          "type": "string"
+        },
+        "os": {
+          "type": "string"
+        },
+        "arch": {
+          "type": "string"
+        },
+        "origin": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "rule_id"
+      ]
     },
     "BPFEvent": {
       "properties": {
@@ -107,6 +182,10 @@
           "type": "string",
           "format": "date-time",
           "description": "Creation time of the container"
+        },
+        "variables": {
+          "$ref": "#/$defs/Variables",
+          "description": "Variables values"
         }
       },
       "additionalProperties": false,
@@ -206,13 +285,9 @@
           "type": "array",
           "description": "The list of rules that the event matched (only valid in the context of an anomaly)"
         },
-        "origin": {
-          "type": "string",
-          "description": "Origin of the event"
-        },
-        "suppressed": {
-          "type": "boolean",
-          "description": "True if the event has been suppressed"
+        "variables": {
+          "$ref": "#/$defs/Variables",
+          "description": "Variables values"
         }
       },
       "additionalProperties": false,
@@ -336,6 +411,18 @@
         "hash_state": {
           "type": "string",
           "description": "State of the hashes or reason why they weren't computed"
+        },
+        "mount_path": {
+          "type": "string",
+          "description": "MountPath path of the mount"
+        },
+        "mount_source": {
+          "type": "string",
+          "description": "MountSource source of the mount"
+        },
+        "mount_origin": {
+          "type": "string",
+          "description": "MountOrigin origin of the mount"
         }
       },
       "additionalProperties": false,
@@ -445,6 +532,18 @@
           "type": "string",
           "description": "State of the hashes or reason why they weren't computed"
         },
+        "mount_path": {
+          "type": "string",
+          "description": "MountPath path of the mount"
+        },
+        "mount_source": {
+          "type": "string",
+          "description": "MountSource source of the mount"
+        },
+        "mount_origin": {
+          "type": "string",
+          "description": "MountOrigin origin of the mount"
+        },
         "destination": {
           "$ref": "#/$defs/File",
           "description": "Target file information"
@@ -469,6 +568,45 @@
         "gid"
       ],
       "description": "FileEventSerializer serializes a file event to JSON"
+    },
+    "IMDSEvent": {
+      "properties": {
+        "type": {
+          "type": "string",
+          "description": "type is the type of IMDS event"
+        },
+        "cloud_provider": {
+          "type": "string",
+          "description": "cloud_provider is the intended cloud provider of the IMDS event"
+        },
+        "url": {
+          "type": "string",
+          "description": "url is the url of the IMDS request"
+        },
+        "host": {
+          "type": "string",
+          "description": "host is the host of the HTTP protocol"
+        },
+        "user_agent": {
+          "type": "string",
+          "description": "user_agent is the user agent of the HTTP client"
+        },
+        "server": {
+          "type": "string",
+          "description": "server is the server header of a response"
+        },
+        "aws": {
+          "$ref": "#/$defs/AWSIMDSEvent",
+          "description": "AWS holds the AWS specific data parsed from the IMDS event"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "type",
+        "cloud_provider"
+      ],
+      "description": "IMDSEventSerializer serializes an IMDS event to JSON"
     },
     "IPPort": {
       "properties": {
@@ -888,11 +1026,22 @@
         },
         "is_exec_child": {
           "type": "boolean",
-          "description": "Indicates wether the process is an exec child of its parent"
+          "description": "Indicates whether the process is an exec following another exec"
         },
         "source": {
           "type": "string",
           "description": "Process source"
+        },
+        "syscalls": {
+          "$ref": "#/$defs/SyscallsEvent",
+          "description": "List of syscalls captured to generate the event"
+        },
+        "aws_security_credentials": {
+          "items": {
+            "$ref": "#/$defs/AWSSecurityCredentials"
+          },
+          "type": "array",
+          "description": "List of AWS Security Credentials that the process had access to"
         }
       },
       "additionalProperties": false,
@@ -1016,11 +1165,22 @@
         },
         "is_exec_child": {
           "type": "boolean",
-          "description": "Indicates wether the process is an exec child of its parent"
+          "description": "Indicates whether the process is an exec following another exec"
         },
         "source": {
           "type": "string",
           "description": "Process source"
+        },
+        "syscalls": {
+          "$ref": "#/$defs/SyscallsEvent",
+          "description": "List of syscalls captured to generate the event"
+        },
+        "aws_security_credentials": {
+          "items": {
+            "$ref": "#/$defs/AWSSecurityCredentials"
+          },
+          "type": "array",
+          "description": "List of AWS Security Credentials that the process had access to"
         },
         "parent": {
           "$ref": "#/$defs/Process",
@@ -1032,6 +1192,14 @@
           },
           "type": "array",
           "description": "Ancestor processes"
+        },
+        "variables": {
+          "$ref": "#/$defs/Variables",
+          "description": "Variables values"
+        },
+        "truncated_ancestors": {
+          "type": "boolean",
+          "description": "True if the ancestors list was truncated because it was too big"
         }
       },
       "additionalProperties": false,
@@ -1196,6 +1364,14 @@
           },
           "type": "array",
           "description": "List of tags associated to this profile"
+        },
+        "event_in_profile": {
+          "type": "boolean",
+          "description": "True if the corresponding event is part of this profile"
+        },
+        "event_type_state": {
+          "type": "string",
+          "description": "State of the event type in this profile"
         }
       },
       "additionalProperties": false,
@@ -1203,7 +1379,9 @@
       "required": [
         "name",
         "version",
-        "tags"
+        "tags",
+        "event_in_profile",
+        "event_type_state"
       ],
       "description": "SecurityProfileContextSerializer serializes the security profile context in an event"
     },
@@ -1248,6 +1426,63 @@
         "pipe_exit_flag"
       ],
       "description": "SpliceEventSerializer serializes a splice event to JSON"
+    },
+    "Syscall": {
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Name of the syscall"
+        },
+        "id": {
+          "type": "integer",
+          "description": "ID of the syscall in the host architecture"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "name",
+        "id"
+      ],
+      "description": "SyscallSerializer serializes a syscall"
+    },
+    "SyscallArgs": {
+      "properties": {
+        "path": {
+          "type": "string",
+          "description": "Path argument"
+        },
+        "mode": {
+          "type": "integer",
+          "description": "Mode argument"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "description": "SyscallArgsSerializer args serializer"
+    },
+    "SyscallContext": {
+      "properties": {
+        "chmod": {
+          "$ref": "#/$defs/SyscallArgs"
+        },
+        "chdir": {
+          "$ref": "#/$defs/SyscallArgs"
+        },
+        "exec": {
+          "$ref": "#/$defs/SyscallArgs"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "description": "SyscallContextSerializer serializes syscall context"
+    },
+    "SyscallsEvent": {
+      "items": {
+        "$ref": "#/$defs/Syscall"
+      },
+      "type": "array",
+      "description": "SyscallsEventSerializer serializes the syscalls from a syscalls event"
     },
     "UserContext": {
       "properties": {
@@ -1303,9 +1538,19 @@
       "additionalProperties": false,
       "type": "object",
       "description": "UserSessionContextSerializer serializes the user session context to JSON"
+    },
+    "Variables": {
+      "type": "object",
+      "description": "Variables serializes the variable values"
     }
   },
   "properties": {
+    "agent": {
+      "$ref": "#/$defs/AgentContext"
+    },
+    "title": {
+      "type": "string"
+    },
     "evt": {
       "$ref": "#/$defs/EventContext"
     },
@@ -1361,20 +1606,29 @@
     "dns": {
       "$ref": "#/$defs/DNSEvent"
     },
+    "imds": {
+      "$ref": "#/$defs/IMDSEvent"
+    },
     "bind": {
       "$ref": "#/$defs/BindEvent"
     },
     "mount": {
       "$ref": "#/$defs/MountEvent"
     },
-    "anomaly_detection_syscall": {
-      "$ref": "#/$defs/AnomalyDetectionSyscallEvent"
+    "syscalls": {
+      "$ref": "#/$defs/SyscallsEvent"
     },
     "usr": {
       "$ref": "#/$defs/UserContext"
+    },
+    "syscall": {
+      "$ref": "#/$defs/SyscallContext"
     }
   },
   "additionalProperties": false,
   "type": "object",
-  "description": "EventSerializer serializes an event to JSON"
+  "required": [
+    "agent",
+    "title"
+  ]
 }

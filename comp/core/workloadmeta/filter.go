@@ -82,6 +82,20 @@ func (f *Filter) MatchEventType(eventType EventType) bool {
 	return f.EventType() == EventTypeAll || f.EventType() == eventType
 }
 
+// Kinds returns the kinds this filter is filtering by.
+func (f *Filter) Kinds() []Kind {
+	if f == nil || len(f.kinds) == 0 {
+		return nil
+	}
+
+	kinds := make([]Kind, 0, len(f.kinds))
+	for kind := range f.kinds {
+		kinds = append(kinds, kind)
+	}
+
+	return kinds
+}
+
 // Source returns the source this filter is filtering by. If the filter is nil,
 // returns SourceAll.
 func (f *Filter) Source() Source {

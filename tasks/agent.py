@@ -2,7 +2,6 @@
 Agent namespaced tasks
 """
 
-
 import ast
 import glob
 import os
@@ -16,24 +15,22 @@ from invoke import task
 from invoke.exceptions import Exit, ParseError
 
 from tasks.build_tags import filter_incompatible_tags, get_build_tags, get_default_build_tags
+from tasks.devcontainer import run_on_devcontainer
 from tasks.flavor import AgentFlavor
 from tasks.go import deps
 from tasks.libs.common.utils import (
     REPO_PATH,
     bin_name,
-    cache_version,
+    create_version_json,
     get_build_flags,
     get_embedded_path,
     get_goenv,
     get_version,
     has_both_python,
-    load_release_versions,
-    timed,
 )
 from tasks.rtloader import clean as rtloader_clean
 from tasks.rtloader import install as rtloader_install
 from tasks.rtloader import make as rtloader_make
-from tasks.ssm import get_pfx_pass, get_signing_cert
 from tasks.windows_resources import build_messagetable, build_rc, versioninfo_vars
 
 # constants
@@ -65,6 +62,7 @@ AGENT_CORECHECKS = [
     "memory",
     "ntp",
     "oom_kill",
+    "oracle",
     "oracle-dbm",
     "sbom",
     "systemd",
@@ -74,13 +72,18 @@ AGENT_CORECHECKS = [
     "jetson",
     "telemetry",
     "orchestrator_pod",
+    "orchestrator_ecs",
+    "cisco_sdwan",
+    "service_discovery",
 ]
 
 WINDOWS_CORECHECKS = [
     "agentcrashdetect",
+    "sbom",
     "windows_registry",
     "winkmem",
     "wincrashdetect",
+    "win32_event_log",
 ]
 
 IOT_AGENT_CORECHECKS = [
@@ -103,6 +106,7 @@ LAST_DIRECTORY_COMMIT_PATTERN = "git -C {integrations_dir} rev-list -1 HEAD {int
 
 
 @task(iterable=['bundle'])
+@run_on_devcontainer
 def build(
     ctx,
     rebuild=False,
@@ -119,13 +123,15 @@ def build(
     python_home_3=None,
     major_version='7',
     python_runtimes='3',
-    arch='x64',
     exclude_rtloader=False,
+    include_sds=False,
     go_mod="mod",
     windows_sysprobe=False,
     cmake_options='',
     bundle=None,
     bundle_ebpf=False,
+    agent_bin=None,
+    run_on=None,  # noqa: U100, F841. Used by the run_on_devcontainer decorator
 ):
     """
     Build the agent. If the bits to include in the build are not specified,
@@ -158,15 +164,11 @@ def build(
         # Important for x-compiling
         env["CGO_ENABLED"] = "1"
 
-        if arch == "x86":
-            env["GOARCH"] = "386"
-
-        build_messagetable(ctx, arch=arch)
-        vars = versioninfo_vars(ctx, major_version=major_version, python_runtimes=python_runtimes, arch=arch)
+        build_messagetable(ctx)
+        vars = versioninfo_vars(ctx, major_version=major_version, python_runtimes=python_runtimes)
         build_rc(
             ctx,
             "cmd/agent/windows_resources/agent.rc",
-            arch=arch,
             vars=vars,
             out="cmd/agent/rsrc.syso",
         )
@@ -175,7 +177,7 @@ def build(
 
     if flavor.is_iot():
         # Iot mode overrides whatever passed through `--build-exclude` and `--build-include`
-        build_tags = get_default_build_tags(build="agent", arch=arch, flavor=flavor)
+        build_tags = get_default_build_tags(build="agent", flavor=flavor)
     else:
         all_tags = set()
         if bundle_ebpf and "system-probe" in bundled_agents:
@@ -184,9 +186,9 @@ def build(
         for build in bundled_agents:
             all_tags.add("bundle_" + build.replace("-", "_"))
             include_tags = (
-                get_default_build_tags(build=build, arch=arch, flavor=flavor)
+                get_default_build_tags(build=build, flavor=flavor)
                 if build_include is None
-                else filter_incompatible_tags(build_include.split(","), arch=arch)
+                else filter_incompatible_tags(build_include.split(","))
             )
 
             exclude_tags = [] if build_exclude is None else build_exclude.split(",")
@@ -197,7 +199,12 @@ def build(
 
     cmd = "go build -mod={go_mod} {race_opt} {build_type} -tags \"{go_build_tags}\" "
 
-    agent_bin = os.path.join(BIN_PATH, bin_name("agent"))
+    if not agent_bin:
+        agent_bin = os.path.join(BIN_PATH, bin_name("agent"))
+
+    if include_sds:
+        build_tags.append("sds")
+
     cmd += "-o {agent_bin} -gcflags=\"{gcflags}\" -ldflags=\"{ldflags}\" {REPO_PATH}/cmd/{flavor}"
     args = {
         "go_mod": go_mod,
@@ -317,8 +324,8 @@ def refresh_assets(_, build_tags, development=True, flavor=AgentFlavor.base.name
         # Ensure the config folders are not world writable
         os.chmod(check_dir, mode=0o755)
 
-    ## add additional windows-only corechecks, only on windows. Otherwise the check loader
-    ## on linux will throw an error because the module is not found, but the config is.
+    # add additional windows-only corechecks, only on windows. Otherwise the check loader
+    # on linux will throw an error because the module is not found, but the config is.
     if sys.platform == 'win32':
         for check in WINDOWS_CORECHECKS:
             check_dir = os.path.join(dist_folder, f"conf.d/{check}.d/")
@@ -332,7 +339,7 @@ def refresh_assets(_, build_tags, development=True, flavor=AgentFlavor.base.name
             os.path.join(dist_folder, "conf.d/process_agent.yaml.default"),
         )
 
-    shutil.copytree("./cmd/agent/gui/views", os.path.join(dist_folder, "views"), dirs_exist_ok=True)
+    shutil.copytree("./comp/core/gui/guiimpl/views", os.path.join(dist_folder, "views"), dirs_exist_ok=True)
     if development:
         shutil.copytree("./dev/dist/", dist_folder, dirs_exist_ok=True)
 
@@ -406,7 +413,7 @@ def image_build(ctx, arch='amd64', base_dir="omnibus", python_version="2", skip_
     # get the last debian package built
     if not list_of_files:
         print(f"No debian package build found in {pkg_dir}")
-        print("See agent.omnibus-build")
+        print("See omnibus.build")
         raise Exit(code=1)
     latest_file = max(list_of_files, key=os.path.getctime)
     shutil.copy2(latest_file, build_context)
@@ -435,9 +442,6 @@ def hacky_dev_image_build(
     ctx,
     base_image=None,
     target_image="agent",
-    target_tag="latest",
-    process_agent=False,
-    trace_agent=False,
     push=False,
     signed_pull=False,
 ):
@@ -475,16 +479,6 @@ def hacky_dev_image_build(
         ctx.run(
             f'perl -0777 -pe \'s|{extracted_python_dir}(/opt/datadog-agent/embedded/lib/python\\d+\\.\\d+/../..)|substr $1."\\0"x length$&,0,length$&|e or die "pattern not found"\' -i dev/lib/libdatadog-agent-three.so'
         )
-        if process_agent:
-            ctx.run("inv process-agent.build")
-        if trace_agent:
-            ctx.run("inv trace-agent.build")
-
-    copy_extra_agents = ""
-    if process_agent:
-        copy_extra_agents += "COPY bin/process-agent/process-agent /opt/datadog-agent/embedded/bin/process-agent\n"
-    if trace_agent:
-        copy_extra_agents += "COPY bin/trace-agent/trace-agent /opt/datadog-agent/embedded/bin/trace-agent\n"
 
     with tempfile.NamedTemporaryFile(mode='w') as dockerfile:
         dockerfile.write(
@@ -527,26 +521,28 @@ COPY --from=src /usr/src/datadog-agent {os.getcwd()}
 COPY --from=bin /opt/datadog-agent/bin/agent/agent                                 /opt/datadog-agent/bin/agent/agent
 COPY --from=bin /opt/datadog-agent/embedded/lib/libdatadog-agent-rtloader.so.0.1.0 /opt/datadog-agent/embedded/lib/libdatadog-agent-rtloader.so.0.1.0
 COPY --from=bin /opt/datadog-agent/embedded/lib/libdatadog-agent-three.so          /opt/datadog-agent/embedded/lib/libdatadog-agent-three.so
-{copy_extra_agents}
-RUN agent completion bash > /usr/share/bash-completion/completions/agent
+RUN agent          completion bash > /usr/share/bash-completion/completions/agent
+RUN process-agent  completion bash > /usr/share/bash-completion/completions/process-agent
+RUN security-agent completion bash > /usr/share/bash-completion/completions/security-agent
+RUN system-probe   completion bash > /usr/share/bash-completion/completions/system-probe
+RUN trace-agent    completion bash > /usr/share/bash-completion/completions/trace-agent
 
 ENV DD_SSLKEYLOGFILE=/tmp/sslkeylog.txt
 '''
         )
         dockerfile.flush()
 
-        target_image_name = f'{target_image}:{target_tag}'
         pull_env = {}
         if signed_pull:
             pull_env['DOCKER_CONTENT_TRUST'] = '1'
-        ctx.run(f'docker build -t {target_image_name} -f {dockerfile.name} .', env=pull_env)
+        ctx.run(f'docker build -t {target_image} -f {dockerfile.name} .', env=pull_env)
 
         if push:
-            ctx.run(f'docker push {target_image_name}')
+            ctx.run(f'docker push {target_image}')
 
 
 @task
-def integration_tests(ctx, install_deps=False, race=False, remote_docker=False, go_mod="mod", arch="x64"):
+def integration_tests(ctx, install_deps=False, race=False, remote_docker=False, go_mod="mod"):
     """
     Run integration tests for the Agent
     """
@@ -554,16 +550,16 @@ def integration_tests(ctx, install_deps=False, race=False, remote_docker=False, 
         deps(ctx)
 
     if sys.platform == 'win32':
-        return _windows_integration_tests(ctx, race=race, go_mod=go_mod, arch=arch)
+        return _windows_integration_tests(ctx, race=race, go_mod=go_mod)
     else:
         # TODO: See if these will function on Windows
-        return _linux_integration_tests(ctx, race=race, remote_docker=remote_docker, go_mod=go_mod, arch=arch)
+        return _linux_integration_tests(ctx, race=race, remote_docker=remote_docker, go_mod=go_mod)
 
 
-def _windows_integration_tests(ctx, race=False, go_mod="mod", arch="x64"):
+def _windows_integration_tests(ctx, race=False, go_mod="mod"):
     test_args = {
         "go_mod": go_mod,
-        "go_build_tags": " ".join(get_default_build_tags(build="test", arch=arch)),
+        "go_build_tags": " ".join(get_default_build_tags(build="test")),
         "race_opt": "-race" if race else "",
         "exec_opts": "",
     }
@@ -586,7 +582,8 @@ def _windows_integration_tests(ctx, race=False, go_mod="mod", arch="x64"):
         {
             # Run eventlog check tests with the Windows API, which depend on the EventLog service
             "dir": ".",
-            'prefix': './pkg/collector/corechecks/windows_event_log/...',
+            # Don't include submodules, since the `-evtapi` flag is not defined in them
+            'prefix': './comp/checks/windowseventlog/windowseventlogimpl/check',
             'extra_args': '-evtapi Windows',
         },
     ]
@@ -596,10 +593,10 @@ def _windows_integration_tests(ctx, race=False, go_mod="mod", arch="x64"):
             ctx.run(f"{go_cmd} {test['prefix']} {test['extra_args']}")
 
 
-def _linux_integration_tests(ctx, race=False, remote_docker=False, go_mod="mod", arch="x64"):
+def _linux_integration_tests(ctx, race=False, remote_docker=False, go_mod="mod"):
     test_args = {
         "go_mod": go_mod,
-        "go_build_tags": " ".join(get_default_build_tags(build="test", arch=arch)),
+        "go_build_tags": " ".join(get_default_build_tags(build="test")),
         "race_opt": "-race" if race else "",
         "exec_opts": "",
     }
@@ -624,304 +621,7 @@ def _linux_integration_tests(ctx, race=False, remote_docker=False, go_mod="mod",
         ctx.run(f"{go_cmd} {prefix}")
 
 
-def get_omnibus_env(
-    ctx,
-    skip_sign=False,
-    release_version="nightly",
-    major_version='7',
-    python_runtimes='3',
-    hardened_runtime=False,
-    system_probe_bin=None,
-    go_mod_cache=None,
-    flavor=AgentFlavor.base,
-    pip_config_file="pip.conf",
-):
-    env = load_release_versions(ctx, release_version)
-
-    # If the host has a GOMODCACHE set, try to reuse it
-    if not go_mod_cache and os.environ.get('GOMODCACHE'):
-        go_mod_cache = os.environ.get('GOMODCACHE')
-
-    if go_mod_cache:
-        env['OMNIBUS_GOMODCACHE'] = go_mod_cache
-
-    if int(major_version) > 6:
-        env['OMNIBUS_OPENSSL_SOFTWARE'] = 'openssl3'
-
-    env_override = ['INTEGRATIONS_CORE_VERSION', 'OMNIBUS_SOFTWARE_VERSION']
-    for key in env_override:
-        value = os.environ.get(key)
-        # Only overrides the env var if the value is a non-empty string.
-        if value:
-            env[key] = value
-
-    if sys.platform == 'win32' and os.environ.get('SIGN_WINDOWS'):
-        # get certificate and password from ssm
-        pfxfile = get_signing_cert(ctx)
-        pfxpass = get_pfx_pass(ctx)
-        env['SIGN_PFX'] = str(pfxfile)
-        env['SIGN_PFX_PW'] = str(pfxpass)
-
-    if sys.platform == 'darwin':
-        # Target MacOS 10.12
-        env['MACOSX_DEPLOYMENT_TARGET'] = '10.12'
-
-    if skip_sign:
-        env['SKIP_SIGN_MAC'] = 'true'
-    if hardened_runtime:
-        env['HARDENED_RUNTIME_MAC'] = 'true'
-
-    env['PACKAGE_VERSION'] = get_version(
-        ctx, include_git=True, url_safe=True, major_version=major_version, include_pipeline_id=True
-    )
-    env['MAJOR_VERSION'] = major_version
-    env['PY_RUNTIMES'] = python_runtimes
-
-    # Since omnibus and the invoke task won't run in the same folder
-    # we need to input the absolute path of the pip config file
-    env['PIP_CONFIG_FILE'] = os.path.abspath(pip_config_file)
-
-    if system_probe_bin:
-        env['SYSTEM_PROBE_BIN'] = system_probe_bin
-    env['AGENT_FLAVOR'] = flavor.name
-
-    # We need to override the workers variable in omnibus build when running on Kubernetes runners,
-    # otherwise, ohai detect the number of CPU on the host and run the make jobs with all the CPU.
-    if os.environ.get('KUBERNETES_CPU_REQUEST'):
-        env['OMNIBUS_WORKERS_OVERRIDE'] = str(int(os.environ.get('KUBERNETES_CPU_REQUEST')) + 1)
-    # Forward the DEPLOY_AGENT variable so that we can use a higher compression level for deployed artifacts
-    if os.environ.get('DEPLOY_AGENT'):
-        env['DEPLOY_AGENT'] = os.environ.get('DEPLOY_AGENT')
-    if 'PACKAGE_ARCH' in os.environ:
-        env['PACKAGE_ARCH'] = os.environ.get('PACKAGE_ARCH')
-
-    return env
-
-
-def omnibus_run_task(
-    ctx, task, target_project, base_dir, env, omnibus_s3_cache=False, log_level="info", host_distribution=None
-):
-    with ctx.cd("omnibus"):
-        overrides_cmd = ""
-        if base_dir:
-            overrides_cmd = f"--override=base_dir:{base_dir}"
-        if host_distribution:
-            overrides_cmd += f" --override=host_distribution:{host_distribution}"
-
-        omnibus = "bundle exec omnibus"
-        if sys.platform == 'win32':
-            omnibus = "bundle exec omnibus.bat"
-        elif sys.platform == 'darwin':
-            # HACK: This is an ugly hack to fix another hack made by python3 on MacOS
-            # The full explanation is available on this PR: https://github.com/DataDog/datadog-agent/pull/5010.
-            omnibus = "unset __PYVENV_LAUNCHER__ && bundle exec omnibus"
-
-        if omnibus_s3_cache:
-            populate_s3_cache = "--populate-s3-cache"
-        else:
-            populate_s3_cache = ""
-
-        cmd = "{omnibus} {task} {project_name} --log-level={log_level} {populate_s3_cache} {overrides}"
-        args = {
-            "omnibus": omnibus,
-            "task": task,
-            "project_name": target_project,
-            "log_level": log_level,
-            "overrides": overrides_cmd,
-            "populate_s3_cache": populate_s3_cache,
-        }
-
-        ctx.run(cmd.format(**args), env=env)
-
-
-def bundle_install_omnibus(ctx, gem_path=None, env=None, max_try=2):
-    with ctx.cd("omnibus"):
-        # make sure bundle install starts from a clean state
-        try:
-            os.remove("Gemfile.lock")
-        except Exception:
-            pass
-
-        cmd = "bundle install"
-        if gem_path:
-            cmd += f" --path {gem_path}"
-
-        for trial in range(max_try):
-            res = ctx.run(cmd, env=env, warn=True)
-            if res.ok:
-                return
-            if not should_retry_bundle_install(res):
-                return
-            print(f"Retrying bundle install, attempt {trial + 1}/{max_try}")
-
-
-def should_retry_bundle_install(res):
-    # We sometimes get a Net::HTTPNotFound error when fetching the
-    # license-scout gem. This is a transient error, so we retry the bundle install
-    if "Net::HTTPNotFound:" in res.stderr:
-        return True
-    return False
-
-
-# hardened-runtime needs to be set to False to build on MacOS < 10.13.6, as the -o runtime option is not supported.
-@task(
-    help={
-        'skip-sign': "On macOS, use this option to build an unsigned package if you don't have Datadog's developer keys.",
-        'hardened-runtime': "On macOS, use this option to enforce the hardened runtime setting, adding '-o runtime' to all codesign commands",
-    }
-)
-def omnibus_build(
-    ctx,
-    flavor=AgentFlavor.base.name,
-    agent_binaries=False,
-    log_level="info",
-    base_dir=None,
-    gem_path=None,
-    skip_deps=False,
-    skip_sign=False,
-    release_version="nightly",
-    major_version='7',
-    python_runtimes='3',
-    omnibus_s3_cache=False,
-    hardened_runtime=False,
-    system_probe_bin=None,
-    go_mod_cache=None,
-    python_mirror=None,
-    pip_config_file="pip.conf",
-    host_distribution=None,
-):
-    """
-    Build the Agent packages with Omnibus Installer.
-    """
-
-    flavor = AgentFlavor[flavor]
-    if not skip_deps:
-        with timed(quiet=True) as deps_elapsed:
-            deps(ctx)
-
-    # base dir (can be overridden through env vars, command line takes precedence)
-    base_dir = base_dir or os.environ.get("OMNIBUS_BASE_DIR")
-
-    if base_dir is not None and sys.platform == 'win32':
-        # On Windows, prevent backslashes in the base_dir path otherwise omnibus will fail with
-        # error 'no matched files for glob copy' at the end of the build.
-        base_dir = base_dir.replace(os.path.sep, '/')
-
-    env = get_omnibus_env(
-        ctx,
-        skip_sign=skip_sign,
-        release_version=release_version,
-        major_version=major_version,
-        python_runtimes=python_runtimes,
-        hardened_runtime=hardened_runtime,
-        system_probe_bin=system_probe_bin,
-        go_mod_cache=go_mod_cache,
-        flavor=flavor,
-        pip_config_file=pip_config_file,
-    )
-
-    target_project = "agent"
-    if flavor.is_iot():
-        target_project = "iot-agent"
-    elif agent_binaries:
-        target_project = "agent-binaries"
-
-    # Get the python_mirror from the PIP_INDEX_URL environment variable if it is not passed in the args
-    python_mirror = python_mirror or os.environ.get("PIP_INDEX_URL")
-
-    # If a python_mirror is set then use it for pip by adding it in the pip.conf file
-    pip_index_url = f"[global]\nindex-url = {python_mirror}" if python_mirror else ""
-
-    # We're passing the --index-url arg through a pip.conf file so that omnibus doesn't leak the token
-    with open(pip_config_file, 'w') as f:
-        f.write(pip_index_url)
-
-    with timed(quiet=True) as bundle_elapsed:
-        bundle_install_omnibus(ctx, gem_path, env)
-
-    with timed(quiet=True) as omnibus_elapsed:
-        omnibus_run_task(
-            ctx=ctx,
-            task="build",
-            target_project=target_project,
-            base_dir=base_dir,
-            env=env,
-            omnibus_s3_cache=omnibus_s3_cache,
-            log_level=log_level,
-            host_distribution=host_distribution,
-        )
-
-    # Delete the temporary pip.conf file once the build is done
-    os.remove(pip_config_file)
-
-    print("Build component timing:")
-    if not skip_deps:
-        print(f"Deps:    {deps_elapsed.duration}")
-    print(f"Bundle:  {bundle_elapsed.duration}")
-    print(f"Omnibus: {omnibus_elapsed.duration}")
-
-
-@task
-def omnibus_manifest(
-    ctx,
-    platform=None,
-    arch=None,
-    flavor=AgentFlavor.base.name,
-    agent_binaries=False,
-    log_level="info",
-    base_dir=None,
-    gem_path=None,
-    skip_sign=False,
-    release_version="nightly",
-    major_version='7',
-    python_runtimes='3',
-    hardened_runtime=False,
-    system_probe_bin=None,
-    go_mod_cache=None,
-):
-    flavor = AgentFlavor[flavor]
-    # base dir (can be overridden through env vars, command line takes precedence)
-    base_dir = base_dir or os.environ.get("OMNIBUS_BASE_DIR")
-
-    env = get_omnibus_env(
-        ctx,
-        skip_sign=skip_sign,
-        release_version=release_version,
-        major_version=major_version,
-        python_runtimes=python_runtimes,
-        hardened_runtime=hardened_runtime,
-        system_probe_bin=system_probe_bin,
-        go_mod_cache=go_mod_cache,
-        flavor=flavor,
-    )
-
-    target_project = "agent"
-    if flavor.is_iot():
-        target_project = "iot-agent"
-    elif agent_binaries:
-        target_project = "agent-binaries"
-
-    bundle_install_omnibus(ctx, gem_path, env)
-
-    task = "manifest"
-    if platform is not None:
-        task += f" --platform-family={platform} --platform={platform} "
-    if arch is not None:
-        task += f" --architecture={arch} "
-
-    omnibus_run_task(
-        ctx=ctx,
-        task=task,
-        target_project=target_project,
-        base_dir=base_dir,
-        env=env,
-        omnibus_s3_cache=False,
-        log_level=log_level,
-    )
-
-
-@task
-def check_supports_python_version(_, check_dir, python):
+def check_supports_python_version(check_dir, python):
     """
     Check if a Python project states support for a given major Python version.
     """
@@ -934,36 +634,77 @@ def check_supports_python_version(_, check_dir, python):
     project_file = os.path.join(check_dir, 'pyproject.toml')
     setup_file = os.path.join(check_dir, 'setup.py')
     if os.path.isfile(project_file):
-        with open(project_file, 'r') as f:
+        with open(project_file) as f:
             data = toml.loads(f.read())
 
         project_metadata = data['project']
         if 'requires-python' not in project_metadata:
-            print('True', end='')
-            return
+            return True
 
         specifier = SpecifierSet(project_metadata['requires-python'])
         # It might be e.g. `>=3.8` which would not immediatelly contain `3`
         for minor_version in range(100):
             if specifier.contains(f'{python}.{minor_version}'):
-                print('True', end='')
-                return
+                return True
         else:
-            print('False', end='')
+            return False
     elif os.path.isfile(setup_file):
-        with open(setup_file, 'r') as f:
+        with open(setup_file) as f:
             tree = ast.parse(f.read(), filename=setup_file)
 
         prefix = f'Programming Language :: Python :: {python}'
         for node in ast.walk(tree):
             if isinstance(node, ast.keyword) and node.arg == 'classifiers':
                 classifiers = ast.literal_eval(node.value)
-                print(any(cls.startswith(prefix) for cls in classifiers), end='')
-                return
+                return any(cls.startswith(prefix) for cls in classifiers)
         else:
-            print('False', end='')
+            return False
     else:
-        raise Exit('not a Python project', code=1)
+        return False
+
+
+@task
+def collect_integrations(_, integrations_dir, python_version, target_os, excluded):
+    """
+    Collect and print the list of integrations to install.
+
+    `excluded` is a comma-separated list of directories that don't contain an actual integration
+    """
+    import json
+
+    excluded = excluded.split(',')
+    integrations = []
+
+    for entry in os.listdir(integrations_dir):
+        int_path = os.path.join(integrations_dir, entry)
+        if not os.path.isdir(int_path) or entry in excluded:
+            continue
+
+        manifest_file_path = os.path.join(int_path, "manifest.json")
+
+        # If there is no manifest file, then we should assume the folder does not
+        # contain a working check and move onto the next
+        if not os.path.exists(manifest_file_path):
+            continue
+
+        with open(manifest_file_path) as f:
+            manifest = json.load(f)
+
+        # Figure out whether the integration is supported on the target OS
+        if target_os == 'mac_os':
+            tag = 'Supported OS::macOS'
+        else:
+            tag = f'Supported OS::{target_os.capitalize()}'
+
+        if tag not in manifest['tile']['classifier_tags']:
+            continue
+
+        if not check_supports_python_version(int_path, python_version):
+            continue
+
+        integrations.append(entry)
+
+    print(' '.join(sorted(integrations)))
 
 
 @task
@@ -990,10 +731,11 @@ def version(
     omnibus_format=False,
     git_sha_length=7,
     major_version='7',
-    version_cached=False,
+    cache_version=False,
     pipeline_id=None,
     include_git=True,
     include_pre=True,
+    release=False,
 ):
     """
     Get the agent version.
@@ -1006,8 +748,8 @@ def version(
     version_cached: save the version inside a "agent-version.cache" that will be reused
                     by each next call of version.
     """
-    if version_cached:
-        cache_version(ctx, git_sha_length=git_sha_length)
+    if cache_version:
+        create_version_json(ctx, git_sha_length=git_sha_length)
 
     version = get_version(
         ctx,
@@ -1018,6 +760,7 @@ def version(
         include_pipeline_id=True,
         pipeline_id=pipeline_id,
         include_pre=include_pre,
+        release=release,
     )
     if omnibus_format:
         # See: https://github.com/DataDog/omnibus-ruby/blob/datadog-5.5.0/lib/omnibus/packagers/deb.rb#L599

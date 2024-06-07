@@ -6,16 +6,21 @@
 package stats
 
 import (
+	_ "embed"
 	"sort"
 	"strings"
 	"sync"
 	"time"
+
+	"gopkg.in/ini.v1"
 
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/watchdog"
+
+	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
 // defaultBufferLen represents the default buffer length; the number of bucket size
@@ -50,39 +55,31 @@ type Concentrator struct {
 	peerTagsAggregation    bool     // flag to enable aggregation of peer tags
 	computeStatsBySpanKind bool     // flag to enable computation of stats through checking the span.kind field
 	peerTagKeys            []string // keys for supplementary tags that describe peer.service entities
+	statsd                 statsd.ClientInterface
 }
 
-var defaultPeerTags = []string{
-	"_dd.base_service",
-	"amqp.destination",
-	"amqp.exchange",
-	"amqp.queue",
-	"aws.queue.name",
-	"bucketname",
-	"cassandra.cluster",
-	"db.cassandra.contact.points",
-	"db.couchbase.seed.nodes",
-	"db.hostname",
-	"db.instance",
-	"db.name",
-	"db.system",
-	"hazelcast.instance",
-	"messaging.kafka.bootstrap.servers",
-	"mongodb.db",
-	"msmq.queue.path",
-	"net.peer.name",
-	"network.destination.name",
-	"peer.hostname",
-	"peer.service",
-	"queuename",
-	"rpc.service",
-	"rulename",
-	"server.address",
-	"statemachinename",
-	"streamname",
-	"tablename",
-	"topicname",
-}
+//go:embed peer_tags.ini
+var peerTagFile []byte
+
+var defaultPeerTags = func() []string {
+	var tags []string = []string{"_dd.base_service"}
+
+	cfg, err := ini.Load(peerTagFile)
+	if err != nil {
+		log.Error("Error loading file for peer tags: ", err)
+		return tags
+	}
+	keys := cfg.Section("dd.apm.peer.tags").Keys()
+
+	for _, key := range keys {
+		value := strings.Split(key.Value(), ",")
+		tags = append(tags, value...)
+	}
+
+	sort.Strings(tags)
+
+	return tags
+}()
 
 func preparePeerTags(tags ...string) []string {
 	if len(tags) == 0 {
@@ -101,7 +98,7 @@ func preparePeerTags(tags ...string) []string {
 }
 
 // NewConcentrator initializes a new concentrator ready to be started
-func NewConcentrator(conf *config.AgentConfig, out chan *pb.StatsPayload, now time.Time) *Concentrator {
+func NewConcentrator(conf *config.AgentConfig, out chan *pb.StatsPayload, now time.Time, statsd statsd.ClientInterface) *Concentrator {
 	bsize := conf.BucketInterval.Nanoseconds()
 	c := Concentrator{
 		bsize:   bsize,
@@ -119,6 +116,7 @@ func NewConcentrator(conf *config.AgentConfig, out chan *pb.StatsPayload, now ti
 		agentVersion:           conf.AgentVersion,
 		peerTagsAggregation:    conf.PeerServiceAggregation || conf.PeerTagsAggregation,
 		computeStatsBySpanKind: conf.ComputeStatsBySpanKind,
+		statsd:                 statsd,
 	}
 	// NOTE: maintain backwards-compatibility with old peer service flag that will eventually be deprecated.
 	if conf.PeerServiceAggregation || conf.PeerTagsAggregation {
@@ -131,7 +129,7 @@ func NewConcentrator(conf *config.AgentConfig, out chan *pb.StatsPayload, now ti
 func (c *Concentrator) Start() {
 	c.exitWG.Add(1)
 	go func() {
-		defer watchdog.LogOnPanic()
+		defer watchdog.LogOnPanic(c.statsd)
 		defer c.exitWG.Done()
 		c.Run()
 	}()
@@ -182,8 +180,9 @@ func computeStatsForSpanKind(s *pb.Span) bool {
 
 // Input specifies a set of traces originating from a certain payload.
 type Input struct {
-	Traces      []traceutil.ProcessedTrace
-	ContainerID string
+	Traces        []traceutil.ProcessedTrace
+	ContainerID   string
+	ContainerTags []string
 }
 
 // NewStatsInput allocates a stats input for an incoming trace payload
@@ -207,14 +206,14 @@ func NewStatsInput(numChunks int, containerID string, clientComputedStats bool, 
 func (c *Concentrator) Add(t Input) {
 	c.mu.Lock()
 	for _, trace := range t.Traces {
-		c.addNow(&trace, t.ContainerID)
+		c.addNow(&trace, t.ContainerID, t.ContainerTags)
 	}
 	c.mu.Unlock()
 }
 
 // addNow adds the given input into the concentrator.
 // Callers must guard!
-func (c *Concentrator) addNow(pt *traceutil.ProcessedTrace, containerID string) {
+func (c *Concentrator) addNow(pt *traceutil.ProcessedTrace, containerID string, containerTags []string) {
 	hostname := pt.TracerHostname
 	if hostname == "" {
 		hostname = c.agentHostname
@@ -225,10 +224,12 @@ func (c *Concentrator) addNow(pt *traceutil.ProcessedTrace, containerID string) 
 	}
 	weight := weight(pt.Root)
 	aggKey := PayloadAggregationKey{
-		Env:         env,
-		Hostname:    hostname,
-		Version:     pt.AppVersion,
-		ContainerID: containerID,
+		Env:          env,
+		Hostname:     hostname,
+		Version:      pt.AppVersion,
+		ContainerID:  containerID,
+		GitCommitSha: pt.GitCommitSha,
+		ImageTag:     pt.ImageTag,
 	}
 	for _, s := range pt.TraceChunk.Spans {
 		isTop := traceutil.HasTopLevel(s)
@@ -250,6 +251,9 @@ func (c *Concentrator) addNow(pt *traceutil.ProcessedTrace, containerID string) 
 		b, ok := c.buckets[btime]
 		if !ok {
 			b = NewRawBucket(uint64(btime), uint64(c.bsize))
+			if containerID != "" && len(containerTags) > 0 {
+				b.containerTagsByID[containerID] = containerTags
+			}
 			c.buckets[btime] = b
 		}
 		b.HandleSpan(s, weight, isTop, pt.TraceChunk.Origin, aggKey, c.peerTagsAggregation, c.peerTagKeys)
@@ -264,6 +268,7 @@ func (c *Concentrator) Flush(force bool) *pb.StatsPayload {
 
 func (c *Concentrator) flushNow(now int64, force bool) *pb.StatsPayload {
 	m := make(map[PayloadAggregationKey][]*pb.ClientStatsBucket)
+	containerTagsByID := make(map[string][]string)
 
 	c.mu.Lock()
 	for ts, srb := range c.buckets {
@@ -281,6 +286,9 @@ func (c *Concentrator) flushNow(now int64, force bool) *pb.StatsPayload {
 		log.Debugf("Flushing bucket %d", ts)
 		for k, b := range srb.Export() {
 			m[k] = append(m[k], b)
+			if ctags, ok := srb.containerTagsByID[k.ContainerID]; ok {
+				containerTagsByID[k.ContainerID] = ctags
+			}
 		}
 		delete(c.buckets, ts)
 	}
@@ -295,14 +303,18 @@ func (c *Concentrator) flushNow(now int64, force bool) *pb.StatsPayload {
 	sb := make([]*pb.ClientStatsPayload, 0, len(m))
 	for k, s := range m {
 		p := &pb.ClientStatsPayload{
-			Env:         k.Env,
-			Hostname:    k.Hostname,
-			ContainerID: k.ContainerID,
-			Version:     k.Version,
-			Stats:       s,
+			Env:          k.Env,
+			Hostname:     k.Hostname,
+			ContainerID:  k.ContainerID,
+			Version:      k.Version,
+			GitCommitSha: k.GitCommitSha,
+			ImageTag:     k.ImageTag,
+			Stats:        s,
+			Tags:         containerTagsByID[k.ContainerID],
 		}
 		sb = append(sb, p)
 	}
+
 	return &pb.StatsPayload{Stats: sb, AgentHostname: c.agentHostname, AgentEnv: c.agentEnv, AgentVersion: c.agentVersion}
 }
 

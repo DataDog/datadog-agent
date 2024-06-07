@@ -7,19 +7,23 @@
 package probe
 
 import (
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
+)
+
+const (
+	// EBPFOrigin eBPF origin
+	EBPFOrigin = "ebpf"
+	// EBPFLessOrigin eBPF less origin
+	EBPFLessOrigin = "ebpfless"
 )
 
 // NewProbe instantiates a new runtime security agent probe
-func NewProbe(config *config.Config, opts Opts) (*Probe, error) {
+func NewProbe(config *config.Config, opts Opts, wmeta optional.Option[workloadmeta.Component]) (*Probe, error) {
 	opts.normalize()
 
-	p := &Probe{
-		Opts:         opts,
-		Config:       config,
-		StatsdClient: opts.StatsdClient,
-		scrubber:     newProcScrubber(config.Probe.CustomSensitiveWords),
-	}
+	p := newProbe(config, opts)
 
 	if opts.EBPFLessEnabled {
 		pp, err := NewEBPFLessProbe(p, config, opts)
@@ -28,7 +32,7 @@ func NewProbe(config *config.Config, opts Opts) (*Probe, error) {
 		}
 		p.PlatformProbe = pp
 	} else {
-		pp, err := NewEBPFProbe(p, config, opts)
+		pp, err := NewEBPFProbe(p, config, opts, wmeta)
 		if err != nil {
 			return nil, err
 		}
@@ -36,4 +40,12 @@ func NewProbe(config *config.Config, opts Opts) (*Probe, error) {
 	}
 
 	return p, nil
+}
+
+// Origin returns origin
+func (p *Probe) Origin() string {
+	if p.Opts.EBPFLessEnabled {
+		return EBPFLessOrigin
+	}
+	return EBPFOrigin
 }

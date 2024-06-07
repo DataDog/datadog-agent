@@ -32,13 +32,14 @@ func (suite *kindSuite) SetupSuite() {
 	ctx := context.Background()
 
 	stackConfig := runner.ConfigMap{
-		"ddagent:deploy":        auto.ConfigValue{Value: "true"},
-		"ddagent:fakeintake":    auto.ConfigValue{Value: "true"},
-		"ddtestworkload:deploy": auto.ConfigValue{Value: "true"},
-		"dddogstatsd:deploy":    auto.ConfigValue{Value: "true"},
+		"ddinfra:aws/defaultInstanceType": auto.ConfigValue{Value: "t3.xlarge"},
+		"ddagent:deploy":                  auto.ConfigValue{Value: "true"},
+		"ddagent:fakeintake":              auto.ConfigValue{Value: "true"},
+		"ddtestworkload:deploy":           auto.ConfigValue{Value: "true"},
+		"dddogstatsd:deploy":              auto.ConfigValue{Value: "true"},
 	}
 
-	_, stackOutput, err := infra.GetStackManager().GetStackNoDeleteOnFailure(ctx, "kind-cluster", stackConfig, kindvm.Run, false, nil)
+	_, stackOutput, err := infra.GetStackManager().GetStackNoDeleteOnFailure(ctx, "kind-cluster", stackConfig, kindvm.Run, false, nil, nil)
 	if !suite.Assert().NoError(err) {
 		stackName, err := infra.GetStackManager().GetPulumiStackName("kind-cluster")
 		suite.Require().NoError(err)
@@ -98,7 +99,7 @@ func (suite *kindSuite) TestControlPlane() {
 				`^dry_run:$`,
 				`^group:`,
 				`^image_id:`,
-				`^image_name:registry.k8s.io/kube-apiserver$`,
+				`^image_name:(?:k8s\.gcr\.io|registry\.k8s\.io)/kube-apiserver$`,
 				`^image_tag:v1\.`,
 				`^kube_container_name:kube-apiserver$`,
 				`^kube_namespace:kube-system$`,
@@ -110,8 +111,13 @@ func (suite *kindSuite) TestControlPlane() {
 				`^scope:(?:|cluster|namespace|resource)$`,
 				`^short_image:kube-apiserver$`,
 				`^subresource:`,
-				`^verb:(?:APPLY|DELETE|GET|LIST|PATCH|POST|PUT|PATCH)$`,
+				`^verb:(?:APPLY|DELETE|GET|LIST|PATCH|POST|PUT|PATCH|WATCH|TOTAL)$`,
 				`^version:`,
+			},
+		},
+		Optional: testMetricExpectArgs{
+			Tags: &[]string{
+				`^contentType:`,
 			},
 		},
 	})
@@ -127,7 +133,7 @@ func (suite *kindSuite) TestControlPlane() {
 				`^container_name:kube-controller-manager$`,
 				`^display_container_name:kube-controller-manager_kube-controller-manager-.*-control-plane$`,
 				`^image_id:`,
-				`^image_name:registry.k8s.io/kube-controller-manager$`,
+				`^image_name:(?:k8s\.gcr\.io|registry\.k8s\.io)/kube-controller-manager$`,
 				`^image_tag:v1\.`,
 				`^kube_container_name:kube-controller-manager$`,
 				`^kube_namespace:kube-system$`,
@@ -152,7 +158,7 @@ func (suite *kindSuite) TestControlPlane() {
 				`^container_name:kube-scheduler$`,
 				`^display_container_name:kube-scheduler_kube-scheduler-.*-control-plane$`,
 				`^image_id:`,
-				`^image_name:registry.k8s.io/kube-scheduler$`,
+				`^image_name:(?:k8s\.gcr\.io|registry\.k8s\.io)/kube-scheduler$`,
 				`^image_tag:v1\.`,
 				`^kube_container_name:kube-scheduler$`,
 				`^kube_namespace:kube-system$`,

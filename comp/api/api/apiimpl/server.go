@@ -14,25 +14,21 @@ import (
 
 	"github.com/cihub/seelog"
 
-	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
-	"github.com/DataDog/datadog-agent/comp/core/flare"
+	"github.com/DataDog/datadog-agent/comp/api/api"
+	"github.com/DataDog/datadog-agent/comp/collector/collector"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
-	"github.com/DataDog/datadog-agent/comp/dogstatsd/replay"
+	"github.com/DataDog/datadog-agent/comp/dogstatsd/pidmap"
+	replay "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/def"
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
-	dogstatsddebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
-	"github.com/DataDog/datadog-agent/comp/metadata/host"
-	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
-	"github.com/DataDog/datadog-agent/comp/metadata/inventorychecks"
-	"github.com/DataDog/datadog-agent/comp/metadata/inventoryhost"
-	"github.com/DataDog/datadog-agent/comp/metadata/packagesigning"
+	"github.com/DataDog/datadog-agent/comp/remote-config/rcservice"
+	"github.com/DataDog/datadog-agent/comp/remote-config/rcservicemrf"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
-	"github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	remoteconfig "github.com/DataDog/datadog-agent/pkg/config/remote/service"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
@@ -60,25 +56,22 @@ func stopServer(listener net.Listener, name string) {
 	}
 }
 
-// StartServers creates certificates and starts API servers
+// StartServers creates certificates and starts API + IPC servers
 func StartServers(
-	configService *remoteconfig.Service,
-	flare flare.Component,
+	configService optional.Option[rcservice.Component],
+	configServiceMRF optional.Option[rcservicemrf.Component],
 	dogstatsdServer dogstatsdServer.Component,
 	capture replay.Component,
-	serverDebug dogstatsddebug.Component,
+	pidMap pidmap.Component,
 	wmeta workloadmeta.Component,
 	taggerComp tagger.Component,
 	logsAgent optional.Option[logsAgent.Component],
 	senderManager sender.DiagnoseSenderManager,
-	hostMetadata host.Component,
-	invAgent inventoryagent.Component,
-	demux demultiplexer.Component,
-	invHost inventoryhost.Component,
 	secretResolver secrets.Component,
-	invChecks inventorychecks.Component,
-	pkgSigning packagesigning.Component,
 	statusComponent status.Component,
+	collector optional.Option[collector.Component],
+	ac autodiscovery.Component,
+	providers []api.EndpointProvider,
 ) error {
 	apiAddr, err := getIPCAddressPort()
 	if err != nil {
@@ -103,32 +96,25 @@ func StartServers(
 		MinVersion:   tls.VersionTLS12,
 	}
 
-	if err := util.CreateAndSetAuthToken(); err != nil {
-		return err
-	}
-
 	// start the CMD server
 	if err := startCMDServer(
 		apiAddr,
 		tlsConfig,
 		tlsCertPool,
 		configService,
-		flare,
+		configServiceMRF,
 		dogstatsdServer,
 		capture,
-		serverDebug,
+		pidMap,
 		wmeta,
 		taggerComp,
 		logsAgent,
 		senderManager,
-		hostMetadata,
-		invAgent,
-		demux,
-		invHost,
 		secretResolver,
-		invChecks,
-		pkgSigning,
 		statusComponent,
+		collector,
+		ac,
+		providers,
 	); err != nil {
 		return fmt.Errorf("unable to start CMD API server: %v", err)
 	}

@@ -77,6 +77,7 @@ func (pp *PulumiProvisioner[Env]) ProvisionEnv(ctx context.Context, stackName st
 		},
 		false,
 		logger,
+		nil,
 	)
 	if err != nil {
 		return nil, err

@@ -10,10 +10,16 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"reflect"
 	"sync"
 	"time"
 
+	"go.uber.org/fx"
+
+	"github.com/DataDog/datadog-agent/comp/api/api"
+	"github.com/DataDog/datadog-agent/comp/api/api/utils"
+	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	"github.com/DataDog/datadog-agent/comp/core/log"
@@ -21,7 +27,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/metadata/internal/util"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventorychecks"
 	"github.com/DataDog/datadog-agent/comp/metadata/runner/runnerimpl"
-	"github.com/DataDog/datadog-agent/pkg/collector"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
@@ -30,7 +35,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
-	"go.uber.org/fx"
+	"github.com/DataDog/datadog-agent/pkg/util/uuid"
 )
 
 // Module defines the fx options for this component.
@@ -49,6 +54,7 @@ type Payload struct {
 	Timestamp    int64                 `json:"timestamp"`
 	Metadata     map[string][]metadata `json:"check_metadata"`
 	LogsMetadata map[string][]metadata `json:"logs_metadata"`
+	UUID         string                `json:"uuid"`
 }
 
 // MarshalJSON serialization a Payload to JSON
@@ -79,7 +85,7 @@ type inventorychecksImpl struct {
 
 	log      log.Component
 	conf     config.Component
-	coll     optional.Option[collector.Collector]
+	coll     optional.Option[collector.Component]
 	sources  optional.Option[*sources.LogSources]
 	hostname string
 }
@@ -90,7 +96,7 @@ type dependencies struct {
 	Log        log.Component
 	Config     config.Component
 	Serializer serializer.MetricSerializer
-	Coll       optional.Option[collector.Collector]
+	Coll       optional.Option[collector.Component]
 	LogAgent   optional.Option[logagent.Component]
 }
 
@@ -100,6 +106,7 @@ type provides struct {
 	Comp          inventorychecks.Component
 	Provider      runnerimpl.Provider
 	FlareProvider flaretypes.Provider
+	Endpoint      api.AgentEndpointProvider
 }
 
 func newInventoryChecksProvider(deps dependencies) provides {
@@ -130,6 +137,7 @@ func newInventoryChecksProvider(deps dependencies) provides {
 		Comp:          ic,
 		Provider:      ic.MetadataProvider(),
 		FlareProvider: ic.FlareProvider(),
+		Endpoint:      api.NewAgentEndpointProvider(ic.writePayloadAsJSON, "/metadata/inventory-checks", "GET"),
 	}
 }
 
@@ -235,9 +243,10 @@ func (ic *inventorychecksImpl) getPayload() marshaler.JSONMarshaler {
 						"error":  logSource.Status.GetError(),
 						"status": logSource.Status.String(),
 					},
-					"service": logSource.Config.Service,
-					"source":  logSource.Config.Source,
-					"tags":    tags,
+					"service":          logSource.Config.Service,
+					"source":           logSource.Config.Source,
+					"integration_name": logSource.Config.IntegrationName,
+					"tags":             tags,
 				})
 			}
 		}
@@ -248,5 +257,16 @@ func (ic *inventorychecksImpl) getPayload() marshaler.JSONMarshaler {
 		Timestamp:    time.Now().UnixNano(),
 		Metadata:     payloadData,
 		LogsMetadata: logsMetadata,
+		UUID:         uuid.GetUUID(),
 	}
+}
+
+func (ic *inventorychecksImpl) writePayloadAsJSON(w http.ResponseWriter, _ *http.Request) {
+	// GetAsJSON already return scrubbed data
+	scrubbed, err := ic.GetAsJSON()
+	if err != nil {
+		utils.SetJSONError(w, err, 500)
+		return
+	}
+	w.Write(scrubbed)
 }

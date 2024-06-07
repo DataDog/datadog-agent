@@ -1,0 +1,163 @@
+site_name: Datadog Agent
+site_description: The home of Datadog Agent developer documentation
+site_author: Datadog
+site_url: https://datadoghq.dev/datadog-agent/
+repo_name: datadog/datadog-agent
+repo_url: https://github.com/DataDog/datadog-agent
+edit_uri: blob/main/docs/public
+copyright: Copyright &copy; Datadog, Inc. 2024-present
+
+docs_dir: docs/public
+site_dir: site
+theme:
+  name: material
+  language: en
+  favicon: assets/images/favicon.ico
+  logo: assets/images/logo.svg
+  icon:
+    repo: fontawesome/brands/github-alt
+  font:
+    text: Roboto
+    code: Roboto Mono
+  palette:
+  - media: "(prefers-color-scheme: dark)"
+    scheme: slate
+    primary: custom
+    toggle:
+      icon: material/weather-night
+      name: Switch to light mode
+  - media: "(prefers-color-scheme: light)"
+    scheme: default
+    primary: custom
+    toggle:
+      icon: material/weather-sunny
+      name: Switch to dark mode
+  features:
+  - content.action.edit
+  - content.code.copy
+  - navigation.expand
+  - navigation.footer
+  - navigation.instant
+  - navigation.sections
+  - navigation.tabs
+  - navigation.tabs.sticky
+
+nav:
+- Home:
+  - About: index.md
+  - Setup: setup.md
+- Guidelines:
+  - Contributing: guidelines/contributing.md
+  - Documentation: guidelines/docs.md
+- Components:
+  - Overview: components/overview.md
+  - Components:
+    - Creating components: components/creating-components.md
+    - Testing components: components/testing.md
+    # - Creating bundles: components/creating-bundles.md
+    - Using components: components/using-components.md
+    # - Common patterns: components/common-patterns.md
+  - Shared features from components:
+    # - Integrating with other components: components/migration.md
+    - Features:
+      - Flare: components/shared_features/flares.md
+  #     - TODO Status: components/shared_features/status.md
+  #     - TODO Remote Config: components/shared_features/remote_config.md
+  #     - TODO Metadata: components/shared_features/metadata.md
+  #     - TODO workloadmeta: components/shared_features/workloadmeta.md
+  #     - TODO more ?: TMP
+  # - Fx overview: components/fx.md
+  # - FAQ: components/faq.md
+- Architecture:
+  - DogStatsD:
+    - Internals: architecture/dogstatsd/internals.md
+
+hooks:
+- docs/public/.hooks/title_from_content.py
+
+plugins:
+  # Enable for bug reports
+  # info: {}
+  # Built-in
+  search: {}
+  # Extra
+  glightbox: {}
+  minify:
+    minify_html: true
+  git-revision-date-localized:
+    type: date
+    strict: false
+
+markdown_extensions:
+# Built-in
+- markdown.extensions.abbr:
+- markdown.extensions.admonition:
+- markdown.extensions.attr_list:
+- markdown.extensions.footnotes:
+- markdown.extensions.md_in_html:
+- markdown.extensions.meta:
+- markdown.extensions.tables:
+- markdown.extensions.toc:
+    permalink: true
+# Extra
+- pymdownx.arithmatex:
+- pymdownx.betterem:
+    smart_enable: all
+- pymdownx.caret:
+- pymdownx.critic:
+- pymdownx.details:
+- pymdownx.emoji:
+    # https://github.com/twitter/twemoji
+    # https://raw.githubusercontent.com/facelessuser/pymdown-extensions/master/pymdownx/twemoji_db.py
+    emoji_index: !!python/name:material.extensions.emoji.twemoji
+    emoji_generator: !!python/name:material.extensions.emoji.to_svg
+- pymdownx.highlight:
+    guess_lang: false
+    linenums_style: pymdownx-inline
+    use_pygments: true
+- pymdownx.inlinehilite:
+- pymdownx.keys:
+- pymdownx.magiclink:
+    repo_url_shortener: true
+    repo_url_shorthand: true
+    social_url_shortener: true
+    social_url_shorthand: true
+    normalize_issue_symbols: true
+    provider: github
+    user: DataDog
+    repo: datadog-agent
+- pymdownx.mark:
+- pymdownx.progressbar:
+- pymdownx.saneheaders:
+- pymdownx.smartsymbols:
+- pymdownx.snippets:
+    check_paths: true
+    base_path:
+    - docs/public/.snippets
+    auto_append:
+    - links.txt
+    - abbrs.txt
+- pymdownx.superfences:
+- pymdownx.tabbed:
+    alternate_style: true
+    combine_header_slug: true
+    slugify: !!python/object/apply:pymdownx.slugs.slugify
+      kwds:
+        case: lower
+- pymdownx.tasklist:
+    custom_checkbox: true
+- pymdownx.tilde:
+
+extra:
+  social:
+  - icon: fontawesome/solid/blog
+    link: https://www.datadoghq.com/blog/engineering/
+  - icon: fontawesome/brands/github-alt
+    link: https://github.com/DataDog
+  - icon: fontawesome/brands/twitter
+    link: https://twitter.com/datadoghq
+  - icon: fontawesome/brands/instagram
+    link: https://www.instagram.com/datadoghq
+extra_css:
+- assets/css/custom.css
+- https://cdn.jsdelivr.net/npm/firacode@6.2.0/distr/fira_code.css

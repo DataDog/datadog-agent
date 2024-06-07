@@ -49,11 +49,19 @@ func approveBasenames(tableName string, eventType model.EventType, basenames ...
 	return approvers, nil
 }
 
-func setFlagsFilter(tableName string, flags ...int) (activeApprover, error) {
-	var flagsItem ebpf.Uint32MapItem
+func intValues[I int32 | int64](fvs rules.FilterValues) []I {
+	var values []I
+	for _, v := range fvs {
+		values = append(values, I(v.Value.(int)))
+	}
+	return values
+}
+
+func setFlagsFilter[I int32 | int64](tableName string, flags ...I) (activeApprover, error) {
+	var flagsItem I
 
 	for _, flag := range flags {
-		flagsItem |= ebpf.Uint32MapItem(flag)
+		flagsItem |= flag
 	}
 
 	if flagsItem != 0 {
@@ -61,14 +69,22 @@ func setFlagsFilter(tableName string, flags ...int) (activeApprover, error) {
 			tableName: tableName,
 			index:     uint32(0),
 			value:     flagsItem,
-			zeroValue: ebpf.ZeroUint32MapItem,
+			zeroValue: I(0),
 		}, nil
 	}
 
 	return nil, nil
 }
 
-func approveFlags(tableName string, flags ...int) (activeApprover, error) {
+func approveFlags(tableName string, flags ...int32) (activeApprover, error) {
+	return setFlagsFilter(tableName, flags...)
+}
+
+func approveEnums(tableName string, enums ...int64) (activeApprover, error) {
+	var flags []int64
+	for _, enum := range enums {
+		flags = append(flags, 1<<enum)
+	}
 	return setFlagsFilter(tableName, flags...)
 }
 
@@ -149,4 +165,6 @@ func init() {
 	AllApproversHandlers["mmap"] = mmapOnNewApprovers
 	AllApproversHandlers["mprotect"] = mprotectOnNewApprovers
 	AllApproversHandlers["splice"] = spliceOnNewApprovers
+	AllApproversHandlers["chdir"] = onNewBasenameApproversWrapper(model.FileChdirEventType)
+	AllApproversHandlers["bpf"] = bpfOnNewApprovers
 }

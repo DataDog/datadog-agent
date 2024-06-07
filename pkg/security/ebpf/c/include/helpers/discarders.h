@@ -100,6 +100,8 @@ u64* __attribute__((always_inline)) get_discarder_timestamp(struct discarder_par
             return &params->timestamps[EVENT_SETXATTR-EVENT_FIRST_DISCARDER];
         case EVENT_REMOVEXATTR:
             return &params->timestamps[EVENT_REMOVEXATTR-EVENT_FIRST_DISCARDER];
+        case EVENT_CHDIR:
+            return &params->timestamps[EVENT_CHDIR-EVENT_FIRST_DISCARDER];
         default:
             return NULL;
     }

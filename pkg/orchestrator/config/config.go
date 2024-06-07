@@ -33,20 +33,20 @@ const (
 // OrchestratorConfig is the global config for the Orchestrator related packages. This information
 // is sourced from config files and the environment variables.
 type OrchestratorConfig struct {
-	CollectorDiscoveryEnabled      bool
-	OrchestrationCollectionEnabled bool
-	CoreCheck                      bool
-	KubeClusterName                string
-	IsScrubbingEnabled             bool
-	Scrubber                       *redact.DataScrubber
-	OrchestratorEndpoints          []apicfg.Endpoint
-	MaxPerMessage                  int
-	MaxWeightPerMessageBytes       int
-	PodQueueBytes                  int // The total number of bytes that can be enqueued for delivery to the orchestrator endpoint
-	ExtraTags                      []string
-	IsManifestCollectionEnabled    bool
-	BufferedManifestEnabled        bool
-	ManifestBufferFlushInterval    time.Duration
+	CollectorDiscoveryEnabled         bool
+	OrchestrationCollectionEnabled    bool
+	KubeClusterName                   string
+	IsScrubbingEnabled                bool
+	Scrubber                          *redact.DataScrubber
+	OrchestratorEndpoints             []apicfg.Endpoint
+	MaxPerMessage                     int
+	MaxWeightPerMessageBytes          int
+	PodQueueBytes                     int // The total number of bytes that can be enqueued for delivery to the orchestrator endpoint
+	ExtraTags                         []string
+	IsManifestCollectionEnabled       bool
+	BufferedManifestEnabled           bool
+	ManifestBufferFlushInterval       time.Duration
+	OrchestrationECSCollectionEnabled bool
 }
 
 // NewDefaultOrchestratorConfig returns an NewDefaultOrchestratorConfig using a configuration file. It can be nil
@@ -86,8 +86,8 @@ func (oc *OrchestratorConfig) Load() error {
 	}
 	oc.OrchestratorEndpoints[0].Endpoint = URL
 
-	if key := "api_key"; config.Datadog.IsSet(key) {
-		oc.OrchestratorEndpoints[0].APIKey = utils.SanitizeAPIKey(config.Datadog.GetString(key))
+	if key := "api_key"; config.Datadog().IsSet(key) {
+		oc.OrchestratorEndpoints[0].APIKey = utils.SanitizeAPIKey(config.Datadog().GetString(key))
 	}
 
 	if err := extractOrchestratorAdditionalEndpoints(URL, &oc.OrchestratorEndpoints); err != nil {
@@ -95,8 +95,8 @@ func (oc *OrchestratorConfig) Load() error {
 	}
 
 	// A custom word list to enhance the default one used by the DataScrubber
-	if k := OrchestratorNSKey("custom_sensitive_words"); config.Datadog.IsSet(k) {
-		oc.Scrubber.AddCustomSensitiveWords(config.Datadog.GetStringSlice(k))
+	if k := OrchestratorNSKey("custom_sensitive_words"); config.Datadog().IsSet(k) {
+		oc.Scrubber.AddCustomSensitiveWords(config.Datadog().GetStringSlice(k))
 	}
 
 	// The maximum number of resources per message and the maximum message size.
@@ -104,31 +104,32 @@ func (oc *OrchestratorConfig) Load() error {
 	setBoundedConfigIntValue(OrchestratorNSKey("max_per_message"), maxMessageBatch, func(v int) { oc.MaxPerMessage = v })
 	setBoundedConfigIntValue(OrchestratorNSKey("max_message_bytes"), maxMessageSize, func(v int) { oc.MaxWeightPerMessageBytes = v })
 
-	if k := key(processNS, "pod_queue_bytes"); config.Datadog.IsSet(k) {
-		if queueBytes := config.Datadog.GetInt(k); queueBytes > 0 {
+	if k := key(processNS, "pod_queue_bytes"); config.Datadog().IsSet(k) {
+		if queueBytes := config.Datadog().GetInt(k); queueBytes > 0 {
 			oc.PodQueueBytes = queueBytes
 		}
 	}
 
 	// Orchestrator Explorer
-	oc.OrchestrationCollectionEnabled, oc.CoreCheck, oc.KubeClusterName = IsOrchestratorEnabled()
+	oc.OrchestrationCollectionEnabled, oc.KubeClusterName = IsOrchestratorEnabled()
 
-	oc.CollectorDiscoveryEnabled = config.Datadog.GetBool(OrchestratorNSKey("collector_discovery.enabled"))
-	oc.IsScrubbingEnabled = config.Datadog.GetBool(OrchestratorNSKey("container_scrubbing.enabled"))
-	oc.ExtraTags = config.Datadog.GetStringSlice(OrchestratorNSKey("extra_tags"))
-	oc.IsManifestCollectionEnabled = config.Datadog.GetBool(OrchestratorNSKey("manifest_collection.enabled"))
-	oc.BufferedManifestEnabled = config.Datadog.GetBool(OrchestratorNSKey("manifest_collection.buffer_manifest"))
-	oc.ManifestBufferFlushInterval = config.Datadog.GetDuration(OrchestratorNSKey("manifest_collection.buffer_flush_interval"))
+	oc.CollectorDiscoveryEnabled = config.Datadog().GetBool(OrchestratorNSKey("collector_discovery.enabled"))
+	oc.IsScrubbingEnabled = config.Datadog().GetBool(OrchestratorNSKey("container_scrubbing.enabled"))
+	oc.ExtraTags = config.Datadog().GetStringSlice(OrchestratorNSKey("extra_tags"))
+	oc.IsManifestCollectionEnabled = config.Datadog().GetBool(OrchestratorNSKey("manifest_collection.enabled"))
+	oc.BufferedManifestEnabled = config.Datadog().GetBool(OrchestratorNSKey("manifest_collection.buffer_manifest"))
+	oc.ManifestBufferFlushInterval = config.Datadog().GetDuration(OrchestratorNSKey("manifest_collection.buffer_flush_interval"))
+	oc.OrchestrationECSCollectionEnabled = config.Datadog().GetBool(OrchestratorNSKey("ecs_collection.enabled"))
 
 	return nil
 }
 
 func extractOrchestratorAdditionalEndpoints(URL *url.URL, orchestratorEndpoints *[]apicfg.Endpoint) error {
-	if k := OrchestratorNSKey("orchestrator_additional_endpoints"); config.Datadog.IsSet(k) {
+	if k := OrchestratorNSKey("orchestrator_additional_endpoints"); config.Datadog().IsSet(k) {
 		if err := extractEndpoints(URL, k, orchestratorEndpoints); err != nil {
 			return err
 		}
-	} else if k := key(processNS, "orchestrator_additional_endpoints"); config.Datadog.IsSet(k) {
+	} else if k := key(processNS, "orchestrator_additional_endpoints"); config.Datadog().IsSet(k) {
 		if err := extractEndpoints(URL, k, orchestratorEndpoints); err != nil {
 			return err
 		}
@@ -137,7 +138,7 @@ func extractOrchestratorAdditionalEndpoints(URL *url.URL, orchestratorEndpoints 
 }
 
 func extractEndpoints(URL *url.URL, k string, endpoints *[]apicfg.Endpoint) error {
-	for endpointURL, apiKeys := range config.Datadog.GetStringMapStringSlice(k) {
+	for endpointURL, apiKeys := range config.Datadog().GetStringMapStringSlice(k) {
 		u, err := URL.Parse(endpointURL)
 		if err != nil {
 			return fmt.Errorf("invalid additional endpoint url '%s': %s", endpointURL, err)
@@ -156,7 +157,7 @@ func extractEndpoints(URL *url.URL, k string, endpoints *[]apicfg.Endpoint) erro
 func extractOrchestratorDDUrl() (*url.URL, error) {
 	orchestratorURL := OrchestratorNSKey("orchestrator_dd_url")
 	processURL := key(processNS, "orchestrator_dd_url")
-	URL, err := url.Parse(utils.GetMainEndpointBackwardCompatible(config.Datadog, "https://orchestrator.", orchestratorURL, processURL))
+	URL, err := url.Parse(utils.GetMainEndpointBackwardCompatible(config.Datadog(), "https://orchestrator.", orchestratorURL, processURL))
 	if err != nil {
 		return nil, fmt.Errorf("error parsing orchestrator_dd_url: %s", err)
 	}
@@ -164,11 +165,11 @@ func extractOrchestratorDDUrl() (*url.URL, error) {
 }
 
 func setBoundedConfigIntValue(configKey string, upperBound int, setter func(v int)) {
-	if !config.Datadog.IsSet(configKey) {
+	if !config.Datadog().IsSet(configKey) {
 		return
 	}
 
-	val := config.Datadog.GetInt(configKey)
+	val := config.Datadog().GetInt(configKey)
 
 	if val <= 0 {
 		pkglog.Warnf("Ignoring invalid value for setting %s (<=0)", configKey)
@@ -182,15 +183,31 @@ func setBoundedConfigIntValue(configKey string, upperBound int, setter func(v in
 	setter(val)
 }
 
-// IsOrchestratorEnabled checks if orchestrator explorer features are enabled, it returns the boolean, the coreCheck flag and the cluster name
-func IsOrchestratorEnabled() (bool, bool, string) {
-	enabled := config.Datadog.GetBool(OrchestratorNSKey("enabled"))
+// IsOrchestratorEnabled checks if orchestrator explorer features are enabled, it returns the boolean and the cluster name
+func IsOrchestratorEnabled() (bool, string) {
+	enabled := config.Datadog().GetBool(OrchestratorNSKey("enabled"))
 	var clusterName string
 	if enabled {
 		// Set clustername
 		hname, _ := hostname.Get(context.TODO())
 		clusterName = clustername.GetRFC1123CompliantClusterName(context.TODO(), hname)
 	}
-	coreCheck := config.Datadog.GetBool(OrchestratorNSKey("run_on_node_agent"))
-	return enabled, coreCheck, clusterName
+	return enabled, clusterName
+}
+
+// IsOrchestratorECSExplorerEnabled checks if orchestrator ecs explorer features are enabled
+func IsOrchestratorECSExplorerEnabled() bool {
+	if !config.Datadog().GetBool(OrchestratorNSKey("enabled")) {
+		return false
+	}
+
+	if !config.Datadog().GetBool(OrchestratorNSKey("ecs_collection.enabled")) {
+		return false
+	}
+
+	if config.IsECS() || config.IsECSFargate() {
+		return true
+	}
+
+	return false
 }

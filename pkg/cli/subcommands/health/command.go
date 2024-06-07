@@ -68,7 +68,7 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 	return cmd
 }
 
-func requestHealth(_ log.Component, _ config.Component, cliParams *cliParams) error {
+func requestHealth(_ log.Component, config config.Component, cliParams *cliParams) error {
 	c := util.GetClient(false) // FIX: get certificates right then make this true
 
 	ipcAddress, err := pkgconfig.GetIPCAddress()
@@ -78,13 +78,13 @@ func requestHealth(_ log.Component, _ config.Component, cliParams *cliParams) er
 
 	var urlstr string
 	if flavor.GetFlavor() == flavor.ClusterAgent {
-		urlstr = fmt.Sprintf("https://%v:%v/status/health", ipcAddress, pkgconfig.Datadog.GetInt("cluster_agent.cmd_port"))
+		urlstr = fmt.Sprintf("https://%v:%v/status/health", ipcAddress, pkgconfig.Datadog().GetInt("cluster_agent.cmd_port"))
 	} else {
-		urlstr = fmt.Sprintf("https://%v:%v/agent/status/health", ipcAddress, pkgconfig.Datadog.GetInt("cmd_port"))
+		urlstr = fmt.Sprintf("https://%v:%v/agent/status/health", ipcAddress, pkgconfig.Datadog().GetInt("cmd_port"))
 	}
 
 	// Set session token
-	err = util.SetAuthToken()
+	err = util.SetAuthToken(config)
 	if err != nil {
 		return err
 	}
@@ -92,7 +92,7 @@ func requestHealth(_ log.Component, _ config.Component, cliParams *cliParams) er
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(cliParams.timeout)*time.Second)
 	defer cancel()
 
-	r, err := util.DoGetWithContext(ctx, c, urlstr, util.LeaveConnectionOpen)
+	r, err := util.DoGetWithOptions(c, urlstr, &util.ReqOptions{Ctx: ctx, Conn: util.LeaveConnectionOpen})
 	if err != nil {
 		var errMap = make(map[string]string)
 		json.Unmarshal(r, &errMap) //nolint:errcheck

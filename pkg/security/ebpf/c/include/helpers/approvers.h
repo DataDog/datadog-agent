@@ -64,8 +64,12 @@ int __attribute__((always_inline)) approve_mmap_by_flags(struct syscall_cache_t 
 
 int __attribute__((always_inline)) approve_mmap_by_protection(struct syscall_cache_t *syscall) {
     u32 key = 0;
-    u32 *flags = bpf_map_lookup_elem(&mmap_protection_approvers, &key);
-    if (flags != NULL && (syscall->mmap.protection & *flags) > 0) {
+    u32 *flags_ptr = bpf_map_lookup_elem(&mmap_protection_approvers, &key);
+    if (flags_ptr == NULL) {
+        return 0;
+    }
+    u32 flags = *flags_ptr;
+    if ((flags == 0 && syscall->mmap.protection == 0) || (syscall->mmap.protection & flags) > 0) {
         monitor_event_approved(syscall->type, FLAG_APPROVER_TYPE);
         return 1;
     }
@@ -98,6 +102,10 @@ int __attribute__((always_inline)) mkdir_approvers(struct syscall_cache_t *sysca
     return basename_approver(syscall, syscall->mkdir.dentry, EVENT_MKDIR);
 }
 
+int __attribute__((always_inline)) chdir_approvers(struct syscall_cache_t *syscall) {
+    return basename_approver(syscall, syscall->chdir.dentry, EVENT_CHDIR);
+}
+
 int __attribute__((always_inline)) approve_mprotect_by_vm_protection(struct syscall_cache_t *syscall) {
     u32 key = 0;
     u32 *flags = bpf_map_lookup_elem(&mprotect_vm_protection_approvers, &key);
@@ -122,9 +130,10 @@ int __attribute__((always_inline)) mprotect_approvers(struct syscall_cache_t *sy
     int pass_to_userspace = 0;
 
     if ((syscall->policy.flags & FLAGS) > 0) {
-        int vm_protection_approved = approve_mprotect_by_vm_protection(syscall);
-        int req_protection_approved = approve_mprotect_by_req_protection(syscall);
-        pass_to_userspace = vm_protection_approved && req_protection_approved;
+        pass_to_userspace = approve_mprotect_by_vm_protection(syscall);
+        if (!pass_to_userspace) {
+            pass_to_userspace = approve_mprotect_by_req_protection(syscall);
+        }
     }
 
     return pass_to_userspace;
@@ -132,8 +141,13 @@ int __attribute__((always_inline)) mprotect_approvers(struct syscall_cache_t *sy
 
 int __attribute__((always_inline)) approve_by_flags(struct syscall_cache_t *syscall) {
     u32 key = 0;
-    u32 *flags = bpf_map_lookup_elem(&open_flags_approvers, &key);
-    if (flags != NULL && (syscall->open.flags & *flags) > 0) {
+    u32 *flags_ptr = bpf_map_lookup_elem(&open_flags_approvers, &key);
+    if (flags_ptr == NULL) {
+        return 0;
+    }
+
+    u32 flags = *flags_ptr;
+    if ((flags == 0 && syscall->open.flags == 0) || ((syscall->open.flags & flags) > 0)) {
         monitor_event_approved(syscall->type, FLAG_APPROVER_TYPE);
 #ifdef DEBUG
         bpf_printk("open flags %d approved", syscall->open.flags);
@@ -209,6 +223,21 @@ int __attribute__((always_inline)) unlink_approvers(struct syscall_cache_t *sysc
 
 int __attribute__((always_inline)) utime_approvers(struct syscall_cache_t *syscall) {
     return basename_approver(syscall, syscall->setattr.dentry, EVENT_UTIME);
+}
+
+int __attribute__((always_inline)) bpf_approvers(struct syscall_cache_t *syscall) {
+    int pass_to_userspace = 0;
+
+    if ((syscall->policy.flags & FLAGS) > 0) {
+        u32 key = 0;
+        u64 *cmd_bitmask = bpf_map_lookup_elem(&bpf_cmd_approvers, &key);
+        if (cmd_bitmask != NULL && ((1 << syscall->bpf.cmd) & *cmd_bitmask) > 0) {
+            monitor_event_approved(syscall->type, FLAG_APPROVER_TYPE);
+            pass_to_userspace = 1;
+        }
+    }
+
+    return pass_to_userspace;
 }
 
 #endif

@@ -17,7 +17,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/sbom/telemetry"
 	fimage "github.com/aquasecurity/trivy/pkg/fanal/image"
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
@@ -26,6 +25,8 @@ import (
 	"github.com/google/go-containerregistry/pkg/v1/tarball"
 	"github.com/samber/lo"
 	"golang.org/x/xerrors"
+
+	"github.com/DataDog/datadog-agent/pkg/sbom/telemetry"
 )
 
 var mu sync.Mutex
@@ -62,7 +63,7 @@ func imageOpener(ctx context.Context, collector, ref string, f *os.File, imageSa
 
 // image is a wrapper for github.com/google/go-containerregistry/pkg/v1/daemon.Image
 // daemon.Image loads the entire image into the memory at first,
-// but it doesn't need to load it if the information is already in the cache,
+// but it doesn't need to load it if the information is already in the persistentCache,
 // To avoid entire loading, this wrapper uses ImageInspectWithRaw and checks image ID and layer IDs.
 type image struct {
 	v1.Image
@@ -123,8 +124,10 @@ func (img *image) ConfigFile() (*v1.ConfigFile, error) {
 	}
 
 	return &v1.ConfigFile{
-		Architecture:  img.inspect.Architecture,
-		Author:        img.inspect.Author,
+		Architecture: img.inspect.Architecture,
+		Author:       img.inspect.Author,
+		// Ignore deprecation warning
+		//nolint:staticcheck
 		Container:     img.inspect.Container,
 		Created:       v1.Time{Time: created},
 		DockerVersion: img.inspect.DockerVersion,
@@ -206,9 +209,11 @@ func (img *image) imageConfig(config *container.Config) v1.Config {
 		WorkingDir:      config.WorkingDir,
 		ArgsEscaped:     config.ArgsEscaped,
 		NetworkDisabled: config.NetworkDisabled,
-		MacAddress:      config.MacAddress,
-		StopSignal:      config.StopSignal,
-		Shell:           config.Shell,
+		// Ignore deprecation warning
+		//nolint:staticcheck
+		MacAddress: config.MacAddress,
+		StopSignal: config.StopSignal,
+		Shell:      config.Shell,
 	}
 
 	if config.Healthcheck != nil {

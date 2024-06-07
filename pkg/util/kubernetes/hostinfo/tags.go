@@ -11,51 +11,65 @@ import (
 	"context"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/comp/core/tagger/utils"
+	k8smetadata "github.com/DataDog/datadog-agent/comp/core/tagger/k8s_metadata"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/taglist"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // GetTags gets the tags from the kubernetes apiserver and the kubelet
-func GetTags(ctx context.Context) (tags []string, err error) {
-	tags = appendNodeInfoTags(ctx, tags)
-
-	annotationsToTags := getAnnotationsToTags()
-	if len(annotationsToTags) > 0 {
-		nodeAnnotations, e := GetNodeAnnotations(ctx)
-		if e != nil {
-			err = e
-		} else {
-			tags = append(tags, extractTags(nodeAnnotations, annotationsToTags)...)
-		}
+func GetTags(ctx context.Context) ([]string, error) {
+	tags, err := getNodeInfoTags(ctx)
+	if err != nil {
+		return nil, err
 	}
 
-	return
+	annotationsToTags := getAnnotationsToTags()
+	if len(annotationsToTags) == 0 {
+		return tags, nil
+	}
+
+	nodeAnnotations, err := GetNodeAnnotations(ctx)
+	if err != nil {
+		return nil, err
+	}
+	tags = append(tags, extractTags(nodeAnnotations, annotationsToTags)...)
+
+	return tags, nil
 }
 
-func appendNodeInfoTags(ctx context.Context, tags []string) []string {
+// getNodeInfoTags gets the tags from the kubelet and the cluster-agent
+func getNodeInfoTags(ctx context.Context) ([]string, error) {
 	nodeInfo, err := NewNodeInfo()
 	if err != nil {
 		log.Debugf("Unable to auto discover node info tags: %s", err)
-		return tags
+		return nil, err
 	}
 
 	nodeName, err := nodeInfo.GetNodeName(ctx)
-	if err == nil && nodeName != "" {
-		tags = append(tags, "kube_node:"+nodeName)
+	if err != nil || nodeName == "" {
+		log.Debugf("Unable to auto discover node name: %s", err)
+		// We can return an error here because nodeName needs to be retrieved
+		// for node labels and node annotations.
+		return nil, err
 	}
-
+	tags := []string{"kube_node:" + nodeName}
 	labelsToTags := getLabelsToTags()
-	if len(labelsToTags) > 0 {
-		var nodeLabels map[string]string
-		nodeLabels, err = nodeInfo.GetNodeLabels(ctx)
-		if err == nil && len(nodeLabels) > 0 {
-			tags = append(tags, extractTags(nodeLabels, labelsToTags)...)
-		}
+	if len(labelsToTags) == 0 {
+		return tags, nil
 	}
 
-	return tags
+	nodeLabels, err := nodeInfo.GetNodeLabels(ctx)
+	if err != nil {
+		log.Errorf("Unable to auto discover node labels: %s", err)
+		return nil, err
+	}
+	if len(nodeLabels) > 0 {
+		tags = append(tags, extractTags(nodeLabels, labelsToTags)...)
+	}
+
+	return tags, nil
 }
 
 func getDefaultLabelsToTags() map[string]string {
@@ -66,7 +80,7 @@ func getDefaultLabelsToTags() map[string]string {
 
 func getLabelsToTags() map[string]string {
 	labelsToTags := getDefaultLabelsToTags()
-	for k, v := range config.Datadog.GetStringMapString("kubernetes_node_labels_as_tags") {
+	for k, v := range config.Datadog().GetStringMapString("kubernetes_node_labels_as_tags") {
 		// viper lower-cases map keys from yaml, but not from envvars
 		labelsToTags[strings.ToLower(k)] = v
 	}
@@ -76,7 +90,7 @@ func getLabelsToTags() map[string]string {
 
 func getAnnotationsToTags() map[string]string {
 	annotationsToTags := map[string]string{}
-	for k, v := range config.Datadog.GetStringMapString("kubernetes_node_annotations_as_tags") {
+	for k, v := range config.Datadog().GetStringMapString("kubernetes_node_annotations_as_tags") {
 		// viper lower-cases map keys from yaml, but not from envvars
 		annotationsToTags[strings.ToLower(k)] = v
 	}
@@ -85,11 +99,11 @@ func getAnnotationsToTags() map[string]string {
 }
 
 func extractTags(nodeLabels, labelsToTags map[string]string) []string {
-	tagList := utils.NewTagList()
-	labelsToTags, glob := utils.InitMetadataAsTags(labelsToTags)
+	tagList := taglist.NewTagList()
+	labelsToTags, glob := k8smetadata.InitMetadataAsTags(labelsToTags)
 	for labelName, labelValue := range nodeLabels {
 		labelName, labelValue := LabelPreprocessor(labelName, labelValue)
-		utils.AddMetadataAsTags(labelName, labelValue, labelsToTags, glob, tagList)
+		k8smetadata.AddMetadataAsTags(labelName, labelValue, labelsToTags, glob, tagList)
 	}
 
 	tags, _, _, _ := tagList.Compute()

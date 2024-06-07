@@ -12,6 +12,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/fx"
 )
@@ -59,7 +60,8 @@ func TestDump(t *testing.T) {
 		Image: ContainerImage{
 			Tag: "latest",
 		},
-		PID: 1,
+		PID:        1,
+		CgroupPath: "/default/ctr-id",
 	}
 
 	s.handleEvents([]CollectorEvent{
@@ -119,6 +121,7 @@ Tag:
 ID: 
 Raw Name: 
 Short Name: 
+Repo Digest: 
 ----------- Container Info -----------
 Runtime: docker
 RuntimeFlavor: kata
@@ -133,6 +136,7 @@ Allowed env variables: DD_SERVICE:my-svc DD_ENV:prod DD_VERSION:v1
 Hostname: 
 Network IPs: 
 PID: 0
+Cgroup path: 
 `,
 					"source:source2 id: ctr-id": `----------- Entity ID -----------
 Kind: container ID: ctr-id
@@ -147,6 +151,7 @@ Tag: latest
 ID: 
 Raw Name: 
 Short Name: 
+Repo Digest: 
 ----------- Container Info -----------
 Runtime: 
 RuntimeFlavor: 
@@ -161,6 +166,7 @@ Allowed env variables:
 Hostname: 
 Network IPs: 
 PID: 1
+Cgroup path: /default/ctr-id
 `,
 					"sources(merged):[source1 source2] id: ctr-id": `----------- Entity ID -----------
 Kind: container ID: ctr-id
@@ -175,6 +181,7 @@ Tag: latest
 ID: 
 Raw Name: 
 Short Name: 
+Repo Digest: 
 ----------- Container Info -----------
 Runtime: docker
 RuntimeFlavor: kata
@@ -189,6 +196,7 @@ Allowed env variables: DD_SERVICE:my-svc DD_ENV:prod DD_VERSION:v1
 Hostname: 
 Network IPs: 
 PID: 1
+Cgroup path: /default/ctr-id
 `,
 				},
 			},

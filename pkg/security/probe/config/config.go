@@ -41,6 +41,9 @@ type Config struct {
 	// event monitor/probe parameters
 	ebpf.Config
 
+	// EnableAllProbes defines if all probes should be activated regardless of loaded rules (while still respecting config, especially network disabled)
+	EnableAllProbes bool
+
 	// EnableKernelFilters defines if in-kernel filtering should be activated or not
 	EnableKernelFilters bool
 
@@ -125,6 +128,8 @@ type Config struct {
 
 	// NetworkEnabled defines if the network probes should be activated
 	NetworkEnabled bool
+	// NetworkIngressEnabled defines if the network ingress probes should be activated
+	NetworkIngressEnabled bool
 
 	// StatsPollingInterval determines how often metrics should be polled
 	StatsPollingInterval time.Duration
@@ -141,6 +146,7 @@ func NewConfig() (*Config, error) {
 
 	c := &Config{
 		Config:                       *ebpf.NewConfig(),
+		EnableAllProbes:              getBool("enable_all_probes"),
 		EnableKernelFilters:          getBool("enable_kernel_filters"),
 		EnableApprovers:              getBool("enable_approvers"),
 		EnableDiscarders:             getBool("enable_discarders"),
@@ -161,6 +167,7 @@ func NewConfig() (*Config, error) {
 		EventStreamUseFentry:         getEventStreamFentryValue(),
 		EnvsWithValue:                getStringSlice("envs_with_value"),
 		NetworkEnabled:               getBool("network.enabled"),
+		NetworkIngressEnabled:        getBool("network.ingress.enabled"),
 		StatsPollingInterval:         time.Duration(getInt("events_stats.polling_interval")) * time.Second,
 		SyscallsMonitorEnabled:       getBool("syscalls_monitor.enabled"),
 

@@ -12,40 +12,23 @@ import (
 	"fmt"
 	"reflect"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/sbom"
 	"github.com/DataDog/datadog-agent/pkg/sbom/collectors"
+	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"github.com/DataDog/datadog-agent/pkg/util/trivy"
 )
-
-const (
-	collectorName = "host"
-)
-
-// ScanRequest defines a scan request
-type ScanRequest struct {
-	Path string
-}
-
-// Collector returns the collector name
-func (r *ScanRequest) Collector() string {
-	return collectorName
-}
-
-// Type returns the scan request type
-func (r *ScanRequest) Type() string {
-	return sbom.ScanFilesystemType
-}
-
-// ID returns the scan request ID
-func (r *ScanRequest) ID() string {
-	return r.Path
-}
 
 // Collector defines a host collector
 type Collector struct {
 	trivyCollector *trivy.Collector
+	resChan        chan sbom.ScanResult
+	opts           sbom.ScanOptions
+
+	closed bool
 }
 
 // CleanCache cleans the cache
@@ -54,30 +37,31 @@ func (c *Collector) CleanCache() error {
 }
 
 // Init initialize the host collector
-func (c *Collector) Init(cfg config.Config) error {
-	trivyCollector, err := trivy.GetGlobalCollector(cfg)
+func (c *Collector) Init(cfg config.Component, wmeta optional.Option[workloadmeta.Component]) error {
+	trivyCollector, err := trivy.GetGlobalCollector(cfg, wmeta)
 	if err != nil {
 		return err
 	}
 	c.trivyCollector = trivyCollector
+	if flavor.GetFlavor() == flavor.SecurityAgent {
+		c.opts = sbom.ScanOptions{Analyzers: []string{trivy.OSAnalyzers}, Fast: true, CollectFiles: true}
+	} else {
+		c.opts = sbom.ScanOptionsFromConfig(cfg, false)
+	}
 	return nil
 }
 
 // Scan performs a scan
-func (c *Collector) Scan(ctx context.Context, request sbom.ScanRequest, opts sbom.ScanOptions) sbom.ScanResult {
-	hostScanRequest, ok := request.(*ScanRequest)
+func (c *Collector) Scan(ctx context.Context, request sbom.ScanRequest) sbom.ScanResult {
+	hostScanRequest, ok := request.(scanRequest)
 	if !ok {
-		return sbom.ScanResult{Error: fmt.Errorf("invalid request type '%s' for collector '%s'", reflect.TypeOf(request), collectorName)}
+		return sbom.ScanResult{Error: fmt.Errorf("invalid request type '%s' for collector '%s'", reflect.TypeOf(request), collectors.HostCollector)}
 	}
 	log.Infof("host scan request [%v]", hostScanRequest.ID())
 
-	report, err := c.trivyCollector.ScanFilesystem(ctx, hostScanRequest.Path, opts)
+	report, err := c.trivyCollector.ScanFilesystem(ctx, hostScanRequest.FS, hostScanRequest.Path, c.opts)
 	return sbom.ScanResult{
 		Error:  err,
 		Report: report,
 	}
-}
-
-func init() {
-	collectors.RegisterCollector(collectorName, &Collector{})
 }

@@ -1,0 +1,105 @@
+{{ with .logsStats }}
+{{- if eq .IsRunning false }}
+  Logs Agent is not running
+{{- end }}
+
+{{- if .Endpoints }}
+
+  {{- range $endpoint := .Endpoints }}
+    {{ $endpoint }}
+  {{- end }}
+{{- end }}
+
+{{- if and (eq .UseHTTP false) (eq .IsRunning true) }}
+
+    You are currently sending Logs to Datadog through TCP (either because logs_config.force_use_tcp or logs_config.socks5_proxy_address is set or the HTTP connectivity test has failed). To benefit from increased reliability and better network performances, we strongly encourage switching over to compressed HTTPS which is now the default protocol.
+{{ end }}
+
+{{- if .StatusMetrics }}
+
+  {{- range $metric_name, $metric_value := .StatusMetrics }}
+    {{$metric_name}}: {{$metric_value}}
+  {{- end }}
+{{- end }}
+
+{{- if .ProcessFileStats }}
+  {{- range $metric_name, $metric_value := .ProcessFileStats }}
+    {{$metric_name}}: {{$metric_value}}
+  {{- end}}
+{{- end}}
+
+{{- if .Errors }}
+
+  Errors
+  {{ printDashes "Errors" "=" }}
+  {{- range $error := .Errors }}
+    {{ $error }}
+  {{- end }}
+{{- end }}
+
+{{- if .Warnings }}
+
+  Warnings
+  {{ printDashes "warnings" "=" }}
+  {{- range $warning := .Warnings }}
+    {{ $warning }}
+  {{- end }}
+{{- end }}
+
+{{- if .Integrations }}
+  ============
+  Integrations
+  ============
+  {{- range .Integrations }}
+
+  {{ .Name }}
+  {{ printDashes .Name "-" }}
+  {{- range .Sources }}
+    - Type: {{ .Type }}
+      {{- range $key, $value := .Configuration }}
+      {{$key}}: {{$value}}
+      {{- end }}
+      Status: {{ .Status }}
+      {{- range $message := .Messages }}
+        {{ $message }}
+      {{- end }}
+      {{- if .Inputs }}
+      Inputs:
+      {{- range $input := .Inputs }}
+        {{$input}}
+      {{- end }}
+      {{- end }}
+      {{- if .Info }}
+      {{- range $key, $value := .Info }} {{ $len := len $value }} {{ if eq $len 1 }}
+      {{$key}}: {{index $value 0}} {{ else }}
+      {{$key}}:
+      {{- range $inf := $value }}
+        {{ $inf }}
+      {{- end }}
+      {{- end }}
+      {{- end }}
+      {{- end }}
+  {{- end }}
+  {{- end }}
+{{- end }}
+{{- if .Tailers }}
+  =======
+  Tailers
+  =======
+  {{- range .Tailers }}
+
+    - ID: {{ .Id }}
+      Type: {{ .Type }}
+      {{- if .Info }}
+      {{- range $key, $value := .Info }} {{ $len := len $value }} {{ if eq $len 1 }}
+      {{$key}}: {{index $value 0}} {{ else }}
+      {{$key}}:
+      {{- range $inf := $value }}
+        {{ $inf }}
+      {{- end }}
+      {{- end }}
+      {{- end }}
+      {{- end }}
+  {{- end }}
+{{- end }}
+{{- end }}

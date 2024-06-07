@@ -16,17 +16,20 @@ import (
 	log "github.com/cihub/seelog"
 	"go.uber.org/fx"
 
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	compcfg "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/docker"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"github.com/DataDog/datadog-agent/test/integration/utils"
 )
 
@@ -109,8 +112,8 @@ type testDeps struct {
 // Called before for first test run: compose up
 func setup() (workloadmeta.Component, error) {
 	// Setup global conf
-	config.Datadog.SetConfigType("yaml")
-	err := config.Datadog.ReadConfig(strings.NewReader(datadogCfgString))
+	config.Datadog().SetConfigType("yaml")
+	err := config.Datadog().ReadConfig(strings.NewReader(datadogCfgString))
 	if err != nil {
 		return nil, err
 	}
@@ -122,16 +125,16 @@ func setup() (workloadmeta.Component, error) {
 		fx.Supply(compcfg.NewAgentParams(
 			"", compcfg.WithConfigMissingOK(true))),
 		compcfg.Module(),
+		fx.Supply(optional.NewNoneOption[secrets.Component]()),
 		fx.Supply(logimpl.ForOneShot("TEST", "info", false)),
 		logimpl.Module(),
 		fx.Supply(workloadmeta.NewParams()),
 		collectors.GetCatalog(),
 		workloadmeta.Module(),
-		tagger.Module(),
+		taggerimpl.Module(),
 		fx.Supply(tagger.NewTaggerParams()),
 	))
 	store := deps.Store
-	workloadmeta.SetGlobalStore(store)
 
 	// Start compose recipes
 	for projectName, file := range defaultCatalog.composeFilesByProjects {

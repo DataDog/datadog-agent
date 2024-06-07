@@ -11,6 +11,7 @@ package podman
 import (
 	"context"
 	"errors"
+	"os"
 	"sort"
 	"strings"
 
@@ -25,8 +26,10 @@ import (
 )
 
 const (
-	collectorID   = "podman"
-	componentName = "workloadmeta-podman"
+	collectorID       = "podman"
+	componentName     = "workloadmeta-podman"
+	defaultBoltDBPath = "/var/lib/containers/storage/libpod/bolt_state.db"
+	defaultSqlitePath = "/var/lib/containers/storage/db.sql"
 )
 
 type podmanClient interface {
@@ -63,7 +66,38 @@ func (c *collector) Start(_ context.Context, store workloadmeta.Component) error
 		return dderrors.NewDisabled(componentName, "Podman not detected")
 	}
 
-	c.client = podman.NewDBClient(config.Datadog.GetString("podman_db_path"))
+	var dbPath string
+	dbPath = config.Datadog().GetString("podman_db_path")
+
+	// We verify the user-provided path exists to prevent the collector entering a failing loop.
+	if dbPath != "" && !dbIsAccessible(dbPath) {
+		return dderrors.NewDisabled(componentName, "podman_db_path is misconfigured/not accessible")
+	}
+
+	// If dbPath is empty (default value of `podman_db_path`), attempts to use the default rootfull database (BoltDB first, then SQLite) as podman feature was detected (existence of /var/lib/containers/storage)
+	if dbPath == "" {
+		if dbIsAccessible(defaultBoltDBPath) {
+			log.Infof("Podman feature detected and podman_db_path not configured, defaulting to: %s", defaultBoltDBPath)
+			dbPath = defaultBoltDBPath
+		} else if dbIsAccessible(defaultSqlitePath) {
+			log.Infof("Podman feature detected and podman_db_path not configured, defaulting to: %s", defaultSqlitePath)
+			dbPath = defaultSqlitePath
+		} else {
+			// `/var/lib/containers/storage` exists but the Agent cannot list out its content.
+			return dderrors.NewDisabled(componentName, "Podman feature detected but the default location for the containers DB is not accessible")
+		}
+	}
+
+	// As the containers database file is hard-coded in Podman (non-user customizable), the client to use is determined thanks to the file extension.
+	if strings.HasSuffix(dbPath, ".sql") {
+		log.Debugf("Using SQLite client for Podman DB as provided path ends with .sql")
+		c.client = podman.NewSQLDBClient(dbPath)
+	} else if strings.HasSuffix(dbPath, ".db") {
+		log.Debugf("Using BoltDB client for Podman DB as provided path ends with .db")
+		c.client = podman.NewDBClient(dbPath)
+	} else {
+		return dderrors.NewDisabled(componentName, "Podman detected but podman_db_path does not end in a known-format (.db or .sql)")
+	}
 	c.store = store
 
 	return nil
@@ -269,4 +303,12 @@ func status(state podman.ContainerStatus) workloadmeta.ContainerStatus {
 	}
 
 	return workloadmeta.ContainerStatusUnknown
+}
+
+// dbIsAccessible verifies whether or not the provided file is accessible by the Agent
+func dbIsAccessible(dbPath string) bool {
+	if _, err := os.Stat(dbPath); err == nil {
+		return true
+	}
+	return false
 }

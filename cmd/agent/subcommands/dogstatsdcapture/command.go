@@ -81,7 +81,7 @@ func dogstatsdCapture(log log.Component, config config.Component, cliParams *cli
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	token, err := security.FetchAuthToken()
+	token, err := security.FetchAuthToken(config)
 	if err != nil {
 		return fmt.Errorf("unable to fetch authentication token: %w", err)
 	}
@@ -100,9 +100,9 @@ func dogstatsdCapture(log log.Component, config config.Component, cliParams *cli
 		InsecureSkipVerify: true,
 	})
 
-	conn, err := grpc.DialContext(
+	conn, err := grpc.DialContext( //nolint:staticcheck // TODO (ASC) fix grpc.DialContext is deprecated
 		ctx,
-		fmt.Sprintf(":%v", pkgconfig.Datadog.GetInt("cmd_port")),
+		fmt.Sprintf(":%v", pkgconfig.Datadog().GetInt("cmd_port")),
 		grpc.WithTransportCredentials(creds),
 	)
 	if err != nil {

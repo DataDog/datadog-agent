@@ -45,6 +45,10 @@ message ClientStatsPayload {
 	// Tags specifies a set of tags obtained from the orchestrator (where applicable) using the specified containerID.
 	// This field should be left empty by the client. It only applies to some specific environment.
 	repeated string tags = 12;
+	// The git commit SHA is obtained from a trace, where it may be set through a tracer <-> source code integration.
+	string git_commit_sha = 13;
+	// The image tag is obtained from a container's set of tags.
+	string image_tag = 14;
 }
 
 // ClientStatsBucket is a time bucket containing aggregated stats.
@@ -56,6 +60,19 @@ message ClientStatsBucket {
 	// AgentTimeShift is the shift applied by the agent stats aggregator on bucket start
 	// when the received bucket start is outside of the agent aggregation window
 	int64 agentTimeShift = 4;
+}
+
+// Trilean is an expanded boolean type that is meant to differentiate between being unset and false.
+enum Trilean {
+	NOT_SET = 0;
+	TRUE = 1;
+	FALSE = 2;
+}
+
+enum TraceRootFlag {
+	DEPRECATED_NOT_SET = 0;
+	DEPRECATED_TRUE = 1;
+	DEPRECATED_FALSE = 2;
 }
 
 // ClientGroupedStats aggregate stats on spans grouped by service, name, resource, status_code, type
@@ -78,4 +95,5 @@ message ClientGroupedStats {
 	// peer_tags are supplementary tags that further describe a peer entity
 	// E.g., `grpc.target` to describe the name of a gRPC peer, or `db.hostname` to describe the name of peer DB
 	repeated string peer_tags = 16;
+	Trilean is_trace_root = 17; // this field's value is equal to span's ParentID == 0.
 }

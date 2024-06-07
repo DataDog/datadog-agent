@@ -12,6 +12,13 @@ __attribute__((always_inline)) u32 get_ifindex_from_net_device(struct net_device
     return ifindex;
 }
 
+__attribute__((always_inline)) char* get_net_device_name(struct net_device *device) {
+    u64 net_device_name_offset;
+    LOAD_CONSTANT("net_device_name_offset", net_device_name_offset);
+
+    return (char *)((void *)device + net_device_name_offset);
+}
+
 #define NET_STRUCT_HAS_PROC_INUM 0
 #define NET_STRUCT_HAS_NS        1
 
@@ -36,6 +43,20 @@ __attribute__((always_inline)) u32 get_netns_from_net(struct net *net) {
 #else
     return 0;
 #endif
+}
+
+__attribute__((always_inline)) u32 get_netns_from_net_device(struct net_device *device) {
+    u64 device_nd_net_net_offset;
+    LOAD_CONSTANT("device_nd_net_net_offset", device_nd_net_net_offset);
+
+    // no constant
+    if (device_nd_net_net_offset == -1) {
+        return 0;
+    }
+
+    struct net *net = NULL;
+    bpf_probe_read(&net, sizeof(net), (void *)device + device_nd_net_net_offset);
+    return get_netns_from_net(net);
 }
 
 __attribute__((always_inline)) u32 get_netns_from_sock(struct sock *sk) {

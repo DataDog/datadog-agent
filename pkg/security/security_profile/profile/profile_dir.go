@@ -12,9 +12,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 	"os"
 	"path"
 	"path/filepath"
+	"slices"
 	"sort"
 	"sync"
 	"time"
@@ -22,7 +24,6 @@ import (
 	"github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/fsnotify/fsnotify"
 	"github.com/skydive-project/go-debouncer"
-	"golang.org/x/exp/slices"
 
 	proto "github.com/DataDog/agent-payload/v5/cws/dumpsv1"
 
@@ -30,7 +31,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	cgroupModel "github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup/model"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
-	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
 
 var (
@@ -44,8 +44,8 @@ var profileExtension = "." + config.Profile.String()
 var _ Provider = (*DirectoryProvider)(nil)
 
 type profileFSEntry struct {
-	path    string
-	version string
+	path     string
+	selector cgroupModel.WorkloadSelector
 }
 
 // DirectoryProvider is a ProfileProvider that fetches Security Profiles from the filesystem
@@ -156,18 +156,30 @@ func (dp *DirectoryProvider) UpdateWorkloadSelectors(selectors []cgroupModel.Wor
 }
 
 func (dp *DirectoryProvider) onNewProfileDebouncerCallback() {
-	for _, selector := range dp.selectors {
-		for profileSelector, profilePath := range dp.profileMapping {
+	// we don't want to keep the lock for too long, especially not while calling the callback
+	dp.Lock()
+	selectors := make([]cgroupModel.WorkloadSelector, len(dp.selectors))
+	copy(selectors, dp.selectors)
+	profileMapping := maps.Clone(dp.profileMapping)
+	propagateCb := dp.onNewProfileCallback
+	dp.Unlock()
+
+	if propagateCb == nil {
+		return
+	}
+
+	for _, selector := range selectors {
+		for profileSelector, profilePath := range profileMapping {
 			if selector.Match(profileSelector) {
 				// read and parse profile
-				profile, err := LoadProfileFromFile(profilePath.path)
+				profile, err := LoadProtoFromFile(profilePath.path)
 				if err != nil {
-					seclog.Warnf("couldn't load profile %s: %v", profilePath, err)
+					seclog.Warnf("couldn't load profile %s: %v", profilePath.path, err)
 					continue
 				}
 
 				// propagate the new profile
-				dp.onNewProfileCallback(profileSelector, profile)
+				propagateCb(profileSelector, profile)
 			}
 		}
 	}
@@ -202,42 +214,59 @@ func (dp *DirectoryProvider) listProfiles() ([]string, error) {
 }
 
 func (dp *DirectoryProvider) loadProfile(profilePath string) error {
-	profile, err := LoadProfileFromFile(profilePath)
+	profile, err := LoadProtoFromFile(profilePath)
 	if err != nil {
 		return fmt.Errorf("couldn't load profile %s: %w", profilePath, err)
 	}
 
-	workloadSelector, err := cgroupModel.NewWorkloadSelector(utils.GetTagValue("image_name", profile.Tags), utils.GetTagValue("image_tag", profile.Tags))
+	if len(profile.ProfileContexts) == 0 {
+		return fmt.Errorf("couldn't load profile %s: it did not contains any version", profilePath)
+	}
+
+	imageName, imageTag := profile.Selector.GetImageName(), profile.Selector.GetImageTag()
+	if imageTag == "" || imageName == "" {
+		return fmt.Errorf("couldn't load profile %s: it did not contains any valid image_name (%s) or image_tag (%s)", profilePath, imageName, imageTag)
+	}
+
+	workloadSelector, err := cgroupModel.NewWorkloadSelector(imageName, imageTag)
 	if err != nil {
 		return err
 	}
+	profileManagerSelector := workloadSelector
+	profileManagerSelector.Tag = "*"
 
 	// lock selectors and profiles mapping
 	dp.Lock()
-	defer dp.Unlock()
+	selectors := make([]cgroupModel.WorkloadSelector, len(dp.selectors))
+	copy(selectors, dp.selectors)
+	profileMapping := maps.Clone(dp.profileMapping)
+	propagateCb := dp.onNewProfileCallback
+	dp.Unlock()
 
-	// update profile mapping
-	if existingProfile, ok := dp.profileMapping[workloadSelector]; ok {
-		if existingProfile.version > profile.Version {
-			seclog.Warnf("ignoring %s (version: %v): a more recent version of this profile already exists (existing version is %v)", profilePath, profile.Version, existingProfile.version)
+	// prioritize a persited profile over activity dumps
+	if existingProfile, ok := profileMapping[profileManagerSelector]; ok {
+		if existingProfile.selector.Tag == "*" && profile.Selector.GetImageTag() != "*" {
+			seclog.Debugf("ignoring %s: a persisted profile already exists for workload %s", profilePath, profileManagerSelector.String())
 			return nil
 		}
 	}
-	dp.profileMapping[workloadSelector] = profileFSEntry{
-		path:    profilePath,
-		version: profile.Version,
+
+	// update profile mapping
+	dp.profileMapping[profileManagerSelector] = profileFSEntry{
+		path:     profilePath,
+		selector: workloadSelector,
 	}
 
-	seclog.Debugf("security profile %s (version: %s) loaded from file system", workloadSelector, profile.Version)
+	seclog.Debugf("security profile %s loaded from file system", workloadSelector)
 
-	if dp.onNewProfileCallback == nil {
+	if propagateCb == nil {
 		return nil
 	}
 
 	// check if this profile matches a workload selector
-	for _, selector := range dp.selectors {
+	for _, selector := range selectors {
 		if workloadSelector.Match(selector) {
-			dp.onNewProfileCallback(workloadSelector, profile)
+			propagateCb(workloadSelector, profile)
 		}
 	}
 	return nil
@@ -314,7 +343,7 @@ func (dp *DirectoryProvider) onHandleFilesFromWatcher() {
 			if errors.Is(err, cgroupModel.ErrNoImageProvided) {
 				seclog.Debugf("couldn't load new profile %s: %v", file, err)
 			} else {
-				seclog.Errorf("couldn't load new profile %s: %v", file, err)
+				seclog.Warnf("couldn't load new profile %s: %v", file, err)
 			}
 
 			continue
@@ -335,14 +364,14 @@ func (dp *DirectoryProvider) watch(ctx context.Context) {
 					return
 				}
 
-				if event.Op&(fsnotify.Create|fsnotify.Remove) > 0 {
+				if event.Has(fsnotify.Create | fsnotify.Remove) {
 					files, err := dp.listProfiles()
 					if err != nil {
 						seclog.Errorf("couldn't list profiles: %v", err)
 						continue
 					}
 
-					if event.Op&fsnotify.Create > 0 {
+					if event.Has(fsnotify.Create) {
 						// look for the new profile
 						for _, file := range files {
 							if _, ok = dp.findProfile(file); ok {
@@ -355,7 +384,7 @@ func (dp *DirectoryProvider) watch(ctx context.Context) {
 							dp.newFilesLock.Unlock()
 							dp.newFilesDebouncer.Call()
 						}
-					} else if event.Op&fsnotify.Remove > 0 {
+					} else if event.Has(fsnotify.Remove) {
 						// look for the deleted profile
 						for selector, profile := range dp.getProfiles() {
 							if slices.Contains(files, profile.path) {
@@ -364,12 +393,15 @@ func (dp *DirectoryProvider) watch(ctx context.Context) {
 
 							// delete profile
 							dp.deleteProfile(selector)
+							dp.newFilesLock.Lock()
+							delete(dp.newFiles, profile.path)
+							dp.newFilesLock.Unlock()
 
-							seclog.Debugf("security profile %s (version %s) removed from profile mapping", selector, profile.version)
+							seclog.Debugf("security profile %s removed from profile mapping", selector)
 						}
 					}
 
-				} else if event.Op&fsnotify.Write > 0 && filepath.Ext(event.Name) == profileExtension {
+				} else if event.Has(fsnotify.Write) && filepath.Ext(event.Name) == profileExtension {
 					// add file in the list of new files
 					dp.newFilesLock.Lock()
 					dp.newFiles[event.Name] = true

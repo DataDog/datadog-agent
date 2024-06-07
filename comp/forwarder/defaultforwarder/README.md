@@ -96,7 +96,7 @@ When a transaction fails to be sent to a backend we blacklist that particular
 endpoints for some time to avoid flooding an unavailable endpoint (the
 transactions will be retried later). A blacklist is specific to one endpoint on
 one domain (ie: "http(s)://<domain>/<endpoint>"). The blacklist time will grow,
-up to a maximum, has more and more errors are encountered for that endpoint and
+up to a maximum, as more and more errors are encountered for that endpoint and
 is gradually cleared when a transaction is successful. The blacklist is shared
 by all workers.
 

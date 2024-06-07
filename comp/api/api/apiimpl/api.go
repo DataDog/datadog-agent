@@ -11,24 +11,22 @@ import (
 
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	"github.com/DataDog/datadog-agent/comp/api/api"
-	"github.com/DataDog/datadog-agent/comp/core/flare"
+	"github.com/DataDog/datadog-agent/comp/api/authtoken"
+	"github.com/DataDog/datadog-agent/comp/collector/collector"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
-	"github.com/DataDog/datadog-agent/comp/dogstatsd/replay"
+	"github.com/DataDog/datadog-agent/comp/dogstatsd/pidmap"
+	replay "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/def"
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
-	dogstatsddebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
-	"github.com/DataDog/datadog-agent/comp/metadata/host"
-	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
-	"github.com/DataDog/datadog-agent/comp/metadata/inventorychecks"
-	"github.com/DataDog/datadog-agent/comp/metadata/inventoryhost"
 	"github.com/DataDog/datadog-agent/comp/metadata/packagesigning"
+	"github.com/DataDog/datadog-agent/comp/remote-config/rcservice"
+	"github.com/DataDog/datadog-agent/comp/remote-config/rcservicemrf"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
-	remoteconfig "github.com/DataDog/datadog-agent/pkg/config/remote/service"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
@@ -40,81 +38,83 @@ func Module() fxutil.Module {
 }
 
 type apiServer struct {
-	flare           flare.Component
-	dogstatsdServer dogstatsdServer.Component
-	capture         replay.Component
-	serverDebug     dogstatsddebug.Component
-	hostMetadata    host.Component
-	invAgent        inventoryagent.Component
-	demux           demultiplexer.Component
-	invHost         inventoryhost.Component
-	secretResolver  secrets.Component
-	invChecks       inventorychecks.Component
-	pkgSigning      packagesigning.Component
-	statusComponent status.Component
+	dogstatsdServer   dogstatsdServer.Component
+	capture           replay.Component
+	pidMap            pidmap.Component
+	secretResolver    secrets.Component
+	pkgSigning        packagesigning.Component
+	statusComponent   status.Component
+	rcService         optional.Option[rcservice.Component]
+	rcServiceMRF      optional.Option[rcservicemrf.Component]
+	authToken         authtoken.Component
+	taggerComp        tagger.Component
+	autoConfig        autodiscovery.Component
+	logsAgentComp     optional.Option[logsAgent.Component]
+	wmeta             workloadmeta.Component
+	collector         optional.Option[collector.Component]
+	endpointProviders []api.EndpointProvider
 }
 
 type dependencies struct {
 	fx.In
 
-	Flare           flare.Component
-	DogstatsdServer dogstatsdServer.Component
-	Capture         replay.Component
-	ServerDebug     dogstatsddebug.Component
-	HostMetadata    host.Component
-	InvAgent        inventoryagent.Component
-	Demux           demultiplexer.Component
-	InvHost         inventoryhost.Component
-	SecretResolver  secrets.Component
-	InvChecks       inventorychecks.Component
-	PkgSigning      packagesigning.Component
-	StatusComponent status.Component
+	DogstatsdServer   dogstatsdServer.Component
+	Capture           replay.Component
+	PidMap            pidmap.Component
+	SecretResolver    secrets.Component
+	PkgSigning        packagesigning.Component
+	StatusComponent   status.Component
+	RcService         optional.Option[rcservice.Component]
+	RcServiceMRF      optional.Option[rcservicemrf.Component]
+	AuthToken         authtoken.Component
+	Tagger            tagger.Component
+	AutoConfig        autodiscovery.Component
+	LogsAgentComp     optional.Option[logsAgent.Component]
+	WorkloadMeta      workloadmeta.Component
+	Collector         optional.Option[collector.Component]
+	EndpointProviders []api.EndpointProvider `group:"agent_endpoint"`
 }
 
 var _ api.Component = (*apiServer)(nil)
 
 func newAPIServer(deps dependencies) api.Component {
 	return &apiServer{
-		flare:           deps.Flare,
-		dogstatsdServer: deps.DogstatsdServer,
-		capture:         deps.Capture,
-		serverDebug:     deps.ServerDebug,
-		hostMetadata:    deps.HostMetadata,
-		invAgent:        deps.InvAgent,
-		demux:           deps.Demux,
-		invHost:         deps.InvHost,
-		secretResolver:  deps.SecretResolver,
-		invChecks:       deps.InvChecks,
-		pkgSigning:      deps.PkgSigning,
-		statusComponent: deps.StatusComponent,
+		dogstatsdServer:   deps.DogstatsdServer,
+		capture:           deps.Capture,
+		pidMap:            deps.PidMap,
+		secretResolver:    deps.SecretResolver,
+		pkgSigning:        deps.PkgSigning,
+		statusComponent:   deps.StatusComponent,
+		rcService:         deps.RcService,
+		rcServiceMRF:      deps.RcServiceMRF,
+		authToken:         deps.AuthToken,
+		taggerComp:        deps.Tagger,
+		autoConfig:        deps.AutoConfig,
+		logsAgentComp:     deps.LogsAgentComp,
+		wmeta:             deps.WorkloadMeta,
+		collector:         deps.Collector,
+		endpointProviders: fxutil.GetAndFilterGroup(deps.EndpointProviders),
 	}
 }
 
 // StartServer creates the router and starts the HTTP server
 func (server *apiServer) StartServer(
-	configService *remoteconfig.Service,
-	wmeta workloadmeta.Component,
-	taggerComp tagger.Component,
-	logsAgent optional.Option[logsAgent.Component],
 	senderManager sender.DiagnoseSenderManager,
 ) error {
-	return StartServers(configService,
-		server.flare,
+	return StartServers(server.rcService,
+		server.rcServiceMRF,
 		server.dogstatsdServer,
 		server.capture,
-		server.serverDebug,
-		wmeta,
-		taggerComp,
-		logsAgent,
+		server.pidMap,
+		server.wmeta,
+		server.taggerComp,
+		server.logsAgentComp,
 		senderManager,
-		server.hostMetadata,
-		server.invAgent,
-		server.demux,
-		server.invHost,
 		server.secretResolver,
-		server.invChecks,
-		server.pkgSigning,
 		server.statusComponent,
+		server.collector,
+		server.autoConfig,
+		server.endpointProviders,
 	)
 }
 

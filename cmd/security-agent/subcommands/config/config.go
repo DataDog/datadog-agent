@@ -66,6 +66,25 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		},
 	}
 
+	cmd.AddCommand(
+		&cobra.Command{
+			Use:   "by-source",
+			Short: "Show the runtime configuration by source (ie: default, config file, env vars, ...)",
+			Long:  ``,
+			RunE: func(cmd *cobra.Command, args []string) error {
+				return fxutil.OneShot(
+					showRuntimeConfigurationBySource,
+					fx.Supply(cliParams),
+					fx.Supply(core.BundleParams{
+						ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths),
+						SecretParams: secrets.NewEnabledParams(),
+						LogParams:    logimpl.ForOneShot(command.LoggerName, "off", true)}),
+					core.Bundle(),
+				)
+			},
+		},
+	)
+
 	// listRuntime returns a cobra command to list the settings that can be changed at runtime.
 	cmd.AddCommand(
 		&cobra.Command{
@@ -129,19 +148,19 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	return []*cobra.Command{cmd}
 }
 func getSettingsClient(_ *cobra.Command, _ []string) (settings.Client, error) {
-	err := util.SetAuthToken()
+	err := util.SetAuthToken(pkgconfig.Datadog())
 	if err != nil {
 		return nil, err
 	}
 
 	c := util.GetClient(false)
-	apiConfigURL := fmt.Sprintf("https://localhost:%v/agent/config", pkgconfig.Datadog.GetInt("security_agent.cmd_port"))
+	apiConfigURL := fmt.Sprintf("https://localhost:%v/agent/config", pkgconfig.Datadog().GetInt("security_agent.cmd_port"))
 
-	return settingshttp.NewClient(c, apiConfigURL, "security-agent"), nil
+	return settingshttp.NewClient(c, apiConfigURL, "security-agent", settingshttp.NewHTTPClientOptions(util.LeaveConnectionOpen)), nil
 }
 
 func showRuntimeConfiguration(_ log.Component, cfg config.Component, _ secrets.Component, _ *cliParams) error {
-	runtimeConfig, err := fetcher.FetchSecurityAgentConfig(cfg)
+	runtimeConfig, err := fetcher.SecurityAgentConfig(cfg)
 	if err != nil {
 		return err
 	}
@@ -190,6 +209,22 @@ func getConfigValue(_ log.Component, _ config.Component, _ secrets.Component, pa
 	}
 
 	fmt.Printf("%s is set to: %v\n", params.args[0], value)
+
+	return nil
+}
+
+func showRuntimeConfigurationBySource(_ log.Component, _ config.Component, _ secrets.Component, params *cliParams) error {
+	c, err := params.getClient(params.command, params.args)
+	if err != nil {
+		return err
+	}
+
+	config, err := c.FullConfigBySource()
+	if err != nil {
+		return err
+	}
+
+	fmt.Println(config)
 
 	return nil
 }

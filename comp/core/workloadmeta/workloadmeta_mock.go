@@ -8,7 +8,7 @@
 
 package workloadmeta
 
-// team: container-integrations
+// team: container-platform
 
 import (
 	"context"
@@ -34,6 +34,7 @@ type workloadMetaMock struct {
 	mu             sync.RWMutex
 	store          map[Kind]map[string]Entity
 	notifiedEvents []CollectorEvent
+	eventsChan     chan CollectorEvent
 }
 
 func newWorkloadMetaMock(deps dependencies) Mock {
@@ -54,6 +55,16 @@ func (w *workloadMetaMock) GetContainer(id string) (*Container, error) {
 	}
 
 	return entity.(*Container), nil
+}
+
+// GetKubernetesMetadata implements workloadMetaMock#GetKubernetesMetadata.
+func (w *workloadMetaMock) GetKubernetesMetadata(id string) (*KubernetesMetadata, error) {
+	entity, err := w.getEntityByKind(KindKubernetesMetadata, id)
+	if err != nil {
+		return nil, err
+	}
+
+	return entity.(*KubernetesMetadata), nil
 }
 
 // ListContainers returns metadata about all known containers.
@@ -177,6 +188,17 @@ func (w *workloadMetaMock) GetKubernetesPodByName(podName, podNamespace string) 
 	return nil, errors.NewNotFound(podName)
 }
 
+func (w *workloadMetaMock) ListKubernetesNodes() []*KubernetesNode {
+	entities := w.listEntitiesByKind(KindKubernetesNode)
+
+	nodes := make([]*KubernetesNode, 0, len(entities))
+	for i := range entities {
+		nodes = append(nodes, entities[i].(*KubernetesNode))
+	}
+
+	return nodes
+}
+
 // GetKubernetesNode returns metadata about a Kubernetes node.
 func (w *workloadMetaMock) GetKubernetesNode(id string) (*KubernetesNode, error) {
 	entity, err := w.getEntityByKind(KindKubernetesPod, id)
@@ -197,6 +219,16 @@ func (w *workloadMetaMock) GetKubernetesDeployment(id string) (*KubernetesDeploy
 	return entity.(*KubernetesDeployment), nil
 }
 
+// GetKubernetesNamespace implements Component#GetKubernetesNamespace
+func (w *workloadMetaMock) GetKubernetesNamespace(id string) (*KubernetesNamespace, error) {
+	entity, err := w.getEntityByKind(KindKubernetesNamespace, id)
+	if err != nil {
+		return nil, err
+	}
+
+	return entity.(*KubernetesNamespace), nil
+}
+
 // GetECSTask returns metadata about an ECS task.
 func (w *workloadMetaMock) GetECSTask(id string) (*ECSTask, error) {
 	entity, err := w.getEntityByKind(KindECSTask, id)
@@ -205,6 +237,19 @@ func (w *workloadMetaMock) GetECSTask(id string) (*ECSTask, error) {
 	}
 
 	return entity.(*ECSTask), nil
+}
+
+// ListECSTasks implements workloadMetaMock#ListECSTasks
+func (w *workloadMetaMock) ListECSTasks() []*ECSTask {
+	entities := w.listEntitiesByKind(KindECSTask)
+
+	tasks := make([]*ECSTask, 0, len(entities))
+	for _, entity := range entities {
+		task := entity.(*ECSTask)
+		tasks = append(tasks, task)
+	}
+
+	return tasks
 }
 
 // ListImages implements workloadMetaMock#ListImages
@@ -276,6 +321,11 @@ func (w *workloadMetaMock) Unsubscribe(_ chan EventBundle) {
 func (w *workloadMetaMock) Notify(events []CollectorEvent) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
+	if w.eventsChan != nil {
+		for _, event := range events {
+			w.eventsChan <- event
+		}
+	}
 
 	w.notifiedEvents = append(w.notifiedEvents, events...)
 }
@@ -305,6 +355,15 @@ func (w *workloadMetaMock) GetNotifiedEvents() []CollectorEvent {
 	events = append(events, w.notifiedEvents...)
 
 	return events
+}
+
+// SubscribeToEvents returns a channel that receives events
+func (w *workloadMetaMock) SubscribeToEvents() chan CollectorEvent {
+	w.mu.RLock()
+	defer w.mu.RUnlock()
+
+	w.eventsChan = make(chan CollectorEvent, 100)
+	return w.eventsChan
 }
 
 // Dump is not implemented in the testing store.
@@ -380,6 +439,11 @@ func (w *workloadMetaMockV2) Notify(events []CollectorEvent) {
 
 // GetNotifiedEvents is not implemented for V2 mocks.
 func (w *workloadMetaMockV2) GetNotifiedEvents() []CollectorEvent {
+	panic("not implemented")
+}
+
+// SubscribeToEvents is not implemented for V2 mocks.
+func (w *workloadMetaMockV2) SubscribeToEvents() chan CollectorEvent {
 	panic("not implemented")
 }
 

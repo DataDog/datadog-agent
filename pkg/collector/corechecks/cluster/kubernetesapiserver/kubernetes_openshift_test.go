@@ -16,9 +16,9 @@ import (
 	osq "github.com/openshift/api/quota/v1"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
@@ -29,9 +29,9 @@ func TestReportClusterQuotas(t *testing.T) {
 	json.Unmarshal(raw, &list)
 	require.Len(t, list.Items, 1)
 
-	prevClusterName := config.Datadog.GetString("cluster_name")
-	config.Datadog.SetWithoutSource("cluster_name", "test-cluster-name")
-	defer config.Datadog.SetWithoutSource("cluster_name", prevClusterName)
+	prevClusterName := config.Datadog().GetString("cluster_name")
+	config.Datadog().SetWithoutSource("cluster_name", "test-cluster-name")
+	defer config.Datadog().SetWithoutSource("cluster_name", prevClusterName)
 
 	instanceCfg := []byte("")
 	initCfg := []byte("")

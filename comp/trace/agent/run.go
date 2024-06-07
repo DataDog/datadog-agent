@@ -6,7 +6,6 @@
 package agent
 
 import (
-	"context"
 	"fmt"
 	"math/rand"
 	"net/http"
@@ -15,64 +14,71 @@ import (
 	"runtime/debug"
 	"time"
 
-	"github.com/DataDog/datadog-agent/cmd/manager"
 	remotecfg "github.com/DataDog/datadog-agent/cmd/trace-agent/config/remote"
 	"github.com/DataDog/datadog-agent/comp/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/api/security"
+	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
 	rc "github.com/DataDog/datadog-agent/pkg/config/remote/client"
 	agentrt "github.com/DataDog/datadog-agent/pkg/runtime"
 	"github.com/DataDog/datadog-agent/pkg/trace/api"
 	tracecfg "github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
-	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
 	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/trace/watchdog"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/profiling"
 	"github.com/DataDog/datadog-agent/pkg/version"
+
+	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
 // runAgentSidekicks is the entrypoint for running non-components that run along the agent.
-func runAgentSidekicks(ctx context.Context, cfg config.Component, telemetryCollector telemetry.TelemetryCollector) error {
-	tracecfg := cfg.Object()
+func runAgentSidekicks(ag *agent) error {
+	tracecfg := ag.config.Object()
 	err := info.InitInfo(tracecfg) // for expvar & -info option
 	if err != nil {
 		return err
 	}
 
-	defer watchdog.LogOnPanic()
+	defer watchdog.LogOnPanic(ag.Statsd)
 
-	if err := util.SetupCoreDump(coreconfig.Datadog); err != nil {
+	if err := util.SetupCoreDump(coreconfig.Datadog()); err != nil {
 		log.Warnf("Can't setup core dumps: %v, core dumps might not be available after a crash", err)
-	}
-
-	err = manager.ConfigureAutoExit(ctx, coreconfig.Datadog)
-	if err != nil {
-		telemetryCollector.SendStartupError(telemetry.CantSetupAutoExit, err)
-		return fmt.Errorf("Unable to configure auto-exit, err: %v", err)
 	}
 
 	rand.Seed(time.Now().UTC().UnixNano())
 
-	if coreconfig.IsRemoteConfigEnabled(coreconfig.Datadog) {
-		rcClient, err := newConfigFetcher()
+	if coreconfig.IsRemoteConfigEnabled(coreconfig.Datadog()) {
+		cf, err := newConfigFetcher()
 		if err != nil {
-			telemetryCollector.SendStartupError(telemetry.CantCreateRCCLient, err)
+			ag.telemetryCollector.SendStartupError(telemetry.CantCreateRCCLient, err)
 			return fmt.Errorf("could not instantiate the tracer remote config client: %v", err)
 		}
 
 		api.AttachEndpoint(api.Endpoint{
 			Pattern: "/v0.7/config",
-			Handler: func(r *api.HTTPReceiver) http.Handler { return remotecfg.ConfigHandler(r, rcClient, tracecfg) },
+			Handler: func(r *api.HTTPReceiver) http.Handler {
+				return remotecfg.ConfigHandler(r, cf, tracecfg, ag.Statsd, ag.Timing)
+			},
 		})
+	}
+
+	// We're adding the /config endpoint from the comp side of the trace agent to avoid linking with pkg/config from
+	// the trace agent.
+	// pkg/config is not a go-module yet and pulls a large chunk of Agent code base with it. Using it within the
+	// trace-agent would largely increase the number of module pulled by OTEL when using the pkg/trace go-module.
+	if err := apiutil.CreateAndSetAuthToken(coreconfig.Datadog()); err != nil {
+		log.Errorf("could not set auth token: %s", err)
+	} else {
+		ag.Agent.DebugServer.AddRoute("/config", ag.config.GetConfigHandler())
 	}
 
 	api.AttachEndpoint(api.Endpoint{
 		Pattern: "/config/set",
 		Handler: func(r *api.HTTPReceiver) http.Handler {
-			return cfg.SetHandler()
+			return ag.config.SetHandler()
 		},
 	})
 
@@ -107,7 +113,7 @@ func runAgentSidekicks(ctx context.Context, cfg config.Component, telemetryColle
 			log.Infof("GOMEMLIMIT manually set to: %v", lim)
 		} else if tracecfg.MaxMemory > 0 {
 			// We have apm_config.max_memory, and no cgroup memory limit is in place.
-			//log.Infof("apm_config.max_memory: %vMiB", int64(tracecfg.MaxMemory)/(1024*1024))
+			// log.Infof("apm_config.max_memory: %vMiB", int64(tracecfg.MaxMemory)/(1024*1024))
 			finalmem := int64(tracecfg.MaxMemory * 0.9)
 			debug.SetMemoryLimit(finalmem)
 			log.Infof("apm_config.max_memory set to: %vMiB. Setting GOMEMLIMIT to 90%% of max: %vMiB", int64(tracecfg.MaxMemory)/(1024*1024), finalmem/(1024*1024))
@@ -129,17 +135,16 @@ func runAgentSidekicks(ctx context.Context, cfg config.Component, telemetryColle
 	}
 	go func() {
 		time.Sleep(time.Second * 30)
-		telemetryCollector.SendStartupSuccess()
+		ag.telemetryCollector.SendStartupSuccess()
 	}()
 
 	return nil
 }
 
-func stopAgentSidekicks(cfg config.Component) {
-	defer watchdog.LogOnPanic()
+func stopAgentSidekicks(cfg config.Component, statsd statsd.ClientInterface) {
+	defer watchdog.LogOnPanic(statsd)
 
 	log.Flush()
-	metrics.Flush()
 
 	tracecfg := cfg.Object()
 	if pcfg := profilingConfig(tracecfg); pcfg != nil {
@@ -148,33 +153,37 @@ func stopAgentSidekicks(cfg config.Component) {
 }
 
 func profilingConfig(tracecfg *tracecfg.AgentConfig) *profiling.Settings {
-	if !coreconfig.Datadog.GetBool("apm_config.internal_profiling.enabled") {
+	if !coreconfig.Datadog().GetBool("apm_config.internal_profiling.enabled") {
 		return nil
 	}
-	endpoint := coreconfig.Datadog.GetString("internal_profiling.profile_dd_url")
+	endpoint := coreconfig.Datadog().GetString("internal_profiling.profile_dd_url")
 	if endpoint == "" {
 		endpoint = fmt.Sprintf(profiling.ProfilingURLTemplate, tracecfg.Site)
 	}
+	tags := coreconfig.Datadog().GetStringSlice("internal_profiling.extra_tags")
+	tags = append(tags, fmt.Sprintf("version:%s", version.AgentVersion))
 	return &profiling.Settings{
 		ProfilingURL: endpoint,
 
 		// remaining configuration parameters use the top-level `internal_profiling` config
-		Period:               coreconfig.Datadog.GetDuration("internal_profiling.period"),
+		Period:               coreconfig.Datadog().GetDuration("internal_profiling.period"),
 		Service:              "trace-agent",
-		CPUDuration:          coreconfig.Datadog.GetDuration("internal_profiling.cpu_duration"),
-		MutexProfileFraction: coreconfig.Datadog.GetInt("internal_profiling.mutex_profile_fraction"),
-		BlockProfileRate:     coreconfig.Datadog.GetInt("internal_profiling.block_profile_rate"),
-		WithGoroutineProfile: coreconfig.Datadog.GetBool("internal_profiling.enable_goroutine_stacktraces"),
-		Tags:                 []string{fmt.Sprintf("version:%s", version.AgentVersion)},
+		CPUDuration:          coreconfig.Datadog().GetDuration("internal_profiling.cpu_duration"),
+		MutexProfileFraction: coreconfig.Datadog().GetInt("internal_profiling.mutex_profile_fraction"),
+		BlockProfileRate:     coreconfig.Datadog().GetInt("internal_profiling.block_profile_rate"),
+		WithGoroutineProfile: coreconfig.Datadog().GetBool("internal_profiling.enable_goroutine_stacktraces"),
+		WithBlockProfile:     coreconfig.Datadog().GetBool("internal_profiling.enable_block_profiling"),
+		WithMutexProfile:     coreconfig.Datadog().GetBool("internal_profiling.enable_mutex_profiling"),
+		Tags:                 tags,
 	}
 }
 
-func newConfigFetcher() (rc.ConfigUpdater, error) {
+func newConfigFetcher() (rc.ConfigFetcher, error) {
 	ipcAddress, err := coreconfig.GetIPCAddress()
 	if err != nil {
 		return nil, err
 	}
 
 	// Auth tokens are handled by the rcClient
-	return rc.NewAgentGRPCConfigFetcher(ipcAddress, coreconfig.GetIPCPort(), security.FetchAuthToken)
+	return rc.NewAgentGRPCConfigFetcher(ipcAddress, coreconfig.GetIPCPort(), func() (string, error) { return security.FetchAuthToken(coreconfig.Datadog()) })
 }

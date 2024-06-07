@@ -9,14 +9,17 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"reflect"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/DataDog/viper"
+	"github.com/mohae/deepcopy"
 	"github.com/spf13/afero"
 	"github.com/spf13/pflag"
+	"golang.org/x/exp/slices"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -26,17 +29,41 @@ type Source string
 
 // Declare every known Source
 const (
-	SourceDefault      Source = "default"
-	SourceUnknown      Source = "unknown"
-	SourceFile         Source = "file"
-	SourceEnvVar       Source = "environment-variable"
+	// SourceDefault are the values from defaults.
+	SourceDefault Source = "default"
+	// SourceUnknown are the values from unknown source. This should only be used in tests when calling
+	// SetWithoutSource.
+	SourceUnknown Source = "unknown"
+	// SourceFile are the values loaded from configuration file.
+	SourceFile Source = "file"
+	// SourceEnvVar are the values loaded from the environment variables.
+	SourceEnvVar Source = "environment-variable"
+	// SourceAgentRuntime are the values configured by the agent itself. The agent can dynamically compute the best
+	// value for some settings when not set by the user.
 	SourceAgentRuntime Source = "agent-runtime"
-	SourceRC           Source = "remote-config"
-	SourceCLI          Source = "cli"
+	// SourceLocalConfigProcess are the values mirrored from the config process. The config process is the
+	// core-agent. This is used when side process like security-agent or trace-agent pull their configuration from
+	// the core-agent.
+	SourceLocalConfigProcess Source = "local-config-process"
+	// SourceRC are the values loaded from remote-config (aka Datadog backend)
+	SourceRC Source = "remote-config"
+	// SourceCLI are the values set by the user at runtime through the CLI.
+	SourceCLI Source = "cli"
+	// SourceProvided are all values set by any source but default.
+	SourceProvided Source = "provided" // everything but defaults
 )
 
 // sources list the known sources, following the order of hierarchy between them
-var sources = []Source{SourceDefault, SourceUnknown, SourceFile, SourceEnvVar, SourceAgentRuntime, SourceRC, SourceCLI}
+var sources = []Source{
+	SourceDefault,
+	SourceUnknown,
+	SourceFile,
+	SourceEnvVar,
+	SourceAgentRuntime,
+	SourceLocalConfigProcess,
+	SourceRC,
+	SourceCLI,
+}
 
 // ValueWithSource is a tuple for a source and a value, not necessarily the applied value in the main config
 type ValueWithSource struct {
@@ -66,16 +93,20 @@ type safeConfig struct {
 	notificationReceivers []NotificationReceiver
 
 	// Proxy settings
-	proxiesOnce sync.Once
-	proxies     *Proxy
+	proxies *Proxy
 
 	// configEnvVars is the set of env vars that are consulted for
 	// configuration values.
 	configEnvVars map[string]struct{}
+
+	// keys that have been used but are unknown
+	// used to warn (a single time) on use
+	unknownKeys map[string]struct{}
 }
 
-// OnUpdate adds a callback to the list receivers to be called each time a value is change in the configuration
+// OnUpdate adds a callback to the list receivers to be called each time a value is changed in the configuration
 // by a call to the 'Set' method.
+// Callbacks are only called if the value is effectively changed.
 func (c *safeConfig) OnUpdate(callback NotificationReceiver) {
 	c.Lock()
 	defer c.Unlock()
@@ -83,20 +114,27 @@ func (c *safeConfig) OnUpdate(callback NotificationReceiver) {
 }
 
 // Set wraps Viper for concurrent access
-func (c *safeConfig) Set(key string, value interface{}, source Source) {
+func (c *safeConfig) Set(key string, newValue interface{}, source Source) {
 	if source == SourceDefault {
-		c.SetDefault(key, value)
+		c.SetDefault(key, newValue)
 		return
 	}
 
+	// modify the config then release the lock to avoid deadlocks while notifying
+	var receivers []NotificationReceiver
 	c.Lock()
-	defer c.Unlock()
-	c.configSources[source].Set(key, value)
+	previousValue := c.Viper.Get(key)
+	c.configSources[source].Set(key, newValue)
 	c.mergeViperInstances(key)
+	if !reflect.DeepEqual(previousValue, newValue) {
+		// if the value has not changed, do not duplicate the slice so that no callback is called
+		receivers = slices.Clone(c.notificationReceivers)
+	}
+	c.Unlock()
 
 	// notifying all receiver about the updated setting
-	for _, receiver := range c.notificationReceivers {
-		receiver(key)
+	for _, receiver := range receivers {
+		receiver(key, previousValue, newValue)
 	}
 }
 
@@ -143,18 +181,47 @@ func (c *safeConfig) SetKnown(key string) {
 
 // IsKnown returns whether a key is known
 func (c *safeConfig) IsKnown(key string) bool {
-	keys := c.GetKnownKeys()
-	_, ok := keys[key]
-	return ok
-}
-
-// GetKnownKeys returns all the keys that meet at least one of these criteria:
-// 1) have a default, 2) have an environment variable binded or 3) have been SetKnown()
-func (c *safeConfig) GetKnownKeys() map[string]interface{} {
 	c.RLock()
 	defer c.RUnlock()
 
-	// GetKnownKeys returns a fresh map, so the caller may do with it
+	return c.Viper.IsKnown(key)
+}
+
+// checkKnownKey checks if a key is known, and if not logs a warning
+// Only a single warning will be logged per unknown key.
+//
+// Must be called with the lock read-locked.
+// The lock can be released and re-locked.
+func (c *safeConfig) checkKnownKey(key string) {
+	if c.Viper.IsKnown(key) {
+		return
+	}
+
+	if _, ok := c.unknownKeys[key]; ok {
+		return
+	}
+
+	// need to write-lock to add the key to the unknownKeys map
+	c.RUnlock()
+	// but we need to have the lock in the same state (RLocked) at the end of the function
+	defer c.RLock()
+
+	c.Lock()
+	c.unknownKeys[key] = struct{}{}
+	c.Unlock()
+
+	// log without holding the lock
+	log.Warnf("config key %v is unknown", key)
+}
+
+// GetKnownKeysLowercased returns all the keys that meet at least one of these criteria:
+// 1) have a default, 2) have an environment variable binded or 3) have been SetKnown()
+// Note that it returns the keys lowercased.
+func (c *safeConfig) GetKnownKeysLowercased() map[string]interface{} {
+	c.RLock()
+	defer c.RUnlock()
+
+	// GetKnownKeysLowercased returns a fresh map, so the caller may do with it
 	// as they please without holding the lock.
 	return c.Viper.GetKnownKeys()
 }
@@ -201,7 +268,7 @@ func (c *safeConfig) IsSectionSet(section string) bool {
 	// if "section_key" is set.
 	sectionPrefix := section + "."
 
-	for _, key := range c.AllKeys() {
+	for _, key := range c.AllKeysLowercased() {
 		if strings.HasPrefix(key, sectionPrefix) && c.IsSet(key) {
 			return true
 		}
@@ -212,7 +279,7 @@ func (c *safeConfig) IsSectionSet(section string) bool {
 	return c.IsSet(section)
 }
 
-func (c *safeConfig) AllKeys() []string {
+func (c *safeConfig) AllKeysLowercased() []string {
 	c.RLock()
 	defer c.RUnlock()
 	return c.Viper.AllKeys()
@@ -222,22 +289,24 @@ func (c *safeConfig) AllKeys() []string {
 func (c *safeConfig) Get(key string) interface{} {
 	c.RLock()
 	defer c.RUnlock()
+	c.checkKnownKey(key)
 	val, err := c.Viper.GetE(key)
 	if err != nil {
 		log.Warnf("failed to get configuration value for key %q: %s", key, err)
 	}
-	return val
+	return deepcopy.Copy(val)
 }
 
 // GetAllSources returns the value of a key for each source
 func (c *safeConfig) GetAllSources(key string) []ValueWithSource {
 	c.RLock()
 	defer c.RUnlock()
+	c.checkKnownKey(key)
 	vals := make([]ValueWithSource, len(sources))
 	for i, source := range sources {
 		vals[i] = ValueWithSource{
 			Source: source,
-			Value:  c.configSources[source].Get(key),
+			Value:  deepcopy.Copy(c.configSources[source].Get(key)),
 		}
 	}
 	return vals
@@ -247,6 +316,7 @@ func (c *safeConfig) GetAllSources(key string) []ValueWithSource {
 func (c *safeConfig) GetString(key string) string {
 	c.RLock()
 	defer c.RUnlock()
+	c.checkKnownKey(key)
 	val, err := c.Viper.GetStringE(key)
 	if err != nil {
 		log.Warnf("failed to get configuration value for key %q: %s", key, err)
@@ -258,6 +328,7 @@ func (c *safeConfig) GetString(key string) string {
 func (c *safeConfig) GetBool(key string) bool {
 	c.RLock()
 	defer c.RUnlock()
+	c.checkKnownKey(key)
 	val, err := c.Viper.GetBoolE(key)
 	if err != nil {
 		log.Warnf("failed to get configuration value for key %q: %s", key, err)
@@ -269,6 +340,7 @@ func (c *safeConfig) GetBool(key string) bool {
 func (c *safeConfig) GetInt(key string) int {
 	c.RLock()
 	defer c.RUnlock()
+	c.checkKnownKey(key)
 	val, err := c.Viper.GetIntE(key)
 	if err != nil {
 		log.Warnf("failed to get configuration value for key %q: %s", key, err)
@@ -280,6 +352,7 @@ func (c *safeConfig) GetInt(key string) int {
 func (c *safeConfig) GetInt32(key string) int32 {
 	c.RLock()
 	defer c.RUnlock()
+	c.checkKnownKey(key)
 	val, err := c.Viper.GetInt32E(key)
 	if err != nil {
 		log.Warnf("failed to get configuration value for key %q: %s", key, err)
@@ -291,6 +364,7 @@ func (c *safeConfig) GetInt32(key string) int32 {
 func (c *safeConfig) GetInt64(key string) int64 {
 	c.RLock()
 	defer c.RUnlock()
+	c.checkKnownKey(key)
 	val, err := c.Viper.GetInt64E(key)
 	if err != nil {
 		log.Warnf("failed to get configuration value for key %q: %s", key, err)
@@ -302,6 +376,7 @@ func (c *safeConfig) GetInt64(key string) int64 {
 func (c *safeConfig) GetFloat64(key string) float64 {
 	c.RLock()
 	defer c.RUnlock()
+	c.checkKnownKey(key)
 	val, err := c.Viper.GetFloat64E(key)
 	if err != nil {
 		log.Warnf("failed to get configuration value for key %q: %s", key, err)
@@ -313,6 +388,7 @@ func (c *safeConfig) GetFloat64(key string) float64 {
 func (c *safeConfig) GetTime(key string) time.Time {
 	c.RLock()
 	defer c.RUnlock()
+	c.checkKnownKey(key)
 	val, err := c.Viper.GetTimeE(key)
 	if err != nil {
 		log.Warnf("failed to get configuration value for key %q: %s", key, err)
@@ -324,6 +400,7 @@ func (c *safeConfig) GetTime(key string) time.Time {
 func (c *safeConfig) GetDuration(key string) time.Duration {
 	c.RLock()
 	defer c.RUnlock()
+	c.checkKnownKey(key)
 	val, err := c.Viper.GetDurationE(key)
 	if err != nil {
 		log.Warnf("failed to get configuration value for key %q: %s", key, err)
@@ -335,17 +412,19 @@ func (c *safeConfig) GetDuration(key string) time.Duration {
 func (c *safeConfig) GetStringSlice(key string) []string {
 	c.RLock()
 	defer c.RUnlock()
+	c.checkKnownKey(key)
 	val, err := c.Viper.GetStringSliceE(key)
 	if err != nil {
 		log.Warnf("failed to get configuration value for key %q: %s", key, err)
 	}
-	return val
+	return slices.Clone(val)
 }
 
 // GetFloat64SliceE loads a key as a []float64
 func (c *safeConfig) GetFloat64SliceE(key string) ([]float64, error) {
 	c.RLock()
 	defer c.RUnlock()
+	c.checkKnownKey(key)
 
 	// We're using GetStringSlice because viper can only parse list of string from env variables
 	list, err := c.Viper.GetStringSliceE(key)
@@ -368,39 +447,43 @@ func (c *safeConfig) GetFloat64SliceE(key string) ([]float64, error) {
 func (c *safeConfig) GetStringMap(key string) map[string]interface{} {
 	c.RLock()
 	defer c.RUnlock()
+	c.checkKnownKey(key)
 	val, err := c.Viper.GetStringMapE(key)
 	if err != nil {
 		log.Warnf("failed to get configuration value for key %q: %s", key, err)
 	}
-	return val
+	return deepcopy.Copy(val).(map[string]interface{})
 }
 
 // GetStringMapString wraps Viper for concurrent access
 func (c *safeConfig) GetStringMapString(key string) map[string]string {
 	c.RLock()
 	defer c.RUnlock()
+	c.checkKnownKey(key)
 	val, err := c.Viper.GetStringMapStringE(key)
 	if err != nil {
 		log.Warnf("failed to get configuration value for key %q: %s", key, err)
 	}
-	return val
+	return deepcopy.Copy(val).(map[string]string)
 }
 
 // GetStringMapStringSlice wraps Viper for concurrent access
 func (c *safeConfig) GetStringMapStringSlice(key string) map[string][]string {
 	c.RLock()
 	defer c.RUnlock()
+	c.checkKnownKey(key)
 	val, err := c.Viper.GetStringMapStringSliceE(key)
 	if err != nil {
 		log.Warnf("failed to get configuration value for key %q: %s", key, err)
 	}
-	return val
+	return deepcopy.Copy(val).(map[string][]string)
 }
 
 // GetSizeInBytes wraps Viper for concurrent access
 func (c *safeConfig) GetSizeInBytes(key string) uint {
 	c.RLock()
 	defer c.RUnlock()
+	c.checkKnownKey(key)
 	val, err := c.Viper.GetSizeInBytesE(key)
 	if err != nil {
 		log.Warnf("failed to get configuration value for key %q: %s", key, err)
@@ -412,6 +495,7 @@ func (c *safeConfig) GetSizeInBytes(key string) uint {
 func (c *safeConfig) GetSource(key string) Source {
 	c.RLock()
 	defer c.RUnlock()
+	c.checkKnownKey(key)
 	var source Source
 	for _, s := range sources {
 		if c.configSources[s].Get(key) != nil {
@@ -476,6 +560,7 @@ func (c *safeConfig) SetEnvKeyReplacer(r *strings.Replacer) {
 func (c *safeConfig) UnmarshalKey(key string, rawVal interface{}, opts ...viper.DecoderConfigOption) error {
 	c.RLock()
 	defer c.RUnlock()
+	c.checkKnownKey(key)
 	return c.Viper.UnmarshalKey(key, rawVal, opts...)
 }
 
@@ -544,7 +629,7 @@ func (c *safeConfig) AllSettings() map[string]interface{} {
 	return c.Viper.AllSettings()
 }
 
-// AllSettingsWithoutDefault wraps Viper for concurrent access
+// AllSettingsWithoutDefault returns a copy of the all the settings in the configuration without defaults
 func (c *safeConfig) AllSettingsWithoutDefault() map[string]interface{} {
 	c.RLock()
 	defer c.RUnlock()
@@ -554,14 +639,27 @@ func (c *safeConfig) AllSettingsWithoutDefault() map[string]interface{} {
 	return c.Viper.AllSettingsWithoutDefault()
 }
 
-// AllSourceSettingsWithoutDefault wraps Viper for concurrent access
-func (c *safeConfig) AllSourceSettingsWithoutDefault(source Source) map[string]interface{} {
+// AllSettingsBySource returns the settings from each source (file, env vars, ...)
+func (c *safeConfig) AllSettingsBySource() map[Source]interface{} {
 	c.RLock()
 	defer c.RUnlock()
 
-	// AllSourceSettingsWithoutDefault returns a fresh map, so the caller may do with it
-	// as they please without holding the lock.
-	return c.configSources[source].AllSettingsWithoutDefault()
+	sources := []Source{
+		SourceDefault,
+		SourceUnknown,
+		SourceFile,
+		SourceEnvVar,
+		SourceAgentRuntime,
+		SourceRC,
+		SourceCLI,
+		SourceLocalConfigProcess,
+	}
+	res := map[Source]interface{}{}
+	for _, source := range sources {
+		res[source] = c.configSources[source].AllSettingsWithoutDefault()
+	}
+	res[SourceProvided] = c.AllSettingsWithoutDefault()
+	return res
 }
 
 // AddConfigPath wraps Viper for concurrent access
@@ -650,6 +748,7 @@ func NewConfig(name string, envPrefix string, envKeyReplacer *strings.Replacer) 
 		Viper:         viper.New(),
 		configSources: map[Source]*viper.Viper{},
 		configEnvVars: map[string]struct{}{},
+		unknownKeys:   map[string]struct{}{},
 	}
 
 	// load one Viper instance per source of setting change
@@ -676,7 +775,10 @@ func (c *safeConfig) CopyConfig(cfg Config) {
 		c.configSources = cfg.configSources
 		c.envPrefix = cfg.envPrefix
 		c.envKeyReplacer = cfg.envKeyReplacer
+		c.proxies = cfg.proxies
 		c.configEnvVars = cfg.configEnvVars
+		c.unknownKeys = cfg.unknownKeys
+		c.notificationReceivers = cfg.notificationReceivers
 		return
 	}
 	panic("Replacement config must be an instance of safeConfig")
@@ -684,20 +786,23 @@ func (c *safeConfig) CopyConfig(cfg Config) {
 
 // GetProxies returns the proxy settings from the configuration
 func (c *safeConfig) GetProxies() *Proxy {
-	c.proxiesOnce.Do(func() {
-		if c.GetBool("fips.enabled") {
-			return
-		}
-		if !c.IsSet("proxy.http") && !c.IsSet("proxy.https") && !c.IsSet("proxy.no_proxy") {
-			return
-		}
-		p := &Proxy{
-			HTTP:    c.GetString("proxy.http"),
-			HTTPS:   c.GetString("proxy.https"),
-			NoProxy: c.GetStringSlice("proxy.no_proxy"),
-		}
+	c.Lock()
+	defer c.Unlock()
+	if c.proxies != nil {
+		return c.proxies
+	}
+	if c.Viper.GetBool("fips.enabled") {
+		return nil
+	}
+	if !c.Viper.IsSet("proxy.http") && !c.Viper.IsSet("proxy.https") && !c.Viper.IsSet("proxy.no_proxy") {
+		return nil
+	}
+	p := &Proxy{
+		HTTP:    c.Viper.GetString("proxy.http"),
+		HTTPS:   c.Viper.GetString("proxy.https"),
+		NoProxy: c.Viper.GetStringSlice("proxy.no_proxy"),
+	}
 
-		c.proxies = p
-	})
+	c.proxies = p
 	return c.proxies
 }

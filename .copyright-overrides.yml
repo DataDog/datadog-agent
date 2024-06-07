@@ -20,6 +20,7 @@ github.com/GoogleCloudPlatform/docker-credential-gcr: Copyright 2016 Google, Inc
 github.com/aws/aws-lambda-go: Copyright 2017 Amazon.com, Inc. or its affiliates. All Rights Reserved.
 github.com/aws/aws-sdk-go: ["Copyright 2015 Amazon.com, Inc. or its affiliates. All Rights Reserved.", "Copyright 2014-2015 Stripe, Inc."]
 github.com/aws/aws-sdk-go-v2: ["Copyright 2015 Amazon.com, Inc. or its affiliates. All Rights Reserved.", "Copyright 2014-2015 Stripe, Inc."]
+github.com/awslabs/amazon-ecr-credential-helper/*: "Copyright 2016 Amazon.com, Inc. or its affiliates. All Rights Reserved."
 github.com/containerd/*: Copyright 2012-2015 Docker, Inc.
 github.com/coreos/*: Copyright 2017 CoreOS, Inc
 github.com/docker/*: Copyright 2012-2017 Docker, Inc.
@@ -83,6 +84,36 @@ github.com/shibumi/go-pathspec: Copyright (c) 2012 The Go Authors. All rights re
 
 # https://github.com/acomagu/bufpipe/blob/master/LICENSE
 github.com/acomagu/bufpipe: Copyright (c) 2019 acomagu
+
+# https://github.com/GoogleCloudPlatform/opentelemetry-operations-go/doc.go
+github.com/GoogleCloudPlatform/opentelemetry-operations-go: Copyright 2020 Google LLC
+
+# https://github.com/ardielle/ardielle-go/README.md
+github.com/ardielle/ardielle-go: Copyright 2015 Yahoo Inc.
+
+# https://bitbucket.org/atlassian/go-asap/src/master/LICENSE.txt
+bitbucket.org/atlassian/go-asap/v2: Copyright 2015 Atlassian Pty Ltd
+
+# https://github.com/jcmturner/gokrb5/NOTICE
+github.com/jcmturner/*: Copyright 2016, Jonathan Turner <jt@jtnet.co.uk>
+
+# https://github.com/signalfx/com_signalfx_metrics_protobuf/README.md
+github.com/signalfx/com_signalfx_metrics_protobuf/*: Copyright © 2015-2017 SignalFx
+
+# https://github.com/SAP/go-hdb/blob/main/.reuse/dep5
+github.com/SAP/go-hdb/*: Copyright 2014-2024 SAP SE or an SAP affiliate company and go-hdb contributors
+
+# https://github.com/golang-sql/civil/blob/master/civil.go
+github.com/golang-sql/civil: Copyright 2016 Google LLC
+
+# https://github.com/grafana/loki/blob/main/clients/cmd/fluentd/README.md
+github.com/grafana/loki: Copyright 2018- Grafana Labs
+
+# https://github.com/hamba/avro/blob/109ccdab2a7032d09b1d6a04aeb6ea214217fbd5/LICENCE
+github.com/hamba/avro/v2: Copyright (c) 2024 Nicholas Wiersma
+
+# https://github.com/scalyr/dataset-go/blob/main/README.md
+github.com/scalyr/dataset-go: Copyright 2023 SentinelOne, Inc.
 
 # For Apache projects, copyright is typically in individual source files and
 # not scanned automatically.
@@ -161,6 +192,7 @@ github.com/dgraph-io/badger:
  - "Copyright 2021 Dgraph Labs, Inc. and Contributors"
 github.com/mostynb/go-grpc-compression: "Copyright 2023 Mostyn Bramley-Moore."
 github.com/stormcat24/protodep: "Copyright Akinori Yamada"
+go4.org/mem: "Copyright 2020 The Go4 AUTHORS"
 
 # These have large AUTHORS/CONTRIBUTORS files but attribute copyright as a group
 github.com/aptly-dev/aptly: Copyright 2013-2015 aptly authors. All rights reserved.
@@ -203,9 +235,15 @@ github.com/aquasecurity/go-gem-version: Copyright (c) 2020 Teppei Fukuda (knqyf2
 github.com/aquasecurity/go-npm-version: Copyright (c) 2020 Teppei Fukuda (knqyf263)
 github.com/aquasecurity/go-pep440-version: Copyright (c) 2020 Teppei Fukuda (knqyf263)
 github.com/aquasecurity/go-version: Copyright (c) 2020 Teppei Fukuda (knqyf263)
+github.com/aquasecurity/trivy-java-db: Copyright 2019-2020 Aqua Security
 github.com/spdx/tools-golang: Copyright (c) 2018 The Authors
 github.com/google/flatbuffers: Copyright (c) 2014 Google
 github.com/gocomply/scap: "CC0 1.0 Universal"
+github.com/anchore/go-struct-converter: Copyright (c) 2022-2023 Anchore, Inc.
+github.com/bitnami/go-version/pkg/version: Copyright (c) 2023-2024 Carlos Rodríguez Hernández
+github.com/kylelemons/godebug: Copyright (c) 2013-2020 Kyle Lemons
+github.com/santhosh-tekuri/jsonschema: Copyright (c) 2017-2024 Santhosh Kumar Tekuri
+github.com/chrusty/protoc-gen-jsonschema: Copyright (c) 2017 The Authors
 
 # The Copyright information is not contained in the LICENSE file, but it can be found in other
 # files in the package, such as:
@@ -283,8 +321,47 @@ github.com/containerd/typeurl/v2: Copyright 2012-2015 Docker, Inc.
 github.com/moby/sys/sequential: Kir Kolyshkin <kolyshkin@gmail.com>|Sebastiaan van Stijn <github@gone.nl>|Sebastiaan van Stijn <thaJeztah@users.noreply.github.com>|Tibor Vass <teabee89@gmail.com>|Brian Goff <cpuguy83@gmail.com>|John Howard <jhoward@microsoft.com>|Victor Vieux <victor.vieux@docker.com>|Michael Crosby <crosby.michael@gmail.com>|Daniel Nephin <dnephin@docker.com>|Tianon Gravi <admwiggin@gmail.com>|Vincent Batts <vbatts@redhat.com>|Akihiro Suda <akihiro.suda.cz@hco.ntt.co.jp>|Michael Crosby <michael@crosbymichael.com>|Yong Tang <yong.tang.github@outlook.com>|Kir Kolyshkin <kolyshkin@users.noreply.github.com>|Christopher Jones <tophj@linux.vnet.ibm.com>|Guillaume J. Charmes <guillaume@charmes.net>|Kato Kazuyoshi <kato.kazuyoshi@gmail.com>|Manu Gupta <manugupt1@gmail.com>|Michael Crosby <crosbymichael@gmail.com>|Vincent Demeester <vincent@sbr.pm>|Aleksa Sarai <cyphar@cyphar.com>|Amit Krishnan <amit.krishnan@oracle.com>|Arnaud Porterie <arnaud.porterie@docker.com>|Brian Goff <brian.goff@microsoft.com>|Brian Goff <cpuguy@hey.com>|Dan Walsh <dwalsh@redhat.com>|Michael Crosby <michael@docker.com>|Phil Estes <estesp@gmail.com>|Shengjing Zhu <zhsj@debian.org>|Solomon Hykes <solomon@docker.com>|Tobias Klauser <tklauser@distanz.ch>|lalyos <lalyos@yahoo.com>|unclejack <unclejacksons@gmail.com>|Akihiro Suda <suda.kyoto@gmail.com>|Alexander Morozov <lk4d4@docker.com>|Jessica Frazelle <acidburn@docker.com>|Jessica Frazelle <jess@docker.com>|Jessie Frazelle <jfrazelle@users.noreply.github.com>|Justas Brazauskas <brazauskasjustas@gmail.com>|Justin Cormack <justin.cormack@docker.com>|Kazuyoshi Kato <katokazu@amazon.com>|Naveed Jamil <naveed.jamil@tenpearls.com>|Vincent Demeester <vincent.demeester@docker.com>|shuai-z <zs.broccoli@gmail.com>|Ahmet Alp Balkan <ahmetb@microsoft.com>|Aleksa Sarai <asarai@suse.com>|Alexander Larsson <alexl@redhat.com>|Alexander Morozov <lk4d4math@gmail.com>|Alexandr Morozov <lk4d4@docker.com>|Alexandr Morozov <lk4d4math@gmail.com>|Antonio Murdaca <me@runcom.ninja>|Antonio Murdaca <runcom@linux.com>|Antonio Murdaca <runcom@users.noreply.github.com>|Artem Khramov <akhramov@pm.me>|Cezar Sa Espinola <cezarsa@gmail.com>|Chen Hanxiao <chenhanxiao@cn.fujitsu.com>|Darren Stahl <darst@microsoft.com>|David Calavera <david.calavera@gmail.com>|Derek McGowan <derek@mcgstyle.net>|Eng Zer Jun <engzerjun@gmail.com>|Erik Dubbelboer <erik@dubbelboer.com>|Fabian Kramm <kramm@covexo.com>|Guillaume Dufour <gdufour.prestataire@voyages-sncf.com>|Guillaume J. Charmes <guillaume.charmes@docker.com>|Hajime Tazaki <thehajime@gmail.com>|Jamie Hannaford <jamie.hannaford@rackspace.com>|Jason A. Donenfeld <Jason@zx2c4.com>|Jhon Honce <jhonce@redhat.com>|Josh Soref <jsoref@users.noreply.github.com>|Kasper Fabæch Brandt <poizan@poizan.dk>|Kathryn Baldauf <kabaldau@microsoft.com>|Kenfe-Mickael Laventure <mickael.laventure@gmail.com>|Kirill Kolyshkin <kolyshkin@users.noreply.github.com>|Muhammad Kaisar Arkhan <hi@yukiisbo.red>|Oli <oli@overrateddev.co>|Olli Janatuinen <olli.janatuinen@gmail.com>|Paul Nasrat <pnasrat@gmail.com>|Peter Bourgon <peter@bourgon.org>|Peter Waller <peter@scraperwiki.com>|Phil Estes <estesp@linux.vnet.ibm.com>|Samuel Karp <skarp@amazon.com>|Stefan J. Wernli <swernli@microsoft.com>|Steven Hartland <steven.hartland@multiplay.co.uk>|Stig Larsson <stig@larsson.dev>|Tim Wang <timwangdev@gmail.com>|Victor Vieux <victorvieux@gmail.com>|Victor Vieux <vieux@docker.com>|Yan Feng <yanfeng2@huawei.com>|jhowardmsft <jhoward@microsoft.com>|liuxiaodong <liuxiaodong@loongson.cn>|phineas <phin@phineas.io>|unclejack <unclejack@users.noreply.github.com>|yuexiao-wang <wang.yuexiao@zte.com.cn>|谢致邦 (XIE Zhibang) <Yeking@Red54.com>
 github.com/wk8/go-ordered-map/v2: Copyright 2023 Jean Rougé <wk8.github@gmail.com>
 github.com/ebitengine/purego: Copyright 2022 The Ebitengine Authors
+github.com/distribution/reference: Copyright 2014 The CNCF Distribution Project Authors
 
 github.com/pjbgf/sha1cd:
  - Copyright 2009 The Go Authors. All rights reserved.
  - Copyright 2017 Marc Stevens <marc@marc-stevens.nl>, Dan Shumow <danshu@microsoft.com>
  - Copyright 2022 Paulo Gomes <pjbgf@linux.com>
+
+github.com/kr/pretty: Copyright 2012 Keith Rarick
+github.com/kr/text: Copyright 2012 Keith Rarick
+
+# Copyright information is in the Makefile
+github.com/openvex/go-vex: Copyright 2023 The OpenVEX Authors
+
+# Copyright information is in the LICENSE
+github.com/aquasecurity/trivy-policies/pkg/spec: Copyright (c) 2024 Aqua Security
+github.com/aquasecurity/trivy-policies/rules/specs: Copyright (c) 2024 Aqua Security
+github.com/pjbgf/sha1cd: Copyright 2023 pjbgf
+github.com/go-errors/errors: Copyright (c) 2015 Conrad Irwin <conrad@bugsnag.com>
+github.com/apache/arrow/*: Copyright (C) 1995-1998 Eric Young (eay@cryptsoft.com)
+github.com/tailscale/tailscale: Copyright (c) 2020 Tailscale Inc & AUTHORS.
+
+# Copyright information is in the source headers
+github.com/csaf-poc/csaf_distribution: Copyright 2021-2023 German Federal Office for Information Security (BSI) <https://www.bsi.bund.de>
+github.com/google/btree: Copyright 2014-2022 Google Inc.
+github.com/google/shlex: Copyright 2012 Google Inc. All Rights Reserved.
+github.com/facebook/time/*: Copyright (c) Facebook, Inc. and its affiliates.
+github.com/grobie/gomemcache/memcache: Copyright 2011 Google Inc.
+github.com/lightstep/go-expohisto/*: Copyright The OpenTelemetry Authors
+github.com/envoyproxy/go-control-plane/*: Copyright 2020 Envoyproxy Authors
+github.com/envoyproxy/protoc-gen-validate/validate:  Copyright 2020 Envoyproxy Authors
+github.com/cncf/xds: Copyright 2020 Envoyproxy Authors
+github.com/mwitkow/go-conntrack: Copyright 2016 Michal Witkowski. All Rights Reserved.
+github.com/pquerna/cachecontrol/cacheobject: Copyright 2015 Paul Querna
+github.com/signalfx/sapm-proto/*: Copyright 2019 Splunk, Inc.
+go.mongodb.org/atlas/mongodbatlas: Copyright 2022 MongoDB Inc
+github.com/go-jose/go-jose/v4: Copyright 2014 Square Inc.
+
+github.com/vibrantbyte/go-antpath/antpath: vibrantbyte <codingrun@163.com>|suchao <suchao@renrenche.com>
+github.com/vibrantbyte/go-antpath/extend: vibrantbyte <codingrun@163.com>|suchao <suchao@renrenche.com>
+
+# https://github.com/GoogleCloudPlatform/grpc-gcp-go/blob/main/LICENSE
+github.com/GoogleCloudPlatform/grpc-gcp-go/grpcgcp: Copyright 2024 gRPC authors.
+github.com/GoogleCloudPlatform/grpc-gcp-go/grpcgcp/grpc_gcp: Copyright 2024 gRPC authors.
+github.com/GoogleCloudPlatform/grpc-gcp-go/grpcgcp/multiendpoint: Copyright 2024 gRPC authors.

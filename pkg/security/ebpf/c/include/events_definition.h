@@ -48,6 +48,7 @@ struct process_event_t {
     struct process_context_t process;
     struct span_context_t span;
     struct container_context_t container;
+    struct syscall_context_t syscall_ctx;
     struct process_entry_t proc_entry;
     struct pid_cache_t pid_entry;
     struct linux_binprm_t linux_binprm;
@@ -117,6 +118,7 @@ struct chmod_event_t {
     struct span_context_t span;
     struct container_context_t container;
     struct syscall_t syscall;
+    struct syscall_context_t syscall_ctx;
     struct file_t file;
     u32 mode;
     u32 padding;
@@ -143,10 +145,9 @@ struct mmap_event_t {
     struct file_t file;
     u64 addr;
     u64 offset;
-    u32 len;
-    int protection;
-    int flags;
-    u32 padding;
+    u64 len;
+    u64 protection;
+    u64 flags;
 };
 
 struct dns_event_t {
@@ -162,6 +163,16 @@ struct dns_event_t {
     u16 qclass;
     u16 size;
     char name[DNS_MAX_LENGTH];
+};
+
+struct imds_event_t {
+    struct kevent_t event;
+    struct process_context_t process;
+    struct span_context_t span;
+    struct container_context_t container;
+    struct network_context_t network;
+
+    u8 body[IMDS_MAX_LENGTH];
 };
 
 struct link_event_t {
@@ -373,6 +384,16 @@ struct unlink_event_t {
     struct file_t file;
     u32 flags;
     u32 padding;
+};
+
+struct chdir_event_t {
+    struct kevent_t event;
+    struct process_context_t process;
+    struct span_context_t span;
+    struct container_context_t container;
+    struct syscall_t syscall;
+    struct syscall_context_t syscall_ctx;
+    struct file_t file;
 };
 
 #endif

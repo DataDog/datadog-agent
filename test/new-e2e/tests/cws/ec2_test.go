@@ -8,13 +8,12 @@ package cws
 
 import (
 	_ "embed"
-	"errors"
 	"fmt"
+	"path"
 	"strings"
 	"testing"
 	"time"
 
-	"github.com/cenkalti/backoff"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -25,6 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner/parameters"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/cws/api"
+	"github.com/DataDog/datadog-agent/test/new-e2e/tests/cws/config"
 
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
 )
@@ -48,7 +48,8 @@ const (
 
 type agentSuite struct {
 	e2e.BaseSuite[environments.Host]
-	testID string
+	apiClient *api.Client
+	testID    string
 }
 
 //go:embed config/e2e-system-probe.yaml
@@ -59,52 +60,114 @@ var securityAgentConfig string
 
 func TestAgentSuite(t *testing.T) {
 	testID := uuid.NewString()[:4]
-
-	e2e.Run(t, &agentSuite{testID: testID},
+	ddHostname := fmt.Sprintf("%s-%s", ec2HostnamePrefix, testID)
+	agentConfig := config.GenDatadogAgentConfig(ddHostname, "tag1", "tag2")
+	e2e.Run[environments.Host](t, &agentSuite{testID: testID},
 		e2e.WithProvisioner(
 			awshost.ProvisionerNoFakeIntake(
 				awshost.WithAgentOptions(
-					agentparams.WithAgentConfig(fmt.Sprintf("hostname: %s-%s", ec2HostnamePrefix, testID)),
+					agentparams.WithAgentConfig(agentConfig),
 					agentparams.WithSecurityAgentConfig(securityAgentConfig),
 					agentparams.WithSystemProbeConfig(systemProbeConfig),
 				),
 			),
 		),
 	)
+	t.Logf("Running testsuite with DD_HOSTNAME=%s", ddHostname)
 }
 
-func (a *agentSuite) TestOpenSignal() {
-	apiClient := api.NewClient()
+func (a *agentSuite) SetupSuite() {
+	a.BaseSuite.SetupSuite()
+	a.apiClient = api.NewClient()
+}
+
+func (a *agentSuite) Hostname() string {
+	return a.Env().Agent.Client.Hostname()
+}
+
+func (a *agentSuite) Client() *api.Client {
+	return a.apiClient
+}
+
+func (a *agentSuite) Test00RulesetLoadedDefaultFile() {
+	assert.EventuallyWithT(a.T(), func(c *assert.CollectT) {
+		testRulesetLoaded(c, a, "file", "default.policy")
+	}, 4*time.Minute, 10*time.Second)
+}
+
+func (a *agentSuite) Test01RulesetLoadedDefaultRC() {
+	assert.EventuallyWithT(a.T(), func(c *assert.CollectT) {
+		testRulesetLoaded(c, a, "remote-config", "default.policy")
+	}, 4*time.Minute, 10*time.Second)
+}
+
+func (a *agentSuite) Test02Selftests() {
+	assert.EventuallyWithT(a.T(), func(c *assert.CollectT) {
+		testSelftestsEvent(c, a, func(event *api.SelftestsEvent) {
+			assert.Contains(c, event.SucceededTests, "datadog_agent_cws_self_test_rule_open", "missing selftest result")
+			assert.Contains(c, event.SucceededTests, "datadog_agent_cws_self_test_rule_chmod", "missing selftest result")
+			assert.Contains(c, event.SucceededTests, "datadog_agent_cws_self_test_rule_chown", "missing selftest result")
+			validateEventSchema(c, &event.Event, "self_test_schema.json")
+		})
+	}, 4*time.Minute, 10*time.Second)
+}
+
+func (a *agentSuite) Test03OpenSignal() {
+	var agentRuleID, signalRuleID, dirname string
+	// Cleanup function
+	defer func() {
+		if signalRuleID != "" {
+			err := a.apiClient.DeleteSignalRule(signalRuleID)
+			assert.NoErrorf(a.T(), err, "failed to delete signal rule %s", signalRuleID)
+		}
+		if agentRuleID != "" {
+			err := a.apiClient.DeleteAgentRule(agentRuleID)
+			assert.NoErrorf(a.T(), err, "failed to delete agent rule %s", agentRuleID)
+		}
+		if dirname != "" {
+			a.Env().RemoteHost.MustExecute(fmt.Sprintf("rm -r %s", dirname))
+		}
+	}()
 
 	// Create temporary directory
 	tempDir := a.Env().RemoteHost.MustExecute("mktemp -d")
-	dirname := strings.TrimSuffix(tempDir, "\n")
-	filename := fmt.Sprintf("%s/secret", dirname)
+	dirname = strings.TrimSuffix(tempDir, "\n")
+	filepath := fmt.Sprintf("%s/secret", dirname)
 	desc := fmt.Sprintf("e2e test rule %s", a.testID)
 	agentRuleName := fmt.Sprintf("new_e2e_agent_rule_%s", a.testID)
 
 	// Create CWS Agent rule
-	rule := fmt.Sprintf("open.file.path == \"%s\"", filename)
-	res, err := apiClient.CreateCWSAgentRule(agentRuleName, desc, rule)
+	rule := fmt.Sprintf("open.file.path == \"%s\"", filepath)
+	res, err := a.apiClient.CreateCWSAgentRule(agentRuleName, desc, rule)
 	require.NoError(a.T(), err, "Agent rule creation failed")
-	agentRuleID := res.Data.GetId()
+	agentRuleID = res.Data.GetId()
 
 	// Create Signal Rule (backend)
-	res2, err := apiClient.CreateCwsSignalRule(desc, "signal rule for e2e testing", agentRuleName, []string{})
+	res2, err := a.apiClient.CreateCwsSignalRule(desc, "signal rule for e2e testing", agentRuleName, []string{})
 	require.NoError(a.T(), err, "Signal rule creation failed")
-	signalRuleID := res2.GetId()
+	signalRuleID = *res2.SecurityMonitoringStandardRuleResponse.Id
 
 	// Check if the agent is ready
 	isReady := a.Env().Agent.Client.IsReady()
 	assert.Equal(a.T(), isReady, true, "Agent should be ready")
 
 	// Check if system-probe has started
-	err = a.waitAgentLogs("system-probe", systemProbeStartLog)
-	require.NoError(a.T(), err, "system-probe could not start")
+	assert.EventuallyWithT(a.T(), func(c *assert.CollectT) {
+		output, err := a.Env().RemoteHost.Execute("cat /var/log/datadog/system-probe.log")
+		if !assert.NoError(c, err) {
+			return
+		}
+		assert.Contains(c, output, systemProbeStartLog, "system-probe could not start")
+	}, 30*time.Second, 1*time.Second)
 
 	// Check if security-agent has started
-	err = a.waitAgentLogs("security-agent", securityStartLog)
-	require.NoError(a.T(), err, "security-agent could not start")
+	assert.EventuallyWithT(a.T(), func(c *assert.CollectT) {
+		output, err := a.Env().RemoteHost.Execute("cat /var/log/datadog/security-agent.log")
+		if !assert.NoError(c, err) {
+			return
+		}
+		assert.Contains(c, output, securityStartLog, "security-agent could not start")
+	}, 30*time.Second, 1*time.Second)
 
 	// Download policies
 	apiKey, err := runner.GetProfile().SecretStore().Get(parameters.APIKey)
@@ -114,118 +177,74 @@ func (a *agentSuite) TestOpenSignal() {
 	require.NoError(a.T(), err, "Could not get APP KEY")
 
 	var policies string
-	a.EventuallyWithT(func(c *assert.CollectT) {
+	require.EventuallyWithT(a.T(), func(c *assert.CollectT) {
 		policies = a.Env().RemoteHost.MustExecute(fmt.Sprintf("DD_APP_KEY=%s DD_API_KEY=%s %s runtime policy download >| temp.txt && cat temp.txt", appKey, apiKey, securityAgentPath))
 		assert.NotEmpty(c, policies, "should not be empty")
-	}, 5*time.Minute, 10*time.Second)
+	}, 1*time.Minute, 1*time.Second)
 
 	// Check that the newly created rule is in the policies
-	assert.Contains(a.T(), policies, desc, "The policies should contain the created rule")
+	require.Contains(a.T(), policies, desc, "The policies should contain the created rule")
 
 	// Push policies
-	a.Env().RemoteHost.MustExecute(fmt.Sprintf("sudo cp temp.txt %s", policiesPath))
-	a.Env().RemoteHost.MustExecute("rm temp.txt")
+	a.Env().RemoteHost.MustExecute(fmt.Sprintf("sudo cp temp.txt %s && rm temp.txt", policiesPath))
 	policiesFile := a.Env().RemoteHost.MustExecute(fmt.Sprintf("cat %s", policiesPath))
-	assert.Contains(a.T(), policiesFile, desc, "The policies file should contain the created rule")
+	require.Contains(a.T(), policiesFile, desc, "The policies file should contain the created rule")
 
 	// Reload policies
 	a.Env().RemoteHost.MustExecute(fmt.Sprintf("sudo %s runtime policy reload", securityAgentPath))
 
-	// Check `downloaded` ruleset_loaded
-	result, err := api.WaitAppLogs(apiClient, fmt.Sprintf("host:%s rule_id:ruleset_loaded", a.Env().Agent.Client.Hostname()))
-	require.NoError(a.T(), err, "could not get new ruleset")
+	// Check if the policy is loaded
+	policyName := path.Base(policiesPath)
+	require.EventuallyWithT(a.T(), func(c *assert.CollectT) {
+		testRulesetLoaded(c, a, "file", policyName)
+	}, 4*time.Minute, 5*time.Second)
 
-	agentContext := result.Attributes["agent"].(map[string]interface{})
-	assert.EqualValues(a.T(), "ruleset_loaded", agentContext["rule_id"], "Ruleset should be loaded")
+	// Check 'datadog.security_agent.runtime.running' metric
+	assert.EventuallyWithT(a.T(), func(c *assert.CollectT) {
+		testMetricExists(c, a, "datadog.security_agent.runtime.running", map[string]string{"host": a.Hostname()})
+	}, 4*time.Minute, 5*time.Second)
 
-	// Trigger agent event
-	a.Env().RemoteHost.MustExecute(fmt.Sprintf("touch %s", filename))
-
-	// Check agent event
-	err = a.waitAgentLogs("security-agent", "Successfully posted payload to")
-	require.NoError(a.T(), err, "could not send payload")
+	// Check app event
+	assert.EventuallyWithT(a.T(), func(c *assert.CollectT) {
+		// Trigger agent event
+		a.Env().RemoteHost.MustExecute(fmt.Sprintf("touch %s", filepath))
+		testRuleEvent(c, a, agentRuleName, func(e *api.RuleEvent) {
+			assert.Equal(c, "open", e.Evt.Name, "event name should be open")
+			assert.Equal(c, filepath, e.File.Path, "file path does not match")
+			assert.Contains(c, e.Tags, "tag1", "missing event tag")
+			assert.Contains(c, e.Tags, "tag2", "missing event tag")
+		})
+	}, 10*time.Minute, 30*time.Second)
 
 	// Check app signal
-	signal, err := api.WaitAppSignal(apiClient, fmt.Sprintf("host:%s @workflow.rule.id:%s", a.Env().Agent.Client.Hostname(), signalRuleID))
-	require.NoError(a.T(), err)
-	assert.Contains(a.T(), signal.Tags, fmt.Sprintf("rule_id:%s", strings.ToLower(agentRuleName)), "unable to find rule_id tag")
-	agentContext = signal.Attributes["agent"].(map[string]interface{})
-	assert.Contains(a.T(), agentContext["rule_id"], agentRuleName, "unable to find tag")
-
-	// Cleanup
-	err = apiClient.DeleteSignalRule(signalRuleID)
-	assert.NoErrorf(a.T(), err, "failed to delete signal rule %s", signalRuleID)
-	err = apiClient.DeleteAgentRule(agentRuleID)
-	assert.NoErrorf(a.T(), err, "failed to delete agent rule %s", agentRuleID)
-	a.Env().RemoteHost.MustExecute(fmt.Sprintf("rm -r %s", dirname))
+	assert.EventuallyWithT(a.T(), func(c *assert.CollectT) {
+		signal, err := a.apiClient.GetSignal(fmt.Sprintf("host:%s @workflow.rule.id:%s", a.Env().Agent.Client.Hostname(), signalRuleID))
+		if !assert.NoError(c, err) {
+			return
+		}
+		if !assert.NotNil(c, signal) {
+			return
+		}
+		assert.Contains(c, signal.Tags, fmt.Sprintf("rule_id:%s", strings.ToLower(agentRuleName)), "unable to find rule_id tag")
+		if !assert.Contains(c, signal.AdditionalProperties, "attributes", "unable to find 'attributes' field in signal") {
+			return
+		}
+		attributes := signal.AdditionalProperties["attributes"].(map[string]interface{})
+		if !assert.Contains(c, attributes, "agent", "unable to find 'agent' field in signal's attributes") {
+			return
+		}
+		agentContext := attributes["agent"].(map[string]interface{})
+		if !assert.Contains(c, agentContext, "rule_id", "unable to find 'rule_id' in signal's agent context") {
+			return
+		}
+		assert.Contains(c, agentContext["rule_id"], agentRuleName, "signal doesn't contain agent rule id")
+	}, 4*time.Minute, 10*time.Second)
 }
 
-// TestFeatureCWSEnabled tests that the CWS activation is properly working
-func (a *agentSuite) TestFeatureCWSEnabled() {
-	apiKey, err := runner.GetProfile().SecretStore().Get(parameters.APIKey)
-	a.Require().NoError(err, "could not get API key")
-	appKey, err := runner.GetProfile().SecretStore().Get(parameters.APPKey)
-	a.Require().NoError(err, "could not get APP key")
-	ddSQLClient := api.NewDDSQLClient(apiKey, appKey)
-
-	query := fmt.Sprintf("SELECT h.hostname, a.feature_cws_enabled FROM host h JOIN datadog_agent a USING (datadog_agent_key) WHERE h.hostname = '%s'", a.Env().Agent.Client.Hostname())
-	a.Assert().EventuallyWithT(func(collect *assert.CollectT) {
-		resp, err := ddSQLClient.Do(query)
-		if !assert.NoErrorf(collect, err, "ddsql query failed") {
-			return
-		}
-		if !assert.Len(collect, resp.Data, 1, "ddsql query didn't returned a single row") {
-			return
-		}
-		if !assert.Len(collect, resp.Data[0].Attributes.Columns, 2, "ddsql query didn't returned two columns") {
-			return
-		}
-
-		columnChecks := []struct {
-			name          string
-			expectedValue interface{}
-		}{
-			{
-				name:          "hostname",
-				expectedValue: a.Env().Agent.Client.Hostname(),
-			},
-			{
-				name:          "feature_cws_enabled",
-				expectedValue: true,
-			},
-		}
-
-		for _, columnCheck := range columnChecks {
-			result := false
-			for _, column := range resp.Data[0].Attributes.Columns {
-				if column.Name == columnCheck.name {
-					if !assert.Len(collect, column.Values, 1, "column %s should have a single value", columnCheck.name) {
-						return
-					}
-					if !assert.Equal(collect, columnCheck.expectedValue, column.Values[0], "column %s should be equal", columnCheck.name) {
-						return
-					}
-					result = true
-					break
-				}
-			}
-			if !assert.Truef(collect, result, "column %s isn't present or has an unexpected value", columnCheck.name) {
-				return
-			}
-		}
-	}, 10*time.Minute, 1*time.Minute, "cws activation check timeout")
-}
-
-func (a *agentSuite) waitAgentLogs(agentName string, pattern string) error {
-	err := backoff.Retry(func() error {
-		output, err := a.Env().RemoteHost.Execute(fmt.Sprintf("cat /var/log/datadog/%s.log", agentName))
-		if err != nil {
-			return err
-		}
-		if strings.Contains(output, pattern) {
-			return nil
-		}
-		return errors.New("no log found")
-	}, backoff.WithMaxRetries(backoff.NewConstantBackOff(500*time.Millisecond), 60))
-	return err
+// test that the detection of CWS is properly working
+// this test can be quite long so run it last
+func (a *agentSuite) Test99CWSEnabled() {
+	assert.EventuallyWithTf(a.T(), func(c *assert.CollectT) {
+		testCwsEnabled(c, a)
+	}, 20*time.Minute, 30*time.Second, "cws activation test timed out for host %s", a.Env().Agent.Client.Hostname())
 }

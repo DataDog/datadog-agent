@@ -44,12 +44,15 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"regexp"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/cenkalti/backoff/v4"
+	"github.com/samber/lo"
 
 	agentmodel "github.com/DataDog/agent-payload/v5/process"
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
@@ -58,6 +61,7 @@ import (
 )
 
 const (
+	fakeintakeIDHeader           = "Fakeintake-ID"
 	metricsEndpoint              = "/api/v2/series"
 	checkRunsEndpoint            = "/api/v1/check_run"
 	logsEndpoint                 = "/api/v2/logs"
@@ -73,14 +77,29 @@ const (
 	apmStatsEndpoint             = "/api/v0.2/stats"
 	orchestratorEndpoint         = "/api/v2/orch"
 	orchestratorManifestEndpoint = "/api/v2/orchmanif"
+	metadataEndpoint             = "/api/v1/metadata"
+	ndmflowEndpoint              = "/api/v2/ndmflow"
 )
 
 // ErrNoFlareAvailable is returned when no flare is available
 var ErrNoFlareAvailable = errors.New("no flare available")
 
-//nolint:revive // TODO(APL) Fix revive linter
+// Option is a configuration option for the client
+type Option func(*Client)
+
+// WithoutStrictFakeintakeIDCheck disables strict fakeintake ID check
+func WithoutStrictFakeintakeIDCheck() Option {
+	return func(c *Client) {
+		c.strictFakeintakeIDCheck = false
+	}
+}
+
+// Client is a fake intake client
 type Client struct {
-	fakeIntakeURL string
+	fakeintakeID            string
+	fakeIntakeURL           string
+	strictFakeintakeIDCheck bool
+	fakeintakeIDMutex       sync.RWMutex
 
 	metricAggregator               aggregator.MetricAggregator
 	checkRunAggregator             aggregator.CheckRunAggregator
@@ -96,12 +115,16 @@ type Client struct {
 	apmStatsAggregator             aggregator.APMStatsAggregator
 	orchestratorAggregator         aggregator.OrchestratorAggregator
 	orchestratorManifestAggregator aggregator.OrchestratorManifestAggregator
+	metadataAggregator             aggregator.MetadataAggregator
+	ndmflowAggregator              aggregator.NDMFlowAggregator
 }
 
 // NewClient creates a new fake intake client
 // fakeIntakeURL: the host of the fake Datadog intake server
-func NewClient(fakeIntakeURL string) *Client {
-	return &Client{
+func NewClient(fakeIntakeURL string, opts ...Option) *Client {
+	client := &Client{
+		strictFakeintakeIDCheck:        true,
+		fakeintakeIDMutex:              sync.RWMutex{},
 		fakeIntakeURL:                  strings.TrimSuffix(fakeIntakeURL, "/"),
 		metricAggregator:               aggregator.NewMetricAggregator(),
 		checkRunAggregator:             aggregator.NewCheckRunAggregator(),
@@ -117,7 +140,14 @@ func NewClient(fakeIntakeURL string) *Client {
 		apmStatsAggregator:             aggregator.NewAPMStatsAggregator(),
 		orchestratorAggregator:         aggregator.NewOrchestratorAggregator(),
 		orchestratorManifestAggregator: aggregator.NewOrchestratorManifestAggregator(),
+		metadataAggregator:             aggregator.NewMetadataAggregator(),
+		ndmflowAggregator:              aggregator.NewNDMFlowAggregator(),
 	}
+	for _, opt := range opts {
+		opt(client)
+	}
+
+	return client
 }
 
 // PayloadFilter is used to filter payloads by name and resource type
@@ -236,6 +266,14 @@ func (c *Client) getAPMStats() error {
 		return err
 	}
 	return c.apmStatsAggregator.UnmarshallPayloads(payloads)
+}
+
+func (c *Client) getNDMFlows() error {
+	payloads, err := c.getFakePayloads(ndmflowEndpoint)
+	if err != nil {
+		return err
+	}
+	return c.ndmflowAggregator.UnmarshallPayloads(payloads)
 }
 
 // GetLatestFlare queries the Fake Intake to fetch flares that were sent by a Datadog Agent and returns the latest flare as a Flare struct
@@ -362,6 +400,17 @@ func WithTags[P aggregator.PayloadItem](tags []string) MatchOpt[P] {
 	}
 }
 
+// WithMatchingTags filters by `tags` where tags is an array of regex strings
+func WithMatchingTags[P aggregator.PayloadItem](tags []*regexp.Regexp) MatchOpt[P] {
+	return func(payload P) (bool, error) {
+		return lo.EveryBy(tags, func(regTag *regexp.Regexp) bool {
+			return lo.SomeBy(payload.GetTags(), func(t string) bool {
+				return regTag.MatchString(t)
+			})
+		}), nil
+	}
+}
+
 // WithMetricValueInRange filters metrics with values in range `minValue < value < maxValue`
 func WithMetricValueInRange(minValue float64, maxValue float64) MatchOpt[*aggregator.MetricSeries] {
 	return func(metric *aggregator.MetricSeries) (bool, error) {
@@ -386,9 +435,7 @@ func WithMetricValueLowerThan(maxValue float64) MatchOpt[*aggregator.MetricSerie
 	}
 }
 
-// WithMetricValueLowerThan filters metrics with values higher than `minValue`
-//
-//nolint:revive // TODO(APL) Fix revive linter
+// WithMetricValueHigherThan filters metrics with values higher than `minValue`
 func WithMetricValueHigherThan(minValue float64) MatchOpt[*aggregator.MetricSeries] {
 	return func(metric *aggregator.MetricSeries) (bool, error) {
 		for _, point := range metric.Points {
@@ -409,10 +456,8 @@ func (c *Client) getLog(service string) ([]*aggregator.Log, error) {
 	return c.logAggregator.GetPayloadsByName(service), nil
 }
 
-// GetLogNames fetches fakeintake on `/api/v2/logs` endpoint and returns
+// GetLogServiceNames fetches fakeintake on `/api/v2/logs` endpoint and returns
 // all received log service names
-//
-//nolint:revive // TODO(APL) Fix revive linter
 func (c *Client) GetLogServiceNames() ([]string, error) {
 	err := c.getLogs()
 	if err != nil {
@@ -485,10 +530,8 @@ func (c *Client) GetCheckRunNames() ([]string, error) {
 	return c.checkRunAggregator.GetNames(), nil
 }
 
-// FilterLogs fetches fakeintake on `/api/v1/check_run` endpoint, unpackage payloads and returns
+// GetCheckRun fetches fakeintake on `/api/v1/check_run` endpoint, unpackage payloads and returns
 // checks matching `name`
-//
-//nolint:revive // TODO(APL) Fix revive linter
 func (c *Client) GetCheckRun(name string) ([]*aggregator.CheckRun, error) {
 	err := c.getCheckRuns()
 	if err != nil {
@@ -509,6 +552,8 @@ func (c *Client) FlushServerAndResetAggregators() error {
 	c.connectionAggregator.Reset()
 	c.metricAggregator.Reset()
 	c.logAggregator.Reset()
+	c.apmStatsAggregator.Reset()
+	c.traceAggregator.Reset()
 	return nil
 }
 
@@ -700,6 +745,23 @@ func (c *Client) FilterSBOMs(id string, options ...MatchOpt[*aggregator.SBOMPayl
 	return filteredSBOMs, nil
 }
 
+// GetMetadata fetches fakeintake on `/api/v1/metadata` endpoint and returns a list of metadata payloads
+func (c *Client) GetMetadata() ([]*aggregator.MetadataPayload, error) {
+	payloads, err := c.getFakePayloads(metadataEndpoint)
+	if err != nil {
+		return nil, err
+	}
+	err = c.metadataAggregator.UnmarshallPayloads(payloads)
+	if err != nil {
+		return nil, err
+	}
+	metadata := make([]*aggregator.MetadataPayload, 0, len(c.metadataAggregator.GetNames()))
+	for _, name := range c.metadataAggregator.GetNames() {
+		metadata = append(metadata, c.metadataAggregator.GetPayloadsByName(name)...)
+	}
+	return metadata, nil
+}
+
 // GetOrchestratorResources fetches fakeintake on `/api/v2/orch` endpoint and returns
 // all received process payloads
 func (c *Client) GetOrchestratorResources(filter *PayloadFilter) ([]*aggregator.OrchestratorPayload, error) {
@@ -743,13 +805,36 @@ func (c *Client) get(route string) ([]byte, error) {
 	var body []byte
 	err := backoff.Retry(func() error {
 		tmpResp, err := http.Get(fmt.Sprintf("%s/%s", c.fakeIntakeURL, route))
+		if err, ok := err.(net.Error); ok && err.Timeout() {
+			panic("fakeintake call timed out")
+		}
 		if err != nil {
 			return err
 		}
+
 		defer tmpResp.Body.Close()
 		if tmpResp.StatusCode != http.StatusOK {
-			return fmt.Errorf("Expected %d got %d", http.StatusOK, tmpResp.StatusCode)
+			return fmt.Errorf("expected %d got %d", http.StatusOK, tmpResp.StatusCode)
 		}
+		// If strictFakeintakeIDCheck is enabled, we check that the fakeintake ID is the same as the one we expect
+		// If the fakeintake ID is not set yet we set the one we get from the first request
+		// If the fakeintake does not return its id in the header we do not check it
+		requestFakeintakeID := tmpResp.Header.Get(fakeintakeIDHeader)
+		if c.strictFakeintakeIDCheck && requestFakeintakeID != "" {
+			if c.fakeintakeID == "" {
+				c.fakeintakeIDMutex.Lock()
+				c.fakeintakeID = requestFakeintakeID
+				c.fakeintakeIDMutex.Unlock()
+			} else {
+				c.fakeintakeIDMutex.RLock()
+				currentFakeintakeID := c.fakeintakeID
+				c.fakeintakeIDMutex.RUnlock()
+				if currentFakeintakeID != requestFakeintakeID {
+					panic(fmt.Sprintf("expected fakeintakeID %s got %s: The fakeintake probably restarted during your test", currentFakeintakeID, requestFakeintakeID))
+				}
+			}
+		}
+
 		body, err = io.ReadAll(tmpResp.Body)
 		return err
 	}, backoff.WithMaxRetries(backoff.NewConstantBackOff(5*time.Second), 4))
@@ -805,4 +890,17 @@ func (c *Client) GetAPMStats() ([]*aggregator.APMStatsPayload, error) {
 		stats = append(stats, c.apmStatsAggregator.GetPayloadsByName(name)...)
 	}
 	return stats, nil
+}
+
+// GetNDMFlows fetches fakeintake on `/api/v2/ndmflows` endpoint and returns all received ndmflow payloads
+func (c *Client) GetNDMFlows() ([]*aggregator.NDMFlow, error) {
+	err := c.getNDMFlows()
+	if err != nil {
+		return nil, err
+	}
+	var ndmflows []*aggregator.NDMFlow
+	for _, name := range c.ndmflowAggregator.GetNames() {
+		ndmflows = append(ndmflows, c.ndmflowAggregator.GetPayloadsByName(name)...)
+	}
+	return ndmflows, nil
 }

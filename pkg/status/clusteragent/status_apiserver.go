@@ -5,36 +5,17 @@
 
 //go:build kubeapiserver
 
+// Package clusteragent fetch information about the cluster agent
 package clusteragent
 
 import (
 	"embed"
-	"fmt"
 	"io"
-	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/pkg/util/clusteragent"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection"
 )
-
-func getLeaderElectionDetails() map[string]string {
-	leaderElectionStats := make(map[string]string)
-
-	record, err := leaderelection.GetLeaderElectionRecord()
-	if err != nil {
-		leaderElectionStats["status"] = "Failing"
-		leaderElectionStats["error"] = err.Error()
-		return leaderElectionStats
-	}
-	leaderElectionStats["leaderName"] = record.HolderIdentity
-	leaderElectionStats["acquiredTime"] = record.AcquireTime.Format(time.RFC1123)
-	leaderElectionStats["renewedTime"] = record.RenewTime.Format(time.RFC1123)
-	leaderElectionStats["transitions"] = fmt.Sprintf("%d transitions", record.LeaderTransitions)
-	leaderElectionStats["status"] = "Running"
-	return leaderElectionStats
-}
 
 // GetDCAStatus collect the DCA agent information and return it in a map
 func GetDCAStatus(stats map[string]interface{}) {
@@ -48,24 +29,20 @@ func GetDCAStatus(stats map[string]interface{}) {
 	}
 	clusterAgentDetails["Endpoint"] = dcaCl.ClusterAgentAPIEndpoint()
 
-	ver, err := dcaCl.GetVersion()
-	if err != nil {
-		clusterAgentDetails["ConnectionError"] = err.Error()
-		return
-	}
+	ver := dcaCl.Version(true)
 	clusterAgentDetails["Version"] = ver.String()
 }
 
 // Provider provides the functionality to populate the status output
 type Provider struct{}
 
-// GetProvider if cluster agent is enabled returns status.Provider otherwise returns NoopProvider
+// GetProvider if cluster agent is enabled returns status.Provider otherwise returns nil
 func GetProvider(conf config.Component) status.Provider {
 	if conf.GetBool("cluster_agent.enabled") || conf.GetBool("cluster_checks.enabled") {
 		return Provider{}
 	}
 
-	return status.NoopProvider{}
+	return nil
 }
 
 //go:embed status_templates

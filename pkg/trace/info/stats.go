@@ -14,10 +14,10 @@ import (
 
 	"go.uber.org/atomic"
 
+	"github.com/DataDog/datadog-agent/pkg/trace/log"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 
-	"github.com/DataDog/datadog-agent/pkg/trace/log"
-	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
+	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
 // ReceiverStats is used to store all the stats per tags.
@@ -55,10 +55,10 @@ func (rs *ReceiverStats) Acc(recent *ReceiverStats) {
 }
 
 // PublishAndReset updates stats about per-tag stats
-func (rs *ReceiverStats) PublishAndReset() {
+func (rs *ReceiverStats) PublishAndReset(statsd statsd.ClientInterface) {
 	rs.RLock()
 	for _, tagStats := range rs.Stats {
-		tagStats.publishAndReset()
+		tagStats.publishAndReset(statsd)
 	}
 	rs.RUnlock()
 }
@@ -120,54 +120,54 @@ func (ts *TagStats) AsTags() []string {
 	return (&ts.Tags).toArray()
 }
 
-func (ts *TagStats) publishAndReset() {
+func (ts *TagStats) publishAndReset(statsd statsd.ClientInterface) {
 	// Atomically load and reset any metrics used multiple times from ts
 	tracesReceived := ts.TracesReceived.Swap(0)
 
 	// Publish the stats
 	tags := ts.Tags.toArray()
 
-	metrics.Count("datadog.trace_agent.receiver.trace", tracesReceived, tags, 1)
-	metrics.Count("datadog.trace_agent.receiver.traces_received", tracesReceived, tags, 1)
-	metrics.Count("datadog.trace_agent.receiver.traces_filtered",
+	_ = statsd.Count("datadog.trace_agent.receiver.trace", tracesReceived, tags, 1)
+	_ = statsd.Count("datadog.trace_agent.receiver.traces_received", tracesReceived, tags, 1)
+	_ = statsd.Count("datadog.trace_agent.receiver.traces_filtered",
 		ts.TracesFiltered.Swap(0), tags, 1)
-	metrics.Count("datadog.trace_agent.receiver.traces_priority",
+	_ = statsd.Count("datadog.trace_agent.receiver.traces_priority",
 		ts.TracesPriorityNone.Swap(0), append(tags, "priority:none"), 1)
-	metrics.Count("datadog.trace_agent.receiver.traces_bytes",
+	_ = statsd.Count("datadog.trace_agent.receiver.traces_bytes",
 		ts.TracesBytes.Swap(0), tags, 1)
-	metrics.Count("datadog.trace_agent.receiver.spans_received",
+	_ = statsd.Count("datadog.trace_agent.receiver.spans_received",
 		ts.SpansReceived.Swap(0), tags, 1)
-	metrics.Count("datadog.trace_agent.receiver.spans_dropped",
+	_ = statsd.Count("datadog.trace_agent.receiver.spans_dropped",
 		ts.SpansDropped.Swap(0), tags, 1)
-	metrics.Count("datadog.trace_agent.receiver.spans_filtered",
+	_ = statsd.Count("datadog.trace_agent.receiver.spans_filtered",
 		ts.SpansFiltered.Swap(0), tags, 1)
-	metrics.Count("datadog.trace_agent.receiver.events_extracted",
+	_ = statsd.Count("datadog.trace_agent.receiver.events_extracted",
 		ts.EventsExtracted.Swap(0), tags, 1)
-	metrics.Count("datadog.trace_agent.receiver.events_sampled",
+	_ = statsd.Count("datadog.trace_agent.receiver.events_sampled",
 		ts.EventsSampled.Swap(0), tags, 1)
-	metrics.Count("datadog.trace_agent.receiver.payload_accepted",
+	_ = statsd.Count("datadog.trace_agent.receiver.payload_accepted",
 		ts.PayloadAccepted.Swap(0), tags, 1)
-	metrics.Count("datadog.trace_agent.receiver.payload_refused",
+	_ = statsd.Count("datadog.trace_agent.receiver.payload_refused",
 		ts.PayloadRefused.Swap(0), tags, 1)
-	metrics.Count("datadog.trace_agent.receiver.client_dropped_p0_spans",
+	_ = statsd.Count("datadog.trace_agent.receiver.client_dropped_p0_spans",
 		ts.ClientDroppedP0Spans.Swap(0), tags, 1)
-	metrics.Count("datadog.trace_agent.receiver.client_dropped_p0_traces",
+	_ = statsd.Count("datadog.trace_agent.receiver.client_dropped_p0_traces",
 		ts.ClientDroppedP0Traces.Swap(0), tags, 1)
 
 	for reason, counter := range ts.TracesDropped.tagCounters() {
-		metrics.Count("datadog.trace_agent.normalizer.traces_dropped",
+		_ = statsd.Count("datadog.trace_agent.normalizer.traces_dropped",
 			counter.Swap(0), append(tags, "reason:"+reason), 1)
 	}
 
 	for reason, counter := range ts.SpansMalformed.tagCounters() {
-		metrics.Count("datadog.trace_agent.normalizer.spans_malformed",
+		_ = statsd.Count("datadog.trace_agent.normalizer.spans_malformed",
 			counter.Swap(0), append(tags, "reason:"+reason), 1)
 	}
 
 	for priority, counter := range ts.TracesPerSamplingPriority.tagCounters() {
 		count := counter.Swap(0)
 		if count > 0 {
-			metrics.Count("datadog.trace_agent.receiver.traces_priority",
+			_ = statsd.Count("datadog.trace_agent.receiver.traces_priority",
 				count, append(tags, "priority:"+priority), 1)
 		}
 	}
@@ -503,6 +503,7 @@ func (ts *TagStats) WarnString() string {
 type Tags struct {
 	Lang, LangVersion, LangVendor, Interpreter, TracerVersion string
 	EndpointVersion                                           string
+	Service                                                   string
 }
 
 // toArray will transform the Tags struct into a slice of string.
@@ -527,6 +528,9 @@ func (t *Tags) toArray() []string {
 	}
 	if t.EndpointVersion != "" {
 		tags = append(tags, "endpoint_version:"+t.EndpointVersion)
+	}
+	if t.Service != "" {
+		tags = append(tags, "service:"+t.Service)
 	}
 
 	return tags

@@ -16,12 +16,11 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
-	"github.com/DataDog/datadog-agent/pkg/compliance"
+	"github.com/DataDog/datadog-agent/comp/core/settings"
+	"github.com/DataDog/datadog-agent/comp/core/status"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	settingshttp "github.com/DataDog/datadog-agent/pkg/config/settings/http"
 	"github.com/DataDog/datadog-agent/pkg/flare"
-	secagent "github.com/DataDog/datadog-agent/pkg/security/agent"
-	"github.com/DataDog/datadog-agent/pkg/status"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -29,15 +28,17 @@ import (
 
 // Agent handles REST API calls
 type Agent struct {
-	runtimeAgent    *secagent.RuntimeSecurityAgent
-	complianceAgent *compliance.Agent
+	statusComponent status.Component
+	settings        settings.Component
+	wmeta           workloadmeta.Component
 }
 
 // NewAgent returns a new Agent
-func NewAgent(runtimeAgent *secagent.RuntimeSecurityAgent, complianceAgent *compliance.Agent) *Agent {
+func NewAgent(statusComponent status.Component, settings settings.Component, wmeta workloadmeta.Component) *Agent {
 	return &Agent{
-		runtimeAgent:    runtimeAgent,
-		complianceAgent: complianceAgent,
+		statusComponent: statusComponent,
+		settings:        settings,
+		wmeta:           wmeta,
 	}
 }
 
@@ -49,10 +50,30 @@ func (a *Agent) SetupHandlers(r *mux.Router) {
 	r.HandleFunc("/stop", a.stopAgent).Methods("POST")
 	r.HandleFunc("/status", a.getStatus).Methods("GET")
 	r.HandleFunc("/status/health", a.getHealth).Methods("GET")
-	r.HandleFunc("/config", settingshttp.Server.GetFullDatadogConfig("")).Methods("GET")
-	r.HandleFunc("/config/list-runtime", settingshttp.Server.ListConfigurable).Methods("GET")
-	r.HandleFunc("/config/{setting}", settingshttp.Server.GetValue).Methods("GET")
-	r.HandleFunc("/config/{setting}", settingshttp.Server.SetValue).Methods("POST")
+	r.HandleFunc("/config", a.settings.GetFullConfig("")).Methods("GET")
+	// FIXME: this returns the entire datadog.yaml and not just security-agent.yaml config
+	r.HandleFunc("/config/by-source", a.settings.GetFullConfigBySource()).Methods("GET")
+	r.HandleFunc("/config/list-runtime", a.settings.ListConfigurable).Methods("GET")
+	r.HandleFunc("/config/{setting}", a.settings.GetValue).Methods("GET")
+	r.HandleFunc("/config/{setting}", a.settings.SetValue).Methods("POST")
+	r.HandleFunc("/workload-list", func(w http.ResponseWriter, r *http.Request) {
+		verbose := r.URL.Query().Get("verbose") == "true"
+		workloadList(w, verbose, a.wmeta)
+	}).Methods("GET")
+}
+
+func workloadList(w http.ResponseWriter, verbose bool, wmeta workloadmeta.Component) {
+	response := wmeta.Dump(verbose)
+	jsonDump, err := json.Marshal(response)
+	if err != nil {
+		err := log.Errorf("Unable to marshal workload list response: %v", err)
+		w.Header().Set("Content-Type", "application/json")
+		body, _ := json.Marshal(map[string]string{"error": err.Error()})
+		http.Error(w, string(body), 500)
+		return
+	}
+
+	w.Write(jsonDump)
 }
 
 func (a *Agent) stopAgent(w http.ResponseWriter, _ *http.Request) {
@@ -83,9 +104,11 @@ func (a *Agent) getHostname(w http.ResponseWriter, r *http.Request) {
 	w.Write(j)
 }
 
-func (a *Agent) getStatus(w http.ResponseWriter, _ *http.Request) {
+func (a *Agent) getStatus(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
-	s, err := status.GetStatus(false, nil)
+	format := r.URL.Query().Get("format")
+
+	s, err := a.statusComponent.GetStatus(format, false)
 	if err != nil {
 		log.Errorf("Error getting status. Error: %v, Status: %v", err, s)
 		body, _ := json.Marshal(map[string]string{"error": err.Error()})
@@ -93,23 +116,7 @@ func (a *Agent) getStatus(w http.ResponseWriter, _ *http.Request) {
 		return
 	}
 
-	if a.runtimeAgent != nil {
-		s["runtimeSecurityStatus"] = a.runtimeAgent.GetStatus()
-	}
-
-	if a.complianceAgent != nil {
-		s["complianceStatus"] = a.complianceAgent.GetStatus()
-	}
-
-	jsonStats, err := json.Marshal(s)
-	if err != nil {
-		log.Errorf("Error marshalling status. Error: %v, Status: %v", err, s)
-		body, _ := json.Marshal(map[string]string{"error": err.Error()})
-		http.Error(w, string(body), 500)
-		return
-	}
-
-	w.Write(jsonStats)
+	w.Write(s)
 }
 
 func (a *Agent) getHealth(w http.ResponseWriter, _ *http.Request) {
@@ -133,18 +140,9 @@ func (a *Agent) getHealth(w http.ResponseWriter, _ *http.Request) {
 func (a *Agent) makeFlare(w http.ResponseWriter, _ *http.Request) {
 	log.Infof("Making a flare")
 	w.Header().Set("Content-Type", "application/json")
-	logFile := config.Datadog.GetString("security_agent.log_file")
+	logFile := config.Datadog().GetString("security_agent.log_file")
 
-	var runtimeAgentStatus, complianceStatus map[string]interface{}
-	if a.runtimeAgent != nil {
-		runtimeAgentStatus = a.runtimeAgent.GetStatus()
-	}
-
-	if a.complianceAgent != nil {
-		complianceStatus = a.complianceAgent.GetStatus()
-	}
-
-	filePath, err := flare.CreateSecurityAgentArchive(false, logFile, runtimeAgentStatus, complianceStatus)
+	filePath, err := flare.CreateSecurityAgentArchive(false, logFile, a.statusComponent)
 	if err != nil || filePath == "" {
 		if err != nil {
 			log.Errorf("The flare failed to be created: %s", err)

@@ -1,0 +1,231 @@
+# Security agent overrides
+upload_dependencies_secagent_x64:
+  needs: ["go_deps", "go_tools_deps"]
+  extends:
+    - .package_dependencies
+  rules: !reference [.on_security_agent_changes_or_manual]
+  variables:
+    ARCHIVE_NAME: dependencies-x86_64.tar.gz
+    ARCH: amd64
+    INSTANCE_TYPE: m5d.metal
+    TEST_COMPONENT: security-agent
+
+upload_dependencies_secagent_arm64:
+  needs: ["go_deps", "go_tools_deps"]
+  extends:
+    - .package_dependencies
+  rules: !reference [.on_security_agent_changes_or_manual]
+  variables:
+    ARCHIVE_NAME: dependencies-arm64.tar.gz
+    ARCH: arm64
+    INSTANCE_TYPE: m6gd.metal
+    TEST_COMPONENT: security-agent
+
+kmt_setup_env_secagent_arm64:
+  extends:
+    - .kmt_setup_env
+  rules: !reference [.on_security_agent_changes_or_manual]
+  variables:
+    INSTANCE_TYPE: "m6gd.metal"
+    INSTANCE_TYPE_ARG: "--instance-type-arm=$INSTANCE_TYPE"
+    ARCH: arm64
+    AMI_ID_ARG: "--arm-ami-id=$KERNEL_MATRIX_TESTING_ARM_AMI_ID"
+    LibvirtSSHKey: $CI_PROJECT_DIR/libvirt_rsa-arm
+    TEST_COMPONENT: security-agent
+    TEST_SETS: all_tests
+
+kmt_setup_env_secagent_x64:
+  extends:
+    - .kmt_setup_env
+  rules: !reference [.on_security_agent_changes_or_manual]
+  variables:
+    INSTANCE_TYPE: "m5d.metal"
+    INSTANCE_TYPE_ARG: "--instance-type-x86=$INSTANCE_TYPE"
+    ARCH: x86_64
+    AMI_ID_ARG: "--x86-ami-id=$KERNEL_MATRIX_TESTING_X86_AMI_ID"
+    LibvirtSSHKey: $CI_PROJECT_DIR/libvirt_rsa-x86
+    TEST_COMPONENT: security-agent
+    TEST_SETS: all_tests
+
+.upload_secagent_tests:
+  stage: kernel_matrix_testing_prepare
+  allow_failure: true
+  rules: !reference [.on_security_agent_changes_or_manual]
+  before_script:
+    - !reference [.retrieve_linux_go_deps]
+    - !reference [.kmt_new_profile]
+    - !reference [.write_ssh_key_file]
+  script:
+    # copy agent tests
+    - pushd $CI_PROJECT_DIR/kmt-deps/ci/$ARCH
+    - tar czvf $TEST_ARCHIVE_NAME opt
+    - popd
+    # upload tests
+    - !reference [.wait_for_instance]
+    - !reference [.get_instance_ip_by_type]
+    - !reference [.setup_ssh_config]
+    - scp $CI_PROJECT_DIR/kmt-deps/ci/$ARCH/$TEST_ARCHIVE_NAME metal_instance:/opt/kernel-version-testing/
+    # build connector
+    - pushd $CI_PROJECT_DIR/test/new-e2e
+    - go build -o $CI_PROJECT_DIR/connector-${ARCH} $CI_PROJECT_DIR/test/new-e2e/system-probe/connector/main.go
+    - popd
+    # upload connector to metal instance
+    - scp $CI_PROJECT_DIR/connector-${ARCH} metal_instance:/home/ubuntu/connector
+  variables:
+    AWS_EC2_SSH_KEY_FILE: $CI_PROJECT_DIR/ssh_key
+    TEST_COMPONENT: security-agent
+    TEST_ARCHIVE_NAME: tests-$ARCH.tar.gz
+  artifacts:
+    when: always
+    paths:
+      - $CI_PROJECT_DIR/connector-${ARCH}
+
+upload_secagent_tests_x64:
+  extends:
+    - .upload_secagent_tests
+  needs: ["go_deps", "prepare_secagent_ebpf_functional_tests_x64"]
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_x64$DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
+  tags: ["arch:amd64"]
+  variables:
+    ARCH: x86_64
+    INSTANCE_TYPE: m5d.metal
+
+upload_secagent_tests_arm64:
+  extends:
+    - .upload_secagent_tests
+  needs: ["go_deps", "prepare_secagent_ebpf_functional_tests_arm64"]
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_arm64$DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
+  tags: ["arch:arm64"]
+  variables:
+    ARCH: arm64
+    INSTANCE_TYPE: m6gd.metal
+
+.kmt_run_secagent_tests:
+  extends: .kmt_run_tests
+  allow_failure: true
+  stage: kernel_matrix_testing_security_agent
+  rules: !reference [.on_security_agent_changes_or_manual]
+  timeout: 1h 30m
+  variables:
+    TEST_COMPONENT: security-agent
+
+kmt_run_secagent_tests_x64:
+  extends:
+    - .kmt_run_secagent_tests
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_x64$DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
+  tags: ["arch:amd64"]
+  needs:
+    - kmt_setup_env_secagent_x64
+    - upload_dependencies_secagent_x64
+    - upload_secagent_tests_x64
+  variables:
+    ARCH: "x86_64"
+  parallel:
+    matrix:
+      - TAG:
+          - "ubuntu_18.04"
+          - "ubuntu_20.04"
+          - "ubuntu_22.04"
+          - "ubuntu_23.10"
+          - "ubuntu_24.04"
+          - "amazon_5.4"
+          - "amazon_5.10"
+          - "fedora_37"
+          - "fedora_38"
+          - "debian_10"
+          - "debian_11"
+          - "debian_12"
+          - "centos_7.9"
+          - "oracle_8.9"
+          - "oracle_9.3"
+          - "rocky_8.5"
+          - "rocky_9.3"
+          - "opensuse_15.3"
+          - "opensuse_15.5"
+          - "suse_12.5"
+        TEST_SET: [all_tests]
+  after_script:
+    - !reference [.collect_outcomes_kmt]
+    - !reference [.upload_junit_kmt]
+
+
+kmt_run_secagent_tests_arm64:
+  extends:
+    - .kmt_run_secagent_tests
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_arm64$DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
+  tags: ["arch:arm64"]
+  needs:
+    - kmt_setup_env_secagent_arm64
+    - upload_dependencies_secagent_arm64
+    - upload_secagent_tests_arm64
+  variables:
+    ARCH: "arm64"
+  parallel:
+    matrix:
+      - TAG:
+          - "ubuntu_22.04"
+          - "ubuntu_23.10"
+          - "ubuntu_24.04"
+          - "amazon_5.4"
+          - "amazon_5.10"
+          - "fedora_37"
+          - "fedora_38"
+          - "debian_11"
+          - "debian_12"
+          - "oracle_8.9"
+          - "oracle_9.3"
+          - "rocky_8.5"
+          - "rocky_9.3"
+          - "opensuse_15.3"
+          - "opensuse_15.5"
+        TEST_SET: ["all_tests"]
+  after_script:
+    - !reference [.collect_outcomes_kmt]
+
+.kmt_secagent_cleanup:
+  extends:
+    - .kmt_cleanup
+  rules: !reference [.on_security_agent_changes_or_manual]
+  variables:
+    TEST_COMPONENT: security-agent
+
+kmt_secagent_cleanup_arm64:
+  when: always
+  extends:
+    - .kmt_secagent_cleanup
+  needs:
+    - kmt_setup_env_secagent_arm64
+    - kmt_run_secagent_tests_arm64
+  variables:
+    ARCH: arm64
+    INSTANCE_TYPE: "m6gd.metal"
+
+kmt_secagent_cleanup_x64:
+  when: always
+  extends:
+    - .kmt_secagent_cleanup
+  needs:
+    - kmt_setup_env_secagent_x64
+    - kmt_run_secagent_tests_x64
+  variables:
+    ARCH: x86_64
+    INSTANCE_TYPE: "m5d.metal"
+
+# Manual cleanup jobs, these will be used to cleanup the instances after the tests
+# if the tests are canceled (e.g., by the auto-cancel-prev-pipelines job). The automatic jobs
+# will not run if the dependencies are canceled
+kmt_secagent_cleanup_arm64_manual:
+  extends:
+    - .kmt_secagent_cleanup
+    - .kmt_cleanup_manual
+  variables:
+    ARCH: arm64
+    INSTANCE_TYPE: "m6gd.metal"
+
+kmt_secagent_cleanup_x64_manual:
+  extends:
+    - .kmt_secagent_cleanup
+    - .kmt_cleanup_manual
+  variables:
+    ARCH: x86_64
+    INSTANCE_TYPE: "m5d.metal"

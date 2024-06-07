@@ -11,8 +11,6 @@ import (
 	"context"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
-
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes/fake"
@@ -37,13 +35,4 @@ func buildSecret(data map[string][]byte, cfg Config) *corev1.Secret {
 		},
 		Data: data,
 	}
-}
-
-func resetMockConfig(c *config.MockConfig) {
-	c.SetWithoutSource("admission_controller.mutate_unlabelled", false)
-	c.SetWithoutSource("admission_controller.inject_config.enabled", true)
-	c.SetWithoutSource("admission_controller.inject_tags.enabled", true)
-	c.SetWithoutSource("admission_controller.namespace_selector_fallback", false)
-	c.SetWithoutSource("admission_controller.add_aks_selectors", false)
-	c.SetWithoutSource("admission_controller.admission_controller.cws_instrumentation.enabled", false)
 }

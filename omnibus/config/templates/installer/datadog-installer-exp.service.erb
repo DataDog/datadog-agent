@@ -1,0 +1,19 @@
+[Unit]
+Description=Datadog Installer Experiment
+After=network.target
+OnFailure=datadog-installer.service
+Conflicts=datadog-installer.service
+JobTimeoutSec=3000 #50 minutes
+
+[Service]
+Type=oneshot
+PIDFile=/var/run/datadog-installer/installer.pid
+EnvironmentFile=-<%= etc_dir %>/environment
+ExecStart=<%= installer_dir %>/bin/installer/installer run -p /var/run/datadog-installer/installer.pid
+ExecStart=<%= installer_dir %>/bin/installer/installer run -p /var/run/datadog-installer/installer.pid
+ExecStart=<%= installer_dir %>/bin/installer/installer run -p /var/run/datadog-installer/installer.pid
+ExecStart=/bin/false
+ExecStop=/bin/false
+
+[Install]
+WantedBy=multi-user.target
