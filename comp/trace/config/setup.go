@@ -394,6 +394,7 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 		// enabled by default as well. This can be explicitly disabled with the agent config. Any changes
 		// to obfuscation options or defaults must be reflected in the public docs.
 		c.Obfuscation.ES.Enabled = true
+		c.Obfuscation.OpenSearch.Enabled = true
 		c.Obfuscation.Mongo.Enabled = true
 		c.Obfuscation.Memcached.Enabled = true
 		c.Obfuscation.Redis.Enabled = true
@@ -416,6 +417,15 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 		}
 		if coreconfig.Datadog().IsSet("apm_config.obfuscation.elasticsearch.obfuscate_sql_values") {
 			c.Obfuscation.ES.ObfuscateSQLValues = coreconfig.Datadog().GetStringSlice("apm_config.obfuscation.elasticsearch.obfuscate_sql_values")
+		}
+		if coreconfig.Datadog().IsSet("apm_config.obfuscation.opensearch.enabled") {
+			c.Obfuscation.ES.Enabled = coreconfig.Datadog().GetBool("apm_config.obfuscation.opensearch.enabled")
+		}
+		if coreconfig.Datadog().IsSet("apm_config.obfuscation.opensearch.keep_values") {
+			c.Obfuscation.ES.KeepValues = coreconfig.Datadog().GetStringSlice("apm_config.obfuscation.elasticsearch.keep_values")
+		}
+		if coreconfig.Datadog().IsSet("apm_config.obfuscation.opensearch.obfuscate_sql_values") {
+			c.Obfuscation.ES.ObfuscateSQLValues = coreconfig.Datadog().GetStringSlice("apm_config.obfuscation.opensearch.obfuscate_sql_values")
 		}
 		if coreconfig.Datadog().IsSet("apm_config.obfuscation.http.remove_query_string") {
 			c.Obfuscation.HTTP.RemoveQueryString = coreconfig.Datadog().GetBool("apm_config.obfuscation.http.remove_query_string")
