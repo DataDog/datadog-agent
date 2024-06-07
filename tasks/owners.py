@@ -38,9 +38,9 @@ def guess_responsible(_, issue_id):
     return owner
 
 
-def partitionate(names: list[str], owners_file: str, get_channels: bool = False) -> dict[str, set[str]]:
+def make_partition(names: list[str], owners_file: str, get_channels: bool = False) -> dict[str, set[str]]:
     """
-    From a list of names, will create a dictionary with the teams as keys and the names as values.
+    From a list of job / file names, will create a dictionary with the teams as keys and the names as values.
 
     - If get_channels, the teams will be replaced by team channels.
 
