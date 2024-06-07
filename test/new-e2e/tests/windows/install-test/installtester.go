@@ -267,8 +267,6 @@ func (t *Tester) testCurrentVersionExpectations(tt *testing.T) {
 		windows.MakeDownLevelLogonName(t.expectedUserDomain, t.expectedUserName),
 	)
 	require.NoError(tt, err)
-	everyoneIdentity, err := windows.GetIdentityForSID(t.host, "S-1-1-0")
-	require.NoError(tt, err)
 
 	// If install paths differ from default ensure the defaults don't exist
 	if t.expectedInstallPath != windowsAgent.DefaultInstallPath {
@@ -351,11 +349,11 @@ func (t *Tester) testCurrentVersionExpectations(tt *testing.T) {
 			}
 			// [7.47 - 7.50) added an ACE for Everyone, make sure it isn't there
 			expected := windows.NewExplicitAccessRule(
-				everyoneIdentity,
+				windows.Identity{SID: windows.EveryoneSID},
 				windows.SERVICE_ALL_ACCESS,
 				windows.AccessControlTypeAllow,
 			)
-			windows.AssertNotContainsEqualable(tt, security.Access, expected, "%s should not have access rule for %s", serviceName, everyoneIdentity)
+			windows.AssertNotContainsEqualable(tt, security.Access, expected, "%s should not have access rule for Everyone", serviceName)
 		}
 	})
 

@@ -19,6 +19,7 @@ import (
 const (
 	LocalSystemSID    = "S-1-5-18"
 	AdministratorsSID = "S-1-5-32-544"
+	EveryoneSID       = "S-1-1-0"
 )
 
 // Identity contains the name and SID of an identity (user or group)
