@@ -7,8 +7,8 @@ integration_tests_otel:
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
   script:
-    - inv check-otel-build
-    - inv check-otel-module-versions
+    - !reference [.install_pr_commenter]
+    - inv otel-integration-test
   rules: # this should only run on dev branches
     - if: $CI_PIPELINE_SOURCE =~ /^schedule.*$/
       when: never

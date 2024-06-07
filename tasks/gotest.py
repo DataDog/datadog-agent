@@ -981,3 +981,28 @@ def check_otel_module_versions(ctx):
                     raise Exit(
                         f"{mod_file} version {matches[0]} does not match upstream version: {OTEL_UPSTREAM_GO_VERSION}"
                     )
+
+@task
+def otel_integration_test(ctx):
+    failed = False
+    ctx.run('messagefile="$(mktemp)"')
+    try:
+        check_otel_build(ctx)
+    except Exit as err:
+        failed = True
+        ctx.run('echo "OpenTelemetry build failed:" >> "$messagefile"')
+        ctx.run('echo "```sh" >> "$messagefile"')
+        ctx.run(f'echo {err} >> "$messagefile"')
+        ctx.run('echo "```\n" >> "$messagefile"')
+    try:
+        check_otel_module_versions(ctx)
+    except Exit as err:
+        failed = True
+        ctx.run('echo "OpenTelemetry version check failed:" >> "$messagefile"')
+        ctx.run('echo "```sh" >> "$messagefile"')
+        ctx.run(f'echo {err} >> "$messagefile"')
+        ctx.run('echo "```" >> "$messagefile"')
+
+    if failed:
+        ctx.run('cat "$messagefile" | /usr/local/bin/pr-commenter --for-pr="$CI_COMMIT_REF_NAME" --header="OpenTelemetry integration test results"')
+        ctx.run('rm "$messagefile"')

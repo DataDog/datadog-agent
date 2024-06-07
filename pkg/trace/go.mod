@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent/pkg/trace
 
-go 1.21.0
+go 1.21.9
 
 // NOTE: Prefer using simple `require` directives instead of using `replace` if possible.
 // See https://github.com/DataDog/datadog-agent/blob/main/docs/dev/gomodreplace.md
@@ -10,6 +10,7 @@ go 1.21.0
 replace github.com/docker/distribution => github.com/docker/distribution v2.8.1+incompatible
 
 require (
+	github.com/DataDog/zstd v1.5.5
 	github.com/DataDog/datadog-agent/pkg/obfuscate v0.55.0-rc.2
 	github.com/DataDog/datadog-agent/pkg/proto v0.55.0-rc.2
 	github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.55.0-rc.2

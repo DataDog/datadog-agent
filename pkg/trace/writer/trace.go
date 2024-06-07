@@ -21,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/timing"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
+	_ "github.com/DataDog/zstd"
 )
 
 // pathTraces is the target host API path for delivering traces.
