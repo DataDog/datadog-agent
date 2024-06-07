@@ -21,7 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/timing"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
-	_ "github.com/DataDog/zstd"
+	"github.com/DataDog/zstd"
 )
 
 // pathTraces is the target host API path for delivering traces.
@@ -289,7 +289,7 @@ func (w *TraceWriter) serializer() {
 				headerLanguages:    strings.Join(info.Languages(), "|"),
 			})
 			p.body.Grow(len(b) / 2)
-			gzipw, err := gzip.NewWriterLevel(p.body, gzip.BestSpeed)
+			gzipw, err := gzip.NewWriterLevel(p.body, zstd.BestSpeed)
 			if err != nil {
 				// it will never happen, unless an invalid compression is chosen;
 				// we know gzip.BestSpeed is valid.

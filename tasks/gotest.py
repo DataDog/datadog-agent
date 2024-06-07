@@ -991,12 +991,12 @@ def otel_integration_test(ctx):
         check_otel_build(ctx)
     except Exit as err:
         failed = True
-        message += f'\nOpenTelemetry build failed:\n{err}'
+        message += f'\nOpenTelemetry build failed:\n~~~\n{err}~~~\n'
     try:
         check_otel_module_versions(ctx)
     except Exit as err:
         failed = True
-        message += f'\nOpenTelemetry version check failed:\n{err}'
+        message += f'\nOpenTelemetry version check failed:\n~~~\n{err}\n~~~\n'
 
     if failed:
         ctx.run(
