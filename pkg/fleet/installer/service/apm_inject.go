@@ -143,7 +143,7 @@ func (a *apmInjectorInstaller) Setup(ctx context.Context) error {
 		return fmt.Errorf("error changing permissions on /var/log/datadog/dotnet: %w", err)
 	}
 
-	err = a.overrideOldInstallScripts(ctx)
+	err = a.overridePreviousInstallScripts(ctx)
 	if err != nil {
 		return fmt.Errorf("error overriding old install scripts: %w", err)
 	}
@@ -276,14 +276,14 @@ func (a *apmInjectorInstaller) verifySharedLib(ctx context.Context, libPath stri
 	return nil
 }
 
-// overrideOldInstallScripts overrides the old install scripts that are installed
+// overridePreviousInstallScripts overrides the old install scripts that are installed
 // with the deb/rpm version of the installer
 // These scripts are either:
 // - Referenced in our public documentation, so we override them to use installer commands for consistency
 // - Used on deb/rpm removal and may break the OCI in the process
-func (a *apmInjectorInstaller) overrideOldInstallScripts(ctx context.Context) (err error) {
-	span, _ := tracer.StartSpanFromContext(ctx, "override_deb_install_scripts")
-	defer span.Finish(tracer.WithError(err))
+func (a *apmInjectorInstaller) overridePreviousInstallScripts(ctx context.Context) (err error) {
+	span, _ := tracer.StartSpanFromContext(ctx, "override_previous_install_scripts")
+	defer func() { span.Finish(tracer.WithError(err)) }()
 
 	oldInstallScripts := []string{
 		"dd-host-install",
@@ -293,25 +293,26 @@ func (a *apmInjectorInstaller) overrideOldInstallScripts(ctx context.Context) (e
 
 	for _, script := range oldInstallScripts {
 		path := filepath.Join("/usr/bin", script)
+		mutator := newFileMutator(
+			path,
+			func(_ context.Context, _ []byte) ([]byte, error) {
+				return embedded.FS.ReadFile(script)
+			},
+			nil, nil,
+		)
 		_, err = os.Stat(path)
 		if err == nil {
-			var content []byte
-			content, err = embedded.FS.ReadFile(script)
+			a.cleanups = append(a.cleanups, mutator.cleanup)
+			rollback, err := mutator.mutate(ctx)
 			if err != nil {
-				err = fmt.Errorf("failed to read embedded %s: %w", script, err)
-				return err
+				return fmt.Errorf("failed to override %s: %w", script, err)
 			}
-			err = os.WriteFile(path, content, 0755)
-			if err != nil {
-				err = fmt.Errorf("failed to write %s: %w", script, err)
-				return err
-			}
+			a.rollbacks = append(a.rollbacks, rollback)
 		} else if err != nil && !os.IsNotExist(err) {
 			err = fmt.Errorf("failed to check if %s exists on disk: %w", script, err)
 			return err
 		}
 	}
-
 	return nil
 }
 
