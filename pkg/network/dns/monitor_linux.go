@@ -9,6 +9,7 @@ package dns
 
 import (
 	"fmt"
+	"math"
 
 	"github.com/vishvananda/netns"
 
@@ -19,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	filterpkg "github.com/DataDog/datadog-agent/pkg/network/filter"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 type dnsMonitor struct {
@@ -48,8 +50,16 @@ func NewReverseDNS(cfg *config.Config) (ReverseDNS, error) {
 		return nil, err
 	}
 
+	currKernelVersion, err := kernel.HostVersion()
+	if err != nil {
+		// if the platform couldn't be determined, treat it as new kernel case
+		log.Warn("could not detect the platform, will use kprobes from kernel version >= 4.1.0")
+		currKernelVersion = math.MaxUint32
+	}
+	pre410Kernel := currKernelVersion < kernel.VersionCode(4, 1, 0)
+
 	var p *ebpfProgram
-	if !kernel.IsEbpfSupported() {
+	if pre410Kernel || cfg.EnableEbpfless {
 		if bpfFilter, err := generateBPFFilter(cfg); err != nil {
 			return nil, fmt.Errorf("error creating bpf classic filter: %w", err)
 		} else if err = packetSrc.SetBPF(bpfFilter); err != nil {

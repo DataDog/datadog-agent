@@ -35,7 +35,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/kprobe"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
-	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -129,10 +128,6 @@ type ebpfTracer struct {
 
 // NewTracer creates a new tracer
 func newEbpfTracer(config *config.Config) (Tracer, error) {
-	if !kernel.IsEbpfSupported() {
-		return nil, ErrEbpfTracerNotSupported
-	}
-
 	mgrOptions := manager.Options{
 		// Extend RLIMIT_MEMLOCK (8) size
 		// On some systems, the default for RLIMIT_MEMLOCK may be as low as 64 bytes.

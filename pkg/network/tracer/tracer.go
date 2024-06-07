@@ -245,7 +245,7 @@ func newConntracker(cfg *config.Config) (netlink.Conntracker, error) {
 	var c netlink.Conntracker
 	var err error
 
-	if kernel.IsEbpfSupported() {
+	if !cfg.EnableEbpfless {
 		ns, err := cfg.GetRootNetNs()
 		if err != nil {
 			log.Warnf("error fetching root net namespace, will not attempt to load nf_conntrack_netlink module: %s", err)
