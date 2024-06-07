@@ -454,27 +454,61 @@ func (t *Tester) testInstalledFilePermissions(tt *testing.T, ddAgentUserIdentity
 			name: "ConfigRoot",
 			path: t.expectedConfigRoot,
 			expectedSecurity: func(tt *testing.T) windows.ObjectSecurity {
-				s, err := getExpectedConfigRootSecurityWithAgent(ddAgentUserIdentity)
+				expected, err := getBaseConfigRootSecurity()
 				require.NoError(tt, err)
-				return s
+				if windows.IsIdentityLocalSystem(ddAgentUserIdentity) {
+					return expected
+				}
+				expected.Access = append(expected.Access,
+					windows.NewExplicitAccessRuleWithFlags(
+						ddAgentUserIdentity,
+						windows.FileFullControl,
+						windows.AccessControlTypeAllow,
+						windows.InheritanceFlagsContainer|windows.InheritanceFlagsObject,
+						windows.PropagationFlagsNone,
+					),
+				)
+				return expected
 			},
 		},
 		{
 			name: "datadog.yaml",
 			path: filepath.Join(t.expectedConfigRoot, "datadog.yaml"),
 			expectedSecurity: func(tt *testing.T) windows.ObjectSecurity {
-				s, err := getExpectedInheritedConfigFileSecurityWithAgent(ddAgentUserIdentity)
+				expected, err := getBaseInheritedConfigFileSecurity()
 				require.NoError(tt, err)
-				return s
+				if windows.IsIdentityLocalSystem(ddAgentUserIdentity) {
+					return expected
+				}
+				expected.Access = append(expected.Access,
+					windows.NewInheritedAccessRule(
+						ddAgentUserIdentity,
+						windows.FileFullControl,
+						windows.AccessControlTypeAllow,
+					),
+				)
+				return expected
 			},
 		},
 		{
 			name: "conf.d",
 			path: filepath.Join(t.expectedConfigRoot, "conf.d"),
 			expectedSecurity: func(tt *testing.T) windows.ObjectSecurity {
-				s, err := getExpectedInheritedConfigDirSecurityWithAgent(ddAgentUserIdentity)
+				expected, err := getBaseInheritedConfigDirSecurity()
 				require.NoError(tt, err)
-				return s
+				if windows.IsIdentityLocalSystem(ddAgentUserIdentity) {
+					return expected
+				}
+				expected.Access = append(expected.Access,
+					windows.NewInheritedAccessRuleWithFlags(
+						ddAgentUserIdentity,
+						windows.FileFullControl,
+						windows.AccessControlTypeAllow,
+						windows.InheritanceFlagsContainer|windows.InheritanceFlagsObject,
+						windows.PropagationFlagsNone,
+					),
+				)
+				return expected
 			},
 		},
 	}
