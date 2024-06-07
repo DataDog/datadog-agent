@@ -412,7 +412,7 @@ func AssertEqualAccessSecurity(t *testing.T, path string, expected, actual Objec
 	t.Helper()
 
 	AssertEqualableElementsMatch(t, expected.Access, actual.Access, "%s access rules should match", path)
-	assert.Equal(t, expected.Owner, actual.Owner, "%s owner should match", path)
-	assert.Equal(t, expected.Group, actual.Group, "%s group should match", path)
+	assert.True(t, expected.Owner.Equal(actual.Owner), "%s owner %s should match %s", path, actual.Owner, expected.Owner)
+	assert.True(t, expected.Group.Equal(actual.Group), "%s group %s should match %s", path, actual.Group, expected.Group)
 	assert.Equal(t, expected.AreAccessRulesProtected, actual.AreAccessRulesProtected, "%s access rules protection should match", path)
 }
