@@ -60,20 +60,22 @@ notify_github:
   stage: notify
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/docker_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
-  rules:
-    - !reference [.except_mergequeue]
-    - !reference [.except_main_or_release_branch]
-    - !reference [.except_no_tests_no_deploy]
-    - if: $RELEASE_VERSION_7 != ""
-      changes:
-        paths:
-          - '**/*.go'
-        compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
-      when: on_success
-    - when: never
-  needs:
-    - job: "deploy_deb_testing-a7_x64"
-      optional: true
+  # TODO
+  # rules:
+  #   - !reference [.except_mergequeue]
+  #   - !reference [.except_main_or_release_branch]
+  #   - !reference [.except_no_tests_no_deploy]
+  #   - if: $RELEASE_VERSION_7 != ""
+  #     changes:
+  #       paths:
+  #         - '**/*.go'
+  #       compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
+  #     when: on_success
+  #   - when: never
+  needs: []
+  # needs:
+  #   - job: "deploy_deb_testing-a7_x64"
+  #     optional: true
   dependencies: []
   allow_failure: true
   script:
@@ -84,5 +86,6 @@ notify_github:
     - echo '```sh' >> "$messagefile"
     - echo "inv create-vm --pipeline-id=$CI_PIPELINE_ID --os-family=ubuntu" >> "$messagefile"
     - echo '```' >> "$messagefile"
+    - 'echo "Note: This applies to commit **$CI_COMMIT_SHORT_SHA**" >> "$messagefile"'
     - cat "$messagefile" | /usr/local/bin/pr-commenter --for-pr="$CI_COMMIT_REF_NAME" --header="Test changes on VM"
     - rm "$messagefile"
