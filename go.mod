@@ -269,7 +269,7 @@ require (
 	go.mongodb.org/mongo-driver v1.15.0
 	go.opentelemetry.io/collector v0.100.0 // indirect
 	go.opentelemetry.io/collector/component v0.100.0
-	go.opentelemetry.io/collector/confmap v0.100.0
+	go.opentelemetry.io/collector/confmap v0.101.0
 	go.opentelemetry.io/collector/exporter v0.100.0
 	go.opentelemetry.io/collector/exporter/loggingexporter v0.100.0
 	go.opentelemetry.io/collector/exporter/otlpexporter v0.100.0
@@ -712,7 +712,7 @@ require (
 	github.com/valyala/fastjson v1.6.4
 	github.com/vibrantbyte/go-antpath v1.1.1
 	go.opentelemetry.io/collector/confmap/converter/expandconverter v0.100.0
-	go.opentelemetry.io/collector/confmap/provider/envprovider v0.100.0
+	go.opentelemetry.io/collector/confmap/provider/envprovider v0.101.0
 	go.opentelemetry.io/collector/confmap/provider/fileprovider v0.100.0
 	go.opentelemetry.io/collector/confmap/provider/httpprovider v0.100.0
 	go.opentelemetry.io/collector/confmap/provider/httpsprovider v0.100.0
