@@ -957,7 +957,7 @@ def tag_devel(ctx, agent_version, commit="HEAD", verify=True, push=True, force=F
 
 
 def current_version(ctx, major_version) -> Version:
-    return _create_version_from_match(VERSION_RE.search(get_version(ctx, major_version=major_version)))
+    return _create_version_from_match(VERSION_RE.search(get_version(ctx, major_version=major_version, release=True)))
 
 
 def next_final_version(ctx, major_version, patch_version) -> Version:
@@ -1184,8 +1184,6 @@ def create_rc(ctx, major_versions="6,7", patch_version=False, upstream="origin",
 
     list_major_versions = parse_major_versions(major_versions)
 
-    # Set this env variable to filter out the custom tags that could interfere with version computation
-    os.environ["RELEASE_CONTEXT"] = "true"
     # Get the version of the highest major: useful for some logging & to get
     # the version to use for Go submodules updates
     new_highest_version = next_rc_version(ctx, max(list_major_versions), patch_version)
@@ -1358,8 +1356,6 @@ def build_rc(ctx, major_versions="6,7", patch_version=False, k8s_deployments=Fal
     datadog_agent = get_gitlab_repo()
     list_major_versions = parse_major_versions(major_versions)
 
-    # Set this env variable to filter out the custom tags that could interfere with version computation
-    os.environ["RELEASE_CONTEXT"] = "true"
     # Get the version of the highest major: needed for tag_version and to know
     # which tag to target when creating the pipeline.
     new_version = next_rc_version(ctx, max(list_major_versions), patch_version)

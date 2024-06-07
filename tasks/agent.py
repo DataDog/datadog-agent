@@ -751,10 +751,6 @@ def version(
     if cache_version:
         create_version_json(ctx, git_sha_length=git_sha_length)
 
-    if release:
-        # Set this environment variable to filter out custom tags that could interfere with the version computation
-        os.environ['RELEASE_CONTEXT'] = 'true'
-
     version = get_version(
         ctx,
         include_git=include_git,
@@ -764,6 +760,7 @@ def version(
         include_pipeline_id=True,
         pipeline_id=pipeline_id,
         include_pre=include_pre,
+        release=release,
     )
     if omnibus_format:
         # See: https://github.com/DataDog/omnibus-ruby/blob/datadog-5.5.0/lib/omnibus/packagers/deb.rb#L599
