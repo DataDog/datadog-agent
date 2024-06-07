@@ -419,13 +419,13 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 			c.Obfuscation.ES.ObfuscateSQLValues = coreconfig.Datadog().GetStringSlice("apm_config.obfuscation.elasticsearch.obfuscate_sql_values")
 		}
 		if coreconfig.Datadog().IsSet("apm_config.obfuscation.opensearch.enabled") {
-			c.Obfuscation.ES.Enabled = coreconfig.Datadog().GetBool("apm_config.obfuscation.opensearch.enabled")
+			c.Obfuscation.OpenSearch.Enabled = coreconfig.Datadog().GetBool("apm_config.obfuscation.opensearch.enabled")
 		}
 		if coreconfig.Datadog().IsSet("apm_config.obfuscation.opensearch.keep_values") {
-			c.Obfuscation.ES.KeepValues = coreconfig.Datadog().GetStringSlice("apm_config.obfuscation.elasticsearch.keep_values")
+			c.Obfuscation.OpenSearch.KeepValues = coreconfig.Datadog().GetStringSlice("apm_config.obfuscation.opensearch.keep_values")
 		}
 		if coreconfig.Datadog().IsSet("apm_config.obfuscation.opensearch.obfuscate_sql_values") {
-			c.Obfuscation.ES.ObfuscateSQLValues = coreconfig.Datadog().GetStringSlice("apm_config.obfuscation.opensearch.obfuscate_sql_values")
+			c.Obfuscation.OpenSearch.ObfuscateSQLValues = coreconfig.Datadog().GetStringSlice("apm_config.obfuscation.opensearch.obfuscate_sql_values")
 		}
 		if coreconfig.Datadog().IsSet("apm_config.obfuscation.http.remove_query_string") {
 			c.Obfuscation.HTTP.RemoveQueryString = coreconfig.Datadog().GetBool("apm_config.obfuscation.http.remove_query_string")
