@@ -1,34 +1,28 @@
 ${COPYRIGHT_HEADER}
 
-package ${COMPONENT_NAME}impl
+// Package impl implements the ${COMPONENT_NAME} component interface
+package impl
 
 import (
-	"go.uber.org/fx"
-	
-	"github.com/DataDog/datadog-agent/${COMPONENT_PATH}"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	${COMPONENT_NAME} "github.com/DataDog/datadog-agent/${COMPONENT_PATH}/def"
+	compdef "github.com/DataDog/datadog-agent/comp/def"
 )
 
-type dependencies struct {
-	fx.In
-	
-	// populate the component dependencies
+// Requires defines the dependencies for the ${COMPONENT_NAME} component
+type Requires struct {
+	// Remove this field if the component has no lifecycle hooks
+	Lifecycle compdef.Lifecycle
 }
 
-type provides struct {
-	fx.Out
-
+// Provides defines the output of the ${COMPONENT_NAME} component
+type Provides struct {
 	Comp ${COMPONENT_NAME}.Component
 }
 
-// Module defines the fx options for this component.
-func Module() fxutil.Module {
-	return fxutil.Component(
-		fx.Provide(new${CAPITALIZED_COMPONENT_NAME}),
-	)
-}
-
-func new${CAPITALIZED_COMPONENT_NAME}(deps dependencies) provides {
-  // Component initialization
-	return provides{}
+// NewComponent creates a new ${COMPONENT_NAME} component
+func NewComponent(reqs Requires) (Provides, error) {
+	// TODO: Implement the ${COMPONENT_NAME} component
+	
+	provides := Provides{}
+	return provides, nil
 }

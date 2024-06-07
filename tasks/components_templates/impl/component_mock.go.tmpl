@@ -2,22 +2,16 @@ ${COPYRIGHT_HEADER}
 
 //go:build test
 
-package ${COMPONENT_NAME}impl
+package impl
 
 import (
-	"go.uber.org/fx"
-
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"testing"
+	
+	${COMPONENT_NAME} "github.com/DataDog/datadog-agent/${COMPONENT_PATH}/def"
 )
 
-// MockModule defines the fx options for the mock component.
-func MockModule() fxutil.Module {
-	return fxutil.Component(
-		fx.Provide(newMock),
-	)
-}
-
-func newMock(deps dependencies) provides {
-  // Mock initialization
-	return provides{}
+// Mock returns a mock for ${COMPONENT_NAME} component.
+func Mock(t *testing.T) ${COMPONENT_NAME}.Component {
+	// TODO: Implement the ${COMPONENT_NAME} mock
+	return nil
 }
