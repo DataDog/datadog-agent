@@ -72,13 +72,13 @@ from tasks.go import (
 from tasks.gotest import (
     check_otel_build,
     check_otel_module_versions,
-    otel_integration_test,
     codecov,
     e2e_tests,
     get_impacted_packages,
     get_modified_packages,
     integration_tests,
     lint_go,
+    otel_integration_test,
     send_unit_tests_stats,
     test,
 )
