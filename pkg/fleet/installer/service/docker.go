@@ -139,7 +139,7 @@ func (a *apmInjectorInstaller) deleteDockerConfigContent(_ context.Context, prev
 // This method is valid since at least Docker 17.03 (last update 2018-08-30)
 func (a *apmInjectorInstaller) verifyDockerRuntime(ctx context.Context) (err error) {
 	span, _ := tracer.StartSpanFromContext(ctx, "verify_docker_runtime")
-	defer span.Finish(tracer.WithError(err))
+	defer func() { span.Finish(tracer.WithError(err)) }()
 	for i := 0; i < 3; i++ {
 		if i > 0 {
 			time.Sleep(time.Second)
@@ -165,7 +165,7 @@ func (a *apmInjectorInstaller) verifyDockerRuntime(ctx context.Context) (err err
 
 func reloadDockerConfig(ctx context.Context) (err error) {
 	span, _ := tracer.StartSpanFromContext(ctx, "reload_docker")
-	defer span.Finish(tracer.WithError(err))
+	defer func() { span.Finish(tracer.WithError(err)) }()
 	return exec.CommandContext(ctx, "systemctl", "reload", "docker").Run()
 }
 
