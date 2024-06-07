@@ -134,7 +134,7 @@ func (c *Check) Run() error {
 	defer log.Infof("Shutting down long-running check %q", c.ID())
 
 	filter := workloadmeta.NewFilterBuilder().
-		SetEventType(workloadmeta.EventTypeSet).
+		SetEventType(workloadmeta.EventTypeSet). // We don’t care about images removal because we just have to wait for them to expire on BE side once we stopped refreshing them periodically.
 		AddKind(workloadmeta.KindContainerImageMetadata).
 		Build()
 

@@ -9,18 +9,20 @@ package workloadmeta
 //
 // Given an entity instance, it returns true if the object should be
 // included in the output, and false if it should be filtered out.
-type EntityFilterFunc func(*Entity) bool
+type EntityFilterFunc[T Entity] func(T) bool
+
+type GenericEntityFilterFunc EntityFilterFunc[Entity]
 
 // EntityFilterFuncAcceptAll is an entity filter function that accepts
 // any entity.
-func EntityFilterFuncAcceptAll(_ *Entity) bool { return true }
+func EntityFilterFuncAcceptAll(_ Entity) bool { return true }
 
 // Filter allows a subscriber to filter events by entity kind, event source, and
 // event type.
 //
 // A nil filter matches all events.
 type Filter struct {
-	kinds     map[Kind]EntityFilterFunc
+	kinds     map[Kind]GenericEntityFilterFunc
 	source    Source
 	eventType EventType
 }
@@ -52,7 +54,7 @@ func NewFilterBuilder() *FilterBuilder {
 		filter: &Filter{
 			source:    SourceAll,
 			eventType: EventTypeAll,
-			kinds:     map[Kind]EntityFilterFunc{},
+			kinds:     map[Kind]GenericEntityFilterFunc{},
 		},
 	}
 }
@@ -71,7 +73,7 @@ func (fb *FilterBuilder) AddKind(kind Kind) *FilterBuilder {
 
 // AddKindWithEntityFilter adds an entity kind with an associated entity filter function.
 // The built filter will match all entities of the added kind for which the entity filter function returns true.
-func (fb *FilterBuilder) AddKindWithEntityFilter(kind Kind, entityFilterFunc EntityFilterFunc) *FilterBuilder {
+func (fb *FilterBuilder) AddKindWithEntityFilter(kind Kind, entityFilterFunc GenericEntityFilterFunc) *FilterBuilder {
 	fb.filter.kinds[kind] = entityFilterFunc
 	return fb
 }
@@ -91,7 +93,7 @@ func (fb *FilterBuilder) SetEventType(eventType EventType) *FilterBuilder {
 // MatchEntity returns true if the filter matches the passed entity.
 // If the filter is nil, or has no kinds, it always matches.
 func (f *Filter) MatchEntity(entity *Entity) bool {
-	if f == nil || len(f.kinds) == 0 {
+	if len(f.Kinds()) == 0 {
 		return true
 	}
 
@@ -102,7 +104,7 @@ func (f *Filter) MatchEntity(entity *Entity) bool {
 	entityKind := (*entity).GetID().Kind
 
 	if entityFilterFunc, found := f.kinds[entityKind]; found {
-		return entityFilterFunc(entity)
+		return entityFilterFunc(*entity)
 	}
 
 	return false
@@ -123,7 +125,7 @@ func (f *Filter) MatchEventType(eventType EventType) bool {
 // MatchKind returns false if the filter can never match entities
 // of the specified kind.
 func (f *Filter) MatchKind(kind Kind) bool {
-	if f == nil || len(f.kinds) == 0 {
+	if len(f.Kinds()) == 0 {
 		return true
 	}
 

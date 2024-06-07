@@ -202,7 +202,7 @@ func (w *workloadmeta) ListContainers() []*wmdef.Container {
 }
 
 // ListContainersWithFilter implements Store#ListContainersWithFilter
-func (w *workloadmeta) ListContainersWithFilter(filter wmdef.ContainerFilterFunc) []*wmdef.Container {
+func (w *workloadmeta) ListContainersWithFilter(filter wmdef.EntityFilterFunc[*wmdef.Container]) []*wmdef.Container {
 	entities := w.listEntitiesByKind(wmdef.KindContainer)
 
 	// Not very efficient
@@ -271,7 +271,7 @@ func (w *workloadmeta) ListProcesses() []*wmdef.Process {
 }
 
 // ListProcessesWithFilter implements Store#ListProcessesWithFilter
-func (w *workloadmeta) ListProcessesWithFilter(filter wmdef.ProcessFilterFunc) []*wmdef.Process {
+func (w *workloadmeta) ListProcessesWithFilter(filter wmdef.EntityFilterFunc[*wmdef.Process]) []*wmdef.Process {
 	entities := w.listEntitiesByKind(wmdef.KindProcess)
 
 	processes := make([]*wmdef.Process, 0, len(entities))
