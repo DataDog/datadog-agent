@@ -248,7 +248,7 @@ func getExpectedConfigRootSecurityWithAgent(ddAgentUserIdentity windows.Identity
 	return expected, nil
 }
 
-// getBaseConfigFileSecurity returns the base security settings for a config file that inherits permissions from the config root
+// getBaseInheritedConfigFileSecurity returns the base security settings for a config file that inherits permissions from the config root
 //   - (inherited) SYSTEM full control, owner and group
 //   - (inherited) Administrators full control
 func getBaseInheritedConfigFileSecurity() (windows.ObjectSecurity, error) {
@@ -271,7 +271,7 @@ func getBaseInheritedConfigFileSecurity() (windows.ObjectSecurity, error) {
 	), nil
 }
 
-// getExpectedConfigFileSecurityWithAgent adds a rule for the agent user to getBaseConfigFileSecurity
+// getExpectedInheritedConfigFileSecurityWithAgent adds a rule for the agent user to getBaseInheritedConfigFileSecurity
 //   - (inherited) ddagentuser full control
 func getExpectedInheritedConfigFileSecurityWithAgent(ddAgentUserIdentity windows.Identity) (windows.ObjectSecurity, error) {
 	expected, err := getBaseInheritedConfigFileSecurity()
@@ -291,7 +291,7 @@ func getExpectedInheritedConfigFileSecurityWithAgent(ddAgentUserIdentity windows
 	return expected, nil
 }
 
-// getBaseConfigDirSecurity returns the base security settings for a config dir that inherits permissions from the config root
+// getBaseInheritedConfigDirSecurity returns the base security settings for a config dir that inherits permissions from the config root
 //   - (inherited) SYSTEM full control, owner and group
 //   - (inherited) Administrators full control
 func getBaseInheritedConfigDirSecurity() (windows.ObjectSecurity, error) {
@@ -318,7 +318,7 @@ func getBaseInheritedConfigDirSecurity() (windows.ObjectSecurity, error) {
 	), nil
 }
 
-// getExpectedConfigDirSecurityWithAgent adds a rule for the agent user to getBaseConfigDirSecurity
+// getExpectedInheritedConfigDirSecurityWithAgent adds a rule for the agent user to getBaseInheritedConfigDirSecurity
 //   - (inherited) ddagentuser full control
 func getExpectedInheritedConfigDirSecurityWithAgent(ddAgentUserIdentity windows.Identity) (windows.ObjectSecurity, error) {
 	expected, err := getBaseInheritedConfigDirSecurity()
