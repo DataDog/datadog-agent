@@ -243,8 +243,12 @@ func (d *Destination) sendAndRetry(payload *message.Payload, output chan *messag
 
 		if d.serverlessFlushChan != nil && !d.shouldRetry {
 			// Serverless should not retry but will attempt to sync an on-demand flush with when a payload is sent
-			serverlessWg := <-d.serverlessFlushChan
-			defer serverlessWg.Done()
+			select {
+			case serverlessWg := <-d.serverlessFlushChan:
+				defer serverlessWg.Done()
+			case <-time.After(5 * time.Second):
+				log.Debug("Timed out waiting for a flush from the serverless flush channel")
+			}
 		}
 
 		err := d.unconditionalSend(payload)
