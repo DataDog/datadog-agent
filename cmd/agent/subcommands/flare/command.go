@@ -340,6 +340,14 @@ func makeFlare(flareComp flare.Component,
 		return err
 	}
 
+	if streamLogParams.Duration > 0 {
+		fmt.Fprintln(color.Output, color.GreenString((fmt.Sprintf("Asking the agent to stream logs for %s", streamLogParams.Duration))))
+		err := streamlogs.StreamLogs(lc, config, &streamLogParams)
+		if err != nil {
+			fmt.Fprintln(color.Output, color.RedString(fmt.Sprintf("Error streaming logs: %s", err)))
+		}
+	}
+
 	var filePath string
 	if cliParams.forceLocal {
 		filePath, err = createArchive(flareComp, profile, nil)
@@ -355,14 +363,6 @@ func makeFlare(flareComp flare.Component,
 		fmt.Fprintln(color.Output, color.RedString(fmt.Sprintf("The flare zipfile \"%s\" does not exist.", filePath)))
 		fmt.Fprintln(color.Output, color.RedString("If the agent running in a different container try the '--local' option to generate the flare locally"))
 		return err
-	}
-
-	if streamLogParams.Duration > 0 {
-		fmt.Fprintln(color.Output, color.GreenString((fmt.Sprintf("Asking the agent to stream logs for %s", streamLogParams.Duration))))
-		err := streamlogs.StreamLogs(lc, config, &streamLogParams)
-		if err != nil {
-			fmt.Fprintln(color.Output, color.RedString(fmt.Sprintf("Error streaming logs: %s", err)))
-		}
 	}
 
 	fmt.Fprintf(color.Output, "%s is going to be uploaded to Datadog\n", color.YellowString(filePath))
