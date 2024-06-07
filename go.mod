@@ -269,7 +269,7 @@ require (
 	go.mongodb.org/mongo-driver v1.15.0
 	go.opentelemetry.io/collector v0.100.0 // indirect
 	go.opentelemetry.io/collector/component v0.100.0
-	go.opentelemetry.io/collector/confmap v0.100.0
+	go.opentelemetry.io/collector/confmap v0.101.0
 	go.opentelemetry.io/collector/exporter v0.100.0
 	go.opentelemetry.io/collector/exporter/loggingexporter v0.100.0
 	go.opentelemetry.io/collector/exporter/otlpexporter v0.100.0
