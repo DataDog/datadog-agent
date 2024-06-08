@@ -25,6 +25,7 @@ type ddExtension struct {
 	telemetry component.TelemetrySettings
 	server    *http.Server
 	info      component.BuildInfo
+	debug     DebugSourceResponse
 }
 
 // newDDHTTPExtension creates a new instance of the extension.
@@ -35,6 +36,9 @@ func newDDHTTPExtension(ctx context.Context, cfg *Config, telemetry component.Te
 		info:      info,
 		server: &http.Server{
 			Addr: cfg.HTTPConfig.Endpoint,
+		},
+		debug: DebugSourceResponse{
+			Sources: map[string]OTelFlareSource{},
 		},
 	}
 
@@ -57,9 +61,32 @@ func (ext *ddExtension) Start(ctx context.Context, host component.Host) error {
 	}()
 
 	// List configured Extensions
+	provider := ext.cfg.Provider.(provider.Component)
+	c := provider.GetProvidedConf()
+	extensionConfs, err := c.Sub("extensions")
+	if err != nil {
+		return nil
+	}
+
 	extensions := host.GetExtensions()
 	for extension, _ := range extensions {
-		ext.telemetry.Logger.Info("Extension available", zap.String("extension", extension.String()))
+		extractor, ok := supportedDebugExtensions[extension.String()]
+		if !ok {
+			continue
+		}
+
+		exconf, err := extensionConfs.Sub(extension.String())
+		if err != nil {
+			ext.telemetry.Logger.Info("There was an issue pulling the configuration for", zap.String("extension", extension.String()))
+			continue
+		}
+
+		uri, crawl := extractor(exconf)
+		ext.telemetry.Logger.Info("Found debug extension at", zap.String("uri", uri))
+		ext.debug.Sources[extension.String()] = OTelFlareSource{
+			Url:   uri,
+			Crawl: crawl,
+		}
 	}
 
 	return nil
@@ -96,7 +123,7 @@ func (ext *ddExtension) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			CustomerConfig: customer,
 			RuntimeConfig:  enhanced,
 		},
-		DebugSourceResponse{},
+		ext.debug,
 		getEnvironmentAsMap(),
 	}
 	ext.telemetry.Logger.Info("Logging response", zap.String("response", fmt.Sprintf("%v", resp)))

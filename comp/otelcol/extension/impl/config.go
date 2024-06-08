@@ -9,8 +9,15 @@ import (
 	"go.opentelemetry.io/collector/otelcol"
 )
 
+type extractDebugEndpoint func(conf *confmap.Conf) (string, bool)
+
 var (
-	errHTTPEndpointRequired = errors.New("http endpoint required")
+	errHTTPEndpointRequired  = errors.New("http endpoint required")
+	supportedDebugExtensions = map[string]extractDebugEndpoint{
+		"health_check": healthExtractEndpoint,
+		"zpages":       zPagesExtractEndpoint,
+		"pprof":        pprofExtractEndpoint,
+	}
 )
 
 // Config has the configuration for the extension enabling the health check
@@ -41,4 +48,16 @@ func (c *Config) Unmarshal(conf *confmap.Conf) error {
 	}
 
 	return nil
+}
+
+func zPagesExtractEndpoint(c *confmap.Conf) (string, bool) {
+	return c.Get("endpoint").(string), true
+}
+
+func pprofExtractEndpoint(c *confmap.Conf) (string, bool) {
+	return c.Get("endpoint").(string), false
+}
+
+func healthExtractEndpoint(c *confmap.Conf) (string, bool) {
+	return c.Get("endpoint").(string), false
 }
