@@ -127,24 +127,28 @@ ENV DOCKER_DD_AGENT=true \
     DD_SECRET_BACKEND_COMMAND_ALLOW_GROUP_EXEC_PERM="true"
 
 # make sure we have recent dependencies -- CVE-fixing time!
-RUN apt full-upgrade -y \
+RUN apt update \
+  && apt full-upgrade -y \
   # Install iproute2 package for the ss utility that is used by the network check.
   # When the network check will have switched from using ss to directly parsing /proc/net/tcp,
   # this can be removed
   # Install libssl-dev as it's required by some Python checks and we rely on system version
   # Install libseccomp2 as required by `nosys-seccomp` wrapper
-  && apt install -y iproute2 libssl-dev libseccomp2 tzdata adduser
+  && apt install -y iproute2 libssl-dev libseccomp2 tzdata adduser \
+  && rm -rf /var/lib/apt-lists/*
 
 # Install openjdk-11-jre-headless on jmx flavor
 RUN if [ -n "$WITH_JMX" ]; then echo "Pulling openjdk-11 from testing" \
   && mkdir -p /usr/share/man/man1 \
+  && apt update \
   && apt install --no-install-recommends -y openjdk-11-jre-headless \
+  && rm -rf /var/lib/apt-lists/* \
   && apt clean; fi
 
 # cleaning up
 # We remove /etc/ssl because in JMX images, openjdk triggers installation of ca-certificates-java
 # which writes to /etc/ssl. Yet, in the Agent we only rely on certs shipped in the Agent package.
-RUN rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* /etc/ssl
+RUN rm -rf /tmp/* /var/tmp/* /etc/ssl
 RUN ln -sf /opt/datadog-agent/embedded/ssl /etc/ssl
 
 # Copy agent from extract stage
