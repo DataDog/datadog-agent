@@ -19,7 +19,6 @@ import (
 	nethttp "net/http"
 	"os"
 	"path/filepath"
-	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -1546,10 +1545,10 @@ func validateProduceFetchCountWithErrorCodes(t *assert.CollectT, kafkaStats map[
 		}
 	}
 	if validation.expectedNumberOfProduceRequests != nil {
-		assert.True(t, reflect.DeepEqual(produceRequests, validation.expectedNumberOfProduceRequests))
+		assert.Equal(t, validation.expectedNumberOfProduceRequests, produceRequests)
 	}
 	if validation.expectedNumberOfFetchRequests != nil {
-		assert.True(t, reflect.DeepEqual(fetchRequests, validation.expectedNumberOfFetchRequests))
+		assert.Equal(t, validation.expectedNumberOfFetchRequests, fetchRequests)
 	}
 }
 
