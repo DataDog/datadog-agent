@@ -31,6 +31,7 @@ type Host struct {
 	os             e2eos.Descriptor
 	arch           e2eos.Architecture
 	systemdVersion int
+	pkgManager     string
 }
 
 // Option is an option to configure a Host.
@@ -49,14 +50,25 @@ func New(t *testing.T, remote *components.RemoteHost, os e2eos.Descriptor, arch 
 	}
 	host.uploadFixtures()
 	host.setSystemdVersion()
+	if _, err := host.remote.Execute("command -v dpkg-query"); err == nil {
+		host.pkgManager = "dpkg"
+	} else if _, err := host.remote.Execute("command -v rpm"); err == nil {
+		host.pkgManager = "rpm"
+	} else {
+		t.Fatal("no package manager found")
+	}
 	return host
+}
+
+// GetPkgManager returns the package manager of the host.
+func (h *Host) GetPkgManager() string {
+	return h.pkgManager
 }
 
 func (h *Host) setSystemdVersion() {
 	strVersion := strings.TrimSpace(h.remote.MustExecute("systemctl --version | head -n1 | awk '{print $2}'"))
 	version, err := strconv.Atoi(strVersion)
 	require.NoError(h.t, err)
-	h.t.Log("Systemd version:", version)
 	h.systemdVersion = version
 }
 
@@ -140,12 +152,13 @@ func (h *Host) AssertPackageInstalledByInstaller(pkgs ...string) {
 // AssertPackageInstalledByPackageManager checks if a package is installed by the package manager on the host.
 func (h *Host) AssertPackageInstalledByPackageManager(pkgs ...string) {
 	for _, pkg := range pkgs {
-		if _, err := h.remote.Execute("command -v dpkg-query"); err == nil {
+		switch h.pkgManager {
+		case "dpkg":
 			h.remote.MustExecute("dpkg-query -l " + pkg)
-		} else if _, err := h.remote.Execute("command -v rpm"); err == nil {
+		case "rpm":
 			h.remote.MustExecute("rpm -q " + pkg)
-		} else {
-			h.t.Fatal("no package manager found")
+		default:
+			h.t.Fatal("unsupported package manager")
 		}
 	}
 }
@@ -153,12 +166,13 @@ func (h *Host) AssertPackageInstalledByPackageManager(pkgs ...string) {
 // AssertPackageNotInstalledByPackageManager checks if a package is not installed by the package manager on the host.
 func (h *Host) AssertPackageNotInstalledByPackageManager(pkgs ...string) {
 	for _, pkg := range pkgs {
-		if _, err := h.remote.Execute("command -v dpkg-query"); err == nil {
+		switch h.pkgManager {
+		case "dpkg":
 			h.remote.MustExecute("! dpkg-query -l " + pkg)
-		} else if _, err := h.remote.Execute("command -v rpm"); err == nil {
+		case "rpm":
 			h.remote.MustExecute("! rpm -q " + pkg)
-		} else {
-			h.t.Fatal("no package manager found")
+		default:
+			h.t.Fatal("unsupported package manager")
 		}
 	}
 }

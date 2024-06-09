@@ -14,22 +14,23 @@ import (
 
 var (
 	defaultEnvVarsIncludeList = []string{
-		"DD_ENV",
-		"DD_VERSION",
-		"DD_SERVICE",
 		"CHRONOS_JOB_NAME",
 		"CHRONOS_JOB_OWNER",
-		"NOMAD_TASK_NAME",
-		"NOMAD_JOB_NAME",
-		"NOMAD_GROUP_NAME",
-		"NOMAD_NAMESPACE",
-		"NOMAD_DC",
-		"MESOS_TASK_ID",
+		"DD_ENV",
+		"DD_SERVICE",
+		"DD_VERSION",
+		"DOCKER_DD_AGENT", // included to be able to detect agent containers
 		"ECS_CONTAINER_METADATA_URI",
 		"ECS_CONTAINER_METADATA_URI_V4",
-		"DOCKER_DD_AGENT", // included to be able to detect agent containers
-		// Included to ease unit tests without requiring a mock
-		"TEST_ENV",
+		"MESOS_TASK_ID",
+		"NOMAD_DC",
+		"NOMAD_GROUP_NAME",
+		"NOMAD_JOB_NAME",
+		"NOMAD_NAMESPACE",
+		"NOMAD_TASK_NAME",
+		"OTEL_RESOURCE_ATTRIBUTES",
+		"OTEL_SERVICE_NAME",
+		"TEST_ENV", // Included to ease unit tests without requiring a mock
 	}
 
 	envFilterOnce       sync.Once

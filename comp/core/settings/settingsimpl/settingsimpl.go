@@ -7,12 +7,12 @@
 package settingsimpl
 
 import (
-	"encoding/json"
 	"html"
 	"net/http"
 	"sync"
 
 	"github.com/gorilla/mux"
+	json "github.com/json-iterator/go"
 	"go.uber.org/fx"
 	"gopkg.in/yaml.v2"
 
@@ -133,6 +133,32 @@ func (s *settingsRegistry) GetFullConfig(namespaces ...string) http.HandlerFunc 
 		scrubbed, err := scrubber.ScrubYaml(runtimeConfig)
 		if err != nil {
 			s.log.Errorf("Unable to scrub sensitive data from runtime config: %s", err)
+			body, _ := json.Marshal(map[string]string{"error": err.Error()})
+			http.Error(w, string(body), http.StatusInternalServerError)
+			return
+		}
+
+		_, _ = w.Write(scrubbed)
+	}
+}
+
+func (s *settingsRegistry) GetFullConfigBySource() http.HandlerFunc {
+	return func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+
+		settings := s.config.AllSettingsBySource()
+
+		jsonData, err := json.Marshal(settings)
+		if err != nil {
+			s.log.Errorf("Unable to marshal config by layer: %s", err)
+			body, _ := json.Marshal(map[string]string{"error": err.Error()})
+			http.Error(w, string(body), http.StatusInternalServerError)
+			return
+		}
+
+		scrubbed, err := scrubber.ScrubJSON(jsonData)
+		if err != nil {
+			s.log.Errorf("Unable to scrub sensitive data from config by layer: %s", err)
 			body, _ := json.Marshal(map[string]string{"error": err.Error()})
 			http.Error(w, string(body), http.StatusInternalServerError)
 			return

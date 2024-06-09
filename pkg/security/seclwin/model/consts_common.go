@@ -69,6 +69,23 @@ const (
 	EventFlagsHasActiveActivityDump
 )
 
+const (
+	// IMDSRequestType is used to specify that the event is an IDMS request event
+	IMDSRequestType = "request"
+	// IMDSResponseType is used to specify that the event is an IMDS response event
+	IMDSResponseType = "response"
+	// IMDSAWSCloudProvider is used to report that the IMDS event is for AWS
+	IMDSAWSCloudProvider = "aws"
+	// IMDSGCPCloudProvider is used to report that the IMDS event is for GCP
+	IMDSGCPCloudProvider = "gcp"
+	// IMDSAzureCloudProvider is used to report that the IMDS event is for Azure
+	IMDSAzureCloudProvider = "azure"
+	// IMDSIBMCloudProvider is used to report that the IMDS event is for ibm
+	IMDSIBMCloudProvider = "ibm"
+	// IMDSOracleCloudProvider is used to report that the IMDS event is for Oracle
+	IMDSOracleCloudProvider = "oracle"
+)
+
 var (
 	// vmConstants is the list of protection flags for a virtual memory segment
 	// generate_constants:Virtual Memory flags,Virtual Memory flags define the protection of a virtual memory segment.

@@ -30,6 +30,7 @@ import (
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/constantfetch"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/process"
+	"github.com/DataDog/datadog-agent/pkg/security/utils"
 
 	"github.com/avast/retry-go/v4"
 	"github.com/oliveagle/jsonpath"
@@ -39,7 +40,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
-	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
 
 func TestProcess(t *testing.T) {
@@ -485,8 +485,8 @@ func TestProcessContext(t *testing.T) {
 					assert.Equal(t, args[i], argv[i], "expected arg not found")
 				}
 			} else {
-				assert.Equal(t, 459, len(argv), "incorrect number of args: %s", argv)
-				for i := 0; i != 459; i++ {
+				assert.Equal(t, 439, len(argv), "incorrect number of args: %s", argv)
+				for i := 0; i != 439; i++ {
 					assert.Equal(t, args[i], argv[i], "expected arg not found")
 				}
 			}
@@ -539,8 +539,8 @@ func TestProcessContext(t *testing.T) {
 					assert.Equal(t, expected, argv[i], "expected arg not found")
 				}
 			} else {
-				assert.Equal(t, 474, len(argv), "incorrect number of args: %s", argv)
-				for i := 0; i != 474; i++ {
+				assert.Equal(t, 457, len(argv), "incorrect number of args: %s", argv)
+				for i := 0; i != 457; i++ {
 					expected := args[i]
 					if len(expected) > model.MaxArgEnvSize {
 						expected = args[i][:model.MaxArgEnvSize-4] + "..." // 4 is the size number of the string
@@ -650,8 +650,8 @@ func TestProcessContext(t *testing.T) {
 					assert.Equal(t, envs[i], envp[i], "expected env not found")
 				}
 			} else {
-				assert.Equal(t, 736, len(envp), "incorrect number of envs: %s", envp)
-				for i := 0; i != 736; i++ {
+				assert.Equal(t, 704, len(envp), "incorrect number of envs: %s", envp)
+				for i := 0; i != 704; i++ {
 					assert.Equal(t, envs[i], envp[i], "expected env not found")
 				}
 			}
@@ -716,8 +716,8 @@ func TestProcessContext(t *testing.T) {
 					assert.Equal(t, expected, envp[i], "expected env not found")
 				}
 			} else {
-				assert.Equal(t, 895, len(envp), "incorrect number of envs: %s", envp)
-				for i := 0; i != 895; i++ {
+				assert.Equal(t, 863, len(envp), "incorrect number of envs: %s", envp)
+				for i := 0; i != 863; i++ {
 					expected := envs[i]
 					if len(expected) > model.MaxArgEnvSize {
 						expected = envs[i][:model.MaxArgEnvSize-4] + "..." // 4 is the size number of the string
@@ -738,6 +738,44 @@ func TestProcessContext(t *testing.T) {
 		if err != nil {
 			t.Error(err)
 		}
+	})
+
+	t.Run("args-envs-empty-strings", func(t *testing.T) {
+		test.WaitSignal(t, func() error {
+			args := []string{"-al", ""}
+			envs := []string{"LD_LIBRARY_PATH=/tmp/lib"}
+			cmd := exec.Command("ls", args...)
+			cmd.Env = envs
+			_ = cmd.Run()
+			return nil
+		}, test.validateExecEvent(t, noWrapperType, func(event *model.Event, rule *rules.Rule) {
+			assertTriggeredRule(t, rule, "test_rule_args_envs")
+
+			args, err := event.GetFieldValue("exec.args")
+			if err != nil || len(args.(string)) == 0 {
+				t.Error("not able to get args")
+			}
+			assert.Contains(t, args.(string), "-al", "arg not found")
+
+			// envs
+			envs, err := event.GetFieldValue("exec.envs")
+			if err != nil || len(envs.([]string)) == 0 {
+				t.Error("not able to get envs")
+			}
+
+			contains := func(s string) bool {
+				for _, env := range envs.([]string) {
+					if strings.Contains(env, s) {
+						return true
+					}
+				}
+				return false
+			}
+			assert.True(t, contains("LD_LIBRARY_PATH"), "env not found")
+
+			assert.False(t, event.Exec.ArgsTruncated, "args should not be truncated")
+			assert.False(t, event.Exec.EnvsTruncated, "envs should not be truncated")
+		}))
 	})
 
 	t.Run("tty", func(t *testing.T) {
