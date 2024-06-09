@@ -632,36 +632,7 @@ static __always_inline enum parse_result kafka_continue_parse_response_partition
                 return RET_ERR;
             }
             extra_debug("got error code: %d", error_code);
-
-            if (first) {
-                extra_debug("first time we encounter an error code, set it immediately and continue");
-                response->transaction.error_code = (s8)error_code;
-            }
-            // This optimization prevents enqueuing a transaction for every partition, which could significantly increase the number of events.
-            // We enqueue the transaction only when a partition has a different error code than the previous one.
-            // Thus, in the typical scenario where most partitions have no error (error_code = 0), the transaction is enqueued only once for all relevant partitions.
-            else if (error_code != response->transaction.error_code) {
-                extra_debug("partition error code %d is different from last partition error code %d, the current record count: %d",
-                    error_code,
-                    response->transaction.error_code,
-                    response->transaction.records_count);
-                // We want to enqueue groups of partitions with different error
-                // codes separately, so force an exit to the record batch parser
-                // so that we parse the partitions recorded up to now separately.
-                // Once we get back to the partition parser, we will restart at
-                // KAFKA_FETCH_RESPONSE_PARTITION_START, and get to this
-                // condition again with records_count !=0 and enqueue the
-                // partitions.
-                if (response->transaction.records_count == 0) {
-                    return RET_EOP;
-                }
-                extra_debug("different error code, enqueuing the current record count: %d",
-                    response->transaction.records_count);
-                kafka_batch_enqueue_wrapper(kafka, tup, &response->transaction);
-                // Reset records count for the next partition, so we won't be double counting.
-                response->transaction.records_count = 0;
-                response->transaction.error_code = (s8)error_code;
-            }
+            response->partition_error_code = error_code;
 
             offset += sizeof(s64); // Skip high_watermark
 
@@ -746,6 +717,8 @@ static __always_inline enum parse_result kafka_continue_parse_response_partition
                     return RET_ERR;
                 }
 
+                extra_debug("setting record_batches_arrays in index %d with error code %d", idx, response->partition_error_code);
+                kafka->record_batches_arrays[idx].partition_error_code = response->partition_error_code;
                 kafka->record_batches_arrays[idx].num_bytes = response->record_batches_num_bytes;
                 kafka->record_batches_arrays[idx].offset = offset - orig_offset;
                 response->record_batches_arrays_count++;
@@ -831,6 +804,16 @@ static __always_inline enum parse_result kafka_continue_parse_response_record_ba
         extra_debug("record batches state: %d", response->state);
         switch (response->state) {
         case KAFKA_FETCH_RESPONSE_RECORD_BATCH_START:
+                extra_debug("KAFKA_FETCH_RESPONSE_RECORD_BATCH_START: response->error_code %u, transaction.error_code %u, transaction.records_count: %d \n", response->partition_error_code,
+                response->transaction.partition_error_code,
+                response->transaction.records_count);
+            if (response->transaction.records_count > 0 && response->partition_error_code != response->transaction.error_code) {
+                goto exit;
+            }
+
+            extra_debug("KAFKA_FETCH_RESPONSE_RECORD_BATCH_START: setting transaction error code to %d",  response->partition_error_code);
+            response->transaction.error_code = response->partition_error_code;
+
             offset += sizeof(s64); // baseOffset
             response->state = KAFKA_FETCH_RESPONSE_RECORD_BATCH_LENGTH;
             // fallthrough
@@ -968,11 +951,13 @@ static __always_inline enum parse_result kafka_continue_parse_response_record_ba
                 return RET_ERR;
             }
 
+            response->partition_error_code = kafka->record_batches_arrays[idx].partition_error_code;
             response->record_batches_num_bytes = kafka->record_batches_arrays[idx].num_bytes;
             offset = kafka->record_batches_arrays[idx].offset + orig_offset;
             response->state = KAFKA_FETCH_RESPONSE_RECORD_BATCH_START;
             response->record_batches_arrays_idx = idx;
             extra_debug("next idx %llu num_bytes %u offset %u", idx, response->record_batches_num_bytes, offset);
+            extra_debug("next idx %llu error_code %u\n", idx, response->partition_error_code);
         }
             break;
 
@@ -991,6 +976,7 @@ static __always_inline enum parse_result kafka_continue_parse_response_record_ba
         }
     }
 
+exit:
     // We should have exited at KAFKA_FETCH_RESPONSE_PARTITION_END if we
     // managed to parse the entire packet, so if we get here we still have
     // more to go. Remove the skb_info.data_off so that this function can
@@ -1084,6 +1070,7 @@ static __always_inline enum parse_result kafka_continue_parse_response(void *ctx
             response->varint_position = 0;
             response->partition_state = response->state;
             response->state = KAFKA_FETCH_RESPONSE_RECORD_BATCH_START;
+            response->partition_error_code = kafka->record_batches_arrays[0].partition_error_code;
             response->record_batches_num_bytes = kafka->record_batches_arrays[0].num_bytes;
             response->carry_over_offset = kafka->record_batches_arrays[0].offset;
             // Caller will do tail call
@@ -1101,6 +1088,16 @@ static __always_inline enum parse_result kafka_continue_parse_response(void *ctx
         ret = kafka_continue_parse_response_record_batches_loop(kafka, tup, response, pkt, offset, data_end, api_version);
         extra_debug("record batches loop ret %d carry_over_offset %d", ret, response->carry_over_offset);
         extra_debug("record batches after loop idx %u count %u\n", response->record_batches_arrays_idx, response->record_batches_arrays_count);
+
+        if (ret == RET_LOOP_END) {
+                extra_debug("enqueue from new condition, records_count %d, error_code %d",
+                    response->transaction.records_count,
+                    response->transaction.partition_error_code);
+                kafka_batch_enqueue_wrapper(kafka, tup, &response->transaction);
+                response->transaction.records_count = 0;
+                response->transaction.error_code = 0;
+                return ret;
+        }
 
         // When we're done with parsing the record batch arrays, we either need
         // to return to the partition parser (if there are partitions left to

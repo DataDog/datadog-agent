@@ -63,6 +63,7 @@ typedef enum {
 typedef struct kafka_fetch_response_record_batches_array_t {
     __u32 num_bytes;
     __u32 offset;
+    __s8 partition_error_code;
 } kafka_fetch_response_record_batches_array_t;
 
 typedef struct kafka_response_context_t {
@@ -75,6 +76,7 @@ typedef struct kafka_response_context_t {
     __u8 remainder;
     // The current byte of the varint where we paused processing.
     __u8 varint_position;
+    __s8 partition_error_code;
     // Where the parition parsing needs to resume from.
     kafka_response_state partition_state;
     char remainder_buf[4];

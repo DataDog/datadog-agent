@@ -44,6 +44,7 @@ type KafkaResponseContext struct {
 	State                       uint8
 	Remainder                   uint8
 	Varint_position             uint8
+	Partition_error_code        int8
 	Partition_state             uint8
 	Remainder_buf               [4]int8
 	Record_batches_num_bytes    int32
@@ -54,6 +55,7 @@ type KafkaResponseContext struct {
 	Varint_value                uint32
 	Record_batches_arrays_idx   uint32
 	Record_batches_arrays_count uint32
+	Pad_cgo_0                   [4]byte
 }
 
 type RawKernelTelemetry struct {
