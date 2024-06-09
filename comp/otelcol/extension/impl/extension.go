@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net"
 	"net/http"
 
 	"go.opentelemetry.io/collector/component"
@@ -22,10 +23,11 @@ type ddExtension struct {
 
 	cfg *Config // Extension configuration.
 
-	telemetry component.TelemetrySettings
-	server    *http.Server
-	info      component.BuildInfo
-	debug     DebugSourceResponse
+	telemetry   component.TelemetrySettings
+	server      *http.Server
+	tlsListener net.Listener
+	info        component.BuildInfo
+	debug       DebugSourceResponse
 }
 
 // newDDHTTPExtension creates a new instance of the extension.
@@ -34,31 +36,22 @@ func newDDHTTPExtension(ctx context.Context, cfg *Config, telemetry component.Te
 		cfg:       cfg,
 		telemetry: telemetry,
 		info:      info,
-		server: &http.Server{
-			Addr: cfg.HTTPConfig.Endpoint,
-		},
 		debug: DebugSourceResponse{
 			Sources: map[string]OTelFlareSource{},
 		},
 	}
 
-	ext.server.Handler = ext
-
+	var err error
+	ext.server, ext.tlsListener, err = buildHTTPServer(cfg.HTTPConfig.Endpoint, ext)
+	if err != nil {
+		return nil, err
+	}
 	return ext, nil
 }
 
 // Start is called when the extension is started.
 func (ext *ddExtension) Start(ctx context.Context, host component.Host) error {
 	ext.telemetry.Logger.Info("Starting DD Extension HTTP server", zap.String("url", ext.cfg.HTTPConfig.Endpoint))
-
-	// Start the server in a goroutine.
-	go func() {
-		if err := ext.server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			ext.telemetry.ReportStatus(component.NewFatalErrorEvent(err))
-		} else {
-			ext.telemetry.Logger.Info("DD Extension HTTP server started successfully at", zap.String("url", ext.cfg.HTTPConfig.Endpoint))
-		}
-	}()
 
 	// List configured Extensions
 	provider := ext.cfg.Provider.(provider.Component)
@@ -88,6 +81,13 @@ func (ext *ddExtension) Start(ctx context.Context, host component.Host) error {
 			Crawl: crawl,
 		}
 	}
+
+	go func() {
+		if err := ext.server.Serve(ext.tlsListener); err != nil && err != http.ErrServerClosed {
+			ext.telemetry.ReportStatus(component.NewFatalErrorEvent(err))
+			ext.telemetry.Logger.Info("DD Extension HTTP could not start", zap.String("err", err.Error()))
+		}
+	}()
 
 	return nil
 }
