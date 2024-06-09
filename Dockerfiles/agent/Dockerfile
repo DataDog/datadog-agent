@@ -24,12 +24,12 @@ RUN if [ "$CIBUILD" = "true" ]; then \
   fi
 
 ENV DEBIAN_FRONTEND=noninteractive
-RUN apt update
 
 FROM baseimage AS nosys-seccomp
 COPY nosys-seccomp/nosys.c   /tmp/nosys.c
 COPY nosys-seccomp/nosys.sym /tmp/nosys.sym
-RUN apt install --no-install-recommends -y gcc libc6-dev libseccomp-dev
+RUN apt update \
+  && apt install --no-install-recommends -y gcc libc6-dev libseccomp-dev
 RUN gcc -pipe -Wall -Wextra -O2 -shared -fPIC -Wl,--version-script=/tmp/nosys.sym -o /tmp/nosys.so /tmp/nosys.c  -lseccomp
 
 ############################################
@@ -51,7 +51,8 @@ WORKDIR /output
 ENV S6_VERSION v2.2.0.3
 ENV JUST_CONTAINERS_DOWNLOAD_LOCATION=${GENERAL_ARTIFACTS_CACHE_BUCKET_URL:+${GENERAL_ARTIFACTS_CACHE_BUCKET_URL}/s6-overlay}
 ENV JUST_CONTAINERS_DOWNLOAD_LOCATION=${JUST_CONTAINERS_DOWNLOAD_LOCATION:-https://github.com/just-containers/s6-overlay/releases/download}
-RUN apt install --no-install-recommends -y curl ca-certificates
+RUN apt update \
+  && apt install --no-install-recommends -y curl ca-certificates
 RUN S6ARCH=$([ "$TARGETARCH" = "amd64" ] && echo "amd64" || echo "aarch64") && curl -L ${JUST_CONTAINERS_DOWNLOAD_LOCATION}/${S6_VERSION}/s6-overlay-${S6ARCH}.tar.gz -o /output/s6.tgz
 COPY s6.$TARGETARCH.sha256 /output/s6.$TARGETARCH.sha256
 # To calculate S6_SHA256SUM for a specific version, run:
