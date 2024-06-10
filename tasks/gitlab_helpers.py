@@ -20,11 +20,11 @@ def generate_ci_visibility_links(_ctx, output: str | None):
     """
     ci_job_id = os.environ.get("CI_JOB_ID")
     if ci_job_id is None:
-        print("CI_JOB_ID is not set, this task can run only on Gitlab, skipping...")
+        print(color_message("CI_JOB_ID is not set, this task can run only on Gitlab, skipping...", Color.RED))
         return
     ci_job_name = os.environ.get("CI_JOB_NAME")
     if ci_job_name is None:
-        print("CI_JOB_NAME is not set, this task can run only on Gitlab, skipping...")
+        print(color_message("CI_JOB_NAME is not set, this task can run only on Gitlab, skipping...", Color.RED))
         return
 
     gitlab_annotations_report = {
