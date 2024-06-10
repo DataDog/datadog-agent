@@ -641,6 +641,8 @@ func (c *collector) getImageMetadata(ctx context.Context, imageID string, newSBO
 		Variant:      imgInspect.Variant,
 		Layers:       layersFromDockerHistory(imageHistory),
 		SBOM:         sbom,
+		Entrypoint:   imgInspect.Config.Entrypoint,
+		Cmd:          imgInspect.Config.Cmd,
 	}, nil
 }
 

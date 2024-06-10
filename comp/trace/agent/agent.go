@@ -21,6 +21,8 @@ import (
 
 	"go.uber.org/fx"
 
+	containerinspectionapi "github.com/DataDog/datadog-agent/comp/containerinspection/api"
+	complog "github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
@@ -51,9 +53,11 @@ type dependencies struct {
 
 	Config             config.Component
 	Context            context.Context
+	Log                complog.Component
 	Params             *Params
 	TelemetryCollector telemetry.TelemetryCollector
 	Workloadmeta       workloadmeta.Component
+	ContainerInspector containerinspectionapi.Component
 	Statsd             statsd.Component
 	Tagger             tagger.Component
 }
@@ -66,12 +70,14 @@ type agent struct {
 	cancel             context.CancelFunc
 	config             config.Component
 	ctx                context.Context
+	log                complog.Component
 	params             *Params
 	shutdowner         fx.Shutdowner
 	tagger             tagger.Component
 	telemetryCollector telemetry.TelemetryCollector
 	statsd             statsd.Component
 	workloadmeta       workloadmeta.Component
+	containerinpsector containerinspectionapi.Component
 	wg                 sync.WaitGroup
 }
 
@@ -94,8 +100,10 @@ func newAgent(deps dependencies) Component {
 		params:             deps.Params,
 		shutdowner:         deps.Shutdowner,
 		workloadmeta:       deps.Workloadmeta,
+		containerinpsector: deps.ContainerInspector,
 		telemetryCollector: deps.TelemetryCollector,
 		tagger:             deps.Tagger,
+		log:                deps.Log,
 		wg:                 sync.WaitGroup{},
 	}
 

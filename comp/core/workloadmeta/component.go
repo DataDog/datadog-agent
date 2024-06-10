@@ -40,7 +40,7 @@ type Component interface {
 	// Thus, it is important to check that the channel is not closed.
 	Unsubscribe(ch chan EventBundle)
 
-	// GetContainer returns metadata about a container.  It fetches the entity
+	// GetContainer returns metadata about a container. It fetches the entity
 	// with kind KindContainer and the given ID.
 	GetContainer(id string) (*Container, error)
 

@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/agent/autoexit"
 	"github.com/DataDog/datadog-agent/comp/agent/autoexit/autoexitimpl"
 	"github.com/DataDog/datadog-agent/comp/api/authtoken/fetchonlyimpl"
+	"github.com/DataDog/datadog-agent/comp/containerinspection"
 	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/configsync"
 	"github.com/DataDog/datadog-agent/comp/core/configsync/configsyncimpl"
@@ -93,6 +94,7 @@ func runTraceAgentProcess(ctx context.Context, cliParams *Params, defaultConfPat
 			InitHelper: common.GetWorkloadmetaInit(),
 		}),
 		workloadmeta.Module(),
+		containerinspection.Bundle(),
 		autoexitimpl.Module(),
 		statsd.Module(),
 		fx.Provide(func(coreConfig coreconfig.Component) tagger.Params {

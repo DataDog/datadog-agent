@@ -76,6 +76,13 @@ func runAgentSidekicks(ag *agent) error {
 	}
 
 	api.AttachEndpoint(api.Endpoint{
+		Pattern: "/alpha/instrumentation/pod-container-metadata",
+		Handler: func(r *api.HTTPReceiver) http.Handler {
+			return ag.containerinpsector.PodContainerMetadataHandlerFunc()
+		},
+	})
+
+	api.AttachEndpoint(api.Endpoint{
 		Pattern: "/config/set",
 		Handler: func(r *api.HTTPReceiver) http.Handler {
 			return ag.config.SetHandler()

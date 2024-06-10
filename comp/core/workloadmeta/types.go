@@ -250,10 +250,10 @@ func (e EntityMeta) String(verbose bool) string {
 	return sb.String()
 }
 
-// ContainerImage is the an image used by a container.
-// For historical reason, The imageId from containerd runtime and kubernetes refer to different fields.
+// ContainerImage is the image used by a container.
+// For historical reasons, the imageId from containerd runtime and kubernetes refer to different fields.
 // For containerd, it is the digest of the image config.
-// For kubernetes, it referres to repo digest of the image (at least before CRI-O v1.28)
+// For kubernetes, it refers to the repo digest of the image (at least before CRI-O v1.28)
 // See https://github.com/kubernetes/kubernetes/issues/46255
 // To avoid confusion, an extra field of repo digest is added to the struct, if it is available, it
 // will also be added to the container tags in tagger.
@@ -265,6 +265,28 @@ type ContainerImage struct {
 	ShortName  string
 	Tag        string
 	RepoDigest string
+}
+
+// ImageMetadataID is the ID we can use to fetch [[ContainerImageMetadata]]
+// from the metadata store.
+//
+// Because the ContainerImage might have the container runtime
+// as _prefix_ (ie: docker://), we split off the first part
+// of the identifier.
+//
+// If it isn't present, we return the full ID.
+//
+// TODO: Unsure of the implication of the RepoDigest field on this
+//       and whether or not we should return a list of candidate IDs
+//       given the way we are setting ContainerImage from different
+//       runtimes or this is just fine.
+func (c ContainerImage) ImageMetadataID() string {
+	_, after, found := strings.Cut(c.ID, "://")
+	if !found {
+		return c.ID
+	}
+
+	return after
 }
 
 // NewContainerImage builds a ContainerImage from an image name and its id
@@ -1116,6 +1138,8 @@ type ContainerImageMetadata struct {
 	Variant      string
 	Layers       []ContainerImageLayer
 	SBOM         *SBOM
+	Entrypoint   []string
+	Cmd          []string
 }
 
 // ContainerImageLayer represents a layer of a container image
@@ -1169,6 +1193,8 @@ func (i ContainerImageMetadata) String(verbose bool) string {
 
 	_, _ = fmt.Fprintln(&sb, "Repo tags:", i.RepoTags)
 	_, _ = fmt.Fprintln(&sb, "Repo digests:", i.RepoDigests)
+	_, _ = fmt.Fprintln(&sb, "Entrypoint:", i.Entrypoint)
+	_, _ = fmt.Fprintln(&sb, "Cmd:", i.Cmd)
 
 	if verbose {
 		_, _ = fmt.Fprintln(&sb, "Media Type:", i.MediaType)

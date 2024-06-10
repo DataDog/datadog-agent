@@ -67,17 +67,17 @@ type dependencies struct {
 type provider struct {
 	fx.Out
 
-	Comp          Component
-	FlareProvider flaretypes.Provider
-	Endpoint      api.AgentEndpointProvider
+	Comp                         Component
+	FlareProvider                flaretypes.Provider
+	WorkloadListEndpoint         api.AgentEndpointProvider
 }
 
 type optionalProvider struct {
 	fx.Out
 
-	Comp          optional.Option[Component]
-	FlareProvider flaretypes.Provider
-	Endpoint      api.AgentEndpointProvider
+	Comp                         optional.Option[Component]
+	FlareProvider                flaretypes.Provider
+	WorkloadListEndpoint         api.AgentEndpointProvider
 }
 
 func newWorkloadMeta(deps dependencies) provider {
@@ -123,9 +123,9 @@ func newWorkloadMeta(deps dependencies) provider {
 	}})
 
 	return provider{
-		Comp:          wm,
-		FlareProvider: flaretypes.NewProvider(wm.sbomFlareProvider),
-		Endpoint:      api.NewAgentEndpointProvider(wm.writeResponse, "/workload-list", "GET"),
+		Comp:                 wm,
+		FlareProvider:        flaretypes.NewProvider(wm.sbomFlareProvider),
+		WorkloadListEndpoint: api.NewAgentEndpointProvider(wm.writeResponse, "/workload-list", "GET"),
 	}
 }
 
@@ -138,9 +138,9 @@ func newWorkloadMetaOptional(deps dependencies) optionalProvider {
 	c := newWorkloadMeta(deps)
 
 	return optionalProvider{
-		Comp:          optional.NewOption(c.Comp),
-		FlareProvider: c.FlareProvider,
-		Endpoint:      c.Endpoint,
+		Comp:                         optional.NewOption(c.Comp),
+		FlareProvider:                c.FlareProvider,
+		WorkloadListEndpoint:         c.WorkloadListEndpoint,
 	}
 }
 
