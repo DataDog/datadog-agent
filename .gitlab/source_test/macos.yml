@@ -61,7 +61,6 @@ lint_macos:
     - |
       GO_REPO_VERSION=$(cat .go-version)
       GO_VERSION=$(go version | awk '{print $3}' | sed 's/go//')
-      echo "GO_REPO_VERSION: $GO_REPO_VERSION, GO_VERSION: $GO_VERSION"
       if [ "$GO_REPO_VERSION" != "$GO_VERSION" ]; then
         echo "Go version $GO_VERSION is different from $GO_REPO_VERSION in .go-version. Cleaning the environment."
         go clean -cache -modcache -testcache
