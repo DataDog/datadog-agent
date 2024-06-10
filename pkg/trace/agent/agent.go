@@ -54,8 +54,9 @@ const (
 	tagDecisionMaker = "_dd.p.dm"
 )
 
-type traceWriter interface {
-	// Stop stops the traceWriter and attempts to flush whatever is left in the senders buffers.
+// TraceWriter provides a way to write trace chunks
+type TraceWriter interface {
+	// Stop stops the TraceWriter and attempts to flush whatever is left in the senders buffers.
 	Stop()
 
 	// WriteChunks to be written
@@ -65,9 +66,13 @@ type traceWriter interface {
 	FlushSync() error
 }
 
-type concentrator interface {
+// Concentrator accepts stats input, 'concentrating' them together into buckets before flushing them
+type Concentrator interface {
+	// Start starts the Concentrator
 	Start()
+	// Stop stops the Concentrator and attempts to flush whatever is left in the buffers
 	Stop()
+	// Add a stats Input to be concentrated and flushed
 	Add(t stats.Input)
 }
 
@@ -75,7 +80,7 @@ type concentrator interface {
 type Agent struct {
 	Receiver              *api.HTTPReceiver
 	OTLPReceiver          *api.OTLPReceiver
-	Concentrator          concentrator
+	Concentrator          Concentrator
 	ClientStatsAggregator *stats.ClientStatsAggregator
 	Blacklister           *filters.Blacklister
 	Replacer              *filters.Replacer
@@ -85,7 +90,7 @@ type Agent struct {
 	NoPrioritySampler     *sampler.NoPrioritySampler
 	ProbabilisticSampler  *sampler.ProbabilisticSampler
 	EventProcessor        *event.Processor
-	TraceWriter           traceWriter
+	TraceWriter           TraceWriter
 	StatsWriter           *writer.StatsWriter
 	RemoteConfigHandler   *remoteconfighandler.RemoteConfigHandler
 	TelemetryCollector    telemetry.TelemetryCollector
