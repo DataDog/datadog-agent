@@ -8,7 +8,7 @@
 ---
 enhancements:
   - |
-    APM: Add obfuscation support for opensearch statements within span metadata. This feature works in the same way as the existing elasticsearch one, and it's enabled by default. It is configured by binding ``apm_config.obfuscation.opensearch.*`` parameters to new obfuscation environment variables. In particular, bind:
+    APM: Add obfuscation support for OpenSearch statements within span metadata. This feature works in the same way as the existing Elasticsearch one, and is enabled by default. It is configured by binding ``apm_config.obfuscation.opensearch.*`` parameters to new obfuscation environment variables. In particular, bind:
     ``apm_config.obfuscation.opensearch.enabled`` to ``DD_APM_OBFUSCATION_OPENSEARCH_ENABLED``:
     It accepts a boolean value with default value true.
 
