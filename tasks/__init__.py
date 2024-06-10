@@ -135,7 +135,6 @@ ns.add_task(build_messagetable)
 ns.add_task(get_impacted_packages)
 ns.add_task(get_modified_packages)
 ns.add_task(send_unit_tests_stats)
-# ns.add_task(pippo)
 # To deprecate
 ns.add_task(lint_go)
 
