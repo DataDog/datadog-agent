@@ -8,6 +8,6 @@
 ---
 fixes:
   - |
-    Fixed a bug where the file tailing position is always set to beginning, this fix allows
-    users to explicitly set a starting position
+    Fixed a bug where the file tailing position is always set to the beginning, this fix allows
+    users to explicitly set a starting position.
 
