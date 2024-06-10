@@ -773,6 +773,8 @@ require (
 	github.com/ClickHouse/ch-go v0.61.5 // indirect
 	github.com/ClickHouse/clickhouse-go/v2 v2.23.0 // indirect
 	github.com/Code-Hex/go-generics-cache v1.3.1 // indirect
+	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/metricsclient v0.55.0-rc.3 // indirect
+	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/statsprocessor v0.0.0-20240525065430-d0b647bcb646 // indirect
 	github.com/DataDog/datadog-agent/pkg/logs/status/statusinterface v0.55.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/buf v0.55.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/statstracker v0.55.0-rc.3 // indirect
@@ -962,6 +964,7 @@ require (
 	github.com/oklog/ulid/v2 v2.1.0 // indirect
 	github.com/open-telemetry/opamp-go v0.14.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/connector/countconnector v0.102.0 // indirect
+	github.com/open-telemetry/opentelemetry-collector-contrib/connector/datadogconnector v0.102.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/connector/exceptionsconnector v0.102.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/connector/grafanacloudconnector v0.102.0 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/connector/routingconnector v0.102.0 // indirect
