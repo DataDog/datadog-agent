@@ -79,7 +79,7 @@ func (c *CRIUtil) init() error {
 	ctx, cancel := context.WithTimeout(context.Background(), c.connectionTimeout)
 	defer cancel()
 
-	conn, err := grpc.DialContext(ctx, c.socketPath, grpc.WithTransportCredentials(insecure.NewCredentials()), grpc.WithBlock(), grpc.WithContextDialer(dialer))
+	conn, err := grpc.DialContext(ctx, c.socketPath, grpc.WithTransportCredentials(insecure.NewCredentials()), grpc.WithBlock(), grpc.WithContextDialer(dialer)) //nolint:staticcheck // TODO (ASC) fix grpc.DialContext is deprecated
 	if err != nil {
 		return fmt.Errorf("failed to dial: %v", err)
 	}

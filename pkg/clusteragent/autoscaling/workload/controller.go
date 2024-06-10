@@ -151,9 +151,11 @@ func (c *Controller) syncPodAutoscaler(ctx context.Context, key, ns, name string
 	if !podAutoscalerInternalFound {
 		if podAutoscaler != nil {
 			// If we don't have an instance locally, we create it. Deletion is handled through setting the `Deleted` flag
+			log.Debugf("Creating internal PodAutoscaler: %s from Kubernetes object", key)
 			c.store.UnlockSet(key, model.NewPodAutoscalerInternal(podAutoscaler), c.ID)
 		} else {
 			// If podAutoscaler == nil, both objects are nil, nothing to do
+			log.Debugf("Reconciling object: %s but object is not present in Kubernetes nor in internal store, nothing to do", key)
 			c.store.Unlock(key)
 		}
 
@@ -165,11 +167,13 @@ func (c *Controller) syncPodAutoscaler(ctx context.Context, key, ns, name string
 		// If flagged for deletion, we just need to clear up our store (deletion complete)
 		// Also if object was not owned by remote config, we also need to delete it (deleted by user)
 		if podAutoscalerInternal.Deleted || podAutoscalerInternal.Spec.Owner != datadoghq.DatadogPodAutoscalerRemoteOwner {
+			log.Infof("Object %s not present in Kuberntes and flagged for deletion (remote) or owner == local, clearing internal store", key)
 			c.store.UnlockDelete(key, c.ID)
 			return autoscaling.NoRequeue, nil
 		}
 
 		// Object is not flagged for deletion and owned by remote config, we need to create it in Kubernetes
+		log.Infof("Object %s has remote owner and not present in Kubernetes, creating it", key)
 		err := c.createPodAutoscaler(ctx, podAutoscalerInternal)
 
 		c.store.Unlock(key)
@@ -182,9 +186,11 @@ func (c *Controller) syncPodAutoscaler(ctx context.Context, key, ns, name string
 		// First implement deletion logic, as if it's a deletion, we don't need to update the object.
 		// Deletion can only happen if the object is owned by remote config.
 		if podAutoscalerInternal.Deleted {
+			log.Infof("Remote owned PodAutoscaler with Deleted flag, deleting object: %s", key)
 			err := c.deletePodAutoscaler(ns, name)
 			// In case of not found, it means the object is gone but informer cache is not updated yet, we can safely delete it from our store
 			if err != nil && errors.IsNotFound(err) {
+				log.Debugf("Object %s not found in Kubernetes during deletion, clearing internal store", key)
 				c.store.UnlockDelete(key, c.ID)
 				return autoscaling.NoRequeue, nil
 			}

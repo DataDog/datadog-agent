@@ -21,6 +21,7 @@ import (
 	"github.com/DataDog/gopsutil/host"
 
 	cyclonedxgo "github.com/CycloneDX/cyclonedx-go"
+	host2 "github.com/shirou/gopsutil/v3/host"
 	"github.com/yusufpapurcu/wmi"
 )
 
@@ -42,6 +43,7 @@ type Report struct {
 	platform string
 	family   string
 	build    string
+	arch     string
 }
 
 // ToCycloneDX returns the report as a CycloneDX SBOM
@@ -50,17 +52,25 @@ func (r *Report) ToCycloneDX() (*cyclonedxgo.BOM, error) {
 
 	osProperties := []cyclonedxgo.Property{
 		{
+			Name:  "Platform",
+			Value: r.platform,
+		},
+		{
 			Name:  "Family",
 			Value: r.family,
 		}, {
 			Name:  "Build",
 			Value: r.build,
 		},
+		{
+			Name:  "Architecture",
+			Value: r.arch,
+		},
 	}
 
 	windowsComponent := cyclonedxgo.Component{
 		Type:       cyclonedxgo.ComponentTypeOS,
-		Name:       r.platform,
+		Name:       "windows",
 		Version:    r.version,
 		Properties: &osProperties,
 	}
@@ -99,6 +109,7 @@ type Collector struct {
 	opts    sbom.ScanOptions
 
 	closed bool
+	arch   string
 }
 
 // CleanCache cleans the cache
@@ -113,13 +124,21 @@ func (c *Collector) Init(cfg config.Component, _ optional.Option[workloadmeta.Co
 	}
 
 	c.platform, c.family, c.build, err = host.PlatformInformation()
+	if err != nil {
+		return err
+	}
+
+	c.arch, err = host2.KernelArch()
+	if err != nil {
+		return err
+	}
 	return err
 }
 
 // Scan performs a scan
 func (c *Collector) Scan(_ context.Context, hostScanRequest sbom.ScanRequest) sbom.ScanResult { //nolint:revive // TODO fix revive unused-parameter
 
-	report := Report{version: c.version, platform: c.platform, family: c.family, build: c.build}
+	report := Report{version: c.version, platform: c.platform, family: c.family, build: c.build, arch: c.arch}
 	q := wmi.CreateQuery(&report.KBS, "")
 	err := wmi.Query(q, &report.KBS)
 	if err != nil {
