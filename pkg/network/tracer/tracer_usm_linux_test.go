@@ -1177,7 +1177,6 @@ func testPostgresProtocolClassificationWrapper(enableTLS bool) func(t *testing.T
 func testPostgresProtocolClassification(t *testing.T, tr *Tracer, clientHost, targetHost, serverHost string, enableTLS bool) {
 	skippers := []func(t *testing.T, ctx testContext){skipIfUsingNAT}
 	if enableTLS {
-		t.Skip("TLS+Postgres classification tests are flaky")
 		skippers = append(skippers, skipIfGoTLSNotSupported)
 	}
 	skipFunc := composeSkips(skippers...)
@@ -1207,8 +1206,11 @@ func testPostgresProtocolClassification(t *testing.T, tr *Tracer, clientHost, ta
 		// Our client runs in this binary. By default, USM will exclude the current process from tracing. But,
 		// we need to include it in this case. So we allowing it by setting GoTLSExcludeSelf to false and resetting it
 		// after the test.
+		pid := os.Getpid()
 		require.NoError(t, usm.SetGoTLSExcludeSelf(false))
+		goTLSAttachPID(t, pid)
 		t.Cleanup(func() {
+			goTLSDetachPID(t, pid)
 			require.NoError(t, usm.SetGoTLSExcludeSelf(true))
 		})
 	}
@@ -1390,9 +1392,6 @@ func testPostgresProtocolClassification(t *testing.T, tr *Tracer, clientHost, ta
 				targetAddress: targetAddress,
 				serverAddress: serverAddress,
 				extras:        make(map[string]interface{}),
-			}
-			if enableTLS {
-				tt.postTracerSetup = goTLSAttacherWrapper(os.Getpid(), tt.postTracerSetup)
 			}
 			testProtocolClassificationInner(t, tt, tr)
 		})
@@ -1708,7 +1707,6 @@ func testRedisProtocolClassification(t *testing.T, tr *Tracer, clientHost, targe
 }
 
 func testTLSAMQPProtocolClassification(t *testing.T, tr *Tracer, clientHost, targetHost, serverHost string) {
-	t.Skip("TLS+AMQP classification tests are flaky")
 	testAMQPProtocolClassificationInner(t, tr, clientHost, targetHost, serverHost, amqp.TLS)
 }
 
@@ -1776,8 +1774,11 @@ func testAMQPProtocolClassificationInner(t *testing.T, tr *Tracer, clientHost, t
 		// Our client runs in this binary. By default, USM will exclude the current process from tracing. But,
 		// we need to include it in this case. So we allowing it by setting GoTLSExcludeSelf to false and resetting it
 		// after the test.
+		pid := os.Getpid()
 		require.NoError(t, usm.SetGoTLSExcludeSelf(false))
+		goTLSAttachPID(t, pid)
 		t.Cleanup(func() {
+			goTLSDetachPID(t, pid)
 			require.NoError(t, usm.SetGoTLSExcludeSelf(true))
 		})
 	}
@@ -1872,10 +1873,6 @@ func testAMQPProtocolClassificationInner(t *testing.T, tr *Tracer, clientHost, t
 		},
 	}
 	for _, tt := range tests {
-		if withTLS {
-			tt.postTracerSetup = goTLSAttacherWrapper(os.Getpid(), tt.postTracerSetup)
-		}
-
 		t.Run(tt.name, func(t *testing.T) {
 			testProtocolClassificationInner(t, tt, tr)
 		})
@@ -2229,15 +2226,4 @@ func goTLSDetachPID(t *testing.T, pid int) {
 	require.Eventually(t, func() bool {
 		return !utils.IsProgramTraced("go-tls", pid)
 	}, 5*time.Second, 100*time.Millisecond, "process %v is still traced by Go-TLS after detaching", pid)
-}
-
-// goTLSAttacherWrapper runs before the given callback and attaches USM GoTLS monitoring to the given PID.
-func goTLSAttacherWrapper(pid int, callback func(t *testing.T, ctx testContext)) func(t *testing.T, ctx testContext) {
-	return func(t *testing.T, ctx testContext) {
-		goTLSAttachPID(t, pid)
-		defer goTLSDetachPID(t, pid)
-		if callback != nil {
-			callback(t, ctx)
-		}
-	}
 }
