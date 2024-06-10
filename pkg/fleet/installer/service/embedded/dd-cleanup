@@ -1,1 +1,4 @@
+#!/bin/bash
+
+# Owned by datadog-apm-inject
 exit 0

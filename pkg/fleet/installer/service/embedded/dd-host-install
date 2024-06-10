@@ -1,5 +1,6 @@
 #!/bin/bash
 
+# Owned by datadog-apm-inject
 set -e
 
 function usage ()
