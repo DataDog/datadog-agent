@@ -5,7 +5,7 @@
 
 //go:build test
 
-package agent
+package fx
 
 import (
 	"go.uber.org/fx"
