@@ -4,5 +4,5 @@ pyaml==24.4.0
 docker==7.0.0
 retry==0.9.2
 emoji==2.11.1
-requests==2.31.0
+requests==2.32.3
 jsonschema==4.22.0
