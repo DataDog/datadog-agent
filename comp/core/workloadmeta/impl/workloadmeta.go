@@ -25,6 +25,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
+//TODO(components): remove fx from this package to follow the new component layout
+
 // store is a central storage of metadata about workloads. A workload is any
 // unit of work being done by a piece of software, like a process, a container,
 // a kubernetes pod, or a task in any cloud provider.
