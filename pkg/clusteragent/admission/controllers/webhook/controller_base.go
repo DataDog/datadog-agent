@@ -49,7 +49,7 @@ func NewController(
 	isLeaderNotif <-chan struct{},
 	config Config,
 	wmeta workloadmeta.Component,
-	pa workload.PODPatcher,
+	pa workload.PodPatcher,
 ) Controller {
 	if config.useAdmissionV1() {
 		return NewControllerV1(client, secretInformer, admissionInterface.V1().MutatingWebhookConfigurations(), isLeaderFunc, isLeaderNotif, config, wmeta, pa)
@@ -85,7 +85,7 @@ type MutatingWebhook interface {
 // the config one. The reason is that the volume mount for the APM socket added
 // by the config webhook doesn't always work on Fargate (one of the envs where
 // we use an agent sidecar), and the agent sidecar webhook needs to remove it.
-func mutatingWebhooks(wmeta workloadmeta.Component, pa workload.PODPatcher) []MutatingWebhook {
+func mutatingWebhooks(wmeta workloadmeta.Component, pa workload.PodPatcher) []MutatingWebhook {
 	webhooks := []MutatingWebhook{
 		config.NewWebhook(wmeta),
 		tagsfromlabels.NewWebhook(wmeta),

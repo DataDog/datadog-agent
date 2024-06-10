@@ -58,12 +58,17 @@ func (ev *Event) resolveFields(forADs bool) {
 	_ = ev.FieldHandlers.ResolveUser(ev, &ev.BaseEvent.ProcessContext.Process)
 	// resolve event specific fields
 	switch ev.GetEventType().String() {
+	case "change_permission":
+		_ = ev.FieldHandlers.ResolveOldSecurityDescriptor(ev, &ev.ChangePermission)
+		_ = ev.FieldHandlers.ResolveNewSecurityDescriptor(ev, &ev.ChangePermission)
 	case "create":
 		_ = ev.FieldHandlers.ResolveFimFilePath(ev, &ev.CreateNewFile.File)
+		_ = ev.FieldHandlers.ResolveFileUserPath(ev, &ev.CreateNewFile.File)
 		_ = ev.FieldHandlers.ResolveFimFileBasename(ev, &ev.CreateNewFile.File)
 	case "create_key":
 	case "delete":
 		_ = ev.FieldHandlers.ResolveFimFilePath(ev, &ev.DeleteFile.File)
+		_ = ev.FieldHandlers.ResolveFileUserPath(ev, &ev.DeleteFile.File)
 		_ = ev.FieldHandlers.ResolveFimFileBasename(ev, &ev.DeleteFile.File)
 	case "delete_key":
 	case "exec":
@@ -85,12 +90,15 @@ func (ev *Event) resolveFields(forADs bool) {
 	case "open_key":
 	case "rename":
 		_ = ev.FieldHandlers.ResolveFimFilePath(ev, &ev.RenameFile.Old)
+		_ = ev.FieldHandlers.ResolveFileUserPath(ev, &ev.RenameFile.Old)
 		_ = ev.FieldHandlers.ResolveFimFileBasename(ev, &ev.RenameFile.Old)
 		_ = ev.FieldHandlers.ResolveFimFilePath(ev, &ev.RenameFile.New)
+		_ = ev.FieldHandlers.ResolveFileUserPath(ev, &ev.RenameFile.New)
 		_ = ev.FieldHandlers.ResolveFimFileBasename(ev, &ev.RenameFile.New)
 	case "set_key_value":
 	case "write":
 		_ = ev.FieldHandlers.ResolveFimFilePath(ev, &ev.WriteFile.File)
+		_ = ev.FieldHandlers.ResolveFileUserPath(ev, &ev.WriteFile.File)
 		_ = ev.FieldHandlers.ResolveFimFileBasename(ev, &ev.WriteFile.File)
 	}
 }
@@ -103,8 +111,11 @@ type FieldHandlers interface {
 	ResolveEventTimestamp(ev *Event, e *BaseEvent) int
 	ResolveFileBasename(ev *Event, e *FileEvent) string
 	ResolveFilePath(ev *Event, e *FileEvent) string
+	ResolveFileUserPath(ev *Event, e *FimFileEvent) string
 	ResolveFimFileBasename(ev *Event, e *FimFileEvent) string
 	ResolveFimFilePath(ev *Event, e *FimFileEvent) string
+	ResolveNewSecurityDescriptor(ev *Event, e *ChangePermissionEvent) string
+	ResolveOldSecurityDescriptor(ev *Event, e *ChangePermissionEvent) string
 	ResolveProcessCmdLine(ev *Event, e *Process) string
 	ResolveProcessCmdLineScrubbed(ev *Event, e *Process) string
 	ResolveProcessCreatedAt(ev *Event, e *Process) int
@@ -132,11 +143,20 @@ func (dfh *FakeFieldHandlers) ResolveFileBasename(ev *Event, e *FileEvent) strin
 	return e.BasenameStr
 }
 func (dfh *FakeFieldHandlers) ResolveFilePath(ev *Event, e *FileEvent) string { return e.PathnameStr }
+func (dfh *FakeFieldHandlers) ResolveFileUserPath(ev *Event, e *FimFileEvent) string {
+	return e.UserPathnameStr
+}
 func (dfh *FakeFieldHandlers) ResolveFimFileBasename(ev *Event, e *FimFileEvent) string {
 	return e.BasenameStr
 }
 func (dfh *FakeFieldHandlers) ResolveFimFilePath(ev *Event, e *FimFileEvent) string {
 	return e.PathnameStr
+}
+func (dfh *FakeFieldHandlers) ResolveNewSecurityDescriptor(ev *Event, e *ChangePermissionEvent) string {
+	return e.NewSd
+}
+func (dfh *FakeFieldHandlers) ResolveOldSecurityDescriptor(ev *Event, e *ChangePermissionEvent) string {
+	return e.OldSd
 }
 func (dfh *FakeFieldHandlers) ResolveProcessCmdLine(ev *Event, e *Process) string { return e.CmdLine }
 func (dfh *FakeFieldHandlers) ResolveProcessCmdLineScrubbed(ev *Event, e *Process) string {

@@ -26,12 +26,12 @@ func TestStoreGenerators(t *testing.T) {
 	// Define tests
 	tests := []struct {
 		name                    string
-		cfg                     map[string]bool
+		cfg                     map[string]interface{}
 		expectedStoresGenerator []storeGenerator
 	}{
 		{
 			name: "All configurations disabled",
-			cfg: map[string]bool{
+			cfg: map[string]interface{}{
 				"cluster_agent.collect_kubernetes_tags": false,
 				"language_detection.reporting.enabled":  false,
 				"language_detection.enabled":            false,
@@ -40,7 +40,7 @@ func TestStoreGenerators(t *testing.T) {
 		},
 		{
 			name: "All configurations disabled",
-			cfg: map[string]bool{
+			cfg: map[string]interface{}{
 				"cluster_agent.collect_kubernetes_tags": false,
 				"language_detection.reporting.enabled":  false,
 				"language_detection.enabled":            true,
@@ -49,7 +49,7 @@ func TestStoreGenerators(t *testing.T) {
 		},
 		{
 			name: "Kubernetes tags enabled",
-			cfg: map[string]bool{
+			cfg: map[string]interface{}{
 				"cluster_agent.collect_kubernetes_tags": true,
 				"language_detection.reporting.enabled":  false,
 				"language_detection.enabled":            true,
@@ -58,7 +58,7 @@ func TestStoreGenerators(t *testing.T) {
 		},
 		{
 			name: "Language detection enabled",
-			cfg: map[string]bool{
+			cfg: map[string]interface{}{
 				"cluster_agent.collect_kubernetes_tags": false,
 				"language_detection.reporting.enabled":  true,
 				"language_detection.enabled":            true,
@@ -67,7 +67,7 @@ func TestStoreGenerators(t *testing.T) {
 		},
 		{
 			name: "Language detection enabled",
-			cfg: map[string]bool{
+			cfg: map[string]interface{}{
 				"cluster_agent.collect_kubernetes_tags": false,
 				"language_detection.reporting.enabled":  true,
 				"language_detection.enabled":            false,
@@ -76,19 +76,43 @@ func TestStoreGenerators(t *testing.T) {
 		},
 		{
 			name: "Kube namespace collection enabled",
-			cfg: map[string]bool{
-				"kubernetes_namespace_collection_enabled": true,
+			cfg: map[string]interface{}{
+				"cluster_agent.kube_metadata_collection.enabled":   true,
+				"cluster_agent.kube_metadata_collection.resources": "namespaces",
+			},
+			expectedStoresGenerator: []storeGenerator{newNodeStore, newNamespaceStore},
+		},
+		{
+			name: "Namespace from ns label as tags",
+			cfg: map[string]interface{}{
+				"kubernetes_namespace_labels_as_tags": map[string]string{
+					"env": "env",
+				},
+			},
+			expectedStoresGenerator: []storeGenerator{newNodeStore, newNamespaceStore},
+		},
+		{
+			name: "Namespace from ns annotations as tags",
+			cfg: map[string]interface{}{
+				"kubernetes_namespace_annotations_as_tags": map[string]string{
+					"env": "env",
+				},
 			},
 			expectedStoresGenerator: []storeGenerator{newNodeStore, newNamespaceStore},
 		},
 		{
 			name: "All configurations enabled",
-			cfg: map[string]bool{
-				"cluster_agent.collect_kubernetes_tags": true,
-				"language_detection.reporting.enabled":  true,
-				"language_detection.enabled":            true,
+			cfg: map[string]interface{}{
+				"cluster_agent.collect_kubernetes_tags":            true,
+				"language_detection.reporting.enabled":             true,
+				"language_detection.enabled":                       true,
+				"cluster_agent.kube_metadata_collection.enabled":   true,
+				"cluster_agent.kube_metadata_collection.resources": "namespaces",
+				"kubernetes_namespace_labels_as_tags": map[string]string{
+					"env": "env",
+				},
 			},
-			expectedStoresGenerator: []storeGenerator{newNodeStore, newPodStore, newDeploymentStore},
+			expectedStoresGenerator: []storeGenerator{newNodeStore, newPodStore, newDeploymentStore, newNamespaceStore},
 		},
 	}
 

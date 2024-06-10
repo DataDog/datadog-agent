@@ -769,6 +769,11 @@ func (c *WorkloadMetaCollector) addOpenTelemetryStandardTags(container *workload
 	if otelResourceAttributes, ok := container.EnvVars[envVarOtelResourceAttributes]; ok {
 		for _, pair := range strings.Split(otelResourceAttributes, ",") {
 			fields := strings.SplitN(pair, "=", 2)
+			if len(fields) != 2 {
+				log.Debugf("invalid OpenTelemetry resource attribute: %s", pair)
+				continue
+			}
+			fields[0], fields[1] = strings.TrimSpace(fields[0]), strings.TrimSpace(fields[1])
 			if tag, ok := otelResourceAttributesMapping[fields[0]]; ok {
 				tags.AddStandard(tag, fields[1])
 			}

@@ -8,30 +8,51 @@
 package workload
 
 import (
+	"context"
+
 	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/tools/record"
 
+	datadoghq "github.com/DataDog/datadog-operator/apis/datadoghq/v1alpha1"
+
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload/model"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// PODPatcher allows a workload patcher to patch a workload with the recommendations from the autoscaler
-type PODPatcher interface {
+var podGVR = corev1.SchemeGroupVersion.WithResource("pods")
+
+// PodPatcher allows a workload patcher to patch a workload with the recommendations from the autoscaler
+type PodPatcher interface {
 	// ApplyRecommendation applies the recommendation to the given pod
 	ApplyRecommendations(pod *corev1.Pod) (bool, error)
+
+	// shouldObserverPod returns true if the pod should be observed by the pod watcher
+	shouldObservePod(pod *workloadmeta.KubernetesPod) bool
+
+	// observedPodCallback is called when a pod is observed by the pod watcher.
+	// It allows to generate events based on the observed pod.
+	observedPodCallback(ctx context.Context, pod *workloadmeta.KubernetesPod)
 }
 
 type podPatcher struct {
 	store         *store
+	isLeader      func() bool
+	client        dynamic.Interface
 	eventRecorder record.EventRecorder
 }
 
-var _ PODPatcher = podPatcher{}
+var _ PodPatcher = podPatcher{}
 
-func newPODPatcher(store *store, eventRecorder record.EventRecorder) PODPatcher {
+func newPODPatcher(store *store, isLeader func() bool, client dynamic.Interface, eventRecorder record.EventRecorder) PodPatcher {
 	return podPatcher{
 		store:         store,
+		isLeader:      isLeader,
+		client:        client,
 		eventRecorder: eventRecorder,
 	}
 }
@@ -52,6 +73,13 @@ func (pa podPatcher) ApplyRecommendations(pod *corev1.Pod) (bool, error) {
 		return false, nil
 	}
 
+	// Check if we're allowed to patch the POD
+	strategy, reason := getVerticalPatchingStrategy(autoscaler)
+	if strategy == datadoghq.DatadogPodAutoscalerDisabledUpdateStrategy {
+		log.Debugf("Autoscaler %s has vertical patching disabled for POD %s/%s, reason: %s", autoscaler.ID(), pod.Namespace, pod.Name, reason)
+		return false, nil
+	}
+
 	// Patching the pod with the recommendations
 	patched := false
 	if pod.Annotations == nil {
@@ -60,6 +88,12 @@ func (pa podPatcher) ApplyRecommendations(pod *corev1.Pod) (bool, error) {
 
 	if pod.Annotations[model.RecommendationIDAnnotation] != autoscaler.ScalingValues.Vertical.ResourcesHash {
 		pod.Annotations[model.RecommendationIDAnnotation] = autoscaler.ScalingValues.Vertical.ResourcesHash
+		patched = true
+	}
+
+	autoscalerID := autoscaler.ID()
+	if pod.Annotations[model.AutoscalerIDAnnotation] != autoscalerID {
+		pod.Annotations[model.AutoscalerIDAnnotation] = autoscalerID
 		patched = true
 	}
 
@@ -131,4 +165,38 @@ func (pa podPatcher) findAutoscaler(pod *corev1.Pod) (*model.PodAutoscalerIntern
 	}
 
 	return &podAutoscalers[0], nil
+}
+
+func (pa podPatcher) shouldObservePod(pod *workloadmeta.KubernetesPod) bool {
+	return pod.Annotations[model.RecommendationIDAnnotation] != "" &&
+		pod.Annotations[model.AutoscalerIDAnnotation] != "" &&
+		pod.Annotations[model.RecommendationAppliedEventGeneratedAnnotation] == ""
+}
+
+func (pa podPatcher) observedPodCallback(ctx context.Context, pod *workloadmeta.KubernetesPod) {
+	if !pa.isLeader() {
+		return
+	}
+
+	podObj := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      pod.Name,
+			Namespace: pod.Namespace,
+			UID:       types.UID(pod.ID),
+		},
+	}
+
+	pa.eventRecorder.AnnotatedEventf(podObj,
+		map[string]string{"datadog-autoscaler": pod.Annotations[model.AutoscalerIDAnnotation]},
+		corev1.EventTypeNormal,
+		model.RecommendationAppliedEventReason,
+		"POD patched with recommendations from autoscaler %s, recommendation id: %s", pod.Annotations[model.AutoscalerIDAnnotation], pod.Annotations[model.RecommendationIDAnnotation],
+	)
+
+	podPatch := []byte(`{"metadata": {"annotations": {"` + model.RecommendationAppliedEventGeneratedAnnotation + `": "true"}}}`)
+	_, err := pa.client.Resource(podGVR).Namespace(pod.Namespace).Patch(ctx, pod.Name, types.StrategicMergePatchType, podPatch, metav1.PatchOptions{})
+	if err != nil {
+		log.Warnf("Failed to patch POD %s/%s with event emitted annotation, event may be generated multiple times, err: %v", pod.Namespace, pod.Name, err)
+	}
+	log.Debugf("Event sent and POD %s/%s patched with event annotation", pod.Namespace, pod.Name)
 }

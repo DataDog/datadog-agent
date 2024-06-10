@@ -113,7 +113,7 @@ func (c *GenericCollector) Start(ctx context.Context, store workloadmeta.Compone
 		opts = append(opts, grpc.WithTransportCredentials(creds))
 	}
 
-	conn, err := grpc.DialContext(
+	conn, err := grpc.DialContext( //nolint:staticcheck // TODO (ASC) fix grpc.DialContext is deprecated
 		c.ctx,
 		fmt.Sprintf(":%v", c.StreamHandler.Port()),
 		opts...,

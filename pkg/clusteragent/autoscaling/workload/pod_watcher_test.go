@@ -26,7 +26,7 @@ import (
 )
 
 func TestHandleSetEvent(t *testing.T) {
-	pw := newPodWatcher(nil).(*podWatcher)
+	pw := newPodWatcher(nil, nil)
 	pod := &workloadmeta.KubernetesPod{
 		EntityID: workloadmeta.EntityID{
 			Kind: workloadmeta.KindKubernetesPod,
@@ -56,7 +56,7 @@ func TestHandleSetEvent(t *testing.T) {
 }
 
 func TestHandleUnsetEvent(t *testing.T) {
-	pw := newPodWatcher(nil).(*podWatcher)
+	pw := newPodWatcher(nil, nil)
 	pod := &workloadmeta.KubernetesPod{
 		EntityID: workloadmeta.EntityID{
 			Kind: workloadmeta.KindKubernetesPod,
@@ -97,9 +97,9 @@ func TestPodWatcherStartStop(t *testing.T) {
 		fx.Supply(workloadmeta.NewParams()),
 		workloadmetafxmock.MockModuleV2(),
 	))
-	pw := newPodWatcher(wlm)
+	pw := newPodWatcher(wlm, nil)
 	ctx, cancel := context.WithCancel(context.Background())
-	go pw.Start(ctx)
+	go pw.Run(ctx)
 	pod := &workloadmeta.KubernetesPod{
 		EntityID: workloadmeta.EntityID{
 			Kind: workloadmeta.KindKubernetesPod,

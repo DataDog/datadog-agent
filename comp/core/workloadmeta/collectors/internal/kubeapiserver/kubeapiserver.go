@@ -10,6 +10,7 @@ package kubeapiserver
 
 import (
 	"context"
+	"slices"
 	"time"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
@@ -46,7 +47,17 @@ func storeGenerators(cfg model.Reader) []storeGenerator {
 		generators = append(generators, newDeploymentStore)
 	}
 
-	if cfg.GetBool("kubernetes_namespace_collection_enabled") {
+	addNamespaceStore := len(cfg.GetStringMapString("kubernetes_namespace_labels_as_tags")) > 0 ||
+		len(cfg.GetStringMapString("kubernetes_namespace_annotations_as_tags")) > 0
+	// TODO: Remove this once we migrate references to the namespace store to use generic collection
+	if cfg.GetBool("cluster_agent.kube_metadata_collection.enabled") {
+		resources := cfg.GetStringSlice("cluster_agent.kube_metadata_collection.resources")
+		if slices.Contains(resources, "namespaces") {
+			addNamespaceStore = true
+		}
+	}
+
+	if addNamespaceStore {
 		generators = append(generators, newNamespaceStore)
 	}
 
@@ -60,7 +71,11 @@ func metadataCollectionGVRs(cfg model.Reader, discoveryClient discovery.Discover
 
 	requestedResources := cfg.GetStringSlice("cluster_agent.kube_metadata_collection.resources")
 
-	discoveredResourcesGVs, err := discoverGVRs(discoveryClient, requestedResources)
+	// TODO: Remove this after implementing collector factory which specifies which collector should be registered for each specific resource type
+	// Adding this now as a quick work around to avoid having 2 collectors collecting the same data
+	excludedResources := []string{"namespaces"}
+
+	discoveredResourcesGVs, err := discoverGVRs(discoveryClient, requestedResources, excludedResources)
 	return discoveredResourcesGVs, err
 }
 

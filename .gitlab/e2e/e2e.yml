@@ -164,7 +164,12 @@ new-e2e-containers:
     TEAM: container-integrations
   parallel:
     matrix:
-      - EXTRA_PARAMS: --run TestKindSuite
+      - EXTRA_PARAMS: "--run TestKindSuite -c ddinfra:kubernetesVersion=1.19"
+      - EXTRA_PARAMS: "--run TestKindSuite -c ddinfra:kubernetesVersion=1.22"
+      - EXTRA_PARAMS: "--run TestKindSuite -c ddinfra:kubernetesVersion=1.27"
+      - EXTRA_PARAMS: "--run TestKindSuite -c ddinfra:kubernetesVersion=1.29"
+      - EXTRA_PARAMS: "--run TestKindSuite -c ddinfra:osDescriptor=ubuntu:20.04"
+      - EXTRA_PARAMS: "--run TestKindSuite -c ddinfra:osDescriptor=ubuntu:22.04"
       - EXTRA_PARAMS: --run TestEKSSuite
       - EXTRA_PARAMS: --run TestECSSuite
       - EXTRA_PARAMS: --run TestDockerSuite
@@ -209,6 +214,8 @@ new-e2e-agent-subcommands:
       - EXTRA_PARAMS: --run TestLinuxSecretSuite
       - EXTRA_PARAMS: --run TestWindowsSecretSuite
       - EXTRA_PARAMS: --run TestLinuxCheckSuite
+      - EXTRA_PARAMS: --run TestLinuxRunSuite
+      - EXTRA_PARAMS: --run TestWindowsRunSuite
 
 new-e2e-language-detection:
   extends: .new_e2e_template_needs_deb_x64
@@ -240,7 +247,11 @@ new-e2e-npm-docker:
     EXTRA_PARAMS: --run "Test(ECSVM|EC2VMContainerized|EKSVM)Suite"
 
 new-e2e-aml:
-  extends: .new_e2e_template_needs_deb_windows_x64
+  extends: .new_e2e_template
+  needs:
+    - deploy_deb_testing-a7_x64
+    - deploy_windows_testing-a7
+    - qa_agent
   rules: !reference [.on_aml_or_e2e_changes_or_manual]
   variables:
     TARGETS: ./tests/agent-metric-logs

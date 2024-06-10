@@ -291,7 +291,8 @@ func (c *collector) handleImageCreateOrUpdate(ctx context.Context, namespace str
 func (c *collector) createOrUpdateImageMetadata(ctx context.Context,
 	namespace string,
 	img containerd.Image,
-	sbom *workloadmeta.SBOM) (*workloadmeta.ContainerImageMetadata, error) {
+	sbom *workloadmeta.SBOM,
+	isStartupInit bool) (*workloadmeta.ContainerImageMetadata, error) {
 	c.handleImagesMut.Lock()
 	defer c.handleImagesMut.Unlock()
 
@@ -321,11 +322,15 @@ func (c *collector) createOrUpdateImageMetadata(ctx context.Context,
 		SBOM:      sbom,
 		SizeBytes: totalSizeBytes,
 	}
-	// Only pull all image references if not already present
-	if _, found := c.knownImages.getImageID(wlmImage.Name); !found {
-		references := c.pullImageReferences(namespace, img)
-		for _, ref := range references {
-			c.knownImages.addReference(ref, wlmImage.ID)
+	// Do not pull references for new image if agent is starting up,
+	// because list of all images has already been pulled and will be consolidated in notifyInitialImageEvents
+	if !isStartupInit {
+		// Only pull all image references if not already present
+		if _, found := c.knownImages.getImageID(wlmImage.Name); !found {
+			references := c.pullImageReferences(namespace, img)
+			for _, ref := range references {
+				c.knownImages.addReference(ref, wlmImage.ID)
+			}
 		}
 	}
 	// update knownImages with current reference name
@@ -375,7 +380,7 @@ func (c *collector) createOrUpdateImageMetadata(ctx context.Context,
 }
 
 func (c *collector) notifyEventForImage(ctx context.Context, namespace string, img containerd.Image, sbom *workloadmeta.SBOM) error {
-	wlmImage, err := c.createOrUpdateImageMetadata(ctx, namespace, img, sbom)
+	wlmImage, err := c.createOrUpdateImageMetadata(ctx, namespace, img, sbom, false)
 	if err != nil {
 		return err
 	}
