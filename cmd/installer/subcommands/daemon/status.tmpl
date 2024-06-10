@@ -1,10 +1,10 @@
 Datadog Installer v{{ htmlSafe .Version }}
 {{ range $name, $package := .Packages }}
 {{ boldText $name }}
-  State: {{ if $package.Stable }}{{ yellowText "unknown (unimplemented)" }}{{ else }} {{ redText "no stable version" }}{{ end }}
+  State: {{ if $package.Experiment -}}{{ yellowText "Upgrading" }}{{- else if $package.Stable -}}{{ greenText "OK" }}{{- else -}}{{ redText "no stable version" }}{{- end }}
   Installed versions:
   {{- if $package.Stable }}
-    {{ yellowText "●" }} stable: v{{ htmlSafe $package.Stable }}
+    {{ greenText "●" }} stable: v{{ htmlSafe $package.Stable }}
   {{- else }}
     {{ redText "●" }} stable: none
   {{- end }}{{ if $package.Experiment }}
@@ -23,13 +23,11 @@ Datadog Installer v{{ htmlSafe .Version }}
     {{- else -}}
       {{ redText "●" }} Host: Not instrumented
     {{- end }}
-    {{ if eq .DockerInstalled true -}}
-      {{- if eq .DockerInstrumented true -}}
-        {{ greenText "●" }} Docker: Instrumented
-      {{- else -}}
-        {{ redText "●" }} Docker: Not instrumented
-      {{- end -}}
-    {{- else -}}
+    {{ if eq .DockerInstalled false -}}
       {{ italicText "●" }} Docker: {{ italicText "not installed" }}
+    {{- else if eq .DockerInstrumented true -}}
+      {{ greenText "●" }} Docker: Instrumented
+    {{- else -}}
+      {{ redText "●" }} Docker: Not instrumented
     {{- end }}
 {{- end -}}
