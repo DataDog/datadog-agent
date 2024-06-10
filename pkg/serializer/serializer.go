@@ -14,7 +14,6 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
-	"strings"
 	"time"
 
 	forwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
@@ -352,12 +351,21 @@ func (s *Serializer) SendIterableSeries(serieSource metrics.SerieSource) error {
 		seriesBytesPayloads, extraHeaders, err = s.serializePayloadJSON(seriesSerializer, true)
 	} else {
 		// TODO: replace with something that looks for filter configuration AND failover being active
-		shouldMakeFilteredPayload := s.config.GetBool("multi_region_failover.enabled") && s.config.GetBool("multi_region_failover.failover_metrics")
+		failoverActive := s.config.GetBool("multi_region_failover.enabled") && s.config.GetBool("multi_region_failover.failover_metrics")
+		var allowlist map[string]struct{}
+		if failoverActive {
+			rawList := s.config.GetStringSlice("multi_region_failover.metric_allowlist")
+			allowlist = make(map[string]struct{}, len(rawList))
+			for _, allowed := range rawList {
+				allowlist[allowed] = struct{}{}
+			}
+		}
 
-		if shouldMakeFilteredPayload {
+		if failoverActive && len(allowlist) > 0 {
 			var filtered transaction.BytesPayloads
 			seriesBytesPayloads, filtered, err = seriesSerializer.MarshalSplitCompressMultiple(s.config, s.Strategy, func(s *metrics.Serie) bool {
-				return strings.Contains(s.Name, "agent")
+				_, allowed := allowlist[s.Name]
+				return allowed
 			})
 			for _, seriesBytesPayload := range seriesBytesPayloads {
 				seriesBytesPayload.Destination = transaction.PrimaryOnly
