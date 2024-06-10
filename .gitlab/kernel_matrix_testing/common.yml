@@ -72,7 +72,7 @@
 # - In KMT we change the AWS_PROFILE environment variable, and that might cause the ssm wrapper to fail getting the keys. Export
 #   the DD_API_KEY variable before changing the AWS_PROFILE variable.
 .tag_kmt_ci_job:
-  - inv kmt.tag-ci-job
+  - inv -e kmt.tag-ci-job
 
 # -- Test dependencies
 
