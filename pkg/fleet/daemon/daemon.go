@@ -7,10 +7,13 @@
 package daemon
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
+	osexec "os/exec"
 	"path/filepath"
 	"runtime"
 	"sync"
@@ -49,6 +52,7 @@ type Daemon interface {
 
 	GetPackage(pkg string, version string) (Package, error)
 	GetState() (map[string]repository.State, error)
+	GetAPMInjectionStatus() (APMInjectionStatus, error)
 }
 
 type daemonImpl struct {
@@ -105,6 +109,46 @@ func (d *daemonImpl) GetState() (map[string]repository.State, error) {
 	defer d.m.Unlock()
 
 	return d.installer.States()
+}
+
+// GetAPMInjectionStatus returns the APM injection status. This is not done in the service
+// to avoid cross-contamination between the daemon and the installer.
+func (d *daemonImpl) GetAPMInjectionStatus() (status APMInjectionStatus, err error) {
+	d.m.Lock()
+	defer d.m.Unlock()
+
+	// Host is instrumented if the ld.so.preload file contains the apm injector
+	ldPreloadContent, err := os.ReadFile("/etc/ld.so.preload")
+	if err != nil {
+		return status, fmt.Errorf("could not read /etc/ld.so.preload: %w", err)
+	}
+	if bytes.Contains(ldPreloadContent, []byte("/opt/datadog-packages/datadog-apm-inject/stable/inject/launcher.preload.so")) {
+		status.HostInstrumented = true
+	}
+
+	// Docker is installed if the docker binary is in the PATH
+	_, err = osexec.LookPath("docker")
+	if err != nil && errors.Is(err, osexec.ErrNotFound) {
+		return status, nil
+	} else if err != nil {
+		return status, fmt.Errorf("could not check if docker is installed: %w", err)
+	}
+	status.DockerInstalled = true
+
+	// Docker is instrumented if there is the injector runtime in its configuration
+	// We're not retrieving the default runtime from the docker daemon as we are not
+	// root
+	dockerConfigContent, err := os.ReadFile("/etc/docker/daemon.json")
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
+		return status, fmt.Errorf("could not read /etc/docker/daemon.json: %w", err)
+	} else if errors.Is(err, os.ErrNotExist) {
+		return status, nil
+	}
+	if bytes.Contains(dockerConfigContent, []byte("/opt/datadog-packages/datadog-apm-inject/stable/inject/auto_inject_runc")) {
+		status.DockerInstrumented = true
+	}
+
+	return status, nil
 }
 
 // GetPackage returns the package with the given name and version.
