@@ -158,7 +158,9 @@ new-e2e-containers:
   # TODO once images are deployed to ECR for dev branches, update
   #.on_main_or_rc_and_no_skip_e2e adding on_dev_branch_manual rules
   # and move rules to template
-  rules: !reference [.on_container_or_e2e_changes_or_manual]
+  rules:
+    - !reference [.on_container_or_e2e_changes]
+    - !reference [.manual]
   variables:
     TARGETS: ./tests/containers
     TEAM: container-integrations
@@ -177,21 +179,27 @@ new-e2e-containers:
 
 new-e2e-remote-config:
   extends: .new_e2e_template_needs_deb_x64
-  rules: !reference [.on_rc_or_e2e_changes_or_manual]
+  rules:
+    - !reference [.on_rc_or_e2e_changes]
+    - !reference [.manual]
   variables:
     TARGETS: ./tests/remote-config
     TEAM: remote-config
 
 new-e2e-agent-shared-components:
   extends: .new_e2e_template_needs_deb_windows_x64
-  rules: !reference [.on_asc_or_e2e_changes_or_manual]
+  rules:
+    - !reference [.on_asc_or_e2e_changes]
+    - !reference [.manual]
   variables:
     TARGETS: ./tests/agent-shared-components
     TEAM: agent-shared-components
 
 new-e2e-agent-subcommands:
   extends: .new_e2e_template_needs_deb_windows_x64
-  rules: !reference [.on_subcommands_or_e2e_changes_or_manual]
+  rules:
+    - !reference [.on_subcommands_or_e2e_changes]
+    - !reference [.manual]
   variables:
     TARGETS: ./tests/agent-subcommands
     TEAM: agent-shared-components
@@ -214,17 +222,23 @@ new-e2e-agent-subcommands:
       - EXTRA_PARAMS: --run TestLinuxSecretSuite
       - EXTRA_PARAMS: --run TestWindowsSecretSuite
       - EXTRA_PARAMS: --run TestLinuxCheckSuite
+      - EXTRA_PARAMS: --run TestLinuxRunSuite
+      - EXTRA_PARAMS: --run TestWindowsRunSuite
 
 new-e2e-language-detection:
   extends: .new_e2e_template_needs_deb_x64
-  rules: !reference [.on_language-detection_or_e2e_changes_or_manual]
+  rules:
+    - !reference [.on_language-detection_or_e2e_changes]
+    - !reference [.manual]
   variables:
     TARGETS: ./tests/language-detection
     TEAM: processes
 
 new-e2e-npm-packages:
   extends: .new_e2e_template
-  rules: !reference [.on_npm_or_e2e_changes_or_manual]
+  rules: 
+    - !reference [.on_npm_or_e2e_changes]
+    - !reference [.manual]
   needs:
     - deploy_deb_testing-a7_x64
     - deploy_rpm_testing-a7_x64
@@ -236,7 +250,9 @@ new-e2e-npm-packages:
 
 new-e2e-npm-docker:
   extends: .new_e2e_template
-  rules: !reference [.on_npm_or_e2e_changes_or_manual]
+  rules:
+    - !reference [.on_npm_or_e2e_changes]
+    - !reference [.manual]
   needs:
     - qa_agent
   variables:
@@ -245,15 +261,23 @@ new-e2e-npm-docker:
     EXTRA_PARAMS: --run "Test(ECSVM|EC2VMContainerized|EKSVM)Suite"
 
 new-e2e-aml:
-  extends: .new_e2e_template_needs_deb_windows_x64
-  rules: !reference [.on_aml_or_e2e_changes_or_manual]
+  extends: .new_e2e_template
+  needs:
+    - deploy_deb_testing-a7_x64
+    - deploy_windows_testing-a7
+    - qa_agent
+  rules: 
+    - !reference [.on_aml_or_e2e_changes]
+    - !reference [.manual]
   variables:
     TARGETS: ./tests/agent-metric-logs
     TEAM: agent-metric-logs
 
 new-e2e-cws:
   extends: .new_e2e_template
-  rules: !reference [.on_cws_or_e2e_changes_or_manual]
+  rules: 
+    - !reference [.on_cws_or_e2e_changes]
+    - !reference [.manual]
   needs:
     - deploy_deb_testing-a7_x64
     - qa_cws_instrumentation
@@ -273,7 +297,9 @@ new-e2e-cws:
 
 new-e2e-process:
   extends: .new_e2e_template_needs_deb_windows_x64
-  rules: !reference [.on_process_or_e2e_changes_or_manual]
+  rules: 
+    - !reference [.on_process_or_e2e_changes]
+    - !reference [.manual]
   variables:
     TARGETS: ./tests/process
     TEAM: processes
@@ -281,14 +307,18 @@ new-e2e-process:
 new-e2e-orchestrator:
   extends:
     - .new_e2e_template_needs_container_deploy
-  rules: !reference [.on_orchestrator_or_e2e_changes_or_manual]
+  rules:
+    - !reference [.on_orchestrator_or_e2e_changes]
+    - !reference [.manual]
   variables:
     TARGETS: ./tests/orchestrator
     TEAM: container-app
 
 new-e2e-apm:
   extends: .new_e2e_template
-  rules: !reference [.on_apm_or_e2e_changes_or_manual]
+  rules:
+    - !reference [.on_apm_or_e2e_changes]
+    - !reference [.manual]
   needs:
     - qa_agent
     - deploy_deb_testing-a7_x64
@@ -305,7 +335,8 @@ new-e2e-apm:
 new-e2e-installer:
   extends: .new_e2e_template
   rules:
-    !reference [.on_installer_or_e2e_changes_or_manual]
+    - !reference [.on_installer_or_e2e_changes]
+    - !reference [.manual]
   needs:
     - deploy_deb_testing-a7_arm64
     - deploy_deb_testing-a7_x64
@@ -321,7 +352,9 @@ new-e2e-installer:
 
 new-e2e-ndm-netflow:
   extends: .new_e2e_template
-  rules: !reference [.on_ndm_netflow_or_e2e_changes_or_manual]
+  rules:
+    - !reference [.on_ndm_netflow_or_e2e_changes]
+    - !reference [.manual]
   needs:
     - qa_agent
   variables:
@@ -330,7 +363,9 @@ new-e2e-ndm-netflow:
 
 new-e2e-ndm-snmp:
   extends: .new_e2e_template
-  rules: !reference [.on_ndm_snmp_or_e2e_changes_or_manual]
+  rules:
+    - !reference [.on_ndm_snmp_or_e2e_changes]
+    - !reference [.manual]
   needs:
     - qa_agent
   variables:

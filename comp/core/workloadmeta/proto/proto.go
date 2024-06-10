@@ -10,7 +10,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 )
 

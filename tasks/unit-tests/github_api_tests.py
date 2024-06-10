@@ -48,3 +48,11 @@ class TestContainsReleaseNote(unittest.TestCase):
             mock_pr = mock_repo.get_pull.return_value
             mock_pr.get_files.return_value = [Myfile("release_notes/notes")]
             self.assertFalse(github.contains_release_note(2))
+
+    @patch("tasks.libs.ciproviders.github_api.Github", autospec=True)
+    def test_org(self, _):
+        github = GithubAPI(repository="test", public_repo=True)
+        self.assertIsNone(github._organization)
+
+        github = GithubAPI(repository="org/test", public_repo=True)
+        self.assertEqual(github._organization, "org")
