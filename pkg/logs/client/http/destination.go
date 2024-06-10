@@ -243,12 +243,8 @@ func (d *Destination) sendAndRetry(payload *message.Payload, output chan *messag
 
 		if d.serverlessFlushChan != nil && !d.shouldRetry {
 			// Serverless should not retry but will attempt to sync an on-demand flush with when a payload is sent
-			select {
-			case serverlessWg := <-d.serverlessFlushChan:
-				defer serverlessWg.Done()
-			case <-time.After(5 * time.Second):
-				log.Debug("Timed out waiting for a flush from the serverless flush channel")
-			}
+			serverlessWg := <-d.serverlessFlushChan
+			defer serverlessWg.Done()
 		}
 
 		err := d.unconditionalSend(payload)
@@ -439,7 +435,7 @@ func getMessageTimestamp(messages []*message.Message) int64 {
 func prepareCheckConnectivity(endpoint config.Endpoint, cfg pkgconfigmodel.Reader) (*client.DestinationsContext, *Destination) {
 	ctx := client.NewDestinationsContext()
 	// Lower the timeout to 5s because HTTP connectivity test is done synchronously during the agent bootstrap sequence
-	destination := newDestination(endpoint, JSONContentType, ctx, time.Second*5, 0, false, make(chan *sync.WaitGroup), "", cfg)
+	destination := newDestination(endpoint, JSONContentType, ctx, time.Second*5, 0, false, nil, "", cfg)
 	return ctx, destination
 }
 
