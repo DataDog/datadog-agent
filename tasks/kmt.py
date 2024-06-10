@@ -1766,7 +1766,7 @@ def tag_ci_job(ctx: Context):
 
     # Get the job type based on the job name
     job_name = os.environ["CI_JOB_NAME"]
-    if "setup_env" in job_name:
+    if "setup_env" in job_name or "upload" in job_name or "pull_test_dockers" in job_name:
         job_type = "setup"
     elif "cleanup" in job_name:
         job_type = "cleanup"
@@ -1803,6 +1803,17 @@ def tag_ci_job(ctx: Context):
             tags["failure_reason"] = "infra_ssh-config"
         else:
             tags["failure_reason"] = "infra-unknown"
+    elif job_type == "setup":
+        if "kmt_setup_env" in job_name:
+            tags["setup_stage"] = "infra-provision"
+        elif "pull_test_dockers" in job_name:
+            tags["setup_stage"] = "docker-images"
+        elif "upload_dependencies" in job_name:
+            tags["setup_stage"] = "dependencies"
+        elif "btfs" in job_name:
+            tags["setup_stage"] = "btfs"
+        elif "upload_secagent_tests" in job_name or "upload_sysprobe_tests" in job_name:
+            tags["setup_stage"] = "tests"
 
     tag_prefix = "kmt."
     tags_str = " ".join(f"{tag_prefix}{k}:{v}" for k, v in tags.items())
