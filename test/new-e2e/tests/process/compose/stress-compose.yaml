@@ -1,8 +1,0 @@
-services:
-  stress:
-    image: polinux/stress
-    container_name: stress
-    command:
-      - "stress"
-      - "-d"
-      - "1"
