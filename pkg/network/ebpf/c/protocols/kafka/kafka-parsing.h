@@ -108,12 +108,12 @@ int uprobe__kafka_tls_filter(struct pt_regs *ctx) {
     kafka_telemetry_t *kafka_tel = bpf_map_lookup_elem(&kafka_telemetry, &zero);
     if (kafka_tel == NULL) {
         return 0;
-    }    
+    }
 
     // On stack for 4.14
     conn_tuple_t tup = args->tup;
 
-    pktbuf_t pkt = pktbuf_from_tls(args);
+    pktbuf_t pkt = pktbuf_from_tls(ctx, args);
 
     if (kafka_process_response(ctx, &tup, kafka, pkt, NULL)) {
         return 0;
@@ -1239,7 +1239,7 @@ static __always_inline int __uprobe__kafka_tls_response_parser(struct pt_regs *c
 
     // Put tuple on stack for 4.14.
     conn_tuple_t tup = args->tup;
-    kafka_response_parser(kafka, ctx, &tup, pktbuf_from_tls(args), level, min_api_version, max_api_version);
+    kafka_response_parser(kafka, ctx, &tup, pktbuf_from_tls(ctx, args), level, min_api_version, max_api_version);
 
     return 0;
 }

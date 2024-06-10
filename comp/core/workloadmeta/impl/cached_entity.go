@@ -9,6 +9,7 @@ import (
 	"reflect"
 	"sort"
 
+	wmdef "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -17,18 +18,18 @@ import (
 // meant to be used internally by workloadmeta.Store, and is protected by
 // a `Store.storeMut` lock.
 type cachedEntity struct {
-	cached        Entity
-	sources       map[Source]Entity
+	cached        wmdef.Entity
+	sources       map[wmdef.Source]wmdef.Entity
 	sortedSources []string
 }
 
 func newCachedEntity() *cachedEntity {
 	return &cachedEntity{
-		sources: make(map[Source]Entity),
+		sources: make(map[wmdef.Source]wmdef.Entity),
 	}
 }
 
-func (e *cachedEntity) unset(source Source) bool {
+func (e *cachedEntity) unset(source wmdef.Source) bool {
 	if _, found := e.sources[source]; found {
 		delete(e.sources, source)
 		e.computeCache()
@@ -38,7 +39,7 @@ func (e *cachedEntity) unset(source Source) bool {
 	return false
 }
 
-func (e *cachedEntity) set(source Source, entity Entity) (found, changed bool) {
+func (e *cachedEntity) set(source wmdef.Source, entity wmdef.Entity) (found, changed bool) {
 	old, found := e.sources[source]
 
 	if found && reflect.DeepEqual(old, entity) {
@@ -51,8 +52,8 @@ func (e *cachedEntity) set(source Source, entity Entity) (found, changed bool) {
 	return found, true
 }
 
-func (e *cachedEntity) get(source Source) Entity {
-	if source == SourceAll {
+func (e *cachedEntity) get(source wmdef.Source) wmdef.Entity {
+	if source == wmdef.SourceAll {
 		return e.cached
 	}
 
@@ -74,9 +75,9 @@ func (e *cachedEntity) computeCache() {
 
 	e.sortedSources = sources
 
-	var merged Entity
+	var merged wmdef.Entity
 	for _, source := range e.sortedSources {
-		if e, ok := e.sources[Source(source)]; ok {
+		if e, ok := e.sources[wmdef.Source(source)]; ok {
 			if merged == nil {
 				merged = e.DeepCopy()
 			} else {
