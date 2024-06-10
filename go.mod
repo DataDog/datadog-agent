@@ -169,7 +169,7 @@ require (
 	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575
 	github.com/cilium/ebpf v0.15.0
 	github.com/clbanning/mxj v1.8.4
-	github.com/containerd/containerd v1.7.15
+	github.com/containerd/containerd v1.7.17
 	github.com/containernetworking/cni v1.2.0
 	github.com/coreos/go-semver v0.3.1
 	github.com/coreos/go-systemd v22.5.0+incompatible
@@ -225,7 +225,7 @@ require (
 	github.com/netsampler/goflow2 v1.3.3
 	github.com/olekukonko/tablewriter v0.0.5
 	github.com/oliveagle/jsonpath v0.0.0-20180606110733-2e52cf6e6852
-	github.com/open-policy-agent/opa v0.63.0
+	github.com/open-policy-agent/opa v0.65.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/resourcetotelemetry v0.102.0 // indirect
 	github.com/opencontainers/go-digest v1.0.0
 	github.com/opencontainers/image-spec v1.1.0
@@ -384,7 +384,7 @@ require (
 	github.com/containerd/continuity v0.4.3 // indirect
 	github.com/containerd/fifo v1.1.0 // indirect
 	github.com/containerd/stargz-snapshotter/estargz v0.15.1 // indirect
-	github.com/containerd/ttrpc v1.2.3 // indirect
+	github.com/containerd/ttrpc v1.2.4 // indirect
 	github.com/containernetworking/plugins v1.4.1 // indirect
 	github.com/coreos/go-systemd/v22 v22.5.0
 	github.com/coreos/pkg v0.0.0-20180928190104-399ea9e2e55f // indirect
@@ -402,7 +402,7 @@ require (
 	github.com/go-git/go-billy/v5 v5.5.0 // indirect
 	github.com/go-git/go-git/v5 v5.11.0 // indirect
 	github.com/go-logfmt/logfmt v0.6.0 // indirect
-	github.com/go-logr/logr v1.4.1 // indirect
+	github.com/go-logr/logr v1.4.2 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/go-openapi/analysis v0.22.2 // indirect
 	github.com/go-openapi/errors v0.21.1 // indirect
@@ -831,7 +831,9 @@ require (
 	github.com/blang/semver/v4 v4.0.0 // indirect
 	github.com/bmatcuk/doublestar/v4 v4.6.1 // indirect
 	github.com/buger/jsonparser v1.1.1 // indirect
+	github.com/bytecodealliance/wasmtime-go/v3 v3.0.2 // indirect
 	github.com/census-instrumentation/opencensus-proto v0.4.1 // indirect
+	github.com/cespare/xxhash v1.1.0 // indirect
 	github.com/cheggaaa/pb/v3 v3.1.4 // indirect
 	github.com/chrusty/protoc-gen-jsonschema v0.0.0-20240212064413-73d5723042b8 // indirect
 	github.com/cloudflare/circl v1.3.7 // indirect
@@ -845,6 +847,8 @@ require (
 	github.com/danieljoos/wincred v1.2.1 // indirect
 	github.com/dennwc/varint v1.0.0 // indirect
 	github.com/devigned/tab v0.1.1 // indirect
+	github.com/dgraph-io/badger/v3 v3.2103.5 // indirect
+	github.com/dgraph-io/ristretto v0.1.1 // indirect
 	github.com/dgryski/go-metro v0.0.0-20180109044635-280f6062b5bc // indirect
 	github.com/digitalocean/godo v1.109.0 // indirect
 	github.com/distribution/reference v0.5.0 // indirect
@@ -1186,6 +1190,7 @@ require (
 	github.com/ovh/go-ovh v1.4.3 // indirect
 	github.com/paulmach/orb v0.11.1 // indirect
 	github.com/pelletier/go-toml/v2 v2.1.0 // indirect
+	github.com/peterh/liner v1.2.2 // indirect
 	github.com/pierrec/lz4 v2.6.1+incompatible // indirect
 	github.com/pjbgf/sha1cd v0.3.0 // indirect
 	github.com/pkg/browser v0.0.0-20240102092130-5ac0b6a4141c // indirect
@@ -1281,6 +1286,7 @@ require (
 	honnef.co/go/tools v0.4.5 // indirect
 	howett.net/plist v1.0.0 // indirect
 	k8s.io/kms v0.29.0 // indirect
+	oras.land/oras-go/v2 v2.3.1 // indirect
 	skywalking.apache.org/repo/goapi v0.0.0-20240104145220-ba7202308dd4 // indirect
 )
 
