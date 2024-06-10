@@ -1,7 +1,7 @@
 kubernetes==29.0.0
 datadog-api-client==2.25.0
 pyaml==24.4.0
-docker==7.0.0
+docker==7.1.0
 retry==0.9.2
 emoji==2.11.1
 requests==2.32.3
