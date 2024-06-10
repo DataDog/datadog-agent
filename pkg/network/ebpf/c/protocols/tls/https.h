@@ -155,7 +155,7 @@ static __always_inline void tls_dispatch_kafka(struct pt_regs *ctx)
     normalized_tuple.netns = 0;
 
     read_into_user_buffer_classification(request_fragment, args->buffer_ptr);
-    bool is_kafka = tls_is_kafka(args, request_fragment, CLASSIFICATION_MAX_BUFFER);
+    bool is_kafka = tls_is_kafka(ctx, args, request_fragment, CLASSIFICATION_MAX_BUFFER);
     if (!is_kafka) {
         return;
     }
