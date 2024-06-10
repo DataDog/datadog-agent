@@ -1816,6 +1816,6 @@ def tag_ci_job(ctx: Context):
             tags["setup_stage"] = "tests"
 
     tag_prefix = "kmt."
-    tags_str = " ".join(f"{tag_prefix}{k}:{v}" for k, v in tags.items())
+    tags_str = " ".join(f"--tags {tag_prefix}{k}:{v}" for k, v in tags.items())
 
-    ctx.run(f"datadog-ci tag --level job --tags {tags_str}")
+    ctx.run(f"datadog-ci tag --level job {tags_str}")
