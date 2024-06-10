@@ -204,6 +204,12 @@ int kprobe__tcp_close(struct pt_regs *ctx) {
         increment_telemetry_count(tcp_failed_connect);
     }
 
+    // If protocol classification is disabled, then we don't have kretprobe__tcp_close_clean_protocols hook
+    // so, there is no one to use the map and clean it.
+    if (is_protocol_classification_supported()) {
+        bpf_map_update_with_telemetry(tcp_close_args, &pid_tgid, &t, BPF_ANY);
+    }
+
     // check if this connection was already flushed and ensure we don't flush again
     if (bpf_map_delete_elem(&conn_close_flushed, &sk) == 0) {
         increment_telemetry_count(double_flush_attempts_close);
@@ -218,12 +224,6 @@ int kprobe__tcp_close(struct pt_regs *ctx) {
     log_debug("kprobe/tcp_close: netns: %u, sport: %u, dport: %u", t.netns, t.sport, t.dport);
 
     cleanup_conn(ctx, &t, sk);
-
-    // If protocol classification is disabled, then we don't have kretprobe__tcp_close_clean_protocols hook
-    // so, there is no one to use the map and clean it.
-    if (is_protocol_classification_supported()) {
-        bpf_map_update_with_telemetry(tcp_close_args, &pid_tgid, &t, BPF_ANY);
-    }
 
     return 0;
 }
