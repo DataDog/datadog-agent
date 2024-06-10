@@ -17,7 +17,7 @@ import (
 	"github.com/shirou/gopsutil/v3/cpu"
 	"go.uber.org/atomic"
 
-	workloadmetacomp "github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	workloadmetacomp "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/process/metadata"
 	"github.com/DataDog/datadog-agent/pkg/process/metadata/parser"

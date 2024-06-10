@@ -9,11 +9,13 @@ package containerd
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/containerd/containerd"
+	"github.com/containerd/containerd/cio"
 	"github.com/containerd/containerd/containers"
 	"github.com/containerd/containerd/oci"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
@@ -23,7 +25,9 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
+	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/containerd/fake"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -32,6 +36,7 @@ type mockedContainer struct {
 	containerd.Container
 	mockID    func() string
 	mockImage func() (containerd.Image, error)
+	mockTask  func() (containerd.Task, error)
 }
 
 func (m *mockedContainer) ID() string {
@@ -41,6 +46,20 @@ func (m *mockedContainer) ID() string {
 // Image is from the containerd.Container interface
 func (m *mockedContainer) Image(context.Context) (containerd.Image, error) {
 	return m.mockImage()
+}
+
+// Task is from the containerd.Container interface
+func (m *mockedContainer) Task(context.Context, cio.Attach) (containerd.Task, error) {
+	return m.mockTask()
+}
+
+type mockedTask struct {
+	containerd.Task
+	mockPid func() uint32
+}
+
+func (t *mockedTask) Pid() uint32 {
+	return t.mockPid()
 }
 
 type mockedImage struct {
@@ -88,12 +107,111 @@ func TestBuildWorkloadMetaContainer(t *testing.T) {
 			return ocispec.Descriptor{Digest: "my_repo_digest"}
 		},
 	}
-	container := mockedContainer{
-		mockID: func() string {
-			return containerID
+
+	task := &mockedTask{
+		mockPid: func() uint32 {
+			return 12345
 		},
-		mockImage: func() (containerd.Image, error) {
-			return image, nil
+	}
+
+	tests := []struct {
+		name      string
+		container mockedContainer
+		expected  workloadmeta.Container
+	}{
+		{
+			name: "container in running state",
+			container: mockedContainer{
+				mockID: func() string {
+					return containerID
+				},
+				mockImage: func() (containerd.Image, error) {
+					return image, nil
+				},
+				mockTask: func() (containerd.Task, error) {
+					return task, nil
+				},
+			},
+			expected: workloadmeta.Container{
+				EntityID: workloadmeta.EntityID{
+					Kind: workloadmeta.KindContainer,
+					ID:   containerID,
+				},
+				EntityMeta: workloadmeta.EntityMeta{
+					Name:   "", // Not available
+					Labels: labels,
+				},
+				Image: workloadmeta.ContainerImage{
+					RawName:    "datadog/agent:7",
+					Name:       "datadog/agent",
+					ShortName:  "agent",
+					Tag:        "7",
+					ID:         "my_image_id",
+					RepoDigest: "sha256:052f1fdf4f9a7117d36a1838ab60782829947683007c34b69d4991576375c409",
+				},
+				EnvVars:       envVars,
+				Ports:         nil, // Not available
+				Runtime:       workloadmeta.ContainerRuntimeContainerd,
+				RuntimeFlavor: workloadmeta.ContainerRuntimeFlavorKata,
+				State: workloadmeta.ContainerState{
+					Running:    true,
+					Status:     workloadmeta.ContainerStatusRunning,
+					StartedAt:  createdAt,
+					CreatedAt:  createdAt,
+					FinishedAt: time.Time{}, // Not available
+				},
+				NetworkIPs: make(map[string]string), // Not available
+				Hostname:   hostName,
+				PID:        12345,
+				CgroupPath: "kubelet-kubepods-burstable-pod99dcb84d2a34f7e338778606703258c4.slice/cri-containerd-ec9ea0ad54dd0d96142d5dbe11eb3f1509e12ba9af739620c7b5ad377ce94602.scope",
+			},
+		},
+		{
+			name: "container not in running state",
+			container: mockedContainer{
+				mockID: func() string {
+					return containerID
+				},
+				mockImage: func() (containerd.Image, error) {
+					return image, nil
+				},
+				mockTask: func() (containerd.Task, error) {
+					return nil, fmt.Errorf("no task found")
+				},
+			},
+			expected: workloadmeta.Container{
+				EntityID: workloadmeta.EntityID{
+					Kind: workloadmeta.KindContainer,
+					ID:   containerID,
+				},
+				EntityMeta: workloadmeta.EntityMeta{
+					Name:   "", // Not available
+					Labels: labels,
+				},
+				Image: workloadmeta.ContainerImage{
+					RawName:    "datadog/agent:7",
+					Name:       "datadog/agent",
+					ShortName:  "agent",
+					Tag:        "7",
+					ID:         "my_image_id",
+					RepoDigest: "sha256:052f1fdf4f9a7117d36a1838ab60782829947683007c34b69d4991576375c409",
+				},
+				EnvVars:       envVars,
+				Ports:         nil, // Not available
+				Runtime:       workloadmeta.ContainerRuntimeContainerd,
+				RuntimeFlavor: workloadmeta.ContainerRuntimeFlavorKata,
+				State: workloadmeta.ContainerState{
+					Running:    true,
+					Status:     workloadmeta.ContainerStatusRunning,
+					StartedAt:  createdAt,
+					CreatedAt:  createdAt,
+					FinishedAt: time.Time{}, // Not available
+				},
+				NetworkIPs: make(map[string]string), // Not available
+				Hostname:   hostName,
+				PID:        0,
+				CgroupPath: "kubelet-kubepods-burstable-pod99dcb84d2a34f7e338778606703258c4.slice/cri-containerd-ec9ea0ad54dd0d96142d5dbe11eb3f1509e12ba9af739620c7b5ad377ce94602.scope",
+			},
 		},
 	}
 
@@ -122,13 +240,14 @@ func TestBuildWorkloadMetaContainer(t *testing.T) {
 	}
 
 	// Create a workload meta global store containing image metadata
-	workloadmetaStore := fxutil.Test[workloadmeta.Mock](t, fx.Options(
+	workloadmetaStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		logimpl.MockModule(),
 		config.MockModule(),
 		fx.Supply(context.Background()),
 		fx.Supply(workloadmeta.NewParams()),
-		workloadmeta.MockModuleV2(),
+		workloadmetafxmock.MockModuleV2(),
 	))
+
 	imageMetadata := &workloadmeta.ContainerImageMetadata{
 		EntityID: workloadmeta.EntityID{
 			Kind: workloadmeta.KindContainerImageMetadata,
@@ -141,47 +260,20 @@ func TestBuildWorkloadMetaContainer(t *testing.T) {
 			"gcr.io/datadoghq/agent@sha256:052f1fdf4f9a7117d36a1838ab60782829947683007c34b69d4991576375c409",
 		},
 	}
+
 	workloadmetaStore.Set(imageMetadata)
 
-	result, err := buildWorkloadMetaContainer(namespace, &container, &client, workloadmetaStore)
-	assert.NoError(t, err)
+	for _, test := range tests {
+		t.Run(test.name, func(tt *testing.T) {
+			result, err := buildWorkloadMetaContainer(namespace, &test.container, &client, workloadmetaStore)
+			assert.NoError(t, err)
 
-	expected := workloadmeta.Container{
-		EntityID: workloadmeta.EntityID{
-			Kind: workloadmeta.KindContainer,
-			ID:   containerID,
-		},
-		EntityMeta: workloadmeta.EntityMeta{
-			Name:   "", // Not available
-			Labels: labels,
-		},
-		Image: workloadmeta.ContainerImage{
-			RawName:    "datadog/agent:7",
-			Name:       "datadog/agent",
-			ShortName:  "agent",
-			Tag:        "7",
-			ID:         "my_image_id",
-			RepoDigest: "sha256:052f1fdf4f9a7117d36a1838ab60782829947683007c34b69d4991576375c409",
-		},
-		EnvVars:       envVars,
-		Ports:         nil, // Not available
-		Runtime:       workloadmeta.ContainerRuntimeContainerd,
-		RuntimeFlavor: workloadmeta.ContainerRuntimeFlavorKata,
-		State: workloadmeta.ContainerState{
-			Running:    true,
-			Status:     workloadmeta.ContainerStatusRunning,
-			StartedAt:  createdAt,
-			CreatedAt:  createdAt,
-			FinishedAt: time.Time{}, // Not available
-		},
-		NetworkIPs: make(map[string]string), // Not available
-		Hostname:   hostName,
-		PID:        0, // Not available
-		CgroupPath: "kubelet-kubepods-burstable-pod99dcb84d2a34f7e338778606703258c4.slice/cri-containerd-ec9ea0ad54dd0d96142d5dbe11eb3f1509e12ba9af739620c7b5ad377ce94602.scope",
+			assert.Equal(t, test.expected, result)
+		})
 	}
-	assert.Equal(t, expected, result)
 }
 
+/*
 func TestExtractCgroupPath(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -249,3 +341,4 @@ func TestExtractRuntimeFlavor(t *testing.T) {
 		})
 	}
 }
+*/

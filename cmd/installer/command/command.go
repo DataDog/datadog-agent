@@ -71,6 +71,10 @@ Datadog Installer installs datadog-packages based on your commands.`,
 			ID:    "bootstrap",
 			Title: "Bootstrap Commands",
 		},
+		&cobra.Group{
+			ID:    "apm",
+			Title: "APM Commands",
+		},
 	)
 
 	agentCmd.PersistentFlags().StringVarP(&globalParams.ConfFilePath, "cfgpath", "c", "", "path to directory containing installer.yaml")
