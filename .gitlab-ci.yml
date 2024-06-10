@@ -367,7 +367,7 @@ variables:
       - .gitlab/binary_build/fakeintake.yml
       - .gitlab/container_build/fakeintake.yml
       - .gitlab/dev_container_deploy/fakeintake.yml
-    compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
+    compare_to: 7.55.x # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
 
 #
 # Workflow rules
@@ -608,7 +608,7 @@ workflow:
   - changes:
       paths:
         - pkg/fleet/**/*
-      compare_to: main
+      compare_to: 7.55.x
     variables:
       FAST_TESTS: "true"
 
@@ -706,7 +706,7 @@ workflow:
   - <<: *if_run_all_kmt_tests
   - changes:
       paths: *security_agent_change_paths
-      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
+      compare_to: 7.55.x # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
   - when: manual
     allow_failure: true
 
@@ -718,7 +718,7 @@ workflow:
         - test/new-e2e/tests/windows/install-test/**/*
         - test/new-e2e/tests/windows/domain-test/**/*
         - tasks/msi.py
-      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
+      compare_to: 7.55.x # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
 
 .on_windows_installer_changes_or_manual:
   - <<: *if_disable_e2e_tests
@@ -760,7 +760,7 @@ workflow:
   - <<: *if_run_all_kmt_tests
   - changes:
       paths: *system_probe_change_paths
-      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
+      compare_to: 7.55.x # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
   - when: manual
     allow_failure: true
 
@@ -772,7 +772,7 @@ workflow:
         - test/new-e2e/pkg/**/*
         - test/new-e2e/test-infra-definition/*
         - test/new-e2e/go.mod
-      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
+      compare_to: 7.55.x # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
     when: on_success
   - when: manual
     allow_failure: true
@@ -791,7 +791,7 @@ workflow:
         - test/new-e2e/pkg/**/*
         - test/new-e2e/test-infra-definition/*
         - test/new-e2e/go.mod
-      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
+      compare_to: 7.55.x # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
     when: on_success
   - when: manual
     allow_failure: true
@@ -813,7 +813,7 @@ workflow:
       paths:
         - test/new-e2e/pkg/**/*
         - test/new-e2e/go.mod
-      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
+      compare_to: 7.55.x # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
 
 .on_container_or_e2e_changes_or_manual:
   - !reference [.on_e2e_main_release_or_rc]
@@ -841,7 +841,7 @@ workflow:
         - pkg/util/trivy/**/*
         - test/new-e2e/tests/containers/**/*
         - test/new-e2e/go.mod
-      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
+      compare_to: 7.55.x # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
     when: on_success
   - when: manual
     allow_failure: true
@@ -853,7 +853,7 @@ workflow:
         - pkg/config/remote/**/*
         - comp/remote-config/**/*
         - test/new-e2e/tests/remote-config/**/*
-      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
+      compare_to: 7.55.x # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
   - when: manual
     allow_failure: true
 
@@ -863,7 +863,7 @@ workflow:
       paths:
         # TODO: Add paths that should trigger tests for ASC
         - test/new-e2e/tests/agent-shared-components/**/*
-      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
+      compare_to: 7.55.x # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
   - when: manual
     allow_failure: true
 
@@ -875,7 +875,7 @@ workflow:
         - pkg/**/*
         - comp/**/*
         - test/new-e2e/tests/agent-subcommands/**/*
-      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
+      compare_to: 7.55.x # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
   - when: manual
     allow_failure: true
 
@@ -885,7 +885,7 @@ workflow:
       paths:
         # TODO: Add paths that should trigger tests for language detection
         - test/new-e2e/tests/language-detection/**/*
-      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
+      compare_to: 7.55.x # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
   - when: manual
     allow_failure: true
 
@@ -895,7 +895,7 @@ workflow:
       paths:
         # TODO: Add paths that should trigger tests for npm
         - test/new-e2e/tests/npm/**/*
-      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
+      compare_to: 7.55.x # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
   - when: manual
     allow_failure: true
 
@@ -905,7 +905,7 @@ workflow:
       paths:
         # TODO: Add paths that should trigger tests for AML
         - test/new-e2e/tests/agent-metrics-logs/**/*
-      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
+      compare_to: 7.55.x # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
   - when: manual
     allow_failure: true
 
@@ -915,7 +915,7 @@ workflow:
       paths:
         # TODO: Add paths that should trigger tests for CWS
         - test/new-e2e/tests/cws/**/*
-      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
+      compare_to: 7.55.x # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
   - when: manual
     allow_failure: true
 
@@ -928,7 +928,7 @@ workflow:
         - comp/process/**/*
         - pkg/process/**/*
         - pkg/config/setup/process.go
-      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
+      compare_to: 7.55.x # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
   - when: manual
     allow_failure: true
 
@@ -938,7 +938,7 @@ workflow:
       paths:
         # TODO: Add paths that should trigger tests for orchestrator
         - test/new-e2e/tests/orchestrator/**/*
-      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
+      compare_to: 7.55.x # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
   - when: manual
     allow_failure: true
 
@@ -951,7 +951,7 @@ workflow:
         - comp/trace/**/*
         - test/new-e2e/tests/apm/**/*
         - test/new-e2e/go.mod
-      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
+      compare_to: 7.55.x # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
     when: on_success
   - when: manual
     allow_failure: true
@@ -975,7 +975,7 @@ workflow:
         - test/new-e2e/tests/installer/**/*
         - tasks/installer.py
         - test/new-e2e/go.mod
-      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
+      compare_to: 7.55.x # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
     when: on_success
   - when: manual
     allow_failure: true
@@ -987,7 +987,7 @@ workflow:
         - comp/netflow/**/*
         - test/new-e2e/tests/ndm/netflow/**/*
         - test/new-e2e/go.mod
-      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
+      compare_to: 7.55.x # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
     when: on_success
   - when: manual
     allow_failure: true
@@ -999,7 +999,7 @@ workflow:
         - pkg/collector/corechecks/snmp/**/*
         - test/new-e2e/tests/ndm/snmp/**/*
         - test/new-e2e/go.mod
-      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
+      compare_to: 7.55.x # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
     when: on_success
   - when: manual
     allow_failure: true
@@ -1010,7 +1010,7 @@ workflow:
       paths:
         - pkg/trace/**/*
         - .gitlab/benchmarks/*
-      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
+      compare_to: 7.55.x # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
     when: on_success
   - when: manual
     allow_failure: true
@@ -1043,7 +1043,7 @@ workflow:
   - changes:
       paths:
         - comp/core/gui/guiimpl/systray/**/*
-      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
+      compare_to: 7.55.x # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
 
 .on_packaging_change:
   - !reference [.except_mergequeue] # The prerequisites are not run in the mergequeue pipeline so we need to skip this rule
@@ -1054,14 +1054,14 @@ workflow:
         - .gitlab/package_build.yml
         - release.json
         - .gitlab/package_build/**/*
-      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
+      compare_to: 7.55.x # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
 
 .on_go-version_change:
   - !reference [.except_mergequeue] # The prerequisites are not run in the mergequeue pipeline so we need to skip this rule
   - changes:
       paths:
         - .go-version
-      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
+      compare_to: 7.55.x # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
 
 .on_fakeintake_changes:
   - <<: *fakeintake_changes
@@ -1095,18 +1095,18 @@ workflow:
       paths:
         - .gitlab-ci.yml
         - .gitlab/**/*
-      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
+      compare_to: 7.55.x # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
 
 .on_invoke_tasks_changes:
   - <<: *if_main_branch
   - changes:
       paths:
         - tasks/**/*
-      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
+      compare_to: 7.55.x # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
 
 .on_kitchen_invoke_tasks_changes:
   - <<: *if_main_branch
   - changes:
       paths:
         - test/kitchen/tasks/**/*
-      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
+      compare_to: 7.55.x # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916

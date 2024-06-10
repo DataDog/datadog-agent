@@ -68,7 +68,7 @@ notify_github:
       changes:
         paths:
           - '**/*.go'
-        compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
+        compare_to: 7.55.x # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
       when: on_success
     - when: never
   needs:
