@@ -1741,6 +1741,7 @@ def _create_build_links_patterns(current_version, new_version):
     new_minor_version = new_version[1:]
 
     patterns[current_minor_version] = new_minor_version
+    patterns[current_minor_version[2:].replace("-rc", "~rc")] = new_minor_version[2:].replace("-rc", "~rc")
     patterns[current_minor_version.replace("rc.", "rc-")] = new_minor_version.replace("rc.", "rc-")
     patterns[current_minor_version.replace("-rc", "~rc")] = new_minor_version.replace("-rc", "~rc")
 
