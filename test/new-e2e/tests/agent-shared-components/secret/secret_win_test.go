@@ -10,7 +10,6 @@ import (
 	"testing"
 	"time"
 
-	secrets "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-shared-components/secretsutils"
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
 	"github.com/DataDog/test-infra-definitions/components/os"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
@@ -19,6 +18,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host"
+	secrets "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-shared-components/secretsutils"
 )
 
 type windowsRuntimeSecretSuite struct {
@@ -38,11 +38,15 @@ hostname: ENC[hostname]`
 	agentParams := []func(*agentparams.Params) error{
 		agentparams.WithAgentConfig(config),
 	}
+
 	agentParams = append(agentParams, secrets.WithWindowsSecretSetupScript("C:/TestFolder/wrapper.bat", false)...)
 
+	v.T().Log("creating secret client")
 	secretClient := secrets.NewSecretClient(v.T(), v.Env().RemoteHost, "C:/TestFolder")
+	v.T().Log("setting secret hostname")
 	secretClient.SetSecret("hostname", "e2e.test")
 
+	v.T().Log("updating env")
 	v.UpdateEnv(
 		awshost.ProvisionerNoFakeIntake(
 			awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsDefault)),
@@ -50,6 +54,7 @@ hostname: ENC[hostname]`
 		),
 	)
 
+	v.T().Log("checking hostname")
 	assert.EventuallyWithT(v.T(), func(t *assert.CollectT) {
 		checks, err := v.Env().FakeIntake.Client().GetCheckRun("datadog.agent.up")
 		require.NoError(t, err)

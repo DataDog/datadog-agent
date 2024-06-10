@@ -47,15 +47,16 @@ func WithWindowsSecretSetupScript(wrapperPath string, allowGroupExec bool) []fun
 	// <path>/
 	// ├── secret.py
 	// └── secret_wrapper.bat (specific permissions)
-	if strings.Contains(wrapperPath, `\`) {
-		wrapperPath = strings.ReplaceAll(wrapperPath, `\`, `/`)
-	}
+
+	wrapperPath = strings.ReplaceAll(wrapperPath, `\`, `/`)
 
 	dir, _ := filepath.Split(wrapperPath)
 	pythonScriptPath := filepath.Join(dir, "secret.py")
 	secretWrapperContent := fillSecretWrapperTemplate(strings.ReplaceAll(pythonScriptPath, "/", "\\"))
 
+	fmt.Printf("Wrapper path: %s\n", wrapperPath)
 	fmt.Printf("Secret wrapper content: %s\n", secretWrapperContent)
+	fmt.Printf("Python script path: %s\n", pythonScriptPath)
 	return []func(*agentparams.Params) error{
 		agentparams.WithFileWithPermissions(wrapperPath, secretWrapperContent, true, WithWindowsSecretPermissions(allowGroupExec)),
 		agentparams.WithFile(pythonScriptPath, secretResolverScript, true),
