@@ -108,6 +108,7 @@ func TestAPIStatus(t *testing.T) {
 		},
 	}
 	api.i.On("GetState").Return(installerState, nil)
+	api.i.On("GetAPMInjectionStatus").Return(APMInjectionStatus{}, nil)
 
 	resp, err := api.c.Status()
 

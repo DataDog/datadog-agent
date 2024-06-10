@@ -33,6 +33,7 @@ type StatusResponse struct {
 	ApmInjectionStatus APMInjectionStatus          `json:"apm_injection_status"`
 }
 
+// APMInjectionStatus contains the instrumentation status of the APM injection.
 type APMInjectionStatus struct {
 	HostInstrumented   bool `json:"host_instrumented"`
 	DockerInstalled    bool `json:"docker_installed"`
