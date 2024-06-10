@@ -21,6 +21,7 @@ from tasks.go import deps
 from tasks.libs.common.utils import (
     REPO_PATH,
     bin_name,
+    collapsed_section,
     create_version_json,
     get_build_flags,
     get_embedded_path,
@@ -145,8 +146,11 @@ def build(
     if not exclude_rtloader and not flavor.is_iot():
         # If embedded_path is set, we should give it to rtloader as it should install the headers/libs
         # in the embedded path folder because that's what is used in get_build_flags()
-        rtloader_make(ctx, python_runtimes=python_runtimes, install_prefix=embedded_path, cmake_options=cmake_options)
-        rtloader_install(ctx)
+        with collapsed_section("Install embedded rtloader"):
+            rtloader_make(
+                ctx, python_runtimes=python_runtimes, install_prefix=embedded_path, cmake_options=cmake_options
+            )
+            rtloader_install(ctx)
 
     ldflags, gcflags, env = get_build_flags(
         ctx,
@@ -217,7 +221,8 @@ def build(
         "REPO_PATH": REPO_PATH,
         "flavor": "iot-agent" if flavor.is_iot() else "agent",
     }
-    ctx.run(cmd.format(**args), env=env)
+    with collapsed_section("Build agent"):
+        ctx.run(cmd.format(**args), env=env)
 
     if embedded_path is None:
         embedded_path = get_embedded_path(ctx)
@@ -235,16 +240,17 @@ def build(
 
         create_launcher(ctx, build, agent_fullpath, bundled_agent_bin)
 
-    render_config(
-        ctx,
-        env=env,
-        flavor=flavor,
-        python_runtimes=python_runtimes,
-        skip_assets=skip_assets,
-        build_tags=build_tags,
-        development=development,
-        windows_sysprobe=windows_sysprobe,
-    )
+    with collapsed_section("Generate configuration files"):
+        render_config(
+            ctx,
+            env=env,
+            flavor=flavor,
+            python_runtimes=python_runtimes,
+            skip_assets=skip_assets,
+            build_tags=build_tags,
+            development=development,
+            windows_sysprobe=windows_sysprobe,
+        )
 
 
 def create_launcher(ctx, agent, src, dst):
