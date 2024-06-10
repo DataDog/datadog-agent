@@ -48,7 +48,7 @@ type MetadataRequest struct {
 // argument in MetadataRequest.Request, then through the container inspection
 // package.
 type ContainerSpec struct {
-	Name       string   `json:"name,omitEmpty"`
+	Name       string   `json:"name,omitempty"`
 	Command    []string `json:"command,omitempty"`
 	Args       []string `json:"args,omitempty"`
 	WorkingDir string   `json:"workingDir,omitempty"`

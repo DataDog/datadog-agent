@@ -45,7 +45,6 @@ func newProvider(deps dependencies) provider {
 		wmeta:  deps.WorkloadMeta,
 		log:    deps.Log,
 		images: map[string]*knownWorkload{},
-		pods:   map[string]map[string]*workloadmeta.KubernetesPod{},
 	}
 
 	deps.Lc.Append(fx.Hook{
@@ -57,9 +56,7 @@ func newProvider(deps dependencies) provider {
 					EventType: workloadmeta.EventTypeAll,
 					Kinds: []workloadmeta.Kind{
 						workloadmeta.KindContainerImageMetadata,
-
 						// workloadmeta.KindContainer,
-						// workloadmeta.KindKubernetesPod,
 					},
 				}))
 
@@ -93,9 +90,6 @@ type client struct {
 
 	imagesLock sync.RWMutex
 	images     map[string]*knownWorkload
-
-	podsLock sync.RWMutex
-	pods     map[string]map[string]*workloadmeta.KubernetesPod
 
 	workloadEvents chan workloadmeta.EventBundle
 }
@@ -192,30 +186,6 @@ func (c *client) addImageMetadata(i *workloadmeta.ContainerImageMetadata, t time
 	}
 }
 
-func (c *client) addPodMetadata(p *workloadmeta.KubernetesPod) {
-	c.podsLock.Lock()
-	defer c.podsLock.Unlock()
-	// when we get info about a pod...
-	// the thing that's important is that we're going to be querying for
-	// container data by pod (and container names) later on
-	// so that we can start to add some pod data as it comes in.
-	//
-	// we can store these by namespace and name.
-	// not sure if we want to process any of the pods here because
-	// we might end up processing _all_ of the pods instead of just
-	// the ones we need.
-	//
-	// this is where we might want to put an annotation on the pod
-	// that it's being used with injection so that we can do a nice filter
-	// on only the ones we care about and get rid of the other ones.
-	nsData, ok := c.pods[p.Namespace]
-	if !ok {
-		nsData = map[string]*workloadmeta.KubernetesPod{}
-	}
-	nsData[p.Name] = p
-	c.pods[p.Namespace] = nsData
-}
-
 func (c *client) handleEvent(bundle workloadmeta.EventBundle) {
 	for _, e := range bundle.Events {
 		switch v := e.Entity.(type) {
@@ -225,25 +195,8 @@ func (c *client) handleEvent(bundle workloadmeta.EventBundle) {
 			if e.Type == workloadmeta.EventTypeSet {
 				c.addImageMetadata(v, time.Now())
 			}
-		case *workloadmeta.KubernetesPod:
-			if e.Type == workloadmeta.EventTypeSet {
-				c.addPodMetadata(v)
-			}
 		}
 	}
-}
-
-func (c *client) findPod(name, namespace string) (*workloadmeta.KubernetesPod, bool) {
-	c.podsLock.RLock()
-	defer c.podsLock.RUnlock()
-
-	pods, foundNs := c.pods[namespace]
-	if !foundNs {
-		return nil, false
-	}
-
-	pod, found := pods[name]
-	return pod, found
 }
 
 func (c *client) processContainersForSpec(
@@ -284,43 +237,6 @@ func (c *client) processContainersForSpec(
 	return nil
 }
 
-func (c *client) processPodInitContainers(
-	specs map[string]api.ContainerSpec,
-	pod *workloadmeta.KubernetesPod,
-	out *api.MetadataResponse,
-) error {
-	for _, container := range pod.InitContainers {
-		spec, isRelevantInitContainer := specs[container.Name]
-		if !isRelevantInitContainer {
-			continue
-		}
-
-		if _, alreadyDone := out.Containers[spec.Name]; alreadyDone {
-			continue
-		}
-
-		image, imageFound := c.findImageMetadata(container.Image)
-		if !imageFound {
-			return fmt.Errorf("could not find image for container %s", container.Name)
-		}
-
-		cmd := determineCmd(spec, image)
-		if len(cmd) == 0 {
-			// N.B. This might be a "missing info kind of thing" or this might be a fatal error
-			// we'll find out when we run out of time.
-			return fmt.Errorf("could not determine entry command for container %s", container.Name)
-		}
-
-		out.Containers[spec.Name] = api.ContainerMetadata{
-			Name:       spec.Name,
-			Cmd:        cmd,
-			WorkingDir: spec.WorkingDir,
-		}
-	}
-
-	return nil
-}
-
 func (c *client) PodContainerMetadata(ctx context.Context, r api.MetadataRequest) (api.MetadataResponse, error) {
 	var (
 		out     = api.MetadataResponse{Containers: map[string]api.ContainerMetadata{}}
@@ -337,7 +253,7 @@ func (c *client) PodContainerMetadata(ctx context.Context, r api.MetadataRequest
 
 	staleImageTime := time.Unix(0, 0)
 	if r.StaleImageDuration != nil {
-		staleImageTime.Add(*r.StaleImageDuration * -1)
+		staleImageTime = staleImageTime.Add(*r.StaleImageDuration * -1)
 	}
 
 	for {
@@ -356,31 +272,6 @@ func (c *client) PodContainerMetadata(ctx context.Context, r api.MetadataRequest
 			}
 
 			return out, nil
-
-			/*
-				c.log.Debugf("pod - %s/%s", r.PodNamespace, r.PodName)
-				pod, podFound := c.findPod(r.PodName, r.PodNamespace)
-				if !podFound {
-					lastErr = errors.New("could not find pod")
-					c.log.Infof("pod not found")
-					continue
-				}
-
-				c.log.Info("processing init containers")
-				err := c.processPodInitContainers(r.InitContainers, pod, &out)
-				if err != nil {
-					lastErr = err
-					continue
-				}
-
-				if len(out.Containers) != len(r.InitContainers) {
-					lastErr = fmt.Errorf("missing container metadata, expected %v", mapKeys(r.InitContainers))
-					continue
-				}
-
-				c.log.Infof("success! %+v", out)
-				return out, nil
-			*/
 		}
 	}
 }
@@ -445,7 +336,7 @@ func metadataRequestFromHTTPRequest(r *http.Request) (api.MetadataRequest, error
 	}
 
 	if duration == "" {
-		duration = "5m"
+		duration = "5m" // default duration
 	}
 
 	staleImageDuration, err := time.ParseDuration(duration)
@@ -491,16 +382,4 @@ func decodeContainers(data string) (map[string]api.ContainerSpec, error) {
 	}
 
 	return containers, nil
-}
-
-func mapKeys[T map[K]V, K comparable, V any](in T) []K {
-	keys := make([]K, len(in))
-
-	i := 0
-	for k := range in {
-		keys[i] = k
-		i++
-	}
-
-	return keys
 }
