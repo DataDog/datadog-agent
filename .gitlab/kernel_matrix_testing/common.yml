@@ -118,7 +118,7 @@
     INFRA_ENV: "aws/agent-qa"
     PIPELINE_ID: $CI_PIPELINE_ID
     TEAM: "ebpf-platform"
-    RESOURCE_TAGS: "instance-type:${INSTANCE_TYPE},arch:${ARCH},test-component:${TEST_COMPONENT},branch:${CI_COMMIT_REF_NAME}"
+    RESOURCE_TAGS: "instance-type:${INSTANCE_TYPE},arch:${ARCH},test-component:${TEST_COMPONENT},git-branch:${CI_COMMIT_REF_NAME}"
     KUBERNETES_MEMORY_REQUEST: "12Gi"
     KUBERNETES_MEMORY_LIMIT: "16Gi"
     VMCONFIG_FILE: "${CI_PROJECT_DIR}/vmconfig-${CI_PIPELINE_ID}-${ARCH}.json"
