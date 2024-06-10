@@ -57,7 +57,9 @@ func (a *agent) SetupPipeline(processingRules []*config.ProcessingRule, wmeta op
 	lnchrs.AddLauncher(journald.NewLauncher(a.flarecontroller))
 	lnchrs.AddLauncher(windowsevent.NewLauncher())
 	lnchrs.AddLauncher(container.NewLauncher(a.sources, wmeta))
-	lnchrs.AddLauncher(integrationLauncher.NewLauncher(a.config.GetString("logs_config.run_path")))
+	lnchrs.AddLauncher(integrationLauncher.NewLauncher(
+		a.config.GetString("logs_config.run_path"),
+		integrationLauncher.DefaultSleepDuration))
 
 	a.schedulers = schedulers.NewSchedulers(a.sources, a.services)
 	a.auditor = auditor
