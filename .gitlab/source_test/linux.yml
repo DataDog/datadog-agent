@@ -30,6 +30,7 @@
     - FAST_TESTS_FLAG=""
     - if [[ "$FAST_TESTS" == "true" ]]; then FAST_TESTS_FLAG="--only-impacted-packages"; fi
     - inv -e sds.build-library
+    - inv -e agent.build
     - inv -e test $FLAVORS --include-sds --race --profile --rerun-fails=2 --python-runtimes "$PYTHON_RUNTIMES" --coverage --cpus $KUBERNETES_CPU_REQUEST $EXTRA_OPTS --save-result-json $TEST_OUTPUT_FILE --junit-tar "junit-${CI_JOB_NAME}.tgz" --build-stdlib $FAST_TESTS_FLAG --test-washer
     # Upload coverage files to Codecov. Never fail on coverage upload.
     - export CODECOV_TOKEN=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $CODECOV_TOKEN_SSM_NAME)
@@ -239,8 +240,8 @@ go_mod_tidy_check:
     - inv -e check-mod-tidy
     - inv -e check-go-mod-replaces
   variables:
-    KUBERNETES_MEMORY_REQUEST: "8Gi"
-    KUBERNETES_MEMORY_LIMIT: "8Gi"
+    KUBERNETES_MEMORY_REQUEST: "16Gi"
+    KUBERNETES_MEMORY_LIMIT: "16Gi"
 
 new-e2e-unit-tests:
   extends: .linux_tests_with_upload

@@ -155,7 +155,6 @@ def mocked_jmxfetch_requests_get(*_args, **_kwargs):
 
 
 class TestUpdateReleaseJsonEntry(unittest.TestCase):
-    @mock.patch("builtins.print", new=mock.MagicMock())
     @mock.patch('requests.get', side_effect=mocked_jmxfetch_requests_get)
     def test_update_release_json_entry(self, _):
         self.maxDiff = None
@@ -401,7 +400,6 @@ class TestGetWindowsDDNPMReleaseJsonInfo(unittest.TestCase):
         },
     }
 
-    @mock.patch("builtins.print", new=mock.MagicMock())
     def test_ddnpm_info_is_taken_from_nightly_on_first_rc(self):
         (
             ddnpm_driver,
@@ -419,7 +417,6 @@ class TestGetWindowsDDNPMReleaseJsonInfo(unittest.TestCase):
         self.assertEqual(ddprocmon_version, 'nightly-ddprocmon-version')
         self.assertEqual(ddprocmon_shasum, 'nightly-ddprocmon-sha')
 
-    @mock.patch("builtins.print", new=mock.MagicMock())
     def test_ddnpm_info_is_taken_from_previous_rc_on_subsequent_rcs(self):
         (
             ddnpm_driver,
@@ -458,7 +455,6 @@ class TestGetReleaseJsonInfoForNextRC(unittest.TestCase):
         },
     }
 
-    @mock.patch("builtins.print", new=mock.MagicMock())
     def test_get_release_json_info_for_next_rc_on_first_rc(self):
         previous_release_json = release._get_release_json_info_for_next_rc(self.test_release_json, 7, True)
 
@@ -470,7 +466,6 @@ class TestGetReleaseJsonInfoForNextRC(unittest.TestCase):
             },
         )
 
-    @mock.patch("builtins.print", new=mock.MagicMock())
     def test_get_release_json_info_for_next_rc_on_second_rc(self):
         previous_release_json = release._get_release_json_info_for_next_rc(self.test_release_json, 7, False)
 
@@ -503,7 +498,6 @@ class TestGetJMXFetchReleaseJsonInfo(unittest.TestCase):
         },
     }
 
-    @mock.patch("builtins.print", new=mock.MagicMock())
     def test_get_release_json_info_for_next_rc_on_first_rc(self):
         jmxfetch_version, jmxfetch_hash = release._get_jmxfetch_release_json_info(self.test_release_json, 7, True)
 
