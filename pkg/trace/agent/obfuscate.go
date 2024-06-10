@@ -89,7 +89,7 @@ func (a *Agent) obfuscateSpan(span *pb.Span) {
 			return
 		}
 		span.Meta[tagMongoDBQuery] = o.ObfuscateMongoDBString(span.Meta[tagMongoDBQuery])
-	case "elasticsearch":
+	case "elasticsearch", "opensearch":
 		if span.Meta == nil {
 			return
 		}
