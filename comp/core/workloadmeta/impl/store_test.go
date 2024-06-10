@@ -17,6 +17,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	wmdef "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -29,7 +30,7 @@ const (
 )
 
 func newWorkloadmetaObject(deps dependencies) *workloadmeta {
-	return newWorkloadMeta(deps).Comp.(*workloadmeta)
+	return NewWorkloadMeta(deps).Comp.(*workloadmeta)
 }
 
 func TestHandleEvents(t *testing.T) {
@@ -37,21 +38,21 @@ func TestHandleEvents(t *testing.T) {
 	deps := fxutil.Test[dependencies](t, fx.Options(
 		logimpl.MockModule(),
 		config.MockModule(),
-		fx.Supply(NewParams()),
+		fx.Supply(wmdef.NewParams()),
 	))
 
 	s := newWorkloadmetaObject(deps)
 
-	container := &Container{
-		EntityID: EntityID{
-			Kind: KindContainer,
+	container := &wmdef.Container{
+		EntityID: wmdef.EntityID{
+			Kind: wmdef.KindContainer,
 			ID:   "deadbeef",
 		},
 	}
 
-	s.handleEvents([]CollectorEvent{
+	s.handleEvents([]wmdef.CollectorEvent{
 		{
-			Type:   EventTypeSet,
+			Type:   wmdef.EventTypeSet,
 			Source: fooSource,
 			Entity: container,
 		},
@@ -66,9 +67,9 @@ func TestHandleEvents(t *testing.T) {
 		t.Errorf("expected container %q to match the one in the store", container.ID)
 	}
 
-	s.handleEvents([]CollectorEvent{
+	s.handleEvents([]wmdef.CollectorEvent{
 		{
-			Type:   EventTypeUnset,
+			Type:   wmdef.EventTypeUnset,
 			Source: fooSource,
 			Entity: container,
 		},
@@ -81,85 +82,85 @@ func TestHandleEvents(t *testing.T) {
 }
 
 func TestSubscribe(t *testing.T) {
-	fooContainer := &Container{
-		EntityID: EntityID{
-			Kind: KindContainer,
+	fooContainer := &wmdef.Container{
+		EntityID: wmdef.EntityID{
+			Kind: wmdef.KindContainer,
 			ID:   "foo",
 		},
-		EntityMeta: EntityMeta{
+		EntityMeta: wmdef.EntityMeta{
 			Name: "foo-name-might-be-overridden",
 		},
 		Hostname: "foo",
 	}
 
-	fooContainerToMerge := &Container{
-		EntityID: EntityID{
-			Kind: KindContainer,
+	fooContainerToMerge := &wmdef.Container{
+		EntityID: wmdef.EntityID{
+			Kind: wmdef.KindContainer,
 			ID:   "foo",
 		},
-		EntityMeta: EntityMeta{
+		EntityMeta: wmdef.EntityMeta{
 			Name: "foo-name-override",
 		},
 		PID: 1001001,
 	}
 
-	fooContainerMerged := &Container{
+	fooContainerMerged := &wmdef.Container{
 		EntityID: fooContainer.EntityID,
-		EntityMeta: EntityMeta{
+		EntityMeta: wmdef.EntityMeta{
 			Name: fooContainerToMerge.Name,
 		},
 		Hostname: fooContainer.Hostname,
 		PID:      fooContainerToMerge.PID,
 	}
 
-	barContainer := &Container{
-		EntityID: EntityID{
-			Kind: KindContainer,
+	barContainer := &wmdef.Container{
+		EntityID: wmdef.EntityID{
+			Kind: wmdef.KindContainer,
 			ID:   "bar",
 		},
 	}
 
-	bazContainer := &Container{
-		EntityID: EntityID{
-			Kind: KindContainer,
+	bazContainer := &wmdef.Container{
+		EntityID: wmdef.EntityID{
+			Kind: wmdef.KindContainer,
 			ID:   "baz",
 		},
 	}
 
 	tests := []struct {
 		name       string
-		preEvents  []CollectorEvent
-		postEvents [][]CollectorEvent
-		filter     *Filter
-		expected   []EventBundle
+		preEvents  []wmdef.CollectorEvent
+		postEvents [][]wmdef.CollectorEvent
+		filter     *wmdef.Filter
+		expected   []wmdef.EventBundle
 	}{
 		{
 			// will receive events for entities that are currently
 			// in the store. entities that were deleted before the
 			// subscription should not generate events.
 			name: "receive events for entities in the store pre-subscription",
-			preEvents: []CollectorEvent{
+			preEvents: []wmdef.CollectorEvent{
 				{
-					Type:   EventTypeSet,
+					Type:   wmdef.EventTypeSet,
 					Source: fooSource,
 					Entity: fooContainer,
 				},
 				{
-					Type:   EventTypeSet,
+					Type:   wmdef.EventTypeSet,
 					Source: fooSource,
 					Entity: barContainer,
 				},
 				{
-					Type:   EventTypeUnset,
+					Type:   wmdef.EventTypeUnset,
 					Source: fooSource,
 					Entity: barContainer,
 				},
 			},
-			expected: []EventBundle{
+			expected: []wmdef.EventBundle{
 				{
-					Events: []Event{
+					Events: []wmdef.Event{
 						{
-							Type:   EventTypeSet,
+							Type:   wmdef.EventTypeSet,
 							Entity: fooContainer,
 						},
 					},
@@ -167,21 +168,21 @@ func TestSubscribe(t *testing.T) {
 			},
 		},
 		{
-			// if the filter has type "EventTypeUnset", it does not receive
+			// if the filter has type "wmdef.EventTypeUnset", it does not receive
 			// events for entities that are currently in the store.
-			name: "do not receive events for entities in the store pre-subscription if filter type is EventTypeUnset",
-			filter: NewFilter(&FilterParams{
+			name: "do not receive events for entities in the store pre-subscription if filter type is wmdef.EventTypeUnset",
+			filter: wmdef.NewFilter(&wmdef.FilterParams{
 				Source:    fooSource,
-				EventType: EventTypeUnset,
+				EventType: wmdef.EventTypeUnset,
 			}),
-			preEvents: []CollectorEvent{
+			preEvents: []wmdef.CollectorEvent{
 				{
-					Type:   EventTypeSet,
+					Type:   wmdef.EventTypeSet,
 					Source: fooSource,
 					Entity: fooContainer,
 				},
 			},
-			expected: []EventBundle{
+			expected: []wmdef.EventBundle{
 				{},
 			},
 		},
@@ -191,36 +192,36 @@ func TestSubscribe(t *testing.T) {
 			// that don't match the filter at all should not
 			// generate an event.
 			name: "receive events for entities in the store pre-subscription with filter",
-			filter: NewFilter(&FilterParams{
+			filter: wmdef.NewFilter(&wmdef.FilterParams{
 				Source:    fooSource,
-				EventType: EventTypeAll,
+				EventType: wmdef.EventTypeAll,
 			}),
-			preEvents: []CollectorEvent{
+			preEvents: []wmdef.CollectorEvent{
 				// set container with two sources, delete one source
 				{
-					Type:   EventTypeSet,
+					Type:   wmdef.EventTypeSet,
 					Source: fooSource,
 					Entity: fooContainer,
 				},
 				{
-					Type:   EventTypeSet,
+					Type:   wmdef.EventTypeSet,
 					Source: barSource,
 					Entity: fooContainer,
 				},
 				{
-					Type:   EventTypeUnset,
+					Type:   wmdef.EventTypeUnset,
 					Source: barSource,
 					Entity: fooContainer,
 				},
 
 				// set container with two sources, keep them
 				{
-					Type:   EventTypeSet,
+					Type:   wmdef.EventTypeSet,
 					Source: fooSource,
 					Entity: barContainer,
 				},
 				{
-					Type:   EventTypeSet,
+					Type:   wmdef.EventTypeSet,
 					Source: barSource,
 					Entity: barContainer,
 				},
@@ -228,20 +229,20 @@ func TestSubscribe(t *testing.T) {
 				// set a container for source that should be
 				// filtered out
 				{
-					Type:   EventTypeSet,
+					Type:   wmdef.EventTypeSet,
 					Source: barSource,
 					Entity: bazContainer,
 				},
 			},
-			expected: []EventBundle{
+			expected: []wmdef.EventBundle{
 				{
-					Events: []Event{
+					Events: []wmdef.Event{
 						{
-							Type:   EventTypeSet,
+							Type:   wmdef.EventTypeSet,
 							Entity: barContainer,
 						},
 						{
-							Type:   EventTypeSet,
+							Type:   wmdef.EventTypeSet,
 							Entity: fooContainer,
 						},
 					},
@@ -251,36 +252,36 @@ func TestSubscribe(t *testing.T) {
 		{
 			// same as previous test, but now after the subscription started
 			name: "merges entities from different sources post-subscription",
-			postEvents: [][]CollectorEvent{
+			postEvents: [][]wmdef.CollectorEvent{
 				{
 					{
-						Type:   EventTypeSet,
+						Type:   wmdef.EventTypeSet,
 						Source: fooSource,
 						Entity: fooContainer,
 					},
 				},
 				{
 					{
-						Type:   EventTypeSet,
+						Type:   wmdef.EventTypeSet,
 						Source: barSource,
 						Entity: fooContainerToMerge,
 					},
 				},
 			},
-			expected: []EventBundle{
+			expected: []wmdef.EventBundle{
 				{},
 				{
-					Events: []Event{
+					Events: []wmdef.Event{
 						{
-							Type:   EventTypeSet,
+							Type:   wmdef.EventTypeSet,
 							Entity: fooContainer,
 						},
 					},
 				},
 				{
-					Events: []Event{
+					Events: []wmdef.Event{
 						{
-							Type:   EventTypeSet,
+							Type:   wmdef.EventTypeSet,
 							Entity: fooContainerMerged,
 						},
 					},
@@ -292,23 +293,23 @@ func TestSubscribe(t *testing.T) {
 			// different sources gets merged into a single entity
 			// containing data from both events
 			name: "merges entities from different sources pre-subscription",
-			preEvents: []CollectorEvent{
+			preEvents: []wmdef.CollectorEvent{
 				{
-					Type:   EventTypeSet,
+					Type:   wmdef.EventTypeSet,
 					Source: fooSource,
 					Entity: fooContainer,
 				},
 				{
-					Type:   EventTypeSet,
+					Type:   wmdef.EventTypeSet,
 					Source: barSource,
 					Entity: fooContainerToMerge,
 				},
 			},
-			expected: []EventBundle{
+			expected: []wmdef.EventBundle{
 				{
-					Events: []Event{
+					Events: []wmdef.Event{
 						{
-							Type:   EventTypeSet,
+							Type:   wmdef.EventTypeSet,
 							Entity: fooContainerMerged,
 						},
 					},
@@ -317,36 +318,36 @@ func TestSubscribe(t *testing.T) {
 		},
 		{
 			name: "sets and unsets an entity",
-			postEvents: [][]CollectorEvent{
+			postEvents: [][]wmdef.CollectorEvent{
 				{
 					{
-						Type:   EventTypeSet,
+						Type:   wmdef.EventTypeSet,
 						Source: fooSource,
 						Entity: fooContainer,
 					},
 				},
 				{
 					{
-						Type:   EventTypeUnset,
+						Type:   wmdef.EventTypeUnset,
 						Source: fooSource,
 						Entity: fooContainer,
 					},
 				},
 			},
-			expected: []EventBundle{
+			expected: []wmdef.EventBundle{
 				{},
 				{
-					Events: []Event{
+					Events: []wmdef.Event{
 						{
-							Type:   EventTypeSet,
+							Type:   wmdef.EventTypeSet,
 							Entity: fooContainer,
 						},
 					},
 				},
 				{
-					Events: []Event{
+					Events: []wmdef.Event{
 						{
-							Type:   EventTypeUnset,
+							Type:   wmdef.EventTypeUnset,
 							Entity: fooContainer,
 						},
 					},
@@ -358,47 +359,47 @@ func TestSubscribe(t *testing.T) {
 			// unsetting from only one (that matches the filter)
 			// correctly generates an unset event
 			name: "sets and unsets an entity with source filters",
-			filter: NewFilter(&FilterParams{
+			filter: wmdef.NewFilter(&wmdef.FilterParams{
 				Source:    fooSource,
-				EventType: EventTypeAll,
+				EventType: wmdef.EventTypeAll,
 			}),
-			postEvents: [][]CollectorEvent{
+			postEvents: [][]wmdef.CollectorEvent{
 				{
 					{
-						Type:   EventTypeSet,
+						Type:   wmdef.EventTypeSet,
 						Source: fooSource,
 						Entity: fooContainer,
 					},
 				},
 				{
 					{
-						Type:   EventTypeSet,
+						Type:   wmdef.EventTypeSet,
 						Source: barSource,
 						Entity: fooContainer,
 					},
 				},
 				{
 					{
-						Type:   EventTypeUnset,
+						Type:   wmdef.EventTypeUnset,
 						Source: fooSource,
 						Entity: fooContainer,
 					},
 				},
 			},
-			expected: []EventBundle{
+			expected: []wmdef.EventBundle{
 				{},
 				{
-					Events: []Event{
+					Events: []wmdef.Event{
 						{
-							Type:   EventTypeSet,
+							Type:   wmdef.EventTypeSet,
 							Entity: fooContainer,
 						},
 					},
 				},
 				{
-					Events: []Event{
+					Events: []wmdef.Event{
 						{
-							Type:   EventTypeUnset,
+							Type:   wmdef.EventTypeUnset,
 							Entity: fooContainer,
 						},
 					},
@@ -411,51 +412,51 @@ func TestSubscribe(t *testing.T) {
 			// sets and no unsets
 			name:   "sets and unsets an entity from different sources",
 			filter: nil,
-			postEvents: [][]CollectorEvent{
+			postEvents: [][]wmdef.CollectorEvent{
 				{
 					{
-						Type:   EventTypeSet,
+						Type:   wmdef.EventTypeSet,
 						Source: fooSource,
 						Entity: fooContainer,
 					},
 				},
 				{
 					{
-						Type:   EventTypeSet,
+						Type:   wmdef.EventTypeSet,
 						Source: barSource,
 						Entity: fooContainer,
 					},
 				},
 				{
 					{
-						Type:   EventTypeUnset,
+						Type:   wmdef.EventTypeUnset,
 						Source: fooSource,
 						Entity: fooContainer,
 					},
 				},
 			},
-			expected: []EventBundle{
+			expected: []wmdef.EventBundle{
 				{},
 				{
-					Events: []Event{
+					Events: []wmdef.Event{
 						{
-							Type:   EventTypeSet,
+							Type:   wmdef.EventTypeSet,
 							Entity: fooContainer,
 						},
 					},
 				},
 				{
-					Events: []Event{
+					Events: []wmdef.Event{
 						{
-							Type:   EventTypeSet,
+							Type:   wmdef.EventTypeSet,
 							Entity: fooContainer,
 						},
 					},
 				},
 				{
-					Events: []Event{
+					Events: []wmdef.Event{
 						{
-							Type:   EventTypeSet,
+							Type:   wmdef.EventTypeSet,
 							Entity: fooContainer,
 						},
 					},
@@ -466,16 +467,16 @@ func TestSubscribe(t *testing.T) {
 			// unsetting an unknown entity should generate no events
 			name:   "unsets unknown entity",
 			filter: nil,
-			postEvents: [][]CollectorEvent{
+			postEvents: [][]wmdef.CollectorEvent{
 				{
 					{
-						Type:   EventTypeUnset,
+						Type:   wmdef.EventTypeUnset,
 						Source: fooSource,
 						Entity: fooContainer,
 					},
 				},
 			},
-			expected: []EventBundle{
+			expected: []wmdef.EventBundle{
 				{},
 			},
 		},
@@ -486,33 +487,33 @@ func TestSubscribe(t *testing.T) {
 			// state of the entity before deletion.
 			name:   "unsetting entity merges last known state",
 			filter: nil,
-			postEvents: [][]CollectorEvent{
+			postEvents: [][]wmdef.CollectorEvent{
 				{
 					{
-						Type:   EventTypeSet,
+						Type:   wmdef.EventTypeSet,
 						Source: fooSource,
 						Entity: fooContainer,
 					},
 					{
-						Type:   EventTypeUnset,
+						Type:   wmdef.EventTypeUnset,
 						Source: fooSource,
 						Entity: fooContainerToMerge,
 					},
 				},
 			},
-			expected: []EventBundle{
+			expected: []wmdef.EventBundle{
 				{},
 				{
-					Events: []Event{
+					Events: []wmdef.Event{
 						{
-							Type:   EventTypeSet,
+							Type:   wmdef.EventTypeSet,
 							Entity: fooContainer,
 						},
 						{
-							Type: EventTypeUnset,
-							Entity: &Container{
+							Type: wmdef.EventTypeUnset,
+							Entity: &wmdef.Container{
 								EntityID: fooContainer.EntityID,
-								EntityMeta: EntityMeta{
+								EntityMeta: wmdef.EntityMeta{
 									Name: fooContainer.Name,
 								},
 								Hostname: fooContainer.Hostname,
@@ -525,32 +526,32 @@ func TestSubscribe(t *testing.T) {
 		},
 		{
 			name: "filters by event type",
-			filter: NewFilter(&FilterParams{
-				Source:    SourceAll,
-				EventType: EventTypeUnset,
+			filter: wmdef.NewFilter(&wmdef.FilterParams{
+				Source:    wmdef.SourceAll,
+				EventType: wmdef.EventTypeUnset,
 			}),
-			postEvents: [][]CollectorEvent{
+			postEvents: [][]wmdef.CollectorEvent{
 				{
 					{
-						Type:   EventTypeSet,
+						Type:   wmdef.EventTypeSet,
 						Source: fooSource,
 						Entity: fooContainer,
 					},
 				},
 				{
 					{
-						Type:   EventTypeUnset,
+						Type:   wmdef.EventTypeUnset,
 						Source: fooSource,
 						Entity: fooContainer,
 					},
 				},
 			},
-			expected: []EventBundle{
+			expected: []wmdef.EventBundle{
 				{},
 				{
-					Events: []Event{
+					Events: []wmdef.Event{
 						{
-							Type:   EventTypeUnset,
+							Type:   wmdef.EventTypeUnset,
 							Entity: fooContainer,
 						},
 					},
@@ -559,16 +560,16 @@ func TestSubscribe(t *testing.T) {
 		},
 		{
 			name:      "sets unchanged entity twice",
-			preEvents: []CollectorEvent{},
-			postEvents: [][]CollectorEvent{
+			preEvents: []wmdef.CollectorEvent{},
+			postEvents: [][]wmdef.CollectorEvent{
 				{
 					{
-						Type:   EventTypeSet,
+						Type:   wmdef.EventTypeSet,
 						Source: fooSource,
 						Entity: fooContainer,
 					},
 					{
-						Type:   EventTypeSet,
+						Type:   wmdef.EventTypeSet,
 						Source: fooSource,
 						// DeepCopy to ensure we're not
 						// just comparing pointers, as
@@ -579,12 +580,12 @@ func TestSubscribe(t *testing.T) {
 				},
 			},
 			filter: nil,
-			expected: []EventBundle{
+			expected: []wmdef.EventBundle{
 				{},
 				{
-					Events: []Event{
+					Events: []wmdef.Event{
 						{
-							Type:   EventTypeSet,
+							Type:   wmdef.EventTypeSet,
 							Entity: fooContainer,
 						},
 					},
@@ -598,17 +599,17 @@ func TestSubscribe(t *testing.T) {
 			deps := fxutil.Test[dependencies](t, fx.Options(
 				logimpl.MockModule(),
 				config.MockModule(),
-				fx.Supply(NewParams()),
+				fx.Supply(wmdef.NewParams()),
 			))
 
 			s := newWorkloadmetaObject(deps)
 
 			s.handleEvents(tt.preEvents)
 
-			ch := s.Subscribe(dummySubscriber, NormalPriority, tt.filter)
+			ch := s.Subscribe(dummySubscriber, wmdef.NormalPriority, tt.filter)
 			doneCh := make(chan struct{})
 
-			actual := []EventBundle{}
+			actual := []wmdef.EventBundle{}
 			go func() {
 				for bundle := range ch {
 					bundle.Acknowledge()
@@ -640,21 +641,21 @@ func TestGetKubernetesDeployment(t *testing.T) {
 	deps := fxutil.Test[dependencies](t, fx.Options(
 		logimpl.MockModule(),
 		config.MockModule(),
-		fx.Supply(NewParams()),
+		fx.Supply(wmdef.NewParams()),
 	))
 
 	s := newWorkloadmetaObject(deps)
 
-	deployment := &KubernetesDeployment{
-		EntityID: EntityID{
-			Kind: KindKubernetesDeployment,
+	deployment := &wmdef.KubernetesDeployment{
+		EntityID: wmdef.EntityID{
+			Kind: wmdef.KindKubernetesDeployment,
 			ID:   "datadog-cluster-agent",
 		},
 	}
 
-	s.handleEvents([]CollectorEvent{
+	s.handleEvents([]wmdef.CollectorEvent{
 		{
-			Type:   EventTypeSet,
+			Type:   wmdef.EventTypeSet,
 			Source: fooSource,
 			Entity: deployment,
 		},
@@ -667,9 +668,9 @@ func TestGetKubernetesDeployment(t *testing.T) {
 		t.Errorf("expected deployment %q to match the one in the store", retrievedDeployment.ID)
 	}
 
-	s.handleEvents([]CollectorEvent{
+	s.handleEvents([]wmdef.CollectorEvent{
 		{
-			Type:   EventTypeUnset,
+			Type:   wmdef.EventTypeUnset,
 			Source: fooSource,
 			Entity: deployment,
 		},
@@ -683,21 +684,21 @@ func TestGetKubernetesNamespace(t *testing.T) {
 	deps := fxutil.Test[dependencies](t, fx.Options(
 		logimpl.MockModule(),
 		config.MockModule(),
-		fx.Supply(NewParams()),
+		fx.Supply(wmdef.NewParams()),
 	))
 
 	s := newWorkloadmetaObject(deps)
 
-	namespace := &KubernetesNamespace{
-		EntityID: EntityID{
-			Kind: KindKubernetesNamespace,
+	namespace := &wmdef.KubernetesNamespace{
+		EntityID: wmdef.EntityID{
+			Kind: wmdef.KindKubernetesNamespace,
 			ID:   "default",
 		},
 	}
 
-	s.handleEvents([]CollectorEvent{
+	s.handleEvents([]wmdef.CollectorEvent{
 		{
-			Type:   EventTypeSet,
+			Type:   wmdef.EventTypeSet,
 			Source: fooSource,
 			Entity: namespace,
 		},
@@ -718,21 +719,21 @@ func TestGetProcess(t *testing.T) {
 	deps := fxutil.Test[dependencies](t, fx.Options(
 		logimpl.MockModule(),
 		config.MockModule(),
-		fx.Supply(NewParams()),
+		fx.Supply(wmdef.NewParams()),
 	))
 
 	s := newWorkloadmetaObject(deps)
 
-	process := &Process{
-		EntityID: EntityID{
-			Kind: KindProcess,
+	process := &wmdef.Process{
+		EntityID: wmdef.EntityID{
+			Kind: wmdef.KindProcess,
 			ID:   "123",
 		},
 	}
 
-	s.handleEvents([]CollectorEvent{
+	s.handleEvents([]wmdef.CollectorEvent{
 		{
-			Type:   EventTypeSet,
+			Type:   wmdef.EventTypeSet,
 			Source: fooSource,
 			Entity: process,
 		},
@@ -747,9 +748,9 @@ func TestGetProcess(t *testing.T) {
 		t.Errorf("expected process %q to match the one in the store", process.ID)
 	}
 
-	s.handleEvents([]CollectorEvent{
+	s.handleEvents([]wmdef.CollectorEvent{
 		{
-			Type:   EventTypeUnset,
+			Type:   wmdef.EventTypeUnset,
 			Source: fooSource,
 			Entity: process,
 		},
@@ -762,33 +763,33 @@ func TestGetProcess(t *testing.T) {
 }
 
 func TestListContainers(t *testing.T) {
-	container := &Container{
-		EntityID: EntityID{
-			Kind: KindContainer,
+	container := &wmdef.Container{
+		EntityID: wmdef.EntityID{
+			Kind: wmdef.KindContainer,
 			ID:   "abc",
 		},
 	}
 
 	tests := []struct {
 		name               string
-		preEvents          []CollectorEvent
-		expectedContainers []*Container
+		preEvents          []wmdef.CollectorEvent
+		expectedContainers []*wmdef.Container
 	}{
 		{
 			name: "some containers stored",
-			preEvents: []CollectorEvent{
+			preEvents: []wmdef.CollectorEvent{
 				{
-					Type:   EventTypeSet,
+					Type:   wmdef.EventTypeSet,
 					Source: fooSource,
 					Entity: container,
 				},
 			},
-			expectedContainers: []*Container{container},
+			expectedContainers: []*wmdef.Container{container},
 		},
 		{
 			name:               "no containers stored",
 			preEvents:          nil,
-			expectedContainers: []*Container{},
+			expectedContainers: []*wmdef.Container{},
 		},
 	}
 
@@ -797,7 +798,7 @@ func TestListContainers(t *testing.T) {
 			deps := fxutil.Test[dependencies](t, fx.Options(
 				logimpl.MockModule(),
 				config.MockModule(),
-				fx.Supply(NewParams()),
+				fx.Supply(wmdef.NewParams()),
 			))
 
 			s := newWorkloadmetaObject(deps)
@@ -812,22 +813,22 @@ func TestListContainers(t *testing.T) {
 }
 
 func TestListContainersWithFilter(t *testing.T) {
-	runningContainer := &Container{
-		EntityID: EntityID{
-			Kind: KindContainer,
+	runningContainer := &wmdef.Container{
+		EntityID: wmdef.EntityID{
+			Kind: wmdef.KindContainer,
 			ID:   "1",
 		},
-		State: ContainerState{
+		State: wmdef.ContainerState{
 			Running: true,
 		},
 	}
 
-	nonRunningContainer := &Container{
-		EntityID: EntityID{
-			Kind: KindContainer,
+	nonRunningContainer := &wmdef.Container{
+		EntityID: wmdef.EntityID{
+			Kind: wmdef.KindContainer,
 			ID:   "2",
 		},
-		State: ContainerState{
+		State: wmdef.ContainerState{
 			Running: false,
 		},
 	}
@@ -835,57 +836,57 @@ func TestListContainersWithFilter(t *testing.T) {
 	deps := fxutil.Test[dependencies](t, fx.Options(
 		logimpl.MockModule(),
 		config.MockModule(),
-		fx.Supply(NewParams()),
+		fx.Supply(wmdef.NewParams()),
 	))
 
 	s := newWorkloadmetaObject(deps)
 
-	s.handleEvents([]CollectorEvent{
+	s.handleEvents([]wmdef.CollectorEvent{
 		{
-			Type:   EventTypeSet,
+			Type:   wmdef.EventTypeSet,
 			Source: fooSource,
 			Entity: runningContainer,
 		},
 		{
-			Type:   EventTypeSet,
+			Type:   wmdef.EventTypeSet,
 			Source: fooSource,
 			Entity: nonRunningContainer,
 		},
 	})
 
-	runningContainers := s.ListContainersWithFilter(GetRunningContainers)
+	runningContainers := s.ListContainersWithFilter(wmdef.GetRunningContainers)
 
-	tassert.Equal(t, []*Container{runningContainer}, runningContainers)
+	tassert.Equal(t, []*wmdef.Container{runningContainer}, runningContainers)
 }
 
 func TestListProcesses(t *testing.T) {
-	process := &Process{
-		EntityID: EntityID{
-			Kind: KindProcess,
+	process := &wmdef.Process{
+		EntityID: wmdef.EntityID{
+			Kind: wmdef.KindProcess,
 			ID:   "123",
 		},
 	}
 
 	tests := []struct {
 		name              string
-		preEvents         []CollectorEvent
-		expectedProcesses []*Process
+		preEvents         []wmdef.CollectorEvent
+		expectedProcesses []*wmdef.Process
 	}{
 		{
 			name: "some processes stored",
-			preEvents: []CollectorEvent{
+			preEvents: []wmdef.CollectorEvent{
 				{
-					Type:   EventTypeSet,
+					Type:   wmdef.EventTypeSet,
 					Source: fooSource,
 					Entity: process,
 				},
 			},
-			expectedProcesses: []*Process{process},
+			expectedProcesses: []*wmdef.Process{process},
 		},
 		{
 			name:              "no processes stored",
 			preEvents:         nil,
-			expectedProcesses: []*Process{},
+			expectedProcesses: []*wmdef.Process{},
 		},
 	}
 
@@ -894,7 +895,7 @@ func TestListProcesses(t *testing.T) {
 			deps := fxutil.Test[dependencies](t, fx.Options(
 				logimpl.MockModule(),
 				config.MockModule(),
-				fx.Supply(NewParams()),
+				fx.Supply(wmdef.NewParams()),
 			))
 
 			s := newWorkloadmetaObject(deps)
@@ -909,9 +910,9 @@ func TestListProcesses(t *testing.T) {
 }
 
 func TestListProcessesWithFilter(t *testing.T) {
-	javaProcess := &Process{
-		EntityID: EntityID{
-			Kind: KindProcess,
+	javaProcess := &wmdef.Process{
+		EntityID: wmdef.EntityID{
+			Kind: wmdef.KindProcess,
 			ID:   "123",
 		},
 		Language: &languagemodels.Language{
@@ -919,9 +920,9 @@ func TestListProcessesWithFilter(t *testing.T) {
 		},
 	}
 
-	nodeProcess := &Process{
-		EntityID: EntityID{
-			Kind: KindProcess,
+	nodeProcess := &wmdef.Process{
+		EntityID: wmdef.EntityID{
+			Kind: wmdef.KindProcess,
 			ID:   "2",
 		},
 		Language: &languagemodels.Language{
@@ -932,65 +933,65 @@ func TestListProcessesWithFilter(t *testing.T) {
 	deps := fxutil.Test[dependencies](t, fx.Options(
 		logimpl.MockModule(),
 		config.MockModule(),
-		fx.Supply(NewParams()),
+		fx.Supply(wmdef.NewParams()),
 	))
 
 	s := newWorkloadmetaObject(deps)
 
-	s.handleEvents([]CollectorEvent{
+	s.handleEvents([]wmdef.CollectorEvent{
 		{
-			Type:   EventTypeSet,
+			Type:   wmdef.EventTypeSet,
 			Source: fooSource,
 			Entity: javaProcess,
 		},
 		{
-			Type:   EventTypeSet,
+			Type:   wmdef.EventTypeSet,
 			Source: fooSource,
 			Entity: nodeProcess,
 		},
 	})
 
-	retrievedProcesses := s.ListProcessesWithFilter(func(p *Process) bool {
+	retrievedProcesses := s.ListProcessesWithFilter(func(p *wmdef.Process) bool {
 		return p.Language.Name == languagemodels.Java
 	})
 
-	tassert.Equal(t, []*Process{javaProcess}, retrievedProcesses)
+	tassert.Equal(t, []*wmdef.Process{javaProcess}, retrievedProcesses)
 }
 
 func TestGetKubernetesPodByName(t *testing.T) {
-	pod1 := &KubernetesPod{
-		EntityID: EntityID{
-			Kind: KindKubernetesPod,
+	pod1 := &wmdef.KubernetesPod{
+		EntityID: wmdef.EntityID{
+			Kind: wmdef.KindKubernetesPod,
 			ID:   "123",
 		},
-		EntityMeta: EntityMeta{
+		EntityMeta: wmdef.EntityMeta{
 			Name:      "test-pod",
 			Namespace: "test-namespace",
 		},
 	}
-	pod2 := &KubernetesPod{
-		EntityID: EntityID{
-			Kind: KindKubernetesPod,
+	pod2 := &wmdef.KubernetesPod{
+		EntityID: wmdef.EntityID{
+			Kind: wmdef.KindKubernetesPod,
 			ID:   "234",
 		},
-		EntityMeta: EntityMeta{
+		EntityMeta: wmdef.EntityMeta{
 			Name:      "test-pod-other",
 			Namespace: "test-namespace",
 		},
 	}
-	pod3 := &KubernetesPod{
-		EntityID: EntityID{
-			Kind: KindKubernetesPod,
+	pod3 := &wmdef.KubernetesPod{
+		EntityID: wmdef.EntityID{
+			Kind: wmdef.KindKubernetesPod,
 			ID:   "345",
 		},
-		EntityMeta: EntityMeta{
+		EntityMeta: wmdef.EntityMeta{
 			Name:      "test-pod",
 			Namespace: "test-namespace-other",
 		},
 	}
 
 	type want struct {
-		pod *KubernetesPod
+		pod *wmdef.KubernetesPod
 		err error
 	}
 	type args struct {
@@ -1049,15 +1050,15 @@ func TestGetKubernetesPodByName(t *testing.T) {
 			deps := fxutil.Test[dependencies](t, fx.Options(
 				logimpl.MockModule(),
 				config.MockModule(),
-				fx.Supply(NewParams()),
+				fx.Supply(wmdef.NewParams()),
 			))
 
 			s := newWorkloadmetaObject(deps)
 
-			for _, pod := range []*KubernetesPod{pod1, pod2, pod3} {
-				s.handleEvents([]CollectorEvent{
+			for _, pod := range []*wmdef.KubernetesPod{pod1, pod2, pod3} {
+				s.handleEvents([]wmdef.CollectorEvent{
 					{
-						Type:   EventTypeSet,
+						Type:   wmdef.EventTypeSet,
 						Source: fooSource,
 						Entity: pod,
 					},
@@ -1075,33 +1076,33 @@ func TestGetKubernetesPodByName(t *testing.T) {
 }
 
 func TestListKubernetesNodes(t *testing.T) {
-	node := &KubernetesNode{
-		EntityID: EntityID{
-			Kind: KindKubernetesNode,
+	node := &wmdef.KubernetesNode{
+		EntityID: wmdef.EntityID{
+			Kind: wmdef.KindKubernetesNode,
 			ID:   "some-node",
 		},
 	}
 
 	tests := []struct {
 		name          string
-		preEvents     []CollectorEvent
-		expectedNodes []*KubernetesNode
+		preEvents     []wmdef.CollectorEvent
+		expectedNodes []*wmdef.KubernetesNode
 	}{
 		{
 			name: "some nodes stored",
-			preEvents: []CollectorEvent{
+			preEvents: []wmdef.CollectorEvent{
 				{
-					Type:   EventTypeSet,
+					Type:   wmdef.EventTypeSet,
 					Source: fooSource,
 					Entity: node,
 				},
 			},
-			expectedNodes: []*KubernetesNode{node},
+			expectedNodes: []*wmdef.KubernetesNode{node},
 		},
 		{
 			name:          "no nodes stored",
 			preEvents:     nil,
-			expectedNodes: []*KubernetesNode{},
+			expectedNodes: []*wmdef.KubernetesNode{},
 		},
 	}
 
@@ -1110,7 +1111,7 @@ func TestListKubernetesNodes(t *testing.T) {
 			deps := fxutil.Test[dependencies](t, fx.Options(
 				logimpl.MockModule(),
 				config.MockModule(),
-				fx.Supply(NewParams()),
+				fx.Supply(wmdef.NewParams()),
 			))
 			s := newWorkloadmetaObject(deps)
 
@@ -1122,33 +1123,33 @@ func TestListKubernetesNodes(t *testing.T) {
 }
 
 func TestListImages(t *testing.T) {
-	image := &ContainerImageMetadata{
-		EntityID: EntityID{
-			Kind: KindContainerImageMetadata,
+	image := &wmdef.ContainerImageMetadata{
+		EntityID: wmdef.EntityID{
+			Kind: wmdef.KindContainerImageMetadata,
 			ID:   "abc",
 		},
 	}
 
 	tests := []struct {
 		name           string
-		preEvents      []CollectorEvent
-		expectedImages []*ContainerImageMetadata
+		preEvents      []wmdef.CollectorEvent
+		expectedImages []*wmdef.ContainerImageMetadata
 	}{
 		{
 			name: "some images stored",
-			preEvents: []CollectorEvent{
+			preEvents: []wmdef.CollectorEvent{
 				{
-					Type:   EventTypeSet,
+					Type:   wmdef.EventTypeSet,
 					Source: fooSource,
 					Entity: image,
 				},
 			},
-			expectedImages: []*ContainerImageMetadata{image},
+			expectedImages: []*wmdef.ContainerImageMetadata{image},
 		},
 		{
 			name:           "no containers stored",
 			preEvents:      nil,
-			expectedImages: []*ContainerImageMetadata{},
+			expectedImages: []*wmdef.ContainerImageMetadata{},
 		},
 	}
 
@@ -1157,7 +1158,7 @@ func TestListImages(t *testing.T) {
 			deps := fxutil.Test[dependencies](t, fx.Options(
 				logimpl.MockModule(),
 				config.MockModule(),
-				fx.Supply(NewParams()),
+				fx.Supply(wmdef.NewParams()),
 			))
 
 			s := newWorkloadmetaObject(deps)
@@ -1170,9 +1171,9 @@ func TestListImages(t *testing.T) {
 }
 
 func TestGetImage(t *testing.T) {
-	image := &ContainerImageMetadata{
-		EntityID: EntityID{
-			Kind: KindContainerImageMetadata,
+	image := &wmdef.ContainerImageMetadata{
+		EntityID: wmdef.EntityID{
+			Kind: wmdef.KindContainerImageMetadata,
 			ID:   "abc",
 		},
 	}
@@ -1180,16 +1181,16 @@ func TestGetImage(t *testing.T) {
 	tests := []struct {
 		name          string
 		imageID       string
-		preEvents     []CollectorEvent
-		expectedImage *ContainerImageMetadata
+		preEvents     []wmdef.CollectorEvent
+		expectedImage *wmdef.ContainerImageMetadata
 		expectsError  bool
 	}{
 		{
 			name:    "image exists",
 			imageID: image.ID,
-			preEvents: []CollectorEvent{
+			preEvents: []wmdef.CollectorEvent{
 				{
-					Type:   EventTypeSet,
+					Type:   wmdef.EventTypeSet,
 					Source: fooSource,
 					Entity: image,
 				},
@@ -1209,7 +1210,7 @@ func TestGetImage(t *testing.T) {
 			deps := fxutil.Test[dependencies](t, fx.Options(
 				logimpl.MockModule(),
 				config.MockModule(),
-				fx.Supply(NewParams()),
+				fx.Supply(wmdef.NewParams()),
 			))
 
 			s := newWorkloadmetaObject(deps)
@@ -1218,7 +1219,7 @@ func TestGetImage(t *testing.T) {
 			actualImage, err := s.GetImage(test.imageID)
 
 			if test.expectsError {
-				tassert.Error(t, err, errors.NewNotFound(string(KindContainerImageMetadata)).Error())
+				tassert.Error(t, err, errors.NewNotFound(string(wmdef.KindContainerImageMetadata)).Error())
 			} else {
 				tassert.NoError(t, err)
 				tassert.Equal(t, test.expectedImage, actualImage)
@@ -1228,57 +1229,57 @@ func TestGetImage(t *testing.T) {
 }
 
 func TestListECSTasks(t *testing.T) {
-	task1 := &ECSTask{
-		EntityID: EntityID{
-			Kind: KindECSTask,
+	task1 := &wmdef.ECSTask{
+		EntityID: wmdef.EntityID{
+			Kind: wmdef.KindECSTask,
 			ID:   "task-id-1",
 		},
 		VPCID: "123",
 	}
-	task2 := &ECSTask{
-		EntityID: EntityID{
-			Kind: KindECSTask,
+	task2 := &wmdef.ECSTask{
+		EntityID: wmdef.EntityID{
+			Kind: wmdef.KindECSTask,
 			ID:   "task-id-1",
 		},
 	}
-	task3 := &ECSTask{
-		EntityID: EntityID{
-			Kind: KindECSTask,
+	task3 := &wmdef.ECSTask{
+		EntityID: wmdef.EntityID{
+			Kind: wmdef.KindECSTask,
 			ID:   "task-id-2",
 		},
 	}
 
 	tests := []struct {
 		name          string
-		preEvents     []CollectorEvent
-		expectedTasks []*ECSTask
+		preEvents     []wmdef.CollectorEvent
+		expectedTasks []*wmdef.ECSTask
 	}{
 		{
 			name: "some tasks stored",
-			preEvents: []CollectorEvent{
+			preEvents: []wmdef.CollectorEvent{
 				{
-					Type:   EventTypeSet,
+					Type:   wmdef.EventTypeSet,
 					Source: fooSource,
 					Entity: task1,
 				},
 				{
-					Type:   EventTypeSet,
+					Type:   wmdef.EventTypeSet,
 					Source: fooSource,
 					Entity: task2,
 				},
 				{
-					Type:   EventTypeSet,
+					Type:   wmdef.EventTypeSet,
 					Source: fooSource,
 					Entity: task3,
 				},
 			},
 			// task2 replaces task1
-			expectedTasks: []*ECSTask{task2, task3},
+			expectedTasks: []*wmdef.ECSTask{task2, task3},
 		},
 		{
 			name:          "no task stored",
 			preEvents:     nil,
-			expectedTasks: []*ECSTask{},
+			expectedTasks: []*wmdef.ECSTask{},
 		},
 	}
 
@@ -1287,7 +1288,7 @@ func TestListECSTasks(t *testing.T) {
 			deps := fxutil.Test[dependencies](t, fx.Options(
 				logimpl.MockModule(),
 				config.MockModule(),
-				fx.Supply(NewParams()),
+				fx.Supply(wmdef.NewParams()),
 			))
 
 			s := newWorkloadmetaObject(deps)
@@ -1304,16 +1305,16 @@ func TestListECSTasks(t *testing.T) {
 func TestResetProcesses(t *testing.T) {
 	tests := []struct {
 		name         string
-		preEvents    []CollectorEvent
-		newProcesses []*Process
+		preEvents    []wmdef.CollectorEvent
+		newProcesses []*wmdef.Process
 	}{
 		{
 			name:      "initially empty",
-			preEvents: []CollectorEvent{},
-			newProcesses: []*Process{
+			preEvents: []wmdef.CollectorEvent{},
+			newProcesses: []*wmdef.Process{
 				{
-					EntityID: EntityID{
-						Kind: KindProcess,
+					EntityID: wmdef.EntityID{
+						Kind: wmdef.KindProcess,
 						ID:   "123",
 					},
 				},
@@ -1321,22 +1322,22 @@ func TestResetProcesses(t *testing.T) {
 		},
 		{
 			name: "old process to be removed",
-			preEvents: []CollectorEvent{
+			preEvents: []wmdef.CollectorEvent{
 				{
-					Type:   EventTypeSet,
-					Source: SourceRemoteProcessCollector,
-					Entity: &Process{
-						EntityID: EntityID{
-							Kind: KindProcess,
+					Type:   wmdef.EventTypeSet,
+					Source: wmdef.SourceRemoteProcessCollector,
+					Entity: &wmdef.Process{
+						EntityID: wmdef.EntityID{
+							Kind: wmdef.KindProcess,
 							ID:   "123",
 						},
 					},
 				},
 			},
-			newProcesses: []*Process{
+			newProcesses: []*wmdef.Process{
 				{
-					EntityID: EntityID{
-						Kind: KindProcess,
+					EntityID: wmdef.EntityID{
+						Kind: wmdef.KindProcess,
 						ID:   "345",
 					},
 				},
@@ -1344,29 +1345,29 @@ func TestResetProcesses(t *testing.T) {
 		},
 		{
 			name: "old process to be updated",
-			preEvents: []CollectorEvent{
+			preEvents: []wmdef.CollectorEvent{
 				{
-					Type:   EventTypeSet,
-					Source: SourceRemoteProcessCollector,
-					Entity: &Process{
-						EntityID: EntityID{
-							Kind: KindProcess,
+					Type:   wmdef.EventTypeSet,
+					Source: wmdef.SourceRemoteProcessCollector,
+					Entity: &wmdef.Process{
+						EntityID: wmdef.EntityID{
+							Kind: wmdef.KindProcess,
 							ID:   "123",
 						},
 					},
 				},
 			},
-			newProcesses: []*Process{
+			newProcesses: []*wmdef.Process{
 				{
-					EntityID: EntityID{
-						Kind: KindProcess,
+					EntityID: wmdef.EntityID{
+						Kind: wmdef.KindProcess,
 						ID:   "123",
 					},
 					NsPid: 345,
 				},
 				{
-					EntityID: EntityID{
-						Kind: KindProcess,
+					EntityID: wmdef.EntityID{
+						Kind: wmdef.KindProcess,
 						ID:   "12",
 					},
 				},
@@ -1378,13 +1379,13 @@ func TestResetProcesses(t *testing.T) {
 			deps := fxutil.Test[dependencies](t, fx.Options(
 				logimpl.MockModule(),
 				config.MockModule(),
-				fx.Supply(NewParams()),
+				fx.Supply(wmdef.NewParams()),
 			))
 
 			s := newWorkloadmetaObject(deps)
 			s.handleEvents(test.preEvents)
 
-			ch := s.Subscribe(dummySubscriber, NormalPriority, nil)
+			ch := s.Subscribe(dummySubscriber, wmdef.NormalPriority, nil)
 			doneCh := make(chan struct{})
 
 			go func() {
@@ -1399,11 +1400,11 @@ func TestResetProcesses(t *testing.T) {
 				close(doneCh)
 			}()
 
-			entities := make([]Entity, len(test.newProcesses))
+			entities := make([]wmdef.Entity, len(test.newProcesses))
 			for i := range test.newProcesses {
 				entities[i] = test.newProcesses[i]
 			}
-			s.ResetProcesses(entities, SourceRemoteProcessCollector)
+			s.ResetProcesses(entities, wmdef.SourceRemoteProcessCollector)
 			// Force handling of events generated by the reset
 			if len(s.eventCh) > 0 {
 				s.handleEvents(<-s.eventCh)
@@ -1424,21 +1425,21 @@ func TestGetKubernetesMetadata(t *testing.T) {
 	deps := fxutil.Test[dependencies](t, fx.Options(
 		logimpl.MockModule(),
 		config.MockModule(),
-		fx.Supply(NewParams()),
+		fx.Supply(wmdef.NewParams()),
 	))
 
 	s := newWorkloadmetaObject(deps)
 
-	kubemetadata := &KubernetesMetadata{
-		EntityID: EntityID{
-			Kind: KindKubernetesMetadata,
+	kubemetadata := &wmdef.KubernetesMetadata{
+		EntityID: wmdef.EntityID{
+			Kind: wmdef.KindKubernetesMetadata,
 			ID:   "deployments/default/app",
 		},
 	}
 
-	s.handleEvents([]CollectorEvent{
+	s.handleEvents([]wmdef.CollectorEvent{
 		{
-			Type:   EventTypeSet,
+			Type:   wmdef.EventTypeSet,
 			Source: fooSource,
 			Entity: kubemetadata,
 		},
@@ -1451,9 +1452,9 @@ func TestGetKubernetesMetadata(t *testing.T) {
 		t.Errorf("expected metadata %q to match the one in the store", retrievedMetadata.ID)
 	}
 
-	s.handleEvents([]CollectorEvent{
+	s.handleEvents([]wmdef.CollectorEvent{
 		{
-			Type:   EventTypeUnset,
+			Type:   wmdef.EventTypeUnset,
 			Source: fooSource,
 			Entity: kubemetadata,
 		},
@@ -1464,30 +1465,30 @@ func TestGetKubernetesMetadata(t *testing.T) {
 }
 
 func TestReset(t *testing.T) {
-	fooContainer := &Container{
-		EntityID: EntityID{
-			Kind: KindContainer,
+	fooContainer := &wmdef.Container{
+		EntityID: wmdef.EntityID{
+			Kind: wmdef.KindContainer,
 			ID:   "foo",
 		},
-		EntityMeta: EntityMeta{
+		EntityMeta: wmdef.EntityMeta{
 			Name: "foo",
 		},
 		Hostname: "foo",
 	}
 
-	fooSetEvent := CollectorEvent{
-		Type:   EventTypeSet,
+	fooSetEvent := wmdef.CollectorEvent{
+		Type:   wmdef.EventTypeSet,
 		Source: fooSource,
 		Entity: fooContainer,
 	}
 
 	// Same ID as fooContainer but with different values
-	updatedFooContainer := &Container{
-		EntityID: EntityID{
-			Kind: KindContainer,
+	updatedFooContainer := &wmdef.Container{
+		EntityID: wmdef.EntityID{
+			Kind: wmdef.KindContainer,
 			ID:   "foo",
 		},
-		EntityMeta: EntityMeta{
+		EntityMeta: wmdef.EntityMeta{
 			Name: "foo",
 			Labels: map[string]string{ // Added
 				"test-label": "1",
@@ -1496,12 +1497,12 @@ func TestReset(t *testing.T) {
 		Hostname: "foo",
 	}
 
-	barContainer := &Container{
-		EntityID: EntityID{
-			Kind: KindContainer,
+	barContainer := &wmdef.Container{
+		EntityID: wmdef.EntityID{
+			Kind: wmdef.KindContainer,
 			ID:   "bar",
 		},
-		EntityMeta: EntityMeta{
+		EntityMeta: wmdef.EntityMeta{
 			Name: "bar",
 		},
 		Hostname: "bar",
@@ -1509,23 +1510,23 @@ func TestReset(t *testing.T) {
 
 	tests := []struct {
 		name                   string
-		preEvents              []CollectorEvent
-		newEntities            []Entity
-		expectedEventsReceived []EventBundle
+		preEvents              []wmdef.CollectorEvent
+		newEntities            []wmdef.Entity
+		expectedEventsReceived []wmdef.EventBundle
 	}{
 		{
 			name: "new entity already exists without changes",
-			preEvents: []CollectorEvent{
+			preEvents: []wmdef.CollectorEvent{
 				fooSetEvent,
 			},
-			newEntities: []Entity{
+			newEntities: []wmdef.Entity{
 				fooContainer,
 			},
-			expectedEventsReceived: []EventBundle{
+			expectedEventsReceived: []wmdef.EventBundle{
 				{
-					Events: []Event{
+					Events: []wmdef.Event{
 						{
-							Type:   EventTypeSet,
+							Type:   wmdef.EventTypeSet,
 							Entity: fooContainer,
 						},
 					},
@@ -1534,25 +1535,25 @@ func TestReset(t *testing.T) {
 		},
 		{
 			name: "new entity exists but it has been updated",
-			preEvents: []CollectorEvent{
+			preEvents: []wmdef.CollectorEvent{
 				fooSetEvent,
 			},
-			newEntities: []Entity{
+			newEntities: []wmdef.Entity{
 				updatedFooContainer,
 			},
-			expectedEventsReceived: []EventBundle{
+			expectedEventsReceived: []wmdef.EventBundle{
 				{
-					Events: []Event{
+					Events: []wmdef.Event{
 						{
-							Type:   EventTypeSet,
+							Type:   wmdef.EventTypeSet,
 							Entity: fooContainer,
 						},
 					},
 				},
 				{
-					Events: []Event{
+					Events: []wmdef.Event{
 						{
-							Type:   EventTypeSet,
+							Type:   wmdef.EventTypeSet,
 							Entity: updatedFooContainer,
 						},
 					},
@@ -1561,26 +1562,26 @@ func TestReset(t *testing.T) {
 		},
 		{
 			name: "new event does not exist",
-			preEvents: []CollectorEvent{
+			preEvents: []wmdef.CollectorEvent{
 				fooSetEvent,
 			},
-			newEntities: []Entity{
+			newEntities: []wmdef.Entity{
 				fooContainer,
 				barContainer,
 			},
-			expectedEventsReceived: []EventBundle{
+			expectedEventsReceived: []wmdef.EventBundle{
 				{
-					Events: []Event{
+					Events: []wmdef.Event{
 						{
-							Type:   EventTypeSet,
+							Type:   wmdef.EventTypeSet,
 							Entity: fooContainer,
 						},
 					},
 				},
 				{
-					Events: []Event{
+					Events: []wmdef.Event{
 						{
-							Type:   EventTypeSet,
+							Type:   wmdef.EventTypeSet,
 							Entity: barContainer,
 						},
 					},
@@ -1589,23 +1590,23 @@ func TestReset(t *testing.T) {
 		},
 		{
 			name: "an event that exists is not included in the list of new ones",
-			preEvents: []CollectorEvent{
+			preEvents: []wmdef.CollectorEvent{
 				fooSetEvent,
 			},
-			newEntities: []Entity{},
-			expectedEventsReceived: []EventBundle{
+			newEntities: []wmdef.Entity{},
+			expectedEventsReceived: []wmdef.EventBundle{
 				{
-					Events: []Event{
+					Events: []wmdef.Event{
 						{
-							Type:   EventTypeSet,
+							Type:   wmdef.EventTypeSet,
 							Entity: fooContainer,
 						},
 					},
 				},
 				{
-					Events: []Event{
+					Events: []wmdef.Event{
 						{
-							Type:   EventTypeUnset,
+							Type:   wmdef.EventTypeUnset,
 							Entity: fooContainer,
 						},
 					},
@@ -1619,17 +1620,17 @@ func TestReset(t *testing.T) {
 			deps := fxutil.Test[dependencies](t, fx.Options(
 				logimpl.MockModule(),
 				config.MockModule(),
-				fx.Supply(NewParams()),
+				fx.Supply(wmdef.NewParams()),
 			))
 
 			s := newWorkloadmetaObject(deps)
 
 			s.handleEvents(test.preEvents)
 
-			ch := s.Subscribe(dummySubscriber, NormalPriority, nil)
+			ch := s.Subscribe(dummySubscriber, wmdef.NormalPriority, nil)
 			doneCh := make(chan struct{})
 
-			var actualEventsReceived []EventBundle
+			var actualEventsReceived []wmdef.EventBundle
 			go func() {
 				for bundle := range ch {
 					bundle.Acknowledge()
@@ -1666,14 +1667,14 @@ func TestNoDataRace(t *testing.T) { //nolint:revive // TODO fix revive unused-pa
 	deps := fxutil.Test[dependencies](t, fx.Options(
 		logimpl.MockModule(),
 		config.MockModule(),
-		fx.Supply(NewParams()),
+		fx.Supply(wmdef.NewParams()),
 	))
 
 	s := newWorkloadmetaObject(deps)
 
-	container := &Container{
-		EntityID: EntityID{
-			Kind: KindContainer,
+	container := &wmdef.Container{
+		EntityID: wmdef.EntityID{
+			Kind: wmdef.KindContainer,
 			ID:   "123",
 		},
 	}
@@ -1682,9 +1683,9 @@ func TestNoDataRace(t *testing.T) { //nolint:revive // TODO fix revive unused-pa
 		_, _ = s.GetContainer("456")
 	}()
 
-	s.handleEvents([]CollectorEvent{
+	s.handleEvents([]wmdef.CollectorEvent{
 		{
-			Type:   EventTypeSet,
+			Type:   wmdef.EventTypeSet,
 			Source: fooSource,
 			Entity: container,
 		},
@@ -1696,36 +1697,36 @@ func TestPushEvents(t *testing.T) {
 	deps := fxutil.Test[dependencies](t, fx.Options(
 		logimpl.MockModule(),
 		config.MockModule(),
-		fx.Supply(NewParams()),
+		fx.Supply(wmdef.NewParams()),
 	))
 
 	wlm := newWorkloadmetaObject(deps)
 
-	mockSource := Source("mockSource")
+	mockSource := wmdef.Source("mockSource")
 
 	tests := []struct {
 		name        string
-		events      []Event
-		source      Source
+		events      []wmdef.Event
+		source      wmdef.Source
 		expectError bool
 	}{
 		{
 			name:        "empty push events slice",
-			events:      []Event{},
+			events:      []wmdef.Event{},
 			source:      mockSource,
 			expectError: false,
 		},
 		{
 			name: "push events with valid types",
-			events: []Event{
+			events: []wmdef.Event{
 				{
-					Type: EventTypeSet,
+					Type: wmdef.EventTypeSet,
 				},
 				{
-					Type: EventTypeUnset,
+					Type: wmdef.EventTypeUnset,
 				},
 				{
-					Type: EventTypeSet,
+					Type: wmdef.EventTypeSet,
 				},
 			},
 			source:      mockSource,
@@ -1733,12 +1734,12 @@ func TestPushEvents(t *testing.T) {
 		},
 		{
 			name: "push events with invalid types",
-			events: []Event{
+			events: []wmdef.Event{
 				{
-					Type: EventTypeSet,
+					Type: wmdef.EventTypeSet,
 				},
 				{
-					Type: EventTypeAll,
+					Type: wmdef.EventTypeAll,
 				},
 			},
 			source:      mockSource,

@@ -51,7 +51,16 @@ int BPF_KPROBE(kprobe__oom_kill_process, struct oom_control *oc) {
         return 0;
     }
     BPF_CORE_READ_INTO(&new.tpid, p, pid);
-
+    BPF_CORE_READ_INTO(&new.score, oc, chosen_points);
+#ifdef COMPILE_CORE
+    if (bpf_core_field_exists(p->signal->oom_score_adj)) {
+        BPF_CORE_READ_INTO(&new.score_adj, p, signal, oom_score_adj);
+    }
+#else
+    struct signal_struct *sig;
+    bpf_probe_read_kernel(&sig, sizeof(s), &p->signal);
+    bpf_probe_read_kernel(&new.score_adj, sizeof(new.score_adj), &sig->oom_score_adj);
+#endif
     if (bpf_helper_exists(BPF_FUNC_get_current_comm)) {
         bpf_get_current_comm(new.fcomm, sizeof(new.fcomm));
     }

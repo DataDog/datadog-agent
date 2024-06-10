@@ -6,20 +6,20 @@
 package workloadmeta
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"strings"
 	"time"
 
-	"k8s.io/apimachinery/pkg/runtime/schema"
-
-	langUtil "github.com/DataDog/datadog-agent/pkg/languagedetection/util"
-
 	"github.com/CycloneDX/cyclonedx-go"
 	"github.com/mohae/deepcopy"
 	v1 "github.com/opencontainers/image-spec/specs-go/v1"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
+	langUtil "github.com/DataDog/datadog-agent/pkg/languagedetection/util"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 )
 
@@ -1386,3 +1386,7 @@ func (e EventBundle) Acknowledge() {
 		close(e.Ch)
 	}
 }
+
+// InitHelper this should be provided as a helper to allow passing the component into
+// the inithook for additional start-time configutation.
+type InitHelper func(context.Context, Component, config.Component) error

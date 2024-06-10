@@ -10,7 +10,7 @@ package system
 import (
 	"sync"
 
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/util/cgroups"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/trie"

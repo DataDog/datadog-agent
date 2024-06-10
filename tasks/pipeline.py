@@ -57,7 +57,7 @@ def GitlabYamlLoader():
 # Tasks to trigger pipelines
 
 
-def check_deploy_pipeline(repo: Project, git_ref, release_version_6, release_version_7, repo_branch):
+def check_deploy_pipeline(repo: Project, git_ref: str, release_version_6, release_version_7, repo_branch):
     """
     Run checks to verify a deploy pipeline is valid:
     - it targets a valid repo branch
@@ -189,7 +189,9 @@ def auto_cancel_previous_pipelines(ctx):
         is_ancestor = ctx.run(f'git merge-base --is-ancestor {pipeline.sha} {git_sha}', warn=True, hide="both")
         if is_ancestor.exited == 0:
             print(f'Gracefully canceling jobs that are not canceled on pipeline {pipeline.id} ({pipeline.web_url})')
-            gracefully_cancel_pipeline(repo, pipeline, force_cancel_stages=["package_build"])
+            gracefully_cancel_pipeline(
+                repo, pipeline, force_cancel_stages=["package_build", "kernel_matrix_testing_prepare"]
+            )
         elif is_ancestor.exited == 1:
             print(f'{pipeline.sha} is not an ancestor of {git_sha}, not cancelling pipeline {pipeline.id}')
         elif is_ancestor.exited == 128:
@@ -203,7 +205,9 @@ def auto_cancel_previous_pipelines(ctx):
                 print(
                     f'Pipeline started earlier than {min_time_before_cancel} minutes ago, gracefully canceling pipeline {pipeline.id}'
                 )
-                gracefully_cancel_pipeline(repo, pipeline, force_cancel_stages=["package_build"])
+                gracefully_cancel_pipeline(
+                    repo, pipeline, force_cancel_stages=["package_build", "kernel_matrix_testing_prepare"]
+                )
         else:
             print(is_ancestor.stderr)
             raise Exit(1)
@@ -212,7 +216,7 @@ def auto_cancel_previous_pipelines(ctx):
 @task
 def run(
     ctx,
-    git_ref=None,
+    git_ref="",
     here=False,
     use_release_entries=False,
     major_versions=None,
@@ -266,7 +270,7 @@ def run(
 
     repo = get_gitlab_repo()
 
-    if (not git_ref and not here) or (git_ref and here):
+    if (git_ref == "" and not here) or (git_ref != "" and here):
         raise Exit("ERROR: Exactly one of --here or --git-ref <git ref> must be specified.", code=1)
 
     if use_release_entries:

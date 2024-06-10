@@ -14,7 +14,9 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
+	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
@@ -107,10 +109,10 @@ host_heartbeat_validity_seconds: 1000000
 
 func TestFactory(t *testing.T) {
 	cfg := fxutil.Test[config.Component](t, config.MockModule())
-	mockStore := fxutil.Test[workloadmeta.Mock](t, fx.Options(
+	mockStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		core.MockBundle(),
 		fx.Supply(workloadmeta.NewParams()),
-		workloadmeta.MockModuleV2(),
+		workloadmetafxmock.MockModuleV2(),
 	))
 	checkFactory := Factory(mockStore, cfg)
 	assert.NotNil(t, checkFactory)
@@ -166,7 +168,7 @@ func TestConfigure(t *testing.T) {
 			AgentType:  workloadmeta.NodeAgent,
 			InitHelper: common.GetWorkloadmetaInit(),
 		}),
-		workloadmeta.MockModuleV2(),
+		workloadmetafxmock.MockModuleV2(),
 	))
 	cfg := app.Cfg
 	mockStore := app.Store
