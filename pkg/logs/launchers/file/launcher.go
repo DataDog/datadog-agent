@@ -288,6 +288,7 @@ func (s *Launcher) launchTailers(source *sources.LogSource) {
 
 		if !isSet && source.Config.Identifier != "" {
 			mode = config.Beginning
+			source.Config.TailingMode = mode.String()
 		}
 
 		s.startNewTailer(file, mode)
