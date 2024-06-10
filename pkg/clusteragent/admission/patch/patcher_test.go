@@ -59,7 +59,7 @@ func TestPatchNamespace(t *testing.T) {
 	req.ID = "12345"
 	req.Action = EnableConfig
 	req.Revision = 12
-	require.NoError(t, p.patchNamespaces(ctx, req))
+	require.NoError(t, p.patchNamespaces(req))
 
 	// Check the patch
 	got, err := client.CoreV1().Namespaces().Get(ctx, name, metav1.GetOptions{})
@@ -73,7 +73,7 @@ func TestPatchNamespace(t *testing.T) {
 	req.ID = "123456"
 	req.Action = EnableConfig
 	req.Revision = 123
-	require.NoError(t, p.patchNamespaces(ctx, req))
+	require.NoError(t, p.patchNamespaces(req))
 
 	// Check the patch
 	got, err = client.CoreV1().Namespaces().Get(ctx, name, metav1.GetOptions{})
@@ -85,7 +85,7 @@ func TestPatchNamespace(t *testing.T) {
 	req.ID = "12345"
 	req.Action = DisableConfig
 	req.Revision = 13
-	require.NoError(t, p.patchNamespaces(ctx, req))
+	require.NoError(t, p.patchNamespaces(req))
 
 	// Check the patch
 	got, err = client.CoreV1().Namespaces().Get(ctx, name, metav1.GetOptions{})
@@ -97,7 +97,7 @@ func TestPatchNamespace(t *testing.T) {
 	// Delete configuration
 	req.Action = DeleteConfig
 	req.Revision = 15
-	require.NoError(t, p.patchNamespaces(ctx, req))
+	require.NoError(t, p.patchNamespaces(req))
 
 	// Check the patch
 	got, err = client.CoreV1().Namespaces().Get(ctx, name, metav1.GetOptions{})
