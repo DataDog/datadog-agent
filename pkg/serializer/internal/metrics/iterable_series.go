@@ -194,6 +194,7 @@ func (series *IterableSeries) MarshalSplitCompressMultiple(config config.Compone
 	return pb.payloads, pb2.payloads, nil
 }
 
+// NewPayloadsBuilder initializes a new PayloadsBuilder to be used for serializing series into a set of output payloads.
 func (series *IterableSeries) NewPayloadsBuilder(bufferContext *marshaler.BufferContext, config config.Component, strategy compression.Component) (PayloadsBuilder, error) {
 	buf := bufferContext.PrecompressionBuf
 	ps := molecule.NewProtoStream(buf)

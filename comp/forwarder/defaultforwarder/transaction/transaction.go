@@ -336,6 +336,7 @@ func (t *HTTPTransaction) GetPointCount() int {
 	return 0
 }
 
+// GetDestination returns the region(s) this transaction should be sent to.
 func (t *HTTPTransaction) GetDestination() Destination {
 	return t.Destination
 }
