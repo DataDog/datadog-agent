@@ -63,9 +63,6 @@ var functions = template.FuncMap{
 	"htmlSafe": func(html string) template.HTML {
 		return template.HTML(html)
 	},
-	"incr": func(i int) int {
-		return i + 1
-	},
 }
 
 func status(client localapiclient.Component) error {
