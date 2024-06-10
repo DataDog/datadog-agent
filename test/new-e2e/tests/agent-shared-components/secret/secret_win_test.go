@@ -26,35 +26,32 @@ type windowsRuntimeSecretSuite struct {
 }
 
 func TestWindowsRuntimeSecretSuite(t *testing.T) {
-	e2e.Run(t, &windowsRuntimeSecretSuite{}, e2e.WithProvisioner(awshost.ProvisionerNoFakeIntake(
+	e2e.Run(t, &windowsRuntimeSecretSuite{}, e2e.WithProvisioner(awshost.Provisioner(
 		awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsDefault)),
-	)), e2e.WithDevMode())
+	)))
 }
 
-func (v *windowsRuntimeSecretSuite) TestSecretRuntimeAPIKey() {
+func (v *windowsRuntimeSecretSuite) TestSecretRuntimeHostname() {
 	config := `secret_backend_command: C:\TestFolder\wrapper.bat
+secret_backend_arguments:
+  - 'C:\TestFolder'
 hostname: ENC[hostname]`
 
 	agentParams := []func(*agentparams.Params) error{
 		agentparams.WithAgentConfig(config),
 	}
-
 	agentParams = append(agentParams, secrets.WithWindowsSecretSetupScript("C:/TestFolder/wrapper.bat", false)...)
 
-	v.T().Log("creating secret client")
 	secretClient := secrets.NewSecretClient(v.T(), v.Env().RemoteHost, "C:/TestFolder")
-	v.T().Log("setting secret hostname")
 	secretClient.SetSecret("hostname", "e2e.test")
 
-	v.T().Log("updating env")
 	v.UpdateEnv(
-		awshost.ProvisionerNoFakeIntake(
+		awshost.Provisioner(
 			awshost.WithEC2InstanceOptions(ec2.WithOS(os.WindowsDefault)),
 			awshost.WithAgentOptions(agentParams...),
 		),
 	)
 
-	v.T().Log("checking hostname")
 	assert.EventuallyWithT(v.T(), func(t *assert.CollectT) {
 		checks, err := v.Env().FakeIntake.Client().GetCheckRun("datadog.agent.up")
 		require.NoError(t, err)

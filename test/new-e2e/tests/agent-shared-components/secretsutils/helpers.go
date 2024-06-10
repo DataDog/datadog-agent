@@ -9,14 +9,14 @@ package secretsutils
 import (
 	"bytes"
 	_ "embed"
-	"fmt"
 	"html/template"
 	"path/filepath"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
 	perms "github.com/DataDog/test-infra-definitions/components/datadog/agentparams/filepermissions"
+
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 //go:embed fixtures/secret-resolver.py
@@ -42,7 +42,7 @@ var secretWrapperScript string
 // WithWindowsSecretSetupScript returns a list of agent params that setups a secret resolver script with correct permissions.
 func WithWindowsSecretSetupScript(wrapperPath string, allowGroupExec bool) []func(*agentparams.Params) error {
 	// On Windows we're using a wrapper around the python script because we can't execute python scripts directly
-	// (this would require modifying permissins of the python binary)
+	// (this would require modifying permissions of the python binary)
 	// Basically the setup looks like this:
 	// <path>/
 	// ├── secret.py
@@ -54,9 +54,6 @@ func WithWindowsSecretSetupScript(wrapperPath string, allowGroupExec bool) []fun
 	pythonScriptPath := filepath.Join(dir, "secret.py")
 	secretWrapperContent := fillSecretWrapperTemplate(strings.ReplaceAll(pythonScriptPath, "/", "\\"))
 
-	fmt.Printf("Wrapper path: %s\n", wrapperPath)
-	fmt.Printf("Secret wrapper content: %s\n", secretWrapperContent)
-	fmt.Printf("Python script path: %s\n", pythonScriptPath)
 	return []func(*agentparams.Params) error{
 		agentparams.WithFileWithPermissions(wrapperPath, secretWrapperContent, true, WithWindowsSecretPermissions(allowGroupExec)),
 		agentparams.WithFile(pythonScriptPath, secretResolverScript, true),
