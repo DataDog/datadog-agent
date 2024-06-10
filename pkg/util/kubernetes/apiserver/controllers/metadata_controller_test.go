@@ -27,7 +27,9 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
+	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
 	apiv1 "github.com/DataDog/datadog-agent/pkg/clusteragent/api/v1"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
@@ -480,13 +482,13 @@ func TestMetadataController(t *testing.T) {
 }
 
 func newMockWorkloadMeta(t *testing.T) workloadmeta.Component {
-	return fxutil.Test[workloadmeta.Mock](
+	return fxutil.Test[workloadmetamock.Mock](
 		t,
 		fx.Options(
 			logimpl.MockModule(),
 			config.MockModule(),
 			fx.Supply(workloadmeta.NewParams()),
-			workloadmeta.MockModuleV2(),
+			workloadmetafxmock.MockModuleV2(),
 		),
 	)
 }

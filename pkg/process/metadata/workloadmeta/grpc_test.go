@@ -101,7 +101,7 @@ func TestStreamServer(t *testing.T) {
 	// Drop first cache diff before gRPC connection is created
 	<-extractor.ProcessCacheDiff()
 
-	cc, err := grpc.Dial(srv.addr.String(), grpc.WithTransportCredentials(insecure.NewCredentials()))
+	cc, err := grpc.Dial(srv.addr.String(), grpc.WithTransportCredentials(insecure.NewCredentials())) //nolint:staticcheck // TODO (ASC) fix grpc.Dial is deprecated
 	require.NoError(t, err)
 	defer cc.Close()
 	streamClient := pbgo.NewProcessEntityStreamClient(cc)
@@ -179,7 +179,7 @@ func TestStreamServerDropRedundantCacheDiff(t *testing.T) {
 		Pid2: proc2,
 	})
 
-	cc, err := grpc.Dial(srv.addr.String(), grpc.WithTransportCredentials(insecure.NewCredentials()))
+	cc, err := grpc.Dial(srv.addr.String(), grpc.WithTransportCredentials(insecure.NewCredentials())) //nolint:staticcheck // TODO (ASC) fix grpc.Dial is deprecated
 	require.NoError(t, err)
 	defer cc.Close()
 	streamClient := pbgo.NewProcessEntityStreamClient(cc)
@@ -307,7 +307,6 @@ func TestSingleStream(t *testing.T) {
 	ext.diffChan <- &ProcessCacheDiff{cacheVersion: 1}
 	_, err = newStream.Recv()
 	assert.NoError(t, err)
-
 }
 
 func assertEqualStreamEntitiesResponse(t *testing.T, expected, actual *pbgo.ProcessStreamResponse) {
@@ -378,7 +377,7 @@ func setupGRPCTest(t *testing.T) (*WorkloadMetaExtractor, *GRPCServer, *grpc.Cli
 	require.NoError(t, err)
 	t.Cleanup(grpcServer.Stop)
 
-	cc, err := grpc.Dial(grpcServer.addr.String(), grpc.WithTransportCredentials(insecure.NewCredentials()))
+	cc, err := grpc.Dial(grpcServer.addr.String(), grpc.WithTransportCredentials(insecure.NewCredentials())) //nolint:staticcheck // TODO (ASC) fix grpc.Dial is deprecated
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		_ = cc.Close()

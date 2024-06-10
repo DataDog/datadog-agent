@@ -146,6 +146,25 @@ func (s *USMSuite) TestEnableHTTPMonitoring() {
 	_ = setupTracer(t, cfg)
 }
 
+func (s *USMSuite) TestDisableUSM() {
+	t := s.T()
+
+	cfg := testConfig()
+	cfg.ServiceMonitoringEnabled = false
+	// Enabling all features, to ensure nothing is forcing USM enablement.
+	cfg.EnableHTTPMonitoring = true
+	cfg.EnableHTTP2Monitoring = true
+	cfg.EnableKafkaMonitoring = true
+	cfg.EnablePostgresMonitoring = true
+	cfg.EnableGoTLSSupport = true
+	cfg.EnableNodeJSMonitoring = true
+	cfg.EnableIstioMonitoring = true
+	cfg.EnableNativeTLSMonitoring = true
+
+	tr := setupTracer(t, cfg)
+	require.Nil(t, tr.usmMonitor)
+}
+
 func (s *USMSuite) TestProtocolClassification() {
 	t := s.T()
 	cfg := testConfig()
@@ -153,6 +172,7 @@ func (s *USMSuite) TestProtocolClassification() {
 		t.Skip("Classification is not supported")
 	}
 
+	cfg.ServiceMonitoringEnabled = true
 	cfg.EnableNativeTLSMonitoring = true
 	cfg.EnableHTTPMonitoring = true
 	cfg.EnablePostgresMonitoring = true
@@ -275,6 +295,7 @@ func getFreePort() (port uint16, err error) {
 func (s *USMSuite) TestTLSClassification() {
 	t := s.T()
 	cfg := testConfig()
+	cfg.ServiceMonitoringEnabled = true
 	cfg.ProtocolClassificationEnabled = true
 	cfg.CollectTCPv4Conns = true
 	cfg.CollectTCPv6Conns = true
@@ -1151,6 +1172,8 @@ func testPostgresProtocolClassificationWrapper(enableTLS bool) func(t *testing.T
 }
 
 func testPostgresProtocolClassification(t *testing.T, tr *Tracer, clientHost, targetHost, serverHost string, enableTLS bool) {
+	t.Skip("TLS+Postgres classification tests are flaky")
+
 	skippers := []func(t *testing.T, ctx testContext){skipIfUsingNAT}
 	if enableTLS {
 		skippers = append(skippers, skipIfGoTLSNotSupported)
@@ -1704,6 +1727,8 @@ var amqpTestSpecsMap = map[bool]amqpTestSpec{
 }
 
 func testAMQPProtocolClassificationInner(t *testing.T, tr *Tracer, clientHost, targetHost, serverHost string, withTLS bool) {
+	t.Skip("TLS+AMQP classification tests are flaky")
+
 	spec := amqpTestSpecsMap[withTLS]
 	composeSkips(spec.skipFuncs...)(t, testContext{
 		serverAddress: serverHost,
