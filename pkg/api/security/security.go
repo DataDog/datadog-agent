@@ -23,7 +23,6 @@ import (
 	"time"
 
 	configModel "github.com/DataDog/datadog-agent/pkg/config/model"
-	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -117,7 +116,7 @@ func GetAuthTokenFilepath(config configModel.Reader) string {
 	if config.GetString("auth_token_file_path") != "" {
 		return config.GetString("auth_token_file_path")
 	}
-	return filepath.Join(filepath.Dir(config.ConfigFileUsed()), authTokenName)
+	return filepath.Join(config.GetString("run_path"), authTokenName)
 }
 
 // FetchAuthToken gets the authentication token from the auth token file & creates one if it doesn't exist
@@ -196,7 +195,7 @@ func getClusterAgentAuthToken(config configModel.Reader, tokenCreationAllowed bo
 	}
 
 	// load the cluster agent auth token from filesystem
-	tokenAbsPath := filepath.Join(configUtils.ConfFileDirectory(config), clusterAgentAuthTokenFilename)
+	tokenAbsPath := filepath.Join(config.GetString("run_path"), clusterAgentAuthTokenFilename)
 	log.Debugf("Empty cluster_agent.auth_token, loading from %s", tokenAbsPath)
 
 	// Create a new token if it doesn't exist

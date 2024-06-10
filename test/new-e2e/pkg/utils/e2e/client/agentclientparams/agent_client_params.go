@@ -150,11 +150,11 @@ func WithWaitForTick(d time.Duration) Option {
 func defaultAuthTokenPath(osfam osComp.Family) string {
 	switch osfam {
 	case osComp.LinuxFamily:
-		return "/etc/datadog-agent/auth_token"
+		return "/opt/datadog-agent/run/auth_token"
 	case osComp.WindowsFamily:
-		return "C:\\ProgramData\\Datadog\\auth_token"
+		return "C:\\ProgramData\\Datadog\\run\\auth_token"
 	case osComp.MacOSFamily:
-		return "/opt/datadog-agent/etc/auth_token"
+		return "/opt/datadog-agent/run/auth_token"
 	}
 	panic(fmt.Sprintf("unsupported OS family %d", osfam))
 }
