@@ -1,0 +1,53 @@
+#!/bin/bash
+
+# Owned by datadog-apm-inject
+set -e
+
+function usage ()
+{
+    cat << EOF
+Datadog Host Injection Installer
+Usage :  $0 [options]
+
+    Options:
+    -h|--help             OPTIONAL Display this message
+    --uninstall           OPTIONAL Remove installation
+EOF
+
+}
+
+if [ "$UID" = "0" ]; then
+    sudo_cmd=''
+else
+    sudo_cmd='sudo'
+fi
+
+# Parse command line args
+while [ $# -gt 0 ]; do
+    case $1 in
+        -h|--help)
+            usage
+            exit_success
+            ;;
+        --dry-run|--no-config-change|--no-agent-restart|--no-agent-config-change|--no-docker-reload)
+            shift
+            ;;
+        --uninstall)
+            uninstall_flag="true"
+            shift
+            ;;
+        *)
+            echo -e "ERROR: An unknown flag was passed: ${1}\n"
+            usage
+            exit_error
+            ;;
+    esac
+done
+
+if [ -z "$uninstall_flag" ]; then
+    $sudo_cmd datadog-installer apm instrument host
+else
+    $sudo_cmd datadog-installer apm uninstrument host
+fi
+
+exit 0
