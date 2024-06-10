@@ -190,7 +190,7 @@ build do
       command "invoke -e otel-agent.build", :env => env
       copy 'bin/otel-agent/otel-agent', "#{install_dir}/embedded/bin"
 
-      move 'bin/agent/dist/otel-config.yaml', "#{conf_dir}/otel-config.yaml.example"
+      move 'bin/otel-agent/dist/otel-config.yaml', "#{conf_dir}/otel-config.yaml.example"
     end
   end
 
