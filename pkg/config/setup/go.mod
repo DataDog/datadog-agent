@@ -31,10 +31,12 @@ replace (
 
 require (
 	github.com/DataDog/datadog-agent/comp/core/secrets v0.55.0-rc.3
+	github.com/DataDog/datadog-agent/comp/core/telemetry v0.55.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults v0.55.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/config/env v0.55.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/config/model v0.55.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/util/executable v0.55.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.55.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/util/hostname/validate v0.55.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/util/log v0.55.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/util/optional v0.55.0-rc.3
@@ -48,11 +50,8 @@ require (
 require (
 	github.com/DataDog/datadog-agent/comp/core/flare/builder v0.55.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/comp/core/flare/types v0.55.0-rc.3 // indirect
-	github.com/DataDog/datadog-agent/comp/core/telemetry v0.55.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/comp/def v0.55.0-rc.3 // indirect
-	github.com/DataDog/datadog-agent/pkg/telemetry v0.55.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.55.0-rc.3 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.55.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/pointer v0.55.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.55.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/system/socket v0.55.0-rc.3 // indirect
@@ -94,7 +93,6 @@ require (
 	github.com/tklauser/numcpus v0.6.1 // indirect
 	github.com/yusufpapurcu/wmi v1.2.3 // indirect
 	go.opentelemetry.io/otel v1.27.0 // indirect
-	go.opentelemetry.io/otel/exporters/prometheus v0.42.0 // indirect
 	go.opentelemetry.io/otel/metric v1.27.0 // indirect
 	go.opentelemetry.io/otel/sdk v1.27.0 // indirect
 	go.opentelemetry.io/otel/sdk/metric v1.27.0 // indirect

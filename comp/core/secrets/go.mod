@@ -16,7 +16,7 @@ replace (
 
 require (
 	github.com/DataDog/datadog-agent/comp/core/flare/types v0.55.0-rc.3
-	github.com/DataDog/datadog-agent/pkg/telemetry v0.55.0-rc.3
+	github.com/DataDog/datadog-agent/comp/core/telemetry v0.55.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.55.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/util/log v0.55.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.55.0-rc.3
@@ -31,7 +31,6 @@ require (
 
 require (
 	github.com/DataDog/datadog-agent/comp/core/flare/builder v0.55.0-rc.3 // indirect
-	github.com/DataDog/datadog-agent/comp/core/telemetry v0.55.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/comp/def v0.55.0-rc.3 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cespare/xxhash/v2 v2.2.0 // indirect
@@ -52,7 +51,6 @@ require (
 	github.com/spf13/cobra v1.7.0 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
 	go.opentelemetry.io/otel v1.27.0 // indirect
-	go.opentelemetry.io/otel/exporters/prometheus v0.42.0 // indirect
 	go.opentelemetry.io/otel/metric v1.27.0 // indirect
 	go.opentelemetry.io/otel/sdk v1.27.0 // indirect
 	go.opentelemetry.io/otel/sdk/metric v1.27.0 // indirect
