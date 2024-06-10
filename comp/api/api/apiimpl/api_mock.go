@@ -13,7 +13,6 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/api/api"
-	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -30,13 +29,6 @@ func MockModule() fxutil.Module {
 
 func newMock() api.Mock {
 	return &mockAPIServer{}
-}
-
-// StartServer creates the router and starts the HTTP server
-func (mock *mockAPIServer) StartServer(
-	_ sender.DiagnoseSenderManager,
-) error {
-	return nil
 }
 
 // StopServer closes the connection and the server

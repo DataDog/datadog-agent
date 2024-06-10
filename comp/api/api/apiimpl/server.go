@@ -6,6 +6,7 @@
 package apiimpl
 
 import (
+	"context"
 	"crypto/tls"
 	"fmt"
 	stdLog "log"
@@ -14,23 +15,8 @@ import (
 
 	"github.com/cihub/seelog"
 
-	"github.com/DataDog/datadog-agent/comp/api/api"
-	"github.com/DataDog/datadog-agent/comp/collector/collector"
-	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
-	"github.com/DataDog/datadog-agent/comp/core/secrets"
-	"github.com/DataDog/datadog-agent/comp/core/status"
-	"github.com/DataDog/datadog-agent/comp/core/tagger"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
-	"github.com/DataDog/datadog-agent/comp/dogstatsd/pidmap"
-	replay "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/def"
-	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
-	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
-	"github.com/DataDog/datadog-agent/comp/remote-config/rcservice"
-	"github.com/DataDog/datadog-agent/comp/remote-config/rcservicemrf"
-	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 func startServer(listener net.Listener, srv *http.Server, name string) {
@@ -57,22 +43,7 @@ func stopServer(listener net.Listener, name string) {
 }
 
 // StartServers creates certificates and starts API + IPC servers
-func StartServers(
-	configService optional.Option[rcservice.Component],
-	configServiceMRF optional.Option[rcservicemrf.Component],
-	dogstatsdServer dogstatsdServer.Component,
-	capture replay.Component,
-	pidMap pidmap.Component,
-	wmeta workloadmeta.Component,
-	taggerComp tagger.Component,
-	logsAgent optional.Option[logsAgent.Component],
-	senderManager sender.DiagnoseSenderManager,
-	secretResolver secrets.Component,
-	statusComponent status.Component,
-	collector optional.Option[collector.Component],
-	ac autodiscovery.Component,
-	providers []api.EndpointProvider,
-) error {
+func (a *apiServer) StartServers(_ context.Context) error {
 	apiAddr, err := getIPCAddressPort()
 	if err != nil {
 		return fmt.Errorf("unable to get IPC address and port: %v", err)
@@ -101,21 +72,20 @@ func StartServers(
 		apiAddr,
 		tlsConfig,
 		tlsCertPool,
-		configService,
-		configServiceMRF,
-		dogstatsdServer,
-		capture,
-		pidMap,
-		wmeta,
-		taggerComp,
-		logsAgent,
-		senderManager,
-		secretResolver,
-		statusComponent,
-		collector,
-		ac,
-		providers,
-	); err != nil {
+		a.rcService,
+		a.rcServiceMRF,
+		a.dogstatsdServer,
+		a.capture,
+		a.pidMap,
+		a.wmeta,
+		a.taggerComp,
+		a.logsAgentComp,
+		a.senderManager,
+		a.secretResolver,
+		a.statusComponent,
+		a.collector,
+		a.autoConfig,
+		a.endpointProviders); err != nil {
 		return fmt.Errorf("unable to start CMD API server: %v", err)
 	}
 

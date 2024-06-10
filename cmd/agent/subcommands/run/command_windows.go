@@ -129,7 +129,7 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 			_ optional.Option[gui.Component],
 			_ agenttelemetry.Component,
 		) error {
-			defer StopAgentWithDefaults(agentAPI)
+			defer StopAgentWithDefaults()
 
 			err := startAgent(
 				log,
