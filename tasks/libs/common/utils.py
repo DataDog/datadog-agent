@@ -430,13 +430,13 @@ def get_git_pretty_ref():
         return current_branch
 
 
-def query_version(ctx, major_version, git_sha_length=7):
+def query_version(ctx, major_version, git_sha_length=7, release=False):
     # The describe string format is <tag>-<number of commits since the tag>-g<commit hash>
     # e.g. 6.0.0-beta.0-1-g4f19118
     #   - tag is 6.0.0-beta.0
     #   - it has been one commit since the tag creation
     #   - that commit hash is g4f19118
-    cmd = rf'git describe --tags --candidates=50 --match "{get_matching_pattern(ctx, major_version)}"'
+    cmd = rf'git describe --tags --candidates=50 --match "{get_matching_pattern(ctx, major_version, release=release)}"'
     if git_sha_length and isinstance(git_sha_length, int):
         cmd += f" --abbrev={git_sha_length}"
     described_version = ctx.run(cmd, hide=True).stdout.strip()
@@ -478,12 +478,12 @@ def query_version(ctx, major_version, git_sha_length=7):
     return version, pre, commit_number, git_sha, pipeline_id
 
 
-def get_matching_pattern(ctx, major_version):
+def get_matching_pattern(ctx, major_version, release=False):
     """
     We need to used specific patterns (official release tags) for nightly builds as they are used to install agent versions.
     """
     pattern = rf"{major_version}\.*"
-    if is_allowed_repo_nightly_branch(os.getenv("BUCKET_BRANCH")):
+    if release or is_allowed_repo_nightly_branch(os.getenv("BUCKET_BRANCH")):
         pattern = ctx.run(
             rf"git tag --list | grep -E '^{major_version}\.[0-9]+\.[0-9]+(-rc.*|-devel.*)?$' | sort -rV | head -1",
             hide=True,
@@ -517,6 +517,7 @@ def get_version(
     pipeline_id=None,
     include_git=False,
     include_pre=True,
+    release=False,
 ):
     version = ""
     if pipeline_id is None:
@@ -554,7 +555,7 @@ def get_version(
             print("[WARN] Agent version cache file hasn't been loaded !", file=sys.stderr)
         # we only need the git info for the non omnibus builds, omnibus includes all this information by default
         version, pre, commits_since_version, git_sha, pipeline_id = query_version(
-            ctx, major_version, git_sha_length=git_sha_length
+            ctx, major_version, git_sha_length=git_sha_length, release=release
         )
         # Dev's versions behave the same as nightly
         bucket_branch = os.getenv("BUCKET_BRANCH")

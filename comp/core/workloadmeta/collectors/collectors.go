@@ -11,7 +11,6 @@ package collectors
 import (
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	cf_container "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/cloudfoundry/container"
 	cf_vm "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/cloudfoundry/vm"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/containerd"
@@ -25,6 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/podman"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/remote/processcollector"
 	remoteworkloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/remote/workloadmeta"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 )
 

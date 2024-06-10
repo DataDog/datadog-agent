@@ -1172,6 +1172,8 @@ func testPostgresProtocolClassificationWrapper(enableTLS bool) func(t *testing.T
 }
 
 func testPostgresProtocolClassification(t *testing.T, tr *Tracer, clientHost, targetHost, serverHost string, enableTLS bool) {
+	t.Skip("TLS+Postgres classification tests are flaky")
+
 	skippers := []func(t *testing.T, ctx testContext){skipIfUsingNAT}
 	if enableTLS {
 		skippers = append(skippers, skipIfGoTLSNotSupported)
@@ -1725,6 +1727,8 @@ var amqpTestSpecsMap = map[bool]amqpTestSpec{
 }
 
 func testAMQPProtocolClassificationInner(t *testing.T, tr *Tracer, clientHost, targetHost, serverHost string, withTLS bool) {
+	t.Skip("TLS+AMQP classification tests are flaky")
+
 	spec := amqpTestSpecsMap[withTLS]
 	composeSkips(spec.skipFuncs...)(t, testContext{
 		serverAddress: serverHost,

@@ -957,7 +957,7 @@ def tag_devel(ctx, agent_version, commit="HEAD", verify=True, push=True, force=F
 
 
 def current_version(ctx, major_version) -> Version:
-    return _create_version_from_match(VERSION_RE.search(get_version(ctx, major_version=major_version)))
+    return _create_version_from_match(VERSION_RE.search(get_version(ctx, major_version=major_version, release=True)))
 
 
 def next_final_version(ctx, major_version, patch_version) -> Version:
@@ -1192,9 +1192,6 @@ def create_rc(ctx, major_versions="6,7", patch_version=False, upstream="origin",
     # can be used.
     new_final_version = next_final_version(ctx, max(list_major_versions), patch_version)
 
-    # Get a string representation of the RC, eg. "6/7.32.0-rc.1"
-    versions_string = f"{'/'.join([str(n) for n in list_major_versions[:-1]] + [str(new_highest_version)])}"
-
     print(color_message(f"Preparing RC for agent version(s) {list_major_versions}", "bold"))
 
     # Step 0: checks
@@ -1242,7 +1239,7 @@ def create_rc(ctx, major_versions="6,7", patch_version=False, upstream="origin",
     ctx.run("git add release.json")
     ctx.run("git ls-files . | grep 'go.mod$' | xargs git add")
 
-    ok = try_git_command(ctx, f"git commit -m 'Update release.json and Go modules for {versions_string}'")
+    ok = try_git_command(ctx, f"git commit -m 'Update release.json and Go modules for {new_highest_version}'")
     if not ok:
         raise Exit(
             color_message(
@@ -1264,7 +1261,7 @@ def create_rc(ctx, major_versions="6,7", patch_version=False, upstream="origin",
         )
 
     pr_url = create_pr(
-        f"[release] Update release.json and Go modules for {versions_string}",
+        f"[release] Update release.json and Go modules for {new_highest_version}",
         current_branch,
         update_branch,
         new_final_version,
@@ -1418,7 +1415,7 @@ def build_rc(ctx, major_versions="6,7", patch_version=False, k8s_deployments=Fal
 
     run(
         ctx,
-        git_ref=gitlab_tag,
+        git_ref=gitlab_tag.name,
         use_release_entries=True,
         major_versions=major_versions,
         repo_branch="beta",
@@ -1746,6 +1743,7 @@ def _create_build_links_patterns(current_version, new_version):
     patterns[current_minor_version] = new_minor_version
     patterns[current_minor_version.replace("rc.", "rc-")] = new_minor_version.replace("rc.", "rc-")
     patterns[current_minor_version.replace("-rc", "~rc")] = new_minor_version.replace("-rc", "~rc")
+    patterns[current_minor_version[2:].replace("-rc", "~rc")] = new_minor_version[2:].replace("-rc", "~rc")
 
     return patterns
 
