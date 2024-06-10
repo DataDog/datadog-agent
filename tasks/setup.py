@@ -14,7 +14,7 @@ from typing import TYPE_CHECKING
 from invoke import task
 from invoke.exceptions import Exit
 
-from tasks.libs.common.color import color_message
+from tasks.libs.common.color import Color, color_message
 from tasks.libs.common.status import Status
 from tasks.libs.common.utils import running_in_pyapp
 
@@ -68,24 +68,24 @@ def setup(ctx):
 
         print(f"{result.name}\t {color_message(result.status, Status.color(result.status))}")
         if result.message:
-            print(color_message(result.message, "orange"))
+            print(color_message(result.message, Color.ORANGE))
 
     print()
 
     if final_result == Status.OK:
-        print(color_message("Setup completed successfully.", "green"))
+        print(color_message("Setup completed successfully.", Color.GREEN))
     elif final_result == Status.WARN:
-        print(color_message("Setup completed with warnings.", "orange"))
+        print(color_message("Setup completed with warnings.", Color.ORANGE))
     else:
-        print(color_message("Setup completed with errors.", "red"))
+        print(color_message("Setup completed with errors.", Color.RED))
         raise Exit(code=1)
 
 
 def check_git_repo(ctx) -> SetupResult:
-    print(color_message("Fetching git repository...", "blue"))
+    print(color_message("Fetching git repository...", Color.BLUE))
     ctx.run("git fetch", hide=True)
 
-    print(color_message("Checking main branch...", "blue"))
+    print(color_message("Checking main branch...", Color.BLUE))
     output = ctx.run("git rev-list ^HEAD origin/main --count", hide=True)
     count = output.stdout.strip()
 
@@ -100,14 +100,14 @@ def check_git_repo(ctx) -> SetupResult:
 
 
 def check_go_version(ctx) -> SetupResult:
-    print(color_message("Checking Go version...", "blue"))
+    print(color_message("Checking Go version...", Color.BLUE))
 
     with open(".go-version") as f:
         expected_version = f.read().strip()
 
     try:
         output = ctx.run("go version", hide=True)
-    except:
+    except Exception:
         return SetupResult(
             "Check Go version", Status.FAIL, f"Go is not installed. Please install Go {expected_version}."
         )
@@ -125,7 +125,7 @@ def check_go_version(ctx) -> SetupResult:
 
 
 def check_python_version(_ctx) -> SetupResult:
-    print(color_message("Checking Python version...", "blue"))
+    print(color_message("Checking Python version...", Color.BLUE))
 
     with open(".python-version") as f:
         expected_version = f.read().strip()
@@ -143,17 +143,17 @@ def check_python_version(_ctx) -> SetupResult:
 
 
 def update_python_dependencies(ctx) -> Generator[SetupResult]:
-    print(color_message("Updating Python dependencies...", "blue"))
+    print(color_message("Updating Python dependencies...", Color.BLUE))
 
     for requirement_file in PYTHON_REQUIREMENTS:
-        print(color_message(f"Updating Python dependencies from {requirement_file}...", "blue"))
+        print(color_message(f"Updating Python dependencies from {requirement_file}...", Color.BLUE))
 
         ctx.run(f"pip install -r {requirement_file}", hide=True)
         yield SetupResult(f"Update Python dependencies from {requirement_file}", Status.OK)
 
 
 def enable_pre_commit(ctx) -> SetupResult:
-    print(color_message("Enabling pre-commit...", "blue"))
+    print(color_message("Enabling pre-commit...", Color.BLUE))
 
     status = Status.OK
     message = ""
@@ -202,28 +202,28 @@ def enable_pre_commit(ctx) -> SetupResult:
 
 
 def install_go_tools(ctx) -> SetupResult:
-    print(color_message("Installing go tools...", "blue"))
+    print(color_message("Installing go tools...", Color.BLUE))
     status = Status.OK
 
     try:
         from tasks import install_tools
 
         install_tools(ctx)
-    except:
+    except Exception:
         status = Status.FAIL
 
     return SetupResult("Install Go tools", status)
 
 
 def download_go_tools(ctx) -> SetupResult:
-    print(color_message("Downloading go tools...", "blue"))
+    print(color_message("Downloading go tools...", Color.BLUE))
     status = Status.OK
 
     try:
         from tasks import download_tools
 
         download_tools(ctx)
-    except:
+    except Exception:
         status = Status.FAIL
 
     return SetupResult("Download Go tools", status)

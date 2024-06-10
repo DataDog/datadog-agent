@@ -16,7 +16,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/secrets/secretsimpl"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
 	"github.com/DataDog/datadog-agent/comp/languagedetection/client"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
@@ -34,7 +35,7 @@ func TestBundleDependencies(t *testing.T) {
 		}),
 		secretsimpl.MockModule(),
 		fx.Supply(logimpl.Params{}),
-		workloadmeta.Module(),
+		workloadmetafx.Module(),
 		fx.Supply(workloadmeta.NewParams()),
 		fx.Invoke(func(client.Component) {}),
 		Bundle(),

@@ -17,7 +17,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
 	"github.com/DataDog/datadog-agent/comp/trace/agent"
 	"github.com/DataDog/datadog-agent/comp/trace/config"
@@ -33,7 +34,7 @@ func TestBundleDependencies(t *testing.T) {
 		fx.Supply(core.BundleParams{}),
 		core.Bundle(),
 		fx.Supply(workloadmeta.NewParams()),
-		workloadmeta.Module(),
+		workloadmetafx.Module(),
 		statsd.Module(),
 		fx.Provide(func(cfg config.Component) telemetry.TelemetryCollector { return telemetry.NewCollector(cfg.Object()) }),
 		fx.Supply(tagger.NewFakeTaggerParams()),
@@ -58,7 +59,7 @@ func TestMockBundleDependencies(t *testing.T) {
 		fx.Supply(core.BundleParams{}),
 		traceMockBundle,
 		fx.Supply(workloadmeta.NewParams()),
-		workloadmeta.Module(),
+		workloadmetafx.Module(),
 		fx.Invoke(func(_ config.Component) {}),
 		fx.Provide(func(cfg config.Component) telemetry.TelemetryCollector { return telemetry.NewCollector(cfg.Object()) }),
 		statsd.MockModule(),

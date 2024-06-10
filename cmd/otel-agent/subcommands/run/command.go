@@ -10,6 +10,10 @@ package run
 import (
 	"context"
 
+	"github.com/spf13/cobra"
+	"go.opentelemetry.io/collector/confmap"
+	"go.uber.org/fx"
+
 	agentConfig "github.com/DataDog/datadog-agent/cmd/otel-agent/config"
 	"github.com/DataDog/datadog-agent/cmd/otel-agent/subcommands"
 	"github.com/DataDog/datadog-agent/comp/api/authtoken/fetchonlyimpl"
@@ -23,7 +27,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
 	"github.com/DataDog/datadog-agent/comp/forwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
@@ -34,8 +39,6 @@ import (
 	collectorfx "github.com/DataDog/datadog-agent/comp/otelcol/collector/fx"
 	"github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline"
 	"github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline/logsagentpipelineimpl"
-	"go.opentelemetry.io/collector/confmap"
-
 	provider "github.com/DataDog/datadog-agent/comp/otelcol/provider/def"
 	providerfx "github.com/DataDog/datadog-agent/comp/otelcol/provider/fx"
 	"github.com/DataDog/datadog-agent/comp/serializer/compression"
@@ -48,9 +51,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
-	"github.com/spf13/cobra"
-
-	"go.uber.org/fx"
 )
 
 // MakeCommand creates the `run` command
@@ -89,7 +89,7 @@ func runOTelAgentCommand(ctx context.Context, params *subcommands.GlobalParams, 
 		forwarder.Bundle(),
 		tracelogimpl.Module(), // cannot have corelogimpl and tracelogimpl at the same time
 		inventoryagentimpl.Module(),
-		workloadmeta.Module(),
+		workloadmetafx.Module(),
 		hostnameimpl.Module(),
 		statsd.Module(),
 		sysprobeconfig.NoneModule(),

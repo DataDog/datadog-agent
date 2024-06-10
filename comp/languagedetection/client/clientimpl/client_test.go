@@ -23,7 +23,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/secrets/secretsimpl"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	clientComp "github.com/DataDog/datadog-agent/comp/languagedetection/client"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/process"
@@ -57,7 +58,7 @@ func newTestClient(t *testing.T) (*client, chan *pbgo.ParentLanguageAnnotationRe
 		telemetryimpl.MockModule(),
 		logimpl.MockModule(),
 		fx.Supply(workloadmeta.NewParams()),
-		workloadmeta.MockModuleV2(),
+		workloadmetafxmock.MockModuleV2(),
 	))
 
 	optComponent := newClient(deps).(optional.Option[clientComp.Component])
@@ -106,7 +107,7 @@ func TestClientEnabled(t *testing.T) {
 					telemetryimpl.MockModule(),
 					logimpl.MockModule(),
 					fx.Supply(workloadmeta.NewParams()),
-					workloadmeta.MockModuleV2(),
+					workloadmetafxmock.MockModuleV2(),
 				))
 
 				optionalCl := newClient(deps).(optional.Option[clientComp.Component])
