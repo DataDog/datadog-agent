@@ -15,6 +15,7 @@ import (
 	"os"
 	"os/exec"
 	"path"
+	"path/filepath"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/env"
@@ -45,7 +46,7 @@ func RemoveAPMInjector(ctx context.Context) (err error) {
 	defer func() { span.Finish(tracer.WithError(err)) }()
 	installer := newAPMInjectorInstaller(injectorPath)
 	defer func() { installer.Finish(err) }()
-	return installer.Uninstrument(ctx)
+	return installer.Remove(ctx)
 }
 
 // InstrumentAPMInjector instruments the APM injector
@@ -142,12 +143,24 @@ func (a *apmInjectorInstaller) Setup(ctx context.Context) error {
 		return fmt.Errorf("error changing permissions on /var/log/datadog/dotnet: %w", err)
 	}
 
-	err = a.overridePreviousInstallScripts(ctx)
+	err = a.addInstrumentScripts(ctx)
 	if err != nil {
-		return fmt.Errorf("error overriding old install scripts: %w", err)
+		return fmt.Errorf("error adding install scripts: %w", err)
 	}
 
 	return a.Instrument(ctx)
+}
+
+func (a *apmInjectorInstaller) Remove(ctx context.Context) (err error) {
+	span, _ := tracer.StartSpanFromContext(ctx, "remove_injector")
+	defer func() { span.Finish(tracer.WithError(err)) }()
+
+	err = a.removeInstrumentScripts(ctx)
+	if err != nil {
+		return fmt.Errorf("error removing install scripts: %w", err)
+	}
+
+	return a.Uninstrument(ctx)
 }
 
 // Instrument instruments the APM injector
@@ -275,13 +288,13 @@ func (a *apmInjectorInstaller) verifySharedLib(ctx context.Context, libPath stri
 	return nil
 }
 
-// overridePreviousInstallScripts overrides the old install scripts that are installed
-// with the deb/rpm version of the installer
+// addInstrumentScripts writes the instrument scripts that come with the APM injector
+// and override the previous instrument scripts if they exist
 // These scripts are either:
 // - Referenced in our public documentation, so we override them to use installer commands for consistency
 // - Used on deb/rpm removal and may break the OCI in the process
-func (a *apmInjectorInstaller) overridePreviousInstallScripts(ctx context.Context) (err error) {
-	span, _ := tracer.StartSpanFromContext(ctx, "override_previous_install_scripts")
+func (a *apmInjectorInstaller) addInstrumentScripts(ctx context.Context) (err error) {
+	span, _ := tracer.StartSpanFromContext(ctx, "add_instrument_scripts")
 	defer func() { span.Finish(tracer.WithError(err)) }()
 
 	hostMutator := newFileMutator(
@@ -342,6 +355,35 @@ func (a *apmInjectorInstaller) overridePreviousInstallScripts(ctx context.Contex
 		}
 	} else if err != nil && !os.IsNotExist(err) {
 		return fmt.Errorf("failed to check if dd-cleanup exists on disk: %w", err)
+	}
+	return nil
+}
+
+// removeInstrumentScripts removes the install scripts that come with the APM injector
+// if and only if they've been installed by the installer and not modified
+func (a *apmInjectorInstaller) removeInstrumentScripts(ctx context.Context) (retErr error) {
+	span, _ := tracer.StartSpanFromContext(ctx, "remove_instrument_scripts")
+	defer func() { span.Finish(tracer.WithError(retErr)) }()
+
+	for _, script := range []string{"dd-host-install", "dd-container-install", "dd-cleanup"} {
+		path := filepath.Join("/usr/bin", script)
+		_, err := os.Stat(path)
+		if err == nil {
+			content, err := os.ReadFile(path)
+			if err != nil {
+				return fmt.Errorf("failed to read %s: %w", path, err)
+			}
+			embeddedContent, err := embedded.FS.ReadFile(script)
+			if err != nil {
+				return fmt.Errorf("failed to read embedded %s: %w", script, err)
+			}
+			if bytes.Equal(content, embeddedContent) {
+				err = os.Remove(path)
+				if err != nil {
+					return fmt.Errorf("failed to remove %s: %w", path, err)
+				}
+			}
+		}
 	}
 	return nil
 }

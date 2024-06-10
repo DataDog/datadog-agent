@@ -70,6 +70,10 @@ func (s *packageApmInjectSuite) TestUninstall() {
 
 	s.assertLDPreloadNotInstrumented()
 	s.assertDockerdNotInstrumented()
+
+	state := s.host.State()
+	state.AssertPathDoesNotExist("/usr/bin/dd-host-install")
+	state.AssertPathDoesNotExist("/usr/bin/dd-container-install")
 }
 
 func (s *packageApmInjectSuite) TestDockerAdditionalFields() {
@@ -322,7 +326,7 @@ func (s *packageApmInjectSuite) TestUninstrument() {
 	s.assertDockerdNotInstrumented()
 }
 
-func (s *packageApmInjectSuite) TestReplacePreviousCommands() {
+func (s *packageApmInjectSuite) TestInstrumentScripts() {
 	s.host.InstallDocker()
 
 	// Deb install using today's defaults
