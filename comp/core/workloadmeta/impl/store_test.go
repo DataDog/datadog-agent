@@ -171,8 +171,8 @@ func TestSubscribe(t *testing.T) {
 			// if the filter has type "wmdef.EventTypeUnset", it does not receive
 			// events for entities that are currently in the store.
 			name:   "do not receive events for entities in the store pre-subscription if filter type is EventTypeUnset",
-			filter: NewFilterBuilder().SetSource(fooSource).SetEventType(EventTypeUnset).Build(),
-			preEvents: []CollectorEvent{
+			filter: wmdef.NewFilterBuilder().SetSource(fooSource).SetEventType(wmdef.EventTypeUnset).Build(),
+			preEvents: []wmdef.CollectorEvent{
 				{
 					Type:   wmdef.EventTypeSet,
 					Source: fooSource,
@@ -189,8 +189,8 @@ func TestSubscribe(t *testing.T) {
 			// that don't match the filter at all should not
 			// generate an event.
 			name:   "receive events for entities in the store pre-subscription with filter",
-			filter: NewFilterBuilder().SetSource(fooSource).Build(),
-			preEvents: []CollectorEvent{
+			filter: wmdef.NewFilterBuilder().SetSource(fooSource).Build(),
+			preEvents: []wmdef.CollectorEvent{
 				// set container with two sources, delete one source
 				{
 					Type:   wmdef.EventTypeSet,
@@ -353,8 +353,8 @@ func TestSubscribe(t *testing.T) {
 			// unsetting from only one (that matches the filter)
 			// correctly generates an unset event
 			name:   "sets and unsets an entity with source filters",
-			filter: NewFilterBuilder().SetSource(fooSource).Build(),
-			postEvents: [][]CollectorEvent{
+			filter: wmdef.NewFilterBuilder().SetSource(fooSource).Build(),
+			postEvents: [][]wmdef.CollectorEvent{
 				{
 					{
 						Type:   wmdef.EventTypeSet,
@@ -517,8 +517,8 @@ func TestSubscribe(t *testing.T) {
 		},
 		{
 			name:   "filters by event type",
-			filter: NewFilterBuilder().SetEventType(EventTypeUnset).Build(),
-			postEvents: [][]CollectorEvent{
+			filter: wmdef.NewFilterBuilder().SetEventType(wmdef.EventTypeUnset).Build(),
+			postEvents: [][]wmdef.CollectorEvent{
 				{
 					{
 						Type:   wmdef.EventTypeSet,

@@ -305,7 +305,7 @@ func TestFilter_MatchEntity(t *testing.T) {
 			if test.expectMatch {
 				assert.True(tt, test.filter.MatchEntity(&test.entity))
 			} else {
-				assert.False(tt, !test.filter.MatchEntity(&test.entity))
+				assert.False(tt, test.filter.MatchEntity(&test.entity))
 			}
 		})
 	}
