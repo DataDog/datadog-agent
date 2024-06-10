@@ -192,42 +192,6 @@ int kretprobe__udp_sendpage(struct pt_regs *ctx) {
     return handle_message(&t, sent, 0, CONN_DIRECTION_UNKNOWN, 0, 0, PACKET_COUNT_NONE, skp);
 }
 
-SEC("kprobe/tcp_close")
-int kprobe__tcp_close(struct pt_regs *ctx) {
-    struct sock *sk;
-    conn_tuple_t t = {};
-    u64 pid_tgid = bpf_get_current_pid_tgid();
-    sk = (struct sock *)PT_REGS_PARM1(ctx);
-
-    // increment telemetry for connections that were never established
-    if (bpf_map_delete_elem(&tcp_ongoing_connect_pid, &sk) == 0) {
-        increment_telemetry_count(tcp_failed_connect);
-    }
-
-    // If protocol classification is disabled, then we don't have kretprobe__tcp_close_clean_protocols hook
-    // so, there is no one to use the map and clean it.
-    if (is_protocol_classification_supported()) {
-        bpf_map_update_with_telemetry(tcp_close_args, &pid_tgid, &t, BPF_ANY);
-    }
-
-    // check if this connection was already flushed and ensure we don't flush again
-    if (bpf_map_delete_elem(&conn_close_flushed, &sk) == 0) {
-        increment_telemetry_count(double_flush_attempts_close);
-        return 0;
-    }
-
-    // Get network namespace id
-    log_debug("kprobe/tcp_close: tgid: %llu, pid: %llu", pid_tgid >> 32, pid_tgid & 0xFFFFFFFF);
-    if (!read_conn_tuple(&t, sk, pid_tgid, CONN_TYPE_TCP)) {
-        return 0;
-    }
-    log_debug("kprobe/tcp_close: netns: %u, sport: %u, dport: %u", t.netns, t.sport, t.dport);
-
-    cleanup_conn(ctx, &t, sk);
-
-    return 0;
-}
-
 SEC("kprobe/tcp_done")
 int kprobe__tcp_done(struct pt_regs *ctx) {
     struct sock *sk;
@@ -277,6 +241,42 @@ int kprobe__tcp_done(struct pt_regs *ctx) {
     // mark this connection as already flushed
     __u32 one = 1;
     bpf_map_update_with_telemetry(conn_close_flushed, &sk, &one, BPF_ANY);
+
+    return 0;
+}
+
+SEC("kprobe/tcp_close")
+int kprobe__tcp_close(struct pt_regs *ctx) {
+    struct sock *sk;
+    conn_tuple_t t = {};
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+    sk = (struct sock *)PT_REGS_PARM1(ctx);
+
+    // increment telemetry for connections that were never established
+    if (bpf_map_delete_elem(&tcp_ongoing_connect_pid, &sk) == 0) {
+        increment_telemetry_count(tcp_failed_connect);
+    }
+
+    // Get network namespace id
+    log_debug("kprobe/tcp_close: tgid: %llu, pid: %llu", pid_tgid >> 32, pid_tgid & 0xFFFFFFFF);
+    if (!read_conn_tuple(&t, sk, pid_tgid, CONN_TYPE_TCP)) {
+        return 0;
+    }
+    log_debug("kprobe/tcp_close: netns: %u, sport: %u, dport: %u", t.netns, t.sport, t.dport);
+
+    // If protocol classification is disabled, then we don't have kretprobe__tcp_close_clean_protocols hook
+    // so, there is no one to use the map and clean it.
+    if (is_protocol_classification_supported()) {
+        bpf_map_update_with_telemetry(tcp_close_args, &pid_tgid, &t, BPF_ANY);
+    }
+
+    // check if this connection was already flushed and ensure we don't flush again
+    if (bpf_map_delete_elem(&conn_close_flushed, &sk) == 0) {
+        increment_telemetry_count(double_flush_attempts_close);
+        return 0;
+    }
+
+    cleanup_conn(ctx, &t, sk);
 
     return 0;
 }
