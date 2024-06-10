@@ -360,6 +360,27 @@ func TestLauncherTailFromTheBeginning(t *testing.T) {
 	}
 }
 
+func TestLauncherSetTail(t *testing.T) {
+	testDir := t.TempDir()
+
+	path := fmt.Sprintf("%s/*.log", testDir)
+	os.Create(path)
+	openFilesLimit := 2
+	sleepDuration := 20 * time.Millisecond
+	fc := flareController.NewFlareController()
+	launcher := NewLauncher(openFilesLimit, sleepDuration, false, 10*time.Second, "by_name", fc)
+	launcher.pipelineProvider = mock.NewMockProvider()
+	launcher.registry = auditor.NewRegistry()
+
+	// Set tailing mode
+	source := sources.NewLogSource("", &config.LogsConfig{Type: config.FileType, Path: path, TailingMode: "end"})
+
+	launcher.addSource(source)
+	tailer, _ := launcher.tailers.Get(getScanKey(path, source))
+
+	assert.Equal(t, "end", tailer.Source().Config.TailingMode)
+}
+
 func TestLauncherScanWithTooManyFiles(t *testing.T) {
 	var err error
 	var path string

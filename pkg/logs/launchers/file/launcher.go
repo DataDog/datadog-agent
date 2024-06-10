@@ -286,7 +286,7 @@ func (s *Launcher) launchTailers(source *sources.LogSource) {
 
 		mode, isSet := config.TailingModeFromString(source.Config.TailingMode)
 
-		if !isSet {
+		if !isSet && source.Config.Identifier != "" {
 			mode = config.Beginning
 		}
 
