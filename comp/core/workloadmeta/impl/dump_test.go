@@ -11,6 +11,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	wmdef "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 
 	"github.com/stretchr/testify/assert"
@@ -23,24 +24,24 @@ func TestDump(t *testing.T) {
 		logimpl.MockModule(),
 		config.MockModule(),
 		fx.Supply(context.Background()),
-		fx.Supply(NewParams()),
+		fx.Supply(wmdef.NewParams()),
 	))
 
 	s := newWorkloadmetaObject(deps)
 
-	container := &Container{
-		EntityID: EntityID{
-			Kind: KindContainer,
+	container := &wmdef.Container{
+		EntityID: wmdef.EntityID{
+			Kind: wmdef.KindContainer,
 			ID:   "ctr-id",
 		},
-		EntityMeta: EntityMeta{
+		EntityMeta: wmdef.EntityMeta{
 			Name: "ctr-name",
 		},
-		Image: ContainerImage{
+		Image: wmdef.ContainerImage{
 			Name: "ctr-image",
 		},
-		Runtime:       ContainerRuntimeDocker,
-		RuntimeFlavor: ContainerRuntimeFlavorKata,
+		Runtime:       wmdef.ContainerRuntimeDocker,
+		RuntimeFlavor: wmdef.ContainerRuntimeFlavorKata,
 		EnvVars: map[string]string{
 			"DD_SERVICE":  "my-svc",
 			"DD_ENV":      "prod",
@@ -49,37 +50,37 @@ func TestDump(t *testing.T) {
 		},
 	}
 
-	ctrToMerge := &Container{
-		EntityID: EntityID{
-			Kind: KindContainer,
+	ctrToMerge := &wmdef.Container{
+		EntityID: wmdef.EntityID{
+			Kind: wmdef.KindContainer,
 			ID:   "ctr-id",
 		},
-		EntityMeta: EntityMeta{
+		EntityMeta: wmdef.EntityMeta{
 			Labels: map[string]string{"foo": "bar"},
 		},
-		Image: ContainerImage{
+		Image: wmdef.ContainerImage{
 			Tag: "latest",
 		},
 		PID:        1,
 		CgroupPath: "/default/ctr-id",
 	}
 
-	s.handleEvents([]CollectorEvent{
+	s.handleEvents([]wmdef.CollectorEvent{
 		{
-			Type:   EventTypeSet,
+			Type:   wmdef.EventTypeSet,
 			Source: "source1",
 			Entity: container,
 		},
 		{
-			Type:   EventTypeSet,
+			Type:   wmdef.EventTypeSet,
 			Source: "source2",
 			Entity: ctrToMerge,
 		},
 	})
 
 	shortDump := s.Dump(false)
-	expectedShort := WorkloadDumpResponse{
-		Entities: map[string]WorkloadEntity{
+	expectedShort := wmdef.WorkloadDumpResponse{
+		Entities: map[string]wmdef.WorkloadEntity{
 			"container": {
 				Infos: map[string]string{
 					"sources(merged):[source1 source2] id: ctr-id": `----------- Entity ID -----------
@@ -104,8 +105,8 @@ Running: false
 	assert.EqualValues(t, expectedShort, shortDump)
 
 	verboseDump := s.Dump(true)
-	expectedVerbose := WorkloadDumpResponse{
-		Entities: map[string]WorkloadEntity{
+	expectedVerbose := wmdef.WorkloadDumpResponse{
+		Entities: map[string]wmdef.WorkloadEntity{
 			"container": {
 				Infos: map[string]string{
 					"source:source1 id: ctr-id": `----------- Entity ID -----------

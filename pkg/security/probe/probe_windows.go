@@ -19,7 +19,7 @@ import (
 	"github.com/cenkalti/backoff/v4"
 	lru "github.com/hashicorp/golang-lru/v2"
 
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/etw"
 	etwimpl "github.com/DataDog/datadog-agent/comp/etw/impl"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
