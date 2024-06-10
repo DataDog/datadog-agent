@@ -207,7 +207,9 @@ func (s *linuxTestSuite) TestManualProcessDiscoveryCheck() {
 }
 
 func (s *linuxTestSuite) TestManualProcessCheckWithIO() {
-	s.UpdateEnv(awshost.Provisioner(awshost.WithAgentOptions(agentparams.WithAgentConfig(processCheckConfigStr), agentparams.WithSystemProbeConfig(systemProbeConfigStr))))
+	s.UpdateEnv(awshost.Provisioner(awshost.WithAgentOptions(
+		agentparams.WithAgentConfig(processCheckConfigStr),
+		agentparams.WithSystemProbeConfig(systemProbeConfigStr))))
 
 	check := s.Env().RemoteHost.MustExecute("sudo /opt/datadog-agent/embedded/bin/process-agent check process --json")
 
