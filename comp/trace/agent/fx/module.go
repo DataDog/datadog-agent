@@ -8,16 +8,14 @@ package agent
 import (
 	"go.uber.org/fx"
 
+	traceagentimpl "github.com/DataDog/datadog-agent/comp/trace/agent/impl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 // team: agent-apm
 
-// Component is the agent component type.
-type Component interface{}
-
 // Module defines the fx options for the agent component.
 func Module() fxutil.Module {
 	return fxutil.Component(
-		fx.Provide(newAgent))
+		fx.Provide(traceagentimpl.NewAgent))
 }

@@ -177,6 +177,7 @@ DEFAULT_MODULES = {
     "comp/otelcol/provider/def": GoModule("comp/otelcol/provider/def", independent=True),
     "comp/otelcol/provider/impl": GoModule("comp/otelcol/provider/impl", independent=True),
     "comp/serializer/compression": GoModule("comp/serializer/compression", independent=True),
+    "comp/trace/agent/def": GoModule("comp/trace/agent/def", independent=True),
     "internal/tools": GoModule("internal/tools", condition=lambda: False, should_tag=False),
     "internal/tools/independent-lint": GoModule(
         "internal/tools/independent-lint", condition=lambda: False, should_tag=False

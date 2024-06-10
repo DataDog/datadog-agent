@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent
 
-go 1.21.0
+go 1.21.11
 
 // v0.8.0 was tagged long ago, and appared on pkg.go.dev.  We do not want any tagged version
 // to appear there.  The trick to accomplish this is to make a new version (in this case v0.9.0)
@@ -53,6 +53,7 @@ replace (
 	github.com/DataDog/datadog-agent/comp/otelcol/provider/def => ./comp/otelcol/provider/def
 	github.com/DataDog/datadog-agent/comp/otelcol/provider/impl => ./comp/otelcol/provider/impl
 	github.com/DataDog/datadog-agent/comp/serializer/compression => ./comp/serializer/compression
+	github.com/DataDog/datadog-agent/comp/trace/agent/def => ./comp/trace/agent/def
 	github.com/DataDog/datadog-agent/pkg/aggregator/ckey => ./pkg/aggregator/ckey/
 	github.com/DataDog/datadog-agent/pkg/api => ./pkg/api
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults => ./pkg/collector/check/defaults
@@ -631,6 +632,7 @@ require (
 	github.com/DataDog/datadog-agent/comp/otelcol/provider/def v0.55.0-rc.3
 	github.com/DataDog/datadog-agent/comp/otelcol/provider/impl v0.55.0-rc.3
 	github.com/DataDog/datadog-agent/comp/serializer/compression v0.55.0-rc.3
+	github.com/DataDog/datadog-agent/comp/trace/agent/def v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/aggregator/ckey v0.55.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/api v0.55.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults v0.55.0-rc.3
