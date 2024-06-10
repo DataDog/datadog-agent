@@ -79,6 +79,7 @@ AGENT_CORECHECKS = [
 
 WINDOWS_CORECHECKS = [
     "agentcrashdetect",
+    "sbom",
     "windows_registry",
     "winkmem",
     "wincrashdetect",
@@ -734,6 +735,7 @@ def version(
     pipeline_id=None,
     include_git=True,
     include_pre=True,
+    release=False,
 ):
     """
     Get the agent version.
@@ -758,6 +760,7 @@ def version(
         include_pipeline_id=True,
         pipeline_id=pipeline_id,
         include_pre=include_pre,
+        release=release,
     )
     if omnibus_format:
         # See: https://github.com/DataDog/omnibus-ruby/blob/datadog-5.5.0/lib/omnibus/packagers/deb.rb#L599

@@ -57,6 +57,16 @@ func buildWorkloadMetaContainer(namespace string, container containerd.Container
 		}
 	}
 
+	// Get Container PID
+	var pid int
+	task, err := container.Task(ctx, nil)
+	if err == nil {
+		pid = int(task.Pid())
+	} else {
+		pid = 0
+		log.Debugf("cannot get container %s's process PID: %v", container.ID(), err)
+	}
+
 	image, err := workloadmeta.NewContainerImage(imageID, info.Image)
 	if err != nil {
 		log.Debugf("cannot split image name %q: %s", info.Image, err)
@@ -118,7 +128,7 @@ func buildWorkloadMetaContainer(namespace string, container containerd.Container
 			FinishedAt: time.Time{},    // Not available
 		},
 		NetworkIPs: networkIPs,
-		PID:        0, // Not available
+		PID:        pid, // PID will be 0 for non-running containers
 	}
 
 	// Spec retrieval is slow if large due to JSON parsing

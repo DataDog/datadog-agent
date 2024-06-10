@@ -43,12 +43,21 @@ func TestBuildCollectorEvent(t *testing.T) {
 		},
 	}
 
+	task := &mockedTask{
+		mockPid: func() uint32 {
+			return 12345
+		},
+	}
+
 	container := mockedContainer{
 		mockID: func() string {
 			return containerID
 		},
 		mockImage: func() (containerd.Image, error) {
 			return image, nil
+		},
+		mockTask: func() (containerd.Task, error) {
+			return task, nil
 		},
 	}
 
