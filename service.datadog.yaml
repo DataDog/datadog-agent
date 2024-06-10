@@ -13,6 +13,7 @@ extensions:
       targets:
         - name: "staging"
           ci_pipeline: "//fake_placeholder:fake_placeholder"
+          branch: "main"
   datadoghq.com/change-detection:
     source_patterns:
       - service.datadog.yaml

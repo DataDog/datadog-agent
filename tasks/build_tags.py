@@ -44,6 +44,7 @@ ALL_TAGS = {
     "serverless",
     "systemd",
     "trivy",
+    "wmi",
     "zk",
     "zlib",
     "zstd",
@@ -294,6 +295,7 @@ def filter_incompatible_tags(include, platform=sys.platform):
         exclude = exclude.union(LINUX_ONLY_TAGS)
 
     if platform == "win32":
+        include = include.union(["wmi"])
         exclude = exclude.union(WINDOWS_EXCLUDE_TAGS)
 
     if platform == "darwin":

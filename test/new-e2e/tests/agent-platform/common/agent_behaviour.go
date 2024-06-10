@@ -15,11 +15,10 @@ import (
 
 	componentos "github.com/DataDog/test-infra-definitions/components/os"
 
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-
 	agentclient "github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclient"
 	boundport "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common/bound-port"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // CheckAgentBehaviour runs test to check the agent is behaving as expected
@@ -31,10 +30,15 @@ func CheckAgentBehaviour(t *testing.T, client *TestClient) {
 
 	t.Run("datadog-agent checks running", func(tt *testing.T) {
 		var statusOutputJSON map[string]any
+		var err error
 		result := false
 		for try := 0; try < 5 && !result; try++ {
-			err := json.Unmarshal([]byte(client.AgentClient.Status(agentclient.WithArgs([]string{"-j"})).Content), &statusOutputJSON)
-			require.NoError(tt, err)
+			err = json.Unmarshal([]byte(client.AgentClient.Status(agentclient.WithArgs([]string{"-j"})).Content), &statusOutputJSON)
+			if err != nil {
+				time.Sleep(1 * time.Second)
+				continue
+			}
+
 			if runnerStats, ok := statusOutputJSON["runnerStats"]; ok {
 				runnerStatsMap := runnerStats.(map[string]any)
 				if checks, ok := runnerStatsMap["Checks"]; ok {
@@ -42,8 +46,16 @@ func CheckAgentBehaviour(t *testing.T, client *TestClient) {
 					result = len(checksMap) > 0
 				}
 			}
-			time.Sleep(1 * time.Second)
+
+			if !result {
+				time.Sleep(1 * time.Second)
+			}
 		}
+
+		if !result {
+			require.NoError(tt, err)
+		}
+
 		require.True(tt, result, "status output should contain running checks")
 	})
 
@@ -318,55 +330,5 @@ func CheckCWSBehaviour(t *testing.T, client *TestClient) {
 			time.Sleep(2 * time.Second)
 		}
 		require.True(tt, result, "system-probe and security-agent should communicate")
-	})
-}
-
-// CheckSystemProbeBehavior runs tests to check the agent behave correctly when system-probe is enabled
-func CheckSystemProbeBehavior(t *testing.T, client *TestClient) {
-	t.Run("enable system-probe and restarts", func(tt *testing.T) {
-		err := client.SetConfig(client.Helper.GetConfigFolder()+"system-probe.yaml", "system_probe_config.enabled", "true")
-		require.NoError(tt, err)
-
-		err = client.SetConfig(client.Helper.GetConfigFolder()+"system-probe.yaml", "system_probe_config.enabled", "true")
-		require.NoError(tt, err)
-
-		_, err = client.SvcManager.Restart(client.Helper.GetServiceName())
-		require.NoError(tt, err, "datadog-agent should restart after CWS is enabled")
-	})
-
-	t.Run("system-probe is running", func(tt *testing.T) {
-		var err error
-		require.Eventually(tt, func() bool {
-			return AgentProcessIsRunning(client, "system-probe")
-		}, 1*time.Minute, 500*time.Millisecond, "system-probe should be running ", err)
-	})
-
-	t.Run("ebpf programs are unpacked and valid", func(tt *testing.T) {
-		ebpfPath := "/opt/datadog-agent/embedded/share/system-probe/ebpf"
-		output, err := client.Host.Execute(fmt.Sprintf("find %s -name '*.o'", ebpfPath))
-		require.NoError(tt, err)
-		files := strings.Split(strings.TrimSpace(output), "\n")
-		require.Greater(tt, len(files), 0, "ebpf object files should be present")
-
-		_, err = client.Host.Execute("command -v readelf")
-		if err != nil {
-			tt.Skip("readelf is not available on the host")
-			return
-		}
-
-		hostArch, err := client.Host.Execute("uname -m")
-		require.NoError(tt, err)
-		hostArch = strings.TrimSpace(hostArch)
-		if hostArch == "aarch64" {
-			hostArch = "arm64"
-		}
-		archMetadata := fmt.Sprintf("<arch:%s>", hostArch)
-
-		for _, file := range files {
-			file = strings.TrimSpace(file)
-			ddMetadata, err := client.Host.Execute(fmt.Sprintf("readelf -p dd_metadata %s", file))
-			require.NoError(tt, err, "readelf should not error, file is %s", file)
-			require.Contains(tt, ddMetadata, archMetadata, "invalid arch metadata")
-		}
 	})
 }

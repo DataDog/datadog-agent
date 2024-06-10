@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2024-present Datadog, Inc.
 
+// Package providerimpl TBD
 package providerimpl
 
 import (
@@ -32,9 +33,7 @@ type confDump struct {
 	enhanced string
 }
 
-var _ otelcol.ConfigProvider = (*configProvider)(nil)
-
-// currently only supports a single URI in the uris slice, and this URI needs to be a file path.
+// NewConfigProvider currently only supports a single URI in the uris slice, and this URI needs to be a file path.
 func NewConfigProvider(reqs provider.Requires) (provider.Component, error) {
 	ocp, err := otelcol.NewConfigProvider(newDefaultConfigProviderSettings(reqs.URIs))
 	if err != nil {
@@ -72,29 +71,12 @@ func newDefaultConfigProviderSettings(uris []string) otelcol.ConfigProviderSetti
 	}
 }
 
-func (cp *configProvider) Get(ctx context.Context, factories otelcol.Factories) (*otelcol.Config, error) {
-	conf, err := cp.base.Get(ctx, factories)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get config: %w", err)
-	}
-
-	// err = cp.addProvidedConf(conf)
-	// if err != nil {
-	// 	return nil, fmt.Errorf("failed to add provided conf: %w", err)
-	// }
-
-	//
-	// TODO: modify conf (add datadogconnector if not present ...etc)
-	//
-
-	// err = cp.addEnhancedConf(conf)
-	// if err != nil {
-	// 	return nil, fmt.Errorf("failed to add enhanced conf: %w", err)
-	// }
-
-	return conf, nil
+func (cp *configProvider) Convert(_ context.Context, _ *confmap.Conf) error {
+	// TODO: implement
+	return nil
 }
 
+// nolint: deadcode, unused
 func (cp *configProvider) addProvidedConf(conf *otelcol.Config) error {
 	bytesConf, err := confToString(conf)
 	if err != nil {
@@ -105,6 +87,7 @@ func (cp *configProvider) addProvidedConf(conf *otelcol.Config) error {
 	return nil
 }
 
+// nolint: deadcode, unused
 func (cp *configProvider) addEnhancedConf(conf *otelcol.Config) error {
 	bytesConf, err := confToString(conf)
 	if err != nil {
@@ -136,6 +119,7 @@ func (cp *configProvider) GetEnhancedConf() string {
 // sensitive fields.
 // Note: Currently not supported until the following upstream PR:
 // https://github.com/open-telemetry/opentelemetry-collector/pull/10139 is merged.
+// nolint: deadcode, unused
 func confToString(conf *otelcol.Config) (string, error) {
 	cfg := confmap.New()
 	err := cfg.Marshal(conf)
@@ -149,6 +133,15 @@ func confToString(conf *otelcol.Config) (string, error) {
 	}
 
 	return string(bytesConf), nil
+}
+
+func (cp *configProvider) Get(ctx context.Context, factories otelcol.Factories) (*otelcol.Config, error) {
+	conf, err := cp.base.Get(ctx, factories)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get config: %w", err)
+	}
+
+	return conf, nil
 }
 
 // Watch is a no-op which returns a nil chan.
