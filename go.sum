@@ -786,8 +786,6 @@ github.com/DataDog/go-sqllexer v0.0.12 h1:ncvAr5bbwtc7JMezzcU2379oKz1oHhRF1hkR6B
 github.com/DataDog/go-sqllexer v0.0.12/go.mod h1:KwkYhpFEVIq+BfobkTC1vfqm4gTi65skV/DpDBXtexc=
 github.com/DataDog/go-tuf v1.1.0-0.5.2 h1:4CagiIekonLSfL8GMHRHcHudo1fQnxELS9g4tiAupQ4=
 github.com/DataDog/go-tuf v1.1.0-0.5.2/go.mod h1:zBcq6f654iVqmkk8n2Cx81E1JnNTMOAx1UEO/wZR+P0=
-github.com/DataDog/gohai v0.0.0-20230524154621-4316413895ee h1:tXibLZk3G6HncIFJKaNItsdzcrk4YqILNDZlXPTNt4k=
-github.com/DataDog/gohai v0.0.0-20230524154621-4316413895ee/go.mod h1:nTot/Iy0kW16bXgXr6blEc8gFeAS7vTqYlhAxh+dbc0=
 github.com/DataDog/gopsutil v1.2.2 h1:8lmthwyyCXa1NKiYcHlrtl9AAFdfbNI2gPcioCJcBPU=
 github.com/DataDog/gopsutil v1.2.2/go.mod h1:glkxNt/qRu9lnpmUEQwOIAXW+COWDTBOTEAHqbgBPts=
 github.com/DataDog/gostackparse v0.7.0 h1:i7dLkXHvYzHV308hnkvVGDL3BR4FWl7IsXNPz/IGQh4=
@@ -798,8 +796,6 @@ github.com/DataDog/netlink v1.0.1-0.20240223195320-c7a4f832a3d1 h1:HnvrdC79xJ+RP
 github.com/DataDog/netlink v1.0.1-0.20240223195320-c7a4f832a3d1/go.mod h1:whJevzBpTrid75eZy99s3DqCmy05NfibNaF2Ol5Ox5A=
 github.com/DataDog/nikos v1.12.4 h1:UBo2v1Std4GvPHalKs22+1kcM4tXvMACREe5k4QMzf0=
 github.com/DataDog/nikos v1.12.4/go.mod h1:ovDmd9Jz/ZJwP39wgQmFUXZZzeDYJtFgsY7K1OPstWk=
-github.com/DataDog/opentelemetry-mapping-go/pkg/inframetadata v0.16.1 h1:WD5hPS/KfDaYcWxa636972pQ8iOBN9MC/6Is5aSNZc8=
-github.com/DataDog/opentelemetry-mapping-go/pkg/inframetadata v0.16.1/go.mod h1:P/l++2cDCeeq21KSmCEdXdMH9/WMdXP7uA/vjnxhtz8=
 github.com/DataDog/opentelemetry-mapping-go/pkg/internal/sketchtest v0.16.0 h1:VJT1Jjlz/ca999FEqaAS+He7S4eB14a+PJjczgRdgAY=
 github.com/DataDog/opentelemetry-mapping-go/pkg/internal/sketchtest v0.16.0/go.mod h1:66XlN7QpQKqIvw8e2UbCXV5X8wGnEw851nT9BjJ75dY=
 github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.16.1 h1:ZI8u3CgdMXpDplrf9/gIr13+/g/tUzUcBMk2ZhXgzLE=
@@ -2465,8 +2461,6 @@ github.com/open-telemetry/opentelemetry-collector-contrib/exporter/clickhouseexp
 github.com/open-telemetry/opentelemetry-collector-contrib/exporter/clickhouseexporter v0.102.0/go.mod h1:GYissqEY7xreb42IRH65tm6xoAKXYggPcTGir/17l7k=
 github.com/open-telemetry/opentelemetry-collector-contrib/exporter/coralogixexporter v0.102.0 h1:0oKcoHCNp3NRNKZyz0OzraVNMFCa/xr2MC1foKI4jl0=
 github.com/open-telemetry/opentelemetry-collector-contrib/exporter/coralogixexporter v0.102.0/go.mod h1:pZpOiHOh6PkwhjUQnynFw9RSceSQAg1j0lx2DKDzyKU=
-github.com/open-telemetry/opentelemetry-collector-contrib/exporter/datadogexporter v0.102.0 h1:ibVjZzsJ+a0Ak5QhIYqAfjxpt4RKeN7QS/dFkQHwyV0=
-github.com/open-telemetry/opentelemetry-collector-contrib/exporter/datadogexporter v0.102.0/go.mod h1:qGz/lAZL7DCqVE+kqMvnrBaad4r9iIZwBjzkbaDmAok=
 github.com/open-telemetry/opentelemetry-collector-contrib/exporter/datasetexporter v0.102.0 h1:iWXaRwauk1qm7MsQwa1vfQyR9nPL6sewcTp+Lx0cCQw=
 github.com/open-telemetry/opentelemetry-collector-contrib/exporter/datasetexporter v0.102.0/go.mod h1:Nfb0m9Y7obvWRXXxrmKpeMZIQskkYylYpaBOwHSOsUY=
 github.com/open-telemetry/opentelemetry-collector-contrib/exporter/elasticsearchexporter v0.102.0 h1:/116gAaHquf3n6qEwpdaY4z3whxgpo5eL9aXZEKnmzY=
