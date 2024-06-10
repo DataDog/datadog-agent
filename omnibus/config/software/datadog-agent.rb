@@ -184,6 +184,16 @@ build do
     move 'bin/agent/dist/security-agent.yaml', "#{conf_dir}/security-agent.yaml.example"
   end
 
+  # OTel agent
+  if not bundled_agents.include? "otel-agent"
+    unless windows_target?
+      command "invoke -e otel-agent.build", :env => env
+      copy 'bin/otel-agent/otel-agent', "#{install_dir}/embedded/bin"
+
+      move 'bin/agent/dist/otel-config.yaml', "#{conf_dir}/otel-config.yaml.example"
+    end
+  end
+
   # APM Injection agent
   if windows_target?
     if ENV['WINDOWS_APMINJECT_MODULE'] and not ENV['WINDOWS_APMINJECT_MODULE'].empty?

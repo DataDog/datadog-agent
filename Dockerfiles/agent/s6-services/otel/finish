@@ -1,0 +1,14 @@
+#!/usr/bin/execlineb -S1
+
+# Disable the service it it exit(0), else wait 2 seconds before restarting it
+
+ifthenelse
+    { s6-test ${1} -eq 0 }
+    {
+        foreground { /initlog.sh "otel-agent exited with code ${1}, disabling" }
+        foreground { /bin/s6-svc -d /var/run/s6/services/otel/ }
+    }
+    {
+        foreground { /initlog.sh "otel-agent exited with code ${1}, signal ${2}, restarting in 2 seconds" }
+        foreground { s6-sleep 2 }
+    }

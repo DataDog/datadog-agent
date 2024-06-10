@@ -1,4 +1,5 @@
 import os
+import shutil
 
 from invoke import task
 
@@ -23,3 +24,10 @@ def build(ctx):
     cmd = f"go build -tags=\"{' '.join(build_tags)}\" -o {BIN_PATH} {REPO_PATH}/cmd/otel-agent"
 
     ctx.run(cmd, env=env)
+
+    dist_folder = os.path.join(BIN_DIR, "dist")
+    if os.path.exists(dist_folder):
+        shutil.rmtree(dist_folder)
+    os.mkdir(dist_folder)
+
+    shutil.copy("./cmd/otel-agent/dist/otel-config.yaml", os.path.join(dist_folder, "otel-config.yaml"))
