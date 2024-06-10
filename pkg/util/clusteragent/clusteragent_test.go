@@ -27,6 +27,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/api/security"
 	apiv1 "github.com/DataDog/datadog-agent/pkg/clusteragent/api/v1"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -730,6 +731,7 @@ func TestClusterAgentSuite(t *testing.T) {
 
 	s := &clusterAgentSuite{}
 	config.Datadog().SetConfigFile(f.Name())
+	config.Datadog().Set("run_path", fakeDir, model.SourceDefault)
 	s.authTokenPath = filepath.Join(fakeDir, clusterAgentAuthTokenFilename)
 	_, err = os.Stat(s.authTokenPath)
 	require.NotNil(t, err, fmt.Sprintf("%v", err))

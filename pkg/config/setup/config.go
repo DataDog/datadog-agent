@@ -948,6 +948,7 @@ func agent(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("tag_value_split_separator", map[string]string{})
 	config.BindEnvAndSetDefault("conf_path", ".")
 	config.BindEnvAndSetDefault("confd_path", defaultConfdPath)
+	config.BindEnvAndSetDefault("run_path", defaultRunPath)
 	config.BindEnvAndSetDefault("additional_checksd", defaultAdditionalChecksPath)
 	config.BindEnvAndSetDefault("jmx_log_file", "")
 	// If enabling log_payloads, ensure the log level is set to at least DEBUG to be able to see the logs
@@ -1124,7 +1125,6 @@ func debugging(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("tracemalloc_exclude", "")
 	config.BindEnvAndSetDefault("tracemalloc_whitelist", "") // deprecated
 	config.BindEnvAndSetDefault("tracemalloc_blacklist", "") // deprecated
-	config.BindEnvAndSetDefault("run_path", defaultRunPath)
 	config.BindEnv("no_proxy_nonexact_match")
 }
 

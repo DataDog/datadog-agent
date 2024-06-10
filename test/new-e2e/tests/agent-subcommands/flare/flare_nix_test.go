@@ -76,6 +76,6 @@ func (v *linuxFlareSuite) TestzzzFlareWithAllConfiguration() {
 	assertFileContains(v.T(), flare, "container_check_output.json", "'process_config.container_collection.enabled' is disabled")
 	assertFileContains(v.T(), flare, "process_discovery_check_output.json", "'process_config.process_discovery.enabled' is disabled")
 
-	filesRegistredInPermissionsLog := append(systemProbeDummyFiles, "/etc/datadog-agent/auth_token")
+	filesRegistredInPermissionsLog := append(systemProbeDummyFiles, "/opt/datadog-agent/run/auth_token")
 	assertFileContains(v.T(), flare, "permissions.log", filesRegistredInPermissionsLog...)
 }
