@@ -63,6 +63,8 @@ packaging_oci:
     - $S3_CP_CMD merged.tar $S3_ARTIFACTS_URI/datadog-agent_7_oci.tar
   before_script:
     - source /root/.bashrc
+    - export PACKAGE_VERSION=$(inv agent.version --url-safe --major-version 7)-1
+    - export INSTALL_DIR=/opt/datadog-packages/${OCI_PRODUCT}/${PACKAGE_VERSION}
   artifacts:
     paths:
       - ${OMNIBUS_PACKAGE_DIR}
