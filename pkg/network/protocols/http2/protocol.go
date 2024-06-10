@@ -57,6 +57,7 @@ const (
 	headersParserTailCall     = "socket__http2_headers_parser"
 	dynamicTableCleaner       = "socket__http2_dynamic_table_cleaner"
 	eosParserTailCall         = "socket__http2_eos_parser"
+	cleanupParserTailCall     = "socket__http2_frames_cleanup"
 	eventStream               = "http2"
 
 	// TelemetryMap is the name of the map used to retrieve plaintext metrics from the kernel
@@ -69,6 +70,7 @@ const (
 	tlsHeadersParserTailCall = "uprobe__http2_tls_headers_parser"
 	tlsDynamicTableCleaner   = "uprobe__http2_dynamic_table_cleaner"
 	tlsEOSParserTailCall     = "uprobe__http2_tls_eos_parser"
+	tlsCleanupParserTailCall = "uprobe__http2_tls_frames_cleanup"
 	tlsTerminationTailCall   = "uprobe__http2_tls_termination"
 )
 
@@ -162,6 +164,13 @@ var Spec = &protocols.ProtocolSpec{
 			},
 		},
 		{
+			ProgArrayName: protocols.ProtocolDispatcherProgramsMap,
+			Key:           uint32(protocols.ProgramHTTP2Cleanup),
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: cleanupParserTailCall,
+			},
+		},
+		{
 			ProgArrayName: protocols.TLSDispatcherProgramsMap,
 			Key:           uint32(protocols.ProgramTLSHTTP2FirstFrame),
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
@@ -194,6 +203,13 @@ var Spec = &protocols.ProtocolSpec{
 			Key:           uint32(protocols.ProgramTLSHTTP2EOSParser),
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				EBPFFuncName: tlsEOSParserTailCall,
+			},
+		},
+		{
+			ProgArrayName: protocols.TLSDispatcherProgramsMap,
+			Key:           uint32(protocols.ProgramTLSHTTP2CleanupParser),
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: tlsCleanupParserTailCall,
 			},
 		},
 		{
