@@ -11,6 +11,8 @@ package workloadmeta
 // included in the output, and false if it should be filtered out.
 type EntityFilterFunc[T Entity] func(T) bool
 
+// GenericEntityFilterFunc is a filter function applicable to any object
+// of a struct implementing the Entity interface
 type GenericEntityFilterFunc EntityFilterFunc[Entity]
 
 // EntityFilterFuncAcceptAll is an entity filter function that accepts
