@@ -18,7 +18,7 @@ import (
 	"k8s.io/client-go/tools/cache"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	languagedetectionUtil "github.com/DataDog/datadog-agent/pkg/languagedetection/util"
 
 	ddkube "github.com/DataDog/datadog-agent/pkg/util/kubernetes"

@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -100,6 +101,32 @@ func TestCommonHeaderProviderText(t *testing.T) {
 	output := strings.Replace(buffer.String(), "\r\n", "\n", -1)
 
 	assert.Equal(t, expectedResult, output)
+}
+
+func TestCommonHeaderProviderTime(t *testing.T) {
+	// test that the time is updated on each call
+	counter := 0
+	nowFunc = func() time.Time {
+		counter++
+		return time.Unix(int64(counter), 0)
+	}
+	defer func() { nowFunc = time.Now }()
+
+	config := fxutil.Test[config.Component](t, config.MockModule())
+
+	provider := newCommonHeaderProvider(agentParams, config)
+
+	data := map[string]interface{}{}
+	err := provider.JSON(false, data)
+	require.NoError(t, err)
+	require.Contains(t, data, "time_nano")
+	assert.EqualValues(t, int64(1000000000), data["time_nano"])
+
+	clear(data)
+	err = provider.JSON(false, data)
+	require.NoError(t, err)
+	require.Contains(t, data, "time_nano")
+	assert.EqualValues(t, int64(2000000000), data["time_nano"])
 }
 
 func TestCommonHeaderProviderTextWithFipsInformation(t *testing.T) {

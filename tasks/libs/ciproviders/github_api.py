@@ -5,12 +5,14 @@ import json
 import os
 import platform
 import subprocess
+from collections.abc import Iterable
 from functools import lru_cache
 
 import requests
 
 try:
     from github import Auth, Github, GithubException, GithubIntegration, GithubObject
+    from github.NamedUser import NamedUser
 except ImportError:
     # PyGithub isn't available on some build images, ignore it for now
     # and fail hard if it gets used.
@@ -30,6 +32,8 @@ class GithubAPI:
     def __init__(self, repository="DataDog/datadog-agent", public_repo=False):
         self._auth = self._chose_auth(public_repo)
         self._github = Github(auth=self._auth)
+        org = repository.split("/")
+        self._organization = org[0] if len(org) > 1 else None
         self._repository = self._github.get_repo(repository)
 
     @property
@@ -240,6 +244,22 @@ class GithubAPI:
         pr = self.get_pr(pr_id)
 
         return [f.filename for f in pr.get_files()]
+
+    def get_team_members(self, team_slug: str) -> Iterable[NamedUser]:
+        """
+        Get the members of a team.
+        """
+        assert self._organization
+        org = self._github.get_organization(self._organization)
+        team = org.get_team_by_slug(team_slug)
+        return team.get_members()
+
+    def search_issues(self, query: str):
+        """
+        Search for issues with the given query.
+        By default this is not scoped to the repository, it is a global Github search.
+        """
+        return self._github.search_issues(query)
 
     def is_organization_member(self, user):
         organization = self._repository.organization

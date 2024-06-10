@@ -18,7 +18,7 @@ from invoke.tasks import task
 
 from tasks.flavor import AgentFlavor
 from tasks.gotest import process_test_result, test_flavor
-from tasks.libs.common.utils import REPO_PATH, get_git_commit
+from tasks.libs.common.utils import REPO_PATH, get_git_commit, running_in_ci
 from tasks.modules import DEFAULT_MODULES
 
 
@@ -133,6 +133,22 @@ def run(
     )
 
     success = process_test_result(test_res, junit_tar, AgentFlavor.base, test_washer)
+
+    if running_in_ci():
+        # Do not print all the params, they could contain secrets needed only in the CI
+        params = [f'--targets {t}' for t in targets]
+        pre_command = (
+            f"E2E_PIPELINE_ID={os.environ.get('CI_PIPELINE_ID')} aws-vault exec sso-agent-sandbox-account-admin"
+        )
+
+        param_keys = ('osversion', 'platform', 'arch')
+        for param_key in param_keys:
+            if args.get(param_key):
+                params.append(f'-{args[param_key]}')
+
+        command = f"{pre_command} -- inv -e new-e2e-tests.run {' '.join(params)}"
+        print(f"To run this test locally, use: `{command}`")
+
     if not success:
         raise Exit(code=1)
 
