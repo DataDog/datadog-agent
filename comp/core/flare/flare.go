@@ -27,6 +27,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/flare/types"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
+	rcsetting "github.com/DataDog/datadog-agent/comp/core/settings"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	rcclienttypes "github.com/DataDog/datadog-agent/comp/remote-config/rcclient/types"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
@@ -51,6 +52,7 @@ type dependencies struct {
 	WMeta                 optional.Option[workloadmeta.Component]
 	Secrets               secrets.Component
 	AC                    optional.Option[autodiscovery.Component]
+	RCSetting             rcsetting.Component
 }
 
 type provides struct {
@@ -62,6 +64,7 @@ type provides struct {
 
 type flare struct {
 	log          log.Component
+	RCSetting    rcsetting.Component
 	config       config.Component
 	params       Params
 	providers    []types.FlareCallback
@@ -72,6 +75,7 @@ func newFlare(deps dependencies) (provides, rcclienttypes.TaskListenerProvider) 
 	diagnoseDeps := diagnose.NewSuitesDeps(deps.Diagnosesendermanager, deps.Collector, deps.Secrets, deps.WMeta, deps.AC)
 	f := &flare{
 		log:          deps.Log,
+		RCSetting:    deps.RCSetting,
 		config:       deps.Config,
 		params:       deps.Params,
 		providers:    fxutil.GetAndFilterGroup(deps.Providers),
