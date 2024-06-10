@@ -21,7 +21,9 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core"
 	compcfg "github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
+	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
 	workloadmetaExtractor "github.com/DataDog/datadog-agent/pkg/process/metadata/workloadmeta"
@@ -39,7 +41,7 @@ type collectorTest struct {
 	probe     *mocks.Probe
 	clock     *clock.Mock
 	collector *Collector
-	store     workloadmeta.Mock
+	store     workloadmetamock.Mock
 	stream    pbgo.ProcessEntityStream_StreamEntitiesClient
 }
 
@@ -80,12 +82,12 @@ func setUpCollectorTest(t *testing.T) *collectorTest {
 		"workloadmeta.local_process_collector.collection_interval": 15 * time.Second,
 	}
 
-	store := fxutil.Test[workloadmeta.Mock](t, fx.Options(
+	store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		core.MockBundle(),
 		fx.Replace(compcfg.MockParams{Overrides: overrides}),
 		fx.Supply(context.Background()),
 		fx.Supply(workloadmeta.NewParams()),
-		workloadmeta.MockModuleV2(),
+		workloadmetafxmock.MockModuleV2(),
 	))
 
 	// pass actual config component

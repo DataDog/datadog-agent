@@ -195,13 +195,13 @@ func Test_NpCollector_runningAndProcessing(t *testing.T) {
 	// WHEN
 	conns := []*model.Connection{
 		{
-			Laddr:     &model.Addr{Ip: "127.0.0.1", Port: int32(30000)},
+			Laddr:     &model.Addr{Ip: "127.0.0.1", Port: int32(30000), ContainerId: "testId1"},
 			Raddr:     &model.Addr{Ip: "127.0.0.2", Port: int32(80)},
 			Direction: model.ConnectionDirection_outgoing,
 			Type:      model.ConnectionType_tcp,
 		},
 		{
-			Laddr:     &model.Addr{Ip: "127.0.0.3", Port: int32(30000)},
+			Laddr:     &model.Addr{Ip: "127.0.0.3", Port: int32(30000), ContainerId: "testId2"},
 			Raddr:     &model.Addr{Ip: "127.0.0.4", Port: int32(80)},
 			Direction: model.ConnectionDirection_outgoing,
 			Type:      model.ConnectionType_udp,
@@ -240,13 +240,13 @@ func Test_NpCollector_ScheduleConns_ScheduleDurationMetric(t *testing.T) {
 
 	conns := []*model.Connection{
 		{
-			Laddr:     &model.Addr{Ip: "127.0.0.1", Port: int32(30000)},
+			Laddr:     &model.Addr{Ip: "127.0.0.1", Port: int32(30000), ContainerId: "testId1"},
 			Raddr:     &model.Addr{Ip: "127.0.0.2", Port: int32(80)},
 			Direction: model.ConnectionDirection_outgoing,
 			Type:      model.ConnectionType_tcp,
 		},
 		{
-			Laddr:     &model.Addr{Ip: "127.0.0.3", Port: int32(30000)},
+			Laddr:     &model.Addr{Ip: "127.0.0.3", Port: int32(30000), ContainerId: "testId2"},
 			Raddr:     &model.Addr{Ip: "127.0.0.4", Port: int32(80)},
 			Direction: model.ConnectionDirection_outgoing,
 			Type:      model.ConnectionType_udp,
@@ -329,14 +329,14 @@ func Test_npCollectorImpl_ScheduleConns(t *testing.T) {
 			agentConfigs: defaultagentConfigs,
 			conns: []*model.Connection{
 				{
-					Laddr:     &model.Addr{Ip: "127.0.0.3", Port: int32(30000)},
+					Laddr:     &model.Addr{Ip: "127.0.0.3", Port: int32(30000), ContainerId: "testId1"},
 					Raddr:     &model.Addr{Ip: "127.0.0.4", Port: int32(80)},
 					Direction: model.ConnectionDirection_outgoing,
 					Type:      model.ConnectionType_tcp,
 				},
 			},
 			expectedPathtests: []*common.Pathtest{
-				{Hostname: "127.0.0.4", Port: uint16(80), Protocol: "tcp"},
+				{Hostname: "127.0.0.4", Port: uint16(80), Protocol: "tcp", SourceContainerID: "testId1"},
 			},
 		},
 		{
@@ -344,14 +344,14 @@ func Test_npCollectorImpl_ScheduleConns(t *testing.T) {
 			agentConfigs: defaultagentConfigs,
 			conns: []*model.Connection{
 				{
-					Laddr:     &model.Addr{Ip: "127.0.0.5", Port: int32(30000)},
+					Laddr:     &model.Addr{Ip: "127.0.0.5", Port: int32(30000), ContainerId: "testId1"},
 					Raddr:     &model.Addr{Ip: "127.0.0.6", Port: int32(161)},
 					Direction: model.ConnectionDirection_outgoing,
 					Type:      model.ConnectionType_udp,
 				},
 			},
 			expectedPathtests: []*common.Pathtest{
-				{Hostname: "127.0.0.6", Port: uint16(161), Protocol: "udp"},
+				{Hostname: "127.0.0.6", Port: uint16(161), Protocol: "udp", SourceContainerID: "testId1"},
 			},
 		},
 		{
@@ -359,13 +359,13 @@ func Test_npCollectorImpl_ScheduleConns(t *testing.T) {
 			agentConfigs: defaultagentConfigs,
 			conns: []*model.Connection{
 				{
-					Laddr:     &model.Addr{Ip: "127.0.0.1", Port: int32(30000)},
+					Laddr:     &model.Addr{Ip: "127.0.0.1", Port: int32(30000), ContainerId: "testId1"},
 					Raddr:     &model.Addr{Ip: "127.0.0.2", Port: int32(80)},
 					Direction: model.ConnectionDirection_incoming,
 					Type:      model.ConnectionType_tcp,
 				},
 				{
-					Laddr:     &model.Addr{Ip: "127.0.0.3", Port: int32(30000)},
+					Laddr:     &model.Addr{Ip: "127.0.0.3", Port: int32(30000), ContainerId: "testId2"},
 					Raddr:     &model.Addr{Ip: "127.0.0.4", Port: int32(80)},
 					Direction: model.ConnectionDirection_incoming,
 					Type:      model.ConnectionType_tcp,
@@ -378,20 +378,20 @@ func Test_npCollectorImpl_ScheduleConns(t *testing.T) {
 			agentConfigs: defaultagentConfigs,
 			conns: []*model.Connection{
 				{
-					Laddr:     &model.Addr{Ip: "127.0.0.1", Port: int32(30000)},
+					Laddr:     &model.Addr{Ip: "127.0.0.1", Port: int32(30000), ContainerId: "testId1"},
 					Raddr:     &model.Addr{Ip: "127.0.0.2", Port: int32(80)},
 					Direction: model.ConnectionDirection_incoming,
 					Type:      model.ConnectionType_tcp,
 				},
 				{
-					Laddr:     &model.Addr{Ip: "127.0.0.3", Port: int32(30000)},
+					Laddr:     &model.Addr{Ip: "127.0.0.3", Port: int32(30000), ContainerId: "testId2"},
 					Raddr:     &model.Addr{Ip: "127.0.0.4", Port: int32(80)},
 					Direction: model.ConnectionDirection_outgoing,
 					Type:      model.ConnectionType_tcp,
 				},
 			},
 			expectedPathtests: []*common.Pathtest{
-				{Hostname: "127.0.0.4", Port: uint16(80), Protocol: "tcp"},
+				{Hostname: "127.0.0.4", Port: uint16(80), Protocol: "tcp", SourceContainerID: "testId2"},
 			},
 		},
 		{
@@ -400,7 +400,7 @@ func Test_npCollectorImpl_ScheduleConns(t *testing.T) {
 			noInputChan:  true,
 			conns: []*model.Connection{
 				{
-					Laddr:     &model.Addr{Ip: "127.0.0.3", Port: int32(30000)},
+					Laddr:     &model.Addr{Ip: "127.0.0.3", Port: int32(30000), ContainerId: "testId1"},
 					Raddr:     &model.Addr{Ip: "127.0.0.4", Port: int32(80)},
 					Direction: model.ConnectionDirection_outgoing,
 					Type:      model.ConnectionType_tcp,
@@ -428,28 +428,28 @@ func Test_npCollectorImpl_ScheduleConns(t *testing.T) {
 			agentConfigs: defaultagentConfigs,
 			conns: []*model.Connection{
 				{
-					Laddr:     &model.Addr{Ip: "::1", Port: int32(30000)},
+					Laddr:     &model.Addr{Ip: "::1", Port: int32(30000), ContainerId: "testId1"},
 					Raddr:     &model.Addr{Ip: "::1", Port: int32(80)},
 					Direction: model.ConnectionDirection_outgoing,
 					Family:    model.ConnectionFamily_v6,
 					Type:      model.ConnectionType_tcp,
 				},
 				{
-					Laddr:     &model.Addr{Ip: "::1", Port: int32(30000)},
+					Laddr:     &model.Addr{Ip: "::1", Port: int32(30000), ContainerId: "testId2"},
 					Raddr:     &model.Addr{Ip: "::1", Port: int32(80)},
 					Direction: model.ConnectionDirection_outgoing,
 					Family:    model.ConnectionFamily_v6,
 					Type:      model.ConnectionType_tcp,
 				},
 				{
-					Laddr:     &model.Addr{Ip: "127.0.0.3", Port: int32(30000)},
+					Laddr:     &model.Addr{Ip: "127.0.0.3", Port: int32(30000), ContainerId: "testId3"},
 					Raddr:     &model.Addr{Ip: "127.0.0.4", Port: int32(80)},
 					Direction: model.ConnectionDirection_outgoing,
 					Type:      model.ConnectionType_tcp,
 				},
 			},
 			expectedPathtests: []*common.Pathtest{
-				{Hostname: "127.0.0.4", Port: uint16(80), Protocol: "tcp"},
+				{Hostname: "127.0.0.4", Port: uint16(80), Protocol: "tcp", SourceContainerID: "testId3"},
 			},
 			expectedLogs: []logCount{},
 		},

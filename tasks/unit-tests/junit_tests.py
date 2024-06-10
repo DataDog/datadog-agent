@@ -137,7 +137,6 @@ class TestSetTag(unittest.TestCase):
 
 class TestJUnitUploadFromTGZ(unittest.TestCase):
     @patch.dict("os.environ", {"CI_PIPELINE_ID": "1664"})
-    @patch("builtins.print", new=MagicMock())
     @patch("tasks.libs.common.junit_upload_core.get_gitlab_repo")
     @patch("tasks.libs.common.junit_upload_core.Popen")
     def test_e2e(self, mock_popen, mock_gitlab):
