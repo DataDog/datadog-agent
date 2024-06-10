@@ -1748,7 +1748,7 @@ def show_last_test_results(ctx: Context, stack: str | None = None):
 @task
 def tag_ci_job(ctx: Context):
     """Add extra tags to the CI job"""
-    tags: dict[str, str] = {"is_kmt_job": "true"}  # Base tag for easy identification of KMT jobs
+    tags: dict[str, str] = {}
 
     # Retrieve tags from environment variables, with a renaming for convenience
     environment_vars_to_tags = {
