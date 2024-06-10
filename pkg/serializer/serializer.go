@@ -350,7 +350,6 @@ func (s *Serializer) SendIterableSeries(serieSource metrics.SerieSource) error {
 	} else if useV1API && !s.enableJSONStream {
 		seriesBytesPayloads, extraHeaders, err = s.serializePayloadJSON(seriesSerializer, true)
 	} else {
-		// TODO: replace with something that looks for filter configuration AND failover being active
 		failoverActive := s.config.GetBool("multi_region_failover.enabled") && s.config.GetBool("multi_region_failover.failover_metrics")
 		var allowlist map[string]struct{}
 		if failoverActive {
