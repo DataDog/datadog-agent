@@ -119,8 +119,10 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 // newTracer is an internal function used by tests primarily
 // (and NewTracer above)
 func newTracer(cfg *config.Config) (_ *Tracer, reterr error) {
-	if _, err := tracefs.Root(); err != nil {
-		return nil, fmt.Errorf("system-probe unsupported: %s", err)
+	if !cfg.EnableEbpfless {
+		if _, err := tracefs.Root(); err != nil {
+			return nil, fmt.Errorf("system-probe unsupported: %s", err)
+		}
 	}
 
 	// check if current platform is using old kernel API because it affects what kprobe are we going to enable
@@ -158,9 +160,13 @@ func newTracer(cfg *config.Config) (_ *Tracer, reterr error) {
 		}
 	}()
 
-	if tr.bpfErrorsCollector = ebpftelemetry.NewEBPFErrorsCollector(); tr.bpfErrorsCollector != nil {
-		coretelemetry.GetCompatComponent().RegisterCollector(tr.bpfErrorsCollector)
-	} else {
+	if !cfg.EnableEbpfless {
+		if tr.bpfErrorsCollector = ebpftelemetry.NewEBPFErrorsCollector(); tr.bpfErrorsCollector != nil {
+			coretelemetry.GetCompatComponent().RegisterCollector(tr.bpfErrorsCollector)
+		}
+	}
+
+	if tr.bpfErrorsCollector == nil {
 		log.Debug("eBPF telemetry not supported")
 	}
 
