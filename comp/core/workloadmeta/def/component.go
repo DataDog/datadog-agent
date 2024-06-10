@@ -6,13 +6,6 @@
 // Package workloadmeta provides the workloadmeta component for the Datadog Agent
 package workloadmeta
 
-import (
-	"go.uber.org/fx"
-
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
-)
-
 // team: container-platform
 
 // Component is the component type.
@@ -137,25 +130,4 @@ type Component interface {
 	// Push allows external sources to push events to the metadata store.
 	// Only EventTypeSet and EventTypeUnset event types are allowed.
 	Push(source Source, events ...Event) error
-}
-
-// Module defines the fx options for this component.
-func Module() fxutil.Module {
-	return fxutil.Component(
-		fx.Provide(
-			newWorkloadMeta,
-		),
-		fx.Provide(func(wmeta Component) optional.Option[Component] {
-			return optional.NewOption(wmeta)
-		}),
-	)
-}
-
-// OptionalModule defines the fx options when workloadmeta should be used as an optional.
-func OptionalModule() fxutil.Module {
-	return fxutil.Component(
-		fx.Provide(
-			newWorkloadMetaOptional,
-		),
-	)
 }
