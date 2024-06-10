@@ -57,17 +57,27 @@ lint_macos:
     PYTHON_RUNTIMES: "3"
   # The Gitlab macOS runners are currently long runners, so we need to clean them beforehand.
   before_script:
-    # Removing the previous Python environment if it exists
-    - pyenv uninstall -f datadog-agent
-    # Removing the previous Go environment
-    - rm -rf $HOME/go/bin
-    - eval $(gimme --force $(cat .go-version))
-    - export PATH="$HOME/go/bin:$PATH"
-    # TODO: Remove the Go cache if the Go version changed
-    # TODO: Remove the Python cache if the Python version changed
+    # Remove the Go cache and env if the Go version changed
+    - |
+      GO_REPO_VERSION=$(cat .go-version)
+      GO_VERSION=$(go version | awk '{print $3}' | sed 's/go//')
+      echo "GO_REPO_VERSION: $GO_REPO_VERSION, GO_VERSION: $GO_VERSION"
+      if [ "$GO_REPO_VERSION" != "$GO_VERSION" ]; then
+        go clean -cache -modcache -testcache
+        rm -rf $HOME/go/bin
+        eval $(gimme --force $(cat .go-version))
+      fi
+    # Remove the Python cache and env if the Python version changed
+    - |
+      PYTHON_REPO_VERSION=$(cat .python-version)
+      PYTHON_VERSION=$(python3 --version | awk '{print $2}' | sed 's/\.[0-9]*$//')
+      echo "PYTHON_REPO_VERSION: $PYTHON_REPO_VERSION, PYTHON_VERSION: $PYTHON_VERSION"
+      if [ "$PYTHON_REPO_VERSION" != "$PYTHON_VERSION" ]; then
+        pyenv uninstall -f datadog-agent
+        pyenv virtualenv 3.11.8 datadog-agent
+        pyenv activate datadog-agent
+      fi
     # Installing the job dependencies
-    - pyenv virtualenv 3.11.8 datadog-agent
-    - pyenv activate datadog-agent
     - python3 -m pip install -r requirements.txt -r tasks/libs/requirements-github.txt
     - pyenv rehash
     - inv -e rtloader.make --python-runtimes $PYTHON_RUNTIMES
