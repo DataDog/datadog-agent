@@ -12,8 +12,6 @@ import (
 	"path/filepath"
 	"testing"
 
-	provider "github.com/DataDog/datadog-agent/comp/otelcol/provider/def"
-	"github.com/open-telemetry/opentelemetry-collector-contrib/exporter/datadogexporter"
 	"github.com/stretchr/testify/assert"
 	"go.opentelemetry.io/collector/connector"
 	"go.opentelemetry.io/collector/connector/connectortest"
@@ -27,6 +25,9 @@ import (
 	"go.opentelemetry.io/collector/receiver"
 	"go.opentelemetry.io/collector/receiver/receivertest"
 	"gopkg.in/yaml.v3"
+
+	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/datadogexporter"
+	provider "github.com/DataDog/datadog-agent/comp/otelcol/provider/def"
 )
 
 func uriFromFile(filename string) string {
@@ -190,7 +191,7 @@ func nopFactories() (otelcol.Factories, error) {
 		return otelcol.Factories{}, err
 	}
 
-	if factories.Exporters, err = exporter.MakeFactoryMap(exportertest.NewNopFactory(), datadogexporter.NewFactory()); err != nil {
+	if factories.Exporters, err = exporter.MakeFactoryMap(exportertest.NewNopFactory(), datadogexporter.NewFactory(nil, nil, nil)); err != nil {
 		return otelcol.Factories{}, err
 	}
 
