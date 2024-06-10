@@ -1,0 +1,4 @@
+#!/usr/bin/execlineb -P
+
+foreground { /initlog.sh "starting otel-agent" }
+otel-agent --config /etc/datadog-agent/otelcol-config.yaml
