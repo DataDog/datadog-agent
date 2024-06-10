@@ -7,7 +7,6 @@ package defaultforwarder
 
 import (
 	"fmt"
-	"strings"
 	"sync"
 	"time"
 
@@ -291,22 +290,14 @@ func (f *domainForwarder) sendHTTPTransactions(t transaction.Transaction) {
 		}
 	}
 
-	// TODO: why is isMRF not set when we expect it? this is a hack for local testing only
-	isMrf := strings.Contains(f.domain, ":8083")
-
 	// Check for primary/secondary only transactions and compare with our own MRF state.
-	if t.GetKind() == transaction.Series && t.GetDestination() == transaction.PrimaryOnly && isMrf {
+	if t.GetKind() == transaction.Series && t.GetDestination() == transaction.PrimaryOnly && f.isMRF {
 		f.log.Debugf("Transaction for domain %v is marked as primary only, but the forwarder is in MRF mode; dropping transaction.", t.GetTarget())
 		return
 	}
-	if t.GetKind() == transaction.Series && t.GetDestination() == transaction.SecondaryOnly && !isMrf {
+	if t.GetKind() == transaction.Series && t.GetDestination() == transaction.SecondaryOnly && !f.isMRF {
 		f.log.Debugf("Transaction for domain %v is marked as secondary only, but the forwarder is not in MRF mode; dropping transaction.", t.GetTarget())
 		return
-	}
-
-	// TODO: remove this log line after we have confirmed that the MRF logic is working as expected
-	if t.GetKind() == transaction.Series {
-		f.log.Infof("Sending transaction destination=%s MRF=%t target=%s", t.GetDestination(), isMrf, t.GetTarget())
 	}
 
 	// We don't want to block the collector if the highPrio queue is full
