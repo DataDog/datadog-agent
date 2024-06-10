@@ -717,7 +717,7 @@ func (c *safeConfig) AddConfigPath(in string) {
 // site: datadoghq.eu
 // proxy:
 //
-//	https: http:proxyserver1
+//	https: https:proxyserver1
 //
 // === TGT ===
 // api_key:
@@ -738,22 +738,23 @@ func (c *safeConfig) AddExtraConfigPaths(ins []string) error {
 	}
 	c.Lock()
 	defer c.Unlock()
+	var pathsToAdd []string
 	var errs []error
-outerLoop:
 	for _, in := range ins {
 		in, err := filepath.Abs(in)
 		if err != nil {
 			errs = append(errs, fmt.Errorf("could not get absolute path of extra config file '%s': %s", in, err))
 			continue
 		}
-		for _, path := range c.extraConfigFilePaths {
-			if path == in {
-				continue outerLoop
-			}
+		if slices.Index(c.extraConfigFilePaths, in) == -1 && slices.Index(pathsToAdd, in) == -1 {
+			pathsToAdd = append(pathsToAdd, in)
 		}
-		c.extraConfigFilePaths = append(c.extraConfigFilePaths, in)
 	}
-	return errors.Join(errs...)
+	err := errors.Join(errs...)
+	if err == nil {
+		c.extraConfigFilePaths = append(c.extraConfigFilePaths, pathsToAdd...)
+	}
+	return err
 }
 
 // SetConfigName wraps Viper for concurrent access
@@ -896,5 +897,7 @@ func (c *safeConfig) GetProxies() *Proxy {
 func (c *safeConfig) ExtraConfigFilesUsed() []string {
 	c.Lock()
 	defer c.Unlock()
-	return c.loadedExtraConfigFilePaths
+	res := make([]string, len(c.loadedExtraConfigFilePaths))
+	copy(res, c.loadedExtraConfigFilePaths)
+	return res
 }
