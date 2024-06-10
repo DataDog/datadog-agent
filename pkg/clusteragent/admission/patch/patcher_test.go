@@ -24,6 +24,7 @@ func TestPatchNamespace(t *testing.T) {
 	client := fake.NewSimpleClientset()
 	name := "target-namespace"
 	env := "dev"
+	ctx := context.TODO()
 
 	// Create target namespace
 	ns := v1.Namespace{
@@ -33,7 +34,7 @@ func TestPatchNamespace(t *testing.T) {
 			Annotations: make(map[string]string),
 		},
 	}
-	_, _ = client.CoreV1().Namespaces().Create(context.TODO(), &ns, metav1.CreateOptions{})
+	_, _ = client.CoreV1().Namespaces().Create(ctx, &ns, metav1.CreateOptions{})
 
 	// Create patcher
 	p := patcher{
@@ -58,57 +59,50 @@ func TestPatchNamespace(t *testing.T) {
 	req.ID = "12345"
 	req.Action = EnableConfig
 	req.Revision = 12
-	require.NoError(t, p.patchNamespaces(req))
+	require.NoError(t, p.patchNamespaces(ctx, req))
 
 	// Check the patch
-	got, err := client.CoreV1().Namespaces().Get(context.TODO(), name, metav1.GetOptions{})
+	got, err := client.CoreV1().Namespaces().Get(ctx, name, metav1.GetOptions{})
 	require.NoError(t, err)
 	expectedLabels := map[string]string{k8sutil.RcLabelKey: "true"}
 	expectedAnnotations := map[string]string{k8sutil.RcIDAnnotKey: "12345", k8sutil.RcRevisionAnnotKey: "12"}
-	requireMapHas(t, expectedLabels, got.ObjectMeta.Labels)
-	requireMapHas(t, expectedAnnotations, got.ObjectMeta.Annotations)
+	require.Equal(t, expectedLabels, got.Labels)
+	require.Equal(t, expectedAnnotations, got.Annotations)
 
 	// Enable the configuration on the same namespace
 	req.ID = "123456"
 	req.Action = EnableConfig
 	req.Revision = 123
-	require.NoError(t, p.patchNamespaces(req))
+	require.NoError(t, p.patchNamespaces(ctx, req))
 
 	// Check the patch
-	got, err = client.CoreV1().Namespaces().Get(context.TODO(), name, metav1.GetOptions{})
+	got, err = client.CoreV1().Namespaces().Get(ctx, name, metav1.GetOptions{})
 	require.NoError(t, err)
-	requireMapHas(t, expectedLabels, got.ObjectMeta.Labels)
-	requireMapHas(t, expectedAnnotations, got.ObjectMeta.Annotations)
+	require.Equal(t, expectedLabels, got.Labels)
+	require.Equal(t, expectedAnnotations, got.Annotations)
 
 	// Disable the configuration
 	req.ID = "12345"
 	req.Action = DisableConfig
 	req.Revision = 13
-	require.NoError(t, p.patchNamespaces(req))
+	require.NoError(t, p.patchNamespaces(ctx, req))
 
 	// Check the patch
-	got, err = client.CoreV1().Namespaces().Get(context.TODO(), name, metav1.GetOptions{})
+	got, err = client.CoreV1().Namespaces().Get(ctx, name, metav1.GetOptions{})
 	require.NoError(t, err)
 	expectedLabels = map[string]string{k8sutil.RcLabelKey: "false"}
-	requireMapHas(t, expectedLabels, got.ObjectMeta.Labels)
-	requireMapHas(t, expectedAnnotations, got.ObjectMeta.Annotations)
+	require.Equal(t, expectedLabels, got.Labels)
+	require.Equal(t, expectedAnnotations, got.Annotations)
 
 	// Delete configuration
 	req.Action = DeleteConfig
 	req.Revision = 15
-	require.NoError(t, p.patchNamespaces(req))
+	require.NoError(t, p.patchNamespaces(ctx, req))
 
 	// Check the patch
-	got, err = client.CoreV1().Namespaces().Get(context.TODO(), name, metav1.GetOptions{})
+	got, err = client.CoreV1().Namespaces().Get(ctx, name, metav1.GetOptions{})
 	require.NoError(t, err)
 	require.NotContains(t, got.ObjectMeta.Labels, k8sutil.RcLabelKey)
 	require.NotContains(t, got.ObjectMeta.Annotations, k8sutil.RcIDAnnotKey)
 	require.NotContains(t, got.ObjectMeta.Annotations, k8sutil.RcRevisionAnnotKey)
-}
-
-func requireMapHas(t *testing.T, expected map[string]string, actual map[string]string) {
-	t.Helper()
-	for k, v := range expected {
-		require.Equal(t, v, actual[k])
-	}
 }
