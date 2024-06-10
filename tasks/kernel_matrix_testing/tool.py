@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import sys
 from typing import TYPE_CHECKING
 
 import invoke.exceptions as ie
@@ -19,24 +20,28 @@ except ImportError:
         return text
 
 
+def _logprint(msg: str):
+    print(msg, flush=True, file=sys.stderr)
+
+
 def ask(question: str) -> str:
     return input(colored(question, "blue"))
 
 
 def debug(msg: str):
-    print(colored(msg, "white"))
+    _logprint(colored(msg, "white"))
 
 
 def info(msg: str):
-    print(colored(msg, "green"))
+    _logprint(colored(msg, "green"))
 
 
 def warn(msg: str):
-    print(colored(msg, "yellow"))
+    _logprint(colored(msg, "yellow"))
 
 
 def error(msg: str):
-    print(colored(msg, "red"))
+    _logprint(colored(msg, "red"))
 
 
 def Exit(msg: str):

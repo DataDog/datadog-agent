@@ -6,11 +6,13 @@ on:
     - main
     paths:
     - docs/**
+    - .github/workflows/docs-dev.yml
   pull_request:
     branches:
     - main
     paths:
     - docs/**
+    - .github/workflows/docs-dev.yml
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}

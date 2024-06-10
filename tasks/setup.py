@@ -4,6 +4,7 @@ Helpers for setting up your environment
 
 from __future__ import annotations
 
+import os
 import re
 import sys
 from collections.abc import Iterable
@@ -36,9 +37,9 @@ def setup(ctx):
     Set up your environment
     """
     setup_functions = [
+        check_git_repo,
         check_python_version,
         check_go_version,
-        check_git_repo,
         update_python_dependencies,
         download_go_tools,
         install_go_tools,
@@ -115,7 +116,9 @@ def check_go_version(ctx) -> SetupResult:
 
     if version.group(1) != expected_version:
         return SetupResult(
-            "Check Go version", Status.FAIL, f"Go version is {version.group(1)}. Please install Go {expected_version}."
+            "Check Go version",
+            Status.WARN,
+            f"The Go version is {version.group(1)}. Please install Go {expected_version}.",
         )
 
     return SetupResult("Check Go version", Status.OK)
@@ -133,8 +136,7 @@ def check_python_version(_ctx) -> SetupResult:
         status = Status.FAIL
         message = (
             f"Python version is {sys.version_info[0]}.{sys.version_info[1]}.{sys.version_info[2]}. "
-            f"Please install Python {expected_version}.\n"
-            f"We recommend using pyenv to manage your Python versions: https://github.com/pyenv/pyenv#installation"
+            "Please update your environment: https://datadoghq.dev/datadog-agent/setup/#python-dependencies",
         )
 
     return SetupResult("Check Python version", status, message)
@@ -171,13 +173,21 @@ def enable_pre_commit(ctx) -> SetupResult:
     if running_in_pyapp():
         import shutil
 
-        # We use a custom version that use devagent instead of inv directly, that requires the venv to be loaded
+        # TODO Remove in a couple of weeks
+        # Remove the old devagent file if it exists
+        if os.path.isfile(".pre-commit-config-devagent.yaml"):
+            os.remove(".pre-commit-config-devagent.yaml")
+
+        # We use a custom version that use deva instead of inv directly, that requires the venv to be loaded
         from pre_commit import update_pyapp_file
 
         config_file = update_pyapp_file()
-        if not shutil.which("devagent"):
+        if not shutil.which("deva"):
             status = Status.WARN
-            message = "`devagent` is not in your PATH"
+            if shutil.which("devagent"):
+                message = "`devagent` has been renamed `deva`. Please, rename your binary, no need to download the new version."
+            else:
+                message = "`deva` is not in your PATH"
     else:
         config_file = ".pre-commit-config.yaml"
 

@@ -43,6 +43,8 @@ type Event struct {
 	OpenRegistryKey     OpenRegistryKeyEvent     `field:"open_key;open" event:"open_key"`          // [7.52] [Registry] A registry key was opened
 	SetRegistryKeyValue SetRegistryKeyValueEvent `field:"set_key_value;set" event:"set_key_value"` // [7.52] [Registry] A registry key value was set
 	DeleteRegistryKey   DeleteRegistryKeyEvent   `field:"delete_key;delete" event:"delete_key"`    // [7.52] [Registry] A registry key was deleted
+
+	ChangePermission ChangePermissionEvent `field:"change_permission" event:"change_permission" ` // [7.55] [Registry] A permission change was made
 }
 
 // FileEvent is the common file event type
@@ -161,4 +163,14 @@ type SetRegistryKeyValueEvent struct {
 // DeleteRegistryKeyEvent defines registry key deletion
 type DeleteRegistryKeyEvent struct {
 	Registry RegistryEvent `field:"registry"` // SECLDoc[registry] Definition:`Registry Event`
+}
+
+// ChangePermissionEvent defines object permission change
+type ChangePermissionEvent struct {
+	UserName   string `field:"username"`                                    // SECLDoc[username] Definition:`Username of the permission change author`
+	UserDomain string `field:"user_domain"`                                 // SECLDoc[user_domain] Definition:`Domain name of the permission change author`
+	ObjectName string `field:"path"`                                        // SECLDoc[name] Definition:`Name of the object of which permission was changed`
+	ObjectType string `field:"type"`                                        // SECLDoc[type] Definition:`Type of the object of which permission was changed`
+	OldSd      string `field:"old_sd,handler:ResolveOldSecurityDescriptor"` // SECLDoc[old_sd] Definition:`Original Security Descriptor of the object of which permission was changed`
+	NewSd      string `field:"new_sd,handler:ResolveNewSecurityDescriptor"` // SECLDoc[name] Definition:`New Security Descriptor of the object of which permission was changed`
 }

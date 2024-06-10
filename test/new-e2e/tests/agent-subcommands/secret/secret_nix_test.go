@@ -44,7 +44,7 @@ func (v *linuxSecretSuite) TestAgentSecretChecksExecutablePermissions() {
 
 	assert.Contains(v.T(), output, "=== Checking executable permissions ===")
 	assert.Contains(v.T(), output, "Executable path: /usr/bin/echo")
-	assert.Contains(v.T(), output, "Executable permissions: error: invalid executable: '/usr/bin/echo' isn't owned by this user")
+	assert.Contains(v.T(), output, "Executable permissions: error: invalid executable '/usr/bin/echo', 'group' or 'others' have rights on it")
 	assert.Regexp(v.T(), "Number of secrets .+: 0", output)
 }
 

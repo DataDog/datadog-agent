@@ -48,7 +48,7 @@ func NewControllerV1(
 	isLeaderNotif <-chan struct{},
 	config Config,
 	wmeta workloadmeta.Component,
-	pa workload.PatcherAdapter,
+	pa workload.PodPatcher,
 ) *ControllerV1 {
 	controller := &ControllerV1{}
 	controller.clientSet = client

@@ -9,6 +9,7 @@ package workloadmeta
 import (
 	"context"
 	"fmt"
+	"slices"
 
 	"go.uber.org/fx"
 	"google.golang.org/grpc"
@@ -25,6 +26,22 @@ import (
 const (
 	collectorID = "remote-workloadmeta"
 )
+
+// These are the workloadmeta kinds that are supported by the remote
+// workloadmeta collector.
+//
+// Not all of them are supported because the users of remote workloadmeta
+// (security-agent, process-agent) don't need them, so sending them would be a
+// waste of memory and bandwidth.
+//
+// In order to support a workloadmeta kind, we need to add its protobuf
+// representation and also handle it in the functions that convert workloadmeta
+// types to protobuf and vice versa.
+var supportedKinds = []workloadmeta.Kind{
+	workloadmeta.KindContainer,
+	workloadmeta.KindKubernetesPod,
+	workloadmeta.KindECSTask,
+}
 
 // Params defines the parameters of the remote workloadmeta collector.
 type Params struct {
@@ -76,12 +93,16 @@ type streamHandler struct {
 
 // NewCollector returns a CollectorProvider to build a remote workloadmeta collector, and an error if any.
 func NewCollector(deps dependencies) (workloadmeta.CollectorProvider, error) {
+	if filterHasUnsupportedKind(deps.Params.Filter) {
+		return workloadmeta.CollectorProvider{}, fmt.Errorf("the filter specified contains unsupported kinds")
+	}
+
 	return workloadmeta.CollectorProvider{
 		Collector: &remote.GenericCollector{
 			CollectorID: collectorID,
 			StreamHandler: &streamHandler{
 				filter: deps.Params.Filter,
-				Config: config.Datadog,
+				Config: config.Datadog(),
 			},
 			Catalog: workloadmeta.Remote,
 		},
@@ -118,7 +139,7 @@ func (s *streamHandler) IsEnabled() bool {
 	return true
 }
 
-func (s *streamHandler) HandleResponse(resp interface{}) ([]workloadmeta.CollectorEvent, error) {
+func (s *streamHandler) HandleResponse(_ workloadmeta.Component, resp interface{}) ([]workloadmeta.CollectorEvent, error) {
 	response, ok := resp.(*pb.WorkloadmetaStreamResponse)
 	if !ok {
 		return nil, fmt.Errorf("incorrect response type")
@@ -156,4 +177,13 @@ func (s *streamHandler) HandleResync(store workloadmeta.Component, events []work
 	// entities in the store that match the filters specified (see
 	// workloadmeta.Store#Subscribe).
 	store.Reset(entities, workloadmeta.SourceRemoteWorkloadmeta)
+}
+
+func filterHasUnsupportedKind(filter *workloadmeta.Filter) bool {
+	for _, kind := range filter.Kinds() {
+		if !slices.Contains(supportedKinds, kind) {
+			return true
+		}
+	}
+	return false
 }

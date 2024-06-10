@@ -106,11 +106,13 @@ type Server struct {
 // NewServer creates a new test fixtures server.
 func NewServer(t *testing.T) *Server {
 	layoutDir := t.TempDir()
-	return &Server{
+	s := &Server{
 		t:          t,
 		s:          extractLayoutsAndBuildRegistry(t, layoutDir),
 		layoutsDir: layoutDir,
 	}
+	t.Cleanup(func() { s.Close() })
+	return s
 }
 
 // PackageURL returns the package URL for the given fixture.

@@ -257,13 +257,24 @@ def ls(_, distro=True, custom=False):
     }
 )
 def init(ctx: Context, lite=False, images: str | None = None):
-    init_kernel_matrix_testing_system(ctx, lite, images)
+    try:
+        init_kernel_matrix_testing_system(ctx, lite, images)
+    except Exception as e:
+        error(f"[-] Error initializing kernel matrix testing system: {e}")
+        raise Exit("[-] Initialization failed")
+
+    info("[+] Kernel matrix testing system initialized successfully")
     config_ssh_key(ctx)
 
 
 @task
 def config_ssh_key(ctx: Context):
     """Automatically configure the default SSH key to use"""
+    info("[+] Configuring SSH key for use with the KMT AWS instances")
+    info(
+        "[+] Ensure your desired SSH key is set up in the AWS sandbox account (not agent-sandbox) so we can check its existence"
+    )
+    info("[+] Reminder that key pairs for AWS are configured in AWS > EC2 > Key Pairs")
     agent_choices = [
         ("ssh", "Keys located in ~/.ssh"),
         ("1password", "1Password SSH agent (valid for any other SSH agent too)"),
@@ -368,7 +379,10 @@ def update_resources(
 def start_compiler(ctx: Context):
     cc = get_compiler(ctx)
     info(f"[+] Starting compiler {cc.name}")
-    cc.start()
+    try:
+        cc.start()
+    except Exception as e:
+        error(f"[-] Error starting compiler {cc.name}: {e}")
 
 
 def filter_target_domains(vms: str, infra: dict[KMTArchNameOrLocal, HostInstance], arch: Arch | None = None):
@@ -693,12 +707,14 @@ def prepare(
         # Copy BTF files
         d.run_cmd(
             ctx,
-            f"! [ -f {btf_dir}/minimized-btfs.tar.xz \
-                && [ -d /opt/btf ] \
+            f"[ -f /sys/kernel/btf/vmlinux ] \
+                || [ -f {btf_dir}/minimized-btfs.tar.xz ] \
+                || ([ -d /opt/btf ] \
                 && cd /opt/btf/ \
                 && tar cJf minimized-btfs.tar.xz * \
                 && mkdir -p {btf_dir} \
-                && mv /opt/btf/minimized-btfs.tar.xz {btf_dir}/",
+                && mv /opt/btf/minimized-btfs.tar.xz {btf_dir}/)",
+            verbose=verbose,
         )
 
         info(f"[+] Tests packages and dependencies setup in target VM {d}")
@@ -735,6 +751,37 @@ def build_object_files(ctx, fp, arch: Arch):
     ctx.run(f"ninja -d explain -f {fp}")
 
 
+def compute_package_dependencies(ctx: Context, packages: list[str]) -> dict[str, set[str]]:
+    dd_pkg_name = "github.com/DataDog/datadog-agent/"
+    build_tags = get_sysprobe_buildtags(False, False)
+    pkg_deps: dict[str, set[str]] = defaultdict(set)
+
+    packages_list = " ".join(packages)
+    list_format = "{{ .ImportPath }}: {{ join .Deps \" \" }}"
+    res = ctx.run(f"go list -test -f '{list_format}' -tags \"{build_tags}\" {packages_list}", hide=True)
+    if res is None or not res.ok:
+        raise Exit("Failed to get dependencies for system-probe")
+
+    for line in res.stdout.split("\n"):
+        if ":" not in line:
+            continue
+
+        pkg, deps = line.split(":", 1)
+        deps = [d.strip() for d in deps.split(" ")]
+        dd_deps = [d[len(dd_pkg_name) :] for d in deps if d.startswith(dd_pkg_name)]
+
+        # The import path printed by "go list" is usually path/to/pkg  (e.g., pkg/ebpf/verifier).
+        # However, for test packages it might be either:
+        # - path/to/pkg.test
+        # - path/to/pkg [path/to/pkg.test]
+        # In any case all variants refer to the same variant. This code controls for that
+        # so that we keep the usual package name.
+        pkg = pkg.split(" ")[0].removeprefix(dd_pkg_name).removesuffix(".test")
+        pkg_deps[pkg].update(dd_deps)
+
+    return pkg_deps
+
+
 @task
 def kmt_sysprobe_prepare(
     ctx: Context,
@@ -759,7 +806,6 @@ def kmt_sysprobe_prepare(
     if packages:
         filter_pkgs = [os.path.relpath(p) for p in packages.split(",")]
 
-    target_packages = build_target_packages(filter_pkgs)
     kmt_paths = KMTPaths(stack, arch)
     nf_path = os.path.join(kmt_paths.arch_dir, "kmt-sysprobe.ninja")
 
@@ -772,6 +818,12 @@ def kmt_sysprobe_prepare(
         go_path = os.path.join(go_root, "bin", "go")
 
     build_object_files(ctx, f"{kmt_paths.arch_dir}/kmt-object-files.ninja", arch)
+
+    info("[+] Computing Go dependencies for test packages...")
+    target_packages = build_target_packages(filter_pkgs)
+    pkg_deps = compute_package_dependencies(ctx, target_packages)
+
+    info("[+] Generating build instructions..")
     with open(nf_path, 'w') as ninja_file:
         nw = NinjaWriter(ninja_file)
 
@@ -789,7 +841,8 @@ def kmt_sysprobe_prepare(
         ninja_copy_ebpf_files(nw, "system-probe", kmt_paths, arch)
 
         for pkg in target_packages:
-            target_path = os.path.join(kmt_paths.sysprobe_tests, os.path.relpath(pkg, os.getcwd()))
+            pkg_name = os.path.relpath(pkg, os.getcwd())
+            target_path = os.path.join(kmt_paths.sysprobe_tests, pkg_name)
             output_path = os.path.join(target_path, "testsuite")
             variables = {
                 "env": env_str,
@@ -802,19 +855,22 @@ def kmt_sysprobe_prepare(
             if extra_arguments:
                 variables["extra_arguments"] = extra_arguments
 
-            go_files = [os.path.abspath(i) for i in glob(f"{pkg}/*.go")]
+            go_files = set(glob(f"{pkg}/*.go"))
+            has_test_files = any(x.lower().endswith("_test.go") for x in go_files)
 
-            # We delete the output file to force ninja to rebuild the testsuite everytime
-            # because it cannot track go dependencies correctly.
-            ctx.run(f"rm -f {output_path}")
-            nw.build(
-                inputs=[pkg],
-                outputs=[output_path],
-                implicit=go_files,
-                rule="gotestsuite",
-                pool="gobuild",
-                variables=variables,
-            )
+            # skip packages without test files
+            if has_test_files:
+                for deps in pkg_deps[pkg_name]:
+                    go_files.update(os.path.abspath(p) for p in glob(f"{deps}/*.go"))
+
+                nw.build(
+                    inputs=[pkg],
+                    outputs=[output_path],
+                    implicit=list(go_files),
+                    rule="gotestsuite",
+                    pool="gobuild",
+                    variables=variables,
+                )
 
             if pkg.endswith("java"):
                 nw.build(
@@ -857,6 +913,7 @@ def kmt_sysprobe_prepare(
                         },
                     )
 
+    info("[+] Compiling tests...")
     ctx.run(f"ninja -d explain -v -f {nf_path}")
 
 
@@ -990,10 +1047,10 @@ def test(
         for d in domains:
             info(f"[+] Running tests on {d}")
             d.copy(ctx, f"{tmp.name}", remote_tmp)
-            d.run_cmd(ctx, f"/opt/micro-vm-init.sh {' '.join(args)}", verbose=verbose)
+            d.run_cmd(ctx, f"/opt/micro-vm-init.sh {' '.join(args)}", verbose=verbose, allow_fail=True)
 
             info(f"[+] Showing summary of results for {d}")
-            d.run_cmd(ctx, "/opt/testing-tools/test-json-review", verbose=verbose)
+            d.run_cmd(ctx, "/opt/testing-tools/test-json-review", verbose=verbose, allow_fail=True)
 
             info(f"[+] Tests completed on {d}, downloading results...")
             target_folder = paths.vm_test_results(d.name)

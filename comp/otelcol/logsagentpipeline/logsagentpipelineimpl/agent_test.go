@@ -7,9 +7,10 @@ package logsagentpipelineimpl
 
 import (
 	"context"
-	"go.uber.org/fx"
 	"testing"
 	"time"
+
+	"go.uber.org/fx"
 
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
@@ -122,7 +123,7 @@ func (suite *AgentTestSuite) TestAgentTcp() {
 }
 
 func (suite *AgentTestSuite) TestAgentHttp() {
-	server := http.NewTestServer(200, pkgconfigsetup.Datadog)
+	server := http.NewTestServer(200, pkgconfigsetup.Datadog())
 	defer server.Stop()
 	endpoints := config.NewEndpoints(server.Endpoint, nil, false, true)
 

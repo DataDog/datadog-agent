@@ -202,6 +202,7 @@ func bootstrapCommand() *cobra.Command {
 }
 
 func installCommand() *cobra.Command {
+	var installArgs []string
 	cmd := &cobra.Command{
 		Use:     "install <url>",
 		Short:   "Install a package",
@@ -214,9 +215,10 @@ func installCommand() *cobra.Command {
 			}
 			defer func() { i.Stop(err) }()
 			i.span.SetTag("params.url", args[0])
-			return i.Install(i.ctx, args[0])
+			return i.Install(i.ctx, args[0], installArgs)
 		},
 	}
+	cmd.Flags().StringArrayVarP(&installArgs, "install_args", "A", nil, "Arguments to pass to the package")
 	return cmd
 }
 

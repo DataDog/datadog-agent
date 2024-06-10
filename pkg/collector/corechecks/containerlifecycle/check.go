@@ -52,7 +52,7 @@ type Check struct {
 
 // Configure parses the check configuration and initializes the container_lifecycle check
 func (c *Check) Configure(senderManager sender.SenderManager, _ uint64, config, initConfig integration.Data, source string) error {
-	if !ddConfig.Datadog.GetBool("container_lifecycle.enabled") {
+	if !ddConfig.Datadog().GetBool("container_lifecycle.enabled") {
 		return errors.New("collection of container lifecycle events is disabled")
 	}
 
@@ -114,7 +114,7 @@ func (c *Check) Run() error {
 	)
 
 	var taskEventsCh chan workloadmeta.EventBundle
-	if ddConfig.Datadog.GetBool("container_lifecycle.ecs_task_event.enabled") {
+	if ddConfig.Datadog().GetBool("container_lifecycle.ecs_task_event.enabled") {
 		taskFilterParams := workloadmeta.FilterParams{
 			Kinds:     []workloadmeta.Kind{workloadmeta.KindECSTask},
 			Source:    workloadmeta.SourceNodeOrchestrator,
@@ -181,7 +181,7 @@ func Factory(store workloadmeta.Component) optional.Option[func() check.Check] {
 
 // sendFargateTaskEvent sends Fargate task lifecycle event at the end of the check
 func (c *Check) sendFargateTaskEvent() {
-	if !ddConfig.Datadog.GetBool("container_lifecycle.ecs_task_event.enabled") ||
+	if !ddConfig.Datadog().GetBool("container_lifecycle.ecs_task_event.enabled") ||
 		!ddConfig.IsECSFargate() {
 		return
 	}

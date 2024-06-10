@@ -267,7 +267,7 @@ func TestConfigRefresh(t *testing.T) {
 	ia := getTestInventoryPayload(t, nil, nil)
 
 	assert.False(t, ia.RefreshTriggered())
-	pkgconfig.Datadog.Set("inventories_max_interval", 10*60, pkgconfigmodel.SourceAgentRuntime)
+	pkgconfig.Datadog().Set("inventories_max_interval", 10*60, pkgconfigmodel.SourceAgentRuntime)
 	assert.True(t, ia.RefreshTriggered())
 }
 

@@ -70,7 +70,7 @@ func initCWSSystemProbeConfig(cfg pkgconfigmodel.Config) {
 	cfg.BindEnvAndSetDefault("runtime_security_config.activity_dump.silent_workloads.delay", "10s")
 	cfg.BindEnvAndSetDefault("runtime_security_config.activity_dump.silent_workloads.ticker", "10s")
 	cfg.BindEnvAndSetDefault("runtime_security_config.activity_dump.workload_deny_list", []string{})
-	cfg.BindEnvAndSetDefault("runtime_security_config.activity_dump.auto_suppression.enabled", false)
+	cfg.BindEnvAndSetDefault("runtime_security_config.activity_dump.auto_suppression.enabled", true)
 
 	// CWS - SBOM
 	cfg.BindEnvAndSetDefault("runtime_security_config.sbom.enabled", false)
@@ -127,5 +127,5 @@ func initCWSSystemProbeConfig(cfg pkgconfigmodel.Config) {
 
 	// CWS enforcement capabilities
 	cfg.BindEnvAndSetDefault("runtime_security_config.enforcement.enabled", true)
-	cfg.BindEnvAndSetDefault("runtime_security_config.enforcement.raw_syscall.enabled", true)
+	cfg.BindEnvAndSetDefault("runtime_security_config.enforcement.raw_syscall.enabled", false)
 }
