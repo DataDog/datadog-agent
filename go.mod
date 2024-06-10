@@ -613,34 +613,34 @@ require (
 	github.com/DataDog/datadog-agent/comp/core/log v0.55.0-rc.3
 	github.com/DataDog/datadog-agent/comp/core/secrets v0.55.0-rc.3
 	github.com/DataDog/datadog-agent/comp/core/status v0.55.0-rc.3
-	github.com/DataDog/datadog-agent/comp/core/status/statusimpl v0.55.0-rc.2
+	github.com/DataDog/datadog-agent/comp/core/status/statusimpl v0.55.0-rc.3
 	github.com/DataDog/datadog-agent/comp/core/telemetry v0.55.0-rc.3
 	github.com/DataDog/datadog-agent/comp/def v0.55.0-rc.3
 	github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder v0.55.0-rc.3
 	github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorinterface v0.55.0-rc.3
 	github.com/DataDog/datadog-agent/comp/logs/agent/config v0.55.0-rc.3
-	github.com/DataDog/datadog-agent/comp/netflow/payload v0.55.0-rc.2
-	github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/def v0.55.0-rc.2
-	github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/impl v0.55.0-rc.2
+	github.com/DataDog/datadog-agent/comp/netflow/payload v0.55.0-rc.3
+	github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/def v0.55.0-rc.3
+	github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/impl v0.55.0-rc.3
 	github.com/DataDog/datadog-agent/comp/otelcol/converter/def v0.55.0-rc.1
 	github.com/DataDog/datadog-agent/comp/otelcol/converter/impl v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline v0.55.0-rc.3
-	github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline/logsagentpipelineimpl v0.55.0-rc.2
-	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/datadogexporter v0.55.0-rc.2
+	github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline/logsagentpipelineimpl v0.55.0-rc.3
+	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/datadogexporter v0.55.0-rc.3
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/logsagentexporter v0.55.0-rc.3
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/serializerexporter v0.55.0-rc.3
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/testutil v0.55.0-rc.3
 	github.com/DataDog/datadog-agent/comp/serializer/compression v0.55.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/aggregator/ckey v0.55.0-rc.3
-	github.com/DataDog/datadog-agent/pkg/api v0.55.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/api v0.55.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults v0.55.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/config/env v0.55.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/config/logs v0.55.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/config/model v0.55.0-rc.3
-	github.com/DataDog/datadog-agent/pkg/config/remote v0.55.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/config/remote v0.55.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/config/setup v0.55.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/config/utils v0.55.0-rc.3
-	github.com/DataDog/datadog-agent/pkg/errors v0.55.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/errors v0.55.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/logs/auditor v0.55.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/logs/client v0.55.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/logs/diagnostic v0.55.0-rc.3
@@ -654,11 +654,11 @@ require (
 	github.com/DataDog/datadog-agent/pkg/logs/status/utils v0.55.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/logs/util/testutils v0.55.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/metrics v0.55.0-rc.3
-	github.com/DataDog/datadog-agent/pkg/networkdevice/profile v0.55.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/networkdevice/profile v0.55.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/orchestrator/model v0.55.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/process/util/api v0.55.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/proto v0.55.0-rc.3
-	github.com/DataDog/datadog-agent/pkg/security/seclwin v0.55.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/security/seclwin v0.55.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/serializer v0.55.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/status/health v0.55.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/tagger/types v0.55.0-rc.3
