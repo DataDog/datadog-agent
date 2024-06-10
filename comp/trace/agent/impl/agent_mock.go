@@ -12,7 +12,7 @@ import (
 	"context"
 	"testing"
 
-	traceagentdef "github.com/DataDog/datadog-agent/comp/trace/def"
+	traceagentdef "github.com/DataDog/datadog-agent/comp/trace/agent/def"
 	pkgagent "github.com/DataDog/datadog-agent/pkg/trace/agent"
 	"github.com/DataDog/datadog-agent/pkg/trace/stats"
 	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
