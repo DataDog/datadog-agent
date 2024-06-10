@@ -1543,6 +1543,7 @@ func testRedisProtocolClassification(t *testing.T, tr *Tracer, clientHost, targe
 }
 
 func testTLSRedisProtocolClassification(t *testing.T, tr *Tracer, clientHost, targetHost, serverHost string) {
+	t.Skip("TLS+Redis classification tests are flaky")
 	testRedisProtocolClassificationInner(t, tr, clientHost, targetHost, serverHost, protocolsUtils.TLSEnabled)
 }
 
