@@ -122,7 +122,7 @@ func (d *daemonImpl) GetAPMInjectionStatus() (status APMInjectionStatus, err err
 	if err != nil {
 		return status, fmt.Errorf("could not read /etc/ld.so.preload: %w", err)
 	}
-	if bytes.Contains(ldPreloadContent, []byte("/opt/datadog-packages/datadog-apm-inject/stable/inject/launcher.preload.so")) {
+	if bytes.Contains(ldPreloadContent, []byte("/opt/datadog-packages/datadog-apm-inject/stable/inject")) {
 		status.HostInstrumented = true
 	}
 
@@ -144,7 +144,7 @@ func (d *daemonImpl) GetAPMInjectionStatus() (status APMInjectionStatus, err err
 	} else if errors.Is(err, os.ErrNotExist) {
 		return status, nil
 	}
-	if bytes.Contains(dockerConfigContent, []byte("/opt/datadog-packages/datadog-apm-inject/stable/inject/auto_inject_runc")) {
+	if bytes.Contains(dockerConfigContent, []byte("/opt/datadog-packages/datadog-apm-inject/stable/inject")) {
 		status.DockerInstrumented = true
 	}
 
