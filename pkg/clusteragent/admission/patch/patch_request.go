@@ -43,8 +43,7 @@ type K8sClusterTarget struct {
 }
 
 func (k *K8sClusterTarget) isEnabled() bool {
-	f := false
-	return k.Enabled != nil && k.Enabled != &f
+	return k.Enabled != nil && *k.Enabled
 }
 
 func (k *K8sClusterTarget) matchesCluster(name string) bool {
