@@ -44,8 +44,6 @@ type factory struct {
 	s         serializer.MetricSerializer
 	logsAgent logsagentpipeline.Component
 	h         hostnameinterface.Component
-
-	wg sync.WaitGroup // waits for agent to exit
 }
 
 func (f *factory) AttributesTranslator(set component.TelemetrySettings) (*attributes.Translator, error) {
@@ -176,9 +174,10 @@ func (f *factory) createMetricsExporter(
 	c component.Config,
 ) (exporter.Metrics, error) {
 	cfg := checkAndCastConfig(c, set.Logger)
+	var wg sync.WaitGroup // waits for consumeStatsPayload to exit
 	statsIn := make(chan []byte, 1000)
 	statsv := set.BuildInfo.Command + set.BuildInfo.Version
-	f.consumeStatsPayload(ctx, statsIn, statsv, fmt.Sprintf("datadogexporter-%s-%s", set.BuildInfo.Command, set.BuildInfo.Version), set.Logger)
+	f.consumeStatsPayload(ctx, &wg, statsIn, statsv, fmt.Sprintf("datadogexporter-%s-%s", set.BuildInfo.Command, set.BuildInfo.Version), set.Logger)
 	sf := serializerexporter.NewFactory(f.s, &tagEnricher{}, f.h.Get, statsIn)
 	ex := &serializerexporter.ExporterConfig{
 		Metrics: cfg.Metrics,
@@ -190,11 +189,11 @@ func (f *factory) createMetricsExporter(
 	return sf.CreateMetricsExporter(ctx, set, ex)
 }
 
-func (f *factory) consumeStatsPayload(ctx context.Context, statsIn <-chan []byte, tracerVersion string, agentVersion string, logger *zap.Logger) {
+func (f *factory) consumeStatsPayload(ctx context.Context, wg *sync.WaitGroup, statsIn <-chan []byte, tracerVersion string, agentVersion string, logger *zap.Logger) {
 	for i := 0; i < runtime.NumCPU(); i++ {
-		f.wg.Add(1)
+		wg.Add(1)
 		go func() {
-			defer f.wg.Done()
+			defer wg.Done()
 			for {
 				select {
 				case <-ctx.Done():
