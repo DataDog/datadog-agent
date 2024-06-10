@@ -75,7 +75,4 @@ def get_link_to_job_on_main(job_name: str):
 
 
 def to_query_string(params: dict):
-    query = ""
-    for key, value in params.items():
-        query += f"{key}:{value} "
-    return query
+    return " ".join(f"{k}:{v}" for k, v in params.items())
