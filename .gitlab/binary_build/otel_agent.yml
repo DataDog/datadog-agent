@@ -9,6 +9,9 @@
     - !reference [.retrieve_linux_go_deps]
     - inv -e otel-agent.build
   needs: ["go_deps"]
+  variables:
+    KUBERNETES_MEMORY_REQUEST: "16Gi"
+    KUBERNETES_MEMORY_LIMIT: "16Gi"
   artifacts:
     expire_in: 1 day
     paths:

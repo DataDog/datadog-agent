@@ -16,7 +16,7 @@ from invoke.exceptions import Exit
 from tasks.build_tags import build_tags, filter_incompatible_tags, get_build_tags, get_default_build_tags
 from tasks.commands.docker import AGENT_REPOSITORY_PATH, DockerCLI
 from tasks.flavor import AgentFlavor
-from tasks.libs.common.color import color_message
+from tasks.libs.common.color import Color, color_message
 
 DEVCONTAINER_DIR = ".devcontainer"
 DEVCONTAINER_FILE = "devcontainer.json"
@@ -31,7 +31,6 @@ def setup(
     build_include=None,
     build_exclude=None,
     flavor=AgentFlavor.base.name,
-    arch='x64',
     image='',
 ):
     """
@@ -44,9 +43,9 @@ def setup(
         return
 
     build_include = (
-        get_default_build_tags(build=target, arch=arch, flavor=flavor)
+        get_default_build_tags(build=target, flavor=flavor)
         if build_include is None
-        else filter_incompatible_tags(build_include.split(","), arch=arch)
+        else filter_incompatible_tags(build_include.split(","))
     )
     build_exclude = [] if build_exclude is None else build_exclude.split(",")
     use_tags = get_build_tags(build_include, build_exclude)
@@ -122,11 +121,13 @@ def start(ctx, path="."):
     Start the devcontainer
     """
     if not file().exists():
-        print(color_message("No devcontainer settings found.  Run `invoke devcontainer.setup` first.", "red"))
+        print(color_message("No devcontainer settings found.  Run `invoke devcontainer.setup` first.", Color.RED))
         raise Exit(code=1)
 
     if not is_installed(ctx):
-        print(color_message("Devcontainer CLI is not installed.  Run `invoke install-devcontainer-cli` first.", "red"))
+        print(
+            color_message("Devcontainer CLI is not installed.  Run `invoke install-devcontainer-cli` first.", Color.RED)
+        )
         raise Exit(code=1)
 
     ctx.run(f"devcontainer up --workspace-folder {path}")
@@ -138,11 +139,13 @@ def stop(ctx):
     Stop the running devcontainer
     """
     if not file().exists():
-        print(color_message("No devcontainer settings found. Run `inv devcontainer.setup` first and start it.", "red"))
+        print(
+            color_message("No devcontainer settings found. Run `inv devcontainer.setup` first and start it.", Color.RED)
+        )
         raise Exit(code=1)
 
     if not is_up(ctx):
-        print(color_message("Devcontainer is not running.", "red"))
+        print(color_message("Devcontainer is not running.", Color.RED))
         raise Exit(code=1)
 
     ctx.run(f"docker kill {DEVCONTAINER_NAME}")
@@ -185,20 +188,24 @@ def run_on_devcontainer(func):
             if platform == "linux" and py_platform.system().lower() != platform:
                 # If we choose to run them on linux, and we are not on linux already
                 if not file().exists():
-                    print(color_message("Generating the devcontainer file to run the linter in a container.", "orange"))
+                    print(
+                        color_message(
+                            "Generating the devcontainer file to run the linter in a container.", Color.ORANGE
+                        )
+                    )
                     # TODO remove the hardcoded image and auto-pull it
                     setup(ctx, image=DEVCONTAINER_IMAGE)
 
                 if not is_up(ctx):
-                    print(color_message("Starting the devcontainer...", "orange"))
+                    print(color_message("Starting the devcontainer...", Color.ORANGE))
                     start(ctx)
 
-                print(color_message("Running the command in the devcontainer...", "orange"))
+                print(color_message("Running the command in the devcontainer...", Color.ORANGE))
                 cli = DockerCLI(DEVCONTAINER_NAME)
 
                 cmd = ["inv"] + sys.argv[1:]
                 if not cli.run_command(cmd).ok:
-                    print(color_message("Failed to run the command in the devcontainer.", "red"))
+                    print(color_message("Failed to run the command in the devcontainer.", Color.RED))
                     raise Exit(code=1)
 
                 return

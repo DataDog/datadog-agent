@@ -7,7 +7,6 @@ package marshal
 
 import (
 	"math"
-	"unsafe"
 
 	"github.com/twmb/murmur3"
 
@@ -269,39 +268,29 @@ func routeKey(v *network.Via) string {
 	return v.Subnet.Alias
 }
 
-func formatTags(c network.ConnectionStats, tagsSet *network.TagsSet, connDynamicTags map[string]struct{}) (tagsIdx []uint32, checksum uint32) {
-	mm := murmur3.New32()
-	for _, tag := range network.GetStaticTags(c.StaticTags) {
-		mm.Reset()
-		_, _ = mm.Write(unsafeStringSlice(tag))
-		checksum ^= mm.Sum32()
+func formatTags(c network.ConnectionStats, tagsSet *network.TagsSet, connDynamicTags map[string]struct{}) ([]uint32, uint32) {
+	var checksum uint32
+
+	staticTags := network.GetStaticTags(c.StaticTags)
+	tagsIdx := make([]uint32, 0, len(staticTags)+len(connDynamicTags)+len(c.Tags))
+
+	for _, tag := range staticTags {
+		checksum ^= murmur3.StringSum32(tag)
 		tagsIdx = append(tagsIdx, tagsSet.Add(tag))
 	}
 
 	// Dynamic tags
 	for tag := range connDynamicTags {
-		mm.Reset()
-		_, _ = mm.Write(unsafeStringSlice(tag))
-		checksum ^= mm.Sum32()
+		checksum ^= murmur3.StringSum32(tag)
 		tagsIdx = append(tagsIdx, tagsSet.Add(tag))
 	}
 
 	// other tags, e.g., from process env vars like DD_ENV, etc.
 	for tag := range c.Tags {
-		mm.Reset()
 		t := tag.Get().(string)
-		_, _ = mm.Write(unsafeStringSlice(t))
-		checksum ^= mm.Sum32()
+		checksum ^= murmur3.StringSum32(t)
 		tagsIdx = append(tagsIdx, tagsSet.Add(t))
 	}
 
-	return
-}
-
-func unsafeStringSlice(key string) []byte {
-	if len(key) == 0 {
-		return nil
-	}
-	// Reinterpret the string as bytes. This is safe because we don't write into the byte array.
-	return unsafe.Slice(unsafe.StringData(key), len(key))
+	return tagsIdx, checksum
 }

@@ -1,6 +1,6 @@
 import unittest
 
-from tasks.go_test import find_impacted_packages, should_run_all_tests
+from tasks.gotest import find_impacted_packages, should_run_all_tests
 
 
 class TestUtils(unittest.TestCase):

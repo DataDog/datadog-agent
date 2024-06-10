@@ -13,55 +13,69 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"os/exec"
 	"path"
+	"path/filepath"
 	"strings"
 
+	"github.com/DataDog/datadog-agent/pkg/fleet/env"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/service/embedded"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"go.uber.org/multierr"
 	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
 )
 
-var (
-	injectorConfigPrefix = []byte("# BEGIN LD PRELOAD CONFIG")
-	injectorConfigSuffix = []byte("# END LD PRELOAD CONFIG")
-)
-
 const (
-	injectorConfigTemplate = `
-apm_config:
-  receiver_socket: %s
-use_dogstatsd: true
-dogstatsd_socket: %s
-`
-	datadogConfigPath = "/etc/datadog-agent/datadog.yaml"
-	ldSoPreloadPath   = "/etc/ld.so.preload"
-	injectorPath      = "/opt/datadog-packages/datadog-apm-inject/stable"
-	oldLDPath         = "/opt/datadog/apm/inject/launcher.preload.so"
+	injectorPath    = "/opt/datadog-packages/datadog-apm-inject/stable"
+	ldSoPreloadPath = "/etc/ld.so.preload"
+	oldLauncherPath = "/opt/datadog/apm/inject/launcher.preload.so"
 )
 
 // SetupAPMInjector sets up the injector at bootstrap
-func SetupAPMInjector(ctx context.Context) error {
-	var err error
+func SetupAPMInjector(ctx context.Context) (err error) {
 	span, ctx := tracer.StartSpanFromContext(ctx, "setup_injector")
-	defer span.Finish(tracer.WithError(err))
+	defer func() { span.Finish(tracer.WithError(err)) }()
 	installer := newAPMInjectorInstaller(injectorPath)
+	defer func() { installer.Finish(err) }()
 	return installer.Setup(ctx)
 }
 
 // RemoveAPMInjector removes the APM injector
-func RemoveAPMInjector(ctx context.Context) {
+func RemoveAPMInjector(ctx context.Context) (err error) {
 	span, ctx := tracer.StartSpanFromContext(ctx, "remove_injector")
-	defer span.Finish()
+	defer func() { span.Finish(tracer.WithError(err)) }()
 	installer := newAPMInjectorInstaller(injectorPath)
-	installer.Remove(ctx)
+	defer func() { installer.Finish(err) }()
+	return installer.Remove(ctx)
+}
+
+// InstrumentAPMInjector instruments the APM injector
+func InstrumentAPMInjector(ctx context.Context, method string) (err error) {
+	span, ctx := tracer.StartSpanFromContext(ctx, "instrument_injector")
+	defer func() { span.Finish(tracer.WithError(err)) }()
+	installer := newAPMInjectorInstaller(injectorPath)
+	installer.envs.InstallScript.APMInstrumentationEnabled = method
+	defer func() { installer.Finish(err) }()
+	return installer.Instrument(ctx)
+}
+
+// UninstrumentAPMInjector uninstruments the APM injector
+func UninstrumentAPMInjector(ctx context.Context, method string) (err error) {
+	span, ctx := tracer.StartSpanFromContext(ctx, "uninstrument_injector")
+	defer func() { span.Finish(tracer.WithError(err)) }()
+	installer := newAPMInjectorInstaller(injectorPath)
+	installer.envs.InstallScript.APMInstrumentationEnabled = method
+	defer func() { installer.Finish(err) }()
+	return installer.Uninstrument(ctx)
 }
 
 func newAPMInjectorInstaller(path string) *apmInjectorInstaller {
 	a := &apmInjectorInstaller{
 		installPath: path,
+		envs:        env.FromEnv(),
 	}
 	a.ldPreloadFileInstrument = newFileMutator(ldSoPreloadPath, a.setLDPreloadConfigContent, nil, nil)
 	a.ldPreloadFileUninstrument = newFileMutator(ldSoPreloadPath, a.deleteLDPreloadConfigContent, nil, nil)
-	a.agentConfigSockets = newFileMutator(datadogConfigPath, a.setAgentConfigContent, nil, nil)
 	a.dockerConfigInstrument = newFileMutator(dockerDaemonPath, a.setDockerConfigContent, nil, nil)
 	a.dockerConfigUninstrument = newFileMutator(dockerDaemonPath, a.deleteDockerConfigContent, nil, nil)
 	return a
@@ -71,99 +85,140 @@ type apmInjectorInstaller struct {
 	installPath               string
 	ldPreloadFileInstrument   *fileMutator
 	ldPreloadFileUninstrument *fileMutator
-	agentConfigSockets        *fileMutator
 	dockerConfigInstrument    *fileMutator
 	dockerConfigUninstrument  *fileMutator
+	envs                      *env.Env
+
+	rollbacks []func() error
+	cleanups  []func()
+}
+
+// Finish cleans up the APM injector
+// Runs rollbacks if an error is passed and always runs cleanups
+func (a *apmInjectorInstaller) Finish(err error) {
+	if err != nil {
+		// Run rollbacks in reverse order
+		for i := len(a.rollbacks) - 1; i >= 0; i-- {
+			if rollbackErr := a.rollbacks[i](); rollbackErr != nil {
+				log.Warnf("rollback failed: %v", rollbackErr)
+			}
+		}
+	}
+
+	// Run cleanups in reverse order
+	for i := len(a.cleanups) - 1; i >= 0; i-- {
+		a.cleanups[i]()
+	}
 }
 
 // Setup sets up the APM injector
-func (a *apmInjectorInstaller) Setup(ctx context.Context) (err error) {
-	var rollbackAgentConfig, rollbackLDPreload, rollbackDockerConfig func() error
-	defer func() {
+func (a *apmInjectorInstaller) Setup(ctx context.Context) error {
+	var err error
+
+	// Set up defaults for agent sockets
+	if err := a.configureSocketsEnv(ctx); err != nil {
+		return err
+	}
+	if err := addSystemDEnvOverrides(ctx, agentUnit); err != nil {
+		return err
+	}
+	if err := addSystemDEnvOverrides(ctx, agentExp); err != nil {
+		return err
+	}
+	if err := addSystemDEnvOverrides(ctx, traceAgentUnit); err != nil {
+		return err
+	}
+	if err := addSystemDEnvOverrides(ctx, traceAgentExp); err != nil {
+		return err
+	}
+
+	// /var/log/datadog is created by default with datadog-installer install
+	err = os.Mkdir("/var/log/datadog/dotnet", 0777)
+	if err != nil && !os.IsExist(err) {
+		return fmt.Errorf("error creating /var/log/datadog/dotnet: %w", err)
+	}
+	// a umask 0022 is frequently set by default, so we need to change the permissions by hand
+	err = os.Chmod("/var/log/datadog/dotnet", 0777)
+	if err != nil {
+		return fmt.Errorf("error changing permissions on /var/log/datadog/dotnet: %w", err)
+	}
+
+	err = a.addInstrumentScripts(ctx)
+	if err != nil {
+		return fmt.Errorf("error adding install scripts: %w", err)
+	}
+
+	return a.Instrument(ctx)
+}
+
+func (a *apmInjectorInstaller) Remove(ctx context.Context) (err error) {
+	span, _ := tracer.StartSpanFromContext(ctx, "remove_injector")
+	defer func() { span.Finish(tracer.WithError(err)) }()
+
+	err = a.removeInstrumentScripts(ctx)
+	if err != nil {
+		return fmt.Errorf("error removing install scripts: %w", err)
+	}
+
+	return a.Uninstrument(ctx)
+}
+
+// Instrument instruments the APM injector
+func (a *apmInjectorInstaller) Instrument(ctx context.Context) (retErr error) {
+	// Check if the shared library is working before any instrumentation
+	if err := a.verifySharedLib(ctx, path.Join(a.installPath, "inject", "launcher.preload.so")); err != nil {
+		return err
+	}
+
+	if shouldInstrumentHost(a.envs) {
+		a.cleanups = append(a.cleanups, a.ldPreloadFileInstrument.cleanup)
+		rollbackLDPreload, err := a.ldPreloadFileInstrument.mutate(ctx)
 		if err != nil {
-			// todo propagate rollbacks until success of package installation
-			if rollbackLDPreload != nil {
-				if err := rollbackLDPreload(); err != nil {
-					log.Warnf("Failed to rollback ld preload: %v", err)
-				}
-			}
-			if rollbackAgentConfig != nil {
-				if err := rollbackAgentConfig(); err != nil {
-					log.Warnf("Failed to rollback agent config: %v", err)
-				}
-			}
-			if rollbackDockerConfig != nil {
-				if err := rollbackDockerConfig(); err != nil {
-					log.Warnf("Failed to rollback docker config: %v", err)
-				}
-			}
-		}
-	}()
-
-	rollbackAgentConfig, err = a.setupSockets(ctx)
-	if err != nil {
-		return err
-	}
-
-	rollbackLDPreload, err = a.ldPreloadFileInstrument.mutate()
-	if err != nil {
-		return err
-	}
-
-	// TODO only instrument docker if DD_APM_INSTRUMENTATION_ENABLED=docker
-	// is set
-	rollbackDockerConfig, err = a.setupDocker(ctx)
-	return err
-}
-
-func (a *apmInjectorInstaller) Remove(ctx context.Context) {
-	if _, err := a.ldPreloadFileUninstrument.mutate(); err != nil {
-		log.Warnf("Failed to remove ld preload config: %v", err)
-	}
-	// TODO docker only on DD_APM_INSTRUMENTATION_ENABLED=docker
-	if err := a.uninstallDocker(ctx); err != nil {
-		log.Warnf("Failed to remove docker config: %v", err)
-	}
-}
-
-// setupSockets sets up the sockets for the APM injector
-// TODO rework entirely for safe transition
-func (a *apmInjectorInstaller) setupSockets(ctx context.Context) (func() error, error) {
-
-	// don't install sockets if already in env variable
-	if os.Getenv("DD_APM_RECEIVER_SOCKET") != "" {
-		return nil, nil
-	}
-
-	// TODO: remove sockets from run
-	if err := a.setRunPermissions(); err != nil {
-		return nil, err
-	}
-	rollbackAgentConfig, err := a.agentConfigSockets.mutate()
-	if err != nil {
-		return nil, err
-	}
-	if err := restartTraceAgent(ctx); err != nil {
-		return nil, err
-	}
-	rollback := func() error {
-		if err := rollbackAgentConfig(); err != nil {
 			return err
 		}
-		if err := restartTraceAgent(ctx); err != nil {
+		a.rollbacks = append(a.rollbacks, rollbackLDPreload)
+	}
+
+	dockerIsInstalled := isDockerInstalled(ctx)
+	if mustInstrumentDocker(a.envs) && !dockerIsInstalled {
+		return fmt.Errorf("DD_APM_INSTRUMENTATION_ENABLED is set to docker but docker is not installed")
+	}
+	if shouldInstrumentDocker(a.envs) && dockerIsInstalled {
+		a.cleanups = append(a.cleanups, a.dockerConfigInstrument.cleanup)
+		rollbackDocker, err := a.instrumentDocker(ctx)
+		if err != nil {
 			return err
 		}
-		return nil
+		a.rollbacks = append(a.rollbacks, rollbackDocker)
+
+		// Verify that the docker runtime is as expected
+		if err := a.verifyDockerRuntime(ctx); err != nil {
+			return err
+		}
 	}
-	return rollback, nil
+
+	return nil
 }
 
-func (a *apmInjectorInstaller) setRunPermissions() error {
-	return os.Chmod(path.Join(a.installPath, "inject", "run"), 0777)
+// Uninstrument uninstruments the APM injector
+func (a *apmInjectorInstaller) Uninstrument(ctx context.Context) error {
+	errs := []error{}
+
+	if shouldInstrumentHost(a.envs) {
+		_, hostErr := a.ldPreloadFileUninstrument.mutate(ctx)
+		errs = append(errs, hostErr)
+	}
+
+	if shouldInstrumentDocker(a.envs) {
+		dockerErr := a.uninstrumentDocker(ctx)
+		errs = append(errs, dockerErr)
+	}
+
+	return multierr.Combine(errs...)
 }
 
 // setLDPreloadConfigContent sets the content of the LD preload configuration
-func (a *apmInjectorInstaller) setLDPreloadConfigContent(ldSoPreload []byte) ([]byte, error) {
+func (a *apmInjectorInstaller) setLDPreloadConfigContent(_ context.Context, ldSoPreload []byte) ([]byte, error) {
 	launcherPreloadPath := path.Join(a.installPath, "inject", "launcher.preload.so")
 
 	if strings.Contains(string(ldSoPreload), launcherPreloadPath) {
@@ -171,8 +226,8 @@ func (a *apmInjectorInstaller) setLDPreloadConfigContent(ldSoPreload []byte) ([]
 		return ldSoPreload, nil
 	}
 
-	if bytes.Contains(ldSoPreload, []byte(oldLDPath)) {
-		return bytes.ReplaceAll(ldSoPreload, []byte(oldLDPath), []byte(launcherPreloadPath)), nil
+	if bytes.Contains(ldSoPreload, []byte(oldLauncherPath)) {
+		return bytes.ReplaceAll(ldSoPreload, []byte(oldLauncherPath), []byte(launcherPreloadPath)), nil
 	}
 
 	var buf bytes.Buffer
@@ -187,7 +242,7 @@ func (a *apmInjectorInstaller) setLDPreloadConfigContent(ldSoPreload []byte) ([]
 }
 
 // deleteLDPreloadConfigContent deletes the content of the LD preload configuration
-func (a *apmInjectorInstaller) deleteLDPreloadConfigContent(ldSoPreload []byte) ([]byte, error) {
+func (a *apmInjectorInstaller) deleteLDPreloadConfigContent(_ context.Context, ldSoPreload []byte) ([]byte, error) {
 	launcherPreloadPath := path.Join(a.installPath, "inject", "launcher.preload.so")
 
 	if !strings.Contains(string(ldSoPreload), launcherPreloadPath) {
@@ -216,35 +271,147 @@ func (a *apmInjectorInstaller) deleteLDPreloadConfigContent(ldSoPreload []byte) 
 	return nil, fmt.Errorf("failed to remove %s from %s", launcherPreloadPath, ldSoPreloadPath)
 }
 
-// setAgentConfigContent adds the agent configuration for the APM injector if it is not there already
-// We assume that the agent file has been created by the installer's postinst script
-//
-// Note: This is not safe, as it assumes there were no changes to the agent configuration made without
-// restart by the user. This means that the agent can crash on restart. This is a limitation of the current
-// installer system and this will be replaced by a proper experiment when available. This is a temporary
-// solution to allow the APM injector to be installed, and if the agent crashes, we try to detect it and
-// restore the previous configuration
-func (a *apmInjectorInstaller) setAgentConfigContent(content []byte) ([]byte, error) {
-	runPath := path.Join(a.installPath, "inject", "run")
-	apmSocketPath := path.Join(runPath, "apm.socket")
-	dsdSocketPath := path.Join(runPath, "dsd.socket")
-
-	if !bytes.Contains(content, injectorConfigPrefix) {
-		content = append(content, []byte("\n")...)
-		content = append(content, injectorConfigPrefix...)
-		content = append(content, []byte(
-			fmt.Sprintf(injectorConfigTemplate, apmSocketPath, dsdSocketPath),
-		)...)
-		content = append(content, injectorConfigSuffix...)
-		content = append(content, []byte("\n")...)
+func (a *apmInjectorInstaller) verifySharedLib(ctx context.Context, libPath string) (err error) {
+	span, _ := tracer.StartSpanFromContext(ctx, "verify_shared_lib")
+	defer func() { span.Finish(tracer.WithError(err)) }()
+	echoPath, err := exec.LookPath("echo")
+	if err != nil {
+		return fmt.Errorf("failed to find echo: %w", err)
 	}
-	return content, nil
-}
-
-// restartTraceAgent restarts the stable trace agent
-func restartTraceAgent(ctx context.Context) error {
-	if err := restartUnit(ctx, "datadog-agent-trace.service"); err != nil {
-		return err
+	cmd := exec.Command(echoPath, "1")
+	cmd.Env = append(os.Environ(), "LD_PRELOAD="+libPath)
+	var buf bytes.Buffer
+	cmd.Stderr = &buf
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("failed to verify injected lib %s (%w): %s", libPath, err, buf.String())
 	}
 	return nil
+}
+
+// addInstrumentScripts writes the instrument scripts that come with the APM injector
+// and override the previous instrument scripts if they exist
+// These scripts are either:
+// - Referenced in our public documentation, so we override them to use installer commands for consistency
+// - Used on deb/rpm removal and may break the OCI in the process
+func (a *apmInjectorInstaller) addInstrumentScripts(ctx context.Context) (err error) {
+	span, _ := tracer.StartSpanFromContext(ctx, "add_instrument_scripts")
+	defer func() { span.Finish(tracer.WithError(err)) }()
+
+	hostMutator := newFileMutator(
+		"/usr/bin/dd-host-install",
+		func(_ context.Context, _ []byte) ([]byte, error) {
+			return embedded.FS.ReadFile("dd-host-install")
+		},
+		nil, nil,
+	)
+	a.cleanups = append(a.cleanups, hostMutator.cleanup)
+	rollbackHost, err := hostMutator.mutate(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to override dd-host-install: %w", err)
+	}
+	a.rollbacks = append(a.rollbacks, rollbackHost)
+	err = os.Chmod("/usr/bin/dd-host-install", 0755)
+	if err != nil {
+		return fmt.Errorf("failed to change permissions of dd-host-install: %w", err)
+	}
+
+	containerMutator := newFileMutator(
+		"/usr/bin/dd-container-install",
+		func(_ context.Context, _ []byte) ([]byte, error) {
+			return embedded.FS.ReadFile("dd-container-install")
+		},
+		nil, nil,
+	)
+	a.cleanups = append(a.cleanups, containerMutator.cleanup)
+	rollbackContainer, err := containerMutator.mutate(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to override dd-host-install: %w", err)
+	}
+	a.rollbacks = append(a.rollbacks, rollbackContainer)
+	err = os.Chmod("/usr/bin/dd-container-install", 0755)
+	if err != nil {
+		return fmt.Errorf("failed to change permissions of dd-container-install: %w", err)
+	}
+
+	// Only override dd-cleanup if it exists
+	_, err = os.Stat("/usr/bin/dd-cleanup")
+	if err == nil {
+		cleanupMutator := newFileMutator(
+			"/usr/bin/dd-cleanup",
+			func(_ context.Context, _ []byte) ([]byte, error) {
+				return embedded.FS.ReadFile("dd-cleanup")
+			},
+			nil, nil,
+		)
+		a.cleanups = append(a.cleanups, cleanupMutator.cleanup)
+		rollbackCleanup, err := cleanupMutator.mutate(ctx)
+		if err != nil {
+			return fmt.Errorf("failed to override dd-cleanup: %w", err)
+		}
+		a.rollbacks = append(a.rollbacks, rollbackCleanup)
+		err = os.Chmod("/usr/bin/dd-cleanup", 0755)
+		if err != nil {
+			return fmt.Errorf("failed to change permissions of dd-cleanup: %w", err)
+		}
+	} else if err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("failed to check if dd-cleanup exists on disk: %w", err)
+	}
+	return nil
+}
+
+// removeInstrumentScripts removes the install scripts that come with the APM injector
+// if and only if they've been installed by the installer and not modified
+func (a *apmInjectorInstaller) removeInstrumentScripts(ctx context.Context) (retErr error) {
+	span, _ := tracer.StartSpanFromContext(ctx, "remove_instrument_scripts")
+	defer func() { span.Finish(tracer.WithError(retErr)) }()
+
+	for _, script := range []string{"dd-host-install", "dd-container-install", "dd-cleanup"} {
+		path := filepath.Join("/usr/bin", script)
+		_, err := os.Stat(path)
+		if err == nil {
+			content, err := os.ReadFile(path)
+			if err != nil {
+				return fmt.Errorf("failed to read %s: %w", path, err)
+			}
+			embeddedContent, err := embedded.FS.ReadFile(script)
+			if err != nil {
+				return fmt.Errorf("failed to read embedded %s: %w", script, err)
+			}
+			if bytes.Equal(content, embeddedContent) {
+				err = os.Remove(path)
+				if err != nil {
+					return fmt.Errorf("failed to remove %s: %w", path, err)
+				}
+			}
+		}
+	}
+	return nil
+}
+
+func shouldInstrumentHost(execEnvs *env.Env) bool {
+	switch execEnvs.InstallScript.APMInstrumentationEnabled {
+	case env.APMInstrumentationEnabledHost, env.APMInstrumentationEnabledAll, env.APMInstrumentationNotSet:
+		return true
+	case env.APMInstrumentationEnabledDocker:
+		return false
+	default:
+		log.Warnf("Unknown value for DD_APM_INSTRUMENTATION_ENABLED: %s. Supported values are all/docker/host", execEnvs.InstallScript.APMInstrumentationEnabled)
+		return false
+	}
+}
+
+func shouldInstrumentDocker(execEnvs *env.Env) bool {
+	switch execEnvs.InstallScript.APMInstrumentationEnabled {
+	case env.APMInstrumentationEnabledDocker, env.APMInstrumentationEnabledAll, env.APMInstrumentationNotSet:
+		return true
+	case env.APMInstrumentationEnabledHost:
+		return false
+	default:
+		log.Warnf("Unknown value for DD_APM_INSTRUMENTATION_ENABLED: %s. Supported values are all/docker/host", execEnvs.InstallScript.APMInstrumentationEnabled)
+		return false
+	}
+}
+
+func mustInstrumentDocker(execEnvs *env.Env) bool {
+	return execEnvs.InstallScript.APMInstrumentationEnabled == env.APMInstrumentationEnabledDocker
 }

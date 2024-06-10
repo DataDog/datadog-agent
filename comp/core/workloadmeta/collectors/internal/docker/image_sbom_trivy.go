@@ -14,7 +14,7 @@ import (
 
 	"github.com/CycloneDX/cyclonedx-go"
 
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/sbom/collectors"
 	"github.com/DataDog/datadog-agent/pkg/sbom/collectors/docker"
@@ -24,11 +24,11 @@ import (
 )
 
 func imageMetadataCollectionIsEnabled() bool {
-	return config.Datadog.GetBool("container_image.enabled")
+	return config.Datadog().GetBool("container_image.enabled")
 }
 
 func sbomCollectionIsEnabled() bool {
-	return imageMetadataCollectionIsEnabled() && config.Datadog.GetBool("sbom.container_image.enabled")
+	return imageMetadataCollectionIsEnabled() && config.Datadog().GetBool("sbom.container_image.enabled")
 }
 
 func (c *collector) startSBOMCollection(ctx context.Context) error {

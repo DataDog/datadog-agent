@@ -205,3 +205,17 @@ func TestDeleteExperimentWithLockedPackage(t *testing.T) {
 	assert.NoFileExists(t, path.Join(repository.locksPath, "v2", "-1"))
 	assert.FileExists(t, path.Join(repository.locksPath, "v2", fmt.Sprint(os.Getpid())))
 }
+
+func TestLoadRepositories(t *testing.T) {
+	rootDir := t.TempDir()
+	runDir := t.TempDir()
+
+	os.Mkdir(path.Join(rootDir, "datadog-agent"), 0755)
+	os.Mkdir(path.Join(rootDir, "tmp-install-stable-datadog-agent"), 0755)
+
+	repositories, err := NewRepositories(rootDir, runDir).loadRepositories()
+	assert.NoError(t, err)
+	assert.Len(t, repositories, 1)
+	assert.Contains(t, repositories, "datadog-agent")
+	assert.NotContains(t, repositories, "tmp-install-stable-datadog-agent")
+}

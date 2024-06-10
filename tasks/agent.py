@@ -21,7 +21,8 @@ from tasks.go import deps
 from tasks.libs.common.utils import (
     REPO_PATH,
     bin_name,
-    cache_version,
+    collapsed_section,
+    create_version_json,
     get_build_flags,
     get_embedded_path,
     get_goenv,
@@ -74,10 +75,12 @@ AGENT_CORECHECKS = [
     "orchestrator_pod",
     "orchestrator_ecs",
     "cisco_sdwan",
+    "service_discovery",
 ]
 
 WINDOWS_CORECHECKS = [
     "agentcrashdetect",
+    "sbom",
     "windows_registry",
     "winkmem",
     "wincrashdetect",
@@ -121,7 +124,6 @@ def build(
     python_home_3=None,
     major_version='7',
     python_runtimes='3',
-    arch='x64',
     exclude_rtloader=False,
     include_sds=False,
     go_mod="mod",
@@ -144,8 +146,11 @@ def build(
     if not exclude_rtloader and not flavor.is_iot():
         # If embedded_path is set, we should give it to rtloader as it should install the headers/libs
         # in the embedded path folder because that's what is used in get_build_flags()
-        rtloader_make(ctx, python_runtimes=python_runtimes, install_prefix=embedded_path, cmake_options=cmake_options)
-        rtloader_install(ctx)
+        with collapsed_section("Install embedded rtloader"):
+            rtloader_make(
+                ctx, python_runtimes=python_runtimes, install_prefix=embedded_path, cmake_options=cmake_options
+            )
+            rtloader_install(ctx)
 
     ldflags, gcflags, env = get_build_flags(
         ctx,
@@ -163,15 +168,11 @@ def build(
         # Important for x-compiling
         env["CGO_ENABLED"] = "1"
 
-        if arch == "x86":
-            env["GOARCH"] = "386"
-
-        build_messagetable(ctx, arch=arch)
-        vars = versioninfo_vars(ctx, major_version=major_version, python_runtimes=python_runtimes, arch=arch)
+        build_messagetable(ctx)
+        vars = versioninfo_vars(ctx, major_version=major_version, python_runtimes=python_runtimes)
         build_rc(
             ctx,
             "cmd/agent/windows_resources/agent.rc",
-            arch=arch,
             vars=vars,
             out="cmd/agent/rsrc.syso",
         )
@@ -180,7 +181,7 @@ def build(
 
     if flavor.is_iot():
         # Iot mode overrides whatever passed through `--build-exclude` and `--build-include`
-        build_tags = get_default_build_tags(build="agent", arch=arch, flavor=flavor)
+        build_tags = get_default_build_tags(build="agent", flavor=flavor)
     else:
         all_tags = set()
         if bundle_ebpf and "system-probe" in bundled_agents:
@@ -189,9 +190,9 @@ def build(
         for build in bundled_agents:
             all_tags.add("bundle_" + build.replace("-", "_"))
             include_tags = (
-                get_default_build_tags(build=build, arch=arch, flavor=flavor)
+                get_default_build_tags(build=build, flavor=flavor)
                 if build_include is None
-                else filter_incompatible_tags(build_include.split(","), arch=arch)
+                else filter_incompatible_tags(build_include.split(","))
             )
 
             exclude_tags = [] if build_exclude is None else build_exclude.split(",")
@@ -220,7 +221,8 @@ def build(
         "REPO_PATH": REPO_PATH,
         "flavor": "iot-agent" if flavor.is_iot() else "agent",
     }
-    ctx.run(cmd.format(**args), env=env)
+    with collapsed_section("Build agent"):
+        ctx.run(cmd.format(**args), env=env)
 
     if embedded_path is None:
         embedded_path = get_embedded_path(ctx)
@@ -238,16 +240,17 @@ def build(
 
         create_launcher(ctx, build, agent_fullpath, bundled_agent_bin)
 
-    render_config(
-        ctx,
-        env=env,
-        flavor=flavor,
-        python_runtimes=python_runtimes,
-        skip_assets=skip_assets,
-        build_tags=build_tags,
-        development=development,
-        windows_sysprobe=windows_sysprobe,
-    )
+    with collapsed_section("Generate configuration files"):
+        render_config(
+            ctx,
+            env=env,
+            flavor=flavor,
+            python_runtimes=python_runtimes,
+            skip_assets=skip_assets,
+            build_tags=build_tags,
+            development=development,
+            windows_sysprobe=windows_sysprobe,
+        )
 
 
 def create_launcher(ctx, agent, src, dst):
@@ -545,7 +548,7 @@ ENV DD_SSLKEYLOGFILE=/tmp/sslkeylog.txt
 
 
 @task
-def integration_tests(ctx, install_deps=False, race=False, remote_docker=False, go_mod="mod", arch="x64"):
+def integration_tests(ctx, install_deps=False, race=False, remote_docker=False, go_mod="mod"):
     """
     Run integration tests for the Agent
     """
@@ -553,16 +556,16 @@ def integration_tests(ctx, install_deps=False, race=False, remote_docker=False, 
         deps(ctx)
 
     if sys.platform == 'win32':
-        return _windows_integration_tests(ctx, race=race, go_mod=go_mod, arch=arch)
+        return _windows_integration_tests(ctx, race=race, go_mod=go_mod)
     else:
         # TODO: See if these will function on Windows
-        return _linux_integration_tests(ctx, race=race, remote_docker=remote_docker, go_mod=go_mod, arch=arch)
+        return _linux_integration_tests(ctx, race=race, remote_docker=remote_docker, go_mod=go_mod)
 
 
-def _windows_integration_tests(ctx, race=False, go_mod="mod", arch="x64"):
+def _windows_integration_tests(ctx, race=False, go_mod="mod"):
     test_args = {
         "go_mod": go_mod,
-        "go_build_tags": " ".join(get_default_build_tags(build="test", arch=arch)),
+        "go_build_tags": " ".join(get_default_build_tags(build="test")),
         "race_opt": "-race" if race else "",
         "exec_opts": "",
     }
@@ -596,10 +599,10 @@ def _windows_integration_tests(ctx, race=False, go_mod="mod", arch="x64"):
             ctx.run(f"{go_cmd} {test['prefix']} {test['extra_args']}")
 
 
-def _linux_integration_tests(ctx, race=False, remote_docker=False, go_mod="mod", arch="x64"):
+def _linux_integration_tests(ctx, race=False, remote_docker=False, go_mod="mod"):
     test_args = {
         "go_mod": go_mod,
-        "go_build_tags": " ".join(get_default_build_tags(build="test", arch=arch)),
+        "go_build_tags": " ".join(get_default_build_tags(build="test")),
         "race_opt": "-race" if race else "",
         "exec_opts": "",
     }
@@ -734,10 +737,11 @@ def version(
     omnibus_format=False,
     git_sha_length=7,
     major_version='7',
-    version_cached=False,
+    cache_version=False,
     pipeline_id=None,
     include_git=True,
     include_pre=True,
+    release=False,
 ):
     """
     Get the agent version.
@@ -750,8 +754,8 @@ def version(
     version_cached: save the version inside a "agent-version.cache" that will be reused
                     by each next call of version.
     """
-    if version_cached:
-        cache_version(ctx, git_sha_length=git_sha_length)
+    if cache_version:
+        create_version_json(ctx, git_sha_length=git_sha_length)
 
     version = get_version(
         ctx,
@@ -762,6 +766,7 @@ def version(
         include_pipeline_id=True,
         pipeline_id=pipeline_id,
         include_pre=include_pre,
+        release=release,
     )
     if omnibus_format:
         # See: https://github.com/DataDog/omnibus-ruby/blob/datadog-5.5.0/lib/omnibus/packagers/deb.rb#L599

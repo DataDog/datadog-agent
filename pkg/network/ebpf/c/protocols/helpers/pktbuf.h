@@ -17,6 +17,7 @@ struct pktbuf {
             skb_info_t *skb_info;
         };
         struct {
+            struct pt_regs *ctx;
             tls_dispatcher_arguments_t *tls;
         };
     };
@@ -27,11 +28,39 @@ typedef const struct pktbuf pktbuf_t;
 // Never defined, intended to catch some implementation/usage errors at build-time.
 extern void pktbuf_invalid_operation(void);
 
+static __always_inline __maybe_unused void pktbuf_set_offset(pktbuf_t pkt, u32 offset)
+{
+    switch (pkt.type) {
+    case PKTBUF_SKB:
+        pkt.skb_info->data_off = offset;
+        return;
+    case PKTBUF_TLS:
+        pkt.tls->data_off = offset;
+        return;
+    }
+
+    pktbuf_invalid_operation();
+}
+
+static __always_inline __maybe_unused void pktbuf_advance(pktbuf_t pkt, u32 offset)
+{
+    switch (pkt.type) {
+    case PKTBUF_SKB:
+        pkt.skb_info->data_off += offset;
+        return;
+    case PKTBUF_TLS:
+        pkt.tls->data_off += offset;
+        return;
+    }
+
+    pktbuf_invalid_operation();
+}
+
 static __always_inline __maybe_unused u32 pktbuf_data_offset(pktbuf_t pkt)
 {
     switch (pkt.type) {
     case PKTBUF_SKB:
-        return pkt.skb_info ? pkt.skb_info->data_off : 0;
+        return pkt.skb_info->data_off;
     case PKTBUF_TLS:
         return pkt.tls->data_off;
     }
@@ -44,7 +73,7 @@ static __always_inline __maybe_unused u32 pktbuf_data_end(pktbuf_t pkt)
 {
     switch (pkt.type) {
     case PKTBUF_SKB:
-        return pkt.skb_info ? pkt.skb_info->data_end : pkt.skb->len;
+        return pkt.skb_info->data_end;
     case PKTBUF_TLS:
         return pkt.tls->data_end;
     }
@@ -66,6 +95,11 @@ static __always_inline long pktbuf_load_bytes_with_telemetry(pktbuf_t pkt, u32 o
     return 0;
 }
 
+static __always_inline __maybe_unused long pktbuf_load_bytes_with_telemetry_from_current_offset(pktbuf_t pkt, void *to, u32 len)
+{
+    return pktbuf_load_bytes_with_telemetry(pkt, pktbuf_data_offset(pkt), to, len);
+}
+
 static __always_inline __maybe_unused long pktbuf_load_bytes(pktbuf_t pkt, u32 offset, void *to, u32 len)
 {
     switch (pkt.type) {
@@ -79,6 +113,58 @@ static __always_inline __maybe_unused long pktbuf_load_bytes(pktbuf_t pkt, u32 o
     return 0;
 }
 
+static __always_inline __maybe_unused long pktbuf_load_bytes_from_current_offset(pktbuf_t pkt, void *to, u32 len)
+{
+    return pktbuf_load_bytes(pkt, pktbuf_data_offset(pkt), to, len);
+}
+
+typedef struct {
+    void *prog_array_map;
+    __u32 index;
+} pktbuf_tail_call_option_t;
+
+static __always_inline __maybe_unused long pktbuf_tail_call_compact(pktbuf_t pkt, pktbuf_tail_call_option_t *options)
+{
+    switch (pkt.type) {
+    case PKTBUF_SKB:
+        return bpf_tail_call_compat(pkt.skb, options[PKTBUF_SKB].prog_array_map, options[PKTBUF_SKB].index);
+    case PKTBUF_TLS:
+        return bpf_tail_call_compat(pkt.ctx, options[PKTBUF_TLS].prog_array_map, options[PKTBUF_TLS].index);
+    }
+
+    pktbuf_invalid_operation();
+    return 0;
+}
+
+typedef struct {
+    void *map;
+    void *key;
+} pktbuf_map_lookup_option_t;
+
+static __always_inline __maybe_unused void* pktbuf_map_lookup(pktbuf_t pkt, pktbuf_map_lookup_option_t *options)
+{
+    return bpf_map_lookup_elem(options[pkt.type].map, options[pkt.type].key);
+}
+
+typedef struct {
+    void *map;
+    const void *key;
+    const void *value;
+    __u64 flags;
+} pktbuf_map_update_option_t;
+
+static __always_inline __maybe_unused long pktbuf_map_update(pktbuf_t pkt, pktbuf_map_update_option_t *options)
+{
+    return bpf_map_update_elem(options[pkt.type].map, options[pkt.type].key, options[pkt.type].value, options[pkt.type].flags);
+}
+
+typedef pktbuf_map_lookup_option_t pktbuf_map_delete_option_t;
+
+static __always_inline __maybe_unused long pktbuf_map_delete(pktbuf_t pkt, pktbuf_map_delete_option_t *options)
+{
+    return bpf_map_delete_elem(options[pkt.type].map, options[pkt.type].key);
+}
+
 static __always_inline pktbuf_t pktbuf_from_skb(struct __sk_buff* skb, skb_info_t *skb_info)
 {
     return (pktbuf_t) {
@@ -88,11 +174,12 @@ static __always_inline pktbuf_t pktbuf_from_skb(struct __sk_buff* skb, skb_info_
     };
 }
 
-static __always_inline __maybe_unused pktbuf_t pktbuf_from_tls(tls_dispatcher_arguments_t *tls)
+static __always_inline __maybe_unused pktbuf_t pktbuf_from_tls(struct pt_regs *ctx, tls_dispatcher_arguments_t *tls)
 {
     return (pktbuf_t) {
         .type = PKTBUF_TLS,
         .tls = tls,
+        .ctx = ctx,
     };
 }
 
@@ -121,7 +208,7 @@ PKTBUF_READ_BIG_ENDIAN(s8)
             read_into_buffer_##name(buffer, pkt.skb, offset);                                            \
             return;                                                                                      \
         case PKTBUF_TLS:                                                                                 \
-            read_into_user_buffer_##name(buffer, pkt.tls->buffer_ptr + pkt.tls->data_off + offset);      \
+            read_into_user_buffer_##name(buffer, pkt.tls->buffer_ptr + offset);                          \
             return;                                                                                      \
         }                                                                                                \
         pktbuf_invalid_operation();                                                                      \

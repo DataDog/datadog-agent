@@ -45,6 +45,7 @@ type checkCfg struct {
 	SendNDMMetadata           *bool  `yaml:"send_ndm_metadata"`
 	MinCollectionInterval     int    `yaml:"min_collection_interval"`
 	CollectBFDSessionStatus   bool   `yaml:"collect_bfd_session_status"`
+	CollectHardwareStatus     bool   `yaml:"collect_hardware_status"`
 }
 
 // CiscoSdwanCheck contains the field for the CiscoSdwanCheck
@@ -137,6 +138,14 @@ func (c *CiscoSdwanCheck) Run() error {
 		c.metricsSender.SendBFDSessionMetrics(bfdSessionsState)
 	}
 
+	if c.config.CollectHardwareStatus {
+		hardwareStates, err := client.GetHardwareStates()
+		if err != nil {
+			log.Warnf("Error getting hardware states from Cisco SD-WAN API: %s", err)
+		}
+		c.metricsSender.SendHardwareMetrics(hardwareStates)
+	}
+
 	// Commit
 	c.metricsSender.Commit()
 
@@ -148,7 +157,7 @@ func (c *CiscoSdwanCheck) Configure(senderManager sender.SenderManager, integrat
 	// Must be called before c.CommonConfigure
 	c.BuildID(integrationConfigDigest, rawInstance, rawInitConfig)
 
-	err := c.CommonConfigure(senderManager, integrationConfigDigest, rawInitConfig, rawInstance, source)
+	err := c.CommonConfigure(senderManager, rawInitConfig, rawInstance, source)
 	if err != nil {
 		return err
 	}

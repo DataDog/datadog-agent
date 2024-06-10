@@ -66,12 +66,12 @@ func NewHandler(ac pluggableAutoConfig) (*Handler, error) {
 	h := &Handler{
 		autoconfig:       ac,
 		leaderStatusFreq: 5 * time.Second,
-		warmupDuration:   config.Datadog.GetDuration("cluster_checks.warmup_duration") * time.Second,
+		warmupDuration:   config.Datadog().GetDuration("cluster_checks.warmup_duration") * time.Second,
 		leadershipChan:   make(chan state, 1),
 		dispatcher:       newDispatcher(),
 	}
 
-	if config.Datadog.GetBool("leader_election") {
+	if config.Datadog().GetBool("leader_election") {
 		h.leaderForwarder = api.GetGlobalLeaderForwarder()
 		callback, err := getLeaderIPCallback()
 		if err != nil {

@@ -20,6 +20,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+const (
+	chanSize = 100
+)
+
 // ProcessConsumer is part of the event monitoring module of the system-probe. It receives
 // events, batches them in the messages channel and serves the messages to the process-agent
 // over GRPC when requested
@@ -43,17 +47,20 @@ func NewProcessConsumer(evm *eventmonitor.EventMonitor) (*ProcessConsumer, error
 
 	api.RegisterEventMonitoringModuleServer(evm.GRPCServer, p)
 
-	if err := evm.AddEventTypeHandler(smodel.ForkEventType, p); err != nil {
-		return nil, err
-	}
-	if err := evm.AddEventTypeHandler(smodel.ExecEventType, p); err != nil {
-		return nil, err
-	}
-	if err := evm.AddEventTypeHandler(smodel.ExitEventType, p); err != nil {
+	if err := evm.AddEventConsumer(p); err != nil {
 		return nil, err
 	}
 
 	return p, nil
+}
+
+// EventTypes returns the event types handled by this consumer
+func (p *ProcessConsumer) EventTypes() []smodel.EventType {
+	return []smodel.EventType{
+		smodel.ForkEventType,
+		smodel.ExecEventType,
+		smodel.ExitEventType,
+	}
 }
 
 //nolint:revive // TODO(PROC) Fix revive linter
@@ -67,7 +74,7 @@ func (p *ProcessConsumer) Stop() {
 
 // ID returns id for process monitor
 func (p *ProcessConsumer) ID() string {
-	return "PROCESS"
+	return "process"
 }
 
 //nolint:revive // TODO(PROC) Fix revive linter
@@ -79,10 +86,28 @@ func (p *ProcessConsumer) SendStats() {
 	}
 }
 
+// ChanSize returns the chan size used by this consumer
+func (p *ProcessConsumer) ChanSize() int {
+	return chanSize
+}
+
 // HandleEvent implement the event monitor EventHandler interface
 func (p *ProcessConsumer) HandleEvent(event any) {
 	e, ok := event.(*model.ProcessEvent)
 	if !ok {
+		log.Errorf("Event is not a Process Lifecycle Event")
+		return
+	}
+
+	// transcode event type
+	switch e.EMEventType {
+	case uint32(smodel.ExecEventType):
+		e.EventType = model.Exec
+	case uint32(smodel.ExitEventType):
+		e.EventType = model.Exit
+	case uint32(smodel.ForkEventType):
+		e.EventType = model.Fork
+	default:
 		log.Errorf("Event is not a Process Lifecycle Event")
 		return
 	}

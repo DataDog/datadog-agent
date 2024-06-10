@@ -12,13 +12,15 @@ import (
 	"context"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/logs/message"
-
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/confmap"
+	"go.opentelemetry.io/collector/otelcol"
 
+	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
+	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/internal/configutils"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/testutil"
+	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 )
 
@@ -550,7 +552,7 @@ func TestNewMap(t *testing.T) {
 					"logsagent": interface{}(nil),
 				},
 				"processors": map[string]interface{}{
-					"tagenrichment": interface{}(nil),
+					"infraattributes": interface{}(nil),
 					"batch": map[string]interface{}{
 						"timeout": "10s",
 					},
@@ -564,7 +566,7 @@ func TestNewMap(t *testing.T) {
 						},
 						"logs": map[string]interface{}{
 							"receivers":  []interface{}{"otlp"},
-							"processors": []interface{}{"tagenrichment", "batch"},
+							"processors": []interface{}{"infraattributes", "batch"},
 							"exporters":  []interface{}{"logsagent"},
 						},
 					},
@@ -604,7 +606,7 @@ func TestNewMap(t *testing.T) {
 					},
 				},
 				"processors": map[string]interface{}{
-					"tagenrichment": interface{}(nil),
+					"infraattributes": interface{}(nil),
 					"batch": map[string]interface{}{
 						"timeout": "10s",
 					},
@@ -648,7 +650,7 @@ func TestNewMap(t *testing.T) {
 						},
 						"logs": map[string]interface{}{
 							"receivers":  []interface{}{"otlp"},
-							"processors": []interface{}{"tagenrichment", "batch"},
+							"processors": []interface{}{"infraattributes", "batch"},
 							"exporters":  []interface{}{"logsagent"},
 						},
 					},
@@ -688,7 +690,7 @@ func TestNewMap(t *testing.T) {
 					},
 				},
 				"processors": map[string]interface{}{
-					"tagenrichment": interface{}(nil),
+					"infraattributes": interface{}(nil),
 					"batch": map[string]interface{}{
 						"timeout": "10s",
 					},
@@ -732,7 +734,7 @@ func TestNewMap(t *testing.T) {
 						},
 						"logs": map[string]interface{}{
 							"receivers":  []interface{}{"otlp"},
-							"processors": []interface{}{"tagenrichment", "batch"},
+							"processors": []interface{}{"infraattributes", "batch"},
 							"exporters":  []interface{}{"logsagent"},
 						},
 					},
@@ -764,7 +766,7 @@ func TestNewMap(t *testing.T) {
 					},
 				},
 				"processors": map[string]interface{}{
-					"tagenrichment": interface{}(nil),
+					"infraattributes": interface{}(nil),
 					"batch": map[string]interface{}{
 						"timeout": "10s",
 					},
@@ -791,7 +793,7 @@ func TestNewMap(t *testing.T) {
 						},
 						"logs": map[string]interface{}{
 							"receivers":  []interface{}{"otlp"},
-							"processors": []interface{}{"tagenrichment", "batch"},
+							"processors": []interface{}{"infraattributes", "batch"},
 							"exporters":  []interface{}{"logsagent"},
 						},
 					},
@@ -830,7 +832,7 @@ func TestNewMap(t *testing.T) {
 					},
 				},
 				"processors": map[string]interface{}{
-					"tagenrichment": interface{}(nil),
+					"infraattributes": interface{}(nil),
 					"batch": map[string]interface{}{
 						"timeout": "10s",
 					},
@@ -860,7 +862,7 @@ func TestNewMap(t *testing.T) {
 						},
 						"logs": map[string]interface{}{
 							"receivers":  []interface{}{"otlp"},
-							"processors": []interface{}{"tagenrichment", "batch"},
+							"processors": []interface{}{"infraattributes", "batch"},
 							"exporters":  []interface{}{"logsagent"},
 						},
 					},
@@ -889,7 +891,7 @@ func TestNewMap(t *testing.T) {
 					},
 				},
 				"processors": map[string]interface{}{
-					"tagenrichment": interface{}(nil),
+					"infraattributes": interface{}(nil),
 					"batch": map[string]interface{}{
 						"timeout": "10s",
 					},
@@ -919,7 +921,7 @@ func TestNewMap(t *testing.T) {
 						},
 						"logs": map[string]interface{}{
 							"receivers":  []interface{}{"otlp"},
-							"processors": []interface{}{"tagenrichment", "batch"},
+							"processors": []interface{}{"infraattributes", "batch"},
 							"exporters":  []interface{}{"logsagent", "logging"},
 						},
 					},
@@ -957,7 +959,7 @@ func TestNewMap(t *testing.T) {
 					},
 				},
 				"processors": map[string]interface{}{
-					"tagenrichment": interface{}(nil),
+					"infraattributes": interface{}(nil),
 					"batch": map[string]interface{}{
 						"timeout": "10s",
 					},
@@ -989,7 +991,7 @@ func TestNewMap(t *testing.T) {
 						},
 						"logs": map[string]interface{}{
 							"receivers":  []interface{}{"otlp"},
-							"processors": []interface{}{"tagenrichment", "batch"},
+							"processors": []interface{}{"infraattributes", "batch"},
 							"exporters":  []interface{}{"logsagent", "logging"},
 						},
 					},
@@ -1028,7 +1030,7 @@ func TestNewMap(t *testing.T) {
 					},
 				},
 				"processors": map[string]interface{}{
-					"tagenrichment": interface{}(nil),
+					"infraattributes": interface{}(nil),
 					"batch": map[string]interface{}{
 						"timeout": "10s",
 					},
@@ -1074,7 +1076,7 @@ func TestNewMap(t *testing.T) {
 						},
 						"logs": map[string]interface{}{
 							"receivers":  []interface{}{"otlp"},
-							"processors": []interface{}{"tagenrichment", "batch"},
+							"processors": []interface{}{"infraattributes", "batch"},
 							"exporters":  []interface{}{"logsagent", "logging"},
 						},
 					},
@@ -1094,7 +1096,7 @@ func TestNewMap(t *testing.T) {
 }
 
 func TestUnmarshal(t *testing.T) {
-	provider, err := newMapProvider(PipelineConfig{
+	pcfg := PipelineConfig{
 		OTLPReceiverConfig: testutil.OTLPConfigFromPorts("localhost", 4317, 4318),
 		TracePort:          5001,
 		MetricsEnabled:     true,
@@ -1110,9 +1112,24 @@ func TestUnmarshal(t *testing.T) {
 				"send_count_sum_metrics": true,
 			},
 		},
-	})
+	}
+	cfgMap, err := buildMap(pcfg)
 	require.NoError(t, err)
-	components, err := getComponents(&serializer.MockSerializer{}, make(chan *message.Message))
+
+	mapSettings := otelcol.ConfigProviderSettings{
+		ResolverSettings: confmap.ResolverSettings{
+			URIs: []string{"map:hardcoded"},
+			ProviderFactories: []confmap.ProviderFactory{
+				configutils.NewProviderFactory(cfgMap),
+			},
+		},
+	}
+
+	provider, err := otelcol.NewConfigProvider(mapSettings)
+	require.NoError(t, err)
+	fakeTagger := taggerimpl.SetupFakeTagger(t)
+	defer fakeTagger.ResetTagger()
+	components, err := getComponents(&serializer.MockSerializer{}, make(chan *message.Message), fakeTagger)
 	require.NoError(t, err)
 
 	_, err = provider.Get(context.Background(), components)

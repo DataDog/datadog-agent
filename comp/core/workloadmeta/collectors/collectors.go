@@ -23,7 +23,9 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/kubemetadata"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/podman"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/remote/processcollector"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/remote/workloadmeta"
+	remoteworkloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/remote/workloadmeta"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 )
 
 // GetCatalog returns the set of FX options to populate the catalog
@@ -39,7 +41,8 @@ func GetCatalog() fx.Option {
 		kubelet.GetFxOptions(),
 		kubemetadata.GetFxOptions(),
 		podman.GetFxOptions(),
-		workloadmeta.GetFxOptions(),
+		remoteworkloadmeta.GetFxOptions(),
+		remoteWorkloadmetaParams(),
 		processcollector.GetFxOptions(),
 		host.GetFxOptions(),
 	}
@@ -52,4 +55,25 @@ func GetCatalog() fx.Option {
 		}
 	}
 	return fx.Options(opts...)
+}
+
+func remoteWorkloadmetaParams() fx.Option {
+	var filter *workloadmeta.Filter // Nil filter accepts everything
+
+	// Security Agent is only interested in containers
+	if flavor.GetFlavor() == flavor.SecurityAgent {
+		filter = workloadmeta.NewFilter(
+			&workloadmeta.FilterParams{
+				Kinds:     []workloadmeta.Kind{workloadmeta.KindContainer},
+				Source:    workloadmeta.SourceAll,
+				EventType: workloadmeta.EventTypeAll,
+			},
+		)
+	}
+
+	return fx.Provide(func() remoteworkloadmeta.Params {
+		return remoteworkloadmeta.Params{
+			Filter: filter,
+		}
+	})
 }

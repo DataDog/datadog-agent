@@ -100,6 +100,21 @@ github.com/jcmturner/*: Copyright 2016, Jonathan Turner <jt@jtnet.co.uk>
 # https://github.com/signalfx/com_signalfx_metrics_protobuf/README.md
 github.com/signalfx/com_signalfx_metrics_protobuf/*: Copyright © 2015-2017 SignalFx
 
+# https://github.com/SAP/go-hdb/blob/main/.reuse/dep5
+github.com/SAP/go-hdb/*: Copyright 2014-2024 SAP SE or an SAP affiliate company and go-hdb contributors
+
+# https://github.com/golang-sql/civil/blob/master/civil.go
+github.com/golang-sql/civil: Copyright 2016 Google LLC
+
+# https://github.com/grafana/loki/blob/main/clients/cmd/fluentd/README.md
+github.com/grafana/loki: Copyright 2018- Grafana Labs
+
+# https://github.com/hamba/avro/blob/109ccdab2a7032d09b1d6a04aeb6ea214217fbd5/LICENCE
+github.com/hamba/avro/v2: Copyright (c) 2024 Nicholas Wiersma
+
+# https://github.com/scalyr/dataset-go/blob/main/README.md
+github.com/scalyr/dataset-go: Copyright 2023 SentinelOne, Inc.
+
 # For Apache projects, copyright is typically in individual source files and
 # not scanned automatically.
 github.com/tklauser/numcpus: Copyright 2018 Tobias Klauser
@@ -228,7 +243,7 @@ github.com/anchore/go-struct-converter: Copyright (c) 2022-2023 Anchore, Inc.
 github.com/bitnami/go-version/pkg/version: Copyright (c) 2023-2024 Carlos Rodríguez Hernández
 github.com/kylelemons/godebug: Copyright (c) 2013-2020 Kyle Lemons
 github.com/santhosh-tekuri/jsonschema: Copyright (c) 2017-2024 Santhosh Kumar Tekuri
-
+github.com/chrusty/protoc-gen-jsonschema: Copyright (c) 2017 The Authors
 
 # The Copyright information is not contained in the LICENSE file, but it can be found in other
 # files in the package, such as:
@@ -324,6 +339,7 @@ github.com/aquasecurity/trivy-policies/pkg/spec: Copyright (c) 2024 Aqua Securit
 github.com/aquasecurity/trivy-policies/rules/specs: Copyright (c) 2024 Aqua Security
 github.com/pjbgf/sha1cd: Copyright 2023 pjbgf
 github.com/go-errors/errors: Copyright (c) 2015 Conrad Irwin <conrad@bugsnag.com>
+github.com/apache/arrow/*: Copyright (C) 1995-1998 Eric Young (eay@cryptsoft.com)
 github.com/tailscale/tailscale: Copyright (c) 2020 Tailscale Inc & AUTHORS.
 
 # Copyright information is in the source headers
@@ -344,3 +360,8 @@ github.com/go-jose/go-jose/v4: Copyright 2014 Square Inc.
 
 github.com/vibrantbyte/go-antpath/antpath: vibrantbyte <codingrun@163.com>|suchao <suchao@renrenche.com>
 github.com/vibrantbyte/go-antpath/extend: vibrantbyte <codingrun@163.com>|suchao <suchao@renrenche.com>
+
+# https://github.com/GoogleCloudPlatform/grpc-gcp-go/blob/main/LICENSE
+github.com/GoogleCloudPlatform/grpc-gcp-go/grpcgcp: Copyright 2024 gRPC authors.
+github.com/GoogleCloudPlatform/grpc-gcp-go/grpcgcp/grpc_gcp: Copyright 2024 gRPC authors.
+github.com/GoogleCloudPlatform/grpc-gcp-go/grpcgcp/multiendpoint: Copyright 2024 gRPC authors.

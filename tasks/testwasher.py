@@ -22,12 +22,10 @@ class TestWasher:
 
         self.parse_flaky_file()
 
-    def get_non_flaky_failing_tests(self, module_path):
+    def get_non_flaky_failing_tests(self, failing_tests: dict, flaky_marked_tests: dict):
         """
         Parse the test output json file and compute the failing tests and the one known flaky
         """
-
-        failing_tests, flaky_marked_tests = self.parse_test_results(module_path)
 
         all_known_flakes = self.merge_known_flakes(flaky_marked_tests)
         non_flaky_failing_tests = defaultdict(set)
@@ -46,10 +44,13 @@ class TestWasher:
         """
         Merge flakes marked in the go code and the ones from the flakes.yaml file
         """
-        shared_packages = marked_flakes.keys() & self.known_flaky_tests.keys()
-        for package in shared_packages:
-            marked_flakes[package] |= self.known_flaky_tests[package]
-        return self.known_flaky_tests | marked_flakes
+        known_flakes = self.known_flaky_tests.copy()
+        for package, tests in marked_flakes.items():
+            if package in known_flakes:
+                known_flakes[package] = known_flakes[package].union(tests)
+            else:
+                known_flakes[package] = tests
+        return known_flakes
 
     def parse_flaky_file(self):
         """
@@ -88,17 +89,29 @@ class TestWasher:
         """
 
         should_succeed = True
-        failed_tests_string = ""
+        failed_tests = []
+        failed_command_modules = []
         for module_result in module_results:
-            non_flaky_failing_tests = self.get_non_flaky_failing_tests(module_result.path)
+            failing_tests, flaky_marked_tests = self.parse_test_results(module_result.path)
+            non_flaky_failing_tests = self.get_non_flaky_failing_tests(
+                failing_tests=failing_tests, flaky_marked_tests=flaky_marked_tests
+            )
+            if (
+                not failing_tests and module_result.failed
+            ):  # In this case the Go test command failed on one of the modules but no test failed, it means that the test command itself failed (build errors,...)
+                should_succeed = False
+                failed_command_modules.append(module_result.path)
             if non_flaky_failing_tests:
                 should_succeed = False
                 for package, tests in non_flaky_failing_tests.items():
-                    for test in tests:
-                        failed_tests_string += f"- {package} {test}\n"
-        if failed_tests_string:
+                    failed_tests.extend(f"- {package} {test}" for test in tests)
+        if failed_tests:
             print("The test command failed, the following tests failed and are not supposed to be flaky:")
-            print(failed_tests_string)
+            print("\n".join(sorted(failed_tests)))
+        if failed_command_modules:
+            print("The test command failed, before test execution on the following modules:")
+            print("\n".join(sorted(failed_command_modules)))
+            print("Please check the job logs for more information")
 
         return should_succeed
 

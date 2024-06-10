@@ -17,7 +17,7 @@ import (
 	"github.com/DataDog/datadog-go/v5/statsd"
 	manager "github.com/DataDog/ebpf-manager"
 
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/erpc"
@@ -32,6 +32,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/process"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/sbom"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/selinux"
+	"github.com/DataDog/datadog-agent/pkg/security/resolvers/syscallctx"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/tags"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/tc"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/time"
@@ -44,21 +45,22 @@ import (
 
 // EBPFResolvers holds the list of the event attribute resolvers
 type EBPFResolvers struct {
-	manager           *manager.Manager
-	MountResolver     mount.ResolverInterface
-	ContainerResolver *container.Resolver
-	TimeResolver      *time.Resolver
-	UserGroupResolver *usergroup.Resolver
-	TagsResolver      tags.Resolver
-	DentryResolver    *dentry.Resolver
-	ProcessResolver   *process.EBPFResolver
-	NamespaceResolver *netns.Resolver
-	CGroupResolver    *cgroup.Resolver
-	TCResolver        *tc.Resolver
-	PathResolver      path.ResolverInterface
-	SBOMResolver      *sbom.Resolver
-	HashResolver      *hash.Resolver
-	UserSessions      *usersessions.Resolver
+	manager              *manager.Manager
+	MountResolver        mount.ResolverInterface
+	ContainerResolver    *container.Resolver
+	TimeResolver         *time.Resolver
+	UserGroupResolver    *usergroup.Resolver
+	TagsResolver         tags.Resolver
+	DentryResolver       *dentry.Resolver
+	ProcessResolver      *process.EBPFResolver
+	NamespaceResolver    *netns.Resolver
+	CGroupResolver       *cgroup.Resolver
+	TCResolver           *tc.Resolver
+	PathResolver         path.ResolverInterface
+	SBOMResolver         *sbom.Resolver
+	HashResolver         *hash.Resolver
+	UserSessionsResolver *usersessions.Resolver
+	SyscallCtxResolver   *syscallctx.Resolver
 }
 
 // NewEBPFResolvers creates a new instance of EBPFResolvers
@@ -157,21 +159,22 @@ func NewEBPFResolvers(config *config.Config, manager *manager.Manager, statsdCli
 	}
 
 	resolvers := &EBPFResolvers{
-		manager:           manager,
-		MountResolver:     mountResolver,
-		ContainerResolver: containerResolver,
-		TimeResolver:      timeResolver,
-		UserGroupResolver: userGroupResolver,
-		TagsResolver:      tagsResolver,
-		DentryResolver:    dentryResolver,
-		NamespaceResolver: namespaceResolver,
-		CGroupResolver:    cgroupsResolver,
-		TCResolver:        tcResolver,
-		ProcessResolver:   processResolver,
-		PathResolver:      pathResolver,
-		SBOMResolver:      sbomResolver,
-		HashResolver:      hashResolver,
-		UserSessions:      userSessionsResolver,
+		manager:              manager,
+		MountResolver:        mountResolver,
+		ContainerResolver:    containerResolver,
+		TimeResolver:         timeResolver,
+		UserGroupResolver:    userGroupResolver,
+		TagsResolver:         tagsResolver,
+		DentryResolver:       dentryResolver,
+		NamespaceResolver:    namespaceResolver,
+		CGroupResolver:       cgroupsResolver,
+		TCResolver:           tcResolver,
+		ProcessResolver:      processResolver,
+		PathResolver:         pathResolver,
+		SBOMResolver:         sbomResolver,
+		HashResolver:         hashResolver,
+		UserSessionsResolver: userSessionsResolver,
+		SyscallCtxResolver:   syscallctx.NewResolver(),
 	}
 
 	return resolvers, nil
@@ -191,12 +194,16 @@ func (r *EBPFResolvers) Start(ctx context.Context) error {
 		return err
 	}
 
+	if err := r.SyscallCtxResolver.Start(r.manager); err != nil {
+		return err
+	}
+
 	r.CGroupResolver.Start(ctx)
 	if r.SBOMResolver != nil {
 		r.SBOMResolver.Start(ctx)
 	}
 
-	if err := r.UserSessions.Start(r.manager); err != nil {
+	if err := r.UserSessionsResolver.Start(r.manager); err != nil {
 		return err
 	}
 	return r.NamespaceResolver.Start(ctx)
@@ -285,6 +292,14 @@ func (r *EBPFResolvers) snapshot() error {
 
 // Close cleans up any underlying resolver that requires a cleanup
 func (r *EBPFResolvers) Close() error {
+	// clean up the handles in netns resolver
+	r.NamespaceResolver.Close()
+
 	// clean up the dentry resolver eRPC segment
-	return r.DentryResolver.Close()
+	if err := r.DentryResolver.Close(); err != nil {
+		fmt.Println(err)
+		return err
+	}
+
+	return nil
 }

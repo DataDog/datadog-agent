@@ -7,36 +7,38 @@
 package exec
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"os"
 	"os/exec"
+	"strings"
 
+	"github.com/DataDog/datadog-agent/pkg/fleet/env"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
 	"github.com/DataDog/datadog-agent/pkg/fleet/telemetry"
 	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
 )
 
+const (
+	// StableInstallerPath is the path to the stable installer binary.
+	StableInstallerPath = "/opt/datadog-packages/datadog-installer/stable/bin/installer/installer"
+	// ExperimentInstallerPath is the path to the experiment installer binary.
+	ExperimentInstallerPath = "/opt/datadog-packages/datadog-installer/experiment/bin/installer/installer"
+)
+
 // InstallerExec is an implementation of the Installer interface that uses the installer binary.
 type InstallerExec struct {
+	env              *env.Env
 	installerBinPath string
-
-	registry     string
-	registryAuth string
-	// telemetry options
-	apiKey string
-	site   string
 }
 
 // NewInstallerExec returns a new InstallerExec.
-func NewInstallerExec(installerBinPath string, registry string, registryAuth string, apiKey string, site string) *InstallerExec {
+func NewInstallerExec(env *env.Env, installerBinPath string) *InstallerExec {
 	return &InstallerExec{
+		env:              env,
 		installerBinPath: installerBinPath,
-		registry:         registry,
-		registryAuth:     registryAuth,
-		apiKey:           apiKey,
-		site:             site,
 	}
 }
 
@@ -47,19 +49,11 @@ type installerCmd struct {
 }
 
 func (i *InstallerExec) newInstallerCmd(ctx context.Context, command string, args ...string) *installerCmd {
+	env := i.env.ToEnv()
 	span, ctx := tracer.StartSpanFromContext(ctx, fmt.Sprintf("installer.%s", command))
 	span.SetTag("args", args)
-	span.SetTag("config.registry", i.registry)
-	span.SetTag("config.registryAuth", i.registryAuth)
-	span.SetTag("config.site", i.site)
 	cmd := exec.CommandContext(ctx, i.installerBinPath, append([]string{command}, args...)...)
-	env := os.Environ()
-	env = append(env, []string{
-		fmt.Sprintf("DD_INSTALLER_REGISTRY=%s", i.registry),
-		fmt.Sprintf("DD_INSTALLER_REGISTRY_AUTH=%s", i.registryAuth),
-		fmt.Sprintf("DD_API_KEY=%s", i.apiKey),
-		fmt.Sprintf("DD_SITE=%s", i.site),
-	}...)
+	env = append(os.Environ(), env...)
 	cmd.Cancel = func() error {
 		return cmd.Process.Signal(os.Interrupt)
 	}
@@ -75,7 +69,7 @@ func (i *InstallerExec) newInstallerCmd(ctx context.Context, command string, arg
 }
 
 // Install installs a package.
-func (i *InstallerExec) Install(ctx context.Context, url string) (err error) {
+func (i *InstallerExec) Install(ctx context.Context, url string, _ []string) (err error) {
 	cmd := i.newInstallerCmd(ctx, "install", url)
 	defer func() { cmd.span.Finish(tracer.WithError(err)) }()
 	return cmd.Run()
@@ -121,6 +115,20 @@ func (i *InstallerExec) GarbageCollect(ctx context.Context) (err error) {
 	return cmd.Run()
 }
 
+// InstrumentAPMInjector instruments the APM auto-injector.
+func (i *InstallerExec) InstrumentAPMInjector(ctx context.Context, method string) (err error) {
+	cmd := i.newInstallerCmd(ctx, "apm instrument", method)
+	defer func() { cmd.span.Finish(tracer.WithError(err)) }()
+	return cmd.Run()
+}
+
+// UninstrumentAPMInjector uninstruments the APM auto-injector.
+func (i *InstallerExec) UninstrumentAPMInjector(ctx context.Context, method string) (err error) {
+	cmd := i.newInstallerCmd(ctx, "apm uninstrument", method)
+	defer func() { cmd.span.Finish(tracer.WithError(err)) }()
+	return cmd.Run()
+}
+
 // IsInstalled checks if a package is installed.
 func (i *InstallerExec) IsInstalled(ctx context.Context, pkg string) (_ bool, err error) {
 	cmd := i.newInstallerCmd(ctx, "is-installed", pkg)
@@ -133,6 +141,28 @@ func (i *InstallerExec) IsInstalled(ctx context.Context, pkg string) (_ bool, er
 		return false, err
 	}
 	return true, nil
+}
+
+// DefaultPackages returns the default packages to install.
+func (i *InstallerExec) DefaultPackages(ctx context.Context) (_ []string, err error) {
+	cmd := i.newInstallerCmd(ctx, "default-packages")
+	defer func() { cmd.span.Finish(tracer.WithError(err)) }()
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+	err = cmd.Run()
+	if err != nil {
+		return nil, fmt.Errorf("error running default-packages: %w\n%s", err, stderr.String())
+	}
+	var defaultPackages []string
+	for _, line := range strings.Split(stdout.String(), "\n") {
+		if line == "" {
+			continue
+		}
+		defaultPackages = append(defaultPackages, line)
+	}
+	return defaultPackages, nil
 }
 
 // State returns the state of a package.
