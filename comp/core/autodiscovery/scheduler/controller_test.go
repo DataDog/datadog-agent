@@ -10,8 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/benbjohnson/clock"
-	"github.com/stretchr/testify/require"
+	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 )
@@ -66,53 +65,66 @@ func TestController(t *testing.T) {
 	// register a scheduler and see that it gets caught up
 	s1 := &scheduler{}
 	ms.Register("s1", s1, true)
-	s1.mutex.Lock()
-	require.ElementsMatch(t, []event{{true, "one"}, {true, "two"}}, s1.events)
-	s1.mutex.Unlock()
-
-	ms.ApplyChanges(integration.ConfigChanges{Schedule: []integration.Config{c1, c2}})
-	clk := clock.NewMock()
-	clk.Add(2000 * time.Millisecond)
+	// all configs are scheduled once and only once
+	assert.EventuallyWithTf(t, func(c *assert.CollectT) {
+		s1.mutex.Lock()
+		assert.ElementsMatch(t, []event{{true, "one"}, {true, "two"}}, s1.events)
+		s1.mutex.Unlock()
+	}, 2*time.Second, 100*time.Millisecond, "Failed to process configs before timeout")
+	assert.Neverf(t, func() bool {
+		s1.mutex.Lock()
+		defer s1.mutex.Unlock()
+		return len(s1.events) != 2 // no more sch or unsch events should be received
+	}, 2*time.Second, 100*time.Millisecond, "Unexpected event received, s1 events = %v", s1.events)
 	s1.reset()
+
 	// remove one of those configs and add another
 	ms.ApplyChanges(integration.ConfigChanges{Unschedule: []integration.Config{c1}})
 	c3 := makeConfig("three")
 	ms.ApplyChanges(integration.ConfigChanges{Schedule: []integration.Config{c3}})
 	// check s1 was informed about those in order
-	clk.Add(2000 * time.Millisecond)
-	s1.mutex.Lock()
-	require.Equal(t, []event{{false, "one"}, {true, "three"}}, s1.events)
-	s1.mutex.Unlock()
+	assert.EventuallyWithTf(t, func(c *assert.CollectT) {
+		s1.mutex.Lock()
+		assert.ElementsMatch(c, []event{{false, "one"}, {true, "three"}}, s1.events)
+		s1.mutex.Unlock()
+	}, 2*time.Second, 100*time.Millisecond, "Failed to process configs before timeout")
 	s1.reset()
 
 	// subscribe a new scheduler and see that it does not get c1
 	s2 := &scheduler{}
 	ms.Register("s2", s2, true)
-	clk.Add(2000 * time.Millisecond)
-	s2.mutex.Lock()
-	require.ElementsMatch(t, []event{{true, "two"}, {true, "three"}}, s2.events)
-	s2.mutex.Unlock()
+	assert.Neverf(t, func() bool {
+		s2.mutex.Lock()
+		defer s2.mutex.Unlock()
+		return len(s2.events) != 2
+	}, 2*time.Second, 100*time.Millisecond, "Unexpected event received, s2 events = %v", s2.events)
+	assert.ElementsMatch(t, []event{{true, "two"}, {true, "three"}}, s2.events)
 	s2.reset()
 
 	// unsubscribe s1 and see that it no longer gets events
 	ms.Deregister("s1")
 	ms.ApplyChanges(integration.ConfigChanges{Unschedule: []integration.Config{c2}})
-	clk.Add(2000 * time.Millisecond)
-	s1.mutex.Lock()
-	require.Equal(t, []event{}, s1.events)
-	s1.mutex.Unlock()
-	s1.reset()
-	s2.mutex.Lock()
-	require.Equal(t, []event{{false, "two"}}, s2.events)
-	s2.mutex.Unlock()
+	assert.Neverf(t, func() bool {
+		s1.mutex.Lock()
+		defer s1.mutex.Unlock()
+		return len(s1.events) > 0
+	}, 2*time.Second, 100*time.Millisecond, "Unexpected event received")
+
+	assert.EventuallyWithTf(t, func(c *assert.CollectT) {
+		s2.mutex.Lock()
+		assert.ElementsMatch(t, []event{{false, "two"}}, s2.events)
+		s2.mutex.Unlock()
+	}, 5*time.Second, 100*time.Millisecond, "Failed to process configs before timeout")
 	s2.reset()
 
 	// verify that replay does not occur if not desired
 	s3 := &scheduler{}
 	ms.Register("s3", s3, false)
-	s3.mutex.Lock()
-	require.ElementsMatch(t, []event{}, s3.events)
-	s3.mutex.Unlock()
+	assert.Neverf(t, func() bool {
+		s3.mutex.Lock()
+		defer s3.mutex.Unlock()
+		return len(s3.events) > 0
+	}, 2*time.Second, 100*time.Millisecond, "Unexpected event received")
 	ms.Stop()
 	s3.reset()
 }

@@ -47,12 +47,18 @@ func storeGenerators(cfg model.Reader) []storeGenerator {
 		generators = append(generators, newDeploymentStore)
 	}
 
+	addNamespaceStore := len(cfg.GetStringMapString("kubernetes_namespace_labels_as_tags")) > 0 ||
+		len(cfg.GetStringMapString("kubernetes_namespace_annotations_as_tags")) > 0
 	// TODO: Remove this once we migrate references to the namespace store to use generic collection
 	if cfg.GetBool("cluster_agent.kube_metadata_collection.enabled") {
 		resources := cfg.GetStringSlice("cluster_agent.kube_metadata_collection.resources")
 		if slices.Contains(resources, "namespaces") {
-			generators = append(generators, newNamespaceStore)
+			addNamespaceStore = true
 		}
+	}
+
+	if addNamespaceStore {
+		generators = append(generators, newNamespaceStore)
 	}
 
 	return generators
