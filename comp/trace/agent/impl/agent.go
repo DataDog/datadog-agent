@@ -24,7 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
-	tracedef "github.com/DataDog/datadog-agent/comp/trace/agent/def"
+	traceagentdef "github.com/DataDog/datadog-agent/comp/trace/agent/def"
 	"github.com/DataDog/datadog-agent/comp/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/pidfile"
 	pkgagent "github.com/DataDog/datadog-agent/pkg/trace/agent"
@@ -74,7 +74,7 @@ type agent struct {
 }
 
 // NewAgent creates a new Agent component.
-func NewAgent(deps dependencies) (tracedef.Component, error) {
+func NewAgent(deps dependencies) (traceagentdef.Component, error) {
 	c := component{}
 	tracecfg := deps.Config.Object()
 	if !tracecfg.Enabled {
