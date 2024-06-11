@@ -384,7 +384,9 @@ func (rs *RuleSet) populateFieldsWithRuleActionsData(policyRules []*RuleDefiniti
 					variableProvider = &rs.globalVariables
 				}
 
-				variable, err := variableProvider.GetVariable(action.Set.Name, variableValue)
+				opts := eval.VariableOpts{TTL: action.Set.TTL, Size: action.Set.Size}
+
+				variable, err := variableProvider.GetVariable(action.Set.Name, variableValue, opts)
 				if err != nil {
 					errs = multierror.Append(errs, fmt.Errorf("invalid type '%s' for variable '%s': %w", reflect.TypeOf(action.Set.Value), action.Set.Name, err))
 					continue
