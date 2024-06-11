@@ -18,12 +18,14 @@ import (
 	"strconv"
 	"sync"
 	"syscall"
+	"time"
 
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
+	traceconcentratorimpl "github.com/DataDog/datadog-agent/comp/trace/concentrator/impl"
 	"github.com/DataDog/datadog-agent/comp/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/pidfile"
 	pkgagent "github.com/DataDog/datadog-agent/pkg/trace/agent"
@@ -102,6 +104,7 @@ func newAgent(deps dependencies) (Component, error) {
 		ag.config.Object(),
 		ag.telemetryCollector,
 		statsdCl,
+		traceconcentratorimpl.NewConcentrator(ag.config, nil, time.Now(), statsdCl),
 	)
 
 	deps.Lc.Append(fx.Hook{

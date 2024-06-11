@@ -13,6 +13,8 @@ import (
 	"sync"
 	"time"
 
+	traceconcentrator "github.com/DataDog/datadog-agent/comp/trace/concentrator/def"
+	//traceconcentratorimpl "github.com/DataDog/datadog-agent/comp/trace/concentrator/impl"
 	"github.com/DataDog/datadog-agent/pkg/obfuscate"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/api"
@@ -58,7 +60,7 @@ const (
 type Agent struct {
 	Receiver              *api.HTTPReceiver
 	OTLPReceiver          *api.OTLPReceiver
-	Concentrator          *stats.Concentrator
+	Concentrator          traceconcentrator.Concentrator //*stats.Concentrator
 	ClientStatsAggregator *stats.ClientStatsAggregator
 	Blacklister           *filters.Blacklister
 	Replacer              *filters.Replacer
@@ -99,9 +101,13 @@ type Agent struct {
 	firstSpanMap sync.Map
 }
 
+func NewAgent2(ctx context.Context, conf *config.AgentConfig, telemetryCollector telemetry.TelemetryCollector, statsd statsd.ClientInterface) *Agent {
+	return nil
+}
+
 // NewAgent returns a new Agent object, ready to be started. It takes a context
 // which may be cancelled in order to gracefully stop the agent.
-func NewAgent(ctx context.Context, conf *config.AgentConfig, telemetryCollector telemetry.TelemetryCollector, statsd statsd.ClientInterface) *Agent {
+func NewAgent(ctx context.Context, conf *config.AgentConfig, telemetryCollector telemetry.TelemetryCollector, statsd statsd.ClientInterface, concentrator traceconcentrator.Concentrator) *Agent {
 	dynConf := sampler.NewDynamicConfig()
 	log.Infof("Starting Agent with processor trace buffer of size %d", conf.TraceBuffer)
 	in := make(chan *api.Payload, conf.TraceBuffer)
@@ -112,7 +118,7 @@ func NewAgent(ctx context.Context, conf *config.AgentConfig, telemetryCollector 
 	}
 	timing := timing.New(statsd)
 	agnt := &Agent{
-		Concentrator:          stats.NewConcentrator(conf, statsChan, time.Now(), statsd),
+		Concentrator:          concentrator, //traceconcentratorimpl.NewConcentrator(conf, statsChan, time.Now(), statsd),
 		ClientStatsAggregator: stats.NewClientStatsAggregator(conf, statsChan, statsd),
 		Blacklister:           filters.NewBlacklister(conf.Ignore["resource"]),
 		Replacer:              filters.NewReplacer(conf.ReplaceTags),
@@ -382,7 +388,7 @@ func (a *Agent) Process(p *api.Payload) {
 		a.TraceWriter.In <- sampledChunks
 	}
 	if len(statsInput.Traces) > 0 {
-		a.Concentrator.In <- statsInput
+		a.Concentrator.In() <- statsInput
 	}
 }
 
