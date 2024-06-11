@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/metricsclient
 
-go 1.22.0
+go 1.21.0
 
 replace github.com/DataDog/datadog-agent/pkg/trace => ../../../../../pkg/trace
 

@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent/pkg/util/executable
 
-go 1.22.0
+go 1.21.0
 
 require (
 	github.com/kardianos/osext v0.0.0-20190222173326-2bc1f35cddc0
