@@ -42,7 +42,7 @@ static __always_inline void do_sys_open_helper_enter(const char *filename) {
     return;
 }
 
-static __always_inline void do_sys_open_helper_exit(exit_sys_openat_ctx *args) {
+static __always_inline void do_sys_open_helper_exit(exit_sys_ctx *args) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
 
     // If file couldn't be opened, bail out
@@ -91,6 +91,18 @@ cleanup:
     return;
 }
 
+SEC("tracepoint/syscalls/sys_enter_open")
+int tracepoint__syscalls__sys_enter_open(enter_sys_open_ctx* args) {
+    do_sys_open_helper_enter(args->filename);
+    return 0;
+}
+
+SEC("tracepoint/syscalls/sys_exit_open")
+int tracepoint__syscalls__sys_exit_open(exit_sys_ctx *args) {
+    do_sys_open_helper_exit(args);
+    return 0;
+}
+
 SEC("tracepoint/syscalls/sys_enter_openat")
 int tracepoint__syscalls__sys_enter_openat(enter_sys_openat_ctx* args) {
     do_sys_open_helper_enter(args->filename);
@@ -98,7 +110,7 @@ int tracepoint__syscalls__sys_enter_openat(enter_sys_openat_ctx* args) {
 }
 
 SEC("tracepoint/syscalls/sys_exit_openat")
-int tracepoint__syscalls__sys_exit_openat(exit_sys_openat_ctx *args) {
+int tracepoint__syscalls__sys_exit_openat(exit_sys_ctx *args) {
     do_sys_open_helper_exit(args);
     return 0;
 }
@@ -110,7 +122,7 @@ int tracepoint__syscalls__sys_enter_openat2(enter_sys_openat2_ctx* args) {
 }
 
 SEC("tracepoint/syscalls/sys_exit_openat2")
-int tracepoint__syscalls__sys_exit_openat2(exit_sys_openat_ctx *args) {
+int tracepoint__syscalls__sys_exit_openat2(exit_sys_ctx *args) {
     do_sys_open_helper_exit(args);
     return 0;
 }
