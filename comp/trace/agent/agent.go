@@ -22,7 +22,7 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
 	"github.com/DataDog/datadog-agent/comp/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/pidfile"
@@ -65,17 +65,14 @@ type agent struct {
 
 	cancel             context.CancelFunc
 	config             config.Component
-	ctx                context.Context
 	params             *Params
-	shutdowner         fx.Shutdowner
 	tagger             tagger.Component
 	telemetryCollector telemetry.TelemetryCollector
-	statsd             statsd.Component
 	workloadmeta       workloadmeta.Component
 	wg                 sync.WaitGroup
 }
 
-func newAgent(deps dependencies) Component {
+func newAgent(deps dependencies) (Component, error) {
 	c := component{}
 	tracecfg := deps.Config.Object()
 	if !tracecfg.Enabled {
@@ -83,28 +80,36 @@ func newAgent(deps dependencies) Component {
 		deps.TelemetryCollector.SendStartupError(telemetry.TraceAgentNotEnabled, fmt.Errorf(""))
 		// Required to signal that the whole app must stop.
 		_ = deps.Shutdowner.Shutdown()
-		return c
+		return c, nil
 	}
 	ctx, cancel := context.WithCancel(deps.Context) // Several related non-components require a shared context to gracefully stop.
 	ag := &agent{
 		cancel:             cancel,
 		config:             deps.Config,
-		statsd:             deps.Statsd,
-		ctx:                ctx,
 		params:             deps.Params,
-		shutdowner:         deps.Shutdowner,
 		workloadmeta:       deps.Workloadmeta,
 		telemetryCollector: deps.TelemetryCollector,
 		tagger:             deps.Tagger,
 		wg:                 sync.WaitGroup{},
 	}
+	statsdCl, err := setupMetrics(deps.Statsd, ag.config, ag.telemetryCollector)
+	if err != nil {
+		return nil, err
+	}
+	setupShutdown(ctx, deps.Shutdowner, statsdCl)
+	ag.Agent = pkgagent.NewAgent(
+		ctx,
+		ag.config.Object(),
+		ag.telemetryCollector,
+		statsdCl,
+	)
 
 	deps.Lc.Append(fx.Hook{
 		// Provided contexts have a timeout, so it can't be used for gracefully stopping long-running components.
 		// These contexts are cancelled on a deadline, so they would have side effects on the agent.
 		OnStart: func(_ context.Context) error { return start(ag) },
 		OnStop:  func(_ context.Context) error { return stop(ag) }})
-	return c
+	return c, nil
 }
 
 func start(ag *agent) error {
@@ -127,17 +132,6 @@ func start(ag *agent) error {
 		log.Infof("PID '%d' written to PID file '%s'", os.Getpid(), ag.params.PIDFilePath)
 	}
 
-	statsdCl, err := setupMetrics(ag.statsd, ag.config, ag.telemetryCollector)
-	if err != nil {
-		return err
-	}
-	setupShutdown(ag.ctx, ag.shutdowner, statsdCl)
-	ag.Agent = pkgagent.NewAgent(
-		ag.ctx,
-		ag.config.Object(),
-		ag.telemetryCollector,
-		statsdCl,
-	)
 	if err := runAgentSidekicks(ag); err != nil {
 		return err
 	}
