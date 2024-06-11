@@ -192,6 +192,7 @@ func findDeletedServices(currServices map[string]Service, discoveredServices map
 	return deletedServices
 }
 
+// Equal returns whether the two DBMAuroraService are equal
 func (d *DBMAuroraService) Equal(o Service) bool {
 	d2, ok := o.(*DBMAuroraService)
 	if !ok {
