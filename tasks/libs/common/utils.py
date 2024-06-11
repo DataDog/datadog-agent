@@ -18,7 +18,7 @@ from types import SimpleNamespace
 
 from invoke.exceptions import Exit
 
-from tasks.libs.common.color import color_message
+from tasks.libs.common.color import Color, color_message
 from tasks.libs.common.git import check_local_branch, check_uncommitted_changes, get_commit_sha
 from tasks.libs.owners.parsing import search_owners
 
@@ -301,7 +301,10 @@ def get_build_flags(
                 extldflags += ",-no_warn_duplicate_libraries "
         except ValueError:
             print(
-                "Warning: Could not determine XCode version, not adding -no_warn_duplicate_libraries to extldflags",
+                color_message(
+                    "Warning: Could not determine XCode version, not adding -no_warn_duplicate_libraries to extldflags",
+                    Color.ORANGE,
+                ),
                 file=sys.stderr,
             )
 
