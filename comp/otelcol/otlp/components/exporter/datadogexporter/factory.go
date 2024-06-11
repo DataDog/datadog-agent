@@ -63,7 +63,7 @@ func newFactoryWithRegistry(registry *featuregate.Registry, s serializer.MetricS
 
 	return exporter.NewFactory(
 		Type,
-		f.createDefaultConfig,
+		CreateDefaultConfig,
 		exporter.WithMetrics(f.createMetricsExporter, MetricsStability),
 		exporter.WithTraces(f.createTracesExporter, TracesStability),
 		exporter.WithLogs(f.createLogsExporter, LogsStability),
@@ -96,8 +96,8 @@ func defaultClientConfig() confighttp.ClientConfig {
 	}
 }
 
-// createDefaultConfig creates the default exporter configuration
-func (f *factory) createDefaultConfig() component.Config {
+// CreateDefaultConfig creates the default exporter configuration
+func CreateDefaultConfig() component.Config {
 	return &Config{
 		ClientConfig:  defaultClientConfig(),
 		BackOffConfig: configretry.NewDefaultBackOffConfig(),
