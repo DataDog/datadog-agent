@@ -440,8 +440,7 @@ func (c *Config) RingBufferSupportedNPM() bool {
 	return (features.HaveMapType(cebpf.RingBuf) == nil) && c.NPMRingbuffersEnabled
 }
 
-// FailedConnectionsSupported returns true if the config & TCP v4 || v6 is enabled, and if the kernel version
-// is >= 4.10 in order to support LRU maps
+// FailedConnectionsSupported returns true if the config & TCP v4 || v6 is enabled
 func (c *Config) FailedConnectionsSupported() bool {
 	if !c.TCPFailedConnectionsEnabled {
 		return false

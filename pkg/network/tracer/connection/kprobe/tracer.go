@@ -348,6 +348,8 @@ func isCORETracerSupported() error {
 	return errCORETracerNotSupported
 }
 
+// FailedConnectionsSupported returns true if the config supports it and the kernel version is 4.10.0 or newer
+// in order to support LRU maps
 func FailedConnectionsSupported(c *config.Config) bool {
 	currentKernelVersion, err := kernel.HostVersion()
 	if err != nil {
