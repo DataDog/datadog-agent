@@ -56,7 +56,7 @@ func newProvider(deps dependencies) provider {
 					EventType: workloadmeta.EventTypeAll,
 					Kinds: []workloadmeta.Kind{
 						workloadmeta.KindContainerImageMetadata,
-						// workloadmeta.KindContainer,
+						workloadmeta.KindContainer,
 					},
 				}))
 
@@ -134,21 +134,19 @@ func (c *client) findImageMetadata(i workloadmeta.ContainerImage) (*containerIma
 	c.imagesLock.RLock()
 	defer c.imagesLock.RUnlock()
 
-	meta, found := c.images[i.ImageMetadataID()]
-	if found {
-		return meta.image, true
-	}
+	for _, lookupKey := range []string{
+		i.ImageMetadataID(), // we first check by the id to see if we can find it
+		i.RepoDigest,        // then by digest if present
+		i.RawName,           // then raw name
+	} {
+		if lookupKey == "" {
+			continue
+		}
 
-	if i.RepoDigest != "" {
-		meta, found = c.images[i.RepoDigest]
+		meta, found := c.images[lookupKey]
 		if found {
 			return meta.image, true
 		}
-	}
-
-	meta, found = c.images[i.RawName]
-	if found {
-		return meta.image, true
 	}
 
 	return nil, false
@@ -164,6 +162,11 @@ func (c *client) findImageByName(name string) (*containerImageMetadata, bool) {
 	}
 
 	return nil, false
+}
+
+func (c *client) addContainer(i *workloadmeta.Container) {
+	c.log.Debugf("workloadmeta.Container{ Meta: %+v, Image: %+v }", i.EntityMeta, i.Image)
+
 }
 
 func (c *client) addImageMetadata(i *workloadmeta.ContainerImageMetadata, t time.Time) {
@@ -190,7 +193,9 @@ func (c *client) handleEvent(bundle workloadmeta.EventBundle) {
 	for _, e := range bundle.Events {
 		switch v := e.Entity.(type) {
 		case *workloadmeta.Container:
-			c.log.Debugf("%v saw container (runtime=%s) (owner=%+v) meta %+v, image %+v", e.Type, v.Runtime, v.Owner, v.EntityMeta, v.Image)
+			if e.Type == workloadmeta.EventTypeSet {
+				c.addContainer(v)
+			}
 		case *workloadmeta.ContainerImageMetadata:
 			if e.Type == workloadmeta.EventTypeSet {
 				c.addImageMetadata(v, time.Now())
