@@ -94,7 +94,7 @@ func (p *patcher) patchNamespaces(req Request) error {
 		namespaces = p.configIDToNamespaces[req.ID]
 		defer delete(p.configIDToNamespaces, req.ID)
 	default:
-		return fmt.Errorf("unkown action %q", req.Action)
+		return fmt.Errorf("unknown action %q", req.Action)
 	}
 
 	nsClient := p.k8sClient.CoreV1().Namespaces()
