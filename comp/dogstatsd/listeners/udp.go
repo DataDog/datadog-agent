@@ -46,10 +46,11 @@ type UDPListener struct {
 	buffer          []byte
 	trafficCapture  replay.Component // Currently ignored
 	listenWg        sync.WaitGroup
+	telemetryStore  *TelemetryStore
 }
 
 // NewUDPListener returns an idle UDP Statsd listener
-func NewUDPListener(packetOut chan packets.Packets, sharedPacketPoolManager *packets.PoolManager, cfg config.Reader, capture replay.Component) (*UDPListener, error) {
+func NewUDPListener(packetOut chan packets.Packets, sharedPacketPoolManager *packets.PoolManager, cfg config.Reader, capture replay.Component, telemetryStore *TelemetryStore) (*UDPListener, error) {
 	var err error
 	var url string
 
@@ -130,19 +131,19 @@ func (l *UDPListener) listen() {
 
 			log.Errorf("dogstatsd-udp: error reading packet: %v", err)
 			udpPacketReadingErrors.Add(1)
-			tlmUDPPackets.Inc("error")
+			l.telemetryStore.tlmUDPPackets.Inc("error")
 		} else {
-			tlmUDPPackets.Inc("ok")
+			l.telemetryStore.tlmUDPPackets.Inc("ok")
 
 			udpBytes.Add(int64(n))
-			tlmUDPPacketsBytes.Add(float64(n))
+			l.telemetryStore.tlmUDPPacketsBytes.Add(float64(n))
 
 			// packetAssembler merges multiple packets together and sends them when its buffer is full
 			l.packetAssembler.AddMessage(l.buffer[:n])
 		}
 
 		t2 = time.Now()
-		tlmListener.Observe(float64(t2.Sub(t1).Nanoseconds()), "udp", "udp", "udp")
+		l.telemetryStore.tlmListener.Observe(float64(t2.Sub(t1).Nanoseconds()), "udp", "udp", "udp")
 	}
 }
 

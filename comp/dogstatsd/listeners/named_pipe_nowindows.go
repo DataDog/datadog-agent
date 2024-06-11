@@ -21,7 +21,7 @@ type NamedPipeListener struct{}
 //
 //nolint:revive // TODO(AML) Fix revive linter
 func NewNamedPipeListener(pipeName string, packetOut chan packets.Packets,
-	sharedPacketPoolManager *packets.PoolManager, cfg config.Reader, capture replay.Component) (*NamedPipeListener, error) { //nolint:revive // TODO fix revive unused-parameter
+	sharedPacketPoolManager *packets.PoolManager, cfg config.Reader, capture replay.Component, telemetryStore *TelemetryStore) (*NamedPipeListener, error) { //nolint:revive // TODO fix revive unused-parameter
 
 	return nil, errors.New("named pipe is only supported on Windows")
 }

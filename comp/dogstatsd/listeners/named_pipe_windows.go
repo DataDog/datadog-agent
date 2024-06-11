@@ -37,25 +37,30 @@ type NamedPipeListener struct {
 	connections    *namedPipeConnections
 	trafficCapture replay.Component // Currently ignored
 	listenWg       sync.WaitGroup
+	telemetryStore *TelemetryStore
 }
 
 // NewNamedPipeListener returns an named pipe Statsd listener
 func NewNamedPipeListener(pipeName string, packetOut chan packets.Packets,
-	sharedPacketPoolManager *packets.PoolManager, cfg config.Reader, capture replay.Component) (*NamedPipeListener, error) {
+	sharedPacketPoolManager *packets.PoolManager, cfg config.Reader, capture replay.Component, telemetryStore *TelemetryStore) (*NamedPipeListener, error) {
 
 	bufferSize := cfg.GetInt("dogstatsd_buffer_size")
 	return newNamedPipeListener(
 		pipeName,
 		bufferSize,
 		packets.NewPacketManagerFromConfig(packetOut, sharedPacketPoolManager, cfg),
-		capture)
+		capture,
+		telemetryStore,
+	)
 }
 
 func newNamedPipeListener(
 	pipeName string,
 	bufferSize int,
 	packetManager *packets.PacketManager,
-	capture replay.Component) (*NamedPipeListener, error) {
+	capture replay.Component,
+	telemetryStore *TelemetryStore,
+) (*NamedPipeListener, error) {
 
 	config := winio.PipeConfig{
 		InputBufferSize:  int32(bufferSize),
@@ -79,6 +84,7 @@ func newNamedPipeListener(
 			activeConnCount: atomic.NewInt32(0),
 		},
 		trafficCapture: capture,
+		telemetryStore: telemetryStore,
 	}
 
 	log.Debugf("dogstatsd-named-pipes: %s successfully initialized", pipe.Addr())
@@ -201,7 +207,7 @@ func (l *NamedPipeListener) listenConnection(conn net.Conn, buffer []byte) {
 		}
 
 		t2 = time.Now()
-		tlmListener.Observe(float64(t2.Sub(t1).Nanoseconds()), "named_pipe", "named_pipe", "named_pipe")
+		l.telemetryStore.tlmListener.Observe(float64(t2.Sub(t1).Nanoseconds()), "named_pipe", "named_pipe", "named_pipe")
 	}
 	l.connections.connToClose <- conn
 }

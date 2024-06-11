@@ -18,6 +18,8 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/packets"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/pidmap"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/pidmap/pidmapimpl"
@@ -27,12 +29,14 @@ import (
 type listenerDeps struct {
 	fx.In
 
-	Config config.Component
-	PidMap pidmap.Component
+	Config    config.Component
+	PidMap    pidmap.Component
+	Telemetry telemetry.Component
 }
 
 func fulfillDepsWithConfig(t testing.TB, overrides map[string]interface{}) listenerDeps {
 	return fxutil.Test[listenerDeps](t, fx.Options(
+		telemetryimpl.MockModule(),
 		config.MockModule(),
 		pidmapimpl.Module(),
 		fx.Replace(config.MockParams{Overrides: overrides}),
@@ -46,7 +50,8 @@ func newPacketPoolManagerUDP(cfg config.Component) *packets.PoolManager {
 
 func TestNewUDPListener(t *testing.T) {
 	deps := fulfillDepsWithConfig(t, map[string]interface{}{})
-	s, err := NewUDPListener(nil, newPacketPoolManagerUDP(deps.Config), deps.Config, nil)
+	telemetryStore := NewTelemetryStore(nil, deps.Telemetry)
+	s, err := NewUDPListener(nil, newPacketPoolManagerUDP(deps.Config), deps.Config, nil, telemetryStore)
 	assert.NotNil(t, s)
 	assert.Nil(t, err)
 
@@ -60,8 +65,9 @@ func TestStartStopUDPListener(t *testing.T) {
 	cfg["dogstatsd_port"] = port
 	cfg["dogstatsd_non_local_traffic"] = false
 
-	deps := fulfillDepsWithConfig(t, cfg)
-	s, err := NewUDPListener(nil, newPacketPoolManagerUDP(deps.Config), deps.Config, nil)
+	deps := fulfillDepsWithConfig(t, map[string]interface{}{})
+	telemetryStore := NewTelemetryStore(nil, deps.Telemetry)
+	s, err := NewUDPListener(nil, newPacketPoolManagerUDP(deps.Config), deps.Config, nil, telemetryStore)
 	require.NotNil(t, s)
 
 	assert.Nil(t, err)
@@ -94,8 +100,9 @@ func TestUDPNonLocal(t *testing.T) {
 	cfg := map[string]interface{}{}
 	cfg["dogstatsd_port"] = port
 	cfg["dogstatsd_non_local_traffic"] = true
-	deps := fulfillDepsWithConfig(t, cfg)
-	s, err := NewUDPListener(nil, newPacketPoolManagerUDP(deps.Config), deps.Config, nil)
+	deps := fulfillDepsWithConfig(t, map[string]interface{}{})
+	telemetryStore := NewTelemetryStore(nil, deps.Telemetry)
+	s, err := NewUDPListener(nil, newPacketPoolManagerUDP(deps.Config), deps.Config, nil, telemetryStore)
 	assert.Nil(t, err)
 	require.NotNil(t, s)
 
@@ -121,8 +128,9 @@ func TestUDPLocalOnly(t *testing.T) {
 	cfg := map[string]interface{}{}
 	cfg["dogstatsd_port"] = port
 	cfg["dogstatsd_non_local_traffic"] = false
-	deps := fulfillDepsWithConfig(t, cfg)
-	s, err := NewUDPListener(nil, newPacketPoolManagerUDP(deps.Config), deps.Config, nil)
+	deps := fulfillDepsWithConfig(t, map[string]interface{}{})
+	telemetryStore := NewTelemetryStore(nil, deps.Telemetry)
+	s, err := NewUDPListener(nil, newPacketPoolManagerUDP(deps.Config), deps.Config, nil, telemetryStore)
 	assert.Nil(t, err)
 	require.NotNil(t, s)
 
@@ -152,8 +160,9 @@ func TestUDPReceive(t *testing.T) {
 	cfg["dogstatsd_port"] = port
 
 	packetChannel := make(chan packets.Packets)
-	deps := fulfillDepsWithConfig(t, cfg)
-	s, err := NewUDPListener(packetChannel, newPacketPoolManagerUDP(deps.Config), deps.Config, nil)
+	deps := fulfillDepsWithConfig(t, map[string]interface{}{})
+	telemetryStore := NewTelemetryStore(nil, deps.Telemetry)
+	s, err := NewUDPListener(nil, newPacketPoolManagerUDP(deps.Config), deps.Config, nil, telemetryStore)
 	require.NotNil(t, s)
 	assert.Nil(t, err)
 
@@ -193,8 +202,9 @@ func TestNewUDPListenerWhenBusyWithSoRcvBufSet(t *testing.T) {
 	cfg["dogstatsd_port"] = port
 	cfg["dogstatsd_non_local_traffic"] = false
 
-	deps := fulfillDepsWithConfig(t, cfg)
-	s, err := NewUDPListener(nil, newPacketPoolManagerUDP(deps.Config), deps.Config, nil)
+	deps := fulfillDepsWithConfig(t, map[string]interface{}{})
+	telemetryStore := NewTelemetryStore(nil, deps.Telemetry)
+	s, err := NewUDPListener(nil, newPacketPoolManagerUDP(deps.Config), deps.Config, nil, telemetryStore)
 	assert.Nil(t, s)
 	assert.NotNil(t, err)
 }

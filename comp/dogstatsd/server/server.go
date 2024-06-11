@@ -159,14 +159,16 @@ type server struct {
 	wmeta optional.Option[workloadmeta.Component]
 
 	// telemetry
-	telemetry         telemetry.Component
-	tlmProcessed      telemetry.Counter
-	tlmProcessedOk    telemetry.SimpleCounter
-	tlmProcessedError telemetry.SimpleCounter
-	tlmChannel        telemetry.Histogram
+	telemetry           telemetry.Component
+	tlmProcessed        telemetry.Counter
+	tlmProcessedOk      telemetry.SimpleCounter
+	tlmProcessedError   telemetry.SimpleCounter
+	tlmChannel          telemetry.Histogram
+	listernersTelemetry *listeners.TelemetryStore
+	// packetsTelemetry    *packets.TelemetryStore
 }
 
-func initTelemetry(server *server, cfg config.Reader, logger logComponent.Component, telemetrycomp telemetry.Component) {
+func initTelemetry() {
 	dogstatsdExpvars.Set("ServiceCheckParseErrors", &dogstatsdServiceCheckParseErrors)
 	dogstatsdExpvars.Set("ServiceCheckPackets", &dogstatsdServiceCheckPackets)
 	dogstatsdExpvars.Set("EventParseErrors", &dogstatsdEventParseErrors)
@@ -174,38 +176,6 @@ func initTelemetry(server *server, cfg config.Reader, logger logComponent.Compon
 	dogstatsdExpvars.Set("MetricParseErrors", &dogstatsdMetricParseErrors)
 	dogstatsdExpvars.Set("MetricPackets", &dogstatsdMetricPackets)
 	dogstatsdExpvars.Set("UnterminatedMetricErrors", &dogstatsdUnterminatedMetricErrors)
-
-	get := func(option string) []float64 {
-		if !cfg.IsSet(option) {
-			return nil
-		}
-
-		buckets, err := cfg.GetFloat64SliceE(option)
-		if err != nil {
-			logger.Errorf("%s, falling back to default values", err)
-			return nil
-		}
-		if len(buckets) == 0 {
-			logger.Debugf("'%s' is empty, falling back to default values", option)
-			return nil
-		}
-		return buckets
-	}
-
-	buckets := get("telemetry.dogstatsd.aggregator_channel_latency_buckets")
-	if buckets == nil {
-		buckets = defaultChannelBuckets
-	}
-
-	server.tlmChannel = telemetrycomp.NewHistogram(
-		"dogstatsd",
-		"channel_latency",
-		[]string{"shard", "message_type"},
-		"Time in nanosecond to push metrics to the aggregator input buffer",
-		buckets)
-
-	listeners.InitTelemetry(get("telemetry.dogstatsd.listeners_latency_buckets"))
-	packets.InitTelemetry(get("telemetry.dogstatsd.listeners_channel_latency_buckets"))
 }
 
 // TODO: (components) - merge with newServerCompat once NewServerlessServer is removed
@@ -226,6 +196,8 @@ func newServer(deps dependencies) provides {
 }
 
 func newServerCompat(cfg config.Reader, log logComponent.Component, capture replay.Component, debug serverdebug.Component, serverless bool, demux aggregator.Demultiplexer, wmeta optional.Option[workloadmeta.Component], pidMap pidmap.Component, telemetrycomp telemetry.Component) *server {
+	// This needs to be done after the configuration is loaded
+	once.Do(func() { initTelemetry() })
 	var stats *util.Stats
 	if cfg.GetBool("dogstatsd_stats_enable") {
 		buff := cfg.GetInt("dogstatsd_stats_buffer")
@@ -333,8 +305,20 @@ func newServerCompat(cfg config.Reader, log logComponent.Component, capture repl
 		tlmProcessedError: dogstatsdTelemetryCount.WithValues("metrics", "error", ""),
 	}
 
-	// This needs to be done after the configuration is loaded
-	once.Do(func() { initTelemetry(s, cfg, log, telemetrycomp) })
+	buckets := getBuckets(cfg, log, "telemetry.dogstatsd.aggregator_channel_latency_buckets")
+	if buckets == nil {
+		buckets = defaultChannelBuckets
+	}
+
+	s.tlmChannel = telemetrycomp.NewHistogram(
+		"dogstatsd",
+		"channel_latency",
+		[]string{"shard", "message_type"},
+		"Time in nanosecond to push metrics to the aggregator input buffer",
+		buckets)
+
+	s.listernersTelemetry = listeners.NewTelemetryStore(getBuckets(cfg, log, "telemetry.dogstatsd.listeners_latency_buckets"), telemetrycomp)
+	// s.packetsTelemetry = packets.NewTelemetryStore(getBuckets(cfg, log, "telemetry.dogstatsd.listeners_channel_latency_buckets"), telemetrycomp)
 
 	return s
 }
@@ -384,7 +368,7 @@ func (s *server) start(context.Context) error {
 	}
 
 	if len(socketPath) > 0 {
-		unixListener, err := listeners.NewUDSDatagramListener(packetsChannel, sharedPacketPoolManager, sharedUDSOobPoolManager, s.config, s.tCapture, s.wmeta, s.pidMap)
+		unixListener, err := listeners.NewUDSDatagramListener(packetsChannel, sharedPacketPoolManager, sharedUDSOobPoolManager, s.config, s.tCapture, s.wmeta, s.pidMap, s.listernersTelemetry)
 		if err != nil {
 			s.log.Errorf("Can't init listener: %s", err.Error())
 		} else {
@@ -395,7 +379,7 @@ func (s *server) start(context.Context) error {
 
 	if len(socketStreamPath) > 0 {
 		s.log.Warnf("dogstatsd_stream_socket is not yet supported, run it at your own risk")
-		unixListener, err := listeners.NewUDSStreamListener(packetsChannel, sharedPacketPoolManager, sharedUDSOobPoolManager, s.config, s.tCapture, s.wmeta, s.pidMap)
+		unixListener, err := listeners.NewUDSStreamListener(packetsChannel, sharedPacketPoolManager, sharedUDSOobPoolManager, s.config, s.tCapture, s.wmeta, s.pidMap, s.listernersTelemetry)
 		if err != nil {
 			s.log.Errorf("Can't init listener: %s", err.Error())
 		} else {
@@ -404,7 +388,7 @@ func (s *server) start(context.Context) error {
 	}
 
 	if s.config.GetString("dogstatsd_port") == listeners.RandomPortName || s.config.GetInt("dogstatsd_port") > 0 {
-		udpListener, err := listeners.NewUDPListener(packetsChannel, sharedPacketPoolManager, s.config, s.tCapture)
+		udpListener, err := listeners.NewUDPListener(packetsChannel, sharedPacketPoolManager, s.config, s.tCapture, s.listernersTelemetry)
 		if err != nil {
 			s.log.Errorf(err.Error())
 		} else {
@@ -415,7 +399,7 @@ func (s *server) start(context.Context) error {
 
 	pipeName := s.config.GetString("dogstatsd_pipe_name")
 	if len(pipeName) > 0 {
-		namedPipeListener, err := listeners.NewNamedPipeListener(pipeName, packetsChannel, sharedPacketPoolManager, s.config, s.tCapture)
+		namedPipeListener, err := listeners.NewNamedPipeListener(pipeName, packetsChannel, sharedPacketPoolManager, s.config, s.tCapture, s.listernersTelemetry)
 		if err != nil {
 			s.log.Errorf("named pipe error: %v", err.Error())
 		} else {
@@ -826,4 +810,21 @@ func (s *server) parseServiceCheckMessage(parser *parser, message []byte, origin
 	dogstatsdServiceCheckPackets.Add(1)
 	s.tlmProcessed.Inc("service_checks", "ok", "")
 	return serviceCheck, nil
+}
+
+func getBuckets(cfg config.Reader, logger logComponent.Component, option string) []float64 {
+	if !cfg.IsSet(option) {
+		return nil
+	}
+
+	buckets, err := cfg.GetFloat64SliceE(option)
+	if err != nil {
+		logger.Errorf("%s, falling back to default values", err)
+		return nil
+	}
+	if len(buckets) == 0 {
+		logger.Debugf("'%s' is empty, falling back to default values", option)
+		return nil
+	}
+	return buckets
 }

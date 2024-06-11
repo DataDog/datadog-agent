@@ -25,7 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/pidmap"
 )
 
-type udsListenerFactory func(packetOut chan packets.Packets, manager *packets.PoolManager, cfg config.Component, pidMap pidmap.Component) (StatsdListener, error)
+type udsListenerFactory func(packetOut chan packets.Packets, manager *packets.PoolManager, cfg config.Component, pidMap pidmap.Component, telemetryStore *TelemetryStore) (StatsdListener, error)
 
 func socketPathConfKey(transport string) string {
 	if transport == "unix" {
@@ -51,7 +51,8 @@ func testFileExistsNewUDSListener(t *testing.T, socketPath string, cfg map[strin
 	assert.Nil(t, err)
 	defer os.Remove(socketPath)
 	deps := fulfillDepsWithConfig(t, cfg)
-	_, err = listenerFactory(nil, newPacketPoolManagerUDS(deps.Config), deps.Config, deps.PidMap)
+	telemetryStore := NewTelemetryStore(nil, deps.Telemetry)
+	_, err = listenerFactory(nil, newPacketPoolManagerUDS(deps.Config), deps.Config, deps.PidMap, telemetryStore)
 	assert.Error(t, err)
 }
 
@@ -65,7 +66,8 @@ func testSocketExistsNewUSDListener(t *testing.T, socketPath string, cfg map[str
 
 func testWorkingNewUDSListener(t *testing.T, socketPath string, cfg map[string]interface{}, listenerFactory udsListenerFactory) {
 	deps := fulfillDepsWithConfig(t, cfg)
-	s, err := listenerFactory(nil, newPacketPoolManagerUDS(deps.Config), deps.Config, deps.PidMap)
+	telemetryStore := NewTelemetryStore(nil, deps.Telemetry)
+	s, err := listenerFactory(nil, newPacketPoolManagerUDS(deps.Config), deps.Config, deps.PidMap, telemetryStore)
 	defer s.Stop()
 
 	assert.Nil(t, err)
@@ -100,7 +102,8 @@ func testStartStopUDSListener(t *testing.T, listenerFactory udsListenerFactory, 
 	mockConfig["dogstatsd_origin_detection"] = false
 
 	deps := fulfillDepsWithConfig(t, mockConfig)
-	s, err := listenerFactory(nil, newPacketPoolManagerUDS(deps.Config), deps.Config, deps.PidMap)
+	telemetryStore := NewTelemetryStore(nil, deps.Telemetry)
+	s, err := listenerFactory(nil, newPacketPoolManagerUDS(deps.Config), deps.Config, deps.PidMap, telemetryStore)
 	assert.Nil(t, err)
 	assert.NotNil(t, s)
 

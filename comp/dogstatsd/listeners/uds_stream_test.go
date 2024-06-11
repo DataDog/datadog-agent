@@ -24,8 +24,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
-func udsStreamListenerFactory(packetOut chan packets.Packets, manager *packets.PoolManager, cfg config.Component, pidMap pidmap.Component) (StatsdListener, error) {
-	return NewUDSStreamListener(packetOut, manager, nil, cfg, nil, optional.NewNoneOption[workloadmeta.Component](), pidMap)
+func udsStreamListenerFactory(packetOut chan packets.Packets, manager *packets.PoolManager, cfg config.Component, pidMap pidmap.Component, telemetryStore *TelemetryStore) (StatsdListener, error) {
+	return NewUDSStreamListener(packetOut, manager, nil, cfg, nil, optional.NewNoneOption[workloadmeta.Component](), pidMap, telemetryStore)
 }
 
 func TestNewUDSStreamListener(t *testing.T) {
@@ -49,7 +49,8 @@ func TestUDSStreamReceive(t *testing.T) {
 	packetsChannel := make(chan packets.Packets)
 
 	deps := fulfillDepsWithConfig(t, mockConfig)
-	s, err := udsStreamListenerFactory(packetsChannel, newPacketPoolManagerUDS(deps.Config), deps.Config, deps.PidMap)
+	telemetryStore := NewTelemetryStore(nil, deps.Telemetry)
+	s, err := udsStreamListenerFactory(packetsChannel, newPacketPoolManagerUDS(deps.Config), deps.Config, deps.PidMap, telemetryStore)
 	assert.Nil(t, err)
 	assert.NotNil(t, s)
 
