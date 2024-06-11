@@ -120,6 +120,9 @@ static __always_inline void* get_telemetry(pktbuf_t pkt) {
 //
 // We are only interested in path headers, that we will store in our internal
 // dynamic table, and will skip headers that are not path headers.
+// Returns true if the header was successfully parsed, and false otherwise.
+// Increments the interesting_headers_counter if the header is a path header with a length in the range of [0, HTTP2_MAX_PATH_LEN],
+// and we don't exceed packet boundaries.
 static __always_inline bool pktbuf_parse_field_literal(pktbuf_t pkt, http2_header_t *headers_to_process, __u64 index, __u64 global_dynamic_counter, __u8 *interesting_headers_counter, http2_telemetry_t *http2_tel, bool save_header) {
     __u64 str_len = 0;
     bool is_huffman_encoded = false;
@@ -174,9 +177,6 @@ static __always_inline bool pktbuf_parse_field_literal(pktbuf_t pkt, http2_heade
     headers_to_process->new_dynamic_value_offset = pktbuf_data_offset(pkt);
     headers_to_process->new_dynamic_value_size = str_len;
     headers_to_process->is_huffman_encoded = is_huffman_encoded;
-    // If the string len (`str_len`) is in the range of [0, HTTP2_MAX_PATH_LEN], and we don't exceed packet boundaries
-    // (skb_info->data_off + str_len <= skb_info->data_end) and the index is kIndexPath, then we have a path header,
-    // and we're increasing the counter. In any other case, we're not increasing the counter.
     *interesting_headers_counter += (str_len > 0 && str_len <= HTTP2_MAX_PATH_LEN);
 end:
     pktbuf_advance(pkt, str_len);
@@ -668,7 +668,7 @@ static __always_inline void handle_first_frame(pktbuf_t pkt, __u32 *external_dat
         // Not calling the next tail call as we have nothing to process.
         return;
     }
-    // Overriding the data_off field of the cached skb_info. The next prog will start from the offset of the next valid
+    // Overriding the data_off field of the cached packet. The next prog will start from the offset of the next valid
     // frame.
     *external_data_offset = pktbuf_data_offset(pkt);
 
@@ -690,7 +690,7 @@ int socket__http2_handle_first_frame(struct __sk_buff *skb) {
     const __u32 zero = 0;
 
     dispatcher_arguments_t dispatcher_args_copy;
-    // We're not calling fetch_dispatching_arguments as, we need to modify the `data_off` field of skb_info, so
+    // We're not calling fetch_dispatching_arguments as, we need to modify the `data_off` field of packet, so
     // the next prog will start to read from the next valid frame.
     dispatcher_arguments_t *args = bpf_map_lookup_elem(&dispatcher_arguments, &zero);
     if (args == NULL) {
@@ -736,7 +736,7 @@ static __always_inline void filter_frame(pktbuf_t pkt, void *map_key, conn_tuple
         return;
     }
 
-    // Some functions might change and override data_off field in dispatcher_args_copy.skb_info. Since it is used as a key
+    // Some functions might change and override data_off field in the packet. Since it is used as a key
     // in a map, we cannot allow it to be modified. Thus, storing the original value of the offset.
     __u32 original_off = pktbuf_data_offset(pkt);
 
@@ -746,7 +746,7 @@ static __always_inline void filter_frame(pktbuf_t pkt, void *map_key, conn_tuple
     // HTTP2_MAX_TAIL_CALLS_FOR_FRAMES_FILTER*HTTP2_MAX_FRAMES_ITERATIONS.
     iteration_value->filter_iterations++;
     if (have_more_frames_to_process && iteration_value->filter_iterations < HTTP2_MAX_TAIL_CALLS_FOR_FRAMES_FILTER) {
-        // save local copy of the skb_info, so the next prog will start from the offset of the next valid frame.
+        // save local copy of the offset, so the next prog will start from the offset of the next valid frame.
         iteration_value->data_off = pktbuf_data_offset(pkt);
         pktbuf_tail_call_option_t arr[] = {
             [PKTBUF_SKB] = {
@@ -835,7 +835,7 @@ int socket__http2_filter(struct __sk_buff *skb) {
 }
 
 static __always_inline void headers_parser(pktbuf_t pkt, void *map_key, conn_tuple_t *tup, __u8 tags) {
-    // Some functions might change and override data_off field in dispatcher_args_copy.skb_info. Since it is used as a key
+    // Some functions might change and override data_off field in the packet. Since it is used as a key
     // in a map, we cannot allow it to be modified. Thus, storing the original value of the offset.
     __u32 original_off = pktbuf_data_offset(pkt);
 
