@@ -63,7 +63,8 @@ type rcClient struct {
 type dependencies struct {
 	fx.In
 
-	Lc fx.Lifecycle
+	Log log.Component
+	Lc  fx.Lifecycle
 
 	Params            rcclient.Params             `optional:"true"`
 	Listeners         []types.RCListener          `group:"rCListener"`          // <-- Fill automatically by Fx
@@ -403,12 +404,3 @@ func (rc rcClient) agentTaskUpdateCallback(updates map[string]state.RawConfig, a
 		pkglog.Warnf("Timeout of at least one agent task configuration")
 	}
 }
-
-// func getDefaultStreamLogParams() *streamlogs.CliParams {
-// 	defaultRemoteConfigDuration := 60 * time.Second
-// 	return &streamlogs.CliParams{
-// 		FilePath: commonpath.DefaultStreamlogsLogFile,
-// 		Duration: defaultRemoteConfigDuration,
-// 		Quiet:    true,
-// 	}
-// }
