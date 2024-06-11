@@ -132,7 +132,7 @@ func (w *workloadmeta) Subscribe(name string, priority wmdef.SubscriberPriority,
 
 			for _, cachedEntity := range entitiesOfKind {
 				entity := cachedEntity.get(sub.filter.Source())
-				if entity != nil {
+				if entity != nil && sub.filter.MatchEntity(&entity) {
 					events = append(events, wmdef.Event{
 						Type:   wmdef.EventTypeSet,
 						Entity: entity,
@@ -202,7 +202,7 @@ func (w *workloadmeta) ListContainers() []*wmdef.Container {
 }
 
 // ListContainersWithFilter implements Store#ListContainersWithFilter
-func (w *workloadmeta) ListContainersWithFilter(filter wmdef.ContainerFilterFunc) []*wmdef.Container {
+func (w *workloadmeta) ListContainersWithFilter(filter wmdef.EntityFilterFunc[*wmdef.Container]) []*wmdef.Container {
 	entities := w.listEntitiesByKind(wmdef.KindContainer)
 
 	// Not very efficient
@@ -271,7 +271,7 @@ func (w *workloadmeta) ListProcesses() []*wmdef.Process {
 }
 
 // ListProcessesWithFilter implements Store#ListProcessesWithFilter
-func (w *workloadmeta) ListProcessesWithFilter(filter wmdef.ProcessFilterFunc) []*wmdef.Process {
+func (w *workloadmeta) ListProcessesWithFilter(filter wmdef.EntityFilterFunc[*wmdef.Process]) []*wmdef.Process {
 	entities := w.listEntitiesByKind(wmdef.KindProcess)
 
 	processes := make([]*wmdef.Process, 0, len(entities))
@@ -705,7 +705,7 @@ func (w *workloadmeta) handleEvents(evs []wmdef.CollectorEvent) {
 
 		for _, sub := range w.subscribers {
 			filter := sub.filter
-			if !filter.MatchKind(entityID.Kind) || !filter.MatchSource(ev.Source) || !filter.MatchEventType(ev.Type) {
+			if !filter.MatchEntity(&ev.Entity) || !filter.MatchSource(ev.Source) || !filter.MatchEventType(ev.Type) {
 				// event should be filtered out because it
 				// doesn't match the filter
 				continue

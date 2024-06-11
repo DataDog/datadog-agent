@@ -189,13 +189,14 @@ func (ownersLanguages *OwnersLanguages) handleKubeAPIServerUnsetEvents(events []
 // This method is blocking, and should be called within a goroutine
 // This method is thread-safe.
 func (ownersLanguages *OwnersLanguages) cleanRemovedOwners(wlm workloadmeta.Component) {
-	evBundle := wlm.Subscribe("language-detection-handler", workloadmeta.NormalPriority, workloadmeta.NewFilter(
-		&workloadmeta.FilterParams{
-			Kinds:     []workloadmeta.Kind{workloadmeta.KindKubernetesDeployment},
-			Source:    "kubeapiserver",
-			EventType: workloadmeta.EventTypeUnset,
-		},
-	))
+
+	filter := workloadmeta.NewFilterBuilder().
+		SetSource("kubeapiserver").
+		SetEventType(workloadmeta.EventTypeUnset).
+		AddKind(workloadmeta.KindKubernetesDeployment).
+		Build()
+
+	evBundle := wlm.Subscribe("language-detection-handler", workloadmeta.NormalPriority, filter)
 	defer wlm.Unsubscribe(evBundle)
 
 	for evChan := range evBundle {
