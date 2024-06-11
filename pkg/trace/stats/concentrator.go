@@ -27,7 +27,9 @@ import (
 // units used by the concentrator.
 const defaultBufferLen = 2
 
-type statsAdder interface {
+// Adder is an interface for something that can Add Stats Payloads
+type Adder interface {
+	// Add this payload to be written
 	Add(*pb.StatsPayload)
 }
 
@@ -36,7 +38,7 @@ type statsAdder interface {
 // Gets an imperial shitton of traces, and outputs pre-computed data structures
 // allowing to find the gold (stats) amongst the traces.
 type Concentrator struct {
-	Out statsAdder
+	Adder Adder
 
 	// bucket duration in nanoseconds
 	bsize int64
@@ -101,7 +103,7 @@ func preparePeerTags(tags ...string) []string {
 }
 
 // NewConcentrator initializes a new concentrator ready to be started
-func NewConcentrator(conf *config.AgentConfig, out statsAdder, now time.Time, statsd statsd.ClientInterface) *Concentrator {
+func NewConcentrator(conf *config.AgentConfig, adder Adder, now time.Time, statsd statsd.ClientInterface) *Concentrator {
 	bsize := conf.BucketInterval.Nanoseconds()
 	c := Concentrator{
 		bsize:   bsize,
@@ -111,7 +113,7 @@ func NewConcentrator(conf *config.AgentConfig, out statsAdder, now time.Time, st
 		oldestTs: alignTs(now.UnixNano(), bsize),
 		// TODO: Move to configuration.
 		bufferLen:              defaultBufferLen,
-		Out:                    out,
+		Adder:                  adder,
 		exit:                   make(chan struct{}),
 		agentEnv:               conf.DefaultEnv,
 		agentHostname:          conf.Hostname,
@@ -149,10 +151,10 @@ func (c *Concentrator) Run() {
 	for {
 		select {
 		case <-flushTicker.C:
-			c.Out.Add(c.Flush(false))
+			c.Adder.Add(c.Flush(false))
 		case <-c.exit:
 			log.Info("Exiting concentrator, computing remaining stats")
-			c.Out.Add(c.Flush(true))
+			c.Adder.Add(c.Flush(true))
 			return
 		}
 	}
