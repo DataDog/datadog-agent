@@ -13,6 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/fleet/internal/oci"
 )
 
+// Package represents a package known to the installer
 type Package struct {
 	Name                      string
 	released                  bool
@@ -21,6 +22,7 @@ type Package struct {
 	condition                 func(Package, *env.Env) bool
 }
 
+// PackagesList lists all known packages. Not all of them are installable
 var PackagesList = []Package{
 	{Name: "datadog-apm-inject", released: false, condition: apmInjectEnabled},
 	{Name: "datadog-apm-library-java", released: false, condition: apmLanguageEnabled},

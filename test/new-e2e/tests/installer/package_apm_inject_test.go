@@ -319,7 +319,6 @@ func (s *packageApmInjectSuite) TestPackagePinning() {
 	s.assertSocketPath("/var/run/datadog-installer/apm.socket")
 	s.assertDockerdInstrumented(injectOCIPath)
 
-
 	s.host.AssertPackageInstalledByInstaller("datadog-apm-library-python", "datadog-apm-library-dotnet")
 	s.host.AssertPackageVersion("datadog-apm-library-python", "2.8.2-dev")
 }
