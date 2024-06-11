@@ -19,6 +19,8 @@ import (
 type FileSerializer struct {
 	// File path
 	Path string `json:"path,omitempty"`
+	// File device path
+	DevicePath string `json:"device_path,omitempty"`
 	// File basename
 	Name string `json:"name,omitempty"`
 }
@@ -115,8 +117,9 @@ func newFileSerializer(fe *model.FileEvent, e *model.Event, _ ...uint64) *FileSe
 
 func newFimFileSerializer(fe *model.FimFileEvent, e *model.Event, _ ...uint64) *FileSerializer {
 	return &FileSerializer{
-		Path: e.FieldHandlers.ResolveFimFilePath(e, fe),
-		Name: e.FieldHandlers.ResolveFimFileBasename(e, fe),
+		Path:       e.FieldHandlers.ResolveFileUserPath(e, fe),
+		DevicePath: e.FieldHandlers.ResolveFimFilePath(e, fe),
+		Name:       e.FieldHandlers.ResolveFimFileBasename(e, fe),
 	}
 }
 
