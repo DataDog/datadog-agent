@@ -10,6 +10,7 @@ package modules
 import (
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
 	sysconfigtypes "github.com/DataDog/datadog-agent/cmd/system-probe/config/types"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor"
 	emconfig "github.com/DataDog/datadog-agent/pkg/eventmonitor/config"
@@ -24,7 +25,7 @@ import (
 
 var eventMonitorModuleConfigNamespaces = []string{"event_monitoring_config", "runtime_security_config"}
 
-func createEventMonitorModule(_ *sysconfigtypes.Config, wmeta optional.Option[workloadmeta.Component]) (module.Module, error) {
+func createEventMonitorModule(_ *sysconfigtypes.Config, wmeta optional.Option[workloadmeta.Component], _ telemetry.Component) (module.Module, error) {
 	emconfig := emconfig.NewConfig()
 
 	secconfig, err := secconfig.NewConfig()

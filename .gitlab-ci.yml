@@ -9,6 +9,7 @@ include:
   - .gitlab/choco_build/choco_build.yml
   - .gitlab/choco_deploy/choco_deploy.yml
   - .gitlab/common/shared.yml
+  - .gitlab/common/skip_ci_check.yml
   - .gitlab/common/pr_commenter.yml
   - .gitlab/common/test_infra_version.yml
   - .gitlab/container_build/include.yml
@@ -408,6 +409,10 @@ workflow:
 .except_mergequeue:
   - <<: *if_mergequeue
     when: never
+
+.on_mergequeue:
+  - <<: *if_mergequeue
+    when: on_success
 
 .manual:
   - !reference [.except_mergequeue]

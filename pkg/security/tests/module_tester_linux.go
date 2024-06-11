@@ -195,6 +195,7 @@ rules:
     version: {{$Rule.Version}}
     expression: >-
       {{$Rule.Expression}}
+    disabled: {{$Rule.Disabled}}
     tags:
 {{- range $Tag, $Val := .Tags}}
       {{$Tag}}: {{$Val}}
@@ -639,6 +640,14 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 
 	if err := initLogger(); err != nil {
 		return nil, err
+	}
+
+	if opts.staticOpts.disableBundledRules {
+		ruleDefs = append(ruleDefs, &rules.RuleDefinition{
+			ID:       events.NeedRefreshSBOMRuleID,
+			Disabled: true,
+			Combine:  rules.OverridePolicy,
+		})
 	}
 
 	st, err := newSimpleTest(t, macroDefs, ruleDefs, opts.dynamicOpts.testDir)
