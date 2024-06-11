@@ -2074,6 +2074,8 @@ core,github.com/open-telemetry/opamp-go/internal/testhelpers,Apache-2.0,Copyrigh
 core,github.com/open-telemetry/opamp-go/protobufs,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/connector/countconnector,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/connector/countconnector/internal/metadata,Apache-2.0,Copyright The OpenTelemetry Authors
+core,github.com/open-telemetry/opentelemetry-collector-contrib/connector/datadogconnector,Apache-2.0,Copyright The OpenTelemetry Authors
+core,github.com/open-telemetry/opentelemetry-collector-contrib/connector/datadogconnector/internal/metadata,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/connector/exceptionsconnector,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/connector/exceptionsconnector/internal/metadata,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/connector/grafanacloudconnector,Apache-2.0,Copyright The OpenTelemetry Authors

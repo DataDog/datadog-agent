@@ -19,7 +19,7 @@ from types import SimpleNamespace
 from invoke.exceptions import Exit
 
 from tasks.libs.common.color import color_message
-from tasks.libs.common.git import check_local_branch, check_uncommitted_changes
+from tasks.libs.common.git import check_local_branch, check_uncommitted_changes, get_commit_sha
 from tasks.libs.owners.parsing import search_owners
 
 # constants
@@ -352,7 +352,7 @@ def get_version_ldflags(ctx, major_version='7', install_path=None):
     flags
     """
     payload_v = get_payload_version()
-    commit = get_git_commit()
+    commit = get_commit_sha(ctx, short=True)
 
     ldflags = f"-X {REPO_PATH}/pkg/version.Commit={commit} "
     ldflags += (
@@ -365,13 +365,6 @@ def get_version_ldflags(ctx, major_version='7', install_path=None):
             ldflags += f"-X {REPO_PATH}/pkg/version.AgentPackageVersion={package_version} "
 
     return ldflags
-
-
-def get_git_commit():
-    """
-    Get the current commit
-    """
-    return check_output(['git', 'rev-parse', '--short', 'HEAD']).decode('utf-8').strip()
 
 
 def get_default_python(python_runtimes):
@@ -468,10 +461,9 @@ def query_version(ctx, major_version, git_sha_length=7, release=False):
     # When we're on a tag, `git describe --tags --candidates=50` doesn't include a commit sha.
     # We need it, so we fetch it another way.
     if not git_sha:
-        cmd = "git rev-parse HEAD"
         # The git sha shown by `git describe --tags --candidates=50` is the first 7 characters of the sha,
         # therefore we keep the same number of characters.
-        git_sha = ctx.run(cmd, hide=True).stdout.strip()[:7]
+        git_sha = get_commit_sha(ctx)[:7]
 
     pipeline_id = os.getenv("CI_PIPELINE_ID", None)
 
