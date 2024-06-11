@@ -107,7 +107,7 @@ func getDDExporterConfig(cfg *confmap.Conf) (*datadogexporter.Config, error) {
 		}
 		for k, v := range exporters {
 			if strings.HasPrefix(k, "datadog") {
-				var datadogConfig *datadogexporter.Config
+				datadogConfig := datadogexporter.CreateDefaultConfig().(*datadogexporter.Config)
 				m, ok := v.(map[string]any)
 				if !ok {
 					return nil, fmt.Errorf("invalid datadog exporter config")
