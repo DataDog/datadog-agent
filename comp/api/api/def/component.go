@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2023-present Datadog, Inc.
 
-// Package api implements the internal Agent API which exposes endpoints such as config, flare or status
+// Package def implements the internal Agent API component definitions which exposes endpoints such as config, flare or status
 package def
 
 import (
