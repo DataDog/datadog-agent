@@ -129,13 +129,13 @@ BPF_HASH_MAP(ip_make_skb_args, __u64, ip_make_skb_args_t, 1024)
 BPF_HASH_MAP(conn_tuple_to_socket_skb_conn_tuple, conn_tuple_t, conn_tuple_t, 0)
 
 // Map to hold conn_tuple_t parameter for tcp_close calls
-// to be used in kretprobe/tcp_close.
-BPF_HASH_MAP(tcp_close_args, __u64, conn_tuple_t, 1024)
+// to be used in kretprobe/tcp_done.
+BPF_HASH_MAP(tcp_done_args, __u64, conn_tuple_t, 1024)
 
 // This program array is needed to bypass a memory limit on socket filters.
 // There is a limitation on number of instructions can be attached to a socket filter,
 // as we dispatching more protocols, we reached that limit, thus we workaround it
 // by using tail call.
-BPF_PROG_ARRAY(tcp_close_progs, 1)
+BPF_PROG_ARRAY(tcp_done_progs, 1)
 
 #endif

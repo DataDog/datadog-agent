@@ -30,10 +30,9 @@ var mainProbes = []probes.ProbeFuncName{
 	probes.TCPRecvMsgReturn,
 	probes.TCPReadSock,
 	probes.TCPReadSockReturn,
-	probes.TCPClose,
 	probes.TCPDone,
-	probes.TCPCloseCleanProtocolsReturn,
-	probes.TCPCloseFlushReturn,
+	probes.TCPDoneCleanProtocolsReturn,
+	probes.TCPDoneFlushReturn,
 	probes.TCPConnect,
 	probes.TCPFinishConnect,
 	probes.IPMakeSkb,
@@ -82,7 +81,7 @@ func initManager(mgr *ddebpf.Manager, connCloseEventHandler ddebpf.EventHandler,
 		{Name: probes.HelperErrTelemetryMap},
 		{Name: probes.TCPRecvMsgArgsMap},
 		{Name: probes.ClassificationProgsMap},
-		{Name: probes.TCPCloseProgsMap},
+		{Name: probes.TCPDoneProgsMap},
 	}
 	util.SetupClosedConnHandler(connCloseEventHandler, mgr, cfg)
 	if cfg.FailedConnectionsSupported() && failedConnsHandler != nil {

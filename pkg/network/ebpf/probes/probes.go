@@ -80,14 +80,12 @@ const (
 	// TCPReadSockReturn traces the return for the tcp_read_sock() kernel function
 	TCPReadSockReturn ProbeFuncName = "kretprobe__tcp_read_sock"
 
-	// TCPClose traces the tcp_close() system call
-	TCPClose ProbeFuncName = "kprobe__tcp_close"
 	// TCPDone traces the tcp_done() system call
 	TCPDone ProbeFuncName = "kprobe__tcp_done"
-	// TCPCloseCleanProtocolsReturn traces the return of tcp_close() system call
-	TCPCloseCleanProtocolsReturn ProbeFuncName = "kretprobe__tcp_close_clean_protocols"
-	// TCPCloseFlushReturn traces the return of tcp_close() system call
-	TCPCloseFlushReturn ProbeFuncName = "kretprobe__tcp_close_flush"
+	// TCPDoneCleanProtocolsReturn traces the return of tcp_done() system call
+	TCPDoneCleanProtocolsReturn ProbeFuncName = "kretprobe__tcp_done_clean_protocols"
+	// TCPDoneFlushReturn traces the return of tcp_done() system call
+	TCPDoneFlushReturn ProbeFuncName = "kretprobe__tcp_done_flush"
 
 	// We use the following two probes for UDP sends
 
@@ -240,6 +238,6 @@ const (
 	ConnectionTupleToSocketSKBConnMap BPFMapName = "conn_tuple_to_socket_skb_conn_tuple"
 	// ClassificationProgsMap is the map storing the programs to run on classification events
 	ClassificationProgsMap BPFMapName = "classification_progs"
-	// TCPCloseProgsMap is the map storing the programs to run on TCP close events
-	TCPCloseProgsMap BPFMapName = "tcp_close_progs"
+	// TCPDoneProgsMap is the map storing the programs to run on TCP close events
+	TCPDoneProgsMap BPFMapName = "tcp_done_progs"
 )

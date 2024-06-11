@@ -73,10 +73,10 @@ var (
 			},
 		},
 		{
-			ProgArrayName: probes.TCPCloseProgsMap,
+			ProgArrayName: probes.TCPDoneProgsMap,
 			Key:           0,
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFFuncName: probes.TCPCloseFlushReturn,
+				EBPFFuncName: probes.TCPDoneFlushReturn,
 				UID:          probeUID,
 			},
 		},
