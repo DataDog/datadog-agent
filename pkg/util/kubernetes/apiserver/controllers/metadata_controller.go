@@ -78,16 +78,12 @@ func (m *metadataController) run(stopCh <-chan struct{}) {
 		return
 	}
 
-	wmetaFilterParams := workloadmeta.FilterParams{
-		Kinds:     []workloadmeta.Kind{workloadmeta.KindKubernetesNode},
-		Source:    workloadmeta.SourceAll,
-		EventType: workloadmeta.EventTypeAll,
-	}
+	filter := workloadmeta.NewFilterBuilder().AddKind(workloadmeta.KindKubernetesNode).Build()
 
 	wmetaEventsCh := m.wmeta.Subscribe(
 		"metadata-controller",
 		workloadmeta.NormalPriority,
-		workloadmeta.NewFilter(&wmetaFilterParams),
+		filter,
 	)
 	defer m.wmeta.Unsubscribe(wmetaEventsCh)
 
