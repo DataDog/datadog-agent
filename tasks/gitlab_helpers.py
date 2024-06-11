@@ -8,6 +8,8 @@ from urllib.parse import quote
 
 from invoke import task
 
+from tasks.libs.common.color import Color, color_message
+
 CI_VISIBILITY_URL = "https://app.datadoghq.com/ci/pipeline-executions"
 
 
@@ -20,11 +22,21 @@ def generate_ci_visibility_links(_ctx, output: str | None):
     """
     ci_job_id = os.environ.get("CI_JOB_ID")
     if ci_job_id is None:
-        print(color_message("CI_JOB_ID is not set, this task can run only on Gitlab, skipping...", Color.RED))
+        print(
+            color_message(
+                "CI_JOB_ID is not set, this task can run only on Gitlab, skipping...",
+                Color.RED,
+            )
+        )
         return
     ci_job_name = os.environ.get("CI_JOB_NAME")
     if ci_job_name is None:
-        print(color_message("CI_JOB_NAME is not set, this task can run only on Gitlab, skipping...", Color.RED))
+        print(
+            color_message(
+                "CI_JOB_NAME is not set, this task can run only on Gitlab, skipping...",
+                Color.RED,
+            )
+        )
         return
 
     gitlab_annotations_report = {
