@@ -21,7 +21,7 @@ def generate_ci_visibility_links(_ctx, output: str | None):
     Generated file
     """
     ci_job_id = os.environ.get("CI_JOB_ID")
-    if ci_job_id is None:
+    if not ci_job_id:
         print(
             color_message(
                 "CI_JOB_ID is not set, this task can run only on Gitlab, skipping...",
