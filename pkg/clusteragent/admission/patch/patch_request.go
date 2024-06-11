@@ -50,7 +50,6 @@ func (k *K8sClusterTarget) matchesCluster(name string) bool {
 	return k.ClusterName == name
 }
 
-
 // K8sTarget represent the targetet k8s scope
 type K8sTarget struct {
 	ClusterTargets []K8sClusterTarget `json:"cluster_targets"`
