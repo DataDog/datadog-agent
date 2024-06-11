@@ -88,11 +88,11 @@ class TestQueryVersion(unittest.TestCase):
         self.assertEqual(g, "315e3a2")
 
     @patch.dict(os.environ, {"BUCKET_BRANCH": "nightly"}, clear=True)
-    @patch("tasks.libs.common.utils.get_git_branch_name", new=MagicMock(return_value="main"))
     def test_on_nightly_bucket(self):
         major_version = "7"
         c = MockContext(
             run={
+                "git rev-parse --abbrev-ref HEAD": Result("main"),
                 rf"git tag --list --merged main | grep -E '^{major_version}\.[0-9]+\.[0-9]+(-rc.*|-devel.*)?$' | sort -rV | head -1": Result(
                     "7.55.0-devel"
                 ),
@@ -107,11 +107,11 @@ class TestQueryVersion(unittest.TestCase):
         self.assertEqual(c, 543)
         self.assertEqual(g, "315e3a2")
 
-    @patch("tasks.libs.common.utils.get_git_branch_name", new=MagicMock(return_value="7.55.x"))
     def test_on_release(self):
         major_version = "7"
         c = MockContext(
             run={
+                "git rev-parse --abbrev-ref HEAD": Result("7.55.x"),
                 rf"git tag --list --merged 7.55.x | grep -E '^{major_version}\.[0-9]+\.[0-9]+(-rc.*|-devel.*)?$' | sort -rV | head -1": Result(
                     "7.55.0-devel"
                 ),
