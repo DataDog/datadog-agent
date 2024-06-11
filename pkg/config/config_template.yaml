@@ -1137,6 +1137,19 @@ api_key:
   #         obfuscate_sql_values:
   #             - val1
   #
+  #     opensearch:
+  ##        @param DD_APM_OBFUSCATION_OPENSEARCH_ENABLED - boolean - optional
+  ##        Enables obfuscation rules for spans of type "opensearch". Enabled by default.
+  #         enabled: true
+  ##        @param DD_APM_OBFUSCATION_OPENSEARCH_KEEP_VALUES - object - optional
+  ##        List of keys that should not be obfuscated.
+  #         keep_values:
+  #             - client_id
+  ##        @param DD_APM_OBFUSCATION_OPENSEARCH_OBFUSCATE_SQL_VALUES - boolean - optional
+  ##        The set of keys for which their values will be passed through SQL obfuscation
+  #         obfuscate_sql_values:
+  #             - val1
+  #
   #     http:
   ##        @param DD_APM_OBFUSCATION_HTTP_REMOVE_QUERY_STRING - boolean - optional
   ##        Enables obfuscation of query strings in URLs
@@ -3550,7 +3563,7 @@ api_key:
   ## This field is used by NDM features (SNMP check, SNMP Traps listener, etc).
   #
   # namespace: default
-  
+
   ## @param autodiscovery - custom object - optional
   ## Creates and schedules a listener to automatically discover your SNMP devices.
   ## Discovered devices can then be monitored with the SNMP integration by using

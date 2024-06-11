@@ -9,6 +9,7 @@
 package service
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -66,7 +67,7 @@ func TestSetSocketEnvs(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			res, err := setSocketEnvs([]byte(tt.input))
+			res, err := setSocketEnvs(context.TODO(), []byte(tt.input))
 			assert.NoError(t, err)
 			envVarsCount := 0
 			for _, line := range strings.Split(string(res), "\n") {
