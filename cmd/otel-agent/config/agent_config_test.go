@@ -21,6 +21,16 @@ func TestAgentConfig(t *testing.T) {
 	assert.Equal(t, "DATADOG_API_KEY", c.Get("api_key"))
 	assert.Equal(t, "datadoghq.eu", c.Get("site"))
 	assert.Equal(t, "debug", c.Get("log_level"))
+	assert.Equal(t, "https://trace.agent.datadoghq.eu", c.Get("apm_config.apm_dd_url"))
+	assert.Equal(t, true, c.Get("otlp_config.traces.span_name_as_resource_name"))
+	assert.Equal(t, map[string]string{"io.opentelemetry.javaagent.spring.client": "spring.client"}, c.Get("otlp_config.traces.span_name_remappings"))
+	assert.Equal(t, []string{"(GET|POST) /healthcheck"}, c.Get("apm_config.ignore_resources"))
+	assert.Equal(t, 0, c.Get("apm_config.receiver_port"))
+	assert.Equal(t, true, c.Get("apm_config.peer_tags_aggregation"))
+	assert.Equal(t, true, c.Get("apm_config.compute_stats_by_span_kind"))
+	assert.Equal(t, []string{"tag1"}, c.Get("apm_config.peer_tags"))
+	assert.Equal(t, 10, c.Get("apm_config.trace_buffer"))
+	assert.Equal(t, []string{"enable_otlp_compute_top_level_by_span_kind"}, c.Get("apm_config.features"))
 }
 
 func TestAgentConfigDefaults(t *testing.T) {
@@ -31,6 +41,8 @@ func TestAgentConfigDefaults(t *testing.T) {
 	}
 	assert.Equal(t, "DATADOG_API_KEY", c.Get("api_key"))
 	assert.Equal(t, "datadoghq.com", c.Get("site"))
+	assert.Equal(t, "https://trace.agent.datadoghq.com", c.Get("apm_config.apm_dd_url"))
+	assert.Equal(t, 0, c.Get("apm_config.receiver_port"))
 }
 
 func TestNoDDExporter(t *testing.T) {

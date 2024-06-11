@@ -14,6 +14,16 @@ exporters:
     api:
       key: DATADOG_API_KEY
       site: datadoghq.eu
+    traces:
+      span_name_as_resource_name: true
+      span_name_remappings:
+        io.opentelemetry.javaagent.spring.client: spring.client
+      ignore_resources: ["(GET|POST) /healthcheck"]
+      compute_stats_by_span_kind: true
+      compute_top_level_by_span_kind: true
+      peer_tags_aggregation: true
+      peer_tags: ["tag1"]
+      trace_buffer: 10      
 processors:
   batch:
     timeout: 10s
