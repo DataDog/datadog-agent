@@ -58,8 +58,12 @@ func NewConfigComponent(ctx context.Context, uris []string) (config.Component, e
 	}
 	site := ddc.API.Site
 	apiKey := string(ddc.API.Key)
-	// Create a new config
-	pkgconfig := pkgconfigmodel.NewConfig("OTel", "DD", strings.NewReplacer(".", "_"))
+	// Set the global agent config
+	pkgconfig := pkgconfigsetup.Datadog()
+	pkgconfig.SetConfigName("OTel")
+	pkgconfig.SetEnvPrefix("DD")
+	pkgconfig.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
+
 	// Set Default values
 	pkgconfigsetup.InitConfig(pkgconfig)
 	pkgconfig.Set("api_key", apiKey, pkgconfigmodel.SourceLocalConfigProcess)

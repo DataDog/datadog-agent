@@ -27,7 +27,7 @@ func FindContainerID(s string) string {
 		return ""
 	}
 
-	// ensure the found containerID is delimited by charaters other than a-zA-Z0-9, or that
+	// ensure the found containerID is delimited by characters other than a-zA-Z0-9, or that
 	// it starts or/and ends the initial string
 
 	// first, check what's before

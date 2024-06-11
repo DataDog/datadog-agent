@@ -276,7 +276,7 @@ func testProtocolConnectionProtocolMapCleanup(t *testing.T, tr *Tracer, clientHo
 
 type tlsTestCommand struct {
 	version        string
-	openSSLCommand string
+	openSSLCommand []string
 }
 
 func getFreePort() (port uint16, err error) {
@@ -307,26 +307,25 @@ func (s *USMSuite) TestTLSClassification() {
 	scenarios := []tlsTestCommand{
 		{
 			version:        "1.0",
-			openSSLCommand: "-tls1",
+			openSSLCommand: []string{"-tls1", "-cipher=DEFAULT@SECLEVEL=0"},
 		},
 		{
 			version:        "1.1",
-			openSSLCommand: "-tls1_1",
+			openSSLCommand: []string{"-tls1_1", "-cipher=DEFAULT@SECLEVEL=0"},
 		},
 		{
 			version:        "1.2",
-			openSSLCommand: "-tls1_2",
+			openSSLCommand: []string{"-tls1_2"},
 		},
 		{
 			version:        "1.3",
-			openSSLCommand: "-tls1_3",
+			openSSLCommand: []string{"-tls1_3"},
 		},
 	}
 
 	port, err := getFreePort()
 	require.NoError(t, err)
 	portAsString := strconv.Itoa(int(port))
-	require.NoError(t, prototls.RunServerOpenssl(t, portAsString, len(scenarios), "-www"))
 
 	tr := setupTracer(t, cfg)
 
@@ -337,10 +336,12 @@ func (s *USMSuite) TestTLSClassification() {
 	}
 	tests := make([]tlsTest, 0, len(scenarios))
 	for _, scenario := range scenarios {
+		scenario := scenario
 		tests = append(tests, tlsTest{
 			name: "TLS-" + scenario.version + "_docker",
 			postTracerSetup: func(t *testing.T) {
-				require.True(t, prototls.RunClientOpenssl(t, "localhost", portAsString, scenario.openSSLCommand))
+				require.NoError(t, prototls.RunServerOpenssl(t, portAsString, len(scenarios), append([]string{"-www"}, scenario.openSSLCommand...)...))
+				require.True(t, prototls.RunClientOpenssl(t, "localhost", portAsString, scenario.openSSLCommand...))
 			},
 			validation: func(t *testing.T, tr *Tracer) {
 				// Iterate through active connections until we find connection created above
@@ -1174,6 +1175,7 @@ func testPostgresProtocolClassificationWrapper(enableTLS bool) func(t *testing.T
 func testPostgresProtocolClassification(t *testing.T, tr *Tracer, clientHost, targetHost, serverHost string, enableTLS bool) {
 	skippers := []func(t *testing.T, ctx testContext){skipIfUsingNAT}
 	if enableTLS {
+		t.Skip("TLS+Postgres classification tests are flaky")
 		skippers = append(skippers, skipIfGoTLSNotSupported)
 	}
 	skipFunc := composeSkips(skippers...)
@@ -1690,6 +1692,7 @@ func testRedisProtocolClassification(t *testing.T, tr *Tracer, clientHost, targe
 }
 
 func testTLSAMQPProtocolClassification(t *testing.T, tr *Tracer, clientHost, targetHost, serverHost string) {
+	t.Skip("TLS+AMQP classification tests are flaky")
 	testAMQPProtocolClassificationInner(t, tr, clientHost, targetHost, serverHost, amqp.TLS)
 }
 

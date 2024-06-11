@@ -52,14 +52,14 @@ class TestSplitJUnitXML(unittest.TestCase):
     def test_without_split(self):
         xml_file = Path("./tasks/unit-tests/testdata/secret.tar.gz/kitchen-rspec-win2016-azure-x86_64.xml")
         owners = read_owners(".github/CODEOWNERS")
-        self.assertEqual(junit.split_junitxml(xml_file, owners, []), 1)
+        self.assertEqual(junit.split_junitxml(xml_file.parent, xml_file, owners, []), 1)
         generated_folder = xml_file.parent / "windows-agent_base"
         self.assertTrue(generated_folder.exists())
 
     def test_with_split(self):
         xml_file = Path("./tasks/unit-tests/testdata/secret.tar.gz/-go-src-datadog-agent-junit-out-base.xml")
         owners = read_owners(".github/CODEOWNERS")
-        self.assertEqual(junit.split_junitxml(xml_file, owners, []), 29)
+        self.assertEqual(junit.split_junitxml(xml_file.parent, xml_file, owners, []), 29)
 
 
 class TestGroupPerTag(unittest.TestCase):
@@ -137,7 +137,6 @@ class TestSetTag(unittest.TestCase):
 
 class TestJUnitUploadFromTGZ(unittest.TestCase):
     @patch.dict("os.environ", {"CI_PIPELINE_ID": "1664"})
-    @patch("builtins.print", new=MagicMock())
     @patch("tasks.libs.common.junit_upload_core.get_gitlab_repo")
     @patch("tasks.libs.common.junit_upload_core.Popen")
     def test_e2e(self, mock_popen, mock_gitlab):

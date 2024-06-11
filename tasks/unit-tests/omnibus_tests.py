@@ -74,7 +74,6 @@ class TestOmnibusCache(unittest.TestCase):
             f'Failed to match pattern {line_patterns}.',
         )
 
-    @mock.patch("builtins.print", new=mock.MagicMock())
     def test_successful_cache_hit(self):
         self.mock_ctx.set_result_for(
             'run',
@@ -108,7 +107,6 @@ class TestOmnibusCache(unittest.TestCase):
         for line in lines:
             self.assertIsNone(re.search(line, commands))
 
-    @mock.patch("builtins.print", new=mock.MagicMock())
     def test_cache_miss(self):
         self.mock_ctx.set_result_for(
             'run',
@@ -151,7 +149,6 @@ class TestOmnibusCache(unittest.TestCase):
             ],
         )
 
-    @mock.patch("builtins.print", new=mock.MagicMock())
     def test_cache_hit_with_corruption(self):
         # Case where we get a bundle from S3 but git finds it to be corrupted
 
@@ -168,7 +165,6 @@ class TestOmnibusCache(unittest.TestCase):
         # We're satisfied if we ran the build despite that failure
         self.assertRunLines([r'bundle exec omnibus build agent'])
 
-    @mock.patch("builtins.print", new=mock.MagicMock())
     def test_cache_is_disabled_by_unsetting_env_var(self):
         del os.environ['OMNIBUS_GIT_CACHE_DIR']
         self._set_up_default_command_mocks()
