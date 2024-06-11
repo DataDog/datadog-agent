@@ -6,6 +6,7 @@ require 'yaml'
 require 'find'
 require 'tempfile'
 require 'fileutils'
+require 'set'
 
 #
 # this enables RSpec output so that individual tests ("it behaves like...") are
