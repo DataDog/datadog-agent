@@ -16,7 +16,7 @@ func TracedProgramsEndpoint(w http.ResponseWriter, _ *http.Request) {
 }
 
 // GetBlockedPathIDsList is not supported on Windows
-func GetBlockedPathIDsList() []BlockedProcess {
+func GetBlockedPathIDsList(w http.ResponseWriter, _ *http.Request) []BlockedProcess {
 	w.WriteHeader(404)
 }
 
