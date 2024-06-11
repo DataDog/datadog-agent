@@ -13,6 +13,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -98,6 +99,13 @@ func (i *installerImpl) States() (map[string]repository.State, error) {
 
 // IsInstalled checks if a package is installed.
 func (i *installerImpl) IsInstalled(_ context.Context, pkg string) (bool, error) {
+	// The install script passes the package name as either <package>-<version> or <package>=<version>
+	// depending on the platform so we strip the version prefix by looking for the "real" package name
+	for _, p := range PackagesList {
+		if strings.HasPrefix(pkg, p.Name) {
+			pkg = p.Name
+		}
+	}
 	hasPackage, err := i.db.HasPackage(pkg)
 	if err != nil {
 		return false, fmt.Errorf("could not list packages: %w", err)

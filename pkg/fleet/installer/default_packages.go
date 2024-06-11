@@ -13,34 +13,34 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/fleet/internal/oci"
 )
 
-type defaultPackage struct {
-	name                      string
+type Package struct {
+	Name                      string
 	released                  bool
 	releasedBySite            []string
 	releasedWithRemoteUpdates bool
-	condition                 func(defaultPackage, *env.Env) bool
+	condition                 func(Package, *env.Env) bool
 }
 
-var defaultPackagesList = []defaultPackage{
-	{name: "datadog-apm-inject", released: false, condition: apmInjectEnabled},
-	{name: "datadog-apm-library-java", released: false, condition: apmLanguageEnabled},
-	{name: "datadog-apm-library-ruby", released: false, condition: apmLanguageEnabled},
-	{name: "datadog-apm-library-js", released: false, condition: apmLanguageEnabled},
-	{name: "datadog-apm-library-dotnet", released: false, condition: apmLanguageEnabled},
-	{name: "datadog-apm-library-python", released: false, condition: apmLanguageEnabled},
-	{name: "datadog-agent", released: false, releasedWithRemoteUpdates: true},
+var PackagesList = []Package{
+	{Name: "datadog-apm-inject", released: false, condition: apmInjectEnabled},
+	{Name: "datadog-apm-library-java", released: false, condition: apmLanguageEnabled},
+	{Name: "datadog-apm-library-ruby", released: false, condition: apmLanguageEnabled},
+	{Name: "datadog-apm-library-js", released: false, condition: apmLanguageEnabled},
+	{Name: "datadog-apm-library-dotnet", released: false, condition: apmLanguageEnabled},
+	{Name: "datadog-apm-library-python", released: false, condition: apmLanguageEnabled},
+	{Name: "datadog-agent", released: false, releasedWithRemoteUpdates: true},
 }
 
 // DefaultPackages resolves the default packages URLs to install based on the environment.
 func DefaultPackages(env *env.Env) []string {
-	return defaultPackages(env, defaultPackagesList)
+	return defaultPackages(env, PackagesList)
 }
 
-func defaultPackages(env *env.Env, defaultPackages []defaultPackage) []string {
+func defaultPackages(env *env.Env, defaultPackages []Package) []string {
 	var packages []string
 	for _, p := range defaultPackages {
 		released := p.released || slices.Contains(p.releasedBySite, env.Site) || (p.releasedWithRemoteUpdates && env.RemoteUpdates)
-		installOverride, isOverridden := env.DefaultPackagesInstallOverride[p.name]
+		installOverride, isOverridden := env.DefaultPackagesInstallOverride[p.Name]
 		condition := p.condition == nil || p.condition(p, env)
 
 		shouldInstall := released && condition
@@ -54,21 +54,21 @@ func defaultPackages(env *env.Env, defaultPackages []defaultPackage) []string {
 		version := "latest"
 
 		// Respect pinned version of APM packages if we don't define any overwrite
-		if apmLibVersion, ok := env.ApmLibraries[packageToLanguage(p.name)]; ok {
+		if apmLibVersion, ok := env.ApmLibraries[packageToLanguage(p.Name)]; ok {
 			version = apmLibVersion.AsVersionTag()
 			// TODO(paullgdc): Emit a warning here if APM packages are not pinned to at least a major
 		}
 
-		if v, ok := env.DefaultPackagesVersionOverride[p.name]; ok {
+		if v, ok := env.DefaultPackagesVersionOverride[p.Name]; ok {
 			version = v
 		}
-		url := oci.PackageURL(env, p.name, version)
+		url := oci.PackageURL(env, p.Name, version)
 		packages = append(packages, url)
 	}
 	return packages
 }
 
-func apmInjectEnabled(_ defaultPackage, e *env.Env) bool {
+func apmInjectEnabled(_ Package, e *env.Env) bool {
 	switch e.InstallScript.APMInstrumentationEnabled {
 	case env.APMInstrumentationEnabledAll, env.APMInstrumentationEnabledDocker, env.APMInstrumentationEnabledHost:
 		return true
@@ -76,11 +76,11 @@ func apmInjectEnabled(_ defaultPackage, e *env.Env) bool {
 	return false
 }
 
-func apmLanguageEnabled(p defaultPackage, e *env.Env) bool {
+func apmLanguageEnabled(p Package, e *env.Env) bool {
 	if !apmInjectEnabled(p, e) {
 		return false
 	}
-	if _, ok := e.ApmLibraries[packageToLanguage(p.name)]; ok {
+	if _, ok := e.ApmLibraries[packageToLanguage(p.Name)]; ok {
 		return true
 	}
 	if _, ok := e.ApmLibraries["all"]; ok {

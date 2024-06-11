@@ -199,7 +199,7 @@ func (s *packageApmInjectSuite) TestPackagePinning() {
 	s.assertDockerdInstrumented(injectOCIPath)
 
 	s.host.AssertPackageInstalledByInstaller("datadog-apm-library-python", "datadog-apm-library-dotnet")
-	s.host.AssertPackageVersion("datadog-apm-library-python", "2.8.2-dev-1")
+	s.host.AssertPackageVersion("datadog-apm-library-python", "2.8.2-dev")
 }
 
 func (s *packageApmInjectSuite) assertTraceReceived(traceID uint64) {

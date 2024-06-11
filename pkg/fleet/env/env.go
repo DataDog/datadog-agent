@@ -153,7 +153,6 @@ func parseApmLibrariesEnv() map[ApmLibLanguage]ApmLibVersion {
 	apmLibrariesVersion := map[ApmLibLanguage]ApmLibVersion{}
 	rest := apmLibraries
 	for rest != "" {
-		fmt.Println(rest)
 		var library string
 		library, rest, _ = strings.Cut(rest, ",")
 		libraryName, libraryVersion, _ := strings.Cut(library, ":")
