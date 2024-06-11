@@ -94,6 +94,9 @@ lint_macos:
 
 lint_macos_gitlab_amd64:
   stage: source_test
+  rules:
+    - !reference [.on_main]
+    - !reference [.manual]
   extends: .macos_gitlab_amd64
   tags: ["macos:monterey-amd64", "specific:true"]
   needs: ["setup_agent_version"]
@@ -102,10 +105,8 @@ lint_macos_gitlab_amd64:
 
 tests_macos_gitlab_amd64:
   stage: source_test
-  # TODO: Uncomment those rules when we want to run the tests on the dev branches as well.
-  # rules:
-  #   - !reference [.except_disable_unit_tests]
-  #   - !reference [.fast_on_dev_branch_only]
+  rules:
+    !reference [.manual]
   extends: .macos_gitlab_amd64
   tags: ["macos:monterey-amd64", "specific:true"]
   needs: ["setup_agent_version"]
