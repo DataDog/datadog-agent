@@ -33,9 +33,11 @@ type worker struct {
 	// be used to store the samples out a of packets. Allocating it every
 	// time is very costly, especially on the GC.
 	samples metrics.MetricSampleBatch
+
+	packetsTelemetry *packets.TelemetryStore
 }
 
-func newWorker(s *server, workerNum int, wmeta optional.Option[workloadmeta.Component], telemetrycomp telemetry.Component) *worker {
+func newWorker(s *server, workerNum int, wmeta optional.Option[workloadmeta.Component], telemetrycomp telemetry.Component, packetsTelemetry *packets.TelemetryStore) *worker {
 	var batcher *batcher
 	if s.ServerlessMode {
 		batcher = newServerlessBatcher(s.demultiplexer, s.tlmChannel)
@@ -44,10 +46,11 @@ func newWorker(s *server, workerNum int, wmeta optional.Option[workloadmeta.Comp
 	}
 
 	return &worker{
-		server:  s,
-		batcher: batcher,
-		parser:  newParser(s.config, s.sharedFloat64List, workerNum, wmeta, telemetrycomp),
-		samples: make(metrics.MetricSampleBatch, 0, defaultSampleSize),
+		server:           s,
+		batcher:          batcher,
+		parser:           newParser(s.config, s.sharedFloat64List, workerNum, wmeta, telemetrycomp),
+		samples:          make(metrics.MetricSampleBatch, 0, defaultSampleSize),
+		packetsTelemetry: packetsTelemetry,
 	}
 }
 
@@ -60,7 +63,7 @@ func (w *worker) run() {
 		case <-w.server.serverlessFlushChan:
 			w.batcher.flush()
 		case ps := <-w.server.packetsIn:
-			packets.TelemetryUntrackPackets(ps)
+			w.packetsTelemetry.TelemetryUntrackPackets(ps)
 			w.samples = w.samples[0:0]
 			// we return the samples in case the slice was extended
 			// when parsing the packets

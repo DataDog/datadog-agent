@@ -25,11 +25,12 @@ import (
 type Pool struct {
 	pool sync.Pool
 	// telemetry
-	tlmEnabled bool
+	tlmEnabled       bool
+	packetsTelemetry *TelemetryStore
 }
 
 // NewPool creates a new pool with a specified buffer size
-func NewPool(bufferSize int) *Pool {
+func NewPool(bufferSize int, packetsTelemetry *TelemetryStore) *Pool {
 	return &Pool{
 		pool: sync.Pool{
 			New: func() interface{} {
@@ -42,15 +43,16 @@ func NewPool(bufferSize int) *Pool {
 			},
 		},
 		// telemetry
-		tlmEnabled: utils.IsTelemetryEnabled(config.Datadog()),
+		tlmEnabled:       utils.IsTelemetryEnabled(config.Datadog()),
+		packetsTelemetry: packetsTelemetry,
 	}
 }
 
 // Get gets a Packet object read for use.
 func (p *Pool) Get() interface{} {
 	if p.tlmEnabled {
-		tlmPoolGet.Inc()
-		tlmPool.Inc()
+		p.packetsTelemetry.tlmPoolGet.Inc()
+		p.packetsTelemetry.tlmPool.Inc()
 	}
 	return p.pool.Get()
 }
@@ -67,8 +69,8 @@ func (p *Pool) Put(x interface{}) {
 		packet.Origin = NoOrigin
 	}
 	if p.tlmEnabled {
-		tlmPoolPut.Inc()
-		tlmPool.Dec()
+		p.packetsTelemetry.tlmPoolPut.Inc()
+		p.packetsTelemetry.tlmPool.Dec()
 	}
 	p.pool.Put(packet)
 }

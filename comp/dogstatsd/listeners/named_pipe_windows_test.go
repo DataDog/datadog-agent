@@ -124,18 +124,21 @@ type namedPipeListenerTest struct {
 }
 
 func newNamedPipeListenerTest(t *testing.T) namedPipeListenerTest {
-	pool := packets.NewPool(maxPipeMessageCount)
+	telemetryComp := fxutil.Test[telemetry.Component](t, telemetryimpl.MockModule())
+	packetsTelemetryStore := packets.NewTelemetryStore(nil, telemetryComp)
+
+	pool := packets.NewPool(maxPipeMessageCount, packetsTelemetryStore)
 	poolManager := packets.NewPoolManager(pool)
 	packetOut := make(chan packets.Packets, maxPipeMessageCount)
-	packetManager := packets.NewPacketManager(10, maxPipeMessageCount, 10*time.Millisecond, packetOut, poolManager)
-	telemetryStore := NewTelemetryStore(nil, fxutil.Test[telemetry.Component](t, telemetryimpl.MockModule()))
+	packetManager := packets.NewPacketManager(10, maxPipeMessageCount, 10*time.Millisecond, packetOut, poolManager, packetsTelemetryStore)
+	listernerTelemetryStore := NewTelemetryStore(nil, telemetryComp)
 
 	listener, err := newNamedPipeListener(
 		pipeName,
 		namedPipeBufferSize,
 		packetManager,
 		nil,
-		telemetryStore,
+		listernerTelemetryStore,
 	)
 	assert.NoError(t, err)
 

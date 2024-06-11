@@ -20,12 +20,12 @@ type PacketManager struct {
 }
 
 // NewPacketManagerFromConfig creates a PacketManager from the relevant config settings.
-func NewPacketManagerFromConfig(packetOut chan Packets, sharedPacketPoolManager *PoolManager, cfg config.Reader) *PacketManager {
+func NewPacketManagerFromConfig(packetOut chan Packets, sharedPacketPoolManager *PoolManager, cfg config.Reader, telemetryStore *TelemetryStore) *PacketManager {
 	bufferSize := cfg.GetInt("dogstatsd_buffer_size")
 	packetsBufferSize := cfg.GetInt("dogstatsd_packet_buffer_size")
 	flushTimeout := cfg.GetDuration("dogstatsd_packet_buffer_flush_timeout")
 
-	return NewPacketManager(bufferSize, packetsBufferSize, flushTimeout, packetOut, sharedPacketPoolManager)
+	return NewPacketManager(bufferSize, packetsBufferSize, flushTimeout, packetOut, sharedPacketPoolManager, telemetryStore)
 }
 
 // NewPacketManager instantiates a PacketManager
@@ -34,9 +34,11 @@ func NewPacketManager(
 	packetsBufferSize int,
 	flushTimeout time.Duration,
 	packetOut chan Packets,
-	sharedPacketPoolManager *PoolManager) *PacketManager {
+	sharedPacketPoolManager *PoolManager,
+	telemetryStore *TelemetryStore,
+) *PacketManager {
 
-	packetsBuffer := NewBuffer(uint(packetsBufferSize), flushTimeout, packetOut, "named_pipe")
+	packetsBuffer := NewBuffer(uint(packetsBufferSize), flushTimeout, packetOut, "named_pipe", telemetryStore)
 
 	return &PacketManager{
 		bufferSize:      bufferSize,

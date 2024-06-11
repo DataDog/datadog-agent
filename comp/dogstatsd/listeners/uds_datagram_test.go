@@ -23,8 +23,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
-func udsDatagramListenerFactory(packetOut chan packets.Packets, manager *packets.PoolManager, cfg config.Component, pidMap pidmap.Component, telemetryStore *TelemetryStore) (StatsdListener, error) {
-	return NewUDSDatagramListener(packetOut, manager, nil, cfg, nil, optional.NewNoneOption[workloadmeta.Component](), pidMap, telemetryStore)
+func udsDatagramListenerFactory(packetOut chan packets.Packets, manager *packets.PoolManager, cfg config.Component, pidMap pidmap.Component, telemetryStore *TelemetryStore, packetsTelemetryStore *packets.TelemetryStore) (StatsdListener, error) {
+	return NewUDSDatagramListener(packetOut, manager, nil, cfg, nil, optional.NewNoneOption[workloadmeta.Component](), pidMap, telemetryStore, packetsTelemetryStore)
 }
 
 func TestNewUDSDatagramListener(t *testing.T) {
@@ -49,7 +49,8 @@ func TestUDSDatagramReceive(t *testing.T) {
 
 	deps := fulfillDepsWithConfig(t, mockConfig)
 	telemetryStore := NewTelemetryStore(nil, deps.Telemetry)
-	s, err := udsDatagramListenerFactory(packetsChannel, newPacketPoolManagerUDS(deps.Config), deps.Config, deps.PidMap, telemetryStore)
+	packetsTelemetryStore := packets.NewTelemetryStore(nil, deps.Telemetry)
+	s, err := udsDatagramListenerFactory(packetsChannel, newPacketPoolManagerUDS(deps.Config, packetsTelemetryStore), deps.Config, deps.PidMap, telemetryStore, packetsTelemetryStore)
 	assert.Nil(t, err)
 	assert.NotNil(t, s)
 

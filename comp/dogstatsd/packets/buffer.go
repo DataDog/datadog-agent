@@ -13,24 +13,26 @@ import (
 // Buffer is a buffer of packets that will automatically flush to the given
 // output channel when it is full or after a configurable duration.
 type Buffer struct {
-	listenerID    string
-	packets       Packets
-	flushTimer    *time.Ticker
-	bufferSize    uint
-	outputChannel chan Packets
-	closeChannel  chan struct{}
-	m             sync.Mutex
+	listenerID     string
+	packets        Packets
+	flushTimer     *time.Ticker
+	bufferSize     uint
+	outputChannel  chan Packets
+	closeChannel   chan struct{}
+	m              sync.Mutex
+	telemetryStore *TelemetryStore
 }
 
 // NewBuffer creates a new buffer of packets of specified size
-func NewBuffer(bufferSize uint, flushTimer time.Duration, outputChannel chan Packets, listenerID string) *Buffer {
+func NewBuffer(bufferSize uint, flushTimer time.Duration, outputChannel chan Packets, listenerID string, telemetryStore *TelemetryStore) *Buffer {
 	pb := &Buffer{
-		listenerID:    listenerID,
-		bufferSize:    bufferSize,
-		flushTimer:    time.NewTicker(flushTimer),
-		outputChannel: outputChannel,
-		packets:       make(Packets, 0, bufferSize),
-		closeChannel:  make(chan struct{}),
+		listenerID:     listenerID,
+		bufferSize:     bufferSize,
+		flushTimer:     time.NewTicker(flushTimer),
+		outputChannel:  outputChannel,
+		packets:        make(Packets, 0, bufferSize),
+		closeChannel:   make(chan struct{}),
+		telemetryStore: telemetryStore,
 	}
 	go pb.flushLoop()
 	return pb
@@ -42,7 +44,7 @@ func (pb *Buffer) flushLoop() {
 		case <-pb.flushTimer.C:
 			pb.m.Lock()
 			pb.flush()
-			tlmBufferFlushedTimer.Inc(pb.listenerID)
+			pb.telemetryStore.tlmBufferFlushedTimer.Inc(pb.listenerID)
 			pb.m.Unlock()
 		case <-pb.closeChannel:
 			return
@@ -56,15 +58,15 @@ func (pb *Buffer) Append(packet *Packet) {
 	defer pb.m.Unlock()
 
 	packet.ListenerID = pb.listenerID
-	tlmBufferSizeBytes.Add(float64(packet.SizeInBytes()+packet.DataSizeInBytes()), pb.listenerID)
+	pb.telemetryStore.tlmBufferSizeBytes.Add(float64(packet.SizeInBytes()+packet.DataSizeInBytes()), pb.listenerID)
 
 	pb.packets = append(pb.packets, packet)
 
-	tlmBufferSize.Set(float64(len(pb.packets)), pb.listenerID)
+	pb.telemetryStore.tlmBufferSize.Set(float64(len(pb.packets)), pb.listenerID)
 
 	if uint(len(pb.packets)) >= pb.bufferSize {
 		pb.flush()
-		tlmBufferFlushedFull.Inc(pb.listenerID)
+		pb.telemetryStore.tlmBufferFlushedFull.Inc(pb.listenerID)
 	}
 }
 
@@ -72,17 +74,17 @@ func (pb *Buffer) flush() {
 	if len(pb.packets) > 0 {
 		t1 := time.Now()
 
-		TelemetryTrackPackets(pb.packets, pb.listenerID)
-		tlmBufferSizeBytes.Add(-float64(pb.packets.SizeInBytes()+pb.packets.DataSizeInBytes()), pb.listenerID)
+		pb.telemetryStore.TelemetryTrackPackets(pb.packets, pb.listenerID)
+		pb.telemetryStore.tlmBufferSizeBytes.Add(-float64(pb.packets.SizeInBytes()+pb.packets.DataSizeInBytes()), pb.listenerID)
 
 		pb.outputChannel <- pb.packets
 		t2 := time.Now()
-		tlmListenerChannel.Observe(float64(t2.Sub(t1).Nanoseconds()), pb.listenerID)
+		pb.telemetryStore.tlmListenerChannel.Observe(float64(t2.Sub(t1).Nanoseconds()), pb.listenerID)
 
 		pb.packets = make(Packets, 0, pb.bufferSize)
 	}
-	tlmBufferSize.Set(float64(len(pb.packets)), pb.listenerID)
-	tlmChannelSize.Set(float64(len(pb.outputChannel)))
+	pb.telemetryStore.tlmBufferSize.Set(float64(len(pb.packets)), pb.listenerID)
+	pb.telemetryStore.tlmChannelSize.Set(float64(len(pb.outputChannel)))
 
 }
 
@@ -90,9 +92,9 @@ func (pb *Buffer) flush() {
 func (pb *Buffer) Close() {
 	close(pb.closeChannel)
 	if pb.listenerID != "" {
-		tlmBufferSize.Delete(pb.listenerID)
-		tlmChannelSize.Delete(pb.listenerID)
-		tlmBufferFlushedFull.Delete(pb.listenerID)
-		tlmBufferFlushedTimer.Delete(pb.listenerID)
+		pb.telemetryStore.tlmBufferSize.Delete(pb.listenerID)
+		pb.telemetryStore.tlmChannelSize.Delete(pb.listenerID)
+		pb.telemetryStore.tlmBufferFlushedFull.Delete(pb.listenerID)
+		pb.telemetryStore.tlmBufferFlushedTimer.Delete(pb.listenerID)
 	}
 }

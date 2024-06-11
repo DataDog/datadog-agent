@@ -68,7 +68,8 @@ type UDSListener struct {
 
 	listenWg *sync.WaitGroup
 
-	telemetryStore *TelemetryStore
+	telemetryStore        *TelemetryStore
+	packetsTelemetryStore *packets.TelemetryStore
 }
 
 // CloseFunction is a function that closes a connection
@@ -134,7 +135,7 @@ func NewUDSOobPoolManager() *packets.PoolManager {
 }
 
 // NewUDSListener returns an idle UDS Statsd listener
-func NewUDSListener(packetOut chan packets.Packets, sharedPacketPoolManager *packets.PoolManager, sharedOobPacketPoolManager *packets.PoolManager, cfg config.Reader, capture replay.Component, transport string, wmeta optional.Option[workloadmeta.Component], pidMap pidmap.Component, telemetryStore *TelemetryStore) (*UDSListener, error) {
+func NewUDSListener(packetOut chan packets.Packets, sharedPacketPoolManager *packets.PoolManager, sharedOobPacketPoolManager *packets.PoolManager, cfg config.Reader, capture replay.Component, transport string, wmeta optional.Option[workloadmeta.Component], pidMap pidmap.Component, telemetryStore *TelemetryStore, packetsTelemetryStore *packets.TelemetryStore) (*UDSListener, error) {
 	originDetection := cfg.GetBool("dogstatsd_origin_detection")
 
 	listener := &UDSListener{
@@ -152,6 +153,7 @@ func NewUDSListener(packetOut chan packets.Packets, sharedPacketPoolManager *pac
 		listenWg:                     &sync.WaitGroup{},
 		wmeta:                        wmeta,
 		telemetryStore:               telemetryStore,
+		packetsTelemetryStore:        packetsTelemetryStore,
 	}
 
 	// Init the oob buffer pool if origin detection is enabled
@@ -181,6 +183,7 @@ func (l *UDSListener) handleConnection(conn *net.UnixConn, closeFunc CloseFuncti
 		l.packetBufferFlushTimeout,
 		l.packetOut,
 		tlmListenerID,
+		l.packetsTelemetryStore,
 	)
 	l.telemetryStore.tlmUDSConnections.Inc(tlmListenerID, l.transport)
 	defer func() {
