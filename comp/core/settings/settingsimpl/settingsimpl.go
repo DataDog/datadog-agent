@@ -7,12 +7,12 @@
 package settingsimpl
 
 import (
-	"encoding/json"
 	"html"
 	"net/http"
 	"sync"
 
 	"github.com/gorilla/mux"
+	json "github.com/json-iterator/go"
 	"go.uber.org/fx"
 	"gopkg.in/yaml.v2"
 

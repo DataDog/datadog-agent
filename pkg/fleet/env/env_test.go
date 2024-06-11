@@ -30,6 +30,9 @@ func TestFromEnv(t *testing.T) {
 				DefaultPackagesInstallOverride: map[string]bool{},
 				DefaultPackagesVersionOverride: map[string]string{},
 				ApmLibraries:                   map[ApmLibLanguage]ApmLibVersion{},
+				InstallScript: InstallScriptEnv{
+					APMInstrumentationEnabled: APMInstrumentationNotSet,
+				},
 			},
 		},
 		{
@@ -49,6 +52,7 @@ func TestFromEnv(t *testing.T) {
 				envDefaultPackageVersion + "_PACKAGE":         "1.2.3",
 				envDefaultPackageVersion + "_ANOTHER_PACKAGE": "4.5.6",
 				envApmLibraries:                               "java,dotnet:latest,ruby:1.2",
+				envApmInstrumentationEnabled:                  "all",
 			},
 			expected: &Env{
 				APIKey:               "123456",
@@ -76,6 +80,9 @@ func TestFromEnv(t *testing.T) {
 					"java":   "",
 					"dotnet": "latest",
 					"ruby":   "1.2",
+				},
+				InstallScript: InstallScriptEnv{
+					APMInstrumentationEnabled: APMInstrumentationEnabledAll,
 				},
 			},
 		},

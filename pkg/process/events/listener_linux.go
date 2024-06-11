@@ -50,7 +50,7 @@ func NewListener(handler EventHandler) (*SysProbeListener, error) {
 		return nil, errors.New("event_monitoring_config.socket must be set")
 	}
 
-	conn, err := grpc.Dial(socketPath, grpc.WithTransportCredentials(insecure.NewCredentials()), grpc.WithContextDialer(func(ctx context.Context, url string) (net.Conn, error) {
+	conn, err := grpc.Dial(socketPath, grpc.WithTransportCredentials(insecure.NewCredentials()), grpc.WithContextDialer(func(ctx context.Context, url string) (net.Conn, error) { //nolint:staticcheck // TODO (ASC) fix grpc.Dial is deprecated
 		return net.Dial("unix", url)
 	}))
 	if err != nil {

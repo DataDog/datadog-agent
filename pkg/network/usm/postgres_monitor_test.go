@@ -38,6 +38,7 @@ const (
 	dropTableQuery         = "DROP TABLE IF EXISTS dummy"
 	deleteTableQuery       = "DELETE FROM dummy WHERE id = 1"
 	alterTableQuery        = "ALTER TABLE dummy ADD test VARCHAR(255);"
+	truncateTableQuery     = "TRUNCATE TABLE dummy"
 )
 
 func createInsertQuery(values ...string) string {
@@ -303,6 +304,30 @@ func testDecoding(t *testing.T, isTLS bool) {
 				validatePostgres(t, monitor, map[string]map[postgres.Operation]int{
 					"dummy": {
 						postgres.AlterTableOP: adjustCount(1),
+					},
+				})
+			},
+		},
+		{
+			name: "truncate operation",
+			preMonitorSetup: func(t *testing.T, ctx testContext) {
+				pg, err := postgres.NewPGXClient(postgres.ConnectionOptions{
+					ServerAddress: ctx.serverAddress,
+					EnableTLS:     isTLS,
+				})
+				require.NoError(t, err)
+				require.NoError(t, pg.Ping())
+				ctx.extras["pg"] = pg
+				require.NoError(t, pg.RunQuery(createTableQuery))
+			},
+			postMonitorSetup: func(t *testing.T, ctx testContext) {
+				pg := ctx.extras["pg"].(*postgres.PGXClient)
+				require.NoError(t, pg.RunQuery(truncateTableQuery))
+			},
+			validation: func(t *testing.T, ctx testContext, monitor *Monitor) {
+				validatePostgres(t, monitor, map[string]map[postgres.Operation]int{
+					"dummy": {
+						postgres.TruncateTableOP: adjustCount(1),
 					},
 				})
 			},

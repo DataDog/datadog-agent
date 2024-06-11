@@ -27,8 +27,10 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/secrets/secretsimpl"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
 	"github.com/DataDog/datadog-agent/comp/trace"
 	"github.com/DataDog/datadog-agent/comp/trace/agent"
@@ -81,6 +83,7 @@ func runTraceAgentProcess(ctx context.Context, cliParams *Params, defaultConfPat
 			return optional.NewOption[secrets.Component](comp)
 		}),
 		fx.Supply(secrets.NewEnabledParams()),
+		telemetryimpl.Module(),
 		coreconfig.Module(),
 		fx.Provide(func() corelogimpl.Params {
 			return corelogimpl.ForDaemon("TRACE", "apm_config.log_file", config.DefaultLogFilePath)
@@ -92,7 +95,7 @@ func runTraceAgentProcess(ctx context.Context, cliParams *Params, defaultConfPat
 			AgentType:  workloadmeta.NodeAgent,
 			InitHelper: common.GetWorkloadmetaInit(),
 		}),
-		workloadmeta.Module(),
+		workloadmetafx.Module(),
 		autoexitimpl.Module(),
 		statsd.Module(),
 		fx.Provide(func(coreConfig coreconfig.Component) tagger.Params {
