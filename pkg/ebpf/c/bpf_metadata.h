@@ -1,6 +1,7 @@
 /**
- * This header file is included in kconfig.h and ktypes.h, which should make
- * this metadata available to all object files.
+ * This header file should be included in all .c files that contain eBPF programs. Build artifacts
+ * will be checked by the invoke tasks (validate_object_file_metadata function) to ensure that the
+ * metadata is present.
  */
 
 #ifndef __BPF_METADATA_H__
