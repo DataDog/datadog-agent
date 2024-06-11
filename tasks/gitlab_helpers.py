@@ -39,7 +39,18 @@ def generate_ci_visibility_links(_ctx, output: str | None):
         )
         return
 
-    gitlab_annotations_report = {
+    gitlab_annotations_report = create_gitlab_annotations_report(ci_job_id, ci_job_name)
+
+    content = json.dumps(gitlab_annotations_report, indent=2)
+
+    annotation_file_name = output or f"external_links_{ci_job_id}.json"
+    with open(annotation_file_name, "w") as f:
+        f.write(content)
+    print(f"Generated {annotation_file_name}")
+
+
+def create_gitlab_annotations_report(ci_job_id: str, ci_job_name: str):
+    return {
         "CI Visibility": [
             {
                 "external_link": {
@@ -56,13 +67,6 @@ def generate_ci_visibility_links(_ctx, output: str | None):
         ]
     }
 
-    content = json.dumps(gitlab_annotations_report, indent=2)
-
-    annotation_file_name = output or f"external_links_{ci_job_id}.json"
-    with open(annotation_file_name, "w") as f:
-        f.write(content)
-    print(f"Generated {annotation_file_name}")
-
 
 def get_link_to_job_id(job_id: str):
     query_params = {
@@ -70,7 +74,9 @@ def get_link_to_job_id(job_id: str):
         "@ci.job.id": job_id,
         "@ci.pipeline.name": "DataDog/datadog-agent",
     }
-    return f"{CI_VISIBILITY_URL}?query={quote(to_query_string(query_params))}"
+    query_string = to_query_string(query_params)
+    quoted_query_string = quote(string=query_string, safe="")
+    return f"{CI_VISIBILITY_URL}?query={quoted_query_string}"
 
 
 def get_link_to_job_on_main(job_name: str):
@@ -83,7 +89,9 @@ def get_link_to_job_on_main(job_name: str):
         "@git.branch": "main",
         "@ci.pipeline.name": "DataDog/datadog-agent",
     }
-    return f"{CI_VISIBILITY_URL}?query={quote(to_query_string(query_params))}"
+    query_string = to_query_string(query_params)
+    quoted_query_string = quote(string=query_string, safe="")
+    return f"{CI_VISIBILITY_URL}?query={quoted_query_string}"
 
 
 def to_query_string(params: dict):
