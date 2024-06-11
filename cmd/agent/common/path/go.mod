@@ -10,14 +10,14 @@ replace (
 )
 
 require (
-	github.com/DataDog/datadog-agent/pkg/util/executable v0.55.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/util/log v0.55.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/util/winutil v0.55.0-rc.1
+	github.com/DataDog/datadog-agent/pkg/util/executable v0.55.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/util/log v0.55.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/util/winutil v0.55.0-rc.3
 	golang.org/x/sys v0.19.0
 )
 
 require (
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.55.0-rc.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.55.0-rc.3 // indirect
 	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575 // indirect
 	github.com/fsnotify/fsnotify v1.7.0 // indirect
 	github.com/kardianos/osext v0.0.0-20190222173326-2bc1f35cddc0 // indirect

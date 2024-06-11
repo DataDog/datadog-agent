@@ -7,7 +7,6 @@ from tasks.libs.package.size import SCANNED_BINARIES, compute_package_size_metri
 
 
 class TestProduceSizeStats(unittest.TestCase):
-    @patch("builtins.print", new=MagicMock())
     @patch('tempfile.TemporaryDirectory', autospec=True)
     @patch('tasks.libs.package.size.extract_package', new=MagicMock())
     @patch('tasks.libs.package.size.file_size', new=MagicMock(return_value=20))
