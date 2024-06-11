@@ -271,7 +271,7 @@ int kprobe__tcp_close(struct pt_regs *ctx) {
     }
 
     // check if this connection was already flushed and ensure we don't flush again
-    if (bpf_map_delete_elem(&conn_close_flushed, &sk) == 0) {
+    if (tcp_failed_connections_enabled() && (bpf_map_delete_elem(&conn_close_flushed, &sk) == 0)) {
         increment_telemetry_count(double_flush_attempts_close);
         return 0;
     }

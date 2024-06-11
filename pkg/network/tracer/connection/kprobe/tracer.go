@@ -230,8 +230,13 @@ func loadTracerFromAsset(buf bytecode.AssetReader, runtimeTracer, coreTracer boo
 		}
 	}
 
-	if config.FailedConnectionsSupported() {
+	if FailedConnectionsSupported(config) {
 		util.AddBoolConst(&mgrOpts, "tcp_failed_connections_enabled", true)
+	} else {
+		mgrOpts.MapSpecEditors[probes.ConnClosedFlushed] = manager.MapSpecEditor{
+			Type:       ebpf.Hash,
+			EditorFlag: manager.EditType,
+		}
 	}
 
 	// Use the config to determine what kernel probes should be enabled
@@ -341,4 +346,14 @@ func isCORETracerSupported() error {
 	}
 
 	return errCORETracerNotSupported
+}
+
+func FailedConnectionsSupported(c *config.Config) bool {
+	currentKernelVersion, err := kernel.HostVersion()
+	if err != nil {
+		log.Warn("could not determine the current kernel version. classification monitoring disabled.")
+		return false
+	}
+
+	return c.FailedConnectionsSupported() && currentKernelVersion >= kernel.VersionCode(4, 10, 0)
 }

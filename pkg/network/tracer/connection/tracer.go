@@ -282,7 +282,7 @@ func NewTracer(config *config.Config) (Tracer, error) {
 	if tracerType == TracerTypeKProbePrebuilt {
 		config.TCPFailedConnectionsEnabled = false
 	}
-	if config.FailedConnectionsSupported() {
+	if kprobe.FailedConnectionsSupported(config) {
 		failedConnConsumer = failure.NewFailedConnConsumer(failedConnsHandler)
 	}
 
