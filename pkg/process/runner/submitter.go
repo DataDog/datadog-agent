@@ -34,6 +34,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/util/api"
 	apicfg "github.com/DataDog/datadog-agent/pkg/process/util/api/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util/api/headers"
+	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -212,7 +213,12 @@ func (s *CheckSubmitter) Start() error {
 		defer s.wg.Done()
 
 		heartbeat := time.NewTicker(15 * time.Second)
-		defer heartbeat.Stop()
+		// We only want to send heartbeats for the process agent
+		if flavor.GetFlavor() == flavor.DefaultAgent {
+			heartbeat.Stop()
+		} else {
+			defer heartbeat.Stop()
+		}
 
 		queueSizeTicker := time.NewTicker(10 * time.Second)
 		defer queueSizeTicker.Stop()
