@@ -211,7 +211,7 @@ static __always_inline bool pktbuf_process_and_skip_literal_headers(pktbuf_t pkt
 // that are relevant for us, to be processed later on.
 // The return value is the number of relevant headers that were found and inserted
 // in the `headers_to_process` table.
-static __always_inline __u8 pktbuf_filter_relevant_headers(pktbuf_t pkt, conn_tuple_t *tup, dynamic_table_index_t *dynamic_index, http2_header_t *headers_to_process, __u32 frame_length, http2_telemetry_t *http2_tel) {
+static __always_inline __u8 pktbuf_filter_relevant_headers(pktbuf_t pkt, __u64 *global_dynamic_counter, dynamic_table_index_t *dynamic_index, http2_header_t *headers_to_process, __u32 frame_length, http2_telemetry_t *http2_tel) {
     __u8 current_ch;
     __u8 interesting_headers = 0;
     http2_header_t *current_header;
@@ -221,11 +221,6 @@ static __always_inline __u8 pktbuf_filter_relevant_headers(pktbuf_t pkt, conn_tu
     bool is_literal = false;
     __u64 max_bits = 0;
     __u64 index = 0;
-
-    __u64 *global_dynamic_counter = get_dynamic_counter(tup);
-    if (global_dynamic_counter == NULL) {
-        return 0;
-    }
 
     pktbuf_handle_dynamic_table_update(pkt);
 
@@ -894,6 +889,13 @@ static __always_inline void headers_parser(pktbuf_t pkt, void *map_key, conn_tup
     }
     bpf_memset(headers_to_process, 0, HTTP2_MAX_HEADERS_COUNT_FOR_PROCESSING * sizeof(http2_header_t));
 
+    __u8 interesting_headers = 0;
+
+    __u64 *global_dynamic_counter = get_dynamic_counter(tup);
+    if (global_dynamic_counter == NULL) {
+        goto delete_iteration;
+    }
+
     #pragma unroll(HTTP2_MAX_FRAMES_FOR_HEADERS_PARSER_PER_TAIL_CALL)
     for (__u16 index = 0; index < HTTP2_MAX_FRAMES_FOR_HEADERS_PARSER_PER_TAIL_CALL; index++) {
         if (tail_call_state->iteration >= tail_call_state->frames_count) {
@@ -918,7 +920,7 @@ static __always_inline void headers_parser(pktbuf_t pkt, void *map_key, conn_tup
         current_stream->tags = tags;
         pktbuf_set_offset(pkt, current_frame.offset);
 
-        __u8 interesting_headers = pktbuf_filter_relevant_headers(pkt, tup, &http2_ctx->dynamic_index, headers_to_process, current_frame.frame.length, http2_tel);
+        interesting_headers = pktbuf_filter_relevant_headers(pkt, global_dynamic_counter, &http2_ctx->dynamic_index, headers_to_process, current_frame.frame.length, http2_tel);
         pktbuf_process_headers(pkt, &http2_ctx->dynamic_index, current_stream, headers_to_process, interesting_headers, http2_tel);
     }
 
