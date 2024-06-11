@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	coreConfig "github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/core/settings"
 	"github.com/DataDog/datadog-agent/comp/core/settings/settingsimpl"
@@ -32,11 +32,11 @@ type mockLogLevelRuntimeSettings struct {
 	logLevel      string
 }
 
-func (m *mockLogLevelRuntimeSettings) Get(_ coreConfig.Component) (interface{}, error) {
+func (m *mockLogLevelRuntimeSettings) Get(_ config.Component) (interface{}, error) {
 	return m.logLevel, nil
 }
 
-func (m *mockLogLevelRuntimeSettings) Set(_ coreConfig.Component, v interface{}, source model.Source) error {
+func (m *mockLogLevelRuntimeSettings) Set(_ config.Component, v interface{}, source model.Source) error {
 	if m.expectedError != nil {
 		return m.expectedError
 	}
