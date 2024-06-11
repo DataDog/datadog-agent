@@ -6,7 +6,6 @@
 package daemon
 
 import (
-	"context"
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
 
@@ -25,7 +24,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/updater/updater/updaterimpl"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/service"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 func runCommand(global *command.GlobalParams) *cobra.Command {
@@ -41,18 +39,13 @@ func runCommand(global *command.GlobalParams) *cobra.Command {
 	return runCmd
 }
 
-func runFxWrapper(global *command.GlobalParams) error {
-	ctx := context.Background()
-
-	return fxutil.OneShot(
-		run,
-		fx.Provide(func() context.Context { return ctx }),
-		fx.Supply(core.BundleParams{
-			ConfigParams:         config.NewAgentParams(global.ConfFilePath),
-			SecretParams:         secrets.NewEnabledParams(),
-			SysprobeConfigParams: sysprobeconfigimpl.NewParams(),
-			LogParams:            logimpl.ForDaemon("INSTALLER", "installer.log_file", pkgconfig.DefaultUpdaterLogFile),
-		}),
+func getCommonFxOption(global *command.GlobalParams) fx.Option {
+	return fx.Options(fx.Supply(core.BundleParams{
+		ConfigParams:         config.NewAgentParams(global.ConfFilePath),
+		SecretParams:         secrets.NewEnabledParams(),
+		SysprobeConfigParams: sysprobeconfigimpl.NewParams(),
+		LogParams:            logimpl.ForDaemon("INSTALLER", "installer.log_file", pkgconfig.DefaultUpdaterLogFile),
+	}),
 		core.Bundle(),
 		fx.Supply(&rcservice.Params{
 			Options: []service.Option{

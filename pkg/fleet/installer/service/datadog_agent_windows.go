@@ -23,7 +23,7 @@ func msiexec(target, operation string, args []string) (err error) {
 	updaterPath := filepath.Join(paths.PackagesPath, "datadog-agent", target)
 	msis, err := filepath.Glob(filepath.Join(updaterPath, "datadog-agent-*-1-x86_64.msi"))
 	if err != nil {
-		return nil
+		return err
 	}
 	if len(msis) > 1 {
 		return fmt.Errorf("too many MSIs in package")

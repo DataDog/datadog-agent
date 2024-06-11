@@ -12,14 +12,24 @@ import (
 	"os/signal"
 	"syscall"
 
-	"go.uber.org/fx"
-
+	"context"
+	"github.com/DataDog/datadog-agent/cmd/installer/command"
 	"github.com/DataDog/datadog-agent/comp/core/pid"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/updater/localapi"
 	"github.com/DataDog/datadog-agent/comp/updater/telemetry"
 )
+
+func runFxWrapper(global *command.GlobalParams) error {
+	ctx := context.Background()
+
+	return fxutil.OneShot(
+		run,
+		getCommonFxOption(global),
+	)
+}
 
 func run(shutdowner fx.Shutdowner, _ pid.Component, _ localapi.Component, _ telemetry.Component) error {
 	handleSignals(shutdowner)
