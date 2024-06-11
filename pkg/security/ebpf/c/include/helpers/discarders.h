@@ -76,48 +76,48 @@ int __attribute__((always_inline)) get_discarders_revision() {
     return revision ? *revision : 0;
 }
 
-u64* __attribute__((always_inline)) get_discarder_timestamp(struct discarder_params_t *params, u64 event_type) {
+u64 *__attribute__((always_inline)) get_discarder_timestamp(struct discarder_params_t *params, u64 event_type) {
     switch (event_type) {
-        case EVENT_OPEN:
-            return &params->timestamps[EVENT_OPEN-EVENT_FIRST_DISCARDER];
-        case EVENT_MKDIR:
-            return &params->timestamps[EVENT_MKDIR-EVENT_FIRST_DISCARDER];
-        case EVENT_LINK:
-            return &params->timestamps[EVENT_LINK-EVENT_FIRST_DISCARDER];
-        case EVENT_RENAME:
-            return &params->timestamps[EVENT_RENAME-EVENT_FIRST_DISCARDER];
-        case EVENT_UNLINK:
-            return &params->timestamps[EVENT_UNLINK-EVENT_FIRST_DISCARDER];
-        case EVENT_RMDIR:
-            return &params->timestamps[EVENT_RMDIR-EVENT_FIRST_DISCARDER];
-        case EVENT_CHMOD:
-            return &params->timestamps[EVENT_CHMOD-EVENT_FIRST_DISCARDER];
-        case EVENT_CHOWN:
-            return &params->timestamps[EVENT_CHOWN-EVENT_FIRST_DISCARDER];
-        case EVENT_UTIME:
-            return &params->timestamps[EVENT_UTIME-EVENT_FIRST_DISCARDER];
-        case EVENT_SETXATTR:
-            return &params->timestamps[EVENT_SETXATTR-EVENT_FIRST_DISCARDER];
-        case EVENT_REMOVEXATTR:
-            return &params->timestamps[EVENT_REMOVEXATTR-EVENT_FIRST_DISCARDER];
-        case EVENT_CHDIR:
-            return &params->timestamps[EVENT_CHDIR-EVENT_FIRST_DISCARDER];
-        default:
-            return NULL;
+    case EVENT_OPEN:
+        return &params->timestamps[EVENT_OPEN - EVENT_FIRST_DISCARDER];
+    case EVENT_MKDIR:
+        return &params->timestamps[EVENT_MKDIR - EVENT_FIRST_DISCARDER];
+    case EVENT_LINK:
+        return &params->timestamps[EVENT_LINK - EVENT_FIRST_DISCARDER];
+    case EVENT_RENAME:
+        return &params->timestamps[EVENT_RENAME - EVENT_FIRST_DISCARDER];
+    case EVENT_UNLINK:
+        return &params->timestamps[EVENT_UNLINK - EVENT_FIRST_DISCARDER];
+    case EVENT_RMDIR:
+        return &params->timestamps[EVENT_RMDIR - EVENT_FIRST_DISCARDER];
+    case EVENT_CHMOD:
+        return &params->timestamps[EVENT_CHMOD - EVENT_FIRST_DISCARDER];
+    case EVENT_CHOWN:
+        return &params->timestamps[EVENT_CHOWN - EVENT_FIRST_DISCARDER];
+    case EVENT_UTIME:
+        return &params->timestamps[EVENT_UTIME - EVENT_FIRST_DISCARDER];
+    case EVENT_SETXATTR:
+        return &params->timestamps[EVENT_SETXATTR - EVENT_FIRST_DISCARDER];
+    case EVENT_REMOVEXATTR:
+        return &params->timestamps[EVENT_REMOVEXATTR - EVENT_FIRST_DISCARDER];
+    case EVENT_CHDIR:
+        return &params->timestamps[EVENT_CHDIR - EVENT_FIRST_DISCARDER];
+    default:
+        return NULL;
     }
 }
 
 // This function is doing the same thing as the one before, but can only work if `params` is a pointer to a map value
 // and not a pointer to the stack since kernels < 4.15 does not allow this. On the other hand it is faster and needs less
 // instructions.
-u64 * __attribute__((always_inline)) get_discarder_timestamp_from_map(struct discarder_params_t *params, u64 event_type) {
+u64 *__attribute__((always_inline)) get_discarder_timestamp_from_map(struct discarder_params_t *params, u64 event_type) {
     if (EVENT_FIRST_DISCARDER <= event_type && event_type < EVENT_LAST_DISCARDER) {
-        return &params->timestamps[event_type-EVENT_FIRST_DISCARDER];
+        return &params->timestamps[event_type - EVENT_FIRST_DISCARDER];
     }
     return NULL;
 }
 
-void * __attribute__((always_inline)) is_discarded(void *discarder_map, void *key, u64 event_type, u64 now) {
+void *__attribute__((always_inline)) is_discarded(void *discarder_map, void *key, u64 event_type, u64 now) {
     void *entry = bpf_map_lookup_elem(discarder_map, key);
     if (entry == NULL) {
         return NULL;
@@ -134,7 +134,7 @@ void * __attribute__((always_inline)) is_discarded(void *discarder_map, void *ke
         return NULL;
     }
 
-    u64* pid_tm = get_discarder_timestamp_from_map(params, event_type);
+    u64 *pid_tm = get_discarder_timestamp_from_map(params, event_type);
     if (pid_tm != NULL && *pid_tm && *pid_tm <= now) {
         return NULL;
     }
@@ -148,7 +148,7 @@ void * __attribute__((always_inline)) is_discarded(void *discarder_map, void *ke
 
 int __attribute__((always_inline)) expire_inode_discarders(u32 mount_id, u64 inode);
 
-struct inode_discarder_params_t * __attribute__((always_inline)) get_inode_discarder_params(u32 mount_id, u64 inode, u32 is_leaf) {
+struct inode_discarder_params_t *__attribute__((always_inline)) get_inode_discarder_params(u32 mount_id, u64 inode, u32 is_leaf) {
     struct inode_discarder_t key = {
         .path_key = {
             .ino = inode,
@@ -225,7 +225,7 @@ int __attribute__((always_inline)) discard_inode(u64 event_type, u32 mount_id, u
 discard_check_state __attribute__((always_inline)) is_discarded_by_inode(struct is_discarded_by_inode_t *params) {
     // start with the "normal" discarder check
     struct inode_discarder_t key = params->discarder;
-    struct inode_discarder_params_t *inode_params = (struct inode_discarder_params_t *) is_discarded(&inode_discarders, &key, params->discarder_type, params->now);
+    struct inode_discarder_params_t *inode_params = (struct inode_discarder_params_t *)is_discarded(&inode_discarders, &key, params->discarder_type, params->now);
     if (!inode_params) {
         return NOT_DISCARDED;
     }
@@ -266,7 +266,7 @@ int __attribute__((always_inline)) expire_inode_discarders(u32 mount_id, u64 ino
         .mount_revision = get_mount_discarder_revision(mount_id),
     };
 
-    #pragma unroll
+#pragma unroll
     for (int i = 0; i != 2; i++) {
         key.is_leaf = i;
 
@@ -341,7 +341,7 @@ int __attribute__((always_inline)) is_discarded_by_pid(u64 event_type, u32 tgid)
         .tgid = tgid,
     };
 
-    struct pid_discarder_params_t *pid_params = (struct pid_discarder_params_t *) is_discarded(&pid_discarders, &key, event_type, bpf_ktime_get_ns());
+    struct pid_discarder_params_t *pid_params = (struct pid_discarder_params_t *)is_discarded(&pid_discarders, &key, event_type, bpf_ktime_get_ns());
     if (!pid_params) {
         return NOT_DISCARDED;
     }
