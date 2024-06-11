@@ -854,6 +854,10 @@ static __always_inline void headers_parser(pktbuf_t pkt, void *map_key, conn_tup
             .map = &http2_iterations,
             .key = map_key,
         },
+        [PKTBUF_TLS] = {
+            .map = &tls_http2_iterations,
+            .key = map_key,
+        },
     };
     http2_tail_call_state_t *tail_call_state = pktbuf_map_lookup(pkt, arr);
     if (tail_call_state == NULL) {
