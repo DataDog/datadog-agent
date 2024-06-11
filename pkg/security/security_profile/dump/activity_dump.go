@@ -485,7 +485,7 @@ func (ad *ActivityDump) finalize(releaseTracedCgroupSpot bool) {
 	ad.Metadata.End = time.Now()
 	ad.adm.lastStoppedDumpTime = ad.Metadata.End
 
-	if releaseTracedCgroupSpot || len(ad.Metadata.Comm) > 0 {
+	if releaseTracedCgroupSpot {
 		if err := ad.disable(); err != nil {
 			seclog.Errorf("couldn't disable activity dump: %v", err)
 		}

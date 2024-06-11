@@ -172,17 +172,11 @@ func (adm *ActivityDumpManager) RemoveStoppedActivityDumps() {
 	adm.Lock()
 	defer adm.Unlock()
 
-	newActiveDumps := make([]*ActivityDump, 0, len(adm.activeDumps))
-	for _, ad := range adm.activeDumps {
+	adm.activeDumps = slices.DeleteFunc(adm.activeDumps, func(ad *ActivityDump) bool {
 		ad.Lock()
-		state := ad.state
-		ad.Unlock()
-
-		if state != Stopped {
-			newActiveDumps = append(newActiveDumps, ad)
-		}
-	}
-	adm.activeDumps = newActiveDumps
+		defer ad.Unlock()
+		return ad.state == Stopped
+	})
 }
 
 // getExpiredDumps returns the list of dumps that have timed out
@@ -244,8 +238,20 @@ func (adm *ActivityDumpManager) resolveTagsPerAd(ad *ActivityDump) {
 	}
 
 	if shouldFinalize {
-		ad.finalize(true)
+		adm.drop(ad)
 	}
+}
+
+func (adm *ActivityDumpManager) drop(ad *ActivityDump) {
+	adm.Lock()
+	defer adm.Unlock()
+	adm.activeDumps = slices.DeleteFunc(adm.activeDumps, func(iter *ActivityDump) bool {
+		return iter.ContainerID == ad.ContainerID
+	})
+	if err := ad.disable(); err != nil {
+		seclog.Errorf("couldn't disable activity dump %s: %v", ad.ContainerID, err)
+	}
+	adm.lastStoppedDumpTime = time.Now()
 }
 
 // resolveTags resolves activity dump container tags when they are missing
