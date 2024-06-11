@@ -802,7 +802,7 @@ static __always_inline void filter_frame(pktbuf_t pkt, void *map_key, conn_tuple
             .flags = BPF_NOEXIST,
         },
         [PKTBUF_TLS] = {
-            .map = &http2_iterations,
+            .map = &tls_http2_iterations,
             .key = map_key,
             .value = iteration_value,
             .flags = BPF_NOEXIST,
