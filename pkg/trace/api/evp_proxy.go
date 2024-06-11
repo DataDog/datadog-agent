@@ -7,6 +7,7 @@ package api
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"io"
 	stdlog "log"
@@ -173,6 +174,13 @@ func (t *evpProxyTransport) RoundTrip(req *http.Request) (rresp *http.Response, 
 	if needsAppKey {
 		req.Header.Set("DD-APPLICATION-KEY", t.conf.EVPProxy.ApplicationKey)
 	}
+
+	// Timeout: Our outbound request(s) can't take longer than the WriteTimeout of the server
+	timeout := getConfiguredRequestTimeoutDuration(t.conf)
+	deadline := time.Now().Add(timeout)
+	ctx, ctxCancel := context.WithDeadline(req.Context(), deadline)
+	req = req.WithContext(ctx)
+	defer ctxCancel()
 
 	// Set target URL and API key header (per domain)
 	req.URL.Scheme = "https"

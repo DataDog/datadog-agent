@@ -86,7 +86,7 @@ def check_git_repo(ctx) -> SetupResult:
     ctx.run("git fetch", hide=True)
 
     print(color_message("Checking main branch...", Color.BLUE))
-    output = ctx.run("git rev-list ^HEAD origin/main --count", hide=True)
+    output = ctx.run('git rev-list "^HEAD" origin/main --count', hide=True)
     count = output.stdout.strip()
 
     message = ""

@@ -29,6 +29,9 @@ func TestFromEnv(t *testing.T) {
 				RegistryAuthOverrideByImage:    map[string]string{},
 				DefaultPackagesInstallOverride: map[string]bool{},
 				DefaultPackagesVersionOverride: map[string]string{},
+				InstallScript: InstallScriptEnv{
+					APMInstrumentationEnabled: APMInstrumentationNotSet,
+				},
 			},
 		},
 		{
@@ -47,6 +50,7 @@ func TestFromEnv(t *testing.T) {
 				envDefaultPackageInstall + "_ANOTHER_PACKAGE": "false",
 				envDefaultPackageVersion + "_PACKAGE":         "1.2.3",
 				envDefaultPackageVersion + "_ANOTHER_PACKAGE": "4.5.6",
+				envApmInstrumentationEnabled:                  "all",
 			},
 			expected: &Env{
 				APIKey:               "123456",
@@ -69,6 +73,9 @@ func TestFromEnv(t *testing.T) {
 				DefaultPackagesVersionOverride: map[string]string{
 					"package":         "1.2.3",
 					"another-package": "4.5.6",
+				},
+				InstallScript: InstallScriptEnv{
+					APMInstrumentationEnabled: APMInstrumentationEnabledAll,
 				},
 			},
 		},
