@@ -586,7 +586,7 @@ func (rs *RuleSet) GetEventApprovers(eventType eval.EventType, fieldCaps FieldCa
 		return nil, ErrNoEventTypeBucket{EventType: eventType}
 	}
 
-	return GetApprovers(bucket.rules, model.NewFakeEvent(), fieldCaps)
+	return GetApprovers(bucket.rules, rs.eventCtor(), fieldCaps)
 }
 
 // GetFieldValues returns all the values of the given field
