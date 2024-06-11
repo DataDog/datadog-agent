@@ -180,7 +180,7 @@ def get_xcode_version(ctx):
         xcode_version = ctx.run("pkgutil --pkg-info=com.apple.pkg.CLTools_Executables", hide=True).stdout.strip()
         xcode_version = re.search(r"version: ([0-9.]+)", xcode_version).group(1)
         xcode_version = re.search(r"([0-9]+.[0-9]+)", xcode_version).group(1)
-    elif xcode_path.startswith("/Applications/Xcode.app"):
+    elif xcode_path.startswith("/Applications/Xcode"):
         xcode_version = ctx.run(
             "xcodebuild -version | grep -Eo 'Xcode [0-9.]+' | awk '{print $2}'", hide=True
         ).stdout.strip()
@@ -301,7 +301,7 @@ def get_build_flags(
                 extldflags += ",-no_warn_duplicate_libraries "
         except ValueError:
             print(
-                "Could not determine XCode version, not adding -no_warn_duplicate_libraries to extldflags",
+                "Warning: Could not determine XCode version, not adding -no_warn_duplicate_libraries to extldflags",
                 file=sys.stderr,
             )
 
