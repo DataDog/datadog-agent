@@ -38,19 +38,16 @@ type ContainerListener struct {
 func NewContainerListener(_ Config, wmeta optional.Option[workloadmeta.Component]) (ServiceListener, error) {
 	const name = "ad-containerlistener"
 	l := &ContainerListener{}
-	filterParams := workloadmeta.FilterParams{
-		Kinds:     []workloadmeta.Kind{workloadmeta.KindContainer},
-		Source:    workloadmeta.SourceAll,
-		EventType: workloadmeta.EventTypeAll,
-	}
-	f := workloadmeta.NewFilter(&filterParams)
+	filter := workloadmeta.NewFilterBuilder().
+		SetSource(workloadmeta.SourceAll).
+		AddKind(workloadmeta.KindContainer).Build()
 
 	wmetaInstance, ok := wmeta.Get()
 	if !ok {
 		return nil, errors.New("workloadmeta store is not initialized")
 	}
 	var err error
-	l.workloadmetaListener, err = newWorkloadmetaListener(name, f, l.createContainerService, wmetaInstance)
+	l.workloadmetaListener, err = newWorkloadmetaListener(name, filter, l.createContainerService, wmetaInstance)
 	if err != nil {
 		return nil, err
 	}

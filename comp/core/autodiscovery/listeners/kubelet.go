@@ -33,19 +33,17 @@ func NewKubeletListener(_ Config, wmeta optional.Option[workloadmeta.Component])
 	const name = "ad-kubeletlistener"
 
 	l := &KubeletListener{}
-	filterParams := workloadmeta.FilterParams{
-		Kinds:     []workloadmeta.Kind{workloadmeta.KindKubernetesPod},
-		Source:    workloadmeta.SourceAll,
-		EventType: workloadmeta.EventTypeAll,
-	}
-	f := workloadmeta.NewFilter(&filterParams)
+	filter := workloadmeta.NewFilterBuilder().
+		SetSource(workloadmeta.SourceAll).
+		AddKind(workloadmeta.KindKubernetesPod).
+		Build()
 
 	wmetaInstance, ok := wmeta.Get()
 	if !ok {
 		return nil, errors.New("workloadmeta store is not initialized")
 	}
 	var err error
-	l.workloadmetaListener, err = newWorkloadmetaListener(name, f, l.processPod, wmetaInstance)
+	l.workloadmetaListener, err = newWorkloadmetaListener(name, filter, l.processPod, wmetaInstance)
 	if err != nil {
 		return nil, err
 	}
