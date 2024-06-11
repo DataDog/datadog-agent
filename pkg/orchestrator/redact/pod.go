@@ -62,6 +62,15 @@ func scrubContainer(c *v1.Container, scrubber *DataScrubber) {
 		}
 	}
 
+	// scrub liveness probe http headers
+	if c.LivenessProbe != nil {
+		for h := 0; h < len(c.LivenessProbe.HTTPGet.HTTPHeaders); h++ {
+			if scrubber.ContainsSensitiveWord(c.LivenessProbe.HTTPGet.HTTPHeaders[h].Name) {
+				c.LivenessProbe.HTTPGet.HTTPHeaders[h].Value = redactedSecret
+			}
+		}
+	}
+
 	defer func() {
 		if r := recover(); r != nil {
 			log.Errorf("Failed to parse cmd from pod, obscuring whole command")
