@@ -192,10 +192,10 @@ func TestInvalidRegexp(t *testing.T) {
 		pattern    string
 		errorMatch string
 	}{
-		{"lookahead", "(?=foo)", "invalid named capture: `(?=`"},
-		{"lookbehind", "(?<=foo)", "invalid named capture: `(?<=`"},
-		{"negative lookahead", "(?!foo)", "invalid named capture: `(?!`"},
-		{"negative lookbehind", "(?<!foo)", "invalid named capture: `(?<`"},
+		{"lookahead", "(?=foo)", "invalid or unsupported Perl syntax: `(?=`"},
+		{"lookbehind", "(?<=foo)", "invalid named capture: `(?<="},
+		{"negative lookahead", "(?!foo)", "invalid or unsupported Perl syntax: `(?!`"},
+		{"negative lookbehind", "(?<!foo)", "invalid named capture: `(?<!"},
 	}
 	for _, tc := range tcs {
 		t.Run(tc.name, func(t *testing.T) {
