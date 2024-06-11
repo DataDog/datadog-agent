@@ -82,7 +82,7 @@ int uprobe__http2_tls_headers_parser(struct pt_regs *ctx) {
 
     pktbuf_t pkt = pktbuf_from_tls(ctx, &dispatcher_args_copy);
 
-    headers_parser(pkt, &dispatcher_args_copy, &dispatcher_args_copy.tup);
+    headers_parser(pkt, &dispatcher_args_copy, &dispatcher_args_copy.tup, (__u8)args->tags);
 
     return 0;
 }

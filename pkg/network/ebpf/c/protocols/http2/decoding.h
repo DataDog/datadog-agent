@@ -839,7 +839,7 @@ int socket__http2_filter(struct __sk_buff *skb) {
     return 0;
 }
 
-static __always_inline void headers_parser(pktbuf_t pkt, void *map_key, conn_tuple_t *tup) {
+static __always_inline void headers_parser(pktbuf_t pkt, void *map_key, conn_tuple_t *tup, __u8 tags) {
     // Some functions might change and override data_off field in dispatcher_args_copy.skb_info. Since it is used as a key
     // in a map, we cannot allow it to be modified. Thus, storing the original value of the offset.
     __u32 original_off = pktbuf_data_offset(pkt);
@@ -915,6 +915,7 @@ static __always_inline void headers_parser(pktbuf_t pkt, void *map_key, conn_tup
         if (current_stream == NULL) {
             continue;
         }
+        current_stream->tags = tags;
         pktbuf_set_offset(pkt, current_frame.offset);
 
         __u8 interesting_headers = pktbuf_filter_relevant_headers(pkt, tup, &http2_ctx->dynamic_index, headers_to_process, current_frame.frame.length, http2_tel);
@@ -972,7 +973,7 @@ int socket__http2_headers_parser(struct __sk_buff *skb) {
 
     pktbuf_t pkt = pktbuf_from_skb(skb, &dispatcher_args_copy.skb_info);
 
-    headers_parser(pkt, &dispatcher_args_copy, &dispatcher_args_copy.tup);
+    headers_parser(pkt, &dispatcher_args_copy, &dispatcher_args_copy.tup, NO_TAGS);
 
     return 0;
 }
