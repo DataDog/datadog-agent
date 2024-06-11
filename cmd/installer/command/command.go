@@ -10,9 +10,10 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
+
+	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
 // common constants for all the updater subcommands.
@@ -39,6 +40,9 @@ type GlobalParams struct {
 
 	// AllowNoRoot is a flag to allow running the installer as non-root.
 	AllowNoRoot bool
+
+	// NoColor is a flag to disable color output
+	NoColor bool
 }
 
 // SubcommandFactory is a callable that will return a slice of subcommands.
@@ -84,7 +88,7 @@ Datadog Installer installs datadog-packages based on your commands.`,
 	var noColorFlag bool
 	agentCmd.PersistentFlags().BoolVarP(&noColorFlag, "no-color", "n", false, "disable color output")
 	agentCmd.PersistentPreRun = func(*cobra.Command, []string) {
-		if noColorFlag {
+		if globalParams.NoColor {
 			color.NoColor = true
 		}
 	}

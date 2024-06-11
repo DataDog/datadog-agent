@@ -225,7 +225,8 @@ func (ac *AutoConfig) checkTagFreshness(ctx context.Context) {
 
 func (ac *AutoConfig) writeConfigCheck(w http.ResponseWriter, r *http.Request) {
 	verbose := r.URL.Query().Get("verbose") == "true"
-	bytes := ac.GetConfigCheck(verbose)
+	noColor := r.URL.Query().Get("nocolor") == "true"
+	bytes := ac.GetConfigCheck(verbose, noColor)
 
 	w.Write(bytes)
 }
@@ -254,14 +255,14 @@ func (ac *AutoConfig) writeConfigCheckRaw(w http.ResponseWriter, _ *http.Request
 // fillFlare add the config-checks log to flares.
 func (ac *AutoConfig) fillFlare(fb flaretypes.FlareBuilder) error {
 	fb.AddFileFromFunc("config-check.log", func() ([]byte, error) { //nolint:errcheck
-		bytes := ac.GetConfigCheck(true)
+		bytes := ac.GetConfigCheck(true, true)
 		return bytes, nil
 	})
 	return nil
 }
 
 // GetConfigCheck returns scrubbed information from all configuration providers
-func (ac *AutoConfig) GetConfigCheck(verbose bool) []byte {
+func (ac *AutoConfig) GetConfigCheck(verbose bool, noColor bool) []byte {
 	writer := new(bytes.Buffer)
 
 	configSlice := ac.LoadedConfigs()
@@ -272,6 +273,12 @@ func (ac *AutoConfig) GetConfigCheck(verbose bool) []byte {
 	resolveWarnings := GetResolveWarnings()
 	configErrors := GetConfigErrors()
 	unresolved := ac.GetUnresolvedTemplates()
+
+	originalNoColor := color.NoColor
+	color.NoColor = noColor
+	defer func() {
+		color.NoColor = originalNoColor
+	}()
 
 	if len(configErrors) > 0 {
 		fmt.Fprintf(writer, "=== Configuration %s ===\n", color.RedString("errors"))
