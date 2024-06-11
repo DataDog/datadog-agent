@@ -122,6 +122,10 @@ class InvokeLogger:
                 task_result=task_result,
             )
         except Exception as e:
+            # Do not print warning for unit tests
+            if 'Mock' in str(e):
+                return
+
             print(
                 color_message(
                     message=f"Warning: couldn't log the invoke task in the InvokeLogger context manager (error: {e})",
