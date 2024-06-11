@@ -213,11 +213,11 @@ func (s *CheckSubmitter) Start() error {
 		defer s.wg.Done()
 
 		heartbeat := time.NewTicker(15 * time.Second)
-		// We only want to send heartbeats for the process agent
-		if flavor.GetFlavor() == flavor.DefaultAgent {
-			heartbeat.Stop()
-		} else {
+		// We only want to send heartbeats for the process agent process
+		if flavor.GetFlavor() == flavor.ProcessAgent {
 			defer heartbeat.Stop()
+		} else {
+			heartbeat.Stop()
 		}
 
 		queueSizeTicker := time.NewTicker(10 * time.Second)
