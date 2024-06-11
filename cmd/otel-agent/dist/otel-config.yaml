@@ -4,20 +4,21 @@
 extensions:
   health_check:
   pprof:
-    endpoint: 0.0.0.0:1777
+    endpoint: localhost:1777
   zpages:
-    endpoint: 0.0.0.0:55679
+    endpoint: localhost:55679
   datadog:
-    endpoint: 0.0.0.0:7777
+    endpoint: localhost:7777
 
 
 receivers:
   otlp:
     protocols:
       grpc:
+        endpoint: 0.0.0.0:4317
       http:
-
-  # Collect own metrics
+        endpoint: 0.0.0.0:4318
+    # Collect own metrics
   prometheus:
     config:
       scrape_configs:
@@ -29,34 +30,42 @@ receivers:
         - source_labels: [__name__]
           regex: ".*grpc_io.*"
           action: drop
-
-processors:
-  batch:
-    timeout: 10s
-
 exporters:
   datadog:
-    api:
-      key: <ADD KEY HERE>
-  debug:
-
-service:
-  extensions: [health_check, pprof, zpages, datadog]
-  pipelines:
     traces:
+      span_name_as_resource_name: true
+    hostname: "otelcol-docker"
+    api:
+      key: ${DD_API_KEY}
+      site: ${DD_SITE}
+processors:
+  infraattributes:
+  batch:
+  # using the sampler
+  probabilistic_sampler:
+    sampling_percentage: 30
+connectors:
+  # Use datadog connector to compute stats for pre-sampled traces
+  datadog/connector:
+    traces:
+      span_name_as_resource_name: true
+      compute_stats_by_span_kind: true
+      peer_tags_aggregation: true
+service:
+  pipelines:
+    traces: # this pipeline computes APM stats
       receivers: [otlp]
       processors: [batch]
-      exporters: [debug]
+      exporters: [datadog/connector]
+    traces/sampling: # this pipeline uses sampling and sends traces
+      receivers: [otlp]
+      processors: [probabilistic_sampler, infraattributes,batch]
+      exporters: [datadog]
     metrics:
-      receivers: [otlp, prometheus]
-      processors: [batch]
+      receivers: [otlp, datadog/connector,prometheus]
+      processors: [infraattributes,batch]
       exporters: [datadog]
     logs:
       receivers: [otlp]
-      processors: [batch]
+      processors: infraattributes,batch]
       exporters: [datadog]
-
-#  telemetry:
-#    logs:
-#      level: "debug"
-
