@@ -253,10 +253,9 @@ def send_message(ctx, notification_type="merge", print_to_stdout=False):
             print(f"Would send to {channel}:\n{str(message)}")
         else:
             all_teams = channel == "#datadog-agent-pipelines"
-            post_channel = _should_send_message_to_channel(git_ref, default_branch) or all_teams
             send_dm = not _should_send_message_to_channel(git_ref, default_branch) and all_teams
 
-            if post_channel:
+            if all_teams:
                 recipient = channel
                 send_slack_message(recipient, str(message))
                 metrics.append(
