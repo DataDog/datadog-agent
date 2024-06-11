@@ -77,7 +77,7 @@ instances:
     #
     # collect_bfd_session_status: false
 
-    ## @param collect_bfd_session_status - boolean - optional - default: false
+    ## @param collect_hardware_status - boolean - optional - default: false
     ## This enable collecting hardware status metrics.
     #
     # collect_hardware_status: true
