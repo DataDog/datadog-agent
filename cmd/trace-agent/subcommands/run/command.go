@@ -33,7 +33,7 @@ import (
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
 	"github.com/DataDog/datadog-agent/comp/trace"
-	traceagentdef "github.com/DataDog/datadog-agent/comp/trace/agent/def"
+	traceagent "github.com/DataDog/datadog-agent/comp/trace/agent/def"
 	traceagentimpl "github.com/DataDog/datadog-agent/comp/trace/agent/impl"
 	"github.com/DataDog/datadog-agent/comp/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
@@ -117,7 +117,7 @@ func runTraceAgentProcess(ctx context.Context, cliParams *Params, defaultConfPat
 		fetchonlyimpl.Module(),
 		configsyncimpl.OptionalModule(),
 		// Force the instantiation of the components
-		fx.Invoke(func(_ traceagentdef.Component, _ optional.Option[configsync.Component], _ autoexit.Component) {}),
+		fx.Invoke(func(_ traceagent.Component, _ optional.Option[configsync.Component], _ autoexit.Component) {}),
 	)
 	if err != nil && errors.Is(err, traceagentimpl.ErrAgentDisabled) {
 		return nil

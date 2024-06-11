@@ -12,7 +12,7 @@ import (
 	"context"
 	"testing"
 
-	traceagentdef "github.com/DataDog/datadog-agent/comp/trace/agent/def"
+	traceagent "github.com/DataDog/datadog-agent/comp/trace/agent/def"
 	pkgagent "github.com/DataDog/datadog-agent/pkg/trace/agent"
 	"github.com/DataDog/datadog-agent/pkg/trace/stats"
 	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
@@ -21,7 +21,7 @@ import (
 )
 
 // NewMock creates a new mock agent component.
-func NewMock(deps dependencies, t testing.TB) traceagentdef.Component { //nolint:revive // TODO fix revive unused-parameter
+func NewMock(deps dependencies, t testing.TB) traceagent.Component { //nolint:revive // TODO fix revive unused-parameter
 	telemetryCollector := telemetry.NewCollector(deps.Config.Object())
 
 	// Several related non-components require a shared context to gracefully stop.

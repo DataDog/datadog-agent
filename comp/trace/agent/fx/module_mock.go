@@ -10,14 +10,14 @@ package fx
 import (
 	"go.uber.org/fx"
 
-	traceagentdef "github.com/DataDog/datadog-agent/comp/trace/agent/def"
+	traceagent "github.com/DataDog/datadog-agent/comp/trace/agent/def"
 	traceagentimpl "github.com/DataDog/datadog-agent/comp/trace/agent/impl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 // Mock implements mock-specific methods.
 type Mock interface {
-	traceagentdef.Component
+	traceagent.Component
 }
 
 // MockModule defines the fx options for the mock component.
