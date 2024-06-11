@@ -178,7 +178,7 @@ func TestParse_ParsePartialObjectMetadata(t *testing.T) {
 			if test.requireErrorInitailisingParser {
 				require.Errorf(tt, err, "should have failed to create parser")
 			} else {
-				require.NoErrorf(tt, err, "shoud have not failed to create parser")
+				require.NoErrorf(tt, err, "should have not failed to create parser")
 				entity := parser.Parse(test.partialObjectMetadata)
 				storedMetadata, ok := entity.(*workloadmeta.KubernetesMetadata)
 				require.True(t, ok)
