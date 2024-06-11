@@ -232,9 +232,8 @@ func loadTracerFromAsset(buf bytecode.AssetReader, runtimeTracer, coreTracer boo
 
 	if FailedConnectionsSupported(config) {
 		util.AddBoolConst(&mgrOpts, "tcp_failed_connections_enabled", true)
-	} else {
 		mgrOpts.MapSpecEditors[probes.ConnClosedFlushed] = manager.MapSpecEditor{
-			Type:       ebpf.Hash,
+			Type:       ebpf.LRUHash,
 			EditorFlag: manager.EditType,
 		}
 	}
