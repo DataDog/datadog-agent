@@ -358,7 +358,7 @@ def config_ssh_key(ctx: Context):
     help={
         "vmconfig-template": "template to use for the target component",
         "all_archs": "Download images for all supported architectures. By default only images for the host architecture are downloaded",
-        "images": "Comma separated list of images to update, instead of everything. The format of each image is '<os_id>-<os_version>'. Refer to platforms.json for the appropriate values for <os_id> and <os_version>.",
+        "images": "Comma separated list of images to update, instead of everything. The format of each image can be 'image_name', 'OSId-OSVersion', or 'Alternative name' (resp. examples, debian_11, amzn-2023, mantic). Refer to the output of kmt.ls for the appropriate values",
     }
 )
 def update_resources(

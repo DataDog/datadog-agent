@@ -1070,6 +1070,7 @@ api_key:
   #
   # apm_dd_url: <ENDPOINT>:<PORT>
 
+  ## DEPRECATED - please use `target_traces_per_second` instead.
   ## @param max_traces_per_second - integer - optional - default: 10
   ## @env DD_APM_MAX_TPS - integer - optional - default: 10
   ## The target traces per second to sample. Sampling rates to apply are adjusted given
@@ -1079,6 +1080,16 @@ api_key:
   ## value sufficiently high for your traffic pattern.
   #
   # max_traces_per_second: 10
+
+  ## @param target_traces_per_second - integer - optional - default: 10
+  ## @env DD_APM_TARGET_TPS - integer - optional - default: 10
+  ## The target traces per second to sample. Sampling rates to apply are adjusted given
+  ## the received traffic and communicated to tracers. This configures head-based sampling.
+  ## As of 7.35.0 sampling cannot be disabled and setting 'max_traces_per_second' to 0 no longer
+  ## disables sampling, but instead sends no traces to the intake. To avoid rate limiting, set this
+  ## value sufficiently high for your traffic pattern.
+  #
+  # target_traces_per_second: 10
 
   ## @param errors_per_second - integer - optional - default: 10
   ## @env DD_APM_ERROR_TPS - integer - optional - default: 10
