@@ -10,12 +10,15 @@ import (
 	"net/url"
 	"sync"
 	"time"
+
+	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
 
 //go:embed dummy_data
 var dummyFS embed.FS
 
 const freshnessTO = 30 * time.Second
+const httpTO = 5 * time.Second
 
 type configGetter func(*url.URL) (otelMetadata, error)
 
@@ -73,6 +76,13 @@ func (f *freshConfig) getConfig() (otelMetadata, error) {
 	})
 
 	return f.conf, nil
+}
+
+func scrub(s string) string {
+	// Errors come from internal use of a Reader interface. Since we are reading from a buffer, no errors
+	// are possible.
+	scrubString, _ := scrubber.ScrubString(s)
+	return scrubString
 }
 
 func copyAndScrub(o otelMetadata) otelMetadata {

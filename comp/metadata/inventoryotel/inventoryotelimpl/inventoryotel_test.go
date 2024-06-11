@@ -25,7 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
-func getProvides(t *testing.T, confOverrides map[string]any) provides {
+func getProvides(t *testing.T, confOverrides map[string]any) (provides, error) {
 	return newInventoryOtelProvider(
 		fxutil.Test[dependencies](
 			t,
@@ -39,14 +39,14 @@ func getProvides(t *testing.T, confOverrides map[string]any) provides {
 }
 
 func getTestInventoryPayload(t *testing.T, confOverrides map[string]any) *inventoryotel {
-	p := getProvides(t, confOverrides)
+	p, _ := getProvides(t, confOverrides)
 	return p.Comp.(*inventoryotel)
 }
 
 func TestGetPayload(t *testing.T) {
 	overrides := map[string]any{
-		"otel.enabled":                           true,
-		"otel.submit_dummy_inventories_metadata": true,
+		"otel.enabled":               true,
+		"otel.submit_dummy_metadata": true,
 	}
 
 	io := getTestInventoryPayload(t, overrides)
@@ -70,8 +70,8 @@ func TestGetPayload(t *testing.T) {
 
 func TestGet(t *testing.T) {
 	overrides := map[string]any{
-		"otel.enabled":                           true,
-		"otel.submit_dummy_inventories_metadata": true,
+		"otel.enabled":               true,
+		"otel.submit_dummy_metadata": true,
 	}
 	io := getTestInventoryPayload(t, overrides)
 
@@ -86,8 +86,8 @@ func TestGet(t *testing.T) {
 	assert.Equal(t, d, io.data)
 
 	// verify that the return map is a copy
-	p["otel_customer_configuration"] = ""
-	assert.NotEqual(t, p["otel_customer_configuration"], io.data["otel_customer_configuration"])
+	p["provided_configuration"] = ""
+	assert.NotEqual(t, p["provided_configuration"], io.data["provided_configuration"])
 }
 
 func TestFlareProviderFilename(t *testing.T) {
@@ -104,7 +104,7 @@ func TestConfigRefresh(t *testing.T) {
 }
 
 func TestStatusHeaderProvider(t *testing.T) {
-	ret := getProvides(t, nil)
+	ret, _ := getProvides(t, nil)
 
 	headerStatusProvider := ret.StatusHeaderProvider.Provider
 

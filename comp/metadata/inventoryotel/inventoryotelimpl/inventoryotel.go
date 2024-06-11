@@ -33,7 +33,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
-	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 	"github.com/DataDog/datadog-agent/pkg/util/uuid"
 )
 
@@ -69,13 +68,14 @@ func (p *Payload) SplitPayload(_ int) ([]marshaler.AbstractMarshaler, error) {
 type inventoryotel struct {
 	util.InventoryPayload
 
-	conf      config.Component
-	log       log.Component
-	m         sync.Mutex
-	data      otelMetadata
-	hostname  string
-	authToken authtoken.Component
-	f         *freshConfig
+	conf       config.Component
+	log        log.Component
+	m          sync.Mutex
+	data       otelMetadata
+	hostname   string
+	authToken  authtoken.Component
+	f          *freshConfig
+	httpClient *http.Client
 }
 
 type dependencies struct {
@@ -97,7 +97,7 @@ type provides struct {
 	Endpoint             api.AgentEndpointProvider
 }
 
-func newInventoryOtelProvider(deps dependencies) provides {
+func newInventoryOtelProvider(deps dependencies) (provides, error) {
 	hname, _ := hostname.Get(context.Background())
 	i := &inventoryotel{
 		conf:      deps.Config,
@@ -105,10 +105,13 @@ func newInventoryOtelProvider(deps dependencies) provides {
 		hostname:  hname,
 		data:      make(otelMetadata),
 		authToken: deps.AuthToken,
+		httpClient: &http.Client{
+			Timeout: httpTO,
+		},
 	}
 
 	getter := i.fetchRemoteOtelConfig
-	if i.conf.GetBool("otel.submit_dummy_inventories_metadata") {
+	if i.conf.GetBool("otel.submit_dummy_metadata") {
 		getter = i.fetchDummyOtelConfig
 	}
 
@@ -116,13 +119,12 @@ func newInventoryOtelProvider(deps dependencies) provides {
 	i.f, err = newFreshConfig(deps.Config.GetString("otel.extension_url"), getter)
 	if err != nil {
 		// panic?
-		return provides{}
+		return provides{}, err
 	}
 
 	i.InventoryPayload = util.CreateInventoryPayload(deps.Config, deps.Log, deps.Serializer, i.getPayload, "otel.json")
 
 	if i.Enabled {
-
 		// TODO: if there's an update on the OTel side we currently will not be
 		//       notified. Is this a problem? Runtime changes are expected to be
 		//       triggered by FA, so maybe this is OK.
@@ -137,14 +139,7 @@ func newInventoryOtelProvider(deps dependencies) provides {
 		FlareProvider:        i.FlareProvider(),
 		StatusHeaderProvider: status.NewHeaderInformationProvider(i),
 		Endpoint:             api.NewAgentEndpointProvider(i.writePayloadAsJSON, "/metadata/inventory-otel", "GET"),
-	}
-}
-
-func scrub(s string) string {
-	// Errors come from internal use of a Reader interface. Since we are reading from a buffer, no errors
-	// are possible.
-	scrubString, _ := scrubber.ScrubString(s)
-	return scrubString
+	}, nil
 }
 
 func (i *inventoryotel) parseResponseFromJSON(body []byte) (otelMetadata, error) {
@@ -173,8 +168,7 @@ func (i *inventoryotel) fetchRemoteOtelConfig(u *url.URL) (otelMetadata, error) 
 	// add authorization header to the req
 	req.Header.Add("Authorization", bearer)
 
-	client := &http.Client{}
-	resp, err := client.Do(req)
+	resp, err := i.httpClient.Do(req)
 	if err != nil {
 		i.log.Errorf("Error on response: ", err)
 		return nil, err
@@ -213,6 +207,7 @@ func (i *inventoryotel) fetchOtelAgentMetadata() {
 	data, err := i.f.getConfig()
 	if err != nil {
 		i.log.Errorf("Unable to fetch fresh inventory metadata: ", err)
+		return
 	}
 
 	i.data = data
@@ -221,7 +216,7 @@ func (i *inventoryotel) fetchOtelAgentMetadata() {
 		return
 	}
 
-	i.data["otel_enabled"] = isEnabled
+	i.data["enabled"] = isEnabled
 
 }
 

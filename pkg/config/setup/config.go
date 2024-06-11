@@ -780,7 +780,7 @@ func InitConfig(config pkgconfigmodel.Config) {
 	// OTel
 	config.BindEnvAndSetDefault("otel.enabled", false)
 	config.BindEnvAndSetDefault("otel.extension_url", "https://localhost:7777")
-	config.BindEnvAndSetDefault("otel.submit_dummy_inventories_metadata", false) // dev flag - to be removed
+	config.BindEnvAndSetDefault("otel.submit_dummy_metadata", false) // dev flag - to be removed
 
 	// inventories
 	config.BindEnvAndSetDefault("inventories_enabled", true)
