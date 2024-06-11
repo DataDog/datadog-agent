@@ -52,6 +52,7 @@ connectors:
       compute_stats_by_span_kind: true
       peer_tags_aggregation: true
 service:
+  extensions: [health_check, pprof, zpages, datadog]
   pipelines:
     traces: # this pipeline computes APM stats
       receivers: [otlp]
@@ -62,10 +63,10 @@ service:
       processors: [probabilistic_sampler, infraattributes,batch]
       exporters: [datadog]
     metrics:
-      receivers: [otlp, datadog/connector,prometheus]
+      receivers: [otlp, datadog/connector, prometheus]
       processors: [infraattributes,batch]
       exporters: [datadog]
     logs:
       receivers: [otlp]
-      processors: infraattributes,batch]
+      processors: [infraattributes, batch]
       exporters: [datadog]
