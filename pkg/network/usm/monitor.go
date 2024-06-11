@@ -159,6 +159,9 @@ func (m *Monitor) GetUSMStats() map[string]interface{} {
 
 	response["blocked_process"] = utils.GetBlockedPathIDsList()
 
+	tracedPrograms := utils.GetTracedProgramList()
+	response["traced_programs"] = tracedPrograms
+
 	if m != nil {
 		response["last_check"] = m.lastUpdateTime
 	}

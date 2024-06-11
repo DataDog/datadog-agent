@@ -247,3 +247,11 @@ func GetBlockedPathIDsList() []BlockedProcess {
 	}
 	return debugger.GetAllBlockedPathIDs()
 }
+
+// GetTracedProgramList returns a list of traced programs.
+func GetTracedProgramList() []TracedProgram {
+	if debugger == nil {
+		return nil
+	}
+	return debugger.GetTracedPrograms()
+}
