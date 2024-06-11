@@ -170,11 +170,8 @@ func TestSubscribe(t *testing.T) {
 		{
 			// if the filter has type "wmdef.EventTypeUnset", it does not receive
 			// events for entities that are currently in the store.
-			name: "do not receive events for entities in the store pre-subscription if filter type is wmdef.EventTypeUnset",
-			filter: wmdef.NewFilter(&wmdef.FilterParams{
-				Source:    fooSource,
-				EventType: wmdef.EventTypeUnset,
-			}),
+			name:   "do not receive events for entities in the store pre-subscription if filter type is EventTypeUnset",
+			filter: wmdef.NewFilterBuilder().SetSource(fooSource).SetEventType(wmdef.EventTypeUnset).Build(),
 			preEvents: []wmdef.CollectorEvent{
 				{
 					Type:   wmdef.EventTypeSet,
@@ -191,11 +188,8 @@ func TestSubscribe(t *testing.T) {
 			// in the store, and match a filter by source. entities
 			// that don't match the filter at all should not
 			// generate an event.
-			name: "receive events for entities in the store pre-subscription with filter",
-			filter: wmdef.NewFilter(&wmdef.FilterParams{
-				Source:    fooSource,
-				EventType: wmdef.EventTypeAll,
-			}),
+			name:   "receive events for entities in the store pre-subscription with filter",
+			filter: wmdef.NewFilterBuilder().SetSource(fooSource).Build(),
 			preEvents: []wmdef.CollectorEvent{
 				// set container with two sources, delete one source
 				{
@@ -358,11 +352,8 @@ func TestSubscribe(t *testing.T) {
 			// setting an entity from two different sources, but
 			// unsetting from only one (that matches the filter)
 			// correctly generates an unset event
-			name: "sets and unsets an entity with source filters",
-			filter: wmdef.NewFilter(&wmdef.FilterParams{
-				Source:    fooSource,
-				EventType: wmdef.EventTypeAll,
-			}),
+			name:   "sets and unsets an entity with source filters",
+			filter: wmdef.NewFilterBuilder().SetSource(fooSource).Build(),
 			postEvents: [][]wmdef.CollectorEvent{
 				{
 					{
@@ -525,11 +516,8 @@ func TestSubscribe(t *testing.T) {
 			},
 		},
 		{
-			name: "filters by event type",
-			filter: wmdef.NewFilter(&wmdef.FilterParams{
-				Source:    wmdef.SourceAll,
-				EventType: wmdef.EventTypeUnset,
-			}),
+			name:   "filters by event type",
+			filter: wmdef.NewFilterBuilder().SetEventType(wmdef.EventTypeUnset).Build(),
 			postEvents: [][]wmdef.CollectorEvent{
 				{
 					{
