@@ -22,7 +22,7 @@ import (
 	"go.uber.org/atomic"
 	"go4.org/intern"
 
-	coretelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
+	telemetryComponent "github.com/DataDog/datadog-agent/comp/core/telemetry"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode/runtime"
 	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
@@ -100,11 +100,13 @@ type Tracer struct {
 	processCache *processCache
 
 	timeResolver *timeresolver.Resolver
+
+	telemetryComp telemetryComponent.Component
 }
 
 // NewTracer creates a Tracer
-func NewTracer(config *config.Config) (*Tracer, error) {
-	tr, err := newTracer(config)
+func NewTracer(config *config.Config, telemetryComponent telemetryComponent.Component) (*Tracer, error) {
+	tr, err := newTracer(config, telemetryComponent)
 	if err != nil {
 		return nil, err
 	}
@@ -118,7 +120,7 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 
 // newTracer is an internal function used by tests primarily
 // (and NewTracer above)
-func newTracer(cfg *config.Config) (_ *Tracer, reterr error) {
+func newTracer(cfg *config.Config, telemetryComponent telemetryComponent.Component) (_ *Tracer, reterr error) {
 	if _, err := tracefs.Root(); err != nil {
 		return nil, fmt.Errorf("system-probe unsupported: %s", err)
 	}
@@ -143,8 +145,6 @@ func newTracer(cfg *config.Config) (_ *Tracer, reterr error) {
 				return nil, fmt.Errorf(errStr)
 			}
 			log.Warnf("%s. NPM is explicitly enabled, so system-probe will continue with only NPM features enabled.", errStr)
-			cfg.EnableHTTPMonitoring = false
-			cfg.EnableNativeTLSMonitoring = false
 		}
 	}
 
@@ -153,6 +153,7 @@ func newTracer(cfg *config.Config) (_ *Tracer, reterr error) {
 		lastCheck:                  atomic.NewInt64(time.Now().Unix()),
 		sysctlUDPConnTimeout:       sysctl.NewInt(cfg.ProcRoot, "net/netfilter/nf_conntrack_udp_timeout", time.Minute),
 		sysctlUDPConnStreamTimeout: sysctl.NewInt(cfg.ProcRoot, "net/netfilter/nf_conntrack_udp_timeout_stream", time.Minute),
+		telemetryComp:              telemetryComponent,
 	}
 	defer func() {
 		if reterr != nil {
@@ -161,38 +162,38 @@ func newTracer(cfg *config.Config) (_ *Tracer, reterr error) {
 	}()
 
 	if tr.bpfErrorsCollector = ebpftelemetry.NewEBPFErrorsCollector(); tr.bpfErrorsCollector != nil {
-		coretelemetry.GetCompatComponent().RegisterCollector(tr.bpfErrorsCollector)
+		telemetry.GetCompatComponent().RegisterCollector(tr.bpfErrorsCollector)
 	} else {
 		log.Debug("eBPF telemetry not supported")
 	}
 
-	tr.ebpfTracer, err = connection.NewTracer(cfg)
+	tr.ebpfTracer, err = connection.NewTracer(cfg, telemetryComponent)
 	if err != nil {
 		return nil, err
 	}
-	coretelemetry.GetCompatComponent().RegisterCollector(tr.ebpfTracer)
+	telemetry.GetCompatComponent().RegisterCollector(tr.ebpfTracer)
 
-	tr.conntracker, err = newConntracker(cfg)
+	tr.conntracker, err = newConntracker(cfg, telemetryComponent)
 	if err != nil {
 		return nil, err
 	}
-	coretelemetry.GetCompatComponent().RegisterCollector(tr.conntracker)
+	telemetry.GetCompatComponent().RegisterCollector(tr.conntracker)
 
 	if cfg.EnableGatewayLookup {
-		tr.gwLookup = network.NewGatewayLookup(cfg.GetRootNetNs, cfg.MaxTrackedConnections)
+		tr.gwLookup = network.NewGatewayLookup(cfg.GetRootNetNs, cfg.MaxTrackedConnections, telemetryComponent)
 	}
 	if tr.gwLookup != nil {
 		log.Info("gateway lookup enabled")
 	}
 
-	tr.reverseDNS = newReverseDNS(cfg)
+	tr.reverseDNS = newReverseDNS(cfg, telemetryComponent)
 	tr.usmMonitor = newUSMMonitor(cfg, tr.ebpfTracer)
 
 	if cfg.EnableProcessEventMonitoring {
 		if tr.processCache, err = newProcessCache(cfg.MaxProcessesTracked); err != nil {
 			return nil, fmt.Errorf("could not create process cache; %w", err)
 		}
-		coretelemetry.GetCompatComponent().RegisterCollector(tr.processCache)
+		telemetry.GetCompatComponent().RegisterCollector(tr.processCache)
 
 		if tr.timeResolver, err = timeresolver.NewResolver(); err != nil {
 			return nil, fmt.Errorf("could not create time resolver: %w", err)
@@ -208,6 +209,7 @@ func newTracer(cfg *config.Config) (_ *Tracer, reterr error) {
 	tr.sourceExcludes = network.ParseConnectionFilters(cfg.ExcludedSourceConnections)
 	tr.destExcludes = network.ParseConnectionFilters(cfg.ExcludedDestinationConnections)
 	tr.state = network.NewState(
+		telemetryComponent,
 		cfg.ClientStateExpiry,
 		cfg.MaxClosedConnectionsBuffered,
 		cfg.MaxConnectionsStateBuffered,
@@ -239,7 +241,7 @@ func (tr *Tracer) start() error {
 	return nil
 }
 
-func newConntracker(cfg *config.Config) (netlink.Conntracker, error) {
+func newConntracker(cfg *config.Config, telemetryComponent telemetryComponent.Component) (netlink.Conntracker, error) {
 	if !cfg.EnableConntrack {
 		return netlink.NewNoOpConntracker(), nil
 	}
@@ -257,7 +259,7 @@ func newConntracker(cfg *config.Config) (netlink.Conntracker, error) {
 		}
 	}
 	if cfg.EnableEbpfConntracker {
-		if c, err = NewEBPFConntracker(cfg); err == nil {
+		if c, err = NewEBPFConntracker(cfg, telemetryComponent); err == nil {
 			return c, nil
 		}
 		log.Warnf("error initializing ebpf conntracker: %s", err)
@@ -266,7 +268,7 @@ func newConntracker(cfg *config.Config) (netlink.Conntracker, error) {
 	}
 
 	log.Info("falling back to netlink conntracker")
-	if c, err = netlink.NewConntracker(cfg); err == nil {
+	if c, err = netlink.NewConntracker(cfg, telemetryComponent); err == nil {
 		return c, nil
 	}
 
@@ -278,12 +280,12 @@ func newConntracker(cfg *config.Config) (netlink.Conntracker, error) {
 	return nil, fmt.Errorf("error initializing conntracker: %s. set network_config.ignore_conntrack_init_failure to true to ignore conntrack failures on startup", err)
 }
 
-func newReverseDNS(c *config.Config) dns.ReverseDNS {
+func newReverseDNS(c *config.Config, telemetrycomp telemetryComponent.Component) dns.ReverseDNS {
 	if !c.DNSInspection {
 		return dns.NewNullReverseDNS()
 	}
 
-	rdns, err := dns.NewReverseDNS(c)
+	rdns, err := dns.NewReverseDNS(c, telemetrycomp)
 	if err != nil {
 		log.Errorf("could not instantiate dns inspector: %s", err)
 		return dns.NewNullReverseDNS()
@@ -363,22 +365,22 @@ func (t *Tracer) Stop() {
 	}
 	if t.ebpfTracer != nil {
 		t.ebpfTracer.Stop()
-		coretelemetry.GetCompatComponent().UnregisterCollector(t.ebpfTracer)
+		telemetry.GetCompatComponent().UnregisterCollector(t.ebpfTracer)
 	}
 	if t.usmMonitor != nil {
 		t.usmMonitor.Stop()
 	}
 	if t.conntracker != nil {
 		t.conntracker.Close()
-		coretelemetry.GetCompatComponent().UnregisterCollector(t.conntracker)
+		telemetry.GetCompatComponent().UnregisterCollector(t.conntracker)
 	}
 	if t.processCache != nil {
 		events.UnregisterHandler(t.processCache)
 		t.processCache.Stop()
-		coretelemetry.GetCompatComponent().UnregisterCollector(t.processCache)
+		telemetry.GetCompatComponent().UnregisterCollector(t.processCache)
 	}
 	if t.bpfErrorsCollector != nil {
-		coretelemetry.GetCompatComponent().UnregisterCollector(t.bpfErrorsCollector)
+		telemetry.GetCompatComponent().UnregisterCollector(t.bpfErrorsCollector)
 	}
 }
 
@@ -817,7 +819,7 @@ func (t *Tracer) DebugHostConntrack(ctx context.Context) (interface{}, error) {
 	if err != nil {
 		return nil, err
 	}
-	table, err := netlink.DumpHostTable(ctx, t.config)
+	table, err := netlink.DumpHostTable(ctx, t.config, t.telemetryComp)
 	if err != nil {
 		return nil, err
 	}
@@ -843,6 +845,12 @@ func (t *Tracer) DebugDumpProcessCache(ctx context.Context) (interface{}, error)
 }
 
 func newUSMMonitor(c *config.Config, tracer connection.Tracer) *usm.Monitor {
+	if !http.Supported() || !c.ServiceMonitoringEnabled {
+		// http.Supported is misleading, it should be named usm.Supported.
+		// If USM is not supported, or if USM is not enabled, we should not start the USM monitor.
+		return nil
+	}
+
 	// Shared with the USM program
 	connectionProtocolMap := tracer.GetMap(probes.ConnectionProtocolMap)
 

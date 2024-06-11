@@ -199,6 +199,9 @@ func (wp *WindowsProbe) parseCreateHandleArgs(e *etw.DDEventRecord) (*createHand
 	if wp.filePathResolver.Add(ca.fileObject, fc) {
 		wp.stats.fileNameCacheEvictions++
 	}
+	// if we get here, we have a new file handle.  Remove it from the discarder cache in case
+	// we missed the close notification
+	wp.discardedFileHandles.Remove(fileObjectPointer(ca.fileObject))
 
 	return ca, nil
 }

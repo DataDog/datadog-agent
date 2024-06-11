@@ -53,7 +53,9 @@ type Controller struct {
 	clock clock.Clock
 	store *store
 
+	podWatcher           podWatcher
 	horizontalController *horizontalController
+	verticalController   *verticalController
 }
 
 // newController returns a new workload autoscaling controller
@@ -65,6 +67,7 @@ func newController(
 	dynamicInformer dynamicinformer.DynamicSharedInformerFactory,
 	isLeader func() bool,
 	store *store,
+	podWatcher podWatcher,
 ) (*Controller, error) {
 	c := &Controller{
 		eventRecorder: eventRecorder,
@@ -78,7 +81,11 @@ func newController(
 
 	c.Controller = baseController
 	c.store = store
+	c.podWatcher = podWatcher
+
+	// TODO: Ensure that controllers do not take action before the podwatcher is synced
 	c.horizontalController = newHorizontalReconciler(c.clock, eventRecorder, restMapper, scaleClient)
+	c.verticalController = newVerticalController(c.clock, eventRecorder, dynamicClient, c.podWatcher)
 
 	return c, nil
 }
@@ -144,9 +151,11 @@ func (c *Controller) syncPodAutoscaler(ctx context.Context, key, ns, name string
 	if !podAutoscalerInternalFound {
 		if podAutoscaler != nil {
 			// If we don't have an instance locally, we create it. Deletion is handled through setting the `Deleted` flag
+			log.Debugf("Creating internal PodAutoscaler: %s from Kubernetes object", key)
 			c.store.UnlockSet(key, model.NewPodAutoscalerInternal(podAutoscaler), c.ID)
 		} else {
 			// If podAutoscaler == nil, both objects are nil, nothing to do
+			log.Debugf("Reconciling object: %s but object is not present in Kubernetes nor in internal store, nothing to do", key)
 			c.store.Unlock(key)
 		}
 
@@ -158,11 +167,13 @@ func (c *Controller) syncPodAutoscaler(ctx context.Context, key, ns, name string
 		// If flagged for deletion, we just need to clear up our store (deletion complete)
 		// Also if object was not owned by remote config, we also need to delete it (deleted by user)
 		if podAutoscalerInternal.Deleted || podAutoscalerInternal.Spec.Owner != datadoghq.DatadogPodAutoscalerRemoteOwner {
+			log.Infof("Object %s not present in Kuberntes and flagged for deletion (remote) or owner == local, clearing internal store", key)
 			c.store.UnlockDelete(key, c.ID)
 			return autoscaling.NoRequeue, nil
 		}
 
 		// Object is not flagged for deletion and owned by remote config, we need to create it in Kubernetes
+		log.Infof("Object %s has remote owner and not present in Kubernetes, creating it", key)
 		err := c.createPodAutoscaler(ctx, podAutoscalerInternal)
 
 		c.store.Unlock(key)
@@ -175,9 +186,11 @@ func (c *Controller) syncPodAutoscaler(ctx context.Context, key, ns, name string
 		// First implement deletion logic, as if it's a deletion, we don't need to update the object.
 		// Deletion can only happen if the object is owned by remote config.
 		if podAutoscalerInternal.Deleted {
+			log.Infof("Remote owned PodAutoscaler with Deleted flag, deleting object: %s", key)
 			err := c.deletePodAutoscaler(ns, name)
 			// In case of not found, it means the object is gone but informer cache is not updated yet, we can safely delete it from our store
 			if err != nil && errors.IsNotFound(err) {
+				log.Debugf("Object %s not found in Kubernetes during deletion, clearing internal store", key)
 				c.store.UnlockDelete(key, c.ID)
 				return autoscaling.NoRequeue, nil
 			}
@@ -224,7 +237,6 @@ func (c *Controller) syncPodAutoscaler(ctx context.Context, key, ns, name string
 			}
 
 			podAutoscalerInternal.Generation = podAutoscaler.Generation
-			c.store.Set(key, podAutoscalerInternal, c.ID)
 		}
 	}
 
@@ -232,15 +244,14 @@ func (c *Controller) syncPodAutoscaler(ctx context.Context, key, ns, name string
 	if podAutoscalerInternal.Spec.Owner == datadoghq.DatadogPodAutoscalerLocalOwner {
 		if podAutoscalerInternal.Generation != podAutoscaler.Generation {
 			podAutoscalerInternal.UpdateFromPodAutoscaler(podAutoscaler)
-			c.store.Set(key, podAutoscalerInternal, c.ID)
 		}
 	}
 
+	// Reaching this point, we had an error in processing, clearing up global error
+	podAutoscalerInternal.Error = nil
+
 	// Now that everything is synced, we can perform the actual processing
 	result, err := c.handleScaling(ctx, podAutoscaler, &podAutoscalerInternal)
-	if err != nil {
-		podAutoscalerInternal.Error = err
-	}
 
 	// Update status based on latest state
 	statusErr := c.updatePodAutoscalerStatus(ctx, podAutoscalerInternal, podAutoscaler)
@@ -258,8 +269,14 @@ func (c *Controller) syncPodAutoscaler(ctx context.Context, key, ns, name string
 }
 
 func (c *Controller) handleScaling(ctx context.Context, podAutoscaler *datadoghq.DatadogPodAutoscaler, podAutoscalerInternal *model.PodAutoscalerInternal) (autoscaling.ProcessResult, error) {
-	// Handle horizontal scaling
-	return c.horizontalController.sync(ctx, podAutoscaler, podAutoscalerInternal)
+	// TODO: While horizontal scaling is in progress we should not start vertical scaling
+	// While vertical scaling is in progress we should only allow horizontal upscale
+	horizontalRes, err := c.horizontalController.sync(ctx, podAutoscaler, podAutoscalerInternal)
+	if err != nil {
+		return horizontalRes, err
+	}
+
+	return c.verticalController.sync(ctx, podAutoscaler, podAutoscalerInternal)
 }
 
 func (c *Controller) createPodAutoscaler(ctx context.Context, podAutoscalerInternal model.PodAutoscalerInternal) error {
@@ -309,11 +326,16 @@ func (c *Controller) updatePodAutoscalerSpec(ctx context.Context, podAutoscalerI
 }
 
 func (c *Controller) updatePodAutoscalerStatus(ctx context.Context, podAutoscalerInternal model.PodAutoscalerInternal, podAutoscaler *datadoghq.DatadogPodAutoscaler) error {
+	newStatus := podAutoscalerInternal.BuildStatus(metav1.NewTime(c.clock.Now()), &podAutoscaler.Status)
+	if autoscaling.Semantic.DeepEqual(podAutoscaler.Status, newStatus) {
+		return nil
+	}
+
 	log.Debugf("Updating PodAutoscaler Status: %s/%s", podAutoscalerInternal.Namespace, podAutoscalerInternal.Name)
 	autoscalerObj := &datadoghq.DatadogPodAutoscaler{
 		TypeMeta:   podAutoscalerMeta,
 		ObjectMeta: podAutoscaler.ObjectMeta,
-		Status:     podAutoscalerInternal.BuildStatus(metav1.NewTime(c.clock.Now()), &podAutoscaler.Status),
+		Status:     newStatus,
 	}
 
 	obj, err := autoscaling.ToUnstructured(autoscalerObj)

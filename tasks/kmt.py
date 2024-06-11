@@ -5,6 +5,7 @@ import json
 import os
 import re
 import shutil
+import tarfile
 import tempfile
 import xml.etree.ElementTree as ET
 from collections import defaultdict
@@ -18,7 +19,7 @@ from invoke.tasks import task
 
 from tasks.kernel_matrix_testing import selftest as selftests
 from tasks.kernel_matrix_testing import stacks, vmconfig
-from tasks.kernel_matrix_testing.ci import KMTTestRunJob, get_all_jobs_for_pipeline
+from tasks.kernel_matrix_testing.ci import KMTTestRunJob, get_all_jobs_for_pipeline, get_test_results_from_tarfile
 from tasks.kernel_matrix_testing.compiler import CONTAINER_AGENT_PATH, all_compilers, get_compiler
 from tasks.kernel_matrix_testing.config import ConfigManager
 from tasks.kernel_matrix_testing.download import arch_mapping, full_arch, update_rootfs
@@ -357,7 +358,7 @@ def config_ssh_key(ctx: Context):
     help={
         "vmconfig-template": "template to use for the target component",
         "all_archs": "Download images for all supported architectures. By default only images for the host architecture are downloaded",
-        "images": "Comma separated list of images to update, instead of everything. The format of each image is '<os_id>-<os_version>'. Refer to platforms.json for the appropriate values for <os_id> and <os_version>.",
+        "images": "Comma separated list of images to update, instead of everything. The format of each image can be 'image_name', 'OSId-OSVersion', or 'Alternative name' (resp. examples, debian_11, amzn-2023, mantic). Refer to the output of kmt.ls for the appropriate values",
     }
 )
 def update_resources(
@@ -667,12 +668,14 @@ def prepare(
         d.copy(ctx, f"{paths.arch_dir}/opt/*", "/opt/", exclude="*.ninja", verbose=verbose)
         d.run_cmd(
             ctx,
-            f"! [ -f {btf_dir}/minimized-btfs.tar.xz \
-                && [ -d /opt/btf ] \
+            f"[ -f /sys/kernel/btf/vmlinux ] \
+                || [ -f {btf_dir}/minimized-btfs.tar.xz ] \
+                || ([ -d /opt/btf ] \
                 && cd /opt/btf/ \
                 && tar cJf minimized-btfs.tar.xz * \
                 && mkdir -p {btf_dir} \
-                && mv /opt/btf/minimized-btfs.tar.xz {btf_dir}/",
+                && mv /opt/btf/minimized-btfs.tar.xz {btf_dir}/)",
+            verbose=verbose,
         )
         info(f"[+] Tests packages setup in target VM {d}")
 
@@ -707,6 +710,37 @@ def build_object_files(ctx, fp):
     ctx.run(f"ninja -d explain -f {fp}")
 
 
+def compute_package_dependencies(ctx: Context, packages: list[str]) -> dict[str, set[str]]:
+    dd_pkg_name = "github.com/DataDog/datadog-agent/"
+    build_tags = get_sysprobe_buildtags(False, False)
+    pkg_deps: dict[str, set[str]] = defaultdict(set)
+
+    packages_list = " ".join(packages)
+    list_format = "{{ .ImportPath }}: {{ join .Deps \" \" }}"
+    res = ctx.run(f"go list -test -f '{list_format}' -tags \"{build_tags}\" {packages_list}", hide=True)
+    if res is None or not res.ok:
+        raise Exit("Failed to get dependencies for system-probe")
+
+    for line in res.stdout.split("\n"):
+        if ":" not in line:
+            continue
+
+        pkg, deps = line.split(":", 1)
+        deps = [d.strip() for d in deps.split(" ")]
+        dd_deps = [d[len(dd_pkg_name) :] for d in deps if d.startswith(dd_pkg_name)]
+
+        # The import path printed by "go list" is usually path/to/pkg  (e.g., pkg/ebpf/verifier).
+        # However, for test packages it might be either:
+        # - path/to/pkg.test
+        # - path/to/pkg [path/to/pkg.test]
+        # In any case all variants refer to the same variant. This code controls for that
+        # so that we keep the usual package name.
+        pkg = pkg.split(" ")[0].removeprefix(dd_pkg_name).removesuffix(".test")
+        pkg_deps[pkg].update(dd_deps)
+
+    return pkg_deps
+
+
 @task
 def kmt_sysprobe_prepare(
     ctx: Context,
@@ -730,7 +764,6 @@ def kmt_sysprobe_prepare(
     if packages:
         filter_pkgs = [os.path.relpath(p) for p in packages.split(",")]
 
-    target_packages = build_target_packages(filter_pkgs)
     kmt_paths = KMTPaths(stack, arch)
     nf_path = os.path.join(kmt_paths.arch_dir, "kmt-sysprobe.ninja")
 
@@ -743,6 +776,12 @@ def kmt_sysprobe_prepare(
         go_path = os.path.join(go_root, "bin", "go")
 
     build_object_files(ctx, f"{kmt_paths.arch_dir}/kmt-object-files.ninja")
+
+    info("[+] Computing Go dependencies for test packages...")
+    target_packages = build_target_packages(filter_pkgs)
+    pkg_deps = compute_package_dependencies(ctx, target_packages)
+
+    info("[+] Generating build instructions..")
     with open(nf_path, 'w') as ninja_file:
         nw = NinjaWriter(ninja_file)
 
@@ -760,7 +799,8 @@ def kmt_sysprobe_prepare(
         ninja_copy_ebpf_files(nw, "system-probe", kmt_paths)
 
         for pkg in target_packages:
-            target_path = os.path.join(kmt_paths.sysprobe_tests, os.path.relpath(pkg, os.getcwd()))
+            pkg_name = os.path.relpath(pkg, os.getcwd())
+            target_path = os.path.join(kmt_paths.sysprobe_tests, pkg_name)
             output_path = os.path.join(target_path, "testsuite")
             variables = {
                 "env": env_str,
@@ -773,19 +813,22 @@ def kmt_sysprobe_prepare(
             if extra_arguments:
                 variables["extra_arguments"] = extra_arguments
 
-            go_files = [os.path.abspath(i) for i in glob(f"{pkg}/*.go")]
+            go_files = set(glob(f"{pkg}/*.go"))
+            has_test_files = any(x.lower().endswith("_test.go") for x in go_files)
 
-            # We delete the output file to force ninja to rebuild the testsuite everytime
-            # because it cannot track go dependencies correctly.
-            ctx.run(f"rm -f {output_path}")
-            nw.build(
-                inputs=[pkg],
-                outputs=[output_path],
-                implicit=go_files,
-                rule="gotestsuite",
-                pool="gobuild",
-                variables=variables,
-            )
+            # skip packages without test files
+            if has_test_files:
+                for deps in pkg_deps[pkg_name]:
+                    go_files.update(os.path.abspath(p) for p in glob(f"{deps}/*.go"))
+
+                nw.build(
+                    inputs=[pkg],
+                    outputs=[output_path],
+                    implicit=list(go_files),
+                    rule="gotestsuite",
+                    pool="gobuild",
+                    variables=variables,
+                )
 
             if pkg.endswith("java"):
                 nw.build(
@@ -827,6 +870,7 @@ def kmt_sysprobe_prepare(
                         },
                     )
 
+    info("[+] Compiling tests...")
     ctx.run(f"ninja -d explain -v -f {nf_path}")
 
 
@@ -1699,3 +1743,79 @@ def show_last_test_results(ctx: Context, stack: str | None = None):
 
     print(tabulate(table, headers=["Package"] + vm_list))
     print("\nLegend: Successes/Failures/Skipped")
+
+
+@task
+def tag_ci_job(ctx: Context):
+    """Add extra tags to the CI job"""
+    tags: dict[str, str] = {}
+
+    # Retrieve tags from environment variables, with a renaming for convenience
+    environment_vars_to_tags = {
+        "ARCH": "arch",
+        "TEST_COMPONENT": "component",
+        "TAG": "platform",
+        "TEST_SET": "test_set",
+        "MICRO_VM_IP": "microvm_ip",
+    }
+
+    for env_var, tag in environment_vars_to_tags.items():
+        value = os.getenv(env_var)
+        if value is not None:
+            tags[tag] = value
+
+    # Get the job type based on the job name
+    job_name = os.environ["CI_JOB_NAME"]
+    if "setup_env" in job_name or "upload" in job_name or "pull_test_dockers" in job_name:
+        job_type = "setup"
+    elif "cleanup" in job_name:
+        job_type = "cleanup"
+    elif "kmt_run" in job_name:
+        job_type = "test"
+    tags["job_type"] = job_type
+
+    if job_type == "test":
+        # Retrieve all data for the tests to detect a failure reason
+        agent_testing_dir = Path(os.environ["DD_AGENT_TESTING_DIR"])
+        ci_project_dir = Path(os.environ["CI_PROJECT_DIR"])
+
+        test_jobs_executed, tests_failed = False, False
+        for candidate in agent_testing_dir.glob("junit-*.tar.gz"):
+            tar = tarfile.open(candidate)
+            test_results = get_test_results_from_tarfile(tar)
+            test_jobs_executed = test_jobs_executed or len(test_results) > 0
+            # values can be none, we have to explicitly check for False
+            tests_failed = tests_failed or any(r is False for r in test_results.values())
+
+        tags["tests_executed"] = str(test_jobs_executed).lower()
+        tags["tests_failed"] = str(tests_failed).lower()
+
+        ssh_config_path = Path.home() / ".ssh" / "config"
+        setup_ddvm_status_file = ci_project_dir / "setup-ddvm.status"
+
+        if test_jobs_executed and not tests_failed:
+            tags["failure_reason"] = "none"
+        elif test_jobs_executed and tests_failed:  # The first condition is redundant but makes the logic clearer
+            tags["failure_reason"] = "test"
+        elif setup_ddvm_status_file.is_file() and "active" not in setup_ddvm_status_file.read_text():
+            tags["failure_reason"] = "infra_setup-ddvm"
+        elif not ssh_config_path.is_file():
+            tags["failure_reason"] = "infra_ssh-config"
+        else:
+            tags["failure_reason"] = "infra-unknown"
+    elif job_type == "setup":
+        if "kmt_setup_env" in job_name:
+            tags["setup_stage"] = "infra-provision"
+        elif "pull_test_dockers" in job_name:
+            tags["setup_stage"] = "docker-images"
+        elif "upload_dependencies" in job_name:
+            tags["setup_stage"] = "dependencies"
+        elif "btfs" in job_name:
+            tags["setup_stage"] = "btfs"
+        elif "upload_secagent_tests" in job_name or "upload_sysprobe_tests" in job_name:
+            tags["setup_stage"] = "tests"
+
+    tag_prefix = "kmt."
+    tags_str = " ".join(f"--tags '{tag_prefix}{k}:{v}'" for k, v in tags.items())
+
+    ctx.run(f"datadog-ci tag --level job {tags_str}")

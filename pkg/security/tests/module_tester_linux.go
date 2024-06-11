@@ -34,7 +34,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"golang.org/x/sys/unix"
 
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor"
 	secconfig "github.com/DataDog/datadog-agent/pkg/security/config"
@@ -195,6 +195,7 @@ rules:
     version: {{$Rule.Version}}
     expression: >-
       {{$Rule.Expression}}
+    disabled: {{$Rule.Disabled}}
     tags:
 {{- range $Tag, $Val := .Tags}}
       {{$Tag}}: {{$Val}}
@@ -639,6 +640,14 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 
 	if err := initLogger(); err != nil {
 		return nil, err
+	}
+
+	if opts.staticOpts.disableBundledRules {
+		ruleDefs = append(ruleDefs, &rules.RuleDefinition{
+			ID:       events.NeedRefreshSBOMRuleID,
+			Disabled: true,
+			Combine:  rules.OverridePolicy,
+		})
 	}
 
 	st, err := newSimpleTest(t, macroDefs, ruleDefs, opts.dynamicOpts.testDir)
@@ -1301,12 +1310,10 @@ func (tm *testModule) StartADocker() (*dockerCmdWrapper, error) {
 func (tm *testModule) GetDumpFromDocker(dockerInstance *dockerCmdWrapper) (*activityDumpIdentifier, error) {
 	dumps, err := tm.ListActivityDumps()
 	if err != nil {
-		_, _ = dockerInstance.stop()
 		return nil, err
 	}
 	dump := findLearningContainerID(dumps, dockerInstance.containerID)
 	if dump == nil {
-		_, _ = dockerInstance.stop()
 		return nil, errors.New("ContainerID not found on activity dump list")
 	}
 	return dump, nil
@@ -1319,6 +1326,7 @@ func (tm *testModule) StartADockerGetDump() (*dockerCmdWrapper, *activityDumpIde
 	}
 	dump, err := tm.GetDumpFromDocker(dockerInstance)
 	if err != nil {
+		_, _ = dockerInstance.stop()
 		return nil, nil, err
 	}
 	return dockerInstance, dump, nil
@@ -1751,7 +1759,7 @@ func (tm *testModule) ListAllProfiles() {
 	spm.ListAllProfileStates()
 }
 
-func (tm *testModule) SetProfileVersionState(selector *cgroupModel.WorkloadSelector, imageTag string, state profile.EventFilteringProfileState) error {
+func (tm *testModule) SetProfileVersionState(selector *cgroupModel.WorkloadSelector, imageTag string, state model.EventFilteringProfileState) error {
 	p, ok := tm.probe.PlatformProbe.(*sprobe.EBPFProbe)
 	if !ok {
 		return errors.New("no ebpf probe")

@@ -18,7 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/eventplatformimpl"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
@@ -568,8 +568,8 @@ func RegisterConnectivityDatadogEventPlatform(catalog *diagnosis.Catalog) {
 
 // RegisterPortConflict registers the port-conflict diagnose suite.
 func RegisterPortConflict(catalog *diagnosis.Catalog) {
-	// port-conflict suite available in darwin only for now
-	if runtime.GOOS == "darwin" {
+	// port-conflict suite available in darwin and linux only for now
+	if runtime.GOOS == "darwin" || runtime.GOOS == "linux" {
 		catalog.Register("port-conflict", func() []diagnosis.Diagnosis { return ports.DiagnosePortSuite() })
 	}
 }

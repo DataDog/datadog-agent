@@ -33,6 +33,9 @@ upload_dependencies_sysprobe_arm64:
     # Pull base images
     - mkdir $KMT_DOCKERS
     - inv -e system-probe.save-test-dockers --use-crane --output-dir $KMT_DOCKERS --arch $ARCH
+  after_script:
+    - export DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $API_KEY_ORG2_SSM_NAME)
+    - !reference [.tag_kmt_ci_job]
   artifacts:
     expire_in: 1 day
     paths:
@@ -77,6 +80,9 @@ pull_test_dockers_arm64:
     - !reference [.get_instance_ip_by_type]
     - !reference [.setup_ssh_config]
     - scp $CI_PROJECT_DIR/kmt-deps/ci/$ARCH/$ARCHIVE_NAME metal_instance:/opt/kernel-version-testing/
+  after_script:
+    - export DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $API_KEY_ORG2_SSM_NAME)
+    - !reference [.tag_kmt_ci_job]
   variables:
     DEPENDENCIES: $CI_PROJECT_DIR/kmt-deps/ci/$ARCH/btfs
     BTF_DIR: opt/kmt-ramfs/system-probe-tests/pkg/ebpf/bytecode/build/co-re/btf
@@ -153,6 +159,9 @@ kmt_setup_env_sysprobe_x64:
     - popd
     # upload connector to metal instance
     - scp $CI_PROJECT_DIR/connector-${ARCH} metal_instance:/home/ubuntu/connector
+  after_script:
+    - export DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $API_KEY_ORG2_SSM_NAME)
+    - !reference [.tag_kmt_ci_job]
   variables:
     AWS_EC2_SSH_KEY_FILE: $CI_PROJECT_DIR/ssh_key
     TEST_COMPONENT: system-probe
@@ -216,6 +225,7 @@ kmt_run_sysprobe_tests_x64:
           - "amazon_2023"
           - "fedora_37"
           - "fedora_38"
+          - "debian_9"
           - "debian_10"
           - "debian_11"
           - "debian_12"
@@ -268,6 +278,7 @@ kmt_run_sysprobe_tests_arm64:
     TEST_COMPONENT: system-probe
 
 kmt_sysprobe_cleanup_arm64:
+  when: always
   extends:
     - .kmt_sysprobe_cleanup
   needs:
@@ -278,11 +289,29 @@ kmt_sysprobe_cleanup_arm64:
     INSTANCE_TYPE: "m6gd.metal"
 
 kmt_sysprobe_cleanup_x64:
+  when: always
   extends:
     - .kmt_sysprobe_cleanup
   needs:
     - kmt_setup_env_sysprobe_x64
     - kmt_run_sysprobe_tests_x64
+  variables:
+    ARCH: x86_64
+    INSTANCE_TYPE: "m5d.metal"
+
+
+kmt_sysprobe_cleanup_arm64_manual:
+  extends:
+    - .kmt_sysprobe_cleanup
+    - .kmt_cleanup_manual
+  variables:
+    ARCH: arm64
+    INSTANCE_TYPE: "m6gd.metal"
+
+kmt_sysprobe_cleanup_x64_manual:
+  extends:
+    - .kmt_sysprobe_cleanup
+    - .kmt_cleanup_manual
   variables:
     ARCH: x86_64
     INSTANCE_TYPE: "m5d.metal"

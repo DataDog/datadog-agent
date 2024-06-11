@@ -9,6 +9,7 @@ include:
   - .gitlab/choco_build/choco_build.yml
   - .gitlab/choco_deploy/choco_deploy.yml
   - .gitlab/common/shared.yml
+  - .gitlab/common/skip_ci_check.yml
   - .gitlab/common/pr_commenter.yml
   - .gitlab/common/test_infra_version.yml
   - .gitlab/container_build/include.yml
@@ -164,15 +165,15 @@ variables:
   # To use images from datadog-agent-buildimages dev branches, set the corresponding
   # SUFFIX variable to _test_only
   DATADOG_AGENT_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_BUILDIMAGES: v34815905-ae40295e
+  DATADOG_AGENT_BUILDIMAGES: v35901572-a9447181
   DATADOG_AGENT_WINBUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_WINBUILDIMAGES: v34815905-ae40295e
+  DATADOG_AGENT_WINBUILDIMAGES: v35901572-a9447181
   DATADOG_AGENT_ARMBUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_ARMBUILDIMAGES: v34815905-ae40295e
+  DATADOG_AGENT_ARMBUILDIMAGES: v35901572-a9447181
   DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_SYSPROBE_BUILDIMAGES: v34815905-ae40295e
+  DATADOG_AGENT_SYSPROBE_BUILDIMAGES: v35901572-a9447181
   DATADOG_AGENT_BTF_GEN_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_BTF_GEN_BUILDIMAGES: v34815905-ae40295e
+  DATADOG_AGENT_BTF_GEN_BUILDIMAGES: v35901572-a9447181
 
   DATADOG_AGENT_EMBEDDED_PATH: /opt/datadog-agent/embedded
   DEB_GPG_KEY_ID: c0962c7d
@@ -272,7 +273,7 @@ variables:
   if: $RELEASE_VERSION_7 == ""
 
 .if_deploy: &if_deploy
-  if: $DEPLOY_AGENT == "true"
+  if: $DEPLOY_AGENT == "true" || $DDR_WORKFLOW_ID != null
 
 .if_not_deploy: &if_not_deploy
   if: $DEPLOY_AGENT != "true"
@@ -399,9 +400,6 @@ workflow:
       variables:
         USE_CACHING_PROXY_PYTHON: "false"
         USE_CACHING_PROXY_RUBY: "false"
-    - if: $DDR_WORKFLOW_ID != null
-      variables:
-        DEPLOY_AGENT: "true"
 
 #
 # List of rule blocks used in the pipeline
@@ -411,6 +409,10 @@ workflow:
 .except_mergequeue:
   - <<: *if_mergequeue
     when: never
+
+.on_mergequeue:
+  - <<: *if_mergequeue
+    when: on_success
 
 .manual:
   - !reference [.except_mergequeue]
@@ -761,8 +763,6 @@ workflow:
   - changes:
       paths: *system_probe_change_paths
       compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
-  - when: manual
-    allow_failure: true
 
 .on_e2e_changes_or_manual:
   - <<: *if_main_branch
@@ -815,7 +815,7 @@ workflow:
         - test/new-e2e/go.mod
       compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
 
-.on_container_or_e2e_changes_or_manual:
+.on_container_or_e2e_changes:
   - !reference [.on_e2e_main_release_or_rc]
   - changes:
       paths:
@@ -843,10 +843,8 @@ workflow:
         - test/new-e2e/go.mod
       compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
     when: on_success
-  - when: manual
-    allow_failure: true
 
-.on_rc_or_e2e_changes_or_manual:
+.on_rc_or_e2e_changes:
   - !reference [.on_e2e_main_release_or_rc]
   - changes:
       paths:
@@ -854,20 +852,16 @@ workflow:
         - comp/remote-config/**/*
         - test/new-e2e/tests/remote-config/**/*
       compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
-  - when: manual
-    allow_failure: true
 
-.on_asc_or_e2e_changes_or_manual:
+.on_asc_or_e2e_changes:
   - !reference [.on_e2e_main_release_or_rc]
   - changes:
       paths:
         # TODO: Add paths that should trigger tests for ASC
         - test/new-e2e/tests/agent-shared-components/**/*
       compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
-  - when: manual
-    allow_failure: true
 
-.on_subcommands_or_e2e_changes_or_manual:
+.on_subcommands_or_e2e_changes:
   - !reference [.on_e2e_main_release_or_rc]
   - changes:
       paths:
@@ -876,50 +870,40 @@ workflow:
         - comp/**/*
         - test/new-e2e/tests/agent-subcommands/**/*
       compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
-  - when: manual
-    allow_failure: true
 
-.on_language-detection_or_e2e_changes_or_manual:
+.on_language-detection_or_e2e_changes:
   - !reference [.on_e2e_main_release_or_rc]
   - changes:
       paths:
         # TODO: Add paths that should trigger tests for language detection
         - test/new-e2e/tests/language-detection/**/*
       compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
-  - when: manual
-    allow_failure: true
 
-.on_npm_or_e2e_changes_or_manual:
+.on_npm_or_e2e_changes:
   - !reference [.on_e2e_main_release_or_rc]
   - changes:
       paths:
         # TODO: Add paths that should trigger tests for npm
         - test/new-e2e/tests/npm/**/*
       compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
-  - when: manual
-    allow_failure: true
 
-.on_aml_or_e2e_changes_or_manual:
+.on_aml_or_e2e_changes:
   - !reference [.on_e2e_main_release_or_rc]
   - changes:
       paths:
         # TODO: Add paths that should trigger tests for AML
         - test/new-e2e/tests/agent-metrics-logs/**/*
       compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
-  - when: manual
-    allow_failure: true
 
-.on_cws_or_e2e_changes_or_manual:
+.on_cws_or_e2e_changes:
   - !reference [.on_e2e_main_release_or_rc]
   - changes:
       paths:
         # TODO: Add paths that should trigger tests for CWS
         - test/new-e2e/tests/cws/**/*
       compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
-  - when: manual
-    allow_failure: true
 
-.on_process_or_e2e_changes_or_manual:
+.on_process_or_e2e_changes:
   - !reference [.on_e2e_main_release_or_rc]
   - changes:
       paths:
@@ -929,20 +913,16 @@ workflow:
         - pkg/process/**/*
         - pkg/config/setup/process.go
       compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
-  - when: manual
-    allow_failure: true
 
-.on_orchestrator_or_e2e_changes_or_manual:
+.on_orchestrator_or_e2e_changes:
   - !reference [.on_e2e_main_release_or_rc]
   - changes:
       paths:
         # TODO: Add paths that should trigger tests for orchestrator
         - test/new-e2e/tests/orchestrator/**/*
       compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
-  - when: manual
-    allow_failure: true
 
-.on_apm_or_e2e_changes_or_manual:
+.on_apm_or_e2e_changes:
   - !reference [.on_e2e_main_release_or_rc]
   - changes:
       paths:
@@ -953,10 +933,8 @@ workflow:
         - test/new-e2e/go.mod
       compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
     when: on_success
-  - when: manual
-    allow_failure: true
 
-.on_installer_or_e2e_changes_or_manual:
+.on_installer_or_e2e_changes:
   - <<: *if_disable_e2e_tests
     when: never
   - !reference [.except_mergequeue]
@@ -977,15 +955,23 @@ workflow:
         - test/new-e2e/go.mod
       compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
     when: on_success
-  - when: manual
-    allow_failure: true
 
-.on_ndm_netflow_or_e2e_changes_or_manual:
+.on_ndm_netflow_or_e2e_changes:
   - !reference [.on_e2e_main_release_or_rc]
   - changes:
       paths:
         - comp/netflow/**/*
         - test/new-e2e/tests/ndm/netflow/**/*
+        - test/new-e2e/go.mod
+      compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
+    when: on_success
+
+.on_ndm_snmp_or_e2e_changes:
+  - !reference [.on_e2e_main_release_or_rc]
+  - changes:
+      paths:
+        - pkg/collector/corechecks/snmp/**/*
+        - test/new-e2e/tests/ndm/snmp/**/*
         - test/new-e2e/go.mod
       compare_to: main # TODO: use a variable, when this is supported https://gitlab.com/gitlab-org/gitlab/-/issues/369916
     when: on_success

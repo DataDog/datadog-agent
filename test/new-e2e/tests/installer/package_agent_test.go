@@ -61,9 +61,9 @@ func (s *packageAgentSuite) assertUnits(state host.State, oldUnits bool) {
 	if oldUnits {
 		pkgManager := s.host.GetPkgManager()
 		switch pkgManager {
-		case "dpkg":
+		case "apt":
 			systemdPath = "/lib/systemd/system"
-		case "rpm":
+		case "yum", "zypper":
 			systemdPath = "/usr/lib/systemd/system"
 		default:
 			s.T().Fatalf("unsupported package manager: %s", pkgManager)
@@ -94,7 +94,6 @@ func (s *packageAgentSuite) TestUpgrade_AgentDebRPM_to_OCI() {
 
 	state = s.host.State()
 	s.assertUnits(state, false)
-	state.AssertPathDoesNotExist("/opt/datadog-agent")
 	s.host.AssertPackageInstalledByInstaller("datadog-agent")
 	s.host.AssertPackageInstalledByPackageManager("datadog-agent")
 }
@@ -373,10 +372,12 @@ func (s *packageAgentSuite) TestExperimentStopped() {
 func (s *packageAgentSuite) purgeAgentDebInstall() {
 	pkgManager := s.host.GetPkgManager()
 	switch pkgManager {
-	case "dpkg":
+	case "apt":
 		s.Env().RemoteHost.Execute("sudo apt-get remove -y --purge datadog-agent")
-	case "rpm":
+	case "yum":
 		s.Env().RemoteHost.Execute("sudo yum remove -y datadog-agent")
+	case "zypper":
+		s.Env().RemoteHost.Execute("sudo zypper remove -y datadog-agent")
 	default:
 		s.T().Fatalf("unsupported package manager: %s", pkgManager)
 	}
@@ -385,10 +386,12 @@ func (s *packageAgentSuite) purgeAgentDebInstall() {
 func (s *packageAgentSuite) installDebRPMAgent() {
 	pkgManager := s.host.GetPkgManager()
 	switch pkgManager {
-	case "dpkg":
+	case "apt":
 		s.Env().RemoteHost.Execute("sudo apt-get install -y --force-yes datadog-agent")
-	case "rpm":
+	case "yum":
 		s.Env().RemoteHost.Execute("sudo yum -y install datadog-agent")
+	case "zypper":
+		s.Env().RemoteHost.Execute("sudo zypper install -y datadog-agent")
 	default:
 		s.T().Fatalf("unsupported package manager: %s", pkgManager)
 	}

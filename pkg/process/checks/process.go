@@ -8,6 +8,7 @@ package checks
 import (
 	"context"
 	"errors"
+	"fmt"
 	"regexp"
 	"strings"
 	"time"
@@ -16,7 +17,7 @@ import (
 	"github.com/shirou/gopsutil/v3/cpu"
 	"go.uber.org/atomic"
 
-	workloadmetacomp "github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	workloadmetacomp "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/process/metadata"
 	"github.com/DataDog/datadog-agent/pkg/process/metadata/parser"
@@ -340,8 +341,9 @@ func (p *ProcessCheck) run(groupID int32, collectRealTime bool) (RunResult, erro
 		p.realtimeLastRun = p.lastRun
 	}
 
-	statsd.Client.Gauge("datadog.process.containers.host_count", float64(totalContainers), []string{}, 1) //nolint:errcheck
-	statsd.Client.Gauge("datadog.process.processes.host_count", float64(totalProcs), []string{}, 1)       //nolint:errcheck
+	agentNameTag := fmt.Sprintf("agent:%s", flavor.GetFlavor())
+	statsd.Client.Gauge("datadog.process.containers.host_count", float64(totalContainers), []string{agentNameTag}, 1) //nolint:errcheck
+	statsd.Client.Gauge("datadog.process.processes.host_count", float64(totalProcs), []string{agentNameTag}, 1)       //nolint:errcheck
 	log.Debugf("collected processes in %s", time.Since(start))
 
 	return result, nil

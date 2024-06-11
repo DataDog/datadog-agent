@@ -16,7 +16,7 @@ import (
 	trivydx "github.com/aquasecurity/trivy/pkg/sbom/cyclonedx"
 	"github.com/mohae/deepcopy"
 
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 )
 
 const (

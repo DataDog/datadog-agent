@@ -14,7 +14,7 @@ from invoke import task
 
 from tasks.build_tags import build_tags, filter_incompatible_tags, get_build_tags, get_default_build_tags
 from tasks.flavor import AgentFlavor
-from tasks.libs.common.color import color_message
+from tasks.libs.common.color import Color, color_message
 
 VSCODE_DIR = ".vscode"
 VSCODE_FILE = "settings.json"
@@ -75,7 +75,7 @@ def setup_devcontainer(
     """
     from tasks.devcontainer import setup
 
-    print(color_message('This command is deprecated, please use `devcontainer.setup` instead', "orange"))
+    print(color_message('This command is deprecated, please use `devcontainer.setup` instead', Color.ORANGE))
     print("Running `devcontainer.setup`...")
     setup(
         _,

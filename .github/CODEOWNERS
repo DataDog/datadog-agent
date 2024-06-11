@@ -86,7 +86,7 @@
 /.gitlab/kitchen_testing/windows.yml                 @DataDog/agent-build-and-releases @DataDog/windows-agent
 /.gitlab/kitchen_testing/new-e2e_testing/windows.yml @DataDog/agent-build-and-releases @DataDog/windows-agent
 
-/.gitlab/common/                                     @DataDog/container-integrations @DataDog/agent-ci-experience
+/.gitlab/common/                                     @DataDog/agent-ci-experience
 /.gitlab/common/test_infra_version.yml               @DataDog/agent-developer-tools @DataDog/agent-ci-experience
 
 /.gitlab/e2e/e2e.yml                                 @DataDog/container-integrations @DataDog/agent-developer-tools
@@ -166,7 +166,6 @@
 /cmd/agent/dist/conf.d/snmp.d/          @DataDog/network-device-monitoring
 /cmd/agent/dist/conf.d/win32_event_log.d/ @DataDog/windows-agent
 /cmd/agent/install*.sh                  @DataDog/agent-build-and-releases
-/cmd/agentless-scanner/                 @DataDog/agent-cspm
 /cmd/cluster-agent/                     @DataDog/container-platform
 /cmd/cluster-agent/commands/            @DataDog/container-platform
 /cmd/cluster-agent-cloudfoundry/        @DataDog/platform-integrations
