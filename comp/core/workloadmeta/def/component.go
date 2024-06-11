@@ -43,7 +43,7 @@ type Component interface {
 
 	// ListContainersWithFilter returns all the containers for which the passed
 	// filter evaluates to true.
-	ListContainersWithFilter(filter ContainerFilterFunc) []*Container
+	ListContainersWithFilter(filter EntityFilterFunc[*Container]) []*Container
 
 	// GetKubernetesPod returns metadata about a Kubernetes pod.  It fetches
 	// the entity with kind KindKubernetesPod and the given ID.
@@ -105,7 +105,7 @@ type Component interface {
 
 	// ListProcessesWithFilter returns all the processes for which the passed
 	// filter evaluates to true.
-	ListProcessesWithFilter(filterFunc ProcessFilterFunc) []*Process
+	ListProcessesWithFilter(filterFunc EntityFilterFunc[*Process]) []*Process
 
 	// Notify notifies the store with a slice of events.  It should only be
 	// used by workloadmeta collectors.

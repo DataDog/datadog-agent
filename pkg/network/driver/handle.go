@@ -14,6 +14,8 @@ import (
 
 	"golang.org/x/sys/windows"
 
+	telemetryComp "github.com/DataDog/datadog-agent/comp/core/telemetry"
+
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -194,7 +196,7 @@ func (dh *RealDriverHandle) CancelIoEx(ol *windows.Overlapped) error {
 }
 
 // NewHandle creates a new windows handle attached to the driver
-func NewHandle(flags uint32, handleType HandleType) (Handle, error) {
+func NewHandle(flags uint32, handleType HandleType, _ telemetryComp.Component) (Handle, error) {
 	pathext, ok := handleTypeToPathName[handleType]
 	if !ok {
 		return nil, fmt.Errorf("unknown Handle type %v", handleType)
