@@ -32,7 +32,7 @@ const defaultBufferLen = 2
 // Gets an imperial shitton of traces, and outputs pre-computed data structures
 // allowing to find the gold (stats) amongst the traces.
 type Concentrator struct {
-	In  chan Input
+	in  chan Input
 	Out chan *pb.StatsPayload
 
 	// bucket duration in nanoseconds
@@ -108,7 +108,7 @@ func NewConcentrator(conf *config.AgentConfig, out chan *pb.StatsPayload, now ti
 		oldestTs: alignTs(now.UnixNano(), bsize),
 		// TODO: Move to configuration.
 		bufferLen:              defaultBufferLen,
-		In:                     make(chan Input, 1),
+		in:                     make(chan Input, 1),
 		Out:                    out,
 		exit:                   make(chan struct{}),
 		agentEnv:               conf.DefaultEnv,
@@ -123,6 +123,10 @@ func NewConcentrator(conf *config.AgentConfig, out chan *pb.StatsPayload, now ti
 		c.peerTagKeys = preparePeerTags(append(defaultPeerTags, conf.PeerTags...)...)
 	}
 	return &c
+}
+
+func (c *Concentrator) In() chan<- Input {
+	return c.in
 }
 
 // Start starts the concentrator.
@@ -145,7 +149,7 @@ func (c *Concentrator) Run() {
 	log.Debug("Starting concentrator")
 
 	go func() {
-		for inputs := range c.In {
+		for inputs := range c.in {
 			c.Add(inputs)
 		}
 	}()

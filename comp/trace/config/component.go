@@ -20,7 +20,6 @@ import (
 
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
 	traceconfig "github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -29,17 +28,11 @@ import (
 
 // Component is the component type.
 type Component interface {
-	// Warnings returns config warnings collected during setup.
-	Warnings() *config.Warnings
-
 	// SetHandler returns a handler for runtime configuration changes.
 	SetHandler() http.Handler
 
 	// GetConfigHandler returns a handler to fetch the runtime configuration.
 	GetConfigHandler() http.Handler
-
-	// SetMaxMemCPU
-	SetMaxMemCPU(isContainerized bool)
 
 	// Object returns wrapped config
 	Object() *traceconfig.AgentConfig
