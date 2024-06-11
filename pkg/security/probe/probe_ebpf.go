@@ -31,7 +31,7 @@ import (
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/DataDog/ebpf-manager/tracefs"
 
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/ebpfcheck"
 	aconfig "github.com/DataDog/datadog-agent/pkg/config"
 	commonebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
@@ -1362,7 +1362,12 @@ func (p *EBPFProbe) startSetupNewTCClassifierLoop() {
 			}
 
 			if err := p.setupNewTCClassifier(netDevice); err != nil {
-				seclog.Errorf("error setting up new tc classifier: %v", err)
+				var qnde QueuedNetworkDeviceError
+				if errors.As(err, &qnde) {
+					seclog.Debugf("%v", err)
+				} else {
+					seclog.Errorf("error setting up new tc classifier: %v", err)
+				}
 			}
 		}
 	}

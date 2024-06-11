@@ -6,10 +6,13 @@
 package stats
 
 import (
+	_ "embed"
 	"sort"
 	"strings"
 	"sync"
 	"time"
+
+	"gopkg.in/ini.v1"
 
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
@@ -55,37 +58,28 @@ type Concentrator struct {
 	statsd                 statsd.ClientInterface
 }
 
-var defaultPeerTags = []string{
-	"_dd.base_service",
-	"amqp.destination",
-	"amqp.exchange",
-	"amqp.queue",
-	"aws.queue.name",
-	"bucketname",
-	"cassandra.cluster",
-	"db.cassandra.contact.points",
-	"db.couchbase.seed.nodes",
-	"db.hostname",
-	"db.instance",
-	"db.name",
-	"db.system",
-	"hazelcast.instance",
-	"messaging.kafka.bootstrap.servers",
-	"mongodb.db",
-	"msmq.queue.path",
-	"net.peer.name",
-	"network.destination.name",
-	"peer.hostname",
-	"peer.service",
-	"queuename",
-	"rpc.service",
-	"rulename",
-	"server.address",
-	"statemachinename",
-	"streamname",
-	"tablename",
-	"topicname",
-}
+//go:embed peer_tags.ini
+var peerTagFile []byte
+
+var defaultPeerTags = func() []string {
+	var tags []string = []string{"_dd.base_service"}
+
+	cfg, err := ini.Load(peerTagFile)
+	if err != nil {
+		log.Error("Error loading file for peer tags: ", err)
+		return tags
+	}
+	keys := cfg.Section("dd.apm.peer.tags").Keys()
+
+	for _, key := range keys {
+		value := strings.Split(key.Value(), ",")
+		tags = append(tags, value...)
+	}
+
+	sort.Strings(tags)
+
+	return tags
+}()
 
 func preparePeerTags(tags ...string) []string {
 	if len(tags) == 0 {

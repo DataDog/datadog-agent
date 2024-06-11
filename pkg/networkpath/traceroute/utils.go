@@ -6,13 +6,16 @@
 package traceroute
 
 import (
+	"context"
+	"errors"
 	"net"
 	"strings"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-var lookupAddrFn = net.LookupAddr
+var lookupAddrFn = net.DefaultResolver.LookupAddr
 
 // getDestinationHostname tries to convert the input destinationHost to hostname.
 // When input destinationHost is an IP, a reverse DNS call is made to convert it into a hostname.
@@ -32,7 +35,12 @@ func getHostname(ipAddr string) string {
 	// high. Consider switching to something where there is greater control.
 	// Possible solution is to use https://pkg.go.dev/net#Resolver.LookupAddr to specify a context with a timeout.
 	currHost := ""
-	currHostList, _ := lookupAddrFn(ipAddr)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	currHostList, err := lookupAddrFn(ctx, ipAddr)
+	if errors.Is(err, context.Canceled) {
+		tracerouteRunnerTelemetry.reverseDNSTimetouts.Inc()
+	}
 	log.Debugf("Reverse DNS List: %+v", currHostList)
 
 	if len(currHostList) > 0 {

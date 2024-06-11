@@ -7,12 +7,12 @@
 package settingsimpl
 
 import (
-	"encoding/json"
 	"html"
 	"net/http"
 	"sync"
 
 	"github.com/gorilla/mux"
+	json "github.com/json-iterator/go"
 	"go.uber.org/fx"
 	"gopkg.in/yaml.v2"
 
@@ -144,8 +144,9 @@ func (s *settingsRegistry) GetFullConfig(namespaces ...string) http.HandlerFunc 
 
 func (s *settingsRegistry) GetFullConfigBySource() http.HandlerFunc {
 	return func(w http.ResponseWriter, _ *http.Request) {
-		settings := s.config.AllSettingsBySource()
 		w.Header().Set("Content-Type", "application/json")
+
+		settings := s.config.AllSettingsBySource()
 
 		jsonData, err := json.Marshal(settings)
 		if err != nil {

@@ -41,8 +41,9 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
 	"github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent/inventoryagentimpl"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryhost/inventoryhostimpl"
@@ -122,7 +123,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 						NoInstance: !cliParams.forceLocal, //if forceLocal is true, we want to run workloadmeta
 					}
 				}),
-				workloadmeta.Module(),
+				workloadmetafx.Module(),
 				taggerimpl.OptionalModule(),
 				autodiscoveryimpl.OptionalModule(), // if forceLocal is true, we will start autodiscovery (loadComponents) later
 				flare.Module(),
@@ -349,6 +350,30 @@ func makeFlare(flareComp flare.Component,
 		return err
 	}
 
+	enableStreamLog, settningErr := rcsetting.GetRuntimeSetting("enable_stream_logs")
+
+	if settningErr != nil {
+		fmt.Fprintln(color.Output, color.RedString(fmt.Sprintf("Error getting runtime setting: %s", settningErr)))
+	}
+
+	if values, ok := enableStreamLog.([]interface{}); ok && len(values) > 1 {
+		if enable, ok := values[1].(bool); ok && enable {
+			fmt.Fprintln(color.Output, color.GreenString((fmt.Sprintf("Asking the agent to stream logs for %s", defaultRCDuration))))
+			err := streamlogs.StreamLogs(lc, config, &rcStreamLogParams)
+			if err != nil {
+				fmt.Fprintln(color.Output, color.RedString(fmt.Sprintf("Error streaming logs: %s", err)))
+			}
+		}
+	}
+
+	if streamLogParams.Duration > 0 {
+		fmt.Fprintln(color.Output, color.GreenString((fmt.Sprintf("Asking the agent to stream logs for %s", streamLogParams.Duration))))
+		err := streamlogs.StreamLogs(lc, config, &streamLogParams)
+		if err != nil {
+			fmt.Fprintln(color.Output, color.RedString(fmt.Sprintf("Error streaming logs: %s", err)))
+		}
+	}
+
 	var filePath string
 	if cliParams.forceLocal {
 		filePath, err = createArchive(flareComp, profile, nil)
@@ -364,28 +389,6 @@ func makeFlare(flareComp flare.Component,
 		fmt.Fprintln(color.Output, color.RedString(fmt.Sprintf("The flare zipfile \"%s\" does not exist.", filePath)))
 		fmt.Fprintln(color.Output, color.RedString("If the agent running in a different container try the '--local' option to generate the flare locally"))
 		return err
-	}
-
-	if streamLogParams.Duration > 0 {
-		fmt.Fprintln(color.Output, color.GreenString((fmt.Sprintf("Asking the agent to stream logs for %s", streamLogParams.Duration))))
-		err := streamlogs.StreamLogs(lc, config, &streamLogParams)
-		if err != nil {
-			fmt.Fprintln(color.Output, color.RedString(fmt.Sprintf("Error streaming logs: %s", err)))
-		}
-	}
-
-	enableStreamLog, settningErr := rcsetting.GetRuntimeSetting("enable_stream_logs")
-
-	if settningErr != nil {
-		fmt.Fprintln(color.Output, color.RedString(fmt.Sprintf("Error getting runtime setting: %s", settningErr)))
-	}
-
-	if enableStreamLog.(bool) {
-		fmt.Fprintln(color.Output, color.GreenString((fmt.Sprintf("Asking the agent to stream logs for %s", defaultRCDuration))))
-		err := streamlogs.StreamLogs(lc, config, &rcStreamLogParams)
-		if err != nil {
-			fmt.Fprintln(color.Output, color.RedString(fmt.Sprintf("Error streaming logs: %s", err)))
-		}
 	}
 
 	fmt.Fprintf(color.Output, "%s is going to be uploaded to Datadog\n", color.YellowString(filePath))

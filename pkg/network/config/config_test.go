@@ -1369,6 +1369,31 @@ service_monitoring_config:
 	})
 }
 
+func TestUSMEventStream(t *testing.T) {
+	t.Run("default value", func(t *testing.T) {
+		aconfig.ResetSystemProbeConfig(t)
+		cfg := New()
+		assert.False(t, cfg.EnableUSMEventStream)
+	})
+
+	t.Run("via yaml", func(t *testing.T) {
+		aconfig.ResetSystemProbeConfig(t)
+		cfg := configurationFromYAML(t, `
+service_monitoring_config:
+  enable_event_stream: true
+`)
+		assert.True(t, cfg.EnableUSMEventStream)
+	})
+
+	t.Run("via deprecated ENV variable", func(t *testing.T) {
+		aconfig.ResetSystemProbeConfig(t)
+		t.Setenv("DD_SERVICE_MONITORING_CONFIG_ENABLE_EVENT_STREAM", "true")
+
+		cfg := New()
+		assert.True(t, cfg.EnableUSMEventStream)
+	})
+}
+
 func TestMaxUSMConcurrentRequests(t *testing.T) {
 	t.Run("default value", func(t *testing.T) {
 		aconfig.ResetSystemProbeConfig(t)

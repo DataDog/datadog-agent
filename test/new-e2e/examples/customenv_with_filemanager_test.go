@@ -40,7 +40,7 @@ func customProvisionerFileManager(localFolderPath string, remoteFolderPath strin
 
 		vm.OS.FileManager().CopyAbsoluteFolder(localFolderPath, remoteFolderPath)
 
-		// To partially re-use an existing envrionment, you need to make sure that unused components are nil
+		// To partially re-use an existing environment, you need to make sure that unused components are nil
 		// Otherwise create your own environment.
 		env.Agent = nil
 		env.FakeIntake = nil

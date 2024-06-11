@@ -45,7 +45,8 @@ func (l *LinuxTraceroute) Run(_ context.Context) (payload.NetworkPath, error) {
 		return payload.NetworkPath{}, err
 	}
 
-	resp, err := tu.GetTraceroute(clientID, l.cfg.DestHostname, l.cfg.DestPort, l.cfg.MaxTTL, l.cfg.TimeoutMs)
+	log.Debugf("Network Path Config: %+v", l.cfg)
+	resp, err := tu.GetTraceroute(clientID, l.cfg.DestHostname, l.cfg.DestPort, l.cfg.Protocol, l.cfg.MaxTTL, l.cfg.TimeoutMs)
 	if err != nil {
 		return payload.NetworkPath{}, err
 	}
@@ -54,6 +55,8 @@ func (l *LinuxTraceroute) Run(_ context.Context) (payload.NetworkPath, error) {
 	if err := json.Unmarshal(resp, &path); err != nil {
 		return payload.NetworkPath{}, err
 	}
+
+	path.Source.ContainerID = l.cfg.SourceContainerID
 
 	return path, nil
 }

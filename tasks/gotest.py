@@ -579,7 +579,7 @@ def get_modified_packages(ctx, build_tags=None, lint=False) -> list[GoModule]:
 
         # If there are go file matching the build tags in the folder we do not try to run tests
         res = ctx.run(
-            f"go list -tags '{' '.join(build_tags)}' ./{os.path.dirname(modified_file)}/...", hide=True, warn=True
+            f'go list -tags "{" ".join(build_tags)}" ./{os.path.dirname(modified_file)}/...', hide=True, warn=True
         )
         if res.stderr is not None and "matched no packages" in res.stderr:
             continue
@@ -878,7 +878,7 @@ def format_packages(ctx: Context, impacted_packages: set[str], build_tags: list[
     for module in modules_to_test:
         with ctx.cd(module):
             res = ctx.run(
-                f"go list -tags '{' '.join(build_tags)}' {' '.join([normpath(os.path.join('github.com/DataDog/datadog-agent', module, target)) for target in modules_to_test[module].targets])}",
+                f'go list -tags "{" ".join(build_tags)}" {" ".join([normpath(os.path.join("github.com/DataDog/datadog-agent", module, target)) for target in modules_to_test[module].targets])}',
                 hide=True,
                 warn=True,
             )

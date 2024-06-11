@@ -22,6 +22,7 @@ from tasks.build_tags import UNIT_TEST_TAGS, get_default_build_tags
 from tasks.flavor import AgentFlavor
 from tasks.libs.build.ninja import NinjaWriter
 from tasks.libs.common.color import color_message
+from tasks.libs.common.git import get_commit_sha
 from tasks.libs.common.utils import (
     REPO_PATH,
     bin_name,
@@ -787,21 +788,13 @@ def go_package_dirs(packages, build_tags):
     """
 
     target_packages = []
-    for pkg in packages:
-        dirs = (
-            check_output(
-                f"go list -find -f \"{{{{ .Dir }}}}\" -mod=mod -tags \"{','.join(build_tags)}\" {pkg}",
-                shell=True,
-            )
-            .decode('utf-8')
-            .strip()
-            .split("\n")
-        )
-        # Some packages may not be available on all architectures, ignore them
-        # instead of reporting empty path names
-        target_packages += [dir for dir in dirs if len(dir) > 0]
+    format_arg = '{{ .Dir }}'
+    buildtags_arg = ",".join(build_tags)
+    packages_arg = " ".join(packages)
+    cmd = f"go list -find -f \"{format_arg}\" -mod=mod -tags \"{buildtags_arg}\" {packages_arg}"
 
-    return target_packages
+    target_packages = [p.strip() for p in check_output(cmd, shell=True, encoding='utf-8').split("\n")]
+    return [p for p in target_packages if len(p) > 0]
 
 
 BUILD_COMMIT = os.path.join(KITCHEN_ARTIFACT_DIR, "build.commit")
@@ -817,7 +810,7 @@ def clean_build(ctx):
     # if this build happens on a new commit do it cleanly
     with open(BUILD_COMMIT) as f:
         build_commit = f.read().rstrip()
-        curr_commit = ctx.run("git rev-parse HEAD", hide=True).stdout.rstrip()
+        curr_commit = get_commit_sha(ctx)
         if curr_commit != build_commit:
             return True
 
@@ -915,7 +908,7 @@ def kitchen_prepare(ctx, kernel_release=None, ci=False, packages=""):
         kitchen_prepare_btfs(ctx, files_dir)
 
     ctx.run(f"go build -o {files_dir}/test2json -ldflags=\"-s -w\" cmd/test2json", env={"CGO_ENABLED": "0"})
-    ctx.run(f"echo $(git rev-parse HEAD) > {BUILD_COMMIT}")
+    ctx.run(f"echo {get_commit_sha(ctx)} > {BUILD_COMMIT}")
 
 
 @task

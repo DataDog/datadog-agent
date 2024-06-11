@@ -12,7 +12,7 @@ from tasks.build_tags import get_default_build_tags
 from tasks.flavor import AgentFlavor
 from tasks.go import GOARCH_MAPPING, GOOS_MAPPING
 from tasks.libs.common.color import color_message
-from tasks.libs.common.utils import check_uncommitted_changes
+from tasks.libs.common.git import check_uncommitted_changes, get_commit_sha, get_current_branch
 from tasks.release import _get_release_json_value
 
 BINARIES = {
@@ -77,10 +77,10 @@ def go_deps(ctx, baseline_ref=None, report_file=None):
             ),
             code=1,
         )
-    current_branch = ctx.run("git rev-parse --abbrev-ref HEAD", hide=True).stdout.strip()
+    current_branch = get_current_branch(ctx)
     commit_sha = os.getenv("CI_COMMIT_SHA")
     if commit_sha is None:
-        commit_sha = ctx.run("git rev-parse HEAD", hide=True).stdout.strip()
+        commit_sha = get_commit_sha(ctx)
 
     if not baseline_ref:
         base_branch = _get_release_json_value("base_branch")
