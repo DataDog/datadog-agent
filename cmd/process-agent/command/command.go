@@ -50,6 +50,9 @@ type GlobalParams struct {
 
 	// WinParams provides windows specific options
 	WinParams WinParams
+
+	// NoColor is a flag to disable color output
+	NoColor bool
 }
 
 // WinParams specifies Windows-specific CLI params
@@ -98,10 +101,9 @@ func MakeCommand(subcommandFactories []SubcommandFactory, winParams bool, rootCm
 	// github.com/fatih/color sets its global color.NoColor to a default value based on
 	// whether the process is running in a tty.  So, we only want to override that when
 	// the value is true.
-	var noColorFlag bool
-	rootCmd.PersistentFlags().BoolVarP(&noColorFlag, "no-color", "n", false, "disable color output")
+	rootCmd.PersistentFlags().BoolVarP(&globalParams.NoColor, "no-color", "n", false, "disable color output")
 	rootCmd.PersistentPreRun = func(*cobra.Command, []string) {
-		if noColorFlag {
+		if globalParams.NoColor {
 			color.NoColor = true
 		}
 	}

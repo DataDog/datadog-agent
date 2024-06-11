@@ -24,7 +24,7 @@ import (
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
 
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/workload"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/certificate"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -48,7 +48,7 @@ func NewControllerV1(
 	isLeaderNotif <-chan struct{},
 	config Config,
 	wmeta workloadmeta.Component,
-	pa workload.PatcherAdapter,
+	pa workload.PodPatcher,
 ) *ControllerV1 {
 	controller := &ControllerV1{}
 	controller.clientSet = client

@@ -43,10 +43,10 @@ func benchmarkAddBucket(bucketValue int64, b *testing.B) {
 	// For some reasons using InitAggregator[WithInterval] doesn't fix the problem,
 	// but this do.
 	deps := fxutil.Test[benchmarkDeps](b, core.MockBundle())
-	forwarderOpts := forwarder.NewOptionsWithResolvers(config.Datadog, deps.Log, resolver.NewSingleDomainResolvers(map[string][]string{"hello": {"world"}}))
+	forwarderOpts := forwarder.NewOptionsWithResolvers(config.Datadog(), deps.Log, resolver.NewSingleDomainResolvers(map[string][]string{"hello": {"world"}}))
 	options := DefaultAgentDemultiplexerOptions()
 	options.DontStartForwarders = true
-	sharedForwarder := forwarder.NewDefaultForwarder(config.Datadog, deps.Log, forwarderOpts)
+	sharedForwarder := forwarder.NewDefaultForwarder(config.Datadog(), deps.Log, forwarderOpts)
 	orchestratorForwarder := optional.NewOption[defaultforwarder.Forwarder](defaultforwarder.NoopForwarder{})
 	eventPlatformForwarder := optional.NewOptionPtr[eventplatform.Forwarder](eventplatformimpl.NewNoopEventPlatformForwarder(deps.Hostname))
 	demux := InitAndStartAgentDemultiplexer(deps.Log, sharedForwarder, &orchestratorForwarder, options, eventPlatformForwarder, deps.Compressor, "hostname")

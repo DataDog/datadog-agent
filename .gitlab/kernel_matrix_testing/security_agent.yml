@@ -71,6 +71,9 @@ kmt_setup_env_secagent_x64:
     - popd
     # upload connector to metal instance
     - scp $CI_PROJECT_DIR/connector-${ARCH} metal_instance:/home/ubuntu/connector
+  after_script:
+    - export DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $API_KEY_ORG2_SSM_NAME)
+    - !reference [.tag_kmt_ci_job]
   variables:
     AWS_EC2_SSH_KEY_FILE: $CI_PROJECT_DIR/ssh_key
     TEST_COMPONENT: security-agent
@@ -190,6 +193,7 @@ kmt_run_secagent_tests_arm64:
     TEST_COMPONENT: security-agent
 
 kmt_secagent_cleanup_arm64:
+  when: always
   extends:
     - .kmt_secagent_cleanup
   needs:
@@ -200,11 +204,31 @@ kmt_secagent_cleanup_arm64:
     INSTANCE_TYPE: "m6gd.metal"
 
 kmt_secagent_cleanup_x64:
+  when: always
   extends:
     - .kmt_secagent_cleanup
   needs:
     - kmt_setup_env_secagent_x64
     - kmt_run_secagent_tests_x64
+  variables:
+    ARCH: x86_64
+    INSTANCE_TYPE: "m5d.metal"
+
+# Manual cleanup jobs, these will be used to cleanup the instances after the tests
+# if the tests are canceled (e.g., by the auto-cancel-prev-pipelines job). The automatic jobs
+# will not run if the dependencies are canceled
+kmt_secagent_cleanup_arm64_manual:
+  extends:
+    - .kmt_secagent_cleanup
+    - .kmt_cleanup_manual
+  variables:
+    ARCH: arm64
+    INSTANCE_TYPE: "m6gd.metal"
+
+kmt_secagent_cleanup_x64_manual:
+  extends:
+    - .kmt_secagent_cleanup
+    - .kmt_cleanup_manual
   variables:
     ARCH: x86_64
     INSTANCE_TYPE: "m5d.metal"

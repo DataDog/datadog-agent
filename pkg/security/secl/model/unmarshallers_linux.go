@@ -47,7 +47,7 @@ func (e *ContainerContext) UnmarshalBinary(data []byte) (int, error) {
 
 // UnmarshalBinary unmarshalls a binary representation of itself
 func (e *ChmodEvent) UnmarshalBinary(data []byte) (int, error) {
-	n, err := UnmarshalBinary(data, &e.SyscallEvent, &e.File)
+	n, err := UnmarshalBinary(data, &e.SyscallEvent, &e.SyscallContext, &e.File)
 	if err != nil {
 		return n, err
 	}
@@ -454,7 +454,7 @@ func (e *UnshareMountNSEvent) UnmarshalBinary(data []byte) (int, error) {
 
 // UnmarshalBinary unmarshalls a binary representation of itself
 func (e *ChdirEvent) UnmarshalBinary(data []byte) (int, error) {
-	return UnmarshalBinary(data, &e.SyscallEvent, &e.File)
+	return UnmarshalBinary(data, &e.SyscallEvent, &e.SyscallContext, &e.File)
 }
 
 // UnmarshalBinary unmarshalls a binary representation of itself
@@ -575,6 +575,19 @@ func (e *SyscallEvent) UnmarshalBinary(data []byte) (int, error) {
 		return 0, ErrNotEnoughData
 	}
 	e.Retval = int64(binary.NativeEndian.Uint64(data[0:8]))
+
+	return 8, nil
+}
+
+// UnmarshalBinary unmarshalls a binary representation of itself
+func (e *SyscallContext) UnmarshalBinary(data []byte) (int, error) {
+	if len(data) < 8 {
+		return 0, ErrNotEnoughData
+	}
+	e.ID = uint32(binary.NativeEndian.Uint32(data))
+
+	// padding
+
 	return 8, nil
 }
 

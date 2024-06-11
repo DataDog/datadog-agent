@@ -47,7 +47,7 @@ func extractIP(namespace string, container containerd.Container, containerdClien
 	// of them.
 	for _, taskPid := range taskPids {
 		IPs, err := system.ParseProcessIPs(
-			config.Datadog.GetString("container_proc_root"),
+			config.Datadog().GetString("container_proc_root"),
 			int(taskPid.Pid),
 			func(ip string) bool { return ip != "127.0.0.1" },
 		)

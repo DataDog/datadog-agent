@@ -12,7 +12,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/cloudfoundry"
@@ -70,10 +70,10 @@ func (c *collector) Start(_ context.Context, store workloadmeta.Component) error
 		return err
 	}
 
-	c.nodeName = config.Datadog.GetString("bosh_id")
+	c.nodeName = config.Datadog().GetString("bosh_id")
 
 	// Check for Cluster Agent availability (will be retried at each pull)
-	c.dcaEnabled = config.Datadog.GetBool("cluster_agent.enabled")
+	c.dcaEnabled = config.Datadog().GetBool("cluster_agent.enabled")
 	c.dcaClient = c.getDCAClient()
 
 	return nil

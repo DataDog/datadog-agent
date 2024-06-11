@@ -24,8 +24,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/autodiscoveryimpl"
 	"github.com/DataDog/datadog-agent/comp/core/flare/flareimpl"
-	"github.com/DataDog/datadog-agent/comp/core/gui"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
+	nooptelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/noopsimpl"
 
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/secrets/secretsimpl"
@@ -34,7 +34,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/status/statusimpl"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
 	dogstatsddebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug/serverdebugimpl"
@@ -81,7 +81,6 @@ type handlerdeps struct {
 	EventPlatformReceiver eventplatformreceiver.Component
 	Ac                    autodiscovery.Mock
 	Tagger                tagger.Mock
-	Gui                   optional.Option[gui.Component]
 	EndpointProviders     []api.EndpointProvider `group:"agent_endpoint"`
 }
 
@@ -102,10 +101,7 @@ func getComponentDeps(t *testing.T) handlerdeps {
 		demultiplexerendpointmock.MockModule(),
 		inventoryhostimpl.MockModule(),
 		secretsimpl.MockModule(),
-		fx.Provide(func(secretMock secrets.Mock) secrets.Component {
-			component := secretMock.(secrets.Component)
-			return component
-		}),
+		nooptelemetry.Module(),
 		inventorychecksimpl.MockModule(),
 		packagesigningimpl.MockModule(),
 		statusimpl.MockModule(),
@@ -118,7 +114,6 @@ func getComponentDeps(t *testing.T) handlerdeps {
 			fx.Supply(autodiscoveryimpl.MockParams{Scheduler: nil}),
 			autodiscoveryimpl.MockModule(),
 		),
-		fx.Supply(optional.NewNoneOption[gui.Component]()),
 		settingsimpl.MockModule(),
 	)
 }
@@ -137,7 +132,6 @@ func setupRoutes(t *testing.T) *mux.Router {
 		deps.StatusComponent,
 		deps.Collector,
 		deps.Ac,
-		deps.Gui,
 		deps.EndpointProviders,
 	)
 

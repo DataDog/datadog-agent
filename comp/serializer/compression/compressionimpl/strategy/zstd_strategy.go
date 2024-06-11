@@ -9,23 +9,25 @@ package strategy
 import (
 	"bytes"
 
-	"github.com/DataDog/zstd"
-
 	"github.com/DataDog/datadog-agent/comp/serializer/compression"
+	"github.com/DataDog/zstd"
 )
 
 // ZstdStrategy is the strategy for when serializer_compressor_kind is zstd
 type ZstdStrategy struct {
+	level int
 }
 
 // NewZstdStrategy returns a new ZstdStrategy
-func NewZstdStrategy() *ZstdStrategy {
-	return &ZstdStrategy{}
+func NewZstdStrategy(level int) *ZstdStrategy {
+	return &ZstdStrategy{
+		level: level,
+	}
 }
 
 // Compress will compress the data with zstd
 func (s *ZstdStrategy) Compress(src []byte) ([]byte, error) {
-	return zstd.Compress(nil, src)
+	return zstd.CompressLevel(nil, src, s.level)
 }
 
 // Decompress will decompress the data with zstd
@@ -45,5 +47,5 @@ func (s *ZstdStrategy) ContentEncoding() string {
 
 // NewStreamCompressor returns a new zstd Writer
 func (s *ZstdStrategy) NewStreamCompressor(output *bytes.Buffer) compression.StreamCompressor {
-	return zstd.NewWriter(output)
+	return zstd.NewWriterLevel(output, s.level)
 }

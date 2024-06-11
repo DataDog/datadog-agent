@@ -11,13 +11,13 @@ import (
 	"bufio"
 	"bytes"
 	"fmt"
-	"log"
 	"os/exec"
-	"sort"
 	"strings"
 
 	"go.uber.org/atomic"
 	"go4.org/mem"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // init initializes the Poller by ensuring it has an underlying
@@ -156,14 +156,14 @@ func (im *macOSImpl) addProcesses() error {
 		}
 		// fails when run in a macOS sandbox, so make this non-fatal.
 		if lsofFailed.CompareAndSwap(false, true) {
-			log.Printf("portlist: can't run lsof in Mac sandbox; omitting process names from service list. Error details: %v, %s", err, bytes.TrimSpace(stderr))
+			log.Errorf("diagnose port-conflict poller: can't run lsof in Mac sandbox; omitting process names from service list. Error details: %v, %s", err, bytes.TrimSpace(stderr))
 		}
 		return nil
 	}
 	defer func() {
 		ps, err := lsofCmd.Process.Wait()
 		if err != nil || ps.ExitCode() != 0 {
-			log.Printf("portlist: can't run lsof in Mac sandbox; omitting process names from service list. Error: %v, exit code %d", err, ps.ExitCode())
+			log.Errorf("diagnose port-conflict poller: can't run lsof in Mac sandbox; omitting process names from service list. Error: %v, exit code %d", err, ps.ExitCode())
 			lsofFailed.Store(true)
 		}
 	}()
@@ -229,16 +229,6 @@ func lsofProtoLower(p []byte) string {
 	return strings.ToLower(string(p))
 }
 
-func (a *Port) lessThan(b *Port) bool {
-	if a.Port != b.Port {
-		return a.Port < b.Port
-	}
-	if a.Proto != b.Proto {
-		return a.Proto < b.Proto
-	}
-	return a.Process < b.Process
-}
-
 func (a List) String() string {
 	var sb strings.Builder
 	for _, v := range a {
@@ -246,22 +236,4 @@ func (a List) String() string {
 			v.Proto, v.Port, v.Process)
 	}
 	return strings.TrimRight(sb.String(), "\n")
-}
-
-// sortAndDedup sorts ps in place (by Port.LessThan) and then returns
-// a subset of it with duplicate (Proto, Port) removed.
-func sortAndDedup(ps List) List {
-	sort.Slice(ps, func(i, j int) bool {
-		return (&ps[i]).lessThan(&ps[j])
-	})
-	out := ps[:0]
-	var last Port
-	for _, p := range ps {
-		if last.Proto == p.Proto && last.Port == p.Port {
-			continue
-		}
-		out = append(out, p)
-		last = p
-	}
-	return out
 }

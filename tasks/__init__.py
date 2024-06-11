@@ -6,7 +6,6 @@ from invoke import Collection, Task
 
 from tasks import (
     agent,
-    agentless_scanner,
     bench,
     buildimages,
     cluster_agent,
@@ -22,7 +21,9 @@ from tasks import (
     emacs,
     epforwarder,
     fakeintake,
+    git,
     github_tasks,
+    gitlab_helpers,
     go_deps,
     installer,
     kmt,
@@ -57,6 +58,7 @@ from tasks.go import (
     check_go_mod_replaces,
     check_go_version,
     check_mod_tidy,
+    create_module,
     deps,
     deps_vendored,
     generate_licenses,
@@ -65,9 +67,10 @@ from tasks.go import (
     internal_deps_checker,
     lint_licenses,
     reset,
+    tidy,
     tidy_all,
 )
-from tasks.go_test import (
+from tasks.gotest import (
     codecov,
     e2e_tests,
     get_impacted_packages,
@@ -77,10 +80,15 @@ from tasks.go_test import (
     send_unit_tests_stats,
     test,
 )
-from tasks.install_tasks import download_tools, install_devcontainer_cli, install_shellcheck, install_tools
+from tasks.install_tasks import (
+    download_tools,
+    install_devcontainer_cli,
+    install_shellcheck,
+    install_tools,
+)
 from tasks.junit_tasks import junit_upload
 from tasks.libs.common.go_workspaces import handle_go_work
-from tasks.show_linters_issues import show_linters_issues
+from tasks.show_linters_issues.show_linters_issues import show_linters_issues
 from tasks.unit_tests import invoke_unit_tests
 from tasks.update_go import go_version, update_go
 from tasks.windows_resources import build_messagetable
@@ -115,9 +123,11 @@ ns.add_task(install_tools)
 ns.add_task(invoke_unit_tests)
 ns.add_task(check_mod_tidy)
 ns.add_task(check_go_mod_replaces)
+ns.add_task(tidy)
 ns.add_task(tidy_all)
 ns.add_task(internal_deps_checker)
 ns.add_task(check_go_version)
+ns.add_task(create_module)
 ns.add_task(junit_upload)
 ns.add_task(fuzz)
 ns.add_task(go_fix)
@@ -130,7 +140,6 @@ ns.add_task(lint_go)
 
 # add namespaced tasks to the root
 ns.add_collection(agent)
-ns.add_collection(agentless_scanner)
 ns.add_collection(buildimages)
 ns.add_collection(cluster_agent)
 ns.add_collection(cluster_agent_cloudfoundry)
@@ -146,7 +155,9 @@ ns.add_collection(epforwarder)
 ns.add_collection(go_deps)
 ns.add_collection(linter)
 ns.add_collection(msi)
+ns.add_collection(git)
 ns.add_collection(github_tasks, "github")
+ns.add_collection(gitlab_helpers, "gitlab")
 ns.add_collection(package)
 ns.add_collection(pipeline)
 ns.add_collection(notify)
@@ -174,10 +185,10 @@ ns.add_collection(devcontainer)
 ns.add_collection(omnibus)
 ns.configure(
     {
-        'run': {
+        "run": {
             # this should stay, set the encoding explicitly so invoke doesn't
             # freak out if a command outputs unicode chars.
-            'encoding': 'utf-8',
+            "encoding": "utf-8",
         }
     }
 )

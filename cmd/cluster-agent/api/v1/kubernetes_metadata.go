@@ -15,7 +15,7 @@ import (
 	"github.com/gorilla/mux"
 	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
 
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/api"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	as "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
@@ -107,7 +107,7 @@ func getNodeLabels(w http.ResponseWriter, r *http.Request, wmeta workloadmeta.Co
 }
 
 func getNodeAnnotations(w http.ResponseWriter, r *http.Request, wmeta workloadmeta.Component) {
-	getNodeMetadata(w, r, wmeta, func(e *workloadmeta.KubernetesNode) map[string]string { return e.Annotations }, "annotations", config.Datadog.GetStringSlice("kubernetes_node_annotations_as_host_aliases"))
+	getNodeMetadata(w, r, wmeta, func(e *workloadmeta.KubernetesNode) map[string]string { return e.Annotations }, "annotations", config.Datadog().GetStringSlice("kubernetes_node_annotations_as_host_aliases"))
 }
 
 // getNamespaceMetadataWithTransformerFunc is used when the node agent hits the DCA for some (or all) metadata of a specific namespace
@@ -118,7 +118,7 @@ func getNamespaceMetadataWithTransformerFunc[T any](w http.ResponseWriter, r *ht
 	nsName := vars["ns"]
 	namespace, err := wmeta.GetKubernetesNamespace(nsName)
 	if err != nil {
-		log.Errorf("Could not retrieve the %s of namespace %s: %v", nsName, what, err.Error()) //nolint:errcheck
+		log.Debugf("Could not retrieve the %s of namespace %s: %v", what, nsName, err.Error()) //nolint:errcheck
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -126,7 +126,7 @@ func getNamespaceMetadataWithTransformerFunc[T any](w http.ResponseWriter, r *ht
 	metadata := f(namespace)
 	metadataBytes, err = json.Marshal(metadata)
 	if err != nil {
-		log.Errorf("Could not process the %s of the namespace %s from the workload metadata store: %v", what, nsName, err.Error()) //nolint:errcheck
+		log.Errorf("Failed to marshal %s %+v of namespace %s from the workload metadata store: %v", what, metadata, nsName, err.Error()) //nolint:errcheck
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}

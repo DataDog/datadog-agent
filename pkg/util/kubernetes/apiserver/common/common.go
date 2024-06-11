@@ -29,7 +29,7 @@ const (
 
 // GetResourcesNamespace is used to fetch the namespace of the resources used by the Kubernetes check (e.g. Leader Election, Event collection).
 func GetResourcesNamespace() string {
-	namespace := config.Datadog.GetString("kube_resources_namespace")
+	namespace := config.Datadog().GetString("kube_resources_namespace")
 	if namespace != "" {
 		return namespace
 	}

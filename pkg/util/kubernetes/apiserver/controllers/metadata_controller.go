@@ -20,7 +20,7 @@ import (
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
 
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	agentcache "github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -52,38 +52,6 @@ func newMetadataController(endpointsInformer coreinformers.EndpointsInformer, wm
 		queue: workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "endpoints"),
 	}
 
-	go func() {
-		wmetaFilterParams := workloadmeta.FilterParams{
-			Kinds:     []workloadmeta.Kind{workloadmeta.KindKubernetesNode},
-			Source:    workloadmeta.SourceAll,
-			EventType: workloadmeta.EventTypeAll,
-		}
-
-		wmetaEventsCh := wmeta.Subscribe(
-			"metadata-controller",
-			workloadmeta.NormalPriority,
-			workloadmeta.NewFilter(&wmetaFilterParams),
-		)
-		defer wmeta.Unsubscribe(wmetaEventsCh)
-
-		for eventBundle := range wmetaEventsCh {
-			eventBundle.Acknowledge()
-
-			for _, event := range eventBundle.Events {
-				node := event.Entity.(*workloadmeta.KubernetesNode)
-
-				switch event.Type {
-				case workloadmeta.EventTypeSet:
-					m.addNode(node.Name)
-				case workloadmeta.EventTypeUnset:
-					m.deleteNode(node.Name)
-				default:
-					log.Warnf("Unknown event type %v", event.Type)
-				}
-			}
-		}
-	}()
-
 	if _, err := endpointsInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc:    m.addEndpoints,
 		UpdateFunc: m.updateEndpoints,
@@ -110,6 +78,16 @@ func (m *metadataController) run(stopCh <-chan struct{}) {
 		return
 	}
 
+	filter := workloadmeta.NewFilterBuilder().AddKind(workloadmeta.KindKubernetesNode).Build()
+
+	wmetaEventsCh := m.wmeta.Subscribe(
+		"metadata-controller",
+		workloadmeta.NormalPriority,
+		filter,
+	)
+	defer m.wmeta.Unsubscribe(wmetaEventsCh)
+
+	go m.processWorkloadmetaNodeEvents(wmetaEventsCh)
 	go wait.Until(m.worker, time.Second, stopCh)
 	<-stopCh
 }
@@ -132,6 +110,25 @@ func (m *metadataController) processNextWorkItem() bool {
 	}
 
 	return true
+}
+
+func (m *metadataController) processWorkloadmetaNodeEvents(wmetaEventsCh chan workloadmeta.EventBundle) {
+	for eventBundle := range wmetaEventsCh {
+		eventBundle.Acknowledge()
+
+		for _, event := range eventBundle.Events {
+			node := event.Entity.(*workloadmeta.KubernetesNode)
+
+			switch event.Type {
+			case workloadmeta.EventTypeSet:
+				m.addNode(node.Name)
+			case workloadmeta.EventTypeUnset:
+				m.deleteNode(node.Name)
+			default:
+				log.Warnf("Unknown event type %v", event.Type)
+			}
+		}
+	}
 }
 
 func (m *metadataController) addNode(name string) {

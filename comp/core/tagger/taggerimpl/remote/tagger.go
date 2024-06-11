@@ -82,8 +82,8 @@ func NodeAgentOptions(config configComponent.Component) (Options, error) {
 // TODO (component): remove this function once the security resolver migrates to component
 func NodeAgentOptionsForSecruityResolvers() (Options, error) {
 	return Options{
-		Target:       fmt.Sprintf(":%v", config.Datadog.GetInt("cmd_port")),
-		TokenFetcher: func() (string, error) { return security.FetchAuthToken(config.Datadog) },
+		Target:       fmt.Sprintf(":%v", config.Datadog().GetInt("cmd_port")),
+		TokenFetcher: func() (string, error) { return security.FetchAuthToken(config.Datadog()) },
 	}, nil
 }
 
@@ -133,7 +133,7 @@ func (t *Tagger) Start(ctx context.Context) error {
 	})
 
 	var err error
-	t.conn, err = grpc.DialContext(
+	t.conn, err = grpc.DialContext( //nolint:staticcheck // TODO (ASC) fix grpc.DialContext is deprecated
 		t.ctx,
 		t.options.Target,
 		grpc.WithTransportCredentials(creds),
@@ -147,7 +147,7 @@ func (t *Tagger) Start(ctx context.Context) error {
 
 	t.client = pb.NewAgentSecureClient(t.conn)
 
-	timeout := time.Duration(config.Datadog.GetInt("remote_tagger_timeout_seconds")) * time.Second
+	timeout := time.Duration(config.Datadog().GetInt("remote_tagger_timeout_seconds")) * time.Second
 	err = t.startTaggerStream(timeout)
 	if err != nil {
 		// tagger stopped before being connected
@@ -381,7 +381,6 @@ func (t *Tagger) startTaggerStream(maxElapsed time.Duration) error {
 		t.stream, err = t.client.TaggerStreamEntities(t.streamCtx, &pb.StreamTagsRequest{
 			Cardinality: pb.TagCardinality_HIGH,
 		})
-
 		if err != nil {
 			log.Infof("unable to establish stream, will possibly retry: %s", err)
 			return err

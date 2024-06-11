@@ -12,18 +12,26 @@ import (
 	"context"
 
 	"go.opentelemetry.io/collector/component"
+	"go.opentelemetry.io/collector/confmap"
+	"go.opentelemetry.io/collector/confmap/converter/expandconverter"
+	"go.opentelemetry.io/collector/confmap/provider/envprovider"
+	"go.opentelemetry.io/collector/confmap/provider/fileprovider"
+	"go.opentelemetry.io/collector/confmap/provider/httpprovider"
+	"go.opentelemetry.io/collector/confmap/provider/httpsprovider"
+	"go.opentelemetry.io/collector/confmap/provider/yamlprovider"
 	"go.opentelemetry.io/collector/otelcol"
 
 	flarebuilder "github.com/DataDog/datadog-agent/comp/core/flare/builder"
 	"github.com/DataDog/datadog-agent/comp/core/hostname"
 	corelog "github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	collectorcontrib "github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib/def"
 	collector "github.com/DataDog/datadog-agent/comp/otelcol/collector/def"
 	"github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline"
-	"github.com/DataDog/datadog-agent/comp/otelcol/otlp"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/datadogexporter"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/processor/infraattributesprocessor"
+	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/datatype"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
@@ -43,11 +51,13 @@ type Requires struct {
 
 	// Log specifies the logging component.
 	Log              corelog.Component
-	Provider         otelcol.ConfigProvider
+	Provider         confmap.Converter
 	CollectorContrib collectorcontrib.Component
 	Serializer       serializer.MetricSerializer
 	LogsAgent        optional.Option[logsagentpipeline.Component]
 	HostName         hostname.Component
+	Tagger           tagger.Component
+	URIs             []string
 }
 
 // Provides declares the output types from the constructor
@@ -58,8 +68,16 @@ type Provides struct {
 	FlareProvider flarebuilder.Provider
 }
 
-// New returns a new instance of the collector component.
-func New(reqs Requires) (Provides, error) {
+type converterFactory struct {
+	converter confmap.Converter
+}
+
+func (c *converterFactory) Create(_ confmap.ConverterSettings) confmap.Converter {
+	return c.converter
+}
+
+// NewComponent returns a new instance of the collector component.
+func NewComponent(reqs Requires) (Provides, error) {
 	set := otelcol.CollectorSettings{
 		BuildInfo: component.BuildInfo{
 			Version:     "0.0.1",
@@ -76,10 +94,25 @@ func New(reqs Requires) (Provides, error) {
 			} else {
 				factories.Exporters[datadogexporter.Type] = datadogexporter.NewFactory(reqs.Serializer, nil, reqs.HostName)
 			}
-			factories.Processors[infraattributesprocessor.Type] = infraattributesprocessor.NewFactory()
+			factories.Processors[infraattributesprocessor.Type] = infraattributesprocessor.NewFactory(reqs.Tagger)
 			return factories, nil
 		},
-		ConfigProvider: reqs.Provider,
+		ConfigProviderSettings: otelcol.ConfigProviderSettings{
+			ResolverSettings: confmap.ResolverSettings{
+				URIs: reqs.URIs,
+				ProviderFactories: []confmap.ProviderFactory{
+					fileprovider.NewFactory(),
+					envprovider.NewFactory(),
+					yamlprovider.NewFactory(),
+					httpprovider.NewFactory(),
+					httpsprovider.NewFactory(),
+				},
+				ConverterFactories: []confmap.ConverterFactory{
+					expandconverter.NewFactory(),
+					&converterFactory{converter: reqs.Provider},
+				},
+			},
+		},
 	}
 	col, err := otelcol.NewCollector(set)
 	if err != nil {
@@ -123,8 +156,8 @@ func (c *collectorImpl) fillFlare(fb flarebuilder.FlareBuilder) error {
 	return nil
 }
 
-func (c *collectorImpl) Status() otlp.CollectorStatus {
-	return otlp.CollectorStatus{
+func (c *collectorImpl) Status() datatype.CollectorStatus {
+	return datatype.CollectorStatus{
 		Status: c.col.GetState().String(),
 	}
 }

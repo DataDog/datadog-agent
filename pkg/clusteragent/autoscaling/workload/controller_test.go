@@ -19,6 +19,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/uuid"
 	"k8s.io/client-go/dynamic/dynamicinformer"
 	"k8s.io/client-go/dynamic/fake"
+	"k8s.io/client-go/tools/record"
 	clock "k8s.io/utils/clock/testing"
 
 	datadoghq "github.com/DataDog/datadog-operator/apis/datadoghq/v1alpha1"
@@ -30,19 +31,20 @@ import (
 type fixture struct {
 	*autoscaling.ControllerFixture
 
-	clock *clock.FakeClock
-	store *store
+	clock    *clock.FakeClock
+	recorder *record.FakeRecorder
+	store    *store
 }
 
 func newFixture(t *testing.T, testTime time.Time) *fixture {
 	store := autoscaling.NewStore[model.PodAutoscalerInternal]()
 	clock := clock.NewFakeClock(testTime)
+	recorder := record.NewFakeRecorder(100)
 	return &fixture{
-		clock: clock,
 		ControllerFixture: autoscaling.NewFixture(
 			t, podAutoscalerGVR,
 			func(fakeClient *fake.FakeDynamicClient, informer dynamicinformer.DynamicSharedInformerFactory, isLeader func() bool) (*autoscaling.Controller, error) {
-				c, err := newController(nil, nil, fakeClient, informer, isLeader, store)
+				c, err := newController(recorder, nil, nil, fakeClient, informer, isLeader, store, nil)
 				if err != nil {
 					return nil, err
 				}
@@ -54,7 +56,9 @@ func newFixture(t *testing.T, testTime time.Time) *fixture {
 				return c.Controller, err
 			},
 		),
-		store: store,
+		clock:    clock,
+		recorder: recorder,
+		store:    store,
 	}
 }
 

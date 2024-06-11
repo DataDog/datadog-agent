@@ -313,6 +313,14 @@ Package resources implements a component to generate the 'resources' metadata pa
 
 Package runner implements a component to generate metadata payload at the right interval.
 
+### [comp/metadata/securityagent](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/metadata/securityagent)
+
+Package def is the metadata provider for security-agent process
+
+### [comp/metadata/systemprobe](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/metadata/systemprobe)
+
+Package def is the metadata provider for system-probe process
+
 ## [comp/ndmtmp](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/ndmtmp) (Component Bundle)
 
 *Datadog Team*: network-device-monitoring
@@ -367,6 +375,10 @@ Package collector defines the OpenTelemetry Collector component.
 ### [comp/otelcol/collector-contrib](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/otelcol/collector-contrib)
 
 Package collectorcontrib defines the OTel collector-contrib component
+
+### [comp/otelcol/converter](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/otelcol/converter)
+
+Package converter defines the otel agent converter component.
 
 ### [comp/otelcol/logsagentpipeline](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline)
 
