@@ -166,10 +166,13 @@ func (s *dockerTestSuite) TestProcessChecksInCoreAgent() {
 
 	// Verify that the process agent is not running
 	assert.EventuallyWithT(t, func(collect *assert.CollectT) {
-		status := s.Env().Docker.Client.ExecuteCommand(s.Env().Agent.ContainerName,
-			"process-agent", "status")
+		status := s.Env().Docker.Client.ExecuteCommand(
+			s.Env().Agent.ContainerName, "process-agent", "status")
 		assert.Contains(t, status, "The Process Agent is not running")
 	}, 1*time.Minute, 5*time.Second)
+
+	// Flush fake intake to remove any payloads which may have
+	s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
 
 	var payloads []*aggregator.ProcessPayload
 	assert.EventuallyWithT(t, func(c *assert.CollectT) {
@@ -199,6 +202,9 @@ func (s *dockerTestSuite) TestProcessChecksInCoreAgentWithNPM() {
 	assert.EventuallyWithT(t, func(collect *assert.CollectT) {
 		assertRunningChecks(collect, s.Env().Agent.Client, []string{"connections"}, false)
 	}, 1*time.Minute, 5*time.Second)
+
+	// Flush fake intake to remove any payloads which may have
+	s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
 
 	var payloads []*aggregator.ProcessPayload
 	assert.EventuallyWithT(t, func(c *assert.CollectT) {
