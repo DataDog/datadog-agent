@@ -26,6 +26,8 @@ import (
 // pathTraces is the target host API path for delivering traces.
 const pathTraces = "/api/v0.2/traces"
 
+const defaultConnectionLimit = 5
+
 // MaxPayloadSize specifies the maximum accumulated payload size that is allowed before
 // a flush is triggered; replaced in tests.
 var MaxPayloadSize = 3200000 // 3.2MB is the maximum allowed by the Datadog API
@@ -111,7 +113,7 @@ func NewTraceWriter(
 	}
 	climit := cfg.TraceWriter.ConnectionLimit
 	if climit == 0 {
-		climit = 5
+		climit = defaultConnectionLimit
 	}
 	if cfg.TraceWriter.QueueSize > 0 {
 		log.Warnf("apm_config.trace_writer.queue_size is deprecated and will not be respected.")
@@ -151,8 +153,6 @@ func (w *TraceWriter) timeFlush() {
 		select {
 		case <-w.flushTicker.C:
 			func() {
-				w.mu.Lock()
-				defer w.mu.Unlock()
 				w.flush()
 			}()
 		case <-w.stop:
@@ -168,8 +168,6 @@ func (w *TraceWriter) Stop() {
 	// Wait for encoding/compression to complete on each payload,
 	// and submission to senders
 	w.wg.Wait()
-	w.mu.Lock()
-	defer w.mu.Unlock()
 	w.flush()
 	stopSenders(w.senders)
 }
@@ -181,8 +179,6 @@ func (w *TraceWriter) FlushSync() error {
 	}
 	defer w.report()
 
-	w.mu.Lock()
-	defer w.mu.Unlock()
 	w.flush()
 	return nil
 }
@@ -228,10 +224,13 @@ const headerLanguages = "X-Datadog-Reported-Languages"
 
 // w must be locked for a flush.
 func (w *TraceWriter) flush() {
+	w.mu.Lock()
+	defer w.mu.Unlock()
 	defer w.resetBuffer()
 	w.flushPayloads(w.tracerPayloads)
 }
 
+// This pool is used to save GC pressure from having to re-allocate gzip writers for every compress operation.
 var gzpool = sync.Pool{}
 
 func getGZW(w io.Writer) (*gzip.Writer, error) {

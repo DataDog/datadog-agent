@@ -176,7 +176,7 @@ func TestAggregatorFlushTime(t *testing.T) {
 	assert := assert.New(t)
 	a := newTestAggregator()
 	msw := &mockStatsWriter{}
-	a.out = msw
+	a.adder = msw
 	testTime := time.Now()
 	a.flushOnTime(testTime)
 	assert.Len(msw.payloads, 0)
@@ -198,7 +198,7 @@ func TestMergeMany(t *testing.T) {
 	for i := 0; i < 10; i++ {
 		a := newTestAggregator()
 		msw := &mockStatsWriter{}
-		a.out = msw
+		a.adder = msw
 		payloadTime := time.Now().Truncate(bucketDuration)
 		merge1 := getTestStatsWithStart(payloadTime)
 		merge2 := getTestStatsWithStart(payloadTime.Add(time.Nanosecond))
@@ -258,7 +258,7 @@ func TestTimeShifts(t *testing.T) {
 			assert := assert.New(t)
 			a := newTestAggregator()
 			msw := &mockStatsWriter{}
-			a.out = msw
+			a.adder = msw
 			agentTime := alignAggTs(time.Now())
 			payloadTime := agentTime.Add(tc.shift)
 
@@ -281,7 +281,7 @@ func TestFuzzCountFields(t *testing.T) {
 	for i := 0; i < 30; i++ {
 		a := newTestAggregator()
 		msw := &mockStatsWriter{}
-		a.out = msw
+		a.adder = msw
 		// Ensure that peer tags aggregation is on. Some tests may expect non-empty values the peer tags.
 		a.peerTagsAggregation = true
 		payloadTime := time.Now().Truncate(bucketDuration)
@@ -365,7 +365,7 @@ func TestCountAggregation(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			a := newTestAggregator()
 			msw := &mockStatsWriter{}
-			a.out = msw
+			a.adder = msw
 			testTime := time.Unix(time.Now().Unix(), 0)
 
 			c1 := payloadWithCounts(testTime, tc.k, "", "test-version", "", "", 11, 7, 100)
@@ -436,7 +436,7 @@ func TestCountAggregationPeerTags(t *testing.T) {
 			assert := assert.New(t)
 			a := newTestAggregator()
 			msw := &mockStatsWriter{}
-			a.out = msw
+			a.adder = msw
 			a.peerTagsAggregation = tc.enablePeerTagsAgg
 			testTime := time.Unix(time.Now().Unix(), 0)
 
@@ -488,7 +488,7 @@ func TestAggregationVersionData(t *testing.T) {
 		assert := assert.New(t)
 		a := newTestAggregator()
 		msw := &mockStatsWriter{}
-		a.out = msw
+		a.adder = msw
 		testTime := time.Unix(time.Now().Unix(), 0)
 
 		bak := BucketsAggregationKey{Service: "s", Name: "test.op"}
@@ -540,7 +540,7 @@ func TestAggregationVersionData(t *testing.T) {
 		assert := assert.New(t)
 		a := newTestAggregator()
 		msw := &mockStatsWriter{}
-		a.out = msw
+		a.adder = msw
 		cfg := config.New()
 		cfg.ContainerTags = func(cid string) ([]string, error) {
 			return []string{"git.commit.sha:sha-from-container-tags", "image_tag:image-tag-from-container-tags"}, nil
@@ -606,7 +606,7 @@ func TestAggregationVersionData(t *testing.T) {
 		assert := assert.New(t)
 		a := newTestAggregator()
 		msw := &mockStatsWriter{}
-		a.out = msw
+		a.adder = msw
 		cfg := config.New()
 		cfg.ContainerTags = func(cid string) ([]string, error) {
 			return []string{"git.commit.sha:overrideThisSha", "image_tag:overrideThisImageTag"}, nil
