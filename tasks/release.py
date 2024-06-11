@@ -392,6 +392,7 @@ def _save_release_json(release_json):
     with open("release.json", "w") as release_json_stream:
         # Note, no space after the comma
         json.dump(release_json, release_json_stream, indent=4, sort_keys=False, separators=(',', ': '))
+        release_json_stream.write('\n')
 
 
 ##
@@ -1743,6 +1744,7 @@ def _create_build_links_patterns(current_version, new_version):
     patterns[current_minor_version] = new_minor_version
     patterns[current_minor_version.replace("rc.", "rc-")] = new_minor_version.replace("rc.", "rc-")
     patterns[current_minor_version.replace("-rc", "~rc")] = new_minor_version.replace("-rc", "~rc")
+    patterns[current_minor_version[2:].replace("-rc", "~rc")] = new_minor_version[2:].replace("-rc", "~rc")
 
     return patterns
 
