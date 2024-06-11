@@ -23,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/status/statusimpl"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
+	nooptelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/noopsimpl"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	replay "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/def"
 	replaymock "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/fx-mock"
@@ -70,10 +71,7 @@ func getComponentDependencies(t *testing.T) testdeps {
 		dogstatsdServer.MockModule(),
 		replaymock.MockModule(),
 		secretsimpl.MockModule(),
-		fx.Provide(func(secretMock secrets.Mock) secrets.Component {
-			component := secretMock.(secrets.Component)
-			return component
-		}),
+		nooptelemetry.Module(),
 		statusimpl.MockModule(),
 		fx.Supply(optional.NewNoneOption[rcservice.Component]()),
 		fx.Supply(optional.NewNoneOption[rcservicemrf.Component]()),

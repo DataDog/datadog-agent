@@ -8,12 +8,21 @@
 package telemetryimpl
 
 import (
-	"github.com/DataDog/datadog-agent/comp/core/telemetry"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"context"
+
 	"github.com/prometheus/client_golang/prometheus"
 	sdk "go.opentelemetry.io/otel/sdk/metric"
 	"go.uber.org/fx"
+
+	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
+
+type testDependencies struct {
+	fx.In
+
+	Lyfecycle fx.Lifecycle
+}
 
 // MockModule defines the fx options for the mock component.
 func MockModule() fxutil.Module {
@@ -26,7 +35,7 @@ type telemetryImplMock struct {
 	telemetryImpl
 }
 
-func newMock() telemetry.Mock {
+func newMock(deps testDependencies) telemetry.Mock {
 	reg := prometheus.NewRegistry()
 	provider := newProvider(reg)
 
@@ -37,6 +46,14 @@ func newMock() telemetry.Mock {
 			meterProvider: provider,
 		},
 	}
+
+	deps.Lyfecycle.Append(fx.Hook{
+		OnStop: func(_ context.Context) error {
+			telemetry.Reset()
+
+			return nil
+		},
+	})
 
 	return telemetry
 }

@@ -81,7 +81,13 @@ type Exporter struct {
 	apmReceiverAddr string
 }
 
-func translatorFromConfig(set component.TelemetrySettings, attributesTranslator *attributes.Translator, cfg *ExporterConfig, hostGetter sourceProviderFunc) (*metrics.Translator, error) {
+func translatorFromConfig(
+	set component.TelemetrySettings,
+	attributesTranslator *attributes.Translator,
+	cfg *ExporterConfig,
+	hostGetter sourceProviderFunc,
+	statsIn chan []byte,
+) (*metrics.Translator, error) {
 	histogramMode := metrics.HistogramMode(cfg.Metrics.HistConfig.Mode)
 	switch histogramMode {
 	case metrics.HistogramModeCounters, metrics.HistogramModeNoBuckets, metrics.HistogramModeDistributions:
@@ -94,6 +100,10 @@ func translatorFromConfig(set component.TelemetrySettings, attributesTranslator 
 		metrics.WithFallbackSourceProvider(hostGetter),
 		metrics.WithHistogramMode(histogramMode),
 		metrics.WithDeltaTTL(cfg.Metrics.DeltaTTL),
+	}
+
+	if statsIn != nil {
+		options = append(options, metrics.WithStatsOut(statsIn))
 	}
 
 	if cfg.Metrics.HistConfig.SendAggregations {
@@ -132,13 +142,21 @@ func translatorFromConfig(set component.TelemetrySettings, attributesTranslator 
 }
 
 // NewExporter creates a new exporter that translates OTLP metrics into the Datadog format and sends
-func NewExporter(set component.TelemetrySettings, attributesTranslator *attributes.Translator, s serializer.MetricSerializer, cfg *ExporterConfig, enricher tagenricher, hostGetter sourceProviderFunc) (*Exporter, error) {
+func NewExporter(
+	set component.TelemetrySettings,
+	attributesTranslator *attributes.Translator,
+	s serializer.MetricSerializer,
+	cfg *ExporterConfig,
+	enricher tagenricher,
+	hostGetter sourceProviderFunc,
+	statsIn chan []byte,
+) (*Exporter, error) {
 	// Log any warnings from unmarshaling.
 	for _, warning := range cfg.warnings {
 		set.Logger.Warn(warning)
 	}
 
-	tr, err := translatorFromConfig(set, attributesTranslator, cfg, hostGetter)
+	tr, err := translatorFromConfig(set, attributesTranslator, cfg, hostGetter, statsIn)
 	if err != nil {
 		return nil, fmt.Errorf("incorrect OTLP metrics configuration: %w", err)
 	}

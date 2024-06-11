@@ -5,6 +5,7 @@ import json
 import os
 import re
 import shutil
+import tarfile
 import tempfile
 import xml.etree.ElementTree as ET
 from collections import defaultdict
@@ -18,7 +19,7 @@ from invoke.tasks import task
 
 from tasks.kernel_matrix_testing import selftest as selftests
 from tasks.kernel_matrix_testing import stacks, vmconfig
-from tasks.kernel_matrix_testing.ci import KMTTestRunJob, get_all_jobs_for_pipeline
+from tasks.kernel_matrix_testing.ci import KMTTestRunJob, get_all_jobs_for_pipeline, get_test_results_from_tarfile
 from tasks.kernel_matrix_testing.compiler import CONTAINER_AGENT_PATH, all_compilers, get_compiler
 from tasks.kernel_matrix_testing.config import ConfigManager
 from tasks.kernel_matrix_testing.download import arch_mapping, full_arch, update_rootfs
@@ -357,7 +358,7 @@ def config_ssh_key(ctx: Context):
     help={
         "vmconfig-template": "template to use for the target component",
         "all_archs": "Download images for all supported architectures. By default only images for the host architecture are downloaded",
-        "images": "Comma separated list of images to update, instead of everything. The format of each image is '<os_id>-<os_version>'. Refer to platforms.json for the appropriate values for <os_id> and <os_version>.",
+        "images": "Comma separated list of images to update, instead of everything. The format of each image can be 'image_name', 'OSId-OSVersion', or 'Alternative name' (resp. examples, debian_11, amzn-2023, mantic). Refer to the output of kmt.ls for the appropriate values",
     }
 )
 def update_resources(
@@ -1742,3 +1743,79 @@ def show_last_test_results(ctx: Context, stack: str | None = None):
 
     print(tabulate(table, headers=["Package"] + vm_list))
     print("\nLegend: Successes/Failures/Skipped")
+
+
+@task
+def tag_ci_job(ctx: Context):
+    """Add extra tags to the CI job"""
+    tags: dict[str, str] = {}
+
+    # Retrieve tags from environment variables, with a renaming for convenience
+    environment_vars_to_tags = {
+        "ARCH": "arch",
+        "TEST_COMPONENT": "component",
+        "TAG": "platform",
+        "TEST_SET": "test_set",
+        "MICRO_VM_IP": "microvm_ip",
+    }
+
+    for env_var, tag in environment_vars_to_tags.items():
+        value = os.getenv(env_var)
+        if value is not None:
+            tags[tag] = value
+
+    # Get the job type based on the job name
+    job_name = os.environ["CI_JOB_NAME"]
+    if "setup_env" in job_name or "upload" in job_name or "pull_test_dockers" in job_name:
+        job_type = "setup"
+    elif "cleanup" in job_name:
+        job_type = "cleanup"
+    elif "kmt_run" in job_name:
+        job_type = "test"
+    tags["job_type"] = job_type
+
+    if job_type == "test":
+        # Retrieve all data for the tests to detect a failure reason
+        agent_testing_dir = Path(os.environ["DD_AGENT_TESTING_DIR"])
+        ci_project_dir = Path(os.environ["CI_PROJECT_DIR"])
+
+        test_jobs_executed, tests_failed = False, False
+        for candidate in agent_testing_dir.glob("junit-*.tar.gz"):
+            tar = tarfile.open(candidate)
+            test_results = get_test_results_from_tarfile(tar)
+            test_jobs_executed = test_jobs_executed or len(test_results) > 0
+            # values can be none, we have to explicitly check for False
+            tests_failed = tests_failed or any(r is False for r in test_results.values())
+
+        tags["tests_executed"] = str(test_jobs_executed).lower()
+        tags["tests_failed"] = str(tests_failed).lower()
+
+        ssh_config_path = Path.home() / ".ssh" / "config"
+        setup_ddvm_status_file = ci_project_dir / "setup-ddvm.status"
+
+        if test_jobs_executed and not tests_failed:
+            tags["failure_reason"] = "none"
+        elif test_jobs_executed and tests_failed:  # The first condition is redundant but makes the logic clearer
+            tags["failure_reason"] = "test"
+        elif setup_ddvm_status_file.is_file() and "active" not in setup_ddvm_status_file.read_text():
+            tags["failure_reason"] = "infra_setup-ddvm"
+        elif not ssh_config_path.is_file():
+            tags["failure_reason"] = "infra_ssh-config"
+        else:
+            tags["failure_reason"] = "infra-unknown"
+    elif job_type == "setup":
+        if "kmt_setup_env" in job_name:
+            tags["setup_stage"] = "infra-provision"
+        elif "pull_test_dockers" in job_name:
+            tags["setup_stage"] = "docker-images"
+        elif "upload_dependencies" in job_name:
+            tags["setup_stage"] = "dependencies"
+        elif "btfs" in job_name:
+            tags["setup_stage"] = "btfs"
+        elif "upload_secagent_tests" in job_name or "upload_sysprobe_tests" in job_name:
+            tags["setup_stage"] = "tests"
+
+    tag_prefix = "kmt."
+    tags_str = " ".join(f"--tags '{tag_prefix}{k}:{v}'" for k, v in tags.items())
+
+    ctx.run(f"datadog-ci tag --level job {tags_str}")

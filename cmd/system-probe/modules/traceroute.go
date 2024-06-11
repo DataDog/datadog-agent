@@ -15,15 +15,17 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/gorilla/mux"
+	"go.uber.org/atomic"
+	"google.golang.org/grpc"
+
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
 	sysconfigtypes "github.com/DataDog/datadog-agent/cmd/system-probe/config/types"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	tracerouteutil "github.com/DataDog/datadog-agent/pkg/networkpath/traceroute"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
-	"github.com/gorilla/mux"
-	"go.uber.org/atomic"
-	"google.golang.org/grpc"
 )
 
 type traceroute struct {
@@ -36,8 +38,8 @@ var (
 	tracerouteConfigNamespaces = []string{"traceroute"}
 )
 
-func createTracerouteModule(_ *sysconfigtypes.Config, _ optional.Option[workloadmeta.Component]) (module.Module, error) {
-	runner, err := tracerouteutil.NewRunner()
+func createTracerouteModule(_ *sysconfigtypes.Config, _ optional.Option[workloadmeta.Component], telemetry telemetry.Component) (module.Module, error) {
+	runner, err := tracerouteutil.NewRunner(telemetry)
 	if err != nil {
 		return &traceroute{}, err
 	}
