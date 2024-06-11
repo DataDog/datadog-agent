@@ -62,7 +62,7 @@ Below a live demo of how the tool works:
 
 ![deva_install](../public/assets/images/deva.gif)
 
-We also provide an invoke task to perform some sanity checks and enable some tools. To use it you can run:
+Datadog also provides an invoke task to perform some sanity checks and enable some tools. To use it, run:
 
 ```shell
 > deva setup
@@ -233,7 +233,7 @@ It is optional but recommended to install `pre-commit` to run a number of checks
 
 #### Installation
 
-To install pre-commit, follow [these instructions](https://pre-commit.com/#installation). The `deva setup` will automatically enable the hooks but you can do it manually running: `pre-commit install`.
+To install pre-commit, follow [these instructions](https://pre-commit.com/#installation). The `deva setup` automatically enables the hooks, but you can do it manually running: `pre-commit install`.
 
 The `shellcheck` pre-commit hook requires having the `shellcheck` binary installed and in your `$PATH`.
 To install it, run:
