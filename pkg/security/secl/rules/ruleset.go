@@ -298,7 +298,7 @@ func (rs *RuleSet) populateFieldsWithRuleActionsData(policyRules []*RuleDefiniti
 	for _, rule := range policyRules {
 		for _, action := range rule.Actions {
 			if err := action.Check(opts); err != nil {
-				errs = multierror.Append(errs, fmt.Errorf("invalid action: %w", err))
+				errs = multierror.Append(errs, fmt.Errorf("invalid action in rule %s: %w", rule.ID, err))
 				continue
 			}
 
