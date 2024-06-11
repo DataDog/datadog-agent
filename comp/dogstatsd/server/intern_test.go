@@ -10,14 +10,20 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+
+	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 func BenchmarkLoadOrStoreReset(b *testing.B) {
-	sInterner := newStringInterner(4, 1)
+	telemetryComp := fxutil.Test[telemetry.Component](b, telemetryimpl.MockModule())
+
+	sInterner := newStringInterner(4, 1, telemetryComp)
 
 	// benchmark with the internal telemetry enabled
 	sInterner.telemetry.enabled = true
-	sInterner.prepareTelemetry()
+	sInterner.prepareTelemetry(telemetryComp)
 
 	list := []string{}
 	for i := 0; i < 512; i++ {
@@ -31,8 +37,9 @@ func BenchmarkLoadOrStoreReset(b *testing.B) {
 }
 
 func TestInternLoadOrStoreValue(t *testing.T) {
+	telemetryComp := fxutil.Test[telemetry.Component](t, telemetryimpl.MockModule())
 	assert := assert.New(t)
-	sInterner := newStringInterner(3, 1)
+	sInterner := newStringInterner(3, 1, telemetryComp)
 
 	foo := []byte("foo")
 	bar := []byte("bar")
@@ -52,8 +59,9 @@ func TestInternLoadOrStoreValue(t *testing.T) {
 }
 
 func TestInternLoadOrStorePointer(t *testing.T) {
+	telemetryComp := fxutil.Test[telemetry.Component](t, telemetryimpl.MockModule())
 	assert := assert.New(t)
-	sInterner := newStringInterner(4, 1)
+	sInterner := newStringInterner(4, 1, telemetryComp)
 
 	foo := []byte("foo")
 	bar := []byte("bar")
@@ -77,8 +85,9 @@ func TestInternLoadOrStorePointer(t *testing.T) {
 }
 
 func TestInternLoadOrStoreReset(t *testing.T) {
+	telemetryComp := fxutil.Test[telemetry.Component](t, telemetryimpl.MockModule())
 	assert := assert.New(t)
-	sInterner := newStringInterner(4, 1)
+	sInterner := newStringInterner(4, 1, telemetryComp)
 
 	// first test that the good value is returned.
 	sInterner.LoadOrStore([]byte("foo"))

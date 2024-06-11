@@ -20,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/api/api"
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
 	logComponent "github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/listeners"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/mapper"
@@ -33,7 +34,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
+
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
@@ -50,18 +51,12 @@ var (
 	dogstatsdPacketsLastSec           = expvar.Int{}
 	dogstatsdUnterminatedMetricErrors = expvar.Int{}
 
-	tlmProcessed = telemetry.NewCounter("dogstatsd", "processed",
-		[]string{"message_type", "state", "origin"}, "Count of service checks/events/metrics processed by dogstatsd")
-	tlmProcessedOk    = tlmProcessed.WithValues("metrics", "ok", "")
-	tlmProcessedError = tlmProcessed.WithValues("metrics", "error", "")
-
 	// while we try to add the origin tag in the tlmProcessed metric, we want to
 	// avoid having it growing indefinitely, hence this safeguard to limit the
 	// size of this cache for long-running agent or environment with a lot of
 	// different container IDs.
 	maxOriginCounters = 200
 
-	tlmChannel            = telemetry.NewHistogramNoOp()
 	defaultChannelBuckets = []float64{100, 250, 500, 1000, 10000}
 	once                  sync.Once
 )
@@ -73,13 +68,14 @@ type dependencies struct {
 
 	Demultiplexer aggregator.Demultiplexer
 
-	Log    logComponent.Component
-	Config configComponent.Component
-	Debug  serverdebug.Component
-	Replay replay.Component
-	PidMap pidmap.Component
-	Params Params
-	WMeta  optional.Option[workloadmeta.Component]
+	Log       logComponent.Component
+	Config    configComponent.Component
+	Debug     serverdebug.Component
+	Replay    replay.Component
+	PidMap    pidmap.Component
+	Params    Params
+	WMeta     optional.Option[workloadmeta.Component]
+	Telemetry telemetry.Component
 }
 
 type provides struct {
@@ -161,9 +157,16 @@ type server struct {
 	enrichConfig enrichConfig
 
 	wmeta optional.Option[workloadmeta.Component]
+
+	// telemetry
+	telemetry         telemetry.Component
+	tlmProcessed      telemetry.Counter
+	tlmProcessedOk    telemetry.SimpleCounter
+	tlmProcessedError telemetry.SimpleCounter
+	tlmChannel        telemetry.Histogram
 }
 
-func initTelemetry(cfg config.Reader, logger logComponent.Component) {
+func initTelemetry(server *server, cfg config.Reader, logger logComponent.Component, telemetrycomp telemetry.Component) {
 	dogstatsdExpvars.Set("ServiceCheckParseErrors", &dogstatsdServiceCheckParseErrors)
 	dogstatsdExpvars.Set("ServiceCheckPackets", &dogstatsdServiceCheckPackets)
 	dogstatsdExpvars.Set("EventParseErrors", &dogstatsdEventParseErrors)
@@ -194,7 +197,7 @@ func initTelemetry(cfg config.Reader, logger logComponent.Component) {
 		buckets = defaultChannelBuckets
 	}
 
-	tlmChannel = telemetry.NewHistogram(
+	server.tlmChannel = telemetrycomp.NewHistogram(
 		"dogstatsd",
 		"channel_latency",
 		[]string{"shard", "message_type"},
@@ -207,7 +210,7 @@ func initTelemetry(cfg config.Reader, logger logComponent.Component) {
 
 // TODO: (components) - merge with newServerCompat once NewServerlessServer is removed
 func newServer(deps dependencies) provides {
-	s := newServerCompat(deps.Config, deps.Log, deps.Replay, deps.Debug, deps.Params.Serverless, deps.Demultiplexer, deps.WMeta, deps.PidMap)
+	s := newServerCompat(deps.Config, deps.Log, deps.Replay, deps.Debug, deps.Params.Serverless, deps.Demultiplexer, deps.WMeta, deps.PidMap, deps.Telemetry)
 
 	if deps.Config.GetBool("use_dogstatsd") {
 		deps.Lc.Append(fx.Hook{
@@ -222,10 +225,7 @@ func newServer(deps dependencies) provides {
 	}
 }
 
-func newServerCompat(cfg config.Reader, log logComponent.Component, capture replay.Component, debug serverdebug.Component, serverless bool, demux aggregator.Demultiplexer, wmeta optional.Option[workloadmeta.Component], pidMap pidmap.Component) *server {
-	// This needs to be done after the configuration is loaded
-	once.Do(func() { initTelemetry(cfg, log) })
-
+func newServerCompat(cfg config.Reader, log logComponent.Component, capture replay.Component, debug serverdebug.Component, serverless bool, demux aggregator.Demultiplexer, wmeta optional.Option[workloadmeta.Component], pidMap pidmap.Component, telemetrycomp telemetry.Component) *server {
 	var stats *util.Stats
 	if cfg.GetBool("dogstatsd_stats_enable") {
 		buff := cfg.GetInt("dogstatsd_stats_buffer")
@@ -285,6 +285,9 @@ func newServerCompat(cfg config.Reader, log logComponent.Component, capture repl
 		}
 	}
 
+	dogstatsdTelemetryCount := telemetrycomp.NewCounter("dogstatsd", "processed",
+		[]string{"message_type", "state", "origin"}, "Count of service checks/events/metrics processed by dogstatsd")
+
 	s := &server{
 		log:                     log,
 		config:                  cfg,
@@ -294,7 +297,7 @@ func newServerCompat(cfg config.Reader, log logComponent.Component, capture repl
 		captureChan:             nil,
 		sharedPacketPool:        nil,
 		sharedPacketPoolManager: nil,
-		sharedFloat64List:       newFloat64ListPool(),
+		sharedFloat64List:       newFloat64ListPool(telemetrycomp),
 		demultiplexer:           demux,
 		listeners:               nil,
 		stopChan:                make(chan bool),
@@ -323,8 +326,15 @@ func newServerCompat(cfg config.Reader, log logComponent.Component, capture repl
 			defaultHostname:           defaultHostname,
 			serverlessMode:            serverless,
 		},
-		wmeta: wmeta,
+		wmeta:             wmeta,
+		telemetry:         telemetrycomp,
+		tlmProcessed:      dogstatsdTelemetryCount,
+		tlmProcessedOk:    dogstatsdTelemetryCount.WithValues("metrics", "ok", ""),
+		tlmProcessedError: dogstatsdTelemetryCount.WithValues("metrics", "error", ""),
 	}
+
+	// This needs to be done after the configuration is loaded
+	once.Do(func() { initTelemetry(s, cfg, log, telemetrycomp) })
 
 	return s
 }
@@ -526,7 +536,7 @@ func (s *server) handleMessages() {
 	s.log.Debug("DogStatsD will run", workersCount, "workers")
 
 	for i := 0; i < workersCount; i++ {
-		worker := newWorker(s, i, s.wmeta)
+		worker := newWorker(s, i, s.wmeta, s.telemetry)
 		go worker.run()
 		s.workers = append(s.workers, worker)
 	}
@@ -722,8 +732,8 @@ func (s *server) getOriginCounter(origin string) (okCnt telemetry.SimpleCounter,
 		origin: origin,
 		ok:     okMap,
 		err:    errorMap,
-		okCnt:  tlmProcessed.WithTags(okMap),
-		errCnt: tlmProcessed.WithTags(errorMap),
+		okCnt:  s.tlmProcessed.WithTags(okMap),
+		errCnt: s.tlmProcessed.WithTags(errorMap),
 	}
 
 	s.cachedOriginCounters[origin] = maps
@@ -735,8 +745,8 @@ func (s *server) getOriginCounter(origin string) (okCnt telemetry.SimpleCounter,
 		delete(s.cachedOriginCounters, pop.origin)
 		s.cachedOrder = s.cachedOrder[1:]
 		// remove it from the telemetry metrics as well
-		tlmProcessed.DeleteWithTags(pop.ok)
-		tlmProcessed.DeleteWithTags(pop.err)
+		s.tlmProcessed.DeleteWithTags(pop.ok)
+		s.tlmProcessed.DeleteWithTags(pop.err)
 	}
 
 	return maps.okCnt, maps.errCnt
@@ -748,8 +758,8 @@ func (s *server) getOriginCounter(origin string) (okCnt telemetry.SimpleCounter,
 // is the first part aware of processing a late metric. Also, it may help us having a telemetry of a "late_metrics" type here
 // which we can't do today.
 func (s *server) parseMetricMessage(metricSamples []metrics.MetricSample, parser *parser, message []byte, origin string, listenerID string, originTelemetry bool) ([]metrics.MetricSample, error) {
-	okCnt := tlmProcessedOk
-	errorCnt := tlmProcessedError
+	okCnt := s.tlmProcessedOk
+	errorCnt := s.tlmProcessedError
 	if origin != "" && originTelemetry {
 		okCnt, errorCnt = s.getOriginCounter(origin)
 	}
@@ -794,12 +804,12 @@ func (s *server) parseEventMessage(parser *parser, message []byte, origin string
 	sample, err := parser.parseEvent(message)
 	if err != nil {
 		dogstatsdEventParseErrors.Add(1)
-		tlmProcessed.Inc("events", "error", "")
+		s.tlmProcessed.Inc("events", "error", "")
 		return nil, err
 	}
 	event := enrichEvent(sample, origin, s.enrichConfig)
 	event.Tags = append(event.Tags, s.extraTags...)
-	tlmProcessed.Inc("events", "ok", "")
+	s.tlmProcessed.Inc("events", "ok", "")
 	dogstatsdEventPackets.Add(1)
 	return event, nil
 }
@@ -808,12 +818,12 @@ func (s *server) parseServiceCheckMessage(parser *parser, message []byte, origin
 	sample, err := parser.parseServiceCheck(message)
 	if err != nil {
 		dogstatsdServiceCheckParseErrors.Add(1)
-		tlmProcessed.Inc("service_checks", "error", "")
+		s.tlmProcessed.Inc("service_checks", "error", "")
 		return nil, err
 	}
 	serviceCheck := enrichServiceCheck(sample, origin, s.enrichConfig)
 	serviceCheck.Tags = append(serviceCheck.Tags, s.extraTags...)
 	dogstatsdServiceCheckPackets.Add(1)
-	tlmProcessed.Inc("service_checks", "ok", "")
+	s.tlmProcessed.Inc("service_checks", "ok", "")
 	return serviceCheck, nil
 }

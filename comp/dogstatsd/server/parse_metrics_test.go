@@ -9,17 +9,18 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics/mock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
+
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics/mock"
 )
 
 func parseMetricSample(t *testing.T, overrides map[string]any, rawSample []byte) (dogstatsdMetricSample, error) {
 	deps := newServerDeps(t, fx.Replace(config.MockParams{Overrides: overrides}))
 
-	p := newParser(deps.Config, newFloat64ListPool(), 1, deps.WMeta)
+	p := newParser(deps.Config, newFloat64ListPool(deps.Telemetry), 1, deps.WMeta, deps.Telemetry)
 	_, found := overrides["parser"]
 	if found {
 		p = overrides["parser"].(*parser)
@@ -576,7 +577,7 @@ func TestParseContainerID(t *testing.T) {
 
 	// Testing with an Inode
 	deps := newServerDeps(t, fx.Replace(config.MockParams{Overrides: cfg}))
-	p := newParser(deps.Config, newFloat64ListPool(), 1, deps.WMeta)
+	p := newParser(deps.Config, newFloat64ListPool(deps.Telemetry), 1, deps.WMeta, deps.Telemetry)
 	mockProvider := mock.NewMetricsProvider()
 	mockProvider.RegisterMetaCollector(&mock.MetaCollector{
 		CIDFromInode: map[uint64]string{

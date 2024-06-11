@@ -14,6 +14,7 @@ import (
 
 	"github.com/twmb/murmur3"
 
+	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -61,6 +62,9 @@ type batcher struct {
 	// the batcher can decide to properly distribute these samples on the available
 	// pipelines.
 	noAggPipelineEnabled bool
+
+	// telemetry
+	tlmChannel telemetry.Histogram
 }
 
 type shardKeyGenerator interface {
@@ -116,7 +120,7 @@ func fastrange(key ckey.ContextKey, pipelineCount int) uint32 {
 	return uint32((uint64(key>>32) * uint64(pipelineCount)) >> 32)
 }
 
-func newBatcher(demux aggregator.DemultiplexerWithAggregator) *batcher {
+func newBatcher(demux aggregator.DemultiplexerWithAggregator, tlmChannel telemetry.Histogram) *batcher {
 	_, pipelineCount := aggregator.GetDogStatsDWorkerAndPipelineCount()
 
 	var e chan []*event.Event
@@ -153,6 +157,7 @@ func newBatcher(demux aggregator.DemultiplexerWithAggregator) *batcher {
 		shardGenerator: getShardGenerator(),
 
 		noAggPipelineEnabled: demux.Options().EnableNoAggregationPipeline,
+		tlmChannel:           tlmChannel,
 	}
 }
 
@@ -175,7 +180,7 @@ func getShardGenerator() shardKeyGenerator {
 	return g
 }
 
-func newServerlessBatcher(demux aggregator.Demultiplexer) *batcher {
+func newServerlessBatcher(demux aggregator.Demultiplexer, tlmChannel telemetry.Histogram) *batcher {
 	_, pipelineCount := aggregator.GetDogStatsDWorkerAndPipelineCount()
 	samples := make([]metrics.MetricSampleBatch, pipelineCount)
 	samplesCount := make([]int, pipelineCount)
@@ -198,6 +203,7 @@ func newServerlessBatcher(demux aggregator.Demultiplexer) *batcher {
 		demux:          demux,
 		pipelineCount:  pipelineCount,
 		shardGenerator: getShardGenerator(),
+		tlmChannel:     tlmChannel,
 	}
 }
 
@@ -250,7 +256,7 @@ func (b *batcher) flushSamples(shard uint32) {
 		t1 := time.Now()
 		b.demux.AggregateSamples(aggregator.TimeSamplerID(shard), b.samples[shard][:b.samplesCount[shard]])
 		t2 := time.Now()
-		tlmChannel.Observe(float64(t2.Sub(t1).Nanoseconds()), strconv.Itoa(int(shard)), "metrics")
+		b.tlmChannel.Observe(float64(t2.Sub(t1).Nanoseconds()), strconv.Itoa(int(shard)), "metrics")
 
 		b.samplesCount[shard] = 0
 		b.samples[shard] = b.metricSamplePool.GetBatch()
@@ -262,7 +268,7 @@ func (b *batcher) flushSamplesWithTs() {
 		t1 := time.Now()
 		b.demux.SendSamplesWithoutAggregation(b.samplesWithTs[:b.samplesWithTsCount])
 		t2 := time.Now()
-		tlmChannel.Observe(float64(t2.Sub(t1).Nanoseconds()), "", "late_metrics")
+		b.tlmChannel.Observe(float64(t2.Sub(t1).Nanoseconds()), "", "late_metrics")
 
 		b.samplesWithTsCount = 0
 		b.samplesWithTs = b.metricSamplePool.GetBatch()
@@ -284,7 +290,7 @@ func (b *batcher) flush() {
 		t1 := time.Now()
 		b.choutEvents <- b.events
 		t2 := time.Now()
-		tlmChannel.Observe(float64(t2.Sub(t1).Nanoseconds()), "", "events")
+		b.tlmChannel.Observe(float64(t2.Sub(t1).Nanoseconds()), "", "events")
 
 		b.events = []*event.Event{}
 	}
@@ -294,7 +300,7 @@ func (b *batcher) flush() {
 		t1 := time.Now()
 		b.choutServiceChecks <- b.serviceChecks
 		t2 := time.Now()
-		tlmChannel.Observe(float64(t2.Sub(t1).Nanoseconds()), "", "service_checks")
+		b.tlmChannel.Observe(float64(t2.Sub(t1).Nanoseconds()), "", "service_checks")
 
 		b.serviceChecks = []*servicecheck.ServiceCheck{}
 	}

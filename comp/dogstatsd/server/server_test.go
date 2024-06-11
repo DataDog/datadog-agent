@@ -25,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core"
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/listeners"
@@ -51,6 +52,7 @@ type serverDeps struct {
 	PidMap        pidmap.Component
 	Debug         serverdebug.Component
 	WMeta         optional.Option[workloadmeta.Component]
+	Telemetry     telemetry.Component
 	Server        Component
 }
 
@@ -115,7 +117,7 @@ func TestStopServer(t *testing.T) {
 
 	deps := fulfillDepsWithConfigOverride(t, cfg)
 
-	s := newServerCompat(deps.Config, deps.Log, deps.Replay, deps.Debug, false, deps.Demultiplexer, deps.WMeta, deps.PidMap)
+	s := newServerCompat(deps.Config, deps.Log, deps.Replay, deps.Debug, false, deps.Demultiplexer, deps.WMeta, deps.PidMap, deps.Telemetry)
 	s.start(context.TODO())
 	requireStart(t, s)
 
@@ -672,7 +674,7 @@ func TestNoMappingsConfig(t *testing.T) {
 
 	assert.Nil(t, s.mapper)
 
-	parser := newParser(deps.Config, newFloat64ListPool(), 1, deps.WMeta)
+	parser := newParser(deps.Config, newFloat64ListPool(deps.Telemetry), 1, deps.WMeta, deps.Telemetry)
 	samples, err := s.parseMetricMessage(samples, parser, []byte("test.metric:666|g"), "", "", false)
 	assert.NoError(t, err)
 	assert.Len(t, samples, 1)
@@ -784,7 +786,7 @@ dogstatsd_mapper_profiles:
 
 			var actualSamples []MetricSample
 			for _, p := range scenario.packets {
-				parser := newParser(deps.Config, newFloat64ListPool(), 1, deps.WMeta)
+				parser := newParser(deps.Config, newFloat64ListPool(deps.Telemetry), 1, deps.WMeta, deps.Telemetry)
 				samples, err := s.parseMetricMessage(samples, parser, []byte(p), "", "", false)
 				assert.NoError(t, err, "Case `%s` failed. parseMetricMessage should not return error %v", err)
 				for _, sample := range samples {
@@ -846,7 +848,7 @@ func TestProcessedMetricsOrigin(t *testing.T) {
 		assert.Len(s.cachedOriginCounters, 0, "this cache must be empty")
 		assert.Len(s.cachedOrder, 0, "this cache list must be empty")
 
-		parser := newParser(deps.Config, newFloat64ListPool(), 1, deps.WMeta)
+		parser := newParser(deps.Config, newFloat64ListPool(deps.Telemetry), 1, deps.WMeta, deps.Telemetry)
 		samples := []metrics.MetricSample{}
 		samples, err := s.parseMetricMessage(samples, parser, []byte("test.metric:666|g"), "test_container", "1", false)
 		assert.NoError(err)
@@ -921,7 +923,7 @@ func testContainerIDParsing(t *testing.T, cfg map[string]interface{}) {
 	assert := assert.New(t)
 	requireStart(t, s)
 
-	parser := newParser(deps.Config, newFloat64ListPool(), 1, deps.WMeta)
+	parser := newParser(deps.Config, newFloat64ListPool(deps.Telemetry), 1, deps.WMeta, deps.Telemetry)
 	parser.dsdOriginEnabled = true
 
 	// Metric
@@ -965,7 +967,7 @@ func TestOrigin(t *testing.T) {
 
 		requireStart(t, s)
 
-		parser := newParser(deps.Config, newFloat64ListPool(), 1, deps.WMeta)
+		parser := newParser(deps.Config, newFloat64ListPool(deps.Telemetry), 1, deps.WMeta, deps.Telemetry)
 		parser.dsdOriginEnabled = true
 
 		// Metric
