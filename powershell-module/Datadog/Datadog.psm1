@@ -1,12 +1,14 @@
-function Install-DDAgent
+function Install-DatadogAgent
 {
+    [CmdletBinding()]
     param (
         # Parameters that are always valid
         [String] $AgentInstallerURL,
         [String] $AgentInstallerPath,
         [String] $AgentVersion,
         [String] $AgentInstallLogPath,
-        [Parameter()][ValidateSet('DotNet')][String[]]$WithAPMTracers,
+        [switch] $ApmInstrumentationEnabled,
+        [string[]] $APMLibraries,
         [switch] $RestartIIS,
 
         # Parameters that are only valid on first install
@@ -23,25 +25,61 @@ function Install-DDAgent
     validateAdminPriviledges
     validate64BitProcess
     enableTSL12
-
+    
     [string] $uniqueID = [System.Guid]::NewGuid()
 
     installAgent -params $PSBoundParameters -uniqueID $uniqueID
 
-    if ($PSBoundParameters.ContainsKey('WithAPMTracers'))
+    if ($ApmInstrumentationEnabled -eq $true)
     {
-        if ($WithAPMTracers -contains "DotNet") # note that -contains is a case insensitive operator
+        ## make sure installableLibs is always all lower case; the comparison below is case
+        ## sensitive, and we'll use all lower as the standard
+        $installableLibs = @("dotnet")
+        $apmlibs = @{}
+        
+        if (!$APMLibraries)
         {
-            installDotnetTracer -uniqueID $uniqueID
-            if ($RestartIIS)
+            $apmlibs["dotnet"] = "latest"
+        }
+        else
+        {
+            ## break out the comma separated list of libraries
+            
+            foreach ($lib in $APMLibraries)
             {
-                Write-Host "Restarting IIS"
-                stop-service -force was
-                Restart-Service -Name W3SVC -Force
+                $lib = $lib.Trim()
+
+                ## see if there's a version
+                $l, $v = $lib.Split(":")
+                if (-not ($installableLibs -contains $l.ToLower()))
+                {
+                    $exception = [Exception]::new("Unknown Library name $($l).")
+                    $PSCmdlet.ThrowTerminatingError([System.Management.Automation.ErrorRecord]::new($exception, "FatalError", [Management.Automation.ErrorCategory]::InvalidOperation, $null))
+                }   
+                if (!$v)
+                {
+                    $apmlibs[$l] = "latest"
+                }
+                else
+                {
+                    $apmlibs[$l] = $v
+                }
             }
         }
-    }
 
+        foreach ($l in $apmlibs.Keys)
+        {
+            Write-Host -ForegroundColor Green "Installing Library $l version $($apmlibs[$l])"
+        }
+        installDotnetTracer -uniqueID $uniqueID
+        if ($RestartIIS)
+        {
+            Write-Host "Restarting IIS"
+            stop-service -force was
+            Restart-Service -Name W3SVC -Force
+        }
+    }   
+    
     <#
     .SYNOPSIS
     Installs the Datadog Agent.
@@ -61,8 +99,11 @@ function Install-DDAgent
     .PARAMETER AgentInstallLogPath
     Override the Agent installation log location.
 
-    .PARAMETER WithAPMTracers
-    Specify an APM Tracing library to download and install alongside the Agent.
+    .PARAMETER ApmInstrumentationEnabled
+    Specify that APM tracers should be installed.
+
+    .PARAMETER APMLibraries
+    Comma-separated list of APM libraries to install, with optional versions. Example: APMLibraries="DotNet:2.52.0".  Currently only DotNet is supported.
 
     .PARAMETER ApiKey
     Adds the Datadog API KEY to the configuration file.
@@ -201,15 +242,37 @@ install_method:
     Out-File -FilePath $appDataDir\install_info -InputObject $installInfo
 }
 
-function installDotnetTracer($uniqueID)
+function installDotnetTracer
 {
-    $latestVersionTag = ((Invoke-WebRequest -UseBasicParsing https://api.github.com/repos/DataDog/dd-trace-dotnet/releases/latest).Content | ConvertFrom-Json).tag_name
-    $latestVersion = $latestVersionTag.TrimStart("v")
+    param(
+        [string] $uniqueID,
+        [string] $version
+    )
+    $downloadTag = ""
+    $downloadVersion = ""
+    if (!$version -or ($version -eq "latest"))
+    {
+        $downloadTag = ((Invoke-WebRequest -UseBasicParsing https://api.github.com/repos/DataDog/dd-trace-dotnet/releases/latest).Content | ConvertFrom-Json).tag_name
+        $downloadVersion = $downloadTag.TrimStart("v")
+    }
+    else 
+    {
+        ## validate that the version exists
+        $rels = (Invoke-WebRequest -UseBasicParsing https://api.github.com/repos/DataDog/dd-trace-dotnet/releases).content | convertfrom-json
+        if (-not ($rels.name -contains $version))
+        {
+            throw("Version $version not found")
+        }
+        $downloadTag = "v$($version)"
+        $downloadVersion = $version
+    }
 
     $installerPath = Join-Path -Path ([System.IO.Path]::GetTempPath()) -ChildPath "datadog-dotnet-apm-$uniqueID.msi"
 
-    Write-Host "Downloading Datadog .NET Tracing Library installer ($latestVersionTag)"
-    downloadAsset -url "https://github.com/DataDog/dd-trace-dotnet/releases/download/$latestVersionTag/datadog-dotnet-apm-$latestVersion-x64.msi" -outFile "$installerPath"
+    Write-Host "Downloading Datadog .NET Tracing Library installer ($downloadTag) ($downloadVersion)"
+
+    return
+    downloadAsset -url "https://github.com/DataDog/dd-trace-dotnet/releases/download/$downloadTag/datadog-dotnet-apm-$downloadVersion-x64.msi" -outFile "$installerPath"
 
     Write-Host "Installing Datadog .NET Tracing Library"
     $installResult = Start-Process -Wait msiexec -ArgumentList "/qn /i $installerPath" -PassThru

@@ -67,7 +67,7 @@ func (v *vmSuite) installModule(_ *testing.T) {
 	v.Require().NoError(err)
 	vm.CopyFolder(localModuleDir, remoteModuleDir)
 
-	out, err := vm.Execute("(Get-Command Install-DDAgent).Source")
+	out, err := vm.Execute("(Get-Command Install-DatadogAgent).Source")
 	v.Require().NoError(err)
 	v.Require().Equal("Datadog", strings.TrimSpace(out))
 }
@@ -87,7 +87,7 @@ func (v *vmSuite) testInstallAgent751(t *testing.T) {
 		"Tags":                     "key:val",
 	}
 
-	command := "Install-DDAgent"
+	command := "Install-DatadogAgent"
 	for param, val := range params {
 		command += fmt.Sprintf(" -%s '%s'", param, val)
 	}
@@ -139,7 +139,7 @@ func (v *vmSuite) testAgentUpgradeWithDotnetTracer(t *testing.T) {
 	vm.MustExecute(fmt.Sprintf("(New-Object System.Net.WebClient).DownloadFile(\"%s\", \"%s\")", url, remoteInstallerPath))
 
 	newAPIKey := "newApiKey"
-	command := fmt.Sprintf("Install-DDAgent -AgentInstallerPath '%s' -ApiKey '%s' -WithAPMTracers dotnet", remoteInstallerPath, newAPIKey)
+	command := fmt.Sprintf("Install-DatadogAgent -AgentInstallerPath '%s' -ApiKey '%s' -ApmInstrumentationEnabled", remoteInstallerPath, newAPIKey)
 
 	v.T().Log(command)
 	out, err := vm.Execute(command)
@@ -172,7 +172,7 @@ func (v *vmSuite) testFailedAgentDowngrade(_ *testing.T) {
 
 	downgradeURL := "https://s3.amazonaws.com/ddagent-windows-stable/ddagent-cli-7.50.0.msi"
 	installLog := "C:\\Users\\Administrator\\ddagentInstall.log"
-	command := fmt.Sprintf("Install-DDAgent -AgentInstallerURL %s -AgentInstallLogPath %s", downgradeURL, installLog)
+	command := fmt.Sprintf("Install-DatadogAgent -AgentInstallerURL %s -AgentInstallLogPath %s", downgradeURL, installLog)
 
 	v.T().Log(command)
 	_, err := vm.Execute(command)
