@@ -95,6 +95,7 @@ func NewUDPListener(packetOut chan packets.Packets, sharedPacketPoolManager *pac
 		packetAssembler: packetAssembler,
 		buffer:          buffer,
 		trafficCapture:  capture,
+		telemetryStore:  telemetryStore,
 	}
 	log.Debugf("dogstatsd-udp: %s successfully initialized", conn.LocalAddr())
 	return listener, nil

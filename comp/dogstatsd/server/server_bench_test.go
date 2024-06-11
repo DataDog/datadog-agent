@@ -36,7 +36,7 @@ func benchParsePackets(b *testing.B, rawPacket []byte) {
 	// our logger will log dogstatsd packet by default if nothing is setup
 	pkgconfig.SetupLogger("", "off", "", "", false, true, false)
 
-	histogram := deps.Telemetry.NewHistogram("dogstatsd",
+	histogram := deps.Telemetry.NewHistogram("test-dogstatsd",
 		"channel_latency",
 		[]string{"shard", "message_type"},
 		"Time in nanosecond to push metrics to the aggregator input buffer",

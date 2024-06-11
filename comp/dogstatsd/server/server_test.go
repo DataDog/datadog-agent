@@ -42,6 +42,21 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
+// This is a copy of the serverDeps struct, but without the server field.
+// We need this to avoid starting multiple server with the same test.
+type depsWithoutServer struct {
+	fx.In
+
+	Config        configComponent.Component
+	Log           log.Component
+	Demultiplexer demultiplexer.FakeSamplerMock
+	Replay        replay.Component
+	PidMap        pidmap.Component
+	Debug         serverdebug.Component
+	WMeta         optional.Option[workloadmeta.Component]
+	Telemetry     telemetry.Component
+}
+
 type serverDeps struct {
 	fx.In
 
@@ -115,7 +130,20 @@ func TestStopServer(t *testing.T) {
 
 	cfg["dogstatsd_port"] = listeners.RandomPortName
 
-	deps := fulfillDepsWithConfigOverride(t, cfg)
+	deps := fxutil.Test[depsWithoutServer](t, fx.Options(
+		core.MockBundle(),
+		serverdebugimpl.MockModule(),
+		fx.Replace(configComponent.MockParams{
+			Overrides: cfg,
+		}),
+		fx.Supply(Params{Serverless: false}),
+		replaymock.MockModule(),
+		compressionimpl.MockModule(),
+		pidmapimpl.Module(),
+		demultiplexerimpl.FakeSamplerMockModule(),
+		workloadmetafxmock.MockModule(),
+		fx.Supply(workloadmeta.NewParams()),
+	))
 
 	s := newServerCompat(deps.Config, deps.Log, deps.Replay, deps.Debug, false, deps.Demultiplexer, deps.WMeta, deps.PidMap, deps.Telemetry)
 	s.start(context.TODO())
@@ -148,7 +176,27 @@ func TestStopServer(t *testing.T) {
 //nolint:revive // TODO(AML) Fix revive linter
 func TestNoRaceOriginTagMaps(t *testing.T) {
 	const N = 100
-	s := &server{cachedOriginCounters: make(map[string]cachedOriginCounter)}
+	cfg := make(map[string]interface{})
+
+	cfg["dogstatsd_port"] = listeners.RandomPortName
+
+	deps := fxutil.Test[depsWithoutServer](t, fx.Options(
+		core.MockBundle(),
+		serverdebugimpl.MockModule(),
+		fx.Replace(configComponent.MockParams{
+			Overrides: cfg,
+		}),
+		fx.Supply(Params{Serverless: false}),
+		replaymock.MockModule(),
+		compressionimpl.MockModule(),
+		pidmapimpl.Module(),
+		demultiplexerimpl.FakeSamplerMockModule(),
+		workloadmetafxmock.MockModule(),
+		fx.Supply(workloadmeta.NewParams()),
+	))
+
+	s := newServerCompat(deps.Config, deps.Log, deps.Replay, deps.Debug, false, deps.Demultiplexer, deps.WMeta, deps.PidMap, deps.Telemetry)
+
 	sync := make(chan struct{})
 	done := make(chan struct{}, N)
 	for i := 0; i < N; i++ {
