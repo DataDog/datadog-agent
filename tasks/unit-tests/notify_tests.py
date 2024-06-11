@@ -416,10 +416,11 @@ class TestSendNotification(unittest.TestCase):
         notify.send_notification(MagicMock(), alert_jobs)
         mock_slack.assert_not_called()
 
+    @patch("tasks.notify.send_metrics")
     @patch("tasks.notify.send_slack_message")
     @patch.object(notify.ConsecutiveJobAlert, 'message', lambda self, ctx: '\n'.join(self.failures) + '\n')
     @patch.object(notify.CumulativeJobAlert, 'message', lambda self: '\n'.join(self.failures))
-    def test_jobowners(self, mock_slack: MagicMock):
+    def test_jobowners(self, mock_slack: MagicMock, mock_metrics: MagicMock):
         consecutive = {
             'tests_hello': [notify.ExecutionsJobInfo(1)] * notify.CONSECUTIVE_THRESHOLD,
             'security_go_generate_check': [notify.ExecutionsJobInfo(1)] * notify.CONSECUTIVE_THRESHOLD,
@@ -452,6 +453,25 @@ class TestSendNotification(unittest.TestCase):
             njobs = len(jobs)
 
             self.assertEqual(expected_team_njobs.get(channel, None), njobs)
+
+        # Verify metrics
+        mock_metrics.assert_called_once()
+        expected_metrics = {
+            '@datadog/agent-security': 1,
+            '@datadog/agent-build-and-releases': 2,
+            '@datadog/agent-ci-experience': 2,
+            '@datadog/agent-developer-tools': 2,
+            '@datadog/documentation': 2,
+            '@datadog/agent-platform': 2,
+        }
+        for metric in mock_metrics.call_args[0][0]:
+            name = metric['metric']
+            value = int(metric['points'][0]['value'])
+            team = next(tag.removeprefix('team:') for tag in metric['tags'] if tag.startswith('team:'))
+
+            self.assertEqual(
+                value, expected_metrics.get(team), f'Unexpected metric value for metric {name} of team {team}'
+            )
 
 
 class TestSendFailureSummaryNotification(unittest.TestCase):

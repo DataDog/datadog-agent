@@ -31,7 +31,7 @@ from tasks.libs.pipeline.notifications import (
 )
 from tasks.libs.pipeline.stats import compute_failed_jobs_series, compute_required_jobs_max_duration
 from tasks.libs.types.types import FailedJobs, SlackMessage, TeamMessage
-from tasks.owners import make_partition
+from tasks.owners import channel_owners, make_partition
 
 UNKNOWN_OWNER_TEMPLATE = """The owner `{owner}` is not mapped to any slack channel.
 Please check for typos in the JOBOWNERS file and/or add them to the Github <-> Slack map.
@@ -454,12 +454,30 @@ def update_statistics(job_executions: PipelineRuns):
 
 def send_notification(ctx: Context, alert_jobs, jobowners=".gitlab/JOBOWNERS"):
     def send_alert(channel, consecutive: ConsecutiveJobAlert, cumulative: CumulativeJobAlert):
+        nonlocal metrics
+
         message = consecutive.message(ctx) + cumulative.message()
         message = message.strip()
 
         if message:
             send_slack_message(channel, message)
 
+            # Create metrics for consecutive and cumulative alerts
+            metrics += [
+                create_count(
+                    metric_name=f"datadog.ci.failed_job_alerts.{alert_type}",
+                    timestamp=timestamp,
+                    tags=[f"team:{team}", "repository:datadog-agent"],
+                    unit="notification",
+                    value=len(failures),
+                )
+                for alert_type, failures in (("consecutive", consecutive.failures), ("cumulative", cumulative.failures))
+                for team in channel_owners(channel)
+                if len(failures) > 0
+            ]
+
+    metrics = []
+    timestamp = int(datetime.now(timezone.utc).timestamp())
     all_alerts = set(alert_jobs["consecutive"]) | set(alert_jobs["cumulative"])
     partition = make_partition(all_alerts, jobowners, get_channels=True)
 
@@ -476,6 +494,10 @@ def send_notification(ctx: Context, alert_jobs, jobowners=".gitlab/JOBOWNERS"):
     consecutive = ConsecutiveJobAlert(alert_jobs["consecutive"])
     cumulative = CumulativeJobAlert(alert_jobs["cumulative"])
     send_alert('#agent-platform-ops', consecutive, cumulative)
+
+    if metrics:
+        send_metrics(metrics)
+        print('Metrics sent')
 
 
 @task
