@@ -16,6 +16,11 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Datadog/dublin-traceroute/go/dublintraceroute/probes/probev4"
+	"github.com/Datadog/dublin-traceroute/go/dublintraceroute/results"
+	"github.com/vishvananda/netns"
+
+	telemetryComponent "github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/tcp"
@@ -26,9 +31,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/Datadog/dublin-traceroute/go/dublintraceroute/probes/probev4"
-	"github.com/Datadog/dublin-traceroute/go/dublintraceroute/results"
-	"github.com/vishvananda/netns"
 
 	"github.com/google/uuid"
 )
@@ -66,7 +68,7 @@ type Runner struct {
 }
 
 // NewRunner initializes a new traceroute runner
-func NewRunner() (*Runner, error) {
+func NewRunner(telemetryComp telemetryComponent.Component) (*Runner, error) {
 	var err error
 	var networkID string
 	if ec2.IsRunningOn(context.TODO()) {
@@ -76,7 +78,7 @@ func NewRunner() (*Runner, error) {
 		}
 	}
 
-	gatewayLookup, nsIno, err := createGatewayLookup()
+	gatewayLookup, nsIno, err := createGatewayLookup(telemetryComp)
 	if err != nil {
 		log.Errorf("failed to create gateway lookup: %s", err.Error())
 	}
@@ -430,7 +432,7 @@ func getPorts(configDestPort uint16) (uint16, uint16, bool) {
 	return destPort, srcPort, useSourcePort
 }
 
-func createGatewayLookup() (network.GatewayLookup, uint32, error) {
+func createGatewayLookup(telemetryComp telemetryComponent.Component) (network.GatewayLookup, uint32, error) {
 	rootNs, err := rootNsLookup()
 	if err != nil {
 		return nil, 0, fmt.Errorf("failed to look up root network namespace: %w", err)
@@ -442,7 +444,7 @@ func createGatewayLookup() (network.GatewayLookup, uint32, error) {
 		return nil, 0, fmt.Errorf("failed to get inode number: %w", err)
 	}
 
-	gatewayLookup := network.NewGatewayLookup(rootNsLookup, math.MaxUint32)
+	gatewayLookup := network.NewGatewayLookup(rootNsLookup, math.MaxUint32, telemetryComp)
 	return gatewayLookup, nsIno, nil
 }
 
