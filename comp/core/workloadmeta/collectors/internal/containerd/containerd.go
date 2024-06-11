@@ -19,7 +19,7 @@ import (
 	containerdevents "github.com/containerd/containerd/events"
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	agentErrors "github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/sbom/scanner"
@@ -75,7 +75,7 @@ var containerdTopics = []string{
 }
 
 type exitInfo struct {
-	exitCode *uint32
+	exitCode *int64
 	exitTS   time.Time
 }
 
@@ -279,7 +279,7 @@ func (c *collector) notifyInitialImageEvents(ctx context.Context, namespace stri
 
 	mergedImages := make(map[workloadmeta.EntityID]*workloadmeta.ContainerImageMetadata)
 	for _, image := range existingImages {
-		wlmImage, err := c.createOrUpdateImageMetadata(ctx, namespace, image, nil)
+		wlmImage, err := c.createOrUpdateImageMetadata(ctx, namespace, image, nil, true)
 		if err != nil {
 			log.Warnf("error getting information for image with name %q: %s", image.Name(), err.Error())
 			continue
@@ -299,6 +299,7 @@ func (c *collector) notifyInitialImageEvents(ctx context.Context, namespace stri
 			},
 		})
 	}
+	log.Debugf("%d initial image events sent for namespace %s. total number of images reference is %d", len(mergedImages), namespace, len(existingImages))
 	return nil
 }
 
@@ -420,7 +421,7 @@ func (c *collector) deleteExitInfo(id string) {
 	delete(c.contToExitInfo, id)
 }
 
-func (c *collector) cacheExitInfo(id string, exitCode *uint32, exitTS time.Time) {
+func (c *collector) cacheExitInfo(id string, exitCode *int64, exitTS time.Time) {
 	c.contToExitInfo[id] = &exitInfo{
 		exitTS:   exitTS,
 		exitCode: exitCode,

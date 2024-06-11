@@ -38,7 +38,9 @@ notify:
         else
           invoke -e notify.send-message --notification-type "merge"
         fi
-        invoke notify.check-consistent-failures
+        if [ "$CI_COMMIT_BRANCH" = "$CI_DEFAULT_BRANCH" ]; then
+          invoke notify.check-consistent-failures
+        fi
       else
         echo "This pipeline was triggered by another repository, skipping notification."
       fi

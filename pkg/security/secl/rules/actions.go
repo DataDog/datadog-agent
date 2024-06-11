@@ -29,6 +29,7 @@ type ActionDefinition struct {
 	Set      *SetDefinition      `yaml:"set"`
 	Kill     *KillDefinition     `yaml:"kill"`
 	CoreDump *CoreDumpDefinition `yaml:"coredump"`
+	Hash     *HashDefinition     `yaml:"hash"`
 
 	// internal
 	InternalCallback *InternalCallbackDefinition
@@ -37,8 +38,8 @@ type ActionDefinition struct {
 
 // Check returns an error if the action in invalid
 func (a *ActionDefinition) Check(opts PolicyLoaderOpts) error {
-	if a.Set == nil && a.InternalCallback == nil && a.Kill == nil {
-		return errors.New("either 'set' or 'kill' section of an action must be specified")
+	if a.Set == nil && a.InternalCallback == nil && a.Kill == nil && a.Hash == nil {
+		return errors.New("either 'set', 'kill' or 'hash' section of an action must be specified")
 	}
 
 	if a.Set != nil {
@@ -129,3 +130,6 @@ type CoreDumpDefinition struct {
 	Dentry        bool `yaml:"dentry"`
 	NoCompression bool `yaml:"no_compression"`
 }
+
+// HashDefinition describes the 'hash' section of a rule action
+type HashDefinition struct{}

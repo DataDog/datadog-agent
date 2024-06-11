@@ -796,15 +796,19 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 			name: "validate http methods",
 			// The purpose of this test is to validate that we are able to capture all http methods.
 			messageBuilder: func() [][]byte {
-				httpMethods = []string{http.MethodGet, http.MethodPost, http.MethodHead, http.MethodDelete,
+				httpMethods := []string{http.MethodGet, http.MethodPost, http.MethodHead, http.MethodDelete,
 					http.MethodPut, http.MethodPatch, http.MethodOptions, http.MethodTrace, http.MethodConnect}
+				// Duplicating the list to have each method appearing twice
+				httpMethods = append(httpMethods, httpMethods...)
 				// Currently, the methods TRACE and CONNECT are not supported by the http.Method package.
 				// Therefore, we mark those requests as incomplete and not expected to be captured.
 				framer := newFramer()
+				var buf bytes.Buffer
+				encoder := hpack.NewEncoder(&buf)
 				for i, method := range httpMethods {
 					streamID := getStreamID(i)
 					framer.
-						writeHeaders(t, streamID, usmhttp2.HeadersFrameOptions{Headers: generateTestHeaderFields(headersGenerationOptions{overrideMethod: method})}).
+						writeHeadersWithEncoder(t, streamID, usmhttp2.HeadersFrameOptions{Headers: generateTestHeaderFields(headersGenerationOptions{overrideMethod: method})}, encoder, &buf).
 						writeData(t, streamID, endStream, emptyBody)
 				}
 				return [][]byte{framer.bytes()}
@@ -813,31 +817,31 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 				{
 					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString(http2DefaultTestPath)},
 					Method: usmhttp.MethodGet,
-				}: 1,
+				}: 2,
 				{
 					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString(http2DefaultTestPath)},
 					Method: usmhttp.MethodPost,
-				}: 1,
+				}: 2,
 				{
 					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString(http2DefaultTestPath)},
 					Method: usmhttp.MethodHead,
-				}: 1,
+				}: 2,
 				{
 					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString(http2DefaultTestPath)},
 					Method: usmhttp.MethodDelete,
-				}: 1,
+				}: 2,
 				{
 					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString(http2DefaultTestPath)},
 					Method: usmhttp.MethodPut,
-				}: 1,
+				}: 2,
 				{
 					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString(http2DefaultTestPath)},
 					Method: usmhttp.MethodPatch,
-				}: 1,
+				}: 2,
 				{
 					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString(http2DefaultTestPath)},
 					Method: usmhttp.MethodOptions,
-				}: 1,
+				}: 2,
 			},
 		},
 		{
@@ -1744,6 +1748,23 @@ func (f *framer) writeHeaders(t *testing.T, streamID uint32, headersFramesOption
 	headersFrame, err := usmhttp2.NewHeadersFrameMessage(headersFramesOptions)
 	require.NoError(t, err, "could not create headers frame")
 
+	if headersFramesOptions.EndStream {
+		require.NoError(t, f.framer.WriteHeaders(http2.HeadersFrameParam{
+			StreamID:      streamID,
+			BlockFragment: headersFrame,
+			EndHeaders:    endHeaders,
+			EndStream:     true,
+		}), "could not write header frames")
+		return f
+	}
+
+	return f.writeRawHeaders(t, streamID, true, headersFrame)
+}
+
+func (f *framer) writeHeadersWithEncoder(t *testing.T, streamID uint32, headersFramesOptions usmhttp2.HeadersFrameOptions, encoder *hpack.Encoder, buf *bytes.Buffer) *framer {
+	require.NoError(t, usmhttp2.NewHeadersFrameMessageWithEncoder(encoder, headersFramesOptions), "could not create headers frame")
+	headersFrame := buf.Bytes()
+	buf.Reset()
 	if headersFramesOptions.EndStream {
 		require.NoError(t, f.framer.WriteHeaders(http2.HeadersFrameParam{
 			StreamID:      streamID,

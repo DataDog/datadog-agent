@@ -9,6 +9,7 @@ import traceback
 from collections import defaultdict
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from urllib.parse import quote
 
 from invoke import task
 from invoke.context import Context
@@ -35,12 +36,26 @@ UNKNOWN_OWNER_TEMPLATE = """The owner `{owner}` is not mapped to any slack chann
 Please check for typos in the JOBOWNERS file and/or add them to the Github <-> Slack map.
 """
 PROJECT_NAME = "DataDog/datadog-agent"
+PROJECT_TITLE = PROJECT_NAME.removeprefix("DataDog/")
 AWS_S3_CP_CMD = "aws s3 cp --only-show-errors --region us-east-1 --sse AES256"
 S3_CI_BUCKET_URL = "s3://dd-ci-artefacts-build-stable/datadog-agent/failed_jobs"
 CONSECUTIVE_THRESHOLD = 3
 CUMULATIVE_THRESHOLD = 5
 CUMULATIVE_LENGTH = 10
 CI_VISIBILITY_JOB_URL = 'https://app.datadoghq.com/ci/pipeline-executions?query=ci_level%3Ajob%20%40ci.pipeline.name%3ADataDog%2Fdatadog-agent%20%40git.branch%3Amain%20%40ci.job.name%3A{}&agg_m=count'
+
+
+def get_ci_visibility_job_url(name: str, prefix=True) -> str:
+    # Escape (https://docs.datadoghq.com/logs/explorer/search_syntax/#escape-special-characters-and-spaces)
+    name = re.sub(r"([-+=&|><!(){}[\]^\"“”~*?:\\ ])", r"\\\1", name)
+
+    if prefix:
+        name += '*'
+
+    # URL Quote
+    name = quote(name)
+
+    return CI_VISIBILITY_JOB_URL.format(name)
 
 
 @dataclass
@@ -57,7 +72,7 @@ class ExecutionsJobInfo:
 
     @staticmethod
     def ci_visibility_url(name):
-        return CI_VISIBILITY_JOB_URL.format(name)
+        return get_ci_visibility_job_url(name)
 
     @staticmethod
     def from_dict(data):
@@ -139,10 +154,10 @@ class ConsecutiveJobAlert:
         # Find initial PR
         initial_pr_sha = next(iter(self.failures.values()))[0].commit
         initial_pr_title = ctx.run(f'git show -s --format=%s {initial_pr_sha}', hide=True).stdout.strip()
-        initial_pr_info = get_pr_from_commit(initial_pr_title, PROJECT_NAME)
+        initial_pr_info = get_pr_from_commit(initial_pr_title, PROJECT_TITLE)
         if initial_pr_info:
             pr_id, pr_url = initial_pr_info
-            initial_pr = f'<{pr_url}|{pr_id}>'
+            initial_pr = f'<{pr_url}|#{pr_id}>'
         else:
             # Cannot find PR, display the commit sha
             initial_pr = initial_pr_sha[:8]
@@ -441,6 +456,43 @@ def send_notification(ctx: Context, alert_jobs):
 
     if message:
         send_slack_message("#agent-platform-ops", message)
+
+
+@task
+def send_failure_summary_notification(_, jobs: dict[str, any] | None = None, list_max_len=10):
+    if jobs is None:
+        jobs = os.environ["JOB_FAILURES"]
+        jobs = json.loads(jobs)
+
+    # List of (job_name, (failure_count, total_count)) ordered by failure_count
+    stats = sorted(
+        ((name, (fail, success)) for (name, (fail, success)) in jobs.items() if fail > 0),
+        key=lambda x: (x[1][0], x[1][1] if x[1][1] is not None else 0),
+        reverse=True,
+    )[:list_max_len]
+
+    # Don't send message if no failure
+    if len(stats) == 0:
+        return
+
+    # Create message
+    message = ['*Daily Job Failure Report*']
+    message.append('These jobs had the most failures in the last 24 hours:')
+    for name, (fail, total) in stats:
+        link = get_ci_visibility_job_url(name)
+        message.append(f"- <{link}|{name}>: *{fail} failures*{f' / {total} runs' if total else ''}")
+
+    message.append(
+        'Click <https://app.datadoghq.com/ci/pipeline-executions?query=ci_level%3Ajob%20env%3Aprod%20%40git.repository.id%3A%22gitlab.ddbuild.io%2FDataDog%2Fdatadog-agent%22%20%40ci.pipeline.name%3A%22DataDog%2Fdatadog-agent%22%20%40ci.provider.instance%3Agitlab-ci%20%40git.branch%3Amain%20%40ci.status%3Aerror&agg_m=count&agg_m_source=base&agg_q=%40ci.job.name&agg_q_source=base&agg_t=count&fromUser=false&index=cipipeline&sort_m=count&sort_m_source=base&sort_t=count&top_n=25&top_o=top&viz=toplist&x_missing=true&paused=false|here> for more details.'
+    )
+
+    # Send message
+    from slack_sdk import WebClient
+
+    client = WebClient(os.environ["SLACK_API_TOKEN"])
+    client.chat_postMessage(channel='#agent-platform-ops', text='\n'.join(message))
+
+    print('Message sent')
 
 
 @task

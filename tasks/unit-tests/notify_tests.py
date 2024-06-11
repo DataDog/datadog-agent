@@ -24,7 +24,6 @@ def get_fake_jobs() -> list[ProjectJob]:
 
 
 class TestSendMessage(unittest.TestCase):
-    @patch("builtins.print", new=MagicMock())
     @patch('tasks.libs.ciproviders.gitlab_api.get_gitlab_api')
     def test_merge(self, api_mock):
         repo_mock = api_mock.return_value.projects.get.return_value
@@ -34,7 +33,6 @@ class TestSendMessage(unittest.TestCase):
         notify.send_message(MockContext(), notification_type="merge", print_to_stdout=True)
         list_mock.assert_called()
 
-    @patch("builtins.print", new=MagicMock())
     @patch("tasks.notify.get_failed_jobs")
     def test_merge_without_get_failed_call(self, get_failed_jobs_mock):
         failed = FailedJobs()
@@ -99,7 +97,6 @@ class TestSendMessage(unittest.TestCase):
 
         get_failed_jobs_mock.assert_called()
 
-    @patch("builtins.print", new=MagicMock())
     @patch("tasks.libs.owners.parsing.read_owners")
     def test_route_e2e_internal_error(self, read_owners_mock):
         failed = FailedJobs()
@@ -173,7 +170,6 @@ class TestSendMessage(unittest.TestCase):
         self.assertNotIn("@DataDog/agent-developer-tools", owners)
         self.assertNotIn("@DataDog/agent-build-and-releases", owners)
 
-    @patch("builtins.print", new=MagicMock())
     @patch('tasks.libs.ciproviders.gitlab_api.get_gitlab_api')
     def test_merge_with_get_failed_call(self, api_mock):
         repo_mock = api_mock.return_value.projects.get.return_value
@@ -217,7 +213,6 @@ class TestSendMessage(unittest.TestCase):
 
 
 class TestSendStats(unittest.TestCase):
-    @patch("builtins.print", new=MagicMock())
     @patch('tasks.libs.ciproviders.gitlab_api.get_gitlab_api')
     @patch("tasks.notify.create_count", new=MagicMock())
     def test_nominal(self, api_mock):
@@ -400,3 +395,19 @@ class TestSendNotification(unittest.TestCase):
         alert_jobs = {"consecutive": notify.ConsecutiveJobAlert({}), "cumulative": notify.CumulativeJobAlert({})}
         notify.send_notification(MagicMock(), alert_jobs)
         mock_slack.assert_not_called()
+
+
+class TestSendFailureSummaryNotification(unittest.TestCase):
+    @patch("slack_sdk.WebClient")
+    @patch("os.environ", new=MagicMock())
+    def test_nominal(self, mock_slack):
+        # jobname: [total_failures, total_runs]
+        jobs = {
+            "myjob1": [45, None],
+            "myjob2": [42, 45],
+            "myjob3": [21, None],
+            "myjob4": [16, 89],
+        }
+        notify.send_failure_summary_notification(MockContext(), jobs)
+        mock_slack.assert_called()
+        mock_slack.return_value.chat_postMessage.assert_called()

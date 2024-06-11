@@ -539,6 +539,7 @@ func TestETWFileNotifications(t *testing.T) {
 
 	wp, err := createTestProbe()
 	require.NoError(t, err)
+	wp.config.Probe.EnableApprovers = false
 
 	// teardownTestProe calls the stop function on etw, which will
 	// in turn wait on wp.fimgw

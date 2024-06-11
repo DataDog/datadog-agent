@@ -29,6 +29,30 @@
   cache:
     - !reference [.cache_omnibus_ruby_deps, cache]
 
+.package_rpm_x86:
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  tags: ["arch:amd64"]
+  variables:
+    DD_PKG_ARCH: x86_64
+    PACKAGE_ARCH: amd64
+
+.package_rpm_arm64:
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_arm64$DATADOG_AGENT_ARMBUILDIMAGES_SUFFIX:$DATADOG_AGENT_ARMBUILDIMAGES
+  tags: ["arch:arm64"]
+  variables:
+    PACKAGE_ARCH: arm64
+    DD_PKG_ARCH: arm64
+
+.package_rpm_agent_6:
+  variables:
+    RELEASE_VERSION: $RELEASE_VERSION_6
+    AGENT_MAJOR_VERSION: 6
+
+.package_rpm_agent_7:
+  variables:
+    RELEASE_VERSION: $RELEASE_VERSION_7
+    AGENT_MAJOR_VERSION: 7
+
 .package_suse_rpm_common:
   extends: .package_rpm_common
   script:
@@ -42,136 +66,71 @@
     OMNIBUS_EXTRA_ARGS: "--host-distribution=suse"
 
 agent_rpm-x64-a6:
-  extends: .package_rpm_common
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
-  tags: ["arch:amd64"]
+  extends: [.package_rpm_common, .package_rpm_agent_6, .package_rpm_x86]
   needs: ["datadog-agent-6-x64"]
   variables:
-    PACKAGE_ARCH: x86_64
-    DD_PKG_ARCH: "x86_64"
     DD_PROJECT: agent
-    RELEASE_VERSION: $RELEASE_VERSION_6
-    AGENT_MAJOR_VERSION: 6
 
 agent_rpm-x64-a7:
-  extends: .package_rpm_common
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  extends: [.package_rpm_common, .package_rpm_agent_7, .package_rpm_x86]
   tags: ["arch:amd64"]
   needs: ["datadog-agent-7-x64"]
   variables:
-    PACKAGE_ARCH: x86_64
-    DD_PKG_ARCH: "x86_64"
     DD_PROJECT: agent
-    RELEASE_VERSION: $RELEASE_VERSION_7
-    AGENT_MAJOR_VERSION: 7
 
 agent_rpm-arm64-a6:
-  extends: .package_rpm_common
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_arm64$DATADOG_AGENT_ARMBUILDIMAGES_SUFFIX:$DATADOG_AGENT_ARMBUILDIMAGES
-  tags: ["arch:arm64"]
+  extends: [.package_rpm_common, .package_rpm_agent_6, .package_rpm_arm64]
   needs: ["datadog-agent-6-arm64"]
   variables:
-    PACKAGE_ARCH: arm64
-    DD_PKG_ARCH: "arm64"
     DD_PROJECT: agent
-    RELEASE_VERSION: $RELEASE_VERSION_6
-    AGENT_MAJOR_VERSION: 6
 
 agent_rpm-arm64-a7:
-  extends: .package_rpm_common
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_arm64$DATADOG_AGENT_ARMBUILDIMAGES_SUFFIX:$DATADOG_AGENT_ARMBUILDIMAGES
-  tags: ["arch:arm64"]
+  extends: [.package_rpm_common, .package_rpm_agent_7, .package_rpm_arm64]
   needs: ["datadog-agent-7-arm64"]
   variables:
-    PACKAGE_ARCH: arm64
-    DD_PKG_ARCH: "arm64"
     DD_PROJECT: agent
-    RELEASE_VERSION: $RELEASE_VERSION_7
-    AGENT_MAJOR_VERSION: 7
 
 agent_suse-x64-a6:
-  extends: .package_suse_rpm_common
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
-  tags: ["arch:amd64"]
+  extends: [.package_suse_rpm_common, .package_rpm_agent_6, .package_rpm_x86]
   needs: ["datadog-agent-6-x64"]
   variables:
-    PACKAGE_ARCH: x86_64
-    DD_PKG_ARCH: "x86_64"
     DD_PRODUCT: agent
-    RELEASE_VERSION: $RELEASE_VERSION_6
-    AGENT_MAJOR_VERSION: 6
 
 agent_suse-x64-a7:
-  extends: .package_suse_rpm_common
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
-  tags: ["arch:amd64"]
+  extends: [.package_suse_rpm_common, .package_rpm_agent_7, .package_rpm_x86]
   needs: ["datadog-agent-7-x64"]
   variables:
-    PACKAGE_ARCH: x86_64
-    DD_PKG_ARCH: "x86_64"
     DD_PRODUCT: agent
-    RELEASE_VERSION: $RELEASE_VERSION_7
-    AGENT_MAJOR_VERSION: 7
 
 agent_suse-arm64-a7:
-  extends: .package_suse_rpm_common
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_arm64$DATADOG_AGENT_ARMBUILDIMAGES_SUFFIX:$DATADOG_AGENT_ARMBUILDIMAGES
-  tags: ["arch:arm64"]
+  extends: [.package_suse_rpm_common, .package_rpm_agent_7, .package_rpm_arm64]
   needs: ["datadog-agent-7-arm64"]
   variables:
-    PACKAGE_ARCH: arm64
-    DD_PKG_ARCH: "arm64"
     DD_PRODUCT: agent
-    RELEASE_VERSION: $RELEASE_VERSION_7
-    AGENT_MAJOR_VERSION: 7
 
 installer_rpm-amd64:
-  extends: .package_rpm_common
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
-  tags: ["arch:amd64"]
+  extends: [.package_rpm_common, .package_rpm_agent_7, .package_rpm_x86]
   needs: ["installer-amd64"]
   variables:
-    PACKAGE_ARCH: x86_64
-    DD_PKG_ARCH: "x86_64"
     DD_PROJECT: installer
-    RELEASE_VERSION: $RELEASE_VERSION_7
-    AGENT_MAJOR_VERSION: 7
 
 installer_rpm-arm64:
-  extends: .package_rpm_common
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_arm64$DATADOG_AGENT_ARMBUILDIMAGES_SUFFIX:$DATADOG_AGENT_ARMBUILDIMAGES
-  tags: ["arch:arm64"]
+  extends: [.package_rpm_common, .package_rpm_agent_7, .package_rpm_arm64]
   needs: ["installer-arm64"]
   variables:
-    PACKAGE_ARCH: aarch64
-    DD_PKG_ARCH: "arm64"
     DD_PROJECT: installer
-    RELEASE_VERSION: $RELEASE_VERSION_7
-    AGENT_MAJOR_VERSION: 7
 
 installer_suse_rpm-amd64:
-  extends: .package_suse_rpm_common
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
-  tags: ["arch:amd64"]
+  extends: [.package_suse_rpm_common, .package_rpm_agent_7, .package_rpm_x86]
   needs: ["installer-amd64"]
   variables:
-    PACKAGE_ARCH: x86_64
-    DD_PKG_ARCH: "x86_64"
     DD_PROJECT: installer
-    RELEASE_VERSION: $RELEASE_VERSION_7
-    AGENT_MAJOR_VERSION: 7
 
 installer_suse_rpm-arm64:
-  extends: .package_suse_rpm_common
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_arm64$DATADOG_AGENT_ARMBUILDIMAGES_SUFFIX:$DATADOG_AGENT_ARMBUILDIMAGES
-  tags: ["arch:arm64"]
+  extends: [.package_suse_rpm_common, .package_rpm_agent_7, .package_rpm_arm64]
   needs: ["installer-arm64"]
   variables:
-    PACKAGE_ARCH: aarch64
-    DD_PKG_ARCH: "arm64"
     DD_PROJECT: installer
-    RELEASE_VERSION: $RELEASE_VERSION_7
-    AGENT_MAJOR_VERSION: 7
 
 .package_iot_rpm_common:
   rules:
@@ -203,24 +162,12 @@ installer_suse_rpm-arm64:
     - !reference [.cache_omnibus_ruby_deps, cache]
 
 iot_agent_rpm-x64:
-  extends: .package_iot_rpm_common
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
-  tags: ["arch:amd64"]
+  extends: [.package_iot_rpm_common, .package_rpm_x86]
   needs: ["iot-agent-x64"]
-  variables:
-    PACKAGE_ARCH: x86_64
-    DD_PKG_ARCH: "x86_64"
-    DD_PROJECT: agent
 
 iot_agent_rpm-arm64:
-  extends: .package_iot_rpm_common
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_arm64$DATADOG_AGENT_ARMBUILDIMAGES_SUFFIX:$DATADOG_AGENT_ARMBUILDIMAGES
-  tags: ["arch:arm64"]
+  extends: [.package_iot_rpm_common, .package_rpm_arm64]
   needs: ["iot-agent-arm64"]
-  variables:
-    PACKAGE_ARCH: aarch64
-    DD_PKG_ARCH: "arm64"
-    DD_PROJECT: agent
 
 iot_agent_rpm-armhf:
   extends: .package_iot_rpm_common
@@ -231,15 +178,12 @@ iot_agent_rpm-armhf:
   variables:
     PACKAGE_ARCH: armhf
     DD_PKG_ARCH: "arm64"
-    DD_PROJECT: agent
   before_script:
     # Ensures uname -m reports armv7l
     - export LD_PRELOAD="/usr/local/lib/libfakearmv7l.so"
 
 iot_agent_suse-x64:
-  extends: .package_iot_rpm_common
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/rpm_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
-  tags: ["arch:amd64"]
+  extends: [.package_iot_rpm_common, .package_rpm_x86]
   needs: ["iot-agent-x64"]
   script:
     # Don't simply redefine OMNIBUS_PACKAGE_DIR since it also defines where the input
@@ -252,10 +196,18 @@ iot_agent_suse-x64:
     paths:
       - $OMNIBUS_PACKAGE_DIR_SUSE
   variables:
-    PACKAGE_ARCH: x86_64
-    DD_PKG_ARCH: "x86_64"
-    DD_PROJECT: agent
     OMNIBUS_EXTRA_ARGS: "--host-distribution=suse"
   cache:
     - !reference [.cache_omnibus_ruby_deps, cache]
 
+dogstatsd_rpm-x64:
+  extends: [.package_rpm_common, .package_rpm_agent_7, .package_rpm_x86]
+  needs: ["dogstatsd-x64"]
+  variables:
+    DD_PROJECT: dogstatsd
+
+dogstatsd_suse-x64:
+  extends: [.package_suse_rpm_common, .package_rpm_agent_7, .package_rpm_x86]
+  needs: ["dogstatsd-x64"]
+  variables:
+    DD_PROJECT: dogstatsd

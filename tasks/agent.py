@@ -21,7 +21,8 @@ from tasks.go import deps
 from tasks.libs.common.utils import (
     REPO_PATH,
     bin_name,
-    cache_version,
+    collapsed_section,
+    create_version_json,
     get_build_flags,
     get_embedded_path,
     get_goenv,
@@ -79,6 +80,7 @@ AGENT_CORECHECKS = [
 
 WINDOWS_CORECHECKS = [
     "agentcrashdetect",
+    "sbom",
     "windows_registry",
     "winkmem",
     "wincrashdetect",
@@ -144,8 +146,11 @@ def build(
     if not exclude_rtloader and not flavor.is_iot():
         # If embedded_path is set, we should give it to rtloader as it should install the headers/libs
         # in the embedded path folder because that's what is used in get_build_flags()
-        rtloader_make(ctx, python_runtimes=python_runtimes, install_prefix=embedded_path, cmake_options=cmake_options)
-        rtloader_install(ctx)
+        with collapsed_section("Install embedded rtloader"):
+            rtloader_make(
+                ctx, python_runtimes=python_runtimes, install_prefix=embedded_path, cmake_options=cmake_options
+            )
+            rtloader_install(ctx)
 
     ldflags, gcflags, env = get_build_flags(
         ctx,
@@ -216,7 +221,8 @@ def build(
         "REPO_PATH": REPO_PATH,
         "flavor": "iot-agent" if flavor.is_iot() else "agent",
     }
-    ctx.run(cmd.format(**args), env=env)
+    with collapsed_section("Build agent"):
+        ctx.run(cmd.format(**args), env=env)
 
     if embedded_path is None:
         embedded_path = get_embedded_path(ctx)
@@ -234,16 +240,17 @@ def build(
 
         create_launcher(ctx, build, agent_fullpath, bundled_agent_bin)
 
-    render_config(
-        ctx,
-        env=env,
-        flavor=flavor,
-        python_runtimes=python_runtimes,
-        skip_assets=skip_assets,
-        build_tags=build_tags,
-        development=development,
-        windows_sysprobe=windows_sysprobe,
-    )
+    with collapsed_section("Generate configuration files"):
+        render_config(
+            ctx,
+            env=env,
+            flavor=flavor,
+            python_runtimes=python_runtimes,
+            skip_assets=skip_assets,
+            build_tags=build_tags,
+            development=development,
+            windows_sysprobe=windows_sysprobe,
+        )
 
 
 def create_launcher(ctx, agent, src, dst):
@@ -730,10 +737,11 @@ def version(
     omnibus_format=False,
     git_sha_length=7,
     major_version='7',
-    version_cached=False,
+    cache_version=False,
     pipeline_id=None,
     include_git=True,
     include_pre=True,
+    release=False,
 ):
     """
     Get the agent version.
@@ -746,8 +754,8 @@ def version(
     version_cached: save the version inside a "agent-version.cache" that will be reused
                     by each next call of version.
     """
-    if version_cached:
-        cache_version(ctx, git_sha_length=git_sha_length)
+    if cache_version:
+        create_version_json(ctx, git_sha_length=git_sha_length)
 
     version = get_version(
         ctx,
@@ -758,6 +766,7 @@ def version(
         include_pipeline_id=True,
         pipeline_id=pipeline_id,
         include_pre=include_pre,
+        release=release,
     )
     if omnibus_format:
         # See: https://github.com/DataDog/omnibus-ruby/blob/datadog-5.5.0/lib/omnibus/packagers/deb.rb#L599

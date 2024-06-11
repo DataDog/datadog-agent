@@ -7,6 +7,7 @@ package installer
 
 import (
 	"fmt"
+	"path/filepath"
 
 	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/installer/host"
@@ -39,19 +40,87 @@ func testAgent(os e2eos.Descriptor, arch e2eos.Architecture) packageSuite {
 func (s *packageAgentSuite) TestInstall() {
 	s.RunInstallScript(envForceInstall("datadog-agent"))
 	defer s.Purge()
-	s.host.WaitForUnitActive("datadog-agent.service", "datadog-agent-trace.service", "datadog-agent-process.service")
+	s.host.WaitForUnitActive(agentUnit, traceUnit, processUnit)
 
 	state := s.host.State()
-
-	state.AssertUnitsLoaded("datadog-agent.service", "datadog-agent-trace.service", "datadog-agent-process.service", "datadog-agent-sysprobe.service", "datadog-agent-security.service")
-	state.AssertUnitsEnabled("datadog-agent.service", "datadog-agent-trace.service", "datadog-agent-process.service", "datadog-agent-sysprobe.service", "datadog-agent-security.service")
-	state.AssertUnitsRunning("datadog-agent.service", "datadog-agent-trace.service", "datadog-agent-process.service")
-	state.AssertUnitsDead("datadog-agent-sysprobe.service", "datadog-agent-security.service")
+	s.assertUnits(state, false)
 
 	state.AssertFileExists("/etc/datadog-agent/install_info", 0644, "root", "root")
 	state.AssertFileExists("/etc/datadog-agent/datadog.yaml", 0640, "dd-agent", "dd-agent")
 	// FIXME: this file is either dd-agent or root depending on the OS for some reason
 	// state.AssertFileExists("/etc/datadog-agent/install.json", 0644, "dd-agent", "dd-agent")
+}
+
+func (s *packageAgentSuite) assertUnits(state host.State, oldUnits bool) {
+	state.AssertUnitsLoaded(agentUnit, traceUnit, processUnit, probeUnit, securityUnit)
+	state.AssertUnitsEnabled(agentUnit)
+	state.AssertUnitsRunning(agentUnit, traceUnit, processUnit)
+	state.AssertUnitsDead(probeUnit, securityUnit)
+
+	systemdPath := "/etc/systemd/system"
+	if oldUnits {
+		pkgManager := s.host.GetPkgManager()
+		switch pkgManager {
+		case "apt":
+			systemdPath = "/lib/systemd/system"
+		case "yum", "zypper":
+			systemdPath = "/usr/lib/systemd/system"
+		default:
+			s.T().Fatalf("unsupported package manager: %s", pkgManager)
+		}
+	}
+
+	for _, unit := range []string{agentUnit, traceUnit, processUnit, probeUnit, securityUnit} {
+
+		s.host.AssertUnitProperty(unit, "FragmentPath", filepath.Join(systemdPath, unit))
+	}
+}
+
+// TestUpgrade_AgentDebRPM_to_OCI tests the upgrade from DEB/RPM agent to the OCI one.
+func (s *packageAgentSuite) TestUpgrade_AgentDebRPM_to_OCI() {
+	// install deb/rpm agent
+	s.RunInstallScript(envForceNoInstall("datadog-agent"))
+	s.host.AssertPackageInstalledByPackageManager("datadog-agent")
+
+	defer s.Purge()
+	defer s.purgeAgentDebInstall()
+
+	state := s.host.State()
+	s.assertUnits(state, true)
+	state.AssertDirExists("/opt/datadog-agent", 0755, "dd-agent", "dd-agent")
+
+	// install OCI agent
+	s.RunInstallScript(envForceInstall("datadog-agent"))
+
+	state = s.host.State()
+	s.assertUnits(state, false)
+	s.host.AssertPackageInstalledByInstaller("datadog-agent")
+	s.host.AssertPackageInstalledByPackageManager("datadog-agent")
+}
+
+// TestUpgrade_Agent_OCI_then_DebRpm agent deb/rpm install while OCI one is installed
+func (s *packageAgentSuite) TestUpgrade_Agent_OCI_then_DebRpm() {
+	// install OCI agent
+	s.RunInstallScript(envForceInstall("datadog-agent"))
+	defer s.Purge()
+
+	state := s.host.State()
+	s.assertUnits(state, false)
+	state.AssertPathDoesNotExist("/opt/datadog-agent")
+
+	// is_installed avoids a re-install of datadog-agent with the install script
+	s.RunInstallScript(envForceNoInstall("datadog-agent"))
+	state.AssertPathDoesNotExist("/opt/datadog-agent")
+
+	// install deb/rpm manually
+	s.installDebRPMAgent()
+	defer s.purgeAgentDebInstall()
+	s.host.AssertPackageInstalledByPackageManager("datadog-agent")
+
+	state = s.host.State()
+	s.assertUnits(state, false)
+	state.AssertDirExists("/opt/datadog-agent", 0755, "dd-agent", "dd-agent")
+	s.host.AssertPackageInstalledByInstaller("datadog-agent")
 }
 
 func (s *packageAgentSuite) TestExperimentTimeout() {
@@ -124,7 +193,7 @@ func (s *packageAgentSuite) TestExperimentIgnoringSigterm() {
 		SetStopWithSigkill("trace-agent")
 
 	for _, unit := range []string{traceUnitXP, processUnitXP, agentUnitXP} {
-		s.T().Logf("Testing timeoutStop of unit %s", traceUnitXP)
+		s.T().Logf("Testing timeoutStop of unit %s", unit)
 		s.host.AssertUnitProperty(unit, "TimeoutStopUSec", "1min 30s")
 		s.host.Run(fmt.Sprintf("sudo mkdir -p /etc/systemd/system/%s.d/", unit))
 		defer s.host.Run(fmt.Sprintf("sudo rm -rf /etc/systemd/system/%s.d/", unit))
@@ -298,4 +367,33 @@ func (s *packageAgentSuite) TestExperimentStopped() {
 			),
 		)
 	}
+}
+
+func (s *packageAgentSuite) purgeAgentDebInstall() {
+	pkgManager := s.host.GetPkgManager()
+	switch pkgManager {
+	case "apt":
+		s.Env().RemoteHost.Execute("sudo apt-get remove -y --purge datadog-agent")
+	case "yum":
+		s.Env().RemoteHost.Execute("sudo yum remove -y datadog-agent")
+	case "zypper":
+		s.Env().RemoteHost.Execute("sudo zypper remove -y datadog-agent")
+	default:
+		s.T().Fatalf("unsupported package manager: %s", pkgManager)
+	}
+}
+
+func (s *packageAgentSuite) installDebRPMAgent() {
+	pkgManager := s.host.GetPkgManager()
+	switch pkgManager {
+	case "apt":
+		s.Env().RemoteHost.Execute("sudo apt-get install -y --force-yes datadog-agent")
+	case "yum":
+		s.Env().RemoteHost.Execute("sudo yum -y install datadog-agent")
+	case "zypper":
+		s.Env().RemoteHost.Execute("sudo zypper install -y datadog-agent")
+	default:
+		s.T().Fatalf("unsupported package manager: %s", pkgManager)
+	}
+
 }

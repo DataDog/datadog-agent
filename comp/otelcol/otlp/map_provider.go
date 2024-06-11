@@ -12,7 +12,6 @@ import (
 	"strings"
 
 	"go.opentelemetry.io/collector/confmap"
-	"go.opentelemetry.io/collector/otelcol"
 	"go.uber.org/multierr"
 
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/internal/configutils"
@@ -129,13 +128,4 @@ func buildMap(cfg PipelineConfig) (*confmap.Conf, error) {
 	errs = append(errs, err)
 
 	return retMap, multierr.Combine(errs...)
-}
-
-// newMapProvider creates a service.ConfigProvider with the fixed configuration.
-func newMapProvider(cfg PipelineConfig) (otelcol.ConfigProvider, error) {
-	cfgMap, err := buildMap(cfg)
-	if err != nil {
-		return nil, err
-	}
-	return configutils.NewConfigProviderFromMap(cfgMap), nil
 }
