@@ -195,6 +195,14 @@ func replyWithVersion(hash string, version string, h http.Handler) http.Handler 
 	})
 }
 
+func getConfiguredRequestTimeoutDuration(conf *config.AgentConfig) time.Duration {
+	timeout := 5 * time.Second
+	if conf.ReceiverTimeout > 0 {
+		timeout = time.Duration(conf.ReceiverTimeout) * time.Second
+	}
+	return timeout
+}
+
 // Start starts doing the HTTP server and is ready to receive traces
 func (r *HTTPReceiver) Start() {
 	if r.conf.ReceiverPort == 0 &&
@@ -205,10 +213,7 @@ func (r *HTTPReceiver) Start() {
 		return
 	}
 
-	timeout := 5 * time.Second
-	if r.conf.ReceiverTimeout > 0 {
-		timeout = time.Duration(r.conf.ReceiverTimeout) * time.Second
-	}
+	timeout := getConfiguredRequestTimeoutDuration(r.conf)
 	httpLogger := log.NewThrottled(5, 10*time.Second) // limit to 5 messages every 10 seconds
 	r.server = &http.Server{
 		ReadTimeout:  timeout,

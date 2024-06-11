@@ -85,6 +85,9 @@ type ObfuscationConfig struct {
 	// ES holds the obfuscation configuration for ElasticSearch bodies.
 	ES obfuscate.JSONConfig `mapstructure:"elasticsearch"`
 
+	// OpenSearch holds the obfuscation configuration for OpenSearch bodies.
+	OpenSearch obfuscate.JSONConfig `mapstructure:"opensearch"`
+
 	// Mongo holds the obfuscation configuration for MongoDB queries.
 	Mongo obfuscate.JSONConfig `mapstructure:"mongodb"`
 
@@ -125,6 +128,7 @@ func (o *ObfuscationConfig) Export(conf *AgentConfig) obfuscate.Config {
 			Cache:            conf.HasFeature("sql_cache"),
 		},
 		ES:                   o.ES,
+		OpenSearch:           o.OpenSearch,
 		Mongo:                o.Mongo,
 		SQLExecPlan:          o.SQLExecPlan,
 		SQLExecPlanNormalize: o.SQLExecPlanNormalize,

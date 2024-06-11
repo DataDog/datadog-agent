@@ -78,10 +78,10 @@ type KubeASConfig struct {
 	EventCollectionTimeoutMs int  `yaml:"kubernetes_event_read_timeout_ms"`
 	ResyncPeriodEvents       int  `yaml:"kubernetes_event_resync_period_s"`
 	UnbundleEvents           bool `yaml:"unbundle_events"`
+	BundleUnspecifedEvents   bool `yaml:"bundle_unspecifed_events"`
 
 	// FilteredEventTypes is a slice of kubernetes field selectors that
-	// works as a deny list of events to filter out. Only effective when
-	// UnbundleEvents = false
+	// works as a deny list of events to filter out.
 	FilteredEventTypes []string `yaml:"filtered_event_types"`
 
 	// CollectedEventTypes specifies which events to collect.
@@ -97,6 +97,12 @@ type collectedEventType struct {
 
 type eventTransformer interface {
 	Transform([]*v1.Event) ([]event.Event, []error)
+}
+
+type noopEventTransformer struct{}
+
+func (noopEventTransformer) Transform(_ []*v1.Event) ([]event.Event, []error) {
+	return nil, nil
 }
 
 type eventCollection struct {
@@ -173,10 +179,16 @@ func (k *KubeASCheck) Configure(senderManager sender.SenderManager, _ uint64, co
 		})
 	}
 
-	if k.instance.UnbundleEvents {
-		k.eventCollection.Transformer = newUnbundledTransformer(clusterName, tagger.GetTaggerInstance(), k.instance.CollectedEventTypes)
-	} else {
+	// When we use both bundled and unbundled transformers, we apply two filters: filtered_event_types and collected_event_types.
+	// When we use only the bundled transformer, we apply filtered_event_types.
+	// When we use only the unbundled transformer, we apply collected_event_types.
+	if (k.instance.UnbundleEvents && k.instance.BundleUnspecifedEvents) || !k.instance.UnbundleEvents {
 		k.eventCollection.Filter = convertFilters(k.instance.FilteredEventTypes)
+	}
+
+	if k.instance.UnbundleEvents {
+		k.eventCollection.Transformer = newUnbundledTransformer(clusterName, tagger.GetTaggerInstance(), k.instance.CollectedEventTypes, k.instance.BundleUnspecifedEvents)
+	} else {
 		k.eventCollection.Transformer = newBundledTransformer(clusterName, tagger.GetTaggerInstance())
 	}
 

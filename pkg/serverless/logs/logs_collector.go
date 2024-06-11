@@ -17,6 +17,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/serverless/executioncontext"
 	serverlessMetrics "github.com/DataDog/datadog-agent/pkg/serverless/metrics"
+	serverlessStreamLogs "github.com/DataDog/datadog-agent/pkg/serverless/streamlogs"
 	"github.com/DataDog/datadog-agent/pkg/serverless/tags"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -197,6 +198,11 @@ func (lc *LambdaLogsCollector) processLogMessages(messages []LambdaLogAPIMessage
 			// If logs cannot be assigned a request ID, delay sending until a request ID is available
 			if len(message.objectRecord.requestID) == 0 && len(lc.lastRequestID) == 0 {
 				orphanMessages = append(orphanMessages, message)
+				continue
+			}
+
+			// Don't collect stream-logs output
+			if serverlessStreamLogs.Is(message.stringRecord) {
 				continue
 			}
 

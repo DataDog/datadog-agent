@@ -655,14 +655,8 @@ type SeccompProfile struct {
 
 var _ Entity = &Container{}
 
-// ContainerFilterFunc is a function used to filter containers.
-type ContainerFilterFunc func(container *Container) bool
-
-// ProcessFilterFunc is a function used to filter processes.
-type ProcessFilterFunc func(process *Process) bool
-
 // GetRunningContainers is a function that evaluates to true for running containers.
-var GetRunningContainers ContainerFilterFunc = func(container *Container) bool { return container.State.Running }
+var GetRunningContainers EntityFilterFunc[*Container] = func(container *Container) bool { return container.State.Running }
 
 // KubernetesPod is an Entity representing a Kubernetes Pod.
 type KubernetesPod struct {
