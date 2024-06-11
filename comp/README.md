@@ -532,7 +532,7 @@ Package trace implements the "trace" bundle, providing components for the Trace 
 
 ### [comp/trace/agent](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/trace/agent)
 
-
+Package def provides the agent component type.
 
 ### [comp/trace/config](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/trace/config)
 
