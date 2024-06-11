@@ -520,11 +520,8 @@ func TestHandleKubePod(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			collector := &WorkloadMetaCollector{
-				store:      store,
-				children:   make(map[string]map[string]struct{}),
-				staticTags: tt.staticTags,
-			}
+			collector := NewWorkloadMetaCollector(context.Background(), store, nil)
+			collector.staticTags = tt.staticTags
 
 			collector.initPodMetaAsTags(tt.labelsAsTags, tt.annotationsAsTags, tt.nsLabelsAsTags, tt.nsAnnotationsAsTags)
 
@@ -671,11 +668,8 @@ func TestHandleKubePodNoContainerName(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			collector := &WorkloadMetaCollector{
-				store:      store,
-				children:   make(map[string]map[string]struct{}),
-				staticTags: tt.staticTags,
-			}
+			collector := NewWorkloadMetaCollector(context.Background(), store, nil)
+			collector.staticTags = tt.staticTags
 
 			collector.initPodMetaAsTags(tt.labelsAsTags, tt.annotationsAsTags, tt.nsLabelsAsTags, tt.annotationsAsTags)
 
@@ -771,10 +765,7 @@ func TestHandleKubeNamespace(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			collector := &WorkloadMetaCollector{
-				store:    store,
-				children: make(map[string]map[string]struct{}),
-			}
+			collector := NewWorkloadMetaCollector(context.Background(), store, nil)
 
 			collector.initPodMetaAsTags(tt.labelsAsTags, tt.annotationsAsTags, tt.nsLabelsAsTags, tt.nsAnnotationsAsTags)
 
@@ -934,11 +925,8 @@ func TestHandleECSTask(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			collector := &WorkloadMetaCollector{
-				store:                  store,
-				children:               make(map[string]map[string]struct{}),
-				collectEC2ResourceTags: true,
-			}
+			collector := NewWorkloadMetaCollector(context.Background(), store, nil)
+			collector.collectEC2ResourceTags = true
 
 			actual := collector.handleECSTask(workloadmeta.Event{
 				Type:   workloadmeta.EventTypeSet,
@@ -1478,9 +1466,9 @@ func TestHandleContainer(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			collector := &WorkloadMetaCollector{
-				staticTags: tt.staticTags,
-			}
+			collector := NewWorkloadMetaCollector(context.Background(), nil, nil)
+			collector.staticTags = tt.staticTags
+
 			collector.initContainerMetaAsTags(tt.labelsAsTags, tt.envAsTags)
 
 			actual := collector.handleContainer(workloadmeta.Event{
@@ -1564,7 +1552,7 @@ func TestHandleContainerImage(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			collector := &WorkloadMetaCollector{}
+			collector := NewWorkloadMetaCollector(context.Background(), nil, nil)
 
 			actual := collector.handleContainerImage(workloadmeta.Event{
 				Type:   workloadmeta.EventTypeSet,
@@ -1622,10 +1610,7 @@ func TestHandleDelete(t *testing.T) {
 		},
 	})
 
-	collector := &WorkloadMetaCollector{
-		store:    store,
-		children: make(map[string]map[string]struct{}),
-	}
+	collector := NewWorkloadMetaCollector(context.Background(), store, nil)
 
 	collector.handleKubePod(workloadmeta.Event{
 		Type:   workloadmeta.EventTypeSet,
@@ -1684,22 +1669,17 @@ func TestHandlePodWithDeletedContainer(t *testing.T) {
 
 	collectorCh := make(chan []*types.TagInfo, 10)
 
-	collector := &WorkloadMetaCollector{
-		store: fxutil.Test[workloadmetamock.Mock](t, fx.Options(
-			logimpl.MockModule(),
-			config.MockModule(),
-			fx.Supply(workloadmeta.NewParams()),
-			workloadmetafxmock.MockModule(),
-		)),
-		children: map[string]map[string]struct{}{
-			// Notice that here we set the container that belonged to the pod
-			// but that no longer exists
-			podTaggerEntityID: {
-				containerToBeDeletedTaggerEntityID: struct{}{},
-			},
-		},
-		tagProcessor: &fakeProcessor{collectorCh},
-	}
+	fakeStore := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+		logimpl.MockModule(),
+		config.MockModule(),
+		fx.Supply(workloadmeta.NewParams()),
+		workloadmetafxmock.MockModule(),
+	))
+	collector := NewWorkloadMetaCollector(context.Background(), fakeStore, &fakeProcessor{collectorCh})
+	collector.children = map[string]map[string]struct{}{
+		// Notice that here we set the container that belonged to the pod
+		// but that no longer exists
+		podTaggerEntityID: {containerToBeDeletedTaggerEntityID: struct{}{}}}
 
 	eventBundle := workloadmeta.EventBundle{
 		Events: []workloadmeta.Event{
