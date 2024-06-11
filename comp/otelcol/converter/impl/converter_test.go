@@ -7,7 +7,6 @@ package converterimpl
 
 import (
 	"context"
-	"fmt"
 	"path/filepath"
 	"testing"
 
@@ -22,7 +21,6 @@ import (
 )
 
 func uriFromFile(filename string) []string {
-	fmt.Println(filepath.Join("testdata", filename))
 	return []string{filepath.Join("testdata", filename)}
 }
 
@@ -47,64 +45,77 @@ func TestNewConverter(t *testing.T) {
 	assert.NoError(t, err)
 }
 
-func TestConfigProviderConvert(t *testing.T) {
+func TestConvert(t *testing.T) {
+	tests := []struct {
+		name           string
+		provided       string
+		expectedResult string
+	}{
+		{
+			name:           "extensions/no-extensions",
+			provided:       "extensions/no-extensions/config.yaml",
+			expectedResult: "extensions/no-extensions/config-result.yaml",
+		},
+		{
+			name:           "extensions/other-extensions",
+			provided:       "extensions/other-extensions/config.yaml",
+			expectedResult: "extensions/other-extensions/config-result.yaml",
+		},
+		{
+			name:           "extensions/no-changes",
+			provided:       "extensions/no-changes/config.yaml",
+			expectedResult: "extensions/no-changes/config.yaml",
+		},
+		{
+			name:           "processors/no-processors",
+			provided:       "processors/no-processors/config.yaml",
+			expectedResult: "processors/no-processors/config-result.yaml",
+		},
+		{
+			name:           "processors/other-processors",
+			provided:       "processors/other-processors/config.yaml",
+			expectedResult: "processors/other-processors/config-result.yaml",
+		},
+		{
+			name:           "processors/no-changes",
+			provided:       "processors/no-changes/config.yaml",
+			expectedResult: "processors/no-changes/config.yaml",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			converter, err := NewConverter()
+			assert.NoError(t, err)
+
+			resolver, err := newResolver(uriFromFile(tc.provided))
+			assert.NoError(t, err)
+			conf, err := resolver.Resolve(context.Background())
+			assert.NoError(t, err)
+
+			converter.Convert(context.Background(), conf)
+
+			resolverResult, err := newResolver(uriFromFile(tc.expectedResult))
+			assert.NoError(t, err)
+			confResult, err := resolverResult.Resolve(context.Background())
+			assert.NoError(t, err)
+
+			assert.Equal(t, confResult.ToStringMap(), conf.ToStringMap())
+		})
+	}
+}
+
+func TestGetConfDump(t *testing.T) {
 	converter, err := NewConverter()
 	assert.NoError(t, err)
 
-	resolver, err := newResolver(uriFromFile("nop/config.yaml"))
+	resolver, err := newResolver(uriFromFile("dd/config.yaml"))
 	assert.NoError(t, err)
 	conf, err := resolver.Resolve(context.Background())
 	assert.NoError(t, err)
 
-	resolverResult, err := newResolver(uriFromFile("nop/config-result.yaml"))
-	assert.NoError(t, err)
-	confResult, err := resolverResult.Resolve(context.Background())
-	assert.NoError(t, err)
-
 	converter.Convert(context.Background(), conf)
 
-	assert.Equal(t, confResult, conf)
-}
-
-func TestGetConfDump(t *testing.T) {
-	t.Run("nop", func(t *testing.T) {
-		converter, err := NewConverter()
-		assert.NoError(t, err)
-
-		resolver, err := newResolver(uriFromFile("nop/config.yaml"))
-		assert.NoError(t, err)
-		conf, err := resolver.Resolve(context.Background())
-		assert.NoError(t, err)
-
-		converter.Convert(context.Background(), conf)
-
-		t.Run("provided", func(t *testing.T) {
-			assert.Equal(t, "not supported", converter.GetProvidedConf())
-		})
-
-		t.Run("enhanced", func(t *testing.T) {
-			assert.Equal(t, "not supported", converter.GetEnhancedConf())
-		})
-	})
-
-	t.Run("dd", func(t *testing.T) {
-		converter, err := NewConverter()
-		assert.NoError(t, err)
-
-		resolver, err := newResolver(uriFromFile("dd/config-dd.yaml"))
-		assert.NoError(t, err)
-		conf, err := resolver.Resolve(context.Background())
-		assert.NoError(t, err)
-
-		converter.Convert(context.Background(), conf)
-
-		t.Run("provided", func(t *testing.T) {
-			assert.Equal(t, "not supported", converter.GetProvidedConf())
-		})
-
-		t.Run("enhanced", func(t *testing.T) {
-			assert.Equal(t, "not supported", converter.GetEnhancedConf())
-		})
-	})
-
+	assert.Equal(t, "not supported", converter.GetProvidedConf())
+	assert.Equal(t, "not supported", converter.GetEnhancedConf())
 }

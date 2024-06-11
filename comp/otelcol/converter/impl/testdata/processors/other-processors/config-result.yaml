@@ -1,0 +1,33 @@
+receivers:
+    otlp:
+
+exporters:
+    datadog:
+      api:
+        key: 12345
+
+extensions:
+  pprof/dd-enhanced:
+  health_check/dd-enhanced:
+  zpages/dd-enhanced:
+    endpoint: "localhost:55679"
+    
+processors:
+  infraattributes/dd-enhanced:
+  k8sattributes:
+
+service:
+    extensions: [pprof/dd-enhanced, zpages/dd-enhanced, health_check/dd-enhanced]
+    pipelines:
+        traces:
+            receivers: [nop]
+            processors: [k8sattributes, infraattributes/dd-enhanced]
+            exporters: [datadog]
+        metrics:
+            receivers: [nop]
+            processors: [k8sattributes, infraattributes/dd-enhanced]
+            exporters: [datadog]
+        logs:
+            receivers: [nop]
+            processors: [k8sattributes, infraattributes/dd-enhanced]
+            exporters: [datadog]

@@ -1,0 +1,27 @@
+receivers:
+    otlp:
+
+exporters:
+  nop: 
+
+extensions:
+  otlp_encoding/user-defined:
+    protocol: otlp_proto
+  pprof/dd-enhanced:
+  health_check/dd-enhanced:
+  zpages/dd-enhanced:
+    endpoint: "localhost:55679"
+    
+
+service:
+    extensions: [otlp_encoding/user-defined, pprof/dd-enhanced, zpages/dd-enhanced, health_check/dd-enhanced]
+    pipelines:
+        traces:
+            receivers: [nop]
+            exporters: [nop]
+        metrics:
+            receivers: [nop]
+            exporters: [nop]
+        logs:
+            receivers: [nop]
+            exporters: [nop]

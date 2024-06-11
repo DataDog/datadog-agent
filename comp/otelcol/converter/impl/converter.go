@@ -8,6 +8,7 @@ package converterimpl
 
 import (
 	"context"
+	"strings"
 
 	converter "github.com/DataDog/datadog-agent/comp/otelcol/converter/def"
 	"go.opentelemetry.io/collector/confmap"
@@ -18,11 +19,69 @@ type ddConverter struct {
 	confDump confDump
 }
 
-var _ confmap.Converter = (*ddConverter)(nil)
+var (
+	_ confmap.Converter = (*ddConverter)(nil)
+
+	ddEnhancedSuffix = "dd-enhanced"
+	// pprof
+	pProfEnhancedName = "pprof/" + ddEnhancedSuffix
+	pProfConfig       any
+
+	// zpages
+	zpagesEnhancedName = "zpages/" + ddEnhancedSuffix
+	zpagesConfig       = map[string]any{
+		"endpoint": "localhost:55679",
+	}
+
+	// healthcheck
+	healthCheckEnhancedName = "health_check/" + ddEnhancedSuffix
+	healthCheckConfig       any
+
+	// prometheus
+	infraAttributesEnhancedName = "infraattributes/" + ddEnhancedSuffix
+	infraAttributesConfig       any
+)
 
 type confDump struct {
 	provided string
 	enhanced string
+}
+
+type component struct {
+	componentType         string
+	componentName         string
+	componentEnhancedName string
+	componentConfig       any
+}
+
+var extensions = []component{
+	{
+		componentName:         "pprof",
+		componentType:         "extensions",
+		componentEnhancedName: pProfEnhancedName,
+		componentConfig:       pProfConfig,
+	},
+	{
+		componentName:         "zpages",
+		componentType:         "extensions",
+		componentEnhancedName: zpagesEnhancedName,
+		componentConfig:       zpagesConfig,
+	},
+	{
+		componentName:         "health_check",
+		componentType:         "extensions",
+		componentEnhancedName: healthCheckEnhancedName,
+		componentConfig:       healthCheckConfig,
+	},
+}
+
+var processors = []component{
+	{
+		componentName:         "infraattributes",
+		componentType:         "processors",
+		componentEnhancedName: infraAttributesEnhancedName,
+		componentConfig:       infraAttributesConfig,
+	},
 }
 
 // NewConverter currently only supports a single URI in the uris slice, and this URI needs to be a file path.
@@ -35,13 +94,137 @@ func NewConverter() (converter.Component, error) {
 	}, nil
 }
 
-func (c *ddConverter) Convert(_ context.Context, _ *confmap.Conf) error {
+func (c *ddConverter) Convert(ctx context.Context, conf *confmap.Conf) error {
 	// c.addProvidedConf(conf)
 
-	// TODO: enhance config (e.g. add dd connector)
+	enhanceConfig(conf)
 
 	// c.addEnhancedConf(conf)
 	return nil
+}
+
+func enhanceConfig(conf *confmap.Conf) {
+	// add extensions if missing
+	for _, component := range extensions {
+		if inServicePipeline(conf, component.componentType, component.componentName) {
+			continue
+		}
+		addComponentToConfig(conf, component.componentType, component.componentEnhancedName, component.componentConfig)
+		addExtensionToPipeline(conf, component.componentType, component.componentEnhancedName)
+	}
+
+	// add processors in pipelines with DD Exporter if missing
+	for _, component := range processors {
+		addProcessorToPipelinesWithDDExporter(conf, component.componentType, component.componentEnhancedName, component.componentConfig)
+	}
+}
+
+func inServicePipeline(conf *confmap.Conf, componentType string, componentName string) bool {
+	pipelineComponents := conf.Get("service::" + componentType)
+	if pipelineComponents == nil {
+		return false
+	}
+
+	if componentSlice, ok := pipelineComponents.([]any); ok {
+		for _, component := range componentSlice {
+			if componentString, ok := component.(string); ok {
+				parts := strings.SplitN(componentString, "/", 2)
+				if parts[0] == componentName {
+					return true
+				}
+			}
+		}
+	}
+	return false
+}
+
+func addComponentToConfig(conf *confmap.Conf, componentType string, componentEnhancedName string, componentConfig any) {
+	stringMapConf := conf.ToStringMap()
+
+	if components, ok := stringMapConf[componentType]; ok {
+		if componentMap, ok := components.(map[string]any); ok {
+			componentMap[componentEnhancedName] = componentConfig
+		}
+	} else {
+		stringMapConf[componentType] = map[string]any{
+			componentEnhancedName: componentConfig,
+		}
+	}
+	*conf = *confmap.NewFromStringMap(stringMapConf)
+}
+
+func addExtensionToPipeline(conf *confmap.Conf, componentType string, componentEnhancedName string) {
+	stringMapConf := conf.ToStringMap()
+	if service, ok := stringMapConf["service"]; ok {
+		if serviceMap, ok := service.(map[string]any); ok {
+			if components, ok := serviceMap[componentType]; ok {
+				if componentsSlice, ok := components.([]any); ok {
+					componentsSlice = append(componentsSlice, componentEnhancedName)
+					serviceMap[componentType] = componentsSlice
+				}
+			} else {
+				serviceMap[componentType] = []any{componentEnhancedName}
+			}
+		}
+	}
+	*conf = *confmap.NewFromStringMap(stringMapConf)
+}
+
+func addProcessorToPipelinesWithDDExporter(conf *confmap.Conf, componentType string, componentEnhancedName string, componentConfig any) {
+	var infraAttrsConfAddedToConfig bool
+	stringMapConf := conf.ToStringMap()
+	if service, ok := stringMapConf["service"]; ok {
+		if serviceMap, ok := service.(map[string]any); ok {
+			if pipelines, ok := serviceMap["pipelines"]; ok {
+				if pipelinesMap, ok := pipelines.(map[string]any); ok {
+					for _, components := range pipelinesMap {
+						if componentsMap, ok := components.(map[string]any); ok {
+							if exporters, ok := componentsMap["exporters"]; ok {
+								if exportersSlice, ok := exporters.([]any); ok {
+									for _, exporter := range exportersSlice {
+										if exporterString, ok := exporter.(string); ok {
+											parts := strings.SplitN(exporterString, "/", 2)
+											if parts[0] == "datadog" {
+												// datadog component is an exporter in this pipeline. Need to make sure that infraattributes processor is also configured.
+												_, ok := componentsMap["processors"]
+												if !ok {
+													componentsMap["processors"] = []any{}
+												}
+
+												infraAttrsInPipeline := false
+												if processorsSlice, ok := componentsMap["processors"].([]any); ok {
+													for _, processor := range processorsSlice {
+														if processorString, ok := processor.(string); ok {
+															parts := strings.SplitN(processorString, "/", 2)
+															if parts[0] == "infraattributes" {
+																infraAttrsInPipeline = true
+															}
+														}
+													}
+													if !infraAttrsInPipeline {
+														// no processors are defined
+														if !infraAttrsConfAddedToConfig {
+															addComponentToConfig(conf, componentType, componentEnhancedName, componentConfig)
+															infraAttrsConfAddedToConfig = true
+														}
+														processorsSlice = append(processorsSlice, componentEnhancedName)
+														componentsMap["processors"] = processorsSlice
+
+													}
+												}
+											}
+
+										}
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+	conf.Merge(confmap.NewFromStringMap(stringMapConf))
 }
 
 // nolint: deadcode, unused
