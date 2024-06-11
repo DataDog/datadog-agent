@@ -863,6 +863,7 @@ func InitConfig(config pkgconfigmodel.Config) {
 	config.BindEnv("evp_proxy_config.api_key")
 	config.BindEnv("evp_proxy_config.additional_endpoints")
 	config.BindEnv("evp_proxy_config.max_payload_size")
+	config.BindEnv("evp_proxy_config.receiver_timeout")
 
 	// command line options
 	config.SetKnown("cmd.check.fullsketches")
