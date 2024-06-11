@@ -1,6 +1,7 @@
 #include "bpf_tracing.h"
 #include "bpf_builtins.h"
 #include "bpf_telemetry.h"
+#include "bpf_bypass.h"
 
 #include "ktypes.h"
 #ifdef COMPILE_RUNTIME
@@ -54,7 +55,7 @@ int uprobe__tls_protocol_dispatcher_kafka(struct pt_regs *ctx) {
 };
 
 SEC("kprobe/tcp_sendmsg")
-int BPF_KPROBE(kprobe__tcp_sendmsg, struct sock *sk) {
+int BPF_BYPASSABLE_KPROBE(kprobe__tcp_sendmsg, struct sock *sk) {
     log_debug("kprobe/tcp_sendmsg: sk=%p", sk);
     // map connection tuple during SSL_do_handshake(ctx)
     map_ssl_ctx_to_sock(sk);
@@ -63,7 +64,8 @@ int BPF_KPROBE(kprobe__tcp_sendmsg, struct sock *sk) {
 }
 
 SEC("tracepoint/net/netif_receive_skb")
-int tracepoint__net__netif_receive_skb(struct pt_regs* ctx) {
+int tracepoint__net__netif_receive_skb(void *ctx) {
+    CHECK_BPF_PROGRAM_BYPASSED()
     log_debug("tracepoint/net/netif_receive_skb");
     // flush batch to userspace
     // because perf events can't be sent from socket filter programs
@@ -79,7 +81,7 @@ int tracepoint__net__netif_receive_skb(struct pt_regs* ctx) {
 
 // func (c *Conn) Write(b []byte) (int, error)
 SEC("uprobe/crypto/tls.(*Conn).Write")
-int uprobe__crypto_tls_Conn_Write(struct pt_regs *ctx) {
+int BPF_BYPASSABLE_UPROBE(uprobe__crypto_tls_Conn_Write) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
     u64 pid = pid_tgid >> 32;
     tls_offsets_data_t* od = get_offsets_data();
@@ -120,7 +122,7 @@ int uprobe__crypto_tls_Conn_Write(struct pt_regs *ctx) {
 
 // func (c *Conn) Write(b []byte) (int, error)
 SEC("uprobe/crypto/tls.(*Conn).Write/return")
-int uprobe__crypto_tls_Conn_Write__return(struct pt_regs *ctx) {
+int BPF_BYPASSABLE_UPROBE(uprobe__crypto_tls_Conn_Write__return) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
     u64 pid = pid_tgid >> 32;
     tls_offsets_data_t* od = get_offsets_data();
@@ -195,7 +197,7 @@ int uprobe__crypto_tls_Conn_Write__return(struct pt_regs *ctx) {
 
 // func (c *Conn) Read(b []byte) (int, error)
 SEC("uprobe/crypto/tls.(*Conn).Read")
-int uprobe__crypto_tls_Conn_Read(struct pt_regs *ctx) {
+int BPF_BYPASSABLE_UPROBE(uprobe__crypto_tls_Conn_Read) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
     u64 pid = pid_tgid >> 32;
     tls_offsets_data_t* od = get_offsets_data();
@@ -230,7 +232,7 @@ int uprobe__crypto_tls_Conn_Read(struct pt_regs *ctx) {
 
 // func (c *Conn) Read(b []byte) (int, error)
 SEC("uprobe/crypto/tls.(*Conn).Read/return")
-int uprobe__crypto_tls_Conn_Read__return(struct pt_regs *ctx) {
+int BPF_BYPASSABLE_UPROBE(uprobe__crypto_tls_Conn_Read__return) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
     u64 pid = pid_tgid >> 32;
     tls_offsets_data_t* od = get_offsets_data();
@@ -298,7 +300,7 @@ int uprobe__crypto_tls_Conn_Read__return(struct pt_regs *ctx) {
 
 // func (c *Conn) Close(b []byte) (int, error)
 SEC("uprobe/crypto/tls.(*Conn).Close")
-int uprobe__crypto_tls_Conn_Close(struct pt_regs *ctx) {
+int BPF_BYPASSABLE_UPROBE(uprobe__crypto_tls_Conn_Close) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
     tls_offsets_data_t* od = get_offsets_data();
     if (od == NULL) {

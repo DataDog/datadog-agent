@@ -224,6 +224,8 @@ type EVPProxy struct {
 	AdditionalEndpoints map[string][]string
 	// MaxPayloadSize indicates the size at which payloads will be rejected, in bytes.
 	MaxPayloadSize int64
+	// ReceiverTimeout indicates the maximum time an EVPProxy request can take. Value in seconds.
+	ReceiverTimeout int
 }
 
 // InstallSignatureConfig contains the information on how the agent was installed
