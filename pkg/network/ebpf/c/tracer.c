@@ -228,7 +228,7 @@ int kprobe__tcp_done(struct pt_regs *ctx) {
         failed_conn_pid = bpf_map_lookup_elem(&tcp_ongoing_connect_pid, &sk);
     }
     if (failed_conn_pid) {
-        bpf_probe_read_kernel_with_telemetry(&pid_tgid, sizeof(pid_tgid), &failed_conn_pid);
+        bpf_probe_read_kernel_with_telemetry(&pid_tgid, sizeof(pid_tgid), failed_conn_pid);
         t.pid = pid_tgid >> 32;
     }
     if (t.pid == 0) {
@@ -239,8 +239,7 @@ int kprobe__tcp_done(struct pt_regs *ctx) {
     flush_tcp_failure(ctx, &t, err);
 
     // mark this connection as already flushed
-    __u32 one = 1;
-    bpf_map_update_with_telemetry(conn_close_flushed, &sk, &one, BPF_ANY);
+    bpf_map_delete_elem(&conn_close_flush, &sk);
 
     return 0;
 }
@@ -271,12 +270,11 @@ int kprobe__tcp_close(struct pt_regs *ctx) {
     }
 
     // check if this connection was already flushed and ensure we don't flush again
-    if (bpf_map_delete_elem(&conn_close_flushed, &sk) == 0) {
+    if (bpf_map_delete_elem(&conn_close_flush, &sk) == 0) {
+        cleanup_conn(ctx, &t, sk);
+    } else {
         increment_telemetry_count(double_flush_attempts_close);
-        return 0;
     }
-
-    cleanup_conn(ctx, &t, sk);
 
     return 0;
 }
@@ -963,6 +961,10 @@ int kprobe__tcp_connect(struct pt_regs *ctx) {
     struct sock *skp = (struct sock *)PT_REGS_PARM1(ctx);
 
     bpf_map_update_with_telemetry(tcp_ongoing_connect_pid, &skp, &pid_tgid, BPF_ANY);
+
+    // flag this connection to be flushed on close
+    __u32 one = 1;
+    bpf_map_update_with_telemetry(conn_close_flush, &skp, &one, BPF_ANY);
 
     return 0;
 }

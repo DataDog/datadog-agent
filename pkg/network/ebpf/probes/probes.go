@@ -193,7 +193,7 @@ const (
 	// TCPConnectSockPidMap is the map storing the PIDs of ongoing TCP connections
 	TCPConnectSockPidMap BPFMapName = "tcp_ongoing_connect_pid"
 	// ClosedConnFlushed is the map storing closed connections that were already flushed
-	ClosedConnFlushed BPFMapName = "conn_close_flushed"
+	ClosedConnFlushed BPFMapName = "conn_close_flush"
 	// ConnCloseEventMap is the map storing connection close events
 	ConnCloseEventMap BPFMapName = "conn_close_event"
 	// FailedConnEventMap is the map for storing failed connection events
