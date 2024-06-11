@@ -16,16 +16,4 @@ static void __attribute__((always_inline)) fill_container_context(struct proc_ca
     }
 }
 
-static __attribute__((always_inline)) int is_container_id_valid(const char id[CONTAINER_ID_LEN]) {
-#pragma unroll
-    for (int i = 0; i < CONTAINER_ID_LEN; i++)
-    {
-        if (!_isxdigit(id[i])) {
-            return 0;
-        }
-    }
-
-    return 1;
-}
-
 #endif

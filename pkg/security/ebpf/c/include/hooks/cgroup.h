@@ -7,6 +7,21 @@
 #include "helpers/utils.h"
 #include "maps.h"
 
+#define PARSE_HEX_ERROR 255
+
+static __attribute__((always_inline)) u8 parse_hex(char c) {
+    switch (c) {
+    case '0'...'9':
+        return c - '0';
+    case 'a'...'f':
+        return 10 + (c - 'a');
+    case 'A'...'F':
+        return 10 + (c - 'A');
+    default:
+        return PARSE_HEX_ERROR;
+    }
+}
+
 static __attribute__((always_inline)) int trace__cgroup_write(ctx_t *ctx) {
     u32 cgroup_write_type = get_cgroup_write_type();
     u32 pid;
@@ -28,7 +43,6 @@ static __attribute__((always_inline)) int trace__cgroup_write(ctx_t *ctx) {
 
     struct proc_cache_t new_entry = {};
     struct proc_cache_t *old_entry;
-    u8 new_cookie = 0;
     u64 cookie = 0;
 
     // Retrieve the cookie of the process
@@ -42,8 +56,11 @@ static __attribute__((always_inline)) int trace__cgroup_write(ctx_t *ctx) {
             copy_proc_cache(old_entry, &new_entry);
         }
     } else {
-        new_cookie = 1;
         cookie = rand64();
+        struct pid_cache_t new_pid_entry = {
+            .cookie = cookie,
+        };
+        bpf_map_update_elem(&pid_cache, &pid, &new_pid_entry, BPF_ANY);
     }
 
     struct dentry *container_d;
@@ -76,8 +93,8 @@ static __attribute__((always_inline)) int trace__cgroup_write(ctx_t *ctx) {
             return 0;
     }
 
-    char prefix[15];
-    bpf_probe_read(&prefix, sizeof(prefix), container_id);
+    char *prefix = &new_entry.container.container_id[0];
+    bpf_probe_read(&new_entry.container.container_id, 15, container_id);
     if (prefix[0] == 'd' && prefix[1] == 'o' && prefix[2] == 'c' && prefix[3] == 'k' && prefix[4] == 'e'
         && prefix[5] == 'r' && prefix[6] == '-') {
         container_id += 7; // skip "docker-"
@@ -96,18 +113,26 @@ static __attribute__((always_inline)) int trace__cgroup_write(ctx_t *ctx) {
     }
 
     bpf_probe_read(&new_entry.container.container_id, sizeof(new_entry.container.container_id), container_id);
-    if (!is_container_id_valid(new_entry.container.container_id)) {
-        return 0;
+
+    u8 val;
+#pragma unroll
+    for (int i = 0; i < CONTAINER_ID_LEN; i++) {
+        char b = new_entry.container.container_id[i];
+        u8 p = parse_hex(b);
+        if (p == PARSE_HEX_ERROR) {
+            // not an xdigit
+            return 0;
+        }
+
+        if (i % 2 == 0) {
+            val = p << 4;
+        } else {
+            val |= p;
+            new_entry.container_id_opt[i/2] = val;
+        }
     }
 
     bpf_map_update_elem(&proc_cache, &cookie, &new_entry, BPF_ANY);
-
-    if (new_cookie) {
-        struct pid_cache_t new_pid_entry = {
-            .cookie = cookie,
-        };
-        bpf_map_update_elem(&pid_cache, &pid, &new_pid_entry, BPF_ANY);
-    }
     return 0;
 }
 
