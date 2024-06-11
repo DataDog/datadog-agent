@@ -47,6 +47,13 @@ func TracedProgramsEndpoint(w http.ResponseWriter, _ *http.Request) {
 	otherutils.WriteAsJSON(w, debugger.GetTracedPrograms())
 }
 
+// BlockedPathIDEndpoint generates a summary of all blocked uprobe-based
+// programs that are blocked in the registry along with their device and inode numbers.
+// This is used for debugging purposes only.
+func BlockedPathIDEndpoint(w http.ResponseWriter, _ *http.Request) {
+	otherutils.WriteAsJSON(w, debugger.GetAllBlockedPathIDs())
+}
+
 var debugger *tlsDebugger
 
 type tlsDebugger struct {
