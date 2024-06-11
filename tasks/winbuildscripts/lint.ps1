@@ -35,3 +35,4 @@ Write-Host Dotnet linter result is $err
 if($err -ne 0){
     Write-Host -ForegroundColor Red "dotnet linter failed $err"
     [Environment]::Exit($err)
+}
