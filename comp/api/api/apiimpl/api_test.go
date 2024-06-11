@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	// component dependencies
+	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
 	"github.com/DataDog/datadog-agent/comp/aggregator/diagnosesendermanager"
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	"github.com/DataDog/datadog-agent/comp/api/authtoken"
@@ -17,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/autodiscoveryimpl"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/secrets/secretsimpl"
 	"github.com/DataDog/datadog-agent/comp/core/status"
@@ -53,7 +55,6 @@ type testdeps struct {
 	Capture               replay.Component
 	SecretResolver        secrets.Component
 	StatusComponent       status.Mock
-	EventPlatformReceiver eventplatformreceiver.Component
 	RcService             optional.Option[rcservice.Component]
 	RcServiceMRF          optional.Option[rcservicemrf.Component]
 	AuthToken             authtoken.Component
@@ -70,11 +71,13 @@ func getComponentDependencies(t *testing.T) testdeps {
 	// TODO: this fxutil.Test[T] can take a component and return the component
 	return fxutil.Test[testdeps](
 		t,
+		hostnameimpl.MockModule(),
 		dogstatsdServer.MockModule(),
 		replaymock.MockModule(),
 		secretsimpl.MockModule(),
 		nooptelemetry.Module(),
 		statusimpl.MockModule(),
+		demultiplexerimpl.MockModule(),
 		fx.Supply(optional.NewNoneOption[rcservice.Component]()),
 		fx.Supply(optional.NewNoneOption[rcservicemrf.Component]()),
 		fetchonlyimpl.MockModule(),
