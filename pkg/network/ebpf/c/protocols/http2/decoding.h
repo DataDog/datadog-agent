@@ -103,7 +103,7 @@ static __always_inline void pktbuf_skip_preface(pktbuf_t pkt) {
 static __always_inline void* get_telemetry(pktbuf_t pkt) {
     const __u32 zero = 0;
 
-    pktbuf_map_lookup_option_t arr[] = {
+    pktbuf_map_lookup_option_t map_lookup_telemetry_array[] = {
         [PKTBUF_SKB] = {
             .map = &http2_telemetry,
             .key = (void*)&zero,
@@ -113,7 +113,7 @@ static __always_inline void* get_telemetry(pktbuf_t pkt) {
             .key = (void*)&zero,
         },
     };
-    return pktbuf_map_lookup(pkt, arr);
+    return pktbuf_map_lookup(pkt, map_lookup_telemetry_array);
 }
 
 // Parses a header with a literal value.
@@ -672,7 +672,7 @@ static __always_inline void handle_first_frame(pktbuf_t pkt, __u32 *external_dat
     // frame.
     *external_data_offset = pktbuf_data_offset(pkt);
 
-    pktbuf_tail_call_option_t arr[] = {
+    pktbuf_tail_call_option_t frame_filter_tail_call_array[] = {
         [PKTBUF_SKB] = {
             .prog_array_map = &protocols_progs,
             .index = PROG_HTTP2_FRAME_FILTER,
@@ -682,7 +682,7 @@ static __always_inline void handle_first_frame(pktbuf_t pkt, __u32 *external_dat
             .index = TLS_HTTP2_FILTER,
         },
     };
-    pktbuf_tail_call_compact(pkt, arr);
+    pktbuf_tail_call_compact(pkt, frame_filter_tail_call_array);
 }
 
 SEC("socket/http2_handle_first_frame")
@@ -748,7 +748,7 @@ static __always_inline void filter_frame(pktbuf_t pkt, void *map_key, conn_tuple
     if (have_more_frames_to_process && iteration_value->filter_iterations < HTTP2_MAX_TAIL_CALLS_FOR_FRAMES_FILTER) {
         // save local copy of the offset, so the next prog will start from the offset of the next valid frame.
         iteration_value->data_off = pktbuf_data_offset(pkt);
-        pktbuf_tail_call_option_t arr[] = {
+        pktbuf_tail_call_option_t frame_filter_tail_call_array[] = {
             [PKTBUF_SKB] = {
                 .prog_array_map = &protocols_progs,
                 .index = PROG_HTTP2_FRAME_FILTER,
@@ -758,7 +758,7 @@ static __always_inline void filter_frame(pktbuf_t pkt, void *map_key, conn_tuple
                 .index = TLS_HTTP2_FILTER,
             },
         };
-        pktbuf_tail_call_compact(pkt, arr);
+        pktbuf_tail_call_compact(pkt, frame_filter_tail_call_array);
     }
 
     // if we left with more headers to process and we reached the max amount of tail calls we should update the telemetry.
@@ -789,7 +789,7 @@ static __always_inline void filter_frame(pktbuf_t pkt, void *map_key, conn_tuple
 
     // restoring the original value.
     pktbuf_set_offset(pkt, original_off);
-    pktbuf_map_update_option_t arr[] = {
+    pktbuf_map_update_option_t http2_iterations_map_update_array[] = {
         [PKTBUF_SKB] = {
             .map = &http2_iterations,
             .key = map_key,
@@ -804,9 +804,9 @@ static __always_inline void filter_frame(pktbuf_t pkt, void *map_key, conn_tuple
         },
     };
     // We have couple of interesting headers, launching tail calls to handle them.
-    if (pktbuf_map_update(pkt, arr) >= 0) {
+    if (pktbuf_map_update(pkt, http2_iterations_map_update_array) >= 0) {
         // We managed to cache the iteration_value in the http2_iterations map.
-        pktbuf_tail_call_option_t arr[] = {
+        pktbuf_tail_call_option_t headers_parser_tail_call_array[] = {
             [PKTBUF_SKB] = {
                 .prog_array_map = &protocols_progs,
                 .index = PROG_HTTP2_HEADERS_PARSER,
@@ -816,7 +816,7 @@ static __always_inline void filter_frame(pktbuf_t pkt, void *map_key, conn_tuple
                 .index = TLS_HTTP2_HEADERS_PARSER,
             },
         };
-        pktbuf_tail_call_compact(pkt, arr);
+        pktbuf_tail_call_compact(pkt, headers_parser_tail_call_array);
     }
 }
 
@@ -844,7 +844,7 @@ static __always_inline void headers_parser(pktbuf_t pkt, void *map_key, conn_tup
     // we are processing the frames, for example, to know how many bytes have we read in the packet, or it we reached
     // to the maximum number of frames we can process. For that we are checking if the iteration context already exists.
     // If not, creating a new one to be used for further processing
-    pktbuf_map_lookup_option_t arr[] = {
+    pktbuf_map_lookup_option_t http2_iterations_array[] = {
         [PKTBUF_SKB] = {
             .map = &http2_iterations,
             .key = map_key,
@@ -854,7 +854,7 @@ static __always_inline void headers_parser(pktbuf_t pkt, void *map_key, conn_tup
             .key = map_key,
         },
     };
-    http2_tail_call_state_t *tail_call_state = pktbuf_map_lookup(pkt, arr);
+    http2_tail_call_state_t *tail_call_state = pktbuf_map_lookup(pkt, http2_iterations_array);
     if (tail_call_state == NULL) {
         // We didn't find the cached context, aborting.
         return;
@@ -956,7 +956,7 @@ static __always_inline void headers_parser(pktbuf_t pkt, void *map_key, conn_tup
 delete_iteration:
     // restoring the original value.
     pktbuf_set_offset(pkt, original_off);
-    pktbuf_map_delete(pkt, arr);
+    pktbuf_map_delete(pkt, http2_iterations_array);
 }
 
 // The program is responsible for parsing all headers frames. For each headers frame we parse the headers,
@@ -981,7 +981,7 @@ int socket__http2_headers_parser(struct __sk_buff *skb) {
 }
 
 static __always_inline void dynamic_table_cleaner(pktbuf_t pkt, conn_tuple_t *tup) {
-    pktbuf_tail_call_option_t arr[] = {
+    pktbuf_tail_call_option_t eos_parser_tail_call_array[] = {
         [PKTBUF_SKB] = {
             .prog_array_map = &protocols_progs,
             .index = PROG_HTTP2_EOS_PARSER,
@@ -1024,7 +1024,7 @@ static __always_inline void dynamic_table_cleaner(pktbuf_t pkt, conn_tuple_t *tu
     }
 
 next:
-    pktbuf_tail_call_compact(pkt, arr);
+    pktbuf_tail_call_compact(pkt, eos_parser_tail_call_array);
 }
 
 // The program is responsible for cleaning the dynamic table.
@@ -1046,7 +1046,7 @@ int socket__http2_dynamic_table_cleaner(struct __sk_buff *skb) {
 static __always_inline void eos_parser(pktbuf_t pkt, void *map_key, conn_tuple_t *tup) {
     const __u32 zero = 0;
 
-    pktbuf_map_lookup_option_t arr[] = {
+    pktbuf_map_lookup_option_t http2_iterations_array[] = {
         [PKTBUF_SKB] = {
             .map = &http2_iterations,
             .key = map_key,
@@ -1061,7 +1061,7 @@ static __always_inline void eos_parser(pktbuf_t pkt, void *map_key, conn_tuple_t
     // we are processing the frames, for example, to know how many bytes have we read in the packet, or it we reached
     // to the maximum number of frames we can process. For that we are checking if the iteration context already exists.
     // If not, creating a new one to be used for further processing
-    http2_tail_call_state_t *tail_call_state = pktbuf_map_lookup(pkt, arr);
+    http2_tail_call_state_t *tail_call_state = pktbuf_map_lookup(pkt, http2_iterations_array);
     if (tail_call_state == NULL) {
         // We didn't find the cached context, aborting.
         return;
@@ -1139,7 +1139,7 @@ static __always_inline void eos_parser(pktbuf_t pkt, void *map_key, conn_tuple_t
         tail_call_state->iteration < tail_call_state->frames_count &&
         tail_call_state->iteration < HTTP2_MAX_FRAMES_FOR_EOS_PARSER) {
 
-        pktbuf_tail_call_option_t arr[] = {
+        pktbuf_tail_call_option_t eos_parser_tail_call_array[] = {
             [PKTBUF_SKB] = {
                 .prog_array_map = &protocols_progs,
                 .index = PROG_HTTP2_EOS_PARSER,
@@ -1149,11 +1149,11 @@ static __always_inline void eos_parser(pktbuf_t pkt, void *map_key, conn_tuple_t
                 .index = TLS_HTTP2_EOS_PARSER,
             },
         };
-        pktbuf_tail_call_compact(pkt, arr);
+        pktbuf_tail_call_compact(pkt, eos_parser_tail_call_array);
     }
 
 delete_iteration:
-    pktbuf_map_delete(pkt, arr);
+    pktbuf_map_delete(pkt, http2_iterations_array);
 }
 
 // The program is responsible for parsing all frames that mark the end of a stream.
