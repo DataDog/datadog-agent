@@ -57,6 +57,8 @@ type testOpts struct {
 	tagsResolver                               tags.Resolver
 	snapshotRuleMatchHandler                   func(*testModule, *model.Event, *rules.Rule)
 	enableFIM                                  bool // only valid on windows
+	networkIngressEnabled                      bool
+	disableBundledRules                        bool
 }
 
 type dynamicTestOpts struct {
@@ -67,6 +69,7 @@ type dynamicTestOpts struct {
 type tmOpts struct {
 	staticOpts  testOpts
 	dynamicOpts dynamicTestOpts
+	forceReload bool
 }
 
 type optFunc = func(opts *tmOpts)
@@ -82,6 +85,13 @@ func withDynamicOpts(opts dynamicTestOpts) optFunc {
 		tmo.dynamicOpts = opts
 	}
 }
+
+func withForceReload() optFunc {
+	return func(tmo *tmOpts) {
+		tmo.forceReload = true
+	}
+}
+
 func (to testOpts) Equal(opts testOpts) bool {
 	return to.disableApprovers == opts.disableApprovers &&
 		to.enableActivityDump == opts.enableActivityDump &&
@@ -117,5 +127,6 @@ func (to testOpts) Equal(opts testOpts) bool {
 		to.disableRuntimeSecurity == opts.disableRuntimeSecurity &&
 		to.enableSBOM == opts.enableSBOM &&
 		to.snapshotRuleMatchHandler == nil && opts.snapshotRuleMatchHandler == nil &&
-		to.preStartCallback == nil && opts.preStartCallback == nil
+		to.preStartCallback == nil && opts.preStartCallback == nil &&
+		to.networkIngressEnabled == opts.networkIngressEnabled
 }

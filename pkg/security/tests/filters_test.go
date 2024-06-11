@@ -60,7 +60,7 @@ func TestFilterOpenBasenameApprover(t *testing.T) {
 		Expression: fmt.Sprintf(`open.file.path == "{{.Root}}/%s"`, basename),
 	}
 
-	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule})
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule}, withStaticOpts(testOpts{disableBundledRules: true}))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -367,7 +367,10 @@ func TestFilterDiscarderMask(t *testing.T) {
 		if _, _, errno := syscall.Syscall(syscallNB, uintptr(testFilePtr), uintptr(unsafe.Pointer(utimbuf)), 0); errno != 0 {
 			t.Fatal(error(errno))
 		}
-		if err := waitForProbeEvent(test, nil, "utimes.file.path", testFile, model.FileUtimesEventType); err != nil {
+		if err := waitForProbeEvent(test, nil, model.FileUtimesEventType, eventKeyValueFilter{
+			key:   "utimes.file.path",
+			value: testFile,
+		}); err != nil {
 			t.Fatal("should get a utimes event")
 		}
 
@@ -377,7 +380,10 @@ func TestFilterDiscarderMask(t *testing.T) {
 		if _, _, errno := syscall.Syscall(syscallNB, uintptr(testFilePtr), uintptr(unsafe.Pointer(utimbuf)), 0); errno != 0 {
 			t.Fatal(error(errno))
 		}
-		if err := waitForProbeEvent(test, nil, "utimes.file.path", testFile, model.FileUtimesEventType); err == nil {
+		if err := waitForProbeEvent(test, nil, model.FileUtimesEventType, eventKeyValueFilter{
+			key:   "utimes.file.path",
+			value: testFile,
+		}); err == nil {
 			t.Fatal("shouldn't get a utimes event")
 		}
 

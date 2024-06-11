@@ -17,51 +17,115 @@ on:
     - cron: '30 4 * * 5' # at 4:30 UTC on Friday
 
 jobs:
-  sync:
+  generate:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        cone:
+          - amzn
+          - centos
+          - debian
+          - fedora
+          - ol/7/arm64
+          - ol/7/x86_64
+          - ol/8/arm64
+          - ol/8/x86_64
+          - opensuse-leap
+          - rhel
+          - sles
+          - ubuntu/16.04/x86_64
+          - ubuntu/18.04/arm64
+          - ubuntu/18.04/x86_64
+          - ubuntu/20.04/arm64
+          - ubuntu/20.04/x86_64
     steps:
       - name: Cleanup runner
         run: |
           sudo rm -rf /usr/local/lib/android >/dev/null 2>&1
           docker rmi $(docker image ls -aq) >/dev/null 2>&1
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /opt/ghc
+          sudo rm -rf "/usr/local/share/boost"
+          df -h
 
       - name: Checkout datadog-agent repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@0ad4b8fadaa221de15dcec353f45205ec38ea70b # v4.1.4
         with:
           ref: ${{ inputs.base_branch || 'main' }}
 
       - name: Checkout btfhub-archive repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@0ad4b8fadaa221de15dcec353f45205ec38ea70b # v4.1.4
         with:
           repository: DataDog/btfhub-archive
           path: dev/dist/archive
+          sparse-checkout: ${{ matrix.cone }}
 
       - name: Install python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@82c7e631bb3cdc910f68e0081d67478d79c6982d # v5.1.0
         with:
-          python-version: '3.9'
+          python-version: 3.11
           cache: 'pip'
       - run: pip install -r requirements.txt
 
       - name: Install go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@0c52d547c9bc32b1aa3301fd7a9cb496313a4491 # v5.0.0
         with:
           go-version-file: '.go-version'
 
-      - name: Install go deps
+      - name: Compute name
+        id: artifact-name
         run: |
-          inv -e deps
+          echo "ARTIFACT_NAME=constants-${{ matrix.cone }}" | tr '/' '-' >> $GITHUB_OUTPUT
+
+      - name: Sync constants
+        run: |
+          inv -e security-agent.generate-btfhub-constants --archive-path=./dev/dist/archive --output-path=./${{ steps.artifact-name.outputs.ARTIFACT_NAME }}.json ${{ inputs.force_refresh && '--force-refresh' || '' }}
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@65462800fd760344b1a7b4382951275a0abb4808 # v4.3.3
+        with:
+          name: ${{ steps.artifact-name.outputs.ARTIFACT_NAME }}
+          path: ./${{ steps.artifact-name.outputs.ARTIFACT_NAME }}.json
+
+  combine:
+    needs: generate
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout datadog-agent repository
+        uses: actions/checkout@0ad4b8fadaa221de15dcec353f45205ec38ea70b # v4.1.4
+        with:
+          ref: ${{ inputs.base_branch || 'main' }}
+
+      - name: Install python
+        uses: actions/setup-python@82c7e631bb3cdc910f68e0081d67478d79c6982d # v5.1.0
+        with:
+          python-version: 3.11
+          cache: 'pip'
+      - run: pip install -r requirements.txt
+
+      - name: Install go
+        uses: actions/setup-go@0c52d547c9bc32b1aa3301fd7a9cb496313a4491 # v5.0.0
+        with:
+          go-version-file: '.go-version'
+
+      - name: Download All Artifacts
+        uses: actions/download-artifact@65a9edc5881444af0b9093a5e628f2fe47ea3b2e # v4.1.7
+        with:
+          path: ./dev/dist/constants
+          pattern: constants-*
+          merge-multiple: true
+
+      - name: Combine constants
+        run: |
+          inv -e security-agent.combine-btfhub-constants --archive-path=./dev/dist/constants
 
       - name: Compute branch name
         id: branch-name
         run: |
           echo "BRANCH_NAME=cws/constants-sync-$(date +%s)" >> $GITHUB_OUTPUT
 
-      - name: Sync constants
-        run: |
-          inv -e security-agent.generate-btfhub-constants --archive-path=./dev/dist/archive ${{ inputs.force_refresh && '--force-refresh' || '' }}
-
-      - uses: stefanzweifel/git-auto-commit-action@v5
+      - uses: stefanzweifel/git-auto-commit-action@8621497c8c39c72f3e2a999a26b4ca1b5058a842 # v5.0.1
         id: commit-creator
         with:
           commit_message: "CWS: sync BTFhub constants"
@@ -71,7 +135,7 @@ jobs:
           skip_checkout: true
 
       - name: Create Pull Request
-        uses: actions/github-script@v7
+        uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7.0.1
         if: steps.commit-creator.outputs.changes_detected == 'true'
         with:
           script: |

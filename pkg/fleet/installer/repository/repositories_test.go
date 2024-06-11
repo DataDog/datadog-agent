@@ -12,8 +12,6 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-
-	"github.com/DataDog/datadog-agent/pkg/fleet/installer/service"
 )
 
 var testCtx = context.TODO()
@@ -21,7 +19,6 @@ var testCtx = context.TODO()
 func newTestRepositories(t *testing.T) *Repositories {
 	rootPath := t.TempDir()
 	locksRootPath := t.TempDir()
-	assert.Nil(t, service.BuildHelperForTests(rootPath, t.TempDir(), true))
 	repositories := NewRepositories(rootPath, locksRootPath)
 	return repositories
 }

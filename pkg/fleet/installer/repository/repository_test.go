@@ -15,13 +15,10 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-
-	"github.com/DataDog/datadog-agent/pkg/fleet/installer/service"
 )
 
 func createTestRepository(t *testing.T, dir string, stablePackageName string) *Repository {
 	repositoryPath := path.Join(dir, "repository")
-	assert.Nil(t, service.BuildHelperForTests(repositoryPath, t.TempDir(), true))
 	locksPath := path.Join(dir, "run")
 	os.MkdirAll(repositoryPath, 0755)
 	os.MkdirAll(locksPath, 0777)
@@ -207,4 +204,18 @@ func TestDeleteExperimentWithLockedPackage(t *testing.T) {
 	assert.DirExists(t, path.Join(repository.locksPath, "v2"))
 	assert.NoFileExists(t, path.Join(repository.locksPath, "v2", "-1"))
 	assert.FileExists(t, path.Join(repository.locksPath, "v2", fmt.Sprint(os.Getpid())))
+}
+
+func TestLoadRepositories(t *testing.T) {
+	rootDir := t.TempDir()
+	runDir := t.TempDir()
+
+	os.Mkdir(path.Join(rootDir, "datadog-agent"), 0755)
+	os.Mkdir(path.Join(rootDir, "tmp-install-stable-datadog-agent"), 0755)
+
+	repositories, err := NewRepositories(rootDir, runDir).loadRepositories()
+	assert.NoError(t, err)
+	assert.Len(t, repositories, 1)
+	assert.Contains(t, repositories, "datadog-agent")
+	assert.NotContains(t, repositories, "tmp-install-stable-datadog-agent")
 }

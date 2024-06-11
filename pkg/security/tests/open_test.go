@@ -421,6 +421,55 @@ func TestOpenDiscarded(t *testing.T) {
 	})
 }
 
+func TestOpenApproverZero(t *testing.T) {
+	SkipIfNotAvailable(t)
+
+	rule := &rules.RuleDefinition{
+		ID:         "test_rule",
+		Expression: `open.flags == 0 && process.file.name == "testsuite"`,
+	}
+
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule}, withStaticOpts(testOpts{disableBundledRules: true}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.Close()
+
+	testFile, testFilePtr, err := test.Path("test-open")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.Remove(testFile)
+
+	tf, err := os.Create(testFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer tf.Close()
+
+	test.WaitSignal(t, func() error {
+		openHow := unix.OpenHow{
+			Flags: unix.O_RDONLY,
+			Mode:  0,
+		}
+
+		fd, _, errno := syscall.Syscall6(unix.SYS_OPENAT2, 0, uintptr(testFilePtr), uintptr(unsafe.Pointer(&openHow)), unix.SizeofOpenHow, 0, 0)
+		if errno != 0 {
+			if errno == unix.ENOSYS {
+				return ErrSkipTest{"openat2 is not supported"}
+			}
+			return error(errno)
+		}
+		return syscall.Close(int(fd))
+	}, func(event *model.Event, r *rules.Rule) {
+		assert.Equal(t, "open", event.GetType(), "wrong event type")
+		assert.Equal(t, 0, int(event.Open.Flags), "wrong flags")
+		value, _ := event.GetFieldValue("event.async")
+		assert.Equal(t, value.(bool), false)
+		assertInode(t, event.Open.File.Inode, getInode(t, testFile))
+	})
+}
+
 func openMountByID(mountID int) (f *os.File, err error) {
 	mi, err := os.Open("/proc/self/mountinfo")
 	if err != nil {

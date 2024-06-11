@@ -71,13 +71,13 @@ func (pp *PulumiProvisioner[Env]) ProvisionEnv(ctx context.Context, stackName st
 	_, stackOutput, err := infra.GetStackManager().GetStackNoDeleteOnFailure(
 		ctx,
 		stackName,
-		pp.configMap,
 		func(ctx *pulumi.Context) error {
 			return pp.runFunc(ctx, env)
 		},
-		false,
-		logger,
+		infra.WithConfigMap(pp.configMap),
+		infra.WithLogWriter(logger),
 	)
+
 	if err != nil {
 		return nil, err
 	}

@@ -18,7 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/utils"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/kubelet/common"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
@@ -106,7 +106,7 @@ func (p *Provider) Provide(kc kubelet.KubeUtilInterface, sender sender.Sender) e
 
 		podData, err := p.store.GetKubernetesPod(podStats.PodRef.UID) //from workloadmeta store
 		if err != nil || podData == nil {
-			log.Warnf("Couldn't get pod data from workloadmeta store, error = %v ", err)
+			log.Infof("Couldn't get pod data from workloadmeta store, error = %v ", err)
 			continue
 		}
 		if podData.Phase == "Running" || podData.Phase == "Pending" {

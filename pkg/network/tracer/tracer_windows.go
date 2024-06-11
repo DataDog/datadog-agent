@@ -19,6 +19,7 @@ import (
 
 	"golang.org/x/sys/windows"
 
+	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
@@ -61,11 +62,11 @@ type Tracer struct {
 }
 
 // NewTracer returns an initialized tracer struct
-func NewTracer(config *config.Config) (*Tracer, error) {
+func NewTracer(config *config.Config, telemetry telemetry.Component) (*Tracer, error) {
 	if err := driver.Start(); err != nil {
 		return nil, fmt.Errorf("error starting driver: %s", err)
 	}
-	di, err := network.NewDriverInterface(config, driver.NewHandle)
+	di, err := network.NewDriverInterface(config, driver.NewHandle, telemetry)
 
 	if err != nil && errors.Is(err, syscall.ERROR_FILE_NOT_FOUND) {
 		log.Debugf("could not create driver interface: %v", err)
@@ -75,19 +76,21 @@ func NewTracer(config *config.Config) (*Tracer, error) {
 	}
 
 	state := network.NewState(
+		telemetry,
 		config.ClientStateExpiry,
 		config.MaxClosedConnectionsBuffered,
 		config.MaxConnectionsStateBuffered,
 		config.MaxDNSStatsBuffered,
 		config.MaxHTTPStatsBuffered,
 		config.MaxKafkaStatsBuffered,
+		config.MaxPostgresStatsBuffered,
 		config.EnableNPMConnectionRollup,
 		config.EnableProcessEventMonitoring,
 	)
 
 	reverseDNS := dns.NewNullReverseDNS()
 	if config.DNSInspection {
-		reverseDNS, err = dns.NewReverseDNS(config)
+		reverseDNS, err = dns.NewReverseDNS(config, telemetry)
 		if err != nil {
 			return nil, err
 		}

@@ -18,7 +18,7 @@ import (
 	"path/filepath"
 	"runtime"
 
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/util/containersorpods"
@@ -146,7 +146,7 @@ func (tf *factory) makeDockerFileSource(source *sources.LogSource) (*sources.Log
 func (tf *factory) findDockerLogPath(containerID string) string {
 	// if the user has set a custom docker data root, this will pick it up
 	// and set it in place of the usual docker base path
-	overridePath := coreConfig.Datadog.GetString("logs_config.docker_path_override")
+	overridePath := coreConfig.Datadog().GetString("logs_config.docker_path_override")
 	if len(overridePath) > 0 {
 		return filepath.Join(overridePath, "containers", containerID, fmt.Sprintf("%s-json.log", containerID))
 	}
@@ -159,7 +159,7 @@ func (tf *factory) findDockerLogPath(containerID string) string {
 	default: // linux, darwin
 		// this config flag provides temporary support for podman while it is
 		// still recognized by AD as a "docker" runtime.
-		if coreConfig.Datadog.GetBool("logs_config.use_podman_logs") {
+		if coreConfig.Datadog().GetBool("logs_config.use_podman_logs") {
 			return filepath.Join(
 				podmanLogsBasePath, "storage/overlay-containers", containerID,
 				"userdata/ctr.log")

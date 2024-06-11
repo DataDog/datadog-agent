@@ -5,7 +5,6 @@
 
 //go:build windows
 
-// Package evtlog defines a check that reads the Windows Event Log and submits Events
 package evtlog
 
 import (
@@ -101,7 +100,15 @@ func (s *ddLogSubmitter) enrichEvent(m *windowsevent.Map, e *eventWithMessage) e
 	}
 	defer evtapi.EvtClosePublisherMetadata(e.evtapi, pm)
 
-	windowsevent.AddRenderedInfoToMap(m, e.evtapi, pm, e.winevent.EventRecordHandle)
+	eh := e.winevent.EventRecordHandle
+	task, _ := e.evtapi.EvtFormatMessage(pm, eh, 0, nil, evtapi.EvtFormatMessageTask)
+	opcode, _ := e.evtapi.EvtFormatMessage(pm, eh, 0, nil, evtapi.EvtFormatMessageOpcode)
+	level, _ := e.evtapi.EvtFormatMessage(pm, eh, 0, nil, evtapi.EvtFormatMessageLevel)
+
+	_ = m.SetMessage(e.renderedMessage)
+	_ = m.SetTask(task)
+	_ = m.SetOpcode(opcode)
+	_ = m.SetLevel(level)
 
 	return nil
 }

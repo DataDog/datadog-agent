@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2022-present Datadog, Inc.
 
-//go:build trivy
+//go:build trivy || (windows && wmi)
 
 package sbom
 
@@ -18,7 +18,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 
@@ -37,7 +37,7 @@ import (
 )
 
 var /* const */ (
-	envVarEnv   = ddConfig.Datadog.GetString("env")
+	envVarEnv   = ddConfig.Datadog().GetString("env")
 	sourceAgent = "agent"
 )
 

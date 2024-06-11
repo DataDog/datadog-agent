@@ -117,6 +117,19 @@ func TestHTTP2Scenarios(t *testing.T) {
 	})
 }
 
+func (s *usmHTTP2Suite) TestLoadHTTP2Binary() {
+	t := s.T()
+
+	cfg := s.getCfg()
+
+	for _, debug := range map[string]bool{"enabled": true, "disabled": false} {
+		t.Run(fmt.Sprintf("debug %v", debug), func(t *testing.T) {
+			cfg.BPFDebug = debug
+			setupUSMTLSMonitor(t, cfg)
+		})
+	}
+}
+
 func (s *usmHTTP2Suite) TestHTTP2DynamicTableCleanup() {
 	t := s.T()
 	cfg := s.getCfg()
@@ -498,13 +511,6 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 	t.Cleanup(cancel)
 	require.NoError(t, proxy.WaitForConnectionReady(unixPath))
 
-	getTLSNumber := func(numberWithoutTLS, numberWithTLS int, isTLS bool) int {
-		if isTLS {
-			return numberWithTLS
-		}
-		return numberWithoutTLS
-	}
-
 	tests := []struct {
 		name              string
 		skip              bool
@@ -555,8 +561,7 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 			// The purpose of this test is to verify our ability to reach the limit set by HTTP2_MAX_FRAMES_ITERATIONS, which
 			// determines the maximum number of "interesting frames" we can process.
 			messageBuilder: func() [][]byte {
-				const numberWithoutTLS, numberWithTLS = 120, 60
-				iterations := getTLSNumber(numberWithoutTLS, numberWithTLS, s.isTLS)
+				const iterations = 120
 				framer := newFramer()
 				for i := 0; i < iterations; i++ {
 					streamID := getStreamID(i)
@@ -570,7 +575,7 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 				{
 					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString(http2DefaultTestPath)},
 					Method: usmhttp.MethodPost,
-				}: getTLSNumber(120, 60, s.isTLS),
+				}: 120,
 			},
 		},
 		{
@@ -796,15 +801,19 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 			name: "validate http methods",
 			// The purpose of this test is to validate that we are able to capture all http methods.
 			messageBuilder: func() [][]byte {
-				httpMethods = []string{http.MethodGet, http.MethodPost, http.MethodHead, http.MethodDelete,
+				httpMethods := []string{http.MethodGet, http.MethodPost, http.MethodHead, http.MethodDelete,
 					http.MethodPut, http.MethodPatch, http.MethodOptions, http.MethodTrace, http.MethodConnect}
+				// Duplicating the list to have each method appearing twice
+				httpMethods = append(httpMethods, httpMethods...)
 				// Currently, the methods TRACE and CONNECT are not supported by the http.Method package.
 				// Therefore, we mark those requests as incomplete and not expected to be captured.
 				framer := newFramer()
+				var buf bytes.Buffer
+				encoder := hpack.NewEncoder(&buf)
 				for i, method := range httpMethods {
 					streamID := getStreamID(i)
 					framer.
-						writeHeaders(t, streamID, usmhttp2.HeadersFrameOptions{Headers: generateTestHeaderFields(headersGenerationOptions{overrideMethod: method})}).
+						writeHeadersWithEncoder(t, streamID, usmhttp2.HeadersFrameOptions{Headers: generateTestHeaderFields(headersGenerationOptions{overrideMethod: method})}, encoder, &buf).
 						writeData(t, streamID, endStream, emptyBody)
 				}
 				return [][]byte{framer.bytes()}
@@ -813,31 +822,31 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 				{
 					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString(http2DefaultTestPath)},
 					Method: usmhttp.MethodGet,
-				}: 1,
+				}: 2,
 				{
 					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString(http2DefaultTestPath)},
 					Method: usmhttp.MethodPost,
-				}: 1,
+				}: 2,
 				{
 					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString(http2DefaultTestPath)},
 					Method: usmhttp.MethodHead,
-				}: 1,
+				}: 2,
 				{
 					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString(http2DefaultTestPath)},
 					Method: usmhttp.MethodDelete,
-				}: 1,
+				}: 2,
 				{
 					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString(http2DefaultTestPath)},
 					Method: usmhttp.MethodPut,
-				}: 1,
+				}: 2,
 				{
 					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString(http2DefaultTestPath)},
 					Method: usmhttp.MethodPatch,
-				}: 1,
+				}: 2,
 				{
 					Path:   usmhttp.Path{Content: usmhttp.Interner.GetString(http2DefaultTestPath)},
 					Method: usmhttp.MethodOptions,
-				}: 1,
+				}: 2,
 			},
 		},
 		{
@@ -1243,118 +1252,6 @@ func (s *usmHTTP2Suite) TestRawTraffic() {
 						t.Logf("key: %v was not found in res", key.Path.Content.Get())
 					}
 				}
-				ebpftest.DumpMapsTestHelper(t, usmMonitor.DumpMaps, usmhttp2.InFlightMap, "http2_dynamic_table")
-				dumpTelemetry(t, usmMonitor, s.isTLS)
-			}
-		})
-	}
-}
-
-func (s *usmHTTP2Suite) TestFrameSplitIntoMultiplePackets() {
-	t := s.T()
-	cfg := s.getCfg()
-
-	// Start local server and register its cleanup.
-	t.Cleanup(startH2CServer(t, authority, s.isTLS))
-
-	// Start the proxy server.
-	proxyProcess, cancel := proxy.NewExternalUnixTransparentProxyServer(t, unixPath, authority, s.isTLS)
-	t.Cleanup(cancel)
-	require.NoError(t, proxy.WaitForConnectionReady(unixPath))
-
-	tests := []struct {
-		name                           string
-		messageBuilder                 func() [][]byte
-		fragmentedFrameCountRST        uint64
-		fragmentedHeadersFrameEOSCount uint64
-		fragmentedHeadersFrameCount    uint64
-		fragmentedDataFrameEOSCount    uint64
-	}{
-		{
-			name: "validate fragmented headers frame with eos",
-			// The purpose of this test is to validate that we cannot handle reassembled tcp segments.
-			messageBuilder: func() [][]byte {
-				const endStream = true
-				a := newFramer().
-					writeHeaders(t, 1, usmhttp2.HeadersFrameOptions{Headers: testHeaders(), EndStream: endStream}).
-					writeData(t, 1, true, emptyBody).bytes()
-				return [][]byte{
-					// we split it in 10 bytes in order to split the payload itself.
-					a[:10],
-					a[10:],
-				}
-			},
-			fragmentedHeadersFrameEOSCount: 1,
-		},
-		{
-			name: "validate fragmented data frame with eos",
-			// The purpose of this test is to validate that we cannot handle reassembled tcp segments.
-			messageBuilder: func() [][]byte {
-				a := newFramer().
-					writeHeaders(t, 1, usmhttp2.HeadersFrameOptions{Headers: testHeaders()}).bytes()
-				b := newFramer().writeData(t, 1, true, []byte("test1234")).bytes()
-				return [][]byte{
-					// we split it in 10 bytes in order to split the payload itself.
-					a,
-					b[:10],
-				}
-			},
-			fragmentedDataFrameEOSCount: 1,
-		},
-		{
-			name: "validate fragmented rst frame",
-			// The purpose of this test is to validate that we cannot handle reassembled tcp segments.
-			messageBuilder: func() [][]byte {
-				a := newFramer().
-					writeHeaders(t, 1, usmhttp2.HeadersFrameOptions{Headers: testHeaders()}).bytes()
-				b := newFramer().writeRSTStream(t, 1, 1).bytes()
-				return [][]byte{
-					// we split it in 10 bytes in order to split the payload itself.
-					a,
-					b[:10],
-				}
-			},
-			fragmentedFrameCountRST: 1,
-		},
-		{
-			name: "validate fragmented headers frame",
-			// The purpose of this test is to validate that we cannot handle reassembled tcp segments.
-			messageBuilder: func() [][]byte {
-				a := newFramer().
-					writeHeaders(t, 1, usmhttp2.HeadersFrameOptions{Headers: testHeaders()}).
-					writeData(t, 1, true, emptyBody).bytes()
-				return [][]byte{
-					// we split it in 10 bytes in order to split the payload itself.
-					a[:10],
-					a[10:],
-				}
-			},
-			fragmentedHeadersFrameCount: 1,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			usmMonitor := setupUSMTLSMonitor(t, cfg)
-			if s.isTLS {
-				utils.WaitForProgramsToBeTraced(t, "go-tls", proxyProcess.Process.Pid)
-			}
-
-			c := dialHTTP2Server(t)
-
-			// Composing a message with the number of setting frames we want to send.
-			require.NoError(t, writeInput(c, 500*time.Millisecond, tt.messageBuilder()...))
-
-			assert.Eventually(t, func() bool {
-				telemetry, err := getHTTP2KernelTelemetry(usmMonitor, s.isTLS)
-				require.NoError(t, err, "could not get http2 telemetry")
-				require.Equal(t, telemetry.Fragmented_frame_count_data_eos, tt.fragmentedDataFrameEOSCount, "expected to see %d fragmented data eos frames and got %d", tt.fragmentedDataFrameEOSCount, telemetry.Fragmented_frame_count_data_eos)
-				require.Equal(t, telemetry.Fragmented_frame_count_headers_eos, tt.fragmentedHeadersFrameEOSCount, "expected to see %d fragmented headers eos frames and got %d", tt.fragmentedHeadersFrameEOSCount, telemetry.Fragmented_frame_count_headers_eos)
-				require.Equal(t, telemetry.Fragmented_frame_count_rst, tt.fragmentedFrameCountRST, "expected to see %d fragmented rst frames and got %d", tt.fragmentedFrameCountRST, telemetry.Fragmented_frame_count_rst)
-				require.Equal(t, telemetry.Fragmented_frame_count_headers, tt.fragmentedHeadersFrameCount, "expected to see %d fragmented headers frames and got %d", tt.fragmentedHeadersFrameCount, telemetry.Fragmented_frame_count_headers)
-				return true
-
-			}, time.Second*5, time.Millisecond*100)
-			if t.Failed() {
 				ebpftest.DumpMapsTestHelper(t, usmMonitor.DumpMaps, usmhttp2.InFlightMap, "http2_dynamic_table")
 				dumpTelemetry(t, usmMonitor, s.isTLS)
 			}
@@ -1856,6 +1753,23 @@ func (f *framer) writeHeaders(t *testing.T, streamID uint32, headersFramesOption
 	headersFrame, err := usmhttp2.NewHeadersFrameMessage(headersFramesOptions)
 	require.NoError(t, err, "could not create headers frame")
 
+	if headersFramesOptions.EndStream {
+		require.NoError(t, f.framer.WriteHeaders(http2.HeadersFrameParam{
+			StreamID:      streamID,
+			BlockFragment: headersFrame,
+			EndHeaders:    endHeaders,
+			EndStream:     true,
+		}), "could not write header frames")
+		return f
+	}
+
+	return f.writeRawHeaders(t, streamID, true, headersFrame)
+}
+
+func (f *framer) writeHeadersWithEncoder(t *testing.T, streamID uint32, headersFramesOptions usmhttp2.HeadersFrameOptions, encoder *hpack.Encoder, buf *bytes.Buffer) *framer {
+	require.NoError(t, usmhttp2.NewHeadersFrameMessageWithEncoder(encoder, headersFramesOptions), "could not create headers frame")
+	headersFrame := buf.Bytes()
+	buf.Reset()
 	if headersFramesOptions.EndStream {
 		require.NoError(t, f.framer.WriteHeaders(http2.HeadersFrameParam{
 			StreamID:      streamID,

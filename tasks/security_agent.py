@@ -16,13 +16,12 @@ from tasks.agent import generate_config
 from tasks.build_tags import get_default_build_tags
 from tasks.go import run_golangci_lint
 from tasks.libs.build.ninja import NinjaWriter
+from tasks.libs.common.git import get_commit_sha, get_current_branch
 from tasks.libs.common.utils import (
     REPO_PATH,
     bin_name,
     environ,
     get_build_flags,
-    get_git_branch_name,
-    get_git_commit,
     get_go_version,
     get_gopath,
     get_version,
@@ -55,9 +54,6 @@ def build(
     incremental_build=True,
     install_path=None,
     major_version='7',
-    # arch is never used here; we keep it to have a
-    # consistent CLI on the build task for all agents.
-    arch=CURRENT_ARCH,  # noqa: U100
     go_mod="mod",
     skip_assets=False,
     static=False,
@@ -71,7 +67,6 @@ def build(
             ctx,
             install_path=install_path,
             race=race,
-            arch=arch,
             go_mod=go_mod,
         )
 
@@ -81,23 +76,19 @@ def build(
     ld_vars = {
         "Version": get_version(ctx, major_version=major_version),
         "GoVersion": get_go_version(),
-        "GitBranch": get_git_branch_name(),
-        "GitCommit": get_git_commit(),
+        "GitBranch": get_current_branch(ctx),
+        "GitCommit": get_commit_sha(ctx, short=True),
         "BuildDate": datetime.datetime.now().strftime("%Y-%m-%dT%H:%M:%S"),
     }
 
     ## build windows resources
     # generate windows resources
     if sys.platform == 'win32':
-        if arch == "x86":
-            env["GOARCH"] = "386"
-
-        build_messagetable(ctx, arch=arch)
-        vars = versioninfo_vars(ctx, major_version=major_version, arch=arch)
+        build_messagetable(ctx)
+        vars = versioninfo_vars(ctx, major_version=major_version)
         build_rc(
             ctx,
             "cmd/security-agent/windows_resources/security-agent.rc",
-            arch=arch,
             vars=vars,
             out="cmd/security-agent/rsrc.syso",
         )
@@ -362,7 +353,6 @@ def build_functional_tests(
     ctx,
     output='pkg/security/tests/testsuite',
     srcpath='pkg/security/tests',
-    arch=CURRENT_ARCH,
     major_version='7',
     build_tags='functionaltests',
     build_flags='',
@@ -379,7 +369,6 @@ def build_functional_tests(
             build_cws_object_files(
                 ctx,
                 major_version=major_version,
-                arch=arch,
                 kernel_release=kernel_release,
                 debug=debug,
             )
@@ -388,8 +377,6 @@ def build_functional_tests(
     ldflags, gcflags, env = get_build_flags(ctx, major_version=major_version, static=static)
 
     env["CGO_ENABLED"] = "1"
-    if arch == "x86":
-        env["GOARCH"] = "386"
 
     build_tags = build_tags.split(",")
     if not is_windows:
@@ -405,7 +392,7 @@ def build_functional_tests(
 
     if not skip_linters:
         targets = [srcpath]
-        results = run_golangci_lint(ctx, module_path="", targets=targets, build_tags=build_tags, arch=arch)
+        results = run_golangci_lint(ctx, module_path="", targets=targets, build_tags=build_tags)
         for result in results:
             # golangci exits with status 1 when it finds an issue
             if result.exited != 0:
@@ -436,7 +423,6 @@ def build_functional_tests(
 def build_stress_tests(
     ctx,
     output=f"pkg/security/tests/{STRESS_TEST_SUITE}",
-    arch=CURRENT_ARCH,
     major_version='7',
     bundle_ebpf=True,
     skip_linters=False,
@@ -446,7 +432,6 @@ def build_stress_tests(
     build_functional_tests(
         ctx,
         output=output,
-        arch=arch,
         major_version=major_version,
         build_tags='stresstests',
         bundle_ebpf=bundle_ebpf,
@@ -459,7 +444,6 @@ def build_stress_tests(
 def stress_tests(
     ctx,
     verbose=False,
-    arch=CURRENT_ARCH,
     major_version='7',
     output=f"pkg/security/tests/{STRESS_TEST_SUITE}",
     bundle_ebpf=True,
@@ -469,7 +453,6 @@ def stress_tests(
 ):
     build_stress_tests(
         ctx,
-        arch=arch,
         major_version=major_version,
         output=output,
         bundle_ebpf=bundle_ebpf,
@@ -490,7 +473,6 @@ def functional_tests(
     ctx,
     verbose=False,
     race=False,
-    arch=CURRENT_ARCH,
     major_version='7',
     output='pkg/security/tests/testsuite',
     bundle_ebpf=True,
@@ -501,7 +483,6 @@ def functional_tests(
 ):
     build_functional_tests(
         ctx,
-        arch=arch,
         major_version=major_version,
         output=output,
         bundle_ebpf=bundle_ebpf,
@@ -535,7 +516,6 @@ def ebpfless_functional_tests(
 ):
     build_functional_tests(
         ctx,
-        arch=arch,
         major_version=major_version,
         output=output,
         bundle_ebpf=bundle_ebpf,
@@ -557,7 +537,6 @@ def ebpfless_functional_tests(
 def kitchen_functional_tests(
     ctx,
     verbose=False,
-    arch=CURRENT_ARCH,
     major_version='7',
     build_tests=False,
     testflags='',
@@ -566,7 +545,6 @@ def kitchen_functional_tests(
         functional_tests(
             ctx,
             verbose=verbose,
-            arch=arch,
             major_version=major_version,
             output="test/kitchen/site-cookbooks/dd-security-agent-check/files/testsuite",
             testflags=testflags,
@@ -595,7 +573,6 @@ def docker_functional_tests(
 ):
     build_functional_tests(
         ctx,
-        arch=arch,
         major_version=major_version,
         output="pkg/security/tests/testsuite",
         bundle_ebpf=bundle_ebpf,
@@ -605,36 +582,9 @@ def docker_functional_tests(
         kernel_release=kernel_release,
     )
 
-    add_arch_line = ""
-    if arch == "x86":
-        add_arch_line = "RUN dpkg --add-architecture i386"
-
-    dockerfile = f"""
-FROM ubuntu:22.04
-
-ENV DOCKER_DD_AGENT=yes
-
-{add_arch_line}
-
-RUN apt-get update -y \
-    && apt-get install -y --no-install-recommends xfsprogs ca-certificates iproute2 clang-14 llvm-14 \
-    && rm -rf /var/lib/apt/lists/*
-
-RUN mkdir -p /opt/datadog-agent/embedded/bin
-RUN ln -s $(which clang-14) /opt/datadog-agent/embedded/bin/clang-bpf
-RUN ln -s $(which llc-14) /opt/datadog-agent/embedded/bin/llc-bpf
-    """
-
-    docker_image_tag_name = "docker-functional-tests"
-
-    # build docker image
-    with tempfile.TemporaryDirectory() as temp_dir:
-        print("Create tmp dir:", temp_dir)
-        with open(os.path.join(temp_dir, "Dockerfile"), "w") as f:
-            f.write(dockerfile)
-
-        cmd = 'docker build {docker_file_ctx} --tag {image_tag}'
-        ctx.run(cmd.format(**{"docker_file_ctx": temp_dir, "image_tag": docker_image_tag_name}))
+    image_tag = (
+        "ghcr.io/paulcacheux/cws-centos7@sha256:b16587f1cc7caebc1a18868b9fbd3823e79457065513e591352c4d929b14c426"
+    )
 
     container_name = 'security-agent-tests'
     capabilities = ['SYS_ADMIN', 'SYS_RESOURCE', 'SYS_PTRACE', 'NET_ADMIN', 'IPC_LOCK', 'ALL']
@@ -648,6 +598,7 @@ RUN ln -s $(which llc-14) /opt/datadog-agent/embedded/bin/llc-bpf
     cmd += '-v /usr/lib/os-release:/host/usr/lib/os-release '
     cmd += '-v /etc/passwd:/etc/passwd '
     cmd += '-v /etc/group:/etc/group '
+    cmd += '-v /opt/datadog-agent/embedded/:/opt/datadog-agent/embedded/ '
     cmd += '-v ./pkg/security/tests:/tests {image_tag} sleep 3600'
 
     args = {
@@ -655,7 +606,7 @@ RUN ln -s $(which llc-14) /opt/datadog-agent/embedded/bin/llc-bpf
         "REPO_PATH": REPO_PATH,
         "container_name": container_name,
         "caps": ' '.join(f"--cap-add {cap}" for cap in capabilities),
-        "image_tag": f"{docker_image_tag_name}:latest",
+        "image_tag": image_tag,
     }
 
     ctx.run(cmd.format(**args))
@@ -741,12 +692,21 @@ def generate_syscall_table(ctx):
     )
 
 
+DEFAULT_BTFHUB_CONSTANTS_PATH = "./pkg/security/probe/constantfetch/btfhub/constants.json"
+
+
 @task
-def generate_btfhub_constants(ctx, archive_path, force_refresh=False):
-    output_path = "./pkg/security/probe/constantfetch/btfhub/constants.json"
+def generate_btfhub_constants(ctx, archive_path, force_refresh=False, output_path=DEFAULT_BTFHUB_CONSTANTS_PATH):
     force_refresh_opt = "-force-refresh" if force_refresh else ""
     ctx.run(
         f"go run -tags linux_bpf,btfhubsync ./pkg/security/probe/constantfetch/btfhub/ -archive-root {archive_path} -output {output_path} {force_refresh_opt}",
+    )
+
+
+@task
+def combine_btfhub_constants(ctx, archive_path, output_path=DEFAULT_BTFHUB_CONSTANTS_PATH):
+    ctx.run(
+        f"go run -tags linux_bpf,btfhubsync ./pkg/security/probe/constantfetch/btfhub/ -combine -archive-root {archive_path} -output {output_path}",
     )
 
 
@@ -902,7 +862,6 @@ def run_ebpf_unit_tests(ctx, verbose=False, trace=False):
     build_cws_object_files(
         ctx,
         major_version='7',
-        arch=CURRENT_ARCH,
         kernel_release=None,
         with_unit_test=True,
     )
@@ -938,6 +897,8 @@ def sync_secl_win_pkg(ctx):
         ("model_windows.go", "model_win.go"),
         ("field_handlers_windows.go", "field_handlers_win.go"),
         ("accessors_windows.go", "accessors_win.go"),
+        ("legacy_secl.go", None),
+        ("security_profile.go", None),
     ]
 
     ctx.run("rm -r pkg/security/seclwin/model")

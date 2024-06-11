@@ -11,9 +11,10 @@ import (
 	"fmt"
 	"strings"
 
+	k8smetadata "github.com/DataDog/datadog-agent/comp/core/tagger/k8s_metadata"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/taglist"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
-	"github.com/DataDog/datadog-agent/comp/core/tagger/utils"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
@@ -48,6 +49,12 @@ const (
 	envVarVersion = "DD_VERSION"
 	envVarService = "DD_SERVICE"
 
+	// OpenTelemetry SDK - Environment variables
+	// https://opentelemetry.io/docs/languages/sdk-configuration/general
+	// https://opentelemetry.io/docs/specs/semconv/resource/
+	envVarOtelService            = "OTEL_SERVICE_NAME"
+	envVarOtelResourceAttributes = "OTEL_RESOURCE_ATTRIBUTES"
+
 	// Docker label keys
 	dockerLabelEnv     = "com.datadoghq.tags.env"
 	dockerLabelVersion = "com.datadoghq.tags.version"
@@ -63,6 +70,16 @@ var (
 		envVarEnv:     tagKeyEnv,
 		envVarVersion: tagKeyVersion,
 		envVarService: tagKeyService,
+	}
+
+	otelStandardEnvKeys = map[string]string{
+		envVarOtelService: tagKeyService,
+	}
+
+	otelResourceAttributesMapping = map[string]string{
+		"service.name":           tagKeyService,
+		"service.version":        tagKeyVersion,
+		"deployment.environment": tagKeyEnv,
 	}
 
 	lowCardOrchestratorEnvKeys = map[string]string{
@@ -136,6 +153,8 @@ func (c *WorkloadMetaCollector) processEvents(evBundle workloadmeta.EventBundle)
 				tagInfos = append(tagInfos, c.handleKubePod(ev)...)
 			case workloadmeta.KindKubernetesNode:
 				tagInfos = append(tagInfos, c.handleKubeNode(ev)...)
+			case workloadmeta.KindKubernetesNamespace:
+				tagInfos = append(tagInfos, c.handleKubeNamespace(ev)...)
 			case workloadmeta.KindECSTask:
 				tagInfos = append(tagInfos, c.handleECSTask(ev)...)
 			case workloadmeta.KindContainerImageMetadata:
@@ -186,7 +205,7 @@ func (c *WorkloadMetaCollector) handleContainer(ev workloadmeta.Event) []*types.
 		return c.handleGardenContainer(container)
 	}
 
-	tags := utils.NewTagList()
+	tags := taglist.NewTagList()
 	tags.AddHigh("container_name", container.Name)
 	tags.AddHigh("container_id", container.ID)
 
@@ -209,13 +228,16 @@ func (c *WorkloadMetaCollector) handleContainer(ev workloadmeta.Event) []*types.
 	// standard tags from environment
 	c.extractFromMapWithFn(container.EnvVars, standardEnvKeys, tags.AddStandard)
 
+	// standard tags in OpenTelemetry SDK format from environment
+	c.addOpenTelemetryStandardTags(container, tags)
+
 	// orchestrator tags from environment
 	c.extractFromMapWithFn(container.EnvVars, lowCardOrchestratorEnvKeys, tags.AddLow)
 	c.extractFromMapWithFn(container.EnvVars, orchCardOrchestratorEnvKeys, tags.AddOrchestrator)
 
 	// extract env as tags
 	for envName, envValue := range container.EnvVars {
-		utils.AddMetadataAsTags(envName, envValue, c.containerEnvAsTags, c.globContainerEnvLabels, tags)
+		k8smetadata.AddMetadataAsTags(envName, envValue, c.containerEnvAsTags, c.globContainerEnvLabels, tags)
 	}
 
 	// static tags for ECS and EKS Fargate containers
@@ -239,7 +261,7 @@ func (c *WorkloadMetaCollector) handleContainer(ev workloadmeta.Event) []*types.
 func (c *WorkloadMetaCollector) handleContainerImage(ev workloadmeta.Event) []*types.TagInfo {
 	image := ev.Entity.(*workloadmeta.ContainerImageMetadata)
 
-	tags := utils.NewTagList()
+	tags := taglist.NewTagList()
 	tags.AddLow("image_name", image.Name)
 
 	// In containerd some images are created without a repo digest, and it's
@@ -297,13 +319,13 @@ func (c *WorkloadMetaCollector) handleHostTags(ev workloadmeta.Event) []*types.T
 	}
 }
 
-func (c *WorkloadMetaCollector) labelsToTags(labels map[string]string, tags *utils.TagList) {
+func (c *WorkloadMetaCollector) labelsToTags(labels map[string]string, tags *taglist.TagList) {
 	// standard tags from labels
 	c.extractFromMapWithFn(labels, standardDockerLabels, tags.AddStandard)
 
 	// container labels as tags
 	for labelName, labelValue := range labels {
-		utils.AddMetadataAsTags(labelName, labelValue, c.containerLabelsAsTags, c.globContainerLabels, tags)
+		k8smetadata.AddMetadataAsTags(labelName, labelValue, c.containerLabelsAsTags, c.globContainerLabels, tags)
 	}
 
 	// orchestrator tags from labels
@@ -322,7 +344,7 @@ func (c *WorkloadMetaCollector) labelsToTags(labels map[string]string, tags *uti
 func (c *WorkloadMetaCollector) handleKubePod(ev workloadmeta.Event) []*types.TagInfo {
 	pod := ev.Entity.(*workloadmeta.KubernetesPod)
 
-	tags := utils.NewTagList()
+	tags := taglist.NewTagList()
 	tags.AddOrchestrator(kubernetes.PodTagName, pod.Name)
 	tags.AddLow(kubernetes.NamespaceTagName, pod.Namespace)
 	tags.AddLow("pod_phase", strings.ToLower(pod.Phase))
@@ -332,15 +354,19 @@ func (c *WorkloadMetaCollector) handleKubePod(ev workloadmeta.Event) []*types.Ta
 	c.extractTagsFromPodLabels(pod, tags)
 
 	for name, value := range pod.Annotations {
-		utils.AddMetadataAsTags(name, value, c.annotationsAsTags, c.globAnnotations, tags)
+		k8smetadata.AddMetadataAsTags(name, value, c.annotationsAsTags, c.globAnnotations, tags)
 	}
 
 	for name, value := range pod.NamespaceLabels {
-		utils.AddMetadataAsTags(name, value, c.nsLabelsAsTags, c.globNsLabels, tags)
+		k8smetadata.AddMetadataAsTags(name, value, c.nsLabelsAsTags, c.globNsLabels, tags)
+	}
+
+	for name, value := range pod.NamespaceAnnotations {
+		k8smetadata.AddMetadataAsTags(name, value, c.nsAnnotationsAsTags, c.globNsAnnotations, tags)
 	}
 
 	kubeServiceDisabled := false
-	for _, disabledTag := range config.Datadog.GetStringSlice("kubernetes_ad_tags_disabled") {
+	for _, disabledTag := range config.Datadog().GetStringSlice("kubernetes_ad_tags_disabled") {
 		if disabledTag == "kube_service" {
 			kubeServiceDisabled = true
 			break
@@ -416,7 +442,7 @@ func (c *WorkloadMetaCollector) handleKubePod(ev workloadmeta.Event) []*types.Ta
 func (c *WorkloadMetaCollector) handleKubeNode(ev workloadmeta.Event) []*types.TagInfo {
 	node := ev.Entity.(*workloadmeta.KubernetesNode)
 
-	tags := utils.NewTagList()
+	tags := taglist.NewTagList()
 
 	// Add tags for node here
 
@@ -435,10 +461,38 @@ func (c *WorkloadMetaCollector) handleKubeNode(ev workloadmeta.Event) []*types.T
 	return tagInfos
 }
 
+func (c *WorkloadMetaCollector) handleKubeNamespace(ev workloadmeta.Event) []*types.TagInfo {
+	namespace := ev.Entity.(*workloadmeta.KubernetesNamespace)
+
+	tags := taglist.NewTagList()
+
+	for name, value := range namespace.Labels {
+		k8smetadata.AddMetadataAsTags(name, value, c.nsLabelsAsTags, c.globNsLabels, tags)
+	}
+
+	for name, value := range namespace.Annotations {
+		k8smetadata.AddMetadataAsTags(name, value, c.nsAnnotationsAsTags, c.globNsAnnotations, tags)
+	}
+
+	low, orch, high, standard := tags.Compute()
+	tagInfos := []*types.TagInfo{
+		{
+			Source:               nodeSource,
+			Entity:               buildTaggerEntityID(namespace.EntityID),
+			HighCardTags:         high,
+			OrchestratorCardTags: orch,
+			LowCardTags:          low,
+			StandardTags:         standard,
+		},
+	}
+
+	return tagInfos
+}
+
 func (c *WorkloadMetaCollector) handleECSTask(ev workloadmeta.Event) []*types.TagInfo {
 	task := ev.Entity.(*workloadmeta.ECSTask)
 
-	taskTags := utils.NewTagList()
+	taskTags := taglist.NewTagList()
 
 	// as of Agent 7.33, tasks have a name internally, but before that
 	// task_name already was task.Family, so we keep it for backwards
@@ -449,7 +503,7 @@ func (c *WorkloadMetaCollector) handleECSTask(ev workloadmeta.Event) []*types.Ta
 	taskTags.AddOrchestrator("task_arn", task.ID)
 
 	if task.ClusterName != "" {
-		if !config.Datadog.GetBool("disable_cluster_name_tag_key") {
+		if !config.Datadog().GetBool("disable_cluster_name_tag_key") {
 			taskTags.AddLow("cluster_name", task.ClusterName)
 		}
 		taskTags.AddLow("ecs_cluster_name", task.ClusterName)
@@ -516,7 +570,7 @@ func (c *WorkloadMetaCollector) handleGardenContainer(container *workloadmeta.Co
 	}
 }
 
-func (c *WorkloadMetaCollector) extractTagsFromPodLabels(pod *workloadmeta.KubernetesPod, tags *utils.TagList) {
+func (c *WorkloadMetaCollector) extractTagsFromPodLabels(pod *workloadmeta.KubernetesPod, tags *taglist.TagList) {
 	for name, value := range pod.Labels {
 		switch name {
 		case kubernetes.EnvTagLabelKey:
@@ -539,11 +593,11 @@ func (c *WorkloadMetaCollector) extractTagsFromPodLabels(pod *workloadmeta.Kuber
 			tags.AddLow(tagKeyKubeAppManagedBy, value)
 		}
 
-		utils.AddMetadataAsTags(name, value, c.labelsAsTags, c.globLabels, tags)
+		k8smetadata.AddMetadataAsTags(name, value, c.labelsAsTags, c.globLabels, tags)
 	}
 }
 
-func (c *WorkloadMetaCollector) extractTagsFromPodOwner(pod *workloadmeta.KubernetesPod, owner workloadmeta.KubernetesPodOwner, tags *utils.TagList) {
+func (c *WorkloadMetaCollector) extractTagsFromPodOwner(pod *workloadmeta.KubernetesPod, owner workloadmeta.KubernetesPodOwner, tags *taglist.TagList) {
 	switch owner.Kind {
 	case kubernetes.DeploymentKind:
 		tags.AddLow(kubernetes.DeploymentTagName, owner.Name)
@@ -580,7 +634,7 @@ func (c *WorkloadMetaCollector) extractTagsFromPodOwner(pod *workloadmeta.Kubern
 	}
 }
 
-func (c *WorkloadMetaCollector) extractTagsFromPodContainer(pod *workloadmeta.KubernetesPod, podContainer workloadmeta.OrchestratorContainer, tags *utils.TagList) (*types.TagInfo, error) {
+func (c *WorkloadMetaCollector) extractTagsFromPodContainer(pod *workloadmeta.KubernetesPod, podContainer workloadmeta.OrchestratorContainer, tags *taglist.TagList) (*types.TagInfo, error) {
 	container, err := c.store.GetContainer(podContainer.ID)
 	if err != nil {
 		return nil, fmt.Errorf("pod %q has reference to non-existing container %q", pod.Name, podContainer.ID)
@@ -614,6 +668,9 @@ func (c *WorkloadMetaCollector) extractTagsFromPodContainer(pod *workloadmeta.Ku
 
 	// enrich with standard tags from environment variables
 	c.extractFromMapWithFn(container.EnvVars, standardEnvKeys, tags.AddStandard)
+
+	// standard tags in OpenTelemetry SDK format from environment
+	c.addOpenTelemetryStandardTags(container, tags)
 
 	// container-specific tags provided through pod annotation
 	annotation := fmt.Sprintf(podContainerTagsAnnotationFormat, containerName)
@@ -696,7 +753,7 @@ func (c *WorkloadMetaCollector) extractFromMapNormalizedWithFn(input map[string]
 	}
 }
 
-func (c *WorkloadMetaCollector) extractTagsFromJSONInMap(key string, input map[string]string, tags *utils.TagList) {
+func (c *WorkloadMetaCollector) extractTagsFromJSONInMap(key string, input map[string]string, tags *taglist.TagList) {
 	jsonTags, found := input[key]
 	if !found {
 		return
@@ -708,6 +765,23 @@ func (c *WorkloadMetaCollector) extractTagsFromJSONInMap(key string, input map[s
 	}
 }
 
+func (c *WorkloadMetaCollector) addOpenTelemetryStandardTags(container *workloadmeta.Container, tags *taglist.TagList) {
+	if otelResourceAttributes, ok := container.EnvVars[envVarOtelResourceAttributes]; ok {
+		for _, pair := range strings.Split(otelResourceAttributes, ",") {
+			fields := strings.SplitN(pair, "=", 2)
+			if len(fields) != 2 {
+				log.Debugf("invalid OpenTelemetry resource attribute: %s", pair)
+				continue
+			}
+			fields[0], fields[1] = strings.TrimSpace(fields[0]), strings.TrimSpace(fields[1])
+			if tag, ok := otelResourceAttributesMapping[fields[0]]; ok {
+				tags.AddStandard(tag, fields[1])
+			}
+		}
+	}
+	c.extractFromMapWithFn(container.EnvVars, otelStandardEnvKeys, tags.AddStandard)
+}
+
 func buildTaggerEntityID(entityID workloadmeta.EntityID) string {
 	switch entityID.Kind {
 	case workloadmeta.KindContainer:
@@ -716,6 +790,8 @@ func buildTaggerEntityID(entityID workloadmeta.EntityID) string {
 		return kubelet.PodUIDToTaggerEntityName(entityID.ID)
 	case workloadmeta.KindKubernetesNode:
 		return kubelet.NodeUIDToTaggerEntityName(entityID.ID)
+	case workloadmeta.KindKubernetesNamespace:
+		return fmt.Sprintf("namespace://%s", entityID.ID)
 	case workloadmeta.KindECSTask:
 		return fmt.Sprintf("ecs_task://%s", entityID.ID)
 	case workloadmeta.KindContainerImageMetadata:
@@ -737,7 +813,7 @@ func buildTaggerSource(entityID workloadmeta.EntityID) string {
 	return fmt.Sprintf("%s-%s", workloadmetaCollectorName, string(entityID.Kind))
 }
 
-func parseJSONValue(value string, tags *utils.TagList) error {
+func parseJSONValue(value string, tags *taglist.TagList) error {
 	if value == "" {
 		return errors.New("value is empty")
 	}
@@ -763,7 +839,7 @@ func parseJSONValue(value string, tags *utils.TagList) error {
 	return nil
 }
 
-func parseContainerADTagsLabels(tags *utils.TagList, labelValue string) {
+func parseContainerADTagsLabels(tags *taglist.TagList, labelValue string) {
 	tagNames := []string{}
 	err := json.Unmarshal([]byte(labelValue), &tagNames)
 	if err != nil {
@@ -783,7 +859,7 @@ func parseContainerADTagsLabels(tags *utils.TagList, labelValue string) {
 //lint:ignore U1000 Ignore unused function until the collector is implemented
 func (c *WorkloadMetaCollector) handleProcess(ev workloadmeta.Event) []*types.TagInfo {
 	process := ev.Entity.(*workloadmeta.Process)
-	tags := utils.NewTagList()
+	tags := taglist.NewTagList()
 	if process.Language != nil {
 		tags.AddLow("language", string(process.Language.Name))
 	}

@@ -9,10 +9,17 @@ package localapiclientimpl
 import (
 	"go.uber.org/fx"
 
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/updater/localapiclient"
 	"github.com/DataDog/datadog-agent/pkg/fleet/daemon"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
+
+type dependencies struct {
+	fx.In
+
+	Config config.Component
+}
 
 // Module is the fx module for the installer local api client.
 func Module() fxutil.Module {
@@ -21,6 +28,6 @@ func Module() fxutil.Module {
 	)
 }
 
-func newLocalAPIClientComponent() localapiclient.Component {
-	return daemon.NewLocalAPIClient()
+func newLocalAPIClientComponent(deps dependencies) localapiclient.Component {
+	return daemon.NewLocalAPIClient(deps.Config.GetString("run_path"))
 }

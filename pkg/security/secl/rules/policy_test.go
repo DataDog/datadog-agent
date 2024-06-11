@@ -15,6 +15,7 @@ import (
 	"strings"
 	"syscall"
 	"testing"
+	"time"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
@@ -288,6 +289,73 @@ func TestActionSetVariable(t *testing.T) {
 	assert.Equal(t, scopedVariables.Len(), 0)
 }
 
+func TestActionSetVariableTTL(t *testing.T) {
+	testPolicy := &PolicyDef{
+		Rules: []*RuleDefinition{{
+			ID:         "test_rule",
+			Expression: `open.file.path == "/tmp/test"`,
+			Actions: []*ActionDefinition{{
+				Set: &SetDefinition{
+					Name:   "var1",
+					Append: true,
+					Value:  []string{"foo"},
+					TTL:    1 * time.Second,
+				},
+			}},
+		}, {
+			ID: "test_rule2",
+			Expression: `open.file.path == "/tmp/test" && ` +
+				`${var1} == true`,
+		}, {
+			ID: "test_rule3",
+			Expression: `open.file.path == "/tmp/test" && ` +
+				`${var1} == false`,
+		}},
+	}
+
+	tmpDir := t.TempDir()
+
+	if err := savePolicy(filepath.Join(tmpDir, "test.policy"), testPolicy); err != nil {
+		t.Fatal(err)
+	}
+
+	provider, err := NewPoliciesDirProvider(tmpDir, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	loader := NewPolicyLoader(provider)
+
+	evaluationSet, _ := newTestEvaluationSet([]eval.RuleSetTagValue{DefaultRuleSetTagValue})
+	if errs := evaluationSet.LoadPolicies(loader, PolicyLoaderOpts{}); errs.ErrorOrNil() == nil {
+		t.Error("expected policy to fail to load")
+	}
+
+	event := model.NewFakeEvent()
+	event.Type = uint32(model.FileOpenEventType)
+	processCacheEntry := &model.ProcessCacheEntry{}
+	processCacheEntry.Retain()
+	event.ProcessCacheEntry = processCacheEntry
+	event.SetFieldValue("open.file.path", "/tmp/test")
+	event.SetFieldValue("open.flags", syscall.O_RDONLY)
+
+	if !evaluationSet.RuleSets[DefaultRuleSetTagValue].Evaluate(event) {
+		t.Errorf("Expected event to match rule")
+	}
+
+	opts := evaluationSet.RuleSets[DefaultRuleSetTagValue].evalOpts
+
+	existingVariable := opts.VariableStore.Get("var1")
+	assert.NotNil(t, existingVariable)
+
+	stringArrayVar, ok := existingVariable.(*eval.MutableStringArrayVariable)
+	assert.NotNil(t, stringArrayVar)
+	assert.True(t, ok)
+
+	assert.True(t, stringArrayVar.Contains("foo"))
+	time.Sleep(time.Second + 100*time.Millisecond)
+	assert.False(t, stringArrayVar.Contains("foo"))
+}
+
 func TestActionSetVariableConflict(t *testing.T) {
 	testPolicy := &PolicyDef{
 		Rules: []*RuleDefinition{{
@@ -472,10 +540,10 @@ func TestRuleAgentConstraint(t *testing.T) {
 	}
 
 	agentVersion, err := semver.NewVersion("7.38")
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 
 	agentVersionFilter, err := NewAgentVersionFilter(agentVersion)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 
 	policyOpts := PolicyLoaderOpts{
 		MacroFilters: []MacroFilter{

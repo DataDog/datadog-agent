@@ -52,11 +52,9 @@ components_to_migrate = [
     "comp/dogstatsd/replay/component.go",
     "comp/dogstatsd/server/component.go",
     "comp/forwarder/defaultforwarder/component.go",
-    "comp/logs/agent/component.go",
     "comp/metadata/inventoryagent/component.go",
     "comp/netflow/config/component.go",
     "comp/netflow/server/component.go",
-    "comp/otelcol/collector/component.go",
     "comp/remote-config/rcclient/component.go",
     "comp/trace/agent/component.go",
     "comp/trace/config/component.go",
@@ -124,7 +122,6 @@ def get_components_and_bundles():
 
         component_directory = pathlib.Path(component_file)
         for component_entry in component_directory.iterdir():
-
             # If we encounter a file at the first level it could be a bundle
             if component_entry.is_file() and component_entry.name == "bundle.go":
                 content = list(component_entry.open())
@@ -183,7 +180,7 @@ def get_components_and_bundles():
     return sorted(sorted_bundles), sorted(components_without_bundle), ok
 
 
-class ComponentRoot(object):
+class ComponentRoot:
     def __init__(self, file, dir, version):
         self.file = file
         self.dir = dir
@@ -236,6 +233,11 @@ def make_components_md(bundles, components_without_bundle):
         yield c.doc
 
 
+def build_codeowner_entry(path, team):
+    teams = [f'@DataDog/{team}' for team in team.split(' ')]
+    return f'/{path} ' + ' '.join(teams)
+
+
 def make_codeowners(codeowners_lines, bundles, components_without_bundle):
     codeowners_lines = codeowners_lines.__iter__()
 
@@ -252,15 +254,15 @@ def make_codeowners(codeowners_lines, bundles, components_without_bundle):
     different_components = []
     for b in bundles:
         if b.team:
-            yield f'/{b.path} @DataDog/{b.team}'
+            yield build_codeowner_entry(b.path, b.team)
         for c in b.components:
             if c.team != b.team:
                 different_components.append(c)
     for c in different_components:
         if c.team:
-            yield f'/{c.path} @DataDog/{c.team}'
+            yield build_codeowner_entry(c.path, c.team)
     for c in components_without_bundle:
-        yield f'/{c.path} @DataDog/{c.team}'
+        yield build_codeowner_entry(c.path, c.team)
 
     # drop lines from the existing codeowners until "# END COMPONENTS"
     for line in codeowners_lines:
@@ -363,10 +365,10 @@ def new_component(_, comp_path, overwrite=False, team="/* TODO: add team name */
     create_components_framework_files(
         comp_path,
         [
-            ("component.go", "component.go"),
-            ("component_mock.go", "component_mock.go"),
-            (os.path.join(f"{component_name}impl", f"{component_name}.go"), "impl/component.go"),
-            (os.path.join(f"{component_name}impl", f"{component_name}_mock.go"), "impl/component_mock.go"),
+            ("def/component.go", "def/component.go"),
+            ("fx/fx.go", "fx/fx.go"),
+            (os.path.join("impl", f"{component_name}.go"), "impl/component.go"),
+            ("mock/mock.go", "mock/mock.go"),
         ],
         template_var_mapping,
         overwrite,
@@ -462,10 +464,6 @@ def lint_fxutil_oneshot_test(_):
         for file in folder_path.rglob("*.go"):
             # Don't lint test files
             if str(file).endswith("_test.go"):
-                continue
-
-            excluded_cmds = ["agentless-scanner"]
-            if file.parts[0] == "cmd" and file.parts[1] in excluded_cmds:
                 continue
 
             one_shot_count = file.read_text().count("fxutil.OneShot(")

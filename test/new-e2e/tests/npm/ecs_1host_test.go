@@ -15,6 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 	envecs "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/ecs"
 
+	"github.com/DataDog/datadog-agent/pkg/util/testutil/flake"
 	npmtools "github.com/DataDog/test-infra-definitions/components/datadog/apps/npm-tools"
 	"github.com/DataDog/test-infra-definitions/components/datadog/ecsagentparams"
 	"github.com/DataDog/test-infra-definitions/components/docker"
@@ -52,7 +53,7 @@ func ecsHttpbinEnvProvisioner() e2e.PulumiEnvRunFunc[ecsHttpbinEnv] {
 		}
 
 		// install docker.io
-		manager, _, err := docker.NewManager(*awsEnv.CommonEnvironment, nginxHost)
+		manager, err := docker.NewManager(&awsEnv, nginxHost)
 		if err != nil {
 			return err
 		}
@@ -81,6 +82,7 @@ func ecsHttpbinEnvProvisioner() e2e.PulumiEnvRunFunc[ecsHttpbinEnv] {
 
 // TestECSVMSuite will validate running the agent on a single EC2 VM
 func TestECSVMSuite(t *testing.T) {
+	t.Parallel()
 	s := &ecsVMSuite{}
 	e2eParams := []e2e.SuiteOption{e2e.WithProvisioner(e2e.NewTypedPulumiProvisioner("ecsHttpbin", ecsHttpbinEnvProvisioner(), nil))}
 
@@ -118,6 +120,9 @@ func (v *ecsVMSuite) Test00FakeIntakeNPM() {
 // TestFakeIntakeNPM_TCP_UDP_DNS_HostRequests validate we received tcp, udp, and DNS connections
 // with some basic checks, like IPs/Ports present, DNS query has been captured, ...
 func (v *ecsVMSuite) TestFakeIntakeNPM_TCP_UDP_DNS() {
+	// mark the test flaky as somethimes 4/206 runs, it failed to retrieve DNS information
+	flake.Mark(v.T())
+
 	// deployed workload generate these connections every 20 seconds
 	//v.Env().RemoteHost.MustExecute("curl " + testURL)
 	//v.Env().RemoteHost.MustExecute("dig @8.8.8.8 www.google.ch")

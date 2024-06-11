@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 try:
     from termcolor import colored
 except ImportError:
@@ -6,13 +8,19 @@ import collections
 import contextlib
 import json
 import os
+import re
 import sys
 from pathlib import Path
-from typing import List
+from typing import TYPE_CHECKING
 
 from invoke.context import Context
 from invoke.exceptions import Exit
 from invoke.tasks import task
+
+if TYPE_CHECKING:
+    from typing_extensions import TypedDict
+else:
+    TypedDict = dict
 
 try:
     from tabulate import tabulate
@@ -45,7 +53,8 @@ verifier_stat_json_keys = [
     "total_states",
 ]
 
-skip_stat_keys = ["Complexity","verification_time"]
+skip_stat_keys = ["Complexity", "verification_time"]
+
 
 def tabulate_stats(stats):
     table = list()
@@ -76,7 +85,7 @@ def stdout_or_file(filename=None):
     def stdout():
         yield sys.stdout
 
-    return open(filename, 'w') if filename else stdout()
+    return open(filename, "w") if filename else stdout()
 
 
 def write_verifier_stats(verifier_stats, f, jsonfmt):
@@ -107,14 +116,14 @@ def format_verifier_stats(verifier_stats):
         "line_complexity": "Generate per-line complexity data",
         "save_verifier_logs": "Save verifier logs to disk for debugging purposes",
     },
-    iterable=['filter_file', 'grep'],
+    iterable=["filter_file", "grep"],
 )
 def collect_verification_stats(
     ctx,
     skip_object_files=False,
     debug_build=False,
-    filter_file: List[str] = None,  # type: ignore
-    grep: List[str] = None,  # type: ignore
+    filter_file: list[str] = None,  # type: ignore
+    grep: list[str] = None,  # type: ignore
     line_complexity=False,
     save_verifier_logs=False,
 ):
@@ -149,7 +158,11 @@ def collect_verification_stats(
 
     if line_complexity:
         COMPLEXITY_DATA_DIR.mkdir(exist_ok=True, parents=True)
-        args += ["-line-complexity", "-complexity-data-dir", os.fspath(COMPLEXITY_DATA_DIR)]
+        args += [
+            "-line-complexity",
+            "-complexity-data-dir",
+            os.fspath(COMPLEXITY_DATA_DIR),
+        ]
 
     ctx.run(f"{sudo} ./main {' '.join(args)}", env=env)
 
@@ -204,7 +217,10 @@ def print_verification_stats(
 
         base_value = base_verifier_stats[key]
         for json_key in verifier_stat_json_keys:
-            stat[json_key] = colored_diff(value[json_key], base_value[json_key])
+            if jsonfmt:
+                stat[json_key] = value[json_key] - base_value[json_key]
+            else:
+                stat[json_key] = colored_diff(value[json_key], base_value[json_key])
 
         stats_diff[key] = stat
 
@@ -234,25 +250,159 @@ def print_complexity_legend():
     print("\n\n")
 
 
-@task
-def annotate_complexity(_: Context, program: str, function: str, debug=False, show_assembly=False):
-    if debug:
-        program += "_debug"
+class ComplexitySourceLine(TypedDict):
+    num_instructions: int  # noqa: F841
+    max_passes: int  # noqa: F841
+    total_instructions_processed: int  # noqa: F841
+    assembly_insns: list[int]  # noqa: F841
 
-    func_name = f"{program}/{function.replace('/', '__')}"
+
+class ComplexityRegisterState(TypedDict):
+    live: str  # noqa: F841
+    type: str  # noqa: F841
+    value: str  # noqa: F841
+    register: int  # noqa: F841
+
+
+class ComplexityAssemblyInsn(TypedDict):
+    code: str  # noqa: F841
+    index: int  # noqa: F841
+    times_processed: int  # noqa: F841
+    register_state: dict[str, ComplexityRegisterState]  # noqa: F841  # Register state after the instruction is executed
+    register_state_raw: str  # noqa: F841
+
+
+class ComplexityData(TypedDict):
+    source_map: dict[str, ComplexitySourceLine]  # noqa: F841
+    insn_map: dict[str, ComplexityAssemblyInsn]  # noqa: F841
+
+
+def get_total_complexity_stats_len(compinfo_widths: tuple[int, int, int]):
+    return sum(compinfo_widths) + 7  # 7 = 2 brackets + 2 pipes + 3 letters
+
+
+def source_line_to_str(
+    lineno: int,
+    line: str,
+    compl: ComplexitySourceLine | None,
+    compinfo_widths: tuple[int, int, int],
+):
+    color = None
+    line = line.rstrip("\n")
+
+    compinfo_len = get_total_complexity_stats_len(compinfo_widths)
+    if compl is not None:
+        insn = compl["num_instructions"]
+        passes = compl["max_passes"]
+        total = compl["total_instructions_processed"]
+        compinfo = f"[{insn:{compinfo_widths[0]}d}i|{passes:{compinfo_widths[1]}d}p|{total:{compinfo_widths[2]}d}t]"
+
+        if total <= 5:
+            color = "green"
+        elif total <= 20:
+            color = "yellow"
+        elif total <= 50:
+            color = "red"
+        else:
+            color = "magenta"
+    else:
+        compinfo = " " * compinfo_len
+
+    if colored is None:
+        return f"{lineno:4d} | {compinfo} | {line}"
+    else:
+        return f"{lineno:4d} | {compinfo} | {colored(line, color)}"
+
+
+def assembly_line_to_str(asm_line: ComplexityAssemblyInsn, compinfo_width: tuple[int, int, int]):
+    asm_code = asm_line["code"]
+    processed = asm_line["times_processed"]
+    asm_idx = asm_line["index"]
+
+    return f"{asm_idx:4d} | [{' '*compinfo_width[0]} |{processed:{compinfo_width[1]}d}p|{' '*compinfo_width[2]} ] | {asm_code}"
+
+
+def register_state_to_str(reg: ComplexityRegisterState, compinfo_widths: tuple[int, int, int]):
+    reg_liveness = f" [{reg['live']}]" if reg["live"] != "" else ""
+    compinfo_len = get_total_complexity_stats_len(compinfo_widths)
+    total_indent = 4 + 3 + compinfo_len  # Line number, pipe, complexity info
+    return f"{' ' * total_indent} |    R{reg['register']} ({reg['type']}){reg_liveness}: {reg['value']}"
+
+
+def get_complexity_for_function(object_file: str, function: str, debug=False) -> ComplexityData:
+    if debug:
+        object_file += "_debug"
+
+    function = function.replace('/', '__')
+    func_name = f"{object_file}/{function}"
     complexity_data_file = COMPLEXITY_DATA_DIR / f"{func_name}.json"
 
     if not os.path.exists(complexity_data_file):
-        raise Exit(f"Complexity data for {func_name} not found at {complexity_data_file}")
+        # Fall back to use section name
+        print(
+            f"Complexity data for function {func_name} not found at {complexity_data_file}, trying to find it as section..."
+        )
+
+        with open(COMPLEXITY_DATA_DIR / object_file / "mappings.json") as f:
+            mappings = json.load(f)
+        if func_name not in mappings:
+            raise Exit(f"Cannot find complexity data for {func_name}, neither as function nor section name")
+
+        funcs = mappings[function]
+        if len(funcs) > 1:
+            raise Exit(
+                f"Multiple functions corresponding to section {func_name}: {funcs}. Please choose only one of them"
+            )
+
+        function = funcs[0]
+        func_name = f"{object_file}/{function}"
+        complexity_data_file = COMPLEXITY_DATA_DIR / f"{func_name}.json"
 
     with open(complexity_data_file) as f:
-        complexity_data = json.load(f)
-    all_files = {x.split(':')[0] for x in complexity_data["source_map"].keys()}
+        return json.load(f)
+
+
+@task(
+    help={
+        "object_file": "The program to analyze",
+        "function": "The function to analyze",
+        "debug": "Use debug builds",
+        "show_assembly": "Show the assembly code for each line",
+        "show_register_state": "Show the register state after each instruction",
+        "assembly_instruction_limit": "Limit the number of assembly instructions to show",
+        "show_raw_register_state": "Show the raw register state from the verifier after each instruction",
+    }
+)
+def annotate_complexity(
+    _: Context,
+    object_file: str,
+    function: str,
+    debug=False,
+    show_assembly=False,
+    show_register_state=False,
+    assembly_instruction_limit=20,
+    show_raw_register_state=False,
+):
+    """Show source code with annotated complexity information for the given program and function"""
+    complexity_data = get_complexity_for_function(object_file, function, debug)
+    all_files = {x.split(":")[0] for x in complexity_data["source_map"].keys()}
 
     if colored is None:
         raise Exit("termcolor is required to print colored output")
 
+    if show_register_state and not show_assembly:
+        raise Exit("Register state can only be shown when assembly is also shown")
+
     print_complexity_legend()
+
+    # Find out the width required to print the complexity stats
+    max_insn = max_passes = max_total = 0
+    for compl in complexity_data["source_map"].values():
+        max_insn = max(max_insn, compl["num_instructions"])
+        max_passes = max(max_passes, compl["max_passes"])
+        max_total = max(max_total, compl["total_instructions_processed"])
+
+    compinfo_widths = (len(str(max_insn)), len(str(max_passes)), len(str(max_total)))
 
     for f in sorted(all_files):
         if not os.path.exists(f):
@@ -265,43 +415,58 @@ def annotate_complexity(_: Context, program: str, function: str, debug=False, sh
             for lineno, line in enumerate(src):
                 lineno += 1
                 lineid = f"{f}:{lineno}"
-                linecomp = complexity_data["source_map"].get(lineid)
-                color = None
-                line = line.rstrip('\n')
-
-                compinfo_len = 13
-                if linecomp is not None:
-                    ins = linecomp["num_instructions"]
-                    passes = linecomp["max_passes"]
-                    total = linecomp["total_instructions_processed"]
-                    if total <= 5:
-                        color = "green"
-                    elif total <= 20:
-                        color = "yellow"
-                    elif total <= 50:
-                        color = "red"
-                    else:
-                        color = "magenta"
-
-                    compinfo = f"[{ins:2d}i|{passes:2d}p|{total:2d}t]"
-                else:
-                    compinfo = " " * compinfo_len
-
-                statusline = f"{lineno:4d} | {compinfo} | {colored(line, color)}"
+                compl = complexity_data["source_map"].get(lineid)
+                statusline = source_line_to_str(lineno, line, compl, compinfo_widths)
                 buffer.append(statusline)
 
-                if compinfo.strip() != "":
+                if compl is not None:
+                    # We have complexity information for this line, print everything that we had in buffer
                     for l in buffer:
                         print(l)
                     buffer.clear()
 
                     if show_assembly:
                         # Print the assembly code for this line
-                        assembly = [i.split(':') for i in linecomp["assembly_insns"]]
-                        assembly = sorted([(int(i), a.strip()) for i, a in assembly])
-                        for asm_idx, asm_line in assembly:
-                            asm_line_no = f'ASM {asm_idx:4d}'
-                            print(colored(f"{' ' * 4}   {asm_line_no:>{compinfo_len}} | {asm_line}", attrs=["dark"]))
+                        asm_insn_indexes = sorted(compl["assembly_insns"])
+
+                        if assembly_instruction_limit > 0:
+                            asm_insn_indexes = asm_insn_indexes[:assembly_instruction_limit]
+
+                        for asm_idx in asm_insn_indexes:
+                            asm_line = complexity_data["insn_map"][str(asm_idx)]
+                            asm_code = asm_line["code"]
+                            print(
+                                colored(
+                                    assembly_line_to_str(asm_line, compinfo_widths),
+                                    attrs=["dark"],
+                                )
+                            )
+
+                            if show_register_state:
+                                # Get all the registers that were used in this instruction
+                                registers = re.findall(r"r\d+", asm_code)
+
+                                # This is the register state after the statement is executed
+                                reg_state = asm_line["register_state"]
+
+                                if show_raw_register_state:
+                                    total_indent = 4 + 3 + get_total_complexity_stats_len(compinfo_widths)
+                                    raw_state = asm_line['register_state_raw'].split(':', 1)[1].strip()
+                                    print(f"{' ' * total_indent} | {colored(raw_state, 'blue', attrs=['dark'])}")
+
+                                for reg in registers:
+                                    reg_idx = reg[1:]  # Remove the 'r' prefix
+                                    if reg_idx in reg_state:
+                                        reg_data = reg_state[reg_idx]
+                                        reg_info = register_state_to_str(reg_data, compinfo_widths)
+                                        print(
+                                            colored(
+                                                reg_info,
+                                                "blue",
+                                                attrs=["dark"],
+                                            )
+                                        )
+
                 elif len(buffer) == 9:
                     # Print the last lines if we have no line information
                     for l in buffer:
@@ -313,9 +478,47 @@ def annotate_complexity(_: Context, program: str, function: str, debug=False, sh
     with open(VERIFIER_STATS) as f:
         verifier_stats = json.load(f)
 
+    func_name = f"{object_file}/{function.replace('/', '__')}"
     if func_name not in verifier_stats:
         raise Exit(f"Verification stats for {func_name} not found in {VERIFIER_STATS}")
 
     print(colored("\n\n=== Verification stats ===", attrs=["bold"]))
     for key, value in verifier_stats[func_name].items():
         print(f"· {key}: {value}")
+
+
+@task
+def show_top_complexity_lines(
+    _: Context,
+    program: str,
+    function: str,
+    n=10,
+    debug=False,
+):
+    """Show the lines with the most complexity for the given program and function"""
+    complexity_data = get_complexity_for_function(program, function, debug)
+    top_complexity_lines = sorted(
+        complexity_data["source_map"].items(),
+        key=lambda x: x[1]["total_instructions_processed"],
+        reverse=True,
+    )[:n]
+
+    print_complexity_legend()
+    compinfo_widths = None
+
+    for lineid, compl in top_complexity_lines:
+        f, lineno = lineid.split(":")
+        if compinfo_widths is None:
+            # Find out the widths, the first has the largest values so we go with that
+            # Set a minimum just in case
+            compinfo_widths = (
+                max(2, len(str(compl["num_instructions"]))),
+                max(2, len(str(compl["max_passes"]))),
+                max(2, len(str(compl["total_instructions_processed"]))),
+            )
+
+        with open(f) as src:
+            line = next(l for i, l in enumerate(src) if i + 1 == int(lineno))
+            print(lineid)
+            print(source_line_to_str(int(lineno), line, compl, compinfo_widths))
+            print()

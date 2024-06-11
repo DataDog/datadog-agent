@@ -20,15 +20,16 @@ import (
 	"time"
 
 	"github.com/cilium/ebpf/btf"
-	"github.com/mholt/archiver/v3"
 
 	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/util/archive"
 	"github.com/DataDog/datadog-agent/pkg/util/funcs"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const btfFlushDelay = 1 * time.Minute
+const btfArchiveName = "minimized-btfs.tar.xz"
 
 type btfPlatform string
 
@@ -252,13 +253,13 @@ func (b *orderedBTFLoader) loadEmbedded() (*returnBTF, error) {
 	// tarball, and then unarchive it.
 	btfTarball := filepath.Join(b.embeddedDir, btfRelativeTarballFilename)
 	if _, err := os.Stat(btfTarball); errors.Is(err, fs.ErrNotExist) {
-		collectionTarball := filepath.Join(b.embeddedDir, "minimized-btfs.tar.xz")
-		if err := archiver.NewTarXz().Extract(collectionTarball, btfRelativeTarballFilename, b.embeddedDir); err != nil {
+		collectionTarball := filepath.Join(b.embeddedDir, btfArchiveName)
+		if err := archive.TarXZExtractFile(collectionTarball, btfRelativeTarballFilename, b.embeddedDir); err != nil {
 			return nil, fmt.Errorf("extract kernel BTF tarball from collection: %w", err)
 		}
 	}
 
-	if err := archiver.NewTarXz().Unarchive(btfTarball, absExtractDir); err != nil {
+	if err := archive.TarXZExtractAll(btfTarball, absExtractDir); err != nil {
 		return nil, fmt.Errorf("extract kernel BTF from tarball: %w", err)
 	}
 	ret, err = b.checkforBTF(extractDir)
@@ -381,28 +382,20 @@ func (b *orderedBTFLoader) getEmbeddedBTF(platform btfPlatform, platformVersion,
 
 func (b *orderedBTFLoader) searchEmbeddedCollection(filename string) []string {
 	var matchingPaths []string
-	collectionTarball := filepath.Join(b.embeddedDir, "minimized-btfs.tar.xz")
-	err := archiver.NewTarXz().Walk(collectionTarball, func(f archiver.File) error {
-		th, ok := f.Header.(*tar.Header)
-		if !ok {
-			return fmt.Errorf("expected header to be *tar.Header but was %T", f.Header)
-		}
-
-		if !f.IsDir() {
-			if filepath.Base(th.Name) == filename {
-				pform := strings.Split(th.Name, string(os.PathSeparator))[0]
+	collectionTarball := filepath.Join(b.embeddedDir, btfArchiveName)
+	// ignore error because we only care if there are matching paths
+	_ = archive.WalkTarXZArchive(collectionTarball, func(_ *tar.Reader, hdr *tar.Header) error {
+		if hdr.Typeflag == tar.TypeReg {
+			if filepath.Base(hdr.Name) == filename {
+				pform := strings.Split(hdr.Name, string(os.PathSeparator))[0]
 				// must be a recognized platform
 				if _, err := btfPlatformFromString(pform); err == nil {
-					matchingPaths = append(matchingPaths, th.Name)
+					matchingPaths = append(matchingPaths, hdr.Name)
 				}
 			}
 		}
 		return nil
 	})
-	if err != nil {
-		// swallow error intentionally
-		return nil
-	}
 	return matchingPaths
 }
 

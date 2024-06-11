@@ -311,7 +311,7 @@ var (
 
 	// protConstants are the supported protections for the mmap syscall
 	// generate_constants:Protection constants,Protection constants are the supported protections for the mmap syscall.
-	protConstants = map[string]int{
+	protConstants = map[string]uint64{
 		"PROT_NONE":      unix.PROT_NONE,
 		"PROT_READ":      unix.PROT_READ,
 		"PROT_WRITE":     unix.PROT_WRITE,

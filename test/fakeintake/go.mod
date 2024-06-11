@@ -10,10 +10,11 @@ replace (
 
 require (
 	github.com/DataDog/agent-payload/v5 v5.0.106
-	github.com/DataDog/datadog-agent/comp/netflow/payload v0.53.0-rc.2
-	github.com/DataDog/datadog-agent/pkg/proto v0.53.0-rc.2
+	github.com/DataDog/datadog-agent/comp/netflow/payload v0.55.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/proto v0.55.0-rc.3
 	github.com/benbjohnson/clock v1.3.5
 	github.com/cenkalti/backoff/v4 v4.2.1
+	github.com/google/uuid v1.3.0
 	github.com/kr/pretty v0.3.1
 	github.com/olekukonko/tablewriter v0.0.5
 	github.com/prometheus/client_golang v1.17.0
@@ -35,7 +36,6 @@ require (
 	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/golang/protobuf v1.5.3 // indirect
-	github.com/google/uuid v1.3.0 // indirect
 	github.com/hashicorp/golang-lru/v2 v2.0.7 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/kr/text v0.2.0 // indirect

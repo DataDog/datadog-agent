@@ -23,5 +23,3 @@ def build(ctx):
     cmd = f"go build -tags=\"{' '.join(build_tags)}\" -o {BIN_PATH} {REPO_PATH}/cmd/otel-agent"
 
     ctx.run(cmd, env=env)
-
-

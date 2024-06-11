@@ -74,7 +74,7 @@ type serverDebugImpl struct {
 
 // NewServerlessServerDebug creates a new instance of serverDebug.Component
 func NewServerlessServerDebug() serverdebug.Component {
-	return newServerDebugCompat(logComponentImpl.NewTemporaryLoggerWithoutInit(), config.Datadog)
+	return newServerDebugCompat(logComponentImpl.NewTemporaryLoggerWithoutInit(), config.Datadog())
 }
 
 // newServerDebug creates a new instance of a ServerDebug

@@ -7,13 +7,11 @@ package writer
 
 import (
 	"compress/gzip"
-	"fmt"
 	"io"
 	"runtime"
 	"sync"
 	"testing"
 
-	"github.com/DataDog/zstd"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
@@ -44,45 +42,38 @@ func (s MockSampler) GetTargetTPS() float64 {
 var mockSampler = MockSampler{TargetTPS: 5, Enabled: true}
 
 func TestTraceWriter(t *testing.T) {
-	testCases := []bool{false, true}
-
-	for _, tc := range testCases {
-		srv := newTestServer()
-		cfg := &config.AgentConfig{
-			Hostname:   testHostname,
-			DefaultEnv: testEnv,
-			Endpoints: []*config.Endpoint{{
-				APIKey: "123",
-				Host:   srv.URL,
-			}},
-			TraceWriter: &config.WriterConfig{ConnectionLimit: 200, QueueSize: 40},
-		}
-		if tc {
-			cfg.Features = map[string]struct{}{"zstd-encoding": {}}
-		}
-
-		t.Run(fmt.Sprintf("zstd_%t", tc), func(t *testing.T) {
-			testSpans := []*SampledChunks{
-				randomSampledSpans(20, 8),
-				randomSampledSpans(10, 0),
-				randomSampledSpans(40, 5),
-			}
-			// Use a flush threshold that allows the first two entries to not overflow,
-			// but overflow on the third.
-			defer useFlushThreshold(testSpans[0].Size + testSpans[1].Size + 10)()
-			tw := NewTraceWriter(cfg, mockSampler, mockSampler, mockSampler, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{})
-			tw.In = make(chan *SampledChunks)
-			go tw.Run()
-			for _, ss := range testSpans {
-				tw.In <- ss
-			}
-			tw.Stop()
-			// One payload flushes due to overflowing the threshold, and the second one
-			// because of stop.
-			assert.Equal(t, 2, srv.Accepted())
-			payloadsContain(t, srv.Payloads(), testSpans, tc)
-		})
+	srv := newTestServer()
+	cfg := &config.AgentConfig{
+		Hostname:   testHostname,
+		DefaultEnv: testEnv,
+		Endpoints: []*config.Endpoint{{
+			APIKey: "123",
+			Host:   srv.URL,
+		}},
+		TraceWriter: &config.WriterConfig{ConnectionLimit: 200, QueueSize: 40},
 	}
+
+	t.Run("ok", func(t *testing.T) {
+		testSpans := []*SampledChunks{
+			randomSampledSpans(20, 8),
+			randomSampledSpans(10, 0),
+			randomSampledSpans(40, 5),
+		}
+		// Use a flush threshold that allows the first two entries to not overflow,
+		// but overflow on the third.
+		defer useFlushThreshold(testSpans[0].Size + testSpans[1].Size + 10)()
+		tw := NewTraceWriter(cfg, mockSampler, mockSampler, mockSampler, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{})
+		tw.In = make(chan *SampledChunks)
+		go tw.Run()
+		for _, ss := range testSpans {
+			tw.In <- ss
+		}
+		tw.Stop()
+		// One payload flushes due to overflowing the threshold, and the second one
+		// because of stop.
+		assert.Equal(t, 2, srv.Accepted())
+		payloadsContain(t, srv.Payloads(), testSpans)
+	})
 }
 
 func TestTraceWriterMultipleEndpointsConcurrent(t *testing.T) {
@@ -131,7 +122,7 @@ func TestTraceWriterMultipleEndpointsConcurrent(t *testing.T) {
 
 	wg.Wait()
 	tw.Stop()
-	payloadsContain(t, srv.Payloads(), testSpans, false)
+	payloadsContain(t, srv.Payloads(), testSpans)
 }
 
 // useFlushThreshold sets n as the number of bytes to be used as the flush threshold
@@ -154,25 +145,14 @@ func randomSampledSpans(spans, events int) *SampledChunks {
 }
 
 // payloadsContain checks that the given payloads contain the given set of sampled spans.
-func payloadsContain(t *testing.T, payloads []*payload, sampledSpans []*SampledChunks, shouldUseZstd bool) {
+func payloadsContain(t *testing.T, payloads []*payload, sampledSpans []*SampledChunks) {
 	t.Helper()
 	var all pb.AgentPayload
 	for _, p := range payloads {
 		assert := assert.New(t)
-		var slurp []byte
-		var err error
-		var reader io.ReadCloser
-
-		if shouldUseZstd {
-			reader = zstd.NewReader(p.body)
-			assert.NotNil(reader)
-		} else {
-			reader, err = gzip.NewReader(p.body)
-			assert.NoError(err)
-		}
-
-		slurp, err = io.ReadAll(reader)
-
+		gzipr, err := gzip.NewReader(p.body)
+		assert.NoError(err)
+		slurp, err := io.ReadAll(gzipr)
 		assert.NoError(err)
 		var payload pb.AgentPayload
 		err = proto.Unmarshal(slurp, &payload)
@@ -227,7 +207,7 @@ func TestTraceWriterFlushSync(t *testing.T) {
 		tw.FlushSync()
 		// Now all trace payloads should be sent
 		assert.Equal(t, 1, srv.Accepted())
-		payloadsContain(t, srv.Payloads(), testSpans, false)
+		payloadsContain(t, srv.Payloads(), testSpans)
 	})
 }
 
@@ -296,7 +276,7 @@ func TestTraceWriterSyncStop(t *testing.T) {
 		tw.Stop()
 		// Now all trace payloads should be sent
 		assert.Equal(t, 1, srv.Accepted())
-		payloadsContain(t, srv.Payloads(), testSpans, false)
+		payloadsContain(t, srv.Payloads(), testSpans)
 	})
 }
 

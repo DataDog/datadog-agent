@@ -8,11 +8,15 @@ package taggerimpl
 
 import (
 	"context"
+	"encoding/json"
+	"net/http"
 	"reflect"
 	"regexp"
 	"sync"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/api/api"
+	apiutils "github.com/DataDog/datadog-agent/comp/api/api/utils"
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
 	logComp "github.com/DataDog/datadog-agent/comp/core/log"
 	taggerComp "github.com/DataDog/datadog-agent/comp/core/tagger"
@@ -21,7 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl/remote"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/utils"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/packets"
 	taggertypes "github.com/DataDog/datadog-agent/pkg/tagger/types"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
@@ -48,6 +52,13 @@ type dependencies struct {
 	Log    logComp.Component
 	Wmeta  workloadmeta.Component
 	Params taggerComp.Params
+}
+
+type provides struct {
+	fx.Out
+
+	Comp     taggerComp.Component
+	Endpoint api.AgentEndpointProvider
 }
 
 // Module defines the fx options for this component.
@@ -79,6 +90,9 @@ type TaggerClient struct {
 
 	wmeta         workloadmeta.Component
 	datadogConfig datadogConfig
+
+	checksCardinality    types.TagCardinality
+	dogstatsdCardinality types.TagCardinality
 }
 
 // we use to pull tagger metrics in dogstatsd. Pulling it later in the
@@ -91,7 +105,7 @@ var tlmUDPOriginDetectionError = telemetry.NewCounter("dogstatsd", "udp_origin_d
 // newTaggerClient returns a Component based on provided params, once it is provided,
 // fx will cache the component which is effectively a singleton instance, cached by fx.
 // it should be deprecated and removed
-func newTaggerClient(deps dependencies) taggerComp.Component {
+func newTaggerClient(deps dependencies) provides {
 	var taggerClient *TaggerClient
 	switch deps.Params.AgentTypeForTagger {
 	case taggerComp.CLCRunnerRemoteTaggerAgent:
@@ -149,16 +163,16 @@ func newTaggerClient(deps dependencies) taggerComp.Component {
 		var err error
 		checkCard := deps.Config.GetString("checks_tag_cardinality")
 		dsdCard := deps.Config.GetString("dogstatsd_tag_cardinality")
-		taggerComp.ChecksCardinality, err = types.StringToTagCardinality(checkCard)
+		taggerClient.checksCardinality, err = types.StringToTagCardinality(checkCard)
 		if err != nil {
 			deps.Log.Warnf("failed to parse check tag cardinality, defaulting to low. Error: %s", err)
-			taggerComp.ChecksCardinality = types.LowCardinality
+			taggerClient.checksCardinality = types.LowCardinality
 		}
 
-		taggerComp.DogstatsdCardinality, err = types.StringToTagCardinality(dsdCard)
+		taggerClient.dogstatsdCardinality, err = types.StringToTagCardinality(dsdCard)
 		if err != nil {
 			deps.Log.Warnf("failed to parse dogstatsd tag cardinality, defaulting to low. Error: %s", err)
-			taggerComp.DogstatsdCardinality = types.LowCardinality
+			taggerClient.dogstatsdCardinality = types.LowCardinality
 		}
 		// Main context passed to components, consistent with the one used in the workloadmeta component
 		mainCtx, _ := common.GetMainCtxCancel()
@@ -174,7 +188,21 @@ func newTaggerClient(deps dependencies) taggerComp.Component {
 	deps.Lc.Append(fx.Hook{OnStop: func(context.Context) error {
 		return taggerClient.Stop()
 	}})
-	return taggerClient
+	return provides{
+		Comp:     taggerClient,
+		Endpoint: api.NewAgentEndpointProvider(taggerClient.writeList, "/tagger-list", "GET"),
+	}
+}
+
+func (t *TaggerClient) writeList(w http.ResponseWriter, _ *http.Request) {
+	response := t.List()
+
+	jsonTags, err := json.Marshal(response)
+	if err != nil {
+		apiutils.SetJSONError(w, log.Errorf("Unable to marshal tagger list response: %s", err), 500)
+		return
+	}
+	w.Write(jsonTags)
 }
 
 // Start calls defaultTagger.Start
@@ -339,7 +367,7 @@ func (t *TaggerClient) ResetCaptureTagger() {
 // enrichment, the metric and its tags is sent to the context key generator, which
 // is taking care of deduping the tags while generating the context key.
 func (t *TaggerClient) EnrichTags(tb tagset.TagsAccumulator, originInfo taggertypes.OriginInfo) {
-	cardinality := taggerCardinality(originInfo.Cardinality)
+	cardinality := taggerCardinality(originInfo.Cardinality, t.dogstatsdCardinality)
 
 	productOrigin := originInfo.ProductOrigin
 	// If origin_detection_unified is disabled, we use DogStatsD's Legacy Origin Detection.
@@ -461,17 +489,30 @@ func (t *TaggerClient) parseEntityID(entityID string, metricsProvider provider.C
 	return containers.BuildTaggerEntityName(cid)
 }
 
+// ChecksCardinality defines the cardinality of tags we should send for check metrics
+// this can still be overridden when calling get_tags in python checks.
+func (t *TaggerClient) ChecksCardinality() types.TagCardinality {
+	return t.checksCardinality
+}
+
+// DogstatsdCardinality defines the cardinality of tags we should send for metrics from
+// dogstatsd.
+func (t *TaggerClient) DogstatsdCardinality() types.TagCardinality {
+	return t.dogstatsdCardinality
+}
+
 // taggerCardinality converts tagger cardinality string to types.TagCardinality
-// It defaults to DogstatsdCardinality if the string is empty or unknown
-func taggerCardinality(cardinality string) types.TagCardinality {
+// It should be defaulted to DogstatsdCardinality if the string is empty or unknown
+func taggerCardinality(cardinality string,
+	defaultCardinality types.TagCardinality) types.TagCardinality {
 	if cardinality == "" {
-		return taggerComp.DogstatsdCardinality
+		return defaultCardinality
 	}
 
 	taggerCardinality, err := types.StringToTagCardinality(cardinality)
 	if err != nil {
 		log.Tracef("Couldn't convert cardinality tag: %v", err)
-		return taggerComp.DogstatsdCardinality
+		return defaultCardinality
 	}
 
 	return taggerCardinality
@@ -520,5 +561,5 @@ func NewOptionalTagger(deps optionalTaggerDeps) optional.Option[taggerComp.Compo
 		Params: taggerComp.Params{
 			AgentTypeForTagger: taggerComp.LocalTaggerAgent,
 		},
-	}))
+	}).Comp)
 }

@@ -10,6 +10,11 @@ import (
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/cmd/installer/command"
+	"github.com/DataDog/datadog-agent/comp/core"
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	"github.com/DataDog/datadog-agent/comp/core/secrets"
+	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	"github.com/DataDog/datadog-agent/comp/updater/localapiclient"
 	"github.com/DataDog/datadog-agent/comp/updater/localapiclient/localapiclientimpl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -79,6 +84,13 @@ func apiCommands(global *command.GlobalParams) []*cobra.Command {
 
 func experimentFxWrapper(f interface{}, params *cliParams) error {
 	return fxutil.OneShot(f,
+		fx.Supply(core.BundleParams{
+			ConfigParams:         config.NewAgentParams(params.ConfFilePath),
+			SecretParams:         secrets.NewEnabledParams(),
+			SysprobeConfigParams: sysprobeconfigimpl.NewParams(),
+			LogParams:            logimpl.ForOneShot("INSTALLER", "off", true),
+		}),
+		core.Bundle(),
 		fx.Supply(params),
 		localapiclientimpl.Module(),
 	)

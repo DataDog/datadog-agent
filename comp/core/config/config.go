@@ -70,7 +70,7 @@ func NewServerlessConfig(path string) (Component, error) {
 }
 
 func newConfig(deps dependencies) (Component, error) {
-	config := pkgconfigsetup.Datadog
+	config := pkgconfigsetup.Datadog()
 	warnings, err := setupConfig(config, deps)
 	returnErrFct := func(e error) (Component, error) {
 		if e != nil && deps.Params.ignoreErrors {

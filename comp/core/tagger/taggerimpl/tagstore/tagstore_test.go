@@ -12,6 +12,7 @@ import (
 
 	"github.com/benbjohnson/clock"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl/collectors"
@@ -48,7 +49,7 @@ func (s *StoreTestSuite) TestIngest() {
 	})
 
 	assert.Len(s.T(), s.store.store, 1)
-	assert.Len(s.T(), s.store.store["test"].sourceTags, 2)
+	assert.Len(s.T(), s.store.store["test"].sources(), 2)
 }
 
 func (s *StoreTestSuite) TestLookup() {
@@ -243,36 +244,84 @@ func (s *StoreTestSuite) TestPrune__emptyEntries() {
 	assert.Len(s.T(), emptyTags2, 0)
 }
 
-func TestStoreSuite(t *testing.T) {
-	suite.Run(t, &StoreTestSuite{})
+func (s *StoreTestSuite) TestList() {
+	s.store.ProcessTagInfo(
+		[]*types.TagInfo{
+			{
+				Source:               "source-1",
+				Entity:               "entity-1",
+				HighCardTags:         []string{"h1:v1", "h2:v2"},
+				OrchestratorCardTags: []string{"o1:v1", "o2:v2"},
+				LowCardTags:          []string{"l1:v1", "l2:v2", "service:s1"},
+				StandardTags:         []string{"service:s1"},
+			},
+			{
+				Source:               "source-1",
+				Entity:               "entity-2",
+				HighCardTags:         []string{"h3:v3", "h4:v4"},
+				OrchestratorCardTags: []string{"o3:v3", "o4:v4"},
+				LowCardTags:          []string{"l3:v3", "l4:v4", "service:s1"},
+				StandardTags:         []string{"service:s1"},
+			},
+		},
+	)
+
+	resultList := s.store.List()
+	require.Equal(s.T(), 2, len(resultList.Entities))
+
+	entity1, ok := resultList.Entities["entity-1"]
+	require.True(s.T(), ok)
+	require.Equal(s.T(), 1, len(entity1.Tags))
+	require.ElementsMatch( // Tags order is not important
+		s.T(),
+		entity1.Tags["source-1"],
+		[]string{"l1:v1", "l2:v2", "service:s1", "o1:v1", "o2:v2", "h1:v1", "h2:v2"},
+	)
+
+	entity2, ok := resultList.Entities["entity-2"]
+	require.True(s.T(), ok)
+	require.Equal(s.T(), 1, len(entity2.Tags))
+	require.ElementsMatch( // Tags order is not important
+		s.T(),
+		entity2.Tags["source-1"],
+		[]string{"l3:v3", "l4:v4", "service:s1", "o3:v3", "o4:v4", "h3:v3", "h4:v4"},
+	)
 }
 
-func TestGetEntityTags(t *testing.T) {
-	etags := newEntityTags("deadbeef")
+func (s *StoreTestSuite) TestGetEntity() {
+	_, err := s.store.GetEntity("entity-1")
+	require.Error(s.T(), err)
 
-	// Get empty tags and make sure cache is now set to valid
-	tags := etags.get(types.HighCardinality)
-	assert.Len(t, tags, 0)
-	assert.True(t, etags.cacheValid)
+	s.store.ProcessTagInfo(
+		[]*types.TagInfo{
+			{
+				Source:               "source-1",
+				Entity:               "entity-1",
+				HighCardTags:         []string{"h1:v1", "h2:v2"},
+				OrchestratorCardTags: []string{"o1:v1", "o2:v2"},
+				LowCardTags:          []string{"l1:v1", "l2:v2", "service:s1"},
+				StandardTags:         []string{"service:s1"},
+			},
+		},
+	)
 
-	// Add tags but don't invalidate the cache, we should return empty arrays
-	etags.sourceTags["source"] = sourceTags{
-		lowCardTags:  []string{"low1", "low2"},
-		highCardTags: []string{"high1", "high2"},
-	}
-	tags = etags.get(types.HighCardinality)
-	assert.Len(t, tags, 0)
-	assert.True(t, etags.cacheValid)
+	entity, err := s.store.GetEntity("entity-1")
+	require.NoError(s.T(), err)
+	assert.Equal(
+		s.T(),
+		&types.Entity{
+			ID:                          "entity-1",
+			HighCardinalityTags:         []string{"h1:v1", "h2:v2"},
+			OrchestratorCardinalityTags: []string{"o1:v1", "o2:v2"},
+			LowCardinalityTags:          []string{"l1:v1", "l2:v2", "service:s1"},
+			StandardTags:                []string{"service:s1"},
+		},
+		entity,
+	)
+}
 
-	// Invalidate the cache, we should now get the tags
-	etags.cacheValid = false
-	tags = etags.get(types.HighCardinality)
-	assert.Len(t, tags, 4)
-	assert.ElementsMatch(t, tags, []string{"low1", "low2", "high1", "high2"})
-	assert.True(t, etags.cacheValid)
-	tags = etags.get(types.LowCardinality)
-	assert.Len(t, tags, 2)
-	assert.ElementsMatch(t, tags, []string{"low1", "low2"})
+func TestStoreSuite(t *testing.T) {
+	suite.Run(t, &StoreTestSuite{})
 }
 
 func (s *StoreTestSuite) TestGetExpiredTags() {
@@ -300,50 +349,67 @@ func (s *StoreTestSuite) TestGetExpiredTags() {
 	assert.NotContains(s.T(), tagsHigh, "expired")
 }
 
-func TestDuplicateSourceTags(t *testing.T) {
-	etags := newEntityTags("deadbeef")
-
-	// Get empty tags and make sure cache is now set to valid
-	tags := etags.get(types.HighCardinality)
-	assert.Len(t, tags, 0)
-	assert.True(t, etags.cacheValid)
-
+func (s *StoreTestSuite) TestDuplicateSourceTags() {
 	// Mock collector priorities
+	originalCollectorPriorities := collectors.CollectorPriorities
 	collectors.CollectorPriorities = map[string]types.CollectorPriority{
 		"sourceNodeOrchestrator":    types.NodeOrchestrator,
 		"sourceNodeRuntime":         types.NodeRuntime,
 		"sourceClusterOrchestrator": types.ClusterOrchestrator,
 	}
+	defer func() {
+		collectors.CollectorPriorities = originalCollectorPriorities
+	}()
 
-	// Add tags but don't invalidate the cache, we should return empty arrays
-	etags.sourceTags["sourceNodeOrchestrator"] = sourceTags{
-		lowCardTags:  []string{"bar", "tag1:sourceHigh", "tag2:sourceHigh"},
-		highCardTags: []string{"tag3:sourceHigh", "tag4:sourceHigh"},
+	testEntity := "testEntity"
+
+	// Mock collector priorities
+	collectors.CollectorPriorities = map[string]types.CollectorPriority{
+		"sourceNodeRuntime":         types.NodeRuntime,
+		"sourceNodeOrchestrator":    types.NodeOrchestrator,
+		"sourceClusterOrchestrator": types.ClusterOrchestrator,
 	}
 
-	etags.sourceTags["sourceNodeRuntime"] = sourceTags{
-		lowCardTags:  []string{"foo", "tag1:sourceLow", "tag2:sourceLow"},
-		highCardTags: []string{"tag3:sourceLow", "tag5:sourceLow"},
+	nodeRuntimeTags := types.TagInfo{
+		Source:       "sourceNodeRuntime",
+		Entity:       testEntity,
+		LowCardTags:  []string{"foo", "tag1:sourceLow", "tag2:sourceLow"},
+		HighCardTags: []string{"tag3:sourceLow", "tag5:sourceLow"},
 	}
 
-	etags.sourceTags["sourceClusterOrchestrator"] = sourceTags{
-		lowCardTags:  []string{"tag3:sourceClusterHigh", "tag1:sourceClusterLow"},
-		highCardTags: []string{"tag4:sourceClusterLow"},
+	nodeOrchestractorTags := types.TagInfo{
+		Source:       "sourceNodeOrchestrator",
+		Entity:       testEntity,
+		LowCardTags:  []string{"bar", "tag1:sourceHigh", "tag2:sourceHigh"},
+		HighCardTags: []string{"tag3:sourceHigh", "tag4:sourceHigh"},
 	}
 
-	tags = etags.get(types.HighCardinality)
-	assert.Len(t, tags, 0)
-	assert.True(t, etags.cacheValid)
+	clusterOrchestratorTags := types.TagInfo{
+		Source:       "sourceClusterOrchestrator",
+		Entity:       testEntity,
+		LowCardTags:  []string{"tag1:sourceClusterLow", "tag3:sourceClusterHigh"},
+		HighCardTags: []string{"tag4:sourceClusterLow"},
+	}
 
-	// Invalidate the cache, we should now get the tags
-	etags.cacheValid = false
-	tags = etags.get(types.HighCardinality)
-	assert.Len(t, tags, 7)
-	assert.ElementsMatch(t, tags, []string{"foo", "bar", "tag1:sourceClusterLow", "tag2:sourceHigh", "tag3:sourceClusterHigh", "tag4:sourceClusterLow", "tag5:sourceLow"})
-	assert.True(t, etags.cacheValid)
-	tags = etags.get(types.LowCardinality)
-	assert.Len(t, tags, 5)
-	assert.ElementsMatch(t, tags, []string{"foo", "bar", "tag1:sourceClusterLow", "tag2:sourceHigh", "tag3:sourceClusterHigh"})
+	s.store.ProcessTagInfo([]*types.TagInfo{
+		&nodeRuntimeTags,
+		&nodeOrchestractorTags,
+		&clusterOrchestratorTags,
+	})
+
+	lowCardTags := s.store.Lookup(testEntity, types.LowCardinality)
+	assert.ElementsMatch(
+		s.T(),
+		lowCardTags,
+		[]string{"foo", "bar", "tag1:sourceClusterLow", "tag2:sourceHigh", "tag3:sourceClusterHigh"},
+	)
+
+	highCardTags := s.store.Lookup(testEntity, types.HighCardinality)
+	assert.ElementsMatch(
+		s.T(),
+		highCardTags,
+		[]string{"foo", "bar", "tag1:sourceClusterLow", "tag2:sourceHigh", "tag3:sourceClusterHigh", "tag4:sourceClusterLow", "tag5:sourceLow"},
+	)
 }
 
 type entityEventExpectation struct {

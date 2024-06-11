@@ -16,7 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl/tagstore"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 )
 
@@ -45,9 +45,7 @@ func NewTagger(workloadStore workloadmeta.Component) *Tagger {
 	}
 }
 
-// Start goes through a catalog and tries to detect which are relevant
-// for this host. It then starts the collection logic and is ready for
-// requests.
+// Start starts the workloadmeta collector and then it is ready for requests.
 func (t *Tagger) Start(ctx context.Context) error {
 	t.ctx, t.cancel = context.WithCancel(ctx)
 

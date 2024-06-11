@@ -1,12 +1,18 @@
+from __future__ import annotations
+
 import base64
+import json
 import os
 import platform
-import re
 import subprocess
-from typing import List
+from collections.abc import Iterable
+from functools import lru_cache
+
+import requests
 
 try:
     from github import Auth, Github, GithubException, GithubIntegration, GithubObject
+    from github.NamedUser import NamedUser
 except ImportError:
     # PyGithub isn't available on some build images, ignore it for now
     # and fail hard if it gets used.
@@ -14,8 +20,6 @@ except ImportError:
 from invoke.exceptions import Exit
 
 __all__ = ["GithubAPI"]
-
-errno_regex = re.compile(r".*\[Errno (\d+)\] (.*)")
 
 
 class GithubAPI:
@@ -28,8 +32,11 @@ class GithubAPI:
     def __init__(self, repository="DataDog/datadog-agent", public_repo=False):
         self._auth = self._chose_auth(public_repo)
         self._github = Github(auth=self._auth)
+        org = repository.split("/")
+        self._organization = org[0] if len(org) > 1 else None
         self._repository = self._github.get_repo(repository)
 
+    @property
     def repo(self):
         """
         Gets the repo info.
@@ -212,28 +219,51 @@ class GithubAPI:
             if content in comment.body:
                 return comment
 
+    def get_pr(self, pr_id: int):
+        return self._repository.get_pull(pr_id)
+
     def add_pr_label(self, pr_id: int, label: str) -> None:
         """
         Tries to add a label to the pull request
         """
-        pr = self._repository.get_pull(pr_id)
+        pr = self.get_pr(pr_id)
         pr.add_to_labels(label)
 
-    def get_pr_labels(self, pr_id: int) -> List[str]:
+    def get_pr_labels(self, pr_id: int) -> list[str]:
         """
         Returns the labels of a pull request
         """
-        pr = self._repository.get_pull(pr_id)
+        pr = self.get_pr(pr_id)
 
         return [label.name for label in pr.get_labels()]
 
-    def get_pr_files(self, pr_id: int) -> List[str]:
+    def get_pr_files(self, pr_id: int) -> list[str]:
         """
         Returns the files involved in the PR
         """
-        pr = self._repository.get_pull(pr_id)
+        pr = self.get_pr(pr_id)
 
         return [f.filename for f in pr.get_files()]
+
+    def get_team_members(self, team_slug: str) -> Iterable[NamedUser]:
+        """
+        Get the members of a team.
+        """
+        assert self._organization
+        org = self._github.get_organization(self._organization)
+        team = org.get_team_by_slug(team_slug)
+        return team.get_members()
+
+    def search_issues(self, query: str):
+        """
+        Search for issues with the given query.
+        By default this is not scoped to the repository, it is a global Github search.
+        """
+        return self._github.search_issues(query)
+
+    def is_organization_member(self, user):
+        organization = self._repository.organization
+        return (user.company and 'datadog' in user.company.casefold()) or organization.has_in_members(user)
 
     def _chose_auth(self, public_repo):
         """
@@ -299,3 +329,32 @@ class GithubAPI:
         install_id = installations[0].id
         auth_token = integration.get_access_token(install_id)
         print(auth_token.token)
+
+
+def get_github_teams(users):
+    for user in users:
+        yield from query_teams(user.login)
+
+
+@lru_cache
+def query_teams(login):
+    query = get_user_query(login)
+    headers = {"Authorization": f"Bearer {os.environ['GITHUB_TOKEN']}", "Content-Type": "application/json"}
+    response = requests.post("https://api.github.com/graphql", headers=headers, data=query)
+    data = response.json()
+    teams = []
+    try:
+        if data["data"]["user"]["organization"] and data["data"]["user"]["organization"]["teams"]:
+            for team in data["data"]["user"]["organization"]["teams"]["nodes"]:
+                teams.append(team["slug"])
+    except KeyError:
+        print(f"Error for user {login}: {data}")
+        raise
+    return teams
+
+
+def get_user_query(login):
+    variables = {"login": login, "org": "datadog"}
+    query = '{"query": "query GetUserTeam($login: String!, $org: String!) { user(login: $login) {organization(login: $org) { teams(first:10, userLogins: [$login]){ nodes { slug } } } } }", '
+    string_var = f'"variables": {json.dumps(variables)}'
+    return query + string_var

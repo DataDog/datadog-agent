@@ -6,13 +6,16 @@
 package networkpath
 
 import (
-	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
-	"github.com/stretchr/testify/assert"
 	"testing"
 	"time"
+
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestNewCheckConfig(t *testing.T) {
+	coreconfig.Datadog().SetDefault("network_devices.namespace", "my-namespace")
 	tests := []struct {
 		name           string
 		rawInstance    integration.Data
@@ -20,6 +23,18 @@ func TestNewCheckConfig(t *testing.T) {
 		expectedConfig *CheckConfig
 		expectedError  string
 	}{
+		{
+			name: "valid minimal config",
+			rawInstance: []byte(`
+hostname: 1.2.3.4
+`),
+			rawInitConfig: []byte(``),
+			expectedConfig: &CheckConfig{
+				DestHostname:          "1.2.3.4",
+				MinCollectionInterval: time.Duration(60) * time.Second,
+				Namespace:             "my-namespace",
+			},
+		},
 		{
 			name:          "invalid raw instance json",
 			rawInstance:   []byte(`{{{`),
@@ -51,6 +66,7 @@ min_collection_interval: 10
 			expectedConfig: &CheckConfig{
 				DestHostname:          "1.2.3.4",
 				MinCollectionInterval: time.Duration(42) * time.Second,
+				Namespace:             "my-namespace",
 			},
 		},
 		{
@@ -64,6 +80,7 @@ min_collection_interval: 10
 			expectedConfig: &CheckConfig{
 				DestHostname:          "1.2.3.4",
 				MinCollectionInterval: time.Duration(10) * time.Second,
+				Namespace:             "my-namespace",
 			},
 		},
 		{
@@ -74,6 +91,23 @@ hostname: 1.2.3.4
 			expectedConfig: &CheckConfig{
 				DestHostname:          "1.2.3.4",
 				MinCollectionInterval: time.Duration(1) * time.Minute,
+				Namespace:             "my-namespace",
+			},
+		},
+		{
+			name: "source and destination service config",
+			rawInstance: []byte(`
+hostname: 1.2.3.4
+source_service: service-a
+destination_service: service-b
+`),
+			rawInitConfig: []byte(``),
+			expectedConfig: &CheckConfig{
+				DestHostname:          "1.2.3.4",
+				SourceService:         "service-a",
+				DestinationService:    "service-b",
+				MinCollectionInterval: time.Duration(60) * time.Second,
+				Namespace:             "my-namespace",
 			},
 		},
 	}

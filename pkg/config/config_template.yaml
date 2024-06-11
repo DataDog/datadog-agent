@@ -705,6 +705,14 @@ api_key:
 #
 # GUI_port: <GUI_PORT>
 
+## @param GUI_session_expiration - duration - optional
+## @env GUI_SESSION_EXPIRATION - duration - optional
+## The duration after which a GUI session will expire.
+## Setting 'GUI_SESSION_EXPIRATION: 0' disable session expiration.
+## Default is "0s" (sessions do not expire).
+#
+# GUI_session_expiration: <SESSION_EXPIRATION_DURATION>
+
 ## @param health_port - integer - optional - default: 0
 ## @env DD_HEALTH_PORT - integer - optional - default: 0
 ## The Agent can expose its health check on a dedicated http port.
@@ -1129,6 +1137,19 @@ api_key:
   #         obfuscate_sql_values:
   #             - val1
   #
+  #     opensearch:
+  ##        @param DD_APM_OBFUSCATION_OPENSEARCH_ENABLED - boolean - optional
+  ##        Enables obfuscation rules for spans of type "opensearch". Enabled by default.
+  #         enabled: true
+  ##        @param DD_APM_OBFUSCATION_OPENSEARCH_KEEP_VALUES - object - optional
+  ##        List of keys that should not be obfuscated.
+  #         keep_values:
+  #             - client_id
+  ##        @param DD_APM_OBFUSCATION_OPENSEARCH_OBFUSCATE_SQL_VALUES - boolean - optional
+  ##        The set of keys for which their values will be passed through SQL obfuscation
+  #         obfuscate_sql_values:
+  #             - val1
+  #
   #     http:
   ##        @param DD_APM_OBFUSCATION_HTTP_REMOVE_QUERY_STRING - boolean - optional
   ##        Enables obfuscation of query strings in URLs
@@ -1281,6 +1302,11 @@ api_key:
   ## If you are sending OTel traces and want stats on non-top-level spans, this flag will need to be enabled.
   ## If you are sending OTel traces and do not want stats computed by span kind, you need to disable this flag and remove the "enable_otlp_compute_top_level_by_span_kind" APM feature if present.
   # compute_stats_by_span_kind: false
+
+  ## @param peer_service_aggregation - bool - default: false
+  ## @env DD_APM_PEER_SERVICE_AGGREGATION - bool - default: false
+  ## DEPRECATED - please use `peer_tags_aggregation` instead.
+  # peer_service_aggregation: false
 
   ## @param peer_tags_aggregation - bool - default: false
   ## @env DD_APM_PEER_TAGS_AGGREGATION - bool - default: false
@@ -3537,7 +3563,7 @@ api_key:
   ## This field is used by NDM features (SNMP check, SNMP Traps listener, etc).
   #
   # namespace: default
-  
+
   ## @param autodiscovery - custom object - optional
   ## Creates and schedules a listener to automatically discover your SNMP devices.
   ## Discovered devices can then be monitored with the SNMP integration by using
