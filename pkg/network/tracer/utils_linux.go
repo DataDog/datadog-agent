@@ -16,9 +16,15 @@ import (
 	"github.com/cilium/ebpf/asm"
 	"github.com/cilium/ebpf/features"
 
+	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+
+// NeedsEBPF returns `true` if the network-tracer requires eBPF
+func NeedsEBPF() bool {
+	return !coreconfig.SystemProbe.GetBool("network_config.enable_ebpf_less")
+}
 
 // IsTracerSupportedByOS returns whether the current kernel version supports tracer functionality
 // along with some context on why it's not supported
@@ -57,6 +63,10 @@ func verifyOSVersion(kernelCode kernel.Version, platform string, exclusionList [
 	// using eBPF causes kernel panic for linux kernel version 4.4.114 ~ 4.4.127
 	if platform == "ubuntu" && kernelCode >= kernel.VersionCode(4, 4, 114) && kernelCode <= kernel.VersionCode(4, 4, 127) {
 		return false, fmt.Errorf("Known bug for kernel %s on platform %s, see: \n- https://bugs.launchpad.net/ubuntu/+source/linux/+bug/1763454", kernelCode, platform)
+	}
+
+	if !NeedsEBPF() {
+		return true, nil
 	}
 
 	var requiredFuncs = []asm.BuiltinFunc{
