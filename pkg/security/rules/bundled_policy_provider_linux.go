@@ -41,5 +41,6 @@ func newBundledPolicyRules(cfg *config.RuntimeSecurityConfig) []*rules.RuleDefin
 		Actions: []*rules.ActionDefinition{{
 			InternalCallback: &rules.InternalCallbackDefinition{},
 		}},
+		Silent: true,
 	}}
 }
