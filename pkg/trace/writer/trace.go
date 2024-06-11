@@ -50,7 +50,7 @@ type SampledChunks struct {
 	EventCount int64
 }
 
-// TraceWriter buffers traces and APM events, flushing them to the Datadog API implements TraceWriter
+// TraceWriter implements TraceWriter interface, and buffers traces and APM events, flushing them to the Datadog API.
 type TraceWriter struct {
 	flushTicker *time.Ticker
 
