@@ -14,7 +14,9 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/http/httputil"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -31,10 +33,11 @@ func (r roundTripperMock) RoundTrip(req *http.Request) (*http.Response, error) {
 	return r(req)
 }
 
-// sendRequestThroughForwarder sends a request through the evpProxyForwarder handler and returns the forwarded
-// request(s), their response and the log output. The path for inReq shouldn't have the /evp_proxy/v1
-// prefix since it is passed directly to the inner proxy handler and not the trace-agent API handler.
-func sendRequestThroughForwarder(conf *config.AgentConfig, inReq *http.Request, statsd statsd.ClientInterface) (outReqs []*http.Request, resp *http.Response, logs string) {
+// sendRequestThroughForwarderWithMockRoundTripper sends a request through the evpProxyForwarder
+// handler and returns the forwarded request(s), their response and the log output. The path for
+// inReq shouldn't have the /evp_proxy/v1 prefix since it is passed directly to the inner proxy
+// handler and not the trace-agent API handler.
+func sendRequestThroughForwarderWithMockRoundTripper(conf *config.AgentConfig, inReq *http.Request, statsd statsd.ClientInterface) (outReqs []*http.Request, resp *http.Response, logs string) {
 	mockRoundTripper := roundTripperMock(func(req *http.Request) (*http.Response, error) {
 		if req.Body != nil {
 			if _, err := io.ReadAll(req.Body); err != nil && err != io.EOF {
@@ -57,6 +60,26 @@ func sendRequestThroughForwarder(conf *config.AgentConfig, inReq *http.Request, 
 	return outReqs, rec.Result(), loggerBuffer.String()
 }
 
+// sendRequestThroughForwarderAgainstDummyServer sends a request to the specified serverHost URL,
+// which should be localhost at a port where you ran a dummy server, for E2E testing. The path for
+// inReq shouldn't have the /evp_proxy/v1 prefix since it is passed directly to the inner proxy
+// handler and not the trace-agent API handler.
+func sendRequestThroughForwarderAgainstDummyServer(conf *config.AgentConfig, inReq *http.Request, statsd statsd.ClientInterface, serverHost string) (resp *http.Response, logs string) {
+	reqModifierRoundTripper := roundTripperMock(func(req *http.Request) (*http.Response, error) {
+		req.URL.Scheme = "http"
+		req.Host = serverHost
+		req.URL.Host = serverHost
+		return conf.NewHTTPTransport().RoundTrip(req)
+	})
+	handler := evpProxyForwarder(conf, statsd)
+	var loggerBuffer bytes.Buffer
+	handler.(*httputil.ReverseProxy).ErrorLog = log.New(io.Writer(&loggerBuffer), "", 0)
+	handler.(*httputil.ReverseProxy).Transport.(*evpProxyTransport).transport = reqModifierRoundTripper
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, inReq)
+	return rec.Result(), loggerBuffer.String()
+}
+
 func TestEVPProxyForwarder(t *testing.T) {
 	randBodyBuf := make([]byte, 1024)
 	rand.Read(randBodyBuf)
@@ -77,7 +100,7 @@ func TestEVPProxyForwarder(t *testing.T) {
 		req.Header.Set("User-Agent", "test_user_agent")
 		req.Header.Set("X-Datadog-EVP-Subdomain", "my.subdomain")
 		req.Header.Set("Content-Type", "text/json")
-		proxyreqs, resp, logs := sendRequestThroughForwarder(conf, req, stats)
+		proxyreqs, resp, logs := sendRequestThroughForwarderWithMockRoundTripper(conf, req, stats)
 
 		require.Equal(t, http.StatusOK, resp.StatusCode, "Got: ", fmt.Sprint(resp.StatusCode))
 		resp.Body.Close()
@@ -128,7 +151,7 @@ func TestEVPProxyForwarder(t *testing.T) {
 		req := httptest.NewRequest("POST", "/mypath/mysubpath?arg=test", bytes.NewReader(randBodyBuf))
 		req.Header.Set("X-Datadog-EVP-Subdomain", "my.subdomain")
 		req.Header.Set(header.ContainerID, "myid")
-		proxyreqs, resp, logs := sendRequestThroughForwarder(conf, req, stats)
+		proxyreqs, resp, logs := sendRequestThroughForwarderWithMockRoundTripper(conf, req, stats)
 
 		resp.Body.Close()
 		require.Equal(t, http.StatusOK, resp.StatusCode, "Got: ", fmt.Sprint(resp.StatusCode))
@@ -147,7 +170,7 @@ func TestEVPProxyForwarder(t *testing.T) {
 		}
 		req := httptest.NewRequest("POST", "/mypath/mysubpath?arg=test", bytes.NewReader(randBodyBuf))
 		req.Header.Set("X-Datadog-EVP-Subdomain", "my.subdomain")
-		proxyreqs, resp, logs := sendRequestThroughForwarder(conf, req, stats)
+		proxyreqs, resp, logs := sendRequestThroughForwarderWithMockRoundTripper(conf, req, stats)
 
 		resp.Body.Close()
 		require.Equal(t, http.StatusOK, resp.StatusCode, "Got: ", fmt.Sprint(resp.StatusCode))
@@ -180,7 +203,7 @@ func TestEVPProxyForwarder(t *testing.T) {
 		conf.Endpoints[0].APIKey = "test_api_key"
 
 		req := httptest.NewRequest("POST", "/mypath/mysubpath", bytes.NewReader(randBodyBuf))
-		proxyreqs, resp, logs := sendRequestThroughForwarder(conf, req, stats)
+		proxyreqs, resp, logs := sendRequestThroughForwarderWithMockRoundTripper(conf, req, stats)
 
 		resp.Body.Close()
 		require.Len(t, proxyreqs, 0)
@@ -204,7 +227,7 @@ func TestEVPProxyForwarder(t *testing.T) {
 
 		req := httptest.NewRequest("POST", "/mypath/mysubpath", bytes.NewReader(randBodyBuf))
 		req.Header.Set("X-Datadog-EVP-Subdomain", "/google.com%3Fattack=")
-		proxyreqs, resp, logs := sendRequestThroughForwarder(conf, req, stats)
+		proxyreqs, resp, logs := sendRequestThroughForwarderWithMockRoundTripper(conf, req, stats)
 
 		resp.Body.Close()
 		require.Len(t, proxyreqs, 0)
@@ -228,7 +251,7 @@ func TestEVPProxyForwarder(t *testing.T) {
 
 		req := httptest.NewRequest("POST", "/mypath/my%20subpath", bytes.NewReader(randBodyBuf))
 		req.Header.Set("X-Datadog-EVP-Subdomain", "my.subdomain")
-		proxyreqs, resp, logs := sendRequestThroughForwarder(conf, req, stats)
+		proxyreqs, resp, logs := sendRequestThroughForwarderWithMockRoundTripper(conf, req, stats)
 
 		resp.Body.Close()
 		require.Len(t, proxyreqs, 0)
@@ -255,7 +278,7 @@ func TestEVPProxyForwarder(t *testing.T) {
 
 		req := httptest.NewRequest("POST", "/mypath/mysubpath?test=bad%20arg", bytes.NewReader(randBodyBuf))
 		req.Header.Set("X-Datadog-EVP-Subdomain", "my.subdomain")
-		proxyreqs, resp, logs := sendRequestThroughForwarder(conf, req, stats)
+		proxyreqs, resp, logs := sendRequestThroughForwarderWithMockRoundTripper(conf, req, stats)
 
 		resp.Body.Close()
 		require.Len(t, proxyreqs, 0)
@@ -283,7 +306,7 @@ func TestEVPProxyForwarder(t *testing.T) {
 
 		req := httptest.NewRequest("POST", "/mypath/mysubpath", bytes.NewReader(randBodyBuf))
 		req.Header.Set("X-Datadog-EVP-Subdomain", "my.subdomain")
-		proxyreqs, resp, logs := sendRequestThroughForwarder(conf, req, stats)
+		proxyreqs, resp, logs := sendRequestThroughForwarderWithMockRoundTripper(conf, req, stats)
 
 		resp.Body.Close()
 		require.Len(t, proxyreqs, 0)
@@ -324,7 +347,7 @@ func TestEVPProxyForwarder(t *testing.T) {
 		req := httptest.NewRequest("POST", "/mypath/mysubpath", bytes.NewReader(randBodyBuf))
 		req.Header.Set("X-Datadog-EVP-Subdomain", "my.subdomain")
 		req.Header.Set("X-Datadog-NeedsAppKey", "true")
-		proxyreqs, resp, logs := sendRequestThroughForwarder(conf, req, stats)
+		proxyreqs, resp, logs := sendRequestThroughForwarderWithMockRoundTripper(conf, req, stats)
 
 		resp.Body.Close()
 		require.Equal(t, http.StatusOK, resp.StatusCode, "Got: ", fmt.Sprint(resp.StatusCode))
@@ -343,7 +366,7 @@ func TestEVPProxyForwarder(t *testing.T) {
 		req := httptest.NewRequest("POST", "/mypath/mysubpath", bytes.NewReader(randBodyBuf))
 		req.Header.Set("X-Datadog-EVP-Subdomain", "my.subdomain")
 		req.Header.Set("X-Datadog-NeedsAppKey", "true")
-		proxyreqs, resp, logs := sendRequestThroughForwarder(conf, req, stats)
+		proxyreqs, resp, logs := sendRequestThroughForwarderWithMockRoundTripper(conf, req, stats)
 
 		resp.Body.Close()
 		require.Len(t, proxyreqs, 0)
@@ -375,7 +398,7 @@ func TestEVPProxyForwarder(t *testing.T) {
 		req.Header.Set("Content-Encoding", "gzip")
 		req.Header.Set("Unexpected-Header", "To-Be-Discarded")
 		req.Header.Set("DD-CI-PROVIDER-NAME", "Allowed-Header")
-		proxyreqs, resp, logs := sendRequestThroughForwarder(conf, req, stats)
+		proxyreqs, resp, logs := sendRequestThroughForwarderWithMockRoundTripper(conf, req, stats)
 
 		require.Equal(t, http.StatusOK, resp.StatusCode, "Got: ", fmt.Sprint(resp.StatusCode))
 		resp.Body.Close()
@@ -412,5 +435,53 @@ func TestEVPProxyHandler(t *testing.T) {
 		req.Header.Set("X-Datadog-EVP-Subdomain", "my.subdomain")
 		handler.ServeHTTP(rec, req)
 		require.Equal(t, http.StatusMethodNotAllowed, rec.Code)
+	})
+}
+
+func TestE2E(t *testing.T) {
+	randBodyBuf := make([]byte, 1024)
+	rand.Read(randBodyBuf)
+
+	stats := &teststatsd.Client{}
+
+	t.Run("ok", func(t *testing.T) {
+		conf := newTestReceiverConfig()
+		conf.Site = "us3.datadoghq.com"
+		conf.Endpoints[0].APIKey = "test_api_key"
+
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Write([]byte(`OK`))
+		}))
+
+		req := httptest.NewRequest("POST", "/mypath/mysubpath?arg=test", bytes.NewReader(randBodyBuf))
+		req.Header.Set("X-Datadog-EVP-Subdomain", "my.subdomain")
+		resp, logs := sendRequestThroughForwarderAgainstDummyServer(conf, req, stats, strings.TrimPrefix(server.URL, "http://"))
+
+		resp.Body.Close()
+		require.Equal(t, http.StatusOK, resp.StatusCode, "Got: ", fmt.Sprint(resp.StatusCode))
+		assert.Equal(t, "", logs)
+		body, err := io.ReadAll(resp.Body)
+		assert.NoError(t, err)
+		assert.Equal(t, "OK", string(body))
+	})
+
+	t.Run("timeout", func(t *testing.T) {
+		conf := newTestReceiverConfig()
+		conf.Site = "us3.datadoghq.com"
+		conf.Endpoints[0].APIKey = "test_api_key"
+		conf.ReceiverTimeout = 1 // in seconds
+
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			time.Sleep(2 * time.Second)
+			w.Write([]byte(`OK`))
+		}))
+
+		req := httptest.NewRequest("POST", "/mypath/mysubpath?arg=test", bytes.NewReader(randBodyBuf))
+		req.Header.Set("X-Datadog-EVP-Subdomain", "my.subdomain")
+		resp, logs := sendRequestThroughForwarderAgainstDummyServer(conf, req, stats, strings.TrimPrefix(server.URL, "http://"))
+
+		resp.Body.Close()
+		require.Equal(t, http.StatusBadGateway, resp.StatusCode, "Got: ", fmt.Sprint(resp.StatusCode))
+		assert.Equal(t, "http: proxy error: context deadline exceeded\n", logs)
 	})
 }

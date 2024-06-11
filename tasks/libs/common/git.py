@@ -49,3 +49,7 @@ def check_local_branch(ctx, branch):
 
     # Return True if a branch is returned by git branch --list
     return matching_branch != "0"
+
+
+def get_commit_sha(ctx, commit="HEAD", short=False) -> str:
+    return ctx.run(f"git rev-parse {'--short ' if short else ''}{commit}", hide=True).stdout.strip()

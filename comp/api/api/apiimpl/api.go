@@ -19,12 +19,11 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/pidmap"
 	replay "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/def"
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
-	"github.com/DataDog/datadog-agent/comp/metadata/packagesigning"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcservice"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcservicemrf"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -42,7 +41,6 @@ type apiServer struct {
 	capture           replay.Component
 	pidMap            pidmap.Component
 	secretResolver    secrets.Component
-	pkgSigning        packagesigning.Component
 	statusComponent   status.Component
 	rcService         optional.Option[rcservice.Component]
 	rcServiceMRF      optional.Option[rcservicemrf.Component]
@@ -63,7 +61,6 @@ type dependencies struct {
 	Capture               replay.Component
 	PidMap                pidmap.Component
 	SecretResolver        secrets.Component
-	PkgSigning            packagesigning.Component
 	StatusComponent       status.Component
 	RcService             optional.Option[rcservice.Component]
 	RcServiceMRF          optional.Option[rcservicemrf.Component]
@@ -85,7 +82,6 @@ func newAPIServer(deps dependencies) api.Component {
 		capture:           deps.Capture,
 		pidMap:            deps.PidMap,
 		secretResolver:    deps.SecretResolver,
-		pkgSigning:        deps.PkgSigning,
 		statusComponent:   deps.StatusComponent,
 		rcService:         deps.RcService,
 		rcServiceMRF:      deps.RcServiceMRF,

@@ -167,6 +167,11 @@ func (s *CheckScheduler) getChecks(config integration.Config) ([]check.Check, er
 	selectedLoader := initConfig.LoaderName
 
 	for _, instance := range config.Instances {
+		if check.IsJMXInstance(config.Name, instance, config.InitConfig) {
+			log.Debugf("skip loading jmx check '%s', it is handled elsewhere", config.Name)
+			continue
+		}
+
 		errors := []string{}
 		selectedInstanceLoader := selectedLoader
 		instanceConfig := commonInstanceConfig{}
@@ -196,14 +201,6 @@ func (s *CheckScheduler) getChecks(config integration.Config) ([]check.Check, er
 			if err == nil {
 				log.Debugf("%v: successfully loaded check '%s'", loader, config.Name)
 				errorStats.removeLoaderErrors(config.Name)
-				checks = append(checks, c)
-				break
-			} else if c != nil && check.IsJMXInstance(config.Name, instance, config.InitConfig) {
-				// JMXfetch is more permissive than the agent regarding instance configuration. It
-				// accepts tags as a map and a list whether the agent only accepts tags as a list
-				// we still attempt to schedule the check but we save the error.
-				log.Debugf("%v: loading issue for JMX check '%s', the agent will still attempt to schedule it", loader, config.Name)
-				errorStats.setLoaderError(config.Name, fmt.Sprintf("%v", loader), err.Error())
 				checks = append(checks, c)
 				break
 			}

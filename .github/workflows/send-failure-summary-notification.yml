@@ -4,8 +4,8 @@ on:
   workflow_dispatch:
     inputs:
       # See notify_tests.py to see the format
-      job_failures:
-        description: 'Job failures'
+      args:
+        description: 'Arguments'
         required: true
         type: string
 
@@ -14,11 +14,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@0ad4b8fadaa221de15dcec353f45205ec38ea70b # v4.1.4
         with:
           ref: main
       - name: Setup python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@82c7e631bb3cdc910f68e0081d67478d79c6982d # v5.1.0
         with:
           python-version: 3.11
           cache: 'pip'
@@ -29,6 +29,6 @@ jobs:
         id: send_failure_summary_team_notification
         env:
           # Too much data to be passed by arguments
-          JOB_FAILURES: ${{ inputs.job_failures }}
+          ARGS: ${{ inputs.args }}
           SLACK_API_TOKEN: ${{ secrets.SLACK_DATADOG_AGENT_BOT_TOKEN }}
         run: inv -e notify.send-failure-summary-notification

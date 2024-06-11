@@ -62,7 +62,12 @@ func (suite *ecsSuite) SetupSuite() {
 		"ddtestworkload:deploy":                      auto.ConfigValue{Value: "true"},
 	}
 
-	_, stackOutput, err := infra.GetStackManager().GetStackNoDeleteOnFailure(ctx, "ecs-cluster", stackConfig, ecs.Run, false, nil, nil)
+	_, stackOutput, err := infra.GetStackManager().GetStackNoDeleteOnFailure(
+		ctx,
+		"ecs-cluster",
+		ecs.Run,
+		infra.WithConfigMap(stackConfig),
+	)
 	suite.Require().NoError(err)
 
 	fakeintake := &components.FakeIntake{}

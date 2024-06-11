@@ -22,7 +22,7 @@ class FilteredOutException(Exception):
     pass
 
 
-def get_running_pipelines_on_same_ref(repo: Project, ref, sha=None) -> list[ProjectPipeline]:
+def get_running_pipelines_on_same_ref(repo: Project, ref: str, sha=None) -> list[ProjectPipeline]:
     pipelines = repo.pipelines.list(ref=ref, sha=sha, per_page=100, all=True)
 
     RUNNING_STATUSES = ["created", "pending", "running"]
@@ -102,7 +102,7 @@ def gracefully_cancel_pipeline(repo: Project, pipeline: ProjectPipeline, force_c
         cleanup_job = jobs_by_name.get(cleanup_job_name, None)
         if cleanup_job is not None:
             print(f"Triggering KMT {cleanup_job_name} job")
-            repo.jobs.get(job.id, lazy=True).play()
+            repo.jobs.get(cleanup_job.id, lazy=True).play()
         else:
             print(f"Cleanup job {cleanup_job_name} not found, skipping.")
 

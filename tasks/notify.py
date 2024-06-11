@@ -8,7 +8,7 @@ import tempfile
 import traceback
 from collections import defaultdict
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from urllib.parse import quote
 
 from invoke import task
@@ -31,6 +31,7 @@ from tasks.libs.pipeline.notifications import (
 )
 from tasks.libs.pipeline.stats import compute_failed_jobs_series, compute_required_jobs_max_duration
 from tasks.libs.types.types import FailedJobs, SlackMessage, TeamMessage
+from tasks.owners import channel_owners, make_partition
 
 UNKNOWN_OWNER_TEMPLATE = """The owner `{owner}` is not mapped to any slack channel.
 Please check for typos in the JOBOWNERS file and/or add them to the Github <-> Slack map.
@@ -43,6 +44,7 @@ CONSECUTIVE_THRESHOLD = 3
 CUMULATIVE_THRESHOLD = 5
 CUMULATIVE_LENGTH = 10
 CI_VISIBILITY_JOB_URL = 'https://app.datadoghq.com/ci/pipeline-executions?query=ci_level%3Ajob%20%40ci.pipeline.name%3ADataDog%2Fdatadog-agent%20%40git.branch%3Amain%20%40ci.job.name%3A{}&agg_m=count'
+NOTIFICATION_DISCLAIMER = "If there is something wrong with the notification please contact #agent-developer-experience"
 
 
 def get_ci_visibility_job_url(name: str, prefix=True) -> str:
@@ -224,7 +226,7 @@ def send_message(ctx, notification_type="merge", print_to_stdout=False):
     if failed_jobs.all_mandatory_failures():  # At least one mandatory job failed
         header_icon = ":host-red:"
         state = "failed"
-        coda = "If there is something wrong with the notification please contact #agent-developer-experience"
+        coda = NOTIFICATION_DISCLAIMER
     else:
         header_icon = ":host-green:"
         state = "succeeded"
@@ -251,10 +253,9 @@ def send_message(ctx, notification_type="merge", print_to_stdout=False):
             print(f"Would send to {channel}:\n{str(message)}")
         else:
             all_teams = channel == "#datadog-agent-pipelines"
-            post_channel = _should_send_message_to_channel(git_ref, default_branch) or all_teams
             send_dm = not _should_send_message_to_channel(git_ref, default_branch) and all_teams
 
-            if post_channel:
+            if all_teams:
                 recipient = channel
                 send_slack_message(recipient, str(message))
                 metrics.append(
@@ -445,54 +446,150 @@ def update_statistics(job_executions: PipelineRuns):
             cumulative_alerts[job_name] = [job for job in job_executions.jobs[job_name].jobs_info if job.failing]
 
     return {
-        'consecutive': ConsecutiveJobAlert(consecutive_alerts),
-        'cumulative': CumulativeJobAlert(cumulative_alerts),
+        'consecutive': consecutive_alerts,
+        'cumulative': cumulative_alerts,
     }, job_executions
 
 
-def send_notification(ctx: Context, alert_jobs):
-    message = alert_jobs["consecutive"].message(ctx) + alert_jobs["cumulative"].message()
-    message = message.strip()
+def send_notification(ctx: Context, alert_jobs, jobowners=".gitlab/JOBOWNERS"):
+    def send_alert(channel, consecutive: ConsecutiveJobAlert, cumulative: CumulativeJobAlert):
+        nonlocal metrics
 
-    if message:
-        send_slack_message("#agent-platform-ops", message)
+        message = consecutive.message(ctx) + cumulative.message()
+        message = message.strip()
+
+        if message:
+            send_slack_message(channel, message)
+
+            # Create metrics for consecutive and cumulative alerts
+            metrics += [
+                create_count(
+                    metric_name=f"datadog.ci.failed_job_alerts.{alert_type}",
+                    timestamp=timestamp,
+                    tags=[f"team:{team}", "repository:datadog-agent"],
+                    unit="notification",
+                    value=len(failures),
+                )
+                for alert_type, failures in (("consecutive", consecutive.failures), ("cumulative", cumulative.failures))
+                for team in channel_owners(channel)
+                if len(failures) > 0
+            ]
+
+    metrics = []
+    timestamp = int(datetime.now(timezone.utc).timestamp())
+    all_alerts = set(alert_jobs["consecutive"]) | set(alert_jobs["cumulative"])
+    partition = make_partition(all_alerts, jobowners, get_channels=True)
+
+    for channel in partition:
+        consecutive = ConsecutiveJobAlert(
+            {name: jobs for (name, jobs) in alert_jobs["consecutive"].items() if name in partition[channel]}
+        )
+        cumulative = CumulativeJobAlert(
+            {name: jobs for (name, jobs) in alert_jobs["cumulative"].items() if name in partition[channel]}
+        )
+        send_alert(channel, consecutive, cumulative)
+
+    # Send all alerts to #agent-platform-ops
+    consecutive = ConsecutiveJobAlert(alert_jobs["consecutive"])
+    cumulative = CumulativeJobAlert(alert_jobs["cumulative"])
+    send_alert('#agent-platform-ops', consecutive, cumulative)
+
+    if metrics:
+        send_metrics(metrics)
+        print('Metrics sent')
 
 
 @task
-def send_failure_summary_notification(_, jobs: dict[str, any] | None = None, list_max_len=10):
-    if jobs is None:
-        jobs = os.environ["JOB_FAILURES"]
-        jobs = json.loads(jobs)
+def send_failure_summary_notification(
+    _, jobs: dict[str, any] | None = None, allowed_to_fail: bool = False, list_max_len=10, jobowners=".gitlab/JOBOWNERS"
+):
+    from slack_sdk import WebClient
 
-    # List of (job_name, (failure_count, total_count)) ordered by failure_count
+    def send_summary(channel, stats):
+        """
+        Send the summary to channel with these job stats
+        """
+        # Create message
+        not_allowed_query = '-' if not allowed_to_fail else ''
+        period = 'Daily' if not allowed_to_fail else 'Weekly'
+        duration = '24 hours' if not allowed_to_fail else 'week'
+        delta = timedelta(days=1) if not allowed_to_fail else timedelta(weeks=1)
+        you_own = ' you own' if channel != '#agent-platform-ops' else ''
+        flaky_tests = (
+            ''
+            if allowed_to_fail
+            else ' In case of tests, you can <https://datadoghq.atlassian.net/wiki/spaces/ADX/pages/3405611398/Flaky+tests+in+go+introducing+flake.Mark|mark them as flaky>.'
+        )
+        expected_to_fail = 'They are allowed to fail' if allowed_to_fail else 'They are not expected to fail'
+
+        message = []
+        for name, fail in stats:
+            link = CI_VISIBILITY_JOB_URL.format(quote(name))
+            message.append(f"- <{link}|{name}>: *{fail} failures*")
+
+        timestamp_start = int((datetime.now() - delta).timestamp() * 1000)
+        timestamp_end = int(datetime.now().timestamp() * 1000)
+
+        header = f'{period} Job Failure Report'
+        description = f'These jobs{you_own} had the most failures in the last {duration}:'
+
+        footer = (
+            f'{expected_to_fail}. Click <https://app.datadoghq.com/ci/pipeline-executions?query=ci_level%3Ajob%20env%3Aprod%20%40git.repository.id%3A%22gitlab.ddbuild.io%2FDataDog%2Fdatadog-agent%22%20%40ci.pipeline.name%3A%22DataDog%2Fdatadog-agent%22%20%40ci.provider.instance%3Agitlab-ci%20%40git.branch%3Amain%20%40ci.status%3Aerror%20%40gitlab.pipeline_source%3A%28push%20OR%20schedule%29%20{not_allowed_query}%40ci.allowed_to_fail%3Atrue&agg_m=count&agg_m_source=base&agg_q=%40ci.job.name&start={timestamp_start}&end={timestamp_end}&agg_q_source=base&agg_t=count&fromUser=false&index=cipipeline&sort_m=count&sort_m_source=base&sort_t=count&top_n=25&top_o=top&viz=toplist&x_missing=true&paused=false|here> for more details.{flaky_tests}\n'
+            + NOTIFICATION_DISCLAIMER
+        )
+
+        body = '\n'.join(message)
+        # Rarely the body may be bigger than 3K characters, split into two messages in this case
+        if len(body) >= 3000:
+            body = ['\n'.join(message[: len(message) // 2]), '\n'.join(message[len(message) // 2 :])]
+        else:
+            body = [body]
+
+        blocks = [
+            {'type': 'header', 'text': {'type': 'plain_text', 'text': header}},
+            {'type': 'section', 'text': {'type': 'mrkdwn', 'text': description}},
+            *[{'type': 'section', 'text': {'type': 'mrkdwn', 'text': text}} for text in body],
+            {'type': 'context', 'elements': [{'type': 'mrkdwn', 'text': ':information_source: ' + footer}]},
+        ]
+
+        # Send message
+        client = WebClient(os.environ["SLACK_API_TOKEN"])
+        client.chat_postMessage(channel=channel, blocks=blocks)
+
+    # Get args passed by the environment variable
+    if jobs is None:
+        args = os.environ["ARGS"]
+        args = json.loads(args)
+        jobs = args['jobs']
+        allowed_to_fail = args['allowedToFail']
+
+    # List of (job_name, failure_count) ordered by failure_count
     stats = sorted(
-        ((name, (fail, success)) for (name, (fail, success)) in jobs.items() if fail > 0),
-        key=lambda x: (x[1][0], x[1][1] if x[1][1] is not None else 0),
+        ((name, data['failures']) for name, data in jobs.items() if data['failures'] > 0),
+        key=lambda x: x[1],
         reverse=True,
-    )[:list_max_len]
+    )
 
     # Don't send message if no failure
     if len(stats) == 0:
         return
 
-    # Create message
-    message = ['*Daily Job Failure Report*']
-    message.append('These jobs had the most failures in the last 24 hours:')
-    for name, (fail, total) in stats:
-        link = get_ci_visibility_job_url(name)
-        message.append(f"- <{link}|{name}>: *{fail} failures*{f' / {total} runs' if total else ''}")
+    # Partition by channels as some teams share the same slack channel (avoid duplicate messages)
+    partition = make_partition([name for name, _ in stats], jobowners, get_channels=True)
 
-    message.append(
-        'Click <https://app.datadoghq.com/ci/pipeline-executions?query=ci_level%3Ajob%20env%3Aprod%20%40git.repository.id%3A%22gitlab.ddbuild.io%2FDataDog%2Fdatadog-agent%22%20%40ci.pipeline.name%3A%22DataDog%2Fdatadog-agent%22%20%40ci.provider.instance%3Agitlab-ci%20%40git.branch%3Amain%20%40ci.status%3Aerror&agg_m=count&agg_m_source=base&agg_q=%40ci.job.name&agg_q_source=base&agg_t=count&fromUser=false&index=cipipeline&sort_m=count&sort_m_source=base&sort_t=count&top_n=25&top_o=top&viz=toplist&x_missing=true&paused=false|here> for more details.'
-    )
+    # team_stats[team] = [(job_name, failure_count), ...]
+    team_stats = {}
+    for channel in partition:
+        team_stats[channel] = [(name, stat) for (name, stat) in stats if name in partition[channel]]
+        team_stats[channel] = team_stats[channel][:list_max_len]
 
-    # Send message
-    from slack_sdk import WebClient
+    for channel, stat in team_stats.items():
+        send_summary(channel, stat)
 
-    client = WebClient(os.environ["SLACK_API_TOKEN"])
-    client.chat_postMessage(channel='#agent-platform-ops', text='\n'.join(message))
+    # Send full message to #agent-platform-ops
+    send_summary('#agent-platform-ops', stats[:list_max_len])
 
-    print('Message sent')
+    print('Messages sent')
 
 
 @task
