@@ -281,6 +281,11 @@ def get_total_complexity_stats_len(compinfo_widths: tuple[int, int, int]):
     return sum(compinfo_widths) + 7  # 7 = 2 brackets + 2 pipes + 3 letters
 
 
+COMPLEXITY_THRESHOLD_LOW = 5
+COMPLEXITY_THRESHOLD_MEDIUM = 20
+COMPLEXITY_THRESHOLD_HIGH = 50
+
+
 def source_line_to_str(
     lineno: int,
     line: str,
@@ -297,11 +302,11 @@ def source_line_to_str(
         total = compl["total_instructions_processed"]
         compinfo = f"[{insn:{compinfo_widths[0]}d}i|{passes:{compinfo_widths[1]}d}p|{total:{compinfo_widths[2]}d}t]"
 
-        if total <= 5:
+        if total <= COMPLEXITY_THRESHOLD_LOW:
             color = "green"
-        elif total <= 20:
+        elif total <= COMPLEXITY_THRESHOLD_MEDIUM:
             color = "yellow"
-        elif total <= 50:
+        elif total <= COMPLEXITY_THRESHOLD_HIGH:
             color = "red"
         else:
             color = "magenta"
@@ -522,3 +527,99 @@ def show_top_complexity_lines(
             print(lineid)
             print(source_line_to_str(int(lineno), line, compl, compinfo_widths))
             print()
+
+
+@task
+def generate_html_report(ctx: Context, dest_folder: str | Path):
+    """Generate an HTML report with the complexity data"""
+    try:
+        from jinja2 import Environment, FileSystemLoader, select_autoescape
+    except ImportError:
+        raise Exit("jinja2 is required to generate the HTML report")
+
+    if not VERIFIER_STATS.exists() or not COMPLEXITY_DATA_DIR.exists():
+        print("[!] No verifier stats found, regenerating them...")
+        collect_verification_stats(ctx, line_complexity=True)
+
+    dest_folder = Path(dest_folder)
+    dest_folder.mkdir(exist_ok=True, parents=True)
+
+    with open(VERIFIER_STATS) as f:
+        verifier_stats = json.load(f)
+
+    stats_by_object_and_program = collections.defaultdict(dict)
+
+    for prog, stats in verifier_stats.items():
+        object_file, function = prog.split("/")
+        stats_by_object_and_program[object_file][function] = stats
+
+    env = Environment(
+        loader=FileSystemLoader(Path(__file__).parent / "ebpf_verifier/templates"),
+        autoescape=select_autoescape(),
+        trim_blocks=True,
+    )
+
+    template = env.get_template("index.html.j2")
+    render = template.render(
+        title="ebpf",
+        verifier_stats=stats_by_object_and_program,
+    )
+
+    index_file = dest_folder / "index.html"
+    index_file.write_text(render)
+
+    for file in COMPLEXITY_DATA_DIR.glob("**/*.json"):
+        object_file = file.parent.name
+        function = file.stem
+
+        if function == "mappings":
+            continue  # Ignore the mappings file
+
+        print(f"Generating report for {object_file}/{function}...")
+
+        with open(file) as f:
+            complexity_data: ComplexityData = json.load(f)
+
+        if "source_map" not in complexity_data:
+            print("Invalid complexity data file", file)
+            continue
+
+        all_files = {x.split(":")[0] for x in complexity_data["source_map"].keys()}
+        file_contents = {}
+        for f in all_files:
+            if not os.path.exists(f):
+                print(f"File {f} not found")
+                continue
+
+            with open(f) as src:
+                file_contents[f] = []
+                for lineno, line in enumerate(src.read().splitlines()):
+                    lineid = f"{f}:{lineno + 1}"
+                    compl = complexity_data["source_map"].get(lineid)
+                    linedata = dict(line=line, complexity=compl)
+                    if compl is not None:
+                        if compl['num_instructions'] <= COMPLEXITY_THRESHOLD_LOW:
+                            linedata['complexity_level'] = 'low'
+                        elif compl['num_instructions'] <= COMPLEXITY_THRESHOLD_MEDIUM:
+                            linedata['complexity_level'] = 'medium'
+                        elif compl['num_instructions'] <= COMPLEXITY_THRESHOLD_HIGH:
+                            linedata['complexity_level'] = 'high'
+                        else:
+                            linedata['complexity_level'] = 'extreme'
+                    else:
+                        linedata['complexity_level'] = 'none'
+
+                    file_contents[f].append(linedata)
+
+        template = env.get_template("program.html.j2")
+        render = template.render(
+            title=f"{object_file}/{function} complexity analysis",
+            object_file=object_file,
+            function=function,
+            complexity_data=complexity_data,
+            file_contents=file_contents,
+        )
+        object_folder = dest_folder / object_file
+        object_folder.mkdir(exist_ok=True, parents=True)
+        complexity_file = object_folder / f"{function}.html"
+        complexity_file.write_text(render)
