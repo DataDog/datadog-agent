@@ -285,12 +285,12 @@ func (s *Launcher) launchTailers(source *sources.LogSource) {
 		}
 
 		mode, isSet := config.TailingModeFromString(source.Config.TailingMode)
-
+		log.Debug("wack", source.Config.TailingMode)
 		if !isSet && source.Config.Identifier != "" {
 			mode = config.Beginning
 			source.Config.TailingMode = mode.String()
 		}
-
+		log.Debug("huh?", source.Config.TailingMode)
 		s.startNewTailer(file, mode)
 	}
 }
@@ -298,6 +298,7 @@ func (s *Launcher) launchTailers(source *sources.LogSource) {
 // startNewTailer creates a new tailer, making it tail from the last committed offset, the beginning or the end of the file,
 // returns true if the operation succeeded, false otherwise.
 func (s *Launcher) startNewTailer(file *tailer.File, m config.TailingMode) bool {
+	log.Debug("andrewq", m)
 	if file == nil {
 		log.Debug("startNewTailer called with a nil file")
 		return false
@@ -308,7 +309,7 @@ func (s *Launcher) startNewTailer(file *tailer.File, m config.TailingMode) bool 
 	var offset int64
 	var whence int
 	mode := s.handleTailingModeChange(tailer.Identifier(), m)
-
+	log.Debug("andrewq2???", mode)
 	offset, whence, err := Position(s.registry, tailer.Identifier(), mode)
 	if err != nil {
 		log.Warnf("Could not recover offset for file with path %v: %v", file.Path, err)
