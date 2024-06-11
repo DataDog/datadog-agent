@@ -29,8 +29,7 @@ int __attribute__((always_inline)) resolve_dentry_tail_call(void *ctx, struct de
     }
 
 #pragma unroll
-    for (int i = 0; i < DR_MAX_ITERATION_DEPTH; i++)
-    {
+    for (int i = 0; i < DR_MAX_ITERATION_DEPTH; i++) {
         bpf_probe_read(&d_parent, sizeof(d_parent), &dentry->d_parent);
 
         key = next_key;
@@ -147,8 +146,7 @@ int __attribute__((always_inline)) dentry_resolver_erpc_write_user(void *ctx, in
     state->iteration++;
 
 #pragma unroll
-    for (int i = 0; i < DR_MAX_ITERATION_DEPTH; i++)
-    {
+    for (int i = 0; i < DR_MAX_ITERATION_DEPTH; i++) {
         iteration_key = state->key;
         map_value = bpf_map_lookup_elem(&pathnames, &iteration_key);
         if (map_value == NULL) {
@@ -162,12 +160,12 @@ int __attribute__((always_inline)) dentry_resolver_erpc_write_user(void *ctx, in
             goto exit;
         }
 
-        state->ret = bpf_probe_write_user((void *) state->userspace_buffer + state->cursor, &state->key, sizeof(state->key));
+        state->ret = bpf_probe_write_user((void *)state->userspace_buffer + state->cursor, &state->key, sizeof(state->key));
         if (state->ret < 0) {
             resolution_err = state->ret == -14 ? DR_ERPC_WRITE_PAGE_FAULT : DR_ERPC_UNKNOWN_ERROR;
             goto exit;
         }
-        state->ret = bpf_probe_write_user((void *) state->userspace_buffer + state->cursor + offsetof(struct path_key_t, path_id), &state->challenge, sizeof(state->challenge));
+        state->ret = bpf_probe_write_user((void *)state->userspace_buffer + state->cursor + offsetof(struct path_key_t, path_id), &state->challenge, sizeof(state->challenge));
         if (state->ret < 0) {
             resolution_err = state->ret == -14 ? DR_ERPC_WRITE_PAGE_FAULT : DR_ERPC_UNKNOWN_ERROR;
             goto exit;
@@ -181,7 +179,7 @@ int __attribute__((always_inline)) dentry_resolver_erpc_write_user(void *ctx, in
             goto exit;
         }
 
-        state->ret = bpf_probe_write_user((void *) state->userspace_buffer + state->cursor, map_value->name, DR_MAX_SEGMENT_LENGTH + 1);
+        state->ret = bpf_probe_write_user((void *)state->userspace_buffer + state->cursor, map_value->name, DR_MAX_SEGMENT_LENGTH + 1);
         if (state->ret < 0) {
             resolution_err = state->ret == -14 ? DR_ERPC_WRITE_PAGE_FAULT : DR_ERPC_UNKNOWN_ERROR;
             goto exit;
@@ -231,8 +229,7 @@ int __attribute__((always_inline)) dentry_resolver_erpc_mmap(void *ctx, int dr_t
     state->iteration++;
 
 #pragma unroll
-    for (int i = 0; i < DR_MAX_ITERATION_DEPTH; i++)
-    {
+    for (int i = 0; i < DR_MAX_ITERATION_DEPTH; i++) {
         iteration_key = state->key;
         map_value = bpf_map_lookup_elem(&pathnames, &iteration_key);
         if (map_value == NULL) {
@@ -246,13 +243,13 @@ int __attribute__((always_inline)) dentry_resolver_erpc_mmap(void *ctx, int dr_t
             goto exit;
         }
 
-        state->ret = bpf_probe_read((void *) mmapped_userspace_buffer + (state->cursor & 0x7FFF), sizeof(state->key), &state->key);
+        state->ret = bpf_probe_read((void *)mmapped_userspace_buffer + (state->cursor & 0x7FFF), sizeof(state->key), &state->key);
         if (state->ret < 0) {
             resolution_err = state->ret == -14 ? DR_ERPC_WRITE_PAGE_FAULT : DR_ERPC_UNKNOWN_ERROR;
             goto exit;
         }
 
-        state->ret = bpf_probe_read((void *) mmapped_userspace_buffer + ((state->cursor + offsetof(struct path_key_t, path_id)) & 0x7FFF), sizeof(state->challenge), &state->challenge);
+        state->ret = bpf_probe_read((void *)mmapped_userspace_buffer + ((state->cursor + offsetof(struct path_key_t, path_id)) & 0x7FFF), sizeof(state->challenge), &state->challenge);
         if (state->ret < 0) {
             resolution_err = state->ret == -14 ? DR_ERPC_WRITE_PAGE_FAULT : DR_ERPC_UNKNOWN_ERROR;
             goto exit;
@@ -266,7 +263,7 @@ int __attribute__((always_inline)) dentry_resolver_erpc_mmap(void *ctx, int dr_t
             goto exit;
         }
 
-        state->ret = bpf_probe_read((void *) mmapped_userspace_buffer + (state->cursor & 0x7FFF), DR_MAX_SEGMENT_LENGTH + 1, map_value->name);
+        state->ret = bpf_probe_read((void *)mmapped_userspace_buffer + (state->cursor & 0x7FFF), DR_MAX_SEGMENT_LENGTH + 1, map_value->name);
         if (state->ret < 0) {
             resolution_err = state->ret == -14 ? DR_ERPC_WRITE_PAGE_FAULT : DR_ERPC_UNKNOWN_ERROR;
             goto exit;
@@ -295,7 +292,6 @@ TAIL_CALL_TARGET("dentry_resolver_erpc_mmap")
 int tail_call_target_dentry_resolver_erpc_mmap(ctx_t *ctx) {
     return dentry_resolver_erpc_mmap(ctx, DR_KPROBE_OR_FENTRY);
 }
-
 
 TAIL_CALL_TARGET("dentry_resolver_ad_filter")
 int tail_call_target_dentry_resolver_ad_filter(ctx_t *ctx) {

@@ -70,3 +70,10 @@ def make_partition(names: list[str], owners_file: str, get_channels: bool = Fals
             mapping[team].add(name)
 
     return mapping
+
+
+def channel_owners(channel: str) -> list[str]:
+    """
+    Returns the teams that own the slack channel
+    """
+    return [team for team, chan in GITHUB_SLACK_MAP.items() if chan == channel]
