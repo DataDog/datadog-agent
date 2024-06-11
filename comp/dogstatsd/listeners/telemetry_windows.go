@@ -10,7 +10,7 @@ import (
 	"expvar"
 	"fmt"
 
-	"github.com/DataDog/datadog-agent/pkg/telemetry"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 )
 
 type listenerTelemetry struct {
@@ -22,7 +22,7 @@ type listenerTelemetry struct {
 	tlmPacketsBytes     telemetry.Counter
 }
 
-func newListenerTelemetry(metricName string, name string) *listenerTelemetry {
+func newListenerTelemetry(metricName string, name string, telemetry telemetry.Component) *listenerTelemetry {
 	expvars := expvar.NewMap("dogstatsd-" + metricName)
 	packetReadingErrors := expvar.Int{}
 	packets := expvar.Int{}
