@@ -2,6 +2,8 @@
 Miscellaneous functions, no tasks here
 """
 
+from __future__ import annotations
+
 import json
 import os
 import platform
@@ -16,11 +18,13 @@ from pathlib import Path
 from subprocess import CalledProcessError, check_output
 from types import SimpleNamespace
 
+from invoke.context import Context
 from invoke.exceptions import Exit
 
 from tasks.libs.common.color import Color, color_message
 from tasks.libs.common.git import check_local_branch, check_uncommitted_changes, get_commit_sha
 from tasks.libs.owners.parsing import search_owners
+from tasks.libs.types.arch import Arch
 
 # constants
 DEFAULT_BRANCH = "main"
@@ -190,7 +194,7 @@ def get_xcode_version(ctx):
 
 
 def get_build_flags(
-    ctx,
+    ctx: Context,
     static=False,
     install_path=None,
     run_path=None,
@@ -201,6 +205,7 @@ def get_build_flags(
     major_version='7',
     python_runtimes='3',
     headless_mode=False,
+    arch: Arch | None = None,
 ):
     """
     Build the common value for both ldflags and gcflags, and return an env accordingly.
@@ -307,6 +312,12 @@ def get_build_flags(
                 ),
                 file=sys.stderr,
             )
+
+    if arch and arch.is_cross_compiling():
+        # For cross-compilation we need to be explicit about certain Go settings
+        env["GOARCH"] = arch.go_arch
+        env["CGO_ENABLED"] = "1"  # If we're cross-compiling, CGO is disabled by default. Ensure it's always enabled
+        env["CC"] = arch.gcc_compiler()
 
     if extldflags:
         ldflags += f"'-extldflags={extldflags}' "
@@ -784,6 +795,19 @@ def retry_function(action_name_fmt, max_retries=2, retry_delay=1):
         return wrapper
 
     return decorator
+
+
+def parse_kernel_version(version: str) -> tuple[int, int, int, int]:
+    """
+    Parse a kernel version contained in the given string and return a
+    tuple with kernel version, major and minor revision and patch number
+    """
+    kernel_version_regex = re.compile(r'(\d+)\.(\d+)(\.(\d+))?(-(\d+))?')
+    match = kernel_version_regex.search(version)
+    if match is None:
+        raise ValueError(f"Cannot parse kernel version from {version}")
+
+    return (int(match.group(1)), int(match.group(2)), int(match.group(4) or "0"), int(match.group(6) or "0"))
 
 
 def guess_from_labels(issue):
