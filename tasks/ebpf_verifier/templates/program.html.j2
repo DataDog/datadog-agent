@@ -19,13 +19,35 @@
 			background-color: #FFFFFF;
 		}
 	</style>
+	<script type="text/javascript">
+	function toggleAssembly(insnIdx) {
+		const query = `tr[data-insn-idx="${insnIdx}"]`;
+		const asmRows = document.querySelectorAll(query);
+		console.log(asmRows);
+		console.log(query);
+		for (let row of asmRows) {
+			row.style.display = row.style.display !== 'table-row' ? 'table-row' : 'none';
+		}
+	}
+
+	function toggleRegisterState(asmIdx) {
+		const query = `ul[data-asm-idx="${asmIdx}"]`;
+		const stateItems = document.querySelectorAll(query);
+		for (let row of stateItems) {
+			row.style.display = row.style.display !== 'block' ? 'block' : 'none';
+		}
+
+	}
+	</script>
 	<body>
 		<h1>{{ title }}</h1>
 
 		{% for filename, contents in file_contents.items() %}
+		{% set file_index = loop.index %}
 		<h2>{{ filename }}</h2>
 		<table>
 			{% for line in contents %}
+			{% set line_index = loop.index %}
 			<tr class="complexity-level-{{ line.complexity_level }}">
 				<td>{{ loop.index }}</td>
 				<td>
@@ -33,18 +55,37 @@
 					{{ line.complexity.num_instructions }}
 				{%- endif -%}
 				</td>
-				<td><pre>{{ line.line }}</pre></td>
-				{% if line.complexity %}
-					{% for asm_idx in line.complexity.assembly_insns | sort %}
-						{% set asm = complexity_data.insn_map[asm_idx | string] %}
-						<tr>
-							<td>{{ asm.index }}</td>
-							<td>{{ asm.times_processed }}</td>
-							<td><pre>{{ asm.code }}</pre></td>
-						<tr>
-					{% endfor %}
-				{% endif %}
+				<td class="code-c">
+					<pre>{{ line.line }}</pre>
+				</td>
+				<td>
+					{% if line.complexity %}
+						<button onclick="toggleAssembly('{{ file_index }}-{{ line_index }}')">ASM</button>
+					{% endif %}
+				</td>
 			</tr>
+			{% if line.complexity %}
+				{% for asm_idx in line.complexity.assembly_insns | sort %}
+					{% set asm = complexity_data.insn_map[asm_idx | string] %}
+					<tr data-insn-idx="{{ file_index }}-{{ line_index }}" style="display: none">
+						<td>{{ asm.index }}</td>
+						<td>{{ asm.times_processed }}</td>
+						<td>
+							<pre>{{ asm.code }}</pre>
+						</td>
+						<td>
+							{% if asm.register_state %}
+							<button onclick="toggleRegisterState('{{ file_index }}-{{ line_index }}-{{ asm.index }}')">Regs</button>
+							<ul data-asm-idx="{{ file_index }}-{{ line_index }}-{{ asm.index }}" style="display: none">
+								{% for reg, value in asm.register_state.items() | sort %}
+									<li>{{ reg }} ({{ value.type }}): {{ value.value }} </li>
+								{% endfor %}
+							</ul>
+							{% endif %}
+						</td>
+					</tr>
+				{% endfor %}
+			{% endif %}
 			{% endfor %}
 		</table>
 		{% endfor %}
