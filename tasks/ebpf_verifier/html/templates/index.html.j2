@@ -5,6 +5,14 @@
 		<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 		<link href="https://fonts.googleapis.com/css2?family=Noto+Sans:ital,wght@0,100..900;1,100..900&display=swap" rel="stylesheet">
 		<link rel="stylesheet" href="styles.css" />
+		<script type="text/javascript">
+			function togglePrograms(progId) {
+				var rows = document.querySelectorAll('tr[data-prog-id="' + progId + '"]');
+				rows.forEach(function(row) {
+					row.style.display = row.style.display !== 'table-row' ? 'table-row' : 'none';
+				});
+			}
+		</script>
 	</head>
 	<body>
 		<h1>{{ title }}</h1>
@@ -17,16 +25,22 @@
 					<th>Stack usage</th>
 					<th>Max states per insn.</th>
 					<th>Total states</th>
-					<th>Peak state</th>
+					<th>Peak states</th>
 				</tr>
 			</thead>
 			<tbody>
 			{% for object_file, objstats in verifier_stats.items() %}
+				{% set objfile_index = loop.index %}
 				<tr>
-					<td class="table-subheader" colspan="6">{{ object_file }}</td>
+					<td class="table-subheader" colspan="5">
+						{{ object_file }}
+					</td>
+					<td class="table-subheader">
+						<button onclick="togglePrograms('{{ objfile_index }}')">Toggle</button>
+					</td>
 				</tr>
 				{% for function, objstat in objstats.items() %}
-					<tr>
+					<tr data-prog-id="{{ objfile_index }}" style="display: table-row">
 						<td>
 							<a href="{{ object_file }}/{{ function }}.html">
 								{{ function }}
