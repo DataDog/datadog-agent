@@ -1,6 +1,8 @@
 name: "Create release schedule on confluence"
 
 on:
+  pull_request:
+    types: [opened, synchronize, reopened, labeled, unlabeled]
   workflow_dispatch:
     inputs:
       version:
@@ -35,4 +37,4 @@ jobs:
         ATLASSIAN_USERNAME : ${{ secrets.ATLASSIAN_USERNAME }}
         ATLASSIAN_PASSWORD : ${{ secrets.ATLASSIAN_PASSWORD }}
       run: |
-        inv -e release.create-schedule --version ${{ github.event.inputs.version }} --freeze-date ${{ github.event.inputs.freeze_date }}
+        inv -e release.create-schedule --version "6.4.2" --freeze-date "2024-06-01"

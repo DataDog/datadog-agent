@@ -7,8 +7,8 @@ from tasks.libs.owners.parsing import list_owners
 def create_release_page(version, freeze_date):
     username = os.environ['ATLASSIAN_USERNAME']
     password = os.environ['ATLASSIAN_PASSWORD']
-    space_key = "agent"
-    parent_page_id = "2244936127"
+    space_key = "~7120207411b2457b4944b7a314674e71629bf8"
+    parent_page_id = "3747743324"
     # Make the POST request to create the page
     domain = "https://datadoghq.atlassian.net/wiki"
     from atlassian import Confluence
