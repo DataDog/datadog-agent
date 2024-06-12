@@ -204,7 +204,7 @@ func (w *TraceWriter) appendChunks(pkg *SampledChunks) []*pb.TracerPayload {
 	return toflush
 }
 
-// WriteChunks writes and serializes the provided chunks
+// WriteChunks serializes the provided chunks, enqueueing them to be sent
 func (w *TraceWriter) WriteChunks(pkg *SampledChunks) {
 	w.stats.Spans.Add(pkg.SpanCount)
 	w.stats.Traces.Add(int64(len(pkg.TracerPayload.Chunks)))
