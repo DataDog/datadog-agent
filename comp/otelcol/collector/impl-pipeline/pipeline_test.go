@@ -40,5 +40,54 @@ func TestFlareBuilder(t *testing.T) {
 	f := helpers.NewFlareBuilderMock(t, false)
 	col.fillFlare(f.Fb)
 
+	overrideConfigResponseTemplate = `{
+	"startup_configuration": {
+		"key1": "value1",
+		"key2": "value2",
+		"key3": "value3"
+	},
+	"runtime_configuration": {
+		"key4": "value4",
+		"key5": "value5",
+		"key6": "value6"
+	},
+	"cmdline": "./otel-agent a b c",
+	"sources": [
+		{
+			"name": "prometheus",
+			"url": "%s/one",
+			"crawl": "true"
+		},
+		{
+			"name": "zpages",
+			"url": "%s/two",
+			"crawl": "false"
+		},
+		{
+			"name": "healthcheck",
+			"url": "%s/three",
+			"crawl": "true"
+		},
+		{
+			"name": "pprof",
+			"url": "%s/four",
+			"crawl": "true"
+		}
+	],
+	"environment": {
+		"DD_KEY7": "value7",
+		"DD_KEY8": "value8",
+		"DD_KEY9": "value9"
+	}
+}
+`
+	defer func() { overrideConfigResponse = "" }()
+
+	// TODO: make a server, which servers the paths
+
 	f.AssertFileExists("otel", "otel-response.json")
+	f.AssertFileContent("<body>Another source is <a href=\"http://localhost:5788/secret\">here</a></body>", "otel/otel-flare/healthcheck.dat")
+	f.AssertFileContent("data-source-4", "otel/otel-flare/pprof.dat")
+	f.AssertFileContent("data-source-1", "otel/otel-flare/prometheus.dat")
+	f.AssertFileContent("data-source-2", "otel/otel-flare/zpages.dat")
 }

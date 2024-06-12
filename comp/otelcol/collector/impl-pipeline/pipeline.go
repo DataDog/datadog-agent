@@ -17,8 +17,10 @@ import (
 	"net/url"
 	"strings"
 
+	"github.com/gocolly/colly/v2"
+
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	flarebuilder "github.com/DataDog/datadog-agent/comp/core/flare/builder"
+	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	corelog "github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
@@ -31,7 +33,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
-	"github.com/gocolly/colly"
 )
 
 const (
@@ -69,7 +70,7 @@ type Provides struct {
 	compdef.Out
 
 	Comp           collector.Component
-	FlareProvider  flarebuilder.Provider
+	FlareProvider  flaretypes.Provider
 	StatusProvider status.InformationProvider
 }
 
@@ -121,15 +122,14 @@ func (c *collectorImpl) stop(context.Context) error {
 	return nil
 }
 
-func (c *collectorImpl) fillFlare(fb flarebuilder.FlareBuilder) error {
-	otelFlareEnabled := c.config.GetBool("otel-agent.enabled")
-	otelFlarePort := c.config.GetInt("otel-agent.flare_port")
-	if !otelFlareEnabled {
+func (c *collectorImpl) fillFlare(fb flaretypes.FlareBuilder) error {
+	// TODO: add to config so that these are known config values
+	if !c.config.GetBool("otel-agent.enabled") {
 		return nil
 	}
 
 	// request config from Otel-Agent
-	responseBytes, err := c.requestOtelConfigInfo(otelFlarePort)
+	responseBytes, err := c.requestOtelConfigInfo(c.config.GetInt("otel-agent.flare_port"))
 	if err != nil {
 		fb.AddFile("otel/otel-agent.log", []byte(fmt.Sprintf("did not get otel-agent configuration: %v", err))) //nolint:errcheck
 		return nil
@@ -137,64 +137,74 @@ func (c *collectorImpl) fillFlare(fb flarebuilder.FlareBuilder) error {
 
 	// add raw response to flare, and unmarshal it
 	fb.AddFile("otel/otel-response.json", responseBytes) //nolint:errcheck
-	var responseInfo map[string]interface{}
+	var responseInfo configResponseInfo
 	if err := json.Unmarshal(responseBytes, &responseInfo); err != nil {
-		return err
-	}
-
-	// get list of additional sources to grab data from
-	sources, ok := responseInfo["additionalSources"].([]map[string]string)
-	if !ok {
-		fb.AddFile("otel/otel-agent.log", []byte("could not read additional sources from otel-agent response")) //nolint:errcheck
+		fb.AddFile("otel/otel-agent.log", []byte(fmt.Sprintf("could not read sources from otel-agent response: %v", responseBytes))) //nolint:errcheck
 		return nil
 	}
 
-	for _, src := range sources {
-		sourceName := src["name"]
-		sourceURL := src["url"]
-		sourceCrawl := src["crawl"]
+	// retrieve each source of configuration
+	for _, src := range responseInfo.Sources {
+		response, err := http.Get(src.URL)
+		if err != nil {
+			fb.AddFile(fmt.Sprintf("otel/otel-flare/%s.err", src.Name), []byte(err.Error())) //nolint:errcheck
+			continue
+		}
+		defer response.Body.Close()
 
-		if sourceCrawl != "true" {
-			response, err := http.Get(sourceURL)
-			if err != nil {
-				fb.AddFile(fmt.Sprintf("otel/otel-flare/%s.err", sourceName), []byte(err.Error())) //nolint:errcheck
-				continue
-			}
-			defer response.Body.Close()
+		data, err := io.ReadAll(response.Body)
+		if err != nil {
+			fb.AddFile(fmt.Sprintf("otel/otel-flare/%s.err", src.Name), []byte(err.Error())) //nolint:errcheck
+			continue
+		}
+		fb.AddFile(fmt.Sprintf("otel/otel-flare/%s.dat", src.Name), data) //nolint:errcheck
 
-			data, err := io.ReadAll(response.Body)
-			if err != nil {
-				fb.AddFile(fmt.Sprintf("otel/otel-flare/%s.err", sourceName), []byte(err.Error())) //nolint:errcheck
-				continue
-			}
-			fb.AddFile(fmt.Sprintf("otel/otel-flare/%s.dat", sourceName), data) //nolint:errcheck
+		if !src.Crawl {
 			continue
 		}
 
-		// crawl the url
+		// crawl the url by following any hyperlinks
 		col := colly.NewCollector()
 		col.OnHTML("a", func(e *colly.HTMLElement) {
 			// visit all links
 			link := e.Attr("href")
 			e.Request.Visit(e.Request.AbsoluteURL(link)) //nolint:errcheck
 		})
-		col.OnRequest(func(r *colly.Request) {
-			// save all visited pages in the flare
-			filename := strings.ReplaceAll(url.PathEscape(r.URL.String()), ":", "_")
-			data, err := io.ReadAll(r.Body)
-			if err != nil {
-				fb.AddFile(fmt.Sprintf("otel/otel-flare/%s.err", filename), []byte(err.Error())) //nolint:errcheck
+		col.OnResponse(func(r *colly.Response) {
+			// don't refetch root pages, they were already saved earlier
+			responseURL := r.Request.URL.String()
+			if responseURL == src.URL {
 				return
 			}
-			fb.AddFile(fmt.Sprintf("otel/otel-flare/%s", filename), data) //nolint:errcheck
+			// use the url as the basis for the filename saved in the flare
+			filename := strings.ReplaceAll(url.PathEscape(responseURL), ":", "_")
+			fb.AddFile(fmt.Sprintf("otel/otel-flare/%s", filename), r.Body) //nolint:errcheck
 		})
-		if err := col.Visit(sourceURL); err != nil {
+		if err := col.Visit(src.URL); err != nil {
 			fb.AddFile("otel/otel-flare/crawl.err", []byte(err.Error())) //nolint:errcheck
 		}
 	}
 	return nil
 }
 
+type configSourceInfo struct {
+	Name  string `json:"name"`
+	URL   string `json:"url"`
+	Crawl bool   `json:"crawl"`
+}
+
+type configResponseInfo struct {
+	StartupConf interface{}        `json:"startup_configuration"`
+	RuntimeConf interface{}        `json:"runtime_configuration"`
+	Environment interface{}        `json:"environment"`
+	Cmdline     string             `json:"cmdline"`
+	Sources     []configSourceInfo `json:"sources"`
+}
+
+// Can be overriden for tests
+var overrideConfigResponse = ""
+
+// TODO: Will be removed once otel extension exists and is in use
 const hardCodedConfigResponse = `{
 	"startup_configuration": {
 		"key1": "value1",
@@ -210,23 +220,23 @@ const hardCodedConfigResponse = `{
 	"sources": [
 		{
 			"name": "prometheus",
-			"url": "http://localhost:5788/data",
-			"crawl": "true"
+			"url": "http://localhost:5788/one",
+			"crawl": true
 		},
 		{
 			"name": "zpages",
-			"url": "http://localhost:5789/data",
-			"crawl": "false"
+			"url": "http://localhost:5788/two",
+			"crawl": false
 		},
 		{
 			"name": "healthcheck",
-			"url": "http://localhost:5790/data",
-			"crawl": "false"
+			"url": "http://localhost:5788/three",
+			"crawl": true
 		},
 		{
 			"name": "pprof",
-			"url": "http://localhost:5791/data",
-			"crawl": "true"
+			"url": "http://localhost:5788/four",
+			"crawl": true
 		}
 	],
 	"environment": {
@@ -238,6 +248,10 @@ const hardCodedConfigResponse = `{
 `
 
 func (c *collectorImpl) requestOtelConfigInfo(_ int) ([]byte, error) {
+	// Value to return for tests
+	if overrideConfigResponse != "" {
+		return []byte(overrideConfigResponse), nil
+	}
 	// TODO: (components) In the future, contact the otel-agent flare extension on its configured port
 	// it will respond with a JSON response that resembles this format. For now just use this
 	// hard-coded response value
@@ -267,7 +281,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 
 	return Provides{
 		Comp:           collector,
-		FlareProvider:  flarebuilder.NewProvider(collector.fillFlare),
+		FlareProvider:  flaretypes.NewProvider(collector.fillFlare),
 		StatusProvider: status.NewInformationProvider(collector),
 	}, nil
 }
