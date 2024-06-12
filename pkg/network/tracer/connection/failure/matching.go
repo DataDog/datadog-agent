@@ -180,8 +180,7 @@ func (fc *FailedConns) setupMapCleaner(m *manager.Manager) {
 		return
 	}
 
-	mapCleaner.Clean(time.Second*15, nil, nil, func(now int64, key uint64, val int64) bool {
-		log.Errorf("FailedConnMap cleanup: key: %d, val: %d", key, val)
+	mapCleaner.Clean(time.Minute*5, nil, nil, func(now int64, key uint64, val int64) bool {
 		return val > 0 && now-val > mapTtl
 	})
 
