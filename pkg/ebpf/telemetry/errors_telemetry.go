@@ -45,8 +45,8 @@ var helperNames = map[int]string{
 }
 
 type telemetryIndex struct {
-	key   uint64
-	value string
+	key  uint64
+	name string
 }
 
 type ebpfErrorsTelemetry interface {
