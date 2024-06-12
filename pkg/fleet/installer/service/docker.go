@@ -29,45 +29,52 @@ var (
 	dockerDaemonPath = "/etc/docker/daemon.json"
 )
 
-func (a *apmInjectorInstaller) setupDocker(ctx context.Context) (rollback func() error, err error) {
-	if !isDockerInstalled(ctx) {
-		return nil, nil
-	}
-	err = os.MkdirAll("/etc/docker", 0755)
+// instrumentDocker instruments the docker runtime to use the APM injector.
+func (a *apmInjectorInstaller) instrumentDocker(ctx context.Context) (func() error, error) {
+	err := os.MkdirAll("/etc/docker", 0755)
 	if err != nil {
 		return nil, err
 	}
 
-	rollbackDockerConfig, err := a.dockerConfigInstrument.mutate()
+	rollbackDockerConfig, err := a.dockerConfigInstrument.mutate(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	rollback = func() error {
-		if rollbackDockerConfig == nil {
-			return nil
+	err = reloadDockerConfig(ctx)
+	if err != nil {
+		if rollbackErr := rollbackDockerConfig(); rollbackErr != nil {
+			log.Warn("failed to rollback docker configuration: ", rollbackErr)
 		}
+		return nil, err
+	}
+
+	rollbackWithReload := func() error {
 		if err := rollbackDockerConfig(); err != nil {
 			return err
 		}
 		return reloadDockerConfig(ctx)
 	}
 
-	return rollback, reloadDockerConfig(ctx)
+	return rollbackWithReload, nil
 }
 
-func (a *apmInjectorInstaller) uninstallDocker(ctx context.Context) error {
+// uninstrumentDocker removes the APM injector from the Docker runtime.
+func (a *apmInjectorInstaller) uninstrumentDocker(ctx context.Context) error {
 	if !isDockerInstalled(ctx) {
 		return nil
 	}
-	if _, err := a.dockerConfigUninstrument.mutate(); err != nil {
+	if _, err := a.dockerConfigUninstrument.mutate(ctx); err != nil {
 		return err
 	}
 	return reloadDockerConfig(ctx)
 }
 
 // setDockerConfigContent sets the content of the docker daemon configuration
-func (a *apmInjectorInstaller) setDockerConfigContent(previousContent []byte) ([]byte, error) {
+func (a *apmInjectorInstaller) setDockerConfigContent(ctx context.Context, previousContent []byte) ([]byte, error) {
+	span, _ := tracer.StartSpanFromContext(ctx, "set_docker_config_content")
+	defer span.Finish()
+
 	dockerConfig := dockerDaemonConfig{}
 
 	if len(previousContent) > 0 {
@@ -76,12 +83,13 @@ func (a *apmInjectorInstaller) setDockerConfigContent(previousContent []byte) ([
 			return nil, err
 		}
 	}
-
+	span.SetTag("docker_config.previous.default_runtime", dockerConfig["default-runtime"])
 	dockerConfig["default-runtime"] = "dd-shim"
 	runtimes, ok := dockerConfig["runtimes"].(map[string]interface{})
 	if !ok {
 		runtimes = map[string]interface{}{}
 	}
+	span.SetTag("docker_config.previous.runtimes_count", len(runtimes))
 	runtimes["dd-shim"] = map[string]interface{}{
 		"path": path.Join(a.installPath, "inject", "auto_inject_runc"),
 	}
@@ -96,7 +104,7 @@ func (a *apmInjectorInstaller) setDockerConfigContent(previousContent []byte) ([
 }
 
 // deleteDockerConfigContent restores the content of the docker daemon configuration
-func (a *apmInjectorInstaller) deleteDockerConfigContent(previousContent []byte) ([]byte, error) {
+func (a *apmInjectorInstaller) deleteDockerConfigContent(_ context.Context, previousContent []byte) ([]byte, error) {
 	dockerConfig := dockerDaemonConfig{}
 
 	if len(previousContent) > 0 {
@@ -129,7 +137,9 @@ func (a *apmInjectorInstaller) deleteDockerConfigContent(previousContent []byte)
 // As the reload is eventually consistent we have to retry a few times
 //
 // This method is valid since at least Docker 17.03 (last update 2018-08-30)
-func (a *apmInjectorInstaller) verifyDockerRuntime() (err error) {
+func (a *apmInjectorInstaller) verifyDockerRuntime(ctx context.Context) (err error) {
+	span, _ := tracer.StartSpanFromContext(ctx, "verify_docker_runtime")
+	defer func() { span.Finish(tracer.WithError(err)) }()
 	for i := 0; i < 3; i++ {
 		if i > 0 {
 			time.Sleep(time.Second)
@@ -149,12 +159,13 @@ func (a *apmInjectorInstaller) verifyDockerRuntime() (err error) {
 			return nil
 		}
 	}
-	return fmt.Errorf("docker default runtime has not been set to injector docker runtime")
+	err = fmt.Errorf("docker default runtime has not been set to injector docker runtime")
+	return err
 }
 
 func reloadDockerConfig(ctx context.Context) (err error) {
 	span, _ := tracer.StartSpanFromContext(ctx, "reload_docker")
-	defer span.Finish(tracer.WithError(err))
+	defer func() { span.Finish(tracer.WithError(err)) }()
 	return exec.CommandContext(ctx, "systemctl", "reload", "docker").Run()
 }
 
@@ -171,5 +182,9 @@ func isDockerInstalled(ctx context.Context) bool {
 		log.Warn("installer: failed to check if docker is installed, assuming it isn't: ", err)
 		return false
 	}
-	return len(outb.String()) != 0
+	if len(outb.String()) == 0 {
+		log.Warn("installer: docker is not installed on the systemd, skipping docker configuration")
+		return false
+	}
+	return true
 }

@@ -13,7 +13,6 @@ import (
 	"strings"
 
 	"go.opentelemetry.io/collector/confmap"
-	"go.opentelemetry.io/collector/otelcol"
 	"gopkg.in/yaml.v2"
 )
 
@@ -45,8 +44,19 @@ type mapProvider struct {
 	cfg *confmap.Conf
 }
 
-func newMapProvider(_ confmap.ProviderSettings) confmap.Provider {
-	return &mapProvider{}
+// providerFactory is implementation of confmap.ProviderFactory.
+type providerFactory struct {
+	cfg *confmap.Conf
+}
+
+// NewProviderFactory creates a new confmap.ProviderFactory.
+func NewProviderFactory(cfg *confmap.Conf) confmap.ProviderFactory {
+	return &providerFactory{cfg: cfg}
+}
+
+// Create creates a new confmap.Provider.
+func (p *providerFactory) Create(_ confmap.ProviderSettings) confmap.Provider {
+	return &mapProvider{cfg: p.cfg}
 }
 
 func (m *mapProvider) Retrieve(_ context.Context, uri string, _ confmap.WatcherFunc) (*confmap.Retrieved, error) {
@@ -64,26 +74,4 @@ func (m *mapProvider) Scheme() string {
 
 func (m *mapProvider) Shutdown(context.Context) error {
 	return nil
-}
-
-// NewConfigProviderFromMap creates a service.ConfigProvider with a single constant provider `map`, built from a given *confmap.Conf.
-func NewConfigProviderFromMap(cfg *confmap.Conf) otelcol.ConfigProvider {
-
-	settings := otelcol.ConfigProviderSettings{
-		ResolverSettings: confmap.ResolverSettings{
-			URIs: []string{mapLocation},
-			ProviderFactories: []confmap.ProviderFactory{
-				confmap.NewProviderFactory(
-					func(_ confmap.ProviderSettings) confmap.Provider {
-						return &mapProvider{cfg: cfg}
-					},
-				),
-			},
-			ConverterFactories: []confmap.ConverterFactory{},
-		}}
-	cp, err := otelcol.NewConfigProvider(settings)
-	if err != nil {
-		panic(err)
-	}
-	return cp
 }
