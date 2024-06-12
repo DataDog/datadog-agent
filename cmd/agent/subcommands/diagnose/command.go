@@ -26,8 +26,9 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
 	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
@@ -103,7 +104,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					}
 				}),
 				fx.Supply(optional.NewNoneOption[collector.Component]()),
-				workloadmeta.Module(),
+				workloadmetafx.Module(),
 				taggerimpl.Module(),
 				fx.Provide(func(config config.Component) tagger.Params { return tagger.NewTaggerParamsForCoreAgent(config) }),
 				autodiscoveryimpl.Module(),
@@ -197,6 +198,20 @@ This command print the inventory-host metadata payload. This payload is used by 
 		},
 	}
 
+	payloadInventoriesOtelCmd := &cobra.Command{
+		Use:   "inventory-otel",
+		Short: "Print the Inventory otel metadata payload.",
+		Long: `
+This command print the inventory-otel metadata payload. This payload is used by the 'inventories/sql' product.`,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return fxutil.OneShot(printPayload,
+				fx.Supply(payloadName("inventory-otel")),
+				fx.Supply(command.GetDefaultCoreBundleParams(cliParams.GlobalParams)),
+				core.Bundle(),
+			)
+		},
+	}
+
 	payloadInventoriesChecksCmd := &cobra.Command{
 		Use:   "inventory-checks",
 		Short: "[internal] Print the Inventory checks metadata payload.",
@@ -239,13 +254,29 @@ This command print the system-probe metadata payload. This payload is used by th
 		},
 	}
 
+	payloadSecurityAgentCmd := &cobra.Command{
+		Use:   "security-agent",
+		Short: "[internal] Print the security-agent process metadata payload.",
+		Long: `
+This command print the security-agent metadata payload. This payload is used by the 'fleet automation' product.`,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return fxutil.OneShot(printPayload,
+				fx.Supply(payloadName("security-agent")),
+				fx.Supply(command.GetDefaultCoreBundleParams(cliParams.GlobalParams)),
+				core.Bundle(),
+			)
+		},
+	}
+
 	showPayloadCommand.AddCommand(payloadV5Cmd)
 	showPayloadCommand.AddCommand(payloadGohaiCmd)
 	showPayloadCommand.AddCommand(payloadInventoriesAgentCmd)
 	showPayloadCommand.AddCommand(payloadInventoriesHostCmd)
+	showPayloadCommand.AddCommand(payloadInventoriesOtelCmd)
 	showPayloadCommand.AddCommand(payloadInventoriesChecksCmd)
 	showPayloadCommand.AddCommand(payloadInventoriesPkgSigningCmd)
 	showPayloadCommand.AddCommand(payloadSystemProbeCmd)
+	showPayloadCommand.AddCommand(payloadSecurityAgentCmd)
 	diagnoseCommand.AddCommand(showPayloadCommand)
 
 	return []*cobra.Command{diagnoseCommand}
@@ -292,7 +323,7 @@ func printPayload(name payloadName, _ log.Component, config config.Component) er
 
 	r, err := util.DoGet(c, apiConfigURL, util.CloseConnection)
 	if err != nil {
-		return fmt.Errorf("Could not fetch metadata v5 payload: %s", err)
+		return fmt.Errorf("Could not fetch metadata payload: %s", err)
 	}
 
 	fmt.Println(string(r))

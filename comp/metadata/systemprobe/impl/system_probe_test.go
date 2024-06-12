@@ -32,7 +32,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
-func setupFecther(t *testing.T) {
+func setupFetcher(t *testing.T) {
 	t.Cleanup(func() {
 		fetchSystemProbeConfig = configFetcher.SystemProbeConfig
 		fetchSystemProbeConfigBySource = configFetcher.SystemProbeConfigBySource
@@ -77,7 +77,7 @@ func getSystemProbeComp(t *testing.T, enableConfig bool) *systemprobe {
 
 func assertPayload(t *testing.T, p *Payload) {
 	assert.Equal(t, "test hostname", p.Hostname)
-	assert.True(t, p.Timestamp < time.Now().UnixNano())
+	assert.True(t, p.Timestamp <= time.Now().UnixNano())
 	assert.Equal(t,
 		map[string]interface{}{
 			"agent_runtime_configuration":        "runtime: true\n",
@@ -94,7 +94,7 @@ func assertPayload(t *testing.T, p *Payload) {
 }
 
 func TestGetPayload(t *testing.T) {
-	setupFecther(t)
+	setupFetcher(t)
 	sb := getSystemProbeComp(t, true)
 
 	sb.hostname = "test hostname"
@@ -104,7 +104,7 @@ func TestGetPayload(t *testing.T) {
 }
 
 func TestGetPayloadNoConfig(t *testing.T) {
-	setupFecther(t)
+	setupFetcher(t)
 	sb := getSystemProbeComp(t, false)
 
 	sb.hostname = "test hostname"
@@ -120,7 +120,7 @@ func TestGetPayloadNoConfig(t *testing.T) {
 }
 
 func TestWritePayload(t *testing.T) {
-	setupFecther(t)
+	setupFetcher(t)
 	sb := getSystemProbeComp(t, true)
 
 	sb.hostname = "test hostname"

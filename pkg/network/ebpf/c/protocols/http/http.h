@@ -221,7 +221,7 @@ static __always_inline void http_process(http_event_t *event, skb_info_t *skb_in
 // of interest such as empty ACKs, or encrypted traffic.
 static __always_inline bool http_allow_packet(conn_tuple_t *tuple, skb_info_t *skb_info) {
     bool empty_payload = is_payload_empty(skb_info);
-    if (empty_payload || tuple->sport == HTTPS_PORT || tuple->dport == HTTPS_PORT) {
+    if (empty_payload) {
         // if the payload data is empty or encrypted packet, we only
         // process it if the packet represents a TCP termination
         return skb_info->tcp_flags&(TCPHDR_FIN|TCPHDR_RST);

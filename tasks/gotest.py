@@ -11,6 +11,7 @@ import operator
 import os
 import platform
 import re
+import shutil
 import sys
 from collections import defaultdict
 from datetime import datetime
@@ -35,6 +36,7 @@ from tasks.modules import DEFAULT_MODULES, GoModule
 from tasks.test_core import ModuleTestResult, process_input_args, process_module_results, test_core
 from tasks.testwasher import TestWasher
 from tasks.trace_agent import integration_tests as trace_integration_tests
+from tasks.update_go import PATTERN_MAJOR_MINOR_BUGFIX
 
 PROFILE_COV = "coverage.out"
 TMP_PROFILE_COV_PREFIX = "coverage.out.rerun"
@@ -42,6 +44,7 @@ GO_COV_TEST_PATH = "test_with_coverage"
 GO_TEST_RESULT_TMP_JSON = 'module_test_output.json'
 WINDOWS_MAX_PACKAGES_NUMBER = 150
 TRIGGER_ALL_TESTS_PATHS = ["tasks/gotest.py", "tasks/build_tags.py", ".gitlab/source_test/*"]
+OTEL_UPSTREAM_GO_VERSION = "1.21.0"
 
 
 class TestProfiler:
@@ -943,3 +946,38 @@ def lint_go(
     only_modified_packages=False,
 ):
     raise Exit("This task is deprecated, please use `inv linter.go`", 1)
+
+
+@task
+def check_otel_build(ctx):
+    with ctx.cd("test/otel"):
+        # Rename fixtures
+        shutil.copy("test/otel/dependencies.go.fake", "test/otel/dependencies.go")
+        shutil.copy("test/otel/go.mod.fake", "test/otel/go.mod")
+
+        # Update dependencies to latest local version
+        res = ctx.run("go mod tidy")
+        if not res.ok:
+            raise Exit(f"Error running `go mod tidy`: {res.stderr}")
+
+        # Build test/otel/dependencies.go with same settings as `make otelcontribcol`
+        res = ctx.run("GO111MODULE=on CGO_ENABLED=0 go build -trimpath -o . .", warn=True)
+        if res is None or not res.ok:
+            raise Exit(f"Error building otel components with datadog-agent dependencies: {res.stderr}")
+
+
+@task
+def check_otel_module_versions(ctx):
+    for path, module in DEFAULT_MODULES.items():
+        if module.used_by_otel:
+            mod_file = f"./{path}/go.mod"
+            pattern = f"^go {PATTERN_MAJOR_MINOR_BUGFIX}\r?$"
+            with open(mod_file, newline='', encoding='utf-8') as reader:
+                content = reader.read()
+                matches = re.findall(pattern, content, flags=re.MULTILINE)
+                if len(matches) != 1:
+                    raise Exit(f"{mod_file} does not match expected go directive format")
+                if matches[0] != f"go {OTEL_UPSTREAM_GO_VERSION}":
+                    raise Exit(
+                        f"{mod_file} version {matches[0]} does not match upstream version: {OTEL_UPSTREAM_GO_VERSION}"
+                    )

@@ -62,6 +62,12 @@ func run(config config.Component, cliParams *cliParams) error {
 		v.Set("verbose", "true")
 	}
 
+	if cliParams.NoColor {
+		v.Set("nocolor", "true")
+	} else {
+		v.Set("nocolor", "false")
+	}
+
 	endpoint, err := apiutil.NewIPCEndpoint(config, "/agent/config-check")
 	if err != nil {
 		return err

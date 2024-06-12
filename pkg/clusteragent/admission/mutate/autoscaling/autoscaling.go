@@ -32,11 +32,11 @@ type Webhook struct {
 	endpoint   string
 	resources  []string
 	operations []admiv1.OperationType
-	patcher    workload.PODPatcher
+	patcher    workload.PodPatcher
 }
 
 // NewWebhook returns a new Webhook
-func NewWebhook(patcher workload.PODPatcher) *Webhook {
+func NewWebhook(patcher workload.PodPatcher) *Webhook {
 	return &Webhook{
 		name:       webhookName,
 		isEnabled:  config.Datadog().GetBool("autoscaling.workload.enabled"),

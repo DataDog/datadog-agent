@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/common/types"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -75,25 +76,36 @@ func (ms *Controller) start() {
 // immediately, before the Register call returns.
 func (ms *Controller) Register(name string, s Scheduler, replayConfigs bool) {
 	ms.m.Lock()
+	defer ms.m.Unlock()
 	if _, ok := ms.activeSchedulers[name]; ok {
 		log.Warnf("Scheduler %s already registered, overriding it", name)
 	}
 	ms.activeSchedulers[name] = s
-	ms.m.Unlock()
 
 	// if replaying configs, replay the currently-scheduled configs; note that
 	// this occurs under the protection of `ms.m`, so no config may be double-
 	// scheduled or missed in this process.
 	if replayConfigs {
-		configStates := ms.configStateStore.List()
-
-		configs := make([]integration.Config, 0, len(configStates))
-		for _, config := range configStates {
-			if config.desiredState == Scheduled {
-				configs = append(configs, *config.config)
+		if name == types.CheckCmdName {
+			// if the scheduler is the check-cmd, we need to catch up all the
+			// configs in configStateStore even if they are not scheduled yet
+			// because the caller waitForConfigsFromAD is waiting for the return
+			// instead of processing them asynchronously
+			configStates := ms.configStateStore.List()
+			configs := make([]integration.Config, 0, len(configStates))
+			for _, config := range configStates {
+				if config.desiredState == Scheduled {
+					configs = append(configs, *config.config)
+				}
 			}
+			s.Schedule(configs)
+		} else {
+			configs := make([]integration.Config, 0, len(ms.scheduledConfigs))
+			for _, config := range ms.scheduledConfigs {
+				configs = append(configs, *config)
+			}
+			s.Schedule(configs)
 		}
-		s.Schedule(configs)
 	}
 }
 

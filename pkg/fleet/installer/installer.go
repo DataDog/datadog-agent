@@ -24,6 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
+	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/ext"
 	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
 )
 
@@ -52,6 +53,9 @@ type Installer interface {
 	PromoteExperiment(ctx context.Context, pkg string) error
 
 	GarbageCollect(ctx context.Context) error
+
+	InstrumentAPMInjector(ctx context.Context, method string) error
+	UninstrumentAPMInjector(ctx context.Context, method string) error
 }
 
 // installerImpl is the implementation of the package manager.
@@ -112,6 +116,11 @@ func (i *installerImpl) Install(ctx context.Context, url string, args []string) 
 	pkg, err := i.downloader.Download(ctx, url)
 	if err != nil {
 		return fmt.Errorf("could not download package: %w", err)
+	}
+	span, ok := tracer.SpanFromContext(ctx)
+	if ok {
+		span.SetTag(ext.ResourceName, pkg.Name)
+		span.SetTag("package_version", pkg.Version)
 	}
 	dbPkg, err := i.db.GetPackage(pkg.Name)
 	if err != nil && !errors.Is(err, db.ErrPackageNotFound) {
@@ -284,6 +293,46 @@ func (i *installerImpl) GarbageCollect(ctx context.Context) error {
 	return i.repositories.Cleanup(ctx)
 }
 
+// InstrumentAPMInjector instruments the APM injector.
+func (i *installerImpl) InstrumentAPMInjector(ctx context.Context, method string) error {
+	i.m.Lock()
+	defer i.m.Unlock()
+
+	injectorInstalled, err := i.IsInstalled(ctx, packageAPMInjector)
+	if err != nil {
+		return fmt.Errorf("could not check if APM injector is installed: %w", err)
+	}
+	if !injectorInstalled {
+		return fmt.Errorf("APM injector is not installed")
+	}
+
+	err = service.InstrumentAPMInjector(ctx, method)
+	if err != nil {
+		return fmt.Errorf("could not instrument APM: %w", err)
+	}
+	return nil
+}
+
+// UninstrumentAPMInjector instruments the APM injector.
+func (i *installerImpl) UninstrumentAPMInjector(ctx context.Context, method string) error {
+	i.m.Lock()
+	defer i.m.Unlock()
+
+	injectorInstalled, err := i.IsInstalled(ctx, packageAPMInjector)
+	if err != nil {
+		return fmt.Errorf("could not check if APM injector is installed: %w", err)
+	}
+	if !injectorInstalled {
+		return fmt.Errorf("APM injector is not installed")
+	}
+
+	err = service.UninstrumentAPMInjector(ctx, method)
+	if err != nil {
+		return fmt.Errorf("could not instrument APM: %w", err)
+	}
+	return nil
+}
+
 func (i *installerImpl) startExperiment(ctx context.Context, pkg string) error {
 	switch pkg {
 	case packageDatadogAgent:
@@ -299,7 +348,7 @@ func (i *installerImpl) stopExperiment(ctx context.Context, pkg string) error {
 	switch pkg {
 	case packageDatadogAgent:
 		return service.StopAgentExperiment(ctx)
-	case packageAPMInjector:
+	case packageDatadogInstaller:
 		return service.StopInstallerExperiment(ctx)
 	default:
 		return nil

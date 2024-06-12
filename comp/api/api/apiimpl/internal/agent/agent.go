@@ -29,7 +29,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/diagnose"
@@ -69,6 +69,9 @@ func SetupHandlers(
 	r.HandleFunc("/stop", stopAgent).Methods("POST")
 	r.HandleFunc("/status", func(w http.ResponseWriter, r *http.Request) {
 		getStatus(w, r, statusComponent, "")
+	}).Methods("GET")
+	r.HandleFunc("/status/sections", func(w http.ResponseWriter, r *http.Request) {
+		getSections(w, r, statusComponent)
 	}).Methods("GET")
 	r.HandleFunc("/status/health", getHealth).Methods("GET")
 	r.HandleFunc("/{component}/status", func(w http.ResponseWriter, r *http.Request) { componentStatusGetterHandler(w, r, statusComponent) }).Methods("GET")
@@ -173,6 +176,14 @@ func getStatus(w http.ResponseWriter, r *http.Request, statusComponent status.Co
 	}
 
 	w.Write(s)
+}
+
+func getSections(w http.ResponseWriter, _ *http.Request, statusComponent status.Component) {
+	log.Info("Got a request for the status sections.")
+
+	w.Header().Set("Content-Type", "application/json")
+	res, _ := json.Marshal(statusComponent.GetSections())
+	w.Write(res)
 }
 
 // TODO: logsAgent is a module so have to make the api component a module too

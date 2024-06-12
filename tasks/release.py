@@ -28,6 +28,8 @@ from tasks.libs.common.utils import (
     nightly_entry_for,
     release_entry_for,
 )
+from tasks.libs.pipeline.notifications import DEFAULT_SLACK_CHANNEL, load_and_validate
+from tasks.libs.releasing.documentation import create_release_page, get_release_page_info
 from tasks.libs.types.version import Version
 from tasks.modules import DEFAULT_MODULES
 from tasks.pipeline import edit_schedule, run
@@ -390,6 +392,7 @@ def _save_release_json(release_json):
     with open("release.json", "w") as release_json_stream:
         # Note, no space after the comma
         json.dump(release_json, release_json_stream, indent=4, sort_keys=False, separators=(',', ': '))
+        release_json_stream.write('\n')
 
 
 ##
@@ -955,7 +958,7 @@ def tag_devel(ctx, agent_version, commit="HEAD", verify=True, push=True, force=F
 
 
 def current_version(ctx, major_version) -> Version:
-    return _create_version_from_match(VERSION_RE.search(get_version(ctx, major_version=major_version)))
+    return _create_version_from_match(VERSION_RE.search(get_version(ctx, major_version=major_version, release=True)))
 
 
 def next_final_version(ctx, major_version, patch_version) -> Version:
@@ -1190,9 +1193,6 @@ def create_rc(ctx, major_versions="6,7", patch_version=False, upstream="origin",
     # can be used.
     new_final_version = next_final_version(ctx, max(list_major_versions), patch_version)
 
-    # Get a string representation of the RC, eg. "6/7.32.0-rc.1"
-    versions_string = f"{'/'.join([str(n) for n in list_major_versions[:-1]] + [str(new_highest_version)])}"
-
     print(color_message(f"Preparing RC for agent version(s) {list_major_versions}", "bold"))
 
     # Step 0: checks
@@ -1240,7 +1240,7 @@ def create_rc(ctx, major_versions="6,7", patch_version=False, upstream="origin",
     ctx.run("git add release.json")
     ctx.run("git ls-files . | grep 'go.mod$' | xargs git add")
 
-    ok = try_git_command(ctx, f"git commit -m 'Update release.json and Go modules for {versions_string}'")
+    ok = try_git_command(ctx, f"git commit -m 'Update release.json and Go modules for {new_highest_version}'")
     if not ok:
         raise Exit(
             color_message(
@@ -1262,7 +1262,7 @@ def create_rc(ctx, major_versions="6,7", patch_version=False, upstream="origin",
         )
 
     pr_url = create_pr(
-        f"[release] Update release.json and Go modules for {versions_string}",
+        f"[release] Update release.json and Go modules for {new_highest_version}",
         current_branch,
         update_branch,
         new_final_version,
@@ -1416,7 +1416,7 @@ def build_rc(ctx, major_versions="6,7", patch_version=False, k8s_deployments=Fal
 
     run(
         ctx,
-        git_ref=gitlab_tag,
+        git_ref=gitlab_tag.name,
         use_release_entries=True,
         major_versions=major_versions,
         repo_branch="beta",
@@ -1744,6 +1744,7 @@ def _create_build_links_patterns(current_version, new_version):
     patterns[current_minor_version] = new_minor_version
     patterns[current_minor_version.replace("rc.", "rc-")] = new_minor_version.replace("rc.", "rc-")
     patterns[current_minor_version.replace("-rc", "~rc")] = new_minor_version.replace("-rc", "~rc")
+    patterns[current_minor_version[2:].replace("-rc", "~rc")] = new_minor_version[2:].replace("-rc", "~rc")
 
     return patterns
 
@@ -1801,3 +1802,30 @@ def generate_release_metrics(ctx, milestone, freeze_date, release_date):
     print("Code changes")
     print("------------")
     print(code_stats)
+
+
+@task
+def create_schedule(_, version, freeze_date):
+    """
+    Create confluence pages for the release schedule.
+    freeze_date - date when the code freeze was started. Expected format YYYY-MM-DD, like '2022-02-01'
+    """
+    required_environment_variables = ["ATLASSIAN_USERNAME", "ATLASSIAN_PASSWORD"]
+    if not all(key in os.environ for key in required_environment_variables):
+        raise Exit(f"You must set {required_environment_variables} environment variables to use this task.", code=1)
+    release_page = create_release_page(version, date.fromisoformat(freeze_date))
+    print(f"Release schedule pages {release_page['url']} {color_message('successfully created', 'green')}")
+
+
+@task
+def chase_release_managers(_, version):
+    url, missing_teams = get_release_page_info(version)
+    GITHUB_SLACK_MAP = load_and_validate("github_slack_map.yaml", "DEFAULT_SLACK_CHANNEL", DEFAULT_SLACK_CHANNEL)
+    channels = [GITHUB_SLACK_MAP[f"@datadog/{team}"] for team in missing_teams]
+    message = f"Hello :wave:\n Could you please update the `datadog-agent` [release coordination page]({url}) with the RM for your team?\nThanks in advance"
+
+    from slack_sdk import WebClient
+
+    client = WebClient(os.environ["SLACK_API_TOKEN"])
+    for channel in channels:
+        client.chat_postMessage(channel=channel, text=message)
