@@ -11,10 +11,13 @@ import (
 	"strings"
 	"time"
 
+	ddLog "github.com/DataDog/datadog-agent/pkg/util/log"
+
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/decoder"
 	"github.com/DataDog/datadog-agent/pkg/logs/launchers"
+	fileLauncher "github.com/DataDog/datadog-agent/pkg/logs/launchers/file"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
@@ -85,17 +88,34 @@ func (s *Launcher) run() {
 
 // addSource adds the sources to active sources and launches tailers for the source
 func (s *Launcher) addSource(source *sources.LogSource, filePath string) {
-	s.launchTailer(source, filePath)
+	// check if source is already being tailed here instead of startNewTailer
+	s.startNewTailer(source, filePath)
 }
 
-// launchTailer launches the tailer for a new source
-func (s *Launcher) launchTailer(source *sources.LogSource, filePath string) {
+// startNewTailer launches the tailer for a new source
+func (s *Launcher) startNewTailer(source *sources.LogSource, filePath string) {
 	file := tailer.NewFile(filePath, source, false)
 
 	tailer := s.createTailer(file, s.piplineProvider.NextPipelineChan())
 
-	// this is obviously not a good way to start a tailer, I just want to see if it works.
-	tailer.Start(0, 0)
+	// Not sure if these are necessary yet, should the feature overwrite any file
+	// that's there? Or continue adding to it?
+	var offset int64
+	var whence int
+
+	mode, _ := config.TailingModeFromString(source.Config.TailingMode)
+
+	offset, whence, err := fileLauncher.Position(s.registry, tailer.GetId(), mode)
+	if err != nil {
+		ddLog.Warnf("Could not recover offset for file with path %v: %v", file.Path, err)
+	}
+
+	err = tailer.Start(offset, whence)
+	if err != nil {
+		ddLog.Warn(err)
+	}
+
+	s.tailers.Add(tailer)
 }
 
 // createTailer returns a new initialized tailer
