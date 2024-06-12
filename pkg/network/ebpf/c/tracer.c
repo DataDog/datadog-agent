@@ -1027,7 +1027,7 @@ static __always_inline struct sock* sk_buff_sk(struct sk_buff *skb) {
     return sk;
 }
 
-struct bpf_args {
+struct bpf_raw_tracepoint_args {
 	uint64_t args[0];
 };
 
