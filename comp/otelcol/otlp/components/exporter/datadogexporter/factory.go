@@ -8,6 +8,8 @@ package datadogexporter
 
 import (
 	"context"
+	"fmt"
+	"runtime"
 	"sync"
 	"time"
 
@@ -15,7 +17,9 @@ import (
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/logsagentexporter"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/serializerexporter"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	tracepb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
+
 	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes"
 	otlpmetrics "github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/metrics"
 	"go.opentelemetry.io/collector/component"
@@ -25,6 +29,7 @@ import (
 	"go.opentelemetry.io/collector/exporter"
 	"go.opentelemetry.io/collector/exporter/exporterhelper"
 	"go.opentelemetry.io/collector/featuregate"
+	"google.golang.org/protobuf/proto"
 
 	"go.uber.org/zap"
 )
@@ -57,7 +62,7 @@ func newFactoryWithRegistry(registry *featuregate.Registry, s serializer.MetricS
 
 	return exporter.NewFactory(
 		Type,
-		f.createDefaultConfig,
+		CreateDefaultConfig,
 		exporter.WithMetrics(f.createMetricsExporter, MetricsStability),
 		exporter.WithTraces(f.createTracesExporter, TracesStability),
 		exporter.WithLogs(f.createLogsExporter, LogsStability),
@@ -90,8 +95,8 @@ func defaultClientConfig() confighttp.ClientConfig {
 	}
 }
 
-// createDefaultConfig creates the default exporter configuration
-func (f *factory) createDefaultConfig() component.Config {
+// CreateDefaultConfig creates the default exporter configuration
+func CreateDefaultConfig() component.Config {
 	return &Config{
 		ClientConfig:  defaultClientConfig(),
 		BackOffConfig: configretry.NewDefaultBackOffConfig(),
@@ -168,7 +173,11 @@ func (f *factory) createMetricsExporter(
 	c component.Config,
 ) (exporter.Metrics, error) {
 	cfg := checkAndCastConfig(c, set.Logger)
-	sf := serializerexporter.NewFactory(f.s, &tagEnricher{}, f.h)
+	var wg sync.WaitGroup // waits for consumeStatsPayload to exit
+	statsIn := make(chan []byte, 1000)
+	statsv := set.BuildInfo.Command + set.BuildInfo.Version
+	f.consumeStatsPayload(ctx, &wg, statsIn, statsv, fmt.Sprintf("datadogexporter-%s-%s", set.BuildInfo.Command, set.BuildInfo.Version), set.Logger)
+	sf := serializerexporter.NewFactory(f.s, &tagEnricher{}, f.h, statsIn)
 	ex := &serializerexporter.ExporterConfig{
 		Metrics: cfg.Metrics,
 		TimeoutSettings: exporterhelper.TimeoutSettings{
@@ -177,6 +186,38 @@ func (f *factory) createMetricsExporter(
 		QueueSettings: cfg.QueueSettings,
 	}
 	return sf.CreateMetricsExporter(ctx, set, ex)
+}
+
+func (f *factory) consumeStatsPayload(ctx context.Context, wg *sync.WaitGroup, statsIn <-chan []byte, tracerVersion string, agentVersion string, logger *zap.Logger) {
+	for i := 0; i < runtime.NumCPU(); i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for {
+				select {
+				case <-ctx.Done():
+					return
+				case msg := <-statsIn:
+					sp := &tracepb.StatsPayload{}
+
+					err := proto.Unmarshal(msg, sp)
+					if err != nil {
+						logger.Error("failed to unmarshal stats payload", zap.Error(err))
+						continue
+					}
+					for _, csp := range sp.Stats {
+						if csp.TracerVersion == "" {
+							csp.TracerVersion = tracerVersion
+						}
+					}
+					// The DD Connector doesn't set the agent version, so we'll set it here
+					sp.AgentVersion = agentVersion
+
+					// TODO(OASIS-12): send StatsPayload with trace agent
+				}
+			}
+		}()
+	}
 }
 
 // createLogsExporter creates a logs exporter based on the config.

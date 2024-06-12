@@ -13,7 +13,7 @@ exporters:
   datadog/exp1:
     api:
       key: DATADOG_API_KEY
-      site: datadoghq.com
+      site: datadoghq.eu
 processors:
   batch:
     timeout: 10s

@@ -295,11 +295,11 @@ func TestConverter(t *testing.T) {
 
 	// float64 values
 	for k, v := range map[string]float64{
-		"apm_config.extra_sample_rate":     1.,     // trace.sampler.extra_sample_rate
-		"apm_config.max_traces_per_second": 10.,    // trace.sampler.max_traces_per_second
-		"apm_config.max_events_per_second": 10.4,   // trace.sampler.max_events_per_second
-		"apm_config.max_memory":            1234.5, // trace.watchdog.max_memory
-		"apm_config.max_cpu_percent":       85.4,   // trace.watchdog.max_cpu_percent
+		"apm_config.extra_sample_rate":        1.,     // trace.sampler.extra_sample_rate
+		"apm_config.target_traces_per_second": 10.,    // trace.sampler.max_traces_per_second
+		"apm_config.max_events_per_second":    10.4,   // trace.sampler.max_events_per_second
+		"apm_config.max_memory":               1234.5, // trace.watchdog.max_memory
+		"apm_config.max_cpu_percent":          85.4,   // trace.watchdog.max_cpu_percent
 	} {
 		require.True(c.IsSet(k), k)
 		require.Equal(v, c.GetFloat64(k), k)

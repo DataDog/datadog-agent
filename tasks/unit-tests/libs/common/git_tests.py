@@ -1,7 +1,13 @@
 import unittest
 from unittest.mock import MagicMock
 
-from tasks.libs.common.git import check_local_branch, check_uncommitted_changes, get_current_branch, get_staged_files
+from tasks.libs.common.git import (
+    check_local_branch,
+    check_uncommitted_changes,
+    get_commit_sha,
+    get_current_branch,
+    get_staged_files,
+)
 
 
 class TestGit(unittest.TestCase):
@@ -74,5 +80,30 @@ class TestGit(unittest.TestCase):
                 self.assertEqual(res, test["expected"])
                 self.ctx_mock.run.assert_called_once_with(
                     f"git --no-pager branch --list {test['branch']} | wc -l", hide=True
+                )
+                self.ctx_mock.run.reset_mock()
+
+    def test_get_commit_sha(self):
+        tests = [
+            {
+                "short": False,
+                "stdout": "  1cb775ac4873a09738b31521815c6c3a6f59f451  \n",
+                "expected": "1cb775ac4873a09738b31521815c6c3a6f59f451",
+            },
+            {
+                "short": True,
+                "stdout": "  0b87e9a50f  \n",
+                "expected": "0b87e9a50f",
+            },
+        ]
+
+        for test in tests:
+            with self.subTest(short=test["short"]):
+                self.ctx_mock.run.return_value.stdout = test["stdout"]
+                sha = get_commit_sha(self.ctx_mock, short=test["short"])
+
+                self.assertEqual(sha, test["expected"])
+                self.ctx_mock.run.assert_called_once_with(
+                    f"git rev-parse {'--short ' if test['short'] else ''}HEAD", hide=True
                 )
                 self.ctx_mock.run.reset_mock()
