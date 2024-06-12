@@ -116,7 +116,7 @@ func (ext *ddExtension) Shutdown(ctx context.Context) error {
 }
 
 // ServeHTTP the request handler for the extension.
-func (ext *ddExtension) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (ext *ddExtension) ServeHTTP(w http.ResponseWriter, _ *http.Request) {
 	provider, ok := ext.cfg.Converter.(converter.Component)
 	if !ok {
 		w.WriteHeader(http.StatusInternalServerError)
