@@ -2,6 +2,7 @@
 #include "offset-guess.h"
 #include "bpf_tracing.h"
 #include "map-defs.h"
+#include "bpf_metadata.h"
 
 #include <net/net_namespace.h>
 #include <net/sock.h>

@@ -24,6 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
+	traceagent "github.com/DataDog/datadog-agent/comp/trace/agent/def"
 	"github.com/DataDog/datadog-agent/comp/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/pidfile"
 	pkgagent "github.com/DataDog/datadog-agent/pkg/trace/agent"
@@ -72,7 +73,8 @@ type agent struct {
 	wg                 sync.WaitGroup
 }
 
-func newAgent(deps dependencies) (Component, error) {
+// NewAgent creates a new Agent component.
+func NewAgent(deps dependencies) (traceagent.Component, error) {
 	c := component{}
 	tracecfg := deps.Config.Object()
 	if !tracecfg.Enabled {
@@ -108,7 +110,8 @@ func newAgent(deps dependencies) (Component, error) {
 		// Provided contexts have a timeout, so it can't be used for gracefully stopping long-running components.
 		// These contexts are cancelled on a deadline, so they would have side effects on the agent.
 		OnStart: func(_ context.Context) error { return start(ag) },
-		OnStop:  func(_ context.Context) error { return stop(ag) }})
+		OnStop:  func(_ context.Context) error { return stop(ag) },
+	})
 	return c, nil
 }
 
