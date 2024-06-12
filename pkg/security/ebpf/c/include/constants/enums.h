@@ -1,7 +1,8 @@
 #ifndef _CONSTANTS_ENUMS_H
 #define _CONSTANTS_ENUMS_H
 
-enum event_type {
+enum event_type
+{
     EVENT_ANY = 0,
     EVENT_FIRST_DISCARDER = 1,
     EVENT_OPEN = EVENT_FIRST_DISCARDER,
@@ -53,52 +54,61 @@ enum event_type {
 
 #define EVENT_LAST_APPROVER EVENT_SPLICE
 
-enum {
-    EVENT_FLAGS_ASYNC = 1<<0, // async, mostly io_uring
-    EVENT_FLAGS_SAVED_BY_AD = 1<<1, // event send because of activity dump
-    EVENT_FLAGS_ACTIVITY_DUMP_SAMPLE = 1<<2, // event is a AD sample
+enum
+{
+    EVENT_FLAGS_ASYNC = 1 << 0, // async, mostly io_uring
+    EVENT_FLAGS_SAVED_BY_AD = 1 << 1, // event send because of activity dump
+    EVENT_FLAGS_ACTIVITY_DUMP_SAMPLE = 1 << 2, // event is a AD sample
     // EventFlagsSecurityProfileInProfile = 1<<3 isn't used in kernel space
-    EVENT_FLAGS_ANOMALY_DETECTION_EVENT = 1<<4, // event is an anomaly detection event
+    EVENT_FLAGS_ANOMALY_DETECTION_EVENT = 1 << 4, // event is an anomaly detection event
 };
 
-enum file_flags {
+enum file_flags
+{
     LOWER_LAYER = 1 << 0,
     UPPER_LAYER = 1 << 1,
 };
 
-enum {
+enum
+{
     SYNC_SYSCALL = 0,
     ASYNC_SYSCALL
 };
 
-enum {
-    ACTIVITY_DUMP_RUNNING = 1<<0, // defines if an activity dump is running
-    SAVED_BY_ACTIVITY_DUMP = 1<<1, // defines if the dentry should have been discarded, but was saved because of an activity dump
+enum
+{
+    ACTIVITY_DUMP_RUNNING = 1 << 0, // defines if an activity dump is running
+    SAVED_BY_ACTIVITY_DUMP = 1 << 1, // defines if the dentry should have been discarded, but was saved because of an activity dump
 };
 
-enum policy_mode {
+enum policy_mode
+{
     NO_FILTER = 0,
     ACCEPT = 1,
     DENY = 2,
 };
 
-enum policy_flags {
+enum policy_flags
+{
     BASENAME = 1,
     FLAGS = 2,
     MODE = 4,
     PARENT_NAME = 8,
 };
 
-enum tls_format {
-   DEFAULT_TLS_FORMAT
+enum tls_format
+{
+    DEFAULT_TLS_FORMAT
 };
 
-typedef enum discard_check_state {
+typedef enum discard_check_state
+{
     NOT_DISCARDED,
     DISCARDED,
 } discard_check_state;
 
-enum bpf_cmd_def {
+enum bpf_cmd_def
+{
     BPF_MAP_CREATE_CMD,
     BPF_MAP_LOOKUP_ELEM_CMD,
     BPF_MAP_UPDATE_ELEM_CMD,
@@ -137,7 +147,8 @@ enum bpf_cmd_def {
     BPF_PROG_BIND_MAP_CMD,
 };
 
-enum dr_kprobe_progs {
+enum dr_kprobe_progs
+{
     DR_OPEN_CALLBACK_KPROBE_KEY = 1,
     DR_SETATTR_CALLBACK_KPROBE_KEY,
     DR_MKDIR_CALLBACK_KPROBE_KEY,
@@ -153,7 +164,8 @@ enum dr_kprobe_progs {
     DR_CHDIR_CALLBACK_KPROBE_KEY,
 };
 
-enum dr_tracepoint_progs {
+enum dr_tracepoint_progs
+{
     DR_OPEN_CALLBACK_TRACEPOINT_KEY = 1,
     DR_MKDIR_CALLBACK_TRACEPOINT_KEY,
     DR_MOUNT_STAGE_ONE_CALLBACK_TRACEPOINT_KEY,
@@ -163,7 +175,8 @@ enum dr_tracepoint_progs {
     DR_CHDIR_CALLBACK_TRACEPOINT_KEY,
 };
 
-enum erpc_op {
+enum erpc_op
+{
     UNKNOWN_OP,
     DISCARD_INODE_OP,
     DISCARD_PID_OP,
@@ -178,14 +191,16 @@ enum erpc_op {
     USER_SESSION_CONTEXT_OP,
 };
 
-enum selinux_source_event_t {
+enum selinux_source_event_t
+{
     SELINUX_BOOL_CHANGE_SOURCE_EVENT,
     SELINUX_DISABLE_CHANGE_SOURCE_EVENT,
     SELINUX_ENFORCE_CHANGE_SOURCE_EVENT,
     SELINUX_BOOL_COMMIT_SOURCE_EVENT,
 };
 
-enum selinux_event_kind_t {
+enum selinux_event_kind_t
+{
     SELINUX_BOOL_CHANGE_EVENT_KIND,
     SELINUX_STATUS_CHANGE_EVENT_KIND,
     SELINUX_BOOL_COMMIT_EVENT_KIND,

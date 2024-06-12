@@ -40,6 +40,9 @@ type GlobalParams struct {
 
 	// LogStreamFilePath holds the path to the logstream log path
 	LogStreamFilePath string
+
+	// NoColor is a flag to disable color output
+	NoColor bool
 }
 
 // SubcommandFactory is a callable that will return a slice of subcommands.
@@ -79,10 +82,9 @@ monitoring and performance data.`,
 	// github.com/fatih/color sets its global color.NoColor to a default value based on
 	// whether the process is running in a tty.  So, we only want to override that when
 	// the value is true.
-	var noColorFlag bool
-	agentCmd.PersistentFlags().BoolVarP(&noColorFlag, "no-color", "n", false, "disable color output")
+	agentCmd.PersistentFlags().BoolVarP(&globalParams.NoColor, "no-color", "n", false, "disable color output")
 	agentCmd.PersistentPreRun = func(*cobra.Command, []string) {
-		if noColorFlag {
+		if globalParams.NoColor {
 			color.NoColor = true
 		}
 	}

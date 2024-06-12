@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from tasks.libs.types.arch import Arch
+
 try:
     from termcolor import colored
 except ImportError:
@@ -27,7 +29,7 @@ try:
 except ImportError:
     tabulate = None
 
-from .system_probe import build_cws_object_files, build_object_files, is_root
+from .system_probe import build_cws_object_files, build_object_files, get_ebpf_build_dir, is_root
 
 VERIFIER_DATA_DIR = Path("ebpf-calculator")
 LOGS_DIR = VERIFIER_DATA_DIR / "logs"
@@ -134,7 +136,8 @@ def collect_verification_stats(
 
     ctx.run("go build -tags linux_bpf pkg/ebpf/verifier/calculator/main.go")
 
-    env = {"DD_SYSTEM_PROBE_BPF_DIR": "./pkg/ebpf/bytecode/build"}
+    arch = Arch.local()
+    env = {"DD_SYSTEM_PROBE_BPF_DIR": f"./{get_ebpf_build_dir(arch)}"}
 
     # ensure all files are object files
     for f in filter_file or []:
@@ -217,7 +220,10 @@ def print_verification_stats(
 
         base_value = base_verifier_stats[key]
         for json_key in verifier_stat_json_keys:
-            stat[json_key] = colored_diff(value[json_key], base_value[json_key])
+            if jsonfmt:
+                stat[json_key] = value[json_key] - base_value[json_key]
+            else:
+                stat[json_key] = colored_diff(value[json_key], base_value[json_key])
 
         stats_diff[key] = stat
 

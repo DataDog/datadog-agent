@@ -7,16 +7,16 @@
 package settingsimpl
 
 import (
-	"encoding/json"
 	"html"
 	"net/http"
 	"sync"
 
 	"github.com/gorilla/mux"
+	json "github.com/json-iterator/go"
 	"go.uber.org/fx"
 	"gopkg.in/yaml.v2"
 
-	"github.com/DataDog/datadog-agent/comp/api/api"
+	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/settings"

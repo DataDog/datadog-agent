@@ -11,7 +11,7 @@ import (
 	"context"
 	"os"
 
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 
 	"github.com/docker/docker/client"
 	"golang.org/x/xerrors"

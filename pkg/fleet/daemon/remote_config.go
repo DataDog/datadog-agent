@@ -167,8 +167,9 @@ type remoteAPIRequest struct {
 }
 
 type expectedState struct {
-	Stable     string `json:"stable"`
-	Experiment string `json:"experiment"`
+	InstallerVersion string `json:"installer_version"`
+	Stable           string `json:"stable"`
+	Experiment       string `json:"experiment"`
 }
 
 type taskWithVersionParams struct {

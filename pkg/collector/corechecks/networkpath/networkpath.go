@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
+	telemetryComp "github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatform"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
@@ -37,6 +38,7 @@ type Check struct {
 	core.CheckBase
 	config        *CheckConfig
 	lastCheckTime time.Time
+	telemetryComp telemetryComp.Component
 }
 
 // Run executes the check
@@ -56,7 +58,7 @@ func (c *Check) Run() error {
 		Protocol:     c.config.Protocol,
 	}
 
-	tr, err := traceroute.New(cfg)
+	tr, err := traceroute.New(cfg, c.telemetryComp)
 	if err != nil {
 		return fmt.Errorf("failed to initialize traceroute: %w", err)
 	}
@@ -130,12 +132,11 @@ func (c *Check) Configure(senderManager sender.SenderManager, integrationConfigD
 }
 
 // Factory creates a new check factory
-func Factory() optional.Option[func() check.Check] {
-	return optional.NewOption(newCheck)
-}
-
-func newCheck() check.Check {
-	return &Check{
-		CheckBase: core.NewCheckBase(CheckName),
-	}
+func Factory(telemetry telemetryComp.Component) optional.Option[func() check.Check] {
+	return optional.NewOption(func() check.Check {
+		return &Check{
+			CheckBase:     core.NewCheckBase(CheckName),
+			telemetryComp: telemetry,
+		}
+	})
 }

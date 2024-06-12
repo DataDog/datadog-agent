@@ -28,6 +28,11 @@ repos:
   hooks:
     - id: go-fmt
       args: [ "-w", "-s" ]
+-   repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: 2c9f875913ee60ca25ce70243dc24d5b6415598c # v4.6.0
+    hooks:
+      - id: end-of-file-fixer
+        files: release.json
 - repo: local
   hooks:
     - id: protected-branches

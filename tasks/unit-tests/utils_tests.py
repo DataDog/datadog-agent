@@ -92,7 +92,8 @@ class TestQueryVersion(unittest.TestCase):
         major_version = "7"
         c = MockContext(
             run={
-                rf"git tag --list | grep -E '^{major_version}\.[0-9]+\.[0-9]+(-rc.*|-devel.*)?$' | sort -rV | head -1": Result(
+                "git rev-parse --abbrev-ref HEAD": Result("main"),
+                rf"git tag --list --merged main | grep -E '^{major_version}\.[0-9]+\.[0-9]+(-rc.*|-devel.*)?$' | sort -rV | head -1": Result(
                     "7.55.0-devel"
                 ),
                 'git describe --tags --candidates=50 --match "7.55.0-devel" --abbrev=7': Result(
@@ -101,6 +102,25 @@ class TestQueryVersion(unittest.TestCase):
             }
         )
         v, p, c, g, _ = query_version(c, major_version)
+        self.assertEqual(v, "7.55.0")
+        self.assertEqual(p, "devel")
+        self.assertEqual(c, 543)
+        self.assertEqual(g, "315e3a2")
+
+    def test_on_release(self):
+        major_version = "7"
+        c = MockContext(
+            run={
+                "git rev-parse --abbrev-ref HEAD": Result("7.55.x"),
+                rf"git tag --list --merged 7.55.x | grep -E '^{major_version}\.[0-9]+\.[0-9]+(-rc.*|-devel.*)?$' | sort -rV | head -1": Result(
+                    "7.55.0-devel"
+                ),
+                'git describe --tags --candidates=50 --match "7.55.0-devel" --abbrev=7': Result(
+                    "7.55.0-devel-543-g315e3a2"
+                ),
+            }
+        )
+        v, p, c, g, _ = query_version(c, major_version, release=True)
         self.assertEqual(v, "7.55.0")
         self.assertEqual(p, "devel")
         self.assertEqual(c, 543)

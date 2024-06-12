@@ -8,10 +8,11 @@ from time import sleep, time
 from typing import cast
 
 from gitlab import GitlabError
+from gitlab.exceptions import GitlabJobPlayError
 from gitlab.v4.objects import Project, ProjectJob, ProjectPipeline
 
 from tasks.libs.ciproviders.gitlab_api import refresh_pipeline
-from tasks.libs.common.color import color_message
+from tasks.libs.common.color import Color, color_message
 from tasks.libs.common.user_interactions import yes_no_question
 from tasks.libs.common.utils import DEFAULT_BRANCH
 
@@ -102,7 +103,12 @@ def gracefully_cancel_pipeline(repo: Project, pipeline: ProjectPipeline, force_c
         cleanup_job = jobs_by_name.get(cleanup_job_name, None)
         if cleanup_job is not None:
             print(f"Triggering KMT {cleanup_job_name} job")
-            repo.jobs.get(job.id, lazy=True).play()
+            try:
+                repo.jobs.get(cleanup_job.id, lazy=True).play()
+            except GitlabJobPlayError:
+                # It can happen if you push two commits in a very short period of time (a few seconds).
+                # Both pipelines will try to play the job and one will fail.
+                print(color_message("The job is unplayable. Was it already replayed by another pipeline?", Color.RED))
         else:
             print(f"Cleanup job {cleanup_job_name} not found, skipping.")
 

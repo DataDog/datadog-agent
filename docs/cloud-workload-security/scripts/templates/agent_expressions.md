@@ -11,6 +11,12 @@ further_reading:
 
 {{ warning_message }}
 
+## Create custom rules using the Simple rule creator
+
+The **Assisted rule creator** option helps you create the Agent and dependent detection rules together, and ensures that the Agent rule is referenced in the detection rules. Using this tool is faster than the advanced method of creating the Agent and detection rules separately.
+
+For details, see [Creating Custom Detection Rules][1].
+
 ## Agent expression syntax
 Cloud Security Management Threats (CSM Threats) first evaluates activity within the Datadog Agent against Agent expressions to decide what activity to collect. This portion of a CSM Threats rule is called the Agent expression. Agent expressions use Datadog's Security Language (SECL). The standard format of a SECL expression is as follows:
 
@@ -231,3 +237,5 @@ Constants are used to improve the readability of your rules. Some constants are 
 {% raw %}
 {{< partial name="whats-next/whats-next.html" >}}
 {% endraw %}
+
+[1]: https://docs.datadoghq.com/security/threats/workload_security_rules/custom_rules

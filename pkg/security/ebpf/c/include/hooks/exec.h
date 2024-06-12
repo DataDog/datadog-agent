@@ -16,8 +16,7 @@ int __attribute__((always_inline)) trace__sys_execveat(ctx_t *ctx, const char *p
             },
             .envs = {
                 .id = rand32(),
-            }
-        }
+            } }
     };
     collect_syscall_ctx(&syscall, SYSCALL_CTX_ARG_STR(0), (void *)path, NULL, NULL);
     cache_syscall(&syscall);
@@ -223,7 +222,7 @@ int sched_process_fork(struct _tracepoint_sched_process_fork *args) {
         return 0;
     }
 
-    struct pid_cache_t *parent_pid_entry = (struct pid_cache_t *) bpf_map_lookup_elem(&pid_cache, &ppid);
+    struct pid_cache_t *parent_pid_entry = (struct pid_cache_t *)bpf_map_lookup_elem(&pid_cache, &ppid);
     if (parent_pid_entry) {
         // ensure pid and ppid point to the same cookie
         event->pid_entry.cookie = parent_pid_entry->cookie;
@@ -290,7 +289,7 @@ int hook_do_exit(ctx_t *ctx) {
         expire_pid_discarder(tgid);
 
         // update exit time
-        struct pid_cache_t *pid_entry = (struct pid_cache_t *) bpf_map_lookup_elem(&pid_cache, &tgid);
+        struct pid_cache_t *pid_entry = (struct pid_cache_t *)bpf_map_lookup_elem(&pid_cache, &tgid);
         if (pid_entry) {
             pid_entry->exit_timestamp = bpf_ktime_get_ns();
         } else if (is_current_kworker_dying()) {
@@ -461,7 +460,7 @@ void __attribute__((always_inline)) parse_args_envs(void *ctx, struct args_envs_
             bytes_read--; // remove trailing 0
 
             // insert size before the string
-            bpf_probe_read(&(buff->value[event.size&(MAX_STR_BUFF_LEN - MAX_ARRAY_ELEMENT_SIZE - 1)]), sizeof(bytes_read), &bytes_read);
+            bpf_probe_read(&(buff->value[event.size & (MAX_STR_BUFF_LEN - MAX_ARRAY_ELEMENT_SIZE - 1)]), sizeof(bytes_read), &bytes_read);
 
             int data_length = bytes_read + sizeof(bytes_read);
             if (event.size + data_length >= MAX_PERF_STR_BUFF_LEN) {
@@ -587,7 +586,7 @@ int __attribute__((always_inline)) fetch_interpreter(void *ctx, struct linux_bin
 
 HOOK_ENTRY("setup_new_exec")
 int hook_setup_new_exec_interp(ctx_t *ctx) {
-    struct linux_binprm *bprm = (struct linux_binprm *) CTX_PARM1(ctx);
+    struct linux_binprm *bprm = (struct linux_binprm *)CTX_PARM1(ctx);
     return fetch_interpreter(ctx, bprm);
 }
 
@@ -668,8 +667,7 @@ int __attribute__((always_inline)) send_exec_event(ctx_t *ctx) {
                     .mount_id = syscall->exec.file.path_key.mount_id,
                     .path_id = syscall->exec.file.path_key.path_id,
                 },
-                .flags = syscall->exec.file.flags
-            },
+                .flags = syscall->exec.file.flags },
             .exec_timestamp = now,
         },
         .container = {},
@@ -681,7 +679,7 @@ int __attribute__((always_inline)) send_exec_event(ctx_t *ctx) {
 
     // select the previous cookie entry in cache of the current process
     // (this entry was created by the fork of the current process)
-    struct pid_cache_t *fork_entry = (struct pid_cache_t *) bpf_map_lookup_elem(&pid_cache, &tgid);
+    struct pid_cache_t *fork_entry = (struct pid_cache_t *)bpf_map_lookup_elem(&pid_cache, &tgid);
     if (fork_entry) {
         // Fetch the parent proc cache entry
         u64 parent_cookie = fork_entry->cookie;
@@ -708,7 +706,7 @@ int __attribute__((always_inline)) send_exec_event(ctx_t *ctx) {
             .cookie = cookie,
         };
         bpf_map_update_elem(&pid_cache, &tgid, &new_pid_entry, BPF_ANY);
-        fork_entry = (struct pid_cache_t *) bpf_map_lookup_elem(&pid_cache, &tgid);
+        fork_entry = (struct pid_cache_t *)bpf_map_lookup_elem(&pid_cache, &tgid);
         if (fork_entry == NULL) {
             // should never happen, ignore
             return 0;

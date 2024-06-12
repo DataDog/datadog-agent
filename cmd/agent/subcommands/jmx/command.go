@@ -24,22 +24,20 @@ import (
 	"github.com/DataDog/datadog-agent/comp/agent"
 	"github.com/DataDog/datadog-agent/comp/agent/jmxlogger"
 	"github.com/DataDog/datadog-agent/comp/agent/jmxlogger/jmxloggerimpl"
-	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	"github.com/DataDog/datadog-agent/comp/aggregator/diagnosesendermanager"
 	"github.com/DataDog/datadog-agent/comp/aggregator/diagnosesendermanager/diagnosesendermanagerimpl"
-	internalAPI "github.com/DataDog/datadog-agent/comp/api/api"
 	authtokenimpl "github.com/DataDog/datadog-agent/comp/api/authtoken/createandfetchimpl"
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
 	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl"
 
 	"github.com/DataDog/datadog-agent/comp/api/api/apiimpl"
+	internalAPI "github.com/DataDog/datadog-agent/comp/api/api/def"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/autodiscoveryimpl"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/flare"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/settings"
@@ -47,20 +45,15 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/pidmap"
 	replay "github.com/DataDog/datadog-agent/comp/dogstatsd/replay/def"
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
-	serverdebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
-	"github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver"
-	"github.com/DataDog/datadog-agent/comp/metadata/host"
-	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
-	"github.com/DataDog/datadog-agent/comp/metadata/inventorychecks"
-	"github.com/DataDog/datadog-agent/comp/metadata/inventoryhost"
-	"github.com/DataDog/datadog-agent/comp/metadata/packagesigning"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcservice"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcservicemrf"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/cli/standalone"
 	pkgcollector "github.com/DataDog/datadog-agent/pkg/collector"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
@@ -135,38 +128,34 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			core.Bundle(),
 			compressionimpl.Module(),
 			diagnosesendermanagerimpl.Module(),
+			fx.Supply(func(diagnoseSenderManager diagnosesendermanager.Component) (sender.SenderManager, error) {
+				return diagnoseSenderManager.LazyGetSenderManager()
+			}),
 			// workloadmeta setup
 			collectors.GetCatalog(),
 			fx.Supply(workloadmeta.Params{
 				InitHelper: common.GetWorkloadmetaInit(),
 			}),
-			workloadmeta.Module(),
+			workloadmetafx.Module(),
 			apiimpl.Module(),
 			authtokenimpl.Module(),
 			// The jmx command do not have settings that change are runtime
 			// still, we need to pass it to ensure the API server is proprely initialized
 			settingsimpl.Module(),
 			fx.Supply(settings.Params{}),
+
 			// TODO(components): this is a temporary hack as the StartServer() method of the API package was previously called with nil arguments
 			// This highlights the fact that the API Server created by JMX (through ExecJmx... function) should be different from the ones created
 			// in others commands such as run.
-			fx.Provide(func() flare.Component { return nil }),
-			fx.Provide(func() dogstatsdServer.Component { return nil }),
-			fx.Provide(func() replay.Component { return nil }),
-			fx.Provide(func() pidmap.Component { return nil }),
-			fx.Provide(func() serverdebug.Component { return nil }),
-			fx.Provide(func() host.Component { return nil }),
-			fx.Provide(func() inventoryagent.Component { return nil }),
-			fx.Provide(func() inventoryhost.Component { return nil }),
-			fx.Provide(func() demultiplexer.Component { return nil }),
-			fx.Provide(func() inventorychecks.Component { return nil }),
-			fx.Provide(func() packagesigning.Component { return nil }),
 			fx.Supply(optional.NewNoneOption[rcservice.Component]()),
 			fx.Supply(optional.NewNoneOption[rcservicemrf.Component]()),
-			fx.Provide(func() status.Component { return nil }),
-			fx.Provide(func() eventplatformreceiver.Component { return nil }),
 			fx.Supply(optional.NewNoneOption[collector.Component]()),
 			fx.Supply(optional.NewNoneOption[logsAgent.Component]()),
+			fx.Provide(func() dogstatsdServer.Component { return nil }),
+			fx.Provide(func() pidmap.Component { return nil }),
+			fx.Provide(func() replay.Component { return nil }),
+			fx.Provide(func() status.Component { return nil }),
+
 			fx.Provide(tagger.NewTaggerParamsForCoreAgent),
 			taggerimpl.Module(),
 			autodiscoveryimpl.Module(),
@@ -342,7 +331,7 @@ func runJmxCommandConsole(config config.Component,
 		return err
 	}
 
-	err = standalone.ExecJMXCommandConsole(cliParams.command, cliParams.cliSelectedChecks, cliParams.jmxLogLevel, allConfigs, diagnoseSendermanager, agentAPI, jmxLogger)
+	err = standalone.ExecJMXCommandConsole(cliParams.command, cliParams.cliSelectedChecks, cliParams.jmxLogLevel, allConfigs, agentAPI, jmxLogger)
 
 	if runtime.GOOS == "windows" {
 		standalone.PrintWindowsUserWarning("jmx")

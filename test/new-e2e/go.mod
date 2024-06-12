@@ -18,10 +18,10 @@ replace (
 
 require (
 	github.com/DataDog/agent-payload/v5 v5.0.106
-	github.com/DataDog/datadog-agent/pkg/util/pointer v0.55.0-rc.2
-	github.com/DataDog/datadog-agent/pkg/util/testutil v0.55.0-rc.2
-	github.com/DataDog/datadog-agent/pkg/version v0.55.0-rc.2
-	github.com/DataDog/datadog-agent/test/fakeintake v0.55.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/util/pointer v0.55.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/util/testutil v0.55.0-rc.3
+	github.com/DataDog/datadog-agent/pkg/version v0.55.0-rc.3
+	github.com/DataDog/datadog-agent/test/fakeintake v0.55.0-rc.3
 	github.com/DataDog/datadog-api-client-go v1.16.0
 	github.com/DataDog/datadog-api-client-go/v2 v2.26.0
 	// Are you bumping github.com/DataDog/test-infra-definitions ?
@@ -29,7 +29,7 @@ require (
 	// `TEST_INFRA_DEFINITIONS_BUILDIMAGES` matches the commit sha in the module version
 	// Example: 	github.com/DataDog/test-infra-definitions v0.0.0-YYYYMMDDHHmmSS-0123456789AB
 	// => TEST_INFRA_DEFINITIONS_BUILDIMAGES: 0123456789AB
-	github.com/DataDog/test-infra-definitions v0.0.0-20240527153959-63d1aae5f639
+	github.com/DataDog/test-infra-definitions v0.0.0-20240612130748-fb09e7c5cc6e
 	github.com/aws/aws-sdk-go-v2 v1.26.1
 	github.com/aws/aws-sdk-go-v2/config v1.27.11
 	github.com/aws/aws-sdk-go-v2/service/ec2 v1.138.1
@@ -42,7 +42,7 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/kr/pretty v0.3.1
 	github.com/pkg/sftp v1.13.6
-	github.com/pulumi/pulumi/sdk/v3 v3.115.0
+	github.com/pulumi/pulumi/sdk/v3 v3.116.1
 	github.com/samber/lo v1.39.0
 	github.com/sethvargo/go-retry v0.2.4
 	github.com/stretchr/testify v1.9.0
@@ -61,7 +61,7 @@ require (
 require (
 	dario.cat/mergo v1.0.0 // indirect
 	github.com/Azure/go-ansiterm v0.0.0-20210617225240-d185dfc1b5a1 // indirect
-	github.com/DataDog/datadog-agent/pkg/proto v0.55.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/proto v0.55.0-rc.3
 	github.com/DataDog/mmh3 v0.0.0-20200805151601-30884ca2197a // indirect
 	github.com/DataDog/zstd v1.5.2 // indirect
 	github.com/DataDog/zstd_0 v0.0.0-20210310093942-586c1286621f // indirect
@@ -239,17 +239,17 @@ require (
 )
 
 require (
-	github.com/DataDog/datadog-agent/pkg/util/optional v0.55.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/util/optional v0.55.0-rc.3
 	github.com/mitchellh/mapstructure v1.5.0
 	github.com/pulumi/pulumi-aws/sdk/v6 v6.25.0
 	github.com/pulumi/pulumi-awsx/sdk/v2 v2.5.0
 	github.com/pulumi/pulumi-eks/sdk/v2 v2.2.1
-	github.com/pulumi/pulumi-kubernetes/sdk/v4 v4.9.0
+	github.com/pulumi/pulumi-kubernetes/sdk/v4 v4.13.1
 	github.com/xeipuuv/gojsonschema v1.2.0
 )
 
 require (
-	github.com/DataDog/datadog-agent/comp/netflow/payload v0.55.0-rc.2 // indirect
+	github.com/DataDog/datadog-agent/comp/netflow/payload v0.55.0-rc.3 // indirect
 	github.com/apparentlymart/go-textseg/v15 v15.0.0 // indirect
 	github.com/google/pprof v0.0.0-20221118152302-e6195bd50e26 // indirect
 	github.com/pulumi/pulumi-docker/sdk/v4 v4.5.1 // indirect

@@ -20,8 +20,6 @@
   - export DATADOG_AGENT_API_KEY=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $E2E_TESTS_API_KEY_SSM_NAME)
   - export DATADOG_AGENT_APP_KEY=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $E2E_TESTS_APP_KEY_SSM_NAME)
   - export DATADOG_AGENT_RC_KEY=$($CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $E2E_TESTS_RC_KEY_SSM_NAME)
-  # workaround until CWS is able to support 6.8 kernel correctly
-  - export AMI=ami-04003e644492ae5e8
 
 .k8s_e2e_template_needs_dev:
   extends: .k8s_e2e_template
@@ -56,21 +54,6 @@
   extends: .k8s_e2e_template_needs_main
   script:
     - inv -e e2e-tests --agent-image=datadog/agent-dev:master-py3 --dca-image=datadog/cluster-agent-dev:master --argo-workflow=$ARGO_WORKFLOW
-
-k8s-e2e-cws-dev:
-  extends: .k8s_e2e_template_dev_with_cws_cspm_init
-  rules: !reference [.on_dev_branch_manual]
-  variables:
-    ARGO_WORKFLOW: cws
-  allow_failure: true
-
-k8s-e2e-cws-main:
-  extends: .k8s_e2e_template_main_with_cws_cspm_init
-  rules: !reference [.on_main]
-  retry: 1
-  variables:
-    ARGO_WORKFLOW: cws
-  allow_failure: true
 
 k8s-e2e-cspm-dev:
   extends: .k8s_e2e_template_dev_with_cws_cspm_init
@@ -111,6 +94,8 @@ k8s-e2e-otlp-main:
     - touch $E2E_PRIVATE_KEY_PATH && chmod 600 $E2E_PRIVATE_KEY_PATH && $CI_PROJECT_DIR/tools/ci/aws_ssm_get_wrapper.sh $SSH_KEY_RSA_SSM_NAME > $E2E_PRIVATE_KEY_PATH
     # Use S3 backend
     - pulumi login "s3://dd-pulumi-state?region=us-east-1&awssdk=v2&profile=$AWS_PROFILE"
+    # Generate external links to CI VISIBILITY, used by artifacts:reports:annotations
+    - inv -e gitlab.generate-ci-visibility-links --output=$EXTERNAL_LINKS_PATH
   variables:
     KUBERNETES_MEMORY_REQUEST: 12Gi
     KUBERNETES_MEMORY_LIMIT: 16Gi
@@ -121,6 +106,7 @@ k8s-e2e-otlp-main:
     E2E_PIPELINE_ID: $CI_PIPELINE_ID
     E2E_COMMIT_SHA: $CI_COMMIT_SHORT_SHA
     E2E_OUTPUT_DIR: $CI_PROJECT_DIR/e2e-output
+    EXTERNAL_LINKS_PATH: external_links_$CI_JOB_ID.json
   script:
     - inv -e new-e2e-tests.run --targets $TARGETS -c ddagent:imagePullRegistry=669783387624.dkr.ecr.us-east-1.amazonaws.com -c ddagent:imagePullUsername=AWS -c ddagent:imagePullPassword=$(aws ecr get-login-password) --junit-tar junit-${CI_JOB_ID}.tgz ${EXTRA_PARAMS} --test-washer
   after_script:
@@ -133,6 +119,10 @@ k8s-e2e-otlp-main:
       - $E2E_OUTPUT_DIR
       # junit tarball, kept for investigations
       - junit-*.tgz
+    reports:
+      annotations:
+        - $EXTERNAL_LINKS_PATH
+
 
 .new_e2e_template_needs_deb_x64:
   extends: .new_e2e_template
@@ -158,7 +148,9 @@ new-e2e-containers:
   # TODO once images are deployed to ECR for dev branches, update
   #.on_main_or_rc_and_no_skip_e2e adding on_dev_branch_manual rules
   # and move rules to template
-  rules: !reference [.on_container_or_e2e_changes_or_manual]
+  rules:
+    - !reference [.on_container_or_e2e_changes]
+    - !reference [.manual]
   variables:
     TARGETS: ./tests/containers
     TEAM: container-integrations
@@ -177,21 +169,27 @@ new-e2e-containers:
 
 new-e2e-remote-config:
   extends: .new_e2e_template_needs_deb_x64
-  rules: !reference [.on_rc_or_e2e_changes_or_manual]
+  rules:
+    - !reference [.on_rc_or_e2e_changes]
+    - !reference [.manual]
   variables:
     TARGETS: ./tests/remote-config
     TEAM: remote-config
 
 new-e2e-agent-shared-components:
   extends: .new_e2e_template_needs_deb_windows_x64
-  rules: !reference [.on_asc_or_e2e_changes_or_manual]
+  rules:
+    - !reference [.on_asc_or_e2e_changes]
+    - !reference [.manual]
   variables:
     TARGETS: ./tests/agent-shared-components
     TEAM: agent-shared-components
 
 new-e2e-agent-subcommands:
   extends: .new_e2e_template_needs_deb_windows_x64
-  rules: !reference [.on_subcommands_or_e2e_changes_or_manual]
+  rules:
+    - !reference [.on_subcommands_or_e2e_changes]
+    - !reference [.manual]
   variables:
     TARGETS: ./tests/agent-subcommands
     TEAM: agent-shared-components
@@ -214,17 +212,23 @@ new-e2e-agent-subcommands:
       - EXTRA_PARAMS: --run TestLinuxSecretSuite
       - EXTRA_PARAMS: --run TestWindowsSecretSuite
       - EXTRA_PARAMS: --run TestLinuxCheckSuite
+      - EXTRA_PARAMS: --run TestLinuxRunSuite
+      - EXTRA_PARAMS: --run TestWindowsRunSuite
 
 new-e2e-language-detection:
   extends: .new_e2e_template_needs_deb_x64
-  rules: !reference [.on_language-detection_or_e2e_changes_or_manual]
+  rules:
+    - !reference [.on_language-detection_or_e2e_changes]
+    - !reference [.manual]
   variables:
     TARGETS: ./tests/language-detection
     TEAM: processes
 
 new-e2e-npm-packages:
   extends: .new_e2e_template
-  rules: !reference [.on_npm_or_e2e_changes_or_manual]
+  rules: 
+    - !reference [.on_npm_or_e2e_changes]
+    - !reference [.manual]
   needs:
     - deploy_deb_testing-a7_x64
     - deploy_rpm_testing-a7_x64
@@ -236,7 +240,9 @@ new-e2e-npm-packages:
 
 new-e2e-npm-docker:
   extends: .new_e2e_template
-  rules: !reference [.on_npm_or_e2e_changes_or_manual]
+  rules:
+    - !reference [.on_npm_or_e2e_changes]
+    - !reference [.manual]
   needs:
     - qa_agent
   variables:
@@ -250,14 +256,18 @@ new-e2e-aml:
     - deploy_deb_testing-a7_x64
     - deploy_windows_testing-a7
     - qa_agent
-  rules: !reference [.on_aml_or_e2e_changes_or_manual]
+  rules: 
+    - !reference [.on_aml_or_e2e_changes]
+    - !reference [.manual]
   variables:
     TARGETS: ./tests/agent-metric-logs
     TEAM: agent-metric-logs
 
 new-e2e-cws:
   extends: .new_e2e_template
-  rules: !reference [.on_cws_or_e2e_changes_or_manual]
+  rules: 
+    - !reference [.on_cws_or_e2e_changes]
+    - !reference [.manual]
   needs:
     - deploy_deb_testing-a7_x64
     - qa_cws_instrumentation
@@ -277,7 +287,9 @@ new-e2e-cws:
 
 new-e2e-process:
   extends: .new_e2e_template_needs_deb_windows_x64
-  rules: !reference [.on_process_or_e2e_changes_or_manual]
+  rules: 
+    - !reference [.on_process_or_e2e_changes]
+    - !reference [.manual]
   variables:
     TARGETS: ./tests/process
     TEAM: processes
@@ -285,14 +297,18 @@ new-e2e-process:
 new-e2e-orchestrator:
   extends:
     - .new_e2e_template_needs_container_deploy
-  rules: !reference [.on_orchestrator_or_e2e_changes_or_manual]
+  rules:
+    - !reference [.on_orchestrator_or_e2e_changes]
+    - !reference [.manual]
   variables:
     TARGETS: ./tests/orchestrator
     TEAM: container-app
 
 new-e2e-apm:
   extends: .new_e2e_template
-  rules: !reference [.on_apm_or_e2e_changes_or_manual]
+  rules:
+    - !reference [.on_apm_or_e2e_changes]
+    - !reference [.manual]
   needs:
     - qa_agent
     - deploy_deb_testing-a7_x64
@@ -309,7 +325,8 @@ new-e2e-apm:
 new-e2e-installer:
   extends: .new_e2e_template
   rules:
-    !reference [.on_installer_or_e2e_changes_or_manual]
+    - !reference [.on_installer_or_e2e_changes]
+    - !reference [.manual]
   needs:
     - deploy_deb_testing-a7_arm64
     - deploy_deb_testing-a7_x64
@@ -325,7 +342,9 @@ new-e2e-installer:
 
 new-e2e-ndm-netflow:
   extends: .new_e2e_template
-  rules: !reference [.on_ndm_netflow_or_e2e_changes_or_manual]
+  rules:
+    - !reference [.on_ndm_netflow_or_e2e_changes]
+    - !reference [.manual]
   needs:
     - qa_agent
   variables:
@@ -334,7 +353,9 @@ new-e2e-ndm-netflow:
 
 new-e2e-ndm-snmp:
   extends: .new_e2e_template
-  rules: !reference [.on_ndm_snmp_or_e2e_changes_or_manual]
+  rules:
+    - !reference [.on_ndm_snmp_or_e2e_changes]
+    - !reference [.manual]
   needs:
     - qa_agent
   variables:
