@@ -29,7 +29,7 @@ require (
 	// `TEST_INFRA_DEFINITIONS_BUILDIMAGES` matches the commit sha in the module version
 	// Example: 	github.com/DataDog/test-infra-definitions v0.0.0-YYYYMMDDHHmmSS-0123456789AB
 	// => TEST_INFRA_DEFINITIONS_BUILDIMAGES: 0123456789AB
-	github.com/DataDog/test-infra-definitions v0.0.0-20240527153959-63d1aae5f639
+	github.com/DataDog/test-infra-definitions v0.0.0-20240530080645-e207a91d7fc2
 	github.com/aws/aws-sdk-go-v2 v1.26.1
 	github.com/aws/aws-sdk-go-v2/config v1.27.11
 	github.com/aws/aws-sdk-go-v2/service/ec2 v1.138.1
@@ -252,6 +252,10 @@ require (
 	github.com/DataDog/datadog-agent/comp/netflow/payload v0.55.0-rc.3 // indirect
 	github.com/apparentlymart/go-textseg/v15 v15.0.0 // indirect
 	github.com/google/pprof v0.0.0-20221118152302-e6195bd50e26 // indirect
+	github.com/pulumi/pulumi-azure-native-sdk/compute/v2 v2.30.0 // indirect
+	github.com/pulumi/pulumi-azure-native-sdk/containerservice/v2 v2.30.0 // indirect
+	github.com/pulumi/pulumi-azure-native-sdk/network/v2 v2.30.0 // indirect
+	github.com/pulumi/pulumi-azure-native-sdk/v2 v2.30.0 // indirect
 	github.com/pulumi/pulumi-docker/sdk/v4 v4.5.1 // indirect
 	github.com/xeipuuv/gojsonpointer v0.0.0-20180127040702-4e3ac2762d5f // indirect
 	github.com/xeipuuv/gojsonreference v0.0.0-20180127040603-bd5ef7bd5415 // indirect
