@@ -45,7 +45,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/serializer/compression"
 	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl/strategy"
 	tracecomp "github.com/DataDog/datadog-agent/comp/trace"
-	traceagentcomp "github.com/DataDog/datadog-agent/comp/trace/agent"
+	traceagentcomp "github.com/DataDog/datadog-agent/comp/trace/agent/impl"
 	traceconfig "github.com/DataDog/datadog-agent/comp/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/serializer"

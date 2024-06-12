@@ -9,11 +9,12 @@ import (
 	"fmt"
 	"testing"
 
+	"go.uber.org/fx"
+
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	wmdef "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"go.uber.org/fx"
 )
 
 func TestExampleStoreSubscribe(t *testing.T) {
@@ -26,13 +27,7 @@ func TestExampleStoreSubscribe(t *testing.T) {
 
 	s := newWorkloadmetaObject(deps)
 
-	filterParams := wmdef.FilterParams{
-		Kinds:     []wmdef.Kind{wmdef.KindContainer},
-		Source:    wmdef.SourceRuntime,
-		EventType: wmdef.EventTypeAll,
-	}
-	filter := wmdef.NewFilter(&filterParams)
-
+	filter := wmdef.NewFilterBuilder().SetSource(wmdef.SourceRuntime).AddKind(wmdef.KindContainer).Build()
 	ch := s.Subscribe("test", wmdef.NormalPriority, filter)
 
 	go func() {
