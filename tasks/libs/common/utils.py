@@ -734,14 +734,13 @@ def is_pr_context(branch, pr_id, test_name):
 
 
 @contextmanager
-def collapsed_section(section_name):
+def section(section_name, collapsed=False):
     section_id = section_name.replace(" ", "_").replace("/", "_")
     in_ci = running_in_gitlab_ci()
     try:
         if in_ci:
-            print(
-                f"\033[0Ksection_start:{int(time.time())}:{section_id}[collapsed=true]\r\033[0K{section_name + '...'}"
-            )
+            collapsed = collapsed and '[collapsed=true]'
+            print(f"\033[0Ksection_start:{int(time.time())}:{section_id}{collapsed}\r\033[0K{section_name + '...'}")
         yield
     finally:
         if in_ci:
@@ -787,7 +786,7 @@ def retry_function(action_name_fmt, max_retries=2, retry_delay=1):
                             ),
                             file=sys.stderr,
                         )
-                        with collapsed_section(f"Retry {i + 1}/{max_retries} {action_name}"):
+                        with section(f"Retry {i + 1}/{max_retries} {action_name}", collapsed=True):
                             traceback.print_exc()
                         time.sleep(retry_delay)
                         print(color_message(f'Retrying {action_name}', 'blue'))

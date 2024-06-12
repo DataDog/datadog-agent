@@ -4,7 +4,7 @@ import tempfile
 
 from invoke import task
 
-from tasks.libs.common.utils import collapsed_section
+from tasks.libs.common.utils import section
 from tasks.rtloader import get_dev_path
 
 is_windows = sys.platform == "win32"
@@ -21,7 +21,7 @@ def build_library(ctx):
     if is_windows:
         print("Not building the SDS library: unsupported on Windows.", file=sys.stderr)
         return
-    with collapsed_section("Clone and build SDS"):
+    with section("Clone and build SDS", collapsed=True):
         with tempfile.TemporaryDirectory() as temp_dir:
             with ctx.cd(temp_dir):
                 ctx.run("git clone https://github.com/DataDog/dd-sensitive-data-scanner", err_stream=sys.stdout)

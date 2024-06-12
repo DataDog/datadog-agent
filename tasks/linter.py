@@ -26,10 +26,10 @@ from tasks.libs.common.git import get_staged_files
 from tasks.libs.common.utils import (
     DEFAULT_BRANCH,
     GITHUB_REPO_NAME,
-    collapsed_section,
     color_message,
     is_pr_context,
     running_in_ci,
+    section,
 )
 from tasks.libs.types.copyright import CopyrightLinter, LintFailure
 from tasks.modules import GoModule
@@ -188,10 +188,10 @@ def go(
         include_sds=include_sds,
     )
 
-    with collapsed_section('Linter failures'):
+    with section('Linter failures', collapsed=True):
         success = process_module_results(flavor=flavor, module_results=lint_results)
 
-    with collapsed_section('Linter execution time'):
+    with section('Linter execution time'):
         print(color_message('Execution time summary:', 'bold'))
 
         for e in sorted(execution_times):

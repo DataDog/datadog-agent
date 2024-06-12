@@ -22,7 +22,7 @@ import tasks.modules
 from tasks.build_tags import ALL_TAGS, UNIT_TEST_TAGS, get_default_build_tags
 from tasks.libs.common.color import color_message
 from tasks.libs.common.git import check_uncommitted_changes
-from tasks.libs.common.utils import TimedOperationResult, collapsed_section, get_build_flags, timed
+from tasks.libs.common.utils import TimedOperationResult, get_build_flags, section, timed
 from tasks.licenses import get_licenses_list
 from tasks.modules import DEFAULT_MODULES, generate_dummy_package
 
@@ -71,7 +71,7 @@ def run_golangci_lint(
         target_path = Path(module_path) / target
         time_start = time.perf_counter()
 
-        with collapsed_section('Lint ' + target_path.as_posix()):
+        with section('Lint ' + target_path.as_posix(), collapsed=True):
             if not headless_mode:
                 print(f"running golangci on {target}")
             concurrency_arg = "" if concurrency is None else f"--concurrency {concurrency}"
