@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import shutil
+
 try:
     from termcolor import colored
 except ImportError:
@@ -554,7 +556,7 @@ def generate_html_report(ctx: Context, dest_folder: str | Path):
         stats_by_object_and_program[object_file][function] = stats
 
     env = Environment(
-        loader=FileSystemLoader(Path(__file__).parent / "ebpf_verifier/templates"),
+        loader=FileSystemLoader(Path(__file__).parent / "ebpf_verifier/html/templates"),
         autoescape=select_autoescape(),
         trim_blocks=True,
     )
@@ -583,6 +585,18 @@ def generate_html_report(ctx: Context, dest_folder: str | Path):
         if "source_map" not in complexity_data:
             print("Invalid complexity data file", file)
             continue
+
+        # Define the complexity level for all assembly instructions
+        for insn in complexity_data["insn_map"].values():
+            if insn['times_processed'] <= COMPLEXITY_THRESHOLD_LOW:
+                level = 'low'
+            elif insn['times_processed'] <= COMPLEXITY_THRESHOLD_MEDIUM:
+                level = 'medium'
+            elif insn['times_processed'] <= COMPLEXITY_THRESHOLD_HIGH:
+                level = 'high'
+            else:
+                level = 'extreme'
+            insn['complexity_level'] = level  # type: ignore
 
         all_files = {x.split(":")[0] for x in complexity_data["source_map"].keys()}
         file_contents = {}
@@ -623,3 +637,9 @@ def generate_html_report(ctx: Context, dest_folder: str | Path):
         object_folder.mkdir(exist_ok=True, parents=True)
         complexity_file = object_folder / f"{function}.html"
         complexity_file.write_text(render)
+
+    # Copy all static files
+    static_files = Path(__file__).parent / "ebpf_verifier/html/static"
+    for file in static_files.glob("*"):
+        print(f"Copying static {file} to {dest_folder}")
+        shutil.copy(file, dest_folder)
