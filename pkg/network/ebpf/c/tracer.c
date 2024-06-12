@@ -1027,6 +1027,12 @@ static __always_inline struct sock* sk_buff_sk(struct sk_buff *skb) {
     return sk;
 }
 
+#if defined(COMPILE_RUNTIME)
+struct bpf_raw_tracepoint_args {
+    __u64 args[0];
+}
+#endif
+
 static __always_inline int handle_net_dev_queue(struct sk_buff *skb) {
     struct sock* sk = sk_buff_sk(skb);
     if (!sk) {
