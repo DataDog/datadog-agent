@@ -821,7 +821,7 @@ func (m *KubernetesMetadata) String(verbose bool) string {
 
 	if verbose {
 		_, _ = fmt.Fprintln(&sb, "----------- Resource -----------")
-		_, _ = fmt.Fprint(&sb, m.GVR.String())
+		_, _ = fmt.Fprintln(&sb, m.GVR.String())
 	}
 
 	return sb.String()
