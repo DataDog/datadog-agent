@@ -96,9 +96,15 @@ func SetupInstaller(ctx context.Context) (err error) {
 	if err != nil {
 		return fmt.Errorf("error changing owner of /var/run/datadog-installer: %w", err)
 	}
+	// Enforce that the directory exists. It should be created by the bootstrapper but
+	// older versions don't do it
+	err = os.MkdirAll("/opt/datadog-installer/tmp", 0755)
+	if err != nil {
+		return fmt.Errorf("error creating /opt/datadog-installer/tmp: %w", err)
+	}
 	err = os.Chown("/opt/datadog-installer/tmp", ddAgentUID, ddAgentGID)
 	if err != nil {
-		return fmt.Errorf("failed to change owner of temporary directory: %w", err)
+		return fmt.Errorf("error changing owner of /opt/datadog-installer/tmp: %w", err)
 	}
 
 	// Create installer path symlink
