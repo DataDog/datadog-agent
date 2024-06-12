@@ -24,22 +24,45 @@ var (
 
 	ddEnhancedSuffix = "dd-enhanced"
 	// pprof
-	pProfEnhancedName = "pprof/" + ddEnhancedSuffix
+	pProfName         = "pprof"
+	pProfEnhancedName = pProfName + "/" + ddEnhancedSuffix
 	pProfConfig       any
 
 	// zpages
-	zpagesEnhancedName = "zpages/" + ddEnhancedSuffix
+	zpagesName         = "zpages"
+	zpagesEnhancedName = zpagesName + "/" + ddEnhancedSuffix
 	zpagesConfig       = map[string]any{
 		"endpoint": "localhost:55679",
 	}
 
 	// healthcheck
-	healthCheckEnhancedName = "health_check/" + ddEnhancedSuffix
+	healthCheckName         = "health_check"
+	healthCheckEnhancedName = healthCheckName + "/" + ddEnhancedSuffix
 	healthCheckConfig       any
 
-	// prometheus
-	infraAttributesEnhancedName = "infraattributes/" + ddEnhancedSuffix
+	// infraattributes
+	infraAttributesName         = "infraattributes"
+	infraAttributesEnhancedName = infraAttributesName + "/" + ddEnhancedSuffix
 	infraAttributesConfig       any
+
+	// prometheus
+	prometheusName         = "prometheus"
+	prometheusEnhancedName = prometheusName + "/" + ddEnhancedSuffix
+	prometheusConfig       = map[string]any{
+		"config": map[string]any{
+			"scrape_configs": []map[string]any{
+				{
+					"job_name":        "otelcol",
+					"scrape_interval": "10s",
+					"static_configs": []map[string]any{
+						{
+							"targets": []string{"0.0.0.0:8888"},
+						},
+					},
+				},
+			},
+		},
+	}
 )
 
 type confDump struct {
@@ -56,19 +79,19 @@ type component struct {
 
 var extensions = []component{
 	{
-		componentName:         "pprof",
+		componentName:         pProfName,
 		componentType:         "extensions",
 		componentEnhancedName: pProfEnhancedName,
 		componentConfig:       pProfConfig,
 	},
 	{
-		componentName:         "zpages",
+		componentName:         zpagesName,
 		componentType:         "extensions",
 		componentEnhancedName: zpagesEnhancedName,
 		componentConfig:       zpagesConfig,
 	},
 	{
-		componentName:         "health_check",
+		componentName:         healthCheckName,
 		componentType:         "extensions",
 		componentEnhancedName: healthCheckEnhancedName,
 		componentConfig:       healthCheckConfig,
@@ -77,10 +100,19 @@ var extensions = []component{
 
 var processors = []component{
 	{
-		componentName:         "infraattributes",
+		componentName:         infraAttributesName,
 		componentType:         "processors",
 		componentEnhancedName: infraAttributesEnhancedName,
 		componentConfig:       infraAttributesConfig,
+	},
+}
+
+var receivers = []component{
+	{
+		componentName:         prometheusName,
+		componentType:         "receivers",
+		componentEnhancedName: prometheusEnhancedName,
+		componentConfig:       prometheusConfig,
 	},
 }
 
@@ -106,21 +138,21 @@ func (c *ddConverter) Convert(ctx context.Context, conf *confmap.Conf) error {
 func enhanceConfig(conf *confmap.Conf) {
 	// add extensions if missing
 	for _, component := range extensions {
-		if inServicePipeline(conf, component.componentType, component.componentName) {
+		if inServicePipeline(conf, component) {
 			continue
 		}
-		addComponentToConfig(conf, component.componentType, component.componentEnhancedName, component.componentConfig)
-		addExtensionToPipeline(conf, component.componentType, component.componentEnhancedName)
+		addComponentToConfig(conf, component)
+		addExtensionToPipeline(conf, component)
 	}
 
 	// add processors in pipelines with DD Exporter if missing
 	for _, component := range processors {
-		addProcessorToPipelinesWithDDExporter(conf, component.componentType, component.componentEnhancedName, component.componentConfig)
+		addProcessorToPipelinesWithDDExporter(conf, component)
 	}
 }
 
-func inServicePipeline(conf *confmap.Conf, componentType string, componentName string) bool {
-	pipelineComponents := conf.Get("service::" + componentType)
+func inServicePipeline(conf *confmap.Conf, comp component) bool {
+	pipelineComponents := conf.Get("service::" + comp.componentType)
 	if pipelineComponents == nil {
 		return false
 	}
@@ -129,7 +161,7 @@ func inServicePipeline(conf *confmap.Conf, componentType string, componentName s
 		for _, component := range componentSlice {
 			if componentString, ok := component.(string); ok {
 				parts := strings.SplitN(componentString, "/", 2)
-				if parts[0] == componentName {
+				if parts[0] == comp.componentName {
 					return true
 				}
 			}
@@ -138,39 +170,39 @@ func inServicePipeline(conf *confmap.Conf, componentType string, componentName s
 	return false
 }
 
-func addComponentToConfig(conf *confmap.Conf, componentType string, componentEnhancedName string, componentConfig any) {
+func addComponentToConfig(conf *confmap.Conf, comp component) {
 	stringMapConf := conf.ToStringMap()
 
-	if components, ok := stringMapConf[componentType]; ok {
+	if components, ok := stringMapConf[comp.componentType]; ok {
 		if componentMap, ok := components.(map[string]any); ok {
-			componentMap[componentEnhancedName] = componentConfig
+			componentMap[comp.componentEnhancedName] = comp.componentConfig
 		}
 	} else {
-		stringMapConf[componentType] = map[string]any{
-			componentEnhancedName: componentConfig,
+		stringMapConf[comp.componentType] = map[string]any{
+			comp.componentEnhancedName: comp.componentConfig,
 		}
 	}
 	*conf = *confmap.NewFromStringMap(stringMapConf)
 }
 
-func addExtensionToPipeline(conf *confmap.Conf, componentType string, componentEnhancedName string) {
+func addExtensionToPipeline(conf *confmap.Conf, comp component) {
 	stringMapConf := conf.ToStringMap()
 	if service, ok := stringMapConf["service"]; ok {
 		if serviceMap, ok := service.(map[string]any); ok {
-			if components, ok := serviceMap[componentType]; ok {
+			if components, ok := serviceMap[comp.componentType]; ok {
 				if componentsSlice, ok := components.([]any); ok {
-					componentsSlice = append(componentsSlice, componentEnhancedName)
-					serviceMap[componentType] = componentsSlice
+					componentsSlice = append(componentsSlice, comp.componentEnhancedName)
+					serviceMap[comp.componentType] = componentsSlice
 				}
 			} else {
-				serviceMap[componentType] = []any{componentEnhancedName}
+				serviceMap[comp.componentType] = []any{comp.componentEnhancedName}
 			}
 		}
 	}
 	*conf = *confmap.NewFromStringMap(stringMapConf)
 }
 
-func addProcessorToPipelinesWithDDExporter(conf *confmap.Conf, componentType string, componentEnhancedName string, componentConfig any) {
+func addProcessorToPipelinesWithDDExporter(conf *confmap.Conf, comp component) {
 	var infraAttrsConfAddedToConfig bool
 	stringMapConf := conf.ToStringMap()
 	if service, ok := stringMapConf["service"]; ok {
@@ -204,10 +236,10 @@ func addProcessorToPipelinesWithDDExporter(conf *confmap.Conf, componentType str
 													if !infraAttrsInPipeline {
 														// no processors are defined
 														if !infraAttrsConfAddedToConfig {
-															addComponentToConfig(conf, componentType, componentEnhancedName, componentConfig)
+															addComponentToConfig(conf, comp)
 															infraAttrsConfAddedToConfig = true
 														}
-														processorsSlice = append(processorsSlice, componentEnhancedName)
+														processorsSlice = append(processorsSlice, comp.componentEnhancedName)
 														componentsMap["processors"] = processorsSlice
 													}
 												}
