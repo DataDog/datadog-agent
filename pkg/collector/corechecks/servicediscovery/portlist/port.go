@@ -13,10 +13,10 @@ import (
 
 // Port is a listening port on the machine.
 type Port struct {
-	Proto   string // "tcp" or "udp"
-	Port    uint16 // port number
-	Process string // optional process name, if found (requires suitable permissions)
-	Pid     int    // process ID, if known (requires suitable permissions)
+	Proto   string `json:"proto"`   // "tcp" or "udp"
+	Port    uint16 `json:"port"`    // port number
+	Process string `json:"process"` // optional process name, if found (requires suitable permissions)
+	Pid     int    `json:"pid"`     // process ID, if known (requires suitable permissions)
 }
 
 func (a *Port) equal(b *Port) bool {
@@ -41,7 +41,11 @@ type List []Port
 func (pl List) String() string {
 	out := make([]string, len(pl))
 	for i, v := range pl {
-		out[i] = fmt.Sprintf("[%s]%s:%d", v.Process, v.Proto, v.Port)
+		val := fmt.Sprintf("%s:%d", v.Proto, v.Port)
+		if v.Pid != 0 {
+			val += fmt.Sprintf("(pid:%d)", v.Pid)
+		}
+		out[i] = val
 	}
 	return strings.Join(out, ",")
 }

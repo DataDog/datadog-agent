@@ -95,8 +95,14 @@ func (li *linuxImpl) DiscoverServices() (*discoveredServices, error) {
 			svc:  nil,
 		}
 	}
+	log.Debugf("got open ports: %s", ports.String())
+
 	portsByPID := map[int]portlist.List{}
 	for _, p := range ports {
+		if p.Pid == 0 {
+			log.Debugf("could not find port pid, skipping: %s:%d", p.Proto, p.Port)
+			continue
+		}
 		portsByPID[p.Pid] = append(portsByPID[p.Pid], p)
 	}
 
