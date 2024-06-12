@@ -1031,13 +1031,7 @@ struct bpf_args {
 	uint64_t args[0];
 };
 
-SEC("raw_tracepoint/net/net_dev_queue")
-int raw_tracepoint__net__net_dev_queue(struct bpf_args *ctx) {
-    CHECK_BPF_PROGRAM_BYPASSED()
-    struct sk_buff* skb = (struct sk_buff *)ctx->args[0];
-    if (!skb) {
-        return 0;
-    }
+int handle_net_dev_queue(struct sk_buff *skb) {
     struct sock* sk = sk_buff_sk(skb);
     if (!sk) {
         return 0;
@@ -1070,6 +1064,17 @@ int raw_tracepoint__net__net_dev_queue(struct bpf_args *ctx) {
     return 0;
 }
 
+SEC("raw_tracepoint/net/net_dev_queue")
+int raw_tracepoint__net__net_dev_queue(struct bpf_args *ctx) {
+    CHECK_BPF_PROGRAM_BYPASSED()
+    struct sk_buff* skb = (struct sk_buff *)ctx->args[0];
+    if (!skb) {
+        return 0;
+    }
+
+    return handle_net_dev_queue(skb);
+}
+
 SEC("tracepoint/net/net_dev_queue")
 int tracepoint__net__net_dev_queue__pre_4_17_0(struct net_dev_queue_ctx* ctx) {
     CHECK_BPF_PROGRAM_BYPASSED()
@@ -1077,36 +1082,8 @@ int tracepoint__net__net_dev_queue__pre_4_17_0(struct net_dev_queue_ctx* ctx) {
     if (!skb) {
         return 0;
     }
-    struct sock* sk = sk_buff_sk(skb);
-    if (!sk) {
-        return 0;
-    }
 
-    conn_tuple_t skb_tup;
-    bpf_memset(&skb_tup, 0, sizeof(conn_tuple_t));
-    if (sk_buff_to_tuple(skb, &skb_tup) <= 0) {
-        return 0;
-    }
-
-    if (!(skb_tup.metadata&CONN_TYPE_TCP)) {
-        return 0;
-    }
-
-    conn_tuple_t sock_tup;
-    bpf_memset(&sock_tup, 0, sizeof(conn_tuple_t));
-    if (!read_conn_tuple(&sock_tup, sk, 0, CONN_TYPE_TCP)) {
-        return 0;
-    }
-    sock_tup.netns = 0;
-    sock_tup.pid = 0;
-
-    if (!is_equal(&skb_tup, &sock_tup)) {
-        normalize_tuple(&skb_tup);
-        normalize_tuple(&sock_tup);
-        bpf_map_update_with_telemetry(conn_tuple_to_socket_skb_conn_tuple, &sock_tup, &skb_tup, BPF_NOEXIST);
-    }
-
-    return 0;
+    return handle_net_dev_queue(skb);
 }
 
 char _license[] SEC("license") = "GPL";
