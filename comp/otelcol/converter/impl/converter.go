@@ -209,11 +209,9 @@ func addProcessorToPipelinesWithDDExporter(conf *confmap.Conf, componentType str
 														}
 														processorsSlice = append(processorsSlice, componentEnhancedName)
 														componentsMap["processors"] = processorsSlice
-
 													}
 												}
 											}
-
 										}
 									}
 								}
