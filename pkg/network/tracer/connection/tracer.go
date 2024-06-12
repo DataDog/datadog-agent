@@ -283,7 +283,7 @@ func NewTracer(config *config.Config) (Tracer, error) {
 		config.TCPFailedConnectionsEnabled = false
 	}
 	if config.FailedConnectionsSupported() {
-		failedConnConsumer = failure.NewFailedConnConsumer(failedConnsHandler)
+		failedConnConsumer = failure.NewFailedConnConsumer(failedConnsHandler, m)
 	}
 
 	tr := &tracer{
