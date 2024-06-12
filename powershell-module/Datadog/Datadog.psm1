@@ -10,6 +10,7 @@ function Install-DatadogAgent
         [switch] $ApmInstrumentationEnabled,
         [string[]] $APMLibraries,
         [switch] $RestartIIS,
+        [switch] $Preview,
 
         # Parameters that are only valid on first install
         [String]$ApiKey,
@@ -22,29 +23,33 @@ function Install-DatadogAgent
         [String]$ProjectLocation
     )
 
-    validateAdminPriviledges
+    if(!$Preview)
+    {
+        validateAdminPriviledges
+    }
     validate64BitProcess
     enableTSL12
     
+    $installableLibs = @("dotnet")
+    $apmlibs = @{}
+    
     [string] $uniqueID = [System.Guid]::NewGuid()
 
-    installAgent -params $PSBoundParameters -uniqueID $uniqueID
-
-    if ($ApmInstrumentationEnabled -eq $true)
+    if (($ApmInstrumentationEnabled -eq $true) -or ($APMLibraries))
     {
         ## make sure installableLibs is always all lower case; the comparison below is case
         ## sensitive, and we'll use all lower as the standard
-        $installableLibs = @("dotnet")
-        $apmlibs = @{}
-        
         if (!$APMLibraries)
         {
-            $apmlibs["dotnet"] = "latest"
+            foreach ($avail in $installableLibs)
+            {
+                $apmlibs[$avail] = "latest"
+            }
         }
         else
         {
             ## break out the comma separated list of libraries
-            
+
             foreach ($lib in $APMLibraries)
             {
                 $lib = $lib.Trim()
@@ -66,20 +71,26 @@ function Install-DatadogAgent
                 }
             }
         }
+    }
+    installAgent -params $PSBoundParameters -uniqueID $uniqueID -Preview:$Preview
 
-        foreach ($l in $apmlibs.Keys)
+    foreach ($l in $apmlibs.Keys)
+    {
+        Write-Host -ForegroundColor Green "Installing Library $l version $($apmlibs[$l])"
+        if ($l -eq "dotnet")
         {
-            Write-Host -ForegroundColor Green "Installing Library $l version $($apmlibs[$l])"
+            installDotnetTracer -uniqueID $uniqueID -version $apmlibs[$l] -Preview:$Preview
         }
-        installDotnetTracer -uniqueID $uniqueID
-        if ($RestartIIS)
+    }
+    if ($RestartIIS)
+    {
+        Write-Host "Restarting IIS"
+        if(!$Preview)
         {
-            Write-Host "Restarting IIS"
             stop-service -force was
             Restart-Service -Name W3SVC -Force
         }
-    }   
-    
+    }
     <#
     .SYNOPSIS
     Installs the Datadog Agent.
@@ -104,6 +115,12 @@ function Install-DatadogAgent
 
     .PARAMETER APMLibraries
     Comma-separated list of APM libraries to install, with optional versions. Example: APMLibraries="DotNet:2.52.0".  Currently only DotNet is supported.
+
+    .PARAMETER Preview
+    Preview mode. When enabled, the script will not make changes to the system.  It will only output the commands that would be run.
+
+    .PARAMETER RestartIIS
+    Restart IIS after installation.
 
     .PARAMETER ApiKey
     Adds the Datadog API KEY to the configuration file.
@@ -176,8 +193,13 @@ function enableTSL12()
     [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor [System.Net.SecurityProtocolType]::Tls12
 }
 
-function installAgent($params, $uniqueID)
+function installAgent
 {
+    param(
+        [hashtable]$params, 
+        [string] $uniqueID,
+        [switch] $Preview
+    )
     $installerPath = Join-Path -Path ([System.IO.Path]::GetTempPath()) -ChildPath "datadog-agent-$uniqueID.msi"
     $downloadInstaller = $true
     if ($params.ContainsKey('AgentInstallerPath'))
@@ -200,7 +222,16 @@ function installAgent($params, $uniqueID)
         }
 
         Write-Host "Downloading Datadog Windows Agent installer"
-        downloadAsset -url $url -outFile $installerPath
+        if($Preview)
+        {
+            Write-Host "Preview mode enabled. Skipping download of the Datadog Windows Agent installer."
+            Write-Host "Download URL: $url"
+            $downloadInstaller = $false
+        }   
+        else
+        {
+            downloadAsset -url $url -outFile $installerPath
+        }
     }
 
     $logFile = ""
@@ -217,6 +248,14 @@ function installAgent($params, $uniqueID)
     $customInstallArgs = formatAgentInstallerArguments -params $params
 
     Write-Host "Installing Datadog Windows Agent"
+    if($Preview)
+    {
+        Write-Host "Preview mode enabled. Skipping installation of the Datadog Windows Agent."
+        Write-Host "Installer path: $installerPath"
+        Write-Host "Log file path: $logFile"
+        Write-Host "Installer arguments: $($defaultInstallArgs; $customInstallArgs)"
+        return
+    }
     $installResult = Start-Process -Wait msiexec -ArgumentList $($defaultInstallArgs; $customInstallArgs) -PassThru
 
     if ($downloadInstaller)
@@ -246,7 +285,8 @@ function installDotnetTracer
 {
     param(
         [string] $uniqueID,
-        [string] $version
+        [string] $version,
+        [switch] $Preview
     )
     $downloadTag = ""
     $downloadVersion = ""
@@ -271,8 +311,14 @@ function installDotnetTracer
 
     Write-Host "Downloading Datadog .NET Tracing Library installer ($downloadTag) ($downloadVersion)"
 
-    return
-    downloadAsset -url "https://github.com/DataDog/dd-trace-dotnet/releases/download/$downloadTag/datadog-dotnet-apm-$downloadVersion-x64.msi" -outFile "$installerPath"
+    $dlurl = "https://github.com/DataDog/dd-trace-dotnet/releases/download/$downloadTag/datadog-dotnet-apm-$downloadVersion-x64.msi"
+    if($Preview)
+    {
+        Write-Host "Preview mode enabled. Skipping installation of the Datadog .NET Tracing Library installer."
+        Write-Host "Download URL: $dlurl"
+        return
+    }
+    downloadAsset -url  $dlurl -outFile "$installerPath"
 
     Write-Host "Installing Datadog .NET Tracing Library"
     $installResult = Start-Process -Wait msiexec -ArgumentList "/qn /i $installerPath" -PassThru
