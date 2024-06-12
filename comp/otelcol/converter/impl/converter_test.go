@@ -79,11 +79,11 @@ func TestGetConfDump(t *testing.T) {
 		converter.Convert(context.Background(), conf)
 
 		t.Run("provided", func(t *testing.T) {
-			assert.Equal(t, "not supported", converter.GetProvidedConf())
+			assert.NotNil(t, converter.GetProvidedConf())
 		})
 
 		t.Run("enhanced", func(t *testing.T) {
-			assert.Equal(t, "not supported", converter.GetEnhancedConf())
+			assert.Nil(t, converter.GetEnhancedConf())
 		})
 	})
 
@@ -99,11 +99,23 @@ func TestGetConfDump(t *testing.T) {
 		converter.Convert(context.Background(), conf)
 
 		t.Run("provided", func(t *testing.T) {
-			assert.Equal(t, "not supported", converter.GetProvidedConf())
+			assert.NotNil(t, converter.GetProvidedConf())
 		})
 
 		t.Run("enhanced", func(t *testing.T) {
-			assert.Equal(t, "not supported", converter.GetEnhancedConf())
+			assert.Nil(t, converter.GetEnhancedConf())
+		})
+
+		t.Run("provided", func(t *testing.T) {
+			conf, err := converter.GetProvidedConfAsString()
+			assert.NotEqual(t, "", conf)
+			assert.Nil(t, err)
+		})
+
+		t.Run("enhanced", func(t *testing.T) {
+			conf, err := converter.GetEnhancedConfAsString()
+			assert.Equal(t, "", conf)
+			assert.NotNil(t, err)
 		})
 	})
 

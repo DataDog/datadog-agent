@@ -1,5 +1,7 @@
 cloud.google.com/go v0.26.0/go.mod h1:aQUYkXzVsufM+DwF1aE+0xfcU+56JwCaLick0ClmMTw=
 github.com/BurntSushi/toml v0.3.1/go.mod h1:xHWCNGjB5oqiDr8zfno3MHue2Ht5sIBksp03qcyfWMU=
+github.com/DataDog/datadog-agent/comp/otelcol/converter/def v0.0.0-20240612120928-751a8b9c3bce h1:xHoGXdCwQTijb915oED5eOxlwwTjO1Pc1oaXX5WwVWk=
+github.com/DataDog/datadog-agent/comp/otelcol/converter/def v0.0.0-20240612120928-751a8b9c3bce/go.mod h1:7ZrPGuxSLkktrLqFcWAjVLK8B4dhEuNP3cF375Rzf9E=
 github.com/DataDog/datadog-agent/comp/otelcol/extension/def v0.0.0-20240612124811-03a2a2de1865 h1:CGacmQKzog1NTE8h6Bs0N1iMuGSJ4HCEuwdL+gdwp/Q=
 github.com/DataDog/datadog-agent/comp/otelcol/extension/def v0.0.0-20240612124811-03a2a2de1865/go.mod h1:hRAq5ru+nstZVIIPJU2777FrHEq3SGjbK6ubMXBqZQ0=
 github.com/DataDog/datadog-agent/comp/otelcol/provider/def v0.55.0-rc.2 h1:yTpoVwOX0/efJYGn2XqHz+Q7RXiVOmBl2TDseU6JmIM=

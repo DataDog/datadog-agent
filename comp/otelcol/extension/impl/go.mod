@@ -3,6 +3,8 @@ module github.com/DataDog/datadog-agent/comp/otelcol/extension/impl
 go 1.21.7
 
 require (
+	github.com/DataDog/datadog-agent/comp/otelcol/converter/def v0.0.0-20240612120928-751a8b9c3bce
+	github.com/DataDog/datadog-agent/comp/otelcol/extension/def v0.0.0-20240612124811-03a2a2de1865
 	github.com/DataDog/datadog-agent/comp/otelcol/provider/def v0.55.0-rc.2
 	go.opentelemetry.io/collector/component v0.102.1
 	go.opentelemetry.io/collector/config/confighttp v0.101.0
@@ -13,7 +15,6 @@ require (
 )
 
 require (
-	github.com/DataDog/datadog-agent/comp/otelcol/extension/def v0.0.0-20240612124811-03a2a2de1865 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cenkalti/backoff/v4 v4.3.0 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
