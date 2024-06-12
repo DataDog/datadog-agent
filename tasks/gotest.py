@@ -126,7 +126,7 @@ class CodecovWorkaround:
         coverage_script = ""
         if self.coverage:
             if platform.system() == 'Windows':
-                self.ctx.run("powershell.exe -executionpolicy Bypass -Command \"Get-ExecutionPolicy -List\"")
+                self.ctx.run("powershell.exe -Command \"Get-ExecutionPolicy -List\"")
                 coverage_script = f"""$tempFile = (".\\{TMP_PROFILE_COV_PREFIX}." + ([guid]::NewGuid().ToString().Replace("-", "").Substring(0, 10)))
 go test $($args | select -skip 1) -json -coverprofile="$tempFile" {self.packages}
 exit $LASTEXITCODE
