@@ -6,8 +6,10 @@
 package servicediscovery
 
 import (
+	_ "embed"
 	"encoding/json"
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
+	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
 	"os"
 	"strconv"
 	"testing"
@@ -22,20 +24,24 @@ import (
 	awshost "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/host"
 )
 
+//go:embed testdata/config/agent_config.yaml
+var agentConfigStr string
+
 type linuxTestSuite struct {
 	e2e.BaseSuite[environments.Host]
 }
 
 func TestLinuxTestSuite(t *testing.T) {
-	options := []e2e.SuiteOption{
-		e2e.WithProvisioner(awshost.Provisioner()),
+	agentParams := []func(*agentparams.Params) error{
+		agentparams.WithAgentConfig(agentConfigStr),
 	}
-
+	options := []e2e.SuiteOption{
+		e2e.WithProvisioner(awshost.Provisioner(awshost.WithAgentOptions(agentParams...))),
+	}
 	devModeEnv, _ := os.LookupEnv("E2E_DEVMODE")
 	if devMode, err := strconv.ParseBool(devModeEnv); err == nil && devMode {
 		options = append(options, e2e.WithDevMode())
 	}
-
 	e2e.Run(t, &linuxTestSuite{}, options...)
 }
 
@@ -96,7 +102,7 @@ func assertRunningChecks(t *assert.CollectT, remoteHost *components.RemoteHost, 
 }
 
 func (s *linuxTestSuite) provisionServer() {
-	err := s.Env().RemoteHost.CopyFolder("testdata", "/home/ubuntu/e2e-test")
+	err := s.Env().RemoteHost.CopyFolder("testdata/provision", "/home/ubuntu/e2e-test")
 	require.NoError(s.T(), err)
 	s.Env().RemoteHost.MustExecute("sudo bash /home/ubuntu/e2e-test/provision.sh")
 }
