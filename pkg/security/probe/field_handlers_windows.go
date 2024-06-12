@@ -142,18 +142,24 @@ func (fh *FieldHandlers) ResolveProcessCreatedAt(_ *model.Event, e *model.Proces
 
 // ResolveOldSecurityDescriptor resolves the old security descriptor
 func (fh *FieldHandlers) ResolveOldSecurityDescriptor(_ *model.Event, cp *model.ChangePermissionEvent) string {
-	hrsd, err := fh.resolvers.SecurityDescriptorResolver.GetHumanReadableSD(cp.OldSd)
+	// TODO: this function can block, removing the resolution until we find a way to make this non-blocking
+	/*hrsd, err := fh.resolvers.SecurityDescriptorResolver.GetHumanReadableSD(cp.OldSd)
 	if err != nil {
 		return cp.OldSd
 	}
-	return hrsd
+	return hrsd*/
+
+	return cp.OldSd
 }
 
 // ResolveNewSecurityDescriptor resolves the old security descriptor
 func (fh *FieldHandlers) ResolveNewSecurityDescriptor(_ *model.Event, cp *model.ChangePermissionEvent) string {
-	hrsd, err := fh.resolvers.SecurityDescriptorResolver.GetHumanReadableSD(cp.NewSd)
+	// TODO: this function can block, removing the resolution until we find a way to make this non-blocking
+	/*hrsd, err := fh.resolvers.SecurityDescriptorResolver.GetHumanReadableSD(cp.NewSd)
 	if err != nil {
 		return cp.NewSd
 	}
-	return hrsd
+	return hrsd*/
+
+	return cp.NewSd
 }
