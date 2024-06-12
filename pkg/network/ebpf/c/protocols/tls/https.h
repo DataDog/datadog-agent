@@ -19,6 +19,7 @@
 #include "sock.h"
 
 #include "protocols/amqp/helpers.h"
+#include "protocols/redis/helpers.h"
 #include "protocols/classification/dispatcher-helpers.h"
 #include "protocols/classification/dispatcher-maps.h"
 #include "protocols/http/buffer.h"
@@ -54,6 +55,8 @@ static __always_inline void classify_decrypted_payload(protocol_stack_t *stack, 
     // Protocol is not HTTP/HTTP2/gRPC
     if (is_amqp(buffer, len)) {
         proto = PROTOCOL_AMQP;
+    } else if (is_redis(buffer, len)) {
+        proto = PROTOCOL_REDIS;
     } else if (is_mysql(t, buffer, len)) {
         proto = PROTOCOL_MYSQL;
     }
