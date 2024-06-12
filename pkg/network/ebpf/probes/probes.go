@@ -36,7 +36,8 @@ const (
 
 	// NetDevQueue runs a tracepoint that allows us to correlate __sk_buf (in a socket filter) with the `struct sock*`
 	// belongs (but hidden) for it.
-	NetDevQueue ProbeFuncName = "tracepoint__net__net_dev_queue"
+	NetDevQueuePre4_17_0 ProbeFuncName = "tracepoint__net__net_dev_queue__pre_4_17_0"
+	NetDevQueue          ProbeFuncName = "raw_tracepoint__net__net_dev_queue"
 
 	// TCPSendMsg traces the tcp_sendmsg() system call
 	TCPSendMsg ProbeFuncName = "kprobe__tcp_sendmsg"

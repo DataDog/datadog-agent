@@ -37,6 +37,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/offsetguess"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/buildmode"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -56,6 +57,8 @@ var (
 		goTLSSpec,
 	}
 )
+
+var rawTPKernelVersion = kernel.VersionCode(4, 17, 0)
 
 const (
 	// ELF section of the BPF_PROG_TYPE_SOCKET_FILTER program used
@@ -94,6 +97,28 @@ type ebpfProgram struct {
 }
 
 func newEBPFProgram(c *config.Config, connectionProtocolMap *ebpf.Map) (*ebpfProgram, error) {
+	kv, err := kernel.HostVersion()
+	if err != nil {
+		return nil, err
+	}
+
+	netifProbe := manager.Probe{
+		ProbeIdentificationPair: manager.ProbeIdentificationPair{
+			EBPFFuncName: "raw_tracepoint__net__netif_receive_skb",
+			UID:          probeUID,
+		},
+		TracepointCategory: "net",
+		TracepointName:     "netif_receive_skb",
+	}
+	if kv < rawTPKernelVersion {
+		netifProbe = manager.Probe{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: "tracepoint__net__netif_receive_skb__pre_4_17_0",
+				UID:          probeUID,
+			},
+		}
+	}
+
 	mgr := &manager.Manager{
 		Maps: []*manager.Map{
 			{Name: protocols.TLSDispatcherProgramsMap},
@@ -118,12 +143,7 @@ func newEBPFProgram(c *config.Config, connectionProtocolMap *ebpf.Map) (*ebpfPro
 					UID:          probeUID,
 				},
 			},
-			{
-				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFFuncName: "tracepoint__net__netif_receive_skb",
-					UID:          probeUID,
-				},
-			},
+			&netifProbe,
 			{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
 					EBPFFuncName: protocolDispatcherSocketFilterFunction,
