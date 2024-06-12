@@ -9,11 +9,13 @@ import string
 import sys
 import tarfile
 import tempfile
+from itertools import chain
 from pathlib import Path
 from subprocess import check_output
 
 import requests
 from invoke import task
+from invoke.context import Context
 from invoke.exceptions import Exit
 
 from tasks.agent import BUNDLED_AGENTS
@@ -1250,6 +1252,36 @@ def verify_system_clang_version(ctx):
         )
 
 
+@task
+def validate_object_file_metadata(ctx: Context, build_dir: str | Path = "pkg/ebpf/bytecode/build"):
+    build_dir = Path(build_dir)
+    missing_metadata_files = 0
+    print(f"Validating metadata of eBPF object files in {build_dir}...")
+
+    for file in chain(build_dir.glob("*.o"), build_dir.glob("co-re/*.o")):
+        res = ctx.run(f"readelf -p dd_metadata {file}", warn=True, hide=True)
+        if res is None or not res.ok:
+            print(color_message(f"- {file}: missing metadata", "red"))
+            missing_metadata_files += 1
+            continue
+
+        groups = re.findall(r"<(?P<key>[^:]+):(?P<value>[^>]+)>", res.stdout)
+        if groups is None or len(groups) == 0:
+            print(color_message(f"- {file}: invalid metadata", "red"))
+            missing_metadata_files += 1
+            continue
+
+        metadata = ", ".join(f"{k}={v}" for k, v in groups)
+        print(color_message(f"- {file}: {metadata}", "green"))
+
+    if missing_metadata_files > 0:
+        raise Exit(
+            f"{missing_metadata_files} object files are missing metadata. Remember to include the bpf_metadata.h header in all eBPF programs"
+        )
+    else:
+        print("All object files have valid metadata")
+
+
 def build_object_files(
     ctx,
     major_version='7',
@@ -1287,6 +1319,8 @@ def build_object_files(
         strip_object_files=strip_object_files,
         with_unit_test=with_unit_test,
     )
+
+    validate_object_file_metadata(ctx, build_dir)
 
     if not is_windows:
         sudo = "" if is_root() else "sudo"

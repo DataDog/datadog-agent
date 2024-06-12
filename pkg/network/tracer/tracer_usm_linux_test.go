@@ -49,6 +49,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/mysql"
 	pgutils "github.com/DataDog/datadog-agent/pkg/network/protocols/postgres"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/redis"
+	protocolsUtils "github.com/DataDog/datadog-agent/pkg/network/protocols/testutil"
 	gotlstestutil "github.com/DataDog/datadog-agent/pkg/network/protocols/tls/gotls/testutil"
 	prototls "github.com/DataDog/datadog-agent/pkg/network/protocols/tls/openssl"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection"
@@ -446,9 +447,11 @@ func testTLSClassification(t *testing.T, tr *Tracer, clientHost, targetHost, ser
 			name string
 			fn   func(t *testing.T, tr *Tracer, clientHost, targetHost, serverHost string)
 		}{
-			{"amqp", testTLSAMQPProtocolClassification},
 			{"HTTP", testHTTPSClassification},
-			{"postgres", testPostgresProtocolClassificationWrapper(pgutils.TLSEnabled)},
+			{"amqp", testTLSAMQPProtocolClassification},
+			{"mysql", testMySQLProtocolClassificationTLS},
+			{"postgres", testPostgresProtocolClassificationWrapper(protocolsUtils.TLSEnabled)},
+			{"redis", testTLSRedisProtocolClassification},
 		}
 
 		for _, tt := range tests {
@@ -841,12 +844,41 @@ func testKafkaProtocolClassification(t *testing.T, tr *Tracer, clientHost, targe
 }
 
 func testMySQLProtocolClassification(t *testing.T, tr *Tracer, clientHost, targetHost, serverHost string) {
-	skipFunc := composeSkips(skipIfUsingNAT)
-	skipFunc(t, testContext{
+	testMySQLProtocolClassificationInner(t, tr, clientHost, targetHost, serverHost, protocolsUtils.TLSDisabled)
+}
+
+func testMySQLProtocolClassificationTLS(t *testing.T, tr *Tracer, clientHost, targetHost, serverHost string) {
+	testMySQLProtocolClassificationInner(t, tr, clientHost, targetHost, serverHost, protocolsUtils.TLSEnabled)
+}
+
+func testMySQLProtocolClassificationInner(t *testing.T, tr *Tracer, clientHost, targetHost, serverHost string, withTLS bool) {
+	skipFuncs := []func(*testing.T, testContext){
+		skipIfUsingNAT,
+	}
+	if withTLS {
+		skipFuncs = append(skipFuncs, skipIfGoTLSNotSupported)
+	}
+	composeSkips(skipFuncs...)(t, testContext{
 		serverAddress: serverHost,
 		serverPort:    mysqlPort,
 		targetAddress: targetHost,
 	})
+
+	expectedStack := &protocols.Stack{Application: protocols.MySQL}
+	if withTLS {
+		expectedStack.Encryption = protocols.TLS
+
+		// Our client runs in this binary. By default, USM will exclude the current process from tracing. But,
+		// we need to include it in this case. So we allowing it by setting GoTLSExcludeSelf to false and resetting it
+		// after the test.
+		pid := os.Getpid()
+		require.NoError(t, usm.SetGoTLSExcludeSelf(false))
+		goTLSAttachPID(t, pid)
+		t.Cleanup(func() {
+			goTLSDetachPID(t, pid)
+			require.NoError(t, usm.SetGoTLSExcludeSelf(true))
+		})
+	}
 
 	defaultDialer := &net.Dialer{
 		LocalAddr: &net.TCPAddr{
@@ -863,7 +895,7 @@ func testMySQLProtocolClassification(t *testing.T, tr *Tracer, clientHost, targe
 
 	serverAddress := net.JoinHostPort(serverHost, mysqlPort)
 	targetAddress := net.JoinHostPort(targetHost, mysqlPort)
-	require.NoError(t, mysql.RunServer(t, serverHost, mysqlPort))
+	require.NoError(t, mysql.RunServer(t, serverHost, mysqlPort, withTLS))
 
 	tests := []protocolClassificationAttributes{
 		{
@@ -878,10 +910,14 @@ func testMySQLProtocolClassification(t *testing.T, tr *Tracer, clientHost, targe
 				c, err := mysql.NewClient(mysql.Options{
 					ServerAddress: ctx.targetAddress,
 					Dialer:        defaultDialer,
+					WithTLS:       withTLS,
 				})
 				require.NoError(t, err)
 				ctx.extras["conn"] = c
 			},
+			// We classify on MySQL's Server Greeting messages,
+			// which are sent in plaintext, before a TLS handshake
+			// could occur.
 			validation: validateProtocolConnection(&protocols.Stack{Application: protocols.MySQL}),
 			teardown:   mysqlTeardown,
 		},
@@ -897,6 +933,7 @@ func testMySQLProtocolClassification(t *testing.T, tr *Tracer, clientHost, targe
 				c, err := mysql.NewClient(mysql.Options{
 					ServerAddress: ctx.targetAddress,
 					Dialer:        defaultDialer,
+					WithTLS:       withTLS,
 				})
 				require.NoError(t, err)
 				ctx.extras["conn"] = c
@@ -905,7 +942,7 @@ func testMySQLProtocolClassification(t *testing.T, tr *Tracer, clientHost, targe
 				c := ctx.extras["conn"].(*mysql.Client)
 				require.NoError(t, c.CreateDB())
 			},
-			validation: validateProtocolConnection(&protocols.Stack{Application: protocols.MySQL}),
+			validation: validateProtocolConnection(expectedStack),
 			teardown:   mysqlTeardown,
 		},
 		{
@@ -920,6 +957,7 @@ func testMySQLProtocolClassification(t *testing.T, tr *Tracer, clientHost, targe
 				c, err := mysql.NewClient(mysql.Options{
 					ServerAddress: ctx.targetAddress,
 					Dialer:        defaultDialer,
+					WithTLS:       withTLS,
 				})
 				require.NoError(t, err)
 				ctx.extras["conn"] = c
@@ -929,7 +967,7 @@ func testMySQLProtocolClassification(t *testing.T, tr *Tracer, clientHost, targe
 				c := ctx.extras["conn"].(*mysql.Client)
 				require.NoError(t, c.CreateTable())
 			},
-			validation: validateProtocolConnection(&protocols.Stack{Application: protocols.MySQL}),
+			validation: validateProtocolConnection(expectedStack),
 			teardown:   mysqlTeardown,
 		},
 		{
@@ -944,6 +982,7 @@ func testMySQLProtocolClassification(t *testing.T, tr *Tracer, clientHost, targe
 				c, err := mysql.NewClient(mysql.Options{
 					ServerAddress: ctx.targetAddress,
 					Dialer:        defaultDialer,
+					WithTLS:       withTLS,
 				})
 				require.NoError(t, err)
 				ctx.extras["conn"] = c
@@ -954,7 +993,7 @@ func testMySQLProtocolClassification(t *testing.T, tr *Tracer, clientHost, targe
 				c := ctx.extras["conn"].(*mysql.Client)
 				require.NoError(t, c.InsertIntoTable("Bratislava", 432000))
 			},
-			validation: validateProtocolConnection(&protocols.Stack{Application: protocols.MySQL}),
+			validation: validateProtocolConnection(expectedStack),
 			teardown:   mysqlTeardown,
 		},
 		{
@@ -969,6 +1008,7 @@ func testMySQLProtocolClassification(t *testing.T, tr *Tracer, clientHost, targe
 				c, err := mysql.NewClient(mysql.Options{
 					ServerAddress: ctx.targetAddress,
 					Dialer:        defaultDialer,
+					WithTLS:       withTLS,
 				})
 				require.NoError(t, err)
 				ctx.extras["conn"] = c
@@ -980,7 +1020,7 @@ func testMySQLProtocolClassification(t *testing.T, tr *Tracer, clientHost, targe
 				c := ctx.extras["conn"].(*mysql.Client)
 				require.NoError(t, c.DeleteFromTable("Bratislava"))
 			},
-			validation: validateProtocolConnection(&protocols.Stack{Application: protocols.MySQL}),
+			validation: validateProtocolConnection(expectedStack),
 			teardown:   mysqlTeardown,
 		},
 		{
@@ -995,6 +1035,7 @@ func testMySQLProtocolClassification(t *testing.T, tr *Tracer, clientHost, targe
 				c, err := mysql.NewClient(mysql.Options{
 					ServerAddress: ctx.targetAddress,
 					Dialer:        defaultDialer,
+					WithTLS:       withTLS,
 				})
 				require.NoError(t, err)
 				ctx.extras["conn"] = c
@@ -1008,7 +1049,7 @@ func testMySQLProtocolClassification(t *testing.T, tr *Tracer, clientHost, targe
 				require.NoError(t, err)
 				require.Equal(t, 432000, population)
 			},
-			validation: validateProtocolConnection(&protocols.Stack{Application: protocols.MySQL}),
+			validation: validateProtocolConnection(expectedStack),
 			teardown:   mysqlTeardown,
 		},
 		{
@@ -1023,6 +1064,7 @@ func testMySQLProtocolClassification(t *testing.T, tr *Tracer, clientHost, targe
 				c, err := mysql.NewClient(mysql.Options{
 					ServerAddress: ctx.targetAddress,
 					Dialer:        defaultDialer,
+					WithTLS:       withTLS,
 				})
 				require.NoError(t, err)
 				ctx.extras["conn"] = c
@@ -1034,7 +1076,7 @@ func testMySQLProtocolClassification(t *testing.T, tr *Tracer, clientHost, targe
 				c := ctx.extras["conn"].(*mysql.Client)
 				require.NoError(t, c.UpdateTable("Bratislava", "Bratislava2", 10))
 			},
-			validation: validateProtocolConnection(&protocols.Stack{Application: protocols.MySQL}),
+			validation: validateProtocolConnection(expectedStack),
 			teardown:   mysqlTeardown,
 		},
 		{
@@ -1049,6 +1091,7 @@ func testMySQLProtocolClassification(t *testing.T, tr *Tracer, clientHost, targe
 				c, err := mysql.NewClient(mysql.Options{
 					ServerAddress: ctx.targetAddress,
 					Dialer:        defaultDialer,
+					WithTLS:       withTLS,
 				})
 				require.NoError(t, err)
 				ctx.extras["conn"] = c
@@ -1059,7 +1102,7 @@ func testMySQLProtocolClassification(t *testing.T, tr *Tracer, clientHost, targe
 				c := ctx.extras["conn"].(*mysql.Client)
 				require.NoError(t, c.DropTable())
 			},
-			validation: validateProtocolConnection(&protocols.Stack{Application: protocols.MySQL}),
+			validation: validateProtocolConnection(expectedStack),
 			teardown:   mysqlTeardown,
 		},
 		{
@@ -1074,6 +1117,7 @@ func testMySQLProtocolClassification(t *testing.T, tr *Tracer, clientHost, targe
 				c, err := mysql.NewClient(mysql.Options{
 					ServerAddress: ctx.targetAddress,
 					Dialer:        defaultDialer,
+					WithTLS:       withTLS,
 				})
 				require.NoError(t, err)
 				ctx.extras["conn"] = c
@@ -1084,7 +1128,7 @@ func testMySQLProtocolClassification(t *testing.T, tr *Tracer, clientHost, targe
 				c := ctx.extras["conn"].(*mysql.Client)
 				require.NoError(t, c.AlterTable())
 			},
-			validation: validateProtocolConnection(&protocols.Stack{Application: protocols.MySQL}),
+			validation: validateProtocolConnection(expectedStack),
 			teardown:   mysqlTeardown,
 		},
 		{
@@ -1101,6 +1145,7 @@ func testMySQLProtocolClassification(t *testing.T, tr *Tracer, clientHost, targe
 				c, err := mysql.NewClient(mysql.Options{
 					ServerAddress: ctx.targetAddress,
 					Dialer:        defaultDialer,
+					WithTLS:       withTLS,
 				})
 				require.NoError(t, err)
 				ctx.extras["conn"] = c
@@ -1111,7 +1156,7 @@ func testMySQLProtocolClassification(t *testing.T, tr *Tracer, clientHost, targe
 				c := ctx.extras["conn"].(*mysql.Client)
 				require.NoError(t, c.InsertIntoTable(strings.Repeat("#", 16384), 10))
 			},
-			validation: validateProtocolConnection(&protocols.Stack{Application: protocols.MySQL}),
+			validation: validateProtocolConnection(expectedStack),
 			teardown:   mysqlTeardown,
 		},
 		{
@@ -1128,6 +1173,7 @@ func testMySQLProtocolClassification(t *testing.T, tr *Tracer, clientHost, targe
 				c, err := mysql.NewClient(mysql.Options{
 					ServerAddress: ctx.targetAddress,
 					Dialer:        defaultDialer,
+					WithTLS:       withTLS,
 				})
 				require.NoError(t, err)
 				ctx.extras["conn"] = c
@@ -1142,7 +1188,7 @@ func testMySQLProtocolClassification(t *testing.T, tr *Tracer, clientHost, targe
 				c := ctx.extras["conn"].(*mysql.Client)
 				require.NoError(t, c.SelectAllFromTable())
 			},
-			validation: validateProtocolConnection(&protocols.Stack{Application: protocols.MySQL}),
+			validation: validateProtocolConnection(expectedStack),
 			teardown:   mysqlTeardown,
 		},
 	}
@@ -1552,12 +1598,42 @@ func testMongoProtocolClassification(t *testing.T, tr *Tracer, clientHost, targe
 }
 
 func testRedisProtocolClassification(t *testing.T, tr *Tracer, clientHost, targetHost, serverHost string) {
-	skipFunc := composeSkips(skipIfUsingNAT)
-	skipFunc(t, testContext{
+	testRedisProtocolClassificationInner(t, tr, clientHost, targetHost, serverHost, protocolsUtils.TLSDisabled)
+}
+
+func testTLSRedisProtocolClassification(t *testing.T, tr *Tracer, clientHost, targetHost, serverHost string) {
+	testRedisProtocolClassificationInner(t, tr, clientHost, targetHost, serverHost, protocolsUtils.TLSEnabled)
+}
+
+func testRedisProtocolClassificationInner(t *testing.T, tr *Tracer, clientHost, targetHost, serverHost string, withTLS bool) {
+	skipFuncs := []func(*testing.T, testContext){
+		skipIfUsingNAT,
+	}
+	if withTLS {
+		skipFuncs = append(skipFuncs, skipIfGoTLSNotSupported)
+	}
+
+	composeSkips(skipFuncs...)(t, testContext{
 		serverAddress: serverHost,
 		serverPort:    redisPort,
 		targetAddress: targetHost,
 	})
+
+	expectedStack := &protocols.Stack{Application: protocols.Redis}
+	if withTLS {
+		expectedStack.Encryption = protocols.TLS
+
+		// Our client runs in this binary. By default, USM will exclude the current process from tracing. But,
+		// we need to include it in this case. So we allowing it by setting GoTLSExcludeSelf to false and resetting it
+		// after the test.
+		pid := os.Getpid()
+		require.NoError(t, usm.SetGoTLSExcludeSelf(false))
+		goTLSAttachPID(t, pid)
+		t.Cleanup(func() {
+			goTLSDetachPID(t, pid)
+			require.NoError(t, usm.SetGoTLSExcludeSelf(true))
+		})
+	}
 
 	defaultDialer := &net.Dialer{
 		LocalAddr: &net.TCPAddr{
@@ -1566,7 +1642,7 @@ func testRedisProtocolClassification(t *testing.T, tr *Tracer, clientHost, targe
 	}
 
 	redisTeardown := func(t *testing.T, ctx testContext) {
-		redis.NewClient(ctx.serverAddress, defaultDialer)
+		redis.NewClient(ctx.serverAddress, defaultDialer, withTLS)
 		if client, ok := ctx.extras["client"].(*redis2.Client); ok {
 			timedContext, cancel := context.WithTimeout(context.Background(), defaultTimeout)
 			defer cancel()
@@ -1577,7 +1653,7 @@ func testRedisProtocolClassification(t *testing.T, tr *Tracer, clientHost, targe
 	// Setting one instance of redis server for all tests.
 	serverAddress := net.JoinHostPort(serverHost, redisPort)
 	targetAddress := net.JoinHostPort(targetHost, redisPort)
-	require.NoError(t, redis.RunServer(t, serverHost, redisPort))
+	require.NoError(t, redis.RunServer(t, serverHost, redisPort, withTLS))
 
 	tests := []protocolClassificationAttributes{
 		{
@@ -1589,7 +1665,7 @@ func testRedisProtocolClassification(t *testing.T, tr *Tracer, clientHost, targe
 				extras:        make(map[string]interface{}),
 			},
 			preTracerSetup: func(t *testing.T, ctx testContext) {
-				client := redis.NewClient(ctx.targetAddress, defaultDialer)
+				client := redis.NewClient(ctx.targetAddress, defaultDialer, withTLS)
 				timedContext, cancel := context.WithTimeout(context.Background(), defaultTimeout)
 				defer cancel()
 				client.Ping(timedContext)
@@ -1602,7 +1678,7 @@ func testRedisProtocolClassification(t *testing.T, tr *Tracer, clientHost, targe
 				client.Set(timedContext, "key", "value", time.Minute)
 			},
 			teardown:   redisTeardown,
-			validation: validateProtocolConnection(&protocols.Stack{Application: protocols.Redis}),
+			validation: validateProtocolConnection(expectedStack),
 		},
 		{
 			name: "get",
@@ -1613,7 +1689,7 @@ func testRedisProtocolClassification(t *testing.T, tr *Tracer, clientHost, targe
 				extras:        make(map[string]interface{}),
 			},
 			preTracerSetup: func(t *testing.T, ctx testContext) {
-				client := redis.NewClient(ctx.targetAddress, defaultDialer)
+				client := redis.NewClient(ctx.targetAddress, defaultDialer, withTLS)
 				timedContext, cancel := context.WithTimeout(context.Background(), defaultTimeout)
 				defer cancel()
 				client.Set(timedContext, "key", "value", time.Minute)
@@ -1629,7 +1705,7 @@ func testRedisProtocolClassification(t *testing.T, tr *Tracer, clientHost, targe
 				require.Equal(t, "value", val)
 			},
 			teardown:   redisTeardown,
-			validation: validateProtocolConnection(&protocols.Stack{Application: protocols.Redis}),
+			validation: validateProtocolConnection(expectedStack),
 		},
 		{
 			name: "get unknown key",
@@ -1640,7 +1716,7 @@ func testRedisProtocolClassification(t *testing.T, tr *Tracer, clientHost, targe
 				extras:        make(map[string]interface{}),
 			},
 			preTracerSetup: func(t *testing.T, ctx testContext) {
-				client := redis.NewClient(ctx.targetAddress, defaultDialer)
+				client := redis.NewClient(ctx.targetAddress, defaultDialer, withTLS)
 				timedContext, cancel := context.WithTimeout(context.Background(), defaultTimeout)
 				defer cancel()
 				client.Ping(timedContext)
@@ -1654,7 +1730,7 @@ func testRedisProtocolClassification(t *testing.T, tr *Tracer, clientHost, targe
 				require.Error(t, res.Err())
 			},
 			teardown:   redisTeardown,
-			validation: validateProtocolConnection(&protocols.Stack{Application: protocols.Redis}),
+			validation: validateProtocolConnection(expectedStack),
 		},
 		{
 			name: "err response",
@@ -1672,7 +1748,7 @@ func testRedisProtocolClassification(t *testing.T, tr *Tracer, clientHost, targe
 				_, err = conn.Write([]byte("+dummy\r\n"))
 				require.NoError(t, err)
 			},
-			validation: validateProtocolConnection(&protocols.Stack{Application: protocols.Redis}),
+			validation: validateProtocolConnection(expectedStack),
 		},
 		{
 			name: "client id",
@@ -1683,7 +1759,7 @@ func testRedisProtocolClassification(t *testing.T, tr *Tracer, clientHost, targe
 				extras:        make(map[string]interface{}),
 			},
 			preTracerSetup: func(t *testing.T, ctx testContext) {
-				client := redis.NewClient(ctx.targetAddress, defaultDialer)
+				client := redis.NewClient(ctx.targetAddress, defaultDialer, withTLS)
 				timedContext, cancel := context.WithTimeout(context.Background(), defaultTimeout)
 				defer cancel()
 				client.Ping(timedContext)
@@ -1697,7 +1773,7 @@ func testRedisProtocolClassification(t *testing.T, tr *Tracer, clientHost, targe
 				require.NoError(t, res.Err())
 			},
 			teardown:   redisTeardown,
-			validation: validateProtocolConnection(&protocols.Stack{Application: protocols.Redis}),
+			validation: validateProtocolConnection(expectedStack),
 		},
 	}
 	for _, tt := range tests {
@@ -1709,11 +1785,11 @@ func testRedisProtocolClassification(t *testing.T, tr *Tracer, clientHost, targe
 
 func testTLSAMQPProtocolClassification(t *testing.T, tr *Tracer, clientHost, targetHost, serverHost string) {
 	t.Skip("TLS+AMQP classification tests are flaky")
-	testAMQPProtocolClassificationInner(t, tr, clientHost, targetHost, serverHost, amqp.TLS)
+	testAMQPProtocolClassificationInner(t, tr, clientHost, targetHost, serverHost, protocolsUtils.TLSEnabled)
 }
 
 func testAMQPProtocolClassification(t *testing.T, tr *Tracer, clientHost, targetHost, serverHost string) {
-	testAMQPProtocolClassificationInner(t, tr, clientHost, targetHost, serverHost, amqp.Plaintext)
+	testAMQPProtocolClassificationInner(t, tr, clientHost, targetHost, serverHost, protocolsUtils.TLSDisabled)
 }
 
 type amqpTestSpec struct {
@@ -1724,7 +1800,7 @@ type amqpTestSpec struct {
 }
 
 var amqpTestSpecsMap = map[bool]amqpTestSpec{
-	amqp.Plaintext: {
+	protocolsUtils.TLSDisabled: {
 		port:               amqpPort,
 		classifiedStack:    &protocols.Stack{Application: protocols.AMQP},
 		nonClassifiedStack: &protocols.Stack{},
@@ -1732,7 +1808,7 @@ var amqpTestSpecsMap = map[bool]amqpTestSpec{
 			skipIfUsingNAT,
 		},
 	},
-	amqp.TLS: {
+	protocolsUtils.TLSEnabled: {
 		port:               amqpsPort,
 		classifiedStack:    &protocols.Stack{Encryption: protocols.TLS, Application: protocols.AMQP},
 		nonClassifiedStack: &protocols.Stack{Encryption: protocols.TLS},
@@ -2176,7 +2252,7 @@ func testProtocolClassificationLinux(t *testing.T, tr *Tracer, clientHost, targe
 		},
 		{
 			name:     "postgres",
-			testFunc: testPostgresProtocolClassificationWrapper(pgutils.TLSDisabled),
+			testFunc: testPostgresProtocolClassificationWrapper(protocolsUtils.TLSDisabled),
 		},
 		{
 			name:     "mongo",
