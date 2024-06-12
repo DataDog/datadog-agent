@@ -25,6 +25,7 @@
 #include "protocols/http/types.h"
 #include "protocols/http/maps.h"
 #include "protocols/http/http.h"
+#include "protocols/mysql/helpers.h"
 #include "protocols/tls/go-tls-maps.h"
 #include "protocols/tls/go-tls-types.h"
 #include "protocols/tls/native-tls-maps.h"
@@ -53,6 +54,8 @@ static __always_inline void classify_decrypted_payload(protocol_stack_t *stack, 
     // Protocol is not HTTP/HTTP2/gRPC
     if (is_amqp(buffer, len)) {
         proto = PROTOCOL_AMQP;
+    } else if (is_mysql(t, buffer, len)) {
+        proto = PROTOCOL_MYSQL;
     }
 
 update_stack:
