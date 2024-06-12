@@ -8,6 +8,7 @@ package converterimpl
 
 import (
 	"context"
+	"fmt"
 
 	converter "github.com/DataDog/datadog-agent/comp/otelcol/converter/def"
 	"go.opentelemetry.io/collector/confmap"
@@ -21,22 +22,19 @@ type ddConverter struct {
 var _ confmap.Converter = (*ddConverter)(nil)
 
 type confDump struct {
-	provided string
-	enhanced string
+	provided *confmap.Conf
+	enhanced *confmap.Conf
 }
 
 // NewConverter currently only supports a single URI in the uris slice, and this URI needs to be a file path.
 func NewConverter() (converter.Component, error) {
 	return &ddConverter{
-		confDump: confDump{
-			provided: "not supported",
-			enhanced: "not supported",
-		},
+		confDump: confDump{},
 	}, nil
 }
 
-func (c *ddConverter) Convert(_ context.Context, _ *confmap.Conf) error {
-	// c.addProvidedConf(conf)
+func (c *ddConverter) Convert(_ context.Context, conf *confmap.Conf) error {
+	c.addProvidedConf(conf)
 
 	// TODO: enhance config (e.g. add dd connector)
 
@@ -44,39 +42,41 @@ func (c *ddConverter) Convert(_ context.Context, _ *confmap.Conf) error {
 	return nil
 }
 
-// nolint: deadcode, unused
-func (c *ddConverter) addProvidedConf(conf *confmap.Conf) error {
-	bytesConf, err := confToString(conf)
-	if err != nil {
-		return err
-	}
-
-	c.confDump.provided = bytesConf
-	return nil
+func (c *ddConverter) addProvidedConf(conf *confmap.Conf) {
+	c.confDump.provided = conf
 }
 
 // nolint: deadcode, unused
-func (c *ddConverter) addEnhancedConf(conf *confmap.Conf) error {
-	bytesConf, err := confToString(conf)
-	if err != nil {
-		return err
-	}
-
-	c.confDump.enhanced = bytesConf
-	return nil
+func (c *ddConverter) addEnhancedConf(conf *confmap.Conf) {
+	c.confDump.enhanced = conf
 }
 
-// GetProvidedConf returns a string representing the collector configuration passed
+// GetProvidedConf returns a confMap.Conf representing the collector configuration passed
 // by the user.
-// Note: this is currently not supported.
-func (c *ddConverter) GetProvidedConf() string {
+func (c *ddConverter) GetProvidedConf() *confmap.Conf {
 	return c.confDump.provided
+}
+
+// GetEnhancedConf returns a confMap.Conf representing the enhanced collector configuration.
+// Note: this is currently not supported.
+func (c *ddConverter) GetEnhancedConf() *confmap.Conf {
+	return c.confDump.enhanced
+}
+
+// GetProvidedConfAsString returns a string representing the collector configuration passed
+// by the user.
+func (c *ddConverter) GetProvidedConfAsString() (string, error) {
+	confstr, err := confToString(c.confDump.provided)
+
+	return confstr, err
 }
 
 // GetEnhancedConf returns a string representing the enhanced collector configuration.
 // Note: this is currently not supported.
-func (c *ddConverter) GetEnhancedConf() string {
-	return c.confDump.enhanced
+func (c *ddConverter) GetEnhancedConfAsString() (string, error) {
+	confstr, _ := confToString(c.confDump.enhanced)
+
+	return confstr, fmt.Errorf("unsupported")
 }
 
 // confToString takes in an *confmap.Conf and returns a string with the yaml
@@ -86,6 +86,9 @@ func (c *ddConverter) GetEnhancedConf() string {
 // https://github.com/open-telemetry/opentelemetry-collector/pull/10139 is merged.
 // nolint: deadcode, unused
 func confToString(conf *confmap.Conf) (string, error) {
+	if conf == nil {
+		return "", fmt.Errorf("confmap provided was nil")
+	}
 	bytesConf, err := yaml.Marshal(conf.ToStringMap())
 	if err != nil {
 		return "", err

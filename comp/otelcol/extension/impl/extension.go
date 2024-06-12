@@ -11,8 +11,8 @@ import (
 	"go.opentelemetry.io/collector/extension"
 	"go.uber.org/zap"
 
+	converter "github.com/DataDog/datadog-agent/comp/otelcol/converter/def"
 	"github.com/DataDog/datadog-agent/comp/otelcol/extension/impl/internal/metadata"
-	provider "github.com/DataDog/datadog-agent/comp/otelcol/provider/def"
 )
 
 var Type = metadata.Type
@@ -54,7 +54,7 @@ func (ext *ddExtension) Start(ctx context.Context, host component.Host) error {
 	ext.telemetry.Logger.Info("Starting DD Extension HTTP server", zap.String("url", ext.cfg.HTTPConfig.Endpoint))
 
 	// List configured Extensions
-	provider := ext.cfg.Provider.(provider.Component)
+	provider := ext.cfg.Converter.(converter.Component)
 	c := provider.GetProvidedConf()
 	extensionConfs, err := c.Sub("extensions")
 	if err != nil {
@@ -74,11 +74,15 @@ func (ext *ddExtension) Start(ctx context.Context, host component.Host) error {
 			continue
 		}
 
-		uri, crawl := extractor(exconf)
-		ext.telemetry.Logger.Info("Found debug extension at", zap.String("uri", uri))
-		ext.debug.Sources[extension.String()] = OTelFlareSource{
-			Url:   uri,
-			Crawl: crawl,
+		uri, crawl, err := extractor(exconf)
+		if err != nil {
+			ext.telemetry.Logger.Info("Unavailable debug extension for", zap.String("extension", extension.String()))
+		} else {
+			ext.telemetry.Logger.Info("Found debug extension at", zap.String("uri", uri))
+			ext.debug.Sources[extension.String()] = OTelFlareSource{
+				Url:   uri,
+				Crawl: crawl,
+			}
 		}
 	}
 
@@ -103,7 +107,7 @@ func (ext *ddExtension) Shutdown(ctx context.Context) error {
 
 // Start is called when the extension is started.
 func (ext *ddExtension) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	provider, ok := ext.cfg.Provider.(provider.Component)
+	provider, ok := ext.cfg.Converter.(converter.Component)
 	if !ok {
 		w.WriteHeader(http.StatusInternalServerError)
 		fmt.Fprintf(w, "Unable to get config provider\n")

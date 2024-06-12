@@ -7,8 +7,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/otelcol/extension/impl/internal/metadata"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/config/confighttp"
+	"go.opentelemetry.io/collector/confmap"
 	"go.opentelemetry.io/collector/extension"
-	"go.opentelemetry.io/collector/otelcol"
 )
 
 const (
@@ -18,20 +18,20 @@ const (
 type ddExtensionFactory struct {
 	extension.Factory
 
-	provider otelcol.ConfigProvider
+	converter confmap.Converter
 }
 
 // NewFactory creates a factory for HealthCheck extension.
-func NewFactory(provider otelcol.ConfigProvider) extension.Factory {
+func NewFactory(converter confmap.Converter) extension.Factory {
 	return &ddExtensionFactory{
-		provider: provider,
+		converter: converter,
 	}
 }
 
 func (f *ddExtensionFactory) CreateExtension(ctx context.Context, set extension.CreateSettings, cfg component.Config) (extension.Extension, error) {
 
 	config := &Config{
-		Provider: f.provider,
+		Converter: f.converter,
 	}
 	config.HTTPConfig = cfg.(*Config).HTTPConfig
 	return newDDHTTPExtension(ctx, config, set.TelemetrySettings, set.BuildInfo)
@@ -42,7 +42,7 @@ func (f *ddExtensionFactory) CreateDefaultConfig() component.Config {
 		HTTPConfig: &confighttp.ServerConfig{
 			Endpoint: fmt.Sprintf("localhost:%d", defaultHTTPPort),
 		},
-		Provider: f.provider,
+		Converter: f.converter,
 	}
 }
 

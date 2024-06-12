@@ -2,14 +2,14 @@ package impl
 
 import (
 	"errors"
+	"fmt"
 
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/config/confighttp"
 	"go.opentelemetry.io/collector/confmap"
-	"go.opentelemetry.io/collector/otelcol"
 )
 
-type extractDebugEndpoint func(conf *confmap.Conf) (string, bool)
+type extractDebugEndpoint func(conf *confmap.Conf) (string, bool, error)
 
 var (
 	errHTTPEndpointRequired  = errors.New("http endpoint required")
@@ -25,7 +25,7 @@ var (
 type Config struct {
 	HTTPConfig *confighttp.ServerConfig `mapstructure:",squash"`
 
-	Provider otelcol.ConfigProvider
+	Converter confmap.Converter
 }
 
 var _ component.Config = (*Config)(nil)
@@ -50,14 +50,34 @@ func (c *Config) Unmarshal(conf *confmap.Conf) error {
 	return nil
 }
 
-func zPagesExtractEndpoint(c *confmap.Conf) (string, bool) {
-	return c.Get("endpoint").(string), true
+func zPagesExtractEndpoint(c *confmap.Conf) (string, bool, error) {
+	endpoint, err := regularStringEndpointExtractor(c)
+	return endpoint, true, err
 }
 
-func pprofExtractEndpoint(c *confmap.Conf) (string, bool) {
-	return c.Get("endpoint").(string), false
+func pprofExtractEndpoint(c *confmap.Conf) (string, bool, error) {
+	endpoint, err := regularStringEndpointExtractor(c)
+	return endpoint, false, err
 }
 
-func healthExtractEndpoint(c *confmap.Conf) (string, bool) {
-	return c.Get("endpoint").(string), false
+func healthExtractEndpoint(c *confmap.Conf) (string, bool, error) {
+	endpoint, err := regularStringEndpointExtractor(c)
+	return endpoint, false, err
+}
+
+func regularStringEndpointExtractor(c *confmap.Conf) (string, error) {
+	if c == nil {
+		return "", fmt.Errorf("nil confmap - skipping")
+	}
+
+	element := c.Get("endpoint")
+	if element == nil {
+		return "", fmt.Errorf("Expected endpoint conf element, but none found")
+	}
+
+	endpoint, ok := element.(string)
+	if !ok {
+		return "", fmt.Errorf("endpoint conf element was unexpectedly not a string")
+	}
+	return endpoint, nil
 }
