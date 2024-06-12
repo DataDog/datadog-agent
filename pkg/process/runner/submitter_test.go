@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/fx"
 
@@ -20,9 +21,12 @@ import (
 	"github.com/DataDog/datadog-agent/comp/process/forwarders"
 	"github.com/DataDog/datadog-agent/comp/process/forwarders/forwardersimpl"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
+	processStatsd "github.com/DataDog/datadog-agent/pkg/process/statsd"
 	"github.com/DataDog/datadog-agent/pkg/process/util/api/headers"
+	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/version"
+	mockStatsd "github.com/DataDog/datadog-go/v5/statsd/mocks"
 )
 
 func TestNewCollectorQueueSize(t *testing.T) {
@@ -321,6 +325,44 @@ func Test_getRequestID(t *testing.T) {
 	s.requestIDCachedHash = nil
 	id5 := s.getRequestID(fixedDate1, 1)
 	assert.NotEqual(t, id1, id5)
+}
+
+func TestSubmitterHeartbeatProcess(t *testing.T) {
+	originalFlavor := flavor.GetFlavor()
+	defer flavor.SetFlavor(originalFlavor)
+	flavor.SetFlavor(flavor.ProcessAgent)
+
+	ctrl := gomock.NewController(t)
+	statsdClient := mockStatsd.NewMockClientInterface(ctrl)
+	statsdClient.EXPECT().Gauge("datadog.process.agent", float64(1), gomock.Any(), float64(1)).MinTimes(1)
+	processStatsd.Client = statsdClient
+
+	deps := newSubmitterDeps(t)
+	s, err := NewSubmitter(deps.Config, deps.Log, deps.Forwarders, testHostName)
+	assert.NoError(t, err)
+	s.heartbeatTime = 5 * time.Millisecond
+	s.Start()
+	time.Sleep(10 * time.Millisecond)
+	s.Stop()
+}
+
+func TestSubmitterHeartbeatCore(t *testing.T) {
+	originalFlavor := flavor.GetFlavor()
+	defer flavor.SetFlavor(originalFlavor)
+	flavor.SetFlavor(flavor.DefaultAgent)
+
+	ctrl := gomock.NewController(t)
+	statsdClient := mockStatsd.NewMockClientInterface(ctrl)
+	statsdClient.EXPECT().Gauge("datadog.process.agent", float64(1), gomock.Any(), float64(1)).Times(0)
+	processStatsd.Client = statsdClient
+
+	deps := newSubmitterDeps(t)
+	s, err := NewSubmitter(deps.Config, deps.Log, deps.Forwarders, testHostName)
+	assert.NoError(t, err)
+	s.heartbeatTime = 5 * time.Millisecond
+	s.Start()
+	time.Sleep(10 * time.Millisecond)
+	s.Stop()
 }
 
 type submitterDeps struct {

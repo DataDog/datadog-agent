@@ -81,6 +81,9 @@ type CheckSubmitter struct {
 	rtNotifierChan chan types.RTResponse
 
 	agentStartTime int64
+
+	heartbeatTime time.Duration
+	stopHeartbeat chan struct{}
 }
 
 //nolint:revive // TODO(PROC) Fix revive linter
@@ -158,6 +161,9 @@ func NewSubmitter(config config.Component, log log.Component, forwarders forward
 		exit: make(chan struct{}),
 
 		agentStartTime: time.Now().Unix(),
+
+		heartbeatTime: time.Minute * 15,
+		stopHeartbeat: make(chan struct{}),
 	}, nil
 }
 
@@ -208,17 +214,17 @@ func (s *CheckSubmitter) Start() error {
 		s.consumePayloads(s.eventResults, s.eventForwarder)
 	}()
 
+	if flavor.GetFlavor() == flavor.ProcessAgent {
+		s.wg.Add(1)
+		go func() {
+			defer s.wg.Done()
+			s.sendHeartbeat()
+		}()
+	}
+
 	s.wg.Add(1)
 	go func() {
 		defer s.wg.Done()
-
-		heartbeat := time.NewTicker(15 * time.Second)
-		// We only want to send heartbeats for the process agent process
-		if flavor.GetFlavor() == flavor.ProcessAgent {
-			defer heartbeat.Stop()
-		} else {
-			heartbeat.Stop()
-		}
 
 		queueSizeTicker := time.NewTicker(10 * time.Second)
 		defer queueSizeTicker.Stop()
@@ -226,15 +232,8 @@ func (s *CheckSubmitter) Start() error {
 		queueLogTicker := time.NewTicker(time.Minute)
 		defer queueLogTicker.Stop()
 
-		agentVersion, _ := version.Agent()
-		tags := []string{
-			fmt.Sprintf("version:%s", agentVersion.GetNumberAndPre()),
-			fmt.Sprintf("revision:%s", agentVersion.Commit),
-		}
 		for {
 			select {
-			case <-heartbeat.C:
-				statsd.Client.Gauge("datadog.process.agent", 1, tags, 1) //nolint:errcheck
 			case <-queueSizeTicker.C:
 				status.UpdateQueueStats(&status.QueueStats{
 					ProcessQueueSize:      s.processResults.Len(),
@@ -265,6 +264,8 @@ func (s *CheckSubmitter) Stop() {
 	s.rtProcessResults.Stop()
 	s.connectionsResults.Stop()
 	s.eventResults.Stop()
+
+	close(s.stopHeartbeat)
 
 	s.wg.Wait()
 
@@ -464,6 +465,26 @@ func (s *CheckSubmitter) shouldDropPayload(check string) bool {
 	}
 
 	return false
+}
+
+func (s *CheckSubmitter) sendHeartbeat() {
+	heartbeat := time.NewTicker(s.heartbeatTime)
+	defer heartbeat.Stop()
+
+	agentVersion, _ := version.Agent()
+	tags := []string{
+		fmt.Sprintf("version:%s", agentVersion.GetNumberAndPre()),
+		fmt.Sprintf("revision:%s", agentVersion.Commit),
+	}
+
+	for {
+		select {
+		case <-heartbeat.C:
+			statsd.Client.Gauge("datadog.process.agent", 1, tags, 1) //nolint:errcheck
+		case <-s.stopHeartbeat:
+			return
+		}
+	}
 }
 
 func notifyRTStatusChange(rtNotifierChan chan<- types.RTResponse, statuses types.RTResponse) {
