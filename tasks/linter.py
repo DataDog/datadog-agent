@@ -195,7 +195,7 @@ def go(
         print(color_message('Execution time summary:', 'bold'))
 
         for e in execution_times:
-            print(f'- {e.path}: {e.duration:.1f}s')
+            print(f'- {e.name}: {e.duration:.1f}s')
 
     if success:
         if not headless_mode:
