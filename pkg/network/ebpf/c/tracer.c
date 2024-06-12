@@ -245,6 +245,12 @@ int kprobe__tcp_done(struct pt_regs *ctx) {
     return 0;
 }
 
+SEC("kretprobe/tcp_done")
+int kretprobe__tcp_done_flush(struct pt_regs *ctx) {
+    flush_conn_close_if_full(ctx);
+    return 0;
+}
+
 SEC("kprobe/tcp_close")
 int kprobe__tcp_close(struct pt_regs *ctx) {
     struct sock *sk;
