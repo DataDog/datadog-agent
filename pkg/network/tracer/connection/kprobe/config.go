@@ -27,7 +27,7 @@ func enabledProbes(c *config.Config, runtimeTracer, coreTracer bool) (map[probes
 
 	kv410 := kernel.VersionCode(4, 1, 0)
 	kv470 := kernel.VersionCode(4, 7, 0)
-	kv417 := kernel.VersionCode(4, 17, 0)
+	kv4170 := kernel.VersionCode(4, 17, 0)
 	kv4180 := kernel.VersionCode(4, 18, 0)
 	kv5180 := kernel.VersionCode(5, 18, 0)
 	kv5190 := kernel.VersionCode(5, 19, 0)
@@ -43,7 +43,7 @@ func enabledProbes(c *config.Config, runtimeTracer, coreTracer bool) (map[probes
 			enableProbe(enabled, probes.ProtocolClassifierQueuesSocketFilter)
 			enableProbe(enabled, probes.ProtocolClassifierDBsSocketFilter)
 			enableProbe(enabled, probes.ProtocolClassifierGRPCSocketFilter)
-			enableProbe(enabled, selectVersionBasedProbe(runtimeTracer, kv, probes.NetDevQueue, probes.NetDevQueuePre4_17_0, kv417))
+			enableProbe(enabled, selectVersionBasedProbe(runtimeTracer, kv, probes.NetDevQueue, probes.NetDevQueuePre4_17_0, kv4170))
 			enableProbe(enabled, probes.TCPCloseCleanProtocolsReturn)
 		}
 		enableProbe(enabled, selectVersionBasedProbe(runtimeTracer, kv, probes.TCPSendMsg, probes.TCPSendMsgPre410, kv410))
