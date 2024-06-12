@@ -159,6 +159,30 @@ class KMTSetupEnvJob(KMTJob):
         return self.artifact_file(vm_log_path)
 
 
+def get_test_results_from_tarfile(tar: tarfile.TarFile) -> dict[str, bool | None]:
+    reports: list[ET.ElementTree] = []
+    for member in tar.getmembers():
+        filename = os.path.basename(member.name)
+        if filename.endswith(".xml"):
+            data = tar.extractfile(member)
+            if data is not None:
+                reports.append(ET.parse(data))
+
+    results: dict[str, bool | None] = {}
+    for report in reports:
+        for testsuite in report.findall(".//testsuite"):
+            pkgname = testsuite.get("name")
+
+            for testcase in report.findall(".//testcase"):
+                name = testcase.get("name")
+                if name is not None:
+                    failed = len(testcase.findall(".//failure")) > 0
+                    skipped = len(testcase.findall(".//skipped")) > 0
+                    results[f"{pkgname}:{name}"] = None if skipped else not failed
+
+    return results
+
+
 class KMTTestRunJob(KMTJob):
     """Represent a kmt_test_* job, with properties that allow extracting data from
     the job name and output artifacts
@@ -183,43 +207,18 @@ class KMTTestRunJob(KMTJob):
     def vmset(self) -> str:
         return self.vars[1]
 
-    def get_junit_reports(self) -> list[ET.ElementTree]:
-        """Return the XML data from all JUnit reports in this job. Does not fail if the file is not found."""
-        junit_archive_name = f"junit-{self.arch}-{self.distro}-{self.vmset}.tar.gz"
-        junit_archive = self.artifact_file_binary(f"test/kitchen/{junit_archive_name}", ignore_not_found=True)
-        if junit_archive is None:
-            return []
-
-        bytearr = io.BytesIO(junit_archive)
-        tar = tarfile.open(fileobj=bytearr)
-
-        reports: list[ET.ElementTree] = []
-        for member in tar.getmembers():
-            filename = os.path.basename(member.name)
-            if filename.endswith(".xml"):
-                data = tar.extractfile(member)
-                if data is not None:
-                    reports.append(ET.parse(data))
-
-        return reports
-
     def get_test_results(self) -> dict[str, bool | None]:
         """Return a dictionary with the results of all tests in this job, indexed by "package_name:testname".
         The values are True if test passed, False if failed, None if skipped.
         """
-        results: dict[str, bool | None] = {}
-        for report in self.get_junit_reports():
-            for testsuite in report.findall(".//testsuite"):
-                pkgname = testsuite.get("name")
+        junit_archive_name = f"junit-{self.arch}-{self.distro}-{self.vmset}.tar.gz"
+        junit_archive = self.artifact_file_binary(f"test/kitchen/{junit_archive_name}", ignore_not_found=True)
+        if junit_archive is None:
+            return {}
 
-                for testcase in report.findall(".//testcase"):
-                    name = testcase.get("name")
-                    if name is not None:
-                        failed = len(testcase.findall(".//failure")) > 0
-                        skipped = len(testcase.findall(".//skipped")) > 0
-                        results[f"{pkgname}:{name}"] = None if skipped else not failed
-
-        return results
+        bytearr = io.BytesIO(junit_archive)
+        tar = tarfile.open(fileobj=bytearr)
+        return get_test_results_from_tarfile(tar)
 
 
 def get_all_jobs_for_pipeline(pipeline_id: int | str) -> tuple[list[KMTSetupEnvJob], list[KMTTestRunJob]]:

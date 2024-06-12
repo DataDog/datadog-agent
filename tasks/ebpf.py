@@ -220,7 +220,10 @@ def print_verification_stats(
 
         base_value = base_verifier_stats[key]
         for json_key in verifier_stat_json_keys:
-            stat[json_key] = colored_diff(value[json_key], base_value[json_key])
+            if jsonfmt:
+                stat[json_key] = value[json_key] - base_value[json_key]
+            else:
+                stat[json_key] = colored_diff(value[json_key], base_value[json_key])
 
         stats_diff[key] = stat
 

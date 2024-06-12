@@ -120,6 +120,7 @@ def lte_414(version: str) -> bool:
 def get_image_list(distro: bool, custom: bool) -> list[list[str]]:
     headers = [
         "VM name",
+        "OS ID",
         "OS Name",
         "OS Version",
         "Kernel",
@@ -131,9 +132,13 @@ def get_image_list(distro: bool, custom: bool) -> list[list[str]]:
     custom_kernels: list[list[str]] = list()
     for k in sorted(kernels, key=lambda x: tuple(map(int, x.split('.')))):
         if lte_414(k):
-            custom_kernels.append([f"custom-{k}", "Debian", "Custom", k, TICK, CROSS, "", f"custom-{k}-x86_64"])
+            custom_kernels.append(
+                [f"custom-{k}", "debian", "Debian", "Custom", k, TICK, CROSS, "", f"custom-{k}-x86_64"]
+            )
         else:
-            custom_kernels.append([f"custom-{k}", "Debian", "Custom", k, TICK, TICK, "", f"custom-{k}-x86_64"])
+            custom_kernels.append(
+                [f"custom-{k}", "debian", "Debian", "Custom", k, TICK, TICK, "", f"custom-{k}-x86_64"]
+            )
 
     distro_kernels: list[list[str]] = list()
     platforms = get_platforms()
@@ -147,7 +152,7 @@ def get_image_list(distro: bool, custom: bool) -> list[list[str]]:
             # See if we've already added this kernel but for a different architecture. If not, create the entry.
             entry = None
             for row in distro_kernels:
-                if row[0] == name and row[3] == platinfo.get('kernel'):
+                if row[0] == name and row[4] == platinfo.get('kernel'):
                     entry = row
                     break
             if entry is None:
@@ -157,6 +162,7 @@ def get_image_list(distro: bool, custom: bool) -> list[list[str]]:
 
                 entry = [
                     name,
+                    platinfo.get("os_id"),
                     platinfo.get("os_name"),
                     platinfo.get("os_version"),
                     platinfo.get("kernel"),
@@ -168,9 +174,9 @@ def get_image_list(distro: bool, custom: bool) -> list[list[str]]:
                 distro_kernels.append(entry)
 
             if arch == "x86_64":
-                entry[4] = TICK
-            else:
                 entry[5] = TICK
+            else:
+                entry[6] = TICK
 
     # Sort by name
     distro_kernels.sort(key=lambda x: x[0])

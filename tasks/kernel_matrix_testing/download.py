@@ -59,25 +59,24 @@ def download_rootfs(
     file_ls: list[str] = list()
     branch_mapping: dict[str, str] = dict()
 
-    images_to_download = dict()
-    if images is not None:
-        for td in images.split(","):
-            id_version = td.split("-")
-            assert (
-                len(id_version) == 2
-            ), f"Invalid format for image to download: {td}. Format should be <os_id>-<os_version>"
-            images_to_download[id_version[0]] = id_version[1]
+    selected_image_list = images.split(",") if images is not None else []
 
     for tag in platforms[arch]:
         platinfo = platforms[arch][tag]
         if "image" not in platinfo:
             raise Exit("image is not defined in platform info")
 
-        if len(images_to_download) > 0:
-            if platinfo["os_id"] not in images_to_download:
+        if images is not None:
+            image_possible_names = [tag] + platinfo.get("alt_version_names", [])
+            if "os_id" in platinfo and "os_version" in platinfo:
+                image_possible_names.append(f"{platinfo['os_id']}-{platinfo['os_version']}")
+
+            matching_names = set(selected_image_list) & set(image_possible_names)
+            if len(matching_names) == 0:
                 continue
-            if platinfo["os_version"] != images_to_download[platinfo["os_id"]]:
-                continue
+
+            info(f"[+] Image {tag} matched filters: {', '.join(matching_names)}")
+            selected_image_list = list(set(selected_image_list) - matching_names)
 
         path = os.path.basename(platinfo["image"])
         if path.endswith(".xz"):
@@ -85,6 +84,9 @@ def download_rootfs(
 
         branch_mapping[path] = platinfo.get('image_version', 'master')
         file_ls.append(os.path.basename(path))
+
+    if len(selected_image_list) > 0:
+        raise Exit(f"Couldn't find images for the following names: {', '.join(selected_image_list)}")
 
     # if file does not exist download it.
     for f in file_ls:
