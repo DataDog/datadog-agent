@@ -150,12 +150,8 @@ DEFAULT_MODULES = {
     ),
     "comp/logs/agent/config": GoModule("comp/logs/agent/config", independent=True, used_by_otel=True),
     "comp/netflow/payload": GoModule("comp/netflow/payload", independent=True),
-    "comp/otelcol/extension/def": GoModule(
-        "comp/otelcol/extension/def", independent=True, used_by_otel=True
-    ),
-    "comp/otelcol/extension/impl": GoModule(
-        "comp/otelcol/extension/impl", independent=True, used_by_otel=True
-    ),
+    "comp/otelcol/extension/def": GoModule("comp/otelcol/extension/def", independent=True, used_by_otel=True),
+    "comp/otelcol/extension/impl": GoModule("comp/otelcol/extension/impl", independent=True, used_by_otel=True),
     "comp/otelcol/collector-contrib/def": GoModule(
         "comp/otelcol/collector-contrib/def", independent=True, used_by_otel=True
     ),
@@ -182,12 +178,8 @@ DEFAULT_MODULES = {
         "comp/otelcol/otlp/components/statsprocessor", independent=True, used_by_otel=True
     ),
     "comp/otelcol/otlp/testutil": GoModule("comp/otelcol/otlp/testutil", independent=True),
-    "comp/otelcol/converter/def": GoModule(
-        "comp/otelcol/converter/def", independent=True, used_by_otel=True
-    ),
-    "comp/otelcol/converter/impl": GoModule(
-        "comp/otelcol/converter/impl", independent=True, used_by_otel=True
-    ),
+    "comp/otelcol/converter/def": GoModule("comp/otelcol/converter/def", independent=True, used_by_otel=True),
+    "comp/otelcol/converter/impl": GoModule("comp/otelcol/converter/impl", independent=True, used_by_otel=True),
     "comp/serializer/compression": GoModule("comp/serializer/compression", independent=True, used_by_otel=True),
     "comp/trace/agent/def": GoModule("comp/trace/agent/def", independent=True, used_by_otel=True),
     "internal/tools": GoModule("internal/tools", condition=lambda: False, should_tag=False),

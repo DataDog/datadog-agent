@@ -1,7 +1,3 @@
-github.com/DataDog/datadog-agent/comp/otelcol/converter/def v0.0.0-20240612120928-751a8b9c3bce h1:xHoGXdCwQTijb915oED5eOxlwwTjO1Pc1oaXX5WwVWk=
-github.com/DataDog/datadog-agent/comp/otelcol/converter/def v0.0.0-20240612120928-751a8b9c3bce/go.mod h1:7ZrPGuxSLkktrLqFcWAjVLK8B4dhEuNP3cF375Rzf9E=
-github.com/DataDog/datadog-agent/comp/otelcol/extension/def v0.0.0-20240612124811-03a2a2de1865 h1:CGacmQKzog1NTE8h6Bs0N1iMuGSJ4HCEuwdL+gdwp/Q=
-github.com/DataDog/datadog-agent/comp/otelcol/extension/def v0.0.0-20240612124811-03a2a2de1865/go.mod h1:hRAq5ru+nstZVIIPJU2777FrHEq3SGjbK6ubMXBqZQ0=
 github.com/beorn7/perks v1.0.1 h1:VlbKKnNfV8bJzeqoa4cOKqO6bYr3WgKZxO8Z16+hsOM=
 github.com/beorn7/perks v1.0.1/go.mod h1:G2ZrVWU2WbWT9wwq4/hrbKbnv/1ERSJQ0ibhJ6rlkpw=
 github.com/cespare/xxhash/v2 v2.3.0 h1:UL815xU9SqsFlibzuggzjXhog7bL6oX9BbNZnL2UFvs=
