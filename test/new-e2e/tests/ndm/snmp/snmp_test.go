@@ -81,7 +81,8 @@ func snmpDockerProvisioner() e2e.Provisioner {
 			if err != nil {
 				return err
 			}
-			fileCommand, err := filemanager.CopyInlineFile(pulumi.String(fileContent), path.Join(dataPath, fileName),
+			dontUseSudo := false
+			fileCommand, err := filemanager.CopyInlineFile(pulumi.String(fileContent), path.Join(dataPath, fileName), dontUseSudo,
 				pulumi.DependsOn([]pulumi.Resource{createDataDirCommand}))
 			if err != nil {
 				return err
@@ -94,7 +95,8 @@ func snmpDockerProvisioner() e2e.Provisioner {
 			return err
 		}
 		// edit snmp config file
-		configCommand, err := filemanager.CopyInlineFile(pulumi.String(snmpConfig), path.Join(configPath, "snmp.yaml"),
+		dontUseSudo := false
+		configCommand, err := filemanager.CopyInlineFile(pulumi.String(snmpConfig), path.Join(configPath, "snmp.yaml"), dontUseSudo,
 			pulumi.DependsOn([]pulumi.Resource{createConfigDirCommand}))
 		if err != nil {
 			return err

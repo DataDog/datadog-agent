@@ -103,7 +103,7 @@ func vmPlusDockerEnvProvisioner() e2e.PulumiEnvRunFunc[vmPlusDockerEnv] {
 		mountedFilesCommands = append(mountedFilesCommands, remoteTmpDirCmd)
 		// write the lighttpd configuration file
 		lighttpdConfigFile := lighttpdDir + "/lighttpd.conf"
-		lighttpdConfigFileCmd, err := remoteHost.OS.FileManager().CopyInlineFile(pulumi.String(lighttpdConfigContent), lighttpdConfigFile)
+		lighttpdConfigFileCmd, err := remoteHost.OS.FileManager().CopyInlineFile(pulumi.String(lighttpdConfigContent), lighttpdConfigFile, false)
 		if err != nil {
 			return err
 		}
