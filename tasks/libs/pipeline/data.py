@@ -120,6 +120,12 @@ infra_failure_logs = [
 ]
 
 
+def get_infra_failure_info(job_log: str):
+    for regex, type in infra_failure_logs:
+        if regex.search(job_log):
+            return type
+
+
 def get_job_failure_context(job: ProjectJob, job_log: str):
     """
     Parses job logs (provided as a string), and returns the type of failure (infra or job) as well
@@ -131,9 +137,8 @@ def get_job_failure_context(job: ProjectJob, job_log: str):
     if job.failure_reason in infra_failure_reasons:
         return FailedJobType.INFRA_FAILURE, FailedJobReason.from_gitlab_job_failure_reason(job.failure_reason)
 
-    for regex, type in infra_failure_logs:
-        if regex.search(job_log):
-            return FailedJobType.INFRA_FAILURE, type
+    if type := get_infra_failure_info(job_log):
+        return FailedJobType.INFRA_FAILURE, type
 
     return FailedJobType.JOB_FAILURE, FailedJobReason.FAILED_JOB_SCRIPT
 
