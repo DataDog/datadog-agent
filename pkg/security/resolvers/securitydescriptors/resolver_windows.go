@@ -101,6 +101,8 @@ func (resolver *Resolver) GetHumanReadableSD(sddl string) (string, error) {
 
 	// Extract the owner and group SIDs
 	owner, group := extractOwnerGroup(sddl)
+	fmt.Println("---------------IN GetHumanReadableSD, owner", owner)
+	fmt.Println("---------------IN GetHumanReadableSD, group", group)
 	if owner != "" {
 		ownerName := resolver.userGroupResolver.GetUser(owner)
 		if ownerName == "" {
@@ -137,6 +139,9 @@ func (resolver *Resolver) GetHumanReadableSD(sddl string) (string, error) {
 		aceType := fields[0]
 		permissions := fields[2]
 		trustee := fields[5]
+		fmt.Println("---------------IN GetHumanReadableSD, aceType", aceType)
+		fmt.Println("---------------IN GetHumanReadableSD, permissions", permissions)
+		fmt.Println("---------------IN GetHumanReadableSD, trustee", trustee)
 
 		translatedType := translateAceType(aceType)
 		translatedPermissions := accessMaskToString(permissions)

@@ -7,6 +7,7 @@
 package probe
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/security/config"
@@ -142,6 +143,7 @@ func (fh *FieldHandlers) ResolveProcessCreatedAt(_ *model.Event, e *model.Proces
 
 // ResolveOldSecurityDescriptor resolves the old security descriptor
 func (fh *FieldHandlers) ResolveOldSecurityDescriptor(_ *model.Event, cp *model.ChangePermissionEvent) string {
+	fmt.Println("-------------- IN ResolveOldSecurityDescriptor", cp.OldSd)
 	hrsd, err := fh.resolvers.SecurityDescriptorResolver.GetHumanReadableSD(cp.OldSd)
 	if err != nil {
 		return cp.OldSd
