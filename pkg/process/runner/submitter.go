@@ -14,6 +14,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/benbjohnson/clock"
+
 	model "github.com/DataDog/agent-payload/v5/process"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -82,8 +84,8 @@ type CheckSubmitter struct {
 
 	agentStartTime int64
 
-	heartbeatTime time.Duration
 	stopHeartbeat chan struct{}
+	clock         clock.Clock
 }
 
 //nolint:revive // TODO(PROC) Fix revive linter
@@ -162,8 +164,8 @@ func NewSubmitter(config config.Component, log log.Component, forwarders forward
 
 		agentStartTime: time.Now().Unix(),
 
-		heartbeatTime: time.Minute * 15,
 		stopHeartbeat: make(chan struct{}),
+		clock:         clock.New(),
 	}, nil
 }
 
@@ -215,10 +217,11 @@ func (s *CheckSubmitter) Start() error {
 	}()
 
 	if flavor.GetFlavor() == flavor.ProcessAgent {
+		heartbeatTicker := s.clock.Ticker(15 * time.Minute)
 		s.wg.Add(1)
 		go func() {
 			defer s.wg.Done()
-			s.sendHeartbeat()
+			s.heartbeat(heartbeatTicker)
 		}()
 	}
 
@@ -226,10 +229,10 @@ func (s *CheckSubmitter) Start() error {
 	go func() {
 		defer s.wg.Done()
 
-		queueSizeTicker := time.NewTicker(10 * time.Second)
+		queueSizeTicker := s.clock.Ticker(10 * time.Second)
 		defer queueSizeTicker.Stop()
 
-		queueLogTicker := time.NewTicker(time.Minute)
+		queueLogTicker := s.clock.Ticker(time.Minute)
 		defer queueLogTicker.Stop()
 
 		for {
@@ -467,9 +470,8 @@ func (s *CheckSubmitter) shouldDropPayload(check string) bool {
 	return false
 }
 
-func (s *CheckSubmitter) sendHeartbeat() {
-	heartbeat := time.NewTicker(s.heartbeatTime)
-	defer heartbeat.Stop()
+func (s *CheckSubmitter) heartbeat(heartbeatTicker *clock.Ticker) {
+	defer heartbeatTicker.Stop()
 
 	agentVersion, _ := version.Agent()
 	tags := []string{
@@ -479,7 +481,7 @@ func (s *CheckSubmitter) sendHeartbeat() {
 
 	for {
 		select {
-		case <-heartbeat.C:
+		case <-heartbeatTicker.C:
 			statsd.Client.Gauge("datadog.process.agent", 1, tags, 1) //nolint:errcheck
 		case <-s.stopHeartbeat:
 			return

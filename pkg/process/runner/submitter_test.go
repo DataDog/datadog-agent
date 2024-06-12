@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/golang/mock/gomock"
+	"github.com/benbjohnson/clock"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/fx"
 
@@ -340,9 +341,10 @@ func TestSubmitterHeartbeatProcess(t *testing.T) {
 	deps := newSubmitterDeps(t)
 	s, err := NewSubmitter(deps.Config, deps.Log, deps.Forwarders, testHostName)
 	assert.NoError(t, err)
-	s.heartbeatTime = 5 * time.Millisecond
+	mockedClock := clock.NewMock()
+	s.clock = mockedClock
 	s.Start()
-	time.Sleep(10 * time.Millisecond)
+	mockedClock.Add(15 * time.Minute)
 	s.Stop()
 }
 
@@ -359,9 +361,10 @@ func TestSubmitterHeartbeatCore(t *testing.T) {
 	deps := newSubmitterDeps(t)
 	s, err := NewSubmitter(deps.Config, deps.Log, deps.Forwarders, testHostName)
 	assert.NoError(t, err)
-	s.heartbeatTime = 5 * time.Millisecond
+	mockedClock := clock.NewMock()
+	s.clock = mockedClock
 	s.Start()
-	time.Sleep(10 * time.Millisecond)
+	mockedClock.Add(16 * time.Minute)
 	s.Stop()
 }
 
