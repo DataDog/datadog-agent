@@ -641,7 +641,7 @@ func (s *TracerSuite) TestGatewayLookupEnabled() {
 
 	cfg := testConfig()
 	cfg.EnableGatewayLookup = true
-	tr, err := newTracer(cfg)
+	tr, err := newTracer(cfg, nil)
 	require.NoError(t, err)
 	require.NotNil(t, tr)
 	t.Cleanup(tr.Stop)
@@ -700,7 +700,7 @@ func (s *TracerSuite) TestGatewayLookupSubnetLookupError() {
 	cfg := testConfig()
 	cfg.EnableGatewayLookup = true
 	// create the tracer without starting it
-	tr, err := newTracer(cfg)
+	tr, err := newTracer(cfg, nil)
 	require.NoError(t, err)
 	require.NotNil(t, tr)
 	t.Cleanup(tr.Stop)
@@ -766,7 +766,7 @@ func (s *TracerSuite) TestGatewayLookupCrossNamespace() {
 
 	cfg := testConfig()
 	cfg.EnableGatewayLookup = true
-	tr, err := newTracer(cfg)
+	tr, err := newTracer(cfg, nil)
 	require.NoError(t, err)
 	require.NotNil(t, tr)
 	t.Cleanup(tr.Stop)
@@ -2170,7 +2170,7 @@ func TestEbpfConntrackerFallback(t *testing.T) {
 				}
 			}
 
-			conntracker, err := NewEBPFConntracker(cfg)
+			conntracker, err := NewEBPFConntracker(cfg, nil)
 			// ensure we always clean up the conntracker, regardless of behavior
 			if conntracker != nil {
 				t.Cleanup(conntracker.Close)
@@ -2191,7 +2191,7 @@ func TestEbpfConntrackerFallback(t *testing.T) {
 func TestConntrackerFallback(t *testing.T) {
 	cfg := testConfig()
 	cfg.EnableEbpfConntracker = false
-	conntracker, err := newConntracker(cfg)
+	conntracker, err := newConntracker(cfg, nil)
 	// ensure we always clean up the conntracker, regardless of behavior
 	if conntracker != nil {
 		t.Cleanup(conntracker.Close)

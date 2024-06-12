@@ -75,22 +75,18 @@ func TestNewCollector(t *testing.T) {
 		},
 		{
 			name: "filter with only supported kinds",
-			filter: workloadmeta.NewFilter(&workloadmeta.FilterParams{
-				Kinds: []workloadmeta.Kind{
-					workloadmeta.KindContainer,
-					workloadmeta.KindKubernetesPod,
-				},
-			}),
+			filter: workloadmeta.NewFilterBuilder().
+				AddKind(workloadmeta.KindContainer).
+				AddKind(workloadmeta.KindKubernetesPod).
+				Build(),
 			expectsError: false,
 		},
 		{
 			name: "filter with unsupported kinds",
-			filter: workloadmeta.NewFilter(&workloadmeta.FilterParams{
-				Kinds: []workloadmeta.Kind{
-					workloadmeta.KindContainer,
-					workloadmeta.KindContainerImageMetadata, // Not supported
-				},
-			}),
+			filter: workloadmeta.NewFilterBuilder().
+				AddKind(workloadmeta.KindContainer).
+				AddKind(workloadmeta.KindContainerImageMetadata /* No Supported */).
+				Build(),
 			expectsError: true,
 		},
 	}

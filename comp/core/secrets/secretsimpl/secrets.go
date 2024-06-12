@@ -28,6 +28,7 @@ import (
 
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
@@ -45,7 +46,8 @@ type provides struct {
 type dependencies struct {
 	fx.In
 
-	Params secrets.Params
+	Params    secrets.Params
+	Telemetry telemetry.Component
 }
 
 // Module defines the fx options for this component.
@@ -94,20 +96,24 @@ type secretResolver struct {
 	commandHookFunc func(string) ([]byte, error)
 	fetchHookFunc   func([]string) (map[string]string, error)
 	scrubHookFunc   func([]string)
+
+	// Telemetry
+	tlmSecretBackendElapsed telemetry.Gauge
 }
 
 var _ secrets.Component = (*secretResolver)(nil)
 
-func newEnabledSecretResolver() *secretResolver {
+func newEnabledSecretResolver(telemetry telemetry.Component) *secretResolver {
 	return &secretResolver{
-		cache:   make(map[string]string),
-		origin:  make(handleToContext),
-		enabled: true,
+		cache:                   make(map[string]string),
+		origin:                  make(handleToContext),
+		enabled:                 true,
+		tlmSecretBackendElapsed: telemetry.NewGauge("secret_backend", "elapsed_ms", []string{"command", "exit_code"}, "Elapsed time of secret backend invocation"),
 	}
 }
 
 func newSecretResolverProvider(deps dependencies) provides {
-	resolver := newEnabledSecretResolver()
+	resolver := newEnabledSecretResolver(deps.Telemetry)
 	resolver.enabled = deps.Params.Enabled
 	return provides{
 		Comp:          resolver,

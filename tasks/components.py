@@ -365,10 +365,10 @@ def new_component(_, comp_path, overwrite=False, team="/* TODO: add team name */
     create_components_framework_files(
         comp_path,
         [
-            ("component.go", "component.go"),
-            ("component_mock.go", "component_mock.go"),
-            (os.path.join(f"{component_name}impl", f"{component_name}.go"), "impl/component.go"),
-            (os.path.join(f"{component_name}impl", f"{component_name}_mock.go"), "impl/component_mock.go"),
+            ("def/component.go", "def/component.go"),
+            ("fx/fx.go", "fx/fx.go"),
+            (os.path.join("impl", f"{component_name}.go"), "impl/component.go"),
+            ("mock/mock.go", "mock/mock.go"),
         ],
         template_var_mapping,
         overwrite,

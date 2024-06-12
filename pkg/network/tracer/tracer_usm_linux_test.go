@@ -178,7 +178,8 @@ func (s *USMSuite) TestProtocolClassification() {
 	cfg.EnableHTTPMonitoring = true
 	cfg.EnablePostgresMonitoring = true
 	cfg.EnableGoTLSSupport = gotlstestutil.GoTLSSupported(t, cfg)
-	tr, err := NewTracer(cfg)
+	cfg.BypassEnabled = true
+	tr, err := NewTracer(cfg, nil)
 	require.NoError(t, err)
 	t.Cleanup(tr.Stop)
 
@@ -210,7 +211,7 @@ func (s *USMSuite) TestProtocolClassification() {
 
 func testProtocolConnectionProtocolMapCleanup(t *testing.T, tr *Tracer, clientHost, targetHost, serverHost string) {
 	t.Run("protocol cleanup", func(t *testing.T) {
-		t.Cleanup(func() { tr.ebpfTracer.Pause() })
+		t.Cleanup(func() { tr.Pause() })
 
 		dialer := &net.Dialer{
 			LocalAddr: &net.TCPAddr{
@@ -231,7 +232,7 @@ func testProtocolConnectionProtocolMapCleanup(t *testing.T, tr *Tracer, clientHo
 		}
 
 		initTracerState(t, tr)
-		require.NoError(t, tr.ebpfTracer.Resume())
+		require.NoError(t, tr.Resume())
 
 		mux := gorilla.NewRouter()
 		mux.Handle("/test", nethttp.DefaultServeMux)
@@ -277,7 +278,7 @@ func testProtocolConnectionProtocolMapCleanup(t *testing.T, tr *Tracer, clientHo
 
 type tlsTestCommand struct {
 	version        string
-	openSSLCommand string
+	openSSLCommand []string
 }
 
 func getFreePort() (port uint16, err error) {
@@ -308,26 +309,25 @@ func (s *USMSuite) TestTLSClassification() {
 	scenarios := []tlsTestCommand{
 		{
 			version:        "1.0",
-			openSSLCommand: "-tls1",
+			openSSLCommand: []string{"-tls1", "-cipher=DEFAULT@SECLEVEL=0"},
 		},
 		{
 			version:        "1.1",
-			openSSLCommand: "-tls1_1",
+			openSSLCommand: []string{"-tls1_1", "-cipher=DEFAULT@SECLEVEL=0"},
 		},
 		{
 			version:        "1.2",
-			openSSLCommand: "-tls1_2",
+			openSSLCommand: []string{"-tls1_2"},
 		},
 		{
 			version:        "1.3",
-			openSSLCommand: "-tls1_3",
+			openSSLCommand: []string{"-tls1_3"},
 		},
 	}
 
 	port, err := getFreePort()
 	require.NoError(t, err)
 	portAsString := strconv.Itoa(int(port))
-	require.NoError(t, prototls.RunServerOpenssl(t, portAsString, len(scenarios), "-www"))
 
 	tr := setupTracer(t, cfg)
 
@@ -338,10 +338,12 @@ func (s *USMSuite) TestTLSClassification() {
 	}
 	tests := make([]tlsTest, 0, len(scenarios))
 	for _, scenario := range scenarios {
+		scenario := scenario
 		tests = append(tests, tlsTest{
 			name: "TLS-" + scenario.version + "_docker",
 			postTracerSetup: func(t *testing.T) {
-				require.True(t, prototls.RunClientOpenssl(t, "localhost", portAsString, scenario.openSSLCommand))
+				require.NoError(t, prototls.RunServerOpenssl(t, portAsString, len(scenarios), append([]string{"-www"}, scenario.openSSLCommand...)...))
+				require.True(t, prototls.RunClientOpenssl(t, "localhost", portAsString, scenario.openSSLCommand...))
 			},
 			validation: func(t *testing.T, tr *Tracer) {
 				// Iterate through active connections until we find connection created above
@@ -364,13 +366,13 @@ func (s *USMSuite) TestTLSClassification() {
 				t.Skip("protocol classification not supported for fentry tracer")
 			}
 			t.Cleanup(func() { tr.removeClient(clientID) })
-			t.Cleanup(func() { _ = tr.ebpfTracer.Pause() })
+			t.Cleanup(func() { _ = tr.Pause() })
 
 			tr.removeClient(clientID)
 			initTracerState(t, tr)
-			require.NoError(t, tr.ebpfTracer.Resume(), "enable probes - before post tracer")
+			require.NoError(t, tr.Resume(), "enable probes - before post tracer")
 			tt.postTracerSetup(t)
-			require.NoError(t, tr.ebpfTracer.Pause(), "disable probes - after post tracer")
+			require.NoError(t, tr.Pause(), "disable probes - after post tracer")
 			tt.validation(t, tr)
 		})
 	}
@@ -491,7 +493,7 @@ func testHTTPSClassification(t *testing.T, tr *Tracer, clientHost, targetHost, s
 				})
 				ctx.extras["cmd"] = cmd
 			},
-			validation: func(t *testing.T, ctx testContext, tr *Tracer) {
+			postTracerSetup: func(t *testing.T, ctx testContext) {
 				cmd := ctx.extras["cmd"].(*exec.Cmd)
 				utils.WaitForProgramsToBeTraced(t, "shared_libraries", cmd.Process.Pid)
 				client := nethttp.Client{
@@ -529,7 +531,8 @@ func testHTTPSClassification(t *testing.T, tr *Tracer, clientHost, targetHost, s
 					_ = resp.Body.Close()
 					client.CloseIdleConnections()
 				}
-
+			},
+			validation: func(t *testing.T, ctx testContext, tr *Tracer) {
 				waitForConnectionsWithProtocol(t, tr, ctx.targetAddress, ctx.serverAddress, &protocols.Stack{Encryption: protocols.TLS, Application: protocols.HTTP})
 			},
 		},
@@ -550,7 +553,7 @@ func TestFullMonitorWithTracer(t *testing.T) {
 	cfg.EnableIstioMonitoring = true
 	cfg.EnableGoTLSSupport = true
 
-	tr, err := NewTracer(cfg)
+	tr, err := NewTracer(cfg, nil)
 	require.NoError(t, err)
 	t.Cleanup(tr.Stop)
 
@@ -844,7 +847,6 @@ func testMySQLProtocolClassification(t *testing.T, tr *Tracer, clientHost, targe
 }
 
 func testMySQLProtocolClassificationTLS(t *testing.T, tr *Tracer, clientHost, targetHost, serverHost string) {
-	t.Skip("TLS+MySQL classification tests are flaky")
 	testMySQLProtocolClassificationInner(t, tr, clientHost, targetHost, serverHost, protocolsUtils.TLSEnabled)
 }
 
@@ -868,8 +870,11 @@ func testMySQLProtocolClassificationInner(t *testing.T, tr *Tracer, clientHost, 
 		// Our client runs in this binary. By default, USM will exclude the current process from tracing. But,
 		// we need to include it in this case. So we allowing it by setting GoTLSExcludeSelf to false and resetting it
 		// after the test.
+		pid := os.Getpid()
 		require.NoError(t, usm.SetGoTLSExcludeSelf(false))
+		goTLSAttachPID(t, pid)
 		t.Cleanup(func() {
+			goTLSDetachPID(t, pid)
 			require.NoError(t, usm.SetGoTLSExcludeSelf(true))
 		})
 	}
@@ -1187,10 +1192,6 @@ func testMySQLProtocolClassificationInner(t *testing.T, tr *Tracer, clientHost, 
 		},
 	}
 	for _, tt := range tests {
-		if withTLS {
-			tt.preTracerSetup = goTLSDetacherWrapper(os.Getpid(), tt.preTracerSetup)
-			tt.postTracerSetup = goTLSAttacherWrapper(os.Getpid(), tt.postTracerSetup)
-		}
 		t.Run(tt.name, func(t *testing.T) {
 			testProtocolClassificationInner(t, tt, tr)
 		})
@@ -1219,10 +1220,9 @@ func testPostgresProtocolClassificationWrapper(enableTLS bool) func(t *testing.T
 }
 
 func testPostgresProtocolClassification(t *testing.T, tr *Tracer, clientHost, targetHost, serverHost string, enableTLS bool) {
-	t.Skip("TLS+Postgres classification tests are flaky")
-
 	skippers := []func(t *testing.T, ctx testContext){skipIfUsingNAT}
 	if enableTLS {
+		t.Skip("TLS+Postgres classification tests are flaky")
 		skippers = append(skippers, skipIfGoTLSNotSupported)
 	}
 	skipFunc := composeSkips(skippers...)
@@ -1252,8 +1252,11 @@ func testPostgresProtocolClassification(t *testing.T, tr *Tracer, clientHost, ta
 		// Our client runs in this binary. By default, USM will exclude the current process from tracing. But,
 		// we need to include it in this case. So we allowing it by setting GoTLSExcludeSelf to false and resetting it
 		// after the test.
+		pid := os.Getpid()
 		require.NoError(t, usm.SetGoTLSExcludeSelf(false))
+		goTLSAttachPID(t, pid)
 		t.Cleanup(func() {
+			goTLSDetachPID(t, pid)
 			require.NoError(t, usm.SetGoTLSExcludeSelf(true))
 		})
 	}
@@ -1366,6 +1369,22 @@ func testPostgresProtocolClassification(t *testing.T, tr *Tracer, clientHost, ta
 			},
 		},
 		{
+			name: "truncate",
+			preTracerSetup: func(t *testing.T, ctx testContext) {
+				pg := pgutils.NewPGClient(pgutils.ConnectionOptions{
+					ServerAddress: ctx.serverAddress,
+					EnableTLS:     enableTLS,
+				})
+				ctx.extras["pg"] = pg
+				require.NoError(t, pg.RunCreateQuery())
+				require.NoError(t, pg.RunInsertQuery(1))
+			},
+			postTracerSetup: func(t *testing.T, ctx testContext) {
+				pg := ctx.extras["pg"].(*pgutils.PGClient)
+				require.NoError(t, pg.RunTruncateQuery())
+			},
+		},
+		{
 			// Test that we classify long queries that would be
 			// splitted between multiple packets correctly
 			name: "long query",
@@ -1409,23 +1428,16 @@ func testPostgresProtocolClassification(t *testing.T, tr *Tracer, clientHost, ta
 		t.Run(tt.name, func(t *testing.T) {
 			tt.validation = validateProtocolConnection(expectedProtocolStack)
 			tt.teardown = func(t *testing.T, ctx testContext) {
-				pgEntry, ok := ctx.extras["pg"]
-				if !ok {
-					return
+				if pg, ok := ctx.extras["pg"].(*pgutils.PGClient); ok {
+					defer pg.Close()
+					_ = pg.RunDropQuery()
 				}
-				pg := pgEntry.(*pgutils.PGClient)
-				defer pg.Close()
-				_ = pg.RunDropQuery()
 			}
 			tt.context = testContext{
 				serverPort:    postgresPort,
 				targetAddress: targetAddress,
 				serverAddress: serverAddress,
 				extras:        make(map[string]interface{}),
-			}
-			if enableTLS {
-				tt.preTracerSetup = goTLSDetacherWrapper(os.Getpid(), tt.preTracerSetup)
-				tt.postTracerSetup = goTLSAttacherWrapper(os.Getpid(), tt.postTracerSetup)
 			}
 			testProtocolClassificationInner(t, tt, tr)
 		})
@@ -1447,9 +1459,10 @@ func testMongoProtocolClassification(t *testing.T, tr *Tracer, clientHost, targe
 	}
 
 	mongoTeardown := func(t *testing.T, ctx testContext) {
-		client := ctx.extras["client"].(*protocolsmongo.Client)
-		require.NoError(t, client.DeleteDatabases())
-		defer client.Stop()
+		if client, ok := ctx.extras["client"].(*protocolsmongo.Client); ok {
+			require.NoError(t, client.DeleteDatabases())
+			defer client.Stop()
+		}
 	}
 
 	// Setting one instance of mongo server for all tests.
@@ -1599,10 +1612,11 @@ func testRedisProtocolClassification(t *testing.T, tr *Tracer, clientHost, targe
 
 	redisTeardown := func(t *testing.T, ctx testContext) {
 		redis.NewClient(ctx.serverAddress, defaultDialer)
-		client := ctx.extras["client"].(*redis2.Client)
-		timedContext, cancel := context.WithTimeout(context.Background(), defaultTimeout)
-		defer cancel()
-		require.NoError(t, client.FlushDB(timedContext).Err())
+		if client, ok := ctx.extras["client"].(*redis2.Client); ok {
+			timedContext, cancel := context.WithTimeout(context.Background(), defaultTimeout)
+			defer cancel()
+			require.NoError(t, client.FlushDB(timedContext).Err())
+		}
 	}
 
 	// Setting one instance of redis server for all tests.
@@ -1739,6 +1753,7 @@ func testRedisProtocolClassification(t *testing.T, tr *Tracer, clientHost, targe
 }
 
 func testTLSAMQPProtocolClassification(t *testing.T, tr *Tracer, clientHost, targetHost, serverHost string) {
+	t.Skip("TLS+AMQP classification tests are flaky")
 	testAMQPProtocolClassificationInner(t, tr, clientHost, targetHost, serverHost, protocolsUtils.TLSEnabled)
 }
 
@@ -1774,8 +1789,6 @@ var amqpTestSpecsMap = map[bool]amqpTestSpec{
 }
 
 func testAMQPProtocolClassificationInner(t *testing.T, tr *Tracer, clientHost, targetHost, serverHost string, withTLS bool) {
-	t.Skip("TLS+AMQP classification tests are flaky")
-
 	spec := amqpTestSpecsMap[withTLS]
 	composeSkips(spec.skipFuncs...)(t, testContext{
 		serverAddress: serverHost,
@@ -1798,18 +1811,21 @@ func testAMQPProtocolClassificationInner(t *testing.T, tr *Tracer, clientHost, t
 	}
 
 	amqpTeardown := func(t *testing.T, ctx testContext) {
-		client := ctx.extras["client"].(*amqp.Client)
-		defer client.Terminate()
-
-		require.NoError(t, client.DeleteQueues())
+		if client, ok := ctx.extras["client"].(*amqp.Client); ok {
+			defer client.Terminate()
+			require.NoError(t, client.DeleteQueues())
+		}
 	}
 
 	if withTLS {
 		// Our client runs in this binary. By default, USM will exclude the current process from tracing. But,
 		// we need to include it in this case. So we allowing it by setting GoTLSExcludeSelf to false and resetting it
 		// after the test.
+		pid := os.Getpid()
 		require.NoError(t, usm.SetGoTLSExcludeSelf(false))
+		goTLSAttachPID(t, pid)
 		t.Cleanup(func() {
+			goTLSDetachPID(t, pid)
 			require.NoError(t, usm.SetGoTLSExcludeSelf(true))
 		})
 	}
@@ -1904,11 +1920,6 @@ func testAMQPProtocolClassificationInner(t *testing.T, tr *Tracer, clientHost, t
 		},
 	}
 	for _, tt := range tests {
-		if withTLS {
-			tt.preTracerSetup = goTLSDetacherWrapper(os.Getpid(), tt.preTracerSetup)
-			tt.postTracerSetup = goTLSAttacherWrapper(os.Getpid(), tt.postTracerSetup)
-		}
-
 		t.Run(tt.name, func(t *testing.T) {
 			testProtocolClassificationInner(t, tt, tr)
 		})
@@ -2101,7 +2112,9 @@ func testHTTP2ProtocolClassification(t *testing.T, tr *Tracer, clientHost, targe
 				require.NoError(t, err)
 			},
 			teardown: func(t *testing.T, ctx testContext) {
-				ctx.extras["server"].(*TCPServer).Shutdown()
+				if srv, ok := ctx.extras["server"].(*TCPServer); ok {
+					srv.Shutdown()
+				}
 			},
 			validation: validateProtocolConnection(&protocols.Stack{}),
 		},
@@ -2179,7 +2192,9 @@ func testHTTP2ProtocolClassification(t *testing.T, tr *Tracer, clientHost, targe
 				}
 			},
 			teardown: func(t *testing.T, ctx testContext) {
-				ctx.extras["server"].(*TCPServer).Shutdown()
+				if srv, ok := ctx.extras["server"].(*TCPServer); ok {
+					srv.Shutdown()
+				}
 			},
 			validation: validateProtocolConnection(&protocols.Stack{Application: protocols.HTTP2, API: protocols.GRPC}),
 		},
@@ -2236,6 +2251,9 @@ func testProtocolClassificationLinux(t *testing.T, tr *Tracer, clientHost, targe
 // Wraps the call to the Go-TLS attach function and waits for the program to be traced.
 func goTLSAttachPID(t *testing.T, pid int) {
 	t.Helper()
+	if utils.IsProgramTraced("go-tls", pid) {
+		return
+	}
 	require.NoError(t, usm.GoTLSAttachPID(uint32(pid)))
 	utils.WaitForProgramsToBeTraced(t, "go-tls", pid)
 }
@@ -2255,32 +2273,4 @@ func goTLSDetachPID(t *testing.T, pid int) {
 	require.Eventually(t, func() bool {
 		return !utils.IsProgramTraced("go-tls", pid)
 	}, 5*time.Second, 100*time.Millisecond, "process %v is still traced by Go-TLS after detaching", pid)
-}
-
-// goTLSDetacherWrapper meant to run before the given callback and detach USM GoTLS monitoring from the given PID.
-// It is mainly used in the TLS classification tests, as we need to have a clean slate before running the actual test,
-// and since uprobes are not affected by the calls to `Pause` and `Resume` of the eBPF manager, so we detach from the
-// target process before the setup phase.
-func goTLSDetacherWrapper(pid int, callback func(t *testing.T, ctx testContext)) func(t *testing.T, ctx testContext) {
-	return func(t *testing.T, ctx testContext) {
-		goTLSDetachPID(t, pid)
-		if callback != nil {
-			callback(t, ctx)
-		}
-	}
-}
-
-// goTLSAttacherWrapper meant to run before the given callback and attach USM GoTLS monitoring to the given PID.
-// It is mainly used in the TLS classification tests, as we need to have a clean slate before running the actual test,
-// and since uprobes are not affected by the calls to `Pause` and `Resume` of the eBPF manager, so we detach from the
-// target process before the setup phase, we attach to it before the actual test, and detach from it after the test,
-// to ensure the validation process is not affected by the monitoring.
-func goTLSAttacherWrapper(pid int, callback func(t *testing.T, ctx testContext)) func(t *testing.T, ctx testContext) {
-	return func(t *testing.T, ctx testContext) {
-		goTLSAttachPID(t, pid)
-		defer goTLSDetachPID(t, pid)
-		if callback != nil {
-			callback(t, ctx)
-		}
-	}
 }
