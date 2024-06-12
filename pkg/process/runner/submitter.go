@@ -220,6 +220,7 @@ func (s *CheckSubmitter) Start() error {
 		heartbeatTicker := s.clock.Ticker(15 * time.Second)
 		s.wg.Add(1)
 		go func() {
+			defer heartbeatTicker.Stop()
 			defer s.wg.Done()
 			s.heartbeat(heartbeatTicker)
 		}()
@@ -471,8 +472,6 @@ func (s *CheckSubmitter) shouldDropPayload(check string) bool {
 }
 
 func (s *CheckSubmitter) heartbeat(heartbeatTicker *clock.Ticker) {
-	defer heartbeatTicker.Stop()
-
 	agentVersion, _ := version.Agent()
 	tags := []string{
 		fmt.Sprintf("version:%s", agentVersion.GetNumberAndPre()),
