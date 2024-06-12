@@ -12,6 +12,7 @@ import (
 	"go.uber.org/zap"
 
 	converter "github.com/DataDog/datadog-agent/comp/otelcol/converter/def"
+	extensionDef "github.com/DataDog/datadog-agent/comp/otelcol/extension/def"
 	"github.com/DataDog/datadog-agent/comp/otelcol/extension/impl/internal/metadata"
 )
 
@@ -30,8 +31,8 @@ type ddExtension struct {
 	debug       DebugSourceResponse
 }
 
-// newDDHTTPExtension creates a new instance of the extension.
-func newDDHTTPExtension(ctx context.Context, cfg *Config, telemetry component.TelemetrySettings, info component.BuildInfo) (extension.Extension, error) {
+// NewExtension creates a new instance of the extension.
+func NewExtension(ctx context.Context, cfg *Config, telemetry component.TelemetrySettings, info component.BuildInfo) (extensionDef.Component, error) {
 	ext := &ddExtension{
 		cfg:       cfg,
 		telemetry: telemetry,

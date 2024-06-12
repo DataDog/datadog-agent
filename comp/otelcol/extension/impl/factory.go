@@ -34,7 +34,7 @@ func (f *ddExtensionFactory) CreateExtension(ctx context.Context, set extension.
 		Converter: f.converter,
 	}
 	config.HTTPConfig = cfg.(*Config).HTTPConfig
-	return newDDHTTPExtension(ctx, config, set.TelemetrySettings, set.BuildInfo)
+	return NewExtension(ctx, config, set.TelemetrySettings, set.BuildInfo)
 }
 
 func (f *ddExtensionFactory) CreateDefaultConfig() component.Config {
