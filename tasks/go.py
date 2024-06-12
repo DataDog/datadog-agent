@@ -11,6 +11,7 @@ import re
 import shutil
 import sys
 import textwrap
+import time
 import traceback
 from pathlib import Path
 
@@ -21,7 +22,7 @@ import tasks.modules
 from tasks.build_tags import ALL_TAGS, UNIT_TEST_TAGS, get_default_build_tags
 from tasks.libs.common.color import color_message
 from tasks.libs.common.git import check_uncommitted_changes
-from tasks.libs.common.utils import get_build_flags, timed
+from tasks.libs.common.utils import TimedOperationResult, collapsed_section, get_build_flags, timed
 from tasks.licenses import get_licenses_list
 from tasks.modules import DEFAULT_MODULES, generate_dummy_package
 
@@ -65,20 +66,30 @@ def run_golangci_lint(
     verbosity = "-v" if verbose else ""
     # we split targets to avoid going over the memory limit from circleCI
     results = []
+    time_results = []
     for target in targets:
-        if not headless_mode:
-            print(f"running golangci on {target}")
-        concurrency_arg = "" if concurrency is None else f"--concurrency {concurrency}"
-        tags_arg = " ".join(sorted(set(tags)))
-        timeout_arg_value = "25m0s" if not timeout else f"{timeout}m0s"
-        result = ctx.run(
-            f'golangci-lint run {verbosity} --timeout {timeout_arg_value} {concurrency_arg} --build-tags "{tags_arg}" --path-prefix "{module_path}" {golangci_lint_kwargs} {target}/...',
-            env=env,
-            warn=True,
-        )
-        results.append(result)
+        target_path = Path(module_path) / target
+        time_start = time.perf_counter()
 
-    return results
+        with collapsed_section('Lint ' + target_path.as_posix()):
+            if not headless_mode:
+                print(f"running golangci on {target}")
+            concurrency_arg = "" if concurrency is None else f"--concurrency {concurrency}"
+            tags_arg = " ".join(sorted(set(tags)))
+            timeout_arg_value = "25m0s" if not timeout else f"{timeout}m0s"
+            result = ctx.run(
+                f'golangci-lint run {verbosity} --timeout {timeout_arg_value} {concurrency_arg} --build-tags "{tags_arg}" --path-prefix "{module_path}" {golangci_lint_kwargs} {target}/...',
+                env=env,
+                warn=True,
+            )
+
+        time_end = time.perf_counter()
+        duration = time_end - time_start
+
+        results.append(result)
+        time_results.append(TimedOperationResult(target_path, duration))
+
+    return results, time_results
 
 
 @task

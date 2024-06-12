@@ -11,6 +11,7 @@ import time
 import traceback
 from collections import Counter
 from contextlib import contextmanager
+from dataclasses import dataclass
 from functools import wraps
 from pathlib import Path
 from subprocess import CalledProcessError, check_output
@@ -40,6 +41,19 @@ else:
     RTLOADER_LIB_NAME = "libdatadog-agent-rtloader.so"
 RTLOADER_HEADER_NAME = "datadog_agent_rtloader.h"
 AGENT_VERSION_CACHE_NAME = "agent-version.cache"
+
+
+@dataclass
+class TimedOperationResult:
+    path: str
+    # In seconds
+    duration: float
+
+    def __lt__(self, other):
+        if isinstance(other, TimedOperationResult):
+            return self.path < other.path
+        else:
+            return True
 
 
 def get_all_allowed_repo_branches():
