@@ -22,7 +22,7 @@ from invoke.context import Context
 from invoke.exceptions import Exit
 
 from tasks.libs.common.color import Color, color_message
-from tasks.libs.common.git import check_local_branch, check_uncommitted_changes, get_commit_sha
+from tasks.libs.common.git import check_local_branch, check_uncommitted_changes, get_commit_sha, get_current_branch
 from tasks.libs.owners.parsing import search_owners
 from tasks.libs.types.arch import Arch
 
@@ -491,7 +491,7 @@ def get_matching_pattern(ctx, major_version, release=False):
     pattern = rf"{major_version}\.*"
     if release or is_allowed_repo_nightly_branch(os.getenv("BUCKET_BRANCH")):
         pattern = ctx.run(
-            rf"git tag --list | grep -E '^{major_version}\.[0-9]+\.[0-9]+(-rc.*|-devel.*)?$' | sort -rV | head -1",
+            rf"git tag --list --merged {get_current_branch(ctx)} | grep -E '^{major_version}\.[0-9]+\.[0-9]+(-rc.*|-devel.*)?$' | sort -rV | head -1",
             hide=True,
         ).stdout.strip()
     return pattern
