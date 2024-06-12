@@ -369,6 +369,17 @@ def get_complexity_for_function(object_file: str, function: str, debug=False) ->
         return json.load(f)
 
 
+def _get_sorted_list_of_files(complexity_data: ComplexityData):
+    num_asm_insns = len(complexity_data["insn_map"])
+    files_and_min_asm: dict[str, int] = collections.defaultdict(lambda: num_asm_insns)
+    for lineid, compl in complexity_data["source_map"].items():
+        file = lineid.split(":")[0]
+        min_asm_for_line = min(compl["assembly_insns"], default=num_asm_insns)
+        files_and_min_asm[file] = min(files_and_min_asm[file], min_asm_for_line)
+
+    return [x[0] for x in sorted(files_and_min_asm.items(), key=lambda x: x[1])]
+
+
 @task(
     help={
         "object_file": "The program to analyze",
@@ -392,7 +403,7 @@ def annotate_complexity(
 ):
     """Show source code with annotated complexity information for the given program and function"""
     complexity_data = get_complexity_for_function(object_file, function, debug)
-    all_files = {x.split(":")[0] for x in complexity_data["source_map"].keys()}
+    all_files = _get_sorted_list_of_files(complexity_data)
 
     if colored is None:
         raise Exit("termcolor is required to print colored output")
@@ -411,7 +422,7 @@ def annotate_complexity(
 
     compinfo_widths = (len(str(max_insn)), len(str(max_passes)), len(str(max_total)))
 
-    for f in sorted(all_files):
+    for f in all_files:
         if not os.path.exists(f):
             print(f"File {f} not found")
             continue
@@ -598,7 +609,7 @@ def generate_html_report(ctx: Context, dest_folder: str | Path):
                 level = 'extreme'
             insn['complexity_level'] = level  # type: ignore
 
-        all_files = {x.split(":")[0] for x in complexity_data["source_map"].keys()}
+        all_files = _get_sorted_list_of_files(complexity_data)
         file_contents = {}
         for f in all_files:
             if not os.path.exists(f):
