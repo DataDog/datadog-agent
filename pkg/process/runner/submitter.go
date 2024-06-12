@@ -217,7 +217,7 @@ func (s *CheckSubmitter) Start() error {
 	}()
 
 	if flavor.GetFlavor() == flavor.ProcessAgent {
-		heartbeatTicker := s.clock.Ticker(15 * time.Minute)
+		heartbeatTicker := s.clock.Ticker(15 * time.Second)
 		s.wg.Add(1)
 		go func() {
 			defer s.wg.Done()

@@ -344,7 +344,7 @@ func TestSubmitterHeartbeatProcess(t *testing.T) {
 	mockedClock := clock.NewMock()
 	s.clock = mockedClock
 	s.Start()
-	mockedClock.Add(15 * time.Minute)
+	mockedClock.Add(15 * time.Second)
 	s.Stop()
 }
 
@@ -364,7 +364,7 @@ func TestSubmitterHeartbeatCore(t *testing.T) {
 	mockedClock := clock.NewMock()
 	s.clock = mockedClock
 	s.Start()
-	mockedClock.Add(15 * time.Minute)
+	mockedClock.Add(15 * time.Second)
 	s.Stop()
 }
 
