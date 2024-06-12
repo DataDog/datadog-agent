@@ -50,3 +50,8 @@ func (r *Resolver) SendStats() error {
 // Start starts the goroutine of the SBOM resolver
 func (r *Resolver) Start(_ context.Context) {
 }
+
+// RefreshSBOM regenerates a SBOM for a container
+func (r *Resolver) RefreshSBOM(_ string) error {
+	return nil
+}

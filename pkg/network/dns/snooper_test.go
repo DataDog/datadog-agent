@@ -109,7 +109,7 @@ func initDNSTests(t *testing.T, localDNS bool, collectDomain bool) *dnsMonitor {
 	cfg.DNSTimeout = 1 * time.Second
 	cfg.CollectDNSDomains = collectDomain
 
-	rdns, err := NewReverseDNS(cfg)
+	rdns, err := NewReverseDNS(cfg, nil)
 	require.NoError(t, err)
 
 	return rdns.(*dnsMonitor)
@@ -384,7 +384,7 @@ func TestParsingError(t *testing.T) {
 	cfg.CollectLocalDNS = false
 	cfg.CollectDNSDomains = false
 	cfg.DNSTimeout = 15 * time.Second
-	rdns, err := NewReverseDNS(cfg)
+	rdns, err := NewReverseDNS(cfg, nil)
 	require.NoError(t, err)
 	defer rdns.Close()
 

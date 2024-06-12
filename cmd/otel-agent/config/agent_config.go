@@ -58,8 +58,12 @@ func NewConfigComponent(ctx context.Context, uris []string) (config.Component, e
 	}
 	site := ddc.API.Site
 	apiKey := string(ddc.API.Key)
-	// Create a new config
-	pkgconfig := pkgconfigmodel.NewConfig("OTel", "DD", strings.NewReplacer(".", "_"))
+	// Set the global agent config
+	pkgconfig := pkgconfigsetup.Datadog()
+	pkgconfig.SetConfigName("OTel")
+	pkgconfig.SetEnvPrefix("DD")
+	pkgconfig.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
+
 	// Set Default values
 	pkgconfigsetup.InitConfig(pkgconfig)
 	pkgconfig.Set("api_key", apiKey, pkgconfigmodel.SourceLocalConfigProcess)
@@ -103,7 +107,7 @@ func getDDExporterConfig(cfg *confmap.Conf) (*datadogexporter.Config, error) {
 		}
 		for k, v := range exporters {
 			if strings.HasPrefix(k, "datadog") {
-				var datadogConfig *datadogexporter.Config
+				datadogConfig := datadogexporter.CreateDefaultConfig().(*datadogexporter.Config)
 				m, ok := v.(map[string]any)
 				if !ok {
 					return nil, fmt.Errorf("invalid datadog exporter config")
