@@ -17,7 +17,6 @@ import (
 	"slices"
 	"strconv"
 	"strings"
-	"sync"
 
 	admiv1 "k8s.io/api/admissionregistration/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -31,9 +30,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/metrics"
 	mutatecommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
-	apiServerCommon "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 )
@@ -122,16 +119,6 @@ var (
 		Name:  instrumentationInstallTypeEnvVarName,
 		Value: localLibraryInstrumentationInstallType,
 	}
-
-	// We need a global variable to store the APMInstrumentationWebhook instance
-	// because other webhooks depend on it. The "config" and the "tags" webhooks
-	// depend on the "auto_instrumentation" webhook to decide if a pod should be
-	// injected. They first check if the pod has the label to enable mutations.
-	// If it doesn't, they mutate the pod if the option to mutate unlabeled is
-	// set to true or if APM SSI is enabled in the namespace.
-	apmInstrumentationWebhook *Webhook
-	errInitAPMInstrumentation error
-	initOnce                  sync.Once
 )
 
 // Webhook is the auto instrumentation webhook
@@ -141,101 +128,35 @@ type Webhook struct {
 	endpoint          string
 	resources         []string
 	operations        []admiv1.OperationType
-	filter            *containers.Filter
 	containerRegistry string
+	injectionFilter   mutatecommon.InjectionFilter
 	pinnedLibraries   []libInfo
 	wmeta             workloadmeta.Component
 }
 
-// NewWebhook returns a new Webhook
-func NewWebhook(wmeta workloadmeta.Component) (*Webhook, error) {
-	filter, err := apmSSINamespaceFilter()
-	if err != nil {
+// NewWebhook returns a new Webhook dependent on the injection filter.
+func NewWebhook(wmeta workloadmeta.Component, filter mutatecommon.InjectionFilter) (*Webhook, error) {
+	// Note: the webhook is not functional with the filter being disabled--
+	//       and the filter is _global_! so we need to make sure that it was
+	//       initialized as it validates the configuration itself.
+	if filter.NSFilter == nil {
+		return nil, errors.New("filter required for auto_instrumentation webhook")
+	} else if err := filter.NSFilter.Err(); err != nil {
 		return nil, err
 	}
 
 	containerRegistry := mutatecommon.ContainerRegistry("admission_controller.auto_instrumentation.container_registry")
-
 	return &Webhook{
 		name:              webhookName,
 		isEnabled:         config.Datadog().GetBool("admission_controller.auto_instrumentation.enabled"),
 		endpoint:          config.Datadog().GetString("admission_controller.auto_instrumentation.endpoint"),
 		resources:         []string{"pods"},
 		operations:        []admiv1.OperationType{admiv1.Create},
-		filter:            filter,
 		containerRegistry: containerRegistry,
+		injectionFilter:   filter,
 		pinnedLibraries:   getPinnedLibraries(containerRegistry),
 		wmeta:             wmeta,
 	}, nil
-}
-
-// GetWebhook returns the Webhook instance, creating it if it doesn't exist
-func GetWebhook(wmeta workloadmeta.Component) (*Webhook, error) {
-	initOnce.Do(func() {
-		if apmInstrumentationWebhook == nil {
-			apmInstrumentationWebhook, errInitAPMInstrumentation = NewWebhook(wmeta)
-		}
-	})
-
-	return apmInstrumentationWebhook, errInitAPMInstrumentation
-}
-
-// UnsetWebhook unsets the webhook. For testing only.
-func UnsetWebhook() {
-	initOnce = sync.Once{}
-	apmInstrumentationWebhook = nil
-	errInitAPMInstrumentation = nil
-}
-
-// apmSSINamespaceFilter returns the filter used by APM SSI to filter namespaces.
-// The filter excludes two namespaces by default: "kube-system" and the
-// namespace where datadog is installed.
-// Cases:
-// - No enabled namespaces and no disabled namespaces: inject in all namespaces
-// except the 2 namespaces excluded by default.
-// - Enabled namespaces and no disabled namespaces: inject only in the
-// namespaces specified in the list of enabled namespaces. If one of the
-// namespaces excluded by default is included in the list, it will be injected.
-// - Disabled namespaces and no enabled namespaces: inject only in the
-// namespaces that are not included in the list of disabled namespaces and that
-// are not one of the ones disabled by default.
-// - Enabled and disabled namespaces: return error.
-func apmSSINamespaceFilter() (*containers.Filter, error) {
-	apmEnabledNamespaces := config.Datadog().GetStringSlice("apm_config.instrumentation.enabled_namespaces")
-	apmDisabledNamespaces := config.Datadog().GetStringSlice("apm_config.instrumentation.disabled_namespaces")
-
-	if len(apmEnabledNamespaces) > 0 && len(apmDisabledNamespaces) > 0 {
-		return nil, fmt.Errorf("apm.instrumentation.enabled_namespaces and apm.instrumentation.disabled_namespaces configuration cannot be set together")
-	}
-
-	// Prefix the namespaces as needed by the containers.Filter.
-	prefix := containers.KubeNamespaceFilterPrefix
-	apmEnabledNamespacesWithPrefix := make([]string, len(apmEnabledNamespaces))
-	apmDisabledNamespacesWithPrefix := make([]string, len(apmDisabledNamespaces))
-
-	for i := range apmEnabledNamespaces {
-		apmEnabledNamespacesWithPrefix[i] = prefix + fmt.Sprintf("^%s$", apmEnabledNamespaces[i])
-	}
-	for i := range apmDisabledNamespaces {
-		apmDisabledNamespacesWithPrefix[i] = prefix + fmt.Sprintf("^%s$", apmDisabledNamespaces[i])
-	}
-
-	disabledByDefault := []string{
-		prefix + "^kube-system$",
-		prefix + fmt.Sprintf("^%s$", apiServerCommon.GetResourcesNamespace()),
-	}
-
-	var filterExcludeList []string
-	if len(apmEnabledNamespacesWithPrefix) > 0 && len(apmDisabledNamespacesWithPrefix) == 0 {
-		// In this case, we want to include only the namespaces in the enabled list.
-		// In the containers.Filter, the include list is checked before the
-		// exclude list, that's why we set the exclude list to all namespaces.
-		filterExcludeList = []string{prefix + ".*"}
-	} else {
-		filterExcludeList = append(apmDisabledNamespacesWithPrefix, disabledByDefault...)
-	}
-
-	return containers.NewFilter(containers.GlobalFilter, apmEnabledNamespacesWithPrefix, filterExcludeList)
 }
 
 // Name returns the name of the webhook
@@ -291,42 +212,41 @@ func libImageName(registry string, lang language, tag string) string {
 }
 
 func (w *Webhook) isPodEligible(pod *corev1.Pod) bool {
-	if w.isEnabledInNamespace(pod.Namespace) {
-		// if Single Step Instrumentation is enabled, pods can still opt out using the label
-		if pod.GetLabels()[common.EnabledLabelKey] == "false" {
-			log.Debugf("Skipping single step instrumentation of pod %q due to label", mutatecommon.PodString(pod))
-			return false
-		}
-	} else if !mutatecommon.ShouldMutatePod(pod) {
-		log.Debugf("Skipping auto instrumentation of pod %q because pod mutation is not allowed", mutatecommon.PodString(pod))
-		return false
-	}
+	return w.injectionFilter.ShouldMutatePod(pod)
+}
 
-	return true
+func (w *Webhook) isEnabledInNamespace(namespace string) bool {
+	return w.injectionFilter.NSFilter.IsNamespaceEligible(namespace)
 }
 
 func (w *Webhook) inject(pod *corev1.Pod, _ string, _ dynamic.Interface) (bool, error) {
 	if pod == nil {
 		return false, errors.New(metrics.InvalidInput)
 	}
+
 	injectApmTelemetryConfig(pod)
 
 	if !w.isPodEligible(pod) {
 		return false, nil
 	}
+
+	// 1. we check to see if we've already done injection,
+	//    if so, we abort.
 	for _, lang := range supportedLanguages {
 		if containsInitContainer(pod, initContainerName(lang)) {
-			// The admission can be reinvocated for the same pod
+			// The admission can be re-run for the same pod
 			// Fast return if we injected the library already
 			log.Debugf("Init container %q already exists in pod %q", initContainerName(lang), mutatecommon.PodString(pod))
 			return false, nil
 		}
 	}
 
+	// 3. If we have nothing to inject we bail out, otherwise we do _work_!
 	libsToInject, autoDetected := w.extractLibInfo(pod)
 	if len(libsToInject) == 0 {
 		return false, nil
 	}
+
 	injectSecurityClientLibraryConfig(pod)
 	injectProfilingClientLibraryConfig(pod)
 	// Inject env variables used for Onboarding KPIs propagation
@@ -433,12 +353,12 @@ func getPinnedLibraries(registry string) []libInfo {
 // getLibrariesLanguageDetection runs process language auto-detection and returns languages to inject for APM Instrumentation.
 // The languages information is available in workloadmeta-store and attached on the pod's owner.
 func (w *Webhook) getLibrariesLanguageDetection(pod *corev1.Pod) []libInfo {
-	if config.Datadog().GetBool("admission_controller.auto_instrumentation.inject_auto_detected_libraries") {
-		// Use libraries returned by language detection for APM Instrumentation
-		return w.getAutoDetectedLibraries(pod)
+	if !config.Datadog().GetBool("admission_controller.auto_instrumentation.inject_auto_detected_libraries") {
+		return nil
 	}
 
-	return nil
+	// Use libraries returned by language detection for APM Instrumentation
+	return w.getAutoDetectedLibraries(pod)
 }
 
 // getAllLatestLibraries returns all supported by APM Instrumentation tracing libraries
@@ -461,20 +381,19 @@ type libInfo struct {
 // extractLibInfo returns the language, the image,
 // and a boolean indicating whether the library should be injected into the pod
 func (w *Webhook) extractLibInfo(pod *corev1.Pod) ([]libInfo, bool) {
-	// If the pod is "injectable" and annotated with libraries to inject, use those.
-	if ShouldInject(pod, w.wmeta) {
-		libs := w.extractLibrariesFromAnnotations(pod)
-		if len(libs) > 0 {
-			return libs, false
+
+	if w.isPodEligible(pod) {
+		// The library version specified via annotation on the Pod takes precedence
+		// over libraries injected with Single Step Instrumentation
+		anns := w.extractLibrariesFromAnnotations(pod)
+		if len(anns) > 0 {
+			return anns, false
 		}
 	}
 
-	// If auto-instrumentation is enabled in the namespace and nothing has been overridden,
-	//
-	// 1. We check for pinned libraries in the config
-	// 2. We check for language detection (if enabled)
-	// 3. We fall back to "latest"
 	if w.isEnabledInNamespace(pod.Namespace) {
+		// if the user has pinned libraries, and they weren't overridden
+		// by annotations, we use those.
 		if len(w.pinnedLibraries) > 0 {
 			return w.pinnedLibraries, false
 		}
@@ -573,41 +492,6 @@ func (w *Webhook) extractLibrariesFromAnnotations(pod *corev1.Pod) []libInfo {
 	}
 
 	return libList
-}
-
-// ShouldInject returns true if Admission Controller should inject standard tags, APM configs and APM libraries
-func ShouldInject(pod *corev1.Pod, wmeta workloadmeta.Component) bool {
-	// If a pod explicitly sets the label admission.datadoghq.com/enabled, make a decision based on its value
-	if val, found := pod.GetLabels()[common.EnabledLabelKey]; found {
-		switch val {
-		case "true":
-			return true
-		case "false":
-			return false
-		default:
-			log.Warnf("Invalid label value '%s=%s' on pod %s should be either 'true' or 'false', ignoring it", common.EnabledLabelKey, val, mutatecommon.PodString(pod))
-		}
-	}
-
-	apmWebhook, err := GetWebhook(wmeta)
-	if err != nil {
-		return config.Datadog().GetBool("admission_controller.mutate_unlabelled")
-	}
-
-	return apmWebhook.isEnabledInNamespace(pod.Namespace) || config.Datadog().GetBool("admission_controller.mutate_unlabelled")
-}
-
-// isEnabledInNamespace indicates if Single Step Instrumentation is enabled for
-// the namespace in the cluster
-func (w *Webhook) isEnabledInNamespace(namespace string) bool {
-	apmInstrumentationEnabled := config.Datadog().GetBool("apm_config.instrumentation.enabled")
-
-	if !apmInstrumentationEnabled {
-		log.Debugf("APM Instrumentation is disabled")
-		return false
-	}
-
-	return !w.filter.IsExcluded(nil, "", "", namespace)
 }
 
 func (w *Webhook) injectAutoInstruConfig(pod *corev1.Pod, libsToInject []libInfo, autoDetected bool, injectionType string) error {

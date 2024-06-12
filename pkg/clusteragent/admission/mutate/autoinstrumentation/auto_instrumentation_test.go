@@ -36,7 +36,7 @@ import (
 
 const commonRegistry = "gcr.io/datadoghq"
 
-func TestInjectAutoInstruConfig(t *testing.T) {
+func TestInjectAutoInstrumentationConfig(t *testing.T) {
 	tests := []struct {
 		name           string
 		pod            *corev1.Pod
@@ -245,7 +245,7 @@ func TestInjectAutoInstruConfig(t *testing.T) {
 	wmeta := fxutil.Test[workloadmeta.Component](t, core.MockBundle(), workloadmetafxmock.MockModule(), fx.Supply(workloadmeta.NewParams()))
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			webhook, err := GetWebhook(wmeta)
+			webhook, err := NewWebhook(wmeta, common.InjectionFilter{})
 			require.NoError(t, err)
 
 			err = webhook.injectAutoInstruConfig(tt.pod, tt.libsToInject, false, "")
@@ -541,6 +541,35 @@ func TestExtractLibInfo(t *testing.T) {
 			},
 		},
 		{
+			name:                 "all with mutate_unlabelled off",
+			pod:                  common.FakePodWithAnnotation("admission.datadoghq.com/all-lib.version", "latest"),
+			containerRegistry:    "registry",
+			expectedPodEligible:  pointer.Ptr(false),
+			expectedLibsToInject: allLatestLibs,
+			setupConfig: func() {
+				mockConfig.SetWithoutSource("admission_controller.mutate_unlabelled", false)
+			},
+		},
+		{
+			name: "all with mutate_unlabelled off, but labelled admission enabled",
+			pod: &corev1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					Annotations: map[string]string{
+						"admission.datadoghq.com/all-lib.version": "latest",
+					},
+					Labels: map[string]string{
+						"admission.datadoghq.com/enabled": "true",
+					},
+				},
+			},
+			containerRegistry:    "registry",
+			expectedPodEligible:  pointer.Ptr(true),
+			expectedLibsToInject: allLatestLibs,
+			setupConfig: func() {
+				mockConfig.SetWithoutSource("admission_controller.mutate_unlabelled", false)
+			},
+		},
+		{
 			name: "java + all",
 			pod: &corev1.Pod{
 				ObjectMeta: metav1.ObjectMeta{
@@ -625,8 +654,8 @@ func TestExtractLibInfo(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Fix me: since comp-config and pkg-config don't work together yet we have to set settings
-			// twice
+			// Fix me: since comp-config and pkg-config don't work together,
+			// we have to set settings twice
 			overrides := map[string]interface{}{
 				"admission_controller.mutate_unlabelled":  true,
 				"admission_controller.container_registry": commonRegistry,
@@ -650,17 +679,14 @@ func TestExtractLibInfo(t *testing.T) {
 				tt.setupConfig()
 			}
 
-			// Need to create a new instance of the webhook to take into account
-			// the config changes.
-			UnsetWebhook()
-			apmInstrumentationWebhook, errInitAPMInstrumentation := GetWebhook(wmeta)
-			require.NoError(t, errInitAPMInstrumentation)
+			// Need to create a new instance of the webhook account of config changes.
+			webhook := WithResetInjectionFilter1(wmeta, mustWebhook(t))
 
 			if tt.expectedPodEligible != nil {
-				require.Equal(t, *tt.expectedPodEligible, apmInstrumentationWebhook.isPodEligible(tt.pod))
+				require.Equal(t, *tt.expectedPodEligible, webhook.isPodEligible(tt.pod))
 			}
 
-			libsToInject, _ := apmInstrumentationWebhook.extractLibInfo(tt.pod)
+			libsToInject, _ := webhook.extractLibInfo(tt.pod)
 			require.ElementsMatch(t, tt.expectedLibsToInject, libsToInject)
 		})
 	}
@@ -2172,13 +2198,9 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 				}
 			}
 
-			// Need to create a new instance of the webhook to take into account
-			// the config changes.
-			UnsetWebhook()
-			apmInstrumentationWebhook, errInitAPMInstrumentation := GetWebhook(wmeta)
-			require.NoError(t, errInitAPMInstrumentation)
+			webhook := WithResetInjectionFilter1(wmeta, mustWebhook(t))
 
-			_, err := apmInstrumentationWebhook.inject(tt.pod, "", fake.NewSimpleDynamicClient(scheme.Scheme))
+			_, err := webhook.inject(tt.pod, "", fake.NewSimpleDynamicClient(scheme.Scheme))
 			require.False(t, (err != nil) != tt.wantErr)
 
 			container := tt.pod.Spec.Containers[0]
@@ -2418,14 +2440,20 @@ func TestShouldInject(t *testing.T) {
 			mockConfig = config.Mock(nil)
 			tt.setupConfig()
 
-			// Need to create a new instance of the webhook to take into account
-			// the config changes.
-			UnsetWebhook()
-			webhook, errInitAPMInstrumentation := GetWebhook(wmeta)
-			require.NoError(t, errInitAPMInstrumentation)
-
-			require.Equal(t, tt.want, ShouldInject(tt.pod, webhook.wmeta), "expected ShouldInject() to be %t", tt.want)
-			require.Equal(t, tt.want, webhook.isPodEligible(tt.pod), "expected webhook.isPodEligible() to be %t", tt.want)
+			// Need to create a new instance of the webhook account for config changes.
+			webhook := WithResetInjectionFilter1(wmeta, mustWebhook(t))
+			if got := webhook.isPodEligible(tt.pod); got != tt.want {
+				t.Errorf("shouldInject() = %v, want %v", got, tt.want)
+			}
 		})
+	}
+}
+
+func mustWebhook(t *testing.T) func(workloadmeta.Component, common.InjectionFilter) *Webhook {
+	t.Helper()
+	return func(wmeta workloadmeta.Component, f common.InjectionFilter) *Webhook {
+		webhook, err := NewWebhook(wmeta, f)
+		require.NoError(t, err)
+		return webhook
 	}
 }
