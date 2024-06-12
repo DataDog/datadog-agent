@@ -262,7 +262,7 @@ def init(ctx: Context, lite=False, images: str | None = None):
         init_kernel_matrix_testing_system(ctx, lite, images)
     except Exception as e:
         error(f"[-] Error initializing kernel matrix testing system: {e}")
-        raise Exit("[-] Initialization failed")
+        raise e
 
     info("[+] Kernel matrix testing system initialized successfully")
     config_ssh_key(ctx)
