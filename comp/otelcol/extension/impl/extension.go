@@ -63,7 +63,7 @@ func (ext *ddExtension) Start(ctx context.Context, host component.Host) error {
 	}
 
 	extensions := host.GetExtensions()
-	for extension, _ := range extensions {
+	for extension := range extensions {
 		extractor, ok := supportedDebugExtensions[extension.String()]
 		if !ok {
 			continue
