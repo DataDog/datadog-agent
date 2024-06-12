@@ -26,8 +26,8 @@ from tasks.libs.common.utils import (
     get_embedded_path,
     get_goenv,
     get_version,
+    gitlab_section,
     has_both_python,
-    section,
 )
 from tasks.rtloader import clean as rtloader_clean
 from tasks.rtloader import install as rtloader_install
@@ -146,7 +146,7 @@ def build(
     if not exclude_rtloader and not flavor.is_iot():
         # If embedded_path is set, we should give it to rtloader as it should install the headers/libs
         # in the embedded path folder because that's what is used in get_build_flags()
-        with section("Install embedded rtloader", collapsed=True):
+        with gitlab_section("Install embedded rtloader", collapsed=True):
             rtloader_make(
                 ctx, python_runtimes=python_runtimes, install_prefix=embedded_path, cmake_options=cmake_options
             )
@@ -221,7 +221,7 @@ def build(
         "REPO_PATH": REPO_PATH,
         "flavor": "iot-agent" if flavor.is_iot() else "agent",
     }
-    with section("Build agent", collapsed=True):
+    with gitlab_section("Build agent", collapsed=True):
         ctx.run(cmd.format(**args), env=env)
 
     if embedded_path is None:
@@ -240,7 +240,7 @@ def build(
 
         create_launcher(ctx, build, agent_fullpath, bundled_agent_bin)
 
-    with section("Generate configuration files", collapsed=True):
+    with gitlab_section("Generate configuration files", collapsed=True):
         render_config(
             ctx,
             env=env,

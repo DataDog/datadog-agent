@@ -30,7 +30,7 @@ from tasks.libs.common.color import color_message
 from tasks.libs.common.datadog_api import create_count, send_metrics
 from tasks.libs.common.git import get_modified_files
 from tasks.libs.common.junit_upload_core import enrich_junitxml, produce_junit_tar
-from tasks.libs.common.utils import clean_nested_paths, get_build_flags, get_distro, section
+from tasks.libs.common.utils import clean_nested_paths, get_build_flags, get_distro, gitlab_section
 from tasks.modules import DEFAULT_MODULES, GoModule
 from tasks.test_core import ModuleTestResult, process_input_args, process_module_results, test_core
 from tasks.testwasher import TestWasher
@@ -433,7 +433,7 @@ def test(
     if only_impacted_packages:
         modules = get_impacted_packages(ctx, build_tags=unit_tests_tags)
 
-    with section("Running unit tests", collapsed=True):
+    with gitlab_section("Running unit tests", collapsed=True):
         test_results = test_flavor(
             ctx,
             flavor=flavor,
@@ -477,7 +477,7 @@ def codecov(
     """
     distro_tag = get_distro()
     codecov_binary = "codecov" if platform.system() != "Windows" else "codecov.exe"
-    with section("Upload coverage reports to Codecov", collapsed=True):
+    with gitlab_section("Upload coverage reports to Codecov", collapsed=True):
         ctx.run(f"{codecov_binary} -f {PROFILE_COV} -F {distro_tag}", warn=True)
 
 

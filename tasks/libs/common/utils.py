@@ -45,13 +45,13 @@ AGENT_VERSION_CACHE_NAME = "agent-version.cache"
 
 @dataclass
 class TimedOperationResult:
-    path: str
+    name: str
     # In seconds
     duration: float
 
     def __lt__(self, other):
         if isinstance(other, TimedOperationResult):
-            return self.path < other.path
+            return self.name < other.name
         else:
             return True
 
@@ -734,12 +734,12 @@ def is_pr_context(branch, pr_id, test_name):
 
 
 @contextmanager
-def section(section_name, collapsed=False):
+def gitlab_section(section_name, collapsed=False):
     section_id = section_name.replace(" ", "_").replace("/", "_")
     in_ci = running_in_gitlab_ci()
     try:
         if in_ci:
-            collapsed = collapsed and '[collapsed=true]'
+            collapsed = '[collapsed=true]' if collapsed else ''
             print(f"\033[0Ksection_start:{int(time.time())}:{section_id}{collapsed}\r\033[0K{section_name + '...'}")
         yield
     finally:
@@ -786,7 +786,7 @@ def retry_function(action_name_fmt, max_retries=2, retry_delay=1):
                             ),
                             file=sys.stderr,
                         )
-                        with section(f"Retry {i + 1}/{max_retries} {action_name}", collapsed=True):
+                        with gitlab_section(f"Retry {i + 1}/{max_retries} {action_name}", collapsed=True):
                             traceback.print_exc()
                         time.sleep(retry_delay)
                         print(color_message(f'Retrying {action_name}', 'blue'))

@@ -2,7 +2,7 @@ import sys
 
 from invoke import Exit, task
 
-from tasks.libs.common.utils import environ, section
+from tasks.libs.common.utils import environ, gitlab_section
 
 TOOL_LIST = [
     'github.com/frapposelli/wwhrd',
@@ -42,7 +42,7 @@ def download_tools(ctx):
 @task
 def install_tools(ctx):
     """Install all Go tools for testing."""
-    with section("Installing Go tools", collapsed=True):
+    with gitlab_section("Installing Go tools", collapsed=True):
         with environ({'GO111MODULE': 'on'}):
             for path, tools in TOOLS.items():
                 with ctx.cd(path):

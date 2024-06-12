@@ -27,9 +27,9 @@ from tasks.libs.common.utils import (
     DEFAULT_BRANCH,
     GITHUB_REPO_NAME,
     color_message,
+    gitlab_section,
     is_pr_context,
     running_in_ci,
-    section,
 )
 from tasks.libs.types.copyright import CopyrightLinter, LintFailure
 from tasks.modules import GoModule
@@ -188,13 +188,13 @@ def go(
         include_sds=include_sds,
     )
 
-    with section('Linter failures', collapsed=True):
+    with gitlab_section('Linter failures', collapsed=True):
         success = process_module_results(flavor=flavor, module_results=lint_results)
 
-    with section('Linter execution time'):
+    with gitlab_section('Linter execution time'):
         print(color_message('Execution time summary:', 'bold'))
 
-        for e in sorted(execution_times):
+        for e in execution_times:
             print(f'- {e.path}: {e.duration:.1f}s')
 
     if success:
