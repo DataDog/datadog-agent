@@ -81,10 +81,6 @@ func NewConfigComponent(ctx context.Context, uris []string) (config.Component, e
 	pkgconfig.Set("apm_config.receiver_port", 0, pkgconfigmodel.SourceLocalConfigProcess) // disable HTTP receiver
 	pkgconfig.Set("apm_config.ignore_resources", ddc.Traces.IgnoreResources, pkgconfigmodel.SourceLocalConfigProcess)
 	pkgconfig.Set("apm_config.skip_ssl_validation", ddc.ClientConfig.TLSSetting.InsecureSkipVerify, pkgconfigmodel.SourceLocalConfigProcess)
-	pkgconfig.Set("apm_config.peer_tags_aggregation", ddc.Traces.PeerTagsAggregation, pkgconfigmodel.SourceLocalConfigProcess)
-	pkgconfig.Set("apm_config.peer_service_aggregation", ddc.Traces.PeerServiceAggregation, pkgconfigmodel.SourceLocalConfigProcess)
-	pkgconfig.Set("apm_config.peer_tags", ddc.Traces.PeerTags, pkgconfigmodel.SourceLocalConfigProcess)
-	pkgconfig.Set("apm_config.compute_stats_by_span_kind", ddc.Traces.ComputeStatsBySpanKind, pkgconfigmodel.SourceLocalConfigProcess)
 	if v := ddc.Traces.TraceBuffer; v > 0 {
 		pkgconfig.Set("apm_config.trace_buffer", v, pkgconfigmodel.SourceLocalConfigProcess)
 	}

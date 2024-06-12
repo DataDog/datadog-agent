@@ -26,9 +26,6 @@ func TestAgentConfig(t *testing.T) {
 	assert.Equal(t, map[string]string{"io.opentelemetry.javaagent.spring.client": "spring.client"}, c.Get("otlp_config.traces.span_name_remappings"))
 	assert.Equal(t, []string{"(GET|POST) /healthcheck"}, c.Get("apm_config.ignore_resources"))
 	assert.Equal(t, 0, c.Get("apm_config.receiver_port"))
-	assert.Equal(t, true, c.Get("apm_config.peer_tags_aggregation"))
-	assert.Equal(t, true, c.Get("apm_config.compute_stats_by_span_kind"))
-	assert.Equal(t, []string{"tag1"}, c.Get("apm_config.peer_tags"))
 	assert.Equal(t, 10, c.Get("apm_config.trace_buffer"))
 	assert.Equal(t, []string{"enable_otlp_compute_top_level_by_span_kind"}, c.Get("apm_config.features"))
 }

@@ -125,13 +125,6 @@ func TestValidate(t *testing.T) {
 			},
 		},
 		{
-			name: "With peer_tags",
-			cfg: &Config{
-				API:    APIConfig{Key: "notnull"},
-				Traces: TracesConfig{PeerTags: []string{"tag1", "tag2"}},
-			},
-		},
-		{
 			name: "With confighttp client configs",
 			cfg: &Config{
 				API: APIConfig{Key: "notnull"},
