@@ -14,7 +14,7 @@ jobs:
       uses: DataDog/datadog-static-analyzer-github-action@v1
       with:
         dd_api_key: ${{ secrets.DD_API_KEY }}
-        dd_app_key: ${{ secrets.DD_APP_KEY }}
+        dd_app_key: ${{ secrets.DD_STATIC_ANALYZER_APP_KEY }}
         dd_service: datadog-agent
         dd_env: ci
         dd_site: datadoghq.com
