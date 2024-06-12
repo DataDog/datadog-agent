@@ -1027,10 +1027,6 @@ static __always_inline struct sock* sk_buff_sk(struct sk_buff *skb) {
     return sk;
 }
 
-struct bpf_raw_tracepoint_args {
-	uint64_t args[0];
-};
-
 static __always_inline int handle_net_dev_queue(struct sk_buff *skb) {
     struct sock* sk = sk_buff_sk(skb);
     if (!sk) {
@@ -1065,7 +1061,7 @@ static __always_inline int handle_net_dev_queue(struct sk_buff *skb) {
 }
 
 SEC("raw_tracepoint/net/net_dev_queue")
-int raw_tracepoint__net__net_dev_queue(struct bpf_args *ctx) {
+int raw_tracepoint__net__net_dev_queue(struct bpf_raw_tracepoint_args *ctx) {
     CHECK_BPF_PROGRAM_BYPASSED()
     struct sk_buff* skb = (struct sk_buff *)ctx->args;
     if (!skb) {
