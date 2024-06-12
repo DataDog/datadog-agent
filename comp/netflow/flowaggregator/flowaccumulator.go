@@ -12,6 +12,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/netflow/common"
 	"github.com/DataDog/datadog-agent/comp/netflow/portrollup"
+	"github.com/DataDog/datadog-agent/comp/rdnsquerier"
 	"go.uber.org/atomic"
 )
 
@@ -40,7 +41,8 @@ type flowAccumulator struct {
 
 	hashCollisionFlowCount *atomic.Uint64
 
-	logger log.Component
+	logger      log.Component
+	rdnsQuerier rdnsquerier.Component
 }
 
 func newFlowContext(flow *common.Flow) flowContext {
@@ -51,7 +53,7 @@ func newFlowContext(flow *common.Flow) flowContext {
 	}
 }
 
-func newFlowAccumulator(aggregatorFlushInterval time.Duration, aggregatorFlowContextTTL time.Duration, portRollupThreshold int, portRollupDisabled bool, logger log.Component) *flowAccumulator {
+func newFlowAccumulator(aggregatorFlushInterval time.Duration, aggregatorFlowContextTTL time.Duration, portRollupThreshold int, portRollupDisabled bool, logger log.Component, rdnsQuerier rdnsquerier.Component) *flowAccumulator {
 	return &flowAccumulator{
 		flows:                  make(map[uint64]flowContext),
 		flowFlushInterval:      aggregatorFlushInterval,
@@ -61,6 +63,7 @@ func newFlowAccumulator(aggregatorFlushInterval time.Duration, aggregatorFlowCon
 		portRollupDisabled:     portRollupDisabled,
 		hashCollisionFlowCount: atomic.NewUint64(0),
 		logger:                 logger,
+		rdnsQuerier:            rdnsQuerier,
 	}
 }
 
@@ -122,13 +125,18 @@ func (f *flowAccumulator) add(flowToAdd *common.Flow) {
 	aggHash := flowToAdd.AggregationHash()
 	aggFlow, ok := f.flows[aggHash]
 	if !ok {
+		flowToAdd.SrcReverseDNSHostname = f.rdnsQuerier.GetHostname(flowToAdd.SrcAddr)
+		flowToAdd.DstReverseDNSHostname = f.rdnsQuerier.GetHostname(flowToAdd.DstAddr)
 		f.flows[aggHash] = newFlowContext(flowToAdd)
 		return
 	}
 	if aggFlow.flow == nil {
+		// flowToAdd is for the same hash as an aggregated flow that has been flushed
+		flowToAdd.SrcReverseDNSHostname = f.rdnsQuerier.GetHostname(flowToAdd.SrcAddr)
+		flowToAdd.DstReverseDNSHostname = f.rdnsQuerier.GetHostname(flowToAdd.DstAddr)
 		aggFlow.flow = flowToAdd
 	} else {
-		// use go routine for has collision detection to avoid blocking critical path
+		// use go routine for hash collision detection to avoid blocking critical path
 		go f.detectHashCollision(aggHash, *aggFlow.flow, *flowToAdd)
 
 		// accumulate flowToAdd with existing flow(s) with same hash

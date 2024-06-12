@@ -23,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/comp/ndmtmp/forwarder/forwarderimpl"
+	"github.com/DataDog/datadog-agent/comp/rdnsquerier/rdnsquerierimpl"
 
 	ndmtestutils "github.com/DataDog/datadog-agent/pkg/networkdevice/testutils"
 
@@ -67,6 +68,7 @@ var testOptions = fx.Options(
 	demultiplexerimpl.MockModule(),
 	defaultforwarder.MockModule(),
 	core.MockBundle(),
+	rdnsquerierimpl.MockModule(),
 	fx.Invoke(func(lc fx.Lifecycle, c Component) {
 		// Set the internal flush frequency to a small number so tests don't take forever
 		c.(*Server).FlowAgg.FlushFlowsToSendInterval = 100 * time.Millisecond
