@@ -350,25 +350,30 @@ func makeFlare(flareComp flare.Component,
 		return err
 	}
 
-	enableStreamLog, settningErr := rcsetting.GetRuntimeSetting("enable_stream_logs")
+	enableStreamLog, settingErr := rcsetting.GetRuntimeSetting("enable_stream_logs")
 
-	if settningErr != nil {
-		fmt.Fprintln(color.Output, color.RedString(fmt.Sprintf("Error getting runtime setting: %s", settningErr)))
+	if settingErr != nil {
+		fmt.Fprintln(color.Output, color.RedString(fmt.Sprintf("Error getting runtime setting: %s", settingErr)))
+	}
+
+	var duration time.Duration
+	var params *streamlogs.CliParams
+
+	if streamLogParams.Duration > 0 {
+		duration = streamLogParams.Duration
+		params = &streamLogParams
 	}
 
 	if values, ok := enableStreamLog.([]interface{}); ok && len(values) > 1 {
 		if enable, ok := values[1].(bool); ok && enable {
-			fmt.Fprintln(color.Output, color.GreenString((fmt.Sprintf("Asking the agent to stream logs for %s", defaultRCDuration))))
-			err := streamlogs.StreamLogs(lc, config, &rcStreamLogParams)
-			if err != nil {
-				fmt.Fprintln(color.Output, color.RedString(fmt.Sprintf("Error streaming logs: %s", err)))
-			}
+			duration = defaultRCDuration
+			params = &rcStreamLogParams
 		}
 	}
 
-	if streamLogParams.Duration > 0 {
-		fmt.Fprintln(color.Output, color.GreenString((fmt.Sprintf("Asking the agent to stream logs for %s", streamLogParams.Duration))))
-		err := streamlogs.StreamLogs(lc, config, &streamLogParams)
+	if duration > 0 {
+		fmt.Fprintln(color.Output, color.GreenString((fmt.Sprintf("Asking the agent to stream logs for %s", duration))))
+		err := streamlogs.StreamLogs(lc, config, params)
 		if err != nil {
 			fmt.Fprintln(color.Output, color.RedString(fmt.Sprintf("Error streaming logs: %s", err)))
 		}

@@ -268,6 +268,7 @@ func (rc rcClient) agentConfigUpdateCallback(updates map[string]state.RawConfig,
 
 	// Checks who (the source) is responsible for the last logLevel change
 	source := config.Datadog().GetSource("log_level")
+	streamLogsSource := config.Datadog().GetSource("enable_stream_logs")
 
 	switch source {
 	case model.SourceRC:
@@ -281,12 +282,6 @@ func (rc rcClient) agentConfigUpdateCallback(updates map[string]state.RawConfig,
 			newLevel := mergedConfig.LogLevel
 			pkglog.Infof("Changing log level to '%s' through remote config", newLevel)
 			err = rc.settingsComponent.SetRuntimeSetting("log_level", newLevel, model.SourceRC)
-
-			if mergedConfig.EnableStreamLogs {
-				err = rc.settingsComponent.SetRuntimeSetting("enable_stream_logs", true, model.SourceRC)
-			} else if !mergedConfig.EnableStreamLogs && config.Datadog().GetSource("streamLogs") == model.SourceRC {
-				err = rc.settingsComponent.SetRuntimeSetting("enable_stream_logs", false, model.SourceRC)
-			}
 		}
 
 	case model.SourceCLI:
@@ -304,6 +299,15 @@ func (rc rcClient) agentConfigUpdateCallback(updates map[string]state.RawConfig,
 		// Need to update the log level even if the level stays the same because we need to update the source
 		// Might be possible to add a check in deeper functions to avoid unnecessary work
 		err = rc.settingsComponent.SetRuntimeSetting("log_level", mergedConfig.LogLevel, model.SourceRC)
+	}
+
+	switch streamLogsSource {
+	case model.SourceRC:
+		if *mergedConfig.EnableStreamLogs {
+			err = rc.settingsComponent.SetRuntimeSetting("enable_stream_logs", *mergedConfig.EnableStreamLogs, model.SourceRC)
+		}
+	default:
+		err = rc.settingsComponent.SetRuntimeSetting("enable_stream_logs", false, model.SourceRC)
 	}
 
 	// Apply the new status to all configs
