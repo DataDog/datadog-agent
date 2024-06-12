@@ -210,7 +210,7 @@ func InitSystemProbeConfig(cfg pkgconfigmodel.Config) {
 	cfg.BindEnv(join(smNS, "process_service_inference", "enabled"), "DD_SYSTEM_PROBE_PROCESS_SERVICE_INFERENCE_ENABLED")
 	cfg.BindEnv(join(spNS, "process_service_inference", "enabled"))
 
-	//For backward compatibility
+	// For backward compatibility
 	cfg.BindEnv(join(smNS, "process_service_inference", "use_windows_service_name"), "DD_SYSTEM_PROBE_PROCESS_SERVICE_INFERENCE_USE_WINDOWS_SERVICE_NAME")
 	cfg.BindEnv(join(spNS, "process_service_inference", "use_windows_service_name"))
 
