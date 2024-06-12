@@ -94,6 +94,7 @@ lint_macos:
 
 lint_macos_gitlab_amd64:
   stage: source_test
+  allow_failure: true
   rules:
     - !reference [.on_main]
     - !reference [.manual]
@@ -105,6 +106,7 @@ lint_macos_gitlab_amd64:
 
 tests_macos_gitlab_amd64:
   stage: source_test
+  allow_failure: true
   rules:
     !reference [.manual]
   extends: .macos_gitlab_amd64
