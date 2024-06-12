@@ -7,6 +7,7 @@
 #include "bpf_tracing.h"
 #include "bpf_telemetry.h"
 #include "bpf_endian.h"
+#include "bpf_bypass.h"
 
 #ifdef COMPILE_RUNTIME
 #include <linux/version.h>
@@ -26,7 +27,7 @@
 #endif
 
 SEC("kprobe/__nf_conntrack_hash_insert")
-int BPF_KPROBE(kprobe___nf_conntrack_hash_insert, struct nf_conn *ct) {
+int BPF_BYPASSABLE_KPROBE(kprobe___nf_conntrack_hash_insert, struct nf_conn *ct) {
     u32 status = 0;
     BPF_CORE_READ_INTO(&status, ct, status);
     if (!(status&IPS_CONFIRMED) || !(status&IPS_NAT_MASK)) {
@@ -48,7 +49,7 @@ int BPF_KPROBE(kprobe___nf_conntrack_hash_insert, struct nf_conn *ct) {
 }
 
 SEC("kprobe/ctnetlink_fill_info")
-int kprobe_ctnetlink_fill_info(struct pt_regs* ctx) {
+int BPF_BYPASSABLE_KPROBE(kprobe_ctnetlink_fill_info) {
     u32 pid = bpf_get_current_pid_tgid() >> 32;
     if (pid != systemprobe_pid()) {
         log_debug("skipping kprobe/ctnetlink_fill_info invocation from non-system-probe process");

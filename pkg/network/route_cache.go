@@ -19,6 +19,7 @@ import (
 	"github.com/vishvananda/netns"
 	"golang.org/x/sys/unix"
 
+	telemetryComponent "github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
@@ -103,7 +104,7 @@ type Router interface {
 }
 
 // NewRouteCache creates a new RouteCache
-func NewRouteCache(size int, router Router) RouteCache {
+func NewRouteCache(_ telemetryComponent.Component, size int, router Router) RouteCache {
 	return newRouteCache(size, router, defaultTTL)
 }
 

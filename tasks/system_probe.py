@@ -24,6 +24,7 @@ from tasks.build_tags import UNIT_TEST_TAGS, get_default_build_tags
 from tasks.flavor import AgentFlavor
 from tasks.libs.build.ninja import NinjaWriter
 from tasks.libs.common.color import color_message
+from tasks.libs.common.git import get_commit_sha
 from tasks.libs.common.utils import (
     REPO_PATH,
     bin_name,
@@ -811,7 +812,7 @@ def clean_build(ctx):
     # if this build happens on a new commit do it cleanly
     with open(BUILD_COMMIT) as f:
         build_commit = f.read().rstrip()
-        curr_commit = ctx.run("git rev-parse HEAD", hide=True).stdout.rstrip()
+        curr_commit = get_commit_sha(ctx)
         if curr_commit != build_commit:
             return True
 
@@ -909,7 +910,7 @@ def kitchen_prepare(ctx, kernel_release=None, ci=False, packages=""):
         kitchen_prepare_btfs(ctx, files_dir)
 
     ctx.run(f"go build -o {files_dir}/test2json -ldflags=\"-s -w\" cmd/test2json", env={"CGO_ENABLED": "0"})
-    ctx.run(f"echo $(git rev-parse HEAD) > {BUILD_COMMIT}")
+    ctx.run(f"echo {get_commit_sha(ctx)} > {BUILD_COMMIT}")
 
 
 @task

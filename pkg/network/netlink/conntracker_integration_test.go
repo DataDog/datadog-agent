@@ -42,7 +42,7 @@ func TestConnTrackerCrossNamespaceAllNsDisabled(t *testing.T) {
 	cfg.ConntrackMaxStateSize = 100
 	cfg.ConntrackRateLimit = 500
 	cfg.EnableConntrackAllNamespaces = false
-	ct, err := NewConntracker(cfg)
+	ct, err := NewConntracker(cfg, nil)
 	require.NoError(t, err)
 	time.Sleep(time.Second)
 
@@ -110,7 +110,7 @@ func testMessageDump(t *testing.T, f *os.File, serverIP, clientIP net.IP) {
 			ConntrackRateLimitInterval:   time.Second,
 			EnableRootNetNs:              true,
 			EnableConntrackAllNamespaces: false,
-		})
+		}, nil)
 	require.NoError(t, err)
 	events, err := consumer.Events()
 	require.NoError(t, err)

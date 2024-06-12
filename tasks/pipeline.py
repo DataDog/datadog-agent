@@ -14,7 +14,7 @@ from invoke.exceptions import Exit
 from tasks.libs.ciproviders.github_api import GithubAPI
 from tasks.libs.ciproviders.gitlab_api import get_gitlab_bot_token, get_gitlab_repo, refresh_pipeline
 from tasks.libs.common.color import color_message
-from tasks.libs.common.git import get_current_branch
+from tasks.libs.common.git import get_commit_sha, get_current_branch
 from tasks.libs.common.utils import (
     DEFAULT_BRANCH,
     GITHUB_REPO_NAME,
@@ -121,7 +121,7 @@ def clean_running_pipelines(ctx, git_ref=DEFAULT_BRANCH, here=False, use_latest_
     print(f"Fetching running pipelines on {git_ref}")
 
     if not sha and use_latest_sha:
-        sha = ctx.run(f"git rev-parse {git_ref}", hide=True).stdout.strip()
+        sha = get_commit_sha(ctx, git_ref)
         print(f"Git sha not provided, using the one {git_ref} currently points to: {sha}")
     elif not sha:
         print(f"Git sha not provided, fetching all running pipelines on {git_ref}")

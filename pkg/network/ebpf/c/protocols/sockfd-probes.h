@@ -4,6 +4,7 @@
 #include "ktypes.h"
 #include "bpf_builtins.h"
 #include "map-defs.h"
+#include "bpf_bypass.h"
 
 #ifndef COMPILE_CORE
 #include <linux/ptrace.h>
@@ -14,8 +15,7 @@
 #include "sockfd.h"
 
 SEC("kprobe/tcp_close")
-int kprobe__tcp_close(struct pt_regs *ctx) {
-    struct sock *sk = (struct sock *)PT_REGS_PARM1(ctx);
+int BPF_KPROBE(kprobe__tcp_close, struct sock *sk) {
     if (sk == NULL) {
         return 0;
     }
@@ -45,8 +45,7 @@ int kprobe__tcp_close(struct pt_regs *ctx) {
 }
 
 SEC("kprobe/sockfd_lookup_light")
-int kprobe__sockfd_lookup_light(struct pt_regs *ctx) {
-    int sockfd = (int)PT_REGS_PARM1(ctx);
+int BPF_KPROBE(kprobe__sockfd_lookup_light, int sockfd) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
 
     // Check if have already a map entry for this pid_fd_t
@@ -84,7 +83,7 @@ static __always_inline const struct proto_ops * socket_proto_ops(struct socket *
 // * an index of pid_fd_t to a struct sock*;
 // * an index of struct sock* to pid_fd_t;
 SEC("kretprobe/sockfd_lookup_light")
-int kretprobe__sockfd_lookup_light(struct pt_regs *ctx) {
+int BPF_KRETPROBE(kretprobe__sockfd_lookup_light, struct socket *socket) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
     int *sockfd = bpf_map_lookup_elem(&sockfd_lookup_args, &pid_tgid);
     if (sockfd == NULL) {
@@ -93,7 +92,6 @@ int kretprobe__sockfd_lookup_light(struct pt_regs *ctx) {
 
     // NOTE: the code below should be executed only once for a given socket
     // For now let's only store information for TCP sockets
-    struct socket *socket = (struct socket *)PT_REGS_RC(ctx);
     if (!socket)
         goto cleanup;
 

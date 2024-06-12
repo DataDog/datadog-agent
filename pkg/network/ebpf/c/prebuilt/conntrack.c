@@ -5,6 +5,7 @@
 #include "bpf_helpers.h"
 #include "bpf_endian.h"
 #include "bpf_telemetry.h"
+#include "bpf_bypass.h"
 
 #include "offsets.h"
 #include "conntrack.h"
@@ -13,9 +14,7 @@
 #include "ipv6.h"
 
 SEC("kprobe/__nf_conntrack_hash_insert")
-int kprobe___nf_conntrack_hash_insert(struct pt_regs* ctx) {
-    struct nf_conn *ct = (struct nf_conn*)PT_REGS_PARM1(ctx);
-
+int BPF_BYPASSABLE_KPROBE(kprobe___nf_conntrack_hash_insert, struct nf_conn *ct) {
     log_debug("kprobe/__nf_conntrack_hash_insert: netns: %u", get_netns(ct));
 
     conntrack_tuple_t orig = {}, reply = {};
@@ -32,7 +31,7 @@ int kprobe___nf_conntrack_hash_insert(struct pt_regs* ctx) {
 }
 
 SEC("kprobe/ctnetlink_fill_info")
-int kprobe_ctnetlink_fill_info(struct pt_regs* ctx) {
+int BPF_BYPASSABLE_KPROBE(kprobe_ctnetlink_fill_info) {
     u32 pid = bpf_get_current_pid_tgid() >> 32;
     if (pid != systemprobe_pid()) {
         log_debug("skipping kprobe/ctnetlink_fill_info invocation from non-system-probe process");

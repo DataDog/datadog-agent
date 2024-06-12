@@ -9,6 +9,7 @@
 package service
 
 import (
+	"context"
 	"errors"
 	"io/fs"
 	"os"
@@ -25,7 +26,7 @@ const (
 )
 
 var (
-	transformFunc = func(existing []byte) ([]byte, error) {
+	transformFunc = func(ctx context.Context, existing []byte) ([]byte, error) {
 		return []byte(transformedContent), nil
 	}
 	failFunc = func() error { return errors.New("fail") }
@@ -40,7 +41,7 @@ func TestFileTransformWithRollback(t *testing.T) {
 
 	mutator := newFileMutator(originalPath, transformFunc, nil, nil)
 
-	rollback, err := mutator.mutate()
+	rollback, err := mutator.mutate(context.TODO())
 	require.NoError(t, err)
 	require.NotNil(t, rollback)
 
@@ -57,12 +58,12 @@ func TestNoChangesNeeded(t *testing.T) {
 	mode := os.FileMode(0744)
 	require.Nil(t, os.WriteFile(originalPath, []byte(originalContent), mode))
 
-	mutator := newFileMutator(originalPath, func(existing []byte) ([]byte, error) {
+	mutator := newFileMutator(originalPath, func(ctx context.Context, existing []byte) ([]byte, error) {
 		return []byte(originalContent), nil
 	}, nil, nil)
 
-	rollback, err := mutator.mutate()
-	require.Nil(t, rollback)
+	rollback, err := mutator.mutate(context.TODO())
+	require.Nil(t, rollback())
 	require.NoError(t, err)
 	assertFile(t, originalPath, originalContent, mode)
 }
@@ -73,7 +74,7 @@ func TestFileTransformWithRollback_No_original(t *testing.T) {
 
 	mutator := newFileMutator(originalPath, transformFunc, nil, nil)
 
-	rollback, err := mutator.mutate()
+	rollback, err := mutator.mutate(context.TODO())
 	require.NoError(t, err)
 	require.NotNil(t, rollback)
 
@@ -91,7 +92,7 @@ func TestFileMutator_RollbackOnValidation(t *testing.T) {
 
 	mutator := newFileMutator(originalPath, transformFunc, nil, failFunc)
 
-	_, err := mutator.mutate()
+	_, err := mutator.mutate(context.TODO())
 	require.Error(t, err)
 
 	// check already rolled back
@@ -104,7 +105,7 @@ func TestFileTransform_RollbackOnValidation_No_original(t *testing.T) {
 
 	mutator := newFileMutator(originalPath, transformFunc, nil, failFunc)
 
-	_, err := mutator.mutate()
+	_, err := mutator.mutate(context.TODO())
 	require.Error(t, err)
 
 	assertNoExists(t, originalPath)
