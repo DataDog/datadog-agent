@@ -72,23 +72,19 @@ type TracesConfig struct {
 
 	// If set to true the OpenTelemetry span name will used in the Datadog resource name.
 	// If set to false the resource name will be filled with the instrumentation library name + span kind.
-	// The default value is `false`.
+	// The default value is `true`.
 	SpanNameAsResourceName bool `mapstructure:"span_name_as_resource_name"`
 
 	// If set to true, root spans and spans with a server or consumer `span.kind` will be marked as top-level.
 	// Additionally, spans with a client or producer `span.kind` will have stats computed.
 	// Enabling this config option may increase the number of spans that generate trace metrics, and may change which spans appear as top-level in Datadog.
 	// ComputeTopLevelBySpanKind needs to be enabled in both the Datadog connector and Datadog exporter configs if both components are being used.
-	// The default value is `false`.
+	// The default value is `true`.
 	ComputeTopLevelBySpanKind bool `mapstructure:"compute_top_level_by_span_kind"`
 
 	// TraceBuffer specifies the number of Datadog Agent TracerPayloads to buffer before dropping.
 	// The default value is 0, meaning the Datadog Agent TracerPayloads are unbuffered.
 	TraceBuffer int `mapstructure:"trace_buffer"`
-
-	// flushInterval defines the interval in seconds at which the writer flushes traces
-	// to the intake; used in tests.
-	// flushInterval float64
 }
 
 // LogsConfig defines logs exporter specific configuration
