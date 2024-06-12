@@ -1741,9 +1741,20 @@ func testRedisProtocolClassificationInner(t *testing.T, tr *Tracer, clientHost, 
 				extras:        make(map[string]interface{}),
 			},
 			postTracerSetup: func(t *testing.T, ctx testContext) {
+				dialContext := defaultDialer.DialContext
+				if withTLS {
+					tlsDialer := &tls.Dialer{
+						NetDialer: defaultDialer,
+						Config: &tls.Config{
+							InsecureSkipVerify: true,
+						},
+					}
+					dialContext = tlsDialer.DialContext
+				}
+
 				timedContext, cancel := context.WithTimeout(context.Background(), defaultTimeout)
 				defer cancel()
-				conn, err := defaultDialer.DialContext(timedContext, "tcp", ctx.targetAddress)
+				conn, err := dialContext(timedContext, "tcp", ctx.targetAddress)
 				require.NoError(t, err)
 				_, err = conn.Write([]byte("+dummy\r\n"))
 				require.NoError(t, err)
