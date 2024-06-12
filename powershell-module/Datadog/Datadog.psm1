@@ -23,10 +23,7 @@ function Install-DatadogAgent
         [String]$ProjectLocation
     )
 
-    if(!$Preview)
-    {
-        validateAdminPriviledges
-    }
+    validateAdminPriviledges
     validate64BitProcess
     enableTSL12
     
