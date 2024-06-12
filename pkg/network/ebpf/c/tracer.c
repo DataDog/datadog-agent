@@ -235,7 +235,7 @@ int kprobe__tcp_done(struct pt_regs *ctx) {
         return 0;
     }
 
-    cleanup_conn(ctx, &t, sk);
+    cleanup_conn(ctx, &t, sk, false);
     flush_tcp_failure(ctx, &t, err);
 
     // mark this connection as already flushed
@@ -257,6 +257,7 @@ int kprobe__tcp_close(struct pt_regs *ctx) {
     conn_tuple_t t = {};
     u64 pid_tgid = bpf_get_current_pid_tgid();
     sk = (struct sock *)PT_REGS_PARM1(ctx);
+    bool skip_new_conn_create = false;
 
     // increment telemetry for connections that were never established
     if (bpf_map_delete_elem(&tcp_ongoing_connect_pid, &sk) == 0) {
@@ -279,10 +280,10 @@ int kprobe__tcp_close(struct pt_regs *ctx) {
     // check if this connection was already flushed and ensure we don't flush again
     if (tcp_failed_connections_enabled() && (bpf_map_delete_elem(&conn_close_flushed, &sk) == 0)) {
         increment_telemetry_count(double_flush_attempts_close);
-        return 0;
+        skip_new_conn_create = true;
     }
 
-    cleanup_conn(ctx, &t, sk);
+    cleanup_conn(ctx, &t, sk, skip_new_conn_create);
 
     return 0;
 }
@@ -1049,7 +1050,7 @@ static __always_inline int handle_udp_destroy_sock(void *ctx, struct sock *skp) 
 
     __u16 lport = 0;
     if (valid_tuple) {
-        cleanup_conn(ctx, &tup, skp);
+        cleanup_conn(ctx, &tup, skp, false);
         lport = tup.sport;
     } else {
         lport = read_sport(skp);
