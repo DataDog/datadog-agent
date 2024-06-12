@@ -81,7 +81,6 @@ require (
 )
 
 require (
-	github.com/DataDog/datadog-agent/comp/api/api/def v0.0.0-20240612173319-20c6286685ca // indirect
 	github.com/DataDog/datadog-agent/comp/core/log v0.55.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/comp/core/secrets v0.55.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/comp/core/status v0.55.0-rc.3 // indirect
