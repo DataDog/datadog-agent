@@ -4,7 +4,7 @@ services:
     build:
       context: .
       dockerfile_inline: |
-        FROM alpine:3.20
+        FROM 669783387624.dkr.ecr.us-east-1.amazonaws.com/dockerhub/library/alpine:3.20
 
         # generates a synthetic process that consumes CPU and memory
         ENTRYPOINT ["dd", "if=/dev/zero", "of=/tmp/test-process.txt"]
