@@ -45,7 +45,6 @@ const (
 	KindKubernetesNode         Kind = "kubernetes_node"
 	KindKubernetesMetadata     Kind = "kubernetes_metadata"
 	KindKubernetesDeployment   Kind = "kubernetes_deployment"
-	KindKubernetesNamespace    Kind = "kubernetes_namespace"
 	KindECSTask                Kind = "ecs_task"
 	KindContainerImageMetadata Kind = "container_image_metadata"
 	KindProcess                Kind = "process"
