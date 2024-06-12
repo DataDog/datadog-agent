@@ -81,6 +81,31 @@ func TestConvert(t *testing.T) {
 			provided:       "processors/no-changes/config.yaml",
 			expectedResult: "processors/no-changes/config.yaml",
 		},
+		{
+			name:           "receivers/no-changes",
+			provided:       "receivers/no-changes/config.yaml",
+			expectedResult: "receivers/no-changes/config.yaml",
+		},
+		{
+			name:           "receivers/no-prometheus-receiver",
+			provided:       "receivers/no-prometheus-receiver/config.yaml",
+			expectedResult: "receivers/no-prometheus-receiver/config-result.yaml",
+		},
+		{
+			name:           "receivers/no-prometheus-receiver-multiple-dd-exporter",
+			provided:       "receivers/no-prometheus-receiver-multiple-dd-exporter/config.yaml",
+			expectedResult: "receivers/no-prometheus-receiver-multiple-dd-exporter/config-result.yaml",
+		},
+		{
+			name:           "receivers/no-prometheus-receiver-not-default-address",
+			provided:       "receivers/no-prometheus-receiver-not-default-address/config.yaml",
+			expectedResult: "receivers/no-prometheus-receiver-not-default-address/config-result.yaml",
+		},
+		{
+			name:           "receivers/multiple-dd-exporter-some-without-prometheus-receiver",
+			provided:       "receivers/multiple-dd-exporter-some-without-prometheus-receiver/config.yaml",
+			expectedResult: "receivers/multiple-dd-exporter-some-without-prometheus-receiver/config-result.yaml",
+		},
 	}
 
 	for _, tc := range tests {

@@ -1,6 +1,6 @@
 receivers:
     otlp:
-    prometheus/user-defined:
+    prometheus/dd-enhanced:
       config:
         scrape_configs:
           - job_name: 'otelcol'
@@ -9,31 +9,40 @@ receivers:
               - targets: ['0.0.0.0:8888']
 
 exporters:
-    datadog:
+    datadog/1:
       api:
         key: 12345
+    datadog/2:
+      api:
+        key: 6789
 
 extensions:
-  pprof/dd-enhanced:
-  health_check/dd-enhanced:
-  zpages/dd-enhanced:
+  pprof/user-defined:
+  health_check/user-defined:
+  zpages/user-defined:
     endpoint: "localhost:55679"
     
 processors:
   infraattributes/user-defined:
 
 service:
-    extensions: [pprof/dd-enhanced, zpages/dd-enhanced, health_check/dd-enhanced]
+    extensions: [pprof/user-defined, zpages/user-defined, health_check/user-defined]
     pipelines:
         traces:
             receivers: [nop]
             processors: [infraattributes/user-defined]
             exporters: [datadog]
         metrics:
-            receivers: [nop, prometheus/user-defined]
+            receivers: [nop]
             processors: [infraattributes/user-defined]
             exporters: [datadog]
         logs:
             receivers: [nop]
             processors: [infraattributes/user-defined]
             exporters: [datadog]
+        metrics/dd-enhanced/datadog/1:
+            receivers: [prometheus/dd-enhanced]
+            exporters: [datadog/1]
+        metrics/dd-enhanced/datadog/2:
+            receivers: [prometheus/dd-enhanced]
+            exporters: [datadog/2]

@@ -1,5 +1,12 @@
 receivers:
     otlp:
+    prometheus/user-defined:
+      config:
+        scrape_configs:
+          - job_name: 'otelcol'
+            scrape_interval: 10s
+            static_configs:
+              - targets: ['0.0.0.0:8888']
 
 exporters:
     datadog:
@@ -23,7 +30,7 @@ service:
             processors: [k8sattributes]
             exporters: [datadog]
         metrics:
-            receivers: [nop]
+            receivers: [nop, prometheus/user-defined]
             processors: [k8sattributes]
             exporters: [datadog]
         logs:

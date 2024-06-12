@@ -50,13 +50,13 @@ var (
 	prometheusEnhancedName = prometheusName + "/" + ddEnhancedSuffix
 	prometheusConfig       = map[string]any{
 		"config": map[string]any{
-			"scrape_configs": []map[string]any{
-				{
+			"scrape_configs": []any{
+				map[string]any{
 					"job_name":        "otelcol",
 					"scrape_interval": "10s",
-					"static_configs": []map[string]any{
-						{
-							"targets": []string{"0.0.0.0:8888"},
+					"static_configs": []any{
+						map[string]any{
+							"targets": []any{"0.0.0.0:8888"},
 						},
 					},
 				},
@@ -138,7 +138,7 @@ func (c *ddConverter) Convert(ctx context.Context, conf *confmap.Conf) error {
 func enhanceConfig(conf *confmap.Conf) {
 	// add extensions if missing
 	for _, component := range extensions {
-		if inServicePipeline(conf, component) {
+		if ExtensionIsInServicePipeline(conf, component) {
 			continue
 		}
 		addComponentToConfig(conf, component)
@@ -149,10 +149,177 @@ func enhanceConfig(conf *confmap.Conf) {
 	for _, component := range processors {
 		addProcessorToPipelinesWithDDExporter(conf, component)
 	}
+
+	// add receivers in pipelines
+	addPrometheusReceiver(conf, receivers[0])
 }
 
-func inServicePipeline(conf *confmap.Conf, comp component) bool {
-	pipelineComponents := conf.Get("service::" + comp.componentType)
+func addPrometheusReceiver(conf *confmap.Conf, comp component) {
+	datadogExportersMap := getDatadogExporters(conf)
+	// get the address in which telemetry metrics are exposed
+	internalMetricsAddress := conf.Get("service::telemetry::metrics::address")
+	if internalMetricsAddress == nil {
+		internalMetricsAddress = "0.0.0.0:8888"
+	}
+
+	stringMapConf := conf.ToStringMap()
+	if receivers, ok := stringMapConf["receivers"]; ok {
+		if receiversMap, ok := receivers.(map[string]any); ok {
+			for receiver, receiverConfig := range receiversMap {
+				if componentName(receiver) == comp.componentName {
+					if receiverConfigMap, ok := receiverConfig.(map[string]any); ok {
+						if prometheusConfig, ok := receiverConfigMap["config"]; ok {
+							if prometheusConfigMap, ok := prometheusConfig.(map[string]any); ok {
+								if prometheusScrapeConfigs, ok := prometheusConfigMap["scrape_configs"]; ok {
+									if prometheusScrapeConfigsSlice, ok := prometheusScrapeConfigs.([]any); ok {
+										for _, scrapeConfig := range prometheusScrapeConfigsSlice {
+											if scrapeConfigMap, ok := scrapeConfig.(map[string]any); ok {
+												if staticConfig, ok := scrapeConfigMap["static_configs"]; ok {
+													if staticConfigSlice, ok := staticConfig.([]any); ok {
+														for _, staticConfig := range staticConfigSlice {
+															if staticConfigMap, ok := staticConfig.(map[string]any); ok {
+																if targets, ok := staticConfigMap["targets"]; ok {
+																	if targetsSlice, ok := targets.([]any); ok {
+																		for _, target := range targetsSlice {
+																			if targetString, ok := target.(string); ok {
+																				if targetString == internalMetricsAddress {
+																					// receiver is scraping from internal metrics. Now need to
+																					// check if it's used in a pipeline with the DD exporter.
+																					if ddExporter := receiverInPipelineWithDatadogExporter(conf, receiver); ddExporter != "" {
+																						delete(datadogExportersMap, ddExporter)
+																					}
+																				}
+																			}
+																		}
+																	}
+																}
+															}
+														}
+													}
+												}
+											}
+										}
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+
+	if len(datadogExportersMap) == 0 {
+		return
+	}
+	if receivers, ok := stringMapConf["receivers"]; ok {
+		if receiverConfigMap, ok := receivers.(map[string]any); ok {
+			if componentMap, ok := comp.componentConfig.(map[string]any); ok {
+				// potentially need to do in two steps
+				if configMap, ok := componentMap["config"].(map[string]any); ok {
+					if scrapeConfig, ok := configMap["scrape_configs"]; ok {
+						if scrapeConfigSlice, ok := scrapeConfig.([]any); ok {
+							onlyScrapeConfig := scrapeConfigSlice[0]
+							if onlyScrapeConfigMap, ok := onlyScrapeConfig.(map[string]any); ok {
+								// potentially need to do in two steps
+								if staticConfigsSlice, ok := onlyScrapeConfigMap["static_configs"].([]any); ok {
+									onlyStaticConfig := staticConfigsSlice[0]
+									if onlyStaticConfigMap, ok := onlyStaticConfig.(map[string]any); ok {
+										onlyStaticConfigMap["targets"] = []any{internalMetricsAddress}
+									}
+								}
+							}
+						}
+					}
+				}
+				// ["scrape_configs"][0]["static_configs"][0]["targets"] = internalMetricsAddress
+			}
+			receiverConfigMap[comp.componentEnhancedName] = comp.componentConfig
+		}
+	}
+
+	if service, ok := stringMapConf["service"]; ok {
+		if serviceMap, ok := service.(map[string]any); ok {
+			if pipelines, ok := serviceMap["pipelines"]; ok {
+				if pipelinesMap, ok := pipelines.(map[string]any); ok {
+					for ddExporterName, _ := range datadogExportersMap {
+						pipelineName := "metrics" + "/" + ddEnhancedSuffix + "/" + ddExporterName
+						pipelinesMap[pipelineName] = map[string]any{
+							"receivers": []any{comp.componentEnhancedName},
+							"exporters": []any{ddExporterName},
+						}
+					}
+				}
+			}
+		}
+	}
+	*conf = *confmap.NewFromStringMap(stringMapConf)
+}
+
+func receiverInPipelineWithDatadogExporter(conf *confmap.Conf, receiverName string) string {
+	stringMapConf := conf.ToStringMap()
+	if service, ok := stringMapConf["service"]; ok {
+		if serviceMap, ok := service.(map[string]any); ok {
+			if pipelines, ok := serviceMap["pipelines"]; ok {
+				if pipelinesMap, ok := pipelines.(map[string]any); ok {
+					for _, components := range pipelinesMap {
+						if componentsMap, ok := components.(map[string]any); ok {
+							if exporters, ok := componentsMap["exporters"]; ok {
+								if exportersSlice, ok := exporters.([]any); ok {
+									for _, exporter := range exportersSlice {
+										if exporterString, ok := exporter.(string); ok {
+											if componentName(exporterString) == "datadog" {
+												// datadog component is an exporter in this pipeline. Check if the prometheusReceiver is configured
+												receivers, ok := componentsMap["receivers"]
+												if !ok {
+													continue
+												}
+												if receiverSlice, ok := receivers.([]any); ok {
+													for _, receiver := range receiverSlice {
+														if receiverString, ok := receiver.(string); ok {
+															if receiverString == receiverName {
+																return exporterString
+															}
+														}
+													}
+
+												}
+											}
+										}
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+	return ""
+}
+
+func getDatadogExporters(conf *confmap.Conf) map[string]any {
+	datadogExporters := map[string]any{}
+	stringMapConf := conf.ToStringMap()
+	if exporters, ok := stringMapConf["exporters"]; ok {
+		if exportersMap, ok := exporters.(map[string]any); ok {
+			for exporterName, exporterConfig := range exportersMap {
+				if componentName(exporterName) == "datadog" {
+					datadogExporters[exporterName] = exporterConfig
+				}
+			}
+		}
+	}
+	return datadogExporters
+}
+
+func componentName(fullName string) string {
+	parts := strings.SplitN(fullName, "/", 2)
+	return parts[0]
+}
+
+func ExtensionIsInServicePipeline(conf *confmap.Conf, comp component) bool {
+	pipelineComponents := conf.Get("service::extensions")
 	if pipelineComponents == nil {
 		return false
 	}
@@ -160,8 +327,7 @@ func inServicePipeline(conf *confmap.Conf, comp component) bool {
 	if componentSlice, ok := pipelineComponents.([]any); ok {
 		for _, component := range componentSlice {
 			if componentString, ok := component.(string); ok {
-				parts := strings.SplitN(componentString, "/", 2)
-				if parts[0] == comp.componentName {
+				if componentName(componentString) == comp.componentName {
 					return true
 				}
 			}
@@ -203,7 +369,7 @@ func addExtensionToPipeline(conf *confmap.Conf, comp component) {
 }
 
 func addProcessorToPipelinesWithDDExporter(conf *confmap.Conf, comp component) {
-	var infraAttrsConfAddedToConfig bool
+	var componentAddedToConfig bool
 	stringMapConf := conf.ToStringMap()
 	if service, ok := stringMapConf["service"]; ok {
 		if serviceMap, ok := service.(map[string]any); ok {
@@ -215,32 +381,31 @@ func addProcessorToPipelinesWithDDExporter(conf *confmap.Conf, comp component) {
 								if exportersSlice, ok := exporters.([]any); ok {
 									for _, exporter := range exportersSlice {
 										if exporterString, ok := exporter.(string); ok {
-											parts := strings.SplitN(exporterString, "/", 2)
-											if parts[0] == "datadog" {
-												// datadog component is an exporter in this pipeline. Need to make sure that infraattributes processor is also configured.
-												_, ok := componentsMap["processors"]
+
+											if componentName(exporterString) == "datadog" {
+												// datadog component is an exporter in this pipeline. Need to make sure that processor is also configured.
+												_, ok := componentsMap[comp.componentType]
 												if !ok {
-													componentsMap["processors"] = []any{}
+													componentsMap[comp.componentType] = []any{}
 												}
 
 												infraAttrsInPipeline := false
-												if processorsSlice, ok := componentsMap["processors"].([]any); ok {
+												if processorsSlice, ok := componentsMap[comp.componentType].([]any); ok {
 													for _, processor := range processorsSlice {
 														if processorString, ok := processor.(string); ok {
-															parts := strings.SplitN(processorString, "/", 2)
-															if parts[0] == "infraattributes" {
+															if componentName(processorString) == comp.componentName {
 																infraAttrsInPipeline = true
 															}
 														}
 													}
 													if !infraAttrsInPipeline {
 														// no processors are defined
-														if !infraAttrsConfAddedToConfig {
+														if !componentAddedToConfig {
 															addComponentToConfig(conf, comp)
-															infraAttrsConfAddedToConfig = true
+															componentAddedToConfig = true
 														}
 														processorsSlice = append(processorsSlice, comp.componentEnhancedName)
-														componentsMap["processors"] = processorsSlice
+														componentsMap[comp.componentType] = processorsSlice
 													}
 												}
 											}
