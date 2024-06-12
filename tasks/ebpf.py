@@ -2,6 +2,9 @@ from __future__ import annotations
 
 import shutil
 
+from tasks.libs.common.git import get_current_branch
+from tasks.libs.common.utils import get_git_commit
+
 try:
     from termcolor import colored
 except ImportError:
@@ -574,7 +577,7 @@ def generate_html_report(ctx: Context, dest_folder: str | Path):
 
     template = env.get_template("index.html.j2")
     render = template.render(
-        title="ebpf",
+        title=f"eBPF complexity report - {get_current_branch(ctx)} - {get_git_commit()}",
         verifier_stats=stats_by_object_and_program,
     )
 
