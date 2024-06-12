@@ -42,8 +42,23 @@ func (l language) customLibVersionContainerAnnotationKey(containerName string) s
 	return fmt.Sprintf(customLibVersionContainerAnnotationKeyFormat, containerName, l)
 }
 
+func (l language) String() string {
+	return string(l)
+}
+
+func (l language) initContainerName() string {
+	return fmt.Sprintf("datadog-lib-%s-init", l)
+}
+
 func (l language) imageForRegistryAndVersion(registry, version string) string {
 	return fmt.Sprintf("%s/dd-lib-%s-init:%s", registry, l, version)
+}
+
+func (l language) defaultLanguageInfo(registry string) LanguageInfo {
+	return LanguageInfo{
+		Image:  l.imageForRegistryAndVersion(registry, "latest"),
+		Source: "language-default",
+	}
 }
 
 type AppendKind struct {
@@ -158,15 +173,9 @@ func (e EnvInjectors) collect(is []*EnvInjector) error {
 	return nil
 }
 
-func NewEnvInjectors() (EnvInjectors, error) {
+func NewEnvInjectors(langs []language) (EnvInjectors, error) {
 	i := EnvInjectors{}
-	for _, lang := range []language{
-		java,
-		js,
-		ruby,
-		dotnet,
-		python,
-	} {
+	for _, lang := range langs {
 		// TODO: check enabled, or we just have a list of supported languages per
 		//       version and it's totally fine???
 		if err := i.collect(lang.EnvInjectors()); err != nil {
