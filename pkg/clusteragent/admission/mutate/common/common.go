@@ -164,27 +164,49 @@ func containsVolumeMount(volumeMounts []corev1.VolumeMount, element corev1.Volum
 	return false
 }
 
-// ShouldMutatePod returns true if Admission Controller is allowed to mutate the pod
-// via pod label or mutateUnlabelled configuration
-func ShouldMutatePod(pod *corev1.Pod) bool {
-	// If a pod explicitly sets the label admission.datadoghq.com/enabled, make a decision based on its value
+// ShouldMutateUnlabelledPods returns true if we should mutate unlabelled pods.
+func ShouldMutateUnlabelledPods() bool {
+	return config.Datadog().GetBool("admission_controller.mutate_unlabelled")
+}
+
+// IsExplicitPodMutationEnabled returns true if the pod mutation is opted into
+// by a pod label. It returns a second bool to show whether or not the value was
+// specified or not in the first place.
+func IsExplicitPodMutationEnabled(pod *corev1.Pod) (bool, bool) {
+	// If a pod explicitly sets the label admission.datadoghq.com/enabled,
+	// make a decision based on its value.
 	if val, found := pod.GetLabels()[admCommon.EnabledLabelKey]; found {
 		switch val {
-		case "true":
-			return true
-		case "false":
-			return false
+		case "true", "TRUE":
+			return true, true
+		case "false", "FALSE":
+			return false, true
 		default:
 			log.Warnf("Invalid label value '%s=%s' on pod %s should be either 'true' or 'false', ignoring it", admCommon.EnabledLabelKey, val, PodString(pod))
 		}
 	}
 
-	return config.Datadog().GetBool("admission_controller.mutate_unlabelled")
+	return false, false
 }
 
+// ShouldMutatePod checks if a pod is mutable per explicit rules and/or
+// a NamespaceInjectionFilter.
+func ShouldMutatePod(pod *corev1.Pod, f NamespaceInjectionFilter) bool {
+	if val, ok := IsExplicitPodMutationEnabled(pod); ok {
+		return val
+	}
+
+	if f != nil && f.IsNamespaceEligible(pod.Namespace) {
+		return true
+	}
+
+	return ShouldMutateUnlabelledPods()
+}
+
+
 // ContainerRegistry gets the container registry config using the specified
-// config option, and falls back to the default container registry if no webhook-
-// specific container registry is set.
+// config option, and falls back to the default container registry if no
+// webhook-specific container registry is set.
 func ContainerRegistry(specificConfigOpt string) string {
 	if config.Datadog().IsSet(specificConfigOpt) {
 		return config.Datadog().GetString(specificConfigOpt)

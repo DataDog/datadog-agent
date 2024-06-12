@@ -959,12 +959,10 @@ func TestGenerateTemplatesV1(t *testing.T) {
 			mockConfig := config.Mock(t)
 			mockConfig.SetWithoutSource("kube_resources_namespace", "nsfoo")
 			tt.setupConfig(mockConfig)
-			autoinstrumentation.UnsetWebhook()       // Ensure that the webhook uses the config set above
-			defer autoinstrumentation.UnsetWebhook() // So other tests are not impacted
 
 			c := &ControllerV1{}
 			c.config = tt.configFunc()
-			c.mutatingWebhooks = mutatingWebhooks(wmeta, nil)
+			c.mutatingWebhooks = autoinstrumentation.WithResetInjectionFilter2(wmeta, nil, mutatingWebhooks)
 			c.generateTemplates()
 
 			assert.EqualValues(t, tt.want(), c.webhookTemplates)
