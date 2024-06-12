@@ -1,3 +1,9 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2024-present Datadog, Inc.
+
+// Package impl defines the OpenTelemetry Extension implementation.
 package impl
 
 import (
@@ -16,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/otelcol/extension/impl/internal/metadata"
 )
 
+// Type exports the internal metadata type for easy reference
 var Type = metadata.Type
 
 // ddExtension is a basic OpenTelemetry Collector extension.
@@ -31,8 +38,10 @@ type ddExtension struct {
 	debug       DebugSourceResponse
 }
 
+var _ extension.Extension = (*ddExtension)(nil)
+
 // NewExtension creates a new instance of the extension.
-func NewExtension(ctx context.Context, cfg *Config, telemetry component.TelemetrySettings, info component.BuildInfo) (extensionDef.Component, error) {
+func NewExtension(_ context.Context, cfg *Config, telemetry component.TelemetrySettings, info component.BuildInfo) (extensionDef.Component, error) {
 	ext := &ddExtension{
 		cfg:       cfg,
 		telemetry: telemetry,
@@ -51,7 +60,7 @@ func NewExtension(ctx context.Context, cfg *Config, telemetry component.Telemetr
 }
 
 // Start is called when the extension is started.
-func (ext *ddExtension) Start(ctx context.Context, host component.Host) error {
+func (ext *ddExtension) Start(_ context.Context, host component.Host) error {
 	ext.telemetry.Logger.Info("Starting DD Extension HTTP server", zap.String("url", ext.cfg.HTTPConfig.Endpoint))
 
 	// List configured Extensions
@@ -81,7 +90,7 @@ func (ext *ddExtension) Start(ctx context.Context, host component.Host) error {
 		} else {
 			ext.telemetry.Logger.Info("Found debug extension at", zap.String("uri", uri))
 			ext.debug.Sources[extension.String()] = OTelFlareSource{
-				Url:   uri,
+				URL:   uri,
 				Crawl: crawl,
 			}
 		}
@@ -106,7 +115,7 @@ func (ext *ddExtension) Shutdown(ctx context.Context) error {
 	return ext.server.Shutdown(ctx)
 }
 
-// Start is called when the extension is started.
+// ServeHTTP the request handler for the extension.
 func (ext *ddExtension) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	provider, ok := ext.cfg.Converter.(converter.Component)
 	if !ok {
@@ -142,6 +151,6 @@ func (ext *ddExtension) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	fmt.Fprintf(w, string(j))
+	fmt.Fprint(w, string(j))
 
 }

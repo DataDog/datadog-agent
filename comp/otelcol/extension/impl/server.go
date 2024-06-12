@@ -1,3 +1,9 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2024-present Datadog, Inc.
+
+// Package impl defines the OpenTelemetry Extension implementation.
 package impl
 
 import (
@@ -96,7 +102,9 @@ func buildHTTPServer(endpoint string, handler http.Handler) (*http.Server, net.L
 	}
 
 	tlsListener := tls.NewListener(listener, server.TLSConfig)
-	go server.Serve(tlsListener)
+	go func() {
+		_ = server.Serve(tlsListener)
+	}()
 
 	return server, tlsListener, nil
 
