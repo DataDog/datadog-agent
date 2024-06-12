@@ -71,10 +71,6 @@ type Component interface {
 	// the entity with kind KindKubernetesDeployment and the given ID.
 	GetKubernetesDeployment(id string) (*KubernetesDeployment, error)
 
-	// GetKubernetesNamespace returns metadata about a Kubernetes namespace. It fetches
-	// the entity with kind KindKubernetesNamespace and the given ID.
-	GetKubernetesNamespace(id string) (*KubernetesNamespace, error)
-
 	// GetKubernetesMetadata returns metadata about a Kubernetes resource. It fetches
 	// the entity with kind KubernetesMetadata and the given ID.
 	GetKubernetesMetadata(id string) (*KubernetesMetadata, error)

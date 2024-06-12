@@ -153,14 +153,14 @@ func (c *WorkloadMetaCollector) processEvents(evBundle workloadmeta.EventBundle)
 				tagInfos = append(tagInfos, c.handleKubePod(ev)...)
 			case workloadmeta.KindKubernetesNode:
 				tagInfos = append(tagInfos, c.handleKubeNode(ev)...)
-			case workloadmeta.KindKubernetesNamespace:
-				tagInfos = append(tagInfos, c.handleKubeNamespace(ev)...)
 			case workloadmeta.KindECSTask:
 				tagInfos = append(tagInfos, c.handleECSTask(ev)...)
 			case workloadmeta.KindContainerImageMetadata:
 				tagInfos = append(tagInfos, c.handleContainerImage(ev)...)
 			case workloadmeta.KindHost:
 				tagInfos = append(tagInfos, c.handleHostTags(ev)...)
+			case workloadmeta.KindKubernetesMetadata:
+				tagInfos = append(tagInfos, c.handleKubeMetadata(ev)...)
 			case workloadmeta.KindProcess:
 				// tagInfos = append(tagInfos, c.handleProcess(ev)...) No tags for now
 			case workloadmeta.KindKubernetesDeployment:
@@ -461,34 +461,6 @@ func (c *WorkloadMetaCollector) handleKubeNode(ev workloadmeta.Event) []*types.T
 	return tagInfos
 }
 
-func (c *WorkloadMetaCollector) handleKubeNamespace(ev workloadmeta.Event) []*types.TagInfo {
-	namespace := ev.Entity.(*workloadmeta.KubernetesNamespace)
-
-	tags := taglist.NewTagList()
-
-	for name, value := range namespace.Labels {
-		k8smetadata.AddMetadataAsTags(name, value, c.nsLabelsAsTags, c.globNsLabels, tags)
-	}
-
-	for name, value := range namespace.Annotations {
-		k8smetadata.AddMetadataAsTags(name, value, c.nsAnnotationsAsTags, c.globNsAnnotations, tags)
-	}
-
-	low, orch, high, standard := tags.Compute()
-	tagInfos := []*types.TagInfo{
-		{
-			Source:               nodeSource,
-			Entity:               buildTaggerEntityID(namespace.EntityID),
-			HighCardTags:         high,
-			OrchestratorCardTags: orch,
-			LowCardTags:          low,
-			StandardTags:         standard,
-		},
-	}
-
-	return tagInfos
-}
-
 func (c *WorkloadMetaCollector) handleECSTask(ev workloadmeta.Event) []*types.TagInfo {
 	task := ev.Entity.(*workloadmeta.ECSTask)
 
@@ -568,6 +540,39 @@ func (c *WorkloadMetaCollector) handleGardenContainer(container *workloadmeta.Co
 			HighCardTags: container.CollectorTags,
 		},
 	}
+}
+
+func (c *WorkloadMetaCollector) handleKubeMetadata(ev workloadmeta.Event) []*types.TagInfo {
+	kubeMetadata := ev.Entity.(*workloadmeta.KubernetesMetadata)
+
+	// Only handle namespace metadata for now
+	if !strings.HasPrefix(kubeMetadata.ID, "namespaces") {
+		return nil
+	}
+
+	tags := taglist.NewTagList()
+
+	for name, value := range kubeMetadata.Labels {
+		k8smetadata.AddMetadataAsTags(name, value, c.nsLabelsAsTags, c.globNsLabels, tags)
+	}
+
+	for name, value := range kubeMetadata.Annotations {
+		k8smetadata.AddMetadataAsTags(name, value, c.nsAnnotationsAsTags, c.globNsAnnotations, tags)
+	}
+
+	low, orch, high, standard := tags.Compute()
+	tagInfos := []*types.TagInfo{
+		{
+			Source:               kubeMetadataSource,
+			Entity:               buildTaggerEntityID(kubeMetadata.EntityID),
+			HighCardTags:         high,
+			OrchestratorCardTags: orch,
+			LowCardTags:          low,
+			StandardTags:         standard,
+		},
+	}
+
+	return tagInfos
 }
 
 func (c *WorkloadMetaCollector) extractTagsFromPodLabels(pod *workloadmeta.KubernetesPod, tags *taglist.TagList) {
@@ -790,8 +795,6 @@ func buildTaggerEntityID(entityID workloadmeta.EntityID) string {
 		return kubelet.PodUIDToTaggerEntityName(entityID.ID)
 	case workloadmeta.KindKubernetesNode:
 		return kubelet.NodeUIDToTaggerEntityName(entityID.ID)
-	case workloadmeta.KindKubernetesNamespace:
-		return fmt.Sprintf("namespace://%s", entityID.ID)
 	case workloadmeta.KindECSTask:
 		return fmt.Sprintf("ecs_task://%s", entityID.ID)
 	case workloadmeta.KindContainerImageMetadata:
@@ -802,6 +805,8 @@ func buildTaggerEntityID(entityID workloadmeta.EntityID) string {
 		return fmt.Sprintf("deployment://%s", entityID.ID)
 	case workloadmeta.KindHost:
 		return fmt.Sprintf("host://%s", entityID.ID)
+	case workloadmeta.KindKubernetesMetadata:
+		return fmt.Sprintf("kubernetes_metadata://%s", entityID.ID)
 	default:
 		log.Errorf("can't recognize entity %q with kind %q; trying %s://%s as tagger entity",
 			entityID.ID, entityID.Kind, entityID.ID, entityID.Kind)

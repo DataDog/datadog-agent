@@ -78,7 +78,6 @@ replace (
 )
 
 require (
-	github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface v0.55.0-rc.3
 	github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline v0.55.0-rc.3
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/logsagentexporter v0.55.0-rc.3
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/serializerexporter v0.55.0-rc.3
@@ -107,7 +106,9 @@ require (
 
 require (
 	github.com/DataDog/agent-payload/v5 v5.0.114 // indirect
+	github.com/DataDog/datadog-agent/comp/api/api/def v0.0.0-20240612173319-20c6286685ca // indirect
 	github.com/DataDog/datadog-agent/comp/core/config v0.55.0-rc.3 // indirect
+	github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface v0.55.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/comp/core/log v0.55.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/comp/core/secrets v0.55.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/comp/core/status v0.55.0-rc.3 // indirect
@@ -255,8 +256,8 @@ require (
 	go.opentelemetry.io/otel/sdk v1.27.0 // indirect
 	go.opentelemetry.io/otel/sdk/metric v1.27.0 // indirect
 	go.uber.org/atomic v1.11.0 // indirect
-	go.uber.org/dig v1.17.0 // indirect
-	go.uber.org/fx v1.18.2 // indirect
+	go.uber.org/dig v1.17.1 // indirect
+	go.uber.org/fx v1.22.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	golang.org/x/exp v0.0.0-20240222234643-814bf88cf225 // indirect
 	golang.org/x/mod v0.17.0 // indirect

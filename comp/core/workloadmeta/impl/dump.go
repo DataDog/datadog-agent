@@ -35,8 +35,6 @@ func (w *workloadmeta) Dump(verbose bool) wmdef.WorkloadDumpResponse {
 			info = e.String(verbose)
 		case *wmdef.KubernetesDeployment:
 			info = e.String(verbose)
-		case *wmdef.KubernetesNamespace:
-			info = e.String(verbose)
 		case *wmdef.KubernetesMetadata:
 			info = e.String(verbose)
 		default:
