@@ -47,6 +47,8 @@ func Adjust(cfg config.Config) {
 	adjustUSM(cfg)
 	adjustSecurity(cfg)
 
+	applyDefault(cfg, serviceDiscoveryNS("enabled"), true)
+
 	if cfg.GetBool(spNS("process_service_inference", "enabled")) &&
 		!usmEnabled &&
 		!npmEnabled {
