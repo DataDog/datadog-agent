@@ -41,7 +41,6 @@ include:
   - .gitlab/pkg_metrics/pkg_metrics.yml
   - .gitlab/post_rc_build/post_rc_tasks.yml
   - .gitlab/setup/setup.yml
-  - .gitlab/software_composition_analysis/software_composition_analysis.yml
   - .gitlab/source_test/include.yml
   - .gitlab/trigger_release/trigger_release.yml
 
