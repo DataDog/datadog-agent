@@ -24,6 +24,8 @@ const (
 )
 
 func adjustNetwork(cfg config.Config) {
+	ebpflessEnabled := cfg.GetBool(netNS("enable_ebpf_less"))
+
 	limitMaxInt(cfg, spNS("max_conns_per_message"), maxConnsMessageBatchSize)
 
 	if cfg.GetBool(spNS("disable_tcp")) {
@@ -89,5 +91,26 @@ func adjustNetwork(cfg config.Config) {
 	if cfg.GetBool(netNS("enable_connection_rollup")) && !cfg.GetBool(smNS("enable_connection_rollup")) {
 		log.Warn("disabling NPM connection rollups since USM connection rollups are not enabled")
 		cfg.Set(netNS("enable_connection_rollup"), false, model.SourceAgentRuntime)
+	}
+
+	// disable features that are not supported on certain
+	// configs/platforms
+	var disableConfigs []string
+	if ebpflessEnabled {
+		disableConfigs = append(disableConfigs,
+			spNS("enable_conntrack_all_namespaces"),
+			netNS("enable_protocol_classification"),
+			netNS("enable_http_monitoring"),
+			netNS("enable_https_monitoring"),
+			evNS("network_process", "enabled"),
+			netNS("enable_root_netns"),
+		)
+	}
+
+	for _, c := range disableConfigs {
+		if cfg.GetBool(c) {
+			log.Warnf("disabling %s since it is not supported for this config/platform", c)
+			cfg.Set(c, false, model.SourceAgentRuntime)
+		}
 	}
 }

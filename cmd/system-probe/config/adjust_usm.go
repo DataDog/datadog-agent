@@ -9,6 +9,8 @@ import (
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
@@ -16,6 +18,11 @@ const (
 )
 
 func adjustUSM(cfg config.Config) {
+	if cfg.GetBool(netNS("enable_ebpf_less")) && cfg.GetBool(smNS("enabled")) {
+		log.Warn("disabling USM since ebpf-less network tracer is enabled")
+		cfg.Set(smNS("enabled"), false, model.SourceAgentRuntime)
+	}
+
 	if cfg.GetBool(smNS("enabled")) {
 		applyDefault(cfg, netNS("enable_http_monitoring"), true)
 		applyDefault(cfg, netNS("enable_https_monitoring"), true)
