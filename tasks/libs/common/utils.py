@@ -18,7 +18,7 @@ from types import SimpleNamespace
 
 from invoke.exceptions import Exit
 
-from tasks.libs.common.color import color_message
+from tasks.libs.common.color import Color, color_message
 from tasks.libs.common.git import check_local_branch, check_uncommitted_changes, get_commit_sha
 from tasks.libs.owners.parsing import search_owners
 
@@ -180,7 +180,7 @@ def get_xcode_version(ctx):
         xcode_version = ctx.run("pkgutil --pkg-info=com.apple.pkg.CLTools_Executables", hide=True).stdout.strip()
         xcode_version = re.search(r"version: ([0-9.]+)", xcode_version).group(1)
         xcode_version = re.search(r"([0-9]+.[0-9]+)", xcode_version).group(1)
-    elif xcode_path.startswith("/Applications/Xcode.app"):
+    elif xcode_path.startswith("/Applications/Xcode"):
         xcode_version = ctx.run(
             "xcodebuild -version | grep -Eo 'Xcode [0-9.]+' | awk '{print $2}'", hide=True
         ).stdout.strip()
@@ -301,7 +301,10 @@ def get_build_flags(
                 extldflags += ",-no_warn_duplicate_libraries "
         except ValueError:
             print(
-                "Could not determine XCode version, not adding -no_warn_duplicate_libraries to extldflags",
+                color_message(
+                    "Warning: Could not determine XCode version, not adding -no_warn_duplicate_libraries to extldflags",
+                    Color.ORANGE,
+                ),
                 file=sys.stderr,
             )
 
