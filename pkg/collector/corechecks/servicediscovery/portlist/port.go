@@ -6,9 +6,7 @@
 package portlist
 
 import (
-	"fmt"
 	"sort"
-	"strings"
 )
 
 // Port is a listening port on the machine.
@@ -37,18 +35,6 @@ func (a *Port) lessThan(b *Port) bool {
 
 // List is a list of Ports.
 type List []Port
-
-func (pl List) String() string {
-	out := make([]string, len(pl))
-	for i, v := range pl {
-		val := fmt.Sprintf("%s:%d", v.Proto, v.Port)
-		if v.Pid != 0 {
-			val += fmt.Sprintf("(pid:%d)", v.Pid)
-		}
-		out[i] = val
-	}
-	return strings.Join(out, ",")
-}
 
 // sortAndDedup sorts ps in place (by Port.lessThan) and then returns
 // a subset of it with duplicate (Proto, Port) removed.

@@ -15,7 +15,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 )
 
@@ -37,6 +36,9 @@ func mockSenderEvents(t *testing.T, m *mocksender.MockSender) []*event {
 }
 
 func Test_telemetrySender(t *testing.T) {
+	t.Setenv("DD_ENV", ddEnv)
+	t.Setenv("DD_HOSTNAME", ddHost)
+
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -47,11 +49,7 @@ func Test_telemetrySender(t *testing.T) {
 	now := time.Date(2024, 5, 13, 0, 0, 0, 0, time.UTC)
 	mTimer.EXPECT().Now().Return(now).AnyTimes()
 
-	host := "test-host"
-	_, mHostname := hostnameinterface.NewMock(hostnameinterface.MockHostname(host))
-
 	ts := newTelemetrySender(mSender)
-	ts.hostname = mHostname
 
 	svc := serviceInfo{
 		process: processInfo{
@@ -84,8 +82,8 @@ func Test_telemetrySender(t *testing.T) {
 			Payload: &eventPayload{
 				NamingSchemaVersion: "1",
 				ServiceName:         "test-service",
-				HostName:            "test-host",
-				Env:                 "",
+				HostName:            ddHost,
+				Env:                 ddEnv,
 				ServiceLanguage:     "jvm",
 				ServiceType:         "web_service",
 				StartTime:           1715557200,
@@ -100,8 +98,8 @@ func Test_telemetrySender(t *testing.T) {
 			Payload: &eventPayload{
 				NamingSchemaVersion: "1",
 				ServiceName:         "test-service",
-				HostName:            "test-host",
-				Env:                 "",
+				HostName:            ddHost,
+				Env:                 ddEnv,
 				ServiceLanguage:     "jvm",
 				ServiceType:         "web_service",
 				StartTime:           1715557200,
@@ -116,8 +114,8 @@ func Test_telemetrySender(t *testing.T) {
 			Payload: &eventPayload{
 				NamingSchemaVersion: "1",
 				ServiceName:         "test-service",
-				HostName:            "test-host",
-				Env:                 "",
+				HostName:            ddHost,
+				Env:                 ddEnv,
 				ServiceLanguage:     "jvm",
 				ServiceType:         "web_service",
 				StartTime:           1715557200,
@@ -136,6 +134,9 @@ func Test_telemetrySender(t *testing.T) {
 }
 
 func Test_telemetrySender_name_provided(t *testing.T) {
+	t.Setenv("DD_ENV", ddEnv)
+	t.Setenv("DD_HOSTNAME", ddHost)
+
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -146,11 +147,7 @@ func Test_telemetrySender_name_provided(t *testing.T) {
 	now := time.Date(2024, 5, 13, 0, 0, 0, 0, time.UTC)
 	mTimer.EXPECT().Now().Return(now).AnyTimes()
 
-	host := "test-host"
-	_, mHostname := hostnameinterface.NewMock(hostnameinterface.MockHostname(host))
-
 	ts := newTelemetrySender(mSender)
-	ts.hostname = mHostname
 
 	svc := serviceInfo{
 		process: processInfo{
@@ -184,8 +181,8 @@ func Test_telemetrySender_name_provided(t *testing.T) {
 			Payload: &eventPayload{
 				NamingSchemaVersion: "1",
 				ServiceName:         "test-service",
-				HostName:            "test-host",
-				Env:                 "",
+				HostName:            ddHost,
+				Env:                 ddEnv,
 				ServiceLanguage:     "jvm",
 				ServiceType:         "web_service",
 				StartTime:           1715557200,
@@ -200,8 +197,8 @@ func Test_telemetrySender_name_provided(t *testing.T) {
 			Payload: &eventPayload{
 				NamingSchemaVersion: "1",
 				ServiceName:         "test-service",
-				HostName:            "test-host",
-				Env:                 "",
+				HostName:            ddHost,
+				Env:                 ddEnv,
 				ServiceLanguage:     "jvm",
 				ServiceType:         "web_service",
 				StartTime:           1715557200,
@@ -216,8 +213,8 @@ func Test_telemetrySender_name_provided(t *testing.T) {
 			Payload: &eventPayload{
 				NamingSchemaVersion: "1",
 				ServiceName:         "test-service",
-				HostName:            "test-host",
-				Env:                 "",
+				HostName:            ddHost,
+				Env:                 ddEnv,
 				ServiceLanguage:     "jvm",
 				ServiceType:         "web_service",
 				StartTime:           1715557200,

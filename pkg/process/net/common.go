@@ -21,6 +21,7 @@ import (
 	model "github.com/DataDog/agent-payload/v5/process"
 	"google.golang.org/protobuf/proto"
 
+	servicediscoverymodel "github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/model"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	netEncoding "github.com/DataDog/datadog-agent/pkg/network/encoding/unmarshal"
 	procEncoding "github.com/DataDog/datadog-agent/pkg/process/encoding"
@@ -376,6 +377,56 @@ func (r *RemoteSysProbeUtil) GetPprof(path string) ([]byte, error) {
 	defer res.Body.Close()
 
 	return io.ReadAll(res.Body)
+}
+
+// GetServiceDiscoveryOpenPorts returns open ports from system-probe.
+func (r *RemoteSysProbeUtil) GetServiceDiscoveryOpenPorts(ctx context.Context) (*servicediscoverymodel.OpenPortsResponse, error) {
+	url := serviceDiscoveryOpenPortsURL
+	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := r.httpClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("got non-success status code: path %s, url: %s, status_code: %d", r.path, url, resp.StatusCode)
+	}
+
+	res := &servicediscoverymodel.OpenPortsResponse{}
+	if err := json.NewDecoder(resp.Body).Decode(res); err != nil {
+		return nil, err
+	}
+	return res, nil
+}
+
+// GetServiceDiscoveryProc returns proc information from system-probe.
+func (r *RemoteSysProbeUtil) GetServiceDiscoveryProc(ctx context.Context, pid int) (*servicediscoverymodel.GetProcResponse, error) {
+	url := fmt.Sprintf(serviceDiscoveryGetProcURL, pid)
+	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := r.httpClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("got non-success status code: path %s, url: %s, status_code: %d", r.path, url, resp.StatusCode)
+	}
+
+	res := &servicediscoverymodel.GetProcResponse{}
+	if err := json.NewDecoder(resp.Body).Decode(res); err != nil {
+		return nil, err
+	}
+	return res, nil
 }
 
 func (r *RemoteSysProbeUtil) init() error {

@@ -9,6 +9,7 @@ import (
 	"io"
 	"os"
 	"path"
+	"path/filepath"
 	"strings"
 
 	"go.uber.org/zap"
@@ -25,7 +26,10 @@ func newNodeDetector(ctx DetectionContext) detector {
 }
 
 func (n nodeDetector) detect(args []string) (ServiceMetadata, bool) {
+	n.ctx.logger.Debug("detecting node.js application name")
+
 	skipNext := false
+	jsFile := ""
 	for _, a := range args {
 		if skipNext {
 			skipNext = false
@@ -38,18 +42,30 @@ func (n nodeDetector) detect(args []string) (ServiceMetadata, bool) {
 				continue
 			}
 		} else if strings.HasSuffix(strings.ToLower(a), ".js") {
-			cwd, _ := workingDirFromEnvs(n.ctx.envs)
-			absFile := abs(path.Clean(a), cwd)
-			if _, err := os.Stat(absFile); err == nil {
-				value, ok := n.findNameFromNearestPackageJSON(absFile)
-				if ok {
-					return NewServiceMetadata(value), true
-				}
-				break
-			}
+			jsFile = a
+			break
 		}
 	}
-	return ServiceMetadata{}, false
+
+	if jsFile == "" {
+		return ServiceMetadata{}, false
+	}
+
+	// we found a service name, but we'll try to find a better one from package.json
+	name := strings.TrimSuffix(filepath.Base(jsFile), ".js")
+
+	cwd, _ := workingDirFromEnvs(n.ctx.envs)
+	absFile := abs(path.Clean(jsFile), cwd)
+	if _, err := os.Stat(absFile); err != nil {
+		n.ctx.logger.Debug("js file from args not found", zap.String("path", absFile), zap.Error(err))
+	} else {
+		nameFromPackage, ok := n.findNameFromNearestPackageJSON(absFile)
+		if ok {
+			name = nameFromPackage
+		}
+	}
+
+	return NewServiceMetadata(name), true
 }
 
 // FindNameFromNearestPackageJSON finds the package.json walking up from the abspath.
@@ -84,19 +100,19 @@ func (n nodeDetector) maybeExtractServiceName(filename string) (string, bool) {
 		return "", false
 	}
 	if !ok {
-		n.ctx.logger.Debug("skipping package.js because too large", zap.String("filename", filename))
+		n.ctx.logger.Debug("skipping package.json because too large", zap.String("filename", filename))
 		return "", true // stops here
 	}
 	bytes, err := io.ReadAll(file)
 	if err != nil {
-		n.ctx.logger.Debug("unable to read a package.js file",
+		n.ctx.logger.Debug("unable to read a package.json file",
 			zap.String("filename", filename),
 			zap.Error(err))
 		return "", true
 	}
 	value, err := fastjson.ParseBytes(bytes)
 	if err != nil {
-		n.ctx.logger.Debug("unable to parse a package.js file",
+		n.ctx.logger.Debug("unable to parse a package.json file",
 			zap.String("filename", filename),
 			zap.Error(err))
 		return "", true

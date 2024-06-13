@@ -13,7 +13,10 @@ type errCode string
 
 const (
 	errorCodeProcfs              errCode = "procfs"
-	errorCodePortPoller          errCode = "port_poller"
+	errorCodeSystemProbeConn     errCode = "system_probe"
+	errorCodeSystemProbePorts    errCode = "system_probe_ports"
+	errorCodeSystemProbeEnv      errCode = "system_probe_env"
+	errorCodeEmptyServiceName    errCode = "empty_service_name"
 	errorCodeRepeatedServiceName errCode = "repeated_service_name"
 )
 

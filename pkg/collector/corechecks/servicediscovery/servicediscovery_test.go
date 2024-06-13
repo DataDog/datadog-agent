@@ -10,6 +10,12 @@ import (
 	"time"
 )
 
+const (
+	ddHost         = "test-host"
+	ddEnv          = "test-env"
+	checkConfigStr = `ignore_processes: ["ignore-1", "ignore-2"]`
+)
+
 func TestTimer(t *testing.T) {
 	var myTimer timer = realTime{}
 	val := myTimer.Now()

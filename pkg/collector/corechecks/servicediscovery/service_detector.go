@@ -6,6 +6,7 @@
 package servicediscovery
 
 import (
+	"fmt"
 	"slices"
 	"strings"
 
@@ -51,10 +52,23 @@ func fixAdditionalNames(additionalNames []string) []string {
 }
 
 func (sd *serviceDetector) Detect(p processInfo) serviceMetadata {
-	meta, _ := usm.ExtractServiceMetadata(sd.logger, p.CmdLine, p.Env)
-	lang, _ := sd.langFinder.Detect(p.CmdLine, p.Env)
+	env := p.Env
+	hasPWD := false
+	for _, v := range env {
+		n := strings.Split(v, "=")[0]
+		if n == "PWD" {
+			hasPWD = true
+			break
+		}
+	}
+	if !hasPWD {
+		env = append(env, fmt.Sprintf("PWD=%s", p.Cwd))
+	}
+
+	meta, _ := usm.ExtractServiceMetadata(sd.logger, p.CmdLine, env)
+	lang, _ := sd.langFinder.Detect(p.CmdLine, env)
 	svcType := servicetype.Detect(meta.Name, p.Ports)
-	apmInstr := apm.Detect(sd.logger, p.CmdLine, p.Env, lang)
+	apmInstr := apm.Detect(sd.logger, p.CmdLine, env, lang)
 
 	sd.logger.Debug("name info", zap.String("name", meta.Name), zap.Strings("additional names", meta.AdditionalNames))
 

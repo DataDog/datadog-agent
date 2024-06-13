@@ -159,7 +159,8 @@ func TestExtractServiceMetadata(t *testing.T) {
 				"/home/dd/my java dir/java", "com.dog.cat",
 			},
 			expectedServiceTag: "cat",
-		}, {
+		},
+		{
 			name: "node js with package.json not present",
 			cmdline: []string{
 				"/usr/bin/node",
@@ -169,7 +170,7 @@ func TestExtractServiceMetadata(t *testing.T) {
 				"--",
 				"/somewhere/index.js",
 			},
-			expectedServiceTag: "",
+			expectedServiceTag: "index",
 		},
 		{
 			name: "node js with a broken package.json",
@@ -177,7 +178,7 @@ func TestExtractServiceMetadata(t *testing.T) {
 				"/usr/bin/node",
 				"./testdata/inner/index.js",
 			},
-			expectedServiceTag: "",
+			expectedServiceTag: "index",
 		},
 		{
 			name: "node js with a valid package.json",
@@ -187,7 +188,7 @@ func TestExtractServiceMetadata(t *testing.T) {
 				"/private/node-patches_legacy/register.js",
 				"--preserve-symlinks-main",
 				"--",
-				"./testdata/index.js",
+				"./testdata/node_2/index.js",
 			},
 			expectedServiceTag: "my-awesome-package",
 		},
@@ -201,7 +202,7 @@ func TestExtractServiceMetadata(t *testing.T) {
 				"--",
 				"index.js",
 			},
-			envs:               []string{"PWD=testdata/deep"}, // it's relative but it's ok for testing purposes
+			envs:               []string{"PWD=testdata/node_2/deep"}, // it's relative but it's ok for testing purposes
 			expectedServiceTag: "my-awesome-package",
 		},
 		{
@@ -341,6 +342,7 @@ func TestExtractServiceMetadata(t *testing.T) {
 			cmdline: []string{
 				"/usr/bin/dotnet", "run", "--project", "./projects/proj1/proj1.csproj",
 			},
+			expectedServiceTag: "",
 		},
 		{
 			name: "PHP Laravel",
@@ -459,7 +461,6 @@ func TestExtractServiceMetadata(t *testing.T) {
 			expectedServiceTag: "dummy",
 		},
 		{
-			name: "gunicorn without app found",
 			cmdline: []string{
 				"gunicorn",
 			},

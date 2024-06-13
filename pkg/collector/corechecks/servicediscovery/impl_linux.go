@@ -8,12 +8,14 @@
 package servicediscovery
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"time"
 
 	"github.com/prometheus/procfs"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/portlist"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/model"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -35,10 +37,10 @@ var ignoreCfgLinux = []string{
 }
 
 type linuxImpl struct {
-	procfs     procFS
-	portPoller portPoller
-	time       timer
-	bootTime   uint64
+	procfs            procFS
+	getSysProbeClient func() (systemProbeClient, error)
+	time              timer
+	bootTime          uint64
 
 	serviceDetector *serviceDetector
 	ignoreCfg       map[string]bool
@@ -56,10 +58,6 @@ func newLinuxImpl(ignoreCfg map[string]bool) (osImpl, error) {
 	if err != nil {
 		return nil, err
 	}
-	poller, err := portlist.NewPoller()
-	if err != nil {
-		return nil, err
-	}
 	stat, err := pfs.Stat()
 	if err != nil {
 		return nil, err
@@ -67,7 +65,7 @@ func newLinuxImpl(ignoreCfg map[string]bool) (osImpl, error) {
 	return &linuxImpl{
 		procfs:            wProcFS{pfs},
 		bootTime:          stat.BootTime,
-		portPoller:        poller,
+		getSysProbeClient: getSysProbeClient,
 		time:              realTime{},
 		serviceDetector:   newServiceDetector(),
 		ignoreCfg:         ignoreCfg,
@@ -87,23 +85,35 @@ func (li *linuxImpl) DiscoverServices() (*discoveredServices, error) {
 		}
 	}
 
-	ports, err := li.portPoller.OpenPorts()
+	sysProbe, err := li.getSysProbeClient()
 	if err != nil {
 		return nil, errWithCode{
 			err:  err,
-			code: errorCodePortPoller,
+			code: errorCodeSystemProbeConn,
 			svc:  nil,
 		}
 	}
-	log.Debugf("got open ports: %s", ports.String())
 
-	portsByPID := map[int]portlist.List{}
-	for _, p := range ports {
-		if p.Pid == 0 {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	ports, err := sysProbe.GetServiceDiscoveryOpenPorts(ctx)
+	if err != nil {
+		return nil, errWithCode{
+			err:  err,
+			code: errorCodeSystemProbePorts,
+			svc:  nil,
+		}
+	}
+	log.Debugf("got open ports from system-probe: %+v", portsStr(ports.Ports))
+
+	portsByPID := map[int][]*model.Port{}
+	for _, p := range ports.Ports {
+		if p.PID == 0 {
 			log.Debugf("could not find port pid, skipping: %s:%d", p.Proto, p.Port)
 			continue
 		}
-		portsByPID[p.Pid] = append(portsByPID[p.Pid], p)
+		portsByPID[p.PID] = append(portsByPID[p.PID], p)
 	}
 
 	events := serviceEvents{}
@@ -135,13 +145,9 @@ func (li *linuxImpl) DiscoverServices() (*discoveredServices, error) {
 				continue
 			}
 
-			svc, err := li.getServiceInfo(p, portsByPID)
+			svc, err := li.getServiceInfo(p, sysProbe, portsByPID)
 			if err != nil {
-				telemetryFromError(errWithCode{
-					err:  err,
-					code: errorCodeProcfs,
-					svc:  nil,
-				})
+				telemetryFromError(err)
 				log.Errorf("[pid: %d] failed to get process info: %v", pid, err)
 				li.ignoreProcs[pid] = true
 				continue
@@ -176,7 +182,7 @@ func (li *linuxImpl) DiscoverServices() (*discoveredServices, error) {
 
 	return &discoveredServices{
 		aliveProcsCount: len(procs),
-		openPorts:       ports,
+		openPorts:       ports.Ports,
 		ignoreProcs:     li.ignoreProcs,
 		potentials:      li.potentialServices,
 		runningServices: li.aliveServices,
@@ -196,30 +202,39 @@ func (li *linuxImpl) aliveProcs() (map[int]proc, error) {
 	return procMap, nil
 }
 
-func (li *linuxImpl) getServiceInfo(p proc, openPorts map[int]portlist.List) (*serviceInfo, error) {
+func (li *linuxImpl) getServiceInfo(p proc, sysProbe systemProbeClient, openPorts map[int][]*model.Port) (*serviceInfo, error) {
 	cmdline, err := p.CmdLine()
 	if err != nil {
-		return nil, fmt.Errorf("failed to read /proc/{pid}/cmdline: %w", err)
+		return nil, errWithCode{
+			err:  fmt.Errorf("failed to read /proc/{pid}/cmdline: %w", err),
+			code: errorCodeProcfs,
+			svc:  nil,
+		}
 	}
-
-	env, err := p.Environ()
-	if err != nil {
-		return nil, fmt.Errorf("failed to read /proc/{pid}/environ: %w", err)
-	}
-
-	cwd, err := p.Cwd()
-	if err != nil {
-		return nil, fmt.Errorf("failed to read /proc/{pid}/cwd: %w", err)
-	}
-
 	stat, err := p.Stat()
 	if err != nil {
-		return nil, fmt.Errorf("failed to read /proc/{pid}/stat: %w", err)
+		return nil, errWithCode{
+			err:  fmt.Errorf("failed to read /proc/{pid}/stat: %w", err),
+			code: errorCodeProcfs,
+			svc:  nil,
+		}
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	envResp, err := sysProbe.GetServiceDiscoveryProc(ctx, p.PID())
+	if err != nil {
+		return nil, errWithCode{
+			err:  fmt.Errorf("failed to get environment from system-probe: %w", err),
+			code: errorCodeSystemProbeEnv,
+			svc:  nil,
+		}
 	}
 
 	var ports []int
 	for _, port := range openPorts[p.PID()] {
-		ports = append(ports, int(port.Port))
+		ports = append(ports, port.Port)
 	}
 
 	// if the process name is docker-proxy, we should talk to docker to get the process command line and env vars
@@ -234,8 +249,8 @@ func (li *linuxImpl) getServiceInfo(p proc, openPorts map[int]portlist.List) (*s
 	pInfo := processInfo{
 		PID:     p.PID(),
 		CmdLine: cmdline,
-		Env:     env,
-		Cwd:     cwd,
+		Env:     envResp.Proc.Environ,
+		Cwd:     envResp.Proc.CWD,
 		Stat: procStat{
 			StartTime: startTimeSecs,
 		},
@@ -243,6 +258,13 @@ func (li *linuxImpl) getServiceInfo(p proc, openPorts map[int]portlist.List) (*s
 	}
 
 	meta := li.serviceDetector.Detect(pInfo)
+	if meta.Name == "" {
+		return nil, errWithCode{
+			err:  errors.New("service detection did not return a name"),
+			code: errorCodeEmptyServiceName,
+			svc:  nil,
+		}
+	}
 
 	return &serviceInfo{
 		process:       pInfo,
@@ -254,8 +276,6 @@ func (li *linuxImpl) getServiceInfo(p proc, openPorts map[int]portlist.List) (*s
 type proc interface {
 	PID() int
 	CmdLine() ([]string, error)
-	Environ() ([]string, error)
-	Cwd() (string, error)
 	Stat() (procfs.ProcStat, error)
 }
 
@@ -269,10 +289,6 @@ func (w wProc) PID() int {
 
 type procFS interface {
 	AllProcs() ([]proc, error)
-}
-
-type portPoller interface {
-	OpenPorts() (portlist.List, error)
 }
 
 type wProcFS struct {

@@ -12,43 +12,72 @@ import (
 )
 
 func Test_serviceDetector(t *testing.T) {
-	sd := newServiceDetector()
-
 	// no need to test many cases here, just ensuring the process data is properly passed down is enough.
-	pInfo := processInfo{
-		PID:     100,
-		CmdLine: []string{"my-service.py"},
-		Env:     []string{"PATH=testdata/test-bin", "DD_INJECTION_ENABLED=tracer"},
-		Cwd:     "",
-		Stat:    procStat{},
-		Ports:   []int{5432},
+	tests := []struct {
+		name  string
+		pInfo processInfo
+		want  serviceMetadata
+	}{
+		{
+			name: "basic",
+			pInfo: processInfo{
+				PID:     100,
+				CmdLine: []string{"my-service.py"},
+				Env:     []string{"PATH=testdata/test-bin", "DD_INJECTION_ENABLED=tracer"},
+				Cwd:     "",
+				Stat:    procStat{},
+				Ports:   []int{5432},
+			},
+			want: serviceMetadata{
+				Name:               "my-service",
+				Language:           "python",
+				Type:               "db",
+				APMInstrumentation: "injected",
+			},
+		},
+		{
+			// pass in nil slices and see if anything blows up
+			name: "empty",
+			pInfo: processInfo{
+				PID:     0,
+				CmdLine: nil,
+				Env:     nil,
+				Cwd:     "",
+				Stat:    procStat{},
+				Ports:   nil,
+			},
+			want: serviceMetadata{
+				Name:               "",
+				Language:           "UNKNOWN",
+				Type:               "web_service",
+				APMInstrumentation: "none",
+				FromDDService:      false,
+			},
+		},
+		{
+			name: "set_pwd_from_cwd",
+			pInfo: processInfo{
+				PID:     100,
+				CmdLine: []string{"node", "index.js"},
+				Env:     []string{},
+				Cwd:     "./testdata/node",
+				Stat:    procStat{},
+				Ports:   []int{8000},
+			},
+			want: serviceMetadata{
+				Name:               "node-service",
+				Language:           "nodejs",
+				Type:               "web_service",
+				APMInstrumentation: "none",
+			},
+		},
 	}
 
-	want := serviceMetadata{
-		Name:               "my-service",
-		Language:           "python",
-		Type:               "db",
-		APMInstrumentation: "injected",
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			sd := newServiceDetector()
+			got := sd.Detect(tc.pInfo)
+			assert.Equal(t, tc.want, got)
+		})
 	}
-	got := sd.Detect(pInfo)
-	assert.Equal(t, want, got)
-
-	// pass in nil slices and see if anything blows up
-	pInfoEmpty := processInfo{
-		PID:     0,
-		CmdLine: nil,
-		Env:     nil,
-		Cwd:     "",
-		Stat:    procStat{},
-		Ports:   nil,
-	}
-	wantEmpty := serviceMetadata{
-		Name:               "",
-		Language:           "UNKNOWN",
-		Type:               "web_service",
-		APMInstrumentation: "none",
-		FromDDService:      false,
-	}
-	gotEmpty := sd.Detect(pInfoEmpty)
-	assert.Equal(t, wantEmpty, gotEmpty)
 }
