@@ -83,7 +83,7 @@ func (w *workloadMetaMock) ListContainers() []*wmdef.Container {
 }
 
 // ListContainersWithFilter returns metadata about the containers that pass the given filter.
-func (w *workloadMetaMock) ListContainersWithFilter(filter wmdef.ContainerFilterFunc) []*wmdef.Container {
+func (w *workloadMetaMock) ListContainersWithFilter(filter wmdef.EntityFilterFunc[*wmdef.Container]) []*wmdef.Container {
 	var res []*wmdef.Container
 
 	for _, container := range w.ListContainers() {
@@ -119,7 +119,7 @@ func (w *workloadMetaMock) ListProcesses() []*wmdef.Process {
 }
 
 // ListProcessesWithFilter implements workloadMetaMock#ListProcessesWithFilter.
-func (w *workloadMetaMock) ListProcessesWithFilter(filter wmdef.ProcessFilterFunc) []*wmdef.Process {
+func (w *workloadMetaMock) ListProcessesWithFilter(filter wmdef.EntityFilterFunc[*wmdef.Process]) []*wmdef.Process {
 	var res []*wmdef.Process
 
 	for _, process := range w.ListProcesses() {
@@ -219,16 +219,6 @@ func (w *workloadMetaMock) GetKubernetesDeployment(id string) (*wmdef.Kubernetes
 	}
 
 	return entity.(*wmdef.KubernetesDeployment), nil
-}
-
-// GetKubernetesNamespace implements Component#GetKubernetesNamespace
-func (w *workloadMetaMock) GetKubernetesNamespace(id string) (*wmdef.KubernetesNamespace, error) {
-	entity, err := w.getEntityByKind(wmdef.KindKubernetesNamespace, id)
-	if err != nil {
-		return nil, err
-	}
-
-	return entity.(*wmdef.KubernetesNamespace), nil
 }
 
 // GetECSTask returns metadata about an ECS task.

@@ -18,7 +18,8 @@ from invoke.tasks import task
 
 from tasks.flavor import AgentFlavor
 from tasks.gotest import process_test_result, test_flavor
-from tasks.libs.common.utils import REPO_PATH, get_git_commit, running_in_ci
+from tasks.libs.common.git import get_commit_sha
+from tasks.libs.common.utils import REPO_PATH, running_in_ci
 from tasks.modules import DEFAULT_MODULES
 
 
@@ -101,7 +102,7 @@ def run(
         "verbose": '-v' if verbose else '',
         "nocache": '-count=1' if not cache else '',
         "REPO_PATH": REPO_PATH,
-        "commit": get_git_commit(),
+        "commit": get_commit_sha(ctx, short=True),
         "run": '-test.run ' + run if run else '',
         "skip": '-test.skip ' + skip if skip else '',
         "test_run_arg": test_run_arg,

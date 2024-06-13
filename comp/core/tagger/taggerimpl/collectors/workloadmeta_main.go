@@ -34,6 +34,7 @@ const (
 	containerImageSource = workloadmetaCollectorName + "-" + string(workloadmeta.KindContainerImageMetadata)
 	processSource        = workloadmetaCollectorName + "-" + string(workloadmeta.KindProcess)
 	hostSource           = workloadmetaCollectorName + "-" + string(workloadmeta.KindHost)
+	kubeMetadataSource   = workloadmetaCollectorName + "-" + string(workloadmeta.KindKubernetesMetadata)
 
 	clusterTagNamePrefix = "kube_cluster_name"
 )

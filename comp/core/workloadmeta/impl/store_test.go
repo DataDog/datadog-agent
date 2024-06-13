@@ -170,11 +170,8 @@ func TestSubscribe(t *testing.T) {
 		{
 			// if the filter has type "wmdef.EventTypeUnset", it does not receive
 			// events for entities that are currently in the store.
-			name: "do not receive events for entities in the store pre-subscription if filter type is wmdef.EventTypeUnset",
-			filter: wmdef.NewFilter(&wmdef.FilterParams{
-				Source:    fooSource,
-				EventType: wmdef.EventTypeUnset,
-			}),
+			name:   "do not receive events for entities in the store pre-subscription if filter type is EventTypeUnset",
+			filter: wmdef.NewFilterBuilder().SetSource(fooSource).SetEventType(wmdef.EventTypeUnset).Build(),
 			preEvents: []wmdef.CollectorEvent{
 				{
 					Type:   wmdef.EventTypeSet,
@@ -191,11 +188,8 @@ func TestSubscribe(t *testing.T) {
 			// in the store, and match a filter by source. entities
 			// that don't match the filter at all should not
 			// generate an event.
-			name: "receive events for entities in the store pre-subscription with filter",
-			filter: wmdef.NewFilter(&wmdef.FilterParams{
-				Source:    fooSource,
-				EventType: wmdef.EventTypeAll,
-			}),
+			name:   "receive events for entities in the store pre-subscription with filter",
+			filter: wmdef.NewFilterBuilder().SetSource(fooSource).Build(),
 			preEvents: []wmdef.CollectorEvent{
 				// set container with two sources, delete one source
 				{
@@ -358,11 +352,8 @@ func TestSubscribe(t *testing.T) {
 			// setting an entity from two different sources, but
 			// unsetting from only one (that matches the filter)
 			// correctly generates an unset event
-			name: "sets and unsets an entity with source filters",
-			filter: wmdef.NewFilter(&wmdef.FilterParams{
-				Source:    fooSource,
-				EventType: wmdef.EventTypeAll,
-			}),
+			name:   "sets and unsets an entity with source filters",
+			filter: wmdef.NewFilterBuilder().SetSource(fooSource).Build(),
 			postEvents: [][]wmdef.CollectorEvent{
 				{
 					{
@@ -525,11 +516,8 @@ func TestSubscribe(t *testing.T) {
 			},
 		},
 		{
-			name: "filters by event type",
-			filter: wmdef.NewFilter(&wmdef.FilterParams{
-				Source:    wmdef.SourceAll,
-				EventType: wmdef.EventTypeUnset,
-			}),
+			name:   "filters by event type",
+			filter: wmdef.NewFilterBuilder().SetEventType(wmdef.EventTypeUnset).Build(),
 			postEvents: [][]wmdef.CollectorEvent{
 				{
 					{
@@ -677,41 +665,6 @@ func TestGetKubernetesDeployment(t *testing.T) {
 	})
 
 	_, err = s.GetKubernetesDeployment("datadog-cluster-agent")
-	tassert.True(t, errors.IsNotFound(err))
-}
-
-func TestGetKubernetesNamespace(t *testing.T) {
-	deps := fxutil.Test[dependencies](t, fx.Options(
-		logimpl.MockModule(),
-		config.MockModule(),
-		fx.Supply(wmdef.NewParams()),
-	))
-
-	s := newWorkloadmetaObject(deps)
-
-	namespace := &wmdef.KubernetesNamespace{
-		EntityID: wmdef.EntityID{
-			Kind: wmdef.KindKubernetesNamespace,
-			ID:   "default",
-		},
-	}
-
-	s.handleEvents([]wmdef.CollectorEvent{
-		{
-			Type:   wmdef.EventTypeSet,
-			Source: fooSource,
-			Entity: namespace,
-		},
-	})
-
-	retrievedNamespace, err := s.GetKubernetesNamespace("default")
-	tassert.NoError(t, err)
-
-	if !reflect.DeepEqual(namespace, retrievedNamespace) {
-		t.Errorf("expected namespace %q to match the one in the store", retrievedNamespace.ID)
-	}
-
-	_, err = s.GetKubernetesNamespace("datadog-cluster-agent")
 	tassert.True(t, errors.IsNotFound(err))
 }
 

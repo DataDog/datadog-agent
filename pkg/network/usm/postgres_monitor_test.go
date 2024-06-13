@@ -26,6 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/postgres"
+	protocolsUtils "github.com/DataDog/datadog-agent/pkg/network/protocols/testutil"
 	gotlstestutil "github.com/DataDog/datadog-agent/pkg/network/protocols/tls/gotls/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 )
@@ -38,6 +39,7 @@ const (
 	dropTableQuery         = "DROP TABLE IF EXISTS dummy"
 	deleteTableQuery       = "DELETE FROM dummy WHERE id = 1"
 	alterTableQuery        = "ALTER TABLE dummy ADD test VARCHAR(255);"
+	truncateTableQuery     = "TRUNCATE TABLE dummy"
 )
 
 func createInsertQuery(values ...string) string {
@@ -86,7 +88,7 @@ func (s *postgresProtocolParsingSuite) TestLoadPostgresBinary() {
 	t := s.T()
 	for name, debug := range map[string]bool{"enabled": true, "disabled": false} {
 		t.Run(name, func(t *testing.T) {
-			cfg := getPostgresDefaultTestConfiguration(postgres.TLSDisabled)
+			cfg := getPostgresDefaultTestConfiguration(protocolsUtils.TLSDisabled)
 			cfg.BPFDebug = debug
 			setupUSMTLSMonitor(t, cfg)
 		})
@@ -308,6 +310,30 @@ func testDecoding(t *testing.T, isTLS bool) {
 			},
 		},
 		{
+			name: "truncate operation",
+			preMonitorSetup: func(t *testing.T, ctx testContext) {
+				pg, err := postgres.NewPGXClient(postgres.ConnectionOptions{
+					ServerAddress: ctx.serverAddress,
+					EnableTLS:     isTLS,
+				})
+				require.NoError(t, err)
+				require.NoError(t, pg.Ping())
+				ctx.extras["pg"] = pg
+				require.NoError(t, pg.RunQuery(createTableQuery))
+			},
+			postMonitorSetup: func(t *testing.T, ctx testContext) {
+				pg := ctx.extras["pg"].(*postgres.PGXClient)
+				require.NoError(t, pg.RunQuery(truncateTableQuery))
+			},
+			validation: func(t *testing.T, ctx testContext, monitor *Monitor) {
+				validatePostgres(t, monitor, map[string]map[postgres.Operation]int{
+					"dummy": {
+						postgres.TruncateTableOP: adjustCount(1),
+					},
+				})
+			},
+		},
+		{
 			name: "drop table",
 			preMonitorSetup: func(t *testing.T, ctx testContext) {
 				pg, err := postgres.NewPGXClient(postgres.ConnectionOptions{
@@ -486,7 +512,7 @@ func (s *postgresProtocolParsingSuite) TestCleanupEBPFEntriesOnTermination() {
 	t := s.T()
 
 	// Creating the monitor
-	monitor := setupUSMTLSMonitor(t, getPostgresDefaultTestConfiguration(postgres.TLSDisabled))
+	monitor := setupUSMTLSMonitor(t, getPostgresDefaultTestConfiguration(protocolsUtils.TLSDisabled))
 
 	wg := sync.WaitGroup{}
 
