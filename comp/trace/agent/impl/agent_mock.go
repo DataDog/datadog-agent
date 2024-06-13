@@ -35,7 +35,9 @@ func NewMock(deps dependencies, t testing.TB) traceagent.Component { //nolint:re
 		),
 		cancel:             cancel,
 		config:             deps.Config,
+		statsd:             deps.Statsd,
 		params:             deps.Params,
+		shutdowner:         deps.Shutdowner,
 		telemetryCollector: telemetryCollector,
 	}
 
