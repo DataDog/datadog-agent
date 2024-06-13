@@ -16,7 +16,7 @@ else()
     find_program(
         CLANG_FORMAT
         NAMES clang-format-8 clang-format
-        PATHS "/usr/local/bin"
+        PATHS "/usr/bin"
         )
 endif()
 if(CLANG_FORMAT)
