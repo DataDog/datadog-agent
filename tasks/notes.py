@@ -4,7 +4,7 @@ from datetime import date
 from invoke import Failure, task
 from invoke.exceptions import Exit
 
-from tasks.libs.ciproviders.github_api import create_pr
+from tasks.libs.ciproviders.github_api import create_release_pr
 from tasks.libs.common.color import color_message
 from tasks.libs.common.git import get_current_branch, try_git_command
 from tasks.libs.releasing.notes import _add_dca_prelude, _add_prelude, update_changelog_generic
@@ -125,7 +125,9 @@ def update_changelog(ctx, new_version=None, target="all", upstream="origin"):
             code=1,
         )
 
-    create_pr(f"Changelog update for {new_version} release", base_branch, update_branch, new_version, changelog_pr=True)
+    create_release_pr(
+        f"Changelog update for {new_version} release", base_branch, update_branch, new_version, changelog_pr=True
+    )
 
 
 @task

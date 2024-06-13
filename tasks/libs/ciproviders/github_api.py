@@ -363,7 +363,7 @@ def get_user_query(login):
     return query + string_var
 
 
-def create_pr(title, base_branch, target_branch, version, changelog_pr=False):
+def create_release_pr(title, base_branch, target_branch, version, changelog_pr=False):
     print(color_message("Creating PR", "bold"))
 
     github = GithubAPI(repository=GITHUB_REPO_NAME)

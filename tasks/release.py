@@ -13,7 +13,7 @@ from gitlab import GitlabError
 from invoke import task
 from invoke.exceptions import Exit
 
-from tasks.libs.ciproviders.github_api import GithubAPI, create_pr
+from tasks.libs.ciproviders.github_api import GithubAPI, create_release_pr
 from tasks.libs.ciproviders.gitlab_api import get_gitlab_repo
 from tasks.libs.common.color import color_message
 from tasks.libs.common.constants import (
@@ -283,7 +283,7 @@ def finish(ctx, major_versions="6,7", upstream="origin"):
             code=1,
         )
 
-    create_pr(
+    create_release_pr(
         f"Final updates for release.json and Go modules for {new_version} release + preludes",
         current_branch,
         final_branch,
@@ -411,7 +411,7 @@ def create_rc(ctx, major_versions="6,7", patch_version=False, upstream="origin",
             code=1,
         )
 
-    pr_url = create_pr(
+    pr_url = create_release_pr(
         f"[release] Update release.json and Go modules for {new_highest_version}",
         current_branch,
         update_branch,
@@ -619,7 +619,7 @@ def unfreeze(ctx, base_directory="~/dd", major_versions="6,7", upstream="origin"
         next.devel = False
         rj["current_milestone"] = f"{next}"
         _save_release_json(rj)
-        create_pr(
+        create_release_pr(
             f"[release] Update current milestone to {next}",
             "main",
             milestone_branch,
@@ -681,7 +681,7 @@ def unfreeze(ctx, base_directory="~/dd", major_versions="6,7", upstream="origin"
                 code=1,
             )
 
-        create_pr(
+        create_release_pr(
             f"[release] Update release.json and gitlab files for {release_branch} branch",
             release_branch,
             update_branch,
