@@ -140,25 +140,16 @@ class SummaryStats:
 
 # TODO : s3
 def write_file(ctx: Context, name: str, data: str):
-    # TODO
-    print('Writing file', name)
-
     with open('/tmp/summary/' + name, 'w') as f:
         f.write(data)
 
 
 def read_file(ctx: Context, name: str) -> str:
-    # TODO
-    print('Reading file', name)
-
     with open('/tmp/summary/' + name) as f:
         return f.read()
 
 
 def remove_files(ctx: Context, names: list[str]):
-    # TODO
-    print('Removing files', names)
-
     os.system(f'rm -f /tmp/summary/{{{",".join(names)}}}')
 
 
