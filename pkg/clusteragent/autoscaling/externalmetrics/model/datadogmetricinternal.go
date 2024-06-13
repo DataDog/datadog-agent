@@ -208,7 +208,7 @@ func (d *DatadogMetricInternal) HasBeenUpdatedFor(duration time.Duration) bool {
 	return d.UpdateTime.After(time.Now().UTC().Add(-duration))
 }
 
-// IsStale returns true if the current `DatadogMetricInternal` has been update between Now() and Now() - duration
+// IsStale returns true if the current `DatadogMetricInternal` has not been update between Now() and Now() - duration
 func (d *DatadogMetricInternal) IsStale(metricsMaxAge, currentTime int64) bool {
 	maxAge := d.MaxAge
 	if maxAge == 0 {
@@ -265,7 +265,7 @@ func (d *DatadogMetricInternal) ToExternalMetricFormat(externalMetricName string
 	}
 
 	if d.IsStale(metricsMaxAge, time.Now().UTC().Unix()) {
-		return nil, fmt.Errorf("DatadogMetric is stale, last updated: %v", d.DataTime)
+		return nil, fmt.Errorf("DatadogMetric is stale, last updated: %v. Check datadog-cluster-agent logs for errors", d.DataTime)
 	}
 
 	quantity, err := resource.ParseQuantity(fmt.Sprintf("%v", d.Value))
