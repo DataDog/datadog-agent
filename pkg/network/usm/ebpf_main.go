@@ -67,8 +67,10 @@ const (
 	tupleByPidFDMap                        = "tuple_by_pid_fd"
 	pidFDByTupleMap                        = "pid_fd_by_tuple"
 
-	sockFDLookup    = "kprobe__sockfd_lookup_light"
-	sockFDLookupRet = "kretprobe__sockfd_lookup_light"
+	sockFDLookup         = "kprobe__sockfd_lookup_light"
+	sockFDLookupRet      = "kretprobe__sockfd_lookup_light"
+	netifReceiveSkbTp    = "tracepoint__net__netif_receive_skb"
+	netifReceiveSkbRawTp = "raw_tracepoint__net__netif_receive_skb"
 
 	tcpCloseProbe = "kprobe__tcp_close"
 
@@ -97,14 +99,14 @@ type ebpfProgram struct {
 func newEBPFProgram(c *config.Config, connectionProtocolMap *ebpf.Map) (*ebpfProgram, error) {
 	netifProbe := manager.Probe{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
-			EBPFFuncName: "tracepoint__net__netif_receive_skb",
+			EBPFFuncName: netifReceiveSkbTp,
 			UID:          probeUID,
 		},
 	}
 	if features.HaveProgramType(ebpf.RawTracepoint) == nil {
 		netifProbe = manager.Probe{
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFFuncName: "raw_tracepoint__net__netif_receive_skb",
+				EBPFFuncName: netifReceiveSkbRawTp,
 				UID:          probeUID,
 			},
 			TracepointCategory: "net",
@@ -471,6 +473,13 @@ func (e *ebpfProgram) init(buf bytecode.AssetReader, options manager.Options) er
 		for _, tc := range p.TailCalls {
 			options.ExcludedFunctions = append(options.ExcludedFunctions, tc.ProbeIdentificationPair.EBPFFuncName)
 		}
+	}
+
+	// exclude unused netif_receive_skb probe
+	if features.HaveProgramType(ebpf.RawTracepoint) == nil {
+		options.ExcludedFunctions = append(options.ExcludedFunctions, netifReceiveSkbTp)
+	} else {
+		options.ExcludedFunctions = append(options.ExcludedFunctions, netifReceiveSkbRawTp)
 	}
 
 	err := e.InitWithOptions(buf, &options)
