@@ -60,13 +60,13 @@ static __always_inline int flush(void *ctx) {
     return 0;
 }
 
-int BPF_PROG(raw_tracepoint__net__net_dev_queue) {
+int BPF_PROG(raw_tracepoint__net__netif_receive_skb) {
     CHECK_BPF_PROGRAM_BYPASSED()
     log_debug("tracepoint/net/netif_receive_skb");
     return flush(ctx);
 }
 
-int BPF_PROG(tracepoint__net__net_dev_queue) {
+int BPF_PROG(tracepoint__net__netif_receive_skb) {
     CHECK_BPF_PROGRAM_BYPASSED()
     log_debug("tracepoint/net/netif_receive_skb");
     return flush(ctx);

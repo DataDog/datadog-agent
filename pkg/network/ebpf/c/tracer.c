@@ -1078,7 +1078,7 @@ int raw_tracepoint__net__net_dev_queue(struct bpf_raw_tracepoint_args *ctx) {
 }
 
 SEC("tracepoint/net/net_dev_queue")
-int tracepoint__net__net_dev_queue__pre_4_17_0(struct net_dev_queue_ctx* ctx) {
+int tracepoint__net__net_dev_queue(struct net_dev_queue_ctx* ctx) {
     CHECK_BPF_PROGRAM_BYPASSED()
     struct sk_buff* skb = ctx->skb;
     if (!skb) {

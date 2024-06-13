@@ -113,7 +113,7 @@ func newEBPFProgram(c *config.Config, connectionProtocolMap *ebpf.Map) (*ebpfPro
 	if kv < rawTPKernelVersion {
 		netifProbe = manager.Probe{
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFFuncName: "tracepoint__net__netif_receive_skb__pre_4_17_0",
+				EBPFFuncName: "tracepoint__net__netif_receive_skb",
 				UID:          probeUID,
 			},
 		}
