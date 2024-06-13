@@ -156,9 +156,10 @@ func (c *collectorImpl) fillFlare(fb flaretypes.FlareBuilder) error {
 		for retries > 0 {
 			response, err = http.Get(src.URL)
 			if err != nil {
-				retries -= 1
+				retries--
 				time.Sleep(500 * time.Millisecond)
 			} else {
+				defer response.Body.Close()
 				break
 			}
 		}
@@ -166,7 +167,6 @@ func (c *collectorImpl) fillFlare(fb flaretypes.FlareBuilder) error {
 			fb.AddFile(fmt.Sprintf("otel/otel-flare/%s.err", src.Name), []byte(err.Error())) //nolint:errcheck
 			continue
 		}
-		defer response.Body.Close()
 
 		data, err := io.ReadAll(response.Body)
 		if err != nil {
