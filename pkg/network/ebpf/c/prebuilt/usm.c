@@ -49,10 +49,7 @@ int BPF_BYPASSABLE_KPROBE(kprobe__tcp_sendmsg, struct sock *sk) {
     return 0;
 }
 
-SEC("raw_tracepoint/net/netif_receive_skb")
-int raw_tracepoint__net__netif_receive_skb(void *ctx) {
-    CHECK_BPF_PROGRAM_BYPASSED()
-    log_debug("tracepoint/net/netif_receive_skb");
+static __always_inline int flush(void *ctx) {
     // flush batch to userspace
     // because perf events can't be sent from socket filter programs
     http_batch_flush(ctx);
@@ -63,18 +60,16 @@ int raw_tracepoint__net__netif_receive_skb(void *ctx) {
     return 0;
 }
 
-SEC("tracepoint/net/netif_receive_skb")
-int tracepoint__net__netif_receive_skb__pre_4_17_0(void *ctx) {
+int BPF_PROG(raw_tracepoint__net__net_dev_queue) {
     CHECK_BPF_PROGRAM_BYPASSED()
     log_debug("tracepoint/net/netif_receive_skb");
-    // flush batch to userspace
-    // because perf events can't be sent from socket filter programs
-    http_batch_flush(ctx);
-    http2_batch_flush(ctx);
-    terminated_http2_batch_flush(ctx);
-    kafka_batch_flush(ctx);
-    postgres_batch_flush(ctx);
-    return 0;
+    return flush(ctx);
+}
+
+int BPF_PROG(tracepoint__net__net_dev_queue) {
+    CHECK_BPF_PROGRAM_BYPASSED()
+    log_debug("tracepoint/net/netif_receive_skb");
+    return flush(ctx);
 }
 
 char _license[] SEC("license") = "GPL";

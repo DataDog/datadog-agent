@@ -34,12 +34,12 @@ const (
 	// ProtocolClassifierGRPCSocketFilter runs a classification rules for gRPC protocols.
 	ProtocolClassifierGRPCSocketFilter ProbeFuncName = "socket__classifier_grpc"
 
-	// NetDevQueue runs a raw tracepoint that allows us to correlate __sk_buf (in a socket filter) with the `struct sock*`
+	// NetDevQueueRawTracepoint runs a raw tracepoint that allows us to correlate __sk_buf (in a socket filter) with the `struct sock*`
 	// belongs (but hidden) for it.
-	NetDevQueue ProbeFuncName = "raw_tracepoint__net__net_dev_queue"
+	NetDevQueueRawTracepoint ProbeFuncName = "raw_tracepoint__net__net_dev_queue"
 
-	// NetDevQueuePre4_17_0 is the tracepoint version of the same probe attach on kernels less than 4.17
-	NetDevQueuePre4_17_0 ProbeFuncName = "tracepoint__net__net_dev_queue__pre_4_17_0"
+	// NetDevQueueTracepoint is the tracepoint version of the same probe attach on kernels less than 4.17
+	NetDevQueueTracepoint ProbeFuncName = "tracepoint__net__net_dev_queue"
 
 	// TCPSendMsg traces the tcp_sendmsg() system call
 	TCPSendMsg ProbeFuncName = "kprobe__tcp_sendmsg"

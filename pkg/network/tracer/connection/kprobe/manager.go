@@ -17,7 +17,7 @@ import (
 )
 
 var mainProbes = []probes.ProbeFuncName{
-	probes.NetDevQueuePre4_17_0,
+	probes.NetDevQueueTracepoint,
 	probes.ProtocolClassifierEntrySocketFilter,
 	probes.ProtocolClassifierQueuesSocketFilter,
 	probes.ProtocolClassifierDBsSocketFilter,
@@ -95,7 +95,7 @@ func initManager(mgr *ddebpf.Manager, connCloseEventHandler ddebpf.EventHandler,
 
 	// add Probe for net_dev_queue attached via raw tracepoint
 	mgr.Probes = append(mgr.Probes,
-		&manager.Probe{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: "raw_tracepoint__net__net_dev_queue", UID: probeUID}, TracepointName: "net_dev_queue", TracepointCategory: "net"},
+		&manager.Probe{ProbeIdentificationPair: manager.ProbeIdentificationPair{EBPFFuncName: probes.NetDevQueueRawTracepoint, UID: probeUID}, TracepointName: "net_dev_queue", TracepointCategory: "net"},
 	)
 
 	mgr.Probes = append(mgr.Probes,
