@@ -123,13 +123,12 @@ func (c *collectorImpl) stop(context.Context) error {
 }
 
 func (c *collectorImpl) fillFlare(fb flaretypes.FlareBuilder) error {
-	// TODO: add to config so that these are known config values
-	if !c.config.GetBool("otel-agent.enabled") {
+	if !c.config.GetBool("otel.enabled") {
 		return nil
 	}
 
 	// request config from Otel-Agent
-	responseBytes, err := c.requestOtelConfigInfo(c.config.GetInt("otel-agent.flare_port"))
+	responseBytes, err := c.requestOtelConfigInfo(c.config.GetInt("otel.extension_url"))
 	if err != nil {
 		fb.AddFile("otel/otel-agent.log", []byte(fmt.Sprintf("did not get otel-agent configuration: %v", err))) //nolint:errcheck
 		return nil
@@ -139,9 +138,14 @@ func (c *collectorImpl) fillFlare(fb flaretypes.FlareBuilder) error {
 	fb.AddFile("otel/otel-response.json", responseBytes) //nolint:errcheck
 	var responseInfo configResponseInfo
 	if err := json.Unmarshal(responseBytes, &responseInfo); err != nil {
-		fb.AddFile("otel/otel-agent.log", []byte(fmt.Sprintf("could not read sources from otel-agent response: %v", responseBytes))) //nolint:errcheck
+		fb.AddFile("otel/otel-agent.log", []byte(fmt.Sprintf("could not read sources from otel-agent response: %s", responseBytes))) //nolint:errcheck
 		return nil
 	}
+
+	fb.AddFile("otel/otel-flare/startup.cfg", []byte(toJSON(responseInfo.StartupConf)))     //nolint:errcheck
+	fb.AddFile("otel/otel-flare/runtime.cfg", []byte(toJSON(responseInfo.RuntimeConf)))     //nolint:errcheck
+	fb.AddFile("otel/otel-flare/environment.cfg", []byte(toJSON(responseInfo.Environment))) //nolint:errcheck
+	fb.AddFile("otel/otel-flare/cmdline.txt", []byte(responseInfo.Cmdline))                 //nolint:errcheck
 
 	// retrieve each source of configuration
 	for _, src := range responseInfo.Sources {
@@ -171,20 +175,29 @@ func (c *collectorImpl) fillFlare(fb flaretypes.FlareBuilder) error {
 			e.Request.Visit(e.Request.AbsoluteURL(link)) //nolint:errcheck
 		})
 		col.OnResponse(func(r *colly.Response) {
-			// don't refetch root pages, they were already saved earlier
+			// the root sources (from the configResponseInfo) were already fetched earlier
+			// don't re-fetch them
 			responseURL := r.Request.URL.String()
 			if responseURL == src.URL {
 				return
 			}
 			// use the url as the basis for the filename saved in the flare
 			filename := strings.ReplaceAll(url.PathEscape(responseURL), ":", "_")
-			fb.AddFile(fmt.Sprintf("otel/otel-flare/%s", filename), r.Body) //nolint:errcheck
+			fb.AddFile(fmt.Sprintf("otel/otel-flare/crawl-%s", filename), r.Body) //nolint:errcheck
 		})
 		if err := col.Visit(src.URL); err != nil {
 			fb.AddFile("otel/otel-flare/crawl.err", []byte(err.Error())) //nolint:errcheck
 		}
 	}
 	return nil
+}
+
+func toJSON(it interface{}) string {
+	data, err := json.Marshal(it)
+	if err != nil {
+		return err.Error()
+	}
+	return string(data)
 }
 
 type configSourceInfo struct {
@@ -201,7 +214,7 @@ type configResponseInfo struct {
 	Sources     []configSourceInfo `json:"sources"`
 }
 
-// Can be overriden for tests
+// Can be overridden for tests
 var overrideConfigResponse = ""
 
 // TODO: Will be removed once otel extension exists and is in use
