@@ -15,7 +15,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/api/api"
+	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	apiutils "github.com/DataDog/datadog-agent/comp/api/api/utils"
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
 	logComp "github.com/DataDog/datadog-agent/comp/core/log"
@@ -25,7 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl/remote"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/utils"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/packets"
 	taggertypes "github.com/DataDog/datadog-agent/pkg/tagger/types"
 	"github.com/DataDog/datadog-agent/pkg/tagset"

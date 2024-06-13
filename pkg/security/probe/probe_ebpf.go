@@ -31,7 +31,7 @@ import (
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/DataDog/ebpf-manager/tracefs"
 
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	aconfig "github.com/DataDog/datadog-agent/pkg/config"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
@@ -2038,7 +2038,17 @@ func (p *EBPFProbe) HandleActions(ctx *eval.Context, rule *rules.Rule) {
 		case action.InternalCallback != nil && rule.ID == events.RefreshUserCacheRuleID:
 			_ = p.RefreshUserCache(ev.ContainerContext.ID)
 
+		case action.InternalCallback != nil && rule.ID == events.RefreshSBOMRuleID && p.Resolvers.SBOMResolver != nil && len(ev.ContainerContext.ID) > 0:
+			if err := p.Resolvers.SBOMResolver.RefreshSBOM(ev.ContainerContext.ID); err != nil {
+				seclog.Warnf("failed to refresh SBOM for container %s, triggered by %s: %s", ev.ContainerContext.ID, ev.ProcessContext.Comm, err)
+			}
+
 		case action.Kill != nil:
+			// do not handle kill action on event with error
+			if ev.Error != nil {
+				return
+			}
+
 			p.processKiller.KillAndReport(action.Kill.Scope, action.Kill.Signal, ev, func(pid uint32, sig uint32) error {
 				if p.supportsBPFSendSignal {
 					if err := p.killListMap.Put(uint32(pid), uint32(sig)); err != nil {

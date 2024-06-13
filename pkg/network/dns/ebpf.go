@@ -82,6 +82,7 @@ func (e *ebpfProgram) Init() error {
 		},
 		ConstantEditors:           constantEditors,
 		DefaultKprobeAttachMethod: kprobeAttachMethod,
+		BypassEnabled:             e.cfg.BypassEnabled,
 	})
 	if err == nil {
 		ddebpf.AddNameMappings(e.Manager, "npm_dns")

@@ -12,10 +12,16 @@ import (
 	"context"
 
 	"go.opentelemetry.io/collector/component"
+	"go.opentelemetry.io/collector/confmap"
+	"go.opentelemetry.io/collector/confmap/converter/expandconverter"
+	"go.opentelemetry.io/collector/confmap/provider/envprovider"
+	"go.opentelemetry.io/collector/confmap/provider/fileprovider"
+	"go.opentelemetry.io/collector/confmap/provider/httpprovider"
+	"go.opentelemetry.io/collector/confmap/provider/httpsprovider"
+	"go.opentelemetry.io/collector/confmap/provider/yamlprovider"
 	"go.opentelemetry.io/collector/otelcol"
 
 	flarebuilder "github.com/DataDog/datadog-agent/comp/core/flare/builder"
-	"github.com/DataDog/datadog-agent/comp/core/hostname"
 	corelog "github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
@@ -23,10 +29,14 @@ import (
 	collector "github.com/DataDog/datadog-agent/comp/otelcol/collector/def"
 	"github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/datadogexporter"
+	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/serializerexporter"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/processor/infraattributesprocessor"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/datatype"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
+	zapAgent "github.com/DataDog/datadog-agent/pkg/util/log/zap"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 )
 
 type collectorImpl struct {
@@ -44,12 +54,13 @@ type Requires struct {
 
 	// Log specifies the logging component.
 	Log              corelog.Component
-	Provider         otelcol.ConfigProvider
+	Provider         confmap.Converter
 	CollectorContrib collectorcontrib.Component
 	Serializer       serializer.MetricSerializer
 	LogsAgent        optional.Option[logsagentpipeline.Component]
-	HostName         hostname.Component
+	SourceProvider   serializerexporter.SourceProviderFunc
 	Tagger           tagger.Component
+	URIs             []string
 }
 
 // Provides declares the output types from the constructor
@@ -60,28 +71,58 @@ type Provides struct {
 	FlareProvider flarebuilder.Provider
 }
 
+type converterFactory struct {
+	converter confmap.Converter
+}
+
+func (c *converterFactory) Create(_ confmap.ConverterSettings) confmap.Converter {
+	return c.converter
+}
+
 // NewComponent returns a new instance of the collector component.
 func NewComponent(reqs Requires) (Provides, error) {
+	// Replace default core to use Agent logger
+	options := []zap.Option{
+		zap.WrapCore(func(zapcore.Core) zapcore.Core {
+			return zapAgent.NewZapCore()
+		}),
+	}
 	set := otelcol.CollectorSettings{
 		BuildInfo: component.BuildInfo{
 			Version:     "0.0.1",
 			Command:     "otel-agent",
 			Description: "Datadog Agent OpenTelemetry Collector Distribution",
 		},
+		LoggingOptions: options,
 		Factories: func() (otelcol.Factories, error) {
 			factories, err := reqs.CollectorContrib.OTelComponentFactories()
 			if err != nil {
 				return otelcol.Factories{}, err
 			}
 			if v, ok := reqs.LogsAgent.Get(); ok {
-				factories.Exporters[datadogexporter.Type] = datadogexporter.NewFactory(reqs.Serializer, v, reqs.HostName)
+				factories.Exporters[datadogexporter.Type] = datadogexporter.NewFactory(reqs.Serializer, v, reqs.SourceProvider)
 			} else {
-				factories.Exporters[datadogexporter.Type] = datadogexporter.NewFactory(reqs.Serializer, nil, reqs.HostName)
+				factories.Exporters[datadogexporter.Type] = datadogexporter.NewFactory(reqs.Serializer, nil, reqs.SourceProvider)
 			}
 			factories.Processors[infraattributesprocessor.Type] = infraattributesprocessor.NewFactory(reqs.Tagger)
 			return factories, nil
 		},
-		ConfigProvider: reqs.Provider,
+		ConfigProviderSettings: otelcol.ConfigProviderSettings{
+			ResolverSettings: confmap.ResolverSettings{
+				URIs: reqs.URIs,
+				ProviderFactories: []confmap.ProviderFactory{
+					fileprovider.NewFactory(),
+					envprovider.NewFactory(),
+					yamlprovider.NewFactory(),
+					httpprovider.NewFactory(),
+					httpsprovider.NewFactory(),
+				},
+				ConverterFactories: []confmap.ConverterFactory{
+					expandconverter.NewFactory(),
+					&converterFactory{converter: reqs.Provider},
+				},
+			},
+		},
 	}
 	col, err := otelcol.NewCollector(set)
 	if err != nil {
@@ -103,7 +144,12 @@ func NewComponent(reqs Requires) (Provides, error) {
 	}, nil
 }
 
-func (c *collectorImpl) start(context.Context) error {
+func (c *collectorImpl) start(ctx context.Context) error {
+	// Dry run the collector pipeline to ensure it is configured correctly
+	err := c.col.DryRun(ctx)
+	if err != nil {
+		return err
+	}
 	go func() {
 		if err := c.col.Run(context.Background()); err != nil {
 			c.log.Errorf("Error running the collector pipeline: %v", err)

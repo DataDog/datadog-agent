@@ -134,6 +134,10 @@ func RemoveNameMappings(mgr *manager.Manager) {
 	})
 
 	for _, p := range mgr.Probes {
+		// ebpf-manager functions like DetachHook can modify backing array of our copy of Probes out from under us
+		if p == nil {
+			continue
+		}
 		progid := p.ID()
 		delete(progNameMapping, progid)
 		delete(progModuleMapping, progid)

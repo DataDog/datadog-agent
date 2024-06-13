@@ -18,7 +18,7 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/aggregator/diagnosesendermanager"
-	"github.com/DataDog/datadog-agent/comp/api/api"
+	api "github.com/DataDog/datadog-agent/comp/api/api/def"
 	apiutils "github.com/DataDog/datadog-agent/comp/api/api/utils"
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery"
@@ -27,7 +27,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/flare/types"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	rcclienttypes "github.com/DataDog/datadog-agent/comp/remote-config/rcclient/types"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/diagnose"
