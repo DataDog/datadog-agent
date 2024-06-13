@@ -11,7 +11,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
-	"github.com/DataDog/datadog-agent/comp/api/commonendpoints/commonendpointsimpl"
+	"github.com/DataDog/datadog-agent/comp/api/commonendpoints/impl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -29,8 +29,8 @@ func Module() fxutil.Module {
 		fx.Supply(
 			provider{
 				VersionEndpoint:  api.NewAgentEndpointProvider(common.GetVersion, "/version", "GET"),
-				HostnameEndpoint: api.NewAgentEndpointProvider(commonendpointsimpl.GetHostname, "/hostname", "GET"),
-				StopEndpoint:     api.NewAgentEndpointProvider(commonendpointsimpl.StopAgent, "/stop", "POST"),
+				HostnameEndpoint: api.NewAgentEndpointProvider(impl.GetHostname, "/hostname", "GET"),
+				StopEndpoint:     api.NewAgentEndpointProvider(impl.StopAgent, "/stop", "POST"),
 			}),
 	)
 }

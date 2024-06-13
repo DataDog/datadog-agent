@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package commonendpointsimpl provides common Agent API endpoints implementation
-package commonendpointsimpl
+// Package impl provides common Agent API endpoints implementation
+package impl
 
 import (
 	"encoding/json"
@@ -15,6 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+// GetHostname returns the hostname as a JSON response.
 func GetHostname(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	hname, err := hostname.Get(r.Context())
@@ -26,6 +27,7 @@ func GetHostname(w http.ResponseWriter, r *http.Request) {
 	w.Write(j)
 }
 
+// StopAgent stops the agent by sending a signal to the stopper channel.
 func StopAgent(w http.ResponseWriter, _ *http.Request) {
 	signals.Stopper <- true
 	w.Header().Set("Content-Type", "application/json")
