@@ -24,6 +24,7 @@ import (
 	filterpkg "github.com/DataDog/datadog-agent/pkg/network/filter"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 	"github.com/DataDog/datadog-agent/pkg/process/monitor"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -140,10 +141,28 @@ func (m *Monitor) Start() error {
 
 	// Need to explicitly save the error in `err` so the defer function could save the startup error.
 	if m.cfg.EnableNativeTLSMonitoring || m.cfg.EnableGoTLSSupport || m.cfg.EnableJavaTLSSupport || m.cfg.EnableIstioMonitoring || m.cfg.EnableNodeJSMonitoring {
-		err = m.processMonitor.Initialize()
+		err = m.processMonitor.Initialize(m.cfg.EnableUSMEventStream)
 	}
 
 	return err
+}
+
+// Pause bypasses the eBPF programs in the monitor
+func (m *Monitor) Pause() error {
+	if m == nil {
+		return nil
+	}
+
+	return m.ebpfProgram.Pause()
+}
+
+// Resume enables the previously bypassed eBPF programs in the monitor
+func (m *Monitor) Resume() error {
+	if m == nil {
+		return nil
+	}
+
+	return m.ebpfProgram.Resume()
 }
 
 // GetUSMStats returns the current state of the USM monitor
@@ -155,6 +174,9 @@ func (m *Monitor) GetUSMStats() map[string]interface{} {
 	if startupError != nil {
 		response["error"] = startupError.Error()
 	}
+
+	tracedPrograms := utils.GetTracedProgramList()
+	response["traced_programs"] = tracedPrograms
 
 	if m != nil {
 		response["last_check"] = m.lastUpdateTime

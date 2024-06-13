@@ -150,7 +150,14 @@ def test_core(
 
 
 def process_input_args(
-    ctx, input_module, input_targets, input_flavor, headless_mode=False, only_modified_packages=False, build_tags=None
+    ctx,
+    input_module,
+    input_targets,
+    input_flavor,
+    headless_mode=False,
+    only_modified_packages=False,
+    build_tags=None,
+    lint=False,
 ):
     """
     Takes the input module, targets and flavor arguments from inv test and inv codecov,
@@ -162,7 +169,7 @@ def process_input_args(
         if not build_tags:
             build_tags = []
 
-        modules = get_modified_packages(ctx, build_tags)
+        modules = get_modified_packages(ctx, build_tags, lint=lint)
     elif isinstance(input_module, str):
         # when this function is called from the command line, targets are passed
         # as comma separated tokens in a string

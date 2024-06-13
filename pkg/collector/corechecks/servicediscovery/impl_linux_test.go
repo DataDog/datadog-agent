@@ -9,6 +9,7 @@ package servicediscovery
 
 import (
 	"cmp"
+	"errors"
 	"testing"
 	"time"
 
@@ -33,8 +34,10 @@ type testProc struct {
 }
 
 var (
-	startTime        = time.Date(2024, 5, 13, 0, 0, 0, 0, time.UTC)
-	procLaunchedTime = startTime.Add(-1 * time.Hour)
+	bootTimeSeconds = uint64(time.Date(2000, 01, 01, 0, 0, 0, 0, time.UTC).Unix())
+	// procLaunched is number of clicks (100 per second) since bootTime when the process started
+	// assume it's 12 hours later
+	procLaunchedClicks = uint64((12 * time.Hour).Seconds()) * 100
 )
 
 var (
@@ -44,7 +47,7 @@ var (
 		env:     nil,
 		cwd:     "",
 		stat: procfs.ProcStat{
-			Starttime: uint64(procLaunchedTime.Unix()),
+			Starttime: procLaunchedClicks,
 		},
 	}
 	procTestService1 = testProc{
@@ -53,7 +56,7 @@ var (
 		env:     []string{},
 		cwd:     "",
 		stat: procfs.ProcStat{
-			Starttime: uint64(procLaunchedTime.Unix()),
+			Starttime: procLaunchedClicks,
 		},
 	}
 	procIgnoreService1 = testProc{
@@ -62,7 +65,7 @@ var (
 		env:     nil,
 		cwd:     "",
 		stat: procfs.ProcStat{
-			Starttime: uint64(procLaunchedTime.Unix()),
+			Starttime: procLaunchedClicks,
 		},
 	}
 	procTestService1Repeat = testProc{
@@ -71,7 +74,7 @@ var (
 		env:     []string{},
 		cwd:     "",
 		stat: procfs.ProcStat{
-			Starttime: uint64(procLaunchedTime.Unix()),
+			Starttime: procLaunchedClicks,
 		},
 	}
 	procTestService1DifferentPID = testProc{
@@ -80,7 +83,7 @@ var (
 		env:     []string{},
 		cwd:     "",
 		stat: procfs.ProcStat{
-			Starttime: uint64(procLaunchedTime.Unix()),
+			Starttime: procLaunchedClicks,
 		},
 	}
 )
@@ -129,6 +132,11 @@ func mockProc(
 	m.EXPECT().Cwd().Return(p.cwd, nil).AnyTimes()
 	m.EXPECT().Stat().Return(p.stat, nil).AnyTimes()
 	return m
+}
+
+func calcTime(additionalTime time.Duration) time.Time {
+	unix := time.Unix(int64(bootTimeSeconds+(procLaunchedClicks/100)), 0)
+	return unix.Add(additionalTime)
 }
 
 // cmpEvents is used to sort event slices in tests.
@@ -186,7 +194,7 @@ func Test_linuxImpl(t *testing.T) {
 						portTCP8080,
 						portTCP8081,
 					},
-					time: startTime,
+					time: calcTime(0),
 				},
 				{
 					aliveProcs: []testProc{
@@ -199,7 +207,7 @@ func Test_linuxImpl(t *testing.T) {
 						portTCP8080,
 						portTCP8081,
 					},
-					time: startTime.Add(1 * time.Minute),
+					time: calcTime(1 * time.Minute),
 				},
 				{
 					aliveProcs: []testProc{
@@ -212,7 +220,7 @@ func Test_linuxImpl(t *testing.T) {
 						portTCP8080,
 						portTCP8081,
 					},
-					time: startTime.Add(20 * time.Minute),
+					time: calcTime(20 * time.Minute),
 				},
 				{
 					aliveProcs: []testProc{
@@ -221,7 +229,7 @@ func Test_linuxImpl(t *testing.T) {
 					openPorts: []portlist.Port{
 						portTCP22,
 					},
-					time: startTime.Add(21 * time.Minute),
+					time: calcTime(21 * time.Minute),
 				},
 			},
 			wantEvents: []*event{
@@ -235,8 +243,8 @@ func Test_linuxImpl(t *testing.T) {
 						Env:                 "",
 						ServiceLanguage:     "UNKNOWN",
 						ServiceType:         "web_service",
-						StartTime:           procLaunchedTime.Unix(),
-						LastSeen:            startTime.Add(1 * time.Minute).Unix(),
+						StartTime:           calcTime(0).Unix(),
+						LastSeen:            calcTime(1 * time.Minute).Unix(),
 						APMInstrumentation:  "none",
 						ServiceNameSource:   "generated",
 					},
@@ -251,8 +259,8 @@ func Test_linuxImpl(t *testing.T) {
 						Env:                 "",
 						ServiceLanguage:     "UNKNOWN",
 						ServiceType:         "web_service",
-						StartTime:           procLaunchedTime.Unix(),
-						LastSeen:            startTime.Add(20 * time.Minute).Unix(),
+						StartTime:           calcTime(0).Unix(),
+						LastSeen:            calcTime(20 * time.Minute).Unix(),
 						APMInstrumentation:  "none",
 						ServiceNameSource:   "generated",
 					},
@@ -267,8 +275,8 @@ func Test_linuxImpl(t *testing.T) {
 						Env:                 "",
 						ServiceLanguage:     "UNKNOWN",
 						ServiceType:         "web_service",
-						StartTime:           procLaunchedTime.Unix(),
-						LastSeen:            startTime.Add(21 * time.Minute).Unix(),
+						StartTime:           calcTime(0).Unix(),
+						LastSeen:            calcTime(20 * time.Minute).Unix(),
 						APMInstrumentation:  "none",
 						ServiceNameSource:   "generated",
 					},
@@ -276,8 +284,6 @@ func Test_linuxImpl(t *testing.T) {
 			},
 		},
 		{
-			// TODO: ideally we would like to emit some sort of telemetry for this case.
-			//  For now, we just test we send the correct events to EvP.
 			name: "repeated_service_name",
 			checkRun: []*checkRun{
 				{
@@ -293,7 +299,7 @@ func Test_linuxImpl(t *testing.T) {
 						portTCP8081,
 						portTCP5432,
 					},
-					time: startTime,
+					time: calcTime(0),
 				},
 				{
 					aliveProcs: []testProc{
@@ -308,7 +314,7 @@ func Test_linuxImpl(t *testing.T) {
 						portTCP8081,
 						portTCP5432,
 					},
-					time: startTime.Add(1 * time.Minute),
+					time: calcTime(1 * time.Minute),
 				},
 				{
 					aliveProcs: []testProc{
@@ -323,7 +329,7 @@ func Test_linuxImpl(t *testing.T) {
 						portTCP8081,
 						portTCP5432,
 					},
-					time: startTime.Add(20 * time.Minute),
+					time: calcTime(20 * time.Minute),
 				},
 				{
 					aliveProcs: []testProc{
@@ -334,7 +340,7 @@ func Test_linuxImpl(t *testing.T) {
 						portTCP22,
 						portTCP8080,
 					},
-					time: startTime.Add(21 * time.Minute),
+					time: calcTime(21 * time.Minute),
 				},
 			},
 			wantEvents: []*event{
@@ -348,8 +354,8 @@ func Test_linuxImpl(t *testing.T) {
 						Env:                 "",
 						ServiceLanguage:     "UNKNOWN",
 						ServiceType:         "web_service",
-						StartTime:           procLaunchedTime.Unix(),
-						LastSeen:            startTime.Add(1 * time.Minute).Unix(),
+						StartTime:           calcTime(0).Unix(),
+						LastSeen:            calcTime(1 * time.Minute).Unix(),
 						APMInstrumentation:  "none",
 						ServiceNameSource:   "generated",
 					},
@@ -364,8 +370,8 @@ func Test_linuxImpl(t *testing.T) {
 						Env:                 "",
 						ServiceLanguage:     "UNKNOWN",
 						ServiceType:         "db",
-						StartTime:           procLaunchedTime.Unix(),
-						LastSeen:            startTime.Add(1 * time.Minute).Unix(),
+						StartTime:           calcTime(0).Unix(),
+						LastSeen:            calcTime(1 * time.Minute).Unix(),
 						APMInstrumentation:  "none",
 						ServiceNameSource:   "generated",
 					},
@@ -380,8 +386,8 @@ func Test_linuxImpl(t *testing.T) {
 						Env:                 "",
 						ServiceLanguage:     "UNKNOWN",
 						ServiceType:         "web_service",
-						StartTime:           procLaunchedTime.Unix(),
-						LastSeen:            startTime.Add(20 * time.Minute).Unix(),
+						StartTime:           calcTime(0).Unix(),
+						LastSeen:            calcTime(20 * time.Minute).Unix(),
 						APMInstrumentation:  "none",
 						ServiceNameSource:   "generated",
 					},
@@ -396,8 +402,8 @@ func Test_linuxImpl(t *testing.T) {
 						Env:                 "",
 						ServiceLanguage:     "UNKNOWN",
 						ServiceType:         "db",
-						StartTime:           procLaunchedTime.Unix(),
-						LastSeen:            startTime.Add(20 * time.Minute).Unix(),
+						StartTime:           calcTime(0).Unix(),
+						LastSeen:            calcTime(20 * time.Minute).Unix(),
 						APMInstrumentation:  "none",
 						ServiceNameSource:   "generated",
 					},
@@ -412,8 +418,8 @@ func Test_linuxImpl(t *testing.T) {
 						Env:                 "",
 						ServiceLanguage:     "UNKNOWN",
 						ServiceType:         "db",
-						StartTime:           procLaunchedTime.Unix(),
-						LastSeen:            startTime.Add(21 * time.Minute).Unix(),
+						StartTime:           calcTime(0).Unix(),
+						LastSeen:            calcTime(20 * time.Minute).Unix(),
 						APMInstrumentation:  "none",
 						ServiceNameSource:   "generated",
 					},
@@ -436,7 +442,7 @@ func Test_linuxImpl(t *testing.T) {
 						portTCP8080,
 						portTCP8081,
 					},
-					time: startTime,
+					time: calcTime(0),
 				},
 				{
 					aliveProcs: []testProc{
@@ -449,7 +455,7 @@ func Test_linuxImpl(t *testing.T) {
 						portTCP8080,
 						portTCP8081,
 					},
-					time: startTime.Add(1 * time.Minute),
+					time: calcTime(1 * time.Minute),
 				},
 				{
 					aliveProcs: []testProc{
@@ -460,7 +466,7 @@ func Test_linuxImpl(t *testing.T) {
 						portTCP22,
 						portTCP8080DifferentPID,
 					},
-					time: startTime.Add(21 * time.Minute),
+					time: calcTime(21 * time.Minute),
 				},
 				{
 					aliveProcs: []testProc{
@@ -471,7 +477,7 @@ func Test_linuxImpl(t *testing.T) {
 						portTCP22,
 						portTCP8080DifferentPID,
 					},
-					time: startTime.Add(22 * time.Minute),
+					time: calcTime(22 * time.Minute),
 				},
 			},
 			wantEvents: []*event{
@@ -485,8 +491,8 @@ func Test_linuxImpl(t *testing.T) {
 						Env:                 "",
 						ServiceLanguage:     "UNKNOWN",
 						ServiceType:         "web_service",
-						StartTime:           procLaunchedTime.Unix(),
-						LastSeen:            startTime.Add(1 * time.Minute).Unix(),
+						StartTime:           calcTime(0).Unix(),
+						LastSeen:            calcTime(1 * time.Minute).Unix(),
 						APMInstrumentation:  "none",
 						ServiceNameSource:   "generated",
 					},
@@ -501,8 +507,8 @@ func Test_linuxImpl(t *testing.T) {
 						Env:                 "",
 						ServiceLanguage:     "UNKNOWN",
 						ServiceType:         "web_service",
-						StartTime:           procLaunchedTime.Unix(),
-						LastSeen:            startTime.Add(22 * time.Minute).Unix(),
+						StartTime:           calcTime(0).Unix(),
+						LastSeen:            calcTime(22 * time.Minute).Unix(),
 						APMInstrumentation:  "none",
 						ServiceNameSource:   "generated",
 					},
@@ -553,8 +559,8 @@ func Test_linuxImpl(t *testing.T) {
 				check.os.(*linuxImpl).procfs = mProcFS
 				check.os.(*linuxImpl).portPoller = mPortPoller
 				check.os.(*linuxImpl).time = mTimer
-				check.os.(*linuxImpl).sender.time = mTimer
-				check.os.(*linuxImpl).sender.hostname = mHostname
+				check.os.(*linuxImpl).bootTime = bootTimeSeconds
+				check.sender.hostname = mHostname
 
 				err = check.Run()
 				require.NoError(t, err)
@@ -569,5 +575,63 @@ func Test_linuxImpl(t *testing.T) {
 				t.Errorf("event platform events mismatch (-want +got):\n%s", diff)
 			}
 		})
+	}
+}
+
+type errorProcFS struct{}
+
+func (errorProcFS) AllProcs() ([]proc, error) {
+	return nil, errors.New("procFS failure")
+}
+
+type emptyProcFS struct{}
+
+func (emptyProcFS) AllProcs() ([]proc, error) {
+	return []proc{}, nil
+}
+
+type errorPortPoller struct{}
+
+func (errorPortPoller) OpenPorts() (portlist.List, error) {
+	return nil, errors.New("portPoller failure")
+}
+
+func Test_linuxImpl_errors(t *testing.T) {
+	// bad procFS
+	{
+		li := linuxImpl{
+			procfs: errorProcFS{},
+		}
+		ds, err := li.DiscoverServices()
+		if ds != nil {
+			t.Error("expected nil discovery service")
+		}
+		var expected errWithCode
+		if errors.As(err, &expected) {
+			if expected.Code() != errorCodeProcfs {
+				t.Errorf("expected error code procfs: %#v", expected)
+			}
+		} else {
+			t.Error("expected errWithCode, got", err)
+		}
+	}
+	// bad portPoller
+	{
+		li := linuxImpl{
+			procfs:     emptyProcFS{},
+			portPoller: errorPortPoller{},
+		}
+		ds, err := li.DiscoverServices()
+		if ds != nil {
+			t.Error("expected nil discovery service")
+		}
+		var expected errWithCode
+		if errors.As(err, &expected) {
+			if expected.Code() != errorCodePortPoller {
+				t.Errorf("expected error code portPoller: %#v", expected)
+			}
+		} else {
+			t.Error("expected errWithCode, got", err)
+		}
 	}
 }

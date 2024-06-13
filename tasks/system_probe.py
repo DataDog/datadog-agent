@@ -9,11 +9,13 @@ import string
 import sys
 import tarfile
 import tempfile
+from itertools import chain
 from pathlib import Path
 from subprocess import check_output
 
 import requests
 from invoke import task
+from invoke.context import Context
 from invoke.exceptions import Exit
 
 from tasks.agent import BUNDLED_AGENTS
@@ -22,6 +24,7 @@ from tasks.build_tags import UNIT_TEST_TAGS, get_default_build_tags
 from tasks.flavor import AgentFlavor
 from tasks.libs.build.ninja import NinjaWriter
 from tasks.libs.common.color import color_message
+from tasks.libs.common.git import get_commit_sha
 from tasks.libs.common.utils import (
     REPO_PATH,
     bin_name,
@@ -787,21 +790,13 @@ def go_package_dirs(packages, build_tags):
     """
 
     target_packages = []
-    for pkg in packages:
-        dirs = (
-            check_output(
-                f"go list -find -f \"{{{{ .Dir }}}}\" -mod=mod -tags \"{','.join(build_tags)}\" {pkg}",
-                shell=True,
-            )
-            .decode('utf-8')
-            .strip()
-            .split("\n")
-        )
-        # Some packages may not be available on all architectures, ignore them
-        # instead of reporting empty path names
-        target_packages += [dir for dir in dirs if len(dir) > 0]
+    format_arg = '{{ .Dir }}'
+    buildtags_arg = ",".join(build_tags)
+    packages_arg = " ".join(packages)
+    cmd = f"go list -find -f \"{format_arg}\" -mod=mod -tags \"{buildtags_arg}\" {packages_arg}"
 
-    return target_packages
+    target_packages = [p.strip() for p in check_output(cmd, shell=True, encoding='utf-8').split("\n")]
+    return [p for p in target_packages if len(p) > 0]
 
 
 BUILD_COMMIT = os.path.join(KITCHEN_ARTIFACT_DIR, "build.commit")
@@ -817,7 +812,7 @@ def clean_build(ctx):
     # if this build happens on a new commit do it cleanly
     with open(BUILD_COMMIT) as f:
         build_commit = f.read().rstrip()
-        curr_commit = ctx.run("git rev-parse HEAD", hide=True).stdout.rstrip()
+        curr_commit = get_commit_sha(ctx)
         if curr_commit != build_commit:
             return True
 
@@ -915,7 +910,7 @@ def kitchen_prepare(ctx, kernel_release=None, ci=False, packages=""):
         kitchen_prepare_btfs(ctx, files_dir)
 
     ctx.run(f"go build -o {files_dir}/test2json -ldflags=\"-s -w\" cmd/test2json", env={"CGO_ENABLED": "0"})
-    ctx.run(f"echo $(git rev-parse HEAD) > {BUILD_COMMIT}")
+    ctx.run(f"echo {get_commit_sha(ctx)} > {BUILD_COMMIT}")
 
 
 @task
@@ -1257,6 +1252,36 @@ def verify_system_clang_version(ctx):
         )
 
 
+@task
+def validate_object_file_metadata(ctx: Context, build_dir: str | Path = "pkg/ebpf/bytecode/build"):
+    build_dir = Path(build_dir)
+    missing_metadata_files = 0
+    print(f"Validating metadata of eBPF object files in {build_dir}...")
+
+    for file in chain(build_dir.glob("*.o"), build_dir.glob("co-re/*.o")):
+        res = ctx.run(f"readelf -p dd_metadata {file}", warn=True, hide=True)
+        if res is None or not res.ok:
+            print(color_message(f"- {file}: missing metadata", "red"))
+            missing_metadata_files += 1
+            continue
+
+        groups = re.findall(r"<(?P<key>[^:]+):(?P<value>[^>]+)>", res.stdout)
+        if groups is None or len(groups) == 0:
+            print(color_message(f"- {file}: invalid metadata", "red"))
+            missing_metadata_files += 1
+            continue
+
+        metadata = ", ".join(f"{k}={v}" for k, v in groups)
+        print(color_message(f"- {file}: {metadata}", "green"))
+
+    if missing_metadata_files > 0:
+        raise Exit(
+            f"{missing_metadata_files} object files are missing metadata. Remember to include the bpf_metadata.h header in all eBPF programs"
+        )
+    else:
+        print("All object files have valid metadata")
+
+
 def build_object_files(
     ctx,
     major_version='7',
@@ -1294,6 +1319,8 @@ def build_object_files(
         strip_object_files=strip_object_files,
         with_unit_test=with_unit_test,
     )
+
+    validate_object_file_metadata(ctx, build_dir)
 
     if not is_windows:
         sudo = "" if is_root() else "sudo"

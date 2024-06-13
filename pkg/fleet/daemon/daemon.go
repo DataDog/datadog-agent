@@ -25,9 +25,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer"
 	installerErrors "github.com/DataDog/datadog-agent/pkg/fleet/installer/errors"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
+	"github.com/DataDog/datadog-agent/pkg/fleet/internal/bootstrap"
 	"github.com/DataDog/datadog-agent/pkg/fleet/internal/exec"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 const (
@@ -40,7 +42,7 @@ type Daemon interface {
 	Start(ctx context.Context) error
 	Stop(ctx context.Context) error
 
-	Install(ctx context.Context, url string) error
+	Install(ctx context.Context, url string, args []string) error
 	StartExperiment(ctx context.Context, url string) error
 	StopExperiment(ctx context.Context, pkg string) error
 	PromoteExperiment(ctx context.Context, pkg string) error
@@ -53,12 +55,12 @@ type daemonImpl struct {
 	m        sync.Mutex
 	stopChan chan struct{}
 
-	installer     installer.Installer
-	remoteUpdates bool
-	rc            *remoteConfig
-	catalog       catalog
-	requests      chan remoteAPIRequest
-	requestsWG    sync.WaitGroup
+	env        *env.Env
+	installer  installer.Installer
+	rc         *remoteConfig
+	catalog    catalog
+	requests   chan remoteAPIRequest
+	requestsWG sync.WaitGroup
 }
 
 func newInstaller(env *env.Env, installerBin string) installer.Installer {
@@ -81,17 +83,17 @@ func NewDaemon(rcFetcher client.ConfigFetcher, config config.Reader) (Daemon, er
 	}
 	env := env.FromConfig(config)
 	installer := newInstaller(env, installerBin)
-	return newDaemon(rc, installer, env.RemoteUpdates), nil
+	return newDaemon(rc, installer, env), nil
 }
 
-func newDaemon(rc *remoteConfig, installer installer.Installer, remoteUpdates bool) *daemonImpl {
+func newDaemon(rc *remoteConfig, installer installer.Installer, env *env.Env) *daemonImpl {
 	i := &daemonImpl{
-		remoteUpdates: remoteUpdates,
-		rc:            rc,
-		installer:     installer,
-		requests:      make(chan remoteAPIRequest, 32),
-		catalog:       catalog{},
-		stopChan:      make(chan struct{}),
+		env:       env,
+		rc:        rc,
+		installer: installer,
+		requests:  make(chan remoteAPIRequest, 32),
+		catalog:   catalog{},
+		stopChan:  make(chan struct{}),
 	}
 	i.refreshState(context.Background())
 	return i
@@ -141,7 +143,7 @@ func (d *daemonImpl) Start(_ context.Context) error {
 			}
 		}
 	}()
-	if !d.remoteUpdates {
+	if !d.env.RemoteUpdates {
 		log.Infof("Daemon: Remote updates are disabled")
 		return nil
 	}
@@ -160,20 +162,20 @@ func (d *daemonImpl) Stop(_ context.Context) error {
 }
 
 // Install installs the package from the given URL.
-func (d *daemonImpl) Install(ctx context.Context, url string) error {
+func (d *daemonImpl) Install(ctx context.Context, url string, args []string) error {
 	d.m.Lock()
 	defer d.m.Unlock()
-	return d.install(ctx, url)
+	return d.install(ctx, url, args)
 }
 
-func (d *daemonImpl) install(ctx context.Context, url string) (err error) {
+func (d *daemonImpl) install(ctx context.Context, url string, args []string) (err error) {
 	span, ctx := tracer.StartSpanFromContext(ctx, "install")
 	defer func() { span.Finish(tracer.WithError(err)) }()
 	d.refreshState(ctx)
 	defer d.refreshState(ctx)
 
 	log.Infof("Daemon: Installing package from %s", url)
-	err = d.installer.Install(ctx, url)
+	err = d.installer.Install(ctx, url, args)
 	if err != nil {
 		return fmt.Errorf("could not install: %w", err)
 	}
@@ -200,6 +202,21 @@ func (d *daemonImpl) startExperiment(ctx context.Context, url string) (err error
 		return fmt.Errorf("could not install experiment: %w", err)
 	}
 	log.Infof("Daemon: Successfully started experiment for package from %s", url)
+	return nil
+}
+
+func (d *daemonImpl) startInstallerExperiment(ctx context.Context, url string) (err error) {
+	span, ctx := tracer.StartSpanFromContext(ctx, "start_installer_experiment")
+	defer func() { span.Finish(tracer.WithError(err)) }()
+	d.refreshState(ctx)
+	defer d.refreshState(ctx)
+
+	log.Infof("Daemon: Starting installer experiment for package from %s", url)
+	err = bootstrap.InstallExperiment(ctx, d.env, url)
+	if err != nil {
+		return fmt.Errorf("could not install installer experiment: %w", err)
+	}
+	log.Infof("Daemon: Successfully started installer experiment for package from %s", url)
 	return nil
 }
 
@@ -274,7 +291,8 @@ func (d *daemonImpl) handleRemoteAPIRequest(request remoteAPIRequest) (err error
 	if err != nil {
 		return fmt.Errorf("could not get installer state: %w", err)
 	}
-	if s.Stable != request.ExpectedState.Stable || s.Experiment != request.ExpectedState.Experiment {
+	versionEqual := request.ExpectedState.InstallerVersion == "" || version.AgentVersion == request.ExpectedState.InstallerVersion
+	if versionEqual && s.Stable != request.ExpectedState.Stable || s.Experiment != request.ExpectedState.Experiment {
 		log.Infof("remote request %s not executed as state does not match: expected %v, got %v", request.ID, request.ExpectedState, s)
 		setRequestInvalid(ctx)
 		d.refreshState(ctx)
@@ -294,6 +312,10 @@ func (d *daemonImpl) handleRemoteAPIRequest(request remoteAPIRequest) (err error
 			return fmt.Errorf("could not get package %s, %s for %s, %s", request.Package, params.Version, runtime.GOARCH, runtime.GOOS)
 		}
 		log.Infof("Installer: Received remote request %s to start experiment for package %s version %s", request.ID, request.Package, request.Params)
+		if request.Package == "datadog-installer" {
+			// Special case for the installer package as we want the experiment installer to start the experiment itself
+			return d.startInstallerExperiment(ctx, experimentPackage.URL)
+		}
 		return d.startExperiment(ctx, experimentPackage.URL)
 	case methodStopExperiment:
 		log.Infof("Installer: Received remote request %s to stop experiment for package %s", request.ID, request.Package)

@@ -18,19 +18,20 @@
 #include "port_range.h"
 #include "sock.h"
 
+#include "protocols/amqp/helpers.h"
+#include "protocols/redis/helpers.h"
 #include "protocols/classification/dispatcher-helpers.h"
 #include "protocols/classification/dispatcher-maps.h"
 #include "protocols/http/buffer.h"
 #include "protocols/http/types.h"
 #include "protocols/http/maps.h"
 #include "protocols/http/http.h"
+#include "protocols/mysql/helpers.h"
 #include "protocols/tls/go-tls-maps.h"
 #include "protocols/tls/go-tls-types.h"
 #include "protocols/tls/native-tls-maps.h"
 #include "protocols/tls/tags-types.h"
 #include "protocols/tls/tls-maps.h"
-
-#define HTTPS_PORT 443
 
 static __always_inline void http_process(http_event_t *event, skb_info_t *skb_info, __u64 tags);
 
@@ -47,10 +48,20 @@ static __always_inline void classify_decrypted_payload(protocol_stack_t *stack, 
 
     protocol_t proto = PROTOCOL_UNKNOWN;
     classify_protocol_for_dispatcher(&proto, t, buffer, len);
-    if (proto == PROTOCOL_UNKNOWN) {
-        return;
+    if (proto != PROTOCOL_UNKNOWN) {
+        goto update_stack;
     }
 
+    // Protocol is not HTTP/HTTP2/gRPC
+    if (is_amqp(buffer, len)) {
+        proto = PROTOCOL_AMQP;
+    } else if (is_redis(buffer, len)) {
+        proto = PROTOCOL_REDIS;
+    } else if (is_mysql(t, buffer, len)) {
+        proto = PROTOCOL_MYSQL;
+    }
+
+update_stack:
     set_protocol(stack, proto);
 }
 
@@ -108,6 +119,10 @@ static __always_inline void tls_process(struct pt_regs *ctx, conn_tuple_t *t, vo
         prog = TLS_KAFKA;
         final_tuple = *t;
         break;
+    case PROTOCOL_POSTGRES:
+        prog = TLS_POSTGRES;
+        final_tuple = normalized_tuple;
+        break;
     default:
         return;
     }
@@ -146,7 +161,7 @@ static __always_inline void tls_dispatch_kafka(struct pt_regs *ctx)
     normalized_tuple.netns = 0;
 
     read_into_user_buffer_classification(request_fragment, args->buffer_ptr);
-    bool is_kafka = tls_is_kafka(args, request_fragment, CLASSIFICATION_MAX_BUFFER);
+    bool is_kafka = tls_is_kafka(ctx, args, request_fragment, CLASSIFICATION_MAX_BUFFER);
     if (!is_kafka) {
         return;
     }
@@ -191,6 +206,10 @@ static __always_inline void tls_finish(struct pt_regs *ctx, conn_tuple_t *t, boo
     case PROTOCOL_KAFKA:
         prog = TLS_KAFKA_TERMINATION;
         final_tuple = *t;
+        break;
+    case PROTOCOL_POSTGRES:
+        prog = TLS_POSTGRES_TERMINATION;
+        final_tuple = normalized_tuple;
         break;
     default:
         return;

@@ -32,7 +32,7 @@ var subservices = []Servicedef{
 	{
 		name: "apm",
 		configKeys: map[string]config.Config{
-			"apm_config.enabled": config.Datadog,
+			"apm_config.enabled": config.Datadog(),
 		},
 		serviceName: "datadog-trace-agent",
 		serviceInit: apmInit,
@@ -40,10 +40,10 @@ var subservices = []Servicedef{
 	{
 		name: "process",
 		configKeys: map[string]config.Config{
-			"process_config.enabled":                      config.Datadog,
-			"process_config.process_collection.enabled":   config.Datadog,
-			"process_config.container_collection.enabled": config.Datadog,
-			"process_config.process_discovery.enabled":    config.Datadog,
+			"process_config.enabled":                      config.Datadog(),
+			"process_config.process_collection.enabled":   config.Datadog(),
+			"process_config.container_collection.enabled": config.Datadog(),
+			"process_config.process_discovery.enabled":    config.Datadog(),
 			"network_config.enabled":                      config.SystemProbe,
 			"system_probe_config.enabled":                 config.SystemProbe,
 		},

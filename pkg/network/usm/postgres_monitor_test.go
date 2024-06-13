@@ -8,9 +8,9 @@
 package usm
 
 import (
-	"context"
 	"fmt"
 	"net"
+	"os"
 	"reflect"
 	"strings"
 	"sync"
@@ -20,18 +20,43 @@ import (
 	"github.com/jackc/pgx/v5/pgproto3"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
-	"github.com/uptrace/bun"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/postgres"
+	protocolsUtils "github.com/DataDog/datadog-agent/pkg/network/protocols/testutil"
+	gotlstestutil "github.com/DataDog/datadog-agent/pkg/network/protocols/tls/gotls/testutil"
+	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 )
 
 const (
-	postgresPort = "5432"
+	postgresPort           = "5432"
+	createTableQuery       = "CREATE TABLE dummy (id SERIAL PRIMARY KEY, foo TEXT)"
+	updateSingleValueQuery = "UPDATE dummy SET foo = 'updated' WHERE id = 1"
+	selectAllQuery         = "SELECT * FROM dummy"
+	dropTableQuery         = "DROP TABLE IF EXISTS dummy"
+	deleteTableQuery       = "DELETE FROM dummy WHERE id = 1"
+	alterTableQuery        = "ALTER TABLE dummy ADD test VARCHAR(255);"
+	truncateTableQuery     = "TRUNCATE TABLE dummy"
 )
+
+func createInsertQuery(values ...string) string {
+	return fmt.Sprintf("INSERT INTO dummy (foo) VALUES ('%s')", strings.Join(values, "'), ('"))
+}
+
+func generateTestValues(startingIndex, count int) []string {
+	values := make([]string, count)
+	for i := 0; i < count; i++ {
+		values[i] = fmt.Sprintf("value-%d", startingIndex+i)
+	}
+	return values
+}
+
+func generateSelectLimitQuery(limit int) string {
+	return fmt.Sprintf("SELECT * FROM dummy limit %d", limit)
+}
 
 // postgresParsingTestAttributes holds all attributes a single postgres parsing test should have.
 type postgresParsingTestAttributes struct {
@@ -63,7 +88,7 @@ func (s *postgresProtocolParsingSuite) TestLoadPostgresBinary() {
 	t := s.T()
 	for name, debug := range map[string]bool{"enabled": true, "disabled": false} {
 		t.Run(name, func(t *testing.T) {
-			cfg := getPostgresDefaultTestConfiguration()
+			cfg := getPostgresDefaultTestConfiguration(protocolsUtils.TLSDisabled)
 			cfg.BPFDebug = debug
 			setupUSMTLSMonitor(t, cfg)
 		})
@@ -73,24 +98,87 @@ func (s *postgresProtocolParsingSuite) TestLoadPostgresBinary() {
 func (s *postgresProtocolParsingSuite) TestDecoding() {
 	t := s.T()
 
+	tests := []struct {
+		name  string
+		isTLS bool
+	}{
+		{
+			name:  "with TLS",
+			isTLS: true,
+		},
+		{
+			name:  "without TLS",
+			isTLS: false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.isTLS && !gotlstestutil.GoTLSSupported(t, config.New()) {
+				t.Skip("GoTLS not supported for this setup")
+			}
+			testDecoding(t, tt.isTLS)
+		})
+	}
+}
+
+// waitForPostgresServer verifies that the postgres server is up and running.
+// It tries to connect to the server until it succeeds or the timeout is reached.
+// We need that function (and cannot relay on the RunServer method) as the target regex is being logged a couple os
+// milliseconds before the server is actually ready to accept connections.
+func waitForPostgresServer(t *testing.T, serverAddress string, enableTLS bool) {
+	pgClient, err := postgres.NewPGXClient(postgres.ConnectionOptions{
+		ServerAddress: serverAddress,
+		EnableTLS:     enableTLS,
+	})
+	require.NoError(t, err)
+	defer pgClient.Close()
+	require.Eventually(t, func() bool {
+		return pgClient.Ping() == nil
+	}, 5*time.Second, 100*time.Millisecond, "couldn't connect to postgres server")
+}
+
+func testDecoding(t *testing.T, isTLS bool) {
 	serverHost := "127.0.0.1"
 
 	serverAddress := net.JoinHostPort(serverHost, postgresPort)
-	require.NoError(t, postgres.RunServer(t, serverHost, postgresPort))
+	require.NoError(t, postgres.RunServer(t, serverHost, postgresPort, isTLS))
+	// Verifies that the postgres server is up and running.
+	// It tries to connect to the server until it succeeds or the timeout is reached.
+	// We need that function (and cannot relay on the RunServer method) as the target regex is being logged a couple os
+	// milliseconds before the server is actually ready to accept connections.
+	waitForPostgresServer(t, serverAddress, isTLS)
+
+	// With non-TLS, we need to double the stats since we use Docker and the
+	// packets are seen twice. This is not needed in the TLS case since there
+	// the data comes from uprobes on the binary.
+	adjustCount := func(count int) int {
+		if isTLS {
+			return count
+		}
+
+		return count * 2
+	}
 
 	tests := []postgresParsingTestAttributes{
 		{
 			name: "create table",
 			preMonitorSetup: func(t *testing.T, ctx testContext) {
-				postgres.ConnectAndGetDB(t, ctx.serverAddress, ctx.extras)
+				pg, err := postgres.NewPGXClient(postgres.ConnectionOptions{
+					ServerAddress: ctx.serverAddress,
+					EnableTLS:     isTLS,
+				})
+				require.NoError(t, err)
+				require.NoError(t, pg.Ping())
+				ctx.extras["pg"] = pg
 			},
 			postMonitorSetup: func(t *testing.T, ctx testContext) {
-				postgres.RunCreateQuery(t, ctx.extras)
+				pg := ctx.extras["pg"].(*postgres.PGXClient)
+				require.NoError(t, pg.RunQuery(createTableQuery))
 			},
 			validation: func(t *testing.T, ctx testContext, monitor *Monitor) {
 				validatePostgres(t, monitor, map[string]map[postgres.Operation]int{
 					"dummy": {
-						postgres.CreateTableOP: 2,
+						postgres.CreateTableOP: adjustCount(1),
 					},
 				})
 			},
@@ -98,20 +186,27 @@ func (s *postgresProtocolParsingSuite) TestDecoding() {
 		{
 			name: "insert rows in table",
 			preMonitorSetup: func(t *testing.T, ctx testContext) {
-				postgres.ConnectAndGetDB(t, ctx.serverAddress, ctx.extras)
-				postgres.RunCreateQuery(t, ctx.extras)
+				pg, err := postgres.NewPGXClient(postgres.ConnectionOptions{
+					ServerAddress: ctx.serverAddress,
+					EnableTLS:     isTLS,
+				})
+				require.NoError(t, err)
+				require.NoError(t, pg.Ping())
+				ctx.extras["pg"] = pg
+				require.NoError(t, pg.RunQuery(createTableQuery))
 			},
 			postMonitorSetup: func(t *testing.T, ctx testContext) {
+				pg := ctx.extras["pg"].(*postgres.PGXClient)
 				// Sending 2 insert queries, each with 5 values.
 				// We want to ensure we're capturing both requests.
 				for i := 0; i < 2; i++ {
-					postgres.RunMultiInsertQuery(t, ctx.extras, "value-1", "value-2", "value-3", "value-4", "value-5")
+					require.NoError(t, pg.RunQuery(createInsertQuery(generateTestValues(5*i, 5*(1+i))...)))
 				}
 			},
 			validation: func(t *testing.T, ctx testContext, monitor *Monitor) {
 				validatePostgres(t, monitor, map[string]map[postgres.Operation]int{
 					"dummy": {
-						postgres.InsertOP: 4,
+						postgres.InsertOP: adjustCount(2),
 					},
 				})
 			},
@@ -119,17 +214,24 @@ func (s *postgresProtocolParsingSuite) TestDecoding() {
 		{
 			name: "update a row in a table",
 			preMonitorSetup: func(t *testing.T, ctx testContext) {
-				postgres.ConnectAndGetDB(t, ctx.serverAddress, ctx.extras)
-				postgres.RunCreateQuery(t, ctx.extras)
-				postgres.RunMultiInsertQuery(t, ctx.extras, "value-1")
+				pg, err := postgres.NewPGXClient(postgres.ConnectionOptions{
+					ServerAddress: ctx.serverAddress,
+					EnableTLS:     isTLS,
+				})
+				require.NoError(t, err)
+				require.NoError(t, pg.Ping())
+				ctx.extras["pg"] = pg
+				require.NoError(t, pg.RunQuery(createTableQuery))
+				require.NoError(t, pg.RunQuery(createInsertQuery("value-1")))
 			},
 			postMonitorSetup: func(t *testing.T, ctx testContext) {
-				postgres.RunUpdateQuery(t, ctx.extras)
+				pg := ctx.extras["pg"].(*postgres.PGXClient)
+				require.NoError(t, pg.RunQuery(updateSingleValueQuery))
 			},
 			validation: func(t *testing.T, ctx testContext, monitor *Monitor) {
 				validatePostgres(t, monitor, map[string]map[postgres.Operation]int{
 					"dummy": {
-						postgres.UpdateOP: 2,
+						postgres.UpdateOP: adjustCount(1),
 					},
 				})
 			},
@@ -137,17 +239,96 @@ func (s *postgresProtocolParsingSuite) TestDecoding() {
 		{
 			name: "select",
 			preMonitorSetup: func(t *testing.T, ctx testContext) {
-				postgres.ConnectAndGetDB(t, ctx.serverAddress, ctx.extras)
-				postgres.RunCreateQuery(t, ctx.extras)
-				postgres.RunMultiInsertQuery(t, ctx.extras, "value-1")
+				pg, err := postgres.NewPGXClient(postgres.ConnectionOptions{
+					ServerAddress: ctx.serverAddress,
+					EnableTLS:     isTLS,
+				})
+				require.NoError(t, err)
+				require.NoError(t, pg.Ping())
+				ctx.extras["pg"] = pg
+				require.NoError(t, pg.RunQuery(createTableQuery))
+				require.NoError(t, pg.RunQuery(createInsertQuery("value-1")))
 			},
 			postMonitorSetup: func(t *testing.T, ctx testContext) {
-				postgres.RunSelectQuery(t, ctx.extras)
+				pg := ctx.extras["pg"].(*postgres.PGXClient)
+				require.NoError(t, pg.RunQuery(selectAllQuery))
 			},
 			validation: func(t *testing.T, ctx testContext, monitor *Monitor) {
 				validatePostgres(t, monitor, map[string]map[postgres.Operation]int{
 					"dummy": {
-						postgres.SelectOP: 2,
+						postgres.SelectOP: adjustCount(1),
+					},
+				})
+			},
+		},
+		{
+			name: "delete row from table",
+			preMonitorSetup: func(t *testing.T, ctx testContext) {
+				pg, err := postgres.NewPGXClient(postgres.ConnectionOptions{
+					ServerAddress: ctx.serverAddress,
+					EnableTLS:     isTLS,
+				})
+				require.NoError(t, err)
+				require.NoError(t, pg.Ping())
+				ctx.extras["pg"] = pg
+				require.NoError(t, pg.RunQuery(createTableQuery))
+			},
+			postMonitorSetup: func(t *testing.T, ctx testContext) {
+				pg := ctx.extras["pg"].(*postgres.PGXClient)
+				require.NoError(t, pg.RunQuery(deleteTableQuery))
+			},
+			validation: func(t *testing.T, ctx testContext, monitor *Monitor) {
+				validatePostgres(t, monitor, map[string]map[postgres.Operation]int{
+					"dummy": {
+						postgres.DeleteTableOP: adjustCount(1),
+					},
+				})
+			},
+		},
+		{
+			name: "alter command",
+			preMonitorSetup: func(t *testing.T, ctx testContext) {
+				pg, err := postgres.NewPGXClient(postgres.ConnectionOptions{
+					ServerAddress: ctx.serverAddress,
+					EnableTLS:     isTLS,
+				})
+				require.NoError(t, err)
+				require.NoError(t, pg.Ping())
+				ctx.extras["pg"] = pg
+				require.NoError(t, pg.RunQuery(createTableQuery))
+			},
+			postMonitorSetup: func(t *testing.T, ctx testContext) {
+				pg := ctx.extras["pg"].(*postgres.PGXClient)
+				require.NoError(t, pg.RunQuery(alterTableQuery))
+			},
+			validation: func(t *testing.T, ctx testContext, monitor *Monitor) {
+				validatePostgres(t, monitor, map[string]map[postgres.Operation]int{
+					"dummy": {
+						postgres.AlterTableOP: adjustCount(1),
+					},
+				})
+			},
+		},
+		{
+			name: "truncate operation",
+			preMonitorSetup: func(t *testing.T, ctx testContext) {
+				pg, err := postgres.NewPGXClient(postgres.ConnectionOptions{
+					ServerAddress: ctx.serverAddress,
+					EnableTLS:     isTLS,
+				})
+				require.NoError(t, err)
+				require.NoError(t, pg.Ping())
+				ctx.extras["pg"] = pg
+				require.NoError(t, pg.RunQuery(createTableQuery))
+			},
+			postMonitorSetup: func(t *testing.T, ctx testContext) {
+				pg := ctx.extras["pg"].(*postgres.PGXClient)
+				require.NoError(t, pg.RunQuery(truncateTableQuery))
+			},
+			validation: func(t *testing.T, ctx testContext, monitor *Monitor) {
+				validatePostgres(t, monitor, map[string]map[postgres.Operation]int{
+					"dummy": {
+						postgres.TruncateTableOP: adjustCount(1),
 					},
 				})
 			},
@@ -155,15 +336,22 @@ func (s *postgresProtocolParsingSuite) TestDecoding() {
 		{
 			name: "drop table",
 			preMonitorSetup: func(t *testing.T, ctx testContext) {
-				postgres.ConnectAndGetDB(t, ctx.serverAddress, ctx.extras)
+				pg, err := postgres.NewPGXClient(postgres.ConnectionOptions{
+					ServerAddress: ctx.serverAddress,
+					EnableTLS:     isTLS,
+				})
+				require.NoError(t, err)
+				require.NoError(t, pg.Ping())
+				ctx.extras["pg"] = pg
 			},
 			postMonitorSetup: func(t *testing.T, ctx testContext) {
-				postgres.RunDropQuery(t, ctx.extras)
+				pg := ctx.extras["pg"].(*postgres.PGXClient)
+				require.NoError(t, pg.RunQuery(dropTableQuery))
 			},
 			validation: func(t *testing.T, ctx testContext, monitor *Monitor) {
 				validatePostgres(t, monitor, map[string]map[postgres.Operation]int{
 					"dummy": {
-						postgres.DropTableOP: 2,
+						postgres.DropTableOP: adjustCount(1),
 					},
 				})
 			},
@@ -171,20 +359,36 @@ func (s *postgresProtocolParsingSuite) TestDecoding() {
 		{
 			name: "combo - multiple operations should be captured",
 			preMonitorSetup: func(t *testing.T, ctx testContext) {
-				postgres.ConnectAndGetDB(t, ctx.serverAddress, ctx.extras)
+				pg, err := postgres.NewPGXClient(postgres.ConnectionOptions{
+					ServerAddress: ctx.serverAddress,
+					EnableTLS:     isTLS,
+				})
+				require.NoError(t, err)
+				require.NoError(t, pg.Ping())
+				ctx.extras["pg"] = pg
 			},
 			postMonitorSetup: func(t *testing.T, ctx testContext) {
-				prepareTestDB(t, ctx)
-				postgres.RunSelectQueryWithLimit(t, ctx.extras, 50)
-				postgres.RunUpdateQuery(t, ctx.extras)
+				pg, err := postgres.NewPGXClient(postgres.ConnectionOptions{
+					ServerAddress: ctx.serverAddress,
+					EnableTLS:     isTLS,
+				})
+				require.NoError(t, err)
+				require.NoError(t, pg.Ping())
+				ctx.extras["pg"] = pg
+				require.NoError(t, pg.RunQuery(createTableQuery))
+				for i := 0; i < 20; i++ {
+					require.NoError(t, pg.RunQuery(createInsertQuery(generateTestValues(i*5, 5)...)))
+				}
+				require.NoError(t, pg.RunQuery(generateSelectLimitQuery(50)))
+				require.NoError(t, pg.RunQuery(updateSingleValueQuery))
 			},
 			validation: func(t *testing.T, ctx testContext, monitor *Monitor) {
 				validatePostgres(t, monitor, map[string]map[postgres.Operation]int{
 					"dummy": {
-						postgres.SelectOP:      2,
-						postgres.UpdateOP:      2,
-						postgres.InsertOP:      40,
-						postgres.CreateTableOP: 2,
+						postgres.SelectOP:      adjustCount(1),
+						postgres.UpdateOP:      adjustCount(1),
+						postgres.InsertOP:      adjustCount(20),
+						postgres.CreateTableOP: adjustCount(1),
 					},
 				})
 			},
@@ -192,23 +396,27 @@ func (s *postgresProtocolParsingSuite) TestDecoding() {
 		{
 			name: "query is truncated",
 			preMonitorSetup: func(t *testing.T, ctx testContext) {
-				postgres.ConnectAndGetDB(t, ctx.serverAddress, ctx.extras)
+				pg, err := postgres.NewPGXClient(postgres.ConnectionOptions{
+					ServerAddress: ctx.serverAddress,
+					EnableTLS:     isTLS,
+				})
+				require.NoError(t, err)
+				require.NoError(t, pg.Ping())
+				ctx.extras["pg"] = pg
 			},
 			postMonitorSetup: func(t *testing.T, ctx testContext) {
-				db, _ := postgres.GetCtx(ctx.extras)
+				pg := ctx.extras["pg"].(*postgres.PGXClient)
 				longTableName := strings.Repeat("table_", 15)
-				_, err := db.Query(fmt.Sprintf("CREATE TABLE %s (id SERIAL PRIMARY KEY, foo TEXT)", longTableName), nil)
-				require.NoError(t, err)
-				_, err = db.Query(fmt.Sprintf("DROP TABLE IF EXISTS %s", longTableName), nil)
-				require.NoError(t, err)
+				require.NoError(t, pg.RunQuery(fmt.Sprintf("CREATE TABLE %s (id SERIAL PRIMARY KEY, foo TEXT)", longTableName)))
+				require.NoError(t, pg.RunQuery(fmt.Sprintf("DROP TABLE IF EXISTS %s", longTableName)))
 			},
 			validation: func(t *testing.T, ctx testContext, monitor *Monitor) {
 				validatePostgres(t, monitor, map[string]map[postgres.Operation]int{
 					"table_table_table_table_table_table_table_table_tab": {
-						postgres.CreateTableOP: 2,
+						postgres.CreateTableOP: adjustCount(1),
 					},
 					"table_table_table_table_table_table_table_t": {
-						postgres.DropTableOP: 2,
+						postgres.DropTableOP: adjustCount(1),
 					},
 				})
 			},
@@ -216,26 +424,28 @@ func (s *postgresProtocolParsingSuite) TestDecoding() {
 		{
 			name: "too many messages in a single packet",
 			preMonitorSetup: func(t *testing.T, ctx testContext) {
-				postgres.ConnectAndGetDB(t, ctx.serverAddress, ctx.extras)
-				postgres.RunCreateQuery(t, ctx.extras)
-				values := make([]string, 100)
-				for i := 0; i < len(values); i++ {
-					values[i] = fmt.Sprintf("value-%d", i+1)
-				}
-				postgres.RunMultiInsertQuery(t, ctx.extras, values...)
+				pg, err := postgres.NewPGXClient(postgres.ConnectionOptions{
+					ServerAddress: ctx.serverAddress,
+					EnableTLS:     isTLS,
+				})
+				require.NoError(t, err)
+				require.NoError(t, pg.Ping())
+				ctx.extras["pg"] = pg
+				require.NoError(t, pg.RunQuery(createTableQuery))
+				require.NoError(t, pg.RunQuery(createInsertQuery(generateTestValues(0, 100)...)))
 			},
 			postMonitorSetup: func(t *testing.T, ctx testContext) {
+				pg := ctx.extras["pg"].(*postgres.PGXClient)
 				// Should produce 2 postgres transactions (one for the server and one for the docker proxy)
-				postgres.RunSelectQueryWithLimit(t, ctx.extras, 1)
-				// We should miss that query, as the response is too big.
-				postgres.RunSelectQuery(t, ctx.extras)
+				require.NoError(t, pg.RunQuery(generateSelectLimitQuery(1)))
+				require.NoError(t, pg.RunQuery(selectAllQuery))
 				// Should produce 2 postgres transactions (one for the server and one for the docker proxy)
-				postgres.RunSelectQueryWithLimit(t, ctx.extras, 1)
+				require.NoError(t, pg.RunQuery(generateSelectLimitQuery(1)))
 			},
 			validation: func(t *testing.T, ctx testContext, monitor *Monitor) {
 				validatePostgres(t, monitor, map[string]map[postgres.Operation]int{
 					"dummy": {
-						postgres.SelectOP: 4,
+						postgres.SelectOP: adjustCount(2),
 					},
 				})
 			},
@@ -251,15 +461,28 @@ func (s *postgresProtocolParsingSuite) TestDecoding() {
 				extras:        map[string]interface{}{},
 			}
 			t.Cleanup(func() {
-				db := tt.context.extras["db"].(*bun.DB)
-				defer db.Close()
-				taskCtx := tt.context.extras["ctx"].(context.Context)
-				_, _ = db.NewDropTable().Model((*postgres.DummyTable)(nil)).Exec(taskCtx)
+				pgEntry, ok := tt.context.extras["pg"]
+				if !ok {
+					return
+				}
+				pg := pgEntry.(*postgres.PGXClient)
+				defer pg.Close()
+				_ = pg.RunQuery(dropTableQuery)
 			})
 			if tt.preMonitorSetup != nil {
 				tt.preMonitorSetup(t, tt.context)
 			}
-			monitor := setupUSMTLSMonitor(t, getPostgresDefaultTestConfiguration())
+			monitor := setupUSMTLSMonitor(t, getPostgresDefaultTestConfiguration(isTLS))
+			if isTLS {
+				utils.WaitForProgramsToBeTraced(t, "go-tls", os.Getpid())
+			}
+			obj, ok := tt.context.extras["pg"]
+			require.True(t, ok)
+			pgClient := obj.(*postgres.PGXClient)
+			// Since we cannot classify 'Parse' message, we need to send a harmless message that we know how
+			// to classify to ensure the monitor is able to process the messages.
+			// That's a workaround until we can classify the 'Parse' message.
+			require.NoError(t, pgClient.Ping())
 			tt.postMonitorSetup(t, tt.context)
 			tt.validation(t, tt.context, monitor)
 		})
@@ -289,12 +512,12 @@ func (s *postgresProtocolParsingSuite) TestCleanupEBPFEntriesOnTermination() {
 	t := s.T()
 
 	// Creating the monitor
-	monitor := setupUSMTLSMonitor(t, getPostgresDefaultTestConfiguration())
+	monitor := setupUSMTLSMonitor(t, getPostgresDefaultTestConfiguration(protocolsUtils.TLSDisabled))
 
 	wg := sync.WaitGroup{}
 
 	// Spinning the TCP server
-	const serverAddress = "127.0.0.1:5432"
+	const serverAddress = "127.0.0.1:5433" // Using a different port than 5432 to avoid errors like "address already in use"
 	srv := testutil.NewTCPServer(serverAddress, func(conn net.Conn) {
 		defer conn.Close()
 		defer wg.Done()
@@ -331,23 +554,15 @@ func (s *postgresProtocolParsingSuite) TestCleanupEBPFEntriesOnTermination() {
 	require.Len(t, entries, 0)
 }
 
-func getPostgresDefaultTestConfiguration() *config.Config {
+func getPostgresDefaultTestConfiguration(enableTLS bool) *config.Config {
 	cfg := config.New()
 	cfg.EnablePostgresMonitoring = true
 	cfg.MaxTrackedConnections = 1000
+	cfg.EnableGoTLSSupport = enableTLS
+	// If GO TLS is enabled, we need to allow self traffic to be captured.
+	// If GO TLS is disabled, the value is irrelevant.
+	cfg.GoTLSExcludeSelf = false
 	return cfg
-}
-
-func prepareTestDB(t *testing.T, ctx testContext) {
-	postgres.ConnectAndGetDB(t, ctx.serverAddress, ctx.extras)
-	postgres.RunCreateQuery(t, ctx.extras)
-	values := make([]string, 5)
-	for i := 0; i < 20; i++ {
-		for j := 0; j < len(values); j++ {
-			values[j] = fmt.Sprintf("value-%d", i*len(values)+j+1)
-		}
-		postgres.RunMultiInsertQuery(t, ctx.extras, values...)
-	}
 }
 
 func validatePostgres(t *testing.T, monitor *Monitor, expectedStats map[string]map[postgres.Operation]int) {

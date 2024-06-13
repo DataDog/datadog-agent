@@ -288,6 +288,14 @@ type Config struct {
 	// Defaults to true. Setting this to false on a Kernel that supports ring
 	// buffers (>=5.8) will result in forcing the use of Perf Maps instead.
 	EnableUSMRingBuffers bool
+
+	// EnableUSMEventStream enables USM to use the event stream instead
+	// of netlink for receiving process events.
+	EnableUSMEventStream bool
+
+	// BypassEnabled is used in tests only.
+	// It enables a ebpf-manager feature to bypass programs on-demand for controlled visibility.
+	BypassEnabled bool
 }
 
 func join(pieces ...string) string {
@@ -394,6 +402,7 @@ func New() *Config {
 		EnableUSMQuantization:       cfg.GetBool(join(smNS, "enable_quantization")),
 		EnableUSMConnectionRollup:   cfg.GetBool(join(smNS, "enable_connection_rollup")),
 		EnableUSMRingBuffers:        cfg.GetBool(join(smNS, "enable_ring_buffers")),
+		EnableUSMEventStream:        cfg.GetBool(join(smNS, "enable_event_stream")),
 	}
 
 	httpRRKey := join(smNS, "http_replace_rules")

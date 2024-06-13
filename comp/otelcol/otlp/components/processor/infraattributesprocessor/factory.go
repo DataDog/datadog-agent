@@ -8,6 +8,9 @@ package infraattributesprocessor
 import (
 	"context"
 
+	"github.com/DataDog/datadog-agent/comp/core/tagger"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
+
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/consumer"
 	"go.opentelemetry.io/collector/processor"
@@ -16,28 +19,38 @@ import (
 
 var processorCapabilities = consumer.Capabilities{MutatesData: true}
 
+type factory struct {
+	tagger tagger.Component
+}
+
 // NewFactory returns a new factory for the InfraAttributes processor.
-func NewFactory() processor.Factory {
+func NewFactory(tagger tagger.Component) processor.Factory {
+	f := &factory{
+		tagger: tagger,
+	}
+
 	return processor.NewFactory(
 		Type,
-		createDefaultConfig,
-		processor.WithMetrics(createMetricsProcessor, MetricsStability),
-		processor.WithLogs(createLogsProcessor, LogsStability),
-		processor.WithTraces(createTracesProcessor, TracesStability),
+		f.createDefaultConfig,
+		processor.WithMetrics(f.createMetricsProcessor, MetricsStability),
+		processor.WithLogs(f.createLogsProcessor, LogsStability),
+		processor.WithTraces(f.createTracesProcessor, TracesStability),
 	)
 }
 
-func createDefaultConfig() component.Config {
-	return &Config{}
+func (f *factory) createDefaultConfig() component.Config {
+	return &Config{
+		Cardinality: types.LowCardinality,
+	}
 }
 
-func createMetricsProcessor(
+func (f *factory) createMetricsProcessor(
 	ctx context.Context,
 	set processor.CreateSettings,
 	cfg component.Config,
 	nextConsumer consumer.Metrics,
 ) (processor.Metrics, error) {
-	tep, err := newInfraAttributesMetricProcessor(set, cfg.(*Config))
+	iap, err := newInfraAttributesMetricProcessor(set, cfg.(*Config), f.tagger)
 	if err != nil {
 		return nil, err
 	}
@@ -46,17 +59,17 @@ func createMetricsProcessor(
 		set,
 		cfg,
 		nextConsumer,
-		tep.processMetrics,
+		iap.processMetrics,
 		processorhelper.WithCapabilities(processorCapabilities))
 }
 
-func createLogsProcessor(
+func (f *factory) createLogsProcessor(
 	ctx context.Context,
 	set processor.CreateSettings,
 	cfg component.Config,
 	nextConsumer consumer.Logs,
 ) (processor.Logs, error) {
-	tep, err := newInfraAttributesLogsProcessor(set, cfg.(*Config))
+	iap, err := newInfraAttributesLogsProcessor(set, cfg.(*Config), f.tagger)
 	if err != nil {
 		return nil, err
 	}
@@ -65,17 +78,17 @@ func createLogsProcessor(
 		set,
 		cfg,
 		nextConsumer,
-		tep.processLogs,
+		iap.processLogs,
 		processorhelper.WithCapabilities(processorCapabilities))
 }
 
-func createTracesProcessor(
+func (f *factory) createTracesProcessor(
 	ctx context.Context,
 	set processor.CreateSettings,
 	cfg component.Config,
 	nextConsumer consumer.Traces,
 ) (processor.Traces, error) {
-	tep, err := newInfraAttributesSpanProcessor(set, cfg.(*Config))
+	iap, err := newInfraAttributesSpanProcessor(set, cfg.(*Config))
 	if err != nil {
 		return nil, err
 	}
@@ -84,6 +97,6 @@ func createTracesProcessor(
 		set,
 		cfg,
 		nextConsumer,
-		tep.processTraces,
+		iap.processTraces,
 		processorhelper.WithCapabilities(processorCapabilities))
 }

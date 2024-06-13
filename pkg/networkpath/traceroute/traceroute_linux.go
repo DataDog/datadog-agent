@@ -11,6 +11,7 @@ import (
 	"context"
 	"encoding/json"
 
+	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	dd_config "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
 	"github.com/DataDog/datadog-agent/pkg/process/net"
@@ -30,7 +31,7 @@ type LinuxTraceroute struct {
 
 // New creates a new instance of LinuxTraceroute
 // based on an input configuration
-func New(cfg Config) (*LinuxTraceroute, error) {
+func New(cfg Config, _ telemetry.Component) (*LinuxTraceroute, error) {
 	return &LinuxTraceroute{
 		cfg: cfg,
 	}, nil
@@ -45,7 +46,8 @@ func (l *LinuxTraceroute) Run(_ context.Context) (payload.NetworkPath, error) {
 		return payload.NetworkPath{}, err
 	}
 
-	resp, err := tu.GetTraceroute(clientID, l.cfg.DestHostname, l.cfg.DestPort, l.cfg.MaxTTL, l.cfg.TimeoutMs)
+	log.Debugf("Network Path Config: %+v", l.cfg)
+	resp, err := tu.GetTraceroute(clientID, l.cfg.DestHostname, l.cfg.DestPort, l.cfg.Protocol, l.cfg.MaxTTL, l.cfg.TimeoutMs)
 	if err != nil {
 		return payload.NetworkPath{}, err
 	}
@@ -54,6 +56,8 @@ func (l *LinuxTraceroute) Run(_ context.Context) (payload.NetworkPath, error) {
 	if err := json.Unmarshal(resp, &path); err != nil {
 		return payload.NetworkPath{}, err
 	}
+
+	path.Source.ContainerID = l.cfg.SourceContainerID
 
 	return path, nil
 }

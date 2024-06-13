@@ -8,7 +8,7 @@ import yaml
 from invoke.context import Context
 from invoke.runners import Result
 
-from tasks.kernel_matrix_testing.tool import full_arch, info, warn
+from tasks.kernel_matrix_testing.tool import Exit, full_arch, info, warn
 from tasks.kernel_matrix_testing.vars import arch_mapping
 from tasks.pipeline import GitlabYamlLoader
 
@@ -59,7 +59,10 @@ class CompilerImage:
     def ensure_running(self):
         if not self.is_running:
             info(f"[*] Compiler for {self.arch} not running, starting it...")
-            self.start()
+            try:
+                self.start()
+            except Exception as e:
+                raise Exit(f"Failed to start compiler for {self.arch}: {e}") from e
 
     def exec(self, cmd: str, user="compiler", verbose=True, run_dir: PathOrStr | None = None):
         if run_dir:
@@ -85,9 +88,12 @@ class CompilerImage:
             )
             self.ctx.run(f"docker pull {self.image}")
 
-        self.ctx.run(
-            f"docker run -d --restart always --name {self.name} --mount type=bind,source=./,target={CONTAINER_AGENT_PATH} {self.image} sleep \"infinity\""
+        res = self.ctx.run(
+            f"docker run -d --restart always --name {self.name} --mount type=bind,source=./,target={CONTAINER_AGENT_PATH} {self.image} sleep \"infinity\"",
+            warn=True,
         )
+        if res is None or not res.ok:
+            raise ValueError(f"Failed to start compiler container {self.name}")
 
         # Due to permissions issues, we do not want to compile with the root user in the Docker image. We create a user
         # inside there with the same UID and GID as the current user

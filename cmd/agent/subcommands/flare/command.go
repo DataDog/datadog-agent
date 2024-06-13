@@ -40,11 +40,13 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
 	"github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent/inventoryagentimpl"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryhost/inventoryhostimpl"
+	"github.com/DataDog/datadog-agent/comp/metadata/inventoryotel/inventoryotelimpl"
 	"github.com/DataDog/datadog-agent/comp/metadata/resources/resourcesimpl"
 	"github.com/DataDog/datadog-agent/comp/serializer/compression/compressionimpl"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
@@ -121,7 +123,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 						NoInstance: !cliParams.forceLocal, //if forceLocal is true, we want to run workloadmeta
 					}
 				}),
-				workloadmeta.Module(),
+				workloadmetafx.Module(),
 				taggerimpl.OptionalModule(),
 				autodiscoveryimpl.OptionalModule(), // if forceLocal is true, we will start autodiscovery (loadComponents) later
 				flare.Module(),
@@ -132,6 +134,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				inventoryagentimpl.Module(),
 				hostimpl.Module(),
 				inventoryhostimpl.Module(),
+				inventoryotelimpl.Module(),
 				resourcesimpl.Module(),
 				authtokenimpl.Module(),
 				// inventoryagent require a serializer. Since we're not actually sending the payload to
@@ -167,7 +170,7 @@ func readProfileData(seconds int) (flare.ProfileData, error) {
 	type pprofGetter func(path string) ([]byte, error)
 
 	tcpGet := func(portConfig string) pprofGetter {
-		pprofURL := fmt.Sprintf("http://127.0.0.1:%d/debug/pprof", pkgconfig.Datadog.GetInt(portConfig))
+		pprofURL := fmt.Sprintf("http://127.0.0.1:%d/debug/pprof", pkgconfig.Datadog().GetInt(portConfig))
 		return func(path string) ([]byte, error) {
 			return util.DoGet(c, pprofURL+path, util.LeaveConnectionOpen)
 		}
@@ -223,15 +226,15 @@ func readProfileData(seconds int) (flare.ProfileData, error) {
 		"security-agent": serviceProfileCollector(tcpGet("security_agent.expvar_port"), seconds),
 	}
 
-	if pkgconfig.Datadog.GetBool("process_config.enabled") ||
-		pkgconfig.Datadog.GetBool("process_config.container_collection.enabled") ||
-		pkgconfig.Datadog.GetBool("process_config.process_collection.enabled") {
+	if pkgconfig.Datadog().GetBool("process_config.enabled") ||
+		pkgconfig.Datadog().GetBool("process_config.container_collection.enabled") ||
+		pkgconfig.Datadog().GetBool("process_config.process_collection.enabled") {
 
 		agentCollectors["process"] = serviceProfileCollector(tcpGet("process_config.expvar_port"), seconds)
 	}
 
-	if pkgconfig.Datadog.GetBool("apm_config.enabled") {
-		traceCpusec := pkgconfig.Datadog.GetInt("apm_config.receiver_timeout")
+	if pkgconfig.Datadog().GetBool("apm_config.enabled") {
+		traceCpusec := pkgconfig.Datadog().GetInt("apm_config.receiver_timeout")
 		if traceCpusec > seconds {
 			// do not exceed requested duration
 			traceCpusec = seconds
@@ -340,6 +343,14 @@ func makeFlare(flareComp flare.Component,
 		return err
 	}
 
+	if streamLogParams.Duration > 0 {
+		fmt.Fprintln(color.Output, color.GreenString((fmt.Sprintf("Asking the agent to stream logs for %s", streamLogParams.Duration))))
+		err := streamlogs.StreamLogs(lc, config, &streamLogParams)
+		if err != nil {
+			fmt.Fprintln(color.Output, color.RedString(fmt.Sprintf("Error streaming logs: %s", err)))
+		}
+	}
+
 	var filePath string
 	if cliParams.forceLocal {
 		filePath, err = createArchive(flareComp, profile, nil)
@@ -355,14 +366,6 @@ func makeFlare(flareComp flare.Component,
 		fmt.Fprintln(color.Output, color.RedString(fmt.Sprintf("The flare zipfile \"%s\" does not exist.", filePath)))
 		fmt.Fprintln(color.Output, color.RedString("If the agent running in a different container try the '--local' option to generate the flare locally"))
 		return err
-	}
-
-	if streamLogParams.Duration > 0 {
-		fmt.Fprintln(color.Output, color.GreenString((fmt.Sprintf("Asking the agent to stream logs for %s", streamLogParams.Duration))))
-		err := streamlogs.StreamLogs(lc, config, &streamLogParams)
-		if err != nil {
-			fmt.Fprintln(color.Output, color.RedString(fmt.Sprintf("Error streaming logs: %s", err)))
-		}
 	}
 
 	fmt.Fprintf(color.Output, "%s is going to be uploaded to Datadog\n", color.YellowString(filePath))
@@ -391,10 +394,10 @@ func requestArchive(flareComp flare.Component, pdata flare.ProfileData) (string,
 		return createArchive(flareComp, pdata, err)
 	}
 
-	urlstr := fmt.Sprintf("https://%v:%v/agent/flare", ipcAddress, pkgconfig.Datadog.GetInt("cmd_port"))
+	urlstr := fmt.Sprintf("https://%v:%v/agent/flare", ipcAddress, pkgconfig.Datadog().GetInt("cmd_port"))
 
 	// Set session token
-	if err = util.SetAuthToken(pkgconfig.Datadog); err != nil {
+	if err = util.SetAuthToken(pkgconfig.Datadog()); err != nil {
 		fmt.Fprintln(color.Output, color.RedString(fmt.Sprintf("Error: %s", err)))
 		return createArchive(flareComp, pdata, err)
 	}

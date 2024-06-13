@@ -27,7 +27,7 @@ func GetNodeAnnotations(ctx context.Context) (map[string]string, error) {
 		return nil, err
 	}
 
-	if config.Datadog.GetBool("cluster_agent.enabled") {
+	if config.Datadog().GetBool("cluster_agent.enabled") {
 		cl, err := clusteragent.GetClusterAgentClient()
 		if err != nil {
 			return nil, err
