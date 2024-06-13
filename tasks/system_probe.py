@@ -1522,9 +1522,7 @@ def build_cws_object_files(
 
 @task
 def object_files(ctx, kernel_release=None, with_unit_test=False, arch: str = CURRENT_ARCH):
-    build_object_files(
-        ctx, kernel_release=kernel_release, with_unit_test=with_unit_test, arch=arch
-    )
+    build_object_files(ctx, kernel_release=kernel_release, with_unit_test=with_unit_test, arch=arch)
 
 
 def clean_object_files(ctx, major_version='7', kernel_release=None, debug=False, strip_object_files=False):
