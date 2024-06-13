@@ -1,6 +1,6 @@
 receivers:
     otlp:
-    prometheus/dd-enhanced:
+    prometheus/dd-autoconfigured:
       config:
         scrape_configs:
           - job_name: 'otelcol'
@@ -40,6 +40,6 @@ service:
           receivers: [nop]
           processors: [infraattributes/user-defined]
           exporters: [datadog]
-      metrics/dd-enhanced/datadog:
-          receivers: [prometheus/dd-enhanced]
+      metrics/dd-autoconfigured/datadog:
+          receivers: [prometheus/dd-autoconfigured]
           exporters: [datadog]

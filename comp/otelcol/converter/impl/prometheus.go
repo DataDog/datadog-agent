@@ -11,7 +11,7 @@ import "go.opentelemetry.io/collector/confmap"
 var (
 	// prometheus
 	prometheusName         = "prometheus"
-	prometheusEnhancedName = prometheusName + "/" + ddEnhancedSuffix
+	prometheusEnhancedName = prometheusName + "/" + ddAutoconfiguredSuffix
 	prometheusConfig       = map[string]any{
 		"config": map[string]any{
 			"scrape_configs": []any{
@@ -128,7 +128,7 @@ func addPrometheusReceiver(conf *confmap.Conf, comp component) {
 	addComponentToConfig(conf, comp)
 
 	for ddExporterName, _ := range datadogExportersMap {
-		pipelineName := "metrics" + "/" + ddEnhancedSuffix + "/" + ddExporterName
+		pipelineName := "metrics" + "/" + ddAutoconfiguredSuffix + "/" + ddExporterName
 		addComponentToPipeline(conf, comp, pipelineName)
 		addComponentToPipeline(conf, component{
 			Type:         "exporters",

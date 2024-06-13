@@ -14,16 +14,16 @@ exporters:
         key: 12345
 
 extensions:
-  pprof/dd-enhanced:
-  health_check/dd-enhanced:
-  zpages/dd-enhanced:
+  pprof/dd-autoconfigured:
+  health_check/dd-autoconfigured:
+  zpages/dd-autoconfigured:
     endpoint: "localhost:55679"
     
 processors:
   infraattributes/user-defined:
 
 service:
-    extensions: [pprof/dd-enhanced, zpages/dd-enhanced, health_check/dd-enhanced]
+    extensions: [pprof/dd-autoconfigured, zpages/dd-autoconfigured, health_check/dd-autoconfigured]
     pipelines:
         traces:
             receivers: [nop]

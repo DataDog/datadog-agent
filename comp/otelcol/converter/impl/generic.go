@@ -12,13 +12,13 @@ import (
 	"go.opentelemetry.io/collector/confmap"
 )
 
-var ddEnhancedSuffix = "dd-enhanced"
+var ddAutoconfiguredSuffix = "dd-autoconfigured"
 
 type component struct {
 	Type         string
 	Name         string
 	EnhancedName string
-	Config any
+	Config       any
 }
 
 func componentName(fullName string) string {

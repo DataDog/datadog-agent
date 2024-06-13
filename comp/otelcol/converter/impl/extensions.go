@@ -11,19 +11,19 @@ import "go.opentelemetry.io/collector/confmap"
 var (
 	// pprof
 	pProfName         = "pprof"
-	pProfEnhancedName = pProfName + "/" + ddEnhancedSuffix
+	pProfEnhancedName = pProfName + "/" + ddAutoconfiguredSuffix
 	pProfConfig       any
 
 	// zpages
 	zpagesName         = "zpages"
-	zpagesEnhancedName = zpagesName + "/" + ddEnhancedSuffix
+	zpagesEnhancedName = zpagesName + "/" + ddAutoconfiguredSuffix
 	zpagesConfig       = map[string]any{
 		"endpoint": "localhost:55679",
 	}
 
 	// healthcheck
 	healthCheckName         = "health_check"
-	healthCheckEnhancedName = healthCheckName + "/" + ddEnhancedSuffix
+	healthCheckEnhancedName = healthCheckName + "/" + ddAutoconfiguredSuffix
 	healthCheckConfig       any
 
 	// components
@@ -71,10 +71,10 @@ func addExtensionToPipeline(conf *confmap.Conf, comp component) {
 	stringMapConf := conf.ToStringMap()
 	if service, ok := stringMapConf["service"]; ok {
 		if serviceMap, ok := service.(map[string]any); ok {
-			if components, ok := serviceMap[comp.Type]; ok {
-				if componentsSlice, ok := components.([]any); ok {
-					componentsSlice = append(componentsSlice, comp.EnhancedName)
-					serviceMap[comp.Type] = componentsSlice
+			if extensions, ok := serviceMap[comp.Type]; ok {
+				if extensionsSlice, ok := extensions.([]any); ok {
+					extensionsSlice = append(extensionsSlice, comp.EnhancedName)
+					serviceMap[comp.Type] = extensionsSlice
 				}
 			} else {
 				serviceMap[comp.Type] = []any{comp.EnhancedName}

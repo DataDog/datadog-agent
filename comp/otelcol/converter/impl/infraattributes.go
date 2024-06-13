@@ -11,11 +11,11 @@ import "go.opentelemetry.io/collector/confmap"
 var (
 	// infraattributes
 	infraAttributesName         = "infraattributes"
-	infraAttributesEnhancedName = infraAttributesName + "/" + ddEnhancedSuffix
+	infraAttributesEnhancedName = infraAttributesName + "/" + ddAutoconfiguredSuffix
 	infraAttributesConfig       any
-	
+
 	// component
-	infraAttributesProcessor    = component{
+	infraAttributesProcessor = component{
 		Name:         infraAttributesName,
 		EnhancedName: infraAttributesEnhancedName,
 		Type:         "processors",

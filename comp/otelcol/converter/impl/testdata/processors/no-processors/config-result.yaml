@@ -14,26 +14,26 @@ exporters:
         key: 12345
 
 extensions:
-  pprof/dd-enhanced:
-  health_check/dd-enhanced:
-  zpages/dd-enhanced:
+  pprof/dd-autoconfigured:
+  health_check/dd-autoconfigured:
+  zpages/dd-autoconfigured:
     endpoint: "localhost:55679"
     
 processors:
-  infraattributes/dd-enhanced:
+  infraattributes/dd-autoconfigured:
 
 service:
-    extensions: [pprof/dd-enhanced, zpages/dd-enhanced, health_check/dd-enhanced]
+    extensions: [pprof/dd-autoconfigured, zpages/dd-autoconfigured, health_check/dd-autoconfigured]
     pipelines:
         traces:
             receivers: [nop]
-            processors: [infraattributes/dd-enhanced]
+            processors: [infraattributes/dd-autoconfigured]
             exporters: [datadog]
         metrics:
             receivers: [nop, prometheus/user-defined]
-            processors: [infraattributes/dd-enhanced]
+            processors: [infraattributes/dd-autoconfigured]
             exporters: [datadog]
         logs:
             receivers: [nop]
-            processors: [infraattributes/dd-enhanced]
+            processors: [infraattributes/dd-autoconfigured]
             exporters: [datadog]
