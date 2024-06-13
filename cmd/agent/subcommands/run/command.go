@@ -45,6 +45,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/api/api/apiimpl"
 	internalAPI "github.com/DataDog/datadog-agent/comp/api/api/def"
 	authtokenimpl "github.com/DataDog/datadog-agent/comp/api/authtoken/createandfetchimpl"
+	commonendpoints "github.com/DataDog/datadog-agent/comp/api/endpoints/common"
 	"github.com/DataDog/datadog-agent/comp/collector/collector"
 	"github.com/DataDog/datadog-agent/comp/collector/collector/collectorimpl"
 	"github.com/DataDog/datadog-agent/comp/core"
@@ -379,6 +380,7 @@ func getSharedFxOption() fx.Option {
 		statusimpl.Module(),
 		authtokenimpl.Module(),
 		apiimpl.Module(),
+		commonendpoints.Module(),
 		compressionimpl.Module(),
 		demultiplexerimpl.Module(),
 		demultiplexerendpointfx.Module(),
