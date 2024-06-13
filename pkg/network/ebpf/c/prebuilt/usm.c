@@ -62,7 +62,7 @@ static __always_inline int flush(void *ctx) {
 
 int BPF_PROG(raw_tracepoint__net__netif_receive_skb) {
     CHECK_BPF_PROGRAM_BYPASSED()
-    log_debug("tracepoint/net/netif_receive_skb");
+    log_debug("raw_tracepoint/net/netif_receive_skb");
     return flush(ctx);
 }
 
