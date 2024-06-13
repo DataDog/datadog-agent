@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 
 	k8smetadata "github.com/DataDog/datadog-agent/comp/core/tagger/k8s_metadata"
@@ -122,6 +123,8 @@ var (
 	highCardOrchestratorLabels = map[string]string{
 		"io.rancher.container.name": "rancher_container",
 	}
+
+	handledKubernetesMetadataResources = []string{"namespaces", "nodes"}
 )
 
 func (c *WorkloadMetaCollector) processEvents(evBundle workloadmeta.EventBundle) {
@@ -151,8 +154,6 @@ func (c *WorkloadMetaCollector) processEvents(evBundle workloadmeta.EventBundle)
 				tagInfos = append(tagInfos, c.handleContainer(ev)...)
 			case workloadmeta.KindKubernetesPod:
 				tagInfos = append(tagInfos, c.handleKubePod(ev)...)
-			case workloadmeta.KindKubernetesNode:
-				tagInfos = append(tagInfos, c.handleKubeNode(ev)...)
 			case workloadmeta.KindECSTask:
 				tagInfos = append(tagInfos, c.handleECSTask(ev)...)
 			case workloadmeta.KindContainerImageMetadata:
@@ -439,28 +440,6 @@ func (c *WorkloadMetaCollector) handleKubePod(ev workloadmeta.Event) []*types.Ta
 	return tagInfos
 }
 
-func (c *WorkloadMetaCollector) handleKubeNode(ev workloadmeta.Event) []*types.TagInfo {
-	node := ev.Entity.(*workloadmeta.KubernetesNode)
-
-	tags := taglist.NewTagList()
-
-	// Add tags for node here
-
-	low, orch, high, standard := tags.Compute()
-	tagInfos := []*types.TagInfo{
-		{
-			Source:               nodeSource,
-			Entity:               buildTaggerEntityID(node.EntityID),
-			HighCardTags:         high,
-			OrchestratorCardTags: orch,
-			LowCardTags:          low,
-			StandardTags:         standard,
-		},
-	}
-
-	return tagInfos
-}
-
 func (c *WorkloadMetaCollector) handleECSTask(ev workloadmeta.Event) []*types.TagInfo {
 	task := ev.Entity.(*workloadmeta.ECSTask)
 
@@ -545,19 +524,25 @@ func (c *WorkloadMetaCollector) handleGardenContainer(container *workloadmeta.Co
 func (c *WorkloadMetaCollector) handleKubeMetadata(ev workloadmeta.Event) []*types.TagInfo {
 	kubeMetadata := ev.Entity.(*workloadmeta.KubernetesMetadata)
 
-	// Only handle namespace metadata for now
-	if !strings.HasPrefix(kubeMetadata.ID, "namespaces") {
+	resource := kubeMetadata.GVR.Resource
+
+	if !slices.Contains(handledKubernetesMetadataResources, resource) {
 		return nil
 	}
 
 	tags := taglist.NewTagList()
 
-	for name, value := range kubeMetadata.Labels {
-		k8smetadata.AddMetadataAsTags(name, value, c.nsLabelsAsTags, c.globNsLabels, tags)
-	}
+	switch resource {
+	case "nodes":
+		// No tags for nodes
+	case "namespaces":
+		for name, value := range kubeMetadata.Labels {
+			k8smetadata.AddMetadataAsTags(name, value, c.nsLabelsAsTags, c.globNsLabels, tags)
+		}
 
-	for name, value := range kubeMetadata.Annotations {
-		k8smetadata.AddMetadataAsTags(name, value, c.nsAnnotationsAsTags, c.globNsAnnotations, tags)
+		for name, value := range kubeMetadata.Annotations {
+			k8smetadata.AddMetadataAsTags(name, value, c.nsAnnotationsAsTags, c.globNsAnnotations, tags)
+		}
 	}
 
 	low, orch, high, standard := tags.Compute()
@@ -793,8 +778,6 @@ func buildTaggerEntityID(entityID workloadmeta.EntityID) string {
 		return containers.BuildTaggerEntityName(entityID.ID)
 	case workloadmeta.KindKubernetesPod:
 		return kubelet.PodUIDToTaggerEntityName(entityID.ID)
-	case workloadmeta.KindKubernetesNode:
-		return kubelet.NodeUIDToTaggerEntityName(entityID.ID)
 	case workloadmeta.KindECSTask:
 		return fmt.Sprintf("ecs_task://%s", entityID.ID)
 	case workloadmeta.KindContainerImageMetadata:

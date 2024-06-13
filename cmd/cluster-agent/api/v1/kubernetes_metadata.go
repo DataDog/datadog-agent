@@ -45,7 +45,7 @@ func installKubernetesMetadataEndpoints(r *mux.Router, wmeta workloadmeta.Compon
 func installCloudFoundryMetadataEndpoints(r *mux.Router) {}
 
 // getNodeMetadata is only used when the node agent hits the DCA for the list of labels or annotations
-func getNodeMetadata(w http.ResponseWriter, r *http.Request, wmeta workloadmeta.Component, f func(*workloadmeta.KubernetesNode) map[string]string, what string, filterList []string) {
+func getNodeMetadata(w http.ResponseWriter, r *http.Request, wmeta workloadmeta.Component, f func(*workloadmeta.KubernetesMetadata) map[string]string, what string, filterList []string) {
 	/*
 		Input
 			localhost:5001/api/v1/tags/node/localhost
@@ -67,14 +67,14 @@ func getNodeMetadata(w http.ResponseWriter, r *http.Request, wmeta workloadmeta.
 	var dataBytes []byte
 	nodeName := vars["nodeName"]
 
-	nodeEntity, err := wmeta.GetKubernetesNode(nodeName)
+	nodeMetadata, err := wmeta.GetKubernetesMetadata(fmt.Sprintf("nodes//%s", nodeName))
 	if err != nil {
 		log.Errorf("Could not retrieve the node %s of %s: %v", what, nodeName, err.Error()) //nolint:errcheck
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	nodeData := f(nodeEntity)
+	nodeData := f(nodeMetadata)
 
 	// Filter data to avoid returning too big useless data
 	if filterList != nil {
@@ -103,11 +103,11 @@ func getNodeMetadata(w http.ResponseWriter, r *http.Request, wmeta workloadmeta.
 }
 
 func getNodeLabels(w http.ResponseWriter, r *http.Request, wmeta workloadmeta.Component) {
-	getNodeMetadata(w, r, wmeta, func(e *workloadmeta.KubernetesNode) map[string]string { return e.Labels }, "labels", nil)
+	getNodeMetadata(w, r, wmeta, func(km *workloadmeta.KubernetesMetadata) map[string]string { return km.Labels }, "labels", nil)
 }
 
 func getNodeAnnotations(w http.ResponseWriter, r *http.Request, wmeta workloadmeta.Component) {
-	getNodeMetadata(w, r, wmeta, func(e *workloadmeta.KubernetesNode) map[string]string { return e.Annotations }, "annotations", config.Datadog().GetStringSlice("kubernetes_node_annotations_as_host_aliases"))
+	getNodeMetadata(w, r, wmeta, func(km *workloadmeta.KubernetesMetadata) map[string]string { return km.Annotations }, "annotations", config.Datadog().GetStringSlice("kubernetes_node_annotations_as_host_aliases"))
 }
 
 // getNamespaceMetadataWithTransformerFunc is used when the node agent hits the DCA for some (or all) metadata of a specific namespace
