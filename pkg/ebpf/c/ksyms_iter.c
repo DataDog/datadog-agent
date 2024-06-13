@@ -3,6 +3,7 @@
 
 #include "ktypes.h"
 #include "bpf_helpers.h"
+#include "bpf_metadata.h"
 static volatile unsigned long last_sym_value = 0;
 
 static __always_inline char to_lower(char c)

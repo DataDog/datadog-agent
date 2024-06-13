@@ -1,5 +1,6 @@
 #include "ktypes.h"
 #include "lock_contention.h"
+#include "bpf_metadata.h"
 #include "bpf_helpers.h"
 #include "bpf_tracing.h"
 #include "bpf_core_read.h"
