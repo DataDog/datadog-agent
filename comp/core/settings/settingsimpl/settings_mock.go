@@ -12,7 +12,7 @@ import (
 
 	"go.uber.org/fx"
 
-	api "github.com/DataDog/datadog-agent/comp/api/api/def"
+	"github.com/DataDog/datadog-agent/comp/api/api"
 	"github.com/DataDog/datadog-agent/comp/core/settings"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"

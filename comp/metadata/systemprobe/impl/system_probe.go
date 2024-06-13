@@ -13,7 +13,7 @@ import (
 	"net/http"
 	"time"
 
-	api "github.com/DataDog/datadog-agent/comp/api/api/def"
+	"github.com/DataDog/datadog-agent/comp/api/api"
 	"github.com/DataDog/datadog-agent/comp/api/api/utils"
 	"github.com/DataDog/datadog-agent/comp/api/authtoken"
 	"github.com/DataDog/datadog-agent/comp/core/config"
