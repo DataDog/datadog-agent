@@ -1,7 +1,5 @@
 ---
-title: Creating Agent Rule Expressions
-kind: documentation
-description: "Agent expression attributes and operators for CSM Threats Rules"
+title: Creating Agent Rule Expressionsdescription: "Agent expression attributes and operators for CSM Threats Rules"
 disable_edit: true
 further_reading:
 - link: "/security/cloud_workload_security/getting_started/"
