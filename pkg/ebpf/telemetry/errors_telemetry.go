@@ -12,7 +12,6 @@ import (
 	"fmt"
 	"hash"
 	"hash/fnv"
-	"io"
 	"slices"
 	"sync"
 
