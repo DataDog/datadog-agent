@@ -4,7 +4,7 @@
 // Copyright 2016-present Datadog, Inc.
 
 // Package common provides common Agent API endpoints
-package common
+package commonendpoints
 
 import (
 	"encoding/json"
