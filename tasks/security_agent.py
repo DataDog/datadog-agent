@@ -641,10 +641,10 @@ def generate_cws_documentation(ctx, go_generate=False):
     )
     # backend event docs
     ctx.run(
-        "python3 ./docs/cloud-workload-security/scripts/backend-doc-gen.py --input ./docs/cloud-workload-security/backend_linux.schema.json --output ./docs/cloud-workload-security/backend_linux.md"
+        "python3 ./docs/cloud-workload-security/scripts/backend-doc-gen.py --input ./docs/cloud-workload-security/backend_linux.schema.json --output ./docs/cloud-workload-security/backend_linux.md --template ./backend_linux.md"
     )
     ctx.run(
-        "python3 ./docs/cloud-workload-security/scripts/backend-doc-gen.py --input ./docs/cloud-workload-security/backend_windows.schema.json --output ./docs/cloud-workload-security/backend_windows.md"
+        "python3 ./docs/cloud-workload-security/scripts/backend-doc-gen.py --input ./docs/cloud-workload-security/backend_windows.schema.json --output ./docs/cloud-workload-security/backend_windows.md --template ./backend_windows.md"
     )
 
 
