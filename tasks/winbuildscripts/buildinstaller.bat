@@ -11,7 +11,10 @@ call %BUILD_ROOT%\tasks\winbuildscripts\extract-modcache.bat %BUILD_ROOT%\datado
 if NOT DEFINED RELEASE_VERSION set RELEASE_VERSION=%~1
 
 set OMNIBUS_BUILD=omnibus.build
-set OMNIBUS_ARGS=%OMNIBUS_ARGS% --target-project installer
+@rem OMNIBUS_TARGET is also used in the C# code to only produce the .cmd for the Datadog Installer (instead of for both the Agent installer and the Datadog installer).
+@rem It's not strictly needed, as we will only invoke the .cmd for the Datadog Installer in the invoke task build-installer, but it's a good practice to be consistent.
+set OMNIBUS_TARGET=installer
+set OMNIBUS_ARGS=%OMNIBUS_ARGS% --target-project %OMNIBUS_TARGET%
 set CI_PROJECT_DIR=%BUILD_ROOT%
 
 if DEFINED GOMODCACHE set OMNIBUS_ARGS=%OMNIBUS_ARGS% --go-mod-cache %GOMODCACHE%
@@ -43,5 +46,3 @@ goto :EOF
 @echo directory not mounted, parameters incorrect
 exit /b 1
 goto :EOF
-
-

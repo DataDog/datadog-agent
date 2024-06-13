@@ -51,7 +51,8 @@ namespace WixSetup
             // WixUI_InstallDir docs: https://wixtoolset.org/docs/v3/wixui/dialog_reference/wixui_installdir/
             Compiler.AutoGeneration.InstallDirDefaultId = null;
 
-            if (Environment.GetEnvironmentVariable("OMNIBUS_TARGET") == "main")
+            var omnibusTarget = Environment.GetEnvironmentVariable("OMNIBUS_TARGET");
+            if (string.IsNullOrEmpty(omnibusTarget) || omnibusTarget == "main")
             {
                 BuildMsi<AgentInstaller>(() =>
                 {
@@ -60,7 +61,8 @@ namespace WixSetup
                     Console.WriteLine($"Building MSI installer for Datadog Agent version {CiInfo.PackageVersion}");
                 });
             }
-            else
+
+            if(string.IsNullOrEmpty(omnibusTarget) || omnibusTarget == "installer")
             {
                 BuildMsi<DatadogInstaller>(() =>
                 {

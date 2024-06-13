@@ -15,7 +15,7 @@ namespace WixSetup.Datadog_Installer
 
         // Product
         private const string ProductFullName = "Datadog Installer";
-        private const string ProductDescription = "Datadog Installer manages the installation of Datadog product";
+        private const string ProductDescription = "Datadog Installer manages the installation of Datadog products";
         private const string ProductHelpUrl = @"https://help.datadoghq.com/hc/en-us";
         private const string ProductAboutUrl = @"https://www.datadoghq.com/about/";
         private const string ProductComment = @"Copyright 2015 - Present Datadog";
