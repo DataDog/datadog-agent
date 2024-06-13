@@ -11,10 +11,10 @@ import (
 
 // Port is a listening port on the machine.
 type Port struct {
-	Proto   string `json:"proto"`   // "tcp" or "udp"
-	Port    uint16 `json:"port"`    // port number
-	Process string `json:"process"` // optional process name, if found (requires suitable permissions)
-	Pid     int    `json:"pid"`     // process ID, if known (requires suitable permissions)
+	Proto   string // "tcp" or "udp"
+	Port    uint16 // port number
+	Process string // optional process name, if found (requires suitable permissions)
+	Pid     int    // process ID, if known (requires suitable permissions)
 }
 
 func (a *Port) equal(b *Port) bool {
