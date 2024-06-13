@@ -59,6 +59,7 @@ build do
         end
 
         if linux_target? || osx_target?
+            flavor_arg = "$AGENT_FLAVOR"
             # Setup script aliases, e.g. `/opt/datadog-agent/embedded/bin/pip` will
             # default to `pip2` if the default Python runtime is Python 2.
             if with_python_runtime? "2"
@@ -99,7 +100,9 @@ build do
             move "#{install_dir}/etc/datadog-agent/datadog.yaml.example", "/etc/datadog-agent"
             move "#{install_dir}/etc/datadog-agent/conf.d", "/etc/datadog-agent", :force=>true
             unless heroku_target?
-              move "#{install_dir}/etc/datadog-agent/otel-config.yaml.example", "/etc/datadog-agent"
+              if flavor_arg.eql? "ua"
+                move "#{install_dir}/etc/datadog-agent/otel-config.yaml.example", "/etc/datadog-agent"
+              end
               move "#{install_dir}/etc/datadog-agent/system-probe.yaml.example", "/etc/datadog-agent"
               move "#{install_dir}/etc/datadog-agent/security-agent.yaml.example", "/etc/datadog-agent", :force=>true
               move "#{install_dir}/etc/datadog-agent/runtime-security.d", "/etc/datadog-agent", :force=>true
