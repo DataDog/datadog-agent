@@ -109,8 +109,6 @@ type safeConfig struct {
 
 	// extraConfigFilePaths represents additional configuration file paths that will be merged into the main configuration when ReadInConfig() is called.
 	extraConfigFilePaths []string
-	// extraConfigFilePaths are additional config file paths merged into the configuration during the ReadInConfig() call.
-	loadedExtraConfigFilePaths []string
 }
 
 // OnUpdate adds a callback to the list receivers to be called each time a value is changed in the configuration
@@ -597,28 +595,29 @@ func (c *safeConfig) ReadInConfig() error {
 		return err
 	}
 
-	// merge with extra config files
-	c.loadedExtraConfigFilePaths = c.loadedExtraConfigFilePaths[:0]
-	var errs []error
+	type extraConf struct {
+		path    string
+		content []byte
+	}
+
+	// Read extra config files
+	extraConfContents := []extraConf{}
 	for _, path := range c.extraConfigFilePaths {
-		// Read config file
 		b, err := os.ReadFile(path)
 		if err != nil {
-			errs = append(errs, fmt.Errorf("could not read extra config file '%s': %s", path, err))
-			continue
+			return fmt.Errorf("could not read extra config file '%s': %s", path, err)
 		}
-
-		// Merge with base config and 'file' config
-		err = errors.Join(c.Viper.MergeConfig(bytes.NewReader(b)), c.configSources[SourceFile].MergeConfig(bytes.NewReader(b)))
-		if err != nil {
-			errs = append(errs, fmt.Errorf("error merging %s config file: %w", path, err))
-			continue
-		}
-
-		// set config file to loaded
-		c.loadedExtraConfigFilePaths = append(c.loadedExtraConfigFilePaths, path)
+		extraConfContents = append(extraConfContents, extraConf{path: path, content: b})
 	}
-	return errors.Join(errs...)
+
+	// Merge with base config and 'file' config
+	for _, confFile := range extraConfContents {
+		err = errors.Join(c.Viper.MergeConfig(bytes.NewReader(confFile.content)), c.configSources[SourceFile].MergeConfig(bytes.NewReader(confFile.content)))
+		if err != nil {
+			return fmt.Errorf("error merging %s config file: %w", confFile.path, err)
+		}
+	}
+	return nil
 }
 
 // ReadConfig wraps Viper for concurrent access
@@ -897,7 +896,7 @@ func (c *safeConfig) GetProxies() *Proxy {
 func (c *safeConfig) ExtraConfigFilesUsed() []string {
 	c.Lock()
 	defer c.Unlock()
-	res := make([]string, len(c.loadedExtraConfigFilePaths))
-	copy(res, c.loadedExtraConfigFilePaths)
+	res := make([]string, len(c.extraConfigFilePaths))
+	copy(res, c.extraConfigFilePaths)
 	return res
 }
