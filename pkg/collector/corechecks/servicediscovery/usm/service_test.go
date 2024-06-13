@@ -461,6 +461,7 @@ func TestExtractServiceMetadata(t *testing.T) {
 			expectedServiceTag: "dummy",
 		},
 		{
+			name: "gunicorn without app found",
 			cmdline: []string{
 				"gunicorn",
 			},

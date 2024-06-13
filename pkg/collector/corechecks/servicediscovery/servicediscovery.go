@@ -10,7 +10,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	processnet "github.com/DataDog/datadog-agent/pkg/process/net"
 	"runtime"
 	"strings"
 	"time"
@@ -23,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/servicediscovery/model"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
+	processnet "github.com/DataDog/datadog-agent/pkg/process/net"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
