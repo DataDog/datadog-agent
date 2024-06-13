@@ -8,7 +8,7 @@ import tempfile
 import traceback
 from collections import Counter, defaultdict
 from dataclasses import dataclass
-from datetime import UTC, datetime, timedelta, timezone
+from datetime import datetime, timezone
 from urllib.parse import quote
 
 from gitlab.v4.objects import ProjectPipeline, ProjectPipelineJob
@@ -597,6 +597,29 @@ def send_notification(ctx: Context, alert_jobs, jobowners=".gitlab/JOBOWNERS"):
 #     print('Messages sent')
 
 
+@dataclass
+class JobExecutionSummary:
+    jobs: list[ProjectPipelineJob]
+
+    # TODO
+    @staticmethod
+    def from_s3(self):
+        pass
+
+    # TODO : Create lock, etc.
+    def to_s3(self):
+        pass
+
+    def fetch_pipeline_jobs(self, pipeline_id: int):
+        """
+        Will fetch all jobs from a pipeline and add them to the jobs list
+        """
+        pass
+
+    def __str__(self):
+        return '\n'.join(job.to_json() for job in self.jobs)
+
+
 @task
 def send_failure_summary_notification(_, allowed_to_fail: bool = False, list_max_len=10, jobowners=".gitlab/JOBOWNERS"):
     import time
@@ -605,13 +628,13 @@ def send_failure_summary_notification(_, allowed_to_fail: bool = False, list_max
 
     tstart = time.perf_counter()
 
-    period_start = datetime.now(UTC) - (timedelta(weeks=1) if allowed_to_fail else timedelta(days=1))
+    # period_start = datetime.now(UTC) - (timedelta(weeks=1) if allowed_to_fail else timedelta(days=1))
 
     repo = get_gitlab_repo()
 
     print('Fetching pipelines from main...')
     # TODO
-    pipelines: list[ProjectPipeline] = [repo.pipelines.get(36500940)]
+    pipelines: list[ProjectPipeline] = [repo.pipelines.get(36500940, lazy=True)]
     # for pipeline in repo.pipelines.list(ref='main', per_page=100, iterator=True):
     #     # No downstream pipelines
     #     if pipeline.source not in ['push', 'schedule']:
@@ -631,19 +654,21 @@ def send_failure_summary_notification(_, allowed_to_fail: bool = False, list_max
     jobs: list[ProjectPipelineJob] = []
     for pipeline in pipelines:
         for job in pipeline.jobs.list(per_page=100, all=True):
-            if job.status in ['failed', 'success']:
-                # Ignore infra failures
+            if job.status not in ['failed', 'success']:
+                continue
+
+            # Ignore infra failures
+            if job.status == 'failed':
                 trace = str(repo.jobs.get(job.id, lazy=True).trace(), 'utf-8')
                 failure_type = get_infra_failure_info(trace)
-                print(failure_type)
                 if failure_type is not None:
                     continue
 
-                # Must match allowed to fail
-                if job.allow_failure != allowed_to_fail:
-                    continue
+            # Must match allowed to fail
+            if job.allow_failure != allowed_to_fail:
+                continue
 
-                jobs.append(job)
+            jobs.append(job)
     print('Fetched', len(jobs), 'jobs')
 
     # Make summary stats
@@ -654,7 +679,9 @@ def send_failure_summary_notification(_, allowed_to_fail: bool = False, list_max
         if job.status == 'failed':
             failure_counter.update([job.name])
 
-    summary_jobs = [(name, failure_counter[name], total_counter[name]) for name in total_counter.keys()]
+    summary_jobs = [
+        (name, failure_counter[name], total_counter[name]) for name in total_counter.keys() if failure_counter[name] > 0
+    ]
     summary_jobs = sorted(summary_jobs, key=lambda x: x[1], reverse=True)
 
     print()
