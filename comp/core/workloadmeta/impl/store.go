@@ -747,12 +747,14 @@ func (w *workloadmeta) handleEvents(evs []wmdef.CollectorEvent) {
 	// process an event.
 	w.storeMut.Unlock()
 
-	for sub, evs := range filteredEvents {
-		if len(evs) == 0 {
-			continue
-		}
+	for _, sub := range w.subscribers {
+		if evs, found := filteredEvents[sub]; found {
+			if len(evs) == 0 {
+				continue
+			}
 
-		w.notifyChannel(sub.name, sub.ch, evs, true)
+			w.notifyChannel(sub.name, sub.ch, evs, true)
+		}
 	}
 }
 
