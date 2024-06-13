@@ -8,7 +8,7 @@ import tempfile
 import traceback
 from collections import Counter, defaultdict
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from urllib.parse import quote
 
 from gitlab.v4.objects import ProjectPipeline, ProjectPipelineJob
@@ -18,6 +18,7 @@ from invoke.exceptions import Exit, UnexpectedExit
 
 from tasks.libs.ciproviders.gitlab_api import BASE_URL
 from tasks.libs.common.datadog_api import create_count, send_metrics
+from tasks.libs.pipeline import failure_summary
 from tasks.libs.pipeline.data import get_failed_jobs, get_infra_failure_info
 from tasks.libs.pipeline.notifications import (
     GITHUB_SLACK_MAP,
@@ -621,10 +622,31 @@ def send_notification(ctx: Context, alert_jobs, jobowners=".gitlab/JOBOWNERS"):
 
 
 @task
-def send_failure_summary_notification(_, allowed_to_fail: bool = False, list_max_len=10, jobowners=".gitlab/JOBOWNERS"):
-    from tasks import failure_summary
+def failure_summary_on_job(ctx):
+    failure_summary.upload_summary(ctx, os.environ['CI_PIPELINE_ID'])
 
-    failure_summary.test()
+
+@task
+def failure_summary_on_nightly(ctx, max_length=8):
+    summary = failure_summary.fetch_summaries(ctx, timedelta(days=1))
+    stats = failure_summary.SummaryStats(summary, allow_failure=False)
+
+    # TODO : Send
+    # TODO : Dispatch to teams
+    print(stats.create(max_length))
+
+
+# TODO
+# @task
+# def failure_summary_on_friday_nightly(ctx):
+#     pass
+
+
+@task
+def send_failure_summary_notification(
+    ctx, allowed_to_fail: bool = False, list_max_len=10, jobowners=".gitlab/JOBOWNERS"
+):
+    failure_summary.test(ctx)
     return
 
     import time
