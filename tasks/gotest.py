@@ -17,6 +17,7 @@ from collections import defaultdict
 from datetime import datetime
 from pathlib import Path
 
+import requests
 from invoke import task
 from invoke.context import Context
 from invoke.exceptions import Exit
@@ -44,7 +45,9 @@ GO_COV_TEST_PATH = "test_with_coverage"
 GO_TEST_RESULT_TMP_JSON = 'module_test_output.json'
 WINDOWS_MAX_PACKAGES_NUMBER = 150
 TRIGGER_ALL_TESTS_PATHS = ["tasks/gotest.py", "tasks/build_tags.py", ".gitlab/source_test/*"]
-OTEL_UPSTREAM_GO_VERSION = "1.21.0"
+OTEL_UPSTREAM_GO_MOD_PATH = (
+    "https://raw.githubusercontent.com/open-telemetry/opentelemetry-collector-contrib/main/go.mod"
+)
 
 
 class TestProfiler:
@@ -968,16 +971,20 @@ def check_otel_build(ctx):
 
 @task
 def check_otel_module_versions(ctx):
+    pattern = f"^go {PATTERN_MAJOR_MINOR_BUGFIX}\r?$"
+    r = requests.get(OTEL_UPSTREAM_GO_MOD_PATH)
+    matches = re.findall(pattern, r.text, flags=re.MULTILINE)
+    if len(matches) != 1:
+        raise Exit(f"Error parsing upstream go.mod version: {OTEL_UPSTREAM_GO_MOD_PATH}")
+    upstream_version = matches[0]
+
     for path, module in DEFAULT_MODULES.items():
         if module.used_by_otel:
             mod_file = f"./{path}/go.mod"
-            pattern = f"^go {PATTERN_MAJOR_MINOR_BUGFIX}\r?$"
             with open(mod_file, newline='', encoding='utf-8') as reader:
                 content = reader.read()
                 matches = re.findall(pattern, content, flags=re.MULTILINE)
                 if len(matches) != 1:
                     raise Exit(f"{mod_file} does not match expected go directive format")
-                if matches[0] != f"go {OTEL_UPSTREAM_GO_VERSION}":
-                    raise Exit(
-                        f"{mod_file} version {matches[0]} does not match upstream version: {OTEL_UPSTREAM_GO_VERSION}"
-                    )
+                if matches[0] != upstream_version:
+                    raise Exit(f"{mod_file} version {matches[0]} does not match upstream version: {upstream_version}")
