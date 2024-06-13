@@ -634,18 +634,19 @@ def generate_cws_documentation(ctx, go_generate=False):
 
     # secl docs
     ctx.run(
-        "python3 ./docs/cloud-workload-security/scripts/secl-doc-gen.py --input ./docs/cloud-workload-security/secl-linux.json --output ./docs/cloud-workload-security/linux_expressions.md --template ./linux_expressions.md"
+        "python3 ./docs/cloud-workload-security/scripts/secl-doc-gen.py --input ./docs/cloud-workload-security/secl_linux.json --output ./docs/cloud-workload-security/linux_expressions.md --template ./linux_expressions.md"
     )
     ctx.run(
-        "python3 ./docs/cloud-workload-security/scripts/secl-doc-gen.py --input ./docs/cloud-workload-security/secl-windows.json --output ./docs/cloud-workload-security/windows_expressions.md  --template ./windows_expressions.md"
+        "python3 ./docs/cloud-workload-security/scripts/secl-doc-gen.py --input ./docs/cloud-workload-security/secl_windows.json --output ./docs/cloud-workload-security/windows_expressions.md --template ./windows_expressions.md"
     )
     # backend event docs
     ctx.run(
-        "python3 ./docs/cloud-workload-security/scripts/backend-doc-gen.py --input ./docs/cloud-workload-security/backend-linux.schema.json --output ./docs/cloud-workload-security/backend-linux.md"
+        "python3 ./docs/cloud-workload-security/scripts/backend-doc-gen.py --input ./docs/cloud-workload-security/backend_linux.schema.json --output ./docs/cloud-workload-security/backend_linux.md"
     )
     ctx.run(
-        "python3 ./docs/cloud-workload-security/scripts/backend-doc-gen.py --input ./docs/cloud-workload-security/backend-windows.schema.json --output ./docs/cloud-workload-security/backend-windows.md"
+        "python3 ./docs/cloud-workload-security/scripts/backend-doc-gen.py --input ./docs/cloud-workload-security/backend_windows.schema.json --output ./docs/cloud-workload-security/backend_windows.md"
     )
+
 
 @task
 def cws_go_generate(ctx):

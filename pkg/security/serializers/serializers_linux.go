@@ -1,6 +1,6 @@
 //go:generate go run github.com/mailru/easyjson/easyjson -gen_build_flags=-mod=mod -no_std_marshalers -build_tags linux $GOFILE
 //go:generate go run github.com/mailru/easyjson/easyjson -gen_build_flags=-mod=mod -no_std_marshalers -build_tags linux -output_filename serializers_base_linux_easyjson.go serializers_base.go
-//go:generate go run github.com/DataDog/datadog-agent/pkg/security/generators/backend_doc -output ../../../docs/cloud-workload-security/backend-linux.schema.json
+//go:generate go run github.com/DataDog/datadog-agent/pkg/security/generators/backend_doc -output ../../../docs/cloud-workload-security/backend_linux.schema.json
 
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
