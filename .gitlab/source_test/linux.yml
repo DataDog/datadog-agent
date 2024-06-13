@@ -8,6 +8,7 @@
     - inv -e rtloader.make --install-prefix=$CI_PROJECT_DIR/dev --python-runtimes "$PYTHON_RUNTIMES"
     - inv -e rtloader.install
     - ls /usr/bin
+    - cat $CI_PROJECT_DIR/rtloader/build/Makefile
     - inv -e rtloader.format --raise-if-changed
     - inv -e rtloader.test
   # Placeholder script, overridden by .linux_tests when running all go tests
