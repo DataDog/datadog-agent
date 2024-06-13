@@ -67,6 +67,7 @@ func (ds *DebugServer) Start() {
 
 // Stop shuts down the debug server
 func (ds *DebugServer) Stop() {
+	log.Info("Stopping DebugServer...")
 	if ds.server == nil {
 		return
 	}
@@ -75,6 +76,7 @@ func (ds *DebugServer) Stop() {
 	if err := ds.server.Shutdown(ctx); err != nil {
 		log.Errorf("Error stopping debug server: %s", err)
 	}
+	log.Info("DebugServer stopped")
 }
 
 // AddRoute adds a route to the DebugServer

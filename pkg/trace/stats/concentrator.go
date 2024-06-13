@@ -163,8 +163,10 @@ func (c *Concentrator) Run() {
 
 // Stop stops the main Run loop.
 func (c *Concentrator) Stop() {
+	log.Info("Stopping Concentrator...")
 	close(c.exit)
 	c.exitWG.Wait()
+	log.Info("Concentrator stopped")
 }
 
 // computeStatsForSpanKind returns true if the span.kind value makes the span eligible for stats computation.

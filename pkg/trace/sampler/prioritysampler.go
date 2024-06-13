@@ -23,6 +23,7 @@ import (
 
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
+	"github.com/DataDog/datadog-agent/pkg/trace/log"
 	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
@@ -93,7 +94,9 @@ func (s *PrioritySampler) updateRates() {
 
 // Stop stops the sampler main loop
 func (s *PrioritySampler) Stop() {
+	log.Info("Stopping PrioritySampler...")
 	close(s.exit)
+	log.Info("PrioritySampler stopped")
 }
 
 // Sample counts an incoming trace and returns the trace sampling decision and the applied sampling rate

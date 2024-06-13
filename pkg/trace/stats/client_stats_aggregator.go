@@ -99,8 +99,10 @@ func (a *ClientStatsAggregator) Start() {
 
 // Stop stops the aggregator. Calling Stop twice will panic.
 func (a *ClientStatsAggregator) Stop() {
+	log.Info("Stopping ClientStatsAggregator...")
 	close(a.exit)
 	<-a.done
+	log.Info("ClientStatsAggregator stopped.")
 }
 
 // flushOnTime flushes all buckets up to flushTs, except the last one.

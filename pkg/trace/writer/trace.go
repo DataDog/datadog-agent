@@ -139,6 +139,7 @@ func NewTraceWriter(
 
 // Stop stops the TraceWriter and attempts to flush whatever is left in the senders buffers.
 func (w *TraceWriter) Stop() {
+	log.Info("Stopping TraceWriter...")
 	log.Debug("Exiting trace writer. Trying to flush whatever is left...")
 	w.stop <- struct{}{}
 	<-w.stop
@@ -146,6 +147,7 @@ func (w *TraceWriter) Stop() {
 	// and submission to senders
 	w.wg.Wait()
 	stopSenders(w.senders)
+	log.Info("TraceWriter stopped")
 }
 
 // Run starts the TraceWriter.

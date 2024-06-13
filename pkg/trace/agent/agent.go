@@ -214,7 +214,7 @@ func (a *Agent) loop() {
 	if err := a.Receiver.Stop(); err != nil {
 		log.Error(err)
 	}
-	for _, stopper := range []interface{ Stop() }{
+	for i, stopper := range []interface{ Stop() }{
 		a.Concentrator,
 		a.ClientStatsAggregator,
 		a.TraceWriter,
@@ -228,8 +228,11 @@ func (a *Agent) loop() {
 		a.obfuscator,
 		a.DebugServer,
 	} {
+		log.Info("Entering stopper %d", i)
 		stopper.Stop()
+		log.Info("Stopper %d done", i)
 	}
+	log.Info("all stoppers done. loop exit")
 }
 
 // setRootSpanTags sets up any necessary tags on the root span.

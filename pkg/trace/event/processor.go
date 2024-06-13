@@ -7,6 +7,7 @@ package event
 
 import (
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
+	"github.com/DataDog/datadog-agent/pkg/trace/log"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 
@@ -48,7 +49,9 @@ func (p *Processor) Start() {
 
 // Stop stops the processor.
 func (p *Processor) Stop() {
+	log.Info("Stopping Processor....")
 	p.maxEPSSampler.Stop()
+	log.Info("Processor stopped")
 }
 
 // Process takes a processed trace, extracts events from it and samples them, returning a collection of

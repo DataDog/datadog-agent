@@ -135,9 +135,11 @@ func (w *StatsWriter) FlushSync() error {
 
 // Stop stops a running StatsWriter.
 func (w *StatsWriter) Stop() {
+	log.Info("Stopping StatsWriter...")
 	w.stop <- struct{}{}
 	<-w.stop
 	stopSenders(w.senders)
+	log.Info("StatsWriter stopped")
 }
 
 func (w *StatsWriter) addStats(sp *pb.StatsPayload) {

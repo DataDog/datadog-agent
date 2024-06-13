@@ -12,6 +12,7 @@ import (
 
 	"go.uber.org/atomic"
 
+	"github.com/DataDog/datadog-agent/pkg/trace/log"
 	"github.com/DataDog/datadog-agent/pkg/trace/watchdog"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
@@ -323,6 +324,8 @@ func (s *Sampler) report() {
 
 // Stop stops the main Run loop
 func (s *Sampler) Stop() {
+	log.Info("Stopping sampler....")
 	close(s.exit)
 	<-s.stopped
+	log.Info("Sampler stopped")
 }
