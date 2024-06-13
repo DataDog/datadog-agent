@@ -19,7 +19,13 @@ from tasks.libs.common.constants import (
     DEFAULT_BRANCH,
     GITHUB_REPO_NAME,
 )
-from tasks.libs.common.git import check_base_branch, check_clean_branch_state, get_current_branch, try_git_command
+from tasks.libs.common.git import (
+    check_base_branch,
+    check_clean_branch_state,
+    clone,
+    get_current_branch,
+    try_git_command,
+)
 from tasks.libs.common.user_interactions import yes_no_question
 from tasks.libs.pipeline.notifications import DEFAULT_SLACK_CHANNEL, load_and_validate
 from tasks.libs.releasing.documentation import create_release_page, get_release_page_info
@@ -826,21 +832,25 @@ def _create_build_links_patterns(current_version, new_version):
 
 
 @task
-def get_active_release_branch(_ctx):
+def get_active_release_branch(_):
     """
     Determine what is the current active release branch for the Agent.
     If release started and code freeze is in place - main branch is considered active.
     If release started and code freeze is over - release branch is considered active.
     """
     gh = GithubAPI()
-    latest_release = gh.latest_release()
-    version = _create_version_from_match(VERSION_RE.search(latest_release))
-    next_version = version.next_version(bump_minor=True)
+    next_version = get_next_version(gh)
     release_branch = gh.get_branch(next_version.branch())
     if release_branch:
         print(f"{release_branch.name}")
     else:
         print("main")
+
+
+def get_next_version(gh):
+    latest_release = gh.latest_release()
+    current_version = _create_version_from_match(VERSION_RE.search(latest_release))
+    return current_version.next_version(bump_minor=True)
 
 
 @task
@@ -907,3 +917,34 @@ def chase_release_managers(_, version):
     client = WebClient(os.environ["SLACK_API_TOKEN"])
     for channel in channels:
         client.chat_postMessage(channel=channel, text=message)
+
+
+@task
+def check_for_changes(ctx, release_branch):
+    """
+    Check if there was any modification on the release repositories since last release candidate.
+    """
+    describe_pattern = re.compile(r"^.*-(?P<commit_number>\d+)-g[0-9a-f]+$")
+    release_repos = UNFREEZE_REPOS
+    release_repos.insert(len(release_repos) - 1, "integrations-core")  # from smallest to biggest repo
+    gh = GithubAPI()
+    next_version = get_next_version(gh)
+    clone_branch = release_branch
+    for repo in release_repos:
+        if (
+            repo == "integrations-core" and release_branch == "main"
+        ):  # Release branch is not created yet except for integrations-core
+            clone_branch = next_version.branch()
+        with clone(ctx, repo, clone_branch, options="--filter=blob:none --no-checkout"):
+            # get last semver tag
+            latest_tag = ctx.run(
+                rf"git tag -l --sort=version:refname --merged {clone_branch} | grep -E '^[0-9]+\.[0-9]+\.[0-9]+' | tail -1",
+                hide=True,
+            ).stdout.strip()
+            # get number of commits since then with describe
+            describe = ctx.run(f'git describe --tags --match "{latest_tag}"', hide=True).stdout.strip()
+            commit_match = describe_pattern.match(describe)
+            if commit_match:
+                print(f"Merged {commit_match['commit_number']} commits since {latest_tag} on {repo}")
+                return int(commit_match['commit_number'])
+    return 0

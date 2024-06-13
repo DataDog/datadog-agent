@@ -3,8 +3,9 @@ from __future__ import annotations
 import unittest
 from collections import OrderedDict
 from types import SimpleNamespace
-from unittest import mock
+from unittest.mock import MagicMock, patch
 
+from invoke import MockContext, Result
 from invoke.exceptions import Exit
 
 from tasks import release
@@ -72,9 +73,9 @@ def mocked_github_requests_incorrect_get(*_args, **_kwargs):
 
 
 class TestGetHighestRepoVersion(unittest.TestCase):
-    @mock.patch('tasks.libs.releasing.version.GithubAPI')
+    @patch('tasks.libs.releasing.version.GithubAPI')
     def test_ignore_incorrect_tag(self, gh_mock):
-        gh_instance = mock.MagicMock()
+        gh_instance = MagicMock()
         gh_instance.get_tags.side_effect = mocked_github_requests_incorrect_get
         gh_mock.return_value = gh_instance
         version = _get_highest_repo_version(
@@ -85,9 +86,9 @@ class TestGetHighestRepoVersion(unittest.TestCase):
         )
         self.assertEqual(version, Version(major=7, minor=28, patch=0, rc=2))
 
-    @mock.patch('tasks.libs.releasing.version.GithubAPI')
+    @patch('tasks.libs.releasing.version.GithubAPI')
     def test_one_allowed_major_multiple_entries(self, gh_mock):
-        gh_instance = mock.MagicMock()
+        gh_instance = MagicMock()
         gh_instance.get_tags.side_effect = mocked_github_requests_get
         gh_mock.return_value = gh_instance
         version = _get_highest_repo_version(
@@ -98,9 +99,9 @@ class TestGetHighestRepoVersion(unittest.TestCase):
         )
         self.assertEqual(version, Version(major=7, minor=28, patch=1))
 
-    @mock.patch('tasks.libs.releasing.version.GithubAPI')
+    @patch('tasks.libs.releasing.version.GithubAPI')
     def test_one_allowed_major_one_entry(self, gh_mock):
-        gh_instance = mock.MagicMock()
+        gh_instance = MagicMock()
         gh_instance.get_tags.side_effect = mocked_github_requests_get
         gh_mock.return_value = gh_instance
         version = _get_highest_repo_version(
@@ -111,9 +112,9 @@ class TestGetHighestRepoVersion(unittest.TestCase):
         )
         self.assertEqual(version, Version(major=7, minor=29, patch=0))
 
-    @mock.patch('tasks.libs.releasing.version.GithubAPI')
+    @patch('tasks.libs.releasing.version.GithubAPI')
     def test_multiple_allowed_majors_multiple_entries(self, gh_mock):
-        gh_instance = mock.MagicMock()
+        gh_instance = MagicMock()
         gh_instance.get_tags.side_effect = mocked_github_requests_get
         gh_mock.return_value = gh_instance
         version = _get_highest_repo_version(
@@ -124,9 +125,9 @@ class TestGetHighestRepoVersion(unittest.TestCase):
         )
         self.assertEqual(version, Version(major=6, minor=28, patch=1))
 
-    @mock.patch('tasks.libs.releasing.version.GithubAPI')
+    @patch('tasks.libs.releasing.version.GithubAPI')
     def test_multiple_allowed_majors_one_entry(self, gh_mock):
-        gh_instance = mock.MagicMock()
+        gh_instance = MagicMock()
         gh_instance.get_tags.side_effect = mocked_github_requests_get
         gh_mock.return_value = gh_instance
         version = _get_highest_repo_version(
@@ -137,9 +138,9 @@ class TestGetHighestRepoVersion(unittest.TestCase):
         )
         self.assertEqual(version, Version(major=6, minor=29, patch=0))
 
-    @mock.patch('tasks.libs.releasing.version.GithubAPI')
+    @patch('tasks.libs.releasing.version.GithubAPI')
     def test_nonexistant_minor(self, gh_mock):
-        gh_instance = mock.MagicMock()
+        gh_instance = MagicMock()
         gh_instance.get_tags.side_effect = mocked_github_requests_get
         gh_mock.return_value = gh_instance
         self.assertRaises(
@@ -165,7 +166,7 @@ def mocked_jmxfetch_requests_get(*_args, **_kwargs):
 
 
 class TestUpdateReleaseJsonEntry(unittest.TestCase):
-    @mock.patch('requests.get', side_effect=mocked_jmxfetch_requests_get)
+    @patch('requests.get', side_effect=mocked_jmxfetch_requests_get)
     def test_update_release_json_entry(self, _):
         self.maxDiff = None
         initial_release_json = OrderedDict(
@@ -525,3 +526,118 @@ class TestCreateBuildLinksPatterns(unittest.TestCase):
         self.assertEqual(patterns[".50.0-rc.1"], ".51.1-rc.2")
         self.assertEqual(patterns[".50.0-rc-1"], ".51.1-rc-2")
         self.assertEqual(patterns[".50.0~rc.1"], ".51.1~rc.2")
+
+
+class TestCheckForChanges(unittest.TestCase):
+    @patch('os.chdir', new=MagicMock())
+    @patch('tasks.release.GithubAPI')
+    def test_changes_on_first_repo(self, gh_mock):
+        gh = MagicMock()
+        gh.latest_release.return_value = "6.5.6"
+        gh_mock.return_value = gh
+        c = MockContext(
+            run={
+                "git clone -b main --filter=blob:none --no-checkout https://github.com/DataDog/omnibus-software omnibus-software": Result(
+                    ""
+                ),
+                r"git tag -l --sort=version:refname --merged main | grep -E '^[0-9]+\.[0-9]+\.[0-9]+' | tail -1": Result(
+                    "6.6.6-rc.6"
+                ),
+                'git describe --tags --match "6.6.6-rc.6"': Result(stdout="6.6.6-rc.6-42-g1ace007"),
+                "rm -rf omnibus-software": Result(""),
+            },
+            repeat=False,
+        )
+        self.assertEqual(42, release.check_for_changes(c, "main"))
+
+    @patch('os.chdir', new=MagicMock())
+    @patch('tasks.release.GithubAPI')
+    def test_changes_on_main(self, gh_mock):
+        gh = MagicMock()
+        gh.latest_release.return_value = "6.5.6"
+        gh_mock.return_value = gh
+        c = MockContext(
+            run={
+                "git clone -b main --filter=blob:none --no-checkout https://github.com/DataDog/omnibus-software omnibus-software": Result(
+                    ""
+                ),
+                r"git tag -l --sort=version:refname --merged main | grep -E '^[0-9]+\.[0-9]+\.[0-9]+' | tail -1": Result(
+                    "6.6.6"
+                ),
+                'git describe --tags --match "6.6.6"': Result("6.6.6"),
+                "rm -rf omnibus-software": Result(""),
+                "git clone -b main --filter=blob:none --no-checkout https://github.com/DataDog/omnibus-ruby omnibus-ruby": Result(
+                    ""
+                ),
+                "rm -rf omnibus-ruby": Result(""),
+                "git clone -b main --filter=blob:none --no-checkout https://github.com/DataDog/datadog-agent-macos-build datadog-agent-macos-build": Result(
+                    ""
+                ),
+                "rm -rf datadog-agent-macos-build": Result(""),
+                "git clone -b 6.6.x --filter=blob:none --no-checkout https://github.com/DataDog/integrations-core integrations-core": Result(
+                    ""
+                ),
+                r"git tag -l --sort=version:refname --merged 6.6.x | grep -E '^[0-9]+\.[0-9]+\.[0-9]+' | tail -1": Result(
+                    "6.6.6-rc.6"
+                ),
+                'git describe --tags --match "6.6.6-rc.6"': Result("6.6.6-rc.6-1000000-g1ace007"),
+                "rm -rf integrations-core": Result(""),
+            }
+        )
+        self.assertEqual(1000000, release.check_for_changes(c, "main"))
+
+    @patch('os.chdir', new=MagicMock())
+    @patch('tasks.release.GithubAPI')
+    def test_changes_after_branching_out(self, gh_mock):
+        gh = MagicMock()
+        gh.latest_release.return_value = "6.5.6"
+        gh_mock.return_value = gh
+        c = MockContext(
+            run={
+                "git clone -b 6.6.x --filter=blob:none --no-checkout https://github.com/DataDog/omnibus-software omnibus-software": Result(
+                    ""
+                ),
+                r"git tag -l --sort=version:refname --merged 6.6.x | grep -E '^[0-9]+\.[0-9]+\.[0-9]+' | tail -1": Result(
+                    "6.6.6-rc.6"
+                ),
+                'git describe --tags --match "6.6.6-rc.6"': Result("6.6.6-rc.6-1-g1ace007"),
+                "rm -rf omnibus-software": Result(""),
+            }
+        )
+        self.assertEqual(1, release.check_for_changes(c, "6.6.x"))
+
+    @patch('os.chdir', new=MagicMock())
+    @patch('tasks.release.GithubAPI')
+    def test_no_changes(self, gh_mock):
+        gh = MagicMock()
+        gh.latest_release.return_value = "6.5.6"
+        gh_mock.return_value = gh
+        c = MockContext(
+            run={
+                "git clone -b 6.6.x --filter=blob:none --no-checkout https://github.com/DataDog/omnibus-software omnibus-software": Result(
+                    ""
+                ),
+                r"git tag -l --sort=version:refname --merged 6.6.x | grep -E '^[0-9]+\.[0-9]+\.[0-9]+' | tail -1": Result(
+                    "6.6.6"
+                ),
+                'git describe --tags --match "6.6.6"': Result("6.6.6"),
+                "rm -rf omnibus-software": Result(""),
+                "git clone -b 6.6.x --filter=blob:none --no-checkout https://github.com/DataDog/omnibus-ruby omnibus-ruby": Result(
+                    ""
+                ),
+                "rm -rf omnibus-ruby": Result(""),
+                "git clone -b 6.6.x --filter=blob:none --no-checkout https://github.com/DataDog/datadog-agent-macos-build datadog-agent-macos-build": Result(
+                    ""
+                ),
+                "rm -rf datadog-agent-macos-build": Result(""),
+                "git clone -b 6.6.x --filter=blob:none --no-checkout https://github.com/DataDog/integrations-core integrations-core": Result(
+                    ""
+                ),
+                "rm -rf integrations-core": Result(""),
+                "git clone -b 6.6.x --filter=blob:none --no-checkout https://github.com/DataDog/datadog-agent datadog-agent": Result(
+                    ""
+                ),
+                "rm -rf datadog-agent": Result(""),
+            }
+        )
+        self.assertEqual(0, release.check_for_changes(c, "6.6.x"))

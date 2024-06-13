@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-import os.path
+import os
+from contextlib import contextmanager
 from typing import TYPE_CHECKING
 
 from invoke.exceptions import Exit
@@ -11,6 +12,23 @@ from tasks.libs.common.user_interactions import yes_no_question
 
 if TYPE_CHECKING:
     from collections.abc import Iterable
+
+
+@contextmanager
+def clone(ctx, repo, branch, destination="", options=""):
+    """
+    Context manager to clone a git repository and checkout a specific branch.
+    """
+    current_dir = os.getcwd()
+    if len(destination) == 0:
+        destination = repo
+    try:
+        ctx.run(f"git clone -b {branch} {options} https://github.com/DataDog/{repo} {destination}")
+        os.chdir(destination)
+        yield
+    finally:
+        os.chdir(current_dir)
+        ctx.run(f"rm -rf {destination}")
 
 
 def get_staged_files(ctx, commit="HEAD", include_deleted_files=False) -> Iterable[str]:

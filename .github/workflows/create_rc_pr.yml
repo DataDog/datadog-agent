@@ -18,6 +18,7 @@ jobs:
               uses: actions/checkout@0ad4b8fadaa221de15dcec353f45205ec38ea70b # v4.1.4
               with:
                 fetch-depth: 0
+                sparse-checkout: 'tasks'
 
             - name: Install python
               uses: actions/setup-python@82c7e631bb3cdc910f68e0081d67478d79c6982d # v5.1.0
@@ -40,19 +41,12 @@ jobs:
               with:
                 ref: ${{ env.RELEASE_BRANCH }}
                 fetch-depth: 0
+                sparse-checkout: 'tasks'
 
             - name: Check for changes since last RC
               id: check_for_changes
               run: |
-                last_rc_commit=$(git log -1 --format=%H --grep="Update release.json and Go modules")
-                count=$(git rev-list --count HEAD ^"$last_rc_commit")
-                echo COUNT=$count >> $GITHUB_OUTPUT
-                  
-                if [ $count -eq '0' ]; then
-                    echo "No changes since last RC. Quitting workflow."
-                else
-                    echo "$count new commits found since last RC. Proceeding with the RC PR creation."
-                fi
+                echo COUNT=$(inv -e release.check-for-changes -r ${{ env.RELEASE_BRANCH }}) >> $GITHUB_ENV
                   
             - name: Create RC PR
               if: ${{ steps.check_for_changes.outputs.COUNT != '0'}}
