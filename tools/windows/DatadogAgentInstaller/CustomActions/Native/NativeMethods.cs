@@ -925,8 +925,8 @@ namespace Datadog.CustomActions.Native
 
         public string GetVersionString(string product)
         {
-            Int32 len = 512;
-            System.Text.StringBuilder builder = new System.Text.StringBuilder(len);
+            var len = 512;
+            var builder = new System.Text.StringBuilder(len);
 
             MsiGetProductInfo(product, "VersionString", builder , ref len);
 

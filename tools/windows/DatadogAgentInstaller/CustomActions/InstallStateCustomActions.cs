@@ -169,7 +169,7 @@ namespace Datadog.CustomActions
                 var versionString = _nativeMethods.GetVersionString(upgradeDetected);
                 // Using Version class 
                 // https://learn.microsoft.com/en-us/dotnet/api/system.version?view=net-8.0
-                Version currentVersion = new Version(versionString);
+                var currentVersion = new Version(versionString);
                 Version version_53;
                 Version minimumVersion;
 

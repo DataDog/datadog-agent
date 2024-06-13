@@ -65,7 +65,7 @@ namespace CustomActions.Tests.InstallState
         [InlineData("7.56", "1", "1")]
         public void ReadDD_Driver_Rollback_Upgrade(string version, string NPMExpectedRollback, string procmonExopectedRollback)
         {
-            string productCode = "{123-456-789}";
+            var productCode = "{123-456-789}";
             Test.Session.Setup(session => session["WIX_UPGRADE_DETECTED"]).Returns(productCode);
             Test.NativeMethods.Setup(n => n.GetVersionString(productCode)).Returns(version);
 
