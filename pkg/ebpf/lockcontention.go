@@ -315,8 +315,6 @@ func (l *LockContentionCollector) Initialize(trackAllResources bool) error {
 	if err != nil {
 		return fmt.Errorf("unable to fetch kernel symbol addresses: %w", err)
 	}
-	fmt.Printf("kernel addresses: %v\n", kaddrs)
-	log.Infof("kernel addresses: %v", kaddrs)
 
 	var ranges uint32
 	var cpus uint32
@@ -518,13 +516,6 @@ func estimateNumOfLockRanges(tm map[uint32]*targetMap, cpu uint32) uint32 {
 	}
 
 	return num
-}
-
-func useDummyRead(addrs map[string]uint64) bool {
-	_, okFops := addrs["bpf_map_fops"]
-	_, okRead := addrs["bpf_dummy_read"]
-
-	return (!okFops && okRead) && !okRead
 }
 
 type ksymIterProgram struct {
