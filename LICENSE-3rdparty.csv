@@ -1437,9 +1437,9 @@ core,github.com/goccy/go-json/internal/encoder/vm_color_indent,MIT,Copyright (c)
 core,github.com/goccy/go-json/internal/encoder/vm_indent,MIT,Copyright (c) 2020 Masaaki Goshima
 core,github.com/goccy/go-json/internal/errors,MIT,Copyright (c) 2020 Masaaki Goshima
 core,github.com/goccy/go-json/internal/runtime,MIT,Copyright (c) 2020 Masaaki Goshima
-core,github.com/gocolly/colly,Apache-2.0,Copyright 2018 Adam Tauber
-core,github.com/gocolly/colly/debug,Apache-2.0,Copyright 2018 Adam Tauber
-core,github.com/gocolly/colly/storage,Apache-2.0,Copyright 2018 Adam Tauber
+core,github.com/gocolly/colly/v2,Apache-2.0,Copyright 2018 Adam Tauber
+core,github.com/gocolly/colly/v2/debug,Apache-2.0,Copyright 2018 Adam Tauber
+core,github.com/gocolly/colly/v2/storage,Apache-2.0,Copyright 2018 Adam Tauber
 core,github.com/gocomply/scap/pkg/scap/constants,CC0-1.0,CC0 1.0 Universal
 core,github.com/gocomply/scap/pkg/scap/models/cdf,CC0-1.0,CC0 1.0 Universal
 core,github.com/gocomply/scap/pkg/scap/models/cpe,CC0-1.0,CC0 1.0 Universal

@@ -16,6 +16,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"time"
 
 	"github.com/gocolly/colly/v2"
 
@@ -149,8 +150,19 @@ func (c *collectorImpl) fillFlare(fb flaretypes.FlareBuilder) error {
 
 	// retrieve each source of configuration
 	for _, src := range responseInfo.Sources {
-		response, err := http.Get(src.URL)
-		if err != nil {
+		var err error
+		var response *http.Response
+		retries := 3
+		for retries > 0 {
+			response, err = http.Get(src.URL)
+			if err != nil {
+				retries -= 1
+				time.Sleep(500 * time.Millisecond)
+			} else {
+				break
+			}
+		}
+		if response == nil {
 			fb.AddFile(fmt.Sprintf("otel/otel-flare/%s.err", src.Name), []byte(err.Error())) //nolint:errcheck
 			continue
 		}
