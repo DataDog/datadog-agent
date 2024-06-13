@@ -26,6 +26,7 @@ type dockerTestSuite struct {
 }
 
 func TestDockerTestSuite(t *testing.T) {
+	t.Parallel()
 	agentOpts := []dockeragentparams.Option{
 		dockeragentparams.WithAgentServiceEnvVariable("DD_PROCESS_CONFIG_PROCESS_COLLECTION_ENABLED", pulumi.StringPtr("true")),
 		dockeragentparams.WithAgentServiceEnvVariable("DD_PROCESS_CONFIG_CONTAINER_COLLECTION_ENABLED", pulumi.StringPtr("false")),
