@@ -105,9 +105,14 @@ func (i *installerImpl) States() (map[string]repository.State, error) {
 func (i *installerImpl) IsInstalled(_ context.Context, pkg string) (bool, error) {
 	// The install script passes the package name as either <package>-<version> or <package>=<version>
 	// depending on the platform so we strip the version prefix by looking for the "real" package name
+	hasMatch := false
 	for _, p := range PackagesList {
 		if strings.HasPrefix(pkg, p.Name) {
+			if hasMatch {
+				return false, fmt.Errorf("the package %v matches multiple known packages", pkg)
+			}
 			pkg = p.Name
+			hasMatch = true
 		}
 	}
 	hasPackage, err := i.db.HasPackage(pkg)
