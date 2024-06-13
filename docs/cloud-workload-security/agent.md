@@ -71,12 +71,10 @@ Patterns on `.path` fields will be used as Glob. `*` will match files and folder
 You can use SECL to write rules based on durations, which trigger on events that occur during a specific time period. For example, trigger on an event where a secret file is accessed more than a certain length of time after a process is created.
 Such a rule could be written as follows:
 
-{% raw %}
 {{< code-block lang="javascript" >}}
 open.file.path == "/etc/secret" && process.file.name == "java" && process.created_at > 5s
 
 {{< /code-block >}}
-{% endraw %}
 
 Durations are numbers with a unit suffix. The supported suffixes are "s", "m", "h".
 
