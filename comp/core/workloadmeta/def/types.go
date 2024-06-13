@@ -45,7 +45,6 @@ const (
 	KindKubernetesNode         Kind = "kubernetes_node"
 	KindKubernetesMetadata     Kind = "kubernetes_metadata"
 	KindKubernetesDeployment   Kind = "kubernetes_deployment"
-	KindKubernetesNamespace    Kind = "kubernetes_namespace"
 	KindECSTask                Kind = "ecs_task"
 	KindContainerImageMetadata Kind = "container_image_metadata"
 	KindProcess                Kind = "process"
@@ -821,7 +820,7 @@ func (m *KubernetesMetadata) String(verbose bool) string {
 
 	if verbose {
 		_, _ = fmt.Fprintln(&sb, "----------- Resource -----------")
-		_, _ = fmt.Fprint(&sb, m.GVR.String())
+		_, _ = fmt.Fprintln(&sb, m.GVR.String())
 	}
 
 	return sb.String()

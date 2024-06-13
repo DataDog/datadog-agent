@@ -25,6 +25,7 @@ replace (
 
 replace (
 	github.com/DataDog/datadog-agent/cmd/agent/common/path => ./cmd/agent/common/path/
+	github.com/DataDog/datadog-agent/comp/api/api/def => ./comp/api/api/def/
 	github.com/DataDog/datadog-agent/comp/core/config => ./comp/core/config/
 	github.com/DataDog/datadog-agent/comp/core/flare/builder => ./comp/core/flare/builder
 	github.com/DataDog/datadog-agent/comp/core/flare/types => ./comp/core/flare/types
@@ -49,7 +50,6 @@ replace (
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/logsagentexporter => ./comp/otelcol/otlp/components/exporter/logsagentexporter
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/serializerexporter => ./comp/otelcol/otlp/components/exporter/serializerexporter
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/metricsclient => ./comp/otelcol/otlp/components/metricsclient
-	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/pipeline/provider => ./comp/otelcol/otlp/components/pipeline/provider
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/statsprocessor => ./comp/otelcol/otlp/components/statsprocessor
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/testutil => ./comp/otelcol/otlp/testutil
 	github.com/DataDog/datadog-agent/comp/serializer/compression => ./comp/serializer/compression
@@ -281,8 +281,8 @@ require (
 	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.52.0 // indirect
 	go.uber.org/atomic v1.11.0
 	go.uber.org/automaxprocs v1.5.3
-	go.uber.org/dig v1.17.0
-	go.uber.org/fx v1.18.2
+	go.uber.org/dig v1.17.1
+	go.uber.org/fx v1.22.0
 	go.uber.org/multierr v1.11.0
 	go.uber.org/zap v1.27.0
 	go4.org/netipx v0.0.0-20220812043211-3cc044ffd68d
@@ -607,6 +607,7 @@ require (
 	github.com/DATA-DOG/go-sqlmock v1.5.2
 	github.com/DataDog/agent-payload/v5 v5.0.119
 	github.com/DataDog/datadog-agent/cmd/agent/common/path v0.55.0-rc.3
+	github.com/DataDog/datadog-agent/comp/api/api/def v0.55.0-rc.3
 	github.com/DataDog/datadog-agent/comp/core/config v0.55.0-rc.3
 	github.com/DataDog/datadog-agent/comp/core/flare/builder v0.55.0-rc.3
 	github.com/DataDog/datadog-agent/comp/core/flare/types v0.55.0-rc.3
@@ -725,7 +726,6 @@ require (
 	go.opentelemetry.io/collector/service v0.102.1
 	go4.org/intern v0.0.0-20230525184215-6c62f75575cb
 	go4.org/mem v0.0.0-20220726221520-4f986261bf13
-	gotest.tools v2.2.0+incompatible
 	k8s.io/cli-runtime v0.29.0
 	k8s.io/kubectl v0.29.0
 )
