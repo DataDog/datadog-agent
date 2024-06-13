@@ -539,7 +539,6 @@ def kmt_secagent_prepare(
     build_functional_tests(
         ctx,
         bundle_ebpf=False,
-        race=True,
         debug=True,
         output=f"{kmt_paths.secagent_tests}/pkg/security/testsuite",
         skip_linters=True,
