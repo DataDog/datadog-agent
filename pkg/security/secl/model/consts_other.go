@@ -24,3 +24,21 @@ var (
 	SignalConstants        = map[string]int{}
 	addressFamilyConstants = map[string]uint16{}
 )
+
+func initVMConstants()               {}
+func initBPFCmdConstants()           {}
+func initBPFHelperFuncConstants()    {}
+func initBPFMapTypeConstants()       {}
+func initBPFProgramTypeConstants()   {}
+func initBPFAttachTypeConstants()    {}
+func initPipeBufFlagConstants()      {}
+func initOpenConstants()             {}
+func initFileModeConstants()         {}
+func initInodeModeConstants()        {}
+func initUnlinkConstanst()           {}
+func initKernelCapabilityConstants() {}
+func initPtraceConstants()           {}
+func initProtConstansts()            {}
+func initMMapFlagsConstants()        {}
+func initSignalConstants()           {}
+func initBPFMapNamesConstants()      {}

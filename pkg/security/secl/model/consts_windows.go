@@ -31,3 +31,21 @@ var (
 		"SIGKILL": SIGKILL,
 	}
 )
+
+func initVMConstants()               {}
+func initBPFCmdConstants()           {}
+func initBPFHelperFuncConstants()    {}
+func initBPFMapTypeConstants()       {}
+func initBPFProgramTypeConstants()   {}
+func initBPFAttachTypeConstants()    {}
+func initPipeBufFlagConstants()      {}
+func initOpenConstants()             {}
+func initFileModeConstants()         {}
+func initInodeModeConstants()        {}
+func initUnlinkConstanst()           {}
+func initKernelCapabilityConstants() {}
+func initPtraceConstants()           {}
+func initProtConstansts()            {}
+func initMMapFlagsConstants()        {}
+func initSignalConstants()           {}
+func initBPFMapNamesConstants()      {}
