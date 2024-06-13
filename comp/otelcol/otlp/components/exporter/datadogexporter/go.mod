@@ -78,7 +78,6 @@ replace (
 )
 
 require (
-	github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface v0.55.0-rc.3
 	github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline v0.55.0-rc.3
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/logsagentexporter v0.55.0-rc.3
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/serializerexporter v0.55.0-rc.3
@@ -108,6 +107,7 @@ require (
 require (
 	github.com/DataDog/agent-payload/v5 v5.0.114 // indirect
 	github.com/DataDog/datadog-agent/comp/core/config v0.55.0-rc.3 // indirect
+	github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface v0.55.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/comp/core/log v0.55.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/comp/core/secrets v0.55.0-rc.3 // indirect
 	github.com/DataDog/datadog-agent/comp/core/status v0.55.0-rc.3 // indirect

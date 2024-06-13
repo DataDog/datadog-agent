@@ -13,7 +13,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface"
 	"github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/logsagentexporter"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/serializerexporter"
@@ -43,7 +42,7 @@ type factory struct {
 	registry  *featuregate.Registry
 	s         serializer.MetricSerializer
 	logsAgent logsagentpipeline.Component
-	h         hostnameinterface.Component
+	h         serializerexporter.SourceProviderFunc
 }
 
 func (f *factory) AttributesTranslator(set component.TelemetrySettings) (*attributes.Translator, error) {
@@ -53,7 +52,7 @@ func (f *factory) AttributesTranslator(set component.TelemetrySettings) (*attrib
 	return f.attributesTranslator, f.attributesErr
 }
 
-func newFactoryWithRegistry(registry *featuregate.Registry, s serializer.MetricSerializer, logsagent logsagentpipeline.Component, h hostnameinterface.Component) exporter.Factory {
+func newFactoryWithRegistry(registry *featuregate.Registry, s serializer.MetricSerializer, logsagent logsagentpipeline.Component, h serializerexporter.SourceProviderFunc) exporter.Factory {
 	f := &factory{
 		registry:  registry,
 		s:         s,
@@ -63,7 +62,7 @@ func newFactoryWithRegistry(registry *featuregate.Registry, s serializer.MetricS
 
 	return exporter.NewFactory(
 		Type,
-		f.createDefaultConfig,
+		CreateDefaultConfig,
 		exporter.WithMetrics(f.createMetricsExporter, MetricsStability),
 		exporter.WithTraces(f.createTracesExporter, TracesStability),
 		exporter.WithLogs(f.createLogsExporter, LogsStability),
@@ -85,7 +84,7 @@ func (t *tagEnricher) Enrich(_ context.Context, extraTags []string, dimensions *
 }
 
 // NewFactory creates a Datadog exporter factory
-func NewFactory(s serializer.MetricSerializer, logsAgent logsagentpipeline.Component, h hostnameinterface.Component) exporter.Factory {
+func NewFactory(s serializer.MetricSerializer, logsAgent logsagentpipeline.Component, h serializerexporter.SourceProviderFunc) exporter.Factory {
 	return newFactoryWithRegistry(featuregate.GlobalRegistry(), s, logsAgent, h)
 }
 
@@ -96,8 +95,8 @@ func defaultClientConfig() confighttp.ClientConfig {
 	}
 }
 
-// createDefaultConfig creates the default exporter configuration
-func (f *factory) createDefaultConfig() component.Config {
+// CreateDefaultConfig creates the default exporter configuration
+func CreateDefaultConfig() component.Config {
 	return &Config{
 		ClientConfig:  defaultClientConfig(),
 		BackOffConfig: configretry.NewDefaultBackOffConfig(),
@@ -178,7 +177,7 @@ func (f *factory) createMetricsExporter(
 	statsIn := make(chan []byte, 1000)
 	statsv := set.BuildInfo.Command + set.BuildInfo.Version
 	f.consumeStatsPayload(ctx, &wg, statsIn, statsv, fmt.Sprintf("datadogexporter-%s-%s", set.BuildInfo.Command, set.BuildInfo.Version), set.Logger)
-	sf := serializerexporter.NewFactory(f.s, &tagEnricher{}, f.h.Get, statsIn)
+	sf := serializerexporter.NewFactory(f.s, &tagEnricher{}, f.h, statsIn)
 	ex := &serializerexporter.ExporterConfig{
 		Metrics: cfg.Metrics,
 		TimeoutSettings: exporterhelper.TimeoutSettings{

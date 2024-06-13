@@ -26,7 +26,7 @@ void __attribute__((always_inline)) collect_syscall_ctx(struct syscall_cache_t *
         return;
     }
     __sync_fetch_and_add(id, 1);
-    
+
     key = *id % MAX_SYSCALL_CTX_ENTRIES;
     char *data = bpf_map_lookup_elem(&syscall_ctx, &key);
     if (!data) {
@@ -49,18 +49,18 @@ void __attribute__((always_inline)) collect_syscall_ctx(struct syscall_cache_t *
 
     if (arg2) {
         if (IS_SYSCALL_CTX_ARG_STR(types, 1)) {
-            bpf_probe_read_str(&data[5+MAX_SYSCALL_ARG_MAX_SIZE], MAX_SYSCALL_ARG_MAX_SIZE, arg2);
+            bpf_probe_read_str(&data[5 + MAX_SYSCALL_ARG_MAX_SIZE], MAX_SYSCALL_ARG_MAX_SIZE, arg2);
         } else {
-            s64 *addr = (s64 *)&data[5+MAX_SYSCALL_ARG_MAX_SIZE];
+            s64 *addr = (s64 *)&data[5 + MAX_SYSCALL_ARG_MAX_SIZE];
             addr[0] = *(s64 *)arg2;
         }
     }
 
     if (arg3) {
         if (IS_SYSCALL_CTX_ARG_STR(types, 2)) {
-            bpf_probe_read_str(&data[5+MAX_SYSCALL_ARG_MAX_SIZE*2], MAX_SYSCALL_ARG_MAX_SIZE, arg3);
+            bpf_probe_read_str(&data[5 + MAX_SYSCALL_ARG_MAX_SIZE * 2], MAX_SYSCALL_ARG_MAX_SIZE, arg3);
         } else {
-            s64 *addr = (s64 *)&data[5+MAX_SYSCALL_ARG_MAX_SIZE*2];
+            s64 *addr = (s64 *)&data[5 + MAX_SYSCALL_ARG_MAX_SIZE * 2];
             addr[0] = *(s64 *)arg3;
         }
     }
@@ -216,8 +216,7 @@ int __attribute__((always_inline)) filter_syscall(struct syscall_cache_t *syscal
         struct activity_dump_config *config = lookup_or_delete_traced_pid(tgid, now, cookie);
         if (config != NULL) {
             // is this event type traced ?
-            if (mask_has_event(config->event_mask, syscall->type)
-                && activity_dump_rate_limiter_allow(config, *cookie, now, 0)) {
+            if (mask_has_event(config->event_mask, syscall->type) && activity_dump_rate_limiter_allow(config, *cookie, now, 0)) {
                 if (!pass_to_userspace) {
                     syscall->resolver.flags |= SAVED_BY_ACTIVITY_DUMP;
                 }

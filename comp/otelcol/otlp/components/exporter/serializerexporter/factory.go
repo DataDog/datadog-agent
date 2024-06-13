@@ -28,7 +28,7 @@ const (
 type factory struct {
 	s          serializer.MetricSerializer
 	enricher   tagenricher
-	hostGetter sourceProviderFunc
+	hostGetter SourceProviderFunc
 	statsIn    chan []byte
 }
 
