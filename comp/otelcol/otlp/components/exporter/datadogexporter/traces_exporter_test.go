@@ -36,7 +36,7 @@ func (c testComponent) SetStatsdClient(mclient ddgostatsd.ClientInterface) {
 }
 
 func (c testComponent) SetOTelAttributeTranslator(attrstrans *attributes.Translator) {
-	c.Agent.OTLPReceiver.Conf.OTLPReceiver.AttributesTranslator = attrstrans
+	c.Agent.OTLPReceiver.SetOTelAttributeTranslator(attrstrans)
 }
 
 func (c testComponent) ReceiveOTLPSpans(ctx context.Context, rspans ptrace.ResourceSpans, httpHeader http.Header) source.Source {
