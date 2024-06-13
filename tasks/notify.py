@@ -597,31 +597,36 @@ def send_notification(ctx: Context, alert_jobs, jobowners=".gitlab/JOBOWNERS"):
 #     print('Messages sent')
 
 
-@dataclass
-class JobExecutionSummary:
-    jobs: list[ProjectPipelineJob]
+# @dataclass
+# class JobExecutionSummary:
+#     jobs: list[ProjectPipelineJob]
 
-    # TODO
-    @staticmethod
-    def from_s3(self):
-        pass
+#     # TODO
+#     @staticmethod
+#     def from_s3(self):
+#         pass
 
-    # TODO : Create lock, etc.
-    def to_s3(self):
-        pass
+#     # TODO : Create lock, etc.
+#     def to_s3(self):
+#         pass
 
-    def fetch_pipeline_jobs(self, pipeline_id: int):
-        """
-        Will fetch all jobs from a pipeline and add them to the jobs list
-        """
-        pass
+#     def fetch_pipeline_jobs(self, pipeline_id: int):
+#         """
+#         Will fetch all jobs from a pipeline and add them to the jobs list
+#         """
+#         pass
 
-    def __str__(self):
-        return '\n'.join(job.to_json() for job in self.jobs)
+#     def __str__(self):
+#         return '\n'.join(job.to_json() for job in self.jobs)
 
 
 @task
 def send_failure_summary_notification(_, allowed_to_fail: bool = False, list_max_len=10, jobowners=".gitlab/JOBOWNERS"):
+    from tasks import failure_summary
+
+    failure_summary.test()
+    return
+
     import time
 
     from tasks.libs.ciproviders.gitlab_api import get_gitlab_repo
