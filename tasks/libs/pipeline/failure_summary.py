@@ -6,7 +6,7 @@ from collections import Counter
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 
-from gitlab.v4.objects import Project, ProjectPipelineJob
+from gitlab.v4.objects import Project, ProjectPipeline, ProjectPipelineJob
 from invoke import Context
 
 from tasks.libs.ciproviders.gitlab_api import get_gitlab_repo
@@ -31,7 +31,7 @@ class SummaryData:
         ids = [SummaryData.get_id(filename) for filename in list_files(ctx)]
 
         if before:
-            ids = [id for id in ids if id <= before]
+            ids = [id for id in ids if id < before]
 
         if after:
             ids = [id for id in ids if id >= after]
@@ -50,9 +50,11 @@ class SummaryData:
     @staticmethod
     def read(ctx: Context, repo: Project, id: int) -> SummaryData:
         data = read_file(ctx, SummaryData.filename(id))
-        jobs = [ProjectPipelineJob(repo.manager, attrs=json.loads(job)) for job in data.split('\n')]
+        data = json.loads(data)
+        pipeline = ProjectPipeline(repo.manager, attrs=data['pipeline'])
+        jobs = [ProjectPipelineJob(repo.manager, attrs=job) for job in data['jobs']]
 
-        return SummaryData(ctx=ctx, id=id, jobs=jobs)
+        return SummaryData(ctx=ctx, id=id, jobs=jobs, pipeline=pipeline)
 
     @staticmethod
     def filename(id) -> str:
@@ -62,16 +64,26 @@ class SummaryData:
     def get_id(filename) -> int:
         return int(filename.split('.')[0])
 
-    def __init__(self, ctx: Context, id: int = None, jobs: list[ProjectPipelineJob] = None):
+    def __init__(
+        self, ctx: Context, id: int = None, jobs: list[ProjectPipelineJob] = None, pipeline: ProjectPipeline = None
+    ):
         self.ctx = ctx
         self.id = id or int(datetime.now().timestamp())
         self.jobs = jobs or []
+        self.pipeline = pipeline
 
     def write(self):
         write_file(self.ctx, SummaryData.filename(self.id), str(self))
 
+    def as_dict(self) -> dict:
+        return {
+            'pipeline': None if self.pipeline is None else self.pipeline.asdict(),
+            'id': self.id,
+            'jobs': [job.asdict() for job in self.jobs],
+        }
+
     def __str__(self) -> str:
-        return '\n'.join([job.to_json(separators=(',', ':')) for job in self.jobs])
+        return json.dumps(self.as_dict(), separators=(',', ':'))
 
 
 @dataclass
@@ -109,8 +121,8 @@ class SummaryStats:
         if not stats:
             return
 
-        print()
-        print('\n'.join(f'- {s["name"]}: {s["failures"]}/{s["total"]}' for s in stats))
+        # TODO : Format etc...
+        return '\n'.join(f'- {s["name"]}: {s["failures"]}/{s["runs"]}' for s in stats)
 
     def make_stats(self, max_length: int = 8, team: str | None = None) -> list[dict]:
         """
@@ -141,6 +153,13 @@ def read_file(ctx: Context, name: str) -> str:
 
     with open('/tmp/summary/' + name) as f:
         return f.read()
+
+
+def remove_files(ctx: Context, names: list[str]):
+    # TODO
+    print('Removing files', names)
+
+    os.system(f'rm -f /tmp/summary/{{{",".join(names)}}}')
 
 
 def list_files(ctx: Context) -> list[str]:
@@ -178,7 +197,7 @@ def fetch_jobs(ctx: Context, pipeline_id: int) -> SummaryData:
         if is_valid_job(repo, job):
             jobs.append(job)
 
-    return SummaryData(ctx=ctx, id=id, jobs=jobs)
+    return SummaryData(ctx=ctx, id=id, jobs=jobs, pipeline=pipeline)
 
 
 def fetch_summaries(ctx: Context, period: timedelta) -> SummaryData:
@@ -204,8 +223,8 @@ def clean_summaries(ctx: Context, period: timedelta):
     """
     Will remove summaries older than this period
     """
-    # TODO
-    pass
+    ids = SummaryData.list_summaries(ctx, before=int((datetime.now() - period).timestamp()))
+    remove_files(ctx, [SummaryData.filename(id) for id in ids])
 
 
 def send_summary_messages(ctx: Context, allow_failure: bool, max_length: int, period: timedelta):
@@ -228,10 +247,24 @@ def send_summary_messages(ctx: Context, allow_failure: bool, max_length: int, pe
 
 # TODO : rm
 def test(ctx: Context):
-    summary = fetch_jobs(ctx, 36500940)
-    id = int(datetime(2024, 1, 1).timestamp())
-    summary.id = id
-    summary.write()
+    s = fetch_summaries(ctx, timedelta(days=999))
+    stats = SummaryStats(s, allow_failure=True)
+    print(stats.make_message(stats.make_stats(16)))
+
+    return
+
+    # repo = get_gitlab_repo()
+    # pipeline = repo.pipelines.get(36500940)
+    # print(json.dumps({'pipeline': pipeline.asdict()}, indent=2))
+    # return
+
+    upload_summary(ctx, 36500940)
+    upload_summary(ctx, 36560009)
+
+    # summary = fetch_jobs(ctx, 36500940)
+    # id = int(datetime(2024, 1, 1).timestamp())
+    # summary.id = id
+    # summary.write()
 
     # summary2 = fetch_jobs(ctx, 36560009)
     # id2 = int(datetime(2024, 2, 1).timestamp())

@@ -622,7 +622,7 @@ def send_notification(ctx: Context, alert_jobs, jobowners=".gitlab/JOBOWNERS"):
 
 
 @task
-def failure_summary_on_job(ctx):
+def failure_summary_on_pipeline(ctx):
     failure_summary.upload_summary(ctx, os.environ['CI_PIPELINE_ID'])
 
 
