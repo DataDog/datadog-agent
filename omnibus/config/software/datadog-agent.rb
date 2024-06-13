@@ -185,7 +185,7 @@ build do
   end
 
   # OTel agent
-  if not bundled_agents.include? "otel-agent" && flavor_arg.eql? "ua"
+  if not bundled_agents.include?("otel-agent") && flavor_arg.eql?("ua")
     unless windows_target?
       command "invoke -e otel-agent.build", :env => env
       copy 'bin/otel-agent/otel-agent', "#{install_dir}/embedded/bin"
