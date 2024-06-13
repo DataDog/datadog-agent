@@ -224,6 +224,7 @@ def run(
     deploy=False,
     all_builds=True,
     e2e_tests=True,
+    kmt_tests=True,
     rc_build=False,
     rc_k8s_deployments=False,
 ):
@@ -332,6 +333,7 @@ def run(
             deploy=deploy,
             all_builds=all_builds,
             e2e_tests=e2e_tests,
+            kmt_tests=kmt_tests,
             rc_build=rc_build,
             rc_k8s_deployments=rc_k8s_deployments,
         )
