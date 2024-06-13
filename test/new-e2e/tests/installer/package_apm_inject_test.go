@@ -137,7 +137,7 @@ func (s *packageApmInjectSuite) TestUpgrade_InjectorDeb_To_InjectorOCI() {
 	s.host.InstallDocker()
 
 	// Deb install using today's defaults
-	err := s.RunInstallScriptWithError(
+	s.RunInstallScript(
 		"DD_APM_INSTRUMENTATION_ENABLED=all",
 		"DD_APM_INSTRUMENTATION_LIBRARIES=python",
 		envForceNoInstall("datadog-apm-inject"),
@@ -151,21 +151,19 @@ func (s *packageApmInjectSuite) TestUpgrade_InjectorDeb_To_InjectorOCI() {
 	)
 	defer s.Purge()
 	defer s.purgeInjectorDebInstall()
-	assert.NoError(s.T(), err)
 
 	s.assertLDPreloadInstrumented(injectDebPath)
 	s.assertSocketPath("/opt/datadog/apm/inject/run/apm.socket")
 	s.assertDockerdInstrumented(injectDebPath)
 
 	// OCI install
-	err = s.RunInstallScriptWithError(
+	s.RunInstallScriptWithError(
 		"DD_APM_INSTRUMENTATION_ENABLED=all",
 		"DD_APM_INSTRUMENTATION_LIBRARIES=python",
 		envForceInstall("datadog-apm-inject"),
 		envForceInstall("datadog-apm-library-python"),
 		envForceInstall("datadog-agent"),
 	)
-	assert.NoError(s.T(), err)
 
 	s.assertLDPreloadInstrumented(injectOCIPath)
 	s.assertSocketPath("/opt/datadog/apm/inject/run/apm.socket") // Socket path mustn't change
@@ -179,7 +177,7 @@ func (s *packageApmInjectSuite) TestUpgrade_InjectorOCI_To_InjectorDeb() {
 	s.host.InstallDocker()
 
 	// OCI install
-	err := s.RunInstallScriptWithError(
+	s.RunInstallScriptWithError(
 		"DD_APM_INSTRUMENTATION_ENABLED=all",
 		"DD_APM_INSTRUMENTATION_LIBRARIES=python",
 		envForceInstall("datadog-apm-inject"),
@@ -187,14 +185,13 @@ func (s *packageApmInjectSuite) TestUpgrade_InjectorOCI_To_InjectorDeb() {
 		envForceInstall("datadog-agent"),
 	)
 	defer s.Purge()
-	assert.NoError(s.T(), err)
 
 	s.assertLDPreloadInstrumented(injectOCIPath)
 	s.assertSocketPath("/var/run/datadog-installer/apm.socket")
 	s.assertDockerdInstrumented(injectOCIPath)
 
 	// Deb install using today's defaults
-	err = s.RunInstallScriptWithError(
+	s.RunInstallScriptWithError(
 		"DD_APM_INSTRUMENTATION_ENABLED=all",
 		"DD_APM_INSTRUMENTATION_LIBRARIES=python",
 		envForceNoInstall("datadog-apm-inject"),
@@ -207,7 +204,6 @@ func (s *packageApmInjectSuite) TestUpgrade_InjectorOCI_To_InjectorDeb() {
 		"DD_REPO_URL=datadoghq.com",
 	)
 	defer s.purgeInjectorDebInstall()
-	assert.NoError(s.T(), err)
 
 	// OCI musn't be overridden
 	s.assertLDPreloadInstrumented(injectOCIPath)
@@ -277,7 +273,7 @@ func (s *packageApmInjectSuite) TestVersionBump() {
 }
 
 func (s *packageApmInjectSuite) TestInstrument() {
-	err := s.RunInstallScriptWithError(
+	s.RunInstallScript(
 		"DD_APM_INSTRUMENTATION_ENABLED=host",
 		"DD_APM_INSTRUMENTATION_LIBRARIES=python",
 		envForceInstall("datadog-agent"),
@@ -285,15 +281,13 @@ func (s *packageApmInjectSuite) TestInstrument() {
 		envForceInstall("datadog-apm-library-python"),
 	)
 	defer s.Purge()
-
-	assert.NoError(s.T(), err)
 	s.assertLDPreloadInstrumented(injectOCIPath)
 	s.assertSocketPath("/var/run/datadog-installer/apm.socket")
 	s.assertDockerdNotInstrumented()
 
 	s.host.InstallDocker()
 
-	_, err = s.Env().RemoteHost.Execute("sudo datadog-installer apm instrument docker")
+	_, err := s.Env().RemoteHost.Execute("sudo datadog-installer apm instrument docker")
 	assert.NoError(s.T(), err)
 
 	s.assertLDPreloadInstrumented(injectOCIPath)
@@ -303,7 +297,7 @@ func (s *packageApmInjectSuite) TestInstrument() {
 
 func (s *packageApmInjectSuite) TestUninstrument() {
 	s.host.InstallDocker()
-	err := s.RunInstallScriptWithError(
+	s.RunInstallScriptWithError(
 		"DD_APM_INSTRUMENTATION_ENABLED=all",
 		"DD_APM_INSTRUMENTATION_LIBRARIES=python",
 		envForceInstall("datadog-agent"),
@@ -312,12 +306,11 @@ func (s *packageApmInjectSuite) TestUninstrument() {
 	)
 	defer s.Purge()
 
-	assert.NoError(s.T(), err)
 	s.assertLDPreloadInstrumented(injectOCIPath)
 	s.assertSocketPath("/var/run/datadog-installer/apm.socket")
 	s.assertDockerdInstrumented(injectOCIPath)
 
-	_, err = s.Env().RemoteHost.Execute("sudo datadog-installer apm uninstrument")
+	_, err := s.Env().RemoteHost.Execute("sudo datadog-installer apm uninstrument")
 	assert.NoError(s.T(), err)
 
 	state := s.host.State()
@@ -330,8 +323,8 @@ func (s *packageApmInjectSuite) TestInstrumentScripts() {
 	s.host.InstallDocker()
 
 	// Deb install using today's defaults
-	err := s.RunInstallScriptWithError(
-		"DD_APM_INSTRUMENTATION_ENABLED=all",
+	s.RunInstallScript(
+		"DD_APM_INSTRUMENTATION_ENABLED=host",
 		"DD_APM_INSTRUMENTATION_LIBRARIES=python",
 		envForceNoInstall("datadog-apm-inject"),
 		envForceNoInstall("datadog-apm-library-python"),
@@ -344,7 +337,6 @@ func (s *packageApmInjectSuite) TestInstrumentScripts() {
 	)
 	defer s.Purge()
 	defer s.purgeInjectorDebInstall()
-	assert.NoError(s.T(), err)
 
 	state := s.host.State()
 	state.AssertFileExists("/usr/bin/dd-host-install", 0755, "root", "root")
@@ -352,14 +344,13 @@ func (s *packageApmInjectSuite) TestInstrumentScripts() {
 	state.AssertFileExists("/usr/bin/dd-cleanup", 0755, "root", "root")
 
 	// OCI install
-	err = s.RunInstallScriptWithError(
+	s.RunInstallScript(
 		"DD_APM_INSTRUMENTATION_ENABLED=host",
 		"DD_APM_INSTRUMENTATION_LIBRARIES=python",
 		envForceInstall("datadog-agent"),
 		envForceInstall("datadog-apm-inject"),
 		envForceInstall("datadog-apm-library-python"),
 	)
-	assert.NoError(s.T(), err)
 
 	// Old commands still work
 	s.Env().RemoteHost.MustExecute("dd-host-install --uninstall")

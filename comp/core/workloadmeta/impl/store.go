@@ -351,16 +351,6 @@ func (w *workloadmeta) GetKubernetesDeployment(id string) (*wmdef.KubernetesDepl
 	return entity.(*wmdef.KubernetesDeployment), nil
 }
 
-// GetKubernetesNamespace implements Store#GetKubernetesNamespace
-func (w *workloadmeta) GetKubernetesNamespace(id string) (*wmdef.KubernetesNamespace, error) {
-	entity, err := w.getEntityByKind(wmdef.KindKubernetesNamespace, id)
-	if err != nil {
-		return nil, err
-	}
-
-	return entity.(*wmdef.KubernetesNamespace), nil
-}
-
 // ListECSTasks implements Store#ListECSTasks
 func (w *workloadmeta) ListECSTasks() []*wmdef.ECSTask {
 	entities := w.listEntitiesByKind(wmdef.KindECSTask)

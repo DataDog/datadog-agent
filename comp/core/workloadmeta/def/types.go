@@ -45,7 +45,6 @@ const (
 	KindKubernetesNode         Kind = "kubernetes_node"
 	KindKubernetesMetadata     Kind = "kubernetes_metadata"
 	KindKubernetesDeployment   Kind = "kubernetes_deployment"
-	KindKubernetesNamespace    Kind = "kubernetes_namespace"
 	KindECSTask                Kind = "ecs_task"
 	KindContainerImageMetadata Kind = "container_image_metadata"
 	KindProcess                Kind = "process"
@@ -821,7 +820,7 @@ func (m *KubernetesMetadata) String(verbose bool) string {
 
 	if verbose {
 		_, _ = fmt.Fprintln(&sb, "----------- Resource -----------")
-		_, _ = fmt.Fprint(&sb, m.GVR.String())
+		_, _ = fmt.Fprintln(&sb, m.GVR.String())
 	}
 
 	return sb.String()
@@ -956,47 +955,6 @@ func (d KubernetesDeployment) String(verbose bool) string {
 }
 
 var _ Entity = &KubernetesDeployment{}
-
-// KubernetesNamespace is an Entity representing a Kubernetes Namespace.
-type KubernetesNamespace struct {
-	EntityID
-	EntityMeta
-}
-
-// GetID implements Entity#GetID.
-func (n *KubernetesNamespace) GetID() EntityID {
-	return n.EntityID
-}
-
-// Merge implements Entity#Merge.
-func (n *KubernetesNamespace) Merge(e Entity) error {
-	nn, ok := e.(*KubernetesNamespace)
-	if !ok {
-		return fmt.Errorf("cannot merge KubernetesNamespace with different kind %T", e)
-	}
-
-	return merge(n, nn)
-}
-
-// DeepCopy implements Entity#DeepCopy.
-func (n KubernetesNamespace) DeepCopy() Entity {
-	cn := deepcopy.Copy(n).(KubernetesNamespace)
-	return &cn
-}
-
-// String implements Entity#String
-func (n KubernetesNamespace) String(verbose bool) string {
-	var sb strings.Builder
-	_, _ = fmt.Fprintln(&sb, "----------- Entity ID -----------")
-	_, _ = fmt.Fprintln(&sb, n.EntityID.String(verbose))
-
-	_, _ = fmt.Fprintln(&sb, "----------- Entity Meta -----------")
-	_, _ = fmt.Fprint(&sb, n.EntityMeta.String(verbose))
-
-	return sb.String()
-}
-
-var _ Entity = &KubernetesNamespace{}
 
 // ECSTaskKnownStatusStopped is the known status of an ECS task that has stopped.
 const ECSTaskKnownStatusStopped = "STOPPED"

@@ -112,18 +112,18 @@ func getNodeAnnotations(w http.ResponseWriter, r *http.Request, wmeta workloadme
 
 // getNamespaceMetadataWithTransformerFunc is used when the node agent hits the DCA for some (or all) metadata of a specific namespace
 // ATTENTION: T should be marshable to json
-func getNamespaceMetadataWithTransformerFunc[T any](w http.ResponseWriter, r *http.Request, wmeta workloadmeta.Component, f func(*workloadmeta.KubernetesNamespace) T, what string) {
+func getNamespaceMetadataWithTransformerFunc[T any](w http.ResponseWriter, r *http.Request, wmeta workloadmeta.Component, f func(*workloadmeta.KubernetesMetadata) T, what string) {
 	vars := mux.Vars(r)
 	var metadataBytes []byte
 	nsName := vars["ns"]
-	namespace, err := wmeta.GetKubernetesNamespace(nsName)
+	namespaceMetadata, err := wmeta.GetKubernetesMetadata(fmt.Sprintf("namespaces//%s", nsName))
 	if err != nil {
 		log.Debugf("Could not retrieve the %s of namespace %s: %v", what, nsName, err.Error()) //nolint:errcheck
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	metadata := f(namespace)
+	metadata := f(namespaceMetadata)
 	metadataBytes, err = json.Marshal(metadata)
 	if err != nil {
 		log.Errorf("Failed to marshal %s %+v of namespace %s from the workload metadata store: %v", what, metadata, nsName, err.Error()) //nolint:errcheck
@@ -157,7 +157,9 @@ func getNamespaceLabels(w http.ResponseWriter, r *http.Request, wmeta workloadme
 			Returns: string
 			Example: "no cached labels found for the namespace default"
 	*/
-	getNamespaceMetadataWithTransformerFunc(w, r, wmeta, func(namespace *workloadmeta.KubernetesNamespace) map[string]string { return namespace.Labels }, "labels")
+	getNamespaceMetadataWithTransformerFunc(w, r, wmeta, func(namespaceMetadata *workloadmeta.KubernetesMetadata) map[string]string {
+		return namespaceMetadata.Labels
+	}, "labels")
 }
 
 // getNamespaceMetadata is used when the node agent hits the DCA metadata (annotations and labels) of a specific namespace
@@ -178,8 +180,8 @@ func getNamespaceMetadata(w http.ResponseWriter, r *http.Request, wmeta workload
 			Returns: string
 			Example: "no cached metadata found for the namespace default"
 	*/
-	getNamespaceMetadataWithTransformerFunc(w, r, wmeta, func(namespace *workloadmeta.KubernetesNamespace) workloadmeta.EntityMeta {
-		return namespace.EntityMeta
+	getNamespaceMetadataWithTransformerFunc(w, r, wmeta, func(namespaceMetadata *workloadmeta.KubernetesMetadata) workloadmeta.EntityMeta {
+		return namespaceMetadata.EntityMeta
 	}, "metadata")
 }
 
