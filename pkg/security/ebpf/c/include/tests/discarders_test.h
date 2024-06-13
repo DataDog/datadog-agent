@@ -17,8 +17,7 @@ int __attribute__((always_inline)) _is_discarded_by_inode(u64 event_type, u32 mo
 }
 
 SEC("test/discarders_event_mask")
-int test_discarders_event_mask()
-{
+int test_discarders_event_mask() {
     u32 mount_id = 123;
     u64 inode = 456;
 
@@ -58,8 +57,7 @@ int test_discarders_event_mask()
 }
 
 SEC("test/discarders_retention")
-int test_discarders_retention()
-{
+int test_discarders_retention() {
     u32 mount_id = 123;
     u64 inode = 456;
 
@@ -99,8 +97,7 @@ int test_discarders_retention()
 }
 
 SEC("test/discarders_revision")
-int test_discarders_revision()
-{
+int test_discarders_revision() {
     u32 mount_id1 = 123;
     u64 inode1 = 456;
 
@@ -149,8 +146,7 @@ int test_discarders_revision()
 }
 
 SEC("test/discarders_mount_revision")
-int test_discarders_mount_revision()
-{
+int test_discarders_mount_revision() {
     u32 mount_id1 = 123;
     u64 inode1 = 456;
 

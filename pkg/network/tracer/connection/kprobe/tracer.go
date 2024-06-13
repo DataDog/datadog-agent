@@ -279,6 +279,7 @@ func loadCORETracer(config *config.Config, mgrOpts manager.Options, connCloseEve
 		o.ConstantEditors = mgrOpts.ConstantEditors
 		o.DefaultKprobeAttachMethod = mgrOpts.DefaultKprobeAttachMethod
 		o.DefaultKProbeMaxActive = mgrOpts.DefaultKProbeMaxActive
+		o.BypassEnabled = mgrOpts.BypassEnabled
 		m, closeFn, err = tracerLoaderFromAsset(ar, false, true, config, o, connCloseEventHandler)
 		return err
 	})

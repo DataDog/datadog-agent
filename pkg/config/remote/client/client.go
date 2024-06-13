@@ -424,13 +424,13 @@ func (c *Client) pollLoop() {
 					}
 				} else {
 					c.lastUpdateError = err
-					c.backoffPolicy.IncError(c.backoffErrorCount)
+					c.backoffErrorCount = c.backoffPolicy.IncError(c.backoffErrorCount)
 					log.Errorf("could not update remote-config state: %v", c.lastUpdateError)
 				}
 			} else {
 				c.lastUpdateError = nil
 				successfulFirstRun = true
-				c.backoffPolicy.DecError(c.backoffErrorCount)
+				c.backoffErrorCount = c.backoffPolicy.DecError(c.backoffErrorCount)
 			}
 		}
 	}

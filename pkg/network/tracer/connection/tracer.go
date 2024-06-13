@@ -26,6 +26,7 @@ import (
 
 	manager "github.com/DataDog/ebpf-manager"
 
+	telemetryComponent "github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/ebpfcheck"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/maps"
@@ -177,7 +178,7 @@ type tracer struct {
 }
 
 // NewTracer creates a new tracer
-func NewTracer(config *config.Config) (Tracer, error) {
+func NewTracer(config *config.Config, _ telemetryComponent.Component) (Tracer, error) {
 	mgrOptions := manager.Options{
 		// Extend RLIMIT_MEMLOCK (8) size
 		// On some systems, the default for RLIMIT_MEMLOCK may be as low as 64 bytes.
@@ -208,6 +209,7 @@ func NewTracer(config *config.Config) (Tracer, error) {
 			},
 		},
 		DefaultKProbeMaxActive: maxActive,
+		BypassEnabled:          config.BypassEnabled,
 	}
 
 	begin, end := network.EphemeralRange()

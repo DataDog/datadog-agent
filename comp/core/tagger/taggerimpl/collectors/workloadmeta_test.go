@@ -17,7 +17,9 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taglist"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
+	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 
@@ -62,12 +64,12 @@ func TestHandleKubePod(t *testing.T) {
 		Tag:       "latest",
 	}
 
-	store := fxutil.Test[workloadmeta.Mock](t, fx.Options(
+	store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		logimpl.MockModule(),
 		config.MockModule(),
 		fx.Supply(workloadmeta.NewParams()),
 		fx.Supply(context.Background()),
-		workloadmeta.MockModule(),
+		workloadmetafxmock.MockModule(),
 	))
 
 	store.Set(&workloadmeta.Container{
@@ -571,12 +573,12 @@ func TestHandleKubePodNoContainerName(t *testing.T) {
 		Tag:       "latest",
 	}
 
-	store := fxutil.Test[workloadmeta.Mock](t, fx.Options(
+	store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		logimpl.MockModule(),
 		config.MockModule(),
 		fx.Supply(workloadmeta.NewParams()),
 		fx.Supply(context.Background()),
-		workloadmeta.MockModule(),
+		workloadmetafxmock.MockModule(),
 	))
 
 	store.Set(&workloadmeta.Container{
@@ -687,28 +689,28 @@ func TestHandleKubePodNoContainerName(t *testing.T) {
 	}
 }
 
-func TestHandleKubeNamespace(t *testing.T) {
+func TestHandleKubeMetadata(t *testing.T) {
 	const namespace = "foobar"
 
-	namespaceEntityID := workloadmeta.EntityID{
-		Kind: workloadmeta.KindKubernetesNamespace,
-		ID:   namespace,
+	kubeMetadataEntityID := workloadmeta.EntityID{
+		Kind: workloadmeta.KindKubernetesMetadata,
+		ID:   fmt.Sprintf("namespaces//%s", namespace),
 	}
 
-	namespaceTaggerEntityID := fmt.Sprintf("namespace://%s", namespaceEntityID.ID)
+	taggerEntityID := fmt.Sprintf("kubernetes_metadata://%s", kubeMetadataEntityID.ID)
 
-	store := fxutil.Test[workloadmeta.Mock](t, fx.Options(
+	store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		logimpl.MockModule(),
 		config.MockModule(),
 		fx.Supply(workloadmeta.NewParams()),
 		fx.Supply(context.Background()),
-		workloadmeta.MockModule(),
+		workloadmetafxmock.MockModule(),
 	))
 
 	store.Set(&workloadmeta.Container{
 		EntityID: workloadmeta.EntityID{
-			Kind: workloadmeta.KindKubernetesNamespace,
-			ID:   namespace,
+			Kind: workloadmeta.KindKubernetesMetadata,
+			ID:   fmt.Sprintf("namespaces//%s", namespace),
 		},
 		EntityMeta: workloadmeta.EntityMeta{
 			Name: namespace,
@@ -721,11 +723,11 @@ func TestHandleKubeNamespace(t *testing.T) {
 		annotationsAsTags   map[string]string
 		nsLabelsAsTags      map[string]string
 		nsAnnotationsAsTags map[string]string
-		namespace           workloadmeta.KubernetesNamespace
+		kubeMetadata        workloadmeta.KubernetesMetadata
 		expected            []*types.TagInfo
 	}{
 		{
-			name: "fully formed namespace",
+			name: "namespace",
 			nsLabelsAsTags: map[string]string{
 				"ns_env":       "ns_env",
 				"ns-ownerteam": "ns-team",
@@ -734,8 +736,8 @@ func TestHandleKubeNamespace(t *testing.T) {
 				"ns_tier":            "ns_tier",
 				"namespace_security": "ns_security",
 			},
-			namespace: workloadmeta.KubernetesNamespace{
-				EntityID: namespaceEntityID,
+			kubeMetadata: workloadmeta.KubernetesMetadata{
+				EntityID: kubeMetadataEntityID,
 				EntityMeta: workloadmeta.EntityMeta{
 					Name: namespace,
 					Labels: map[string]string{
@@ -751,8 +753,8 @@ func TestHandleKubeNamespace(t *testing.T) {
 			},
 			expected: []*types.TagInfo{
 				{
-					Source:               nodeSource,
-					Entity:               namespaceTaggerEntityID,
+					Source:               kubeMetadataSource,
+					Entity:               taggerEntityID,
 					HighCardTags:         []string{},
 					OrchestratorCardTags: []string{},
 					LowCardTags: []string{
@@ -776,9 +778,9 @@ func TestHandleKubeNamespace(t *testing.T) {
 
 			collector.initPodMetaAsTags(tt.labelsAsTags, tt.annotationsAsTags, tt.nsLabelsAsTags, tt.nsAnnotationsAsTags)
 
-			actual := collector.handleKubeNamespace(workloadmeta.Event{
+			actual := collector.handleKubeMetadata(workloadmeta.Event{
 				Type:   workloadmeta.EventTypeSet,
-				Entity: &tt.namespace,
+				Entity: &tt.kubeMetadata,
 			})
 
 			assertTagInfoListEqual(t, tt.expected, actual)
@@ -799,11 +801,11 @@ func TestHandleECSTask(t *testing.T) {
 
 	taggerEntityID := fmt.Sprintf("container_id://%s", containerID)
 
-	store := fxutil.Test[workloadmeta.Mock](t, fx.Options(
+	store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		logimpl.MockModule(),
 		config.MockModule(),
 		fx.Supply(workloadmeta.NewParams()),
-		workloadmeta.MockModule(),
+		workloadmetafxmock.MockModule(),
 	))
 
 	store.Set(&workloadmeta.Container{
@@ -1125,6 +1127,41 @@ func TestHandleContainer(t *testing.T) {
 						"owner_team:container-integrations",
 					}, standardTags...),
 					StandardTags: standardTags,
+				},
+			},
+		},
+		{
+			name: "tags from environment with malformed OTEL_RESOURCE_ATTRIBUTES",
+			container: workloadmeta.Container{
+				EntityID: entityID,
+				EntityMeta: workloadmeta.EntityMeta{
+					Name: containerName,
+				},
+				EnvVars: map[string]string{
+					// env as tags
+					"TEAM": "container-integrations",
+					"TIER": "node",
+
+					// otel standard tags
+					"OTEL_RESOURCE_ATTRIBUTES": fmt.Sprintf("service.name=,  =  , =%s", env),
+				},
+			},
+			envAsTags: map[string]string{
+				"team": "owner_team",
+			},
+			expected: []*types.TagInfo{
+				{
+					Source: containerSource,
+					Entity: taggerEntityID,
+					HighCardTags: []string{
+						fmt.Sprintf("container_name:%s", containerName),
+						fmt.Sprintf("container_id:%s", entityID.ID),
+					},
+					OrchestratorCardTags: []string{},
+					LowCardTags: []string{
+						"owner_team:container-integrations",
+					},
+					StandardTags: []string{},
 				},
 			},
 		},
@@ -1568,11 +1605,11 @@ func TestHandleDelete(t *testing.T) {
 	podTaggerEntityID := fmt.Sprintf("kubernetes_pod_uid://%s", podEntityID.ID)
 	containerTaggerEntityID := fmt.Sprintf("container_id://%s", containerID)
 
-	store := fxutil.Test[workloadmeta.Mock](t, fx.Options(
+	store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		logimpl.MockModule(),
 		config.MockModule(),
 		fx.Supply(workloadmeta.NewParams()),
-		workloadmeta.MockModule(),
+		workloadmetafxmock.MockModule(),
 	))
 
 	store.Set(&workloadmeta.Container{
@@ -1648,11 +1685,11 @@ func TestHandlePodWithDeletedContainer(t *testing.T) {
 	collectorCh := make(chan []*types.TagInfo, 10)
 
 	collector := &WorkloadMetaCollector{
-		store: fxutil.Test[workloadmeta.Mock](t, fx.Options(
+		store: fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 			logimpl.MockModule(),
 			config.MockModule(),
 			fx.Supply(workloadmeta.NewParams()),
-			workloadmeta.MockModule(),
+			workloadmetafxmock.MockModule(),
 		)),
 		children: map[string]map[string]struct{}{
 			// Notice that here we set the container that belonged to the pod

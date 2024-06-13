@@ -27,11 +27,14 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/secrets/secretsimpl"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taggerimpl"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	"github.com/DataDog/datadog-agent/comp/core/telemetry/telemetryimpl"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
 	"github.com/DataDog/datadog-agent/comp/trace"
-	"github.com/DataDog/datadog-agent/comp/trace/agent"
+	traceagent "github.com/DataDog/datadog-agent/comp/trace/agent/def"
+	traceagentimpl "github.com/DataDog/datadog-agent/comp/trace/agent/impl"
 	"github.com/DataDog/datadog-agent/comp/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -40,7 +43,6 @@ import (
 
 // MakeCommand returns the run subcommand for the 'trace-agent' command.
 func MakeCommand(globalParamsGetter func() *subcommands.GlobalParams) *cobra.Command {
-
 	cliParams := &Params{}
 	runCmd := &cobra.Command{
 		Use:   "run",
@@ -81,6 +83,7 @@ func runTraceAgentProcess(ctx context.Context, cliParams *Params, defaultConfPat
 			return optional.NewOption[secrets.Component](comp)
 		}),
 		fx.Supply(secrets.NewEnabledParams()),
+		telemetryimpl.Module(),
 		coreconfig.Module(),
 		fx.Provide(func() corelogimpl.Params {
 			return corelogimpl.ForDaemon("TRACE", "apm_config.log_file", config.DefaultLogFilePath)
@@ -92,7 +95,7 @@ func runTraceAgentProcess(ctx context.Context, cliParams *Params, defaultConfPat
 			AgentType:  workloadmeta.NodeAgent,
 			InitHelper: common.GetWorkloadmetaInit(),
 		}),
-		workloadmeta.Module(),
+		workloadmetafx.Module(),
 		autoexitimpl.Module(),
 		statsd.Module(),
 		fx.Provide(func(coreConfig coreconfig.Component) tagger.Params {
@@ -105,7 +108,7 @@ func runTraceAgentProcess(ctx context.Context, cliParams *Params, defaultConfPat
 		fx.Invoke(func(_ config.Component) {}),
 		// Required to avoid cyclic imports.
 		fx.Provide(func(cfg config.Component) telemetry.TelemetryCollector { return telemetry.NewCollector(cfg.Object()) }),
-		fx.Supply(&agent.Params{
+		fx.Supply(&traceagentimpl.Params{
 			CPUProfile:  cliParams.CPUProfile,
 			MemProfile:  cliParams.MemProfile,
 			PIDFilePath: cliParams.PIDFilePath,
@@ -114,9 +117,9 @@ func runTraceAgentProcess(ctx context.Context, cliParams *Params, defaultConfPat
 		fetchonlyimpl.Module(),
 		configsyncimpl.OptionalModule(),
 		// Force the instantiation of the components
-		fx.Invoke(func(_ agent.Component, _ optional.Option[configsync.Component], _ autoexit.Component) {}),
+		fx.Invoke(func(_ traceagent.Component, _ optional.Option[configsync.Component], _ autoexit.Component) {}),
 	)
-	if err != nil && errors.Is(err, agent.ErrAgentDisabled) {
+	if err != nil && errors.Is(err, traceagentimpl.ErrAgentDisabled) {
 		return nil
 	}
 	return err

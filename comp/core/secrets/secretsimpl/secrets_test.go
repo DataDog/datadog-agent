@@ -15,6 +15,10 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	nooptelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/noopsimpl"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 var (
@@ -271,7 +275,8 @@ func TestIsEnc(t *testing.T) {
 }
 
 func TestResolveNoCommand(t *testing.T) {
-	resolver := newEnabledSecretResolver()
+	tel := fxutil.Test[telemetry.Component](t, nooptelemetry.Module())
+	resolver := newEnabledSecretResolver(tel)
 	resolver.fetchHookFunc = func(secrets []string) (map[string]string, error) {
 		return nil, fmt.Errorf("some error")
 	}
@@ -283,7 +288,8 @@ func TestResolveNoCommand(t *testing.T) {
 }
 
 func TestResolveSecretError(t *testing.T) {
-	resolver := newEnabledSecretResolver()
+	tel := fxutil.Test[telemetry.Component](t, nooptelemetry.Module())
+	resolver := newEnabledSecretResolver(tel)
 	resolver.backendCommand = "some_command"
 
 	resolver.fetchHookFunc = func(secrets []string) (map[string]string, error) {
@@ -295,7 +301,8 @@ func TestResolveSecretError(t *testing.T) {
 }
 
 func TestResolveDoestSendDuplicates(t *testing.T) {
-	resolver := newEnabledSecretResolver()
+	tel := fxutil.Test[telemetry.Component](t, nooptelemetry.Module())
+	resolver := newEnabledSecretResolver(tel)
 	resolver.backendCommand = "some_command"
 
 	// test configuration has handle "pass1" appear twice, but fetch should only get one handle
@@ -487,7 +494,9 @@ func TestResolve(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			currentTest = t
 
-			resolver := newEnabledSecretResolver()
+			tel := fxutil.Test[telemetry.Component](t, nooptelemetry.Module())
+
+			resolver := newEnabledSecretResolver(tel)
 			resolver.backendCommand = "some_command"
 			if tc.secretCache != nil {
 				resolver.cache = tc.secretCache
@@ -509,7 +518,8 @@ func TestResolve(t *testing.T) {
 func TestResolveNestedWithSubscribe(t *testing.T) {
 	testConf := testConfNestedMultiple
 
-	resolver := newEnabledSecretResolver()
+	tel := fxutil.Test[telemetry.Component](t, nooptelemetry.Module())
+	resolver := newEnabledSecretResolver(tel)
 	resolver.backendCommand = "some_command"
 	resolver.cache = map[string]string{"pass3": "password3"}
 
@@ -551,7 +561,8 @@ func TestResolveNestedWithSubscribe(t *testing.T) {
 func TestResolveCached(t *testing.T) {
 	testConf := testConfNested
 
-	resolver := newEnabledSecretResolver()
+	tel := fxutil.Test[telemetry.Component](t, nooptelemetry.Module())
+	resolver := newEnabledSecretResolver(tel)
 	resolver.backendCommand = "some_command"
 	resolver.cache = map[string]string{"pass1": "password1"}
 
@@ -583,7 +594,8 @@ func TestResolveThenRefresh(t *testing.T) {
 	allowlistPaths = nil
 	defer func() { allowlistPaths = originalAllowlistPaths }()
 
-	resolver := newEnabledSecretResolver()
+	tel := fxutil.Test[telemetry.Component](t, nooptelemetry.Module())
+	resolver := newEnabledSecretResolver(tel)
 	resolver.backendCommand = "some_command"
 	resolver.cache = map[string]string{}
 
@@ -658,7 +670,8 @@ func TestResolveThenRefresh(t *testing.T) {
 
 // test that the allowlist only lets setting paths that match it get Refreshed
 func TestRefreshAllowlist(t *testing.T) {
-	resolver := newEnabledSecretResolver()
+	tel := fxutil.Test[telemetry.Component](t, nooptelemetry.Module())
+	resolver := newEnabledSecretResolver(tel)
 	resolver.backendCommand = "some_command"
 	resolver.cache = map[string]string{"handle": "value"}
 	resolver.origin = handleToContext{
@@ -703,7 +716,8 @@ func TestRefreshAllowlist(t *testing.T) {
 // test that only setting paths that match the allowlist will get notifications
 // about changed secret values from a Refresh
 func TestRefreshAllowlistAppliesToEachSettingPath(t *testing.T) {
-	resolver := newEnabledSecretResolver()
+	tel := fxutil.Test[telemetry.Component](t, nooptelemetry.Module())
+	resolver := newEnabledSecretResolver(tel)
 	resolver.backendCommand = "some_command"
 
 	resolver.fetchHookFunc = func(secrets []string) (map[string]string, error) {
@@ -750,7 +764,8 @@ func TestRefreshAddsToAuditFile(t *testing.T) {
 	allowlistPaths = map[string]struct{}{"another/config/setting": {}}
 	defer func() { allowlistPaths = originalAllowlistPaths }()
 
-	resolver := newEnabledSecretResolver()
+	tel := fxutil.Test[telemetry.Component](t, nooptelemetry.Module())
+	resolver := newEnabledSecretResolver(tel)
 	resolver.backendCommand = "some_command"
 	resolver.cache = map[string]string{"handle": "value"}
 	resolver.origin = handleToContext{

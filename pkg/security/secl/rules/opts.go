@@ -14,7 +14,7 @@ import (
 
 // VariableProvider is the interface implemented by SECL variable providers
 type VariableProvider interface {
-	GetVariable(name string, value interface{}) (eval.VariableValue, error)
+	GetVariable(name string, value interface{}, opts eval.VariableOpts) (eval.VariableValue, error)
 }
 
 // VariableProviderFactory describes a function called to instantiate a variable provider
