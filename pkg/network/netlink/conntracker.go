@@ -22,6 +22,8 @@ import (
 	"github.com/cihub/seelog"
 	"github.com/hashicorp/golang-lru/v2/simplelru"
 
+	telemetryComp "github.com/DataDog/datadog-agent/comp/core/telemetry"
+
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
@@ -107,7 +109,7 @@ var conntrackerTelemetry = struct {
 }
 
 // NewConntracker creates a new conntracker with a short term buffer capped at the given size
-func NewConntracker(config *config.Config) (Conntracker, error) {
+func NewConntracker(config *config.Config, telemetrycomp telemetryComp.Component) (Conntracker, error) {
 	var (
 		err         error
 		conntracker Conntracker
@@ -116,7 +118,7 @@ func NewConntracker(config *config.Config) (Conntracker, error) {
 	done := make(chan struct{})
 
 	go func() {
-		conntracker, err = newConntrackerOnce(config)
+		conntracker, err = newConntrackerOnce(config, telemetrycomp)
 		done <- struct{}{}
 	}()
 
@@ -128,8 +130,8 @@ func NewConntracker(config *config.Config) (Conntracker, error) {
 	}
 }
 
-func newConntrackerOnce(cfg *config.Config) (Conntracker, error) {
-	consumer, err := NewConsumer(cfg)
+func newConntrackerOnce(cfg *config.Config, telemetrycomp telemetryComp.Component) (Conntracker, error) {
+	consumer, err := NewConsumer(cfg, telemetrycomp)
 	if err != nil {
 		return nil, err
 	}

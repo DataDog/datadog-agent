@@ -11,9 +11,10 @@ package kubeapiserver
 import (
 	"context"
 	"slices"
+	"sort"
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
@@ -47,30 +48,47 @@ func storeGenerators(cfg model.Reader) []storeGenerator {
 		generators = append(generators, newDeploymentStore)
 	}
 
-	// TODO: Remove this once we migrate references to the namespace store to use generic collection
-	if cfg.GetBool("cluster_agent.kube_metadata_collection.enabled") {
-		resources := cfg.GetStringSlice("cluster_agent.kube_metadata_collection.resources")
-		if slices.Contains(resources, "namespaces") {
-			generators = append(generators, newNamespaceStore)
-		}
-	}
-
 	return generators
 }
 
 func metadataCollectionGVRs(cfg model.Reader, discoveryClient discovery.DiscoveryInterface) ([]schema.GroupVersionResource, error) {
-	if !cfg.GetBool("cluster_agent.kube_metadata_collection.enabled") {
-		return []schema.GroupVersionResource{}, nil
+	return discoverGVRs(discoveryClient, resourcesWithMetadataCollectionEnabled(cfg))
+}
+
+func resourcesWithMetadataCollectionEnabled(cfg model.Reader) []string {
+	resources := append(
+		resourcesWithRequiredMetadataCollection(cfg),
+		resourcesWithExplicitMetadataCollectionEnabled(cfg)...,
+	)
+
+	// Remove duplicates
+	sort.Strings(resources)
+	return slices.Compact(resources)
+}
+
+// resourcesWithRequiredMetadataCollection returns the list of resources that we
+// need to collect metadata from in order to make other enabled features work
+func resourcesWithRequiredMetadataCollection(cfg model.Reader) []string {
+	var res []string
+
+	namespaceLabelsAsTagsEnabled := len(cfg.GetStringMapString("kubernetes_namespace_labels_as_tags")) > 0
+	namespaceAnnotationsAsTagsEnabled := len(cfg.GetStringMapString("kubernetes_namespace_annotations_as_tags")) > 0
+	if namespaceLabelsAsTagsEnabled || namespaceAnnotationsAsTagsEnabled {
+		res = append(res, "namespaces")
 	}
 
-	requestedResources := cfg.GetStringSlice("cluster_agent.kube_metadata_collection.resources")
+	return res
+}
 
-	// TODO: Remove this after implementing collector factory which specifies which collector should be registered for each specific resource type
-	// Adding this now as a quick work around to avoid having 2 collectors collecting the same data
-	excludedResources := []string{"namespaces"}
+// resourcesWithExplicitMetadataCollectionEnabled returns the list of resources
+// to collect metadata from according to the config options that configure
+// metadata collection
+func resourcesWithExplicitMetadataCollectionEnabled(cfg model.Reader) []string {
+	if !cfg.GetBool("cluster_agent.kube_metadata_collection.enabled") {
+		return nil
+	}
 
-	discoveredResourcesGVs, err := discoverGVRs(discoveryClient, requestedResources, excludedResources)
-	return discoveredResourcesGVs, err
+	return cfg.GetStringSlice("cluster_agent.kube_metadata_collection.resources")
 }
 
 type collector struct {

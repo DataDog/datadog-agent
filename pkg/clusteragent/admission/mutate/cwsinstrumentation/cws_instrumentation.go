@@ -30,7 +30,7 @@ import (
 	"k8s.io/client-go/kubernetes"
 
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent/admission"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/metrics"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/cwsinstrumentation/k8scp"
@@ -190,8 +190,8 @@ func (w *WebhookForCommands) Operations() []admiv1.OperationType {
 
 // LabelSelectors returns the label selectors that specify when the webhook
 // should be invoked
-func (w *WebhookForCommands) LabelSelectors(_ bool) (namespaceSelector *metav1.LabelSelector, objectSelector *metav1.LabelSelector) {
-	return nil, nil
+func (w *WebhookForCommands) LabelSelectors(useNamespaceSelector bool) (namespaceSelector *metav1.LabelSelector, objectSelector *metav1.LabelSelector) {
+	return labelSelectors(useNamespaceSelector)
 }
 
 // MutateFunc returns the function that mutates the resources

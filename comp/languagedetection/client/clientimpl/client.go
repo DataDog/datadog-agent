@@ -14,7 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	logComponent "github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	clientComp "github.com/DataDog/datadog-agent/comp/languagedetection/client"
 	langUtil "github.com/DataDog/datadog-agent/pkg/languagedetection/util"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/process"
@@ -150,19 +150,15 @@ func (c *client) stop(_ context.Context) error {
 func (c *client) run() {
 	defer c.logger.Info("Shutting down language detection client")
 
-	filterParams := workloadmeta.FilterParams{
-		Kinds: []workloadmeta.Kind{
-			workloadmeta.KindKubernetesPod, // Subscribe to pod events to clean up the current batch when a pod is deleted
-			workloadmeta.KindProcess,       // Subscribe to process events to populate the current batch
-		},
-		Source:    workloadmeta.SourceAll,
-		EventType: workloadmeta.EventTypeAll,
-	}
+	filter := workloadmeta.NewFilterBuilder().
+		AddKind(workloadmeta.KindProcess).
+		AddKind(workloadmeta.KindKubernetesPod).
+		Build()
 
 	eventCh := c.store.Subscribe(
 		subscriber,
 		workloadmeta.NormalPriority,
-		workloadmeta.NewFilter(&filterParams),
+		filter,
 	)
 	defer c.store.Unsubscribe(eventCh)
 

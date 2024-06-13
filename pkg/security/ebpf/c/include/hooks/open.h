@@ -40,7 +40,7 @@ int __attribute__((always_inline)) trace__sys_openat(u8 async, int flags, umode_
 }
 
 HOOK_SYSCALL_ENTRY2(creat, const char *, filename, umode_t, mode) {
-    int flags = O_CREAT|O_WRONLY|O_TRUNC;
+    int flags = O_CREAT | O_WRONLY | O_TRUNC;
     return trace__sys_openat(SYNC_SYSCALL, flags, mode);
 }
 
@@ -50,20 +50,20 @@ HOOK_SYSCALL_COMPAT_ENTRY3(open_by_handle_at, int, mount_fd, struct file_handle 
 }
 
 HOOK_SYSCALL_COMPAT_ENTRY0(truncate) {
-    int flags = O_CREAT|O_WRONLY|O_TRUNC;
+    int flags = O_CREAT | O_WRONLY | O_TRUNC;
     umode_t mode = 0;
     return trace__sys_openat(SYNC_SYSCALL, flags, mode);
 }
 
-HOOK_SYSCALL_COMPAT_ENTRY3(open, const char*, filename, int, flags, umode_t, mode) {
+HOOK_SYSCALL_COMPAT_ENTRY3(open, const char *, filename, int, flags, umode_t, mode) {
     return trace__sys_openat(SYNC_SYSCALL, flags, mode);
 }
 
-HOOK_SYSCALL_COMPAT_ENTRY4(openat, int, dirfd, const char*, filename, int, flags, umode_t, mode) {
+HOOK_SYSCALL_COMPAT_ENTRY4(openat, int, dirfd, const char *, filename, int, flags, umode_t, mode) {
     return trace__sys_openat(SYNC_SYSCALL, flags, mode);
 }
 
-HOOK_SYSCALL_ENTRY4(openat2, int, dirfd, const char*, filename, struct openat2_open_how*, phow, size_t, size) {
+HOOK_SYSCALL_ENTRY4(openat2, int, dirfd, const char *, filename, struct openat2_open_how *, phow, size_t, size) {
     struct openat2_open_how how;
     bpf_probe_read(&how, sizeof(struct openat2_open_how), phow);
     return trace__sys_openat(SYNC_SYSCALL, how.flags, how.mode);
@@ -260,7 +260,7 @@ int rethook_io_openat2(ctx_t *ctx) {
 
 HOOK_ENTRY("filp_close")
 int hook_filp_close(ctx_t *ctx) {
-    struct file *file = (struct file *) CTX_PARM1(ctx);
+    struct file *file = (struct file *)CTX_PARM1(ctx);
     u32 mount_id = get_file_mount_id(file);
     if (mount_id) {
         dec_mount_ref(ctx, mount_id);
@@ -293,8 +293,8 @@ int __attribute__((always_inline)) dr_open_callback(void *ctx) {
     struct open_event_t event = {
         .syscall.retval = retval,
         .event.flags = (syscall->async ? EVENT_FLAGS_ASYNC : 0) |
-            (syscall->resolver.flags&SAVED_BY_ACTIVITY_DUMP ? EVENT_FLAGS_SAVED_BY_AD : 0) |
-            (syscall->resolver.flags&ACTIVITY_DUMP_RUNNING ? EVENT_FLAGS_ACTIVITY_DUMP_SAMPLE : 0),
+                       (syscall->resolver.flags & SAVED_BY_ACTIVITY_DUMP ? EVENT_FLAGS_SAVED_BY_AD : 0) |
+                       (syscall->resolver.flags & ACTIVITY_DUMP_RUNNING ? EVENT_FLAGS_ACTIVITY_DUMP_SAMPLE : 0),
         .file = syscall->open.file,
         .flags = syscall->open.flags,
         .mode = syscall->open.mode,

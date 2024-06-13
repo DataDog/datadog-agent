@@ -9,6 +9,7 @@ package rules
 import (
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/ast"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
@@ -38,8 +39,8 @@ type ActionDefinition struct {
 
 // Check returns an error if the action in invalid
 func (a *ActionDefinition) Check(opts PolicyLoaderOpts) error {
-	if a.Set == nil && a.InternalCallback == nil && a.Kill == nil {
-		return errors.New("either 'set' or 'kill' section of an action must be specified")
+	if a.Set == nil && a.InternalCallback == nil && a.Kill == nil && a.Hash == nil {
+		return errors.New("either 'set', 'kill' or 'hash' section of an action must be specified")
 	}
 
 	if a.Set != nil {
@@ -107,11 +108,13 @@ type Scope string
 
 // SetDefinition describes the 'set' section of a rule action
 type SetDefinition struct {
-	Name   string      `yaml:"name"`
-	Value  interface{} `yaml:"value"`
-	Field  string      `yaml:"field"`
-	Append bool        `yaml:"append"`
-	Scope  Scope       `yaml:"scope"`
+	Name   string        `yaml:"name"`
+	Value  interface{}   `yaml:"value"`
+	Field  string        `yaml:"field"`
+	Append bool          `yaml:"append"`
+	Scope  Scope         `yaml:"scope"`
+	Size   int           `yaml:"size"`
+	TTL    time.Duration `yaml:"ttl"`
 }
 
 // InternalCallbackDefinition describes an internal rule action
