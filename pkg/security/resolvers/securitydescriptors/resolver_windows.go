@@ -141,7 +141,7 @@ func (resolver *Resolver) GetHumanReadableSD(sddl string) (string, error) {
 		translatedType := translateAceType(aceType)
 
 		var translatedPermissions string
-		if permissions != "" && len(permissions)%2 != 0 {
+		if permissions != "" && len(permissions)%2 == 0 {
 			translatedPermissions = accessMaskToString(permissions)
 		}
 
