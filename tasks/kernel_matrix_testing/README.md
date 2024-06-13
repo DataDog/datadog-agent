@@ -1,10 +1,16 @@
 # Kernel Matrix Testing system
 
+1. [Overview](#Overview)
+2. [Dependencies](#Dependencies)
+3. [Getting started](#Getting started)
+4. [Tasks](#Tasks)
+5. [Interacting with the CI](#Interacting with the CI)
+
 ## Overview
 
 The Kernel Matrix Testing system is a new approach for testing system-probe. It uses libvirt and qemu to launch pre-provisioned VMs over a range of distributions and kernel versions. These VMs are used for running the test suite of system-probe.
 
-Developers can check out this confluence page for more details about the system.
+Developers can check out [this](https://datadoghq.atlassian.net/wiki/spaces/EBPFTEAM/pages/3278832713/Developer+Documentation) confluence page for more details about the system.
 
 This file will document the invoke tasks provided to easily manage the lifecycle of the VMs launched using this system.
 
@@ -41,6 +47,12 @@ This will download all the resources required to launch the VMs, and install all
 inv -e kmt.init
 ```
 
+> You may significantly speed up this part by only downloading specific VM images. Refer to [Listing possible VMs](#Listing Possible VMs) to see how to list available images and how to provide their names.
+
+```bash
+inv -e kmt,init --images=ubuntu_22.04,debian_10
+```
+
 > You may skip the downloading part if you are not setting up VMs locally.
 
 ```bash
@@ -73,11 +85,22 @@ We will configure the stack to launch
 
 - Remote x86_64 machine with ubuntu-jammy, ubuntu-focal VMs.
 - Remote arm64 machine with amazon linux 2 kernel 4.14, amazon linux 2 kernel 5.10 VMs.
-- Amazon linux 2 kernel 5.15, amazon linux 2 kernel 5.4 VMs on local machine.
 
 ```bash
-inv -e kmt.gen-config --vms=x86-jammy-distro,x86-focal-distro,arm64-amazon4.14-distro,arm64-amazon5.10-distro,local-amazon5.15-distro,local-amazon5.4-distro --stack=demo-stack
+inv -e kmt.gen-config --vms=x86-jammy-distro,x86-focal-distro,arm64-amazon4.14-distro,arm64-amazon5.10-distro --stack=demo-stack
 ```
+
+We can also configure the stack to launch VMs locally, i.e. on developer's machine. The VMs will have the same architecture as the local host environment.
+- Local amazon linux 5.10 VM.
+- Local fedora 38 VM.
+- Local debian 9 VM.
+
+```bash
+inv -e kmt.gen-config --vms=amzn5.10-local-distro,fedora38-local-distro,debian9-local-distro --stack=demo-stack
+```
+
+Refer to [Configuring the stack](#Configuring the stack) for more details on this command.
+
 
 #### Configuring stack from a failed CI pipeline
 
@@ -174,17 +197,6 @@ inv -e kmt.update-resources
 Updating will first destroy all running stacks, and then use checksums to decide which packages need to be updated from S3.
 If there is an error during update, original packages are restored from backup.
 
-### Revert resources
-
-During the update process, all packages are first backed-up, incase there is an error during the update.
-This backup may be resotred manually if there is a problem with the new resources.
-
-```bash
-inv -e kmt.revert-resources
-```
-
-Reverting will destroy all running stacks before restoring from backup.
-
 ### Creating a stack
 
 A stack can be created as follows:
@@ -208,7 +220,7 @@ The arguments to this are:
 
 - `--distro`: Only list distribution images.
 - `--custom`: Only list custom kernels.
-- No argument will list everything.
+- No argument will list everything only distribution
 
 ### Configuring the stack
 
@@ -369,13 +381,23 @@ System probe can be built locally and shared with specified VMs.
 inv -e kmt.build --vms=<vms-list>
 ```
 
+This command will share a [default configuration](./default-system-probe.yaml) for system-probe with all the VMs.
+
 ### Pausing the stack
 
 This is only relevant for VMs running in the local environment. This has no effect on VMs running on remote instances. Pausing the stack essentially stops the running VMs and frees their resources. However, the VM environment is left intact so that it may be brought up again.
 
+```bash
+inv -e kmt.pause
+```
+
 ### Resuming the stack
 
 This resumes a previously paused stack. This is only applicable for VMs running locally.
+
+```bash
+inv -e kmt.resume
+```
 
 ## Interacting with the CI
 
