@@ -58,6 +58,8 @@ notify-slack:
       when: never
     - if: $DDR != "true"
       when: never
+    - if: $APPS != "datadog-agent"
+      when: never
     - !reference [.on_deploy]
   tags: ["arch:amd64"]
   needs: ["internal_kubernetes_deploy_experimental"]
