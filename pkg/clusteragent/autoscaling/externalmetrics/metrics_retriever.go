@@ -154,13 +154,7 @@ func (mr *MetricsRetriever) retrieveMetricsValuesSlice(datadogMetrics []model.Da
 				datadogMetricFromStore.Value = queryResult.Value
 				datadogMetricFromStore.DataTime = time.Unix(queryResult.Timestamp, 0).UTC()
 
-				// If we get a valid but old metric, flag it as invalid
-				maxAge := datadogMetric.MaxAge
-				if maxAge == 0 {
-					maxAge = time.Duration(mr.metricsMaxAge) * time.Second
-				}
-
-				if time.Duration(currentTime.Unix()-queryResult.Timestamp)*time.Second <= maxAge {
+				if !datadogMetricFromStore.IsStale(mr.metricsMaxAge, currentTime.Unix()) {
 					datadogMetricFromStore.Valid = true
 					datadogMetricFromStore.Error = nil
 				} else {

@@ -208,6 +208,16 @@ func (d *DatadogMetricInternal) HasBeenUpdatedFor(duration time.Duration) bool {
 	return d.UpdateTime.After(time.Now().UTC().Add(-duration))
 }
 
+// IsStale returns true if the current `DatadogMetricInternal` has been update between Now() and Now() - duration
+func (d *DatadogMetricInternal) IsStale(metricsMaxAge, currentTime int64) bool {
+	maxAge := d.MaxAge
+	if maxAge == 0 {
+		maxAge = time.Duration(metricsMaxAge) * time.Second
+	}
+
+	return time.Duration(currentTime-d.DataTime.Unix())*time.Second > maxAge
+}
+
 // BuildStatus generates a new status for `DatadogMetric` based on current status and information from `DatadogMetricInternal`
 // The updated condition refers to the Value update time (datapoint timestamp from Datadog API).
 func (d *DatadogMetricInternal) BuildStatus(currentStatus *datadoghq.DatadogMetricStatus) *datadoghq.DatadogMetricStatus {
@@ -249,9 +259,13 @@ func (d *DatadogMetricInternal) BuildStatus(currentStatus *datadoghq.DatadogMetr
 }
 
 // ToExternalMetricFormat returns the current DatadogMetric in the format used by Kubernetes
-func (d *DatadogMetricInternal) ToExternalMetricFormat(externalMetricName string) (*external_metrics.ExternalMetricValue, error) {
+func (d *DatadogMetricInternal) ToExternalMetricFormat(externalMetricName string, metricsMaxAge int64) (*external_metrics.ExternalMetricValue, error) {
 	if !d.Valid {
 		return nil, fmt.Errorf("DatadogMetric is invalid, err: %v", d.Error)
+	}
+
+	if d.IsStale(metricsMaxAge, time.Now().UTC().Unix()) {
+		return nil, fmt.Errorf("DatadogMetric is stale, last updated: %v", d.DataTime)
 	}
 
 	quantity, err := resource.ParseQuantity(fmt.Sprintf("%v", d.Value))
