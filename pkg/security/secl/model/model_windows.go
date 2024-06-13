@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:generate accessors -tags windows -types-file model.go -output accessors_windows.go -field-handlers field_handlers_windows.go -field-accessors-output field_accessors_windows.go
+//go:generate accessors -tags windows -types-file model.go -output accessors_windows.go -field-handlers field_handlers_windows.go -doc ../../../../docs/cloud-workload-security/secl-windows.json -field-accessors-output field_accessors_windows.go
 
 // Package model holds model related files
 package model
@@ -156,8 +156,7 @@ type OpenRegistryKeyEvent struct {
 // SetRegistryKeyValueEvent defines the event of setting up a value of a registry key
 type SetRegistryKeyValueEvent struct {
 	Registry  RegistryEvent `field:"registry"`                                   // SECLDoc[registry] Definition:`Registry Event`
-	ValueName string        `field:"value_name;registry.value_name,opts:length"` // SECLDoc[value_name] Definition:`Registry's value name`
-
+	ValueName string        `field:"value_name;registry.value_name,opts:length"` // SECLDoc[value_name] Definition:`Registry's value name` SECLDoc[registry.value_name] Definition:`Registry's value name`
 }
 
 // DeleteRegistryKeyEvent defines registry key deletion
@@ -169,8 +168,8 @@ type DeleteRegistryKeyEvent struct {
 type ChangePermissionEvent struct {
 	UserName   string `field:"username"`                                    // SECLDoc[username] Definition:`Username of the permission change author`
 	UserDomain string `field:"user_domain"`                                 // SECLDoc[user_domain] Definition:`Domain name of the permission change author`
-	ObjectName string `field:"path"`                                        // SECLDoc[name] Definition:`Name of the object of which permission was changed`
+	ObjectName string `field:"path"`                                        // SECLDoc[path] Definition:`Name of the object of which permission was changed`
 	ObjectType string `field:"type"`                                        // SECLDoc[type] Definition:`Type of the object of which permission was changed`
 	OldSd      string `field:"old_sd,handler:ResolveOldSecurityDescriptor"` // SECLDoc[old_sd] Definition:`Original Security Descriptor of the object of which permission was changed`
-	NewSd      string `field:"new_sd,handler:ResolveNewSecurityDescriptor"` // SECLDoc[name] Definition:`New Security Descriptor of the object of which permission was changed`
+	NewSd      string `field:"new_sd,handler:ResolveNewSecurityDescriptor"` // SECLDoc[new_sd] Definition:`New Security Descriptor of the object of which permission was changed`
 }
