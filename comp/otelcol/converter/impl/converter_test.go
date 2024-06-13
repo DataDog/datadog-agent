@@ -106,6 +106,11 @@ func TestConvert(t *testing.T) {
 			provided:       "receivers/multiple-dd-exporter-some-without-prometheus-receiver/config.yaml",
 			expectedResult: "receivers/multiple-dd-exporter-some-without-prometheus-receiver/config-result.yaml",
 		},
+		{
+			name:           "receivers/no-receivers-defined",
+			provided:       "receivers/no-receivers-defined/config.yaml",
+			expectedResult: "receivers/no-receivers-defined/config-result.yaml",
+		},
 	}
 
 	for _, tc := range tests {
