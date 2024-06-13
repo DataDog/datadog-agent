@@ -1747,6 +1747,7 @@ func testRedisProtocolClassificationInner(t *testing.T, tr *Tracer, clientHost, 
 						NetDialer: defaultDialer,
 						Config: &tls.Config{
 							InsecureSkipVerify: true,
+							KeyLogWriter:       klw,
 						},
 					}
 					dialContext = tlsDialer.DialContext
@@ -1757,6 +1758,8 @@ func testRedisProtocolClassificationInner(t *testing.T, tr *Tracer, clientHost, 
 				conn, err := dialContext(timedContext, "tcp", ctx.targetAddress)
 				require.NoError(t, err)
 				_, err = conn.Write([]byte("+dummy\r\n"))
+				require.NoError(t, err)
+				_, err = conn.Read(make([]byte, 128))
 				require.NoError(t, err)
 			},
 			validation: validateProtocolConnection(expectedStack),
