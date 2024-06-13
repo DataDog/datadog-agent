@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent/comp/otelcol/converter/def
 
-go 1.22.0
+go 1.21.0
 
 require go.opentelemetry.io/collector/confmap v0.102.0
 
