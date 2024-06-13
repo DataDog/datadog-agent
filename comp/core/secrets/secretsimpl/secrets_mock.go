@@ -24,6 +24,7 @@ type testDeps struct {
 	Telemetry telemetry.Component
 }
 
+// MockProvides is a mocked struct wrapping all the provided components
 type MockProvides struct {
 	fx.Out
 
@@ -39,7 +40,7 @@ type MockSecretResolver struct {
 
 var _ secrets.Component = (*MockSecretResolver)(nil)
 
-func (r *MockSecretResolver) mockHandleRequest(w http.ResponseWriter, _ *http.Request) {
+func (m *MockSecretResolver) mockHandleRequest(w http.ResponseWriter, _ *http.Request) {
 	w.Write([]byte("OK"))
 }
 
