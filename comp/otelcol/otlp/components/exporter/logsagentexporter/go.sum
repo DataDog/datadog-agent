@@ -2,8 +2,6 @@ cloud.google.com/go v0.26.0/go.mod h1:aQUYkXzVsufM+DwF1aE+0xfcU+56JwCaLick0ClmMT
 github.com/BurntSushi/toml v0.3.1/go.mod h1:xHWCNGjB5oqiDr8zfno3MHue2Ht5sIBksp03qcyfWMU=
 github.com/BurntSushi/toml v1.3.2 h1:o7IhLm0Msx3BaB+n3Ag7L8EVlByGnpq14C4YWiu/gL8=
 github.com/BurntSushi/toml v1.3.2/go.mod h1:CxXYINrC8qIiEnFrOxCa7Jy5BFHlXnUU2pbicEuybxQ=
-github.com/DataDog/datadog-agent/comp/api/api/def v0.0.0-20240612173319-20c6286685ca h1:HA/VwtjUHVYFUITCDY7l98E5WYmJiM37X4IvzH0rC/s=
-github.com/DataDog/datadog-agent/comp/api/api/def v0.0.0-20240612173319-20c6286685ca/go.mod h1:2uvnPyOFSUkF/RcbsWKvfS9AOfLoKtJJnhWMSpw3HXE=
 github.com/DataDog/datadog-api-client-go/v2 v2.13.0 h1:2c1dXSyUfum2YIVoYlqnBhV5JOG1cLSW+4jB3RrKjLc=
 github.com/DataDog/datadog-api-client-go/v2 v2.13.0/go.mod h1:kntOqXEh1SmjwSDzW/eJkr9kS7EqttvEkelglWtJRbg=
 github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.16.1 h1:ZI8u3CgdMXpDplrf9/gIr13+/g/tUzUcBMk2ZhXgzLE=

@@ -2,8 +2,6 @@ cloud.google.com/go v0.26.0/go.mod h1:aQUYkXzVsufM+DwF1aE+0xfcU+56JwCaLick0ClmMT
 github.com/BurntSushi/toml v0.3.1/go.mod h1:xHWCNGjB5oqiDr8zfno3MHue2Ht5sIBksp03qcyfWMU=
 github.com/DataDog/agent-payload/v5 v5.0.114 h1:qg3jfzz2/lOFKbFOw2yM6RM8eyMs4HlEGnyDBOTiYmY=
 github.com/DataDog/agent-payload/v5 v5.0.114/go.mod h1:COngtbYYCncpIPiE5D93QlXDH/3VAKk10jDNwGHcMRE=
-github.com/DataDog/datadog-agent/comp/api/api/def v0.0.0-20240612173319-20c6286685ca h1:HA/VwtjUHVYFUITCDY7l98E5WYmJiM37X4IvzH0rC/s=
-github.com/DataDog/datadog-agent/comp/api/api/def v0.0.0-20240612173319-20c6286685ca/go.mod h1:2uvnPyOFSUkF/RcbsWKvfS9AOfLoKtJJnhWMSpw3HXE=
 github.com/DataDog/datadog-api-client-go/v2 v2.25.0 h1:9Zq42D6M3U///VDxjx2SS1g+EW55WhZYZFHtzM+cO4k=
 github.com/DataDog/datadog-api-client-go/v2 v2.25.0/go.mod h1:QKOu6vscsh87fMY1lHfLEmNSunyXImj8BUaUWJXOehc=
 github.com/DataDog/dd-sensitive-data-scanner/sds-go/go v0.0.0-20240419161837-f1b2f553edfe h1:efzxujZ7VHWFxjmWjcJyUEpPrN8qdiZPYb+dBw547Wo=
