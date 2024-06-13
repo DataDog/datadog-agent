@@ -14,6 +14,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 	"sync"
 	"syscall"
 	"unsafe"
@@ -94,7 +95,6 @@ type targetMap struct {
 var kernelAddresses = []string{
 	"bpf_map_fops",
 	"__per_cpu_offset",
-	"bpf_dummy_read",
 }
 
 // LockContentionCollector implements the prometheus Collector interface
@@ -139,6 +139,22 @@ func lockContentionCollectorSupported() bool {
 	}
 
 	if _, err := os.Stat(filepath.Join(traceFSRoot, "events/lock/contention_end/id")); errors.Is(err, os.ErrNotExist) {
+		return false
+	}
+
+	var platform, version string
+	platform, err = kernel.Platform()
+	if err != nil {
+		return false
+	}
+
+	version, err = kernel.PlatformVersion()
+	if err != nil {
+		return false
+	}
+
+	// lock contention collector not supported on debian 12 arm64 because there is no easy way to get per cpu variable region
+	if platform == "debian" && strings.HasPrefix(version, "12") && kernel.Arch() == "arm64" {
 		return false
 	}
 
@@ -295,6 +311,13 @@ func (l *LockContentionCollector) Initialize(trackAllResources bool) error {
 	constants := make(map[string]interface{})
 	l.objects = new(bpfObjects)
 
+	kaddrs, err := getKernelSymbolsAddressesWithKallsymsIterator(kernelAddresses...)
+	if err != nil {
+		return fmt.Errorf("unable to fetch kernel symbol addresses: %w", err)
+	}
+	fmt.Printf("kernel addresses: %v\n", kaddrs)
+	log.Infof("kernel addresses: %v", kaddrs)
+
 	var ranges uint32
 	var cpus uint32
 	if err := LoadCOREAsset(lockContetionBpfObjectFile, func(bc bytecode.AssetReader, managerOptions manager.Options) error {
@@ -321,13 +344,8 @@ func (l *LockContentionCollector) Initialize(trackAllResources bool) error {
 		// value. This value has been experimentally determined to pass the verifier.
 		collectionSpec.Maps[timeStampBpfMap].MaxEntries = 16384
 
-		addrs, err := getKernelSymbolsAddressesWithKallsymsIterator(kernelAddresses...)
-		if err != nil {
-			return fmt.Errorf("unable to fetch kernel symbol addresses: %w", err)
-		}
-
 		constants[numCpus] = uint64(cpus)
-		for ksym, addr := range addrs {
+		for ksym, addr := range kaddrs {
 			constants[ksym] = addr
 		}
 		constants[numRanges] = uint64(ranges)
@@ -506,7 +524,7 @@ func useDummyRead(addrs map[string]uint64) bool {
 	_, okFops := addrs["bpf_map_fops"]
 	_, okRead := addrs["bpf_dummy_read"]
 
-	return !okFops && okRead
+	return (!okFops && okRead) && !okRead
 }
 
 type ksymIterProgram struct {
@@ -559,11 +577,7 @@ func getKernelSymbolsAddressesWithKallsymsIterator(kernelAddresses ...string) (m
 
 	addrs, err := GetKernelSymbolsAddressesNoCache(ksymsReader, kernelAddresses...)
 	if err != nil {
-		// on debian 12 bpf_map_fops is not exported, so we use
-		// bpf_dummy_read instead
-		if dummyRead := useDummyRead(addrs); !dummyRead {
-			return nil, err
-		}
+		return nil, err
 	}
 
 	return addrs, nil
