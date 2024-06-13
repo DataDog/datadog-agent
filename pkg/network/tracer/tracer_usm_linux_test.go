@@ -1747,7 +1747,6 @@ func testRedisProtocolClassificationInner(t *testing.T, tr *Tracer, clientHost, 
 						NetDialer: defaultDialer,
 						Config: &tls.Config{
 							InsecureSkipVerify: true,
-							KeyLogWriter:       klw,
 						},
 					}
 					dialContext = tlsDialer.DialContext
