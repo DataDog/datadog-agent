@@ -1027,7 +1027,7 @@ static __always_inline struct sock* sk_buff_sk(struct sk_buff *skb) {
     return sk;
 }
 
-#if defined(COMPILE_RUNTIME)
+#if defined(COMPILE_RUNTIME) && LINUX_VERSION_CODE < KERNEL_VERSION(4, 17, 0)
 struct bpf_raw_tracepoint_args {
     __u64 args[0];
 };
