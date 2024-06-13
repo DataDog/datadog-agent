@@ -36,7 +36,8 @@ func postRegister(cfg *sysconfigtypes.Config, moduleFactories []Factory) error {
 	}
 	if cfg.TelemetryEnabled && ebpf.ContentionCollector != nil {
 		if err := ebpf.ContentionCollector.Initialize(ebpf.TrackAllEBPFResources); err != nil {
-			return fmt.Errorf("failed to initialize ebpf lock contention collector: %w", err)
+			// do not prevent system-probe from starting if lock contention collector fails
+			log.Errorf("failed to initialize ebpf lock contention collector: %w", err)
 		}
 	}
 	return nil
