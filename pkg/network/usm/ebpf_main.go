@@ -17,6 +17,7 @@ import (
 	"unsafe"
 
 	"github.com/cilium/ebpf"
+	"github.com/cilium/ebpf/features"
 	"github.com/davecgh/go-spew/spew"
 	"golang.org/x/sys/unix"
 
@@ -97,25 +98,20 @@ type ebpfProgram struct {
 }
 
 func newEBPFProgram(c *config.Config, connectionProtocolMap *ebpf.Map) (*ebpfProgram, error) {
-	kv, err := kernel.HostVersion()
-	if err != nil {
-		return nil, err
-	}
-
 	netifProbe := manager.Probe{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
-			EBPFFuncName: "raw_tracepoint__net__netif_receive_skb",
+			EBPFFuncName: "tracepoint__net__netif_receive_skb",
 			UID:          probeUID,
 		},
-		TracepointCategory: "net",
-		TracepointName:     "netif_receive_skb",
 	}
-	if kv < rawTPKernelVersion {
+	if features.HaveProgramType(ebpf.RawTracepoint) == nil {
 		netifProbe = manager.Probe{
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFFuncName: "tracepoint__net__netif_receive_skb",
+				EBPFFuncName: "raw_tracepoint__net__netif_receive_skb",
 				UID:          probeUID,
 			},
+			TracepointCategory: "net",
+			TracepointName:     "netif_receive_skb",
 		}
 	}
 
