@@ -66,12 +66,9 @@ type agent struct {
 
 	cancel             context.CancelFunc
 	config             config.Component
-	ctx                context.Context
 	params             *Params
-	shutdowner         fx.Shutdowner
 	tagger             tagger.Component
 	telemetryCollector telemetry.TelemetryCollector
-	statsd             statsd.Component
 	workloadmeta       workloadmeta.Component
 	wg                 sync.WaitGroup
 }
@@ -91,15 +88,23 @@ func NewAgent(deps dependencies) (traceagent.Component, error) {
 	ag := &agent{
 		cancel:             cancel,
 		config:             deps.Config,
-		statsd:             deps.Statsd,
-		ctx:                ctx,
 		params:             deps.Params,
-		shutdowner:         deps.Shutdowner,
 		workloadmeta:       deps.Workloadmeta,
 		telemetryCollector: deps.TelemetryCollector,
 		tagger:             deps.Tagger,
 		wg:                 sync.WaitGroup{},
 	}
+	statsdCl, err := setupMetrics(deps.Statsd, ag.config, ag.telemetryCollector)
+	if err != nil {
+		return nil, err
+	}
+	setupShutdown(ctx, deps.Shutdowner, statsdCl)
+	ag.Agent = pkgagent.NewAgent(
+		ctx,
+		ag.config.Object(),
+		ag.telemetryCollector,
+		statsdCl,
+	)
 
 	deps.Lc.Append(fx.Hook{
 		// Provided contexts have a timeout, so it can't be used for gracefully stopping long-running components.
@@ -130,17 +135,6 @@ func start(ag *agent) error {
 		log.Infof("PID '%d' written to PID file '%s'", os.Getpid(), ag.params.PIDFilePath)
 	}
 
-	statsdCl, err := setupMetrics(ag.statsd, ag.config, ag.telemetryCollector)
-	if err != nil {
-		return err
-	}
-	setupShutdown(ag.ctx, ag.shutdowner, statsdCl)
-	ag.Agent = pkgagent.NewAgent(
-		ag.ctx,
-		ag.config.Object(),
-		ag.telemetryCollector,
-		statsdCl,
-	)
 	if err := runAgentSidekicks(ag); err != nil {
 		return err
 	}
