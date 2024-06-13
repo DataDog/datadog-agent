@@ -4,11 +4,13 @@ if not exist c:\mnt\ goto nomntdir
 @echo PARAMS %*
 @echo RELEASE_VERSION %RELEASE_VERSION%
 
-set BUILD_ROOT=c:\mnt
-cd %BUILD_ROOT%
-call %BUILD_ROOT%\tasks\winbuildscripts\extract-modcache.bat %BUILD_ROOT%\datadog-agent modcache
+set BUILD_ROOT=c:\buildroot
+mkdir %BUILD_ROOT%\datadog-agent
+if not exist %BUILD_ROOT%\datadog-agent exit /b 2
+cd %BUILD_ROOT%\datadog-agent || exit /b 3
+xcopy /e/s/h/q c:\mnt\*.* || exit /b 4
 
-if NOT DEFINED RELEASE_VERSION set RELEASE_VERSION=%~1
+call %BUILD_ROOT%\tasks\winbuildscripts\extract-modcache.bat %BUILD_ROOT%\datadog-agent modcache
 
 set OMNIBUS_BUILD=omnibus.build
 @rem OMNIBUS_TARGET is also used in the C# code to only produce the .cmd for the Datadog Installer (instead of for both the Agent installer and the Datadog installer).
