@@ -214,7 +214,7 @@ The arguments to this are:
 
 - `--distro`: Only list distribution images.
 - `--custom`: Only list custom kernels.
-- No argument will list everything only distribution
+- No argument will list only distributions.
 
 ### Configuring the stack
 
