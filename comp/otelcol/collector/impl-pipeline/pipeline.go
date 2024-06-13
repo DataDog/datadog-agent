@@ -16,7 +16,6 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
-	"time"
 
 	"github.com/gocolly/colly/v2"
 
@@ -125,55 +124,45 @@ func (c *collectorImpl) stop(context.Context) error {
 
 func (c *collectorImpl) fillFlare(fb flaretypes.FlareBuilder) error {
 	if !c.config.GetBool("otel.enabled") {
+		fb.AddFile("otel/otel-agent.log", []byte("'otel.enabled' is disabled in the configuration"))
 		return nil
 	}
 
 	// request config from Otel-Agent
 	responseBytes, err := c.requestOtelConfigInfo(c.config.GetInt("otel.extension_url"))
 	if err != nil {
-		fb.AddFile("otel/otel-agent.log", []byte(fmt.Sprintf("did not get otel-agent configuration: %v", err))) //nolint:errcheck
+		fb.AddFile("otel/otel-agent.log", []byte(fmt.Sprintf("did not get otel-agent configuration: %v", err)))
 		return nil
 	}
 
 	// add raw response to flare, and unmarshal it
-	fb.AddFile("otel/otel-response.json", responseBytes) //nolint:errcheck
+	fb.AddFile("otel/otel-response.json", responseBytes)
 	var responseInfo configResponseInfo
 	if err := json.Unmarshal(responseBytes, &responseInfo); err != nil {
-		fb.AddFile("otel/otel-agent.log", []byte(fmt.Sprintf("could not read sources from otel-agent response: %s", responseBytes))) //nolint:errcheck
+		fb.AddFile("otel/otel-agent.log", []byte(fmt.Sprintf("could not read sources from otel-agent response: %s", responseBytes)))
 		return nil
 	}
 
-	fb.AddFile("otel/otel-flare/startup.cfg", []byte(toJSON(responseInfo.StartupConf)))     //nolint:errcheck
-	fb.AddFile("otel/otel-flare/runtime.cfg", []byte(toJSON(responseInfo.RuntimeConf)))     //nolint:errcheck
-	fb.AddFile("otel/otel-flare/environment.cfg", []byte(toJSON(responseInfo.Environment))) //nolint:errcheck
-	fb.AddFile("otel/otel-flare/cmdline.txt", []byte(responseInfo.Cmdline))                 //nolint:errcheck
+	fb.AddFile("otel/otel-flare/startup.cfg", []byte(toJSON(responseInfo.StartupConf)))
+	fb.AddFile("otel/otel-flare/runtime.cfg", []byte(toJSON(responseInfo.RuntimeConf)))
+	fb.AddFile("otel/otel-flare/environment.cfg", []byte(toJSON(responseInfo.Environment)))
+	fb.AddFile("otel/otel-flare/cmdline.txt", []byte(responseInfo.Cmdline))
 
 	// retrieve each source of configuration
 	for _, src := range responseInfo.Sources {
-		var err error
-		var response *http.Response
-		retries := 3
-		for retries > 0 {
-			response, err = http.Get(src.URL)
-			if err != nil {
-				retries--
-				time.Sleep(500 * time.Millisecond)
-			} else {
-				defer response.Body.Close()
-				break
-			}
-		}
-		if response == nil {
-			fb.AddFile(fmt.Sprintf("otel/otel-flare/%s.err", src.Name), []byte(err.Error())) //nolint:errcheck
+		response, err := http.Get(src.URL)
+		if err != nil {
+			fb.AddFile(fmt.Sprintf("otel/otel-flare/%s.err", src.Name), []byte(err.Error()))
 			continue
 		}
+		defer response.Body.Close()
 
 		data, err := io.ReadAll(response.Body)
 		if err != nil {
-			fb.AddFile(fmt.Sprintf("otel/otel-flare/%s.err", src.Name), []byte(err.Error())) //nolint:errcheck
+			fb.AddFile(fmt.Sprintf("otel/otel-flare/%s.err", src.Name), []byte(err.Error()))
 			continue
 		}
-		fb.AddFile(fmt.Sprintf("otel/otel-flare/%s.dat", src.Name), data) //nolint:errcheck
+		fb.AddFile(fmt.Sprintf("otel/otel-flare/%s.dat", src.Name), data)
 
 		if !src.Crawl {
 			continue
@@ -184,7 +173,10 @@ func (c *collectorImpl) fillFlare(fb flaretypes.FlareBuilder) error {
 		col.OnHTML("a", func(e *colly.HTMLElement) {
 			// visit all links
 			link := e.Attr("href")
-			e.Request.Visit(e.Request.AbsoluteURL(link)) //nolint:errcheck
+			if err := e.Request.Visit(e.Request.AbsoluteURL(link)); err != nil {
+				filename := strings.ReplaceAll(url.PathEscape(link), ":", "_")
+				fb.AddFile(fmt.Sprintf("otel/otel-flare/crawl-%s.err", filename), []byte(err.Error()))
+			}
 		})
 		col.OnResponse(func(r *colly.Response) {
 			// the root sources (from the configResponseInfo) were already fetched earlier
@@ -195,10 +187,10 @@ func (c *collectorImpl) fillFlare(fb flaretypes.FlareBuilder) error {
 			}
 			// use the url as the basis for the filename saved in the flare
 			filename := strings.ReplaceAll(url.PathEscape(responseURL), ":", "_")
-			fb.AddFile(fmt.Sprintf("otel/otel-flare/crawl-%s", filename), r.Body) //nolint:errcheck
+			fb.AddFile(fmt.Sprintf("otel/otel-flare/crawl-%s", filename), r.Body)
 		})
 		if err := col.Visit(src.URL); err != nil {
-			fb.AddFile("otel/otel-flare/crawl.err", []byte(err.Error())) //nolint:errcheck
+			fb.AddFile("otel/otel-flare/crawl.err", []byte(err.Error()))
 		}
 	}
 	return nil
