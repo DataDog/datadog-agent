@@ -223,7 +223,7 @@ func (li *linuxImpl) getServiceInfo(p proc, sysProbe systemProbeClient, openPort
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	envResp, err := sysProbe.GetServiceDiscoveryProc(ctx, p.PID())
+	procResp, err := sysProbe.GetServiceDiscoveryProc(ctx, p.PID())
 	if err != nil {
 		return nil, errWithCode{
 			err:  fmt.Errorf("failed to get environment from system-probe: %w", err),
@@ -249,8 +249,8 @@ func (li *linuxImpl) getServiceInfo(p proc, sysProbe systemProbeClient, openPort
 	pInfo := processInfo{
 		PID:     p.PID(),
 		CmdLine: cmdline,
-		Env:     envResp.Proc.Environ,
-		Cwd:     envResp.Proc.CWD,
+		Env:     procResp.Proc.Environ,
+		Cwd:     procResp.Proc.CWD,
 		Stat: procStat{
 			StartTime: startTimeSecs,
 		},
