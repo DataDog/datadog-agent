@@ -95,7 +95,7 @@ func TestFromEnv(t *testing.T) {
 				defer os.Unsetenv(key)
 			}
 			result := FromEnv()
-			assert.Equal(t, tt.expected, result)
+			assert.Equal(t, tt.expected, result, "failed %v", tt.name)
 		})
 	}
 }

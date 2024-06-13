@@ -151,10 +151,10 @@ func (e *Env) ToEnv() []string {
 func parseApmLibrariesEnv() map[ApmLibLanguage]ApmLibVersion {
 	apmLibraries := os.Getenv(envApmLibraries)
 	apmLibrariesVersion := map[ApmLibLanguage]ApmLibVersion{}
-	rest := apmLibraries
-	for rest != "" {
-		var library string
-		library, rest, _ = strings.Cut(rest, ",")
+	if apmLibraries == "" {
+		return apmLibrariesVersion
+	}
+	for _, library := range strings.Split(apmLibraries, ",") {
 		libraryName, libraryVersion, _ := strings.Cut(library, ":")
 		apmLibrariesVersion[ApmLibLanguage(libraryName)] = ApmLibVersion(libraryVersion)
 	}
