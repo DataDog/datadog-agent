@@ -2,8 +2,7 @@ from __future__ import annotations
 
 import shutil
 
-from tasks.libs.common.git import get_current_branch
-from tasks.libs.common.utils import get_commit_sha
+from tasks.libs.common.git import get_commit_sha, get_current_branch
 from tasks.libs.types.arch import Arch
 
 try:
