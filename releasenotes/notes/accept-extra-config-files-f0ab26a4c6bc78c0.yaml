@@ -10,5 +10,5 @@ features:
   - |
     The core Agent now supports multiple configuration files in addition to the main datadog.yaml file. 
     The -E flag can be used with the ``datadog-agent run`` command to specify multiple configuration paths.
-    Configuration files are merged sequentially. If a key already exists, subsequent occurrences of the same key are ignored.
+    Configuration files are merged sequentially. If a key already exists and the foreign value type matches the existing one, the foreign value overrides it.
     If both the existing value and the new value are nested configurations, they are merged recursively following the same principles.
