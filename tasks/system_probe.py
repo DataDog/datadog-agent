@@ -81,8 +81,6 @@ CURRENT_ARCH = arch_mapping.get(platform.machine(), "x64")
 CLANG_VERSION_RUNTIME = "12.0.1"
 CLANG_VERSION_SYSTEM_PREFIX = "12.0"
 
-extra_cflags = []
-
 
 def get_ebpf_build_dir(arch: Arch) -> Path:
     return Path("pkg/ebpf/bytecode/build") / arch.kmt_arch  # Use KMT arch names for compatibility with CI
@@ -272,14 +270,17 @@ def ninja_network_ebpf_programs(nw: NinjaWriter, build_dir, co_re_build_dir):
     network_bpf_dir = os.path.join("pkg", "network", "ebpf")
     network_c_dir = os.path.join(network_bpf_dir, "c")
 
-    network_flags = ["-Ipkg/network/ebpf/c", "-g"]
+    network_flags = "-Ipkg/network/ebpf/c -g"
     network_programs = [
+        "prebuilt/dns",
+        "prebuilt/offset-guess",
         "tracer",
         "prebuilt/usm",
         "prebuilt/usm_events_test",
         "prebuilt/shared-libraries",
         "prebuilt/conntrack",
     ]
+
     network_co_re_programs = [
         "tracer",
         "co-re/tracer-fentry",
@@ -287,26 +288,20 @@ def ninja_network_ebpf_programs(nw: NinjaWriter, build_dir, co_re_build_dir):
         "runtime/shared-libraries",
         "runtime/conntrack",
     ]
-    network_programs_wo_instrumentation = ["prebuilt/dns", "prebuilt/offset-guess"]
 
     for prog in network_programs:
         infile = os.path.join(network_c_dir, f"{prog}.c")
         outfile = os.path.join(build_dir, f"{os.path.basename(prog)}.o")
-        ninja_network_ebpf_program(nw, infile, outfile, ' '.join(network_flags + extra_cflags))
-
-    for prog in network_programs_wo_instrumentation:
-        infile = os.path.join(network_c_dir, f"{prog}.c")
-        outfile = os.path.join(build_dir, f"{os.path.basename(prog)}.o")
-        ninja_network_ebpf_program(nw, infile, outfile, ' '.join(network_flags))
+        ninja_network_ebpf_program(nw, infile, outfile, network_flags)
 
     for prog_path in network_co_re_programs:
         prog = os.path.basename(prog_path)
         src_dir = os.path.join(network_c_dir, os.path.dirname(prog_path))
-        network_co_re_flags = [f"-I{src_dir}", "-Ipkg/network/ebpf/c"] + extra_cflags
+        network_co_re_flags = f"-I{src_dir} -Ipkg/network/ebpf/c"
 
         infile = os.path.join(src_dir, f"{prog}.c")
         outfile = os.path.join(co_re_build_dir, f"{prog}.o")
-        ninja_network_ebpf_co_re_program(nw, infile, outfile, ' '.join(network_co_re_flags))
+        ninja_network_ebpf_co_re_program(nw, infile, outfile, network_co_re_flags)
 
 
 def ninja_test_ebpf_programs(nw: NinjaWriter, build_dir):
@@ -560,7 +555,6 @@ def build(
     strip_binary=False,
     with_unit_test=False,
     bundle=True,
-    instrument_trampoline=False,
 ):
     """
     Build the system-probe
@@ -573,7 +567,6 @@ def build(
             debug=debug,
             strip_object_files=strip_object_files,
             with_unit_test=with_unit_test,
-            instrument_trampoline=instrument_trampoline,
         )
 
     build_sysprobe_binary(
@@ -698,7 +691,6 @@ def test(
         build_object_files(
             ctx,
             kernel_release=kernel_release,
-            instrument_trampoline=False,
         )
 
     build_tags = get_sysprobe_buildtags(is_windows, bundle_ebpf)
@@ -767,7 +759,6 @@ def test_debug(
         build_object_files(
             ctx,
             kernel_release=kernel_release,
-            instrument_trampoline=False,
         )
 
     build_tags = [NPM_TAG]
@@ -1427,7 +1418,6 @@ def build_object_files(
     debug=False,
     strip_object_files=False,
     with_unit_test=False,
-    instrument_trampoline=False,
 ) -> None:
     arch_obj = Arch.from_str(arch)
     build_dir = get_ebpf_build_dir(arch_obj)
@@ -1445,10 +1435,6 @@ def build_object_files(
         check_for_inline(ctx)
         ctx.run(f"mkdir -p -m 0755 {runtime_dir}")
         ctx.run(f"mkdir -p -m 0755 {build_dir}/co-re")
-
-    global extra_cflags
-    if instrument_trampoline:
-        extra_cflags = extra_cflags + ["-pg", "-DINSTRUMENTATION_ENABLED"]
 
     run_ninja(
         ctx,
@@ -1536,9 +1522,7 @@ def build_cws_object_files(
 
 @task
 def object_files(ctx, kernel_release=None, with_unit_test=False, arch: str = CURRENT_ARCH):
-    build_object_files(
-        ctx, kernel_release=kernel_release, with_unit_test=with_unit_test, instrument_trampoline=False, arch=arch
-    )
+    build_object_files(ctx, kernel_release=kernel_release, with_unit_test=with_unit_test, arch=arch)
 
 
 def clean_object_files(ctx, major_version='7', kernel_release=None, debug=False, strip_object_files=False):
