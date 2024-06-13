@@ -7,21 +7,7 @@
 
 package settings
 
-import (
-	"go.uber.org/fx"
-)
-
 // Mock implements mock-specific methods.
 type Mock interface {
 	Component
-}
-
-type MockComponent struct {
-	Mock
-}
-
-func MockModule() fx.Option {
-	return fx.Provide(func() Component {
-		return new(MockComponent)
-	})
 }
