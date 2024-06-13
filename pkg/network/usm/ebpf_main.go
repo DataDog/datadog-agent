@@ -38,7 +38,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/offsetguess"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/buildmode"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
-	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -58,8 +57,6 @@ var (
 		goTLSSpec,
 	}
 )
-
-var rawTPKernelVersion = kernel.VersionCode(4, 17, 0)
 
 const (
 	// ELF section of the BPF_PROG_TYPE_SOCKET_FILTER program used
