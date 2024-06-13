@@ -81,7 +81,7 @@ func translateAceType(aceType string) string {
 func accessMaskToString(mask string) string {
 	var rights []string
 
-	for i := 0; i < len(mask)+1; i += 2 {
+	for i := 0; i < len(mask); i += 2 {
 		combined := mask[i : i+2]
 		if right, ok := accessMaskMap[combined]; ok {
 			rights = append(rights, right)
@@ -101,8 +101,6 @@ func (resolver *Resolver) GetHumanReadableSD(sddl string) (string, error) {
 
 	// Extract the owner and group SIDs
 	owner, group := extractOwnerGroup(sddl)
-	fmt.Println("---------------IN GetHumanReadableSD, owner", owner)
-	fmt.Println("---------------IN GetHumanReadableSD, group", group)
 	if owner != "" {
 		ownerName := resolver.userGroupResolver.GetUser(owner)
 		if ownerName == "" {
@@ -139,16 +137,20 @@ func (resolver *Resolver) GetHumanReadableSD(sddl string) (string, error) {
 		aceType := fields[0]
 		permissions := fields[2]
 		trustee := fields[5]
-		fmt.Println("---------------IN GetHumanReadableSD, aceType", aceType)
-		fmt.Println("---------------IN GetHumanReadableSD, permissions", permissions)
-		fmt.Println("---------------IN GetHumanReadableSD, trustee", trustee)
 
 		translatedType := translateAceType(aceType)
-		translatedPermissions := accessMaskToString(permissions)
 
-		accountName := resolver.userGroupResolver.GetUser(trustee)
-		if accountName == "" {
-			accountName = trustee // Fallback to SID string if account lookup fails
+		var translatedPermissions string
+		if permissions != "" && len(permissions)%2 != 0 {
+			translatedPermissions = accessMaskToString(permissions)
+		}
+
+		var accountName string
+		if trustee != "" {
+			accountName = resolver.userGroupResolver.GetUser(trustee)
+			if accountName == "" {
+				accountName = trustee // Fallback to SID string if account lookup fails
+			}
 		}
 
 		builder.WriteString(fmt.Sprintf("  - %s\n", translatedType))
