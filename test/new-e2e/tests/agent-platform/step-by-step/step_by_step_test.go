@@ -258,6 +258,10 @@ func (is *stepByStepSuite) StepByStepSuseTest(VMclient *common.TestClient) {
 	fileManager := VMclient.FileManager
 	var err error
 
+	// Disable all existing non-datadog repos to avoid issues during refresh (which is hard to prevent zypper from doing spontaneously);
+	// we don't need them to install the Agent anyway
+	ExecuteWithoutError(nil, VMclient, "sudo rm /etc/zypp/repos.d/*.repo")
+
 	fileContent := fmt.Sprintf("[datadog]\n"+
 		"name = Datadog, Inc.\n"+
 		"baseurl = %s\n"+
