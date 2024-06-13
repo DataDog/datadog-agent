@@ -1,11 +1,5 @@
 # Kernel Matrix Testing system
 
-1. [Overview](#Overview)
-2. [Dependencies](#Dependencies)
-3. [Getting started](#Getting started)
-4. [Tasks](#Tasks)
-5. [Interacting with the CI](#Interacting with the CI)
-
 ## Overview
 
 The Kernel Matrix Testing system is a new approach for testing system-probe. It uses libvirt and qemu to launch pre-provisioned VMs over a range of distributions and kernel versions. These VMs are used for running the test suite of system-probe.
