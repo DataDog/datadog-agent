@@ -11,7 +11,7 @@ further_reading:
 
 {{ warning_message }}
 
-## Create custom rules using the Simple rule creator
+## Create custom rules using the Assisted rule creator
 
 The **Assisted rule creator** option helps you create the Agent and dependent detection rules together, and ensures that the Agent rule is referenced in the detection rules. Using this tool is faster than the advanced method of creating the Agent and detection rules separately.
 
