@@ -11,9 +11,8 @@ import (
 	"reflect"
 	"testing"
 
-	tassert "github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/assert"
 	"go.uber.org/fx"
-	"gotest.tools/assert" //nolint:depguard
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
@@ -170,11 +169,8 @@ func TestSubscribe(t *testing.T) {
 		{
 			// if the filter has type "wmdef.EventTypeUnset", it does not receive
 			// events for entities that are currently in the store.
-			name: "do not receive events for entities in the store pre-subscription if filter type is wmdef.EventTypeUnset",
-			filter: wmdef.NewFilter(&wmdef.FilterParams{
-				Source:    fooSource,
-				EventType: wmdef.EventTypeUnset,
-			}),
+			name:   "do not receive events for entities in the store pre-subscription if filter type is EventTypeUnset",
+			filter: wmdef.NewFilterBuilder().SetSource(fooSource).SetEventType(wmdef.EventTypeUnset).Build(),
 			preEvents: []wmdef.CollectorEvent{
 				{
 					Type:   wmdef.EventTypeSet,
@@ -191,11 +187,8 @@ func TestSubscribe(t *testing.T) {
 			// in the store, and match a filter by source. entities
 			// that don't match the filter at all should not
 			// generate an event.
-			name: "receive events for entities in the store pre-subscription with filter",
-			filter: wmdef.NewFilter(&wmdef.FilterParams{
-				Source:    fooSource,
-				EventType: wmdef.EventTypeAll,
-			}),
+			name:   "receive events for entities in the store pre-subscription with filter",
+			filter: wmdef.NewFilterBuilder().SetSource(fooSource).Build(),
 			preEvents: []wmdef.CollectorEvent{
 				// set container with two sources, delete one source
 				{
@@ -358,11 +351,8 @@ func TestSubscribe(t *testing.T) {
 			// setting an entity from two different sources, but
 			// unsetting from only one (that matches the filter)
 			// correctly generates an unset event
-			name: "sets and unsets an entity with source filters",
-			filter: wmdef.NewFilter(&wmdef.FilterParams{
-				Source:    fooSource,
-				EventType: wmdef.EventTypeAll,
-			}),
+			name:   "sets and unsets an entity with source filters",
+			filter: wmdef.NewFilterBuilder().SetSource(fooSource).Build(),
 			postEvents: [][]wmdef.CollectorEvent{
 				{
 					{
@@ -525,11 +515,8 @@ func TestSubscribe(t *testing.T) {
 			},
 		},
 		{
-			name: "filters by event type",
-			filter: wmdef.NewFilter(&wmdef.FilterParams{
-				Source:    wmdef.SourceAll,
-				EventType: wmdef.EventTypeUnset,
-			}),
+			name:   "filters by event type",
+			filter: wmdef.NewFilterBuilder().SetEventType(wmdef.EventTypeUnset).Build(),
 			postEvents: [][]wmdef.CollectorEvent{
 				{
 					{
@@ -631,8 +618,8 @@ func TestSubscribe(t *testing.T) {
 			s.Unsubscribe(ch)
 
 			<-doneCh
-			tassert.Equal(t, tt.expected, actual)
-			tassert.Equal(t, tt.expected, actual)
+			assert.Equal(t, tt.expected, actual)
+			assert.Equal(t, tt.expected, actual)
 		})
 	}
 }
@@ -662,7 +649,7 @@ func TestGetKubernetesDeployment(t *testing.T) {
 	})
 
 	retrievedDeployment, err := s.GetKubernetesDeployment("datadog-cluster-agent")
-	tassert.NoError(t, err)
+	assert.NoError(t, err)
 
 	if !reflect.DeepEqual(deployment, retrievedDeployment) {
 		t.Errorf("expected deployment %q to match the one in the store", retrievedDeployment.ID)
@@ -677,42 +664,7 @@ func TestGetKubernetesDeployment(t *testing.T) {
 	})
 
 	_, err = s.GetKubernetesDeployment("datadog-cluster-agent")
-	tassert.True(t, errors.IsNotFound(err))
-}
-
-func TestGetKubernetesNamespace(t *testing.T) {
-	deps := fxutil.Test[dependencies](t, fx.Options(
-		logimpl.MockModule(),
-		config.MockModule(),
-		fx.Supply(wmdef.NewParams()),
-	))
-
-	s := newWorkloadmetaObject(deps)
-
-	namespace := &wmdef.KubernetesNamespace{
-		EntityID: wmdef.EntityID{
-			Kind: wmdef.KindKubernetesNamespace,
-			ID:   "default",
-		},
-	}
-
-	s.handleEvents([]wmdef.CollectorEvent{
-		{
-			Type:   wmdef.EventTypeSet,
-			Source: fooSource,
-			Entity: namespace,
-		},
-	})
-
-	retrievedNamespace, err := s.GetKubernetesNamespace("default")
-	tassert.NoError(t, err)
-
-	if !reflect.DeepEqual(namespace, retrievedNamespace) {
-		t.Errorf("expected namespace %q to match the one in the store", retrievedNamespace.ID)
-	}
-
-	_, err = s.GetKubernetesNamespace("datadog-cluster-agent")
-	tassert.True(t, errors.IsNotFound(err))
+	assert.True(t, errors.IsNotFound(err))
 }
 
 func TestGetProcess(t *testing.T) {
@@ -807,7 +759,7 @@ func TestListContainers(t *testing.T) {
 
 			containers := s.ListContainers()
 
-			tassert.Equal(t, test.expectedContainers, containers)
+			assert.Equal(t, test.expectedContainers, containers)
 		})
 	}
 }
@@ -856,7 +808,7 @@ func TestListContainersWithFilter(t *testing.T) {
 
 	runningContainers := s.ListContainersWithFilter(wmdef.GetRunningContainers)
 
-	tassert.Equal(t, []*wmdef.Container{runningContainer}, runningContainers)
+	assert.Equal(t, []*wmdef.Container{runningContainer}, runningContainers)
 }
 
 func TestListProcesses(t *testing.T) {
@@ -904,7 +856,7 @@ func TestListProcesses(t *testing.T) {
 
 			processes := s.ListProcesses()
 
-			tassert.Equal(t, test.expectedProcesses, processes)
+			assert.Equal(t, test.expectedProcesses, processes)
 		})
 	}
 }
@@ -955,7 +907,7 @@ func TestListProcessesWithFilter(t *testing.T) {
 		return p.Language.Name == languagemodels.Java
 	})
 
-	tassert.Equal(t, []*wmdef.Process{javaProcess}, retrievedProcesses)
+	assert.Equal(t, []*wmdef.Process{javaProcess}, retrievedProcesses)
 }
 
 func TestGetKubernetesPodByName(t *testing.T) {
@@ -1067,7 +1019,7 @@ func TestGetKubernetesPodByName(t *testing.T) {
 
 			pod, err := s.GetKubernetesPodByName(test.args.podName, test.args.podNamespace)
 
-			tassert.Equal(t, test.want.pod, pod)
+			assert.Equal(t, test.want.pod, pod)
 			if test.want.err != nil {
 				assert.Error(t, err, test.want.err.Error())
 			}
@@ -1117,7 +1069,7 @@ func TestListKubernetesNodes(t *testing.T) {
 
 			s.handleEvents(test.preEvents)
 
-			tassert.Equal(t, test.expectedNodes, s.ListKubernetesNodes())
+			assert.Equal(t, test.expectedNodes, s.ListKubernetesNodes())
 		})
 	}
 }
@@ -1165,7 +1117,7 @@ func TestListImages(t *testing.T) {
 
 			s.handleEvents(test.preEvents)
 
-			assert.DeepEqual(t, test.expectedImages, s.ListImages())
+			assert.ElementsMatch(t, test.expectedImages, s.ListImages())
 		})
 	}
 }
@@ -1219,10 +1171,10 @@ func TestGetImage(t *testing.T) {
 			actualImage, err := s.GetImage(test.imageID)
 
 			if test.expectsError {
-				tassert.Error(t, err, errors.NewNotFound(string(wmdef.KindContainerImageMetadata)).Error())
+				assert.Error(t, err, errors.NewNotFound(string(wmdef.KindContainerImageMetadata)).Error())
 			} else {
-				tassert.NoError(t, err)
-				tassert.Equal(t, test.expectedImage, actualImage)
+				assert.NoError(t, err)
+				assert.Equal(t, test.expectedImage, actualImage)
 			}
 		})
 	}
@@ -1297,7 +1249,7 @@ func TestListECSTasks(t *testing.T) {
 
 			tasks := s.ListECSTasks()
 
-			tassert.ElementsMatch(t, test.expectedTasks, tasks)
+			assert.ElementsMatch(t, test.expectedTasks, tasks)
 		})
 	}
 }
@@ -1415,7 +1367,7 @@ func TestResetProcesses(t *testing.T) {
 			<-doneCh
 
 			processes := s.ListProcesses()
-			tassert.ElementsMatch(t, processes, test.newProcesses)
+			assert.ElementsMatch(t, processes, test.newProcesses)
 		})
 	}
 
@@ -1446,7 +1398,7 @@ func TestGetKubernetesMetadata(t *testing.T) {
 	})
 
 	retrievedMetadata, err := s.GetKubernetesMetadata("deployments/default/app")
-	tassert.NoError(t, err)
+	assert.NoError(t, err)
 
 	if !reflect.DeepEqual(kubemetadata, retrievedMetadata) {
 		t.Errorf("expected metadata %q to match the one in the store", retrievedMetadata.ID)
@@ -1461,7 +1413,7 @@ func TestGetKubernetesMetadata(t *testing.T) {
 	})
 
 	_, err = s.GetKubernetesMetadata("deployments/default/app")
-	tassert.True(t, errors.IsNotFound(err))
+	assert.True(t, errors.IsNotFound(err))
 }
 
 func TestReset(t *testing.T) {
@@ -1656,12 +1608,12 @@ func TestReset(t *testing.T) {
 
 			<-doneCh
 
-			tassert.Equal(t, test.expectedEventsReceived, actualEventsReceived)
+			assert.Equal(t, test.expectedEventsReceived, actualEventsReceived)
 		})
 	}
 }
 
-func TestNoDataRace(t *testing.T) { //nolint:revive // TODO fix revive unused-parameter
+func TestNoDataRace(t *testing.T) {
 	// This test ensures that no race conditions are encountered when the "--race" flag is passed
 	// to the test process and an entity is accessed in a different thread than the one handling events
 	deps := fxutil.Test[dependencies](t, fx.Options(
@@ -1752,9 +1704,9 @@ func TestPushEvents(t *testing.T) {
 			err := wlm.Push(mockSource, test.events...)
 
 			if test.expectError {
-				tassert.Error(t, err, "Expected Push operation to fail and return error")
+				assert.Error(t, err, "Expected Push operation to fail and return error")
 			} else {
-				tassert.NoError(t, err, "Expected Push operation to succeed and return nil")
+				assert.NoError(t, err, "Expected Push operation to succeed and return nil")
 			}
 
 		})

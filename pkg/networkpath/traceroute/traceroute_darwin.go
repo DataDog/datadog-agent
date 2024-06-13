@@ -11,6 +11,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
 )
 
@@ -28,8 +29,8 @@ type MacTraceroute struct {
 
 // New creates a new instance of MacTraceroute
 // based on an input configuration
-func New(cfg Config) (*MacTraceroute, error) {
-	runner, err := NewRunner()
+func New(cfg Config, telemetry telemetry.Component) (*MacTraceroute, error) {
+	runner, err := NewRunner(telemetry)
 	if err != nil {
 		return nil, err
 	}

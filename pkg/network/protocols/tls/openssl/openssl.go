@@ -9,6 +9,7 @@ package openssl
 import (
 	"regexp"
 	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
@@ -22,7 +23,7 @@ func RunServerOpenssl(t *testing.T, serverPort string, clientCount int, args ...
 		"CLIENTS=" + strconv.Itoa(clientCount),
 	}
 	if len(args) > 0 {
-		env = append(env, "OPENSSL_ARGS="+args[0])
+		env = append(env, "OPENSSL_ARGS="+strings.Join(args, " "))
 	}
 
 	t.Helper()
@@ -31,10 +32,11 @@ func RunServerOpenssl(t *testing.T, serverPort string, clientCount int, args ...
 }
 
 // RunClientOpenssl launches an openssl client.
-func RunClientOpenssl(t *testing.T, addr, port, args string) bool {
+func RunClientOpenssl(t *testing.T, addr, port string, args ...string) bool {
 	command := []string{
 		"docker", "run", "--network=host", "menci/archlinuxarm:base",
-		"openssl", "s_client", "-connect", addr + ":" + port, args,
+		"openssl", "s_client", "-connect", addr + ":" + port,
 	}
+	command = append(command, args...)
 	return protocolsUtils.RunHostServer(t, command, []string{}, regexp.MustCompile("Verify return code"))
 }
