@@ -689,15 +689,15 @@ func TestHandleKubePodNoContainerName(t *testing.T) {
 	}
 }
 
-func TestHandleKubeNamespace(t *testing.T) {
+func TestHandleKubeMetadata(t *testing.T) {
 	const namespace = "foobar"
 
-	namespaceEntityID := workloadmeta.EntityID{
-		Kind: workloadmeta.KindKubernetesNamespace,
-		ID:   namespace,
+	kubeMetadataEntityID := workloadmeta.EntityID{
+		Kind: workloadmeta.KindKubernetesMetadata,
+		ID:   fmt.Sprintf("namespaces//%s", namespace),
 	}
 
-	namespaceTaggerEntityID := fmt.Sprintf("namespace://%s", namespaceEntityID.ID)
+	taggerEntityID := fmt.Sprintf("kubernetes_metadata://%s", kubeMetadataEntityID.ID)
 
 	store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
 		logimpl.MockModule(),
@@ -709,8 +709,8 @@ func TestHandleKubeNamespace(t *testing.T) {
 
 	store.Set(&workloadmeta.Container{
 		EntityID: workloadmeta.EntityID{
-			Kind: workloadmeta.KindKubernetesNamespace,
-			ID:   namespace,
+			Kind: workloadmeta.KindKubernetesMetadata,
+			ID:   fmt.Sprintf("namespaces//%s", namespace),
 		},
 		EntityMeta: workloadmeta.EntityMeta{
 			Name: namespace,
@@ -723,11 +723,11 @@ func TestHandleKubeNamespace(t *testing.T) {
 		annotationsAsTags   map[string]string
 		nsLabelsAsTags      map[string]string
 		nsAnnotationsAsTags map[string]string
-		namespace           workloadmeta.KubernetesNamespace
+		kubeMetadata        workloadmeta.KubernetesMetadata
 		expected            []*types.TagInfo
 	}{
 		{
-			name: "fully formed namespace",
+			name: "namespace",
 			nsLabelsAsTags: map[string]string{
 				"ns_env":       "ns_env",
 				"ns-ownerteam": "ns-team",
@@ -736,8 +736,8 @@ func TestHandleKubeNamespace(t *testing.T) {
 				"ns_tier":            "ns_tier",
 				"namespace_security": "ns_security",
 			},
-			namespace: workloadmeta.KubernetesNamespace{
-				EntityID: namespaceEntityID,
+			kubeMetadata: workloadmeta.KubernetesMetadata{
+				EntityID: kubeMetadataEntityID,
 				EntityMeta: workloadmeta.EntityMeta{
 					Name: namespace,
 					Labels: map[string]string{
@@ -753,8 +753,8 @@ func TestHandleKubeNamespace(t *testing.T) {
 			},
 			expected: []*types.TagInfo{
 				{
-					Source:               nodeSource,
-					Entity:               namespaceTaggerEntityID,
+					Source:               kubeMetadataSource,
+					Entity:               taggerEntityID,
 					HighCardTags:         []string{},
 					OrchestratorCardTags: []string{},
 					LowCardTags: []string{
@@ -778,9 +778,9 @@ func TestHandleKubeNamespace(t *testing.T) {
 
 			collector.initPodMetaAsTags(tt.labelsAsTags, tt.annotationsAsTags, tt.nsLabelsAsTags, tt.nsAnnotationsAsTags)
 
-			actual := collector.handleKubeNamespace(workloadmeta.Event{
+			actual := collector.handleKubeMetadata(workloadmeta.Event{
 				Type:   workloadmeta.EventTypeSet,
-				Entity: &tt.namespace,
+				Entity: &tt.kubeMetadata,
 			})
 
 			assertTagInfoListEqual(t, tt.expected, actual)
