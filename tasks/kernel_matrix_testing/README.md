@@ -44,7 +44,7 @@ inv -e kmt.init
 > You may significantly speed up this part by only downloading specific VM images. Refer to [Listing possible VMs](#Listing Possible VMs) to see how to list available images and how to provide their names.
 
 ```bash
-inv -e kmt,init --images=ubuntu_22.04,debian_10
+inv -e kmt.init --images=ubuntu_22.04,debian_10
 ```
 
 > You may skip the downloading part if you are not setting up VMs locally.
