@@ -25,6 +25,7 @@ replace (
 
 replace (
 	github.com/DataDog/datadog-agent/cmd/agent/common/path => ./cmd/agent/common/path/
+	github.com/DataDog/datadog-agent/comp/api/api/def => ./comp/api/api/def/
 	github.com/DataDog/datadog-agent/comp/core/config => ./comp/core/config/
 	github.com/DataDog/datadog-agent/comp/core/flare/builder => ./comp/core/flare/builder
 	github.com/DataDog/datadog-agent/comp/core/flare/types => ./comp/core/flare/types
@@ -49,10 +50,10 @@ replace (
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/logsagentexporter => ./comp/otelcol/otlp/components/exporter/logsagentexporter
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/serializerexporter => ./comp/otelcol/otlp/components/exporter/serializerexporter
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/metricsclient => ./comp/otelcol/otlp/components/metricsclient
-	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/pipeline/provider => ./comp/otelcol/otlp/components/pipeline/provider
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/statsprocessor => ./comp/otelcol/otlp/components/statsprocessor
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/testutil => ./comp/otelcol/otlp/testutil
 	github.com/DataDog/datadog-agent/comp/serializer/compression => ./comp/serializer/compression
+	github.com/DataDog/datadog-agent/comp/trace/agent/def => ./comp/trace/agent/def
 	github.com/DataDog/datadog-agent/pkg/aggregator/ckey => ./pkg/aggregator/ckey/
 	github.com/DataDog/datadog-agent/pkg/api => ./pkg/api
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults => ./pkg/collector/check/defaults
@@ -138,7 +139,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.55.0-rc.3
 	github.com/DataDog/datadog-go/v5 v5.5.0
 	github.com/DataDog/datadog-operator v0.7.1-0.20240522081847-e83dd785258a
-	github.com/DataDog/ebpf-manager v0.6.0
+	github.com/DataDog/ebpf-manager v0.6.1
 	github.com/DataDog/gopsutil v1.2.2
 	github.com/DataDog/nikos v1.12.4
 	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.16.1
@@ -241,7 +242,7 @@ require (
 	github.com/robfig/cron/v3 v3.0.1
 	github.com/samber/lo v1.39.0
 	github.com/samuel/go-zookeeper v0.0.0-20190923202752-2cc03de413da
-	github.com/shirou/gopsutil/v3 v3.24.4
+	github.com/shirou/gopsutil/v3 v3.24.5
 	github.com/shirou/w32 v0.0.0-20160930032740-bb4de0191aa4
 	github.com/sirupsen/logrus v1.9.3
 	github.com/skydive-project/go-debouncer v1.0.0
@@ -280,8 +281,8 @@ require (
 	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.52.0 // indirect
 	go.uber.org/atomic v1.11.0
 	go.uber.org/automaxprocs v1.5.3
-	go.uber.org/dig v1.17.0
-	go.uber.org/fx v1.18.2
+	go.uber.org/dig v1.17.1
+	go.uber.org/fx v1.22.0
 	go.uber.org/multierr v1.11.0
 	go.uber.org/zap v1.27.0
 	go4.org/netipx v0.0.0-20220812043211-3cc044ffd68d
@@ -486,7 +487,7 @@ require (
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
 	github.com/modern-go/reflect2 v1.0.2 // indirect
 	github.com/montanaflynn/stats v0.7.0 // indirect
-	github.com/mostynb/go-grpc-compression v1.2.2 // indirect
+	github.com/mostynb/go-grpc-compression v1.2.3 // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
 	github.com/mxk/go-flowrate v0.0.0-20140419014527-cca7078d478f // indirect
 	github.com/nu7hatch/gouuid v0.0.0-20131221200532-179d4d0c4d8d // indirect
@@ -606,6 +607,7 @@ require (
 	github.com/DATA-DOG/go-sqlmock v1.5.2
 	github.com/DataDog/agent-payload/v5 v5.0.119
 	github.com/DataDog/datadog-agent/cmd/agent/common/path v0.55.0-rc.3
+	github.com/DataDog/datadog-agent/comp/api/api/def v0.55.0-rc.3
 	github.com/DataDog/datadog-agent/comp/core/config v0.55.0-rc.3
 	github.com/DataDog/datadog-agent/comp/core/flare/builder v0.55.0-rc.3
 	github.com/DataDog/datadog-agent/comp/core/flare/types v0.55.0-rc.3
@@ -631,6 +633,7 @@ require (
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/serializerexporter v0.55.0-rc.3
 	github.com/DataDog/datadog-agent/comp/otelcol/otlp/testutil v0.55.0-rc.3
 	github.com/DataDog/datadog-agent/comp/serializer/compression v0.55.0-rc.3
+	github.com/DataDog/datadog-agent/comp/trace/agent/def v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/aggregator/ckey v0.55.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/api v0.55.0-rc.3
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults v0.55.0-rc.3

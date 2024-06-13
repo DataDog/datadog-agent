@@ -41,7 +41,6 @@ include:
   - .gitlab/pkg_metrics/pkg_metrics.yml
   - .gitlab/post_rc_build/post_rc_tasks.yml
   - .gitlab/setup/setup.yml
-  - .gitlab/software_composition_analysis/software_composition_analysis.yml
   - .gitlab/source_test/include.yml
   - .gitlab/trigger_release/trigger_release.yml
 
@@ -276,7 +275,7 @@ variables:
   if: $DEPLOY_AGENT == "true" || $DDR_WORKFLOW_ID != null
 
 .if_not_deploy: &if_not_deploy
-  if: $DEPLOY_AGENT != "true"
+  if: $DEPLOY_AGENT != "true" && $DDR_WORKFLOW_ID == null
 
 .if_tagged_commit: &if_tagged_commit
   if: $CI_COMMIT_TAG != null
@@ -303,10 +302,10 @@ variables:
 # RUN_ALL_BUILDS has no effect on main/deploy pipelines: they always run all builds (as some jobs
 # on main and deploy pipelines depend on jobs that are only run if we run all builds).
 .if_run_all_builds: &if_run_all_builds
-  if: $CI_COMMIT_BRANCH == "main" || $DEPLOY_AGENT == "true" || $RUN_ALL_BUILDS == "true"
+  if: $CI_COMMIT_BRANCH == "main" || $DEPLOY_AGENT == "true" || $RUN_ALL_BUILDS == "true" || $DDR_WORKFLOW_ID != null
 
 .if_not_run_all_builds: &if_not_run_all_builds
-  if: $CI_COMMIT_BRANCH != "main" && $DEPLOY_AGENT != "true" && $RUN_ALL_BUILDS != "true"
+  if: $CI_COMMIT_BRANCH != "main" && $DEPLOY_AGENT != "true" && $RUN_ALL_BUILDS != "true" && $DDR_WORKFLOW_ID == null
 
 # Rule to trigger test setup, run, and cleanup.
 # By default:
@@ -315,7 +314,7 @@ variables:
 # RUN_E2E_TESTS can be set to on to force all the installer tests to be run on a branch pipeline.
 # RUN_E2E_TESTS can be set to false to force installer tests to not run on main/deploy pipelines.
 .if_installer_tests: &if_installer_tests
-  if: ($CI_COMMIT_BRANCH == "main"  || $DEPLOY_AGENT == "true" || $RUN_E2E_TESTS == "on") && $RUN_E2E_TESTS != "off"
+  if: ($CI_COMMIT_BRANCH == "main"  || $DEPLOY_AGENT == "true" || $RUN_E2E_TESTS == "on" || $DDR_WORKFLOW_ID != null) && $RUN_E2E_TESTS != "off"
 
 .if_testing_cleanup: &if_testing_cleanup
   if: $TESTING_CLEANUP == "true"
@@ -344,7 +343,7 @@ variables:
   if: $RUN_UNIT_TESTS == "on"
 
 .if_deploy_on_beta_repo_branch: &if_deploy_on_beta_repo_branch
-  if: $DEPLOY_AGENT == "true" && $BUCKET_BRANCH == "beta"
+  if: ($DEPLOY_AGENT == "true" || $DDR_WORKFLOW_ID != null) && $BUCKET_BRANCH == "beta"
 
 # Rule to trigger jobs only when a tag matches a given pattern (for RCs)
 # on the beta branch.
@@ -352,7 +351,7 @@ variables:
 # need to check again if the pipeline is a deploy pipeline, but it doesn't hurt
 # to explicitly add it.
 .if_deploy_on_rc_tag_on_beta_repo_branch: &if_deploy_on_rc_tag_on_beta_repo_branch
-  if: $DEPLOY_AGENT == "true" && $BUCKET_BRANCH == "beta" && $CI_COMMIT_TAG =~ /^[0-9]+\.[0-9]+\.[0-9]+-rc\.[0-9]+$/
+  if: ($DEPLOY_AGENT == "true" || $DDR_WORKFLOW_ID != null) && $BUCKET_BRANCH == "beta" && $CI_COMMIT_TAG =~ /^[0-9]+\.[0-9]+\.[0-9]+-rc\.[0-9]+$/
 
 .if_scheduled_main: &if_scheduled_main
   if: $CI_PIPELINE_SOURCE == "schedule" && $CI_COMMIT_BRANCH == "main"
@@ -595,7 +594,7 @@ workflow:
   - when: on_success
 
 .except_no_tests_no_deploy:
-  - if: $DEPLOY_AGENT == "false" && $RUN_E2E_TESTS == "off"
+  - if: $DEPLOY_AGENT == "false" && $DDR_WORKFLOW_ID == null && $RUN_E2E_TESTS == "off"
     when: never
 
 .on_main_or_release_branch:

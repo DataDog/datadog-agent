@@ -147,6 +147,24 @@ func (m *Monitor) Start() error {
 	return err
 }
 
+// Pause bypasses the eBPF programs in the monitor
+func (m *Monitor) Pause() error {
+	if m == nil {
+		return nil
+	}
+
+	return m.ebpfProgram.Pause()
+}
+
+// Resume enables the previously bypassed eBPF programs in the monitor
+func (m *Monitor) Resume() error {
+	if m == nil {
+		return nil
+	}
+
+	return m.ebpfProgram.Resume()
+}
+
 // GetUSMStats returns the current state of the USM monitor
 func (m *Monitor) GetUSMStats() map[string]interface{} {
 	response := map[string]interface{}{

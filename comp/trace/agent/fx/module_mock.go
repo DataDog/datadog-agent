@@ -5,21 +5,24 @@
 
 //go:build test
 
-package agent
+package fx
 
 import (
 	"go.uber.org/fx"
 
+	traceagent "github.com/DataDog/datadog-agent/comp/trace/agent/def"
+	traceagentimpl "github.com/DataDog/datadog-agent/comp/trace/agent/impl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 // Mock implements mock-specific methods.
 type Mock interface {
-	Component
+	traceagent.Component
 }
 
 // MockModule defines the fx options for the mock component.
 func MockModule() fxutil.Module {
 	return fxutil.Component(
-		fx.Provide(newMock))
+		fx.Provide(traceagentimpl.NewMock),
+	)
 }

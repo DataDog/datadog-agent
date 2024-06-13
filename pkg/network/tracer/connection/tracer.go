@@ -209,6 +209,7 @@ func NewTracer(config *config.Config, _ telemetryComponent.Component) (Tracer, e
 			},
 		},
 		DefaultKProbeMaxActive: maxActive,
+		BypassEnabled:          config.BypassEnabled,
 	}
 
 	begin, end := network.EphemeralRange()
