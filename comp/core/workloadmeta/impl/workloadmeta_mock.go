@@ -221,16 +221,6 @@ func (w *workloadMetaMock) GetKubernetesDeployment(id string) (*wmdef.Kubernetes
 	return entity.(*wmdef.KubernetesDeployment), nil
 }
 
-// GetKubernetesNamespace implements Component#GetKubernetesNamespace
-func (w *workloadMetaMock) GetKubernetesNamespace(id string) (*wmdef.KubernetesNamespace, error) {
-	entity, err := w.getEntityByKind(wmdef.KindKubernetesNamespace, id)
-	if err != nil {
-		return nil, err
-	}
-
-	return entity.(*wmdef.KubernetesNamespace), nil
-}
-
 // GetECSTask returns metadata about an ECS task.
 func (w *workloadMetaMock) GetECSTask(id string) (*wmdef.ECSTask, error) {
 	entity, err := w.getEntityByKind(wmdef.KindECSTask, id)
