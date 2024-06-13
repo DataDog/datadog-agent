@@ -17,22 +17,17 @@ For details, see [Creating Custom Detection Rules][1].
 ## Agent expression syntax
 Cloud Security Management Threats (CSM Threats) first evaluates activity within the Datadog Agent against Agent expressions to decide what activity to collect. This portion of a CSM Threats rule is called the Agent expression. Agent expressions use Datadog's Security Language (SECL). The standard format of a SECL expression is as follows:
 
-{% raw %}
 {{< code-block lang="javascript" >}}
-{% endraw %}
 <event-type>.<event-attribute> <operator> <value> [<operator> <event-type>.<event-attribute>] ...
-{% raw %}
-{{< /code-block >}}
-{% endraw %}
 
-Using this format, an example rule looks like this:
-{% raw %}
-{{< code-block lang="javascript" >}}
-{% endraw %}
-open.file.path == "/etc/shadow" && process.file.path not in ["/usr/sbin/vipw"]
-{% raw %}
 {{< /code-block >}}
-{% endraw %}
+
+Using this format, an example rule for a Linux system looks like this:
+
+{{< code-block lang="javascript" >}}
+open.file.path == "/etc/shadow" && process.file.path not in ["/usr/sbin/vipw"]
+
+{{< /code-block >}}
 
 ## Operators
 SECL operators are used to combine event attributes together into a full expression. The following operators are available:
@@ -90,7 +85,7 @@ Durations are numbers with a unit suffix. The supported suffixes are "s", "m", "
 SECL expressions support several platforms. You can use the documentation below to see what attributes and helpers are available for each.
 
 * [Linux][2]
-* [Winows][3]
+* [Windows][3]
 
 [1]: /security/threats/workload_security_rules/custom_rules
 [2]: /security/threats/linux_expressions
