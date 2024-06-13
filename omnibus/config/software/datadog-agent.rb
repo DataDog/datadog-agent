@@ -146,6 +146,7 @@ build do
 
   # System-probe
   sysprobe_support = (not heroku_target?) && (linux_target? || (windows_target? && do_windows_sysprobe != ""))
+  sysprobe_support = false
   if sysprobe_support
     if not bundled_agents.include? "system-probe"
       if windows_target?
