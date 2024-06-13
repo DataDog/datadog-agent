@@ -39,23 +39,41 @@ var systemProbeNPMConfigStr string
 //go:embed compose/fake-process-compose.yaml
 var fakeProcessCompose string
 
-// assertRunningChecks asserts that the given process agent checks are running on the given VM
-func assertRunningChecks(t *assert.CollectT, client agentclient.Agent, checks []string, withSystemProbe bool) {
+// AgentStatus is a subset of the agent's status response for asserting the process-agent runtime
+type AgentStatus struct {
+	ProcessAgentStatus struct {
+		Expvars struct {
+			Map struct {
+				EnabledChecks                []string `json:"enabled_checks"`
+				SysProbeProcessModuleEnabled bool     `json:"system_probe_process_module_enabled"`
+			} `json:"process_agent"`
+		} `json:"expvars"`
+		Error string `json:"error"`
+	} `json:"processAgentStatus"`
+	ProcessComponentStatus struct {
+		Expvars struct {
+			Map struct {
+				EnabledChecks                []string `json:"enabled_checks"`
+				SysProbeProcessModuleEnabled bool     `json:"system_probe_process_module_enabled"`
+			} `json:"process_agent"`
+		} `json:"expvars"`
+	} `json:"processComponentStatus"`
+}
+
+func getAgentStatus(t *assert.CollectT, client agentclient.Agent) AgentStatus {
 	status := client.Status(agentclient.WithArgs([]string{"--json"}))
 	assert.NotNil(t, status, "failed to get agent status")
 
-	var statusMap struct {
-		ProcessAgentStatus struct {
-			Expvars struct {
-				Map struct {
-					EnabledChecks                []string `json:"enabled_checks"`
-					SysProbeProcessModuleEnabled bool     `json:"system_probe_process_module_enabled"`
-				} `json:"process_agent"`
-			} `json:"expvars"`
-		} `json:"processAgentStatus"`
-	}
+	var statusMap AgentStatus
 	err := json.Unmarshal([]byte(status.Content), &statusMap)
 	assert.NoError(t, err, "failed to unmarshal agent status")
+
+	return statusMap
+}
+
+// assertRunningChecks asserts that the given process agent checks are running on the given VM
+func assertRunningChecks(t *assert.CollectT, client agentclient.Agent, checks []string, withSystemProbe bool) {
+	statusMap := getAgentStatus(t, client)
 
 	assert.ElementsMatch(t, checks, statusMap.ProcessAgentStatus.Expvars.Map.EnabledChecks)
 

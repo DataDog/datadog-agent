@@ -161,14 +161,15 @@ func (s *dockerTestSuite) TestProcessChecksInCoreAgent() {
 	s.UpdateEnv(awsdocker.Provisioner(awsdocker.WithAgentOptions(agentOpts...)))
 
 	assert.EventuallyWithT(t, func(collect *assert.CollectT) {
-		assertRunningChecks(collect, s.Env().Agent.Client, []string{}, false)
-	}, 1*time.Minute, 5*time.Second)
+		status := getAgentStatus(collect, s.Env().Agent.Client)
 
-	// Verify that the process agent is not running
-	assert.EventuallyWithT(t, func(collect *assert.CollectT) {
-		status := s.Env().Docker.Client.ExecuteCommand(
-			s.Env().Agent.ContainerName, "process-agent", "status")
-		assert.Contains(t, status, "The Process Agent is not running")
+		// verify the standalone process-agent is not running
+		assert.NotEmpty(t, status.ProcessAgentStatus.Error, "status: %+v", status)
+		assert.Empty(t, status.ProcessAgentStatus.Expvars.Map.EnabledChecks)
+
+		// Verify the process component is running in the core agent
+		assert.ElementsMatch(t, status.ProcessComponentStatus.Expvars.Map.EnabledChecks, []string{"process", "rtprocess"})
+
 	}, 1*time.Minute, 5*time.Second)
 
 	// Flush fake intake to remove any payloads which may have
@@ -201,6 +202,18 @@ func (s *dockerTestSuite) TestProcessChecksInCoreAgentWithNPM() {
 
 	assert.EventuallyWithT(t, func(collect *assert.CollectT) {
 		assertRunningChecks(collect, s.Env().Agent.Client, []string{"connections"}, false)
+	}, 1*time.Minute, 5*time.Second)
+
+	assert.EventuallyWithT(t, func(collect *assert.CollectT) {
+		status := getAgentStatus(collect, s.Env().Agent.Client)
+
+		// verify the standalone process-agent is running with just the NPM check
+		assert.Empty(t, status.ProcessAgentStatus.Error, "status: %+v", status)
+		assert.ElementsMatch(t, []string{"connections"}, status.ProcessAgentStatus.Expvars.Map.EnabledChecks)
+
+		// Verify the process component is running in the core agent
+		assert.ElementsMatch(t, status.ProcessComponentStatus.Expvars.Map.EnabledChecks, []string{"process", "rtprocess"})
+
 	}, 1*time.Minute, 5*time.Second)
 
 	// Flush fake intake to remove any payloads which may have
