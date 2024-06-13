@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package commonendpoints
+package commonendpointsimpl
 
 import (
 	"context"
@@ -25,7 +25,7 @@ func TestGetHostname(t *testing.T) {
 	require.NoError(t, err)
 
 	rr := httptest.NewRecorder()
-	handler := http.HandlerFunc(getHostname)
+	handler := http.HandlerFunc(GetHostname)
 	handler.ServeHTTP(rr, req)
 
 	require.Equal(t, http.StatusOK, rr.Code)
@@ -58,7 +58,7 @@ func TestStopAgent(t *testing.T) {
 	require.NoError(t, err)
 
 	rr := httptest.NewRecorder()
-	handler := http.HandlerFunc(stopAgent)
+	handler := http.HandlerFunc(StopAgent)
 	handler.ServeHTTP(rr, req)
 
 	require.NoError(t, <-stopCh)
