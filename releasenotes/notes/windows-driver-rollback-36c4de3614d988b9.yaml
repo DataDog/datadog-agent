@@ -8,4 +8,4 @@
 ---
 fixes:
   - |
-    Windows: Added driver rollback properties to ensure that all services/drivers are uninstalled/rolled back after a failed installation/upgrade.
+    Windows: Added driver rollback properties to ensure that all services and drivers are uninstalled or rolled back after an installation or upgrade failure.
