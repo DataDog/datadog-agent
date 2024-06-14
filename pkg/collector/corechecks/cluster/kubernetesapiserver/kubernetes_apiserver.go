@@ -78,7 +78,7 @@ type KubeASConfig struct {
 	EventCollectionTimeoutMs int  `yaml:"kubernetes_event_read_timeout_ms"`
 	ResyncPeriodEvents       int  `yaml:"kubernetes_event_resync_period_s"`
 	UnbundleEvents           bool `yaml:"unbundle_events"`
-	BundleUnspecifedEvents   bool `yaml:"bundle_unspecified_events"`
+	BundleUnspecifiedEvents  bool `yaml:"bundle_unspecified_events"`
 
 	// FilteredEventTypes is a slice of kubernetes field selectors that
 	// works as a deny list of events to filter out.
@@ -182,12 +182,12 @@ func (k *KubeASCheck) Configure(senderManager sender.SenderManager, _ uint64, co
 	// When we use both bundled and unbundled transformers, we apply two filters: filtered_event_types and collected_event_types.
 	// When we use only the bundled transformer, we apply filtered_event_types.
 	// When we use only the unbundled transformer, we apply collected_event_types.
-	if (k.instance.UnbundleEvents && k.instance.BundleUnspecifedEvents) || !k.instance.UnbundleEvents {
+	if (k.instance.UnbundleEvents && k.instance.BundleUnspecifiedEvents) || !k.instance.UnbundleEvents {
 		k.eventCollection.Filter = convertFilters(k.instance.FilteredEventTypes)
 	}
 
 	if k.instance.UnbundleEvents {
-		k.eventCollection.Transformer = newUnbundledTransformer(clusterName, tagger.GetTaggerInstance(), k.instance.CollectedEventTypes, k.instance.BundleUnspecifedEvents)
+		k.eventCollection.Transformer = newUnbundledTransformer(clusterName, tagger.GetTaggerInstance(), k.instance.CollectedEventTypes, k.instance.BundleUnspecifiedEvents)
 	} else {
 		k.eventCollection.Transformer = newBundledTransformer(clusterName, tagger.GetTaggerInstance())
 	}
