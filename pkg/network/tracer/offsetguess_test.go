@@ -28,7 +28,6 @@ import (
 	nettestutil "github.com/DataDog/datadog-agent/pkg/network/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/offsetguess"
 	"github.com/DataDog/datadog-agent/pkg/process/statsd"
-	ebpfkernel "github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
@@ -133,6 +132,71 @@ func TestOffsetGuess(t *testing.T) {
 
 func testOffsetGuess(t *testing.T) {
 	cfg := testConfig()
+	buf, err := runtime.OffsetguessTest.Compile(&cfg.Config, getCFlags(cfg), statsd.Client)
+	require.NoError(t, err)
+	defer buf.Close()
+
+	mgr := &manager.Manager{
+		Maps: []*manager.Map{
+			{Name: "offsets"},
+		},
+		PerfMaps: []*manager.PerfMap{},
+		Probes: []*manager.Probe{
+			{
+				ProbeIdentificationPair: manager.ProbeIdentificationPair{
+					EBPFFuncName: "kprobe__tcp_getsockopt",
+					UID:          "offsetguess",
+				},
+			},
+		},
+	}
+
+	opts := manager.Options{
+		// Extend RLIMIT_MEMLOCK (8) size
+		// On some systems, the default for RLIMIT_MEMLOCK may be as low as 64 bytes.
+		// This will result in an EPERM (Operation not permitted) error, when trying to create an eBPF map
+		// using bpf(2) with BPF_MAP_CREATE.
+		//
+		// We are setting the limit to infinity until we have a better handle on the true requirements.
+		RLimit: &unix.Rlimit{
+			Cur: math.MaxUint64,
+			Max: math.MaxUint64,
+		},
+		MapEditors: make(map[string]*ebpf.Map),
+	}
+
+	require.NoError(t, mgr.InitWithOptions(buf, opts))
+	require.NoError(t, mgr.Start())
+	t.Cleanup(func() { mgr.Stop(manager.CleanAll) })
+
+	server := NewTCPServer(func(c net.Conn) {})
+	require.NoError(t, server.Run())
+	t.Cleanup(func() { server.Shutdown() })
+
+	var c net.Conn
+	require.Eventually(t, func() bool {
+		c, err = net.Dial("tcp4", server.address)
+		//nolint:gosimple // TODO(NET) Fix gosimple linter
+		if err == nil {
+			return true
+		}
+
+		return false
+	}, time.Second, 100*time.Millisecond)
+	t.Cleanup(func() { c.Close() })
+
+	f, err := c.(*net.TCPConn).File()
+	require.NoError(t, err)
+	t.Cleanup(func() { f.Close() })
+	_, err = unix.GetsockoptByte(int(f.Fd()), unix.IPPROTO_TCP, unix.TCP_INFO)
+	require.NoError(t, err)
+
+	mp, err := maps.GetMap[offsetT, uint64](mgr, "offsets")
+	require.NoError(t, err)
+
+	kv, err := kernel.HostVersion()
+	require.NoError(t, err)
+
 	// offset guessing used to rely on this previously,
 	// but doesn't anymore
 	cfg.ProtocolClassificationEnabled = false
@@ -215,81 +279,16 @@ func testOffsetGuess(t *testing.T) {
 		}
 	}
 
-	buf, err := runtime.OffsetguessTest.Compile(&cfg.Config, getCFlags(cfg), statsd.Client)
-	require.NoError(t, err)
-	defer buf.Close()
-
-	mgr := &manager.Manager{
-		Maps: []*manager.Map{
-			{Name: "offsets"},
-		},
-		PerfMaps: []*manager.PerfMap{},
-		Probes: []*manager.Probe{
-			{
-				ProbeIdentificationPair: manager.ProbeIdentificationPair{
-					EBPFFuncName: "kprobe__tcp_getsockopt",
-					UID:          "offsetguess",
-				},
-			},
-		},
-	}
-
-	opts := manager.Options{
-		// Extend RLIMIT_MEMLOCK (8) size
-		// On some systems, the default for RLIMIT_MEMLOCK may be as low as 64 bytes.
-		// This will result in an EPERM (Operation not permitted) error, when trying to create an eBPF map
-		// using bpf(2) with BPF_MAP_CREATE.
-		//
-		// We are setting the limit to infinity until we have a better handle on the true requirements.
-		RLimit: &unix.Rlimit{
-			Cur: math.MaxUint64,
-			Max: math.MaxUint64,
-		},
-		MapEditors: make(map[string]*ebpf.Map),
-	}
-
-	require.NoError(t, mgr.InitWithOptions(buf, opts))
-	require.NoError(t, mgr.Start())
-	t.Cleanup(func() { mgr.Stop(manager.CleanAll) })
-
-	server := NewTCPServer(func(c net.Conn) {})
-	require.NoError(t, server.Run())
-	t.Cleanup(func() { server.Shutdown() })
-
-	var c net.Conn
-	require.Eventually(t, func() bool {
-		c, err = net.Dial("tcp4", server.address)
-		//nolint:gosimple // TODO(NET) Fix gosimple linter
-		if err == nil {
-			return true
-		}
-
-		return false
-	}, time.Second, 100*time.Millisecond)
-	t.Cleanup(func() { c.Close() })
-
-	f, err := c.(*net.TCPConn).File()
-	require.NoError(t, err)
-	t.Cleanup(func() { f.Close() })
-	_, err = unix.GetsockoptByte(int(f.Fd()), unix.IPPROTO_TCP, unix.TCP_INFO)
-	require.NoError(t, err)
-
-	mp, err := maps.GetMap[offsetT, uint64](mgr, "offsets")
-	require.NoError(t, err)
-
-	kv, err := ebpfkernel.NewKernelVersion()
-	require.NoError(t, err)
-
 	for o := offsetSaddr; o < offsetMax; o++ {
 		switch o {
 		case offsetSkBuffHead, offsetSkBuffSock, offsetSkBuffTransportHeader:
-			if kv.Code < kernel.VersionCode(4, 7, 0) {
+			if kv < kernel.VersionCode(4, 7, 0) {
 				continue
 			}
 		case offsetSaddrFl6, offsetDaddrFl6, offsetSportFl6, offsetDportFl6:
 			// TODO: offset guessing for these fields is currently broken on kernels 5.18+
 			// see https://datadoghq.atlassian.net/browse/NET-2984
-			if kv.Code >= kernel.VersionCode(5, 18, 0) {
+			if kv >= kernel.VersionCode(5, 18, 0) {
 				continue
 			}
 		case offsetCtOrigin, offsetCtIno, offsetCtNetns, offsetCtReply:

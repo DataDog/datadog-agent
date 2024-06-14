@@ -49,7 +49,8 @@ const (
 	// the offset for RTT (and RTTvar) should be greater than this
 	// since the rtt fields are deep in struct tcp_sock; tcp_sock
 	// nests inet_connection_sock
-	rttDefaultOffsetBytes = 1280
+	rttDefaultOffsetBytes    = 1280
+	rttVarDefaultOffsetBytes = 1280
 )
 
 var tcpKprobeCalledString = map[uint64]string{
@@ -578,24 +579,35 @@ func (t *tracerOffsetGuesser) checkAndUpdateCurrentOffset(mp *maps.GenericMap[ui
 	case GuessRTT:
 		t.status.Offset_rtt, overlapped = skipOverlaps(t.status.Offset_rtt, t.sockRanges())
 		if overlapped {
-			t.status.Offset_rtt_var = t.status.Offset_rtt + 4
 			// adjusted offset from eBPF overlapped with another field, we need to check new offset
 			break
 		}
 
 		// For more information on the bit shift operations see:
 		// https://elixir.bootlin.com/linux/v4.6/source/net/ipv4/tcp.c#L2686
-		if t.status.Rtt>>3 == expected.rtt && t.status.Rtt_var>>2 == expected.rttVar {
-			t.logAndAdvance(t.status.Offset_rtt, GuessSocketSK)
+		if t.status.Rtt>>3 == expected.rtt {
+			t.logAndAdvance(t.status.Offset_rtt, GuessRTTVar)
 			break
 		}
-		// We know that these two fields are always next to each other, 4 bytes apart:
-		// https://elixir.bootlin.com/linux/v4.6/source/include/linux/tcp.h#L232
-		// rtt -> srtt_us
-		// rtt_var -> mdev_us
+
 		t.status.Offset_rtt++
 		t.status.Offset_rtt, _ = skipOverlaps(t.status.Offset_rtt, t.sockRanges())
-		t.status.Offset_rtt_var = t.status.Offset_rtt + 4
+	case GuessRTTVar:
+		t.status.Offset_rtt_var, overlapped = skipOverlaps(t.status.Offset_rtt_var, t.sockRanges())
+		if overlapped {
+			// adjusted offset from eBPF overlapped with another field, we need to check new offset
+			break
+		}
+
+		// For more information on the bit shift operations see:
+		// https://elixir.bootlin.com/linux/v4.6/source/net/ipv4/tcp.c#L2686
+		if t.status.Rtt_var>>2 == expected.rttVar {
+			t.logAndAdvance(t.status.Offset_rtt_var, GuessSocketSK)
+			break
+		}
+
+		t.status.Offset_rtt_var++
+		t.status.Offset_rtt_var, _ = skipOverlaps(t.status.Offset_rtt_var, t.sockRanges())
 	case GuessSocketSK:
 		if t.status.Sport_via_sk == htons(expected.sport) && t.status.Dport_via_sk == htons(expected.dport) {
 			// if we are on kernel version < 4.7, net_dev_queue tracepoint will not be activated, and thus we should skip
@@ -755,11 +767,12 @@ func (t *tracerOffsetGuesser) Guess(cfg *config.Config) ([]manager.ConstantEdito
 
 	t.guessTCPv6, t.guessUDPv6 = getIpv6Configuration(cfg)
 	t.status = &TracerStatus{
-		State:        uint64(StateChecking),
-		Proc:         Proc{Comm: cProcName},
-		What:         uint64(GuessSAddr),
-		Offset_netns: netNsDefaultOffsetBytes,
-		Offset_rtt:   rttDefaultOffsetBytes,
+		State:          uint64(StateChecking),
+		Proc:           Proc{Comm: cProcName},
+		What:           uint64(GuessSAddr),
+		Offset_netns:   netNsDefaultOffsetBytes,
+		Offset_rtt:     rttDefaultOffsetBytes,
+		Offset_rtt_var: rttVarDefaultOffsetBytes,
 	}
 
 	// if we already have the offsets, just return
