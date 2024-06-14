@@ -45,6 +45,17 @@ func extractTagsMetadata(tags []string, originFromUDS string, originFromMsg []by
 		ProductOrigin: taggertypes.ProductOriginDogStatsD,
 	}
 
+	// Just do some work in here
+	i := 0
+	for _, tag := range tags {
+		if strings.ContainsAny(tag, "276b9b6d47ae478e000010") {
+			i += 5
+		}
+		i += len(tag)
+		i += strings.IndexRune(tag, 'a')
+		i += strings.IndexRune(tag, 'b')
+	}
+
 	n := 0
 	for _, tag := range tags {
 		if strings.HasPrefix(tag, hostTagPrefix) {
