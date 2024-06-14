@@ -4,7 +4,7 @@ import json
 import os
 from collections import Counter
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, UTC
 
 from gitlab.v4.objects import Project, ProjectPipeline, ProjectPipelineJob
 from invoke import Context
@@ -68,7 +68,7 @@ class SummaryData:
         self, ctx: Context, id: int = None, jobs: list[ProjectPipelineJob] = None, pipeline: ProjectPipeline = None
     ):
         self.ctx = ctx
-        self.id = id or int(datetime.now().timestamp())
+        self.id = id or int(datetime.now(UTC).timestamp())
         self.jobs = jobs or []
         self.pipeline = pipeline
 
@@ -179,7 +179,7 @@ def fetch_jobs(ctx: Context, pipeline_id: int) -> SummaryData:
     """
     Returns all the jobs for a given pipeline
     """
-    id = int(datetime.now().timestamp())
+    id = int(datetime.now(UTC).timestamp())
     repo = get_gitlab_repo()
 
     jobs: list[ProjectPipelineJob] = []
@@ -195,8 +195,9 @@ def fetch_summaries(ctx: Context, period: timedelta) -> SummaryData:
     """
     Returns all summaries for a given period
     """
-    ids = SummaryData.list_summaries(ctx, after=int((datetime.now() - period).timestamp()))
-    summaries = [SummaryData.read(ctx, get_gitlab_repo(), id) for id in ids]
+    ids = SummaryData.list_summaries(ctx, after=int((datetime.now(UTC) - period).timestamp()))
+    repo = get_gitlab_repo()
+    summaries = [SummaryData.read(ctx, repo, id) for id in ids]
     summary = SummaryData.merge(summaries)
 
     return summary
@@ -216,7 +217,7 @@ def clean_summaries(ctx: Context, period: timedelta):
     """
     Will remove summaries older than this period
     """
-    ids = SummaryData.list_summaries(ctx, before=int((datetime.now() - period).timestamp()))
+    ids = SummaryData.list_summaries(ctx, before=int((datetime.now(UTC) - period).timestamp()))
     remove_files(ctx, [SummaryData.filename(id) for id in ids])
 
 

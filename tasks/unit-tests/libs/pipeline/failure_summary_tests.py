@@ -1,10 +1,11 @@
 import os
 import shutil
 from contextlib import contextmanager
+from datetime import UTC, datetime, timedelta
 from unittest import TestCase
 from unittest.mock import MagicMock, patch
 
-from gitlab.v4.objects import ProjectPipelineJob, ProjectPipeline, ProjectManager
+from gitlab.v4.objects import ProjectManager, ProjectPipeline, ProjectPipelineJob
 from invoke import Context
 
 from tasks.libs.pipeline import failure_summary
@@ -212,3 +213,24 @@ class ModuleTest(FailureSummaryTest):
             self.assertEqual(len(summary.jobs), 2)
             self.assertEqual(summary.jobs[0].id, 1)
             self.assertEqual(summary.jobs[1].id, 2)
+
+    @patch('tasks.libs.pipeline.failure_summary.datetime')
+    def test_clean_summaries(self, mock):
+        mock.now.return_value = datetime(2042, 1, 16, tzinfo=UTC)
+
+        days = [2, 4, 6, 8, 10]
+        summaries = []
+        for day in days:
+            id = int(datetime(2042, 1, day, tzinfo=UTC).timestamp())
+            summary = SummaryData(MagicMock(), id, jobs=[ProjectPipelineJob(manager=MagicMock(), attrs={'id': day})])
+            summary.write()
+            summaries.append(summary)
+
+        ids = [s.id for s in summaries]
+
+        failure_summary.clean_summaries(MagicMock(), period=timedelta(days=10))
+        new_ids = failure_summary.list_files(MagicMock())
+        new_ids = sorted(SummaryData.get_id(name) for name in new_ids)
+
+        # 6, 8, 10
+        self.assertEqual(new_ids, ids[2:])
