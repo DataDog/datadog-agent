@@ -15,19 +15,30 @@ import (
 
 // ZstdStrategy is the strategy for when serializer_compressor_kind is zstd
 type ZstdStrategy struct {
-	level int
+	ctx    zstd.Ctx
+	output []byte
+	level  int
 }
 
 // NewZstdStrategy returns a new ZstdStrategy
 func NewZstdStrategy(level int) *ZstdStrategy {
 	return &ZstdStrategy{
-		level: level,
+		ctx:    zstd.NewCtx(),
+		output: make([]byte, 0),
+		level:  level,
 	}
 }
 
 // Compress will compress the data with zstd
 func (s *ZstdStrategy) Compress(src []byte) ([]byte, error) {
-	return zstd.CompressLevel(nil, src, s.level)
+	bound := zstd.CompressBound(len(src))
+
+	if cap(s.output) < bound {
+		// We need to reallocate the buffer to accomadate the larger size
+		s.output = make([]byte, bound)
+	}
+
+	return s.ctx.CompressLevel(s.output, src, s.level)
 }
 
 // Decompress will decompress the data with zstd
